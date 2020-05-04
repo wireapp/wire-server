@@ -34,8 +34,6 @@ module Wire.API.Conversation.Event
     SimpleMember (..),
     SimpleMembers (..),
     MemberUpdateData (..),
-    TypingData (..),
-    TypingStatus (..),
     OtrMessage (..),
     parseEventData,
 
@@ -60,6 +58,7 @@ import Wire.API.Conversation
 import qualified Wire.API.Conversation.Code as Code
 import Wire.API.Conversation.Member
 import Wire.API.Conversation.Role
+import Wire.API.Conversation.Typing (TypingData)
 
 -- Conversations ------------------------------------------------------------
 
@@ -193,17 +192,6 @@ data MemberUpdateData = MemberUpdateData
     misConvRoleName :: !(Maybe RoleName)
   }
   deriving (Eq, Show, Generic)
-
-newtype TypingData = TypingData
-  { tdStatus :: TypingStatus
-  }
-  deriving (Eq, Show, Generic)
-
--- TODO: belongs somewhere more general?
-data TypingStatus
-  = StartedTyping
-  | StoppedTyping
-  deriving (Eq, Ord, Show, Generic)
 
 -- Instances ----------------------------------------------------------------
 
@@ -434,19 +422,3 @@ instance ToJSON Connect where
         "name" .= cName c,
         "email" .= cEmail c
       ]
-
-instance ToJSON TypingStatus where
-  toJSON StartedTyping = String "started"
-  toJSON StoppedTyping = String "stopped"
-
-instance FromJSON TypingStatus where
-  parseJSON (String "started") = return StartedTyping
-  parseJSON (String "stopped") = return StoppedTyping
-  parseJSON x = fail $ "No status-type: " <> show x
-
-instance ToJSON TypingData where
-  toJSON t = object ["status" .= tdStatus t]
-
-instance FromJSON TypingData where
-  parseJSON = withObject "typing-data" $ \o ->
-    TypingData <$> o .: "status"

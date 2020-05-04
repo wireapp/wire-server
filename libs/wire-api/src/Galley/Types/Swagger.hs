@@ -42,7 +42,6 @@ galleyModels =
     modelInvite,
     modelNewConversation,
     modelTeamInfo,
-    modelTyping,
     modelNewOtrMessage,
     modelOtrRecipients,
     modelOtrClientMap,
