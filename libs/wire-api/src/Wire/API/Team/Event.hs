@@ -63,7 +63,6 @@ import Data.Aeson.Types (Parser)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id (ConvId, TeamId, UserId)
 import Data.Json.Util
-import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Time (UTCTime)
 import Imports

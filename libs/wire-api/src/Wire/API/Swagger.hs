@@ -28,7 +28,6 @@ import qualified Wire.API.Team.Event as Team.Event
 import qualified Wire.API.Team.Feature as Team.Feature
 import qualified Wire.API.Team.Member as Team.Member
 import qualified Wire.API.Team.Permission as Team.Permission
-import qualified Wire.API.Team.Role as Team.Role
 
 models :: [Model]
 models =

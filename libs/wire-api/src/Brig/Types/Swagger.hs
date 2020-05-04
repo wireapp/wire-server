@@ -20,10 +20,10 @@
 module Brig.Types.Swagger where
 
 import Data.Swagger.Build.Api
-import qualified Data.Swagger.Model.Api as Model
 import qualified Galley.Types.Swagger as Galley
 import Imports
-import Wire.API.Team (defaultRole, modelNewBindingTeam)
+import Wire.API.Team (modelNewBindingTeam)
+import Wire.API.Team.Role (typeRole)
 import Wire.Swagger
 
 brigModels :: [Model]
@@ -404,17 +404,6 @@ connectionList = defineModel "UserConnectionList" $ do
 -------------------------------------------------------------------------------
 -- Team invitation Models
 
-role :: DataType
-role =
-  Model.Prim $
-    Model.Primitive
-      { Model.primType = Model.PrimString,
-        Model.defaultValue = Just defaultRole,
-        Model.enum = Just [minBound ..],
-        Model.minVal = Just minBound,
-        Model.maxVal = Just maxBound
-      }
-
 teamInvitationRequest :: Model
 teamInvitationRequest = defineModel "TeamInvitationRequest" $ do
   description "A request to join a team on Wire."
@@ -425,7 +414,7 @@ teamInvitationRequest = defineModel "TeamInvitationRequest" $ do
   property "locale" string' $ do
     description "Locale to use for the invitation."
     optional
-  property "role" role $ do
+  property "role" typeRole $ do
     description "Role of the invited user"
     optional
   property "name" string' $ do
@@ -445,7 +434,7 @@ teamInvitation = defineModel "TeamInvitation" $ do
   description "An invitation to join a team on Wire"
   property "team" bytes' $
     description "Team ID of the inviting team"
-  property "role" role $ do
+  property "role" typeRole $ do
     description "Role of the invited user"
     optional
   property "id" bytes' $

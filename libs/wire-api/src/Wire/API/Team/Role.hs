@@ -27,11 +27,15 @@
 module Wire.API.Team.Role
   ( Role (..),
     defaultRole,
+
+    -- * Swagger
+    typeRole,
   )
 where
 
 import qualified Cassandra as Cql
 import Data.Aeson
+import qualified Data.Swagger.Model.Api as Doc
 import Imports
 
 -- Note [team roles]
@@ -74,6 +78,17 @@ import Imports
 -- | Team-level role.  Analog to conversation-level 'ConversationRole'.
 data Role = RoleOwner | RoleAdmin | RoleMember | RoleExternalPartner
   deriving (Eq, Show, Enum, Bounded, Generic)
+
+typeRole :: Doc.DataType
+typeRole =
+  Doc.Prim $
+    Doc.Primitive
+      { Doc.primType = Doc.PrimString,
+        Doc.defaultValue = Just defaultRole,
+        Doc.enum = Just [minBound ..],
+        Doc.minVal = Just minBound,
+        Doc.maxVal = Just maxBound
+      }
 
 instance ToJSON Role where
   toJSON RoleOwner = "owner"

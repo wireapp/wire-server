@@ -54,7 +54,7 @@ import Data.List1
 import Data.Misc
 import Imports
 import Wire.API.Conversation.Member
-import Wire.API.Conversation.Role
+import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
 
 -- Conversations ------------------------------------------------------------
 

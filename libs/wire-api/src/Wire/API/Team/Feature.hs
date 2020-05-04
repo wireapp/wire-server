@@ -138,6 +138,8 @@ instance FromJSON SSOStatus where
 
 --------------------------------------------------------------------------------
 -- FeatureFlags
+--
+-- TODO: keep in galley-types?
 
 data FeatureSSO
   = FeatureSSOEnabledByDefault
@@ -167,7 +169,6 @@ instance FromJSON FeatureLegalHold where
   parseJSON (String "disabled-by-default") = pure $ FeatureLegalHoldDisabledByDefault
   parseJSON bad = fail $ "FeatureLegalHold: " <> cs (encode bad)
 
--- TODO: keep in galley-types?
 data FeatureFlags = FeatureFlags
   { _flagSSO :: !FeatureSSO,
     _flagLegalHold :: !FeatureLegalHold
