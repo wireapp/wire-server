@@ -19,29 +19,17 @@
 
 module Galley.Types.Swagger where
 
-import Data.Aeson (encode)
-import Data.String.Conversions (cs)
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
-import Wire.API.Conversation (Access)
+import Wire.API.Conversation (modelConversationAccessUpdate, modelConversationMessageTimerUpdate, modelConversationReceiptModeUpdate, modelConversationUpdateName)
 import Wire.API.Conversation.Code (modelConversationCode)
-import Wire.API.Conversation.Member (modelConversationMembers)
+import Wire.API.Conversation.Typing (modelTyping)
 import qualified Wire.Swagger as Swagger
 
 -- TODO(wire-api): check if all models are used
 galleyModels :: [Doc.Model]
 galleyModels =
-  [ modelConversation,
-    modelConversations,
-    modelConversationIds,
-    modelServiceRef,
-    modelConversationUpdateName,
-    modelConversationAccessUpdate,
-    modelConversationReceiptModeUpdate,
-    modelConversationMessageTimerUpdate,
-    modelInvite,
-    modelNewConversation,
-    modelTeamInfo,
+  [ modelServiceRef,
     modelNewOtrMessage,
     modelOtrRecipients,
     modelOtrClientMap,
@@ -90,10 +78,10 @@ modelEvent = Doc.defineModel "Event" $ do
     "type"
     [ modelMemberEvent,
       modelConnectEvent,
-      modelConversationNameUpdateEvent,
       modelMemberUpdateEvent,
       modelTypingEvent,
       modelOtrMessageEvent,
+      modelConversationNameUpdateEvent,
       modelConversationAccessUpdateEvent,
       modelConversationReceiptModeUpdateEvent,
       modelConversationMessageTimerUpdateEvent,
@@ -175,28 +163,6 @@ modelTypingEvent :: Doc.Model
 modelTypingEvent = Doc.defineModel "TypingEvent" $ do
   Doc.description "typing event"
   Doc.property "data" (Doc.ref modelTyping) $ Doc.description "typing data"
-
-modelConversation :: Doc.Model
-modelConversation = Doc.defineModel "Conversation" $ do
-  Doc.description "A conversation object as returned from the server"
-  Doc.property "id" Doc.bytes' $
-    Doc.description "Conversation ID"
-  Doc.property "type" typeConversationType $
-    Doc.description "The conversation type of this object (0 = regular, 1 = self, 2 = 1:1, 3 = connect)"
-  Doc.property "creator" Doc.bytes' $
-    Doc.description "The creator's user ID."
-  -- TODO: Doc.property "access"
-  -- Doc.property "access_role"
-  Doc.property "name" Doc.string' $ do
-    Doc.description "The conversation name (can be null)"
-  Doc.property "members" (Doc.ref modelConversationMembers) $
-    Doc.description "The current set of conversation members"
-  -- Doc.property "team"
-  Doc.property "message_timer" (Doc.int64 (Doc.min 0)) $ do
-    Doc.description "Per-conversation message timer (can be null)"
-
-typeConversationType :: Doc.DataType
-typeConversationType = Doc.int32 $ Doc.enum [0, 1, 2, 3]
 
 modelOtrMessage :: Doc.Model
 modelOtrMessage = Doc.defineModel "OtrMessage" $ do
@@ -288,86 +254,6 @@ modelMembers =
     $ Doc.property "users" (Doc.unique $ Doc.array Doc.bytes')
     $ Doc.description "List of user IDs"
 
-modelConversationUpdateName :: Doc.Model
-modelConversationUpdateName = Doc.defineModel "ConversationUpdateName" $ do
-  Doc.description "Contains conversation name to update"
-  Doc.property "name" Doc.string' $
-    Doc.description "The new conversation name"
-
-modelConversationAccessUpdate :: Doc.Model
-modelConversationAccessUpdate = Doc.defineModel "ConversationAccessUpdate" $ do
-  Doc.description "Contains conversation properties to update"
-  Doc.property "access" (Doc.unique $ Doc.array typeAccess) $
-    Doc.description "List of conversation access modes."
-  Doc.property "access_role" (Doc.bytes') $
-    Doc.description "Conversation access role: private|team|activated|non_activated"
-
-typeAccess :: Doc.DataType
-typeAccess = Doc.string . Doc.enum $ cs . encode <$> [(minBound :: Access) ..]
-
-modelConversationReceiptModeUpdate :: Doc.Model
-modelConversationReceiptModeUpdate = Doc.defineModel "conversationReceiptModeUpdate" $ do
-  Doc.description
-    "Contains conversation receipt mode to update to. Receipt mode tells \
-    \clients whether certain types of receipts should be sent in the given \
-    \conversation or not. How this value is interpreted is up to clients."
-  Doc.property "receipt_mode" Doc.int32' $
-    Doc.description "Receipt mode: int32"
-
-modelConversationMessageTimerUpdate :: Doc.Model
-modelConversationMessageTimerUpdate = Doc.defineModel "ConversationMessageTimerUpdate" $ do
-  Doc.description "Contains conversation properties to update"
-  Doc.property "message_timer" Doc.int64' $
-    Doc.description "Conversation message timer (in milliseconds); can be null"
-
-modelNewConversation :: Doc.Model
-modelNewConversation = Doc.defineModel "NewConversation" $ do
-  Doc.description "JSON object to create a new conversation"
-  Doc.property "users" (Doc.unique $ Doc.array Doc.bytes') $
-    Doc.description "List of user IDs (excluding the requestor) to be part of this conversation"
-  Doc.property "name" Doc.string' $ do
-    Doc.description "The conversation name"
-    Doc.optional
-  Doc.property "team" (Doc.ref modelTeamInfo) $ do
-    Doc.description "Team information of this conversation"
-    Doc.optional
-  -- TODO: Doc.property "access"
-  -- Doc.property "access_role"
-  Doc.property "message_timer" (Doc.int64 (Doc.min 0)) $ do
-    Doc.description "Per-conversation message timer"
-    Doc.optional
-  Doc.property "receipt_mode" (Doc.int32 (Doc.min 0)) $ do
-    Doc.description "Conversation receipt mode"
-    Doc.optional
-
-modelTeamInfo :: Doc.Model
-modelTeamInfo = Doc.defineModel "TeamInfo" $ do
-  Doc.description "Team information"
-  Doc.property "teamid" Doc.bytes' $
-    Doc.description "Team ID"
-  Doc.property "managed" Doc.bool' $
-    Doc.description "Is this a managed team conversation?"
-
-modelConversationIds :: Doc.Model
-modelConversationIds = Doc.defineModel "ConversationIds" $ do
-  Doc.description "Object holding a list of conversation IDs"
-  Doc.property "conversations" (Doc.unique $ Doc.array Doc.string') Doc.end
-  Doc.property "has_more" Doc.bool' $
-    Doc.description "Indicator that the server has more IDs than returned"
-
-modelConversations :: Doc.Model
-modelConversations = Doc.defineModel "Conversations" $ do
-  Doc.description "Object holding a list of conversations"
-  Doc.property "conversations" (Doc.unique $ Doc.array (Doc.ref modelConversation)) Doc.end
-  Doc.property "has_more" Doc.bool' $
-    Doc.description "Indicator that the server has more conversations than returned"
-
-modelInvite :: Doc.Model
-modelInvite = Doc.defineModel "Invite" $ do
-  Doc.description "Add users to a conversation"
-  Doc.property "users" (Doc.unique $ Doc.array Doc.bytes') $
-    Doc.description "List of user IDs to add to a conversation"
-
 modelMemberUpdateData :: Doc.Model
 modelMemberUpdateData = Doc.defineModel "MemberUpdateData" $ do
   Doc.description "Event data on member updates"
@@ -405,19 +291,6 @@ modelOtherMemberUpdateData = Doc.defineModel "OtherMemberUpdateData" $ do
   Doc.property "conversation_role" Doc.string' $ do
     Doc.description "Name of the conversation role to update to"
     Doc.optional
-
-modelTyping :: Doc.Model
-modelTyping = Doc.defineModel "Typing" $ do
-  Doc.description "Data to describe typing info"
-  Doc.property "status" typeTypingStatus $ Doc.description "typing status"
-
-typeTypingStatus :: Doc.DataType
-typeTypingStatus =
-  Doc.string $
-    Doc.enum
-      [ "started",
-        "stopped"
-      ]
 
 modelConnect :: Doc.Model
 modelConnect = Doc.defineModel "Connect" $ do

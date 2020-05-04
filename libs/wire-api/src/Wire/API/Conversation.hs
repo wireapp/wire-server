@@ -52,6 +52,17 @@ module Wire.API.Conversation
     ConversationAccessUpdate (..),
     ConversationReceiptModeUpdate (..),
     ConversationMessageTimerUpdate (..),
+
+    -- * Swagger
+    modelConversation,
+    modelConversations,
+    modelConversationIds,
+    modelInvite,
+    modelNewConversation,
+    modelConversationUpdateName,
+    modelConversationAccessUpdate,
+    modelConversationReceiptModeUpdate,
+    modelConversationMessageTimerUpdate,
   )
 where
 
@@ -61,6 +72,8 @@ import Data.Id
 import Data.Json.Util
 import Data.List1
 import Data.Misc
+import Data.String.Conversions (cs)
+import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.API.Conversation.Member
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
@@ -87,6 +100,25 @@ data Conversation = Conversation
   }
   deriving (Eq, Show)
 
+modelConversation :: Doc.Model
+modelConversation = Doc.defineModel "Conversation" $ do
+  Doc.description "A conversation object as returned from the server"
+  Doc.property "id" Doc.bytes' $
+    Doc.description "Conversation ID"
+  Doc.property "type" typeConversationType $
+    Doc.description "The conversation type of this object (0 = regular, 1 = self, 2 = 1:1, 3 = connect)"
+  Doc.property "creator" Doc.bytes' $
+    Doc.description "The creator's user ID."
+  -- TODO: Doc.property "access"
+  -- Doc.property "access_role"
+  Doc.property "name" Doc.string' $ do
+    Doc.description "The conversation name (can be null)"
+  Doc.property "members" (Doc.ref modelConversationMembers) $
+    Doc.description "The current set of conversation members"
+  -- Doc.property "team"
+  Doc.property "message_timer" (Doc.int64 (Doc.min 0)) $ do
+    Doc.description "Per-conversation message timer (can be null)"
+
 instance ToJSON Conversation where
   toJSON c =
     object
@@ -103,6 +135,24 @@ instance ToJSON Conversation where
         "message_timer" .= cnvMessageTimer c,
         "receipt_mode" .= cnvReceiptMode c
       ]
+
+-- | This is used to describe a @ConversationList ConvId@.
+--
+-- FUTUREWORK: Create a new ConversationIdList type instead.
+modelConversationIds :: Doc.Model
+modelConversationIds = Doc.defineModel "ConversationIds" $ do
+  Doc.description "Object holding a list of conversation IDs"
+  Doc.property "conversations" (Doc.unique $ Doc.array Doc.string') Doc.end
+  Doc.property "has_more" Doc.bool' $
+    Doc.description "Indicator that the server has more IDs than returned"
+
+-- | This is used to describe a @ConversationList Conversation@.
+modelConversations :: Doc.Model
+modelConversations = Doc.defineModel "Conversations" $ do
+  Doc.description "Object holding a list of conversations"
+  Doc.property "conversations" (Doc.unique $ Doc.array (Doc.ref modelConversation)) Doc.end
+  Doc.property "has_more" Doc.bool' $
+    Doc.description "Indicator that the server has more conversations than returned"
 
 instance FromJSON Conversation where
   parseJSON = withObject "conversation" $ \o ->
@@ -149,6 +199,9 @@ data Access
   | -- | User can join knowing [changeable/revokable] code
     CodeAccess
   deriving (Eq, Ord, Bounded, Enum, Show)
+
+typeAccess :: Doc.DataType
+typeAccess = Doc.string . Doc.enum $ cs . encode <$> [(minBound :: Access) ..]
 
 instance ToJSON Access where
   toJSON PrivateAccess = String "private"
@@ -202,6 +255,9 @@ data ConvType
   | One2OneConv
   | ConnectConv
   deriving (Eq, Show)
+
+typeConversationType :: Doc.DataType
+typeConversationType = Doc.int32 $ Doc.enum [0, 1, 2, 3]
 
 instance ToJSON ConvType where
   toJSON RegularConv = Number 0
@@ -285,6 +341,27 @@ instance FromJSON NewConvManaged where
 newtype NewConvUnmanaged = NewConvUnmanaged NewConv
   deriving (Eq, Show)
 
+-- | Used to describe a 'NewConvUnmanaged'.
+modelNewConversation :: Doc.Model
+modelNewConversation = Doc.defineModel "NewConversation" $ do
+  Doc.description "JSON object to create a new conversation"
+  Doc.property "users" (Doc.unique $ Doc.array Doc.bytes') $
+    Doc.description "List of user IDs (excluding the requestor) to be part of this conversation"
+  Doc.property "name" Doc.string' $ do
+    Doc.description "The conversation name"
+    Doc.optional
+  Doc.property "team" (Doc.ref modelTeamInfo) $ do
+    Doc.description "Team information of this conversation"
+    Doc.optional
+  -- TODO: Doc.property "access"
+  -- Doc.property "access_role"
+  Doc.property "message_timer" (Doc.int64 (Doc.min 0)) $ do
+    Doc.description "Per-conversation message timer"
+    Doc.optional
+  Doc.property "receipt_mode" (Doc.int32 (Doc.min 0)) $ do
+    Doc.description "Conversation receipt mode"
+    Doc.optional
+
 instance ToJSON NewConvUnmanaged where
   toJSON (NewConvUnmanaged nc) = newConvToJSON nc
 
@@ -341,6 +418,14 @@ data ConvTeamInfo = ConvTeamInfo
   }
   deriving (Eq, Show)
 
+modelTeamInfo :: Doc.Model
+modelTeamInfo = Doc.defineModel "TeamInfo" $ do
+  Doc.description "Team information"
+  Doc.property "teamid" Doc.bytes' $
+    Doc.description "Team ID"
+  Doc.property "managed" Doc.bool' $
+    Doc.description "Is this a managed team conversation?"
+
 instance ToJSON ConvTeamInfo where
   toJSON c =
     object
@@ -367,6 +452,12 @@ deriving instance Show Invite
 
 newInvite :: List1 OpaqueUserId -> Invite
 newInvite us = Invite us roleNameWireAdmin
+
+modelInvite :: Doc.Model
+modelInvite = Doc.defineModel "Invite" $ do
+  Doc.description "Add users to a conversation"
+  Doc.property "users" (Doc.unique $ Doc.array Doc.bytes') $
+    Doc.description "List of user IDs to add to a conversation"
 
 instance ToJSON Invite where
   toJSON i =
@@ -406,6 +497,12 @@ deriving instance Eq ConversationRename
 
 deriving instance Show ConversationRename
 
+modelConversationUpdateName :: Doc.Model
+modelConversationUpdateName = Doc.defineModel "ConversationUpdateName" $ do
+  Doc.description "Contains conversation name to update"
+  Doc.property "name" Doc.string' $
+    Doc.description "The new conversation name"
+
 instance ToJSON ConversationRename where
   toJSON cu = object ["name" .= cupName cu]
 
@@ -418,6 +515,14 @@ data ConversationAccessUpdate = ConversationAccessUpdate
     cupAccessRole :: AccessRole
   }
   deriving (Eq, Show)
+
+modelConversationAccessUpdate :: Doc.Model
+modelConversationAccessUpdate = Doc.defineModel "ConversationAccessUpdate" $ do
+  Doc.description "Contains conversation properties to update"
+  Doc.property "access" (Doc.unique $ Doc.array typeAccess) $
+    Doc.description "List of conversation access modes."
+  Doc.property "access_role" (Doc.bytes') $
+    Doc.description "Conversation access role: private|team|activated|non_activated"
 
 instance ToJSON ConversationAccessUpdate where
   toJSON c =
@@ -436,6 +541,15 @@ data ConversationReceiptModeUpdate = ConversationReceiptModeUpdate
   }
   deriving (Eq, Show)
 
+modelConversationReceiptModeUpdate :: Doc.Model
+modelConversationReceiptModeUpdate = Doc.defineModel "conversationReceiptModeUpdate" $ do
+  Doc.description
+    "Contains conversation receipt mode to update to. Receipt mode tells \
+    \clients whether certain types of receipts should be sent in the given \
+    \conversation or not. How this value is interpreted is up to clients."
+  Doc.property "receipt_mode" Doc.int32' $
+    Doc.description "Receipt mode: int32"
+
 instance ToJSON ConversationReceiptModeUpdate where
   toJSON c =
     object
@@ -451,6 +565,12 @@ data ConversationMessageTimerUpdate = ConversationMessageTimerUpdate
     cupMessageTimer :: !(Maybe Milliseconds)
   }
   deriving (Eq, Show)
+
+modelConversationMessageTimerUpdate :: Doc.Model
+modelConversationMessageTimerUpdate = Doc.defineModel "ConversationMessageTimerUpdate" $ do
+  Doc.description "Contains conversation properties to update"
+  Doc.property "message_timer" Doc.int64' $
+    Doc.description "Conversation message timer (in milliseconds); can be null"
 
 instance ToJSON ConversationMessageTimerUpdate where
   toJSON c =
