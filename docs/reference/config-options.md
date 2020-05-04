@@ -17,6 +17,7 @@ settings:
   featureFlags:
     sso: disabled-by-default
     legalhold: disabled-by-default
+    customSearchVisibility: disabled-by-default
 ```
 
 The `featureFlags` field in the galley settings is mandatory, and all
@@ -48,3 +49,10 @@ IMPORTANT: If you switch this back to `disabled-permanently` from
 `disabled-by-default`, LegalHold devices may still be active in teams
 that have created them while it was allowed.  This may change in the
 future.
+
+### Custom Search Visibility
+
+This sets the default setting for all teams, and can be overridden by
+customer support / backoffice. [Allowed
+values](https://github.com/wireapp/wire-server/blob/custom-search-visibility-limit-name-search/libs/galley-types/src/Galley/Types/Teams.hs#L382-L385):
+`disabled-by-default`, `enabled-by-default`.
