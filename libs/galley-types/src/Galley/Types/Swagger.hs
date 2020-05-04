@@ -584,7 +584,7 @@ searchVisibilityType =
   string $
     enum
       [ "standard",
-        "outside-team-outbound-only"
+        "no-name-outside-team"
       ]
 
 searchVisibility :: Model
