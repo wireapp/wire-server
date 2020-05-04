@@ -12,7 +12,8 @@ tags:
 cassandra-ephemeral:
   cassandra-ephemeral:
     # TODO: should put this in our wire-server-deploy chart instead
-    updateStrategy: RollingUpdate
+    updateStrategy:
+      type: RollingUpdate
 
     # TODO add heap limits probably.
     resources:
