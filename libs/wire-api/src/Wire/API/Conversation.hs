@@ -70,6 +70,7 @@ import Data.Aeson.Types (Parser)
 import Data.Id
 import Data.Json.Util
 import Data.List1
+import Data.Misc
 import Data.String.Conversions (cs)
 import qualified Data.Swagger.Build.Api as Doc
 import Imports

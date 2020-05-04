@@ -44,7 +44,6 @@ import Data.Aeson.Types (Parser)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Json.Util ((#), ToJSONObject (toJSONObject), toUTCTimeMillis)
-import Data.Misc
 import Data.Time
 import Imports
 import URI.ByteString ()
