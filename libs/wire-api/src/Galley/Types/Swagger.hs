@@ -25,6 +25,7 @@ import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.API.Conversation (Access)
 import Wire.API.Conversation.Code (modelConversationCode)
+import Wire.API.Conversation.Member (modelConversationMembers)
 import qualified Wire.Swagger as Swagger
 
 -- TODO(wire-api): check if all models are used
@@ -33,17 +34,12 @@ galleyModels =
   [ modelConversation,
     modelConversations,
     modelConversationIds,
-    modelConversationMembers,
-    modelOtherMember,
-    modelMember,
     modelServiceRef,
     modelConversationUpdateName,
     modelConversationAccessUpdate,
     modelConversationReceiptModeUpdate,
     modelConversationMessageTimerUpdate,
     modelInvite,
-    modelMemberUpdate,
-    modelOtherMemberUpdate,
     modelNewConversation,
     modelTeamInfo,
     modelTyping,
@@ -325,48 +321,6 @@ modelConversationMessageTimerUpdate = Doc.defineModel "ConversationMessageTimerU
   Doc.property "message_timer" Doc.int64' $
     Doc.description "Conversation message timer (in milliseconds); can be null"
 
-modelConversationMembers :: Doc.Model
-modelConversationMembers = Doc.defineModel "ConversationMembers" $ do
-  Doc.description "Object representing users of a conversation."
-  Doc.property "self" (Doc.ref modelMember) $
-    Doc.description "The user ID of the requestor"
-  Doc.property "others" (Doc.unique (Doc.array (Doc.ref modelOtherMember))) $
-    Doc.description "All other current users of this conversation"
-
-modelMember :: Doc.Model
-modelMember = Doc.defineModel "Member" $ do
-  Doc.property "id" Doc.bytes' $
-    Doc.description "User ID"
-  Doc.property "otr_muted" Doc.bool' $ do
-    Doc.description "Whether the conversation is muted"
-    Doc.optional
-  Doc.property "otr_muted_ref" Doc.bytes' $ do
-    Doc.description "A reference point for (un)muting"
-    Doc.optional
-  Doc.property "otr_archived" Doc.bool' $ do
-    Doc.description "Whether the conversation is archived"
-    Doc.optional
-  Doc.property "otr_archived_ref" Doc.bytes' $ do
-    Doc.description "A reference point for (un)archiving"
-    Doc.optional
-  Doc.property "hidden" Doc.bool' $ do
-    Doc.description "Whether the conversation is hidden"
-    Doc.optional
-  Doc.property "hidden_ref" Doc.bytes' $ do
-    Doc.description "A reference point for (un)hiding"
-    Doc.optional
-  Doc.property "service" (Doc.ref modelServiceRef) $ do
-    Doc.description "The reference to the owning service, if the member is a 'bot'."
-    Doc.optional
-
-modelOtherMember :: Doc.Model
-modelOtherMember = Doc.defineModel "OtherMember" $ do
-  Doc.property "id" Doc.bytes' $
-    Doc.description "User ID"
-  Doc.property "service" (Doc.ref modelServiceRef) $ do
-    Doc.description "The reference to the owning service, if the member is a 'bot'."
-    Doc.optional
-
 modelNewConversation :: Doc.Model
 modelNewConversation = Doc.defineModel "NewConversation" $ do
   Doc.description "JSON object to create a new conversation"
@@ -414,38 +368,6 @@ modelInvite = Doc.defineModel "Invite" $ do
   Doc.description "Add users to a conversation"
   Doc.property "users" (Doc.unique $ Doc.array Doc.bytes') $
     Doc.description "List of user IDs to add to a conversation"
-
-modelMemberUpdate :: Doc.Model
-modelMemberUpdate = Doc.defineModel "MemberUpdate" $ do
-  Doc.description "Update user properties relative to a conversation"
-  Doc.property "otr_muted" Doc.bool' $ do
-    Doc.description "Whether to notify on conversation updates"
-    Doc.optional
-  Doc.property "otr_muted_ref" Doc.bytes' $ do
-    Doc.description "A reference point for (un)muting"
-    Doc.optional
-  Doc.property "otr_archived" Doc.bool' $ do
-    Doc.description "Whether to notify on conversation updates"
-    Doc.optional
-  Doc.property "otr_archived_ref" Doc.bytes' $ do
-    Doc.description "A reference point for (un)archiving"
-    Doc.optional
-  Doc.property "hidden" Doc.bool' $ do
-    Doc.description "Whether the conversation is hidden"
-    Doc.optional
-  Doc.property "hidden_ref" Doc.bytes' $ do
-    Doc.description "A reference point for (un)hiding"
-    Doc.optional
-  Doc.property "conversation_role" Doc.string' $ do
-    Doc.description "Name of the conversation role to update to"
-    Doc.optional
-
-modelOtherMemberUpdate :: Doc.Model
-modelOtherMemberUpdate = Doc.defineModel "otherMemberUpdate" $ do
-  Doc.description "Update user properties of other members relative to a conversation"
-  Doc.property "conversation_role" Doc.string' $ do
-    Doc.description "Name of the conversation role updated to"
-    Doc.optional
 
 modelMemberUpdateData :: Doc.Model
 modelMemberUpdateData = Doc.defineModel "MemberUpdateData" $ do

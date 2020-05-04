@@ -27,6 +27,7 @@ import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Misc (Fingerprint, HttpsUrl, Rsa)
+import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import Imports
 
@@ -43,6 +44,14 @@ makeLenses ''ServiceRef
 
 newServiceRef :: ServiceId -> ProviderId -> ServiceRef
 newServiceRef = ServiceRef
+
+modelServiceRef :: Doc.Model
+modelServiceRef = Doc.defineModel "ServiceRef" $ do
+  Doc.description "Service Reference"
+  Doc.property "id" Doc.bytes' $
+    Doc.description "Service ID"
+  Doc.property "provider" Doc.bytes' $
+    Doc.description "Provider ID"
 
 instance FromJSON ServiceRef where
   parseJSON = withObject "ServiceRef" $ \o ->

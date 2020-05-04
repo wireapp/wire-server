@@ -32,6 +32,9 @@ module Wire.API.Service
     serviceToken,
     serviceFingerprints,
     serviceEnabled,
+
+    -- * Swagger
+    modelServiceRef,
   )
 where
 
