@@ -40,10 +40,10 @@ brig:
   resources:
     requests:
       memory: 128Mi
-      cpu: 500m
+      cpu: 100m
     limits:
       memory: 512Mi
-      cpu: 500m
+      cpu: 100m
   config:
     externalUrls:
       nginz: https://kube-staging-nginz-https.zinfra.io
@@ -113,10 +113,10 @@ cannon:
   resources:
     requests:
       memory: 512Mi
-      cpu: 500m
+      cpu: 100m
     limits:
       memory: 512Mi
-      cpu: 500m
+      cpu: 100m
   drainTimeout: 0
 cargohold:
   image:
@@ -128,7 +128,7 @@ cargohold:
       cpu: 100m
     limits:
       memory: 512Mi
-      cpu: 500m
+      cpu: 100m
   config:
     aws:
       s3Bucket: dummy-bucket
@@ -140,6 +140,13 @@ galley:
   image:
     tag: local
   replicaCount: 1
+  resources:
+    requests:
+      memory: 128Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 100m
   config:
     cassandra:
       host: cassandra-ephemeral
@@ -165,10 +172,10 @@ gundeck:
   resources:
     requests:
       memory: 512Mi
-      cpu: 500m
+      cpu: 100m
     limits:
       memory: 1024Mi
-      cpu: 1000m
+      cpu: 100m
   config:
     cassandra:
       host: cassandra-ephemeral
@@ -221,10 +228,10 @@ spar:
   resources:
     requests:
       memory: 512Mi
-      cpu: 500m
+      cpu: 100m
     limits:
       memory: 1024Mi
-      cpu: 1000m
+      cpu: 100m
   config:
     tlsDisableCertValidation: true
     cassandra:
