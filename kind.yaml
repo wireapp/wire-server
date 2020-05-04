@@ -7,4 +7,4 @@ nodes:
     kind: InitConfiguration
     nodeRegistration:
       kubeletExtraArgs:
-        system-reserved: 4G
+        system-reserved: memory=4Gi
