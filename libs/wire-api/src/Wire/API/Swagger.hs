@@ -49,12 +49,12 @@ models =
     Team.modelTeamList,
     Team.modelNewBindingTeam,
     Team.modelNewNonBindingTeam,
+    Team.modelUpdateData,
     Team.modelTeamDelete,
     Team.Event.modelEvent,
     Team.Event.modelMemberEvent,
     Team.Event.modelMemberData,
     Team.Event.modelConvEvent,
     Team.Event.modelConversationData,
-    Team.Event.modelUpdateEvent,
-    Team.Event.modelUpdateData
+    Team.Event.modelUpdateEvent
   ]

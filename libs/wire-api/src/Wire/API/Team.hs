@@ -52,6 +52,13 @@ module Wire.API.Team
     newTeamIconKey,
     newTeamMembers,
 
+    -- * TeamUpdateData
+    TeamUpdateData (..),
+    newTeamUpdateData,
+    nameUpdate,
+    iconUpdate,
+    iconKeyUpdate,
+
     -- * TeamDeleteData
     TeamDeleteData (..),
     newTeamDeleteData,
@@ -62,6 +69,7 @@ module Wire.API.Team
     modelTeamList,
     modelNewBindingTeam,
     modelNewNonBindingTeam,
+    modelUpdateData,
     modelTeamDelete,
 
     -- * Re-exports
@@ -309,6 +317,52 @@ instance (FromJSON a) => FromJSON (NewTeam a) where
         <*> pure mems
 
 --------------------------------------------------------------------------------
+-- TeamUpdateData
+
+data TeamUpdateData = TeamUpdateData
+  { _nameUpdate :: Maybe (Range 1 256 Text),
+    _iconUpdate :: Maybe (Range 1 256 Text),
+    _iconKeyUpdate :: Maybe (Range 1 256 Text)
+  }
+  deriving (Eq, Show, Generic)
+
+modelUpdateData :: Doc.Model
+modelUpdateData = Doc.defineModel "TeamUpdateData" $ do
+  Doc.description "team update data"
+  Doc.property "name" Doc.string' $ do
+    Doc.description "new team name"
+    Doc.optional
+  Doc.property "icon" Doc.string' $ do
+    Doc.description "new icon asset id"
+    Doc.optional
+  Doc.property "icon_key" Doc.string' $ do
+    Doc.description "new icon asset key"
+    Doc.optional
+
+newTeamUpdateData :: TeamUpdateData
+newTeamUpdateData = TeamUpdateData Nothing Nothing Nothing
+
+instance ToJSON TeamUpdateData where
+  toJSON u =
+    object $
+      "name" .= _nameUpdate u
+        # "icon" .= _iconUpdate u
+        # "icon_key" .= _iconKeyUpdate u
+        # []
+
+instance FromJSON TeamUpdateData where
+  parseJSON = withObject "team update data" $ \o -> do
+    name <- o .:? "name"
+    icon <- o .:? "icon"
+    icon_key <- o .:? "icon_key"
+    when (isNothing name && isNothing icon && isNothing icon_key) $
+      fail "TeamUpdateData: no update data specified"
+    either fail pure $
+      TeamUpdateData <$> maybe (pure Nothing) (fmap Just . checkedEitherMsg "name") name
+        <*> maybe (pure Nothing) (fmap Just . checkedEitherMsg "icon") icon
+        <*> maybe (pure Nothing) (fmap Just . checkedEitherMsg "icon_key") icon_key
+
+--------------------------------------------------------------------------------
 -- TeamDeleteData
 
 newtype TeamDeleteData = TeamDeleteData
@@ -337,4 +391,5 @@ instance ToJSON TeamDeleteData where
 makeLenses ''Team
 makeLenses ''TeamList
 makeLenses ''NewTeam
+makeLenses ''TeamUpdateData
 makeLenses ''TeamDeleteData
