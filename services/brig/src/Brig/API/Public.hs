@@ -43,7 +43,6 @@ import Brig.Types.Intra
 import qualified Brig.Types.Swagger as Doc
 import Brig.Types.User (NewUserPublic (NewUserPublic))
 import Brig.Types.User.Auth
-import qualified Brig.IO.Intra as Intra
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
 import qualified Brig.User.Auth.Cookie as Auth
@@ -70,7 +69,6 @@ import qualified Data.ZAuth.Token as ZAuth
 import Galley.Types (UserClientMap (..), UserClients (..))
 import qualified Galley.Types.Swagger as Doc
 import qualified Galley.Types.Teams as Team
-import qualified Galley.Types.Teams.SearchVisibility as Team
 import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai (Response, lazyRequestBody)
@@ -1047,8 +1045,7 @@ listUsers self = \case
     byIds resolvedUserIds
   Right hs -> do
     us <- getIds (fromList $ fromRange hs)
-    selfTeam <- lift $ Data.lookupUserTeam self
-    filterSearchResults (self, selfTeam) =<< byIds us
+    filterHandleResults self =<< byIds us
   where
     getIds :: [OptionallyQualified Handle] -> Handler [MappedOrLocalId Id.U]
     getIds hs = do
@@ -1153,8 +1150,7 @@ getHandleInfoH (_ ::: self ::: h) = do
     case maybeOwnerId of
       Just ownerId -> lift $ API.lookupProfile self ownerId
       Nothing      -> return Nothing
-  selfTeam <- lift $ Data.lookupUserTeam self
-  owner <- filterSearchResults (self, selfTeam) (maybeToList ownerProfile)
+  owner <- filterHandleResults self (maybeToList ownerProfile)
   return $ case listToMaybe owner of
     Just u -> json (UserHandleInfo $ profileId u)
     Nothing -> setStatus status404 empty
@@ -1324,25 +1320,13 @@ ifNothing :: Utilities.Error -> Maybe a -> Handler a
 ifNothing e = maybe (throwStd e) return
 
 -- Checks search permissions and filters accordingly
-filterSearchResults :: (UserId, Maybe TeamId) -> [UserProfile] -> Handler [UserProfile]
-filterSearchResults (_fromUser, fromTeam) us = do
+filterHandleResults :: UserId -> [UserProfile] -> Handler [UserProfile]
+filterHandleResults fromUser us = do
   sameTeamSearchOnly <- fromMaybe False <$> view (settings . searchSameTeamOnly)
   if sameTeamSearchOnly
     then do
+      fromTeam <- lift $ Data.lookupUserTeam fromUser
       return $ case fromTeam of
         Just team -> filter (\x -> profileTeam x == Just team) us
         Nothing -> us
-    else do
-      -- Is there any interesting set at the team level on the target users?
-      profiles <- forM us $ \u -> case profileTeam u of
-        Just tid -> lift $ Intra.getTeamSearchVisibility tid >>= handleTeamVisibility u tid . Team.searchVisibility
-        Nothing  -> return $ Just u
-      return $ catMaybes profiles
-  where
-    -- | With this setting, visibility by handle is OK
-    handleTeamVisibility u _   Team.SearchVisibilityStandard = return $ Just u
-    -- | With this setting, visibility by handle is OK only if in the same team
-    handleTeamVisibility u tid Team.SearchVisibilityOutsideTeamOutboundOnly =
-      return $ if fromTeam == Just tid
-        then Just u
-        else Nothing
+    else return us

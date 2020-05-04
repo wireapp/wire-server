@@ -310,7 +310,7 @@ testEnableCustomSearchVisibilityPerTeam = do
         liftIO $ assertEqual msg enabledness status
   let putSearchVisibilityCheckNotAllowed :: HasCallStack => TestM ()
       putSearchVisibilityCheckNotAllowed = do
-        Wai.Error status label _ <- responseJsonUnsafe <$> putSearchVisibility owner tid SearchVisibilityOutsideTeamOutboundOnly
+        Wai.Error status label _ <- responseJsonUnsafe <$> putSearchVisibility owner tid SearchVisibilityNoNameOutsideTeam
         liftIO $ do
           assertEqual "bad status" status403 status
           assertEqual "bad label" "custom-search-visibility-not-enabled" label
@@ -331,10 +331,10 @@ testEnableCustomSearchVisibilityPerTeam = do
   putCustomSearchVisibilityEnabledInternal tid CustomSearchVisibilityEnabled
   -- Nothing was set, default value
   getSearchVisibilityCheck SearchVisibilityStandard
-  putSearchVisibility owner tid SearchVisibilityOutsideTeamOutboundOnly !!! testResponse 204 Nothing
+  putSearchVisibility owner tid SearchVisibilityNoNameOutsideTeam !!! testResponse 204 Nothing
   -- Check only admins can change the setting
-  putSearchVisibility member tid SearchVisibilityOutsideTeamOutboundOnly !!! testResponse 403 (Just "operation-denied")
-  getSearchVisibilityCheck SearchVisibilityOutsideTeamOutboundOnly
+  putSearchVisibility member tid SearchVisibilityNoNameOutsideTeam !!! testResponse 403 (Just "operation-denied")
+  getSearchVisibilityCheck SearchVisibilityNoNameOutsideTeam
   -- Members can also see it?
   getSearchVisibility member tid !!! testResponse 200 Nothing
   -- Once we disable it, it's back to the default value

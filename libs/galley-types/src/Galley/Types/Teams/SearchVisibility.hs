@@ -33,23 +33,23 @@ data CustomSearchVisibilityType =
   -- ^ Inbound:
   --     Handle: can be found by anyone
   --     Name: can be found by same team only
-  | SearchVisibilityOutsideTeamOutboundOnly
+  | SearchVisibilityNoNameOutsideTeam
   -- ^ Outbound:
   --     Handle: can find anyone
   --     Name: same team only
   -- ^ Inbound:
-  --     Handle: can be found by same team users only
+  --     Handle: can be found by anyone
   --     Name: can be found by same team only
   deriving stock (Eq, Show, Ord, Enum, Bounded, Generic)
 
 instance ToJSON CustomSearchVisibilityType where
   toJSON SearchVisibilityStandard = "standard"
-  toJSON SearchVisibilityOutsideTeamOutboundOnly = "outside-team-outbound-only"
+  toJSON SearchVisibilityNoNameOutsideTeam = "no-name-outside-team"
 
 instance FromJSON CustomSearchVisibilityType where
   parseJSON = withText "CustomSearchVisibilityType" $ \case
     "standard" -> pure SearchVisibilityStandard
-    "outside-team-outbound-only" -> pure SearchVisibilityOutsideTeamOutboundOnly
+    "no-name-outside-team" -> pure SearchVisibilityNoNameOutsideTeam
     x -> fail $ "unexpected status type: " <> T.unpack x
 
 newtype SearchVisibility = SearchVisibility { searchVisibility :: CustomSearchVisibilityType }

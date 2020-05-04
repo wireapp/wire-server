@@ -40,7 +40,7 @@ import Util
 
 tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree
 tests opts mgr galley brig = do
-  testSetupOutboundOnly <- runHttpT mgr $ prepareUsersForSearchVisibilityOutsideTeamOutboundOnlyTests
+  testSetupOutboundOnly <- runHttpT mgr $ prepareUsersForSearchVisibilityNoNameOutsideTeamTests
   return $
     testGroup
       "search"
@@ -58,7 +58,7 @@ tests opts mgr galley brig = do
             testGroup "searchSameTeamOnly"
             [ test mgr "when searchSameTeamOnly flag is set, non team user cannot be found by a team member" $ testSearchSameTeamOnly opts galley brig
             ],
-            testGroup "custom-search-visibility SearchVisibilityOutsideTeamOutboundOnly"
+            testGroup "custom-search-visibility SearchVisibilityNoNameOutsideTeam"
             [ test mgr "team member cannot be found by non-team user" $ testSearchTeamMemberAsNonMemberOutboundOnly brig testSetupOutboundOnly,
               test mgr "team A member cannot be found by team B member" $ testSearchTeamMemberAsOtherMemberOutboundOnly brig testSetupOutboundOnly,
               test mgr "team A member *can* be found by other team A member" $ testSearchTeamMemberAsSameMemberOutboundOnly brig testSetupOutboundOnly,
@@ -68,11 +68,11 @@ tests opts mgr galley brig = do
       ]
  where
   -- Since the tests are about querying only, we only need 1 creation
-  prepareUsersForSearchVisibilityOutsideTeamOutboundOnlyTests :: Http ((TeamId, User, User), (TeamId, User, User), User)
-  prepareUsersForSearchVisibilityOutsideTeamOutboundOnlyTests = do
+  prepareUsersForSearchVisibilityNoNameOutsideTeamTests :: Http ((TeamId, User, User), (TeamId, User, User), User)
+  prepareUsersForSearchVisibilityNoNameOutsideTeamTests = do
     (tidA, ownerA, (memberA:_)) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
     setTeamCustomSearchVisibilityStatus galley tidA Team.CustomSearchVisibilityEnabled
-    setTeamSearchVisibility galley tidA Team.SearchVisibilityOutsideTeamOutboundOnly
+    setTeamSearchVisibility galley tidA Team.SearchVisibilityNoNameOutsideTeam
     (tidB, ownerB, (memberB:_)) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
     regularUser <- randomUserWithHandle brig
     refreshIndex brig

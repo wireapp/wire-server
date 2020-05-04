@@ -106,5 +106,5 @@ search searcherId searchTerm maxResults = do
   searchIndex searcherId teamSearchInfo searchTerm maxResults
   where
     handleTeamVisibility t Team.SearchVisibilityStandard = Search.TeamAndNonMembers t
-    handleTeamVisibility t Team.SearchVisibilityOutsideTeamOutboundOnly = Search.TeamOnly t
+    handleTeamVisibility t Team.SearchVisibilityNoNameOutsideTeam = Search.TeamOnly t
 

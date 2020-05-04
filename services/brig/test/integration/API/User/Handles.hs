@@ -55,7 +55,7 @@ tests _cl _at conf p b c g =
       test p "handles/race" $ testHandleRace b,
       test p "handles/query" $ testHandleQuery conf b g,
       test p "handles/query - custom-search-visibility SearchVisibilityStandard" $ testHandleQuerySearchVisibilityStandard conf b g,
-      test p "handles/query - custom-search-visibility SearchVisibilityOutsideTeamOutboundOnly" $ testHandleQuerySearchVisibilityOutsideTeamOutboundOnly conf b g
+      test p "handles/query - custom-search-visibility SearchVisibilityNoNameOutsideTeam" $ testHandleQuerySearchVisibilityNoNameOutsideTeam conf b g
     ]
 
 testHandleUpdate :: Brig -> Cannon -> Http ()
@@ -193,19 +193,19 @@ testHandleQuerySearchVisibilityStandard _opts brig galley = do
   assertCanFind brig extern owner1
   assertCanFind brig owner1 extern
 
-testHandleQuerySearchVisibilityOutsideTeamOutboundOnly :: Opt.Opts -> Brig -> Galley -> Http ()
-testHandleQuerySearchVisibilityOutsideTeamOutboundOnly _opts brig galley = do
+testHandleQuerySearchVisibilityNoNameOutsideTeam :: Opt.Opts -> Brig -> Galley -> Http ()
+testHandleQuerySearchVisibilityNoNameOutsideTeam _opts brig galley = do
   (tid1, owner1, (member1:_)) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
   (_, owner2, _) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
   extern <- randomUserWithHandle brig
   setTeamCustomSearchVisibilityStatus galley tid1 Team.CustomSearchVisibilityEnabled
-  setTeamSearchVisibility galley tid1 Team.SearchVisibilityOutsideTeamOutboundOnly
-  -- Assert that tid1 users can find each other:
-  --   Users in other teams or non team members cannot find them
+  setTeamSearchVisibility galley tid1 Team.SearchVisibilityNoNameOutsideTeam
+  -- Assert that everyone can find each other:
+  --   in the same or different team, by handle - direction does not matter
   assertCanFind brig owner1 member1
   assertCanFind brig owner1 owner2
-  assertCannotFind brig owner2 owner1
-  assertCannotFind brig extern owner1
+  assertCanFind brig owner2 owner1
+  assertCanFind brig extern owner1
   assertCanFind brig owner1 extern
 
 assertCanFind :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> m ()

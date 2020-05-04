@@ -31,6 +31,7 @@ import Control.Lens
 import Data.Aeson
 import Galley.Types (CustomBackend)
 import Galley.Types.Teams
+import Galley.Types.Teams.SearchVisibility
 import Galley.Types.Teams.SSO
 import Imports
 import Test.Brig.Roundtrip (testRoundTrip)
@@ -70,7 +71,8 @@ tests =
       testRoundTrip @ApproveLegalHoldForUserRequest,
       testRoundTrip @SSOStatus,
       testRoundTrip @SSOTeamConfig,
-      -- TODO: Add roundtrip tests for Search
+      testRoundTrip @SearchVisibility,
+      testRoundTrip @CustomSearchVisibilityTeamConfig,
       testRoundTrip @CustomBackend,
       testRoundTrip @FeatureFlags,
       testCase "{} is a valid TeamMemberDeleteData" $ do
