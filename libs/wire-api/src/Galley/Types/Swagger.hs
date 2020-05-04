@@ -24,6 +24,7 @@ import Data.String.Conversions (cs)
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.API.Conversation (Access)
+import Wire.API.Conversation.Code (modelConversationCode)
 import qualified Wire.Swagger as Swagger
 
 -- TODO(wire-api): check if all models are used
@@ -40,7 +41,6 @@ galleyModels =
     modelConversationAccessUpdate,
     modelConversationReceiptModeUpdate,
     modelConversationMessageTimerUpdate,
-    modelConversationCode,
     modelInvite,
     modelMemberUpdate,
     modelOtherMemberUpdate,
@@ -324,17 +324,6 @@ modelConversationMessageTimerUpdate = Doc.defineModel "ConversationMessageTimerU
   Doc.description "Contains conversation properties to update"
   Doc.property "message_timer" Doc.int64' $
     Doc.description "Conversation message timer (in milliseconds); can be null"
-
-modelConversationCode :: Doc.Model
-modelConversationCode = Doc.defineModel "ConversationCode" $ do
-  Doc.description "Contains conversation properties to update"
-  Doc.property "key" Doc.string' $
-    Doc.description "Stable conversation identifier"
-  Doc.property "code" Doc.string' $
-    Doc.description "Conversation code (random)"
-  Doc.property "uri" Doc.string' $ do
-    Doc.description "Full URI (containing key/code) to join a conversation"
-    Doc.optional
 
 modelConversationMembers :: Doc.Model
 modelConversationMembers = Doc.defineModel "ConversationMembers" $ do

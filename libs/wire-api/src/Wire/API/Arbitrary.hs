@@ -33,6 +33,7 @@ module Wire.API.Arbitrary where
 
 import Control.Lens hiding (elements)
 import qualified Data.ByteString.Char8 as BS
+import Data.Code (Timeout (Timeout))
 import Data.Currency
 import Data.IP
 import Data.Json.Util (UTCTimeMillis (..), toUTCTimeMillis)

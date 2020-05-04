@@ -35,6 +35,7 @@ import qualified Data.Aeson.Types as Aeson
 import Data.ByteString.Conversion
 import Data.CaseInsensitive (CI)
 import qualified Data.CaseInsensitive as CI
+import qualified Data.Code as Code
 import qualified Data.Currency as Currency
 import Data.Handle (Handle)
 import qualified Data.HashMap.Strict as HM
@@ -50,7 +51,6 @@ import Data.Text.Ascii
 import Data.UUID (UUID)
 import Imports
 import Wire.API.Activation (ActivationCode)
-import qualified Wire.API.Conversation.Code as Code
 import Wire.API.Service.Bot (ServiceRef)
 import Wire.API.Team (BindingNewTeam)
 import Wire.API.User.Auth (CookieLabel)

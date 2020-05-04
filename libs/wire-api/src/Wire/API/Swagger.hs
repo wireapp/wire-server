@@ -20,6 +20,7 @@
 module Wire.API.Swagger where
 
 import Data.Swagger.Build.Api (Model)
+import qualified Wire.API.Conversation.Code as Conversation.Code
 import qualified Wire.API.Conversation.Role as Conversation.Role
 import qualified Wire.API.Notification as Notification
 import qualified Wire.API.Push.Token as Push.Token
@@ -32,7 +33,8 @@ import qualified Wire.API.Team.Permission as Team.Permission
 
 models :: [Model]
 models =
-  [ Conversation.Role.modelConversationRole,
+  [ Conversation.Code.modelConversationCode,
+    Conversation.Role.modelConversationRole,
     Conversation.Role.modelConversationRolesList,
     Notification.modelEvent,
     Notification.modelNotification,

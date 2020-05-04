@@ -25,13 +25,13 @@ module Wire.API.User.Auth where
 import Data.Aeson
 import qualified Data.Aeson.Types as Aeson
 import Data.ByteString.Conversion
+import qualified Data.Code as Code
 import Data.Handle (Handle)
 import Data.Id (UserId)
 import Data.Misc (PlainTextPassword (..))
 import Data.Text.Lazy.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Clock (UTCTime)
 import Imports
-import Wire.API.Conversation.Code
 import Wire.API.User.Identity
 
 -----------------------------------------------------------------------------
@@ -39,7 +39,7 @@ import Wire.API.User.Identity
 
 data PendingLoginCode = PendingLoginCode
   { pendingLoginCode :: !LoginCode,
-    pendingLoginTimeout :: !Timeout
+    pendingLoginTimeout :: !Code.Timeout
   }
   deriving (Eq)
 
@@ -57,7 +57,7 @@ data SendLoginCode = SendLoginCode
 
 -- | A timeout for a new or pending login code.
 newtype LoginCodeTimeout = LoginCodeTimeout
-  {fromLoginCodeTimeout :: Timeout}
+  {fromLoginCodeTimeout :: Code.Timeout}
   deriving (Eq, Show)
 
 -- | Different kinds of logins.

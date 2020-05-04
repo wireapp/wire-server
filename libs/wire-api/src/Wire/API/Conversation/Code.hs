@@ -17,15 +17,16 @@
 
 -- | Types for verification codes.
 module Wire.API.Conversation.Code
-  ( -- * re-exports
-    Key (..),
-    Value (..),
-    Timeout (..),
-    KeyValuePair (..),
-
-    -- * content
+  ( -- * ConversationCode
     ConversationCode (..),
     mkConversationCode,
+
+    -- * re-exports
+    Code.Key (..),
+    Value (..),
+
+    -- * Swagger
+    modelConversationCode,
   )
 where
 
@@ -37,6 +38,7 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Code as Code
 import Data.Json.Util ((#))
 import Data.Misc (HttpsUrl (HttpsUrl))
+import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import qualified URI.ByteString as URI
 
@@ -47,16 +49,16 @@ data ConversationCode = ConversationCode
   }
   deriving (Eq, Show, Generic)
 
-mkConversationCode :: Code.Key -> Code.Value -> HttpsUrl -> ConversationCode
-mkConversationCode k v (HttpsUrl prefix) =
-  ConversationCode
-    { conversationKey = k,
-      conversationCode = v,
-      conversationUri = Just (HttpsUrl link)
-    }
-  where
-    q = [("key", toByteString' k), ("code", toByteString' v)]
-    link = prefix & (URI.queryL . URI.queryPairsL) .~ q
+modelConversationCode :: Doc.Model
+modelConversationCode = Doc.defineModel "ConversationCode" $ do
+  Doc.description "Contains conversation properties to update"
+  Doc.property "key" Doc.string' $
+    Doc.description "Stable conversation identifier"
+  Doc.property "code" Doc.string' $
+    Doc.description "Conversation code (random)"
+  Doc.property "uri" Doc.string' $ do
+    Doc.description "Full URI (containing key/code) to join a conversation"
+    Doc.optional
 
 instance ToJSON ConversationCode where
   toJSON j =
@@ -71,3 +73,14 @@ instance FromJSON ConversationCode where
     ConversationCode <$> o .: "key"
       <*> o .: "code"
       <*> o .:? "uri"
+
+mkConversationCode :: Code.Key -> Code.Value -> HttpsUrl -> ConversationCode
+mkConversationCode k v (HttpsUrl prefix) =
+  ConversationCode
+    { conversationKey = k,
+      conversationCode = v,
+      conversationUri = Just (HttpsUrl link)
+    }
+  where
+    q = [("key", toByteString' k), ("code", toByteString' v)]
+    link = prefix & (URI.queryL . URI.queryPairsL) .~ q
