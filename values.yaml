@@ -17,13 +17,13 @@ cassandra-ephemeral:
 
     resources:
       requests:
-        memory: 128Mi
+        memory: 512Mi
         cpu: 200m # Otherwise we could never deploy two
       limits:
-        memory: 512Mi
+        memory: 1024Mi
         cpu: 1
     config:
-      max_heap_size: 512M
+      max_heap_size: 256M
       heap_new_size: 128M
 
 cassandra-migrations:
@@ -116,7 +116,7 @@ cannon:
   replicaCount: 2
   resources:
     requests:
-      memory: 512Mi
+      memory: 128Mi
       cpu: 100m
     limits:
       memory: 512Mi
@@ -175,7 +175,7 @@ gundeck:
   replicaCount: 1
   resources:
     requests:
-      memory: 512Mi
+      memory: 128Mi
       cpu: 100m
     limits:
       memory: 1024Mi
@@ -231,7 +231,7 @@ spar:
   replicaCount: 1
   resources:
     requests:
-      memory: 512Mi
+      memory: 128Mi
       cpu: 100m
     limits:
       memory: 1024Mi
