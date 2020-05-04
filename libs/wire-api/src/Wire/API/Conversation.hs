@@ -25,24 +25,33 @@
 -- FUTUREWORK:
 -- There's still a lot of stuff we should factor out into separate modules.
 module Wire.API.Conversation
-  ( -- * Galley conversation types
+  ( -- * Conversation
     Conversation (..),
-    ConvMembers (..),
-    ConvTeamInfo (..),
+    ConversationList (..),
+    -- ConversationIdList TODO
 
-    -- * Other galley types
+    -- * Conversation properties
     Access (..),
     AccessRole (..),
-    Accept (..),
-    ConversationList (..),
-    ConversationMeta (..),
     ConvType (..),
-    Invite (..),
+    ReceiptMode (..),
+
+    -- * create
     NewConv (..),
     NewConvManaged (..),
     NewConvUnmanaged (..),
-    ReceiptMode (..),
+    ConvTeamInfo (..),
+
+    -- * invite
+    Invite (..),
     newInvite,
+    Accept (..),
+
+    -- * update
+    ConversationRename (..),
+    ConversationAccessUpdate (..),
+    ConversationReceiptModeUpdate (..),
+    ConversationMessageTimerUpdate (..),
   )
 where
 
@@ -56,7 +65,8 @@ import Imports
 import Wire.API.Conversation.Member
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
 
--- Conversations ------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Conversation
 
 -- | Public-facing conversation type. Represents information that a
 -- particular user is allowed to see.
@@ -77,22 +87,56 @@ data Conversation = Conversation
   }
   deriving (Eq, Show)
 
-data ConvType
-  = RegularConv
-  | SelfConv
-  | One2OneConv
-  | ConnectConv
+instance ToJSON Conversation where
+  toJSON c =
+    object
+      [ "id" .= cnvId c,
+        "type" .= cnvType c,
+        "creator" .= cnvCreator c,
+        "access" .= cnvAccess c,
+        "access_role" .= cnvAccessRole c,
+        "name" .= cnvName c,
+        "members" .= cnvMembers c,
+        "last_event" .= ("0.0" :: Text),
+        "last_event_time" .= ("1970-01-01T00:00:00.000Z" :: Text),
+        "team" .= cnvTeam c,
+        "message_timer" .= cnvMessageTimer c,
+        "receipt_mode" .= cnvReceiptMode c
+      ]
+
+instance FromJSON Conversation where
+  parseJSON = withObject "conversation" $ \o ->
+    Conversation <$> o .: "id"
+      <*> o .: "type"
+      <*> o .: "creator"
+      <*> o .: "access"
+      <*> o .:? "access_role" .!= ActivatedAccessRole
+      <*> o .:? "name"
+      <*> o .: "members"
+      <*> o .:? "team"
+      <*> o .:? "message_timer"
+      <*> o .:? "receipt_mode"
+
+data ConversationList a = ConversationList
+  { convList :: [a],
+    convHasMore :: !Bool
+  }
   deriving (Eq, Show)
 
--- | Define whether receipts should be sent in the given conversation
---   This datatype is defined as an int32 but the Backend does not
---   interpret it in any way, rather just stores and forwards it
---   for clients
---   E.g. of an implementation: 0 - send no ReceiptModes
---                              1 - send read ReceiptModes
---                              2 - send delivery ReceiptModes
---                              ...
-newtype ReceiptMode = ReceiptMode {unReceiptMode :: Int32} deriving (Eq, Ord, Show)
+instance ToJSON a => ToJSON (ConversationList a) where
+  toJSON (ConversationList l m) =
+    object
+      [ "conversations" .= l,
+        "has_more" .= m
+      ]
+
+instance FromJSON a => FromJSON (ConversationList a) where
+  parseJSON = withObject "conversation-list" $ \o ->
+    ConversationList <$> o .: "conversations"
+      <*> o .: "has_more"
+
+--------------------------------------------------------------------------------
+-- Conversation properties
 
 -- | Access define how users can join conversations
 data Access
@@ -105,6 +149,21 @@ data Access
   | -- | User can join knowing [changeable/revokable] code
     CodeAccess
   deriving (Eq, Ord, Bounded, Enum, Show)
+
+instance ToJSON Access where
+  toJSON PrivateAccess = String "private"
+  toJSON InviteAccess = String "invite"
+  toJSON LinkAccess = String "link"
+  toJSON CodeAccess = String "code"
+
+instance FromJSON Access where
+  parseJSON = withText "Access" $ \s ->
+    case s of
+      "private" -> return PrivateAccess
+      "invite" -> return InviteAccess
+      "link" -> return LinkAccess
+      "code" -> return CodeAccess
+      x -> fail ("Invalid Access Mode: " ++ show x)
 
 -- | AccessRoles define who can join conversations. The roles are
 -- "supersets", i.e. Activated includes Team and NonActivated includes
@@ -122,52 +181,60 @@ data AccessRole
     NonActivatedAccessRole
   deriving (Eq, Ord, Show)
 
-data ConversationMeta = ConversationMeta
-  { cmId :: !ConvId,
-    cmType :: !ConvType,
-    cmCreator :: !UserId,
-    cmAccess :: ![Access],
-    cmAccessRole :: !AccessRole,
-    cmName :: !(Maybe Text),
-    cmTeam :: !(Maybe TeamId),
-    cmMessageTimer :: !(Maybe Milliseconds),
-    cmReceiptMode :: !(Maybe ReceiptMode)
-  }
+instance ToJSON AccessRole where
+  toJSON PrivateAccessRole = String "private"
+  toJSON TeamAccessRole = String "team"
+  toJSON ActivatedAccessRole = String "activated"
+  toJSON NonActivatedAccessRole = String "non_activated"
+
+instance FromJSON AccessRole where
+  parseJSON = withText "access-role" $ \s ->
+    case s of
+      "private" -> return PrivateAccessRole
+      "team" -> return TeamAccessRole
+      "activated" -> return ActivatedAccessRole
+      "non_activated" -> return NonActivatedAccessRole
+      x -> fail ("Invalid Access Role: " ++ show x)
+
+data ConvType
+  = RegularConv
+  | SelfConv
+  | One2OneConv
+  | ConnectConv
   deriving (Eq, Show)
 
-data ConversationList a = ConversationList
-  { convList :: [a],
-    convHasMore :: !Bool
-  }
-  deriving (Eq, Show)
+instance ToJSON ConvType where
+  toJSON RegularConv = Number 0
+  toJSON SelfConv = Number 1
+  toJSON One2OneConv = Number 2
+  toJSON ConnectConv = Number 3
 
-data ConvTeamInfo = ConvTeamInfo
-  { cnvTeamId :: !TeamId,
-    cnvManaged :: !Bool
-  }
-  deriving (Eq, Show)
+instance FromJSON ConvType where
+  parseJSON (Number 0) = return RegularConv
+  parseJSON (Number 1) = return SelfConv
+  parseJSON (Number 2) = return One2OneConv
+  parseJSON (Number 3) = return ConnectConv
+  parseJSON x = fail $ "No conversation-type: " <> show (encode x)
 
-data NewConv = NewConv
-  { newConvUsers :: ![OpaqueUserId],
-    newConvName :: !(Maybe Text),
-    newConvAccess :: !(Set Access),
-    newConvAccessRole :: !(Maybe AccessRole),
-    newConvTeam :: !(Maybe ConvTeamInfo),
-    newConvMessageTimer :: !(Maybe Milliseconds),
-    newConvReceiptMode :: !(Maybe ReceiptMode),
-    -- | Every member except for the creator will have this role
-    newConvUsersRole :: !RoleName
-  }
+-- | Define whether receipts should be sent in the given conversation
+--   This datatype is defined as an int32 but the Backend does not
+--   interpret it in any way, rather just stores and forwards it
+--   for clients
+--   E.g. of an implementation: 0 - send no ReceiptModes
+--                              1 - send read ReceiptModes
+--                              2 - send delivery ReceiptModes
+--                              ...
+newtype ReceiptMode = ReceiptMode {unReceiptMode :: Int32}
+  deriving (Eq, Ord, Show)
 
-deriving instance Eq NewConv
+instance ToJSON ReceiptMode where
+  toJSON = toJSON . unReceiptMode
 
-deriving instance Show NewConv
+instance FromJSON ReceiptMode where
+  parseJSON x = ReceiptMode <$> parseJSON x
 
-newtype NewConvManaged = NewConvManaged NewConv
-  deriving (Eq, Show)
-
-newtype NewConvUnmanaged = NewConvUnmanaged NewConv
-  deriving (Eq, Show)
+--------------------------------------------------------------------------------
+-- create
 
 {- Note [managed conversations]
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -202,116 +269,47 @@ error, which is not optimal but it doesn't matter since nobody is trying to
 create managed conversations anyway.
 -}
 
--- | Request payload for accepting a 1-1 conversation.
-newtype Accept = Accept
-  { aUser :: UserId
+newtype NewConvManaged = NewConvManaged NewConv
+  deriving (Eq, Show)
+
+instance ToJSON NewConvManaged where
+  toJSON (NewConvManaged nc) = newConvToJSON nc
+
+instance FromJSON NewConvManaged where
+  parseJSON v = do
+    nc <- newConvParseJSON v
+    unless (maybe False cnvManaged (newConvTeam nc)) $
+      fail "only managed conversations are allowed here"
+    pure (NewConvManaged nc)
+
+newtype NewConvUnmanaged = NewConvUnmanaged NewConv
+  deriving (Eq, Show)
+
+instance ToJSON NewConvUnmanaged where
+  toJSON (NewConvUnmanaged nc) = newConvToJSON nc
+
+instance FromJSON NewConvUnmanaged where
+  parseJSON v = do
+    nc <- newConvParseJSON v
+    when (maybe False cnvManaged (newConvTeam nc)) $
+      fail "managed conversations have been deprecated"
+    pure (NewConvUnmanaged nc)
+
+data NewConv = NewConv
+  { newConvUsers :: ![OpaqueUserId],
+    newConvName :: !(Maybe Text),
+    newConvAccess :: !(Set Access),
+    newConvAccessRole :: !(Maybe AccessRole),
+    newConvTeam :: !(Maybe ConvTeamInfo),
+    newConvMessageTimer :: !(Maybe Milliseconds),
+    newConvReceiptMode :: !(Maybe ReceiptMode),
+    -- | Every member except for the creator will have this role
+    newConvUsersRole :: !RoleName
   }
-  deriving (Eq, Show, Generic)
 
-data Invite = Invite
-  { invUsers :: !(List1 OpaqueUserId),
-    -- | This role name is to be applied to all users
-    invRoleName :: !RoleName
-  }
+deriving instance Eq NewConv
 
-newInvite :: List1 OpaqueUserId -> Invite
-newInvite us = Invite us roleNameWireAdmin
-
-deriving instance Eq Invite
-
-deriving instance Show Invite
-
--- Instances ----------------------------------------------------------------
-
--- JSON
-
-instance ToJSON Access where
-  toJSON PrivateAccess = String "private"
-  toJSON InviteAccess = String "invite"
-  toJSON LinkAccess = String "link"
-  toJSON CodeAccess = String "code"
-
-instance FromJSON Access where
-  parseJSON = withText "Access" $ \s ->
-    case s of
-      "private" -> return PrivateAccess
-      "invite" -> return InviteAccess
-      "link" -> return LinkAccess
-      "code" -> return CodeAccess
-      x -> fail ("Invalid Access Mode: " ++ show x)
-
-instance FromJSON AccessRole where
-  parseJSON = withText "access-role" $ \s ->
-    case s of
-      "private" -> return PrivateAccessRole
-      "team" -> return TeamAccessRole
-      "activated" -> return ActivatedAccessRole
-      "non_activated" -> return NonActivatedAccessRole
-      x -> fail ("Invalid Access Role: " ++ show x)
-
-instance FromJSON ReceiptMode where
-  parseJSON x = ReceiptMode <$> parseJSON x
-
-instance ToJSON ReceiptMode where
-  toJSON = toJSON . unReceiptMode
-
-instance ToJSON AccessRole where
-  toJSON PrivateAccessRole = String "private"
-  toJSON TeamAccessRole = String "team"
-  toJSON ActivatedAccessRole = String "activated"
-  toJSON NonActivatedAccessRole = String "non_activated"
-
-instance FromJSON Accept where
-  parseJSON = withObject "accept" $ \o ->
-    Accept <$> o .: "user"
-
-instance ToJSON Accept where
-  toJSON a =
-    object
-      [ "user" .= aUser a
-      ]
-
-instance ToJSON a => ToJSON (ConversationList a) where
-  toJSON (ConversationList l m) =
-    object
-      [ "conversations" .= l,
-        "has_more" .= m
-      ]
-
-instance FromJSON a => FromJSON (ConversationList a) where
-  parseJSON = withObject "conversation-list" $ \o ->
-    ConversationList <$> o .: "conversations"
-      <*> o .: "has_more"
-
-instance ToJSON Conversation where
-  toJSON c =
-    object
-      [ "id" .= cnvId c,
-        "type" .= cnvType c,
-        "creator" .= cnvCreator c,
-        "access" .= cnvAccess c,
-        "access_role" .= cnvAccessRole c,
-        "name" .= cnvName c,
-        "members" .= cnvMembers c,
-        "last_event" .= ("0.0" :: Text),
-        "last_event_time" .= ("1970-01-01T00:00:00.000Z" :: Text),
-        "team" .= cnvTeam c,
-        "message_timer" .= cnvMessageTimer c,
-        "receipt_mode" .= cnvReceiptMode c
-      ]
-
-instance FromJSON Conversation where
-  parseJSON = withObject "conversation" $ \o ->
-    Conversation <$> o .: "id"
-      <*> o .: "type"
-      <*> o .: "creator"
-      <*> o .: "access"
-      <*> o .:? "access_role" .!= ActivatedAccessRole
-      <*> o .:? "name"
-      <*> o .: "members"
-      <*> o .:? "team"
-      <*> o .:? "message_timer"
-      <*> o .:? "receipt_mode"
+deriving instance Show NewConv
 
 newConvParseJSON :: Value -> Parser NewConv
 newConvParseJSON = withObject "new-conv object" $ \i ->
@@ -337,25 +335,11 @@ newConvToJSON i =
       # "conversation_role" .= newConvUsersRole i
       # []
 
-instance ToJSON NewConvUnmanaged where
-  toJSON (NewConvUnmanaged nc) = newConvToJSON nc
-
-instance ToJSON NewConvManaged where
-  toJSON (NewConvManaged nc) = newConvToJSON nc
-
-instance FromJSON NewConvUnmanaged where
-  parseJSON v = do
-    nc <- newConvParseJSON v
-    when (maybe False cnvManaged (newConvTeam nc)) $
-      fail "managed conversations have been deprecated"
-    pure (NewConvUnmanaged nc)
-
-instance FromJSON NewConvManaged where
-  parseJSON v = do
-    nc <- newConvParseJSON v
-    unless (maybe False cnvManaged (newConvTeam nc)) $
-      fail "only managed conversations are allowed here"
-    pure (NewConvManaged nc)
+data ConvTeamInfo = ConvTeamInfo
+  { cnvTeamId :: !TeamId,
+    cnvManaged :: !Bool
+  }
+  deriving (Eq, Show)
 
 instance ToJSON ConvTeamInfo where
   toJSON c =
@@ -368,9 +352,21 @@ instance FromJSON ConvTeamInfo where
   parseJSON = withObject "conversation team info" $ \o ->
     ConvTeamInfo <$> o .: "teamid" <*> o .:? "managed" .!= False
 
-instance FromJSON Invite where
-  parseJSON = withObject "invite object" $ \o ->
-    Invite <$> o .: "users" <*> o .:? "conversation_role" .!= roleNameWireAdmin
+--------------------------------------------------------------------------------
+-- invite
+
+data Invite = Invite
+  { invUsers :: !(List1 OpaqueUserId),
+    -- | This role name is to be applied to all users
+    invRoleName :: !RoleName
+  }
+
+deriving instance Eq Invite
+
+deriving instance Show Invite
+
+newInvite :: List1 OpaqueUserId -> Invite
+newInvite us = Invite us roleNameWireAdmin
 
 instance ToJSON Invite where
   toJSON i =
@@ -379,41 +375,89 @@ instance ToJSON Invite where
         "conversation_role" .= invRoleName i
       ]
 
-instance FromJSON ConversationMeta where
-  parseJSON = withObject "conversation-meta" $ \o ->
-    ConversationMeta <$> o .: "id"
-      <*> o .: "type"
-      <*> o .: "creator"
-      <*> o .: "access"
-      <*> o .: "access_role"
-      <*> o .: "name"
-      <*> o .:? "team"
-      <*> o .:? "message_timer"
-      <*> o .:? "receipt_mode"
+instance FromJSON Invite where
+  parseJSON = withObject "invite object" $ \o ->
+    Invite <$> o .: "users" <*> o .:? "conversation_role" .!= roleNameWireAdmin
 
-instance ToJSON ConversationMeta where
+-- | Request payload for accepting a 1-1 conversation.
+newtype Accept = Accept
+  { aUser :: UserId
+  }
+  deriving (Eq, Show, Generic)
+
+instance ToJSON Accept where
+  toJSON a =
+    object
+      [ "user" .= aUser a
+      ]
+
+instance FromJSON Accept where
+  parseJSON = withObject "accept" $ \o ->
+    Accept <$> o .: "user"
+
+--------------------------------------------------------------------------------
+-- update
+
+newtype ConversationRename = ConversationRename
+  { cupName :: Text
+  }
+
+deriving instance Eq ConversationRename
+
+deriving instance Show ConversationRename
+
+instance ToJSON ConversationRename where
+  toJSON cu = object ["name" .= cupName cu]
+
+instance FromJSON ConversationRename where
+  parseJSON = withObject "conversation-rename object" $ \c ->
+    ConversationRename <$> c .: "name"
+
+data ConversationAccessUpdate = ConversationAccessUpdate
+  { cupAccess :: [Access],
+    cupAccessRole :: AccessRole
+  }
+  deriving (Eq, Show)
+
+instance ToJSON ConversationAccessUpdate where
   toJSON c =
     object $
-      "id" .= cmId c
-        # "type" .= cmType c
-        # "creator" .= cmCreator c
-        # "access" .= cmAccess c
-        # "access_role" .= cmAccessRole c
-        # "name" .= cmName c
-        # "team" .= cmTeam c
-        # "message_timer" .= cmMessageTimer c
-        # "receipt_mode" .= cmReceiptMode c
+      "access" .= cupAccess c
+        # "access_role" .= cupAccessRole c
         # []
 
-instance FromJSON ConvType where
-  parseJSON (Number 0) = return RegularConv
-  parseJSON (Number 1) = return SelfConv
-  parseJSON (Number 2) = return One2OneConv
-  parseJSON (Number 3) = return ConnectConv
-  parseJSON x = fail $ "No conversation-type: " <> show (encode x)
+instance FromJSON ConversationAccessUpdate where
+  parseJSON = withObject "conversation-access-update" $ \o ->
+    ConversationAccessUpdate <$> o .: "access"
+      <*> o .: "access_role"
 
-instance ToJSON ConvType where
-  toJSON RegularConv = Number 0
-  toJSON SelfConv = Number 1
-  toJSON One2OneConv = Number 2
-  toJSON ConnectConv = Number 3
+data ConversationReceiptModeUpdate = ConversationReceiptModeUpdate
+  { cruReceiptMode :: !ReceiptMode
+  }
+  deriving (Eq, Show)
+
+instance ToJSON ConversationReceiptModeUpdate where
+  toJSON c =
+    object
+      [ "receipt_mode" .= cruReceiptMode c
+      ]
+
+instance FromJSON ConversationReceiptModeUpdate where
+  parseJSON = withObject "conversation-receipt-mode-update" $ \o ->
+    ConversationReceiptModeUpdate <$> o .: "receipt_mode"
+
+data ConversationMessageTimerUpdate = ConversationMessageTimerUpdate
+  { -- | New message timer
+    cupMessageTimer :: !(Maybe Milliseconds)
+  }
+  deriving (Eq, Show)
+
+instance ToJSON ConversationMessageTimerUpdate where
+  toJSON c =
+    object
+      [ "message_timer" .= cupMessageTimer c
+      ]
+
+instance FromJSON ConversationMessageTimerUpdate where
+  parseJSON = withObject "conversation-message-timer-update" $ \o ->
+    ConversationMessageTimerUpdate <$> o .:? "message_timer"

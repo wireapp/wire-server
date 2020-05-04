@@ -36,12 +36,6 @@ module Wire.API.Conversation.Event
     MemberUpdateData (..),
     OtrMessage (..),
     parseEventData,
-
-    -- * Other galley types
-    ConversationRename (..),
-    ConversationAccessUpdate (..),
-    ConversationReceiptModeUpdate (..),
-    ConversationMessageTimerUpdate (..),
   )
 where
 
@@ -61,31 +55,6 @@ import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing (TypingData)
 
 -- Conversations ------------------------------------------------------------
-
-newtype ConversationRename = ConversationRename
-  { cupName :: Text
-  }
-
-deriving instance Eq ConversationRename
-
-deriving instance Show ConversationRename
-
-data ConversationAccessUpdate = ConversationAccessUpdate
-  { cupAccess :: [Access],
-    cupAccessRole :: AccessRole
-  }
-  deriving (Eq, Show)
-
-data ConversationReceiptModeUpdate = ConversationReceiptModeUpdate
-  { cruReceiptMode :: !ReceiptMode
-  }
-  deriving (Eq, Show)
-
-data ConversationMessageTimerUpdate = ConversationMessageTimerUpdate
-  { -- | New message timer
-    cupMessageTimer :: !(Maybe Milliseconds)
-  }
-  deriving (Eq, Show)
 
 -- Events -------------------------------------------------------------------
 
@@ -297,45 +266,6 @@ instance ToJSON EventType where
   toJSON ConvReceiptModeUpdate = String "conversation.receipt-mode-update"
   toJSON Typing = String "conversation.typing"
   toJSON OtrMessageAdd = String "conversation.otr-message-add"
-
-instance ToJSON ConversationAccessUpdate where
-  toJSON c =
-    object $
-      "access" .= cupAccess c
-        # "access_role" .= cupAccessRole c
-        # []
-
-instance FromJSON ConversationAccessUpdate where
-  parseJSON = withObject "conversation-access-update" $ \o ->
-    ConversationAccessUpdate <$> o .: "access"
-      <*> o .: "access_role"
-
-instance FromJSON ConversationReceiptModeUpdate where
-  parseJSON = withObject "conversation-receipt-mode-update" $ \o ->
-    ConversationReceiptModeUpdate <$> o .: "receipt_mode"
-
-instance ToJSON ConversationReceiptModeUpdate where
-  toJSON c =
-    object
-      [ "receipt_mode" .= cruReceiptMode c
-      ]
-
-instance ToJSON ConversationMessageTimerUpdate where
-  toJSON c =
-    object
-      [ "message_timer" .= cupMessageTimer c
-      ]
-
-instance FromJSON ConversationMessageTimerUpdate where
-  parseJSON = withObject "conversation-message-timer-update" $ \o ->
-    ConversationMessageTimerUpdate <$> o .:? "message_timer"
-
-instance FromJSON ConversationRename where
-  parseJSON = withObject "conversation-rename object" $ \c ->
-    ConversationRename <$> c .: "name"
-
-instance ToJSON ConversationRename where
-  toJSON cu = object ["name" .= cupName cu]
 
 instance FromJSON MemberUpdateData where
   parseJSON = withObject "member-update event data" $ \m ->
