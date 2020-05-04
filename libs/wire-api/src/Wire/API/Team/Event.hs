@@ -45,6 +45,15 @@ module Wire.API.Team.Event
     nameUpdate,
     iconUpdate,
     iconKeyUpdate,
+
+    -- * Swagger
+    modelEvent,
+    modelMemberEvent,
+    modelMemberData,
+    modelConvEvent,
+    modelConversationData,
+    modelUpdateEvent,
+    modelUpdateData,
   )
 where
 
@@ -55,6 +64,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.Id (ConvId, TeamId, UserId)
 import Data.Json.Util
 import Data.Range
+import qualified Data.Swagger.Build.Api as Doc
 import Data.Time (UTCTime)
 import Imports
 import Wire.API.Team (Team)
@@ -73,6 +83,51 @@ data Event = Event
 
 newEvent :: EventType -> TeamId -> UTCTime -> Event
 newEvent typ tid tme = Event typ tid tme Nothing
+
+modelEvent :: Doc.Model
+modelEvent = Doc.defineModel "TeamEvent" $ do
+  Doc.description "team event data"
+  Doc.property "type" typeEventType $
+    Doc.description "event type"
+  Doc.property "team" Doc.bytes' $
+    Doc.description "team ID"
+  Doc.property "time" Doc.dateTime' $
+    Doc.description "date and time this event occurred"
+  -- This doesn't really seem to work in swagger-ui.
+  -- The children/subTypes are not displayed.
+  Doc.children
+    "type"
+    [ modelMemberEvent,
+      modelConvEvent,
+      modelUpdateEvent
+    ]
+
+modelMemberEvent :: Doc.Model
+modelMemberEvent = Doc.defineModel "TeamMemberEvent" $ do
+  Doc.description "team member event"
+  Doc.property "data" (Doc.ref modelMemberData) $ Doc.description "member data"
+
+modelMemberData :: Doc.Model
+modelMemberData =
+  Doc.defineModel "MemberData"
+    $ Doc.property "user" Doc.bytes'
+    $ Doc.description "user ID"
+
+modelConvEvent :: Doc.Model
+modelConvEvent = Doc.defineModel "TeamConversationEvent" $ do
+  Doc.description "team conversation event"
+  Doc.property "data" (Doc.ref modelConversationData) $ Doc.description "conversation data"
+
+modelConversationData :: Doc.Model
+modelConversationData =
+  Doc.defineModel "ConversationData"
+    $ Doc.property "conv" Doc.bytes'
+    $ Doc.description "conversation ID"
+
+modelUpdateEvent :: Doc.Model
+modelUpdateEvent = Doc.defineModel "TeamUpdateEvent" $ do
+  Doc.description "team update event"
+  Doc.property "data" (Doc.ref modelUpdateData) $ Doc.description "update data"
 
 instance ToJSON Event where
   toJSON = Object . toJSONObject
@@ -107,6 +162,19 @@ data EventType
   | ConvCreate
   | ConvDelete
   deriving (Eq, Show, Generic)
+
+typeEventType :: Doc.DataType
+typeEventType =
+  Doc.string $
+    Doc.enum
+      [ "team.create",
+        "team.delete",
+        "team.update",
+        "team.member-join",
+        "team.member-leave",
+        "team.conversation-create",
+        "team.conversation-delete"
+      ]
 
 instance ToJSON EventType where
   toJSON TeamCreate = String "team.create"
@@ -192,6 +260,19 @@ data TeamUpdateData = TeamUpdateData
     _iconKeyUpdate :: Maybe (Range 1 256 Text)
   }
   deriving (Eq, Show, Generic)
+
+modelUpdateData :: Doc.Model
+modelUpdateData = Doc.defineModel "TeamUpdateData" $ do
+  Doc.description "team update data"
+  Doc.property "name" Doc.string' $ do
+    Doc.description "new team name"
+    Doc.optional
+  Doc.property "icon" Doc.string' $ do
+    Doc.description "new icon asset id"
+    Doc.optional
+  Doc.property "icon_key" Doc.string' $ do
+    Doc.description "new icon asset key"
+    Doc.optional
 
 newTeamUpdateData :: TeamUpdateData
 newTeamUpdateData = TeamUpdateData Nothing Nothing Nothing

@@ -60,6 +60,7 @@ module Wire.API.Team
     -- * Swagger
     modelTeam,
     modelTeamList,
+    modelNewBindingTeam,
     modelNewNonBindingTeam,
     modelTeamDelete,
 

@@ -22,9 +22,8 @@ module Brig.Types.Swagger where
 import Data.Swagger.Build.Api
 import qualified Data.Swagger.Model.Api as Model
 import qualified Galley.Types.Swagger as Galley
-import qualified Galley.Types.Teams.Swagger as Galley
 import Imports
-import Wire.API.Team (defaultRole)
+import Wire.API.Team (defaultRole, modelNewBindingTeam)
 import Wire.Swagger
 
 brigModels :: [Model]
@@ -148,7 +147,7 @@ user = defineModel "User" $ do
   property "deleted" bool' $ do
     description "Whether the account has been deleted."
     optional
-  property "service" (ref Galley.serviceRef) $ do
+  property "service" (ref Galley.modelServiceRef) $ do
     description "The reference to the owning service, if the user is a 'bot'."
     optional
   property "handle" string' $ do
@@ -253,7 +252,7 @@ newUser = defineModel "NewUser" $ do
   property "team_code" string' $ do
     description "Team invitation code. Mutually exclusive with team|invitation_code"
     optional
-  property "team" (ref Galley.modelNewBindingTeam) $ do
+  property "team" (ref modelNewBindingTeam) $ do
     description "New team information. Mutually exclusive with team_code|invitation_code"
     optional
 

@@ -21,53 +21,53 @@ module Galley.Types.Swagger where
 
 import Data.Aeson (encode)
 import Data.String.Conversions (cs)
-import Data.Swagger.Build.Api as Swagger
+import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.API.Conversation (Access)
 import qualified Wire.Swagger as Swagger
 
 -- TODO(wire-api): check if all models are used
-galleyModels :: [Model]
+galleyModels :: [Doc.Model]
 galleyModels =
-  [ conversation,
-    conversations,
-    conversationIds,
-    conversationMembers,
-    otherMember,
-    member,
-    serviceRef,
-    conversationUpdateName,
-    conversationAccessUpdate,
-    conversationReceiptModeUpdate,
-    conversationMessageTimerUpdate,
-    conversationCode,
-    conversationRole,
-    conversationRolesList,
-    invite,
-    memberUpdate,
-    otherMemberUpdate,
-    newConversation,
-    teamInfo,
-    typing,
-    newOtrMessage,
-    otrRecipients,
-    otrClientMap,
-    clientMismatch,
-    userClients,
-    userIdList,
-    legalHoldTeamConfig,
-    ssoTeamConfig,
-    customBackend,
+  [ modelConversation,
+    modelConversations,
+    modelConversationIds,
+    modelConversationMembers,
+    modelOtherMember,
+    modelMember,
+    modelServiceRef,
+    modelConversationUpdateName,
+    modelConversationAccessUpdate,
+    modelConversationReceiptModeUpdate,
+    modelConversationMessageTimerUpdate,
+    modelConversationCode,
+    modelConversationRole,
+    modelConversationRolesList,
+    modelInvite,
+    modelMemberUpdate,
+    modelOtherMemberUpdate,
+    modelNewConversation,
+    modelTeamInfo,
+    modelTyping,
+    modelNewOtrMessage,
+    modelOtrRecipients,
+    modelOtrClientMap,
+    modelClientMismatch,
+    modelUserClients,
+    modelUserIdList,
+    modelLegalHoldTeamConfig,
+    modelSsoTeamConfig,
+    modelCustomBackend,
     --
-    event,
-    memberUpdateEvent,
-    memberUpdateData,
-    connectEvent,
-    connect,
-    conversationNameUpdateEvent,
-    memberEvent,
-    members,
-    typingEvent,
+    modelEvent,
+    modelMemberUpdateEvent,
+    modelMemberUpdateData,
+    modelConnectEvent,
+    modelConnect,
+    modelConversationNameUpdateEvent,
+    modelMemberEvent,
+    modelMembers,
+    modelTypingEvent,
     -- FUTUREWORK:
     -- The following events are used as children/subTypes of 'event',
     -- but have not been added to the list of models here.
@@ -79,41 +79,41 @@ galleyModels =
     -- conversationMessageTimerUpdateEvent,
     -- conversationCodeUpdateEvent,
     -- conversationCodeDeleteEvent
-    otrMessage -- used in otrMessageEvent
+    modelOtrMessage -- used in otrMessageEvent
   ]
 
-event :: Model
-event = defineModel "Event" $ do
-  description "Event data"
-  property "type" eventType $
-    description "Event type"
-  property "conversation" bytes' $
-    description "Conversation ID"
-  property "from" bytes' $
-    description "User ID"
-  property "time" dateTime' $
-    description "Date and time this event occurred"
+modelEvent :: Doc.Model
+modelEvent = Doc.defineModel "Event" $ do
+  Doc.description "Event data"
+  Doc.property "type" typeEventType $
+    Doc.description "Event type"
+  Doc.property "conversation" Doc.bytes' $
+    Doc.description "Conversation ID"
+  Doc.property "from" Doc.bytes' $
+    Doc.description "User ID"
+  Doc.property "time" Doc.dateTime' $
+    Doc.description "Date and time this event occurred"
   -- This doesn't really seem to work in swagger-ui.
   -- The children/subTypes are not displayed.
-  children
+  Doc.children
     "type"
-    [ memberEvent,
-      connectEvent,
-      conversationNameUpdateEvent,
-      memberUpdateEvent,
-      typingEvent,
-      otrMessageEvent,
-      conversationAccessUpdateEvent,
-      conversationReceiptModeUpdateEvent,
-      conversationMessageTimerUpdateEvent,
-      conversationCodeUpdateEvent,
-      conversationCodeDeleteEvent
+    [ modelMemberEvent,
+      modelConnectEvent,
+      modelConversationNameUpdateEvent,
+      modelMemberUpdateEvent,
+      modelTypingEvent,
+      modelOtrMessageEvent,
+      modelConversationAccessUpdateEvent,
+      modelConversationReceiptModeUpdateEvent,
+      modelConversationMessageTimerUpdateEvent,
+      modelConversationCodeUpdateEvent,
+      modelConversationCodeDeleteEvent
     ]
 
-eventType :: DataType
-eventType =
-  string $
-    enum
+typeEventType :: Doc.DataType
+typeEventType =
+  Doc.string $
+    Doc.enum
       [ "conversation.member-join",
         "conversation.member-leave",
         "conversation.member-update",
@@ -130,41 +130,41 @@ eventType =
         "conversation.otr-message-add"
       ]
 
-otrMessageEvent :: Model
-otrMessageEvent = defineModel "OtrMessage" $ do
-  description "off-the-record message event"
-  property "data" (ref otrMessage) $ description "OTR message"
+modelOtrMessageEvent :: Doc.Model
+modelOtrMessageEvent = Doc.defineModel "OtrMessage" $ do
+  Doc.description "off-the-record message event"
+  Doc.property "data" (Doc.ref modelOtrMessage) $ Doc.description "OTR message"
 
-memberEvent :: Model
-memberEvent = defineModel "MemberEvent" $ do
-  description "member event"
-  property "data" (ref members) $ description "members data"
+modelMemberEvent :: Doc.Model
+modelMemberEvent = Doc.defineModel "MemberEvent" $ do
+  Doc.description "member event"
+  Doc.property "data" (Doc.ref modelMembers) $ Doc.description "members data"
 
-connectEvent :: Model
-connectEvent = defineModel "ConnectEvent" $ do
-  description "connect event"
-  property "data" (ref connect) $ description "connect data"
+modelConnectEvent :: Doc.Model
+modelConnectEvent = Doc.defineModel "ConnectEvent" $ do
+  Doc.description "connect event"
+  Doc.property "data" (Doc.ref modelConnect) $ Doc.description "connect data"
 
-conversationNameUpdateEvent :: Model
-conversationNameUpdateEvent = defineModel "ConversationNameUpdateEvent" $ do
-  description "conversation update event"
-  property "data" (ref conversationUpdateName) $ description "conversation name"
+modelConversationNameUpdateEvent :: Doc.Model
+modelConversationNameUpdateEvent = Doc.defineModel "ConversationNameUpdateEvent" $ do
+  Doc.description "conversation update event"
+  Doc.property "data" (Doc.ref modelConversationUpdateName) $ Doc.description "conversation name"
 
-conversationRole :: Model
-conversationRole = defineModel "ConversationRole" $ do
-  description "Conversation role"
-  property "conversation_role" string' $
-    description
+modelConversationRole :: Doc.Model
+modelConversationRole = Doc.defineModel "ConversationRole" $ do
+  Doc.description "Conversation role"
+  Doc.property "conversation_role" Doc.string' $
+    Doc.description
       "role name, between 2 and 128 chars, 'wire_' prefix \
       \is reserved for roles designed by Wire (i.e., no \
       \custom roles can have the same prefix)"
-  property "actions" (array conversationRoleAction) $
-    description "The set of actions allowed for this role"
+  Doc.property "actions" (Doc.array typeConversationRoleAction) $
+    Doc.description "The set of actions allowed for this role"
 
-conversationRoleAction :: DataType
-conversationRoleAction =
-  string $
-    enum
+typeConversationRoleAction :: Doc.DataType
+typeConversationRoleAction =
+  Doc.string $
+    Doc.enum
       [ "add_conversation_member",
         "remove_conversation_member",
         "modify_conversation_name",
@@ -176,421 +176,421 @@ conversationRoleAction =
         "delete_conversation"
       ]
 
-conversationRolesList :: Model
-conversationRolesList = defineModel "ConversationRolesList" $ do
-  description "list of roles allowed in the given conversation"
-  property "conversation_roles" (unique $ array (ref conversationRole)) $
-    description "the array of conversation roles"
+modelConversationRolesList :: Doc.Model
+modelConversationRolesList = Doc.defineModel "ConversationRolesList" $ do
+  Doc.description "list of roles allowed in the given conversation"
+  Doc.property "conversation_roles" (Doc.unique $ Doc.array (Doc.ref modelConversationRole)) $
+    Doc.description "the array of conversation roles"
 
-conversationAccessUpdateEvent :: Model
-conversationAccessUpdateEvent = defineModel "ConversationAccessUpdateEvent" $ do
-  description "conversation access update event"
-  property "data" (ref conversationAccessUpdate) $ description "conversation access data"
+modelConversationAccessUpdateEvent :: Doc.Model
+modelConversationAccessUpdateEvent = Doc.defineModel "ConversationAccessUpdateEvent" $ do
+  Doc.description "conversation access update event"
+  Doc.property "data" (Doc.ref modelConversationAccessUpdate) $ Doc.description "conversation access data"
 
-conversationReceiptModeUpdateEvent :: Model
-conversationReceiptModeUpdateEvent = defineModel "ConversationReceiptModeUpdateEvent" $ do
-  description "conversation receipt mode update event"
-  property "data" (ref conversationReceiptModeUpdate) $ description "conversation receipt mode data"
+modelConversationReceiptModeUpdateEvent :: Doc.Model
+modelConversationReceiptModeUpdateEvent = Doc.defineModel "ConversationReceiptModeUpdateEvent" $ do
+  Doc.description "conversation receipt mode update event"
+  Doc.property "data" (Doc.ref modelConversationReceiptModeUpdate) $ Doc.description "conversation receipt mode data"
 
-conversationMessageTimerUpdateEvent :: Model
-conversationMessageTimerUpdateEvent = defineModel "ConversationMessageTimerUpdateEvent" $ do
-  description "conversation message timer update event"
-  property "data" (ref conversationMessageTimerUpdate) $ description "conversation message timer data"
+modelConversationMessageTimerUpdateEvent :: Doc.Model
+modelConversationMessageTimerUpdateEvent = Doc.defineModel "ConversationMessageTimerUpdateEvent" $ do
+  Doc.description "conversation message timer update event"
+  Doc.property "data" (Doc.ref modelConversationMessageTimerUpdate) $ Doc.description "conversation message timer data"
 
-conversationCodeUpdateEvent :: Model
-conversationCodeUpdateEvent = defineModel "ConversationCodeUpdateEvent" $ do
-  description "conversation code update event"
-  property "data" (ref conversationCode) $ description "conversation code data"
+modelConversationCodeUpdateEvent :: Doc.Model
+modelConversationCodeUpdateEvent = Doc.defineModel "ConversationCodeUpdateEvent" $ do
+  Doc.description "conversation code update event"
+  Doc.property "data" (Doc.ref modelConversationCode) $ Doc.description "conversation code data"
 
-conversationCodeDeleteEvent :: Model
-conversationCodeDeleteEvent =
-  defineModel "ConversationCodeDeleteEvent" $
-    description "conversation code delete event"
+modelConversationCodeDeleteEvent :: Doc.Model
+modelConversationCodeDeleteEvent =
+  Doc.defineModel "ConversationCodeDeleteEvent" $
+    Doc.description "conversation code delete event"
 
-memberUpdateEvent :: Model
-memberUpdateEvent = defineModel "MemberUpdateEvent" $ do
-  description "member update event"
-  property "data" (ref memberUpdateData) $ description "member data"
+modelMemberUpdateEvent :: Doc.Model
+modelMemberUpdateEvent = Doc.defineModel "MemberUpdateEvent" $ do
+  Doc.description "member update event"
+  Doc.property "data" (Doc.ref modelMemberUpdateData) $ Doc.description "member data"
 
-typingEvent :: Model
-typingEvent = defineModel "TypingEvent" $ do
-  description "typing event"
-  property "data" (ref typing) $ description "typing data"
+modelTypingEvent :: Doc.Model
+modelTypingEvent = Doc.defineModel "TypingEvent" $ do
+  Doc.description "typing event"
+  Doc.property "data" (Doc.ref modelTyping) $ Doc.description "typing data"
 
-conversation :: Model
-conversation = defineModel "Conversation" $ do
-  description "A conversation object as returned from the server"
-  property "id" bytes' $
-    description "Conversation ID"
-  property "type" conversationType $
-    description "The conversation type of this object (0 = regular, 1 = self, 2 = 1:1, 3 = connect)"
-  property "creator" bytes' $
-    description "The creator's user ID."
-  -- TODO: property "access"
-  -- property "access_role"
-  property "name" string' $ do
-    description "The conversation name (can be null)"
-  property "members" (ref conversationMembers) $
-    description "The current set of conversation members"
-  -- property "team"
-  property "message_timer" (int64 (Swagger.min 0)) $ do
-    description "Per-conversation message timer (can be null)"
+modelConversation :: Doc.Model
+modelConversation = Doc.defineModel "Conversation" $ do
+  Doc.description "A conversation object as returned from the server"
+  Doc.property "id" Doc.bytes' $
+    Doc.description "Conversation ID"
+  Doc.property "type" typeConversationType $
+    Doc.description "The conversation type of this object (0 = regular, 1 = self, 2 = 1:1, 3 = connect)"
+  Doc.property "creator" Doc.bytes' $
+    Doc.description "The creator's user ID."
+  -- TODO: Doc.property "access"
+  -- Doc.property "access_role"
+  Doc.property "name" Doc.string' $ do
+    Doc.description "The conversation name (can be null)"
+  Doc.property "members" (Doc.ref modelConversationMembers) $
+    Doc.description "The current set of conversation members"
+  -- Doc.property "team"
+  Doc.property "message_timer" (Doc.int64 (Doc.min 0)) $ do
+    Doc.description "Per-conversation message timer (can be null)"
 
-conversationType :: DataType
-conversationType = int32 $ enum [0, 1, 2, 3]
+typeConversationType :: Doc.DataType
+typeConversationType = Doc.int32 $ Doc.enum [0, 1, 2, 3]
 
-otrMessage :: Model
-otrMessage = defineModel "OtrMessage" $ do
-  description "Encrypted message of a conversation"
-  property "sender" bytes' $
-    description "The sender's client ID"
-  property "recipient" bytes' $
-    description "The recipient's client ID"
-  property "text" bytes' $
-    description "The ciphertext for the recipient (Base64 in JSON)"
-  property "data" bytes' $ do
-    description
+modelOtrMessage :: Doc.Model
+modelOtrMessage = Doc.defineModel "OtrMessage" $ do
+  Doc.description "Encrypted message of a conversation"
+  Doc.property "sender" Doc.bytes' $
+    Doc.description "The sender's client ID"
+  Doc.property "recipient" Doc.bytes' $
+    Doc.description "The recipient's client ID"
+  Doc.property "text" Doc.bytes' $
+    Doc.description "The ciphertext for the recipient (Base64 in JSON)"
+  Doc.property "data" Doc.bytes' $ do
+    Doc.description
       "Extra (symmetric) data (i.e. ciphertext, Base64 in JSON) \
       \that is common with all other recipients."
-    optional
+    Doc.optional
 
-priority :: DataType
-priority =
-  string $
-    enum
+typePriority :: Doc.DataType
+typePriority =
+  Doc.string $
+    Doc.enum
       [ "low",
         "high"
       ]
 
-newOtrMessage :: Model
-newOtrMessage = defineModel "NewOtrMessage" $ do
-  description "OTR message per recipient"
-  property "sender" bytes' $
-    description "The sender's client ID"
-  property "recipients" (ref otrRecipients) $
-    description "Per-recipient data (i.e. ciphertext)."
-  property "native_push" bool' $ do
-    description "Whether to issue a native push to offline clients."
-    optional
-  property "transient" bool' $ do
-    description "Whether to put this message into the notification queue."
-    optional
-  property "native_priority" priority $ do
-    description "The native push priority (default 'high')."
-    optional
-  property "data" bytes' $ do
-    description
+modelNewOtrMessage :: Doc.Model
+modelNewOtrMessage = Doc.defineModel "NewOtrMessage" $ do
+  Doc.description "OTR message per recipient"
+  Doc.property "sender" Doc.bytes' $
+    Doc.description "The sender's client ID"
+  Doc.property "recipients" (Doc.ref modelOtrRecipients) $
+    Doc.description "Per-recipient data (i.e. ciphertext)."
+  Doc.property "native_push" Doc.bool' $ do
+    Doc.description "Whether to issue a native push to offline clients."
+    Doc.optional
+  Doc.property "transient" Doc.bool' $ do
+    Doc.description "Whether to put this message into the notification queue."
+    Doc.optional
+  Doc.property "native_priority" typePriority $ do
+    Doc.description "The native push priority (default 'high')."
+    Doc.optional
+  Doc.property "data" Doc.bytes' $ do
+    Doc.description
       "Extra (symmetric) data (i.e. ciphertext) that is replicated \
       \for each recipient."
-    optional
-  property "report_missing" (unique $ array bytes') $ do
-    description "List of user IDs"
-    optional
+    Doc.optional
+  Doc.property "report_missing" (Doc.unique $ Doc.array Doc.bytes') $ do
+    Doc.description "List of user IDs"
+    Doc.optional
 
-otrRecipients :: Model
-otrRecipients = defineModel "OtrRecipients" $ do
-  description "Recipients of OTR content."
-  property "" (ref otrClientMap) $
-    description "Mapping of user IDs to 'OtrClientMap's."
+modelOtrRecipients :: Doc.Model
+modelOtrRecipients = Doc.defineModel "OtrRecipients" $ do
+  Doc.description "Recipients of OTR content."
+  Doc.property "" (Doc.ref modelOtrClientMap) $
+    Doc.description "Mapping of user IDs to 'OtrClientMap's."
 
-otrClientMap :: Model
-otrClientMap = defineModel "OtrClientMap" $ do
-  description "Map of client IDs to OTR content."
-  property "" bytes' $
-    description "Mapping from client IDs to OTR content (Base64 in JSON)."
+modelOtrClientMap :: Doc.Model
+modelOtrClientMap = Doc.defineModel "OtrClientMap" $ do
+  Doc.description "Map of client IDs to OTR content."
+  Doc.property "" Doc.bytes' $
+    Doc.description "Mapping from client IDs to OTR content (Base64 in JSON)."
 
-clientMismatch :: Model
-clientMismatch = defineModel "ClientMismatch" $ do
-  description "Map of missing, redundant or deleted clients."
-  property "time" dateTime' $
-    description "Server timestamp (date and time)"
-  property "missing" (ref userClients) $
-    description "Map of missing clients per user."
-  property "redundant" (ref userClients) $
-    description "Map of redundant clients per user."
-  property "deleted" (ref userClients) $
-    description "Map of deleted clients per user."
+modelClientMismatch :: Doc.Model
+modelClientMismatch = Doc.defineModel "ClientMismatch" $ do
+  Doc.description "Map of missing, redundant or deleted clients."
+  Doc.property "time" Doc.dateTime' $
+    Doc.description "Server timestamp (date and time)"
+  Doc.property "missing" (Doc.ref modelUserClients) $
+    Doc.description "Map of missing clients per user."
+  Doc.property "redundant" (Doc.ref modelUserClients) $
+    Doc.description "Map of redundant clients per user."
+  Doc.property "deleted" (Doc.ref modelUserClients) $
+    Doc.description "Map of deleted clients per user."
 
-userClients :: Model
-userClients =
-  defineModel "UserClients"
-    $ property "" (unique $ array bytes')
-    $ description "Map of user IDs to sets of client IDs ({ UserId: [ClientId] })."
+modelUserClients :: Doc.Model
+modelUserClients =
+  Doc.defineModel "UserClients"
+    $ Doc.property "" (Doc.unique $ Doc.array Doc.bytes')
+    $ Doc.description "Map of user IDs to sets of client IDs ({ UserId: [ClientId] })."
 
-userIdList :: Model
-userIdList = defineModel "UserIdList" $ do
-  description "list of user ids"
-  property "user_ids" (unique $ array bytes') $
-    description "the array of team conversations"
+modelUserIdList :: Doc.Model
+modelUserIdList = Doc.defineModel "UserIdList" $ do
+  Doc.description "list of user ids"
+  Doc.property "user_ids" (Doc.unique $ Doc.array Doc.bytes') $
+    Doc.description "the array of team conversations"
 
-members :: Model
-members =
-  defineModel "Members"
-    $ property "users" (unique $ array bytes')
-    $ description "List of user IDs"
+modelMembers :: Doc.Model
+modelMembers =
+  Doc.defineModel "Members"
+    $ Doc.property "users" (Doc.unique $ Doc.array Doc.bytes')
+    $ Doc.description "List of user IDs"
 
-conversationUpdateName :: Model
-conversationUpdateName = defineModel "ConversationUpdateName" $ do
-  description "Contains conversation name to update"
-  property "name" string' $
-    description "The new conversation name"
+modelConversationUpdateName :: Doc.Model
+modelConversationUpdateName = Doc.defineModel "ConversationUpdateName" $ do
+  Doc.description "Contains conversation name to update"
+  Doc.property "name" Doc.string' $
+    Doc.description "The new conversation name"
 
-conversationAccessUpdate :: Model
-conversationAccessUpdate = defineModel "ConversationAccessUpdate" $ do
-  description "Contains conversation properties to update"
-  property "access" (unique $ array access) $
-    description "List of conversation access modes."
-  property "access_role" (bytes') $
-    description "Conversation access role: private|team|activated|non_activated"
+modelConversationAccessUpdate :: Doc.Model
+modelConversationAccessUpdate = Doc.defineModel "ConversationAccessUpdate" $ do
+  Doc.description "Contains conversation properties to update"
+  Doc.property "access" (Doc.unique $ Doc.array typeAccess) $
+    Doc.description "List of conversation access modes."
+  Doc.property "access_role" (Doc.bytes') $
+    Doc.description "Conversation access role: private|team|activated|non_activated"
 
-access :: DataType
-access = string . enum $ cs . encode <$> [(minBound :: Access) ..]
+typeAccess :: Doc.DataType
+typeAccess = Doc.string . Doc.enum $ cs . encode <$> [(minBound :: Access) ..]
 
-conversationReceiptModeUpdate :: Model
-conversationReceiptModeUpdate = defineModel "conversationReceiptModeUpdate" $ do
-  description
+modelConversationReceiptModeUpdate :: Doc.Model
+modelConversationReceiptModeUpdate = Doc.defineModel "conversationReceiptModeUpdate" $ do
+  Doc.description
     "Contains conversation receipt mode to update to. Receipt mode tells \
     \clients whether certain types of receipts should be sent in the given \
     \conversation or not. How this value is interpreted is up to clients."
-  property "receipt_mode" int32' $
-    description "Receipt mode: int32"
+  Doc.property "receipt_mode" Doc.int32' $
+    Doc.description "Receipt mode: int32"
 
-conversationMessageTimerUpdate :: Model
-conversationMessageTimerUpdate = defineModel "ConversationMessageTimerUpdate" $ do
-  description "Contains conversation properties to update"
-  property "message_timer" int64' $
-    description "Conversation message timer (in milliseconds); can be null"
+modelConversationMessageTimerUpdate :: Doc.Model
+modelConversationMessageTimerUpdate = Doc.defineModel "ConversationMessageTimerUpdate" $ do
+  Doc.description "Contains conversation properties to update"
+  Doc.property "message_timer" Doc.int64' $
+    Doc.description "Conversation message timer (in milliseconds); can be null"
 
-conversationCode :: Model
-conversationCode = defineModel "ConversationCode" $ do
-  description "Contains conversation properties to update"
-  property "key" string' $
-    description "Stable conversation identifier"
-  property "code" string' $
-    description "Conversation code (random)"
-  property "uri" string' $ do
-    description "Full URI (containing key/code) to join a conversation"
-    optional
+modelConversationCode :: Doc.Model
+modelConversationCode = Doc.defineModel "ConversationCode" $ do
+  Doc.description "Contains conversation properties to update"
+  Doc.property "key" Doc.string' $
+    Doc.description "Stable conversation identifier"
+  Doc.property "code" Doc.string' $
+    Doc.description "Conversation code (random)"
+  Doc.property "uri" Doc.string' $ do
+    Doc.description "Full URI (containing key/code) to join a conversation"
+    Doc.optional
 
-conversationMembers :: Model
-conversationMembers = defineModel "ConversationMembers" $ do
-  description "Object representing users of a conversation."
-  property "self" (ref member) $
-    description "The user ID of the requestor"
-  property "others" (unique (array (ref otherMember))) $
-    description "All other current users of this conversation"
+modelConversationMembers :: Doc.Model
+modelConversationMembers = Doc.defineModel "ConversationMembers" $ do
+  Doc.description "Object representing users of a conversation."
+  Doc.property "self" (Doc.ref modelMember) $
+    Doc.description "The user ID of the requestor"
+  Doc.property "others" (Doc.unique (Doc.array (Doc.ref modelOtherMember))) $
+    Doc.description "All other current users of this conversation"
 
-member :: Model
-member = defineModel "Member" $ do
-  property "id" bytes' $
-    description "User ID"
-  property "otr_muted" bool' $ do
-    description "Whether the conversation is muted"
-    optional
-  property "otr_muted_ref" bytes' $ do
-    description "A reference point for (un)muting"
-    optional
-  property "otr_archived" bool' $ do
-    description "Whether the conversation is archived"
-    optional
-  property "otr_archived_ref" bytes' $ do
-    description "A reference point for (un)archiving"
-    optional
-  property "hidden" bool' $ do
-    description "Whether the conversation is hidden"
-    optional
-  property "hidden_ref" bytes' $ do
-    description "A reference point for (un)hiding"
-    optional
-  property "service" (ref serviceRef) $ do
-    description "The reference to the owning service, if the member is a 'bot'."
-    optional
+modelMember :: Doc.Model
+modelMember = Doc.defineModel "Member" $ do
+  Doc.property "id" Doc.bytes' $
+    Doc.description "User ID"
+  Doc.property "otr_muted" Doc.bool' $ do
+    Doc.description "Whether the conversation is muted"
+    Doc.optional
+  Doc.property "otr_muted_ref" Doc.bytes' $ do
+    Doc.description "A reference point for (un)muting"
+    Doc.optional
+  Doc.property "otr_archived" Doc.bool' $ do
+    Doc.description "Whether the conversation is archived"
+    Doc.optional
+  Doc.property "otr_archived_ref" Doc.bytes' $ do
+    Doc.description "A reference point for (un)archiving"
+    Doc.optional
+  Doc.property "hidden" Doc.bool' $ do
+    Doc.description "Whether the conversation is hidden"
+    Doc.optional
+  Doc.property "hidden_ref" Doc.bytes' $ do
+    Doc.description "A reference point for (un)hiding"
+    Doc.optional
+  Doc.property "service" (Doc.ref modelServiceRef) $ do
+    Doc.description "The reference to the owning service, if the member is a 'bot'."
+    Doc.optional
 
-otherMember :: Model
-otherMember = defineModel "OtherMember" $ do
-  property "id" bytes' $
-    description "User ID"
-  property "service" (ref serviceRef) $ do
-    description "The reference to the owning service, if the member is a 'bot'."
-    optional
+modelOtherMember :: Doc.Model
+modelOtherMember = Doc.defineModel "OtherMember" $ do
+  Doc.property "id" Doc.bytes' $
+    Doc.description "User ID"
+  Doc.property "service" (Doc.ref modelServiceRef) $ do
+    Doc.description "The reference to the owning service, if the member is a 'bot'."
+    Doc.optional
 
-newConversation :: Model
-newConversation = defineModel "NewConversation" $ do
-  description "JSON object to create a new conversation"
-  property "users" (unique $ array bytes') $
-    description "List of user IDs (excluding the requestor) to be part of this conversation"
-  property "name" string' $ do
-    description "The conversation name"
-    optional
-  property "team" (ref teamInfo) $ do
-    description "Team information of this conversation"
-    optional
-  -- TODO: property "access"
-  -- property "access_role"
-  property "message_timer" (int64 (Swagger.min 0)) $ do
-    description "Per-conversation message timer"
-    optional
-  property "receipt_mode" (int32 (Swagger.min 0)) $ do
-    description "Conversation receipt mode"
-    optional
+modelNewConversation :: Doc.Model
+modelNewConversation = Doc.defineModel "NewConversation" $ do
+  Doc.description "JSON object to create a new conversation"
+  Doc.property "users" (Doc.unique $ Doc.array Doc.bytes') $
+    Doc.description "List of user IDs (excluding the requestor) to be part of this conversation"
+  Doc.property "name" Doc.string' $ do
+    Doc.description "The conversation name"
+    Doc.optional
+  Doc.property "team" (Doc.ref modelTeamInfo) $ do
+    Doc.description "Team information of this conversation"
+    Doc.optional
+  -- TODO: Doc.property "access"
+  -- Doc.property "access_role"
+  Doc.property "message_timer" (Doc.int64 (Doc.min 0)) $ do
+    Doc.description "Per-conversation message timer"
+    Doc.optional
+  Doc.property "receipt_mode" (Doc.int32 (Doc.min 0)) $ do
+    Doc.description "Conversation receipt mode"
+    Doc.optional
 
-teamInfo :: Model
-teamInfo = defineModel "TeamInfo" $ do
-  description "Team information"
-  property "teamid" bytes' $
-    description "Team ID"
-  property "managed" bool' $
-    description "Is this a managed team conversation?"
+modelTeamInfo :: Doc.Model
+modelTeamInfo = Doc.defineModel "TeamInfo" $ do
+  Doc.description "Team information"
+  Doc.property "teamid" Doc.bytes' $
+    Doc.description "Team ID"
+  Doc.property "managed" Doc.bool' $
+    Doc.description "Is this a managed team conversation?"
 
-conversationIds :: Model
-conversationIds = defineModel "ConversationIds" $ do
-  description "Object holding a list of conversation IDs"
-  property "conversations" (unique $ array string') end
-  property "has_more" bool' $
-    description "Indicator that the server has more IDs than returned"
+modelConversationIds :: Doc.Model
+modelConversationIds = Doc.defineModel "ConversationIds" $ do
+  Doc.description "Object holding a list of conversation IDs"
+  Doc.property "conversations" (Doc.unique $ Doc.array Doc.string') Doc.end
+  Doc.property "has_more" Doc.bool' $
+    Doc.description "Indicator that the server has more IDs than returned"
 
-conversations :: Model
-conversations = defineModel "Conversations" $ do
-  description "Object holding a list of conversations"
-  property "conversations" (unique $ array (ref conversation)) end
-  property "has_more" bool' $
-    description "Indicator that the server has more conversations than returned"
+modelConversations :: Doc.Model
+modelConversations = Doc.defineModel "Conversations" $ do
+  Doc.description "Object holding a list of conversations"
+  Doc.property "conversations" (Doc.unique $ Doc.array (Doc.ref modelConversation)) Doc.end
+  Doc.property "has_more" Doc.bool' $
+    Doc.description "Indicator that the server has more conversations than returned"
 
-invite :: Model
-invite = defineModel "Invite" $ do
-  description "Add users to a conversation"
-  property "users" (unique $ array bytes') $
-    description "List of user IDs to add to a conversation"
+modelInvite :: Doc.Model
+modelInvite = Doc.defineModel "Invite" $ do
+  Doc.description "Add users to a conversation"
+  Doc.property "users" (Doc.unique $ Doc.array Doc.bytes') $
+    Doc.description "List of user IDs to add to a conversation"
 
-memberUpdate :: Model
-memberUpdate = defineModel "MemberUpdate" $ do
-  description "Update user properties relative to a conversation"
-  property "otr_muted" bool' $ do
-    description "Whether to notify on conversation updates"
-    optional
-  property "otr_muted_ref" bytes' $ do
-    description "A reference point for (un)muting"
-    optional
-  property "otr_archived" bool' $ do
-    description "Whether to notify on conversation updates"
-    optional
-  property "otr_archived_ref" bytes' $ do
-    description "A reference point for (un)archiving"
-    optional
-  property "hidden" bool' $ do
-    description "Whether the conversation is hidden"
-    optional
-  property "hidden_ref" bytes' $ do
-    description "A reference point for (un)hiding"
-    optional
-  property "conversation_role" string' $ do
-    description "Name of the conversation role to update to"
-    optional
+modelMemberUpdate :: Doc.Model
+modelMemberUpdate = Doc.defineModel "MemberUpdate" $ do
+  Doc.description "Update user properties relative to a conversation"
+  Doc.property "otr_muted" Doc.bool' $ do
+    Doc.description "Whether to notify on conversation updates"
+    Doc.optional
+  Doc.property "otr_muted_ref" Doc.bytes' $ do
+    Doc.description "A reference point for (un)muting"
+    Doc.optional
+  Doc.property "otr_archived" Doc.bool' $ do
+    Doc.description "Whether to notify on conversation updates"
+    Doc.optional
+  Doc.property "otr_archived_ref" Doc.bytes' $ do
+    Doc.description "A reference point for (un)archiving"
+    Doc.optional
+  Doc.property "hidden" Doc.bool' $ do
+    Doc.description "Whether the conversation is hidden"
+    Doc.optional
+  Doc.property "hidden_ref" Doc.bytes' $ do
+    Doc.description "A reference point for (un)hiding"
+    Doc.optional
+  Doc.property "conversation_role" Doc.string' $ do
+    Doc.description "Name of the conversation role to update to"
+    Doc.optional
 
-otherMemberUpdate :: Model
-otherMemberUpdate = defineModel "otherMemberUpdate" $ do
-  description "Update user properties of other members relative to a conversation"
-  property "conversation_role" string' $ do
-    description "Name of the conversation role updated to"
-    optional
+modelOtherMemberUpdate :: Doc.Model
+modelOtherMemberUpdate = Doc.defineModel "otherMemberUpdate" $ do
+  Doc.description "Update user properties of other members relative to a conversation"
+  Doc.property "conversation_role" Doc.string' $ do
+    Doc.description "Name of the conversation role updated to"
+    Doc.optional
 
-memberUpdateData :: Model
-memberUpdateData = defineModel "MemberUpdateData" $ do
-  description "Event data on member updates"
-  property "target" bytes' $ do
-    description "Target ID of the user that the action was performed on"
-    optional
-  property "otr_muted" bool' $ do
-    description "Whether to notify on conversation updates"
-    optional
-  property "otr_muted_ref" bytes' $ do
-    description "A reference point for (un)muting"
-    optional
-  property "otr_archived" bool' $ do
-    description "Whether to notify on conversation updates"
-    optional
-  property "otr_archived_ref" bytes' $ do
-    description "A reference point for (un)archiving"
-    optional
-  property "hidden" bool' $ do
-    description "Whether the conversation is hidden"
-    optional
-  property "hidden_ref" bytes' $ do
-    description "A reference point for (un)hiding"
-    optional
-  property "conversation_role" string' $ do
-    description "Name of the conversation role to update to"
-    optional
+modelMemberUpdateData :: Doc.Model
+modelMemberUpdateData = Doc.defineModel "MemberUpdateData" $ do
+  Doc.description "Event data on member updates"
+  Doc.property "target" Doc.bytes' $ do
+    Doc.description "Target ID of the user that the action was performed on"
+    Doc.optional
+  Doc.property "otr_muted" Doc.bool' $ do
+    Doc.description "Whether to notify on conversation updates"
+    Doc.optional
+  Doc.property "otr_muted_ref" Doc.bytes' $ do
+    Doc.description "A reference point for (un)muting"
+    Doc.optional
+  Doc.property "otr_archived" Doc.bool' $ do
+    Doc.description "Whether to notify on conversation updates"
+    Doc.optional
+  Doc.property "otr_archived_ref" Doc.bytes' $ do
+    Doc.description "A reference point for (un)archiving"
+    Doc.optional
+  Doc.property "hidden" Doc.bool' $ do
+    Doc.description "Whether the conversation is hidden"
+    Doc.optional
+  Doc.property "hidden_ref" Doc.bytes' $ do
+    Doc.description "A reference point for (un)hiding"
+    Doc.optional
+  Doc.property "conversation_role" Doc.string' $ do
+    Doc.description "Name of the conversation role to update to"
+    Doc.optional
 
-otherMemberUpdateData :: Model
-otherMemberUpdateData = defineModel "OtherMemberUpdateData" $ do
-  description "Event data on other member updates"
-  property "target" bytes' $ do
-    description "Target ID of the user that the action was performed on"
-    optional
-  property "conversation_role" string' $ do
-    description "Name of the conversation role to update to"
-    optional
+modelOtherMemberUpdateData :: Doc.Model
+modelOtherMemberUpdateData = Doc.defineModel "OtherMemberUpdateData" $ do
+  Doc.description "Event data on other member updates"
+  Doc.property "target" Doc.bytes' $ do
+    Doc.description "Target ID of the user that the action was performed on"
+    Doc.optional
+  Doc.property "conversation_role" Doc.string' $ do
+    Doc.description "Name of the conversation role to update to"
+    Doc.optional
 
-typing :: Model
-typing = defineModel "Typing" $ do
-  description "Data to describe typing info"
-  property "status" typingStatus $ description "typing status"
+modelTyping :: Doc.Model
+modelTyping = Doc.defineModel "Typing" $ do
+  Doc.description "Data to describe typing info"
+  Doc.property "status" typeTypingStatus $ Doc.description "typing status"
 
-typingStatus :: DataType
-typingStatus =
-  string $
-    enum
+typeTypingStatus :: Doc.DataType
+typeTypingStatus =
+  Doc.string $
+    Doc.enum
       [ "started",
         "stopped"
       ]
 
-connect :: Model
-connect = defineModel "Connect" $ do
-  description "user to user connection request"
-  property "recipient" bytes' $
-    description "The user ID to connect to"
-  property "message" string' $
-    description "Initial message to send to user"
-  property "name" string' $
-    description "Name of requestor"
-  property "email" string' $ do
-    description "E-Mail of requestor"
-    optional
+modelConnect :: Doc.Model
+modelConnect = Doc.defineModel "Connect" $ do
+  Doc.description "user to user connection request"
+  Doc.property "recipient" Doc.bytes' $
+    Doc.description "The user ID to connect to"
+  Doc.property "message" Doc.string' $
+    Doc.description "Initial message to send to user"
+  Doc.property "name" Doc.string' $
+    Doc.description "Name of requestor"
+  Doc.property "email" Doc.string' $ do
+    Doc.description "E-Mail of requestor"
+    Doc.optional
 
-serviceRef :: Model
-serviceRef = defineModel "ServiceRef" $ do
-  description "Service Reference"
-  property "id" bytes' $
-    description "Service ID"
-  property "provider" bytes' $
-    description "Provider ID"
+modelServiceRef :: Doc.Model
+modelServiceRef = Doc.defineModel "ServiceRef" $ do
+  Doc.description "Service Reference"
+  Doc.property "id" Doc.bytes' $
+    Doc.description "Service ID"
+  Doc.property "provider" Doc.bytes' $
+    Doc.description "Provider ID"
 
-errorObj :: Model
-errorObj = Swagger.errorModel
+modelErrorObj :: Doc.Model
+modelErrorObj = Swagger.errorModel
 
-legalHoldTeamConfig :: Model
-legalHoldTeamConfig = defineModel "LegalHoldTeamConfig" $ do
-  description "Configuration of LegalHold feature for team"
-  property "status" featureStatus $ description "status"
+modelLegalHoldTeamConfig :: Doc.Model
+modelLegalHoldTeamConfig = Doc.defineModel "LegalHoldTeamConfig" $ do
+  Doc.description "Configuration of LegalHold feature for team"
+  Doc.property "status" typeFeatureStatus $ Doc.description "status"
 
-ssoTeamConfig :: Model
-ssoTeamConfig = defineModel "SSOTeamConfig" $ do
-  description "Configuration of SSO feature for team"
-  property "status" featureStatus $ description "status"
+modelSsoTeamConfig :: Doc.Model
+modelSsoTeamConfig = Doc.defineModel "SSOTeamConfig" $ do
+  Doc.description "Configuration of SSO feature for team"
+  Doc.property "status" typeFeatureStatus $ Doc.description "status"
 
-featureStatus :: DataType
-featureStatus =
-  string $
-    enum
+typeFeatureStatus :: Doc.DataType
+typeFeatureStatus =
+  Doc.string $
+    Doc.enum
       [ "enabled",
         "disabled"
       ]
 
-customBackend :: Model
-customBackend = defineModel "CustomBackend" $ do
-  description "Description of a custom backend"
-  property "config_json_url" string' $
-    description "the location of the custom backend's config.json file"
-  property "webapp_welcome_url" string' $
-    description "the location of the custom webapp"
+modelCustomBackend :: Doc.Model
+modelCustomBackend = Doc.defineModel "CustomBackend" $ do
+  Doc.description "Description of a custom backend"
+  Doc.property "config_json_url" Doc.string' $
+    Doc.description "the location of the custom backend's config.json file"
+  Doc.property "webapp_welcome_url" Doc.string' $
+    Doc.description "the location of the custom webapp"
