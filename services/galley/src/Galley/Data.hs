@@ -110,6 +110,7 @@ import Control.Lens hiding ((<|))
 import Control.Monad.Catch (MonadThrow)
 import Data.Bifunctor (first)
 import Data.ByteString.Conversion hiding (parser)
+import Data.Function (on)
 import Data.Id as Id
 import Data.IdMapping
 import Data.Json.Util (UTCTimeMillis (..))
@@ -373,15 +374,30 @@ addTeamMember t m =
     when (m `hasPermission` SetBilling) $
       addPrepQuery Cql.insertBillingTeamMember (t, m ^. userId)
 
-updateTeamMember :: MonadClient m => TeamId -> UserId -> Permissions -> m ()
-updateTeamMember t u p = do
+updateTeamMember ::
+  MonadClient m =>
+  -- | Old permissions, used for maintaining 'billing_team_member' table
+  Permissions ->
+  TeamId ->
+  UserId ->
+  -- | New permissions
+  Permissions ->
+  m ()
+updateTeamMember oldPerms tid uid newPerms = do
   retry x5 $ batch $ do
     setType BatchLogged
     setConsistency Quorum
-    addPrepQuery Cql.updatePermissions (p, t, u)
-    if (SetBilling `Set.member` (view self p))
-      then addPrepQuery Cql.insertBillingTeamMember (t, u)
-      else addPrepQuery Cql.deleteBillingTeamMember (t, u)
+    addPrepQuery Cql.updatePermissions (newPerms, tid, uid)
+
+    when (SetBilling `Set.member` acquiredPerms) $
+      addPrepQuery Cql.insertBillingTeamMember (tid, uid)
+
+    when (SetBilling `Set.member` lostPerms) $
+      addPrepQuery Cql.deleteBillingTeamMember (tid, uid)
+  where
+    permDiff = Set.difference `on` view self
+    acquiredPerms = newPerms `permDiff` oldPerms
+    lostPerms = oldPerms `permDiff` newPerms
 
 removeTeamMember :: MonadClient m => TeamId -> UserId -> m ()
 removeTeamMember t m =

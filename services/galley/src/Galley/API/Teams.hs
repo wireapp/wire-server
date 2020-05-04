@@ -491,7 +491,7 @@ updateTeamMember zusr zcon tid targetMember = do
     $ throwM accessDenied
 
   -- update target in Cassandra
-  Data.updateTeamMember tid targetId targetPermissions
+  Data.updateTeamMember (previousMember ^. permissions) tid targetId targetPermissions
 
   updatedMembers <- Data.teamMembersForFanout tid
   updateJournal team updatedMembers
