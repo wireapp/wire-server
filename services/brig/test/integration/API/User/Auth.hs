@@ -144,7 +144,7 @@ testNginz b n = do
   let Just email = userEmail u
   -- Login with email
   rs <-
-    login b (defEmailLogin email) PersistentCookie
+    login n (defEmailLogin email) PersistentCookie
       <!! const 200 === statusCode
   let c = decodeCookie rs
       t = decodeToken rs
@@ -164,13 +164,27 @@ testNginz b n = do
 testNginzLegalHold :: Brig -> Galley -> Nginz -> Http ()
 testNginzLegalHold b g n = do
   -- create team user Alice
-  (alice, tid) <- createUserWithTeam b g
+  (alice, tid) <- createUserWithTeam' b g
   putLegalHoldEnabled tid LegalHoldEnabled g -- enable it for this team
-  rs <-
-    legalHoldLogin b (LegalHoldLogin alice (Just defPassword) Nothing) PersistentCookie
-      <!! const 200 === statusCode
-  let c = decodeCookie rs
-      t = decodeToken' @ZAuth.LegalHoldAccess rs
+  (c, t) <- do
+    -- we need to get the cookie domain from a login through nginz.  otherwise, if brig and
+    -- nginz are running on different hosts, no cookie will be presented in the later requests
+    -- to nginz in this test.  for simplicity, we use the internal end-point for
+    -- authenticating an LH dev, and then steal the domain from a cookie obtained via user
+    -- login.
+    rsUsr <- do
+      let Just email = userEmail alice
+      login n (defEmailLogin email) PersistentCookie
+        <!! const 200 === statusCode
+    rsLhDev <-
+      legalHoldLogin b (LegalHoldLogin (userId alice) (Just defPassword) Nothing) PersistentCookie
+        <!! const 200 === statusCode
+    let t = decodeToken' @ZAuth.LegalHoldAccess rsLhDev
+        c = cLhDev {cookie_domain = cookie_domain cUsr}
+        cLhDev = decodeCookie rsLhDev
+        cUsr = decodeCookie rsUsr
+    pure (c, t)
+
   -- ensure nginz allows passing legalhold cookies / tokens through to /access
   post (n . path "/access" . cookie c . header "Authorization" ("Bearer " <> (toByteString' t))) !!! do
     const 200 === statusCode

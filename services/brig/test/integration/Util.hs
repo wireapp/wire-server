@@ -268,6 +268,9 @@ getUser brig zusr usr =
       . paths ["users", toByteString' usr]
       . zUser zusr
 
+-- | NB: you can also use nginz as the first argument here.  The type aliases are compatible,
+-- and so are the end-points.  This is important in tests where the cookie must come from the
+-- nginz domain, so it can be passed back to it.
 login :: Brig -> Login -> CookieType -> Http ResponseLBS
 login b l t =
   let js = RequestBodyLBS (encode l)
