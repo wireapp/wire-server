@@ -102,6 +102,8 @@ type GalleyRoutesInternal =
       :> ReqBody '[JSON] LegalHoldTeamConfig
       :> Put '[] NoContent
 
+-- FUTUREWORK: move Swagger instances next to the types they describe
+
 instance ToParamSchema (Id a) where
   toParamSchema _ = toParamSchema (Proxy @UUID)
 
