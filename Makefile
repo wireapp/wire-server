@@ -161,6 +161,7 @@ docker-services:
 	$(MAKE) -C services/cannon docker
 	$(MAKE) -C services/proxy docker
 	$(MAKE) -C services/spar docker
+	$(MAKE) -C services/cargohold docker
 	$(MAKE) docker-exe-zauth
 	$(MAKE) -C services/nginz docker
 
