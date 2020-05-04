@@ -15,12 +15,16 @@ cassandra-ephemeral:
     updateStrategy:
       type: RollingUpdate
 
-    # TODO add heap limits probably.
     resources:
       requests:
+        memory: 128Mi
         cpu: 200m # Otherwise we could never deploy two
       limits:
+        memory: 512Mi
         cpu: 1
+    config:
+      max_heap_size: 512M
+      heap_new_size: 128M
 
 cassandra-migrations:
   cassandra:
