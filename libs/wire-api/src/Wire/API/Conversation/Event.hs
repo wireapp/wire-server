@@ -30,7 +30,6 @@ module Wire.API.Conversation.Event
     Event (..),
     EventType (..),
     EventData (..),
-    UserIdList (..),
     SimpleMember (..),
     SimpleMembers (..),
     MemberUpdateData (..),
@@ -52,6 +51,7 @@ import qualified Wire.API.Conversation.Code as Code
 import Wire.API.Conversation.Member
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing (TypingData)
+import Wire.API.User (UserIdList)
 
 -- Conversations ------------------------------------------------------------
 
@@ -120,16 +120,6 @@ newtype SimpleMembers = SimpleMembers
 data SimpleMember = SimpleMember
   { smId :: !UserId,
     smConvRoleName :: !RoleName
-  }
-  deriving (Eq, Show, Generic)
-
--- | This datatype replaces the old `Members` datatype,
--- which has been replaced by `SimpleMembers`. This is
--- needed due to backwards compatible reasons since old
--- clients will break if we switch these types. Also, this
--- definition represents better what information it carries
-newtype UserIdList = UserIdList
-  { mUsers :: [UserId]
   }
   deriving (Eq, Show, Generic)
 
@@ -309,13 +299,6 @@ instance FromJSON SimpleMember where
   parseJSON = withObject "simple member object" $ \o ->
     SimpleMember <$> o .: "id"
       <*> o .:? "conversation_role" .!= roleNameWireAdmin
-
-instance FromJSON UserIdList where
-  parseJSON = withObject "user-ids-payload" $ \o ->
-    UserIdList <$> o .: "user_ids"
-
-instance ToJSON UserIdList where
-  toJSON e = object ["user_ids" .= mUsers e]
 
 instance FromJSON SimpleMembers where
   parseJSON = withObject "simple-members-payload" $ \o -> do

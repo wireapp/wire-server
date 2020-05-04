@@ -248,6 +248,7 @@ modelUserIdList = Doc.defineModel "UserIdList" $ do
   Doc.property "user_ids" (Doc.unique $ Doc.array Doc.bytes') $
     Doc.description "the array of team conversations"
 
+-- FUTUREWORK: unused?
 modelMembers :: Doc.Model
 modelMembers =
   Doc.defineModel "Members"

@@ -57,6 +57,23 @@ import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 
+-- | This datatype replaces the old `Members` datatype,
+-- which has been replaced by `SimpleMembers`. This is
+-- needed due to backwards compatible reasons since old
+-- clients will break if we switch these types. Also, this
+-- definition represents better what information it carries
+newtype UserIdList = UserIdList
+  { mUsers :: [UserId]
+  }
+  deriving (Eq, Show, Generic)
+
+instance FromJSON UserIdList where
+  parseJSON = withObject "user-ids-payload" $ \o ->
+    UserIdList <$> o .: "user_ids"
+
+instance ToJSON UserIdList where
+  toJSON e = object ["user_ids" .= mUsers e]
+
 -----------------------------------------------------------------------------
 -- User Attributes
 
