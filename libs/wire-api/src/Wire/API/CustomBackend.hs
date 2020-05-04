@@ -24,12 +24,16 @@
 
 module Wire.API.CustomBackend
   ( CustomBackend (..),
+
+    -- * Swagger
+    modelCustomBackend,
   )
 where
 
 import Data.Aeson
 import Data.Json.Util ((#))
 import Data.Misc (HttpsUrl)
+import qualified Data.Swagger.Build.Api as Doc
 import Imports
 
 data CustomBackend = CustomBackend
@@ -38,10 +42,14 @@ data CustomBackend = CustomBackend
   }
   deriving (Eq, Show)
 
--- Instances ----------------------------------------------------------------
+modelCustomBackend :: Doc.Model
+modelCustomBackend = Doc.defineModel "CustomBackend" $ do
+  Doc.description "Description of a custom backend"
+  Doc.property "config_json_url" Doc.string' $
+    Doc.description "the location of the custom backend's config.json file"
+  Doc.property "webapp_welcome_url" Doc.string' $
+    Doc.description "the location of the custom webapp"
 
--- JSON
---
 instance ToJSON CustomBackend where
   toJSON j =
     object $
