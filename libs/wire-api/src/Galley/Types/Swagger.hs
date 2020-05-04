@@ -55,8 +55,6 @@ galleyModels =
     modelClientMismatch,
     modelUserClients,
     modelUserIdList,
-    modelLegalHoldTeamConfig,
-    modelSsoTeamConfig,
     modelCustomBackend,
     --
     modelEvent,
@@ -568,24 +566,6 @@ modelServiceRef = Doc.defineModel "ServiceRef" $ do
 
 modelErrorObj :: Doc.Model
 modelErrorObj = Swagger.errorModel
-
-modelLegalHoldTeamConfig :: Doc.Model
-modelLegalHoldTeamConfig = Doc.defineModel "LegalHoldTeamConfig" $ do
-  Doc.description "Configuration of LegalHold feature for team"
-  Doc.property "status" typeFeatureStatus $ Doc.description "status"
-
-modelSsoTeamConfig :: Doc.Model
-modelSsoTeamConfig = Doc.defineModel "SSOTeamConfig" $ do
-  Doc.description "Configuration of SSO feature for team"
-  Doc.property "status" typeFeatureStatus $ Doc.description "status"
-
-typeFeatureStatus :: Doc.DataType
-typeFeatureStatus =
-  Doc.string $
-    Doc.enum
-      [ "enabled",
-        "disabled"
-      ]
 
 modelCustomBackend :: Doc.Model
 modelCustomBackend = Doc.defineModel "CustomBackend" $ do

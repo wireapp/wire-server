@@ -39,6 +39,10 @@ module Wire.API.Team.Feature
     flagLegalHold,
     FeatureSSO (..),
     FeatureLegalHold (..),
+
+    -- * Swagger
+    modelLegalHoldTeamConfig,
+    modelSsoTeamConfig,
   )
 where
 
@@ -46,6 +50,7 @@ import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.Json.Util ((#))
 import Data.String.Conversions (cs)
+import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as T
 import Imports
 
@@ -56,6 +61,11 @@ data LegalHoldTeamConfig = LegalHoldTeamConfig
   { legalHoldTeamConfigStatus :: !LegalHoldStatus
   }
   deriving stock (Eq, Show, Generic)
+
+modelLegalHoldTeamConfig :: Doc.Model
+modelLegalHoldTeamConfig = Doc.defineModel "LegalHoldTeamConfig" $ do
+  Doc.description "Configuration of LegalHold feature for team"
+  Doc.property "status" typeFeatureStatus $ Doc.description "status"
 
 instance ToJSON LegalHoldTeamConfig where
   toJSON s =
@@ -69,6 +79,14 @@ instance FromJSON LegalHoldTeamConfig where
 
 data LegalHoldStatus = LegalHoldDisabled | LegalHoldEnabled
   deriving stock (Eq, Show, Ord, Enum, Bounded, Generic)
+
+typeFeatureStatus :: Doc.DataType
+typeFeatureStatus =
+  Doc.string $
+    Doc.enum
+      [ "enabled",
+        "disabled"
+      ]
 
 instance ToJSON LegalHoldStatus where
   toJSON LegalHoldEnabled = "enabled"
@@ -88,6 +106,11 @@ data SSOTeamConfig = SSOTeamConfig
   }
   deriving stock (Eq, Show, Generic)
 
+modelSsoTeamConfig :: Doc.Model
+modelSsoTeamConfig = Doc.defineModel "SSOTeamConfig" $ do
+  Doc.description "Configuration of SSO feature for team"
+  Doc.property "status" typeFeatureStatus $ Doc.description "status"
+
 instance ToJSON SSOTeamConfig where
   toJSON s =
     object $
@@ -100,6 +123,8 @@ instance FromJSON SSOTeamConfig where
 
 data SSOStatus = SSODisabled | SSOEnabled
   deriving stock (Eq, Show, Ord, Enum, Bounded, Generic)
+
+-- also uses the modelFeatureStatus Swagger doc
 
 instance ToJSON SSOStatus where
   toJSON SSOEnabled = "enabled"

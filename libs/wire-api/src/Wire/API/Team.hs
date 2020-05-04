@@ -124,7 +124,6 @@ import Data.Json.Util
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
-import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.API.Team.Conversation
 import Wire.API.Team.Feature

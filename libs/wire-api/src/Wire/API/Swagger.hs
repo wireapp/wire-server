@@ -37,6 +37,8 @@ models =
     Notification.modelEvent,
     Notification.modelNotification,
     Notification.modelNotificationList,
+    Team.Feature.modelLegalHoldTeamConfig,
+    Team.Feature.modelSsoTeamConfig,
     Team.Permission.modelPermissions,
     Team.Member.modelTeamMember,
     Team.Member.modelTeamMemberList,
