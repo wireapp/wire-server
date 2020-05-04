@@ -41,8 +41,6 @@ galleyModels =
     modelConversationReceiptModeUpdate,
     modelConversationMessageTimerUpdate,
     modelConversationCode,
-    modelConversationRole,
-    modelConversationRolesList,
     modelInvite,
     modelMemberUpdate,
     modelOtherMemberUpdate,
@@ -147,38 +145,6 @@ modelConversationNameUpdateEvent :: Doc.Model
 modelConversationNameUpdateEvent = Doc.defineModel "ConversationNameUpdateEvent" $ do
   Doc.description "conversation update event"
   Doc.property "data" (Doc.ref modelConversationUpdateName) $ Doc.description "conversation name"
-
-modelConversationRole :: Doc.Model
-modelConversationRole = Doc.defineModel "ConversationRole" $ do
-  Doc.description "Conversation role"
-  Doc.property "conversation_role" Doc.string' $
-    Doc.description
-      "role name, between 2 and 128 chars, 'wire_' prefix \
-      \is reserved for roles designed by Wire (i.e., no \
-      \custom roles can have the same prefix)"
-  Doc.property "actions" (Doc.array typeConversationRoleAction) $
-    Doc.description "The set of actions allowed for this role"
-
-typeConversationRoleAction :: Doc.DataType
-typeConversationRoleAction =
-  Doc.string $
-    Doc.enum
-      [ "add_conversation_member",
-        "remove_conversation_member",
-        "modify_conversation_name",
-        "modify_conversation_message_timer",
-        "modify_conversation_receipt_mode",
-        "modify_conversation_access",
-        "modify_other_conversation_member",
-        "leave_conversation",
-        "delete_conversation"
-      ]
-
-modelConversationRolesList :: Doc.Model
-modelConversationRolesList = Doc.defineModel "ConversationRolesList" $ do
-  Doc.description "list of roles allowed in the given conversation"
-  Doc.property "conversation_roles" (Doc.unique $ Doc.array (Doc.ref modelConversationRole)) $
-    Doc.description "the array of conversation roles"
 
 modelConversationAccessUpdateEvent :: Doc.Model
 modelConversationAccessUpdateEvent = Doc.defineModel "ConversationAccessUpdateEvent" $ do

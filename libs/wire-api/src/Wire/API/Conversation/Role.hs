@@ -39,6 +39,10 @@ module Wire.API.Conversation.Role
     wireConvRoleNames,
     roleNameWireAdmin,
     roleNameWireMember,
+
+    -- * Swagger
+    modelConversationRole,
+    modelConversationRolesList,
   )
 where
 
@@ -50,6 +54,7 @@ import Data.Attoparsec.Text
 import Data.ByteString.Conversion
 import Data.Hashable
 import qualified Data.Set as Set
+import qualified Data.Swagger.Build.Api as Doc
 import Imports
 
 --------------------------------------------------------------------------------
@@ -69,6 +74,21 @@ data Action
   | DeleteConversation
   deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
+typeConversationRoleAction :: Doc.DataType
+typeConversationRoleAction =
+  Doc.string $
+    Doc.enum
+      [ "add_conversation_member",
+        "remove_conversation_member",
+        "modify_conversation_name",
+        "modify_conversation_message_timer",
+        "modify_conversation_receipt_mode",
+        "modify_conversation_access",
+        "modify_other_conversation_member",
+        "leave_conversation",
+        "delete_conversation"
+      ]
+
 deriveJSON defaultOptions {constructorTagModifier = camelTo2 '_'} ''Action
 
 newtype Actions = Actions
@@ -85,23 +105,24 @@ allActions = Actions $ Set.fromList [minBound .. maxBound]
 -- | A conversation role is associated to a user in the scope of a conversation and implies
 -- with a set of 'Action's.  Conversation-level analog to what 'Role' is on the team-level.
 --
--- Do not expose the constructors directly, use smart
--- constructors instead to ensure that all validation
--- is performed
+-- Do not expose the constructors directly,
+-- use smart constructors instead to ensure that all validation is performed.
 data ConversationRole
   = ConvRoleWireAdmin
   | ConvRoleWireMember
   | ConvRoleCustom RoleName Actions
   deriving (Eq, Show)
 
-wireConvRoles :: [ConversationRole]
-wireConvRoles = [ConvRoleWireAdmin, ConvRoleWireMember]
-
-convRoleWireAdmin :: ConversationRole
-convRoleWireAdmin = ConvRoleWireAdmin
-
-convRoleWireMember :: ConversationRole
-convRoleWireMember = ConvRoleWireMember
+modelConversationRole :: Doc.Model
+modelConversationRole = Doc.defineModel "ConversationRole" $ do
+  Doc.description "Conversation role"
+  Doc.property "conversation_role" Doc.string' $
+    Doc.description
+      "role name, between 2 and 128 chars, 'wire_' prefix \
+      \is reserved for roles designed by Wire (i.e., no \
+      \custom roles can have the same prefix)"
+  Doc.property "actions" (Doc.array typeConversationRoleAction) $
+    Doc.description "The set of actions allowed for this role"
 
 instance ToJSON ConversationRole where
   toJSON cr =
@@ -118,10 +139,25 @@ instance FromJSON ConversationRole where
       Just cr -> return cr
       Nothing -> fail ("Failed to parse: " ++ show o)
 
+wireConvRoles :: [ConversationRole]
+wireConvRoles = [ConvRoleWireAdmin, ConvRoleWireMember]
+
+convRoleWireAdmin :: ConversationRole
+convRoleWireAdmin = ConvRoleWireAdmin
+
+convRoleWireMember :: ConversationRole
+convRoleWireMember = ConvRoleWireMember
+
 data ConversationRolesList = ConversationRolesList
   { convRolesList :: [ConversationRole]
   }
   deriving (Eq, Show)
+
+modelConversationRolesList :: Doc.Model
+modelConversationRolesList = Doc.defineModel "ConversationRolesList" $ do
+  Doc.description "list of roles allowed in the given conversation"
+  Doc.property "conversation_roles" (Doc.unique $ Doc.array (Doc.ref modelConversationRole)) $
+    Doc.description "the array of conversation roles"
 
 instance ToJSON ConversationRolesList where
   toJSON (ConversationRolesList r) =
@@ -138,8 +174,6 @@ instance ToJSON ConversationRolesList where
 newtype RoleName = RoleName {fromRoleName :: Text}
   deriving (Eq, Show, ToJSON, ToByteString, Hashable, Generic)
 
-deriving instance Cql RoleName
-
 instance FromByteString RoleName where
   parser = parser >>= maybe (fail "Invalid RoleName") return . parseRoleName
 
@@ -147,6 +181,8 @@ instance FromJSON RoleName where
   parseJSON =
     withText "RoleName" $
       maybe (fail "Invalid RoleName") pure . parseRoleName
+
+deriving instance Cql RoleName
 
 wireConvRoleNames :: [RoleName]
 wireConvRoleNames = [roleNameWireAdmin, roleNameWireMember]
