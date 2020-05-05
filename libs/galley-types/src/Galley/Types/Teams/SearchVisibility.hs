@@ -60,11 +60,11 @@ instance FromJSON TeamSearchVisibility where
     "no-name-outside-team" -> pure SearchVisibilityNoNameOutsideTeam
     x -> fail $ "unexpected status type: " <> T.unpack x
 
-newtype TeamSearchVisibilityView = TeamSearchVisibilityView {searchVisibility :: TeamSearchVisibility}
+newtype TeamSearchVisibilityView = TeamSearchVisibilityView TeamSearchVisibility
   deriving stock (Eq, Show, Ord, Bounded, Generic)
 
 instance ToJSON TeamSearchVisibilityView where
-  toJSON s = object ["search_visibility" .= searchVisibility s]
+  toJSON (TeamSearchVisibilityView s) = object ["search_visibility" .= s]
 
 instance FromJSON TeamSearchVisibilityView where
   parseJSON = withObject "TeamSearchVisibilityView" $ \o ->

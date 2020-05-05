@@ -77,6 +77,7 @@ import Control.Retry
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as BL
+import Data.Coerce (coerce)
 import qualified Data.Currency as Currency
 import qualified Data.HashMap.Strict as M
 import Data.Id
@@ -829,8 +830,8 @@ getTeamLegalHoldStatus tid = do
         . expect2xx
 
 -- | Calls 'Galley.API.getSearchVisibilityInternalH'.
-getTeamSearchVisibility :: TeamId -> AppIO Team.TeamSearchVisibilityView
-getTeamSearchVisibility tid = do
+getTeamSearchVisibility :: TeamId -> AppIO Team.TeamSearchVisibility
+getTeamSearchVisibility tid = coerce @Team.TeamSearchVisibilityView @Team.TeamSearchVisibility <$> do
   debug $ remote "galley" . msg (val "Get search visibility settings")
   galleyRequest GET req >>= decodeBody "galley"
   where

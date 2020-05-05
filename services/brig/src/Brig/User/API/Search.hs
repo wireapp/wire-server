@@ -102,7 +102,7 @@ search searcherId searchTerm maxResults = do
         if sameTeamSearchOnly
           then return (Search.TeamOnly t)
           else-- For team users, we need to check the visibility flag
-            Intra.getTeamSearchVisibility t >>= return . handleTeamVisibility t . Team.searchVisibility
+            Intra.getTeamSearchVisibility t >>= return . handleTeamVisibility t
   searchIndex searcherId teamSearchInfo searchTerm maxResults
   where
     handleTeamVisibility t Team.SearchVisibilityStandard = Search.TeamAndNonMembers t
