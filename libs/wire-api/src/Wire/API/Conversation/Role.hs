@@ -23,11 +23,7 @@
 -- | This module contains the analog of some of the team-level roles & permissions types in
 -- "Wire.API.Team".
 module Wire.API.Conversation.Role
-  ( -- * Action
-    Action (..),
-    Actions (..),
-
-    -- * Role
+  ( -- * Role
     ConversationRole,
     wireConvRoles,
     convRoleWireAdmin,
@@ -39,6 +35,10 @@ module Wire.API.Conversation.Role
     wireConvRoleNames,
     roleNameWireAdmin,
     roleNameWireMember,
+
+    -- * Action
+    Action (..),
+    Actions (..),
 
     -- * Swagger
     modelConversationRole,
@@ -56,48 +56,6 @@ import Data.Hashable
 import qualified Data.Set as Set
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
-
---------------------------------------------------------------------------------
--- Action
-
--- | These conversation-level permissions.  Analogous to the team-level permissions called
--- 'Perm' (or 'Permissions').
-data Action
-  = AddConversationMember
-  | RemoveConversationMember
-  | ModifyConversationName
-  | ModifyConversationMessageTimer
-  | ModifyConversationReceiptMode
-  | ModifyConversationAccess
-  | ModifyOtherConversationMember
-  | LeaveConversation
-  | DeleteConversation
-  deriving (Eq, Ord, Show, Enum, Bounded, Generic)
-
-typeConversationRoleAction :: Doc.DataType
-typeConversationRoleAction =
-  Doc.string $
-    Doc.enum
-      [ "add_conversation_member",
-        "remove_conversation_member",
-        "modify_conversation_name",
-        "modify_conversation_message_timer",
-        "modify_conversation_receipt_mode",
-        "modify_conversation_access",
-        "modify_other_conversation_member",
-        "leave_conversation",
-        "delete_conversation"
-      ]
-
-deriveJSON defaultOptions {constructorTagModifier = camelTo2 '_'} ''Action
-
-newtype Actions = Actions
-  { allowedActions :: Set Action
-  }
-  deriving (Eq, Ord, Show, Generic)
-
-allActions :: Actions
-allActions = Actions $ Set.fromList [minBound .. maxBound]
 
 --------------------------------------------------------------------------------
 -- Role
@@ -131,6 +89,19 @@ instance ToJSON ConversationRole where
         "actions" .= roleActions cr
       ]
 
+roleActions :: ConversationRole -> Set Action
+roleActions ConvRoleWireAdmin = allowedActions allActions
+roleActions ConvRoleWireMember =
+  Set.fromList
+    [ LeaveConversation
+    ]
+roleActions (ConvRoleCustom _ (Actions actions)) = actions
+
+roleToRoleName :: ConversationRole -> RoleName
+roleToRoleName ConvRoleWireAdmin = roleNameWireAdmin
+roleToRoleName ConvRoleWireMember = roleNameWireMember
+roleToRoleName (ConvRoleCustom l _) = l
+
 instance FromJSON ConversationRole where
   parseJSON = withObject "conversationRole" $ \o -> do
     role <- o .: "conversation_role"
@@ -138,6 +109,12 @@ instance FromJSON ConversationRole where
     case (toConvRole role (Just $ Actions actions)) of
       Just cr -> return cr
       Nothing -> fail ("Failed to parse: " ++ show o)
+
+toConvRole :: RoleName -> Maybe Actions -> Maybe ConversationRole
+toConvRole (RoleName "wire_admin") _ = Just ConvRoleWireAdmin
+toConvRole (RoleName "wire_member") _ = Just ConvRoleWireMember
+toConvRole x (Just as) = Just (ConvRoleCustom x as)
+toConvRole _ _ = Nothing
 
 wireConvRoles :: [ConversationRole]
 wireConvRoles = [ConvRoleWireAdmin, ConvRoleWireMember]
@@ -211,23 +188,45 @@ isValidRoleName =
     chars = inClass "a-z0-9_"
 
 --------------------------------------------------------------------------------
--- helpers (used in JSON instances)
+-- Action
 
-roleToRoleName :: ConversationRole -> RoleName
-roleToRoleName ConvRoleWireAdmin = roleNameWireAdmin
-roleToRoleName ConvRoleWireMember = roleNameWireMember
-roleToRoleName (ConvRoleCustom l _) = l
+newtype Actions = Actions
+  { allowedActions :: Set Action
+  }
+  deriving (Eq, Ord, Show, Generic)
 
-toConvRole :: RoleName -> Maybe Actions -> Maybe ConversationRole
-toConvRole (RoleName "wire_admin") _ = Just ConvRoleWireAdmin
-toConvRole (RoleName "wire_member") _ = Just ConvRoleWireMember
-toConvRole x (Just as) = Just (ConvRoleCustom x as)
-toConvRole _ _ = Nothing
+allActions :: Actions
+allActions = Actions $ Set.fromList [minBound .. maxBound]
 
-roleActions :: ConversationRole -> Set Action
-roleActions ConvRoleWireAdmin = allowedActions allActions
-roleActions ConvRoleWireMember =
-  Set.fromList
-    [ LeaveConversation
-    ]
-roleActions (ConvRoleCustom _ (Actions actions)) = actions
+-- | These conversation-level permissions.  Analogous to the team-level permissions called
+-- 'Perm' (or 'Permissions').
+data Action
+  = AddConversationMember
+  | RemoveConversationMember
+  | ModifyConversationName
+  | ModifyConversationMessageTimer
+  | ModifyConversationReceiptMode
+  | ModifyConversationAccess
+  | ModifyOtherConversationMember
+  | LeaveConversation
+  | DeleteConversation
+  deriving (Eq, Ord, Show, Enum, Bounded, Generic)
+
+typeConversationRoleAction :: Doc.DataType
+typeConversationRoleAction =
+  Doc.string $
+    Doc.enum
+      [ "add_conversation_member",
+        "remove_conversation_member",
+        "modify_conversation_name",
+        "modify_conversation_message_timer",
+        "modify_conversation_receipt_mode",
+        "modify_conversation_access",
+        "modify_other_conversation_member",
+        "leave_conversation",
+        "delete_conversation"
+      ]
+
+pure []
+
+deriveJSON defaultOptions {constructorTagModifier = camelTo2 '_'} ''Action
