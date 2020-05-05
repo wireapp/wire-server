@@ -137,26 +137,26 @@ instance Cql SSOStatus where
   toCql SSODisabled = CqlInt 0
   toCql SSOEnabled = CqlInt 1
 
-instance Cql CustomSearchVisibilityStatus where
+instance Cql TeamSearchVisibilityEnabled where
   ctype = Tagged IntColumn
 
   fromCql (CqlInt n) = case n of
-    0 -> pure $ CustomSearchVisibilityDisabled
-    1 -> pure $ CustomSearchVisibilityEnabled
-    _ -> fail "fromCql: Invalid CustomSearchVisibilityStatus"
-  fromCql _ = fail "fromCql: CustomSearchVisibilityStatus: CqlInt expected"
+    0 -> pure $ TeamSearchVisibilityDisabled
+    1 -> pure $ TeamSearchVisibilityEnabled
+    _ -> fail "fromCql: Invalid TeamSearchVisibilityEnabled"
+  fromCql _ = fail "fromCql: TeamSearchVisibilityEnabled: CqlInt expected"
 
-  toCql CustomSearchVisibilityDisabled = CqlInt 0
-  toCql CustomSearchVisibilityEnabled = CqlInt 1
+  toCql TeamSearchVisibilityDisabled = CqlInt 0
+  toCql TeamSearchVisibilityEnabled = CqlInt 1
 
-instance Cql CustomSearchVisibilityType where
+instance Cql TeamSearchVisibility where
   ctype = Tagged IntColumn
 
   fromCql (CqlInt n) = case n of
     0 -> pure $ SearchVisibilityStandard
     1 -> pure $ SearchVisibilityNoNameOutsideTeam
-    _ -> fail "fromCql: Invalid CustomSearchVisibilityType"
-  fromCql _ = fail "fromCql: CustomSearchVisibilityType: CqlInt expected"
+    _ -> fail "fromCql: Invalid TeamSearchVisibility"
+  fromCql _ = fail "fromCql: TeamSearchVisibility: CqlInt expected"
 
   toCql SearchVisibilityStandard = CqlInt 0
   toCql SearchVisibilityNoNameOutsideTeam = CqlInt 1

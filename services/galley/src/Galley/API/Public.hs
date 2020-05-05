@@ -382,22 +382,22 @@ sitemap = do
     summary "Shows the value for search visibility"
     parameter Path "tid" bytes' $
       description "Team ID"
-    returns (ref Model.searchVisibility)
+    returns (ref Model.teamSearchVisibility)
     response 200 "Search visibility" end
 
   put "/teams/:tid/search-visibility" (continue Teams.setSearchVisibilityH) $ do
     zauthUserId
       .&. capture "tid"
-      .&. jsonRequest @SearchVisibility
+      .&. jsonRequest @TeamSearchVisibilityView
       .&. accept "application" "json"
   document "POST" "setSearchVisibility" $ do
     summary "Sets the search visibility for the whole team"
     parameter Path "tid" bytes' $
       description "Team ID"
-    body (ref Model.searchVisibility) $
+    body (ref Model.teamSearchVisibility) $
       description "Search visibility to be set"
     response 204 "Search visibility set" end
-    errorResponse Error.customSearchVisibilityNotEnabled
+    errorResponse Error.teamSearchVisibilityNotEnabled
 
   -- Team Feature Flag API ----------------------------------------------
 
@@ -433,11 +433,11 @@ sitemap = do
     returns (ref Model.customBackend)
     response 200 "Custom backend" end
 
-  get "/teams/:tid/features/custom-search-visibility" (continue Teams.getCustomSearchVisibilityStatusH) $
+  get "/teams/:tid/features/team-search-visibility" (continue Teams.getTeamSearchVisibilityEnabledH) $
     zauthUserId
       .&. capture "tid"
       .&. accept "application" "json"
-  document "GET" "getCustomSearchVisibilityStatus" $ do
+  document "GET" "getTeamSearchVisibilityEnabled" $ do
     summary "Shows whether Custom Search Visibility feature is enabled for team"
     parameter Path "tid" bytes' $
       description "Team ID"

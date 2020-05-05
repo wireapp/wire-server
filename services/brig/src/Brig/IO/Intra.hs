@@ -829,7 +829,7 @@ getTeamLegalHoldStatus tid = do
         . expect2xx
 
 -- | Calls 'Galley.API.getSearchVisibilityInternalH'.
-getTeamSearchVisibility :: TeamId -> AppIO Team.SearchVisibility
+getTeamSearchVisibility :: TeamId -> AppIO Team.TeamSearchVisibilityView
 getTeamSearchVisibility tid = do
   debug $ remote "galley" . msg (val "Get search visibility settings")
   galleyRequest GET req >>= decodeBody "galley"

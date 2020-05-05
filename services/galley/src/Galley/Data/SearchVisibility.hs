@@ -34,31 +34,31 @@ import Galley.Types.Teams.SearchVisibility
 import Imports
 
 -- | Return whether a given team is allowed to enable/disable sso
-getSearchVisibilityTeamConfig :: MonadClient m => TeamId -> m (Maybe CustomSearchVisibilityTeamConfig)
+getSearchVisibilityTeamConfig :: MonadClient m => TeamId -> m (Maybe TeamSearchVisibilityEnabledView)
 getSearchVisibilityTeamConfig tid = join . fmap toSearchVisibilityTeamConfig <$> do
-  retry x1 $ query1 selectCustomSearchVisibilityTeamConfig (params Quorum (Identity tid))
+  retry x1 $ query1 selectTeamSearchVisibilityEnabledView (params Quorum (Identity tid))
   where
     toSearchVisibilityTeamConfig (Identity Nothing) = Nothing
-    toSearchVisibilityTeamConfig (Identity (Just status)) = Just $ CustomSearchVisibilityTeamConfig status
+    toSearchVisibilityTeamConfig (Identity (Just status)) = Just $ TeamSearchVisibilityEnabledView status
 
 -- | Determines whether a given team is allowed to enable/disable sso
-setSearchVisibilityTeamConfig :: MonadClient m => TeamId -> CustomSearchVisibilityTeamConfig -> m ()
-setSearchVisibilityTeamConfig tid CustomSearchVisibilityTeamConfig {customSearchVisibilityTeamConfigStatus} = do
-  retry x5 $ write updateCustomSearchVisibilityTeamConfig (params Quorum (customSearchVisibilityTeamConfigStatus, tid))
+setSearchVisibilityTeamConfig :: MonadClient m => TeamId -> TeamSearchVisibilityEnabledView -> m ()
+setSearchVisibilityTeamConfig tid (TeamSearchVisibilityEnabledView isenabled) = do
+  retry x5 $ write updateTeamSearchVisibilityEnabledView (params Quorum (isenabled, tid))
 
 -- | Return whether a given team is allowed to enable/disable sso
-getSearchVisibility :: MonadClient m => TeamId -> m SearchVisibility
+getSearchVisibility :: MonadClient m => TeamId -> m TeamSearchVisibilityView
 getSearchVisibility tid = toSearchVisibility <$> do
   retry x1 $ query1 selectSearchVisibility (params Quorum (Identity tid))
   where
     -- The value is either set or we return the default
-    toSearchVisibility :: (Maybe (Identity (Maybe CustomSearchVisibilityType))) -> SearchVisibility
-    toSearchVisibility (Just (Identity (Just status))) = SearchVisibility status
-    toSearchVisibility _ = SearchVisibility SearchVisibilityStandard
+    toSearchVisibility :: (Maybe (Identity (Maybe TeamSearchVisibility))) -> TeamSearchVisibilityView
+    toSearchVisibility (Just (Identity (Just status))) = TeamSearchVisibilityView status
+    toSearchVisibility _ = TeamSearchVisibilityView SearchVisibilityStandard
 
 -- | Determines whether a given team is allowed to enable/disable sso
-setSearchVisibility :: MonadClient m => TeamId -> SearchVisibility -> m ()
-setSearchVisibility tid (SearchVisibility visibilityType) = do
+setSearchVisibility :: MonadClient m => TeamId -> TeamSearchVisibilityView -> m ()
+setSearchVisibility tid (TeamSearchVisibilityView visibilityType) = do
   retry x5 $ write updateSearchVisibility (params Quorum (visibilityType, tid))
 
 resetSearchVisibility :: MonadClient m => TeamId -> m ()

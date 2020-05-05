@@ -54,8 +54,8 @@ tests _cl _at conf p b c g =
     [ test p "handles/update" $ testHandleUpdate b c,
       test p "handles/race" $ testHandleRace b,
       test p "handles/query" $ testHandleQuery conf b g,
-      test p "handles/query - custom-search-visibility SearchVisibilityStandard" $ testHandleQuerySearchVisibilityStandard conf b g,
-      test p "handles/query - custom-search-visibility SearchVisibilityNoNameOutsideTeam" $ testHandleQuerySearchVisibilityNoNameOutsideTeam conf b g
+      test p "handles/query - team-search-visibility SearchVisibilityStandard" $ testHandleQuerySearchVisibilityStandard conf b g,
+      test p "handles/query - team-search-visibility SearchVisibilityNoNameOutsideTeam" $ testHandleQuerySearchVisibilityNoNameOutsideTeam conf b g
     ]
 
 testHandleUpdate :: Brig -> Cannon -> Http ()
@@ -201,7 +201,7 @@ testHandleQuerySearchVisibilityNoNameOutsideTeam _opts brig galley = do
   (tid1, owner1, [member1]) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
   (_, owner2, [member2]) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
   extern <- randomUserWithHandle brig
-  setTeamCustomSearchVisibilityStatus galley tid1 Team.CustomSearchVisibilityEnabled
+  setTeamTeamSearchVisibilityEnabled galley tid1 Team.TeamSearchVisibilityEnabled
   setTeamSearchVisibility galley tid1 Team.SearchVisibilityNoNameOutsideTeam
   -- this is the same as in 'testHandleQuerySearchVisibilityStandard' above, because we search
   -- for handles, not names.

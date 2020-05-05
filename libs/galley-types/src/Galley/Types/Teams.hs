@@ -39,10 +39,10 @@ module Galley.Types.Teams
     FeatureFlags (..),
     flagSSO,
     flagLegalHold,
-    flagCustomSearchVisibility,
+    flagTeamSearchVisibility,
     FeatureSSO (..),
     FeatureLegalHold (..),
-    FeatureCustomSearchVisibility (..),
+    FeatureTeamSearchVisibility (..),
     TeamList,
     newTeamList,
     teamListTeams,
@@ -365,7 +365,7 @@ newtype TeamCreationTime = TeamCreationTime
 data FeatureFlags = FeatureFlags
   { _flagSSO :: !FeatureSSO,
     _flagLegalHold :: !FeatureLegalHold,
-    _flagCustomSearchVisibility :: !FeatureCustomSearchVisibility
+    _flagTeamSearchVisibility :: !FeatureTeamSearchVisibility
   }
   deriving (Eq, Show, Generic)
 
@@ -379,9 +379,11 @@ data FeatureLegalHold
   | FeatureLegalHoldDisabledByDefault
   deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
-data FeatureCustomSearchVisibility
-  = FeatureCustomSearchVisibilityEnabledByDefault
-  | FeatureCustomSearchVisibilityDisabledByDefault
+-- | Default value for all teams that have not enabled or disabled this feature explicitly.
+-- See also 'TeamSearchVisibilityEnabled', 'TeamSearchVisibility'.
+data FeatureTeamSearchVisibility
+  = FeatureTeamSearchVisibilityEnabledByDefault
+  | FeatureTeamSearchVisibilityDisabledByDefault
   deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
 -- NOTE: This is used only in the config and thus YAML... camelcase
@@ -390,14 +392,14 @@ instance FromJSON FeatureFlags where
     FeatureFlags
       <$> obj .: "sso"
       <*> obj .: "legalhold"
-      <*> obj .: "customSearchVisibility"
+      <*> obj .: "teamSearchVisibility"
 
 instance ToJSON FeatureFlags where
   toJSON (FeatureFlags sso legalhold searchVisibility) =
     object $
       [ "sso" .= sso,
         "legalhold" .= legalhold,
-        "customSearchVisibility" .= searchVisibility
+        "teamSearchVisibility" .= searchVisibility
       ]
 
 instance FromJSON FeatureSSO where
@@ -418,14 +420,14 @@ instance ToJSON FeatureLegalHold where
   toJSON FeatureLegalHoldDisabledPermanently = String "disabled-permanently"
   toJSON FeatureLegalHoldDisabledByDefault = String "disabled-by-default"
 
-instance FromJSON FeatureCustomSearchVisibility where
-  parseJSON (String "enabled-by-default") = pure FeatureCustomSearchVisibilityEnabledByDefault
-  parseJSON (String "disabled-by-default") = pure FeatureCustomSearchVisibilityDisabledByDefault
+instance FromJSON FeatureTeamSearchVisibility where
+  parseJSON (String "enabled-by-default") = pure FeatureTeamSearchVisibilityEnabledByDefault
+  parseJSON (String "disabled-by-default") = pure FeatureTeamSearchVisibilityDisabledByDefault
   parseJSON bad = fail $ "FeatureSearchVisibility: " <> cs (encode bad)
 
-instance ToJSON FeatureCustomSearchVisibility where
-  toJSON FeatureCustomSearchVisibilityEnabledByDefault = String "enabled-by-default"
-  toJSON FeatureCustomSearchVisibilityDisabledByDefault = String "disabled-by-default"
+instance ToJSON FeatureTeamSearchVisibility where
+  toJSON FeatureTeamSearchVisibilityEnabledByDefault = String "enabled-by-default"
+  toJSON FeatureTeamSearchVisibilityDisabledByDefault = String "disabled-by-default"
 
 -- This replaces the previous `hasMore` but has no boolean blindness. At the API level
 -- though we do want this to remain true/false due to backwards compatibility reasons
@@ -544,9 +546,9 @@ data HiddenPerm
   | ChangeLegalHoldUserSettings
   | ViewLegalHoldUserSettings
   | ViewSSOTeamSettings -- (change is only allowed via customer support backoffice)
-  | ViewCustomSearchVisibilityStatus
-  | ChangeCustomSearchVisibility
-  | ViewCustomSearchVisibility
+  | ViewTeamSearchVisibilityEnabled
+  | ChangeTeamSearchVisibility
+  | ViewTeamSearchVisibility
   | ViewSameTeamEmails
   deriving (Eq, Ord, Show, Enum, Bounded)
 
@@ -576,7 +578,7 @@ hiddenPermissionsFromPermissions =
             Set.fromList
               [ ChangeLegalHoldTeamSettings,
                 ChangeLegalHoldUserSettings,
-                ChangeCustomSearchVisibility
+                ChangeTeamSearchVisibility
               ]
         roleHiddenPerms RoleMember =
           (roleHiddenPerms RoleExternalPartner <>) $
@@ -586,8 +588,8 @@ hiddenPermissionsFromPermissions =
             [ ViewLegalHoldTeamSettings,
               ViewLegalHoldUserSettings,
               ViewSSOTeamSettings,
-              ViewCustomSearchVisibilityStatus,
-              ViewCustomSearchVisibility
+              ViewTeamSearchVisibilityEnabled,
+              ViewTeamSearchVisibility
             ]
 
 -- | See Note [hidden team roles]

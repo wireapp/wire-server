@@ -44,8 +44,8 @@ module Stern.Intra
     setLegalholdStatus,
     getSSOStatus,
     setSSOStatus,
-    getCustomSearchVisibilityStatus,
-    setCustomSearchVisibilityStatus,
+    getTeamSearchVisibilityEnabled,
+    setTeamSearchVisibilityEnabled,
     getSearchVisibility,
     setSearchVisibility,
     getTeamBillingInfo,
@@ -508,28 +508,28 @@ setSSOStatus tid status = do
     toRequestBody SetSSODisabled = SSOTeamConfig SSODisabled
     toRequestBody SetSSOEnabled = SSOTeamConfig SSOEnabled
 
-getCustomSearchVisibilityStatus :: TeamId -> Handler SetCustomSearchVisibilityStatus
-getCustomSearchVisibilityStatus tid = do
-  info $ msg "Getting CustomSearchVisibility status"
+getTeamSearchVisibilityEnabled :: TeamId -> Handler SetTeamSearchVisibilityEnabled
+getTeamSearchVisibilityEnabled tid = do
+  info $ msg "Getting TeamSearchVisibility status"
   gly <- view galley
   (>>= fromResponseBody) . catchRpcErrors $
     rpc'
       "galley"
       gly
       ( method GET
-          . paths ["/i/teams", toByteString' tid, "features", "custom-search-visibility"]
+          . paths ["/i/teams", toByteString' tid, "features", "team-search-visibility"]
           . expect2xx
       )
   where
-    fromResponseBody :: Response (Maybe LByteString) -> Handler SetCustomSearchVisibilityStatus
+    fromResponseBody :: Response (Maybe LByteString) -> Handler SetTeamSearchVisibilityEnabled
     fromResponseBody resp = case responseJsonEither resp of
-      Right (CustomSearchVisibilityTeamConfig CustomSearchVisibilityEnabled) -> pure SetCustomSearchVisibilityEnabled
-      Right (CustomSearchVisibilityTeamConfig CustomSearchVisibilityDisabled) -> pure SetCustomSearchVisibilityDisabled
+      Right (TeamSearchVisibilityEnabledView TeamSearchVisibilityEnabled) -> pure SetTeamSearchVisibilityEnabled
+      Right (TeamSearchVisibilityEnabledView TeamSearchVisibilityDisabled) -> pure SetTeamSearchVisibilityDisabled
       Left errmsg -> throwE (Error status502 "bad-upstream" ("bad response; error message: " <> pack errmsg))
 
-setCustomSearchVisibilityStatus :: TeamId -> SetCustomSearchVisibilityStatus -> Handler ()
-setCustomSearchVisibilityStatus tid status = do
-  info $ msg "Setting CustomSearchVisibility status"
+setTeamSearchVisibilityEnabled :: TeamId -> SetTeamSearchVisibilityEnabled -> Handler ()
+setTeamSearchVisibilityEnabled tid status = do
+  info $ msg "Setting TeamSearchVisibility status"
   gly <- view galley
   resp <-
     catchRpcErrors $
@@ -537,7 +537,7 @@ setCustomSearchVisibilityStatus tid status = do
         "galley"
         gly
         ( method PUT
-            . paths ["/i/teams", toByteString' tid, "features", "custom-search-visibility"]
+            . paths ["/i/teams", toByteString' tid, "features", "team-search-visibility"]
             . lbytes (encode $ toRequestBody status)
             . contentJson
         )
@@ -545,12 +545,12 @@ setCustomSearchVisibilityStatus tid status = do
     204 -> pure ()
     _ -> throwE $ responseJsonUnsafe resp
   where
-    toRequestBody SetCustomSearchVisibilityDisabled = CustomSearchVisibilityTeamConfig CustomSearchVisibilityDisabled
-    toRequestBody SetCustomSearchVisibilityEnabled = CustomSearchVisibilityTeamConfig CustomSearchVisibilityEnabled
+    toRequestBody SetTeamSearchVisibilityDisabled = TeamSearchVisibilityEnabledView TeamSearchVisibilityDisabled
+    toRequestBody SetTeamSearchVisibilityEnabled = TeamSearchVisibilityEnabledView TeamSearchVisibilityEnabled
 
-getSearchVisibility :: TeamId -> Handler SearchVisibility
+getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
 getSearchVisibility tid = do
-  info $ msg "Getting SearchVisibility value"
+  info $ msg "Getting TeamSearchVisibilityView value"
   gly <- view galley
   (>>= fromResponseBody) . catchRpcErrors $
     rpc'
@@ -561,12 +561,12 @@ getSearchVisibility tid = do
           . expect2xx
       )
   where
-    fromResponseBody :: Response (Maybe LByteString) -> Handler SearchVisibility
+    fromResponseBody :: Response (Maybe LByteString) -> Handler TeamSearchVisibilityView
     fromResponseBody resp = parseResponse (Error status502 "bad-upstream") resp
 
-setSearchVisibility :: TeamId -> CustomSearchVisibilityType -> Handler ()
+setSearchVisibility :: TeamId -> TeamSearchVisibility -> Handler ()
 setSearchVisibility tid typ = do
-  info $ msg "Setting SearchVisibility value"
+  info $ msg "Setting TeamSearchVisibility value"
   gly <- view galley
   resp <-
     catchRpcErrors $
@@ -575,7 +575,7 @@ setSearchVisibility tid typ = do
         gly
         ( method PUT
             . paths ["/i/teams", toByteString' tid, "search-visibility"]
-            . lbytes (encode $ SearchVisibility typ)
+            . lbytes (encode $ TeamSearchVisibilityView typ)
             . contentJson
         )
   case statusCode resp of
@@ -584,8 +584,8 @@ setSearchVisibility tid typ = do
       throwE $
         Error
           status403
-          "custom-search-visibility-unset"
-          "This team does not have CustomSearchVisibility enabled. Ensure this is the correct TeamID or first enable the feature"
+          "team-search-visibility-unset"
+          "This team does not have TeamSearchVisibility enabled. Ensure this is the correct TeamID or first enable the feature"
     _ -> throwE $ responseJsonUnsafe resp
 
 --------------------------------------------------------------------------------

@@ -369,47 +369,47 @@ routes = do
       Doc.description "JSON body"
     Doc.response 200 "SSO status" Doc.end
 
-  get "/teams/:tid/features/custom-search-visibility" (continue (liftM json . Intra.getCustomSearchVisibilityStatus)) $
+  get "/teams/:tid/features/team-search-visibility" (continue (liftM json . Intra.getTeamSearchVisibilityEnabled)) $
     capture "tid"
-  document "GET" "getCustomSearchVisibilityStatus" $ do
-    summary "Shows whether CustomSearchVisibility feature is enabled for team"
+  document "GET" "getTeamSearchVisibilityEnabled" $ do
+    summary "Shows whether TeamSearchVisibility feature is enabled for team"
     Doc.parameter Doc.Path "tid" Doc.bytes' $
       description "Team ID"
-    Doc.returns Doc.docSetCustomSearchVisibilityStatus
-    Doc.response 200 "CustomSearchVisibility status" Doc.end
-  put "/teams/:tid/features/custom-search-visibility" (continue setCustomSearchVisibilityStatus) $
+    Doc.returns Doc.docSetTeamSearchVisibilityEnabled
+    Doc.response 200 "TeamSearchVisibility status" Doc.end
+  put "/teams/:tid/features/team-search-visibility" (continue setTeamSearchVisibilityEnabled) $
     contentType "application" "json"
       .&. capture "tid"
-      .&. jsonRequest @SetCustomSearchVisibilityStatus
-  document "PUT" "setCustomSearchVisibilityStatus" $ do
-    summary "Disable / enable CustomSearchVisibility feature for team"
+      .&. jsonRequest @SetTeamSearchVisibilityEnabled
+  document "PUT" "setTeamSearchVisibilityEnabled" $ do
+    summary "Disable / enable TeamSearchVisibility feature for team"
     Doc.parameter Doc.Path "tid" Doc.bytes' $
       description "Team ID"
-    Doc.body Doc.docSetCustomSearchVisibilityStatus $
+    Doc.body Doc.docSetTeamSearchVisibilityEnabled $
       Doc.description "JSON body"
-    Doc.response 200 "CustomSearchVisibility status" Doc.end
+    Doc.response 200 "TeamSearchVisibility status" Doc.end
 
   -- These endpoints should be part of team settings. Until then, we access them from here
   -- for authorized personnel to enable/disable this on the team's behalf
   get "/teams/:tid/search-visibility" (continue (liftM json . Intra.getSearchVisibility)) $
     capture "tid"
   document "GET" "getSearchVisibility" $ do
-    summary "Shows the current SearchVisibility value for the given team"
+    summary "Shows the current TeamSearchVisibility value for the given team"
     Doc.parameter Doc.Path "tid" Doc.bytes' $
       description "Team ID"
-    Doc.returns (Doc.ref Doc.searchVisibility)
-    Doc.response 200 "SearchVisibility value" Doc.end
+    Doc.returns (Doc.ref Doc.teamSearchVisibility)
+    Doc.response 200 "TeamSearchVisibility value" Doc.end
   put "/teams/:tid/search-visibility" (continue setSearchVisibility) $
     contentType "application" "json"
       .&. capture "tid"
-      .&. jsonRequest @Team.CustomSearchVisibilityType
+      .&. jsonRequest @Team.TeamSearchVisibility
   document "PUT" "setSearchVisibility" $ do
     summary "Set specific search visibility for the team"
     Doc.parameter Doc.Path "tid" Doc.bytes' $
       description "Team ID"
     Doc.body Doc.searchVisibilityType $
       Doc.description "JSON body"
-    Doc.response 200 "SearchVisibility status set" Doc.end
+    Doc.response 200 "TeamSearchVisibility status set" Doc.end
 
   -- The following endpoint are only relevant internally at Wire
 
@@ -624,14 +624,14 @@ setSSOStatus (_ ::: tid ::: req) = do
   status :: SetSSOStatus <- parseBody req !>> Error status400 "client-error"
   liftM json $ Intra.setSSOStatus tid status
 
-setCustomSearchVisibilityStatus :: JSON ::: TeamId ::: JsonRequest SetCustomSearchVisibilityStatus -> Handler Response
-setCustomSearchVisibilityStatus (_ ::: tid ::: req) = do
-  status :: SetCustomSearchVisibilityStatus <- parseBody req !>> Error status400 "client-error"
-  liftM json $ Intra.setCustomSearchVisibilityStatus tid status
+setTeamSearchVisibilityEnabled :: JSON ::: TeamId ::: JsonRequest SetTeamSearchVisibilityEnabled -> Handler Response
+setTeamSearchVisibilityEnabled (_ ::: tid ::: req) = do
+  status :: SetTeamSearchVisibilityEnabled <- parseBody req !>> Error status400 "client-error"
+  liftM json $ Intra.setTeamSearchVisibilityEnabled tid status
 
-setSearchVisibility :: JSON ::: TeamId ::: JsonRequest Team.CustomSearchVisibilityType -> Handler Response
+setSearchVisibility :: JSON ::: TeamId ::: JsonRequest Team.TeamSearchVisibility -> Handler Response
 setSearchVisibility (_ ::: tid ::: req) = do
-  status :: Team.CustomSearchVisibilityType <- parseBody req !>> Error status400 "client-error"
+  status :: Team.TeamSearchVisibility <- parseBody req !>> Error status400 "client-error"
   liftM json $ Intra.setSearchVisibility tid status
 
 getTeamBillingInfo :: TeamId -> Handler Response

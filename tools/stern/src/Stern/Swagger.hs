@@ -97,8 +97,8 @@ docSetSSOStatus = docBoundedEnum @SetSSOStatus
 docSetLegalHoldStatus :: DataType
 docSetLegalHoldStatus = docBoundedEnum @SetLegalHoldStatus
 
-docSetCustomSearchVisibilityStatus :: DataType
-docSetCustomSearchVisibilityStatus = docBoundedEnum @SetCustomSearchVisibilityStatus
+docSetTeamSearchVisibilityEnabled :: DataType
+docSetTeamSearchVisibilityEnabled = docBoundedEnum @SetTeamSearchVisibilityEnabled
 
 -- (the double-call to show is to add extra double-quotes to the string.  this is important
 -- because the json instances also render this into a json string, and json string are wrapped

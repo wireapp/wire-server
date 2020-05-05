@@ -24,7 +24,8 @@ import Data.Aeson
 import qualified Data.Text as T
 import Imports
 
--- | If 'FeatureCustomSearchVisibility' is enabled: who can find whom in a team?
+-- | Who can find whom inside and outisde of a team?  Individual setting for one team, chosen
+-- by the admin.
 --
 -- @
 -- Standard:
@@ -42,56 +43,56 @@ import Imports
 --     Handle: can be found by anyone
 --     Name: can be found by same team only
 -- @
-data CustomSearchVisibilityType
+--
+-- See also: 'FeatureTeamSearchVisibility', 'TeamSearchVisibilityEnabled'.
+data TeamSearchVisibility
   = SearchVisibilityStandard
   | SearchVisibilityNoNameOutsideTeam
   deriving stock (Eq, Show, Ord, Enum, Bounded, Generic)
 
-instance ToJSON CustomSearchVisibilityType where
+instance ToJSON TeamSearchVisibility where
   toJSON SearchVisibilityStandard = "standard"
   toJSON SearchVisibilityNoNameOutsideTeam = "no-name-outside-team"
 
-instance FromJSON CustomSearchVisibilityType where
-  parseJSON = withText "CustomSearchVisibilityType" $ \case
+instance FromJSON TeamSearchVisibility where
+  parseJSON = withText "TeamSearchVisibility" $ \case
     "standard" -> pure SearchVisibilityStandard
     "no-name-outside-team" -> pure SearchVisibilityNoNameOutsideTeam
     x -> fail $ "unexpected status type: " <> T.unpack x
 
-newtype SearchVisibility = SearchVisibility {searchVisibility :: CustomSearchVisibilityType}
+newtype TeamSearchVisibilityView = TeamSearchVisibilityView {searchVisibility :: TeamSearchVisibility}
   deriving stock (Eq, Show, Ord, Bounded, Generic)
 
-instance ToJSON SearchVisibility where
+instance ToJSON TeamSearchVisibilityView where
   toJSON s = object ["search_visibility" .= searchVisibility s]
 
-instance FromJSON SearchVisibility where
-  parseJSON = withObject "SearchVisibility" $ \o ->
-    SearchVisibility <$> o .: "search_visibility"
+instance FromJSON TeamSearchVisibilityView where
+  parseJSON = withObject "TeamSearchVisibilityView" $ \o ->
+    TeamSearchVisibilityView <$> o .: "search_visibility"
 
 -- Status of the feature
 
-data CustomSearchVisibilityStatus = CustomSearchVisibilityDisabled | CustomSearchVisibilityEnabled
+-- | Is the feature enabled for a given team?  See also 'FeatureTeamSearchVisibility',
+-- 'TeamSearchVisibility'.
+data TeamSearchVisibilityEnabled = TeamSearchVisibilityDisabled | TeamSearchVisibilityEnabled
   deriving stock (Eq, Show, Ord, Enum, Bounded, Generic)
 
-instance ToJSON CustomSearchVisibilityStatus where
-  toJSON CustomSearchVisibilityEnabled = "enabled"
-  toJSON CustomSearchVisibilityDisabled = "disabled"
+instance ToJSON TeamSearchVisibilityEnabled where
+  toJSON TeamSearchVisibilityEnabled = "enabled"
+  toJSON TeamSearchVisibilityDisabled = "disabled"
 
-instance FromJSON CustomSearchVisibilityStatus where
-  parseJSON = withText "CustomSearchVisibilityStatus" $ \case
-    "enabled" -> pure CustomSearchVisibilityEnabled
-    "disabled" -> pure CustomSearchVisibilityDisabled
+instance FromJSON TeamSearchVisibilityEnabled where
+  parseJSON = withText "TeamSearchVisibilityEnabled" $ \case
+    "enabled" -> pure TeamSearchVisibilityEnabled
+    "disabled" -> pure TeamSearchVisibilityDisabled
     x -> fail $ "unexpected status type: " <> T.unpack x
 
-data CustomSearchVisibilityTeamConfig = CustomSearchVisibilityTeamConfig
-  { customSearchVisibilityTeamConfigStatus :: !CustomSearchVisibilityStatus
-  }
+newtype TeamSearchVisibilityEnabledView = TeamSearchVisibilityEnabledView TeamSearchVisibilityEnabled
   deriving stock (Eq, Show, Generic)
 
-instance ToJSON CustomSearchVisibilityTeamConfig where
-  toJSON s =
-    object $
-      ["status" .= customSearchVisibilityTeamConfigStatus s]
+instance ToJSON TeamSearchVisibilityEnabledView where
+  toJSON (TeamSearchVisibilityEnabledView s) = object ["status" .= s]
 
-instance FromJSON CustomSearchVisibilityTeamConfig where
-  parseJSON = withObject "CustomSearchVisibilityTeamConfig" $ \o ->
-    CustomSearchVisibilityTeamConfig <$> o .: "status"
+instance FromJSON TeamSearchVisibilityEnabledView where
+  parseJSON = withObject "TeamSearchVisibilityEnabledView" $ \o ->
+    TeamSearchVisibilityEnabledView <$> o .: "status"

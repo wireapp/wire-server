@@ -49,7 +49,7 @@ tests opts mgr galley brig = do
         test mgr "reindex" $ testReindex brig,
         testGroup "team-members" $
           [ testGroup
-              "custom-search-visibility disabled OR SearchVisibilityStandard"
+              "team-search-visibility disabled OR SearchVisibilityStandard"
               [ test mgr "team member cannot be found by non-team user" $ testSearchTeamMemberAsNonMember galley brig,
                 test mgr "team A member cannot be found by team B member" $ testSearchTeamMemberAsOtherMember galley brig,
                 test mgr "team A member *can* be found by other team A member" $ testSearchTeamMemberAsSameMember galley brig,
@@ -61,7 +61,7 @@ tests opts mgr galley brig = do
               [ test mgr "when searchSameTeamOnly flag is set, non team user cannot be found by a team member" $ testSearchSameTeamOnly opts galley brig
               ],
             testGroup
-              "custom-search-visibility SearchVisibilityNoNameOutsideTeam"
+              "team-search-visibility SearchVisibilityNoNameOutsideTeam"
               [ test mgr "team member cannot be found by non-team user" $ testSearchTeamMemberAsNonMemberOutboundOnly brig testSetupOutboundOnly,
                 test mgr "team A member cannot be found by team B member" $ testSearchTeamMemberAsOtherMemberOutboundOnly brig testSetupOutboundOnly,
                 test mgr "team A member *can* be found by other team A member" $ testSearchTeamMemberAsSameMemberOutboundOnly brig testSetupOutboundOnly,
@@ -75,7 +75,7 @@ tests opts mgr galley brig = do
     prepareUsersForSearchVisibilityNoNameOutsideTeamTests :: Http ((TeamId, User, User), (TeamId, User, User), User)
     prepareUsersForSearchVisibilityNoNameOutsideTeamTests = do
       (tidA, ownerA, (memberA : _)) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
-      setTeamCustomSearchVisibilityStatus galley tidA Team.CustomSearchVisibilityEnabled
+      setTeamTeamSearchVisibilityEnabled galley tidA Team.TeamSearchVisibilityEnabled
       setTeamSearchVisibility galley tidA Team.SearchVisibilityNoNameOutsideTeam
       (tidB, ownerB, (memberB : _)) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
       regularUser <- randomUserWithHandle brig

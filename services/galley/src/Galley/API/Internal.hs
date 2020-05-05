@@ -188,13 +188,13 @@ sitemap = do
       .&. jsonRequest @SSOTeamConfig
       .&. accept "application" "json"
 
-  get "/i/teams/:tid/features/custom-search-visibility" (continue Teams.getCustomSearchVisibilityStatusInternalH) $
+  get "/i/teams/:tid/features/team-search-visibility" (continue Teams.getTeamSearchVisibilityEnabledInternalH) $
     capture "tid"
       .&. accept "application" "json"
 
-  put "/i/teams/:tid/features/custom-search-visibility" (continue Teams.setCustomSearchVisibilityStatusInternalH) $
+  put "/i/teams/:tid/features/team-search-visibility" (continue Teams.setTeamSearchVisibilityEnabledInternalH) $
     capture "tid"
-      .&. jsonRequest @CustomSearchVisibilityTeamConfig
+      .&. jsonRequest @TeamSearchVisibilityEnabledView
       .&. accept "application" "json"
 
   -- Misc API (internal) ------------------------------------------------
@@ -256,7 +256,7 @@ sitemap = do
 
   put "/i/teams/:tid/search-visibility" (continue Teams.setSearchVisibilityInternalH) $
     capture "tid"
-      .&. jsonRequest @SearchVisibility
+      .&. jsonRequest @TeamSearchVisibilityView
       .&. accept "application" "json"
 
 rmUserH :: UserId ::: Maybe ConnId -> Galley Response

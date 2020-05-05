@@ -162,9 +162,9 @@ data SetSSOStatus = SetSSODisabled | SetSSOEnabled
 deriveJSON toJSONFieldName ''SetSSOStatus
 
 -- | FUTUREWORK: we should probably use
--- 'Galley.Types.Teams.SearchVisibility.CustomSearchVisibilityEnabled'.  (same for
+-- 'Galley.Types.Teams.SearchVisibility.TeamSearchVisibilityEnabled'.  (same for
 -- 'SetSSOStatus', 'SetLegalHoldStatus'.
-data SetCustomSearchVisibilityStatus = SetCustomSearchVisibilityDisabled | SetCustomSearchVisibilityEnabled
+data SetTeamSearchVisibilityEnabled = SetTeamSearchVisibilityDisabled | SetTeamSearchVisibilityEnabled
   deriving (Eq, Show, Ord, Enum, Bounded, Generic)
 
-deriveJSON toJSONFieldName ''SetCustomSearchVisibilityStatus
+deriveJSON toJSONFieldName ''SetTeamSearchVisibilityEnabled

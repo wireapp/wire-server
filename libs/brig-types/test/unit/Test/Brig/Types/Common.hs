@@ -72,8 +72,10 @@ tests =
       testRoundTrip @ApproveLegalHoldForUserRequest,
       testRoundTrip @SSOStatus,
       testRoundTrip @SSOTeamConfig,
-      testRoundTrip @SearchVisibility,
-      testRoundTrip @CustomSearchVisibilityTeamConfig,
+      testRoundTrip @TeamSearchVisibility,
+      testRoundTrip @TeamSearchVisibilityView,
+      testRoundTrip @TeamSearchVisibilityEnabled,
+      testRoundTrip @TeamSearchVisibilityEnabledView,
       testRoundTrip @CustomBackend,
       testRoundTrip @FeatureFlags,
       testCase "{} is a valid TeamMemberDeleteData" $ do
@@ -102,14 +104,14 @@ instance Arbitrary FeatureFlags where
       <*> Test.Tasty.QuickCheck.elements [minBound ..]
       <*> Test.Tasty.QuickCheck.elements [minBound ..]
 
-instance Arbitrary SearchVisibility where
-  arbitrary = SearchVisibility <$> arbitrary
+instance Arbitrary TeamSearchVisibilityView where
+  arbitrary = TeamSearchVisibilityView <$> arbitrary
 
-instance Arbitrary CustomSearchVisibilityType where
+instance Arbitrary TeamSearchVisibility where
   arbitrary = QC.elements [minBound ..]
 
-instance Arbitrary CustomSearchVisibilityStatus where
+instance Arbitrary TeamSearchVisibilityEnabled where
   arbitrary = QC.elements [minBound ..]
 
-instance Arbitrary CustomSearchVisibilityTeamConfig where
-  arbitrary = CustomSearchVisibilityTeamConfig <$> arbitrary
+instance Arbitrary TeamSearchVisibilityEnabledView where
+  arbitrary = TeamSearchVisibilityEnabledView <$> arbitrary

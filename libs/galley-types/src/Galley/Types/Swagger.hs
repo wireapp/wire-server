@@ -68,7 +68,7 @@ galleyModels =
     legalHoldTeamConfig,
     ssoTeamConfig,
     searchVisibilityTeamConfig,
-    searchVisibility,
+    teamSearchVisibility,
     customBackend
   ]
 
@@ -581,10 +581,10 @@ featureStatus =
       ]
 
 searchVisibilityType :: DataType
-searchVisibilityType = string . enum $ cs . encode <$> [(minBound :: Types.CustomSearchVisibilityType) ..]
+searchVisibilityType = string . enum $ cs . encode <$> [(minBound :: Types.TeamSearchVisibility) ..]
 
-searchVisibility :: Model
-searchVisibility = defineModel "SearchVisibility" $ do
+teamSearchVisibility :: Model
+teamSearchVisibility = defineModel "TeamSearchVisibility" $ do
   description "Search visibility value for the team"
   property "search_visibility" searchVisibilityType $ description "value of visibility"
 
