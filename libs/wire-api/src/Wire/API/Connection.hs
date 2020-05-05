@@ -36,6 +36,10 @@ module Wire.API.Connection
     ConnectionUpdate (..),
 
     -- * Swagger
+    modelConnectionList,
+    modelConnection,
+    modelConnectionRequest,
+    modelConnectionUpdate,
   )
 where
 
@@ -44,14 +48,41 @@ import Data.Aeson.Types (Parser)
 import Data.Attoparsec.ByteString (takeByteString)
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Json.Util
+import Data.Json.Util (UTCTimeMillis)
 import Data.Range
+import qualified Data.Swagger.Build.Api as Doc
 import Data.Text as Text
 import Imports
-import Wire.API.User.Profile ()
 
 --------------------------------------------------------------------------------
 -- UserConnection
+
+-- | Response type for endpoints returning lists of connections.
+data UserConnectionList = UserConnectionList
+  { clConnections :: [UserConnection],
+    -- | Pagination flag ("we have more results")
+    clHasMore :: !Bool
+  }
+  deriving (Eq, Show, Generic)
+
+modelConnectionList :: Doc.Model
+modelConnectionList = Doc.defineModel "UserConnectionList" $ do
+  Doc.description "A list of user connections."
+  Doc.property "connections" (Doc.unique $ Doc.array (Doc.ref modelConnection)) Doc.end
+  Doc.property "has_more" Doc.bool' $
+    Doc.description "Indicator that the server has more connections than returned."
+
+instance ToJSON UserConnectionList where
+  toJSON (UserConnectionList l m) =
+    object
+      [ "connections" .= l,
+        "has_more" .= m
+      ]
+
+instance FromJSON UserConnectionList where
+  parseJSON = withObject "UserConnectionList" $ \o ->
+    UserConnectionList <$> o .: "connections"
+      <*> o .: "has_more"
 
 -- | Exact state of the connection between two users, stored in Brig database (see
 -- 'Brig.Data.Connection.lookupConnections').
@@ -68,6 +99,24 @@ data UserConnection = UserConnection
     ucConvId :: !(Maybe ConvId)
   }
   deriving (Eq, Show, Generic)
+
+modelConnection :: Doc.Model
+modelConnection = Doc.defineModel "Connection" $ do
+  Doc.description "Directed connection between two users"
+  Doc.property "from" Doc.bytes' $
+    Doc.description "User ID"
+  Doc.property "to" Doc.bytes' $
+    Doc.description "User ID"
+  Doc.property "status" typeRelation $
+    Doc.description "Relation status"
+  Doc.property "last_update" Doc.dateTime' $
+    Doc.description "Timestamp of last update"
+  Doc.property "message" Doc.string' $ do
+    Doc.description "Message"
+    Doc.optional
+  Doc.property "conversation" Doc.bytes' $ do
+    Doc.description "Conversation ID"
+    Doc.optional
 
 instance ToJSON UserConnection where
   toJSON uc =
@@ -101,6 +150,18 @@ data Relation
   | Cancelled
   deriving (Eq, Ord, Show, Generic)
 
+typeRelation :: Doc.DataType
+typeRelation =
+  Doc.string $
+    Doc.enum
+      [ "accepted",
+        "blocked",
+        "pending",
+        "ignored",
+        "sent",
+        "cancelled"
+      ]
+
 instance ToJSON Relation where
   toJSON = String . Text.toLower . pack . show
 
@@ -133,26 +194,6 @@ newtype Message = Message {messageText :: Text}
 instance FromJSON Message where
   parseJSON x = Message . fromRange <$> (parseJSON x :: Parser (Range 1 256 Text))
 
--- | Response type for endpoints returning lists of connections.
-data UserConnectionList = UserConnectionList
-  { clConnections :: [UserConnection],
-    -- | Pagination flag ("we have more results")
-    clHasMore :: !Bool
-  }
-  deriving (Eq, Show, Generic)
-
-instance ToJSON UserConnectionList where
-  toJSON (UserConnectionList l m) =
-    object
-      [ "connections" .= l,
-        "has_more" .= m
-      ]
-
-instance FromJSON UserConnectionList where
-  parseJSON = withObject "UserConnectionList" $ \o ->
-    UserConnectionList <$> o .: "connections"
-      <*> o .: "has_more"
-
 --------------------------------------------------------------------------------
 -- Requests
 
@@ -166,6 +207,16 @@ data ConnectionRequest = ConnectionRequest
     crMessage :: !Message
   }
   deriving (Eq, Show, Generic)
+
+modelConnectionRequest :: Doc.Model
+modelConnectionRequest = Doc.defineModel "ConnectionRequest" $ do
+  Doc.description "Connection request from one user to another"
+  Doc.property "user" Doc.bytes' $
+    Doc.description "User ID of the user to request a connection with"
+  Doc.property "name" Doc.string' $
+    Doc.description "Name of the (pending) conversation being initiated (1 - 256 characters)."
+  Doc.property "message" Doc.string' $
+    Doc.description "The initial message in the request (1 - 256 characters)."
 
 instance ToJSON ConnectionRequest where
   toJSON c =
@@ -186,6 +237,12 @@ data ConnectionUpdate = ConnectionUpdate
   { cuStatus :: !Relation
   }
   deriving (Eq, Show, Generic)
+
+modelConnectionUpdate :: Doc.Model
+modelConnectionUpdate = Doc.defineModel "ConnectionUpdate" $ do
+  Doc.description "Connection update"
+  Doc.property "status" typeRelation $
+    Doc.description "New relation status"
 
 instance ToJSON ConnectionUpdate where
   toJSON c = object ["status" .= cuStatus c]

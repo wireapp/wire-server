@@ -46,11 +46,6 @@ brigModels =
     modelCheckHandles,
     modelRichInfo,
     modelRichField,
-    -- User Connections / Invitations
-    modelConnection,
-    modelConnectionRequest,
-    modelConnectionUpdate,
-    modelConnectionList,
     -- Account Activation
     modelActivate,
     modelSendActivationCode,
@@ -344,62 +339,6 @@ modelCheckHandles = Doc.defineModel "CheckHandles" $ do
   Doc.property "return" Doc.int32' $ do
     Doc.description "Desired number of free handles to return (1 - 10). Default 1."
     Doc.optional
-
--------------------------------------------------------------------------------
--- Connection Models
-
-typeRelation :: Doc.DataType
-typeRelation =
-  Doc.string $
-    Doc.enum
-      [ "accepted",
-        "blocked",
-        "pending",
-        "ignored",
-        "sent",
-        "cancelled"
-      ]
-
-modelConnection :: Doc.Model
-modelConnection = Doc.defineModel "Connection" $ do
-  Doc.description "Directed connection between two users"
-  Doc.property "from" Doc.bytes' $
-    Doc.description "User ID"
-  Doc.property "to" Doc.bytes' $
-    Doc.description "User ID"
-  Doc.property "status" typeRelation $
-    Doc.description "Relation status"
-  Doc.property "last_update" Doc.dateTime' $
-    Doc.description "Timestamp of last update"
-  Doc.property "message" Doc.string' $ do
-    Doc.description "Message"
-    Doc.optional
-  Doc.property "conversation" Doc.bytes' $ do
-    Doc.description "Conversation ID"
-    Doc.optional
-
-modelConnectionUpdate :: Doc.Model
-modelConnectionUpdate = Doc.defineModel "ConnectionUpdate" $ do
-  Doc.description "Connection update"
-  Doc.property "status" typeRelation $
-    Doc.description "New relation status"
-
-modelConnectionRequest :: Doc.Model
-modelConnectionRequest = Doc.defineModel "ConnectionRequest" $ do
-  Doc.description "Connection request from one user to another"
-  Doc.property "user" Doc.bytes' $
-    Doc.description "User ID of the user to request a connection with"
-  Doc.property "name" Doc.string' $
-    Doc.description "Name of the (pending) conversation being initiated (1 - 256 characters)."
-  Doc.property "message" Doc.string' $
-    Doc.description "The initial message in the request (1 - 256 characters)."
-
-modelConnectionList :: Doc.Model
-modelConnectionList = Doc.defineModel "UserConnectionList" $ do
-  Doc.description "A list of user connections."
-  Doc.property "connections" (Doc.unique $ Doc.array (Doc.ref modelConnection)) Doc.end
-  Doc.property "has_more" Doc.bool' $
-    Doc.description "Indicator that the server has more connections than returned."
 
 -------------------------------------------------------------------------------
 -- Team invitation Models

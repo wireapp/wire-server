@@ -20,6 +20,7 @@
 module Wire.API.Swagger where
 
 import Data.Swagger.Build.Api (Model)
+import qualified Wire.API.Connection as Connection
 import qualified Wire.API.Conversation.Code as Conversation.Code
 import qualified Wire.API.Conversation.Event as Conversation.Event
 import qualified Wire.API.Conversation.Member as Conversation.Member
@@ -40,7 +41,11 @@ import qualified Wire.API.User.Client as User.Client
 
 models :: [Model]
 models =
-  [ Conversation.Code.modelConversationCode,
+  [ Connection.modelConnectionList,
+    Connection.modelConnection,
+    Connection.modelConnectionRequest,
+    Connection.modelConnectionUpdate,
+    Conversation.Code.modelConversationCode,
     Conversation.Member.modelConversationMembers,
     Conversation.Member.modelOtherMember,
     Conversation.Member.modelMember,
