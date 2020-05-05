@@ -83,10 +83,7 @@ brigModels =
     -- Team invitations
     modelTeamInvitation,
     modelTeamInvitationList,
-    modelTeamInvitationRequest,
-    -- TURN
-    modelRtcConfiguration,
-    modelRtcIceServer
+    modelTeamInvitationRequest
   ]
 
 -------------------------------------------------------------------------------
@@ -781,24 +778,3 @@ modelSearchContact = Doc.defineModel "Contact" $ do
   Doc.property "team" Doc.string' $ do
     Doc.description "Team ID"
     Doc.optional
-
---------------------------------------------------------------------------------
--- TURN
-
-modelRtcConfiguration :: Doc.Model
-modelRtcConfiguration = Doc.defineModel "RTCConfiguration" $ do
-  Doc.description "A subset of the WebRTC 'RTCConfiguration' dictionary"
-  Doc.property "ice_servers" (Doc.array (Doc.ref modelRtcIceServer)) $
-    Doc.description "Array of 'RTCIceServer' objects"
-  Doc.property "ttl" Doc.int32' $
-    Doc.description "Number of seconds after which the configuration should be refreshed (advisory)"
-
-modelRtcIceServer :: Doc.Model
-modelRtcIceServer = Doc.defineModel "RTCIceServer" $ do
-  Doc.description "A subset of the WebRTC 'RTCIceServer' object"
-  Doc.property "urls" (Doc.array Doc.string') $
-    Doc.description "Array of TURN server addresses of the form 'turn:<addr>:<port>'"
-  Doc.property "username" Doc.string' $
-    Doc.description "Username to use for authenticating against the given TURN servers"
-  Doc.property "credential" Doc.string' $
-    Doc.description "Password to use for authenticating against the given TURN servers"

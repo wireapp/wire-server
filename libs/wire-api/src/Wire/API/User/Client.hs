@@ -20,10 +20,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.User.Client
-  ( module Wire.API.User.Client,
-    module P,
-
-    -- * UserClients
+  ( -- * UserClients
     UserClientMap (..),
     UserClients (..),
     filterClients,
@@ -31,6 +28,10 @@ module Wire.API.User.Client
     -- * Swagger
     modelOtrClientMap,
     modelUserClients,
+
+    -- * re-exports
+    module Prekey,
+    module Wire.API.User.Client, -- TODO
   )
 where
 
@@ -45,7 +46,7 @@ import qualified Data.Text.Encoding as Text.E
 import Data.UUID (toASCIIBytes)
 import Imports
 import Wire.API.User.Auth (CookieLabel)
-import Wire.API.User.Client.Prekey as P
+import Wire.API.User.Client.Prekey as Prekey
 import Wire.API.User.Profile ()
 
 newtype UserClientMap a = UserClientMap

@@ -20,6 +20,7 @@
 module Wire.API.Swagger where
 
 import Data.Swagger.Build.Api (Model)
+import qualified Wire.API.Call.TURN as Call.TURN
 import qualified Wire.API.Connection as Connection
 import qualified Wire.API.Conversation.Code as Conversation.Code
 import qualified Wire.API.Conversation.Event as Conversation.Event
@@ -41,7 +42,9 @@ import qualified Wire.API.User.Client as User.Client
 
 models :: [Model]
 models =
-  [ Connection.modelConnectionList,
+  [ Call.TURN.modelRtcConfiguration,
+    Call.TURN.modelRtcIceServer,
+    Connection.modelConnectionList,
     Connection.modelConnection,
     Connection.modelConnectionRequest,
     Connection.modelConnectionUpdate,
