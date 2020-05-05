@@ -323,8 +323,8 @@ testEnableCustomSearchVisibilityPerTeam = do
 
   withCustomSearchFeature FeatureCustomSearchVisibilityEnabledByDefault $ do
     check "Teams should start with Custom Search Visibility enabled" CustomSearchVisibilityEnabled
-    putCustomSearchVisibilityEnabledInternal g tid CustomSearchVisibilityDisabled
-    putSearchVisibilityCheckNotAllowed
+    putSearchVisibility g owner tid SearchVisibilityNoNameOutsideTeam !!! const 204 === statusCode
+    putSearchVisibility g owner tid SearchVisibilityStandard !!! const 204 === statusCode
   withCustomSearchFeature FeatureCustomSearchVisibilityDisabledByDefault $ do
     check "Teams should start with Custom Search Visibility disabled" CustomSearchVisibilityDisabled
     putSearchVisibilityCheckNotAllowed
