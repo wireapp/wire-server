@@ -565,7 +565,6 @@ deleteTeamMember zusr zcon tid remove mBody = do
               then 0
               else sizeBeforeDelete - 1
       deleteUser remove
-      Log.warn $ Log.field "listType" (toByteString' . show $ (mems ^. teamMemberListType)) . Log.msg ("------------------------------------------" :: String)
       billingUsers <- Journal.getBillingUserIds tid (Just mems)
       Journal.teamUpdate tid sizeAfterDelete $ filter (/= remove) billingUsers
       pure TeamMemberDeleteAccepted
