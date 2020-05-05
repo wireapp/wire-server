@@ -21,7 +21,6 @@
 module Galley.Types.Teams.SearchVisibility where
 
 import Data.Aeson
-import Data.Json.Util
 import qualified Data.Text as T
 import Imports
 

@@ -1319,13 +1319,13 @@ validateHandle = maybe (throwE (StdError invalidHandle)) return . parseHandle
 ifNothing :: Utilities.Error -> Maybe a -> Handler a
 ifNothing e = maybe (throwStd e) return
 
--- Checks search permissions and filters accordingly
+-- | Checks search permissions and filters accordingly
 filterHandleResults :: UserId -> [UserProfile] -> Handler [UserProfile]
-filterHandleResults fromUser us = do
+filterHandleResults searchingUser us = do
   sameTeamSearchOnly <- fromMaybe False <$> view (settings . searchSameTeamOnly)
   if sameTeamSearchOnly
     then do
-      fromTeam <- lift $ Data.lookupUserTeam fromUser
+      fromTeam <- lift $ Data.lookupUserTeam searchingUser
       return $ case fromTeam of
         Just team -> filter (\x -> profileTeam x == Just team) us
         Nothing -> us
