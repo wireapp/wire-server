@@ -39,10 +39,8 @@ module Galley.Types.Teams
     FeatureFlags (..),
     flagSSO,
     flagLegalHold,
-    flagIndexedBillingTeamMembers,
     FeatureSSO (..),
     FeatureLegalHold (..),
-    FeatureIndexedBillingTeamMembers(..),
     TeamList,
     newTeamList,
     teamListTeams,
@@ -364,8 +362,7 @@ newtype TeamCreationTime = TeamCreationTime
 
 data FeatureFlags = FeatureFlags
   { _flagSSO :: !FeatureSSO,
-    _flagLegalHold :: !FeatureLegalHold,
-    _flagIndexedBillingTeamMembers :: !FeatureIndexedBillingTeamMembers
+    _flagLegalHold :: !FeatureLegalHold
   }
   deriving (Eq, Show, Generic)
 
@@ -379,24 +376,17 @@ data FeatureLegalHold
   | FeatureLegalHoldDisabledByDefault
   deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
-data FeatureIndexedBillingTeamMembers
-  = FeatureIndexedBillingTeamMembersEnabled
-  | FeatureIndexedBillingTeamMembersDisabled
-  deriving (Eq, Show, Generic)
-
 instance FromJSON FeatureFlags where
   parseJSON = withObject "FeatureFlags" $ \obj ->
     FeatureFlags
       <$> (obj .: "sso")
       <*> (obj .: "legalhold")
-      <*> (obj .: "indexedBillingTeamMembers")
 
 instance ToJSON FeatureFlags where
-  toJSON (FeatureFlags sso legalhold indexedBillingTeamMembers) =
+  toJSON (FeatureFlags sso legalhold) =
     object
       [ "sso" .= sso,
-        "legalhold" .= legalhold,
-        "indexedBillingTeamMembers" .= indexedBillingTeamMembers
+        "legalhold" .= legalhold
       ]
 
 instance FromJSON FeatureSSO where
@@ -416,15 +406,6 @@ instance FromJSON FeatureLegalHold where
 instance ToJSON FeatureLegalHold where
   toJSON FeatureLegalHoldDisabledPermanently = String "disabled-permanently"
   toJSON FeatureLegalHoldDisabledByDefault = String "disabled-by-default"
-
-instance FromJSON FeatureIndexedBillingTeamMembers where
-  parseJSON (String "enabled") = pure FeatureIndexedBillingTeamMembersEnabled
-  parseJSON (String "disabled") = pure FeatureIndexedBillingTeamMembersDisabled
-  parseJSON bad = fail $ "FeatureIndexedBillingTeamMembers: " <> cs (encode bad)
-
-instance ToJSON FeatureIndexedBillingTeamMembers where
-  toJSON FeatureIndexedBillingTeamMembersEnabled = String "enabled"
-  toJSON FeatureIndexedBillingTeamMembersDisabled = String "disabled"
 
 -- This replaces the previous `hasMore` but has no boolean blindness. At the API level
 -- though we do want this to remain true/false

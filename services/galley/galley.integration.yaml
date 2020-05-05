@@ -29,11 +29,11 @@ settings:
   conversationCodeURI: https://app.wire.com/join/
   concurrentDeletionEvents: 1024
   deleteConvThrottleMillis: 0
+  enableIndexedBillingTeamMembers: true
 
   featureFlags:  # see #RefConfigOptions in `/docs/reference`
     sso: disabled-by-default
     legalhold: disabled-by-default
-    indexedBillingTeamMembers: enabled
 
 logLevel: Info
 logNetStrings: false

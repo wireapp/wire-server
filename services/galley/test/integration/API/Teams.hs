@@ -43,7 +43,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.UUID as UUID
 import qualified Galley.App as Galley
-import Galley.Options (optSettings, setFeatureFlags, setMaxConvSize, setMaxFanoutSize)
+import Galley.Options (optSettings, setEnableIndexedBillingTeamMembers, setFeatureFlags, setMaxConvSize, setMaxFanoutSize)
 import Galley.Types hiding (EventData (..), EventType (..), MemberUpdate (..))
 import qualified Galley.Types as Conv
 import Galley.Types.Conversations.Roles
@@ -1259,8 +1259,7 @@ testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
   o <- view tsGConf
   g <- view tsGalley
   let withoutIndexedBillingTeamMembers =
-        withSettingsOverrides (o & optSettings . setFeatureFlags . flagIndexedBillingTeamMembers .~ FeatureIndexedBillingTeamMembersDisabled)
-  -- withSettingsOverrides withoutIndexedBillingTeamMembers $ do
+        withSettingsOverrides (o & optSettings . setEnableIndexedBillingTeamMembers .~ Just False)
   let fanoutLimit = fromRange $ Galley.currentFanoutLimit o
 
   -- Billing should work properly upto fanout limit

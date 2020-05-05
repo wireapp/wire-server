@@ -96,14 +96,6 @@ instance Arbitrary FeatureFlags where
     FeatureFlags
       <$> arbitrary
       <*> arbitrary
-      <*> arbitrary
-
-instance Arbitrary FeatureIndexedBillingTeamMembers where
-  arbitrary =
-    oneof
-      [ pure FeatureIndexedBillingTeamMembersEnabled,
-        pure FeatureIndexedBillingTeamMembersDisabled
-      ]
 
 instance Arbitrary FeatureLegalHold where
   arbitrary =

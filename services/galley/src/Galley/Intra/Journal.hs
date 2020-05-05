@@ -92,15 +92,13 @@ evData memberCount billingUserIds cur =
 -- 'billing_team_user' table.
 getBillingUserIds :: TeamId -> Maybe TeamMemberList -> Galley [UserId]
 getBillingUserIds tid maybeMemberList = do
-  featureIndexedBillingTeamMembers <- view (options . Opts.optSettings . Opts.setFeatureFlags . flagIndexedBillingTeamMembers)
+  enableIndexedBillingTeamMembers <- view (options . Opts.optSettings . Opts.setEnableIndexedBillingTeamMembers . to (fromMaybe False))
   case maybeMemberList of
     Nothing ->
-      case featureIndexedBillingTeamMembers of
-        FeatureIndexedBillingTeamMembersEnabled ->
-          fetchFromDB
-        FeatureIndexedBillingTeamMembersDisabled ->
-          handleList featureIndexedBillingTeamMembers =<< Data.teamMembersForFanout tid
-    Just list -> handleList featureIndexedBillingTeamMembers list
+      if enableIndexedBillingTeamMembers
+        then fetchFromDB
+        else handleList enableIndexedBillingTeamMembers =<< Data.teamMembersForFanout tid
+    Just list -> handleList enableIndexedBillingTeamMembers list
   where
     fetchFromDB :: Galley [UserId]
     fetchFromDB = Data.listBillingTeamMembers tid
@@ -109,13 +107,13 @@ getBillingUserIds tid maybeMemberList = do
     filterFromMembers list =
       pure $ map (view userId) $ filter (`hasPermission` SetBilling) (list ^. teamMembers)
     --
-    handleList :: FeatureIndexedBillingTeamMembers -> TeamMemberList -> Galley [UserId]
-    handleList featureIndexedBillingTeamMembers list =
+    handleList :: Bool -> TeamMemberList -> Galley [UserId]
+    handleList enableIndexedBillingTeamMembers list =
       case list ^. teamMemberListType of
         ListTruncated ->
-          case featureIndexedBillingTeamMembers of
-            FeatureIndexedBillingTeamMembersEnabled -> fetchFromDB
-            FeatureIndexedBillingTeamMembersDisabled -> do
+          if enableIndexedBillingTeamMembers
+            then fetchFromDB
+            else do
               Log.warn $
                 field "team" (toByteString tid)
                   . msg (val "TeamMemberList is incomplete, you may not see all the admin users in team. Please enable the indexedBillingTeamMembers feature.")
