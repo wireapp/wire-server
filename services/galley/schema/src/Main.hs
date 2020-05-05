@@ -64,12 +64,12 @@ main = do
       V32.migration,
       V33.migration,
       V34.migration,
-      V35.migration, -- This should safe to do now
+      V35.migration,
       V36.migration,
       V37.migration,
+      V39.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Galley.Data
-      V39.migration
     ]
     `finally` Log.close l
   where
