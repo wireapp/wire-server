@@ -203,15 +203,16 @@ testHandleQuerySearchVisibilityNoNameOutsideTeam _opts brig galley = do
   extern <- randomUserWithHandle brig
   setTeamCustomSearchVisibilityStatus galley tid1 Team.CustomSearchVisibilityEnabled
   setTeamSearchVisibility galley tid1 Team.SearchVisibilityNoNameOutsideTeam
-
+  -- this is the same as in 'testHandleQuerySearchVisibilityStandard' above, because we search
+  -- for handles, not names.
+  assertCanFind brig owner1 owner2
   assertCanFind brig owner1 member1
+  assertCanFind brig owner1 member2
+  assertCanFind brig owner1 extern
+  assertCanFind brig owner2 owner1
   assertCanFind brig member1 owner1
-  assertCannotFind brig owner1 owner2
-  assertCannotFind brig owner1 member2
-  assertCannotFind brig owner1 extern
-  assertCannotFind brig owner2 owner1
-  assertCannotFind brig member2 owner1
-  assertCannotFind brig extern owner1
+  assertCanFind brig member2 owner1
+  assertCanFind brig extern owner1
 
 assertCanFind :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> m ()
 assertCanFind brig from target = do
