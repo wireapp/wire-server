@@ -71,6 +71,7 @@ tests opts mgr galley brig = do
       ]
   where
     -- Since the tests are about querying only, we only need 1 creation
+    -- FUTUREWORK: this should probably be used for all tests in this module, not just some.
     prepareUsersForSearchVisibilityNoNameOutsideTeamTests :: Http ((TeamId, User, User), (TeamId, User, User), User)
     prepareUsersForSearchVisibilityNoNameOutsideTeamTests = do
       (tidA, ownerA, (memberA : _)) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
@@ -188,8 +189,8 @@ testSearchTeamMemberAsNonMemberOutboundOnly brig ((_, _, teamAMember), (_, _, _)
 
 testSearchTeamMemberAsOtherMemberOutboundOnly :: Brig -> ((TeamId, User, User), (TeamId, User, User), User) -> Http ()
 testSearchTeamMemberAsOtherMemberOutboundOnly brig ((_, _, teamAMember), (_, _, teamBMember), _) = do
-  assertCan'tFind brig (userId teamAMember) (userId teamBMember) (fromName (userDisplayName teamBMember))
   let teamBMemberHandle = fromMaybe (error "teamBMember must have a handle") (userHandle teamBMember)
+  assertCan'tFind brig (userId teamAMember) (userId teamBMember) (fromName (userDisplayName teamBMember))
   assertCan'tFind brig (userId teamAMember) (userId teamBMember) (fromHandle teamBMemberHandle)
 
 testSearchTeamMemberAsSameMemberOutboundOnly :: Brig -> ((TeamId, User, User), (TeamId, User, User), User) -> Http ()
@@ -197,6 +198,9 @@ testSearchTeamMemberAsSameMemberOutboundOnly brig ((_, teamAOwner, teamAMember),
   let teamAMemberHandle = fromMaybe (error "teamAMember must have a handle") (userHandle teamAMember)
   assertCanFind brig (userId teamAOwner) (userId teamAMember) (fromName (userDisplayName teamAMember))
   assertCanFind brig (userId teamAOwner) (userId teamAMember) (fromHandle teamAMemberHandle)
+  let teamAOwnerHandle = fromMaybe (error "teamAMember must have a handle") (userHandle teamAOwner)
+  assertCanFind brig (userId teamAMember) (userId teamAOwner) (fromName (userDisplayName teamAOwner))
+  assertCanFind brig (userId teamAMember) (userId teamAOwner) (fromHandle teamAOwnerHandle)
 
 testSeachNonMemberAsTeamMemberOutboundOnly :: Brig -> ((TeamId, User, User), (TeamId, User, User), User) -> Http ()
 testSeachNonMemberAsTeamMemberOutboundOnly brig ((_, _, teamAMember), (_, _, _), nonTeamMember) = do
