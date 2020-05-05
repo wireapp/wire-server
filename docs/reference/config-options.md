@@ -5,6 +5,26 @@ Fragment.
 This page is about the yaml files that determine the configuration of
 the Wire backend services.
 
+## Settings
+
+```
+# [galley.yaml]
+settings:
+  enableIndexedBillingTeamMembers: false
+```
+
+### Indexed Billing Team Members
+
+Use indexed billing team members for journaling. When `enabled`,
+galley would use the `billing_team_member` table to send billing
+events with user ids of team owners (who have the `SetBilling`
+permission). Before enabling this flag, the `billing_team_member`
+table must be backfilled.
+
+Even when the flag is `disabled`, galley will keep writing to the
+`biling_team_member` table, this flag only affects the reads and has
+been added in order to deploy new code and backfill data in 
+production.
 
 ## Feature flags
 
@@ -17,7 +37,6 @@ settings:
   featureFlags:
     sso: disabled-by-default
     legalhold: disabled-by-default
-    indexedBillingTeamMembers: disbaled
 ```
 
 The `featureFlags` field in the galley settings is mandatory, and all
@@ -49,16 +68,3 @@ IMPORTANT: If you switch this back to `disabled-permanently` from
 `disabled-by-default`, LegalHold devices may still be active in teams
 that have created them while it was allowed.  This may change in the
 future.
-
-### Indexed Billing Team Members
-
-Use indexed billing team members for journaling. When `enabled`,
-galley would use the `billing_team_member` table to send billing
-events with user ids of team owners (who have the `SetBilling`
-permission). Before enabling this flag, the `billing_team_member`
-table must be backfilled.
-
-Even when the flag is `disabled`, galley will keep writing to the
-`biling_team_member` table, this flag only affects the reads and has
-been added in order to deploy new code and backfill data in 
-production.
