@@ -332,12 +332,13 @@ testEnableCustomSearchVisibilityPerTeam = do
   -- Nothing was set, default value
   getSearchVisibilityCheck SearchVisibilityStandard
   putSearchVisibility owner tid SearchVisibilityNoNameOutsideTeam !!! testResponse 204 Nothing
+  getSearchVisibilityCheck SearchVisibilityNoNameOutsideTeam
   -- Check only admins can change the setting
-  putSearchVisibility member tid SearchVisibilityNoNameOutsideTeam !!! testResponse 403 (Just "operation-denied")
+  putSearchVisibility member tid SearchVisibilityStandard !!! testResponse 403 (Just "operation-denied")
   getSearchVisibilityCheck SearchVisibilityNoNameOutsideTeam
   -- Members can also see it?
   getSearchVisibility member tid !!! testResponse 200 Nothing
-  -- Once we disable it, it's back to the default value
+  -- Once we disable the feature, team setting is back to the default value
   putCustomSearchVisibilityEnabledInternal tid CustomSearchVisibilityDisabled
   getSearchVisibilityCheck SearchVisibilityStandard
 
@@ -1822,12 +1823,18 @@ testFeatureFlags = do
       setCustomSearchVisibilityInternal CustomSearchVisibilityEnabled
       getCustomSearchVisibility CustomSearchVisibilityEnabled
       getCustomSearchVisibilityInternal CustomSearchVisibilityEnabled
+      setCustomSearchVisibilityInternal CustomSearchVisibilityDisabled
+      getCustomSearchVisibility CustomSearchVisibilityDisabled
+      getCustomSearchVisibilityInternal CustomSearchVisibilityDisabled
     FeatureCustomSearchVisibilityEnabledByDefault -> do
       getCustomSearchVisibility CustomSearchVisibilityEnabled
       getCustomSearchVisibilityInternal CustomSearchVisibilityEnabled
       setCustomSearchVisibilityInternal CustomSearchVisibilityDisabled
       getCustomSearchVisibility CustomSearchVisibilityDisabled
       getCustomSearchVisibilityInternal CustomSearchVisibilityDisabled
+      setCustomSearchVisibilityInternal CustomSearchVisibilityEnabled
+      getCustomSearchVisibility CustomSearchVisibilityEnabled
+      getCustomSearchVisibilityInternal CustomSearchVisibilityEnabled
   return ()
 
 checkJoinEvent :: (MonadIO m, MonadCatch m) => TeamId -> UserId -> WS.WebSocket -> m ()
