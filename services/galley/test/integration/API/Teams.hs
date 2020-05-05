@@ -1752,6 +1752,7 @@ testFeatureFlags :: TestM ()
 testFeatureFlags = do
   owner <- Util.randomUser
   tid <- Util.createNonBindingTeam "foo" owner []
+
   -- sso
 
   let getSSO :: HasCallStack => SSOStatus -> TestM ()
@@ -1777,6 +1778,7 @@ testFeatureFlags = do
       -- much here.  (disable failure is covered in "enable/disable SSO" above.)
       getSSO SSOEnabled
       getSSOInternal SSOEnabled
+
   -- legalhold
 
   let getLegalHold :: HasCallStack => LegalHoldStatus -> TestM ()
