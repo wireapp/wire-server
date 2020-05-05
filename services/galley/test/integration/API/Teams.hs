@@ -1807,35 +1807,51 @@ testFeatureFlags = do
   -- custom search visibility
 
   g <- view tsGalley
-  let getCustomSearchVisibility :: (Monad m, MonadHttp m, MonadIO m, MonadCatch m, HasCallStack) => CustomSearchVisibilityStatus -> m ()
-      getCustomSearchVisibility expected = getCustomSearchVisibilityEnabled g owner tid !!! do
+  let getCustomSearchVisibility ::
+        (Monad m, MonadHttp m, MonadIO m, MonadCatch m, HasCallStack) =>
+        TeamId ->
+        CustomSearchVisibilityStatus ->
+        m ()
+      getCustomSearchVisibility teamid expected = getCustomSearchVisibilityEnabled g owner teamid !!! do
         statusCode === const 200
         responseJsonEither === const (Right (CustomSearchVisibilityTeamConfig expected))
-      getCustomSearchVisibilityInternal :: (Monad m, MonadHttp m, MonadIO m, MonadCatch m, HasCallStack) => CustomSearchVisibilityStatus -> m ()
-      getCustomSearchVisibilityInternal expected = getCustomSearchVisibilityEnabledInternal g tid !!! do
-        statusCode === const 200
-        responseJsonEither === const (Right (CustomSearchVisibilityTeamConfig expected))
-      setCustomSearchVisibilityInternal :: (Monad m, MonadHttp m, MonadIO m, HasCallStack) => CustomSearchVisibilityStatus -> m ()
-      setCustomSearchVisibilityInternal = putCustomSearchVisibilityEnabledInternal g tid
 
+  let getCustomSearchVisibilityInternal ::
+        (Monad m, MonadHttp m, MonadIO m, MonadCatch m, HasCallStack) =>
+        TeamId ->
+        CustomSearchVisibilityStatus ->
+        m ()
+      getCustomSearchVisibilityInternal teamid expected = getCustomSearchVisibilityEnabledInternal g teamid !!! do
+        statusCode === const 200
+        responseJsonEither === const (Right (CustomSearchVisibilityTeamConfig expected))
+
+  let setCustomSearchVisibilityInternal ::
+        (Monad m, MonadHttp m, MonadIO m, HasCallStack) =>
+        TeamId ->
+        CustomSearchVisibilityStatus ->
+        m ()
+      setCustomSearchVisibilityInternal = putCustomSearchVisibilityEnabledInternal g
+
+  tid2 <- Util.createNonBindingTeam "foo" owner []
   withCustomSearchFeature FeatureCustomSearchVisibilityDisabledByDefault $ do
-    getCustomSearchVisibility CustomSearchVisibilityDisabled
-    getCustomSearchVisibilityInternal CustomSearchVisibilityDisabled
-    setCustomSearchVisibilityInternal CustomSearchVisibilityEnabled
-    getCustomSearchVisibility CustomSearchVisibilityEnabled
-    getCustomSearchVisibilityInternal CustomSearchVisibilityEnabled
-    setCustomSearchVisibilityInternal CustomSearchVisibilityDisabled
-    getCustomSearchVisibility CustomSearchVisibilityDisabled
-    getCustomSearchVisibilityInternal CustomSearchVisibilityDisabled
+    getCustomSearchVisibility tid2 CustomSearchVisibilityDisabled
+    getCustomSearchVisibilityInternal tid2 CustomSearchVisibilityDisabled
+    setCustomSearchVisibilityInternal tid2 CustomSearchVisibilityEnabled
+    getCustomSearchVisibility tid2 CustomSearchVisibilityEnabled
+    getCustomSearchVisibilityInternal tid2 CustomSearchVisibilityEnabled
+    setCustomSearchVisibilityInternal tid2 CustomSearchVisibilityDisabled
+    getCustomSearchVisibility tid2 CustomSearchVisibilityDisabled
+    getCustomSearchVisibilityInternal tid2 CustomSearchVisibilityDisabled
+  tid3 <- Util.createNonBindingTeam "foo" owner []
   withCustomSearchFeature FeatureCustomSearchVisibilityEnabledByDefault $ do
-    getCustomSearchVisibility CustomSearchVisibilityEnabled
-    getCustomSearchVisibilityInternal CustomSearchVisibilityEnabled
-    setCustomSearchVisibilityInternal CustomSearchVisibilityDisabled
-    getCustomSearchVisibility CustomSearchVisibilityDisabled
-    getCustomSearchVisibilityInternal CustomSearchVisibilityDisabled
-    setCustomSearchVisibilityInternal CustomSearchVisibilityEnabled
-    getCustomSearchVisibility CustomSearchVisibilityEnabled
-    getCustomSearchVisibilityInternal CustomSearchVisibilityEnabled
+    getCustomSearchVisibility tid3 CustomSearchVisibilityEnabled
+    getCustomSearchVisibilityInternal tid3 CustomSearchVisibilityEnabled
+    setCustomSearchVisibilityInternal tid3 CustomSearchVisibilityDisabled
+    getCustomSearchVisibility tid3 CustomSearchVisibilityDisabled
+    getCustomSearchVisibilityInternal tid3 CustomSearchVisibilityDisabled
+    setCustomSearchVisibilityInternal tid3 CustomSearchVisibilityEnabled
+    getCustomSearchVisibility tid3 CustomSearchVisibilityEnabled
+    getCustomSearchVisibilityInternal tid3 CustomSearchVisibilityEnabled
 
 checkJoinEvent :: (MonadIO m, MonadCatch m) => TeamId -> UserId -> WS.WebSocket -> m ()
 checkJoinEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do
