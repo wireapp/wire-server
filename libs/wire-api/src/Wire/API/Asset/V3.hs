@@ -21,7 +21,21 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.Asset.V3
-  ( -- * Body Construction
+  ( -- * Asset
+    Asset,
+    mkAsset,
+    assetKey,
+    assetExpires,
+    assetToken,
+
+    -- * AssetKey
+    AssetKey (..),
+
+    -- * AssetToken
+    AssetToken (..),
+    NewAssetToken (..),
+
+    -- * Body Construction
     buildMultipartBody,
     beginMultipartBody,
     endMultipartBody,
@@ -40,23 +54,6 @@ module Wire.API.Asset.V3
     assetExpiringSeconds,
     assetVolatileSeconds,
     retentionToTextRep,
-
-    -- * AssetToken
-    AssetToken (..),
-    NewAssetToken (..),
-
-    -- * AssetKey
-    AssetKey (..),
-
-    -- * Asset
-    Asset,
-    mkAsset,
-    assetKey,
-    assetExpires,
-    assetToken,
-
-    -- * Principal
-    Principal (..),
   )
 where
 
@@ -77,6 +74,95 @@ import qualified Data.Text.Encoding as T
 import Data.Time.Clock
 import qualified Data.UUID as UUID
 import Imports
+
+--------------------------------------------------------------------------------
+-- Asset
+
+-- | A newly uploaded asset.
+data Asset = Asset
+  { _assetKey :: AssetKey,
+    _assetExpires :: Maybe UTCTime,
+    _assetToken :: Maybe AssetToken
+  }
+
+mkAsset :: AssetKey -> Asset
+mkAsset k = Asset k Nothing Nothing
+
+instance ToJSON Asset where
+  toJSON a =
+    object $
+      "key" .= _assetKey a
+        # "expires" .= fmap toUTCTimeMillis (_assetExpires a)
+        # "token" .= _assetToken a
+        # []
+
+instance FromJSON Asset where
+  parseJSON = withObject "Asset" $ \o ->
+    Asset <$> o .: "key"
+      <*> o .:? "expires"
+      <*> o .:? "token"
+
+--------------------------------------------------------------------------------
+-- AssetKey
+
+-- | A unique, versioned asset identifier.
+-- Note: Can be turned into a sum type with additional constructors
+-- for future versions.
+data AssetKey = AssetKeyV3 !AssetId !AssetRetention
+  deriving (Eq, Show)
+
+instance FromByteString AssetKey where
+  parser = do
+    v <- decimal
+    _ <- char '-'
+    case (v :: Word) of
+      3 -> parseV3
+      _ -> fail $ "Invalid asset version: " ++ show v
+    where
+      -- AssetKeyV3 ::= Retention "-" uuid
+      -- Retention  ::= decimal
+      parseV3 = do
+        r <- parser
+        _ <- char '-'
+        b <- takeByteString
+        case UUID.fromASCIIBytes b of
+          Just i -> return $! AssetKeyV3 (Id i) r
+          Nothing -> fail "Invalid asset ID"
+
+instance ToByteString AssetKey where
+  builder (AssetKeyV3 i r) =
+    builder '3'
+      <> builder '-'
+      <> builder r
+      <> builder '-'
+      <> builder (UUID.toASCIIBytes (toUUID i))
+
+instance ToJSON AssetKey where
+  toJSON = String . T.decodeUtf8 . toByteString'
+
+instance FromJSON AssetKey where
+  parseJSON =
+    withText "AssetKey" $
+      either fail pure . runParser parser . T.encodeUtf8
+
+--------------------------------------------------------------------------------
+-- AssetToken
+
+-- | Asset tokens are bearer tokens that grant access to a single asset.
+newtype AssetToken = AssetToken {assetTokenAscii :: AsciiBase64Url}
+  deriving (Eq, Show, FromByteString, ToByteString, FromJSON, ToJSON)
+
+-- | A newly (re)generated token for an existing asset.
+newtype NewAssetToken = NewAssetToken
+  {newAssetToken :: AssetToken}
+
+instance FromJSON NewAssetToken where
+  parseJSON = withObject "NewAssetToken" $ \o ->
+    NewAssetToken <$> o .: "token"
+
+instance ToJSON NewAssetToken where
+  toJSON (NewAssetToken tok) =
+    object ["token" .= tok]
 
 --------------------------------------------------------------------------------
 -- Body Construction
@@ -178,8 +264,6 @@ data AssetSettings = AssetSettings
     _setAssetRetention :: Maybe AssetRetention
   }
 
-makeLenses ''AssetSettings
-
 defAssetSettings :: AssetSettings
 defAssetSettings = AssetSettings False Nothing
 
@@ -233,110 +317,5 @@ instance ToJSON AssetSettings where
         # "retention" .= _setAssetRetention s
         # []
 
---------------------------------------------------------------------------------
--- AssetToken
-
--- | Asset tokens are bearer tokens that grant access to a single asset.
-newtype AssetToken = AssetToken {assetTokenAscii :: AsciiBase64Url}
-  deriving (Eq, Show, FromByteString, ToByteString, FromJSON, ToJSON)
-
--- | A newly (re)generated token for an existing asset.
-newtype NewAssetToken = NewAssetToken
-  {newAssetToken :: AssetToken}
-
-instance FromJSON NewAssetToken where
-  parseJSON = withObject "NewAssetToken" $ \o ->
-    NewAssetToken <$> o .: "token"
-
-instance ToJSON NewAssetToken where
-  toJSON (NewAssetToken tok) =
-    object ["token" .= tok]
-
---------------------------------------------------------------------------------
--- AssetKey
-
--- | A unique, versioned asset identifier.
--- Note: Can be turned into a sum type with additional constructors
--- for future versions.
-data AssetKey = AssetKeyV3 !AssetId !AssetRetention
-  deriving (Eq, Show)
-
-instance FromByteString AssetKey where
-  parser = do
-    v <- decimal
-    _ <- char '-'
-    case (v :: Word) of
-      3 -> parseV3
-      _ -> fail $ "Invalid asset version: " ++ show v
-    where
-      -- AssetKeyV3 ::= Retention "-" uuid
-      -- Retention  ::= decimal
-      parseV3 = do
-        r <- parser
-        _ <- char '-'
-        b <- takeByteString
-        case UUID.fromASCIIBytes b of
-          Just i -> return $! AssetKeyV3 (Id i) r
-          Nothing -> fail "Invalid asset ID"
-
-instance ToByteString AssetKey where
-  builder (AssetKeyV3 i r) =
-    builder '3'
-      <> builder '-'
-      <> builder r
-      <> builder '-'
-      <> builder (UUID.toASCIIBytes (toUUID i))
-
-instance ToJSON AssetKey where
-  toJSON = String . T.decodeUtf8 . toByteString'
-
-instance FromJSON AssetKey where
-  parseJSON =
-    withText "AssetKey" $
-      either fail pure . runParser parser . T.encodeUtf8
-
---------------------------------------------------------------------------------
--- Asset
-
--- | A newly uploaded asset.
-data Asset = Asset
-  { _assetKey :: AssetKey,
-    _assetExpires :: Maybe UTCTime,
-    _assetToken :: Maybe AssetToken
-  }
-
 makeLenses ''Asset
-
-mkAsset :: AssetKey -> Asset
-mkAsset k = Asset k Nothing Nothing
-
-instance ToJSON Asset where
-  toJSON a =
-    object $
-      "key" .= _assetKey a
-        # "expires" .= fmap toUTCTimeMillis (_assetExpires a)
-        # "token" .= _assetToken a
-        # []
-
-instance FromJSON Asset where
-  parseJSON = withObject "Asset" $ \o ->
-    Asset <$> o .: "key"
-      <*> o .:? "expires"
-      <*> o .:? "token"
-
---------------------------------------------------------------------------------
--- Principal
-
--- | A principal is an authenticated entity that can upload (and thus own)
--- and / or download assets. Different principals may be subject to
--- different restrictions on the API.
-data Principal
-  = UserPrincipal UserId
-  | BotPrincipal BotId
-  | ProviderPrincipal ProviderId
-  deriving (Eq, Show)
-
-instance ToByteString Principal where
-  builder (UserPrincipal u) = builder u
-  builder (BotPrincipal b) = builder b
-  builder (ProviderPrincipal p) = builder p
+makeLenses ''AssetSettings

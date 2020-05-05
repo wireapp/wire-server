@@ -21,16 +21,19 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.Asset.V3.Resumable
-  ( ResumableSettings,
+  ( -- * ResumableSettings
+    ResumableSettings,
     mkResumableSettings,
     setResumableType,
     setResumablePublic,
     setResumableRetention,
+
+    -- * ResumableAsset
     ResumableAsset,
+    mkResumableAsset,
     TotalSize (..),
     ChunkSize (..),
     Offset (..),
-    mkResumableAsset,
     resumableAsset,
     resumableExpires,
     resumableChunkSize,
@@ -147,12 +150,6 @@ makeLenses ''ResumableAsset
 mkResumableAsset :: Asset -> UTCTime -> ChunkSize -> ResumableAsset
 mkResumableAsset = ResumableAsset
 
-instance FromJSON ResumableAsset where
-  parseJSON = withObject "ResumableAsset" $ \o ->
-    ResumableAsset <$> o .: "asset"
-      <*> o .: "expires"
-      <*> o .: "chunk_size"
-
 instance ToJSON ResumableAsset where
   toJSON r =
     object $
@@ -160,3 +157,9 @@ instance ToJSON ResumableAsset where
         # "expires" .= toUTCTimeMillis (_resumableExpires r)
         # "chunk_size" .= _resumableChunkSize r
         # []
+
+instance FromJSON ResumableAsset where
+  parseJSON = withObject "ResumableAsset" $ \o ->
+    ResumableAsset <$> o .: "asset"
+      <*> o .: "expires"
+      <*> o .: "chunk_size"
