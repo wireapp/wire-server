@@ -1149,7 +1149,7 @@ getHandleInfoH (_ ::: self ::: h) = do
     maybeOwnerId <- fmap Local <$> (lift $ API.lookupHandle h)
     case maybeOwnerId of
       Just ownerId -> lift $ API.lookupProfile self ownerId
-      Nothing      -> return Nothing
+      Nothing -> return Nothing
   owner <- filterHandleResults self (maybeToList ownerProfile)
   return $ case listToMaybe owner of
     Just u -> json (UserHandleInfo $ profileId u)

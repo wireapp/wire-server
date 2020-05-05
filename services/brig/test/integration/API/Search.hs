@@ -47,36 +47,39 @@ tests opts mgr galley brig = do
       [ test mgr "by-name" $ testSearchByName brig,
         test mgr "by-handle" $ testSearchByHandle brig,
         test mgr "reindex" $ testReindex brig,
-        testGroup "team-members"
-          [ testGroup "custom-search-visibility disabled OR SearchVisibilityStandard"
-            [ test mgr "team member cannot be found by non-team user" $ testSearchTeamMemberAsNonMember galley brig,
-              test mgr "team A member cannot be found by team B member" $ testSearchTeamMemberAsOtherMember galley brig,
-              test mgr "team A member *can* be found by other team A member" $ testSearchTeamMemberAsSameMember galley brig,
-              test mgr "non team user can be found by a team member" $ testSeachNonMemberAsTeamMember galley brig,
-              test mgr "team-mates are listed before team-outsiders" $ testSearchOrderingAsTeamMember galley brig
-            ],
-            testGroup "searchSameTeamOnly"
-            [ test mgr "when searchSameTeamOnly flag is set, non team user cannot be found by a team member" $ testSearchSameTeamOnly opts galley brig
-            ],
-            testGroup "custom-search-visibility SearchVisibilityNoNameOutsideTeam"
-            [ test mgr "team member cannot be found by non-team user" $ testSearchTeamMemberAsNonMemberOutboundOnly brig testSetupOutboundOnly,
-              test mgr "team A member cannot be found by team B member" $ testSearchTeamMemberAsOtherMemberOutboundOnly brig testSetupOutboundOnly,
-              test mgr "team A member *can* be found by other team A member" $ testSearchTeamMemberAsSameMemberOutboundOnly brig testSetupOutboundOnly,
-              test mgr "non team user cannot be found by a team member A" $ testSeachNonMemberAsTeamMemberOutboundOnly brig testSetupOutboundOnly
-            ]
+        testGroup "team-members" $
+          [ testGroup
+              "custom-search-visibility disabled OR SearchVisibilityStandard"
+              [ test mgr "team member cannot be found by non-team user" $ testSearchTeamMemberAsNonMember galley brig,
+                test mgr "team A member cannot be found by team B member" $ testSearchTeamMemberAsOtherMember galley brig,
+                test mgr "team A member *can* be found by other team A member" $ testSearchTeamMemberAsSameMember galley brig,
+                test mgr "non team user can be found by a team member" $ testSeachNonMemberAsTeamMember galley brig,
+                test mgr "team-mates are listed before team-outsiders" $ testSearchOrderingAsTeamMember galley brig
+              ],
+            testGroup
+              "searchSameTeamOnly"
+              [ test mgr "when searchSameTeamOnly flag is set, non team user cannot be found by a team member" $ testSearchSameTeamOnly opts galley brig
+              ],
+            testGroup
+              "custom-search-visibility SearchVisibilityNoNameOutsideTeam"
+              [ test mgr "team member cannot be found by non-team user" $ testSearchTeamMemberAsNonMemberOutboundOnly brig testSetupOutboundOnly,
+                test mgr "team A member cannot be found by team B member" $ testSearchTeamMemberAsOtherMemberOutboundOnly brig testSetupOutboundOnly,
+                test mgr "team A member *can* be found by other team A member" $ testSearchTeamMemberAsSameMemberOutboundOnly brig testSetupOutboundOnly,
+                test mgr "non team user cannot be found by a team member A" $ testSeachNonMemberAsTeamMemberOutboundOnly brig testSetupOutboundOnly
+              ]
           ]
       ]
- where
-  -- Since the tests are about querying only, we only need 1 creation
-  prepareUsersForSearchVisibilityNoNameOutsideTeamTests :: Http ((TeamId, User, User), (TeamId, User, User), User)
-  prepareUsersForSearchVisibilityNoNameOutsideTeamTests = do
-    (tidA, ownerA, (memberA:_)) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
-    setTeamCustomSearchVisibilityStatus galley tidA Team.CustomSearchVisibilityEnabled
-    setTeamSearchVisibility galley tidA Team.SearchVisibilityNoNameOutsideTeam
-    (tidB, ownerB, (memberB:_)) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
-    regularUser <- randomUserWithHandle brig
-    refreshIndex brig
-    return ((tidA, ownerA, memberA), (tidB, ownerB, memberB), regularUser)
+  where
+    -- Since the tests are about querying only, we only need 1 creation
+    prepareUsersForSearchVisibilityNoNameOutsideTeamTests :: Http ((TeamId, User, User), (TeamId, User, User), User)
+    prepareUsersForSearchVisibilityNoNameOutsideTeamTests = do
+      (tidA, ownerA, (memberA : _)) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
+      setTeamCustomSearchVisibilityStatus galley tidA Team.CustomSearchVisibilityEnabled
+      setTeamSearchVisibility galley tidA Team.SearchVisibilityNoNameOutsideTeam
+      (tidB, ownerB, (memberB : _)) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
+      regularUser <- randomUserWithHandle brig
+      refreshIndex brig
+      return ((tidA, ownerA, memberA), (tidB, ownerB, memberB), regularUser)
 
 testSearchByName :: Brig -> Http ()
 testSearchByName brig = do

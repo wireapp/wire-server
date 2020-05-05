@@ -52,9 +52,9 @@ getSearchVisibility tid = toSearchVisibility <$> do
   retry x1 $ query1 selectSearchVisibility (params Quorum (Identity tid))
   where
     -- The value is either set or we return the default
-    toSearchVisibility ::(Maybe (Identity (Maybe CustomSearchVisibilityType))) -> SearchVisibility
+    toSearchVisibility :: (Maybe (Identity (Maybe CustomSearchVisibilityType))) -> SearchVisibility
     toSearchVisibility (Just (Identity (Just status))) = SearchVisibility status
-    toSearchVisibility _                               = SearchVisibility SearchVisibilityStandard
+    toSearchVisibility _ = SearchVisibility SearchVisibilityStandard
 
 -- | Determines whether a given team is allowed to enable/disable sso
 setSearchVisibility :: MonadClient m => TeamId -> SearchVisibility -> m ()

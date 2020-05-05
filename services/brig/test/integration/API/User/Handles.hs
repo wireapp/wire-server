@@ -182,7 +182,7 @@ testHandleQuery opts brig galley = do
 
 testHandleQuerySearchVisibilityStandard :: Opt.Opts -> Brig -> Galley -> Http ()
 testHandleQuerySearchVisibilityStandard _opts brig galley = do
-  (_, owner1, (member1:_)) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
+  (_, owner1, (member1 : _)) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
   (_, owner2, _) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
   extern <- randomUserWithHandle brig
   -- Assert that everyone can find each other:
@@ -195,7 +195,7 @@ testHandleQuerySearchVisibilityStandard _opts brig galley = do
 
 testHandleQuerySearchVisibilityNoNameOutsideTeam :: Opt.Opts -> Brig -> Galley -> Http ()
 testHandleQuerySearchVisibilityNoNameOutsideTeam _opts brig galley = do
-  (tid1, owner1, (member1:_)) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
+  (tid1, owner1, (member1 : _)) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
   (_, owner2, _) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
   extern <- randomUserWithHandle brig
   setTeamCustomSearchVisibilityStatus galley tid1 Team.CustomSearchVisibilityEnabled
@@ -221,9 +221,9 @@ assertCanFind brig from target = do
 
 assertCannotFind :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> m ()
 assertCannotFind brig from target = do
-    liftIO $ assertBool "assertCannotFind: Target must have a handle set" (isJust $ userHandle target)
-    let targetHandle = fromMaybe (error "Impossible") (userHandle target)
-    get (brig . path "/users" . queryItem "handles" (toByteString' targetHandle) . zUser (userId from)) !!! do
-      const 404 === statusCode
-    get (brig . paths ["users", "handles", toByteString' targetHandle] . zUser (userId from)) !!! do
-      const 404 === statusCode
+  liftIO $ assertBool "assertCannotFind: Target must have a handle set" (isJust $ userHandle target)
+  let targetHandle = fromMaybe (error "Impossible") (userHandle target)
+  get (brig . path "/users" . queryItem "handles" (toByteString' targetHandle) . zUser (userId from)) !!! do
+    const 404 === statusCode
+  get (brig . paths ["users", "handles", toByteString' targetHandle] . zUser (userId from)) !!! do
+    const 404 === statusCode

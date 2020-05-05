@@ -81,8 +81,8 @@ import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
 import qualified Galley.Data.LegalHold as LegalHoldData
-import qualified Galley.Data.SearchVisibility as SearchVisibilityData
 import qualified Galley.Data.SSO as SSOData
+import qualified Galley.Data.SearchVisibility as SearchVisibilityData
 import Galley.Data.Services (BotMember)
 import qualified Galley.Data.Types as Data
 import qualified Galley.External as External

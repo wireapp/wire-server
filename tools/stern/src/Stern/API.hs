@@ -47,8 +47,9 @@ import qualified Data.Swagger.Build.Api as Doc
 import Data.Text (Text, unpack)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeLatin1)
-import Imports hiding (head)
+import qualified Galley.Types.Swagger as Doc
 import qualified Galley.Types.Teams.SearchVisibility as Team
+import Imports hiding (head)
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Handler.Warp
@@ -67,7 +68,6 @@ import Stern.Types
 import System.Logger.Class hiding ((.=), Error, name, trace)
 import Util.Options
 import qualified Wire.Swagger as Doc
-import qualified Galley.Types.Swagger as Doc
 
 default (ByteString)
 

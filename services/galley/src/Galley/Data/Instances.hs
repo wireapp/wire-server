@@ -30,8 +30,8 @@ import Galley.Types
 import Galley.Types.Bot ()
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
-import Galley.Types.Teams.SearchVisibility
 import Galley.Types.Teams.SSO
+import Galley.Types.Teams.SearchVisibility
 import Imports
 
 deriving instance Cql MutedStatus

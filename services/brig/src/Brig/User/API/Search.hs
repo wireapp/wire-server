@@ -95,16 +95,15 @@ search searcherId searchTerm maxResults = do
   searcherTeamId <- DB.lookupUserTeam searcherId
   sameTeamSearchOnly <- fromMaybe False <$> view (settings . Opts.searchSameTeamOnly)
   teamSearchInfo <-
-        case searcherTeamId of
-          Nothing -> return Search.NoTeam
-          Just t ->
-            -- This flag in brig overrules any flag on galley - it is system wide
-            if sameTeamSearchOnly
-              then return (Search.TeamOnly t)
-              -- For team users, we need to check the visibility flag
-              else Intra.getTeamSearchVisibility t >>= return . handleTeamVisibility t . Team.searchVisibility
+    case searcherTeamId of
+      Nothing -> return Search.NoTeam
+      Just t ->
+        -- This flag in brig overrules any flag on galley - it is system wide
+        if sameTeamSearchOnly
+          then return (Search.TeamOnly t)
+          else-- For team users, we need to check the visibility flag
+            Intra.getTeamSearchVisibility t >>= return . handleTeamVisibility t . Team.searchVisibility
   searchIndex searcherId teamSearchInfo searchTerm maxResults
   where
     handleTeamVisibility t Team.SearchVisibilityStandard = Search.TeamAndNonMembers t
     handleTeamVisibility t Team.SearchVisibilityNoNameOutsideTeam = Search.TeamOnly t
-

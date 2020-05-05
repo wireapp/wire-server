@@ -51,8 +51,8 @@ import Galley.Types.Bot (AddBot, RemoveBot)
 import Galley.Types.Bot.Service
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
-import Galley.Types.Teams.SearchVisibility
 import Galley.Types.Teams.SSO
+import Galley.Types.Teams.SearchVisibility
 import Imports hiding (head)
 import Network.Wai
 import Network.Wai.Predicate hiding (err)

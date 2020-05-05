@@ -31,8 +31,8 @@ import Control.Lens
 import Data.Aeson
 import Galley.Types (CustomBackend)
 import Galley.Types.Teams
-import Galley.Types.Teams.SearchVisibility
 import Galley.Types.Teams.SSO
+import Galley.Types.Teams.SearchVisibility
 import Imports
 import Test.Brig.Roundtrip (testRoundTrip)
 import Test.Tasty

@@ -25,21 +25,27 @@ import Data.Json.Util
 import qualified Data.Text as T
 import Imports
 
-data CustomSearchVisibilityType =
-    SearchVisibilityStandard
-  -- ^ Outbound:
-  --     Handle: can find anyone
-  --     Name: same team or non team users
-  -- ^ Inbound:
-  --     Handle: can be found by anyone
-  --     Name: can be found by same team only
+-- | If 'FeatureCustomSearchVisibility' is enabled: who can find whom in a team?
+--
+-- @
+-- Standard:
+--   Outbound:
+--     Handle: can find anyone
+--     Name: same team or non team users
+--   Inbound:
+--     Handle: can be found by anyone
+--     Name: can be found by same team only
+-- NoNameOutsideTeam:
+--   Outbound:
+--     Handle: can find anyone
+--     Name: same team only
+--   Inbound:
+--     Handle: can be found by anyone
+--     Name: can be found by same team only
+-- @
+data CustomSearchVisibilityType
+  = SearchVisibilityStandard
   | SearchVisibilityNoNameOutsideTeam
-  -- ^ Outbound:
-  --     Handle: can find anyone
-  --     Name: same team only
-  -- ^ Inbound:
-  --     Handle: can be found by anyone
-  --     Name: can be found by same team only
   deriving stock (Eq, Show, Ord, Enum, Bounded, Generic)
 
 instance ToJSON CustomSearchVisibilityType where
@@ -52,7 +58,7 @@ instance FromJSON CustomSearchVisibilityType where
     "no-name-outside-team" -> pure SearchVisibilityNoNameOutsideTeam
     x -> fail $ "unexpected status type: " <> T.unpack x
 
-newtype SearchVisibility = SearchVisibility { searchVisibility :: CustomSearchVisibilityType }
+newtype SearchVisibility = SearchVisibility {searchVisibility :: CustomSearchVisibilityType}
   deriving stock (Eq, Show, Ord, Bounded, Generic)
 
 instance ToJSON SearchVisibility where

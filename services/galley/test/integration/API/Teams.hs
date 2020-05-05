@@ -48,8 +48,8 @@ import qualified Galley.Types as Conv
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
-import Galley.Types.Teams.SearchVisibility
 import Galley.Types.Teams.SSO
+import Galley.Types.Teams.SearchVisibility
 import Gundeck.Types.Notification hiding (target)
 import Imports
 import Network.HTTP.Types.Status (status403)
@@ -303,7 +303,7 @@ testEnableSSOPerTeam = do
 
 testEnableCustomSearchVisibilityPerTeam :: TestM ()
 testEnableCustomSearchVisibilityPerTeam = do
-  (tid, owner, (member:_)) <- Util.createBindingTeamWithMembers 2
+  (tid, owner, (member : _)) <- Util.createBindingTeamWithMembers 2
   let check :: HasCallStack => String -> CustomSearchVisibilityStatus -> TestM ()
       check msg enabledness = do
         CustomSearchVisibilityTeamConfig status <- responseJsonUnsafe <$> (getCustomSearchVisibilityEnabledInternal tid <!! testResponse 200 Nothing)
@@ -1829,8 +1829,6 @@ testFeatureFlags = do
       getCustomSearchVisibility CustomSearchVisibilityDisabled
       getCustomSearchVisibilityInternal CustomSearchVisibilityDisabled
   return ()
-
-
 
 checkJoinEvent :: (MonadIO m, MonadCatch m) => TeamId -> UserId -> WS.WebSocket -> m ()
 checkJoinEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do

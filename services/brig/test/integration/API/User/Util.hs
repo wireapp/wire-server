@@ -35,8 +35,8 @@ import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LB
-import Data.Id hiding (client)
 import Data.Handle (Handle (Handle))
+import Data.Id hiding (client)
 import Data.Misc (PlainTextPassword (..))
 import Data.Range (unsafeRange)
 import qualified Data.Set as Set

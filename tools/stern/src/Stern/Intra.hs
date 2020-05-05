@@ -86,8 +86,8 @@ import Data.Text.Lazy (pack)
 import Galley.Types
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
-import Galley.Types.Teams.SearchVisibility
 import Galley.Types.Teams.SSO
+import Galley.Types.Teams.SearchVisibility
 import Gundeck.Types
 import Imports
 import Network.HTTP.Types.Method
@@ -580,10 +580,13 @@ setSearchVisibility tid typ = do
         )
   case statusCode resp of
     204 -> pure ()
-    403 -> throwE $ Error status403
-                          "custom-search-visibility-unset"
-                          "This team does not have CustomSearchVisibility enabled. Ensure this is the correct TeamID or first enable the feature"
-    _   -> throwE $ responseJsonUnsafe resp
+    403 ->
+      throwE $
+        Error
+          status403
+          "custom-search-visibility-unset"
+          "This team does not have CustomSearchVisibility enabled. Ensure this is the correct TeamID or first enable the feature"
+    _ -> throwE $ responseJsonUnsafe resp
 
 --------------------------------------------------------------------------------
 -- Helper functions

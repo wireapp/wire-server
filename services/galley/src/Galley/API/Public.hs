@@ -399,7 +399,6 @@ sitemap = do
     response 204 "Search visibility set" end
     errorResponse Error.customSearchVisibilityNotEnabled
 
-
   -- Team Feature Flag API ----------------------------------------------
 
   get "/teams/:tid/features/legalhold" (continue Teams.getLegalholdStatusH) $
