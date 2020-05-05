@@ -91,8 +91,7 @@ data CustomSearchVisibilityTeamConfig = CustomSearchVisibilityTeamConfig
 instance ToJSON CustomSearchVisibilityTeamConfig where
   toJSON s =
     object $
-      "status" .= customSearchVisibilityTeamConfigStatus s
-        # []
+      ["status" .= customSearchVisibilityTeamConfigStatus s]
 
 instance FromJSON CustomSearchVisibilityTeamConfig where
   parseJSON = withObject "CustomSearchVisibilityTeamConfig" $ \o ->
