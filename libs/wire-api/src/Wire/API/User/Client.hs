@@ -27,6 +27,10 @@ module Wire.API.User.Client
     UserClientMap (..),
     UserClients (..),
     filterClients,
+
+    -- * Swagger
+    modelOtrClientMap,
+    modelUserClients,
   )
 where
 
@@ -36,6 +40,7 @@ import Data.Id
 import Data.Json.Util
 import qualified Data.Map.Strict as Map
 import Data.Misc (Location, PlainTextPassword (..))
+import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text.Encoding as Text.E
 import Data.UUID (toASCIIBytes)
 import Imports
@@ -48,6 +53,12 @@ newtype UserClientMap a = UserClientMap
   }
   deriving stock (Eq, Show, Functor, Foldable, Traversable)
   deriving newtype (Semigroup, Monoid)
+
+modelOtrClientMap :: Doc.Model
+modelOtrClientMap = Doc.defineModel "OtrClientMap" $ do
+  Doc.description "Map of client IDs to OTR content."
+  Doc.property "" Doc.bytes' $
+    Doc.description "Mapping from client IDs to OTR content (Base64 in JSON)."
 
 instance ToJSON a => ToJSON (UserClientMap a) where
   toJSON = toJSON . Map.foldrWithKey' f Map.empty . userClientMap
@@ -76,6 +87,12 @@ newtype UserClients = UserClients
   { userClients :: Map OpaqueUserId (Set ClientId)
   }
   deriving (Eq, Show, Semigroup, Monoid, Generic)
+
+modelUserClients :: Doc.Model
+modelUserClients =
+  Doc.defineModel "UserClients"
+    $ Doc.property "" (Doc.unique $ Doc.array Doc.bytes')
+    $ Doc.description "Map of user IDs to sets of client IDs ({ UserId: [ClientId] })."
 
 instance ToJSON UserClients where
   toJSON =

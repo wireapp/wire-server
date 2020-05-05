@@ -26,6 +26,7 @@ import qualified Wire.API.Conversation.Member as Conversation.Member
 import qualified Wire.API.Conversation.Role as Conversation.Role
 import qualified Wire.API.Conversation.Typing as Conversation.Typing
 import qualified Wire.API.CustomBackend as CustomBackend
+import qualified Wire.API.Message as Message
 import qualified Wire.API.Notification as Notification
 import qualified Wire.API.Push.Token as Push.Token
 import qualified Wire.API.Team as Team
@@ -35,6 +36,7 @@ import qualified Wire.API.Team.Feature as Team.Feature
 import qualified Wire.API.Team.Member as Team.Member
 import qualified Wire.API.Team.Permission as Team.Permission
 import qualified Wire.API.User as User
+import qualified Wire.API.User.Client as User.Client
 
 models :: [Model]
 models =
@@ -48,6 +50,9 @@ models =
     Conversation.Role.modelConversationRolesList,
     Conversation.Typing.modelTyping,
     CustomBackend.modelCustomBackend,
+    Message.modelNewOtrMessage,
+    Message.modelOtrRecipients,
+    Message.modelClientMismatch,
     Notification.modelEvent,
     Notification.modelNotification,
     Notification.modelNotificationList,
@@ -69,6 +74,8 @@ models =
     Team.modelUpdateData,
     Team.modelTeamDelete,
     User.modelUserIdList,
+    User.Client.modelOtrClientMap,
+    User.Client.modelUserClients,
     Conversation.Event.modelEvent,
     Conversation.Event.modelMemberEvent,
     Conversation.Event.modelConnectEvent,

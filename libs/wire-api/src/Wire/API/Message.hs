@@ -36,6 +36,11 @@ module Wire.API.Message
     -- * Filter
     OtrFilterMissing (..),
     ClientMismatch (..),
+
+    -- * Swagger
+    modelNewOtrMessage,
+    modelOtrRecipients,
+    modelClientMismatch,
   )
 where
 
@@ -43,9 +48,11 @@ import Data.Aeson
 import Data.Id
 import Data.Json.Util
 import qualified Data.Map.Strict as Map
+import qualified Data.Swagger.Build.Api as Doc
 import Data.Time
 import Imports
 import Wire.API.User.Client (UserClientMap (userClientMap), UserClients)
+import Wire.API.User.Client (modelOtrClientMap, modelUserClients)
 
 -----------------------------------------------------------------------------
 -- Message
@@ -64,6 +71,31 @@ data NewOtrMessage = NewOtrMessage
     -- body field length, because it'd be just a boolean; (2) less network consumption.
   }
   deriving (Show)
+
+modelNewOtrMessage :: Doc.Model
+modelNewOtrMessage = Doc.defineModel "NewOtrMessage" $ do
+  Doc.description "OTR message per recipient"
+  Doc.property "sender" Doc.bytes' $
+    Doc.description "The sender's client ID"
+  Doc.property "recipients" (Doc.ref modelOtrRecipients) $
+    Doc.description "Per-recipient data (i.e. ciphertext)."
+  Doc.property "native_push" Doc.bool' $ do
+    Doc.description "Whether to issue a native push to offline clients."
+    Doc.optional
+  Doc.property "transient" Doc.bool' $ do
+    Doc.description "Whether to put this message into the notification queue."
+    Doc.optional
+  Doc.property "native_priority" typePriority $ do
+    Doc.description "The native push priority (default 'high')."
+    Doc.optional
+  Doc.property "data" Doc.bytes' $ do
+    Doc.description
+      "Extra (symmetric) data (i.e. ciphertext) that is replicated \
+      \for each recipient."
+    Doc.optional
+  Doc.property "report_missing" (Doc.unique $ Doc.array Doc.bytes') $ do
+    Doc.description "List of user IDs"
+    Doc.optional
 
 instance ToJSON NewOtrMessage where
   toJSON otr =
@@ -104,6 +136,14 @@ instance FromJSON NewOtrMessage where
 data Priority = LowPriority | HighPriority
   deriving (Eq, Show, Ord, Enum)
 
+typePriority :: Doc.DataType
+typePriority =
+  Doc.string $
+    Doc.enum
+      [ "low",
+        "high"
+      ]
+
 instance ToJSON Priority where
   toJSON LowPriority = String "low"
   toJSON HighPriority = String "high"
@@ -132,6 +172,13 @@ foldrOtrRecipients f a =
   where
     go u cs acc = Map.foldrWithKey (f u) acc cs
 
+modelOtrRecipients :: Doc.Model
+modelOtrRecipients = Doc.defineModel "OtrRecipients" $ do
+  Doc.description "Recipients of OTR content."
+  -- FUTUREWORK: is this right?
+  Doc.property "" (Doc.ref modelOtrClientMap) $
+    Doc.description "Mapping of user IDs to 'OtrClientMap's."
+
 -----------------------------------------------------------------------------
 -- Filter
 
@@ -159,6 +206,18 @@ data ClientMismatch = ClientMismatch
     deletedClients :: !UserClients
   }
   deriving (Eq, Show, Generic)
+
+modelClientMismatch :: Doc.Model
+modelClientMismatch = Doc.defineModel "ClientMismatch" $ do
+  Doc.description "Map of missing, redundant or deleted clients."
+  Doc.property "time" Doc.dateTime' $
+    Doc.description "Server timestamp (date and time)"
+  Doc.property "missing" (Doc.ref modelUserClients) $
+    Doc.description "Map of missing clients per user."
+  Doc.property "redundant" (Doc.ref modelUserClients) $
+    Doc.description "Map of redundant clients per user."
+  Doc.property "deleted" (Doc.ref modelUserClients) $
+    Doc.description "Map of deleted clients per user."
 
 instance ToJSON ClientMismatch where
   toJSON m =
