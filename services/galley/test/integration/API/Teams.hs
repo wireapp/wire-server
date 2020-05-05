@@ -319,7 +319,7 @@ testEnableTeamSearchVisibilityPerTeam = do
   let getSearchVisibilityCheck :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => TeamSearchVisibility -> m ()
       getSearchVisibilityCheck vis = getSearchVisibility g owner tid !!! do
         const 200 === statusCode
-        const (Just vis) === fmap searchVisibility . responseJsonUnsafe
+        const (Just (TeamSearchVisibilityView vis)) === responseJsonUnsafe
 
   withCustomSearchFeature FeatureTeamSearchVisibilityEnabledByDefault $ do
     check "Teams should start with Custom Search Visibility enabled" TeamSearchVisibilityEnabled
