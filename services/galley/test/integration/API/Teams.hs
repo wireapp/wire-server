@@ -1704,20 +1704,20 @@ getTeamSearchVisibilityEnabled :: HasCallStack => (Request -> Request) -> UserId
 getTeamSearchVisibilityEnabled g uid tid = do
   get $
     g
-      . paths ["teams", toByteString' tid, "features", "team-search-visibility"]
+      . paths ["teams", toByteString' tid, "features", "search-visibility"]
       . zUser uid
 
 getTeamSearchVisibilityEnabledInternal :: HasCallStack => (Request -> Request) -> TeamId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 getTeamSearchVisibilityEnabledInternal g tid = do
   get $
     g
-      . paths ["i", "teams", toByteString' tid, "features", "team-search-visibility"]
+      . paths ["i", "teams", toByteString' tid, "features", "search-visibility"]
 
 putTeamSearchVisibilityEnabledInternal :: HasCallStack => (Request -> Request) -> TeamId -> TeamSearchVisibilityEnabled -> (MonadIO m, MonadHttp m) => m ()
 putTeamSearchVisibilityEnabledInternal g tid status = do
   void . put $
     g
-      . paths ["i", "teams", toByteString' tid, "features", "team-search-visibility"]
+      . paths ["i", "teams", toByteString' tid, "features", "search-visibility"]
       . json (TeamSearchVisibilityEnabledView status)
       . expect2xx
 

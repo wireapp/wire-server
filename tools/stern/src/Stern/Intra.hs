@@ -517,7 +517,7 @@ getTeamSearchVisibilityEnabled tid = do
       "galley"
       gly
       ( method GET
-          . paths ["/i/teams", toByteString' tid, "features", "team-search-visibility"]
+          . paths ["/i/teams", toByteString' tid, "features", "search-visibility"]
           . expect2xx
       )
   where
@@ -537,7 +537,7 @@ setTeamSearchVisibilityEnabled tid status = do
         "galley"
         gly
         ( method PUT
-            . paths ["/i/teams", toByteString' tid, "features", "team-search-visibility"]
+            . paths ["/i/teams", toByteString' tid, "features", "search-visibility"]
             . lbytes (encode $ toRequestBody status)
             . contentJson
         )
