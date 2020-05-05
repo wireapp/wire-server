@@ -55,7 +55,7 @@ import Data.Text.Ascii
 import Data.UUID (UUID)
 import Imports
 import Wire.API.Activation (ActivationCode)
-import Wire.API.Service.Bot (ServiceRef)
+import Wire.API.Bot (ServiceRef)
 import Wire.API.Team (BindingNewTeam)
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Identity

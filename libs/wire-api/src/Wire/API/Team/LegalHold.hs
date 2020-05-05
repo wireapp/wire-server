@@ -36,7 +36,7 @@ import Data.Json.Util
 import Data.LegalHold
 import Data.Misc
 import Imports
-import Wire.API.Service.Provider
+import Wire.API.Provider
 import Wire.API.User.Client.Prekey
 
 --------------------------------------------------------------------------------
