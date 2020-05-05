@@ -544,7 +544,7 @@ data HiddenPerm
   | ChangeLegalHoldUserSettings
   | ViewLegalHoldUserSettings
   | ViewSSOTeamSettings -- (change is only allowed via customer support backoffice)
-  | ViewCustomSearchVisibilityStatus -- (change is only allowed via customer support backoffice)
+  | ViewCustomSearchVisibilityStatus
   | ChangeCustomSearchVisibility
   | ViewCustomSearchVisibility
   | ViewSameTeamEmails
