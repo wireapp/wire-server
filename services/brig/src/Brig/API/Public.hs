@@ -1143,17 +1143,21 @@ checkHandlesH (_ ::: _ ::: req) = do
   return $ json free
 
 getHandleInfoH :: JSON ::: UserId ::: Handle -> Handler Response
-getHandleInfoH (_ ::: self ::: h) = do
+getHandleInfoH (_ ::: self ::: handle) =
+  maybe (setStatus status404 empty) json
+    <$> getHandleInfo self handle
+
+-- FUTUREWORK: use 'runMaybeT' to simplify this.
+getHandleInfo :: UserId -> Handle -> Handler (Maybe UserHandleInfo)
+getHandleInfo self handle = do
   ownerProfile <- do
     -- FUTUREWORK(federation, #1268): resolve qualified handles, too
-    maybeOwnerId <- fmap Local <$> (lift $ API.lookupHandle h)
+    maybeOwnerId <- fmap Local <$> (lift $ API.lookupHandle handle)
     case maybeOwnerId of
       Just ownerId -> lift $ API.lookupProfile self ownerId
       Nothing -> return Nothing
   owner <- filterHandleResults self (maybeToList ownerProfile)
-  return $ case listToMaybe owner of
-    Just u -> json (UserHandleInfo $ profileId u)
-    Nothing -> setStatus status404 empty
+  return $ UserHandleInfo . profileId <$> listToMaybe owner
 
 changeHandleH :: UserId ::: ConnId ::: JsonRequest HandleUpdate -> Handler Response
 changeHandleH (u ::: conn ::: req) = do
