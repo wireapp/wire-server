@@ -35,6 +35,7 @@ import Galley.Types.Teams.SSO
 import Galley.Types.Teams.SearchVisibility
 import Imports
 import Test.Brig.Roundtrip (testRoundTrip)
+import qualified Test.QuickCheck as QC
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
@@ -100,3 +101,15 @@ instance Arbitrary FeatureFlags where
       <$> Test.Tasty.QuickCheck.elements [minBound ..]
       <*> Test.Tasty.QuickCheck.elements [minBound ..]
       <*> Test.Tasty.QuickCheck.elements [minBound ..]
+
+instance Arbitrary SearchVisibility where
+  arbitrary = SearchVisibility <$> arbitrary
+
+instance Arbitrary CustomSearchVisibilityType where
+  arbitrary = QC.elements [minBound ..]
+
+instance Arbitrary CustomSearchVisibilityStatus where
+  arbitrary = QC.elements [minBound ..]
+
+instance Arbitrary CustomSearchVisibilityTeamConfig where
+  arbitrary = CustomSearchVisibilityTeamConfig <$> arbitrary
