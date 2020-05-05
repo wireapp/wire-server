@@ -62,10 +62,7 @@ newtype SearchVisibility = SearchVisibility {searchVisibility :: CustomSearchVis
   deriving stock (Eq, Show, Ord, Bounded, Generic)
 
 instance ToJSON SearchVisibility where
-  toJSON s =
-    object $
-      "search_visibility" .= searchVisibility s
-        # []
+  toJSON s = object ["search_visibility" .= searchVisibility s]
 
 instance FromJSON SearchVisibility where
   parseJSON = withObject "SearchVisibility" $ \o ->
