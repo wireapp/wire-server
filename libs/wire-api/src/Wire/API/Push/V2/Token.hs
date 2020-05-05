@@ -23,16 +23,19 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.Push.V2.Token
-  ( Transport (..),
-    Token (..),
-    AppName (..),
+  ( -- * PushToken
+    PushTokenList (..),
     PushToken,
     pushToken,
     tokenTransport,
     tokenApp,
     tokenClient,
     token,
-    PushTokenList (..),
+
+    -- * PushToken fields
+    Transport (..),
+    Token (..),
+    AppName (..),
 
     -- * Swagger
     modelPushToken,
@@ -48,6 +51,67 @@ import Data.Id
 import Data.Json.Util
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
+
+-----------------------------------------------------------------------------
+-- PushToken
+
+newtype PushTokenList = PushTokenList
+  { pushTokens :: [PushToken]
+  }
+  deriving (Eq, Show)
+
+modelPushTokenList :: Doc.Model
+modelPushTokenList = Doc.defineModel "PushTokenList" $ do
+  Doc.description "List of Native Push Tokens"
+  Doc.property "tokens" (Doc.array (Doc.ref modelPushToken)) $
+    Doc.description "Push tokens"
+
+instance ToJSON PushTokenList where
+  toJSON (PushTokenList t) = object ["tokens" .= t]
+
+instance FromJSON PushTokenList where
+  parseJSON = withObject "PushTokenList" $ \p ->
+    PushTokenList <$> p .: "tokens"
+
+data PushToken = PushToken
+  { _tokenTransport :: !Transport,
+    _tokenApp :: !AppName,
+    _token :: !Token,
+    _tokenClient :: !ClientId
+  }
+  deriving (Eq, Ord, Show)
+
+pushToken :: Transport -> AppName -> Token -> ClientId -> PushToken
+pushToken tp an tk cl = PushToken tp an tk cl
+
+modelPushToken :: Doc.Model
+modelPushToken = Doc.defineModel "PushToken" $ do
+  Doc.description "Native Push Token"
+  Doc.property "transport" modelTransport $
+    Doc.description "Transport"
+  Doc.property "app" Doc.string' $
+    Doc.description "Application"
+  Doc.property "token" Doc.bytes' $
+    Doc.description "Access Token"
+  Doc.property "client" Doc.bytes' $ do
+    Doc.description "Client ID"
+    Doc.optional
+
+instance ToJSON PushToken where
+  toJSON p =
+    object $
+      "transport" .= _tokenTransport p
+        # "app" .= _tokenApp p
+        # "token" .= _token p
+        # "client" .= _tokenClient p
+        # []
+
+instance FromJSON PushToken where
+  parseJSON = withObject "PushToken" $ \p ->
+    PushToken <$> p .: "transport"
+      <*> p .: "app"
+      <*> p .: "token"
+      <*> p .: "client"
 
 -----------------------------------------------------------------------------
 -- Transport
@@ -96,9 +160,6 @@ instance FromByteString Transport where
     "APNS_VOIP_SANDBOX" -> return APNSVoIPSandbox
     x -> fail $ "Invalid push transport: " <> show x
 
------------------------------------------------------------------------------
--- PushToken
-
 newtype Token = Token
   { tokenText :: Text
   }
@@ -109,62 +170,4 @@ newtype AppName = AppName
   }
   deriving (Eq, Ord, Show, FromJSON, ToJSON, IsString)
 
-data PushToken = PushToken
-  { _tokenTransport :: !Transport,
-    _tokenApp :: !AppName,
-    _token :: !Token,
-    _tokenClient :: !ClientId
-  }
-  deriving (Eq, Ord, Show)
-
 makeLenses ''PushToken
-
-pushToken :: Transport -> AppName -> Token -> ClientId -> PushToken
-pushToken tp an tk cl = PushToken tp an tk cl
-
-modelPushToken :: Doc.Model
-modelPushToken = Doc.defineModel "PushToken" $ do
-  Doc.description "Native Push Token"
-  Doc.property "transport" modelTransport $
-    Doc.description "Transport"
-  Doc.property "app" Doc.string' $
-    Doc.description "Application"
-  Doc.property "token" Doc.bytes' $
-    Doc.description "Access Token"
-  Doc.property "client" Doc.bytes' $ do
-    Doc.description "Client ID"
-    Doc.optional
-
-instance ToJSON PushToken where
-  toJSON p =
-    object $
-      "transport" .= _tokenTransport p
-        # "app" .= _tokenApp p
-        # "token" .= _token p
-        # "client" .= _tokenClient p
-        # []
-
-instance FromJSON PushToken where
-  parseJSON = withObject "PushToken" $ \p ->
-    PushToken <$> p .: "transport"
-      <*> p .: "app"
-      <*> p .: "token"
-      <*> p .: "client"
-
-newtype PushTokenList = PushTokenList
-  { pushTokens :: [PushToken]
-  }
-  deriving (Eq, Show)
-
-modelPushTokenList :: Doc.Model
-modelPushTokenList = Doc.defineModel "PushTokenList" $ do
-  Doc.description "List of Native Push Tokens"
-  Doc.property "tokens" (Doc.array (Doc.ref modelPushToken)) $
-    Doc.description "Push tokens"
-
-instance ToJSON PushTokenList where
-  toJSON (PushTokenList t) = object ["tokens" .= t]
-
-instance FromJSON PushTokenList where
-  parseJSON = withObject "PushTokenList" $ \p ->
-    PushTokenList <$> p .: "tokens"

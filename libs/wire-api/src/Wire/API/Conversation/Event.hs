@@ -27,7 +27,6 @@ module Wire.API.Conversation.Event
     Event (..),
     EventType (..),
     EventData (..),
-    parseEventData, -- TODO: needed?
 
     -- * Event data helpers
     SimpleMember (..),
