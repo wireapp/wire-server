@@ -1364,3 +1364,15 @@ waitForMemberDeletion zusr tid uid = do
       case statusCode res of
         404 -> pure ()
         _ -> loop
+
+deleteTeamMember :: (MonadIO m, MonadCatch m, MonadHttp m) => (Request -> Request) -> TeamId -> UserId -> UserId -> m ()
+deleteTeamMember g tid owner deletee =
+  delete
+    ( g
+        . paths ["teams", toByteString' tid, "members", toByteString' deletee]
+        . zUser owner
+        . zConn "conn"
+        . json (newTeamMemberDeleteData (Just defPassword))
+    )
+    !!! do
+      const 202 === statusCode

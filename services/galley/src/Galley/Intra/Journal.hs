@@ -54,9 +54,8 @@ teamActivate tid teamSize cur time = do
   billingUserIds <- getBillingUserIds tid Nothing
   journalEvent TeamEvent'TEAM_ACTIVATE tid (Just $ evData teamSize billingUserIds cur) time
 
-teamUpdate :: TeamId -> Natural -> Maybe TeamMemberList -> Galley ()
-teamUpdate tid teamSize maybeTeamMembers = do
-  billingUserIds <- getBillingUserIds tid maybeTeamMembers
+teamUpdate :: TeamId -> Natural -> [UserId] -> Galley ()
+teamUpdate tid teamSize billingUserIds =
   journalEvent TeamEvent'TEAM_UPDATE tid (Just $ evData teamSize billingUserIds Nothing) Nothing
 
 teamDelete :: TeamId -> Galley ()

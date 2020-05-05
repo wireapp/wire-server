@@ -1235,22 +1235,40 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
 
 testBillingInLargeTeam :: TestM ()
 testBillingInLargeTeam = do
-  (owner, team) <- Util.createBindingTeam
+  (firstOwner, team) <- Util.createBindingTeam
   refreshIndex
   o <- view tsGConf
+  g <- view tsGalley
   let fanoutLimit = fromRange $ Galley.currentFanoutLimit o
-  void $
+  allOwnersBeforeFanoutLimit <-
     foldM
       ( \billingMembers n -> do
-          newBillingMemberId <- (view userId) <$> Util.addUserToTeamWithRole (Just RoleOwner) owner team
+          newBillingMemberId <- (view userId) <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
           let allBillingMembers = newBillingMemberId : billingMembers
           assertQueue ("add " <> show n <> "th billing member: " <> show newBillingMemberId) $
             tUpdate n allBillingMembers
           refreshIndex
           pure allBillingMembers
       )
-      [owner]
+      [firstOwner]
       [2 .. (fanoutLimit + 1)]
+
+  -- Additions after the fanout limit should still send events to all owners
+  ownerFanoutPlusTwo <- (view userId) <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
+  assertQueue ("add fanoutLimit + 2nd billing member: " <> show ownerFanoutPlusTwo) $
+    tUpdate (fanoutLimit + 2) (ownerFanoutPlusTwo : allOwnersBeforeFanoutLimit)
+  refreshIndex
+
+  -- Deletions after the fanout limit should still send events to all owners
+  ownerFanoutPlusThree <- (view userId) <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
+  assertQueue ("add fanoutLimit + 3rd billing member: " <> show ownerFanoutPlusThree) $
+    tUpdate (fanoutLimit + 3) (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusTwo, ownerFanoutPlusThree])
+  refreshIndex
+
+  Util.deleteTeamMember g team firstOwner ownerFanoutPlusThree
+  assertQueue ("delete fanoutLimit + 3rd billing member: " <> show ownerFanoutPlusThree) $
+    tUpdate (fanoutLimit + 2) (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusTwo])
+  refreshIndex
 
 testBillingInLargeTeamWithoutIndexedBillingTeamMembers :: TestM ()
 testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
@@ -1312,7 +1330,7 @@ testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
 
   -- Deletions with indexedBillingTeamMembers disabled should still remove owners from the
   -- indexed table
-  withoutIndexedBillingTeamMembers $ deleteTeamMember g team firstOwner ownerFanoutPlusTwo !!! const 202 === statusCode
+  withoutIndexedBillingTeamMembers $ Util.deleteTeamMember g team firstOwner ownerFanoutPlusTwo
   ensureQueueEmpty
   Util.waitForMemberDeletion firstOwner team ownerFanoutPlusTwo
 
@@ -1339,14 +1357,6 @@ testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
   assertQueue ("add billing member to test promotion: " <> show ownerFanoutPlusSix) $
     tUpdateUncertainCount [5, 6] (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusThree, ownerFanoutPlusFour, ownerFanoutPlusFive, ownerFanoutPlusSix])
   where
-    deleteTeamMember g tid owner deletee =
-      delete
-        ( g
-            . paths ["teams", toByteString' tid, "members", toByteString' deletee]
-            . zUser owner
-            . zConn "conn"
-            . json (newTeamMemberDeleteData (Just $ Util.defPassword))
-        )
     updateTeamMember g tid zusr change =
       put
         ( g

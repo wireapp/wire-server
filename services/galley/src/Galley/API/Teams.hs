@@ -453,8 +453,8 @@ uncheckedAddTeamMember tid nmem = do
   -- FUTUREWORK: We cannot enable legalhold on large teams right now
   ensureNotTooLargeForLegalHold tid mems
   (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem mems
-
-  Journal.teamUpdate tid (sizeBeforeAdd + 1) $ Just $ newTeamMemberList ((nmem ^. ntmNewTeamMember) : mems ^. teamMembers) (mems ^. teamMemberListType)
+  billingUserIds <- Journal.getBillingUserIds tid $ Just $ newTeamMemberList ((nmem ^. ntmNewTeamMember) : mems ^. teamMembers) (mems ^. teamMemberListType)
+  Journal.teamUpdate tid (sizeBeforeAdd + 1) billingUserIds
 
 updateTeamMemberH :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
 updateTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -509,7 +509,8 @@ updateTeamMember zusr zcon tid targetMember = do
     updateJournal team mems = do
       when (team ^. teamBinding == Binding) $ do
         (TeamSize size) <- BrigTeam.getSize tid
-        Journal.teamUpdate tid size (Just mems)
+        billingUserIds <- Journal.getBillingUserIds tid $ Just mems
+        Journal.teamUpdate tid size billingUserIds
     --
     updatePeers :: UserId -> Permissions -> TeamMemberList -> Galley ()
     updatePeers targetId targetPermissions updatedMembers = do
@@ -564,8 +565,9 @@ deleteTeamMember zusr zcon tid remove mBody = do
               then 0
               else sizeBeforeDelete - 1
       deleteUser remove
-      let memsWithoutDeleted = newTeamMemberList (filter (\u -> u ^. userId /= remove) (mems ^. teamMembers)) (mems ^. teamMemberListType)
-      Journal.teamUpdate tid sizeAfterDelete (Just memsWithoutDeleted)
+      Log.warn $ Log.field "listType" (toByteString' . show $ (mems ^. teamMemberListType)) . Log.msg ("------------------------------------------" :: String)
+      billingUsers <- Journal.getBillingUserIds tid (Just mems)
+      Journal.teamUpdate tid sizeAfterDelete $ filter (/= remove) billingUsers
       pure TeamMemberDeleteAccepted
     else do
       uncheckedDeleteTeamMember zusr (Just zcon) tid remove mems
