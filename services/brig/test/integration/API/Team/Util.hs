@@ -45,6 +45,10 @@ import Test.Tasty.HUnit
 import Util
 import Web.Cookie (parseSetCookie, setCookieName)
 
+-- | FUTUREWORK: Remove 'createPopulatedBindingTeam', 'createPopulatedBindingTeamWithNames',
+-- and rename 'createPopulatedBindingTeamWithNamesAndHandles' to 'createPopulatedBindingTeam'.
+-- this makes understanding the tests easier because there are fewer setups that only differ
+-- from real-world setups in being more artificial, and hopefully won't add too much run time.
 createPopulatedBindingTeamWithNamesAndHandles :: Brig -> Galley -> Int -> Http (TeamId, User, [User])
 createPopulatedBindingTeamWithNamesAndHandles brig galley numMembers = do
   names <- forM [1 .. numMembers] $ \_ -> randomName
