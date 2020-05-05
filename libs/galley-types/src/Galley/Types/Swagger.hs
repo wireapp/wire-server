@@ -23,6 +23,7 @@ import Data.Aeson (encode)
 import Data.String.Conversions (cs)
 import Data.Swagger.Build.Api as Swagger
 import Galley.Types (Access)
+import qualified Galley.Types.Teams.SearchVisibility as Types
 import Imports
 import qualified Wire.Swagger as Swagger
 
@@ -580,12 +581,7 @@ featureStatus =
       ]
 
 searchVisibilityType :: DataType
-searchVisibilityType =
-  string $
-    enum
-      [ "standard",
-        "no-name-outside-team"
-      ]
+searchVisibilityType = string . enum $ cs . encode <$> [(minBound :: Types.CustomSearchVisibilityType) ..]
 
 searchVisibility :: Model
 searchVisibility = defineModel "SearchVisibility" $ do
