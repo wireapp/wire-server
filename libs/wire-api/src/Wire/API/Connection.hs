@@ -25,7 +25,17 @@
 --
 -- Types for connections between users.
 module Wire.API.Connection
-  ( module Wire.API.Connection,
+  ( -- * UserConnection
+    UserConnection (..),
+    UserConnectionList (..),
+    Message (..),
+    Relation (..),
+
+    -- * Requests
+    ConnectionRequest (..),
+    ConnectionUpdate (..),
+
+    -- * Swagger
   )
 where
 
@@ -40,24 +50,8 @@ import Data.Text as Text
 import Imports
 import Wire.API.User.Profile ()
 
--- | Initial message sent along with a connection request. 1-256 characters.
---
--- /Note 2019-03-28:/ some clients send it, but we have hidden it anyway in the UI since it
--- works as a nice source of spam. TODO deprecate and remove.
-newtype Message = Message {messageText :: Text}
-  deriving (Eq, Ord, Show, ToJSON, Generic)
-
--- | Possible relations between two users. For detailed descriptions of these states, see:
---
--- > docs/reference/user/connection.md {#RefConnectionStates}
-data Relation
-  = Accepted
-  | Blocked
-  | Pending
-  | Ignored
-  | Sent
-  | Cancelled
-  deriving (Eq, Ord, Show, Generic)
+--------------------------------------------------------------------------------
+-- UserConnection
 
 -- | Exact state of the connection between two users, stored in Brig database (see
 -- 'Brig.Data.Connection.lookupConnections').
@@ -75,50 +69,37 @@ data UserConnection = UserConnection
   }
   deriving (Eq, Show, Generic)
 
--- | Payload type for a connection request from one user to another.
-data ConnectionRequest = ConnectionRequest
-  { -- | Connection recipient
-    crUser :: !OpaqueUserId,
-    -- | Name of the conversation to be created
-    crName :: !Text,
-    -- | Initial message
-    crMessage :: !Message
-  }
-  deriving (Eq, Show, Generic)
+instance ToJSON UserConnection where
+  toJSON uc =
+    object
+      [ "from" .= ucFrom uc,
+        "to" .= ucTo uc,
+        "status" .= ucStatus uc,
+        "last_update" .= ucLastUpdate uc,
+        "message" .= ucMessage uc,
+        "conversation" .= ucConvId uc
+      ]
 
--- | Payload type for "please change the status of this connection".
-data ConnectionUpdate = ConnectionUpdate
-  { cuStatus :: !Relation
-  }
-  deriving (Eq, Show, Generic)
+instance FromJSON UserConnection where
+  parseJSON = withObject "user-connection" $ \o ->
+    UserConnection <$> o .: "from"
+      <*> o .: "to"
+      <*> o .: "status"
+      <*> o .: "last_update"
+      <*> o .:? "message"
+      <*> o .:? "conversation"
 
--- | Response type for endpoints returning lists of connections.
-data UserConnectionList = UserConnectionList
-  { clConnections :: [UserConnection],
-    -- | Pagination flag ("we have more results")
-    clHasMore :: !Bool
-  }
-  deriving (Eq, Show, Generic)
-
--- | Response type for endpoints returning lists of users with a specific connection state.
--- E.g. 'getContactList' returns a 'UserIds' containing the list of connections in an
--- 'Accepted' state.
-data UserIds = UserIds
-  {cUsers :: [UserId]}
-  deriving (Eq, Show, Generic)
-
--- | Data that is passed to the @\/i\/users\/connections-status@ endpoint.
-data ConnectionsStatusRequest = ConnectionsStatusRequest
-  { csrFrom :: ![UserId],
-    csrTo :: ![UserId]
-  }
-  deriving (Eq, Show, Generic)
-
-----------------------------------------------------------------------------
--- JSON instances
-
-instance FromJSON Message where
-  parseJSON x = Message . fromRange <$> (parseJSON x :: Parser (Range 1 256 Text))
+-- | Possible relations between two users. For detailed descriptions of these states, see:
+--
+-- > docs/reference/user/connection.md {#RefConnectionStates}
+data Relation
+  = Accepted
+  | Blocked
+  | Pending
+  | Ignored
+  | Sent
+  | Cancelled
+  deriving (Eq, Ord, Show, Generic)
 
 instance ToJSON Relation where
   toJSON = String . Text.toLower . pack . show
@@ -142,46 +123,23 @@ instance FromByteString Relation where
     "cancelled" -> return Cancelled
     x -> fail $ "Invalid relation-type " <> show x
 
-instance FromJSON UserConnection where
-  parseJSON = withObject "user-connection" $ \o ->
-    UserConnection <$> o .: "from"
-      <*> o .: "to"
-      <*> o .: "status"
-      <*> o .: "last_update"
-      <*> o .:? "message"
-      <*> o .:? "conversation"
+-- | Initial message sent along with a connection request. 1-256 characters.
+--
+-- /Note 2019-03-28:/ some clients send it, but we have hidden it anyway in the UI since it
+-- works as a nice source of spam. TODO deprecate and remove.
+newtype Message = Message {messageText :: Text}
+  deriving (Eq, Ord, Show, ToJSON, Generic)
 
-instance ToJSON UserConnection where
-  toJSON uc =
-    object
-      [ "from" .= ucFrom uc,
-        "to" .= ucTo uc,
-        "status" .= ucStatus uc,
-        "last_update" .= ucLastUpdate uc,
-        "message" .= ucMessage uc,
-        "conversation" .= ucConvId uc
-      ]
+instance FromJSON Message where
+  parseJSON x = Message . fromRange <$> (parseJSON x :: Parser (Range 1 256 Text))
 
-instance FromJSON ConnectionRequest where
-  parseJSON = withObject "connection-request" $ \o ->
-    ConnectionRequest <$> o .: "user"
-      <*> (fromRange <$> ((o .: "name") :: Parser (Range 1 256 Text)))
-      <*> o .: "message"
-
-instance ToJSON ConnectionUpdate where
-  toJSON c = object ["status" .= cuStatus c]
-
-instance FromJSON ConnectionUpdate where
-  parseJSON = withObject "connection-update" $ \o ->
-    ConnectionUpdate <$> o .: "status"
-
-instance ToJSON ConnectionRequest where
-  toJSON c =
-    object
-      [ "user" .= crUser c,
-        "name" .= crName c,
-        "message" .= crMessage c
-      ]
+-- | Response type for endpoints returning lists of connections.
+data UserConnectionList = UserConnectionList
+  { clConnections :: [UserConnection],
+    -- | Pagination flag ("we have more results")
+    clHasMore :: !Bool
+  }
+  deriving (Eq, Show, Generic)
 
 instance ToJSON UserConnectionList where
   toJSON (UserConnectionList l m) =
@@ -195,20 +153,76 @@ instance FromJSON UserConnectionList where
     UserConnectionList <$> o .: "connections"
       <*> o .: "has_more"
 
-instance FromJSON UserIds where
-  parseJSON = withObject "userids" $ \o ->
-    UserIds <$> o .: "ids"
+--------------------------------------------------------------------------------
+-- Requests
+
+-- | Payload type for a connection request from one user to another.
+data ConnectionRequest = ConnectionRequest
+  { -- | Connection recipient
+    crUser :: !OpaqueUserId,
+    -- | Name of the conversation to be created
+    crName :: !Text,
+    -- | Initial message
+    crMessage :: !Message
+  }
+  deriving (Eq, Show, Generic)
+
+instance ToJSON ConnectionRequest where
+  toJSON c =
+    object
+      [ "user" .= crUser c,
+        "name" .= crName c,
+        "message" .= crMessage c
+      ]
+
+instance FromJSON ConnectionRequest where
+  parseJSON = withObject "connection-request" $ \o ->
+    ConnectionRequest <$> o .: "user"
+      <*> (fromRange <$> ((o .: "name") :: Parser (Range 1 256 Text)))
+      <*> o .: "message"
+
+-- | Payload type for "please change the status of this connection".
+data ConnectionUpdate = ConnectionUpdate
+  { cuStatus :: !Relation
+  }
+  deriving (Eq, Show, Generic)
+
+instance ToJSON ConnectionUpdate where
+  toJSON c = object ["status" .= cuStatus c]
+
+instance FromJSON ConnectionUpdate where
+  parseJSON = withObject "connection-update" $ \o ->
+    ConnectionUpdate <$> o .: "status"
+
+--------------------------------------------------------------------------------
+-- unused?
+
+-- | Response type for endpoints returning lists of users with a specific connection state.
+-- E.g. 'getContactList' returns a 'UserIds' containing the list of connections in an
+-- 'Accepted' state.
+--
+-- TODO: unused?
+data UserIds = UserIds
+  {cUsers :: [UserId]}
+  deriving (Eq, Show, Generic)
 
 instance ToJSON UserIds where
   toJSON (UserIds us) =
     object
       ["ids" .= us]
 
-instance FromJSON ConnectionsStatusRequest where
-  parseJSON = withObject "ConnectionsStatusRequest" $ \o -> do
-    csrFrom <- o .: "from"
-    csrTo <- o .: "to"
-    pure ConnectionsStatusRequest {..}
+instance FromJSON UserIds where
+  parseJSON = withObject "userids" $ \o ->
+    UserIds <$> o .: "ids"
+
+-- | Data that is passed to the @\/i\/users\/connections-status@ endpoint.
+--
+-- TODO: unused?
+data ConnectionsStatusRequest = ConnectionsStatusRequest
+  { csrFrom :: ![UserId],
+    csrTo :: ![UserId]
+  }
+  deriving (Eq, Show, Generic)
 
 instance ToJSON ConnectionsStatusRequest where
   toJSON ConnectionsStatusRequest {csrFrom, csrTo} =
@@ -216,3 +230,9 @@ instance ToJSON ConnectionsStatusRequest where
       [ "from" .= csrFrom,
         "to" .= csrTo
       ]
+
+instance FromJSON ConnectionsStatusRequest where
+  parseJSON = withObject "ConnectionsStatusRequest" $ \o -> do
+    csrFrom <- o .: "from"
+    csrTo <- o .: "to"
+    pure ConnectionsStatusRequest {..}
