@@ -20,8 +20,8 @@
 module Brig.Types.Swagger where
 
 import qualified Data.Swagger.Build.Api as Doc
-import qualified Galley.Types.Swagger as Galley
 import Imports
+import Wire.API.Service (modelServiceRef)
 import Wire.API.Team (modelNewBindingTeam)
 import Wire.API.Team.Role (typeRole)
 import Wire.Swagger
@@ -147,7 +147,7 @@ modelUser = Doc.defineModel "User" $ do
   Doc.property "deleted" Doc.bool' $ do
     Doc.description "Whether the account has been deleted."
     Doc.optional
-  Doc.property "service" (Doc.ref Galley.modelServiceRef) $ do
+  Doc.property "service" (Doc.ref modelServiceRef) $ do
     Doc.description "The reference to the owning service, if the user is a 'bot'."
     Doc.optional
   Doc.property "handle" Doc.string' $ do

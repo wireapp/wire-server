@@ -26,6 +26,9 @@
 
 module Wire.API.User
   ( module Wire.API.User,
+
+    -- * Swagger
+    modelUserIdList,
   )
 where
 
@@ -46,6 +49,7 @@ import Data.Json.Util ((#), UTCTimeMillis)
 import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
+import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Data.Text.Ascii
 import Data.UUID (UUID)
@@ -66,6 +70,12 @@ newtype UserIdList = UserIdList
   { mUsers :: [UserId]
   }
   deriving (Eq, Show, Generic)
+
+modelUserIdList :: Doc.Model
+modelUserIdList = Doc.defineModel "UserIdList" $ do
+  Doc.description "list of user ids"
+  Doc.property "user_ids" (Doc.unique $ Doc.array Doc.bytes') $
+    Doc.description "the array of team conversations"
 
 instance FromJSON UserIdList where
   parseJSON = withObject "user-ids-payload" $ \o ->

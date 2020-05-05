@@ -34,6 +34,7 @@ import qualified Wire.API.Team.Event as Team.Event
 import qualified Wire.API.Team.Feature as Team.Feature
 import qualified Wire.API.Team.Member as Team.Member
 import qualified Wire.API.Team.Permission as Team.Permission
+import qualified Wire.API.User as User
 
 models :: [Model]
 models =
@@ -67,6 +68,7 @@ models =
     Team.modelNewNonBindingTeam,
     Team.modelUpdateData,
     Team.modelTeamDelete,
+    User.modelUserIdList,
     Conversation.Event.modelEvent,
     Conversation.Event.modelMemberEvent,
     Conversation.Event.modelConnectEvent,

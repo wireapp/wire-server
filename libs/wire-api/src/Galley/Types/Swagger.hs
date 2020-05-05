@@ -26,13 +26,11 @@ import qualified Wire.Swagger as Swagger
 -- TODO(wire-api): check if all models are used
 galleyModels :: [Doc.Model]
 galleyModels =
-  [ modelServiceRef,
-    modelNewOtrMessage,
+  [ modelNewOtrMessage,
     modelOtrRecipients,
     modelOtrClientMap,
     modelClientMismatch,
-    modelUserClients,
-    modelUserIdList
+    modelUserClients
   ]
 
 typePriority :: Doc.DataType
@@ -98,12 +96,6 @@ modelUserClients =
     $ Doc.property "" (Doc.unique $ Doc.array Doc.bytes')
     $ Doc.description "Map of user IDs to sets of client IDs ({ UserId: [ClientId] })."
 
-modelUserIdList :: Doc.Model
-modelUserIdList = Doc.defineModel "UserIdList" $ do
-  Doc.description "list of user ids"
-  Doc.property "user_ids" (Doc.unique $ Doc.array Doc.bytes') $
-    Doc.description "the array of team conversations"
-
 -- FUTUREWORK: unused? OtherMemberUpdateData doesn't exist.
 modelOtherMemberUpdateData :: Doc.Model
 modelOtherMemberUpdateData = Doc.defineModel "OtherMemberUpdateData" $ do
@@ -114,14 +106,6 @@ modelOtherMemberUpdateData = Doc.defineModel "OtherMemberUpdateData" $ do
   Doc.property "conversation_role" Doc.string' $ do
     Doc.description "Name of the conversation role to update to"
     Doc.optional
-
-modelServiceRef :: Doc.Model
-modelServiceRef = Doc.defineModel "ServiceRef" $ do
-  Doc.description "Service Reference"
-  Doc.property "id" Doc.bytes' $
-    Doc.description "Service ID"
-  Doc.property "provider" Doc.bytes' $
-    Doc.description "Provider ID"
 
 modelErrorObj :: Doc.Model
 modelErrorObj = Swagger.errorModel
