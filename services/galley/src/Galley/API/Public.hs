@@ -441,7 +441,7 @@ sitemap = do
     summary "Shows whether Custom Search Visibility feature is enabled for team"
     parameter Path "tid" bytes' $
       description "Team ID"
-    returns (ref Model.searchVisibilityTeamConfig)
+    returns (ref Model.teamSearchVisibilityEnabled)
     response 200 "Search Visibility status" end
   get "/custom-backend/by-domain/:domain" (continue CustomBackend.getCustomBackendByDomainH) $
     capture "domain"
