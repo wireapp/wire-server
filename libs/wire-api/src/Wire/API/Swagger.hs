@@ -21,6 +21,7 @@ module Wire.API.Swagger where
 
 import Data.Swagger.Build.Api (Model)
 import qualified Wire.API.Conversation.Code as Conversation.Code
+import qualified Wire.API.Conversation.Event as Conversation.Event
 import qualified Wire.API.Conversation.Member as Conversation.Member
 import qualified Wire.API.Conversation.Role as Conversation.Role
 import qualified Wire.API.Conversation.Typing as Conversation.Typing
@@ -66,6 +67,22 @@ models =
     Team.modelNewNonBindingTeam,
     Team.modelUpdateData,
     Team.modelTeamDelete,
+    Conversation.Event.modelEvent,
+    Conversation.Event.modelMemberEvent,
+    Conversation.Event.modelConnectEvent,
+    Conversation.Event.modelConversationReceiptModeUpdateEvent,
+    Conversation.Event.modelConversationNameUpdateEvent,
+    Conversation.Event.modelConversationAccessUpdateEvent,
+    Conversation.Event.modelConversationMessageTimerUpdateEvent,
+    Conversation.Event.modelConversationCodeUpdateEvent,
+    Conversation.Event.modelConversationCodeDeleteEvent,
+    Conversation.Event.modelMemberUpdateEvent,
+    Conversation.Event.modelTypingEvent,
+    Conversation.Event.modelOtrMessageEvent,
+    Conversation.Event.modelMembers,
+    Conversation.Event.modelConnect,
+    Conversation.Event.modelMemberUpdateData,
+    Conversation.Event.modelOtrMessage,
     Team.Event.modelEvent,
     Team.Event.modelMemberEvent,
     Team.Event.modelMemberData,
