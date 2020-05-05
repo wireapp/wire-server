@@ -659,7 +659,6 @@ deleteTeamConversation zusr zcon tid cid = do
   -- bot user can only be in a single conversation
   Data.removeTeamConv tid cid
 
--- | Modify and get visibility type for a team
 getSearchVisibilityH :: UserId ::: TeamId ::: JSON -> Galley Response
 getSearchVisibilityH (uid ::: tid ::: _) = do
   zusrMembership <- Data.teamMember tid uid
