@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 -- This file is part of the Wire Server implementation.
@@ -21,19 +22,78 @@
 module Wire.API.User.Client
   ( module Wire.API.User.Client,
     module P,
+
+    -- * UserClients
+    UserClientMap (..),
+    UserClients (..),
+    filterClients,
   )
 where
 
 import Data.Aeson
+import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Json.Util
+import qualified Data.Map.Strict as Map
 import Data.Misc (Location, PlainTextPassword (..))
+import qualified Data.Text.Encoding as Text.E
+import Data.UUID (toASCIIBytes)
 import Imports
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Client.Prekey as P
 import Wire.API.User.Profile ()
 
--- * Data Types:
+newtype UserClientMap a = UserClientMap
+  { userClientMap :: Map OpaqueUserId (Map ClientId a)
+  }
+  deriving stock (Eq, Show, Functor, Foldable, Traversable)
+  deriving newtype (Semigroup, Monoid)
+
+instance ToJSON a => ToJSON (UserClientMap a) where
+  toJSON = toJSON . Map.foldrWithKey' f Map.empty . userClientMap
+    where
+      f (Id u) clients m =
+        let key = Text.E.decodeLatin1 (toASCIIBytes u)
+            val = Map.foldrWithKey' g Map.empty clients
+         in Map.insert key val m
+      g (ClientId c) a = Map.insert c (toJSON a)
+
+instance FromJSON a => FromJSON (UserClientMap a) where
+  parseJSON = withObject "user-client-map" $ \o ->
+    UserClientMap <$> foldrM f Map.empty (HashMap.toList o)
+    where
+      f (k, v) m = do
+        u <- parseJSON (String k)
+        flip (withObject "client-value-map") v $ \c -> do
+          e <- foldrM g Map.empty (HashMap.toList c)
+          return (Map.insert u e m)
+      g (k, v) m = do
+        c <- parseJSON (String k)
+        t <- parseJSON v
+        return (Map.insert c t m)
+
+newtype UserClients = UserClients
+  { userClients :: Map OpaqueUserId (Set ClientId)
+  }
+  deriving (Eq, Show, Semigroup, Monoid, Generic)
+
+instance ToJSON UserClients where
+  toJSON =
+    toJSON . Map.foldrWithKey' fn Map.empty . userClients
+    where
+      fn u c m =
+        let k = Text.E.decodeLatin1 (toASCIIBytes (toUUID u))
+         in Map.insert k c m
+
+instance FromJSON UserClients where
+  parseJSON =
+    withObject "UserClients" (fmap UserClients . foldrM fn Map.empty . HashMap.toList)
+    where
+      fn (k, v) m = Map.insert <$> parseJSON (String k) <*> parseJSON v <*> pure m
+
+-- TODO: internal?
+filterClients :: (Set ClientId -> Bool) -> UserClients -> UserClients
+filterClients p (UserClients c) = UserClients $ Map.filter p c
 
 -- [Note: LegalHold]
 --

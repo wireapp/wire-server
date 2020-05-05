@@ -65,6 +65,7 @@ import qualified Data.Text.Lazy as Text
 import Data.Text.Lazy.Read (hexadecimal)
 import Imports
 import qualified Wire.API.Message as Msg
+import qualified Wire.API.User.Client as Client
 
 -- UserId -------------------------------------------------------------------
 
@@ -162,7 +163,7 @@ userEntryClients f c = (\x -> c {_userVal = x}) <$> field f (_userVal c)
 
 toOtrRecipients :: [UserEntry] -> Msg.OtrRecipients
 toOtrRecipients =
-  Msg.OtrRecipients . Msg.UserClientMap
+  Msg.OtrRecipients . Client.UserClientMap
     . foldl' userEntries mempty
   where
     userEntries acc x =
@@ -177,7 +178,7 @@ toOtrRecipients =
 
 fromOtrRecipients :: Msg.OtrRecipients -> [UserEntry]
 fromOtrRecipients rcps =
-  let m = Msg.userClientMap (Msg.otrRecipientsMap rcps)
+  let m = Client.userClientMap (Msg.otrRecipientsMap rcps)
    in map mkProtoRecipient (Map.toList m)
   where
     mkProtoRecipient (usr, clts) =

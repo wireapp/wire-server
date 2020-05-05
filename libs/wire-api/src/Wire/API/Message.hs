@@ -32,9 +32,6 @@ module Wire.API.Message
     -- * Recipients
     OtrRecipients (..),
     foldrOtrRecipients,
-    UserClientMap (..),
-    UserClients (..),
-    filterClients,
 
     -- * Filter
     OtrFilterMissing (..),
@@ -43,14 +40,12 @@ module Wire.API.Message
 where
 
 import Data.Aeson
-import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Json.Util
 import qualified Data.Map.Strict as Map
-import qualified Data.Text.Encoding as T
 import Data.Time
-import Data.UUID (toASCIIBytes)
 import Imports
+import Wire.API.User.Client (UserClientMap (userClientMap), UserClients)
 
 -----------------------------------------------------------------------------
 -- Message
@@ -125,29 +120,10 @@ instance FromJSON Priority where
 newtype OtrRecipients = OtrRecipients
   { otrRecipientsMap :: UserClientMap Text
   }
-  deriving
-    ( Eq,
-      Show,
-      ToJSON,
-      FromJSON,
-      Semigroup,
-      Monoid
-    )
+  deriving stock (Eq, Show)
+  deriving newtype (ToJSON, FromJSON, Semigroup, Monoid)
 
--- TODO: move to somewhere like User.Client?
-newtype UserClientMap a = UserClientMap
-  { userClientMap :: Map OpaqueUserId (Map ClientId a)
-  }
-  deriving
-    ( Eq,
-      Show,
-      Functor,
-      Foldable,
-      Semigroup,
-      Monoid,
-      Traversable
-    )
-
+-- TODO: internal?
 foldrOtrRecipients :: (OpaqueUserId -> ClientId -> Text -> a -> a) -> a -> OtrRecipients -> a
 foldrOtrRecipients f a =
   Map.foldrWithKey go a
@@ -155,51 +131,6 @@ foldrOtrRecipients f a =
     . otrRecipientsMap
   where
     go u cs acc = Map.foldrWithKey (f u) acc cs
-
-newtype UserClients = UserClients
-  { userClients :: Map OpaqueUserId (Set ClientId)
-  }
-  deriving (Eq, Show, Semigroup, Monoid, Generic)
-
-filterClients :: (Set ClientId -> Bool) -> UserClients -> UserClients
-filterClients p (UserClients c) = UserClients $ Map.filter p c
-
-instance ToJSON a => ToJSON (UserClientMap a) where
-  toJSON = toJSON . Map.foldrWithKey' f Map.empty . userClientMap
-    where
-      f (Id u) clients m =
-        let key = T.decodeLatin1 (toASCIIBytes u)
-            val = Map.foldrWithKey' g Map.empty clients
-         in Map.insert key val m
-      g (ClientId c) a = Map.insert c (toJSON a)
-
-instance FromJSON a => FromJSON (UserClientMap a) where
-  parseJSON = withObject "user-client-map" $ \o ->
-    UserClientMap <$> foldrM f Map.empty (HashMap.toList o)
-    where
-      f (k, v) m = do
-        u <- parseJSON (String k)
-        flip (withObject "client-value-map") v $ \c -> do
-          e <- foldrM g Map.empty (HashMap.toList c)
-          return (Map.insert u e m)
-      g (k, v) m = do
-        c <- parseJSON (String k)
-        t <- parseJSON v
-        return (Map.insert c t m)
-
-instance ToJSON UserClients where
-  toJSON =
-    toJSON . Map.foldrWithKey' fn Map.empty . userClients
-    where
-      fn u c m =
-        let k = T.decodeLatin1 (toASCIIBytes (toUUID u))
-         in Map.insert k c m
-
-instance FromJSON UserClients where
-  parseJSON =
-    withObject "UserClients" (fmap UserClients . foldrM fn Map.empty . HashMap.toList)
-    where
-      fn (k, v) m = Map.insert <$> parseJSON (String k) <*> parseJSON v <*> pure m
 
 -----------------------------------------------------------------------------
 -- Filter
