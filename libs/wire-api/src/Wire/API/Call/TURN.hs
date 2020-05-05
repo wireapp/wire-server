@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -20,15 +21,20 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.Call.TURN
-  ( RTCConfiguration,
+  ( -- * RTCConfiguration
+    RTCConfiguration,
     rtcConfiguration,
     rtcConfIceServers,
     rtcConfTTL,
+
+    -- * RTCIceServer
     RTCIceServer,
     rtcIceServer,
     iceURLs,
     iceUsername,
     iceCredential,
+
+    -- * TurnURI
     TurnURI,
     turnURI,
     turiScheme,
@@ -37,9 +43,10 @@ module Wire.API.Call.TURN
     turiPort,
     turiTransport,
     Transport (..),
-    TurnHost, -- Re-export
+    TurnHost (..),
     isHostName,
-    parseTurnHost,
+
+    -- * TurnUsername
     TurnUsername,
     turnUsername,
     tuExpiresAt,
@@ -47,6 +54,8 @@ module Wire.API.Call.TURN
     tuKeyindex,
     tuT,
     tuRandom,
+
+    -- * convenience
     isUdp,
     isTcp,
     isTls,
@@ -54,6 +63,7 @@ module Wire.API.Call.TURN
   )
 where
 
+import Control.Applicative (optional)
 import Control.Lens hiding ((.=))
 import Data.Aeson hiding ((<?>))
 import Data.Aeson.Encoding (text)
@@ -61,13 +71,16 @@ import Data.Attoparsec.Text hiding (parse)
 import Data.ByteString.Builder
 import qualified Data.ByteString.Conversion as BC
 import Data.List1
-import Data.Misc (Port (..))
+import Data.Misc (IpAddr (IpAddr), Port (..))
 import Data.Text.Ascii
 import qualified Data.Text.Encoding as TE
 import Data.Text.Strict.Lens (utf8)
 import Data.Time.Clock.POSIX
 import Imports
-import Wire.API.Call.TURN.Host
+import Text.Hostname (validHostname)
+
+--------------------------------------------------------------------------------
+-- RTCConfiguration
 
 -- | A configuration object resembling \"RTCConfiguration\"
 --
@@ -80,6 +93,20 @@ data RTCConfiguration = RTCConfiguration
   }
   deriving (Show, Generic)
 
+rtcConfiguration :: List1 RTCIceServer -> Word32 -> RTCConfiguration
+rtcConfiguration = RTCConfiguration
+
+instance ToJSON RTCConfiguration where
+  toEncoding (RTCConfiguration srvs ttl) =
+    pairs ("ice_servers" .= srvs <> "ttl" .= ttl)
+
+instance FromJSON RTCConfiguration where
+  parseJSON = withObject "RTCConfiguration" $ \o ->
+    RTCConfiguration <$> o .: "ice_servers" <*> o .: "ttl"
+
+--------------------------------------------------------------------------------
+-- RTCIceServer
+
 -- | A configuration object resembling \"RTCIceServer\"
 --
 -- cf. https://developer.mozilla.org/en-US/docs/Web/API/RTCIceServer
@@ -89,6 +116,24 @@ data RTCIceServer = RTCIceServer
     _iceCredential :: AsciiBase64
   }
   deriving (Show, Generic)
+
+rtcIceServer :: List1 TurnURI -> TurnUsername -> AsciiBase64 -> RTCIceServer
+rtcIceServer = RTCIceServer
+
+instance ToJSON RTCIceServer where
+  toEncoding (RTCIceServer urls name cred) =
+    pairs
+      ( "urls" .= urls
+          <> "username" .= name
+          <> "credential" .= cred
+      )
+
+instance FromJSON RTCIceServer where
+  parseJSON = withObject "RTCIceServer" $ \o ->
+    RTCIceServer <$> o .: "urls" <*> o .: "username" <*> o .: "credential"
+
+--------------------------------------------------------------------------------
+-- TurnURI
 
 -- | TURN server URI as described in https://tools.ietf.org/html/rfc7065, minus ext
 -- |
@@ -105,72 +150,8 @@ data TurnURI = TurnURI
   }
   deriving (Eq, Show, Generic)
 
-data Scheme
-  = SchemeTurn
-  | SchemeTurns
-  deriving (Eq, Show, Generic, Bounded, Enum)
-
-data Transport
-  = TransportUDP
-  | TransportTCP
-  deriving (Eq, Show, Generic, Enum, Bounded)
-
-data TurnUsername = TurnUsername
-  { _tuExpiresAt :: POSIXTime,
-    _tuVersion :: Word,
-    _tuKeyindex :: Word32, -- seems to large, but uint32_t is used in C
-    _tuT :: Char, -- undocumented, always 's'
-    _tuRandom :: Text -- [a-z0-9]+
-  }
-  deriving (Show, Generic)
-
-rtcConfiguration :: List1 RTCIceServer -> Word32 -> RTCConfiguration
-rtcConfiguration = RTCConfiguration
-
-rtcIceServer :: List1 TurnURI -> TurnUsername -> AsciiBase64 -> RTCIceServer
-rtcIceServer = RTCIceServer
-
 turnURI :: Scheme -> TurnHost -> Port -> Maybe Transport -> TurnURI
 turnURI = TurnURI
-
--- note that the random value is not checked for well-formedness
-turnUsername :: POSIXTime -> Text -> TurnUsername
-turnUsername expires rnd =
-  TurnUsername
-    { _tuExpiresAt = expires,
-      _tuVersion = 1,
-      _tuKeyindex = 0,
-      _tuT = 's',
-      _tuRandom = rnd
-    }
-
-makeLenses ''RTCConfiguration
-
-makeLenses ''RTCIceServer
-
-makeLenses ''TurnURI
-
-makeLenses ''TurnUsername
-
-instance ToJSON RTCConfiguration where
-  toEncoding (RTCConfiguration srvs ttl) =
-    pairs ("ice_servers" .= srvs <> "ttl" .= ttl)
-
-instance FromJSON RTCConfiguration where
-  parseJSON = withObject "RTCConfiguration" $ \o ->
-    RTCConfiguration <$> o .: "ice_servers" <*> o .: "ttl"
-
-instance ToJSON RTCIceServer where
-  toEncoding (RTCIceServer urls name cred) =
-    pairs
-      ( "urls" .= urls
-          <> "username" .= name
-          <> "credential" .= cred
-      )
-
-instance FromJSON RTCIceServer where
-  parseJSON = withObject "RTCIceServer" $ \o ->
-    RTCIceServer <$> o .: "urls" <*> o .: "username" <*> o .: "credential"
 
 instance BC.ToByteString TurnURI where
   builder (TurnURI s h (Port p) tp) =
@@ -181,14 +162,8 @@ instance BC.ToByteString TurnURI where
       <> BC.builder p
       <> maybe mempty ((byteString "?transport=" <>) . BC.builder) tp
 
-instance ToJSON TurnURI where
-  toJSON = String . TE.decodeUtf8 . BC.toByteString'
-
 instance BC.FromByteString TurnURI where
   parser = BC.parser >>= either fail pure . parseTurnURI
-
-instance FromJSON TurnURI where
-  parseJSON = withText "TurnURI" $ either fail pure . parseTurnURI
 
 parseTurnURI :: Text -> Either String TurnURI
 parseTurnURI = parseOnly (parser <* endOfInput)
@@ -207,6 +182,109 @@ parseTurnURI = parseOnly (parser <* endOfInput)
       Just ok -> return ok
       Nothing -> fail (err ++ " failed when parsing: " ++ show x)
 
+instance ToJSON TurnURI where
+  toJSON = String . TE.decodeUtf8 . BC.toByteString'
+
+instance FromJSON TurnURI where
+  parseJSON = withText "TurnURI" $ either fail pure . parseTurnURI
+
+data Scheme
+  = SchemeTurn
+  | SchemeTurns
+  deriving (Eq, Show, Generic, Bounded, Enum)
+
+instance BC.ToByteString Scheme where
+  builder SchemeTurn = "turn"
+  builder SchemeTurns = "turns"
+
+instance BC.FromByteString Scheme where
+  parser = BC.parser >>= \t -> case (t :: ByteString) of
+    "turn" -> pure SchemeTurn
+    "turns" -> pure SchemeTurns
+    _ -> fail $ "Invalid turn scheme: " ++ show t
+
+instance ToJSON Scheme where
+  toJSON = String . TE.decodeUtf8 . BC.toByteString'
+
+instance FromJSON Scheme where
+  parseJSON =
+    withText "Scheme" $
+      either fail pure . BC.runParser BC.parser . TE.encodeUtf8
+
+data TurnHost
+  = TurnHostIp IpAddr
+  | TurnHostName Text
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (ToJSON, FromJSON)
+
+instance BC.FromByteString TurnHost where
+  parser = BC.parser >>= maybe (fail "Invalid turn host") return . parseTurnHost
+
+instance BC.ToByteString TurnHost where
+  builder (TurnHostIp ip) = BC.builder ip
+  builder (TurnHostName n) = BC.builder n
+
+isHostName :: TurnHost -> Bool
+isHostName (TurnHostIp _) = False
+isHostName (TurnHostName _) = True
+
+parseTurnHost :: Text -> Maybe TurnHost
+parseTurnHost h = case BC.fromByteString host of
+  Just ip@(IpAddr _) -> Just $ TurnHostIp ip
+  Nothing | validHostname host -> Just $ TurnHostName h -- NOTE: IP addresses are also valid hostnames
+  _ -> Nothing
+  where
+    host = TE.encodeUtf8 h
+
+data Transport
+  = TransportUDP
+  | TransportTCP
+  deriving (Eq, Show, Generic, Enum, Bounded)
+
+instance BC.ToByteString Transport where
+  builder TransportUDP = "udp"
+  builder TransportTCP = "tcp"
+
+instance BC.FromByteString Transport where
+  parser = BC.parser >>= \t -> case (t :: ByteString) of
+    "udp" -> pure TransportUDP
+    "tcp" -> pure TransportTCP
+    _ -> fail $ "Invalid turn transport: " ++ show t
+
+instance ToJSON Transport where
+  toJSON = String . TE.decodeUtf8 . BC.toByteString'
+
+instance FromJSON Transport where
+  parseJSON =
+    withText "Transport" $
+      either fail pure . BC.runParser BC.parser . TE.encodeUtf8
+
+--------------------------------------------------------------------------------
+-- TurnUsername
+
+data TurnUsername = TurnUsername
+  { _tuExpiresAt :: POSIXTime,
+    _tuVersion :: Word,
+    -- | seems to large, but uint32_t is used in C
+    _tuKeyindex :: Word32,
+    -- | undocumented, always 's'
+    _tuT :: Char,
+    -- | [a-z0-9]+
+    _tuRandom :: Text
+  }
+  deriving (Show, Generic)
+
+-- note that the random value is not checked for well-formedness
+turnUsername :: POSIXTime -> Text -> TurnUsername
+turnUsername expires rnd =
+  TurnUsername
+    { _tuExpiresAt = expires,
+      _tuVersion = 1,
+      _tuKeyindex = 0,
+      _tuT = 's',
+      _tuRandom = rnd
+    }
+
 instance ToJSON TurnUsername where
   toEncoding = text . view utf8 . BC.toByteString'
 
@@ -218,15 +296,15 @@ instance FromJSON TurnUsername where
 instance BC.ToByteString TurnUsername where
   builder tu =
     shortByteString "d="
-      <> word64Dec (round (view tuExpiresAt tu))
+      <> word64Dec (round (_tuExpiresAt tu))
       <> shortByteString ".v="
-      <> wordDec (view tuVersion tu)
+      <> wordDec (_tuVersion tu)
       <> shortByteString ".k="
-      <> word32Dec (view tuKeyindex tu)
+      <> word32Dec (_tuKeyindex tu)
       <> shortByteString ".t="
-      <> charUtf8 (view tuT tu)
+      <> charUtf8 (_tuT tu)
       <> shortByteString ".r="
-      <> byteString (view (tuRandom . re utf8) tu)
+      <> byteString (view (re utf8) (_tuRandom tu))
 
 parseTurnUsername :: Parser TurnUsername
 parseTurnUsername =
@@ -237,45 +315,8 @@ parseTurnUsername =
     <*> (string ".t=" *> anyChar)
     <*> (string ".r=" *> takeWhile1 (inClass "a-z0-9"))
 
-instance BC.FromByteString Scheme where
-  parser = BC.parser >>= \t -> case (t :: ByteString) of
-    "turn" -> pure SchemeTurn
-    "turns" -> pure SchemeTurns
-    _ -> fail $ "Invalid turn scheme: " ++ show t
-
-instance BC.ToByteString Scheme where
-  builder SchemeTurn = "turn"
-  builder SchemeTurns = "turns"
-
-instance FromJSON Scheme where
-  parseJSON =
-    withText "Scheme" $
-      either fail pure . BC.runParser BC.parser . TE.encodeUtf8
-
-instance ToJSON Scheme where
-  toJSON = String . TE.decodeUtf8 . BC.toByteString'
-
-instance BC.FromByteString Transport where
-  parser = BC.parser >>= \t -> case (t :: ByteString) of
-    "udp" -> pure TransportUDP
-    "tcp" -> pure TransportTCP
-    _ -> fail $ "Invalid turn transport: " ++ show t
-
-instance BC.ToByteString Transport where
-  builder TransportUDP = "udp"
-  builder TransportTCP = "tcp"
-
-instance FromJSON Transport where
-  parseJSON =
-    withText "Transport" $
-      either fail pure . BC.runParser BC.parser . TE.encodeUtf8
-
-instance ToJSON Transport where
-  toJSON = String . TE.decodeUtf8 . BC.toByteString'
-
--- Convenience
-optional :: (Alternative f, Functor f) => f a -> f (Maybe a)
-optional x = option Nothing (Just <$> x)
+--------------------------------------------------------------------------------
+-- convenience
 
 -- | given a list of URIs and a size, limit URIs
 -- with order priority from highest to lowest: UDP -> TLS -> TCP
@@ -307,17 +348,22 @@ limitServers uris limit = limitServers' [] limit uris
 
 isUdp :: TurnURI -> Bool
 isUdp uri =
-  uri ^. turiScheme == SchemeTurn
-    && ( uri ^. turiTransport == Just (TransportUDP)
-           || uri ^. turiTransport == Nothing
+  _turiScheme uri == SchemeTurn
+    && ( _turiTransport uri == Just (TransportUDP)
+           || _turiTransport uri == Nothing
        )
 
 isTcp :: TurnURI -> Bool
 isTcp uri =
-  uri ^. turiScheme == SchemeTurn
-    && uri ^. turiTransport == Just (TransportTCP)
+  _turiScheme uri == SchemeTurn
+    && _turiTransport uri == Just (TransportTCP)
 
 isTls :: TurnURI -> Bool
 isTls uri =
-  uri ^. turiScheme == SchemeTurns
-    && uri ^. turiTransport == Just (TransportTCP)
+  _turiScheme uri == SchemeTurns
+    && _turiTransport uri == Just (TransportTCP)
+
+makeLenses ''RTCConfiguration
+makeLenses ''RTCIceServer
+makeLenses ''TurnURI
+makeLenses ''TurnUsername

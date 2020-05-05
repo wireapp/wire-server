@@ -57,7 +57,6 @@ import Text.Hostname
 import URI.ByteString.QQ (uri)
 import Wire.API.Activation
 import Wire.API.Call.TURN
-import Wire.API.Call.TURN.Host
 import Wire.API.Conversation.Code as Code
 import Wire.API.CustomBackend
 import Wire.API.Service.Internal
