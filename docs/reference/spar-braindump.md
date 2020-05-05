@@ -12,7 +12,7 @@ documentation answering your questions, look here!
 - [fragment](https://docs.wire.com/understand/single-sign-on/design.html)  (TODO: clean up the section "common misconceptions" below and move it here.)
 - [official docs for team admin from customer support](https://support.wire.com/hc/en-us/categories/360000248538?section=administration%3Fsection%3Dadministration)  (skip to "Authentication")
 - [talk scim using curl](https://github.com/wireapp/wire-server/blob/develop/docs/reference/provisioning/scim-via-curl.md)
-- if you want to work on our saml/scim implementation and do not have access to [https://github.com/wireapp/design-specs/tree/master/Single%20Sign%20On], please get in touch with us.
+- if you want to work on our saml/scim implementation and do not have access to [https://github.com/zinfra/backend-issues/issues?q=is%3Aissue+is%3Aopen+label%3Aspar] and [https://github.com/wireapp/design-specs/tree/master/Single%20Sign%20On], please get in touch with us.
 
 
 ## operations
@@ -38,14 +38,15 @@ export ADMIN_ID=...
 export METADATA_FILE=...
 ```
 
-then you need to do:
+copy these two files to one of your spar instances:
+
+- `.../wire-server/deploy/services-demo/register_idp_internal.sh`
+- `${METADATA_FILE}`
+
+...  and ssh into it.  then:
 
 ```sh
-./khan.me scp upload -e prod -r spar -s .../wire-server/deploy/services-demo/register_idp_internal.sh -d ./register.sh
-./khan.me scp upload -e prod -r spar -s ${METADATA_FILE} -d ./metadata.xml
-./khan.me ssh -e prod -r spar
-export TEAM_OWNER_ID=...
-./register.sh metadata.xml $TEAM_OWNER_ID
+./register_idp_internal.sh metadata.xml ${TEAM_OWNER_ID}
 ```
 
 the output contains the a json object representing the idp.  construct
@@ -60,6 +61,91 @@ give this login code to the users that you want to connect to wire
 using this idp.  see
 [here](https://support.wire.com/hc/en-us/articles/360000954617-Login-with-SSO)
 on how to use the login code.
+
+
+### updating an idp via curl
+
+Your IdP metadata may change over time (eg., because a certificate
+expires, or because you change vendor and all the metadata looks
+completely different), these changes need to be updated in wire.  We
+offer two options to do that.
+
+Like when creating your first IdP, for both options you need define a
+few things:
+
+```
+# user id of an admin of the team (or the creator from the team info
+# in the backoffice, if you only have the team id).
+export ADMIN_ID=...
+
+# path of the xml metadata file (if you only have the url, curl it)
+export METADATA_FILE=...
+
+# The ID of the IdP you want to update (login code without the `wire-`
+# prefix, which is a UUIDv4):
+export IDP_ID=...
+```
+
+Copy the new metadata file to one of your spar instances.
+
+Ssh into it.
+
+There are two ways to update an IDP, described below, each with their own tradeoffs that affect users.
+
+#### Option 1: Update the existing IdP in-place
+
+Effects:
+
+- You keep the login code, no visible changes for your users.
+- The old IdP becomes immediately unaccessible.  It will disappear
+  from team-settings, and users will have no way of using it for
+  authentication.
+- If the has no account on the new IdP, she won't be able to login.
+- If a user has an account on the new IdP, *but not with exactly the
+  same user name* (SAML NameID), she will not be logged in to their
+  old account.  Instead, depending on your setup, a second account is
+  created for them, or they are blocked (both not what you want).
+
+```shell
+curl -v
+     -XPUT http://localhost:8080/identity-providers/${IDP_ID} \
+     -H"Z-User: ${ADMIN_ID}" \
+     -H'Content-type: application/xml' \
+     -d@"${METADATA_FILE}"
+```
+
+#### Option 2: Create a second IdP, and mark it as replacing the old one.
+
+Effects:
+
+- The new IdP will have a new login code.  Users need to be invited to
+  use this new login code.
+- If they use the old login code, they can keep using the old IdP as
+  long as it is still running as before.  (This option is good for
+  smooth transitions from one IdP to the other.)
+- If they use the new login code, they will be automatically moved
+  from the old IdP to the new one.  After that, they won't be able to
+  use the old one any more.
+- If a user logs into the team for the first time using the old login
+  code, no user will be created.  The old IdP is marked as "replaced",
+  and wire only authenticates existing users with it.
+- This doesn't currently work if you are using SCIM for provisioning,
+  because SCIM requires you to have exactly one IdP configured in your
+  wire team.  (Internal details:
+  https://github.com/zinfra/backend-issues/issues/1365,
+  https://github.com/zinfra/backend-issues/issues/1377).
+- If you go to team settings, you will see the old IdP and the new
+  one, and there is currently no way to distinguish between replaced
+  and active IdPs.  (Internal details:
+  https://github.com/wireapp/wire-team-settings/issues/3465).
+
+```shell
+curl -v
+     -XPOST http://localhost:8080/identity-providers'?replaces='${IDP_ID} \
+     -H"Z-User: ${ADMIN_ID}" \
+     -H'Content-type: application/xml' \
+     -d@"${METADATA_FILE}"
+```
 
 ### setting a default SSO code
 
