@@ -47,12 +47,6 @@ module Wire.API.Provider
     PasswordChange (..),
     EmailUpdate (..),
 
-    -- * Bot
-    AddBot (..),
-    AddBotResponse (..),
-    RemoveBotResponse (..),
-    UpdateBotPrekeys (..),
-
     -- * Re-exports
     HttpsUrl (..),
     ServiceToken (..),
@@ -68,12 +62,10 @@ import Data.Misc (HttpsUrl (..), PlainTextPassword (..))
 import Data.Range
 import Imports
 import Wire.API.Conversation.Code as Code
-import Wire.API.Conversation.Event (Event)
 import Wire.API.Provider.Tag (ServiceTag (..))
 import Wire.API.Service (ServiceToken (..))
-import Wire.API.User.Client.Prekey
-import Wire.API.User.Identity
-import Wire.API.User.Profile
+import Wire.API.User.Identity (Email)
+import Wire.API.User.Profile (Name)
 
 --------------------------------------------------------------------------------
 -- Provider
@@ -273,92 +265,3 @@ deriveJSON toJSONFieldName ''PasswordChange
 newtype EmailUpdate = EmailUpdate {euEmail :: Email}
 
 deriveJSON toJSONFieldName ''EmailUpdate
-
---------------------------------------------------------------------------------
--- AddBot
-
--- | Input data for adding a bot to a conversation.
-data AddBot = AddBot
-  { addBotProvider :: !ProviderId,
-    addBotService :: !ServiceId,
-    addBotLocale :: !(Maybe Locale)
-  }
-
-instance ToJSON AddBot where
-  toJSON n =
-    object $
-      "provider" .= addBotProvider n
-        # "service" .= addBotService n
-        # "locale" .= addBotLocale n
-        # []
-
-instance FromJSON AddBot where
-  parseJSON = withObject "NewBot" $ \o ->
-    AddBot <$> o .: "provider"
-      <*> o .: "service"
-      <*> o .:? "locale"
-
-data AddBotResponse = AddBotResponse
-  { rsAddBotId :: !BotId,
-    rsAddBotClient :: !ClientId,
-    rsAddBotName :: !Name,
-    rsAddBotColour :: !ColourId,
-    rsAddBotAssets :: ![Asset],
-    rsAddBotEvent :: !Event
-  }
-
-instance ToJSON AddBotResponse where
-  toJSON r =
-    object
-      [ "id" .= rsAddBotId r,
-        "client" .= rsAddBotClient r,
-        "name" .= rsAddBotName r,
-        "accent_id" .= rsAddBotColour r,
-        "assets" .= rsAddBotAssets r,
-        "event" .= rsAddBotEvent r
-      ]
-
-instance FromJSON AddBotResponse where
-  parseJSON = withObject "AddBotResponse" $ \o ->
-    AddBotResponse <$> o .: "id"
-      <*> o .: "client"
-      <*> o .: "name"
-      <*> o .: "accent_id"
-      <*> o .: "assets"
-      <*> o .: "event"
-
---------------------------------------------------------------------------------
--- RemoveBot
-
--- (There is no request payload for bot removal)
-
-newtype RemoveBotResponse = RemoveBotResponse
-  { rsRemoveBotEvent :: Event
-  }
-
-instance ToJSON RemoveBotResponse where
-  toJSON r =
-    object
-      [ "event" .= rsRemoveBotEvent r
-      ]
-
-instance FromJSON RemoveBotResponse where
-  parseJSON = withObject "RemoveBotResponse" $ \o ->
-    RemoveBotResponse <$> o .: "event"
-
---------------------------------------------------------------------------------
--- UpdateBotPrekeys
-
-newtype UpdateBotPrekeys = UpdateBotPrekeys
-  { updateBotPrekeyList :: [Prekey]
-  }
-
-instance ToJSON UpdateBotPrekeys where
-  toJSON u =
-    object
-      [ "prekeys" .= updateBotPrekeyList u
-      ]
-
-instance FromJSON UpdateBotPrekeys where
-  parseJSON = withObject "UpdateBotPrekeys" $ \o ->
-    UpdateBotPrekeys <$> o .: "prekeys"

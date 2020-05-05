@@ -20,16 +20,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.Bot
-  ( AddBot,
-    addBot,
-    addBotService,
-    addBotConv,
-    addBotId,
-    addBotClient,
-    RemoveBot,
-    removeBot,
-    rmBotConv,
-    rmBotId,
+  ( -- * Bot Views
     BotConvView,
     botConvView,
     botConvId,
@@ -49,61 +40,8 @@ import Wire.API.Conversation.Member (OtherMember (..))
 import Wire.API.Service (ServiceRef)
 import Wire.API.User.Profile (ColourId, Name)
 
--- AddBot ----------------------------------------------------------------------
-
-data AddBot = AddBot
-  { _addBotService :: !ServiceRef,
-    _addBotConv :: !ConvId,
-    _addBotId :: !BotId,
-    _addBotClient :: !ClientId
-  }
-
-makeLenses ''AddBot
-
-addBot :: ServiceRef -> ConvId -> BotId -> ClientId -> AddBot
-addBot = AddBot
-
-instance FromJSON AddBot where
-  parseJSON = withObject "AddBot" $ \o ->
-    AddBot <$> o .: "service"
-      <*> o .: "conversation"
-      <*> o .: "bot"
-      <*> o .: "client"
-
-instance ToJSON AddBot where
-  toJSON a =
-    object
-      [ "service" .= _addBotService a,
-        "conversation" .= _addBotConv a,
-        "bot" .= _addBotId a,
-        "client" .= _addBotClient a
-      ]
-
--- RemoveBot ------------------------------------------------------------------
-
-data RemoveBot = RemoveBot
-  { _rmBotConv :: !ConvId,
-    _rmBotId :: !BotId
-  }
-
-makeLenses ''RemoveBot
-
-removeBot :: ConvId -> BotId -> RemoveBot
-removeBot = RemoveBot
-
-instance FromJSON RemoveBot where
-  parseJSON = withObject "RemoveBot" $ \o ->
-    RemoveBot <$> o .: "conversation"
-      <*> o .: "bot"
-
-instance ToJSON RemoveBot where
-  toJSON a =
-    object
-      [ "conversation" .= _rmBotConv a,
-        "bot" .= _rmBotId a
-      ]
-
--- BotConvView -----------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- BotConvView
 
 -- | A conversation as seen by a bot.
 data BotConvView = BotConvView
@@ -116,12 +54,6 @@ data BotConvView = BotConvView
 botConvView :: ConvId -> Maybe Text -> [OtherMember] -> BotConvView
 botConvView = BotConvView
 
-instance FromJSON BotConvView where
-  parseJSON = withObject "BotConvView" $ \o ->
-    BotConvView <$> o .: "id"
-      <*> o .:? "name"
-      <*> o .: "members"
-
 instance ToJSON BotConvView where
   toJSON c =
     object $
@@ -130,10 +62,15 @@ instance ToJSON BotConvView where
         # "members" .= _botConvMembers c
         # []
 
+instance FromJSON BotConvView where
+  parseJSON = withObject "BotConvView" $ \o ->
+    BotConvView <$> o .: "id"
+      <*> o .:? "name"
+      <*> o .: "members"
+
 --------------------------------------------------------------------------------
 -- BotUserView
 
--- TODO: move next to BotConvView?
 data BotUserView = BotUserView
   { botUserViewId :: !UserId,
     botUserViewName :: !Name,
@@ -142,14 +79,6 @@ data BotUserView = BotUserView
     botUserViewTeam :: !(Maybe TeamId)
   }
   deriving (Eq, Show)
-
-instance FromJSON BotUserView where
-  parseJSON = withObject "BotUserView" $ \o ->
-    BotUserView <$> o .: "id"
-      <*> o .: "name"
-      <*> o .: "accent_id"
-      <*> o .:? "handle"
-      <*> o .:? "team"
 
 instance ToJSON BotUserView where
   toJSON u =
@@ -160,5 +89,13 @@ instance ToJSON BotUserView where
         "handle" .= botUserViewHandle u,
         "team" .= botUserViewTeam u
       ]
+
+instance FromJSON BotUserView where
+  parseJSON = withObject "BotUserView" $ \o ->
+    BotUserView <$> o .: "id"
+      <*> o .: "name"
+      <*> o .: "accent_id"
+      <*> o .:? "handle"
+      <*> o .:? "team"
 
 makeLenses ''BotConvView
