@@ -101,7 +101,8 @@ search searcherId searchTerm maxResults = do
         -- This flag in brig overrules any flag on galley - it is system wide
         if sameTeamSearchOnly
           then return (Search.TeamOnly t)
-          else-- For team users, we need to check the visibility flag
+          else do
+            -- For team users, we need to check the visibility flag
             Intra.getTeamSearchVisibility t >>= return . handleTeamVisibility t
   searchIndex searcherId teamSearchInfo searchTerm maxResults
   where
