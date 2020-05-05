@@ -170,7 +170,7 @@ sitemap o = do
       Doc.description "User IDs of users to fetch"
       Doc.optional
     Doc.parameter Doc.Query "handles" Doc.string' $ do
-      Doc.description "Handles of users to fetch, min 1 and max 4"
+      Doc.description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"
       Doc.optional
     Doc.returns (Doc.array (Doc.ref Doc.user))
     Doc.response 200 "List of users" Doc.end
