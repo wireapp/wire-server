@@ -18,31 +18,23 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.Provider.External
-  ( module Wire.API.Provider.External,
-    BotUserView (..),
-
-    -- * Re-exports
-    BotConvView,
-    botConvView,
-    botConvId,
-    botConvName,
-    botConvMembers,
+  ( NewBotRequest (..),
+    NewBotResponse (..),
   )
 where
 
 import Data.Aeson
-import Data.Handle (Handle)
 import Data.Id
 import Data.Json.Util ((#))
 import Imports
-import Wire.API.Bot
-import Wire.API.User.Client.Prekey
-import Wire.API.User.Profile
+import Wire.API.Bot (BotConvView, BotUserView)
+import Wire.API.User.Client.Prekey (LastPrekey, Prekey)
+import Wire.API.User.Profile (Asset, ColourId, Locale, Name)
 
 --------------------------------------------------------------------------------
 -- NewBotRequest
 
--- | Request for a bot in a conversation.
+-- | Request for a bot to be created in a conversation (by an external service).
 data NewBotRequest = NewBotRequest
   { -- | The user ID to use for the bot.
     newBotId :: !BotId,
@@ -110,34 +102,3 @@ instance ToJSON NewBotResponse where
         # "accent_id" .= rsNewBotColour r
         # "assets" .= rsNewBotAssets r
         # []
-
---------------------------------------------------------------------------------
--- BotUserView
-
--- TODO: move next to BotConvView?
-data BotUserView = BotUserView
-  { botUserViewId :: !UserId,
-    botUserViewName :: !Name,
-    botUserViewColour :: !ColourId,
-    botUserViewHandle :: !(Maybe Handle),
-    botUserViewTeam :: !(Maybe TeamId)
-  }
-  deriving (Eq, Show)
-
-instance FromJSON BotUserView where
-  parseJSON = withObject "BotUserView" $ \o ->
-    BotUserView <$> o .: "id"
-      <*> o .: "name"
-      <*> o .: "accent_id"
-      <*> o .:? "handle"
-      <*> o .:? "team"
-
-instance ToJSON BotUserView where
-  toJSON u =
-    object
-      [ "id" .= botUserViewId u,
-        "name" .= botUserViewName u,
-        "accent_id" .= botUserViewColour u,
-        "handle" .= botUserViewHandle u,
-        "team" .= botUserViewTeam u
-      ]

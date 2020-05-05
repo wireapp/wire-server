@@ -35,19 +35,19 @@ module Wire.API.Bot
     botConvId,
     botConvName,
     botConvMembers,
-
-    -- * Re-exports
-    module Service,
+    BotUserView (..),
   )
 where
 
 import Control.Lens (makeLenses)
 import Data.Aeson
+import Data.Handle (Handle)
 import Data.Id
 import Data.Json.Util ((#))
 import Imports
 import Wire.API.Conversation.Member (OtherMember (..))
-import Wire.API.Service as Service
+import Wire.API.Service (ServiceRef)
+import Wire.API.User.Profile (ColourId, Name)
 
 -- AddBot ----------------------------------------------------------------------
 
@@ -113,8 +113,6 @@ data BotConvView = BotConvView
   }
   deriving (Eq, Show)
 
-makeLenses ''BotConvView
-
 botConvView :: ConvId -> Maybe Text -> [OtherMember] -> BotConvView
 botConvView = BotConvView
 
@@ -131,3 +129,36 @@ instance ToJSON BotConvView where
         # "name" .= _botConvName c
         # "members" .= _botConvMembers c
         # []
+
+--------------------------------------------------------------------------------
+-- BotUserView
+
+-- TODO: move next to BotConvView?
+data BotUserView = BotUserView
+  { botUserViewId :: !UserId,
+    botUserViewName :: !Name,
+    botUserViewColour :: !ColourId,
+    botUserViewHandle :: !(Maybe Handle),
+    botUserViewTeam :: !(Maybe TeamId)
+  }
+  deriving (Eq, Show)
+
+instance FromJSON BotUserView where
+  parseJSON = withObject "BotUserView" $ \o ->
+    BotUserView <$> o .: "id"
+      <*> o .: "name"
+      <*> o .: "accent_id"
+      <*> o .:? "handle"
+      <*> o .:? "team"
+
+instance ToJSON BotUserView where
+  toJSON u =
+    object
+      [ "id" .= botUserViewId u,
+        "name" .= botUserViewName u,
+        "accent_id" .= botUserViewColour u,
+        "handle" .= botUserViewHandle u,
+        "team" .= botUserViewTeam u
+      ]
+
+makeLenses ''BotConvView
