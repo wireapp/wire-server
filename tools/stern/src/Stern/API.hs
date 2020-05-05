@@ -369,7 +369,7 @@ routes = do
       Doc.description "JSON body"
     Doc.response 200 "SSO status" Doc.end
 
-  get "/teams/:tid/features/team-search-visibility" (continue (liftM json . Intra.getTeamSearchVisibilityEnabled)) $
+  get "/teams/:tid/features/search-visibility" (continue (liftM json . Intra.getTeamSearchVisibilityEnabled)) $
     capture "tid"
   document "GET" "getTeamSearchVisibilityEnabled" $ do
     summary "Shows whether TeamSearchVisibility feature is enabled for team"
@@ -377,7 +377,7 @@ routes = do
       description "Team ID"
     Doc.returns Doc.docSetTeamSearchVisibilityEnabled
     Doc.response 200 "TeamSearchVisibility status" Doc.end
-  put "/teams/:tid/features/team-search-visibility" (continue setTeamSearchVisibilityEnabled) $
+  put "/teams/:tid/features/search-visibility" (continue setTeamSearchVisibilityEnabled) $
     contentType "application" "json"
       .&. capture "tid"
       .&. jsonRequest @SetTeamSearchVisibilityEnabled

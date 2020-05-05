@@ -433,7 +433,7 @@ sitemap = do
     returns (ref Model.customBackend)
     response 200 "Custom backend" end
 
-  get "/teams/:tid/features/team-search-visibility" (continue Teams.getTeamSearchVisibilityEnabledH) $
+  get "/teams/:tid/features/search-visibility" (continue Teams.getTeamSearchVisibilityEnabledH) $
     zauthUserId
       .&. capture "tid"
       .&. accept "application" "json"
