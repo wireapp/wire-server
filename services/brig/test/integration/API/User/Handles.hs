@@ -182,31 +182,36 @@ testHandleQuery opts brig galley = do
 
 testHandleQuerySearchVisibilityStandard :: Opt.Opts -> Brig -> Galley -> Http ()
 testHandleQuerySearchVisibilityStandard _opts brig galley = do
-  (_, owner1, (member1 : _)) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
-  (_, owner2, _) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
+  (_, owner1, [member1]) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
+  (_, owner2, [member2]) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
   extern <- randomUserWithHandle brig
   -- Assert that everyone can find each other:
   --   in the same or different team, by handle - direction does not matter
-  assertCanFind brig owner1 member1
   assertCanFind brig owner1 owner2
-  assertCanFind brig owner2 owner1
-  assertCanFind brig extern owner1
+  assertCanFind brig owner1 member1
+  assertCanFind brig owner1 member2
   assertCanFind brig owner1 extern
+  assertCanFind brig owner2 owner1
+  assertCanFind brig member1 owner1
+  assertCanFind brig member2 owner1
+  assertCanFind brig extern owner1
 
 testHandleQuerySearchVisibilityNoNameOutsideTeam :: Opt.Opts -> Brig -> Galley -> Http ()
 testHandleQuerySearchVisibilityNoNameOutsideTeam _opts brig galley = do
-  (tid1, owner1, (member1 : _)) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
-  (_, owner2, _) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
+  (tid1, owner1, [member1]) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
+  (_, owner2, [member2]) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
   extern <- randomUserWithHandle brig
   setTeamCustomSearchVisibilityStatus galley tid1 Team.CustomSearchVisibilityEnabled
   setTeamSearchVisibility galley tid1 Team.SearchVisibilityNoNameOutsideTeam
-  -- Assert that everyone can find each other:
-  --   in the same or different team, by handle - direction does not matter
+
   assertCanFind brig owner1 member1
-  assertCanFind brig owner1 owner2
-  assertCanFind brig owner2 owner1
-  assertCanFind brig extern owner1
-  assertCanFind brig owner1 extern
+  assertCanFind brig member1 owner1
+  assertCannotFind brig owner1 owner2
+  assertCannotFind brig owner1 member2
+  assertCannotFind brig owner1 extern
+  assertCannotFind brig owner2 owner1
+  assertCannotFind brig member2 owner1
+  assertCannotFind brig extern owner1
 
 assertCanFind :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> m ()
 assertCanFind brig from target = do
