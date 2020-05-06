@@ -51,6 +51,7 @@ import Network.Wai.Utilities.Request (JsonRequest, jsonRequest)
 import Network.Wai.Utilities.Response (empty, json)
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
+import Wire.Swagger as Doc (pendingLoginError)
 
 routesPublic :: Routes Doc.ApiBuilder Handler ()
 routesPublic = do
