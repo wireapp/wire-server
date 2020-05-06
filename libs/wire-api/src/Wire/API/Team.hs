@@ -74,11 +74,6 @@ module Wire.API.Team
 
     -- * Re-exports
     -- TODO: remove them?
-    FeatureFlags (..),
-    flagSSO,
-    flagLegalHold,
-    FeatureSSO (..),
-    FeatureLegalHold (..),
     TeamMember,
     newTeamMember,
     userId,
@@ -134,7 +129,6 @@ import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.API.Team.Conversation
-import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.Team.Role

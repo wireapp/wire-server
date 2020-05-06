@@ -33,23 +33,14 @@ module Wire.API.Team.Feature
     SSOTeamConfig (..),
     SSOStatus (..),
 
-    -- * FeatureFlags
-    FeatureFlags (..),
-    flagSSO,
-    flagLegalHold,
-    FeatureSSO (..),
-    FeatureLegalHold (..),
-
     -- * Swagger
     modelLegalHoldTeamConfig,
     modelSsoTeamConfig,
   )
 where
 
-import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.Json.Util ((#))
-import Data.String.Conversions (cs)
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as T
 import Imports
@@ -135,57 +126,3 @@ instance FromJSON SSOStatus where
     "enabled" -> pure SSOEnabled
     "disabled" -> pure SSODisabled
     x -> fail $ "unexpected status type: " <> T.unpack x
-
---------------------------------------------------------------------------------
--- FeatureFlags
---
--- TODO: keep in galley-types?
-
-data FeatureSSO
-  = FeatureSSOEnabledByDefault
-  | FeatureSSODisabledByDefault
-  deriving (Eq, Ord, Show, Enum, Bounded, Generic)
-
-instance ToJSON FeatureSSO where
-  toJSON FeatureSSOEnabledByDefault = String "enabled-by-default"
-  toJSON FeatureSSODisabledByDefault = String "disabled-by-default"
-
-instance FromJSON FeatureSSO where
-  parseJSON (String "enabled-by-default") = pure FeatureSSOEnabledByDefault
-  parseJSON (String "disabled-by-default") = pure FeatureSSODisabledByDefault
-  parseJSON bad = fail $ "FeatureSSO: " <> cs (encode bad)
-
-data FeatureLegalHold
-  = FeatureLegalHoldDisabledPermanently
-  | FeatureLegalHoldDisabledByDefault
-  deriving (Eq, Ord, Show, Enum, Bounded, Generic)
-
-instance ToJSON FeatureLegalHold where
-  toJSON FeatureLegalHoldDisabledPermanently = String "disabled-permanently"
-  toJSON FeatureLegalHoldDisabledByDefault = String "disabled-by-default"
-
-instance FromJSON FeatureLegalHold where
-  parseJSON (String "disabled-permanently") = pure $ FeatureLegalHoldDisabledPermanently
-  parseJSON (String "disabled-by-default") = pure $ FeatureLegalHoldDisabledByDefault
-  parseJSON bad = fail $ "FeatureLegalHold: " <> cs (encode bad)
-
-data FeatureFlags = FeatureFlags
-  { _flagSSO :: !FeatureSSO,
-    _flagLegalHold :: !FeatureLegalHold
-  }
-  deriving (Eq, Show, Generic)
-
-instance ToJSON FeatureFlags where
-  toJSON (FeatureFlags sso legalhold) =
-    object $
-      [ "sso" .= sso,
-        "legalhold" .= legalhold
-      ]
-
-instance FromJSON FeatureFlags where
-  parseJSON = withObject "FeatureFlags" $ \obj ->
-    FeatureFlags
-      <$> (obj .: "sso")
-      <*> (obj .: "legalhold")
-
-makeLenses ''FeatureFlags
