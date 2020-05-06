@@ -47,6 +47,7 @@ module Wire.API.User.Auth
     modelRemoveCookies,
     modelCookie,
     modelCookieList,
+    modelAccessToken,
   )
 where
 
@@ -387,6 +388,16 @@ instance ToJSON AccessToken where
         "token_type" .= tt,
         "expires_in" .= e
       ]
+
+modelAccessToken :: Doc.Model
+modelAccessToken = Doc.defineModel "AccessToken" $ do
+  Doc.description "An API access token."
+  Doc.property "access_token" Doc.bytes' $
+    Doc.description "The opaque access token string."
+  Doc.property "token_type" (Doc.string $ Doc.enum ["Bearer"]) $
+    Doc.description "The type of the access token."
+  Doc.property "expires_in" Doc.int64' $
+    Doc.description "The number of seconds this token is valid."
 
 instance FromJSON AccessToken where
   parseJSON = withObject "AccessToken" $ \o ->

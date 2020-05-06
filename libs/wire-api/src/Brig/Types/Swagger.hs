@@ -25,32 +25,9 @@ import Wire.Swagger (errorProperties)
 
 brigModels :: [Doc.Model]
 brigModels =
-  [ -- Account Activation
-    modelAccessToken,
-    -- Account Deletion
-    modelDelete,
-    modelVerifyDelete,
-    -- Login / Authentication
+  [ -- Login / Authentication
     modelPendingLoginError -- TODO: couldn't find a corresponding type
   ]
-
--------------------------------------------------------------------------------
--- Deletion Models
-
-modelDelete :: Doc.Model
-modelDelete = Doc.defineModel "Delete" $ do
-  Doc.description "Data for an account deletion request."
-  Doc.property "password" Doc.string' $ do
-    Doc.description "The account password to authorise the deletion."
-    Doc.optional
-
-modelVerifyDelete :: Doc.Model
-modelVerifyDelete = Doc.defineModel "VerifyDelete" $ do
-  Doc.description "Data for verifying an account deletion."
-  Doc.property "key" Doc.string' $
-    Doc.description "The identifying key of the account (i.e. user ID)."
-  Doc.property "code" Doc.string' $
-    Doc.description "The verification code."
 
 -------------------------------------------------------------------------------
 -- Login / Authentication Models
@@ -61,13 +38,3 @@ modelPendingLoginError = Doc.defineModel "PendingLoginError" $ do
   errorProperties
   Doc.property "expires_in" Doc.int32' $
     Doc.description "Number of seconds before the pending login code expires."
-
-modelAccessToken :: Doc.Model
-modelAccessToken = Doc.defineModel "AccessToken" $ do
-  Doc.description "An API access token."
-  Doc.property "access_token" Doc.bytes' $
-    Doc.description "The opaque access token string."
-  Doc.property "token_type" (Doc.string $ Doc.enum ["Bearer"]) $
-    Doc.description "The type of the access token."
-  Doc.property "expires_in" Doc.int64' $
-    Doc.description "The number of seconds this token is valid."

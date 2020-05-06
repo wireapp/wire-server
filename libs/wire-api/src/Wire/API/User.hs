@@ -79,6 +79,8 @@ module Wire.API.User
     modelEmailUpdate,
     modelPhoneUpdate,
     modelChangeHandle,
+    modelDelete,
+    modelVerifyDelete,
   )
 where
 
@@ -793,6 +795,13 @@ newtype DeleteUser = DeleteUser
 mkDeleteUser :: Maybe PlainTextPassword -> DeleteUser
 mkDeleteUser = DeleteUser
 
+modelDelete :: Doc.Model
+modelDelete = Doc.defineModel "Delete" $ do
+  Doc.description "Data for an account deletion request."
+  Doc.property "password" Doc.string' $ do
+    Doc.description "The account password to authorise the deletion."
+    Doc.optional
+
 instance ToJSON DeleteUser where
   toJSON d =
     object $
@@ -809,6 +818,14 @@ data VerifyDeleteUser = VerifyDeleteUser
     verifyDeleteUserCode :: !Code.Value
   }
   deriving (Eq, Show, Generic)
+
+modelVerifyDelete :: Doc.Model
+modelVerifyDelete = Doc.defineModel "VerifyDelete" $ do
+  Doc.description "Data for verifying an account deletion."
+  Doc.property "key" Doc.string' $
+    Doc.description "The identifying key of the account (i.e. user ID)."
+  Doc.property "code" Doc.string' $
+    Doc.description "The verification code."
 
 mkVerifyDeleteUser :: Code.Key -> Code.Value -> VerifyDeleteUser
 mkVerifyDeleteUser = VerifyDeleteUser
