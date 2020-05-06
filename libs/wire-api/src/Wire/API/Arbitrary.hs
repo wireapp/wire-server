@@ -75,6 +75,7 @@ import Wire.API.User.Handle
 import Wire.API.User.Identity
 import Wire.API.User.Password
 import Wire.API.User.Profile
+import Wire.API.User.RichInfo
 
 newtype Octet = Octet {octet :: Word16}
   deriving (Eq, Show)

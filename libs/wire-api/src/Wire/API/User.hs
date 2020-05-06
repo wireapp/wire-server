@@ -32,25 +32,18 @@ module Wire.API.User
   )
 where
 
-import Control.Monad.Fail (MonadFail)
 import Data.Aeson
 import qualified Data.Aeson.Types as Aeson
 import Data.ByteString.Conversion
-import Data.CaseInsensitive (CI)
-import qualified Data.CaseInsensitive as CI
 import qualified Data.Code as Code
 import qualified Data.Currency as Currency
 import Data.Handle (Handle)
-import qualified Data.HashMap.Strict as HM
 import qualified Data.HashMap.Strict as HashMap
-import Data.Hashable (Hashable)
 import Data.Id
 import Data.Json.Util ((#), UTCTimeMillis)
-import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
-import qualified Data.Text as Text
 import Data.Text.Ascii
 import Data.UUID (UUID)
 import Imports
@@ -60,6 +53,7 @@ import Wire.API.Team (BindingNewTeam)
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Identity
 import Wire.API.User.Profile
+import Wire.API.User.RichInfo (RichInfoAssocList)
 
 -- | This datatype replaces the old `Members` datatype,
 -- which has been replaced by `SimpleMembers`. This is
@@ -293,160 +287,6 @@ instance FromJSON SelfProfile where
 
 instance ToJSON SelfProfile where
   toJSON (SelfProfile u) = toJSON u
-
-----------------------------------------------------------------------------
--- Rich info
-data RichInfo = RichInfo
-  { richInfoMap :: Map (CI Text) Text,
-    richInfoAssocList :: [RichField]
-  }
-  deriving (Eq, Show, Generic)
-
-newtype RichInfoAssocList = RichInfoAssocList [RichField]
-  deriving (Eq, Show, Generic)
-
-toRichInfoAssocList :: RichInfo -> RichInfoAssocList
-toRichInfoAssocList (RichInfo mp al) = RichInfoAssocList . nubrf $ toal mp <> al
-  where
-    nubrf :: [RichField] -> [RichField]
-    nubrf = nubBy ((==) `on` \(RichField k _) -> CI.mk k)
-    toal :: Map (CI Text) Text -> [RichField]
-    toal = map (\(k, v) -> RichField k v) . Map.toAscList
-
-richInfoMapURN, richInfoAssocListURN :: Text
-richInfoMapURN = "urn:ietf:params:scim:schemas:extension:wire:1.0:User"
-richInfoAssocListURN = "urn:wire:scim:schemas:profile:1.0"
-
-instance FromJSON RichInfo where
-  parseJSON =
-    withObject "RichInfo" $
-      \o ->
-        let objWithCIKeys = hmMapKeys CI.mk o
-         in normalizeRichInfo
-              <$> ( RichInfo
-                      <$> extractMap objWithCIKeys
-                      <*> extractAssocList objWithCIKeys
-                  )
-    where
-      extractMap :: HashMap (CI Text) Value -> Aeson.Parser (Map (CI Text) Text)
-      extractMap o =
-        case HM.lookup (CI.mk richInfoMapURN) o of
-          Nothing -> pure mempty
-          Just innerObj -> do
-            Map.mapKeys CI.mk <$> parseJSON innerObj
-      extractAssocList :: HashMap (CI Text) Value -> Aeson.Parser [RichField]
-      extractAssocList o =
-        case HM.lookup (CI.mk richInfoAssocListURN) o of
-          Nothing -> pure []
-          Just (Object innerObj) -> do
-            richInfo <- lookupOrFail "richinfo" $ hmMapKeys CI.mk innerObj
-            case richInfo of
-              Object richinfoObj -> do
-                fields <- richInfoAssocListFromObject richinfoObj
-                pure fields
-              Array fields -> parseJSON (Array fields)
-              v -> Aeson.typeMismatch "Object" v
-          Just v -> Aeson.typeMismatch "Object" v
-      hmMapKeys :: (Eq k2, Hashable k2) => (k1 -> k2) -> HashMap k1 v -> HashMap k2 v
-      hmMapKeys f = HashMap.fromList . (map (\(k, v) -> (f k, v))) . HashMap.toList
-      lookupOrFail :: (MonadFail m, Show k, Eq k, Hashable k) => k -> HashMap k v -> m v
-      lookupOrFail key theMap = case HM.lookup key theMap of
-        Nothing -> fail $ "key '" ++ show key ++ "' not found"
-        Just v -> return v
-
-richInfoAssocListFromObject :: Object -> Aeson.Parser [RichField]
-richInfoAssocListFromObject richinfoObj = do
-  version :: Int <- richinfoObj .: "version"
-  when (version /= 0) $ fail $ "unknown version: " <> show version
-  fields <- richinfoObj .: "fields"
-  checkDuplicates (map richFieldType fields)
-  pure fields
-  where
-    checkDuplicates :: [CI Text] -> Aeson.Parser ()
-    checkDuplicates xs =
-      case filter ((> 1) . length) . group . sort $ xs of
-        [] -> pure ()
-        ds -> fail ("duplicate fields: " <> show (map head ds))
-
-instance ToJSON RichInfo where
-  toJSON u =
-    object
-      [ richInfoAssocListURN
-          .= object
-            [ "richInfo"
-                .= object
-                  [ "fields" .= richInfoAssocList u,
-                    "version" .= (0 :: Int)
-                  ]
-            ],
-        richInfoMapURN .= (Map.mapKeys CI.original $ richInfoMap u)
-      ]
-
-instance FromJSON RichInfoAssocList where
-  parseJSON v =
-    RichInfoAssocList <$> withObject "RichInfoAssocList" richInfoAssocListFromObject v
-
-instance ToJSON RichInfoAssocList where
-  toJSON (RichInfoAssocList l) =
-    object
-      [ "fields" .= l,
-        "version" .= (0 :: Int)
-      ]
-
--- TODO: Make richFieldType @CI Text@
-data RichField = RichField
-  { richFieldType :: !(CI Text),
-    richFieldValue :: !Text
-  }
-  deriving (Eq, Show, Generic)
-
-instance ToJSON RichField where
-  -- NB: "name" would be a better name for 'richFieldType', but "type" is used because we
-  -- also have "type" in SCIM; and the reason we use "type" for SCIM is that @{"type": ...,
-  -- "value": ...}@ is how all other SCIM payloads are formatted, so it's quite possible
-  -- that some provisioning agent would support "type" but not "name".
-  toJSON u =
-    object
-      [ "type" .= CI.original (richFieldType u),
-        "value" .= richFieldValue u
-      ]
-
-instance FromJSON RichField where
-  parseJSON = withObject "RichField" $ \o -> do
-    RichField
-      <$> (CI.mk <$> o .: "type")
-      <*> o .: "value"
-
--- | Calculate the length of user-supplied data in 'RichInfo'. Used for enforcing
--- 'setRichInfoLimit'
---
--- This works on @[RichField]@ so it can be reused by @RichInfoAssocList@
---
--- NB: we could just calculate the length of JSON-encoded payload, but it is fragile because
--- if our JSON encoding changes, existing payloads might become unacceptable.
-richInfoAssocListSize :: [RichField] -> Int
-richInfoAssocListSize fields = sum [Text.length (CI.original t) + Text.length v | RichField t v <- fields]
-
--- | Calculate the length of user-supplied data in 'RichInfo'. Used for enforcing
--- 'setRichInfoLimit'
-richInfoMapSize :: RichInfo -> Int
-richInfoMapSize rif = sum [Text.length (CI.original k) + Text.length v | (k, v) <- Map.toList $ richInfoMap rif]
-
--- | Remove fields with @""@ values.
-normalizeRichInfo :: RichInfo -> RichInfo
-normalizeRichInfo (RichInfo rifMap assocList) =
-  RichInfo
-    { richInfoAssocList = filter (not . Text.null . richFieldValue) assocList,
-      richInfoMap = rifMap
-    }
-
--- | Remove fields with @""@ values.
-normalizeRichInfoAssocList :: RichInfoAssocList -> RichInfoAssocList
-normalizeRichInfoAssocList (RichInfoAssocList l) =
-  RichInfoAssocList $ filter (not . Text.null . richFieldValue) l
-
-emptyRichInfoAssocList :: RichInfoAssocList
-emptyRichInfoAssocList = RichInfoAssocList []
 
 -----------------------------------------------------------------------------
 -- New Users
