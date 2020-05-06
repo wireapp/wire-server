@@ -52,9 +52,8 @@ future.
 
 ### Team Search Visibility
 
-Is a team allowed to change its team search visibility settings?  If a
-team is enabled, it can be configured so other teams are completely
-invisible for search.
+Is a team allowed to change its team search visibility settings? If enabled
+for the team, it can be configured so that non team users do not show up in search.
 
 This sets the default setting for all teams, and can be overridden for
 individual teams by customer support / backoffice. [Allowed
