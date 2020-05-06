@@ -289,19 +289,6 @@ publicProfile u =
         }
 
 -----------------------------------------------------------------------------
--- User Attributes
-
--- | DEPRECATED
-newtype Pict = Pict {fromPict :: [Object]}
-  deriving (Eq, Show, ToJSON, Generic)
-
-instance FromJSON Pict where
-  parseJSON x = Pict . fromRange @0 @10 <$> parseJSON x
-
-noPict :: Pict
-noPict = Pict []
-
------------------------------------------------------------------------------
 -- NewUser
 
 -- | We use the same 'NewUser' type for the @\/register@ and @\/i\/users@ endpoints. This

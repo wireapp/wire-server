@@ -44,6 +44,10 @@ module Wire.API.User.Profile
     ManagedBy (..),
     defaultManagedBy,
 
+    -- * Deprecated
+    Pict (..),
+    noPict,
+
     -- * Swagger
     modelUserDisplayName,
     modelAsset,
@@ -221,21 +225,6 @@ con2Text = Text.pack . show . fromCountry
 parseCountry :: Text -> Maybe Country
 parseCountry = hush . parseOnly countryParser
 
---------------------------------------------------------------------------------
--- helpers
-
--- Common language / country functions
-checkAndConvert :: (Read a) => (Char -> Bool) -> String -> Maybe a
-checkAndConvert f t =
-  if all f t
-    then readMaybe (map toUpper t)
-    else fail "Format not supported."
-
-codeParser :: String -> (String -> Maybe a) -> Parser a
-codeParser err conv = do
-  code <- count 2 anyChar
-  maybe (fail err) return (conv code)
-
 -----------------------------------------------------------------------------
 -- ManagedBy
 
@@ -282,3 +271,31 @@ instance FromJSON ManagedBy where
 
 defaultManagedBy :: ManagedBy
 defaultManagedBy = ManagedByWire
+
+-----------------------------------------------------------------------------
+-- Deprecated
+
+-- | DEPRECATED
+newtype Pict = Pict {fromPict :: [Object]}
+  deriving (Eq, Show, ToJSON, Generic)
+
+instance FromJSON Pict where
+  parseJSON x = Pict . fromRange @0 @10 <$> parseJSON x
+
+noPict :: Pict
+noPict = Pict []
+
+--------------------------------------------------------------------------------
+-- helpers
+
+-- Common language / country functions
+checkAndConvert :: (Read a) => (Char -> Bool) -> String -> Maybe a
+checkAndConvert f t =
+  if all f t
+    then readMaybe (map toUpper t)
+    else fail "Format not supported."
+
+codeParser :: String -> (String -> Maybe a) -> Parser a
+codeParser err conv = do
+  code <- count 2 anyChar
+  maybe (fail err) return (conv code)
