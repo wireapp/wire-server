@@ -20,7 +20,19 @@
 
 -- TODO Wire.API.User.Activation?
 module Wire.API.Activation
-  ( module Wire.API.Activation,
+  ( -- * ActivationTarget
+    ActivationTarget (..),
+    ActivationKey (..),
+
+    -- * ActivationCode
+    ActivationCode (..),
+
+    -- * Activate
+    Activate (..),
+    ActivationResponse (..),
+
+    -- * SendActivationCode
+    SendActivationCode (..),
   )
 where
 
@@ -32,26 +44,8 @@ import Imports
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 
--- | An opaque identifier of a 'UserKey' awaiting activation.
-newtype ActivationKey = ActivationKey
-  {fromActivationKey :: AsciiBase64Url}
-  deriving (Eq, Show, FromByteString, ToByteString, FromJSON, ToJSON, Generic)
-
--- | A random code for use with an 'ActivationKey' that is usually transmitted
--- out-of-band, e.g. via email or sms.
-newtype ActivationCode = ActivationCode
-  {fromActivationCode :: AsciiBase64Url}
-  deriving (Eq, Show, FromByteString, ToByteString, FromJSON, ToJSON, Generic)
-
--- | A pair of 'ActivationKey' and 'ActivationCode' as required for activation.
-type ActivationPair = (ActivationKey, ActivationCode)
-
--- | Data for an activation request.
-data Activate = Activate
-  { activateTarget :: !ActivationTarget,
-    activateCode :: !ActivationCode,
-    activateDryrun :: !Bool
-  }
+--------------------------------------------------------------------------------
+-- ActivationTarget
 
 -- | The target of an activation request.
 data ActivationTarget
@@ -67,6 +61,50 @@ instance ToByteString ActivationTarget where
   builder (ActivateEmail e) = builder e
   builder (ActivatePhone p) = builder p
 
+-- | An opaque identifier of a 'UserKey' awaiting activation.
+newtype ActivationKey = ActivationKey
+  {fromActivationKey :: AsciiBase64Url}
+  deriving (Eq, Show, FromByteString, ToByteString, FromJSON, ToJSON, Generic)
+
+--------------------------------------------------------------------------------
+-- ActivationCode
+
+-- | A random code for use with an 'ActivationKey' that is usually transmitted
+-- out-of-band, e.g. via email or sms.
+newtype ActivationCode = ActivationCode
+  {fromActivationCode :: AsciiBase64Url}
+  deriving (Eq, Show, FromByteString, ToByteString, FromJSON, ToJSON, Generic)
+
+--------------------------------------------------------------------------------
+-- Activate
+
+-- | Data for an activation request.
+data Activate = Activate
+  { activateTarget :: !ActivationTarget,
+    activateCode :: !ActivationCode,
+    activateDryrun :: !Bool
+  }
+
+instance ToJSON Activate where
+  toJSON (Activate k c d) =
+    object
+      [key k, "code" .= c, "dryrun" .= d]
+    where
+      key (ActivateKey ak) = "key" .= ak
+      key (ActivateEmail e) = "email" .= e
+      key (ActivatePhone p) = "phone" .= p
+
+instance FromJSON Activate where
+  parseJSON = withObject "Activation" $ \o ->
+    Activate <$> key o
+      <*> o .: "code"
+      <*> o .:? "dryrun" .!= False
+    where
+      key o =
+        (ActivateKey <$> o .: "key")
+          <|> (ActivateEmail <$> o .: "email")
+          <|> (ActivatePhone <$> o .: "phone")
+
 -- | Information returned as part of a successful activation.
 data ActivationResponse = ActivationResponse
   { -- | The activated / verified user identity.
@@ -74,30 +112,6 @@ data ActivationResponse = ActivationResponse
     -- | Whether this is the first verified identity of the account.
     activatedFirst :: !Bool
   }
-
--- | Payload for a request to (re-)send an activation code
--- for a phone number or e-mail address. If a phone is used,
--- one can also request a call instead of SMS.
-data SendActivationCode = SendActivationCode
-  { saUserKey :: !(Either Email Phone),
-    saLocale :: !(Maybe Locale),
-    saCall :: !Bool
-  }
-
--- * JSON Instances:
-
-instance FromJSON SendActivationCode where
-  parseJSON = withObject "SendActivationCode" $ \o -> do
-    e <- o .:? "email"
-    p <- o .:? "phone"
-    SendActivationCode <$> key e p
-      <*> o .:? "locale"
-      <*> o .:? "voice_call" .!= False
-    where
-      key (Just _) (Just _) = fail "Only one of 'email' or 'phone' allowed."
-      key Nothing Nothing = fail "One of 'email' or 'phone' required."
-      key (Just e) Nothing = return $ Left e
-      key Nothing (Just p) = return $ Right p
 
 instance ToJSON ActivationResponse where
   toJSON (ActivationResponse ident first) =
@@ -112,22 +126,27 @@ instance FromJSON ActivationResponse where
     ActivationResponse <$> parseJSON (Object o)
       <*> o .:? "first" .!= False
 
-instance FromJSON Activate where
-  parseJSON = withObject "Activation" $ \o ->
-    Activate <$> key o
-      <*> o .: "code"
-      <*> o .:? "dryrun" .!= False
-    where
-      key o =
-        (ActivateKey <$> o .: "key")
-          <|> (ActivateEmail <$> o .: "email")
-          <|> (ActivatePhone <$> o .: "phone")
+--------------------------------------------------------------------------------
+-- SendActivationCode
 
-instance ToJSON Activate where
-  toJSON (Activate k c d) =
-    object
-      [key k, "code" .= c, "dryrun" .= d]
+-- | Payload for a request to (re-)send an activation code
+-- for a phone number or e-mail address. If a phone is used,
+-- one can also request a call instead of SMS.
+data SendActivationCode = SendActivationCode
+  { saUserKey :: !(Either Email Phone),
+    saLocale :: !(Maybe Locale),
+    saCall :: !Bool
+  }
+
+instance FromJSON SendActivationCode where
+  parseJSON = withObject "SendActivationCode" $ \o -> do
+    e <- o .:? "email"
+    p <- o .:? "phone"
+    SendActivationCode <$> key e p
+      <*> o .:? "locale"
+      <*> o .:? "voice_call" .!= False
     where
-      key (ActivateKey ak) = "key" .= ak
-      key (ActivateEmail e) = "email" .= e
-      key (ActivatePhone p) = "phone" .= p
+      key (Just _) (Just _) = fail "Only one of 'email' or 'phone' allowed."
+      key Nothing Nothing = fail "One of 'email' or 'phone' required."
+      key (Just e) Nothing = return $ Left e
+      key Nothing (Just p) = return $ Right p
