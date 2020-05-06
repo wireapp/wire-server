@@ -55,7 +55,7 @@ import Data.Text as Text
 import Imports
 
 --------------------------------------------------------------------------------
--- UserConnection
+-- UserConnectionList
 
 -- | Response type for endpoints returning lists of connections.
 data UserConnectionList = UserConnectionList
@@ -83,6 +83,9 @@ instance FromJSON UserConnectionList where
   parseJSON = withObject "UserConnectionList" $ \o ->
     UserConnectionList <$> o .: "connections"
       <*> o .: "has_more"
+
+--------------------------------------------------------------------------------
+-- UserConnection
 
 -- | Exact state of the connection between two users, stored in Brig database (see
 -- 'Brig.Data.Connection.lookupConnections').
@@ -138,6 +141,9 @@ instance FromJSON UserConnection where
       <*> o .:? "message"
       <*> o .:? "conversation"
 
+--------------------------------------------------------------------------------
+-- Relation
+
 -- | Possible relations between two users. For detailed descriptions of these states, see:
 --
 -- > docs/reference/user/connection.md {#RefConnectionStates}
@@ -183,6 +189,9 @@ instance FromByteString Relation where
     "sent" -> return Sent
     "cancelled" -> return Cancelled
     x -> fail $ "Invalid relation-type " <> show x
+
+--------------------------------------------------------------------------------
+-- Message
 
 -- | Initial message sent along with a connection request. 1-256 characters.
 --
