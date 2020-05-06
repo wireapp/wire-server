@@ -74,6 +74,15 @@ module Wire.API.User
 
     -- * Swagger
     modelUserIdList,
+    modelSelf,
+    modelUser,
+    modelNewUser,
+    modelUserUpdate,
+    modelChangePassword,
+    modelChangeLocale,
+    modelEmailUpdate,
+    modelPhoneUpdate,
+    modelChangeHandle,
   )
 where
 
@@ -93,8 +102,8 @@ import Data.Text.Ascii
 import Data.UUID (UUID)
 import Imports
 import Wire.API.Activation (ActivationCode)
-import Wire.API.Provider.Service (ServiceRef)
-import Wire.API.Team (BindingNewTeam)
+import Wire.API.Provider.Service (ServiceRef, modelServiceRef)
+import Wire.API.Team (BindingNewTeam, modelNewBindingTeam)
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Identity
 import Wire.API.User.Profile
@@ -151,6 +160,34 @@ data UserProfile = UserProfile
   }
   deriving (Eq, Show, Generic)
 
+modelUser :: Doc.Model
+modelUser = Doc.defineModel "User" $ do
+  Doc.description "User Profile"
+  Doc.property "id" Doc.bytes' $
+    Doc.description "User ID"
+  Doc.property "name" Doc.string' $
+    Doc.description "Name"
+  Doc.property "email" Doc.string' $ do
+    Doc.description "Email"
+    Doc.optional
+  Doc.property "assets" (Doc.array (Doc.ref modelAsset)) $
+    Doc.description "Profile assets"
+  Doc.property "accent_id" Doc.int32' $ do
+    Doc.description "Accent colour ID"
+    Doc.optional
+  Doc.property "deleted" Doc.bool' $ do
+    Doc.description "Whether the account has been deleted."
+    Doc.optional
+  Doc.property "service" (Doc.ref modelServiceRef) $ do
+    Doc.description "The reference to the owning service, if the user is a 'bot'."
+    Doc.optional
+  Doc.property "handle" Doc.string' $ do
+    Doc.description "Unique user handle."
+    Doc.optional
+  Doc.property "team" Doc.string' $ do
+    Doc.description "Team ID"
+    Doc.optional
+
 instance ToJSON UserProfile where
   toJSON u =
     object $
@@ -190,6 +227,38 @@ instance FromJSON UserProfile where
 data SelfProfile = SelfProfile
   {selfUser :: !User}
   deriving (Eq, Show, Generic)
+
+modelSelf :: Doc.Model
+modelSelf = Doc.defineModel "Self" $ do
+  Doc.description "Self Profile"
+  Doc.property "id" Doc.bytes' $
+    Doc.description "User ID"
+  Doc.property "name" Doc.string' $
+    Doc.description "Name"
+  Doc.property "assets" (Doc.array (Doc.ref modelAsset)) $
+    Doc.description "Profile assets"
+  Doc.property "email" Doc.string' $ do
+    Doc.description "Email address"
+    Doc.optional
+  Doc.property "phone" Doc.string' $ do
+    Doc.description "E.164 Phone number"
+    Doc.optional
+  Doc.property "accent_id" Doc.int32' $ do
+    Doc.description "Accent colour ID"
+    Doc.optional
+  Doc.property "locale" Doc.string' $
+    Doc.description "Locale in <ln-cc> format."
+  Doc.property "handle" Doc.string' $ do
+    Doc.description "Unique handle."
+    Doc.optional
+  Doc.property "deleted" Doc.bool' $ do
+    Doc.description "Whether the account has been deleted."
+    Doc.optional
+  Doc.property "managed_by" typeManagedBy $ do
+    Doc.description
+      "What is the source of truth for this user; if it's SCIM \
+      \then the profile can't be edited via normal means"
+    Doc.optional
 
 instance ToJSON SelfProfile where
   toJSON (SelfProfile u) = toJSON u
@@ -351,6 +420,50 @@ publicProfile u =
 --     SCIM-managed user)
 newtype NewUserPublic = NewUserPublic NewUser
   deriving (Eq, Show, Generic)
+
+modelNewUser :: Doc.Model
+modelNewUser = Doc.defineModel "NewUser" $ do
+  Doc.description "New User Data"
+  Doc.property "name" Doc.string' $
+    Doc.description "Name (1 - 128 characters)"
+  Doc.property "email" Doc.string' $ do
+    Doc.description "Email address"
+    Doc.optional
+  Doc.property "password" Doc.string' $ do
+    Doc.description "Password (6 - 1024 characters)"
+    Doc.optional
+  Doc.property "assets" (Doc.array (Doc.ref modelAsset)) $ do
+    Doc.description "Profile assets"
+    Doc.optional
+  Doc.property "phone" Doc.string' $ do
+    Doc.description "E.164 phone number"
+    Doc.optional
+  Doc.property "accent_id" Doc.int32' $ do
+    Doc.description "Accent colour ID"
+    Doc.optional
+  Doc.property "email_code" Doc.bytes' $ do
+    Doc.description "Email activation code"
+    Doc.optional
+  Doc.property "phone_code" Doc.bytes' $ do
+    Doc.description "Phone activation code"
+    Doc.optional
+  Doc.property "invitation_code" Doc.bytes' $ do
+    Doc.description "Invitation code. Mutually exclusive with team|team_code"
+    Doc.optional
+  Doc.property "locale" Doc.string' $ do
+    Doc.description "Locale in <ln-cc> format."
+    Doc.optional
+  Doc.property "label" Doc.string' $ do
+    Doc.description
+      "An optional label to associate with the access cookie, \
+      \if one is granted during account creation."
+    Doc.optional
+  Doc.property "team_code" Doc.string' $ do
+    Doc.description "Team invitation code. Mutually exclusive with team|invitation_code"
+    Doc.optional
+  Doc.property "team" (Doc.ref modelNewBindingTeam) $ do
+    Doc.description "New team information. Mutually exclusive with team_code|invitation_code"
+    Doc.optional
 
 instance FromJSON NewUserPublic where
   parseJSON val = do
@@ -539,47 +652,29 @@ instance FromJSON BindingNewTeamUser where
 -----------------------------------------------------------------------------
 -- Profile Updates
 
+-- NB: when adding new types, please also add roundtrip tests to
+-- 'Test.Brig.Types.User.roundtripTests'
+
 data UserUpdate = UserUpdate
   { uupName :: !(Maybe Name),
-    uupPict :: !(Maybe Pict), -- DEPRECATED
+    -- | DEPRECATED
+    uupPict :: !(Maybe Pict),
     uupAssets :: !(Maybe [Asset]),
     uupAccentId :: !(Maybe ColourId)
   }
   deriving (Eq, Show, Generic)
 
--- | The payload for setting or changing a password.
-data PasswordChange = PasswordChange
-  { cpOldPassword :: !(Maybe PlainTextPassword),
-    cpNewPassword :: !PlainTextPassword
-  }
-  deriving (Eq, Show, Generic)
-
-newtype LocaleUpdate = LocaleUpdate {luLocale :: Locale}
-  deriving (Eq, Show, Generic)
-
-newtype EmailUpdate = EmailUpdate {euEmail :: Email}
-  deriving (Eq, Show, Generic)
-
-newtype PhoneUpdate = PhoneUpdate {puPhone :: Phone}
-  deriving (Eq, Show, Generic)
-
-newtype HandleUpdate = HandleUpdate {huHandle :: Text}
-  deriving (Eq, Show, Generic)
-
-newtype ManagedByUpdate = ManagedByUpdate {mbuManagedBy :: ManagedBy}
-  deriving (Eq, Show, Generic)
-
-newtype RichInfoUpdate = RichInfoUpdate {riuRichInfo :: RichInfoAssocList}
-  deriving (Eq, Show, Generic)
-
-newtype EmailRemove = EmailRemove {erEmail :: Email}
-  deriving (Eq, Show, Generic)
-
-newtype PhoneRemove = PhoneRemove {prPhone :: Phone}
-  deriving (Eq, Show, Generic)
-
--- NB: when adding new types, please also add roundtrip tests to
--- 'Test.Brig.Types.User.roundtripTests'
+modelUserUpdate :: Doc.Model
+modelUserUpdate = Doc.defineModel "UserUpdate" $ do
+  Doc.description "User Update Data"
+  Doc.property "name" Doc.string' $
+    Doc.description "Name (1 - 128 characters)"
+  Doc.property "assets" (Doc.array (Doc.ref modelAsset)) $ do
+    Doc.description "Profile assets"
+    Doc.optional
+  Doc.property "accent_id" Doc.int32' $ do
+    Doc.description "Accent colour ID"
+    Doc.optional
 
 instance ToJSON UserUpdate where
   toJSON u =
@@ -597,6 +692,24 @@ instance FromJSON UserUpdate where
       <*> o .:? "assets"
       <*> o .:? "accent_id"
 
+-- | The payload for setting or changing a password.
+data PasswordChange = PasswordChange
+  { cpOldPassword :: !(Maybe PlainTextPassword),
+    cpNewPassword :: !PlainTextPassword
+  }
+  deriving (Eq, Show, Generic)
+
+modelChangePassword :: Doc.Model
+modelChangePassword = Doc.defineModel "ChangePassword" $ do
+  Doc.description
+    "Data to change a password. The old password is required if \
+    \a password already exists."
+  Doc.property "old_password" Doc.string' $ do
+    Doc.description "Old password"
+    Doc.optional
+  Doc.property "new_password" Doc.string' $
+    Doc.description "New password (6 - 1024 characters)"
+
 instance ToJSON PasswordChange where
   toJSON (PasswordChange old new) =
     object
@@ -609,12 +722,30 @@ instance FromJSON PasswordChange where
     PasswordChange <$> o .:? "old_password"
       <*> o .: "new_password"
 
+newtype LocaleUpdate = LocaleUpdate {luLocale :: Locale}
+  deriving (Eq, Show, Generic)
+
+modelChangeLocale :: Doc.Model
+modelChangeLocale = Doc.defineModel "ChangeLocale" $ do
+  Doc.description "Data to change a locale."
+  Doc.property "locale" Doc.string' $
+    Doc.description "Locale to be set"
+
 instance ToJSON LocaleUpdate where
   toJSON l = object ["locale" .= luLocale l]
 
 instance FromJSON LocaleUpdate where
   parseJSON = withObject "locale-update" $ \o ->
     LocaleUpdate <$> o .: "locale"
+
+newtype EmailUpdate = EmailUpdate {euEmail :: Email}
+  deriving (Eq, Show, Generic)
+
+modelEmailUpdate :: Doc.Model
+modelEmailUpdate = Doc.defineModel "EmailUpdate" $ do
+  Doc.description "Email Update Data"
+  Doc.property "email" Doc.string' $
+    Doc.description "Email"
 
 instance ToJSON EmailUpdate where
   toJSON e = object ["email" .= euEmail e]
@@ -623,12 +754,30 @@ instance FromJSON EmailUpdate where
   parseJSON = withObject "email-update" $ \o ->
     EmailUpdate <$> o .: "email"
 
+newtype PhoneUpdate = PhoneUpdate {puPhone :: Phone}
+  deriving (Eq, Show, Generic)
+
+modelPhoneUpdate :: Doc.Model
+modelPhoneUpdate = Doc.defineModel "PhoneUpdate" $ do
+  Doc.description "Phone Update Data"
+  Doc.property "phone" Doc.string' $
+    Doc.description "E.164 phone number"
+
 instance ToJSON PhoneUpdate where
   toJSON p = object ["phone" .= puPhone p]
 
 instance FromJSON PhoneUpdate where
   parseJSON = withObject "phone-update" $ \o ->
     PhoneUpdate <$> o .: "phone"
+
+newtype HandleUpdate = HandleUpdate {huHandle :: Text}
+  deriving (Eq, Show, Generic)
+
+modelChangeHandle :: Doc.Model
+modelChangeHandle = Doc.defineModel "ChangeHandle" $ do
+  Doc.description "Change the handle."
+  Doc.property "handle" Doc.string' $
+    Doc.description "Handle to set"
 
 instance ToJSON HandleUpdate where
   toJSON h = object ["handle" .= huHandle h]
@@ -637,12 +786,18 @@ instance FromJSON HandleUpdate where
   parseJSON = withObject "handle-update" $ \o ->
     HandleUpdate <$> o .: "handle"
 
+newtype ManagedByUpdate = ManagedByUpdate {mbuManagedBy :: ManagedBy}
+  deriving (Eq, Show, Generic)
+
 instance ToJSON ManagedByUpdate where
   toJSON m = object ["managed_by" .= mbuManagedBy m]
 
 instance FromJSON ManagedByUpdate where
   parseJSON = withObject "managed-by-update" $ \o ->
     ManagedByUpdate <$> o .: "managed_by"
+
+newtype RichInfoUpdate = RichInfoUpdate {riuRichInfo :: RichInfoAssocList}
+  deriving (Eq, Show, Generic)
 
 instance ToJSON RichInfoUpdate where
   toJSON (RichInfoUpdate rif) = object ["rich_info" .= rif]
@@ -651,12 +806,18 @@ instance FromJSON RichInfoUpdate where
   parseJSON = withObject "rich-info-update" $ \o ->
     RichInfoUpdate <$> o .: "rich_info"
 
+newtype EmailRemove = EmailRemove {erEmail :: Email}
+  deriving (Eq, Show, Generic)
+
 instance ToJSON EmailRemove where
   toJSON e = object ["email" .= erEmail e]
 
 instance FromJSON EmailRemove where
   parseJSON = withObject "email-remove" $ \o ->
     EmailRemove <$> o .: "email"
+
+newtype PhoneRemove = PhoneRemove {prPhone :: Phone}
+  deriving (Eq, Show, Generic)
 
 instance ToJSON PhoneRemove where
   toJSON p = object ["phone" .= prPhone p]
