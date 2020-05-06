@@ -23,6 +23,7 @@ import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.API.Provider.Service (modelServiceRef)
 import Wire.API.Team (modelNewBindingTeam)
+import Wire.API.User.Profile (modelAsset, typeManagedBy)
 import Wire.Swagger
 
 brigModels :: [Doc.Model]
@@ -30,14 +31,12 @@ brigModels =
   [ -- User
     modelSelf,
     modelUser,
-    modelUserDisplayName,
     modelNewUser,
     modelUserUpdate,
     modelEmailUpdate,
     modelPhoneUpdate,
     modelChangeLocale,
     modelChangeHandle,
-    modelAsset,
     modelRichInfo,
     modelRichField,
     -- Account Activation
@@ -121,39 +120,6 @@ modelUser = Doc.defineModel "User" $ do
     Doc.description "Team ID"
     Doc.optional
 
-typeManagedBy :: Doc.DataType
-typeManagedBy =
-  Doc.string $
-    Doc.enum
-      [ "wire",
-        "scim"
-      ]
-
-typeAssetType :: Doc.DataType
-typeAssetType =
-  Doc.string $
-    Doc.enum
-      [ "image"
-      ]
-
-typeAssetSize :: Doc.DataType
-typeAssetSize =
-  Doc.string $
-    Doc.enum
-      [ "preview",
-        "complete"
-      ]
-
-modelAsset :: Doc.Model
-modelAsset = Doc.defineModel "UserAsset" $ do
-  Doc.description "User profile asset"
-  Doc.property "key" Doc.string' $
-    Doc.description "The unique asset key"
-  Doc.property "type" typeAssetType $
-    Doc.description "The asset type"
-  Doc.property "size" typeAssetSize $
-    Doc.description "The asset size / format"
-
 modelRichField :: Doc.Model
 modelRichField = Doc.defineModel "RichField" $ do
   Doc.description "RichInfo field"
@@ -169,12 +135,6 @@ modelRichInfo = Doc.defineModel "RichInfo" $ do
     Doc.description "List of fields"
   Doc.property "version" Doc.int32' $
     Doc.description "Format version (the current version is 0)"
-
-modelUserDisplayName :: Doc.Model
-modelUserDisplayName = Doc.defineModel "UserDisplayName" $ do
-  Doc.description "User name"
-  Doc.property "name" Doc.string' $
-    Doc.description "User name"
 
 modelNewUser :: Doc.Model
 modelNewUser = Doc.defineModel "NewUser" $ do
