@@ -37,8 +37,6 @@ brigModels =
     modelPhoneUpdate,
     modelChangeLocale,
     modelChangeHandle,
-    modelRichInfo,
-    modelRichField,
     -- Account Activation
     modelActivate,
     modelSendActivationCode,
@@ -119,22 +117,6 @@ modelUser = Doc.defineModel "User" $ do
   Doc.property "team" Doc.string' $ do
     Doc.description "Team ID"
     Doc.optional
-
-modelRichField :: Doc.Model
-modelRichField = Doc.defineModel "RichField" $ do
-  Doc.description "RichInfo field"
-  Doc.property "type" Doc.string' $
-    Doc.description "Field name"
-  Doc.property "value" Doc.string' $
-    Doc.description "Field value"
-
-modelRichInfo :: Doc.Model
-modelRichInfo = Doc.defineModel "RichInfo" $ do
-  Doc.description "Rich info about the user"
-  Doc.property "fields" (Doc.array (Doc.ref modelRichField)) $
-    Doc.description "List of fields"
-  Doc.property "version" Doc.int32' $
-    Doc.description "Format version (the current version is 0)"
 
 modelNewUser :: Doc.Model
 modelNewUser = Doc.defineModel "NewUser" $ do

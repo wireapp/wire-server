@@ -42,6 +42,10 @@ module Wire.API.User.RichInfo
 
     -- * RichField
     RichField (..),
+
+    -- * Swagger
+    modelRichInfo,
+    modelRichField,
   )
 where
 
@@ -71,6 +75,14 @@ data RichInfo = RichInfo
     richInfoAssocList :: [RichField]
   }
   deriving (Eq, Show, Generic)
+
+modelRichInfo :: Doc.Model
+modelRichInfo = Doc.defineModel "RichInfo" $ do
+  Doc.description "Rich info about the user"
+  Doc.property "fields" (Doc.array (Doc.ref modelRichField)) $
+    Doc.description "List of fields"
+  Doc.property "version" Doc.int32' $
+    Doc.description "Format version (the current version is 0)"
 
 instance ToJSON RichInfo where
   toJSON u =
@@ -168,12 +180,19 @@ emptyRichInfoAssocList = RichInfoAssocList []
 --------------------------------------------------------------------------------
 -- RichField
 
--- TODO: Make richFieldType @CI Text@
 data RichField = RichField
   { richFieldType :: !(CI Text),
     richFieldValue :: !Text
   }
   deriving (Eq, Show, Generic)
+
+modelRichField :: Doc.Model
+modelRichField = Doc.defineModel "RichField" $ do
+  Doc.description "RichInfo field"
+  Doc.property "type" Doc.string' $
+    Doc.description "Field name"
+  Doc.property "value" Doc.string' $
+    Doc.description "Field value"
 
 instance ToJSON RichField where
   -- NB: "name" would be a better name for 'richFieldType', but "type" is used because we
