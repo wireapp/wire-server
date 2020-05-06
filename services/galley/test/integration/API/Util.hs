@@ -1353,10 +1353,9 @@ withSettingsOverrides opts action = liftIO $ do
 
 waitForMemberDeletion :: UserId -> TeamId -> UserId -> TestM ()
 waitForMemberDeletion zusr tid uid = do
-  maybeTimedOut <- timeout 2000000 $ loop
-  case maybeTimedOut of
-    Nothing -> liftIO $ assertFailure "Timed out waiting for member deletion"
-    _ -> pure ()
+  maybeTimedOut <- timeout 2000000 loop
+  liftIO $ when (isNothing maybeTimedOut) $
+    assertFailure "Timed out waiting for member deletion"
   where
     loop = do
       galley <- view tsGalley
