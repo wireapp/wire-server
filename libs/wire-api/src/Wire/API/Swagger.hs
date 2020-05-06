@@ -35,6 +35,7 @@ import qualified Wire.API.Team as Team
 import qualified Wire.API.Team.Conversation as Team.Conversation
 import qualified Wire.API.Team.Event as Team.Event
 import qualified Wire.API.Team.Feature as Team.Feature
+import qualified Wire.API.Team.Invitation as Team.Invitation
 import qualified Wire.API.Team.Member as Team.Member
 import qualified Wire.API.Team.Permission as Team.Permission
 import qualified Wire.API.User as User
@@ -68,6 +69,9 @@ models =
     Push.Token.modelPushTokenList,
     Team.Feature.modelLegalHoldTeamConfig,
     Team.Feature.modelSsoTeamConfig,
+    Team.Invitation.modelTeamInvitation,
+    Team.Invitation.modelTeamInvitationList,
+    Team.Invitation.modelTeamInvitationRequest,
     Team.Permission.modelPermissions,
     Team.Member.modelTeamMember,
     Team.Member.modelTeamMemberList,
