@@ -35,11 +35,19 @@ module Wire.API.User.Client
     UpdateClient (..),
     RmClient (..),
 
+    -- * re-exports
+    Location (..),
+
     -- * Swagger
     modelOtrClientMap,
     modelUserClients,
-
-    -- * re-exports
+    modelNewClient,
+    modelUpdateClient,
+    modelDeleteClient,
+    modelClient,
+    modelSigkeys,
+    modelLocation, -- re-export
+    modelPubClient,
   )
 where
 
@@ -48,7 +56,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Json.Util
 import qualified Data.Map.Strict as Map
-import Data.Misc (Location, PlainTextPassword (..))
+import Data.Misc (Location, PlainTextPassword (..), modelLocation)
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text.Encoding as Text.E
 import Data.UUID (toASCIIBytes)
@@ -141,6 +149,32 @@ data Client = Client
   }
   deriving (Eq, Show, Generic)
 
+modelClient :: Doc.Model
+modelClient = Doc.defineModel "Client" $ do
+  Doc.description "A registered client."
+  Doc.property "type" typeClientType $
+    Doc.description "The client type."
+  Doc.property "id" Doc.string' $
+    Doc.description "The client ID."
+  Doc.property "label" Doc.string' $ do
+    Doc.description "An optional label associated with the client."
+    Doc.optional
+  Doc.property "time" Doc.dateTime' $
+    Doc.description "The date and time when this client was registered."
+  Doc.property "class" typeClientClass $
+    Doc.description "The device class this client belongs to."
+  Doc.property "cookie" Doc.string' $
+    Doc.description "The cookie label of this client."
+  Doc.property "address" Doc.string' $ do
+    Doc.description "IP address from which this client has been registered"
+    Doc.optional
+  Doc.property "location" (Doc.ref modelLocation) $ do
+    Doc.description "Location from which this client has been registered."
+    Doc.optional
+  Doc.property "model" Doc.string' $ do
+    Doc.description "Optional model information of this client"
+    Doc.optional
+
 instance ToJSON Client where
   toJSON c =
     object $
@@ -171,6 +205,17 @@ data PubClient = PubClient
   }
   deriving (Eq, Show, Generic)
 
+--------------------------------------------------------------------------------
+-- PubClient
+
+modelPubClient :: Doc.Model
+modelPubClient = Doc.defineModel "PubClient" $ do
+  Doc.description "A client as seen by other users."
+  Doc.property "id" Doc.string' $
+    Doc.description "The client ID."
+  Doc.property "class" typeClientClass $
+    Doc.description "The device class this client belongs to. Either 'phone', 'tablet', or 'desktop'."
+
 instance ToJSON PubClient where
   toJSON c =
     object $
@@ -200,7 +245,7 @@ instance FromJSON PubClient where
 
 -- * Any user interacting with a user which has a LegalHoldClient will upon
 --   first interaction receive a warning, have the option of cancelling the
---   interation, and on an ongoing basis see a visual indication in all
+--   interaction, and on an ongoing basis see a visual indication in all
 --   conversations where such a device is active.
 
 data ClientType
@@ -208,6 +253,15 @@ data ClientType
   | PermanentClientType
   | LegalHoldClientType -- see Note [LegalHold]
   deriving (Eq, Ord, Show)
+
+typeClientType :: Doc.DataType
+typeClientType =
+  Doc.string $
+    Doc.enum
+      [ "permanent",
+        "temporary",
+        "legalhold"
+      ]
 
 instance ToJSON ClientType where
   toJSON TemporaryClientType = String "temporary"
@@ -227,6 +281,16 @@ data ClientClass
   | DesktopClient
   | LegalHoldClient -- see Note [LegalHold]
   deriving (Eq, Ord, Show)
+
+typeClientClass :: Doc.DataType
+typeClientClass =
+  Doc.string $
+    Doc.enum
+      [ "phone",
+        "tablet",
+        "desktop",
+        "legalhold"
+      ]
 
 instance ToJSON ClientClass where
   toJSON PhoneClient = String "phone"
@@ -255,6 +319,42 @@ data NewClient = NewClient
     newClientPassword :: !(Maybe PlainTextPassword),
     newClientModel :: !(Maybe Text)
   }
+
+modelNewClient :: Doc.Model
+modelNewClient = Doc.defineModel "NewClient" $ do
+  Doc.description "The registration data for a new client."
+  Doc.property "type" typeClientType $
+    Doc.description
+      "The type of client to register. A user may have no more than \
+      \7 (seven) permanent clients and 1 (one) temporary client. When the \
+      \limit of permanent clients is reached, an error is returned. \
+      \When a temporary client already exists, it is replaced."
+  Doc.property "password" Doc.string' $ do
+    Doc.description
+      "The password of the authenticated user for verification. \
+      \Note: Required for registration of the 2nd, 3rd, ... client."
+    Doc.optional
+  Doc.property "prekeys" (Doc.array (Doc.ref modelPrekey)) $
+    Doc.description "Prekeys for other clients to establish OTR sessions."
+  Doc.property "lastkey" (Doc.ref modelPrekey) $
+    Doc.description
+      "The last resort prekey for other clients to establish OTR sessions. \
+      \This key must have the ID 0xFFFF and is never deleted."
+  -- FUTUREWORK: sigkeys don't seem to be used anymore
+  Doc.property "sigkeys" (Doc.ref modelSigkeys) $
+    Doc.description
+      "The signaling keys to use for encryption and signing of OTR native push \
+      \notifications (APNS, GCM)."
+  Doc.property "label" Doc.string' $ do
+    Doc.description "An optional label to associate with the client."
+    Doc.optional
+  Doc.property "class" typeClientClass $
+    Doc.description "The device class this client belongs to. Either 'phone', 'tablet', or 'desktop'."
+  Doc.property "cookie" Doc.string' $
+    Doc.description "The cookie label, i.e. the label used when logging in."
+  Doc.property "model" Doc.string' $ do
+    Doc.description "Optional model information of this client"
+    Doc.optional
 
 newClient :: ClientType -> LastPrekey -> NewClient
 newClient t k =
@@ -303,6 +403,25 @@ data UpdateClient = UpdateClient
   }
   deriving (Generic)
 
+modelUpdateClient :: Doc.Model
+modelUpdateClient = Doc.defineModel "UpdateClient" $ do
+  Doc.description "The new data for the registered client."
+  Doc.property "prekeys" (Doc.array (Doc.ref modelPrekey)) $ do
+    Doc.description "New prekeys for other clients to establish OTR sessions."
+    Doc.optional
+  Doc.property "lastkey" (Doc.ref modelPrekey) $ do
+    Doc.description "New last-resort prekey."
+    Doc.optional
+  -- FUTUREWORK: sigkeys don't seem to be used anymore
+  Doc.property "sigkeys" (Doc.ref modelSigkeys) $ do
+    Doc.description
+      "New signaling keys to use for encryption and signing of OTR native push \
+      \notifications (APNS, GCM)."
+    Doc.optional
+  Doc.property "label" Doc.string' $ do
+    Doc.description "A new name for this client."
+    Doc.optional
+
 instance ToJSON UpdateClient where
   toJSON c =
     object $
@@ -325,9 +444,29 @@ newtype RmClient = RmClient
   }
   deriving (Generic)
 
+modelDeleteClient :: Doc.Model
+modelDeleteClient = Doc.defineModel "DeleteClient" $ do
+  Doc.description "Required information for client deletion."
+  Doc.property "password" Doc.string' $ do
+    Doc.description
+      "The password of the authenticated user for verification. \
+      \The password is not required for deleting temporary clients."
+    Doc.optional
+
 instance ToJSON RmClient where
   toJSON (RmClient pw) = object ["password" .= pw]
 
 instance FromJSON RmClient where
   parseJSON = withObject "RmClient" $ \o ->
     RmClient <$> o .:? "password"
+
+--------------------------------------------------------------------------------
+-- other models
+
+modelSigkeys :: Doc.Model
+modelSigkeys = Doc.defineModel "SignalingKeys" $ do
+  Doc.description "Signaling keys for encryption and signing of native push notifications (APNS, GCM)."
+  Doc.property "enckey" Doc.bytes' $
+    Doc.description "The base64-encoded, 256 bit encryption key."
+  Doc.property "mackey" Doc.bytes' $
+    Doc.description "The base64-encoded, 256 bit MAC key."

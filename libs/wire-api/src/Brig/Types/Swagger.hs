@@ -23,7 +23,6 @@ import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.API.Provider.Service (modelServiceRef)
 import Wire.API.Team (modelNewBindingTeam)
-import Wire.API.User.Client.Prekey (modelPrekey)
 import Wire.Swagger
 
 brigModels :: [Doc.Model]
@@ -56,14 +55,6 @@ brigModels =
     modelVerifyDelete,
     -- Login / Authentication
     modelPendingLoginError, -- TODO: couldn't find a corresponding type
-    -- Clients
-    modelNewClient,
-    modelUpdateClient,
-    modelDeleteClient,
-    modelClient,
-    modelSigkeys,
-    modelLocation,
-    modelPubClient,
     -- Properties
     modelPropertyValue,
     modelPropertyDictionary,
@@ -420,140 +411,6 @@ modelAccessToken = Doc.defineModel "AccessToken" $ do
     Doc.description "The type of the access token."
   Doc.property "expires_in" Doc.int64' $
     Doc.description "The number of seconds this token is valid."
-
------------------------------------------------------------------------------
--- Client Models
-
-typeClientType :: Doc.DataType
-typeClientType =
-  Doc.string $
-    Doc.enum
-      [ "permanent",
-        "temporary",
-        "legalhold"
-      ]
-
-typeClientClass :: Doc.DataType
-typeClientClass =
-  Doc.string $
-    Doc.enum
-      [ "phone",
-        "tablet",
-        "desktop",
-        "legalhold"
-      ]
-
-modelNewClient :: Doc.Model
-modelNewClient = Doc.defineModel "NewClient" $ do
-  Doc.description "The registration data for a new client."
-  Doc.property "type" typeClientType $
-    Doc.description
-      "The type of client to register. A user may have no more than \
-      \7 (seven) permanent clients and 1 (one) temporary client. When the \
-      \limit of permanent clients is reached, an error is returned. \
-      \When a temporary client already exists, it is replaced."
-  Doc.property "password" Doc.string' $ do
-    Doc.description
-      "The password of the authenticated user for verification. \
-      \Note: Required for registration of the 2nd, 3rd, ... client."
-    Doc.optional
-  Doc.property "prekeys" (Doc.array (Doc.ref modelPrekey)) $
-    Doc.description "Prekeys for other clients to establish OTR sessions."
-  Doc.property "lastkey" (Doc.ref modelPrekey) $
-    Doc.description
-      "The last resort prekey for other clients to establish OTR sessions. \
-      \This key must have the ID 0xFFFF and is never deleted."
-  Doc.property "sigkeys" (Doc.ref modelSigkeys) $
-    Doc.description
-      "The signaling keys to use for encryption and signing of OTR native push \
-      \notifications (APNS, GCM)."
-  Doc.property "label" Doc.string' $ do
-    Doc.description "An optional label to associate with the client."
-    Doc.optional
-  Doc.property "class" typeClientClass $
-    Doc.description "The device class this client belongs to. Either 'phone', 'tablet', or 'desktop'."
-  Doc.property "cookie" Doc.string' $
-    Doc.description "The cookie label, i.e. the label used when logging in."
-  Doc.property "model" Doc.string' $ do
-    Doc.description "Optional model information of this client"
-    Doc.optional
-
-modelUpdateClient :: Doc.Model
-modelUpdateClient = Doc.defineModel "UpdateClient" $ do
-  Doc.description "The new data for the registered client."
-  Doc.property "prekeys" (Doc.array (Doc.ref modelPrekey)) $ do
-    Doc.description "New prekeys for other clients to establish OTR sessions."
-    Doc.optional
-  Doc.property "lastkey" (Doc.ref modelPrekey) $ do
-    Doc.description "New last-resort prekey."
-    Doc.optional
-  Doc.property "sigkeys" (Doc.ref modelSigkeys) $ do
-    Doc.description
-      "New signaling keys to use for encryption and signing of OTR native push \
-      \notifications (APNS, GCM)."
-    Doc.optional
-  Doc.property "label" Doc.string' $ do
-    Doc.description "A new name for this client."
-    Doc.optional
-
-modelDeleteClient :: Doc.Model
-modelDeleteClient = Doc.defineModel "DeleteClient" $ do
-  Doc.description "Required information for client deletion."
-  Doc.property "password" Doc.string' $ do
-    Doc.description
-      "The password of the authenticated user for verification. \
-      \The password is not required for deleting temporary clients."
-    Doc.optional
-
-modelClient :: Doc.Model
-modelClient = Doc.defineModel "Client" $ do
-  Doc.description "A registered client."
-  Doc.property "type" typeClientType $
-    Doc.description "The client type."
-  Doc.property "id" Doc.string' $
-    Doc.description "The client ID."
-  Doc.property "label" Doc.string' $ do
-    Doc.description "An optional label associated with the client."
-    Doc.optional
-  Doc.property "time" Doc.dateTime' $
-    Doc.description "The date and time when this client was registered."
-  Doc.property "class" typeClientClass $
-    Doc.description "The device class this client belongs to."
-  Doc.property "cookie" Doc.string' $
-    Doc.description "The cookie label of this client."
-  Doc.property "address" Doc.string' $ do
-    Doc.description "IP address from which this client has been registered"
-    Doc.optional
-  Doc.property "location" (Doc.ref modelLocation) $ do
-    Doc.description "Location from which this client has been registered."
-    Doc.optional
-  Doc.property "model" Doc.string' $ do
-    Doc.description "Optional model information of this client"
-    Doc.optional
-
-modelPubClient :: Doc.Model
-modelPubClient = Doc.defineModel "PubClient" $ do
-  Doc.description "A client as seen by other users."
-  Doc.property "id" Doc.string' $
-    Doc.description "The client ID."
-  Doc.property "class" typeClientClass $
-    Doc.description "The device class this client belongs to. Either 'phone', 'tablet', or 'desktop'."
-
-modelSigkeys :: Doc.Model
-modelSigkeys = Doc.defineModel "SignalingKeys" $ do
-  Doc.description "Signaling keys for encryption and signing of native push notifications (APNS, GCM)."
-  Doc.property "enckey" Doc.bytes' $
-    Doc.description "The base64-encoded, 256 bit encryption key."
-  Doc.property "mackey" Doc.bytes' $
-    Doc.description "The base64-encoded, 256 bit MAC key."
-
-modelLocation :: Doc.Model
-modelLocation = Doc.defineModel "Location" $ do
-  Doc.description "Geographical location"
-  Doc.property "lat" Doc.double' $
-    Doc.description "Latitude"
-  Doc.property "lon" Doc.double' $
-    Doc.description "Longitude"
 
 -----------------------------------------------------------------------------
 -- Properties
