@@ -36,10 +36,9 @@ import Brig.Types.User.Auth
 import qualified Brig.Types.User.Auth as Auth
 import Brig.ZAuth (ZAuth, runZAuth)
 import qualified Brig.ZAuth as ZAuth
-import Control.Lens ((^.), (^?), set)
+import Control.Lens ((^.), set)
 import Control.Retry
 import Data.Aeson
-import Data.Aeson.Lens
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
@@ -48,7 +47,6 @@ import Data.Id
 import Data.Misc (PlainTextPassword (..))
 import Data.Proxy
 import qualified Data.Text as Text
-import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Lazy as Lazy
 import Data.Time.Clock
 import qualified Data.UUID.V4 as UUID
@@ -856,18 +854,6 @@ prepareLegalHoldUser brig galley = do
   -- enable it for this team - without that, legalhold login will fail.
   putLegalHoldEnabled tid LegalHoldEnabled galley
   return uid
-
-decodeCookie :: HasCallStack => Response a -> Http.Cookie
-decodeCookie = fromMaybe (error "missing zuid cookie") . getCookie "zuid"
-
-decodeToken :: HasCallStack => Response (Maybe Lazy.ByteString) -> ZAuth.AccessToken
-decodeToken = decodeToken' @ZAuth.Access
-
-decodeToken' :: (HasCallStack, ZAuth.AccessTokenLike a) => Response (Maybe Lazy.ByteString) -> ZAuth.Token a
-decodeToken' r = fromMaybe (error "invalid access_token") $ do
-  x <- responseBody r
-  t <- x ^? key "access_token" . _String
-  fromByteString (encodeUtf8 t)
 
 getCookieId :: forall u. (HasCallStack, ZAuth.UserTokenLike u) => Http.Cookie -> CookieId
 getCookieId c =
