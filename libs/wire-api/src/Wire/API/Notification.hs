@@ -52,6 +52,9 @@ import Imports
 
 type NotificationId = Id QueuedNotification
 
+-- FUTUREWORK:
+-- This definition is very opaque, but we know some of the structure already
+-- (e.g. visible in 'modelEvent'). Can we specify it in a better way?
 type Event = JSON.Object
 
 modelEvent :: Doc.Model
