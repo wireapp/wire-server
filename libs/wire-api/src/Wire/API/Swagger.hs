@@ -23,18 +23,18 @@ import Data.Swagger.Build.Api (Model)
 import qualified Wire.API.Call.TURN as Call.TURN
 import qualified Wire.API.Connection as Connection
 import qualified Wire.API.Conversation.Code as Conversation.Code
-import qualified Wire.API.Conversation.Event as Conversation.Event
 import qualified Wire.API.Conversation.Member as Conversation.Member
 import qualified Wire.API.Conversation.Role as Conversation.Role
 import qualified Wire.API.Conversation.Typing as Conversation.Typing
 import qualified Wire.API.CustomBackend as CustomBackend
+import qualified Wire.API.Event.Conversation as Event.Conversation
+import qualified Wire.API.Event.Team as Event.Team
 import qualified Wire.API.Message as Message
 import qualified Wire.API.Notification as Notification
 import qualified Wire.API.Properties as Properties
 import qualified Wire.API.Push.Token as Push.Token
 import qualified Wire.API.Team as Team
 import qualified Wire.API.Team.Conversation as Team.Conversation
-import qualified Wire.API.Team.Event as Team.Event
 import qualified Wire.API.Team.Feature as Team.Feature
 import qualified Wire.API.Team.Invitation as Team.Invitation
 import qualified Wire.API.Team.Member as Team.Member
@@ -66,6 +66,28 @@ models =
     Conversation.Role.modelConversationRolesList,
     Conversation.Typing.modelTyping,
     CustomBackend.modelCustomBackend,
+    Event.Conversation.modelEvent,
+    Event.Conversation.modelMemberEvent,
+    Event.Conversation.modelConnectEvent,
+    Event.Conversation.modelConversationReceiptModeUpdateEvent,
+    Event.Conversation.modelConversationNameUpdateEvent,
+    Event.Conversation.modelConversationAccessUpdateEvent,
+    Event.Conversation.modelConversationMessageTimerUpdateEvent,
+    Event.Conversation.modelConversationCodeUpdateEvent,
+    Event.Conversation.modelConversationCodeDeleteEvent,
+    Event.Conversation.modelMemberUpdateEvent,
+    Event.Conversation.modelTypingEvent,
+    Event.Conversation.modelOtrMessageEvent,
+    Event.Conversation.modelMembers,
+    Event.Conversation.modelConnect,
+    Event.Conversation.modelMemberUpdateData,
+    Event.Conversation.modelOtrMessage,
+    Event.Team.modelEvent,
+    Event.Team.modelMemberEvent,
+    Event.Team.modelMemberData,
+    Event.Team.modelConvEvent,
+    Event.Team.modelConversationData,
+    Event.Team.modelUpdateEvent,
     Message.modelNewOtrMessage,
     Message.modelOtrRecipients,
     Message.modelClientMismatch,
@@ -122,27 +144,5 @@ models =
     User.RichInfo.modelRichInfo,
     User.RichInfo.modelRichField,
     User.Search.modelSearchResult,
-    User.Search.modelSearchContact,
-    Conversation.Event.modelEvent,
-    Conversation.Event.modelMemberEvent,
-    Conversation.Event.modelConnectEvent,
-    Conversation.Event.modelConversationReceiptModeUpdateEvent,
-    Conversation.Event.modelConversationNameUpdateEvent,
-    Conversation.Event.modelConversationAccessUpdateEvent,
-    Conversation.Event.modelConversationMessageTimerUpdateEvent,
-    Conversation.Event.modelConversationCodeUpdateEvent,
-    Conversation.Event.modelConversationCodeDeleteEvent,
-    Conversation.Event.modelMemberUpdateEvent,
-    Conversation.Event.modelTypingEvent,
-    Conversation.Event.modelOtrMessageEvent,
-    Conversation.Event.modelMembers,
-    Conversation.Event.modelConnect,
-    Conversation.Event.modelMemberUpdateData,
-    Conversation.Event.modelOtrMessage,
-    Team.Event.modelEvent,
-    Team.Event.modelMemberEvent,
-    Team.Event.modelMemberData,
-    Team.Event.modelConvEvent,
-    Team.Event.modelConversationData,
-    Team.Event.modelUpdateEvent
+    User.Search.modelSearchContact
   ]
