@@ -42,6 +42,7 @@ import qualified Wire.API.User as User
 import qualified Wire.API.User.Auth as User.Auth
 import qualified Wire.API.User.Client as User.Client
 import qualified Wire.API.User.Password as User.Password
+import qualified Wire.API.User.Profile as User.Profile
 
 models :: [Model]
 models =
@@ -98,6 +99,8 @@ models =
     User.Client.modelUserClients,
     User.Password.modelNewPasswordReset,
     User.Password.modelCompletePasswordReset,
+    User.Profile.modelUserDisplayName,
+    User.Profile.modelAsset,
     Conversation.Event.modelEvent,
     Conversation.Event.modelMemberEvent,
     Conversation.Event.modelConnectEvent,

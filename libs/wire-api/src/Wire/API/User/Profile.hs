@@ -33,6 +33,7 @@ module Wire.API.User.Profile
 
     -- * Locale
     Locale (..),
+    locToText,
     parseLocale,
     Language (..),
     parseLanguage,
@@ -42,6 +43,11 @@ module Wire.API.User.Profile
     -- * ManagedBy
     ManagedBy (..),
     defaultManagedBy,
+
+    -- * Swagger
+    modelUserDisplayName,
+    modelAsset,
+    typeManagedBy,
   )
 where
 
@@ -55,6 +61,7 @@ import Data.ISO3166_CountryCodes
 import Data.Json.Util ((#))
 import Data.LanguageCodes
 import Data.Range
+import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Imports
 
@@ -65,6 +72,12 @@ import Imports
 newtype Name = Name
   {fromName :: Text}
   deriving (Eq, Ord, Show, ToJSON, FromByteString, ToByteString, Generic)
+
+modelUserDisplayName :: Doc.Model
+modelUserDisplayName = Doc.defineModel "UserDisplayName" $ do
+  Doc.description "User name"
+  Doc.property "name" Doc.string' $
+    Doc.description "User name"
 
 instance FromJSON Name where
   parseJSON x =
@@ -90,6 +103,23 @@ data Asset = ImageAsset
   }
   deriving (Eq, Show, Generic)
 
+modelAsset :: Doc.Model
+modelAsset = Doc.defineModel "UserAsset" $ do
+  Doc.description "User profile asset"
+  Doc.property "key" Doc.string' $
+    Doc.description "The unique asset key"
+  Doc.property "type" typeAssetType $
+    Doc.description "The asset type"
+  Doc.property "size" typeAssetSize $
+    Doc.description "The asset size / format"
+
+typeAssetType :: Doc.DataType
+typeAssetType =
+  Doc.string $
+    Doc.enum
+      [ "image"
+      ]
+
 instance ToJSON Asset where
   toJSON (ImageAsset k s) =
     object $
@@ -109,6 +139,14 @@ instance FromJSON Asset where
 
 data AssetSize = AssetComplete | AssetPreview
   deriving (Eq, Show, Enum, Bounded, Generic)
+
+typeAssetSize :: Doc.DataType
+typeAssetSize =
+  Doc.string $
+    Doc.enum
+      [ "preview",
+        "complete"
+      ]
 
 instance ToJSON AssetSize where
   toJSON AssetPreview = String "preview"
@@ -130,9 +168,6 @@ data Locale = Locale
   }
   deriving (Eq, Ord, Generic)
 
-locToText :: Locale -> Text
-locToText (Locale l c) = lan2Text l <> maybe mempty (("-" <>) . con2Text) c
-
 instance FromJSON Locale where
   parseJSON =
     withText "locale" $
@@ -144,6 +179,9 @@ instance ToJSON Locale where
 
 instance Show Locale where
   show = Text.unpack . locToText
+
+locToText :: Locale -> Text
+locToText (Locale l c) = lan2Text l <> maybe mempty (("-" <>) . con2Text) c
 
 parseLocale :: Text -> Maybe Locale
 parseLocale = hush . parseOnly localeParser
@@ -222,6 +260,14 @@ data ManagedBy
     -- are not essential, unlike e.g. passwords.
     ManagedByScim
   deriving (Eq, Show, Bounded, Enum, Generic)
+
+typeManagedBy :: Doc.DataType
+typeManagedBy =
+  Doc.string $
+    Doc.enum
+      [ "wire",
+        "scim"
+      ]
 
 instance ToJSON ManagedBy where
   toJSON = String . \case
