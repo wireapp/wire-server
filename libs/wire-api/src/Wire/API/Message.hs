@@ -31,7 +31,6 @@ module Wire.API.Message
 
     -- * Recipients
     OtrRecipients (..),
-    foldrOtrRecipients,
 
     -- * Filter
     OtrFilterMissing (..),
@@ -47,12 +46,10 @@ where
 import Data.Aeson
 import Data.Id
 import Data.Json.Util
-import qualified Data.Map.Strict as Map
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Time
 import Imports
-import Wire.API.User.Client (UserClientMap (userClientMap), UserClients)
-import Wire.API.User.Client (modelOtrClientMap, modelUserClients)
+import Wire.API.User.Client (UserClientMap, UserClients, modelOtrClientMap, modelUserClients)
 
 -----------------------------------------------------------------------------
 -- Message
@@ -162,15 +159,6 @@ newtype OtrRecipients = OtrRecipients
   }
   deriving stock (Eq, Show)
   deriving newtype (ToJSON, FromJSON, Semigroup, Monoid)
-
--- TODO: internal?
-foldrOtrRecipients :: (OpaqueUserId -> ClientId -> Text -> a -> a) -> a -> OtrRecipients -> a
-foldrOtrRecipients f a =
-  Map.foldrWithKey go a
-    . userClientMap
-    . otrRecipientsMap
-  where
-    go u cs acc = Map.foldrWithKey (f u) acc cs
 
 modelOtrRecipients :: Doc.Model
 modelOtrRecipients = Doc.defineModel "OtrRecipients" $ do
