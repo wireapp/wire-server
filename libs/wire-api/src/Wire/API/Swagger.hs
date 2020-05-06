@@ -41,6 +41,7 @@ import qualified Wire.API.Team.Permission as Team.Permission
 import qualified Wire.API.User as User
 import qualified Wire.API.User.Auth as User.Auth
 import qualified Wire.API.User.Client as User.Client
+import qualified Wire.API.User.Password as User.Password
 
 models :: [Model]
 models =
@@ -95,6 +96,8 @@ models =
     User.Auth.modelCookieList,
     User.Client.modelOtrClientMap,
     User.Client.modelUserClients,
+    User.Password.modelNewPasswordReset,
+    User.Password.modelCompletePasswordReset,
     Conversation.Event.modelEvent,
     Conversation.Event.modelMemberEvent,
     Conversation.Event.modelConnectEvent,

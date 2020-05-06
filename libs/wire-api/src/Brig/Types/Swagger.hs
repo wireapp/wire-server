@@ -35,9 +35,6 @@ brigModels =
     modelUserUpdate,
     modelEmailUpdate,
     modelPhoneUpdate,
-    modelNewPasswordReset,
-    modelCompletePasswordReset,
-    modelChangePassword,
     modelChangeLocale,
     modelChangeHandle,
     modelAsset,
@@ -246,44 +243,6 @@ modelPhoneUpdate = Doc.defineModel "PhoneUpdate" $ do
   Doc.description "Phone Update Data"
   Doc.property "phone" Doc.string' $
     Doc.description "E.164 phone number"
-
-modelNewPasswordReset :: Doc.Model
-modelNewPasswordReset = Doc.defineModel "NewPasswordReset" $ do
-  Doc.description "Data to initiate a password reset"
-  Doc.property "email" Doc.string' $ do
-    Doc.description "Email"
-    Doc.optional
-  Doc.property "phone" Doc.string' $ do
-    Doc.description "Phone"
-    Doc.optional
-
-modelCompletePasswordReset :: Doc.Model
-modelCompletePasswordReset = Doc.defineModel "CompletePasswordReset" $ do
-  Doc.description "Data to complete a password reset."
-  Doc.property "key" Doc.string' $ do
-    Doc.description "An opaque key for a pending password reset."
-    Doc.optional
-  Doc.property "email" Doc.string' $ do
-    Doc.description "A known email with a pending password reset."
-    Doc.optional
-  Doc.property "phone" Doc.string' $ do
-    Doc.description "A known phone number with a pending password reset."
-    Doc.optional
-  Doc.property "code" Doc.string' $
-    Doc.description "Password reset code"
-  Doc.property "password" Doc.string' $
-    Doc.description "New password (6 - 1024 characters)"
-
-modelChangePassword :: Doc.Model
-modelChangePassword = Doc.defineModel "ChangePassword" $ do
-  Doc.description
-    "Data to change a password. The old password is required if \
-    \a password already exists."
-  Doc.property "old_password" Doc.string' $ do
-    Doc.description "Old password"
-    Doc.optional
-  Doc.property "new_password" Doc.string' $
-    Doc.description "New password (6 - 1024 characters)"
 
 modelChangeLocale :: Doc.Model
 modelChangeLocale = Doc.defineModel "ChangeLocale" $ do

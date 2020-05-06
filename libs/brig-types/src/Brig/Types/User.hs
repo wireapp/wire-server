@@ -827,6 +827,7 @@ newtype PasswordResetCode = PasswordResetCode
   {fromPasswordResetCode :: AsciiBase64Url}
   deriving (Eq, Show, FromByteString, ToByteString, FromJSON, ToJSON, Generic)
 
+-- FUTUREWORK: is this actually used?
 type PasswordResetPair = (PasswordResetKey, PasswordResetCode)
 
 -- | The target identity of a password reset.
