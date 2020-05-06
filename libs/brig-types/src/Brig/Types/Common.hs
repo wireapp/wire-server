@@ -101,7 +101,8 @@ parseEmail t = case Text.split (== '@') t of
 -----------------------------------------------------------------------------
 -- Phone
 
-newtype Phone = Phone {fromPhone :: Text} deriving (Eq, Show, ToJSON, Generic)
+newtype Phone = Phone {fromPhone :: Text}
+  deriving (Eq, Show, ToJSON, Generic)
 
 -- | Parses a phone number in E.164 format with a mandatory leading '+'.
 parsePhone :: Text -> Maybe Phone
@@ -131,7 +132,8 @@ instance ToByteString Phone where
 -----------------------------------------------------------------------------
 -- PhonePrefix (for excluding from SMS/calling)
 
-newtype PhonePrefix = PhonePrefix {fromPhonePrefix :: Text} deriving (Eq, Show, ToJSON, Generic)
+newtype PhonePrefix = PhonePrefix {fromPhonePrefix :: Text}
+  deriving (Eq, Show, ToJSON, Generic)
 
 -- | Parses a phone number prefix with a mandatory leading '+'.
 parsePhonePrefix :: Text -> Maybe PhonePrefix
@@ -268,9 +270,6 @@ instance ToJSON UserSSOId where
 -----------------------------------------------------------------------------
 -- Asset
 
-data AssetSize = AssetComplete | AssetPreview
-  deriving (Eq, Show, Enum, Bounded, Generic)
-
 -- Note: Intended to be turned into a sum type to add further asset types.
 data Asset = ImageAsset
   { assetKey :: !Text,
@@ -278,16 +277,13 @@ data Asset = ImageAsset
   }
   deriving (Eq, Show, Generic)
 
-instance FromJSON AssetSize where
-  parseJSON = withText "AssetSize" $ \s ->
-    case s of
-      "preview" -> pure AssetPreview
-      "complete" -> pure AssetComplete
-      _ -> fail $ "Invalid asset size: " ++ show s
-
-instance ToJSON AssetSize where
-  toJSON AssetPreview = String "preview"
-  toJSON AssetComplete = String "complete"
+instance ToJSON Asset where
+  toJSON (ImageAsset k s) =
+    object $
+      "type" .= ("image" :: Text)
+        # "key" .= k
+        # "size" .= s
+        # []
 
 instance FromJSON Asset where
   parseJSON = withObject "Asset" $ \o -> do
@@ -298,13 +294,19 @@ instance FromJSON Asset where
       "image" -> pure (ImageAsset key siz)
       _ -> fail $ "Invalid asset type: " ++ show typ
 
-instance ToJSON Asset where
-  toJSON (ImageAsset k s) =
-    object $
-      "type" .= ("image" :: Text)
-        # "key" .= k
-        # "size" .= s
-        # []
+data AssetSize = AssetComplete | AssetPreview
+  deriving (Eq, Show, Enum, Bounded, Generic)
+
+instance ToJSON AssetSize where
+  toJSON AssetPreview = String "preview"
+  toJSON AssetComplete = String "complete"
+
+instance FromJSON AssetSize where
+  parseJSON = withText "AssetSize" $ \s ->
+    case s of
+      "preview" -> pure AssetPreview
+      "complete" -> pure AssetComplete
+      _ -> fail $ "Invalid asset size: " ++ show s
 
 -----------------------------------------------------------------------------
 -- Language
@@ -323,7 +325,8 @@ parseLanguage = hush . parseOnly languageParser
 -----------------------------------------------------------------------------
 -- Country
 
-newtype Country = Country {fromCountry :: CountryCode} deriving (Ord, Eq, Show, Generic)
+newtype Country = Country {fromCountry :: CountryCode}
+  deriving (Ord, Eq, Show, Generic)
 
 countryParser :: Parser Country
 countryParser = codeParser "country" $ fmap Country . checkAndConvert isUpper

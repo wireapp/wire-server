@@ -36,7 +36,12 @@ module Wire.API.User.Client
     RmClient (..),
 
     -- * re-exports
-    Location (..),
+    Location,
+    location,
+    latitude,
+    longitude,
+    Latitude (..),
+    Longitude (..),
 
     -- * Swagger
     modelOtrClientMap,
@@ -56,7 +61,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Json.Util
 import qualified Data.Map.Strict as Map
-import Data.Misc (Location, PlainTextPassword (..), modelLocation)
+import Data.Misc (Latitude (..), Location, Longitude (..), PlainTextPassword (..), latitude, location, longitude, modelLocation)
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text.Encoding as Text.E
 import Data.UUID (toASCIIBytes)

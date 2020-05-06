@@ -22,7 +22,28 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.User.Profile where
+module Wire.API.User.Profile
+  ( Name (..),
+    ColourId (..),
+    defaultAccentId,
+
+    -- * Asset
+    Asset (..),
+    AssetSize (..),
+
+    -- * Locale
+    Locale (..),
+    parseLocale,
+    Language (..),
+    parseLanguage,
+    Country (..),
+    parseCountry,
+
+    -- * ManagedBy
+    ManagedBy (..),
+    defaultManagedBy,
+  )
+where
 
 import Control.Applicative (optional)
 import Control.Error (hush)
@@ -62,9 +83,6 @@ defaultAccentId = ColourId 0
 -----------------------------------------------------------------------------
 -- Asset
 
-data AssetSize = AssetComplete | AssetPreview
-  deriving (Eq, Show, Enum, Bounded, Generic)
-
 -- Note: Intended to be turned into a sum type to add further asset types.
 data Asset = ImageAsset
   { assetKey :: !Text,
@@ -72,16 +90,13 @@ data Asset = ImageAsset
   }
   deriving (Eq, Show, Generic)
 
-instance FromJSON AssetSize where
-  parseJSON = withText "AssetSize" $ \s ->
-    case s of
-      "preview" -> pure AssetPreview
-      "complete" -> pure AssetComplete
-      _ -> fail $ "Invalid asset size: " ++ show s
-
-instance ToJSON AssetSize where
-  toJSON AssetPreview = String "preview"
-  toJSON AssetComplete = String "complete"
+instance ToJSON Asset where
+  toJSON (ImageAsset k s) =
+    object $
+      "type" .= ("image" :: Text)
+        # "key" .= k
+        # "size" .= s
+        # []
 
 instance FromJSON Asset where
   parseJSON = withObject "Asset" $ \o -> do
@@ -92,41 +107,19 @@ instance FromJSON Asset where
       "image" -> pure (ImageAsset key siz)
       _ -> fail $ "Invalid asset type: " ++ show typ
 
-instance ToJSON Asset where
-  toJSON (ImageAsset k s) =
-    object $
-      "type" .= ("image" :: Text)
-        # "key" .= k
-        # "size" .= s
-        # []
+data AssetSize = AssetComplete | AssetPreview
+  deriving (Eq, Show, Enum, Bounded, Generic)
 
------------------------------------------------------------------------------
--- Language
+instance ToJSON AssetSize where
+  toJSON AssetPreview = String "preview"
+  toJSON AssetComplete = String "complete"
 
-newtype Language = Language {fromLanguage :: ISO639_1} deriving (Ord, Eq, Show, Generic)
-
-languageParser :: Parser Language
-languageParser = codeParser "language" $ fmap Language . checkAndConvert isLower
-
-lan2Text :: Language -> Text
-lan2Text = Text.toLower . Text.pack . show . fromLanguage
-
-parseLanguage :: Text -> Maybe Language
-parseLanguage = hush . parseOnly languageParser
-
------------------------------------------------------------------------------
--- Country
-
-newtype Country = Country {fromCountry :: CountryCode} deriving (Ord, Eq, Show, Generic)
-
-countryParser :: Parser Country
-countryParser = codeParser "country" $ fmap Country . checkAndConvert isUpper
-
-con2Text :: Country -> Text
-con2Text = Text.pack . show . fromCountry
-
-parseCountry :: Text -> Maybe Country
-parseCountry = hush . parseOnly countryParser
+instance FromJSON AssetSize where
+  parseJSON = withText "AssetSize" $ \s ->
+    case s of
+      "preview" -> pure AssetPreview
+      "complete" -> pure AssetComplete
+      _ -> fail $ "Invalid asset size: " ++ show s
 
 -----------------------------------------------------------------------------
 -- Locale
@@ -159,6 +152,39 @@ parseLocale = hush . parseOnly localeParser
     localeParser =
       Locale <$> (languageParser <?> "Language code")
         <*> (optional (char '-' *> countryParser) <?> "Country code")
+
+-----------------------------------------------------------------------------
+-- Language
+
+newtype Language = Language {fromLanguage :: ISO639_1}
+  deriving (Ord, Eq, Show, Generic)
+
+languageParser :: Parser Language
+languageParser = codeParser "language" $ fmap Language . checkAndConvert isLower
+
+lan2Text :: Language -> Text
+lan2Text = Text.toLower . Text.pack . show . fromLanguage
+
+parseLanguage :: Text -> Maybe Language
+parseLanguage = hush . parseOnly languageParser
+
+-----------------------------------------------------------------------------
+-- Country
+
+newtype Country = Country {fromCountry :: CountryCode}
+  deriving (Ord, Eq, Show, Generic)
+
+countryParser :: Parser Country
+countryParser = codeParser "country" $ fmap Country . checkAndConvert isUpper
+
+con2Text :: Country -> Text
+con2Text = Text.pack . show . fromCountry
+
+parseCountry :: Text -> Maybe Country
+parseCountry = hush . parseOnly countryParser
+
+--------------------------------------------------------------------------------
+-- helpers
 
 -- Common language / country functions
 checkAndConvert :: (Read a) => (Char -> Bool) -> String -> Maybe a
@@ -197,16 +223,16 @@ data ManagedBy
     ManagedByScim
   deriving (Eq, Show, Bounded, Enum, Generic)
 
+instance ToJSON ManagedBy where
+  toJSON = String . \case
+    ManagedByWire -> "wire"
+    ManagedByScim -> "scim"
+
 instance FromJSON ManagedBy where
   parseJSON = withText "ManagedBy" $ \case
     "wire" -> pure ManagedByWire
     "scim" -> pure ManagedByScim
     other -> fail $ "Invalid ManagedBy: " ++ show other
-
-instance ToJSON ManagedBy where
-  toJSON = String . \case
-    ManagedByWire -> "wire"
-    ManagedByScim -> "scim"
 
 defaultManagedBy :: ManagedBy
 defaultManagedBy = ManagedByWire
