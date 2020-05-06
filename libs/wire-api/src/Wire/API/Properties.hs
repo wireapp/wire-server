@@ -19,7 +19,14 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Properties where
+module Wire.API.Properties
+  ( PropertyKeysAndValues (..),
+    PropertyKey (..),
+    PropertyValue (..),
+
+    -- * Swagger
+  )
+where
 
 import Data.Aeson
 import Data.ByteString.Conversion
@@ -27,28 +34,20 @@ import Data.Hashable (Hashable)
 import Data.Text.Ascii
 import Imports
 
-newtype PropertyKey = PropertyKey
-  {propertyKeyName :: AsciiPrintable}
-  deriving
-    ( Eq,
-      Ord,
-      Show,
-      FromByteString,
-      ToByteString,
-      FromJSON,
-      ToJSON,
-      FromJSONKey,
-      ToJSONKey,
-      Generic,
-      Hashable
-    )
-
-newtype PropertyValue = PropertyValue
-  {propertyValueJson :: Value}
-  deriving (Eq, Show, FromJSON, ToJSON, Generic, Hashable)
-
 newtype PropertyKeysAndValues = PropertyKeysAndValues [(PropertyKey, PropertyValue)]
   deriving (Eq, Show, Generic, Hashable)
 
 instance ToJSON PropertyKeysAndValues where
   toJSON (PropertyKeysAndValues kvs) = object [toText k .= v | (PropertyKey k, v) <- kvs]
+
+newtype PropertyKey = PropertyKey
+  {propertyKeyName :: AsciiPrintable}
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (FromByteString, ToByteString, FromJSON, ToJSON, FromJSONKey, ToJSONKey)
+  deriving (Hashable) -- TODO: which strategy is used?
+
+newtype PropertyValue = PropertyValue
+  {propertyValueJson :: Value}
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (FromJSON, ToJSON)
+  deriving (Hashable) -- TODO: which strategy is used?
