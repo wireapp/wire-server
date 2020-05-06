@@ -41,8 +41,6 @@ brigModels =
     modelChangeLocale,
     modelChangeHandle,
     modelAsset,
-    modelUserHandleInfo,
-    modelCheckHandles,
     modelRichInfo,
     modelRichField,
     -- Account Activation
@@ -298,21 +296,6 @@ modelChangeHandle = Doc.defineModel "ChangeHandle" $ do
   Doc.description "Change the handle."
   Doc.property "handle" Doc.string' $
     Doc.description "Handle to set"
-
-modelUserHandleInfo :: Doc.Model
-modelUserHandleInfo = Doc.defineModel "UserHandleInfo" $ do
-  Doc.description "User handle info"
-  Doc.property "user" Doc.string' $
-    Doc.description "ID of the user owning the handle"
-
-modelCheckHandles :: Doc.Model
-modelCheckHandles = Doc.defineModel "CheckHandles" $ do
-  Doc.description "Check availability of user handles."
-  Doc.property "handles" (Doc.array Doc.string') $
-    Doc.description "The prioritised list of handles to check (up to 50)"
-  Doc.property "return" Doc.int32' $ do
-    Doc.description "Desired number of free handles to return (1 - 10). Default 1."
-    Doc.optional
 
 -------------------------------------------------------------------------------
 -- Activation Models

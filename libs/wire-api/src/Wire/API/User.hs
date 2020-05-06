@@ -97,45 +97,6 @@ instance FromJSON Pict where
 noPict :: Pict
 noPict = Pict []
 
---------------------------------------------------------------------------------
--- UserHandleInfo
-
-newtype UserHandleInfo = UserHandleInfo {userHandleId :: UserId}
-  deriving (Eq, Show, Generic)
-
-instance ToJSON UserHandleInfo where
-  toJSON (UserHandleInfo u) =
-    object
-      ["user" .= u]
-
-instance FromJSON UserHandleInfo where
-  parseJSON = withObject "UserHandleInfo" $ \o ->
-    UserHandleInfo <$> o .: "user"
-
---------------------------------------------------------------------------------
--- CheckHandles
-
--- | Check the availability of user handles.
-data CheckHandles = CheckHandles
-  { -- | Handles to check for availability, in ascending order of preference.
-    checkHandlesList :: Range 1 50 [Text],
-    -- | Number of free handles to return. Default 1.
-    checkHandlesNum :: Range 1 10 Word
-  }
-  deriving (Eq, Show, Generic)
-
-instance ToJSON CheckHandles where
-  toJSON (CheckHandles l n) =
-    object
-      [ "handles" .= l,
-        "return" .= n
-      ]
-
-instance FromJSON CheckHandles where
-  parseJSON = withObject "CheckHandles" $ \o ->
-    CheckHandles <$> o .: "handles"
-      <*> o .:? "return" .!= unsafeRange 1
-
 -----------------------------------------------------------------------------
 -- User Profiles
 

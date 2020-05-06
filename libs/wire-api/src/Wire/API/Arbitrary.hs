@@ -71,6 +71,7 @@ import Wire.API.Team.Role
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Client.Prekey
+import Wire.API.User.Handle
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 
