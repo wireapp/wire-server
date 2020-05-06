@@ -20,7 +20,29 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.User.Auth where
+module Wire.API.User.Auth
+  ( -- * Login
+    Login (..),
+    loginLabel,
+    LoginCode (..),
+    PendingLoginCode (..),
+    LoginCodeTimeout (..),
+    SendLoginCode (..),
+
+    -- * Cookies
+    CookieList (..),
+    Cookie (..),
+    CookieLabel (..),
+    RemoveCookies (..),
+
+    -- * Token
+    AccessToken (..),
+    bearerToken,
+    TokenType (..),
+
+    -- * Swagger
+  )
+where
 
 import Data.Aeson
 import qualified Data.Aeson.Types as Aeson
@@ -32,52 +54,37 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Text.Lazy.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Clock (UTCTime)
 import Imports
-import Wire.API.User.Identity
+import Wire.API.User.Identity (Email, Phone)
 
 -----------------------------------------------------------------------------
--- Login / Authentication
-
-data PendingLoginCode = PendingLoginCode
-  { pendingLoginCode :: !LoginCode,
-    pendingLoginTimeout :: !Code.Timeout
-  }
-  deriving (Eq)
-
--- | A single-use login code.
-newtype LoginCode = LoginCode
-  {fromLoginCode :: Text}
-  deriving (Eq, FromJSON, ToJSON)
-
--- | A request for sending a 'LoginCode'
-data SendLoginCode = SendLoginCode
-  { lcPhone :: !Phone,
-    lcCall :: !Bool,
-    lcForce :: !Bool
-  }
-
--- | A timeout for a new or pending login code.
-newtype LoginCodeTimeout = LoginCodeTimeout
-  {fromLoginCodeTimeout :: Code.Timeout}
-  deriving (Eq, Show)
+-- Login
 
 -- | Different kinds of logins.
 data Login
   = PasswordLogin !LoginId !PlainTextPassword !(Maybe CookieLabel)
   | SmsLogin !Phone !LoginCode !(Maybe CookieLabel)
 
--- | A special kind of login that is only used for an internal endpoint.
-data SsoLogin
-  = SsoLogin !UserId !(Maybe CookieLabel)
+instance ToJSON Login where
+  toJSON (SmsLogin p c l) = object ["phone" .= p, "code" .= c, "label" .= l]
+  toJSON (PasswordLogin login password label) =
+    object ["password" .= password, "label" .= label, loginIdPair login]
 
--- | A special kind of login that is only used for an internal endpoint.
--- This kind of login returns restricted 'LegalHoldUserToken's instead of regular
--- tokens.
-data LegalHoldLogin
-  = LegalHoldLogin !UserId !(Maybe PlainTextPassword) !(Maybe CookieLabel)
+instance FromJSON Login where
+  parseJSON = withObject "Login" $ \o -> do
+    passw <- o .:? "password"
+    case passw of
+      Nothing ->
+        SmsLogin <$> o .: "phone" <*> o .: "code" <*> o .:? "label"
+      Just pw -> do
+        loginId <- parseJSON (Object o)
+        PasswordLogin loginId pw <$> o .:? "label"
 
 loginLabel :: Login -> Maybe CookieLabel
 loginLabel (PasswordLogin _ _ l) = l
 loginLabel (SmsLogin _ _ l) = l
+
+-----------------------------------------------------------------------------
+-- LoginId
 
 data LoginId
   = LoginByEmail !Email
@@ -110,58 +117,56 @@ loginIdPair = \case
 instance ToJSON LoginId where
   toJSON loginId = object [loginIdPair loginId]
 
-instance FromJSON Login where
-  parseJSON = withObject "Login" $ \o -> do
-    passw <- o .:? "password"
-    case passw of
-      Nothing ->
-        SmsLogin <$> o .: "phone" <*> o .: "code" <*> o .:? "label"
-      Just pw -> do
-        loginId <- parseJSON (Object o)
-        PasswordLogin loginId pw <$> o .:? "label"
+-----------------------------------------------------------------------------
+-- LoginCode
 
-instance ToJSON Login where
-  toJSON (SmsLogin p c l) = object ["phone" .= p, "code" .= c, "label" .= l]
-  toJSON (PasswordLogin login password label) =
-    object ["password" .= password, "label" .= label, loginIdPair login]
+-- | A single-use login code.
+newtype LoginCode = LoginCode
+  {fromLoginCode :: Text}
+  deriving stock (Eq)
+  deriving newtype (FromJSON, ToJSON)
 
-instance FromJSON SsoLogin where
-  parseJSON = withObject "SsoLogin" $ \o ->
-    SsoLogin <$> o .: "user" <*> o .:? "label"
-
-instance ToJSON SsoLogin where
-  toJSON (SsoLogin uid label) =
-    object ["user" .= uid, "label" .= label]
-
-instance FromJSON LegalHoldLogin where
-  parseJSON = withObject "LegalHoldLogin" $ \o ->
-    LegalHoldLogin <$> o .: "user"
-      <*> o .:? "password"
-      <*> o .:? "label"
-
-instance ToJSON LegalHoldLogin where
-  toJSON (LegalHoldLogin uid password label) =
-    object
-      [ "user" .= uid,
-        "password" .= password,
-        "label" .= label
-      ]
-
-instance FromJSON PendingLoginCode where
-  parseJSON = withObject "PendingLoginCode" $ \o ->
-    PendingLoginCode <$> o .: "code"
-      <*> o .: "expires_in"
+-- | Used for internal endpoint only.
+data PendingLoginCode = PendingLoginCode
+  { pendingLoginCode :: !LoginCode,
+    pendingLoginTimeout :: !Code.Timeout
+  }
+  deriving (Eq)
 
 instance ToJSON PendingLoginCode where
   toJSON (PendingLoginCode c t) =
     object
       ["code" .= c, "expires_in" .= t]
 
-instance FromJSON SendLoginCode where
-  parseJSON = withObject "SendLoginCode" $ \o ->
-    SendLoginCode <$> o .: "phone"
-      <*> o .:? "voice_call" .!= False
-      <*> o .:? "force" .!= True
+instance FromJSON PendingLoginCode where
+  parseJSON = withObject "PendingLoginCode" $ \o ->
+    PendingLoginCode <$> o .: "code"
+      <*> o .: "expires_in"
+
+-----------------------------------------------------------------------------
+-- LoginCodeTimeout
+
+-- | A timeout for a new or pending login code.
+newtype LoginCodeTimeout = LoginCodeTimeout
+  {fromLoginCodeTimeout :: Code.Timeout}
+  deriving (Eq, Show)
+
+instance ToJSON LoginCodeTimeout where
+  toJSON (LoginCodeTimeout t) = object ["expires_in" .= t]
+
+instance FromJSON LoginCodeTimeout where
+  parseJSON = withObject "LoginCodeTimeout" $ \o ->
+    LoginCodeTimeout <$> o .: "expires_in"
+
+-----------------------------------------------------------------------------
+-- SendLoginCode
+
+-- | A request for sending a 'LoginCode'
+data SendLoginCode = SendLoginCode
+  { lcPhone :: !Phone,
+    lcCall :: !Bool,
+    lcForce :: !Bool
+  }
 
 instance ToJSON SendLoginCode where
   toJSON (SendLoginCode p c f) =
@@ -171,44 +176,60 @@ instance ToJSON SendLoginCode where
         "force" .= f
       ]
 
-instance FromJSON LoginCodeTimeout where
-  parseJSON = withObject "LoginCodeTimeout" $ \o ->
-    LoginCodeTimeout <$> o .: "expires_in"
+instance FromJSON SendLoginCode where
+  parseJSON = withObject "SendLoginCode" $ \o ->
+    SendLoginCode <$> o .: "phone"
+      <*> o .:? "voice_call" .!= False
+      <*> o .:? "force" .!= True
 
-instance ToJSON LoginCodeTimeout where
-  toJSON (LoginCodeTimeout t) = object ["expires_in" .= t]
+-----------------------------------------------------------------------------
+-- other Logins (TODO: remove?)
+
+-- | A special kind of login that is only used for an internal endpoint.
+data SsoLogin
+  = SsoLogin !UserId !(Maybe CookieLabel)
+
+instance ToJSON SsoLogin where
+  toJSON (SsoLogin uid label) =
+    object ["user" .= uid, "label" .= label]
+
+instance FromJSON SsoLogin where
+  parseJSON = withObject "SsoLogin" $ \o ->
+    SsoLogin <$> o .: "user" <*> o .:? "label"
+
+-- | A special kind of login that is only used for an internal endpoint.
+-- This kind of login returns restricted 'LegalHoldUserToken's instead of regular
+-- tokens.
+data LegalHoldLogin
+  = LegalHoldLogin !UserId !(Maybe PlainTextPassword) !(Maybe CookieLabel)
+
+instance ToJSON LegalHoldLogin where
+  toJSON (LegalHoldLogin uid password label) =
+    object
+      [ "user" .= uid,
+        "password" .= password,
+        "label" .= label
+      ]
+
+instance FromJSON LegalHoldLogin where
+  parseJSON = withObject "LegalHoldLogin" $ \o ->
+    LegalHoldLogin <$> o .: "user"
+      <*> o .:? "password"
+      <*> o .:? "label"
 
 --------------------------------------------------------------------------------
--- Cookies & Access Tokens
+-- Cookie
 
--- | A temporary API access token.
-data AccessToken = AccessToken
-  { user :: !UserId,
-    access :: !LByteString, -- accessTokenValue
-    tokenType :: !TokenType, -- accessTokenType
-    expiresIn :: !Integer -- accessTokenExpiresIn
+data CookieList = CookieList
+  { cookieList :: [Cookie ()]
   }
 
-data TokenType = Bearer deriving (Show)
+instance ToJSON CookieList where
+  toJSON c = object ["cookies" .= cookieList c]
 
-bearerToken :: UserId -> LByteString -> Integer -> AccessToken
-bearerToken u a = AccessToken u a Bearer
-
-data RemoveCookies = RemoveCookies
-  { rmCookiesPassword :: !PlainTextPassword,
-    rmCookiesLabels :: [CookieLabel],
-    rmCookiesIdents :: [CookieId]
-  }
-
--- | A device-specific identifying label for one or more cookies.
--- Cookies can be listed and deleted based on their labels.
-newtype CookieLabel = CookieLabel
-  {cookieLabelText :: Text}
-  deriving (Eq, Show, Ord, FromJSON, ToJSON, FromByteString, ToByteString, IsString, Generic)
-
-newtype CookieId = CookieId
-  {cookieIdNum :: Word32}
-  deriving (Eq, Show, FromJSON, ToJSON, Generic)
+instance FromJSON CookieList where
+  parseJSON = withObject "CookieList" $ \o ->
+    CookieList <$> o .: "cookies"
 
 -- | A (long-lived) cookie scoped to a specific user for obtaining new
 -- 'AccessToken's.
@@ -222,52 +243,6 @@ data Cookie a = Cookie
     cookieValue :: !a
   }
   deriving (Eq, Show, Generic)
-
-data CookieList = CookieList
-  { cookieList :: [Cookie ()]
-  }
-
-data CookieType
-  = -- | A session cookie. These are mainly intended for clients
-    -- that are web browsers. For other clients, session cookies
-    -- behave like regular persistent cookies except for the fact
-    -- that they are never renewed during a token refresh and that
-    -- they have a shorter lifetime.
-    SessionCookie
-  | -- | A regular persistent cookie that expires at a specific date.
-    -- These cookies are regularly renewed as part of an access token
-    -- refresh.
-    PersistentCookie
-  deriving (Eq, Show, Generic)
-
-instance ToJSON AccessToken where
-  toJSON (AccessToken u t tt e) =
-    object
-      [ "user" .= u,
-        "access_token" .= decodeUtf8 t,
-        "token_type" .= tt,
-        "expires_in" .= e
-      ]
-
-instance FromJSON AccessToken where
-  parseJSON = withObject "AccessToken" $ \o ->
-    AccessToken <$> o .: "user"
-      <*> (encodeUtf8 <$> o .: "access_token")
-      <*> o .: "token_type"
-      <*> o .: "expires_in"
-
-instance ToJSON TokenType where
-  toJSON Bearer = toJSON ("Bearer" :: Text)
-
-instance FromJSON TokenType where
-  parseJSON (String "Bearer") = return Bearer
-  parseJSON _ = fail "Invalid token type"
-
-instance FromJSON RemoveCookies where
-  parseJSON = withObject "remove" $ \o ->
-    RemoveCookies <$> o .: "password"
-      <*> o .:? "labels" .!= []
-      <*> o .:? "ids" .!= []
 
 instance ToJSON (Cookie ()) where
   toJSON c =
@@ -290,12 +265,29 @@ instance FromJSON (Cookie ()) where
       <*> o .:? "successor"
       <*> pure ()
 
-instance ToJSON CookieList where
-  toJSON c = object ["cookies" .= cookieList c]
+-- | A device-specific identifying label for one or more cookies.
+-- Cookies can be listed and deleted based on their labels.
+newtype CookieLabel = CookieLabel
+  {cookieLabelText :: Text}
+  deriving (Eq, Ord, Show, Generic)
+  deriving newtype (FromJSON, ToJSON, FromByteString, ToByteString, IsString)
 
-instance FromJSON CookieList where
-  parseJSON = withObject "CookieList" $ \o ->
-    CookieList <$> o .: "cookies"
+newtype CookieId = CookieId
+  {cookieIdNum :: Word32}
+  deriving (Eq, Show, FromJSON, ToJSON, Generic)
+
+data CookieType
+  = -- | A session cookie. These are mainly intended for clients
+    -- that are web browsers. For other clients, session cookies
+    -- behave like regular persistent cookies except for the fact
+    -- that they are never renewed during a token refresh and that
+    -- they have a shorter lifetime.
+    SessionCookie
+  | -- | A regular persistent cookie that expires at a specific date.
+    -- These cookies are regularly renewed as part of an access token
+    -- refresh.
+    PersistentCookie
+  deriving (Eq, Show, Generic)
 
 instance ToJSON CookieType where
   toJSON SessionCookie = "session"
@@ -305,3 +297,57 @@ instance FromJSON CookieType where
   parseJSON (String "session") = return SessionCookie
   parseJSON (String "persistent") = return PersistentCookie
   parseJSON _ = fail "Invalid cookie type"
+
+--------------------------------------------------------------------------------
+-- RemoveCookies
+
+data RemoveCookies = RemoveCookies
+  { rmCookiesPassword :: !PlainTextPassword,
+    rmCookiesLabels :: [CookieLabel],
+    rmCookiesIdents :: [CookieId]
+  }
+
+instance FromJSON RemoveCookies where
+  parseJSON = withObject "remove" $ \o ->
+    RemoveCookies <$> o .: "password"
+      <*> o .:? "labels" .!= []
+      <*> o .:? "ids" .!= []
+
+--------------------------------------------------------------------------------
+-- Cookies & Access Tokens
+
+-- | A temporary API access token.
+data AccessToken = AccessToken
+  { user :: !UserId,
+    access :: !LByteString, -- accessTokenValue
+    tokenType :: !TokenType, -- accessTokenType
+    expiresIn :: !Integer -- accessTokenExpiresIn
+  }
+
+bearerToken :: UserId -> LByteString -> Integer -> AccessToken
+bearerToken u a = AccessToken u a Bearer
+
+instance ToJSON AccessToken where
+  toJSON (AccessToken u t tt e) =
+    object
+      [ "user" .= u,
+        "access_token" .= decodeUtf8 t,
+        "token_type" .= tt,
+        "expires_in" .= e
+      ]
+
+instance FromJSON AccessToken where
+  parseJSON = withObject "AccessToken" $ \o ->
+    AccessToken <$> o .: "user"
+      <*> (encodeUtf8 <$> o .: "access_token")
+      <*> o .: "token_type"
+      <*> o .: "expires_in"
+
+data TokenType = Bearer deriving (Show)
+
+instance ToJSON TokenType where
+  toJSON Bearer = toJSON ("Bearer" :: Text)
+
+instance FromJSON TokenType where
+  parseJSON (String "Bearer") = return Bearer
+  parseJSON _ = fail "Invalid token type"
