@@ -20,7 +20,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Provider.Tag
+module Wire.API.Provider.Service.Tag
   ( -- * ServiceTag
     ServiceTag (..),
     ServiceTagList (..),
@@ -42,16 +42,13 @@ module Wire.API.Provider.Tag
   )
 where
 
-import Cassandra.CQL (Cql)
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
 import qualified Data.Aeson as JSON
-import Data.Bits ((.|.))
 import qualified Data.ByteString.Builder as BB
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
-import Data.List (foldl')
 import qualified Data.Range as Range
-import Data.Range (LTE, Range, fromRange, unsafeRange)
+import Data.Range (LTE, Range, fromRange)
 import qualified Data.Set as Set
 import Data.Singletons.TypeLits (Nat)
 import qualified Data.Text.Encoding as Text

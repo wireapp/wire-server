@@ -37,7 +37,7 @@ import Data.LegalHold
 import Data.Misc
 import Imports
 import Wire.API.Provider
-import Wire.API.Service (ServiceKeyPEM)
+import Wire.API.Provider.Service (ServiceKeyPEM)
 import Wire.API.User.Client.Prekey
 
 --------------------------------------------------------------------------------

@@ -19,7 +19,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Service
+module Wire.API.Provider.Service
   ( -- * ServiceRef
     ServiceRef (..),
     newServiceRef,
@@ -68,7 +68,7 @@ import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import qualified Data.Text.Encoding as Text
 import Imports
-import Wire.API.Provider.Tag (ServiceTag (..))
+import Wire.API.Provider.Service.Tag (ServiceTag (..))
 import Wire.API.User.Profile (Asset, Name)
 
 --------------------------------------------------------------------------------

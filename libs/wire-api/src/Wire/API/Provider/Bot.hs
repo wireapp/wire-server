@@ -19,7 +19,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Bot
+module Wire.API.Provider.Bot
   ( -- * Bot Views
     BotConvView,
     botConvView,
@@ -37,7 +37,6 @@ import Data.Id
 import Data.Json.Util ((#))
 import Imports
 import Wire.API.Conversation.Member (OtherMember (..))
-import Wire.API.Service (ServiceRef)
 import Wire.API.User.Profile (ColourId, Name)
 
 --------------------------------------------------------------------------------

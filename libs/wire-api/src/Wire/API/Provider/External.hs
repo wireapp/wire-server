@@ -27,7 +27,7 @@ import Data.Aeson
 import Data.Id
 import Data.Json.Util ((#))
 import Imports
-import Wire.API.Bot (BotConvView, BotUserView)
+import Wire.API.Provider.Bot (BotConvView, BotUserView)
 import Wire.API.User.Client.Prekey (LastPrekey, Prekey)
 import Wire.API.User.Profile (Asset, ColourId, Locale, Name)
 

@@ -50,7 +50,7 @@ import Data.Json.Util
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.API.Conversation.Role
-import Wire.API.Service (ServiceRef, modelServiceRef)
+import Wire.API.Provider.Service (ServiceRef, modelServiceRef)
 
 data ConvMembers = ConvMembers
   { cmSelf :: !Member,

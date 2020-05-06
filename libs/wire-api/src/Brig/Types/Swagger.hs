@@ -21,7 +21,7 @@ module Brig.Types.Swagger where
 
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
-import Wire.API.Service (modelServiceRef)
+import Wire.API.Provider.Service (modelServiceRef)
 import Wire.API.Team (modelNewBindingTeam)
 import Wire.API.Team.Role (typeRole)
 import Wire.Swagger
