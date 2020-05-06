@@ -30,6 +30,7 @@ import qualified Wire.API.Conversation.Typing as Conversation.Typing
 import qualified Wire.API.CustomBackend as CustomBackend
 import qualified Wire.API.Message as Message
 import qualified Wire.API.Notification as Notification
+import qualified Wire.API.Properties as Properties
 import qualified Wire.API.Push.Token as Push.Token
 import qualified Wire.API.Team as Team
 import qualified Wire.API.Team.Conversation as Team.Conversation
@@ -71,6 +72,8 @@ models =
     Notification.modelEvent,
     Notification.modelNotification,
     Notification.modelNotificationList,
+    Properties.modelPropertyValue,
+    Properties.modelPropertyDictionary,
     Push.Token.modelPushToken,
     Push.Token.modelPushTokenList,
     Team.Feature.modelLegalHoldTeamConfig,

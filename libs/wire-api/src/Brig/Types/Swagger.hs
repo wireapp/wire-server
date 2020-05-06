@@ -31,10 +31,7 @@ brigModels =
     modelDelete,
     modelVerifyDelete,
     -- Login / Authentication
-    modelPendingLoginError, -- TODO: couldn't find a corresponding type
-    -- Properties
-    modelPropertyValue,
-    modelPropertyDictionary
+    modelPendingLoginError -- TODO: couldn't find a corresponding type
   ]
 
 -------------------------------------------------------------------------------
@@ -74,16 +71,3 @@ modelAccessToken = Doc.defineModel "AccessToken" $ do
     Doc.description "The type of the access token."
   Doc.property "expires_in" Doc.int64' $
     Doc.description "The number of seconds this token is valid."
-
------------------------------------------------------------------------------
--- Properties
-
-modelPropertyValue :: Doc.Model
-modelPropertyValue =
-  Doc.defineModel "PropertyValue" $
-    Doc.description "A property value is any valid JSON value."
-
-modelPropertyDictionary :: Doc.Model
-modelPropertyDictionary =
-  Doc.defineModel "PropertyDictionary" $
-    Doc.description "A JSON object with properties as attribute/value pairs."

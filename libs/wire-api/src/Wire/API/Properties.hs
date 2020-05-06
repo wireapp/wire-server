@@ -25,17 +25,25 @@ module Wire.API.Properties
     PropertyValue (..),
 
     -- * Swagger
+    modelPropertyValue,
+    modelPropertyDictionary,
   )
 where
 
 import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Hashable (Hashable)
+import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import Imports
 
 newtype PropertyKeysAndValues = PropertyKeysAndValues [(PropertyKey, PropertyValue)]
   deriving (Eq, Show, Generic, Hashable)
+
+modelPropertyDictionary :: Doc.Model
+modelPropertyDictionary =
+  Doc.defineModel "PropertyDictionary" $
+    Doc.description "A JSON object with properties as attribute/value pairs."
 
 instance ToJSON PropertyKeysAndValues where
   toJSON (PropertyKeysAndValues kvs) = object [toText k .= v | (PropertyKey k, v) <- kvs]
@@ -51,3 +59,8 @@ newtype PropertyValue = PropertyValue
   deriving stock (Eq, Show, Generic)
   deriving newtype (FromJSON, ToJSON)
   deriving (Hashable) -- TODO: which strategy is used?
+
+modelPropertyValue :: Doc.Model
+modelPropertyValue =
+  Doc.defineModel "PropertyValue" $
+    Doc.description "A property value is any valid JSON value."
