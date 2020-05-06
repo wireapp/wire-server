@@ -25,14 +25,13 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.User.RichInfo
-  ( richInfoMapURN,
-    richInfoAssocListURN,
-
-    -- * RichInfo
+  ( -- * RichInfo
     RichInfo (..),
     toRichInfoAssocList,
     richInfoMapSize,
     normalizeRichInfo,
+    richInfoMapURN,
+    richInfoAssocListURN,
 
     -- * RichInfoAssocList
     RichInfoAssocList (..),
@@ -61,11 +60,6 @@ import qualified Data.Map as Map
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Imports
-
--- TODO: do they belong into Spar?
-richInfoMapURN, richInfoAssocListURN :: Text
-richInfoMapURN = "urn:ietf:params:scim:schemas:extension:wire:1.0:User"
-richInfoAssocListURN = "urn:wire:scim:schemas:profile:1.0"
 
 ----------------------------------------------------------------------------
 -- RichInfo
@@ -142,6 +136,11 @@ toRichInfoAssocList (RichInfo mp al) = RichInfoAssocList . nubrf $ toal mp <> al
     nubrf = nubBy ((==) `on` \(RichField k _) -> CI.mk k)
     toal :: Map (CI Text) Text -> [RichField]
     toal = map (\(k, v) -> RichField k v) . Map.toAscList
+
+-- | Uniform Resource Names used for serialization of 'RichInfo'.
+richInfoMapURN, richInfoAssocListURN :: Text
+richInfoMapURN = "urn:ietf:params:scim:schemas:extension:wire:1.0:User"
+richInfoAssocListURN = "urn:wire:scim:schemas:profile:1.0"
 
 ----------------------------------------------------------------------------
 -- RichInfoAssocList

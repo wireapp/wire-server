@@ -28,7 +28,6 @@ module Wire.API.Conversation
   ( -- * Conversation
     Conversation (..),
     ConversationList (..),
-    -- ConversationIdList TODO
 
     -- * Conversation properties
     Access (..),

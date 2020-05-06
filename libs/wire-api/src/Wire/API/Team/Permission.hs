@@ -184,7 +184,6 @@ intToPerm _ = Nothing
 
 makeLenses ''Permissions
 
--- TODO: remove?
 instance Cql.Cql Permissions where
   ctype = Cql.Tagged $ Cql.UdtColumn "permissions" [("self", Cql.BigIntColumn), ("copy", Cql.BigIntColumn)]
 

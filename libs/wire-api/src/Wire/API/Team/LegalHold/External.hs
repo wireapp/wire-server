@@ -18,7 +18,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- | TODO: explain
+-- | Types used by the Wire server for outbound requests to a LegalHold service.
 module Wire.API.Team.LegalHold.External
   ( -- * initiate
     RequestNewLegalHoldClient (..),

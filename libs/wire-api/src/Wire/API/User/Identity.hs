@@ -185,9 +185,6 @@ isValidPhone = either (const False) (const True) . parseOnly e164
 -- Morally this is the same thing as 'SAML.UserRef', but we forget the
 -- structure -- i.e. we just store XML-encoded SAML blobs. If the structure
 -- of those blobs changes, Brig won't have to deal with it, only Spar will.
---
--- TODO: once we have @/libs/spar-types@ for the wire-sso-sp-server called spar, this type should
--- move there.
 data UserSSOId = UserSSOId
   { -- | An XML blob pointing to the identity provider that can confirm
     -- user's identity.
