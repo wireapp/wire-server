@@ -25,13 +25,21 @@ module Wire.API.User.Client
     UserClients (..),
     filterClients,
 
+    -- * Client
+    Client (..),
+    PubClient (..),
+
+    -- * New/Update/Remove Client
+    NewClient (..),
+    newClient,
+    UpdateClient (..),
+    RmClient (..),
+
     -- * Swagger
     modelOtrClientMap,
     modelUserClients,
 
     -- * re-exports
-    module Prekey,
-    module Wire.API.User.Client, -- TODO
   )
 where
 
@@ -48,6 +56,9 @@ import Imports
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Client.Prekey as Prekey
 import Wire.API.User.Profile ()
+
+--------------------------------------------------------------------------------
+-- UserClientMap
 
 newtype UserClientMap a = UserClientMap
   { userClientMap :: Map OpaqueUserId (Map ClientId a)
@@ -84,6 +95,9 @@ instance FromJSON a => FromJSON (UserClientMap a) where
         t <- parseJSON v
         return (Map.insert c t m)
 
+--------------------------------------------------------------------------------
+-- UserClients
+
 newtype UserClients = UserClients
   { userClients :: Map OpaqueUserId (Set ClientId)
   }
@@ -109,63 +123,11 @@ instance FromJSON UserClients where
     where
       fn (k, v) m = Map.insert <$> parseJSON (String k) <*> parseJSON v <*> pure m
 
--- TODO: internal?
 filterClients :: (Set ClientId -> Bool) -> UserClients -> UserClients
 filterClients p (UserClients c) = UserClients $ Map.filter p c
 
--- [Note: LegalHold]
---
--- Short feature description:
--- LegalHold is an enterprise feature, enabled on a per-team basis, and within a
--- team on a per-user basis
-
--- * A LegalHoldClient is a client outside that user's control (but under the
---   control of that team's business)
-
--- * Users need to click "accept" before a LegalHoldClient is added to their
---   account.
-
--- * Any user interacting with a user which has a LegalHoldClient will upon
---   first interaction receive a warning, have the option of cancelling the
---   interation, and on an ongoing basis see a visual indication in all
---   conversations where such a device is active.
-
-data ClientType
-  = TemporaryClientType
-  | PermanentClientType
-  | LegalHoldClientType -- see Note [LegalHold]
-  deriving (Eq, Ord, Show)
-
-data ClientClass
-  = PhoneClient
-  | TabletClient
-  | DesktopClient
-  | LegalHoldClient -- see Note [LegalHold]
-  deriving (Eq, Ord, Show)
-
-data NewClient = NewClient
-  { newClientPrekeys :: [Prekey],
-    newClientLastKey :: !LastPrekey,
-    newClientType :: !ClientType,
-    newClientLabel :: !(Maybe Text),
-    newClientClass :: !(Maybe ClientClass),
-    newClientCookie :: !(Maybe CookieLabel),
-    newClientPassword :: !(Maybe PlainTextPassword),
-    newClientModel :: !(Maybe Text)
-  }
-
-newClient :: ClientType -> LastPrekey -> NewClient
-newClient t k =
-  NewClient
-    { newClientPrekeys = [],
-      newClientLastKey = k,
-      newClientType = t,
-      newClientLabel = Nothing,
-      newClientClass = if t == LegalHoldClientType then Just LegalHoldClient else Nothing,
-      newClientCookie = Nothing,
-      newClientPassword = Nothing,
-      newClientModel = Nothing
-    }
+--------------------------------------------------------------------------------
+-- Client
 
 data Client = Client
   { clientId :: !ClientId,
@@ -178,26 +140,6 @@ data Client = Client
     clientModel :: !(Maybe Text)
   }
   deriving (Eq, Show, Generic)
-
-data PubClient = PubClient
-  { pubClientId :: !ClientId,
-    pubClientClass :: !(Maybe ClientClass)
-  }
-  deriving (Eq, Show, Generic)
-
-newtype RmClient = RmClient
-  { rmPassword :: Maybe PlainTextPassword
-  }
-  deriving (Generic)
-
-data UpdateClient = UpdateClient
-  { updateClientPrekeys :: ![Prekey],
-    updateClientLastKey :: !(Maybe LastPrekey),
-    updateClientLabel :: !(Maybe Text)
-  }
-  deriving (Generic)
-
--- * JSON instances:
 
 instance ToJSON Client where
   toJSON c =
@@ -223,6 +165,12 @@ instance FromJSON Client where
       <*> o .:? "location"
       <*> o .:? "model"
 
+data PubClient = PubClient
+  { pubClientId :: !ClientId,
+    pubClientClass :: !(Maybe ClientClass)
+  }
+  deriving (Eq, Show, Generic)
+
 instance ToJSON PubClient where
   toJSON c =
     object $
@@ -235,6 +183,32 @@ instance FromJSON PubClient where
     PubClient <$> o .: "id"
       <*> o .:? "class"
 
+--------------------------------------------------------------------------------
+-- Client Type/Class
+
+-- [Note: LegalHold]
+--
+-- Short feature description:
+-- LegalHold is an enterprise feature, enabled on a per-team basis, and within a
+-- team on a per-user basis
+
+-- * A LegalHoldClient is a client outside that user's control (but under the
+--   control of that team's business)
+
+-- * Users need to click "accept" before a LegalHoldClient is added to their
+--   account.
+
+-- * Any user interacting with a user which has a LegalHoldClient will upon
+--   first interaction receive a warning, have the option of cancelling the
+--   interation, and on an ongoing basis see a visual indication in all
+--   conversations where such a device is active.
+
+data ClientType
+  = TemporaryClientType
+  | PermanentClientType
+  | LegalHoldClientType -- see Note [LegalHold]
+  deriving (Eq, Ord, Show)
+
 instance ToJSON ClientType where
   toJSON TemporaryClientType = String "temporary"
   toJSON PermanentClientType = String "permanent"
@@ -246,6 +220,13 @@ instance FromJSON ClientType where
     "permanent" -> return PermanentClientType
     "legalhold" -> return LegalHoldClientType
     _ -> fail "Must be one of {'temporary', 'permanent', 'legalhold'}."
+
+data ClientClass
+  = PhoneClient
+  | TabletClient
+  | DesktopClient
+  | LegalHoldClient -- see Note [LegalHold]
+  deriving (Eq, Ord, Show)
 
 instance ToJSON ClientClass where
   toJSON PhoneClient = String "phone"
@@ -260,6 +241,33 @@ instance FromJSON ClientClass where
     "desktop" -> return DesktopClient
     "legalhold" -> return LegalHoldClient
     _ -> fail "Must be one of {'phone', 'tablet', 'desktop', 'legalhold'}."
+
+--------------------------------------------------------------------------------
+-- NewClient
+
+data NewClient = NewClient
+  { newClientPrekeys :: [Prekey],
+    newClientLastKey :: !LastPrekey,
+    newClientType :: !ClientType,
+    newClientLabel :: !(Maybe Text),
+    newClientClass :: !(Maybe ClientClass),
+    newClientCookie :: !(Maybe CookieLabel),
+    newClientPassword :: !(Maybe PlainTextPassword),
+    newClientModel :: !(Maybe Text)
+  }
+
+newClient :: ClientType -> LastPrekey -> NewClient
+newClient t k =
+  NewClient
+    { newClientPrekeys = [],
+      newClientLastKey = k,
+      newClientType = t,
+      newClientLabel = Nothing,
+      newClientClass = if t == LegalHoldClientType then Just LegalHoldClient else Nothing,
+      newClientCookie = Nothing,
+      newClientPassword = Nothing,
+      newClientModel = Nothing
+    }
 
 instance ToJSON NewClient where
   toJSON c =
@@ -285,12 +293,15 @@ instance FromJSON NewClient where
       <*> o .:? "password"
       <*> o .:? "model"
 
-instance ToJSON RmClient where
-  toJSON (RmClient pw) = object ["password" .= pw]
+--------------------------------------------------------------------------------
+-- UpdateClient
 
-instance FromJSON RmClient where
-  parseJSON = withObject "RmClient" $ \o ->
-    RmClient <$> o .:? "password"
+data UpdateClient = UpdateClient
+  { updateClientPrekeys :: ![Prekey],
+    updateClientLastKey :: !(Maybe LastPrekey),
+    updateClientLabel :: !(Maybe Text)
+  }
+  deriving (Generic)
 
 instance ToJSON UpdateClient where
   toJSON c =
@@ -305,3 +316,18 @@ instance FromJSON UpdateClient where
     UpdateClient <$> o .:? "prekeys" .!= []
       <*> o .:? "lastkey"
       <*> o .:? "label"
+
+--------------------------------------------------------------------------------
+-- RmClient
+
+newtype RmClient = RmClient
+  { rmPassword :: Maybe PlainTextPassword
+  }
+  deriving (Generic)
+
+instance ToJSON RmClient where
+  toJSON (RmClient pw) = object ["password" .= pw]
+
+instance FromJSON RmClient where
+  parseJSON = withObject "RmClient" $ \o ->
+    RmClient <$> o .:? "password"
