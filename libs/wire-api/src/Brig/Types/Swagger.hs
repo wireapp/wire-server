@@ -26,9 +26,6 @@ import Wire.Swagger (errorProperties)
 brigModels :: [Doc.Model]
 brigModels =
   [ -- Account Activation
-    modelActivate,
-    modelSendActivationCode,
-    modelActivationResponse,
     modelAccessToken,
     -- Account Deletion
     modelDelete,
@@ -39,66 +36,6 @@ brigModels =
     modelPropertyValue,
     modelPropertyDictionary
   ]
-
--------------------------------------------------------------------------------
--- Activation Models
-
-modelActivate :: Doc.Model
-modelActivate = Doc.defineModel "Activate" $ do
-  Doc.description "Data for an activation request."
-  Doc.property "key" Doc.string' $ do
-    Doc.description "An opaque key to activate, as it was sent by the API."
-    Doc.optional
-  Doc.property "email" Doc.string' $ do
-    Doc.description "A known email address to activate."
-    Doc.optional
-  Doc.property "phone" Doc.string' $ do
-    Doc.description "A known phone number to activate."
-    Doc.optional
-  Doc.property "code" Doc.string' $
-    Doc.description "The activation code."
-  Doc.property "label" Doc.string' $ do
-    Doc.description
-      "An optional label to associate with the access cookie, \
-      \if one is granted during account activation."
-    Doc.optional
-  Doc.property "dryrun" Doc.bool' $ do
-    Doc.description
-      "Whether to perform a dryrun, i.e. to only check whether \
-      \activation would succeed. Dry-runs never issue access \
-      \cookies or tokens on success but failures still count \
-      \towards the maximum failure count."
-    Doc.optional
-
-modelSendActivationCode :: Doc.Model
-modelSendActivationCode = Doc.defineModel "SendActivationCode" $ do
-  Doc.description
-    "Data for requesting an email or phone activation code to be sent. \
-    \One of 'email' or 'phone' must be present."
-  Doc.property "email" Doc.string' $ do
-    Doc.description "Email address to send the code to."
-    Doc.optional
-  Doc.property "phone" Doc.string' $ do
-    Doc.description "E.164 phone number to send the code to."
-    Doc.optional
-  Doc.property "locale" Doc.string' $ do
-    Doc.description "Locale to use for the activation code template."
-    Doc.optional
-  Doc.property "voice_call" Doc.bool' $ do
-    Doc.description "Request the code with a call instead (default is SMS)."
-    Doc.optional
-
-modelActivationResponse :: Doc.Model
-modelActivationResponse = Doc.defineModel "ActivationResponse" $ do
-  Doc.description "Response body of a successful activation request"
-  Doc.property "email" Doc.string' $ do
-    Doc.description "The email address that was activated."
-    Doc.optional
-  Doc.property "phone" Doc.string' $ do
-    Doc.description "The phone number that was activated."
-    Doc.optional
-  Doc.property "first" Doc.bool' $
-    Doc.description "Whether this is the first successful activation (i.e. account activation)."
 
 -------------------------------------------------------------------------------
 -- Deletion Models

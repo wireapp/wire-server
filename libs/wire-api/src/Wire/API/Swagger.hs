@@ -39,6 +39,7 @@ import qualified Wire.API.Team.Invitation as Team.Invitation
 import qualified Wire.API.Team.Member as Team.Member
 import qualified Wire.API.Team.Permission as Team.Permission
 import qualified Wire.API.User as User
+import qualified Wire.API.User.Activation as User.Activation
 import qualified Wire.API.User.Auth as User.Auth
 import qualified Wire.API.User.Client as User.Client
 import qualified Wire.API.User.Password as User.Password
@@ -100,6 +101,9 @@ models =
     User.modelEmailUpdate,
     User.modelPhoneUpdate,
     User.modelChangeHandle,
+    User.Activation.modelActivate,
+    User.Activation.modelSendActivationCode,
+    User.Activation.modelActivationResponse,
     User.Auth.modelSendLoginCode,
     User.Auth.modelLoginCodeResponse,
     User.Auth.modelLogin,
