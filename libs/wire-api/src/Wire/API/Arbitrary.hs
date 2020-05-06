@@ -139,16 +139,6 @@ instance Arbitrary Phone where
     maxi <- mkdigits =<< choose (0, 7)
     pure $ '+' : mini <> maxi
 
-instance Arbitrary PhonePrefix where
-  arbitrary = PhonePrefix . ST.pack <$> do
-    let mkdigits n = replicateM n (elements ['0' .. '9'])
-    mini <- mkdigits 1
-    maxi <- mkdigits =<< choose (0, 14)
-    pure $ '+' : mini <> maxi
-
-instance Arbitrary ExcludedPrefix where
-  arbitrary = ExcludedPrefix <$> arbitrary <*> arbitrary
-
 instance Arbitrary UserIdentity where
   arbitrary =
     oneof

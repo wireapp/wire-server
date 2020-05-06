@@ -128,20 +128,6 @@ instance FromByteString Phone where
 instance ToByteString Phone where
   builder = builder . fromPhone
 
--- | If the budget for SMS and voice calls for a phone number
--- has been exhausted within a certain time frame, this timeout
--- indicates in seconds when another attempt may be made.
-newtype PhoneBudgetTimeout = PhoneBudgetTimeout
-  {phoneBudgetTimeout :: NominalDiffTime}
-  deriving (Eq, Show, Generic)
-
-instance FromJSON PhoneBudgetTimeout where
-  parseJSON = withObject "PhoneBudgetTimeout" $ \o ->
-    PhoneBudgetTimeout <$> o .: "expires_in"
-
-instance ToJSON PhoneBudgetTimeout where
-  toJSON (PhoneBudgetTimeout t) = object ["expires_in" .= t]
-
 -----------------------------------------------------------------------------
 -- PhonePrefix (for excluding from SMS/calling)
 

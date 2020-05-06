@@ -22,7 +22,26 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.User.Identity where
+module Wire.API.User.Identity
+  ( -- * UserIdentity
+    UserIdentity (..),
+    newIdentity,
+    emailIdentity,
+    phoneIdentity,
+    ssoIdentity,
+
+    -- * Email
+    Email (..),
+
+    -- * Phone
+    Phone (..),
+
+    -- * UserSSOId
+    UserSSOId (..),
+
+    -- * Swagger
+  )
+where
 
 import Control.Applicative (optional)
 import Data.Aeson hiding ((<?>))
@@ -31,141 +50,6 @@ import Data.ByteString.Conversion
 import qualified Data.Text as Text
 import Data.Time.Clock
 import Imports
-
------------------------------------------------------------------------------
--- Email
-
--- FUTUREWORK: replace this type with 'EmailAddress'
-data Email = Email
-  { emailLocal :: !Text,
-    emailDomain :: !Text
-  }
-  deriving (Eq, Ord, Generic)
-
-instance Show Email where
-  show = Text.unpack . fromEmail
-
-instance FromByteString Email where
-  parser = parser >>= maybe (fail "Invalid email") return . parseEmail
-
-instance ToByteString Email where
-  builder = builder . fromEmail
-
-instance FromJSON Email where
-  parseJSON =
-    withText "email" $
-      maybe (fail "Invalid email. Expected '<local>@<domain>'.") return
-        . parseEmail
-
-instance ToJSON Email where
-  toJSON = String . fromEmail
-
-fromEmail :: Email -> Text
-fromEmail (Email loc dom) = loc <> "@" <> dom
-
--- | Parses an email address of the form <local-part>@<domain>.
-parseEmail :: Text -> Maybe Email
-parseEmail t = case Text.split (== '@') t of
-  [localPart, domain] -> Just $! Email localPart domain
-  _ -> Nothing
-
------------------------------------------------------------------------------
--- Phone
-
-newtype Phone = Phone {fromPhone :: Text} deriving (Eq, Show, ToJSON, Generic)
-
--- | Parses a phone number in E.164 format with a mandatory leading '+'.
-parsePhone :: Text -> Maybe Phone
-parsePhone p
-  | isValidPhone p = Just $! Phone p
-  | otherwise = Nothing
-
--- | Checks whether a phone number is valid, i.e. it is in E.164 format
--- with a mandatory leading '+' followed by 10-15 digits.
-isValidPhone :: Text -> Bool
-isValidPhone = either (const False) (const True) . parseOnly e164
-  where
-    e164 = char '+' *> count 8 digit *> count 7 (optional digit) *> endOfInput
-
-instance FromJSON Phone where
-  parseJSON (String s) = case parsePhone s of
-    Just p -> return p
-    Nothing -> fail "Invalid phone number. Expected E.164 format."
-  parseJSON _ = mempty
-
-instance FromByteString Phone where
-  parser = parser >>= maybe (fail "Invalid phone") return . parsePhone
-
-instance ToByteString Phone where
-  builder = builder . fromPhone
-
--- | If the budget for SMS and voice calls for a phone number
--- has been exhausted within a certain time frame, this timeout
--- indicates in seconds when another attempt may be made.
-newtype PhoneBudgetTimeout = PhoneBudgetTimeout
-  {phoneBudgetTimeout :: NominalDiffTime}
-  deriving (Eq, Show, Generic)
-
-instance FromJSON PhoneBudgetTimeout where
-  parseJSON = withObject "PhoneBudgetTimeout" $ \o ->
-    PhoneBudgetTimeout <$> o .: "expires_in"
-
-instance ToJSON PhoneBudgetTimeout where
-  toJSON (PhoneBudgetTimeout t) = object ["expires_in" .= t]
-
------------------------------------------------------------------------------
--- PhonePrefix (for excluding from SMS/calling)
-
-newtype PhonePrefix = PhonePrefix {fromPhonePrefix :: Text} deriving (Eq, Show, ToJSON, Generic)
-
--- | Parses a phone number prefix with a mandatory leading '+'.
-parsePhonePrefix :: Text -> Maybe PhonePrefix
-parsePhonePrefix p
-  | isValidPhonePrefix p = Just $ PhonePrefix p
-  | otherwise = Nothing
-
--- | Checks whether a phone number prefix is valid,
--- i.e. it is like a E.164 format phone number, but shorter
--- (with a mandatory leading '+', followed by 1-15 digits.)
-isValidPhonePrefix :: Text -> Bool
-isValidPhonePrefix = isRight . parseOnly e164Prefix
-  where
-    e164Prefix = char '+' *> count 1 digit *> count 14 (optional digit) *> endOfInput
-
--- | get all valid prefixes of a phone number or phone number prefix
--- e.g. from +123456789 get prefixes ["+1", "+12", "+123", ..., "+123456789" ]
-allPrefixes :: Text -> [PhonePrefix]
-allPrefixes t = catMaybes $ parsePhonePrefix <$> Text.inits t
-
-instance FromJSON PhonePrefix where
-  parseJSON = withText "PhonePrefix" $ \s ->
-    case parsePhonePrefix s of
-      Just p -> return p
-      Nothing ->
-        fail $
-          "Invalid phone number prefix: [" ++ show s
-            ++ "]. Expected format similar to E.164 (with 1-15 digits after the +)."
-
-instance FromByteString PhonePrefix where
-  parser = parser >>= maybe (fail "Invalid phone") return . parsePhonePrefix
-
-instance ToByteString PhonePrefix where
-  builder = builder . fromPhonePrefix
-
-data ExcludedPrefix = ExcludedPrefix
-  { phonePrefix :: PhonePrefix,
-    comment :: Text
-  }
-  deriving (Eq, Show, Generic)
-
-instance FromJSON ExcludedPrefix where
-  parseJSON = withObject "ExcludedPrefix" $ \o ->
-    ExcludedPrefix
-      <$> o .: "phone_prefix"
-      <*> o .: "comment"
-
-instance ToJSON ExcludedPrefix where
-  toJSON (ExcludedPrefix p c) = object ["phone_prefix" .= p, "comment" .= c]
 
 -----------------------------------------------------------------------------
 -- UserIdentity
@@ -179,16 +63,6 @@ data UserIdentity
   | SSOIdentity !UserSSOId !(Maybe Email) !(Maybe Phone)
   deriving (Eq, Show, Generic)
 
-instance FromJSON UserIdentity where
-  parseJSON = withObject "UserIdentity" $ \o -> do
-    email <- o .:? "email"
-    phone <- o .:? "phone"
-    ssoid <- o .:? "sso_id"
-    maybe
-      (fail "Missing 'email' or 'phone' or 'sso_id'.")
-      return
-      (newIdentity email phone ssoid)
-
 instance ToJSON UserIdentity where
   toJSON = \case
     FullIdentity em ph -> go (Just em) (Just ph) Nothing
@@ -198,6 +72,16 @@ instance ToJSON UserIdentity where
     where
       go :: Maybe Email -> Maybe Phone -> Maybe UserSSOId -> Value
       go em ph si = object ["email" .= em, "phone" .= ph, "sso_id" .= si]
+
+instance FromJSON UserIdentity where
+  parseJSON = withObject "UserIdentity" $ \o -> do
+    email <- o .:? "email"
+    phone <- o .:? "phone"
+    ssoid <- o .:? "sso_id"
+    maybe
+      (fail "Missing 'email' or 'phone' or 'sso_id'.")
+      return
+      (newIdentity email phone ssoid)
 
 newIdentity :: Maybe Email -> Maybe Phone -> Maybe UserSSOId -> Maybe UserIdentity
 newIdentity email phone (Just sso) = Just $! SSOIdentity sso email phone
@@ -224,6 +108,78 @@ ssoIdentity :: UserIdentity -> Maybe UserSSOId
 ssoIdentity (SSOIdentity ssoid _ _) = Just ssoid
 ssoIdentity _ = Nothing
 
+-----------------------------------------------------------------------------
+-- Email
+
+-- FUTUREWORK: replace this type with 'EmailAddress'
+data Email = Email
+  { emailLocal :: !Text,
+    emailDomain :: !Text
+  }
+  deriving (Eq, Ord, Generic)
+
+instance Show Email where
+  show = Text.unpack . fromEmail
+
+instance ToByteString Email where
+  builder = builder . fromEmail
+
+instance FromByteString Email where
+  parser = parser >>= maybe (fail "Invalid email") return . parseEmail
+
+instance ToJSON Email where
+  toJSON = String . fromEmail
+
+instance FromJSON Email where
+  parseJSON =
+    withText "email" $
+      maybe (fail "Invalid email. Expected '<local>@<domain>'.") return
+        . parseEmail
+
+fromEmail :: Email -> Text
+fromEmail (Email loc dom) = loc <> "@" <> dom
+
+-- | Parses an email address of the form <local-part>@<domain>.
+parseEmail :: Text -> Maybe Email
+parseEmail t = case Text.split (== '@') t of
+  [localPart, domain] -> Just $! Email localPart domain
+  _ -> Nothing
+
+-----------------------------------------------------------------------------
+-- Phone
+
+newtype Phone = Phone {fromPhone :: Text}
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (ToJSON)
+
+instance FromJSON Phone where
+  parseJSON (String s) = case parsePhone s of
+    Just p -> return p
+    Nothing -> fail "Invalid phone number. Expected E.164 format."
+  parseJSON _ = mempty
+
+instance ToByteString Phone where
+  builder = builder . fromPhone
+
+instance FromByteString Phone where
+  parser = parser >>= maybe (fail "Invalid phone") return . parsePhone
+
+-- | Parses a phone number in E.164 format with a mandatory leading '+'.
+parsePhone :: Text -> Maybe Phone
+parsePhone p
+  | isValidPhone p = Just $! Phone p
+  | otherwise = Nothing
+
+-- | Checks whether a phone number is valid, i.e. it is in E.164 format
+-- with a mandatory leading '+' followed by 10-15 digits.
+isValidPhone :: Text -> Bool
+isValidPhone = either (const False) (const True) . parseOnly e164
+  where
+    e164 = char '+' *> count 8 digit *> count 7 (optional digit) *> endOfInput
+
+--------------------------------------------------------------------------------
+-- UserSSOId
+
 -- | User's external identity.
 --
 -- Morally this is the same thing as 'SAML.UserRef', but we forget the
@@ -241,11 +197,25 @@ data UserSSOId = UserSSOId
   }
   deriving (Eq, Show, Generic)
 
+instance ToJSON UserSSOId where
+  toJSON (UserSSOId tenant subject) = object ["tenant" .= tenant, "subject" .= subject]
+
 instance FromJSON UserSSOId where
   parseJSON = withObject "UserSSOId" $ \obj ->
     UserSSOId
       <$> obj .: "tenant"
       <*> obj .: "subject"
 
-instance ToJSON UserSSOId where
-  toJSON (UserSSOId tenant subject) = object ["tenant" .= tenant, "subject" .= subject]
+-- | If the budget for SMS and voice calls for a phone number
+-- has been exhausted within a certain time frame, this timeout
+-- indicates in seconds when another attempt may be made.
+newtype PhoneBudgetTimeout = PhoneBudgetTimeout
+  {phoneBudgetTimeout :: NominalDiffTime}
+  deriving (Eq, Show, Generic)
+
+instance FromJSON PhoneBudgetTimeout where
+  parseJSON = withObject "PhoneBudgetTimeout" $ \o ->
+    PhoneBudgetTimeout <$> o .: "expires_in"
+
+instance ToJSON PhoneBudgetTimeout where
+  toJSON (PhoneBudgetTimeout t) = object ["expires_in" .= t]
