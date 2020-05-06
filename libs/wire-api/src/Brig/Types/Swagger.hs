@@ -49,10 +49,7 @@ brigModels =
     modelPendingLoginError, -- TODO: couldn't find a corresponding type
     -- Properties
     modelPropertyValue,
-    modelPropertyDictionary,
-    -- Search
-    modelSearchResult,
-    modelSearchContact
+    modelPropertyDictionary
   ]
 
 -------------------------------------------------------------------------------
@@ -308,34 +305,3 @@ modelPropertyDictionary :: Doc.Model
 modelPropertyDictionary =
   Doc.defineModel "PropertyDictionary" $
     Doc.description "A JSON object with properties as attribute/value pairs."
-
---------------------------------------------------------------------------------
--- Search
-
-modelSearchResult :: Doc.Model
-modelSearchResult = Doc.defineModel "SearchResult" $ do
-  Doc.description "Search Result"
-  Doc.property "found" Doc.int32' $
-    Doc.description "Total number of hits"
-  Doc.property "returned" Doc.int32' $
-    Doc.description "Number of hits returned"
-  Doc.property "took" Doc.int32' $
-    Doc.description "Search time in ms"
-  Doc.property "documents" (Doc.array (Doc.ref modelSearchContact)) $
-    Doc.description "List of contacts found"
-
-modelSearchContact :: Doc.Model
-modelSearchContact = Doc.defineModel "Contact" $ do
-  Doc.description "Contact discovered through search"
-  Doc.property "id" Doc.string' $
-    Doc.description "User ID"
-  Doc.property "name" Doc.string' $
-    Doc.description "Name"
-  Doc.property "handle" Doc.string' $
-    Doc.description "Handle"
-  Doc.property "accent_id" Doc.int32' $ do
-    Doc.description "Accent color"
-    Doc.optional
-  Doc.property "team" Doc.string' $ do
-    Doc.description "Team ID"
-    Doc.optional

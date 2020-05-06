@@ -18,11 +18,23 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.User.Search where
+module Wire.API.User.Search
+  ( SearchResult (..),
+    Contact (..),
+
+    -- * Swagger
+    modelSearchResult,
+    modelSearchContact,
+  )
+where
 
 import Data.Aeson
 import Data.Id (TeamId, UserId)
+import qualified Data.Swagger.Build.Api as Doc
 import Imports
+
+--------------------------------------------------------------------------------
+-- SearchResult
 
 data SearchResult a = SearchResult
   { searchFound :: Int,
@@ -32,23 +44,17 @@ data SearchResult a = SearchResult
   }
   deriving (Show)
 
--- | This is a subset of 'User' and json instances should reflect that.
-data Contact = Contact
-  { contactUserId :: UserId,
-    contactName :: Text,
-    contactColorId :: Maybe Int,
-    contactHandle :: Maybe Text,
-    contactTeam :: Maybe TeamId
-  }
-  deriving (Show)
-
-data TeamSearchInfo
-  = -- | When searching user is not part of a team.
-    NoTeam
-  | -- | When searching user is part of a team and 'Brig.Options.setSearchSameTeamOnly' is True
-    TeamOnly TeamId
-  | -- | When searching user is part of a team and 'Brig.Options.setSearchSameTeamOnly' is False
-    TeamAndNonMembers TeamId
+modelSearchResult :: Doc.Model
+modelSearchResult = Doc.defineModel "SearchResult" $ do
+  Doc.description "Search Result"
+  Doc.property "found" Doc.int32' $
+    Doc.description "Total number of hits"
+  Doc.property "returned" Doc.int32' $
+    Doc.description "Number of hits returned"
+  Doc.property "took" Doc.int32' $
+    Doc.description "Search time in ms"
+  Doc.property "documents" (Doc.array (Doc.ref modelSearchContact)) $
+    Doc.description "List of contacts found"
 
 instance ToJSON a => ToJSON (SearchResult a) where
   toJSON r =
@@ -65,6 +71,35 @@ instance FromJSON a => FromJSON (SearchResult a) where
       <*> o .: "returned"
       <*> o .: "took"
       <*> o .: "documents"
+
+--------------------------------------------------------------------------------
+-- Contact
+
+-- | This is a subset of 'User' and json instances should reflect that.
+data Contact = Contact
+  { contactUserId :: UserId,
+    contactName :: Text,
+    contactColorId :: Maybe Int,
+    contactHandle :: Maybe Text,
+    contactTeam :: Maybe TeamId
+  }
+  deriving (Show)
+
+modelSearchContact :: Doc.Model
+modelSearchContact = Doc.defineModel "Contact" $ do
+  Doc.description "Contact discovered through search"
+  Doc.property "id" Doc.string' $
+    Doc.description "User ID"
+  Doc.property "name" Doc.string' $
+    Doc.description "Name"
+  Doc.property "handle" Doc.string' $
+    Doc.description "Handle"
+  Doc.property "accent_id" Doc.int32' $ do
+    Doc.description "Accent color"
+    Doc.optional
+  Doc.property "team" Doc.string' $ do
+    Doc.description "Team ID"
+    Doc.optional
 
 instance ToJSON Contact where
   toJSON c =

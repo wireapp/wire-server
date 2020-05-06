@@ -44,6 +44,7 @@ import qualified Wire.API.User.Client as User.Client
 import qualified Wire.API.User.Password as User.Password
 import qualified Wire.API.User.Profile as User.Profile
 import qualified Wire.API.User.RichInfo as User.RichInfo
+import qualified Wire.API.User.Search as User.Search
 
 models :: [Model]
 models =
@@ -104,6 +105,8 @@ models =
     User.Profile.modelAsset,
     User.RichInfo.modelRichInfo,
     User.RichInfo.modelRichField,
+    User.Search.modelSearchResult,
+    User.Search.modelSearchContact,
     Conversation.Event.modelEvent,
     Conversation.Event.modelMemberEvent,
     Conversation.Event.modelConnectEvent,
