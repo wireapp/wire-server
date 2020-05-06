@@ -20,7 +20,7 @@
 
 -- | TODO: explain
 module Wire.API.Team.LegalHold.External
-  ( -- * intiate
+  ( -- * initiate
     RequestNewLegalHoldClient (..),
     NewLegalHoldClient (..),
 

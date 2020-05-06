@@ -236,6 +236,7 @@ instance FromJSON UserLegalHoldStatusResponse where
       <*> o .:? "last_prekey"
       <*> (fromIdObject @ClientId <$$> (o .:? "client"))
 
+-- | This request is used by Galley to notify Brig that a LegalHold client was requested.
 data LegalHoldClientRequest = LegalHoldClientRequest
   { lhcrRequester :: !UserId,
     lhcrLastPrekey :: !LastPrekey

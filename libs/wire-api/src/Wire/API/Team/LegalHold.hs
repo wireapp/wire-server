@@ -18,6 +18,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
+-- | Swagger schemas for these types are in 'Galley.API.Swagger'.
 module Wire.API.Team.LegalHold
   ( NewLegalHoldService (..),
     ViewLegalHoldService (..),
@@ -26,7 +27,6 @@ module Wire.API.Team.LegalHold
     RemoveLegalHoldSettingsRequest (..),
     DisableLegalHoldForUserRequest (..),
     ApproveLegalHoldForUserRequest (..),
-    LegalHoldClientRequest (..),
   )
 where
 
@@ -210,25 +210,3 @@ instance FromJSON ApproveLegalHoldForUserRequest where
   parseJSON = withObject "ApproveLegalHoldForUserRequest" $ \o ->
     ApproveLegalHoldForUserRequest
       <$> o .:? "password"
-
---------------------------------------------------------------------------------
--- LegalHoldClientRequest
-
-data LegalHoldClientRequest = LegalHoldClientRequest
-  { lhcrRequester :: !UserId,
-    lhcrLastPrekey :: !LastPrekey
-  }
-  deriving stock (Eq, Show, Generic)
-
-instance FromJSON LegalHoldClientRequest where
-  parseJSON = withObject "LegalHoldClientRequest" $ \o ->
-    LegalHoldClientRequest
-      <$> o .: "requester"
-      <*> o .: "last_prekey"
-
-instance ToJSON LegalHoldClientRequest where
-  toJSON (LegalHoldClientRequest requester lastPrekey') =
-    object $
-      "requester" .= requester
-        # "last_prekey" .= lastPrekey'
-        # []

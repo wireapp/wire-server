@@ -527,12 +527,6 @@ instance Arbitrary RequestNewLegalHoldClient where
 instance Arbitrary NewLegalHoldClient where
   arbitrary = NewLegalHoldClient <$> arbitrary <*> arbitrary
 
-instance Arbitrary LegalHoldClientRequest where
-  arbitrary =
-    LegalHoldClientRequest
-      <$> arbitrary
-      <*> arbitrary
-
 instance Arbitrary LegalHoldServiceConfirm where
   arbitrary =
     LegalHoldServiceConfirm
