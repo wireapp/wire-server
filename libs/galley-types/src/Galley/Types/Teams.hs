@@ -384,7 +384,7 @@ instance FromJSON FeatureFlags where
 
 instance ToJSON FeatureFlags where
   toJSON (FeatureFlags sso legalhold) =
-    object
+    object $
       [ "sso" .= sso,
         "legalhold" .= legalhold
       ]
@@ -399,8 +399,8 @@ instance ToJSON FeatureSSO where
   toJSON FeatureSSODisabledByDefault = String "disabled-by-default"
 
 instance FromJSON FeatureLegalHold where
-  parseJSON (String "disabled-permanently") = pure FeatureLegalHoldDisabledPermanently
-  parseJSON (String "disabled-by-default") = pure FeatureLegalHoldDisabledByDefault
+  parseJSON (String "disabled-permanently") = pure $ FeatureLegalHoldDisabledPermanently
+  parseJSON (String "disabled-by-default") = pure $ FeatureLegalHoldDisabledByDefault
   parseJSON bad = fail $ "FeatureLegalHold: " <> cs (encode bad)
 
 instance ToJSON FeatureLegalHold where
