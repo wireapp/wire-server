@@ -65,6 +65,9 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Invitation
 import Wire.API.Team.LegalHold
 import Wire.API.Team.LegalHold.External
+import Wire.API.Team.Member
+import Wire.API.Team.Permission
+import Wire.API.Team.Role
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Client.Prekey

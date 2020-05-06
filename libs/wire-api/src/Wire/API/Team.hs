@@ -71,51 +71,6 @@ module Wire.API.Team
     modelNewNonBindingTeam,
     modelUpdateData,
     modelTeamDelete,
-
-    -- * Re-exports
-    -- TODO: remove them?
-    TeamMember,
-    newTeamMember,
-    userId,
-    permissions,
-    invitation,
-    legalHoldStatus,
-    teamMemberJson,
-    TeamMemberList,
-    ListType (..),
-    newTeamMemberList,
-    teamMembers,
-    teamMemberListType,
-    teamMemberListJson,
-    TeamConversation,
-    newTeamConversation,
-    conversationId,
-    managedConversation,
-    TeamConversationList,
-    newTeamConversationList,
-    teamConversations,
-    Permissions,
-    newPermissions,
-    fullPermissions,
-    noPermissions,
-    serviceWhitelistPermissions,
-    self,
-    copy,
-    Perm (..),
-    permToInt,
-    permsToInt,
-    intToPerm,
-    intToPerms,
-    Role (..),
-    defaultRole,
-    NewTeamMember,
-    newNewTeamMember,
-    ntmNewTeamMember,
-    TeamMemberDeleteData,
-    tmdAuthPassword,
-    newTeamMemberDeleteData,
-    HardTruncationLimit,
-    hardTruncationLimit,
   )
 where
 
@@ -128,10 +83,7 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
-import Wire.API.Team.Conversation
-import Wire.API.Team.Member
-import Wire.API.Team.Permission
-import Wire.API.Team.Role
+import Wire.API.Team.Member (TeamMember, modelTeamMember)
 
 --------------------------------------------------------------------------------
 -- Team

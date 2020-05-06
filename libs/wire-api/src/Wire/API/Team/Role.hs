@@ -111,7 +111,6 @@ instance FromJSON Role where
 defaultRole :: Role
 defaultRole = RoleMember
 
--- TODO: remove?
 instance Cql.Cql Role where
   ctype = Cql.Tagged Cql.IntColumn
 
