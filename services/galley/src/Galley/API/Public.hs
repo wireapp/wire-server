@@ -443,15 +443,6 @@ sitemap = do
       description "Team ID"
     returns (ref Model.teamSearchVisibilityEnabled)
     response 200 "Search Visibility status" end
-  get "/custom-backend/by-domain/:domain" (continue CustomBackend.getCustomBackendByDomainH) $
-    capture "domain"
-      .&. accept "application" "json"
-  document "GET" "getCustomBackendByDomain" $ do
-    summary "Shows information about custom backends related to a given email domain"
-    parameter Path "domain" string' $
-      description "URL-encoded email domain"
-    returns (ref Model.customBackend)
-    response 200 "Custom backend" end
 
   -- Bot API ------------------------------------------------------------
 
