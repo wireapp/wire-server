@@ -44,7 +44,7 @@ runCommand l galley =
               >> pure p
         )
       .| C.concatMap (filter isOwner)
-      .| C.map (\(a, b, _) -> (a, b))
+      .| C.map (\(t, u, _) -> (t, u))
       .| C.chunksOf 50
       .| C.mapM
         ( \x ->
@@ -60,10 +60,10 @@ pageSize = 1000
 -- Queries
 
 -- | Get team members from Galley
-getTeamMembers :: ConduitM () [(TeamId, UserId, Permissions)] Client ()
+getTeamMembers :: ConduitM () [(TeamId, UserId, Maybe Permissions)] Client ()
 getTeamMembers = paginateC cql (paramsP Quorum () pageSize) x5
   where
-    cql :: PrepQuery R () (TeamId, UserId, Permissions)
+    cql :: PrepQuery R () (TeamId, UserId, Maybe Permissions)
     cql = "SELECT team, user, perms FROM team_member"
 
 createBillingTeamMembers :: [(TeamId, UserId)] -> Client ()
@@ -76,5 +76,6 @@ createBillingTeamMembers pairs =
     cql :: PrepQuery W (TeamId, UserId) ()
     cql = "INSERT INTO billing_team_member (team, user) values (?, ?)"
 
-isOwner :: (TeamId, UserId, Permissions) -> Bool
-isOwner (_, _, p) = SetBilling `Set.member` view self p
+isOwner :: (TeamId, UserId, Maybe Permissions) -> Bool
+isOwner (_, _, Just p) = SetBilling `Set.member` view self p
+isOwner _ = False
