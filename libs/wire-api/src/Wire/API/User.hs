@@ -97,9 +97,9 @@ import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import Data.UUID (UUID)
 import Imports
-import Wire.API.Activation (ActivationCode)
 import Wire.API.Provider.Service (ServiceRef, modelServiceRef)
 import Wire.API.Team (BindingNewTeam, modelNewBindingTeam)
+import Wire.API.User.Activation (ActivationCode)
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Identity
 import Wire.API.User.Profile

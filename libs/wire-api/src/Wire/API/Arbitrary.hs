@@ -55,7 +55,6 @@ import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 import Text.Hostname
 import URI.ByteString.QQ (uri)
-import Wire.API.Activation
 import Wire.API.Call.TURN
 import Wire.API.Conversation.Code as Code
 import Wire.API.CustomBackend
@@ -69,6 +68,7 @@ import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.API.User
+import Wire.API.User.Activation
 import Wire.API.User.Auth
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle

@@ -18,8 +18,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- TODO Wire.API.User.Activation?
-module Wire.API.Activation
+module Wire.API.User.Activation
   ( -- * ActivationTarget
     ActivationTarget (..),
     ActivationKey (..),
