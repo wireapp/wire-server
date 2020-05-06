@@ -73,6 +73,7 @@ import Wire.API.User.Auth
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle
 import Wire.API.User.Identity
+import Wire.API.User.Password
 import Wire.API.User.Profile
 
 newtype Octet = Octet {octet :: Word16}
@@ -284,9 +285,6 @@ instance Arbitrary NewTeamUser where
 
 instance Arbitrary TeamMember where
   arbitrary = newTeamMember <$> arbitrary <*> arbitrary <*> arbitrary
-
-instance Arbitrary PasswordChange where
-  arbitrary = PasswordChange <$> arbitrary <*> arbitrary
 
 instance Arbitrary PhoneRemove where
   arbitrary = PhoneRemove <$> arbitrary
