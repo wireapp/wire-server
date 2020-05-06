@@ -39,8 +39,10 @@ module Galley.Types.Teams
     FeatureFlags (..),
     flagSSO,
     flagLegalHold,
+    flagTeamSearchVisibility,
     FeatureSSO (..),
     FeatureLegalHold (..),
+    FeatureTeamSearchVisibility (..),
     TeamList,
     newTeamList,
     teamListTeams,
@@ -362,7 +364,8 @@ newtype TeamCreationTime = TeamCreationTime
 
 data FeatureFlags = FeatureFlags
   { _flagSSO :: !FeatureSSO,
-    _flagLegalHold :: !FeatureLegalHold
+    _flagLegalHold :: !FeatureLegalHold,
+    _flagTeamSearchVisibility :: !FeatureTeamSearchVisibility
   }
   deriving (Eq, Show, Generic)
 
@@ -376,17 +379,27 @@ data FeatureLegalHold
   | FeatureLegalHoldDisabledByDefault
   deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
+-- | Default value for all teams that have not enabled or disabled this feature explicitly.
+-- See also 'TeamSearchVisibilityEnabled', 'TeamSearchVisibility'.
+data FeatureTeamSearchVisibility
+  = FeatureTeamSearchVisibilityEnabledByDefault
+  | FeatureTeamSearchVisibilityDisabledByDefault
+  deriving (Eq, Ord, Show, Enum, Bounded, Generic)
+
+-- NOTE: This is used only in the config and thus YAML... camelcase
 instance FromJSON FeatureFlags where
   parseJSON = withObject "FeatureFlags" $ \obj ->
     FeatureFlags
-      <$> (obj .: "sso")
-      <*> (obj .: "legalhold")
+      <$> obj .: "sso"
+      <*> obj .: "legalhold"
+      <*> obj .: "teamSearchVisibility"
 
 instance ToJSON FeatureFlags where
-  toJSON (FeatureFlags sso legalhold) =
+  toJSON (FeatureFlags sso legalhold searchVisibility) =
     object $
       [ "sso" .= sso,
-        "legalhold" .= legalhold
+        "legalhold" .= legalhold,
+        "teamSearchVisibility" .= searchVisibility
       ]
 
 instance FromJSON FeatureSSO where
@@ -407,8 +420,17 @@ instance ToJSON FeatureLegalHold where
   toJSON FeatureLegalHoldDisabledPermanently = String "disabled-permanently"
   toJSON FeatureLegalHoldDisabledByDefault = String "disabled-by-default"
 
+instance FromJSON FeatureTeamSearchVisibility where
+  parseJSON (String "enabled-by-default") = pure FeatureTeamSearchVisibilityEnabledByDefault
+  parseJSON (String "disabled-by-default") = pure FeatureTeamSearchVisibilityDisabledByDefault
+  parseJSON bad = fail $ "FeatureSearchVisibility: " <> cs (encode bad)
+
+instance ToJSON FeatureTeamSearchVisibility where
+  toJSON FeatureTeamSearchVisibilityEnabledByDefault = String "enabled-by-default"
+  toJSON FeatureTeamSearchVisibilityDisabledByDefault = String "disabled-by-default"
+
 -- This replaces the previous `hasMore` but has no boolean blindness. At the API level
--- though we do want this to remain true/false
+-- though we do want this to remain true/false due to backwards compatibility reasons
 instance ToJSON ListType where
   toJSON ListComplete = Bool False
   toJSON ListTruncated = Bool True
@@ -524,6 +546,9 @@ data HiddenPerm
   | ChangeLegalHoldUserSettings
   | ViewLegalHoldUserSettings
   | ViewSSOTeamSettings -- (change is only allowed via customer support backoffice)
+  | ViewTeamSearchVisibilityAvailable
+  | ChangeTeamSearchVisibility
+  | ViewTeamSearchVisibility
   | ViewSameTeamEmails
   deriving (Eq, Ord, Show, Enum, Bounded)
 
@@ -552,7 +577,8 @@ hiddenPermissionsFromPermissions =
           (roleHiddenPerms RoleMember <>) $
             Set.fromList
               [ ChangeLegalHoldTeamSettings,
-                ChangeLegalHoldUserSettings
+                ChangeLegalHoldUserSettings,
+                ChangeTeamSearchVisibility
               ]
         roleHiddenPerms RoleMember =
           (roleHiddenPerms RoleExternalPartner <>) $
@@ -561,7 +587,9 @@ hiddenPermissionsFromPermissions =
           Set.fromList
             [ ViewLegalHoldTeamSettings,
               ViewLegalHoldUserSettings,
-              ViewSSOTeamSettings
+              ViewSSOTeamSettings,
+              ViewTeamSearchVisibilityAvailable,
+              ViewTeamSearchVisibility
             ]
 
 -- | See Note [hidden team roles]

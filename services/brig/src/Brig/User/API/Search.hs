@@ -24,6 +24,7 @@ where
 import Brig.API.Handler
 import Brig.App
 import qualified Brig.Data.User as DB
+import qualified Brig.IO.Intra as Intra
 import qualified Brig.Options as Opts
 import Brig.Types.Search as Search
 import qualified Brig.Types.Swagger as Doc
@@ -33,6 +34,7 @@ import Data.Id
 import Data.Predicate
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
+import qualified Galley.Types.Teams.SearchVisibility as Team
 import Imports
 import Network.Wai (Response)
 import Network.Wai.Predicate hiding (setStatus)
@@ -92,11 +94,17 @@ search searcherId searchTerm maxResults = do
   -- backend.
   searcherTeamId <- DB.lookupUserTeam searcherId
   sameTeamSearchOnly <- fromMaybe False <$> view (settings . Opts.searchSameTeamOnly)
-  let teamSearchInfo =
-        case searcherTeamId of
-          Nothing -> Search.NoTeam
-          Just t ->
-            if sameTeamSearchOnly
-              then Search.TeamOnly t
-              else Search.TeamAndNonMembers t
+  teamSearchInfo <-
+    case searcherTeamId of
+      Nothing -> return Search.NoTeam
+      Just t ->
+        -- This flag in brig overrules any flag on galley - it is system wide
+        if sameTeamSearchOnly
+          then return (Search.TeamOnly t)
+          else do
+            -- For team users, we need to check the visibility flag
+            Intra.getTeamSearchVisibility t >>= return . handleTeamVisibility t
   searchIndex searcherId teamSearchInfo searchTerm maxResults
+  where
+    handleTeamVisibility t Team.SearchVisibilityStandard = Search.TeamAndNonMembers t
+    handleTeamVisibility t Team.SearchVisibilityNoNameOutsideTeam = Search.TeamOnly t

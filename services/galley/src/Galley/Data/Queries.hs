@@ -35,6 +35,7 @@ import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SSO
+import Galley.Types.Teams.SearchVisibility
 import Imports
 import Text.RawString.QQ
 
@@ -386,6 +387,22 @@ selectSSOTeamConfig =
 updateSSOTeamConfig :: PrepQuery W (SSOStatus, TeamId) ()
 updateSSOTeamConfig =
   "update team_features set sso_status = ? where team_id = ?"
+
+selectTeamSearchVisibilityAvailable :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamSearchVisibilityAvailable))
+selectTeamSearchVisibilityAvailable =
+  "select search_visibility_status from team_features where team_id = ?"
+
+updateTeamSearchVisibilityAvailable :: PrepQuery W (TeamSearchVisibilityAvailable, TeamId) ()
+updateTeamSearchVisibilityAvailable =
+  "update team_features set search_visibility_status = ? where team_id = ?"
+
+selectSearchVisibility :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamSearchVisibility))
+selectSearchVisibility =
+  "select search_visibility from team where team = ?"
+
+updateSearchVisibility :: PrepQuery W (TeamSearchVisibility, TeamId) ()
+updateSearchVisibility =
+  "update team set search_visibility = ? where team = ?"
 
 selectCustomBackend :: PrepQuery R (Identity Domain) (HttpsUrl, HttpsUrl)
 selectCustomBackend =

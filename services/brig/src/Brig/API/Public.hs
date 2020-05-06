@@ -170,7 +170,7 @@ sitemap o = do
       Doc.description "User IDs of users to fetch"
       Doc.optional
     Doc.parameter Doc.Query "handles" Doc.string' $ do
-      Doc.description "Handles of users to fetch"
+      Doc.description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"
       Doc.optional
     Doc.returns (Doc.array (Doc.ref Doc.user))
     Doc.response 200 "List of users" Doc.end
@@ -1030,7 +1030,7 @@ getUserDisplayNameH (_ ::: self) = do
     Just n -> json $ object ["name" .= n]
     Nothing -> setStatus status404 empty
 
-listUsersH :: JSON ::: UserId ::: Either (List OpaqueUserId) (List (OptionallyQualified Handle)) -> Handler Response
+listUsersH :: JSON ::: UserId ::: Either (List OpaqueUserId) (Range 1 4 (List (OptionallyQualified Handle))) -> Handler Response
 listUsersH (_ ::: self ::: qry) =
   toResponse <$> listUsers self qry
   where
@@ -1038,17 +1038,14 @@ listUsersH (_ ::: self ::: qry) =
       [] -> setStatus status404 empty
       ps -> json ps
 
-listUsers :: UserId -> Either (List OpaqueUserId) (List (OptionallyQualified Handle)) -> Handler [UserProfile]
+listUsers :: UserId -> Either (List OpaqueUserId) (Range 1 4 (List (OptionallyQualified Handle))) -> Handler [UserProfile]
 listUsers self = \case
   Left us -> do
     resolvedUserIds <- traverse resolveOpaqueUserId (fromList us)
     byIds resolvedUserIds
   Right hs -> do
-    us <- getIds (fromList hs)
-    sameTeamSearchOnly <- fromMaybe False <$> view (settings . searchSameTeamOnly)
-    if sameTeamSearchOnly
-      then filterSameTeamOnly =<< byIds us
-      else byIds us
+    us <- getIds (fromList $ fromRange hs)
+    filterHandleResults self =<< byIds us
   where
     getIds :: [OptionallyQualified Handle] -> Handler [MappedOrLocalId Id.U]
     getIds hs = do
@@ -1057,12 +1054,6 @@ listUsers self = \case
       localUsers <- catMaybes <$> traverse (lift . API.lookupHandle) localHandles
       -- FUTUREWORK(federation, #1268): resolve qualified handles, too
       pure (Local <$> localUsers)
-    filterSameTeamOnly :: [UserProfile] -> Handler [UserProfile]
-    filterSameTeamOnly us = do
-      selfTeam <- lift $ Data.lookupUserTeam self
-      return $ case selfTeam of
-        Just team -> filter (\x -> profileTeam x == Just team) us
-        Nothing -> us
     byIds :: [MappedOrLocalId Id.U] -> Handler [UserProfile]
     byIds uids = lift $ API.lookupProfiles self uids
 
@@ -1152,11 +1143,21 @@ checkHandlesH (_ ::: _ ::: req) = do
   return $ json free
 
 getHandleInfoH :: JSON ::: UserId ::: Handle -> Handler Response
-getHandleInfoH (_ ::: _ ::: h) = do
-  owner <- lift $ API.lookupHandle h
-  return $ case owner of
-    Just u -> json (UserHandleInfo u)
-    Nothing -> setStatus status404 empty
+getHandleInfoH (_ ::: self ::: handle) =
+  maybe (setStatus status404 empty) json
+    <$> getHandleInfo self handle
+
+-- FUTUREWORK: use 'runMaybeT' to simplify this.
+getHandleInfo :: UserId -> Handle -> Handler (Maybe UserHandleInfo)
+getHandleInfo self handle = do
+  ownerProfile <- do
+    -- FUTUREWORK(federation, #1268): resolve qualified handles, too
+    maybeOwnerId <- fmap Local <$> (lift $ API.lookupHandle handle)
+    case maybeOwnerId of
+      Just ownerId -> lift $ API.lookupProfile self ownerId
+      Nothing -> return Nothing
+  owner <- filterHandleResults self (maybeToList ownerProfile)
+  return $ UserHandleInfo . profileId <$> listToMaybe owner
 
 changeHandleH :: UserId ::: ConnId ::: JsonRequest HandleUpdate -> Handler Response
 changeHandleH (u ::: conn ::: req) = do
@@ -1321,3 +1322,15 @@ validateHandle = maybe (throwE (StdError invalidHandle)) return . parseHandle
 
 ifNothing :: Utilities.Error -> Maybe a -> Handler a
 ifNothing e = maybe (throwStd e) return
+
+-- | Checks search permissions and filters accordingly
+filterHandleResults :: UserId -> [UserProfile] -> Handler [UserProfile]
+filterHandleResults searchingUser us = do
+  sameTeamSearchOnly <- fromMaybe False <$> view (settings . searchSameTeamOnly)
+  if sameTeamSearchOnly
+    then do
+      fromTeam <- lift $ Data.lookupUserTeam searchingUser
+      return $ case fromTeam of
+        Just team -> filter (\x -> profileTeam x == Just team) us
+        Nothing -> us
+    else return us

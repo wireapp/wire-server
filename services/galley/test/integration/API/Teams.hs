@@ -50,9 +50,11 @@ import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SSO
+import Galley.Types.Teams.SearchVisibility
 import Gundeck.Types.Notification hiding (target)
 import Imports
 import Network.HTTP.Types.Status (status403)
+import qualified Network.Wai.Test as WaiTest
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified Proto.TeamEvents as E
@@ -83,6 +85,7 @@ tests s =
       testGroup "List Team members unchecked" $
         [test s "the list should be truncated" testUncheckedListTeamMembers],
       test s "enable/disable SSO" testEnableSSOPerTeam,
+      test s "enable/disable Custom Search Visibility" testEnableTeamSearchVisibilityPerTeam,
       test s "create 1-1 conversation between non-binding team members (fail)" testCreateOne2OneFailNonBindingTeamMembers,
       test s "create 1-1 conversation between binding team members" (testCreateOne2OneWithMembers RoleMember),
       test s "create 1-1 conversation between binding team members as partner" (testCreateOne2OneWithMembers RoleExternalPartner),
@@ -303,6 +306,47 @@ testEnableSSOPerTeam = do
   putSSOEnabledInternal tid SSOEnabled
   check "Calling 'putEnabled True' should enable SSO" SSOEnabled
   putSSOEnabledInternalCheckNotImplemented
+
+testEnableTeamSearchVisibilityPerTeam :: TestM ()
+testEnableTeamSearchVisibilityPerTeam = do
+  g <- view tsGalley
+  (tid, owner, (member : _)) <- Util.createBindingTeamWithMembers 2
+  let check :: (HasCallStack, MonadCatch m, MonadIO m, Monad m, MonadHttp m) => String -> TeamSearchVisibilityAvailable -> m ()
+      check msg enabledness = do
+        TeamSearchVisibilityAvailableView status <- responseJsonUnsafe <$> (getTeamSearchVisibilityAvailableInternal g tid <!! testResponse 200 Nothing)
+        liftIO $ assertEqual msg enabledness status
+  let putSearchVisibilityCheckNotAllowed :: (HasCallStack, Monad m, MonadIO m, MonadHttp m) => m ()
+      putSearchVisibilityCheckNotAllowed = do
+        Wai.Error status label _ <- responseJsonUnsafe <$> putSearchVisibility g owner tid SearchVisibilityNoNameOutsideTeam
+        liftIO $ do
+          assertEqual "bad status" status403 status
+          assertEqual "bad label" "team-search-visibility-not-enabled" label
+  let getSearchVisibilityCheck :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => TeamSearchVisibility -> m ()
+      getSearchVisibilityCheck vis = getSearchVisibility g owner tid !!! do
+        const 200 === statusCode
+        const (Just (TeamSearchVisibilityView vis)) === responseJsonUnsafe
+
+  withCustomSearchFeature FeatureTeamSearchVisibilityEnabledByDefault $ do
+    check "Teams should start with Custom Search Visibility enabled" TeamSearchVisibilityEnabled
+    putSearchVisibility g owner tid SearchVisibilityNoNameOutsideTeam !!! const 204 === statusCode
+    putSearchVisibility g owner tid SearchVisibilityStandard !!! const 204 === statusCode
+  withCustomSearchFeature FeatureTeamSearchVisibilityDisabledByDefault $ do
+    check "Teams should start with Custom Search Visibility disabled" TeamSearchVisibilityDisabled
+    putSearchVisibilityCheckNotAllowed
+
+  putTeamSearchVisibilityAvailableInternal g tid TeamSearchVisibilityEnabled
+  -- Nothing was set, default value
+  getSearchVisibilityCheck SearchVisibilityStandard
+  putSearchVisibility g owner tid SearchVisibilityNoNameOutsideTeam !!! testResponse 204 Nothing
+  getSearchVisibilityCheck SearchVisibilityNoNameOutsideTeam
+  -- Check only admins can change the setting
+  putSearchVisibility g member tid SearchVisibilityStandard !!! testResponse 403 (Just "operation-denied")
+  getSearchVisibilityCheck SearchVisibilityNoNameOutsideTeam
+  -- Members can also see it?
+  getSearchVisibility g member tid !!! testResponse 200 Nothing
+  -- Once we disable the feature, team setting is back to the default value
+  putTeamSearchVisibilityAvailableInternal g tid TeamSearchVisibilityDisabled
+  getSearchVisibilityCheck SearchVisibilityStandard
 
 testCreateOne2OneFailNonBindingTeamMembers :: TestM ()
 testCreateOne2OneFailNonBindingTeamMembers = do
@@ -1792,6 +1836,42 @@ putSSOEnabledInternal tid enabled = do
       . json (SSOTeamConfig enabled)
       . expect2xx
 
+getSearchVisibility :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> (MonadIO m, MonadHttp m) => m ResponseLBS
+getSearchVisibility g uid tid = do
+  get $
+    g
+      . paths ["teams", toByteString' tid, "search-visibility"]
+      . zUser uid
+
+putSearchVisibility :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> TeamSearchVisibility -> (MonadIO m, MonadHttp m) => m ResponseLBS
+putSearchVisibility g uid tid vis = do
+  put $
+    g
+      . paths ["teams", toByteString' tid, "search-visibility"]
+      . zUser uid
+      . json (TeamSearchVisibilityView vis)
+
+getTeamSearchVisibilityAvailable :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> (MonadIO m, MonadHttp m) => m ResponseLBS
+getTeamSearchVisibilityAvailable g uid tid = do
+  get $
+    g
+      . paths ["teams", toByteString' tid, "features", "search-visibility"]
+      . zUser uid
+
+getTeamSearchVisibilityAvailableInternal :: HasCallStack => (Request -> Request) -> TeamId -> (MonadIO m, MonadHttp m) => m ResponseLBS
+getTeamSearchVisibilityAvailableInternal g tid = do
+  get $
+    g
+      . paths ["i", "teams", toByteString' tid, "features", "search-visibility"]
+
+putTeamSearchVisibilityAvailableInternal :: HasCallStack => (Request -> Request) -> TeamId -> TeamSearchVisibilityAvailable -> (MonadIO m, MonadHttp m) => m ()
+putTeamSearchVisibilityAvailableInternal g tid status = do
+  void . put $
+    g
+      . paths ["i", "teams", toByteString' tid, "features", "search-visibility"]
+      . json (TeamSearchVisibilityAvailableView status)
+      . expect2xx
+
 getLegalHoldEnabled :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
 getLegalHoldEnabled uid tid = do
   g <- view tsGalley
@@ -1823,6 +1903,7 @@ testFeatureFlags :: TestM ()
 testFeatureFlags = do
   owner <- Util.randomUser
   tid <- Util.createNonBindingTeam "foo" owner []
+
   -- sso
 
   let getSSO :: HasCallStack => SSOStatus -> TestM ()
@@ -1848,6 +1929,7 @@ testFeatureFlags = do
       -- much here.  (disable failure is covered in "enable/disable SSO" above.)
       getSSO SSOEnabled
       getSSOInternal SSOEnabled
+
   -- legalhold
 
   let getLegalHold :: HasCallStack => LegalHoldStatus -> TestM ()
@@ -1862,6 +1944,8 @@ testFeatureFlags = do
       setLegalHoldInternal = putLegalHoldEnabledInternal tid
   getLegalHold LegalHoldDisabled
   getLegalHoldInternal LegalHoldDisabled
+
+  -- FUTUREWORK: run two galleys, like below for custom search visibility.
   featureLegalHold <- view (tsGConf . optSettings . setFeatureFlags . flagLegalHold)
   case featureLegalHold of
     FeatureLegalHoldDisabledByDefault -> do
@@ -1871,6 +1955,55 @@ testFeatureFlags = do
     FeatureLegalHoldDisabledPermanently -> do
       putLegalHoldEnabledInternal' expect4xx tid LegalHoldEnabled
 
+  -- custom search visibility
+
+  g <- view tsGalley
+  let getTeamSearchVisibility ::
+        (Monad m, MonadHttp m, MonadIO m, MonadCatch m, HasCallStack) =>
+        TeamId ->
+        TeamSearchVisibilityAvailable ->
+        m ()
+      getTeamSearchVisibility teamid expected = getTeamSearchVisibilityAvailable g owner teamid !!! do
+        statusCode === const 200
+        responseJsonEither === const (Right (TeamSearchVisibilityAvailableView expected))
+
+  let getTeamSearchVisibilityInternal ::
+        (Monad m, MonadHttp m, MonadIO m, MonadCatch m, HasCallStack) =>
+        TeamId ->
+        TeamSearchVisibilityAvailable ->
+        m ()
+      getTeamSearchVisibilityInternal teamid expected = getTeamSearchVisibilityAvailableInternal g teamid !!! do
+        statusCode === const 200
+        responseJsonEither === const (Right (TeamSearchVisibilityAvailableView expected))
+
+  let setTeamSearchVisibilityInternal ::
+        (Monad m, MonadHttp m, MonadIO m, HasCallStack) =>
+        TeamId ->
+        TeamSearchVisibilityAvailable ->
+        m ()
+      setTeamSearchVisibilityInternal = putTeamSearchVisibilityAvailableInternal g
+
+  tid2 <- Util.createNonBindingTeam "foo" owner []
+  withCustomSearchFeature FeatureTeamSearchVisibilityDisabledByDefault $ do
+    getTeamSearchVisibility tid2 TeamSearchVisibilityDisabled
+    getTeamSearchVisibilityInternal tid2 TeamSearchVisibilityDisabled
+    setTeamSearchVisibilityInternal tid2 TeamSearchVisibilityEnabled
+    getTeamSearchVisibility tid2 TeamSearchVisibilityEnabled
+    getTeamSearchVisibilityInternal tid2 TeamSearchVisibilityEnabled
+    setTeamSearchVisibilityInternal tid2 TeamSearchVisibilityDisabled
+    getTeamSearchVisibility tid2 TeamSearchVisibilityDisabled
+    getTeamSearchVisibilityInternal tid2 TeamSearchVisibilityDisabled
+  tid3 <- Util.createNonBindingTeam "foo" owner []
+  withCustomSearchFeature FeatureTeamSearchVisibilityEnabledByDefault $ do
+    getTeamSearchVisibility tid3 TeamSearchVisibilityEnabled
+    getTeamSearchVisibilityInternal tid3 TeamSearchVisibilityEnabled
+    setTeamSearchVisibilityInternal tid3 TeamSearchVisibilityDisabled
+    getTeamSearchVisibility tid3 TeamSearchVisibilityDisabled
+    getTeamSearchVisibilityInternal tid3 TeamSearchVisibilityDisabled
+    setTeamSearchVisibilityInternal tid3 TeamSearchVisibilityEnabled
+    getTeamSearchVisibility tid3 TeamSearchVisibilityEnabled
+    getTeamSearchVisibilityInternal tid3 TeamSearchVisibilityEnabled
+
 checkJoinEvent :: (MonadIO m, MonadCatch m) => TeamId -> UserId -> WS.WebSocket -> m ()
 checkJoinEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do
   ntfTransient notif @?= False
@@ -1878,3 +2011,9 @@ checkJoinEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do
   e ^. eventType @?= MemberJoin
   e ^. eventTeam @?= tid
   e ^. eventData @?= Just (EdMemberJoin usr)
+
+withCustomSearchFeature :: FeatureTeamSearchVisibility -> WaiTest.Session () -> TestM ()
+withCustomSearchFeature flag action = do
+  opts <- view tsGConf
+  let opts' = opts & optSettings . setFeatureFlags . flagTeamSearchVisibility .~ flag
+  withSettingsOverrides opts' action

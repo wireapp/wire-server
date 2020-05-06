@@ -45,6 +45,7 @@ library
       Galley.Data.Instances
       Galley.Data.LegalHold
       Galley.Data.Queries
+      Galley.Data.SearchVisibility
       Galley.Data.Services
       Galley.Data.SSO
       Galley.Data.Types
@@ -290,6 +291,7 @@ executable galley-schema
       V36
       V37
       V38_CreateTableBillingTeamMember
+      V39
       Paths_galley
   hs-source-dirs:
       schema/src

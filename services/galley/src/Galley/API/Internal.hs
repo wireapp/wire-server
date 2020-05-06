@@ -52,6 +52,7 @@ import Galley.Types.Bot.Service
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SSO
+import Galley.Types.Teams.SearchVisibility
 import Imports hiding (head)
 import Network.Wai
 import Network.Wai.Predicate hiding (err)
@@ -187,6 +188,15 @@ sitemap = do
       .&. jsonRequest @SSOTeamConfig
       .&. accept "application" "json"
 
+  get "/i/teams/:tid/features/search-visibility" (continue Teams.getTeamSearchVisibilityAvailableInternalH) $
+    capture "tid"
+      .&. accept "application" "json"
+
+  put "/i/teams/:tid/features/search-visibility" (continue Teams.setTeamSearchVisibilityAvailableInternalH) $
+    capture "tid"
+      .&. jsonRequest @TeamSearchVisibilityAvailableView
+      .&. accept "application" "json"
+
   -- Misc API (internal) ------------------------------------------------
 
   get "/i/users/:uid/team/members" (continue Teams.getBindingTeamMembersH) $
@@ -238,6 +248,15 @@ sitemap = do
 
   delete "/i/custom-backend/by-domain/:domain" (continue CustomBackend.internalDeleteCustomBackendByDomainH) $
     capture "domain"
+      .&. accept "application" "json"
+
+  get "/i/teams/:tid/search-visibility" (continue Teams.getSearchVisibilityInternalH) $
+    capture "tid"
+      .&. accept "application" "json"
+
+  put "/i/teams/:tid/search-visibility" (continue Teams.setSearchVisibilityInternalH) $
+    capture "tid"
+      .&. jsonRequest @TeamSearchVisibilityView
       .&. accept "application" "json"
 
 rmUserH :: UserId ::: Maybe ConnId -> Galley Response
