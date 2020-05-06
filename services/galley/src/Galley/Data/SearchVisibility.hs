@@ -18,8 +18,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.Data.SearchVisibility
-  ( setTeamSearchVisibilityEnabled,
-    getTeamSearchVisibilityEnabled,
+  ( setTeamSearchVisibilityAvailable,
+    getTeamSearchVisibilityAvailable,
     setSearchVisibility,
     getSearchVisibility,
     resetSearchVisibility,
@@ -34,14 +34,14 @@ import Galley.Types.Teams.SearchVisibility
 import Imports
 
 -- | Return whether a given team is allowed to enable/disable sso
-getTeamSearchVisibilityEnabled :: MonadClient m => TeamId -> m (Maybe TeamSearchVisibilityEnabled)
-getTeamSearchVisibilityEnabled tid = join . fmap runIdentity <$> do
-  retry x1 $ query1 selectTeamSearchVisibilityEnabled (params Quorum (Identity tid))
+getTeamSearchVisibilityAvailable :: MonadClient m => TeamId -> m (Maybe TeamSearchVisibilityAvailable)
+getTeamSearchVisibilityAvailable tid = join . fmap runIdentity <$> do
+  retry x1 $ query1 selectTeamSearchVisibilityAvailable (params Quorum (Identity tid))
 
 -- | Determines whether a given team is allowed to enable/disable sso
-setTeamSearchVisibilityEnabled :: MonadClient m => TeamId -> TeamSearchVisibilityEnabled -> m ()
-setTeamSearchVisibilityEnabled tid isenabled = do
-  retry x5 $ write updateTeamSearchVisibilityEnabled (params Quorum (isenabled, tid))
+setTeamSearchVisibilityAvailable :: MonadClient m => TeamId -> TeamSearchVisibilityAvailable -> m ()
+setTeamSearchVisibilityAvailable tid isenabled = do
+  retry x5 $ write updateTeamSearchVisibilityAvailable (params Quorum (isenabled, tid))
 
 -- | Return whether a given team is allowed to enable/disable sso
 getSearchVisibility :: MonadClient m => TeamId -> m TeamSearchVisibility

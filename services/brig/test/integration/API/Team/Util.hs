@@ -407,13 +407,13 @@ stdInvitationRequest :: Email -> Name -> Maybe Locale -> Maybe Team.Role -> Invi
 stdInvitationRequest e inviterName loc role =
   InvitationRequest e inviterName loc role Nothing Nothing
 
-setTeamTeamSearchVisibilityEnabled :: HasCallStack => Galley -> TeamId -> Team.TeamSearchVisibilityEnabled -> Http ()
-setTeamTeamSearchVisibilityEnabled galley tid status =
+setTeamTeamSearchVisibilityAvailable :: HasCallStack => Galley -> TeamId -> Team.TeamSearchVisibilityAvailable -> Http ()
+setTeamTeamSearchVisibilityAvailable galley tid status =
   put
     ( galley
         . paths ["i/teams", toByteString' tid, "features/search-visibility"]
         . contentJson
-        . body (RequestBodyLBS . encode $ Team.TeamSearchVisibilityEnabledView status)
+        . body (RequestBodyLBS . encode $ Team.TeamSearchVisibilityAvailableView status)
     )
     !!! do
       const 204 === statusCode

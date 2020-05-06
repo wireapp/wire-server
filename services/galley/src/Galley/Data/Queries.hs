@@ -379,12 +379,12 @@ updateSSOTeamConfig :: PrepQuery W (SSOStatus, TeamId) ()
 updateSSOTeamConfig =
   "update team_features set sso_status = ? where team_id = ?"
 
-selectTeamSearchVisibilityEnabled :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamSearchVisibilityEnabled))
-selectTeamSearchVisibilityEnabled =
+selectTeamSearchVisibilityAvailable :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamSearchVisibilityAvailable))
+selectTeamSearchVisibilityAvailable =
   "select search_visibility_status from team_features where team_id = ?"
 
-updateTeamSearchVisibilityEnabled :: PrepQuery W (TeamSearchVisibilityEnabled, TeamId) ()
-updateTeamSearchVisibilityEnabled =
+updateTeamSearchVisibilityAvailable :: PrepQuery W (TeamSearchVisibilityAvailable, TeamId) ()
+updateTeamSearchVisibilityAvailable =
   "update team_features set search_visibility_status = ? where team_id = ?"
 
 selectSearchVisibility :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamSearchVisibility))

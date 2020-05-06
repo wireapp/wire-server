@@ -74,8 +74,8 @@ tests =
       testRoundTrip @SSOTeamConfig,
       testRoundTrip @TeamSearchVisibility,
       testRoundTrip @TeamSearchVisibilityView,
-      testRoundTrip @TeamSearchVisibilityEnabled,
-      testRoundTrip @TeamSearchVisibilityEnabledView,
+      testRoundTrip @TeamSearchVisibilityAvailable,
+      testRoundTrip @TeamSearchVisibilityAvailableView,
       testRoundTrip @CustomBackend,
       testRoundTrip @FeatureFlags,
       testCase "{} is a valid TeamMemberDeleteData" $ do
@@ -110,8 +110,8 @@ instance Arbitrary TeamSearchVisibilityView where
 instance Arbitrary TeamSearchVisibility where
   arbitrary = QC.elements [minBound ..]
 
-instance Arbitrary TeamSearchVisibilityEnabled where
+instance Arbitrary TeamSearchVisibilityAvailable where
   arbitrary = QC.elements [minBound ..]
 
-instance Arbitrary TeamSearchVisibilityEnabledView where
-  arbitrary = TeamSearchVisibilityEnabledView <$> arbitrary
+instance Arbitrary TeamSearchVisibilityAvailableView where
+  arbitrary = TeamSearchVisibilityAvailableView <$> arbitrary

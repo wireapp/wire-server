@@ -188,13 +188,13 @@ sitemap = do
       .&. jsonRequest @SSOTeamConfig
       .&. accept "application" "json"
 
-  get "/i/teams/:tid/features/search-visibility" (continue Teams.getTeamSearchVisibilityEnabledInternalH) $
+  get "/i/teams/:tid/features/search-visibility" (continue Teams.getTeamSearchVisibilityAvailableInternalH) $
     capture "tid"
       .&. accept "application" "json"
 
-  put "/i/teams/:tid/features/search-visibility" (continue Teams.setTeamSearchVisibilityEnabledInternalH) $
+  put "/i/teams/:tid/features/search-visibility" (continue Teams.setTeamSearchVisibilityAvailableInternalH) $
     capture "tid"
-      .&. jsonRequest @TeamSearchVisibilityEnabledView
+      .&. jsonRequest @TeamSearchVisibilityAvailableView
       .&. accept "application" "json"
 
   -- Misc API (internal) ------------------------------------------------

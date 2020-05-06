@@ -137,14 +137,14 @@ instance Cql SSOStatus where
   toCql SSODisabled = CqlInt 0
   toCql SSOEnabled = CqlInt 1
 
-instance Cql TeamSearchVisibilityEnabled where
+instance Cql TeamSearchVisibilityAvailable where
   ctype = Tagged IntColumn
 
   fromCql (CqlInt n) = case n of
     0 -> pure $ TeamSearchVisibilityDisabled
     1 -> pure $ TeamSearchVisibilityEnabled
-    _ -> fail "fromCql: Invalid TeamSearchVisibilityEnabled"
-  fromCql _ = fail "fromCql: TeamSearchVisibilityEnabled: CqlInt expected"
+    _ -> fail "fromCql: Invalid TeamSearchVisibilityAvailable"
+  fromCql _ = fail "fromCql: TeamSearchVisibilityAvailable: CqlInt expected"
 
   toCql TeamSearchVisibilityDisabled = CqlInt 0
   toCql TeamSearchVisibilityEnabled = CqlInt 1

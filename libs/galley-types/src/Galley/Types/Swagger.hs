@@ -67,7 +67,7 @@ galleyModels =
     teamInfo,
     legalHoldTeamConfig,
     ssoTeamConfig,
-    teamSearchVisibilityEnabled,
+    teamSearchVisibilityAvailable,
     teamSearchVisibility,
     customBackend
   ]
@@ -567,8 +567,8 @@ ssoTeamConfig = defineModel "SSOTeamConfig" $ do
   description "Configuration of SSO feature for team"
   property "status" featureStatus $ description "status"
 
-teamSearchVisibilityEnabled :: Model
-teamSearchVisibilityEnabled = defineModel "TeamSearchVisibilityEnabled" $ do
+teamSearchVisibilityAvailable :: Model
+teamSearchVisibilityAvailable = defineModel "TeamSearchVisibilityAvailable" $ do
   description "Configuration of Search Visibility feature for team"
   property "status" featureStatus $ description "status"
 

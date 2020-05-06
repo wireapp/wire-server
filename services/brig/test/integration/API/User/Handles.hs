@@ -201,7 +201,7 @@ testHandleQuerySearchVisibilityNoNameOutsideTeam _opts brig galley = do
   (tid1, owner1, [member1]) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
   (_, owner2, [member2]) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
   extern <- randomUserWithHandle brig
-  setTeamTeamSearchVisibilityEnabled galley tid1 Team.TeamSearchVisibilityEnabled
+  setTeamTeamSearchVisibilityAvailable galley tid1 Team.TeamSearchVisibilityEnabled
   setTeamSearchVisibility galley tid1 Team.SearchVisibilityNoNameOutsideTeam
   -- this is the same as in 'testHandleQuerySearchVisibilityStandard' above, because we search
   -- for handles, not names.

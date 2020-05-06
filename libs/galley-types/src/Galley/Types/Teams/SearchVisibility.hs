@@ -74,25 +74,25 @@ instance FromJSON TeamSearchVisibilityView where
 
 -- | Is the feature enabled for a given team?  See also 'FeatureTeamSearchVisibility',
 -- 'TeamSearchVisibility'.
-data TeamSearchVisibilityEnabled = TeamSearchVisibilityDisabled | TeamSearchVisibilityEnabled
+data TeamSearchVisibilityAvailable = TeamSearchVisibilityDisabled | TeamSearchVisibilityEnabled
   deriving stock (Eq, Show, Ord, Enum, Bounded, Generic)
 
-instance ToJSON TeamSearchVisibilityEnabled where
+instance ToJSON TeamSearchVisibilityAvailable where
   toJSON TeamSearchVisibilityEnabled = "enabled"
   toJSON TeamSearchVisibilityDisabled = "disabled"
 
-instance FromJSON TeamSearchVisibilityEnabled where
+instance FromJSON TeamSearchVisibilityAvailable where
   parseJSON = withText "TeamSearchVisibilityEnabled" $ \case
     "enabled" -> pure TeamSearchVisibilityEnabled
     "disabled" -> pure TeamSearchVisibilityDisabled
     x -> fail $ "unexpected status type: " <> T.unpack x
 
-newtype TeamSearchVisibilityEnabledView = TeamSearchVisibilityEnabledView TeamSearchVisibilityEnabled
+newtype TeamSearchVisibilityAvailableView = TeamSearchVisibilityAvailableView TeamSearchVisibilityAvailable
   deriving stock (Eq, Show, Generic)
 
-instance ToJSON TeamSearchVisibilityEnabledView where
-  toJSON (TeamSearchVisibilityEnabledView s) = object ["status" .= s]
+instance ToJSON TeamSearchVisibilityAvailableView where
+  toJSON (TeamSearchVisibilityAvailableView s) = object ["status" .= s]
 
-instance FromJSON TeamSearchVisibilityEnabledView where
-  parseJSON = withObject "TeamSearchVisibilityEnabledView" $ \o ->
-    TeamSearchVisibilityEnabledView <$> o .: "status"
+instance FromJSON TeamSearchVisibilityAvailableView where
+  parseJSON = withObject "TeamSearchVisibilityAvailableView" $ \o ->
+    TeamSearchVisibilityAvailableView <$> o .: "status"

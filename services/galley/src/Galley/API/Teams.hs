@@ -44,9 +44,9 @@ module Galley.API.Teams
     getLegalholdStatusH,
     getLegalholdStatusInternalH,
     setLegalholdStatusInternalH,
-    getTeamSearchVisibilityEnabledH,
-    setTeamSearchVisibilityEnabledInternalH,
-    getTeamSearchVisibilityEnabledInternalH,
+    getTeamSearchVisibilityAvailableH,
+    setTeamSearchVisibilityAvailableInternalH,
+    getTeamSearchVisibilityAvailableInternalH,
     getSearchVisibilityH,
     setSearchVisibilityH,
     getSearchVisibilityInternalH,
@@ -837,15 +837,15 @@ getLegalholdStatus uid tid = do
   void $ permissionCheck ViewLegalHoldTeamSettings zusrMembership
   getLegalholdStatusInternal tid
 
-getTeamSearchVisibilityEnabledH :: UserId ::: TeamId ::: JSON -> Galley Response
-getTeamSearchVisibilityEnabledH (uid ::: tid ::: _) =
-  json <$> getTeamSearchVisibilityEnabled uid tid
+getTeamSearchVisibilityAvailableH :: UserId ::: TeamId ::: JSON -> Galley Response
+getTeamSearchVisibilityAvailableH (uid ::: tid ::: _) =
+  json <$> getTeamSearchVisibilityAvailable uid tid
 
-getTeamSearchVisibilityEnabled :: UserId -> TeamId -> Galley TeamSearchVisibilityEnabledView
-getTeamSearchVisibilityEnabled uid tid = do
+getTeamSearchVisibilityAvailable :: UserId -> TeamId -> Galley TeamSearchVisibilityAvailableView
+getTeamSearchVisibilityAvailable uid tid = do
   zusrMembership <- Data.teamMember tid uid
-  void $ permissionCheck ViewTeamSearchVisibilityEnabled zusrMembership
-  getTeamSearchVisibilityEnabledInternal tid
+  void $ permissionCheck ViewTeamSearchVisibilityAvailable zusrMembership
+  getTeamSearchVisibilityAvailableInternal tid
 
 -- Enable / Disable team features
 -- These endpoints are internal only and  meant to be called
@@ -926,32 +926,32 @@ setLegalholdStatusInternal tid legalHoldTeamConfig = do
         throwM cannotEnableLegalHoldServiceLargeTeam
 
 -- | Get Search visibility status for a team.
-getTeamSearchVisibilityEnabledInternalH :: TeamId ::: JSON -> Galley Response
-getTeamSearchVisibilityEnabledInternalH (tid ::: _) = do
-  json <$> getTeamSearchVisibilityEnabledInternal tid
+getTeamSearchVisibilityAvailableInternalH :: TeamId ::: JSON -> Galley Response
+getTeamSearchVisibilityAvailableInternalH (tid ::: _) = do
+  json <$> getTeamSearchVisibilityAvailableInternal tid
 
-getTeamSearchVisibilityEnabledInternal :: TeamId -> Galley TeamSearchVisibilityEnabledView
-getTeamSearchVisibilityEnabledInternal tid = TeamSearchVisibilityEnabledView <$> do
+getTeamSearchVisibilityAvailableInternal :: TeamId -> Galley TeamSearchVisibilityAvailableView
+getTeamSearchVisibilityAvailableInternal tid = TeamSearchVisibilityAvailableView <$> do
   -- TODO: This is just redundant given there is a decent default
   defConfig <- do
     featureTeamSearchVisibility <- view (options . optSettings . setFeatureFlags . flagTeamSearchVisibility)
     pure $ case featureTeamSearchVisibility of
       FeatureTeamSearchVisibilityEnabledByDefault -> TeamSearchVisibilityEnabled
       FeatureTeamSearchVisibilityDisabledByDefault -> TeamSearchVisibilityDisabled
-  fromMaybe defConfig <$> SearchVisibilityData.getTeamSearchVisibilityEnabled tid
+  fromMaybe defConfig <$> SearchVisibilityData.getTeamSearchVisibilityAvailable tid
 
 -- | Enable or disable custom search visibility for a team.
-setTeamSearchVisibilityEnabledInternalH :: TeamId ::: JsonRequest TeamSearchVisibilityEnabledView ::: JSON -> Galley Response
-setTeamSearchVisibilityEnabledInternalH (tid ::: req ::: _) = do
-  setTeamSearchVisibilityEnabledInternal tid =<< fromJsonBody req
+setTeamSearchVisibilityAvailableInternalH :: TeamId ::: JsonRequest TeamSearchVisibilityAvailableView ::: JSON -> Galley Response
+setTeamSearchVisibilityAvailableInternalH (tid ::: req ::: _) = do
+  setTeamSearchVisibilityAvailableInternal tid =<< fromJsonBody req
   pure noContent
 
-setTeamSearchVisibilityEnabledInternal :: TeamId -> TeamSearchVisibilityEnabledView -> Galley ()
-setTeamSearchVisibilityEnabledInternal tid (TeamSearchVisibilityEnabledView isenabled) = do
+setTeamSearchVisibilityAvailableInternal :: TeamId -> TeamSearchVisibilityAvailableView -> Galley ()
+setTeamSearchVisibilityAvailableInternal tid (TeamSearchVisibilityAvailableView isenabled) = do
   case isenabled of
     TeamSearchVisibilityDisabled -> SearchVisibilityData.resetSearchVisibility tid
     TeamSearchVisibilityEnabled -> pure () -- This allows the option to be set at the team level
-  SearchVisibilityData.setTeamSearchVisibilityEnabled tid isenabled
+  SearchVisibilityData.setTeamSearchVisibilityAvailable tid isenabled
 
 -- | Modify and get visibility type for a team (internal, no user permission checks)
 getSearchVisibilityInternalH :: TeamId ::: JSON -> Galley Response
@@ -968,7 +968,7 @@ setSearchVisibilityInternalH (tid ::: req ::: _) = do
 
 setSearchVisibilityInternal :: TeamId -> TeamSearchVisibilityView -> Galley ()
 setSearchVisibilityInternal tid (TeamSearchVisibilityView searchVisibility) = do
-  TeamSearchVisibilityEnabledView status <- getTeamSearchVisibilityEnabledInternal tid
+  TeamSearchVisibilityAvailableView status <- getTeamSearchVisibilityAvailableInternal tid
   unless (status == TeamSearchVisibilityEnabled) $
     throwM teamSearchVisibilityNotEnabled
   SearchVisibilityData.setSearchVisibility tid searchVisibility

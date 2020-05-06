@@ -75,7 +75,7 @@ tests opts mgr galley brig = do
     prepareUsersForSearchVisibilityNoNameOutsideTeamTests :: Http ((TeamId, User, User), (TeamId, User, User), User)
     prepareUsersForSearchVisibilityNoNameOutsideTeamTests = do
       (tidA, ownerA, (memberA : _)) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
-      setTeamTeamSearchVisibilityEnabled galley tidA Team.TeamSearchVisibilityEnabled
+      setTeamTeamSearchVisibilityAvailable galley tidA Team.TeamSearchVisibilityEnabled
       setTeamSearchVisibility galley tidA Team.SearchVisibilityNoNameOutsideTeam
       (tidB, ownerB, (memberB : _)) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
       regularUser <- randomUserWithHandle brig

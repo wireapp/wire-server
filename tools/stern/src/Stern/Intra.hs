@@ -44,8 +44,8 @@ module Stern.Intra
     setLegalholdStatus,
     getSSOStatus,
     setSSOStatus,
-    getTeamSearchVisibilityEnabled,
-    setTeamSearchVisibilityEnabled,
+    getTeamSearchVisibilityAvailable,
+    setTeamSearchVisibilityAvailable,
     getSearchVisibility,
     setSearchVisibility,
     getTeamBillingInfo,
@@ -508,8 +508,8 @@ setSSOStatus tid status = do
     toRequestBody SetSSODisabled = SSOTeamConfig SSODisabled
     toRequestBody SetSSOEnabled = SSOTeamConfig SSOEnabled
 
-getTeamSearchVisibilityEnabled :: TeamId -> Handler SetTeamSearchVisibilityEnabled
-getTeamSearchVisibilityEnabled tid = do
+getTeamSearchVisibilityAvailable :: TeamId -> Handler SetTeamSearchVisibilityAvailable
+getTeamSearchVisibilityAvailable tid = do
   info $ msg "Getting TeamSearchVisibility status"
   gly <- view galley
   (>>= fromResponseBody) . catchRpcErrors $
@@ -521,14 +521,14 @@ getTeamSearchVisibilityEnabled tid = do
           . expect2xx
       )
   where
-    fromResponseBody :: Response (Maybe LByteString) -> Handler SetTeamSearchVisibilityEnabled
+    fromResponseBody :: Response (Maybe LByteString) -> Handler SetTeamSearchVisibilityAvailable
     fromResponseBody resp = case responseJsonEither resp of
-      Right (TeamSearchVisibilityEnabledView TeamSearchVisibilityEnabled) -> pure SetTeamSearchVisibilityEnabled
-      Right (TeamSearchVisibilityEnabledView TeamSearchVisibilityDisabled) -> pure SetTeamSearchVisibilityDisabled
+      Right (TeamSearchVisibilityAvailableView TeamSearchVisibilityEnabled) -> pure SetTeamSearchVisibilityEnabled
+      Right (TeamSearchVisibilityAvailableView TeamSearchVisibilityDisabled) -> pure SetTeamSearchVisibilityDisabled
       Left errmsg -> throwE (Error status502 "bad-upstream" ("bad response; error message: " <> pack errmsg))
 
-setTeamSearchVisibilityEnabled :: TeamId -> SetTeamSearchVisibilityEnabled -> Handler ()
-setTeamSearchVisibilityEnabled tid status = do
+setTeamSearchVisibilityAvailable :: TeamId -> SetTeamSearchVisibilityAvailable -> Handler ()
+setTeamSearchVisibilityAvailable tid status = do
   info $ msg "Setting TeamSearchVisibility status"
   gly <- view galley
   resp <-
@@ -545,8 +545,8 @@ setTeamSearchVisibilityEnabled tid status = do
     204 -> pure ()
     _ -> throwE $ responseJsonUnsafe resp
   where
-    toRequestBody SetTeamSearchVisibilityDisabled = TeamSearchVisibilityEnabledView TeamSearchVisibilityDisabled
-    toRequestBody SetTeamSearchVisibilityEnabled = TeamSearchVisibilityEnabledView TeamSearchVisibilityEnabled
+    toRequestBody SetTeamSearchVisibilityDisabled = TeamSearchVisibilityAvailableView TeamSearchVisibilityDisabled
+    toRequestBody SetTeamSearchVisibilityEnabled = TeamSearchVisibilityAvailableView TeamSearchVisibilityEnabled
 
 getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
 getSearchVisibility tid = do

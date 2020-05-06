@@ -369,23 +369,23 @@ routes = do
       Doc.description "JSON body"
     Doc.response 200 "SSO status" Doc.end
 
-  get "/teams/:tid/features/search-visibility" (continue (liftM json . Intra.getTeamSearchVisibilityEnabled)) $
+  get "/teams/:tid/features/search-visibility" (continue (liftM json . Intra.getTeamSearchVisibilityAvailable)) $
     capture "tid"
-  document "GET" "getTeamSearchVisibilityEnabled" $ do
+  document "GET" "getTeamSearchVisibilityAvailable" $ do
     summary "Shows whether TeamSearchVisibility feature is enabled for team"
     Doc.parameter Doc.Path "tid" Doc.bytes' $
       description "Team ID"
-    Doc.returns Doc.docSetTeamSearchVisibilityEnabled
+    Doc.returns Doc.docSetTeamSearchVisibilityAvailable
     Doc.response 200 "TeamSearchVisibility status" Doc.end
-  put "/teams/:tid/features/search-visibility" (continue setTeamSearchVisibilityEnabled) $
+  put "/teams/:tid/features/search-visibility" (continue setTeamSearchVisibilityAvailable) $
     contentType "application" "json"
       .&. capture "tid"
-      .&. jsonRequest @SetTeamSearchVisibilityEnabled
-  document "PUT" "setTeamSearchVisibilityEnabled" $ do
+      .&. jsonRequest @SetTeamSearchVisibilityAvailable
+  document "PUT" "setTeamSearchVisibilityAvailable" $ do
     summary "Disable / enable TeamSearchVisibility feature for team"
     Doc.parameter Doc.Path "tid" Doc.bytes' $
       description "Team ID"
-    Doc.body Doc.docSetTeamSearchVisibilityEnabled $
+    Doc.body Doc.docSetTeamSearchVisibilityAvailable $
       Doc.description "JSON body"
     Doc.response 200 "TeamSearchVisibility status" Doc.end
 
@@ -624,10 +624,10 @@ setSSOStatus (_ ::: tid ::: req) = do
   status :: SetSSOStatus <- parseBody req !>> Error status400 "client-error"
   liftM json $ Intra.setSSOStatus tid status
 
-setTeamSearchVisibilityEnabled :: JSON ::: TeamId ::: JsonRequest SetTeamSearchVisibilityEnabled -> Handler Response
-setTeamSearchVisibilityEnabled (_ ::: tid ::: req) = do
-  status :: SetTeamSearchVisibilityEnabled <- parseBody req !>> Error status400 "client-error"
-  liftM json $ Intra.setTeamSearchVisibilityEnabled tid status
+setTeamSearchVisibilityAvailable :: JSON ::: TeamId ::: JsonRequest SetTeamSearchVisibilityAvailable -> Handler Response
+setTeamSearchVisibilityAvailable (_ ::: tid ::: req) = do
+  status :: SetTeamSearchVisibilityAvailable <- parseBody req !>> Error status400 "client-error"
+  liftM json $ Intra.setTeamSearchVisibilityAvailable tid status
 
 setSearchVisibility :: JSON ::: TeamId ::: JsonRequest Team.TeamSearchVisibility -> Handler Response
 setSearchVisibility (_ ::: tid ::: req) = do

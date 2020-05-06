@@ -164,7 +164,7 @@ deriveJSON toJSONFieldName ''SetSSOStatus
 -- | FUTUREWORK: we should probably use
 -- 'Galley.Types.Teams.SearchVisibility.TeamSearchVisibilityEnabled'.  (same for
 -- 'SetSSOStatus', 'SetLegalHoldStatus'.
-data SetTeamSearchVisibilityEnabled = SetTeamSearchVisibilityDisabled | SetTeamSearchVisibilityEnabled
+data SetTeamSearchVisibilityAvailable = SetTeamSearchVisibilityDisabled | SetTeamSearchVisibilityEnabled
   deriving (Eq, Show, Ord, Enum, Bounded, Generic)
 
-deriveJSON toJSONFieldName ''SetTeamSearchVisibilityEnabled
+deriveJSON toJSONFieldName ''SetTeamSearchVisibilityAvailable

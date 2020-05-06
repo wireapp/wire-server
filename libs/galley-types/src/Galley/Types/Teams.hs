@@ -546,7 +546,7 @@ data HiddenPerm
   | ChangeLegalHoldUserSettings
   | ViewLegalHoldUserSettings
   | ViewSSOTeamSettings -- (change is only allowed via customer support backoffice)
-  | ViewTeamSearchVisibilityEnabled
+  | ViewTeamSearchVisibilityAvailable
   | ChangeTeamSearchVisibility
   | ViewTeamSearchVisibility
   | ViewSameTeamEmails
@@ -588,7 +588,7 @@ hiddenPermissionsFromPermissions =
             [ ViewLegalHoldTeamSettings,
               ViewLegalHoldUserSettings,
               ViewSSOTeamSettings,
-              ViewTeamSearchVisibilityEnabled,
+              ViewTeamSearchVisibilityAvailable,
               ViewTeamSearchVisibility
             ]
 
