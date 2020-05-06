@@ -1237,9 +1237,9 @@ testBillingInLargeTeam :: TestM ()
 testBillingInLargeTeam = do
   (firstOwner, team) <- Util.createBindingTeam
   refreshIndex
-  o <- view tsGConf
-  g <- view tsGalley
-  let fanoutLimit = fromRange $ Galley.currentFanoutLimit o
+  opts <- view tsGConf
+  galley <- view tsGalley
+  let fanoutLimit = fromRange $ Galley.currentFanoutLimit opts
   allOwnersBeforeFanoutLimit <-
     foldM
       ( \billingMembers n -> do
@@ -1254,18 +1254,18 @@ testBillingInLargeTeam = do
       [2 .. (fanoutLimit + 1)]
 
   -- Additions after the fanout limit should still send events to all owners
-  ownerFanoutPlusTwo <- (view userId) <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
+  ownerFanoutPlusTwo <- view userId <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
   assertQueue ("add fanoutLimit + 2nd billing member: " <> show ownerFanoutPlusTwo) $
     tUpdate (fanoutLimit + 2) (ownerFanoutPlusTwo : allOwnersBeforeFanoutLimit)
   refreshIndex
 
   -- Deletions after the fanout limit should still send events to all owners
-  ownerFanoutPlusThree <- (view userId) <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
+  ownerFanoutPlusThree <- view userId <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
   assertQueue ("add fanoutLimit + 3rd billing member: " <> show ownerFanoutPlusThree) $
     tUpdate (fanoutLimit + 3) (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusTwo, ownerFanoutPlusThree])
   refreshIndex
 
-  Util.deleteTeamMember g team firstOwner ownerFanoutPlusThree
+  Util.deleteTeamMember galley team firstOwner ownerFanoutPlusThree
   assertQueue ("delete fanoutLimit + 3rd billing member: " <> show ownerFanoutPlusThree) $
     tUpdate (fanoutLimit + 2) (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusTwo])
   refreshIndex
@@ -1274,11 +1274,11 @@ testBillingInLargeTeamWithoutIndexedBillingTeamMembers :: TestM ()
 testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
   (firstOwner, team) <- Util.createBindingTeam
   refreshIndex
-  o <- view tsGConf
-  g <- view tsGalley
+  opts <- view tsGConf
+  galley <- view tsGalley
   let withoutIndexedBillingTeamMembers =
-        withSettingsOverrides (o & optSettings . setEnableIndexedBillingTeamMembers .~ Just False)
-  let fanoutLimit = fromRange $ Galley.currentFanoutLimit o
+        withSettingsOverrides (opts & optSettings . setEnableIndexedBillingTeamMembers ?~ False)
+  let fanoutLimit = fromRange $ Galley.currentFanoutLimit opts
 
   -- Billing should work properly upto fanout limit
   allOwnersBeforeFanoutLimit <-
@@ -1289,7 +1289,7 @@ testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
           -- We cannot properly add the new owner with an invite as we don't have a way to
           -- override galley settings while making a call to brig
           withoutIndexedBillingTeamMembers $
-            post (g . paths ["i", "teams", toByteString' team, "members"] . mem)
+            post (galley . paths ["i", "teams", toByteString' team, "members"] . mem)
               !!! const 200 === statusCode
           let allBillingMembers = newBillingMemberId : billingMembers
           -- We don't make a call to brig to add member, hence the count of team is always 2
@@ -1307,53 +1307,52 @@ testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
   -- We cannot properly add the new owner with an invite as we don't have a way to
   -- override galley settings while making a call to brig
   withoutIndexedBillingTeamMembers $
-    post (g . paths ["i", "teams", toByteString' team, "members"] . memFanoutPlusTwo)
+    post (galley . paths ["i", "teams", toByteString' team, "members"] . memFanoutPlusTwo)
       !!! const 200 === statusCode
   assertQueue ("add " <> show (fanoutLimit + 2) <> "th billing member: " <> show ownerFanoutPlusTwo) $
-    ( \s maybeEvent -> do
-        case maybeEvent of
-          Nothing -> assertFailure "Expected 1 TeamUpdate, got nothing"
-          Just event -> do
-            assertEqual (s <> ": eventType") E.TeamEvent'TEAM_UPDATE (event ^. E.eventType)
-            assertEqual (s <> ": count") 2 (event ^. E.eventData . E.memberCount)
-            let reportedBillingUserIds = catMaybes $ map (UUID.fromByteString . fromStrict) (event ^. E.eventData . E.billingUser)
-            assertEqual (s <> ": number of billing users") (fromIntegral fanoutLimit + 1) (length reportedBillingUserIds)
-    )
+    \s maybeEvent ->
+      case maybeEvent of
+        Nothing -> assertFailure "Expected 1 TeamUpdate, got nothing"
+        Just event -> do
+          assertEqual (s <> ": eventType") E.TeamEvent'TEAM_UPDATE (event ^. E.eventType)
+          assertEqual (s <> ": count") 2 (event ^. E.eventData . E.memberCount)
+          let reportedBillingUserIds = mapMaybe (UUID.fromByteString . fromStrict) (event ^. E.eventData . E.billingUser)
+          assertEqual (s <> ": number of billing users") (fromIntegral fanoutLimit + 1) (length reportedBillingUserIds)
 
   -- While members are added with indexedBillingTeamMembers disabled, new owners must still be
   -- indexed, just not used. When the feature is enabled, we should be able to send billing to
   -- all the owners
-  ownerFanoutPlusThree <- (view userId) <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
+  ownerFanoutPlusThree <- view userId <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
   assertQueue ("add fanoutLimit + 3rd billing member: " <> show ownerFanoutPlusThree) $
     tUpdateUncertainCount [2, 3] (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusTwo, ownerFanoutPlusThree])
   refreshIndex
 
   -- Deletions with indexedBillingTeamMembers disabled should still remove owners from the
   -- indexed table
-  withoutIndexedBillingTeamMembers $ Util.deleteTeamMember g team firstOwner ownerFanoutPlusTwo
+  withoutIndexedBillingTeamMembers $ Util.deleteTeamMember galley team firstOwner ownerFanoutPlusTwo
   ensureQueueEmpty
   Util.waitForMemberDeletion firstOwner team ownerFanoutPlusTwo
 
-  ownerFanoutPlusFour <- (view userId) <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
+  ownerFanoutPlusFour <- view userId <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
   assertQueue ("add billing member to test deletion: " <> show ownerFanoutPlusFour) $
     tUpdateUncertainCount [3, 4] (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusThree, ownerFanoutPlusFour])
   refreshIndex
 
   -- Promotions and demotion should also be kept track of regardless of feature being enabled
   let demoteFanoutPlusThree = newNewTeamMember (newTeamMember' (rolePermissions RoleAdmin) ownerFanoutPlusThree)
-  withoutIndexedBillingTeamMembers $ updateTeamMember g team firstOwner demoteFanoutPlusThree !!! const 200 === statusCode
+  withoutIndexedBillingTeamMembers $ updateTeamMember galley team firstOwner demoteFanoutPlusThree !!! const 200 === statusCode
   ensureQueueEmpty
 
-  ownerFanoutPlusFive <- (view userId) <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
+  ownerFanoutPlusFive <- view userId <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
   assertQueue ("add billing member to test demotion: " <> show ownerFanoutPlusFive) $
     tUpdateUncertainCount [4, 5] (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusFour, ownerFanoutPlusFive])
   refreshIndex
 
   let promoteFanoutPlusThree = newNewTeamMember (newTeamMember' (rolePermissions RoleOwner) ownerFanoutPlusThree)
-  withoutIndexedBillingTeamMembers $ updateTeamMember g team firstOwner promoteFanoutPlusThree !!! const 200 === statusCode
+  withoutIndexedBillingTeamMembers $ updateTeamMember galley team firstOwner promoteFanoutPlusThree !!! const 200 === statusCode
   ensureQueueEmpty
 
-  ownerFanoutPlusSix <- (view userId) <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
+  ownerFanoutPlusSix <- view userId <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
   assertQueue ("add billing member to test promotion: " <> show ownerFanoutPlusSix) $
     tUpdateUncertainCount [5, 6] (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusThree, ownerFanoutPlusFour, ownerFanoutPlusFive, ownerFanoutPlusSix])
   where
