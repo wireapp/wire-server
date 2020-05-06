@@ -169,6 +169,7 @@ createNonBindingTeam zusr zcon (NonBindingNewTeam body) = do
       . Log.field "action" (Log.val "Teams.createNonBindingTeam")
   team <- Data.createTeam Nothing zusr (body ^. newTeamName) (body ^. newTeamIcon) (body ^. newTeamIconKey) NonBinding
   finishCreateTeam team owner others (Just zcon)
+  pure (team ^. teamId)
 
 createBindingTeamH :: UserId ::: TeamId ::: JsonRequest BindingNewTeam ::: JSON -> Galley Response
 createBindingTeamH (zusr ::: tid ::: req ::: _) = do
@@ -181,6 +182,7 @@ createBindingTeam zusr tid (BindingNewTeam body) = do
   let owner = newTeamMember zusr fullPermissions Nothing
   team <- Data.createTeam (Just tid) zusr (body ^. newTeamName) (body ^. newTeamIcon) (body ^. newTeamIconKey) Binding
   finishCreateTeam team owner [] Nothing
+  pure tid
 
 updateTeamStatusH :: TeamId ::: JsonRequest TeamStatusUpdate ::: JSON -> Galley Response
 updateTeamStatusH (tid ::: req ::: _) = do
@@ -198,8 +200,6 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
   where
     journal Suspended _ = Journal.teamSuspend tid
     journal Active c = do
-      -- When journaling is enabled, we are guaranteed that teamMembersForFanout returns all users
-      mems <- Data.teamMembersForFanout tid
       teamCreationTime <- Data.teamCreationTime tid
       -- When teams are created, they are activated immediately. In this situation, Brig will
       -- most likely report team size as 0 due to ES taking some time to index the team creator.
@@ -209,7 +209,7 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
             if possiblyStaleSize == 0
               then 1
               else possiblyStaleSize
-      Journal.teamActivate tid size mems c teamCreationTime
+      Journal.teamActivate tid size c teamCreationTime
     journal _ _ = throwM invalidTeamStatusUpdate
     validateTransition :: (TeamStatus, TeamStatus) -> Galley Bool
     validateTransition = \case
@@ -462,9 +462,8 @@ uncheckedAddTeamMember tid nmem = do
   -- FUTUREWORK: We cannot enable legalhold on large teams right now
   ensureNotTooLargeForLegalHold tid mems
   (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem mems
-  -- FUTUREWORK: This takes a list of members for fanout, but it should really
-  --             use the hardlimit instead. We want to avoid double lookups though
-  Journal.teamUpdate tid (sizeBeforeAdd + 1) $ newTeamMemberList ((nmem ^. ntmNewTeamMember) : mems ^. teamMembers) (mems ^. teamMemberListType)
+  billingUserIds <- Journal.getBillingUserIds tid $ Just $ newTeamMemberList ((nmem ^. ntmNewTeamMember) : mems ^. teamMembers) (mems ^. teamMemberListType)
+  Journal.teamUpdate tid (sizeBeforeAdd + 1) billingUserIds
 
 updateTeamMemberH :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
 updateTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -480,42 +479,47 @@ updateTeamMember zusr zcon tid targetMember = do
   Log.debug $
     Log.field "targets" (toByteString targetId)
       . Log.field "action" (Log.val "Teams.updateTeamMember")
+
   -- get the team and verify permissions
   team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
   user <-
     Data.teamMember tid zusr
       >>= permissionCheck SetMemberPermissions
+
   -- user may not elevate permissions
   targetPermissions `ensureNotElevated` user
-  Data.teamMember tid targetId >>= \case
-    Nothing -> do
+  previousMember <- Data.teamMember tid targetId >>= \case
+    Nothing ->
       -- target user must be in same team
       throwM teamMemberNotFound
-    Just previousMember -> do
-      when (downgradesOwner previousMember targetPermissions)
-        $
-        -- owner can be downgraded IFF it can be deleted
-        unless (canDeleteMember user previousMember)
-        $ throwM accessDenied
+    Just previousMember -> pure previousMember
+  when
+    ( downgradesOwner previousMember targetPermissions
+        && not (canDowngradeOwner user previousMember)
+    )
+    $ throwM accessDenied
+
   -- update target in Cassandra
-  Data.updateTeamMember tid targetId targetPermissions
-  -- When journaling is enabled, we are guaranteed that teamMembersForFanout returns all users
+  Data.updateTeamMember (previousMember ^. permissions) tid targetId targetPermissions
+
   updatedMembers <- Data.teamMembersForFanout tid
   updateJournal team updatedMembers
   updatePeers targetId targetPermissions updatedMembers
   where
+    --
+    canDowngradeOwner = canDeleteMember
+    --
     downgradesOwner :: TeamMember -> Permissions -> Bool
     downgradesOwner previousMember targetPermissions =
       permissionsRole (previousMember ^. permissions) == Just RoleOwner
         && permissionsRole targetPermissions /= Just RoleOwner
     --
     updateJournal :: Team -> TeamMemberList -> Galley ()
-    updateJournal team updatedMembers = do
+    updateJournal team mems = do
       when (team ^. teamBinding == Binding) $ do
         (TeamSize size) <- BrigTeam.getSize tid
-        -- FUTUREWORK: This takes a list of members for fanout, but it should really
-        --             use the hardlimit instead. We want to avoid double lookups though
-        Journal.teamUpdate tid size updatedMembers
+        billingUserIds <- Journal.getBillingUserIds tid $ Just mems
+        Journal.teamUpdate tid size billingUserIds
     --
     updatePeers :: UserId -> Permissions -> TeamMemberList -> Galley ()
     updatePeers targetId targetPermissions updatedMembers = do
@@ -556,9 +560,8 @@ deleteTeamMember zusr zcon tid remove mBody = do
     tm <- maybe (throwM teamMemberNotFound) pure targetMember
     unless (canDeleteMember dm tm) $ throwM accessDenied
   team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
-  removeMembership <- Data.teamMember tid remove
   mems <- Data.teamMembersForFanout tid
-  if team ^. teamBinding == Binding && isJust removeMembership
+  if team ^. teamBinding == Binding && isJust targetMember
     then do
       body <- mBody & ifNothing (invalidPayload "missing request body")
       ensureReAuthorised zusr (body ^. tmdAuthPassword)
@@ -571,9 +574,8 @@ deleteTeamMember zusr zcon tid remove mBody = do
               then 0
               else sizeBeforeDelete - 1
       deleteUser remove
-      -- FUTUREWORK: This takes a list of members for fanout, but it should really
-      --             use the hardlimit instead. We want to avoid double lookups though
-      Journal.teamUpdate tid sizeAfterDelete $ newTeamMemberList (filter (\u -> u ^. userId /= remove) (mems ^. teamMembers)) (mems ^. teamMemberListType)
+      billingUsers <- Journal.getBillingUserIds tid (Just mems)
+      Journal.teamUpdate tid sizeAfterDelete $ filter (/= remove) billingUsers
       pure TeamMemberDeleteAccepted
     else do
       uncheckedDeleteTeamMember zusr (Just zcon) tid remove mems
@@ -759,23 +761,22 @@ addTeamMemberInternal tid origin originConn newMem memList = do
   now <- liftIO getCurrentTime
   for_ cc $ \c ->
     Data.addMember now (c ^. conversationId) (new ^. userId)
-  let e = newEvent MemberJoin tid now & eventData .~ Just (EdMemberJoin (new ^. userId))
+  let e = newEvent MemberJoin tid now & eventData ?~ EdMemberJoin (new ^. userId)
   push1 $ newPush1 (memList ^. teamMemberListType) (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
   return sizeBeforeAdd
   where
     recipients (Just o) n = list1 (userRecipient o) (membersToRecipients (Just o) (n : memList ^. teamMembers))
     recipients Nothing n = list1 (userRecipient (n ^. userId)) (membersToRecipients Nothing (memList ^. teamMembers))
 
-finishCreateTeam :: Team -> TeamMember -> [TeamMember] -> Maybe ConnId -> Galley TeamId
+finishCreateTeam :: Team -> TeamMember -> [TeamMember] -> Maybe ConnId -> Galley ()
 finishCreateTeam team owner others zcon = do
   let zusr = owner ^. userId
   for_ (owner : others) $
     Data.addTeamMember (team ^. teamId)
   now <- liftIO getCurrentTime
-  let e = newEvent TeamCreate (team ^. teamId) now & eventData .~ Just (EdTeamCreate team)
+  let e = newEvent TeamCreate (team ^. teamId) now & eventData ?~ EdTeamCreate team
   let r = membersToRecipients Nothing others
   push1 $ newPush1 ListComplete zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
-  pure (team ^. teamId)
 
 withBindingTeam :: UserId -> (TeamId -> Galley b) -> Galley b
 withBindingTeam zusr callback = do

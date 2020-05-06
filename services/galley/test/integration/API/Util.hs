@@ -64,6 +64,7 @@ import Test.Tasty.Cannon ((#), TimeoutUnit (..))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestSetup
+import UnliftIO.Timeout
 import Web.Cookie
 
 -------------------------------------------------------------------------------
@@ -1349,3 +1350,28 @@ withSettingsOverrides :: MonadIO m => Opts.Opts -> WaiTest.Session a -> m a
 withSettingsOverrides opts action = liftIO $ do
   (galleyApp, _) <- Run.mkApp opts
   WaiTest.runSession action galleyApp
+
+waitForMemberDeletion :: UserId -> TeamId -> UserId -> TestM ()
+waitForMemberDeletion zusr tid uid = do
+  maybeTimedOut <- timeout 2000000 loop
+  liftIO $ when (isNothing maybeTimedOut) $
+    assertFailure "Timed out waiting for member deletion"
+  where
+    loop = do
+      galley <- view tsGalley
+      res <- get (galley . paths ["teams", toByteString' tid, "members", toByteString' uid] . zUser zusr)
+      case statusCode res of
+        404 -> pure ()
+        _ -> loop
+
+deleteTeamMember :: (MonadIO m, MonadCatch m, MonadHttp m) => (Request -> Request) -> TeamId -> UserId -> UserId -> m ()
+deleteTeamMember g tid owner deletee =
+  delete
+    ( g
+        . paths ["teams", toByteString' tid, "members", toByteString' deletee]
+        . zUser owner
+        . zConn "conn"
+        . json (newTeamMemberDeleteData (Just defPassword))
+    )
+    !!! do
+      const 202 === statusCode

@@ -23,7 +23,7 @@ import Control.Exception (SomeAsyncException, asyncExceptionFromException)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch hiding (bracket)
 import qualified Data.ByteString.Base64 as B64
-import Data.ByteString.Lazy (toStrict)
+import Data.ByteString.Lazy (fromStrict)
 import qualified Data.Currency as Currency
 import Data.Id
 import Data.ProtoLens.Encoding
@@ -98,14 +98,23 @@ tSuspend l (Just e) = assertEqual (l <> "eventType") E.TeamEvent'TEAM_SUSPEND (e
 tSuspend l Nothing = assertFailure $ l <> ": Expected 1 TeamSuspend, got nothing"
 
 tUpdate :: HasCallStack => Int32 -> [UserId] -> String -> Maybe E.TeamEvent -> IO ()
-tUpdate c uids l (Just e) = do
+tUpdate c = tUpdateUncertainCount [c]
+
+tUpdateUncertainCount :: HasCallStack => [Int32] -> [UserId] -> String -> Maybe E.TeamEvent -> IO ()
+tUpdateUncertainCount countPossibilities uids l (Just e) = do
   assertEqual (l <> ": eventType") E.TeamEvent'TEAM_UPDATE (e ^. eventType)
-  assertEqual (l <> ": count") c (e ^. eventData . memberCount)
+  let actualCount = (e ^. eventData . memberCount)
+  assertBool
+    (l <> ": count, expected one of: " <> show countPossibilities <> ", got: " <> show actualCount)
+    (actualCount `elem` countPossibilities)
+  let maybeBillingUserIds = map (UUID.fromByteString . fromStrict) (e ^. eventData . billingUser)
+  assertBool "Invalid UUID found" (all isJust maybeBillingUserIds)
+  let billingUserIds = catMaybes maybeBillingUserIds
   assertEqual
     (l <> ": billing users")
-    (Set.fromList $ toStrict . UUID.toByteString . toUUID <$> uids)
-    (Set.fromList $ e ^. eventData . billingUser)
-tUpdate _ _ l Nothing = assertFailure $ l <> ": Expected 1 TeamUpdate, got nothing"
+    (Set.fromList $ toUUID <$> uids)
+    (Set.fromList $ billingUserIds)
+tUpdateUncertainCount _ _ l Nothing = assertFailure $ l <> ": Expected 1 TeamUpdate, got nothing"
 
 ensureNoMessages :: HasCallStack => Amazon ()
 ensureNoMessages = do

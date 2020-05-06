@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9f5daffbdfdfad8ece7e59b59a05ece9aaec09bd2efbd317782e0179455afb91
+-- hash: 85c7cbfdf08baf6437e3da2f82fe7862311336420ea8f4825dec40ec753daa23
 
 name:           auto-whitelist
 version:        1.0.0
@@ -13,7 +13,7 @@ category:       Network
 author:         Wire Swiss GmbH
 maintainer:     Wire Swiss GmbH <backend@wire.com>
 copyright:      (c) 2018 Wire Swiss GmbH
-license:        UnspecifiedLicense
+license:        AGPL-3
 build-type:     Simple
 
 executable auto-whitelist

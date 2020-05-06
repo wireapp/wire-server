@@ -40,6 +40,7 @@ import qualified V34
 import qualified V35
 import qualified V36
 import qualified V37
+import qualified V38_CreateTableBillingTeamMember
 import qualified V39
 
 main :: IO ()
@@ -67,6 +68,7 @@ main = do
       V35.migration,
       V36.migration,
       V37.migration,
+      V38_CreateTableBillingTeamMember.migration,
       V39.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Galley.Data
