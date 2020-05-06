@@ -26,8 +26,8 @@ module Wire.API.User.Auth
     loginLabel,
     LoginCode (..),
     PendingLoginCode (..),
-    LoginCodeTimeout (..),
     SendLoginCode (..),
+    LoginCodeTimeout (..),
 
     -- * Cookies
     CookieList (..),
@@ -41,6 +41,12 @@ module Wire.API.User.Auth
     TokenType (..),
 
     -- * Swagger
+    modelSendLoginCode,
+    modelLoginCodeResponse,
+    modelLogin,
+    modelRemoveCookies,
+    modelCookie,
+    modelCookieList,
   )
 where
 
@@ -51,6 +57,7 @@ import qualified Data.Code as Code
 import Data.Handle (Handle)
 import Data.Id (UserId)
 import Data.Misc (PlainTextPassword (..))
+import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Lazy.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Clock (UTCTime)
 import Imports
@@ -63,6 +70,32 @@ import Wire.API.User.Identity (Email, Phone)
 data Login
   = PasswordLogin !LoginId !PlainTextPassword !(Maybe CookieLabel)
   | SmsLogin !Phone !LoginCode !(Maybe CookieLabel)
+
+modelLogin :: Doc.Model
+modelLogin = Doc.defineModel "Login" $ do
+  Doc.description "Payload for performing a login."
+  Doc.property "email" Doc.string' $ do
+    Doc.description "The email address for a password login."
+    Doc.optional
+  Doc.property "phone" Doc.string' $ do
+    Doc.description "The phone number for a password or SMS login."
+    Doc.optional
+  Doc.property "handle" Doc.string' $ do
+    Doc.description "The handle for a password login."
+    Doc.optional
+  Doc.property "password" Doc.string' $ do
+    Doc.description "The password for a password login."
+    Doc.optional
+  Doc.property "code" Doc.string' $ do
+    Doc.description "The login code for an SMS login."
+    Doc.optional
+  Doc.property "label" Doc.string' $ do
+    Doc.description
+      "A label to associate with the returned cookie. \
+      \Every client should have a unique and stable (persistent) label \
+      \to allow targeted revocation of all cookies granted to that \
+      \specific client."
+    Doc.optional
 
 instance ToJSON Login where
   toJSON (SmsLogin p c l) = object ["phone" .= p, "code" .= c, "label" .= l]
@@ -144,21 +177,6 @@ instance FromJSON PendingLoginCode where
       <*> o .: "expires_in"
 
 -----------------------------------------------------------------------------
--- LoginCodeTimeout
-
--- | A timeout for a new or pending login code.
-newtype LoginCodeTimeout = LoginCodeTimeout
-  {fromLoginCodeTimeout :: Code.Timeout}
-  deriving (Eq, Show)
-
-instance ToJSON LoginCodeTimeout where
-  toJSON (LoginCodeTimeout t) = object ["expires_in" .= t]
-
-instance FromJSON LoginCodeTimeout where
-  parseJSON = withObject "LoginCodeTimeout" $ \o ->
-    LoginCodeTimeout <$> o .: "expires_in"
-
------------------------------------------------------------------------------
 -- SendLoginCode
 
 -- | A request for sending a 'LoginCode'
@@ -167,6 +185,15 @@ data SendLoginCode = SendLoginCode
     lcCall :: !Bool,
     lcForce :: !Bool
   }
+
+modelSendLoginCode :: Doc.Model
+modelSendLoginCode = Doc.defineModel "SendLoginCode" $ do
+  Doc.description "Payload for requesting a login code to be sent."
+  Doc.property "phone" Doc.string' $
+    Doc.description "E.164 phone number to send the code to."
+  Doc.property "voice_call" Doc.bool' $ do
+    Doc.description "Request the code with a call instead (default is SMS)."
+    Doc.optional
 
 instance ToJSON SendLoginCode where
   toJSON (SendLoginCode p c f) =
@@ -181,6 +208,27 @@ instance FromJSON SendLoginCode where
     SendLoginCode <$> o .: "phone"
       <*> o .:? "voice_call" .!= False
       <*> o .:? "force" .!= True
+
+-----------------------------------------------------------------------------
+-- LoginCodeTimeout
+
+-- | A timeout for a new or pending login code.
+newtype LoginCodeTimeout = LoginCodeTimeout
+  {fromLoginCodeTimeout :: Code.Timeout}
+  deriving (Eq, Show)
+
+modelLoginCodeResponse :: Doc.Model
+modelLoginCodeResponse = Doc.defineModel "LoginCodeResponse" $ do
+  Doc.description "A response for a successfully sent login code."
+  Doc.property "expires_in" Doc.int32' $
+    Doc.description "Number of seconds before the login code expires."
+
+instance ToJSON LoginCodeTimeout where
+  toJSON (LoginCodeTimeout t) = object ["expires_in" .= t]
+
+instance FromJSON LoginCodeTimeout where
+  parseJSON = withObject "LoginCodeTimeout" $ \o ->
+    LoginCodeTimeout <$> o .: "expires_in"
 
 -----------------------------------------------------------------------------
 -- other Logins (TODO: remove?)
@@ -224,6 +272,11 @@ data CookieList = CookieList
   { cookieList :: [Cookie ()]
   }
 
+modelCookieList :: Doc.Model
+modelCookieList = Doc.defineModel "CookieList" $ do
+  Doc.description "List of cookie information"
+  Doc.property "cookies" (Doc.array (Doc.ref modelCookie)) Doc.end
+
 instance ToJSON CookieList where
   toJSON c = object ["cookies" .= cookieList c]
 
@@ -243,6 +296,20 @@ data Cookie a = Cookie
     cookieValue :: !a
   }
   deriving (Eq, Show, Generic)
+
+modelCookie :: Doc.Model
+modelCookie = Doc.defineModel "Cookie" $ do
+  Doc.description "Cookie information"
+  Doc.property "id" Doc.int32' $
+    Doc.description "The primary cookie identifier"
+  Doc.property "type" modelTypeCookieType $
+    Doc.description "The cookie's type"
+  Doc.property "created" Doc.dateTime' $
+    Doc.description "The cookie's creation time"
+  Doc.property "expires" Doc.dateTime' $
+    Doc.description "The cookie's expiration time"
+  Doc.property "label" Doc.bytes' $
+    Doc.description "The cookie's label"
 
 instance ToJSON (Cookie ()) where
   toJSON c =
@@ -289,6 +356,14 @@ data CookieType
     PersistentCookie
   deriving (Eq, Show, Generic)
 
+modelTypeCookieType :: Doc.DataType
+modelTypeCookieType =
+  Doc.string $
+    Doc.enum
+      [ "session",
+        "persistent"
+      ]
+
 instance ToJSON CookieType where
   toJSON SessionCookie = "session"
   toJSON PersistentCookie = "persistent"
@@ -306,6 +381,18 @@ data RemoveCookies = RemoveCookies
     rmCookiesLabels :: [CookieLabel],
     rmCookiesIdents :: [CookieId]
   }
+
+modelRemoveCookies :: Doc.Model
+modelRemoveCookies = Doc.defineModel "RemoveCookies" $ do
+  Doc.description "Data required to remove cookies"
+  Doc.property "password" Doc.bytes' $
+    Doc.description "The user's password"
+  Doc.property "labels" (Doc.array Doc.bytes') $ do
+    Doc.description "A list of cookie labels for which to revoke the cookies."
+    Doc.optional
+  Doc.property "ids" (Doc.array Doc.int32') $ do
+    Doc.description "A list of cookie IDs to revoke."
+    Doc.optional
 
 instance FromJSON RemoveCookies where
   parseJSON = withObject "remove" $ \o ->

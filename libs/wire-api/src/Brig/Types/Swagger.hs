@@ -23,6 +23,7 @@ import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.API.Provider.Service (modelServiceRef)
 import Wire.API.Team (modelNewBindingTeam)
+import Wire.API.User.Client.Prekey (modelPrekey)
 import Wire.Swagger
 
 brigModels :: [Doc.Model]
@@ -54,13 +55,7 @@ brigModels =
     modelDelete,
     modelVerifyDelete,
     -- Login / Authentication
-    modelSendLoginCode,
-    modelPendingLoginError, -- couldn't find a corresponding type
-    modelLoginCodeResponse,
-    modelLogin,
-    modelRemoveCookies,
-    modelCookie,
-    modelCookieList,
+    modelPendingLoginError, -- TODO: couldn't find a corresponding type
     -- Clients
     modelNewClient,
     modelUpdateClient,
@@ -69,10 +64,6 @@ brigModels =
     modelSigkeys,
     modelLocation,
     modelPubClient,
-    -- Prekeys
-    modelPrekeyBundle,
-    modelClientPrekey,
-    modelPrekey,
     -- Properties
     modelPropertyValue,
     modelPropertyDictionary,
@@ -413,53 +404,12 @@ modelVerifyDelete = Doc.defineModel "VerifyDelete" $ do
 -------------------------------------------------------------------------------
 -- Login / Authentication Models
 
-modelSendLoginCode :: Doc.Model
-modelSendLoginCode = Doc.defineModel "SendLoginCode" $ do
-  Doc.description "Payload for requesting a login code to be sent."
-  Doc.property "phone" Doc.string' $
-    Doc.description "E.164 phone number to send the code to."
-  Doc.property "voice_call" Doc.bool' $ do
-    Doc.description "Request the code with a call instead (default is SMS)."
-    Doc.optional
-
 modelPendingLoginError :: Doc.Model
 modelPendingLoginError = Doc.defineModel "PendingLoginError" $ do
   Doc.description "A login code is still pending."
   errorProperties
   Doc.property "expires_in" Doc.int32' $
     Doc.description "Number of seconds before the pending login code expires."
-
-modelLoginCodeResponse :: Doc.Model
-modelLoginCodeResponse = Doc.defineModel "LoginCodeResponse" $ do
-  Doc.description "A response for a successfully sent login code."
-  Doc.property "expires_in" Doc.int32' $
-    Doc.description "Number of seconds before the login code expires."
-
-modelLogin :: Doc.Model
-modelLogin = Doc.defineModel "Login" $ do
-  Doc.description "Payload for performing a login."
-  Doc.property "email" Doc.string' $ do
-    Doc.description "The email address for a password login."
-    Doc.optional
-  Doc.property "phone" Doc.string' $ do
-    Doc.description "The phone number for a password or SMS login."
-    Doc.optional
-  Doc.property "handle" Doc.string' $ do
-    Doc.description "The handle for a password login."
-    Doc.optional
-  Doc.property "password" Doc.string' $ do
-    Doc.description "The password for a password login."
-    Doc.optional
-  Doc.property "code" Doc.string' $ do
-    Doc.description "The login code for an SMS login."
-    Doc.optional
-  Doc.property "label" Doc.string' $ do
-    Doc.description
-      "A label to associate with the returned cookie. \
-      \Every client should have a unique and stable (persistent) label \
-      \to allow targeted revocation of all cookies granted to that \
-      \specific client."
-    Doc.optional
 
 modelAccessToken :: Doc.Model
 modelAccessToken = Doc.defineModel "AccessToken" $ do
@@ -470,45 +420,6 @@ modelAccessToken = Doc.defineModel "AccessToken" $ do
     Doc.description "The type of the access token."
   Doc.property "expires_in" Doc.int64' $
     Doc.description "The number of seconds this token is valid."
-
-modelRemoveCookies :: Doc.Model
-modelRemoveCookies = Doc.defineModel "RemoveCookies" $ do
-  Doc.description "Data required to remove cookies"
-  Doc.property "password" Doc.bytes' $
-    Doc.description "The user's password"
-  Doc.property "labels" (Doc.array Doc.bytes') $ do
-    Doc.description "A list of cookie labels for which to revoke the cookies."
-    Doc.optional
-  Doc.property "ids" (Doc.array Doc.int32') $ do
-    Doc.description "A list of cookie IDs to revoke."
-    Doc.optional
-
-modelTypeCookieType :: Doc.DataType
-modelTypeCookieType =
-  Doc.string $
-    Doc.enum
-      [ "session",
-        "persistent"
-      ]
-
-modelCookie :: Doc.Model
-modelCookie = Doc.defineModel "Cookie" $ do
-  Doc.description "Cookie information"
-  Doc.property "id" Doc.int32' $
-    Doc.description "The primary cookie identifier"
-  Doc.property "type" modelTypeCookieType $
-    Doc.description "The cookie's type"
-  Doc.property "created" Doc.dateTime' $
-    Doc.description "The cookie's creation time"
-  Doc.property "expires" Doc.dateTime' $
-    Doc.description "The cookie's expiration time"
-  Doc.property "label" Doc.bytes' $
-    Doc.description "The cookie's label"
-
-modelCookieList :: Doc.Model
-modelCookieList = Doc.defineModel "CookieList" $ do
-  Doc.description "List of cookie information"
-  Doc.property "cookies" (Doc.array (Doc.ref modelCookie)) Doc.end
 
 -----------------------------------------------------------------------------
 -- Client Models
@@ -643,33 +554,6 @@ modelLocation = Doc.defineModel "Location" $ do
     Doc.description "Latitude"
   Doc.property "lon" Doc.double' $
     Doc.description "Longitude"
-
------------------------------------------------------------------------------
--- Prekey Models
-
-modelPrekeyBundle :: Doc.Model
-modelPrekeyBundle = Doc.defineModel "PrekeyBundle" $ do
-  Doc.description "Prekeys of all clients of a single user"
-  Doc.property "user" Doc.bytes' $
-    Doc.description "User ID"
-  Doc.property "clients" (Doc.array (Doc.ref modelClientPrekey)) $
-    Doc.description "Prekeys of all clients"
-
-modelClientPrekey :: Doc.Model
-modelClientPrekey = Doc.defineModel "ClientPrekey" $ do
-  Doc.description "Prekey of a single client"
-  Doc.property "client" Doc.bytes' $
-    Doc.description "Client Id"
-  Doc.property "prekey" (Doc.ref modelPrekey) $
-    Doc.description "Prekey"
-
-modelPrekey :: Doc.Model
-modelPrekey = Doc.defineModel "Prekey" $ do
-  Doc.description "Prekey"
-  Doc.property "id" Doc.int32' $
-    Doc.description "Prekey ID"
-  Doc.property "key" Doc.bytes' $
-    Doc.description "Prekey data"
 
 -----------------------------------------------------------------------------
 -- Properties

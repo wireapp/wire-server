@@ -28,12 +28,18 @@ module Wire.API.User.Client.Prekey
     lastPrekeyId,
     PrekeyBundle (..),
     ClientPrekey (..),
+
+    -- * Swagger
+    modelPrekeyBundle,
+    modelClientPrekey,
+    modelPrekey,
   )
 where
 
 import Data.Aeson
 import Data.Hashable (hash)
 import Data.Id
+import qualified Data.Swagger.Build.Api as Doc
 import Imports
 
 newtype PrekeyId = PrekeyId {keyId :: Word16}
@@ -47,6 +53,14 @@ data Prekey = Prekey
     prekeyKey :: !Text
   }
   deriving (Eq, Show, Generic)
+
+modelPrekey :: Doc.Model
+modelPrekey = Doc.defineModel "Prekey" $ do
+  Doc.description "Prekey"
+  Doc.property "id" Doc.int32' $
+    Doc.description "Prekey ID"
+  Doc.property "key" Doc.bytes' $
+    Doc.description "Prekey data"
 
 instance ToJSON Prekey where
   toJSON k =
@@ -97,6 +111,14 @@ data PrekeyBundle = PrekeyBundle
   }
   deriving (Eq, Show, Generic)
 
+modelPrekeyBundle :: Doc.Model
+modelPrekeyBundle = Doc.defineModel "PrekeyBundle" $ do
+  Doc.description "Prekeys of all clients of a single user"
+  Doc.property "user" Doc.bytes' $
+    Doc.description "User ID"
+  Doc.property "clients" (Doc.array (Doc.ref modelClientPrekey)) $
+    Doc.description "Prekeys of all clients"
+
 instance ToJSON PrekeyBundle where
   toJSON k =
     object
@@ -116,6 +138,14 @@ data ClientPrekey = ClientPrekey
     prekeyData :: !Prekey
   }
   deriving (Eq, Show, Generic)
+
+modelClientPrekey :: Doc.Model
+modelClientPrekey = Doc.defineModel "ClientPrekey" $ do
+  Doc.description "Prekey of a single client"
+  Doc.property "client" Doc.bytes' $
+    Doc.description "Client Id"
+  Doc.property "prekey" (Doc.ref modelPrekey) $
+    Doc.description "Prekey"
 
 instance ToJSON ClientPrekey where
   toJSON k =

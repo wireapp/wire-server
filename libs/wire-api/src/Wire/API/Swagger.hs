@@ -39,6 +39,7 @@ import qualified Wire.API.Team.Invitation as Team.Invitation
 import qualified Wire.API.Team.Member as Team.Member
 import qualified Wire.API.Team.Permission as Team.Permission
 import qualified Wire.API.User as User
+import qualified Wire.API.User.Auth as User.Auth
 import qualified Wire.API.User.Client as User.Client
 
 models :: [Model]
@@ -86,6 +87,12 @@ models =
     Team.modelUpdateData,
     Team.modelTeamDelete,
     User.modelUserIdList,
+    User.Auth.modelSendLoginCode,
+    User.Auth.modelLoginCodeResponse,
+    User.Auth.modelLogin,
+    User.Auth.modelRemoveCookies,
+    User.Auth.modelCookie,
+    User.Auth.modelCookieList,
     User.Client.modelOtrClientMap,
     User.Client.modelUserClients,
     Conversation.Event.modelEvent,
