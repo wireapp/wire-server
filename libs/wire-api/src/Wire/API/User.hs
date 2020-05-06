@@ -60,10 +60,6 @@ module Wire.API.User
     EmailUpdate (..),
     PhoneUpdate (..),
     HandleUpdate (..),
-    ManagedByUpdate (..),
-    RichInfoUpdate (..),
-    EmailRemove (..),
-    PhoneRemove (..),
 
     -- * Account Deletion
     DeleteUser (..),
@@ -107,7 +103,6 @@ import Wire.API.Team (BindingNewTeam, modelNewBindingTeam)
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Identity
 import Wire.API.User.Profile
-import Wire.API.User.RichInfo (RichInfoAssocList)
 
 --------------------------------------------------------------------------------
 -- UserIdList
@@ -785,46 +780,6 @@ instance ToJSON HandleUpdate where
 instance FromJSON HandleUpdate where
   parseJSON = withObject "handle-update" $ \o ->
     HandleUpdate <$> o .: "handle"
-
-newtype ManagedByUpdate = ManagedByUpdate {mbuManagedBy :: ManagedBy}
-  deriving (Eq, Show, Generic)
-
-instance ToJSON ManagedByUpdate where
-  toJSON m = object ["managed_by" .= mbuManagedBy m]
-
-instance FromJSON ManagedByUpdate where
-  parseJSON = withObject "managed-by-update" $ \o ->
-    ManagedByUpdate <$> o .: "managed_by"
-
-newtype RichInfoUpdate = RichInfoUpdate {riuRichInfo :: RichInfoAssocList}
-  deriving (Eq, Show, Generic)
-
-instance ToJSON RichInfoUpdate where
-  toJSON (RichInfoUpdate rif) = object ["rich_info" .= rif]
-
-instance FromJSON RichInfoUpdate where
-  parseJSON = withObject "rich-info-update" $ \o ->
-    RichInfoUpdate <$> o .: "rich_info"
-
-newtype EmailRemove = EmailRemove {erEmail :: Email}
-  deriving (Eq, Show, Generic)
-
-instance ToJSON EmailRemove where
-  toJSON e = object ["email" .= erEmail e]
-
-instance FromJSON EmailRemove where
-  parseJSON = withObject "email-remove" $ \o ->
-    EmailRemove <$> o .: "email"
-
-newtype PhoneRemove = PhoneRemove {prPhone :: Phone}
-  deriving (Eq, Show, Generic)
-
-instance ToJSON PhoneRemove where
-  toJSON p = object ["phone" .= prPhone p]
-
-instance FromJSON PhoneRemove where
-  parseJSON = withObject "phone-remove" $ \o ->
-    PhoneRemove <$> o .: "phone"
 
 -----------------------------------------------------------------------------
 -- Account Deletion

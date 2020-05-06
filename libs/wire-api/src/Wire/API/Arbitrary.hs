@@ -205,9 +205,6 @@ instance Arbitrary DeletionCodeTimeout where
 instance Arbitrary Timeout where
   arbitrary = Timeout . fromIntegral <$> arbitrary @Int
 
-instance Arbitrary EmailRemove where
-  arbitrary = EmailRemove <$> arbitrary
-
 instance Arbitrary EmailUpdate where
   arbitrary = EmailUpdate <$> arbitrary
 
@@ -216,9 +213,6 @@ instance Arbitrary HandleUpdate where
 
 instance Arbitrary LocaleUpdate where
   arbitrary = LocaleUpdate <$> arbitrary
-
-instance Arbitrary ManagedByUpdate where
-  arbitrary = ManagedByUpdate <$> arbitrary
 
 instance Arbitrary NewPasswordReset where
   arbitrary = NewPasswordReset <$> arbitrary
@@ -287,9 +281,6 @@ instance Arbitrary NewTeamUser where
 instance Arbitrary TeamMember where
   arbitrary = newTeamMember <$> arbitrary <*> arbitrary <*> arbitrary
 
-instance Arbitrary PhoneRemove where
-  arbitrary = PhoneRemove <$> arbitrary
-
 instance Arbitrary PhoneUpdate where
   arbitrary = PhoneUpdate <$> arbitrary
 
@@ -329,9 +320,6 @@ instance Arbitrary RichInfo where
 
 instance Arbitrary RichInfoAssocList where
   arbitrary = RichInfoAssocList <$> nubOn richFieldType <$> arbitrary
-
-instance Arbitrary RichInfoUpdate where
-  arbitrary = RichInfoUpdate <$> arbitrary
 
 instance Arbitrary ServiceRef where
   arbitrary = ServiceRef <$> arbitrary <*> arbitrary

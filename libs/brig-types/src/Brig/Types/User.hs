@@ -671,12 +671,16 @@ newtype PhoneUpdate = PhoneUpdate {puPhone :: Phone} deriving (Eq, Show, Generic
 
 newtype HandleUpdate = HandleUpdate {huHandle :: Text} deriving (Eq, Show, Generic)
 
+-- used internally
 newtype ManagedByUpdate = ManagedByUpdate {mbuManagedBy :: ManagedBy} deriving (Eq, Show, Generic)
 
+-- used internally
 newtype RichInfoUpdate = RichInfoUpdate {riuRichInfo :: RichInfoAssocList} deriving (Eq, Show, Generic)
 
+-- | TODO: is this used at all?
 newtype EmailRemove = EmailRemove {erEmail :: Email} deriving (Eq, Show, Generic)
 
+-- | TODO: is this used at all?
 newtype PhoneRemove = PhoneRemove {prPhone :: Phone} deriving (Eq, Show, Generic)
 
 -- NB: when adding new types, please also add roundtrip tests to
