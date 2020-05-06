@@ -151,6 +151,15 @@ insertTeamMember = "insert into team_member (team, user, perms, invited_by, invi
 deleteTeamMember :: PrepQuery W (TeamId, UserId) ()
 deleteTeamMember = "delete from team_member where team = ? and user = ?"
 
+insertBillingTeamMember :: PrepQuery W (TeamId, UserId) ()
+insertBillingTeamMember = "insert into billing_team_member (team, user) values (?, ?)"
+
+deleteBillingTeamMember :: PrepQuery W (TeamId, UserId) ()
+deleteBillingTeamMember = "delete from billing_team_member where team = ? and user = ?"
+
+listBillingTeamMembers :: PrepQuery R (Identity TeamId) (Identity UserId)
+listBillingTeamMembers = "select user from billing_team_member where team = ?"
+
 updatePermissions :: PrepQuery W (Permissions, TeamId, UserId) ()
 updatePermissions = "update team_member set perms = ? where team = ? and user = ?"
 
