@@ -849,8 +849,6 @@ data CompletePasswordReset = CompletePasswordReset
   deriving (Eq, Show, Generic)
 
 -- | The payload for setting or changing a password.
---
--- FUTUREWORK: is this actually used?
 data PasswordChange = PasswordChange
   { cpOldPassword :: !(Maybe PlainTextPassword),
     cpNewPassword :: !PlainTextPassword
