@@ -25,7 +25,52 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.User
-  ( module Wire.API.User,
+  ( UserIdList (..),
+    -- Profiles
+    UserProfile (..),
+    SelfProfile (..),
+    -- User (should not be here)
+    User (..),
+    userEmail,
+    userPhone,
+    userSSOId,
+    connectedProfile,
+    publicProfile,
+
+    -- * NewUser
+    NewUserPublic (..),
+    NewUser (..),
+    ExpiresIn,
+    newUserInvitationCode,
+    newUserTeam,
+    newUserEmail,
+    newUserPhone,
+    newUserSSOId,
+
+    -- * NewUserOrigin
+    NewUserOrigin (..),
+    InvitationCode (..),
+    NewTeamUser (..),
+    BindingNewTeamUser (..),
+
+    -- * Profile Updates
+    UserUpdate (..),
+    PasswordChange (..),
+    LocaleUpdate (..),
+    EmailUpdate (..),
+    PhoneUpdate (..),
+    HandleUpdate (..),
+    ManagedByUpdate (..),
+    RichInfoUpdate (..),
+    EmailRemove (..),
+    PhoneRemove (..),
+
+    -- * Account Deletion
+    DeleteUser (..),
+    mkDeleteUser,
+    VerifyDeleteUser (..),
+    mkVerifyDeleteUser,
+    DeletionCodeTimeout (..),
 
     -- * Swagger
     modelUserIdList,
