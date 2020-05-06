@@ -21,11 +21,11 @@
 module Wire.API.User.Client.Prekey
   ( PrekeyId (..),
     Prekey (..),
+    clientIdFromPrekey,
     LastPrekey,
     lastPrekey,
     unpackLastPrekey,
     lastPrekeyId,
-    clientIdFromPrekey,
     PrekeyBundle (..),
     ClientPrekey (..),
   )
@@ -39,39 +39,36 @@ import Imports
 newtype PrekeyId = PrekeyId {keyId :: Word16}
   deriving (Eq, Ord, Show, ToJSON, FromJSON, Generic)
 
+--------------------------------------------------------------------------------
+-- Prekey
+
 data Prekey = Prekey
   { prekeyId :: !PrekeyId,
     prekeyKey :: !Text
   }
   deriving (Eq, Show, Generic)
 
-data PrekeyBundle = PrekeyBundle
-  { prekeyUser :: !OpaqueUserId,
-    prekeyClients :: ![ClientPrekey]
-  }
-  deriving (Eq, Show, Generic)
+instance ToJSON Prekey where
+  toJSON k =
+    object
+      [ "id" .= prekeyId k,
+        "key" .= prekeyKey k
+      ]
 
-data ClientPrekey = ClientPrekey
-  { prekeyClient :: !ClientId,
-    prekeyData :: !Prekey
-  }
-  deriving (Eq, Show, Generic)
-
-newtype LastPrekey = LastPrekey
-  {unpackLastPrekey :: Prekey}
-  deriving (Eq, Show, Generic)
-
-lastPrekey :: Text -> LastPrekey
-lastPrekey = LastPrekey . Prekey lastPrekeyId
-
-lastPrekeyId :: PrekeyId
-lastPrekeyId = PrekeyId maxBound
+instance FromJSON Prekey where
+  parseJSON = withObject "Prekey" $ \o ->
+    Prekey <$> o .: "id" <*> o .: "key"
 
 clientIdFromPrekey :: Prekey -> ClientId
 clientIdFromPrekey prekey =
   newClientId . fromIntegral . hash . prekeyKey $ prekey
 
--- JSON
+--------------------------------------------------------------------------------
+-- LastPrekey
+
+newtype LastPrekey = LastPrekey
+  {unpackLastPrekey :: Prekey}
+  deriving (Eq, Show, Generic)
 
 instance ToJSON LastPrekey where
   toJSON = toJSON . unpackLastPrekey
@@ -85,16 +82,20 @@ instance FromJSON LastPrekey where
                 else fail "Invalid last prekey ID."
           )
 
-instance ToJSON Prekey where
-  toJSON k =
-    object
-      [ "id" .= prekeyId k,
-        "key" .= prekeyKey k
-      ]
+lastPrekeyId :: PrekeyId
+lastPrekeyId = PrekeyId maxBound
 
-instance FromJSON Prekey where
-  parseJSON = withObject "Prekey" $ \o ->
-    Prekey <$> o .: "id" <*> o .: "key"
+lastPrekey :: Text -> LastPrekey
+lastPrekey = LastPrekey . Prekey lastPrekeyId
+
+--------------------------------------------------------------------------------
+-- PrekeyBundle
+
+data PrekeyBundle = PrekeyBundle
+  { prekeyUser :: !OpaqueUserId,
+    prekeyClients :: ![ClientPrekey]
+  }
+  deriving (Eq, Show, Generic)
 
 instance ToJSON PrekeyBundle where
   toJSON k =
@@ -106,6 +107,15 @@ instance ToJSON PrekeyBundle where
 instance FromJSON PrekeyBundle where
   parseJSON = withObject "PrekeyBundle" $ \o ->
     PrekeyBundle <$> o .: "user" <*> o .: "clients"
+
+--------------------------------------------------------------------------------
+-- ClientPrekey
+
+data ClientPrekey = ClientPrekey
+  { prekeyClient :: !ClientId,
+    prekeyData :: !Prekey
+  }
+  deriving (Eq, Show, Generic)
 
 instance ToJSON ClientPrekey where
   toJSON k =
