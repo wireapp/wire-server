@@ -28,6 +28,8 @@ module Wire.API.User.Client
     -- * Client
     Client (..),
     PubClient (..),
+    ClientType (..),
+    ClientClass (..),
 
     -- * New/Update/Remove Client
     NewClient (..),

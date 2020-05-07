@@ -31,6 +31,8 @@ module Wire.API.User.Auth
 
     -- * Cookies
     CookieList (..),
+    CookieId (..),
+    CookieType (..),
     Cookie (..),
     CookieLabel (..),
     RemoveCookies (..),
