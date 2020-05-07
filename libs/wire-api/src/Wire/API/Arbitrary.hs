@@ -46,7 +46,7 @@ import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text as ST
 import Data.Text.Ascii
-import Data.Text.Encoding (encodeUtf8)
+import Data.Text.Encoding (decodeUtf8)
 import Data.UUID (nil)
 import GHC.TypeLits
 import Imports
@@ -104,7 +104,7 @@ instance Arbitrary TurnHost where
   arbitrary =
     oneof
       [ TurnHostIp <$> arbitrary,
-        TurnHostName <$> arbitrary `suchThat` (validHostname . encodeUtf8)
+        TurnHostName . decodeUtf8 <$> arbitrary `suchThat` validHostname
       ]
 
 instance Arbitrary Port where
