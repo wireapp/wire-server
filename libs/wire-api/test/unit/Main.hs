@@ -22,16 +22,16 @@ where
 
 import Imports
 import Test.Tasty
-import qualified Test.Wire.API.Types.Common
-import qualified Test.Wire.API.Types.TURN
-import qualified Test.Wire.API.Types.User
+import qualified Test.Wire.API.Call.TURN as TURN
+import qualified Test.Wire.API.Team as Team
+import qualified Test.Wire.API.User as User
 
 main :: IO ()
 main =
   defaultMain $
     testGroup
       "Tests"
-      [ Test.Wire.API.Types.Common.tests,
-        Test.Wire.API.Types.TURN.tests,
-        Test.Wire.API.Types.User.tests
+      [ TURN.tests,
+        Team.tests,
+        User.tests
       ]
