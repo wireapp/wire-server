@@ -12,6 +12,7 @@ dependencies:
 - hostname-validate
 - lens
 - imports
+- wire-api
 library:
   source-dirs: src
   ghc-options:
