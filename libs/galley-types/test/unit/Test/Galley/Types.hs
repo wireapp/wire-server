@@ -28,6 +28,7 @@ import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 
+-- wire-api: we still need this
 tests :: TestTree
 tests =
   testGroup
