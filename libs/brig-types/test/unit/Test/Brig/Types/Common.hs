@@ -29,7 +29,8 @@ import Brig.Types.Team.LegalHold
 import Brig.Types.Test.Arbitrary ()
 import Control.Lens
 import Data.Aeson
-import Galley.Types (CustomBackend)
+import Data.String.Conversions
+import Galley.Types
 import Galley.Types.Teams
 import Galley.Types.Teams.SSO
 import Imports
@@ -37,6 +38,7 @@ import Test.Brig.Roundtrip (testRoundTrip)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
+import Wire.API.Arbitrary ()
 
 -- NB: validateEveryToJSON from servant-swagger doesn't render these tests unnecessary!
 
@@ -96,3 +98,26 @@ instance Arbitrary FeatureFlags where
     FeatureFlags
       <$> Test.Tasty.QuickCheck.elements [minBound ..]
       <*> Test.Tasty.QuickCheck.elements [minBound ..]
+
+instance Arbitrary ExcludedPrefix where
+  arbitrary = ExcludedPrefix <$> arbitrary <*> arbitrary
+
+instance Arbitrary PhonePrefix where
+  arbitrary = do
+    digits <- take 8 <$> listOf1 (Test.Tasty.QuickCheck.elements ['0' .. '9'])
+    pure . PhonePrefix . cs $ "+" <> digits
+
+instance Arbitrary LegalHoldClientRequest where
+  arbitrary =
+    LegalHoldClientRequest
+      <$> arbitrary
+      <*> arbitrary
+
+instance Arbitrary LegalHoldService where
+  arbitrary = LegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary CustomBackend where
+  arbitrary =
+    CustomBackend
+      <$> arbitrary
+      <*> arbitrary
