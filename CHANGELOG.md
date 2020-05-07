@@ -1,5 +1,21 @@
 # 2020-05-07
 
+## Upgrade steps (IMPORTANT)
+
+* Deploy new version of all services as usual, make sure `enableIndexedBillingTeamMember` setting in galley is `false`.
+* Run backfill using
+  ```bash
+  CASSANDRA_HOST_GALLEY=<IP Address of one of the galley cassandra instaces>
+  CASSANDRA_PORT_GALLEY=<port>
+  CASSANDRA_KEYSPACE_GALLEY=<GALLEY_KEYSPACE>
+  docker run quay.io/wire/backfill-billing-team-members:2.81.18 \
+    --cassandra-host-galley="$CASSANDRA_HOST_GALLEY" \
+    --cassandra-port-galley="$CASSANDRA_PORT_GALLEY" \
+    --cassandra-keyspace-galley="$CASSANDRA_KEYSPACE_GALLEY"
+  ```
+  You can also run the above using [`kubectl run`](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#run).
+* Set `enableIndexedBillingTeamMember` setting in galley to `true` and re-deploy the same version.
+
 ## New Features
 
 * Custom search visibility - limit name search (#1086)
