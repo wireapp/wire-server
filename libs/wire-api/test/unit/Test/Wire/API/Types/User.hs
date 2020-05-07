@@ -24,26 +24,21 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Brig.Types.User where
+module Test.Wire.API.Types.User where
 
-import Brig.Types.Activation
-import Brig.Types.Intra
-import Brig.Types.Provider (UpdateServiceWhitelist)
-import Brig.Types.Team.Invitation
-import Brig.Types.Test.Arbitrary ()
-import Brig.Types.User
 import Data.Aeson
 import Data.Aeson.QQ
 import Data.Aeson.Types as Aeson
 import qualified Data.Map as Map
-import Galley.Types.Teams
 import Imports
-import Test.Brig.Roundtrip
 import Test.Tasty
 import Test.Tasty.HUnit
+import Wire.API.User (parseIdentity)
+import Wire.API.User.Identity
+import Wire.API.User.RichInfo
 
 tests :: TestTree
-tests = testGroup "User (types vs. aeson)" $ unitTests <> roundtripTests
+tests = testGroup "User (types vs. aeson)" $ unitTests
 
 unitTests :: [TestTree]
 unitTests =
@@ -188,37 +183,3 @@ unitTests =
     badphone = ("phone", "__@@")
     hssoid = UserSSOId "nil" "nil"
     ssoid = ("sso_id", toJSON hssoid)
-
-roundtripTests :: [TestTree]
-roundtripTests =
-  [ testRoundTrip @BindingNewTeamUser,
-    testRoundTrip @CheckHandles,
-    testRoundTrip @CompletePasswordReset,
-    testRoundTrip @DeleteUser,
-    testRoundTrip @DeletionCodeTimeout,
-    testRoundTrip @EmailRemove,
-    testRoundTrip @EmailUpdate,
-    testRoundTrip @HandleUpdate,
-    testRoundTrip @InvitationList,
-    testRoundTrip @Invitation,
-    testRoundTrip @InvitationRequest,
-    testRoundTrip @LocaleUpdate,
-    testRoundTrip @NewPasswordReset,
-    testRoundTrip @NewUser,
-    testRoundTrip @PasswordChange,
-    testRoundTrip @PhoneRemove,
-    testRoundTrip @PhoneUpdate,
-    testRoundTrip @ManagedByUpdate,
-    testRoundTrip @ReAuthUser,
-    testRoundTrip @SelfProfile,
-    testRoundTrip @TeamMember,
-    testRoundTrip @UpdateServiceWhitelist,
-    testRoundTrip @UserHandleInfo,
-    testRoundTrip @UserIdentity,
-    testRoundTrip @UserProfile,
-    testRoundTrip @User,
-    testRoundTrip @RichInfo,
-    testRoundTrip @UserUpdate,
-    testRoundTrip @RichInfoUpdate,
-    testRoundTrip @VerifyDeleteUser
-  ]

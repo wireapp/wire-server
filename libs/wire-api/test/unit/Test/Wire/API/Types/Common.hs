@@ -1,3 +1,6 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
@@ -17,16 +20,20 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Brig.Types.Team where
+module Test.Wire.API.Types.Common where
 
-import Brig.Types.Team
+import Data.Aeson
 import Imports
-import Test.Brig.Roundtrip (testRoundTrip)
 import Test.Tasty
-import Test.Tasty.QuickCheck (Arbitrary, arbitrary, arbitrarySizedNatural)
+import Test.Tasty.HUnit
+import qualified Wire.API.Team.Member as Team.Member
+
+-- NB: validateEveryToJSON from servant-swagger doesn't render these tests unnecessary!
 
 tests :: TestTree
-tests = testGroup "Team" $ [testRoundTrip @TeamSize]
-
-instance Arbitrary TeamSize where
-  arbitrary = TeamSize <$> arbitrarySizedNatural
+tests =
+  testGroup
+    "Common (types vs. aeson)"
+    [ testCase "{} is a valid TeamMemberDeleteData" $ do
+        assertBool "{}" (isRight (eitherDecode @Team.Member.TeamMemberDeleteData "{}"))
+    ]

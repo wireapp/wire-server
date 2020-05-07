@@ -17,14 +17,14 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Brig.Types.TURN where
+module Test.Wire.API.Types.TURN where
 
-import Brig.Types.TURN hiding (turnURI)
-import Brig.Types.Test.Arbitrary ()
 import Data.Aeson
 import Imports
 import Test.Tasty
 import Test.Tasty.QuickCheck hiding (total)
+import Wire.API.Arbitrary ()
+import Wire.API.Call.TURN (TurnURI, isTcp, isTls, isUdp, limitServers)
 
 tests :: TestTree
 tests =

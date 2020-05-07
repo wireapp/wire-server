@@ -68,3 +68,4 @@ tests:
     - tasty
     - tasty-hunit
     - tasty-quickcheck
+    - aeson-qq

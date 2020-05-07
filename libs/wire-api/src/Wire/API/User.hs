@@ -68,6 +68,9 @@ module Wire.API.User
     mkVerifyDeleteUser,
     DeletionCodeTimeout (..),
 
+    -- * helpers
+    parseIdentity,
+
     -- * Swagger
     modelUserIdList,
     modelSelf,
@@ -607,7 +610,10 @@ newtype InvitationCode = InvitationCode
 --------------------------------------------------------------------------------
 -- helpers
 
--- | Fails if email or phone or ssoid are present but invalid
+-- | Fails if email or phone or ssoid are present but invalid.
+-- If neither are present, it will not fail, but return Nothing.
+--
+-- FUTUREWORK: Why is the SSO ID passed separately?
 parseIdentity :: Maybe UserSSOId -> Object -> Aeson.Parser (Maybe UserIdentity)
 parseIdentity ssoid o =
   if isJust (HashMap.lookup "email" o <|> HashMap.lookup "phone" o) || isJust ssoid
