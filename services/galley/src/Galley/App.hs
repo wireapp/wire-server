@@ -144,8 +144,12 @@ validateOptions :: Logger.Logger -> Opts -> IO ()
 validateOptions l o = do
   let settings = view optSettings o
       optFanoutLimit = fromIntegral . fromRange $ currentFanoutLimit o
-  when ((isJust $ o ^. optJournal) && (settings ^. setMaxTeamSize > optFanoutLimit)) $
-    Logger.warn
+  when
+    ( isJust (o ^. optJournal)
+        && settings ^. setMaxTeamSize > optFanoutLimit
+        && not (settings ^. setEnableIndexedBillingTeamMembers . to (fromMaybe False))
+    )
+    $ Logger.warn
       l
       ( msg
           . val
