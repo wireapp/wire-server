@@ -9,6 +9,8 @@ maintainer: Wire Swiss GmbH <backend@wire.com>
 copyright: (c) 2020 Wire Swiss GmbH
 license: AGPL-3
 dependencies:
+- aeson >=0.6
+- containers >=0.5
 - cryptonite >=0.11
 - imports
 - memory >=0.11
@@ -16,7 +18,6 @@ dependencies:
 library:
   source-dirs: src
   dependencies:
-  - aeson >=0.6
   - attoparsec >=0.10
   - base >=4 && <5
   - base64-bytestring >=1.0
@@ -24,7 +25,6 @@ library:
   - bytestring-conversion >=0.2
   - case-insensitive
   - cassandra-util
-  - containers >=0.5
   - currency-codes >=2.0
   - data-default >=0.5
   - errors
@@ -67,4 +67,4 @@ tests:
     - lens
     - tasty
     - tasty-hunit
-    - containers
+    - tasty-quickcheck
