@@ -1,7 +1,4 @@
-{-# LANGUAGE BinaryLiterals #-}
-{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 -- This file is part of the Wire Server implementation.
 --

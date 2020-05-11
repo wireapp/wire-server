@@ -1,6 +1,3 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -74,7 +71,7 @@ import qualified Wire.API.User.Client as Client
 newtype UserId = UserId
   { _user :: Required 1 (Value Id.OpaqueUserId)
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
 
 instance Encode UserId
 
@@ -92,7 +89,7 @@ userId f c = (\x -> c {_user = x}) <$> field f (_user c)
 newtype ClientId = ClientId
   { _client :: Required 1 (Value Word64)
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
 
 instance Encode ClientId
 
