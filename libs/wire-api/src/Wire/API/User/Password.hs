@@ -48,7 +48,7 @@ import Data.Text.Ascii
 import Imports
 import Wire.API.User.Identity
 
------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- NewPasswordReset
 
 -- | The payload for initiating a password reset.
@@ -77,7 +77,7 @@ instance FromJSON NewPasswordReset where
               <|> (Right <$> o .: "phone")
           )
 
------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- CompletePasswordReset
 
 -- | The payload for completing a password reset.
@@ -123,7 +123,7 @@ instance FromJSON CompletePasswordReset where
           <|> (PasswordResetEmailIdentity <$> o .: "email")
           <|> (PasswordResetPhoneIdentity <$> o .: "phone")
 
------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- PasswordResetIdentity
 
 -- | The target identity of a password reset.
@@ -141,7 +141,7 @@ newtype PasswordResetKey = PasswordResetKey
   {fromPasswordResetKey :: AsciiBase64Url}
   deriving (Eq, Show, FromByteString, ToByteString, FromJSON, ToJSON, Generic)
 
------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- PasswordResetCode
 
 -- | Random code, acting as a very short-lived, single-use password.

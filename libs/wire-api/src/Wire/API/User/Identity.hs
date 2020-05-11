@@ -55,7 +55,7 @@ import qualified Data.Text as Text
 import Data.Time.Clock
 import Imports
 
------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- UserIdentity
 
 -- | The private unique user identity that is used for login and
@@ -112,7 +112,7 @@ ssoIdentity :: UserIdentity -> Maybe UserSSOId
 ssoIdentity (SSOIdentity ssoid _ _) = Just ssoid
 ssoIdentity _ = Nothing
 
------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- Email
 
 -- FUTUREWORK: replace this type with 'EmailAddress'
@@ -149,7 +149,7 @@ parseEmail t = case Text.split (== '@') t of
   [localPart, domain] -> Just $! Email localPart domain
   _ -> Nothing
 
------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- Phone
 
 newtype Phone = Phone {fromPhone :: Text}

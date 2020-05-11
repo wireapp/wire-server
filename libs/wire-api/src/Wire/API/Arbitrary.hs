@@ -398,7 +398,7 @@ instance Arbitrary Role where
 instance Arbitrary ManagedBy where
   arbitrary = elements [minBound ..]
 
-----------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- utilities
 
 instance (KnownNat n, KnownNat m, LTE n m) => Arbitrary (Range n m ST.Text) where

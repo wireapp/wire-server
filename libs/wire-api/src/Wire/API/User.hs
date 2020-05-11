@@ -402,7 +402,7 @@ publicProfile u =
           profileTeam
         }
 
------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- NewUser
 
 -- | We use the same 'NewUser' type for the @\/register@ and @\/i\/users@ endpoints. This
@@ -652,7 +652,7 @@ instance FromJSON BindingNewTeamUser where
     return $ BindingNewTeamUser t c
   parseJSON _ = fail "parseJSON BindingNewTeamUser: must be an object"
 
------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- Profile Updates
 
 -- NB: when adding new types, please also add roundtrip tests to

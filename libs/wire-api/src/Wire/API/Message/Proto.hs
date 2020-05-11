@@ -67,7 +67,8 @@ import Imports
 import qualified Wire.API.Message as Msg
 import qualified Wire.API.User.Client as Client
 
--- UserId -------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- UserId
 
 newtype UserId = UserId
   { _user :: Required 1 (Value Id.OpaqueUserId)
@@ -84,7 +85,8 @@ fromUserId u = UserId {_user = putField u}
 userId :: Functor f => (Id.OpaqueUserId -> f Id.OpaqueUserId) -> UserId -> f UserId
 userId f c = (\x -> c {_user = x}) <$> field f (_user c)
 
--- ClientId ------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- ClientId
 
 newtype ClientId = ClientId
   { _client :: Required 1 (Value Word64)
@@ -111,7 +113,8 @@ fromClientId c =
     (newClientId . fst)
     (hexadecimal (Text.fromStrict $ Id.client c))
 
--- ClientEntry --------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- ClientEntry
 
 data ClientEntry = ClientEntry
   { _clientId :: !(Required 1 (Message ClientId)),
@@ -136,7 +139,8 @@ clientEntryId f c = (\x -> c {_clientId = x}) <$> field f (_clientId c)
 clientEntryMessage :: Functor f => (ByteString -> f ByteString) -> ClientEntry -> f ClientEntry
 clientEntryMessage f c = (\x -> c {_clientVal = x}) <$> field f (_clientVal c)
 
--- UserEntry ----------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- UserEntry
 
 data UserEntry = UserEntry
   { _userId :: !(Required 1 (Message UserId)),
@@ -186,7 +190,8 @@ fromOtrRecipients rcps =
        in UserEntry (putField (fromUserId usr)) (putField xs)
     mkClientEntry (clt, t) = clientEntry (fromClientId clt) (fromBase64Text t)
 
--- Priority -----------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Priority
 
 data Priority = LowPriority | HighPriority
   deriving (Eq, Show, Ord, Generic)
@@ -215,7 +220,8 @@ fromPriority :: Msg.Priority -> Priority
 fromPriority Msg.LowPriority = LowPriority
 fromPriority Msg.HighPriority = HighPriority
 
--- NewOtrMessage ------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- NewOtrMessage
 
 data NewOtrMessage = NewOtrMessage
   { _newOtrSender :: !(Required 1 (Message ClientId)),
@@ -285,7 +291,8 @@ toReportMissing :: [UserId] -> Maybe [Id.OpaqueUserId]
 toReportMissing [] = Nothing
 toReportMissing us = Just $ view userId <$> us
 
--- Utilities ----------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Utilities
 
 fromBase64Text :: Text -> ByteString
 fromBase64Text = B64.decodeLenient . encodeUtf8

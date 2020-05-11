@@ -82,7 +82,8 @@ instance FromJSON ConvMembers where
             <*> o .: "others"
       )
 
--- Members ------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Members
 
 data Member = Member
   { memId :: !UserId,
@@ -196,7 +197,8 @@ instance FromJSON OtherMember where
       <*> o .:? "service"
       <*> o .:? "conversation_role" .!= roleNameWireAdmin
 
--- Member Updates -----------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Member Updates
 
 -- | Inbound self member updates.  This is what galley expects on its endpoint.  See also
 -- 'MemberUpdateData' - that event is meant to be sent only to the _self_ user.

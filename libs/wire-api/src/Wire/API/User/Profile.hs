@@ -99,7 +99,7 @@ newtype ColourId = ColourId {fromColourId :: Int32}
 defaultAccentId :: ColourId
 defaultAccentId = ColourId 0
 
------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- Asset
 
 -- Note: Intended to be turned into a sum type to add further asset types.
@@ -165,7 +165,7 @@ instance FromJSON AssetSize where
       "complete" -> pure AssetComplete
       _ -> fail $ "Invalid asset size: " ++ show s
 
------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- Locale
 
 data Locale = Locale
@@ -197,7 +197,7 @@ parseLocale = hush . parseOnly localeParser
       Locale <$> (languageParser <?> "Language code")
         <*> (optional (char '-' *> countryParser) <?> "Country code")
 
------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- Language
 
 newtype Language = Language {fromLanguage :: ISO639_1}
@@ -212,7 +212,7 @@ lan2Text = Text.toLower . Text.pack . show . fromLanguage
 parseLanguage :: Text -> Maybe Language
 parseLanguage = hush . parseOnly languageParser
 
------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- Country
 
 newtype Country = Country {fromCountry :: CountryCode}
@@ -227,7 +227,7 @@ con2Text = Text.pack . show . fromCountry
 parseCountry :: Text -> Maybe Country
 parseCountry = hush . parseOnly countryParser
 
------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- ManagedBy
 
 -- | Who controls changes to the user profile (where the profile is defined as "all
@@ -274,7 +274,7 @@ instance FromJSON ManagedBy where
 defaultManagedBy :: ManagedBy
 defaultManagedBy = ManagedByWire
 
------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- Deprecated
 
 -- | DEPRECATED

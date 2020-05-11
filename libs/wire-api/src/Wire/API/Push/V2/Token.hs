@@ -53,7 +53,7 @@ import Data.Json.Util
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 
------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- PushToken
 
 newtype PushTokenList = PushTokenList
@@ -114,7 +114,7 @@ instance FromJSON PushToken where
       <*> p .: "token"
       <*> p .: "client"
 
------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- Transport
 
 data Transport

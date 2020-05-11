@@ -67,7 +67,7 @@ import Data.Time.Clock (UTCTime)
 import Imports
 import Wire.API.User.Identity (Email, Phone)
 
------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- Login
 
 -- | Different kinds of logins.
@@ -120,7 +120,7 @@ loginLabel :: Login -> Maybe CookieLabel
 loginLabel (PasswordLogin _ _ l) = l
 loginLabel (SmsLogin _ _ l) = l
 
------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- LoginId
 
 data LoginId
@@ -154,7 +154,7 @@ loginIdPair = \case
 instance ToJSON LoginId where
   toJSON loginId = object [loginIdPair loginId]
 
------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- LoginCode
 
 -- | A single-use login code.
@@ -180,7 +180,7 @@ instance FromJSON PendingLoginCode where
     PendingLoginCode <$> o .: "code"
       <*> o .: "expires_in"
 
------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- SendLoginCode
 
 -- | A request for sending a 'LoginCode'
@@ -213,7 +213,7 @@ instance FromJSON SendLoginCode where
       <*> o .:? "voice_call" .!= False
       <*> o .:? "force" .!= True
 
------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- LoginCodeTimeout
 
 -- | A timeout for a new or pending login code.

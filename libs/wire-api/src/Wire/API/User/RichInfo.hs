@@ -61,7 +61,7 @@ import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Imports
 
-----------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- RichInfo
 
 data RichInfo = RichInfo
@@ -142,7 +142,7 @@ richInfoMapURN, richInfoAssocListURN :: Text
 richInfoMapURN = "urn:ietf:params:scim:schemas:extension:wire:1.0:User"
 richInfoAssocListURN = "urn:wire:scim:schemas:profile:1.0"
 
-----------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- RichInfoAssocList
 
 newtype RichInfoAssocList = RichInfoAssocList [RichField]

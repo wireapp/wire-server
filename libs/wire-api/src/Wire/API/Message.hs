@@ -52,7 +52,7 @@ import Data.Time
 import Imports
 import Wire.API.User.Client (UserClientMap, UserClients, modelOtrClientMap, modelUserClients)
 
------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- Message
 
 data NewOtrMessage = NewOtrMessage
@@ -117,7 +117,7 @@ instance FromJSON NewOtrMessage where
       <*> o .:? "data"
       <*> o .:? "report_missing"
 
------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- Priority
 
 -- | REFACTOR: do we ever use LowPriority?  to test, (a) remove the constructor and see what goes
@@ -152,7 +152,7 @@ instance FromJSON Priority where
     "high" -> pure HighPriority
     x -> fail $ "Invalid push priority: " ++ show x
 
------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- Recipients
 
 newtype OtrRecipients = OtrRecipients
@@ -168,7 +168,7 @@ modelOtrRecipients = Doc.defineModel "OtrRecipients" $ do
   Doc.property "" (Doc.ref modelOtrClientMap) $
     Doc.description "Mapping of user IDs to 'OtrClientMap's."
 
------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- Filter
 
 -- | A setting for choosing what to do when a message has not been encrypted
