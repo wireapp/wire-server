@@ -20,7 +20,8 @@
 
 -- TODO: Move to Brig.Types.User.Client
 module Brig.Types.Client
-  ( module C,
+  ( -- re-exports
+    module C,
     module P,
     ClientType (..),
     ClientClass (..),

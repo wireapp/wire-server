@@ -18,7 +18,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.Types.Team.Invitation
-  ( InvitationRequest (..),
+  ( -- * re-exports
+    InvitationRequest (..),
     Invitation (..),
     InvitationList (..),
   )

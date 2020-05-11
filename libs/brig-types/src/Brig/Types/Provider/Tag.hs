@@ -21,15 +21,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.Types.Provider.Tag
-  ( ServiceTag (..),
-    MatchAny (..),
-    MatchAll (..),
-    (.||.),
-    (.&&.),
-    matchAll,
-    match1,
-    match,
-    Bucket (..),
+  ( Bucket (..),
     defBucket,
     foldTags,
     unfoldTags,
@@ -38,6 +30,19 @@ module Brig.Types.Provider.Tag
     nonEmptyTags,
     tagToInt,
     intToTag,
+
+    -- * ServiceTag (re-export)
+    ServiceTag (..),
+    ServiceTagList (..),
+
+    -- * ServiceTag Matchers (re-export)
+    MatchAny (..),
+    MatchAll (..),
+    (.||.),
+    (.&&.),
+    matchAll,
+    match1,
+    match,
   )
 where
 
@@ -47,7 +52,6 @@ import Data.List (foldl')
 import Data.Range
 import qualified Data.Set as Set
 import Imports
-import Wire.API.Provider
 import Wire.API.Provider.Service.Tag
 
 newtype Bucket = Bucket Int32

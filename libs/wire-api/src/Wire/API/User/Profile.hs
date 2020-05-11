@@ -36,8 +36,10 @@ module Wire.API.User.Profile
     locToText,
     parseLocale,
     Language (..),
+    lan2Text,
     parseLanguage,
     Country (..),
+    con2Text,
     parseCountry,
 
     -- * ManagedBy

@@ -21,14 +21,16 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.Types.User.Auth
-  ( PendingLoginCode (..),
+  ( SsoLogin (..),
+    LegalHoldLogin (..),
+
+    -- * re-exports
+    PendingLoginCode (..),
     LoginCode (..),
     LoginId (..),
     SendLoginCode (..),
     LoginCodeTimeout (..),
     Login (..),
-    SsoLogin (..),
-    LegalHoldLogin (..),
     loginLabel,
     AccessToken (..),
     TokenType (..),

@@ -20,7 +20,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.Types.TURN
-  ( RTCConfiguration,
+  ( -- * re-exports
+    RTCConfiguration,
     rtcConfiguration,
     rtcConfIceServers,
     rtcConfTTL,
@@ -37,7 +38,7 @@ module Brig.Types.TURN
     turiPort,
     turiTransport,
     Transport (..),
-    TurnHost, -- Re-export
+    TurnHost,
     isHostName,
     TurnUsername,
     turnUsername,

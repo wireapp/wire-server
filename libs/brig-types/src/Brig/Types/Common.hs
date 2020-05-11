@@ -22,8 +22,20 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Types.Common {- rename to Brig.Types.Account? -}
-  ( Name (..),
+-- rename to Brig.Types.Account?
+module Brig.Types.Common
+  ( -- * PhoneBudgetTimeout
+    PhoneBudgetTimeout (..),
+
+    -- * PhonePrefix
+    PhonePrefix (..),
+    parsePhonePrefix,
+    isValidPhonePrefix,
+    allPrefixes,
+    ExcludedPrefix (..),
+
+    -- * re-exports
+    Name (..),
     ColourId (..),
     defaultAccentId,
     Email (..),
@@ -32,12 +44,6 @@ module Brig.Types.Common {- rename to Brig.Types.Account? -}
     Phone (..),
     parsePhone,
     isValidPhone,
-    PhoneBudgetTimeout (..),
-    PhonePrefix (..),
-    parsePhonePrefix,
-    isValidPhonePrefix,
-    allPrefixes,
-    ExcludedPrefix (..),
     UserIdentity (..),
     newIdentity,
     emailIdentity,
@@ -47,18 +53,14 @@ module Brig.Types.Common {- rename to Brig.Types.Account? -}
     Asset (..),
     AssetSize (..),
     Language (..),
-    languageParser,
     lan2Text,
     parseLanguage,
     Country (..),
-    countryParser,
     con2Text,
     parseCountry,
     Locale (..),
     locToText,
     parseLocale,
-    checkAndConvert,
-    codeParser,
     ManagedBy (..),
     defaultManagedBy,
   )
@@ -75,32 +77,7 @@ import Wire.API.User.Identity
 import Wire.API.User.Profile
 
 ------------------------------------------------------------------------------
---- Email
-
-fromEmail :: Email -> Text
-fromEmail (Email loc dom) = loc <> "@" <> dom
-
--- | Parses an email address of the form <local-part>@<domain>.
-parseEmail :: Text -> Maybe Email
-parseEmail t = case Text.split (== '@') t of
-  [localPart, domain] -> Just $! Email localPart domain
-  _ -> Nothing
-
-------------------------------------------------------------------------------
---- Phone
-
--- | Parses a phone number in E.164 format with a mandatory leading '+'.
-parsePhone :: Text -> Maybe Phone
-parsePhone p
-  | isValidPhone p = Just $! Phone p
-  | otherwise = Nothing
-
--- | Checks whether a phone number is valid, i.e. it is in E.164 format
--- with a mandatory leading '+' followed by 10-15 digits.
-isValidPhone :: Text -> Bool
-isValidPhone = either (const False) (const True) . parseOnly e164
-  where
-    e164 = char '+' *> count 8 digit *> count 7 (optional digit) *> endOfInput
+--- PhoneBudgetTimeout
 
 -- | If the budget for SMS and voice calls for a phone number
 -- has been exhausted within a certain time frame, this timeout
@@ -170,33 +147,3 @@ instance FromJSON ExcludedPrefix where
 
 instance ToJSON ExcludedPrefix where
   toJSON (ExcludedPrefix p c) = object ["phone_prefix" .= p, "comment" .= c]
-
------------------------------------------------------------------------------
--- Language
-
-languageParser :: Parser Language
-languageParser = codeParser "language" $ fmap Language . checkAndConvert isLower
-
-lan2Text :: Language -> Text
-lan2Text = Text.toLower . Text.pack . show . fromLanguage
-
------------------------------------------------------------------------------
--- Country
-
-countryParser :: Parser Country
-countryParser = codeParser "country" $ fmap Country . checkAndConvert isUpper
-
-con2Text :: Country -> Text
-con2Text = Text.pack . show . fromCountry
-
--- Common language / country functions
-checkAndConvert :: (Read a) => (Char -> Bool) -> String -> Maybe a
-checkAndConvert f t =
-  if all f t
-    then readMaybe (map toUpper t)
-    else fail "Format not supported."
-
-codeParser :: String -> (String -> Maybe a) -> Parser a
-codeParser err conv = do
-  code <- count 2 anyChar
-  maybe (fail err) return (conv code)

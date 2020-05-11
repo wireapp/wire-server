@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 571a31cb612cdf5b5b889cf95970cf3d77f2768e5068be43fbbe96b94d7e48a5
+-- hash: 2c7bf093d4d1b72b0b0de466070a80687f3ec054b725e5b19eb779b4969d761c
 
 name:           brig-types
 version:        1.35.0
@@ -39,7 +39,6 @@ library
       Brig.Types.Team.LegalHold
       Brig.Types.Test.Arbitrary
       Brig.Types.TURN
-      Brig.Types.TURN.Internal
       Brig.Types.User
       Brig.Types.User.Auth
   other-modules:

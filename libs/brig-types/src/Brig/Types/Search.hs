@@ -19,9 +19,11 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.Types.Search
-  ( SearchResult (..),
+  ( TeamSearchInfo (..),
+
+    -- * re-exports
+    SearchResult (..),
     Contact (..),
-    TeamSearchInfo (..),
   )
 where
 

@@ -19,10 +19,12 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.Types.Activation
-  ( module C,
+  ( ActivationPair,
+
+    -- * re-exports
+    module C,
     ActivationKey (..),
     ActivationCode (..),
-    ActivationPair,
     Activate (..),
     ActivationTarget (..),
     ActivationResponse (..),

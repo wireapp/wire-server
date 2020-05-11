@@ -26,14 +26,16 @@
 -- Types for connections between users.
 module Brig.Types.Connection
   ( module C,
+    UserIds (..),
+    ConnectionsStatusRequest (..),
+
+    -- * re-exports
     Message (..),
     Relation (..),
     UserConnection (..),
     ConnectionRequest (..),
     ConnectionUpdate (..),
     UserConnectionList (..),
-    UserIds (..),
-    ConnectionsStatusRequest (..),
   )
 where
 

@@ -19,23 +19,29 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.Types.Team.LegalHold
-  ( LegalHoldStatus (..),
-    LegalHoldTeamConfig (..),
-    NewLegalHoldService (..),
-    LegalHoldService (..),
-    ViewLegalHoldService (..),
-    ViewLegalHoldServiceInfo (..),
+  ( LegalHoldService (..),
     legalHoldService,
     viewLegalHoldService,
-    NewLegalHoldClient (..),
-    RequestNewLegalHoldClient (..),
-    UserLegalHoldStatusResponse (..),
     LegalHoldClientRequest (..),
-    LegalHoldServiceConfirm (..),
-    LegalHoldServiceRemove (..),
+
+    -- * LegalHoldTeamConfig (re-export)
+    LegalHoldTeamConfig (..),
+    LegalHoldStatus (..),
+
+    -- * Other (re-export)
+    NewLegalHoldService (..),
+    ViewLegalHoldService (..),
+    ViewLegalHoldServiceInfo (..),
+    UserLegalHoldStatusResponse (..),
     RemoveLegalHoldSettingsRequest (..),
     DisableLegalHoldForUserRequest (..),
     ApproveLegalHoldForUserRequest (..),
+
+    -- * external (re-export)
+    RequestNewLegalHoldClient (..),
+    NewLegalHoldClient (..),
+    LegalHoldServiceConfirm (..),
+    LegalHoldServiceRemove (..),
   )
 where
 
@@ -46,9 +52,9 @@ import Data.Id
 import Data.Json.Util
 import Data.Misc
 import Imports
-import Wire.API.Team.Feature
+import Wire.API.Team.Feature (LegalHoldStatus (..), LegalHoldTeamConfig (..))
 import Wire.API.Team.LegalHold
-import Wire.API.Team.LegalHold.External
+import Wire.API.Team.LegalHold.External (LegalHoldServiceConfirm (..), LegalHoldServiceRemove (..), NewLegalHoldClient (..), RequestNewLegalHoldClient (..))
 
 data LegalHoldService = LegalHoldService
   { legalHoldServiceTeam :: !TeamId,

@@ -50,7 +50,6 @@ roundtripTests =
     testRoundTrip @CompletePasswordReset,
     testRoundTrip @DeleteUser,
     testRoundTrip @DeletionCodeTimeout,
-    testRoundTrip @EmailRemove,
     testRoundTrip @EmailUpdate,
     testRoundTrip @HandleUpdate,
     testRoundTrip @InvitationList,
@@ -60,7 +59,6 @@ roundtripTests =
     testRoundTrip @NewPasswordReset,
     testRoundTrip @NewUser,
     testRoundTrip @PasswordChange,
-    testRoundTrip @PhoneRemove,
     testRoundTrip @PhoneUpdate,
     testRoundTrip @ManagedByUpdate,
     testRoundTrip @ReAuthUser,
@@ -77,17 +75,11 @@ roundtripTests =
     testRoundTrip @VerifyDeleteUser
   ]
 
-instance Arbitrary EmailRemove where
-  arbitrary = EmailRemove <$> arbitrary
-
 instance Arbitrary ManagedByUpdate where
   arbitrary = ManagedByUpdate <$> arbitrary
 
 instance Arbitrary RichInfoUpdate where
   arbitrary = RichInfoUpdate <$> arbitrary
-
-instance Arbitrary PhoneRemove where
-  arbitrary = PhoneRemove <$> arbitrary
 
 instance Arbitrary ReAuthUser where
   arbitrary = ReAuthUser <$> arbitrary

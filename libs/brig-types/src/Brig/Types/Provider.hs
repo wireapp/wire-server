@@ -23,9 +23,10 @@
 
 -- | Types for the (internal) provider API.
 --
--- TODO: Lenses & proper export list
+-- TODO: proper export list
 module Brig.Types.Provider
-  ( NewProvider (..),
+  ( -- * re-exports
+    NewProvider (..),
     NewProviderResponse (..),
     Provider (..),
     ProviderProfile (..),
@@ -59,8 +60,6 @@ module Brig.Types.Provider
     AddBotResponse (..),
     RemoveBotResponse (..),
     UpdateBotPrekeys (..),
-
-    -- * Re-exports
     module Common,
     HttpsUrl (..),
     ServiceToken (..),

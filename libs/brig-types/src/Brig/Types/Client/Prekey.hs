@@ -19,7 +19,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.Types.Client.Prekey
-  ( PrekeyId (..),
+  ( -- * re-exports
+    PrekeyId (..),
     Prekey (..),
     LastPrekey,
     lastPrekey,

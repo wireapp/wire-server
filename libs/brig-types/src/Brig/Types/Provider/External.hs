@@ -18,11 +18,10 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.Types.Provider.External
-  ( NewBotRequest (..),
+  ( -- * re-exports
+    NewBotRequest (..),
     NewBotResponse (..),
     BotUserView (..),
-
-    -- * Re-exports
     BotConvView,
     botConvView,
     botConvId,

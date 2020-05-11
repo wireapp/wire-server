@@ -32,9 +32,13 @@ module Wire.API.User.Identity
 
     -- * Email
     Email (..),
+    fromEmail,
+    parseEmail,
 
     -- * Phone
     Phone (..),
+    parsePhone,
+    isValidPhone,
 
     -- * UserSSOId
     UserSSOId (..),

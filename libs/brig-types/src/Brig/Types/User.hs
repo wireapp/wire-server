@@ -25,7 +25,12 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.Types.User
-  ( Pict (..),
+  ( ManagedByUpdate (..),
+    RichInfoUpdate (..),
+    PasswordResetPair,
+
+    -- * re-exports
+    Pict (..),
     noPict,
     UserHandleInfo (..),
     CheckHandles (..),
@@ -42,7 +47,6 @@ module Brig.Types.User
     toRichInfoAssocList,
     richInfoMapURN,
     richInfoAssocListURN,
-    --    richInfoAssocListFromObject,
     RichField (..),
     richInfoAssocListSize,
     richInfoMapSize,
@@ -52,14 +56,11 @@ module Brig.Types.User
     NewUser (..),
     ExpiresIn,
     NewUserOrigin (..),
-    -- parseNewUserOrigin,
-    -- jsonNewUserOrigin,
     newUserInvitationCode,
     newUserTeam,
     newUserEmail,
     newUserPhone,
     newUserSSOId,
-    -- parseIdentity,
     InvitationCode (..),
     BindingNewTeamUser (..),
     NewTeamUser (..),
@@ -69,10 +70,6 @@ module Brig.Types.User
     EmailUpdate (..),
     PhoneUpdate (..),
     HandleUpdate (..),
-    ManagedByUpdate (..),
-    RichInfoUpdate (..),
-    EmailRemove (..),
-    PhoneRemove (..),
     DeleteUser (..),
     mkDeleteUser,
     VerifyDeleteUser (..),
@@ -81,7 +78,6 @@ module Brig.Types.User
     NewPasswordReset (..),
     PasswordResetKey (..),
     PasswordResetCode (..),
-    PasswordResetPair,
     PasswordResetIdentity (..),
     CompletePasswordReset (..),
     PasswordChange (..),
@@ -105,12 +101,6 @@ newtype ManagedByUpdate = ManagedByUpdate {mbuManagedBy :: ManagedBy} deriving (
 -- used internally
 newtype RichInfoUpdate = RichInfoUpdate {riuRichInfo :: RichInfoAssocList} deriving (Eq, Show, Generic)
 
--- | TODO: is this used at all?
-newtype EmailRemove = EmailRemove {erEmail :: Email} deriving (Eq, Show, Generic)
-
--- | TODO: is this used at all?
-newtype PhoneRemove = PhoneRemove {prPhone :: Phone} deriving (Eq, Show, Generic)
-
 instance FromJSON ManagedByUpdate where
   parseJSON = withObject "managed-by-update" $ \o ->
     ManagedByUpdate <$> o .: "managed_by"
@@ -125,19 +115,4 @@ instance FromJSON RichInfoUpdate where
 instance ToJSON RichInfoUpdate where
   toJSON (RichInfoUpdate rif) = object ["rich_info" .= rif]
 
-instance FromJSON EmailRemove where
-  parseJSON = withObject "email-remove" $ \o ->
-    EmailRemove <$> o .: "email"
-
-instance ToJSON EmailRemove where
-  toJSON e = object ["email" .= erEmail e]
-
-instance FromJSON PhoneRemove where
-  parseJSON = withObject "phone-remove" $ \o ->
-    PhoneRemove <$> o .: "phone"
-
-instance ToJSON PhoneRemove where
-  toJSON p = object ["phone" .= prPhone p]
-
--- FUTUREWORK: is this actually used?
 type PasswordResetPair = (PasswordResetKey, PasswordResetCode)

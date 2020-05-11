@@ -20,7 +20,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.Types.Properties
-  ( PropertyKey (..),
+  ( -- * re-exports
+    PropertyKey (..),
     PropertyValue (..),
     PropertyKeysAndValues (..),
   )
