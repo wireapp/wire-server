@@ -326,6 +326,7 @@ postCryptoMessage5 = do
   conv <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
   -- Missing eve
   let m = [(bob, bc, "hello bob")]
+  let m' = otrRecipients [(bob, [(bc, encodeCiphertext "hello bob")])]
   -- These three are equivalent (i.e. report all missing clients)
   postOtrMessage id alice ac conv m
     !!! const 412 === statusCode
@@ -341,7 +342,17 @@ postCryptoMessage5 = do
   -- Report missing clients of a specific user only
   postOtrMessage (queryItem "report_missing" (toByteString' bob)) alice ac conv m
     !!! const 201 === statusCode
+  -- Let's make sure that the same logic using protobuf in the body works too
+  postProtoOtrMessage' Nothing (queryItem "report_missing" (toByteString' bob)) alice ac conv m'
+    !!! const 201 === statusCode
+  -- Body takes precedence
   postOtrMessage' (Just [makeIdOpaque bob]) (queryItem "report_missing" (toByteString' eve)) alice ac conv m
+    !!! const 201 === statusCode
+  -- Set it only in the body of the message
+  postOtrMessage' (Just [makeIdOpaque bob]) id alice ac conv m
+    !!! const 201 === statusCode
+  -- Let's make sure that protobuf works too, when specified in the body only
+  postProtoOtrMessage' (Just [makeIdOpaque bob]) id alice ac conv m'
     !!! const 201 === statusCode
   _rs <-
     postOtrMessage (queryItem "report_missing" (toByteString' eve)) alice ac conv []
