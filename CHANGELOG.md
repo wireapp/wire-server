@@ -29,7 +29,7 @@
 * Fix licenses of db tools (#1088)
 
 ## Internal Changes
-* Spar docs (#1074)
+* Add docs for updating ID Provider (#1074)
 * Add comments/docs about hie.yaml (#1037)
 * Don't poll from SQS as often (#1082)
 * Refactor: Split API modules into public/internal (#1083)
@@ -37,7 +37,7 @@
 * Monitor access to DynamoDB (#1077)
 * Make make docker-intermediate command work again (#1079)
 * Upgrade Ormolu to 0.0.5.0 (#1078)
-* Add (very few) unit tests to galley. (#1071)
+* Add (very few) unit tests to galley (#1071)
 * Pull brig-index before running the docker ephemeral setup (#1066)
 
 # 2020-04-21
