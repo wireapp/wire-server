@@ -25,6 +25,7 @@ module Wire.API.User.Auth
     Login (..),
     loginLabel,
     LoginCode (..),
+    LoginId (..),
     PendingLoginCode (..),
     SendLoginCode (..),
     LoginCodeTimeout (..),

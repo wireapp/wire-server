@@ -23,6 +23,7 @@
 module Brig.Types.User.Auth
   ( PendingLoginCode (..),
     LoginCode (..),
+    LoginId (..),
     SendLoginCode (..),
     LoginCodeTimeout (..),
     Login (..),
