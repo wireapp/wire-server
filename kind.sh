@@ -33,7 +33,7 @@ done
 
 # Needed because our services fail to start unless cassandra is up.
 for i in $(seq 1 2); do
-  kubectl -n "fed${i}" wait --for=condition=Ready pod --selector app=cassandra-ephemeral
+  kubectl --namespace "fed${i}" wait --for=condition=Ready pod --selector app=cassandra-ephemeral --timeout=90s
 done
 
 for i in $(seq 1 2); do
@@ -43,19 +43,17 @@ for i in $(seq 1 2); do
     --namespace "fed${i}" \
     wire-server wire-develop/wire-server \
     --devel \
-    --wait \
     --values ./values.yaml \
     --set brig.config.optSettings.setCookieDomain="fed${i}.svc.cluster.local"
-
-
 done
 
 # More elegant way for the "resourcesReady" function. Waits tils fake-aws-sns is initialised
 for i in $(seq 1 2); do
-  kubectl wait -n "fed${i}" --for=condition=Ready pod --selector app=fake-aws-sns
+  kubectl wait --namespace "fed${i}" --for=condtion=Ready pod --selector release=wire-server
+  kubectl wait --namespace "fed${i}" --for=condition=Ready pod --selector app=fake-aws-sns
 done
 
 
-helm test -n fed1 wire-server --logs
+helm test -n fed1 wire-server --logs --timeout=500s
 
 
