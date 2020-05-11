@@ -40,6 +40,7 @@ module Wire.API.Push.V2.Token
     -- * Swagger
     modelPushToken,
     modelPushTokenList,
+    typeTransport,
   )
 where
 
@@ -87,7 +88,7 @@ pushToken tp an tk cl = PushToken tp an tk cl
 modelPushToken :: Doc.Model
 modelPushToken = Doc.defineModel "PushToken" $ do
   Doc.description "Native Push Token"
-  Doc.property "transport" modelTransport $
+  Doc.property "transport" typeTransport $
     Doc.description "Transport"
   Doc.property "app" Doc.string' $
     Doc.description "Application"
@@ -124,8 +125,8 @@ data Transport
   | APNSVoIPSandbox
   deriving (Eq, Ord, Show, Bounded, Enum)
 
-modelTransport :: Doc.DataType
-modelTransport =
+typeTransport :: Doc.DataType
+typeTransport =
   Doc.string $
     Doc.enum
       [ "GCM",

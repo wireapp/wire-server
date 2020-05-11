@@ -29,7 +29,7 @@ module Gundeck.Types.Notification
     targetUser,
     targetClients,
 
-    -- * QueuedNotification
+    -- * QueuedNotification (re-export)
     QueuedNotification,
     queuedNotification,
     queuedNotificationId,
@@ -45,10 +45,9 @@ where
 import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.Id
-import Data.Json.Util
 import Data.List1
-import Data.Time.Clock (UTCTime)
 import Imports
+import Wire.API.Notification
 
 -------------------------------------------------------------------------------
 -- Notification
@@ -59,8 +58,6 @@ data Notification = Notification
     ntfPayload :: !(List1 Object)
   }
   deriving (Eq, Show)
-
-type NotificationId = Id Notification
 
 instance FromJSON Notification where
   parseJSON = withObject "notification" $ \o ->
@@ -101,55 +98,3 @@ instance ToJSON NotificationTarget where
       [ "user" .= u,
         "clients" .= cs
       ]
-
---------------------------------------------------------------------------------
--- QueuedNotification
-
-data QueuedNotification = QueuedNotification
-  { _queuedNotificationId :: !NotificationId,
-    _queuedNotificationPayload :: !(List1 Object)
-  }
-  deriving (Eq, Show)
-
-queuedNotification :: NotificationId -> List1 Object -> QueuedNotification
-queuedNotification = QueuedNotification
-
-makeLenses ''QueuedNotification
-
-data QueuedNotificationList = QueuedNotificationList
-  { _queuedNotifications :: [QueuedNotification],
-    _queuedHasMore :: !Bool,
-    _queuedTime :: !(Maybe UTCTime)
-  }
-
-queuedNotificationList :: [QueuedNotification] -> Bool -> Maybe UTCTime -> QueuedNotificationList
-queuedNotificationList = QueuedNotificationList
-
-makeLenses ''QueuedNotificationList
-
-instance FromJSON QueuedNotification where
-  parseJSON = withObject "QueuedNotification" $ \o ->
-    QueuedNotification <$> o .: "id"
-      <*> o .: "payload"
-
-instance ToJSON QueuedNotification where
-  toJSON (QueuedNotification i p) =
-    object
-      [ "id" .= i,
-        "payload" .= p
-      ]
-
-instance FromJSON QueuedNotificationList where
-  parseJSON = withObject "QueuedNotificationList" $ \o ->
-    QueuedNotificationList <$> o .: "notifications"
-      <*> o .:? "has_more" .!= False
-      <*> o .:? "time"
-
-instance ToJSON QueuedNotificationList where
-  toJSON (QueuedNotificationList ns more t) =
-    object
-      ( "notifications" .= ns
-          # "has_more" .= more
-          # "time" .= t
-          # []
-      )
