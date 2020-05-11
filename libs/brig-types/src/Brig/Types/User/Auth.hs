@@ -41,6 +41,7 @@ module Brig.Types.User.Auth
   )
 where
 
+import Data.Aeson
 import Data.Id (UserId)
 import Data.Misc (PlainTextPassword (..))
 import Imports
@@ -55,3 +56,25 @@ data SsoLogin
 -- tokens.
 data LegalHoldLogin
   = LegalHoldLogin !UserId !(Maybe PlainTextPassword) !(Maybe CookieLabel)
+
+instance FromJSON SsoLogin where
+  parseJSON = withObject "SsoLogin" $ \o ->
+    SsoLogin <$> o .: "user" <*> o .:? "label"
+
+instance ToJSON SsoLogin where
+  toJSON (SsoLogin uid label) =
+    object ["user" .= uid, "label" .= label]
+
+instance FromJSON LegalHoldLogin where
+  parseJSON = withObject "LegalHoldLogin" $ \o ->
+    LegalHoldLogin <$> o .: "user"
+      <*> o .:? "password"
+      <*> o .:? "label"
+
+instance ToJSON LegalHoldLogin where
+  toJSON (LegalHoldLogin uid password label) =
+    object
+      [ "user" .= uid,
+        "password" .= password,
+        "label" .= label
+      ]
