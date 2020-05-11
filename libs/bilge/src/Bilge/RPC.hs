@@ -46,12 +46,11 @@ import UnliftIO.Exception (try)
 class HasRequestId m where
   getRequestId :: m RequestId
 
-data RPCException
-  = RPCException
-      { rpceRemote :: !LText,
-        rpceRequest :: !Request,
-        rpceCause :: !SomeException
-      }
+data RPCException = RPCException
+  { rpceRemote :: !LText,
+    rpceRequest :: !Request,
+    rpceCause :: !SomeException
+  }
   deriving (Typeable)
 
 instance Exception RPCException

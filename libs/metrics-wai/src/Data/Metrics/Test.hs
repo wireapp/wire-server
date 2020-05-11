@@ -26,11 +26,10 @@ import Imports
 -- | It is an error for one prefix to end in two different capture variables.  eg., these two
 -- routes constitute a confict: "/user/:uid", "/user/:id".  There is a show instance that
 -- explains this better.
-data SiteConsistencyError
-  = SiteConsistencyError
-      { _siteConsistencyPrefix :: [Text],
-        _siteConsistencyCaptureVars :: [(Text, Int)]
-      }
+data SiteConsistencyError = SiteConsistencyError
+  { _siteConsistencyPrefix :: [Text],
+    _siteConsistencyCaptureVars :: [(Text, Int)]
+  }
   deriving (Eq)
 
 instance Show SiteConsistencyError where

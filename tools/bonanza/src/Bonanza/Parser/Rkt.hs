@@ -36,13 +36,12 @@ import Imports
 
 -- [<uptime_in_seconds>] <service_name>[<id>]: <opt_tags><message>
 
-data RktLogRecord
-  = RktLogRecord
-      { rktUptime :: !Double,
-        rktService :: !Text,
-        rktTags :: [(Text, Text)],
-        rktMessage :: !Text
-      }
+data RktLogRecord = RktLogRecord
+  { rktUptime :: !Double,
+    rktService :: !Text,
+    rktTags :: [(Text, Text)],
+    rktMessage :: !Text
+  }
   deriving (Eq, Show)
 
 instance ToLogEvent RktLogRecord where

@@ -504,10 +504,9 @@ newtype TaggedValue = TaggedValue {taggedValue :: ByteString}
 instance Arbitrary TaggedValue where
   arbitrary = TaggedValue <$> arbitrary `suchThat` (/= "=")
 
-newtype TaggedNetstring
-  = TaggedNetstring
-      { taggedNetstring :: [(Maybe TaggedValue, TaggedValue)]
-      }
+newtype TaggedNetstring = TaggedNetstring
+  { taggedNetstring :: [(Maybe TaggedValue, TaggedValue)]
+  }
   deriving (Eq, Show)
 
 instance Arbitrary TaggedNetstring where

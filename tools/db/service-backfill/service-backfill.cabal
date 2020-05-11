@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d01bdc5a7ff5214b1a392af08efefb347b77b002bfb0e35de03043e7fd5911b3
+-- hash: 0b53449632293250f29c5b217594390fe59e99c14f4a315c0e59edb64800ff82
 
 name:           service-backfill
 version:        1.0.0
@@ -13,7 +13,7 @@ category:       Network
 author:         Wire Swiss GmbH
 maintainer:     Wire Swiss GmbH <backend@wire.com>
 copyright:      (c) 2018 Wire Swiss GmbH
-license:        UnspecifiedLicense
+license:        AGPL-3
 build-type:     Simple
 
 executable service-backfill

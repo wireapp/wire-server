@@ -24,6 +24,7 @@ module Galley.API.LegalHold
     requestDeviceH,
     approveDeviceH,
     disableForUserH,
+    isLegalHoldEnabled,
   )
 where
 
@@ -116,26 +117,26 @@ removeSettings zusr tid (RemoveLegalHoldSettingsRequest mPassword) = do
   --     . Log.field "action" (Log.val "LegalHold.removeSettings")
   void $ permissionCheck ChangeLegalHoldTeamSettings zusrMembership
   ensureReAuthorised zusr mPassword
-  membs <- Data.teamMembersUnsafeForLargeTeams tid
-  removeSettings' tid (Just membs)
+  removeSettings' tid
 
 -- | Remove legal hold settings from team; also disabling for all users and removing LH devices
 removeSettings' ::
   TeamId ->
-  -- | If you've already got the team members you can pass them in otherwise they'll be looked up.
-  Maybe [TeamMember] ->
   Galley ()
-removeSettings' tid mMembers = do
-  membs <- maybe (Data.teamMembersUnsafeForLargeTeams tid) pure mMembers
-  let zothers = map (view userId) membs
-  Log.debug $
-    Log.field "targets" (toByteString . show $ toByteString <$> zothers)
-      . Log.field "action" (Log.val "LegalHold.removeSettings'")
-  let lhMembers = filter ((== UserLegalHoldEnabled) . view legalHoldStatus) membs
-  -- I picked this number by fair dice roll, feel free to change it :P
-  pooledMapConcurrentlyN_ 6 removeLHForUser lhMembers
+removeSettings' tid = do
+  -- Loop through team members and run this action.
+  Data.withTeamMembersWithChunks tid action
   LegalHoldData.removeSettings tid
   where
+    action :: [TeamMember] -> Galley ()
+    action membs = do
+      let zothers = map (view userId) membs
+      let lhMembers = filter ((== UserLegalHoldEnabled) . view legalHoldStatus) membs
+      Log.debug $
+        Log.field "targets" (toByteString . show $ toByteString <$> zothers)
+          . Log.field "action" (Log.val "LegalHold.removeSettings'")
+      -- I picked this number by fair dice roll, feel free to change it :P
+      pooledMapConcurrentlyN_ 8 removeLHForUser lhMembers
     removeLHForUser :: TeamMember -> Galley ()
     removeLHForUser member = do
       let uid = member ^. Team.userId

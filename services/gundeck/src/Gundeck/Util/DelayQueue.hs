@@ -35,13 +35,12 @@ import qualified Data.OrdPSQ as PSQ
 import Data.Tuple (swap)
 import Imports hiding (length)
 
-data DelayQueue k v
-  = DelayQueue
-      { _queue :: IORef (OrdPSQ k Word64 v),
-        _clock :: Clock,
-        delay :: !Delay,
-        limit :: !Limit
-      }
+data DelayQueue k v = DelayQueue
+  { _queue :: IORef (OrdPSQ k Word64 v),
+    _clock :: Clock,
+    delay :: !Delay,
+    limit :: !Limit
+  }
 
 newtype Clock = Clock {getTime :: IO Word64}
 

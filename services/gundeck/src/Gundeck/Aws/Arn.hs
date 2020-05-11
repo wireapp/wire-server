@@ -65,30 +65,27 @@ newtype Account = Account {fromAccount :: Text} deriving (Eq, Ord, Show, ToText,
 
 newtype EndpointId = EndpointId Text deriving (Eq, Ord, Show, ToText)
 
-data SnsArn a
-  = SnsArn
-      { _snsAsText :: !Text,
-        _snsRegion :: !Region,
-        _snsAccount :: !Account,
-        _snsTopic :: !a
-      }
+data SnsArn a = SnsArn
+  { _snsAsText :: !Text,
+    _snsRegion :: !Region,
+    _snsAccount :: !Account,
+    _snsTopic :: !a
+  }
   deriving (Eq, Ord, Show)
 
-data AppTopic
-  = AppTopic
-      { _appAsText :: !Text,
-        _appTransport :: !Transport,
-        _appName :: !AppName
-      }
+data AppTopic = AppTopic
+  { _appAsText :: !Text,
+    _appTransport :: !Transport,
+    _appName :: !AppName
+  }
   deriving (Eq, Show)
 
-data EndpointTopic
-  = EndpointTopic
-      { _endpointAsText :: !Text,
-        _endpointTransport :: !Transport,
-        _endpointAppName :: !AppName,
-        _endpointId :: !EndpointId
-      }
+data EndpointTopic = EndpointTopic
+  { _endpointAsText :: !Text,
+    _endpointTransport :: !Transport,
+    _endpointAppName :: !AppName,
+    _endpointId :: !EndpointId
+  }
   deriving (Eq, Ord, Show)
 
 type AppArn = SnsArn AppTopic

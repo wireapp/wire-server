@@ -23,6 +23,7 @@ import Data.Aeson (encode)
 import Data.String.Conversions (cs)
 import Data.Swagger.Build.Api as Swagger
 import Galley.Types (Access)
+import qualified Galley.Types.Teams.SearchVisibility as Types
 import Imports
 import qualified Wire.Swagger as Swagger
 
@@ -66,6 +67,8 @@ galleyModels =
     teamInfo,
     legalHoldTeamConfig,
     ssoTeamConfig,
+    teamSearchVisibilityAvailable,
+    teamSearchVisibility,
     customBackend
   ]
 
@@ -564,6 +567,11 @@ ssoTeamConfig = defineModel "SSOTeamConfig" $ do
   description "Configuration of SSO feature for team"
   property "status" featureStatus $ description "status"
 
+teamSearchVisibilityAvailable :: Model
+teamSearchVisibilityAvailable = defineModel "TeamSearchVisibilityAvailable" $ do
+  description "Configuration of Search Visibility feature for team"
+  property "status" featureStatus $ description "status"
+
 featureStatus :: DataType
 featureStatus =
   string $
@@ -571,6 +579,14 @@ featureStatus =
       [ "enabled",
         "disabled"
       ]
+
+searchVisibilityType :: DataType
+searchVisibilityType = string . enum $ cs . encode <$> [(minBound :: Types.TeamSearchVisibility) ..]
+
+teamSearchVisibility :: Model
+teamSearchVisibility = defineModel "TeamSearchVisibility" $ do
+  description "Search visibility value for the team"
+  property "search_visibility" searchVisibilityType $ description "value of visibility"
 
 customBackend :: Model
 customBackend = defineModel "CustomBackend" $ do

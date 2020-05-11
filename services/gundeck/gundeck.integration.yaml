@@ -25,6 +25,7 @@ settings:
   notificationTTL: 24192200
   bulkPush: true
   perNativePushConcurrency: 32
+  sqsThrottleMillis: 1000
   maxConcurrentNativePushes:
     hard: 30  # more than this number of threads will not be allowed
     soft: 10  # more than this number of threads will be warned about

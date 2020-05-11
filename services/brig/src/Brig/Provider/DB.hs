@@ -207,7 +207,8 @@ insertService pid name summary descr url token key fprint assets tags = do
   return sid
   where
     cql ::
-      PrepQuery W
+      PrepQuery
+        W
         ( ProviderId,
           ServiceId,
           Name,
@@ -239,7 +240,9 @@ lookupService pid sid =
     $ params Quorum (pid, sid)
   where
     cql ::
-      PrepQuery R (ProviderId, ServiceId)
+      PrepQuery
+        R
+        (ProviderId, ServiceId)
         (Name, Maybe Text, Text, HttpsUrl, List1 ServiceToken, List1 ServiceKey, [Asset], C.Set ServiceTag, Bool)
     cql =
       "SELECT name, summary, descr, base_url, auth_tokens, pubkeys, assets, tags, enabled \
@@ -258,7 +261,9 @@ listServices p =
     $ params Quorum (Identity p)
   where
     cql ::
-      PrepQuery R (Identity ProviderId)
+      PrepQuery
+        R
+        (Identity ProviderId)
         (ServiceId, Name, Maybe Text, Text, HttpsUrl, List1 ServiceToken, List1 ServiceKey, [Asset], C.Set ServiceTag, Bool)
     cql =
       "SELECT id, name, summary, descr, base_url, auth_tokens, pubkeys, assets, tags, enabled \
@@ -370,7 +375,9 @@ listServiceProfiles p =
     $ params One (Identity p)
   where
     cql ::
-      PrepQuery R (Identity ProviderId)
+      PrepQuery
+        R
+        (Identity ProviderId)
         (ServiceId, Name, Maybe Text, Text, [Asset], C.Set ServiceTag, Bool)
     cql =
       "SELECT id, name, summary, descr, assets, tags, enabled \
@@ -382,15 +389,14 @@ listServiceProfiles p =
 --------------------------------------------------------------------------------
 -- Service Connection Data
 
-data ServiceConn
-  = ServiceConn
-      { sconProvider :: !ProviderId,
-        sconService :: !ServiceId,
-        sconBaseUrl :: !HttpsUrl,
-        sconAuthTokens :: !(List1 ServiceToken),
-        sconFingerprints :: !(List1 (Fingerprint Rsa)),
-        sconEnabled :: !Bool
-      }
+data ServiceConn = ServiceConn
+  { sconProvider :: !ProviderId,
+    sconService :: !ServiceId,
+    sconBaseUrl :: !HttpsUrl,
+    sconAuthTokens :: !(List1 ServiceToken),
+    sconFingerprints :: !(List1 (Fingerprint Rsa)),
+    sconEnabled :: !Bool
+  }
 
 -- | Lookup the connection information of a service.
 lookupServiceConn ::

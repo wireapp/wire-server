@@ -1,3 +1,45 @@
+# 2020-05-07
+
+## Upgrade steps (IMPORTANT)
+
+* Deploy new version of all services as usual, make sure `enableIndexedBillingTeamMember` setting in galley is `false`.
+* Run backfill using
+  ```bash
+  CASSANDRA_HOST_GALLEY=<IP Address of one of the galley cassandra instaces>
+  CASSANDRA_PORT_GALLEY=<port>
+  CASSANDRA_KEYSPACE_GALLEY=<GALLEY_KEYSPACE>
+  docker run quay.io/wire/backfill-billing-team-members:2.81.18 \
+    --cassandra-host-galley="$CASSANDRA_HOST_GALLEY" \
+    --cassandra-port-galley="$CASSANDRA_PORT_GALLEY" \
+    --cassandra-keyspace-galley="$CASSANDRA_KEYSPACE_GALLEY"
+  ```
+  You can also run the above using [`kubectl run`](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#run).
+* Set `enableIndexedBillingTeamMember` setting in galley to `true` and re-deploy the same version.
+
+## New Features
+
+* Custom search visibility - limit name search (#1086)
+* Add tool to backfill billing_team_member (#1089)
+* Index billing team members (#1081, #1091)
+* Allow team deletion on stern (#1080)
+* Do not fanout very large teams (#1060, #1075)
+
+## Bug fixes
+
+* Fix licenses of db tools (#1088)
+
+## Internal Changes
+* Add docs for updating ID Provider (#1074)
+* Add comments/docs about hie.yaml (#1037)
+* Don't poll from SQS as often (#1082)
+* Refactor: Split API modules into public/internal (#1083)
+* Manage license headers with headroom instead of licensure (#1084)
+* Monitor access to DynamoDB (#1077)
+* Make make docker-intermediate command work again (#1079)
+* Upgrade Ormolu to 0.0.5.0 (#1078)
+* Add (very few) unit tests to galley (#1071)
+* Pull brig-index before running the docker ephemeral setup (#1066)
+
 # 2020-04-21
 
 ## New Features

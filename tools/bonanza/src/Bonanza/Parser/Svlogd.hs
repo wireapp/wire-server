@@ -39,12 +39,11 @@ import Data.Text (strip)
 import Data.Time (UTCTime (..))
 import Imports
 
-data SvLogRecord a
-  = SvLogRecord
-      { svTime :: !(Maybe UTCTime),
-        svTags :: [(Text, Text)],
-        svMessage :: !a
-      }
+data SvLogRecord a = SvLogRecord
+  { svTime :: !(Maybe UTCTime),
+    svTags :: [(Text, Text)],
+    svMessage :: !a
+  }
   deriving (Eq, Show)
 
 instance ToLogEvent a => ToLogEvent (SvLogRecord a) where

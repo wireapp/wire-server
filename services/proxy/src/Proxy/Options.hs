@@ -35,26 +35,25 @@ import Data.Aeson.TH
 import Imports
 import System.Logger.Extended (Level (Debug), LogFormat)
 
-data Opts
-  = Opts
-      { -- | Host to listen on
-        _host :: !String,
-        -- | Port to listen on
-        _port :: !Word16,
-        -- | File containing upstream secrets
-        _secretsConfig :: !FilePath,
-        -- | Number of connections for the HTTP pool
-        _httpPoolSize :: !Int,
-        -- | Maximum number of incoming connections
-        -- Logging
-        _maxConns :: !Int,
-        -- | Log level (Debug, Info, etc)
-        _logLevel :: !Level,
-        -- | Use netstrings encoding
-        _logNetStrings :: !(Maybe (Last Bool)),
-        -- | choose Encoding
-        _logFormat :: !(Maybe (Last LogFormat))
-      }
+data Opts = Opts
+  { -- | Host to listen on
+    _host :: !String,
+    -- | Port to listen on
+    _port :: !Word16,
+    -- | File containing upstream secrets
+    _secretsConfig :: !FilePath,
+    -- | Number of connections for the HTTP pool
+    _httpPoolSize :: !Int,
+    -- | Maximum number of incoming connections
+    -- Logging
+    _maxConns :: !Int,
+    -- | Log level (Debug, Info, etc)
+    _logLevel :: !Level,
+    -- | Use netstrings encoding
+    _logNetStrings :: !(Maybe (Last Bool)),
+    -- | choose Encoding
+    _logFormat :: !(Maybe (Last LogFormat))
+  }
   deriving (Show, Generic)
 
 makeLenses ''Opts

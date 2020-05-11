@@ -69,10 +69,9 @@ import Imports
 
 -- UserId -------------------------------------------------------------------
 
-newtype UserId
-  = UserId
-      { _user :: Required 1 (Value Id.OpaqueUserId)
-      }
+newtype UserId = UserId
+  { _user :: Required 1 (Value Id.OpaqueUserId)
+  }
   deriving (Eq, Show, Generic)
 
 instance Encode UserId
@@ -87,10 +86,9 @@ userId f c = (\x -> c {_user = x}) <$> field f (_user c)
 
 -- ClientId ------------------------------------------------------------------
 
-newtype ClientId
-  = ClientId
-      { _client :: Required 1 (Value Word64)
-      }
+newtype ClientId = ClientId
+  { _client :: Required 1 (Value Word64)
+  }
   deriving (Eq, Show, Generic)
 
 instance Encode ClientId
@@ -115,11 +113,10 @@ fromClientId c =
 
 -- ClientEntry --------------------------------------------------------------
 
-data ClientEntry
-  = ClientEntry
-      { _clientId :: !(Required 1 (Message ClientId)),
-        _clientVal :: !(Required 2 (Value ByteString))
-      }
+data ClientEntry = ClientEntry
+  { _clientId :: !(Required 1 (Message ClientId)),
+    _clientVal :: !(Required 2 (Value ByteString))
+  }
   deriving (Eq, Show, Generic)
 
 instance Encode ClientEntry
@@ -141,11 +138,10 @@ clientEntryMessage f c = (\x -> c {_clientVal = x}) <$> field f (_clientVal c)
 
 -- UserEntry ----------------------------------------------------------------
 
-data UserEntry
-  = UserEntry
-      { _userId :: !(Required 1 (Message UserId)),
-        _userVal :: !(Repeated 2 (Message ClientEntry))
-      }
+data UserEntry = UserEntry
+  { _userId :: !(Required 1 (Message UserId)),
+    _userVal :: !(Repeated 2 (Message ClientEntry))
+  }
   deriving (Eq, Show, Generic)
 
 instance Encode UserEntry
@@ -221,16 +217,15 @@ fromPriority Gundeck.HighPriority = HighPriority
 
 -- NewOtrMessage ------------------------------------------------------------
 
-data NewOtrMessage
-  = NewOtrMessage
-      { _newOtrSender :: !(Required 1 (Message ClientId)),
-        _newOtrRecipients :: !(Repeated 2 (Message UserEntry)),
-        _newOtrNativePush :: !(Optional 3 (Value Bool)),
-        _newOtrData :: !(Optional 4 (Value ByteString)),
-        _newOtrNativePriority :: !(Optional 5 (Enumeration Priority)), -- See note [orphans]
-        _newOtrTransient :: !(Optional 6 (Value Bool)),
-        _newOtrReportMissing :: !(Repeated 7 (Message UserId))
-      }
+data NewOtrMessage = NewOtrMessage
+  { _newOtrSender :: !(Required 1 (Message ClientId)),
+    _newOtrRecipients :: !(Repeated 2 (Message UserEntry)),
+    _newOtrNativePush :: !(Optional 3 (Value Bool)),
+    _newOtrData :: !(Optional 4 (Value ByteString)),
+    _newOtrNativePriority :: !(Optional 5 (Enumeration Priority)), -- See note [orphans]
+    _newOtrTransient :: !(Optional 6 (Value Bool)),
+    _newOtrReportMissing :: !(Repeated 7 (Message UserId))
+  }
   deriving (Eq, Show, Generic)
 
 instance Encode NewOtrMessage

@@ -35,6 +35,7 @@ import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SSO
+import Galley.Types.Teams.SearchVisibility
 import Imports
 import Text.RawString.QQ
 
@@ -58,8 +59,13 @@ selectTeamConv = "select managed from team_conv where team = ? and conv = ?"
 selectTeamConvs :: PrepQuery R (Identity TeamId) (ConvId, Bool)
 selectTeamConvs = "select conv, managed from team_conv where team = ? order by conv"
 
+selectTeamConvsFrom :: PrepQuery R (TeamId, OpaqueConvId) (ConvId, Bool)
+selectTeamConvsFrom = "select conv, managed from team_conv where team = ? and conv > ? order by conv"
+
 selectTeamMember ::
-  PrepQuery R (TeamId, UserId)
+  PrepQuery
+    R
+    (TeamId, UserId)
     ( Permissions,
       Maybe UserId,
       Maybe UTCTimeMillis,
@@ -69,7 +75,9 @@ selectTeamMember = "select perms, invited_by, invited_at, legalhold_status from 
 
 -- | This query fetches **all** members of a team, it should always be paginated
 selectTeamMembers ::
-  PrepQuery R (Identity TeamId)
+  PrepQuery
+    R
+    (Identity TeamId)
     ( UserId,
       Permissions,
       Maybe UserId,
@@ -83,8 +91,27 @@ selectTeamMembers =
     where team = ? order by user
     |]
 
+selectTeamMembersFrom ::
+  PrepQuery
+    R
+    (TeamId, UserId)
+    ( UserId,
+      Permissions,
+      Maybe UserId,
+      Maybe UTCTimeMillis,
+      Maybe UserLegalHoldStatus
+    )
+selectTeamMembersFrom =
+  [r|
+    select user, perms, invited_by, invited_at, legalhold_status
+      from team_member
+    where team = ? and user > ? order by user
+    |]
+
 selectTeamMembers' ::
-  PrepQuery R (TeamId, [UserId])
+  PrepQuery
+    R
+    (TeamId, [UserId])
     ( UserId,
       Permissions,
       Maybe UserId,
@@ -124,6 +151,15 @@ insertTeamMember = "insert into team_member (team, user, perms, invited_by, invi
 
 deleteTeamMember :: PrepQuery W (TeamId, UserId) ()
 deleteTeamMember = "delete from team_member where team = ? and user = ?"
+
+insertBillingTeamMember :: PrepQuery W (TeamId, UserId) ()
+insertBillingTeamMember = "insert into billing_team_member (team, user) values (?, ?)"
+
+deleteBillingTeamMember :: PrepQuery W (TeamId, UserId) ()
+deleteBillingTeamMember = "delete from billing_team_member where team = ? and user = ?"
+
+listBillingTeamMembers :: PrepQuery R (Identity TeamId) (Identity UserId)
+listBillingTeamMembers = "select user from billing_team_member where team = ?"
 
 updatePermissions :: PrepQuery W (Permissions, TeamId, UserId) ()
 updatePermissions = "update team_member set perms = ? where team = ? and user = ?"
@@ -351,6 +387,22 @@ selectSSOTeamConfig =
 updateSSOTeamConfig :: PrepQuery W (SSOStatus, TeamId) ()
 updateSSOTeamConfig =
   "update team_features set sso_status = ? where team_id = ?"
+
+selectTeamSearchVisibilityAvailable :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamSearchVisibilityAvailable))
+selectTeamSearchVisibilityAvailable =
+  "select search_visibility_status from team_features where team_id = ?"
+
+updateTeamSearchVisibilityAvailable :: PrepQuery W (TeamSearchVisibilityAvailable, TeamId) ()
+updateTeamSearchVisibilityAvailable =
+  "update team_features set search_visibility_status = ? where team_id = ?"
+
+selectSearchVisibility :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamSearchVisibility))
+selectSearchVisibility =
+  "select search_visibility from team where team = ?"
+
+updateSearchVisibility :: PrepQuery W (TeamSearchVisibility, TeamId) ()
+updateSearchVisibility =
+  "update team set search_visibility = ? where team = ?"
 
 selectCustomBackend :: PrepQuery R (Identity Domain) (HttpsUrl, HttpsUrl)
 selectCustomBackend =

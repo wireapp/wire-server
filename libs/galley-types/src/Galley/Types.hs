@@ -106,19 +106,18 @@ import URI.ByteString
 --
 -- Can be produced from the internal one ('Galley.Data.Types.Conversation')
 -- by using 'Galley.API.Mapping.conversationView'.
-data Conversation
-  = Conversation
-      { cnvId :: !ConvId,
-        cnvType :: !ConvType,
-        cnvCreator :: !UserId,
-        cnvAccess :: ![Access],
-        cnvAccessRole :: !AccessRole,
-        cnvName :: !(Maybe Text),
-        cnvMembers :: !ConvMembers,
-        cnvTeam :: !(Maybe TeamId),
-        cnvMessageTimer :: !(Maybe Milliseconds),
-        cnvReceiptMode :: !(Maybe ReceiptMode)
-      }
+data Conversation = Conversation
+  { cnvId :: !ConvId,
+    cnvType :: !ConvType,
+    cnvCreator :: !UserId,
+    cnvAccess :: ![Access],
+    cnvAccessRole :: !AccessRole,
+    cnvName :: !(Maybe Text),
+    cnvMembers :: !ConvMembers,
+    cnvTeam :: !(Maybe TeamId),
+    cnvMessageTimer :: !(Maybe Milliseconds),
+    cnvReceiptMode :: !(Maybe ReceiptMode)
+  }
   deriving (Eq, Show)
 
 data ConvType
@@ -166,82 +165,73 @@ data AccessRole
     NonActivatedAccessRole
   deriving (Eq, Ord, Show)
 
-data ConvMembers
-  = ConvMembers
-      { cmSelf :: !Member,
-        cmOthers :: ![OtherMember]
-      }
+data ConvMembers = ConvMembers
+  { cmSelf :: !Member,
+    cmOthers :: ![OtherMember]
+  }
   deriving (Eq, Show)
 
-data ConversationMeta
-  = ConversationMeta
-      { cmId :: !ConvId,
-        cmType :: !ConvType,
-        cmCreator :: !UserId,
-        cmAccess :: ![Access],
-        cmAccessRole :: !AccessRole,
-        cmName :: !(Maybe Text),
-        cmTeam :: !(Maybe TeamId),
-        cmMessageTimer :: !(Maybe Milliseconds),
-        cmReceiptMode :: !(Maybe ReceiptMode)
-      }
+data ConversationMeta = ConversationMeta
+  { cmId :: !ConvId,
+    cmType :: !ConvType,
+    cmCreator :: !UserId,
+    cmAccess :: ![Access],
+    cmAccessRole :: !AccessRole,
+    cmName :: !(Maybe Text),
+    cmTeam :: !(Maybe TeamId),
+    cmMessageTimer :: !(Maybe Milliseconds),
+    cmReceiptMode :: !(Maybe ReceiptMode)
+  }
   deriving (Eq, Show)
 
-data ConversationList a
-  = ConversationList
-      { convList :: [a],
-        convHasMore :: !Bool
-      }
+data ConversationList a = ConversationList
+  { convList :: [a],
+    convHasMore :: !Bool
+  }
   deriving (Eq, Show)
 
-newtype ConversationRename
-  = ConversationRename
-      { cupName :: Text
-      }
+newtype ConversationRename = ConversationRename
+  { cupName :: Text
+  }
 
 deriving instance Eq ConversationRename
 
 deriving instance Show ConversationRename
 
-data ConversationAccessUpdate
-  = ConversationAccessUpdate
-      { cupAccess :: [Access],
-        cupAccessRole :: AccessRole
-      }
+data ConversationAccessUpdate = ConversationAccessUpdate
+  { cupAccess :: [Access],
+    cupAccessRole :: AccessRole
+  }
   deriving (Eq, Show)
 
-data ConversationReceiptModeUpdate
-  = ConversationReceiptModeUpdate
-      { cruReceiptMode :: !ReceiptMode
-      }
+data ConversationReceiptModeUpdate = ConversationReceiptModeUpdate
+  { cruReceiptMode :: !ReceiptMode
+  }
   deriving (Eq, Show)
 
-data ConversationMessageTimerUpdate
-  = ConversationMessageTimerUpdate
-      { -- | New message timer
-        cupMessageTimer :: !(Maybe Milliseconds)
-      }
+data ConversationMessageTimerUpdate = ConversationMessageTimerUpdate
+  { -- | New message timer
+    cupMessageTimer :: !(Maybe Milliseconds)
+  }
   deriving (Eq, Show)
 
-data ConvTeamInfo
-  = ConvTeamInfo
-      { cnvTeamId :: !TeamId,
-        cnvManaged :: !Bool
-      }
+data ConvTeamInfo = ConvTeamInfo
+  { cnvTeamId :: !TeamId,
+    cnvManaged :: !Bool
+  }
   deriving (Eq, Show)
 
-data NewConv
-  = NewConv
-      { newConvUsers :: ![OpaqueUserId],
-        newConvName :: !(Maybe Text),
-        newConvAccess :: !(Set Access),
-        newConvAccessRole :: !(Maybe AccessRole),
-        newConvTeam :: !(Maybe ConvTeamInfo),
-        newConvMessageTimer :: !(Maybe Milliseconds),
-        newConvReceiptMode :: !(Maybe ReceiptMode),
-        -- | Every member except for the creator will have this role
-        newConvUsersRole :: !RoleName
-      }
+data NewConv = NewConv
+  { newConvUsers :: ![OpaqueUserId],
+    newConvName :: !(Maybe Text),
+    newConvAccess :: !(Set Access),
+    newConvAccessRole :: !(Maybe AccessRole),
+    newConvTeam :: !(Maybe ConvTeamInfo),
+    newConvMessageTimer :: !(Maybe Milliseconds),
+    newConvReceiptMode :: !(Maybe ReceiptMode),
+    -- | Every member except for the creator will have this role
+    newConvUsersRole :: !RoleName
+  }
 
 deriving instance Eq NewConv
 
@@ -286,10 +276,9 @@ error, which is not optimal but it doesn't matter since nobody is trying to
 create managed conversations anyway.
 -}
 
-newtype UserClientMap a
-  = UserClientMap
-      { userClientMap :: Map OpaqueUserId (Map ClientId a)
-      }
+newtype UserClientMap a = UserClientMap
+  { userClientMap :: Map OpaqueUserId (Map ClientId a)
+  }
   deriving
     ( Eq,
       Show,
@@ -300,10 +289,9 @@ newtype UserClientMap a
       Traversable
     )
 
-newtype OtrRecipients
-  = OtrRecipients
-      { otrRecipientsMap :: UserClientMap Text
-      }
+newtype OtrRecipients = OtrRecipients
+  { otrRecipientsMap :: UserClientMap Text
+  }
   deriving
     ( Eq,
       Show,
@@ -334,47 +322,44 @@ data OtrFilterMissing
   | -- | Complain only about missing
     --      recipients who /are/ on this list
     OtrReportMissing (Set OpaqueUserId)
+  deriving (Eq, Show, Generic)
 
-data NewOtrMessage
-  = NewOtrMessage
-      { newOtrSender :: !ClientId,
-        newOtrRecipients :: !OtrRecipients,
-        newOtrNativePush :: !Bool,
-        newOtrTransient :: !Bool,
-        newOtrNativePriority :: !(Maybe Priority),
-        newOtrData :: !(Maybe Text),
-        newOtrReportMissing :: !(Maybe [OpaqueUserId])
-        -- FUTUREWORK: if (and only if) clients can promise this uid list will always exactly
-        -- be the list of uids we could also extract from the messages' recipients field, we
-        -- should do the latter, for two reasons: (1) no need for an artificial limit on the
-        -- body field length, because it'd be just a boolean; (2) less network consumption.
-      }
+data NewOtrMessage = NewOtrMessage
+  { newOtrSender :: !ClientId,
+    newOtrRecipients :: !OtrRecipients,
+    newOtrNativePush :: !Bool,
+    newOtrTransient :: !Bool,
+    newOtrNativePriority :: !(Maybe Priority),
+    newOtrData :: !(Maybe Text),
+    newOtrReportMissing :: !(Maybe [OpaqueUserId])
+    -- FUTUREWORK: if (and only if) clients can promise this uid list will always exactly
+    -- be the list of uids we could also extract from the messages' recipients field, we
+    -- should do the latter, for two reasons: (1) no need for an artificial limit on the
+    -- body field length, because it'd be just a boolean; (2) less network consumption.
+  }
 
-newtype UserClients
-  = UserClients
-      { userClients :: Map OpaqueUserId (Set ClientId)
-      }
+newtype UserClients = UserClients
+  { userClients :: Map OpaqueUserId (Set ClientId)
+  }
   deriving (Eq, Show, Semigroup, Monoid, Generic)
 
 filterClients :: (Set ClientId -> Bool) -> UserClients -> UserClients
 filterClients p (UserClients c) = UserClients $ Map.filter p c
 
-data ClientMismatch
-  = ClientMismatch
-      { cmismatchTime :: !UTCTime,
-        -- | Clients that the message /should/ have been encrypted for, but wasn't.
-        missingClients :: !UserClients,
-        -- | Clients that the message /should not/ have been encrypted for, but was.
-        redundantClients :: !UserClients,
-        deletedClients :: !UserClients
-      }
+data ClientMismatch = ClientMismatch
+  { cmismatchTime :: !UTCTime,
+    -- | Clients that the message /should/ have been encrypted for, but wasn't.
+    missingClients :: !UserClients,
+    -- | Clients that the message /should not/ have been encrypted for, but was.
+    redundantClients :: !UserClients,
+    deletedClients :: !UserClients
+  }
   deriving (Eq, Show, Generic)
 
 -- | Request payload for accepting a 1-1 conversation.
-newtype Accept
-  = Accept
-      { aUser :: UserId
-      }
+newtype Accept = Accept
+  { aUser :: UserId
+  }
   deriving (Eq, Show, Generic)
 
 -- Members ------------------------------------------------------------------
@@ -384,35 +369,32 @@ newtype Accept
 newtype MutedStatus = MutedStatus {fromMutedStatus :: Int32}
   deriving (Eq, Num, Ord, Show, FromJSON, ToJSON, Generic)
 
-data SimpleMember
-  = SimpleMember
-      { smId :: !UserId,
-        smConvRoleName :: !RoleName
-      }
+data SimpleMember = SimpleMember
+  { smId :: !UserId,
+    smConvRoleName :: !RoleName
+  }
   deriving (Eq, Show, Generic)
 
-data Member
-  = Member
-      { memId :: !UserId,
-        memService :: !(Maybe ServiceRef),
-        -- | DEPRECATED, remove it once enough clients use `memOtrMutedStatus`
-        memOtrMuted :: !Bool,
-        memOtrMutedStatus :: !(Maybe MutedStatus),
-        memOtrMutedRef :: !(Maybe Text),
-        memOtrArchived :: !Bool,
-        memOtrArchivedRef :: !(Maybe Text),
-        memHidden :: !Bool,
-        memHiddenRef :: !(Maybe Text),
-        memConvRoleName :: !RoleName
-      }
+data Member = Member
+  { memId :: !UserId,
+    memService :: !(Maybe ServiceRef),
+    -- | DEPRECATED, remove it once enough clients use `memOtrMutedStatus`
+    memOtrMuted :: !Bool,
+    memOtrMutedStatus :: !(Maybe MutedStatus),
+    memOtrMutedRef :: !(Maybe Text),
+    memOtrArchived :: !Bool,
+    memOtrArchivedRef :: !(Maybe Text),
+    memHidden :: !Bool,
+    memHiddenRef :: !(Maybe Text),
+    memConvRoleName :: !RoleName
+  }
   deriving (Eq, Show, Generic)
 
-data OtherMember
-  = OtherMember
-      { omId :: !UserId,
-        omService :: !(Maybe ServiceRef),
-        omConvRoleName :: !RoleName
-      }
+data OtherMember = OtherMember
+  { omId :: !UserId,
+    omService :: !(Maybe ServiceRef),
+    omConvRoleName :: !RoleName
+  }
   deriving (Eq, Show, Generic)
 
 instance Ord OtherMember where
@@ -420,17 +402,16 @@ instance Ord OtherMember where
 
 -- | Inbound self member updates.  This is what galley expects on its endpoint.  See also
 -- 'MemberUpdateData' - that event is meant to be sent only to the _self_ user.
-data MemberUpdate
-  = MemberUpdate
-      { mupOtrMute :: !(Maybe Bool),
-        mupOtrMuteStatus :: !(Maybe MutedStatus),
-        mupOtrMuteRef :: !(Maybe Text),
-        mupOtrArchive :: !(Maybe Bool),
-        mupOtrArchiveRef :: !(Maybe Text),
-        mupHidden :: !(Maybe Bool),
-        mupHiddenRef :: !(Maybe Text),
-        mupConvRoleName :: !(Maybe RoleName)
-      }
+data MemberUpdate = MemberUpdate
+  { mupOtrMute :: !(Maybe Bool),
+    mupOtrMuteStatus :: !(Maybe MutedStatus),
+    mupOtrMuteRef :: !(Maybe Text),
+    mupOtrArchive :: !(Maybe Bool),
+    mupOtrArchiveRef :: !(Maybe Text),
+    mupHidden :: !(Maybe Bool),
+    mupHiddenRef :: !(Maybe Text),
+    mupConvRoleName :: !(Maybe RoleName)
+  }
 
 memberUpdate :: MemberUpdate
 memberUpdate = MemberUpdate Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing
@@ -441,21 +422,19 @@ deriving instance Show MemberUpdate
 
 -- | Inbound other member updates.  This is what galley expects on its endpoint.  See also
 -- 'OtherMemberUpdateData' - that event is meant to be sent to all users in a conversation.
-data OtherMemberUpdate
-  = OtherMemberUpdate
-      { omuConvRoleName :: !(Maybe RoleName)
-      }
+data OtherMemberUpdate = OtherMemberUpdate
+  { omuConvRoleName :: !(Maybe RoleName)
+  }
 
 deriving instance Eq OtherMemberUpdate
 
 deriving instance Show OtherMemberUpdate
 
-data Invite
-  = Invite
-      { invUsers :: !(List1 OpaqueUserId),
-        -- | This role name is to be applied to all users
-        invRoleName :: !RoleName
-      }
+data Invite = Invite
+  { invUsers :: !(List1 OpaqueUserId),
+    -- | This role name is to be applied to all users
+    invRoleName :: !RoleName
+  }
 
 newInvite :: List1 OpaqueUserId -> Invite
 newInvite us = Invite us roleNameWireAdmin
@@ -469,14 +448,13 @@ deriving instance Show Invite
 -- FUTUREWORK(federation, #1213):
 -- Conversation and user ID can be remote IDs, but the receiver might be on
 -- another backend, so mapped IDs don't work for them.
-data Event
-  = Event
-      { evtType :: !EventType,
-        evtConv :: !ConvId,
-        evtFrom :: !UserId,
-        evtTime :: !UTCTime,
-        evtData :: !(Maybe EventData)
-      }
+data Event = Event
+  { evtType :: !EventType,
+    evtConv :: !ConvId,
+    evtFrom :: !UserId,
+    evtTime :: !UTCTime,
+    evtData :: !(Maybe EventData)
+  }
   deriving (Eq, Generic)
 
 data EventType
@@ -514,19 +492,17 @@ data EventData
   | EdOtrMessage !OtrMessage
   deriving (Eq, Show, Generic)
 
-data OtrMessage
-  = OtrMessage
-      { otrSender :: !ClientId,
-        otrRecipient :: !ClientId,
-        otrCiphertext :: !Text,
-        otrData :: !(Maybe Text)
-      }
+data OtrMessage = OtrMessage
+  { otrSender :: !ClientId,
+    otrRecipient :: !ClientId,
+    otrCiphertext :: !Text,
+    otrData :: !(Maybe Text)
+  }
   deriving (Eq, Show, Generic)
 
-newtype SimpleMembers
-  = SimpleMembers
-      { mMembers :: [SimpleMember]
-      }
+newtype SimpleMembers = SimpleMembers
+  { mMembers :: [SimpleMember]
+  }
   deriving (Eq, Show, Generic)
 
 -- | This datatype replaces the old `Members` datatype,
@@ -534,19 +510,17 @@ newtype SimpleMembers
 -- needed due to backwards compatible reasons since old
 -- clients will break if we switch these types. Also, this
 -- definition represents better what information it carries
-newtype UserIdList
-  = UserIdList
-      { mUsers :: [UserId]
-      }
+newtype UserIdList = UserIdList
+  { mUsers :: [UserId]
+  }
   deriving (Eq, Show, Generic)
 
-data Connect
-  = Connect
-      { cRecipient :: !UserId,
-        cMessage :: !(Maybe Text),
-        cName :: !(Maybe Text),
-        cEmail :: !(Maybe Text)
-      }
+data Connect = Connect
+  { cRecipient :: !UserId,
+    cMessage :: !(Maybe Text),
+    cName :: !(Maybe Text),
+    cEmail :: !(Maybe Text)
+  }
   deriving (Eq, Show, Generic)
 
 -- | Outbound member updates. When a user A acts upon a user B,
@@ -554,26 +528,24 @@ data Connect
 -- as misTarget.
 -- Used for events (sent over the websocket, etc.).  See also
 -- 'MemberUpdate' and 'OtherMemberUpdate'.
-data MemberUpdateData
-  = MemberUpdateData
-      { -- | Target user of this action, should not be optional anymore.
-        -- <https://github.com/zinfra/backend-issues/issues/1309>
-        misTarget :: !(Maybe UserId),
-        misOtrMuted :: !(Maybe Bool),
-        misOtrMutedStatus :: !(Maybe MutedStatus),
-        misOtrMutedRef :: !(Maybe Text),
-        misOtrArchived :: !(Maybe Bool),
-        misOtrArchivedRef :: !(Maybe Text),
-        misHidden :: !(Maybe Bool),
-        misHiddenRef :: !(Maybe Text),
-        misConvRoleName :: !(Maybe RoleName)
-      }
+data MemberUpdateData = MemberUpdateData
+  { -- | Target user of this action, should not be optional anymore.
+    -- <https://github.com/zinfra/backend-issues/issues/1309>
+    misTarget :: !(Maybe UserId),
+    misOtrMuted :: !(Maybe Bool),
+    misOtrMutedStatus :: !(Maybe MutedStatus),
+    misOtrMutedRef :: !(Maybe Text),
+    misOtrArchived :: !(Maybe Bool),
+    misOtrArchivedRef :: !(Maybe Text),
+    misHidden :: !(Maybe Bool),
+    misHiddenRef :: !(Maybe Text),
+    misConvRoleName :: !(Maybe RoleName)
+  }
   deriving (Eq, Show, Generic)
 
-newtype TypingData
-  = TypingData
-      { tdStatus :: TypingStatus
-      }
+newtype TypingData = TypingData
+  { tdStatus :: TypingStatus
+  }
   deriving (Eq, Show, Generic)
 
 data TypingStatus
@@ -581,12 +553,11 @@ data TypingStatus
   | StoppedTyping
   deriving (Eq, Ord, Show, Generic)
 
-data ConversationCode
-  = ConversationCode
-      { conversationKey :: !Code.Key,
-        conversationCode :: !Code.Value,
-        conversationUri :: !(Maybe HttpsUrl)
-      }
+data ConversationCode = ConversationCode
+  { conversationKey :: !Code.Key,
+    conversationCode :: !Code.Value,
+    conversationUri :: !(Maybe HttpsUrl)
+  }
   deriving (Eq, Show, Generic)
 
 mkConversationCode :: Code.Key -> Code.Value -> HttpsUrl -> ConversationCode
@@ -600,11 +571,10 @@ mkConversationCode k v (HttpsUrl prefix) =
     q = [("key", toByteString' k), ("code", toByteString' v)]
     link = prefix & (queryL . queryPairsL) .~ q
 
-data CustomBackend
-  = CustomBackend
-      { backendConfigJsonUrl :: !HttpsUrl,
-        backendWebappWelcomeUrl :: !HttpsUrl
-      }
+data CustomBackend = CustomBackend
+  { backendConfigJsonUrl :: !HttpsUrl,
+    backendWebappWelcomeUrl :: !HttpsUrl
+  }
   deriving (Eq, Show)
 
 -- Instances ----------------------------------------------------------------

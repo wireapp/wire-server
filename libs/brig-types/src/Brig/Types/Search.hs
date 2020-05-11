@@ -24,30 +24,29 @@ import Data.Aeson
 import Data.Id (TeamId, UserId)
 import Imports
 
-data SearchResult a
-  = SearchResult
-      { searchFound :: Int,
-        searchReturned :: Int,
-        searchTook :: Int,
-        searchResults :: [a]
-      }
+data SearchResult a = SearchResult
+  { searchFound :: Int,
+    searchReturned :: Int,
+    searchTook :: Int,
+    searchResults :: [a]
+  }
   deriving (Show)
 
 -- | This is a subset of 'User' and json instances should reflect that.
-data Contact
-  = Contact
-      { contactUserId :: UserId,
-        contactName :: Text,
-        contactColorId :: Maybe Int,
-        contactHandle :: Maybe Text,
-        contactTeam :: Maybe TeamId
-      }
+data Contact = Contact
+  { contactUserId :: UserId,
+    contactName :: Text,
+    contactColorId :: Maybe Int,
+    contactHandle :: Maybe Text,
+    contactTeam :: Maybe TeamId
+  }
   deriving (Show)
 
 data TeamSearchInfo
   = -- | When searching user is not part of a team.
     NoTeam
   | -- | When searching user is part of a team and 'Brig.Options.setSearchSameTeamOnly' is True
+    --   OR the searching user belongs to a team with SearchVisibilityNoNameOutsideTeam
     TeamOnly TeamId
   | -- | When searching user is part of a team and 'Brig.Options.setSearchSameTeamOnly' is False
     TeamAndNonMembers TeamId

@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.TURN.API
-  ( routes,
+  ( routesPublic,
   )
 where
 
@@ -49,8 +49,8 @@ import OpenSSL.EVP.Digest (Digest, hmacBS)
 import qualified System.Random.MWC as MWC
 import System.Random.Shuffle
 
-routes :: Routes Doc.ApiBuilder Handler ()
-routes = do
+routesPublic :: Routes Doc.ApiBuilder Handler ()
+routesPublic = do
   get "/calls/config" (continue getCallsConfigH) $
     accept "application" "json"
       .&. header "Z-User"
@@ -61,6 +61,7 @@ routes = do
       \ IP addresses, scheme `turn` and transport `udp` only "
     Doc.returns (Doc.ref Doc.rtcConfiguration)
     Doc.response 200 "RTCConfiguration" Doc.end
+
   get "/calls/config/v2" (continue getCallsConfigV2H) $
     accept "application" "json"
       .&. header "Z-User"

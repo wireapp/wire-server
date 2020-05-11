@@ -40,30 +40,27 @@ import Network.Mom.Stompl.Client.Queue hiding (try)
 import System.Logger.Class as Log
 import UnliftIO (MonadUnliftIO, throwIO, withRunInIO)
 
-data Env
-  = Env
-      { -- | STOMP broker that we're using
-        broker :: Broker
-      }
+data Env = Env
+  { -- | STOMP broker that we're using
+    broker :: Broker
+  }
 
-data Broker
-  = Broker
-      { -- | Broker URL
-        host :: Text,
-        -- | Port
-        port :: Int,
-        -- | Username and password
-        auth :: Maybe Credentials,
-        -- | Whether to use TLS
-        tls :: Bool
-      }
+data Broker = Broker
+  { -- | Broker URL
+    host :: Text,
+    -- | Port
+    port :: Int,
+    -- | Username and password
+    auth :: Maybe Credentials,
+    -- | Whether to use TLS
+    tls :: Bool
+  }
   deriving (Show)
 
-data Credentials
-  = Credentials
-      { user :: Text,
-        pass :: Text
-      }
+data Credentials = Credentials
+  { user :: Text,
+    pass :: Text
+  }
   deriving (Eq, Show, Generic)
 
 instance FromJSON Credentials

@@ -52,14 +52,13 @@ data Mode
   | GenKeyPair
   deriving (Eq, Show, Enum)
 
-data ZOpts
-  = ZOpts
-      { _dur :: !Integer,
-        _skey :: !ByteString,
-        _idx :: !Int,
-        _mode :: !Mode,
-        _dat :: [ByteString]
-      }
+data ZOpts = ZOpts
+  { _dur :: !Integer,
+    _skey :: !ByteString,
+    _idx :: !Int,
+    _mode :: !Mode,
+    _dat :: [ByteString]
+  }
   deriving (Eq, Show)
 
 makeLenses ''ZOpts

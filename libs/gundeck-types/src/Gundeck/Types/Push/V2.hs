@@ -108,12 +108,11 @@ instance ToJSON Route where
 -----------------------------------------------------------------------------
 -- Recipient
 
-data Recipient
-  = Recipient
-      { _recipientId :: !UserId,
-        _recipientRoute :: !Route,
-        _recipientClients :: !RecipientClients
-      }
+data Recipient = Recipient
+  { _recipientId :: !UserId,
+    _recipientRoute :: !Route,
+    _recipientClients :: !RecipientClients
+  }
   deriving (Show)
 
 instance Eq Recipient where
@@ -183,14 +182,13 @@ instance FromJSON ApsPreference where
     "std" -> pure ApsStdPreference
     x -> fail $ "Invalid preference: " ++ show x
 
-data ApsData
-  = ApsData
-      { _apsLocKey :: !ApsLocKey,
-        _apsLocArgs :: [Text],
-        _apsSound :: !(Maybe ApsSound),
-        _apsPreference :: !(Maybe ApsPreference),
-        _apsBadge :: !Bool
-      }
+data ApsData = ApsData
+  { _apsLocKey :: !ApsLocKey,
+    _apsLocArgs :: [Text],
+    _apsSound :: !(Maybe ApsSound),
+    _apsPreference :: !(Maybe ApsPreference),
+    _apsBadge :: !Bool
+  }
   deriving (Eq, Show)
 
 makeLenses ''ApsData
@@ -246,44 +244,43 @@ instance FromJSON Priority where
 -----------------------------------------------------------------------------
 -- Push
 
-data Push
-  = Push
-      { -- | Recipients
-        --
-        -- REFACTOR: '_pushRecipients' should be @Set (Recipient, Maybe (NonEmptySet ConnId))@, and
-        -- '_pushConnections' should go away.  Rationale: the current setup only works under the
-        -- assumption that no 'ConnId' is used by two 'Recipient's.  This is *probably* correct, but
-        -- not in any contract.  (Changing this may require a new version module, since we need to
-        -- support both the old and the new data type simultaneously during upgrade.)
-        _pushRecipients :: Range 1 1024 (Set Recipient),
-        -- | Originating user
-        --
-        -- REFACTOR: where is this required, and for what?  or can it be removed?  (see also: #531)
-        _pushOrigin :: !UserId,
-        -- | Destination connections.  If empty, ignore.  Otherwise, filter the connections derived
-        -- from '_pushRecipients' and only push to those contained in this set.
-        --
-        -- REFACTOR: change this to @_pushConnectionWhitelist :: Maybe (Set ConnId)@.
-        _pushConnections :: !(Set ConnId),
-        -- | Originating connection, if any.
-        _pushOriginConnection :: !(Maybe ConnId),
-        -- | Transient payloads are not forwarded to the notification stream.
-        _pushTransient :: !Bool,
-        -- | Whether to send native notifications to other clients
-        -- of the originating user, if he is among the recipients.
-        _pushNativeIncludeOrigin :: !Bool,
-        -- | Should native push payloads be encrypted?
-        --
-        -- REFACTOR: this make no sense any more since native push notifications have no more payload.
-        -- https://github.com/wireapp/wire-server/pull/546
-        _pushNativeEncrypt :: !Bool,
-        -- | APNs-specific metadata.  REFACTOR: can this be removed?
-        _pushNativeAps :: !(Maybe ApsData),
-        -- | Native push priority.
-        _pushNativePriority :: !Priority,
-        -- | Opaque payload
-        _pushPayload :: !(List1 Object)
-      }
+data Push = Push
+  { -- | Recipients
+    --
+    -- REFACTOR: '_pushRecipients' should be @Set (Recipient, Maybe (NonEmptySet ConnId))@, and
+    -- '_pushConnections' should go away.  Rationale: the current setup only works under the
+    -- assumption that no 'ConnId' is used by two 'Recipient's.  This is *probably* correct, but
+    -- not in any contract.  (Changing this may require a new version module, since we need to
+    -- support both the old and the new data type simultaneously during upgrade.)
+    _pushRecipients :: Range 1 1024 (Set Recipient),
+    -- | Originating user
+    --
+    -- REFACTOR: where is this required, and for what?  or can it be removed?  (see also: #531)
+    _pushOrigin :: !UserId,
+    -- | Destination connections.  If empty, ignore.  Otherwise, filter the connections derived
+    -- from '_pushRecipients' and only push to those contained in this set.
+    --
+    -- REFACTOR: change this to @_pushConnectionWhitelist :: Maybe (Set ConnId)@.
+    _pushConnections :: !(Set ConnId),
+    -- | Originating connection, if any.
+    _pushOriginConnection :: !(Maybe ConnId),
+    -- | Transient payloads are not forwarded to the notification stream.
+    _pushTransient :: !Bool,
+    -- | Whether to send native notifications to other clients
+    -- of the originating user, if he is among the recipients.
+    _pushNativeIncludeOrigin :: !Bool,
+    -- | Should native push payloads be encrypted?
+    --
+    -- REFACTOR: this make no sense any more since native push notifications have no more payload.
+    -- https://github.com/wireapp/wire-server/pull/546
+    _pushNativeEncrypt :: !Bool,
+    -- | APNs-specific metadata.  REFACTOR: can this be removed?
+    _pushNativeAps :: !(Maybe ApsData),
+    -- | Native push priority.
+    _pushNativePriority :: !Priority,
+    -- | Opaque payload
+    _pushPayload :: !(List1 Object)
+  }
   deriving (Eq, Show)
 
 makeLenses ''Push
@@ -378,25 +375,22 @@ instance FromByteString Transport where
 -----------------------------------------------------------------------------
 -- PushToken
 
-newtype Token
-  = Token
-      { tokenText :: Text
-      }
+newtype Token = Token
+  { tokenText :: Text
+  }
   deriving (Eq, Ord, Show, FromJSON, ToJSON, FromByteString, ToByteString)
 
-newtype AppName
-  = AppName
-      { appNameText :: Text
-      }
+newtype AppName = AppName
+  { appNameText :: Text
+  }
   deriving (Eq, Ord, Show, FromJSON, ToJSON, IsString)
 
-data PushToken
-  = PushToken
-      { _tokenTransport :: !Transport,
-        _tokenApp :: !AppName,
-        _token :: !Token,
-        _tokenClient :: !ClientId
-      }
+data PushToken = PushToken
+  { _tokenTransport :: !Transport,
+    _tokenApp :: !AppName,
+    _token :: !Token,
+    _tokenClient :: !ClientId
+  }
   deriving (Eq, Ord, Show)
 
 makeLenses ''PushToken
@@ -420,10 +414,9 @@ instance FromJSON PushToken where
       <*> p .: "token"
       <*> p .: "client"
 
-newtype PushTokenList
-  = PushTokenList
-      { pushTokens :: [PushToken]
-      }
+newtype PushTokenList = PushTokenList
+  { pushTokens :: [PushToken]
+  }
   deriving (Eq, Show)
 
 instance FromJSON PushTokenList where

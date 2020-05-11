@@ -95,10 +95,9 @@ data Debug
 
 type Http a = HttpT IO a
 
-newtype HttpT m a
-  = HttpT
-      { unwrap :: ReaderT Manager m a
-      }
+newtype HttpT m a = HttpT
+  { unwrap :: ReaderT Manager m a
+  }
   deriving
     ( Functor,
       Applicative,

@@ -39,13 +39,12 @@ import Network.HTTP.Types.Status (status200)
 import Network.Wire.Client.HTTP
 import Network.Wire.Client.Session
 
-data SearchParams
-  = SearchParams
-      { searchText :: !Text,
-        searchDistance :: !Word8,
-        searchLimit :: !Word8,
-        searchDirectory :: !Bool
-      }
+data SearchParams = SearchParams
+  { searchText :: !Text,
+    searchDistance :: !Word8,
+    searchLimit :: !Word8,
+    searchDirectory :: !Bool
+  }
   deriving (Show)
 
 instance Default SearchParams where

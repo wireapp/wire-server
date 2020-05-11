@@ -66,10 +66,9 @@ data Action
 
 deriveJSON defaultOptions {constructorTagModifier = camelTo2 '_'} ''Action
 
-newtype Actions
-  = Actions
-      { allowedActions :: Set Action
-      }
+newtype Actions = Actions
+  { allowedActions :: Set Action
+  }
   deriving (Eq, Ord, Show, Generic)
 
 -- | A conversation role is associated to a user in the scope of a conversation and implies
@@ -108,10 +107,9 @@ instance FromJSON ConversationRole where
       Just cr -> return cr
       Nothing -> fail ("Failed to parse: " ++ show o)
 
-data ConversationRolesList
-  = ConversationRolesList
-      { convRolesList :: [ConversationRole]
-      }
+data ConversationRolesList = ConversationRolesList
+  { convRolesList :: [ConversationRole]
+  }
   deriving (Eq, Show)
 
 instance ToJSON ConversationRolesList where

@@ -150,15 +150,13 @@ instance ToJSON ServiceTag where
 -- ServiceTag Matchers
 
 -- | Logical disjunction of 'MatchAllTags' to match.
-newtype MatchAny
-  = MatchAny
-      {matchAnySet :: Set MatchAll}
+newtype MatchAny = MatchAny
+  {matchAnySet :: Set MatchAll}
   deriving (Eq, Show, Ord)
 
 -- | Logical conjunction of 'ServiceTag's to match.
-newtype MatchAll
-  = MatchAll
-      {matchAllSet :: Set ServiceTag}
+newtype MatchAll = MatchAll
+  {matchAllSet :: Set ServiceTag}
   deriving (Eq, Show, Ord)
 
 (.||.) :: MatchAny -> MatchAny -> MatchAny

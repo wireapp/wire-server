@@ -119,24 +119,23 @@ instance MonadZAuth ZAuth where
 runZAuth :: MonadIO m => Env -> ZAuth a -> m a
 runZAuth e za = liftIO $ runReaderT (unZAuth za) e
 
-data Settings
-  = Settings
-      { -- | Secret key index to use
-        --   for token creation
-        _keyIndex :: !Int,
-        -- | User token validity timeout
-        _userTokenTimeout :: !UserTokenTimeout,
-        -- | Session token validity timeout
-        _sessionTokenTimeout :: !SessionTokenTimeout,
-        -- | Access token validity timeout
-        _accessTokenTimeout :: !AccessTokenTimeout,
-        -- | Proider token validity timeout
-        _providerTokenTimeout :: !ProviderTokenTimeout,
-        -- | Legal Hold User token validity timeout
-        _legalHoldUserTokenTimeout :: !LegalHoldUserTokenTimeout,
-        -- | Legal Hold Access token validity timeout
-        _legalHoldAccessTokenTimeout :: !LegalHoldAccessTokenTimeout
-      }
+data Settings = Settings
+  { -- | Secret key index to use
+    --   for token creation
+    _keyIndex :: !Int,
+    -- | User token validity timeout
+    _userTokenTimeout :: !UserTokenTimeout,
+    -- | Session token validity timeout
+    _sessionTokenTimeout :: !SessionTokenTimeout,
+    -- | Access token validity timeout
+    _accessTokenTimeout :: !AccessTokenTimeout,
+    -- | Proider token validity timeout
+    _providerTokenTimeout :: !ProviderTokenTimeout,
+    -- | Legal Hold User token validity timeout
+    _legalHoldUserTokenTimeout :: !LegalHoldUserTokenTimeout,
+    -- | Legal Hold Access token validity timeout
+    _legalHoldAccessTokenTimeout :: !LegalHoldAccessTokenTimeout
+  }
   deriving (Show, Generic)
 
 defSettings :: Settings
@@ -150,12 +149,11 @@ defSettings =
     (LegalHoldUserTokenTimeout (60 * 60 * 24 * 56)) -- 56 days
     (LegalHoldAccessTokenTimeout (60 * 15)) -- 15 minutes
 
-data Env
-  = Env
-      { _private :: !ZC.Env,
-        _public :: !ZV.Env,
-        _settings :: !Settings
-      }
+data Env = Env
+  { _private :: !ZC.Env,
+    _public :: !ZV.Env,
+    _settings :: !Settings
+  }
 
 type AccessToken = Token Access
 
@@ -169,34 +167,28 @@ type LegalHoldUserToken = Token LegalHoldUser
 
 type LegalHoldAccessToken = Token LegalHoldAccess
 
-newtype UserTokenTimeout
-  = UserTokenTimeout
-      {_userTokenTimeoutSeconds :: Integer}
+newtype UserTokenTimeout = UserTokenTimeout
+  {_userTokenTimeoutSeconds :: Integer}
   deriving (Show, Generic)
 
-newtype SessionTokenTimeout
-  = SessionTokenTimeout
-      {sessionTokenTimeoutSeconds :: Integer}
+newtype SessionTokenTimeout = SessionTokenTimeout
+  {sessionTokenTimeoutSeconds :: Integer}
   deriving (Show, Generic)
 
-newtype AccessTokenTimeout
-  = AccessTokenTimeout
-      {_accessTokenTimeoutSeconds :: Integer}
+newtype AccessTokenTimeout = AccessTokenTimeout
+  {_accessTokenTimeoutSeconds :: Integer}
   deriving (Show, Generic)
 
-newtype ProviderTokenTimeout
-  = ProviderTokenTimeout
-      {providerTokenTimeoutSeconds :: Integer}
+newtype ProviderTokenTimeout = ProviderTokenTimeout
+  {providerTokenTimeoutSeconds :: Integer}
   deriving (Show, Generic)
 
-newtype LegalHoldUserTokenTimeout
-  = LegalHoldUserTokenTimeout
-      {_legalHoldUserTokenTimeoutSeconds :: Integer}
+newtype LegalHoldUserTokenTimeout = LegalHoldUserTokenTimeout
+  {_legalHoldUserTokenTimeoutSeconds :: Integer}
   deriving (Show, Generic)
 
-newtype LegalHoldAccessTokenTimeout
-  = LegalHoldAccessTokenTimeout
-      {_legalHoldAccessTokenTimeoutSeconds :: Integer}
+newtype LegalHoldAccessTokenTimeout = LegalHoldAccessTokenTimeout
+  {_legalHoldAccessTokenTimeoutSeconds :: Integer}
   deriving (Show, Generic)
 
 instance FromJSON UserTokenTimeout

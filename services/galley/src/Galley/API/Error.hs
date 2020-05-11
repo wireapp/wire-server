@@ -109,6 +109,12 @@ actionDenied a =
     "action-denied"
     ("Insufficient authorization (missing " <> (pack $ show a) <> ")")
 
+noBindingTeam :: Error
+noBindingTeam = Error status403 "no-binding-team" "Operation allowed only on binding teams."
+
+notAOneMemberTeam :: Error
+notAOneMemberTeam = Error status403 "not-one-member-team" "Can only delete teams with a single member."
+
 notATeamMember :: Error
 notATeamMember = Error status403 "no-team-member" "Requesting user is not a team member."
 
@@ -118,6 +124,13 @@ bulkGetMemberLimitExceeded =
     status400
     "too-many-uids"
     ("Can only process " <> cs (show @Int hardTruncationLimit) <> " user ids per request.")
+
+broadcastLimitExceeded :: Error
+broadcastLimitExceeded =
+  Error
+    status400
+    "too-many-users-to-broadcast"
+    ("Too many users to fan out the broadcast event to.")
 
 noAddToManaged :: Error
 noAddToManaged = Error status403 "no-add-to-managed" "Adding users/bots directly to managed conversation is not allowed."
@@ -133,6 +146,9 @@ invalidActions = Error status403 "invalid-actions" "The specified actions are in
 
 tooManyTeamMembers :: Error
 tooManyTeamMembers = Error status403 "too-many-team-members" "Maximum number of members per team reached"
+
+tooManyTeamMembersOnTeamWithLegalhold :: Error
+tooManyTeamMembersOnTeamWithLegalhold = Error status403 "too-many-members-for-legalhold" "cannot add more members to team legalhold service is enabled."
 
 teamMemberNotFound :: Error
 teamMemberNotFound = Error status404 "no-team-member" "team member not found"
@@ -160,6 +176,9 @@ invalidTeamStatusUpdate = Error status403 "invalid-team-status-update" "Cannot u
 
 codeNotFound :: Error
 codeNotFound = Error status404 "no-conversation-code" "conversation code not found"
+
+cannotEnableLegalHoldServiceLargeTeam :: Error
+cannotEnableLegalHoldServiceLargeTeam = Error status403 "too-large-team-for-legalhold" "cannot enable legalhold on large teams."
 
 legalHoldServiceInvalidKey :: Error
 legalHoldServiceInvalidKey = Error status400 "legalhold-invalid-key" "legal hold service pubkey is invalid"
@@ -203,6 +222,9 @@ disableSsoNotImplemented =
     \\n\
     \It is definitely feasible to change this.  If you have a use case, please contact customer support, or\n\
     \open an issue on https://github.com/wireapp/wire-server."
+
+teamSearchVisibilityNotEnabled :: Error
+teamSearchVisibilityNotEnabled = Error status403 "team-search-visibility-not-enabled" "custom search is not available for this team"
 
 customBackendNotFound :: Domain -> Error
 customBackendNotFound domain =

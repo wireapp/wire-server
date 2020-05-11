@@ -21,10 +21,12 @@ module Galley.Intra.Journal
     teamDelete,
     teamSuspend,
     evData,
+    getBillingUserIds,
   )
 where
 
 import Control.Lens
+import Data.ByteString.Conversion
 import qualified Data.Currency as Currency
 import Data.Id
 import Data.Proto
@@ -33,21 +35,28 @@ import Data.ProtoLens (defMessage)
 import Data.Text (pack)
 import Galley.App
 import qualified Galley.Aws as Aws
+import qualified Galley.Data as Data
+import qualified Galley.Options as Opts
 import Galley.Types.Teams
 import Imports hiding (head)
 import Numeric.Natural
 import Proto.TeamEvents (TeamEvent'EventData, TeamEvent'EventType (..))
 import qualified Proto.TeamEvents_Fields as T
+import System.Logger (field, msg, val)
+import qualified System.Logger.Class as Log
 
 -- [Note: journaling]
 -- Team journal operations to SQS are a no-op when the service
 -- is started without journaling arguments
 
-teamActivate :: TeamId -> Natural -> [TeamMember] -> Maybe Currency.Alpha -> Maybe TeamCreationTime -> Galley ()
-teamActivate tid teamSize mems cur time = journalEvent TeamEvent'TEAM_ACTIVATE tid (Just $ evData teamSize mems cur) time
+teamActivate :: TeamId -> Natural -> Maybe Currency.Alpha -> Maybe TeamCreationTime -> Galley ()
+teamActivate tid teamSize cur time = do
+  billingUserIds <- getBillingUserIds tid Nothing
+  journalEvent TeamEvent'TEAM_ACTIVATE tid (Just $ evData teamSize billingUserIds cur) time
 
-teamUpdate :: TeamId -> Natural -> [TeamMember] -> Galley ()
-teamUpdate tid teamSize mems = journalEvent TeamEvent'TEAM_UPDATE tid (Just $ evData teamSize mems Nothing) Nothing
+teamUpdate :: TeamId -> Natural -> [UserId] -> Galley ()
+teamUpdate tid teamSize billingUserIds =
+  journalEvent TeamEvent'TEAM_UPDATE tid (Just $ evData teamSize billingUserIds Nothing) Nothing
 
 teamDelete :: TeamId -> Galley ()
 teamDelete tid = journalEvent TeamEvent'TEAM_DELETE tid Nothing Nothing
@@ -62,7 +71,7 @@ journalEvent typ tid dat tim = view aEnv >>= \mEnv -> for_ mEnv $ \e -> do
   let ev =
         defMessage
           & T.eventType .~ typ
-          & T.teamId .~ (toBytes tid)
+          & T.teamId .~ toBytes tid
           & T.utcTime .~ ts
           & T.maybe'eventData .~ dat
   Aws.execute e (Aws.enqueue ev)
@@ -70,11 +79,42 @@ journalEvent typ tid dat tim = view aEnv >>= \mEnv -> for_ mEnv $ \e -> do
 ----------------------------------------------------------------------------
 -- utils
 
-evData :: Natural -> [TeamMember] -> Maybe Currency.Alpha -> TeamEvent'EventData
-evData memberCount mems cur =
+evData :: Natural -> [UserId] -> Maybe Currency.Alpha -> TeamEvent'EventData
+evData memberCount billingUserIds cur =
   defMessage
     & T.memberCount .~ fromIntegral memberCount
-    & T.billingUser .~ (toBytes <$> uids)
+    & T.billingUser .~ (toBytes <$> billingUserIds)
     & T.maybe'currency .~ (pack . show <$> cur)
+
+-- FUTUREWORK: Remove this function and always get billing users ids using
+-- 'Data.listBillingTeamMembers'. This is required only until data is backfilled in the
+-- 'billing_team_user' table.
+getBillingUserIds :: TeamId -> Maybe TeamMemberList -> Galley [UserId]
+getBillingUserIds tid maybeMemberList = do
+  enableIndexedBillingTeamMembers <- view (options . Opts.optSettings . Opts.setEnableIndexedBillingTeamMembers . to (fromMaybe False))
+  case maybeMemberList of
+    Nothing ->
+      if enableIndexedBillingTeamMembers
+        then fetchFromDB
+        else handleList enableIndexedBillingTeamMembers =<< Data.teamMembersForFanout tid
+    Just list -> handleList enableIndexedBillingTeamMembers list
   where
-    uids = view userId <$> filter (`hasPermission` SetBilling) mems
+    fetchFromDB :: Galley [UserId]
+    fetchFromDB = Data.listBillingTeamMembers tid
+    --
+    filterFromMembers :: TeamMemberList -> Galley [UserId]
+    filterFromMembers list =
+      pure $ map (view userId) $ filter (`hasPermission` SetBilling) (list ^. teamMembers)
+    --
+    handleList :: Bool -> TeamMemberList -> Galley [UserId]
+    handleList enableIndexedBillingTeamMembers list =
+      case list ^. teamMemberListType of
+        ListTruncated ->
+          if enableIndexedBillingTeamMembers
+            then fetchFromDB
+            else do
+              Log.warn $
+                field "team" (toByteString tid)
+                  . msg (val "TeamMemberList is incomplete, you may not see all the admin users in team. Please enable the indexedBillingTeamMembers feature.")
+              filterFromMembers list
+        ListComplete -> filterFromMembers list

@@ -43,10 +43,9 @@ instance FromJSON LegalHoldStatus where
     "disabled" -> pure LegalHoldDisabled
     x -> fail $ "unexpected status type: " <> T.unpack x
 
-data LegalHoldTeamConfig
-  = LegalHoldTeamConfig
-      { legalHoldTeamConfigStatus :: !LegalHoldStatus
-      }
+data LegalHoldTeamConfig = LegalHoldTeamConfig
+  { legalHoldTeamConfigStatus :: !LegalHoldStatus
+  }
   deriving stock (Eq, Show, Generic)
 
 instance ToJSON LegalHoldTeamConfig where
@@ -60,12 +59,11 @@ instance FromJSON LegalHoldTeamConfig where
     LegalHoldTeamConfig <$> o .: "status"
 
 -- | This type is analogous to 'NewService' for bots.
-data NewLegalHoldService
-  = NewLegalHoldService
-      { newLegalHoldServiceUrl :: !HttpsUrl,
-        newLegalHoldServiceKey :: !ServiceKeyPEM,
-        newLegalHoldServiceToken :: !ServiceToken
-      }
+data NewLegalHoldService = NewLegalHoldService
+  { newLegalHoldServiceUrl :: !HttpsUrl,
+    newLegalHoldServiceKey :: !ServiceKeyPEM,
+    newLegalHoldServiceToken :: !ServiceToken
+  }
   deriving stock (Eq, Show, Generic)
 
 instance ToJSON NewLegalHoldService where
@@ -83,14 +81,13 @@ instance FromJSON NewLegalHoldService where
       <*> o .: "public_key"
       <*> o .: "auth_token"
 
-data LegalHoldService
-  = LegalHoldService
-      { legalHoldServiceTeam :: !TeamId,
-        legalHoldServiceUrl :: !HttpsUrl,
-        legalHoldServiceFingerprint :: !(Fingerprint Rsa),
-        legalHoldServiceToken :: !ServiceToken,
-        legalHoldServiceKey :: !ServiceKey
-      }
+data LegalHoldService = LegalHoldService
+  { legalHoldServiceTeam :: !TeamId,
+    legalHoldServiceUrl :: !HttpsUrl,
+    legalHoldServiceFingerprint :: !(Fingerprint Rsa),
+    legalHoldServiceToken :: !ServiceToken,
+    legalHoldServiceKey :: !ServiceKey
+  }
   deriving stock (Eq, Show, Generic)
 
 instance ToJSON LegalHoldService where
@@ -143,14 +140,13 @@ instance FromJSON ViewLegalHoldService where
       "disabled" -> pure ViewLegalHoldServiceDisabled
       _ -> fail "status (one of configured, not_configured, disabled)"
 
-data ViewLegalHoldServiceInfo
-  = ViewLegalHoldServiceInfo
-      { viewLegalHoldServiceTeam :: !TeamId,
-        viewLegalHoldServiceUrl :: !HttpsUrl,
-        viewLegalHoldServiceFingerprint :: !(Fingerprint Rsa),
-        viewLegalHoldServiceAuthToken :: !ServiceToken,
-        viewLegalHoldServiceKey :: !ServiceKeyPEM
-      }
+data ViewLegalHoldServiceInfo = ViewLegalHoldServiceInfo
+  { viewLegalHoldServiceTeam :: !TeamId,
+    viewLegalHoldServiceUrl :: !HttpsUrl,
+    viewLegalHoldServiceFingerprint :: !(Fingerprint Rsa),
+    viewLegalHoldServiceAuthToken :: !ServiceToken,
+    viewLegalHoldServiceKey :: !ServiceKeyPEM
+  }
   deriving stock (Eq, Show, Generic)
 
 instance ToJSON ViewLegalHoldServiceInfo where
@@ -180,11 +176,10 @@ viewLegalHoldService (LegalHoldService tid u fpr t k) =
   ViewLegalHoldService $ ViewLegalHoldServiceInfo tid u fpr t (serviceKeyPEM k)
 
 -- This is the payload that the LH service returns upon calling @/initiate@
-data NewLegalHoldClient
-  = NewLegalHoldClient
-      { newLegalHoldClientPrekeys :: [Prekey],
-        newLegalHoldClientLastKey :: !LastPrekey
-      }
+data NewLegalHoldClient = NewLegalHoldClient
+  { newLegalHoldClientPrekeys :: [Prekey],
+    newLegalHoldClientLastKey :: !LastPrekey
+  }
   deriving stock (Eq, Show, Generic)
 
 instance ToJSON NewLegalHoldClient where
@@ -200,11 +195,10 @@ instance FromJSON NewLegalHoldClient where
       <*> o .: "last_prekey"
 
 -- This is the payload that the LH service expects
-data RequestNewLegalHoldClient
-  = RequestNewLegalHoldClient
-      { userId :: !UserId,
-        teamId :: !TeamId
-      }
+data RequestNewLegalHoldClient = RequestNewLegalHoldClient
+  { userId :: !UserId,
+    teamId :: !TeamId
+  }
   deriving stock (Show, Eq, Generic)
 
 instance ToJSON RequestNewLegalHoldClient where
@@ -219,14 +213,13 @@ instance FromJSON RequestNewLegalHoldClient where
     RequestNewLegalHoldClient <$> o .: "user_id"
       <*> o .: "team_id"
 
-data UserLegalHoldStatusResponse
-  = UserLegalHoldStatusResponse
-      { ulhsrStatus :: UserLegalHoldStatus,
-        -- | Exists only when status is Pending or Enabled
-        ulhsrLastPrekey :: Maybe LastPrekey,
-        -- | Exists only when status is Pending or Enabled
-        ulhsrClientId :: Maybe ClientId
-      }
+data UserLegalHoldStatusResponse = UserLegalHoldStatusResponse
+  { ulhsrStatus :: UserLegalHoldStatus,
+    -- | Exists only when status is Pending or Enabled
+    ulhsrLastPrekey :: Maybe LastPrekey,
+    -- | Exists only when status is Pending or Enabled
+    ulhsrClientId :: Maybe ClientId
+  }
   deriving stock (Eq, Show, Generic)
 
 instance ToJSON UserLegalHoldStatusResponse where
@@ -243,11 +236,10 @@ instance FromJSON UserLegalHoldStatusResponse where
       <*> o .:? "last_prekey"
       <*> (fromIdObject @ClientId <$$> (o .:? "client"))
 
-data LegalHoldClientRequest
-  = LegalHoldClientRequest
-      { lhcrRequester :: !UserId,
-        lhcrLastPrekey :: !LastPrekey
-      }
+data LegalHoldClientRequest = LegalHoldClientRequest
+  { lhcrRequester :: !UserId,
+    lhcrLastPrekey :: !LastPrekey
+  }
   deriving stock (Eq, Show, Generic)
 
 instance FromJSON LegalHoldClientRequest where
@@ -264,14 +256,13 @@ instance ToJSON LegalHoldClientRequest where
         # []
 
 -- Request body definition for the @/confirm@ endpoint on the LegalHold Service
-data LegalHoldServiceConfirm
-  = LegalHoldServiceConfirm
-      { lhcClientId :: !ClientId,
-        lhcUserId :: !UserId,
-        lhcTeamId :: !TeamId,
-        -- | Replace with Legal Hold Token Type
-        lhcRefreshToken :: !Text
-      }
+data LegalHoldServiceConfirm = LegalHoldServiceConfirm
+  { lhcClientId :: !ClientId,
+    lhcUserId :: !UserId,
+    lhcTeamId :: !TeamId,
+    -- | Replace with Legal Hold Token Type
+    lhcRefreshToken :: !Text
+  }
   deriving stock (Eq, Show, Generic)
 
 instance ToJSON LegalHoldServiceConfirm where
@@ -291,11 +282,10 @@ instance FromJSON LegalHoldServiceConfirm where
       <*> o .: "team_id"
       <*> o .: "refresh_token"
 
-data LegalHoldServiceRemove
-  = LegalHoldServiceRemove
-      { lhrUserId :: !UserId,
-        lhrTeamId :: !TeamId
-      }
+data LegalHoldServiceRemove = LegalHoldServiceRemove
+  { lhrUserId :: !UserId,
+    lhrTeamId :: !TeamId
+  }
   deriving stock (Eq, Show, Generic)
 
 instance ToJSON LegalHoldServiceRemove where
@@ -305,10 +295,9 @@ instance ToJSON LegalHoldServiceRemove where
         # "team_id" .= teamId
         # []
 
-data RemoveLegalHoldSettingsRequest
-  = RemoveLegalHoldSettingsRequest
-      { rmlhsrPassword :: !(Maybe PlainTextPassword)
-      }
+data RemoveLegalHoldSettingsRequest = RemoveLegalHoldSettingsRequest
+  { rmlhsrPassword :: !(Maybe PlainTextPassword)
+  }
   deriving stock (Eq, Show, Generic)
 
 instance ToJSON RemoveLegalHoldSettingsRequest where
@@ -322,10 +311,9 @@ instance FromJSON RemoveLegalHoldSettingsRequest where
     RemoveLegalHoldSettingsRequest
       <$> o .:? "password"
 
-data DisableLegalHoldForUserRequest
-  = DisableLegalHoldForUserRequest
-      { dlhfuPassword :: !(Maybe PlainTextPassword)
-      }
+data DisableLegalHoldForUserRequest = DisableLegalHoldForUserRequest
+  { dlhfuPassword :: !(Maybe PlainTextPassword)
+  }
   deriving stock (Eq, Show, Generic)
 
 instance ToJSON DisableLegalHoldForUserRequest where
@@ -339,10 +327,9 @@ instance FromJSON DisableLegalHoldForUserRequest where
     DisableLegalHoldForUserRequest
       <$> o .:? "password"
 
-data ApproveLegalHoldForUserRequest
-  = ApproveLegalHoldForUserRequest
-      { alhfuPassword :: !(Maybe PlainTextPassword)
-      }
+data ApproveLegalHoldForUserRequest = ApproveLegalHoldForUserRequest
+  { alhfuPassword :: !(Maybe PlainTextPassword)
+  }
   deriving stock (Eq, Show, Generic)
 
 instance ToJSON ApproveLegalHoldForUserRequest where

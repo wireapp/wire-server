@@ -33,19 +33,17 @@ import qualified System.Logger.Class as LC
 import UnliftIO.Async
 import UnliftIO.Exception (finally)
 
-data ThreadBudgetState
-  = ThreadBudgetState
-      { threadBudgetLimits :: MaxConcurrentNativePushes,
-        _threadBudgetRunning :: IORef BudgetMap
-      }
+data ThreadBudgetState = ThreadBudgetState
+  { threadBudgetLimits :: MaxConcurrentNativePushes,
+    _threadBudgetRunning :: IORef BudgetMap
+  }
   deriving (Generic)
 
 -- | Store all handles for cleanup in 'watchThreadBudgetState'.
-data BudgetMap
-  = BudgetMap
-      { bspent :: Int,
-        bmap :: HashMap UUID (Int, Maybe (Async ()))
-      }
+data BudgetMap = BudgetMap
+  { bspent :: Int,
+    bmap :: HashMap UUID (Int, Maybe (Async ()))
+  }
   deriving (Eq, Generic)
 
 -- | Instead of taking the pre-computed total budget spent of the 'BudgetMap' (O(1)), this

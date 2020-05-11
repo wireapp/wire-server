@@ -44,18 +44,27 @@ module Galley.API.Teams
     getLegalholdStatusH,
     getLegalholdStatusInternalH,
     setLegalholdStatusInternalH,
+    getTeamSearchVisibilityAvailableH,
+    setTeamSearchVisibilityAvailableInternalH,
+    getTeamSearchVisibilityAvailableInternalH,
+    getSearchVisibilityH,
+    setSearchVisibilityH,
+    getSearchVisibilityInternalH,
+    setSearchVisibilityInternalH,
     uncheckedAddTeamMemberH,
     uncheckedGetTeamMemberH,
     uncheckedGetTeamMembersH,
-    uncheckedRemoveTeamMember,
+    uncheckedDeleteTeamMember,
     withBindingTeam,
     userIsTeamOwnerH,
+    canUserJoinTeamH,
+    internalDeleteBindingTeamWithOneMemberH,
+    internalDeleteBindingTeamWithOneMember,
   )
 where
 
 import Brig.Types.Team (TeamSize (..))
 import Brig.Types.Team.LegalHold (LegalHoldStatus (..), LegalHoldTeamConfig (..))
-import Cassandra (hasMore, result)
 import Control.Lens
 import Control.Monad.Catch
 import Data.ByteString.Conversion hiding (fromList)
@@ -66,15 +75,16 @@ import Data.Range as Range
 import Data.Set (fromList)
 import qualified Data.Set as Set
 import Data.Time.Clock (UTCTime (..), getCurrentTime)
-import Galley.API.Error
+import Galley.API.Error as Galley
 import Galley.API.LegalHold
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
 import qualified Galley.Data.LegalHold as LegalHoldData
 import qualified Galley.Data.SSO as SSOData
+import qualified Galley.Data.SearchVisibility as SearchVisibilityData
 import Galley.Data.Services (BotMember)
-import Galley.Data.Types
+import qualified Galley.Data.Types as Data
 import qualified Galley.External as External
 import qualified Galley.Intra.Journal as Journal
 import Galley.Intra.Push
@@ -89,6 +99,7 @@ import Galley.Types.Conversations.Roles as Roles
 import Galley.Types.Teams hiding (newTeam)
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SSO
+import Galley.Types.Teams.SearchVisibility
 import Imports
 import Network.HTTP.Types
 import Network.Wai
@@ -158,6 +169,7 @@ createNonBindingTeam zusr zcon (NonBindingNewTeam body) = do
       . Log.field "action" (Log.val "Teams.createNonBindingTeam")
   team <- Data.createTeam Nothing zusr (body ^. newTeamName) (body ^. newTeamIcon) (body ^. newTeamIconKey) NonBinding
   finishCreateTeam team owner others (Just zcon)
+  pure (team ^. teamId)
 
 createBindingTeamH :: UserId ::: TeamId ::: JsonRequest BindingNewTeam ::: JSON -> Galley Response
 createBindingTeamH (zusr ::: tid ::: req ::: _) = do
@@ -170,6 +182,7 @@ createBindingTeam zusr tid (BindingNewTeam body) = do
   let owner = newTeamMember zusr fullPermissions Nothing
   team <- Data.createTeam (Just tid) zusr (body ^. newTeamName) (body ^. newTeamIcon) (body ^. newTeamIconKey) Binding
   finishCreateTeam team owner [] Nothing
+  pure tid
 
 updateTeamStatusH :: TeamId ::: JsonRequest TeamStatusUpdate ::: JSON -> Galley Response
 updateTeamStatusH (tid ::: req ::: _) = do
@@ -187,7 +200,6 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
   where
     journal Suspended _ = Journal.teamSuspend tid
     journal Active c = do
-      mems <- Data.teamMembersUnsafeForLargeTeams tid
       teamCreationTime <- Data.teamCreationTime tid
       -- When teams are created, they are activated immediately. In this situation, Brig will
       -- most likely report team size as 0 due to ES taking some time to index the team creator.
@@ -197,7 +209,7 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
             if possiblyStaleSize == 0
               then 1
               else possiblyStaleSize
-      Journal.teamActivate tid size mems c teamCreationTime
+      Journal.teamActivate tid size c teamCreationTime
     journal _ _ = throwM invalidTeamStatusUpdate
     validateTransition :: (TeamStatus, TeamStatus) -> Galley Bool
     validateTransition = \case
@@ -224,10 +236,10 @@ updateTeam zusr zcon tid updateData = do
   void $ permissionCheck SetTeamData zusrMembership
   Data.updateTeam tid updateData
   now <- liftIO getCurrentTime
-  membs <- Data.teamMembersUnsafeForLargeTeams tid
+  memList <- Data.teamMembersForFanout tid
   let e = newEvent TeamUpdate tid now & eventData .~ Just (EdTeamUpdate updateData)
-  let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
-  push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ Just zcon
+  let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) (memList ^. teamMembers))
+  push1 $ newPush1 (memList ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ Just zcon
 
 deleteTeamH :: UserId ::: ConnId ::: TeamId ::: OptionalJsonRequest TeamDeleteData ::: JSON -> Galley Response
 deleteTeamH (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -243,22 +255,27 @@ deleteTeam zusr zcon tid mBody = do
     Deleted ->
       throwM teamNotFound
     PendingDelete ->
-      queueDelete
+      queueTeamDeletion tid zusr (Just zcon)
     _ -> do
       checkPermissions team
-      queueDelete
+      queueTeamDeletion tid zusr (Just zcon)
   where
     checkPermissions team = do
       void $ permissionCheck DeleteTeam =<< Data.teamMember tid zusr
       when ((tdTeam team) ^. teamBinding == Binding) $ do
         body <- mBody & ifNothing (invalidPayload "missing request body")
         ensureReAuthorised zusr (body ^. tdAuthPassword)
-    queueDelete = do
-      q <- view deleteQueue
-      ok <- Q.tryPush q (TeamItem tid zusr (Just zcon))
-      if ok
-        then pure ()
-        else throwM deleteQueueFull
+
+-- This can be called by stern
+internalDeleteBindingTeamWithOneMember :: TeamId -> Galley ()
+internalDeleteBindingTeamWithOneMember tid = do
+  team <- Data.team tid
+  unless ((view teamBinding . tdTeam <$> team) == Just Binding) $
+    throwM noBindingTeam
+  mems <- Data.teamMembersWithLimit tid (unsafeRange 2)
+  case mems ^. teamMembers of
+    (mem : []) -> queueTeamDeletion tid (mem ^. userId) Nothing
+    _ -> throwM notAOneMemberTeam
 
 -- This function is "unchecked" because it does not validate that the user has the `DeleteTeam` permission.
 uncheckedDeleteTeam :: UserId -> Maybe ConnId -> TeamId -> Galley ()
@@ -268,7 +285,12 @@ uncheckedDeleteTeam zusr zcon tid = do
     Spar.deleteTeam tid
     now <- liftIO getCurrentTime
     convs <- filter (not . view managedConversation) <$> Data.teamConversations tid
-    membs <- Data.teamMembersUnsafeForLargeTeams tid
+    -- Even for LARGE TEAMS, we _DO_ want to fetch all team members here because we
+    -- want to generate conversation deletion events for non-team users. This should
+    -- be fine as it is done once during the life team of a team and we still do not
+    -- fanout this particular event to all team members anyway. And this is anyway
+    -- done asynchronously
+    membs <- Data.teamMembersCollectedWithPagination tid
     (ue, be) <- foldrM (createConvDeleteEvents now membs) ([], []) convs
     let e = newEvent TeamDelete tid now
     pushDeleteEvents membs e ue
@@ -290,8 +312,9 @@ uncheckedDeleteTeam zusr zcon tid = do
       let chunks = List.chunksOf chunkSize (toList r)
       forM_ chunks $ \chunk -> case chunk of
         [] -> return ()
-        -- push TeamDelete events
-        x : xs -> push1 (newPush1 zusr (TeamEvent e) (list1 x xs) & pushConn .~ zcon)
+        -- push TeamDelete events. Note that despite having a complete list, we are guaranteed in the
+        -- push module to never fan this out to more than the limit
+        x : xs -> push1 (newPush1 ListComplete zusr (TeamEvent e) (list1 x xs) & pushConn .~ zcon)
       -- To avoid DoS on gundeck, send conversation deletion events slowly
       let delay = 1000 * (fromMaybe defDeleteConvThrottleMillis (o ^. setDeleteConvThrottleMillis))
       forM_ ue $ \event -> do
@@ -311,7 +334,8 @@ uncheckedDeleteTeam zusr zcon tid = do
       -- and will thus never be able to see these events in practice.
       let mm = nonTeamMembers convMembs teamMembs
       let e = Conv.Event Conv.ConvDelete (c ^. conversationId) zusr now Nothing
-      let p = newPush zusr (ConvEvent e) (map recipient mm)
+      -- This event always contains all the required recipients
+      let p = newPush ListComplete zusr (ConvEvent e) (map recipient mm)
       let ee' = bots `zip` repeat e
       let pp' = maybe pp (\x -> (x & pushConn .~ zcon) : pp) p
       pure (pp', ee' ++ ee)
@@ -340,9 +364,9 @@ getTeamMembers zusr tid maxResults = do
   Data.teamMember tid zusr >>= \case
     Nothing -> throwM notATeamMember
     Just m -> do
-      (mems, hasMore) <- Data.teamMembers tid maxResults
+      mems <- Data.teamMembersWithLimit tid maxResults
       let withPerms = (m `canSeePermsOf`)
-      pure (newTeamMemberList mems hasMore, withPerms)
+      pure (mems, withPerms)
 
 bulkGetTeamMembersH :: UserId ::: TeamId ::: Range 1 HardTruncationLimit Int32 ::: JsonRequest UserIdList ::: JSON -> Galley Response
 bulkGetTeamMembersH (zusr ::: tid ::: maxResults ::: body ::: _) = do
@@ -360,7 +384,7 @@ bulkGetTeamMembers zusr tid maxResults uids = do
     Just m -> do
       mems <- Data.teamMembersLimited tid uids
       let withPerms = (m `canSeePermsOf`)
-          hasMore = False
+          hasMore = ListComplete
       pure (newTeamMemberList mems hasMore, withPerms)
 
 getTeamMemberH :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
@@ -379,6 +403,11 @@ getTeamMember zusr tid uid = do
         Nothing -> throwM teamMemberNotFound
         Just member -> pure (member, withPerms)
 
+internalDeleteBindingTeamWithOneMemberH :: TeamId -> Galley Response
+internalDeleteBindingTeamWithOneMemberH tid = do
+  internalDeleteBindingTeamWithOneMember tid
+  pure (empty & setStatus status202)
+
 uncheckedGetTeamMemberH :: TeamId ::: UserId ::: JSON -> Galley Response
 uncheckedGetTeamMemberH (tid ::: uid ::: _) = do
   json <$> uncheckedGetTeamMember tid uid
@@ -392,9 +421,7 @@ uncheckedGetTeamMembersH (tid ::: maxResults ::: _) = do
   json <$> uncheckedGetTeamMembers tid maxResults
 
 uncheckedGetTeamMembers :: TeamId -> Range 1 HardTruncationLimit Int32 -> Galley TeamMemberList
-uncheckedGetTeamMembers tid maxResults = do
-  (mems, hasMore) <- Data.teamMembers tid maxResults
-  return $ newTeamMemberList mems hasMore
+uncheckedGetTeamMembers tid maxResults = Data.teamMembersWithLimit tid maxResults
 
 addTeamMemberH :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
 addTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -417,8 +444,10 @@ addTeamMember zusr zcon tid nmem = do
   ensureNonBindingTeam tid
   ensureUnboundUsers [uid]
   ensureConnectedToLocals zusr [uid]
-  mems <- Data.teamMembersUnsafeForLargeTeams tid
-  addTeamMemberInternal tid (Just zusr) (Just zcon) nmem mems
+  memList <- Data.teamMembersForFanout tid
+  -- FUTUREWORK: We cannot enable legalhold on large teams right now
+  ensureNotTooLargeForLegalHold tid memList
+  void $ addTeamMemberInternal tid (Just zusr) (Just zcon) nmem memList
 
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
 uncheckedAddTeamMemberH :: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
@@ -429,10 +458,12 @@ uncheckedAddTeamMemberH (tid ::: req ::: _) = do
 
 uncheckedAddTeamMember :: TeamId -> NewTeamMember -> Galley ()
 uncheckedAddTeamMember tid nmem = do
-  mems <- Data.teamMembersUnsafeForLargeTeams tid
-  (TeamSize sizeBeforeAdd) <- BrigTeam.getSize tid
-  addTeamMemberInternal tid Nothing Nothing nmem mems
-  Journal.teamUpdate tid (sizeBeforeAdd + 1) (nmem ^. ntmNewTeamMember : mems)
+  mems <- Data.teamMembersForFanout tid
+  -- FUTUREWORK: We cannot enable legalhold on large teams right now
+  ensureNotTooLargeForLegalHold tid mems
+  (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem mems
+  billingUserIds <- Journal.getBillingUserIds tid $ Just $ newTeamMemberList ((nmem ^. ntmNewTeamMember) : mems ^. teamMembers) (mems ^. teamMemberListType)
+  Journal.teamUpdate tid (sizeBeforeAdd + 1) billingUserIds
 
 updateTeamMemberH :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
 updateTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -448,52 +479,60 @@ updateTeamMember zusr zcon tid targetMember = do
   Log.debug $
     Log.field "targets" (toByteString targetId)
       . Log.field "action" (Log.val "Teams.updateTeamMember")
+
   -- get the team and verify permissions
   team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
   user <-
     Data.teamMember tid zusr
       >>= permissionCheck SetMemberPermissions
+
   -- user may not elevate permissions
   targetPermissions `ensureNotElevated` user
-  Data.teamMember tid targetId >>= \case
-    Nothing -> do
+  previousMember <- Data.teamMember tid targetId >>= \case
+    Nothing ->
       -- target user must be in same team
       throwM teamMemberNotFound
-    Just previousMember -> do
-      when (downgradesOwner previousMember targetPermissions)
-        $
-        -- owner can be downgraded IFF it can be deleted
-        unless (canDeleteMember user previousMember)
-        $ throwM accessDenied
+    Just previousMember -> pure previousMember
+  when
+    ( downgradesOwner previousMember targetPermissions
+        && not (canDowngradeOwner user previousMember)
+    )
+    $ throwM accessDenied
+
   -- update target in Cassandra
-  Data.updateTeamMember tid targetId targetPermissions
-  updatedMembers <- Data.teamMembersUnsafeForLargeTeams tid
+  Data.updateTeamMember (previousMember ^. permissions) tid targetId targetPermissions
+
+  updatedMembers <- Data.teamMembersForFanout tid
   updateJournal team updatedMembers
   updatePeers targetId targetPermissions updatedMembers
   where
+    --
+    canDowngradeOwner = canDeleteMember
+    --
     downgradesOwner :: TeamMember -> Permissions -> Bool
     downgradesOwner previousMember targetPermissions =
       permissionsRole (previousMember ^. permissions) == Just RoleOwner
         && permissionsRole targetPermissions /= Just RoleOwner
     --
-    updateJournal :: Team -> [TeamMember] -> Galley ()
-    updateJournal team updatedMembers = do
+    updateJournal :: Team -> TeamMemberList -> Galley ()
+    updateJournal team mems = do
       when (team ^. teamBinding == Binding) $ do
         (TeamSize size) <- BrigTeam.getSize tid
-        Journal.teamUpdate tid size updatedMembers
+        billingUserIds <- Journal.getBillingUserIds tid $ Just mems
+        Journal.teamUpdate tid size billingUserIds
     --
-    updatePeers :: UserId -> Permissions -> [TeamMember] -> Galley ()
+    updatePeers :: UserId -> Permissions -> TeamMemberList -> Galley ()
     updatePeers targetId targetPermissions updatedMembers = do
       -- inform members of the team about the change
       -- some (privileged) users will be informed about which change was applied
-      let privileged = filter (`canSeePermsOf` targetMember) updatedMembers
+      let privileged = filter (`canSeePermsOf` targetMember) (updatedMembers ^. teamMembers)
           mkUpdate = EdMemberUpdate targetId
           privilegedUpdate = mkUpdate $ Just targetPermissions
           privilegedRecipients = membersToRecipients Nothing privileged
       now <- liftIO getCurrentTime
       let ePriv = newEvent MemberUpdate tid now & eventData ?~ privilegedUpdate
       -- push to all members (user is privileged)
-      let pushPriv = newPush zusr (TeamEvent ePriv) $ privilegedRecipients
+      let pushPriv = newPush (updatedMembers ^. teamMemberListType) zusr (TeamEvent ePriv) $ privilegedRecipients
       for_ pushPriv $ \p -> push1 $ p & pushConn .~ Just zcon
 
 deleteTeamMemberH :: UserId ::: ConnId ::: TeamId ::: UserId ::: OptionalJsonRequest TeamMemberDeleteData ::: JSON -> Galley Response
@@ -521,9 +560,8 @@ deleteTeamMember zusr zcon tid remove mBody = do
     tm <- maybe (throwM teamMemberNotFound) pure targetMember
     unless (canDeleteMember dm tm) $ throwM accessDenied
   team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
-  removeMembership <- Data.teamMember tid remove
-  mems <- Data.teamMembersUnsafeForLargeTeams tid
-  if team ^. teamBinding == Binding && isJust removeMembership
+  mems <- Data.teamMembersForFanout tid
+  if team ^. teamBinding == Binding && isJust targetMember
     then do
       body <- mBody & ifNothing (invalidPayload "missing request body")
       ensureReAuthorised zusr (body ^. tmdAuthPassword)
@@ -536,45 +574,48 @@ deleteTeamMember zusr zcon tid remove mBody = do
               then 0
               else sizeBeforeDelete - 1
       deleteUser remove
-      Journal.teamUpdate tid sizeAfterDelete (filter (\u -> u ^. userId /= remove) mems)
+      billingUsers <- Journal.getBillingUserIds tid (Just mems)
+      Journal.teamUpdate tid sizeAfterDelete $ filter (/= remove) billingUsers
       pure TeamMemberDeleteAccepted
     else do
-      uncheckedRemoveTeamMember zusr (Just zcon) tid remove mems
+      uncheckedDeleteTeamMember zusr (Just zcon) tid remove mems
       pure TeamMemberDeleteCompleted
 
 -- This function is "unchecked" because it does not validate that the user has the `RemoveTeamMember` permission.
--- FUTUREWORK: rename to 'uncheckedDeleteTeamMember' for consistency.
-uncheckedRemoveTeamMember :: UserId -> Maybe ConnId -> TeamId -> UserId -> [TeamMember] -> Galley ()
-uncheckedRemoveTeamMember zusr zcon tid remove mems = do
+uncheckedDeleteTeamMember :: UserId -> Maybe ConnId -> TeamId -> UserId -> TeamMemberList -> Galley ()
+uncheckedDeleteTeamMember zusr zcon tid remove mems = do
   now <- liftIO getCurrentTime
   pushMemberLeaveEvent now
   Data.removeTeamMember tid remove
-  pushConvLeaveEvent now
+  removeFromConvsAndPushConvLeaveEvent now
   where
     -- notify all team members.
     pushMemberLeaveEvent :: UTCTime -> Galley ()
     pushMemberLeaveEvent now = do
       let e = newEvent MemberLeave tid now & eventData .~ Just (EdMemberLeave remove)
-      let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) mems)
-      push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ zcon
+      let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) (mems ^. teamMembers))
+      push1 $ newPush1 (mems ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ zcon
     -- notify all conversation members not in this team.
-    pushConvLeaveEvent :: UTCTime -> Galley ()
-    pushConvLeaveEvent now = do
-      let tmids = Set.fromList $ map (view userId) mems
+    removeFromConvsAndPushConvLeaveEvent :: UTCTime -> Galley ()
+    removeFromConvsAndPushConvLeaveEvent now = do
+      -- This may not make sense if that list has been truncated. In such cases, we still want to
+      -- remove the user from conversations but never send out any events. We assume that clients
+      -- handle nicely these missing events, regardless of whether they are in the same team or not
+      let tmids = Set.fromList $ map (view userId) (mems ^. teamMembers)
       let edata = Conv.EdMembersLeave (Conv.UserIdList [remove])
       cc <- Data.teamConversations tid
       for_ cc $ \c -> Data.conversation (c ^. conversationId) >>= \conv ->
         for_ conv $ \dc -> when (makeIdOpaque remove `isMember` Data.convMembers dc) $ do
           Data.removeMember remove (c ^. conversationId)
-          unless (c ^. managedConversation) $
+          -- If the list was truncated, then the tmids list is incomplete so we simply drop these events
+          unless (c ^. managedConversation || mems ^. teamMemberListType == ListTruncated) $
             pushEvent tmids edata now dc
-    --
-    pushEvent :: Set UserId -> Conv.EventData -> UTCTime -> Conversation -> Galley ()
+    pushEvent :: Set UserId -> Conv.EventData -> UTCTime -> Data.Conversation -> Galley ()
     pushEvent exceptTo edata now dc = do
       let (bots, users) = botsAndUsers (Data.convMembers dc)
       let x = filter (\m -> not (Conv.memId m `Set.member` exceptTo)) users
       let y = Conv.Event Conv.MemberLeave (Data.convId dc) zusr now (Just edata)
-      for_ (newPush zusr (ConvEvent y) (recipient <$> x)) $ \p ->
+      for_ (newPush (mems ^. teamMemberListType) zusr (ConvEvent y) (recipient <$> x)) $ \p ->
         push1 $ p & pushConn .~ zcon
       void . forkIO $ void $ External.deliver (bots `zip` repeat y)
 
@@ -609,16 +650,29 @@ deleteTeamConversation :: UserId -> ConnId -> TeamId -> ConvId -> Galley ()
 deleteTeamConversation zusr zcon tid cid = do
   (bots, cmems) <- botsAndUsers <$> Data.members cid
   ensureActionAllowed Roles.DeleteConversation =<< getSelfMember zusr cmems
-  flip Data.deleteCode ReusableCode =<< mkKey cid
+  flip Data.deleteCode Data.ReusableCode =<< Data.mkKey cid
   now <- liftIO getCurrentTime
   let ce = Conv.Event Conv.ConvDelete cid zusr now Nothing
   let recps = fmap recipient cmems
-  let convPush = newPush zusr (ConvEvent ce) recps <&> pushConn .~ Just zcon
+  let convPush = newPush ListComplete zusr (ConvEvent ce) recps <&> pushConn .~ Just zcon
   pushSome $ maybeToList convPush
   void . forkIO $ void $ External.deliver (bots `zip` repeat ce)
   -- TODO: we don't delete bots here, but we should do that, since every
   -- bot user can only be in a single conversation
   Data.removeTeamConv tid cid
+
+getSearchVisibilityH :: UserId ::: TeamId ::: JSON -> Galley Response
+getSearchVisibilityH (uid ::: tid ::: _) = do
+  zusrMembership <- Data.teamMember tid uid
+  void $ permissionCheck ViewTeamSearchVisibility zusrMembership
+  json <$> getSearchVisibilityInternal tid
+
+setSearchVisibilityH :: UserId ::: TeamId ::: JsonRequest TeamSearchVisibilityView ::: JSON -> Galley Response
+setSearchVisibilityH (uid ::: tid ::: req ::: _) = do
+  zusrMembership <- Data.teamMember tid uid
+  void $ permissionCheck ChangeTeamSearchVisibility zusrMembership
+  setSearchVisibilityInternal tid =<< fromJsonBody req
+  pure noContent
 
 -- Internal -----------------------------------------------------------------
 
@@ -640,11 +694,11 @@ withTeamIds ::
   Galley a
 withTeamIds usr range size k = case range of
   Nothing -> do
-    Data.ResultSet r <- Data.teamIdsFrom usr Nothing (rcast size)
-    k (hasMore r) (result r)
+    r <- Data.teamIdsFrom usr Nothing (rcast size)
+    k (Data.resultSetType r == Data.ResultSetTruncated) (Data.resultSetResult r)
   Just (Right c) -> do
-    Data.ResultSet r <- Data.teamIdsFrom usr (Just c) (rcast size)
-    k (hasMore r) (result r)
+    r <- Data.teamIdsFrom usr (Just c) (rcast size)
+    k (Data.resultSetType r == Data.ResultSetTruncated) (Data.resultSetResult r)
   Just (Left cc) -> do
     ids <- Data.teamIdsOf usr cc
     k False ids
@@ -677,37 +731,52 @@ ensureNotElevated targetPermissions member =
     )
     $ throwM invalidPermissions
 
-addTeamMemberInternal :: TeamId -> Maybe UserId -> Maybe ConnId -> NewTeamMember -> [TeamMember] -> Galley ()
-addTeamMemberInternal tid origin originConn newMem mems = do
+ensureNotTooLarge :: TeamId -> Galley TeamSize
+ensureNotTooLarge tid = do
+  o <- view options
+  (TeamSize size) <- BrigTeam.getSize tid
+  unless (size < fromIntegral (o ^. optSettings . setMaxTeamSize)) $
+    throwM tooManyTeamMembers
+  return $ TeamSize size
+
+-- FUTUREWORK: Large teams cannot have legalhold enabled, needs rethinking
+--             due to the expensive operation of removing settings
+ensureNotTooLargeForLegalHold :: TeamId -> TeamMemberList -> Galley ()
+ensureNotTooLargeForLegalHold tid mems = do
+  limit <- fromIntegral . fromRange <$> fanoutLimit
+  when (length (mems ^. teamMembers) >= limit) $ do
+    lhEnabled <- isLegalHoldEnabled tid
+    when lhEnabled $
+      throwM tooManyTeamMembersOnTeamWithLegalhold
+
+addTeamMemberInternal :: TeamId -> Maybe UserId -> Maybe ConnId -> NewTeamMember -> TeamMemberList -> Galley TeamSize
+addTeamMemberInternal tid origin originConn newMem memList = do
   let new = newMem ^. ntmNewTeamMember
   Log.debug $
     Log.field "targets" (toByteString (new ^. userId))
       . Log.field "action" (Log.val "Teams.addTeamMemberInternal")
-  o <- view options
-  (TeamSize teamSize) <- BrigTeam.getSize tid
-  unless (teamSize < fromIntegral (o ^. optSettings . setMaxTeamSize)) $
-    throwM tooManyTeamMembers
+  sizeBeforeAdd <- ensureNotTooLarge tid
   Data.addTeamMember tid new
   cc <- filter (view managedConversation) <$> Data.teamConversations tid
   now <- liftIO getCurrentTime
   for_ cc $ \c ->
     Data.addMember now (c ^. conversationId) (new ^. userId)
-  let e = newEvent MemberJoin tid now & eventData .~ Just (EdMemberJoin (new ^. userId))
-  push1 $ newPush1 (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
+  let e = newEvent MemberJoin tid now & eventData ?~ EdMemberJoin (new ^. userId)
+  push1 $ newPush1 (memList ^. teamMemberListType) (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
+  return sizeBeforeAdd
   where
-    recipients (Just o) n = list1 (userRecipient o) (membersToRecipients (Just o) (n : mems))
-    recipients Nothing n = list1 (userRecipient (n ^. userId)) (membersToRecipients Nothing (n : mems))
+    recipients (Just o) n = list1 (userRecipient o) (membersToRecipients (Just o) (n : memList ^. teamMembers))
+    recipients Nothing n = list1 (userRecipient (n ^. userId)) (membersToRecipients Nothing (memList ^. teamMembers))
 
-finishCreateTeam :: Team -> TeamMember -> [TeamMember] -> Maybe ConnId -> Galley TeamId
+finishCreateTeam :: Team -> TeamMember -> [TeamMember] -> Maybe ConnId -> Galley ()
 finishCreateTeam team owner others zcon = do
   let zusr = owner ^. userId
   for_ (owner : others) $
     Data.addTeamMember (team ^. teamId)
   now <- liftIO getCurrentTime
-  let e = newEvent TeamCreate (team ^. teamId) now & eventData .~ Just (EdTeamCreate team)
+  let e = newEvent TeamCreate (team ^. teamId) now & eventData ?~ EdTeamCreate team
   let r = membersToRecipients Nothing others
-  push1 $ newPush1 zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
-  pure (team ^. teamId)
+  push1 $ newPush1 ListComplete zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
 
 withBindingTeam :: UserId -> (TeamId -> Galley b) -> Galley b
 withBindingTeam zusr callback = do
@@ -727,9 +796,25 @@ getBindingTeamMembersH :: UserId -> Galley Response
 getBindingTeamMembersH = fmap json . getBindingTeamMembers
 
 getBindingTeamMembers :: UserId -> Galley TeamMemberList
-getBindingTeamMembers zusr = withBindingTeam zusr $ \tid -> do
-  members <- Data.teamMembersUnsafeForLargeTeams tid
-  pure $ newTeamMemberList members False
+getBindingTeamMembers zusr = withBindingTeam zusr $ \tid ->
+  Data.teamMembersForFanout tid
+
+canUserJoinTeamH :: TeamId -> Galley Response
+canUserJoinTeamH tid = canUserJoinTeam tid >> pure empty
+
+-- This could be extended for more checks, for now we test only legalhold
+canUserJoinTeam :: TeamId -> Galley ()
+canUserJoinTeam tid = do
+  lhEnabled <- isLegalHoldEnabled tid
+  when (lhEnabled) $
+    checkTeamSize
+  where
+    checkTeamSize = do
+      (TeamSize size) <- BrigTeam.getSize tid
+      limit <- fromIntegral . fromRange <$> fanoutLimit
+      -- Teams larger than fanout limit cannot use legalhold
+      when (size >= limit) $ do
+        throwM tooManyTeamMembersOnTeamWithLegalhold
 
 -- Public endpoints for feature checks
 
@@ -752,6 +837,16 @@ getLegalholdStatus uid tid = do
   zusrMembership <- Data.teamMember tid uid
   void $ permissionCheck ViewLegalHoldTeamSettings zusrMembership
   getLegalholdStatusInternal tid
+
+getTeamSearchVisibilityAvailableH :: UserId ::: TeamId ::: JSON -> Galley Response
+getTeamSearchVisibilityAvailableH (uid ::: tid ::: _) =
+  json <$> getTeamSearchVisibilityAvailable uid tid
+
+getTeamSearchVisibilityAvailable :: UserId -> TeamId -> Galley TeamSearchVisibilityAvailableView
+getTeamSearchVisibilityAvailable uid tid = do
+  zusrMembership <- Data.teamMember tid uid
+  void $ permissionCheck ViewTeamSearchVisibilityAvailable zusrMembership
+  getTeamSearchVisibilityAvailableInternal tid
 
 -- Enable / Disable team features
 -- These endpoints are internal only and  meant to be called
@@ -820,9 +915,64 @@ setLegalholdStatusInternal tid legalHoldTeamConfig = do
       FeatureLegalHoldDisabledPermanently -> do
         throwM legalHoldFeatureFlagNotEnabled
   case legalHoldTeamConfigStatus legalHoldTeamConfig of
-    LegalHoldDisabled -> removeSettings' tid Nothing
-    LegalHoldEnabled -> pure ()
+    LegalHoldDisabled -> removeSettings' tid
+    -- FUTUREWORK: We cannot enable legalhold on large teams right now
+    LegalHoldEnabled -> checkTeamSize
   LegalHoldData.setLegalHoldTeamConfig tid legalHoldTeamConfig
+  where
+    checkTeamSize = do
+      (TeamSize size) <- BrigTeam.getSize tid
+      limit <- fromIntegral . fromRange <$> fanoutLimit
+      when (size > limit) $ do
+        throwM cannotEnableLegalHoldServiceLargeTeam
+
+-- | Get Search visibility status for a team.
+getTeamSearchVisibilityAvailableInternalH :: TeamId ::: JSON -> Galley Response
+getTeamSearchVisibilityAvailableInternalH (tid ::: _) = do
+  json <$> getTeamSearchVisibilityAvailableInternal tid
+
+getTeamSearchVisibilityAvailableInternal :: TeamId -> Galley TeamSearchVisibilityAvailableView
+getTeamSearchVisibilityAvailableInternal tid = TeamSearchVisibilityAvailableView <$> do
+  -- TODO: This is just redundant given there is a decent default
+  defConfig <- do
+    featureTeamSearchVisibility <- view (options . optSettings . setFeatureFlags . flagTeamSearchVisibility)
+    pure $ case featureTeamSearchVisibility of
+      FeatureTeamSearchVisibilityEnabledByDefault -> TeamSearchVisibilityEnabled
+      FeatureTeamSearchVisibilityDisabledByDefault -> TeamSearchVisibilityDisabled
+  fromMaybe defConfig <$> SearchVisibilityData.getTeamSearchVisibilityAvailable tid
+
+-- | Enable or disable custom search visibility for a team.
+setTeamSearchVisibilityAvailableInternalH :: TeamId ::: JsonRequest TeamSearchVisibilityAvailableView ::: JSON -> Galley Response
+setTeamSearchVisibilityAvailableInternalH (tid ::: req ::: _) = do
+  setTeamSearchVisibilityAvailableInternal tid =<< fromJsonBody req
+  pure noContent
+
+setTeamSearchVisibilityAvailableInternal :: TeamId -> TeamSearchVisibilityAvailableView -> Galley ()
+setTeamSearchVisibilityAvailableInternal tid (TeamSearchVisibilityAvailableView isenabled) = do
+  case isenabled of
+    TeamSearchVisibilityDisabled -> SearchVisibilityData.resetSearchVisibility tid
+    TeamSearchVisibilityEnabled -> pure () -- This allows the option to be set at the team level
+  SearchVisibilityData.setTeamSearchVisibilityAvailable tid isenabled
+
+-- | Modify and get visibility type for a team (internal, no user permission checks)
+getSearchVisibilityInternalH :: TeamId ::: JSON -> Galley Response
+getSearchVisibilityInternalH (tid ::: _) =
+  json <$> getSearchVisibilityInternal tid
+
+getSearchVisibilityInternal :: TeamId -> Galley TeamSearchVisibilityView
+getSearchVisibilityInternal = fmap TeamSearchVisibilityView . SearchVisibilityData.getSearchVisibility
+
+setSearchVisibilityInternalH :: TeamId ::: JsonRequest TeamSearchVisibilityView ::: JSON -> Galley Response
+setSearchVisibilityInternalH (tid ::: req ::: _) = do
+  setSearchVisibilityInternal tid =<< fromJsonBody req
+  pure noContent
+
+setSearchVisibilityInternal :: TeamId -> TeamSearchVisibilityView -> Galley ()
+setSearchVisibilityInternal tid (TeamSearchVisibilityView searchVisibility) = do
+  TeamSearchVisibilityAvailableView status <- getTeamSearchVisibilityAvailableInternal tid
+  unless (status == TeamSearchVisibilityEnabled) $
+    throwM teamSearchVisibilityNotEnabled
+  SearchVisibilityData.setSearchVisibility tid searchVisibility
 
 userIsTeamOwnerH :: TeamId ::: UserId ::: JSON -> Galley Response
 userIsTeamOwnerH (tid ::: uid ::: _) = do
@@ -834,3 +984,12 @@ userIsTeamOwner :: TeamId -> UserId -> Galley Bool
 userIsTeamOwner tid uid = do
   let asking = uid
   isTeamOwner . fst <$> getTeamMember asking tid uid
+
+-- Queues a team for async deletion
+queueTeamDeletion :: TeamId -> UserId -> Maybe ConnId -> Galley ()
+queueTeamDeletion tid zusr zcon = do
+  q <- view deleteQueue
+  ok <- Q.tryPush q (TeamItem tid zusr zcon)
+  if ok
+    then pure ()
+    else throwM deleteQueueFull

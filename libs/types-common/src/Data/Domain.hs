@@ -51,8 +51,7 @@ import Util.Attoparsec (takeUpToWhile)
 -- <digit> ::= any one of the ten digits 0 through 9
 --
 -- The domain will be normalized to lowercase when parsed.
-newtype Domain
-  = Domain {_domainText :: Text}
+newtype Domain = Domain {_domainText :: Text}
   deriving (Eq, Generic, Show)
 
 domainText :: Domain -> Text
@@ -99,8 +98,7 @@ instance Arbitrary Domain where
     either (error . ("arbitrary @Domain: " <>)) id . mkDomain . getDomainText <$> arbitrary
 
 -- | only for QuickCheck
-newtype DomainText
-  = DomainText {getDomainText :: Text}
+newtype DomainText = DomainText {getDomainText :: Text}
   deriving (Eq, Show)
 
 instance Arbitrary DomainText where

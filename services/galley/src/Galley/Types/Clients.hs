@@ -44,10 +44,9 @@ import qualified Data.Set as Set
 import Galley.Types (UserClients (..))
 import Imports hiding (filter, toList)
 
-newtype Clients
-  = Clients
-      { clients :: UserClients
-      }
+newtype Clients = Clients
+  { clients :: UserClients
+  }
   deriving (Eq, Show, Semigroup, Monoid)
 
 instance Bounds Clients where

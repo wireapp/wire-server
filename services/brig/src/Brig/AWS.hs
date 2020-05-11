@@ -55,7 +55,7 @@ import Data.Aeson hiding ((.=))
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import Data.UUID
+import Data.UUID hiding (null)
 import Data.Yaml (FromJSON (..))
 import Imports hiding (group)
 import Network.AWS (AWSRequest, Rs)
@@ -76,21 +76,19 @@ import UnliftIO.Async
 import UnliftIO.Exception
 import Util.Options
 
-data Env
-  = Env
-      { _logger :: !Logger,
-        _sesQueue :: !(Maybe Text),
-        _userJournalQueue :: !(Maybe Text),
-        _prekeyTable :: !Text,
-        _amazonkaEnv :: !AWS.Env
-      }
+data Env = Env
+  { _logger :: !Logger,
+    _sesQueue :: !(Maybe Text),
+    _userJournalQueue :: !(Maybe Text),
+    _prekeyTable :: !Text,
+    _amazonkaEnv :: !AWS.Env
+  }
 
 makeLenses ''Env
 
-newtype Amazon a
-  = Amazon
-      { unAmazon :: ReaderT Env (ResourceT IO) a
-      }
+newtype Amazon a = Amazon
+  { unAmazon :: ReaderT Env (ResourceT IO) a
+  }
   deriving
     ( Functor,
       Applicative,
@@ -174,11 +172,12 @@ instance Exception Error
 --------------------------------------------------------------------------------
 -- SQS
 
-listen :: (FromJSON a, Show a) => Text -> (a -> IO ()) -> Amazon ()
-listen url callback = do
-  forever $ handleAny unexpectedError $ do
-    msgs <- view rmrsMessages <$> send receive
-    void $ mapConcurrently onMessage msgs
+listen :: (FromJSON a, Show a) => Int -> Text -> (a -> IO ()) -> Amazon ()
+listen throttleMillis url callback = forever $ handleAny unexpectedError $ do
+  msgs <- view rmrsMessages <$> send receive
+  void $ mapConcurrently onMessage msgs
+  when (null msgs) $
+    threadDelay (1000 * throttleMillis)
   where
     receive =
       SQS.receiveMessage url
@@ -195,12 +194,12 @@ listen url callback = do
       err $ "error" .= show x ~~ msg (val "Failed to read from SQS")
       threadDelay 3000000
 
-enqueueStandard :: Text -> BL.ByteString -> Amazon (SQS.SendMessageResponse)
+enqueueStandard :: Text -> BL.ByteString -> Amazon SQS.SendMessageResponse
 enqueueStandard url m = retrying retry5x (const canRetry) (const (sendCatch req)) >>= throwA
   where
     req = SQS.sendMessage url $ Text.decodeLatin1 (BL.toStrict m)
 
-enqueueFIFO :: Text -> Text -> UUID -> BL.ByteString -> Amazon (SQS.SendMessageResponse)
+enqueueFIFO :: Text -> Text -> UUID -> BL.ByteString -> Amazon SQS.SendMessageResponse
 enqueueFIFO url group dedup m = retrying retry5x (const canRetry) (const (sendCatch req)) >>= throwA
   where
     req =

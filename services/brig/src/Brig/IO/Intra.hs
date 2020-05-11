@@ -42,6 +42,7 @@ module Brig.IO.Intra
 
     -- * Teams
     addTeamMember,
+    checkUserCanJoinTeam,
     createTeam,
     getTeamMember,
     getTeamMembers,
@@ -53,6 +54,7 @@ module Brig.IO.Intra
     getTeamContacts,
     getTeamLegalHoldStatus,
     changeTeamStatus,
+    getTeamSearchVisibility,
   )
 where
 
@@ -71,11 +73,11 @@ import Brig.User.Event
 import qualified Brig.User.Event.Log as Log
 import qualified Brig.User.Search.Index as Search
 import Control.Lens ((.~), (?~), (^.), view)
-import Control.Lens.Prism (_Just)
 import Control.Retry
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as BL
+import Data.Coerce (coerce)
 import qualified Data.Currency as Currency
 import qualified Data.HashMap.Strict as M
 import Data.Id
@@ -88,11 +90,13 @@ import qualified Data.Set as Set
 import Galley.Types (Connect (..), Conversation)
 import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
+import qualified Galley.Types.Teams.SearchVisibility as Team
 import Gundeck.Types.Push.V2
 import qualified Gundeck.Types.Push.V2 as Push
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
+import qualified Network.Wai.Utilities.Error as Wai
 import System.Logger.Class as Log hiding ((.=), name)
 
 -----------------------------------------------------------------------------
@@ -328,9 +332,13 @@ notifyContacts events orig route conn = do
     contacts :: AppIO [UserId]
     contacts = lookupContactList orig
     teamContacts :: AppIO [UserId]
-    teamContacts = getUids <$> getTeamContacts orig
-    getUids :: Maybe Team.TeamMemberList -> [UserId]
-    getUids = fmap (view Team.userId) . view (_Just . Team.teamMembers)
+    teamContacts = screenMemberList =<< getTeamContacts orig
+    -- If we have a truncated team, we just ignore it all together to avoid very large fanouts
+    screenMemberList :: Maybe Team.TeamMemberList -> AppIO [UserId]
+    screenMemberList (Just mems)
+      | mems ^. Team.teamMemberListType == Team.ListComplete =
+        return $ fmap (view Team.userId) (mems ^. Team.teamMembers)
+    screenMemberList _ = return []
 
 -- Event Serialisation:
 
@@ -669,6 +677,23 @@ rmClient u c = do
 -------------------------------------------------------------------------------
 -- Team Management
 
+-- | Calls 'Galley.API.canUserJoinTeamH'.
+checkUserCanJoinTeam :: TeamId -> AppIO (Maybe Wai.Error)
+checkUserCanJoinTeam tid = do
+  debug $
+    remote "galley"
+      . msg (val "Check if can add member to team")
+  rs <- galleyRequest GET req
+  return $ case Bilge.statusCode rs of
+    200 -> Nothing
+    _ -> case decodeBody "galley" rs of
+      Just (e :: Wai.Error) -> return e
+      Nothing -> error ("Invalid response from galley: " <> show rs)
+  where
+    req =
+      paths ["i", "teams", toByteString' tid, "members", "check"]
+        . header "Content-Type" "application/json"
+
 -- | Calls 'Galley.API.uncheckedAddTeamMemberH'.
 addTeamMember :: UserId -> TeamId -> (Maybe (UserId, UTCTimeMillis), Team.Role) -> AppIO Bool
 addTeamMember u tid (minvmeta, role) = do
@@ -746,7 +771,7 @@ memberIsTeamOwner tid uid = do
       (paths ["i", "teams", toByteString' tid, "is-team-owner", toByteString' uid])
   pure $ responseStatus r /= status403
 
--- | Only works on 'BindingTeam's!
+-- | Only works on 'BindingTeam's! The list of members returned is potentially truncated.
 --
 -- Calls 'Galley.API.getBindingTeamMembersH'.
 getTeamContacts :: UserId -> AppIO (Maybe Team.TeamMemberList)
@@ -802,6 +827,16 @@ getTeamLegalHoldStatus tid = do
   where
     req =
       paths ["i", "teams", toByteString' tid, "features", "legalhold"]
+        . expect2xx
+
+-- | Calls 'Galley.API.getSearchVisibilityInternalH'.
+getTeamSearchVisibility :: TeamId -> AppIO Team.TeamSearchVisibility
+getTeamSearchVisibility tid = coerce @Team.TeamSearchVisibilityView @Team.TeamSearchVisibility <$> do
+  debug $ remote "galley" . msg (val "Get search visibility settings")
+  galleyRequest GET req >>= decodeBody "galley"
+  where
+    req =
+      paths ["i", "teams", toByteString' tid, "search-visibility"]
         . expect2xx
 
 -- | Calls 'Galley.API.updateTeamStatusH'.

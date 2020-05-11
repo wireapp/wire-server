@@ -33,9 +33,8 @@ import Imports
 import OpenSSL.Random (randBytes)
 
 -- | A derived, stretched password that can be safely stored.
-newtype Password
-  = Password
-      {fromPassword :: EncryptedPass}
+newtype Password = Password
+  {fromPassword :: EncryptedPass}
 
 instance Show Password where
   show _ = "<Password>"

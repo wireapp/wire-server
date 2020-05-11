@@ -31,6 +31,7 @@ import Galley.Types.Bot ()
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SSO
+import Galley.Types.Teams.SearchVisibility
 import Imports
 
 deriving instance Cql MutedStatus
@@ -135,6 +136,30 @@ instance Cql SSOStatus where
 
   toCql SSODisabled = CqlInt 0
   toCql SSOEnabled = CqlInt 1
+
+instance Cql TeamSearchVisibilityAvailable where
+  ctype = Tagged IntColumn
+
+  fromCql (CqlInt n) = case n of
+    0 -> pure $ TeamSearchVisibilityDisabled
+    1 -> pure $ TeamSearchVisibilityEnabled
+    _ -> fail "fromCql: Invalid TeamSearchVisibilityAvailable"
+  fromCql _ = fail "fromCql: TeamSearchVisibilityAvailable: CqlInt expected"
+
+  toCql TeamSearchVisibilityDisabled = CqlInt 0
+  toCql TeamSearchVisibilityEnabled = CqlInt 1
+
+instance Cql TeamSearchVisibility where
+  ctype = Tagged IntColumn
+
+  fromCql (CqlInt n) = case n of
+    0 -> pure $ SearchVisibilityStandard
+    1 -> pure $ SearchVisibilityNoNameOutsideTeam
+    _ -> fail "fromCql: Invalid TeamSearchVisibility"
+  fromCql _ = fail "fromCql: TeamSearchVisibility: CqlInt expected"
+
+  toCql SearchVisibilityStandard = CqlInt 0
+  toCql SearchVisibilityNoNameOutsideTeam = CqlInt 1
 
 instance Cql Domain where
   ctype = Tagged TextColumn

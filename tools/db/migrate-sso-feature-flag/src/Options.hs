@@ -34,19 +34,17 @@ import Data.Text.Strict.Lens
 import Imports
 import Options.Applicative
 
-data MigratorSettings
-  = MigratorSettings
-      { _setCasSpar :: !CassandraSettings,
-        _setCasGalley :: !CassandraSettings
-      }
+data MigratorSettings = MigratorSettings
+  { _setCasSpar :: !CassandraSettings,
+    _setCasGalley :: !CassandraSettings
+  }
   deriving (Show)
 
-data CassandraSettings
-  = CassandraSettings
-      { _cHosts :: !String,
-        _cPort :: !Word16,
-        _cKeyspace :: !C.Keyspace
-      }
+data CassandraSettings = CassandraSettings
+  { _cHosts :: !String,
+    _cPort :: !Word16,
+    _cKeyspace :: !C.Keyspace
+  }
   deriving (Show)
 
 makeLenses ''MigratorSettings

@@ -22,8 +22,7 @@ import Bilge.Assert
 import Brig.Types
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Fail (MonadFail)
-import Data.Aeson (decode, encode)
-import Data.Handle (Handle (Handle))
+import Data.Aeson (decode)
 import Data.Id
 import Data.Text.Encoding (encodeUtf8)
 import Imports
@@ -51,26 +50,6 @@ refreshIndex brig =
 reindex :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> m ()
 reindex brig =
   post (brig . path "/i/index/reindex") !!! const 200 === statusCode
-
-randomUserWithHandle :: HasCallStack => Brig -> Http User
-randomUserWithHandle brig = do
-  u <- randomUser brig
-  setRandomHandle brig u
-
-setRandomHandle :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> m User
-setRandomHandle brig user = do
-  h <- randomHandle
-  put
-    ( brig
-        . path "/self/handle"
-        . contentJson
-        . zUser (userId user)
-        . zConn "c"
-        . body (RequestBodyLBS . encode $ HandleUpdate h)
-    )
-    !!! const 200
-    === statusCode
-  return user {userHandle = Just (Handle h)}
 
 assertCanFind :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, MonadFail m, HasCallStack) => Brig -> UserId -> UserId -> Text -> m ()
 assertCanFind brig self expected q = do

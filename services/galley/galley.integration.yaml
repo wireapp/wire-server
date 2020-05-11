@@ -23,15 +23,18 @@ spar:
 settings:
   httpPoolSize: 128
   maxTeamSize: 32
+  maxFanoutSize: 18
   maxConvSize: 16
   intraListing: false
   conversationCodeURI: https://app.wire.com/join/
   concurrentDeletionEvents: 1024
   deleteConvThrottleMillis: 0
+  enableIndexedBillingTeamMembers: true
 
   featureFlags:  # see #RefConfigOptions in `/docs/reference`
     sso: disabled-by-default
     legalhold: disabled-by-default
+    teamSearchVisibility: disabled-by-default
 
 logLevel: Info
 logNetStrings: false

@@ -98,6 +98,7 @@ newUserError (EmailActivationError e) = actError e
 newUserError (PhoneActivationError e) = actError e
 newUserError (BlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const blacklistedPhone) k
 newUserError TooManyTeamMembers = StdError tooManyTeamMembers
+newUserError (ExternalPreconditionFailed e) = StdError e
 
 sendLoginCodeError :: SendLoginCodeError -> Error
 sendLoginCodeError (SendLoginInvalidPhone _) = StdError invalidPhone

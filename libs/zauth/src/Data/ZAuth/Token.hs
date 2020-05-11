@@ -105,66 +105,58 @@ data Type
 -- FUTUREWORK: rename 'S' to 'SessionTag' for clarity
 data Tag = S deriving (Eq, Show)
 
-data Token a
-  = Token
-      { _signature :: !Signature,
-        _header :: !Header,
-        _body :: !a
-      }
+data Token a = Token
+  { _signature :: !Signature,
+    _header :: !Header,
+    _body :: !a
+  }
   deriving (Eq, Show)
 
 -- FUTUREWORK: maybe refactor to
 -- data Header (t :: Type) =
 --      Header { ... everything except _typ ...} ?
-data Header
-  = Header
-      { _version :: !Int,
-        _key :: !Int,
-        _time :: !Integer,
-        _typ :: !Type,
-        _tag :: Maybe Tag
-      }
+data Header = Header
+  { _version :: !Int,
+    _key :: !Int,
+    _time :: !Integer,
+    _typ :: !Type,
+    _tag :: Maybe Tag
+  }
   deriving (Eq, Show)
 
-data Access
-  = Access
-      { _userId :: !UUID,
-        -- | 'ConnId' is derived from this.
-        _connection :: !Word64
-      }
+data Access = Access
+  { _userId :: !UUID,
+    -- | 'ConnId' is derived from this.
+    _connection :: !Word64
+  }
   deriving (Eq, Show)
 
-data User
-  = User
-      { _user :: !UUID,
-        _rand :: !Word32
-      }
+data User = User
+  { _user :: !UUID,
+    _rand :: !Word32
+  }
   deriving (Eq, Show)
 
-data Bot
-  = Bot
-      { _prov :: !UUID,
-        _bot :: !UUID,
-        _conv :: !UUID
-      }
+data Bot = Bot
+  { _prov :: !UUID,
+    _bot :: !UUID,
+    _conv :: !UUID
+  }
   deriving (Eq, Show)
 
-newtype Provider
-  = Provider
-      { _provider :: UUID
-      }
+newtype Provider = Provider
+  { _provider :: UUID
+  }
   deriving (Eq, Show)
 
-newtype LegalHoldUser
-  = LegalHoldUser
-      { _legalHoldUser :: User
-      }
+newtype LegalHoldUser = LegalHoldUser
+  { _legalHoldUser :: User
+  }
   deriving (Eq, Show)
 
-newtype LegalHoldAccess
-  = LegalHoldAccess
-      { _legalHoldAccess :: Access
-      }
+newtype LegalHoldAccess = LegalHoldAccess
+  { _legalHoldAccess :: Access
+  }
   deriving (Eq, Show)
 
 type Properties = [(LByteString, LByteString)]

@@ -26,37 +26,34 @@ import Data.Json.Util
 import Galley.Types.Teams
 import Imports
 
-data InvitationRequest
-  = InvitationRequest
-      { irEmail :: !Email,
-        irName :: !Name,
-        irLocale :: !(Maybe Locale),
-        irRole :: !(Maybe Role),
-        irInviteeName :: !(Maybe Name),
-        irPhone :: !(Maybe Phone)
-      }
+data InvitationRequest = InvitationRequest
+  { irEmail :: !Email,
+    irName :: !Name,
+    irLocale :: !(Maybe Locale),
+    irRole :: !(Maybe Role),
+    irInviteeName :: !(Maybe Name),
+    irPhone :: !(Maybe Phone)
+  }
   deriving (Eq, Show)
 
-data Invitation
-  = Invitation
-      { inTeam :: !TeamId,
-        inRole :: !Role,
-        inInvitation :: !InvitationId,
-        inIdentity :: !Email,
-        inCreatedAt :: !UTCTimeMillis,
-        -- | this is always 'Just' for new invitations, but for
-        -- migration it is allowed to be 'Nothing'.
-        inCreatedBy :: !(Maybe UserId),
-        inInviteeName :: !(Maybe Name),
-        inPhone :: !(Maybe Phone)
-      }
+data Invitation = Invitation
+  { inTeam :: !TeamId,
+    inRole :: !Role,
+    inInvitation :: !InvitationId,
+    inIdentity :: !Email,
+    inCreatedAt :: !UTCTimeMillis,
+    -- | this is always 'Just' for new invitations, but for
+    -- migration it is allowed to be 'Nothing'.
+    inCreatedBy :: !(Maybe UserId),
+    inInviteeName :: !(Maybe Name),
+    inPhone :: !(Maybe Phone)
+  }
   deriving (Eq, Show)
 
-data InvitationList
-  = InvitationList
-      { ilInvitations :: [Invitation],
-        ilHasMore :: !Bool
-      }
+data InvitationList = InvitationList
+  { ilInvitations :: [Invitation],
+    ilHasMore :: !Bool
+  }
   deriving (Eq, Show)
 
 instance FromJSON InvitationRequest where

@@ -34,42 +34,38 @@ import Brig.Template
 import Brig.Types
 import Imports
 
-data InvitationEmailTemplate
-  = InvitationEmailTemplate
-      { invitationEmailUrl :: !Template,
-        invitationEmailSubject :: !Template,
-        invitationEmailBodyText :: !Template,
-        invitationEmailBodyHtml :: !Template,
-        invitationEmailSender :: !Email,
-        invitationEmailSenderName :: !Text
-      }
+data InvitationEmailTemplate = InvitationEmailTemplate
+  { invitationEmailUrl :: !Template,
+    invitationEmailSubject :: !Template,
+    invitationEmailBodyText :: !Template,
+    invitationEmailBodyHtml :: !Template,
+    invitationEmailSender :: !Email,
+    invitationEmailSenderName :: !Text
+  }
 
-data CreatorWelcomeEmailTemplate
-  = CreatorWelcomeEmailTemplate
-      { creatorWelcomeEmailUrl :: !Text,
-        creatorWelcomeEmailSubject :: !Template,
-        creatorWelcomeEmailBodyText :: !Template,
-        creatorWelcomeEmailBodyHtml :: !Template,
-        creatorWelcomeEmailSender :: !Email,
-        creatorWelcomeEmailSenderName :: !Text
-      }
+data CreatorWelcomeEmailTemplate = CreatorWelcomeEmailTemplate
+  { creatorWelcomeEmailUrl :: !Text,
+    creatorWelcomeEmailSubject :: !Template,
+    creatorWelcomeEmailBodyText :: !Template,
+    creatorWelcomeEmailBodyHtml :: !Template,
+    creatorWelcomeEmailSender :: !Email,
+    creatorWelcomeEmailSenderName :: !Text
+  }
 
-data MemberWelcomeEmailTemplate
-  = MemberWelcomeEmailTemplate
-      { memberWelcomeEmailUrl :: !Text,
-        memberWelcomeEmailSubject :: !Template,
-        memberWelcomeEmailBodyText :: !Template,
-        memberWelcomeEmailBodyHtml :: !Template,
-        memberWelcomeEmailSender :: !Email,
-        memberWelcomeEmailSenderName :: !Text
-      }
+data MemberWelcomeEmailTemplate = MemberWelcomeEmailTemplate
+  { memberWelcomeEmailUrl :: !Text,
+    memberWelcomeEmailSubject :: !Template,
+    memberWelcomeEmailBodyText :: !Template,
+    memberWelcomeEmailBodyHtml :: !Template,
+    memberWelcomeEmailSender :: !Email,
+    memberWelcomeEmailSenderName :: !Text
+  }
 
-data TeamTemplates
-  = TeamTemplates
-      { invitationEmail :: !InvitationEmailTemplate,
-        creatorWelcomeEmail :: !CreatorWelcomeEmailTemplate,
-        memberWelcomeEmail :: !MemberWelcomeEmailTemplate
-      }
+data TeamTemplates = TeamTemplates
+  { invitationEmail :: !InvitationEmailTemplate,
+    creatorWelcomeEmail :: !CreatorWelcomeEmailTemplate,
+    memberWelcomeEmail :: !MemberWelcomeEmailTemplate
+  }
 
 loadTeamTemplates :: Opts -> IO (Localised TeamTemplates)
 loadTeamTemplates o = readLocalesDir defLocale (templateDir gOptions) "team" $ \fp ->

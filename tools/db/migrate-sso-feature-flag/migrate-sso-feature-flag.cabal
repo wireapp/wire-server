@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: bc78f413cc738aaa6ef5e3e9caa52fecaec3fd60c832b3f5d7eb5d1a4ae88ff6
+-- hash: b23ff3a5117d9703a8b229f72618083015c92bf83b6a79de67c339b275def085
 
 name:           migrate-sso-feature-flag
 version:        1.0.0
@@ -13,7 +13,7 @@ category:       Network
 author:         Wire Swiss GmbH
 maintainer:     Wire Swiss GmbH <backend@wire.com>
 copyright:      (c) 2018 Wire Swiss GmbH
-license:        UnspecifiedLicense
+license:        AGPL-3
 build-type:     Simple
 
 executable migrate-sso-feature-flag

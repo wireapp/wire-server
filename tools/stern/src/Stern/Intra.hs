@@ -35,6 +35,7 @@ module Stern.Intra
     changeEmail,
     changePhone,
     deleteAccount,
+    deleteBindingTeam,
     getTeamInfo,
     getUserBindingTeam,
     isBlacklisted,
@@ -43,6 +44,10 @@ module Stern.Intra
     setLegalholdStatus,
     getSSOStatus,
     setSSOStatus,
+    getTeamSearchVisibilityAvailable,
+    setTeamSearchVisibilityAvailable,
+    getSearchVisibility,
+    setSearchVisibility,
     getTeamBillingInfo,
     setTeamBillingInfo,
     getEmailConsentLog,
@@ -82,6 +87,7 @@ import Galley.Types
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SSO
+import Galley.Types.Teams.SearchVisibility
 import Gundeck.Types
 import Imports
 import Network.HTTP.Types.Method
@@ -262,6 +268,19 @@ deleteAccount uid = do
       b
       ( method DELETE
           . paths ["/i/users", toByteString' uid]
+          . expect2xx
+      )
+
+deleteBindingTeam :: TeamId -> Handler ()
+deleteBindingTeam tid = do
+  info $ msg "Deleting team"
+  g <- view galley
+  void . catchRpcErrors $
+    rpc'
+      "galley"
+      g
+      ( method DELETE
+          . paths ["/i/teams", toByteString' tid]
           . expect2xx
       )
 
@@ -488,6 +507,86 @@ setSSOStatus tid status = do
   where
     toRequestBody SetSSODisabled = SSOTeamConfig SSODisabled
     toRequestBody SetSSOEnabled = SSOTeamConfig SSOEnabled
+
+getTeamSearchVisibilityAvailable :: TeamId -> Handler SetTeamSearchVisibilityAvailable
+getTeamSearchVisibilityAvailable tid = do
+  info $ msg "Getting TeamSearchVisibility status"
+  gly <- view galley
+  (>>= fromResponseBody) . catchRpcErrors $
+    rpc'
+      "galley"
+      gly
+      ( method GET
+          . paths ["/i/teams", toByteString' tid, "features", "search-visibility"]
+          . expect2xx
+      )
+  where
+    fromResponseBody :: Response (Maybe LByteString) -> Handler SetTeamSearchVisibilityAvailable
+    fromResponseBody resp = case responseJsonEither resp of
+      Right (TeamSearchVisibilityAvailableView TeamSearchVisibilityEnabled) -> pure SetTeamSearchVisibilityEnabled
+      Right (TeamSearchVisibilityAvailableView TeamSearchVisibilityDisabled) -> pure SetTeamSearchVisibilityDisabled
+      Left errmsg -> throwE (Error status502 "bad-upstream" ("bad response; error message: " <> pack errmsg))
+
+setTeamSearchVisibilityAvailable :: TeamId -> SetTeamSearchVisibilityAvailable -> Handler ()
+setTeamSearchVisibilityAvailable tid status = do
+  info $ msg "Setting TeamSearchVisibility status"
+  gly <- view galley
+  resp <-
+    catchRpcErrors $
+      rpc'
+        "galley"
+        gly
+        ( method PUT
+            . paths ["/i/teams", toByteString' tid, "features", "search-visibility"]
+            . lbytes (encode $ toRequestBody status)
+            . contentJson
+        )
+  case statusCode resp of
+    204 -> pure ()
+    _ -> throwE $ responseJsonUnsafe resp
+  where
+    toRequestBody SetTeamSearchVisibilityDisabled = TeamSearchVisibilityAvailableView TeamSearchVisibilityDisabled
+    toRequestBody SetTeamSearchVisibilityEnabled = TeamSearchVisibilityAvailableView TeamSearchVisibilityEnabled
+
+getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
+getSearchVisibility tid = do
+  info $ msg "Getting TeamSearchVisibilityView value"
+  gly <- view galley
+  (>>= fromResponseBody) . catchRpcErrors $
+    rpc'
+      "galley"
+      gly
+      ( method GET
+          . paths ["/i/teams", toByteString' tid, "search-visibility"]
+          . expect2xx
+      )
+  where
+    fromResponseBody :: Response (Maybe LByteString) -> Handler TeamSearchVisibilityView
+    fromResponseBody resp = parseResponse (Error status502 "bad-upstream") resp
+
+setSearchVisibility :: TeamId -> TeamSearchVisibility -> Handler ()
+setSearchVisibility tid typ = do
+  info $ msg "Setting TeamSearchVisibility value"
+  gly <- view galley
+  resp <-
+    catchRpcErrors $
+      rpc'
+        "galley"
+        gly
+        ( method PUT
+            . paths ["/i/teams", toByteString' tid, "search-visibility"]
+            . lbytes (encode $ TeamSearchVisibilityView typ)
+            . contentJson
+        )
+  case statusCode resp of
+    204 -> pure ()
+    403 ->
+      throwE $
+        Error
+          status403
+          "team-search-visibility-unset"
+          "This team does not have TeamSearchVisibility enabled. Ensure this is the correct TeamID or first enable the feature"
+    _ -> throwE $ responseJsonUnsafe resp
 
 --------------------------------------------------------------------------------
 -- Helper functions

@@ -38,18 +38,17 @@ import Gundeck.Types.Notification
 import Imports
 import UnliftIO (pooledForConcurrentlyN_)
 
-data ResultPage
-  = ResultPage
-      { -- | A sequence of notifications.
-        resultSeq :: Seq QueuedNotification,
-        -- | Whether there might be more notifications that can be
-        -- obtained through another query, starting the the ID of the
-        -- last notification in 'resultSeq'.
-        resultHasMore :: !Bool,
-        -- | Whether there might be a gap in the 'resultSeq'. This is 'True'
-        -- iff a start ID ('since') has been given which could not be found.
-        resultGap :: !Bool
-      }
+data ResultPage = ResultPage
+  { -- | A sequence of notifications.
+    resultSeq :: Seq QueuedNotification,
+    -- | Whether there might be more notifications that can be
+    -- obtained through another query, starting the the ID of the
+    -- last notification in 'resultSeq'.
+    resultHasMore :: !Bool,
+    -- | Whether there might be a gap in the 'resultSeq'. This is 'True'
+    -- iff a start ID ('since') has been given which could not be found.
+    resultGap :: !Bool
+  }
 
 -- FUTUREWORK: the magic 32 should be made configurable, so it can be tuned
 add ::

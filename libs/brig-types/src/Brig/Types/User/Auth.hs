@@ -37,31 +37,27 @@ import Imports
 -----------------------------------------------------------------------------
 -- Login / Authentication
 
-data PendingLoginCode
-  = PendingLoginCode
-      { pendingLoginCode :: !LoginCode,
-        pendingLoginTimeout :: !Timeout
-      }
+data PendingLoginCode = PendingLoginCode
+  { pendingLoginCode :: !LoginCode,
+    pendingLoginTimeout :: !Timeout
+  }
   deriving (Eq)
 
 -- | A single-use login code.
-newtype LoginCode
-  = LoginCode
-      {fromLoginCode :: Text}
+newtype LoginCode = LoginCode
+  {fromLoginCode :: Text}
   deriving (Eq, FromJSON, ToJSON)
 
 -- | A request for sending a 'LoginCode'
-data SendLoginCode
-  = SendLoginCode
-      { lcPhone :: !Phone,
-        lcCall :: !Bool,
-        lcForce :: !Bool
-      }
+data SendLoginCode = SendLoginCode
+  { lcPhone :: !Phone,
+    lcCall :: !Bool,
+    lcForce :: !Bool
+  }
 
 -- | A timeout for a new or pending login code.
-newtype LoginCodeTimeout
-  = LoginCodeTimeout
-      {fromLoginCodeTimeout :: Timeout}
+newtype LoginCodeTimeout = LoginCodeTimeout
+  {fromLoginCodeTimeout :: Timeout}
   deriving (Eq, Show)
 
 -- | Different kinds of logins.
@@ -186,56 +182,50 @@ instance ToJSON LoginCodeTimeout where
 -- Cookies & Access Tokens
 
 -- | A temporary API access token.
-data AccessToken
-  = AccessToken
-      { user :: !UserId,
-        access :: !LByteString, -- accessTokenValue
-        tokenType :: !TokenType, -- accessTokenType
-        expiresIn :: !Integer -- accessTokenExpiresIn
-      }
+data AccessToken = AccessToken
+  { user :: !UserId,
+    access :: !LByteString, -- accessTokenValue
+    tokenType :: !TokenType, -- accessTokenType
+    expiresIn :: !Integer -- accessTokenExpiresIn
+  }
 
 data TokenType = Bearer deriving (Show)
 
 bearerToken :: UserId -> LByteString -> Integer -> AccessToken
 bearerToken u a = AccessToken u a Bearer
 
-data RemoveCookies
-  = RemoveCookies
-      { rmCookiesPassword :: !PlainTextPassword,
-        rmCookiesLabels :: [CookieLabel],
-        rmCookiesIdents :: [CookieId]
-      }
+data RemoveCookies = RemoveCookies
+  { rmCookiesPassword :: !PlainTextPassword,
+    rmCookiesLabels :: [CookieLabel],
+    rmCookiesIdents :: [CookieId]
+  }
 
 -- | A device-specific identifying label for one or more cookies.
 -- Cookies can be listed and deleted based on their labels.
-newtype CookieLabel
-  = CookieLabel
-      {cookieLabelText :: Text}
+newtype CookieLabel = CookieLabel
+  {cookieLabelText :: Text}
   deriving (Eq, Show, Ord, FromJSON, ToJSON, FromByteString, ToByteString, IsString, Generic)
 
-newtype CookieId
-  = CookieId
-      {cookieIdNum :: Word32}
+newtype CookieId = CookieId
+  {cookieIdNum :: Word32}
   deriving (Eq, Show, FromJSON, ToJSON, Generic)
 
 -- | A (long-lived) cookie scoped to a specific user for obtaining new
 -- 'AccessToken's.
-data Cookie a
-  = Cookie
-      { cookieId :: !CookieId,
-        cookieType :: !CookieType,
-        cookieCreated :: !UTCTime,
-        cookieExpires :: !UTCTime,
-        cookieLabel :: !(Maybe CookieLabel),
-        cookieSucc :: !(Maybe CookieId),
-        cookieValue :: !a
-      }
+data Cookie a = Cookie
+  { cookieId :: !CookieId,
+    cookieType :: !CookieType,
+    cookieCreated :: !UTCTime,
+    cookieExpires :: !UTCTime,
+    cookieLabel :: !(Maybe CookieLabel),
+    cookieSucc :: !(Maybe CookieId),
+    cookieValue :: !a
+  }
   deriving (Eq, Show, Generic)
 
-data CookieList
-  = CookieList
-      { cookieList :: [Cookie ()]
-      }
+data CookieList = CookieList
+  { cookieList :: [Cookie ()]
+  }
 
 data CookieType
   = -- | A session cookie. These are mainly intended for clients
