@@ -1,9 +1,9 @@
-{-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -79,11 +79,11 @@ import Wire.API.User (UserIdList)
 -- Event
 
 data Event = Event
-  { evtType :: !EventType,
-    evtConv :: !ConvId,
-    evtFrom :: !UserId,
-    evtTime :: !UTCTime,
-    evtData :: !(Maybe EventData)
+  { evtType :: EventType,
+    evtConv :: ConvId,
+    evtFrom :: UserId,
+    evtTime :: UTCTime,
+    evtData :: Maybe EventData
   }
   deriving (Eq, Generic)
 
@@ -211,18 +211,18 @@ instance FromJSON EventType where
 -- A lot of information in the events can contain remote IDs, but the
 -- receiver might be on another backend, so mapped IDs don't work for them.
 data EventData
-  = EdMembersJoin !SimpleMembers
-  | EdMembersLeave !UserIdList
-  | EdConnect !Connect
-  | EdConvReceiptModeUpdate !ConversationReceiptModeUpdate
-  | EdConvRename !ConversationRename
-  | EdConvAccessUpdate !ConversationAccessUpdate
-  | EdConvMessageTimerUpdate !ConversationMessageTimerUpdate
-  | EdConvCodeUpdate !Code.ConversationCode
-  | EdMemberUpdate !MemberUpdateData
-  | EdConversation !Conversation
-  | EdTyping !TypingData
-  | EdOtrMessage !OtrMessage
+  = EdMembersJoin SimpleMembers
+  | EdMembersLeave UserIdList
+  | EdConnect Connect
+  | EdConvReceiptModeUpdate ConversationReceiptModeUpdate
+  | EdConvRename ConversationRename
+  | EdConvAccessUpdate ConversationAccessUpdate
+  | EdConvMessageTimerUpdate ConversationMessageTimerUpdate
+  | EdConvCodeUpdate Code.ConversationCode
+  | EdMemberUpdate MemberUpdateData
+  | EdConversation Conversation
+  | EdTyping TypingData
+  | EdOtrMessage OtrMessage
   deriving (Eq, Show, Generic)
 
 modelMemberEvent :: Doc.Model
@@ -347,8 +347,8 @@ instance FromJSON SimpleMembers where
     pure $ SimpleMembers membs
 
 data SimpleMember = SimpleMember
-  { smId :: !UserId,
-    smConvRoleName :: !RoleName
+  { smId :: UserId,
+    smConvRoleName :: RoleName
   }
   deriving (Eq, Show, Generic)
 
@@ -365,10 +365,10 @@ instance FromJSON SimpleMember where
       <*> o .:? "conversation_role" .!= roleNameWireAdmin
 
 data Connect = Connect
-  { cRecipient :: !UserId,
-    cMessage :: !(Maybe Text),
-    cName :: !(Maybe Text),
-    cEmail :: !(Maybe Text)
+  { cRecipient :: UserId,
+    cMessage :: Maybe Text,
+    cName :: Maybe Text,
+    cEmail :: Maybe Text
   }
   deriving (Eq, Show, Generic)
 
@@ -409,15 +409,15 @@ instance FromJSON Connect where
 data MemberUpdateData = MemberUpdateData
   { -- | Target user of this action, should not be optional anymore.
     -- <https://github.com/zinfra/backend-issues/issues/1309>
-    misTarget :: !(Maybe UserId),
-    misOtrMuted :: !(Maybe Bool),
-    misOtrMutedStatus :: !(Maybe MutedStatus),
-    misOtrMutedRef :: !(Maybe Text),
-    misOtrArchived :: !(Maybe Bool),
-    misOtrArchivedRef :: !(Maybe Text),
-    misHidden :: !(Maybe Bool),
-    misHiddenRef :: !(Maybe Text),
-    misConvRoleName :: !(Maybe RoleName)
+    misTarget :: Maybe UserId,
+    misOtrMuted :: Maybe Bool,
+    misOtrMutedStatus :: Maybe MutedStatus,
+    misOtrMutedRef :: Maybe Text,
+    misOtrArchived :: Maybe Bool,
+    misOtrArchivedRef :: Maybe Text,
+    misHidden :: Maybe Bool,
+    misHiddenRef :: Maybe Text,
+    misConvRoleName :: Maybe RoleName
   }
   deriving (Eq, Show, Generic)
 
@@ -482,10 +482,10 @@ instance FromJSON MemberUpdateData where
       <*> m .:? "conversation_role"
 
 data OtrMessage = OtrMessage
-  { otrSender :: !ClientId,
-    otrRecipient :: !ClientId,
-    otrCiphertext :: !Text,
-    otrData :: !(Maybe Text)
+  { otrSender :: ClientId,
+    otrRecipient :: ClientId,
+    otrCiphertext :: Text,
+    otrData :: Maybe Text
   }
   deriving (Eq, Show, Generic)
 

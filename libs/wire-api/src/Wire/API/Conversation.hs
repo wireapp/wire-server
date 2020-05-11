@@ -4,6 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -88,16 +89,16 @@ import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
 -- Can be produced from the internal one ('Galley.Data.Types.Conversation')
 -- by using 'Galley.API.Mapping.conversationView'.
 data Conversation = Conversation
-  { cnvId :: !ConvId,
-    cnvType :: !ConvType,
-    cnvCreator :: !UserId,
-    cnvAccess :: ![Access],
-    cnvAccessRole :: !AccessRole,
-    cnvName :: !(Maybe Text),
-    cnvMembers :: !ConvMembers,
-    cnvTeam :: !(Maybe TeamId),
-    cnvMessageTimer :: !(Maybe Milliseconds),
-    cnvReceiptMode :: !(Maybe ReceiptMode)
+  { cnvId :: ConvId,
+    cnvType :: ConvType,
+    cnvCreator :: UserId,
+    cnvAccess :: [Access],
+    cnvAccessRole :: AccessRole,
+    cnvName :: Maybe Text,
+    cnvMembers :: ConvMembers,
+    cnvTeam :: Maybe TeamId,
+    cnvMessageTimer :: Maybe Milliseconds,
+    cnvReceiptMode :: Maybe ReceiptMode
   }
   deriving (Eq, Show)
 
@@ -170,7 +171,7 @@ instance FromJSON Conversation where
 
 data ConversationList a = ConversationList
   { convList :: [a],
-    convHasMore :: !Bool
+    convHasMore :: Bool
   }
   deriving (Eq, Show)
 
@@ -374,15 +375,15 @@ instance FromJSON NewConvUnmanaged where
     pure (NewConvUnmanaged nc)
 
 data NewConv = NewConv
-  { newConvUsers :: ![OpaqueUserId],
-    newConvName :: !(Maybe Text),
-    newConvAccess :: !(Set Access),
-    newConvAccessRole :: !(Maybe AccessRole),
-    newConvTeam :: !(Maybe ConvTeamInfo),
-    newConvMessageTimer :: !(Maybe Milliseconds),
-    newConvReceiptMode :: !(Maybe ReceiptMode),
+  { newConvUsers :: [OpaqueUserId],
+    newConvName :: Maybe Text,
+    newConvAccess :: Set Access,
+    newConvAccessRole :: Maybe AccessRole,
+    newConvTeam :: Maybe ConvTeamInfo,
+    newConvMessageTimer :: Maybe Milliseconds,
+    newConvReceiptMode :: Maybe ReceiptMode,
     -- | Every member except for the creator will have this role
-    newConvUsersRole :: !RoleName
+    newConvUsersRole :: RoleName
   }
 
 deriving instance Eq NewConv
@@ -414,8 +415,8 @@ newConvToJSON i =
       # []
 
 data ConvTeamInfo = ConvTeamInfo
-  { cnvTeamId :: !TeamId,
-    cnvManaged :: !Bool
+  { cnvTeamId :: TeamId,
+    cnvManaged :: Bool
   }
   deriving (Eq, Show)
 
@@ -442,9 +443,9 @@ instance FromJSON ConvTeamInfo where
 -- invite
 
 data Invite = Invite
-  { invUsers :: !(List1 OpaqueUserId),
+  { invUsers :: List1 OpaqueUserId,
     -- | This role name is to be applied to all users
-    invRoleName :: !RoleName
+    invRoleName :: RoleName
   }
 
 deriving instance Eq Invite
@@ -522,7 +523,7 @@ instance FromJSON ConversationAccessUpdate where
       <*> o .: "access_role"
 
 data ConversationReceiptModeUpdate = ConversationReceiptModeUpdate
-  { cruReceiptMode :: !ReceiptMode
+  { cruReceiptMode :: ReceiptMode
   }
   deriving (Eq, Show)
 
@@ -547,7 +548,7 @@ instance FromJSON ConversationReceiptModeUpdate where
 
 data ConversationMessageTimerUpdate = ConversationMessageTimerUpdate
   { -- | New message timer
-    cupMessageTimer :: !(Maybe Milliseconds)
+    cupMessageTimer :: Maybe Milliseconds
   }
   deriving (Eq, Show)
 

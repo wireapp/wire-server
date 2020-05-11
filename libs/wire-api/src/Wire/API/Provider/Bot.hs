@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
@@ -44,9 +45,9 @@ import Wire.API.User.Profile (ColourId, Name)
 
 -- | A conversation as seen by a bot.
 data BotConvView = BotConvView
-  { _botConvId :: !ConvId,
-    _botConvName :: !(Maybe Text),
-    _botConvMembers :: ![OtherMember]
+  { _botConvId :: ConvId,
+    _botConvName :: Maybe Text,
+    _botConvMembers :: [OtherMember]
   }
   deriving (Eq, Show)
 
@@ -71,11 +72,11 @@ instance FromJSON BotConvView where
 -- BotUserView
 
 data BotUserView = BotUserView
-  { botUserViewId :: !UserId,
-    botUserViewName :: !Name,
-    botUserViewColour :: !ColourId,
-    botUserViewHandle :: !(Maybe Handle),
-    botUserViewTeam :: !(Maybe TeamId)
+  { botUserViewId :: UserId,
+    botUserViewName :: Name,
+    botUserViewColour :: ColourId,
+    botUserViewHandle :: Maybe Handle,
+    botUserViewTeam :: Maybe TeamId
   }
   deriving (Eq, Show)
 

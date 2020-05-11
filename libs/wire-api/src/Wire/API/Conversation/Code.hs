@@ -1,3 +1,5 @@
+{-# LANGUAGE StrictData #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -43,9 +45,9 @@ import Imports
 import qualified URI.ByteString as URI
 
 data ConversationCode = ConversationCode
-  { conversationKey :: !Code.Key,
-    conversationCode :: !Code.Value,
-    conversationUri :: !(Maybe HttpsUrl)
+  { conversationKey :: Code.Key,
+    conversationCode :: Code.Value,
+    conversationUri :: Maybe HttpsUrl
   }
   deriving (Eq, Show, Generic)
 

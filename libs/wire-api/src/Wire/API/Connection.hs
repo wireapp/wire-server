@@ -3,6 +3,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -61,7 +62,7 @@ import Imports
 data UserConnectionList = UserConnectionList
   { clConnections :: [UserConnection],
     -- | Pagination flag ("we have more results")
-    clHasMore :: !Bool
+    clHasMore :: Bool
   }
   deriving (Eq, Show, Generic)
 
@@ -93,13 +94,13 @@ instance FromJSON UserConnectionList where
 -- Connection states have a direction -- e.g. if A sends a connection request to B, we'll
 -- create connections (A, B, Sent) and (B, A, Pending).
 data UserConnection = UserConnection
-  { ucFrom :: !UserId,
-    ucTo :: !UserId,
-    ucStatus :: !Relation,
+  { ucFrom :: UserId,
+    ucTo :: UserId,
+    ucStatus :: Relation,
     -- | When 'ucStatus' was last changed
-    ucLastUpdate :: !UTCTimeMillis,
-    ucMessage :: !(Maybe Message),
-    ucConvId :: !(Maybe ConvId)
+    ucLastUpdate :: UTCTimeMillis,
+    ucMessage :: Maybe Message,
+    ucConvId :: Maybe ConvId
   }
   deriving (Eq, Show, Generic)
 
@@ -209,11 +210,11 @@ instance FromJSON Message where
 -- | Payload type for a connection request from one user to another.
 data ConnectionRequest = ConnectionRequest
   { -- | Connection recipient
-    crUser :: !OpaqueUserId,
+    crUser :: OpaqueUserId,
     -- | Name of the conversation to be created
-    crName :: !Text,
+    crName :: Text,
     -- | Initial message
-    crMessage :: !Message
+    crMessage :: Message
   }
   deriving (Eq, Show, Generic)
 
@@ -243,7 +244,7 @@ instance FromJSON ConnectionRequest where
 
 -- | Payload type for "please change the status of this connection".
 data ConnectionUpdate = ConnectionUpdate
-  { cuStatus :: !Relation
+  { cuStatus :: Relation
   }
   deriving (Eq, Show, Generic)
 

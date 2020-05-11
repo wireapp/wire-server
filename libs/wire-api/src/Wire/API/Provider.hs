@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 
@@ -72,11 +73,11 @@ import Wire.API.User.Profile (Name)
 
 -- | Full provider definition as seen by a verified provider itself.
 data Provider = Provider
-  { providerId :: !ProviderId,
-    providerName :: !Name,
-    providerEmail :: !Email,
-    providerUrl :: !HttpsUrl,
-    providerDescr :: !Text
+  { providerId :: ProviderId,
+    providerName :: Name,
+    providerEmail :: Email,
+    providerUrl :: HttpsUrl,
+    providerDescr :: Text
   }
   deriving (Eq, Show)
 
@@ -110,12 +111,12 @@ newtype ProviderProfile = ProviderProfile Provider
 
 -- | Input data for registering a new provider.
 data NewProvider = NewProvider
-  { newProviderName :: !Name,
-    newProviderEmail :: !Email,
-    newProviderUrl :: !HttpsUrl,
-    newProviderDescr :: !(Range 1 1024 Text),
+  { newProviderName :: Name,
+    newProviderEmail :: Email,
+    newProviderUrl :: HttpsUrl,
+    newProviderDescr :: Range 1 1024 Text,
     -- | If none provided, a password is generated.
-    newProviderPassword :: !(Maybe PlainTextPassword)
+    newProviderPassword :: Maybe PlainTextPassword
   }
 
 instance ToJSON NewProvider where
@@ -138,10 +139,10 @@ instance FromJSON NewProvider where
 
 -- | Response data upon registering a new provider.
 data NewProviderResponse = NewProviderResponse
-  { rsNewProviderId :: !ProviderId,
+  { rsNewProviderId :: ProviderId,
     -- | The generated password, if none was provided
     -- in the 'NewProvider' request.
-    rsNewProviderPassword :: !(Maybe PlainTextPassword)
+    rsNewProviderPassword :: Maybe PlainTextPassword
   }
 
 instance ToJSON NewProviderResponse where
@@ -161,9 +162,9 @@ instance FromJSON NewProviderResponse where
 
 -- | Input data for updating general provider information.
 data UpdateProvider = UpdateProvider
-  { updateProviderName :: !(Maybe Name),
-    updateProviderUrl :: !(Maybe HttpsUrl),
-    updateProviderDescr :: !(Maybe Text)
+  { updateProviderName :: Maybe Name,
+    updateProviderUrl :: Maybe HttpsUrl,
+    updateProviderDescr :: Maybe Text
   }
   deriving (Eq, Show)
 
@@ -203,8 +204,8 @@ instance FromJSON ProviderActivationResponse where
 
 -- | Input data for a provider login request.
 data ProviderLogin = ProviderLogin
-  { providerLoginEmail :: !Email,
-    providerLoginPassword :: !PlainTextPassword
+  { providerLoginEmail :: Email,
+    providerLoginPassword :: PlainTextPassword
   }
 
 instance ToJSON ProviderLogin where
@@ -246,17 +247,17 @@ deriveJSON toJSONFieldName ''PasswordReset
 
 -- | The payload for completing a password reset.
 data CompletePasswordReset = CompletePasswordReset
-  { cpwrKey :: !Code.Key,
-    cpwrCode :: !Code.Value,
-    cpwrPassword :: !PlainTextPassword
+  { cpwrKey :: Code.Key,
+    cpwrCode :: Code.Value,
+    cpwrPassword :: PlainTextPassword
   }
 
 deriveJSON toJSONFieldName ''CompletePasswordReset
 
 -- | The payload for changing a password.
 data PasswordChange = PasswordChange
-  { cpOldPassword :: !PlainTextPassword,
-    cpNewPassword :: !PlainTextPassword
+  { cpOldPassword :: PlainTextPassword,
+    cpNewPassword :: PlainTextPassword
   }
 
 deriveJSON toJSONFieldName ''PasswordChange

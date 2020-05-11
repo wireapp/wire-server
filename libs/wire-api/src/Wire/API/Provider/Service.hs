@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
@@ -76,8 +77,8 @@ import Wire.API.User.Profile (Asset, Name)
 
 -- | A fully-qualified reference to a service.
 data ServiceRef = ServiceRef
-  { _serviceRefId :: !ServiceId,
-    _serviceRefProvider :: !ProviderId
+  { _serviceRefId :: ServiceId,
+    _serviceRefProvider :: ProviderId
   }
   deriving (Ord, Eq, Show, Generic)
 
@@ -113,9 +114,9 @@ instance ToJSON ServiceRef where
 -- towards the service (i.e. public key pinning to prevent MITM attacks
 -- with forged certificates).
 data ServiceKey = ServiceKey
-  { serviceKeyType :: !ServiceKeyType,
-    serviceKeySize :: !Int32,
-    serviceKeyPEM :: !ServiceKeyPEM
+  { serviceKeyType :: ServiceKeyType,
+    serviceKeySize :: Int32,
+    serviceKeyPEM :: ServiceKeyPEM
   }
   deriving (Eq, Show)
 
@@ -172,16 +173,16 @@ instance FromJSON ServiceKeyPEM where
 
 -- | Full service definition as seen by the provider.
 data Service = Service
-  { serviceId :: !ServiceId,
-    serviceName :: !Name,
-    serviceSummary :: !Text,
-    serviceDescr :: !Text,
-    serviceUrl :: !HttpsUrl,
-    serviceTokens :: !(List1 ServiceToken),
-    serviceKeys :: !(List1 ServiceKey),
-    serviceAssets :: ![Asset],
-    serviceTags :: !(Set ServiceTag),
-    serviceEnabled :: !Bool
+  { serviceId :: ServiceId,
+    serviceName :: Name,
+    serviceSummary :: Text,
+    serviceDescr :: Text,
+    serviceUrl :: HttpsUrl,
+    serviceTokens :: List1 ServiceToken,
+    serviceKeys :: List1 ServiceKey,
+    serviceAssets :: [Asset],
+    serviceTags :: Set ServiceTag,
+    serviceEnabled :: Bool
   }
 
 instance ToJSON Service where
@@ -225,14 +226,14 @@ deriving instance Cql.Cql ServiceToken
 
 -- | Public profile of a service as seen by users.
 data ServiceProfile = ServiceProfile
-  { serviceProfileId :: !ServiceId,
-    serviceProfileProvider :: !ProviderId,
-    serviceProfileName :: !Name,
-    serviceProfileSummary :: !Text,
-    serviceProfileDescr :: !Text,
-    serviceProfileAssets :: ![Asset],
-    serviceProfileTags :: !(Set ServiceTag),
-    serviceProfileEnabled :: !Bool
+  { serviceProfileId :: ServiceId,
+    serviceProfileProvider :: ProviderId,
+    serviceProfileName :: Name,
+    serviceProfileSummary :: Text,
+    serviceProfileDescr :: Text,
+    serviceProfileAssets :: [Asset],
+    serviceProfileTags :: Set ServiceTag,
+    serviceProfileEnabled :: Bool
   }
   deriving (Eq, Show)
 
@@ -264,8 +265,8 @@ instance FromJSON ServiceProfile where
 -- ServiceProfilePage
 
 data ServiceProfilePage = ServiceProfilePage
-  { serviceProfilePageHasMore :: !Bool,
-    serviceProfilePageResults :: ![ServiceProfile]
+  { serviceProfilePageHasMore :: Bool,
+    serviceProfilePageResults :: [ServiceProfile]
   }
   deriving (Eq, Show)
 
@@ -286,12 +287,12 @@ instance FromJSON ServiceProfilePage where
 
 -- | Input data for registering a new service.
 data NewService = NewService
-  { newServiceName :: !Name,
-    newServiceSummary :: !(Range 1 128 Text),
-    newServiceDescr :: !(Range 1 1024 Text),
-    newServiceUrl :: !HttpsUrl,
-    newServiceKey :: !ServiceKeyPEM,
-    newServiceToken :: !(Maybe ServiceToken),
+  { newServiceName :: Name,
+    newServiceSummary :: Range 1 128 Text,
+    newServiceDescr :: Range 1 1024 Text,
+    newServiceUrl :: HttpsUrl,
+    newServiceKey :: ServiceKeyPEM,
+    newServiceToken :: Maybe ServiceToken,
     newServiceAssets :: [Asset],
     newServiceTags :: Range 1 3 (Set ServiceTag)
   }
@@ -322,11 +323,11 @@ instance FromJSON NewService where
 
 -- | Response data upon adding a new service.
 data NewServiceResponse = NewServiceResponse
-  { rsNewServiceId :: !ServiceId,
+  { rsNewServiceId :: ServiceId,
     -- | The generated bearer token that we will use for
     -- authenticating requests towards the service, if none was
     -- provided in the 'NewService' request.
-    rsNewServiceToken :: !(Maybe ServiceToken)
+    rsNewServiceToken :: Maybe ServiceToken
   }
 
 instance ToJSON NewServiceResponse where
@@ -346,11 +347,11 @@ instance FromJSON NewServiceResponse where
 
 -- | Update service profile information.
 data UpdateService = UpdateService
-  { updateServiceName :: !(Maybe Name),
-    updateServiceSummary :: !(Maybe (Range 1 128 Text)),
-    updateServiceDescr :: !(Maybe (Range 1 1024 Text)),
-    updateServiceAssets :: !(Maybe [Asset]),
-    updateServiceTags :: !(Maybe (Range 1 3 (Set ServiceTag)))
+  { updateServiceName :: Maybe Name,
+    updateServiceSummary :: Maybe (Range 1 128 Text),
+    updateServiceDescr :: Maybe (Range 1 1024 Text),
+    updateServiceAssets :: Maybe [Asset],
+    updateServiceTags :: Maybe (Range 1 3 (Set ServiceTag))
   }
 
 instance ToJSON UpdateService where
@@ -377,11 +378,11 @@ instance FromJSON UpdateService where
 -- | Update service connection information.
 -- This operation requires re-authentication via password.
 data UpdateServiceConn = UpdateServiceConn
-  { updateServiceConnPassword :: !PlainTextPassword,
-    updateServiceConnUrl :: !(Maybe HttpsUrl),
-    updateServiceConnKeys :: !(Maybe (Range 1 2 [ServiceKeyPEM])),
-    updateServiceConnTokens :: !(Maybe (Range 1 2 [ServiceToken])),
-    updateServiceConnEnabled :: !(Maybe Bool)
+  { updateServiceConnPassword :: PlainTextPassword,
+    updateServiceConnUrl :: Maybe HttpsUrl,
+    updateServiceConnKeys :: Maybe (Range 1 2 [ServiceKeyPEM]),
+    updateServiceConnTokens :: Maybe (Range 1 2 [ServiceToken]),
+    updateServiceConnEnabled :: Maybe Bool
   }
 
 mkUpdateServiceConn :: PlainTextPassword -> UpdateServiceConn
@@ -426,9 +427,9 @@ instance FromJSON DeleteService where
 -- UpdateServiceWhitelist
 
 data UpdateServiceWhitelist = UpdateServiceWhitelist
-  { updateServiceWhitelistProvider :: !ProviderId,
-    updateServiceWhitelistService :: !ServiceId,
-    updateServiceWhitelistStatus :: !Bool
+  { updateServiceWhitelistProvider :: ProviderId,
+    updateServiceWhitelistService :: ServiceId,
+    updateServiceWhitelistStatus :: Bool
   }
   deriving (Eq, Show)
 

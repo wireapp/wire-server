@@ -4,6 +4,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -82,9 +83,9 @@ instance FromJSON NewPasswordReset where
 
 -- | The payload for completing a password reset.
 data CompletePasswordReset = CompletePasswordReset
-  { cpwrIdent :: !PasswordResetIdentity,
-    cpwrCode :: !PasswordResetCode,
-    cpwrPassword :: !PlainTextPassword
+  { cpwrIdent :: PasswordResetIdentity,
+    cpwrCode :: PasswordResetCode,
+    cpwrPassword :: PlainTextPassword
   }
   deriving (Eq, Show, Generic)
 
@@ -129,11 +130,11 @@ instance FromJSON CompletePasswordReset where
 -- | The target identity of a password reset.
 data PasswordResetIdentity
   = -- | An opaque identity key for a pending password reset.
-    PasswordResetIdentityKey !PasswordResetKey
+    PasswordResetIdentityKey PasswordResetKey
   | -- | A known email address with a pending password reset.
-    PasswordResetEmailIdentity !Email
+    PasswordResetEmailIdentity Email
   | -- | A known phone number with a pending password reset.
-    PasswordResetPhoneIdentity !Phone
+    PasswordResetPhoneIdentity Phone
   deriving (Eq, Show, Generic)
 
 -- | Opaque identifier per user (SHA256 of the user ID).
@@ -153,8 +154,8 @@ newtype PasswordResetCode = PasswordResetCode
 -- DEPRECATED
 
 data PasswordReset = PasswordReset
-  { pwrCode :: !PasswordResetCode,
-    pwrPassword :: !PlainTextPassword
+  { pwrCode :: PasswordResetCode,
+    pwrPassword :: PlainTextPassword
   }
 
 instance FromJSON PasswordReset where

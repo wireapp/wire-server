@@ -3,6 +3,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StrictData #-}
 {-# LANGUAGE ViewPatterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -104,8 +105,8 @@ defaultAccentId = ColourId 0
 
 -- Note: Intended to be turned into a sum type to add further asset types.
 data Asset = ImageAsset
-  { assetKey :: !Text,
-    assetSize :: !(Maybe AssetSize)
+  { assetKey :: Text,
+    assetSize :: Maybe AssetSize
   }
   deriving (Eq, Show, Generic)
 
@@ -169,8 +170,8 @@ instance FromJSON AssetSize where
 -- Locale
 
 data Locale = Locale
-  { lLanguage :: !Language,
-    lCountry :: !(Maybe Country)
+  { lLanguage :: Language,
+    lCountry :: Maybe Country
   }
   deriving (Eq, Ord, Generic)
 

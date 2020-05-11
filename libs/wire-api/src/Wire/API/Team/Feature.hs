@@ -50,7 +50,7 @@ import Imports
 -- LegalHoldTeamConfig
 
 data LegalHoldTeamConfig = LegalHoldTeamConfig
-  { legalHoldTeamConfigStatus :: !LegalHoldStatus
+  { legalHoldTeamConfigStatus :: LegalHoldStatus
   }
   deriving stock (Eq, Show, Generic)
 
@@ -94,7 +94,7 @@ instance FromJSON LegalHoldStatus where
 -- SSOTeamConfig
 
 data SSOTeamConfig = SSOTeamConfig
-  { ssoTeamConfigStatus :: !SSOStatus
+  { ssoTeamConfigStatus :: SSOStatus
   }
   deriving stock (Eq, Show, Generic)
 

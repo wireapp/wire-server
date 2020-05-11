@@ -4,6 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -37,8 +38,8 @@ import qualified Data.Swagger.Build.Api as Doc
 import Imports
 
 data CustomBackend = CustomBackend
-  { backendConfigJsonUrl :: !HttpsUrl,
-    backendWebappWelcomeUrl :: !HttpsUrl
+  { backendConfigJsonUrl :: HttpsUrl,
+    backendWebappWelcomeUrl :: HttpsUrl
   }
   deriving (Eq, Show)
 

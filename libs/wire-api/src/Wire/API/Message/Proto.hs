@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -117,8 +118,8 @@ fromClientId c =
 -- ClientEntry
 
 data ClientEntry = ClientEntry
-  { _clientId :: !(Required 1 (Message ClientId)),
-    _clientVal :: !(Required 2 (Value ByteString))
+  { _clientId :: Required 1 (Message ClientId),
+    _clientVal :: Required 2 (Value ByteString)
   }
   deriving (Eq, Show, Generic)
 
@@ -143,8 +144,8 @@ clientEntryMessage f c = (\x -> c {_clientVal = x}) <$> field f (_clientVal c)
 -- UserEntry
 
 data UserEntry = UserEntry
-  { _userId :: !(Required 1 (Message UserId)),
-    _userVal :: !(Repeated 2 (Message ClientEntry))
+  { _userId :: Required 1 (Message UserId),
+    _userVal :: Repeated 2 (Message ClientEntry)
   }
   deriving (Eq, Show, Generic)
 
@@ -224,13 +225,13 @@ fromPriority Msg.HighPriority = HighPriority
 -- NewOtrMessage
 
 data NewOtrMessage = NewOtrMessage
-  { _newOtrSender :: !(Required 1 (Message ClientId)),
-    _newOtrRecipients :: !(Repeated 2 (Message UserEntry)),
-    _newOtrNativePush :: !(Optional 3 (Value Bool)),
-    _newOtrData :: !(Optional 4 (Value ByteString)),
-    _newOtrNativePriority :: !(Optional 5 (Enumeration Priority)), -- See note [orphans]
-    _newOtrTransient :: !(Optional 6 (Value Bool)),
-    _newOtrReportMissing :: !(Repeated 7 (Message UserId))
+  { _newOtrSender :: Required 1 (Message ClientId),
+    _newOtrRecipients :: Repeated 2 (Message UserEntry),
+    _newOtrNativePush :: Optional 3 (Value Bool),
+    _newOtrData :: Optional 4 (Value ByteString),
+    _newOtrNativePriority :: Optional 5 (Enumeration Priority), -- See note [orphans]
+    _newOtrTransient :: Optional 6 (Value Bool),
+    _newOtrReportMissing :: Repeated 7 (Message UserId)
   }
   deriving (Eq, Show, Generic)
 

@@ -2,6 +2,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -75,10 +76,10 @@ instance FromJSON PushTokenList where
     PushTokenList <$> p .: "tokens"
 
 data PushToken = PushToken
-  { _tokenTransport :: !Transport,
-    _tokenApp :: !AppName,
-    _token :: !Token,
-    _tokenClient :: !ClientId
+  { _tokenTransport :: Transport,
+    _tokenApp :: AppName,
+    _token :: Token,
+    _tokenClient :: ClientId
   }
   deriving (Eq, Ord, Show)
 

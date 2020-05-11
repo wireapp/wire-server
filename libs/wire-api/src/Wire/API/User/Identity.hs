@@ -3,6 +3,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StrictData #-}
 {-# LANGUAGE ViewPatterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -61,10 +62,10 @@ import Imports
 -- | The private unique user identity that is used for login and
 -- account recovery.
 data UserIdentity
-  = FullIdentity !Email !Phone
-  | EmailIdentity !Email
-  | PhoneIdentity !Phone
-  | SSOIdentity !UserSSOId !(Maybe Email) !(Maybe Phone)
+  = FullIdentity Email Phone
+  | EmailIdentity Email
+  | PhoneIdentity Phone
+  | SSOIdentity UserSSOId (Maybe Email) (Maybe Phone)
   deriving (Eq, Show, Generic)
 
 instance ToJSON UserIdentity where
@@ -117,8 +118,8 @@ ssoIdentity _ = Nothing
 
 -- FUTUREWORK: replace this type with 'EmailAddress'
 data Email = Email
-  { emailLocal :: !Text,
-    emailDomain :: !Text
+  { emailLocal :: Text,
+    emailDomain :: Text
   }
   deriving (Eq, Ord, Generic)
 

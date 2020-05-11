@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
@@ -67,8 +68,8 @@ modelEvent = Doc.defineModel "NotificationEvent" $ do
 -- QueuedNotification
 
 data QueuedNotification = QueuedNotification
-  { _queuedNotificationId :: !NotificationId,
-    _queuedNotificationPayload :: !(List1 Event)
+  { _queuedNotificationId :: NotificationId,
+    _queuedNotificationPayload :: List1 Event
   }
   deriving (Eq, Show)
 
@@ -99,8 +100,8 @@ instance FromJSON QueuedNotification where
 
 data QueuedNotificationList = QueuedNotificationList
   { _queuedNotifications :: [QueuedNotification],
-    _queuedHasMore :: !Bool,
-    _queuedTime :: !(Maybe UTCTime)
+    _queuedHasMore :: Bool,
+    _queuedTime :: Maybe UTCTime
   }
 
 queuedNotificationList :: [QueuedNotification] -> Bool -> Maybe UTCTime -> QueuedNotificationList

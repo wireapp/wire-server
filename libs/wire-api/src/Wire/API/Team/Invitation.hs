@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -42,12 +43,12 @@ import Wire.API.User.Profile (Locale, Name)
 -- InvitationRequest
 
 data InvitationRequest = InvitationRequest
-  { irEmail :: !Email,
-    irName :: !Name,
-    irLocale :: !(Maybe Locale),
-    irRole :: !(Maybe Role),
-    irInviteeName :: !(Maybe Name),
-    irPhone :: !(Maybe Phone)
+  { irEmail :: Email,
+    irName :: Name,
+    irLocale :: Maybe Locale,
+    irRole :: Maybe Role,
+    irInviteeName :: Maybe Name,
+    irPhone :: Maybe Phone
   }
   deriving (Eq, Show)
 
@@ -95,16 +96,16 @@ instance FromJSON InvitationRequest where
 -- Invitation
 
 data Invitation = Invitation
-  { inTeam :: !TeamId,
-    inRole :: !Role,
-    inInvitation :: !InvitationId,
-    inIdentity :: !Email,
-    inCreatedAt :: !UTCTimeMillis,
+  { inTeam :: TeamId,
+    inRole :: Role,
+    inInvitation :: InvitationId,
+    inIdentity :: Email,
+    inCreatedAt :: UTCTimeMillis,
     -- | this is always 'Just' for new invitations, but for
     -- migration it is allowed to be 'Nothing'.
-    inCreatedBy :: !(Maybe UserId),
-    inInviteeName :: !(Maybe Name),
-    inPhone :: !(Maybe Phone)
+    inCreatedBy :: Maybe UserId,
+    inInviteeName :: Maybe Name,
+    inPhone :: Maybe Phone
   }
   deriving (Eq, Show)
 
@@ -167,7 +168,7 @@ instance FromJSON Invitation where
 
 data InvitationList = InvitationList
   { ilInvitations :: [Invitation],
-    ilHasMore :: !Bool
+    ilHasMore :: Bool
   }
   deriving (Eq, Show)
 

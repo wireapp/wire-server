@@ -4,6 +4,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -180,8 +181,8 @@ emptyRichInfoAssocList = RichInfoAssocList []
 -- RichField
 
 data RichField = RichField
-  { richFieldType :: !(CI Text),
-    richFieldValue :: !Text
+  { richFieldType :: CI Text,
+    richFieldValue :: Text
   }
   deriving (Eq, Show, Generic)
 

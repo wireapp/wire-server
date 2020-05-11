@@ -4,6 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -56,13 +57,13 @@ import Wire.API.User.Client (UserClientMap, UserClients, modelOtrClientMap, mode
 -- Message
 
 data NewOtrMessage = NewOtrMessage
-  { newOtrSender :: !ClientId,
-    newOtrRecipients :: !OtrRecipients,
-    newOtrNativePush :: !Bool,
-    newOtrTransient :: !Bool,
-    newOtrNativePriority :: !(Maybe Priority),
-    newOtrData :: !(Maybe Text),
-    newOtrReportMissing :: !(Maybe [OpaqueUserId])
+  { newOtrSender :: ClientId,
+    newOtrRecipients :: OtrRecipients,
+    newOtrNativePush :: Bool,
+    newOtrTransient :: Bool,
+    newOtrNativePriority :: Maybe Priority,
+    newOtrData :: Maybe Text,
+    newOtrReportMissing :: Maybe [OpaqueUserId]
     -- FUTUREWORK: if (and only if) clients can promise this uid list will always exactly
     -- be the list of uids we could also extract from the messages' recipients field, we
     -- should do the latter, for two reasons: (1) no need for an artificial limit on the
@@ -187,12 +188,12 @@ data OtrFilterMissing
   deriving (Eq, Show, Generic)
 
 data ClientMismatch = ClientMismatch
-  { cmismatchTime :: !UTCTime,
+  { cmismatchTime :: UTCTime,
     -- | Clients that the message /should/ have been encrypted for, but wasn't.
-    missingClients :: !UserClients,
+    missingClients :: UserClients,
     -- | Clients that the message /should not/ have been encrypted for, but was.
-    redundantClients :: !UserClients,
-    deletedClients :: !UserClients
+    redundantClients :: UserClients,
+    deletedClients :: UserClients
   }
   deriving (Eq, Show, Generic)
 

@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -43,8 +44,8 @@ import Wire.API.User.Client.Prekey
 
 -- | Request payload that the LH service endpoint @/initiate@ expects
 data RequestNewLegalHoldClient = RequestNewLegalHoldClient
-  { userId :: !UserId,
-    teamId :: !TeamId
+  { userId :: UserId,
+    teamId :: TeamId
   }
   deriving stock (Show, Eq, Generic)
 
@@ -63,7 +64,7 @@ instance FromJSON RequestNewLegalHoldClient where
 -- | Response payload that the LH service returns upon calling @/initiate@
 data NewLegalHoldClient = NewLegalHoldClient
   { newLegalHoldClientPrekeys :: [Prekey],
-    newLegalHoldClientLastKey :: !LastPrekey
+    newLegalHoldClientLastKey :: LastPrekey
   }
   deriving stock (Eq, Show, Generic)
 
@@ -84,11 +85,11 @@ instance FromJSON NewLegalHoldClient where
 
 -- Request payload for the @/confirm@ endpoint on the LegalHold Service
 data LegalHoldServiceConfirm = LegalHoldServiceConfirm
-  { lhcClientId :: !ClientId,
-    lhcUserId :: !UserId,
-    lhcTeamId :: !TeamId,
+  { lhcClientId :: ClientId,
+    lhcUserId :: UserId,
+    lhcTeamId :: TeamId,
     -- | Replace with Legal Hold Token Type
-    lhcRefreshToken :: !Text
+    lhcRefreshToken :: Text
   }
   deriving stock (Eq, Show, Generic)
 
@@ -114,8 +115,8 @@ instance FromJSON LegalHoldServiceConfirm where
 
 -- Request payload for the @/remove@ endpoint on the LegalHold Service
 data LegalHoldServiceRemove = LegalHoldServiceRemove
-  { lhrUserId :: !UserId,
-    lhrTeamId :: !TeamId
+  { lhrUserId :: UserId,
+    lhrTeamId :: TeamId
   }
   deriving stock (Eq, Show, Generic)
 

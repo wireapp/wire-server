@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -145,14 +146,14 @@ filterClients p (UserClients c) = UserClients $ Map.filter p c
 -- Client
 
 data Client = Client
-  { clientId :: !ClientId,
-    clientType :: !ClientType,
-    clientTime :: !UTCTimeMillis,
-    clientClass :: !(Maybe ClientClass),
-    clientLabel :: !(Maybe Text),
-    clientCookie :: !(Maybe CookieLabel),
-    clientLocation :: !(Maybe Location),
-    clientModel :: !(Maybe Text)
+  { clientId :: ClientId,
+    clientType :: ClientType,
+    clientTime :: UTCTimeMillis,
+    clientClass :: Maybe ClientClass,
+    clientLabel :: Maybe Text,
+    clientCookie :: Maybe CookieLabel,
+    clientLocation :: Maybe Location,
+    clientModel :: Maybe Text
   }
   deriving (Eq, Show, Generic)
 
@@ -207,8 +208,8 @@ instance FromJSON Client where
       <*> o .:? "model"
 
 data PubClient = PubClient
-  { pubClientId :: !ClientId,
-    pubClientClass :: !(Maybe ClientClass)
+  { pubClientId :: ClientId,
+    pubClientClass :: Maybe ClientClass
   }
   deriving (Eq, Show, Generic)
 
@@ -318,13 +319,13 @@ instance FromJSON ClientClass where
 
 data NewClient = NewClient
   { newClientPrekeys :: [Prekey],
-    newClientLastKey :: !LastPrekey,
-    newClientType :: !ClientType,
-    newClientLabel :: !(Maybe Text),
-    newClientClass :: !(Maybe ClientClass),
-    newClientCookie :: !(Maybe CookieLabel),
-    newClientPassword :: !(Maybe PlainTextPassword),
-    newClientModel :: !(Maybe Text)
+    newClientLastKey :: LastPrekey,
+    newClientType :: ClientType,
+    newClientLabel :: Maybe Text,
+    newClientClass :: Maybe ClientClass,
+    newClientCookie :: Maybe CookieLabel,
+    newClientPassword :: Maybe PlainTextPassword,
+    newClientModel :: Maybe Text
   }
 
 modelNewClient :: Doc.Model
@@ -404,9 +405,9 @@ instance FromJSON NewClient where
 -- UpdateClient
 
 data UpdateClient = UpdateClient
-  { updateClientPrekeys :: ![Prekey],
-    updateClientLastKey :: !(Maybe LastPrekey),
-    updateClientLabel :: !(Maybe Text)
+  { updateClientPrekeys :: [Prekey],
+    updateClientLastKey :: Maybe LastPrekey,
+    updateClientLabel :: Maybe Text
   }
   deriving (Generic)
 

@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -45,9 +46,9 @@ import Wire.API.User.Client.Prekey
 
 -- | This type is analogous to 'NewService' for bots.
 data NewLegalHoldService = NewLegalHoldService
-  { newLegalHoldServiceUrl :: !HttpsUrl,
-    newLegalHoldServiceKey :: !ServiceKeyPEM,
-    newLegalHoldServiceToken :: !ServiceToken
+  { newLegalHoldServiceUrl :: HttpsUrl,
+    newLegalHoldServiceKey :: ServiceKeyPEM,
+    newLegalHoldServiceToken :: ServiceToken
   }
   deriving stock (Eq, Show, Generic)
 
@@ -101,11 +102,11 @@ instance FromJSON ViewLegalHoldService where
       _ -> fail "status (one of configured, not_configured, disabled)"
 
 data ViewLegalHoldServiceInfo = ViewLegalHoldServiceInfo
-  { viewLegalHoldServiceTeam :: !TeamId,
-    viewLegalHoldServiceUrl :: !HttpsUrl,
-    viewLegalHoldServiceFingerprint :: !(Fingerprint Rsa),
-    viewLegalHoldServiceAuthToken :: !ServiceToken,
-    viewLegalHoldServiceKey :: !ServiceKeyPEM
+  { viewLegalHoldServiceTeam :: TeamId,
+    viewLegalHoldServiceUrl :: HttpsUrl,
+    viewLegalHoldServiceFingerprint :: Fingerprint Rsa,
+    viewLegalHoldServiceAuthToken :: ServiceToken,
+    viewLegalHoldServiceKey :: ServiceKeyPEM
   }
   deriving stock (Eq, Show, Generic)
 
@@ -158,7 +159,7 @@ instance FromJSON UserLegalHoldStatusResponse where
 -- RemoveLegalHoldSettingsRequest
 
 data RemoveLegalHoldSettingsRequest = RemoveLegalHoldSettingsRequest
-  { rmlhsrPassword :: !(Maybe PlainTextPassword)
+  { rmlhsrPassword :: Maybe PlainTextPassword
   }
   deriving stock (Eq, Show, Generic)
 
@@ -177,7 +178,7 @@ instance FromJSON RemoveLegalHoldSettingsRequest where
 -- DisableLegalHoldForUserRequest
 
 data DisableLegalHoldForUserRequest = DisableLegalHoldForUserRequest
-  { dlhfuPassword :: !(Maybe PlainTextPassword)
+  { dlhfuPassword :: Maybe PlainTextPassword
   }
   deriving stock (Eq, Show, Generic)
 
@@ -196,7 +197,7 @@ instance FromJSON DisableLegalHoldForUserRequest where
 -- ApproveLegalHoldForUserRequest
 
 data ApproveLegalHoldForUserRequest = ApproveLegalHoldForUserRequest
-  { alhfuPassword :: !(Maybe PlainTextPassword)
+  { alhfuPassword :: Maybe PlainTextPassword
   }
   deriving stock (Eq, Show, Generic)
 

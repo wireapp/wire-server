@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -55,11 +56,11 @@ import Wire.API.User.Profile
 -- | The target of an activation request.
 data ActivationTarget
   = -- | An opaque key for some email or phone number awaiting activation.
-    ActivateKey !ActivationKey
+    ActivateKey ActivationKey
   | -- | A known phone number awaiting activation.
-    ActivatePhone !Phone
+    ActivatePhone Phone
   | -- | A known email address awaiting activation.
-    ActivateEmail !Email
+    ActivateEmail Email
 
 instance ToByteString ActivationTarget where
   builder (ActivateKey k) = builder k
@@ -85,9 +86,9 @@ newtype ActivationCode = ActivationCode
 
 -- | Data for an activation request.
 data Activate = Activate
-  { activateTarget :: !ActivationTarget,
-    activateCode :: !ActivationCode,
-    activateDryrun :: !Bool
+  { activateTarget :: ActivationTarget,
+    activateCode :: ActivationCode,
+    activateDryrun :: Bool
   }
 
 modelActivate :: Doc.Model
@@ -140,9 +141,9 @@ instance FromJSON Activate where
 -- | Information returned as part of a successful activation.
 data ActivationResponse = ActivationResponse
   { -- | The activated / verified user identity.
-    activatedIdentity :: !UserIdentity,
+    activatedIdentity :: UserIdentity,
     -- | Whether this is the first verified identity of the account.
-    activatedFirst :: !Bool
+    activatedFirst :: Bool
   }
 
 modelActivationResponse :: Doc.Model
@@ -177,9 +178,9 @@ instance FromJSON ActivationResponse where
 -- for a phone number or e-mail address. If a phone is used,
 -- one can also request a call instead of SMS.
 data SendActivationCode = SendActivationCode
-  { saUserKey :: !(Either Email Phone),
-    saLocale :: !(Maybe Locale),
-    saCall :: !Bool
+  { saUserKey :: Either Email Phone,
+    saLocale :: Maybe Locale,
+    saCall :: Bool
   }
 
 modelSendActivationCode :: Doc.Model

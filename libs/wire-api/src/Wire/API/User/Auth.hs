@@ -2,6 +2,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -72,8 +73,8 @@ import Wire.API.User.Identity (Email, Phone)
 
 -- | Different kinds of logins.
 data Login
-  = PasswordLogin !LoginId !PlainTextPassword !(Maybe CookieLabel)
-  | SmsLogin !Phone !LoginCode !(Maybe CookieLabel)
+  = PasswordLogin LoginId PlainTextPassword (Maybe CookieLabel)
+  | SmsLogin Phone LoginCode (Maybe CookieLabel)
 
 modelLogin :: Doc.Model
 modelLogin = Doc.defineModel "Login" $ do
@@ -124,9 +125,9 @@ loginLabel (SmsLogin _ _ l) = l
 -- LoginId
 
 data LoginId
-  = LoginByEmail !Email
-  | LoginByPhone !Phone
-  | LoginByHandle !Handle
+  = LoginByEmail Email
+  | LoginByPhone Phone
+  | LoginByHandle Handle
 
 instance FromJSON LoginId where
   parseJSON = withObject "LoginId" $ \o -> do
@@ -165,8 +166,8 @@ newtype LoginCode = LoginCode
 
 -- | Used for internal endpoint only.
 data PendingLoginCode = PendingLoginCode
-  { pendingLoginCode :: !LoginCode,
-    pendingLoginTimeout :: !Code.Timeout
+  { pendingLoginCode :: LoginCode,
+    pendingLoginTimeout :: Code.Timeout
   }
   deriving (Eq)
 
@@ -185,9 +186,9 @@ instance FromJSON PendingLoginCode where
 
 -- | A request for sending a 'LoginCode'
 data SendLoginCode = SendLoginCode
-  { lcPhone :: !Phone,
-    lcCall :: !Bool,
-    lcForce :: !Bool
+  { lcPhone :: Phone,
+    lcCall :: Bool,
+    lcForce :: Bool
   }
 
 modelSendLoginCode :: Doc.Model
@@ -256,13 +257,13 @@ instance FromJSON CookieList where
 -- | A (long-lived) cookie scoped to a specific user for obtaining new
 -- 'AccessToken's.
 data Cookie a = Cookie
-  { cookieId :: !CookieId,
-    cookieType :: !CookieType,
-    cookieCreated :: !UTCTime,
-    cookieExpires :: !UTCTime,
-    cookieLabel :: !(Maybe CookieLabel),
-    cookieSucc :: !(Maybe CookieId),
-    cookieValue :: !a
+  { cookieId :: CookieId,
+    cookieType :: CookieType,
+    cookieCreated :: UTCTime,
+    cookieExpires :: UTCTime,
+    cookieLabel :: Maybe CookieLabel,
+    cookieSucc :: Maybe CookieId,
+    cookieValue :: a
   }
   deriving (Eq, Show, Generic)
 
@@ -346,7 +347,7 @@ instance FromJSON CookieType where
 -- RemoveCookies
 
 data RemoveCookies = RemoveCookies
-  { rmCookiesPassword :: !PlainTextPassword,
+  { rmCookiesPassword :: PlainTextPassword,
     rmCookiesLabels :: [CookieLabel],
     rmCookiesIdents :: [CookieId]
   }
@@ -374,10 +375,10 @@ instance FromJSON RemoveCookies where
 
 -- | A temporary API access token.
 data AccessToken = AccessToken
-  { user :: !UserId,
-    access :: !LByteString, -- accessTokenValue
-    tokenType :: !TokenType, -- accessTokenType
-    expiresIn :: !Integer -- accessTokenExpiresIn
+  { user :: UserId,
+    access :: LByteString, -- accessTokenValue
+    tokenType :: TokenType, -- accessTokenType
+    expiresIn :: Integer -- accessTokenExpiresIn
   }
 
 bearerToken :: UserId -> LByteString -> Integer -> AccessToken

@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -37,18 +38,18 @@ import Wire.API.User.Profile (Asset, ColourId, Locale, Name)
 -- | Request for a bot to be created in a conversation (by an external service).
 data NewBotRequest = NewBotRequest
   { -- | The user ID to use for the bot.
-    newBotId :: !BotId,
+    newBotId :: BotId,
     -- | The client ID to use for the bot.
-    newBotClient :: !ClientId,
+    newBotClient :: ClientId,
     -- | The origin (user) of the bot request.
-    newBotOrigin :: !BotUserView,
+    newBotOrigin :: BotUserView,
     -- | The conversation as seen by the bot.
-    newBotConv :: !BotConvView,
+    newBotConv :: BotConvView,
     -- | The API access token.
-    newBotToken :: !Text,
+    newBotToken :: Text,
     -- | The preferred locale (i.e. language) for the bot
     -- to use.
-    newBotLocale :: !Locale
+    newBotLocale :: Locale
   }
 
 instance FromJSON NewBotRequest where
@@ -78,11 +79,11 @@ instance ToJSON NewBotRequest where
 -- The returned optional data overrides the defaults taken from
 -- the 'Service' definition.
 data NewBotResponse = NewBotResponse
-  { rsNewBotPrekeys :: ![Prekey],
-    rsNewBotLastPrekey :: !LastPrekey,
-    rsNewBotName :: !(Maybe Name),
-    rsNewBotColour :: !(Maybe ColourId),
-    rsNewBotAssets :: !(Maybe [Asset])
+  { rsNewBotPrekeys :: [Prekey],
+    rsNewBotLastPrekey :: LastPrekey,
+    rsNewBotName :: Maybe Name,
+    rsNewBotColour :: Maybe ColourId,
+    rsNewBotAssets :: Maybe [Asset]
   }
 
 instance FromJSON NewBotResponse where

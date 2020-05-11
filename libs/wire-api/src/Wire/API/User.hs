@@ -4,6 +4,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -142,21 +143,21 @@ instance ToJSON UserIdList where
 -- other users. Each user also has access to their own profile in a richer format --
 -- 'SelfProfile'.
 data UserProfile = UserProfile
-  { profileId :: !UserId,
-    profileName :: !Name,
+  { profileId :: UserId,
+    profileName :: Name,
     -- | DEPRECATED
-    profilePict :: !Pict,
+    profilePict :: Pict,
     profileAssets :: [Asset],
-    profileAccentId :: !ColourId,
-    profileDeleted :: !Bool,
+    profileAccentId :: ColourId,
+    profileDeleted :: Bool,
     -- | Set if the user represents an external service,
     -- i.e. it is a "bot".
-    profileService :: !(Maybe ServiceRef),
-    profileHandle :: !(Maybe Handle),
-    profileLocale :: !(Maybe Locale),
-    profileExpire :: !(Maybe UTCTimeMillis),
-    profileTeam :: !(Maybe TeamId),
-    profileEmail :: !(Maybe Email)
+    profileService :: Maybe ServiceRef,
+    profileHandle :: Maybe Handle,
+    profileLocale :: Maybe Locale,
+    profileExpire :: Maybe UTCTimeMillis,
+    profileTeam :: Maybe TeamId,
+    profileEmail :: Maybe Email
   }
   deriving (Eq, Show, Generic)
 
@@ -225,7 +226,7 @@ instance FromJSON UserProfile where
 
 -- | A self profile.
 data SelfProfile = SelfProfile
-  {selfUser :: !User}
+  {selfUser :: User}
   deriving (Eq, Show, Generic)
 
 modelSelf :: Doc.Model
@@ -274,31 +275,31 @@ instance FromJSON SelfProfile where
 
 -- | The data of an existing user.
 data User = User
-  { userId :: !UserId,
+  { userId :: UserId,
     -- | User identity. For endpoints like @/self@, it will be present in the response iff
     -- the user is activated, and the email/phone contained in it will be guaranteedly
     -- verified. {#RefActivation}
-    userIdentity :: !(Maybe UserIdentity),
+    userIdentity :: Maybe UserIdentity,
     -- | required; non-unique
-    userDisplayName :: !Name,
+    userDisplayName :: Name,
     -- | DEPRECATED
-    userPict :: !Pict,
+    userPict :: Pict,
     userAssets :: [Asset],
-    userAccentId :: !ColourId,
-    userDeleted :: !Bool,
-    userLocale :: !Locale,
+    userAccentId :: ColourId,
+    userDeleted :: Bool,
+    userLocale :: Locale,
     -- | Set if the user represents an external service,
     -- i.e. it is a "bot".
-    userService :: !(Maybe ServiceRef),
+    userService :: Maybe ServiceRef,
     -- | not required; must be unique if present
-    userHandle :: !(Maybe Handle),
+    userHandle :: Maybe Handle,
     -- | Set if the user is ephemeral
-    userExpire :: !(Maybe UTCTimeMillis),
+    userExpire :: Maybe UTCTimeMillis,
     -- | Set if the user is part of a binding team
-    userTeam :: !(Maybe TeamId),
+    userTeam :: Maybe TeamId,
     -- | How is the user profile managed (e.g. if it's via SCIM then the user profile
     -- can't be edited via normal means)
-    userManagedBy :: !ManagedBy
+    userManagedBy :: ManagedBy
   }
   deriving (Eq, Show, Generic)
 
@@ -477,22 +478,22 @@ instance FromJSON NewUserPublic where
     pure $ NewUserPublic nu
 
 data NewUser = NewUser
-  { newUserDisplayName :: !Name,
+  { newUserDisplayName :: Name,
     -- | use this as 'UserId' (if 'Nothing', call 'Data.UUID.nextRandom').
-    newUserUUID :: !(Maybe UUID),
-    newUserIdentity :: !(Maybe UserIdentity),
+    newUserUUID :: Maybe UUID,
+    newUserIdentity :: Maybe UserIdentity,
     -- | DEPRECATED
-    newUserPict :: !(Maybe Pict),
+    newUserPict :: Maybe Pict,
     newUserAssets :: [Asset],
-    newUserAccentId :: !(Maybe ColourId),
-    newUserEmailCode :: !(Maybe ActivationCode),
-    newUserPhoneCode :: !(Maybe ActivationCode),
-    newUserOrigin :: !(Maybe NewUserOrigin),
-    newUserLabel :: !(Maybe CookieLabel),
-    newUserLocale :: !(Maybe Locale),
-    newUserPassword :: !(Maybe PlainTextPassword),
-    newUserExpiresIn :: !(Maybe ExpiresIn),
-    newUserManagedBy :: !(Maybe ManagedBy)
+    newUserAccentId :: Maybe ColourId,
+    newUserEmailCode :: Maybe ActivationCode,
+    newUserPhoneCode :: Maybe ActivationCode,
+    newUserOrigin :: Maybe NewUserOrigin,
+    newUserLabel :: Maybe CookieLabel,
+    newUserLocale :: Maybe Locale,
+    newUserPassword :: Maybe PlainTextPassword,
+    newUserExpiresIn :: Maybe ExpiresIn,
+    newUserManagedBy :: Maybe ManagedBy
   }
   deriving (Eq, Show, Generic)
 
@@ -564,8 +565,8 @@ newUserSSOId = ssoIdentity <=< newUserIdentity
 -- NewUserOrigin
 
 data NewUserOrigin
-  = NewUserOriginInvitationCode !InvitationCode
-  | NewUserOriginTeamUser !NewTeamUser
+  = NewUserOriginInvitationCode InvitationCode
+  | NewUserOriginTeamUser NewTeamUser
   deriving (Eq, Show, Generic)
 
 jsonNewUserOrigin :: NewUserOrigin -> [Aeson.Pair]
@@ -625,14 +626,14 @@ parseIdentity ssoid o =
 
 data NewTeamUser
   = -- | requires email address
-    NewTeamMember !InvitationCode
-  | NewTeamCreator !BindingNewTeamUser
-  | NewTeamMemberSSO !TeamId
+    NewTeamMember InvitationCode
+  | NewTeamCreator BindingNewTeamUser
+  | NewTeamMemberSSO TeamId
   deriving (Eq, Show, Generic)
 
 data BindingNewTeamUser = BindingNewTeamUser
-  { bnuTeam :: !BindingNewTeam,
-    bnuCurrency :: !(Maybe Currency.Alpha)
+  { bnuTeam :: BindingNewTeam,
+    bnuCurrency :: Maybe Currency.Alpha
     -- FUTUREWORK:
     -- Remove Currency selection once billing supports currency changes after team creation
   }
@@ -659,11 +660,11 @@ instance FromJSON BindingNewTeamUser where
 -- 'Test.Brig.Types.User.roundtripTests'
 
 data UserUpdate = UserUpdate
-  { uupName :: !(Maybe Name),
+  { uupName :: Maybe Name,
     -- | DEPRECATED
-    uupPict :: !(Maybe Pict),
-    uupAssets :: !(Maybe [Asset]),
-    uupAccentId :: !(Maybe ColourId)
+    uupPict :: Maybe Pict,
+    uupAssets :: Maybe [Asset],
+    uupAccentId :: Maybe ColourId
   }
   deriving (Eq, Show, Generic)
 
@@ -697,8 +698,8 @@ instance FromJSON UserUpdate where
 
 -- | The payload for setting or changing a password.
 data PasswordChange = PasswordChange
-  { cpOldPassword :: !(Maybe PlainTextPassword),
-    cpNewPassword :: !PlainTextPassword
+  { cpOldPassword :: Maybe PlainTextPassword,
+    cpNewPassword :: PlainTextPassword
   }
   deriving (Eq, Show, Generic)
 
@@ -820,8 +821,8 @@ instance FromJSON DeleteUser where
 
 -- | Payload for verifying account deletion via a code.
 data VerifyDeleteUser = VerifyDeleteUser
-  { verifyDeleteUserKey :: !Code.Key,
-    verifyDeleteUserCode :: !Code.Value
+  { verifyDeleteUserKey :: Code.Key,
+    verifyDeleteUserCode :: Code.Value
   }
   deriving (Eq, Show, Generic)
 

@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -49,8 +50,8 @@ newtype PrekeyId = PrekeyId {keyId :: Word16}
 -- Prekey
 
 data Prekey = Prekey
-  { prekeyId :: !PrekeyId,
-    prekeyKey :: !Text
+  { prekeyId :: PrekeyId,
+    prekeyKey :: Text
   }
   deriving (Eq, Show, Generic)
 
@@ -106,8 +107,8 @@ lastPrekey = LastPrekey . Prekey lastPrekeyId
 -- PrekeyBundle
 
 data PrekeyBundle = PrekeyBundle
-  { prekeyUser :: !OpaqueUserId,
-    prekeyClients :: ![ClientPrekey]
+  { prekeyUser :: OpaqueUserId,
+    prekeyClients :: [ClientPrekey]
   }
   deriving (Eq, Show, Generic)
 
@@ -134,8 +135,8 @@ instance FromJSON PrekeyBundle where
 -- ClientPrekey
 
 data ClientPrekey = ClientPrekey
-  { prekeyClient :: !ClientId,
-    prekeyData :: !Prekey
+  { prekeyClient :: ClientId,
+    prekeyData :: Prekey
   }
   deriving (Eq, Show, Generic)
 

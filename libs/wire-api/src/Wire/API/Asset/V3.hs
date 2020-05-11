@@ -108,7 +108,7 @@ instance FromJSON Asset where
 -- | A unique, versioned asset identifier.
 -- Note: Can be turned into a sum type with additional constructors
 -- for future versions.
-data AssetKey = AssetKeyV3 !AssetId !AssetRetention
+data AssetKey = AssetKeyV3 AssetId AssetRetention
   deriving (Eq, Show)
 
 instance FromByteString AssetKey where

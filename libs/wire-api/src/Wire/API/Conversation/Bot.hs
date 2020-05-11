@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 
@@ -42,9 +43,9 @@ import Wire.API.User.Profile (Asset, ColourId, Locale, Name)
 
 -- | Input data for adding a bot to a conversation.
 data AddBot = AddBot
-  { addBotProvider :: !ProviderId,
-    addBotService :: !ServiceId,
-    addBotLocale :: !(Maybe Locale)
+  { addBotProvider :: ProviderId,
+    addBotService :: ServiceId,
+    addBotLocale :: Maybe Locale
   }
 
 instance ToJSON AddBot where
@@ -62,12 +63,12 @@ instance FromJSON AddBot where
       <*> o .:? "locale"
 
 data AddBotResponse = AddBotResponse
-  { rsAddBotId :: !BotId,
-    rsAddBotClient :: !ClientId,
-    rsAddBotName :: !Name,
-    rsAddBotColour :: !ColourId,
-    rsAddBotAssets :: ![Asset],
-    rsAddBotEvent :: !Event
+  { rsAddBotId :: BotId,
+    rsAddBotClient :: ClientId,
+    rsAddBotName :: Name,
+    rsAddBotColour :: ColourId,
+    rsAddBotAssets :: [Asset],
+    rsAddBotEvent :: Event
   }
 
 instance ToJSON AddBotResponse where

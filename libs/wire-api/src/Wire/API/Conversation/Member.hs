@@ -1,9 +1,9 @@
-{-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -53,8 +53,8 @@ import Wire.API.Conversation.Role
 import Wire.API.Provider.Service (ServiceRef, modelServiceRef)
 
 data ConvMembers = ConvMembers
-  { cmSelf :: !Member,
-    cmOthers :: ![OtherMember]
+  { cmSelf :: Member,
+    cmOthers :: [OtherMember]
   }
   deriving (Eq, Show)
 
@@ -86,17 +86,17 @@ instance FromJSON ConvMembers where
 -- Members
 
 data Member = Member
-  { memId :: !UserId,
-    memService :: !(Maybe ServiceRef),
+  { memId :: UserId,
+    memService :: Maybe ServiceRef,
     -- | DEPRECATED, remove it once enough clients use `memOtrMutedStatus`
-    memOtrMuted :: !Bool,
-    memOtrMutedStatus :: !(Maybe MutedStatus),
-    memOtrMutedRef :: !(Maybe Text),
-    memOtrArchived :: !Bool,
-    memOtrArchivedRef :: !(Maybe Text),
-    memHidden :: !Bool,
-    memHiddenRef :: !(Maybe Text),
-    memConvRoleName :: !RoleName
+    memOtrMuted :: Bool,
+    memOtrMutedStatus :: Maybe MutedStatus,
+    memOtrMutedRef :: Maybe Text,
+    memOtrArchived :: Bool,
+    memOtrArchivedRef :: Maybe Text,
+    memHidden :: Bool,
+    memHiddenRef :: Maybe Text,
+    memConvRoleName :: RoleName
   }
   deriving (Eq, Show, Generic)
 
@@ -165,9 +165,9 @@ newtype MutedStatus = MutedStatus {fromMutedStatus :: Int32}
   deriving (Eq, Num, Ord, Show, FromJSON, ToJSON, Generic)
 
 data OtherMember = OtherMember
-  { omId :: !UserId,
-    omService :: !(Maybe ServiceRef),
-    omConvRoleName :: !RoleName
+  { omId :: UserId,
+    omService :: Maybe ServiceRef,
+    omConvRoleName :: RoleName
   }
   deriving (Eq, Show, Generic)
 
@@ -203,14 +203,14 @@ instance FromJSON OtherMember where
 -- | Inbound self member updates.  This is what galley expects on its endpoint.  See also
 -- 'MemberUpdateData' - that event is meant to be sent only to the _self_ user.
 data MemberUpdate = MemberUpdate
-  { mupOtrMute :: !(Maybe Bool),
-    mupOtrMuteStatus :: !(Maybe MutedStatus),
-    mupOtrMuteRef :: !(Maybe Text),
-    mupOtrArchive :: !(Maybe Bool),
-    mupOtrArchiveRef :: !(Maybe Text),
-    mupHidden :: !(Maybe Bool),
-    mupHiddenRef :: !(Maybe Text),
-    mupConvRoleName :: !(Maybe RoleName)
+  { mupOtrMute :: Maybe Bool,
+    mupOtrMuteStatus :: Maybe MutedStatus,
+    mupOtrMuteRef :: Maybe Text,
+    mupOtrArchive :: Maybe Bool,
+    mupOtrArchiveRef :: Maybe Text,
+    mupHidden :: Maybe Bool,
+    mupHiddenRef :: Maybe Text,
+    mupConvRoleName :: Maybe RoleName
   }
   deriving stock (Eq, Show)
 
@@ -283,7 +283,7 @@ instance FromJSON MemberUpdate where
 -- | Inbound other member updates.  This is what galley expects on its endpoint.  See also
 -- 'OtherMemberUpdateData' - that event is meant to be sent to all users in a conversation.
 data OtherMemberUpdate = OtherMemberUpdate
-  { omuConvRoleName :: !(Maybe RoleName)
+  { omuConvRoleName :: Maybe RoleName
   }
   deriving stock (Eq, Show)
 
