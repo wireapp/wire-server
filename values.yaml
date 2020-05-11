@@ -15,6 +15,14 @@ cassandra-ephemeral:
     updateStrategy:
       type: RollingUpdate
 
+
+    # Make this a bit shorter; at the risk we get killed if we aren't healthy
+    # on time
+    livenessProbe:
+      initialDelaySeconds: 20
+    readinessProbe:
+      initialDelaySeconds: 20
+
     resources:
       requests:
         memory: 512Mi
