@@ -27,12 +27,14 @@ import Brig.Types.User.Auth hiding (user)
 import qualified CargoHold.Types.V3 as CHV3
 import qualified Codec.MIME.Type as MIME
 import Control.Lens ((^?), preview)
+import Control.Monad.Catch (MonadCatch)
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LB
+import Data.Handle (Handle (Handle))
 import Data.Id hiding (client)
 import Data.Misc (PlainTextPassword (..))
 import Data.Range (unsafeRange)
@@ -51,6 +53,26 @@ checkHandles brig uid hs num =
       num' = unsafeRange num
       js = RequestBodyLBS $ encode $ CheckHandles hs' num'
    in post (brig . path "/users/handles" . contentJson . zUser uid . body js)
+
+randomUserWithHandle :: HasCallStack => Brig -> Http User
+randomUserWithHandle brig = do
+  u <- randomUser brig
+  setRandomHandle brig u
+
+setRandomHandle :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> m User
+setRandomHandle brig user = do
+  h <- randomHandle
+  put
+    ( brig
+        . path "/self/handle"
+        . contentJson
+        . zUser (userId user)
+        . zConn "c"
+        . body (RequestBodyLBS . encode $ HandleUpdate h)
+    )
+    !!! const 200
+    === statusCode
+  return user {userHandle = Just (Handle h)}
 
 -- Note: This actually _will_ send out an email, so we ensure that the email
 --       used here has a domain 'simulator.amazonses.com'.

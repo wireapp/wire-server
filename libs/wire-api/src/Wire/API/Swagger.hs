@@ -39,6 +39,7 @@ import qualified Wire.API.Team.Feature as Team.Feature
 import qualified Wire.API.Team.Invitation as Team.Invitation
 import qualified Wire.API.Team.Member as Team.Member
 import qualified Wire.API.Team.Permission as Team.Permission
+import qualified Wire.API.Team.SearchVisibility as Team.SearchVisibility
 import qualified Wire.API.User as User
 import qualified Wire.API.User.Activation as User.Activation
 import qualified Wire.API.User.Auth as User.Auth
@@ -98,24 +99,26 @@ models =
     Properties.modelPropertyDictionary,
     Push.Token.modelPushToken,
     Push.Token.modelPushTokenList,
-    Team.Feature.modelLegalHoldTeamConfig,
-    Team.Feature.modelSsoTeamConfig,
-    Team.Invitation.modelTeamInvitation,
-    Team.Invitation.modelTeamInvitationList,
-    Team.Invitation.modelTeamInvitationRequest,
-    Team.Permission.modelPermissions,
-    Team.Member.modelTeamMember,
-    Team.Member.modelTeamMemberList,
-    Team.Member.modelTeamMemberDelete,
-    Team.Member.modelNewTeamMember,
-    Team.Conversation.modelTeamConversation,
-    Team.Conversation.modelTeamConversationList,
     Team.modelTeam,
     Team.modelTeamList,
     Team.modelNewBindingTeam,
     Team.modelNewNonBindingTeam,
     Team.modelUpdateData,
     Team.modelTeamDelete,
+    Team.Conversation.modelTeamConversation,
+    Team.Conversation.modelTeamConversationList,
+    Team.Feature.modelLegalHoldTeamConfig,
+    Team.Feature.modelSsoTeamConfig,
+    Team.Invitation.modelTeamInvitation,
+    Team.Invitation.modelTeamInvitationList,
+    Team.Invitation.modelTeamInvitationRequest,
+    Team.Member.modelTeamMember,
+    Team.Member.modelTeamMemberList,
+    Team.Member.modelTeamMemberDelete,
+    Team.Member.modelNewTeamMember,
+    Team.Permission.modelPermissions,
+    Team.SearchVisibility.modelTeamSearchVisibility,
+    Team.SearchVisibility.modelTeamSearchVisibilityAvailable,
     User.modelUserIdList,
     User.modelSelf,
     User.modelUser,

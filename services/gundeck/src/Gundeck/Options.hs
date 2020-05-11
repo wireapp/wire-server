@@ -63,7 +63,16 @@ data Settings = Settings
     -- | Maximum number of parallel requests to SNS and cassandra
     -- during native push processing (per incoming push request)
     -- defaults to unbounded, if unset.
-    _setPerNativePushConcurrency :: !(Maybe Int)
+    _setPerNativePushConcurrency :: !(Maybe Int),
+    -- | The amount of time in milliseconds to wait after reading from an SQS queue
+    -- returns no message, before asking for messages from SQS again.
+    -- defaults to 'defSqsThrottleMillis'.
+    -- When using real SQS from AWS, throttling isn't needed as much, since using
+    --   SQS.rmWaitTimeSeconds (Just 20) in Gundeck.Aws.listen
+    -- ensures that there is only one request every 20 seconds.
+    -- However, that parameter is not honoured when using fake-sqs
+    -- (where throttling can thus make sense)
+    _setSqsThrottleMillis :: !(Maybe Int)
   }
   deriving (Show, Generic)
 
@@ -105,3 +114,6 @@ data Opts = Opts
 deriveFromJSON toOptionFieldName ''Opts
 
 makeLenses ''Opts
+
+defSqsThrottleMillis :: Int
+defSqsThrottleMillis = 500

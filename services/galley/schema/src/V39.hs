@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE StrictData #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -18,23 +15,16 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Types.Search
-  ( TeamSearchInfo (..),
-
-    -- * re-exports
-    SearchResult (..),
-    Contact (..),
+module V39
+  ( migration,
   )
 where
 
-import Data.Id (TeamId)
-import Wire.API.User.Search
+import Cassandra.Schema
+import Imports
+import Text.RawString.QQ
 
-data TeamSearchInfo
-  = -- | When searching user is not part of a team.
-    NoTeam
-  | -- | When searching user is part of a team and 'Brig.Options.setSearchSameTeamOnly' is True
-    --   OR the searching user belongs to a team with SearchVisibilityNoNameOutsideTeam
-    TeamOnly TeamId
-  | -- | When searching user is part of a team and 'Brig.Options.setSearchSameTeamOnly' is False
-    TeamAndNonMembers TeamId
+migration :: Migration
+migration = Migration 39 "Add extra feature `same_team_only_status` field in the team_features table and in the team" $ do
+  schema' [r| ALTER TABLE team_features ADD search_visibility_status int; |]
+  schema' [r| ALTER TABLE team ADD search_visibility int; |]

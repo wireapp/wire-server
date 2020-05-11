@@ -29,6 +29,7 @@ import qualified Wire.API.Message as Message
 import qualified Wire.API.Provider.Service as Provider.Service
 import qualified Wire.API.Swagger
 import qualified Wire.API.Team.Feature as Team.Feature
+import qualified Wire.API.Team.SearchVisibility as Team.SearchVisibility
 import qualified Wire.API.User as User
 import qualified Wire.API.User.Client as User.Client
 import qualified Wire.Swagger as Swagger
@@ -191,8 +192,17 @@ legalHoldTeamConfig = Team.Feature.modelLegalHoldTeamConfig
 ssoTeamConfig :: Model
 ssoTeamConfig = Team.Feature.modelSsoTeamConfig
 
+teamSearchVisibilityAvailable :: Model
+teamSearchVisibilityAvailable = Team.SearchVisibility.modelTeamSearchVisibilityAvailable
+
 featureStatus :: DataType
 featureStatus = Team.Feature.typeFeatureStatus
+
+searchVisibilityType :: DataType
+searchVisibilityType = Team.SearchVisibility.typeSearchVisibility
+
+teamSearchVisibility :: Model
+teamSearchVisibility = Team.SearchVisibility.modelTeamSearchVisibility
 
 customBackend :: Model
 customBackend = CustomBackend.modelCustomBackend

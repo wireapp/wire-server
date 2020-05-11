@@ -1,47 +1,41 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 85c7cbfdf08baf6437e3da2f82fe7862311336420ea8f4825dec40ec753daa23
+-- hash: 8f831d80b2384fadeff0c8cbd7088e217f588678b6fe9363981757bef3041375
 
-name:           auto-whitelist
+name:           billing-team-member-backfill
 version:        1.0.0
-synopsis:       Backfill service tables
+synopsis:       Backfill billing_team_member table
 category:       Network
 author:         Wire Swiss GmbH
 maintainer:     Wire Swiss GmbH <backend@wire.com>
-copyright:      (c) 2018 Wire Swiss GmbH
+copyright:      (c) 2020 Wire Swiss GmbH
 license:        AGPL-3
 build-type:     Simple
 
-executable auto-whitelist
+executable billing-team-member-backfill
   main-is: Main.hs
   other-modules:
       Options
       Work
-      Paths_auto_whitelist
+      Paths_billing_team_member_backfill
   hs-source-dirs:
       src
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
   build-depends:
-      attoparsec
-    , base
-    , brig-types
-    , bytestring
-    , bytestring-conversion
+      base
     , cassandra-util
-    , extended
-    , extra
+    , conduit
+    , containers
     , galley-types
     , imports
     , lens
-    , mtl
     , optparse-applicative
     , text
-    , time
     , tinylog
     , types-common
     , unliftio

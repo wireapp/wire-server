@@ -45,6 +45,7 @@ import Galley.Types
 import Galley.Types.Conversations.Roles
 import qualified Galley.Types.Swagger as Model
 import Galley.Types.Teams
+import Galley.Types.Teams.SearchVisibility
 import qualified Galley.Types.Teams.Swagger as TeamsModel
 import Imports hiding (head)
 import Network.HTTP.Types
@@ -373,6 +374,31 @@ sitemap = do
       .&. jsonRequest @ApproveLegalHoldForUserRequest
       .&. accept "application" "json"
 
+  get "/teams/:tid/search-visibility" (continue Teams.getSearchVisibilityH) $
+    zauthUserId
+      .&. capture "tid"
+      .&. accept "application" "json"
+  document "GET" "getSearchVisibility" $ do
+    summary "Shows the value for search visibility"
+    parameter Path "tid" bytes' $
+      description "Team ID"
+    returns (ref Model.teamSearchVisibility)
+    response 200 "Search visibility" end
+
+  put "/teams/:tid/search-visibility" (continue Teams.setSearchVisibilityH) $ do
+    zauthUserId
+      .&. capture "tid"
+      .&. jsonRequest @TeamSearchVisibilityView
+      .&. accept "application" "json"
+  document "POST" "setSearchVisibility" $ do
+    summary "Sets the search visibility for the whole team"
+    parameter Path "tid" bytes' $
+      description "Team ID"
+    body (ref Model.teamSearchVisibility) $
+      description "Search visibility to be set"
+    response 204 "Search visibility set" end
+    errorResponse Error.teamSearchVisibilityNotEnabled
+
   -- Team Feature Flag API ----------------------------------------------
 
   get "/teams/:tid/features/legalhold" (continue Teams.getLegalholdStatusH) $
@@ -408,6 +434,17 @@ sitemap = do
       description "URL-encoded email domain"
     returns (ref Model.customBackend)
     response 200 "Custom backend" end
+
+  get "/teams/:tid/features/search-visibility" (continue Teams.getTeamSearchVisibilityAvailableH) $
+    zauthUserId
+      .&. capture "tid"
+      .&. accept "application" "json"
+  document "GET" "getTeamSearchVisibilityAvailable" $ do
+    summary "Shows whether Custom Search Visibility feature is enabled for team"
+    parameter Path "tid" bytes' $
+      description "Team ID"
+    returns (ref Model.teamSearchVisibilityAvailable)
+    response 200 "Search Visibility status" end
 
   -- Bot API ------------------------------------------------------------
 

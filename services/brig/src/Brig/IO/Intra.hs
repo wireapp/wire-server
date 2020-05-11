@@ -54,6 +54,7 @@ module Brig.IO.Intra
     getTeamContacts,
     getTeamLegalHoldStatus,
     changeTeamStatus,
+    getTeamSearchVisibility,
   )
 where
 
@@ -76,6 +77,7 @@ import Control.Retry
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as BL
+import Data.Coerce (coerce)
 import qualified Data.Currency as Currency
 import qualified Data.HashMap.Strict as M
 import Data.Id
@@ -88,6 +90,7 @@ import qualified Data.Set as Set
 import Galley.Types (Connect (..), Conversation)
 import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
+import qualified Galley.Types.Teams.SearchVisibility as Team
 import Gundeck.Types.Push.V2
 import qualified Gundeck.Types.Push.V2 as Push
 import Imports
@@ -824,6 +827,16 @@ getTeamLegalHoldStatus tid = do
   where
     req =
       paths ["i", "teams", toByteString' tid, "features", "legalhold"]
+        . expect2xx
+
+-- | Calls 'Galley.API.getSearchVisibilityInternalH'.
+getTeamSearchVisibility :: TeamId -> AppIO Team.TeamSearchVisibility
+getTeamSearchVisibility tid = coerce @Team.TeamSearchVisibilityView @Team.TeamSearchVisibility <$> do
+  debug $ remote "galley" . msg (val "Get search visibility settings")
+  galleyRequest GET req >>= decodeBody "galley"
+  where
+    req =
+      paths ["i", "teams", toByteString' tid, "search-visibility"]
         . expect2xx
 
 -- | Calls 'Galley.API.updateTeamStatusH'.

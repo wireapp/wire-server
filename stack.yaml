@@ -37,6 +37,7 @@ packages:
 - tools/db/auto-whitelist
 - tools/db/migrate-sso-feature-flag
 - tools/db/service-backfill
+- tools/db/billing-team-member-backfill
 - tools/makedeb
 - tools/stern
 

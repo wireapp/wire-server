@@ -31,8 +31,10 @@ import Data.Aeson
 import Galley.Types
 import Galley.Types.Teams
 import Galley.Types.Teams.SSO
+import Galley.Types.Teams.SearchVisibility
 import Imports
 import Test.Brig.Roundtrip (testRoundTrip)
+import qualified Test.QuickCheck as QC
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
@@ -70,7 +72,12 @@ tests =
       testRoundTrip @ApproveLegalHoldForUserRequest,
       testRoundTrip @SSOStatus,
       testRoundTrip @SSOTeamConfig,
+      testRoundTrip @TeamSearchVisibility,
+      testRoundTrip @TeamSearchVisibilityView,
+      testRoundTrip @TeamSearchVisibilityAvailable,
+      testRoundTrip @TeamSearchVisibilityAvailableView,
       testRoundTrip @CustomBackend,
+      testRoundTrip @FeatureFlags,
       testCase "{} is a valid TeamMemberDeleteData" $ do
         assertEqual "{}" (Right $ newTeamMemberDeleteData Nothing) (eitherDecode "{}")
     ]
@@ -79,4 +86,5 @@ instance Arbitrary FeatureFlags where
   arbitrary =
     FeatureFlags
       <$> Test.Tasty.QuickCheck.elements [minBound ..]
+      <*> Test.Tasty.QuickCheck.elements [minBound ..]
       <*> Test.Tasty.QuickCheck.elements [minBound ..]

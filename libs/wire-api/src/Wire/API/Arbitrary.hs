@@ -67,6 +67,7 @@ import Wire.API.Team.LegalHold.External
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
+import Wire.API.Team.SearchVisibility
 import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Auth
@@ -551,3 +552,15 @@ instance Arbitrary PasswordChange where
 
 instance Arbitrary TeamMemberDeleteData where
   arbitrary = newTeamMemberDeleteData <$> arbitrary
+
+instance Arbitrary TeamSearchVisibilityView where
+  arbitrary = TeamSearchVisibilityView <$> arbitrary
+
+instance Arbitrary TeamSearchVisibility where
+  arbitrary = elements [minBound ..]
+
+instance Arbitrary TeamSearchVisibilityAvailable where
+  arbitrary = elements [minBound ..]
+
+instance Arbitrary TeamSearchVisibilityAvailableView where
+  arbitrary = TeamSearchVisibilityAvailableView <$> arbitrary

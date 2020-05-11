@@ -26,6 +26,7 @@ library
       Galley.Types.Swagger
       Galley.Types.Teams
       Galley.Types.Teams.Intra
+      Galley.Types.Teams.SearchVisibility
       Galley.Types.Teams.SSO
       Galley.Types.Teams.Swagger
   other-modules:

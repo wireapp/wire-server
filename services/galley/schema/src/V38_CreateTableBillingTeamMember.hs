@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE StrictData #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -18,23 +15,22 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Types.Search
-  ( TeamSearchInfo (..),
-
-    -- * re-exports
-    SearchResult (..),
-    Contact (..),
+module V38_CreateTableBillingTeamMember
+  ( migration,
   )
 where
 
-import Data.Id (TeamId)
-import Wire.API.User.Search
+import Cassandra.Schema
+import Imports
+import Text.RawString.QQ
 
-data TeamSearchInfo
-  = -- | When searching user is not part of a team.
-    NoTeam
-  | -- | When searching user is part of a team and 'Brig.Options.setSearchSameTeamOnly' is True
-    --   OR the searching user belongs to a team with SearchVisibilityNoNameOutsideTeam
-    TeamOnly TeamId
-  | -- | When searching user is part of a team and 'Brig.Options.setSearchSameTeamOnly' is False
-    TeamAndNonMembers TeamId
+migration :: Migration
+migration = Migration 38 "Create table `billing_team_member`" $ do
+  schema'
+    [r|
+        CREATE TABLE billing_team_member (
+            team   uuid,
+            user   uuid,
+            PRIMARY KEY (team, user)
+        );
+        |]

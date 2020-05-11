@@ -442,7 +442,16 @@ data Settings = Settings
     -- | When false, assume there are no other backends and IDs are always local.
     -- This means we don't run any queries on federation-related tables and don't
     -- make any calls to the federator service.
-    setEnableFederation :: !(Maybe Bool)
+    setEnableFederation :: !(Maybe Bool),
+    -- | The amount of time in milliseconds to wait after reading from an SQS queue
+    -- returns no message, before asking for messages from SQS again.
+    -- defaults to 'defSqsThrottleMillis'.
+    -- When using real SQS from AWS, throttling isn't needed as much, since using
+    --   SQS.rmWaitTimeSeconds (Just 20) in Brig.AWS.listen
+    -- ensures that there is only one request every 20 seconds.
+    -- However, that parameter is not honoured when using fake-sqs
+    -- (where throttling can thus make sense)
+    setSqsThrottleMillis :: !(Maybe Int)
   }
   deriving (Show, Generic)
 
@@ -454,6 +463,9 @@ defMaxValueLen = 524288
 
 defDeleteThrottleMillis :: Int
 defDeleteThrottleMillis = 100
+
+defSqsThrottleMillis :: Int
+defSqsThrottleMillis = 500
 
 defUserMaxPermClients :: Int
 defUserMaxPermClients = 7
@@ -489,3 +501,5 @@ Lens.makeLensesFor [("setSearchSameTeamOnly", "searchSameTeamOnly")] ''Settings
 Lens.makeLensesFor [("setUserMaxPermClients", "userMaxPermClients")] ''Settings
 
 Lens.makeLensesFor [("setEnableFederation", "enableFederation")] ''Settings
+
+Lens.makeLensesFor [("setSqsThrottleMillis", "sqsThrottleMillis")] ''Settings
