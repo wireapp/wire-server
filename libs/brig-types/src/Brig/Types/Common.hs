@@ -32,6 +32,7 @@ module Brig.Types.Common {- rename to Brig.Types.Account? -}
     Phone (..),
     parsePhone,
     isValidPhone,
+    PhoneBudgetTimeout (..),
     PhonePrefix (..),
     parsePhonePrefix,
     isValidPhonePrefix,
@@ -68,6 +69,7 @@ import Data.Aeson hiding ((<?>))
 import Data.Attoparsec.Text
 import Data.ByteString.Conversion
 import qualified Data.Text as Text
+import Data.Time.Clock (NominalDiffTime)
 import Imports
 import Wire.API.User.Identity
 import Wire.API.User.Profile
@@ -99,6 +101,20 @@ isValidPhone :: Text -> Bool
 isValidPhone = either (const False) (const True) . parseOnly e164
   where
     e164 = char '+' *> count 8 digit *> count 7 (optional digit) *> endOfInput
+
+-- | If the budget for SMS and voice calls for a phone number
+-- has been exhausted within a certain time frame, this timeout
+-- indicates in seconds when another attempt may be made.
+newtype PhoneBudgetTimeout = PhoneBudgetTimeout
+  {phoneBudgetTimeout :: NominalDiffTime}
+  deriving (Eq, Show, Generic)
+
+instance FromJSON PhoneBudgetTimeout where
+  parseJSON = withObject "PhoneBudgetTimeout" $ \o ->
+    PhoneBudgetTimeout <$> o .: "expires_in"
+
+instance ToJSON PhoneBudgetTimeout where
+  toJSON (PhoneBudgetTimeout t) = object ["expires_in" .= t]
 
 -----------------------------------------------------------------------------
 -- PhonePrefix (for excluding from SMS/calling)
