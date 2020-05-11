@@ -15,6 +15,7 @@ dependencies:
 - safe >=0.3
 - ssl-util
 - raw-strings-qq >=1.0
+- wire-api
 
 library:
   source-dirs: src

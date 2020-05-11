@@ -52,7 +52,6 @@ import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
 import Galley.Types
 import Galley.Types.Conversations.Roles hiding (DeleteConversation)
-import qualified Galley.Types.Proto as Proto
 import qualified Galley.Types.Teams as Team
 import Galley.Types.Teams hiding (EventType (..))
 import Galley.Types.Teams.Intra
@@ -65,6 +64,7 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestSetup
 import Web.Cookie
+import qualified Wire.API.Message.Proto as Proto
 
 -------------------------------------------------------------------------------
 -- API Operations

@@ -23,7 +23,11 @@
 -- | This module contains the analog of some of the team-level roles & permissions types in
 -- "Galley.Types.Teams".
 module Galley.Types.Conversations.Roles
-  ( ConversationRole,
+  ( isActionAllowed,
+    roleNameToActions,
+
+    -- * re-exports
+    ConversationRole,
     convRoleWireAdmin,
     convRoleWireMember,
     wireConvRoles,
@@ -34,8 +38,6 @@ module Galley.Types.Conversations.Roles
     Action (..),
     Actions (..),
     ConversationRolesList (..),
-    isActionAllowed,
-    roleNameToActions,
   )
 where
 

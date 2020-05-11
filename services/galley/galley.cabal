@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d9ce37929b55fc2e653f00f37652c1bc3ba9a5b1b3f696ccf8925e1e0fd25316
+-- hash: 10a09142aac40b411cc9fe39d44db9b10249f677510c4ca4c3ee6b54f173c48f
 
 name:           galley
 version:        0.83.0
@@ -151,6 +151,7 @@ library
     , wai-routing >=0.12
     , wai-utilities >=0.16
     , warp >=3.0
+    , wire-api
     , zauth
   default-language: Haskell2010
 
@@ -171,6 +172,7 @@ executable galley
     , safe >=0.3
     , ssl-util
     , types-common
+    , wire-api
   if flag(static)
     ld-options: -static
   default-language: Haskell2010
@@ -265,6 +267,7 @@ executable galley-integration
     , wai-utilities
     , warp
     , warp-tls >=3.2
+    , wire-api
     , yaml
   default-language: Haskell2010
 
@@ -305,6 +308,7 @@ executable galley-schema
     , ssl-util
     , text
     , tinylog
+    , wire-api
   if flag(static)
     ld-options: -static
   default-language: Haskell2010
@@ -336,4 +340,5 @@ test-suite galley-types-tests
     , types-common
     , wai
     , wai-predicates
+    , wire-api
   default-language: Haskell2010

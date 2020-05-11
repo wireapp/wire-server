@@ -31,7 +31,7 @@ module Galley.Types.Bot
     rmBotConv,
     rmBotId,
 
-    -- * Re-exports
+    -- * re-exports
     module Service,
     BotConvView,
     botConvView,
