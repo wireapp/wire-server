@@ -9,6 +9,10 @@ tags:
   spar: true
   web: false
 
+fake-aws-ses:
+  enabled: true
+  sesSender: "backend-integrationk8s@wire.com"
+
 cassandra-ephemeral:
   cassandra-ephemeral:
     # TODO: should put this in our wire-server-deploy chart instead
@@ -26,10 +30,9 @@ cassandra-ephemeral:
     resources:
       requests:
         memory: 512Mi
-        cpu: 200m # Otherwise we could never deploy two
+        cpu: 1 # Otherwise we could never deploy two
       limits:
         memory: 1024Mi
-        cpu: 1
     config:
       max_heap_size: 256M
       heap_new_size: 128M
@@ -55,7 +58,6 @@ brig:
       cpu: 100m
     limits:
       memory: 512Mi
-      cpu: 100m
   config:
     externalUrls:
       nginz: https://kube-staging-nginz-https.zinfra.io
@@ -128,7 +130,6 @@ cannon:
       cpu: 100m
     limits:
       memory: 512Mi
-      cpu: 100m
   drainTimeout: 0
 cargohold:
   image:
@@ -140,7 +141,6 @@ cargohold:
       cpu: 100m
     limits:
       memory: 512Mi
-      cpu: 100m
   config:
     aws:
       s3Bucket: dummy-bucket
@@ -158,7 +158,6 @@ galley:
       cpu: 100m
     limits:
       memory: 512Mi
-      cpu: 100m
   config:
     cassandra:
       host: cassandra-ephemeral
@@ -187,7 +186,6 @@ gundeck:
       cpu: 100m
     limits:
       memory: 1024Mi
-      cpu: 100m
   config:
     cassandra:
       host: cassandra-ephemeral
@@ -243,7 +241,6 @@ spar:
       cpu: 100m
     limits:
       memory: 1024Mi
-      cpu: 100m
   config:
     tlsDisableCertValidation: true
     cassandra:
