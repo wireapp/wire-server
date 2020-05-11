@@ -77,6 +77,7 @@ module Brig.Types.Swagger
   )
 where
 
+-- TODO: qualified imports?
 import Data.Misc (modelLocation)
 import Data.Swagger.Build.Api (DataType, Model)
 import Wire.API.Call.TURN (modelRtcConfiguration, modelRtcIceServer)
@@ -102,6 +103,8 @@ import Wire.API.User.RichInfo (modelRichField, modelRichInfo)
 import Wire.API.User.Search (modelSearchContact, modelSearchResult)
 import Wire.Swagger (pendingLoginError)
 
+-- | Actually all models of the whole API,
+-- but it doesn't hurt and makes it less likely to forget one.
 brigModels :: [Model]
 brigModels = Wire.API.Swagger.models
 
