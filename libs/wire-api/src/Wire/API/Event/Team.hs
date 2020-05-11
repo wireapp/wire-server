@@ -46,6 +46,7 @@ module Wire.API.Event.Team
     modelConvEvent,
     modelConversationData,
     modelUpdateEvent,
+    typeEventType,
   )
 where
 

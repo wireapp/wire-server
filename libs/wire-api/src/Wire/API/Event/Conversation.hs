@@ -52,6 +52,7 @@ module Wire.API.Event.Conversation
     modelConnect,
     modelMemberUpdateData,
     modelOtrMessage,
+    typeEventType,
   )
 where
 

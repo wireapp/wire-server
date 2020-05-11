@@ -40,6 +40,7 @@ module Wire.API.Message
     modelNewOtrMessage,
     modelOtrRecipients,
     modelClientMismatch,
+    typePriority,
   )
 where
 

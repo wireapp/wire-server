@@ -57,10 +57,13 @@ module Wire.API.Conversation
     modelConversationIds,
     modelInvite,
     modelNewConversation,
+    modelTeamInfo,
     modelConversationUpdateName,
     modelConversationAccessUpdate,
     modelConversationReceiptModeUpdate,
     modelConversationMessageTimerUpdate,
+    typeConversationType,
+    typeAccess,
   )
 where
 

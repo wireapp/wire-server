@@ -318,6 +318,7 @@ newtype TeamDeleteData = TeamDeleteData
 newTeamDeleteData :: Maybe PlainTextPassword -> TeamDeleteData
 newTeamDeleteData = TeamDeleteData
 
+-- FUTUREWORK: fix name of model? (upper case)
 modelTeamDelete :: Doc.Model
 modelTeamDelete = Doc.defineModel "teamDeleteData" $ do
   Doc.description "Data for a team deletion request in case of binding teams."

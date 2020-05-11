@@ -26,7 +26,7 @@
 
 module Wire.API.Team.Permission
   ( -- * Permissions
-    Permissions,
+    Permissions (..),
     self,
     copy,
     newPermissions,

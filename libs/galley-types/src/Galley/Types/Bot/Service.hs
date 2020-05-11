@@ -20,19 +20,59 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.Types.Bot.Service
-  ( ServiceToken (..),
-    ServiceRef,
-    newServiceRef,
-    serviceRefId,
-    serviceRefProvider,
-    Service,
+  ( Service (..),
     newService,
     serviceRef,
     serviceUrl,
     serviceToken,
     serviceFingerprints,
     serviceEnabled,
+
+    -- * re-exports
+    ServiceToken (..),
+    ServiceRef (..),
+    newServiceRef,
+    serviceRefId,
+    serviceRefProvider,
   )
 where
 
-import Galley.Types.Bot.Service.Internal
+import Control.Lens (makeLenses)
+import Data.Aeson
+import Data.Misc (Fingerprint, HttpsUrl, Rsa)
+import Imports
+import Wire.API.Provider.Service hiding (Service (..))
+
+-- Service --------------------------------------------------------------------
+
+-- | Internal service connection information that is needed by galley.
+data Service = Service
+  { _serviceRef :: !ServiceRef,
+    _serviceUrl :: !HttpsUrl,
+    _serviceToken :: !ServiceToken,
+    _serviceFingerprints :: ![Fingerprint Rsa],
+    _serviceEnabled :: !Bool
+  }
+
+makeLenses ''Service
+
+newService :: ServiceRef -> HttpsUrl -> ServiceToken -> [Fingerprint Rsa] -> Service
+newService ref url tok fps = Service ref url tok fps True
+
+instance FromJSON Service where
+  parseJSON = withObject "Service" $ \o ->
+    Service <$> o .: "ref"
+      <*> o .: "base_url"
+      <*> o .: "auth_token"
+      <*> o .: "fingerprints"
+      <*> o .: "enabled"
+
+instance ToJSON Service where
+  toJSON s =
+    object
+      [ "ref" .= _serviceRef s,
+        "base_url" .= _serviceUrl s,
+        "auth_token" .= _serviceToken s,
+        "fingerprints" .= _serviceFingerprints s,
+        "enabled" .= _serviceEnabled s
+      ]

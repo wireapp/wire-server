@@ -26,7 +26,7 @@
 
 module Wire.API.Team.Member
   ( -- * TeamMember
-    TeamMember,
+    TeamMember (..),
     newTeamMember,
     userId,
     permissions,
@@ -244,6 +244,7 @@ newtype TeamMemberDeleteData = TeamMemberDeleteData
 newTeamMemberDeleteData :: Maybe PlainTextPassword -> TeamMemberDeleteData
 newTeamMemberDeleteData = TeamMemberDeleteData
 
+-- FUTUREWORK: fix name of model?
 modelTeamMemberDelete :: Doc.Model
 modelTeamMemberDelete = Doc.defineModel "teamDeleteData" $ do
   Doc.description "Data for a team member deletion request in case of binding teams."

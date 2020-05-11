@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 17c531781908d029505fd232502717c457cd69cdc75158a30937b07dd9f95b87
+-- hash: cdcdf111d387fa7052c8b55618370dcd0233dce2613b2284153c24eb8b72478b
 
 name:           galley-types
 version:        0.81.0
@@ -22,12 +22,9 @@ library
       Galley.Types
       Galley.Types.Bot
       Galley.Types.Bot.Service
-      Galley.Types.Bot.Service.Internal
       Galley.Types.Conversations.Roles
-      Galley.Types.Proto
       Galley.Types.Swagger
       Galley.Types.Teams
-      Galley.Types.Teams.Internal
       Galley.Types.Teams.Intra
       Galley.Types.Teams.SSO
       Galley.Types.Teams.Swagger
@@ -64,6 +61,7 @@ library
     , unordered-containers >=0.2
     , uri-bytestring >=0.2
     , uuid >=1.3
+    , wire-api
   default-language: Haskell2010
 
 test-suite galley-types-tests
@@ -85,4 +83,5 @@ test-suite galley-types-tests
     , tasty
     , tasty-hunit
     , types-common
+    , wire-api
   default-language: Haskell2010

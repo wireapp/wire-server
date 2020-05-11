@@ -36,6 +36,7 @@ module Wire.API.Team.Feature
     -- * Swagger
     modelLegalHoldTeamConfig,
     modelSsoTeamConfig,
+    typeFeatureStatus,
   )
 where
 

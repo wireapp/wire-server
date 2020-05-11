@@ -32,6 +32,7 @@ module Wire.API.Conversation.Role
 
     -- * RoleName
     RoleName,
+    fromRoleName,
     wireConvRoleNames,
     roleNameWireAdmin,
     roleNameWireMember,
@@ -40,9 +41,15 @@ module Wire.API.Conversation.Role
     Action (..),
     Actions (..),
 
+    -- * helpers
+    isValidRoleName,
+    roleActions,
+    toConvRole,
+
     -- * Swagger
     modelConversationRole,
     modelConversationRolesList,
+    typeConversationRoleAction,
   )
 where
 
@@ -226,7 +233,5 @@ typeConversationRoleAction =
         "leave_conversation",
         "delete_conversation"
       ]
-
-pure []
 
 deriveJSON defaultOptions {constructorTagModifier = camelTo2 '_'} ''Action

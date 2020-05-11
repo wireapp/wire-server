@@ -29,6 +29,7 @@ module Wire.API.Conversation.Typing
 
     -- * Swagger
     modelTyping,
+    typeTypingStatus,
   )
 where
 
