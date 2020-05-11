@@ -83,9 +83,6 @@ instance Arbitrary EmailRemove where
 instance Arbitrary ManagedByUpdate where
   arbitrary = ManagedByUpdate <$> arbitrary
 
-instance Arbitrary PasswordChange where
-  arbitrary = PasswordChange <$> arbitrary <*> arbitrary
-
 instance Arbitrary RichInfoUpdate where
   arbitrary = RichInfoUpdate <$> arbitrary
 

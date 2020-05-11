@@ -115,9 +115,3 @@ instance Arbitrary LegalHoldClientRequest where
 
 instance Arbitrary LegalHoldService where
   arbitrary = LegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-
-instance Arbitrary CustomBackend where
-  arbitrary =
-    CustomBackend
-      <$> arbitrary
-      <*> arbitrary

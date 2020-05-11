@@ -539,3 +539,6 @@ instance Arbitrary CustomBackend where
     CustomBackend
       <$> arbitrary
       <*> arbitrary
+
+instance Arbitrary PasswordChange where
+  arbitrary = PasswordChange <$> arbitrary <*> arbitrary
