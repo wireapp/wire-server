@@ -240,6 +240,7 @@ instance FromJSON NewTeamMember where
 newtype TeamMemberDeleteData = TeamMemberDeleteData
   { _tmdAuthPassword :: Maybe PlainTextPassword
   }
+  deriving (Eq, Show)
 
 newTeamMemberDeleteData :: Maybe PlainTextPassword -> TeamMemberDeleteData
 newTeamMemberDeleteData = TeamMemberDeleteData

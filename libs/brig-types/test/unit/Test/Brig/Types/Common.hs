@@ -27,9 +27,7 @@ module Test.Brig.Types.Common where
 import Brig.Types.Common
 import Brig.Types.Team.LegalHold
 import Brig.Types.Test.Arbitrary ()
-import Control.Lens
 import Data.Aeson
-import Data.String.Conversions
 import Galley.Types
 import Galley.Types.Teams
 import Galley.Types.Teams.SSO
@@ -73,45 +71,12 @@ tests =
       testRoundTrip @SSOStatus,
       testRoundTrip @SSOTeamConfig,
       testRoundTrip @CustomBackend,
-      testRoundTrip @FeatureFlags,
       testCase "{} is a valid TeamMemberDeleteData" $ do
         assertEqual "{}" (Right $ newTeamMemberDeleteData Nothing) (eitherDecode "{}")
     ]
-
-instance Arbitrary TeamMemberDeleteData where
-  arbitrary = newTeamMemberDeleteData <$> arbitrary
-
-instance Eq TeamMemberDeleteData where
-  a == b = a ^. tmdAuthPassword == b ^. tmdAuthPassword
-
-instance Show TeamMemberDeleteData where
-  show a = "(TeamMemberDeleteData " <> show (a ^. tmdAuthPassword) <> ")"
-
-instance Arbitrary SSOStatus where
-  arbitrary = Test.Tasty.QuickCheck.elements [minBound ..]
-
-instance Arbitrary SSOTeamConfig where
-  arbitrary = SSOTeamConfig <$> arbitrary
 
 instance Arbitrary FeatureFlags where
   arbitrary =
     FeatureFlags
       <$> Test.Tasty.QuickCheck.elements [minBound ..]
       <*> Test.Tasty.QuickCheck.elements [minBound ..]
-
-instance Arbitrary ExcludedPrefix where
-  arbitrary = ExcludedPrefix <$> arbitrary <*> arbitrary
-
-instance Arbitrary PhonePrefix where
-  arbitrary = do
-    digits <- take 8 <$> listOf1 (Test.Tasty.QuickCheck.elements ['0' .. '9'])
-    pure . PhonePrefix . cs $ "+" <> digits
-
-instance Arbitrary LegalHoldClientRequest where
-  arbitrary =
-    LegalHoldClientRequest
-      <$> arbitrary
-      <*> arbitrary
-
-instance Arbitrary LegalHoldService where
-  arbitrary = LegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary

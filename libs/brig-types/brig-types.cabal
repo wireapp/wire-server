@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2c7bf093d4d1b72b0b0de466070a80687f3ec054b725e5b19eb779b4969d761c
+-- hash: 7708c6030d7990cd7a7a608b49f061bb4e8bbc8e367b3dd33884c75143841366
 
 name:           brig-types
 version:        1.35.0
@@ -77,6 +77,7 @@ library
     , safe >=0.3
     , scientific >=0.3.4
     , singletons >=2.0
+    , string-conversions
     , swagger >=0.1
     , text >=0.11
     , time >=1.1
@@ -120,7 +121,6 @@ test-suite brig-types-tests
     , pem
     , quickcheck-instances
     , random
-    , string-conversions
     , tasty
     , tasty-hunit
     , tasty-quickcheck

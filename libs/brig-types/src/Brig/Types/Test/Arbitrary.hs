@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -20,4 +22,26 @@ module Brig.Types.Test.Arbitrary
   )
 where
 
+import Brig.Types.Team.LegalHold
+import Brig.Types.User
+import Data.String.Conversions (cs)
+import Imports
+import Test.QuickCheck
 import Wire.API.Arbitrary
+
+instance Arbitrary ExcludedPrefix where
+  arbitrary = ExcludedPrefix <$> arbitrary <*> arbitrary
+
+instance Arbitrary PhonePrefix where
+  arbitrary = do
+    digits <- take 8 <$> listOf1 (elements ['0' .. '9'])
+    pure . PhonePrefix . cs $ "+" <> digits
+
+instance Arbitrary LegalHoldClientRequest where
+  arbitrary =
+    LegalHoldClientRequest
+      <$> arbitrary
+      <*> arbitrary
+
+instance Arbitrary LegalHoldService where
+  arbitrary = LegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary

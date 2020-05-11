@@ -445,14 +445,20 @@ alphaNumChars = ['a' .. 'z'] <> ['A' .. 'Z'] <> ['0' .. '9']
 genEnumBounded :: (Enum a, Bounded a) => Gen a
 genEnumBounded = elements [minBound ..]
 
-instance Arbitrary UserLegalHoldStatusResponse where
-  arbitrary = UserLegalHoldStatusResponse <$> arbitrary <*> arbitrary <*> arbitrary
+instance Arbitrary SSOStatus where
+  arbitrary = elements [minBound ..]
+
+instance Arbitrary SSOTeamConfig where
+  arbitrary = SSOTeamConfig <$> arbitrary
 
 instance Arbitrary LegalHoldStatus where
   arbitrary = genEnumBounded
 
 instance Arbitrary LegalHoldTeamConfig where
   arbitrary = LegalHoldTeamConfig <$> arbitrary
+
+instance Arbitrary UserLegalHoldStatusResponse where
+  arbitrary = UserLegalHoldStatusResponse <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary NewLegalHoldService where
   arbitrary = NewLegalHoldService <$> arbitrary <*> arbitrary <*> arbitrary
@@ -542,3 +548,6 @@ instance Arbitrary CustomBackend where
 
 instance Arbitrary PasswordChange where
   arbitrary = PasswordChange <$> arbitrary <*> arbitrary
+
+instance Arbitrary TeamMemberDeleteData where
+  arbitrary = newTeamMemberDeleteData <$> arbitrary
