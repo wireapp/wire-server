@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7edcd36d24f5398798920a6ee316d3174d152a77fb531b3d3f8561286506d295
+-- hash: 83ee67ac57c0c2a532f6faa4eae38b3fcc19303fc6d68955ffe4bd98d248e753
 
 name:           cargohold-types
 version:        1.5.0
@@ -49,4 +49,5 @@ library
     , types-common >=0.16
     , unordered-containers >=0.2
     , uuid >=1.2
+    , wire-api
   default-language: Haskell2010

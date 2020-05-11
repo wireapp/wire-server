@@ -29,5 +29,6 @@ dependencies:
 - types-common >=0.16
 - unordered-containers >=0.2
 - uuid >=1.2
+- wire-api
 library:
   source-dirs: src
