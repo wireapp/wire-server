@@ -38,7 +38,8 @@ import Data.Text.Ascii
 import Imports
 
 newtype PropertyKeysAndValues = PropertyKeysAndValues [(PropertyKey, PropertyValue)]
-  deriving (Eq, Show, Generic, Hashable)
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Hashable)
 
 modelPropertyDictionary :: Doc.Model
 modelPropertyDictionary =
@@ -51,14 +52,12 @@ instance ToJSON PropertyKeysAndValues where
 newtype PropertyKey = PropertyKey
   {propertyKeyName :: AsciiPrintable}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (FromByteString, ToByteString, FromJSON, ToJSON, FromJSONKey, ToJSONKey)
-  deriving (Hashable) -- TODO: which strategy is used?
+  deriving newtype (FromByteString, ToByteString, FromJSON, ToJSON, FromJSONKey, ToJSONKey, Hashable)
 
 newtype PropertyValue = PropertyValue
   {propertyValueJson :: Value}
   deriving stock (Eq, Show, Generic)
-  deriving newtype (FromJSON, ToJSON)
-  deriving (Hashable) -- TODO: which strategy is used?
+  deriving newtype (FromJSON, ToJSON, Hashable)
 
 modelPropertyValue :: Doc.Model
 modelPropertyValue =
