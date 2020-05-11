@@ -1,7 +1,7 @@
 defaults:
   local: ../../package-defaults.yaml
 name: wire-api
-version: '0.81.0'
+version: '0.1.0'
 description: API types of the Wire collaboration platform
 category: Network
 author: Wire Swiss GmbH
@@ -11,40 +11,37 @@ license: AGPL-3
 dependencies:
 - aeson >=0.6
 - containers >=0.5
-- cryptonite >=0.11
 - imports
-- memory >=0.11
-- mime >=0.4
 library:
   source-dirs: src
   dependencies:
-  - attoparsec >=0.10
   - base >=4 && <5
+  - QuickCheck >=2.9
+  - attoparsec >=0.10
   - base64-bytestring >=1.0
   - bytestring >=0.9
   - bytestring-conversion >=0.2
   - case-insensitive
   - cassandra-util
+  - cryptonite >=0.11
   - currency-codes >=2.0
-  - data-default >=0.5
   - errors
-  - extra
   - exceptions >=0.10.0
+  - extra
   - hashable
   - hostname-validate
   - iproute >=1.5
   - iso3166-country-codes >=0.2
   - iso639 >=0.1
   - lens >=4.12
-  - lens-aeson
+  - memory >=0.11
+  - mime >=0.4
   - network-uri >=2.6
   - pem >=0.2
   - protobuf >=0.2
-  - QuickCheck >=2.9
   - quickcheck-instances >=0.3.16
   - random
   - safe >=0.3
-  - singletons >=2.0
   - string-conversions
   - swagger >=0.1
   - text >=0.11
@@ -64,8 +61,8 @@ tests:
     dependencies:
     - base
     - wire-api
+    - aeson-qq
     - lens
     - tasty
     - tasty-hunit
     - tasty-quickcheck
-    - aeson-qq

@@ -50,8 +50,8 @@ import Data.ByteString.Conversion
 import qualified Data.Range as Range
 import Data.Range (LTE, Range, fromRange)
 import qualified Data.Set as Set
-import Data.Singletons.TypeLits (Nat)
 import qualified Data.Text.Encoding as Text
+import GHC.TypeLits (Nat)
 import Imports
 
 --------------------------------------------------------------------------------

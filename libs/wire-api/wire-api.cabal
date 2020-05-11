@@ -4,10 +4,10 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9d29defab5d6c4a4cee2d5f72b1c6287506a0b77d99f0b1ee282a3c2661b8f08
+-- hash: cb33a28d10195a5933effeb4e9f2def51c116e8e79a62342a76a4a579d24d1e1
 
 name:           wire-api
-version:        0.81.0
+version:        0.1.0
 description:    API types of the Wire collaboration platform
 category:       Network
 author:         Wire Swiss GmbH
@@ -86,7 +86,6 @@ library
     , containers >=0.5
     , cryptonite >=0.11
     , currency-codes >=2.0
-    , data-default >=0.5
     , errors
     , exceptions >=0.10.0
     , extra
@@ -97,7 +96,6 @@ library
     , iso3166-country-codes >=0.2
     , iso639 >=0.1
     , lens >=4.12
-    , lens-aeson
     , memory >=0.11
     , mime >=0.4
     , network-uri >=2.6
@@ -106,7 +104,6 @@ library
     , quickcheck-instances >=0.3.16
     , random
     , safe >=0.3
-    , singletons >=2.0
     , string-conversions
     , swagger >=0.1
     , text >=0.11
@@ -136,11 +133,8 @@ test-suite wire-api-tests
     , aeson-qq
     , base
     , containers >=0.5
-    , cryptonite >=0.11
     , imports
     , lens
-    , memory >=0.11
-    , mime >=0.4
     , tasty
     , tasty-hunit
     , tasty-quickcheck
