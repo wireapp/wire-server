@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b84f28952400f694eb72b8cf86dc0d65dcf8b3d265a1eb9ac5a1ac482dde4d31
+-- hash: 571a31cb612cdf5b5b889cf95970cf3d77f2768e5068be43fbbe96b94d7e48a5
 
 name:           brig-types
 version:        1.35.0
@@ -95,7 +95,6 @@ test-suite brig-types-tests
       Test.Brig.Roundtrip
       Test.Brig.Types.Common
       Test.Brig.Types.Team
-      Test.Brig.Types.TURN
       Test.Brig.Types.User
       Paths_brig_types
   hs-source-dirs:
