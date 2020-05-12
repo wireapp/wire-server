@@ -7,7 +7,7 @@ Introduction
 Once you have your own wire-server set up and configured, you may want to use a client other than the web interface (webapp). There are a few ways to accomplish this:
 
 - **Using a Deep Link** (which this page is all about)
-- Registering your backend instance with the hosted SaaS backend for re-direction. For which you might need to to the folks @ Wire (the company).
+- Registering your backend instance with the hosted SaaS backend for re-direction. For which you might need to talk to the folks @ Wire (the company).
 
 Assumptions:
 
