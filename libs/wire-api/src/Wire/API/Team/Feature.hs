@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -40,6 +41,8 @@ import Data.Json.Util ((#))
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as T
 import Imports
+import qualified Test.QuickCheck as QC
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- LegalHoldTeamConfig
@@ -48,6 +51,7 @@ data LegalHoldTeamConfig = LegalHoldTeamConfig
   { legalHoldTeamConfigStatus :: LegalHoldStatus
   }
   deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform LegalHoldTeamConfig)
 
 modelLegalHoldTeamConfig :: Doc.Model
 modelLegalHoldTeamConfig = Doc.defineModel "LegalHoldTeamConfig" $ do
@@ -66,6 +70,7 @@ instance FromJSON LegalHoldTeamConfig where
 
 data LegalHoldStatus = LegalHoldDisabled | LegalHoldEnabled
   deriving stock (Eq, Show, Ord, Enum, Bounded, Generic)
+  deriving (Arbitrary) via (GenericUniform LegalHoldStatus)
 
 typeFeatureStatus :: Doc.DataType
 typeFeatureStatus =
@@ -92,6 +97,7 @@ data SSOTeamConfig = SSOTeamConfig
   { ssoTeamConfigStatus :: SSOStatus
   }
   deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform SSOTeamConfig)
 
 modelSsoTeamConfig :: Doc.Model
 modelSsoTeamConfig = Doc.defineModel "SSOTeamConfig" $ do
@@ -110,6 +116,7 @@ instance FromJSON SSOTeamConfig where
 
 data SSOStatus = SSODisabled | SSOEnabled
   deriving stock (Eq, Show, Ord, Enum, Bounded, Generic)
+  deriving (Arbitrary) via (GenericUniform SSOStatus)
 
 -- also uses the modelFeatureStatus Swagger doc
 

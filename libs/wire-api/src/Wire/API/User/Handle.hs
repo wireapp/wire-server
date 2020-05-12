@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -33,12 +34,15 @@ import Data.Id (UserId)
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
+import qualified Test.QuickCheck as QC
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- UserHandleInfo
 
 newtype UserHandleInfo = UserHandleInfo {userHandleId :: UserId}
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
 
 modelUserHandleInfo :: Doc.Model
 modelUserHandleInfo = Doc.defineModel "UserHandleInfo" $ do
@@ -66,6 +70,7 @@ data CheckHandles = CheckHandles
     checkHandlesNum :: Range 1 10 Word
   }
   deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform CheckHandles)
 
 modelCheckHandles :: Doc.Model
 modelCheckHandles = Doc.defineModel "CheckHandles" $ do

@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -36,6 +37,8 @@ import Data.Aeson
 import Data.Id
 import Data.Json.Util ((#))
 import Imports
+import qualified Test.QuickCheck as QC
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.User.Client.Prekey
 
 --------------------------------------------------------------------------------
@@ -47,6 +50,7 @@ data RequestNewLegalHoldClient = RequestNewLegalHoldClient
     teamId :: TeamId
   }
   deriving stock (Show, Eq, Generic)
+  deriving (Arbitrary) via (GenericUniform RequestNewLegalHoldClient)
 
 instance ToJSON RequestNewLegalHoldClient where
   toJSON (RequestNewLegalHoldClient userId teamId) =
@@ -66,6 +70,7 @@ data NewLegalHoldClient = NewLegalHoldClient
     newLegalHoldClientLastKey :: LastPrekey
   }
   deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewLegalHoldClient)
 
 instance ToJSON NewLegalHoldClient where
   toJSON c =
@@ -91,6 +96,7 @@ data LegalHoldServiceConfirm = LegalHoldServiceConfirm
     lhcRefreshToken :: Text
   }
   deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform LegalHoldServiceConfirm)
 
 instance ToJSON LegalHoldServiceConfirm where
   toJSON (LegalHoldServiceConfirm clientId userId teamId refreshToken) =

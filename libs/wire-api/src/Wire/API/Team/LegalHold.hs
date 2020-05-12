@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -36,6 +37,8 @@ import Data.Json.Util
 import Data.LegalHold
 import Data.Misc
 import Imports
+import qualified Test.QuickCheck as QC
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Provider
 import Wire.API.Provider.Service (ServiceKeyPEM)
 import Wire.API.User.Client.Prekey
@@ -50,6 +53,7 @@ data NewLegalHoldService = NewLegalHoldService
     newLegalHoldServiceToken :: ServiceToken
   }
   deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewLegalHoldService)
 
 instance ToJSON NewLegalHoldService where
   toJSON s =
@@ -74,6 +78,7 @@ data ViewLegalHoldService
   | ViewLegalHoldServiceNotConfigured
   | ViewLegalHoldServiceDisabled
   deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ViewLegalHoldService)
 
 instance ToJSON ViewLegalHoldService where
   toJSON s = case s of
@@ -108,6 +113,7 @@ data ViewLegalHoldServiceInfo = ViewLegalHoldServiceInfo
     viewLegalHoldServiceKey :: ServiceKeyPEM
   }
   deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ViewLegalHoldServiceInfo)
 
 instance ToJSON ViewLegalHoldServiceInfo where
   toJSON info =
@@ -139,6 +145,7 @@ data UserLegalHoldStatusResponse = UserLegalHoldStatusResponse
     ulhsrClientId :: Maybe ClientId
   }
   deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UserLegalHoldStatusResponse)
 
 instance ToJSON UserLegalHoldStatusResponse where
   toJSON (UserLegalHoldStatusResponse status lastPrekey' clientId') =
@@ -161,6 +168,7 @@ data RemoveLegalHoldSettingsRequest = RemoveLegalHoldSettingsRequest
   { rmlhsrPassword :: Maybe PlainTextPassword
   }
   deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform RemoveLegalHoldSettingsRequest)
 
 instance ToJSON RemoveLegalHoldSettingsRequest where
   toJSON (RemoveLegalHoldSettingsRequest password) =
@@ -180,6 +188,7 @@ data DisableLegalHoldForUserRequest = DisableLegalHoldForUserRequest
   { dlhfuPassword :: Maybe PlainTextPassword
   }
   deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform DisableLegalHoldForUserRequest)
 
 instance ToJSON DisableLegalHoldForUserRequest where
   toJSON (DisableLegalHoldForUserRequest password) =
@@ -199,6 +208,7 @@ data ApproveLegalHoldForUserRequest = ApproveLegalHoldForUserRequest
   { alhfuPassword :: Maybe PlainTextPassword
   }
   deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ApproveLegalHoldForUserRequest)
 
 instance ToJSON ApproveLegalHoldForUserRequest where
   toJSON (ApproveLegalHoldForUserRequest password) =

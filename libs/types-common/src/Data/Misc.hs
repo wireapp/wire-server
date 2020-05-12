@@ -69,16 +69,17 @@ import Data.ByteString.Builder
 import Data.ByteString.Char8 (unpack)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
-import Data.IP (IP)
+import Data.IP (IP (IPv4))
 import Data.Int (Int64)
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Imports
-import Test.QuickCheck (Arbitrary (..))
+import Test.QuickCheck (Arbitrary (..), suchThat)
 import Text.Read (Read (..))
 import URI.ByteString hiding (Port)
+import qualified URI.ByteString.QQ as URI.QQ
 
 --------------------------------------------------------------------------------
 -- IpAddr / Port
@@ -100,10 +101,24 @@ instance Read IpAddr where
 
 instance NFData IpAddr where rnf (IpAddr a) = seq a ()
 
+-- TODO: Add an arbitrary instance for IPv6
+instance Arbitrary IpAddr where
+  arbitrary = IpAddr . IPv4 <$> ipV4Arbitrary
+    where
+      ipV4Arbitrary = do
+        a <- ipV4Part
+        b <- ipV4Part
+        c <- ipV4Part
+        d <- ipV4Part
+        let adr = show a ++ "." ++ show b ++ "." ++ show c ++ "." ++ show d
+        return (read adr)
+      ipV4Part = arbitrary @Word16 `suchThat` (< 256)
+
 newtype Port = Port
   { portNumber :: Word16
   }
-  deriving (Eq, Ord, Show, Real, Enum, Num, Integral, NFData, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (Real, Enum, Num, Integral, NFData, Arbitrary)
 
 instance Read Port where
   readsPrec n = map (\x -> (Port (fst x), snd x)) . readsPrec n
@@ -251,6 +266,9 @@ instance Cql HttpsUrl where
   fromCql (CqlBlob t) = runParser parser (toStrict t)
   fromCql _ = fail "HttpsUrl: Expected CqlBlob"
 
+instance Arbitrary HttpsUrl where
+  arbitrary = pure $ HttpsUrl [URI.QQ.uri|https://example.com|]
+
 --------------------------------------------------------------------------------
 -- Fingerprint
 
@@ -276,6 +294,12 @@ instance Cql (Fingerprint a) where
 
   fromCql (CqlBlob b) = return (Fingerprint (toStrict b))
   fromCql _ = fail "Fingerprint: Expected CqlBlob"
+
+instance Arbitrary (Fingerprint Rsa) where
+  arbitrary =
+    pure $
+      Fingerprint
+        "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
 
 --------------------------------------------------------------------------------
 -- Password

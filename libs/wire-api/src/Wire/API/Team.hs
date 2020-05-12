@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -78,6 +79,8 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
+import qualified Test.QuickCheck as QC
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Team.Member (TeamMember, modelTeamMember)
 
 --------------------------------------------------------------------------------
@@ -208,6 +211,14 @@ newTeamJson (NewTeam n i ik _) =
 
 deriving instance FromJSON BindingNewTeam
 
+-- TODO: since new team members do not get serialized, we zero them here.
+-- it may be worth looking into how this can be solved on in the types.
+instance Arbitrary BindingNewTeam where
+  arbitrary =
+    BindingNewTeam . zeroTeamMembers <$> arbitrary @(NewTeam ())
+    where
+      zeroTeamMembers tms = tms {_newTeamMembers = Nothing}
+
 -- | FUTUREWORK: this is dead code!  remove!
 newtype NonBindingNewTeam = NonBindingNewTeam (NewTeam (Range 1 127 [TeamMember]))
   deriving (Eq, Show, Generic)
@@ -241,6 +252,7 @@ data NewTeam a = NewTeam
     _newTeamMembers :: Maybe a
   }
   deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform (NewTeam a))
 
 newNewTeam :: Range 1 256 Text -> Range 1 256 Text -> NewTeam a
 newNewTeam nme ico = NewTeam nme ico Nothing Nothing

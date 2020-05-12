@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
@@ -95,8 +96,10 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
-import Data.UUID (UUID)
+import Data.UUID (UUID, nil)
 import Imports
+import qualified Test.QuickCheck as QC
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Provider.Service (ServiceRef, modelServiceRef)
 import Wire.API.Team (BindingNewTeam, modelNewBindingTeam)
 import Wire.API.User.Activation (ActivationCode)
@@ -153,7 +156,8 @@ data UserProfile = UserProfile
     profileTeam :: Maybe TeamId,
     profileEmail :: Maybe Email
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UserProfile)
 
 modelUser :: Doc.Model
 modelUser = Doc.defineModel "User" $ do
@@ -221,7 +225,8 @@ instance FromJSON UserProfile where
 -- | A self profile.
 data SelfProfile = SelfProfile
   {selfUser :: User}
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform SelfProfile)
 
 modelSelf :: Doc.Model
 modelSelf = Doc.defineModel "Self" $ do
@@ -295,7 +300,8 @@ data User = User
     -- can't be edited via normal means)
     userManagedBy :: ManagedBy
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform User)
 
 -- FUTUREWORK:
 -- disentangle json serializations for 'User', 'NewUser', 'UserIdentity', 'NewUserOrigin'.
@@ -536,6 +542,46 @@ instance FromJSON NewUser where
     newUserManagedBy <- o .:? "managed_by"
     return NewUser {..}
 
+instance Arbitrary NewUser where
+  arbitrary = do
+    newUserIdentity <- arbitrary
+    newUserOrigin <- genUserOrigin newUserIdentity
+    newUserDisplayName <- arbitrary
+    newUserUUID <- QC.elements [Just nil, Nothing]
+    newUserPict <- arbitrary
+    newUserAssets <- arbitrary
+    newUserAccentId <- arbitrary
+    newUserEmailCode <- arbitrary
+    newUserPhoneCode <- arbitrary
+    newUserLabel <- arbitrary
+    newUserLocale <- arbitrary
+    newUserPassword <- genUserPassword newUserIdentity newUserOrigin
+    newUserExpiresIn <- genUserExpiresIn newUserIdentity
+    newUserManagedBy <- arbitrary
+    pure NewUser {..}
+    where
+      genUserOrigin newUserIdentity = do
+        teamid <- arbitrary
+        let hasSSOId = case newUserIdentity of
+              Just SSOIdentity {} -> True
+              _ -> False
+            ssoOrigin = Just (NewUserOriginTeamUser (NewTeamMemberSSO teamid))
+            isSsoOrigin (Just (NewUserOriginTeamUser (NewTeamMemberSSO _))) = True
+            isSsoOrigin _ = False
+        if hasSSOId
+          then pure ssoOrigin
+          else arbitrary `QC.suchThat` (not . isSsoOrigin)
+      genUserPassword newUserIdentity newUserOrigin = do
+        let hasSSOId = case newUserIdentity of
+              Just SSOIdentity {} -> True
+              _ -> False
+            isTeamUser = case newUserOrigin of
+              Just (NewUserOriginTeamUser _) -> True
+              _ -> False
+        if isTeamUser && not hasSSOId then Just <$> arbitrary else arbitrary
+      genUserExpiresIn newUserIdentity =
+        if isJust newUserIdentity then pure Nothing else arbitrary
+
 newUserInvitationCode :: NewUser -> Maybe InvitationCode
 newUserInvitationCode nu = case newUserOrigin nu of
   Just (NewUserOriginInvitationCode ic) -> Just ic
@@ -561,7 +607,8 @@ newUserSSOId = ssoIdentity <=< newUserIdentity
 data NewUserOrigin
   = NewUserOriginInvitationCode InvitationCode
   | NewUserOriginTeamUser NewTeamUser
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewUserOrigin)
 
 jsonNewUserOrigin :: NewUserOrigin -> [Aeson.Pair]
 jsonNewUserOrigin = \case
@@ -600,7 +647,7 @@ parseNewUserOrigin pass uid ssoid o = do
 newtype InvitationCode = InvitationCode
   {fromInvitationCode :: AsciiBase64Url}
   deriving stock (Eq, Show, Generic)
-  deriving newtype (FromJSON, ToJSON, ToByteString, FromByteString)
+  deriving newtype (FromJSON, ToJSON, ToByteString, FromByteString, Arbitrary)
 
 --------------------------------------------------------------------------------
 -- helpers
@@ -623,7 +670,8 @@ data NewTeamUser
     NewTeamMember InvitationCode
   | NewTeamCreator BindingNewTeamUser
   | NewTeamMemberSSO TeamId
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewTeamUser)
 
 data BindingNewTeamUser = BindingNewTeamUser
   { bnuTeam :: BindingNewTeam,
@@ -631,7 +679,8 @@ data BindingNewTeamUser = BindingNewTeamUser
     -- FUTUREWORK:
     -- Remove Currency selection once billing supports currency changes after team creation
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform BindingNewTeamUser)
 
 instance ToJSON BindingNewTeamUser where
   toJSON (BindingNewTeamUser t c) =
@@ -660,7 +709,8 @@ data UserUpdate = UserUpdate
     uupAssets :: Maybe [Asset],
     uupAccentId :: Maybe ColourId
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UserUpdate)
 
 modelUserUpdate :: Doc.Model
 modelUserUpdate = Doc.defineModel "UserUpdate" $ do
@@ -695,7 +745,8 @@ data PasswordChange = PasswordChange
   { cpOldPassword :: Maybe PlainTextPassword,
     cpNewPassword :: PlainTextPassword
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform PasswordChange)
 
 modelChangePassword :: Doc.Model
 modelChangePassword = Doc.defineModel "ChangePassword" $ do
@@ -721,7 +772,8 @@ instance FromJSON PasswordChange where
       <*> o .: "new_password"
 
 newtype LocaleUpdate = LocaleUpdate {luLocale :: Locale}
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
 
 modelChangeLocale :: Doc.Model
 modelChangeLocale = Doc.defineModel "ChangeLocale" $ do
@@ -737,7 +789,8 @@ instance FromJSON LocaleUpdate where
     LocaleUpdate <$> o .: "locale"
 
 newtype EmailUpdate = EmailUpdate {euEmail :: Email}
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
 
 modelEmailUpdate :: Doc.Model
 modelEmailUpdate = Doc.defineModel "EmailUpdate" $ do
@@ -753,7 +806,8 @@ instance FromJSON EmailUpdate where
     EmailUpdate <$> o .: "email"
 
 newtype PhoneUpdate = PhoneUpdate {puPhone :: Phone}
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
 
 modelPhoneUpdate :: Doc.Model
 modelPhoneUpdate = Doc.defineModel "PhoneUpdate" $ do
@@ -769,7 +823,8 @@ instance FromJSON PhoneUpdate where
     PhoneUpdate <$> o .: "phone"
 
 newtype HandleUpdate = HandleUpdate {huHandle :: Text}
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
 
 modelChangeHandle :: Doc.Model
 modelChangeHandle = Doc.defineModel "ChangeHandle" $ do
@@ -791,7 +846,8 @@ instance FromJSON HandleUpdate where
 newtype DeleteUser = DeleteUser
   { deleteUserPassword :: Maybe PlainTextPassword
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
 
 mkDeleteUser :: Maybe PlainTextPassword -> DeleteUser
 mkDeleteUser = DeleteUser
@@ -818,7 +874,8 @@ data VerifyDeleteUser = VerifyDeleteUser
   { verifyDeleteUserKey :: Code.Key,
     verifyDeleteUserCode :: Code.Value
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform VerifyDeleteUser)
 
 modelVerifyDelete :: Doc.Model
 modelVerifyDelete = Doc.defineModel "VerifyDelete" $ do
@@ -846,7 +903,8 @@ instance FromJSON VerifyDeleteUser where
 -- | A response for a pending deletion code.
 newtype DeletionCodeTimeout = DeletionCodeTimeout
   {fromDeletionCodeTimeout :: Code.Timeout}
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
 
 instance ToJSON DeletionCodeTimeout where
   toJSON (DeletionCodeTimeout t) = object ["expires_in" .= t]

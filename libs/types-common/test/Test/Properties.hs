@@ -219,6 +219,3 @@ newtype Tag' = Tag' Tag
 
 instance Arbitrary Tag' where
   arbitrary = Tag' <$> choose (0, 536870912)
-
-instance Arbitrary Util.UTCTimeMillis where
-  arbitrary = Util.toUTCTimeMillis . posixSecondsToUTCTime . fromInteger <$> arbitrary

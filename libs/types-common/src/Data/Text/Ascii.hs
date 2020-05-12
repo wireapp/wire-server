@@ -86,7 +86,8 @@ import Data.Hashable (Hashable)
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeLatin1, decodeUtf8')
 import Imports
-import Test.QuickCheck
+import Test.QuickCheck (Arbitrary (arbitrary), listOf, suchThatMap)
+import Test.QuickCheck.Instances ()
 
 -- | 'AsciiText' is text that is known to contain only the subset
 -- of ASCII characters indicated by its character set @c@.
@@ -141,9 +142,6 @@ instance AsciiChars c => Cql (AsciiText c) where
   toCql = CqlAscii . toText
   fromCql = fmap (unsafeFromText . fromAscii) . fromCql
 
-instance (AsciiChars c, Arbitrary (AsciiChar c)) => Arbitrary (AsciiText c) where
-  arbitrary = fromAsciiChars @c <$> listOf arbitrary
-
 fromAsciiChars :: AsciiChars c => [AsciiChar c] -> AsciiText c
 fromAsciiChars = fromString . map toChar
 
@@ -165,6 +163,9 @@ type Ascii = AsciiText Standard
 instance Arbitrary (AsciiChar Standard) where
   arbitrary = arbitrary `suchThatMap` fromChar Standard
 
+instance Arbitrary (AsciiText Standard) where
+  arbitrary = fromAsciiChars <$> listOf arbitrary
+
 instance AsciiChars Standard where
   type Subset Standard Standard = 'True
   validate = check "Invalid ASCII characters" (contains Standard)
@@ -184,6 +185,9 @@ type AsciiPrintable = AsciiText Printable
 
 instance Arbitrary (AsciiChar Printable) where
   arbitrary = arbitrary `suchThatMap` fromChar Printable
+
+instance Arbitrary (AsciiText Printable) where
+  arbitrary = fromAsciiChars <$> listOf arbitrary
 
 instance AsciiChars Printable where
   type Subset Printable Printable = 'True
@@ -210,6 +214,9 @@ type AsciiBase64 = AsciiText Base64
 
 instance Arbitrary (AsciiChar Base64) where
   arbitrary = arbitrary `suchThatMap` fromChar Base64
+
+instance Arbitrary (AsciiText Base64) where
+  arbitrary = encodeBase64 <$> arbitrary
 
 instance AsciiChars Base64 where
   type Subset Base64 Standard = 'True
@@ -256,6 +263,9 @@ type AsciiBase64Url = AsciiText Base64Url
 instance Arbitrary (AsciiChar Base64Url) where
   arbitrary = arbitrary `suchThatMap` fromChar Base64Url
 
+instance Arbitrary (AsciiText Base64Url) where
+  arbitrary = encodeBase64Url <$> arbitrary
+
 instance AsciiChars Base64Url where
   type Subset Base64Url Standard = 'True
   type Subset Base64Url Printable = 'True
@@ -295,6 +305,9 @@ type AsciiBase16 = AsciiText Base16
 
 instance Arbitrary (AsciiChar Base16) where
   arbitrary = arbitrary `suchThatMap` fromChar Base16
+
+instance Arbitrary (AsciiText Base16) where
+  arbitrary = encodeBase16 <$> arbitrary
 
 instance AsciiChars Base16 where
   type Subset Base16 Standard = 'True

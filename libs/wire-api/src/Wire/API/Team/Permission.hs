@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -50,6 +51,8 @@ import Data.Json.Util
 import qualified Data.Set as Set
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
+import qualified Test.QuickCheck as QC
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- Permissions
@@ -85,6 +88,12 @@ instance FromJSON Permissions where
     case newPermissions s d of
       Nothing -> fail "invalid permissions"
       Just ps -> pure ps
+
+instance Arbitrary Permissions where
+  arbitrary = maybe (error "instance Arbitrary Permissions") pure =<< do
+    selfperms <- arbitrary
+    copyperms <- Set.intersection selfperms <$> arbitrary
+    pure $ newPermissions selfperms copyperms
 
 newPermissions ::
   -- | User's permissions
@@ -136,7 +145,8 @@ data Perm
   -- (CRUD vs. Add,Remove vs; Get,Set vs. Create,Delete etc).
   -- If you ever think about adding a new permission flag,
   -- read Note [team roles] first.
-  deriving (Eq, Ord, Show, Enum, Bounded, Generic)
+  deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
+  deriving (Arbitrary) via (GenericUniform Perm)
 
 permsToInt :: Set Perm -> Word64
 permsToInt = Set.foldr' (\p n -> n .|. permToInt p) 0

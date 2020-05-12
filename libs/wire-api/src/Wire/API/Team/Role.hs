@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -32,6 +33,8 @@ import qualified Cassandra as Cql
 import Data.Aeson
 import qualified Data.Swagger.Model.Api as Doc
 import Imports
+import qualified Test.QuickCheck as QC
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 -- Note [team roles]
 -- ~~~~~~~~~~~~
@@ -72,7 +75,8 @@ import Imports
 
 -- | Team-level role.  Analog to conversation-level 'ConversationRole'.
 data Role = RoleOwner | RoleAdmin | RoleMember | RoleExternalPartner
-  deriving (Eq, Show, Enum, Bounded, Generic)
+  deriving stock (Eq, Show, Enum, Bounded, Generic)
+  deriving (Arbitrary) via (GenericUniform Role)
 
 typeRole :: Doc.DataType
 typeRole =

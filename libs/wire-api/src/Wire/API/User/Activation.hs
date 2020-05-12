@@ -46,6 +46,8 @@ import Data.Json.Util ((#))
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import Imports
+import qualified Test.QuickCheck as QC
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 
@@ -69,7 +71,8 @@ instance ToByteString ActivationTarget where
 -- | An opaque identifier of a 'UserKey' awaiting activation.
 newtype ActivationKey = ActivationKey
   {fromActivationKey :: AsciiBase64Url}
-  deriving (Eq, Show, FromByteString, ToByteString, FromJSON, ToJSON, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (ToByteString, FromByteString, ToJSON, FromJSON, Arbitrary)
 
 --------------------------------------------------------------------------------
 -- ActivationCode
@@ -78,7 +81,8 @@ newtype ActivationKey = ActivationKey
 -- out-of-band, e.g. via email or sms.
 newtype ActivationCode = ActivationCode
   {fromActivationCode :: AsciiBase64Url}
-  deriving (Eq, Show, FromByteString, ToByteString, FromJSON, ToJSON, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (ToByteString, FromByteString, ToJSON, FromJSON, Arbitrary)
 
 --------------------------------------------------------------------------------
 -- Activate

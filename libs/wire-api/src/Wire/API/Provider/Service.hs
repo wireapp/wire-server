@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -57,6 +58,7 @@ import qualified Cassandra.CQL as Cql
 import Control.Lens (makeLenses)
 import Data.Aeson
 import qualified Data.ByteString.Builder as BB
+import qualified Data.ByteString.Char8 as BS
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util ((#))
@@ -68,6 +70,8 @@ import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import qualified Data.Text.Encoding as Text
 import Imports
+import qualified Test.QuickCheck as QC
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Provider.Service.Tag (ServiceTag (..))
 import Wire.API.User.Profile (Asset, Name)
 
@@ -79,7 +83,8 @@ data ServiceRef = ServiceRef
   { _serviceRefId :: ServiceId,
     _serviceRefProvider :: ProviderId
   }
-  deriving (Ord, Eq, Show, Generic)
+  deriving stock (Ord, Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ServiceRef)
 
 makeLenses ''ServiceRef
 
@@ -117,7 +122,8 @@ data ServiceKey = ServiceKey
     serviceKeySize :: Int32,
     serviceKeyPEM :: ServiceKeyPEM
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ServiceKey)
 
 instance ToJSON ServiceKey where
   toJSON k =
@@ -136,7 +142,8 @@ instance FromJSON ServiceKey where
 data ServiceKeyType
   = RsaServiceKey
   -- Other types may be supported in the future.
-  deriving (Eq, Enum, Bounded, Show)
+  deriving stock (Eq, Enum, Bounded, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ServiceKeyType)
 
 instance ToJSON ServiceKeyType where
   toJSON RsaServiceKey = String "rsa"
@@ -166,6 +173,22 @@ instance FromJSON ServiceKeyPEM where
   parseJSON =
     withText "ServiceKeyPEM" $
       either fail pure . runParser parser . Text.encodeUtf8
+
+instance Arbitrary ServiceKeyPEM where
+  arbitrary = pure $ ServiceKeyPEM k
+    where
+      Right [k] =
+        pemParseBS . BS.unlines $
+          [ "-----BEGIN PUBLIC KEY-----",
+            "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0",
+            "G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH",
+            "WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV",
+            "VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS",
+            "bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8",
+            "7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la",
+            "nQIDAQAB",
+            "-----END PUBLIC KEY-----"
+          ]
 
 --------------------------------------------------------------------------------
 -- Service
@@ -216,7 +239,7 @@ instance FromJSON Service where
 -- a 'Service' via inclusion in the HTTP 'Authorization' header.
 newtype ServiceToken = ServiceToken AsciiBase64Url
   deriving stock (Eq, Show, Generic)
-  deriving newtype (ToByteString, FromByteString, ToJSON, FromJSON)
+  deriving newtype (ToByteString, FromByteString, ToJSON, FromJSON, Arbitrary)
 
 deriving instance Cql.Cql ServiceToken
 
@@ -430,7 +453,8 @@ data UpdateServiceWhitelist = UpdateServiceWhitelist
     updateServiceWhitelistService :: ServiceId,
     updateServiceWhitelistStatus :: Bool
   }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UpdateServiceWhitelist)
 
 instance ToJSON UpdateServiceWhitelist where
   toJSON u =

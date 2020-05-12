@@ -51,10 +51,13 @@ import qualified Data.CaseInsensitive as CI
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashMap.Strict as HashMap
 import Data.Hashable (Hashable)
+import Data.List.Extra (nubOn)
 import qualified Data.Map as Map
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Imports
+import qualified Test.QuickCheck as QC
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- RichInfo
@@ -63,7 +66,7 @@ data RichInfo = RichInfo
   { richInfoMap :: Map (CI Text) Text,
     richInfoAssocList :: [RichField]
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
 
 modelRichInfo :: Doc.Model
 modelRichInfo = Doc.defineModel "RichInfo" $ do
@@ -124,6 +127,12 @@ instance FromJSON RichInfo where
         Nothing -> fail $ "key '" ++ show key ++ "' not found"
         Just v -> return v
 
+instance Arbitrary RichInfo where
+  arbitrary = do
+    RichInfoAssocList richInfoAssocList <- arbitrary
+    richInfoMap <- arbitrary
+    pure RichInfo {..}
+
 toRichInfoAssocList :: RichInfo -> RichInfoAssocList
 toRichInfoAssocList (RichInfo mp al) = RichInfoAssocList . nubrf $ toal mp <> al
   where
@@ -168,6 +177,9 @@ richInfoAssocListFromObject richinfoObj = do
         [] -> pure ()
         ds -> fail ("duplicate fields: " <> show (map head ds))
 
+instance Arbitrary RichInfoAssocList where
+  arbitrary = RichInfoAssocList <$> nubOn richFieldType <$> arbitrary
+
 emptyRichInfoAssocList :: RichInfoAssocList
 emptyRichInfoAssocList = RichInfoAssocList []
 
@@ -178,7 +190,7 @@ data RichField = RichField
   { richFieldType :: CI Text,
     richFieldValue :: Text
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
 
 modelRichField :: Doc.Model
 modelRichField = Doc.defineModel "RichField" $ do
@@ -204,6 +216,12 @@ instance FromJSON RichField where
     RichField
       <$> (CI.mk <$> o .: "type")
       <*> o .: "value"
+
+instance Arbitrary RichField where
+  arbitrary =
+    RichField
+      <$> arbitrary
+      <*> (arbitrary `QC.suchThat` (/= "")) -- This is required because FromJSON calls @normalizeRichInfo@ and roundtrip tests fail
 
 --------------------------------------------------------------------------------
 -- convenience functions

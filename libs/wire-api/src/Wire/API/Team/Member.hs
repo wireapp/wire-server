@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -69,6 +70,8 @@ import Data.String.Conversions (cs)
 import qualified Data.Swagger.Build.Api as Doc
 import GHC.TypeLits
 import Imports
+import qualified Test.QuickCheck as QC
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Team.Permission (Permissions, modelPermissions)
 
 --------------------------------------------------------------------------------
@@ -81,6 +84,7 @@ data TeamMember = TeamMember
     _legalHoldStatus :: UserLegalHoldStatus
   }
   deriving (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform TeamMember)
 
 newTeamMember ::
   UserId ->
@@ -235,7 +239,8 @@ instance FromJSON NewTeamMember where
 newtype TeamMemberDeleteData = TeamMemberDeleteData
   { _tmdAuthPassword :: Maybe PlainTextPassword
   }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show)
+  deriving newtype (Arbitrary)
 
 newTeamMemberDeleteData :: Maybe PlainTextPassword -> TeamMemberDeleteData
 newTeamMemberDeleteData = TeamMemberDeleteData

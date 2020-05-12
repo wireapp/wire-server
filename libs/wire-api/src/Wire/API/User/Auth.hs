@@ -63,6 +63,8 @@ import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Lazy.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Clock (UTCTime)
 import Imports
+import qualified Test.QuickCheck as QC
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.User.Identity (Email, Phone)
 
 --------------------------------------------------------------------------------
@@ -304,7 +306,7 @@ instance FromJSON (Cookie ()) where
 newtype CookieLabel = CookieLabel
   {cookieLabelText :: Text}
   deriving (Eq, Ord, Show, Generic)
-  deriving newtype (FromJSON, ToJSON, FromByteString, ToByteString, IsString)
+  deriving newtype (FromJSON, ToJSON, FromByteString, ToByteString, IsString, Arbitrary)
 
 newtype CookieId = CookieId
   {cookieIdNum :: Word32}
