@@ -5,8 +5,13 @@ echo "Deploying backing services to kubernetes cluster"
 echo "Current context: $(kubectl config current-context)"
 kubectl cluster-info
 
-
+# TODO: make this configurable in parameter
 number_of_instances=2
+
+# Whether to expose the backing services to the host. Used for local
+# develpment. When you want to run integration tests without building docker
+# image first TODO implement
+expose=0
 
 for i in $(seq 1 $number_of_instances); do
   kubectl create namespace "fed${i}" || true
