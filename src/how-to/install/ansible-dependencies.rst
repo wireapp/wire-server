@@ -8,7 +8,7 @@ You need python2, some python dependencies, a specific version of ansible, and g
 (Option 1) How to install the necessary components locally when using Debian or Ubuntu as your operating system
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Install 'poetry' (python dependency management). See also the `poetry documentation <https://poetry.eustace.io/>`__.
+First, we're going to install Poetry. We'll be using it to run ansible playbooks, and manage their python dependencies. See also the `poetry documentation <https://poetry.eustace.io/>`__.
 
 This assumes you're using python 2.7 (if you only have python3 available, you may need to find some workarounds):
 
@@ -20,7 +20,7 @@ This assumes you're using python 2.7 (if you only have python3 available, you ma
    source $HOME/.poetry/env
    ln -s /usr/bin/python2.7 $HOME/.poetry/bin/python
 
-Install the python dependencies to run ansible.
+Install the python dependencies to run ansible:
 
 ::
 
@@ -35,7 +35,8 @@ Install the python dependencies to run ansible.
     The 'make download-cli-binaries' part of 'make download' requires
     either that you have run this all as root, or that the user you are
     running these scripts can 'sudo' without being prompted for a password.
-    I run 'sudo ls', get prompted for a password, THEN run 'make download'.
+    To preemptively work around this, feel free to run 'sudo ls', get
+    prompted for a password, THEN run 'make download'.
 
 Download the ansible roles necessary to install databases and kubernetes:
 
