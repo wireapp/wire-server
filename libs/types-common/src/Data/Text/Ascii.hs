@@ -86,19 +86,8 @@ import Test.QuickCheck
 -- | 'AsciiText' is text that is known to contain only the subset
 -- of ASCII characters indicated by its character set @c@.
 newtype AsciiText c = AsciiText {toText :: Text}
-  deriving
-    ( Eq,
-      Ord,
-      Show,
-      Semigroup,
-      Monoid,
-      NFData,
-      ToByteString,
-      FromJSONKey,
-      ToJSONKey,
-      Generic,
-      Hashable
-    )
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (Semigroup, Monoid, NFData, ToByteString, FromJSONKey, ToJSONKey, Hashable)
 
 -- | Class of types representing subsets of ASCII characters.
 class AsciiChars c where
@@ -144,9 +133,6 @@ instance AsciiChars c => Cql (AsciiText c) where
   toCql = CqlAscii . toText
   fromCql = fmap (unsafeFromText . fromAscii) . fromCql
 
-instance Arbitrary Ascii where
-  arbitrary = fromString <$> arbitrary `suchThat` all isAscii
-
 --------------------------------------------------------------------------------
 -- Standard
 
@@ -154,6 +140,11 @@ instance Arbitrary Ascii where
 data Standard = Standard
 
 type Ascii = AsciiText Standard
+
+-- we could write a generic instance for AsciiText if we didn't have to pass
+-- 'Standard' on the value level here. Could be a 'Proxy' instead.
+instance Arbitrary (AsciiText Standard) where
+  arbitrary = fromString <$> listOf (arbitrary `suchThat` contains Standard)
 
 instance AsciiChars Standard where
   type Subset Standard Standard = 'True
@@ -171,6 +162,9 @@ validateStandard = validate
 data Printable = Printable
 
 type AsciiPrintable = AsciiText Printable
+
+instance Arbitrary (AsciiText Printable) where
+  arbitrary = fromString <$> listOf (arbitrary `suchThat` contains Printable)
 
 instance AsciiChars Printable where
   type Subset Printable Printable = 'True
@@ -194,6 +188,9 @@ validatePrintable = validate
 data Base64 = Base64
 
 type AsciiBase64 = AsciiText Base64
+
+instance Arbitrary (AsciiText Base64) where
+  arbitrary = fromString <$> listOf (arbitrary `suchThat` contains Base64)
 
 instance AsciiChars Base64 where
   type Subset Base64 Standard = 'True
@@ -237,6 +234,9 @@ data Base64Url = Base64Url
 
 type AsciiBase64Url = AsciiText Base64Url
 
+instance Arbitrary (AsciiText Base64Url) where
+  arbitrary = fromString <$> listOf (arbitrary `suchThat` contains Base64Url)
+
 instance AsciiChars Base64Url where
   type Subset Base64Url Standard = 'True
   type Subset Base64Url Printable = 'True
@@ -273,6 +273,9 @@ decodeBase64Url = either (const Nothing) Just . B64Url.decode . toByteString'
 data Base16 = Base16
 
 type AsciiBase16 = AsciiText Base16
+
+instance Arbitrary (AsciiText Base16) where
+  arbitrary = fromString <$> listOf (arbitrary `suchThat` contains Base16)
 
 instance AsciiChars Base16 where
   type Subset Base16 Standard = 'True
