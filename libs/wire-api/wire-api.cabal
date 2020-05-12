@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: cb33a28d10195a5933effeb4e9f2def51c116e8e79a62342a76a4a579d24d1e1
+-- hash: 94b75597d882804638d7c8f51b2a63a1a43318937ebe569d6d5f4b28fa54a2a6
 
 name:           wire-api
 version:        0.1.0
@@ -120,7 +120,6 @@ test-suite wire-api-tests
   main-is: Main.hs
   other-modules:
       Test.Wire.API.Call.TURN
-      Test.Wire.API.Roundtrip
       Test.Wire.API.Team
       Test.Wire.API.User
       Paths_wire_api
