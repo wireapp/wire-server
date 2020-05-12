@@ -88,10 +88,8 @@ import Wire.API.User.Password
 import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 
--- used internally
 newtype ManagedByUpdate = ManagedByUpdate {mbuManagedBy :: ManagedBy} deriving (Eq, Show, Generic)
 
--- used internally
 newtype RichInfoUpdate = RichInfoUpdate {riuRichInfo :: RichInfoAssocList} deriving (Eq, Show, Generic)
 
 instance FromJSON ManagedByUpdate where
