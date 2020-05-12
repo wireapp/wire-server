@@ -22,6 +22,7 @@ This documentation may be expanded in the future to cover other aspects of Wire.
    Understanding wire-server components <understand/index.rst>
    Single-sign-on how-tos <how-to/single-sign-on/index.rst>
    Single-sign-on background (fragment) <understand/single-sign-on/design.rst>
+   Client API documentation <understand/api-client-perspective/index.rst>
 
 ..   Overview <understand/overview>
 
