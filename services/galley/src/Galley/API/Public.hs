@@ -31,6 +31,7 @@ import qualified Data.Predicate as P
 import Data.Range
 import qualified Data.Set as Set
 import Data.Swagger.Build.Api hiding (Response, def, min)
+import qualified Data.Swagger.Build.Api as Swagger
 import Data.Text.Encoding (decodeLatin1)
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
@@ -57,6 +58,7 @@ import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Utilities.ZAuth
+import Wire.API.Notification (modelNotificationList)
 import Wire.Swagger (int32Between)
 
 sitemap :: Routes ApiBuilder Galley ()
@@ -195,6 +197,26 @@ sitemap = do
     response 200 "Team member" end
     errorResponse Error.notATeamMember
     errorResponse Error.teamMemberNotFound
+
+  get "/teams/:tid/notifications" (continue Teams.getTeamNotificationsH) $
+    zauthUserId
+      .&. capture "tid"
+      .&. opt (query "since")
+      .&. def (unsafeRange 1000) (query "size")
+      .&. accept "application" "json"
+  document "GET" "getTeamNotifications" $ do
+    summary "Read recently added team members from team queue"
+    parameter Path "tid" bytes' $
+      description "Team ID"
+    parameter Query "since" bytes' $ do
+      optional
+      description "Id of the notification to start with in the response (UUIDv1)"
+    parameter Query "size" (int32 (Swagger.def 1000)) $ do
+      optional
+      description "Maximum number of events to return"
+    returns (ref modelNotificationList)
+    response 200 "List of team notifications" end
+    errorResponse Error.notATeamMember
 
   post "/teams/:tid/members" (continue Teams.addTeamMemberH) $
     zauthUserId

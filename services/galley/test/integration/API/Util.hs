@@ -815,6 +815,19 @@ deleteUser u = do
   g <- view tsGalley
   delete (g . path "/i/user" . zUser u) !!! const 200 === statusCode
 
+getTeamQueue :: HasCallStack => UserId -> TeamId -> Maybe NotificationId -> TestM [(NotificationId, UserId)]
+getTeamQueue uid tid msince = do
+  g <- view tsGalley
+  (undefined :: Value -> [(NotificationId, UserId)]) . responseJsonUnsafe
+    <$> get
+      ( g . paths ["teams", toByteString' tid, "notifications"]
+          . zUser uid
+          . zConn "conn"
+          . zType "access"
+          . query [("since", toByteString' <$> msince)]
+          . expect2xx
+      )
+
 -------------------------------------------------------------------------------
 -- Common Assertions
 

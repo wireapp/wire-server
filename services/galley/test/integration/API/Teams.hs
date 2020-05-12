@@ -90,6 +90,7 @@ tests s =
       test s "create 1-1 conversation between binding team members" (testCreateOne2OneWithMembers RoleMember),
       test s "create 1-1 conversation between binding team members as partner" (testCreateOne2OneWithMembers RoleExternalPartner),
       test s "add new team member" testAddTeamMember,
+      test s "poll team-level event queue" testTeamQueue,
       test s "add new team member binding teams" testAddTeamMemberCheckBound,
       test s "add new team member internal" testAddTeamMemberInternal,
       test s "remove aka delete team member" testRemoveNonBindingTeamMember,
@@ -415,6 +416,36 @@ testAddTeamMember = do
     -- `mem2` has `AddTeamMember` permission
     Util.addTeamMember (mem2 ^. userId) tid mem3
     mapConcurrently_ (checkTeamMemberJoin tid (mem3 ^. userId)) [wsOwner, wsMem1, wsMem2, wsMem3]
+
+-- | At the time of writing this test, the only event sent to this queue is 'MemberJoin'.
+testTeamQueue :: TestM ()
+testTeamQueue = do
+  (owner, tid) <- createBindingTeam
+  do
+    queue <- getTeamQueue owner tid Nothing
+    liftIO $ assertEqual "team queue: owner" (snd <$> queue) [owner]
+
+  mem1 :: UserId <- view userId <$> addUserToTeam owner tid
+  do
+    assertQueue "add member" $ tUpdate (fromIntegral @Int 2) [owner]
+    queue1 <- getTeamQueue owner tid Nothing
+    queue2 <- getTeamQueue mem1 tid Nothing
+    liftIO $ assertEqual "team queue: owner sees [owner, mem1]" (snd <$> queue1) [owner, mem1]
+    liftIO $ assertEqual "team queue: mem1 sees [owner, mem1]" (snd <$> queue2) [owner, mem1]
+
+  mem2 :: UserId <- view userId <$> addUserToTeam owner tid
+  do
+    assertQueue "add member" $ tUpdate (fromIntegral @Int 4) [owner]
+    [(n1, u1), (n2, u2), (n3, u3)] <- getTeamQueue owner tid Nothing
+    liftIO $ assertEqual "team queue: queue0" (u1, u2, u3) (owner, mem1, mem2)
+    queue1 <- getTeamQueue owner tid (Just n1)
+    queue2 <- getTeamQueue owner tid (Just n2)
+    queue3 <- getTeamQueue owner tid (Just n3)
+    liftIO $ assertEqual "team queue: drop 1" (snd <$> queue1) [mem1, mem2]
+    liftIO $ assertEqual "team queue: drop 2" (snd <$> queue2) [mem2]
+    liftIO $ assertEqual "team queue: drop 3" (snd <$> queue3) []
+
+  error "TODO: also test maxResults query param."
 
 testAddTeamMemberCheckBound :: TestM ()
 testAddTeamMemberCheckBound = do

@@ -29,6 +29,7 @@ module Galley.API.Teams
     deleteTeamH,
     uncheckedDeleteTeam,
     addTeamMemberH,
+    getTeamNotificationsH,
     getTeamMembersH,
     bulkGetTeamMembersH,
     getTeamMemberH,
@@ -763,10 +764,23 @@ addTeamMemberInternal tid origin originConn newMem memList = do
     Data.addMember now (c ^. conversationId) (new ^. userId)
   let e = newEvent MemberJoin tid now & eventData ?~ EdMemberJoin (new ^. userId)
   push1 $ newPush1 (memList ^. teamMemberListType) (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
+  pushTeamEvent tid e
   return sizeBeforeAdd
   where
     recipients (Just o) n = list1 (userRecipient o) (membersToRecipients (Just o) (n : memList ^. teamMembers))
     recipients Nothing n = list1 (userRecipient (n ^. userId)) (membersToRecipients Nothing (memList ^. teamMembers))
+
+pushTeamEvent :: TeamId -> Event -> Galley ()
+pushTeamEvent = undefined
+
+getTeamNotificationsH ::
+  UserId
+    ::: TeamId
+    ::: Maybe ByteString {- NotificationId -}
+    ::: (Range 1 HardTruncationLimit Int32)
+    ::: JSON ->
+  Galley Response
+getTeamNotificationsH = undefined
 
 finishCreateTeam :: Team -> TeamMember -> [TeamMember] -> Maybe ConnId -> Galley ()
 finishCreateTeam team owner others zcon = do
