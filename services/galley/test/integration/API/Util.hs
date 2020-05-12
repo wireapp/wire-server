@@ -815,6 +815,9 @@ deleteUser u = do
   g <- view tsGalley
   delete (g . path "/i/user" . zUser u) !!! const 200 === statusCode
 
+-------------------------------------------------------------------------------
+-- Common Assertions
+
 assertConvMemberWithRole :: HasCallStack => RoleName -> ConvId -> UserId -> TestM ()
 assertConvMemberWithRole r c u =
   getSelfMember u c !!! do
@@ -833,9 +836,6 @@ assertNotConvMember u c =
   getSelfMember u c !!! do
     const 200 === statusCode
     const (Right Null) === responseJsonEither
-
--------------------------------------------------------------------------------
--- Common Assertions
 
 assertConvEquals :: (HasCallStack, MonadIO m) => Conversation -> Conversation -> m ()
 assertConvEquals c1 c2 = liftIO $ do
