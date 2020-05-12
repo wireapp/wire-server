@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 
@@ -81,7 +82,9 @@ import qualified Data.Text.Encoding as TE
 import Data.Text.Strict.Lens (utf8)
 import Data.Time.Clock.POSIX
 import Imports
+import qualified Test.QuickCheck as QC
 import Text.Hostname (validHostname)
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- RTCConfiguration
@@ -95,7 +98,8 @@ data RTCConfiguration = RTCConfiguration
   { _rtcConfIceServers :: List1 RTCIceServer,
     _rtcConfTTL :: Word32
   }
-  deriving (Show, Generic)
+  deriving stock (Show, Generic)
+  deriving (Arbitrary) via (GenericUniform RTCConfiguration)
 
 rtcConfiguration :: List1 RTCIceServer -> Word32 -> RTCConfiguration
 rtcConfiguration = RTCConfiguration
@@ -127,7 +131,8 @@ data RTCIceServer = RTCIceServer
     _iceUsername :: TurnUsername,
     _iceCredential :: AsciiBase64
   }
-  deriving (Show, Generic)
+  deriving stock (Show, Generic)
+  deriving (Arbitrary) via (GenericUniform RTCIceServer)
 
 rtcIceServer :: List1 TurnURI -> TurnUsername -> AsciiBase64 -> RTCIceServer
 rtcIceServer = RTCIceServer
@@ -170,7 +175,8 @@ data TurnURI = TurnURI
     _turiPort :: Port,
     _turiTransport :: Maybe Transport
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform TurnURI)
 
 turnURI :: Scheme -> TurnHost -> Port -> Maybe Transport -> TurnURI
 turnURI = TurnURI
@@ -213,7 +219,8 @@ instance FromJSON TurnURI where
 data Scheme
   = SchemeTurn
   | SchemeTurns
-  deriving (Eq, Show, Generic, Bounded, Enum)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Scheme)
 
 instance BC.ToByteString Scheme where
   builder SchemeTurn = "turn"
@@ -246,6 +253,13 @@ instance BC.ToByteString TurnHost where
   builder (TurnHostIp ip) = BC.builder ip
   builder (TurnHostName n) = BC.builder n
 
+instance Arbitrary TurnHost where
+  arbitrary =
+    QC.oneof
+      [ TurnHostIp <$> arbitrary,
+        TurnHostName . TE.decodeUtf8 <$> arbitrary `QC.suchThat` validHostname -- inefficient!
+      ]
+
 isHostName :: TurnHost -> Bool
 isHostName (TurnHostIp _) = False
 isHostName (TurnHostName _) = True
@@ -261,7 +275,8 @@ parseTurnHost h = case BC.fromByteString host of
 data Transport
   = TransportUDP
   | TransportTCP
-  deriving (Eq, Show, Generic, Enum, Bounded)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Transport)
 
 instance BC.ToByteString Transport where
   builder TransportUDP = "udp"
@@ -294,7 +309,8 @@ data TurnUsername = TurnUsername
     -- | [a-z0-9]+
     _tuRandom :: Text
   }
-  deriving (Show, Generic)
+  deriving stock (Show, Generic)
+  deriving (Arbitrary) via (GenericUniform TurnUsername)
 
 -- note that the random value is not checked for well-formedness
 turnUsername :: POSIXTime -> Text -> TurnUsername

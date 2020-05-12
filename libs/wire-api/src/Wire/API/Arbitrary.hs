@@ -46,8 +46,6 @@ instance
 
 --------------------------------------------------------------------------------
 
-{-
-
 -- TODO: Add an arbitrary instance for IPv6
 -- TODO: move to types-common
 instance Arbitrary IpAddr where
@@ -63,26 +61,15 @@ instance Arbitrary IpAddr where
         IpAddr . IPv4 <$> return (read adr)
       ipV4Part = arbitrary @Word16 `suchThat` (< 256)
 
-instance Arbitrary TurnHost where
-  arbitrary =
-    oneof
-      [ TurnHostIp <$> arbitrary,
-        TurnHostName . decodeUtf8 <$> arbitrary `suchThat` validHostname
-      ]
-
 -- TODO: move to types-common
 instance Arbitrary Port where
   arbitrary = Port <$> arbitrary
 
-instance Arbitrary Transport where
-  arbitrary = genEnumBounded
+-- just a stub, but better than no instance
+instance Arbitrary MIME.Type where
+  arbitrary = pure (MIME.Type (MIME.Image "png") [])
 
-instance Arbitrary TurnURI where
-  arbitrary =
-    turnURI <$> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
+{-
 
 instance Arbitrary Name where
   arbitrary =

@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -48,6 +49,7 @@ import Data.ByteString.Conversion
 import Data.Json.Util ((#), toUTCTimeMillis)
 import Data.Time.Clock
 import Imports
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Asset.V3
 
 --------------------------------------------------------------------------------
@@ -59,7 +61,8 @@ data ResumableSettings = ResumableSettings
     _setResumablePublic :: Bool,
     _setResumableType :: MIME.Type
   }
-  deriving (Show)
+  deriving stock (Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ResumableSettings)
 
 makeLenses ''ResumableSettings
 
@@ -92,57 +95,26 @@ parseMime v =
 
 newtype TotalSize = TotalSize
   {totalSizeBytes :: Word}
-  deriving
-    ( Eq,
-      Show,
-      Ord,
-      Num,
-      Enum,
-      Real,
-      Integral,
-      FromJSON,
-      ToJSON,
-      FromByteString,
-      ToByteString
-    )
+  deriving stock (Eq, Ord, Show)
+  deriving newtype (Enum, Num, Real, Integral, FromJSON, ToJSON, FromByteString, ToByteString, Arbitrary)
 
 newtype ChunkSize = ChunkSize
   {chunkSizeBytes :: Word}
-  deriving
-    ( Eq,
-      Show,
-      Ord,
-      Num,
-      Enum,
-      Real,
-      Integral,
-      FromJSON,
-      ToJSON,
-      FromByteString,
-      ToByteString
-    )
+  deriving stock (Eq, Ord, Show)
+  deriving newtype (Enum, Num, Real, Integral, FromJSON, ToJSON, FromByteString, ToByteString, Arbitrary)
 
 newtype Offset = Offset
   {offsetBytes :: Word}
-  deriving
-    ( Eq,
-      Show,
-      Ord,
-      Num,
-      Enum,
-      Real,
-      Integral,
-      FromJSON,
-      ToJSON,
-      FromByteString,
-      ToByteString
-    )
+  deriving stock (Eq, Ord, Show)
+  deriving newtype (Enum, Num, Real, Integral, FromJSON, ToJSON, FromByteString, ToByteString, Arbitrary)
 
 data ResumableAsset = ResumableAsset
   { _resumableAsset :: Asset,
     _resumableExpires :: UTCTime,
     _resumableChunkSize :: ChunkSize
   }
+  deriving stock (Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ResumableAsset)
 
 makeLenses ''ResumableAsset
 
