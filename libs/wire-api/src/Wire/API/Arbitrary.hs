@@ -351,39 +351,6 @@ instance Arbitrary ManagedBy where
 --------------------------------------------------------------------------------
 -- utilities
 
-instance (KnownNat n, KnownNat m, LTE n m) => Arbitrary (Range n m ST.Text) where
-  arbitrary = genRangeText arbitrary
-  shrink (fromRange -> txt) = [unsafeRange @ST.Text @n @m $ ST.take (fromKnownNat (Proxy @n)) txt]
-
-instance (KnownNat n, KnownNat m, LTE n m) => Arbitrary (Range n m Integer) where
-  arbitrary = arbitraryIntegral
-
-instance (KnownNat n, KnownNat m, LTE n m) => Arbitrary (Range n m Word) where
-  arbitrary = arbitraryIntegral
-
-instance (KnownNat n, KnownNat m, LTE n m, Arbitrary a, Show a) => Arbitrary (Range n m [a]) where
-  arbitrary = genRangeList @n @m @a arbitrary
-
-arbitraryIntegral ::
-  forall n m i.
-  (KnownNat n, KnownNat m, LTE n m, Integral i, Show i, Bounds i, System.Random.Random i) =>
-  Gen (Range n m i)
-arbitraryIntegral = unsafeRange @i @n @m <$> choose (fromKnownNat (Proxy @n), fromKnownNat (Proxy @m))
-
-fromKnownNat :: forall (k :: Nat) (i :: *). (Num i, KnownNat k) => Proxy k -> i
-fromKnownNat p = fromIntegral $ natVal p
-
--- (can we implement this also in terms of 'genRange'?)
-genRangeAsciiBase64Url ::
-  forall (n :: Nat) (m :: Nat).
-  (HasCallStack, KnownNat n, KnownNat m, LTE n m) =>
-  Gen (Range n m AsciiBase64Url)
-genRangeAsciiBase64Url = do
-  txt <- fromRange <$> genRangeText @n @m genBase64UrlChar
-  case validateBase64Url txt of
-    Right ascii -> pure $ unsafeRange @AsciiBase64Url @n @m ascii
-    Left msg -> error msg
-
 genBase64UrlChar :: Gen Char
 genBase64UrlChar = elements $ alphaNumChars <> "_-="
 

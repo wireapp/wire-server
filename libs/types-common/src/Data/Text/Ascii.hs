@@ -27,6 +27,10 @@
 module Data.Text.Ascii
   ( AsciiText,
     toText,
+    fromAsciiChars,
+    AsciiChar,
+    toChar,
+    fromChar,
     AsciiChars (Subset, validate, contains),
 
     -- * Standard Characters
@@ -62,6 +66,7 @@ module Data.Text.Ascii
 
     -- * Safe Widening
     widen,
+    widenChar,
 
     -- * Unsafe Construction
     unsafeFromText,
@@ -88,6 +93,9 @@ import Test.QuickCheck
 newtype AsciiText c = AsciiText {toText :: Text}
   deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (Semigroup, Monoid, NFData, ToByteString, FromJSONKey, ToJSONKey, Hashable)
+
+newtype AsciiChar c = AsciiChar {toChar :: Char}
+  deriving stock (Eq, Ord, Show)
 
 -- | Class of types representing subsets of ASCII characters.
 class AsciiChars c where
@@ -133,6 +141,17 @@ instance AsciiChars c => Cql (AsciiText c) where
   toCql = CqlAscii . toText
   fromCql = fmap (unsafeFromText . fromAscii) . fromCql
 
+instance (AsciiChars c, Arbitrary (AsciiChar c)) => Arbitrary (AsciiText c) where
+  arbitrary = fromAsciiChars @c <$> listOf arbitrary
+
+fromAsciiChars :: AsciiChars c => [AsciiChar c] -> AsciiText c
+fromAsciiChars = fromString . map toChar
+
+fromChar :: AsciiChars c => c -> Char -> Maybe (AsciiChar c)
+fromChar c char
+  | contains c char = Just (AsciiChar char)
+  | otherwise = Nothing
+
 --------------------------------------------------------------------------------
 -- Standard
 
@@ -141,10 +160,10 @@ data Standard = Standard
 
 type Ascii = AsciiText Standard
 
--- we could write a generic instance for AsciiText if we didn't have to pass
+-- we could write a generic instance for AsciiChar if we didn't have to pass
 -- 'Standard' on the value level here. Could be a 'Proxy' instead.
-instance Arbitrary (AsciiText Standard) where
-  arbitrary = fromString <$> listOf (arbitrary `suchThat` contains Standard)
+instance Arbitrary (AsciiChar Standard) where
+  arbitrary = arbitrary `suchThatMap` fromChar Standard
 
 instance AsciiChars Standard where
   type Subset Standard Standard = 'True
@@ -163,8 +182,8 @@ data Printable = Printable
 
 type AsciiPrintable = AsciiText Printable
 
-instance Arbitrary (AsciiText Printable) where
-  arbitrary = fromString <$> listOf (arbitrary `suchThat` contains Printable)
+instance Arbitrary (AsciiChar Printable) where
+  arbitrary = arbitrary `suchThatMap` fromChar Printable
 
 instance AsciiChars Printable where
   type Subset Printable Printable = 'True
@@ -189,8 +208,8 @@ data Base64 = Base64
 
 type AsciiBase64 = AsciiText Base64
 
-instance Arbitrary (AsciiText Base64) where
-  arbitrary = fromString <$> listOf (arbitrary `suchThat` contains Base64)
+instance Arbitrary (AsciiChar Base64) where
+  arbitrary = arbitrary `suchThatMap` fromChar Base64
 
 instance AsciiChars Base64 where
   type Subset Base64 Standard = 'True
@@ -234,8 +253,8 @@ data Base64Url = Base64Url
 
 type AsciiBase64Url = AsciiText Base64Url
 
-instance Arbitrary (AsciiText Base64Url) where
-  arbitrary = fromString <$> listOf (arbitrary `suchThat` contains Base64Url)
+instance Arbitrary (AsciiChar Base64Url) where
+  arbitrary = arbitrary `suchThatMap` fromChar Base64Url
 
 instance AsciiChars Base64Url where
   type Subset Base64Url Standard = 'True
@@ -274,8 +293,8 @@ data Base16 = Base16
 
 type AsciiBase16 = AsciiText Base16
 
-instance Arbitrary (AsciiText Base16) where
-  arbitrary = fromString <$> listOf (arbitrary `suchThat` contains Base16)
+instance Arbitrary (AsciiChar Base16) where
+  arbitrary = arbitrary `suchThatMap` fromChar Base16
 
 instance AsciiChars Base16 where
   type Subset Base16 Standard = 'True
@@ -309,6 +328,11 @@ decodeBase16 t = case B16.decode (toByteString' t) of
 -- character set.
 widen :: (Subset c c' ~ 'True) => AsciiText c -> AsciiText c'
 widen (AsciiText t) = AsciiText t
+
+-- | Safely widen an ASCII character into another ASCII character with a larger
+-- character set.
+widenChar :: (Subset c c' ~ 'True) => AsciiChar c -> AsciiChar c'
+widenChar (AsciiChar t) = AsciiChar t
 
 --------------------------------------------------------------------------------
 -- Unsafe Construction
