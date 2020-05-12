@@ -665,6 +665,7 @@ sitemap o = do
       \number is not whitelisted, a 403 error is returned."
     Doc.body (Doc.ref Doc.newUser) $
       Doc.description "JSON body"
+    -- FUTUREWORK: I think this should be 'Doc.self' instead of 'user'
     Doc.returns (Doc.ref Doc.user)
     Doc.response 201 "User created and pending activation." Doc.end
     Doc.errorResponse whitelistError

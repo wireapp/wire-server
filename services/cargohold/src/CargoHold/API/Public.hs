@@ -220,6 +220,7 @@ apiDocs = do
 -----------------------------------------------------------------------------
 -- User API Handlers
 
+-- FUTUREWORK: make these types more descriptive than 'Request' -> 'Response'
 uploadAssetV3 :: UserId ::: Media "multipart" "mixed" ::: Request -> Handler Response
 uploadAssetV3 (usr ::: _ ::: req) = uploadSimpleV3 (V3.UserPrincipal usr) req
 

@@ -24,5 +24,6 @@ dependencies:
 - types-common >=0.16
 - swagger >=0.1
 - unordered-containers >=0.2
+- wire-api
 library:
   source-dirs: src

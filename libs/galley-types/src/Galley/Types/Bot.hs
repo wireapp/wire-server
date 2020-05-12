@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
@@ -30,24 +29,23 @@ module Galley.Types.Bot
     removeBot,
     rmBotConv,
     rmBotId,
+
+    -- * re-exports
+    module Service,
     BotConvView,
     botConvView,
     botConvId,
     botConvName,
     botConvMembers,
-
-    -- * Re-exports
-    module Service,
   )
 where
 
 import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.Id
-import Data.Json.Util ((#))
-import Galley.Types (OtherMember (..))
 import Galley.Types.Bot.Service as Service
 import Imports
+import Wire.API.Provider.Bot (BotConvView, botConvId, botConvMembers, botConvName, botConvView)
 
 -- AddBot ----------------------------------------------------------------------
 
@@ -102,32 +100,3 @@ instance ToJSON RemoveBot where
       [ "conversation" .= _rmBotConv a,
         "bot" .= _rmBotId a
       ]
-
--- BotConvView -----------------------------------------------------------------
-
--- | A conversation as seen by a bot.
-data BotConvView = BotConvView
-  { _botConvId :: !ConvId,
-    _botConvName :: !(Maybe Text),
-    _botConvMembers :: ![OtherMember]
-  }
-  deriving (Eq, Show)
-
-makeLenses ''BotConvView
-
-botConvView :: ConvId -> Maybe Text -> [OtherMember] -> BotConvView
-botConvView = BotConvView
-
-instance FromJSON BotConvView where
-  parseJSON = withObject "BotConvView" $ \o ->
-    BotConvView <$> o .: "id"
-      <*> o .:? "name"
-      <*> o .: "members"
-
-instance ToJSON BotConvView where
-  toJSON c =
-    object $
-      "id" .= _botConvId c
-        # "name" .= _botConvName c
-        # "members" .= _botConvMembers c
-        # []

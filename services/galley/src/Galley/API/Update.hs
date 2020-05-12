@@ -87,7 +87,6 @@ import Galley.Types.Bot hiding (addBot)
 import Galley.Types.Clients (Clients)
 import qualified Galley.Types.Clients as Clients
 import Galley.Types.Conversations.Roles (Action (..), RoleName, roleNameWireMember)
-import qualified Galley.Types.Proto as Proto
 import Galley.Types.Teams hiding (Event, EventData (..), EventType (..), self)
 import Galley.Validation
 import Gundeck.Types.Push.V2 (RecipientClients (..))
@@ -96,6 +95,7 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (_1, _2, failure, setStatus)
 import Network.Wai.Utilities
+import qualified Wire.API.Message.Proto as Proto
 
 acceptConvH :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
 acceptConvH (usr ::: conn ::: cnv) = do

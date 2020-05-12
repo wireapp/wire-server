@@ -19,6 +19,7 @@ module Data.LegalHold where
 
 import Cassandra.CQL
 import Data.Aeson
+import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as T
 import Imports
 import Test.QuickCheck
@@ -28,6 +29,15 @@ data UserLegalHoldStatus
   | UserLegalHoldPending
   | UserLegalHoldEnabled
   deriving stock (Show, Eq, Ord, Bounded, Enum, Generic)
+
+typeUserLegalHoldStatus :: Doc.DataType
+typeUserLegalHoldStatus =
+  Doc.string $
+    Doc.enum
+      [ "enabled",
+        "pending",
+        "disabled"
+      ]
 
 instance ToJSON UserLegalHoldStatus where
   toJSON UserLegalHoldDisabled = "disabled"

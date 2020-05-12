@@ -74,6 +74,7 @@ swagger = toSwagger (Proxy @GalleyRoutes)
 
 type GalleyRoutes = GalleyRoutesPublic :<|> GalleyRoutesInternal
 
+-- FUTUREWORK: restructure this for readability and add missing bodies
 type GalleyRoutesPublic =
   "teams" :> Capture "tid" TeamId :> "legalhold" :> "settings"
     :> ReqBody '[JSON] NewLegalHoldService
@@ -81,14 +82,17 @@ type GalleyRoutesPublic =
     :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> "settings"
       :> Get '[JSON] ViewLegalHoldService
     :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> "settings"
+      -- :> ReqBody '[JSON] RemoveLegalHoldSettingsRequest
       :> Verb 'DELETE 204 '[] NoContent
     :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> Capture "uid" UserId
       :> Post '[] NoContent
     :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> Capture "uid" UserId :> "approve"
+      -- :> ReqBody '[JSON] ApproveLegalHoldForUserRequest
       :> Verb 'PUT 204 '[] NoContent
     :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> Capture "uid" UserId
       :> Get '[JSON] UserLegalHoldStatusResponse
     :<|> "teams" :> Capture "tid" TeamId :> "legalhold" :> Capture "uid" UserId
+      -- :> ReqBody '[JSON] DisableLegalHoldForUserRequest
       :> Verb 'DELETE 204 '[] NoContent
 
 type GalleyRoutesInternal =
@@ -97,6 +101,8 @@ type GalleyRoutesInternal =
     :<|> "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
       :> ReqBody '[JSON] LegalHoldTeamConfig
       :> Put '[] NoContent
+
+-- FUTUREWORK: move Swagger instances next to the types they describe
 
 instance ToParamSchema (Id a) where
   toParamSchema _ = toParamSchema (Proxy @UUID)
