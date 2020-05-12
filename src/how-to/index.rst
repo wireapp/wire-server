@@ -11,5 +11,4 @@ server components.
     How to install wire-server <install/index.rst>
     How to verify your wire-server installtion <post-install/index.rst>
     How to administrate servers after successful installation <administrate/index.rst>
-    API client documentation <api-client-perspective/index.rst>
     How to connect the public wire clients to your wire-server installation <associate/index.rst>
