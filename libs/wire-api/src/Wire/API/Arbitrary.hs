@@ -70,12 +70,6 @@ import Wire.API.User.Password
 import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 
-newtype Octet = Octet {octet :: Word16}
-  deriving (Eq, Show)
-
-instance Arbitrary Octet where
-  arbitrary = Octet <$> arbitrary `suchThat` (< 256)
-
 instance Arbitrary Scheme where
   arbitrary = genEnumBounded
 
@@ -91,7 +85,7 @@ instance Arbitrary IpAddr where
         d <- ipV4Part
         let adr = show a ++ "." ++ show b ++ "." ++ show c ++ "." ++ show d
         IpAddr . IPv4 <$> return (read adr)
-      ipV4Part = octet <$> arbitrary
+      ipV4Part = arbitrary @Word16 `suchThat` (< 256)
 
 instance Arbitrary TurnHost where
   arbitrary =
