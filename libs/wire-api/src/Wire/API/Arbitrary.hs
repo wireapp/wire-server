@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -21,59 +22,34 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Arbitrary where
+module Wire.API.Arbitrary
+  ( Arbitrary (..),
+    GenericUniform (..),
+  )
+where
 
-import Control.Lens hiding (elements)
-import qualified Data.ByteString.Char8 as BS
-import Data.Code (Timeout (Timeout))
-import Data.Currency
-import Data.IP
-import Data.Json.Util (UTCTimeMillis (..), toUTCTimeMillis)
-import Data.LanguageCodes
-import Data.List.Extra (nubOn)
-import Data.Misc
-import Data.PEM (pemParseBS)
-import Data.Proxy
-import Data.Range
-import qualified Data.Set as Set
-import qualified Data.Text as ST
-import Data.Text.Ascii
-import Data.Text.Encoding (decodeUtf8)
-import Data.UUID (nil)
-import GHC.TypeLits
+import qualified Codec.MIME.Type as MIME
+import Data.IP (IP (IPv4))
+import Data.Misc (IpAddr (..), Port (..))
+import qualified Generic.Random as Generic
 import Imports
-import qualified System.Random
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
-import Text.Hostname
-import URI.ByteString.QQ (uri)
-import Wire.API.Call.TURN
-import Wire.API.Conversation.Code as Code
-import Wire.API.CustomBackend
-import Wire.API.Provider.Service
-import Wire.API.Team
-import Wire.API.Team.Feature
-import Wire.API.Team.Invitation
-import Wire.API.Team.LegalHold
-import Wire.API.Team.LegalHold.External
-import Wire.API.Team.Member
-import Wire.API.Team.Permission
-import Wire.API.Team.Role
-import Wire.API.Team.SearchVisibility
-import Wire.API.User
-import Wire.API.User.Activation
-import Wire.API.User.Auth
-import Wire.API.User.Client.Prekey
-import Wire.API.User.Handle
-import Wire.API.User.Identity
-import Wire.API.User.Password
-import Wire.API.User.Profile
-import Wire.API.User.RichInfo
 
-instance Arbitrary Scheme where
-  arbitrary = genEnumBounded
+newtype GenericUniform a = GenericUniform {getGenericUniform :: a}
+
+instance
+  (Generic.GArbitrary Generic.UnsizedOpts a, Generic.GUniformWeight a) =>
+  Arbitrary (GenericUniform a)
+  where
+  arbitrary = GenericUniform <$> Generic.genericArbitraryU
+
+--------------------------------------------------------------------------------
+
+{-
 
 -- TODO: Add an arbitrary instance for IPv6
+-- TODO: move to types-common
 instance Arbitrary IpAddr where
   arbitrary = ipV4Arbitrary
     where
@@ -94,6 +70,7 @@ instance Arbitrary TurnHost where
         TurnHostName . decodeUtf8 <$> arbitrary `suchThat` validHostname
       ]
 
+-- TODO: move to types-common
 instance Arbitrary Port where
   arbitrary = Port <$> arbitrary
 
@@ -550,3 +527,4 @@ instance Arbitrary TeamSearchVisibilityAvailable where
 
 instance Arbitrary TeamSearchVisibilityAvailableView where
   arbitrary = TeamSearchVisibilityAvailableView <$> arbitrary
+-}

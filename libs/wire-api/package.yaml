@@ -28,6 +28,7 @@ library:
   - errors
   - exceptions >=0.10.0
   - extra
+  - generic-random >=1.2
   - hashable
   - hostname-validate
   - iproute >=1.5
