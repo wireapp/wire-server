@@ -5,6 +5,7 @@ source-paths:
 - tools
 excluded-paths:
 - '\.stack-work'
+- '\.stack-docker'
 template-paths:
 - tools/headroom-templates
 variables:
