@@ -38,7 +38,9 @@ From a user's perspective:
 From the administrator's (your) perspective:
 --------------------------------------------
 
-You need to create a ``.json`` file, and host it somewhere users can get to. This ``.json`` file needs to specify the URLs of your backend. For the production wire server that we host, the JSON would look like:
+If you're using minio installed using the ansible code from `wire-server-deploy <https://github.com/wireapp/wire-server-deploy/blob/develop/ansible/>`__, then the `minio ansible playbook <https://github.com/wireapp/wire-server-deploy/blob/develop/ansible/minio.yml#L75-L88>`__ (make sure to override these variables) creates a json and a html file in the right format, and makes it accessible at ``https://assets.<domain>/public/deeplink.json`` and at ``https://assets.<domain>/public/deeplink.html``
+
+Otherwise you need to create a ``.json`` file, and host it somewhere users can get to. This ``.json`` file needs to specify the URLs of your backend. For the production wire server that we host, the JSON would look like:
 
 .. code:: json
 
@@ -54,7 +56,7 @@ You need to create a ``.json`` file, and host it somewhere users can get to. Thi
       "title" : "Production"
    }
 
-There is no requirement for these hosts to be consistent, e.g. the REST endpoint could be `wireapp.pineapple.com` and the team setting `teams.banana.com`.
+There is no requirement for these hosts to be consistent, e.g. the REST endpoint could be `wireapp.pineapple.com` and the team setting `teams.banana.com`. If you have been following this documentation closely, these hosts will likely be consistent in naming, regardless.
 
 You now need to get a link referring to that ``..json`` file to your users, prepended with ``wire://access/?config=``. For example, you can save the above ``.json`` file as ``https://example.com/wire.json``, and save the following HTML content as ``https://example.com/wire.html``:
 
