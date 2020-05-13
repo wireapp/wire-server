@@ -46,12 +46,6 @@ migration =
               )
             .| C.concatMap (filter isOwner)
             .| C.map (\(t, u, _) -> (t, u))
-            .| C.chunksOf 50
-            .| C.mapM
-              ( \x ->
-                  Log.info (Log.field "writing billing team members" (show (length x)))
-                    >> pure x
-              )
             .| C.mapM_ createBillingTeamMembers
     }
 
@@ -68,12 +62,9 @@ getTeamMembers = paginateC cql (paramsP Quorum () pageSize) x5
     cql :: PrepQuery R () (TeamId, UserId, Maybe Permissions)
     cql = "SELECT team, user, perms FROM team_member"
 
-createBillingTeamMembers :: MonadClient m => [(TeamId, UserId)] -> m ()
-createBillingTeamMembers pairs =
-  retry x5 $ batch $ do
-    setType BatchLogged
-    setConsistency Quorum
-    mapM_ (addPrepQuery cql) pairs
+createBillingTeamMembers :: MonadClient m => (TeamId, UserId) -> m ()
+createBillingTeamMembers pair =
+  retry x5 $ write cql (params Quorum pair)
   where
     cql :: PrepQuery W (TeamId, UserId) ()
     cql = "INSERT INTO billing_team_member (team, user) values (?, ?)"
