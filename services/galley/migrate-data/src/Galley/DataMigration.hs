@@ -19,7 +19,7 @@ module Galley.DataMigration (cassandraSettingsParser, migrate) where
 
 import qualified Cassandra as C
 import qualified Cassandra.Settings as C
-import Control.Monad.Catch (Exception, finally)
+import Control.Monad.Catch (finally)
 import qualified Data.Text as Text
 import Data.Time (UTCTime, getCurrentTime)
 import Galley.DataMigration.Types
@@ -106,15 +106,6 @@ persistVersion (MigrationVersion v) desc time = C.write cql (C.params C.Quorum (
   where
     cql :: C.QueryString C.W (Int32, Text, UTCTime) ()
     cql = "insert into data_migration (id, version, descr, date) values (1,?,?,?)"
-
-data MigrationException
-  = CreateMigrationIndexFailed String
-  | FetchMigrationVersionsFailed String
-  | PersistVersionFailed MigrationVersion String
-  | PutMappingFailed String
-  deriving (Show)
-
-instance Exception MigrationException
 
 info :: Log.MonadLogger m => String -> m ()
 info = Log.info . Log.msg
