@@ -7,6 +7,7 @@ BUILD_LABEL      ?= local
 BUILD            := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
 EXE_IT           := ../../dist/$(NAME)-integration
 EXE_SCHEMA       := ../../dist/$(NAME)-schema
+EXE_MIGRATE_DATA := ../../dist/$(NAME)-migrate-data
 DEB              := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 DEB_IT           := $(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA       := $(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
@@ -117,6 +118,10 @@ db-reset: fast
 .PHONY: db-migrate
 db-migrate: fast
 	$(EXE_SCHEMA) --keyspace $(NAME)_test --replication-factor 1
+
+.PHONY: db-migrate-data
+db-migrate-data:
+	$(EXE_MIGRATE_DATA)
 
 .PHONY: docker
 docker:
