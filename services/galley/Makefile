@@ -10,6 +10,7 @@ EXE_SCHEMA    := ../../dist/$(NAME)-schema
 DEB           := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 DEB_IT        := $(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA    := $(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
+DEB_MIGRATE_DATA := $(NAME)-migrate-data_$(VERSION)+$(BUILD)_amd64.deb
 EXECUTABLES   := $(NAME) $(NAME)-integration $(NAME)-schema
 DOCKER_USER    ?= quay.io/wire
 DOCKER_TAG     ?= local
@@ -45,7 +46,7 @@ compile:
 	stack build . --pedantic --test --bench --no-run-benchmarks --no-copy-bins
 
 .PHONY: dist
-dist: guard-VERSION install $(DEB) $(DEB_IT) $(DEB_SCHEMA) .metadata
+dist: guard-VERSION install $(DEB) $(DEB_IT) $(DEB_SCHEMA) $(DEB_MIGRATE_DATA) .metadata
 
 $(DEB):
 	makedeb --name=$(NAME) \
@@ -67,6 +68,14 @@ $(DEB_SCHEMA):
 	makedeb --name=$(NAME)-schema \
 	 --version=$(VERSION) \
 	 --debian-dir=deb-schema \
+	 --build=$(BUILD) \
+	 --architecture=amd64 \
+	 --output-dir=dist
+
+$(DEB_MIGRATE_DATA):
+	makedeb --name=$(NAME)-migrate-data \
+	 --version=$(VERSION) \
+	 --debian-dir=deb-migrate-data \
 	 --build=$(BUILD) \
 	 --architecture=amd64 \
 	 --output-dir=dist
