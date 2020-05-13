@@ -198,22 +198,25 @@ sitemap = do
     errorResponse Error.notATeamMember
     errorResponse Error.teamMemberNotFound
 
-  get "/teams/:tid/notifications" (continue Teams.getTeamNotificationsH) $
+  get "/teams/notifications" (continue Teams.getTeamNotificationsH) $
     zauthUserId
-      .&. capture "tid"
       .&. opt (query "since")
       .&. def (unsafeRange 1000) (query "size")
+      .&. def False (query "backwards")
       .&. accept "application" "json"
   document "GET" "getTeamNotifications" $ do
     summary "Read recently added team members from team queue"
-    parameter Path "tid" bytes' $
-      description "Team ID"
     parameter Query "since" bytes' $ do
       optional
-      description "Id of the notification to start with in the response (UUIDv1)"
+      description "Notification id to start with in the response (UUIDv1)"
     parameter Query "size" (int32 (Swagger.def 1000)) $ do
       optional
       description "Maximum number of events to return"
+    parameter Query "backwards" bool' $ do
+      optional
+      description
+        "Sort response in descending order (and start from a \
+        \more recent `since` if given).  Default: false."
     returns (ref modelNotificationList)
     response 200 "List of team notifications" end
     errorResponse Error.notATeamMember

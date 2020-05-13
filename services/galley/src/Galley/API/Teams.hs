@@ -775,9 +775,9 @@ pushTeamEvent = undefined
 
 getTeamNotificationsH ::
   UserId
-    ::: TeamId
     ::: Maybe ByteString {- NotificationId -}
     ::: (Range 1 HardTruncationLimit Int32)
+    ::: Bool
     ::: JSON ->
   Galley Response
 getTeamNotificationsH = undefined

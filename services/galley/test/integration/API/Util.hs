@@ -53,9 +53,9 @@ import qualified Galley.Run as Run
 import Galley.Types
 import Galley.Types.Conversations.Roles hiding (DeleteConversation)
 import qualified Galley.Types.Teams as Team
-import Galley.Types.Teams hiding (EventType (..))
+import Galley.Types.Teams hiding (Event, EventType (..))
 import Galley.Types.Teams.Intra
-import Gundeck.Types.Notification hiding (target)
+import Gundeck.Types.Notification (Notification (..), NotificationId, QueuedNotification, QueuedNotificationList, queuedNotificationPayload, queuedNotifications)
 import Imports
 import qualified Network.Wai.Test as WaiTest
 import qualified Test.QuickCheck as Q
@@ -815,20 +815,32 @@ deleteUser u = do
   g <- view tsGalley
   delete (g . path "/i/user" . zUser u) !!! const 200 === statusCode
 
-getTeamQueue :: HasCallStack => UserId -> TeamId -> Maybe NotificationId -> Maybe Int -> TestM [(NotificationId, UserId)]
-getTeamQueue uid tid msince msize = do
-  (undefined :: Value -> [(NotificationId, UserId)]) . responseJsonUnsafe
-    <$> (getTeamQueue' uid tid msince msize <!! const 200 === statusCode)
+getTeamQueue :: HasCallStack => UserId -> Maybe NotificationId -> Maybe Int -> Bool -> TestM [(NotificationId, UserId)]
+getTeamQueue uid msince msize onlyLast = do
+  parseEventList . responseJsonUnsafe <$> (getTeamQueue' uid msince msize onlyLast <!! const 200 === statusCode)
+  where
+    parseEventList :: QueuedNotificationList -> [(NotificationId, UserId)]
+    parseEventList = fmap parseEvt . mconcat . fmap parseEvts . view queuedNotifications
+    --
+    parseEvts :: QueuedNotification -> [Object]
+    parseEvts = toList . toNonEmpty . view queuedNotificationPayload
+    --
+    parseEvt :: Object -> (NotificationId, UserId)
+    parseEvt = error . show
 
-getTeamQueue' :: HasCallStack => UserId -> TeamId -> Maybe NotificationId -> Maybe Int -> TestM ResponseLBS
-getTeamQueue' uid tid msince msize = do
+getTeamQueue' :: HasCallStack => UserId -> Maybe NotificationId -> Maybe Int -> Bool -> TestM ResponseLBS
+getTeamQueue' uid msince msize onlyLast = do
   g <- view tsGalley
   get
-    ( g . paths ["teams", toByteString' tid, "notifications"]
+    ( g . path "/teams/notifications"
         . zUser uid
         . zConn "conn"
         . zType "access"
-        . query [("since", toByteString' <$> msince), ("size", toByteString' <$> msize)]
+        . query
+          [ ("since", toByteString' <$> msince),
+            ("size", toByteString' <$> msize),
+            ("onlyLast", if onlyLast then Just "true" else Nothing)
+          ]
         . expect2xx
     )
 
