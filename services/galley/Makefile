@@ -1,19 +1,19 @@
-LANG := en_US.UTF-8
-SHELL         := /usr/bin/env bash
-NAME          := galley
-VERSION       ?=
-BUILD_NUMBER  ?= 0
-BUILD_LABEL   ?= local
-BUILD         := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
-EXE_IT        := ../../dist/$(NAME)-integration
-EXE_SCHEMA    := ../../dist/$(NAME)-schema
-DEB           := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
-DEB_IT        := $(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
-DEB_SCHEMA    := $(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
+LANG             := en_US.UTF-8
+SHELL            := /usr/bin/env bash
+NAME             := galley
+VERSION          ?=
+BUILD_NUMBER     ?= 0
+BUILD_LABEL      ?= local
+BUILD            := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
+EXE_IT           := ../../dist/$(NAME)-integration
+EXE_SCHEMA       := ../../dist/$(NAME)-schema
+DEB              := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
+DEB_IT           := $(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
+DEB_SCHEMA       := $(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
 DEB_MIGRATE_DATA := $(NAME)-migrate-data_$(VERSION)+$(BUILD)_amd64.deb
-EXECUTABLES   := $(NAME) $(NAME)-integration $(NAME)-schema
-DOCKER_USER    ?= quay.io/wire
-DOCKER_TAG     ?= local
+EXECUTABLES      := $(NAME) $(NAME)-integration $(NAME)-schema
+DOCKER_USER      ?= quay.io/wire
+DOCKER_TAG       ?= local
 
 guard-%:
 	@ if [ "${${*}}" = "" ]; then \
