@@ -79,7 +79,8 @@ instance ToJSON ResumableSettings where
 
 instance FromJSON ResumableSettings where
   parseJSON = withObject "ResumableSettings" $ \o ->
-    ResumableSettings <$> o .:? "retention" .!= AssetPersistent
+    ResumableSettings
+      <$> o .:? "retention" .!= AssetPersistent
       <*> o .:? "public" .!= False
       <*> (parseMime =<< o .: "type")
 
@@ -131,6 +132,7 @@ instance ToJSON ResumableAsset where
 
 instance FromJSON ResumableAsset where
   parseJSON = withObject "ResumableAsset" $ \o ->
-    ResumableAsset <$> o .: "asset"
+    ResumableAsset
+      <$> o .: "asset"
       <*> o .: "expires"
       <*> o .: "chunk_size"

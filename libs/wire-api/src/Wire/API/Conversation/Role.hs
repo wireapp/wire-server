@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 
@@ -61,6 +62,8 @@ import Data.Hashable
 import qualified Data.Set as Set
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
+import qualified Test.QuickCheck as QC
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- Role
@@ -74,7 +77,8 @@ data ConversationRole
   = ConvRoleWireAdmin
   | ConvRoleWireMember
   | ConvRoleCustom RoleName Actions
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationRole)
 
 modelConversationRole :: Doc.Model
 modelConversationRole = Doc.defineModel "ConversationRole" $ do
@@ -133,7 +137,8 @@ convRoleWireMember = ConvRoleWireMember
 data ConversationRolesList = ConversationRolesList
   { convRolesList :: [ConversationRole]
   }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationRolesList)
 
 modelConversationRolesList :: Doc.Model
 modelConversationRolesList = Doc.defineModel "ConversationRolesList" $ do
@@ -154,7 +159,8 @@ instance ToJSON ConversationRolesList where
 -- and cannot be created by externals. Therefore, never
 -- expose this constructor outside of this module.
 newtype RoleName = RoleName {fromRoleName :: Text}
-  deriving (Eq, Show, ToJSON, ToByteString, Hashable, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (ToJSON, ToByteString, Hashable)
 
 instance FromByteString RoleName where
   parser = parser >>= maybe (fail "Invalid RoleName") return . parseRoleName
@@ -165,6 +171,10 @@ instance FromJSON RoleName where
       maybe (fail "Invalid RoleName") pure . parseRoleName
 
 deriving instance Cql RoleName
+
+instance Arbitrary RoleName where
+  arbitrary =
+    RoleName <$> (arbitrary `QC.suchThat` isValidRoleName)
 
 wireConvRoleNames :: [RoleName]
 wireConvRoleNames = [roleNameWireAdmin, roleNameWireMember]
@@ -198,7 +208,8 @@ isValidRoleName =
 newtype Actions = Actions
   { allowedActions :: Set Action
   }
-  deriving (Eq, Ord, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
 
 allActions :: Actions
 allActions = Actions $ Set.fromList [minBound .. maxBound]
@@ -215,7 +226,8 @@ data Action
   | ModifyOtherConversationMember
   | LeaveConversation
   | DeleteConversation
-  deriving (Eq, Ord, Show, Enum, Bounded, Generic)
+  deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
+  deriving (Arbitrary) via (GenericUniform Action)
 
 typeConversationRoleAction :: Doc.DataType
 typeConversationRoleAction =

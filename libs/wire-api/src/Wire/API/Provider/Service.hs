@@ -70,7 +70,6 @@ import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import qualified Data.Text.Encoding as Text
 import Imports
-import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Provider.Service.Tag (ServiceTag (..))
 import Wire.API.User.Profile (Asset, Name)
@@ -122,7 +121,7 @@ data ServiceKey = ServiceKey
     serviceKeySize :: Int32,
     serviceKeyPEM :: ServiceKeyPEM
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ServiceKey)
 
 instance ToJSON ServiceKey where
@@ -135,13 +134,14 @@ instance ToJSON ServiceKey where
 
 instance FromJSON ServiceKey where
   parseJSON = withObject "ServiceKey" $ \o ->
-    ServiceKey <$> o .: "type"
+    ServiceKey
+      <$> o .: "type"
       <*> o .: "size"
       <*> o .: "pem"
 
+-- | Other types may be supported in the future.
 data ServiceKeyType
   = RsaServiceKey
-  -- Other types may be supported in the future.
   deriving stock (Eq, Enum, Bounded, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ServiceKeyType)
 
@@ -153,7 +153,7 @@ instance FromJSON ServiceKeyType where
   parseJSON _ = fail "Invalid service key type. Expected string 'rsa'."
 
 newtype ServiceKeyPEM = ServiceKeyPEM {unServiceKeyPEM :: PEM}
-  deriving (Eq, Show)
+  deriving stock (Eq, Show)
 
 instance ToByteString ServiceKeyPEM where
   builder = BB.lazyByteString . pemWriteLBS . unServiceKeyPEM
@@ -206,6 +206,8 @@ data Service = Service
     serviceTags :: Set ServiceTag,
     serviceEnabled :: Bool
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Service)
 
 instance ToJSON Service where
   toJSON s =
@@ -224,7 +226,8 @@ instance ToJSON Service where
 
 instance FromJSON Service where
   parseJSON = withObject "Service" $ \o ->
-    Service <$> o .: "id"
+    Service
+      <$> o .: "id"
       <*> o .: "name"
       <*> o .: "summary"
       <*> o .: "description"
@@ -257,7 +260,8 @@ data ServiceProfile = ServiceProfile
     serviceProfileTags :: Set ServiceTag,
     serviceProfileEnabled :: Bool
   }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ServiceProfile)
 
 instance ToJSON ServiceProfile where
   toJSON s =
@@ -274,7 +278,8 @@ instance ToJSON ServiceProfile where
 
 instance FromJSON ServiceProfile where
   parseJSON = withObject "ServiceProfile" $ \o ->
-    ServiceProfile <$> o .: "id"
+    ServiceProfile
+      <$> o .: "id"
       <*> o .: "provider"
       <*> o .: "name"
       <*> o .: "summary"
@@ -290,7 +295,8 @@ data ServiceProfilePage = ServiceProfilePage
   { serviceProfilePageHasMore :: Bool,
     serviceProfilePageResults :: [ServiceProfile]
   }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ServiceProfilePage)
 
 instance ToJSON ServiceProfilePage where
   toJSON p =
@@ -301,7 +307,8 @@ instance ToJSON ServiceProfilePage where
 
 instance FromJSON ServiceProfilePage where
   parseJSON = withObject "ServiceProfilePage" $ \o ->
-    ServiceProfilePage <$> o .: "has_more"
+    ServiceProfilePage
+      <$> o .: "has_more"
       <*> o .: "services"
 
 --------------------------------------------------------------------------------
@@ -318,6 +325,8 @@ data NewService = NewService
     newServiceAssets :: [Asset],
     newServiceTags :: Range 1 3 (Set ServiceTag)
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewService)
 
 instance ToJSON NewService where
   toJSON s =
@@ -334,7 +343,8 @@ instance ToJSON NewService where
 
 instance FromJSON NewService where
   parseJSON = withObject "NewService" $ \o ->
-    NewService <$> o .: "name"
+    NewService
+      <$> o .: "name"
       <*> o .: "summary"
       <*> o .: "description"
       <*> o .: "base_url"
@@ -351,6 +361,8 @@ data NewServiceResponse = NewServiceResponse
     -- provided in the 'NewService' request.
     rsNewServiceToken :: Maybe ServiceToken
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewServiceResponse)
 
 instance ToJSON NewServiceResponse where
   toJSON r =
@@ -361,7 +373,8 @@ instance ToJSON NewServiceResponse where
 
 instance FromJSON NewServiceResponse where
   parseJSON = withObject "NewServiceResponse" $ \o ->
-    NewServiceResponse <$> o .: "id"
+    NewServiceResponse
+      <$> o .: "id"
       <*> o .:? "auth_token"
 
 --------------------------------------------------------------------------------
@@ -375,6 +388,8 @@ data UpdateService = UpdateService
     updateServiceAssets :: Maybe [Asset],
     updateServiceTags :: Maybe (Range 1 3 (Set ServiceTag))
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UpdateService)
 
 instance ToJSON UpdateService where
   toJSON u =
@@ -388,7 +403,8 @@ instance ToJSON UpdateService where
 
 instance FromJSON UpdateService where
   parseJSON = withObject "UpdateService" $ \o ->
-    UpdateService <$> o .:? "name"
+    UpdateService
+      <$> o .:? "name"
       <*> o .:? "summary"
       <*> o .:? "description"
       <*> o .:? "assets"
@@ -406,6 +422,8 @@ data UpdateServiceConn = UpdateServiceConn
     updateServiceConnTokens :: Maybe (Range 1 2 [ServiceToken]),
     updateServiceConnEnabled :: Maybe Bool
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UpdateServiceConn)
 
 mkUpdateServiceConn :: PlainTextPassword -> UpdateServiceConn
 mkUpdateServiceConn pw = UpdateServiceConn pw Nothing Nothing Nothing Nothing
@@ -422,7 +440,8 @@ instance ToJSON UpdateServiceConn where
 
 instance FromJSON UpdateServiceConn where
   parseJSON = withObject "UpdateServiceConn" $ \o ->
-    UpdateServiceConn <$> o .: "password"
+    UpdateServiceConn
+      <$> o .: "password"
       <*> o .:? "base_url"
       <*> o .:? "public_keys"
       <*> o .:? "auth_tokens"
@@ -434,6 +453,8 @@ instance FromJSON UpdateServiceConn where
 -- | Input data for a service deletion request.
 newtype DeleteService = DeleteService
   {deleteServicePassword :: PlainTextPassword}
+  deriving stock (Eq, Show)
+  deriving newtype (Arbitrary)
 
 instance ToJSON DeleteService where
   toJSON d =
@@ -466,6 +487,7 @@ instance ToJSON UpdateServiceWhitelist where
 
 instance FromJSON UpdateServiceWhitelist where
   parseJSON = withObject "UpdateServiceWhitelist" $ \o ->
-    UpdateServiceWhitelist <$> o .: "provider"
+    UpdateServiceWhitelist
+      <$> o .: "provider"
       <*> o .: "id"
       <*> o .: "whitelisted"

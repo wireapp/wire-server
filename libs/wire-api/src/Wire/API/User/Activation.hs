@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -46,8 +47,7 @@ import Data.Json.Util ((#))
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import Imports
-import qualified Test.QuickCheck as QC
-import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 
@@ -62,6 +62,8 @@ data ActivationTarget
     ActivatePhone Phone
   | -- | A known email address awaiting activation.
     ActivateEmail Email
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ActivationTarget)
 
 instance ToByteString ActivationTarget where
   builder (ActivateKey k) = builder k
@@ -93,6 +95,8 @@ data Activate = Activate
     activateCode :: ActivationCode,
     activateDryrun :: Bool
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Activate)
 
 modelActivate :: Doc.Model
 modelActivate = Doc.defineModel "Activate" $ do
@@ -132,7 +136,8 @@ instance ToJSON Activate where
 
 instance FromJSON Activate where
   parseJSON = withObject "Activation" $ \o ->
-    Activate <$> key o
+    Activate
+      <$> key o
       <*> o .: "code"
       <*> o .:? "dryrun" .!= False
     where
@@ -148,6 +153,8 @@ data ActivationResponse = ActivationResponse
     -- | Whether this is the first verified identity of the account.
     activatedFirst :: Bool
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ActivationResponse)
 
 modelActivationResponse :: Doc.Model
 modelActivationResponse = Doc.defineModel "ActivationResponse" $ do
@@ -171,7 +178,8 @@ instance ToJSON ActivationResponse where
 
 instance FromJSON ActivationResponse where
   parseJSON = withObject "ActivationResponse" $ \o ->
-    ActivationResponse <$> parseJSON (Object o)
+    ActivationResponse
+      <$> parseJSON (Object o)
       <*> o .:? "first" .!= False
 
 --------------------------------------------------------------------------------
@@ -185,6 +193,8 @@ data SendActivationCode = SendActivationCode
     saLocale :: Maybe Locale,
     saCall :: Bool
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform SendActivationCode)
 
 modelSendActivationCode :: Doc.Model
 modelSendActivationCode = Doc.defineModel "SendActivationCode" $ do
@@ -208,7 +218,8 @@ instance FromJSON SendActivationCode where
   parseJSON = withObject "SendActivationCode" $ \o -> do
     e <- o .:? "email"
     p <- o .:? "phone"
-    SendActivationCode <$> key e p
+    SendActivationCode
+      <$> key e p
       <*> o .:? "locale"
       <*> o .:? "voice_call" .!= False
     where

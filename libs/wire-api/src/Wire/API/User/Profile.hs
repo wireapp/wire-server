@@ -67,7 +67,6 @@ import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Imports
-import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -76,7 +75,8 @@ import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 -- | Usually called display name.
 newtype Name = Name
   {fromName :: Text}
-  deriving (Eq, Ord, Show, ToJSON, FromByteString, ToByteString, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (ToJSON, FromByteString, ToByteString)
   deriving (Arbitrary) via (Ranged 1 128 Text)
 
 modelUserDisplayName :: Doc.Model

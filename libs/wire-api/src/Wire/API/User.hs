@@ -83,6 +83,7 @@ module Wire.API.User
   )
 where
 
+import Control.Error.Safe (rightMay)
 import Data.Aeson
 import qualified Data.Aeson.Types as Aeson
 import Data.ByteString.Conversion
@@ -116,9 +117,9 @@ import Wire.API.User.Profile
 -- clients will break if we switch these types. Also, this
 -- definition represents better what information it carries
 newtype UserIdList = UserIdList
-  { mUsers :: [UserId]
-  }
-  deriving (Eq, Show, Generic)
+  {mUsers :: [UserId]}
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
 
 modelUserIdList :: Doc.Model
 modelUserIdList = Doc.defineModel "UserIdList" $ do
@@ -206,7 +207,8 @@ instance ToJSON UserProfile where
 
 instance FromJSON UserProfile where
   parseJSON = withObject "UserProfile" $ \o ->
-    UserProfile <$> o .: "id"
+    UserProfile
+      <$> o .: "id"
       <*> o .: "name"
       <*> o .:? "picture" .!= noPict
       <*> o .:? "assets" .!= []
@@ -224,7 +226,8 @@ instance FromJSON UserProfile where
 
 -- | A self profile.
 data SelfProfile = SelfProfile
-  {selfUser :: User}
+  { selfUser :: User
+  }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SelfProfile)
 
@@ -328,7 +331,8 @@ instance ToJSON User where
 instance FromJSON User where
   parseJSON = withObject "user" $ \o -> do
     ssoid <- o .:? "sso_id"
-    User <$> o .: "id"
+    User
+      <$> o .: "id"
       <*> parseIdentity ssoid o
       <*> o .: "name"
       <*> o .:? "picture" .!= noPict
@@ -420,7 +424,7 @@ publicProfile u =
 --   * Setting 'ManagedBy' (it should be the default in all cases unless Spar creates a
 --     SCIM-managed user)
 newtype NewUserPublic = NewUserPublic NewUser
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
 
 modelNewUser :: Doc.Model
 modelNewUser = Doc.defineModel "NewUser" $ do
@@ -469,13 +473,21 @@ modelNewUser = Doc.defineModel "NewUser" $ do
 instance FromJSON NewUserPublic where
   parseJSON val = do
     nu <- parseJSON val
-    when (isJust $ newUserSSOId nu) $
-      fail "SSO-managed users are not allowed here."
-    when (isJust $ newUserUUID nu) $
-      fail "it is not allowed to provide a UUID for the users here."
-    when (newUserManagedBy nu `notElem` [Nothing, Just ManagedByWire]) $
-      fail "only managed-by-Wire users can be created here."
-    pure $ NewUserPublic nu
+    either fail pure $ validateNewUserPublic nu
+
+validateNewUserPublic :: NewUser -> Either String NewUserPublic
+validateNewUserPublic nu
+  | isJust (newUserSSOId nu) =
+    Left "SSO-managed users are not allowed here."
+  | isJust (newUserUUID nu) =
+    Left "it is not allowed to provide a UUID for the users here."
+  | newUserManagedBy nu `notElem` [Nothing, Just ManagedByWire] =
+    Left "only managed-by-Wire users can be created here."
+  | otherwise =
+    Right (NewUserPublic nu)
+
+instance Arbitrary NewUserPublic where
+  arbitrary = arbitrary `QC.suchThatMap` (rightMay . validateNewUserPublic)
 
 data NewUser = NewUser
   { newUserDisplayName :: Name,
@@ -495,7 +507,7 @@ data NewUser = NewUser
     newUserExpiresIn :: Maybe ExpiresIn,
     newUserManagedBy :: Maybe ManagedBy
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
 
 -- | 1 second - 1 week
 type ExpiresIn = Range 1 604800 Integer
@@ -542,6 +554,7 @@ instance FromJSON NewUser where
     newUserManagedBy <- o .:? "managed_by"
     return NewUser {..}
 
+-- FUTUREWORK: align more with FromJSON instance?
 instance Arbitrary NewUser where
   arbitrary = do
     newUserIdentity <- arbitrary
@@ -699,9 +712,6 @@ instance FromJSON BindingNewTeamUser where
 --------------------------------------------------------------------------------
 -- Profile Updates
 
--- NB: when adding new types, please also add roundtrip tests to
--- 'Test.Brig.Types.User.roundtripTests'
-
 data UserUpdate = UserUpdate
   { uupName :: Maybe Name,
     -- | DEPRECATED
@@ -735,7 +745,8 @@ instance ToJSON UserUpdate where
 
 instance FromJSON UserUpdate where
   parseJSON = withObject "UserUpdate" $ \o ->
-    UserUpdate <$> o .:? "name"
+    UserUpdate
+      <$> o .:? "name"
       <*> o .:? "picture"
       <*> o .:? "assets"
       <*> o .:? "accent_id"
@@ -768,7 +779,8 @@ instance ToJSON PasswordChange where
 
 instance FromJSON PasswordChange where
   parseJSON = withObject "PasswordChange" $ \o ->
-    PasswordChange <$> o .:? "old_password"
+    PasswordChange
+      <$> o .:? "old_password"
       <*> o .: "new_password"
 
 newtype LocaleUpdate = LocaleUpdate {luLocale :: Locale}
@@ -897,7 +909,8 @@ instance ToJSON VerifyDeleteUser where
 
 instance FromJSON VerifyDeleteUser where
   parseJSON = withObject "VerifyDeleteUser" $ \o ->
-    VerifyDeleteUser <$> o .: "key"
+    VerifyDeleteUser
+      <$> o .: "key"
       <*> o .: "code"
 
 -- | A response for a pending deletion code.

@@ -101,7 +101,8 @@ instance ToJSON Asset where
 
 instance FromJSON Asset where
   parseJSON = withObject "Asset" $ \o ->
-    Asset <$> o .: "key"
+    Asset
+      <$> o .: "key"
       <*> o .:? "expires"
       <*> o .:? "token"
 
@@ -160,6 +161,8 @@ newtype AssetToken = AssetToken {assetTokenAscii :: AsciiBase64Url}
 -- | A newly (re)generated token for an existing asset.
 newtype NewAssetToken = NewAssetToken
   {newAssetToken :: AssetToken}
+  deriving stock (Eq, Show)
+  deriving newtype (Arbitrary)
 
 instance FromJSON NewAssetToken where
   parseJSON = withObject "NewAssetToken" $ \o ->
@@ -251,7 +254,8 @@ instance ToJSON AssetSettings where
 
 instance FromJSON AssetSettings where
   parseJSON = withObject "AssetSettings" $ \o ->
-    AssetSettings <$> o .:? "public" .!= False
+    AssetSettings
+      <$> o .:? "public" .!= False
       <*> o .:? "retention"
 
 --------------------------------------------------------------------------------
@@ -273,7 +277,7 @@ data AssetRetention
   | -- | The asset is retained for an extended period of time,
     -- but not indefinitely.
     AssetExpiring
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Enum, Bounded, Generic)
   deriving (Arbitrary) via (GenericUniform AssetRetention)
 
 -- | The minimum TTL in seconds corresponding to a chosen retention.

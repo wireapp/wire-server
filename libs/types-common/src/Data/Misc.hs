@@ -84,7 +84,8 @@ import qualified URI.ByteString.QQ as URI.QQ
 --------------------------------------------------------------------------------
 -- IpAddr / Port
 
-newtype IpAddr = IpAddr {ipAddr :: IP} deriving (Eq, Ord, Show, Generic)
+newtype IpAddr = IpAddr {ipAddr :: IP}
+  deriving (Eq, Ord, Show, Generic)
 
 instance FromByteString IpAddr where
   parser = do
@@ -115,8 +116,7 @@ instance Arbitrary IpAddr where
       ipV4Part = arbitrary @Word16 `suchThat` (< 256)
 
 newtype Port = Port
-  { portNumber :: Word16
-  }
+  {portNumber :: Word16}
   deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (Real, Enum, Num, Integral, NFData, Arbitrary)
 
@@ -145,7 +145,7 @@ data Location = Location
   { _latitude :: !Double,
     _longitude :: !Double
   }
-  deriving (Eq, Ord, Generic)
+  deriving stock (Eq, Ord, Generic)
 
 instance Show Location where
   show p =
@@ -159,6 +159,7 @@ instance NFData Location
 
 makeLenses ''Location
 
+-- FUTUREWORK: why not use these in 'Location'?
 newtype Latitude = Latitude Double deriving (NFData, Generic)
 
 newtype Longitude = Longitude Double deriving (NFData, Generic)
@@ -180,8 +181,12 @@ instance ToJSON Location where
 
 instance FromJSON Location where
   parseJSON = withObject "Location" $ \o ->
-    location <$> (Latitude <$> o .: "lat")
+    location
+      <$> (Latitude <$> o .: "lat")
       <*> (Longitude <$> o .: "lon")
+
+instance Arbitrary Location where
+  arbitrary = Location <$> arbitrary <*> arbitrary
 
 instance Cql Latitude where
   ctype = Tagged DoubleColumn
@@ -205,7 +210,8 @@ instance Cql Longitude where
 newtype Milliseconds = Ms
   { ms :: Word64
   }
-  deriving (Eq, Ord, Show, Num, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (Num, Arbitrary)
 
 -- | Convert milliseconds to 'Int64', with clipping if it doesn't fit.
 msToInt64 :: Milliseconds -> Int64
@@ -234,7 +240,7 @@ instance Cql Milliseconds where
 newtype HttpsUrl = HttpsUrl
   { httpsUrl :: URIRef Absolute
   }
-  deriving (Eq, Generic)
+  deriving stock (Eq, Generic)
 
 mkHttpsUrl :: URIRef Absolute -> Either String HttpsUrl
 mkHttpsUrl uri =

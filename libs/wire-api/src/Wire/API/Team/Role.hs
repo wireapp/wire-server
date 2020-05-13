@@ -33,8 +33,7 @@ import qualified Cassandra as Cql
 import Data.Aeson
 import qualified Data.Swagger.Model.Api as Doc
 import Imports
-import qualified Test.QuickCheck as QC
-import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 
 -- Note [team roles]
 -- ~~~~~~~~~~~~

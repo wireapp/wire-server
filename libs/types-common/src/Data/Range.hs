@@ -43,6 +43,7 @@ module Data.Range
     -- * 'Arbitrary' generators
     Ranged (..),
     genRangeList,
+    genRangeSet,
     genRangeText,
     genRangeAsciiText,
     genRange,
@@ -78,7 +79,8 @@ import qualified Data.Text.Lazy as TL
 import Imports
 import Numeric.Natural
 import System.Random (Random)
-import Test.QuickCheck (Arbitrary (arbitrary, shrink), Gen, choose)
+import Test.QuickCheck (Arbitrary (arbitrary, shrink), Gen)
+import qualified Test.QuickCheck as QC
 
 -----------------------------------------------------------------------------
 
@@ -300,6 +302,24 @@ genRangeList ::
   Gen (Range n m [a])
 genRangeList = genRange id
 
+instance
+  (KnownNat n, KnownNat m, LTE n m, Arbitrary a, Show a, Ord a) =>
+  Arbitrary (Range n m (Set a))
+  where
+  arbitrary = genRangeSet @n @m @a arbitrary
+
+-- | This has a risk of not terminating if the set is requested to be bigger
+-- than the number of possible distinct values.
+-- However, it will only show up while running tests and might indicate deeper
+-- problems, so I'd say that's ok.
+genRangeSet ::
+  forall (n :: Nat) (m :: Nat) (a :: *).
+  (Show a, KnownNat n, KnownNat m, LTE n m, Ord a) =>
+  Gen a ->
+  Gen (Range n m (Set a))
+genRangeSet gc =
+  (Set.fromList . fromRange <$> genRangeList @n @m @a gc) `QC.suchThatMap` checked
+
 instance (KnownNat n, KnownNat m, LTE n m) => Arbitrary (Range n m Text) where
   arbitrary = genRangeText arbitrary
 
@@ -340,7 +360,7 @@ genRange pack_ gc =
       (fromKnownNat (Proxy @m))
       gc
   where
-    grange mi ma gelem = (`replicateM` gelem) =<< choose (mi, ma)
+    grange mi ma gelem = (`replicateM` gelem) =<< QC.choose (mi, ma)
 
 instance (KnownNat n, KnownNat m, LTE n m) => Arbitrary (Range n m Integer) where
   arbitrary = genIntegral
@@ -352,7 +372,7 @@ genIntegral ::
   forall n m i.
   (KnownNat n, KnownNat m, LTE n m, Integral i, Show i, Bounds i, Random i) =>
   Gen (Range n m i)
-genIntegral = unsafeRange @i @n @m <$> choose (fromKnownNat (Proxy @n), fromKnownNat (Proxy @m))
+genIntegral = unsafeRange @i @n @m <$> QC.choose (fromKnownNat (Proxy @n), fromKnownNat (Proxy @m))
 
 fromKnownNat :: forall (k :: Nat) (i :: *). (Num i, KnownNat k) => Proxy k -> i
 fromKnownNat p = fromIntegral $ natVal p

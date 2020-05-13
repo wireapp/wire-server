@@ -35,8 +35,7 @@ import Data.Id
 import Data.Json.Util
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
-import qualified Test.QuickCheck as QC
-import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Team.Role (Role, defaultRole, typeRole)
 import Wire.API.User.Identity (Email, Phone)
 import Wire.API.User.Profile (Locale, Name)
@@ -88,7 +87,8 @@ instance ToJSON InvitationRequest where
 
 instance FromJSON InvitationRequest where
   parseJSON = withObject "invitation-request" $ \o ->
-    InvitationRequest <$> o .: "email"
+    InvitationRequest
+      <$> o .: "email"
       <*> o .: "inviter_name"
       <*> o .:? "locale"
       <*> o .:? "role"
@@ -157,7 +157,8 @@ instance ToJSON Invitation where
 
 instance FromJSON Invitation where
   parseJSON = withObject "invitation" $ \o ->
-    Invitation <$> o .: "team"
+    Invitation
+      <$> o .: "team"
       -- clients, when leaving "role" empty, can leave the default role choice to us
       <*> o .:? "role" .!= defaultRole
       <*> o .: "id"
@@ -193,5 +194,6 @@ instance ToJSON InvitationList where
 
 instance FromJSON InvitationList where
   parseJSON = withObject "InvitationList" $ \o ->
-    InvitationList <$> o .: "invitations"
+    InvitationList
+      <$> o .: "invitations"
       <*> o .: "has_more"

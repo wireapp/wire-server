@@ -118,7 +118,7 @@ data ClientEntry = ClientEntry
   { _clientId :: Required 1 (Message ClientId),
     _clientVal :: Required 2 (Value ByteString)
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
 
 instance Encode ClientEntry
 
@@ -144,7 +144,7 @@ data UserEntry = UserEntry
   { _userId :: Required 1 (Message UserId),
     _userVal :: Repeated 2 (Message ClientEntry)
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
 
 instance Encode UserEntry
 
@@ -192,7 +192,7 @@ fromOtrRecipients rcps =
 -- Priority
 
 data Priority = LowPriority | HighPriority
-  deriving (Eq, Show, Ord, Generic)
+  deriving stock (Eq, Show, Ord, Generic)
 
 instance Encode Priority
 
@@ -230,7 +230,7 @@ data NewOtrMessage = NewOtrMessage
     _newOtrTransient :: Optional 6 (Value Bool),
     _newOtrReportMissing :: Repeated 7 (Message UserId)
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
 
 instance Encode NewOtrMessage
 

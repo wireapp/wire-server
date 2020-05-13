@@ -70,8 +70,7 @@ import Data.String.Conversions (cs)
 import qualified Data.Swagger.Build.Api as Doc
 import GHC.TypeLits
 import Imports
-import qualified Test.QuickCheck as QC
-import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Team.Permission (Permissions, modelPermissions)
 
 --------------------------------------------------------------------------------
@@ -83,7 +82,7 @@ data TeamMember = TeamMember
     _invitation :: Maybe (UserId, UTCTimeMillis),
     _legalHoldStatus :: UserLegalHoldStatus
   }
-  deriving (Eq, Ord, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TeamMember)
 
 newTeamMember ::
@@ -139,7 +138,8 @@ teamMemberJson withPerms m =
 
 parseTeamMember :: Value -> Parser TeamMember
 parseTeamMember = withObject "team-member" $ \o ->
-  TeamMember <$> o .: "user"
+  TeamMember
+    <$> o .: "user"
     <*> o .: "permissions"
     <*> parseInvited o
     -- Default to disabled if missing
@@ -161,7 +161,8 @@ data TeamMemberList = TeamMemberList
   { _teamMembers :: [TeamMember],
     _teamMemberListType :: ListType
   }
-  deriving (Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform TeamMemberList)
 
 newTeamMemberList :: [TeamMember] -> ListType -> TeamMemberList
 newTeamMemberList = TeamMemberList
@@ -197,7 +198,8 @@ hardTruncationLimit = fromIntegral $ natVal (Proxy @HardTruncationLimit)
 data ListType
   = ListComplete
   | ListTruncated
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ListType)
 
 -- This replaces the previous `hasMore` but has no boolean blindness. At the API level
 -- though we do want this to remain true/false
@@ -216,6 +218,8 @@ instance FromJSON ListType where
 newtype NewTeamMember = NewTeamMember
   { _ntmNewTeamMember :: TeamMember
   }
+  deriving stock (Eq, Show)
+  deriving newtype (Arbitrary)
 
 newNewTeamMember :: TeamMember -> NewTeamMember
 newNewTeamMember = NewTeamMember

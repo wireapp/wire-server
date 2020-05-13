@@ -37,8 +37,7 @@ import Data.Json.Util
 import Data.LegalHold
 import Data.Misc
 import Imports
-import qualified Test.QuickCheck as QC
-import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Provider
 import Wire.API.Provider.Service (ServiceKeyPEM)
 import Wire.API.User.Client.Prekey
@@ -157,7 +156,8 @@ instance ToJSON UserLegalHoldStatusResponse where
 
 instance FromJSON UserLegalHoldStatusResponse where
   parseJSON = withObject "UserLegalHoldStatusResponse" $ \o ->
-    UserLegalHoldStatusResponse <$> o .: "status"
+    UserLegalHoldStatusResponse
+      <$> o .: "status"
       <*> o .:? "last_prekey"
       <*> (fromIdObject @ClientId <$$> (o .:? "client"))
 

@@ -43,8 +43,7 @@ import Data.Range (Ranged (..))
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import Imports
-import qualified Test.QuickCheck as QC
-import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.User.Identity
 
 --------------------------------------------------------------------------------
@@ -161,8 +160,11 @@ data PasswordReset = PasswordReset
   { pwrCode :: PasswordResetCode,
     pwrPassword :: PlainTextPassword
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform PasswordReset)
 
 instance FromJSON PasswordReset where
   parseJSON = withObject "PasswordReset" $ \o ->
-    PasswordReset <$> o .: "code"
+    PasswordReset
+      <$> o .: "code"
       <*> o .: "password"

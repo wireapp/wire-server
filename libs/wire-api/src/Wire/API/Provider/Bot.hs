@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -36,6 +37,7 @@ import Data.Handle (Handle)
 import Data.Id
 import Data.Json.Util ((#))
 import Imports
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Conversation.Member (OtherMember (..))
 import Wire.API.User.Profile (ColourId, Name)
 
@@ -48,7 +50,8 @@ data BotConvView = BotConvView
     _botConvName :: Maybe Text,
     _botConvMembers :: [OtherMember]
   }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform BotConvView)
 
 botConvView :: ConvId -> Maybe Text -> [OtherMember] -> BotConvView
 botConvView = BotConvView
@@ -63,7 +66,8 @@ instance ToJSON BotConvView where
 
 instance FromJSON BotConvView where
   parseJSON = withObject "BotConvView" $ \o ->
-    BotConvView <$> o .: "id"
+    BotConvView
+      <$> o .: "id"
       <*> o .:? "name"
       <*> o .: "members"
 
@@ -77,7 +81,8 @@ data BotUserView = BotUserView
     botUserViewHandle :: Maybe Handle,
     botUserViewTeam :: Maybe TeamId
   }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform BotUserView)
 
 instance ToJSON BotUserView where
   toJSON u =
@@ -91,7 +96,8 @@ instance ToJSON BotUserView where
 
 instance FromJSON BotUserView where
   parseJSON = withObject "BotUserView" $ \o ->
-    BotUserView <$> o .: "id"
+    BotUserView
+      <$> o .: "id"
       <*> o .: "name"
       <*> o .: "accent_id"
       <*> o .:? "handle"

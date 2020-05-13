@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- This file is part of the Wire Server implementation.
@@ -31,11 +32,13 @@ where
 import Data.Aeson
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 
 newtype TypingData = TypingData
   { tdStatus :: TypingStatus
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
 
 modelTyping :: Doc.Model
 modelTyping = Doc.defineModel "Typing" $ do
@@ -54,7 +57,8 @@ instance FromJSON TypingStatus where
 data TypingStatus
   = StartedTyping
   | StoppedTyping
-  deriving (Eq, Ord, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform TypingStatus)
 
 typeTypingStatus :: Doc.DataType
 typeTypingStatus =

@@ -32,8 +32,7 @@ import Data.Json.Util ((#))
 import Data.Misc (HttpsUrl)
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
-import qualified Test.QuickCheck as QC
-import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 
 data CustomBackend = CustomBackend
   { backendConfigJsonUrl :: HttpsUrl,

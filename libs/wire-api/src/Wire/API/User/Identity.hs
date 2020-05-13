@@ -64,7 +64,7 @@ data UserIdentity
   | EmailIdentity Email
   | PhoneIdentity Phone
   | SSOIdentity UserSSOId (Maybe Email) (Maybe Phone)
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserIdentity)
 
 instance ToJSON UserIdentity where
@@ -120,7 +120,7 @@ data Email = Email
   { emailLocal :: Text,
     emailDomain :: Text
   }
-  deriving (Eq, Ord, Generic)
+  deriving stock (Eq, Ord, Generic)
 
 instance Show Email where
   show = Text.unpack . fromEmail
@@ -209,7 +209,7 @@ data UserSSOId = UserSSOId
     -- | An XML blob specifying the user's ID on the identity provider's side.
     userSSOIdSubject :: Text
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserSSOId)
 
 instance ToJSON UserSSOId where
@@ -226,7 +226,8 @@ instance FromJSON UserSSOId where
 -- indicates in seconds when another attempt may be made.
 newtype PhoneBudgetTimeout = PhoneBudgetTimeout
   {phoneBudgetTimeout :: NominalDiffTime}
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
 
 instance FromJSON PhoneBudgetTimeout where
   parseJSON = withObject "PhoneBudgetTimeout" $ \o ->

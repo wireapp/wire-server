@@ -37,8 +37,7 @@ import Data.Aeson
 import Data.Id
 import Data.Json.Util ((#))
 import Imports
-import qualified Test.QuickCheck as QC
-import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.User.Client.Prekey
 
 --------------------------------------------------------------------------------
@@ -61,7 +60,8 @@ instance ToJSON RequestNewLegalHoldClient where
 
 instance FromJSON RequestNewLegalHoldClient where
   parseJSON = withObject "RequestNewLegalHoldClient" $ \o ->
-    RequestNewLegalHoldClient <$> o .: "user_id"
+    RequestNewLegalHoldClient
+      <$> o .: "user_id"
       <*> o .: "team_id"
 
 -- | Response payload that the LH service returns upon calling @/initiate@
@@ -81,7 +81,8 @@ instance ToJSON NewLegalHoldClient where
 
 instance FromJSON NewLegalHoldClient where
   parseJSON = withObject "NewLegalHoldClient" $ \o ->
-    NewLegalHoldClient <$> o .: "prekeys"
+    NewLegalHoldClient
+      <$> o .: "prekeys"
       <*> o .: "last_prekey"
 
 --------------------------------------------------------------------------------
@@ -124,6 +125,7 @@ data LegalHoldServiceRemove = LegalHoldServiceRemove
     lhrTeamId :: TeamId
   }
   deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform LegalHoldServiceRemove)
 
 instance ToJSON LegalHoldServiceRemove where
   toJSON (LegalHoldServiceRemove userId teamId) =

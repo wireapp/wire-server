@@ -57,7 +57,7 @@ import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Imports
 import qualified Test.QuickCheck as QC
-import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.API.Arbitrary (Arbitrary (arbitrary))
 
 --------------------------------------------------------------------------------
 -- RichInfo
@@ -150,7 +150,7 @@ richInfoAssocListURN = "urn:wire:scim:schemas:profile:1.0"
 -- RichInfoAssocList
 
 newtype RichInfoAssocList = RichInfoAssocList [RichField]
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
 
 instance ToJSON RichInfoAssocList where
   toJSON (RichInfoAssocList l) =

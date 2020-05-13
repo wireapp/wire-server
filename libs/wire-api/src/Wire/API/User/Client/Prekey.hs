@@ -42,7 +42,6 @@ import Data.Hashable (hash)
 import Data.Id
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
-import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 newtype PrekeyId = PrekeyId {keyId :: Word16}
@@ -117,7 +116,8 @@ data PrekeyBundle = PrekeyBundle
   { prekeyUser :: OpaqueUserId,
     prekeyClients :: [ClientPrekey]
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform PrekeyBundle)
 
 modelPrekeyBundle :: Doc.Model
 modelPrekeyBundle = Doc.defineModel "PrekeyBundle" $ do
@@ -145,7 +145,8 @@ data ClientPrekey = ClientPrekey
   { prekeyClient :: ClientId,
     prekeyData :: Prekey
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ClientPrekey)
 
 modelClientPrekey :: Doc.Model
 modelClientPrekey = Doc.defineModel "ClientPrekey" $ do

@@ -34,8 +34,7 @@ import Data.Id (UserId)
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
-import qualified Test.QuickCheck as QC
-import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- UserHandleInfo
@@ -69,7 +68,7 @@ data CheckHandles = CheckHandles
     -- | Number of free handles to return. Default 1.
     checkHandlesNum :: Range 1 10 Word
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform CheckHandles)
 
 modelCheckHandles :: Doc.Model
@@ -90,5 +89,6 @@ instance ToJSON CheckHandles where
 
 instance FromJSON CheckHandles where
   parseJSON = withObject "CheckHandles" $ \o ->
-    CheckHandles <$> o .: "handles"
+    CheckHandles
+      <$> o .: "handles"
       <*> o .:? "return" .!= unsafeRange 1

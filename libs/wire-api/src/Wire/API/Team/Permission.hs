@@ -51,7 +51,6 @@ import Data.Json.Util
 import qualified Data.Set as Set
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
-import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
@@ -61,7 +60,7 @@ data Permissions = Permissions
   { _self :: Set Perm,
     _copy :: Set Perm
   }
-  deriving (Eq, Ord, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
 
 modelPermissions :: Doc.Model
 modelPermissions = Doc.defineModel "Permissions" $ do

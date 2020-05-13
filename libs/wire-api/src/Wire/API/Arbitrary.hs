@@ -29,6 +29,7 @@ module Wire.API.Arbitrary
 where
 
 import qualified Codec.MIME.Type as MIME
+import qualified Data.Aeson as Aeson
 import qualified Data.Currency as Currency
 import Data.ISO3166_CountryCodes (CountryCode)
 import Data.LanguageCodes (ISO639_1 (..))
@@ -63,6 +64,10 @@ deriving stock instance Bounded ISO639_1
 
 instance Arbitrary CountryCode where
   arbitrary = genEnumBounded
+
+-- TODO: where does this belong?
+instance Arbitrary Aeson.Value where
+  arbitrary = Generic.genericArbitraryU'
 
 genEnumBounded :: (Enum a, Bounded a) => Gen a
 genEnumBounded = elements [minBound ..]
