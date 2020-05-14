@@ -162,6 +162,6 @@ optSettings:
   #   to register, per account. The default value is '7' if the option is unset.
 
 logLevel: Warn
-# ^ NOTE: We log too much in brig, if we set this to Info like other services running tests
+# ^ NOTE: We log too much in brig, if we set this to Info like other services, running tests
 #   produces too many logs, hence this is set to Warn.
 logNetStrings: false
