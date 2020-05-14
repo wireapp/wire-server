@@ -213,7 +213,7 @@ newTeamJson (NewTeam n i ik _) =
     # "icon_key" .= (fromRange <$> ik)
     # []
 
-deriving instance FromJSON BindingNewTeam
+deriving newtype instance FromJSON BindingNewTeam
 
 -- TODO: since new team members do not get serialized, we zero them here.
 -- it may be worth looking into how this can be solved on in the types.
@@ -247,7 +247,7 @@ instance ToJSON NonBindingNewTeam where
       "members" .= (fromRange <$> _newTeamMembers t)
         # newTeamJson t
 
-deriving instance FromJSON NonBindingNewTeam
+deriving newtype instance FromJSON NonBindingNewTeam
 
 data NewTeam a = NewTeam
   { _newTeamName :: Range 1 256 Text,

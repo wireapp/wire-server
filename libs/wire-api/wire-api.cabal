@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 68c77f95d73b358356ee25360ee678b2ce36deaeb8ea0625afdeae60956a914e
+-- hash: 8500d0c8b7a7131a16012dc7fb8381149f7c2978f667bfa2e63f6d0425d12c7c
 
 name:           wire-api
 version:        0.1.0
@@ -121,6 +121,7 @@ test-suite wire-api-tests
   main-is: Main.hs
   other-modules:
       Test.Wire.API.Call.TURN
+      Test.Wire.API.Roundtrip
       Test.Wire.API.Team.Member
       Test.Wire.API.User
       Test.Wire.API.User.RichInfo
@@ -139,5 +140,6 @@ test-suite wire-api-tests
     , tasty
     , tasty-hunit
     , tasty-quickcheck
+    , types-common >=0.16
     , wire-api
   default-language: Haskell2010

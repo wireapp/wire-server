@@ -12,6 +12,7 @@ dependencies:
 - aeson >=0.6
 - containers >=0.5
 - imports
+- types-common >=0.16
 library:
   source-dirs: src
   dependencies:
@@ -48,7 +49,6 @@ library:
   - text >=0.11
   - time >=1.4
   - transformers >=0.3
-  - types-common >=0.16
   - unordered-containers >=0.2
   - uri-bytestring >=0.2
   - uuid >=1.3

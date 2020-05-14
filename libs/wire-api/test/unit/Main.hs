@@ -23,6 +23,7 @@ where
 import Imports
 import Test.Tasty
 import qualified Test.Wire.API.Call.TURN as Call.TURN
+import qualified Test.Wire.API.Roundtrip as Roundtrip
 import qualified Test.Wire.API.Team.Member as Team.Member
 import qualified Test.Wire.API.User as User
 import qualified Test.Wire.API.User.RichInfo as User.RichInfo
@@ -35,5 +36,6 @@ main =
       [ Call.TURN.tests,
         Team.Member.tests,
         User.tests,
-        User.RichInfo.tests
+        User.RichInfo.tests,
+        Roundtrip.tests
       ]
