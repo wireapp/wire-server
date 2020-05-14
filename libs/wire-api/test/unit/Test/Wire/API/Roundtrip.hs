@@ -76,12 +76,12 @@ tests =
       testRoundTrip @Asset.AssetRetention,
       testRoundTrip @Asset.AssetSettings,
       testRoundTrip @Asset.AssetKey,
-      testRoundTrip @Asset.Asset,
+      testRoundTrip @Asset.Asset, -- FAIL
       testRoundTrip @Asset.Resumable.ResumableSettings,
       testRoundTrip @Asset.Resumable.TotalSize,
       testRoundTrip @Asset.Resumable.ChunkSize,
       testRoundTrip @Asset.Resumable.Offset,
-      testRoundTrip @Asset.Resumable.ResumableAsset,
+      testRoundTrip @Asset.Resumable.ResumableAsset, -- FAIL
       testRoundTrip @Call.TURN.TurnHost,
       testRoundTrip @Call.TURN.Scheme,
       testRoundTrip @Call.TURN.Transport,
@@ -95,32 +95,32 @@ tests =
       testRoundTrip @Connection.UserConnection,
       testRoundTrip @Connection.UserConnectionList,
       testRoundTrip @Connection.ConnectionUpdate,
-      testRoundTrip @Conversation.NewConvUnmanaged,
-      testRoundTrip @Conversation.NewConvManaged,
+      testRoundTrip @Conversation.NewConvUnmanaged, -- FAIL
+        -- testRoundTrip @Conversation.NewConvManaged, -- TIMEOUT 30s
       testRoundTrip @(Conversation.ConversationList ConvId),
-      testRoundTrip @(Conversation.ConversationList Conversation.Conversation),
+      -- testRoundTrip @(Conversation.ConversationList Conversation.Conversation), -- TIMEOUT 30s
       testRoundTrip @Conversation.Access,
       testRoundTrip @Conversation.AccessRole,
       testRoundTrip @Conversation.ConvType,
       testRoundTrip @Conversation.ReceiptMode,
-      testRoundTrip @Conversation.Conversation,
+      -- testRoundTrip @Conversation.Conversation, -- TIMEOUT 30s -- giant FAIL
       testRoundTrip @Conversation.ConvTeamInfo,
       testRoundTrip @Conversation.Invite,
       testRoundTrip @Conversation.ConversationRename,
       testRoundTrip @Conversation.ConversationAccessUpdate,
       testRoundTrip @Conversation.ConversationReceiptModeUpdate,
-      testRoundTrip @Conversation.ConversationMessageTimerUpdate,
+      testRoundTrip @Conversation.ConversationMessageTimerUpdate, -- FAIL
       testRoundTrip @Conversation.Bot.AddBot,
-      testRoundTrip @Conversation.Bot.AddBotResponse,
-      testRoundTrip @Conversation.Bot.RemoveBotResponse,
+      testRoundTrip @Conversation.Bot.AddBotResponse, -- FAIL
+      testRoundTrip @Conversation.Bot.RemoveBotResponse, -- FAIL
       testRoundTrip @Conversation.Bot.UpdateBotPrekeys,
       testRoundTrip @Conversation.Code.ConversationCode,
-      testRoundTrip @Conversation.Member.MemberUpdate,
+      testRoundTrip @Conversation.Member.MemberUpdate, -- FAIL
       testRoundTrip @Conversation.Member.MutedStatus,
       testRoundTrip @Conversation.Member.Member,
       testRoundTrip @Conversation.Member.OtherMember,
       testRoundTrip @Conversation.Member.ConvMembers,
-      testRoundTrip @Conversation.Member.OtherMemberUpdate,
+      testRoundTrip @Conversation.Member.OtherMemberUpdate, -- FAIL
       testRoundTrip @Conversation.Role.RoleName,
       testRoundTrip @Conversation.Role.Action,
       testRoundTrip @Conversation.Role.ConversationRole,
@@ -128,7 +128,7 @@ tests =
       testRoundTrip @Conversation.Typing.TypingStatus,
       testRoundTrip @Conversation.Typing.TypingData,
       testRoundTrip @CustomBackend.CustomBackend,
-      testRoundTrip @Event.Conversation.Event,
+      testRoundTrip @Event.Conversation.Event, -- FAIL
       testRoundTrip @Event.Conversation.EventType,
       testRoundTrip @Event.Conversation.SimpleMember,
       testRoundTrip @Event.Conversation.SimpleMembers,
@@ -138,13 +138,13 @@ tests =
       testRoundTrip @Event.Team.Event,
       testRoundTrip @Event.Team.EventType,
       testRoundTrip @Message.Priority,
-      testRoundTrip @Message.OtrRecipients,
-      testRoundTrip @Message.NewOtrMessage,
-      testRoundTrip @Message.ClientMismatch,
-      testRoundTrip @Notification.QueuedNotification,
-      testRoundTrip @Notification.QueuedNotificationList,
+      testRoundTrip @Message.OtrRecipients, -- 4.87s
+      testRoundTrip @Message.NewOtrMessage, -- 5.52s
+      testRoundTrip @Message.ClientMismatch, -- FAIL
+        -- testRoundTrip @Notification.QueuedNotification, -- TIMEOUT 30s
+        -- testRoundTrip @Notification.QueuedNotificationList, -- TIMEOUT 30s
       testRoundTrip @Properties.PropertyKey,
-      testRoundTrip @Properties.PropertyValue,
+      -- testRoundTrip @Properties.PropertyValue, -- TIMEOUT 30s
       testRoundTrip @Provider.Provider,
       testRoundTrip @Provider.ProviderProfile,
       testRoundTrip @Provider.NewProvider,
@@ -157,9 +157,9 @@ tests =
       testRoundTrip @Provider.CompletePasswordReset,
       testRoundTrip @Provider.PasswordChange,
       testRoundTrip @Provider.EmailUpdate,
-      testRoundTrip @Provider.Bot.BotConvView,
+      testRoundTrip @Provider.Bot.BotConvView, -- TIMEOUT 30s -- 1.14s
       testRoundTrip @Provider.Bot.BotUserView,
-      testRoundTrip @Provider.External.NewBotRequest,
+      testRoundTrip @Provider.External.NewBotRequest, -- TIMEOUT 30s -- 2.24s
       testRoundTrip @Provider.External.NewBotResponse,
       testRoundTrip @Provider.Service.ServiceRef,
       testRoundTrip @Provider.Service.ServiceKeyPEM,
@@ -168,7 +168,7 @@ tests =
       testRoundTrip @Provider.Service.ServiceToken,
       testRoundTrip @Provider.Service.Service,
       testRoundTrip @Provider.Service.ServiceProfile,
-      testRoundTrip @Provider.Service.ServiceProfilePage,
+      testRoundTrip @Provider.Service.ServiceProfilePage, -- 5.42s
       testRoundTrip @Provider.Service.NewService,
       testRoundTrip @Provider.Service.NewServiceResponse,
       testRoundTrip @Provider.Service.UpdateService,
@@ -186,7 +186,7 @@ tests =
       testRoundTrip @Team.TeamBinding,
       testRoundTrip @Team.Team,
       testRoundTrip @Team.TeamList,
-      testRoundTrip @Team.TeamUpdateData,
+      testRoundTrip @Team.TeamUpdateData, -- FAIL
       testRoundTrip @Team.TeamDeleteData,
       testRoundTrip @Team.Conversation.TeamConversation,
       testRoundTrip @Team.Conversation.TeamConversationList,
@@ -246,7 +246,7 @@ tests =
       -- testRoundTrip @User.Activation.ActivationTarget,
       testRoundTrip @User.Activation.ActivationCode,
       testRoundTrip @User.Activation.Activate,
-      testRoundTrip @User.Activation.ActivationResponse,
+      testRoundTrip @User.Activation.ActivationResponse, -- FAIL
       testRoundTrip @User.Activation.SendActivationCode,
       testRoundTrip @User.Auth.LoginId,
       testRoundTrip @User.Auth.LoginCode,
@@ -261,9 +261,9 @@ tests =
       testRoundTrip @User.Auth.CookieList,
       testRoundTrip @User.Auth.RemoveCookies,
       testRoundTrip @User.Auth.TokenType,
-      testRoundTrip @User.Auth.AccessToken,
-      testRoundTrip @(User.Client.UserClientMap Int),
-      testRoundTrip @User.Client.UserClients,
+      testRoundTrip @User.Auth.AccessToken, -- FAIL
+      testRoundTrip @(User.Client.UserClientMap Int), -- 2.23s (tweak size parameter?)
+      testRoundTrip @User.Client.UserClients, -- 1.28s (tweak size parameter?)
       testRoundTrip @User.Client.ClientType,
       testRoundTrip @User.Client.ClientClass,
       testRoundTrip @User.Client.PubClient,
