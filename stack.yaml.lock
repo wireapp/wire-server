@@ -552,6 +552,13 @@ packages:
       sha256: b11275740480138dd1fce4a22a2aa8835cddfecaa8da58a153f130b4575f9df5
   original:
     hackage: ghc-lib-parser-8.10.1.20200412@sha256:b0517bb150a02957d7180f131f5b94abd2a7f58a7d1532a012e71618282339c2,8751
+- completed:
+    hackage: headroom-0.2.1.0@sha256:084b72a071454516bff30c3f50e4f671fb12ee062602693ad5ffcafdea5fab99,8140
+    pantry-tree:
+      size: 9195
+      sha256: 11d2ac77cee54cc1f222e574e4126189fe5b60a47a1aedbafc2ab0de709b29c6
+  original:
+    hackage: headroom-0.2.1.0
 snapshots:
 - completed:
     size: 524996

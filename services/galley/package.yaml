@@ -15,6 +15,7 @@ dependencies:
 - safe >=0.3
 - ssl-util
 - raw-strings-qq >=1.0
+- wire-api
 
 library:
   source-dirs: src
@@ -221,7 +222,26 @@ executables:
     when:
     - condition: flag(static)
       ld-options: -static
-
+  galley-migrate-data:
+    main: Main.hs
+    source-dirs: migrate-data/src
+    dependencies:
+    - base
+    - cassandra-util
+    - conduit
+    - containers
+    - exceptions
+    - galley-types
+    - lens
+    - optparse-applicative
+    - text
+    - time
+    - tinylog
+    - types-common
+    - unliftio
+    when:
+    - condition: flag(static)
+      ld-options: -static
 flags:
   static:
     description: Enable static linking

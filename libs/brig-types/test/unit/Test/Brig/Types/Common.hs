@@ -27,16 +27,18 @@ module Test.Brig.Types.Common where
 import Brig.Types.Common
 import Brig.Types.Team.LegalHold
 import Brig.Types.Test.Arbitrary ()
-import Control.Lens
 import Data.Aeson
-import Galley.Types (CustomBackend)
+import Galley.Types
 import Galley.Types.Teams
 import Galley.Types.Teams.SSO
+import Galley.Types.Teams.SearchVisibility
 import Imports
 import Test.Brig.Roundtrip (testRoundTrip)
+import qualified Test.QuickCheck as QC
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
+import Wire.API.Arbitrary ()
 
 -- NB: validateEveryToJSON from servant-swagger doesn't render these tests unnecessary!
 
@@ -70,29 +72,19 @@ tests =
       testRoundTrip @ApproveLegalHoldForUserRequest,
       testRoundTrip @SSOStatus,
       testRoundTrip @SSOTeamConfig,
+      testRoundTrip @TeamSearchVisibility,
+      testRoundTrip @TeamSearchVisibilityView,
+      testRoundTrip @TeamSearchVisibilityAvailable,
+      testRoundTrip @TeamSearchVisibilityAvailableView,
       testRoundTrip @CustomBackend,
       testRoundTrip @FeatureFlags,
       testCase "{} is a valid TeamMemberDeleteData" $ do
         assertEqual "{}" (Right $ newTeamMemberDeleteData Nothing) (eitherDecode "{}")
     ]
 
-instance Arbitrary TeamMemberDeleteData where
-  arbitrary = newTeamMemberDeleteData <$> arbitrary
-
-instance Eq TeamMemberDeleteData where
-  a == b = a ^. tmdAuthPassword == b ^. tmdAuthPassword
-
-instance Show TeamMemberDeleteData where
-  show a = "(TeamMemberDeleteData " <> show (a ^. tmdAuthPassword) <> ")"
-
-instance Arbitrary SSOStatus where
-  arbitrary = Test.Tasty.QuickCheck.elements [minBound ..]
-
-instance Arbitrary SSOTeamConfig where
-  arbitrary = SSOTeamConfig <$> arbitrary
-
 instance Arbitrary FeatureFlags where
   arbitrary =
     FeatureFlags
       <$> Test.Tasty.QuickCheck.elements [minBound ..]
+      <*> Test.Tasty.QuickCheck.elements [minBound ..]
       <*> Test.Tasty.QuickCheck.elements [minBound ..]

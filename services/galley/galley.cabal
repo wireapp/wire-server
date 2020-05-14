@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d02acd0cb99618ee34a4f0a042c8d08f8e5f95809320c74c1571f52d7700d842
+-- hash: 648397e78543b64bfa53fdc433378f38a8a60d3492af27ccf0eac9e55cb1f810
 
 name:           galley
 version:        0.83.0
@@ -32,6 +32,7 @@ library
       Galley.API.Internal
       Galley.API.LegalHold
       Galley.API.Mapping
+      Galley.API.Public
       Galley.API.Query
       Galley.API.Swagger
       Galley.API.Teams
@@ -44,6 +45,7 @@ library
       Galley.Data.Instances
       Galley.Data.LegalHold
       Galley.Data.Queries
+      Galley.Data.SearchVisibility
       Galley.Data.Services
       Galley.Data.SSO
       Galley.Data.Types
@@ -150,6 +152,7 @@ library
     , wai-routing >=0.12
     , wai-utilities >=0.16
     , warp >=3.0
+    , wire-api
     , zauth
   default-language: Haskell2010
 
@@ -170,6 +173,7 @@ executable galley
     , safe >=0.3
     , ssl-util
     , types-common
+    , wire-api
   if flag(static)
     ld-options: -static
   default-language: Haskell2010
@@ -264,7 +268,43 @@ executable galley-integration
     , wai-utilities
     , warp
     , warp-tls >=3.2
+    , wire-api
     , yaml
+  default-language: Haskell2010
+
+executable galley-migrate-data
+  main-is: Main.hs
+  other-modules:
+      Galley.DataMigration
+      Galley.DataMigration.Types
+      V1_BackfillBillingTeamMembers
+      Paths_galley
+  hs-source-dirs:
+      migrate-data/src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path
+  build-depends:
+      base
+    , cassandra-util
+    , conduit
+    , containers
+    , exceptions
+    , extended
+    , galley-types
+    , imports
+    , lens
+    , optparse-applicative
+    , raw-strings-qq >=1.0
+    , safe >=0.3
+    , ssl-util
+    , text
+    , time
+    , tinylog
+    , types-common
+    , unliftio
+    , wire-api
+  if flag(static)
+    ld-options: -static
   default-language: Haskell2010
 
 executable galley-schema
@@ -288,6 +328,9 @@ executable galley-schema
       V35
       V36
       V37
+      V38_CreateTableBillingTeamMember
+      V39
+      V40_CreateTableDataMigration
       Paths_galley
   hs-source-dirs:
       schema/src
@@ -304,6 +347,7 @@ executable galley-schema
     , ssl-util
     , text
     , tinylog
+    , wire-api
   if flag(static)
     ld-options: -static
   default-language: Haskell2010
@@ -335,4 +379,5 @@ test-suite galley-types-tests
     , types-common
     , wai
     , wai-predicates
+    , wire-api
   default-language: Haskell2010

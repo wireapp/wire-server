@@ -12,6 +12,7 @@ dependencies:
 - hostname-validate
 - lens
 - imports
+- wire-api
 library:
   source-dirs: src
   ghc-options:
@@ -43,6 +44,7 @@ library:
   - safe >=0.3
   - scientific >=0.3.4
   - singletons >=2.0
+  - string-conversions
   - swagger >=0.1
   - text >=0.11
   - time >=1.1

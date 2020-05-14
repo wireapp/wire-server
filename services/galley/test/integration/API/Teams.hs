@@ -32,6 +32,7 @@ import Control.Monad.Catch
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
+import Data.ByteString.Lazy (fromStrict)
 import qualified Data.Currency as Currency
 import Data.Id
 import Data.List1
@@ -42,18 +43,22 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.UUID as UUID
 import qualified Galley.App as Galley
-import Galley.Options (optSettings, setFeatureFlags, setMaxConvSize, setMaxFanoutSize)
+import Galley.Options (optSettings, setEnableIndexedBillingTeamMembers, setFeatureFlags, setMaxConvSize, setMaxFanoutSize)
 import Galley.Types hiding (EventData (..), EventType (..), MemberUpdate (..))
 import qualified Galley.Types as Conv
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SSO
+import Galley.Types.Teams.SearchVisibility
 import Gundeck.Types.Notification hiding (target)
 import Imports
 import Network.HTTP.Types.Status (status403)
+import qualified Network.Wai.Test as WaiTest
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Network.Wai.Utilities.Error as Wai
+import qualified Proto.TeamEvents as E
+import qualified Proto.TeamEvents_Fields as E
 import Test.Tasty
 import Test.Tasty.Cannon ((#), TimeoutUnit (..))
 import qualified Test.Tasty.Cannon as WS
@@ -80,6 +85,7 @@ tests s =
       testGroup "List Team members unchecked" $
         [test s "the list should be truncated" testUncheckedListTeamMembers],
       test s "enable/disable SSO" testEnableSSOPerTeam,
+      test s "enable/disable Custom Search Visibility" testEnableTeamSearchVisibilityPerTeam,
       test s "create 1-1 conversation between non-binding team members (fail)" testCreateOne2OneFailNonBindingTeamMembers,
       test s "create 1-1 conversation between binding team members" (testCreateOne2OneWithMembers RoleMember),
       test s "create 1-1 conversation between binding team members as partner" (testCreateOne2OneWithMembers RoleExternalPartner),
@@ -100,6 +106,7 @@ tests s =
       test s "update conversation as member" (testUpdateTeamConv RoleMember roleNameWireAdmin),
       test s "update conversation as partner" (testUpdateTeamConv RoleExternalPartner roleNameWireMember),
       test s "delete non-binding team" testDeleteTeam,
+      test s "delete binding team internal single member" testDeleteBindingTeamSingleMember,
       test s "delete binding team (owner has passwd)" (testDeleteBindingTeam True),
       test s "delete binding team (owner has no passwd)" (testDeleteBindingTeam False),
       test s "delete team conversation" testDeleteTeamConv,
@@ -108,6 +115,8 @@ tests s =
       test s "update team status" testUpdateTeamStatus,
       -- Queue is emptied here to ensure that lingering events do not affect other tests
       test s "team tests around truncation limits - no events, too large team" (testTeamAddRemoveMemberAboveThresholdNoEvents >> ensureQueueEmpty),
+      test s "send billing events to owners even in large teams" testBillingInLargeTeam,
+      test s "send billing events to some owners in large teams (indexedBillingTeamMembers disabled)" testBillingInLargeTeamWithoutIndexedBillingTeamMembers,
       test s "post crypto broadcast message json" postCryptoBroadcastMessageJson,
       test s "post crypto broadcast message json - filtered only, too large team" postCryptoBroadcastMessageJsonFilteredTooLargeTeam,
       test s "post crypto broadcast message json (report missing in body)" postCryptoBroadcastMessageJsonReportMissingBody,
@@ -297,6 +306,47 @@ testEnableSSOPerTeam = do
   putSSOEnabledInternal tid SSOEnabled
   check "Calling 'putEnabled True' should enable SSO" SSOEnabled
   putSSOEnabledInternalCheckNotImplemented
+
+testEnableTeamSearchVisibilityPerTeam :: TestM ()
+testEnableTeamSearchVisibilityPerTeam = do
+  g <- view tsGalley
+  (tid, owner, (member : _)) <- Util.createBindingTeamWithMembers 2
+  let check :: (HasCallStack, MonadCatch m, MonadIO m, Monad m, MonadHttp m) => String -> TeamSearchVisibilityAvailable -> m ()
+      check msg enabledness = do
+        TeamSearchVisibilityAvailableView status <- responseJsonUnsafe <$> (getTeamSearchVisibilityAvailableInternal g tid <!! testResponse 200 Nothing)
+        liftIO $ assertEqual msg enabledness status
+  let putSearchVisibilityCheckNotAllowed :: (HasCallStack, Monad m, MonadIO m, MonadHttp m) => m ()
+      putSearchVisibilityCheckNotAllowed = do
+        Wai.Error status label _ <- responseJsonUnsafe <$> putSearchVisibility g owner tid SearchVisibilityNoNameOutsideTeam
+        liftIO $ do
+          assertEqual "bad status" status403 status
+          assertEqual "bad label" "team-search-visibility-not-enabled" label
+  let getSearchVisibilityCheck :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => TeamSearchVisibility -> m ()
+      getSearchVisibilityCheck vis = getSearchVisibility g owner tid !!! do
+        const 200 === statusCode
+        const (Just (TeamSearchVisibilityView vis)) === responseJsonUnsafe
+
+  withCustomSearchFeature FeatureTeamSearchVisibilityEnabledByDefault $ do
+    check "Teams should start with Custom Search Visibility enabled" TeamSearchVisibilityEnabled
+    putSearchVisibility g owner tid SearchVisibilityNoNameOutsideTeam !!! const 204 === statusCode
+    putSearchVisibility g owner tid SearchVisibilityStandard !!! const 204 === statusCode
+  withCustomSearchFeature FeatureTeamSearchVisibilityDisabledByDefault $ do
+    check "Teams should start with Custom Search Visibility disabled" TeamSearchVisibilityDisabled
+    putSearchVisibilityCheckNotAllowed
+
+  putTeamSearchVisibilityAvailableInternal g tid TeamSearchVisibilityEnabled
+  -- Nothing was set, default value
+  getSearchVisibilityCheck SearchVisibilityStandard
+  putSearchVisibility g owner tid SearchVisibilityNoNameOutsideTeam !!! testResponse 204 Nothing
+  getSearchVisibilityCheck SearchVisibilityNoNameOutsideTeam
+  -- Check only admins can change the setting
+  putSearchVisibility g member tid SearchVisibilityStandard !!! testResponse 403 (Just "operation-denied")
+  getSearchVisibilityCheck SearchVisibilityNoNameOutsideTeam
+  -- Members can also see it?
+  getSearchVisibility g member tid !!! testResponse 200 Nothing
+  -- Once we disable the feature, team setting is back to the default value
+  putTeamSearchVisibilityAvailableInternal g tid TeamSearchVisibilityDisabled
+  getSearchVisibilityCheck SearchVisibilityStandard
 
 testCreateOne2OneFailNonBindingTeamMembers :: TestM ()
 testCreateOne2OneFailNonBindingTeamMembers = do
@@ -530,26 +580,39 @@ testRemoveBindingTeamMember ownerHasPassword = do
 testRemoveBindingTeamOwner :: TestM ()
 testRemoveBindingTeamOwner = do
   (ownerA, tid) <- Util.createBindingTeam
+  refreshIndex
   ownerB <-
     view userId <$> Util.addUserToTeamWithRole (Just RoleOwner) ownerA tid
+  assertQueue "Add owner" $ tUpdate 2 [ownerA, ownerB]
+  refreshIndex
   ownerWithoutEmail <- do
     -- users must have a 'UserIdentity', or @get /i/users@ won't find it, so we use
     -- 'UserSSOId'.
     mem <- Util.addUserToTeamWithSSO False tid
+    refreshIndex
+    assertQueue "Add user with SSO" $ tUpdate 3 [ownerA, ownerB]
     Util.makeOwner ownerA mem tid
     pure $ view userId mem
+  assertQueue "Promote user to owner" $ tUpdate 3 [ownerA, ownerB, ownerWithoutEmail]
   admin <-
     view userId <$> Util.addUserToTeamWithRole (Just RoleAdmin) ownerA tid
+  assertQueue "Add admin" $ tUpdate 4 [ownerA, ownerB, ownerWithoutEmail]
+  refreshIndex
   -- non-owner can NOT delete owner
-  check tid admin ownerWithoutEmail (Just $ Util.defPassword) (Just "access-denied")
+  check tid admin ownerWithoutEmail (Just Util.defPassword) (Just "access-denied")
+  assertQueueEmpty
   -- owners can NOT delete themselves
-  check tid ownerA ownerA (Just $ Util.defPassword) (Just "access-denied")
+  check tid ownerA ownerA (Just Util.defPassword) (Just "access-denied")
+  assertQueueEmpty
   check tid ownerWithoutEmail ownerWithoutEmail Nothing (Just "access-denied")
+  assertQueueEmpty
   -- owners can delete other owners (no matter who has emails)
   check tid ownerWithoutEmail ownerA Nothing Nothing
-  check tid ownerB ownerWithoutEmail (Just $ Util.defPassword) Nothing
-  --
-  ensureQueueEmpty
+  assertQueue "Remove ownerA" $ tUpdate 3 [ownerB, ownerWithoutEmail]
+  Util.waitForMemberDeletion ownerB tid ownerA
+  refreshIndex
+  check tid ownerB ownerWithoutEmail (Just Util.defPassword) Nothing
+  assertQueue ("Remove ownerWithoutEmail: " <> show ownerWithoutEmail <> ", ownerA: " <> show ownerA) $ tUpdateUncertainCount [2, 3] [ownerB]
   where
     check :: HasCallStack => TeamId -> UserId -> UserId -> Maybe PlainTextPassword -> Maybe LText -> TestM ()
     check tid deleter deletee pass maybeError = do
@@ -561,13 +624,12 @@ testRemoveBindingTeamOwner = do
             . zConn "conn"
             . json (newTeamMemberDeleteData pass)
         )
-        !!! do
-          case maybeError of
-            Nothing ->
-              const 202 === statusCode
-            Just label -> do
-              const 403 === statusCode
-              const label === (Error.label . responseJsonUnsafeWithMsg "error label")
+        !!! case maybeError of
+          Nothing ->
+            const 202 === statusCode
+          Just label -> do
+            const 403 === statusCode
+            const label === (Error.label . responseJsonUnsafeWithMsg "error label")
 
 testAddTeamConvLegacy :: TestM ()
 testAddTeamConvLegacy = do
@@ -831,6 +893,67 @@ testDeleteTeam = do
         const 200 === statusCode
         const (Just Null) === responseJsonMaybe
   assertQueueEmpty
+
+testDeleteBindingTeamSingleMember :: TestM ()
+testDeleteBindingTeamSingleMember = do
+  g <- view tsGalley
+  c <- view tsCannon
+  (owner, tid) <- Util.createBindingTeam
+  other <- Util.addUserToTeam owner tid
+  ensureQueueEmpty
+  refreshIndex
+  -- Useful for tests
+  extern <- Util.randomUser
+  delete
+    ( g
+        . paths ["/i/teams", toByteString' tid]
+        . zUser owner
+        . zConn "conn"
+        . json (newTeamDeleteData (Just $ Util.defPassword))
+    )
+    !!! do
+      const 403 === statusCode
+      const "not-one-member-team" === (Error.label . responseJsonUnsafeWithMsg "error label when deleting a team")
+  delete
+    ( g
+        . paths ["teams", toByteString' tid, "members", toByteString' (other ^. userId)]
+        . zUser owner
+        . zConn "conn"
+        . json
+          ( newTeamMemberDeleteData (Just Util.defPassword)
+          )
+    )
+    !!! const 202
+    === statusCode
+  assertQueue "team member leave 1" $ tUpdate 1 [owner]
+  -- Async things are hard...
+  void $
+    retryWhileN
+      10
+      (/= Just True)
+      (getDeletedState extern (other ^. userId))
+
+  void $ WS.bracketRN c [owner, extern] $ \[wsOwner, wsExtern] -> do
+    delete
+      ( g
+          . paths ["/i/teams", toByteString' tid]
+          . zUser owner
+          . zConn "conn"
+      )
+      !!! const 202
+      === statusCode
+    checkUserDeleteEvent owner wsOwner
+
+    WS.assertNoEvent (1 # Second) [wsExtern]
+    -- Note that given the async nature of team deletion, we may
+    -- have other events in the queue (such as TEAM_UPDATE)
+    tryAssertQueue 10 "team delete, should be there" tDelete
+
+  Util.ensureDeletedState True extern owner
+  -- Ensure users are marked as deleted; since we already
+  -- received the event, should _really_ be deleted
+  -- Let's clean the queue, just in case
+  ensureQueueEmpty
 
 testDeleteBindingTeam :: Bool -> TestM ()
 testDeleteBindingTeam ownerHasPassword = do
@@ -1154,14 +1277,146 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
           ((/= Galley.Types.Teams.Intra.Deleted) . Galley.Types.Teams.Intra.tdStatus)
           (getTeamInternal tid)
 
+testBillingInLargeTeam :: TestM ()
+testBillingInLargeTeam = do
+  (firstOwner, team) <- Util.createBindingTeam
+  refreshIndex
+  opts <- view tsGConf
+  galley <- view tsGalley
+  let fanoutLimit = fromRange $ Galley.currentFanoutLimit opts
+  allOwnersBeforeFanoutLimit <-
+    foldM
+      ( \billingMembers n -> do
+          newBillingMemberId <- (view userId) <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
+          let allBillingMembers = newBillingMemberId : billingMembers
+          assertQueue ("add " <> show n <> "th billing member: " <> show newBillingMemberId) $
+            tUpdate n allBillingMembers
+          refreshIndex
+          pure allBillingMembers
+      )
+      [firstOwner]
+      [2 .. (fanoutLimit + 1)]
+
+  -- Additions after the fanout limit should still send events to all owners
+  ownerFanoutPlusTwo <- view userId <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
+  assertQueue ("add fanoutLimit + 2nd billing member: " <> show ownerFanoutPlusTwo) $
+    tUpdate (fanoutLimit + 2) (ownerFanoutPlusTwo : allOwnersBeforeFanoutLimit)
+  refreshIndex
+
+  -- Deletions after the fanout limit should still send events to all owners
+  ownerFanoutPlusThree <- view userId <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
+  assertQueue ("add fanoutLimit + 3rd billing member: " <> show ownerFanoutPlusThree) $
+    tUpdate (fanoutLimit + 3) (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusTwo, ownerFanoutPlusThree])
+  refreshIndex
+
+  Util.deleteTeamMember galley team firstOwner ownerFanoutPlusThree
+  assertQueue ("delete fanoutLimit + 3rd billing member: " <> show ownerFanoutPlusThree) $
+    tUpdate (fanoutLimit + 2) (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusTwo])
+  refreshIndex
+
+testBillingInLargeTeamWithoutIndexedBillingTeamMembers :: TestM ()
+testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
+  (firstOwner, team) <- Util.createBindingTeam
+  refreshIndex
+  opts <- view tsGConf
+  galley <- view tsGalley
+  let withoutIndexedBillingTeamMembers =
+        withSettingsOverrides (opts & optSettings . setEnableIndexedBillingTeamMembers ?~ False)
+  let fanoutLimit = fromRange $ Galley.currentFanoutLimit opts
+
+  -- Billing should work properly upto fanout limit
+  allOwnersBeforeFanoutLimit <-
+    foldM
+      ( \billingMembers n -> do
+          newBillingMemberId <- randomUser
+          let mem = json $ newNewTeamMember $ newTeamMember newBillingMemberId (rolePermissions RoleOwner) Nothing
+          -- We cannot properly add the new owner with an invite as we don't have a way to
+          -- override galley settings while making a call to brig
+          withoutIndexedBillingTeamMembers $
+            post (galley . paths ["i", "teams", toByteString' team, "members"] . mem)
+              !!! const 200 === statusCode
+          let allBillingMembers = newBillingMemberId : billingMembers
+          -- We don't make a call to brig to add member, hence the count of team is always 2
+          assertQueue ("add " <> show n <> "th billing member: " <> show newBillingMemberId) $
+            tUpdate 2 allBillingMembers
+          refreshIndex
+          pure allBillingMembers
+      )
+      [firstOwner]
+      [2 .. (fanoutLimit + 1)]
+
+  -- If we add another owner, one of them won't get notified
+  ownerFanoutPlusTwo <- randomUser
+  let memFanoutPlusTwo = json $ newNewTeamMember $ newTeamMember ownerFanoutPlusTwo (rolePermissions RoleOwner) Nothing
+  -- We cannot properly add the new owner with an invite as we don't have a way to
+  -- override galley settings while making a call to brig
+  withoutIndexedBillingTeamMembers $
+    post (galley . paths ["i", "teams", toByteString' team, "members"] . memFanoutPlusTwo)
+      !!! const 200 === statusCode
+  assertQueue ("add " <> show (fanoutLimit + 2) <> "th billing member: " <> show ownerFanoutPlusTwo) $
+    \s maybeEvent ->
+      case maybeEvent of
+        Nothing -> assertFailure "Expected 1 TeamUpdate, got nothing"
+        Just event -> do
+          assertEqual (s <> ": eventType") E.TeamEvent'TEAM_UPDATE (event ^. E.eventType)
+          assertEqual (s <> ": count") 2 (event ^. E.eventData . E.memberCount)
+          let reportedBillingUserIds = mapMaybe (UUID.fromByteString . fromStrict) (event ^. E.eventData . E.billingUser)
+          assertEqual (s <> ": number of billing users") (fromIntegral fanoutLimit + 1) (length reportedBillingUserIds)
+
+  -- While members are added with indexedBillingTeamMembers disabled, new owners must still be
+  -- indexed, just not used. When the feature is enabled, we should be able to send billing to
+  -- all the owners
+  ownerFanoutPlusThree <- view userId <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
+  assertQueue ("add fanoutLimit + 3rd billing member: " <> show ownerFanoutPlusThree) $
+    tUpdateUncertainCount [2, 3] (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusTwo, ownerFanoutPlusThree])
+  refreshIndex
+
+  -- Deletions with indexedBillingTeamMembers disabled should still remove owners from the
+  -- indexed table
+  withoutIndexedBillingTeamMembers $ Util.deleteTeamMember galley team firstOwner ownerFanoutPlusTwo
+  ensureQueueEmpty
+  Util.waitForMemberDeletion firstOwner team ownerFanoutPlusTwo
+
+  ownerFanoutPlusFour <- view userId <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
+  assertQueue ("add billing member to test deletion: " <> show ownerFanoutPlusFour) $
+    tUpdateUncertainCount [3, 4] (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusThree, ownerFanoutPlusFour])
+  refreshIndex
+
+  -- Promotions and demotion should also be kept track of regardless of feature being enabled
+  let demoteFanoutPlusThree = newNewTeamMember (newTeamMember' (rolePermissions RoleAdmin) ownerFanoutPlusThree)
+  withoutIndexedBillingTeamMembers $ updateTeamMember galley team firstOwner demoteFanoutPlusThree !!! const 200 === statusCode
+  ensureQueueEmpty
+
+  ownerFanoutPlusFive <- view userId <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
+  assertQueue ("add billing member to test demotion: " <> show ownerFanoutPlusFive) $
+    tUpdateUncertainCount [4, 5] (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusFour, ownerFanoutPlusFive])
+  refreshIndex
+
+  let promoteFanoutPlusThree = newNewTeamMember (newTeamMember' (rolePermissions RoleOwner) ownerFanoutPlusThree)
+  withoutIndexedBillingTeamMembers $ updateTeamMember galley team firstOwner promoteFanoutPlusThree !!! const 200 === statusCode
+  ensureQueueEmpty
+
+  ownerFanoutPlusSix <- view userId <$> Util.addUserToTeamWithRole (Just RoleOwner) firstOwner team
+  assertQueue ("add billing member to test promotion: " <> show ownerFanoutPlusSix) $
+    tUpdateUncertainCount [5, 6] (allOwnersBeforeFanoutLimit <> [ownerFanoutPlusThree, ownerFanoutPlusFour, ownerFanoutPlusFive, ownerFanoutPlusSix])
+  where
+    updateTeamMember g tid zusr change =
+      put
+        ( g
+            . paths ["teams", toByteString' tid, "members"]
+            . zUser zusr
+            . zConn "conn"
+            . json change
+        )
+
 testUpdateTeamMember :: TestM ()
 testUpdateTeamMember = do
   g <- view tsGalley
   c <- view tsCannon
-  owner <- Util.randomUser
-  member <- newTeamMember' (rolePermissions RoleAdmin) <$> Util.randomUser
-  Util.connectUsers owner (list1 (member ^. userId) [])
-  tid <- Util.createNonBindingTeam "foo" owner [member]
+  (owner, tid) <- Util.createBindingTeam
+  member <- Util.addUserToTeamWithRole (Just RoleAdmin) owner tid
+  assertQueue "add member" $ tUpdate 2 [owner]
+  refreshIndex
   -- non-owner can **NOT** demote owner
   let demoteOwner = newNewTeamMember (newTeamMember' (rolePermissions RoleAdmin) owner)
   updateTeamMember g tid (member ^. userId) demoteOwner !!! do
@@ -1177,6 +1432,7 @@ testUpdateTeamMember = do
     checkTeamMemberUpdateEvent tid (member ^. userId) wsOwner (pure noPermissions)
     checkTeamMemberUpdateEvent tid (member ^. userId) wsMember (pure noPermissions)
     WS.assertNoEvent timeout [wsOwner, wsMember]
+  assertQueue "Member demoted" $ tUpdate 2 [owner]
   -- owner can promote non-owner
   let promoteMember = newNewTeamMember (member & permissions .~ fullPermissions)
   WS.bracketR2 c owner (member ^. userId) $ \(wsOwner, wsMember) -> do
@@ -1187,6 +1443,7 @@ testUpdateTeamMember = do
     checkTeamMemberUpdateEvent tid (member ^. userId) wsOwner (pure fullPermissions)
     checkTeamMemberUpdateEvent tid (member ^. userId) wsMember (pure fullPermissions)
     WS.assertNoEvent timeout [wsOwner, wsMember]
+  assertQueue "Member promoted to owner" $ tUpdate 2 [owner, member ^. userId]
   -- owner can **NOT** demote herself, even when another owner exists
   updateTeamMember g tid owner demoteOwner !!! do
     const 403 === statusCode
@@ -1200,7 +1457,7 @@ testUpdateTeamMember = do
     checkTeamMemberUpdateEvent tid owner wsOwner (pure (rolePermissions RoleAdmin))
     checkTeamMemberUpdateEvent tid owner wsMember (pure (rolePermissions RoleAdmin))
     WS.assertNoEvent timeout [wsOwner, wsMember]
-  assertQueueEmpty
+  assertQueue "Owner demoted" $ tUpdate 2 [member ^. userId]
   where
     updateTeamMember g tid zusr change =
       put
@@ -1579,6 +1836,42 @@ putSSOEnabledInternal tid enabled = do
       . json (SSOTeamConfig enabled)
       . expect2xx
 
+getSearchVisibility :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> (MonadIO m, MonadHttp m) => m ResponseLBS
+getSearchVisibility g uid tid = do
+  get $
+    g
+      . paths ["teams", toByteString' tid, "search-visibility"]
+      . zUser uid
+
+putSearchVisibility :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> TeamSearchVisibility -> (MonadIO m, MonadHttp m) => m ResponseLBS
+putSearchVisibility g uid tid vis = do
+  put $
+    g
+      . paths ["teams", toByteString' tid, "search-visibility"]
+      . zUser uid
+      . json (TeamSearchVisibilityView vis)
+
+getTeamSearchVisibilityAvailable :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> (MonadIO m, MonadHttp m) => m ResponseLBS
+getTeamSearchVisibilityAvailable g uid tid = do
+  get $
+    g
+      . paths ["teams", toByteString' tid, "features", "search-visibility"]
+      . zUser uid
+
+getTeamSearchVisibilityAvailableInternal :: HasCallStack => (Request -> Request) -> TeamId -> (MonadIO m, MonadHttp m) => m ResponseLBS
+getTeamSearchVisibilityAvailableInternal g tid = do
+  get $
+    g
+      . paths ["i", "teams", toByteString' tid, "features", "search-visibility"]
+
+putTeamSearchVisibilityAvailableInternal :: HasCallStack => (Request -> Request) -> TeamId -> TeamSearchVisibilityAvailable -> (MonadIO m, MonadHttp m) => m ()
+putTeamSearchVisibilityAvailableInternal g tid status = do
+  void . put $
+    g
+      . paths ["i", "teams", toByteString' tid, "features", "search-visibility"]
+      . json (TeamSearchVisibilityAvailableView status)
+      . expect2xx
+
 getLegalHoldEnabled :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
 getLegalHoldEnabled uid tid = do
   g <- view tsGalley
@@ -1610,6 +1903,7 @@ testFeatureFlags :: TestM ()
 testFeatureFlags = do
   owner <- Util.randomUser
   tid <- Util.createNonBindingTeam "foo" owner []
+
   -- sso
 
   let getSSO :: HasCallStack => SSOStatus -> TestM ()
@@ -1635,6 +1929,7 @@ testFeatureFlags = do
       -- much here.  (disable failure is covered in "enable/disable SSO" above.)
       getSSO SSOEnabled
       getSSOInternal SSOEnabled
+
   -- legalhold
 
   let getLegalHold :: HasCallStack => LegalHoldStatus -> TestM ()
@@ -1649,6 +1944,8 @@ testFeatureFlags = do
       setLegalHoldInternal = putLegalHoldEnabledInternal tid
   getLegalHold LegalHoldDisabled
   getLegalHoldInternal LegalHoldDisabled
+
+  -- FUTUREWORK: run two galleys, like below for custom search visibility.
   featureLegalHold <- view (tsGConf . optSettings . setFeatureFlags . flagLegalHold)
   case featureLegalHold of
     FeatureLegalHoldDisabledByDefault -> do
@@ -1658,6 +1955,55 @@ testFeatureFlags = do
     FeatureLegalHoldDisabledPermanently -> do
       putLegalHoldEnabledInternal' expect4xx tid LegalHoldEnabled
 
+  -- custom search visibility
+
+  g <- view tsGalley
+  let getTeamSearchVisibility ::
+        (Monad m, MonadHttp m, MonadIO m, MonadCatch m, HasCallStack) =>
+        TeamId ->
+        TeamSearchVisibilityAvailable ->
+        m ()
+      getTeamSearchVisibility teamid expected = getTeamSearchVisibilityAvailable g owner teamid !!! do
+        statusCode === const 200
+        responseJsonEither === const (Right (TeamSearchVisibilityAvailableView expected))
+
+  let getTeamSearchVisibilityInternal ::
+        (Monad m, MonadHttp m, MonadIO m, MonadCatch m, HasCallStack) =>
+        TeamId ->
+        TeamSearchVisibilityAvailable ->
+        m ()
+      getTeamSearchVisibilityInternal teamid expected = getTeamSearchVisibilityAvailableInternal g teamid !!! do
+        statusCode === const 200
+        responseJsonEither === const (Right (TeamSearchVisibilityAvailableView expected))
+
+  let setTeamSearchVisibilityInternal ::
+        (Monad m, MonadHttp m, MonadIO m, HasCallStack) =>
+        TeamId ->
+        TeamSearchVisibilityAvailable ->
+        m ()
+      setTeamSearchVisibilityInternal = putTeamSearchVisibilityAvailableInternal g
+
+  tid2 <- Util.createNonBindingTeam "foo" owner []
+  withCustomSearchFeature FeatureTeamSearchVisibilityDisabledByDefault $ do
+    getTeamSearchVisibility tid2 TeamSearchVisibilityDisabled
+    getTeamSearchVisibilityInternal tid2 TeamSearchVisibilityDisabled
+    setTeamSearchVisibilityInternal tid2 TeamSearchVisibilityEnabled
+    getTeamSearchVisibility tid2 TeamSearchVisibilityEnabled
+    getTeamSearchVisibilityInternal tid2 TeamSearchVisibilityEnabled
+    setTeamSearchVisibilityInternal tid2 TeamSearchVisibilityDisabled
+    getTeamSearchVisibility tid2 TeamSearchVisibilityDisabled
+    getTeamSearchVisibilityInternal tid2 TeamSearchVisibilityDisabled
+  tid3 <- Util.createNonBindingTeam "foo" owner []
+  withCustomSearchFeature FeatureTeamSearchVisibilityEnabledByDefault $ do
+    getTeamSearchVisibility tid3 TeamSearchVisibilityEnabled
+    getTeamSearchVisibilityInternal tid3 TeamSearchVisibilityEnabled
+    setTeamSearchVisibilityInternal tid3 TeamSearchVisibilityDisabled
+    getTeamSearchVisibility tid3 TeamSearchVisibilityDisabled
+    getTeamSearchVisibilityInternal tid3 TeamSearchVisibilityDisabled
+    setTeamSearchVisibilityInternal tid3 TeamSearchVisibilityEnabled
+    getTeamSearchVisibility tid3 TeamSearchVisibilityEnabled
+    getTeamSearchVisibilityInternal tid3 TeamSearchVisibilityEnabled
+
 checkJoinEvent :: (MonadIO m, MonadCatch m) => TeamId -> UserId -> WS.WebSocket -> m ()
 checkJoinEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do
   ntfTransient notif @?= False
@@ -1665,3 +2011,9 @@ checkJoinEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do
   e ^. eventType @?= MemberJoin
   e ^. eventTeam @?= tid
   e ^. eventData @?= Just (EdMemberJoin usr)
+
+withCustomSearchFeature :: FeatureTeamSearchVisibility -> WaiTest.Session () -> TestM ()
+withCustomSearchFeature flag action = do
+  opts <- view tsGConf
+  let opts' = opts & optSettings . setFeatureFlags . flagTeamSearchVisibility .~ flag
+  withSettingsOverrides opts' action

@@ -109,6 +109,12 @@ actionDenied a =
     "action-denied"
     ("Insufficient authorization (missing " <> (pack $ show a) <> ")")
 
+noBindingTeam :: Error
+noBindingTeam = Error status403 "no-binding-team" "Operation allowed only on binding teams."
+
+notAOneMemberTeam :: Error
+notAOneMemberTeam = Error status403 "not-one-member-team" "Can only delete teams with a single member."
+
 notATeamMember :: Error
 notATeamMember = Error status403 "no-team-member" "Requesting user is not a team member."
 
@@ -216,6 +222,9 @@ disableSsoNotImplemented =
     \\n\
     \It is definitely feasible to change this.  If you have a use case, please contact customer support, or\n\
     \open an issue on https://github.com/wireapp/wire-server."
+
+teamSearchVisibilityNotEnabled :: Error
+teamSearchVisibilityNotEnabled = Error status403 "team-search-visibility-not-enabled" "custom search is not available for this team"
 
 customBackendNotFound :: Domain -> Error
 customBackendNotFound domain =

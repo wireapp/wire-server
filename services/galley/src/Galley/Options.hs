@@ -51,6 +51,12 @@ data Settings = Settings
     -- This means we don't run any queries on federation-related tables and don't
     -- make any calls to the federator service.
     _setEnableFederation :: !(Maybe Bool),
+    -- | When true, galley will assume data in `billing_team_member` table is
+    -- consistent and use it for billing.
+    -- When false, billing information for large teams is not guaranteed to have all
+    -- the owners.
+    -- Defaults to false.
+    _setEnableIndexedBillingTeamMembers :: !(Maybe Bool),
     _setFeatureFlags :: !FeatureFlags
   }
   deriving (Show, Generic)

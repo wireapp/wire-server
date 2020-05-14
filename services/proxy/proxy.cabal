@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: dedd1a669d641315762f8de28ab47f081a88abe9a4f7701128c824e82588c460
+-- hash: 637d4e18d3cfc3d03b97e5f8d06121277c14d95cb66c5754b14a3db160ac9bfd
 
 name:           proxy
 version:        0.9.0
@@ -26,6 +26,7 @@ library
   exposed-modules:
       Main
       Proxy.API
+      Proxy.API.Public
       Proxy.Env
       Proxy.Options
       Proxy.Proxy

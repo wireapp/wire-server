@@ -29,6 +29,7 @@ module Galley.Data
     updateTeamMember,
     createTeam,
     removeTeamMember,
+    listBillingTeamMembers,
     team,
     Galley.Data.teamName,
     teamConversation,
@@ -109,6 +110,7 @@ import Control.Lens hiding ((<|))
 import Control.Monad.Catch (MonadThrow)
 import Data.Bifunctor (first)
 import Data.ByteString.Conversion hiding (parser)
+import Data.Function (on)
 import Data.Id as Id
 import Data.IdMapping
 import Data.Json.Util (UTCTimeMillis (..))
@@ -119,7 +121,7 @@ import Data.List1 (List1, list1, singleton)
 import qualified Data.Map.Strict as Map
 import Data.Misc (Milliseconds)
 import Data.Range
-import qualified Data.Set
+import qualified Data.Set as Set
 import Data.Time.Clock
 import qualified Data.UUID.Tagged as U
 import Data.UUID.V4 (nextRandom)
@@ -170,7 +172,7 @@ resultSetResult :: ResultSet a -> [a]
 resultSetResult = result . page
 
 schemaVersion :: Int32
-schemaVersion = 37
+schemaVersion = 39
 
 -- | Insert a conversation code
 insertCode :: MonadClient m => Code -> m ()
@@ -369,9 +371,33 @@ addTeamMember t m =
         m ^? invitation . _Just . _2
       )
     addPrepQuery Cql.insertUserTeam (m ^. userId, t)
+    when (m `hasPermission` SetBilling) $
+      addPrepQuery Cql.insertBillingTeamMember (t, m ^. userId)
 
-updateTeamMember :: MonadClient m => TeamId -> UserId -> Permissions -> m ()
-updateTeamMember t u p = retry x5 $ write Cql.updatePermissions (params Quorum (p, t, u))
+updateTeamMember ::
+  MonadClient m =>
+  -- | Old permissions, used for maintaining 'billing_team_member' table
+  Permissions ->
+  TeamId ->
+  UserId ->
+  -- | New permissions
+  Permissions ->
+  m ()
+updateTeamMember oldPerms tid uid newPerms = do
+  retry x5 $ batch $ do
+    setType BatchLogged
+    setConsistency Quorum
+    addPrepQuery Cql.updatePermissions (newPerms, tid, uid)
+
+    when (SetBilling `Set.member` acquiredPerms) $
+      addPrepQuery Cql.insertBillingTeamMember (tid, uid)
+
+    when (SetBilling `Set.member` lostPerms) $
+      addPrepQuery Cql.deleteBillingTeamMember (tid, uid)
+  where
+    permDiff = Set.difference `on` view self
+    acquiredPerms = newPerms `permDiff` oldPerms
+    lostPerms = oldPerms `permDiff` newPerms
 
 removeTeamMember :: MonadClient m => TeamId -> UserId -> m ()
 removeTeamMember t m =
@@ -380,6 +406,12 @@ removeTeamMember t m =
     setConsistency Quorum
     addPrepQuery Cql.deleteTeamMember (t, m)
     addPrepQuery Cql.deleteUserTeam (m, t)
+    addPrepQuery Cql.deleteBillingTeamMember (t, m)
+
+listBillingTeamMembers :: MonadClient m => TeamId -> m [UserId]
+listBillingTeamMembers tid =
+  fmap runIdentity
+    <$> retry x1 (query Cql.listBillingTeamMembers (params Quorum (Identity tid)))
 
 removeTeamConv :: MonadClient m => TeamId -> ConvId -> m ()
 removeTeamConv tid cid = do
@@ -569,7 +601,7 @@ createOne2OneConversation a b name ti = do
 updateConversation :: MonadClient m => ConvId -> Range 1 256 Text -> m ()
 updateConversation cid name = retry x5 $ write Cql.updateConvName (params Quorum (fromRange name, cid))
 
-updateConversationAccess :: MonadClient m => ConvId -> Data.Set.Set Access -> AccessRole -> m ()
+updateConversationAccess :: MonadClient m => ConvId -> Set.Set Access -> AccessRole -> m ()
 updateConversationAccess cid acc role = retry x5 $ write Cql.updateConvAccess (params Quorum (Set (toList acc), role, cid))
 
 updateConversationReceiptMode :: MonadClient m => ConvId -> ReceiptMode -> m ()

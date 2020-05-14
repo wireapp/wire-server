@@ -1,7 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -19,36 +15,12 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Types.Properties where
+module Brig.Types.Properties
+  ( -- * re-exports
+    PropertyKey (..),
+    PropertyValue (..),
+    PropertyKeysAndValues (..),
+  )
+where
 
-import Data.Aeson
-import Data.ByteString.Conversion
-import Data.Hashable (Hashable)
-import Data.Text.Ascii
-import Imports
-
-newtype PropertyKey = PropertyKey
-  {propertyKeyName :: AsciiPrintable}
-  deriving
-    ( Eq,
-      Ord,
-      Show,
-      FromByteString,
-      ToByteString,
-      FromJSON,
-      ToJSON,
-      FromJSONKey,
-      ToJSONKey,
-      Generic,
-      Hashable
-    )
-
-newtype PropertyValue = PropertyValue
-  {propertyValueJson :: Value}
-  deriving (Eq, Show, FromJSON, ToJSON, Generic, Hashable)
-
-newtype PropertyKeysAndValues = PropertyKeysAndValues [(PropertyKey, PropertyValue)]
-  deriving (Eq, Show, Generic, Hashable)
-
-instance ToJSON PropertyKeysAndValues where
-  toJSON (PropertyKeysAndValues kvs) = object [toText k .= v | (PropertyKey k, v) <- kvs]
+import Wire.API.Properties

@@ -597,21 +597,19 @@ indexMapping =
           ]
     ]
 
-data MappingProperty
-  = MappingProperty
-      { mpType :: MappingPropertyType,
-        mpStore :: Bool,
-        mpIndex :: Bool,
-        mpAnalyzer :: Maybe Text,
-        mpFields :: Map Text MappingField
-      }
+data MappingProperty = MappingProperty
+  { mpType :: MappingPropertyType,
+    mpStore :: Bool,
+    mpIndex :: Bool,
+    mpAnalyzer :: Maybe Text,
+    mpFields :: Map Text MappingField
+  }
 
-data MappingField
-  = MappingField
-      { mfType :: MappingPropertyType,
-        mfAnalyzer :: Text,
-        mfSearchAnalyzer :: Text
-      }
+data MappingField = MappingField
+  { mfType :: MappingPropertyType,
+    mfAnalyzer :: Text,
+    mfSearchAnalyzer :: Text
+  }
 
 data MappingPropertyType = MPText | MPKeyword | MPByte
 

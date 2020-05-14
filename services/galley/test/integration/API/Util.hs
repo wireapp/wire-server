@@ -52,7 +52,6 @@ import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
 import Galley.Types
 import Galley.Types.Conversations.Roles hiding (DeleteConversation)
-import qualified Galley.Types.Proto as Proto
 import qualified Galley.Types.Teams as Team
 import Galley.Types.Teams hiding (EventType (..))
 import Galley.Types.Teams.Intra
@@ -64,7 +63,9 @@ import Test.Tasty.Cannon ((#), TimeoutUnit (..))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestSetup
+import UnliftIO.Timeout
 import Web.Cookie
+import qualified Wire.API.Message.Proto as Proto
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -1127,16 +1128,19 @@ randomClient uid lk = do
 
 ensureDeletedState :: HasCallStack => Bool -> UserId -> UserId -> TestM ()
 ensureDeletedState check from u = do
+  state <- getDeletedState from u
+  liftIO $ assertEqual "Unxpected deleted state" state (Just check)
+
+getDeletedState :: HasCallStack => UserId -> UserId -> TestM (Maybe Bool)
+getDeletedState from u = do
   b <- view tsBrig
-  get
-    ( b
-        . paths ["users", toByteString' u]
-        . zUser from
-        . zConn "conn"
-    )
-    !!! const (Just check)
-    === fmap profileDeleted
-    . responseJsonMaybe
+  fmap profileDeleted . responseJsonMaybe
+    <$> get
+      ( b
+          . paths ["users", toByteString' u]
+          . zUser from
+          . zConn "conn"
+      )
 
 getClients :: UserId -> TestM ResponseLBS
 getClients u = do
@@ -1346,3 +1350,28 @@ withSettingsOverrides :: MonadIO m => Opts.Opts -> WaiTest.Session a -> m a
 withSettingsOverrides opts action = liftIO $ do
   (galleyApp, _) <- Run.mkApp opts
   WaiTest.runSession action galleyApp
+
+waitForMemberDeletion :: UserId -> TeamId -> UserId -> TestM ()
+waitForMemberDeletion zusr tid uid = do
+  maybeTimedOut <- timeout 2000000 loop
+  liftIO $ when (isNothing maybeTimedOut) $
+    assertFailure "Timed out waiting for member deletion"
+  where
+    loop = do
+      galley <- view tsGalley
+      res <- get (galley . paths ["teams", toByteString' tid, "members", toByteString' uid] . zUser zusr)
+      case statusCode res of
+        404 -> pure ()
+        _ -> loop
+
+deleteTeamMember :: (MonadIO m, MonadCatch m, MonadHttp m) => (Request -> Request) -> TeamId -> UserId -> UserId -> m ()
+deleteTeamMember g tid owner deletee =
+  delete
+    ( g
+        . paths ["teams", toByteString' tid, "members", toByteString' deletee]
+        . zUser owner
+        . zConn "conn"
+        . json (newTeamMemberDeleteData (Just defPassword))
+    )
+    !!! do
+      const 202 === statusCode

@@ -2,6 +2,18 @@
 
 This page provides tips for setting up editors to work with the Wire codebase.
 
+## For multiple editors {#DevAll}
+
+### Using Haskell IDE Engine
+
+See [official documentation](https://github.com/haskell/haskell-ide-engine)
+
+In addition, you can generate (and re-generate after changes to stack.yaml) a `hie.yaml` configuration file with
+
+```
+make hie.yaml
+```
+
 ## Emacs {#DevEmacs}
 
 ### Jump-to-definition {#DevEmacsJump}
@@ -55,7 +67,10 @@ here](https://github.com/tweag/ormolu#editor-integration).
 
 ## Vim {#DevVim}
 
-TODO.
+### hie (Haskell IDE engine) integration
+
+* Generate `hie.yaml` as described [at the top of this file](#using-haskell-ide-engine)
+* You may follow the setup described [in this blog post](http://marco-lopes.com/articles/Vim-and-Haskell-in-2019/)
 
 ### ormolu integration
 

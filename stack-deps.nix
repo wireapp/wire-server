@@ -13,6 +13,7 @@ pkgs.haskell.lib.buildStackProject {
     openssl
     pkgconfig
     protobuf
+    pcre
     snappy
     zlib
   ];

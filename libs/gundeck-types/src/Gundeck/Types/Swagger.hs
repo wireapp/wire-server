@@ -20,71 +20,35 @@
 module Gundeck.Types.Swagger where
 
 import Data.Swagger.Build.Api
-import Imports
+import qualified Wire.API.Notification as Notification
+import qualified Wire.API.Push.V2.Token as Push.Token
+import qualified Wire.API.Swagger
 
+-- | Actually all models of the whole API,
+-- but it doesn't hurt and makes it less likely to forget one.
 gundeckModels :: [Model]
-gundeckModels =
-  [ pushTokenList,
-    pushToken,
-    notificationList,
-    notification,
-    event
-  ]
+gundeckModels = Wire.API.Swagger.models
 
 -------------------------------------------------------------------------------
 -- Push Models
 
 pushTransport :: DataType
-pushTransport =
-  string $
-    enum
-      [ "GCM",
-        "APNS",
-        "APNS_SANDBOX",
-        "APNS_VOIP",
-        "APNS_VOIP_SANDBOX"
-      ]
+pushTransport = Push.Token.typeTransport
 
 pushToken :: Model
-pushToken = defineModel "PushToken" $ do
-  description "Native Push Token"
-  property "transport" pushTransport $
-    description "Transport"
-  property "app" string' $
-    description "Application"
-  property "token" bytes' $
-    description "Access Token"
-  property "client" bytes' $ do
-    description "Client ID"
-    optional
+pushToken = Push.Token.modelPushToken
 
 pushTokenList :: Model
-pushTokenList = defineModel "PushTokenList" $ do
-  description "List of Native Push Tokens"
-  property "tokens" (array (ref pushToken)) $
-    description "Push tokens"
+pushTokenList = Push.Token.modelPushTokenList
 
 -------------------------------------------------------------------------------
 -- Notification Models
 
 notificationList :: Model
-notificationList = defineModel "NotificationList" $ do
-  description "Zero or more notifications"
-  property "notifications" (array (ref notification)) $
-    description "Notifications"
-  property "has_more" bool' $
-    description "Whether there are still more notifications."
+notificationList = Notification.modelNotificationList
 
 notification :: Model
-notification = defineModel "Notification" $ do
-  description "A single notification"
-  property "id" bytes' $
-    description "Notification ID"
-  property "payload" (array (ref event)) $
-    description "List of events"
+notification = Notification.modelNotification
 
 event :: Model
-event = defineModel "NotificationEvent" $ do
-  description "A single event"
-  property "type" string' $
-    description "Event type"
+event = Notification.modelEvent
