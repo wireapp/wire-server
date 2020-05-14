@@ -21,7 +21,7 @@ import Data.Aeson (FromJSON, ToJSON, parseJSON, toJSON)
 import Data.Aeson.Types (parseEither)
 import Data.Id (ConvId)
 import Imports
-import Test.Tasty (TestTree, testGroup)
+import qualified Test.Tasty as T
 import Test.Tasty.QuickCheck ((===), Arbitrary, counterexample, testProperty)
 import Type.Reflection (typeRep)
 import qualified Wire.API.Asset as Asset
@@ -68,9 +68,9 @@ import qualified Wire.API.User.Profile as User.Profile
 import qualified Wire.API.User.RichInfo as User.RichInfo
 import qualified Wire.API.User.Search as User.Search
 
-tests :: TestTree
+tests :: T.TestTree
 tests =
-  testGroup "JSON roundtrip tests" $
+  T.localOption (T.Timeout (30 * 1000000) "30s") . T.testGroup "JSON roundtrip tests" $
     [ testRoundTrip @Asset.AssetToken,
       testRoundTrip @Asset.NewAssetToken,
       testRoundTrip @Asset.AssetRetention,
@@ -306,7 +306,7 @@ tests =
 testRoundTrip ::
   forall a.
   (Arbitrary a, Typeable a, ToJSON a, FromJSON a, Eq a, Show a) =>
-  TestTree
+  T.TestTree
 testRoundTrip = testProperty msg trip
   where
     msg = show (typeRep @a)
