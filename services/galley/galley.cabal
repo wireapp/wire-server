@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b81b28b8c0cf3c6be98221489bea98bfd2c0a4f387237a219ce842582470c9e4
+-- hash: 648397e78543b64bfa53fdc433378f38a8a60d3492af27ccf0eac9e55cb1f810
 
 name:           galley
 version:        0.83.0
@@ -272,6 +272,41 @@ executable galley-integration
     , yaml
   default-language: Haskell2010
 
+executable galley-migrate-data
+  main-is: Main.hs
+  other-modules:
+      Galley.DataMigration
+      Galley.DataMigration.Types
+      V1_BackfillBillingTeamMembers
+      Paths_galley
+  hs-source-dirs:
+      migrate-data/src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path
+  build-depends:
+      base
+    , cassandra-util
+    , conduit
+    , containers
+    , exceptions
+    , extended
+    , galley-types
+    , imports
+    , lens
+    , optparse-applicative
+    , raw-strings-qq >=1.0
+    , safe >=0.3
+    , ssl-util
+    , text
+    , time
+    , tinylog
+    , types-common
+    , unliftio
+    , wire-api
+  if flag(static)
+    ld-options: -static
+  default-language: Haskell2010
+
 executable galley-schema
   main-is: Main.hs
   other-modules:
@@ -295,6 +330,7 @@ executable galley-schema
       V37
       V38_CreateTableBillingTeamMember
       V39
+      V40_CreateTableDataMigration
       Paths_galley
   hs-source-dirs:
       schema/src
