@@ -257,8 +257,18 @@ instance Arbitrary TurnHost where
   arbitrary =
     QC.oneof
       [ TurnHostIp <$> arbitrary,
-        TurnHostName . TE.decodeUtf8 <$> arbitrary `QC.suchThat` validHostname -- inefficient!
+        TurnHostName <$> genHostName
       ]
+    where
+      -- values that should fulfill 'validHostname'
+      genHostName =
+        QC.elements
+          [ "host.name",
+            "a-c",
+            "123",
+            "007.com",
+            "xn--mgbh0fb.xn--kgbechtv"
+          ]
 
 isHostName :: TurnHost -> Bool
 isHostName (TurnHostIp _) = False

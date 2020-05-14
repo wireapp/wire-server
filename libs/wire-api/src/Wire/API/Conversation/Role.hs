@@ -59,6 +59,7 @@ import Data.Aeson.TH
 import Data.Attoparsec.Text
 import Data.ByteString.Conversion
 import Data.Hashable
+import Data.Range (fromRange, genRangeText)
 import qualified Data.Set as Set
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
@@ -179,7 +180,10 @@ deriving instance Cql RoleName
 
 instance Arbitrary RoleName where
   arbitrary =
-    RoleName <$> (arbitrary `QC.suchThat` isValidRoleName)
+    RoleName . fromRange
+      <$> genRangeText @2 @128 genChar
+    where
+      genChar = QC.elements $ ['a' .. 'z'] <> ['0' .. '9'] <> ['_']
 
 wireConvRoleNames :: [RoleName]
 wireConvRoleNames = [roleNameWireAdmin, roleNameWireMember]

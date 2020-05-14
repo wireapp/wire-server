@@ -76,7 +76,7 @@ import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Imports
-import Test.QuickCheck (Arbitrary (..), suchThat)
+import Test.QuickCheck (Arbitrary (..), choose)
 import Text.Read (Read (..))
 import URI.ByteString hiding (Port)
 import qualified URI.ByteString.QQ as URI.QQ
@@ -113,7 +113,7 @@ instance Arbitrary IpAddr where
         d <- ipV4Part
         let adr = show a ++ "." ++ show b ++ "." ++ show c ++ "." ++ show d
         return (read adr)
-      ipV4Part = arbitrary @Word16 `suchThat` (< 256)
+      ipV4Part = choose @Word16 (0, 255)
 
 newtype Port = Port
   {portNumber :: Word16}
