@@ -64,7 +64,7 @@ import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Lazy.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Clock (UTCTime)
 import Imports
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.User.Identity (Email, Phone)
 
 --------------------------------------------------------------------------------
@@ -402,25 +402,15 @@ instance FromJSON RemoveCookies where
 -- | A temporary API access token.
 data AccessToken = AccessToken
   { user :: UserId,
-    access :: LByteString, -- accessTokenValue
-    tokenType :: TokenType, -- accessTokenType
-    expiresIn :: Integer -- accessTokenExpiresIn
+    -- | assumed to be valid UTF-8
+    access :: LByteString,
+    tokenType :: TokenType,
+    expiresIn :: Integer
   }
   deriving stock (Eq, Show, Generic)
-  --  TODO(wire-api): roundtrip test should fail because access needs to be UTF-8
-  deriving (Arbitrary) via (GenericUniform AccessToken)
 
 bearerToken :: UserId -> LByteString -> Integer -> AccessToken
 bearerToken u a = AccessToken u a Bearer
-
-instance ToJSON AccessToken where
-  toJSON (AccessToken u t tt e) =
-    object
-      [ "user" .= u,
-        "access_token" .= decodeUtf8 t,
-        "token_type" .= tt,
-        "expires_in" .= e
-      ]
 
 modelAccessToken :: Doc.Model
 modelAccessToken = Doc.defineModel "AccessToken" $ do
@@ -432,6 +422,16 @@ modelAccessToken = Doc.defineModel "AccessToken" $ do
   Doc.property "expires_in" Doc.int64' $
     Doc.description "The number of seconds this token is valid."
 
+instance ToJSON AccessToken where
+  toJSON (AccessToken u t tt e) =
+    object
+      [ "user" .= u,
+        -- FUTUREWORK: if we assume it's valid UTF-8, why not make it 'Text'?
+        "access_token" .= decodeUtf8 t,
+        "token_type" .= tt,
+        "expires_in" .= e
+      ]
+
 instance FromJSON AccessToken where
   parseJSON = withObject "AccessToken" $ \o ->
     AccessToken
@@ -439,6 +439,14 @@ instance FromJSON AccessToken where
       <*> (encodeUtf8 <$> o .: "access_token")
       <*> o .: "token_type"
       <*> o .: "expires_in"
+
+instance Arbitrary AccessToken where
+  arbitrary =
+    AccessToken
+      <$> arbitrary
+      <*> (encodeUtf8 <$> arbitrary)
+      <*> arbitrary
+      <*> arbitrary
 
 data TokenType = Bearer
   deriving stock (Eq, Show, Generic)
