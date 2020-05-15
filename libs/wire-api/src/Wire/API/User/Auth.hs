@@ -381,6 +381,14 @@ modelRemoveCookies = Doc.defineModel "RemoveCookies" $ do
     Doc.description "A list of cookie IDs to revoke."
     Doc.optional
 
+instance ToJSON RemoveCookies where
+  toJSON (RemoveCookies password labels ids) =
+    object
+      [ "password" .= password,
+        "labels" .= labels,
+        "ids" .= ids
+      ]
+
 instance FromJSON RemoveCookies where
   parseJSON = withObject "remove" $ \o ->
     RemoveCookies

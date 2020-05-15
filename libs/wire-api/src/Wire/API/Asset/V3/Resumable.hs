@@ -61,7 +61,7 @@ data ResumableSettings = ResumableSettings
     _setResumablePublic :: Bool,
     _setResumableType :: MIME.Type
   }
-  deriving stock (Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ResumableSettings)
 
 makeLenses ''ResumableSettings
@@ -114,7 +114,7 @@ data ResumableAsset = ResumableAsset
     _resumableExpires :: UTCTime,
     _resumableChunkSize :: ChunkSize
   }
-  deriving stock (Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ResumableAsset)
 
 makeLenses ''ResumableAsset

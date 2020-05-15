@@ -98,7 +98,7 @@ data RTCConfiguration = RTCConfiguration
   { _rtcConfIceServers :: List1 RTCIceServer,
     _rtcConfTTL :: Word32
   }
-  deriving stock (Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RTCConfiguration)
 
 rtcConfiguration :: List1 RTCIceServer -> Word32 -> RTCConfiguration
@@ -131,7 +131,7 @@ data RTCIceServer = RTCIceServer
     _iceUsername :: TurnUsername,
     _iceCredential :: AsciiBase64
   }
-  deriving stock (Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RTCIceServer)
 
 rtcIceServer :: List1 TurnURI -> TurnUsername -> AsciiBase64 -> RTCIceServer
@@ -309,7 +309,7 @@ data TurnUsername = TurnUsername
     -- | [a-z0-9]+
     _tuRandom :: Text
   }
-  deriving stock (Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TurnUsername)
 
 -- note that the random value is not checked for well-formedness

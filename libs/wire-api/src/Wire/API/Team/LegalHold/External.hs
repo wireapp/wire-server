@@ -133,3 +133,9 @@ instance ToJSON LegalHoldServiceRemove where
       "user_id" .= userId
         # "team_id" .= teamId
         # []
+
+instance FromJSON LegalHoldServiceRemove where
+  parseJSON = withObject "LegalHoldServiceRemove" $ \o ->
+    LegalHoldServiceRemove
+      <$> o .: "user_id"
+      <*> o .: "team_id"

@@ -66,7 +66,7 @@ data NewOtrMessage = NewOtrMessage
     -- should do the latter, for two reasons: (1) no need for an artificial limit on the
     -- body field length, because it'd be just a boolean; (2) less network consumption.
   }
-  deriving stock (Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewOtrMessage)
 
 modelNewOtrMessage :: Doc.Model

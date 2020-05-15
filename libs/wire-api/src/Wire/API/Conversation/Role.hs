@@ -152,6 +152,11 @@ instance ToJSON ConversationRolesList where
       [ "conversation_roles" .= r
       ]
 
+instance FromJSON ConversationRolesList where
+  parseJSON = withObject "ConversationRolesList" $ \o ->
+    ConversationRolesList
+      <$> o .: "conversation_roles"
+
 --------------------------------------------------------------------------------
 -- RoleName
 

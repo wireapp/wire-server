@@ -68,7 +68,7 @@ data Event = Event
     _eventTime :: UTCTime,
     _eventData :: Maybe EventData
   }
-  deriving stock (Eq, Generic)
+  deriving stock (Eq, Show, Generic)
 
 newEvent :: EventType -> TeamId -> UTCTime -> Event
 newEvent typ tid tme = Event typ tid tme Nothing

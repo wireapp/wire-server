@@ -85,7 +85,7 @@ data Asset = Asset
     _assetExpires :: Maybe UTCTime,
     _assetToken :: Maybe AssetToken
   }
-  deriving stock (Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Asset)
 
 mkAsset :: AssetKey -> Asset
@@ -239,7 +239,7 @@ data AssetSettings = AssetSettings
   { _setAssetPublic :: Bool,
     _setAssetRetention :: Maybe AssetRetention
   }
-  deriving stock (Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform AssetSettings)
 
 defAssetSettings :: AssetSettings

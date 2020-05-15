@@ -425,6 +425,7 @@ publicProfile u =
 --     SCIM-managed user)
 newtype NewUserPublic = NewUserPublic NewUser
   deriving stock (Eq, Show, Generic)
+  deriving newtype (ToJSON)
 
 modelNewUser :: Doc.Model
 modelNewUser = Doc.defineModel "NewUser" $ do

@@ -228,7 +228,9 @@ tests =
       testRoundTrip @User.SelfProfile,
       testRoundTrip @User.InvitationCode,
       testRoundTrip @User.BindingNewTeamUser,
-      testRoundTrip @User.NewUserOrigin,
+      -- FUTUREWORK: this should probably be tested individually,
+      -- but NewUserOrigin doesn't have JSON instances, just plain functions.
+      -- testRoundTrip @User.NewUserOrigin,
       testRoundTrip @User.UserUpdate,
       testRoundTrip @User.PasswordChange,
       testRoundTrip @User.LocaleUpdate,
@@ -239,7 +241,9 @@ tests =
       testRoundTrip @User.VerifyDeleteUser,
       testRoundTrip @User.DeletionCodeTimeout,
       testRoundTrip @User.Activation.ActivationKey,
-      testRoundTrip @User.Activation.ActivationTarget,
+      -- FUTUREWORK: this should probably be tested individually,
+      -- but ActivationTarget currently doesn't have JSON instances itself.
+      -- testRoundTrip @User.Activation.ActivationTarget,
       testRoundTrip @User.Activation.ActivationCode,
       testRoundTrip @User.Activation.Activate,
       testRoundTrip @User.Activation.ActivationResponse,
@@ -280,7 +284,9 @@ tests =
       testRoundTrip @User.Identity.UserIdentity,
       testRoundTrip @User.Password.NewPasswordReset,
       testRoundTrip @User.Password.PasswordResetKey,
-      testRoundTrip @User.Password.PasswordResetIdentity,
+      -- FUTUREWORK: this should probably be tested individually,
+      -- but PasswordResetIdentity currently doesn't have JSON instances itself.
+      -- testRoundTrip @User.Password.PasswordResetIdentity,
       testRoundTrip @User.Password.PasswordResetCode,
       testRoundTrip @User.Password.CompletePasswordReset,
       testRoundTrip @User.Profile.Pict,

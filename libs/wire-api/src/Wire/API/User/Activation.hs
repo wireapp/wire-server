@@ -214,6 +214,14 @@ modelSendActivationCode = Doc.defineModel "SendActivationCode" $ do
     Doc.description "Request the code with a call instead (default is SMS)."
     Doc.optional
 
+instance ToJSON SendActivationCode where
+  toJSON (SendActivationCode userKey locale call) =
+    object $
+      either ("email" .=) ("phone" .=) userKey
+        # "locale" .= locale
+        # "voice_call" .= call
+        # []
+
 instance FromJSON SendActivationCode where
   parseJSON = withObject "SendActivationCode" $ \o -> do
     e <- o .:? "email"
