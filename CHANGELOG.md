@@ -1,3 +1,17 @@
+# 2020-05-15
+
+## New Features
+
+* Add tool to migrate data for galley (#1096)
+  This can be used in a more automated way than the backfill-billing-team-member. 
+  It should be added to as a step after deployment.
+
+## Internal Changes
+
+* More tests for OTR messages using protobuf (#1095)
+* Set brig's logLevel to Warn while running integration-tests (#1099)
+* Refactor: Create wire-api package for types used in the public API (#1090)
+
 # 2020-05-07
 
 ## Upgrade steps (IMPORTANT)
