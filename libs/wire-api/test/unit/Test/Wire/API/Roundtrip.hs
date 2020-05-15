@@ -76,12 +76,12 @@ tests =
       testRoundTrip @Asset.AssetRetention,
       testRoundTrip @Asset.AssetSettings,
       testRoundTrip @Asset.AssetKey,
-      testRoundTrip @Asset.Asset, -- FAIL
+      testRoundTrip @Asset.Asset, -- FAIL due to UTCTime rounded to millis
       testRoundTrip @Asset.Resumable.ResumableSettings,
       testRoundTrip @Asset.Resumable.TotalSize,
       testRoundTrip @Asset.Resumable.ChunkSize,
       testRoundTrip @Asset.Resumable.Offset,
-      testRoundTrip @Asset.Resumable.ResumableAsset, -- FAIL
+      testRoundTrip @Asset.Resumable.ResumableAsset, -- FAIL due to UTCTime rounded to millis
       testRoundTrip @Call.TURN.TurnHost,
       testRoundTrip @Call.TURN.Scheme,
       testRoundTrip @Call.TURN.Transport,
@@ -128,19 +128,19 @@ tests =
       testRoundTrip @Conversation.Typing.TypingStatus,
       testRoundTrip @Conversation.Typing.TypingData,
       testRoundTrip @CustomBackend.CustomBackend,
-      testRoundTrip @Event.Conversation.Event, -- FAIL
+      testRoundTrip @Event.Conversation.Event, -- FAIL due to rounding UTCTime
       testRoundTrip @Event.Conversation.EventType,
       testRoundTrip @Event.Conversation.SimpleMember,
       testRoundTrip @Event.Conversation.SimpleMembers,
       testRoundTrip @Event.Conversation.Connect,
       testRoundTrip @Event.Conversation.MemberUpdateData,
       testRoundTrip @Event.Conversation.OtrMessage,
-      testRoundTrip @Event.Team.Event,
+      testRoundTrip @Event.Team.Event, -- FAIL
       testRoundTrip @Event.Team.EventType,
       testRoundTrip @Message.Priority,
       testRoundTrip @Message.OtrRecipients, -- 4.87s
       testRoundTrip @Message.NewOtrMessage, -- 5.52s
-      testRoundTrip @Message.ClientMismatch, -- FAIL
+      testRoundTrip @Message.ClientMismatch, -- FAIL due to rounding UTCTime
         -- testRoundTrip @Notification.QueuedNotification, -- TIMEOUT 30s
         -- testRoundTrip @Notification.QueuedNotificationList, -- TIMEOUT 30s
       testRoundTrip @Properties.PropertyKey,
@@ -157,9 +157,9 @@ tests =
       testRoundTrip @Provider.CompletePasswordReset,
       testRoundTrip @Provider.PasswordChange,
       testRoundTrip @Provider.EmailUpdate,
-      testRoundTrip @Provider.Bot.BotConvView, -- TIMEOUT 30s -- 1.14s
+      testRoundTrip @Provider.Bot.BotConvView,
       testRoundTrip @Provider.Bot.BotUserView,
-      testRoundTrip @Provider.External.NewBotRequest, -- TIMEOUT 30s -- 2.24s
+      testRoundTrip @Provider.External.NewBotRequest,
       testRoundTrip @Provider.External.NewBotResponse,
       testRoundTrip @Provider.Service.ServiceRef,
       testRoundTrip @Provider.Service.ServiceKeyPEM,
@@ -186,7 +186,7 @@ tests =
       testRoundTrip @Team.TeamBinding,
       testRoundTrip @Team.Team,
       testRoundTrip @Team.TeamList,
-      testRoundTrip @Team.TeamUpdateData, -- FAIL
+      testRoundTrip @Team.TeamUpdateData,
       testRoundTrip @Team.TeamDeleteData,
       testRoundTrip @Team.Conversation.TeamConversation,
       testRoundTrip @Team.Conversation.TeamConversationList,
@@ -246,7 +246,7 @@ tests =
       -- testRoundTrip @User.Activation.ActivationTarget,
       testRoundTrip @User.Activation.ActivationCode,
       testRoundTrip @User.Activation.Activate,
-      testRoundTrip @User.Activation.ActivationResponse, -- FAIL
+      testRoundTrip @User.Activation.ActivationResponse, -- FAIL, ToJSON doesn't serialize sso_id
       testRoundTrip @User.Activation.SendActivationCode,
       testRoundTrip @User.Auth.LoginId,
       testRoundTrip @User.Auth.LoginCode,
@@ -261,7 +261,7 @@ tests =
       testRoundTrip @User.Auth.CookieList,
       testRoundTrip @User.Auth.RemoveCookies,
       testRoundTrip @User.Auth.TokenType,
-      testRoundTrip @User.Auth.AccessToken, -- FAIL
+      testRoundTrip @User.Auth.AccessToken,
       testRoundTrip @(User.Client.UserClientMap Int), -- 2.23s (tweak size parameter?)
       testRoundTrip @User.Client.UserClients, -- 1.28s (tweak size parameter?)
       testRoundTrip @User.Client.ClientType,
