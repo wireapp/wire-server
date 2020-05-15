@@ -553,11 +553,15 @@ mkOtrMessage (usr, clt, m) = (fn usr, HashMap.singleton (fn clt) m)
     fn = fromJust . fromByteString . toByteString'
 
 postProtoOtrMessage :: UserId -> ClientId -> ConvId -> OtrRecipients -> TestM ResponseLBS
-postProtoOtrMessage u d c rec = do
+postProtoOtrMessage = postProtoOtrMessage' Nothing id
+
+postProtoOtrMessage' :: Maybe [OpaqueUserId] -> (Request -> Request) -> UserId -> ClientId -> ConvId -> OtrRecipients -> TestM ResponseLBS
+postProtoOtrMessage' reportMissing modif u d c rec = do
   g <- view tsGalley
-  let m = runPut (encodeMessage $ mkOtrProtoMessage d rec Nothing)
+  let m = runPut (encodeMessage $ mkOtrProtoMessage d rec reportMissing)
    in post $
         g
+          . modif
           . paths ["conversations", toByteString' c, "otr", "messages"]
           . zUser u
           . zConn "conn"
