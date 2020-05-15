@@ -70,7 +70,6 @@ where
 import Control.Applicative (optional)
 import Control.Lens hiding ((.=))
 import Data.Aeson hiding ((<?>))
-import Data.Aeson.Encoding (text)
 import Data.Attoparsec.Text hiding (parse)
 import Data.ByteString.Builder
 import qualified Data.ByteString.Conversion as BC
@@ -114,8 +113,11 @@ modelRtcConfiguration = Doc.defineModel "RTCConfiguration" $ do
     Doc.description "Number of seconds after which the configuration should be refreshed (advisory)"
 
 instance ToJSON RTCConfiguration where
-  toEncoding (RTCConfiguration srvs ttl) =
-    pairs ("ice_servers" .= srvs <> "ttl" .= ttl)
+  toJSON (RTCConfiguration srvs ttl) =
+    object
+      [ "ice_servers" .= srvs,
+        "ttl" .= ttl
+      ]
 
 instance FromJSON RTCConfiguration where
   parseJSON = withObject "RTCConfiguration" $ \o ->
@@ -149,12 +151,12 @@ modelRtcIceServer = Doc.defineModel "RTCIceServer" $ do
     Doc.description "Password to use for authenticating against the given TURN servers"
 
 instance ToJSON RTCIceServer where
-  toEncoding (RTCIceServer urls name cred) =
-    pairs
-      ( "urls" .= urls
-          <> "username" .= name
-          <> "credential" .= cred
-      )
+  toJSON (RTCIceServer urls name cred) =
+    object
+      [ "urls" .= urls,
+        "username" .= name,
+        "credential" .= cred
+      ]
 
 instance FromJSON RTCIceServer where
   parseJSON = withObject "RTCIceServer" $ \o ->
@@ -335,7 +337,7 @@ turnUsername expires rnd =
     }
 
 instance ToJSON TurnUsername where
-  toEncoding = text . view utf8 . BC.toByteString'
+  toJSON = String . view utf8 . BC.toByteString'
 
 instance FromJSON TurnUsername where
   parseJSON =
