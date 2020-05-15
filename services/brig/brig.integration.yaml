@@ -131,7 +131,6 @@ optSettings:
   setNexmo: test/resources/nexmo-credentials.yaml
   # setStomp: test/resources/stomp-credentials.yaml
   setUserMaxConnections: 16
-  setCookieDomain: 127.0.0.1
   setCookieInsecure: true
   setUserCookieRenewAge: 2
   setUserCookieLimit: 5
