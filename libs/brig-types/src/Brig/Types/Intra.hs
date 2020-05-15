@@ -1,4 +1,3 @@
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -21,7 +20,15 @@
 
 -- | API data types used only for intra-environment communication.
 -- TODO: Move to Brig.Types.User.Intra / Internal
-module Brig.Types.Intra where
+module Brig.Types.Intra
+  ( AccountStatus (..),
+    AccountStatusUpdate (..),
+    ConnectionStatus (..),
+    UserAccount (..),
+    UserSet (..),
+    ReAuthUser (..),
+  )
+where
 
 import Brig.Types.Connection
 import Brig.Types.User

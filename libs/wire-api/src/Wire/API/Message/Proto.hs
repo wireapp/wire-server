@@ -1,6 +1,4 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -20,7 +18,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 -- FUTUREWORK: generate this file
-module Galley.Types.Proto
+module Wire.API.Message.Proto
   ( UserId,
     userId,
     fromUserId,
@@ -63,16 +61,17 @@ import Data.ProtocolBuffers
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Text.Lazy as Text
 import Data.Text.Lazy.Read (hexadecimal)
-import qualified Galley.Types as Galley
-import qualified Gundeck.Types.Push as Gundeck
 import Imports
+import qualified Wire.API.Message as Msg
+import qualified Wire.API.User.Client as Client
 
--- UserId -------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- UserId
 
 newtype UserId = UserId
   { _user :: Required 1 (Value Id.OpaqueUserId)
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
 
 instance Encode UserId
 
@@ -84,12 +83,13 @@ fromUserId u = UserId {_user = putField u}
 userId :: Functor f => (Id.OpaqueUserId -> f Id.OpaqueUserId) -> UserId -> f UserId
 userId f c = (\x -> c {_user = x}) <$> field f (_user c)
 
--- ClientId ------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- ClientId
 
 newtype ClientId = ClientId
   { _client :: Required 1 (Value Word64)
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
 
 instance Encode ClientId
 
@@ -111,11 +111,12 @@ fromClientId c =
     (newClientId . fst)
     (hexadecimal (Text.fromStrict $ Id.client c))
 
--- ClientEntry --------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- ClientEntry
 
 data ClientEntry = ClientEntry
-  { _clientId :: !(Required 1 (Message ClientId)),
-    _clientVal :: !(Required 2 (Value ByteString))
+  { _clientId :: Required 1 (Message ClientId),
+    _clientVal :: Required 2 (Value ByteString)
   }
   deriving (Eq, Show, Generic)
 
@@ -136,11 +137,12 @@ clientEntryId f c = (\x -> c {_clientId = x}) <$> field f (_clientId c)
 clientEntryMessage :: Functor f => (ByteString -> f ByteString) -> ClientEntry -> f ClientEntry
 clientEntryMessage f c = (\x -> c {_clientVal = x}) <$> field f (_clientVal c)
 
--- UserEntry ----------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- UserEntry
 
 data UserEntry = UserEntry
-  { _userId :: !(Required 1 (Message UserId)),
-    _userVal :: !(Repeated 2 (Message ClientEntry))
+  { _userId :: Required 1 (Message UserId),
+    _userVal :: Repeated 2 (Message ClientEntry)
   }
   deriving (Eq, Show, Generic)
 
@@ -161,9 +163,9 @@ userEntryId f c = (\x -> c {_userId = x}) <$> field f (_userId c)
 userEntryClients :: Functor f => ([ClientEntry] -> f [ClientEntry]) -> UserEntry -> f UserEntry
 userEntryClients f c = (\x -> c {_userVal = x}) <$> field f (_userVal c)
 
-toOtrRecipients :: [UserEntry] -> Galley.OtrRecipients
+toOtrRecipients :: [UserEntry] -> Msg.OtrRecipients
 toOtrRecipients =
-  Galley.OtrRecipients . Galley.UserClientMap
+  Msg.OtrRecipients . Client.UserClientMap
     . foldl' userEntries mempty
   where
     userEntries acc x =
@@ -176,9 +178,9 @@ toOtrRecipients =
           t = toBase64Text $ view clientEntryMessage x
        in Map.insert c t acc
 
-fromOtrRecipients :: Galley.OtrRecipients -> [UserEntry]
+fromOtrRecipients :: Msg.OtrRecipients -> [UserEntry]
 fromOtrRecipients rcps =
-  let m = Galley.userClientMap (Galley.otrRecipientsMap rcps)
+  let m = Client.userClientMap (Msg.otrRecipientsMap rcps)
    in map mkProtoRecipient (Map.toList m)
   where
     mkProtoRecipient (usr, clts) =
@@ -186,7 +188,8 @@ fromOtrRecipients rcps =
        in UserEntry (putField (fromUserId usr)) (putField xs)
     mkClientEntry (clt, t) = clientEntry (fromClientId clt) (fromBase64Text t)
 
--- Priority -----------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Priority
 
 data Priority = LowPriority | HighPriority
   deriving (Eq, Show, Ord, Generic)
@@ -198,7 +201,7 @@ instance Decode Priority
 instance Enum Priority where
   toEnum 1 = LowPriority
   toEnum 2 = HighPriority
-  toEnum x = error $ "Galley.Types.Proto.Priority: invalid enum value: " ++ show x
+  toEnum x = error $ "Wire.API.Message.Proto.Priority: invalid enum value: " ++ show x
 
   fromEnum LowPriority = 1
   fromEnum HighPriority = 2
@@ -207,24 +210,25 @@ instance Bounded Priority where
   minBound = LowPriority
   maxBound = HighPriority
 
-toPriority :: Priority -> Gundeck.Priority
-toPriority LowPriority = Gundeck.LowPriority
-toPriority HighPriority = Gundeck.HighPriority
+toPriority :: Priority -> Msg.Priority
+toPriority LowPriority = Msg.LowPriority
+toPriority HighPriority = Msg.HighPriority
 
-fromPriority :: Gundeck.Priority -> Priority
-fromPriority Gundeck.LowPriority = LowPriority
-fromPriority Gundeck.HighPriority = HighPriority
+fromPriority :: Msg.Priority -> Priority
+fromPriority Msg.LowPriority = LowPriority
+fromPriority Msg.HighPriority = HighPriority
 
--- NewOtrMessage ------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- NewOtrMessage
 
 data NewOtrMessage = NewOtrMessage
-  { _newOtrSender :: !(Required 1 (Message ClientId)),
-    _newOtrRecipients :: !(Repeated 2 (Message UserEntry)),
-    _newOtrNativePush :: !(Optional 3 (Value Bool)),
-    _newOtrData :: !(Optional 4 (Value ByteString)),
-    _newOtrNativePriority :: !(Optional 5 (Enumeration Priority)), -- See note [orphans]
-    _newOtrTransient :: !(Optional 6 (Value Bool)),
-    _newOtrReportMissing :: !(Repeated 7 (Message UserId))
+  { _newOtrSender :: Required 1 (Message ClientId),
+    _newOtrRecipients :: Repeated 2 (Message UserEntry),
+    _newOtrNativePush :: Optional 3 (Value Bool),
+    _newOtrData :: Optional 4 (Value ByteString),
+    _newOtrNativePriority :: Optional 5 (Enumeration Priority), -- See note [orphans]
+    _newOtrTransient :: Optional 6 (Value Bool),
+    _newOtrReportMissing :: Repeated 7 (Message UserId)
   }
   deriving (Eq, Show, Generic)
 
@@ -269,23 +273,24 @@ newOtrMessageNativePriority f c = (\x -> c {_newOtrNativePriority = x}) <$> fiel
 newOtrMessageReportMissing :: Functor f => ([UserId] -> f [UserId]) -> NewOtrMessage -> f NewOtrMessage
 newOtrMessageReportMissing f c = (\x -> c {_newOtrReportMissing = x}) <$> field f (_newOtrReportMissing c)
 
-toNewOtrMessage :: NewOtrMessage -> Galley.NewOtrMessage
+toNewOtrMessage :: NewOtrMessage -> Msg.NewOtrMessage
 toNewOtrMessage msg =
-  Galley.NewOtrMessage
-    { Galley.newOtrSender = toClientId (view newOtrMessageSender msg),
-      Galley.newOtrRecipients = toOtrRecipients (view newOtrMessageRecipients msg),
-      Galley.newOtrNativePush = view newOtrMessageNativePush msg,
-      Galley.newOtrTransient = view newOtrMessageTransient msg,
-      Galley.newOtrData = toBase64Text <$> view newOtrMessageData msg,
-      Galley.newOtrNativePriority = toPriority <$> view newOtrMessageNativePriority msg,
-      Galley.newOtrReportMissing = toReportMissing $ view newOtrMessageReportMissing msg
+  Msg.NewOtrMessage
+    { Msg.newOtrSender = toClientId (view newOtrMessageSender msg),
+      Msg.newOtrRecipients = toOtrRecipients (view newOtrMessageRecipients msg),
+      Msg.newOtrNativePush = view newOtrMessageNativePush msg,
+      Msg.newOtrTransient = view newOtrMessageTransient msg,
+      Msg.newOtrData = toBase64Text <$> view newOtrMessageData msg,
+      Msg.newOtrNativePriority = toPriority <$> view newOtrMessageNativePriority msg,
+      Msg.newOtrReportMissing = toReportMissing $ view newOtrMessageReportMissing msg
     }
 
 toReportMissing :: [UserId] -> Maybe [Id.OpaqueUserId]
 toReportMissing [] = Nothing
 toReportMissing us = Just $ view userId <$> us
 
--- Utilities ----------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Utilities
 
 fromBase64Text :: Text -> ByteString
 fromBase64Text = B64.decodeLenient . encodeUtf8

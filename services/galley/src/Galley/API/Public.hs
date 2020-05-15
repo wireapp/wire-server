@@ -423,6 +423,8 @@ sitemap = do
     returns (ref Model.ssoTeamConfig)
     response 200 "SSO status" end
 
+  -- Custom Backend API -------------------------------------------------
+
   get "/custom-backend/by-domain/:domain" (continue CustomBackend.getCustomBackendByDomainH) $
     capture "domain"
       .&. accept "application" "json"
@@ -1007,6 +1009,8 @@ docs (_ ::: url) = do
   let models = Model.galleyModels ++ TeamsModel.teamsModels
   let apidoc = encode $ mkSwaggerApi (decodeLatin1 url) models sitemap
   pure $ responseLBS status200 [jsonContent] apidoc
+
+-- FUTUREWORK: /teams/api-docs does not get queried by zwagger-ui
 
 -- |
 -- I (Tiago) added servant-based swagger docs here because

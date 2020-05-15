@@ -36,5 +36,14 @@ errorProperties = do
   property "message" string' $
     description "More detailed error description."
 
+-- | This model is used for the @/login/send@ endpoint to describe a
+-- 'Brig.API.Error.loginCodePending' error, but I can't find where it actually gets thrown.
+pendingLoginError :: Model
+pendingLoginError = defineModel "PendingLoginError" $ do
+  description "A login code is still pending."
+  errorProperties
+  property "expires_in" int32' $
+    description "Number of seconds before the pending login code expires."
+
 int32Between :: Int32 -> Int32 -> DataType
 int32Between m n = int32 (min m . max n)

@@ -43,9 +43,7 @@ module Gundeck.Types.Push.V2
     recipientId,
     recipientRoute,
     recipientClients,
-    Priority (..),
     Route (..),
-    Transport (..),
     ApsData,
     ApsPreference (..),
     ApsLocKey (..),
@@ -56,22 +54,28 @@ module Gundeck.Types.Push.V2
     apsSound,
     apsPreference,
     apsBadge,
+
+    -- * Priority (re-export)
+    Priority (..),
+
+    -- * PushToken (re-export)
+    PushTokenList (..),
     PushToken,
-    Token (..),
-    AppName (..),
     pushToken,
     tokenTransport,
     tokenApp,
     tokenClient,
     token,
-    PushTokenList (..),
+
+    -- * PushToken fields (re-export)
+    Token (..),
+    Transport (..),
+    AppName (..),
   )
 where
 
 import Control.Lens (makeLenses)
 import Data.Aeson
-import Data.Attoparsec.ByteString (takeByteString)
-import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util
 import Data.List1
@@ -80,6 +84,8 @@ import Data.Range
 import qualified Data.Range as Range
 import qualified Data.Set as Set
 import Imports
+import Wire.API.Message (Priority (..))
+import Wire.API.Push.V2.Token
 
 -----------------------------------------------------------------------------
 -- Route
@@ -215,33 +221,6 @@ instance FromJSON ApsData where
       <*> o .:? "badge" .!= True
 
 -----------------------------------------------------------------------------
--- Priority
-
--- | REFACTOR: do we ever use LowPriority?  to test, (a) remove the constructor and see what goes
--- wrong; (b) log use of 'LowPriority' by clients in production and watch it a few days.  if it is
--- not used anywhere, consider removing the entire type, or just the unused constructor.
---
--- @neongreen writes: [...] nobody seems to ever set `native_priority` in the client code. Exhibits
--- A1 and A2:
---
--- * <https://github.com/search?q=org%3Awireapp+native_priority&type=Code>
--- * <https://sourcegraph.com/search?q=native_priority+repo:^github\.com/wireapp/+#1>
---
--- see also: 'Galley.Types.Proto.Priority'.
-data Priority = LowPriority | HighPriority
-  deriving (Eq, Show, Ord, Enum)
-
-instance ToJSON Priority where
-  toJSON LowPriority = String "low"
-  toJSON HighPriority = String "high"
-
-instance FromJSON Priority where
-  parseJSON = withText "Priority" $ \case
-    "low" -> pure LowPriority
-    "high" -> pure HighPriority
-    x -> fail $ "Invalid push priority: " ++ show x
-
------------------------------------------------------------------------------
 -- Push
 
 data Push = Push
@@ -335,93 +314,3 @@ instance ToJSON Push where
         # []
     where
       ifNot f a = if f a then Nothing else Just a
-
------------------------------------------------------------------------------
--- Transport
-
-data Transport
-  = GCM
-  | APNS
-  | APNSSandbox
-  | APNSVoIP
-  | APNSVoIPSandbox
-  deriving (Eq, Ord, Show, Bounded, Enum)
-
-instance ToJSON Transport where
-  toJSON GCM = "GCM"
-  toJSON APNS = "APNS"
-  toJSON APNSSandbox = "APNS_SANDBOX"
-  toJSON APNSVoIP = "APNS_VOIP"
-  toJSON APNSVoIPSandbox = "APNS_VOIP_SANDBOX"
-
-instance FromJSON Transport where
-  parseJSON = withText "transport" $ \case
-    "GCM" -> return GCM
-    "APNS" -> return APNS
-    "APNS_SANDBOX" -> return APNSSandbox
-    "APNS_VOIP" -> return APNSVoIP
-    "APNS_VOIP_SANDBOX" -> return APNSVoIPSandbox
-    x -> fail $ "Invalid push transport: " ++ show x
-
-instance FromByteString Transport where
-  parser = takeByteString >>= \case
-    "GCM" -> return GCM
-    "APNS" -> return APNS
-    "APNS_SANDBOX" -> return APNSSandbox
-    "APNS_VOIP" -> return APNSVoIP
-    "APNS_VOIP_SANDBOX" -> return APNSVoIPSandbox
-    x -> fail $ "Invalid push transport: " <> show x
-
------------------------------------------------------------------------------
--- PushToken
-
-newtype Token = Token
-  { tokenText :: Text
-  }
-  deriving (Eq, Ord, Show, FromJSON, ToJSON, FromByteString, ToByteString)
-
-newtype AppName = AppName
-  { appNameText :: Text
-  }
-  deriving (Eq, Ord, Show, FromJSON, ToJSON, IsString)
-
-data PushToken = PushToken
-  { _tokenTransport :: !Transport,
-    _tokenApp :: !AppName,
-    _token :: !Token,
-    _tokenClient :: !ClientId
-  }
-  deriving (Eq, Ord, Show)
-
-makeLenses ''PushToken
-
-pushToken :: Transport -> AppName -> Token -> ClientId -> PushToken
-pushToken tp an tk cl = PushToken tp an tk cl
-
-instance ToJSON PushToken where
-  toJSON p =
-    object $
-      "transport" .= _tokenTransport p
-        # "app" .= _tokenApp p
-        # "token" .= _token p
-        # "client" .= _tokenClient p
-        # []
-
-instance FromJSON PushToken where
-  parseJSON = withObject "PushToken" $ \p ->
-    PushToken <$> p .: "transport"
-      <*> p .: "app"
-      <*> p .: "token"
-      <*> p .: "client"
-
-newtype PushTokenList = PushTokenList
-  { pushTokens :: [PushToken]
-  }
-  deriving (Eq, Show)
-
-instance FromJSON PushTokenList where
-  parseJSON = withObject "PushTokenList" $ \p ->
-    PushTokenList <$> p .: "tokens"
-
-instance ToJSON PushTokenList where
-  toJSON (PushTokenList t) = object ["tokens" .= t]

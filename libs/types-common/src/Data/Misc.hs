@@ -53,6 +53,9 @@ module Data.Misc
     -- * Functor infix ops
     (<$$>),
     (<$$$>),
+
+    -- * Swagger
+    modelLocation,
   )
 where
 
@@ -69,6 +72,7 @@ import Data.ByteString.Lazy (toStrict)
 import Data.IP (IP)
 import Data.Int (Int64)
 import Data.Range
+import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Imports
@@ -147,6 +151,14 @@ newtype Longitude = Longitude Double deriving (NFData, Generic)
 location :: Latitude -> Longitude -> Location
 location (Latitude lat) (Longitude lon) =
   Location {_latitude = lat, _longitude = lon}
+
+modelLocation :: Doc.Model
+modelLocation = Doc.defineModel "Location" $ do
+  Doc.description "Geographical location"
+  Doc.property "lat" Doc.double' $
+    Doc.description "Latitude"
+  Doc.property "lon" Doc.double' $
+    Doc.description "Longitude"
 
 instance ToJSON Location where
   toJSON p = object ["lat" .= (p ^. latitude), "lon" .= (p ^. longitude)]

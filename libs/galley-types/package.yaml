@@ -10,6 +10,7 @@ copyright: (c) 2017 Wire Swiss GmbH
 license: AGPL-3
 dependencies:
 - imports
+- wire-api
 library:
   source-dirs: src
   dependencies:
