@@ -69,6 +69,7 @@ import qualified Wire.API.User.Profile as User.Profile
 import qualified Wire.API.User.RichInfo as User.RichInfo
 import qualified Wire.API.User.Search as User.Search
 
+-- FUTUREWORK: fix tests marked as failing (either fixing Arbitrary or serialization instance)
 tests :: T.TestTree
 tests =
   T.localOption (T.Timeout (60 * 1000000) "60s") . T.testGroup "JSON roundtrip tests" $
@@ -77,12 +78,12 @@ tests =
       testRoundTrip @Asset.AssetRetention,
       testRoundTrip @Asset.AssetSettings,
       testRoundTrip @Asset.AssetKey,
-      currentlyFailing (testRoundTrip @Asset.Asset), -- FAIL due to UTCTime rounded to millis
+      currentlyFailing (testRoundTrip @Asset.Asset), -- because ToJSON is rounding UTCTime
       testRoundTrip @Asset.Resumable.ResumableSettings,
       testRoundTrip @Asset.Resumable.TotalSize,
       testRoundTrip @Asset.Resumable.ChunkSize,
       testRoundTrip @Asset.Resumable.Offset,
-      currentlyFailing (testRoundTrip @Asset.Resumable.ResumableAsset), -- FAIL due to UTCTime rounded to millis
+      currentlyFailing (testRoundTrip @Asset.Resumable.ResumableAsset), -- because ToJSON is rounding UTCTime
       testRoundTrip @Call.TURN.TurnHost,
       testRoundTrip @Call.TURN.Scheme,
       testRoundTrip @Call.TURN.Transport,
@@ -96,11 +97,11 @@ tests =
       testRoundTrip @Connection.UserConnection,
       testRoundTrip @Connection.UserConnectionList,
       testRoundTrip @Connection.ConnectionUpdate,
-      currentlyFailing (testRoundTrip @Conversation.Conversation), -- giant FAIL
-      currentlyFailing (testRoundTrip @Conversation.NewConvUnmanaged), -- FAIL
-      currentlyFailing (testRoundTrip @Conversation.NewConvManaged), -- TIMEOUT 30s
+      currentlyFailing (testRoundTrip @Conversation.Conversation),
+      currentlyFailing (testRoundTrip @Conversation.NewConvUnmanaged),
+      currentlyFailing (testRoundTrip @Conversation.NewConvManaged),
       testRoundTrip @(Conversation.ConversationList ConvId),
-      currentlyTimingOut (testRoundTrip @(Conversation.ConversationList Conversation.Conversation)), -- TIMEOUT 30s
+      currentlyTimingOut (testRoundTrip @(Conversation.ConversationList Conversation.Conversation)),
       testRoundTrip @Conversation.Access,
       testRoundTrip @Conversation.AccessRole,
       testRoundTrip @Conversation.ConvType,
@@ -110,18 +111,18 @@ tests =
       testRoundTrip @Conversation.ConversationRename,
       testRoundTrip @Conversation.ConversationAccessUpdate,
       testRoundTrip @Conversation.ConversationReceiptModeUpdate,
-      currentlyFailing (testRoundTrip @Conversation.ConversationMessageTimerUpdate), -- FAIL
+      currentlyFailing (testRoundTrip @Conversation.ConversationMessageTimerUpdate),
       testRoundTrip @Conversation.Bot.AddBot,
-      currentlyFailing (testRoundTrip @Conversation.Bot.AddBotResponse), -- FAIL
-      currentlyFailing (testRoundTrip @Conversation.Bot.RemoveBotResponse), -- FAIL
+      currentlyFailing (testRoundTrip @Conversation.Bot.AddBotResponse),
+      currentlyFailing (testRoundTrip @Conversation.Bot.RemoveBotResponse),
       testRoundTrip @Conversation.Bot.UpdateBotPrekeys,
       testRoundTrip @Conversation.Code.ConversationCode,
-      currentlyFailing (testRoundTrip @Conversation.Member.MemberUpdate), -- FAIL
+      currentlyFailing (testRoundTrip @Conversation.Member.MemberUpdate),
       testRoundTrip @Conversation.Member.MutedStatus,
       testRoundTrip @Conversation.Member.Member,
       testRoundTrip @Conversation.Member.OtherMember,
       testRoundTrip @Conversation.Member.ConvMembers,
-      currentlyFailing (testRoundTrip @Conversation.Member.OtherMemberUpdate), -- FAIL
+      currentlyFailing (testRoundTrip @Conversation.Member.OtherMemberUpdate),
       testRoundTrip @Conversation.Role.RoleName,
       testRoundTrip @Conversation.Role.Action,
       testRoundTrip @Conversation.Role.ConversationRole,
@@ -129,21 +130,21 @@ tests =
       testRoundTrip @Conversation.Typing.TypingStatus,
       testRoundTrip @Conversation.Typing.TypingData,
       testRoundTrip @CustomBackend.CustomBackend,
-      currentlyFailing (testRoundTrip @Event.Conversation.Event), -- FAIL due to rounding UTCTime
+      currentlyFailing (testRoundTrip @Event.Conversation.Event), -- because ToJSON is rounding UTCTime
       testRoundTrip @Event.Conversation.EventType,
       testRoundTrip @Event.Conversation.SimpleMember,
       testRoundTrip @Event.Conversation.SimpleMembers,
       testRoundTrip @Event.Conversation.Connect,
       testRoundTrip @Event.Conversation.MemberUpdateData,
       testRoundTrip @Event.Conversation.OtrMessage,
-      currentlyFailing (testRoundTrip @Event.Team.Event), -- FAIL, flaky, "TeamUpdateData: no update data specified"
+      currentlyFailing (testRoundTrip @Event.Team.Event), -- flaky, fails because of TeamUpdateData
       testRoundTrip @Event.Team.EventType,
       testRoundTrip @Message.Priority,
-      testRoundTrip @Message.OtrRecipients, -- 4.87s
-      testRoundTrip @Message.NewOtrMessage, -- 5.52s
-      currentlyFailing (testRoundTrip @Message.ClientMismatch), -- FAIL due to rounding UTCTime
-      currentlyTimingOut (testRoundTrip @Notification.QueuedNotification), -- TIMEOUT 30s
-      currentlyTimingOut (testRoundTrip @Notification.QueuedNotificationList), -- TIMEOUT 30s
+      testRoundTrip @Message.OtrRecipients,
+      testRoundTrip @Message.NewOtrMessage,
+      currentlyFailing (testRoundTrip @Message.ClientMismatch), -- because ToJSON is rounding UTCTime
+      currentlyTimingOut (testRoundTrip @Notification.QueuedNotification),
+      currentlyTimingOut (testRoundTrip @Notification.QueuedNotificationList),
       testRoundTrip @Properties.PropertyKey,
       testRoundTrip @Properties.PropertyValue,
       testRoundTrip @Provider.Provider,
@@ -169,7 +170,7 @@ tests =
       testRoundTrip @Provider.Service.ServiceToken,
       testRoundTrip @Provider.Service.Service,
       testRoundTrip @Provider.Service.ServiceProfile,
-      testRoundTrip @Provider.Service.ServiceProfilePage, -- 5.42s
+      testRoundTrip @Provider.Service.ServiceProfilePage,
       testRoundTrip @Provider.Service.NewService,
       testRoundTrip @Provider.Service.NewServiceResponse,
       testRoundTrip @Provider.Service.UpdateService,
@@ -187,7 +188,7 @@ tests =
       testRoundTrip @Team.TeamBinding,
       testRoundTrip @Team.Team,
       testRoundTrip @Team.TeamList,
-      currentlyFailing (testRoundTrip @Team.TeamUpdateData),
+      currentlyFailing (testRoundTrip @Team.TeamUpdateData), -- "no update data specified" if all fields are 'Nothing'
       testRoundTrip @Team.TeamDeleteData,
       testRoundTrip @Team.Conversation.TeamConversation,
       testRoundTrip @Team.Conversation.TeamConversationList,
@@ -247,7 +248,7 @@ tests =
       -- testRoundTrip @User.Activation.ActivationTarget,
       testRoundTrip @User.Activation.ActivationCode,
       testRoundTrip @User.Activation.Activate,
-      currentlyFailing (testRoundTrip @User.Activation.ActivationResponse), -- FAIL, ToJSON doesn't serialize sso_id
+      currentlyFailing (testRoundTrip @User.Activation.ActivationResponse), -- because ToJSON doesn't serialize 'sso_id'
       testRoundTrip @User.Activation.SendActivationCode,
       testRoundTrip @User.Auth.LoginId,
       testRoundTrip @User.Auth.LoginCode,
@@ -263,8 +264,8 @@ tests =
       testRoundTrip @User.Auth.RemoveCookies,
       testRoundTrip @User.Auth.TokenType,
       testRoundTrip @User.Auth.AccessToken,
-      testRoundTrip @(User.Client.UserClientMap Int), -- 2.23s (tweak size parameter?)
-      testRoundTrip @User.Client.UserClients, -- 1.28s (tweak size parameter?)
+      testRoundTrip @(User.Client.UserClientMap Int),
+      testRoundTrip @User.Client.UserClients,
       testRoundTrip @User.Client.ClientType,
       testRoundTrip @User.Client.ClientClass,
       testRoundTrip @User.Client.PubClient,
