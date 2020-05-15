@@ -1,5 +1,4 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -68,12 +67,3 @@ deriveJSON (wireJsonOptions "_fu") ''FUser
 
 instance Arbitrary FUser where
   arbitrary = FUser <$> arbitrary <*> arbitrary
-
-----------------------------------------------------------------------
--- ORPHANS
-
-instance Arbitrary PrekeyBundle where
-  arbitrary = PrekeyBundle <$> arbitrary <*> arbitrary
-
-instance Arbitrary ClientPrekey where
-  arbitrary = ClientPrekey <$> arbitrary <*> arbitrary
