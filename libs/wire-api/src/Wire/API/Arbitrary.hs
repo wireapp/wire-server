@@ -31,6 +31,7 @@ where
 import qualified Codec.MIME.Type as MIME
 import qualified Data.Aeson as Aeson
 import qualified Data.Currency as Currency
+import qualified Data.HashMap.Strict as HashMap
 import Data.ISO3166_CountryCodes (CountryCode)
 import Data.LanguageCodes (ISO639_1 (..))
 import qualified Generic.Random as Generic
@@ -67,7 +68,21 @@ instance Arbitrary CountryCode where
 
 -- TODO: where does this belong?
 instance Arbitrary Aeson.Value where
-  arbitrary = Generic.genericArbitraryU'
+  arbitrary = oneof [genBaseCase, genObject, genArray]
+    where
+      genObject =
+        Aeson.Object . HashMap.fromList
+          <$> listOf (liftA2 (,) arbitrary genBaseCase)
+      genArray =
+        Aeson.Array . foldMap pure
+          <$> listOf genBaseCase
+      genBaseCase =
+        oneof
+          [ pure Aeson.Null,
+            Aeson.String <$> arbitrary,
+            Aeson.Number <$> arbitrary,
+            Aeson.Bool <$> arbitrary
+          ]
 
 genEnumBounded :: (Enum a, Bounded a) => Gen a
 genEnumBounded = elements [minBound ..]
