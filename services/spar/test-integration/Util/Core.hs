@@ -68,9 +68,7 @@ module Util.Core
     createRandomPhoneUser,
     zUser,
     ping,
-    makeIssuer,
     makeTestIdP,
-    makeTestIdPMetadata,
     getTestSPMetadata,
     registerTestIdP,
     registerTestIdPWithMeta,
@@ -144,7 +142,6 @@ import qualified Data.ByteString.Base64.Lazy as EL
 import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle))
 import Data.Id
-import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Misc (PlainTextPassword (..))
 import Data.Proxy
 import Data.Range
@@ -166,6 +163,7 @@ import SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.API.Example as SAML
 import SAML2.WebSSO.Test.Lenses (userRefL)
 import SAML2.WebSSO.Test.MockResponse
+import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata, passes)
 import Spar.API.Types
 import Spar.App (toLevel)
 import qualified Spar.App as Spar
@@ -184,7 +182,6 @@ import qualified Text.XML.Cursor as XML
 import Text.XML.DSig (SignPrivCreds)
 import qualified Text.XML.DSig as SAML
 import URI.ByteString
-import URI.ByteString.QQ (uri)
 import Util.Options
 import Util.Types
 import qualified Web.Cookie as Web
@@ -250,9 +247,6 @@ mkEnv _teTstOpts _teOpts = do
 
 destroyEnv :: HasCallStack => TestEnv -> IO ()
 destroyEnv _ = pure ()
-
-passes :: MonadIO m => m ()
-passes = liftIO $ True `shouldBe` True
 
 it ::
   HasCallStack =>
@@ -639,28 +633,13 @@ call req = ask >>= \env -> liftIO $ runHttpT (env ^. teMgr) req
 ping :: (Request -> Request) -> Http ()
 ping req = void . get $ req . path "/i/status" . expect2xx
 
-makeIssuer :: MonadIO m => m Issuer
-makeIssuer = do
-  uuid <- liftIO UUID.nextRandom
-  either
-    (liftIO . throwIO . ErrorCall . show)
-    (pure . Issuer)
-    (SAML.parseURI' ("https://issuer.net/_" <> UUID.toText uuid))
-
 makeTestIdP :: (HasCallStack, MonadRandom m, MonadIO m) => m (IdPConfig WireIdP)
-makeTestIdP = IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> (fst <$> makeTestIdPMetadata) <*> nextWireIdP
-
--- | Create a cloned new 'IdPMetadata' value from the sample value already registered, but with a
--- fresh random 'Issuer'.  This is the simplest way to get such a value for registration of a new
--- 'IdP' (registering the same 'Issuer' twice is an error).
-makeTestIdPMetadata :: (HasCallStack, MonadRandom m, MonadIO m) => m (IdPMetadata, SAML.SignPrivCreds)
-makeTestIdPMetadata = do
-  issuer <- makeIssuer
-  requri <- do
-    uuid :: ByteString <- UUID.toASCIIBytes <$> liftIO UUID.nextRandom
-    pure $ [uri|https://requri.net/|] & pathL .~ ("/" <> uuid)
-  (privkey, _, cert) <- SAML.mkSignCredsWithCert Nothing 96
-  pure (IdPMetadata issuer requri (cert :| []), privkey)
+makeTestIdP = do
+  SampleIdP md _ _ _ <- makeSampleIdPMetadata
+  IdPConfig
+    <$> (IdPId <$> liftIO UUID.nextRandom)
+    <*> (pure md)
+    <*> nextWireIdP
 
 getTestSPMetadata :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m SPMetadata
 getTestSPMetadata = do
@@ -685,7 +664,7 @@ registerTestIdPWithMeta ::
   (HasCallStack, MonadRandom m, MonadIO m, MonadReader TestEnv m) =>
   m (UserId, TeamId, IdP, (IdPMetadataInfo, SAML.SignPrivCreds))
 registerTestIdPWithMeta = do
-  (idpmeta, privkey) <- makeTestIdPMetadata
+  (SampleIdP idpmeta privkey _ _) <- makeSampleIdPMetadata
   env <- ask
   (uid, tid, idp) <- registerTestIdPFrom idpmeta (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
   pure (uid, tid, idp, (IdPMetadataValue (cs $ SAML.encode idpmeta) idpmeta, privkey))

@@ -31,7 +31,6 @@ import Data.String.Conversions
 import Imports
 import SAML2.Util ((-/))
 import SAML2.WebSSO as SAML
-import qualified SAML2.WebSSO.Test.Credentials as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified Servant
 import qualified Spar.App as Spar
@@ -39,6 +38,7 @@ import qualified Spar.Data as Data
 import Spar.Orphans ()
 import Spar.Types (IdP)
 import qualified Text.XML as XML
+import qualified Text.XML.DSig as DSig
 import URI.ByteString as URI
 import URI.ByteString.QQ (uri)
 import Util
@@ -153,12 +153,13 @@ requestAccessVerdict idp isGranted mkAuthnReq = do
     bdy <- maybe (error "authreq") pure $ responseBody raw
     either (error . show) pure $ Servant.mimeUnrender (Servant.Proxy @SAML.HTML) bdy
   spmeta <- getTestSPMetadata
+  (privKey, _, _) <- DSig.mkSignCredsWithCert Nothing 96
   authnresp :: SAML.AuthnResponse <- do
     case authnreq of
       (SAML.FormRedirect _ req) -> do
         SAML.SignedAuthnResponse (XML.Document _ el _) <-
           runSimpleSP $
-            SAML.mkAuthnResponseWithSubj subject SAML.sampleIdPPrivkey idp spmeta req True
+            SAML.mkAuthnResponseWithSubj subject privKey idp spmeta req True
         either (error . show) pure $ SAML.parse [XML.NodeElement el]
   let verdict =
         if isGranted
