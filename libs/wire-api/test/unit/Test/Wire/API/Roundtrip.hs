@@ -71,7 +71,7 @@ import qualified Wire.API.User.Search as User.Search
 
 tests :: T.TestTree
 tests =
-  T.localOption (T.Timeout (30 * 1000000) "30s") . T.testGroup "JSON roundtrip tests" $
+  T.localOption (T.Timeout (60 * 1000000) "60s") . T.testGroup "JSON roundtrip tests" $
     [ testRoundTrip @Asset.AssetToken,
       testRoundTrip @Asset.NewAssetToken,
       testRoundTrip @Asset.AssetRetention,
