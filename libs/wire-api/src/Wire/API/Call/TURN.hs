@@ -77,6 +77,7 @@ import qualified Data.ByteString.Conversion as BC
 import Data.List1
 import Data.Misc (IpAddr (IpAddr), Port (..))
 import qualified Data.Swagger.Build.Api as Doc
+import qualified Data.Text as Text
 import Data.Text.Ascii
 import qualified Data.Text.Encoding as TE
 import Data.Text.Strict.Lens (utf8)
@@ -310,7 +311,8 @@ instance FromJSON Transport where
 -- TurnUsername
 
 data TurnUsername = TurnUsername
-  { _tuExpiresAt :: POSIXTime,
+  { -- | must be positive, integral number of seconds
+    _tuExpiresAt :: POSIXTime,
     _tuVersion :: Word,
     -- | seems to large, but uint32_t is used in C
     _tuKeyindex :: Word32,
@@ -320,7 +322,6 @@ data TurnUsername = TurnUsername
     _tuRandom :: Text
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform TurnUsername)
 
 -- note that the random value is not checked for well-formedness
 turnUsername :: POSIXTime -> Text -> TurnUsername
@@ -362,6 +363,17 @@ parseTurnUsername =
     <*> (string ".k=" *> decimal)
     <*> (string ".t=" *> anyChar)
     <*> (string ".r=" *> takeWhile1 (inClass "a-z0-9"))
+
+instance Arbitrary TurnUsername where
+  arbitrary =
+    TurnUsername
+      <$> (fromIntegral <$> arbitrary @Word64)
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> (Text.pack <$> QC.listOf1 genAlphaNum)
+    where
+      genAlphaNum = QC.elements $ ['a' .. 'z'] <> ['0' .. '9']
 
 --------------------------------------------------------------------------------
 -- convenience
