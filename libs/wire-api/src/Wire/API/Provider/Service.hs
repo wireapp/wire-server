@@ -70,6 +70,7 @@ import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import qualified Data.Text.Encoding as Text
 import Imports
+import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Provider.Service.Tag (ServiceTag (..))
 import Wire.API.User.Profile (Asset, Name)
@@ -296,7 +297,6 @@ data ServiceProfilePage = ServiceProfilePage
     serviceProfilePageResults :: [ServiceProfile]
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ServiceProfilePage)
 
 instance ToJSON ServiceProfilePage where
   toJSON p =
@@ -310,6 +310,9 @@ instance FromJSON ServiceProfilePage where
     ServiceProfilePage
       <$> o .: "has_more"
       <*> o .: "services"
+
+instance Arbitrary ServiceProfilePage where
+  arbitrary = ServiceProfilePage <$> arbitrary <*> QC.scale (`div` 3) arbitrary
 
 --------------------------------------------------------------------------------
 -- NewService

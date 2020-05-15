@@ -99,7 +99,6 @@ data RTCConfiguration = RTCConfiguration
     _rtcConfTTL :: Word32
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform RTCConfiguration)
 
 rtcConfiguration :: List1 RTCIceServer -> Word32 -> RTCConfiguration
 rtcConfiguration = RTCConfiguration
@@ -122,6 +121,9 @@ instance ToJSON RTCConfiguration where
 instance FromJSON RTCConfiguration where
   parseJSON = withObject "RTCConfiguration" $ \o ->
     RTCConfiguration <$> o .: "ice_servers" <*> o .: "ttl"
+
+instance Arbitrary RTCConfiguration where
+  arbitrary = RTCConfiguration <$> QC.scale (`div` 3) arbitrary <*> arbitrary
 
 --------------------------------------------------------------------------------
 -- RTCIceServer

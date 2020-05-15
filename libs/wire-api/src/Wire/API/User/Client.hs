@@ -68,7 +68,8 @@ import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text.Encoding as Text.E
 import Data.UUID (toASCIIBytes)
 import Imports
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import qualified Test.QuickCheck as QC
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Client.Prekey as Prekey
 
@@ -79,7 +80,7 @@ newtype UserClientMap a = UserClientMap
   { userClientMap :: Map OpaqueUserId (Map ClientId a)
   }
   deriving stock (Eq, Show, Functor, Foldable, Traversable)
-  deriving newtype (Semigroup, Monoid, Arbitrary)
+  deriving newtype (Semigroup, Monoid)
 
 modelOtrClientMap :: Doc.Model
 modelOtrClientMap = Doc.defineModel "OtrClientMap" $ do
@@ -110,6 +111,9 @@ instance FromJSON a => FromJSON (UserClientMap a) where
         t <- parseJSON v
         return (Map.insert c t m)
 
+instance Arbitrary a => Arbitrary (UserClientMap a) where
+  arbitrary = UserClientMap <$> QC.scale (`div` 3) arbitrary
+
 --------------------------------------------------------------------------------
 -- UserClients
 
@@ -117,7 +121,7 @@ newtype UserClients = UserClients
   { userClients :: Map OpaqueUserId (Set ClientId)
   }
   deriving stock (Eq, Show, Generic)
-  deriving newtype (Semigroup, Monoid, Arbitrary)
+  deriving newtype (Semigroup, Monoid)
 
 modelUserClients :: Doc.Model
 modelUserClients =
@@ -138,6 +142,9 @@ instance FromJSON UserClients where
     withObject "UserClients" (fmap UserClients . foldrM fn Map.empty . HashMap.toList)
     where
       fn (k, v) m = Map.insert <$> parseJSON (String k) <*> parseJSON v <*> pure m
+
+instance Arbitrary UserClients where
+  arbitrary = UserClients <$> QC.scale (`div` 3) arbitrary
 
 filterClients :: (Set ClientId -> Bool) -> UserClients -> UserClients
 filterClients p (UserClients c) = UserClients $ Map.filter p c
