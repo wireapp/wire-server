@@ -4,7 +4,7 @@
 
 * Add tool to migrate data for galley (#1096)
   This can be used in a more automated way than the backfill-billing-team-member. 
-  It should be added to as a step after deployment.
+  It should be done as a step after deployment.
 
 ## Internal Changes
 
