@@ -39,7 +39,6 @@ import Data.Serialize
 import Data.Text.Ascii
 import qualified Data.Text.Ascii as Ascii
 import Data.Time
-import Data.Time.Clock.POSIX
 import Data.UUID
 import Imports
 import Test.Tasty

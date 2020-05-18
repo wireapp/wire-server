@@ -70,7 +70,6 @@ deriving stock instance Bounded ISO639_1
 instance Arbitrary CountryCode where
   arbitrary = genEnumBounded
 
--- TODO: where does this belong?
 instance Arbitrary Aeson.Value where
   arbitrary = oneof [genBaseCase, genObject, genArray]
     where

@@ -85,7 +85,7 @@ import qualified URI.ByteString.QQ as URI.QQ
 -- IpAddr / Port
 
 newtype IpAddr = IpAddr {ipAddr :: IP}
-  deriving (Eq, Ord, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
 
 instance FromByteString IpAddr where
   parser = do
@@ -284,7 +284,8 @@ data Rsa
 newtype Fingerprint a = Fingerprint
   { fingerprintBytes :: ByteString
   }
-  deriving (Eq, Show, FromByteString, ToByteString, NFData, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (FromByteString, ToByteString, NFData)
 
 instance FromJSON (Fingerprint Rsa) where
   parseJSON =
@@ -312,7 +313,8 @@ instance Arbitrary (Fingerprint Rsa) where
 
 newtype PlainTextPassword = PlainTextPassword
   {fromPlainTextPassword :: Text}
-  deriving (Eq, ToJSON, Generic)
+  deriving stock (Eq, Generic)
+  deriving newtype (ToJSON)
 
 instance Show PlainTextPassword where
   show _ = "PlainTextPassword <hidden>"

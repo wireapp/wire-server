@@ -40,8 +40,7 @@ tests :: TestTree
 tests =
   testGroup
     "Common (types vs. aeson)"
-    [ --
-      testRoundTrip @ExcludedPrefix,
+    [ testRoundTrip @ExcludedPrefix,
       testRoundTrip @LegalHoldService,
       testRoundTrip @LegalHoldClientRequest,
       testRoundTrip @FeatureFlags
