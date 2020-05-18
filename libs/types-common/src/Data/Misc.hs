@@ -69,14 +69,15 @@ import Data.ByteString.Builder
 import Data.ByteString.Char8 (unpack)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
-import Data.IP (IP (IPv4))
+import Data.IP (IP (IPv4, IPv6), toIPv4, toIPv6b)
 import Data.Int (Int64)
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Imports
-import Test.QuickCheck (Arbitrary (..), choose)
+import Test.QuickCheck (Arbitrary (arbitrary))
+import qualified Test.QuickCheck as QC
 import Text.Read (Read (..))
 import URI.ByteString hiding (Port)
 import qualified URI.ByteString.QQ as URI.QQ
@@ -104,16 +105,11 @@ instance NFData IpAddr where rnf (IpAddr a) = seq a ()
 
 -- TODO: Add an arbitrary instance for IPv6
 instance Arbitrary IpAddr where
-  arbitrary = IpAddr . IPv4 <$> ipV4Arbitrary
+  arbitrary = IpAddr <$> QC.oneof [IPv4 <$> genIPv4, IPv6 <$> genIPv6]
     where
-      ipV4Arbitrary = do
-        a <- ipV4Part
-        b <- ipV4Part
-        c <- ipV4Part
-        d <- ipV4Part
-        let adr = show a ++ "." ++ show b ++ "." ++ show c ++ "." ++ show d
-        return (read adr)
-      ipV4Part = choose @Word16 (0, 255)
+      genIPv4 = toIPv4 <$> replicateM 4 genByte
+      genIPv6 = toIPv6b <$> replicateM 16 genByte
+      genByte = QC.choose @Int (0, 255)
 
 newtype Port = Port
   {portNumber :: Word16}
