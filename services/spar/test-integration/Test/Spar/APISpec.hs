@@ -548,15 +548,13 @@ specCRUDIdentityProvider = do
       it "responds with 2xx and IdP" $ do
         env <- ask
         (owner, _, (^. idpId) -> idpid) <- registerTestIdP
-        _ <- call $ callIdpGet (env ^. teSpar) (Just owner) idpid
-        liftIO passes
+        void . call $ callIdpGet (env ^. teSpar) (Just owner) idpid
     context "known IdP, client is team owner (authenticated via sso, user without email)" $ do
       it "responds with 2xx and IdP" $ do
         env <- ask
         (firstOwner, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
         ssoOwner <- mkSsoOwner firstOwner tid idp privcreds
-        _ <- call $ callIdpGet (env ^. teSpar) (Just ssoOwner) (idp ^. idpId)
-        liftIO passes
+        void . call $ callIdpGet (env ^. teSpar) (Just ssoOwner) (idp ^. idpId)
   describe "GET /identity-providers" $ do
     context "client is not team owner" $ do
       it "rejects" $ do
@@ -851,7 +849,7 @@ specCRUDIdentityProvider = do
         it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
           env <- ask
           (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-          (SampleIdP (Aeson.encode . (IdPMetadataValue mempty) -> metadata) _ _ _) <- makeSampleIdPMetadata
+          metadata <- Aeson.encode . IdPMetadataValue mempty . sampleIdPMetadata <$> makeSampleIdPMetadata
           idp <- call $ callIdpCreateRaw (env ^. teSpar) (Just owner) "application/json" metadata
           idp' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
           rawmeta <- call $ callIdpGetRaw (env ^. teSpar) (Just owner) (idp ^. idpId)

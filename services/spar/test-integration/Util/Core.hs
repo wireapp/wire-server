@@ -31,7 +31,6 @@ module Util.Core
     destroyEnv,
 
     -- * Test helpers
-    passes,
     it,
     pending,
     pendingWith,
@@ -163,7 +162,7 @@ import SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.API.Example as SAML
 import SAML2.WebSSO.Test.Lenses (userRefL)
 import SAML2.WebSSO.Test.MockResponse
-import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata, passes)
+import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
 import Spar.API.Types
 import Spar.App (toLevel)
 import qualified Spar.App as Spar
