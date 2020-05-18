@@ -50,7 +50,8 @@ import Data.List1
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Time.Clock (UTCTime)
 import Imports
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import qualified Test.QuickCheck as QC
+import Wire.API.Arbitrary (Arbitrary (arbitrary))
 
 type NotificationId = Id QueuedNotification
 
@@ -73,7 +74,6 @@ data QueuedNotification = QueuedNotification
     _queuedNotificationPayload :: List1 Event
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform QueuedNotification)
 
 queuedNotification :: NotificationId -> List1 Event -> QueuedNotification
 queuedNotification = QueuedNotification
@@ -101,13 +101,15 @@ instance FromJSON QueuedNotification where
       <$> o .: "id"
       <*> o .: "payload"
 
+instance Arbitrary QueuedNotification where
+  arbitrary = QueuedNotification <$> arbitrary <*> QC.scale (`div` 5) arbitrary
+
 data QueuedNotificationList = QueuedNotificationList
   { _queuedNotifications :: [QueuedNotification],
     _queuedHasMore :: Bool,
     _queuedTime :: Maybe UTCTime
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform QueuedNotificationList)
 
 queuedNotificationList :: [QueuedNotification] -> Bool -> Maybe UTCTime -> QueuedNotificationList
 queuedNotificationList = QueuedNotificationList
@@ -137,3 +139,6 @@ instance FromJSON QueuedNotificationList where
       <$> o .: "notifications"
       <*> o .:? "has_more" .!= False
       <*> o .:? "time"
+
+instance Arbitrary QueuedNotificationList where
+  arbitrary = QueuedNotificationList <$> QC.scale (`div` 3) arbitrary <*> arbitrary <*> arbitrary

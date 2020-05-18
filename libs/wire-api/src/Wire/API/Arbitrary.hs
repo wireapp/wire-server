@@ -41,6 +41,10 @@ import Test.QuickCheck.Instances ()
 
 newtype GenericUniform a = GenericUniform {getGenericUniform :: a}
 
+-- FUTUREWORK: have a working generic implementation that keeps nested lists
+-- from blowing up the test duration.
+-- Most likely by scaling the items' size depending on length of the list,
+-- like in 'Generic.genericArbitraryRec'.
 instance
   (Generic.GArbitrary Generic.UnsizedOpts a, Generic.GUniformWeight a) =>
   Arbitrary (GenericUniform a)

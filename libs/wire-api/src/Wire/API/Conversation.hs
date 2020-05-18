@@ -174,7 +174,6 @@ data ConversationList a = ConversationList
     convHasMore :: Bool
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform (ConversationList a))
 
 instance ToJSON a => ToJSON (ConversationList a) where
   toJSON (ConversationList l m) =
@@ -188,6 +187,9 @@ instance FromJSON a => FromJSON (ConversationList a) where
     ConversationList
       <$> o .: "conversations"
       <*> o .: "has_more"
+
+instance Arbitrary a => Arbitrary (ConversationList a) where
+  arbitrary = ConversationList <$> QC.scale (`div` 5) arbitrary <*> arbitrary
 
 --------------------------------------------------------------------------------
 -- Conversation properties

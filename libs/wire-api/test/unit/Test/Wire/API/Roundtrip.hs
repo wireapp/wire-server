@@ -101,7 +101,7 @@ tests =
       currentlyFailing (testRoundTrip @Conversation.NewConvUnmanaged),
       currentlyFailing (testRoundTrip @Conversation.NewConvManaged),
       testRoundTrip @(Conversation.ConversationList ConvId),
-      currentlyTimingOut (testRoundTrip @(Conversation.ConversationList Conversation.Conversation)),
+      testRoundTrip @(Conversation.ConversationList Conversation.Conversation),
       testRoundTrip @Conversation.Access,
       testRoundTrip @Conversation.AccessRole,
       testRoundTrip @Conversation.ConvType,
@@ -143,8 +143,8 @@ tests =
       testRoundTrip @Message.OtrRecipients,
       testRoundTrip @Message.NewOtrMessage,
       currentlyFailing (testRoundTrip @Message.ClientMismatch), -- because ToJSON is rounding UTCTime
-      currentlyTimingOut (testRoundTrip @Notification.QueuedNotification),
-      currentlyTimingOut (testRoundTrip @Notification.QueuedNotificationList),
+      testRoundTrip @Notification.QueuedNotification,
+      testRoundTrip @Notification.QueuedNotificationList,
       testRoundTrip @Properties.PropertyKey,
       testRoundTrip @Properties.PropertyValue,
       testRoundTrip @Provider.Provider,
@@ -306,7 +306,6 @@ tests =
     ]
   where
     currentlyFailing = ignoreTest
-    currentlyTimingOut = ignoreTest
 
 testRoundTrip ::
   forall a.
