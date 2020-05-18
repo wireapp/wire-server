@@ -35,8 +35,7 @@ import Data.Id
 import Data.Json.Util
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
-import qualified Test.QuickCheck as QC
-import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Team.Role (Role, defaultRole, typeRole)
 import Wire.API.User.Identity (Email, Phone)
 import Wire.API.User.Profile (Locale, Name)
@@ -177,6 +176,7 @@ data InvitationList = InvitationList
     ilHasMore :: Bool
   }
   deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform InvitationList)
 
 modelTeamInvitationList :: Doc.Model
 modelTeamInvitationList = Doc.defineModel "TeamInvitationList" $ do
@@ -197,6 +197,3 @@ instance FromJSON InvitationList where
     InvitationList
       <$> o .: "invitations"
       <*> o .: "has_more"
-
-instance Arbitrary InvitationList where
-  arbitrary = InvitationList <$> QC.scale (`div` 3) arbitrary <*> arbitrary

@@ -51,7 +51,7 @@ import qualified Data.Swagger.Build.Api as Doc
 import Data.Time.Clock (UTCTime)
 import Imports
 import qualified Test.QuickCheck as QC
-import Wire.API.Arbitrary (Arbitrary (arbitrary))
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 type NotificationId = Id QueuedNotification
 
@@ -102,6 +102,8 @@ instance FromJSON QueuedNotification where
       <*> o .: "payload"
 
 instance Arbitrary QueuedNotification where
+  -- The automatic scaling of list fields that 'GenericUniform' uses
+  -- does not treat List1 like a normal list, so we need a manual instance.
   arbitrary = QueuedNotification <$> arbitrary <*> QC.scale (`div` 5) arbitrary
 
 data QueuedNotificationList = QueuedNotificationList
@@ -110,6 +112,7 @@ data QueuedNotificationList = QueuedNotificationList
     _queuedTime :: Maybe UTCTime
   }
   deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform QueuedNotificationList)
 
 queuedNotificationList :: [QueuedNotification] -> Bool -> Maybe UTCTime -> QueuedNotificationList
 queuedNotificationList = QueuedNotificationList
@@ -139,6 +142,3 @@ instance FromJSON QueuedNotificationList where
       <$> o .: "notifications"
       <*> o .:? "has_more" .!= False
       <*> o .:? "time"
-
-instance Arbitrary QueuedNotificationList where
-  arbitrary = QueuedNotificationList <$> QC.scale (`div` 3) arbitrary <*> arbitrary <*> arbitrary

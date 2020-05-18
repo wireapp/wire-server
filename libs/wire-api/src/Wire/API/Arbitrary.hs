@@ -39,17 +39,24 @@ import Imports
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 
+-- | This type can be used with @DerivingVia@ to generically derive an instance
+-- for the 'Arbitrary' typeclass.
+--
+-- Each constructor will appear equally often (@Uniform@ distribution).
+-- For each field, values will be generated using 'arbitrary', unless it's a
+-- list, in which case a smarter generater will be used to keep the size of
+-- generated examples more manageable (see 'Generic.list1'').
+--
+-- Other list- or map-like fields don't get this special treatment and might
+-- make it preferrable to decrease runtime of property tests by writing a manual
+-- instance, e.g. using 'Test.QuickCheck.scale'.
 newtype GenericUniform a = GenericUniform {getGenericUniform :: a}
 
--- FUTUREWORK: have a working generic implementation that keeps nested lists
--- from blowing up the test duration.
--- Most likely by scaling the items' size depending on length of the list,
--- like in 'Generic.genericArbitraryRec'.
 instance
-  (Generic.GArbitrary Generic.UnsizedOpts a, Generic.GUniformWeight a) =>
+  (Generic.GArbitrary Generic.SizedOptsDef a, Generic.GUniformWeight a) =>
   Arbitrary (GenericUniform a)
   where
-  arbitrary = GenericUniform <$> Generic.genericArbitraryU
+  arbitrary = GenericUniform <$> Generic.genericArbitraryRec @a Generic.uniform
 
 --------------------------------------------------------------------------------
 -- orphan instances for types from Hackage
