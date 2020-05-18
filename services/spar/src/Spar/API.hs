@@ -69,6 +69,7 @@ import Spar.Scim
 import Spar.Scim.Swagger ()
 import Spar.Types
 import qualified URI.ByteString as URI
+import qualified Web.Cookie as Cky
 
 app :: Env -> Application
 app ctx =
@@ -143,12 +144,23 @@ authreq authreqttl _ zusr msucc merr idpid = do
 -- value that deletes any bind cookies on the client.
 initializeBindCookie :: Maybe UserId -> NominalDiffTime -> Spar SetBindCookie
 initializeBindCookie zusr authreqttl = do
-  DerivedOpts {derivedOptsBindCookiePath} <- asks (derivedOpts . sparCtxOpts)
+  DerivedOpts {derivedOptsBindCookiePath, derivedOptsBindCookieDomain} <-
+    asks (derivedOpts . sparCtxOpts)
   msecret <-
     if isJust zusr
       then liftIO $ Just . cs . ES.encode <$> randBytes 32
       else pure Nothing
-  cky <- SAML.toggleCookie derivedOptsBindCookiePath $ (,authreqttl) <$> msecret
+  let updSetCkyDom (SAML.SimpleSetCookie raw) =
+        SAML.SimpleSetCookie
+          raw
+            { Cky.setCookieDomain = Just derivedOptsBindCookieDomain
+            }
+  cky <-
+    updSetCkyDom
+      <$> ( SAML.toggleCookie derivedOptsBindCookiePath $
+              (,authreqttl) <$> msecret ::
+              Spar SetBindCookie
+          )
   forM_ zusr $ \userid -> wrapMonadClientWithEnv $ Data.insertBindCookie cky userid authreqttl
   pure cky
 

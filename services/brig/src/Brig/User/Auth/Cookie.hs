@@ -52,6 +52,7 @@ import Data.Id
 import qualified Data.List as List
 import qualified Data.Metrics as Metrics
 import Data.Proxy
+import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
 import Imports
 import Network.Wai (Response)
@@ -233,7 +234,7 @@ setResponseCookie c r = do
       WebCookie.def
         { WebCookie.setCookieName = "zuid",
           WebCookie.setCookieValue = toByteString' (cookieValue c),
-          WebCookie.setCookieDomain = Nothing,
+          WebCookie.setCookieDomain = Just $ encodeUtf8 . setCookieDomain $ s,
           WebCookie.setCookiePath = Just "/access",
           WebCookie.setCookieExpires =
             if cookieType c == PersistentCookie

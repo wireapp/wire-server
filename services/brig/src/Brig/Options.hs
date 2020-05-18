@@ -393,6 +393,9 @@ data Settings = Settings
     -- | Max. number of permanent clients per user
     setUserMaxPermClients :: !(Maybe Int),
     -- | The domain to restrict cookies to
+    setCookieDomain :: !Text,
+    -- | Whether to allow plain HTTP transmission
+    --   of cookies (for testing purposes only)
     setCookieInsecure :: !Bool,
     -- | Minimum age of a user cookie before
     --   it is renewed during token refresh
