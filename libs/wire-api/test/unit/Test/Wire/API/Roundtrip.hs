@@ -69,7 +69,8 @@ import qualified Wire.API.User.Profile as User.Profile
 import qualified Wire.API.User.RichInfo as User.RichInfo
 import qualified Wire.API.User.Search as User.Search
 
--- FUTUREWORK: fix tests marked as failing (either fixing Arbitrary or serialization instance)
+-- FUTUREWORK(#1446): fix tests marked as failing
+-- (either fixing Arbitrary or serialization instance)
 tests :: T.TestTree
 tests =
   T.localOption (T.Timeout (60 * 1000000) "60s") . T.testGroup "JSON roundtrip tests" $
