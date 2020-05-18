@@ -214,8 +214,9 @@ requestDevice zusr tid uid = do
       let NewLegalHoldClient prekeys lastKey = lhDevice
       return (lastKey, prekeys)
 
--- | Approve the adding of a Legal Hold device to the user
--- we don't delete pending prekeys during this flow just in case
+-- | Approve the adding of a Legal Hold device to the user.
+--
+-- We don't delete pending prekeys during this flow just in case
 -- it gets interupted. There's really no reason to delete them anyways
 -- since they are replaced if needed when registering new LH devices.
 approveDeviceH ::

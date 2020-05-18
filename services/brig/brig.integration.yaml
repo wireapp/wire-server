@@ -131,7 +131,6 @@ optSettings:
   setNexmo: test/resources/nexmo-credentials.yaml
   # setStomp: test/resources/stomp-credentials.yaml
   setUserMaxConnections: 16
-  setCookieDomain: 127.0.0.1
   setCookieInsecure: true
   setUserCookieRenewAge: 2
   setUserCookieLimit: 5
@@ -161,5 +160,7 @@ optSettings:
   # ^ You can limit the max number of permanent clients that a user is allowed
   #   to register, per account. The default value is '7' if the option is unset.
 
-logLevel: Info
+logLevel: Warn
+# ^ NOTE: We log too much in brig, if we set this to Info like other services, running tests
+#   produces too many logs, hence this is set to Warn.
 logNetStrings: false
