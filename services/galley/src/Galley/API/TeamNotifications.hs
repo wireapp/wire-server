@@ -25,6 +25,12 @@
 --
 -- The module is a clone of "Gundeck.Notification".
 --
+-- This could have been added to gundeck, but we didn't.  Some motivation: (1) It is a *team*
+-- event queue; teams live in galley, and only galley triggers the team events to be stored in
+-- the teams.  (2) The team event queue differs from the other queues in that it is not a
+-- fallback for websockets / push notifications, but the only source of the events; so a big
+-- part of gundeck isn't really needed.  (3) Fewer RPCs, less code.
+--
 -- FUTUREWORK: this is a work-around because it only solves *some* problems with team events.
 -- We should really use a scalable message queue instead.
 module Galley.API.TeamNotifications
