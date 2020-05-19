@@ -454,7 +454,7 @@ testTeamQueue = do
     liftIO $ assertEqual "team queue: from old unknown" (snd <$> queue) [mem1, mem2]
 
   do
-    -- unknown younger 'NotificationId"
+    -- unknown younger 'NotificationId'
     [(Id n1, _), (Id n2, _)] <- getTeamQueue owner Nothing Nothing False
     nu <-
       -- create new UUIDv1 in the gap between n1, n2.
