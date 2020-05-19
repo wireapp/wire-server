@@ -426,13 +426,13 @@ testTeamQueue = do
   (owner, tid) <- createBindingTeam
   eventually $ do
     queue <- getTeamQueue owner Nothing Nothing False
-    liftIO $ assertEqual "team queue: owner" [] (snd <$> queue)
+    liftIO $ assertEqual "team queue: []" [] (snd <$> queue)
 
   mem1 :: UserId <- view userId <$> addUserToTeam owner tid
   eventually $ do
     queue1 <- getTeamQueue owner Nothing Nothing False
     queue2 <- getTeamQueue mem1 Nothing Nothing False
-    liftIO $ assertEqual "team queue: owner sees [owner, mem1]" [mem1] (snd <$> queue1)
+    liftIO $ assertEqual "team queue: owner sees [mem1]" [mem1] (snd <$> queue1)
     liftIO $ assertEqual "team queue: mem1 sees the same thing" queue1 queue2
 
   mem2 :: UserId <- view userId <$> addUserToTeam owner tid
@@ -446,10 +446,10 @@ testTeamQueue = do
     liftIO $ assertEqual "team queue: from 2" [mem2] (snd <$> queue2)
 
   do
-    -- unknown 'NotificationId'
+    -- unknown old 'NotificationId'
     let Just n1 = Id <$> UUID.fromText "615c4e38-950d-11ea-b0fc-7b04ea9f81c0"
     queue <- getTeamQueue owner (Just n1) Nothing False
-    liftIO $ assertEqual "team queue: from unknown" (snd <$> queue) [mem1, mem2]
+    liftIO $ assertEqual "team queue: from old unknown" (snd <$> queue) [mem1, mem2]
 
   mem3 :: UserId <- view userId <$> addUserToTeam owner tid
   mem4 :: UserId <- view userId <$> addUserToTeam owner tid
