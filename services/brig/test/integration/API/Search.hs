@@ -58,8 +58,8 @@ tests opts mgr galley brig = do
         test mgr "reindex" $ testReindex brig,
         testWithBothIndices opts mgr "no match" $ testSearchNoMatch brig,
         testWithBothIndices opts mgr "no extra results" $ testSearchNoExtraResults brig,
-        test mgr "order-name" $ testOrderName brig,
-        test mgr "order-handle" $ testOrderHandle brig,
+        testWithBothIndices opts mgr "order-name" $ testOrderName brig,
+        testWithBothIndices opts mgr "order-handle" $ testOrderHandle brig,
         testWithBothIndices opts mgr "by-first/middle/last name" $ testSearchByLastOrMiddleName brig,
         testWithBothIndices opts mgr "Non ascii names" $ testSearchNonAsciiNames brig,
         testGroup "team-search-visibility disabled OR SearchVisibilityStandard" $

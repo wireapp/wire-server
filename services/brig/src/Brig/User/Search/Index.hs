@@ -201,6 +201,7 @@ queryIndex (IndexQuery q f) (fromRange -> s) = liftIndexIO $ do
 --
 -- The intention behind parameterising 'queryIndex' over the 'IndexQuery' is that
 -- it allows to experiment with different queries (perhaps in an A/B context).
+-- FUTUREWORK: Drop legacyPrefixMatch
 defaultUserQuery :: UserId -> TeamSearchInfo -> Text -> IndexQuery Contact
 defaultUserQuery u teamSearchInfo (normalized -> term') =
   let matchPrefix =
@@ -216,10 +217,21 @@ defaultUserQuery u teamSearchInfo (normalized -> term') =
             { ES.multiMatchQueryType = Just ES.MultiMatchMostFields,
               ES.multiMatchQueryOperator = ES.And
             }
+      legacyPrefixMatch =
+        ES.QueryMultiMatchQuery $
+          ( ES.mkMultiMatchQuery
+              [ ES.FieldName "handle",
+                ES.FieldName "normalized"
+              ]
+              (ES.QueryString term')
+          )
+            { ES.multiMatchQueryType = Just ES.MultiMatchPhrasePrefix,
+              ES.multiMatchQueryOperator = ES.And
+            }
       query =
         ES.QueryBoolQuery
           boolQuery
-            { ES.boolQueryMustMatch = [matchPrefix],
+            { ES.boolQueryMustMatch = [ES.QueryBoolQuery boolQuery {ES.boolQueryShouldMatch = [matchPrefix, legacyPrefixMatch]}],
               ES.boolQueryShouldMatch = [ES.QueryExistsQuery (ES.FieldName "handle")]
             }
       -- This reduces relevance on non-team users by 90%, there was no science
