@@ -212,7 +212,10 @@ sitemap = do
       \`/notifications`: it does not set status 404 in the response if there is a gap.  \
       \Instead, if the request contains a `since` notification id, the notification with \
       \that id is included in the response if it exists.  If the UUIDv1 does *not* exist, \
-      \you get the more recent events from the queue; not all of them."
+      \you get the more recent events from the queue (instead of all of them).  There is \
+      \no way to get the last event in a team event queue.  (In `/notifications`, this is \
+      \only needed to avoid having to pull the entire queue which we can do here by just \
+      \using a recent time stamp in the UUIDv1.)"
     parameter Query "since" bytes' $ do
       optional
       description "Notification id to start with in the response (UUIDv1)"
