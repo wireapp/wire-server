@@ -209,9 +209,10 @@ sitemap = do
       "This is a work-around for scalability issues with gundeck user event fan-out. \
       \It does not track all team-wide events, but only `member-join`.  Note that there \
       \are some subtle differences in the behavior of `/teams/notifications` compared to \
-      \`/notifications`: does not set status 404 in the response if there is a gap.  \
+      \`/notifications`: it does not set status 404 in the response if there is a gap.  \
       \Instead, if the request contains a `since` notification id, the notification with \
-      \that id is included in the response if it exists."
+      \that id is included in the response if it exists.  If the UUIDv1 does *not* exist, \
+      \you get the more recent events from the queue; not all of them."
     parameter Query "since" bytes' $ do
       optional
       description "Notification id to start with in the response (UUIDv1)"
