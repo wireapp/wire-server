@@ -43,6 +43,8 @@ import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.UUID as UUID
+import qualified Data.UUID.Util as UUID
+import qualified Data.UUID.V1 as UUID
 import qualified Galley.App as Galley
 import Galley.Options (optSettings, setEnableIndexedBillingTeamMembers, setFeatureFlags, setMaxConvSize, setMaxFanoutSize)
 import Galley.Types hiding (EventData (..), EventType (..), MemberUpdate (..))
@@ -450,6 +452,18 @@ testTeamQueue = do
     let Just n1 = Id <$> UUID.fromText "615c4e38-950d-11ea-b0fc-7b04ea9f81c0"
     queue <- getTeamQueue owner (Just n1) Nothing False
     liftIO $ assertEqual "team queue: from old unknown" (snd <$> queue) [mem1, mem2]
+
+  do
+    -- unknown younger 'NotificationId"
+    [(Id n1, _), (Id n2, _)] <- getTeamQueue owner Nothing Nothing False
+    nu <-
+      -- create new UUIDv1 in the gap between n1, n2.
+      let Just time1 = UUID.extractTime n1
+          Just time2 = UUID.extractTime n2
+          timeu = time1 + (time2 - time1) `div` 2
+       in Id . fromJust . (`UUID.setTime` timeu) . fromJust <$> liftIO UUID.nextUUID
+    queue <- getTeamQueue owner (Just nu) Nothing False
+    liftIO $ assertEqual "team queue: from old unknown" (snd <$> queue) [mem2]
 
   mem3 :: UserId <- view userId <$> addUserToTeam owner tid
   mem4 :: UserId <- view userId <$> addUserToTeam owner tid
