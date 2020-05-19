@@ -50,7 +50,7 @@ import Util
 
 tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree
 tests opts mgr galley brig = do
-  testSetupOutboundOnly <- runHttpT mgr $ prepareUsersForSearchVisibilityNoNameOutsideTeamTests
+  testSetupOutboundOnly <- runHttpT mgr prepareUsersForSearchVisibilityNoNameOutsideTeamTests
   return
     $ testGroup "search"
     $ [ testWithBothIndices opts mgr "by-name" $ testSearchByName brig,
@@ -161,7 +161,7 @@ testSearchNoExtraResults brig = do
   let uid1 = userId u1
       uid2 = userId u2
   refreshIndex brig
-  resultUIds <- (map contactUserId . searchResults) <$> executeSearch brig uid1 (fromName $ userDisplayName u2)
+  resultUIds <- map contactUserId . searchResults <$> executeSearch brig uid1 (fromName $ userDisplayName u2)
   liftIO $
     assertEqual "Expected search returns only the searched" [uid2] resultUIds
 
@@ -196,7 +196,7 @@ testOrderName brig = do
   nameMatch <- userId <$> createUser' True searchedWord brig
   namePrefixMatch <- userId <$> createUser' True (searchedWord <> "suffix") brig
   refreshIndex brig
-  resultUIds <- (map contactUserId . searchResults) <$> executeSearch brig searcher searchedWord
+  resultUIds <- map contactUserId . searchResults <$> executeSearch brig searcher searchedWord
   let expectedOrder = [nameMatch, namePrefixMatch]
   liftIO $
     assertEqual
@@ -213,7 +213,7 @@ testOrderHandle brig = do
   handlePrefixMatch <- userId <$> createUser' True "handle prefix match" brig
   void $ putHandle brig handlePrefixMatch (searchedWord <> "suffix")
   refreshIndex brig
-  resultUIds <- (map contactUserId . searchResults) <$> executeSearch brig searcher searchedWord
+  resultUIds <- map contactUserId . searchResults <$> executeSearch brig searcher searchedWord
   let expectedOrder = [handleMatch, handlePrefixMatch]
   liftIO $
     assertEqual
@@ -273,7 +273,7 @@ testSearchOrderingAsTeamMemberPrefixMatch brig = do
   refreshIndex brig
   result <- executeSearch brig (userId searcher) (fromName searchedName)
   let resultUserIds = contactUserId <$> searchResults result
-  liftIO $ do
+  liftIO $
     case elemIndex (userId teamSearchee) resultUserIds of
       Nothing -> assertFailure "team mate not found in search"
       Just teamSearcheeIndex -> assertEqual "teammate is not the first result" 0 teamSearcheeIndex
@@ -329,16 +329,18 @@ testSeachNonMemberAsTeamMemberOutboundOnly brig ((_, _, teamAMember), (_, _, _),
   assertCan'tFind brig (userId teamAMember) (userId nonTeamMember) (fromHandle teamMemberAHandle)
 
 testWithBothIndices :: Opt.Opts -> Manager -> TestName -> WaiTest.Session a -> TestTree
-testWithBothIndices opts mgr name f = do
-  testGroup name $
+testWithBothIndices opts mgr name f =
+  testGroup
+    name
     [ test mgr "new-index" $ withSettingsOverrides opts f,
       test mgr "old-index" $ withOldIndex opts f
     ]
 
 testWithBothIndicesAndOpts :: Opt.Opts -> Manager -> TestName -> (Opt.Opts -> Http ()) -> TestTree
-testWithBothIndicesAndOpts opts mgr name f = do
-  testGroup name $
-    [ test mgr "new-index" $ (f opts),
+testWithBothIndicesAndOpts opts mgr name f =
+  testGroup
+    name
+    [ test mgr "new-index" (f opts),
       test mgr "old-index" $ do
         (newOpts, indexName) <- optsForOldIndex opts
         f newOpts <* deleteIndex opts indexName
@@ -355,7 +357,7 @@ optsForOldIndex :: MonadIO m => Opt.Opts -> m (Opt.Opts, Text)
 optsForOldIndex opts = do
   indexName <- randomHandle
   createIndexWithMapping opts indexName oldMapping
-  pure $ (opts & Opt.elasticsearchL . Opt.indexL .~ indexName, indexName)
+  pure (opts & Opt.elasticsearchL . Opt.indexL .~ indexName, indexName)
 
 createIndexWithMapping :: MonadIO m => Opt.Opts -> Text -> Value -> m ()
 createIndexWithMapping opts name val = do
