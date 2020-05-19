@@ -29,7 +29,8 @@ module Network.Wire.Client.API.Client
 where
 
 import Bilge
-import Brig.Types.Client as M
+import Brig.Types.Client as M (Client, NewClient, RmClient, UpdateClient)
+import Brig.Types.Client as M (ClientPrekey, PrekeyBundle)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List.NonEmpty

@@ -30,7 +30,9 @@ module Network.Wire.Client.API.User
 where
 
 import Bilge
-import Brig.Types as M
+import Brig.Types as M (NewUser, User, UserProfile)
+import Brig.Types as M (ConnectionRequest, ConnectionUpdate, UserConnection)
+import Brig.Types as M (ActivationCode (ActivationCode), ActivationKey (ActivationKey))
 import Control.Monad.Catch (MonadMask)
 import qualified Data.ByteString.Char8 as C
 import Data.ByteString.Conversion

@@ -27,7 +27,7 @@ module Network.Wire.Client.API.Search
 where
 
 import Bilge
-import Brig.Types
+import Brig.Types (Contact (..), SearchResult (..))
 import Control.Monad.Catch (MonadMask)
 import qualified Data.ByteString.Char8 as C
 import Data.Default.Class

@@ -43,7 +43,7 @@ module Network.Wire.Client.API.Push
 where
 
 import Bilge
-import Brig.Types
+import Brig.Types (Name, User, UserConnection, userEmail)
 import Control.Concurrent (myThreadId)
 import Control.Concurrent.Async
 import Control.Exception (bracket, finally, onException)
@@ -60,7 +60,10 @@ import Data.Text (pack)
 import qualified Data.Text as T
 import Data.Time.Clock
 import Data.UUID (UUID, fromString)
-import Galley.Types hiding (Event, EventType)
+import Galley.Types (Conversation (..), ConversationRename (..))
+import Galley.Types (MemberUpdate (..))
+import Galley.Types (Connect (..), OtrMessage (..), SimpleMembers (..))
+import Galley.Types (UserIdList (..))
 import Imports hiding (fromString)
 import Network.Connection
 import Network.HTTP.Types.Method

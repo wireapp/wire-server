@@ -35,7 +35,7 @@ module Network.Wire.Client.API.Asset
 where
 
 import Bilge
-import CargoHold.Types
+import CargoHold.Types (Asset, AssetKey, AssetSettings, AssetToken, assetExpires, assetKey, assetToken, buildMultipartBody, defAssetSettings, setAssetPublic, setAssetRetention)
 import qualified Codec.MIME.Type as MIME
 import Data.ByteString.Builder
 import Data.ByteString.Conversion

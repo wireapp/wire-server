@@ -36,7 +36,13 @@ import Data.Id
 import Data.List.NonEmpty hiding (cons, toList)
 import Data.List1
 import Data.Text (pack)
-import Galley.Types as M hiding (Event, EventType, memberUpdate)
+import Galley.Types as M (NewOtrMessage)
+import Galley.Types as M (ClientMismatch)
+import Galley.Types as M (SimpleMembers)
+import Galley.Types as M (Conversation, NewConv (..), NewConvUnmanaged (..))
+import Galley.Types as M (newInvite)
+import Galley.Types as M (UserIdList)
+import Galley.Types as M (MemberUpdateData)
 import Galley.Types.Conversations.Roles (roleNameWireAdmin)
 import Imports
 import Network.HTTP.Types.Method

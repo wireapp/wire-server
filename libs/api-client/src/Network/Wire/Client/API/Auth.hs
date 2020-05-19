@@ -29,7 +29,8 @@ module Network.Wire.Client.API.Auth
 where
 
 import Bilge
-import Brig.Types.User.Auth as Auth hiding (Cookie, user)
+-- Wire.API.User.Auth
+import Brig.Types.User.Auth as Auth (AccessToken, Login, access, tokenType)
 import Control.Monad.Catch (MonadMask)
 import qualified Data.ByteString.Char8 as C
 import qualified Data.ByteString.Lazy as Lazy
