@@ -30,7 +30,6 @@ library:
   - currency-codes >=2.0
   - errors >=1.4
   - extra
-  - galley-types >=0.45.7
   - hashable
   - iproute >=1.5
   - iso3166-country-codes >=0.2
@@ -69,7 +68,6 @@ tests:
     - containers
     - currency-codes
     - extra
-    - galley-types
     - iproute
     - iso639
     - pem

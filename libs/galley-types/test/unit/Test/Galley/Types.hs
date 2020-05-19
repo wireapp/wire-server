@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -25,6 +26,9 @@ import Control.Lens
 import Data.Set hiding (drop)
 import Galley.Types.Teams
 import Imports
+import Test.Galley.Roundtrip (testRoundTrip)
+import Test.QuickCheck (Arbitrary (arbitrary))
+import qualified Test.QuickCheck as QC
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -41,5 +45,13 @@ tests =
         forM_ [(r1, r2) | r1 <- [minBound ..], r2 <- drop 1 [r1 ..]]
         $ \(r1, r2) -> do
           assertBool "owner.self" ((rolePermissions r2 ^. self) `isSubsetOf` (rolePermissions r1 ^. self))
-          assertBool "owner.copy" ((rolePermissions r2 ^. copy) `isSubsetOf` (rolePermissions r1 ^. copy))
+          assertBool "owner.copy" ((rolePermissions r2 ^. copy) `isSubsetOf` (rolePermissions r1 ^. copy)),
+      testRoundTrip @FeatureFlags
     ]
+
+instance Arbitrary FeatureFlags where
+  arbitrary =
+    FeatureFlags
+      <$> QC.elements [minBound ..]
+      <*> QC.elements [minBound ..]
+      <*> QC.elements [minBound ..]

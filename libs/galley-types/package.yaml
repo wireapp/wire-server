@@ -47,10 +47,13 @@ tests:
     - -threaded
     - -with-rtsopts=-N
     dependencies:
+    - aeson
     - base
     - galley-types
     - lens
     - tasty
     - tasty-hunit
+    - tasty-quickcheck
     - types-common
     - containers
+    - QuickCheck

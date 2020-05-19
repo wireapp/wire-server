@@ -1,7 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -19,23 +15,22 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- | This is where currently all the json roundtrip tests happen for brig-types and
--- galley-types.
-module Test.Brig.Types.Common where
+module Test.Galley.Roundtrip where
 
-import Brig.Types.Common
-import Brig.Types.Team.LegalHold
-import Brig.Types.Test.Arbitrary ()
-import Test.Brig.Roundtrip (testRoundTrip)
-import Test.Tasty
+import Data.Aeson (FromJSON, ToJSON, parseJSON, toJSON)
+import Data.Aeson.Types (parseEither)
+import Imports
+import Test.Tasty (TestTree)
+import Test.Tasty.QuickCheck ((===), Arbitrary, counterexample, testProperty)
+import Type.Reflection (typeRep)
 
--- NB: validateEveryToJSON from servant-swagger doesn't render these tests unnecessary!
-
-tests :: TestTree
-tests =
-  testGroup
-    "Common (types vs. aeson)"
-    [ testRoundTrip @ExcludedPrefix,
-      testRoundTrip @LegalHoldService,
-      testRoundTrip @LegalHoldClientRequest
-    ]
+testRoundTrip ::
+  forall a.
+  (Arbitrary a, Typeable a, ToJSON a, FromJSON a, Eq a, Show a) =>
+  TestTree
+testRoundTrip = testProperty msg trip
+  where
+    msg = show (typeRep @a)
+    trip (v :: a) =
+      counterexample (show $ toJSON v) $
+        Right v === (parseEither parseJSON . toJSON) v
