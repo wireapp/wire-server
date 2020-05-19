@@ -61,7 +61,7 @@ add tid nid (Blob . JSON.encode -> payload) =
   where
     cqlInsert :: PrepQuery W (TeamId, NotificationId, Blob, Int32) ()
     cqlInsert =
-      "INSERT INTO notifications \
+      "INSERT INTO team_notifications \
       \(team, id, payload) VALUES \
       \(?, ?, ?) \
       \USING TTL ?"
@@ -109,13 +109,13 @@ fetch tid since (fromRange -> size) = do
     cqlStart :: PrepQuery R (Identity TeamId) (TimeUuid, Blob)
     cqlStart =
       "SELECT id, payload \
-      \FROM notifications \
+      \FROM team_notifications \
       \WHERE team = ? \
       \ORDER BY id ASC"
     cqlSince :: PrepQuery R (TeamId, TimeUuid) (TimeUuid, Blob)
     cqlSince =
       "SELECT id, payload \
-      \FROM notifications \
+      \FROM team_notifications \
       \WHERE team = ? AND id >= ? \
       \ORDER BY id ASC"
 

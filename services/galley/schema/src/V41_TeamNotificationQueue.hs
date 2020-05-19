@@ -25,10 +25,10 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 41 "Create team notification queue" $ do
+migration = Migration 41 "Create team team_notification queue" $ do
   schema'
     [r|
-        CREATE TABLE notifications (
+        CREATE TABLE team_notifications (
             team    uuid,
             id      timeuuid,
             payload blob,
