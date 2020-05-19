@@ -360,7 +360,7 @@ genRange pack_ gc =
       (fromKnownNat (Proxy @m))
       gc
   where
-    grange mi ma gelem = (`replicateM` gelem) =<< QC.choose (mi, ma)
+    grange mi ma gelem = (`replicateM` gelem) =<< QC.chooseInt (mi, ma)
 
 instance (KnownNat n, KnownNat m, LTE n m) => Arbitrary (Range n m Integer) where
   arbitrary = genIntegral
