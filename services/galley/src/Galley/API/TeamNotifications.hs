@@ -23,7 +23,7 @@
 -- way as gundeck's @/notifications@ end-point, galley has a @/teams/notifications@ end-point
 -- where these events can be pulled.
 --
--- The module is a clone of "Gundeck.Notification".
+-- This module is a clone of "Gundeck.Notification".
 --
 -- This could have been added to gundeck, but we didn't.  Some motivation: (1) It is a *team*
 -- event queue; teams live in galley, and only galley triggers the team events to be stored in

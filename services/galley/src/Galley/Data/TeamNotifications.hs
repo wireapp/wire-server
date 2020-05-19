@@ -19,7 +19,7 @@
 
 -- | See also: "Galley.API.TeamNotifications".
 --
--- The module is a clone of "Gundeck.Notification.Data".
+-- This module is a clone of "Gundeck.Notification.Data".
 --
 -- FUTUREWORK: this is a work-around because it only solves *some* problems with team events.
 -- We should really use a scalable message queue instead.
