@@ -23,13 +23,13 @@
 -- way as gundeck's @/notifications@ end-point, galley has a @/teams/notifications@ end-point
 -- where these events can be pulled.
 --
--- The module is a clone of "Gundeck.Notification.Data".
+-- The module is a clone of "Gundeck.Notification".
 --
 -- FUTUREWORK: this is a work-around because it only solves *some* problems with team events.
 -- We should really use a scalable message queue instead.
 module Galley.API.TeamNotifications
-  ( pushTeamEvent,
-    getTeamNotifications,
+  ( getTeamNotifications,
+    pushTeamEvent,
   )
 where
 
