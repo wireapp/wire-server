@@ -27,12 +27,10 @@ module Galley.Data.TeamNotifications
   ( ResultPage (..),
     add,
     fetch,
-    fetchLast,
   )
 where
 
 import Cassandra as C
-import Control.Lens ((^.), _1)
 import qualified Data.Aeson as JSON
 import Data.Id
 import Data.List1 (List1)
@@ -48,10 +46,7 @@ data ResultPage = ResultPage
     -- | Whether there might be more notifications that can be
     -- obtained through another query, starting the the ID of the
     -- last notification in 'resultSeq'.
-    resultHasMore :: !Bool,
-    -- | Whether there might be a gap in the 'resultSeq'. This is 'True'
-    -- iff a start ID ('since') has been given which could not be found.
-    resultGap :: !Bool
+    resultHasMore :: !Bool
   }
 
 -- FUTUREWORK: the magic 32 should be made configurable, so it can be tuned
@@ -74,44 +69,6 @@ add tid nid (Blob . JSON.encode -> payload) =
 notificationTTLSeconds :: Int32
 notificationTTLSeconds = 24192200
 
-fetchLast :: forall m. MonadClient m => TeamId -> m (Maybe QueuedNotification)
-fetchLast t = do
-  ls <- query cqlLast (params Quorum (Identity t)) & retry x1
-  case ls of
-    [] -> return Nothing
-    ns@(n : _) -> ns `getFirstOrElse` do
-      p <- paginate cqlSeek (paramsP Quorum (t, n ^. _1) 100) & retry x1
-      seek p
-  where
-    seek ::
-      Page (TimeUuid, Blob) ->
-      m (Maybe QueuedNotification)
-    seek p =
-      result p
-        `getFirstOrElse` if hasMore p
-          then liftClient (nextPage p) >>= seek
-          else return Nothing
-    getFirstOrElse ::
-      [(TimeUuid, Blob)] ->
-      m (Maybe QueuedNotification) ->
-      m (Maybe QueuedNotification)
-    getFirstOrElse ns f =
-      case listToMaybe (foldr' toNotif [] ns) of
-        Just n -> return (Just n)
-        Nothing -> f
-    cqlLast :: PrepQuery R (Identity TeamId) (TimeUuid, Blob)
-    cqlLast =
-      "SELECT id, payload \
-      \FROM notifications \
-      \WHERE team = ? \
-      \ORDER BY id DESC LIMIT 1"
-    cqlSeek :: PrepQuery R (TeamId, TimeUuid) (TimeUuid, Blob)
-    cqlSeek =
-      "SELECT id, payload \
-      \FROM notifications \
-      \WHERE team = ? AND id < ? \
-      \ORDER BY id DESC"
-
 fetch :: forall m. MonadClient m => TeamId -> Maybe NotificationId -> Range 1 10000 Int32 -> m ResultPage
 fetch tid since (fromRange -> size) = do
   -- We always need to look for one more than requested in order to correctly
@@ -126,9 +83,12 @@ fetch tid since (fromRange -> size) = do
   (ns, more) <- collect Seq.empty isize page1
   -- Drop the extra element from the end as well.  Keep the inclusive start
   -- value in the response (if a 'since' was given and found).
+  -- This can probably simplified a lot further, but we need to understand
+  -- 'Seq' in order to do that.  If you find a bug, this may be a good
+  -- place to start looking.
   return $! case Seq.viewl (trim (isize - 1) ns) of
-    EmptyL -> ResultPage Seq.empty False (isJust since)
-    (x :< xs) -> ResultPage (x <| xs) more (isJust since)
+    EmptyL -> ResultPage Seq.empty False
+    (x :< xs) -> ResultPage (x <| xs) more
   where
     collect :: Seq QueuedNotification -> Int -> Page (TimeUuid, Blob) -> m (Seq QueuedNotification, Bool)
     collect acc num page =
@@ -140,6 +100,7 @@ fetch tid since (fromRange -> size) = do
        in if not more || num' == 0
             then return (acc', more || not (null (snd ns)))
             else liftClient (nextPage page) >>= collect acc' num'
+    trim :: Int -> Seq a -> Seq a
     trim l ns
       | Seq.length ns <= l = ns
       | otherwise = case Seq.viewr ns of

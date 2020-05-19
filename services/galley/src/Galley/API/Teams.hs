@@ -781,11 +781,10 @@ getTeamNotificationsH ::
   UserId
     ::: Maybe ByteString {- NotificationId -}
     ::: Maybe (Range 1 10000 Int32)
-    ::: Bool
     ::: JSON ->
   Galley Response
-getTeamNotificationsH (zusr ::: sinceRaw ::: size ::: onlyLast ::: _) =
-  json <$> APITeamQueue.getTeamNotifications zusr since size onlyLast
+getTeamNotificationsH (zusr ::: sinceRaw ::: size ::: _) =
+  json <$> APITeamQueue.getTeamNotifications zusr since size
   where
     since :: Maybe NotificationId
     since = parseUUID =<< sinceRaw

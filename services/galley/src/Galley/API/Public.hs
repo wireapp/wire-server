@@ -202,33 +202,25 @@ sitemap = do
     zauthUserId
       .&. opt (query "since")
       .&. opt (query "size")
-      .&. def False (query "last")
       .&. accept "application" "json"
   document "GET" "getTeamNotifications" $ do
     summary "Read recently added team members from team queue"
     notes
       "This is a work-around for scalability issues with gundeck user event fan-out. \
-      \It does not track all team-wide events, but only `member-join`. Note that there \
+      \It does not track all team-wide events, but only `member-join`.  Note that there \
       \are some subtle differences in the behavior of `/teams/notifications` compared to \
-      \`/notifications`: (1) the request has a query parameter `last`: (2) there is no \
-      \`has_gap` field in the response, but instead, if the request contains a `since` \
-      \notification id, the notification with that id is included in the response if it \
-      \exists."
+      \`/notifications`: does not set status 404 in the response if there is a gap.  \
+      \Instead, if the request contains a `since` notification id, the notification with \
+      \that id is included in the response if it exists."
     parameter Query "since" bytes' $ do
       optional
       description "Notification id to start with in the response (UUIDv1)"
     parameter Query "size" (int32 (Swagger.def 1000)) $ do
       optional
       description "Maximum number of events to return (1..10000; default: 1000)"
-    parameter Query "last" bool' $ do
-      optional
-      description
-        "Only return the most recent notification.  Useful if you want to circumvent \
-        \downloading the entire queue, and only receive events starting now."
     returns (ref modelNotificationList)
     response 200 "List of team notifications" end
     errorResponse Error.notATeamMember
-    errorResponse Error.getTeamNotificationsBadLast
     errorResponse Error.getTeamNotificationsNotFound
 
   post "/teams/:tid/members" (continue Teams.addTeamMemberH) $

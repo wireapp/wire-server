@@ -56,28 +56,18 @@ getTeamNotifications ::
   UserId ->
   Maybe NotificationId ->
   Maybe (Range 1 10000 Int32) ->
-  Bool ->
   Galley QueuedNotificationList
-getTeamNotifications zusr since size onlyLast = do
+getTeamNotifications zusr since size = do
   tid :: TeamId <- do
     mtid <- (userTeam . accountUser =<<) <$> Intra.getUser zusr
     let err = throwM teamNotFound
     maybe err pure mtid
-  if onlyLast
-    then do
-      unless (isNothing since) $ throwM getTeamNotificationsBadLast
-      unless (isNothing size) $ throwM getTeamNotificationsBadLast
-      mqn <- DataTeamQueue.fetchLast tid
-      case mqn of
-        Just qn -> pure $ queuedNotificationList [qn] False Nothing
-        Nothing -> throwM getTeamNotificationsNotFound
-    else do
-      page <- DataTeamQueue.fetch tid since (fromMaybe (unsafeRange 1000) size)
-      pure $
-        queuedNotificationList
-          (toList (DataTeamQueue.resultSeq page))
-          (DataTeamQueue.resultHasMore page)
-          Nothing
+  page <- DataTeamQueue.fetch tid since (fromMaybe (unsafeRange 1000) size)
+  pure $
+    queuedNotificationList
+      (toList (DataTeamQueue.resultSeq page))
+      (DataTeamQueue.resultHasMore page)
+      Nothing
 
 pushTeamEvent :: TeamId -> Event -> Galley ()
 pushTeamEvent tid evt = do

@@ -245,8 +245,5 @@ federationNotImplemented qualified =
     renderMapping IdMapping {idMappingLocal, idMappingGlobal} =
       idToText idMappingLocal <> " -> " <> renderQualifiedId idMappingGlobal
 
-getTeamNotificationsBadLast :: Error
-getTeamNotificationsBadLast = Error status400 "bad-query" "Last team notification can not be pulled with `size` or `since` params."
-
 getTeamNotificationsNotFound :: Error
 getTeamNotificationsNotFound = Error status404 "not-found" "There are no team notifications for this team."
