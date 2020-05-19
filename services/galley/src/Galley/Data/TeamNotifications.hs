@@ -127,6 +127,10 @@ toNotif (i, b) ns =
   maybe
     ns
     (\p1 -> queuedNotification notifId p1 : ns)
-    (JSON.decode' (fromBlob b))
+    ( JSON.decode' (fromBlob b)
+      -- FUTUREWORK: this is from the database, so it's slightly more ok to ignore parse
+      -- errors than if it's data provided by a client.  it would still be better to have an
+      -- error entry in the log file and crash, rather than ignore the error and continue.
+    )
   where
     notifId = Id (fromTimeUuid i)
