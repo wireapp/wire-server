@@ -64,7 +64,7 @@ import Test.Tasty
 import Test.Tasty.Cannon ((#), TimeoutUnit (..))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
-import TestHelpers (purgeQueue, test)
+import TestHelpers (test)
 import TestSetup (TestM, TestSetup, tsBrig, tsCannon, tsGConf, tsGalley)
 import UnliftIO (mapConcurrently, mapConcurrently_)
 
@@ -467,14 +467,7 @@ testTeamQueue = do
     liftIO $ assertEqual "team queue: size limit 3" (snd <$> queue3) [mem2, mem3, mem4]
     liftIO $ assertEqual "team queue: size limit 1, no start id" (snd <$> queue4) [mem1]
 
-  do
-    -- last
-    [(n, u)] <- getTeamQueue owner Nothing Nothing True
-    getTeamQueue' owner (Just n) Nothing True !!! const 400 === statusCode
-    getTeamQueue' owner Nothing (Just 1) True !!! const 400 === statusCode
-    liftIO $ assertEqual "team queue: last" u mem4
-
-  TestHelpers.purgeQueue
+  ensureQueueEmpty
 
 testAddTeamMemberCheckBound :: TestM ()
 testAddTeamMemberCheckBound = do

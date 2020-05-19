@@ -47,8 +47,3 @@ test s n h = testCase n runTest
     runTest = do
       setup <- s
       void . flip runReaderT setup . runTestM $ h >> assertClean
-
-purgeQueue :: TestM ()
-purgeQueue = do
-  awsEnv <- fromJust <$> view tsAwsEnv
-  void . liftIO $ Aws.execute awsEnv readAllUntilEmpty
