@@ -485,18 +485,21 @@ instance FromJSON Settings
 instance FromJSON Opts
 
 -- TODO: Does it make sense to generate lens'es for all?
-Lens.makeLensesFor [("optSettings", "optionSettings")] ''Opts
+Lens.makeLensesFor [("optSettings", "optionSettings"), ("elasticsearch", "elasticsearchL")] ''Opts
 
-Lens.makeLensesFor [("setEmailVisibility", "emailVisibility")] ''Settings
+Lens.makeLensesFor
+  [ ("setEmailVisibility", "emailVisibility"),
+    ("setPropertyMaxKeyLen", "propertyMaxKeyLen"),
+    ("setPropertyMaxValueLen", "propertyMaxValueLen"),
+    ("setSearchSameTeamOnly", "searchSameTeamOnly"),
+    ("setUserMaxPermClients", "userMaxPermClients"),
+    ("setEnableFederation", "enableFederation"),
+    ("setSqsThrottleMillis", "sqsThrottleMillis")
+  ]
+  ''Settings
 
-Lens.makeLensesFor [("setPropertyMaxKeyLen", "propertyMaxKeyLen")] ''Settings
-
-Lens.makeLensesFor [("setPropertyMaxValueLen", "propertyMaxValueLen")] ''Settings
-
-Lens.makeLensesFor [("setSearchSameTeamOnly", "searchSameTeamOnly")] ''Settings
-
-Lens.makeLensesFor [("setUserMaxPermClients", "userMaxPermClients")] ''Settings
-
-Lens.makeLensesFor [("setEnableFederation", "enableFederation")] ''Settings
-
-Lens.makeLensesFor [("setSqsThrottleMillis", "sqsThrottleMillis")] ''Settings
+Lens.makeLensesFor
+  [ ("url", "urlL"),
+    ("index", "indexL")
+  ]
+  ''ElasticSearchOpts

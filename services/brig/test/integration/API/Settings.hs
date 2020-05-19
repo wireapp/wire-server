@@ -169,8 +169,8 @@ testGetUserEmailShowsEmailsIffExpected opts brig galley viewingUserIs visibility
 
 setup :: Brig -> Galley -> ViewingUserIs -> Http (UserId, User, User, User)
 setup brig galley viewingUserIs = do
-  (creatorId, tid) <- createUserWithTeam brig galley
-  (otherTeamCreatorId, otherTid) <- createUserWithTeam brig galley
+  (creatorId, tid) <- createUserWithTeam brig
+  (otherTeamCreatorId, otherTid) <- createUserWithTeam brig
   userA <- createTeamMember brig galley creatorId tid Team.fullPermissions
   userB <- createTeamMember brig galley otherTeamCreatorId otherTid Team.fullPermissions
   nonTeamUser <- createUser "joe" brig

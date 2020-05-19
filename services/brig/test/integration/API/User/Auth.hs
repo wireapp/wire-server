@@ -83,7 +83,7 @@ tests conf m z b g n =
             "legalhold-login"
             [ test m "failure-no-team" (testRegularUserLegalHoldLogin b),
               test m "team-user-with-legalhold-enabled" (testTeamUserLegalHoldLogin b g),
-              test m "failure-suspended" (testSuspendedLegalHoldLogin b g),
+              test m "failure-suspended" (testSuspendedLegalHoldLogin b),
               test m "failure-no-user" (testNoUserLegalHoldLogin b),
               test m "failure-wrong-password" (testWrongPasswordLegalHoldLogin b g),
               test m "always-persistent-cookie" (testLegalHoldSessionCookie b g),
@@ -162,7 +162,7 @@ testNginz b n = do
 testNginzLegalHold :: Brig -> Galley -> Nginz -> Http ()
 testNginzLegalHold b g n = do
   -- create team user Alice
-  (alice, tid) <- createUserWithTeam' b g
+  (alice, tid) <- createUserWithTeam' b
   putLegalHoldEnabled tid LegalHoldEnabled g -- enable it for this team
   (c, t) <- do
     -- we need to get the cookie domain from a login through nginz.  otherwise, if brig and
@@ -403,7 +403,7 @@ testRegularUserLegalHoldLogin brig = do
 testTeamUserLegalHoldLogin :: Brig -> Galley -> Http ()
 testTeamUserLegalHoldLogin brig galley = do
   -- create team user Alice
-  (alice, tid) <- createUserWithTeam brig galley
+  (alice, tid) <- createUserWithTeam brig
   now <- liftIO getCurrentTime
   -- fail if legalhold isn't activated yet for this user
   legalHoldLogin brig (LegalHoldLogin alice (Just defPassword) Nothing) PersistentCookie !!! do
@@ -429,10 +429,10 @@ testLegalHoldSessionCookie brig galley = do
 
 -- | Check that @/i/legalhold-login/@ can not be used to login as a suspended
 -- user.
-testSuspendedLegalHoldLogin :: Brig -> Galley -> Http ()
-testSuspendedLegalHoldLogin brig galley = do
+testSuspendedLegalHoldLogin :: Brig -> Http ()
+testSuspendedLegalHoldLogin brig = do
   -- Create a user and immediately suspend them
-  (uid, _tid) <- createUserWithTeam brig galley
+  (uid, _tid) <- createUserWithTeam brig
   setStatus brig uid Suspended
   -- Try to login and see if we fail
   legalHoldLogin brig (LegalHoldLogin uid (Just defPassword) Nothing) PersistentCookie !!! do
@@ -579,7 +579,7 @@ testTokenMismatch z brig galley = do
     const 403 === statusCode
     const (Just "Token mismatch") =~= responseBody
   -- try refresh with a regular AccessToken but a LegalHoldUserCookie
-  (alice, tid) <- createUserWithTeam brig galley
+  (alice, tid) <- createUserWithTeam brig
   putLegalHoldEnabled tid LegalHoldEnabled galley -- enable it for this team
   _rs <- legalHoldLogin brig (LegalHoldLogin alice (Just defPassword) Nothing) PersistentCookie
   let c' = decodeCookie _rs
@@ -850,7 +850,7 @@ testReauthentication b = do
 
 prepareLegalHoldUser :: Brig -> Galley -> Http (UserId)
 prepareLegalHoldUser brig galley = do
-  (uid, tid) <- createUserWithTeam brig galley
+  (uid, tid) <- createUserWithTeam brig
   -- enable it for this team - without that, legalhold login will fail.
   putLegalHoldEnabled tid LegalHoldEnabled galley
   return uid
