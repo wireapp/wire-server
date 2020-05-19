@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2e500af44a5fc0ca5280043bef4d49ae3542586da5b6cef9c8e5965614b77c06
+-- hash: ce146b2488d4660c995a9bde437bead339f5282182adb8896e714cac4ce1827b
 
 name:           galley-types
 version:        0.81.0
@@ -48,7 +48,6 @@ library
     , data-default >=0.5
     , errors
     , exceptions >=0.10.0
-    , gundeck-types >=1.15.13
     , hashable
     , imports
     , lens >=4.12
