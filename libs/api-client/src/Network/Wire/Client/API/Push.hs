@@ -28,10 +28,15 @@ module Network.Wire.Client.API.Push
     -- * Event Data
     Event (..),
     ConvEvent (..),
-    SimpleMembers (..),
-    UserIdList (..),
-    OtrMessage (..),
+    Connect (..),
+    ConversationRename (..),
+    MemberUpdate (..),
+    MemberUpdateData (..),
     NoData,
+    OtrMessage (..),
+    SimpleMembers (..),
+    SimpleMember (..),
+    UserIdList (..),
     UserInfo (..),
 
     -- * Event Type
@@ -43,7 +48,6 @@ module Network.Wire.Client.API.Push
 where
 
 import Bilge
-import Brig.Types (Name, User, UserConnection, userEmail)
 import Control.Concurrent (myThreadId)
 import Control.Concurrent.Async
 import Control.Exception (bracket, finally, onException)
@@ -60,10 +64,6 @@ import Data.Text (pack)
 import qualified Data.Text as T
 import Data.Time.Clock
 import Data.UUID (UUID, fromString)
-import Galley.Types (Conversation (..), ConversationRename (..))
-import Galley.Types (MemberUpdate (..))
-import Galley.Types (Connect (..), OtrMessage (..), SimpleMembers (..))
-import Galley.Types (UserIdList (..))
 import Imports hiding (fromString)
 import Network.Connection
 import Network.HTTP.Types.Method
@@ -74,8 +74,11 @@ import Network.Wire.Client.API.Auth
 import Network.Wire.Client.HTTP
 import Network.Wire.Client.Monad
 import Network.Wire.Client.Session
--- FUTUREWORK: We can probably monadunliftio the Session monad somehow?
 import qualified System.Logger as Log
+import Wire.API.Connection (UserConnection (..))
+import Wire.API.Conversation.Member (MemberUpdate (..))
+import Wire.API.Event.Conversation hiding (Event, EventType)
+import Wire.API.User (Name (..), User (..), userEmail)
 
 -------------------------------------------------------------------------------
 
@@ -177,7 +180,8 @@ data Event
   | EMemberLeave (ConvEvent UserIdList)
   | EConnect (ConvEvent Connect)
   | EConvRename (ConvEvent ConversationRename)
-  | EMemberStateUpdate (ConvEvent MemberUpdate)
+  | -- seems like it should be 'Wire.API.Event.Conversation.MemberUpdateData' instead
+    EMemberStateUpdate (ConvEvent MemberUpdate)
   | EOtrMessage (ConvEvent OtrMessage)
 
 instance Show Event where

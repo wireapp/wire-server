@@ -48,6 +48,9 @@ module Wire.API.Conversation
     ConversationReceiptModeUpdate (..),
     ConversationMessageTimerUpdate (..),
 
+    -- * re-exports
+    module Wire.API.Conversation.Member,
+
     -- * Swagger
     modelConversation,
     modelConversations,

@@ -29,8 +29,6 @@ module Network.Wire.Client.API.Client
 where
 
 import Bilge
-import Brig.Types.Client as M (Client, NewClient, RmClient, UpdateClient)
-import Brig.Types.Client as M (ClientPrekey, PrekeyBundle)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List.NonEmpty
@@ -39,6 +37,8 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
 import Network.Wire.Client.HTTP
 import Network.Wire.Client.Session
+import Wire.API.User.Client as M
+import Wire.API.User.Client.Prekey as M
 
 registerClient :: MonadSession m => NewClient -> m M.Client
 registerClient a = sessionRequest req rsc readBody

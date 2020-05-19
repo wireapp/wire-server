@@ -36,8 +36,8 @@ import Network.Wire.Bot.Assert
 import qualified Network.Wire.Bot.Clients as Clients
 import Network.Wire.Bot.Crypto
 import Network.Wire.Client.API.Asset
+import Network.Wire.Client.API.Client (ClientType (PermanentClientType))
 import Network.Wire.Client.API.Conversation
-import Network.Wire.Client.API.User
 import Network.Wire.Simulations
 import System.Logger.Class
 import qualified System.Random.MWC as MWC

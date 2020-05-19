@@ -30,9 +30,6 @@ module Network.Wire.Client.API.User
 where
 
 import Bilge
-import Brig.Types as M (NewUser, User, UserProfile)
-import Brig.Types as M (ConnectionRequest, ConnectionUpdate, UserConnection)
-import Brig.Types as M (ActivationCode (ActivationCode), ActivationKey (ActivationKey))
 import Control.Monad.Catch (MonadMask)
 import qualified Data.ByteString.Char8 as C
 import Data.ByteString.Conversion
@@ -45,6 +42,11 @@ import Network.HTTP.Types.Status hiding (statusCode)
 import Network.Wire.Client.HTTP
 import Network.Wire.Client.Monad
 import Network.Wire.Client.Session
+import Wire.API.Connection as M
+import Wire.API.User as M
+import Wire.API.User.Activation as M
+import Wire.API.User.Auth as M
+import Wire.API.User.Password as M
 
 -------------------------------------------------------------------------------
 -- Unauthenticated

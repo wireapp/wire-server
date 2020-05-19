@@ -36,21 +36,17 @@ import Data.Id
 import Data.List.NonEmpty hiding (cons, toList)
 import Data.List1
 import Data.Text (pack)
-import Galley.Types as M (NewOtrMessage)
-import Galley.Types as M (ClientMismatch)
-import Galley.Types as M (SimpleMembers)
-import Galley.Types as M (Conversation, NewConv (..), NewConvUnmanaged (..))
-import Galley.Types as M (newInvite)
-import Galley.Types as M (UserIdList)
-import Galley.Types as M (MemberUpdateData)
-import Galley.Types.Conversations.Roles (roleNameWireAdmin)
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
-import Network.Wire.Client.API.Push (ConvEvent)
+import Network.Wire.Client.API.Push as M (ConvEvent (..), SimpleMembers (..), UserIdList (..))
 import Network.Wire.Client.HTTP
 import Network.Wire.Client.Monad (ClientException (ParseError))
 import Network.Wire.Client.Session
+import Wire.API.Conversation as M hiding (memberUpdate)
+import Wire.API.Conversation.Role (roleNameWireAdmin)
+import Wire.API.Event.Conversation as M (MemberUpdateData)
+import Wire.API.Message as M
 
 postOtrMessage :: MonadSession m => ConvId -> NewOtrMessage -> m ClientMismatch
 postOtrMessage cnv msg = sessionRequest req rsc readBody
@@ -102,6 +98,7 @@ removeMember cnv mem = do
         $ empty
     rsc = status200 :| [status204]
 
+-- FUTUREWORK: probably should be 'Wire.API.Conversation.Member.MemberUpdate'.
 memberUpdate :: MonadSession m => ConvId -> MemberUpdateData -> m ()
 memberUpdate cnv updt = sessionRequest req rsc (const $ return ())
   where

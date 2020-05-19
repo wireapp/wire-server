@@ -27,7 +27,6 @@ module Network.Wire.Client.API.Search
 where
 
 import Bilge
-import Brig.Types (Contact (..), SearchResult (..))
 import Control.Monad.Catch (MonadMask)
 import qualified Data.ByteString.Char8 as C
 import Data.Default.Class
@@ -38,6 +37,7 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status (status200)
 import Network.Wire.Client.HTTP
 import Network.Wire.Client.Session
+import Wire.API.User.Search (Contact (..), SearchResult (..))
 
 data SearchParams = SearchParams
   { searchText :: !Text,

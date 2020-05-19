@@ -67,6 +67,10 @@ module Wire.API.User
     -- * helpers
     parseIdentity,
 
+    -- * re-exports
+    module Wire.API.User.Identity,
+    module Wire.API.User.Profile,
+
     -- * Swagger
     modelUserIdList,
     modelSelf,

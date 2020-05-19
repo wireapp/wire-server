@@ -35,7 +35,6 @@ module Network.Wire.Client.API.Asset
 where
 
 import Bilge
-import CargoHold.Types (Asset, AssetKey, AssetSettings, AssetToken, assetExpires, assetKey, assetToken, buildMultipartBody, defAssetSettings, setAssetPublic, setAssetRetention)
 import qualified Codec.MIME.Type as MIME
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
@@ -45,6 +44,7 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
 import Network.Wire.Client.HTTP
 import Network.Wire.Client.Session
+import Wire.API.Asset
 
 type AssetData = LByteString
 

@@ -29,8 +29,6 @@ module Network.Wire.Client.API.Auth
 where
 
 import Bilge
--- Wire.API.User.Auth
-import Brig.Types.User.Auth as Auth (AccessToken, Login, access, tokenType)
 import Control.Monad.Catch (MonadMask)
 import qualified Data.ByteString.Char8 as C
 import qualified Data.ByteString.Lazy as Lazy
@@ -45,6 +43,7 @@ import Network.HTTP.Types.Status hiding (statusCode)
 import Network.Wire.Client.HTTP
 import Network.Wire.Client.Monad
 import Web.Cookie (parseSetCookie)
+import Wire.API.User.Auth as Auth (AccessToken, Login, access, tokenType)
 
 newtype AuthCookie = AuthCookie Cookie
 
