@@ -34,6 +34,7 @@ where
 
 import qualified Codec.MIME.Type as MIME
 import qualified Data.Aeson as Aeson
+import Data.Coerce (coerce)
 import qualified Data.Currency as Currency
 import qualified Data.HashMap.Strict as HashMap
 import Data.ISO3166_CountryCodes (CountryCode)
@@ -41,10 +42,13 @@ import Data.LanguageCodes (ISO639_1 (..))
 import Data.List1 (List1, list1)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+import GHC.Generics (Rep)
 import qualified Generic.Random as Generic
 import Generic.Random ((:+) ((:+)), listOf')
 import Imports
-import Test.QuickCheck
+import Test.QuickCheck.Arbitrary (Arbitrary (arbitrary))
+import qualified Test.QuickCheck.Arbitrary as QC
+import Test.QuickCheck.Gen (Gen, oneof)
 import Test.QuickCheck.Instances ()
 
 -- | This type can be used with @DerivingVia@ to generically derive an instance
@@ -61,12 +65,15 @@ import Test.QuickCheck.Instances ()
 newtype GenericUniform a = GenericUniform {getGenericUniform :: a}
 
 instance
-  (Generic.GArbitrary CustomSizedOpts a, Generic.GUniformWeight a) =>
+  ( Generic.GArbitrary CustomSizedOpts a,
+    Generic.GUniformWeight a,
+    QC.RecursivelyShrink (Rep a),
+    QC.GSubterms (Rep a) a
+  ) =>
   Arbitrary (GenericUniform a)
   where
-  arbitrary =
-    GenericUniform
-      <$> Generic.genericArbitraryWith @CustomSizedOpts @a customSizedOpts Generic.uniform
+  arbitrary = GenericUniform <$> Generic.genericArbitraryWith @CustomSizedOpts @a customSizedOpts Generic.uniform
+  shrink = coerce (QC.genericShrink @a)
 
 -- | We want plug in custom generators for all occurences of '[]' and 'List1'.
 type CustomSizedOpts =

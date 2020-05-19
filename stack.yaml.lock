@@ -539,6 +539,20 @@ packages:
   original:
     hackage: wai-route-0.4.0
 - completed:
+    hackage: QuickCheck-2.14@sha256:a1bac79e48b36d5bccd771e981058c44707f440156a0a411ebdcfec8cfccfda9,6982
+    pantry-tree:
+      size: 2203
+      sha256: 1c8b0f1ff061117c78ddb69cbed242faf313a427c03e5c84233aa33e7e58a5cb
+  original:
+    hackage: QuickCheck-2.14
+- completed:
+    hackage: splitmix-0.0.4@sha256:fb9bb8b54a2e76c8a021fe5c4c3798047e1f60e168379a1f80693047fe00ad0e,4813
+    pantry-tree:
+      size: 872
+      sha256: e58892088b95190bfb59a7c0803f7ef65338e57fc9b938d7c166563605003902
+  original:
+    hackage: splitmix-0.0.4
+- completed:
     hackage: ormolu-0.0.5.0@sha256:e5f49c51c6ebd8b3cd16113e585312de7315c1e1561fbb599988cebc61c14f4e,7956
     pantry-tree:
       size: 66187
