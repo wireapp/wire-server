@@ -113,7 +113,7 @@ lookupActivatedUsers uids = do
   where
     users = BSC.intercalate "," $ toByteString' <$> uids
 
--- | Calls 'Brig.API.deleteUserNoVerifyH'.
+-- | Calls 'Brig.API.listActivatedAccountsH'.
 getUser :: UserId -> Galley (Maybe UserAccount)
 getUser uid = do
   (h, p) <- brigReq

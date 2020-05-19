@@ -201,7 +201,7 @@ sitemap = do
   get "/teams/notifications" (continue Teams.getTeamNotificationsH) $
     zauthUserId
       .&. opt (query "since")
-      .&. opt (query "size")
+      .&. def (unsafeRange 1000) (query "size")
       .&. accept "application" "json"
   document "GET" "getTeamNotifications" $ do
     summary "Read recently added team members from team queue"
@@ -222,6 +222,7 @@ sitemap = do
     response 200 "List of team notifications" end
     errorResponse Error.notATeamMember
     errorResponse Error.getTeamNotificationsNotFound
+    errorResponse Error.invalidTeamNotificationId
 
   post "/teams/:tid/members" (continue Teams.addTeamMemberH) $
     zauthUserId

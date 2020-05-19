@@ -40,7 +40,7 @@ import Control.Retry (exponentialBackoff, limitRetries, retrying)
 import Data.Id
 import Data.Json.Util (toJSONObject)
 import qualified Data.List1 as List1
-import Data.Range (Range, unsafeRange)
+import Data.Range (Range)
 import qualified Data.UUID.V1 as UUID
 import Galley.API.Error
 import Galley.App
@@ -55,14 +55,14 @@ import Network.Wai.Utilities
 getTeamNotifications ::
   UserId ->
   Maybe NotificationId ->
-  Maybe (Range 1 10000 Int32) ->
+  Range 1 10000 Int32 ->
   Galley QueuedNotificationList
 getTeamNotifications zusr since size = do
   tid :: TeamId <- do
     mtid <- (userTeam . accountUser =<<) <$> Intra.getUser zusr
     let err = throwM teamNotFound
     maybe err pure mtid
-  page <- DataTeamQueue.fetch tid since (fromMaybe (unsafeRange 1000) size)
+  page <- DataTeamQueue.fetch tid since size
   pure $
     queuedNotificationList
       (toList (DataTeamQueue.resultSeq page))

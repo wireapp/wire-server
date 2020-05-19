@@ -780,17 +780,22 @@ addTeamMemberInternal tid origin originConn newMem memList = do
 getTeamNotificationsH ::
   UserId
     ::: Maybe ByteString {- NotificationId -}
-    ::: Maybe (Range 1 10000 Int32)
+    ::: Range 1 10000 Int32
     ::: JSON ->
   Galley Response
-getTeamNotificationsH (zusr ::: sinceRaw ::: size ::: _) =
+getTeamNotificationsH (zusr ::: sinceRaw ::: size ::: _) = do
+  since <- parseSince
   json <$> APITeamQueue.getTeamNotifications zusr since size
   where
-    since :: Maybe NotificationId
-    since = parseUUID =<< sinceRaw
+    parseSince :: Galley (Maybe NotificationId)
+    parseSince = maybe (pure Nothing) (fmap Just . parseUUID) sinceRaw
     --
-    parseUUID :: ByteString -> Maybe NotificationId
-    parseUUID = fmap Id . (UUID.fromASCIIBytes >=> isV1UUID)
+    parseUUID :: ByteString -> Galley NotificationId
+    parseUUID raw =
+      maybe
+        (throwM invalidTeamNotificationId)
+        (pure . Id)
+        ((UUID.fromASCIIBytes >=> isV1UUID) raw)
     --
     isV1UUID :: UUID.UUID -> Maybe UUID.UUID
     isV1UUID u = if UUID.version u == 1 then Just u else Nothing
