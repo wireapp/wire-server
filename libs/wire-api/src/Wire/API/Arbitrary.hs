@@ -25,6 +25,10 @@
 module Wire.API.Arbitrary
   ( Arbitrary (..),
     GenericUniform (..),
+    listOf',
+    list1Of',
+    setOf',
+    mapOf',
   )
 where
 
@@ -34,6 +38,9 @@ import qualified Data.Currency as Currency
 import qualified Data.HashMap.Strict as HashMap
 import Data.ISO3166_CountryCodes (CountryCode)
 import Data.LanguageCodes (ISO639_1 (..))
+import Data.List1 (List1, list1)
+import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import qualified Generic.Random as Generic
 import Generic.Random (listOf')
 import Imports
@@ -58,6 +65,15 @@ instance
   Arbitrary (GenericUniform a)
   where
   arbitrary = GenericUniform <$> Generic.genericArbitraryRec @a Generic.uniform
+
+list1Of' :: Gen a -> Gen (List1 a)
+list1Of' g = list1 <$> g <*> Generic.listOf' g
+
+setOf' :: Ord a => Gen a -> Gen (Set a)
+setOf' g = Set.fromList <$> Generic.listOf' g
+
+mapOf' :: Ord k => Gen k -> Gen v -> Gen (Map k v)
+mapOf' genK genV = Map.fromList <$> Generic.listOf' (liftA2 (,) genK genV)
 
 --------------------------------------------------------------------------------
 -- orphan instances for types from Hackage
