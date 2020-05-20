@@ -52,7 +52,7 @@ import Util
 import Util.AWS as Util
 import Web.Cookie (parseSetCookie, setCookieName)
 
-newtype TeamSizeLimit = TeamSizeLimit Word16
+newtype TeamSizeLimit = TeamSizeLimit Word32
 
 tests :: Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> AWS.Env -> IO TestTree
 tests conf m b c g aws = do
