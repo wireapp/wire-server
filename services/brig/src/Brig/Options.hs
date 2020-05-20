@@ -395,6 +395,9 @@ data Settings = Settings
     -- | Max. number of permanent clients per user
     setUserMaxPermClients :: !(Maybe Int),
     -- | The domain to restrict cookies to
+    setCookieDomain :: !Text,
+    -- | Whether to allow plain HTTP transmission
+    --   of cookies (for testing purposes only)
     setCookieInsecure :: !Bool,
     -- | Minimum age of a user cookie before
     --   it is renewed during token refresh
@@ -420,7 +423,7 @@ data Settings = Settings
     setDefaultLocale :: !Locale,
     -- | Max. # of members in a team.
     --   NOTE: This must be in sync with galley
-    setMaxTeamSize :: !Word16,
+    setMaxTeamSize :: !Word32,
     -- | Max. # of members in a conversation.
     --   NOTE: This must be in sync with galley
     setMaxConvSize :: !Word16,

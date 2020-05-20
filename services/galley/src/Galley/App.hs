@@ -157,7 +157,7 @@ validateOptions l o = do
             <> " may have some admin user ids missing. \
                \ This is fine for testing purposes but NOT for production use!!"
       )
-  when (settings ^. setMaxConvSize > optFanoutLimit) $
+  when (settings ^. setMaxConvSize > fromIntegral optFanoutLimit) $
     error "setMaxConvSize cannot be > setTruncationLimit"
   when (settings ^. setMaxTeamSize < optFanoutLimit) $
     error "setMaxTeamSize cannot be < setTruncationLimit"
