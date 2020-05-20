@@ -57,7 +57,7 @@ import Test.QuickCheck.Instances ()
 --
 -- Other list- or map-like fields don't get this special treatment and might
 -- make it preferrable to decrease runtime of property tests by writing a manual
--- instance, e.g. using 'Test.QuickCheck.scale'.
+-- instance, e.g. using 'list1Of'' or 'mapOf''.
 newtype GenericUniform a = GenericUniform {getGenericUniform :: a}
 
 instance
