@@ -28,5 +28,5 @@ Bitte antworte nicht auf diese E-Mail.
 
 --------------------------------------------------------------------------------
 
-Datenschutz [${legal}] · Missbrauch melden [${misuse}]
-${copyright}. Alle Rechte vorbehalten.
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

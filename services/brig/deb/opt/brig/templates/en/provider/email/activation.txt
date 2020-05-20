@@ -27,5 +27,5 @@ Please don’t reply to this message.
 
 --------------------------------------------------------------------------------
 
-Privacy [${legal}] · Report Misuse [${misuse}]
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
 ${copyright}. ALL RIGHTS RESERVED.

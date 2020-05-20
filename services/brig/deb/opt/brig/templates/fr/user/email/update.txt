@@ -12,10 +12,10 @@ ce lien dans votre navigateur :
 
 ${url}
 
-Si vous avez des questions, veuillez contactez-nous [${support}].
+Si vous avez des questions, veuillez nous contacter [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Confidentialité [${legal}] · Report Misuse [${misuse}]
-${copyright}. TOUTES DROITS RESERVED.
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

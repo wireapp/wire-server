@@ -13,5 +13,5 @@ Jei turite klausimų, susisiekite su mumis [${support}].
 
 --------------------------------------------------------------------------------
 
-Privatumas [${legal}] · Pranešti apie piktnaudžiavimą [${misuse}]
-${copyright}. VISOS TEISĖS SAUGOMOS.
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

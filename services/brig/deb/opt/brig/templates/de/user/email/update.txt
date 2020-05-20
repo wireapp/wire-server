@@ -16,5 +16,5 @@ Wenn du Fragen hast, dann kontaktiere uns [${support}] bitte.
 
 --------------------------------------------------------------------------------
 
-Datenschutz [${legal}] · Missbrauch melden [${misuse}]
-${copyright}. Alle Rechte vorbehalten.
+Privacy policy and terms of use [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.
