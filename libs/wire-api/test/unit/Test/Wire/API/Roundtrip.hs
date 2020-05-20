@@ -23,7 +23,7 @@ import Data.Id (ConvId)
 import Imports
 import qualified Test.Tasty as T
 import Test.Tasty.ExpectedFailure (ignoreTest)
-import Test.Tasty.QuickCheck ((===), Arbitrary, counterexample, testProperty)
+import Test.Tasty.QuickCheck ((===), Arbitrary, QuickCheckMaxSize (..), counterexample, testProperty)
 import Type.Reflection (typeRep)
 import qualified Wire.API.Asset as Asset
 import qualified Wire.API.Asset.V3.Resumable as Asset.Resumable
@@ -98,9 +98,9 @@ tests =
       testRoundTrip @Connection.UserConnection,
       testRoundTrip @Connection.UserConnectionList,
       testRoundTrip @Connection.ConnectionUpdate,
-      currentlyFailing (testRoundTrip @Conversation.Conversation),
-      currentlyFailing (testRoundTrip @Conversation.NewConvUnmanaged),
-      currentlyFailing (testRoundTrip @Conversation.NewConvManaged),
+      T.localOption (QuickCheckMaxSize 2000) (testRoundTrip @Conversation.Conversation), -- PASS?
+      T.localOption (QuickCheckMaxSize 2000) (testRoundTrip @Conversation.NewConvUnmanaged), -- PASS?
+      T.localOption (QuickCheckMaxSize 2000) (testRoundTrip @Conversation.NewConvManaged), -- PASS?
       testRoundTrip @(Conversation.ConversationList ConvId),
       testRoundTrip @(Conversation.ConversationList Conversation.Conversation),
       testRoundTrip @Conversation.Access,
