@@ -42,7 +42,7 @@ import Data.List1 (List1, list1)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Generic.Random as Generic
-import Generic.Random (listOf')
+import Generic.Random ((:+) ((:+)), listOf')
 import Imports
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
@@ -50,21 +50,35 @@ import Test.QuickCheck.Instances ()
 -- | This type can be used with @DerivingVia@ to generically derive an instance
 -- for the 'Arbitrary' typeclass.
 --
--- Each constructor will appear equally often (@Uniform@ distribution).
+-- Each constructor will appear equally often (a @Uniform@ distribution).
 -- For each field, values will be generated using 'arbitrary', unless it's a
--- list, in which case a smarter generater will be used to keep the size of
--- generated examples more manageable (see 'Generic.list1'').
+-- list '[]' or 'List1', in which case a smarter generator will be used to keep the
+-- size of generated examples more manageable (see 'Generic.list'').
 --
--- Other list- or map-like fields don't get this special treatment and might
+-- Other set- or map-like types don't get this special treatment and might
 -- make it preferrable to decrease runtime of property tests by writing a manual
--- instance, e.g. using 'list1Of'' or 'mapOf''.
+-- instance, e.g. using 'setOf'' or 'mapOf''.
 newtype GenericUniform a = GenericUniform {getGenericUniform :: a}
 
 instance
-  (Generic.GArbitrary Generic.SizedOptsDef a, Generic.GUniformWeight a) =>
+  (Generic.GArbitrary CustomSizedOpts a, Generic.GUniformWeight a) =>
   Arbitrary (GenericUniform a)
   where
-  arbitrary = GenericUniform <$> Generic.genericArbitraryRec @a Generic.uniform
+  arbitrary =
+    GenericUniform
+      <$> Generic.genericArbitraryWith @CustomSizedOpts @a customSizedOpts Generic.uniform
+
+-- | We want plug in custom generators for all occurences of '[]' and 'List1'.
+type CustomSizedOpts =
+  Generic.Options
+    'Generic.Sized
+    (Generic.Gen1 [] :+ Generic.Gen1 List1 :+ ())
+
+customSizedOpts :: CustomSizedOpts
+customSizedOpts =
+  Generic.setGenerators
+    (Generic.Gen1 listOf' :+ Generic.Gen1 list1Of' :+ ())
+    Generic.sizedOpts
 
 list1Of' :: Gen a -> Gen (List1 a)
 list1Of' g = list1 <$> g <*> Generic.listOf' g

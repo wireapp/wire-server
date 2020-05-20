@@ -50,7 +50,7 @@ import Data.List1
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Time.Clock (UTCTime)
 import Imports
-import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..), list1Of')
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 
 type NotificationId = Id QueuedNotification
 
@@ -73,6 +73,7 @@ data QueuedNotification = QueuedNotification
     _queuedNotificationPayload :: List1 Event
   }
   deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform QueuedNotification)
 
 queuedNotification :: NotificationId -> List1 Event -> QueuedNotification
 queuedNotification = QueuedNotification
@@ -99,11 +100,6 @@ instance FromJSON QueuedNotification where
     QueuedNotification
       <$> o .: "id"
       <*> o .: "payload"
-
-instance Arbitrary QueuedNotification where
-  -- The automatic scaling of list fields that 'GenericUniform' uses
-  -- does not treat List1 like a normal list, so we need a manual instance.
-  arbitrary = QueuedNotification <$> arbitrary <*> list1Of' arbitrary
 
 data QueuedNotificationList = QueuedNotificationList
   { _queuedNotifications :: [QueuedNotification],
