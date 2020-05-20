@@ -421,7 +421,7 @@ data Settings = Settings
     setDefaultLocale :: !Locale,
     -- | Max. # of members in a team.
     --   NOTE: This must be in sync with galley
-    setMaxTeamSize :: !Word16,
+    setMaxTeamSize :: !Word32,
     -- | Max. # of members in a conversation.
     --   NOTE: This must be in sync with galley
     setMaxConvSize :: !Word16,
