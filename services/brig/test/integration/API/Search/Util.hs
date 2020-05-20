@@ -49,6 +49,14 @@ reindex :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig
 reindex brig =
   post (brig . path "/i/index/reindex") !!! const 200 === statusCode
 
+assertCanFindByName :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User  -> m ()
+assertCanFindByName brig self expected =
+  assertCanFind brig (userId self) (userId expected) (fromName $ userDisplayName expected)
+
+assertCan'tFindByName :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> m ()
+assertCan'tFindByName brig self expected =
+  assertCan'tFind brig (userId self) (userId expected) (fromName $ userDisplayName expected)
+
 assertCanFind :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> UserId -> Text -> m ()
 assertCanFind brig self expected q = do
   r <- searchResults <$> executeSearch brig self q

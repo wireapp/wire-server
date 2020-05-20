@@ -54,7 +54,9 @@ data ElasticSearchOpts = ElasticSearchOpts
   { -- | ElasticSearch URL
     url :: !Text,
     -- | The name of the ElasticSearch user index
-    index :: !Text
+    index :: !Text,
+    -- | An additional index to write user data, useful while migrating to a new index
+    additionalWriteIndex :: !(Maybe Text)
   }
   deriving (Show, Generic)
 
@@ -500,6 +502,7 @@ Lens.makeLensesFor
 
 Lens.makeLensesFor
   [ ("url", "urlL"),
-    ("index", "indexL")
+    ("index", "indexL"),
+    ("additionalWriteIndex", "additionalWriteIndexL")
   ]
   ''ElasticSearchOpts

@@ -100,7 +100,8 @@ data IndexEnv = IndexEnv
     idxLogger :: Logger,
     idxElastic :: ES.BHEnv,
     idxRequest :: Maybe RequestId,
-    idxName :: ES.IndexName
+    idxName :: ES.IndexName,
+    idxAdditional :: Maybe ES.IndexName
   }
 
 newtype IndexIO a = IndexIO (ReaderT IndexEnv IO a)
@@ -312,12 +313,17 @@ updateIndex (IndexUpdateUser updateType iu) = liftIndexIO $ do
     field "user" (Bytes.toByteString (view iuUserId iu))
       . msg (val "Indexing user")
   idx <- asks idxName
-  r <- ES.indexDocument idx mappingName versioning (userDoc iu) docId
-  unless (ES.isSuccess r || ES.isVersionConflict r) $ do
-    counterIncr (path "user.index.update.err") m
-    ES.parseEsResponse r >>= throwM . IndexUpdateError . either id id
-  counterIncr (path "user.index.update.ok") m
+  indexDoc idx
+  traverse_ indexDoc =<< asks idxAdditional
   where
+    indexDoc :: MonadIndexIO m => ES.IndexName -> m ()
+    indexDoc idx = liftIndexIO $ do
+      m <- asks idxMetrics
+      r <- ES.indexDocument idx mappingName versioning (userDoc iu) docId
+      unless (ES.isSuccess r || ES.isVersionConflict r) $ do
+        counterIncr (path "user.index.update.err") m
+        ES.parseEsResponse r >>= throwM . IndexUpdateError . either id id
+      counterIncr (path "user.index.update.ok") m
     versioning =
       ES.defaultIndexDocumentSettings
         { ES.idsVersionControl = indexUpdateToVersionControl updateType (ES.ExternalDocVersion (docVersion (_iuVersion iu)))

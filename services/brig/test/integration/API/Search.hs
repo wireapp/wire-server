@@ -28,10 +28,11 @@ import API.User.Util
 import Bilge
 import qualified Brig.Options as Opt
 import Brig.Types
-import Control.Lens ((.~), (^.))
-import Control.Monad.Catch (MonadCatch)
+import Control.Lens ((.~), (?~), (^.))
+import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.Fail (MonadFail)
-import Data.Aeson (Value)
+import Control.Retry
+import Data.Aeson (FromJSON, Value)
 import Data.Aeson.QQ.Simple
 import Data.Handle (fromHandle)
 import Data.Id
@@ -58,10 +59,11 @@ tests opts mgr galley brig = do
         test mgr "reindex" $ testReindex brig,
         testWithBothIndices opts mgr "no match" $ testSearchNoMatch brig,
         testWithBothIndices opts mgr "no extra results" $ testSearchNoExtraResults brig,
-        testWithBothIndices opts mgr "order-name" $ testOrderName brig,
-        testWithBothIndices opts mgr "order-handle" $ testOrderHandle brig,
+        testWithBothIndices opts mgr "order-name (prefix match)" $ testOrderName brig,
+        testWithBothIndices opts mgr "order-handle (prefix match)" $ testOrderHandle brig,
         testWithBothIndices opts mgr "by-first/middle/last name" $ testSearchByLastOrMiddleName brig,
         testWithBothIndices opts mgr "Non ascii names" $ testSearchNonAsciiNames brig,
+        test mgr "migration to new index" $ testMigrationToNewIndex opts brig,
         testGroup "team-search-visibility disabled OR SearchVisibilityStandard" $
           [ testWithBothIndices opts mgr "team member cannot be found by non-team user" $ testSearchTeamMemberAsNonMember brig,
             testWithBothIndices opts mgr "team A member cannot be found by team B member" $ testSearchTeamMemberAsOtherMember brig,
@@ -327,6 +329,104 @@ testSeachNonMemberAsTeamMemberOutboundOnly brig ((_, _, teamAMember), (_, _, _),
   let teamMemberAHandle = fromMaybe (error "nonTeamMember must have a handle") (userHandle nonTeamMember)
   assertCan'tFind brig (userId teamAMember) (userId nonTeamMember) (fromName (userDisplayName nonTeamMember))
   assertCan'tFind brig (userId teamAMember) (userId nonTeamMember) (fromHandle teamMemberAHandle)
+
+-- | Migration sequence:
+-- 1. A migration is planned, in this time brig writes to two indices
+-- 2. A migration is triggered, users are copied from old index to new index
+-- 3. Brig is configured to write to only the new index
+--
+-- So, we have four time frames ("phases") in which a user could be created/updated:
+-- 1. Before migration is even planned
+-- 2. When brig is writing to both indices
+-- 3. While/After reindexing is done form old index to new index
+-- 4. After brig is writing to only the new index
+testMigrationToNewIndex :: TestConstraints m => Opt.Opts -> Brig -> m ()
+testMigrationToNewIndex opts brig = do
+  (optsOldIndex, ES.IndexName -> oldIndexName) <- optsForOldIndex opts
+  -- Phase 1: Using old index only
+  (phase1NonTeamUser, teamOwner, phase1TeamUser1, phase1TeamUser2, tid) <- withSettingsOverrides optsOldIndex $ do
+    nonTeamUser <- randomUser brig
+    (tid, teamOwner, [teamUser1, teamUser2]) <- createPopulatedBindingTeam brig 2
+    pure (nonTeamUser, teamOwner, teamUser1, teamUser2, tid)
+
+  -- Phase 2: Using old index for search, writing to both indices, migrations have not run
+  let phase2OptsWhile = optsOldIndex & Opt.elasticsearchL . Opt.additionalWriteIndexL ?~ (opts ^. Opt.elasticsearchL . Opt.indexL)
+  (phase2NonTeamUser, phase2TeamUser) <- withSettingsOverrides phase2OptsWhile $ do
+    phase2NonTeamUser <- randomUser brig
+    phase2TeamUser <- inviteAndRegisterUser teamOwner tid brig
+    refreshIndex brig
+
+    -- searching phase1 users should work
+    assertCanFindByName brig phase1TeamUser1 phase1TeamUser2
+    assertCanFindByName brig phase1TeamUser1 phase1NonTeamUser
+
+    -- searching phase2 users should work
+    assertCanFindByName brig phase1TeamUser1 phase2NonTeamUser
+    assertCanFindByName brig phase1TeamUser1 phase2TeamUser
+    pure (phase2NonTeamUser, phase2TeamUser)
+
+  refreshIndex brig
+  -- Before migration the phase1 users shouldn't be found in the new index
+  assertCan'tFindByName brig phase1TeamUser1 phase1TeamUser2
+  assertCan'tFindByName brig phase1TeamUser1 phase1NonTeamUser
+
+  -- Before migration the phase2 users should be found in the new index
+  assertCanFindByName brig phase1TeamUser1 phase2NonTeamUser
+  assertCanFindByName brig phase1TeamUser1 phase2TeamUser
+
+  -- Run Migrations
+  let newIndexName = ES.IndexName $ opts ^. Opt.elasticsearchL . Opt.indexL
+  taskNodeId <- assertRight =<< (runBH opts $ ES.reindexAsync $ ES.mkReindexRequest oldIndexName newIndexName)
+  runBH opts $ waitForTaskToComplete @ES.ReindexResponse taskNodeId
+
+  -- Phase 3: Using old index for search, writing to both indices, migrations have run
+  refreshIndex brig
+  (phase3NonTeamUser, phase3TeamUser) <- withSettingsOverrides phase2OptsWhile $ do
+    phase3NonTeamUser <- randomUser brig
+    phase3TeamUser <- inviteAndRegisterUser teamOwner tid brig
+    refreshIndex brig
+
+    -- searching phase1/2 users should work
+    assertCanFindByName brig phase1TeamUser1 phase1TeamUser2
+    assertCanFindByName brig phase1TeamUser1 phase1NonTeamUser
+    assertCanFindByName brig phase1TeamUser1 phase2TeamUser
+    assertCanFindByName brig phase1TeamUser1 phase2NonTeamUser
+
+    -- searching new phase3 should also work
+    assertCanFindByName brig phase1TeamUser1 phase3NonTeamUser
+    assertCanFindByName brig phase1TeamUser1 phase3TeamUser
+    pure (phase3NonTeamUser, phase3TeamUser)
+
+  -- Phase 4: Using only new index
+  refreshIndex brig
+  -- Searching should work for phase1 users
+  assertCanFindByName brig phase1TeamUser1 phase1TeamUser2
+  assertCanFindByName brig phase1TeamUser1 phase1NonTeamUser
+
+  -- Searching should work for phase2 users
+  assertCanFindByName brig phase1TeamUser1 phase2TeamUser
+  assertCanFindByName brig phase1TeamUser1 phase2NonTeamUser
+
+  -- Searching should work for phase3 users
+  assertCanFindByName brig phase1TeamUser1 phase3NonTeamUser
+  assertCanFindByName brig phase1TeamUser1 phase3TeamUser
+
+waitForTaskToComplete :: forall a m. (ES.MonadBH m, MonadIO m, MonadThrow m, FromJSON a) => ES.TaskNodeId -> m ()
+waitForTaskToComplete taskNodeId = do
+  let policy = constantDelay 100000 <> limitRetries 30
+  let retryCondition _ = fmap not . isTaskComplete
+  task <- retrying policy retryCondition (const $ ES.getTask @m @a taskNodeId)
+  taskCompleted <- isTaskComplete task
+  liftIO $ assertBool "Timed out waiting for task" taskCompleted
+  where
+    isTaskComplete :: Either ES.EsError (ES.TaskResponse a) -> m Bool
+    isTaskComplete (Left e) = liftIO $ assertFailure $ "Expected Right, got Left: " <> show e
+    isTaskComplete (Right taskRes) = pure $ ES.taskResponseCompleted taskRes
+
+assertRight :: (MonadIO m, Show a, HasCallStack) => Either a b -> m b
+assertRight = \case
+  Left e -> liftIO $ assertFailure $ "Expected Right, got Left: " <> show e
+  Right x -> pure x
 
 testWithBothIndices :: Opt.Opts -> Manager -> TestName -> WaiTest.Session a -> TestTree
 testWithBothIndices opts mgr name f =

@@ -157,7 +157,12 @@ createTeamMember brig galley owner tid perm = do
   updatePermissions owner tid (userId user, perm) galley
   return user
 
-inviteAndRegisterUser :: UserId -> TeamId -> Brig -> Http User
+inviteAndRegisterUser ::
+  (MonadIO m, MonadCatch m, MonadFail m, MonadHttp m, HasCallStack) =>
+  UserId ->
+  TeamId ->
+  Brig ->
+  m User
 inviteAndRegisterUser u tid brig = do
   inviteeEmail <- randomEmail
   let invite = stdInvitationRequest inviteeEmail (Name "Bob") Nothing Nothing

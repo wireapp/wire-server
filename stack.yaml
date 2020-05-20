@@ -91,8 +91,11 @@ extra-deps:
   commit: 0a5142cd3ba48116ff059c041348b817fb7bdb25
 
 - git: https://github.com/wireapp/bloodhound
-  commit: beec73eed282e35f56b80a1283d5ef4c19685957 # https://github.com/wireapp/bloodhound/tree/feature/count-with-ES-5.2
+  commit: 75d853b8fde2baa33b3b00630ec5dd9a9ad66e5a # (2020-05-20) branch: feature/reindex
 
+# For bloodhound
+- deriving-aeson-0.2.5@sha256:a1efa4ab7ff94f73e6d2733a9d4414cb4c3526761295722cff28027b5b3da1a4,1277
+- aeson-1.4.7.1@sha256:6d8d2fd959b7122a1df9389cf4eca30420a053d67289f92cdc0dbc0dab3530ba,7098
 # amazonka-1.6.1 is buggy: https://github.com/brendanhay/amazonka/issues/466
 # Therefore we pin an unreleased commit directly.
 #
