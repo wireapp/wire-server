@@ -22,5 +22,6 @@ Team ID: ${team_id}
 
 --------------------------------------------------------------------------------
 
-Datenschutz [${legal}] · Missbrauch melden [${misuse}]
-${copyright}. Alle Rechte vorbehalten.
+Datenschutzrichtlinien und Nutzungsbedingungen [${legal}] · Missbrauch melden
+[${misuse}]
+${copyright}. ALLE RECHTE VORBEHALTEN.
