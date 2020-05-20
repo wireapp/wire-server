@@ -35,6 +35,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.ISO3166_CountryCodes (CountryCode)
 import Data.LanguageCodes (ISO639_1 (..))
 import qualified Generic.Random as Generic
+import Generic.Random (listOf')
 import Imports
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
@@ -82,10 +83,10 @@ instance Arbitrary Aeson.Value where
     where
       genObject =
         Aeson.Object . HashMap.fromList
-          <$> listOf (liftA2 (,) arbitrary genBaseCase)
+          <$> listOf' (liftA2 (,) arbitrary genBaseCase)
       genArray =
         Aeson.Array . foldMap pure
-          <$> listOf genBaseCase
+          <$> listOf' genBaseCase
       genBaseCase =
         oneof
           [ pure Aeson.Null,
