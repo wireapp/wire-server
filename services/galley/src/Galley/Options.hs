@@ -31,7 +31,7 @@ data Settings = Settings
   { -- | Number of connections for the HTTP client pool
     _setHttpPoolSize :: !Int,
     -- | Max number of members in a team. NOTE: This must be in sync with Brig
-    _setMaxTeamSize :: !Word16,
+    _setMaxTeamSize :: !Word32,
     -- | Max number of team members users to fanout events to. For teams larger than
     --   this value, team events and user updates will no longer be sent to team users.
     --   This defaults to setMaxTeamSize and cannot be > HardTruncationLimit. Useful
