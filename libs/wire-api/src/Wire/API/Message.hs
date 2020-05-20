@@ -47,7 +47,8 @@ import Data.Json.Util
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Time
 import Imports
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import qualified Test.QuickCheck as QC
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.User.Client (UserClientMap, UserClients, modelOtrClientMap, modelUserClients)
 
 --------------------------------------------------------------------------------
@@ -160,7 +161,7 @@ newtype OtrRecipients = OtrRecipients
   { otrRecipientsMap :: UserClientMap Text
   }
   deriving stock (Eq, Show)
-  deriving newtype (ToJSON, FromJSON, Semigroup, Monoid, Arbitrary)
+  deriving newtype (ToJSON, FromJSON, Semigroup, Monoid)
 
 modelOtrRecipients :: Doc.Model
 modelOtrRecipients = Doc.defineModel "OtrRecipients" $ do
@@ -168,6 +169,9 @@ modelOtrRecipients = Doc.defineModel "OtrRecipients" $ do
   -- FUTUREWORK: is this right?
   Doc.property "" (Doc.ref modelOtrClientMap) $
     Doc.description "Mapping of user IDs to 'OtrClientMap's."
+
+instance Arbitrary OtrRecipients where
+  arbitrary = OtrRecipients <$> QC.scale (`div` 3) arbitrary
 
 --------------------------------------------------------------------------------
 -- Filter
