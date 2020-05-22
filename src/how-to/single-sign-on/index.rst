@@ -11,6 +11,7 @@ team with SAML single-sign-on.
    Instructions for Okta <./okta/main.rst>
    Instructions for Centrify <./centrify/main.rst>
    Instructions for Azure <./azure/main.rst>
+   Some screenshots for ADFS <./adfs/main.rst>
    Generic instructions (try this if none of the above are applicable) <./generic-setup.rst>
    Trouble shooting & FAQ <./trouble-shooting.rst>
 
