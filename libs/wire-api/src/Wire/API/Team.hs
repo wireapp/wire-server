@@ -216,7 +216,7 @@ newTeamJson (NewTeam n i ik _) =
 deriving newtype instance FromJSON BindingNewTeam
 
 -- FUTUREWORK: since new team members do not get serialized, we zero them here.
--- it may be worth looking into how this can be solved on in the types.
+-- it may be worth looking into how this can be solved in the types.
 instance Arbitrary BindingNewTeam where
   arbitrary =
     BindingNewTeam . zeroTeamMembers <$> arbitrary @(NewTeam ())

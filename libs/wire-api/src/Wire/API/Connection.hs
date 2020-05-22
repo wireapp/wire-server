@@ -249,7 +249,7 @@ instance FromJSON ConnectionRequest where
       <*> (fromRange <$> ((o .: "name") :: Parser (Range 1 256 Text)))
       <*> o .: "message"
 
--- | only necessary because 'crName' is Text, not enforcing the length limitation
+-- | TODO: make 'crName :: Range 1 256 Text' and derive this instance.
 instance Arbitrary ConnectionRequest where
   arbitrary =
     ConnectionRequest

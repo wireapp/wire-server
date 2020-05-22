@@ -74,7 +74,7 @@ import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 -- | Usually called display name.
 newtype Name = Name
-  {fromName :: Text}
+  {fromName :: Text}  -- TODO: use @Range 1 128 Text@
   deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (ToJSON, FromByteString, ToByteString)
   deriving (Arbitrary) via (Ranged 1 128 Text)
