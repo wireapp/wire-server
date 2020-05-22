@@ -50,6 +50,7 @@ If your target machine only has python 3 (not python 2.7), you can tell ansible 
 
 (python 3 may not be supported by all ansible modules yet)
 
+
 Flaky issues with Cassandra (failed QUORUMs, etc.)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -60,3 +61,43 @@ Cassandra is *very* picky about time! Ensure that NTP is properly set up on all 
  * https://www.digitalocean.com/community/tutorials/how-to-set-up-time-synchronization-on-ubuntu-16-04
 
 How can I ensure that I have correctly setup NTP on my machine(s)? Have a look at `this ansible playbook <https://github.com/wireapp/wire-server-deploy/blob/develop/ansible/cassandra-verify-ntp.yml>`_
+
+
+I deployed the ``demo-smtp`` but I'm not receiving any verification emails
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+1. Check whether brig deployed successfully (brig pod(s) should be in state *Running*) ::
+
+    kubectl get pods -o wide
+
+2. Inspect Brig logs ::
+
+    kubectl logs $BRING_POD_NAME
+
+3. The receiving email server might refuse to accept any email sent by the `demo-smtp` server, due to not being
+   a trusted origin. You may want to set up one of the following email verification mechanisms.
+
+* `SFP <https://en.wikipedia.org/wiki/Sender_Policy_Framework>`__
+* `DKIM <https://en.wikipedia.org/wiki/DomainKeys_Identified_Mail>`__
+* `DMARC <https://en.wikipedia.org/wiki/DMARC>`__
+
+
+4. You may want to adjust the SMTP configuration for Brig (``wire-server/[values,secrets].yaml``).
+
+.. code:: yaml
+
+    brig:
+      config:
+        smtp:
+          host: 'demo-smtp'
+          port: 25
+          connType: 'plain'
+
+
+.. code:: yaml
+
+    brig:
+      secrets:
+        smtpPassword: dummyPassword
+
+(Don't forget to apply the changes with ``helm upgrade wire-server wire/wire-server -f values.yaml -f secrets.yaml``)
