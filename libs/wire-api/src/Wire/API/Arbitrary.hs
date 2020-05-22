@@ -96,17 +96,16 @@ mapOf' genK genV = Map.fromList <$> Generic.listOf' (liftA2 (,) genK genV)
 instance Arbitrary MIME.Type where
   arbitrary = pure (MIME.Type (MIME.Image "png") [])
 
-instance Arbitrary Currency.Alpha where
-  arbitrary = genEnumBounded
+deriving via (GenericUniform Currency.Alpha) instance Arbitrary Currency.Alpha
 
-instance Arbitrary ISO639_1 where
-  arbitrary = genEnumBounded
+deriving instance Generic ISO639_1
+
+deriving via (GenericUniform ISO639_1) instance Arbitrary ISO639_1
 
 -- | <https://github.com/HugoDaniel/iso639/pull/4>
 deriving stock instance Bounded ISO639_1
 
-instance Arbitrary CountryCode where
-  arbitrary = genEnumBounded
+deriving via (GenericUniform CountryCode) instance Arbitrary CountryCode
 
 instance Arbitrary Aeson.Value where
   arbitrary = oneof [genBaseCase, genObject, genArray]
@@ -124,6 +123,3 @@ instance Arbitrary Aeson.Value where
             Aeson.Number <$> arbitrary,
             Aeson.Bool <$> arbitrary
           ]
-
-genEnumBounded :: (Enum a, Bounded a) => Gen a
-genEnumBounded = elements [minBound ..]
