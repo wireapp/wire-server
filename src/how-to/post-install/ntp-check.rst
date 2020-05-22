@@ -11,7 +11,7 @@ Ensure that NTP is properly set up on all nodes. Particularly for Cassandra **DO
 How can I see if NTP is correctly set up?
 -----------------------------------------
 
-This is an important part of your setup, particularly for your Cassandra nodes. You should use `ntpd` and our ansible scripts to ensure it is installed correctly - but you can still
+This is an important part of your setup, particularly for your Cassandra nodes. You should use `ntpd` and our ansible scripts to ensure it is installed correctly - but you can still check it manually if you prefer. The following 2 sub-sections explain both approaches.
 
 I used your ansible scripts and prefer to have automated checks
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
