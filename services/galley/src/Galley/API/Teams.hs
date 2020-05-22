@@ -29,6 +29,7 @@ module Galley.API.Teams
     deleteTeamH,
     uncheckedDeleteTeam,
     addTeamMemberH,
+    getTeamNotificationsH,
     getTeamMembersH,
     bulkGetTeamMembersH,
     getTeamMemberH,
@@ -75,8 +76,11 @@ import Data.Range as Range
 import Data.Set (fromList)
 import qualified Data.Set as Set
 import Data.Time.Clock (UTCTime (..), getCurrentTime)
+import qualified Data.UUID as UUID
+import qualified Data.UUID.Util as UUID
 import Galley.API.Error as Galley
 import Galley.API.LegalHold
+import qualified Galley.API.TeamNotifications as APITeamQueue
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
@@ -107,6 +111,7 @@ import Network.Wai.Predicate hiding (or, result, setStatus)
 import Network.Wai.Utilities
 import qualified System.Logger.Class as Log
 import UnliftIO (mapConcurrently)
+import Wire.API.Notification (NotificationId)
 
 getTeamH :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeamH (zusr ::: tid ::: _) =
@@ -763,10 +768,37 @@ addTeamMemberInternal tid origin originConn newMem memList = do
     Data.addMember now (c ^. conversationId) (new ^. userId)
   let e = newEvent MemberJoin tid now & eventData ?~ EdMemberJoin (new ^. userId)
   push1 $ newPush1 (memList ^. teamMemberListType) (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
+  APITeamQueue.pushTeamEvent tid e
   return sizeBeforeAdd
   where
     recipients (Just o) n = list1 (userRecipient o) (membersToRecipients (Just o) (n : memList ^. teamMembers))
     recipients Nothing n = list1 (userRecipient (n ^. userId)) (membersToRecipients Nothing (memList ^. teamMembers))
+
+-- | See also: 'Gundeck.API.Public.paginateH', but the semantics of this end-point is slightly
+-- less warped.  This is a work-around because we cannot send events to all of a large team.
+-- See haddocks of module "Galley.API.TeamNotifications" for details.
+getTeamNotificationsH ::
+  UserId
+    ::: Maybe ByteString {- NotificationId -}
+    ::: Range 1 10000 Int32
+    ::: JSON ->
+  Galley Response
+getTeamNotificationsH (zusr ::: sinceRaw ::: size ::: _) = do
+  since <- parseSince
+  json <$> APITeamQueue.getTeamNotifications zusr since size
+  where
+    parseSince :: Galley (Maybe NotificationId)
+    parseSince = maybe (pure Nothing) (fmap Just . parseUUID) sinceRaw
+    --
+    parseUUID :: ByteString -> Galley NotificationId
+    parseUUID raw =
+      maybe
+        (throwM invalidTeamNotificationId)
+        (pure . Id)
+        ((UUID.fromASCIIBytes >=> isV1UUID) raw)
+    --
+    isV1UUID :: UUID.UUID -> Maybe UUID.UUID
+    isV1UUID u = if UUID.version u == 1 then Just u else Nothing
 
 finishCreateTeam :: Team -> TeamMember -> [TeamMember] -> Maybe ConnId -> Galley ()
 finishCreateTeam team owner others zcon = do

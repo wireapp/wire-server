@@ -43,6 +43,7 @@ import qualified V37
 import qualified V38_CreateTableBillingTeamMember
 import qualified V39
 import qualified V40_CreateTableDataMigration
+import qualified V41_TeamNotificationQueue
 
 main :: IO ()
 main = do
@@ -71,7 +72,8 @@ main = do
       V37.migration,
       V38_CreateTableBillingTeamMember.migration,
       V39.migration,
-      V40_CreateTableDataMigration.migration
+      V40_CreateTableDataMigration.migration,
+      V41_TeamNotificationQueue.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Galley.Data
     ]

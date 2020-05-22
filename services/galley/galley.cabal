@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 648397e78543b64bfa53fdc433378f38a8a60d3492af27ccf0eac9e55cb1f810
+-- hash: 81940ddc6234314b03bc1213404219c834f06eba109f5a4678745a913d5364c0
 
 name:           galley
 version:        0.83.0
@@ -35,6 +35,7 @@ library
       Galley.API.Public
       Galley.API.Query
       Galley.API.Swagger
+      Galley.API.TeamNotifications
       Galley.API.Teams
       Galley.API.Update
       Galley.API.Util
@@ -48,6 +49,7 @@ library
       Galley.Data.SearchVisibility
       Galley.Data.Services
       Galley.Data.SSO
+      Galley.Data.TeamNotifications
       Galley.Data.Types
       Galley.External
       Galley.External.LegalHoldService
@@ -331,6 +333,7 @@ executable galley-schema
       V38_CreateTableBillingTeamMember
       V39
       V40_CreateTableDataMigration
+      V41_TeamNotificationQueue
       Paths_galley
   hs-source-dirs:
       schema/src
