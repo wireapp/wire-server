@@ -42,7 +42,7 @@ the IdP credentials, and we need to trust that somebody.  For now,
 that's the team owner with their password.
 
 (It is also unwise to bind that owner to SAML once it's installed.  If
-there is every any issue with SAML authentication that can only be
+there is ever any issue with SAML authentication that can only be
 resolved by updating the IdP metadata in team settings, the owner must
 still have a way to authenticate in order to do that.)
 

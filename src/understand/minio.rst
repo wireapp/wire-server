@@ -30,7 +30,7 @@ I have done some more go code reading and have solved more minio
 mysteries.  tl;dr: if you want to be safe, run minio on disks, not
 mounted directories.
 
-Minio willdetect if a directory is a mount point and if it is call `statfs(2)`
+Minio will detect if a directory is a mount point and if it is call `statfs(2)`
 to figure out the amount of available blocks.  If it's not a mount directory,
 it will just call `du .` in a for loop and update some counter (which sounds
 like a bad strategy to me).

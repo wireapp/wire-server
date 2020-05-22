@@ -183,7 +183,7 @@ also set up way more VMs than I thought, AND consumed the logs for the
 entire cluster, Rather than for the namespace it's contained in, as I
 expected.
 
-For kibana and fluent-bit, we created a shell of overides, with a
+For kibana and fluent-bit, we created a shell of overrides, with a
 dependency on the actual chart, so that when we helm dep update, helm
 grabs the chart from upstream, instead of bringing the source of the
 chart into our repository. There were only three files to modify, which

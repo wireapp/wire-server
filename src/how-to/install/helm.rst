@@ -208,7 +208,7 @@ An installation needs 5 or 6 domain names (5 without audio/video support, 6 with
 
 You need
 
-* two dns names for the so-called "nginz" component of wire-server (the main REST API entry point), these are usually called `nginz-https.<domain>` (or `wire-https.<domain>`) and `nginz-ssl.<domain>` (or `wire-https.<domain>`).
+* two dns names for the so-called "nginz" component of wire-server (the main REST API entry point), these are usually called `nginz-https.<domain>` (or `wire-https.<domain>`) and `nginz-ssl.<domain>` (or `wire-ssl.<domain>`).
 * one dns name for the asset store (images, audio files etc. that your users are sharing); usually `assets.<domain>` or `s3.<domain>`.
 * one dns name for the webapp (equivalent of https://app.wire.com, i.e. the javascript app running in the browser), usually called `webapp.<domain>`.
 * one dns name for the account pages (hosts some html/javascript pages for e.g. password reset), usually called `account.<domain>`.

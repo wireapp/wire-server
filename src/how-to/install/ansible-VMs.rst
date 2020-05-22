@@ -80,8 +80,8 @@ There are more settings in this file that we will set in later steps.
     hostnames will be overwritten by the second installation playbook,
     breaking the first.
 
-    At the least, we know that the cassandra and kubernetes playbooks are
-    both guilty of hostname manipulation.
+    At the least, we know that the cassandra, kubernetes and restund playbooks are
+    guilty of hostname manipulation.
 
 Authentication
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
