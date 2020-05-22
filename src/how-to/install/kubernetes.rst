@@ -8,7 +8,7 @@ Installing kubernetes for a demo installation (on a single virtual machine)
 How to set up your hosts.ini file
 -------------------------------------
 
-Assuming a single virtual machine with a public IP address running Ubuntu 16.04 or 18.04, with at least 4 CPU cores and at least 8 GB of memory.
+Assuming a single virtual machine with a public IP address running Ubuntu 16.04 or 18.04, with at least 5 CPU cores and at least 8 GB of memory.
 
 From ``wire-server-deploy/ansible``:
 
