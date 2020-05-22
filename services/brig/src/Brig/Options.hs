@@ -30,6 +30,7 @@ import qualified Control.Lens as Lens
 import Data.Aeson (withText)
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (typeMismatch)
+import Data.Domain (Domain)
 import Data.Id
 import Data.Scientific (toBoundedInteger)
 import Data.Time.Clock (NominalDiffTime)
@@ -369,7 +370,10 @@ data Opts = Opts
     -- Runtime settings
 
     -- | Runtime settings
-    optSettings :: !Settings
+    optSettings :: !Settings,
+    -- | Implemented for one customer only, do not rely on this if you don't have it in your
+    -- contract!
+    customerExtensions :: !(Maybe CustomerExtensions)
   }
   deriving (Show, Generic)
 
@@ -454,6 +458,11 @@ data Settings = Settings
     setSqsThrottleMillis :: !(Maybe Int)
   }
   deriving (Show, Generic)
+
+data CustomerExtensions = CustomerExtensions
+  { domainsBlockedForRegistration :: [Domain]
+  }
+  deriving (Show, FromJSON, Generic)
 
 defMaxKeyLen :: Int64
 defMaxKeyLen = 1024
