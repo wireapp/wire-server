@@ -38,9 +38,11 @@ import Control.Lens ((^.), (^?))
 import Control.Monad.Catch
 import Data.Aeson
 import Data.Aeson.Lens
+import qualified Data.Aeson.Lens as AesonL
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
+import Data.Domain (mkDomain)
 import Data.Id hiding (client)
 import Data.Json.Util (fromUTCTimeMillis)
 import Data.List1 (singleton)
@@ -58,6 +60,7 @@ import qualified Data.Vector as Vec
 import Galley.Types.Teams (noPermissions)
 import Gundeck.Types.Notification
 import Imports
+import qualified Network.Wai.Test as WaiTest
 import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
@@ -69,7 +72,7 @@ import Util.AWS as Util
 import Web.Cookie (parseSetCookie)
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> TestTree
-tests _ at _ p b c ch g aws =
+tests _ at opts p b c ch g aws =
   testGroup
     "account"
     [ test' aws p "post /register - 201 (with preverified)" $ testCreateUserWithPreverified b aws,
@@ -105,7 +108,11 @@ tests _ at _ p b c ch g aws =
       test' aws p "delete/anonymous" $ testDeleteAnonUser b,
       test' aws p "delete /i/users/:uid - 202" $ testDeleteInternal b c aws,
       test' aws p "delete with profile pic" $ testDeleteWithProfilePic b ch,
-      test' aws p "put /i/users/:uid/sso-id" $ testUpdateSSOId b g
+      test' aws p "put /i/users/:uid/sso-id" $ testUpdateSSOId b g,
+      testGroup
+        "temporary customer extensions"
+        [ test' aws p "domains blocked for registration" $ testDomainsBlockedForRegistration opts b
+        ]
     ]
 
 testCreateUserWithPreverified :: Brig -> AWS.Env -> Http ()
@@ -1001,6 +1008,29 @@ testUpdateSSOId brig galley = do
       ]
   sequence_ $ zipWith go users ssoids1
   sequence_ $ zipWith go users ssoids2
+
+testDomainsBlockedForRegistration :: Opt.Opts -> Brig -> Http ()
+testDomainsBlockedForRegistration opts brig = withBlockList $ do
+  badEmail <- randomEmail <&> \e -> e {emailDomain = "bad.domain.com"}
+  post (brig . path "/register" . contentJson . body (p badEmail)) !!! do
+    const 201 === statusCode
+  goodEmail <- randomEmail <&> \e -> e {emailDomain = "good.domain.com"}
+  post (brig . path "/register" . contentJson . body (p goodEmail)) !!! do
+    const 403 === statusCode
+    const (Just "domain-blocked-for-registration") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
+  where
+    p email =
+      RequestBodyLBS . encode $
+        object
+          [ "name" .= ("Alice" :: Text),
+            "email" .= email,
+            "password" .= defPassword
+          ]
+    withBlockList :: WaiTest.Session () -> Http ()
+    withBlockList sess = withSettingsOverrides opts' sess
+      where
+        opts' = opts {Opt.customerExtensions = Just (Opt.CustomerExtensions [unsafeMkDomain "bad.domain.com"])}
+        unsafeMkDomain = either error id . mkDomain
 
 -- helpers
 
