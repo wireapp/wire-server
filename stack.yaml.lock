@@ -36,11 +36,11 @@ packages:
     git: https://github.com/wireapp/saml2-web-sso
     pantry-tree:
       size: 4601
-      sha256: 384b8c469846b709e48e403b3600cde3287bd4b0e712a423e75eb93da68c918a
-    commit: 75df340ad8a237f947270e6cdc617ceb70f27a05
+      sha256: 58cd6e1435b4ad530b99de3f9c7ffbf7d8644ebc75f2da22b2521e4347a92701
+    commit: 687d9ac8ac2994aff8436189c6ecce29faad8500
   original:
     git: https://github.com/wireapp/saml2-web-sso
-    commit: 75df340ad8a237f947270e6cdc617ceb70f27a05
+    commit: 687d9ac8ac2994aff8436189c6ecce29faad8500
 - completed:
     cabal-file:
       size: 9076
@@ -148,11 +148,11 @@ packages:
     git: https://github.com/wireapp/bloodhound
     pantry-tree:
       size: 4281
-      sha256: aedce1898fd9d6f6dd5889b20dc8b93a0fb53c5ceaa9e2de66682c8547ef1549
-    commit: 75d853b8fde2baa33b3b00630ec5dd9a9ad66e5a
+      sha256: ac4fec9be217080a4fb3e49a3383c6eed644f3768768b2ee580abf4e5ea4c28c
+    commit: 93bf80ccbe2a52320843126bb86881b3351968a4
   original:
     git: https://github.com/wireapp/bloodhound
-    commit: 75d853b8fde2baa33b3b00630ec5dd9a9ad66e5a
+    commit: 93bf80ccbe2a52320843126bb86881b3351968a4
 - completed:
     hackage: deriving-aeson-0.2.5@sha256:a1efa4ab7ff94f73e6d2733a9d4414cb4c3526761295722cff28027b5b3da1a4,1277
     pantry-tree:

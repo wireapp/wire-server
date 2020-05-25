@@ -35,6 +35,11 @@ module Brig.Index.Options
     commandParser,
     mkCreateIndexSettings,
     toESServer,
+    ReindexFromAnotherIndexSettings,
+    reindexDestIndex,
+    reindexSrcIndex,
+    reindexEsServer,
+    reindexTimeout,
   )
 where
 
@@ -57,6 +62,7 @@ data Command
   | -- | 'ElasticSettings' has shards and other settings that are not needed here.
     UpdateMapping (URIRef Absolute) ES.IndexName
   | Migrate ElasticSettings CassandraSettings
+  | ReindexFromAnotherIndex ReindexFromAnotherIndexSettings
   deriving (Show)
 
 data ElasticSettings = ElasticSettings
@@ -75,9 +81,19 @@ data CassandraSettings = CassandraSettings
   }
   deriving (Show)
 
+data ReindexFromAnotherIndexSettings = ReindexFromAnotherIndexSettings
+  { _reindexEsServer :: URIRef Absolute,
+    _reindexSrcIndex :: ES.IndexName,
+    _reindexDestIndex :: ES.IndexName,
+    _reindexTimeout :: Int
+  }
+  deriving (Show)
+
 makeLenses ''ElasticSettings
 
 makeLenses ''CassandraSettings
+
+makeLenses ''ReindexFromAnotherIndexSettings
 
 mkCreateIndexSettings :: ElasticSettings -> ([ES.UpdatableIndexSetting], Int)
 mkCreateIndexSettings es =
@@ -204,6 +220,34 @@ cassandraSettingsParser =
               )
         )
 
+reindexToAnotherIndexSettingsParser :: Parser ReindexFromAnotherIndexSettings
+reindexToAnotherIndexSettingsParser =
+  ReindexFromAnotherIndexSettings
+    <$> elasticServerParser
+    <*> ( ES.IndexName . view packed
+            <$> strOption
+              ( long "source-index"
+                  <> metavar "STRING"
+                  <> help "Elasticsearch index name to reindex from"
+              )
+        )
+    <*> ( ES.IndexName . view packed
+            <$> strOption
+              ( long "destination-index"
+                  <> metavar "STRING"
+                  <> help "Elasticsearch index name to reindex to"
+              )
+        )
+    <*> ( option
+            auto
+            ( long "timeout"
+                <> metavar "SECONDS"
+                <> help "Number of seconds to wait for reindexing to complete. The reindexing will not be cancelled when this timeout expires."
+                <> value 600
+                <> showDefault
+            )
+        )
+
 commandParser :: Parser Command
 commandParser =
   hsubparser
@@ -242,6 +286,14 @@ commandParser =
           ( info
               (Migrate <$> elasticSettingsParser <*> cassandraSettingsParser)
               (progDesc "Migrate data in elastic search")
+          )
+        <> command
+          "reindex-from-another-index"
+          ( info
+              (ReindexFromAnotherIndex <$> reindexToAnotherIndexSettingsParser)
+              ( progDesc
+                  "Reindex data from an index to another. More about migrating to a new index here: https://github.com/wireapp/wire-server/blob/develop/docs/reference/elastic-search.md"
+              )
           )
     )
 

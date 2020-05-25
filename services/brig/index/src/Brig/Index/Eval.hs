@@ -28,11 +28,15 @@ import Brig.User.Search.Index
 import qualified Cassandra as C
 import qualified Cassandra.Settings as C
 import Control.Lens
+import qualified Control.Lens.Internal.ByteString as LensBS
 import Control.Monad.Catch
+import Control.Retry
+import Data.Aeson (FromJSON)
+import qualified Data.Aeson as Aeson
 import qualified Data.Metrics as Metrics
 import qualified Database.Bloodhound as ES
 import Imports
-import Network.HTTP.Client
+import Network.HTTP.Client as HTTP
 import qualified System.Logger as Log
 import System.Logger.Class (Logger, MonadLogger (..))
 
@@ -57,6 +61,29 @@ runCommand l = \case
     runIndexIO e updateMapping
   Migrate es cas -> do
     migrate l es cas
+  ReindexFromAnotherIndex reindexSettings -> do
+    bhEnv <- initES (view reindexEsServer reindexSettings)
+    ES.runBH bhEnv $ do
+      let src = view reindexSrcIndex reindexSettings
+          dest = view reindexDestIndex reindexSettings
+          timeout = view reindexTimeout reindexSettings
+
+      srcExists <- ES.indexExists src
+      unless srcExists $ do
+        throwM $ ReindexFromAnotherIndexError $ "Source index " <> show src <> " doesn't exist"
+
+      destExists <- ES.indexExists dest
+      unless destExists $ do
+        throwM $ ReindexFromAnotherIndexError $ "Destination index " <> show dest <> " doesn't exist"
+
+      Log.info l $ Log.msg ("Reindexing" :: ByteString) . Log.field "from" (show src) . Log.field "to" (show dest)
+      eitherTaskNodeId <- ES.reindexAsync $ ES.mkReindexRequest src dest
+      case eitherTaskNodeId of
+        Left err -> throwM $ ReindexFromAnotherIndexError $ "Error occurred while running reindex: " <> show err
+        Right taskNodeId -> do
+          Log.info l $ Log.field "taskNodeId" (show taskNodeId)
+          waitForTaskToComplete @ES.ReindexResponse timeout taskNodeId
+          Log.info l $ Log.msg ("Finished reindexing" :: ByteString)
   where
     initIndex es =
       initIndex' (es ^. esServer) (es ^. esIndex)
@@ -79,6 +106,32 @@ runCommand l = \case
           . C.setKeyspace (view cKeyspace cas)
           . C.setProtocolVersion C.V4
         $ C.defSettings
+
+waitForTaskToComplete :: forall a m. (ES.MonadBH m, MonadIO m, MonadThrow m, FromJSON a) => Int -> ES.TaskNodeId -> m ()
+waitForTaskToComplete timeoutSeconds taskNodeId = do
+  -- Delay is 0.1 seconds, so retries are limited to timeoutSecnds * 10
+  let policy = constantDelay 100000 <> limitRetries (timeoutSeconds * 10)
+  let retryCondition _ = fmap not . isTaskComplete
+  taskEither <- retrying policy retryCondition (const $ ES.getTask @m @a taskNodeId)
+  task <- either errTaskGet pure taskEither
+  unless (ES.taskResponseCompleted task) $ do
+    throwM $ ReindexFromAnotherIndexError $ "Timed out waiting for task: " <> show taskNodeId
+  when (isJust $ ES.taskResponseError task) $ do
+    throwM $ ReindexFromAnotherIndexError $
+      "Task failed with error: "
+        <> LensBS.unpackLazy8 (Aeson.encode $ ES.taskResponseError task)
+  where
+    isTaskComplete :: Either ES.EsError (ES.TaskResponse a) -> m Bool
+    isTaskComplete (Left e) = throwM $ ReindexFromAnotherIndexError $ "Error response while getting task: " <> show e
+    isTaskComplete (Right taskRes) = pure $ ES.taskResponseCompleted taskRes
+    --
+    errTaskGet :: MonadThrow m => ES.EsError -> m x
+    errTaskGet e = throwM $ ReindexFromAnotherIndexError $ "Error response while getting task: " <> show e
+
+newtype ReindexFromAnotherIndexError = ReindexFromAnotherIndexError String
+  deriving (Show)
+
+instance Exception ReindexFromAnotherIndexError
 
 --------------------------------------------------------------------------------
 -- ReindexIO command monad
