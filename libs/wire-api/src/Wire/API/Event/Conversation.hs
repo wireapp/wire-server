@@ -440,6 +440,9 @@ instance FromJSON Connect where
 -- 'MemberUpdate' and 'OtherMemberUpdate'.
 data MemberUpdateData = MemberUpdateData
   { -- | Target user of this action, should not be optional anymore.
+    --
+    -- FUTUREWORK: make it mandatory to guarantee that no events
+    -- out there do not contain an ID.
     -- <https://github.com/zinfra/backend-issues/issues/1309>
     misTarget :: Maybe UserId,
     misOtrMuted :: Maybe Bool,
@@ -499,12 +502,6 @@ instance ToJSON MemberUpdateData where
 instance FromJSON MemberUpdateData where
   parseJSON = withObject "member-update event data" $ \m ->
     MemberUpdateData
-      -- NOTE: This (target) is really not a maybe and should
-      --       be made compulsory 28 days after the next
-      --       release to prod to guaratee that no events
-      --       out there do not contain id.
-      --       Making it compulsory now creates a bit of
-      --       a fragile parser
       <$> m .:? "target"
       <*> m .:? "otr_muted"
       <*> m .:? "otr_muted_status"
