@@ -72,18 +72,18 @@ import Network.Wai.Utilities.Response (json)
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
-import qualified Wire.API.Connection as Public.Connection
-import qualified Wire.API.Properties as Public.Properties
+import qualified Wire.API.Connection as Public
+import qualified Wire.API.Properties as Public
 import qualified Wire.API.Swagger as Public.Swagger (models)
-import qualified Wire.API.Team as Public.Team
-import qualified Wire.API.User as Public.User
-import qualified Wire.API.User.Activation as Public.Activation
-import qualified Wire.API.User.Auth as Public.Auth
-import qualified Wire.API.User.Client as Public.Client
-import qualified Wire.API.User.Client.Prekey as Public.Prekey
-import qualified Wire.API.User.Handle as Public.Handle
-import qualified Wire.API.User.Password as Public.Password
-import qualified Wire.API.User.RichInfo as Public.RichInfo
+import qualified Wire.API.Team as Public
+import qualified Wire.API.User as Public
+import qualified Wire.API.User.Activation as Public
+import qualified Wire.API.User.Auth as Public
+import qualified Wire.API.User.Client as Public
+import qualified Wire.API.User.Client.Prekey as Public
+import qualified Wire.API.User.Handle as Public
+import qualified Wire.API.User.Password as Public
+import qualified Wire.API.User.RichInfo as Public
 
 ---------------------------------------------------------------------------
 -- Sitemap
@@ -118,7 +118,7 @@ sitemap o = do
     Doc.summary "Get a user by ID"
     Doc.parameter Doc.Path "uid" Doc.bytes' $
       Doc.description "User ID"
-    Doc.returns (Doc.ref Public.User.modelUser)
+    Doc.returns (Doc.ref Public.modelUser)
     Doc.response 200 "User" Doc.end
     Doc.errorResponse userNotFound
 
@@ -127,10 +127,10 @@ sitemap o = do
   post "/users/handles" (continue checkHandlesH) $
     accept "application" "json"
       .&. zauthUserId
-      .&. jsonRequest @Public.Handle.CheckHandles
+      .&. jsonRequest @Public.CheckHandles
   document "POST" "checkUserHandles" $ do
     Doc.summary "Check availability of user handles"
-    Doc.body (Doc.ref Public.Handle.modelCheckHandles) $
+    Doc.body (Doc.ref Public.modelCheckHandles) $
       Doc.description "JSON body"
     Doc.returns (Doc.array Doc.string')
     Doc.response 200 "List of free handles" Doc.end
@@ -154,7 +154,7 @@ sitemap o = do
     Doc.summary "Get information on a user handle"
     Doc.parameter Doc.Path "handle" Doc.bytes' $
       Doc.description "The user handle"
-    Doc.returns (Doc.ref Public.Handle.modelUserHandleInfo)
+    Doc.returns (Doc.ref Public.modelUserHandleInfo)
     Doc.response 200 "Handle info" Doc.end
     Doc.errorResponse handleNotFound
 
@@ -177,13 +177,13 @@ sitemap o = do
     Doc.parameter Doc.Query "handles" Doc.string' $ do
       Doc.description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"
       Doc.optional
-    Doc.returns (Doc.array (Doc.ref Public.User.modelUser))
+    Doc.returns (Doc.array (Doc.ref Public.modelUser))
     Doc.response 200 "List of users" Doc.end
 
   -- User Prekey API ----------------------------------------------------
 
   post "/users/prekeys" (continue getMultiPrekeyBundlesH) $
-    jsonRequest @Public.Client.UserClients
+    jsonRequest @Public.UserClients
       .&. accept "application" "json"
   document "POST" "getMultiPrekeyBundles" $ do
     Doc.summary
@@ -193,7 +193,7 @@ sitemap o = do
     Doc.notes
       "Prekeys of all clients of a multiple users. \
       \The result is a map of maps, i.e. { UserId : { ClientId : Maybe Prekey } }"
-    Doc.body (Doc.ref Public.Client.modelUserClients) $
+    Doc.body (Doc.ref Public.modelUserClients) $
       Doc.description "JSON body"
     Doc.response 200 "Prekey Bundles" Doc.end
     Doc.errorResponse tooManyClients
@@ -205,7 +205,7 @@ sitemap o = do
     Doc.summary "Get a prekey for each client of a user."
     Doc.parameter Doc.Path "uid" Doc.bytes' $
       Doc.description "User ID"
-    Doc.returns (Doc.ref Public.Prekey.modelPrekeyBundle)
+    Doc.returns (Doc.ref Public.modelPrekeyBundle)
     Doc.response 200 "Prekey Bundle" Doc.end
 
   get "/users/:uid/prekeys/:client" (continue getPrekeyH) $
@@ -218,7 +218,7 @@ sitemap o = do
       Doc.description "User ID"
     Doc.parameter Doc.Path "client" Doc.bytes' $
       Doc.description "Client ID"
-    Doc.returns (Doc.ref Public.Prekey.modelClientPrekey)
+    Doc.returns (Doc.ref Public.modelClientPrekey)
     Doc.response 200 "Client Prekey" Doc.end
 
   -- User Client API ----------------------------------------------------
@@ -230,7 +230,7 @@ sitemap o = do
     Doc.summary "Get all of a user's clients."
     Doc.parameter Doc.Path "uid" Doc.bytes' $
       Doc.description "User ID"
-    Doc.returns (Doc.array (Doc.ref Public.Client.modelPubClient))
+    Doc.returns (Doc.array (Doc.ref Public.modelPubClient))
     Doc.response 200 "List of clients" Doc.end
 
   get "/users/:uid/clients/:client" (continue getUserClientH) $
@@ -243,7 +243,7 @@ sitemap o = do
       Doc.description "User ID"
     Doc.parameter Doc.Path "client" Doc.bytes' $
       Doc.description "Client ID"
-    Doc.returns (Doc.ref Public.Client.modelPubClient)
+    Doc.returns (Doc.ref Public.modelPubClient)
     Doc.response 200 "Client" Doc.end
 
   -- end User Client API
@@ -256,7 +256,7 @@ sitemap o = do
     Doc.summary "Get user's rich info"
     Doc.parameter Doc.Path "uid" Doc.bytes' $
       Doc.description "User ID"
-    Doc.returns (Doc.ref Public.RichInfo.modelRichInfo)
+    Doc.returns (Doc.ref Public.modelRichInfo)
     Doc.response 200 "RichInfo" Doc.end
     Doc.errorResponse insufficientTeamPermissions
 
@@ -267,7 +267,7 @@ sitemap o = do
       .&. zauthUserId
   document "GET" "self" $ do
     Doc.summary "Get your profile"
-    Doc.returns (Doc.ref Public.User.modelSelf)
+    Doc.returns (Doc.ref Public.modelSelf)
     Doc.response 200 "Self profile" Doc.end
 
   -- This endpoint can lead to the following events being sent:
@@ -275,10 +275,10 @@ sitemap o = do
   put "/self" (continue updateUserH) $
     zauthUserId
       .&. zauthConnId
-      .&. jsonRequest @Public.User.UserUpdate
+      .&. jsonRequest @Public.UserUpdate
   document "PUT" "updateSelf" $ do
     Doc.summary "Update your profile"
-    Doc.body (Doc.ref Public.User.modelUserUpdate) $
+    Doc.body (Doc.ref Public.modelUserUpdate) $
       Doc.description "JSON body"
     Doc.response 200 "Update successful." Doc.end
 
@@ -287,16 +287,16 @@ sitemap o = do
       .&. zauthUserId
   document "GET" "selfName" $ do
     Doc.summary "Get your profile name"
-    Doc.returns (Doc.ref Public.User.modelUserDisplayName)
+    Doc.returns (Doc.ref Public.modelUserDisplayName)
     Doc.response 200 "Profile name found." Doc.end
 
   put "/self/email" (continue changeSelfEmailH) $
     zauthUserId
       .&. zauthConnId
-      .&. jsonRequest @Public.User.EmailUpdate
+      .&. jsonRequest @Public.EmailUpdate
   document "PUT" "changeEmail" $ do
     Doc.summary "Change your email address"
-    Doc.body (Doc.ref Public.User.modelEmailUpdate) $
+    Doc.body (Doc.ref Public.modelEmailUpdate) $
       Doc.description "JSON body"
     Doc.response 202 "Update accepted and pending activation of the new email." Doc.end
     Doc.response 204 "No update, current and new email address are the same." Doc.end
@@ -308,10 +308,10 @@ sitemap o = do
   put "/self/phone" (continue changePhoneH) $
     zauthUserId
       .&. zauthConnId
-      .&. jsonRequest @Public.User.PhoneUpdate
+      .&. jsonRequest @Public.PhoneUpdate
   document "PUT" "changePhone" $ do
     Doc.summary "Change your phone number"
-    Doc.body (Doc.ref Public.User.modelPhoneUpdate) $
+    Doc.body (Doc.ref Public.modelPhoneUpdate) $
       Doc.description "JSON body"
     Doc.response 202 "Update accepted and pending activation of the new phone number." Doc.end
     Doc.errorResponse userKeyExists
@@ -325,10 +325,10 @@ sitemap o = do
 
   put "/self/password" (continue changePasswordH) $
     zauthUserId
-      .&. jsonRequest @Public.User.PasswordChange
+      .&. jsonRequest @Public.PasswordChange
   document "PUT" "changePassword" $ do
     Doc.summary "Change your password"
-    Doc.body (Doc.ref Public.User.modelChangePassword) $
+    Doc.body (Doc.ref Public.modelChangePassword) $
       Doc.description "JSON body"
     Doc.response 200 "Password changed." Doc.end
     Doc.errorResponse badCredentials
@@ -337,10 +337,10 @@ sitemap o = do
   put "/self/locale" (continue changeLocaleH) $
     zauthUserId
       .&. zauthConnId
-      .&. jsonRequest @Public.User.LocaleUpdate
+      .&. jsonRequest @Public.LocaleUpdate
   document "PUT" "changeLocale" $ do
     Doc.summary "Change your locale"
-    Doc.body (Doc.ref Public.User.modelChangeLocale) $
+    Doc.body (Doc.ref Public.modelChangeLocale) $
       Doc.description "JSON body"
     Doc.response 200 "Locale changed." Doc.end
 
@@ -349,10 +349,10 @@ sitemap o = do
   put "/self/handle" (continue changeHandleH) $
     zauthUserId
       .&. zauthConnId
-      .&. jsonRequest @Public.User.HandleUpdate
+      .&. jsonRequest @Public.HandleUpdate
   document "PUT" "changeHandle" $ do
     Doc.summary "Change your handle"
-    Doc.body (Doc.ref Public.User.modelChangeHandle) $
+    Doc.body (Doc.ref Public.modelChangeHandle) $
       Doc.description "JSON body"
     Doc.errorResponse handleExists
     Doc.errorResponse invalidHandle
@@ -390,7 +390,7 @@ sitemap o = do
   -- - MemberLeave event to members for all conversations the user was in (via galley)
   delete "/self" (continue deleteUserH) $
     zauthUserId
-      .&. jsonRequest @Public.User.DeleteUser
+      .&. jsonRequest @Public.DeleteUser
       .&. accept "application" "json"
   document "DELETE" "deleteUser" $ do
     Doc.summary "Initiate account deletion."
@@ -401,7 +401,7 @@ sitemap o = do
       \password, it must be provided. If password is correct, or if neither \
       \a verified identity nor a password exists, account deletion \
       \is scheduled immediately."
-    Doc.body (Doc.ref Public.User.modelDelete) $
+    Doc.body (Doc.ref Public.modelDelete) $
       Doc.description "JSON body"
     Doc.response 202 "Deletion is pending verification with a code." Doc.end
     Doc.response 200 "Deletion is initiated." Doc.end
@@ -414,11 +414,11 @@ sitemap o = do
   -- UserDeleted event to contacts of deleted user
   -- MemberLeave event to members for all conversations the user was in (via galley)
   post "/delete" (continue verifyDeleteUserH) $
-    jsonRequest @Public.User.VerifyDeleteUser
+    jsonRequest @Public.VerifyDeleteUser
       .&. accept "application" "json"
   document "POST" "verifyDeleteUser" $ do
     Doc.summary "Verify account deletion with a code."
-    Doc.body (Doc.ref Public.User.modelVerifyDelete) $
+    Doc.body (Doc.ref Public.modelVerifyDelete) $
       Doc.description "JSON body"
     Doc.response 200 "Deletion is initiated." Doc.end
     Doc.errorResponse invalidCode
@@ -435,16 +435,16 @@ sitemap o = do
     accept "application" "json"
       .&. zauthUserId
       .&. zauthConnId
-      .&. jsonRequest @Public.Connection.ConnectionRequest
+      .&. jsonRequest @Public.ConnectionRequest
   document "POST" "createConnection" $ do
     Doc.summary "Create a connection to another user."
     Doc.notes $
       "You can have no more than "
         <> Text.pack (show (setUserMaxConnections $ optSettings o))
         <> " connections in accepted or sent state."
-    Doc.body (Doc.ref Public.Connection.modelConnectionRequest) $
+    Doc.body (Doc.ref Public.modelConnectionRequest) $
       Doc.description "JSON body"
-    Doc.returns (Doc.ref Public.Connection.modelConnection)
+    Doc.returns (Doc.ref Public.modelConnection)
     Doc.response 200 "The connection exists." Doc.end
     Doc.response 201 "The connection was created." Doc.end
     Doc.errorResponse connectionLimitReached
@@ -464,7 +464,7 @@ sitemap o = do
     Doc.parameter Doc.Query "size" Doc.int32' $ do
       Doc.description "Number of results to return (default 100, max 500)."
       Doc.optional
-    Doc.returns (Doc.ref Public.Connection.modelConnectionList)
+    Doc.returns (Doc.ref Public.modelConnectionList)
     Doc.response 200 "List of connections" Doc.end
 
   -- This endpoint can lead to the following events being sent:
@@ -478,14 +478,14 @@ sitemap o = do
       .&. zauthUserId
       .&. zauthConnId
       .&. capture "id"
-      .&. jsonRequest @Public.Connection.ConnectionUpdate
+      .&. jsonRequest @Public.ConnectionUpdate
   document "PUT" "updateConnection" $ do
     Doc.summary "Update a connection."
     Doc.parameter Doc.Path "id" Doc.bytes' $
       Doc.description "User ID"
-    Doc.body (Doc.ref Public.Connection.modelConnectionUpdate) $
+    Doc.body (Doc.ref Public.modelConnectionUpdate) $
       Doc.description "JSON body"
-    Doc.returns (Doc.ref Public.Connection.modelConnection)
+    Doc.returns (Doc.ref Public.modelConnection)
     Doc.response 200 "Connection updated." Doc.end
     Doc.response 204 "No change." Doc.end
     Doc.errorResponse connectionLimitReached
@@ -501,7 +501,7 @@ sitemap o = do
     Doc.summary "Get an existing connection to another user."
     Doc.parameter Doc.Path "id" Doc.bytes' $
       Doc.description "User ID"
-    Doc.returns (Doc.ref Public.Connection.modelConnection)
+    Doc.returns (Doc.ref Public.modelConnection)
     Doc.response 200 "Connection" Doc.end
 
   -- User Client API ----------------------------------------------------
@@ -511,23 +511,23 @@ sitemap o = do
   -- - ClientAdded event to self
   -- - ClientRemoved event to self, if removing old clients due to max number
   post "/clients" (continue addClientH) $
-    jsonRequest @Public.Client.NewClient
+    jsonRequest @Public.NewClient
       .&. zauthUserId
       .&. zauthConnId
       .&. opt (header "X-Forwarded-For")
       .&. accept "application" "json"
   document "POST" "registerClient" $ do
     Doc.summary "Register a new client."
-    Doc.body (Doc.ref Public.Client.modelNewClient) $
+    Doc.body (Doc.ref Public.modelNewClient) $
       Doc.description "JSON body"
-    Doc.returns (Doc.ref Public.Client.modelClient)
+    Doc.returns (Doc.ref Public.modelClient)
     Doc.response 200 "Client" Doc.end
     Doc.errorResponse tooManyClients
     Doc.errorResponse missingAuthError
     Doc.errorResponse malformedPrekeys
 
   put "/clients/:client" (continue updateClientH) $
-    jsonRequest @Public.Client.UpdateClient
+    jsonRequest @Public.UpdateClient
       .&. zauthUserId
       .&. capture "client"
       .&. accept "application" "json"
@@ -535,7 +535,7 @@ sitemap o = do
     Doc.summary "Update a registered client."
     Doc.parameter Doc.Path "client" Doc.bytes' $
       Doc.description "Client ID"
-    Doc.body (Doc.ref Public.Client.modelUpdateClient) $
+    Doc.body (Doc.ref Public.modelUpdateClient) $
       Doc.description "JSON body"
     Doc.response 200 "Client updated." Doc.end
     Doc.errorResponse malformedPrekeys
@@ -543,7 +543,7 @@ sitemap o = do
   -- This endpoint can lead to the following events being sent:
   -- - ClientRemoved event to self
   delete "/clients/:client" (continue rmClientH) $
-    jsonRequest @Public.Client.RmClient
+    jsonRequest @Public.RmClient
       .&. zauthUserId
       .&. zauthConnId
       .&. capture "client"
@@ -552,7 +552,7 @@ sitemap o = do
     Doc.summary "Delete an existing client."
     Doc.parameter Doc.Path "client" Doc.bytes' $
       Doc.description "Client ID"
-    Doc.body (Doc.ref Public.Client.modelDeleteClient) $
+    Doc.body (Doc.ref Public.modelDeleteClient) $
       Doc.description "JSON body"
     Doc.response 200 "Client deleted." Doc.end
 
@@ -561,7 +561,7 @@ sitemap o = do
       .&. accept "application" "json"
   document "GET" "listClients" $ do
     Doc.summary "List the registered clients."
-    Doc.returns (Doc.array (Doc.ref Public.Client.modelClient))
+    Doc.returns (Doc.array (Doc.ref Public.modelClient))
     Doc.response 200 "List of clients" Doc.end
 
   get "/clients/:client" (continue getClientH) $
@@ -572,7 +572,7 @@ sitemap o = do
     Doc.summary "Get a registered client by ID."
     Doc.parameter Doc.Path "client" Doc.bytes' $
       Doc.description "Client ID"
-    Doc.returns (Doc.ref Public.Client.modelClient)
+    Doc.returns (Doc.ref Public.modelClient)
     Doc.response 200 "Client" Doc.end
 
   get "/clients/:client/prekeys" (continue listPrekeyIdsH) $
@@ -594,12 +594,12 @@ sitemap o = do
     zauthUserId
       .&. zauthConnId
       .&. capture "key"
-      .&. jsonRequest @Public.Properties.PropertyValue
+      .&. jsonRequest @Public.PropertyValue
   document "PUT" "setProperty" $ do
     Doc.summary "Set a user property."
     Doc.parameter Doc.Path "key" Doc.string' $
       Doc.description "Property key"
-    Doc.body (Doc.ref Public.Properties.modelPropertyValue) $
+    Doc.body (Doc.ref Public.modelPropertyValue) $
       Doc.description "JSON body"
     Doc.response 200 "Property set." Doc.end
 
@@ -632,7 +632,7 @@ sitemap o = do
     Doc.summary "Get a property value."
     Doc.parameter Doc.Path "key" Doc.string' $
       Doc.description "Property key"
-    Doc.returns (Doc.ref Public.Properties.modelPropertyValue)
+    Doc.returns (Doc.ref Public.modelPropertyValue)
     Doc.response 200 "The property value." Doc.end
 
   get "/properties" (continue listPropertyKeysH) $
@@ -648,7 +648,7 @@ sitemap o = do
       .&. accept "application" "json"
   document "GET" "listPropertyKeysAndValues" $ do
     Doc.summary "List all properties with key and value."
-    Doc.returns (Doc.ref Public.Properties.modelPropertyDictionary)
+    Doc.returns (Doc.ref Public.modelPropertyDictionary)
     Doc.response 200 "Object with properties as attributes." Doc.end
 
   -- TODO: put delete here, too?
@@ -661,17 +661,17 @@ sitemap o = do
   -- - UserIdentityUpdated event to created user, if email code or phone code is provided
   post "/register" (continue createUserH) $
     accept "application" "json"
-      .&. jsonRequest @Public.User.NewUserPublic
+      .&. jsonRequest @Public.NewUserPublic
   document "POST" "register" $ do
     Doc.summary "Register a new user."
     Doc.notes
       "If the environment where the registration takes \
       \place is private and a registered email address or phone \
       \number is not whitelisted, a 403 error is returned."
-    Doc.body (Doc.ref Public.User.modelNewUser) $
+    Doc.body (Doc.ref Public.modelNewUser) $
       Doc.description "JSON body"
     -- FUTUREWORK: I think this should be 'Doc.self' instead of 'user'
-    Doc.returns (Doc.ref Public.User.modelUser)
+    Doc.returns (Doc.ref Public.modelUser)
     Doc.response 201 "User created and pending activation." Doc.end
     Doc.errorResponse whitelistError
     Doc.errorResponse invalidInvitationCode
@@ -694,7 +694,7 @@ sitemap o = do
       Doc.description "Activation key"
     Doc.parameter Doc.Query "code" Doc.bytes' $
       Doc.description "Activation code"
-    Doc.returns (Doc.ref Public.Activation.modelActivationResponse)
+    Doc.returns (Doc.ref Public.modelActivationResponse)
     Doc.response 200 "Activation successful." Doc.end
     Doc.response 204 "A recent activation was already successful." Doc.end
     Doc.errorResponse activationCodeNotFound
@@ -706,25 +706,25 @@ sitemap o = do
   -- - UserIdentityUpdated event to the user, if email or phone get activated
   post "/activate" (continue activateKeyH) $
     accept "application" "json"
-      .&. jsonRequest @Public.Activation.Activate
+      .&. jsonRequest @Public.Activate
   document "POST" "activate" $ do
     Doc.summary "Activate (i.e. confirm) an email address or phone number."
     Doc.notes
       "Activation only succeeds once and the number of \
       \failed attempts for a valid key is limited."
-    Doc.body (Doc.ref Public.Activation.modelActivate) $
+    Doc.body (Doc.ref Public.modelActivate) $
       Doc.description "JSON body"
-    Doc.returns (Doc.ref Public.Activation.modelActivationResponse)
+    Doc.returns (Doc.ref Public.modelActivationResponse)
     Doc.response 200 "Activation successful." Doc.end
     Doc.response 204 "A recent activation was already successful." Doc.end
     Doc.errorResponse activationCodeNotFound
 
   -- docs/reference/user/activation.md {#RefActivationRequest}
   post "/activate/send" (continue sendActivationCodeH) $
-    jsonRequest @Public.Activation.SendActivationCode
+    jsonRequest @Public.SendActivationCode
   document "POST" "sendActivationCode" $ do
     Doc.summary "Send (or resend) an email or phone activation code."
-    Doc.body (Doc.ref Public.Activation.modelSendActivationCode) $
+    Doc.body (Doc.ref Public.modelSendActivationCode) $
       Doc.description "JSON body"
     Doc.response 200 "Activation code sent." Doc.end
     Doc.errorResponse invalidEmail
@@ -735,10 +735,10 @@ sitemap o = do
 
   post "/password-reset" (continue beginPasswordResetH) $
     accept "application" "json"
-      .&. jsonRequest @Public.Password.NewPasswordReset
+      .&. jsonRequest @Public.NewPasswordReset
   document "POST" "beginPasswordReset" $ do
     Doc.summary "Initiate a password reset."
-    Doc.body (Doc.ref Public.Password.modelNewPasswordReset) $
+    Doc.body (Doc.ref Public.modelNewPasswordReset) $
       Doc.description "JSON body"
     Doc.response 201 "Password reset code created and sent by email." Doc.end
     Doc.errorResponse invalidPwResetKey
@@ -746,10 +746,10 @@ sitemap o = do
 
   post "/password-reset/complete" (continue completePasswordResetH) $
     accept "application" "json"
-      .&. jsonRequest @Public.Password.CompletePasswordReset
+      .&. jsonRequest @Public.CompletePasswordReset
   document "POST" "completePasswordReset" $ do
     Doc.summary "Complete a password reset."
-    Doc.body (Doc.ref Public.Password.modelCompletePasswordReset) $
+    Doc.body (Doc.ref Public.modelCompletePasswordReset) $
       Doc.description "JSON body"
     Doc.response 200 "Password reset successful." Doc.end
     Doc.errorResponse invalidPwResetCode
@@ -757,7 +757,7 @@ sitemap o = do
   post "/password-reset/:key" (continue deprecatedCompletePasswordResetH) $
     accept "application" "json"
       .&. capture "key"
-      .&. jsonRequest @Public.Password.PasswordReset
+      .&. jsonRequest @Public.PasswordReset
   document "POST" "deprecatedCompletePasswordReset" $ do
     Doc.deprecated
     Doc.summary "Complete a password reset."
@@ -794,20 +794,20 @@ apiDocs o = do
 ---------------------------------------------------------------------------
 -- Handlers
 
-setPropertyH :: UserId ::: ConnId ::: Public.Properties.PropertyKey ::: JsonRequest Public.Properties.PropertyValue -> Handler Response
+setPropertyH :: UserId ::: ConnId ::: Public.PropertyKey ::: JsonRequest Public.PropertyValue -> Handler Response
 setPropertyH (u ::: c ::: k ::: req) = do
   propkey <- safeParsePropertyKey k
   propval <- safeParsePropertyValue (lazyRequestBody (fromJsonRequest req))
   empty <$ setProperty u c propkey propval
 
-setProperty :: UserId -> ConnId -> Public.Properties.PropertyKey -> Public.Properties.PropertyValue -> Handler ()
+setProperty :: UserId -> ConnId -> Public.PropertyKey -> Public.PropertyValue -> Handler ()
 setProperty u c propkey propval = do
   API.setProperty u c propkey propval !>> propDataError
 
-safeParsePropertyKey :: Public.Properties.PropertyKey -> Handler Public.Properties.PropertyKey
+safeParsePropertyKey :: Public.PropertyKey -> Handler Public.PropertyKey
 safeParsePropertyKey k = do
   maxKeyLen <- fromMaybe defMaxKeyLen <$> view (settings . propertyMaxKeyLen)
-  let keyText = Ascii.toText (Public.Properties.propertyKeyName k)
+  let keyText = Ascii.toText (Public.propertyKeyName k)
   when (Text.compareLength keyText (fromIntegral maxKeyLen) == GT) $
     throwStd propertyKeyTooLarge
   pure k
@@ -815,7 +815,7 @@ safeParsePropertyKey k = do
 -- | Parse a 'PropertyValue' from a bytestring.  This is different from 'FromJSON' in that
 -- checks the byte size of the input, and fails *without consuming all of it* if that size
 -- exceeds the settings.
-safeParsePropertyValue :: IO Lazy.ByteString -> Handler Public.Properties.PropertyValue
+safeParsePropertyValue :: IO Lazy.ByteString -> Handler Public.PropertyValue
 safeParsePropertyValue lreqbody = do
   maxValueLen <- fromMaybe defMaxValueLen <$> view (settings . propertyMaxValueLen)
   lbs <- Lazy.take (maxValueLen + 1) <$> liftIO lreqbody
@@ -823,28 +823,28 @@ safeParsePropertyValue lreqbody = do
     throwStd propertyValueTooLarge
   hoistEither $ fmapL (StdError . badRequest . pack) (eitherDecode lbs)
 
-deletePropertyH :: UserId ::: ConnId ::: Public.Properties.PropertyKey -> Handler Response
+deletePropertyH :: UserId ::: ConnId ::: Public.PropertyKey -> Handler Response
 deletePropertyH (u ::: c ::: k) = lift (API.deleteProperty u c k) >> return empty
 
 clearPropertiesH :: UserId ::: ConnId -> Handler Response
 clearPropertiesH (u ::: c) = lift (API.clearProperties u c) >> return empty
 
-getPropertyH :: UserId ::: Public.Properties.PropertyKey ::: JSON -> Handler Response
+getPropertyH :: UserId ::: Public.PropertyKey ::: JSON -> Handler Response
 getPropertyH (u ::: k ::: _) = do
   val <- lift $ API.lookupProperty u k
   return $ case val of
     Nothing -> setStatus status404 empty
-    Just v -> json (v :: Public.Properties.PropertyValue)
+    Just v -> json (v :: Public.PropertyValue)
 
 listPropertyKeysH :: UserId ::: JSON -> Handler Response
 listPropertyKeysH (u ::: _) = do
   val <- lift (API.lookupPropertyKeys u)
-  pure $ json (val :: [Public.Properties.PropertyKey])
+  pure $ json (val :: [Public.PropertyKey])
 
 listPropertyKeysAndValuesH :: UserId ::: JSON -> Handler Response
 listPropertyKeysAndValuesH (u ::: _) = do
   val <- lift (API.lookupPropertyKeysAndValues u)
-  pure $ json (val :: Public.Properties.PropertyKeysAndValues)
+  pure $ json (val :: Public.PropertyKeysAndValues)
 
 getPrekeyH :: OpaqueUserId ::: ClientId ::: JSON -> Handler Response
 getPrekeyH (u ::: c ::: _) = do
@@ -852,7 +852,7 @@ getPrekeyH (u ::: c ::: _) = do
     Just pk -> json pk
     Nothing -> setStatus status404 empty
 
-getPrekey :: OpaqueUserId -> ClientId -> Handler (Maybe Public.Prekey.ClientPrekey)
+getPrekey :: OpaqueUserId -> ClientId -> Handler (Maybe Public.ClientPrekey)
 getPrekey u c = do
   resolvedUserId <- resolveOpaqueUserId u
   lift $ API.claimPrekey resolvedUserId c
@@ -860,51 +860,51 @@ getPrekey u c = do
 getPrekeyBundleH :: OpaqueUserId ::: JSON -> Handler Response
 getPrekeyBundleH (u ::: _) = json <$> getPrekeyBundle u
 
-getPrekeyBundle :: OpaqueUserId -> Handler Public.Prekey.PrekeyBundle
+getPrekeyBundle :: OpaqueUserId -> Handler Public.PrekeyBundle
 getPrekeyBundle u = do
   resolvedUserId <- resolveOpaqueUserId u
   lift $ API.claimPrekeyBundle resolvedUserId
 
-getMultiPrekeyBundlesH :: JsonRequest Public.Client.UserClients ::: JSON -> Handler Response
+getMultiPrekeyBundlesH :: JsonRequest Public.UserClients ::: JSON -> Handler Response
 getMultiPrekeyBundlesH (req ::: _) = do
   json <$> (getMultiPrekeyBundles =<< parseJsonBody req)
 
-getMultiPrekeyBundles :: Public.Client.UserClients -> Handler (Public.Client.UserClientMap (Maybe Public.Prekey.Prekey))
+getMultiPrekeyBundles :: Public.UserClients -> Handler (Public.UserClientMap (Maybe Public.Prekey))
 getMultiPrekeyBundles body = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
-  when (Map.size (Public.Client.userClients body) > maxSize) $
+  when (Map.size (Public.userClients body) > maxSize) $
     throwStd tooManyClients
   API.claimMultiPrekeyBundles body
 
-addClientH :: JsonRequest Public.Client.NewClient ::: UserId ::: ConnId ::: Maybe IpAddr ::: JSON -> Handler Response
+addClientH :: JsonRequest Public.NewClient ::: UserId ::: ConnId ::: Maybe IpAddr ::: JSON -> Handler Response
 addClientH (req ::: usr ::: con ::: ip ::: _) = do
   new <- parseJsonBody req
   clt <- addClient new usr con ip
-  let loc = toByteString' $ Public.Client.clientId clt
+  let loc = toByteString' $ Public.clientId clt
   pure . setStatus status201 . addHeader "Location" loc . json $ clt
 
-addClient :: Public.Client.NewClient -> UserId -> ConnId -> Maybe IpAddr -> Handler Public.Client.Client
+addClient :: Public.NewClient -> UserId -> ConnId -> Maybe IpAddr -> Handler Public.Client
 addClient new usr con ip = do
   -- Users can't add legal hold clients
-  when (Public.Client.newClientType new == Public.Client.LegalHoldClientType) $
+  when (Public.newClientType new == Public.LegalHoldClientType) $
     throwE (clientError ClientLegalHoldCannotBeAdded)
   API.addClient usr (Just con) (ipAddr <$> ip) new !>> clientError
 
-rmClientH :: JsonRequest Public.Client.RmClient ::: UserId ::: ConnId ::: ClientId ::: JSON -> Handler Response
+rmClientH :: JsonRequest Public.RmClient ::: UserId ::: ConnId ::: ClientId ::: JSON -> Handler Response
 rmClientH (req ::: usr ::: con ::: clt ::: _) = do
   body <- parseJsonBody req
   empty <$ rmClient body usr con clt
 
-rmClient :: Public.Client.RmClient -> UserId -> ConnId -> ClientId -> Handler ()
+rmClient :: Public.RmClient -> UserId -> ConnId -> ClientId -> Handler ()
 rmClient body usr con clt = do
-  API.rmClient usr con clt (Public.Client.rmPassword body) !>> clientError
+  API.rmClient usr con clt (Public.rmPassword body) !>> clientError
 
-updateClientH :: JsonRequest Public.Client.UpdateClient ::: UserId ::: ClientId ::: JSON -> Handler Response
+updateClientH :: JsonRequest Public.UpdateClient ::: UserId ::: ClientId ::: JSON -> Handler Response
 updateClientH (req ::: usr ::: clt ::: _) = do
   body <- parseJsonBody req
   empty <$ updateClient body usr clt
 
-updateClient :: Public.Client.UpdateClient -> UserId -> ClientId -> Handler ()
+updateClient :: Public.UpdateClient -> UserId -> ClientId -> Handler ()
 updateClient body usr clt = do
   API.updateClient usr clt body !>> clientError
 
@@ -912,7 +912,7 @@ listClientsH :: UserId ::: JSON -> Handler Response
 listClientsH (zusr ::: _) =
   json <$> listClients zusr
 
-listClients :: UserId -> Handler [Public.Client.Client]
+listClients :: UserId -> Handler [Public.Client]
 listClients zusr = do
   API.lookupClients (Local zusr) !>> clientError
 
@@ -922,7 +922,7 @@ getClientH (zusr ::: clt ::: _) =
     Just c -> json c
     Nothing -> setStatus status404 empty
 
-getClient :: UserId -> ClientId -> Handler (Maybe Public.Client.Client)
+getClient :: UserId -> ClientId -> Handler (Maybe Public.Client)
 getClient zusr clientId = do
   API.lookupClient (Local zusr) clientId !>> clientError
 
@@ -930,7 +930,7 @@ getUserClientsH :: OpaqueUserId ::: JSON -> Handler Response
 getUserClientsH (user ::: _) =
   json <$> getUserClients user
 
-getUserClients :: OpaqueUserId -> Handler [Public.Client.PubClient]
+getUserClients :: OpaqueUserId -> Handler [Public.PubClient]
 getUserClients opaqueUserId = do
   resolvedUserId <- resolveOpaqueUserId opaqueUserId
   API.pubClient <$$> API.lookupClients resolvedUserId !>> clientError
@@ -939,7 +939,7 @@ getUserClientH :: OpaqueUserId ::: ClientId ::: JSON -> Handler Response
 getUserClientH (user ::: cid ::: _) = do
   maybe (setStatus status404 empty) json <$> getUserClient user cid
 
-getUserClient :: OpaqueUserId -> ClientId -> Handler (Maybe Public.Client.PubClient)
+getUserClient :: OpaqueUserId -> ClientId -> Handler (Maybe Public.PubClient)
 getUserClient opaqueUserId clientId = do
   resolvedUserId <- resolveOpaqueUserId opaqueUserId
   API.pubClient <$$> API.lookupClient resolvedUserId clientId !>> clientError
@@ -948,26 +948,26 @@ getRichInfoH :: UserId ::: UserId ::: JSON -> Handler Response
 getRichInfoH (self ::: user ::: _) = do
   json <$> getRichInfo self user
 
-getRichInfo :: UserId -> UserId -> Handler Public.RichInfo.RichInfoAssocList
+getRichInfo :: UserId -> UserId -> Handler Public.RichInfoAssocList
 getRichInfo self user = do
   -- Check that both users exist and the requesting user is allowed to see rich info of the
   -- other user
   selfUser <- ifNothing userNotFound =<< lift (Data.lookupUser self)
   otherUser <- ifNothing userNotFound =<< lift (Data.lookupUser user)
-  case (Public.User.userTeam selfUser, Public.User.userTeam otherUser) of
+  case (Public.userTeam selfUser, Public.userTeam otherUser) of
     (Just t1, Just t2) | t1 == t2 -> pure ()
     _ -> throwStd insufficientTeamPermissions
   -- Query rich info
-  fromMaybe Public.RichInfo.emptyRichInfoAssocList <$> lift (API.lookupRichInfo user)
+  fromMaybe Public.emptyRichInfoAssocList <$> lift (API.lookupRichInfo user)
 
 listPrekeyIdsH :: UserId ::: ClientId ::: JSON -> Handler Response
 listPrekeyIdsH (usr ::: clt ::: _) = do
   -- TODO(mheinzel): better name than val
   val <- lift (API.lookupPrekeyIds usr clt)
-  pure $ json (val :: [Public.Prekey.PrekeyId])
+  pure $ json (val :: [Public.PrekeyId])
 
 -- docs/reference/user/registration.md {#RefRegistration}
-createUserH :: JSON ::: JsonRequest Public.User.NewUserPublic -> Handler Response
+createUserH :: JSON ::: JsonRequest Public.NewUserPublic -> Handler Response
 createUserH (_ ::: req) = do
   CreateUserResponse cok loc prof <- createUser =<< parseJsonBody req
   lift . Auth.setResponseCookie cok
@@ -976,24 +976,24 @@ createUserH (_ ::: req) = do
     $ json prof
 
 data CreateUserResponse
-  = CreateUserResponse (Public.Auth.Cookie (ZAuth.Token ZAuth.User)) UserId Public.User.SelfProfile
+  = CreateUserResponse (Public.Cookie (ZAuth.Token ZAuth.User)) UserId Public.SelfProfile
 
-createUser :: Public.User.NewUserPublic -> Handler CreateUserResponse
-createUser (Public.User.NewUserPublic new) = do
-  for_ (Public.User.newUserEmail new) $ checkWhitelist . Left
-  for_ (Public.User.newUserPhone new) $ checkWhitelist . Right
+createUser :: Public.NewUserPublic -> Handler CreateUserResponse
+createUser (Public.NewUserPublic new) = do
+  for_ (Public.newUserEmail new) $ checkWhitelist . Left
+  for_ (Public.newUserPhone new) $ checkWhitelist . Right
   result <- API.createUser new !>> newUserError
   let acc = createdAccount result
   let eac = createdEmailActivation result
   let pac = createdPhoneActivation result
   let epair = (,) <$> (activationKey <$> eac) <*> (activationCode <$> eac)
   let ppair = (,) <$> (activationKey <$> pac) <*> (activationCode <$> pac)
-  let newUserLabel = Public.User.newUserLabel new
-  let newUserTeam = Public.User.newUserTeam new
+  let newUserLabel = Public.newUserLabel new
+  let newUserTeam = Public.newUserTeam new
   let usr = accountUser acc
-  let Public.User.User {userLocale, userDisplayName, userId} = usr
-  let userEmail = Public.User.userEmail usr
-  let userPhone = Public.User.userPhone usr
+  let Public.User {userLocale, userDisplayName, userId} = usr
+  let userEmail = Public.userEmail usr
+  let userPhone = Public.userPhone usr
   lift $ do
     for_ (liftM2 (,) userEmail epair) $ \(e, p) ->
       sendActivationEmail e userDisplayName p (Just userLocale) newUserTeam
@@ -1002,23 +1002,23 @@ createUser (Public.User.NewUserPublic new) = do
     for_ (liftM3 (,,) userEmail (createdUserTeam result) newUserTeam) $ \(e, ct, ut) ->
       sendWelcomeEmail e ct ut (Just userLocale)
   cok <- case acc of
-    UserAccount _ Ephemeral -> lift $ Auth.newCookie @ZAuth.User userId Public.Auth.SessionCookie newUserLabel
-    UserAccount _ _ -> lift $ Auth.newCookie @ZAuth.User userId Public.Auth.PersistentCookie newUserLabel
-  pure $ CreateUserResponse cok userId (Public.User.SelfProfile usr)
+    UserAccount _ Ephemeral -> lift $ Auth.newCookie @ZAuth.User userId Public.SessionCookie newUserLabel
+    UserAccount _ _ -> lift $ Auth.newCookie @ZAuth.User userId Public.PersistentCookie newUserLabel
+  pure $ CreateUserResponse cok userId (Public.SelfProfile usr)
   where
     sendActivationEmail e u p l = \case
-      (Just (Public.User.NewTeamCreator (Public.User.BindingNewTeamUser (Public.Team.BindingNewTeam t) _))) ->
-        sendTeamActivationMail e u p l (fromRange $ t ^. Public.Team.newTeamName)
+      (Just (Public.NewTeamCreator (Public.BindingNewTeamUser (Public.BindingNewTeam t) _))) ->
+        sendTeamActivationMail e u p l (fromRange $ t ^. Public.newTeamName)
       _ ->
         sendActivationMail e u p l Nothing
-    sendWelcomeEmail :: Public.User.Email -> CreateUserTeam -> Public.User.NewTeamUser -> Maybe Public.User.Locale -> AppIO ()
+    sendWelcomeEmail :: Public.Email -> CreateUserTeam -> Public.NewTeamUser -> Maybe Public.Locale -> AppIO ()
     -- NOTE: Welcome e-mails for the team creator are not dealt by brig anymore
     sendWelcomeEmail e (CreateUserTeam t n) newUser l = case newUser of
-      Public.User.NewTeamCreator _ ->
+      Public.NewTeamCreator _ ->
         return ()
-      Public.User.NewTeamMember _ ->
+      Public.NewTeamMember _ ->
         Team.sendMemberWelcomeMail e t n l
-      Public.User.NewTeamMemberSSO _ ->
+      Public.NewTeamMemberSSO _ ->
         Team.sendMemberWelcomeMail e t n l
 
 checkUserExistsH :: UserId ::: OpaqueUserId -> Handler Response
@@ -1034,7 +1034,7 @@ getSelfH :: JSON ::: UserId -> Handler Response
 getSelfH (_ ::: self) = do
   json <$> getSelf self
 
-getSelf :: UserId -> Handler Public.User.SelfProfile
+getSelf :: UserId -> Handler Public.SelfProfile
 getSelf self = do
   lift (API.lookupSelfProfile self) >>= ifNothing userNotFound
 
@@ -1042,14 +1042,14 @@ getUserH :: JSON ::: UserId ::: OpaqueUserId -> Handler Response
 getUserH (_ ::: self ::: uid) = do
   fmap json . ifNothing userNotFound =<< getUser self uid
 
-getUser :: UserId -> OpaqueUserId -> Handler (Maybe Public.User.UserProfile)
+getUser :: UserId -> OpaqueUserId -> Handler (Maybe Public.UserProfile)
 getUser self opaqueUserId = do
   resolvedUserId <- resolveOpaqueUserId opaqueUserId
   lift $ API.lookupProfile self resolvedUserId
 
 getUserDisplayNameH :: JSON ::: UserId -> Handler Response
 getUserDisplayNameH (_ ::: self) = do
-  name :: Maybe Public.User.Name <- lift $ API.lookupName self
+  name :: Maybe Public.Name <- lift $ API.lookupName self
   return $ case name of
     Just n -> json $ object ["name" .= n]
     Nothing -> setStatus status404 empty
@@ -1062,7 +1062,7 @@ listUsersH (_ ::: self ::: qry) =
       [] -> setStatus status404 empty
       ps -> json ps
 
-listUsers :: UserId -> Either (List OpaqueUserId) (Range 1 4 (List (OptionallyQualified Handle))) -> Handler [Public.User.UserProfile]
+listUsers :: UserId -> Either (List OpaqueUserId) (Range 1 4 (List (OptionallyQualified Handle))) -> Handler [Public.UserProfile]
 listUsers self = \case
   Left us -> do
     resolvedUserIds <- traverse resolveOpaqueUserId (fromList us)
@@ -1078,27 +1078,27 @@ listUsers self = \case
       localUsers <- catMaybes <$> traverse (lift . API.lookupHandle) localHandles
       -- FUTUREWORK(federation, #1268): resolve qualified handles, too
       pure (Local <$> localUsers)
-    byIds :: [MappedOrLocalId Id.U] -> Handler [Public.User.UserProfile]
+    byIds :: [MappedOrLocalId Id.U] -> Handler [Public.UserProfile]
     byIds uids = lift $ API.lookupProfiles self uids
 
 newtype GetActivationCodeResp
-  = GetActivationCodeResp (Public.Activation.ActivationKey, Public.Activation.ActivationCode)
+  = GetActivationCodeResp (Public.ActivationKey, Public.ActivationCode)
 
 instance ToJSON GetActivationCodeResp where
   toJSON (GetActivationCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
-updateUserH :: UserId ::: ConnId ::: JsonRequest Public.User.UserUpdate -> Handler Response
+updateUserH :: UserId ::: ConnId ::: JsonRequest Public.UserUpdate -> Handler Response
 updateUserH (uid ::: conn ::: req) = do
   uu <- parseJsonBody req
   lift $ API.updateUser uid conn uu
   return empty
 
-changePhoneH :: UserId ::: ConnId ::: JsonRequest Public.User.PhoneUpdate -> Handler Response
+changePhoneH :: UserId ::: ConnId ::: JsonRequest Public.PhoneUpdate -> Handler Response
 changePhoneH (u ::: c ::: req) = do
   setStatus status202 empty <$ (changePhone u c =<< parseJsonBody req)
 
-changePhone :: UserId -> ConnId -> Public.User.PhoneUpdate -> Handler ()
-changePhone u _ (Public.User.puPhone -> phone) = do
+changePhone :: UserId -> ConnId -> Public.PhoneUpdate -> Handler ()
+changePhone u _ (Public.puPhone -> phone) = do
   (adata, pn) <- API.changePhone u phone !>> changePhoneError
   loc <- lift $ API.lookupLocale u
   let apair = (activationKey adata, activationCode adata)
@@ -1119,13 +1119,13 @@ checkPasswordExistsH self = do
   exists <- lift $ isJust <$> API.lookupPassword self
   return $ if exists then empty else setStatus status404 empty
 
-changePasswordH :: UserId ::: JsonRequest Public.User.PasswordChange -> Handler Response
+changePasswordH :: UserId ::: JsonRequest Public.PasswordChange -> Handler Response
 changePasswordH (u ::: req) = do
   cp <- parseJsonBody req
   API.changePassword u cp !>> changePwError
   return empty
 
-changeLocaleH :: UserId ::: ConnId ::: JsonRequest Public.User.LocaleUpdate -> Handler Response
+changeLocaleH :: UserId ::: ConnId ::: JsonRequest Public.LocaleUpdate -> Handler Response
 changeLocaleH (u ::: conn ::: req) = do
   l <- parseJsonBody req
   lift $ API.changeLocale u conn l
@@ -1157,9 +1157,9 @@ checkHandle _ uhandle = do
         -- Handle is free and can be taken
         return CheckHandleNotFound
 
-checkHandlesH :: JSON ::: UserId ::: JsonRequest Public.Handle.CheckHandles -> Handler Response
+checkHandlesH :: JSON ::: UserId ::: JsonRequest Public.CheckHandles -> Handler Response
 checkHandlesH (_ ::: _ ::: req) = do
-  Public.Handle.CheckHandles hs num <- parseJsonBody req
+  Public.CheckHandles hs num <- parseJsonBody req
   let handles = mapMaybe parseHandle (fromRange hs)
   free <- lift $ API.checkHandles handles (fromRange num)
   return $ json (free :: [Handle])
@@ -1170,7 +1170,7 @@ getHandleInfoH (_ ::: self ::: handle) =
     <$> getHandleInfo self handle
 
 -- FUTUREWORK: use 'runMaybeT' to simplify this.
-getHandleInfo :: UserId -> Handle -> Handler (Maybe Public.Handle.UserHandleInfo)
+getHandleInfo :: UserId -> Handle -> Handler (Maybe Public.UserHandleInfo)
 getHandleInfo self handle = do
   ownerProfile <- do
     -- FUTUREWORK(federation, #1268): resolve qualified handles, too
@@ -1179,23 +1179,23 @@ getHandleInfo self handle = do
       Just ownerId -> lift $ API.lookupProfile self ownerId
       Nothing -> return Nothing
   owner <- filterHandleResults self (maybeToList ownerProfile)
-  return $ Public.Handle.UserHandleInfo . Public.User.profileId <$> listToMaybe owner
+  return $ Public.UserHandleInfo . Public.profileId <$> listToMaybe owner
 
-changeHandleH :: UserId ::: ConnId ::: JsonRequest Public.User.HandleUpdate -> Handler Response
+changeHandleH :: UserId ::: ConnId ::: JsonRequest Public.HandleUpdate -> Handler Response
 changeHandleH (u ::: conn ::: req) = do
   empty <$ (changeHandle u conn =<< parseJsonBody req)
 
-changeHandle :: UserId -> ConnId -> Public.User.HandleUpdate -> Handler ()
-changeHandle u conn (Public.User.HandleUpdate h) = do
+changeHandle :: UserId -> ConnId -> Public.HandleUpdate -> Handler ()
+changeHandle u conn (Public.HandleUpdate h) = do
   handle <- validateHandle h
   API.changeHandle u conn handle !>> changeHandleError
 
-beginPasswordResetH :: JSON ::: JsonRequest Public.Password.NewPasswordReset -> Handler Response
+beginPasswordResetH :: JSON ::: JsonRequest Public.NewPasswordReset -> Handler Response
 beginPasswordResetH (_ ::: req) = do
   setStatus status201 empty <$ (beginPasswordReset =<< parseJsonBody req)
 
-beginPasswordReset :: Public.Password.NewPasswordReset -> Handler ()
-beginPasswordReset (Public.Password.NewPasswordReset target) = do
+beginPasswordReset :: Public.NewPasswordReset -> Handler ()
+beginPasswordReset (Public.NewPasswordReset target) = do
   checkWhitelist target
   (u, pair) <- API.beginPasswordReset target !>> pwResetError
   loc <- lift $ API.lookupLocale u
@@ -1203,25 +1203,25 @@ beginPasswordReset (Public.Password.NewPasswordReset target) = do
     Left email -> sendPasswordResetMail email pair loc
     Right phone -> sendPasswordResetSms phone pair loc
 
-completePasswordResetH :: JSON ::: JsonRequest Public.Password.CompletePasswordReset -> Handler Response
+completePasswordResetH :: JSON ::: JsonRequest Public.CompletePasswordReset -> Handler Response
 completePasswordResetH (_ ::: req) = do
-  Public.Password.CompletePasswordReset {..} <- parseJsonBody req
+  Public.CompletePasswordReset {..} <- parseJsonBody req
   API.completePasswordReset cpwrIdent cpwrCode cpwrPassword !>> pwResetError
   return empty
 
-sendActivationCodeH :: JsonRequest Public.Activation.SendActivationCode -> Handler Response
+sendActivationCodeH :: JsonRequest Public.SendActivationCode -> Handler Response
 sendActivationCodeH req = do
   empty <$ (sendActivationCode =<< parseJsonBody req)
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
-sendActivationCode :: Public.Activation.SendActivationCode -> Handler ()
-sendActivationCode Public.Activation.SendActivationCode {..} = do
+sendActivationCode :: Public.SendActivationCode -> Handler ()
+sendActivationCode Public.SendActivationCode {..} = do
   checkWhitelist saUserKey
   API.sendActivationCode saUserKey saLocale saCall !>> sendActCodeError
 
-changeSelfEmailH :: UserId ::: ConnId ::: JsonRequest Public.User.EmailUpdate -> Handler Response
+changeSelfEmailH :: UserId ::: ConnId ::: JsonRequest Public.EmailUpdate -> Handler Response
 changeSelfEmailH (u ::: _ ::: req) = do
-  email <- Public.User.euEmail <$> parseJsonBody req
+  email <- Public.euEmail <$> parseJsonBody req
   changeSelfEmail u email >>= \case
     -- TODO(mheinzel): is this the right way around?
     ChangeEmailResponseNeedsActivation -> pure (setStatus status204 empty)
@@ -1231,7 +1231,7 @@ data ChangeEmailResponse
   = ChangeEmailResponseNeedsActivation
   | ChangeEmailResponseIdempotent
 
-changeSelfEmail :: UserId -> Public.User.Email -> Handler ChangeEmailResponse
+changeSelfEmail :: UserId -> Public.Email -> Handler ChangeEmailResponse
 changeSelfEmail u email = do
   API.changeEmail u email !>> changeEmailError >>= \case
     ChangeEmailIdempotent ->
@@ -1243,48 +1243,48 @@ changeSelfEmail u email = do
     sendOutEmail usr adata en = do
       sendActivationMail
         en
-        (Public.User.userDisplayName usr)
+        (Public.userDisplayName usr)
         (activationKey adata, activationCode adata)
-        (Just (Public.User.userLocale usr))
-        (Public.User.userIdentity usr)
+        (Just (Public.userLocale usr))
+        (Public.userIdentity usr)
 
-createConnectionH :: JSON ::: UserId ::: ConnId ::: JsonRequest Public.Connection.ConnectionRequest -> Handler Response
+createConnectionH :: JSON ::: UserId ::: ConnId ::: JsonRequest Public.ConnectionRequest -> Handler Response
 createConnectionH (_ ::: self ::: conn ::: req) = do
   cr <- parseJsonBody req
   rs <- API.createConnection self cr conn !>> connError
   return $ case rs of
-    ConnectionCreated c -> setStatus status201 $ json (c :: Public.Connection.UserConnection)
-    ConnectionExists c -> json (c :: Public.Connection.UserConnection)
+    ConnectionCreated c -> setStatus status201 $ json (c :: Public.UserConnection)
+    ConnectionExists c -> json (c :: Public.UserConnection)
 
-updateConnectionH :: JSON ::: UserId ::: ConnId ::: UserId ::: JsonRequest Public.Connection.ConnectionUpdate -> Handler Response
+updateConnectionH :: JSON ::: UserId ::: ConnId ::: UserId ::: JsonRequest Public.ConnectionUpdate -> Handler Response
 updateConnectionH (_ ::: self ::: conn ::: other ::: req) = do
-  newStatus <- Public.Connection.cuStatus <$> parseJsonBody req
+  newStatus <- Public.cuStatus <$> parseJsonBody req
   mc <- API.updateConnection self other newStatus (Just conn) !>> connError
   return $ case mc of
-    Just c -> json (c :: Public.Connection.UserConnection)
+    Just c -> json (c :: Public.UserConnection)
     Nothing -> setStatus status204 empty
 
 listConnectionsH :: JSON ::: UserId ::: Maybe UserId ::: Range 1 500 Int32 -> Handler Response
 listConnectionsH (_ ::: uid ::: start ::: size) =
-  json @Public.Connection.UserConnectionList
+  json @Public.UserConnectionList
     <$> lift (API.lookupConnections uid start size)
 
 getConnectionH :: JSON ::: UserId ::: UserId -> Handler Response
 getConnectionH (_ ::: uid ::: uid') = lift $ do
   conn <- API.lookupConnection uid uid'
   return $ case conn of
-    Just c -> json (c :: Public.Connection.UserConnection)
+    Just c -> json (c :: Public.UserConnection)
     Nothing -> setStatus status404 empty
 
-deleteUserH :: UserId ::: JsonRequest Public.User.DeleteUser ::: JSON -> Handler Response
+deleteUserH :: UserId ::: JsonRequest Public.DeleteUser ::: JSON -> Handler Response
 deleteUserH (u ::: r ::: _) = do
   body <- parseJsonBody r
-  res <- API.deleteUser u (Public.User.deleteUserPassword body) !>> deleteUserError
+  res <- API.deleteUser u (Public.deleteUserPassword body) !>> deleteUserError
   return $ case res of
     Nothing -> setStatus status200 empty
-    Just ttl -> setStatus status202 (json (Public.User.DeletionCodeTimeout ttl))
+    Just ttl -> setStatus status202 (json (Public.DeletionCodeTimeout ttl))
 
-verifyDeleteUserH :: JsonRequest Public.User.VerifyDeleteUser ::: JSON -> Handler Response
+verifyDeleteUserH :: JsonRequest Public.VerifyDeleteUser ::: JSON -> Handler Response
 verifyDeleteUserH (r ::: _) = do
   body <- parseJsonBody r
   API.verifyDeleteUser body !>> deleteUserError
@@ -1293,7 +1293,7 @@ verifyDeleteUserH (r ::: _) = do
 -- activation
 
 data ActivationRespWithStatus
-  = ActivationResp Public.Activation.ActivationResponse
+  = ActivationResp Public.ActivationResponse
   | ActivationRespDryRun
   | ActivationRespPass
   | ActivationRespSuccessNoIdent
@@ -1306,18 +1306,18 @@ respFromActivationRespWithStatus = \case
   ActivationRespSuccessNoIdent -> empty
 
 -- docs/reference/user/activation.md {#RefActivationSubmit}
-activateKeyH :: JSON ::: JsonRequest Public.Activation.Activate -> Handler Response
+activateKeyH :: JSON ::: JsonRequest Public.Activate -> Handler Response
 activateKeyH (_ ::: req) = do
   activationRequest <- parseJsonBody req
   respFromActivationRespWithStatus <$> activate activationRequest
 
-activateH :: Public.Activation.ActivationKey ::: Public.Activation.ActivationCode -> Handler Response
+activateH :: Public.ActivationKey ::: Public.ActivationCode -> Handler Response
 activateH (k ::: c) = do
-  let activationRequest = Public.Activation.Activate (Public.Activation.ActivateKey k) c False
+  let activationRequest = Public.Activate (Public.ActivateKey k) c False
   respFromActivationRespWithStatus <$> activate activationRequest
 
-activate :: Public.Activation.Activate -> Handler ActivationRespWithStatus
-activate (Public.Activation.Activate tgt code dryrun)
+activate :: Public.Activate -> Handler ActivationRespWithStatus
+activate (Public.Activate tgt code dryrun)
   | dryrun = do
     API.preverify tgt code !>> actError
     return $ ActivationRespDryRun
@@ -1327,7 +1327,7 @@ activate (Public.Activation.Activate tgt code dryrun)
       ActivationSuccess ident first -> respond ident first
       ActivationPass -> ActivationRespPass
   where
-    respond (Just ident) first = ActivationResp $ Public.Activation.ActivationResponse ident first
+    respond (Just ident) first = ActivationResp $ Public.ActivationResponse ident first
     respond Nothing _ = ActivationRespSuccessNoIdent
 
 -- Deprecated
@@ -1344,13 +1344,13 @@ instance ToJSON DeprecatedMatchingResult where
         "auto-connects" .= ([] :: [()])
       ]
 
-deprecatedCompletePasswordResetH :: JSON ::: Public.Password.PasswordResetKey ::: JsonRequest Public.Password.PasswordReset -> Handler Response
+deprecatedCompletePasswordResetH :: JSON ::: Public.PasswordResetKey ::: JsonRequest Public.PasswordReset -> Handler Response
 deprecatedCompletePasswordResetH (_ ::: k ::: req) = do
   pwr <- parseJsonBody req
   API.completePasswordReset
-    (Public.Password.PasswordResetIdentityKey k)
-    (Public.Password.pwrCode pwr)
-    (Public.Password.pwrPassword pwr)
+    (Public.PasswordResetIdentityKey k)
+    (Public.pwrCode pwr)
+    (Public.pwrPassword pwr)
     !>> pwResetError
   return empty
 
@@ -1363,13 +1363,13 @@ ifNothing :: Utilities.Error -> Maybe a -> Handler a
 ifNothing e = maybe (throwStd e) return
 
 -- | Checks search permissions and filters accordingly
-filterHandleResults :: UserId -> [Public.User.UserProfile] -> Handler [Public.User.UserProfile]
+filterHandleResults :: UserId -> [Public.UserProfile] -> Handler [Public.UserProfile]
 filterHandleResults searchingUser us = do
   sameTeamSearchOnly <- fromMaybe False <$> view (settings . searchSameTeamOnly)
   if sameTeamSearchOnly
     then do
       fromTeam <- lift $ Data.lookupUserTeam searchingUser
       return $ case fromTeam of
-        Just team -> filter (\x -> Public.User.profileTeam x == Just team) us
+        Just team -> filter (\x -> Public.profileTeam x == Just team) us
         Nothing -> us
     else return us
