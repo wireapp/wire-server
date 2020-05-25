@@ -205,7 +205,7 @@ queryIndex (IndexQuery q f) (fromRange -> s) = liftIndexIO $ do
 -- FUTUREWORK: Drop legacyPrefixMatch
 defaultUserQuery :: UserId -> TeamSearchInfo -> Text -> IndexQuery Contact
 defaultUserQuery u teamSearchInfo (normalized -> term') =
-  let matchPrefix =
+  let matchPhraseOrPrefix =
         ES.QueryMultiMatchQuery $
           ( ES.mkMultiMatchQuery
               [ ES.FieldName "handle.prefix^2",
@@ -218,6 +218,7 @@ defaultUserQuery u teamSearchInfo (normalized -> term') =
             { ES.multiMatchQueryType = Just ES.MultiMatchMostFields,
               ES.multiMatchQueryOperator = ES.And
             }
+      -- This is required, so we can support prefix match until migration is done
       legacyPrefixMatch =
         ES.QueryMultiMatchQuery $
           ( ES.mkMultiMatchQuery
@@ -232,7 +233,10 @@ defaultUserQuery u teamSearchInfo (normalized -> term') =
       query =
         ES.QueryBoolQuery
           boolQuery
-            { ES.boolQueryMustMatch = [ES.QueryBoolQuery boolQuery {ES.boolQueryShouldMatch = [matchPrefix, legacyPrefixMatch]}],
+            { ES.boolQueryMustMatch =
+                [ ES.QueryBoolQuery
+                    boolQuery {ES.boolQueryShouldMatch = [matchPhraseOrPrefix, legacyPrefixMatch]}
+                ],
               ES.boolQueryShouldMatch = [ES.QueryExistsQuery (ES.FieldName "handle")]
             }
       -- This reduces relevance on non-team users by 90%, there was no science
