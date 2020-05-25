@@ -1223,13 +1223,12 @@ changeSelfEmailH :: UserId ::: ConnId ::: JsonRequest Public.EmailUpdate -> Hand
 changeSelfEmailH (u ::: _ ::: req) = do
   email <- Public.euEmail <$> parseJsonBody req
   changeSelfEmail u email >>= \case
-    -- TODO(mheinzel): is this the right way around?
-    ChangeEmailResponseNeedsActivation -> pure (setStatus status204 empty)
-    ChangeEmailResponseIdempotent -> pure (setStatus status202 empty)
+    ChangeEmailResponseIdempotent -> pure (setStatus status204 empty)
+    ChangeEmailResponseNeedsActivation -> pure (setStatus status202 empty)
 
 data ChangeEmailResponse
-  = ChangeEmailResponseNeedsActivation
-  | ChangeEmailResponseIdempotent
+  = ChangeEmailResponseIdempotent
+  | ChangeEmailResponseNeedsActivation
 
 changeSelfEmail :: UserId -> Public.Email -> Handler ChangeEmailResponse
 changeSelfEmail u email = do

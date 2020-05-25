@@ -292,12 +292,12 @@ changeSelfEmailNoSendH :: UserId ::: JsonRequest EmailUpdate -> Handler Response
 changeSelfEmailNoSendH (u ::: req) = do
   email <- euEmail <$> parseJsonBody req
   changeSelfEmailNoSend u email >>= \case
-    ChangeEmailResponseNeedsActivation -> pure (setStatus status204 empty)
-    ChangeEmailResponseIdempotent -> pure (setStatus status202 empty)
+    ChangeEmailResponseIdempotent -> pure (setStatus status204 empty)
+    ChangeEmailResponseNeedsActivation -> pure (setStatus status202 empty)
 
 data ChangeEmailResponse
-  = ChangeEmailResponseNeedsActivation
-  | ChangeEmailResponseIdempotent
+  = ChangeEmailResponseIdempotent
+  | ChangeEmailResponseNeedsActivation
 
 changeSelfEmailNoSend :: UserId -> Email -> Handler ChangeEmailResponse
 changeSelfEmailNoSend u email = do
