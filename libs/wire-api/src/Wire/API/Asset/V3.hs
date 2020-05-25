@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -73,6 +74,7 @@ import qualified Data.Text.Encoding as T
 import Data.Time.Clock
 import qualified Data.UUID as UUID
 import Imports
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- Asset
@@ -83,6 +85,8 @@ data Asset = Asset
     _assetExpires :: Maybe UTCTime,
     _assetToken :: Maybe AssetToken
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Asset)
 
 mkAsset :: AssetKey -> Asset
 mkAsset k = Asset k Nothing Nothing
@@ -97,7 +101,8 @@ instance ToJSON Asset where
 
 instance FromJSON Asset where
   parseJSON = withObject "Asset" $ \o ->
-    Asset <$> o .: "key"
+    Asset
+      <$> o .: "key"
       <*> o .:? "expires"
       <*> o .:? "token"
 
@@ -108,7 +113,8 @@ instance FromJSON Asset where
 -- Note: Can be turned into a sum type with additional constructors
 -- for future versions.
 data AssetKey = AssetKeyV3 AssetId AssetRetention
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform AssetKey)
 
 instance FromByteString AssetKey where
   parser = do
@@ -149,11 +155,14 @@ instance FromJSON AssetKey where
 
 -- | Asset tokens are bearer tokens that grant access to a single asset.
 newtype AssetToken = AssetToken {assetTokenAscii :: AsciiBase64Url}
-  deriving (Eq, Show, FromByteString, ToByteString, FromJSON, ToJSON)
+  deriving stock (Eq, Show)
+  deriving newtype (FromByteString, ToByteString, FromJSON, ToJSON, Arbitrary)
 
 -- | A newly (re)generated token for an existing asset.
 newtype NewAssetToken = NewAssetToken
   {newAssetToken :: AssetToken}
+  deriving stock (Eq, Show)
+  deriving newtype (Arbitrary)
 
 instance FromJSON NewAssetToken where
   parseJSON = withObject "NewAssetToken" $ \o ->
@@ -225,6 +234,33 @@ mkHeaders t b = AssetHeaders t (fromIntegral (LBS.length b)) (hashlazy b)
 --------------------------------------------------------------------------------
 -- AssetSettings
 
+-- | Settings provided during upload.
+data AssetSettings = AssetSettings
+  { _setAssetPublic :: Bool,
+    _setAssetRetention :: Maybe AssetRetention
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform AssetSettings)
+
+defAssetSettings :: AssetSettings
+defAssetSettings = AssetSettings False Nothing
+
+instance ToJSON AssetSettings where
+  toJSON s =
+    object $
+      "public" .= _setAssetPublic s
+        # "retention" .= _setAssetRetention s
+        # []
+
+instance FromJSON AssetSettings where
+  parseJSON = withObject "AssetSettings" $ \o ->
+    AssetSettings
+      <$> o .:? "public" .!= False
+      <*> o .:? "retention"
+
+--------------------------------------------------------------------------------
+-- AssetRetention
+
 -- | The desired asset retention.
 data AssetRetention
   = -- | The asset is retained indefinitely. Typically used
@@ -241,7 +277,8 @@ data AssetRetention
   | -- | The asset is retained for an extended period of time,
     -- but not indefinitely.
     AssetExpiring
-  deriving (Eq, Show, Enum, Bounded)
+  deriving stock (Eq, Show, Enum, Bounded, Generic)
+  deriving (Arbitrary) via (GenericUniform AssetRetention)
 
 -- | The minimum TTL in seconds corresponding to a chosen retention.
 assetRetentionSeconds :: AssetRetention -> Maybe NominalDiffTime
@@ -257,14 +294,12 @@ assetVolatileSeconds = 28 * 24 * 3600 -- 28 days
 assetExpiringSeconds :: NominalDiffTime
 assetExpiringSeconds = 365 * 24 * 3600 -- 365 days
 
--- | Settings provided during upload.
-data AssetSettings = AssetSettings
-  { _setAssetPublic :: Bool,
-    _setAssetRetention :: Maybe AssetRetention
-  }
-
-defAssetSettings :: AssetSettings
-defAssetSettings = AssetSettings False Nothing
+instance ToByteString AssetRetention where
+  builder AssetEternal = builder '1'
+  builder AssetPersistent = builder '2'
+  builder AssetVolatile = builder '3'
+  builder AssetEternalInfrequentAccess = builder '4'
+  builder AssetExpiring = builder '5'
 
 -- | ByteString representation is used in AssetKey
 instance FromByteString AssetRetention where
@@ -276,12 +311,8 @@ instance FromByteString AssetRetention where
     5 -> return AssetExpiring
     _ -> fail $ "Invalid asset retention: " ++ show d
 
-instance ToByteString AssetRetention where
-  builder AssetEternal = builder '1'
-  builder AssetPersistent = builder '2'
-  builder AssetVolatile = builder '3'
-  builder AssetEternalInfrequentAccess = builder '4'
-  builder AssetExpiring = builder '5'
+instance ToJSON AssetRetention where
+  toJSON = String . retentionToTextRep
 
 retentionToTextRep :: AssetRetention -> Text
 retentionToTextRep AssetEternal = "eternal"
@@ -300,21 +331,6 @@ instance FromJSON AssetRetention where
       "eternal-infrequent_access" -> pure AssetEternalInfrequentAccess
       "expiring" -> pure AssetExpiring
       _ -> fail $ "Invalid asset retention: " ++ show t
-
-instance ToJSON AssetRetention where
-  toJSON = String . retentionToTextRep
-
-instance FromJSON AssetSettings where
-  parseJSON = withObject "AssetSettings" $ \o ->
-    AssetSettings <$> o .:? "public" .!= False
-      <*> o .:? "retention"
-
-instance ToJSON AssetSettings where
-  toJSON s =
-    object $
-      "public" .= _setAssetPublic s
-        # "retention" .= _setAssetRetention s
-        # []
 
 makeLenses ''Asset
 makeLenses ''AssetSettings

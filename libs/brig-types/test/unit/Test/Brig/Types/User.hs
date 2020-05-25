@@ -27,52 +27,21 @@
 
 module Test.Brig.Types.User where
 
-import Brig.Types.Activation
-import Brig.Types.Intra
-import Brig.Types.Provider (UpdateServiceWhitelist)
-import Brig.Types.Team.Invitation
-import Brig.Types.Test.Arbitrary ()
-import Brig.Types.User
+import Brig.Types.Intra (ReAuthUser (..))
+import Brig.Types.User (ManagedByUpdate (..), RichInfoUpdate (..))
 import Imports
-import Test.Brig.Roundtrip
-import Test.QuickCheck
+import Test.Brig.Roundtrip (testRoundTrip)
+import Test.QuickCheck (Arbitrary (arbitrary))
 import Test.Tasty
-import Wire.API.Arbitrary ()
-import Wire.API.Team.Member
 
 tests :: TestTree
 tests = testGroup "User (types vs. aeson)" $ roundtripTests
 
 roundtripTests :: [TestTree]
 roundtripTests =
-  [ testRoundTrip @BindingNewTeamUser,
-    testRoundTrip @CheckHandles,
-    testRoundTrip @CompletePasswordReset,
-    testRoundTrip @DeleteUser,
-    testRoundTrip @DeletionCodeTimeout,
-    testRoundTrip @EmailUpdate,
-    testRoundTrip @HandleUpdate,
-    testRoundTrip @InvitationList,
-    testRoundTrip @Invitation,
-    testRoundTrip @InvitationRequest,
-    testRoundTrip @LocaleUpdate,
-    testRoundTrip @NewPasswordReset,
-    testRoundTrip @NewUser,
-    testRoundTrip @PasswordChange,
-    testRoundTrip @PhoneUpdate,
-    testRoundTrip @ManagedByUpdate,
+  [ testRoundTrip @ManagedByUpdate,
     testRoundTrip @ReAuthUser,
-    testRoundTrip @SelfProfile,
-    testRoundTrip @TeamMember,
-    testRoundTrip @UpdateServiceWhitelist,
-    testRoundTrip @UserHandleInfo,
-    testRoundTrip @UserIdentity,
-    testRoundTrip @UserProfile,
-    testRoundTrip @User,
-    testRoundTrip @RichInfo,
-    testRoundTrip @UserUpdate,
-    testRoundTrip @RichInfoUpdate,
-    testRoundTrip @VerifyDeleteUser
+    testRoundTrip @RichInfoUpdate
   ]
 
 instance Arbitrary ManagedByUpdate where

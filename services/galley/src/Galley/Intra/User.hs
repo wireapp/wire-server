@@ -20,6 +20,7 @@ module Galley.Intra.User
     deleteBot,
     reAuthUser,
     lookupActivatedUsers,
+    getUser,
     deleteUser,
     getContactList,
   )
@@ -30,6 +31,7 @@ import Bilge.RPC
 import Brig.Types.Connection (UserIds (..))
 import Brig.Types.Connection (ConnectionsStatusRequest (..), Relation (..))
 import Brig.Types.Intra (ConnectionStatus (..), ReAuthUser (..))
+import Brig.Types.Intra
 import Brig.Types.User (User)
 import Control.Monad.Catch (throwM)
 import Data.ByteString.Char8 (pack)
@@ -110,6 +112,18 @@ lookupActivatedUsers uids = do
   parseResponse (Error status502 "server-error") r
   where
     users = BSC.intercalate "," $ toByteString' <$> uids
+
+-- | Calls 'Brig.API.listActivatedAccountsH'.
+getUser :: UserId -> Galley (Maybe UserAccount)
+getUser uid = do
+  (h, p) <- brigReq
+  resp <-
+    call "brig" $
+      method GET . host h . port p
+        . path "/i/users"
+        . queryItem "ids" (toByteString' uid)
+        . expect2xx
+  pure . maybe Nothing listToMaybe . responseJsonMaybe $ resp
 
 -- | Calls 'Brig.API.deleteUserNoVerifyH'.
 deleteUser :: UserId -> Galley ()

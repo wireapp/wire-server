@@ -78,7 +78,6 @@ import Data.Misc (Milliseconds)
 import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Code
-import Wire.API.Conversation.Member
 import Wire.API.Conversation.Typing
 import Wire.API.CustomBackend
 import Wire.API.Event.Conversation

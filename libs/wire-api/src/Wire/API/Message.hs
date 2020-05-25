@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -27,10 +28,12 @@ module Wire.API.Message
 
     -- * Recipients
     OtrRecipients (..),
+    UserClientMap (..),
 
     -- * Filter
     OtrFilterMissing (..),
     ClientMismatch (..),
+    UserClients (..),
 
     -- * Swagger
     modelNewOtrMessage,
@@ -46,7 +49,8 @@ import Data.Json.Util
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Time
 import Imports
-import Wire.API.User.Client (UserClientMap, UserClients, modelOtrClientMap, modelUserClients)
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.API.User.Client (UserClientMap (..), UserClients (..), modelOtrClientMap, modelUserClients)
 
 --------------------------------------------------------------------------------
 -- Message
@@ -64,7 +68,8 @@ data NewOtrMessage = NewOtrMessage
     -- should do the latter, for two reasons: (1) no need for an artificial limit on the
     -- body field length, because it'd be just a boolean; (2) less network consumption.
   }
-  deriving (Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewOtrMessage)
 
 modelNewOtrMessage :: Doc.Model
 modelNewOtrMessage = Doc.defineModel "NewOtrMessage" $ do
@@ -105,7 +110,8 @@ instance ToJSON NewOtrMessage where
 
 instance FromJSON NewOtrMessage where
   parseJSON = withObject "new-otr-message" $ \o ->
-    NewOtrMessage <$> o .: "sender"
+    NewOtrMessage
+      <$> o .: "sender"
       <*> o .: "recipients"
       <*> o .:? "native_push" .!= True
       <*> o .:? "transient" .!= False
@@ -128,7 +134,8 @@ instance FromJSON NewOtrMessage where
 --
 -- see also: 'Wire.API.Message.Proto.Priority'.
 data Priority = LowPriority | HighPriority
-  deriving (Eq, Show, Ord, Enum)
+  deriving stock (Eq, Show, Ord, Enum, Generic)
+  deriving (Arbitrary) via (GenericUniform Priority)
 
 typePriority :: Doc.DataType
 typePriority =
@@ -155,7 +162,7 @@ newtype OtrRecipients = OtrRecipients
   { otrRecipientsMap :: UserClientMap Text
   }
   deriving stock (Eq, Show)
-  deriving newtype (ToJSON, FromJSON, Semigroup, Monoid)
+  deriving newtype (ToJSON, FromJSON, Semigroup, Monoid, Arbitrary)
 
 modelOtrRecipients :: Doc.Model
 modelOtrRecipients = Doc.defineModel "OtrRecipients" $ do
@@ -180,7 +187,8 @@ data OtrFilterMissing
   | -- | Complain only about missing
     --      recipients who /are/ on this list
     OtrReportMissing (Set OpaqueUserId)
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform OtrFilterMissing)
 
 data ClientMismatch = ClientMismatch
   { cmismatchTime :: UTCTime,
@@ -190,7 +198,8 @@ data ClientMismatch = ClientMismatch
     redundantClients :: UserClients,
     deletedClients :: UserClients
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ClientMismatch)
 
 modelClientMismatch :: Doc.Model
 modelClientMismatch = Doc.defineModel "ClientMismatch" $ do
@@ -215,7 +224,8 @@ instance ToJSON ClientMismatch where
 
 instance FromJSON ClientMismatch where
   parseJSON = withObject "ClientMismatch" $ \o ->
-    ClientMismatch <$> o .: "time"
+    ClientMismatch
+      <$> o .: "time"
       <*> o .: "missing"
       <*> o .: "redundant"
       <*> o .: "deleted"

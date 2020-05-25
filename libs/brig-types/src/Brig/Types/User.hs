@@ -85,7 +85,6 @@ import Imports
 import Wire.API.User
 import Wire.API.User.Handle
 import Wire.API.User.Password
-import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 
 newtype ManagedByUpdate = ManagedByUpdate {mbuManagedBy :: ManagedBy} deriving (Eq, Show, Generic)

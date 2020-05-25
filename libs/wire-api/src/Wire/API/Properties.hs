@@ -34,6 +34,7 @@ import Data.Hashable (Hashable)
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import Imports
+import Wire.API.Arbitrary (Arbitrary)
 
 newtype PropertyKeysAndValues = PropertyKeysAndValues [(PropertyKey, PropertyValue)]
   deriving stock (Eq, Show, Generic)
@@ -50,12 +51,12 @@ instance ToJSON PropertyKeysAndValues where
 newtype PropertyKey = PropertyKey
   {propertyKeyName :: AsciiPrintable}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (FromByteString, ToByteString, FromJSON, ToJSON, FromJSONKey, ToJSONKey, Hashable)
+  deriving newtype (FromByteString, ToByteString, FromJSON, ToJSON, FromJSONKey, ToJSONKey, Hashable, Arbitrary)
 
 newtype PropertyValue = PropertyValue
   {propertyValueJson :: Value}
   deriving stock (Eq, Show, Generic)
-  deriving newtype (FromJSON, ToJSON, Hashable)
+  deriving newtype (FromJSON, ToJSON, Hashable, Arbitrary)
 
 modelPropertyValue :: Doc.Model
 modelPropertyValue =

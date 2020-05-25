@@ -53,9 +53,19 @@ import qualified Galley.Run as Run
 import Galley.Types
 import Galley.Types.Conversations.Roles hiding (DeleteConversation)
 import qualified Galley.Types.Teams as Team
-import Galley.Types.Teams hiding (EventType (..))
+import Galley.Types.Teams hiding (Event, EventType (..))
 import Galley.Types.Teams.Intra
-import Gundeck.Types.Notification hiding (target)
+import Gundeck.Types.Notification
+  ( Notification (..),
+    NotificationId,
+    QueuedNotification,
+    QueuedNotificationList,
+    queuedHasMore,
+    queuedNotificationId,
+    queuedNotificationPayload,
+    queuedNotifications,
+    queuedTime,
+  )
 import Imports
 import qualified Network.Wai.Test as WaiTest
 import qualified Test.QuickCheck as Q
@@ -65,6 +75,7 @@ import Test.Tasty.HUnit
 import TestSetup
 import UnliftIO.Timeout
 import Web.Cookie
+import qualified Wire.API.Event.Team as TE
 import qualified Wire.API.Message.Proto as Proto
 
 -------------------------------------------------------------------------------
@@ -815,6 +826,51 @@ deleteUser u = do
   g <- view tsGalley
   delete (g . path "/i/user" . zUser u) !!! const 200 === statusCode
 
+getTeamQueue :: HasCallStack => UserId -> Maybe NotificationId -> Maybe (Int, Bool) -> Bool -> TestM [(NotificationId, UserId)]
+getTeamQueue zusr msince msize onlyLast = do
+  parseEventList . responseJsonUnsafe
+    <$> ( getTeamQueue' zusr msince (fst <$> msize) onlyLast
+            <!! const 200 === statusCode
+        )
+  where
+    parseEventList :: QueuedNotificationList -> [(NotificationId, UserId)]
+    parseEventList qnl
+      | isJust msize && qnl ^. queuedHasMore /= (snd $ fromJust msize) =
+        error $ "expected has_more: " <> show (snd $ fromJust msize) <> "; but found: " <> show (qnl ^. queuedHasMore)
+      | qnl ^. queuedTime /= Nothing =
+        error $ "expected time: Nothing; but found: " <> show (qnl ^. queuedTime)
+      | otherwise =
+        fmap (_2 %~ parseEvt) . mconcat . fmap parseEvts . view queuedNotifications $ qnl
+    --
+    parseEvts :: QueuedNotification -> [(NotificationId, Object)]
+    parseEvts qn = (qn ^. queuedNotificationId,) <$> (toList . toNonEmpty $ qn ^. queuedNotificationPayload)
+    --
+    parseEvt :: Object -> UserId
+    parseEvt o = case fromJSON (Object o) of
+      (Error msg) -> error msg
+      (Success (e :: TE.Event)) ->
+        case e ^. TE.eventData of
+          Just (EdMemberJoin uid) -> uid
+          _ -> error ("bad even type: " <> show (e ^. TE.eventType))
+
+getTeamQueue' :: HasCallStack => UserId -> Maybe NotificationId -> Maybe Int -> Bool -> TestM ResponseLBS
+getTeamQueue' zusr msince msize onlyLast = do
+  g <- view tsGalley
+  get
+    ( g . path "/teams/notifications"
+        . zUser zusr
+        . zConn "conn"
+        . zType "access"
+        . query
+          [ ("since", toByteString' <$> msince),
+            ("size", toByteString' <$> msize),
+            ("last", if onlyLast then Just "true" else Nothing)
+          ]
+    )
+
+-------------------------------------------------------------------------------
+-- Common Assertions
+
 assertConvMemberWithRole :: HasCallStack => RoleName -> ConvId -> UserId -> TestM ()
 assertConvMemberWithRole r c u =
   getSelfMember u c !!! do
@@ -833,9 +889,6 @@ assertNotConvMember u c =
   getSelfMember u c !!! do
     const 200 === statusCode
     const (Right Null) === responseJsonEither
-
--------------------------------------------------------------------------------
--- Common Assertions
 
 assertConvEquals :: (HasCallStack, MonadIO m) => Conversation -> Conversation -> m ()
 assertConvEquals c1 c2 = liftIO $ do

@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -31,12 +32,14 @@ import Data.Json.Util ((#))
 import Data.Misc (HttpsUrl)
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 
 data CustomBackend = CustomBackend
   { backendConfigJsonUrl :: HttpsUrl,
     backendWebappWelcomeUrl :: HttpsUrl
   }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform CustomBackend)
 
 modelCustomBackend :: Doc.Model
 modelCustomBackend = Doc.defineModel "CustomBackend" $ do

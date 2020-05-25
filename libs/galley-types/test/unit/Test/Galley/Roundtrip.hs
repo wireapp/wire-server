@@ -1,6 +1,3 @@
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -18,20 +15,22 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Wire.API.Team where
+module Test.Galley.Roundtrip where
 
-import Data.Aeson
+import Data.Aeson (FromJSON, ToJSON, parseJSON, toJSON)
+import Data.Aeson.Types (parseEither)
 import Imports
-import Test.Tasty
-import Test.Tasty.HUnit
-import qualified Wire.API.Team.Member as Team.Member
+import Test.Tasty (TestTree)
+import Test.Tasty.QuickCheck ((===), Arbitrary, counterexample, testProperty)
+import Type.Reflection (typeRep)
 
--- NB: validateEveryToJSON from servant-swagger doesn't render these tests unnecessary!
-
-tests :: TestTree
-tests =
-  testGroup
-    "Common (types vs. aeson)"
-    [ testCase "{} is a valid TeamMemberDeleteData" $ do
-        assertBool "{}" (isRight (eitherDecode @Team.Member.TeamMemberDeleteData "{}"))
-    ]
+testRoundTrip ::
+  forall a.
+  (Arbitrary a, Typeable a, ToJSON a, FromJSON a, Eq a, Show a) =>
+  TestTree
+testRoundTrip = testProperty msg trip
+  where
+    msg = show (typeRep @a)
+    trip (v :: a) =
+      counterexample (show $ toJSON v) $
+        Right v === (parseEither parseJSON . toJSON) v

@@ -68,4 +68,4 @@ newtype ZeroToTen = ZeroToTen Int
   deriving (Eq, Show)
 
 instance Arbitrary ZeroToTen where
-  arbitrary = ZeroToTen <$> choose (0, 10)
+  arbitrary = ZeroToTen <$> chooseInt (0, 10)

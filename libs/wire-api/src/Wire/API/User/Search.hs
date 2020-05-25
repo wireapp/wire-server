@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -31,6 +32,7 @@ import Data.Aeson
 import Data.Id (TeamId, UserId)
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- SearchResult
@@ -41,7 +43,8 @@ data SearchResult a = SearchResult
     searchTook :: Int,
     searchResults :: [a]
   }
-  deriving (Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform (SearchResult a))
 
 modelSearchResult :: Doc.Model
 modelSearchResult = Doc.defineModel "SearchResult" $ do
@@ -66,7 +69,8 @@ instance ToJSON a => ToJSON (SearchResult a) where
 
 instance FromJSON a => FromJSON (SearchResult a) where
   parseJSON = withObject "SearchResult" $ \o ->
-    SearchResult <$> o .: "found"
+    SearchResult
+      <$> o .: "found"
       <*> o .: "returned"
       <*> o .: "took"
       <*> o .: "documents"
@@ -82,7 +86,8 @@ data Contact = Contact
     contactHandle :: Maybe Text,
     contactTeam :: Maybe TeamId
   }
-  deriving (Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Contact)
 
 modelSearchContact :: Doc.Model
 modelSearchContact = Doc.defineModel "Contact" $ do

@@ -31,6 +31,7 @@ import qualified Data.Predicate as P
 import Data.Range
 import qualified Data.Set as Set
 import Data.Swagger.Build.Api hiding (Response, def, min)
+import qualified Data.Swagger.Build.Api as Swagger
 import Data.Text.Encoding (decodeLatin1)
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
@@ -57,6 +58,7 @@ import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Utilities.ZAuth
+import Wire.API.Notification (modelNotificationList)
 import Wire.Swagger (int32Between)
 
 sitemap :: Routes ApiBuilder Galley ()
@@ -195,6 +197,36 @@ sitemap = do
     response 200 "Team member" end
     errorResponse Error.notATeamMember
     errorResponse Error.teamMemberNotFound
+
+  get "/teams/notifications" (continue Teams.getTeamNotificationsH) $
+    zauthUserId
+      .&. opt (query "since")
+      .&. def (unsafeRange 1000) (query "size")
+      .&. accept "application" "json"
+  document "GET" "getTeamNotifications" $ do
+    summary "Read recently added team members from team queue"
+    notes
+      "This is a work-around for scalability issues with gundeck user event fan-out. \
+      \It does not track all team-wide events, but only `member-join`.  Note that there \
+      \are some subtle differences in the behavior of `/teams/notifications` compared to \
+      \`/notifications`: it does not set status 404 in the response if there is a gap.  \
+      \Instead, if the request contains a `since` notification id, the notification with \
+      \that id is included in the response if it exists.  If the UUIDv1 does *not* exist, \
+      \you get the more recent events from the queue (instead of all of them).  There is \
+      \no way to get the last event in a team event queue.  (In `/notifications`, this is \
+      \only needed to avoid having to pull the entire queue which we can do here by just \
+      \using a recent time stamp in the UUIDv1.)"
+    parameter Query "since" bytes' $ do
+      optional
+      description "Notification id to start with in the response (UUIDv1)"
+    parameter Query "size" (int32 (Swagger.def 1000)) $ do
+      optional
+      description "Maximum number of events to return (1..10000; default: 1000)"
+    returns (ref modelNotificationList)
+    response 200 "List of team notifications" end
+    errorResponse Error.notATeamMember
+    errorResponse Error.getTeamNotificationsNotFound
+    errorResponse Error.invalidTeamNotificationId
 
   post "/teams/:tid/members" (continue Teams.addTeamMemberH) $
     zauthUserId

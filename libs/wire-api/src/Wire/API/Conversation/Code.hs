@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -43,13 +44,15 @@ import Data.Misc (HttpsUrl (HttpsUrl))
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import qualified URI.ByteString as URI
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 
 data ConversationCode = ConversationCode
   { conversationKey :: Code.Key,
     conversationCode :: Code.Value,
     conversationUri :: Maybe HttpsUrl
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationCode)
 
 modelConversationCode :: Doc.Model
 modelConversationCode = Doc.defineModel "ConversationCode" $ do
@@ -72,7 +75,8 @@ instance ToJSON ConversationCode where
 
 instance FromJSON ConversationCode where
   parseJSON = JSON.withObject "join" $ \o ->
-    ConversationCode <$> o .: "key"
+    ConversationCode
+      <$> o .: "key"
       <*> o .: "code"
       <*> o .:? "uri"
 

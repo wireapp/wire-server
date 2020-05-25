@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -34,6 +35,7 @@ import Data.Id
 import Data.Json.Util
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Team.Role (Role, defaultRole, typeRole)
 import Wire.API.User.Identity (Email, Phone)
 import Wire.API.User.Profile (Locale, Name)
@@ -49,7 +51,8 @@ data InvitationRequest = InvitationRequest
     irInviteeName :: Maybe Name,
     irPhone :: Maybe Phone
   }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform InvitationRequest)
 
 modelTeamInvitationRequest :: Doc.Model
 modelTeamInvitationRequest = Doc.defineModel "TeamInvitationRequest" $ do
@@ -84,7 +87,8 @@ instance ToJSON InvitationRequest where
 
 instance FromJSON InvitationRequest where
   parseJSON = withObject "invitation-request" $ \o ->
-    InvitationRequest <$> o .: "email"
+    InvitationRequest
+      <$> o .: "email"
       <*> o .: "inviter_name"
       <*> o .:? "locale"
       <*> o .:? "role"
@@ -106,7 +110,8 @@ data Invitation = Invitation
     inInviteeName :: Maybe Name,
     inPhone :: Maybe Phone
   }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Invitation)
 
 -- | This is *not* the swagger model for the 'TeamInvitation' type (which does not exist), but
 -- for the use of 'Invitation' under @/teams/{tid}/invitations@.
@@ -152,7 +157,8 @@ instance ToJSON Invitation where
 
 instance FromJSON Invitation where
   parseJSON = withObject "invitation" $ \o ->
-    Invitation <$> o .: "team"
+    Invitation
+      <$> o .: "team"
       -- clients, when leaving "role" empty, can leave the default role choice to us
       <*> o .:? "role" .!= defaultRole
       <*> o .: "id"
@@ -169,7 +175,8 @@ data InvitationList = InvitationList
   { ilInvitations :: [Invitation],
     ilHasMore :: Bool
   }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform InvitationList)
 
 modelTeamInvitationList :: Doc.Model
 modelTeamInvitationList = Doc.defineModel "TeamInvitationList" $ do
@@ -187,5 +194,6 @@ instance ToJSON InvitationList where
 
 instance FromJSON InvitationList where
   parseJSON = withObject "InvitationList" $ \o ->
-    InvitationList <$> o .: "invitations"
+    InvitationList
+      <$> o .: "invitations"
       <*> o .: "has_more"

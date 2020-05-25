@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -45,6 +46,8 @@ import Data.Id
 import Data.Json.Util
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
+import qualified Test.QuickCheck as QC
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Conversation.Role
 import Wire.API.Provider.Service (ServiceRef, modelServiceRef)
 
@@ -52,7 +55,8 @@ data ConvMembers = ConvMembers
   { cmSelf :: Member,
     cmOthers :: [OtherMember]
   }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConvMembers)
 
 modelConversationMembers :: Doc.Model
 modelConversationMembers = Doc.defineModel "ConversationMembers" $ do
@@ -70,13 +74,10 @@ instance ToJSON ConvMembers where
       ]
 
 instance FromJSON ConvMembers where
-  parseJSON =
-    withObject
-      "conv-members"
-      ( \o ->
-          ConvMembers <$> o .: "self"
-            <*> o .: "others"
-      )
+  parseJSON = withObject "conv-members" $ \o ->
+    ConvMembers
+      <$> o .: "self"
+      <*> o .: "others"
 
 --------------------------------------------------------------------------------
 -- Members
@@ -94,7 +95,8 @@ data Member = Member
     memHiddenRef :: Maybe Text,
     memConvRoleName :: RoleName
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Member)
 
 modelMember :: Doc.Model
 modelMember = Doc.defineModel "Member" $ do
@@ -144,7 +146,8 @@ instance ToJSON Member where
 
 instance FromJSON Member where
   parseJSON = withObject "member object" $ \o ->
-    Member <$> o .: "id"
+    Member
+      <$> o .: "id"
       <*> o .:? "service"
       <*> o .:? "otr_muted" .!= False
       <*> o .:? "otr_muted_status"
@@ -158,14 +161,16 @@ instance FromJSON Member where
 -- | The semantics of the possible different values is entirely up to clients,
 -- the server will not interpret this value in any way.
 newtype MutedStatus = MutedStatus {fromMutedStatus :: Int32}
-  deriving (Eq, Num, Ord, Show, FromJSON, ToJSON, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (Num, FromJSON, ToJSON, Arbitrary)
 
 data OtherMember = OtherMember
   { omId :: UserId,
     omService :: Maybe ServiceRef,
     omConvRoleName :: RoleName
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform OtherMember)
 
 instance Ord OtherMember where
   compare a b = compare (omId a) (omId b)
@@ -189,7 +194,8 @@ instance ToJSON OtherMember where
 
 instance FromJSON OtherMember where
   parseJSON = withObject "other-member" $ \o ->
-    OtherMember <$> o .: "id"
+    OtherMember
+      <$> o .: "id"
       <*> o .:? "service"
       <*> o .:? "conversation_role" .!= roleNameWireAdmin
 
@@ -208,7 +214,7 @@ data MemberUpdate = MemberUpdate
     mupHiddenRef :: Maybe Text,
     mupConvRoleName :: Maybe RoleName
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
 memberUpdate :: MemberUpdate
 memberUpdate = MemberUpdate Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing
@@ -253,7 +259,8 @@ instance ToJSON MemberUpdate where
 instance FromJSON MemberUpdate where
   parseJSON = withObject "member-update object" $ \m -> do
     u <-
-      MemberUpdate <$> m .:? "otr_muted"
+      MemberUpdate
+        <$> m .:? "otr_muted"
         <*> m .:? "otr_muted_status"
         <*> m .:? "otr_muted_ref"
         <*> m .:? "otr_archived"
@@ -261,27 +268,37 @@ instance FromJSON MemberUpdate where
         <*> m .:? "hidden"
         <*> m .:? "hidden_ref"
         <*> m .:? "conversation_role"
-    unless
-      ( isJust (mupOtrMute u)
-          || isJust (mupOtrMuteStatus u)
-          || isJust (mupOtrMuteRef u)
-          || isJust (mupOtrArchive u)
-          || isJust (mupOtrArchiveRef u)
-          || isJust (mupHidden u)
-          || isJust (mupHiddenRef u)
-          || isJust (mupConvRoleName u)
-      )
-      $ fail
+    either fail pure $ validateMemberUpdate u
+
+instance Arbitrary MemberUpdate where
+  arbitrary =
+    (getGenericUniform <$> arbitrary)
+      `QC.suchThat` (isRight . validateMemberUpdate)
+
+validateMemberUpdate :: MemberUpdate -> Either String MemberUpdate
+validateMemberUpdate u =
+  if ( isJust (mupOtrMute u)
+         || isJust (mupOtrMuteStatus u)
+         || isJust (mupOtrMuteRef u)
+         || isJust (mupOtrArchive u)
+         || isJust (mupOtrArchiveRef u)
+         || isJust (mupHidden u)
+         || isJust (mupHiddenRef u)
+         || isJust (mupConvRoleName u)
+     )
+    then Right u
+    else
+      Left
         "One of { \'otr_muted', 'otr_muted_ref', 'otr_archived', \
         \'otr_archived_ref', 'hidden', 'hidden_ref', 'conversation_role'} required."
-    return u
 
 -- | Inbound other member updates.  This is what galley expects on its endpoint.  See also
 -- 'OtherMemberUpdateData' - that event is meant to be sent to all users in a conversation.
 data OtherMemberUpdate = OtherMemberUpdate
   { omuConvRoleName :: Maybe RoleName
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform OtherMemberUpdate)
 
 modelOtherMemberUpdate :: Doc.Model
 modelOtherMemberUpdate = Doc.defineModel "otherMemberUpdate" $ do

@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -33,12 +34,14 @@ import Data.Id (UserId)
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- UserHandleInfo
 
 newtype UserHandleInfo = UserHandleInfo {userHandleId :: UserId}
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
 
 modelUserHandleInfo :: Doc.Model
 modelUserHandleInfo = Doc.defineModel "UserHandleInfo" $ do
@@ -65,7 +68,8 @@ data CheckHandles = CheckHandles
     -- | Number of free handles to return. Default 1.
     checkHandlesNum :: Range 1 10 Word
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform CheckHandles)
 
 modelCheckHandles :: Doc.Model
 modelCheckHandles = Doc.defineModel "CheckHandles" $ do
@@ -85,5 +89,6 @@ instance ToJSON CheckHandles where
 
 instance FromJSON CheckHandles where
   parseJSON = withObject "CheckHandles" $ \o ->
-    CheckHandles <$> o .: "handles"
+    CheckHandles
+      <$> o .: "handles"
       <*> o .:? "return" .!= unsafeRange 1

@@ -29,6 +29,7 @@ import qualified Brig.Types as Brig
 import Brig.Types.Team.LegalHold (LegalHoldStatus (..), LegalHoldTeamConfig (..))
 import Control.Lens hiding ((#), (.=))
 import Control.Monad.Catch
+import Control.Retry
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
@@ -42,6 +43,8 @@ import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.UUID as UUID
+import qualified Data.UUID.Util as UUID
+import qualified Data.UUID.V1 as UUID
 import qualified Galley.App as Galley
 import Galley.Options (optSettings, setEnableIndexedBillingTeamMembers, setFeatureFlags, setMaxConvSize, setMaxFanoutSize)
 import Galley.Types hiding (EventData (..), EventType (..), MemberUpdate (..))
@@ -90,6 +93,7 @@ tests s =
       test s "create 1-1 conversation between binding team members" (testCreateOne2OneWithMembers RoleMember),
       test s "create 1-1 conversation between binding team members as partner" (testCreateOne2OneWithMembers RoleExternalPartner),
       test s "add new team member" testAddTeamMember,
+      test s "poll team-level event queue" testTeamQueue,
       test s "add new team member binding teams" testAddTeamMemberCheckBound,
       test s "add new team member internal" testAddTeamMemberInternal,
       test s "remove aka delete team member" testRemoveNonBindingTeamMember,
@@ -415,6 +419,69 @@ testAddTeamMember = do
     -- `mem2` has `AddTeamMember` permission
     Util.addTeamMember (mem2 ^. userId) tid mem3
     mapConcurrently_ (checkTeamMemberJoin tid (mem3 ^. userId)) [wsOwner, wsMem1, wsMem2, wsMem3]
+
+-- | At the time of writing this test, the only event sent to this queue is 'MemberJoin'.
+testTeamQueue :: TestM ()
+testTeamQueue = do
+  let eventually = recovering (limitRetries 3 <> exponentialBackoff 100000) [] . const
+
+  (owner, tid) <- createBindingTeam
+  eventually $ do
+    queue <- getTeamQueue owner Nothing Nothing False
+    liftIO $ assertEqual "team queue: []" [] (snd <$> queue)
+
+  mem1 :: UserId <- view userId <$> addUserToTeam owner tid
+  eventually $ do
+    queue1 <- getTeamQueue owner Nothing Nothing False
+    queue2 <- getTeamQueue mem1 Nothing Nothing False
+    liftIO $ assertEqual "team queue: owner sees [mem1]" [mem1] (snd <$> queue1)
+    liftIO $ assertEqual "team queue: mem1 sees the same thing" queue1 queue2
+
+  mem2 :: UserId <- view userId <$> addUserToTeam owner tid
+  eventually $ do
+    -- known 'NotificationId's
+    [(n1, u1), (n2, u2)] <- getTeamQueue owner Nothing Nothing False
+    liftIO $ assertEqual "team queue: queue0" (mem1, mem2) (u1, u2)
+    queue1 <- getTeamQueue owner (Just n1) Nothing False
+    queue2 <- getTeamQueue owner (Just n2) Nothing False
+    liftIO $ assertEqual "team queue: from 1" [mem1, mem2] (snd <$> queue1)
+    liftIO $ assertEqual "team queue: from 2" [mem2] (snd <$> queue2)
+
+  do
+    -- unknown old 'NotificationId'
+    let Just n1 = Id <$> UUID.fromText "615c4e38-950d-11ea-b0fc-7b04ea9f81c0"
+    queue <- getTeamQueue owner (Just n1) Nothing False
+    liftIO $ assertEqual "team queue: from old unknown" (snd <$> queue) [mem1, mem2]
+
+  do
+    -- unknown younger 'NotificationId'
+    [(Id n1, _), (Id n2, _)] <- getTeamQueue owner Nothing Nothing False
+    nu <-
+      -- create new UUIDv1 in the gap between n1, n2.
+      let Just time1 = UUID.extractTime n1
+          Just time2 = UUID.extractTime n2
+          timeu = time1 + (time2 - time1) `div` 2
+       in Id . fromJust . (`UUID.setTime` timeu) . fromJust <$> liftIO UUID.nextUUID
+    queue <- getTeamQueue owner (Just nu) Nothing False
+    liftIO $ assertEqual "team queue: from old unknown" (snd <$> queue) [mem2]
+
+  mem3 :: UserId <- view userId <$> addUserToTeam owner tid
+  mem4 :: UserId <- view userId <$> addUserToTeam owner tid
+  eventually $ do
+    -- response size limit
+    [_, (n2, _), _, _] <- getTeamQueue owner Nothing Nothing False
+    getTeamQueue' owner Nothing (Just (-1)) False !!! const 400 === statusCode
+    getTeamQueue' owner Nothing (Just 0) False !!! const 400 === statusCode
+    queue1 <- getTeamQueue owner (Just n2) (Just (1, True)) False
+    queue2 <- getTeamQueue owner (Just n2) (Just (2, False)) False
+    queue3 <- getTeamQueue owner (Just n2) (Just (3, False)) False
+    queue4 <- getTeamQueue owner Nothing (Just (1, True)) False
+    liftIO $ assertEqual "team queue: size limit 1" (snd <$> queue1) [mem2, mem3]
+    liftIO $ assertEqual "team queue: size limit 2" (snd <$> queue2) [mem2, mem3, mem4]
+    liftIO $ assertEqual "team queue: size limit 3" (snd <$> queue3) [mem2, mem3, mem4]
+    liftIO $ assertEqual "team queue: size limit 1, no start id" (snd <$> queue4) [mem1]
+
+  ensureQueueEmpty
 
 testAddTeamMemberCheckBound :: TestM ()
 testAddTeamMemberCheckBound = do
