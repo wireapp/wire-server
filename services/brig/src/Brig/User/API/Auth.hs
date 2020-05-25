@@ -94,7 +94,7 @@ routesPublic = do
     Doc.errorResponse' loginCodePending Doc.pendingLoginError
 
   post "/login" (continue loginH) $
-    jsonRequest @Login
+    jsonRequest @Public.Login
       .&. def False (query "persist")
       .&. accept "application" "json"
   document "POST" "login" $ do
@@ -171,7 +171,7 @@ routesInternal = do
 
 -- Handlers
 
-sendLoginCodeH :: JsonRequest SendLoginCode -> Handler Response
+sendLoginCodeH :: JsonRequest Public.SendLoginCode -> Handler Response
 sendLoginCodeH req = do
   json <$> (sendLoginCode =<< parseJsonBody req)
 
