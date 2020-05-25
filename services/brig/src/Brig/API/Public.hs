@@ -838,13 +838,13 @@ getPropertyH (u ::: k ::: _) = do
 
 listPropertyKeysH :: UserId ::: JSON -> Handler Response
 listPropertyKeysH (u ::: _) = do
-  val <- lift (API.lookupPropertyKeys u)
-  pure $ json (val :: [Public.PropertyKey])
+  keys <- lift (API.lookupPropertyKeys u)
+  pure $ json (keys :: [Public.PropertyKey])
 
 listPropertyKeysAndValuesH :: UserId ::: JSON -> Handler Response
 listPropertyKeysAndValuesH (u ::: _) = do
-  val <- lift (API.lookupPropertyKeysAndValues u)
-  pure $ json (val :: Public.PropertyKeysAndValues)
+  keysAndVals <- lift (API.lookupPropertyKeysAndValues u)
+  pure $ json (keysAndVals :: Public.PropertyKeysAndValues)
 
 getPrekeyH :: OpaqueUserId ::: ClientId ::: JSON -> Handler Response
 getPrekeyH (u ::: c ::: _) = do
@@ -962,9 +962,8 @@ getRichInfo self user = do
 
 listPrekeyIdsH :: UserId ::: ClientId ::: JSON -> Handler Response
 listPrekeyIdsH (usr ::: clt ::: _) = do
-  -- TODO(mheinzel): better name than val
-  val <- lift (API.lookupPrekeyIds usr clt)
-  pure $ json (val :: [Public.PrekeyId])
+  prekeyIds <- lift (API.lookupPrekeyIds usr clt)
+  pure $ json (prekeyIds :: [Public.PrekeyId])
 
 -- docs/reference/user/registration.md {#RefRegistration}
 createUserH :: JSON ::: JsonRequest Public.NewUserPublic -> Handler Response
