@@ -84,9 +84,7 @@ import qualified Wire.API.User.Activation as Public.Activation
 import qualified Wire.API.User.Client as Public.Client
 import qualified Wire.API.User.Client.Prekey as Public.Prekey
 import qualified Wire.API.User.Handle as Public.Handle
-import qualified Wire.API.User.Identity as Public.Identity
 import qualified Wire.API.User.Password as Public.Password
-import qualified Wire.API.User.Profile as Public.Profile
 import qualified Wire.API.User.RichInfo as Public.RichInfo
 
 ---------------------------------------------------------------------------
@@ -291,7 +289,7 @@ sitemap o = do
       .&. zauthUserId
   document "GET" "selfName" $ do
     Doc.summary "Get your profile name"
-    Doc.returns (Doc.ref Public.Profile.modelUserDisplayName)
+    Doc.returns (Doc.ref Public.User.modelUserDisplayName)
     Doc.response 200 "Profile name found." Doc.end
 
   put "/self/email" (continue changeSelfEmailH) $
@@ -1002,14 +1000,14 @@ createUser (Public.User.NewUserPublic new) = do
         sendTeamActivationMail e u p l (fromRange $ t ^. Team.newTeamName)
       _ ->
         sendActivationMail e u p l Nothing
-    sendWelcomeEmail :: Public.Identity.Email -> CreateUserTeam -> NewTeamUser -> Maybe Locale -> AppIO ()
+    sendWelcomeEmail :: Public.User.Email -> CreateUserTeam -> Public.User.NewTeamUser -> Maybe Public.User.Locale -> AppIO ()
     -- NOTE: Welcome e-mails for the team creator are not dealt by brig anymore
     sendWelcomeEmail e (CreateUserTeam t n) newUser l = case newUser of
-      NewTeamCreator _ ->
+      Public.User.NewTeamCreator _ ->
         return ()
-      NewTeamMember _ ->
+      Public.User.NewTeamMember _ ->
         Team.sendMemberWelcomeMail e t n l
-      NewTeamMemberSSO _ ->
+      Public.User.NewTeamMemberSSO _ ->
         Team.sendMemberWelcomeMail e t n l
 
 checkUserExistsH :: UserId ::: OpaqueUserId -> Handler Response
@@ -1025,7 +1023,7 @@ getSelfH :: JSON ::: UserId -> Handler Response
 getSelfH (_ ::: self) = do
   json <$> getSelf self
 
-getSelf :: UserId -> Handler SelfProfile
+getSelf :: UserId -> Handler Public.User.SelfProfile
 getSelf self = do
   lift (API.lookupSelfProfile self) >>= ifNothing userNotFound
 
@@ -1040,7 +1038,7 @@ getUser self opaqueUserId = do
 
 getUserDisplayNameH :: JSON ::: UserId -> Handler Response
 getUserDisplayNameH (_ ::: self) = do
-  name :: Maybe Name <- lift $ API.lookupName self
+  name :: Maybe Public.User.Name <- lift $ API.lookupName self
   return $ case name of
     Just n -> json $ object ["name" .= n]
     Nothing -> setStatus status404 empty
@@ -1053,7 +1051,7 @@ listUsersH (_ ::: self ::: qry) =
       [] -> setStatus status404 empty
       ps -> json ps
 
-listUsers :: UserId -> Either (List OpaqueUserId) (Range 1 4 (List (OptionallyQualified Handle))) -> Handler [UserProfile]
+listUsers :: UserId -> Either (List OpaqueUserId) (Range 1 4 (List (OptionallyQualified Handle))) -> Handler [Public.User.UserProfile]
 listUsers self = \case
   Left us -> do
     resolvedUserIds <- traverse resolveOpaqueUserId (fromList us)
@@ -1069,30 +1067,26 @@ listUsers self = \case
       localUsers <- catMaybes <$> traverse (lift . API.lookupHandle) localHandles
       -- FUTUREWORK(federation, #1268): resolve qualified handles, too
       pure (Local <$> localUsers)
-    byIds :: [MappedOrLocalId Id.U] -> Handler [UserProfile]
+    byIds :: [MappedOrLocalId Id.U] -> Handler [Public.User.UserProfile]
     byIds uids = lift $ API.lookupProfiles self uids
 
-data GetActivationCodeResp = GetActivationCodeResp (ActivationKey, ActivationCode)
+newtype GetActivationCodeResp
+  = GetActivationCodeResp (Public.Activation.ActivationKey, Public.Activation.ActivationCode)
 
 instance ToJSON GetActivationCodeResp where
   toJSON (GetActivationCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
-updateUserH :: UserId ::: ConnId ::: JsonRequest UserUpdate -> Handler Response
+updateUserH :: UserId ::: ConnId ::: JsonRequest Public.User.UserUpdate -> Handler Response
 updateUserH (uid ::: conn ::: req) = do
   uu <- parseJsonBody req
   lift $ API.updateUser uid conn uu
   return empty
 
-data AccountStatusResp = AccountStatusResp AccountStatus
-
-instance ToJSON AccountStatusResp where
-  toJSON (AccountStatusResp s) = object ["status" .= s]
-
-changePhoneH :: UserId ::: ConnId ::: JsonRequest PhoneUpdate -> Handler Response
+changePhoneH :: UserId ::: ConnId ::: JsonRequest Public.User.PhoneUpdate -> Handler Response
 changePhoneH (u ::: c ::: req) = do
   setStatus status202 empty <$ (changePhone u c =<< parseJsonBody req)
 
-changePhone :: UserId -> ConnId -> PhoneUpdate -> Handler ()
+changePhone :: UserId -> ConnId -> Public.User.PhoneUpdate -> Handler ()
 changePhone u _ (puPhone -> phone) = do
   (adata, pn) <- API.changePhone u phone !>> changePhoneError
   loc <- lift $ API.lookupLocale u
@@ -1114,13 +1108,13 @@ checkPasswordExistsH self = do
   exists <- lift $ isJust <$> API.lookupPassword self
   return $ if exists then empty else setStatus status404 empty
 
-changePasswordH :: UserId ::: JsonRequest PasswordChange -> Handler Response
+changePasswordH :: UserId ::: JsonRequest Public.User.PasswordChange -> Handler Response
 changePasswordH (u ::: req) = do
   cp <- parseJsonBody req
   API.changePassword u cp !>> changePwError
   return empty
 
-changeLocaleH :: UserId ::: ConnId ::: JsonRequest LocaleUpdate -> Handler Response
+changeLocaleH :: UserId ::: ConnId ::: JsonRequest Public.User.LocaleUpdate -> Handler Response
 changeLocaleH (u ::: conn ::: req) = do
   l <- parseJsonBody req
   lift $ API.changeLocale u conn l
@@ -1147,12 +1141,14 @@ checkHandle _ uhandle = do
         -- Handle is free and can be taken
         return CheckHandleNotFound
 
-data CheckHandleResp = CheckHandleInvalid | CheckHandleFound | CheckHandleNotFound
-  deriving (Eq, Show, Bounded, Enum, Generic)
+data CheckHandleResp
+  = CheckHandleInvalid
+  | CheckHandleFound
+  | CheckHandleNotFound
 
 checkHandlesH :: JSON ::: UserId ::: JsonRequest Public.Handle.CheckHandles -> Handler Response
 checkHandlesH (_ ::: _ ::: req) = do
-  CheckHandles hs num <- parseJsonBody req
+  Public.Handle.CheckHandles hs num <- parseJsonBody req
   let handles = mapMaybe parseHandle (fromRange hs)
   free <- lift $ API.checkHandles handles (fromRange num)
   return $ json @[Handle] free
@@ -1163,7 +1159,7 @@ getHandleInfoH (_ ::: self ::: handle) =
     <$> getHandleInfo self handle
 
 -- FUTUREWORK: use 'runMaybeT' to simplify this.
-getHandleInfo :: UserId -> Handle -> Handler (Maybe UserHandleInfo)
+getHandleInfo :: UserId -> Handle -> Handler (Maybe Public.Handle.UserHandleInfo)
 getHandleInfo self handle = do
   ownerProfile <- do
     -- FUTUREWORK(federation, #1268): resolve qualified handles, too
@@ -1172,23 +1168,23 @@ getHandleInfo self handle = do
       Just ownerId -> lift $ API.lookupProfile self ownerId
       Nothing -> return Nothing
   owner <- filterHandleResults self (maybeToList ownerProfile)
-  return $ UserHandleInfo . profileId <$> listToMaybe owner
+  return $ Public.Handle.UserHandleInfo . profileId <$> listToMaybe owner
 
-changeHandleH :: UserId ::: ConnId ::: JsonRequest HandleUpdate -> Handler Response
+changeHandleH :: UserId ::: ConnId ::: JsonRequest Public.User.HandleUpdate -> Handler Response
 changeHandleH (u ::: conn ::: req) = do
   empty <$ (changeHandle u conn =<< parseJsonBody req)
 
-changeHandle :: UserId -> ConnId -> HandleUpdate -> Handler ()
-changeHandle u conn (HandleUpdate h) = do
+changeHandle :: UserId -> ConnId -> Public.User.HandleUpdate -> Handler ()
+changeHandle u conn (Public.User.HandleUpdate h) = do
   handle <- validateHandle h
   API.changeHandle u conn handle !>> changeHandleError
 
-beginPasswordResetH :: JSON ::: JsonRequest NewPasswordReset -> Handler Response
+beginPasswordResetH :: JSON ::: JsonRequest Public.Password.NewPasswordReset -> Handler Response
 beginPasswordResetH (_ ::: req) = do
   setStatus status201 empty <$ (beginPasswordReset =<< parseJsonBody req)
 
-beginPasswordReset :: NewPasswordReset -> Handler ()
-beginPasswordReset (NewPasswordReset target) = do
+beginPasswordReset :: Public.Password.NewPasswordReset -> Handler ()
+beginPasswordReset (Public.Password.NewPasswordReset target) = do
   checkWhitelist target
   (u, pair) <- API.beginPasswordReset target !>> pwResetError
   loc <- lift $ API.lookupLocale u
@@ -1196,26 +1192,43 @@ beginPasswordReset (NewPasswordReset target) = do
     Left email -> sendPasswordResetMail email pair loc
     Right phone -> sendPasswordResetSms phone pair loc
 
-completePasswordResetH :: JSON ::: JsonRequest CompletePasswordReset -> Handler Response
+completePasswordResetH :: JSON ::: JsonRequest Public.Password.CompletePasswordReset -> Handler Response
 completePasswordResetH (_ ::: req) = do
-  CompletePasswordReset {..} <- parseJsonBody req
+  Public.Password.CompletePasswordReset {..} <- parseJsonBody req
   API.completePasswordReset cpwrIdent cpwrCode cpwrPassword !>> pwResetError
   return empty
 
-sendActivationCodeH :: JsonRequest SendActivationCode -> Handler Response
+sendActivationCodeH :: JsonRequest Public.Activation.SendActivationCode -> Handler Response
 sendActivationCodeH req = do
   empty <$ (sendActivationCode =<< parseJsonBody req)
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
-sendActivationCode :: SendActivationCode -> Handler ()
-sendActivationCode SendActivationCode {..} = do
+sendActivationCode :: Public.Activation.SendActivationCode -> Handler ()
+sendActivationCode Public.Activation.SendActivationCode {..} = do
   checkWhitelist saUserKey
   API.sendActivationCode saUserKey saLocale saCall !>> sendActCodeError
 
-changeSelfEmailH :: UserId ::: ConnId ::: JsonRequest EmailUpdate -> Handler Response
+changeSelfEmailH :: UserId ::: ConnId ::: JsonRequest Public.User.EmailUpdate -> Handler Response
 changeSelfEmailH (u ::: _ ::: req) = changeEmail u req True
 
-createConnectionH :: JSON ::: UserId ::: ConnId ::: JsonRequest ConnectionRequest -> Handler Response
+changeEmail :: UserId -> JsonRequest Public.User.EmailUpdate -> Bool -> Handler Response
+changeEmail u req sendOutEmail = do
+  email <- euEmail <$> parseJsonBody req
+  API.changeEmail u email !>> changeEmailError >>= \case
+    ChangeEmailIdempotent -> respond status204
+    ChangeEmailNeedsActivation (usr, adata, en) -> handleActivation usr adata en
+  where
+    respond = return . flip setStatus empty
+    handleActivation usr adata en = do
+      when sendOutEmail $ do
+        let apair = (activationKey adata, activationCode adata)
+        let name = userDisplayName usr
+        let ident = userIdentity usr
+        let lang = userLocale usr
+        lift $ sendActivationMail en name apair (Just lang) ident
+      respond status202
+
+createConnectionH :: JSON ::: UserId ::: ConnId ::: JsonRequest Public.Connection.ConnectionRequest -> Handler Response
 createConnectionH (_ ::: self ::: conn ::: req) = do
   cr <- parseJsonBody req
   rs <- API.createConnection self cr conn !>> connError
@@ -1223,7 +1236,7 @@ createConnectionH (_ ::: self ::: conn ::: req) = do
     ConnectionCreated c -> setStatus status201 $ json c
     ConnectionExists c -> json c
 
-updateConnectionH :: JSON ::: UserId ::: ConnId ::: UserId ::: JsonRequest ConnectionUpdate -> Handler Response
+updateConnectionH :: JSON ::: UserId ::: ConnId ::: UserId ::: JsonRequest Public.Connection.ConnectionUpdate -> Handler Response
 updateConnectionH (_ ::: self ::: conn ::: other ::: req) = do
   newStatus <- cuStatus <$> parseJsonBody req
   mc <- API.updateConnection self other newStatus (Just conn) !>> connError
@@ -1243,7 +1256,7 @@ getConnectionH (_ ::: uid ::: uid') = lift $ do
     Just c -> json c
     Nothing -> setStatus status404 empty
 
-deleteUserH :: UserId ::: JsonRequest DeleteUser ::: JSON -> Handler Response
+deleteUserH :: UserId ::: JsonRequest Public.User.DeleteUser ::: JSON -> Handler Response
 deleteUserH (u ::: r ::: _) = do
   body <- parseJsonBody r
   res <- API.deleteUser u (deleteUserPassword body) !>> deleteUserError
@@ -1251,7 +1264,7 @@ deleteUserH (u ::: r ::: _) = do
     Nothing -> setStatus status200 empty
     Just ttl -> setStatus status202 (json (DeletionCodeTimeout ttl))
 
-verifyDeleteUserH :: JsonRequest VerifyDeleteUser ::: JSON -> Handler Response
+verifyDeleteUserH :: JsonRequest Public.User.VerifyDeleteUser ::: JSON -> Handler Response
 verifyDeleteUserH (r ::: _) = do
   body <- parseJsonBody r
   API.verifyDeleteUser body !>> deleteUserError
@@ -1259,15 +1272,28 @@ verifyDeleteUserH (r ::: _) = do
 
 -- activation
 
+data ActivationRespWithStatus
+  = ActivationResp Public.Activation.ActivationResponse
+  | ActivationRespDryRun
+  | ActivationRespPass
+  | ActivationRespSuccessNoIdent
+
+respFromActivationRespWithStatus :: ActivationRespWithStatus -> Response
+respFromActivationRespWithStatus = \case
+  ActivationResp aresp -> json aresp
+  ActivationRespDryRun -> empty
+  ActivationRespPass -> setStatus status204 empty
+  ActivationRespSuccessNoIdent -> empty
+
 -- docs/reference/user/activation.md {#RefActivationSubmit}
-activateKeyH :: JSON ::: JsonRequest Activate -> Handler Response
+activateKeyH :: JSON ::: JsonRequest Public.Activation.Activate -> Handler Response
 activateKeyH (_ ::: req) = respFromActivationRespWithStatus <$> (activate =<< parseJsonBody req)
 
-activateH :: ActivationKey ::: ActivationCode -> Handler Response
+activateH :: Public.Activation.ActivationKey ::: Public.Activation.ActivationCode -> Handler Response
 activateH (k ::: c) = respFromActivationRespWithStatus <$> (activate (Activate (ActivateKey k) c False))
 
-activate :: Activate -> Handler ActivationRespWithStatus
-activate (Activate tgt code dryrun)
+activate :: Public.Activation.Activate -> Handler ActivationRespWithStatus
+activate (Public.Activation.Activate tgt code dryrun)
   | dryrun = do
     API.preverify tgt code !>> actError
     return $ ActivationRespDryRun
@@ -1279,19 +1305,6 @@ activate (Activate tgt code dryrun)
   where
     respond (Just ident) first = ActivationResp $ ActivationResponse ident first
     respond Nothing _ = ActivationRespSuccessNoIdent
-
-data ActivationRespWithStatus
-  = ActivationResp ActivationResponse
-  | ActivationRespDryRun
-  | ActivationRespPass
-  | ActivationRespSuccessNoIdent
-
-respFromActivationRespWithStatus :: ActivationRespWithStatus -> Response
-respFromActivationRespWithStatus = \case
-  ActivationResp aresp -> json aresp
-  ActivationRespDryRun -> empty
-  ActivationRespPass -> setStatus status204 empty
-  ActivationRespSuccessNoIdent -> empty
 
 -- Deprecated
 
@@ -1307,30 +1320,13 @@ instance ToJSON DeprecatedMatchingResult where
         "auto-connects" .= ([] :: [()])
       ]
 
-deprecatedCompletePasswordResetH :: JSON ::: PasswordResetKey ::: JsonRequest PasswordReset -> Handler Response
+deprecatedCompletePasswordResetH :: JSON ::: Public.Password.PasswordResetKey ::: JsonRequest Public.Password.PasswordReset -> Handler Response
 deprecatedCompletePasswordResetH (_ ::: k ::: req) = do
   pwr <- parseJsonBody req
-  API.completePasswordReset (PasswordResetIdentityKey k) (pwrCode pwr) (pwrPassword pwr) !>> pwResetError
+  API.completePasswordReset (Public.Password.PasswordResetIdentityKey k) (pwrCode pwr) (pwrPassword pwr) !>> pwResetError
   return empty
 
 -- Utilities
-
-changeEmail :: UserId -> JsonRequest EmailUpdate -> Bool -> Handler Response
-changeEmail u req sendOutEmail = do
-  email <- euEmail <$> parseJsonBody req
-  API.changeEmail u email !>> changeEmailError >>= \case
-    ChangeEmailIdempotent -> respond status204
-    ChangeEmailNeedsActivation (usr, adata, en) -> handleActivation usr adata en
-  where
-    respond = return . flip setStatus empty
-    handleActivation usr adata en = do
-      when sendOutEmail $ do
-        let apair = (activationKey adata, activationCode adata)
-        let name = userDisplayName usr
-        let ident = userIdentity usr
-        let lang = userLocale usr
-        lift $ sendActivationMail en name apair (Just lang) ident
-      respond status202
 
 validateHandle :: Text -> Handler Handle
 validateHandle = maybe (throwE (StdError invalidHandle)) return . parseHandle
@@ -1339,7 +1335,7 @@ ifNothing :: Utilities.Error -> Maybe a -> Handler a
 ifNothing e = maybe (throwStd e) return
 
 -- | Checks search permissions and filters accordingly
-filterHandleResults :: UserId -> [UserProfile] -> Handler [UserProfile]
+filterHandleResults :: UserId -> [Public.User.UserProfile] -> Handler [Public.User.UserProfile]
 filterHandleResults searchingUser us = do
   sameTeamSearchOnly <- fromMaybe False <$> view (settings . searchSameTeamOnly)
   if sameTeamSearchOnly

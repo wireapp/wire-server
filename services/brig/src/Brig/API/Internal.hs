@@ -26,6 +26,7 @@ import qualified Brig.API.Client as API
 import qualified Brig.API.Connection as API
 import Brig.API.Error
 import Brig.API.Handler
+import Brig.API.Public (changeEmail)
 import Brig.API.Types
 import qualified Brig.API.User as API
 import Brig.App
@@ -459,23 +460,6 @@ deprecatedGetConnectionsStatusH (users ::: flt) = do
     filterByRelation l rel = filter ((== rel) . csStatus) l
 
 -- Utilities
-
-changeEmail :: UserId -> JsonRequest EmailUpdate -> Bool -> Handler Response
-changeEmail u req sendOutEmail = do
-  email <- euEmail <$> parseJsonBody req
-  API.changeEmail u email !>> changeEmailError >>= \case
-    ChangeEmailIdempotent -> respond status204
-    ChangeEmailNeedsActivation (usr, adata, en) -> handleActivation usr adata en
-  where
-    respond = return . flip setStatus empty
-    handleActivation usr adata en = do
-      when sendOutEmail $ do
-        let apair = (activationKey adata, activationCode adata)
-        let name = userDisplayName usr
-        let ident = userIdentity usr
-        let lang = userLocale usr
-        lift $ sendActivationMail en name apair (Just lang) ident
-      respond status202
 
 ifNothing :: Utilities.Error -> Maybe a -> Handler a
 ifNothing e = maybe (throwStd e) return
