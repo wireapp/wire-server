@@ -32,6 +32,16 @@ module Wire.API.Event.Conversation
     MemberUpdateData (..),
     OtrMessage (..),
 
+    -- * re-exports
+    ConversationReceiptModeUpdate (..),
+    ConversationRename (..),
+    ConversationAccessUpdate (..),
+    ConversationMessageTimerUpdate (..),
+    ConversationCode (..),
+    Conversation (..),
+    TypingData (..),
+    UserIdList (..),
+
     -- * Swagger
     modelEvent,
     modelMemberEvent,
@@ -66,13 +76,11 @@ import URI.ByteString ()
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Conversation (modelConversationAccessUpdate, modelConversationMessageTimerUpdate, modelConversationReceiptModeUpdate, modelConversationUpdateName)
 import Wire.API.Conversation
-import Wire.API.Conversation.Code (modelConversationCode)
-import qualified Wire.API.Conversation.Code as Code
-import Wire.API.Conversation.Member
+import Wire.API.Conversation.Code (ConversationCode (..), modelConversationCode)
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing (modelTyping)
-import Wire.API.Conversation.Typing (TypingData)
-import Wire.API.User (UserIdList)
+import Wire.API.Conversation.Typing (TypingData (..))
+import Wire.API.User (UserIdList (..))
 
 --------------------------------------------------------------------------------
 -- Event
@@ -228,7 +236,7 @@ data EventData
   | EdConvRename ConversationRename
   | EdConvAccessUpdate ConversationAccessUpdate
   | EdConvMessageTimerUpdate ConversationMessageTimerUpdate
-  | EdConvCodeUpdate Code.ConversationCode
+  | EdConvCodeUpdate ConversationCode
   | EdMemberUpdate MemberUpdateData
   | EdConversation Conversation
   | EdTyping TypingData

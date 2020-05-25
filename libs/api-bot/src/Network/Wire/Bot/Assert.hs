@@ -26,7 +26,7 @@ import Imports
 import Network.Wire.Bot.Monad
 import Network.Wire.Client.API.Conversation
 import Network.Wire.Client.API.Push
-import Network.Wire.Client.API.User hiding (UserIds)
+import Network.Wire.Client.API.User
 
 assertConvCreated ::
   (HasCallStack, MonadBotNet m) =>

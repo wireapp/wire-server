@@ -34,6 +34,7 @@ import Network.Wire.Bot.Assert
 import qualified Network.Wire.Bot.Clients as Clients
 import Network.Wire.Bot.Crypto
 import Network.Wire.Client.API.Asset
+import Network.Wire.Client.API.Client (ClientType (PermanentClientType))
 import Network.Wire.Client.API.Conversation
 import Network.Wire.Client.API.Push
 import Network.Wire.Client.API.Search

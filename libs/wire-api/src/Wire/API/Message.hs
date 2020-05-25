@@ -28,10 +28,12 @@ module Wire.API.Message
 
     -- * Recipients
     OtrRecipients (..),
+    UserClientMap (..),
 
     -- * Filter
     OtrFilterMissing (..),
     ClientMismatch (..),
+    UserClients (..),
 
     -- * Swagger
     modelNewOtrMessage,
@@ -48,7 +50,7 @@ import qualified Data.Swagger.Build.Api as Doc
 import Data.Time
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
-import Wire.API.User.Client (UserClientMap, UserClients, modelOtrClientMap, modelUserClients)
+import Wire.API.User.Client (UserClientMap (..), UserClients (..), modelOtrClientMap, modelUserClients)
 
 --------------------------------------------------------------------------------
 -- Message
