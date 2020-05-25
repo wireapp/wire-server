@@ -109,7 +109,7 @@ instance Arbitrary IpAddr where
     where
       genIPv4 = toIPv4 <$> replicateM 4 genByte
       genIPv6 = toIPv6b <$> replicateM 16 genByte
-      genByte = QC.choose @Int (0, 255)
+      genByte = QC.chooseInt (0, 255)
 
 newtype Port = Port
   {portNumber :: Word16}

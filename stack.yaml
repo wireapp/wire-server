@@ -170,6 +170,10 @@ extra-deps:
 # Not latest as latst one breaks wai-routing
 - wai-route-0.4.0
 
+# Not updated on Stackage yet
+- QuickCheck-2.14
+- splitmix-0.0.4 # needed for QuickCheck
+
 ############################################################
 # Development tools
 ############################################################

@@ -98,7 +98,7 @@ tests =
       testRoundTrip @Connection.UserConnection,
       testRoundTrip @Connection.UserConnectionList,
       testRoundTrip @Connection.ConnectionUpdate,
-      currentlyFailing (testRoundTrip @Conversation.Conversation),
+      currentlyFailing (testRoundTrip @Conversation.Conversation), -- flaky, fails for large sizes because of rounding error in cnvMessageTimer
       currentlyFailing (testRoundTrip @Conversation.NewConvUnmanaged),
       currentlyFailing (testRoundTrip @Conversation.NewConvManaged),
       testRoundTrip @(Conversation.ConversationList ConvId),

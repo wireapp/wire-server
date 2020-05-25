@@ -17,7 +17,7 @@ library:
   source-dirs: src
   dependencies:
   - base >=4 && <5
-  - QuickCheck >=2.9
+  - QuickCheck >=2.14
   - attoparsec >=0.10
   - base64-bytestring >=1.0
   - bytestring >=0.9
