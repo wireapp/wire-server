@@ -39,8 +39,8 @@ import qualified Brig.TURN.API as TURN
 import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
 import Brig.Types
-import Brig.Types.Intra
-import Brig.Types.User (NewUserPublic (NewUserPublic))
+import Brig.Types.Intra (AccountStatus (Ephemeral), UserAccount (UserAccount, accountUser))
+-- TODO
 import Brig.Types.User.Auth
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
@@ -664,7 +664,7 @@ sitemap o = do
   -- - UserIdentityUpdated event to created user, if email code or phone code is provided
   post "/register" (continue createUserH) $
     accept "application" "json"
-      .&. jsonRequest @NewUserPublic
+      .&. jsonRequest @Public.User.NewUserPublic
   document "POST" "register" $ do
     Doc.summary "Register a new user."
     Doc.notes
@@ -962,7 +962,7 @@ listPrekeyIdsH :: UserId ::: ClientId ::: JSON -> Handler Response
 listPrekeyIdsH (usr ::: clt ::: _) = json <$> lift (API.lookupPrekeyIds usr clt)
 
 -- docs/reference/user/registration.md {#RefRegistration}
-createUserH :: JSON ::: JsonRequest NewUserPublic -> Handler Response
+createUserH :: JSON ::: JsonRequest Public.User.NewUserPublic -> Handler Response
 createUserH (_ ::: req) = do
   CreateUserResponse cok loc prof <- createUser =<< parseJsonBody req
   lift . Auth.setResponseCookie cok
@@ -970,8 +970,8 @@ createUserH (_ ::: req) = do
     . addHeader "Location" (toByteString' loc)
     $ json prof
 
-createUser :: NewUserPublic -> Handler CreateUserResponse
-createUser (NewUserPublic new) = do
+createUser :: Public.User.NewUserPublic -> Handler CreateUserResponse
+createUser (Public.User.NewUserPublic new) = do
   for_ (newUserEmail new) $ checkWhitelist . Left
   for_ (newUserPhone new) $ checkWhitelist . Right
   result <- API.createUser new !>> newUserError
