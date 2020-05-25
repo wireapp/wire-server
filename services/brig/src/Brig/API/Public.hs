@@ -40,7 +40,6 @@ import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
 import Brig.Types
 import Brig.Types.Intra
-import qualified Brig.Types.Swagger as Doc
 import Brig.Types.User (NewUserPublic (NewUserPublic))
 import Brig.Types.User.Auth
 import qualified Brig.User.API.Auth as Auth
@@ -67,7 +66,6 @@ import Data.Text.Encoding (decodeLatin1)
 import Data.Text.Lazy (pack)
 import qualified Data.ZAuth.Token as ZAuth
 import Galley.Types (UserClientMap (..), UserClients (..))
-import qualified Galley.Types.Swagger as Doc
 import qualified Galley.Types.Teams as Team
 import Imports hiding (head)
 import Network.HTTP.Types.Status
@@ -79,6 +77,17 @@ import Network.Wai.Utilities.Response (json)
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
+import qualified Wire.API.Connection as Public.Connection
+import qualified Wire.API.Properties as Public.Properties
+import qualified Wire.API.Swagger as Public.Swagger (models)
+import qualified Wire.API.User as Public.User
+import qualified Wire.API.User.Activation as Public.Activation
+import qualified Wire.API.User.Client as Public.Client
+import qualified Wire.API.User.Client.Prekey as Public.Prekey
+import qualified Wire.API.User.Handle as Public.Handle
+import qualified Wire.API.User.Password as Public.Password
+import qualified Wire.API.User.Profile as Public.Profile
+import qualified Wire.API.User.RichInfo as Public.RichInfo
 
 ---------------------------------------------------------------------------
 -- Sitemap
@@ -113,7 +122,7 @@ sitemap o = do
     Doc.summary "Get a user by ID"
     Doc.parameter Doc.Path "uid" Doc.bytes' $
       Doc.description "User ID"
-    Doc.returns (Doc.ref Doc.user)
+    Doc.returns (Doc.ref Public.User.modelUser)
     Doc.response 200 "User" Doc.end
     Doc.errorResponse userNotFound
 
@@ -125,7 +134,7 @@ sitemap o = do
       .&. jsonRequest @CheckHandles
   document "POST" "checkUserHandles" $ do
     Doc.summary "Check availability of user handles"
-    Doc.body (Doc.ref Doc.checkHandles) $
+    Doc.body (Doc.ref Public.Handle.modelCheckHandles) $
       Doc.description "JSON body"
     Doc.returns (Doc.array Doc.string')
     Doc.response 200 "List of free handles" Doc.end
@@ -149,7 +158,7 @@ sitemap o = do
     Doc.summary "Get information on a user handle"
     Doc.parameter Doc.Path "handle" Doc.bytes' $
       Doc.description "The user handle"
-    Doc.returns (Doc.ref Doc.userHandleInfo)
+    Doc.returns (Doc.ref Public.Handle.modelUserHandleInfo)
     Doc.response 200 "Handle info" Doc.end
     Doc.errorResponse handleNotFound
 
@@ -172,7 +181,7 @@ sitemap o = do
     Doc.parameter Doc.Query "handles" Doc.string' $ do
       Doc.description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"
       Doc.optional
-    Doc.returns (Doc.array (Doc.ref Doc.user))
+    Doc.returns (Doc.array (Doc.ref Public.User.modelUser))
     Doc.response 200 "List of users" Doc.end
 
   -- User Prekey API ----------------------------------------------------
@@ -188,7 +197,7 @@ sitemap o = do
     Doc.notes
       "Prekeys of all clients of a multiple users. \
       \The result is a map of maps, i.e. { UserId : { ClientId : Maybe Prekey } }"
-    Doc.body (Doc.ref Doc.userClients) $
+    Doc.body (Doc.ref Public.Client.modelUserClients) $
       Doc.description "JSON body"
     Doc.response 200 "Prekey Bundles" Doc.end
     Doc.errorResponse tooManyClients
@@ -200,7 +209,7 @@ sitemap o = do
     Doc.summary "Get a prekey for each client of a user."
     Doc.parameter Doc.Path "uid" Doc.bytes' $
       Doc.description "User ID"
-    Doc.returns (Doc.ref Doc.prekeyBundle)
+    Doc.returns (Doc.ref Public.Prekey.modelPrekeyBundle)
     Doc.response 200 "Prekey Bundle" Doc.end
 
   get "/users/:uid/prekeys/:client" (continue getPrekeyH) $
@@ -213,7 +222,7 @@ sitemap o = do
       Doc.description "User ID"
     Doc.parameter Doc.Path "client" Doc.bytes' $
       Doc.description "Client ID"
-    Doc.returns (Doc.ref Doc.clientPrekey)
+    Doc.returns (Doc.ref Public.Prekey.modelClientPrekey)
     Doc.response 200 "Client Prekey" Doc.end
 
   -- User Client API ----------------------------------------------------
@@ -225,7 +234,7 @@ sitemap o = do
     Doc.summary "Get all of a user's clients."
     Doc.parameter Doc.Path "uid" Doc.bytes' $
       Doc.description "User ID"
-    Doc.returns (Doc.array (Doc.ref Doc.pubClient))
+    Doc.returns (Doc.array (Doc.ref Public.Client.modelPubClient))
     Doc.response 200 "List of clients" Doc.end
 
   get "/users/:uid/clients/:client" (continue getUserClientH) $
@@ -238,7 +247,7 @@ sitemap o = do
       Doc.description "User ID"
     Doc.parameter Doc.Path "client" Doc.bytes' $
       Doc.description "Client ID"
-    Doc.returns (Doc.ref Doc.pubClient)
+    Doc.returns (Doc.ref Public.Client.modelPubClient)
     Doc.response 200 "Client" Doc.end
 
   -- end User Client API
@@ -251,7 +260,7 @@ sitemap o = do
     Doc.summary "Get user's rich info"
     Doc.parameter Doc.Path "uid" Doc.bytes' $
       Doc.description "User ID"
-    Doc.returns (Doc.ref Doc.richInfo)
+    Doc.returns (Doc.ref Public.RichInfo.modelRichInfo)
     Doc.response 200 "RichInfo" Doc.end
     Doc.errorResponse insufficientTeamPermissions
 
@@ -262,7 +271,7 @@ sitemap o = do
       .&. zauthUserId
   document "GET" "self" $ do
     Doc.summary "Get your profile"
-    Doc.returns (Doc.ref Doc.self)
+    Doc.returns (Doc.ref Public.User.modelSelf)
     Doc.response 200 "Self profile" Doc.end
 
   -- This endpoint can lead to the following events being sent:
@@ -273,7 +282,7 @@ sitemap o = do
       .&. jsonRequest @UserUpdate
   document "PUT" "updateSelf" $ do
     Doc.summary "Update your profile"
-    Doc.body (Doc.ref Doc.userUpdate) $
+    Doc.body (Doc.ref Public.User.modelUserUpdate) $
       Doc.description "JSON body"
     Doc.response 200 "Update successful." Doc.end
 
@@ -282,7 +291,7 @@ sitemap o = do
       .&. zauthUserId
   document "GET" "selfName" $ do
     Doc.summary "Get your profile name"
-    Doc.returns (Doc.ref Doc.userDisplayName)
+    Doc.returns (Doc.ref Public.Profile.modelUserDisplayName)
     Doc.response 200 "Profile name found." Doc.end
 
   put "/self/email" (continue changeSelfEmailH) $
@@ -291,7 +300,7 @@ sitemap o = do
       .&. jsonRequest @EmailUpdate
   document "PUT" "changeEmail" $ do
     Doc.summary "Change your email address"
-    Doc.body (Doc.ref Doc.emailUpdate) $
+    Doc.body (Doc.ref Public.User.modelEmailUpdate) $
       Doc.description "JSON body"
     Doc.response 202 "Update accepted and pending activation of the new email." Doc.end
     Doc.response 204 "No update, current and new email address are the same." Doc.end
@@ -306,7 +315,7 @@ sitemap o = do
       .&. jsonRequest @PhoneUpdate
   document "PUT" "changePhone" $ do
     Doc.summary "Change your phone number"
-    Doc.body (Doc.ref Doc.phoneUpdate) $
+    Doc.body (Doc.ref Public.User.modelPhoneUpdate) $
       Doc.description "JSON body"
     Doc.response 202 "Update accepted and pending activation of the new phone number." Doc.end
     Doc.errorResponse userKeyExists
@@ -323,7 +332,7 @@ sitemap o = do
       .&. jsonRequest @PasswordChange
   document "PUT" "changePassword" $ do
     Doc.summary "Change your password"
-    Doc.body (Doc.ref Doc.changePassword) $
+    Doc.body (Doc.ref Public.User.modelChangePassword) $
       Doc.description "JSON body"
     Doc.response 200 "Password changed." Doc.end
     Doc.errorResponse badCredentials
@@ -335,7 +344,7 @@ sitemap o = do
       .&. jsonRequest @LocaleUpdate
   document "PUT" "changeLocale" $ do
     Doc.summary "Change your locale"
-    Doc.body (Doc.ref Doc.changeLocale) $
+    Doc.body (Doc.ref Public.User.modelChangeLocale) $
       Doc.description "JSON body"
     Doc.response 200 "Locale changed." Doc.end
 
@@ -347,7 +356,7 @@ sitemap o = do
       .&. jsonRequest @HandleUpdate
   document "PUT" "changeHandle" $ do
     Doc.summary "Change your handle"
-    Doc.body (Doc.ref Doc.changeHandle) $
+    Doc.body (Doc.ref Public.User.modelChangeHandle) $
       Doc.description "JSON body"
     Doc.errorResponse handleExists
     Doc.errorResponse invalidHandle
@@ -396,7 +405,7 @@ sitemap o = do
       \password, it must be provided. If password is correct, or if neither \
       \a verified identity nor a password exists, account deletion \
       \is scheduled immediately."
-    Doc.body (Doc.ref Doc.delete) $
+    Doc.body (Doc.ref Public.User.modelDelete) $
       Doc.description "JSON body"
     Doc.response 202 "Deletion is pending verification with a code." Doc.end
     Doc.response 200 "Deletion is initiated." Doc.end
@@ -413,7 +422,7 @@ sitemap o = do
       .&. accept "application" "json"
   document "POST" "verifyDeleteUser" $ do
     Doc.summary "Verify account deletion with a code."
-    Doc.body (Doc.ref Doc.verifyDelete) $
+    Doc.body (Doc.ref Public.User.modelVerifyDelete) $
       Doc.description "JSON body"
     Doc.response 200 "Deletion is initiated." Doc.end
     Doc.errorResponse invalidCode
@@ -437,9 +446,9 @@ sitemap o = do
       "You can have no more than "
         <> Text.pack (show (setUserMaxConnections $ optSettings o))
         <> " connections in accepted or sent state."
-    Doc.body (Doc.ref Doc.connectionRequest) $
+    Doc.body (Doc.ref Public.Connection.modelConnectionRequest) $
       Doc.description "JSON body"
-    Doc.returns (Doc.ref Doc.connection)
+    Doc.returns (Doc.ref Public.Connection.modelConnection)
     Doc.response 200 "The connection exists." Doc.end
     Doc.response 201 "The connection was created." Doc.end
     Doc.errorResponse connectionLimitReached
@@ -459,7 +468,7 @@ sitemap o = do
     Doc.parameter Doc.Query "size" Doc.int32' $ do
       Doc.description "Number of results to return (default 100, max 500)."
       Doc.optional
-    Doc.returns (Doc.ref Doc.connectionList)
+    Doc.returns (Doc.ref Public.Connection.modelConnectionList)
     Doc.response 200 "List of connections" Doc.end
 
   -- This endpoint can lead to the following events being sent:
@@ -478,9 +487,9 @@ sitemap o = do
     Doc.summary "Update a connection."
     Doc.parameter Doc.Path "id" Doc.bytes' $
       Doc.description "User ID"
-    Doc.body (Doc.ref Doc.connectionUpdate) $
+    Doc.body (Doc.ref Public.Connection.modelConnectionUpdate) $
       Doc.description "JSON body"
-    Doc.returns (Doc.ref Doc.connection)
+    Doc.returns (Doc.ref Public.Connection.modelConnection)
     Doc.response 200 "Connection updated." Doc.end
     Doc.response 204 "No change." Doc.end
     Doc.errorResponse connectionLimitReached
@@ -496,7 +505,7 @@ sitemap o = do
     Doc.summary "Get an existing connection to another user."
     Doc.parameter Doc.Path "id" Doc.bytes' $
       Doc.description "User ID"
-    Doc.returns (Doc.ref Doc.connection)
+    Doc.returns (Doc.ref Public.Connection.modelConnection)
     Doc.response 200 "Connection" Doc.end
 
   -- User Client API ----------------------------------------------------
@@ -513,9 +522,9 @@ sitemap o = do
       .&. accept "application" "json"
   document "POST" "registerClient" $ do
     Doc.summary "Register a new client."
-    Doc.body (Doc.ref Doc.newClient) $
+    Doc.body (Doc.ref Public.Client.modelNewClient) $
       Doc.description "JSON body"
-    Doc.returns (Doc.ref Doc.client)
+    Doc.returns (Doc.ref Public.Client.modelClient)
     Doc.response 200 "Client" Doc.end
     Doc.errorResponse tooManyClients
     Doc.errorResponse missingAuthError
@@ -530,7 +539,7 @@ sitemap o = do
     Doc.summary "Update a registered client."
     Doc.parameter Doc.Path "client" Doc.bytes' $
       Doc.description "Client ID"
-    Doc.body (Doc.ref Doc.updateClient) $
+    Doc.body (Doc.ref Public.Client.modelUpdateClient) $
       Doc.description "JSON body"
     Doc.response 200 "Client updated." Doc.end
     Doc.errorResponse malformedPrekeys
@@ -547,7 +556,7 @@ sitemap o = do
     Doc.summary "Delete an existing client."
     Doc.parameter Doc.Path "client" Doc.bytes' $
       Doc.description "Client ID"
-    Doc.body (Doc.ref Doc.deleteClient) $
+    Doc.body (Doc.ref Public.Client.modelDeleteClient) $
       Doc.description "JSON body"
     Doc.response 200 "Client deleted." Doc.end
 
@@ -556,7 +565,7 @@ sitemap o = do
       .&. accept "application" "json"
   document "GET" "listClients" $ do
     Doc.summary "List the registered clients."
-    Doc.returns (Doc.array (Doc.ref Doc.client))
+    Doc.returns (Doc.array (Doc.ref Public.Client.modelClient))
     Doc.response 200 "List of clients" Doc.end
 
   get "/clients/:client" (continue getClientH) $
@@ -567,7 +576,7 @@ sitemap o = do
     Doc.summary "Get a registered client by ID."
     Doc.parameter Doc.Path "client" Doc.bytes' $
       Doc.description "Client ID"
-    Doc.returns (Doc.ref Doc.client)
+    Doc.returns (Doc.ref Public.Client.modelClient)
     Doc.response 200 "Client" Doc.end
 
   get "/clients/:client/prekeys" (continue listPrekeyIdsH) $
@@ -594,7 +603,7 @@ sitemap o = do
     Doc.summary "Set a user property."
     Doc.parameter Doc.Path "key" Doc.string' $
       Doc.description "Property key"
-    Doc.body (Doc.ref Doc.propertyValue) $
+    Doc.body (Doc.ref Public.Properties.modelPropertyValue) $
       Doc.description "JSON body"
     Doc.response 200 "Property set." Doc.end
 
@@ -627,7 +636,7 @@ sitemap o = do
     Doc.summary "Get a property value."
     Doc.parameter Doc.Path "key" Doc.string' $
       Doc.description "Property key"
-    Doc.returns (Doc.ref Doc.propertyValue)
+    Doc.returns (Doc.ref Public.Properties.modelPropertyValue)
     Doc.response 200 "The property value." Doc.end
 
   get "/properties" (continue listPropertyKeysH) $
@@ -643,7 +652,7 @@ sitemap o = do
       .&. accept "application" "json"
   document "GET" "listPropertyKeysAndValues" $ do
     Doc.summary "List all properties with key and value."
-    Doc.returns (Doc.ref Doc.propertyDictionary)
+    Doc.returns (Doc.ref Public.Properties.modelPropertyDictionary)
     Doc.response 200 "Object with properties as attributes." Doc.end
 
   -- TODO: put delete here, too?
@@ -663,10 +672,10 @@ sitemap o = do
       "If the environment where the registration takes \
       \place is private and a registered email address or phone \
       \number is not whitelisted, a 403 error is returned."
-    Doc.body (Doc.ref Doc.newUser) $
+    Doc.body (Doc.ref Public.User.modelNewUser) $
       Doc.description "JSON body"
     -- FUTUREWORK: I think this should be 'Doc.self' instead of 'user'
-    Doc.returns (Doc.ref Doc.user)
+    Doc.returns (Doc.ref Public.User.modelUser)
     Doc.response 201 "User created and pending activation." Doc.end
     Doc.errorResponse whitelistError
     Doc.errorResponse invalidInvitationCode
@@ -689,7 +698,7 @@ sitemap o = do
       Doc.description "Activation key"
     Doc.parameter Doc.Query "code" Doc.bytes' $
       Doc.description "Activation code"
-    Doc.returns (Doc.ref Doc.activationResponse)
+    Doc.returns (Doc.ref Public.Activation.modelActivationResponse)
     Doc.response 200 "Activation successful." Doc.end
     Doc.response 204 "A recent activation was already successful." Doc.end
     Doc.errorResponse activationCodeNotFound
@@ -707,9 +716,9 @@ sitemap o = do
     Doc.notes
       "Activation only succeeds once and the number of \
       \failed attempts for a valid key is limited."
-    Doc.body (Doc.ref Doc.activate) $
+    Doc.body (Doc.ref Public.Activation.modelActivate) $
       Doc.description "JSON body"
-    Doc.returns (Doc.ref Doc.activationResponse)
+    Doc.returns (Doc.ref Public.Activation.modelActivationResponse)
     Doc.response 200 "Activation successful." Doc.end
     Doc.response 204 "A recent activation was already successful." Doc.end
     Doc.errorResponse activationCodeNotFound
@@ -719,7 +728,7 @@ sitemap o = do
     jsonRequest @SendActivationCode
   document "POST" "sendActivationCode" $ do
     Doc.summary "Send (or resend) an email or phone activation code."
-    Doc.body (Doc.ref Doc.sendActivationCode) $
+    Doc.body (Doc.ref Public.Activation.modelSendActivationCode) $
       Doc.description "JSON body"
     Doc.response 200 "Activation code sent." Doc.end
     Doc.errorResponse invalidEmail
@@ -733,7 +742,7 @@ sitemap o = do
       .&. jsonRequest @NewPasswordReset
   document "POST" "beginPasswordReset" $ do
     Doc.summary "Initiate a password reset."
-    Doc.body (Doc.ref Doc.newPasswordReset) $
+    Doc.body (Doc.ref Public.Password.modelNewPasswordReset) $
       Doc.description "JSON body"
     Doc.response 201 "Password reset code created and sent by email." Doc.end
     Doc.errorResponse invalidPwResetKey
@@ -744,7 +753,7 @@ sitemap o = do
       .&. jsonRequest @CompletePasswordReset
   document "POST" "completePasswordReset" $ do
     Doc.summary "Complete a password reset."
-    Doc.body (Doc.ref Doc.completePasswordReset) $
+    Doc.body (Doc.ref Public.Password.modelCompletePasswordReset) $
       Doc.description "JSON body"
     Doc.response 200 "Password reset successful." Doc.end
     Doc.errorResponse invalidPwResetCode
@@ -780,7 +789,7 @@ apiDocs o = do
   get
     "/users/api-docs"
     ( \(_ ::: url) k ->
-        let doc = mkSwaggerApi (decodeLatin1 url) Doc.brigModels (sitemap o)
+        let doc = mkSwaggerApi (decodeLatin1 url) Public.Swagger.models (sitemap o)
          in k $ json doc
     )
     $ accept "application" "json"
