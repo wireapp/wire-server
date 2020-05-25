@@ -26,7 +26,6 @@ import qualified Brig.API.Client as API
 import qualified Brig.API.Connection as API
 import Brig.API.Error
 import Brig.API.Handler
-import Brig.API.Public (changeEmail)
 import Brig.API.Types
 import qualified Brig.API.User as API
 import Brig.App
@@ -39,7 +38,6 @@ import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
-import Brig.User.Email
 import Control.Error hiding (bool)
 import Control.Lens (view)
 import Data.Aeson hiding (json)
@@ -291,7 +289,21 @@ deleteUserNoVerify uid = do
   lift $ API.deleteUserNoVerify uid
 
 changeSelfEmailNoSendH :: UserId ::: JsonRequest EmailUpdate -> Handler Response
-changeSelfEmailNoSendH (u ::: req) = changeEmail u req False
+changeSelfEmailNoSendH (u ::: req) = do
+  email <- euEmail <$> parseJsonBody req
+  changeSelfEmailNoSend u email >>= \case
+    ChangeEmailResponseNeedsActivation -> pure (setStatus status204 empty)
+    ChangeEmailResponseIdempotent -> pure (setStatus status202 empty)
+
+data ChangeEmailResponse
+  = ChangeEmailResponseNeedsActivation
+  | ChangeEmailResponseIdempotent
+
+changeSelfEmailNoSend :: UserId -> Email -> Handler ChangeEmailResponse
+changeSelfEmailNoSend u email = do
+  API.changeEmail u email !>> changeEmailError >>= \case
+    ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
+    ChangeEmailNeedsActivation _ -> pure ChangeEmailResponseNeedsActivation
 
 listActivatedAccountsH :: JSON ::: Either (List UserId) (List Handle) -> Handler Response
 listActivatedAccountsH (_ ::: qry) = do

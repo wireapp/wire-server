@@ -38,9 +38,8 @@ import qualified Brig.Provider.API as Provider
 import qualified Brig.TURN.API as TURN
 import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
-import Brig.Types ()
 import Brig.Types.Intra (AccountStatus (Ephemeral), UserAccount (UserAccount, accountUser))
--- TODO
+-- TODO(mheinzel)
 import Brig.Types.User.Auth
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
@@ -809,7 +808,8 @@ setProperty u c propkey propval = do
 safeParsePropertyKey :: Public.Properties.PropertyKey -> Handler Public.Properties.PropertyKey
 safeParsePropertyKey k = do
   maxKeyLen <- fromMaybe defMaxKeyLen <$> view (settings . propertyMaxKeyLen)
-  unless (Text.compareLength (Ascii.toText (propertyKeyName k)) (fromIntegral maxKeyLen) <= EQ) $
+  let keyText = Ascii.toText (Public.Properties.propertyKeyName k)
+  when (Text.compareLength keyText (fromIntegral maxKeyLen) == GT) $
     throwStd propertyKeyTooLarge
   pure k
 
@@ -877,13 +877,13 @@ addClientH :: JsonRequest Public.Client.NewClient ::: UserId ::: ConnId ::: Mayb
 addClientH (req ::: usr ::: con ::: ip ::: _) = do
   new <- parseJsonBody req
   clt <- addClient new usr con ip
-  let loc = toByteString' $ clientId clt
+  let loc = toByteString' $ Public.Client.clientId clt
   pure . setStatus status201 . addHeader "Location" loc . json $ clt
 
 addClient :: Public.Client.NewClient -> UserId -> ConnId -> Maybe IpAddr -> Handler Public.Client.Client
 addClient new usr con ip = do
   -- Users can't add legal hold clients
-  when (newClientType new == LegalHoldClientType) $
+  when (Public.Client.newClientType new == Public.Client.LegalHoldClientType) $
     throwE (clientError ClientLegalHoldCannotBeAdded)
   API.addClient usr (Just con) (ipAddr <$> ip) new !>> clientError
 
@@ -894,7 +894,7 @@ rmClientH (req ::: usr ::: con ::: clt ::: _) = do
 
 rmClient :: Public.Client.RmClient -> UserId -> ConnId -> ClientId -> Handler ()
 rmClient body usr con clt = do
-  API.rmClient usr con clt (rmPassword body) !>> clientError
+  API.rmClient usr con clt (Public.Client.rmPassword body) !>> clientError
 
 updateClientH :: JsonRequest Public.Client.UpdateClient ::: UserId ::: ClientId ::: JSON -> Handler Response
 updateClientH (req ::: usr ::: clt ::: _) = do
@@ -951,11 +951,11 @@ getRichInfo self user = do
   -- other user
   selfUser <- ifNothing userNotFound =<< lift (Data.lookupUser self)
   otherUser <- ifNothing userNotFound =<< lift (Data.lookupUser user)
-  case (userTeam selfUser, userTeam otherUser) of
+  case (Public.User.userTeam selfUser, Public.User.userTeam otherUser) of
     (Just t1, Just t2) | t1 == t2 -> pure ()
     _ -> throwStd insufficientTeamPermissions
   -- Query rich info
-  fromMaybe emptyRichInfoAssocList <$> lift (API.lookupRichInfo user)
+  fromMaybe Public.RichInfo.emptyRichInfoAssocList <$> lift (API.lookupRichInfo user)
 
 listPrekeyIdsH :: UserId ::: ClientId ::: JSON -> Handler Response
 listPrekeyIdsH (usr ::: clt ::: _) = json <$> lift (API.lookupPrekeyIds usr clt)
@@ -969,31 +969,36 @@ createUserH (_ ::: req) = do
     . addHeader "Location" (toByteString' loc)
     $ json prof
 
-data CreateUserResponse = CreateUserResponse (Cookie (ZAuth.Token ZAuth.User)) UserId Public.User.SelfProfile
+data CreateUserResponse
+  = CreateUserResponse (Cookie (ZAuth.Token ZAuth.User)) UserId Public.User.SelfProfile
 
 createUser :: Public.User.NewUserPublic -> Handler CreateUserResponse
 createUser (Public.User.NewUserPublic new) = do
-  for_ (newUserEmail new) $ checkWhitelist . Left
-  for_ (newUserPhone new) $ checkWhitelist . Right
+  for_ (Public.User.newUserEmail new) $ checkWhitelist . Left
+  for_ (Public.User.newUserPhone new) $ checkWhitelist . Right
   result <- API.createUser new !>> newUserError
   let acc = createdAccount result
-  let usr = accountUser acc
   let eac = createdEmailActivation result
   let pac = createdPhoneActivation result
   let epair = (,) <$> (activationKey <$> eac) <*> (activationCode <$> eac)
   let ppair = (,) <$> (activationKey <$> pac) <*> (activationCode <$> pac)
-  let lang = userLocale usr
+  let newUserLabel = Public.User.newUserLabel new
+  let newUserTeam = Public.User.newUserTeam new
+  let usr = accountUser acc
+  let Public.User.User {userLocale, userDisplayName, userId} = usr
+  let userEmail = Public.User.userEmail usr
+  let userPhone = Public.User.userPhone usr
   lift $ do
-    for_ (liftM2 (,) (userEmail usr) epair) $ \(e, p) ->
-      sendActivationEmail e (userDisplayName usr) p (Just lang) (newUserTeam new)
-    for_ (liftM2 (,) (userPhone usr) ppair) $ \(p, c) ->
-      sendActivationSms p c (Just lang)
-    for_ (liftM3 (,,) (userEmail usr) (createdUserTeam result) (newUserTeam new)) $ \(e, ct, ut) ->
-      sendWelcomeEmail e ct ut (Just lang)
+    for_ (liftM2 (,) userEmail epair) $ \(e, p) ->
+      sendActivationEmail e userDisplayName p (Just userLocale) newUserTeam
+    for_ (liftM2 (,) userPhone ppair) $ \(p, c) ->
+      sendActivationSms p c (Just userLocale)
+    for_ (liftM3 (,,) userEmail (createdUserTeam result) newUserTeam) $ \(e, ct, ut) ->
+      sendWelcomeEmail e ct ut (Just userLocale)
   cok <- case acc of
-    UserAccount _ Ephemeral -> lift $ Auth.newCookie @ZAuth.User (userId usr) SessionCookie (newUserLabel new)
-    UserAccount _ _ -> lift $ Auth.newCookie @ZAuth.User (userId usr) PersistentCookie (newUserLabel new)
-  pure $ CreateUserResponse cok (userId usr) (SelfProfile usr)
+    UserAccount _ Ephemeral -> lift $ Auth.newCookie @ZAuth.User userId SessionCookie newUserLabel
+    UserAccount _ _ -> lift $ Auth.newCookie @ZAuth.User userId PersistentCookie newUserLabel
+  pure $ CreateUserResponse cok userId (Public.User.SelfProfile usr)
   where
     sendActivationEmail e u p l = \case
       (Just (Public.User.NewTeamCreator (Public.User.BindingNewTeamUser (Team.BindingNewTeam t) _))) ->
@@ -1087,7 +1092,7 @@ changePhoneH (u ::: c ::: req) = do
   setStatus status202 empty <$ (changePhone u c =<< parseJsonBody req)
 
 changePhone :: UserId -> ConnId -> Public.User.PhoneUpdate -> Handler ()
-changePhone u _ (puPhone -> phone) = do
+changePhone u _ (Public.User.puPhone -> phone) = do
   (adata, pn) <- API.changePhone u phone !>> changePhoneError
   loc <- lift $ API.lookupLocale u
   let apair = (activationKey adata, activationCode adata)
@@ -1168,7 +1173,7 @@ getHandleInfo self handle = do
       Just ownerId -> lift $ API.lookupProfile self ownerId
       Nothing -> return Nothing
   owner <- filterHandleResults self (maybeToList ownerProfile)
-  return $ Public.Handle.UserHandleInfo . profileId <$> listToMaybe owner
+  return $ Public.Handle.UserHandleInfo . Public.User.profileId <$> listToMaybe owner
 
 changeHandleH :: UserId ::: ConnId ::: JsonRequest Public.User.HandleUpdate -> Handler Response
 changeHandleH (u ::: conn ::: req) = do
@@ -1209,24 +1214,33 @@ sendActivationCode Public.Activation.SendActivationCode {..} = do
   API.sendActivationCode saUserKey saLocale saCall !>> sendActCodeError
 
 changeSelfEmailH :: UserId ::: ConnId ::: JsonRequest Public.User.EmailUpdate -> Handler Response
-changeSelfEmailH (u ::: _ ::: req) = changeEmail u req True
+changeSelfEmailH (u ::: _ ::: req) = do
+  email <- Public.User.euEmail <$> parseJsonBody req
+  changeSelfEmail u email >>= \case
+    -- TODO(mheinzel): is this the right way around?
+    ChangeEmailResponseNeedsActivation -> pure (setStatus status204 empty)
+    ChangeEmailResponseIdempotent -> pure (setStatus status202 empty)
 
-changeEmail :: UserId -> JsonRequest Public.User.EmailUpdate -> Bool -> Handler Response
-changeEmail u req sendOutEmail = do
-  email <- euEmail <$> parseJsonBody req
+data ChangeEmailResponse
+  = ChangeEmailResponseNeedsActivation
+  | ChangeEmailResponseIdempotent
+
+changeSelfEmail :: UserId -> Public.User.Email -> Handler ChangeEmailResponse
+changeSelfEmail u email = do
   API.changeEmail u email !>> changeEmailError >>= \case
-    ChangeEmailIdempotent -> respond status204
-    ChangeEmailNeedsActivation (usr, adata, en) -> handleActivation usr adata en
+    ChangeEmailIdempotent ->
+      pure ChangeEmailResponseIdempotent
+    ChangeEmailNeedsActivation (usr, adata, en) -> do
+      lift $ sendOutEmail usr adata en
+      pure ChangeEmailResponseNeedsActivation
   where
-    respond = return . flip setStatus empty
-    handleActivation usr adata en = do
-      when sendOutEmail $ do
-        let apair = (activationKey adata, activationCode adata)
-        let name = userDisplayName usr
-        let ident = userIdentity usr
-        let lang = userLocale usr
-        lift $ sendActivationMail en name apair (Just lang) ident
-      respond status202
+    sendOutEmail usr adata en = do
+      sendActivationMail
+        en
+        (Public.User.userDisplayName usr)
+        (activationKey adata, activationCode adata)
+        (Just (Public.User.userLocale usr))
+        (Public.User.userIdentity usr)
 
 createConnectionH :: JSON ::: UserId ::: ConnId ::: JsonRequest Public.Connection.ConnectionRequest -> Handler Response
 createConnectionH (_ ::: self ::: conn ::: req) = do
@@ -1238,7 +1252,7 @@ createConnectionH (_ ::: self ::: conn ::: req) = do
 
 updateConnectionH :: JSON ::: UserId ::: ConnId ::: UserId ::: JsonRequest Public.Connection.ConnectionUpdate -> Handler Response
 updateConnectionH (_ ::: self ::: conn ::: other ::: req) = do
-  newStatus <- cuStatus <$> parseJsonBody req
+  newStatus <- Public.Connection.cuStatus <$> parseJsonBody req
   mc <- API.updateConnection self other newStatus (Just conn) !>> connError
   return $ case mc of
     Just c -> json c
@@ -1259,10 +1273,10 @@ getConnectionH (_ ::: uid ::: uid') = lift $ do
 deleteUserH :: UserId ::: JsonRequest Public.User.DeleteUser ::: JSON -> Handler Response
 deleteUserH (u ::: r ::: _) = do
   body <- parseJsonBody r
-  res <- API.deleteUser u (deleteUserPassword body) !>> deleteUserError
+  res <- API.deleteUser u (Public.User.deleteUserPassword body) !>> deleteUserError
   return $ case res of
     Nothing -> setStatus status200 empty
-    Just ttl -> setStatus status202 (json (DeletionCodeTimeout ttl))
+    Just ttl -> setStatus status202 (json (Public.User.DeletionCodeTimeout ttl))
 
 verifyDeleteUserH :: JsonRequest Public.User.VerifyDeleteUser ::: JSON -> Handler Response
 verifyDeleteUserH (r ::: _) = do
@@ -1287,10 +1301,14 @@ respFromActivationRespWithStatus = \case
 
 -- docs/reference/user/activation.md {#RefActivationSubmit}
 activateKeyH :: JSON ::: JsonRequest Public.Activation.Activate -> Handler Response
-activateKeyH (_ ::: req) = respFromActivationRespWithStatus <$> (activate =<< parseJsonBody req)
+activateKeyH (_ ::: req) = do
+  activationRequest <- parseJsonBody req
+  respFromActivationRespWithStatus <$> activate activationRequest
 
 activateH :: Public.Activation.ActivationKey ::: Public.Activation.ActivationCode -> Handler Response
-activateH (k ::: c) = respFromActivationRespWithStatus <$> (activate (Activate (ActivateKey k) c False))
+activateH (k ::: c) = do
+  let activationRequest = Public.Activation.Activate (Public.Activation.ActivateKey k) c False
+  respFromActivationRespWithStatus <$> activate activationRequest
 
 activate :: Public.Activation.Activate -> Handler ActivationRespWithStatus
 activate (Public.Activation.Activate tgt code dryrun)
@@ -1303,7 +1321,7 @@ activate (Public.Activation.Activate tgt code dryrun)
       ActivationSuccess ident first -> respond ident first
       ActivationPass -> ActivationRespPass
   where
-    respond (Just ident) first = ActivationResp $ ActivationResponse ident first
+    respond (Just ident) first = ActivationResp $ Public.Activation.ActivationResponse ident first
     respond Nothing _ = ActivationRespSuccessNoIdent
 
 -- Deprecated
@@ -1323,7 +1341,11 @@ instance ToJSON DeprecatedMatchingResult where
 deprecatedCompletePasswordResetH :: JSON ::: Public.Password.PasswordResetKey ::: JsonRequest Public.Password.PasswordReset -> Handler Response
 deprecatedCompletePasswordResetH (_ ::: k ::: req) = do
   pwr <- parseJsonBody req
-  API.completePasswordReset (Public.Password.PasswordResetIdentityKey k) (pwrCode pwr) (pwrPassword pwr) !>> pwResetError
+  API.completePasswordReset
+    (Public.Password.PasswordResetIdentityKey k)
+    (Public.Password.pwrCode pwr)
+    (Public.Password.pwrPassword pwr)
+    !>> pwResetError
   return empty
 
 -- Utilities
@@ -1342,6 +1364,6 @@ filterHandleResults searchingUser us = do
     then do
       fromTeam <- lift $ Data.lookupUserTeam searchingUser
       return $ case fromTeam of
-        Just team -> filter (\x -> profileTeam x == Just team) us
+        Just team -> filter (\x -> Public.User.profileTeam x == Just team) us
         Nothing -> us
     else return us
