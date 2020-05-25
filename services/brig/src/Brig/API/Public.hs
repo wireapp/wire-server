@@ -65,7 +65,6 @@ import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (decodeLatin1)
 import Data.Text.Lazy (pack)
 import qualified Data.ZAuth.Token as ZAuth
-import Galley.Types (UserClientMap (..), UserClients (..))
 import qualified Galley.Types.Teams as Team
 import Imports hiding (head)
 import Network.HTTP.Types.Status
@@ -187,7 +186,7 @@ sitemap o = do
   -- User Prekey API ----------------------------------------------------
 
   post "/users/prekeys" (continue getMultiPrekeyBundlesH) $
-    jsonRequest @UserClients
+    jsonRequest @Public.Client.UserClients
       .&. accept "application" "json"
   document "POST" "getMultiPrekeyBundles" $ do
     Doc.summary
@@ -864,14 +863,14 @@ getPrekeyBundle u = do
   resolvedUserId <- resolveOpaqueUserId u
   lift $ API.claimPrekeyBundle resolvedUserId
 
-getMultiPrekeyBundlesH :: JsonRequest UserClients ::: JSON -> Handler Response
+getMultiPrekeyBundlesH :: JsonRequest Public.Client.UserClients ::: JSON -> Handler Response
 getMultiPrekeyBundlesH (req ::: _) = do
   json <$> (getMultiPrekeyBundles =<< parseJsonBody req)
 
-getMultiPrekeyBundles :: UserClients -> Handler (UserClientMap (Maybe Prekey))
+getMultiPrekeyBundles :: Public.Client.UserClients -> Handler (Public.Client.UserClientMap (Maybe Prekey))
 getMultiPrekeyBundles body = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
-  when (Map.size (userClients body) > maxSize) $
+  when (Map.size (Public.Client.userClients body) > maxSize) $
     throwStd tooManyClients
   API.claimMultiPrekeyBundles body
 
