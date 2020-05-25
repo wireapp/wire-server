@@ -27,4 +27,4 @@ Automation
 ----------
 
 - Ansible: 2.7
-- Helm: >= v2
+- Helm: >= v3
