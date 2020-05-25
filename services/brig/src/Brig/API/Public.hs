@@ -131,7 +131,7 @@ sitemap o = do
   post "/users/handles" (continue checkHandlesH) $
     accept "application" "json"
       .&. zauthUserId
-      .&. jsonRequest @CheckHandles
+      .&. jsonRequest @Public.Handle.CheckHandles
   document "POST" "checkUserHandles" $ do
     Doc.summary "Check availability of user handles"
     Doc.body (Doc.ref Public.Handle.modelCheckHandles) $
@@ -1028,7 +1028,7 @@ getUserH :: JSON ::: UserId ::: OpaqueUserId -> Handler Response
 getUserH (_ ::: self ::: uid) = do
   fmap json . ifNothing userNotFound =<< getUser self uid
 
-getUser :: UserId -> OpaqueUserId -> Handler (Maybe UserProfile)
+getUser :: UserId -> OpaqueUserId -> Handler (Maybe Public.User.UserProfile)
 getUser self opaqueUserId = do
   resolvedUserId <- resolveOpaqueUserId opaqueUserId
   lift $ API.lookupProfile self resolvedUserId
@@ -1145,12 +1145,12 @@ checkHandle _ uhandle = do
 data CheckHandleResp = CheckHandleInvalid | CheckHandleFound | CheckHandleNotFound
   deriving (Eq, Show, Bounded, Enum, Generic)
 
-checkHandlesH :: JSON ::: UserId ::: JsonRequest CheckHandles -> Handler Response
+checkHandlesH :: JSON ::: UserId ::: JsonRequest Public.Handle.CheckHandles -> Handler Response
 checkHandlesH (_ ::: _ ::: req) = do
   CheckHandles hs num <- parseJsonBody req
   let handles = mapMaybe parseHandle (fromRange hs)
   free <- lift $ API.checkHandles handles (fromRange num)
-  return $ json free
+  return $ json @[Handle] free
 
 getHandleInfoH :: JSON ::: UserId ::: Handle -> Handler Response
 getHandleInfoH (_ ::: self ::: handle) =
