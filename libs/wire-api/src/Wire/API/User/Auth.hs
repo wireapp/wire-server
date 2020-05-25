@@ -402,7 +402,7 @@ instance FromJSON RemoveCookies where
 -- | A temporary API access token.
 data AccessToken = AccessToken
   { user :: UserId,
-    -- | TODO: must be valid UTF-8, encode that in the type!
+    -- | FUTUREWORK: must be valid UTF-8 (see ToJSON), encode that in the type!
     access :: LByteString,
     tokenType :: TokenType,
     expiresIn :: Integer

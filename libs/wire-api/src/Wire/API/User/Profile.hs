@@ -73,8 +73,10 @@ import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 -- Name
 
 -- | Usually called display name.
+--
+-- Length is between 1 and 128 characters.
 newtype Name = Name
-  {fromName :: Text}  -- TODO: use @Range 1 128 Text@
+  {fromName :: Text}
   deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (ToJSON, FromByteString, ToByteString)
   deriving (Arbitrary) via (Ranged 1 128 Text)
@@ -85,6 +87,7 @@ modelUserDisplayName = Doc.defineModel "UserDisplayName" $ do
   Doc.property "name" Doc.string' $
     Doc.description "User name"
 
+-- FUTUREWORK: use @Range 1 128 Text@ and deriving this instance.
 instance FromJSON Name where
   parseJSON x =
     Name . fromRange
