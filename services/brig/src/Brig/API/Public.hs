@@ -39,8 +39,6 @@ import qualified Brig.TURN.API as TURN
 import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
 import Brig.Types.Intra (AccountStatus (Ephemeral), UserAccount (UserAccount, accountUser))
--- TODO(mheinzel)
-import Brig.Types.User.Auth
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
 import qualified Brig.User.Auth.Cookie as Auth
@@ -80,6 +78,7 @@ import qualified Wire.API.Properties as Public.Properties
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.User as Public.User
 import qualified Wire.API.User.Activation as Public.Activation
+import qualified Wire.API.User.Auth as Public.Auth
 import qualified Wire.API.User.Client as Public.Client
 import qualified Wire.API.User.Client.Prekey as Public.Prekey
 import qualified Wire.API.User.Handle as Public.Handle
@@ -970,7 +969,7 @@ createUserH (_ ::: req) = do
     $ json prof
 
 data CreateUserResponse
-  = CreateUserResponse (Cookie (ZAuth.Token ZAuth.User)) UserId Public.User.SelfProfile
+  = CreateUserResponse (Public.Auth.Cookie (ZAuth.Token ZAuth.User)) UserId Public.User.SelfProfile
 
 createUser :: Public.User.NewUserPublic -> Handler CreateUserResponse
 createUser (Public.User.NewUserPublic new) = do
@@ -996,8 +995,8 @@ createUser (Public.User.NewUserPublic new) = do
     for_ (liftM3 (,,) userEmail (createdUserTeam result) newUserTeam) $ \(e, ct, ut) ->
       sendWelcomeEmail e ct ut (Just userLocale)
   cok <- case acc of
-    UserAccount _ Ephemeral -> lift $ Auth.newCookie @ZAuth.User userId SessionCookie newUserLabel
-    UserAccount _ _ -> lift $ Auth.newCookie @ZAuth.User userId PersistentCookie newUserLabel
+    UserAccount _ Ephemeral -> lift $ Auth.newCookie @ZAuth.User userId Public.Auth.SessionCookie newUserLabel
+    UserAccount _ _ -> lift $ Auth.newCookie @ZAuth.User userId Public.Auth.PersistentCookie newUserLabel
   pure $ CreateUserResponse cok userId (Public.User.SelfProfile usr)
   where
     sendActivationEmail e u p l = \case
