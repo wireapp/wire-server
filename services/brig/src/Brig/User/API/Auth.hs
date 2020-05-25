@@ -27,7 +27,6 @@ import qualified Brig.API.User as User
 import Brig.App (AppIO)
 import Brig.Phone
 import Brig.Types.Intra (ReAuthUser, reAuthPassword)
-import qualified Brig.Types.Swagger as Doc
 import Brig.Types.User.Auth
 import qualified Brig.User.Auth as Auth
 import qualified Brig.User.Auth.Cookie as Auth
@@ -51,6 +50,7 @@ import Network.Wai.Utilities.Request (JsonRequest, jsonRequest)
 import Network.Wai.Utilities.Response (empty, json)
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
+import Wire.API.User.Auth as Public
 import Wire.Swagger as Doc (pendingLoginError)
 
 routesPublic :: Routes Doc.ApiBuilder Handler ()
@@ -65,7 +65,7 @@ routesPublic = do
       \Every other combination is invalid. \
       \Access tokens can be given as query parameter or authorisation \
       \header, with the latter being preferred."
-    Doc.returns (Doc.ref Doc.accessToken)
+    Doc.returns (Doc.ref Public.modelAccessToken)
     Doc.parameter Doc.Header "cookie" Doc.bytes' $ do
       Doc.description "The 'zuid' cookie header"
       Doc.optional
@@ -78,16 +78,16 @@ routesPublic = do
     Doc.errorResponse badCredentials
 
   post "/login/send" (continue sendLoginCodeH) $
-    jsonRequest @SendLoginCode
+    jsonRequest @Public.SendLoginCode
   document "POST" "sendLoginCode" $ do
     Doc.summary "Send a login code to a verified phone number."
     Doc.notes
       "This operation generates and sends a login code. \
       \A login code can be used only once and times out after \
       \10 minutes. Only one login code may be pending at a time."
-    Doc.body (Doc.ref Doc.sendLoginCode) $
+    Doc.body (Doc.ref Public.modelSendLoginCode) $
       Doc.description "JSON body"
-    Doc.returns (Doc.ref Doc.loginCodeResponse)
+    Doc.returns (Doc.ref Public.modelLoginCodeResponse)
     Doc.response 200 "Login code sent." Doc.end
     Doc.errorResponse invalidPhone
     Doc.errorResponse passwordExists
@@ -100,7 +100,7 @@ routesPublic = do
   document "POST" "login" $ do
     Doc.summary "Authenticate a user to obtain a cookie and first access token."
     Doc.notes "Logins are throttled at the server's discretion."
-    Doc.body (Doc.ref Doc.login) $
+    Doc.body (Doc.ref Public.modelLogin) $
       Doc.description
         "The optional label can later be used to delete all \
         \cookies matching this label (cf. /cookies/remove)."
@@ -136,17 +136,17 @@ routesPublic = do
       .&. accept "application" "json"
   document "GET" "getCookies" $ do
     Doc.summary "Retrieve the list of cookies currently stored for the user."
-    Doc.returns (Doc.ref Doc.cookieList)
+    Doc.returns (Doc.ref Public.modelCookieList)
     Doc.parameter Doc.Query "labels" Doc.bytes' $ do
       Doc.description "Filter by label (comma-separated list)"
       Doc.optional
 
   post "/cookies/remove" (continue rmCookiesH) $
     header "Z-User"
-      .&. jsonRequest @RemoveCookies
+      .&. jsonRequest @Public.RemoveCookies
   document "POST" "rmCookies" $ do
     Doc.summary "Revoke stored cookies."
-    Doc.body (Doc.ref Doc.removeCookies) Doc.end
+    Doc.body (Doc.ref Public.modelRemoveCookies) Doc.end
     Doc.errorResponse badCredentials
 
 routesInternal :: Routes a Handler ()
@@ -175,16 +175,16 @@ sendLoginCodeH :: JsonRequest SendLoginCode -> Handler Response
 sendLoginCodeH req = do
   json <$> (sendLoginCode =<< parseJsonBody req)
 
-sendLoginCode :: SendLoginCode -> Handler LoginCodeTimeout
-sendLoginCode (SendLoginCode phone call force) = do
+sendLoginCode :: Public.SendLoginCode -> Handler Public.LoginCodeTimeout
+sendLoginCode (Public.SendLoginCode phone call force) = do
   checkWhitelist (Right phone)
   c <- Auth.sendLoginCode phone call force !>> sendLoginCodeError
-  return $ LoginCodeTimeout (pendingLoginTimeout c)
+  return $ Public.LoginCodeTimeout (pendingLoginTimeout c)
 
 getLoginCodeH :: JSON ::: Phone -> Handler Response
 getLoginCodeH (_ ::: phone) = json <$> getLoginCode phone
 
-getLoginCode :: Phone -> Handler PendingLoginCode
+getLoginCode :: Phone -> Handler Public.PendingLoginCode
 getLoginCode phone = do
   code <- lift $ Auth.lookupLoginCode phone
   maybe (throwStd loginCodeNotFound) return code
@@ -198,11 +198,11 @@ reAuthUser :: UserId -> ReAuthUser -> Handler ()
 reAuthUser uid body = do
   User.reauthenticate uid (reAuthPassword body) !>> reauthError
 
-loginH :: JsonRequest Login ::: Bool ::: JSON -> Handler Response
+loginH :: JsonRequest Public.Login ::: Bool ::: JSON -> Handler Response
 loginH (req ::: persist ::: _) = do
   lift . tokenResponse =<< flip login persist =<< parseJsonBody req
 
-login :: Login -> Bool -> Handler (Auth.Access ZAuth.User)
+login :: Public.Login -> Bool -> Handler (Auth.Access ZAuth.User)
 login l persist = do
   let typ = if persist then PersistentCookie else SessionCookie
   Auth.login l typ !>> loginError
@@ -241,19 +241,19 @@ logout (Just (Right _)) (Just (Left _)) = throwStd authTokenMismatch
 logout (Just (Left ut)) (Just (Left at)) = Auth.logout ut at !>> zauthError
 logout (Just (Right ut)) (Just (Right at)) = Auth.logout ut at !>> zauthError
 
-listCookiesH :: UserId ::: Maybe (List CookieLabel) ::: JSON -> Handler Response
+listCookiesH :: UserId ::: Maybe (List Public.CookieLabel) ::: JSON -> Handler Response
 listCookiesH (u ::: ll ::: _) = json <$> lift (listCookies u ll)
 
-listCookies :: UserId -> Maybe (List CookieLabel) -> AppIO CookieList
+listCookies :: UserId -> Maybe (List Public.CookieLabel) -> AppIO Public.CookieList
 listCookies u ll = do
-  CookieList <$> Auth.listCookies u (maybe [] fromList ll)
+  Public.CookieList <$> Auth.listCookies u (maybe [] fromList ll)
 
-rmCookiesH :: UserId ::: JsonRequest RemoveCookies -> Handler Response
+rmCookiesH :: UserId ::: JsonRequest Public.RemoveCookies -> Handler Response
 rmCookiesH (uid ::: req) = do
   empty <$ (rmCookies uid =<< parseJsonBody req)
 
-rmCookies :: UserId -> RemoveCookies -> Handler ()
-rmCookies uid (RemoveCookies pw lls ids) = do
+rmCookies :: UserId -> Public.RemoveCookies -> Handler ()
+rmCookies uid (Public.RemoveCookies pw lls ids) = do
   Auth.revokeAccess uid pw ids lls !>> authError
 
 renewH :: JSON ::: Maybe (Either ZAuth.UserToken ZAuth.LegalHoldUserToken) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> Handler Response
