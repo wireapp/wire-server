@@ -249,7 +249,7 @@ tests =
       -- testRoundTrip @User.Activation.ActivationTarget,
       testRoundTrip @User.Activation.ActivationCode,
       testRoundTrip @User.Activation.Activate,
-      currentlyFailing (testRoundTrip @User.Activation.ActivationResponse), -- because ToJSON doesn't serialize 'sso_id'
+      testRoundTrip @User.Activation.ActivationResponse,
       testRoundTrip @User.Activation.SendActivationCode,
       testRoundTrip @User.Auth.LoginId,
       testRoundTrip @User.Auth.LoginCode,

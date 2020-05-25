@@ -168,11 +168,13 @@ modelActivationResponse = Doc.defineModel "ActivationResponse" $ do
   Doc.property "first" Doc.bool' $
     Doc.description "Whether this is the first successful activation (i.e. account activation)."
 
+-- FUTUREWORK: de-deduplicate work with JSON instance for 'UserIdentity'?
 instance ToJSON ActivationResponse where
   toJSON (ActivationResponse ident first) =
     object $
       "email" .= emailIdentity ident
         # "phone" .= phoneIdentity ident
+        # "sso_id" .= ssoIdentity ident
         # "first" .= first
         # []
 
