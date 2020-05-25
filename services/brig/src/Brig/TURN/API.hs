@@ -24,7 +24,6 @@ import Brig.API.Handler
 import Brig.App
 import Brig.TURN hiding (Env)
 import qualified Brig.TURN as TURN
-import Brig.Types.TURN ()
 import Control.Lens
 import Control.Monad.Fail (MonadFail)
 import Control.Monad.Random.Class
