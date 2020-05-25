@@ -22,6 +22,3 @@ for i in $(seq 1 $number_of_instances); do
     --wait
 done
 
-
-# TODO always urn this?
-helm test -n fed1 wire-server --logs --timeout=500s
