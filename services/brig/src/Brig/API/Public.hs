@@ -834,13 +834,17 @@ getPropertyH (u ::: k ::: _) = do
   val <- lift $ API.lookupProperty u k
   return $ case val of
     Nothing -> setStatus status404 empty
-    Just v -> json v
+    Just v -> json (v :: Public.Properties.PropertyValue)
 
 listPropertyKeysH :: UserId ::: JSON -> Handler Response
-listPropertyKeysH (u ::: _) = json <$> lift (API.lookupPropertyKeys u)
+listPropertyKeysH (u ::: _) = do
+  val <- lift (API.lookupPropertyKeys u)
+  pure $ json (val :: [Public.Properties.PropertyKey])
 
 listPropertyKeysAndValuesH :: UserId ::: JSON -> Handler Response
-listPropertyKeysAndValuesH (u ::: _) = json <$> lift (API.lookupPropertyKeysAndValues u)
+listPropertyKeysAndValuesH (u ::: _) = do
+  val <- lift (API.lookupPropertyKeysAndValues u)
+  pure $ json (val :: Public.Properties.PropertyKeysAndValues)
 
 getPrekeyH :: OpaqueUserId ::: ClientId ::: JSON -> Handler Response
 getPrekeyH (u ::: c ::: _) = do
@@ -957,7 +961,10 @@ getRichInfo self user = do
   fromMaybe Public.RichInfo.emptyRichInfoAssocList <$> lift (API.lookupRichInfo user)
 
 listPrekeyIdsH :: UserId ::: ClientId ::: JSON -> Handler Response
-listPrekeyIdsH (usr ::: clt ::: _) = json <$> lift (API.lookupPrekeyIds usr clt)
+listPrekeyIdsH (usr ::: clt ::: _) = do
+  -- TODO(mheinzel): better name than val
+  val <- lift (API.lookupPrekeyIds usr clt)
+  pure $ json (val :: [Public.Prekey.PrekeyId])
 
 -- docs/reference/user/registration.md {#RefRegistration}
 createUserH :: JSON ::: JsonRequest Public.User.NewUserPublic -> Handler Response
@@ -1124,6 +1131,11 @@ changeLocaleH (u ::: conn ::: req) = do
   lift $ API.changeLocale u conn l
   return empty
 
+data CheckHandleResp
+  = CheckHandleInvalid
+  | CheckHandleFound
+  | CheckHandleNotFound
+
 checkHandleH :: UserId ::: Text -> Handler Response
 checkHandleH (uid ::: hndl) = do
   checkHandle uid hndl >>= \case
@@ -1145,17 +1157,12 @@ checkHandle _ uhandle = do
         -- Handle is free and can be taken
         return CheckHandleNotFound
 
-data CheckHandleResp
-  = CheckHandleInvalid
-  | CheckHandleFound
-  | CheckHandleNotFound
-
 checkHandlesH :: JSON ::: UserId ::: JsonRequest Public.Handle.CheckHandles -> Handler Response
 checkHandlesH (_ ::: _ ::: req) = do
   Public.Handle.CheckHandles hs num <- parseJsonBody req
   let handles = mapMaybe parseHandle (fromRange hs)
   free <- lift $ API.checkHandles handles (fromRange num)
-  return $ json @[Handle] free
+  return $ json (free :: [Handle])
 
 getHandleInfoH :: JSON ::: UserId ::: Handle -> Handler Response
 getHandleInfoH (_ ::: self ::: handle) =
@@ -1246,27 +1253,27 @@ createConnectionH (_ ::: self ::: conn ::: req) = do
   cr <- parseJsonBody req
   rs <- API.createConnection self cr conn !>> connError
   return $ case rs of
-    ConnectionCreated c -> setStatus status201 $ json c
-    ConnectionExists c -> json c
+    ConnectionCreated c -> setStatus status201 $ json (c :: Public.Connection.UserConnection)
+    ConnectionExists c -> json (c :: Public.Connection.UserConnection)
 
 updateConnectionH :: JSON ::: UserId ::: ConnId ::: UserId ::: JsonRequest Public.Connection.ConnectionUpdate -> Handler Response
 updateConnectionH (_ ::: self ::: conn ::: other ::: req) = do
   newStatus <- Public.Connection.cuStatus <$> parseJsonBody req
   mc <- API.updateConnection self other newStatus (Just conn) !>> connError
   return $ case mc of
-    Just c -> json c
+    Just c -> json (c :: Public.Connection.UserConnection)
     Nothing -> setStatus status204 empty
 
 listConnectionsH :: JSON ::: UserId ::: Maybe UserId ::: Range 1 500 Int32 -> Handler Response
 listConnectionsH (_ ::: uid ::: start ::: size) =
-  json
+  json @Public.Connection.UserConnectionList
     <$> lift (API.lookupConnections uid start size)
 
 getConnectionH :: JSON ::: UserId ::: UserId -> Handler Response
 getConnectionH (_ ::: uid ::: uid') = lift $ do
   conn <- API.lookupConnection uid uid'
   return $ case conn of
-    Just c -> json c
+    Just c -> json (c :: Public.Connection.UserConnection)
     Nothing -> setStatus status404 empty
 
 deleteUserH :: UserId ::: JsonRequest Public.User.DeleteUser ::: JSON -> Handler Response
