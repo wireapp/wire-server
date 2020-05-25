@@ -180,7 +180,7 @@ data Event
   | EMemberLeave (ConvEvent UserIdList)
   | EConnect (ConvEvent Connect)
   | EConvRename (ConvEvent ConversationRename)
-  | -- seems like it should be 'Wire.API.Event.Conversation.MemberUpdateData' instead
+  | -- FUTUREWORK: seems like `MemberUpdate` should be 'Wire.API.Event.Conversation.MemberUpdateData' instead
     EMemberStateUpdate (ConvEvent MemberUpdate)
   | EOtrMessage (ConvEvent OtrMessage)
 
