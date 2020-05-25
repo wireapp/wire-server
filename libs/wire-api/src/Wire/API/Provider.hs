@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -59,6 +60,7 @@ import Data.Json.Util
 import Data.Misc (HttpsUrl (..), PlainTextPassword (..))
 import Data.Range
 import Imports
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Conversation.Code as Code
 import Wire.API.Provider.Service (ServiceToken (..))
 import Wire.API.Provider.Service.Tag (ServiceTag (..))
@@ -76,7 +78,8 @@ data Provider = Provider
     providerUrl :: HttpsUrl,
     providerDescr :: Text
   }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Provider)
 
 instance ToJSON Provider where
   toJSON p =
@@ -90,7 +93,8 @@ instance ToJSON Provider where
 
 instance FromJSON Provider where
   parseJSON = withObject "Provider" $ \o ->
-    Provider <$> o .: "id"
+    Provider
+      <$> o .: "id"
       <*> o .: "name"
       <*> o .: "email"
       <*> o .: "url"
@@ -101,7 +105,7 @@ instance FromJSON Provider where
 -- the full provider information.
 newtype ProviderProfile = ProviderProfile Provider
   deriving stock (Eq, Show)
-  deriving newtype (FromJSON, ToJSON)
+  deriving newtype (FromJSON, ToJSON, Arbitrary)
 
 --------------------------------------------------------------------------------
 -- NewProvider
@@ -115,6 +119,8 @@ data NewProvider = NewProvider
     -- | If none provided, a password is generated.
     newProviderPassword :: Maybe PlainTextPassword
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewProvider)
 
 instance ToJSON NewProvider where
   toJSON p =
@@ -128,7 +134,8 @@ instance ToJSON NewProvider where
 
 instance FromJSON NewProvider where
   parseJSON = withObject "NewProvider" $ \o ->
-    NewProvider <$> o .: "name"
+    NewProvider
+      <$> o .: "name"
       <*> o .: "email"
       <*> o .: "url"
       <*> o .: "description"
@@ -141,6 +148,8 @@ data NewProviderResponse = NewProviderResponse
     -- in the 'NewProvider' request.
     rsNewProviderPassword :: Maybe PlainTextPassword
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewProviderResponse)
 
 instance ToJSON NewProviderResponse where
   toJSON r =
@@ -151,7 +160,8 @@ instance ToJSON NewProviderResponse where
 
 instance FromJSON NewProviderResponse where
   parseJSON = withObject "NewProviderResponse" $ \o ->
-    NewProviderResponse <$> o .: "id"
+    NewProviderResponse
+      <$> o .: "id"
       <*> o .:? "password"
 
 --------------------------------------------------------------------------------
@@ -163,7 +173,8 @@ data UpdateProvider = UpdateProvider
     updateProviderUrl :: Maybe HttpsUrl,
     updateProviderDescr :: Maybe Text
   }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UpdateProvider)
 
 instance ToJSON UpdateProvider where
   toJSON p =
@@ -175,7 +186,8 @@ instance ToJSON UpdateProvider where
 
 instance FromJSON UpdateProvider where
   parseJSON = withObject "UpdateProvider" $ \o ->
-    UpdateProvider <$> o .:? "name"
+    UpdateProvider
+      <$> o .:? "name"
       <*> o .:? "url"
       <*> o .:? "description"
 
@@ -186,7 +198,8 @@ instance FromJSON UpdateProvider where
 -- number in the future) of a provider.
 newtype ProviderActivationResponse = ProviderActivationResponse
   {activatedProviderIdentity :: Email}
-  deriving (Eq, Show)
+  deriving stock (Eq, Show)
+  deriving newtype (Arbitrary)
 
 instance ToJSON ProviderActivationResponse where
   toJSON (ProviderActivationResponse e) =
@@ -204,6 +217,8 @@ data ProviderLogin = ProviderLogin
   { providerLoginEmail :: Email,
     providerLoginPassword :: PlainTextPassword
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ProviderLogin)
 
 instance ToJSON ProviderLogin where
   toJSON l =
@@ -214,7 +229,8 @@ instance ToJSON ProviderLogin where
 
 instance FromJSON ProviderLogin where
   parseJSON = withObject "ProviderLogin" $ \o ->
-    ProviderLogin <$> o .: "email"
+    ProviderLogin
+      <$> o .: "email"
       <*> o .: "password"
 
 --------------------------------------------------------------------------------
@@ -223,6 +239,8 @@ instance FromJSON ProviderLogin where
 -- | Input data for a provider deletion request.
 newtype DeleteProvider = DeleteProvider
   {deleteProviderPassword :: PlainTextPassword}
+  deriving stock (Eq, Show)
+  deriving newtype (Arbitrary)
 
 instance ToJSON DeleteProvider where
   toJSON d =
@@ -239,6 +257,8 @@ instance FromJSON DeleteProvider where
 
 -- | The payload for initiating a password reset.
 newtype PasswordReset = PasswordReset {nprEmail :: Email}
+  deriving stock (Eq, Show)
+  deriving newtype (Arbitrary)
 
 deriveJSON toJSONFieldName ''PasswordReset
 
@@ -248,6 +268,8 @@ data CompletePasswordReset = CompletePasswordReset
     cpwrCode :: Code.Value,
     cpwrPassword :: PlainTextPassword
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform CompletePasswordReset)
 
 deriveJSON toJSONFieldName ''CompletePasswordReset
 
@@ -256,10 +278,14 @@ data PasswordChange = PasswordChange
   { cpOldPassword :: PlainTextPassword,
     cpNewPassword :: PlainTextPassword
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform PasswordChange)
 
 deriveJSON toJSONFieldName ''PasswordChange
 
 -- | The payload for updating an email address
 newtype EmailUpdate = EmailUpdate {euEmail :: Email}
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
 
 deriveJSON toJSONFieldName ''EmailUpdate

@@ -27,22 +27,14 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as N
 import qualified Data.Vector as V
 import Imports
+import Test.QuickCheck (Arbitrary)
+import Test.QuickCheck.Instances ()
 
 newtype List1 a = List1
   { toNonEmpty :: NonEmpty a
   }
-  deriving
-    ( Monad,
-      Functor,
-      Applicative,
-      Foldable,
-      Traversable,
-      Eq,
-      Ord,
-      Read,
-      Show,
-      Semigroup
-    )
+  deriving stock (Eq, Ord, Read, Show, Functor, Foldable, Traversable)
+  deriving newtype (Applicative, Monad, Semigroup, Arbitrary)
 
 infixr 5 <|
 

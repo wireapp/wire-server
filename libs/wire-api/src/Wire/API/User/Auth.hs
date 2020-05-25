@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -63,6 +64,7 @@ import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Lazy.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Clock (UTCTime)
 import Imports
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.User.Identity (Email, Phone)
 
 --------------------------------------------------------------------------------
@@ -72,6 +74,8 @@ import Wire.API.User.Identity (Email, Phone)
 data Login
   = PasswordLogin LoginId PlainTextPassword (Maybe CookieLabel)
   | SmsLogin Phone LoginCode (Maybe CookieLabel)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Login)
 
 modelLogin :: Doc.Model
 modelLogin = Doc.defineModel "Login" $ do
@@ -125,6 +129,8 @@ data LoginId
   = LoginByEmail Email
   | LoginByPhone Phone
   | LoginByHandle Handle
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform LoginId)
 
 instance FromJSON LoginId where
   parseJSON = withObject "LoginId" $ \o -> do
@@ -158,15 +164,16 @@ instance ToJSON LoginId where
 -- | A single-use login code.
 newtype LoginCode = LoginCode
   {fromLoginCode :: Text}
-  deriving stock (Eq)
-  deriving newtype (FromJSON, ToJSON)
+  deriving stock (Eq, Show)
+  deriving newtype (FromJSON, ToJSON, Arbitrary)
 
 -- | Used for internal endpoint only.
 data PendingLoginCode = PendingLoginCode
   { pendingLoginCode :: LoginCode,
     pendingLoginTimeout :: Code.Timeout
   }
-  deriving (Eq)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform PendingLoginCode)
 
 instance ToJSON PendingLoginCode where
   toJSON (PendingLoginCode c t) =
@@ -175,7 +182,8 @@ instance ToJSON PendingLoginCode where
 
 instance FromJSON PendingLoginCode where
   parseJSON = withObject "PendingLoginCode" $ \o ->
-    PendingLoginCode <$> o .: "code"
+    PendingLoginCode
+      <$> o .: "code"
       <*> o .: "expires_in"
 
 --------------------------------------------------------------------------------
@@ -187,6 +195,8 @@ data SendLoginCode = SendLoginCode
     lcCall :: Bool,
     lcForce :: Bool
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform SendLoginCode)
 
 modelSendLoginCode :: Doc.Model
 modelSendLoginCode = Doc.defineModel "SendLoginCode" $ do
@@ -207,7 +217,8 @@ instance ToJSON SendLoginCode where
 
 instance FromJSON SendLoginCode where
   parseJSON = withObject "SendLoginCode" $ \o ->
-    SendLoginCode <$> o .: "phone"
+    SendLoginCode
+      <$> o .: "phone"
       <*> o .:? "voice_call" .!= False
       <*> o .:? "force" .!= True
 
@@ -217,7 +228,8 @@ instance FromJSON SendLoginCode where
 -- | A timeout for a new or pending login code.
 newtype LoginCodeTimeout = LoginCodeTimeout
   {fromLoginCodeTimeout :: Code.Timeout}
-  deriving (Eq, Show)
+  deriving stock (Eq, Show)
+  deriving newtype (Arbitrary)
 
 modelLoginCodeResponse :: Doc.Model
 modelLoginCodeResponse = Doc.defineModel "LoginCodeResponse" $ do
@@ -238,6 +250,8 @@ instance FromJSON LoginCodeTimeout where
 data CookieList = CookieList
   { cookieList :: [Cookie ()]
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform CookieList)
 
 modelCookieList :: Doc.Model
 modelCookieList = Doc.defineModel "CookieList" $ do
@@ -262,7 +276,8 @@ data Cookie a = Cookie
     cookieSucc :: Maybe CookieId,
     cookieValue :: a
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform (Cookie a))
 
 modelCookie :: Doc.Model
 modelCookie = Doc.defineModel "Cookie" $ do
@@ -291,7 +306,8 @@ instance ToJSON (Cookie ()) where
 
 instance FromJSON (Cookie ()) where
   parseJSON = withObject "cookie" $ \o ->
-    Cookie <$> o .: "id"
+    Cookie
+      <$> o .: "id"
       <*> o .: "type"
       <*> o .: "created"
       <*> o .: "expires"
@@ -303,12 +319,13 @@ instance FromJSON (Cookie ()) where
 -- Cookies can be listed and deleted based on their labels.
 newtype CookieLabel = CookieLabel
   {cookieLabelText :: Text}
-  deriving (Eq, Ord, Show, Generic)
-  deriving newtype (FromJSON, ToJSON, FromByteString, ToByteString, IsString)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (FromJSON, ToJSON, FromByteString, ToByteString, IsString, Arbitrary)
 
 newtype CookieId = CookieId
   {cookieIdNum :: Word32}
-  deriving (Eq, Show, FromJSON, ToJSON, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (FromJSON, ToJSON, Arbitrary)
 
 data CookieType
   = -- | A session cookie. These are mainly intended for clients
@@ -321,7 +338,8 @@ data CookieType
     -- These cookies are regularly renewed as part of an access token
     -- refresh.
     PersistentCookie
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform CookieType)
 
 modelTypeCookieType :: Doc.DataType
 modelTypeCookieType =
@@ -348,6 +366,8 @@ data RemoveCookies = RemoveCookies
     rmCookiesLabels :: [CookieLabel],
     rmCookiesIdents :: [CookieId]
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform RemoveCookies)
 
 modelRemoveCookies :: Doc.Model
 modelRemoveCookies = Doc.defineModel "RemoveCookies" $ do
@@ -361,9 +381,18 @@ modelRemoveCookies = Doc.defineModel "RemoveCookies" $ do
     Doc.description "A list of cookie IDs to revoke."
     Doc.optional
 
+instance ToJSON RemoveCookies where
+  toJSON (RemoveCookies password labels ids) =
+    object
+      [ "password" .= password,
+        "labels" .= labels,
+        "ids" .= ids
+      ]
+
 instance FromJSON RemoveCookies where
   parseJSON = withObject "remove" $ \o ->
-    RemoveCookies <$> o .: "password"
+    RemoveCookies
+      <$> o .: "password"
       <*> o .:? "labels" .!= []
       <*> o .:? "ids" .!= []
 
@@ -373,22 +402,15 @@ instance FromJSON RemoveCookies where
 -- | A temporary API access token.
 data AccessToken = AccessToken
   { user :: UserId,
-    access :: LByteString, -- accessTokenValue
-    tokenType :: TokenType, -- accessTokenType
-    expiresIn :: Integer -- accessTokenExpiresIn
+    -- | FUTUREWORK: must be valid UTF-8 (see ToJSON), encode that in the type!
+    access :: LByteString,
+    tokenType :: TokenType,
+    expiresIn :: Integer
   }
+  deriving stock (Eq, Show, Generic)
 
 bearerToken :: UserId -> LByteString -> Integer -> AccessToken
 bearerToken u a = AccessToken u a Bearer
-
-instance ToJSON AccessToken where
-  toJSON (AccessToken u t tt e) =
-    object
-      [ "user" .= u,
-        "access_token" .= decodeUtf8 t,
-        "token_type" .= tt,
-        "expires_in" .= e
-      ]
 
 modelAccessToken :: Doc.Model
 modelAccessToken = Doc.defineModel "AccessToken" $ do
@@ -400,14 +422,35 @@ modelAccessToken = Doc.defineModel "AccessToken" $ do
   Doc.property "expires_in" Doc.int64' $
     Doc.description "The number of seconds this token is valid."
 
+instance ToJSON AccessToken where
+  toJSON (AccessToken u t tt e) =
+    object
+      [ "user" .= u,
+        -- FUTUREWORK: if we assume it's valid UTF-8, why not make it 'Text'?
+        "access_token" .= decodeUtf8 t,
+        "token_type" .= tt,
+        "expires_in" .= e
+      ]
+
 instance FromJSON AccessToken where
   parseJSON = withObject "AccessToken" $ \o ->
-    AccessToken <$> o .: "user"
+    AccessToken
+      <$> o .: "user"
       <*> (encodeUtf8 <$> o .: "access_token")
       <*> o .: "token_type"
       <*> o .: "expires_in"
 
-data TokenType = Bearer deriving (Show)
+instance Arbitrary AccessToken where
+  arbitrary =
+    AccessToken
+      <$> arbitrary
+      <*> (encodeUtf8 <$> arbitrary)
+      <*> arbitrary
+      <*> arbitrary
+
+data TokenType = Bearer
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform TokenType)
 
 instance ToJSON TokenType where
   toJSON Bearer = toJSON ("Bearer" :: Text)

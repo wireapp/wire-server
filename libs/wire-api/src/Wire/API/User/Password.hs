@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
@@ -38,9 +39,11 @@ where
 import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Misc (PlainTextPassword (..))
+import Data.Range (Ranged (..))
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import Imports
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.User.Identity
 
 --------------------------------------------------------------------------------
@@ -48,7 +51,8 @@ import Wire.API.User.Identity
 
 -- | The payload for initiating a password reset.
 newtype NewPasswordReset = NewPasswordReset (Either Email Phone)
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
 
 modelNewPasswordReset :: Doc.Model
 modelNewPasswordReset = Doc.defineModel "NewPasswordReset" $ do
@@ -81,7 +85,8 @@ data CompletePasswordReset = CompletePasswordReset
     cpwrCode :: PasswordResetCode,
     cpwrPassword :: PlainTextPassword
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform CompletePasswordReset)
 
 modelCompletePasswordReset :: Doc.Model
 modelCompletePasswordReset = Doc.defineModel "CompletePasswordReset" $ do
@@ -129,12 +134,14 @@ data PasswordResetIdentity
     PasswordResetEmailIdentity Email
   | -- | A known phone number with a pending password reset.
     PasswordResetPhoneIdentity Phone
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform PasswordResetIdentity)
 
 -- | Opaque identifier per user (SHA256 of the user ID).
 newtype PasswordResetKey = PasswordResetKey
   {fromPasswordResetKey :: AsciiBase64Url}
-  deriving (Eq, Show, FromByteString, ToByteString, FromJSON, ToJSON, Generic)
+  deriving stock (Eq, Show)
+  deriving newtype (FromByteString, ToByteString, FromJSON, ToJSON, Arbitrary)
 
 --------------------------------------------------------------------------------
 -- PasswordResetCode
@@ -142,7 +149,9 @@ newtype PasswordResetKey = PasswordResetKey
 -- | Random code, acting as a very short-lived, single-use password.
 newtype PasswordResetCode = PasswordResetCode
   {fromPasswordResetCode :: AsciiBase64Url}
-  deriving (Eq, Show, FromByteString, ToByteString, FromJSON, ToJSON, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (FromByteString, ToByteString, FromJSON, ToJSON)
+  deriving (Arbitrary) via (Ranged 6 1024 AsciiBase64Url)
 
 --------------------------------------------------------------------------------
 -- DEPRECATED
@@ -151,8 +160,11 @@ data PasswordReset = PasswordReset
   { pwrCode :: PasswordResetCode,
     pwrPassword :: PlainTextPassword
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform PasswordReset)
 
 instance FromJSON PasswordReset where
   parseJSON = withObject "PasswordReset" $ \o ->
-    PasswordReset <$> o .: "code"
+    PasswordReset
+      <$> o .: "code"
       <*> o .: "password"

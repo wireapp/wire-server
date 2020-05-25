@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -49,6 +50,7 @@ import Data.Id
 import Data.Json.Util
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- PushToken
@@ -56,7 +58,8 @@ import Imports
 newtype PushTokenList = PushTokenList
   { pushTokens :: [PushToken]
   }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show)
+  deriving newtype (Arbitrary)
 
 modelPushTokenList :: Doc.Model
 modelPushTokenList = Doc.defineModel "PushTokenList" $ do
@@ -77,7 +80,8 @@ data PushToken = PushToken
     _token :: Token,
     _tokenClient :: ClientId
   }
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform PushToken)
 
 pushToken :: Transport -> AppName -> Token -> ClientId -> PushToken
 pushToken tp an tk cl = PushToken tp an tk cl
@@ -106,7 +110,8 @@ instance ToJSON PushToken where
 
 instance FromJSON PushToken where
   parseJSON = withObject "PushToken" $ \p ->
-    PushToken <$> p .: "transport"
+    PushToken
+      <$> p .: "transport"
       <*> p .: "app"
       <*> p .: "token"
       <*> p .: "client"
@@ -120,7 +125,8 @@ data Transport
   | APNSSandbox
   | APNSVoIP
   | APNSVoIPSandbox
-  deriving (Eq, Ord, Show, Bounded, Enum)
+  deriving stock (Eq, Ord, Show, Bounded, Enum, Generic)
+  deriving (Arbitrary) via (GenericUniform Transport)
 
 typeTransport :: Doc.DataType
 typeTransport =
@@ -161,11 +167,13 @@ instance FromByteString Transport where
 newtype Token = Token
   { tokenText :: Text
   }
-  deriving (Eq, Ord, Show, FromJSON, ToJSON, FromByteString, ToByteString)
+  deriving stock (Eq, Ord, Show)
+  deriving newtype (FromJSON, ToJSON, FromByteString, ToByteString, Arbitrary)
 
 newtype AppName = AppName
   { appNameText :: Text
   }
-  deriving (Eq, Ord, Show, FromJSON, ToJSON, IsString)
+  deriving stock (Eq, Ord, Show)
+  deriving newtype (FromJSON, ToJSON, IsString, Arbitrary)
 
 makeLenses ''PushToken

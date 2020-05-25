@@ -1,3 +1,6 @@
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -34,6 +37,7 @@ import Data.String.Conversions (cs)
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as T
 import Imports
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- TeamSearchVisibility
@@ -63,6 +67,7 @@ data TeamSearchVisibility
   = SearchVisibilityStandard
   | SearchVisibilityNoNameOutsideTeam
   deriving stock (Eq, Show, Ord, Enum, Bounded, Generic)
+  deriving (Arbitrary) via (GenericUniform TeamSearchVisibility)
 
 typeSearchVisibility :: Doc.DataType
 typeSearchVisibility =
@@ -84,6 +89,7 @@ instance FromJSON TeamSearchVisibility where
 
 newtype TeamSearchVisibilityView = TeamSearchVisibilityView TeamSearchVisibility
   deriving stock (Eq, Show, Ord, Bounded, Generic)
+  deriving newtype (Arbitrary)
 
 modelTeamSearchVisibility :: Doc.Model
 modelTeamSearchVisibility = Doc.defineModel "TeamSearchVisibility" $ do
@@ -103,8 +109,11 @@ instance FromJSON TeamSearchVisibilityView where
 
 -- | Is the feature enabled for a given team?  See also 'FeatureTeamSearchVisibility',
 -- 'TeamSearchVisibility'.
-data TeamSearchVisibilityAvailable = TeamSearchVisibilityDisabled | TeamSearchVisibilityEnabled
+data TeamSearchVisibilityAvailable
+  = TeamSearchVisibilityDisabled
+  | TeamSearchVisibilityEnabled
   deriving stock (Eq, Show, Ord, Enum, Bounded, Generic)
+  deriving (Arbitrary) via (GenericUniform TeamSearchVisibilityAvailable)
 
 typeSearchVisibilityAvailable :: Doc.DataType
 typeSearchVisibilityAvailable =
@@ -129,6 +138,7 @@ instance FromJSON TeamSearchVisibilityAvailable where
 
 newtype TeamSearchVisibilityAvailableView = TeamSearchVisibilityAvailableView TeamSearchVisibilityAvailable
   deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
 
 modelTeamSearchVisibilityAvailable :: Doc.Model
 modelTeamSearchVisibilityAvailable = Doc.defineModel "TeamSearchVisibilityAvailable" $ do

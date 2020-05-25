@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6524c012b9c2b417de7d0c9d6462811a09880449bbac320e48c098532860eb86
+-- hash: 507a0d8a20b432280023bd2361517ea5c10b65217930737993333a3c9910b945
 
 name:           types-common
 version:        0.16.0
@@ -73,6 +73,7 @@ library
     , optparse-applicative >=0.10
     , protobuf >=0.2
     , quickcheck-instances >=0.3.16
+    , random >=1.1
     , safe >=0.3
     , scientific >=0.3.4
     , semigroups >=0.12

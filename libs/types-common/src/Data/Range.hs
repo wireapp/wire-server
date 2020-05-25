@@ -41,9 +41,13 @@ module Data.Range
     rsingleton,
 
     -- * 'Arbitrary' generators
+    Ranged (..),
     genRangeList,
+    genRangeSet,
     genRangeText,
+    genRangeAsciiText,
     genRange,
+    genIntegral,
   )
 where
 
@@ -56,6 +60,7 @@ import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
+import Data.Kind (Type)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as N
 import Data.List1 (List1, toNonEmpty)
@@ -68,12 +73,14 @@ import Data.Singletons.Prelude.Num
 import Data.Singletons.Prelude.Ord
 import Data.Singletons.TypeLits
 import qualified Data.Text as T
-import Data.Text.Ascii (AsciiText)
+import Data.Text.Ascii (AsciiChar, AsciiChars, AsciiText, fromAsciiChars)
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Text.Lazy as TL
 import Imports
 import Numeric.Natural
-import Test.QuickCheck (Gen, choose)
+import System.Random (Random)
+import Test.QuickCheck (Arbitrary (arbitrary, shrink), Gen)
+import qualified Test.QuickCheck as QC
 
 -----------------------------------------------------------------------------
 
@@ -275,6 +282,19 @@ instance ToByteString a => ToByteString (Range n m a) where
 ----------------------------------------------------------------------------
 -- Arbitrary generators
 
+-- | Similar to 'Range', but we export the constructor, so it can be used with @DerivingVia@.
+newtype Ranged m n a = Ranged {fromRanged :: a}
+  deriving stock (Show)
+
+instance Arbitrary (Range m n a) => Arbitrary (Ranged m n a) where
+  arbitrary = Ranged . fromRange <$> arbitrary @(Range m n a)
+
+instance
+  (KnownNat n, KnownNat m, LTE n m, Arbitrary a, Show a) =>
+  Arbitrary (Range n m [a])
+  where
+  arbitrary = genRangeList @n @m @a arbitrary
+
 genRangeList ::
   forall (n :: Nat) (m :: Nat) (a :: *).
   (Show a, KnownNat n, KnownNat m, LTE n m) =>
@@ -282,12 +302,50 @@ genRangeList ::
   Gen (Range n m [a])
 genRangeList = genRange id
 
+instance
+  (KnownNat n, KnownNat m, LTE n m, Arbitrary a, Show a, Ord a) =>
+  Arbitrary (Range n m (Set a))
+  where
+  arbitrary = genRangeSet @n @m @a arbitrary
+
+-- | This has a risk of not terminating if the set is requested to be bigger
+-- than the number of possible distinct values.
+-- However, it will only show up while running tests and might indicate deeper
+-- problems, so I'd say that's ok.
+genRangeSet ::
+  forall (n :: Nat) (m :: Nat) (a :: *).
+  (Show a, KnownNat n, KnownNat m, LTE n m, Ord a) =>
+  Gen a ->
+  Gen (Range n m (Set a))
+genRangeSet gc =
+  (Set.fromList . fromRange <$> genRangeList @n @m @a gc) `QC.suchThatMap` checked
+
+instance (KnownNat n, KnownNat m, LTE n m) => Arbitrary (Range n m Text) where
+  arbitrary = genRangeText arbitrary
+
+  -- FUTUREWORK: the shrinking could be more general (like genRange) and offer more options
+  shrink (fromRange -> txt) = [unsafeRange @Text @n @m $ T.take (fromKnownNat (Proxy @n)) txt]
+
 genRangeText ::
   forall (n :: Nat) (m :: Nat).
   (KnownNat n, KnownNat m, LTE n m) =>
   Gen Char ->
   Gen (Range n m Text)
 genRangeText = genRange fromString
+
+instance
+  (AsciiChars c, KnownNat n, KnownNat m, LTE n m, Arbitrary (AsciiChar c)) =>
+  Arbitrary (Range n m (AsciiText c))
+  where
+  arbitrary = genRangeAsciiText (arbitrary @(AsciiChar c))
+
+genRangeAsciiText ::
+  forall (n :: Nat) (m :: Nat) (c :: Type).
+  (HasCallStack, KnownNat n, KnownNat m, LTE n m, AsciiChars c) =>
+  Gen (AsciiChar c) ->
+  Gen (Range n m (AsciiText c))
+genRangeAsciiText gc =
+  genRange @n @m fromAsciiChars gc
 
 genRange ::
   forall (n :: Nat) (m :: Nat) (a :: *) (b :: *).
@@ -298,8 +356,23 @@ genRange ::
 genRange pack_ gc =
   unsafeRange @b @n @m . pack_
     <$> grange
-      (fromIntegral (natVal (Proxy @n)))
-      (fromIntegral (natVal (Proxy @m)))
+      (fromKnownNat (Proxy @n))
+      (fromKnownNat (Proxy @m))
       gc
   where
-    grange mi ma gelem = (`replicateM` gelem) =<< choose (mi, ma)
+    grange mi ma gelem = (`replicateM` gelem) =<< QC.choose (mi, ma)
+
+instance (KnownNat n, KnownNat m, LTE n m) => Arbitrary (Range n m Integer) where
+  arbitrary = genIntegral
+
+instance (KnownNat n, KnownNat m, LTE n m) => Arbitrary (Range n m Word) where
+  arbitrary = genIntegral
+
+genIntegral ::
+  forall n m i.
+  (KnownNat n, KnownNat m, LTE n m, Integral i, Show i, Bounds i, Random i) =>
+  Gen (Range n m i)
+genIntegral = unsafeRange @i @n @m <$> QC.choose (fromKnownNat (Proxy @n), fromKnownNat (Proxy @m))
+
+fromKnownNat :: forall (k :: Nat) (i :: *). (Num i, KnownNat k) => Proxy k -> i
+fromKnownNat p = fromIntegral $ natVal p

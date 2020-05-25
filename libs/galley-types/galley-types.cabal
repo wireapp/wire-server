@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: cdcdf111d387fa7052c8b55618370dcd0233dce2613b2284153c24eb8b72478b
+-- hash: ce146b2488d4660c995a9bde437bead339f5282182adb8896e714cac4ce1827b
 
 name:           galley-types
 version:        0.81.0
@@ -48,7 +48,6 @@ library
     , data-default >=0.5
     , errors
     , exceptions >=0.10.0
-    , gundeck-types >=1.15.13
     , hashable
     , imports
     , lens >=4.12
@@ -69,6 +68,7 @@ test-suite galley-types-tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
+      Test.Galley.Roundtrip
       Test.Galley.Types
       Paths_galley_types
   hs-source-dirs:
@@ -76,13 +76,16 @@ test-suite galley-types-tests
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
   build-depends:
-      base
+      QuickCheck
+    , aeson
+    , base
     , containers
     , galley-types
     , imports
     , lens
     , tasty
     , tasty-hunit
+    , tasty-quickcheck
     , types-common
     , wire-api
   default-language: Haskell2010

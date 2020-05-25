@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
@@ -51,6 +52,7 @@ import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text as Text
 import Imports
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- UserConnectionList
@@ -61,7 +63,8 @@ data UserConnectionList = UserConnectionList
     -- | Pagination flag ("we have more results")
     clHasMore :: Bool
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UserConnectionList)
 
 modelConnectionList :: Doc.Model
 modelConnectionList = Doc.defineModel "UserConnectionList" $ do
@@ -79,7 +82,8 @@ instance ToJSON UserConnectionList where
 
 instance FromJSON UserConnectionList where
   parseJSON = withObject "UserConnectionList" $ \o ->
-    UserConnectionList <$> o .: "connections"
+    UserConnectionList
+      <$> o .: "connections"
       <*> o .: "has_more"
 
 --------------------------------------------------------------------------------
@@ -99,7 +103,8 @@ data UserConnection = UserConnection
     ucMessage :: Maybe Message,
     ucConvId :: Maybe ConvId
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UserConnection)
 
 modelConnection :: Doc.Model
 modelConnection = Doc.defineModel "Connection" $ do
@@ -132,7 +137,8 @@ instance ToJSON UserConnection where
 
 instance FromJSON UserConnection where
   parseJSON = withObject "user-connection" $ \o ->
-    UserConnection <$> o .: "from"
+    UserConnection
+      <$> o .: "from"
       <*> o .: "to"
       <*> o .: "status"
       <*> o .: "last_update"
@@ -152,7 +158,8 @@ data Relation
   | Ignored
   | Sent
   | Cancelled
-  deriving (Eq, Ord, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Relation)
 
 typeRelation :: Doc.DataType
 typeRelation =
@@ -196,7 +203,9 @@ instance FromByteString Relation where
 -- /Note 2019-03-28:/ some clients send it, but we have hidden it anyway in the UI since it
 -- works as a nice source of spam. TODO deprecate and remove.
 newtype Message = Message {messageText :: Text}
-  deriving (Eq, Ord, Show, ToJSON, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (ToJSON)
+  deriving (Arbitrary) via (Ranged 1 256 Text)
 
 instance FromJSON Message where
   parseJSON x = Message . fromRange <$> (parseJSON x :: Parser (Range 1 256 Text))
@@ -213,7 +222,7 @@ data ConnectionRequest = ConnectionRequest
     -- | Initial message
     crMessage :: Message
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
 
 modelConnectionRequest :: Doc.Model
 modelConnectionRequest = Doc.defineModel "ConnectionRequest" $ do
@@ -235,15 +244,25 @@ instance ToJSON ConnectionRequest where
 
 instance FromJSON ConnectionRequest where
   parseJSON = withObject "connection-request" $ \o ->
-    ConnectionRequest <$> o .: "user"
+    ConnectionRequest
+      <$> o .: "user"
       <*> (fromRange <$> ((o .: "name") :: Parser (Range 1 256 Text)))
       <*> o .: "message"
+
+-- | TODO: make 'crName :: Range 1 256 Text' and derive this instance.
+instance Arbitrary ConnectionRequest where
+  arbitrary =
+    ConnectionRequest
+      <$> arbitrary
+      <*> (fromRange <$> arbitrary @(Range 1 256 Text))
+      <*> arbitrary
 
 -- | Payload type for "please change the status of this connection".
 data ConnectionUpdate = ConnectionUpdate
   { cuStatus :: Relation
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConnectionUpdate)
 
 modelConnectionUpdate :: Doc.Model
 modelConnectionUpdate = Doc.defineModel "ConnectionUpdate" $ do

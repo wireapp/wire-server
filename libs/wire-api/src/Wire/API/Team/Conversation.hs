@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -42,6 +43,7 @@ import Data.Aeson
 import Data.Id (ConvId)
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- TeamConversation
@@ -50,6 +52,8 @@ data TeamConversation = TeamConversation
   { _conversationId :: ConvId,
     _managedConversation :: Bool
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform TeamConversation)
 
 newTeamConversation :: ConvId -> Bool -> TeamConversation
 newTeamConversation = TeamConversation
@@ -79,6 +83,8 @@ instance FromJSON TeamConversation where
 newtype TeamConversationList = TeamConversationList
   { _teamConversations :: [TeamConversation]
   }
+  deriving stock (Eq, Show)
+  deriving newtype (Arbitrary)
 
 newTeamConversationList :: [TeamConversation] -> TeamConversationList
 newTeamConversationList = TeamConversationList

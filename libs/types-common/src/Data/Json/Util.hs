@@ -51,6 +51,9 @@ import Data.Time.Format (formatTime, parseTimeM)
 import qualified Data.Time.Lens as TL
 import Data.Time.Locale.Compat (defaultTimeLocale)
 import Imports
+import Test.QuickCheck (Arbitrary (arbitrary))
+-- for UTCTime
+import Test.QuickCheck.Instances ()
 
 append :: Pair -> [Pair] -> [Pair]
 append (_, Null) pp = pp
@@ -102,6 +105,9 @@ instance CQL.Cql UTCTimeMillis where
   ctype = CQL.Tagged CQL.TimestampColumn
   toCql = CQL.toCql . fromUTCTimeMillis
   fromCql = fmap toUTCTimeMillis . CQL.fromCql
+
+instance Arbitrary UTCTimeMillis where
+  arbitrary = toUTCTimeMillis <$> arbitrary
 
 -----------------------------------------------------------------------------
 -- ToJSONObject

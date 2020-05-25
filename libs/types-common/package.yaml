@@ -39,6 +39,7 @@ library:
   - protobuf >=0.2
   - QuickCheck >=2.9
   - quickcheck-instances >=0.3.16
+  - random >=1.1
   - safe >=0.3
   - scientific >=0.3.4
   - semigroups >=0.12

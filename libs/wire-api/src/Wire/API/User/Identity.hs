@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -50,6 +51,8 @@ import Data.ByteString.Conversion
 import qualified Data.Text as Text
 import Data.Time.Clock
 import Imports
+import qualified Test.QuickCheck as QC
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- UserIdentity
@@ -61,7 +64,8 @@ data UserIdentity
   | EmailIdentity Email
   | PhoneIdentity Phone
   | SSOIdentity UserSSOId (Maybe Email) (Maybe Phone)
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UserIdentity)
 
 instance ToJSON UserIdentity where
   toJSON = \case
@@ -116,7 +120,7 @@ data Email = Email
   { emailLocal :: Text,
     emailDomain :: Text
   }
-  deriving (Eq, Ord, Generic)
+  deriving stock (Eq, Ord, Generic)
 
 instance Show Email where
   show = Text.unpack . fromEmail
@@ -135,6 +139,12 @@ instance FromJSON Email where
     withText "email" $
       maybe (fail "Invalid email. Expected '<local>@<domain>'.") return
         . parseEmail
+
+instance Arbitrary Email where
+  arbitrary = do
+    localPart <- Text.filter (/= '@') <$> arbitrary
+    domain <- Text.filter (/= '@') <$> arbitrary
+    pure $ Email localPart domain
 
 fromEmail :: Email -> Text
 fromEmail (Email loc dom) = loc <> "@" <> dom
@@ -164,6 +174,13 @@ instance ToByteString Phone where
 instance FromByteString Phone where
   parser = parser >>= maybe (fail "Invalid phone") return . parsePhone
 
+instance Arbitrary Phone where
+  arbitrary = Phone . Text.pack <$> do
+    let mkdigits n = replicateM n (QC.elements ['0' .. '9'])
+    mini <- mkdigits 8
+    maxi <- mkdigits =<< QC.choose (0, 7)
+    pure $ '+' : mini <> maxi
+
 -- | Parses a phone number in E.164 format with a mandatory leading '+'.
 parsePhone :: Text -> Maybe Phone
 parsePhone p
@@ -192,7 +209,8 @@ data UserSSOId = UserSSOId
     -- | An XML blob specifying the user's ID on the identity provider's side.
     userSSOIdSubject :: Text
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UserSSOId)
 
 instance ToJSON UserSSOId where
   toJSON (UserSSOId tenant subject) = object ["tenant" .= tenant, "subject" .= subject]
@@ -208,7 +226,8 @@ instance FromJSON UserSSOId where
 -- indicates in seconds when another attempt may be made.
 newtype PhoneBudgetTimeout = PhoneBudgetTimeout
   {phoneBudgetTimeout :: NominalDiffTime}
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
 
 instance FromJSON PhoneBudgetTimeout where
   parseJSON = withObject "PhoneBudgetTimeout" $ \o ->

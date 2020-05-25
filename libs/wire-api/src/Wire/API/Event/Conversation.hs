@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -60,7 +61,9 @@ import Data.Json.Util ((#), ToJSONObject (toJSONObject), toUTCTimeMillis)
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Time
 import Imports
+import qualified Test.QuickCheck as QC
 import URI.ByteString ()
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Conversation (modelConversationAccessUpdate, modelConversationMessageTimerUpdate, modelConversationReceiptModeUpdate, modelConversationUpdateName)
 import Wire.API.Conversation
 import Wire.API.Conversation.Code (modelConversationCode)
@@ -81,7 +84,7 @@ data Event = Event
     evtTime :: UTCTime,
     evtData :: Maybe EventData
   }
-  deriving (Eq, Generic)
+  deriving stock (Eq, Show, Generic)
 
 modelEvent :: Doc.Model
 modelEvent = Doc.defineModel "Event" $ do
@@ -128,10 +131,20 @@ instance FromJSON Event where
   parseJSON = withObject "event" $ \o -> do
     t <- o .: "type"
     d <- o .: "data"
-    Event t <$> o .: "conversation"
+    Event t
+      <$> o .: "conversation"
       <*> o .: "from"
       <*> o .: "time"
       <*> parseEventData t d
+
+instance Arbitrary Event where
+  arbitrary = do
+    typ <- arbitrary
+    Event typ
+      <$> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> genEventData typ
 
 data EventType
   = MemberJoin
@@ -148,7 +161,8 @@ data EventType
   | ConvReceiptModeUpdate
   | OtrMessageAdd
   | Typing
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform EventType)
 
 typeEventType :: Doc.DataType
 typeEventType =
@@ -219,7 +233,7 @@ data EventData
   | EdConversation Conversation
   | EdTyping TypingData
   | EdOtrMessage OtrMessage
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
 
 modelMemberEvent :: Doc.Model
 modelMemberEvent = Doc.defineModel "MemberEvent" $ do
@@ -308,13 +322,31 @@ parseEventData Typing v = Just . EdTyping <$> parseJSON v
 parseEventData OtrMessageAdd v = Just . EdOtrMessage <$> parseJSON v
 parseEventData ConvDelete _ = pure Nothing
 
+genEventData :: EventType -> QC.Gen (Maybe EventData)
+genEventData = \case
+  MemberJoin -> Just . EdMembersJoin <$> arbitrary
+  MemberLeave -> Just . EdMembersLeave <$> arbitrary
+  MemberStateUpdate -> Just . EdMemberUpdate <$> arbitrary
+  ConvRename -> Just . EdConvRename <$> arbitrary
+  ConvAccessUpdate -> Just . EdConvAccessUpdate <$> arbitrary
+  ConvMessageTimerUpdate -> Just . EdConvMessageTimerUpdate <$> arbitrary
+  ConvCodeUpdate -> Just . EdConvCodeUpdate <$> arbitrary
+  ConvCodeDelete -> pure Nothing
+  ConvConnect -> Just . EdConnect <$> arbitrary
+  ConvCreate -> Just . EdConversation <$> arbitrary
+  ConvReceiptModeUpdate -> Just . EdConvReceiptModeUpdate <$> arbitrary
+  Typing -> Just . EdTyping <$> arbitrary
+  OtrMessageAdd -> Just . EdOtrMessage <$> arbitrary
+  ConvDelete -> pure Nothing
+
 --------------------------------------------------------------------------------
 -- Event data helpers
 
 newtype SimpleMembers = SimpleMembers
   { mMembers :: [SimpleMember]
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
 
 -- | Used both for 'SimpleMembers' and 'UserIdList'.
 modelMembers :: Doc.Model
@@ -346,7 +378,8 @@ data SimpleMember = SimpleMember
   { smId :: UserId,
     smConvRoleName :: RoleName
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform SimpleMember)
 
 instance ToJSON SimpleMember where
   toJSON m =
@@ -357,7 +390,8 @@ instance ToJSON SimpleMember where
 
 instance FromJSON SimpleMember where
   parseJSON = withObject "simple member object" $ \o ->
-    SimpleMember <$> o .: "id"
+    SimpleMember
+      <$> o .: "id"
       <*> o .:? "conversation_role" .!= roleNameWireAdmin
 
 data Connect = Connect
@@ -366,7 +400,8 @@ data Connect = Connect
     cName :: Maybe Text,
     cEmail :: Maybe Text
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Connect)
 
 modelConnect :: Doc.Model
 modelConnect = Doc.defineModel "Connect" $ do
@@ -392,7 +427,8 @@ instance ToJSON Connect where
 
 instance FromJSON Connect where
   parseJSON = withObject "connect" $ \o ->
-    Connect <$> o .: "recipient"
+    Connect
+      <$> o .: "recipient"
       <*> o .:? "message"
       <*> o .:? "name"
       <*> o .:? "email"
@@ -404,6 +440,9 @@ instance FromJSON Connect where
 -- 'MemberUpdate' and 'OtherMemberUpdate'.
 data MemberUpdateData = MemberUpdateData
   { -- | Target user of this action, should not be optional anymore.
+    --
+    -- FUTUREWORK: make it mandatory to guarantee that no events
+    -- out there do not contain an ID.
     -- <https://github.com/zinfra/backend-issues/issues/1309>
     misTarget :: Maybe UserId,
     misOtrMuted :: Maybe Bool,
@@ -415,7 +454,8 @@ data MemberUpdateData = MemberUpdateData
     misHiddenRef :: Maybe Text,
     misConvRoleName :: Maybe RoleName
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform MemberUpdateData)
 
 modelMemberUpdateData :: Doc.Model
 modelMemberUpdateData = Doc.defineModel "MemberUpdateData" $ do
@@ -461,13 +501,8 @@ instance ToJSON MemberUpdateData where
 
 instance FromJSON MemberUpdateData where
   parseJSON = withObject "member-update event data" $ \m ->
-    MemberUpdateData <$> m .:? "target"
-      -- NOTE: This is really not a maybe and should
-      --       be made compulsory 28 days after the next
-      --       release to prod to guaratee that no events
-      --       out there do not contain id.
-      --       Making it compulsory now creates a bit of
-      --       a fragile parser
+    MemberUpdateData
+      <$> m .:? "target"
       <*> m .:? "otr_muted"
       <*> m .:? "otr_muted_status"
       <*> m .:? "otr_muted_ref"
@@ -483,7 +518,8 @@ data OtrMessage = OtrMessage
     otrCiphertext :: Text,
     otrData :: Maybe Text
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform OtrMessage)
 
 modelOtrMessage :: Doc.Model
 modelOtrMessage = Doc.defineModel "OtrMessage" $ do
@@ -511,7 +547,8 @@ instance ToJSON OtrMessage where
 
 instance FromJSON OtrMessage where
   parseJSON = withObject "otr-message" $ \o ->
-    OtrMessage <$> o .: "sender"
+    OtrMessage
+      <$> o .: "sender"
       <*> o .: "recipient"
       <*> o .: "text"
       <*> o .:? "data"

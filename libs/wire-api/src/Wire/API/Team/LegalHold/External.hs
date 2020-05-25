@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -36,6 +37,7 @@ import Data.Aeson
 import Data.Id
 import Data.Json.Util ((#))
 import Imports
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.User.Client.Prekey
 
 --------------------------------------------------------------------------------
@@ -47,6 +49,7 @@ data RequestNewLegalHoldClient = RequestNewLegalHoldClient
     teamId :: TeamId
   }
   deriving stock (Show, Eq, Generic)
+  deriving (Arbitrary) via (GenericUniform RequestNewLegalHoldClient)
 
 instance ToJSON RequestNewLegalHoldClient where
   toJSON (RequestNewLegalHoldClient userId teamId) =
@@ -57,7 +60,8 @@ instance ToJSON RequestNewLegalHoldClient where
 
 instance FromJSON RequestNewLegalHoldClient where
   parseJSON = withObject "RequestNewLegalHoldClient" $ \o ->
-    RequestNewLegalHoldClient <$> o .: "user_id"
+    RequestNewLegalHoldClient
+      <$> o .: "user_id"
       <*> o .: "team_id"
 
 -- | Response payload that the LH service returns upon calling @/initiate@
@@ -66,6 +70,7 @@ data NewLegalHoldClient = NewLegalHoldClient
     newLegalHoldClientLastKey :: LastPrekey
   }
   deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewLegalHoldClient)
 
 instance ToJSON NewLegalHoldClient where
   toJSON c =
@@ -76,7 +81,8 @@ instance ToJSON NewLegalHoldClient where
 
 instance FromJSON NewLegalHoldClient where
   parseJSON = withObject "NewLegalHoldClient" $ \o ->
-    NewLegalHoldClient <$> o .: "prekeys"
+    NewLegalHoldClient
+      <$> o .: "prekeys"
       <*> o .: "last_prekey"
 
 --------------------------------------------------------------------------------
@@ -91,6 +97,7 @@ data LegalHoldServiceConfirm = LegalHoldServiceConfirm
     lhcRefreshToken :: Text
   }
   deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform LegalHoldServiceConfirm)
 
 instance ToJSON LegalHoldServiceConfirm where
   toJSON (LegalHoldServiceConfirm clientId userId teamId refreshToken) =
@@ -118,6 +125,7 @@ data LegalHoldServiceRemove = LegalHoldServiceRemove
     lhrTeamId :: TeamId
   }
   deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform LegalHoldServiceRemove)
 
 instance ToJSON LegalHoldServiceRemove where
   toJSON (LegalHoldServiceRemove userId teamId) =
@@ -125,3 +133,9 @@ instance ToJSON LegalHoldServiceRemove where
       "user_id" .= userId
         # "team_id" .= teamId
         # []
+
+instance FromJSON LegalHoldServiceRemove where
+  parseJSON = withObject "LegalHoldServiceRemove" $ \o ->
+    LegalHoldServiceRemove
+      <$> o .: "user_id"
+      <*> o .: "team_id"
