@@ -30,6 +30,7 @@ module Spar.App
     insertUser,
     autoprovisionSamlUser,
     autoprovisionSamlUserWithId,
+    validateEmailIfExists,
     errorPage,
   )
 where
@@ -67,8 +68,10 @@ import Spar.Orphans ()
 import Spar.Types
 import qualified System.Logger as Log
 import System.Logger.Class (MonadLogger (log))
+import Text.Email.Parser (domainPart, localPart)
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
+import qualified Wire.API.User.Identity as WireEmail
 
 newtype Spar a = Spar {fromSpar :: ReaderT Env (ExceptT SparError IO) a}
   deriving (Functor, Applicative, Monad, MonadIO, MonadReader Env, MonadError SparError)
@@ -209,11 +212,27 @@ autoprovisionSamlUserWithId buid suid mbName managedBy = do
   let teamid = idp ^. idpExtraInfo . wiTeam
   scimtoks <- wrapMonadClient $ Data.getScimTokens teamid
   if null scimtoks
-    then createSamlUserWithId buid suid mbName managedBy
+    then do
+      createSamlUserWithId buid suid mbName managedBy
+      validateEmailIfExists buid suid
     else
       throwError . SAML.Forbidden $
         "bad credentials (note that your team uses SCIM, "
           <> "which disables saml auto-provisioning)"
+
+-- | If user's 'NameID' is an email address and the team has email validation for SSO enabled,
+-- make brig send a validation email to the address the user registered under.  If the
+-- traditional validation procedure succeeds, the user will have an email address.
+validateEmailIfExists :: UserId -> SAML.UserRef -> Spar ()
+validateEmailIfExists uid (SAML.UserRef _ nameid) = case nameid ^. SAML.nameID of
+  UNameIDEmail email -> do
+    Intra.isEmailValidationEnabled uid >>= \case
+      True -> Intra.updateEmail uid (castEmail email)
+      False -> pure ()
+  _ -> pure ()
+  where
+    castEmail :: Email -> WireEmail.Email
+    castEmail (Email adr) = WireEmail.Email (cs $ localPart adr) (cs $ domainPart adr)
 
 -- | Check if 'UserId' is in the team that hosts the idp that owns the 'UserRef'.  If so, write the
 -- 'UserRef' into the 'UserIdentity'.  Otherwise, throw an error.

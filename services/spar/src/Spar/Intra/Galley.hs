@@ -87,3 +87,6 @@ assertSSOEnabled tid = do
   status <- parseResponse resp
   unless (status == TeamFeatureEnabled) $
     throwSpar SparSSODisabled
+
+isEmailValidationEnabled :: (HasCallStack, MonadSparToGalley m) => UserId -> m Bool
+isEmailValidationEnabled _ = pure True -- TODO: implement this!

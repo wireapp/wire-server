@@ -36,6 +36,7 @@ module Spar.Intra.Brig
     bindBrigUser,
     deleteBrigUser,
     createBrigUser,
+    updateEmail,
     isTeamUser,
     getZUsrOwnedTeam,
     ensureReAuthorised,
@@ -168,6 +169,10 @@ createBrigUser suid (Id buid) teamid mbName managedBy = do
         throwSpar . SparBrigErrorWith (responseStatus resp) $ "create user failed"
       | otherwise ->
         throwSpar . SparBrigError . cs $ "create user failed with status " <> show sCode
+
+updateEmail :: (HasCallStack, MonadSparToBrig m) => UserId -> Email -> m ()
+updateEmail _ _ = pure () -- TODO: implement this!
+    -- put brig /self/email ...  and then just wait!
 
 -- | Get a user; returns 'Nothing' if the user was not found or has been deleted.
 getBrigUser :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe User)
