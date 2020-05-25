@@ -1,0 +1,210 @@
+tags:
+  nginz: true
+  proxy: false
+  brig: true
+  galley: true
+  gundeck: true
+  cannon: true
+  cargohold: true
+  spar: true
+  web: false
+cassandra-migrations:
+  cassandra:
+    host: cassandra-ephemeral
+    replicaCount: 1
+elasticsearch-index:
+  elasticsearch:
+    host: elasticsearch-ephemeral
+    index: directory_test
+brig:
+  replicaCount: 1
+  resources:
+    requests:
+      memory: 128Mi
+      cpu: 500m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+  config:
+    externalUrls:
+      nginz: https://kube-staging-nginz-https.zinfra.io
+      teamCreatorWelcome: https://teams.wire.com/login
+      teamMemberWelcome: https://wire.com/download
+    cassandra:
+      host: cassandra-ephemeral
+      replicaCount: 1
+    elasticsearch:
+      host: elasticsearch-ephemeral
+      index: directory_test
+    authSettings:
+      userTokenTimeout: 120
+      sessionTokenTimeout: 20
+      accessTokenTimeout: 30
+      providerTokenTimeout: 60
+    optSettings:
+      setActivationTimeout: 5
+      setTeamInvitationTimeout: 10
+      setUserMaxConnections: 16
+      setCookieDomain: brig
+      setCookieInsecure: true
+      setUserCookieRenewAge: 2
+      setUserCookieLimit: 5
+      setUserCookieThrottle:
+        stdDev: 5
+        retryAfter: 5
+      setLimitFailedLogins:
+        timeout: 5  # seconds.  if you reach the limit, how long do you have to wait to try again.
+        retryLimit: 5  # how many times can you have a failed login in that timeframe.
+      setSuspendInactiveUsers:
+        suspendTimeout: 10
+      setDefaultLocale: en
+      setMaxConvAndTeamSize: 16
+      setMaxTeamSize: 32
+      setMaxConvSize: 16
+    aws:
+      sesEndpoint: http://fake-aws-ses:4569
+      sqsEndpoint: http://fake-aws-sqs:4568
+      dynamoDBEndpoint: http://fake-aws-dynamodb:4567
+      sesQueue: integration-brig-events
+      internalQueue: integration-brig-events-internal
+      blacklistTable: integration-brig-userkey-blacklist
+      prekeyTable: integration-brig-prekeys
+    emailSMS:
+      general:
+        emailSender: backend-integrationk8s@wire.com
+        smsSender: dummy
+  secrets:
+    zAuth:
+      privateKeys: 7owt9MgvLd3D1nQ5s5Zm-5kOiUZcJ_iqASOYdzLUpjHRRbfyx7XJ6hzltU0S9_kvKsdYZmTK9wZNWKUraB4Z1Q==
+      publicKeys: 0UW38se1yeoc5bVNEvf5LyrHWGZkyvcGTVilK2geGdU=
+    turn:
+      secret: rPrUbws7PQZlfN2GG8Ggi7g5iOYPk7BiCoKHl3VoFZ
+    awsKeyId: dummykey
+    awsSecretKey: dummysecret
+    setTwilio: |
+      sid: "dummy"
+      token: "dummy"
+    setNexmo: |-
+      key: "dummy"
+      secret: "dummy"
+    smtpPassword: dummy-smtp-password
+cannon:
+  replicaCount: 2
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 500m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+  drainTimeout: 0
+cargohold:
+  replicaCount: 1
+  resources:
+    requests:
+      memory: 128Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+  config:
+    aws:
+      s3Bucket: dummy-bucket
+      s3Endpoint: http://fake-aws-s3:9000
+  secrets:
+    awsKeyId: dummykey
+    awsSecretKey: dummysecret
+galley:
+  replicaCount: 1
+  config:
+    cassandra:
+      host: cassandra-ephemeral
+      replicaCount: 1
+    settings:
+      maxConvAndTeamSize: 16
+      maxTeamSize: 32
+      maxConvSize: 16
+      conversationCodeURI: https://kube-staging-nginz-https.zinfra.io/join/
+      featureFlags:
+        sso: disabled-by-default  # this needs to be the default; tests can enable it when needed.
+        legalhold: disabled-by-default
+    journal:
+      endpoint: http://fake-aws-sqs:4568
+      queue: integration-team-events.fifo
+  secrets:
+    awsKeyId: dummykey
+    awsSecretKey: dummysecret
+gundeck:
+  replicaCount: 1
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 500m
+    limits:
+      memory: 1024Mi
+      cpu: 1000m
+  config:
+    cassandra:
+      host: cassandra-ephemeral
+      replicaCount: 1
+    redis:
+      host: redis-ephemeral
+    aws:
+      account: "123456789012"
+      region: eu-west-1
+      arnEnv: integration
+      queueName: integration-gundeck-events
+      sqsEndpoint: http://fake-aws-sqs:4568
+      snsEndpoint: http://fake-aws-sns:4575
+    bulkPush: true
+    setMaxConcurrentNativePushes:
+      hard: 30
+      soft: 10
+  secrets:
+    awsKeyId: dummykey
+    awsSecretKey: dummysecret
+nginz:
+  replicaCount: 1
+  nginx_conf:
+    env: staging
+    external_env_domain: zinfra.io
+  secrets:
+    basicAuth: "whatever"
+    zAuth:
+      # this must match the key in brig!
+      publicKeys: 0UW38se1yeoc5bVNEvf5LyrHWGZkyvcGTVilK2geGdU=
+proxy:
+  replicaCount: 1
+  secrets:
+    proxy_config: |-
+      secrets {
+              youtube    = "..."
+              googlemaps = "..."
+              soundcloud = "..."
+              giphy      = "..."
+              spotify    = "Basic ..."
+       }
+spar:
+  replicaCount: 1
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 500m
+    limits:
+      memory: 1024Mi
+      cpu: 1000m
+  config:
+    tlsDisableCertValidation: true
+    cassandra:
+      host: cassandra-ephemeral
+    logLevel: Debug
+    domain: zinfra.io
+    appUri: http://spar:8080/
+    ssoUri: http://spar:8080/sso
+    maxttlAuthreq: 5
+    maxttlAuthresp: 7200
+    maxScimTokens: 2
+    contacts:
+    - type: ContactSupport
+      company: Example Company
+      email: email:backend+spar@wire.com
