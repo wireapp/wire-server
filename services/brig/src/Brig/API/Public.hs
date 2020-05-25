@@ -62,7 +62,6 @@ import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (decodeLatin1)
 import Data.Text.Lazy (pack)
 import qualified Data.ZAuth.Token as ZAuth
-import qualified Galley.Types.Teams as Team
 import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai (Response, lazyRequestBody)
@@ -76,6 +75,7 @@ import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
 import qualified Wire.API.Connection as Public.Connection
 import qualified Wire.API.Properties as Public.Properties
 import qualified Wire.API.Swagger as Public.Swagger (models)
+import qualified Wire.API.Team as Public.Team
 import qualified Wire.API.User as Public.User
 import qualified Wire.API.User.Activation as Public.Activation
 import qualified Wire.API.User.Auth as Public.Auth
@@ -1000,8 +1000,8 @@ createUser (Public.User.NewUserPublic new) = do
   pure $ CreateUserResponse cok userId (Public.User.SelfProfile usr)
   where
     sendActivationEmail e u p l = \case
-      (Just (Public.User.NewTeamCreator (Public.User.BindingNewTeamUser (Team.BindingNewTeam t) _))) ->
-        sendTeamActivationMail e u p l (fromRange $ t ^. Team.newTeamName)
+      (Just (Public.User.NewTeamCreator (Public.User.BindingNewTeamUser (Public.Team.BindingNewTeam t) _))) ->
+        sendTeamActivationMail e u p l (fromRange $ t ^. Public.Team.newTeamName)
       _ ->
         sendActivationMail e u p l Nothing
     sendWelcomeEmail :: Public.User.Email -> CreateUserTeam -> Public.User.NewTeamUser -> Maybe Public.User.Locale -> AppIO ()
