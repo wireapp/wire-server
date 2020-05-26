@@ -105,13 +105,17 @@ createTeam u galley = do
     $ fromByteString
     $ getHeader' "Location" r
 
--- | NB: the created user is the team owner.
+-- | Create user and binding team.
+--
+-- NB: the created user is the team owner.
 createUserWithTeam :: Brig -> Galley -> Http (UserId, TeamId)
 createUserWithTeam brig galley = do
   (user, tid) <- createUserWithTeam' brig galley
   return (userId user, tid)
 
--- | NB: the created user is the team owner.
+-- | Create user and binding team.
+--
+-- NB: the created user is the team owner.
 createUserWithTeam' :: Brig -> Galley -> Http (User, TeamId)
 createUserWithTeam' brig galley = do
   e <- randomEmail
