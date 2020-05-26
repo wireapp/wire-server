@@ -154,19 +154,12 @@ packages:
     git: https://github.com/wireapp/bloodhound
     commit: 7d3ccf8039912829b26b8e47cc4eaabc98cb571a
 - completed:
-    hackage: deriving-aeson-0.2.5@sha256:a1efa4ab7ff94f73e6d2733a9d4414cb4c3526761295722cff28027b5b3da1a4,1277
+    hackage: deriving-aeson-0.2.3@sha256:7d29fa7038bcd71d93ec53e2e010b3033f17d82cc7c98c9a1867b72d01f380c9,1258
     pantry-tree:
       size: 441
-      sha256: 8fa77245ed0f169fae3a337bf4b9114c44e6bd0cd02ce748998f46c19ef32277
+      sha256: 4ab3fa9a892cbd8e717437e31cbdf37f0100b3a4c0628108067100d3f17ed788
   original:
-    hackage: deriving-aeson-0.2.5@sha256:a1efa4ab7ff94f73e6d2733a9d4414cb4c3526761295722cff28027b5b3da1a4,1277
-- completed:
-    hackage: aeson-1.4.7.1@sha256:6d8d2fd959b7122a1df9389cf4eca30420a053d67289f92cdc0dbc0dab3530ba,7098
-    pantry-tree:
-      size: 40133
-      sha256: caa9306e519c601ab0170d113daa03c1163db53e5466be2968bbd61a771bebcb
-  original:
-    hackage: aeson-1.4.7.1@sha256:6d8d2fd959b7122a1df9389cf4eca30420a053d67289f92cdc0dbc0dab3530ba,7098
+    hackage: deriving-aeson-0.2.3@sha256:7d29fa7038bcd71d93ec53e2e010b3033f17d82cc7c98c9a1867b72d01f380c9,1258
 - completed:
     size: 11137527
     subdir: amazonka

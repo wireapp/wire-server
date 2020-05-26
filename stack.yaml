@@ -94,8 +94,7 @@ extra-deps:
   commit: 7d3ccf8039912829b26b8e47cc4eaabc98cb571a # (2020-05-25) branch: feature/reindex
 
 # For bloodhound
-- deriving-aeson-0.2.5@sha256:a1efa4ab7ff94f73e6d2733a9d4414cb4c3526761295722cff28027b5b3da1a4,1277
-- aeson-1.4.7.1@sha256:6d8d2fd959b7122a1df9389cf4eca30420a053d67289f92cdc0dbc0dab3530ba,7098
+- deriving-aeson-0.2.3@sha256:7d29fa7038bcd71d93ec53e2e010b3033f17d82cc7c98c9a1867b72d01f380c9,1258
 # amazonka-1.6.1 is buggy: https://github.com/brendanhay/amazonka/issues/466
 # Therefore we pin an unreleased commit directly.
 #
