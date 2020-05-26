@@ -1011,13 +1011,17 @@ testUpdateSSOId brig galley = do
 
 testDomainsBlockedForRegistration :: Opt.Opts -> Brig -> Http ()
 testDomainsBlockedForRegistration opts brig = withBlockList $ do
-  badEmail <- randomEmail <&> \e -> e {emailDomain = "bad.domain.com"}
-  post (brig . path "/register" . contentJson . body (p badEmail)) !!! do
-    const 201 === statusCode
-  goodEmail <- randomEmail <&> \e -> e {emailDomain = "good.domain.com"}
-  post (brig . path "/register" . contentJson . body (p goodEmail)) !!! do
+  badEmail1 <- randomEmail <&> \e -> e {emailDomain = "bad1.domain.com"}
+  badEmail2 <- randomEmail <&> \e -> e {emailDomain = "bad2.domain.com"}
+  post (brig . path "/register" . contentJson . body (p badEmail1)) !!! do
     const 403 === statusCode
     const (Just "domain-blocked-for-registration") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
+  post (brig . path "/register" . contentJson . body (p badEmail2)) !!! do
+    const 403 === statusCode
+    const (Just "domain-blocked-for-registration") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
+  goodEmail <- randomEmail <&> \e -> e {emailDomain = "good.domain.com"}
+  post (brig . path "/register" . contentJson . body (p goodEmail)) !!! do
+    const 201 === statusCode
   where
     p email =
       RequestBodyLBS . encode $
@@ -1029,7 +1033,7 @@ testDomainsBlockedForRegistration opts brig = withBlockList $ do
     withBlockList :: WaiTest.Session () -> Http ()
     withBlockList sess = withSettingsOverrides opts' sess
       where
-        opts' = opts {Opt.customerExtensions = Just (Opt.CustomerExtensions [unsafeMkDomain "bad.domain.com"])}
+        opts' = opts {Opt.customerExtensions = Just (Opt.CustomerExtensions $ unsafeMkDomain <$> ["bad1.domain.com", "bad2.domain.com"])}
         unsafeMkDomain = either error id . mkDomain
 
 -- helpers
