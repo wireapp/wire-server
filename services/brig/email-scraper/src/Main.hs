@@ -4,7 +4,9 @@ import qualified Cassandra as C
 import qualified Cassandra.Settings as C
 import Brig.Types
 import Control.Lens hiding ((.=))
+import Data.ByteString.Conversion
 import Data.Id
+import qualified Data.Text as Text
 import Imports
 import Options
 import Options.Applicative
@@ -17,28 +19,28 @@ main = do
   casClient <- initCassandra l (s^.setCasBrig)
   C.runClient casClient $ do
     page1 <- scanForIndex 2500
-    go (s^.setDomains) 0 page1
+    go l (s^.setDomains) 0 page1
   where
     desc = header   "list-emails-with-domain"
         <> progDesc "User script"
         <> fullDesc
 
-    go domains n page = do
+    go l domains n page = do
       let result = C.result page
           newCount = n + length result
-      mapM_ (printIfMatchesDomain domains) result
-      putStrLn $ "Scanned " ++ show newCount
+      mapM_ (printIfMatchesDomain l domains) result
+      Log.info l $ (Log.msg $ Log.val $ toByteString' ("Scanned " ++ show newCount))
       when (C.hasMore page) $ do
         nextPage <- C.liftClient (C.nextPage page)
-        go domains newCount nextPage
+        go l domains newCount nextPage
 
-printIfMatchesDomain :: MonadIO m => [Text] -> UserRow -> m ()
-printIfMatchesDomain _       (_     , Nothing    , _    , _         ) = pure ()
-printIfMatchesDomain domains (userId, Just mEmail, mTeam, mActivated) = do
-  let email = parseEmail mEmail
-  let interestingDomains = map Just domains
+printIfMatchesDomain :: MonadIO m => Log.Logger -> [Text] -> UserRow -> m ()
+printIfMatchesDomain _ _       (_     , Nothing    , _    , _         ) = pure ()
+printIfMatchesDomain l domains (userId, Just mEmail, mTeam, mActivated) = do
+  let email = parseEmail (Text.toLower mEmail)
+  let interestingDomains = map (Just . Text.toLower) domains
   if (emailDomain <$> email) `elem` interestingDomains
-    then print (userId, pretty email, pretty mTeam, pretty mActivated)
+    then Log.info l (Log.msg $ Log.val $ toByteString' $ show (userId, pretty email, pretty mTeam, pretty mActivated))
     else pure ()
  where
   pretty :: Show a => Maybe a -> String

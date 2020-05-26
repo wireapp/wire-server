@@ -4,7 +4,7 @@ cabal-version: 2.0
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 40ac2e286f655857699d8dedd0a8b360e0c484abed030ba1c450e689c364c3ac
+-- hash: a3bed9d7c856b9a223590e6d9674366e0195e51991007b77b712584b07e1c7f9
 
 name:           brig
 version:        1.35.0
@@ -280,6 +280,7 @@ executable brig-email-scraper
   build-depends:
       base
     , brig-types
+    , bytestring-conversion >=0.2
     , cassandra-util >=0.12
     , directory >=1.3
     , extended
