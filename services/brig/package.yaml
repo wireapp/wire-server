@@ -278,6 +278,7 @@ executables:
     dependencies:
     - base
     - brig-types
+    - bytestring-conversion >=0.2
     - cassandra-util >=0.12
     - directory >=1.3
     - extended
