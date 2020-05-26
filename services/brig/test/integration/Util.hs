@@ -44,6 +44,7 @@ import qualified Data.ByteString as BS
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
+import Data.Domain (mkDomain)
 import Data.Id
 import Data.List1 (List1)
 import qualified Data.List1 as List1
@@ -645,3 +646,11 @@ withSettingsOverrides :: MonadIO m => Opts.Opts -> WaiTest.Session a -> m a
 withSettingsOverrides opts action = liftIO $ do
   (brigApp, _) <- Run.mkApp opts
   WaiTest.runSession action brigApp
+
+-- | When we remove the customer-specific extension of domain blocking, this test will fail to
+-- compile.
+withDomainsBlockedForRegistration :: (MonadIO m) => Opts.Opts -> [Text] -> WaiTest.Session () -> m ()
+withDomainsBlockedForRegistration opts domains sess = do
+  let opts' = opts {Opts.customerExtensions = Just (Opts.CustomerExtensions $ unsafeMkDomain <$> domains)}
+      unsafeMkDomain = either error id . mkDomain
+  withSettingsOverrides opts' sess

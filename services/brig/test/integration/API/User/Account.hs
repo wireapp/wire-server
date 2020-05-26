@@ -42,7 +42,6 @@ import qualified Data.Aeson.Lens as AesonL
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
-import Data.Domain (mkDomain)
 import Data.Id hiding (client)
 import Data.Json.Util (fromUTCTimeMillis)
 import Data.List1 (singleton)
@@ -60,7 +59,6 @@ import qualified Data.Vector as Vec
 import Galley.Types.Teams (noPermissions)
 import Gundeck.Types.Notification
 import Imports
-import qualified Network.Wai.Test as WaiTest
 import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
@@ -1010,7 +1008,7 @@ testUpdateSSOId brig galley = do
   sequence_ $ zipWith go users ssoids2
 
 testDomainsBlockedForRegistration :: Opt.Opts -> Brig -> Http ()
-testDomainsBlockedForRegistration opts brig = withBlockList $ do
+testDomainsBlockedForRegistration opts brig = withDomainsBlockedForRegistration opts ["bad1.domain.com", "bad2.domain.com"] $ do
   badEmail1 <- randomEmail <&> \e -> e {emailDomain = "bad1.domain.com"}
   badEmail2 <- randomEmail <&> \e -> e {emailDomain = "bad2.domain.com"}
   post (brig . path "/register" . contentJson . body (p badEmail1)) !!! do
@@ -1030,11 +1028,6 @@ testDomainsBlockedForRegistration opts brig = withBlockList $ do
             "email" .= email,
             "password" .= defPassword
           ]
-    withBlockList :: WaiTest.Session () -> Http ()
-    withBlockList sess = withSettingsOverrides opts' sess
-      where
-        opts' = opts {Opt.customerExtensions = Just (Opt.CustomerExtensions $ unsafeMkDomain <$> ["bad1.domain.com", "bad2.domain.com"])}
-        unsafeMkDomain = either error id . mkDomain
 
 -- helpers
 
