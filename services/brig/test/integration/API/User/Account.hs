@@ -1012,10 +1012,10 @@ testDomainsBlockedForRegistration opts brig = withDomainsBlockedForRegistration 
   badEmail1 <- randomEmail <&> \e -> e {emailDomain = "bad1.domain.com"}
   badEmail2 <- randomEmail <&> \e -> e {emailDomain = "bad2.domain.com"}
   post (brig . path "/register" . contentJson . body (p badEmail1)) !!! do
-    const 403 === statusCode
+    const 451 === statusCode
     const (Just "domain-blocked-for-registration") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
   post (brig . path "/register" . contentJson . body (p badEmail2)) !!! do
-    const 403 === statusCode
+    const 451 === statusCode
     const (Just "domain-blocked-for-registration") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
   goodEmail <- randomEmail <&> \e -> e {emailDomain = "good.domain.com"}
   post (brig . path "/register" . contentJson . body (p goodEmail)) !!! do
