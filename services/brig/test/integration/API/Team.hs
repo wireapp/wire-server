@@ -69,6 +69,7 @@ tests conf m b c g aws = do
             test m "post /teams/:tid/invitations - 403 too many pending" $ testInvitationTooManyPending b g tl,
             test m "post /teams/:tid/invitations - roles" $ testInvitationRoles b g,
             test' aws m "post /register - 201 accepted" $ testInvitationEmailAccepted b g,
+            test' aws m "post /register - 201 accepted (with domain blocking customer extension)" $ testInvitationEmailAcceptedInBlockedDomain conf b g,
             test' aws m "post /register - 201 extended accepted" $ testInvitationEmailAndPhoneAccepted b g,
             test' aws m "post /register user & team - 201 accepted" $ testCreateTeam b g aws,
             test' aws m "post /register user & team - 201 preverified" $ testCreateTeamPreverified b g aws,
@@ -211,6 +212,16 @@ testInvitationEmailAccepted brig galley = do
   inviteeEmail <- randomEmail
   let invite = stdInvitationRequest inviteeEmail (Name "Bob") Nothing Nothing
   void $ createAndVerifyInvitation (accept (irEmail invite)) invite brig galley
+
+-- | Related: 'testDomainsBlockedForRegistration'.  When we remove the customer-specific
+-- extension of domain blocking, this test will fail to compile (so you will know it's time to
+-- remove it).
+testInvitationEmailAcceptedInBlockedDomain :: Opt.Opts -> Brig -> Galley -> Http ()
+testInvitationEmailAcceptedInBlockedDomain opts brig galley = do
+  inviteeEmail :: Email <- randomEmail
+  withDomainsBlockedForRegistration opts [emailDomain inviteeEmail] $ do
+    let invite = stdInvitationRequest inviteeEmail (Name "Bob") Nothing Nothing
+    void $ createAndVerifyInvitation (accept (irEmail invite)) invite brig galley
 
 testInvitationEmailAndPhoneAccepted :: Brig -> Galley -> Http ()
 testInvitationEmailAndPhoneAccepted brig galley = do
