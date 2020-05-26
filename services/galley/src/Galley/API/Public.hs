@@ -44,7 +44,6 @@ import qualified Galley.API.Update as Update
 import Galley.App
 import Galley.Types
 import Galley.Types.Conversations.Roles
-import qualified Galley.Types.Swagger as Model
 import Galley.Types.Teams
 import Galley.Types.Teams.SearchVisibility
 import Imports hiding (head)
@@ -57,14 +56,22 @@ import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Utilities.ZAuth
+import qualified Wire.API.Conversation as Public
+import qualified Wire.API.Conversation.Code as Public
+import qualified Wire.API.Conversation.Role as Public
+import qualified Wire.API.Conversation.Typing as Public
+import qualified Wire.API.CustomBackend as Public
 import qualified Wire.API.Event.Team as Public ()
-import Wire.API.Notification (modelNotificationList)
+import qualified Wire.API.Message as Public
+import qualified Wire.API.Notification as Public
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
 import qualified Wire.API.Team.Conversation as Public
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Member as Public
 import qualified Wire.API.Team.Permission as Public
+import qualified Wire.API.Team.SearchVisibility as Public
+import qualified Wire.API.User as Public (modelUserIdList)
 import Wire.Swagger (int32Between)
 
 sitemap :: Routes ApiBuilder Galley ()
@@ -181,7 +188,7 @@ sitemap = do
     parameter Query "maxResults" (int32Between 1 hardTruncationLimit) $ do
       optional
       description "Maximum Results to be returned"
-    body (ref Model.userIdList) $
+    body (ref Public.modelUserIdList) $
       description "JSON body"
     returns (ref Public.modelTeamMemberList)
     response 200 "Team members" end
@@ -239,7 +246,7 @@ sitemap = do
     parameter Query "size" (int32 (Swagger.def 1000)) $ do
       optional
       description "Maximum number of events to return (1..10000; default: 1000)"
-    returns (ref modelNotificationList)
+    returns (ref Public.modelNotificationList)
     response 200 "List of team notifications" end
     errorResponse Error.teamNotFound
     errorResponse Error.invalidTeamNotificationId
@@ -309,7 +316,7 @@ sitemap = do
     summary "Get existing roles available for the given team"
     parameter Path "tid" bytes' $
       description "Team ID"
-    returns (ref Model.conversationRolesList)
+    returns (ref Public.modelConversationRolesList)
     response 200 "Team conversations roles list" end
     errorResponse Error.teamNotFound
     errorResponse Error.notATeamMember
@@ -430,7 +437,7 @@ sitemap = do
     summary "Shows the value for search visibility"
     parameter Path "tid" bytes' $
       description "Team ID"
-    returns (ref Model.teamSearchVisibility)
+    returns (ref Public.modelTeamSearchVisibility)
     response 200 "Search visibility" end
 
   put "/teams/:tid/search-visibility" (continue Teams.setSearchVisibilityH) $ do
@@ -442,7 +449,7 @@ sitemap = do
     summary "Sets the search visibility for the whole team"
     parameter Path "tid" bytes' $
       description "Team ID"
-    body (ref Model.teamSearchVisibility) $
+    body (ref Public.modelTeamSearchVisibility) $
       description "Search visibility to be set"
     response 204 "Search visibility set" end
     errorResponse Error.teamSearchVisibilityNotEnabled
@@ -457,7 +464,7 @@ sitemap = do
     summary "Shows whether the LegalHold feature is enabled for team"
     parameter Path "tid" bytes' $
       description "Team ID"
-    returns (ref Model.legalHoldTeamConfig)
+    returns (ref Public.modelLegalHoldTeamConfig)
     response 200 "LegalHold status" end
 
   get "/teams/:tid/features/sso" (continue Teams.getSSOStatusH) $
@@ -468,7 +475,7 @@ sitemap = do
     summary "Shows whether SSO feature is enabled for team"
     parameter Path "tid" bytes' $
       description "Team ID"
-    returns (ref Model.ssoTeamConfig)
+    returns (ref Public.modelSsoTeamConfig)
     response 200 "SSO status" end
 
   -- Custom Backend API -------------------------------------------------
@@ -480,7 +487,7 @@ sitemap = do
     summary "Shows information about custom backends related to a given email domain"
     parameter Path "domain" string' $
       description "URL-encoded email domain"
-    returns (ref Model.customBackend)
+    returns (ref Public.modelCustomBackend)
     response 200 "Custom backend" end
 
   get "/teams/:tid/features/search-visibility" (continue Teams.getTeamSearchVisibilityAvailableH) $
@@ -491,7 +498,7 @@ sitemap = do
     summary "Shows whether Custom Search Visibility feature is enabled for team"
     parameter Path "tid" bytes' $
       description "Team ID"
-    returns (ref Model.teamSearchVisibilityAvailable)
+    returns (ref Public.modelTeamSearchVisibilityAvailable)
     response 200 "Search Visibility status" end
 
   -- Bot API ------------------------------------------------------------
@@ -520,7 +527,7 @@ sitemap = do
       .&. accept "application" "json"
   document "GET" "conversation" $ do
     summary "Get a conversation by ID"
-    returns (ref Model.conversation)
+    returns (ref Public.modelConversation)
     parameter Path "cnv" bytes' $
       description "Conversation ID"
     errorResponse Error.convNotFound
@@ -534,7 +541,7 @@ sitemap = do
     summary "Get existing roles available for the given conversation"
     parameter Path "cnv" bytes' $
       description "Conversation ID"
-    returns (ref Model.conversationRolesList)
+    returns (ref Public.modelConversationRolesList)
     response 200 "Conversations roles list" end
     errorResponse Error.convNotFound
 
@@ -552,7 +559,7 @@ sitemap = do
     parameter Query "size" string' $ do
       optional
       description "Max. number of IDs to return"
-    returns (ref Model.conversationIds)
+    returns (ref Public.modelConversationIds)
 
   get "/conversations" (continue Query.getConversationsH) $
     zauthUserId
@@ -562,7 +569,7 @@ sitemap = do
   document "GET" "conversations" $ do
     summary "Get all conversations"
     notes "At most 500 conversations are returned per request"
-    returns (ref Model.conversations)
+    returns (ref Public.modelConversations)
     parameter Query "ids" (array string') $ do
       optional
       description "Mutually exclusive with 'start'. At most 32 IDs per request."
@@ -584,7 +591,7 @@ sitemap = do
   document "POST" "createGroupConversation" $ do
     summary "Create a new conversation"
     notes "On 201, the conversation ID is the `Location` header"
-    body (ref Model.newConversation) $
+    body (ref Public.modelNewConversation) $
       description "JSON body"
     response 201 "Conversation created" end
     errorResponse Error.notConnected
@@ -607,7 +614,7 @@ sitemap = do
   document "POST" "createOne2OneConversation" $ do
     summary "Create a 1:1-conversation"
     notes "On 201, the conversation ID is the `Location` header"
-    body (ref Model.newConversation) $
+    body (ref Public.modelNewConversation) $
       description "JSON body"
     response 201 "Conversation created" end
     errorResponse Error.noManagedTeamConv
@@ -623,9 +630,9 @@ sitemap = do
     summary "Update conversation name"
     parameter Path "cnv" bytes' $
       description "Conversation ID"
-    body (ref Model.conversationUpdateName) $
+    body (ref Public.modelConversationUpdateName) $
       description "JSON body"
-    returns (ref Model.event)
+    returns (ref Public.modelEvent)
     errorResponse Error.convNotFound
 
   -- This endpoint can lead to the following events being sent:
@@ -639,9 +646,9 @@ sitemap = do
     summary "DEPRECATED! Please use updateConversationName instead!"
     parameter Path "cnv" bytes' $
       description "Conversation ID"
-    body (ref Model.conversationUpdateName) $
+    body (ref Public.modelConversationUpdateName) $
       description "JSON body"
-    returns (ref Model.event)
+    returns (ref Public.modelEvent)
     errorResponse Error.convNotFound
 
   -- This endpoint can lead to the following events being sent:
@@ -655,7 +662,7 @@ sitemap = do
     summary "Join a conversation by its ID (if link access enabled)"
     parameter Path "cnv" bytes' $
       description "Conversation ID"
-    returns (ref Model.event)
+    returns (ref Public.modelEvent)
     response 200 "Conversation joined." end
     errorResponse Error.convNotFound
 
@@ -664,7 +671,7 @@ sitemap = do
   document "POST" "checkConversationCode" $ do
     summary "Check validity of a conversation code"
     response 200 "Valid" end
-    body (ref Model.conversationCode) $
+    body (ref Public.modelConversationCode) $
       description "JSON body"
     errorResponse Error.codeNotFound
 
@@ -676,9 +683,9 @@ sitemap = do
       .&. jsonRequest @ConversationCode
   document "POST" "joinConversationByCode" $ do
     summary "Join a conversation using a reusable code"
-    returns (ref Model.event)
+    returns (ref Public.modelEvent)
     response 200 "Conversation joined." end
-    body (ref Model.conversationCode) $
+    body (ref Public.modelConversationCode) $
       description "JSON body"
     errorResponse Error.codeNotFound
     errorResponse Error.convNotFound
@@ -694,10 +701,10 @@ sitemap = do
     summary "Create or recreate a conversation code"
     parameter Path "cnv" bytes' $
       description "Conversation ID"
-    returns (ref Model.event)
-    returns (ref Model.conversationCode)
-    response 201 "Conversation code created." (model Model.event)
-    response 200 "Conversation code already exists." (model Model.conversationCode)
+    returns (ref Public.modelEvent)
+    returns (ref Public.modelConversationCode)
+    response 201 "Conversation code created." (model Public.modelEvent)
+    response 200 "Conversation code already exists." (model Public.modelConversationCode)
     errorResponse Error.convNotFound
     errorResponse Error.invalidAccessOp
 
@@ -711,7 +718,7 @@ sitemap = do
     summary "Delete conversation code"
     parameter Path "cnv" bytes' $
       description "Conversation ID"
-    returns (ref Model.event)
+    returns (ref Public.modelEvent)
     response 200 "Conversation code deleted." end
     errorResponse Error.convNotFound
     errorResponse Error.invalidAccessOp
@@ -723,7 +730,7 @@ sitemap = do
     summary "Get existing conversation code"
     parameter Path "cnv" bytes' $
       description "Conversation ID"
-    returns (ref Model.conversationCode)
+    returns (ref Public.modelConversationCode)
     response 200 "Conversation Code" end
     errorResponse Error.convNotFound
     errorResponse Error.invalidAccessOp
@@ -740,10 +747,10 @@ sitemap = do
     summary "Update access modes for a conversation"
     parameter Path "cnv" bytes' $
       description "Conversation ID"
-    returns (ref Model.event)
+    returns (ref Public.modelEvent)
     response 200 "Conversation access updated." end
     response 204 "Conversation access unchanged." end
-    body (ref Model.conversationAccessUpdate) $
+    body (ref Public.modelConversationAccessUpdate) $
       description "JSON body"
     errorResponse Error.convNotFound
     errorResponse Error.convAccessDenied
@@ -764,10 +771,10 @@ sitemap = do
     summary "Update receipts mode for a conversation"
     parameter Path "cnv" bytes' $
       description "Conversation ID"
-    returns (ref Model.event)
+    returns (ref Public.modelEvent)
     response 200 "Conversation receipt mode updated." end
     response 204 "Conversation receipt mode unchanged." end
-    body (ref Model.conversationReceiptModeUpdate) $
+    body (ref Public.modelConversationReceiptModeUpdate) $
       description "JSON body"
     errorResponse Error.convNotFound
     errorResponse Error.convAccessDenied
@@ -783,10 +790,10 @@ sitemap = do
     summary "Update the message timer for a conversation"
     parameter Path "cnv" bytes' $
       description "Conversation ID"
-    returns (ref Model.event)
+    returns (ref Public.modelEvent)
     response 200 "Message timer updated." end
     response 204 "Message timer unchanged." end
-    body (ref Model.conversationMessageTimerUpdate) $
+    body (ref Public.modelConversationMessageTimerUpdate) $
       description "JSON body"
     errorResponse Error.convNotFound
     errorResponse Error.convAccessDenied
@@ -805,9 +812,9 @@ sitemap = do
     summary "Add users to an existing conversation"
     parameter Path "cnv" bytes' $
       description "Conversation ID"
-    body (ref Model.invite) $
+    body (ref Public.modelInvite) $
       description "JSON body"
-    returns (ref Model.event)
+    returns (ref Public.modelEvent)
     response 200 "Members added" end
     response 204 "No change" end
     errorResponse Error.convNotFound
@@ -822,7 +829,7 @@ sitemap = do
     summary "Get self membership properties"
     parameter Path "cnv" bytes' $
       description "Conversation ID"
-    returns (ref Model.member)
+    returns (ref Public.modelMember)
     errorResponse Error.convNotFound
 
   -- This endpoint can lead to the following events being sent:
@@ -837,7 +844,7 @@ sitemap = do
     notes "Even though all fields are optional, at least one needs to be given."
     parameter Path "cnv" bytes' $
       description "Conversation ID"
-    body (ref Model.memberUpdate) $
+    body (ref Public.modelMemberUpdate) $
       description "JSON body"
     errorResponse Error.convNotFound
 
@@ -856,7 +863,7 @@ sitemap = do
       description "Conversation ID"
     parameter Path "usr" bytes' $
       description "Target User ID"
-    body (ref Model.otherMemberUpdate) $
+    body (ref Public.modelOtherMemberUpdate) $
       description "JSON body"
     errorResponse Error.convNotFound
     errorResponse Error.convMemberNotFound
@@ -873,7 +880,7 @@ sitemap = do
     summary "Sending typing notifications"
     parameter Path "cnv" bytes' $
       description "Conversation ID"
-    body (ref Model.typing) $
+    body (ref Public.modelTyping) $
       description "JSON body"
     errorResponse Error.convNotFound
 
@@ -890,7 +897,7 @@ sitemap = do
       description "Conversation ID"
     parameter Path "usr" bytes' $
       description "Target User ID"
-    returns (ref Model.event)
+    returns (ref Public.modelEvent)
     response 200 "Member removed" end
     response 204 "No change" end
     errorResponse Error.convNotFound
@@ -927,9 +934,9 @@ sitemap = do
         \the optional field 'report_missing'.  That body field takes \
         \precedence over both query params."
       optional
-    body (ref Model.newOtrMessage) $
+    body (ref Public.modelNewOtrMessage) $
       description "JSON body"
-    returns (ref Model.clientMismatch)
+    returns (ref Public.modelClientMismatch)
     response 201 "Message posted" end
     response 412 "Missing clients" end
     errorResponse Error.convNotFound
@@ -963,9 +970,9 @@ sitemap = do
         \in which case it specifies who exactly is forbidden from \
         \having missing clients."
       optional
-    body (ref Model.newOtrMessage) $
+    body (ref Public.modelNewOtrMessage) $
       description "Protobuf body"
-    returns (ref Model.clientMismatch)
+    returns (ref Public.modelClientMismatch)
     response 201 "Message posted" end
     response 412 "Missing clients" end
     errorResponse Error.convNotFound
@@ -999,9 +1006,9 @@ sitemap = do
         \the optional field 'report_missing'.  That body field takes \
         \precedence over both query params."
       optional
-    body (ref Model.newOtrMessage) $
+    body (ref Public.modelNewOtrMessage) $
       description "JSON body"
-    returns (ref Model.clientMismatch)
+    returns (ref Public.modelClientMismatch)
     response 201 "Message posted" end
     response 412 "Missing clients" end
     errorResponse Error.teamNotFound
@@ -1034,9 +1041,9 @@ sitemap = do
         \in which case it specifies who exactly is forbidden from \
         \having missing clients."
       optional
-    body (ref Model.newOtrMessage) $
+    body (ref Public.modelNewOtrMessage) $
       description "Protobuf body"
-    returns (ref Model.clientMismatch)
+    returns (ref Public.modelClientMismatch)
     response 201 "Message posted" end
     response 412 "Missing clients" end
     errorResponse Error.teamNotFound
