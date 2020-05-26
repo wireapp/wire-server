@@ -207,15 +207,23 @@ sitemap = do
     summary "Read recently added team members from team queue"
     notes
       "This is a work-around for scalability issues with gundeck user event fan-out. \
-      \It does not track all team-wide events, but only `member-join`.  Note that there \
-      \are some subtle differences in the behavior of `/teams/notifications` compared to \
-      \`/notifications`: it does not set status 404 in the response if there is a gap.  \
-      \Instead, if the request contains a `since` notification id, the notification with \
-      \that id is included in the response if it exists.  If the UUIDv1 does *not* exist, \
-      \you get the more recent events from the queue (instead of all of them).  There is \
-      \no way to get the last event in a team event queue.  (In `/notifications`, this is \
-      \only needed to avoid having to pull the entire queue which we can do here by just \
-      \using a recent time stamp in the UUIDv1.)"
+      \It does not track all team-wide events, but only `member-join`.\
+      \\n\
+      \Note that `/teams/notifications` behaves different from `/notifications`:\
+      \\n\
+      \- Team queues do not respond with status 404 and valid data in the body if there \
+      \is a gap between the notification id requested with `since` and the available data.\
+      \\n\
+      \- Instead, the notification with the id given via `since` is included in the \
+      \response if it exists.  You should remove this and only use it to decide whether \
+      \there was a gap between your last request and this one.\
+      \\n\
+      \- If the UUIDv1 does *not* exist, you get the more recent events from the queue \
+      \(instead of all of them).  This way, if you have never requested the queue before and \
+      \have no prior notification id, just pull with timestamp 'now'.\
+      \\n\
+      \- There is no corresponding `/last`-end-point to get only the most recent event. \
+      \That end-point was only useful to avoid having to pull the entire queue (see above)."
     parameter Query "since" bytes' $ do
       optional
       description "Notification id to start with in the response (UUIDv1)"
