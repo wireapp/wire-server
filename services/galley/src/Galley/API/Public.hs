@@ -47,7 +47,6 @@ import Galley.Types.Conversations.Roles
 import qualified Galley.Types.Swagger as Model
 import Galley.Types.Teams
 import Galley.Types.Teams.SearchVisibility
-import qualified Galley.Types.Teams.Swagger as TeamsModel
 import Imports hiding (head)
 import Network.HTTP.Types
 import Network.Wai
@@ -58,7 +57,14 @@ import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Utilities.ZAuth
+import qualified Wire.API.Event.Team as Public ()
 import Wire.API.Notification (modelNotificationList)
+import qualified Wire.API.Swagger as Public.Swagger (models)
+import qualified Wire.API.Team as Public
+import qualified Wire.API.Team.Conversation as Public
+import qualified Wire.API.Team.Feature as Public
+import qualified Wire.API.Team.Member as Public
+import qualified Wire.API.Team.Permission as Public
 import Wire.Swagger (int32Between)
 
 sitemap :: Routes ApiBuilder Galley ()
@@ -72,7 +78,7 @@ sitemap = do
       .&. accept "application" "json"
   document "POST" "createNonBindingTeam" $ do
     summary "Create a new non binding team"
-    body (ref TeamsModel.newNonBindingTeam) $
+    body (ref Public.modelNewNonBindingTeam) $
       description "JSON body"
     response 201 "Team ID as `Location` header value" end
     errorResponse Error.notConnected
@@ -87,7 +93,7 @@ sitemap = do
     summary "Update team properties"
     parameter Path "tid" bytes' $
       description "Team ID"
-    body (ref TeamsModel.update) $
+    body (ref Public.modelUpdateData) $
       description "JSON body"
     errorResponse Error.notATeamMember
     errorResponse (Error.operationDenied SetTeamData)
@@ -108,7 +114,7 @@ sitemap = do
       optional
       description "Max. number of teams to return"
     summary "Get teams"
-    returns (ref TeamsModel.teamList)
+    returns (ref Public.modelTeamList)
     response 200 "Teams list" end
 
   get "/teams/:tid" (continue Teams.getTeamH) $
@@ -119,7 +125,7 @@ sitemap = do
     summary "Get a team by ID"
     parameter Path "tid" bytes' $
       description "Team ID"
-    returns (ref TeamsModel.team)
+    returns (ref Public.modelTeam)
     response 200 "Team data" end
     errorResponse Error.teamNotFound
 
@@ -133,7 +139,7 @@ sitemap = do
     summary "Delete a team"
     parameter Path "tid" bytes' $
       description "Team ID"
-    body (ref TeamsModel.teamDelete) $ do
+    body (ref Public.modelTeamDelete) $ do
       optional
       description "JSON body, required only for binding teams."
     response 202 "Team is scheduled for removal" end
@@ -157,7 +163,7 @@ sitemap = do
     parameter Query "maxResults" (int32Between 1 hardTruncationLimit) $ do
       optional
       description "Maximum Results to be returned"
-    returns (ref TeamsModel.teamMemberList)
+    returns (ref Public.modelTeamMemberList)
     response 200 "Team members" end
     errorResponse Error.notATeamMember
 
@@ -177,7 +183,7 @@ sitemap = do
       description "Maximum Results to be returned"
     body (ref Model.userIdList) $
       description "JSON body"
-    returns (ref TeamsModel.teamMemberList)
+    returns (ref Public.modelTeamMemberList)
     response 200 "Team members" end
     errorResponse Error.notATeamMember
     errorResponse Error.bulkGetMemberLimitExceeded
@@ -193,7 +199,7 @@ sitemap = do
       description "Team ID"
     parameter Path "uid" bytes' $
       description "User ID"
-    returns (ref TeamsModel.teamMember)
+    returns (ref Public.modelTeamMember)
     response 200 "Team member" end
     errorResponse Error.notATeamMember
     errorResponse Error.teamMemberNotFound
@@ -248,7 +254,7 @@ sitemap = do
     summary "Add a new team member"
     parameter Path "tid" bytes' $
       description "Team ID"
-    body (ref TeamsModel.newTeamMember) $
+    body (ref Public.modelNewTeamMember) $
       description "JSON body"
     errorResponse Error.notATeamMember
     errorResponse (Error.operationDenied AddTeamMember)
@@ -269,7 +275,7 @@ sitemap = do
       description "Team ID"
     parameter Path "uid" bytes' $
       description "User ID"
-    body (ref TeamsModel.teamMemberDelete) $ do
+    body (ref Public.modelTeamMemberDelete) $ do
       optional
       description "JSON body, required only for binding teams."
     response 202 "Team member scheduled for deletion" end
@@ -287,7 +293,7 @@ sitemap = do
     summary "Update an existing team member"
     parameter Path "tid" bytes' $
       description "Team ID"
-    body (ref TeamsModel.newTeamMember) $
+    body (ref Public.modelNewTeamMember) $
       description "JSON body"
     errorResponse Error.notATeamMember
     errorResponse Error.teamMemberNotFound
@@ -316,7 +322,7 @@ sitemap = do
     summary "Get team conversations"
     parameter Path "tid" bytes' $
       description "Team ID"
-    returns (ref TeamsModel.teamConversationList)
+    returns (ref Public.modelTeamConversationList)
     response 200 "Team conversations" end
     errorResponse Error.teamNotFound
     errorResponse (Error.operationDenied GetTeamConversations)
@@ -332,7 +338,7 @@ sitemap = do
       description "Team ID"
     parameter Path "cid" bytes' $
       description "Conversation ID"
-    returns (ref TeamsModel.teamConversation)
+    returns (ref Public.modelTeamConversation)
     response 200 "Team conversation" end
     errorResponse Error.teamNotFound
     errorResponse Error.convNotFound
@@ -1048,7 +1054,7 @@ type JSON = Media "application" "json"
 
 docs :: JSON ::: ByteString -> Galley Response
 docs (_ ::: url) = do
-  let models = Model.galleyModels ++ TeamsModel.teamsModels
+  let models = Public.Swagger.models
   let apidoc = encode $ mkSwaggerApi (decodeLatin1 url) models sitemap
   pure $ responseLBS status200 [jsonContent] apidoc
 
