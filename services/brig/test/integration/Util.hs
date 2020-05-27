@@ -649,7 +649,7 @@ withSettingsOverrides opts action = liftIO $ do
 
 -- | When we remove the customer-specific extension of domain blocking, this test will fail to
 -- compile.
-withDomainsBlockedForRegistration :: (MonadIO m) => Opts.Opts -> [Text] -> WaiTest.Session () -> m ()
+withDomainsBlockedForRegistration :: (MonadIO m) => Opts.Opts -> [Text] -> WaiTest.Session a -> m a
 withDomainsBlockedForRegistration opts domains sess = do
   let opts' = opts {Opts.optSettings = (Opts.optSettings opts) {Opts.setCustomerExtensions = Just blocked}}
       blocked = Opts.CustomerExtensions (Opts.DomainsBlockedForRegistration (unsafeMkDomain <$> domains))
