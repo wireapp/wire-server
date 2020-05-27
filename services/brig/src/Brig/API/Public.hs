@@ -53,6 +53,7 @@ import Control.Lens ((^.), view)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
+import Data.Domain (mkDomain)
 import Data.Handle (Handle, parseHandle)
 import Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local))
@@ -727,6 +728,7 @@ sitemap o = do
     Doc.errorResponse userKeyExists
     Doc.errorResponse blacklistedEmail
     Doc.errorResponse blacklistedPhone
+    Doc.errorResponse (customerExtensionBlockedDomain (either undefined id $ mkDomain "example.com"))
 
   post "/password-reset" (continue beginPasswordResetH) $
     accept "application" "json"

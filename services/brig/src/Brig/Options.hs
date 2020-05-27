@@ -497,9 +497,12 @@ data CustomerExtensions = CustomerExtensions
     --
     -- Bottom line: you probably want to keep either @customerExtensions = Nothing@ or at
     -- least @domainsBlockedForRegistration = []@.  :)
-    domainsBlockedForRegistration :: [Domain]
+    domainsBlockedForRegistration :: DomainsBlockedForRegistration
   }
   deriving (Show, FromJSON, Generic)
+
+newtype DomainsBlockedForRegistration = DomainsBlockedForRegistration [Domain]
+  deriving newtype (Show, FromJSON, Generic)
 
 defMaxKeyLen :: Int64
 defMaxKeyLen = 1024
