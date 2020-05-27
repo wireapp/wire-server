@@ -1018,7 +1018,7 @@ testDomainsBlockedForRegistration opts brig = withDomainsBlockedForRegistration 
     const 451 === statusCode
     const (Just "domain-blocked-for-registration") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
   goodEmail <- randomEmail <&> \e -> e {emailDomain = "good.domain.com"}
-  post (brig . path "/activate/senf" . contentJson . body (p goodEmail)) !!! do
+  post (brig . path "/activate/send" . contentJson . body (p goodEmail)) !!! do
     const 201 === statusCode
   where
     p email = RequestBodyLBS . encode $ SendActivationCode (Left email) Nothing False
