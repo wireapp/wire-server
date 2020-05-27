@@ -28,8 +28,7 @@ import qualified CargoHold.API.V3.Resumable as Resumable
 import CargoHold.App
 import CargoHold.Options
 import qualified CargoHold.TUS as TUS
-import qualified CargoHold.Types.V3 as V3
-import qualified CargoHold.Types.V3.Resumable as V3
+import qualified CargoHold.Types.V3 as V3 (Principal (..))
 import Control.Error
 import Control.Lens ((^.), view)
 import Data.ByteString.Conversion
@@ -49,6 +48,7 @@ import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Network.Wai.Utilities.ZAuth
 import URI.ByteString
+import qualified Wire.API.Asset as Public
 
 sitemap :: Routes Doc.ApiBuilder Handler ()
 sitemap = do
@@ -79,7 +79,7 @@ sitemap = do
   post "/assets/v3/resumable" (continue createResumableV3) $
     header "Z-User"
       .&. header "Upload-Length"
-      .&. jsonRequest @V3.ResumableSettings
+      .&. jsonRequest @Public.ResumableSettings
 
   -- TODO (Compliance): Require and check Tus-Resumable header
   -- against supported version(s).
@@ -222,24 +222,26 @@ apiDocs = do
 
 -- FUTUREWORK: make these types more descriptive than 'Request' -> 'Response'
 uploadAssetV3 :: UserId ::: Media "multipart" "mixed" ::: Request -> Handler Response
-uploadAssetV3 (usr ::: _ ::: req) = uploadSimpleV3 (V3.UserPrincipal usr) req
+uploadAssetV3 (usr ::: _ ::: req) = do
+  let principal = V3.UserPrincipal usr
+  assetResponse principal <$> V3.upload principal (sourceRequestBody req)
 
-downloadAssetV3 :: UserId ::: V3.AssetKey ::: Maybe V3.AssetToken -> Handler Response
+downloadAssetV3 :: UserId ::: Public.AssetKey ::: Maybe Public.AssetToken -> Handler Response
 downloadAssetV3 (usr ::: key ::: tok) = do
   url <- V3.download (V3.UserPrincipal usr) key tok
   redirect url
 
-deleteAssetV3 :: UserId ::: V3.AssetKey -> Handler Response
+deleteAssetV3 :: UserId ::: Public.AssetKey -> Handler Response
 deleteAssetV3 (usr ::: key) = do
   V3.delete (V3.UserPrincipal usr) key
   return empty
 
-renewTokenV3 :: UserId ::: V3.AssetKey -> Handler Response
+renewTokenV3 :: UserId ::: Public.AssetKey -> Handler Response
 renewTokenV3 (usr ::: key) = do
   tok <- V3.renewToken (V3.UserPrincipal usr) key
-  return $ json (V3.NewAssetToken tok)
+  return $ json (Public.NewAssetToken tok)
 
-deleteTokenV3 :: UserId ::: V3.AssetKey -> Handler Response
+deleteTokenV3 :: UserId ::: Public.AssetKey -> Handler Response
 deleteTokenV3 (usr ::: key) = do
   V3.deleteToken (V3.UserPrincipal usr) key
   return empty
@@ -249,16 +251,16 @@ resumableOptionsV3 _ = do
   maxTotal <- view (settings . setMaxTotalBytes)
   return $ TUS.optionsResponse (fromIntegral maxTotal) empty
 
-createResumableV3 :: UserId ::: V3.TotalSize ::: JsonRequest V3.ResumableSettings -> Handler Response
+createResumableV3 :: UserId ::: Public.TotalSize ::: JsonRequest Public.ResumableSettings -> Handler Response
 createResumableV3 (u ::: size ::: req) = do
   sets <- parseBody req !>> Error.clientError
   res <- Resumable.create (V3.UserPrincipal u) sets size
-  let key = res ^. V3.resumableAsset . V3.assetKey
-  let expiry = res ^. V3.resumableExpires
+  let key = res ^. Public.resumableAsset . Public.assetKey
+  let expiry = res ^. Public.resumableExpires
   let loc = "/assets/v3/resumable/" <> toByteString' key
-  return . TUS.createdResponse loc expiry $ json res
+  return . TUS.createdResponse loc expiry $ json (res :: Public.ResumableAsset)
 
-statusResumableV3 :: UserId ::: V3.AssetKey -> Handler Response
+statusResumableV3 :: UserId ::: Public.AssetKey -> Handler Response
 statusResumableV3 (u ::: a) = do
   stat <- Resumable.status (V3.UserPrincipal u) a
   return $ case stat of
@@ -266,7 +268,7 @@ statusResumableV3 (u ::: a) = do
     Just st -> TUS.headResponse st empty
 
 -- Request = raw bytestring
-uploadResumableV3 :: UserId ::: V3.Offset ::: Word ::: Media "application" "offset+octet-stream" ::: V3.AssetKey ::: Request -> Handler Response
+uploadResumableV3 :: UserId ::: Public.Offset ::: Word ::: Media "application" "offset+octet-stream" ::: Public.AssetKey ::: Request -> Handler Response
 uploadResumableV3 (usr ::: offset ::: size ::: _ ::: aid ::: req) = do
   (offset', expiry) <- Resumable.upload (V3.UserPrincipal usr) aid offset size (sourceRequestBody req)
   return $ TUS.patchResponse offset' expiry empty
@@ -275,14 +277,16 @@ uploadResumableV3 (usr ::: offset ::: size ::: _ ::: aid ::: req) = do
 -- Provider API Handlers
 
 providerUploadV3 :: ProviderId ::: Request -> Handler Response
-providerUploadV3 (prv ::: req) = uploadSimpleV3 (V3.ProviderPrincipal prv) req
+providerUploadV3 (prv ::: req) = do
+  let principal = V3.ProviderPrincipal prv
+  assetResponse principal <$> V3.upload principal (sourceRequestBody req)
 
-providerDownloadV3 :: ProviderId ::: V3.AssetKey ::: Maybe V3.AssetToken -> Handler Response
+providerDownloadV3 :: ProviderId ::: Public.AssetKey ::: Maybe Public.AssetToken -> Handler Response
 providerDownloadV3 (prv ::: key ::: tok) = do
   url <- V3.download (V3.ProviderPrincipal prv) key tok
   redirect url
 
-providerDeleteV3 :: ProviderId ::: V3.AssetKey -> Handler Response
+providerDeleteV3 :: ProviderId ::: Public.AssetKey -> Handler Response
 providerDeleteV3 (prv ::: key) = do
   V3.delete (V3.ProviderPrincipal prv) key
   return empty
@@ -291,14 +295,16 @@ providerDeleteV3 (prv ::: key) = do
 -- Bot API Handlers
 
 botUploadV3 :: BotId ::: Request -> Handler Response
-botUploadV3 (bot ::: req) = uploadSimpleV3 (V3.BotPrincipal bot) req
+botUploadV3 (bot ::: req) = do
+  let principal = V3.BotPrincipal bot
+  assetResponse principal <$> V3.upload principal (sourceRequestBody req)
 
-botDownloadV3 :: BotId ::: V3.AssetKey ::: Maybe V3.AssetToken -> Handler Response
+botDownloadV3 :: BotId ::: Public.AssetKey ::: Maybe Public.AssetToken -> Handler Response
 botDownloadV3 (bot ::: key ::: tok) = do
   url <- V3.download (V3.BotPrincipal bot) key tok
   redirect url
 
-botDeleteV3 :: BotId ::: V3.AssetKey -> Handler Response
+botDeleteV3 :: BotId ::: Public.AssetKey -> Handler Response
 botDeleteV3 (bot ::: key) = do
   V3.delete (V3.BotPrincipal bot) key
   return empty
@@ -306,17 +312,9 @@ botDeleteV3 (bot ::: key) = do
 --------------------------------------------------------------------------------
 -- Helpers
 
-uploadSimpleV3 ::
-  V3.Principal ->
-  Request -> -- Raw bytestring
-  Handler Response
-uploadSimpleV3 prc req = do
-  let src = sourceRequestBody req
-  asset <- V3.upload prc src
-  return
-    $ setStatus status201
-      . loc (asset ^. V3.assetKey)
-    $ json asset
+assetResponse :: V3.Principal -> Public.Asset -> Response
+assetResponse prc asset =
+  setStatus status201 . loc (asset ^. Public.assetKey) $ json asset
   where
     loc k = location $ case prc of
       V3.UserPrincipal {} -> "/assets/v3/" <> toByteString k
