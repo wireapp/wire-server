@@ -245,11 +245,12 @@ testInvitationEmailAndPhoneAccepted brig galley = do
 -- | FUTUREWORK: this is an alternative helper to 'createPopulatedBindingTeam'.  it has been
 -- added concurrently, and the two should probably be consolidated.
 createAndVerifyInvitation ::
+  (HasCallStack, MonadIO m, MonadHttp m, MonadThrow m, MonadCatch m, MonadFail m) =>
   (InvitationCode -> RequestBody) ->
   InvitationRequest ->
   Brig ->
   Galley ->
-  (MonadIO m, MonadHttp m, MonadThrow m, MonadCatch m, MonadFail m) => m ((Maybe SelfProfile), Invitation)
+  m ((Maybe SelfProfile), Invitation)
 createAndVerifyInvitation acceptFn invite brig galley = do
   (inviter, tid) <- createUserWithTeam brig galley
   inv <- responseJsonError =<< postInvitation brig tid inviter invite
