@@ -1195,6 +1195,7 @@ sendActivationCodeH req = do
   empty <$ (sendActivationCode =<< parseJsonBody req)
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
+-- docs/reference/user/registration.md {#RefRegistration}
 sendActivationCode :: SendActivationCode -> Handler ()
 sendActivationCode SendActivationCode {..} = do
   checkWhitelist saUserKey
