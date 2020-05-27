@@ -82,6 +82,7 @@ library:
   - wai-routing >=0.12
   - wai-utilities >=0.16
   - warp >=3.2
+  - wire-api
   - yaml >=0.8
 executables:
   gundeck-integration:

@@ -68,6 +68,7 @@ import Network.Wai.Utilities
 import System.Logger.Class ((+++), (.=), msg, val, (~~))
 import qualified System.Logger.Class as Log
 import UnliftIO.Concurrent (forkIO)
+import qualified Wire.API.Push.Token as Public
 
 push :: [Push] -> Gundeck ()
 push ps = do
@@ -372,7 +373,7 @@ nativeTargets psh rcps' alreadySent =
     check (Right r) = return r
 
 data AddTokenResponse
-  = AddTokenSuccess PushToken
+  = AddTokenSuccess Public.PushToken
   | AddTokenNoBudget
   | AddTokenNotFound
   | AddTokenInvalid
