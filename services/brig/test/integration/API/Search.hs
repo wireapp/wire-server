@@ -1,5 +1,3 @@
-{-# LANGUAGE QuasiQuotes #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -32,8 +30,8 @@ import Control.Lens ((.~), (?~), (^.))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.Fail (MonadFail)
 import Control.Retry
-import Data.Aeson (FromJSON, Value)
-import Data.Aeson.QQ.Simple
+import Data.Aeson ((.=), FromJSON, Value)
+import qualified Data.Aeson as Aeson
 import Data.Handle (fromHandle)
 import Data.Id
 import Data.List (elemIndex)
@@ -483,27 +481,16 @@ runBH opts =
 -- | This was copied from staging before the migration
 oldMapping :: Value
 oldMapping =
-  [aesonQQ| {
-      "user": {
-        "properties": {
-          "accent_id": {
-            "type": "byte",
-            "index": false
-          },
-          "handle": {
-            "type": "text"
-          },
-          "name": {
-            "type": "keyword",
-            "index": false
-          },
-          "normalized": {
-            "type": "text"
-          },
-          "team": {
-            "type": "keyword"
-          }
-        }
-      }
-    }
-  |]
+  Aeson.object
+    [ "user"
+        .= Aeson.object
+          [ "properties"
+              .= Aeson.object
+                [ "accent_id" .= Aeson.object ["type" .= ("byte" :: Text), "index" .= False],
+                  "handle" .= Aeson.object ["type" .= ("text" :: Text)],
+                  "name" .= Aeson.object ["type" .= ("keyword" :: Text), "index" .= False],
+                  "normalized" .= Aeson.object ["type" .= ("text" :: Text)],
+                  "team" .= Aeson.object ["type" .= ("keyword" :: Text)]
+                ]
+          ]
+    ]
