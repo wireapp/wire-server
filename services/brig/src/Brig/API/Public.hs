@@ -50,6 +50,7 @@ import Brig.User.Email
 import Brig.User.Phone
 import Control.Error hiding (bool)
 import Control.Lens ((^.), view)
+import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
@@ -1199,7 +1200,22 @@ sendActivationCodeH req = do
 sendActivationCode :: SendActivationCode -> Handler ()
 sendActivationCode SendActivationCode {..} = do
   checkWhitelist saUserKey
+  either customerExtensionCheckBlockedDomains (\_ -> pure ()) saUserKey
   API.sendActivationCode saUserKey saLocale saCall !>> sendActCodeError
+
+-- | If the user presents an email address from a blocked domain, throw an error.
+--
+-- The tautological constraint in the type signature is added so that once we remove the
+-- feature, ghc will guide us here.
+customerExtensionCheckBlockedDomains :: (DomainsBlockedForRegistration ~ DomainsBlockedForRegistration) => Email -> Handler ()
+customerExtensionCheckBlockedDomains email = do
+  mBlockedDomains <- asks (fmap domainsBlockedForRegistration . setCustomerExtensions . view settings)
+  case mBlockedDomains of
+    Nothing -> pure ()
+    Just (DomainsBlockedForRegistration blockedDomains) -> do
+      let Right domain = mkDomain (emailDomain email)
+      when (domain `elem` blockedDomains) $ do
+        throwM $ customerExtensionBlockedDomain domain
 
 changeSelfEmailH :: UserId ::: ConnId ::: JsonRequest EmailUpdate -> Handler Response
 changeSelfEmailH (u ::: _ ::: req) = changeEmail u req True
