@@ -34,6 +34,8 @@ import qualified Wire.API.User as User
 import qualified Wire.API.User.Client as User.Client
 import qualified Wire.Swagger as Swagger
 
+-- TODO remove all of this
+
 -- | Actually all models of the whole API,
 -- but it doesn't hurt and makes it less likely to forget one.
 galleyModels :: [Model]

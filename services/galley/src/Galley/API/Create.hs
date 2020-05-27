@@ -41,13 +41,14 @@ import Galley.App
 import qualified Galley.Data as Data
 import Galley.Intra.Push
 import Galley.Types
-import Galley.Types.Teams hiding (EventType (..))
+import Galley.Types.Teams (ListType (..), Perm (..), TeamBinding (Binding), notTeamMember, teamMembers, userId)
 import Galley.Validation
 import Imports hiding ((\\))
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Utilities
+import qualified Wire.API.Conversation as Public
 
 ----------------------------------------------------------------------------
 -- Group conversations
@@ -55,13 +56,13 @@ import Network.Wai.Utilities
 -- | The public-facing endpoint for creating group conversations.
 --
 -- See Note [managed conversations].
-createGroupConversationH :: UserId ::: ConnId ::: JsonRequest NewConvUnmanaged -> Galley Response
+createGroupConversationH :: UserId ::: ConnId ::: JsonRequest Public.NewConvUnmanaged -> Galley Response
 createGroupConversationH (zusr ::: zcon ::: req) = do
   newConv <- fromJsonBody req
   handleConversationResponse <$> createGroupConversation zusr zcon newConv
 
-createGroupConversation :: UserId -> ConnId -> NewConvUnmanaged -> Galley ConversationResponse
-createGroupConversation zusr zcon wrapped@(NewConvUnmanaged body) = do
+createGroupConversation :: UserId -> ConnId -> Public.NewConvUnmanaged -> Galley ConversationResponse
+createGroupConversation zusr zcon wrapped@(Public.NewConvUnmanaged body) = do
   case newConvTeam body of
     Nothing -> createRegularGroupConv zusr zcon wrapped
     Just tinfo -> createTeamGroupConv zusr zcon tinfo body
@@ -107,7 +108,7 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
 
 -- | A helper for creating a team group conversation, used by the endpoint
 -- handlers above. Allows both unmanaged and managed conversations.
-createTeamGroupConv :: UserId -> ConnId -> ConvTeamInfo -> NewConv -> Galley ConversationResponse
+createTeamGroupConv :: UserId -> ConnId -> Public.ConvTeamInfo -> Public.NewConv -> Galley ConversationResponse
 createTeamGroupConv zusr zcon tinfo body = do
   (localUserIds, remoteUserIds) <-
     partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId (newConvUsers body)
@@ -167,7 +168,7 @@ createSelfConversation zusr = do
       c <- Data.createSelfConversation zusr Nothing
       conversationCreated zusr c
 
-createOne2OneConversationH :: UserId ::: ConnId ::: JsonRequest NewConvUnmanaged -> Galley Response
+createOne2OneConversationH :: UserId ::: ConnId ::: JsonRequest Public.NewConvUnmanaged -> Galley Response
 createOne2OneConversationH (zusr ::: zcon ::: req) = do
   newConv <- fromJsonBody req
   handleConversationResponse <$> createOne2OneConversation zusr zcon newConv
@@ -275,8 +276,8 @@ createConnectConversation usr conn j = do
 -- Helpers
 
 data ConversationResponse
-  = ConversationCreated !Conversation
-  | ConversationExisted !Conversation
+  = ConversationCreated !Public.Conversation
+  | ConversationExisted !Public.Conversation
 
 conversationCreated :: UserId -> Data.Conversation -> Galley ConversationResponse
 conversationCreated usr cnv = ConversationCreated <$> conversationView usr cnv

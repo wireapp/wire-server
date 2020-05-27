@@ -23,7 +23,6 @@ module Galley.API.Public
   )
 where
 
-import Brig.Types.Team.LegalHold
 import Data.Aeson (encode)
 import Data.ByteString.Conversion (fromByteString, fromList)
 import Data.Id (OpaqueUserId)
@@ -42,10 +41,6 @@ import Galley.API.Swagger (swagger)
 import qualified Galley.API.Teams as Teams
 import qualified Galley.API.Update as Update
 import Galley.App
-import Galley.Types
-import Galley.Types.Conversations.Roles
-import Galley.Types.Teams
-import Galley.Types.Teams.SearchVisibility
 import Imports hiding (head)
 import Network.HTTP.Types
 import Network.Wai
@@ -68,10 +63,11 @@ import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
 import qualified Wire.API.Team.Conversation as Public
 import qualified Wire.API.Team.Feature as Public
+import qualified Wire.API.Team.LegalHold as Public
 import qualified Wire.API.Team.Member as Public
 import qualified Wire.API.Team.Permission as Public
 import qualified Wire.API.Team.SearchVisibility as Public
-import qualified Wire.API.User as Public (modelUserIdList)
+import qualified Wire.API.User as Public (UserIdList, modelUserIdList)
 import Wire.Swagger (int32Between)
 
 sitemap :: Routes ApiBuilder Galley ()
@@ -81,7 +77,7 @@ sitemap = do
   post "/teams" (continue Teams.createNonBindingTeamH) $
     zauthUserId
       .&. zauthConnId
-      .&. jsonRequest @NonBindingNewTeam
+      .&. jsonRequest @Public.NonBindingNewTeam
       .&. accept "application" "json"
   document "POST" "createNonBindingTeam" $ do
     summary "Create a new non binding team"
@@ -94,7 +90,7 @@ sitemap = do
     zauthUserId
       .&. zauthConnId
       .&. capture "tid"
-      .&. jsonRequest @TeamUpdateData
+      .&. jsonRequest @Public.TeamUpdateData
       .&. accept "application" "json"
   document "PUT" "updateTeam" $ do
     summary "Update team properties"
@@ -103,7 +99,7 @@ sitemap = do
     body (ref Public.modelUpdateData) $
       description "JSON body"
     errorResponse Error.notATeamMember
-    errorResponse (Error.operationDenied SetTeamData)
+    errorResponse (Error.operationDenied Public.SetTeamData)
 
   get "/teams" (continue Teams.getManyTeamsH) $
     zauthUserId
@@ -140,7 +136,7 @@ sitemap = do
     zauthUserId
       .&. zauthConnId
       .&. capture "tid"
-      .&. optionalJsonRequest @TeamDeleteData
+      .&. optionalJsonRequest @Public.TeamDeleteData
       .&. accept "application" "json"
   document "DELETE" "deleteTeam" $ do
     summary "Delete a team"
@@ -151,7 +147,7 @@ sitemap = do
       description "JSON body, required only for binding teams."
     response 202 "Team is scheduled for removal" end
     errorResponse Error.notATeamMember
-    errorResponse (Error.operationDenied DeleteTeam)
+    errorResponse (Error.operationDenied Public.DeleteTeam)
     errorResponse Error.deleteQueueFull
     errorResponse Error.reAuthFailed
     errorResponse Error.teamNotFound
@@ -161,13 +157,13 @@ sitemap = do
   get "/teams/:tid/members" (continue Teams.getTeamMembersH) $
     zauthUserId
       .&. capture "tid"
-      .&. def (unsafeRange hardTruncationLimit) (query "maxResults")
+      .&. def (unsafeRange Public.hardTruncationLimit) (query "maxResults")
       .&. accept "application" "json"
   document "GET" "getTeamMembers" $ do
     summary "Get team members"
     parameter Path "tid" bytes' $
       description "Team ID"
-    parameter Query "maxResults" (int32Between 1 hardTruncationLimit) $ do
+    parameter Query "maxResults" (int32Between 1 Public.hardTruncationLimit) $ do
       optional
       description "Maximum Results to be returned"
     returns (ref Public.modelTeamMemberList)
@@ -177,15 +173,15 @@ sitemap = do
   post "/teams/:tid/get-members-by-ids-using-post" (continue Teams.bulkGetTeamMembersH) $
     zauthUserId
       .&. capture "tid"
-      .&. def (unsafeRange hardTruncationLimit) (query "maxResults")
-      .&. jsonRequest @UserIdList
+      .&. def (unsafeRange Public.hardTruncationLimit) (query "maxResults")
+      .&. jsonRequest @Public.UserIdList
       .&. accept "application" "json"
   document "POST" "bulkGetTeamMembers" $ do
     summary "Get team members by user id list"
     notes "The `has_more` field in the response body is always `false`."
     parameter Path "tid" bytes' $
       description "Team ID"
-    parameter Query "maxResults" (int32Between 1 hardTruncationLimit) $ do
+    parameter Query "maxResults" (int32Between 1 Public.hardTruncationLimit) $ do
       optional
       description "Maximum Results to be returned"
     body (ref Public.modelUserIdList) $
@@ -255,7 +251,7 @@ sitemap = do
     zauthUserId
       .&. zauthConnId
       .&. capture "tid"
-      .&. jsonRequest @NewTeamMember
+      .&. jsonRequest @Public.NewTeamMember
       .&. accept "application" "json"
   document "POST" "addTeamMember" $ do
     summary "Add a new team member"
@@ -264,7 +260,7 @@ sitemap = do
     body (ref Public.modelNewTeamMember) $
       description "JSON body"
     errorResponse Error.notATeamMember
-    errorResponse (Error.operationDenied AddTeamMember)
+    errorResponse (Error.operationDenied Public.AddTeamMember)
     errorResponse Error.notConnected
     errorResponse Error.invalidPermissions
     errorResponse Error.tooManyTeamMembers
@@ -274,7 +270,7 @@ sitemap = do
       .&. zauthConnId
       .&. capture "tid"
       .&. capture "uid"
-      .&. optionalJsonRequest @TeamMemberDeleteData
+      .&. optionalJsonRequest @Public.TeamMemberDeleteData
       .&. accept "application" "json"
   document "DELETE" "deleteTeamMember" $ do
     summary "Remove an existing team member"
@@ -287,14 +283,14 @@ sitemap = do
       description "JSON body, required only for binding teams."
     response 202 "Team member scheduled for deletion" end
     errorResponse Error.notATeamMember
-    errorResponse (Error.operationDenied RemoveTeamMember)
+    errorResponse (Error.operationDenied Public.RemoveTeamMember)
     errorResponse Error.reAuthFailed
 
   put "/teams/:tid/members" (continue Teams.updateTeamMemberH) $
     zauthUserId
       .&. zauthConnId
       .&. capture "tid"
-      .&. jsonRequest @NewTeamMember
+      .&. jsonRequest @Public.NewTeamMember
       .&. accept "application" "json"
   document "PUT" "updateTeamMember" $ do
     summary "Update an existing team member"
@@ -304,7 +300,7 @@ sitemap = do
       description "JSON body"
     errorResponse Error.notATeamMember
     errorResponse Error.teamMemberNotFound
-    errorResponse (Error.operationDenied SetMemberPermissions)
+    errorResponse (Error.operationDenied Public.SetMemberPermissions)
 
   -- Team Conversation API ----------------------------------------------
 
@@ -332,7 +328,7 @@ sitemap = do
     returns (ref Public.modelTeamConversationList)
     response 200 "Team conversations" end
     errorResponse Error.teamNotFound
-    errorResponse (Error.operationDenied GetTeamConversations)
+    errorResponse (Error.operationDenied Public.GetTeamConversations)
 
   get "/teams/:tid/conversations/:cid" (continue Teams.getTeamConversationH) $
     zauthUserId
@@ -349,7 +345,7 @@ sitemap = do
     response 200 "Team conversation" end
     errorResponse Error.teamNotFound
     errorResponse Error.convNotFound
-    errorResponse (Error.operationDenied GetTeamConversations)
+    errorResponse (Error.operationDenied Public.GetTeamConversations)
 
   delete "/teams/:tid/conversations/:cid" (continue Teams.deleteTeamConversationH) $
     zauthUserId
@@ -364,7 +360,7 @@ sitemap = do
     parameter Path "cid" bytes' $
       description "Conversation ID"
     errorResponse Error.notATeamMember
-    errorResponse (Error.actionDenied DeleteConversation)
+    errorResponse (Error.actionDenied Public.DeleteConversation)
 
   -- Team Legalhold API -------------------------------------------------
   --
@@ -375,7 +371,7 @@ sitemap = do
   post "/teams/:tid/legalhold/settings" (continue LegalHold.createSettingsH) $
     zauthUserId
       .&. capture "tid"
-      .&. jsonRequest @NewLegalHoldService
+      .&. jsonRequest @Public.NewLegalHoldService
       .&. accept "application" "json"
 
   get "/teams/:tid/legalhold/settings" (continue LegalHold.getSettingsH) $
@@ -389,7 +385,7 @@ sitemap = do
   delete "/teams/:tid/legalhold/settings" (continue LegalHold.removeSettingsH) $
     zauthUserId
       .&. capture "tid"
-      .&. jsonRequest @RemoveLegalHoldSettingsRequest
+      .&. jsonRequest @Public.RemoveLegalHoldSettingsRequest
       .&. accept "application" "json"
 
   get "/teams/:tid/legalhold/:uid" (continue LegalHold.getUserStatusH) $
@@ -414,7 +410,7 @@ sitemap = do
     zauthUserId
       .&. capture "tid"
       .&. capture "uid"
-      .&. jsonRequest @DisableLegalHoldForUserRequest
+      .&. jsonRequest @Public.DisableLegalHoldForUserRequest
       .&. accept "application" "json"
 
   -- This endpoint can lead to the following events being sent:
@@ -426,7 +422,7 @@ sitemap = do
       .&. capture "tid"
       .&. capture "uid"
       .&. zauthConnId
-      .&. jsonRequest @ApproveLegalHoldForUserRequest
+      .&. jsonRequest @Public.ApproveLegalHoldForUserRequest
       .&. accept "application" "json"
 
   get "/teams/:tid/search-visibility" (continue Teams.getSearchVisibilityH) $
@@ -443,7 +439,7 @@ sitemap = do
   put "/teams/:tid/search-visibility" (continue Teams.setSearchVisibilityH) $ do
     zauthUserId
       .&. capture "tid"
-      .&. jsonRequest @TeamSearchVisibilityView
+      .&. jsonRequest @Public.TeamSearchVisibilityView
       .&. accept "application" "json"
   document "POST" "setSearchVisibility" $ do
     summary "Sets the search visibility for the whole team"
@@ -515,8 +511,8 @@ sitemap = do
     zauth ZAuthBot
       .&> zauthBotId
       .&. zauthConvId
-      .&. def OtrReportAllMissing filterMissing
-      .&. jsonRequest @NewOtrMessage
+      .&. def Public.OtrReportAllMissing filterMissing
+      .&. jsonRequest @Public.NewOtrMessage
       .&. accept "application" "json"
 
   -- Conversation API ---------------------------------------------------
@@ -587,7 +583,7 @@ sitemap = do
   post "/conversations" (continue Create.createGroupConversationH) $
     zauthUserId
       .&. zauthConnId
-      .&. jsonRequest @NewConvUnmanaged
+      .&. jsonRequest @Public.NewConvUnmanaged
   document "POST" "createGroupConversation" $ do
     summary "Create a new conversation"
     notes "On 201, the conversation ID is the `Location` header"
@@ -596,7 +592,7 @@ sitemap = do
     response 201 "Conversation created" end
     errorResponse Error.notConnected
     errorResponse Error.notATeamMember
-    errorResponse (Error.operationDenied CreateConversation)
+    errorResponse (Error.operationDenied Public.CreateConversation)
 
   post "/conversations/self" (continue Create.createSelfConversationH) $
     zauthUserId
@@ -610,7 +606,7 @@ sitemap = do
   post "/conversations/one2one" (continue Create.createOne2OneConversationH) $
     zauthUserId
       .&. zauthConnId
-      .&. jsonRequest @NewConvUnmanaged
+      .&. jsonRequest @Public.NewConvUnmanaged
   document "POST" "createOne2OneConversation" $ do
     summary "Create a 1:1-conversation"
     notes "On 201, the conversation ID is the `Location` header"
@@ -625,7 +621,7 @@ sitemap = do
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
-      .&. jsonRequest @ConversationRename
+      .&. jsonRequest @Public.ConversationRename
   document "PUT" "updateConversationName" $ do
     summary "Update conversation name"
     parameter Path "cnv" bytes' $
@@ -641,7 +637,7 @@ sitemap = do
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
-      .&. jsonRequest @ConversationRename
+      .&. jsonRequest @Public.ConversationRename
   document "PUT" "updateConversationName" $ do
     summary "DEPRECATED! Please use updateConversationName instead!"
     parameter Path "cnv" bytes' $
@@ -667,7 +663,7 @@ sitemap = do
     errorResponse Error.convNotFound
 
   post "/conversations/code-check" (continue Update.checkReusableCodeH) $
-    jsonRequest @ConversationCode
+    jsonRequest @Public.ConversationCode
   document "POST" "checkConversationCode" $ do
     summary "Check validity of a conversation code"
     response 200 "Valid" end
@@ -680,7 +676,7 @@ sitemap = do
   post "/conversations/join" (continue Update.joinConversationByReusableCodeH) $
     zauthUserId
       .&. zauthConnId
-      .&. jsonRequest @ConversationCode
+      .&. jsonRequest @Public.ConversationCode
   document "POST" "joinConversationByCode" $ do
     summary "Join a conversation using a reusable code"
     returns (ref Public.modelEvent)
@@ -742,7 +738,7 @@ sitemap = do
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
-      .&. jsonRequest @ConversationAccessUpdate
+      .&. jsonRequest @Public.ConversationAccessUpdate
   document "PUT" "updateConversationAccess" $ do
     summary "Update access modes for a conversation"
     parameter Path "cnv" bytes' $
@@ -765,7 +761,7 @@ sitemap = do
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
-      .&. jsonRequest @ConversationReceiptModeUpdate
+      .&. jsonRequest @Public.ConversationReceiptModeUpdate
       .&. accept "application" "json"
   document "PUT" "updateConversationReceiptMode" $ do
     summary "Update receipts mode for a conversation"
@@ -785,7 +781,7 @@ sitemap = do
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
-      .&. jsonRequest @ConversationMessageTimerUpdate
+      .&. jsonRequest @Public.ConversationMessageTimerUpdate
   document "PUT" "updateConversationMessageTimer" $ do
     summary "Update the message timer for a conversation"
     parameter Path "cnv" bytes' $
@@ -807,7 +803,7 @@ sitemap = do
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
-      .&. jsonRequest @Invite
+      .&. jsonRequest @Public.Invite
   document "POST" "addMembers" $ do
     summary "Add users to an existing conversation"
     parameter Path "cnv" bytes' $
@@ -838,7 +834,7 @@ sitemap = do
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
-      .&. jsonRequest @MemberUpdate
+      .&. jsonRequest @Public.MemberUpdate
   document "PUT" "updateSelf" $ do
     summary "Update self membership properties"
     notes "Even though all fields are optional, at least one needs to be given."
@@ -855,7 +851,7 @@ sitemap = do
       .&. zauthConnId
       .&. capture "cnv"
       .&. capture "usr"
-      .&. jsonRequest @OtherMemberUpdate
+      .&. jsonRequest @Public.OtherMemberUpdate
   document "PUT" "updateOtherMember" $ do
     summary "Update membership of the specified user"
     notes "Even though all fields are optional, at least one needs to be given."
@@ -875,7 +871,7 @@ sitemap = do
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
-      .&. jsonRequest @TypingData
+      .&. jsonRequest @Public.TypingData
   document "POST" "isTyping" $ do
     summary "Sending typing notifications"
     parameter Path "cnv" bytes' $
@@ -909,8 +905,8 @@ sitemap = do
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
-      .&. def OtrReportAllMissing filterMissing
-      .&. jsonRequest @NewOtrMessage
+      .&. def Public.OtrReportAllMissing filterMissing
+      .&. jsonRequest @Public.NewOtrMessage
   document "POST" "postOtrMessage" $ do
     summary "Post an encrypted message to a conversation (accepts JSON)"
     parameter Path "cnv" bytes' $
@@ -948,7 +944,7 @@ sitemap = do
     zauthUserId
       .&. zauthConnId
       .&. capture "cnv"
-      .&. def OtrReportAllMissing filterMissing
+      .&. def Public.OtrReportAllMissing filterMissing
       .&. request
       .&. contentType "application" "x-protobuf"
   document "POST" "postProtoOtrMessage" $ do
@@ -983,8 +979,8 @@ sitemap = do
   post "/broadcast/otr/messages" (continue Update.postOtrBroadcastH) $
     zauthUserId
       .&. zauthConnId
-      .&. def OtrReportAllMissing filterMissing
-      .&. jsonRequest @NewOtrMessage
+      .&. def Public.OtrReportAllMissing filterMissing
+      .&. jsonRequest @Public.NewOtrMessage
   document "POST" "postOtrBroadcast" $ do
     summary "Broadcast an encrypted message to all team members and all contacts (accepts JSON)"
     parameter Query "ignore_missing" bool' $ do
@@ -1021,7 +1017,7 @@ sitemap = do
   post "/broadcast/otr/messages" (continue Update.postProtoOtrBroadcastH) $
     zauthUserId
       .&. zauthConnId
-      .&. def OtrReportAllMissing filterMissing
+      .&. def Public.OtrReportAllMissing filterMissing
       .&. request
       .&. contentType "application" "x-protobuf"
   document "POST" "postOtrBroadcast" $ do
@@ -1079,17 +1075,18 @@ apiDocsTeamsLegalhold = do
   get "/teams/api-docs" (continue . const . pure . json $ swagger) $
     accept "application" "json"
 
-filterMissing :: HasQuery r => Predicate r P.Error OtrFilterMissing
+-- FUTUREWORK: Maybe would be better to move it to wire-api?
+filterMissing :: HasQuery r => Predicate r P.Error Public.OtrFilterMissing
 filterMissing = (>>= go) <$> (query "ignore_missing" ||| query "report_missing")
   where
     go (Left ign) = case fromByteString ign of
-      Just True -> return OtrIgnoreAllMissing
-      Just False -> return OtrReportAllMissing
-      Nothing -> OtrIgnoreMissing <$> users "ignore_missing" ign
+      Just True -> return Public.OtrIgnoreAllMissing
+      Just False -> return Public.OtrReportAllMissing
+      Nothing -> Public.OtrIgnoreMissing <$> users "ignore_missing" ign
     go (Right rep) = case fromByteString rep of
-      Just True -> return OtrReportAllMissing
-      Just False -> return OtrIgnoreAllMissing
-      Nothing -> OtrReportMissing <$> users "report_missing" rep
+      Just True -> return Public.OtrReportAllMissing
+      Just False -> return Public.OtrIgnoreAllMissing
+      Nothing -> Public.OtrReportMissing <$> users "report_missing" rep
     users :: ByteString -> ByteString -> P.Result P.Error (Set OpaqueUserId)
     users src bs = case fromByteString bs of
       Nothing ->
