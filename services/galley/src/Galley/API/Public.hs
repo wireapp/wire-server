@@ -207,15 +207,26 @@ sitemap = do
     summary "Read recently added team members from team queue"
     notes
       "This is a work-around for scalability issues with gundeck user event fan-out. \
-      \It does not track all team-wide events, but only `member-join`.  Note that there \
-      \are some subtle differences in the behavior of `/teams/notifications` compared to \
-      \`/notifications`: it does not set status 404 in the response if there is a gap.  \
-      \Instead, if the request contains a `since` notification id, the notification with \
-      \that id is included in the response if it exists.  If the UUIDv1 does *not* exist, \
-      \you get the more recent events from the queue (instead of all of them).  There is \
-      \no way to get the last event in a team event queue.  (In `/notifications`, this is \
-      \only needed to avoid having to pull the entire queue which we can do here by just \
-      \using a recent time stamp in the UUIDv1.)"
+      \It does not track all team-wide events, but only `member-join`.\
+      \\n\
+      \Note that `/teams/notifications` behaves different from `/notifications`:\
+      \\n\
+      \- If there is a gap between the notification id requested with `since` and the \
+      \available data, team queues respond with 200 and the data that could be found. \
+      \The do NOT respond with status 404, but valid data in the body.\
+      \\n\
+      \- The notification with the id given via `since` is included in the \
+      \response if it exists.  You should remove this and only use it to decide whether \
+      \there was a gap between your last request and this one.\
+      \\n\
+      \- If the notification id does *not* exist, you get the more recent events from the queue \
+      \(instead of all of them).  This can be done because a notification id is a UUIDv1, which \
+      \is essentially a time stamp.\
+      \\n\
+      \- There is no corresponding `/last` end-point to get only the most recent event. \
+      \That end-point was only useful to avoid having to pull the entire queue.  In team \
+      \queues, if you have never requested the queue before and \
+      \have no prior notification id, just pull with timestamp 'now'."
     parameter Query "since" bytes' $ do
       optional
       description "Notification id to start with in the response (UUIDv1)"
@@ -224,8 +235,7 @@ sitemap = do
       description "Maximum number of events to return (1..10000; default: 1000)"
     returns (ref modelNotificationList)
     response 200 "List of team notifications" end
-    errorResponse Error.notATeamMember
-    errorResponse Error.getTeamNotificationsNotFound
+    errorResponse Error.teamNotFound
     errorResponse Error.invalidTeamNotificationId
 
   post "/teams/:tid/members" (continue Teams.addTeamMemberH) $

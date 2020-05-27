@@ -245,8 +245,5 @@ federationNotImplemented qualified =
     renderMapping IdMapping {idMappingLocal, idMappingGlobal} =
       idToText idMappingLocal <> " -> " <> renderQualifiedId idMappingGlobal
 
-getTeamNotificationsNotFound :: Error
-getTeamNotificationsNotFound = Error status404 "not-found" "There are no team notifications for this team."
-
 invalidTeamNotificationId :: Error
 invalidTeamNotificationId = Error status400 "invalid-notification-id" "Could not parse notification id (must be UUIDv1)."
