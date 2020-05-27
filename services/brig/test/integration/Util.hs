@@ -651,6 +651,7 @@ withSettingsOverrides opts action = liftIO $ do
 -- compile.
 withDomainsBlockedForRegistration :: (MonadIO m) => Opts.Opts -> [Text] -> WaiTest.Session () -> m ()
 withDomainsBlockedForRegistration opts domains sess = do
-  let opts' = opts {Opts.customerExtensions = Just (Opts.CustomerExtensions $ unsafeMkDomain <$> domains)}
+  let opts' = opts {Opts.optSettings = (Opts.optSettings opts) {Opts.setCustomerExtensions = Just blocked}}
+      blocked = Opts.CustomerExtensions (Opts.DomainsBlockedForRegistration (unsafeMkDomain <$> domains))
       unsafeMkDomain = either error id . mkDomain
   withSettingsOverrides opts' sess

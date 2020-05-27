@@ -370,11 +370,7 @@ data Opts = Opts
     -- Runtime settings
 
     -- | Runtime settings
-    optSettings :: !Settings,
-    -- Customer extensions
-
-    -- | Customer extensions.  Read 'CustomerExtensions' docs carefully!
-    customerExtensions :: !(Maybe CustomerExtensions)
+    optSettings :: !Settings
   }
   deriving (Show, Generic)
 
@@ -456,7 +452,11 @@ data Settings = Settings
     -- ensures that there is only one request every 20 seconds.
     -- However, that parameter is not honoured when using fake-sqs
     -- (where throttling can thus make sense)
-    setSqsThrottleMillis :: !(Maybe Int)
+    setSqsThrottleMillis :: !(Maybe Int),
+    -- Customer extensions
+
+    -- | Customer extensions.  Read 'CustomerExtensions' docs carefully!
+    setCustomerExtensions :: !(Maybe CustomerExtensions)
   }
   deriving (Show, Generic)
 
