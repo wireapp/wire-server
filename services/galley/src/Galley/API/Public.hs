@@ -235,8 +235,7 @@ sitemap = do
       description "Maximum number of events to return (1..10000; default: 1000)"
     returns (ref modelNotificationList)
     response 200 "List of team notifications" end
-    errorResponse Error.notATeamMember
-    errorResponse Error.getTeamNotificationsNotFound
+    errorResponse Error.teamNotFound
     errorResponse Error.invalidTeamNotificationId
 
   post "/teams/:tid/members" (continue Teams.addTeamMemberH) $
