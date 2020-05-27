@@ -1011,23 +1011,17 @@ testDomainsBlockedForRegistration :: Opt.Opts -> Brig -> Http ()
 testDomainsBlockedForRegistration opts brig = withDomainsBlockedForRegistration opts ["bad1.domain.com", "bad2.domain.com"] $ do
   badEmail1 <- randomEmail <&> \e -> e {emailDomain = "bad1.domain.com"}
   badEmail2 <- randomEmail <&> \e -> e {emailDomain = "bad2.domain.com"}
-  post (brig . path "/register" . contentJson . body (p badEmail1)) !!! do
+  post (brig . path "/activate/send" . contentJson . body (p badEmail1)) !!! do
     const 451 === statusCode
     const (Just "domain-blocked-for-registration") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
-  post (brig . path "/register" . contentJson . body (p badEmail2)) !!! do
+  post (brig . path "/activate/send" . contentJson . body (p badEmail2)) !!! do
     const 451 === statusCode
     const (Just "domain-blocked-for-registration") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
   goodEmail <- randomEmail <&> \e -> e {emailDomain = "good.domain.com"}
-  post (brig . path "/register" . contentJson . body (p goodEmail)) !!! do
+  post (brig . path "/activate/senf" . contentJson . body (p goodEmail)) !!! do
     const 201 === statusCode
   where
-    p email =
-      RequestBodyLBS . encode $
-        object
-          [ "name" .= ("Alice" :: Text),
-            "email" .= email,
-            "password" .= defPassword
-          ]
+    p email = RequestBodyLBS . encode $ SendActivationCode (Left email) Nothing False
 
 -- helpers
 
