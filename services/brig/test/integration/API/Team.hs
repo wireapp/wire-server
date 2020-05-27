@@ -37,6 +37,7 @@ import Control.Monad.Fail (MonadFail)
 import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
+import Data.Json.Util (UTCTimeMillis)
 import Data.Json.Util (toUTCTimeMillis)
 import qualified Data.Text.Ascii as Ascii
 import Data.Time (addUTCTime, getCurrentTime)
@@ -45,6 +46,7 @@ import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
 import Imports
 import Network.HTTP.Client (Manager)
+import qualified Network.Wai.Test as WaiTest
 import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty hiding (Timeout)
 import qualified Test.Tasty.Cannon as WS
@@ -219,9 +221,9 @@ testInvitationEmailAccepted brig galley = do
 testInvitationEmailAcceptedInBlockedDomain :: Opt.Opts -> Brig -> Galley -> Http ()
 testInvitationEmailAcceptedInBlockedDomain opts brig galley = do
   inviteeEmail :: Email <- randomEmail
-  withDomainsBlockedForRegistration opts [emailDomain inviteeEmail] $ do
-    let invite = stdInvitationRequest inviteeEmail (Name "Bob") Nothing Nothing
-    void $ createAndVerifyInvitation (accept (irEmail invite)) invite brig galley
+  let invite = stdInvitationRequest inviteeEmail (Name "Bob") Nothing Nothing
+      replacementBrigApp = withDomainsBlockedForRegistration opts [emailDomain inviteeEmail]
+  void $ createAndVerifyInvitation' (Just replacementBrigApp) (accept (irEmail invite)) invite brig galley
 
 testInvitationEmailAndPhoneAccepted :: Brig -> Galley -> Http ()
 testInvitationEmailAndPhoneAccepted brig galley = do
@@ -245,30 +247,67 @@ testInvitationEmailAndPhoneAccepted brig galley = do
 -- | FUTUREWORK: this is an alternative helper to 'createPopulatedBindingTeam'.  it has been
 -- added concurrently, and the two should probably be consolidated.
 createAndVerifyInvitation ::
-  (HasCallStack, MonadIO m, MonadHttp m, MonadThrow m, MonadCatch m, MonadFail m) =>
+  HasCallStack =>
+  (InvitationCode -> RequestBody) ->
+  InvitationRequest ->
+  Brig ->
+  Galley ->
+  Http ((Maybe SelfProfile), Invitation)
+createAndVerifyInvitation acceptFn invite brig galley = do
+  createAndVerifyInvitation' Nothing acceptFn invite brig galley
+
+-- | The optional first argument uses a brig fake 'Application' to the test instead of the
+-- one on the network.
+createAndVerifyInvitation' ::
+  forall m a.
+  ( HasCallStack,
+    MonadIO m,
+    MonadHttp m,
+    MonadThrow m,
+    MonadCatch m,
+    MonadFail m,
+    a ~ (Maybe (UserId, UTCTimeMillis), Invitation, UserId, ResponseLBS)
+  ) =>
+  Maybe (WaiTest.Session a -> m a) ->
   (InvitationCode -> RequestBody) ->
   InvitationRequest ->
   Brig ->
   Galley ->
   m ((Maybe SelfProfile), Invitation)
-createAndVerifyInvitation acceptFn invite brig galley = do
+createAndVerifyInvitation' replacementBrigApp acceptFn invite brig galley = do
   (inviter, tid) <- createUserWithTeam brig galley
-  inv <- responseJsonError =<< postInvitation brig tid inviter invite
-  let invmeta = Just (inviter, inCreatedAt inv)
-  Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
-  Just invitation <- getInvitation brig inviteeCode
-  rsp2 <-
-    post
-      ( brig . path "/register"
-          . contentJson
-          . body (acceptFn inviteeCode)
-      )
-      <!! const 201 === statusCode
-  let Just (invitee, Just email2) = (userId &&& userEmail) <$> responseJsonMaybe rsp2
-  let zuid = parseSetCookie <$> getHeader "Set-Cookie" rsp2
-  liftIO $ assertEqual "Wrong cookie" (Just "zuid") (setCookieName <$> zuid)
-  -- Verify that the invited user is active
-  login brig (defEmailLogin email2) PersistentCookie !!! const 200 === statusCode
+  let invitationHandshake ::
+        forall m'.
+        ( HasCallStack,
+          MonadIO m',
+          MonadHttp m',
+          MonadThrow m',
+          MonadCatch m',
+          MonadFail m'
+        ) =>
+        m' (Maybe (UserId, UTCTimeMillis), Invitation, UserId, ResponseLBS)
+      invitationHandshake = do
+        inv <- responseJsonError =<< postInvitation brig tid inviter invite
+        let invmeta = Just (inviter, inCreatedAt inv)
+        Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
+        Just invitation <- getInvitation brig inviteeCode
+        rsp2 <-
+          post
+            ( brig . path "/register"
+                . contentJson
+                . body (acceptFn inviteeCode)
+            )
+            <!! const 201 === statusCode
+        let Just (invitee, Just email2) = (userId &&& userEmail) <$> responseJsonMaybe rsp2
+        let zuid = parseSetCookie <$> getHeader "Set-Cookie" rsp2
+        liftIO $ assertEqual "Wrong cookie" (Just "zuid") (setCookieName <$> zuid)
+        -- Verify that the invited user is active
+        login brig (defEmailLogin email2) PersistentCookie !!! const 200 === statusCode
+        pure (invmeta, invitation, invitee, rsp2)
+  (invmeta, invitation, invitee, rsp2) <- case replacementBrigApp of
+    Nothing -> invitationHandshake
+    Just app -> app invitationHandshake
+
   -- Verify that the user is part of the team
   mem <- getTeamMember invitee tid galley
   liftIO $ assertEqual "Member not part of the team" invitee (mem ^. Team.userId)
