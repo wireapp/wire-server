@@ -37,7 +37,6 @@ import qualified Brig.Team.DB as DB
 import Brig.Team.Email
 import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)
 import Brig.Types.Intra (AccountStatus (..))
-import qualified Brig.Types.Swagger as Doc
 import Brig.Types.Team (TeamSize)
 import Brig.Types.Team.Invitation
 import Brig.Types.User (InvitationCode, emailIdentity)
@@ -59,6 +58,8 @@ import Network.Wai.Routing hiding (head)
 import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
+import qualified Wire.API.Team.Invitation as Public
+import qualified Wire.API.User as Public (InvitationCode)
 
 routesPublic :: Routes Doc.ApiBuilder Handler ()
 routesPublic = do
@@ -66,7 +67,7 @@ routesPublic = do
     accept "application" "json"
       .&. header "Z-User"
       .&. capture "tid"
-      .&. jsonRequest @InvitationRequest
+      .&. jsonRequest @Public.InvitationRequest
   document "POST" "sendTeamInvitation" $ do
     Doc.summary "Create and send a new team invitation."
     Doc.notes
@@ -74,9 +75,9 @@ routesPublic = do
       \pending team invitations is equal to the team size."
     Doc.parameter Doc.Path "tid" Doc.bytes' $
       Doc.description "Team ID"
-    Doc.body (Doc.ref Doc.teamInvitationRequest) $
+    Doc.body (Doc.ref Public.modelTeamInvitationRequest) $
       Doc.description "JSON body"
-    Doc.returns (Doc.ref Doc.teamInvitation)
+    Doc.returns (Doc.ref Public.modelTeamInvitation)
     Doc.response 201 "Invitation was created and sent." Doc.end
     Doc.errorResponse noEmail
     Doc.errorResponse noIdentity
@@ -100,7 +101,7 @@ routesPublic = do
     Doc.parameter Doc.Query "size" Doc.int32' $ do
       Doc.description "Number of results to return (default 100, max 500)."
       Doc.optional
-    Doc.returns (Doc.ref Doc.teamInvitationList)
+    Doc.returns (Doc.ref Public.modelTeamInvitationList)
     Doc.response 200 "List of sent invitations" Doc.end
 
   get "/teams/:tid/invitations/:iid" (continue getInvitationH) $
@@ -114,7 +115,7 @@ routesPublic = do
       Doc.description "Team ID"
     Doc.parameter Doc.Path "id" Doc.bytes' $
       Doc.description "Team Invitation ID"
-    Doc.returns (Doc.ref Doc.teamInvitation)
+    Doc.returns (Doc.ref Public.modelTeamInvitation)
     Doc.response 200 "Invitation" Doc.end
 
   delete "/teams/:tid/invitations/:iid" (continue deleteInvitationH) $
@@ -137,7 +138,7 @@ routesPublic = do
     Doc.summary "Get invitation info given a code."
     Doc.parameter Doc.Query "code" Doc.bytes' $
       Doc.description "Invitation code"
-    Doc.returns (Doc.ref Doc.teamInvitation)
+    Doc.returns (Doc.ref Public.modelTeamInvitation)
     Doc.response 200 "Invitation successful." Doc.end
     Doc.errorResponse invalidInvitationCode
 
@@ -181,17 +182,17 @@ data FoundInvitationCode = FoundInvitationCode InvitationCode
 instance ToJSON FoundInvitationCode where
   toJSON (FoundInvitationCode c) = object ["code" .= c]
 
-createInvitationH :: JSON ::: UserId ::: TeamId ::: JsonRequest InvitationRequest -> Handler Response
+createInvitationH :: JSON ::: UserId ::: TeamId ::: JsonRequest Public.InvitationRequest -> Handler Response
 createInvitationH (_ ::: uid ::: tid ::: req) = do
-  body :: InvitationRequest <- parseJsonBody req
-  newInv :: Invitation <- createInvitation uid tid body
+  body <- parseJsonBody req
+  newInv <- createInvitation uid tid body
   pure . setStatus status201 . loc (inInvitation newInv) . json $ newInv
   where
     loc iid =
       addHeader "Location" $
         "/teams/" <> toByteString' tid <> "/invitations/" <> toByteString' iid
 
-createInvitation :: UserId -> TeamId -> InvitationRequest -> Handler Invitation
+createInvitation :: UserId -> TeamId -> Public.InvitationRequest -> Handler Public.Invitation
 createInvitation uid tid body = do
   idt <- maybe (throwStd noIdentity) return =<< lift (fetchUserIdentity uid)
   from <- maybe (throwStd noEmail) return (emailIdentity idt)
@@ -247,11 +248,11 @@ listInvitationsH :: JSON ::: UserId ::: TeamId ::: Maybe InvitationId ::: Range 
 listInvitationsH (_ ::: uid ::: tid ::: start ::: size) = do
   json <$> listInvitations uid tid start size
 
-listInvitations :: UserId -> TeamId -> Maybe InvitationId -> Range 1 500 Int32 -> Handler InvitationList
+listInvitations :: UserId -> TeamId -> Maybe InvitationId -> Range 1 500 Int32 -> Handler Public.InvitationList
 listInvitations uid tid start size = do
   ensurePermissions uid tid [Team.AddTeamMember]
   rs <- lift $ DB.lookupInvitations tid start size
-  return $! InvitationList (DB.resultList rs) (DB.resultHasMore rs)
+  return $! Public.InvitationList (DB.resultList rs) (DB.resultHasMore rs)
 
 getInvitationH :: JSON ::: UserId ::: TeamId ::: InvitationId -> Handler Response
 getInvitationH (_ ::: uid ::: tid ::: iid) = do
@@ -260,16 +261,16 @@ getInvitationH (_ ::: uid ::: tid ::: iid) = do
     Just i -> json i
     Nothing -> setStatus status404 empty
 
-getInvitation :: UserId -> TeamId -> InvitationId -> Handler (Maybe Invitation)
+getInvitation :: UserId -> TeamId -> InvitationId -> Handler (Maybe Public.Invitation)
 getInvitation uid tid iid = do
   ensurePermissions uid tid [Team.AddTeamMember]
   lift $ DB.lookupInvitation tid iid
 
-getInvitationByCodeH :: JSON ::: InvitationCode -> Handler Response
+getInvitationByCodeH :: JSON ::: Public.InvitationCode -> Handler Response
 getInvitationByCodeH (_ ::: c) = do
   json <$> getInvitationByCode c
 
-getInvitationByCode :: InvitationCode -> Handler Invitation
+getInvitationByCode :: Public.InvitationCode -> Handler Public.Invitation
 getInvitationByCode c = do
   inv <- lift $ DB.lookupInvitationByCode c
   maybe (throwStd invalidInvitationCode) return inv
