@@ -47,6 +47,7 @@ import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import Data.Id
 import Data.String.Conversions
+import Data.Text.Ascii (encodeBase64, toText)
 import qualified Data.UUID.V4 as UUID
 import Imports hiding (log)
 import qualified Network.HTTP.Types.Status as Http
@@ -502,7 +503,7 @@ errorPage err inputs mcky =
         "</head>",
         "</body>",
         "  sorry, something went wrong :(<br>",
-        "  please copy this page to your clipboard and provide it when opening an issue in our customer support.<br><br>",
-        "  <pre>" <> cs (show (err, inputs, mcky)) <> "</pre>",
+        "  please copy the following debug information to your clipboard and provide it when opening an issue in our customer support.<br><br>",
+        "  <pre>" <> (cs . toText . encodeBase64 . cs . show $ (err, inputs, mcky)) <> "</pre>",
         "</body>"
       ]
