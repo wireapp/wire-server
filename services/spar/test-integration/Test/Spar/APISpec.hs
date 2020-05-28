@@ -33,6 +33,7 @@ import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Proxy
 import Data.String.Conversions
 import qualified Data.Text as ST
+import Data.Text.Ascii (decodeBase64, validateBase64)
 import qualified Data.UUID as UUID hiding (fromByteString, null)
 import qualified Data.UUID.V4 as UUID (nextRandom)
 import qualified Data.ZAuth.Token as ZAuth
@@ -268,12 +269,25 @@ specFinalizeLogin = do
               authnreq
               True
         sparresp <- submitAuthnResponse authnresp
+        let shouldContainInBase64 :: String -> String -> Expectation
+            shouldContainInBase64 hay needle = cs hay'' `shouldContain` needle
+              where
+                Right (Just hay'') = decodeBase64 <$> validateBase64 hay'
+                hay' = cs $ f hay
+                  where
+                    -- exercise to the reader: do this more idiomatically!
+                    f (splitAt 5 -> ("<pre>", s)) = g s
+                    f (_ : s) = f s
+                    f "" = ""
+                    g (splitAt 6 -> ("</pre>", _)) = ""
+                    g (c : s) = c : g s
+                    g "" = ""
         liftIO $ do
           statusCode sparresp `shouldBe` 404
           -- body should contain the error label in the title, the verbatim haskell error, and the request:
           (cs . fromJust . responseBody $ sparresp) `shouldContain` "<title>wire:sso:error:not-found</title>"
-          (cs . fromJust . responseBody $ sparresp) `shouldContain` "CustomError SparNotFound"
-          (cs . fromJust . responseBody $ sparresp) `shouldContain` "Input {iName = \"SAMLResponse\""
+          (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "CustomError SparNotFound"
+          (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "Input {iName = \"SAMLResponse\""
     -- TODO(arianvp): Ask Matthias what this even means
     context "AuthnResponse does not match any request" $ do
       it "rejects" $ do
