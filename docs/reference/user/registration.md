@@ -70,6 +70,8 @@ If the code is incorrect or if an incorrect code has been tried enough times, th
 
 ## Registration without pre-verification {#RefRegistrationNoPreverification}
 
+_NOTE: This flow is currently not used by any clients. At least this was the state on 2020-04-28_
+
 It is also possible to call `POST /register` without verifying the email address or phone number, in which case the account will have to be activated later by calling [`POST /activate`](activation.md#RefActivationSubmit). Sample API request and response:
 
 ```
