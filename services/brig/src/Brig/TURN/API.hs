@@ -24,8 +24,6 @@ import Brig.API.Handler
 import Brig.App
 import Brig.TURN hiding (Env)
 import qualified Brig.TURN as TURN
-import qualified Brig.Types.Swagger as Doc
-import Brig.Types.TURN
 import Control.Lens
 import Control.Monad.Fail (MonadFail)
 import Control.Monad.Random.Class
@@ -48,6 +46,7 @@ import Network.Wai.Utilities.Swagger (document)
 import OpenSSL.EVP.Digest (Digest, hmacBS)
 import qualified System.Random.MWC as MWC
 import System.Random.Shuffle
+import qualified Wire.API.Call.TURN as Public
 
 routesPublic :: Routes Doc.ApiBuilder Handler ()
 routesPublic = do
@@ -59,7 +58,7 @@ routesPublic = do
     Doc.summary
       "Retrieve TURN server addresses and credentials for \
       \ IP addresses, scheme `turn` and transport `udp` only "
-    Doc.returns (Doc.ref Doc.rtcConfiguration)
+    Doc.returns (Doc.ref Public.modelRtcConfiguration)
     Doc.response 200 "RTCConfiguration" Doc.end
 
   get "/calls/config/v2" (continue getCallsConfigV2H) $
@@ -75,7 +74,7 @@ routesPublic = do
     Doc.parameter Doc.Query "limit" Doc.int32' $ do
       Doc.description "Limit resulting list. Allowes values [1..10]"
       Doc.optional
-    Doc.returns (Doc.ref Doc.rtcConfiguration)
+    Doc.returns (Doc.ref Public.modelRtcConfiguration)
     Doc.response 200 "RTCConfiguration" Doc.end
 
 getCallsConfigV2H :: JSON ::: UserId ::: ConnId ::: Maybe (Range 1 10 Int) -> Handler Response
@@ -83,7 +82,7 @@ getCallsConfigV2H (_ ::: uid ::: connid ::: limit) = do
   json <$> getCallsConfigV2 uid connid limit
 
 -- | ('UserId', 'ConnId' are required as args here to make sure this is an authenticated end-point.)
-getCallsConfigV2 :: UserId -> ConnId -> Maybe (Range 1 10 Int) -> Handler RTCConfiguration
+getCallsConfigV2 :: UserId -> ConnId -> Maybe (Range 1 10 Int) -> Handler Public.RTCConfiguration
 getCallsConfigV2 _ _ limit = do
   env <- liftIO =<< readIORef <$> view turnEnvV2
   newConfig env limit
@@ -92,16 +91,19 @@ getCallsConfigH :: JSON ::: UserId ::: ConnId -> Handler Response
 getCallsConfigH (_ ::: uid ::: connid) = do
   json <$> getCallsConfig uid connid
 
-getCallsConfig :: UserId -> ConnId -> Handler RTCConfiguration
+getCallsConfig :: UserId -> ConnId -> Handler Public.RTCConfiguration
 getCallsConfig _ _ = do
   env <- liftIO =<< readIORef <$> view turnEnv
   dropTransport <$> newConfig env Nothing
   where
     -- In order to avoid being backwards incompatible, remove the `transport` query param from the URIs
-    dropTransport :: RTCConfiguration -> RTCConfiguration
-    dropTransport = set (rtcConfIceServers . traverse . iceURLs . traverse . turiTransport) Nothing
+    dropTransport :: Public.RTCConfiguration -> Public.RTCConfiguration
+    dropTransport =
+      set
+        (Public.rtcConfIceServers . traverse . Public.iceURLs . traverse . Public.turiTransport)
+        Nothing
 
-newConfig :: MonadIO m => TURN.Env -> Maybe (Range 1 10 Int) -> m RTCConfiguration
+newConfig :: MonadIO m => TURN.Env -> Maybe (Range 1 10 Int) -> m Public.RTCConfiguration
 newConfig env limit = do
   let (sha, secret, tTTL, cTTL, prng) = (env ^. turnSHA512, env ^. turnSecret, env ^. turnTokenTTL, env ^. turnConfigTTL, env ^. turnPrng)
   -- randomize list of servers (before limiting the list, to ensure not always the same servers are chosen if limit is set)
@@ -113,27 +115,27 @@ newConfig env limit = do
   finalUris <- liftIO $ randomize limitedUris
   srvs <- for finalUris $ \uri -> do
     u <- liftIO $ genUsername tTTL prng
-    pure $ rtcIceServer (List1.singleton uri) u (computeCred sha secret u)
-  pure $ rtcConfiguration srvs cTTL
+    pure $ Public.rtcIceServer (List1.singleton uri) u (computeCred sha secret u)
+  pure $ Public.rtcConfiguration srvs cTTL
   where
     -- NOTE: even though `shuffleM` works only for [a], input is List1 so it's
     --       safe to pattern match; ideally, we'd have `shuffleM` for `NonEmpty`
-    randomize :: (MonadRandom m, MonadFail m) => List1 TurnURI -> m (List1 TurnURI)
+    randomize :: (MonadRandom m, MonadFail m) => List1 Public.TurnURI -> m (List1 Public.TurnURI)
     randomize xs = do
       (f : fs) <- shuffleM (toList xs)
       return $ List1.list1 f fs
-    limitedList :: List1 TurnURI -> Range 1 10 Int -> List1 TurnURI
+    limitedList :: List1 Public.TurnURI -> Range 1 10 Int -> List1 Public.TurnURI
     limitedList uris lim = do
       -- assuming limitServers is safe with respect to the length of its return value
       -- (see property tests in brig-types)
       -- since the input is List1 and limit is in Range 1 10
       -- it should also be safe to assume the returning list has length >= 1
-      let (x : xs) = limitServers (toList uris) (fromRange lim)
+      let (x : xs) = Public.limitServers (toList uris) (fromRange lim)
       List1.list1 x xs
-    genUsername :: Word32 -> MWC.GenIO -> IO TurnUsername
+    genUsername :: Word32 -> MWC.GenIO -> IO Public.TurnUsername
     genUsername ttl prng = do
       rnd <- view (packedBytes . utf8) <$> replicateM 16 (MWC.uniformR (97, 122) prng)
       t <- fromIntegral . (+ ttl) . round <$> getPOSIXTime
-      pure $ turnUsername t rnd
-    computeCred :: Digest -> ByteString -> TurnUsername -> AsciiBase64
+      pure $ Public.turnUsername t rnd
+    computeCred :: Digest -> ByteString -> Public.TurnUsername -> AsciiBase64
     computeCred dig secret = encodeBase64 . hmacBS dig secret . toByteString'
