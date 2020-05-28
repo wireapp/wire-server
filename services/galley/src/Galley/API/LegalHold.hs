@@ -52,6 +52,7 @@ import Network.Wai.Predicate hiding (or, result, setStatus)
 import Network.Wai.Utilities as Wai
 import qualified System.Logger.Class as Log
 import UnliftIO.Async (pooledMapConcurrentlyN_)
+import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.LegalHold as Public
 
 assertLegalHoldEnabled :: TeamId -> Galley ()
@@ -60,9 +61,9 @@ assertLegalHoldEnabled tid = unlessM (isLegalHoldEnabled tid) $ throwM legalHold
 isLegalHoldEnabled :: TeamId -> Galley Bool
 isLegalHoldEnabled tid = do
   lhConfig <- LegalHoldData.getLegalHoldTeamConfig tid
-  return $ case legalHoldTeamConfigStatus <$> lhConfig of
-    Just LegalHoldEnabled -> True
-    Just LegalHoldDisabled -> False
+  return $ case lhConfig of
+    Just Public.TeamFeatureEnabled -> True
+    Just Public.TeamFeatureDisabled -> False
     Nothing -> False
 
 createSettingsH :: UserId ::: TeamId ::: JsonRequest Public.NewLegalHoldService ::: JSON -> Galley Response
@@ -94,7 +95,7 @@ getSettingsH (zusr ::: tid ::: _) = do
 getSettings :: UserId -> TeamId -> Galley Public.ViewLegalHoldService
 getSettings zusr tid = do
   zusrMembership <- Data.teamMember tid zusr
-  void $ permissionCheck ViewLegalHoldTeamSettings zusrMembership
+  void $ permissionCheck (ViewTeamFeature Public.TeamFeatureLegalHold) zusrMembership
   isenabled <- isLegalHoldEnabled tid
   mresult <- LegalHoldData.getSettings tid
   pure $ case (isenabled, mresult) of

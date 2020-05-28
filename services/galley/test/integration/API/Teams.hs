@@ -26,7 +26,6 @@ import qualified API.Util as Util
 import Bilge hiding (timeout)
 import Bilge.Assert
 import qualified Brig.Types as Brig
-import Brig.Types.Team.LegalHold (LegalHoldStatus (..), LegalHoldTeamConfig (..))
 import Control.Lens hiding ((#), (.=))
 import Control.Monad.Catch
 import Control.Retry
@@ -52,7 +51,6 @@ import qualified Galley.Types as Conv
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
-import Galley.Types.Teams.SSO
 import Galley.Types.Teams.SearchVisibility
 import Gundeck.Types.Notification hiding (target)
 import Imports
@@ -69,6 +67,7 @@ import Test.Tasty.HUnit
 import TestHelpers (test)
 import TestSetup (TestM, TestSetup, tsBrig, tsCannon, tsGConf, tsGalley)
 import UnliftIO (mapConcurrently, mapConcurrently_)
+import qualified Wire.API.Team.Feature as Public
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -286,9 +285,9 @@ testEnableSSOPerTeam = do
   owner <- Util.randomUser
   tid <- Util.createBindingTeamInternal "foo" owner
   assertQueue "create team" tActivate
-  let check :: HasCallStack => String -> SSOStatus -> TestM ()
+  let check :: HasCallStack => String -> Public.TeamFeatureStatus -> TestM ()
       check msg enabledness = do
-        SSOTeamConfig status <- responseJsonUnsafe <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
+        status <- responseJsonUnsafe <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
         liftIO $ assertEqual msg enabledness status
   let putSSOEnabledInternalCheckNotImplemented :: HasCallStack => TestM ()
       putSSOEnabledInternalCheckNotImplemented = do
@@ -298,17 +297,17 @@ testEnableSSOPerTeam = do
             <$> put
               ( g
                   . paths ["i", "teams", toByteString' tid, "features", "sso"]
-                  . json (SSOTeamConfig SSODisabled)
+                  . json Public.TeamFeatureDisabled
               )
         liftIO $ do
           assertEqual "bad status" status403 status
           assertEqual "bad label" "not-implemented" label
   featureSSO <- view (tsGConf . optSettings . setFeatureFlags . flagSSO)
   case featureSSO of
-    FeatureSSOEnabledByDefault -> check "Teams should start with SSO enabled" SSOEnabled
-    FeatureSSODisabledByDefault -> check "Teams should start with SSO disabled" SSODisabled
-  putSSOEnabledInternal tid SSOEnabled
-  check "Calling 'putEnabled True' should enable SSO" SSOEnabled
+    FeatureSSOEnabledByDefault -> check "Teams should start with SSO enabled" Public.TeamFeatureEnabled
+    FeatureSSODisabledByDefault -> check "Teams should start with SSO disabled" Public.TeamFeatureDisabled
+  putSSOEnabledInternal tid Public.TeamFeatureEnabled
+  check "Calling 'putEnabled True' should enable SSO" Public.TeamFeatureEnabled
   putSSOEnabledInternalCheckNotImplemented
 
 testEnableTeamSearchVisibilityPerTeam :: TestM ()
@@ -1894,13 +1893,13 @@ getSSOEnabledInternal tid = do
     g
       . paths ["i", "teams", toByteString' tid, "features", "sso"]
 
-putSSOEnabledInternal :: HasCallStack => TeamId -> SSOStatus -> TestM ()
+putSSOEnabledInternal :: HasCallStack => TeamId -> Public.TeamFeatureStatus -> TestM ()
 putSSOEnabledInternal tid enabled = do
   g <- view tsGalley
   void . put $
     g
       . paths ["i", "teams", toByteString' tid, "features", "sso"]
-      . json (SSOTeamConfig enabled)
+      . json enabled
       . expect2xx
 
 getSearchVisibility :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> (MonadIO m, MonadHttp m) => m ResponseLBS
@@ -1954,16 +1953,16 @@ getLegalHoldEnabledInternal tid = do
     g
       . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
 
-putLegalHoldEnabledInternal :: HasCallStack => TeamId -> LegalHoldStatus -> TestM ()
+putLegalHoldEnabledInternal :: HasCallStack => TeamId -> Public.TeamFeatureStatus -> TestM ()
 putLegalHoldEnabledInternal = putLegalHoldEnabledInternal' expect2xx
 
-putLegalHoldEnabledInternal' :: HasCallStack => (Request -> Request) -> TeamId -> LegalHoldStatus -> TestM ()
+putLegalHoldEnabledInternal' :: HasCallStack => (Request -> Request) -> TeamId -> Public.TeamFeatureStatus -> TestM ()
 putLegalHoldEnabledInternal' reqmod tid enabled = do
   g <- view tsGalley
   void . put $
     g
       . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
-      . json (LegalHoldTeamConfig enabled)
+      . json enabled
       . reqmod
 
 testFeatureFlags :: TestM ()
@@ -1973,54 +1972,54 @@ testFeatureFlags = do
 
   -- sso
 
-  let getSSO :: HasCallStack => SSOStatus -> TestM ()
+  let getSSO :: HasCallStack => Public.TeamFeatureStatus -> TestM ()
       getSSO expected = getSSOEnabled owner tid !!! do
         statusCode === const 200
-        responseJsonEither === const (Right (SSOTeamConfig expected))
-      getSSOInternal :: HasCallStack => SSOStatus -> TestM ()
+        responseJsonEither === const (Right expected)
+      getSSOInternal :: HasCallStack => Public.TeamFeatureStatus -> TestM ()
       getSSOInternal expected = getSSOEnabledInternal tid !!! do
         statusCode === const 200
-        responseJsonEither === const (Right (SSOTeamConfig expected))
-      setSSOInternal :: HasCallStack => SSOStatus -> TestM ()
+        responseJsonEither === const (Right expected)
+      setSSOInternal :: HasCallStack => Public.TeamFeatureStatus -> TestM ()
       setSSOInternal = putSSOEnabledInternal tid
   featureSSO <- view (tsGConf . optSettings . setFeatureFlags . flagSSO)
   case featureSSO of
     FeatureSSODisabledByDefault -> do
-      getSSO SSODisabled
-      getSSOInternal SSODisabled
-      setSSOInternal SSOEnabled
-      getSSO SSOEnabled
-      getSSOInternal SSOEnabled
+      getSSO Public.TeamFeatureDisabled
+      getSSOInternal Public.TeamFeatureDisabled
+      setSSOInternal Public.TeamFeatureEnabled
+      getSSO Public.TeamFeatureEnabled
+      getSSOInternal Public.TeamFeatureEnabled
     FeatureSSOEnabledByDefault -> do
       -- since we don't allow to disable (see 'disableSsoNotImplemented'), we can't test
       -- much here.  (disable failure is covered in "enable/disable SSO" above.)
-      getSSO SSOEnabled
-      getSSOInternal SSOEnabled
+      getSSO Public.TeamFeatureEnabled
+      getSSOInternal Public.TeamFeatureEnabled
 
   -- legalhold
 
-  let getLegalHold :: HasCallStack => LegalHoldStatus -> TestM ()
+  let getLegalHold :: HasCallStack => Public.TeamFeatureStatus -> TestM ()
       getLegalHold expected = getLegalHoldEnabled owner tid !!! do
         statusCode === const 200
-        responseJsonEither === const (Right (LegalHoldTeamConfig expected))
-      getLegalHoldInternal :: HasCallStack => LegalHoldStatus -> TestM ()
+        responseJsonEither === const (Right expected)
+      getLegalHoldInternal :: HasCallStack => Public.TeamFeatureStatus -> TestM ()
       getLegalHoldInternal expected = getLegalHoldEnabledInternal tid !!! do
         statusCode === const 200
-        responseJsonEither === const (Right (LegalHoldTeamConfig expected))
-      setLegalHoldInternal :: HasCallStack => LegalHoldStatus -> TestM ()
+        responseJsonEither === const (Right expected)
+      setLegalHoldInternal :: HasCallStack => Public.TeamFeatureStatus -> TestM ()
       setLegalHoldInternal = putLegalHoldEnabledInternal tid
-  getLegalHold LegalHoldDisabled
-  getLegalHoldInternal LegalHoldDisabled
+  getLegalHold Public.TeamFeatureDisabled
+  getLegalHoldInternal Public.TeamFeatureDisabled
 
   -- FUTUREWORK: run two galleys, like below for custom search visibility.
   featureLegalHold <- view (tsGConf . optSettings . setFeatureFlags . flagLegalHold)
   case featureLegalHold of
     FeatureLegalHoldDisabledByDefault -> do
-      setLegalHoldInternal LegalHoldEnabled
-      getLegalHold LegalHoldEnabled
-      getLegalHoldInternal LegalHoldEnabled
+      setLegalHoldInternal Public.TeamFeatureEnabled
+      getLegalHold Public.TeamFeatureEnabled
+      getLegalHoldInternal Public.TeamFeatureEnabled
     FeatureLegalHoldDisabledPermanently -> do
-      putLegalHoldEnabledInternal' expect4xx tid LegalHoldEnabled
+      putLegalHoldEnabledInternal' expect4xx tid Public.TeamFeatureEnabled
 
   -- custom search visibility
 

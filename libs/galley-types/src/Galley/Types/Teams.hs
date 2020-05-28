@@ -141,6 +141,7 @@ import Wire.API.Event.Team
 import Wire.API.Team (NewTeam (..), Team (..), TeamBinding (..))
 import Wire.API.Team
 import Wire.API.Team.Conversation
+import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
@@ -297,15 +298,14 @@ makeLenses ''FeatureFlags
 -- | See Note [hidden team roles]
 data HiddenPerm
   = ChangeLegalHoldTeamSettings
-  | ViewLegalHoldTeamSettings
   | ChangeLegalHoldUserSettings
   | ViewLegalHoldUserSettings
-  | ViewSSOTeamSettings -- (change is only allowed via customer support backoffice)
   | ViewTeamSearchVisibilityAvailable
+  | ViewTeamFeature TeamFeatureName
   | ChangeTeamSearchVisibility
   | ViewTeamSearchVisibility
   | ViewSameTeamEmails
-  deriving (Eq, Ord, Show, Enum, Bounded)
+  deriving (Eq, Ord, Show)
 
 -- | See Note [hidden team roles]
 data HiddenPermissions = HiddenPermissions
@@ -340,9 +340,9 @@ hiddenPermissionsFromPermissions =
             Set.fromList [ViewSameTeamEmails]
         roleHiddenPerms RoleExternalPartner =
           Set.fromList
-            [ ViewLegalHoldTeamSettings,
+            [ ViewTeamFeature TeamFeatureLegalHold,
+              ViewTeamFeature TeamFeatureSSO,
               ViewLegalHoldUserSettings,
-              ViewSSOTeamSettings,
               ViewTeamSearchVisibilityAvailable,
               ViewTeamSearchVisibility
             ]

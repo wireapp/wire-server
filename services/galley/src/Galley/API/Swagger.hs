@@ -48,6 +48,7 @@ import Imports
 import Servant.API hiding (Header)
 import Servant.Swagger
 import URI.ByteString.QQ (uri)
+import Wire.API.Team.Feature
 
 {-
 import Data.String.Conversions
@@ -97,9 +98,9 @@ type GalleyRoutesPublic =
 
 type GalleyRoutesInternal =
   "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
-    :> Get '[JSON] LegalHoldTeamConfig
+    :> Get '[JSON] TeamFeatureStatus
     :<|> "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
-      :> ReqBody '[JSON] LegalHoldTeamConfig
+      :> ReqBody '[JSON] TeamFeatureStatus
       :> Put '[] NoContent
 
 -- FUTUREWORK: move Swagger instances next to the types they describe
@@ -203,13 +204,13 @@ instance ToSchema MockViewLegalHoldServiceStatus where
 
 instance ToSchema ViewLegalHoldServiceInfo where
   {-
-  
+
   -- FUTUREWORK: The generic instance uses a reference to the UUID type in TeamId.  This
   -- leads to perfectly valid swagger output, but 'validateEveryToJSON' chokes on it
   -- (unknown schema "UUID").  In order to be able to run those tests, we construct the
   -- 'ToSchema' instance manually.
   -- See also: https://github.com/haskell-servant/servant-swagger/pull/104
-  
+
   declareNamedSchema = genericDeclareNamedSchema opts
     where
       opts = defaultSchemaOptions
@@ -219,7 +220,7 @@ instance ToSchema ViewLegalHoldServiceInfo where
             "viewLegalHoldServiceTeam"        -> "team_id"
             "viewLegalHoldServiceAuthToken"   -> "auth_token"
             "viewLegalHoldServiceKey"         -> "public_key"
-  
+
         }
   -}
   declareNamedSchema _ =
@@ -261,29 +262,17 @@ instance ToSchema ViewLegalHoldServiceInfo where
           Right lhuri = mkHttpsUrl [uri|https://example.com/|]
           fpr = Fingerprint "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
 
-instance ToSchema LegalHoldTeamConfig where
-  declareNamedSchema = genericDeclareNamedSchema opts
+instance ToSchema TeamFeatureStatus where
+  declareNamedSchema _ =
+    pure $ NamedSchema (Just "TeamFeatureStatus") $
+      mempty
+        & properties .~ (fromList [("status", Inline status)])
+        & required .~ ["status"]
+        & type_ ?~ SwaggerObject
     where
-      opts =
-        defaultSchemaOptions
-          { fieldLabelModifier = \case
-              "legalHoldTeamConfigStatus" -> "status"
-          }
-
-instance ToSchema LegalHoldStatus where
-  declareNamedSchema = tweak . genericDeclareNamedSchema opts
-    where
-      opts =
-        defaultSchemaOptions
-          { constructorTagModifier = \case
-              "LegalHoldDisabled" -> "disabled"
-              "LegalHoldEnabled" -> "enabled"
-          }
-      tweak = fmap $ schema . description ?~ descr
-        where
-          descr =
-            "determines whether admins of a team "
-              <> "are allowed to enable LH for their users."
+      status =
+        mempty
+          & enum_ ?~ [String "enabled", String "disabled"]
 
 instance ToSchema RequestNewLegalHoldClient where
   declareNamedSchema = genericDeclareNamedSchema opts

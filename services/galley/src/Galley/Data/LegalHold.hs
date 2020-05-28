@@ -40,18 +40,20 @@ import Data.LegalHold
 import Galley.Data.Instances ()
 import Galley.Data.Queries as Q
 import Imports
+import Wire.API.Team.Feature (TeamFeatureStatus (..))
 
 -- | Return whether a given team is allowed to enable/disable legalhold
-getLegalHoldTeamConfig :: MonadClient m => TeamId -> m (Maybe LegalHoldTeamConfig)
+-- Defaults to 'TeamFeatureDisabled'.
+getLegalHoldTeamConfig :: MonadClient m => TeamId -> m (Maybe TeamFeatureStatus)
 getLegalHoldTeamConfig tid = fmap toLegalHoldTeamConfig <$> do
   retry x1 $ query1 selectLegalHoldTeamConfig (params Quorum (Identity tid))
   where
-    toLegalHoldTeamConfig (Identity Nothing) = LegalHoldTeamConfig LegalHoldDisabled
-    toLegalHoldTeamConfig (Identity (Just status)) = LegalHoldTeamConfig status
+    toLegalHoldTeamConfig (Identity Nothing) = TeamFeatureDisabled
+    toLegalHoldTeamConfig (Identity (Just status)) = status
 
 -- | Determines whether a given team is allowed to enable/disable legalhold
-setLegalHoldTeamConfig :: MonadClient m => TeamId -> LegalHoldTeamConfig -> m ()
-setLegalHoldTeamConfig tid LegalHoldTeamConfig {legalHoldTeamConfigStatus} = do
+setLegalHoldTeamConfig :: MonadClient m => TeamId -> TeamFeatureStatus -> m ()
+setLegalHoldTeamConfig tid legalHoldTeamConfigStatus = do
   retry x5 $ write updateLegalHoldTeamConfig (params Quorum (legalHoldTeamConfigStatus, tid))
 
 -- | Returns 'False' if legal hold is not enabled for this team

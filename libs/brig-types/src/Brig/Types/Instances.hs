@@ -25,22 +25,9 @@ where
 import Brig.Types.Client.Prekey
 import Brig.Types.Provider
 import Brig.Types.Provider.Tag
-import Brig.Types.Team.LegalHold
 import Cassandra.CQL
 import Data.ByteString.Conversion
 import Imports
-
-instance Cql LegalHoldStatus where
-  ctype = Tagged IntColumn
-
-  fromCql (CqlInt n) = case n of
-    0 -> pure $ LegalHoldDisabled
-    1 -> pure $ LegalHoldEnabled
-    _ -> fail "fromCql: Invalid LegalHoldStatus"
-  fromCql _ = fail "fromCql: LegalHoldStatus: CqlInt expected"
-
-  toCql LegalHoldDisabled = CqlInt 0
-  toCql LegalHoldEnabled = CqlInt 1
 
 instance Cql PrekeyId where
   ctype = Tagged IntColumn

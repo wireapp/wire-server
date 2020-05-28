@@ -22,7 +22,6 @@ module Galley.API.Internal
   )
 where
 
-import Brig.Types.Team.LegalHold
 import qualified Cassandra as Cql
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding ((.=))
@@ -51,7 +50,6 @@ import Galley.Types.Bot (AddBot, RemoveBot)
 import Galley.Types.Bot.Service
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
-import Galley.Types.Teams.SSO
 import Galley.Types.Teams.SearchVisibility
 import Imports hiding (head)
 import Network.Wai
@@ -61,6 +59,7 @@ import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities
 import Network.Wai.Utilities.ZAuth
 import System.Logger.Class hiding (Path)
+import qualified Wire.API.Team.Feature as Public
 
 sitemap :: Routes a Galley ()
 sitemap = do
@@ -176,7 +175,7 @@ sitemap = do
 
   put "/i/teams/:tid/features/legalhold" (continue Teams.setLegalholdStatusInternalH) $
     capture "tid"
-      .&. jsonRequest @LegalHoldTeamConfig
+      .&. jsonRequest @Public.TeamFeatureStatus
       .&. accept "application" "json"
 
   get "/i/teams/:tid/features/sso" (continue Teams.getSSOStatusInternalH) $
@@ -185,7 +184,7 @@ sitemap = do
 
   put "/i/teams/:tid/features/sso" (continue Teams.setSSOStatusInternalH) $
     capture "tid"
-      .&. jsonRequest @SSOTeamConfig
+      .&. jsonRequest @Public.TeamFeatureStatus
       .&. accept "application" "json"
 
   get "/i/teams/:tid/features/search-visibility" (continue Teams.getTeamSearchVisibilityAvailableInternalH) $
