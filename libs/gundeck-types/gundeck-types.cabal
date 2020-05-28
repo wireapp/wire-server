@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9ff646ba76a95fff90b29432358adb137d080681382d375a83d449be79fd50e4
+-- hash: 3f63d2fadb0c32703d787154dd830787a80ef50e6fa8b5d3480eb2a3a6706eb5
 
 name:           gundeck-types
 version:        1.45.0
@@ -27,7 +27,6 @@ library
       Gundeck.Types.Presence
       Gundeck.Types.Push
       Gundeck.Types.Push.V2
-      Gundeck.Types.Swagger
   other-modules:
       Paths_gundeck_types
   hs-source-dirs:
