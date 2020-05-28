@@ -47,7 +47,6 @@ import qualified Data.Swagger.Build.Api as Doc
 import Data.Text (Text, unpack)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeLatin1)
-import qualified Galley.Types.Swagger as Doc
 import qualified Galley.Types.Teams.SearchVisibility as Team
 import Imports hiding (head)
 import Network.HTTP.Types
@@ -67,6 +66,7 @@ import qualified Stern.Swagger as Doc
 import Stern.Types
 import System.Logger.Class hiding ((.=), Error, name, trace)
 import Util.Options
+import qualified Wire.API.Team.SearchVisibility as Public
 import qualified Wire.Swagger as Doc
 
 default (ByteString)
@@ -397,7 +397,7 @@ routes = do
     summary "Shows the current TeamSearchVisibility value for the given team"
     Doc.parameter Doc.Path "tid" Doc.bytes' $
       description "Team ID"
-    Doc.returns (Doc.ref Doc.teamSearchVisibility)
+    Doc.returns (Doc.ref Public.modelTeamSearchVisibility)
     Doc.response 200 "TeamSearchVisibility value" Doc.end
   put "/teams/:tid/search-visibility" (continue setSearchVisibility) $
     contentType "application" "json"
@@ -407,7 +407,7 @@ routes = do
     summary "Set specific search visibility for the team"
     Doc.parameter Doc.Path "tid" Doc.bytes' $
       description "Team ID"
-    Doc.body Doc.searchVisibilityType $
+    Doc.body Public.typeSearchVisibility $
       Doc.description "JSON body"
     Doc.response 200 "TeamSearchVisibility status set" Doc.end
 

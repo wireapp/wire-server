@@ -1008,10 +1008,12 @@ createUser (Public.NewUserPublic new) = do
     UserAccount _ _ -> lift $ Auth.newCookie @ZAuth.User userId Public.PersistentCookie newUserLabel
   pure $ CreateUserResponse cok userId (Public.SelfProfile usr)
   where
-    sendActivationEmail e u p l = \case
-      (Just (Public.NewTeamCreator (Public.BindingNewTeamUser (Public.BindingNewTeam t) _))) ->
-        sendTeamActivationMail e u p l (fromRange $ t ^. Public.newTeamName)
-      _ ->
+    sendActivationEmail e u p l mTeamUser
+      | Just teamUser <- mTeamUser,
+        Public.NewTeamCreator creator <- teamUser,
+        let Public.BindingNewTeamUser (Public.BindingNewTeam team) _ = creator =
+        sendTeamActivationMail e u p l (fromRange $ team ^. Public.newTeamName)
+      | otherwise =
         sendActivationMail e u p l Nothing
     sendWelcomeEmail :: Public.Email -> CreateUserTeam -> Public.NewTeamUser -> Maybe Public.Locale -> AppIO ()
     -- NOTE: Welcome e-mails for the team creator are not dealt by brig anymore

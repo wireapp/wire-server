@@ -25,22 +25,27 @@ import Data.Id
 import qualified Data.List as List
 import Galley.App
 import qualified Galley.Data as Data
-import Galley.Types
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 import qualified System.Logger.Class as Log
 import System.Logger.Message ((+++), msg, val)
+import qualified Wire.API.Conversation as Public
 
-conversationView :: UserId -> Data.Conversation -> Galley Conversation
+conversationView :: UserId -> Data.Conversation -> Galley Public.Conversation
 conversationView u Data.Conversation {..} = do
   let mm = toList convMembers
-  let (me, them) = List.partition ((u ==) . memId) mm
+  let (me, them) = List.partition ((u ==) . Public.memId) mm
   m <- maybe memberNotFound return (listToMaybe me)
-  let (name, mems) = (convName, ConvMembers m (map toOther them))
-  return $! Conversation convId convType convCreator convAccess convAccessRole name mems convTeam convMessageTimer convReceiptMode
+  let (name, mems) = (convName, Public.ConvMembers m (map toOther them))
+  return $! Public.Conversation convId convType convCreator convAccess convAccessRole name mems convTeam convMessageTimer convReceiptMode
   where
-    toOther x = OtherMember (memId x) (memService x) (memConvRoleName x)
+    toOther x =
+      Public.OtherMember
+        { omId = Public.memId x,
+          omService = Public.memService x,
+          omConvRoleName = Public.memConvRoleName x
+        }
     memberNotFound = do
       Log.err . msg $
         val "User "

@@ -34,6 +34,7 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Utilities
+import qualified Wire.API.CustomBackend as Public
 
 -- PUBLIC ---------------------------------------------------------------------
 
@@ -41,7 +42,7 @@ getCustomBackendByDomainH :: Domain ::: JSON -> Galley Response
 getCustomBackendByDomainH (domain ::: _) =
   json <$> getCustomBackendByDomain domain
 
-getCustomBackendByDomain :: Domain -> Galley CustomBackend
+getCustomBackendByDomain :: Domain -> Galley Public.CustomBackend
 getCustomBackendByDomain domain =
   Data.getCustomBackend domain >>= \case
     Nothing -> throwM (customBackendNotFound domain)

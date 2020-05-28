@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1df36a92cc8e6f655580e350342915884101a8512407fb23db8db68496c2f1f5
+-- hash: cfe4b05d6b1712183f3e0bb34480bccf7a4b9ecd6e32fd328731ac65df2453aa
 
 name:           stern
 version:        1.7.2
@@ -79,6 +79,7 @@ library
     , wai-routing >=0.10
     , wai-utilities >=0.9
     , warp >=3.0
+    , wire-api >=0.1
     , yaml
   default-language: Haskell2010
 
