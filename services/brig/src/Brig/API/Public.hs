@@ -1227,13 +1227,13 @@ sendActivationCode Public.SendActivationCode {..} = do
 --
 -- The tautological constraint in the type signature is added so that once we remove the
 -- feature, ghc will guide us here.
-customerExtensionCheckBlockedDomains :: (DomainsBlockedForRegistration ~ DomainsBlockedForRegistration) => Email -> Handler ()
+customerExtensionCheckBlockedDomains :: (DomainsBlockedForRegistration ~ DomainsBlockedForRegistration) => Public.Email -> Handler ()
 customerExtensionCheckBlockedDomains email = do
   mBlockedDomains <- asks (fmap domainsBlockedForRegistration . setCustomerExtensions . view settings)
   case mBlockedDomains of
     Nothing -> pure ()
     Just (DomainsBlockedForRegistration blockedDomains) -> do
-      let Right domain = mkDomain (emailDomain email)
+      let Right domain = mkDomain (Public.emailDomain email)
       when (domain `elem` blockedDomains) $ do
         throwM $ customerExtensionBlockedDomain domain
 
