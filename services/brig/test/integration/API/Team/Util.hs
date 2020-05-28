@@ -26,6 +26,7 @@ import Brig.Types.Team.Invitation
 import Brig.Types.Team.LegalHold (LegalHoldStatus, LegalHoldTeamConfig (..))
 import Brig.Types.User
 import Control.Lens ((^.), (^?), view)
+import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
@@ -105,14 +106,18 @@ createTeam u galley = do
     $ fromByteString
     $ getHeader' "Location" r
 
--- | NB: the created user is the team owner.
-createUserWithTeam :: Brig -> Galley -> Http (UserId, TeamId)
+-- | Create user and binding team.
+--
+-- NB: the created user is the team owner.
+createUserWithTeam :: Brig -> Galley -> (MonadIO m, MonadHttp m, MonadThrow m) => m (UserId, TeamId)
 createUserWithTeam brig galley = do
   (user, tid) <- createUserWithTeam' brig galley
   return (userId user, tid)
 
--- | NB: the created user is the team owner.
-createUserWithTeam' :: Brig -> Galley -> Http (User, TeamId)
+-- | Create user and binding team.
+--
+-- NB: the created user is the team owner.
+createUserWithTeam' :: HasCallStack => Brig -> Galley -> (MonadIO m, MonadHttp m, MonadThrow m) => m (User, TeamId)
 createUserWithTeam' brig galley = do
   e <- randomEmail
   n <- randomName
@@ -126,7 +131,7 @@ createUserWithTeam' brig galley = do
             ]
   user <- responseJsonError =<< post (brig . path "/i/users" . contentJson . body p)
   let Just tid = userTeam user
-  (team : _) <- view Team.teamListTeams <$> getTeams (userId user) galley
+  team <- head . view Team.teamListTeams <$> getTeams (userId user) galley
   liftIO $ assertBool "Team ID in registration and team table do not match" (tid == view Team.teamId team)
   selfTeam <- userTeam . selfUser <$> getSelfProfile brig (userId user)
   liftIO $ assertBool "Team ID in self profile and team table do not match" (selfTeam == Just tid)
@@ -248,7 +253,7 @@ deleteTeam g tid u = do
     !!! const 202
     === statusCode
 
-getTeams :: UserId -> Galley -> Http Team.TeamList
+getTeams :: UserId -> Galley -> (MonadIO m, MonadHttp m, MonadThrow m) => m Team.TeamList
 getTeams u galley =
   responseJsonError
     =<< get
@@ -327,7 +332,7 @@ register' e t c brig =
           )
     )
 
-listConnections :: HasCallStack => UserId -> Brig -> Http UserConnectionList
+listConnections :: HasCallStack => UserId -> Brig -> (MonadIO m, MonadHttp m, MonadThrow m) => m UserConnectionList
 listConnections u brig = do
   responseJsonError
     =<< get
@@ -336,7 +341,7 @@ listConnections u brig = do
           . zUser u
       )
 
-getInvitation :: Brig -> InvitationCode -> Http (Maybe Invitation)
+getInvitation :: Brig -> InvitationCode -> (MonadIO m, MonadHttp m) => m (Maybe Invitation)
 getInvitation brig c = do
   r <-
     get $
@@ -345,7 +350,7 @@ getInvitation brig c = do
         . queryItem "code" (toByteString' c)
   return . decode . fromMaybe "" $ responseBody r
 
-postInvitation :: Brig -> TeamId -> UserId -> InvitationRequest -> Http ResponseLBS
+postInvitation :: Brig -> TeamId -> UserId -> InvitationRequest -> (MonadIO m, MonadHttp m) => m ResponseLBS
 postInvitation brig t u i =
   post $
     brig
@@ -372,7 +377,7 @@ getTeam :: HasCallStack => Galley -> TeamId -> Http Team.TeamData
 getTeam galley t =
   responseJsonError =<< get (galley . paths ["i", "teams", toByteString' t])
 
-getInvitationCode :: HasCallStack => Brig -> TeamId -> InvitationId -> Http (Maybe InvitationCode)
+getInvitationCode :: HasCallStack => Brig -> TeamId -> InvitationId -> (MonadIO m, MonadHttp m) => m (Maybe InvitationCode)
 getInvitationCode brig t ref = do
   r <-
     get
@@ -384,7 +389,7 @@ getInvitationCode brig t ref = do
   let lbs = fromMaybe "" $ responseBody r
   return $ fromByteString . fromMaybe (error "No code?") $ T.encodeUtf8 <$> (lbs ^? key "code" . _String)
 
-assertNoInvitationCode :: HasCallStack => Brig -> TeamId -> InvitationId -> Http ()
+assertNoInvitationCode :: HasCallStack => Brig -> TeamId -> InvitationId -> (MonadIO m, MonadHttp m, MonadCatch m) => m ()
 assertNoInvitationCode brig t i =
   get
     ( brig

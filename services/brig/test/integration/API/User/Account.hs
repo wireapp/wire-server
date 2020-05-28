@@ -38,6 +38,7 @@ import Control.Lens ((^.), (^?))
 import Control.Monad.Catch
 import Data.Aeson
 import Data.Aeson.Lens
+import qualified Data.Aeson.Lens as AesonL
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
@@ -69,7 +70,7 @@ import Util.AWS as Util
 import Web.Cookie (parseSetCookie)
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> TestTree
-tests _ at _ p b c ch g aws =
+tests _ at opts p b c ch g aws =
   testGroup
     "account"
     [ test' aws p "post /register - 201 (with preverified)" $ testCreateUserWithPreverified b aws,
@@ -105,7 +106,11 @@ tests _ at _ p b c ch g aws =
       test' aws p "delete/anonymous" $ testDeleteAnonUser b,
       test' aws p "delete /i/users/:uid - 202" $ testDeleteInternal b c aws,
       test' aws p "delete with profile pic" $ testDeleteWithProfilePic b ch,
-      test' aws p "put /i/users/:uid/sso-id" $ testUpdateSSOId b g
+      test' aws p "put /i/users/:uid/sso-id" $ testUpdateSSOId b g,
+      testGroup
+        "temporary customer extensions"
+        [ test' aws p "domains blocked for registration" $ testDomainsBlockedForRegistration opts b
+        ]
     ]
 
 testCreateUserWithPreverified :: Brig -> AWS.Env -> Http ()
@@ -1001,6 +1006,22 @@ testUpdateSSOId brig galley = do
       ]
   sequence_ $ zipWith go users ssoids1
   sequence_ $ zipWith go users ssoids2
+
+testDomainsBlockedForRegistration :: Opt.Opts -> Brig -> Http ()
+testDomainsBlockedForRegistration opts brig = withDomainsBlockedForRegistration opts ["bad1.domain.com", "bad2.domain.com"] $ do
+  badEmail1 <- randomEmail <&> \e -> e {emailDomain = "bad1.domain.com"}
+  badEmail2 <- randomEmail <&> \e -> e {emailDomain = "bad2.domain.com"}
+  post (brig . path "/activate/send" . contentJson . body (p badEmail1)) !!! do
+    const 451 === statusCode
+    const (Just "domain-blocked-for-registration") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
+  post (brig . path "/activate/send" . contentJson . body (p badEmail2)) !!! do
+    const 451 === statusCode
+    const (Just "domain-blocked-for-registration") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
+  goodEmail <- randomEmail <&> \e -> e {emailDomain = "good.domain.com"}
+  post (brig . path "/activate/send" . contentJson . body (p goodEmail)) !!! do
+    const 200 === statusCode
+  where
+    p email = RequestBodyLBS . encode $ SendActivationCode (Left email) Nothing False
 
 -- helpers
 

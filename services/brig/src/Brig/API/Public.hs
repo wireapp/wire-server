@@ -46,9 +46,11 @@ import Brig.User.Email
 import Brig.User.Phone
 import Control.Error hiding (bool)
 import Control.Lens ((^.), view)
+import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
+import Data.Domain (mkDomain)
 import Data.Handle (Handle, parseHandle)
 import Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local))
@@ -732,6 +734,7 @@ sitemap o = do
     Doc.errorResponse userKeyExists
     Doc.errorResponse blacklistedEmail
     Doc.errorResponse blacklistedPhone
+    Doc.errorResponse (customerExtensionBlockedDomain (either undefined id $ mkDomain "example.com"))
 
   post "/password-reset" (continue beginPasswordResetH) $
     accept "application" "json"
@@ -1213,10 +1216,26 @@ sendActivationCodeH req = do
   empty <$ (sendActivationCode =<< parseJsonBody req)
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
+-- docs/reference/user/registration.md {#RefRegistration}
 sendActivationCode :: Public.SendActivationCode -> Handler ()
 sendActivationCode Public.SendActivationCode {..} = do
   checkWhitelist saUserKey
+  either customerExtensionCheckBlockedDomains (\_ -> pure ()) saUserKey
   API.sendActivationCode saUserKey saLocale saCall !>> sendActCodeError
+
+-- | If the user presents an email address from a blocked domain, throw an error.
+--
+-- The tautological constraint in the type signature is added so that once we remove the
+-- feature, ghc will guide us here.
+customerExtensionCheckBlockedDomains :: (DomainsBlockedForRegistration ~ DomainsBlockedForRegistration) => Public.Email -> Handler ()
+customerExtensionCheckBlockedDomains email = do
+  mBlockedDomains <- asks (fmap domainsBlockedForRegistration . setCustomerExtensions . view settings)
+  case mBlockedDomains of
+    Nothing -> pure ()
+    Just (DomainsBlockedForRegistration blockedDomains) -> do
+      let Right domain = mkDomain (Public.emailDomain email)
+      when (domain `elem` blockedDomains) $ do
+        throwM $ customerExtensionBlockedDomain domain
 
 changeSelfEmailH :: UserId ::: ConnId ::: JsonRequest Public.EmailUpdate -> Handler Response
 changeSelfEmailH (u ::: _ ::: req) = do

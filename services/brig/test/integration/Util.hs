@@ -34,7 +34,7 @@ import Brig.Types.Intra
 import Brig.Types.User
 import Brig.Types.User.Auth
 import Control.Lens ((^?), (^?!))
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.Fail (MonadFail)
 import Control.Retry
 import Data.Aeson
@@ -44,6 +44,7 @@ import qualified Data.ByteString as BS
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
+import Data.Domain (mkDomain)
 import Data.Id
 import Data.List1 (List1)
 import qualified Data.List1 as List1
@@ -249,7 +250,7 @@ deleteUserInternal u brig =
     brig
       . paths ["/i/users", toByteString' u]
 
-activate :: Brig -> ActivationPair -> Http ResponseLBS
+activate :: Brig -> ActivationPair -> (MonadIO m, MonadHttp m) => m ResponseLBS
 activate brig (k, c) =
   get $
     brig
@@ -257,7 +258,7 @@ activate brig (k, c) =
       . queryItem "key" (toByteString' k)
       . queryItem "code" (toByteString' c)
 
-getSelfProfile :: Brig -> UserId -> Http SelfProfile
+getSelfProfile :: Brig -> UserId -> (MonadIO m, MonadHttp m, MonadThrow m) => m SelfProfile
 getSelfProfile brig usr = do
   responseJsonError =<< get (brig . path "/self" . zUser usr)
 
@@ -268,7 +269,7 @@ getUser brig zusr usr =
       . paths ["users", toByteString' usr]
       . zUser zusr
 
-login :: Brig -> Login -> CookieType -> Http ResponseLBS
+login :: Brig -> Login -> CookieType -> (MonadIO m, MonadHttp m) => m ResponseLBS
 login b l t =
   let js = RequestBodyLBS (encode l)
    in post $
@@ -397,7 +398,7 @@ getPreKey brig u c =
     brig
       . paths ["users", toByteString' u, "prekeys", toByteString' c]
 
-getTeamMember :: HasCallStack => UserId -> TeamId -> Galley -> Http Team.TeamMember
+getTeamMember :: HasCallStack => UserId -> TeamId -> Galley -> (MonadIO m, MonadHttp m, MonadThrow m) => m Team.TeamMember
 getTeamMember u tid galley =
   responseJsonError
     =<< get
@@ -407,14 +408,14 @@ getTeamMember u tid galley =
           . expect2xx
       )
 
-getConversation :: Galley -> UserId -> ConvId -> Http ResponseLBS
+getConversation :: Galley -> UserId -> ConvId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 getConversation galley usr cnv =
   get $
     galley
       . paths ["conversations", toByteString' cnv]
       . zAuthAccess usr "conn"
 
-isMember :: Galley -> UserId -> ConvId -> Http Bool
+isMember :: Galley -> UserId -> ConvId -> (MonadIO m, MonadHttp m) => m Bool
 isMember g usr cnv = do
   res <-
     get $
@@ -425,7 +426,7 @@ isMember g usr cnv = do
     Nothing -> return False
     Just m -> return (usr == memId m)
 
-getStatus :: HasCallStack => Brig -> UserId -> HttpT IO AccountStatus
+getStatus :: HasCallStack => Brig -> UserId -> (MonadIO m, MonadHttp m) => m AccountStatus
 getStatus brig u =
   (^?! key "status" . (_JSON @Value @AccountStatus)) . (responseJsonUnsafe @Value)
     <$> get
@@ -433,7 +434,7 @@ getStatus brig u =
           . expect2xx
       )
 
-chkStatus :: HasCallStack => Brig -> UserId -> AccountStatus -> Http ()
+chkStatus :: HasCallStack => Brig -> UserId -> AccountStatus -> (MonadIO m, MonadHttp m, MonadCatch m) => m ()
 chkStatus brig u s =
   get (brig . paths ["i", "users", toByteString' u, "status"]) !!! do
     const 200 === statusCode
@@ -645,3 +646,12 @@ withSettingsOverrides :: MonadIO m => Opts.Opts -> WaiTest.Session a -> m a
 withSettingsOverrides opts action = liftIO $ do
   (brigApp, _) <- Run.mkApp opts
   WaiTest.runSession action brigApp
+
+-- | When we remove the customer-specific extension of domain blocking, this test will fail to
+-- compile.
+withDomainsBlockedForRegistration :: (MonadIO m) => Opts.Opts -> [Text] -> WaiTest.Session a -> m a
+withDomainsBlockedForRegistration opts domains sess = do
+  let opts' = opts {Opts.optSettings = (Opts.optSettings opts) {Opts.setCustomerExtensions = Just blocked}}
+      blocked = Opts.CustomerExtensions (Opts.DomainsBlockedForRegistration (unsafeMkDomain <$> domains))
+      unsafeMkDomain = either error id . mkDomain
+  withSettingsOverrides opts' sess
