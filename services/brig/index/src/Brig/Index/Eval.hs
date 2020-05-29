@@ -109,7 +109,7 @@ runCommand l = \case
 
 waitForTaskToComplete :: forall a m. (ES.MonadBH m, MonadIO m, MonadThrow m, FromJSON a) => Int -> ES.TaskNodeId -> m ()
 waitForTaskToComplete timeoutSeconds taskNodeId = do
-  -- Delay is 0.1 seconds, so retries are limited to timeoutSecnds * 10
+  -- Delay is 0.1 seconds, so retries are limited to timeoutSeconds * 10
   let policy = constantDelay 100000 <> limitRetries (timeoutSeconds * 10)
   let retryCondition _ = fmap not . isTaskComplete
   taskEither <- retrying policy retryCondition (const $ ES.getTask @m @a taskNodeId)
