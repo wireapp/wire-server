@@ -77,7 +77,7 @@ compile: $(BIN)
 .PHONY: dist
 dist: guard-NGINZ_VERSION $(DIST)/$(DEB)
 
-$(BIN): src zwagger-ui/swagger-ui
+$(BIN): src zwagger-ui/swagger-ui integration-test/conf/nginz/zwagger-ui
 	PKG_CONFIG_PATH=$(EXTRA_PKG_PATH) pkg-config --exists libzauth || { echo -e "\n\033[0;31m    The 'libzauth' library was not found\033[0m\n    pkg-config path = $(EXTRA_PKG_PATH)\n\n    Attempting to install it...\n" && $(MAKE) libzauth; }
 	git submodule update --init
 	(cd src; PKG_CONFIG_PATH=$(EXTRA_PKG_PATH) ./configure $(CONFIG_OPTIONS) $(ADDITIONAL_MODULES))
@@ -99,6 +99,9 @@ $(DIST):
 
 NGINX_BUNDLE=nginx-$(NGINX_VERSION).tar.gz
 SWAGGER_BUNDLE=swagger-$(SWAGGER_VERSION).tar.gz
+
+integration-test/conf/nginz/zwagger-ui: zwagger-ui/swagger-ui
+	cp -r "zwagger-ui/."  integration-test/conf/nginz/zwagger-ui/
 
 zwagger-ui/swagger-ui: $(SWAGGER_BUNDLE)
 	tar zxf $(SWAGGER_BUNDLE)
