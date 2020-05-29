@@ -66,7 +66,7 @@ runCommand l = \case
     ES.runBH bhEnv $ do
       let src = view reindexSrcIndex reindexSettings
           dest = view reindexDestIndex reindexSettings
-          timeout = view reindexTimeout reindexSettings
+          timeoutSeconds = view reindexTimeoutSeconds reindexSettings
 
       srcExists <- ES.indexExists src
       unless srcExists $ do
@@ -82,7 +82,7 @@ runCommand l = \case
         Left err -> throwM $ ReindexFromAnotherIndexError $ "Error occurred while running reindex: " <> show err
         Right taskNodeId -> do
           Log.info l $ Log.field "taskNodeId" (show taskNodeId)
-          waitForTaskToComplete @ES.ReindexResponse timeout taskNodeId
+          waitForTaskToComplete @ES.ReindexResponse timeoutSeconds taskNodeId
           Log.info l $ Log.msg ("Finished reindexing" :: ByteString)
   where
     initIndex es =

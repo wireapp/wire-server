@@ -39,7 +39,7 @@ module Brig.Index.Options
     reindexDestIndex,
     reindexSrcIndex,
     reindexEsServer,
-    reindexTimeout,
+    reindexTimeoutSeconds,
   )
 where
 
@@ -85,7 +85,7 @@ data ReindexFromAnotherIndexSettings = ReindexFromAnotherIndexSettings
   { _reindexEsServer :: URIRef Absolute,
     _reindexSrcIndex :: ES.IndexName,
     _reindexDestIndex :: ES.IndexName,
-    _reindexTimeout :: Int
+    _reindexTimeoutSeconds :: Int
   }
   deriving (Show)
 
