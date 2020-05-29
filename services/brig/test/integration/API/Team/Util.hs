@@ -26,7 +26,7 @@ import Brig.Types.Team.Invitation
 import Brig.Types.Team.LegalHold (LegalHoldStatus, LegalHoldTeamConfig (..))
 import Brig.Types.User
 import Control.Lens ((^?))
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.Fail (MonadFail)
 import Data.Aeson
 import Data.Aeson.Lens
@@ -115,17 +115,18 @@ createTeam u galley = do
     $ fromByteString
     $ getHeader' "Location" r
 
--- | NB: the created user is the team owner.
-createUserWithTeam :: Brig -> Http (UserId, TeamId)
+-- | Create user and binding team.
+--
+-- NB: the created user is the team owner.
+createUserWithTeam :: (MonadIO m, MonadHttp m, MonadCatch m, MonadThrow m) => Brig -> m (UserId, TeamId)
 createUserWithTeam brig = do
   (user, tid) <- createUserWithTeam' brig
   return (userId user, tid)
 
--- | NB: the created user is the team owner.
-createUserWithTeam' ::
-  (MonadIO m, MonadCatch m, MonadFail m, MonadHttp m, HasCallStack) =>
-  Brig ->
-  m (User, TeamId)
+-- | Create user and binding team.
+--
+-- NB: the created user is the team owner.
+createUserWithTeam' :: (MonadIO m, MonadHttp m, MonadCatch m, MonadThrow m, HasCallStack) => Brig -> m (User, TeamId)
 createUserWithTeam' brig = do
   e <- randomEmail
   n <- randomName
@@ -139,6 +140,8 @@ createUserWithTeam' brig = do
             ]
   user <- responseJsonError =<< post (brig . path "/i/users" . contentJson . body p)
   let Just tid = userTeam user
+  selfTeam <- userTeam . selfUser <$> getSelfProfile brig (userId user)
+  liftIO $ assertBool "Team ID in self profile and team table do not match" (selfTeam == Just tid)
   return (user, tid)
 
 -- | Create a team member with given permissions.
@@ -345,7 +348,7 @@ register' e t c brig =
           )
     )
 
-listConnections :: HasCallStack => UserId -> Brig -> Http UserConnectionList
+listConnections :: HasCallStack => UserId -> Brig -> (MonadIO m, MonadHttp m, MonadThrow m) => m UserConnectionList
 listConnections u brig = do
   responseJsonError
     =<< get
@@ -354,7 +357,7 @@ listConnections u brig = do
           . zUser u
       )
 
-getInvitation :: Brig -> InvitationCode -> Http (Maybe Invitation)
+getInvitation :: Brig -> InvitationCode -> (MonadIO m, MonadHttp m) => m (Maybe Invitation)
 getInvitation brig c = do
   r <-
     get $
@@ -413,7 +416,7 @@ getInvitationCode brig t ref = do
   let lbs = fromMaybe "" $ responseBody r
   return $ fromByteString . fromMaybe (error "No code?") $ T.encodeUtf8 <$> (lbs ^? key "code" . _String)
 
-assertNoInvitationCode :: HasCallStack => Brig -> TeamId -> InvitationId -> Http ()
+assertNoInvitationCode :: HasCallStack => Brig -> TeamId -> InvitationId -> (MonadIO m, MonadHttp m, MonadCatch m) => m ()
 assertNoInvitationCode brig t i =
   get
     ( brig

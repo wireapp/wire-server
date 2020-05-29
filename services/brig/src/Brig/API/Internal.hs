@@ -38,7 +38,6 @@ import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
-import Brig.User.Email
 import Control.Error hiding (bool)
 import Control.Lens (view)
 import Data.Aeson hiding (json)
@@ -290,7 +289,21 @@ deleteUserNoVerify uid = do
   lift $ API.deleteUserNoVerify uid
 
 changeSelfEmailNoSendH :: UserId ::: JsonRequest EmailUpdate -> Handler Response
-changeSelfEmailNoSendH (u ::: req) = changeEmail u req False
+changeSelfEmailNoSendH (u ::: req) = do
+  email <- euEmail <$> parseJsonBody req
+  changeSelfEmailNoSend u email >>= \case
+    ChangeEmailResponseIdempotent -> pure (setStatus status204 empty)
+    ChangeEmailResponseNeedsActivation -> pure (setStatus status202 empty)
+
+data ChangeEmailResponse
+  = ChangeEmailResponseIdempotent
+  | ChangeEmailResponseNeedsActivation
+
+changeSelfEmailNoSend :: UserId -> Email -> Handler ChangeEmailResponse
+changeSelfEmailNoSend u email = do
+  API.changeEmail u email !>> changeEmailError >>= \case
+    ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
+    ChangeEmailNeedsActivation _ -> pure ChangeEmailResponseNeedsActivation
 
 listActivatedAccountsH :: JSON ::: Either (List UserId) (List Handle) -> Handler Response
 listActivatedAccountsH (_ ::: qry) = do
@@ -459,23 +472,6 @@ deprecatedGetConnectionsStatusH (users ::: flt) = do
     filterByRelation l rel = filter ((== rel) . csStatus) l
 
 -- Utilities
-
-changeEmail :: UserId -> JsonRequest EmailUpdate -> Bool -> Handler Response
-changeEmail u req sendOutEmail = do
-  email <- euEmail <$> parseJsonBody req
-  API.changeEmail u email !>> changeEmailError >>= \case
-    ChangeEmailIdempotent -> respond status204
-    ChangeEmailNeedsActivation (usr, adata, en) -> handleActivation usr adata en
-  where
-    respond = return . flip setStatus empty
-    handleActivation usr adata en = do
-      when sendOutEmail $ do
-        let apair = (activationKey adata, activationCode adata)
-        let name = userDisplayName usr
-        let ident = userIdentity usr
-        let lang = userLocale usr
-        lift $ sendActivationMail en name apair (Just lang) ident
-      respond status202
 
 ifNothing :: Utilities.Error -> Maybe a -> Handler a
 ifNothing e = maybe (throwStd e) return

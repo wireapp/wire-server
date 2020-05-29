@@ -111,7 +111,14 @@ import Network.Wai.Predicate hiding (or, result, setStatus)
 import Network.Wai.Utilities
 import qualified System.Logger.Class as Log
 import UnliftIO (mapConcurrently)
-import Wire.API.Notification (NotificationId)
+import qualified Wire.API.Conversation.Role as Public
+import qualified Wire.API.Notification as Public
+import qualified Wire.API.Team as Public
+import qualified Wire.API.Team.Conversation as Public
+import qualified Wire.API.Team.Feature as Public
+import qualified Wire.API.Team.Member as Public
+import qualified Wire.API.Team.SearchVisibility as Public
+import qualified Wire.API.User as Public (UserIdList)
 
 getTeamH :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeamH (zusr ::: tid ::: _) =
@@ -135,13 +142,13 @@ getManyTeamsH :: UserId ::: Maybe (Either (Range 1 32 (List TeamId)) TeamId) :::
 getManyTeamsH (zusr ::: range ::: size ::: _) =
   json <$> getManyTeams zusr range size
 
-getManyTeams :: UserId -> Maybe (Either (Range 1 32 (List TeamId)) TeamId) -> Range 1 100 Int32 -> Galley TeamList
+getManyTeams :: UserId -> Maybe (Either (Range 1 32 (List TeamId)) TeamId) -> Range 1 100 Int32 -> Galley Public.TeamList
 getManyTeams zusr range size =
   withTeamIds zusr range size $ \more ids -> do
     teams <- mapM (lookupTeam zusr) ids
-    pure (newTeamList (catMaybes teams) more)
+    pure (Public.newTeamList (catMaybes teams) more)
 
-lookupTeam :: UserId -> TeamId -> Galley (Maybe Team)
+lookupTeam :: UserId -> TeamId -> Galley (Maybe Public.Team)
 lookupTeam zusr tid = do
   tm <- Data.teamMember tid zusr
   if isJust tm
@@ -153,14 +160,14 @@ lookupTeam zusr tid = do
       pure (tdTeam <$> t)
     else pure Nothing
 
-createNonBindingTeamH :: UserId ::: ConnId ::: JsonRequest NonBindingNewTeam ::: JSON -> Galley Response
+createNonBindingTeamH :: UserId ::: ConnId ::: JsonRequest Public.NonBindingNewTeam ::: JSON -> Galley Response
 createNonBindingTeamH (zusr ::: zcon ::: req ::: _) = do
   newTeam <- fromJsonBody req
   newTeamId <- createNonBindingTeam zusr zcon newTeam
   pure (empty & setStatus status201 . location newTeamId)
 
-createNonBindingTeam :: UserId -> ConnId -> NonBindingNewTeam -> Galley TeamId
-createNonBindingTeam zusr zcon (NonBindingNewTeam body) = do
+createNonBindingTeam :: UserId -> ConnId -> Public.NonBindingNewTeam -> Galley TeamId
+createNonBindingTeam zusr zcon (Public.NonBindingNewTeam body) = do
   let owner = newTeamMember zusr fullPermissions Nothing
   let others =
         filter ((zusr /=) . view userId)
@@ -225,13 +232,13 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
       (Suspended, Suspended) -> return False
       (_, _) -> throwM invalidTeamStatusUpdate
 
-updateTeamH :: UserId ::: ConnId ::: TeamId ::: JsonRequest TeamUpdateData ::: JSON -> Galley Response
+updateTeamH :: UserId ::: ConnId ::: TeamId ::: JsonRequest Public.TeamUpdateData ::: JSON -> Galley Response
 updateTeamH (zusr ::: zcon ::: tid ::: req ::: _) = do
   updateData <- fromJsonBody req
   updateTeam zusr zcon tid updateData
   pure empty
 
-updateTeam :: UserId -> ConnId -> TeamId -> TeamUpdateData -> Galley ()
+updateTeam :: UserId -> ConnId -> TeamId -> Public.TeamUpdateData -> Galley ()
 updateTeam zusr zcon tid updateData = do
   zusrMembership <- Data.teamMember tid zusr
   -- let zothers = map (view userId) membs
@@ -246,14 +253,14 @@ updateTeam zusr zcon tid updateData = do
   let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) (memList ^. teamMembers))
   push1 $ newPush1 (memList ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ Just zcon
 
-deleteTeamH :: UserId ::: ConnId ::: TeamId ::: OptionalJsonRequest TeamDeleteData ::: JSON -> Galley Response
+deleteTeamH :: UserId ::: ConnId ::: TeamId ::: OptionalJsonRequest Public.TeamDeleteData ::: JSON -> Galley Response
 deleteTeamH (zusr ::: zcon ::: tid ::: req ::: _) = do
   mBody <- fromOptionalJsonBody req
   deleteTeam zusr zcon tid mBody
   pure (empty & setStatus status202)
 
 -- | 'TeamDeleteData' is only required for binding teams
-deleteTeam :: UserId -> ConnId -> TeamId -> Maybe TeamDeleteData -> Galley ()
+deleteTeam :: UserId -> ConnId -> TeamId -> Maybe Public.TeamDeleteData -> Galley ()
 deleteTeam zusr zcon tid mBody = do
   team <- Data.team tid >>= ifNothing teamNotFound
   case tdStatus team of
@@ -349,7 +356,7 @@ getTeamConversationRolesH :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeamConversationRolesH (zusr ::: tid ::: _) = do
   json <$> getTeamConversationRoles zusr tid
 
-getTeamConversationRoles :: UserId -> TeamId -> Galley ConversationRolesList
+getTeamConversationRoles :: UserId -> TeamId -> Galley Public.ConversationRolesList
 getTeamConversationRoles zusr tid = do
   mem <- Data.teamMember tid zusr
   case mem of
@@ -357,14 +364,14 @@ getTeamConversationRoles zusr tid = do
     Just _ -> do
       -- NOTE: If/when custom roles are added, these roles should
       --       be merged with the team roles (if they exist)
-      pure $ ConversationRolesList wireConvRoles
+      pure $ Public.ConversationRolesList wireConvRoles
 
-getTeamMembersH :: UserId ::: TeamId ::: Range 1 HardTruncationLimit Int32 ::: JSON -> Galley Response
+getTeamMembersH :: UserId ::: TeamId ::: Range 1 Public.HardTruncationLimit Int32 ::: JSON -> Galley Response
 getTeamMembersH (zusr ::: tid ::: maxResults ::: _) = do
   (memberList, withPerms) <- getTeamMembers zusr tid maxResults
   pure . json $ teamMemberListJson withPerms memberList
 
-getTeamMembers :: UserId -> TeamId -> Range 1 HardTruncationLimit Int32 -> Galley (TeamMemberList, TeamMember -> Bool)
+getTeamMembers :: UserId -> TeamId -> Range 1 Public.HardTruncationLimit Int32 -> Galley (Public.TeamMemberList, Public.TeamMember -> Bool)
 getTeamMembers zusr tid maxResults = do
   Data.teamMember tid zusr >>= \case
     Nothing -> throwM notATeamMember
@@ -373,7 +380,7 @@ getTeamMembers zusr tid maxResults = do
       let withPerms = (m `canSeePermsOf`)
       pure (mems, withPerms)
 
-bulkGetTeamMembersH :: UserId ::: TeamId ::: Range 1 HardTruncationLimit Int32 ::: JsonRequest UserIdList ::: JSON -> Galley Response
+bulkGetTeamMembersH :: UserId ::: TeamId ::: Range 1 Public.HardTruncationLimit Int32 ::: JsonRequest Public.UserIdList ::: JSON -> Galley Response
 bulkGetTeamMembersH (zusr ::: tid ::: maxResults ::: body ::: _) = do
   UserIdList uids <- fromJsonBody body
   (memberList, withPerms) <- bulkGetTeamMembers zusr tid maxResults uids
@@ -397,7 +404,7 @@ getTeamMemberH (zusr ::: tid ::: uid ::: _) = do
   (member, withPerms) <- getTeamMember zusr tid uid
   pure . json $ teamMemberJson withPerms member
 
-getTeamMember :: UserId -> TeamId -> UserId -> Galley (TeamMember, TeamMember -> Bool)
+getTeamMember :: UserId -> TeamId -> UserId -> Galley (Public.TeamMember, Public.TeamMember -> Bool)
 getTeamMember zusr tid uid = do
   zusrMembership <- Data.teamMember tid zusr
   case zusrMembership of
@@ -428,13 +435,13 @@ uncheckedGetTeamMembersH (tid ::: maxResults ::: _) = do
 uncheckedGetTeamMembers :: TeamId -> Range 1 HardTruncationLimit Int32 -> Galley TeamMemberList
 uncheckedGetTeamMembers tid maxResults = Data.teamMembersWithLimit tid maxResults
 
-addTeamMemberH :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
+addTeamMemberH :: UserId ::: ConnId ::: TeamId ::: JsonRequest Public.NewTeamMember ::: JSON -> Galley Response
 addTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
   nmem <- fromJsonBody req
   addTeamMember zusr zcon tid nmem
   pure empty
 
-addTeamMember :: UserId -> ConnId -> TeamId -> NewTeamMember -> Galley ()
+addTeamMember :: UserId -> ConnId -> TeamId -> Public.NewTeamMember -> Galley ()
 addTeamMember zusr zcon tid nmem = do
   let uid = nmem ^. ntmNewTeamMember . userId
   Log.debug $
@@ -470,7 +477,7 @@ uncheckedAddTeamMember tid nmem = do
   billingUserIds <- Journal.getBillingUserIds tid $ Just $ newTeamMemberList ((nmem ^. ntmNewTeamMember) : mems ^. teamMembers) (mems ^. teamMemberListType)
   Journal.teamUpdate tid (sizeBeforeAdd + 1) billingUserIds
 
-updateTeamMemberH :: UserId ::: ConnId ::: TeamId ::: JsonRequest NewTeamMember ::: JSON -> Galley Response
+updateTeamMemberH :: UserId ::: ConnId ::: TeamId ::: JsonRequest Public.NewTeamMember ::: JSON -> Galley Response
 updateTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
   -- the team member to be updated
   targetMember <- view ntmNewTeamMember <$> fromJsonBody req
@@ -540,7 +547,7 @@ updateTeamMember zusr zcon tid targetMember = do
       let pushPriv = newPush (updatedMembers ^. teamMemberListType) zusr (TeamEvent ePriv) $ privilegedRecipients
       for_ pushPriv $ \p -> push1 $ p & pushConn .~ Just zcon
 
-deleteTeamMemberH :: UserId ::: ConnId ::: TeamId ::: UserId ::: OptionalJsonRequest TeamMemberDeleteData ::: JSON -> Galley Response
+deleteTeamMemberH :: UserId ::: ConnId ::: TeamId ::: UserId ::: OptionalJsonRequest Public.TeamMemberDeleteData ::: JSON -> Galley Response
 deleteTeamMemberH (zusr ::: zcon ::: tid ::: remove ::: req ::: _) = do
   mBody <- fromOptionalJsonBody req
   deleteTeamMember zusr zcon tid remove mBody >>= \case
@@ -552,7 +559,7 @@ data TeamMemberDeleteResult
   | TeamMemberDeleteCompleted
 
 -- | 'TeamMemberDeleteData' is only required for binding teams
-deleteTeamMember :: UserId -> ConnId -> TeamId -> UserId -> Maybe TeamMemberDeleteData -> Galley TeamMemberDeleteResult
+deleteTeamMember :: UserId -> ConnId -> TeamId -> UserId -> Maybe Public.TeamMemberDeleteData -> Galley TeamMemberDeleteResult
 deleteTeamMember zusr zcon tid remove mBody = do
   Log.debug $
     Log.field "targets" (toByteString remove)
@@ -628,18 +635,18 @@ getTeamConversationsH :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeamConversationsH (zusr ::: tid ::: _) = do
   json <$> getTeamConversations zusr tid
 
-getTeamConversations :: UserId -> TeamId -> Galley TeamConversationList
+getTeamConversations :: UserId -> TeamId -> Galley Public.TeamConversationList
 getTeamConversations zusr tid = do
   tm <- Data.teamMember tid zusr >>= ifNothing notATeamMember
   unless (tm `hasPermission` GetTeamConversations) $
     throwM (operationDenied GetTeamConversations)
-  newTeamConversationList <$> Data.teamConversations tid
+  Public.newTeamConversationList <$> Data.teamConversations tid
 
 getTeamConversationH :: UserId ::: TeamId ::: ConvId ::: JSON -> Galley Response
 getTeamConversationH (zusr ::: tid ::: cid ::: _) = do
   json <$> getTeamConversation zusr tid cid
 
-getTeamConversation :: UserId -> TeamId -> ConvId -> Galley TeamConversation
+getTeamConversation :: UserId -> TeamId -> ConvId -> Galley Public.TeamConversation
 getTeamConversation zusr tid cid = do
   tm <- Data.teamMember tid zusr >>= ifNothing notATeamMember
   unless (tm `hasPermission` GetTeamConversations) $
@@ -672,7 +679,7 @@ getSearchVisibilityH (uid ::: tid ::: _) = do
   void $ permissionCheck ViewTeamSearchVisibility zusrMembership
   json <$> getSearchVisibilityInternal tid
 
-setSearchVisibilityH :: UserId ::: TeamId ::: JsonRequest TeamSearchVisibilityView ::: JSON -> Galley Response
+setSearchVisibilityH :: UserId ::: TeamId ::: JsonRequest Public.TeamSearchVisibilityView ::: JSON -> Galley Response
 setSearchVisibilityH (uid ::: tid ::: req ::: _) = do
   zusrMembership <- Data.teamMember tid uid
   void $ permissionCheck ChangeTeamSearchVisibility zusrMembership
@@ -785,12 +792,13 @@ getTeamNotificationsH ::
   Galley Response
 getTeamNotificationsH (zusr ::: sinceRaw ::: size ::: _) = do
   since <- parseSince
-  json <$> APITeamQueue.getTeamNotifications zusr since size
+  json @Public.QueuedNotificationList
+    <$> APITeamQueue.getTeamNotifications zusr since size
   where
-    parseSince :: Galley (Maybe NotificationId)
+    parseSince :: Galley (Maybe Public.NotificationId)
     parseSince = maybe (pure Nothing) (fmap Just . parseUUID) sinceRaw
     --
-    parseUUID :: ByteString -> Galley NotificationId
+    parseUUID :: ByteString -> Galley Public.NotificationId
     parseUUID raw =
       maybe
         (throwM invalidTeamNotificationId)
@@ -854,7 +862,7 @@ getSSOStatusH :: UserId ::: TeamId ::: JSON -> Galley Response
 getSSOStatusH (uid ::: tid ::: _) = do
   json <$> getSSOStatus uid tid
 
-getSSOStatus :: UserId -> TeamId -> Galley SSOTeamConfig
+getSSOStatus :: UserId -> TeamId -> Galley Public.SSOTeamConfig
 getSSOStatus uid tid = do
   zusrMembership <- Data.teamMember tid uid
   void $ permissionCheck ViewSSOTeamSettings zusrMembership
@@ -864,7 +872,7 @@ getLegalholdStatusH :: UserId ::: TeamId ::: JSON -> Galley Response
 getLegalholdStatusH (uid ::: tid ::: _) = do
   json <$> getLegalholdStatus uid tid
 
-getLegalholdStatus :: UserId -> TeamId -> Galley LegalHoldTeamConfig
+getLegalholdStatus :: UserId -> TeamId -> Galley Public.LegalHoldTeamConfig
 getLegalholdStatus uid tid = do
   zusrMembership <- Data.teamMember tid uid
   void $ permissionCheck ViewLegalHoldTeamSettings zusrMembership
@@ -874,7 +882,7 @@ getTeamSearchVisibilityAvailableH :: UserId ::: TeamId ::: JSON -> Galley Respon
 getTeamSearchVisibilityAvailableH (uid ::: tid ::: _) =
   json <$> getTeamSearchVisibilityAvailable uid tid
 
-getTeamSearchVisibilityAvailable :: UserId -> TeamId -> Galley TeamSearchVisibilityAvailableView
+getTeamSearchVisibilityAvailable :: UserId -> TeamId -> Galley Public.TeamSearchVisibilityAvailableView
 getTeamSearchVisibilityAvailable uid tid = do
   zusrMembership <- Data.teamMember tid uid
   void $ permissionCheck ViewTeamSearchVisibilityAvailable zusrMembership

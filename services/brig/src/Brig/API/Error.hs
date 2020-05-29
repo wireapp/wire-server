@@ -18,12 +18,14 @@
 module Brig.API.Error where
 
 import Brig.API.Types
+import Brig.Options (DomainsBlockedForRegistration)
 import Brig.Phone (PhoneException (..))
 import Brig.Types (DeletionCodeTimeout (..))
 import Brig.Types.Common (PhoneBudgetTimeout (..))
 import Control.Monad.Error.Class hiding (Error)
 import Data.Aeson
 import Data.ByteString.Conversion
+import Data.Domain (Domain)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id (idToText)
 import Data.IdMapping (IdMapping (IdMapping, idMappingGlobal, idMappingLocal))
@@ -484,3 +486,13 @@ federationNotImplemented qualified =
     rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderMapping) $ qualified
     renderMapping IdMapping {idMappingLocal, idMappingGlobal} =
       idToText idMappingLocal <> " -> " <> renderQualifiedId idMappingGlobal
+
+-- (the tautological constraint in the type signature is added so that once we remove the
+-- feature, ghc will guide us here.)
+customerExtensionBlockedDomain :: (DomainsBlockedForRegistration ~ DomainsBlockedForRegistration) => Domain -> Wai.Error
+customerExtensionBlockedDomain domain = Wai.Error (mkStatus 451 "Unavailable For Legal Reasons") "domain-blocked-for-registration" msg
+  where
+    msg =
+      "[Customer extension] the email domain " <> cs (show domain)
+        <> " that you are attempting to register a user with has been \
+           \blocked for creating wire users.  Please contact your IT department."

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a96732f915ddf8b38b46762e1d0fb4675bd4f7ae3703d4d83f3451b1d7bc5a57
+-- hash: b7c27bea3301594e838d9d0d39612ad751a4e1e9f52276d6d2fae0c6c3f6ae4a
 
 name:           brig-types
 version:        1.35.0
@@ -33,7 +33,6 @@ library
       Brig.Types.Provider.External
       Brig.Types.Provider.Tag
       Brig.Types.Search
-      Brig.Types.Swagger
       Brig.Types.Team
       Brig.Types.Team.Invitation
       Brig.Types.Team.LegalHold

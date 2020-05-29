@@ -4,7 +4,7 @@ cabal-version: 2.0
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e94e8adeae26c79337ad12de754df09ed9c3adfb13298cfd75e1e6cee805bf40
+-- hash: 8ed6b489b5ddf4652861e87ad845b5c06d587795b38d02c0550d0b761582da45
 
 name:           brig
 version:        1.35.0
@@ -216,6 +216,7 @@ library
     , wai-routing >=0.12
     , wai-utilities >=0.16
     , warp >=3.0.12.1
+    , wire-api
     , yaml >=0.8.22
     , zauth >=0.10.3
   default-language: Haskell2010

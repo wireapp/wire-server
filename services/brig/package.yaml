@@ -127,6 +127,7 @@ library:
   - wai-routing >=0.12
   - wai-utilities >=0.16
   - warp >=3.0.12.1
+  - wire-api
   - yaml >=0.8.22
   - zauth >=0.10.3
 internal-libraries:
