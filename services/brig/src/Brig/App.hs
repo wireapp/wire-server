@@ -252,7 +252,9 @@ mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> IndexEnv
 mkIndexEnv o lgr mgr mtr =
   let bhe = ES.mkBHEnv (ES.Server (Opt.url (Opt.elasticsearch o))) mgr
       lgr' = Log.clone (Just "index.brig") lgr
-   in IndexEnv mtr lgr' bhe Nothing (ES.IndexName $ Opt.index (Opt.elasticsearch o))
+      mainIndex = ES.IndexName $ Opt.index (Opt.elasticsearch o)
+      additionalIndex = ES.IndexName <$> Opt.additionalWriteIndex (Opt.elasticsearch o)
+   in IndexEnv mtr lgr' bhe Nothing mainIndex additionalIndex
 
 geoSetup :: Logger -> FS.WatchManager -> Maybe FilePath -> IO (Maybe (IORef GeoIp.GeoDB))
 geoSetup _ _ Nothing = return Nothing

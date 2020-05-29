@@ -25,8 +25,9 @@ import Brig.Types.Connection
 import Brig.Types.Team.Invitation
 import Brig.Types.Team.LegalHold (LegalHoldStatus, LegalHoldTeamConfig (..))
 import Brig.Types.User
-import Control.Lens ((^.), (^?), view)
+import Control.Lens ((^?))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
+import Control.Monad.Fail (MonadFail)
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
@@ -50,23 +51,35 @@ import Web.Cookie (parseSetCookie, setCookieName)
 -- and rename 'createPopulatedBindingTeamWithNamesAndHandles' to 'createPopulatedBindingTeam'.
 -- this makes understanding the tests easier because there are fewer setups that only differ
 -- from real-world setups in being more artificial, and hopefully won't add too much run time.
-createPopulatedBindingTeamWithNamesAndHandles :: Brig -> Galley -> Int -> Http (TeamId, User, [User])
-createPopulatedBindingTeamWithNamesAndHandles brig galley numMembers = do
+createPopulatedBindingTeamWithNamesAndHandles ::
+  (MonadIO m, MonadCatch m, MonadFail m, MonadHttp m, HasCallStack) =>
+  Brig ->
+  Int ->
+  m (TeamId, User, [User])
+createPopulatedBindingTeamWithNamesAndHandles brig numMembers = do
   names <- forM [1 .. numMembers] $ \_ -> randomName
-  (tid, owner, mems) <- createPopulatedBindingTeamWithNames brig galley names
+  (tid, owner, mems) <- createPopulatedBindingTeamWithNames brig names
   membersWithHandle <- mapM (setRandomHandle brig) mems
   ownerWithHandle <- setRandomHandle brig owner
   return (tid, ownerWithHandle, membersWithHandle)
 
-createPopulatedBindingTeam :: Brig -> Galley -> Int -> Http (TeamId, UserId, [User])
-createPopulatedBindingTeam brig galley numMembers = do
+createPopulatedBindingTeam ::
+  (MonadIO m, MonadCatch m, MonadFail m, MonadHttp m, HasCallStack) =>
+  Brig ->
+  Int ->
+  m (TeamId, UserId, [User])
+createPopulatedBindingTeam brig numMembers = do
   names <- forM [1 .. numMembers] $ \_ -> randomName
-  (tid, owner, others) <- createPopulatedBindingTeamWithNames brig galley names
+  (tid, owner, others) <- createPopulatedBindingTeamWithNames brig names
   return (tid, userId owner, others)
 
-createPopulatedBindingTeamWithNames :: Brig -> Galley -> [Name] -> Http (TeamId, User, [User])
-createPopulatedBindingTeamWithNames brig galley names = do
-  (inviter, tid) <- createUserWithTeam' brig galley
+createPopulatedBindingTeamWithNames ::
+  (MonadIO m, MonadCatch m, MonadFail m, MonadHttp m, HasCallStack) =>
+  Brig ->
+  [Name] ->
+  m (TeamId, User, [User])
+createPopulatedBindingTeamWithNames brig names = do
+  (inviter, tid) <- createUserWithTeam' brig
   invitees <- forM names $ \name -> do
     inviteeEmail <- randomEmail
     let invite = stdInvitationRequest inviteeEmail name Nothing Nothing
@@ -80,10 +93,6 @@ createPopulatedBindingTeamWithNames brig galley names = do
         )
         <!! const 201 === statusCode
     let invitee :: User = responseJsonUnsafe rsp2
-    do
-      let invmeta = Just (userId inviter, inCreatedAt inv)
-      mem <- getTeamMember (userId invitee) tid galley
-      liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Team.invitation)
     do
       let zuid = parseSetCookie <$> getHeader "Set-Cookie" rsp2
       liftIO $ assertEqual "Wrong cookie" (Just "zuid") (setCookieName <$> zuid)
@@ -109,16 +118,16 @@ createTeam u galley = do
 -- | Create user and binding team.
 --
 -- NB: the created user is the team owner.
-createUserWithTeam :: Brig -> Galley -> (MonadIO m, MonadHttp m, MonadThrow m) => m (UserId, TeamId)
-createUserWithTeam brig galley = do
-  (user, tid) <- createUserWithTeam' brig galley
+createUserWithTeam :: (MonadIO m, MonadHttp m, MonadCatch m, MonadThrow m) => Brig -> m (UserId, TeamId)
+createUserWithTeam brig = do
+  (user, tid) <- createUserWithTeam' brig
   return (userId user, tid)
 
 -- | Create user and binding team.
 --
 -- NB: the created user is the team owner.
-createUserWithTeam' :: HasCallStack => Brig -> Galley -> (MonadIO m, MonadHttp m, MonadThrow m) => m (User, TeamId)
-createUserWithTeam' brig galley = do
+createUserWithTeam' :: (MonadIO m, MonadHttp m, MonadCatch m, MonadThrow m, HasCallStack) => Brig -> m (User, TeamId)
+createUserWithTeam' brig = do
   e <- randomEmail
   n <- randomName
   let p =
@@ -131,8 +140,6 @@ createUserWithTeam' brig galley = do
             ]
   user <- responseJsonError =<< post (brig . path "/i/users" . contentJson . body p)
   let Just tid = userTeam user
-  team <- head . view Team.teamListTeams <$> getTeams (userId user) galley
-  liftIO $ assertBool "Team ID in registration and team table do not match" (tid == view Team.teamId team)
   selfTeam <- userTeam . selfUser <$> getSelfProfile brig (userId user)
   liftIO $ assertBool "Team ID in self profile and team table do not match" (selfTeam == Just tid)
   return (user, tid)
@@ -153,7 +160,12 @@ createTeamMember brig galley owner tid perm = do
   updatePermissions owner tid (userId user, perm) galley
   return user
 
-inviteAndRegisterUser :: UserId -> TeamId -> Brig -> Http User
+inviteAndRegisterUser ::
+  (MonadIO m, MonadCatch m, MonadFail m, MonadHttp m, HasCallStack) =>
+  UserId ->
+  TeamId ->
+  Brig ->
+  m User
 inviteAndRegisterUser u tid brig = do
   inviteeEmail <- randomEmail
   let invite = stdInvitationRequest inviteeEmail (Name "Bob") Nothing Nothing
@@ -253,7 +265,11 @@ deleteTeam g tid u = do
     !!! const 202
     === statusCode
 
-getTeams :: UserId -> Galley -> (MonadIO m, MonadHttp m, MonadThrow m) => m Team.TeamList
+getTeams ::
+  (MonadIO m, MonadCatch m, MonadHttp m, HasCallStack) =>
+  UserId ->
+  Galley ->
+  m Team.TeamList
 getTeams u galley =
   responseJsonError
     =<< get
@@ -350,7 +366,13 @@ getInvitation brig c = do
         . queryItem "code" (toByteString' c)
   return . decode . fromMaybe "" $ responseBody r
 
-postInvitation :: Brig -> TeamId -> UserId -> InvitationRequest -> (MonadIO m, MonadHttp m) => m ResponseLBS
+postInvitation ::
+  (MonadIO m, MonadHttp m, HasCallStack) =>
+  Brig ->
+  TeamId ->
+  UserId ->
+  InvitationRequest ->
+  m ResponseLBS
 postInvitation brig t u i =
   post $
     brig
@@ -377,7 +399,12 @@ getTeam :: HasCallStack => Galley -> TeamId -> Http Team.TeamData
 getTeam galley t =
   responseJsonError =<< get (galley . paths ["i", "teams", toByteString' t])
 
-getInvitationCode :: HasCallStack => Brig -> TeamId -> InvitationId -> (MonadIO m, MonadHttp m) => m (Maybe InvitationCode)
+getInvitationCode ::
+  (MonadIO m, MonadHttp m, HasCallStack) =>
+  Brig ->
+  TeamId ->
+  InvitationId ->
+  m (Maybe InvitationCode)
 getInvitationCode brig t ref = do
   r <-
     get

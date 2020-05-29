@@ -985,7 +985,7 @@ testUpdateSSOId brig galley = do
           assertEqual "updateSSOId/ssoid" ssoid ssoid'
           assertEqual "updateSSOId/email" (userEmail user) mEmail
           assertEqual "updateSSOId/phone" (userPhone user) mPhone
-  (owner, teamid) <- createUserWithTeam brig galley
+  (owner, teamid) <- createUserWithTeam brig
   let mkMember :: Bool -> Bool -> Http User
       mkMember hasEmail hasPhone = do
         member <- createTeamMember brig galley owner teamid noPermissions

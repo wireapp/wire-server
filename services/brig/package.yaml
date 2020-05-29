@@ -146,6 +146,7 @@ internal-libraries:
     - metrics-core
     - mtl
     - optparse-applicative >=0.13
+    - retry
     - text
     - time
     - tinylog

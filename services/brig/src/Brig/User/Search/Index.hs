@@ -100,7 +100,8 @@ data IndexEnv = IndexEnv
     idxLogger :: Logger,
     idxElastic :: ES.BHEnv,
     idxRequest :: Maybe RequestId,
-    idxName :: ES.IndexName
+    idxName :: ES.IndexName,
+    idxAdditional :: Maybe ES.IndexName
   }
 
 newtype IndexIO a = IndexIO (ReaderT IndexEnv IO a)
@@ -142,8 +143,8 @@ instance ES.MonadBH IndexIO where
 teamSize :: MonadIndexIO m => TeamId -> m TeamSize
 teamSize t = liftIndexIO $ do
   indexName <- asks idxName
-  countResEither <- ES.countByIndex indexName (ES.CountQuery $ query)
-  countRes <- either (throwM . IndexLookupError) (pure) countResEither
+  countResEither <- ES.countByIndex indexName (ES.CountQuery query)
+  countRes <- either (throwM . IndexLookupError) pure countResEither
   pure . TeamSize $ ES.crCount countRes
   where
     query =
@@ -201,34 +202,40 @@ queryIndex (IndexQuery q f) (fromRange -> s) = liftIndexIO $ do
 --
 -- The intention behind parameterising 'queryIndex' over the 'IndexQuery' is that
 -- it allows to experiment with different queries (perhaps in an A/B context).
+-- FUTUREWORK: Drop legacyPrefixMatch
 defaultUserQuery :: UserId -> TeamSearchInfo -> Text -> IndexQuery Contact
 defaultUserQuery u teamSearchInfo (normalized -> term') =
-  let matchPrefix =
+  let matchPhraseOrPrefix =
         ES.QueryMultiMatchQuery $
           ( ES.mkMultiMatchQuery
-              [ ES.FieldName "handle^2",
+              [ ES.FieldName "handle.prefix^2",
+                ES.FieldName "normalized.prefix",
+                ES.FieldName "handle^4",
+                ES.FieldName "normalized^3"
+              ]
+              (ES.QueryString term')
+          )
+            { ES.multiMatchQueryType = Just ES.MultiMatchMostFields,
+              ES.multiMatchQueryOperator = ES.And
+            }
+      -- This is required, so we can support prefix match until migration is done
+      legacyPrefixMatch =
+        ES.QueryMultiMatchQuery $
+          ( ES.mkMultiMatchQuery
+              [ ES.FieldName "handle",
                 ES.FieldName "normalized"
               ]
               (ES.QueryString term')
           )
-            { ES.multiMatchQueryType = Just ES.MultiMatchPhrasePrefix
-            }
-      matchPhrase =
-        ES.QueryMultiMatchQuery $
-          ( ES.mkMultiMatchQuery
-              [ ES.FieldName "handle^3",
-                ES.FieldName "normalized^2"
-              ]
-              (ES.QueryString term')
-          )
-            { ES.multiMatchQueryType = Just ES.MultiMatchPhrase
+            { ES.multiMatchQueryType = Just ES.MultiMatchPhrasePrefix,
+              ES.multiMatchQueryOperator = ES.And
             }
       query =
         ES.QueryBoolQuery
           boolQuery
             { ES.boolQueryMustMatch =
                 [ ES.QueryBoolQuery
-                    boolQuery {ES.boolQueryShouldMatch = [matchPrefix, matchPhrase]}
+                    boolQuery {ES.boolQueryShouldMatch = [matchPhraseOrPrefix, legacyPrefixMatch]}
                 ],
               ES.boolQueryShouldMatch = [ES.QueryExistsQuery (ES.FieldName "handle")]
             }
@@ -310,15 +317,20 @@ updateIndex (IndexUpdateUser updateType iu) = liftIndexIO $ do
     field "user" (Bytes.toByteString (view iuUserId iu))
       . msg (val "Indexing user")
   idx <- asks idxName
-  r <- ES.indexDocument idx mappingName versioning (userDoc iu) docId
-  unless (ES.isSuccess r || ES.isVersionConflict r) $ do
-    counterIncr (path "user.index.update.err") m
-    ES.parseEsResponse r >>= throwM . IndexUpdateError . either id id
-  counterIncr (path "user.index.update.ok") m
+  indexDoc idx
+  traverse_ indexDoc =<< asks idxAdditional
   where
+    indexDoc :: MonadIndexIO m => ES.IndexName -> m ()
+    indexDoc idx = liftIndexIO $ do
+      m <- asks idxMetrics
+      r <- ES.indexDocument idx mappingName versioning (userDoc iu) docId
+      unless (ES.isSuccess r || ES.isVersionConflict r) $ do
+        counterIncr (path "user.index.update.err") m
+        ES.parseEsResponse r >>= throwM . IndexUpdateError . either id id
+      counterIncr (path "user.index.update.ok") m
     versioning =
       ES.defaultIndexDocumentSettings
-        { ES.idsVersionControl = (indexUpdateToVersionControl updateType) (ES.ExternalDocVersion (docVersion (_iuVersion iu)))
+        { ES.idsVersionControl = indexUpdateToVersionControl updateType (ES.ExternalDocVersion (docVersion (_iuVersion iu)))
         }
     docId = ES.DocId (view (iuUserId . re _TextId) iu)
 updateIndex (IndexUpdateUsers updateType ius) = liftIndexIO $ do
@@ -366,7 +378,7 @@ updateIndex (IndexUpdateUsers updateType ius) = liftIndexIO $ do
         "_id" .= docId
           <> "_version" .= v
           -- "external_gt or external_gte"
-          <> "_version_type" .= (indexUpdateToVersionControlText updateType)
+          <> "_version_type" .= indexUpdateToVersionControlText updateType
     statuses :: ES.Reply -> [(Int, Int)] -- [(Status, Int)]
     statuses =
       Map.toList
@@ -426,7 +438,8 @@ createIndex' failIfExists settings shardCount = liftIndexIO $ do
   when (failIfExists && ex) $
     throwM (IndexError "Index already exists.")
   unless ex $ do
-    cr <- traceES "Create index" $ ES.createIndexWith settings shardCount idx
+    let fullSettings = settings ++ [ES.AnalysisSetting analysisSettings]
+    cr <- traceES "Create index" $ ES.createIndexWith fullSettings shardCount idx
     unless (ES.isSuccess cr) $
       throwM (IndexError "Index creation failed.")
     mr <-
@@ -434,6 +447,20 @@ createIndex' failIfExists settings shardCount = liftIndexIO $ do
         ES.putMapping idx (ES.MappingName "user") indexMapping
     unless (ES.isSuccess mr) $
       throwM (IndexError "Put Mapping failed.")
+
+analysisSettings :: ES.Analysis
+analysisSettings =
+  let analyzerDef =
+        Map.fromList
+          [ ("prefix_index", ES.AnalyzerDefinition (Just $ ES.Tokenizer "whitespace") [ES.TokenFilter "edge_ngram_1_30"] []),
+            ("prefix_search", ES.AnalyzerDefinition (Just $ ES.Tokenizer "whitespace") [ES.TokenFilter "truncate_30"] [])
+          ]
+      filterDef =
+        Map.fromList
+          [ ("edge_ngram_1_30", ES.TokenFilterDefinitionEdgeNgram (ES.NgramFilter 1 30) Nothing),
+            ("truncate_30", ES.TokenFilterTruncate 30)
+          ]
+   in ES.Analysis analyzerDef mempty filterDef mempty
 
 updateMapping :: MonadIndexIO m => m ()
 updateMapping = liftIndexIO $ do
@@ -509,31 +536,128 @@ userDoc iu =
       udColourId = _iuColourId iu
     }
 
--- | Name is set to not be indexed, as the search is meant to happen on the normalized name.
+-- | This mapping defines how elasticsearch will treat each field in a document. Here
+-- is how it treats each field:
+-- name: Not indexed, as it is only meant to be shown to user, for querying we use
+--       normalized
+-- team: Used to ensure only teammates can find each other
+-- accent_id: Not indexed, we cannot search by this.
+-- normalized: This is transliterated version of the name to ASCII Latin characters,
+--             this is used for searching by name
+-- handle: Used for searching by handle
+-- normalized.prefix: Used for searching by name prefix
+-- handle.prefix: Used for searching by handle prefix
+--
+-- The prefix fields use "prefix_index" analyzer for indexing and "prefix_search"
+-- analyzer for searching. The "prefix_search" analyzer uses "edge_ngram" filter, this
+-- indexes the handles and normalized names by prefixes. For example: "alice" will be
+-- indexed as "a", "al", "ali", "alic" and "alice". While searching for say "ali", we
+-- do not want to again use the "prefix" analyzer, otherwise we would get a match for
+-- "a", "al" and "ali" each, this skews the scoring in elasticsearch a lot and exact
+-- matches get pushed behind prefix matches.
+--
+-- The "prefix_index" analyzer is defined as a combination of the "whitespace"
+-- tokenizer and "edge_ngram_1_30" filter. The edge_ngram_1_30 filter generates tokens
+-- of from length 1 to 30 and the whitespace tokenizer ensures words separated by
+-- whitespaces are tokenized separately. So, tokens for "Alice Charlie" would be:
+-- ["a", "al", "ali", "alic", "alice", "c", "ch", "cha", "char", "charl", "charlie"]
+-- This makes searching for somebody by just their last or middle name possible.
+-- Additionally one could look for "ali char" and still expect to find "Alice Charlie"
+--
+-- The "prefix_search" analyzer is defined as a combination of the "whitespace"
+-- tokenizer and "truncate_30" filter. The truncate_30 filter ensures that the
+-- searched tokens are not bigger than 30 characters by truncating them, this is
+-- necessary as our "prefix_index" analyzer only creates edge_ngrams until 30
+-- characters.
 indexMapping :: Value
 indexMapping =
   object
     [ "properties"
         .= object
-          [ "normalized" .= MappingProperty {mpType = MPText, mpStore = False, mpIndex = True}, -- normalized user name
-            "name" .= MappingProperty {mpType = MPKeyword, mpStore = False, mpIndex = False},
-            "handle" .= MappingProperty {mpType = MPText, mpStore = False, mpIndex = True},
-            "team" .= MappingProperty {mpType = MPKeyword, mpStore = False, mpIndex = True},
-            "accent_id" .= MappingProperty {mpType = MPByte, mpStore = False, mpIndex = False}
+          [ "normalized" -- normalized user name
+              .= MappingProperty
+                { mpType = MPText,
+                  mpStore = False,
+                  mpIndex = True,
+                  mpAnalyzer = Nothing,
+                  mpFields =
+                    Map.fromList [("prefix", MappingField MPText "prefix_index" "prefix_search")]
+                },
+            "name"
+              .= MappingProperty
+                { mpType = MPKeyword,
+                  mpStore = False,
+                  mpIndex = False,
+                  mpAnalyzer = Nothing,
+                  mpFields = mempty
+                },
+            "handle"
+              .= MappingProperty
+                { mpType = MPText,
+                  mpStore = False,
+                  mpIndex = True,
+                  mpAnalyzer = Nothing,
+                  mpFields =
+                    Map.fromList [("prefix", MappingField MPText "prefix_index" "prefix_search")]
+                },
+            "team"
+              .= MappingProperty
+                { mpType = MPKeyword,
+                  mpStore = False,
+                  mpIndex = True,
+                  mpAnalyzer = Nothing,
+                  mpFields = mempty
+                },
+            "accent_id"
+              .= MappingProperty
+                { mpType = MPByte,
+                  mpStore = False,
+                  mpIndex = False,
+                  mpAnalyzer = Nothing,
+                  mpFields = mempty
+                }
           ]
     ]
 
-data MappingProperty = MappingProperty {mpType :: MappingPropertyType, mpStore :: Bool, mpIndex :: Bool}
+data MappingProperty = MappingProperty
+  { mpType :: MappingPropertyType,
+    mpStore :: Bool,
+    mpIndex :: Bool,
+    mpAnalyzer :: Maybe Text,
+    mpFields :: Map Text MappingField
+  }
+
+data MappingField = MappingField
+  { mfType :: MappingPropertyType,
+    mfAnalyzer :: Text,
+    mfSearchAnalyzer :: Text
+  }
 
 data MappingPropertyType = MPText | MPKeyword | MPByte
 
 instance ToJSON MappingProperty where
-  toJSON mp = object ["type" .= mpType mp, "store" .= mpStore mp, "index" .= mpIndex mp]
+  toJSON mp =
+    object
+      ( [ "type" .= mpType mp,
+          "store" .= mpStore mp,
+          "index" .= mpIndex mp
+        ]
+          <> ["analyzer" .= mpAnalyzer mp | isJust $ mpAnalyzer mp]
+          <> ["fields" .= mpFields mp | not . Map.null $ mpFields mp]
+      )
 
 instance ToJSON MappingPropertyType where
   toJSON MPText = Aeson.String "text"
   toJSON MPKeyword = Aeson.String "keyword"
   toJSON MPByte = Aeson.String "byte"
+
+instance ToJSON MappingField where
+  toJSON mf =
+    object
+      [ "type" .= mfType mf,
+        "analyzer" .= mfAnalyzer mf,
+        "search_analyzer" .= mfSearchAnalyzer mf
+      ]
 
 -- TODO: Transliteration should be left to ElasticSearch (ICU plugin),
 --       yet this will require a data migration.
@@ -576,7 +700,7 @@ lookupForIndex u = do
 
 -- | FUTUREWORK: make a PR to cql-io with a 'Traversable' instance.
 traversePage :: forall a. C.Page (C.Client a) -> C.Client (C.Page a)
-traversePage (C.Page hasmore result nextpage) = do
+traversePage (C.Page hasmore result nextpage) =
   C.Page hasmore <$> sequence result <*> (traversePage <$> nextpage)
 
 scanForIndex :: Int32 -> C.Client (C.Page IndexUser)

@@ -72,7 +72,7 @@ instance MonadIO m => MonadLogger (MigrationActionT m) where
 instance MonadIO m => Search.MonadIndexIO (MigrationActionT m) where
   liftIndexIO m = do
     Env {..} <- ask
-    let indexEnv = Search.IndexEnv metrics logger bhEnv Nothing searchIndex
+    let indexEnv = Search.IndexEnv metrics logger bhEnv Nothing searchIndex Nothing
     Search.runIndexIO indexEnv m
 
 instance MonadIO m => ES.MonadBH (MigrationActionT m) where
