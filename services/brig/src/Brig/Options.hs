@@ -490,7 +490,11 @@ instance FromJSON Settings
 instance FromJSON Opts
 
 -- TODO: Does it make sense to generate lens'es for all?
-Lens.makeLensesFor [("optSettings", "optionSettings"), ("elasticsearch", "elasticsearchL")] ''Opts
+Lens.makeLensesFor
+  [ ("optSettings", "optionSettings"),
+    ("elasticsearch", "elasticsearchL")
+  ]
+  ''Opts
 
 Lens.makeLensesFor
   [ ("setEmailVisibility", "emailVisibility"),
