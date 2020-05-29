@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c123bc75185ca36b175ec72d113c7114ea81282dc0e3ae0906764c5b19c0a3bf
+-- hash: e6e868da454f0bfa37e1a2dc1bd7710aafda8976e37a198e0f4ea77e6a90d8fd
 
 name:           spar
 version:        0.1
@@ -109,6 +109,7 @@ library
     , wai-middleware-prometheus
     , wai-utilities
     , warp
+    , wire-api
     , x509
     , xml-conduit
     , yaml
@@ -187,6 +188,7 @@ executable spar
     , wai-middleware-prometheus
     , wai-utilities
     , warp
+    , wire-api
     , x509
     , xml-conduit
     , yaml
@@ -289,6 +291,7 @@ executable spar-integration
     , wai-utilities
     , warp
     , warp-tls
+    , wire-api
     , x509
     , xml-conduit
     , xml-hamlet
@@ -379,6 +382,7 @@ executable spar-schema
     , wai-middleware-prometheus
     , wai-utilities
     , warp
+    , wire-api
     , x509
     , xml-conduit
     , yaml
@@ -468,6 +472,7 @@ test-suite spec
     , wai-middleware-prometheus
     , wai-utilities
     , warp
+    , wire-api
     , x509
     , xml-conduit
     , yaml

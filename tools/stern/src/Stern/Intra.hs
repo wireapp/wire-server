@@ -65,7 +65,6 @@ import Bilge hiding (head, options, requestId)
 import Bilge.RPC
 import Brig.Types
 import Brig.Types.Intra
-import Brig.Types.Team.LegalHold hiding (teamId)
 import Brig.Types.User.Auth
 import Control.Error
 import Control.Lens ((^.), view)
@@ -86,7 +85,6 @@ import Data.Text.Lazy (pack)
 import Galley.Types
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
-import Galley.Types.Teams.SSO
 import Galley.Types.Teams.SearchVisibility
 import Gundeck.Types
 import Imports
@@ -98,6 +96,7 @@ import Stern.Types
 import System.Logger.Class hiding ((.=), Error, name)
 import qualified System.Logger.Class as Log
 import UnliftIO.Exception hiding (Handler)
+import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatus (..))
 
 -------------------------------------------------------------------------------
 
@@ -437,14 +436,14 @@ getLegalholdStatus tid = do
       "galley"
       gly
       ( method GET
-          . paths ["/i/teams", toByteString' tid, "features", "legalhold"]
+          . paths ["/i/teams", toByteString' tid, "features", toByteString' TeamFeatureLegalHold]
           . expect2xx
       )
   where
     fromResponseBody :: Response (Maybe LByteString) -> Handler SetLegalHoldStatus
     fromResponseBody resp = case responseJsonEither resp of
-      Right (LegalHoldTeamConfig LegalHoldDisabled) -> pure SetLegalHoldDisabled
-      Right (LegalHoldTeamConfig LegalHoldEnabled) -> pure SetLegalHoldEnabled
+      Right TeamFeatureDisabled -> pure SetLegalHoldDisabled
+      Right TeamFeatureEnabled -> pure SetLegalHoldEnabled
       Left errmsg -> throwE (Error status502 "bad-upstream" ("bad response; error message: " <> pack errmsg))
 
 setLegalholdStatus :: TeamId -> SetLegalHoldStatus -> Handler ()
@@ -465,8 +464,8 @@ setLegalholdStatus tid status = do
     204 -> pure ()
     _ -> throwE $ responseJsonUnsafe resp
   where
-    toRequestBody SetLegalHoldDisabled = LegalHoldTeamConfig LegalHoldDisabled
-    toRequestBody SetLegalHoldEnabled = LegalHoldTeamConfig LegalHoldEnabled
+    toRequestBody SetLegalHoldDisabled = TeamFeatureDisabled
+    toRequestBody SetLegalHoldEnabled = TeamFeatureEnabled
 
 getSSOStatus :: TeamId -> Handler SetSSOStatus
 getSSOStatus tid = do
@@ -477,14 +476,14 @@ getSSOStatus tid = do
       "galley"
       gly
       ( method GET
-          . paths ["/i/teams", toByteString' tid, "features", "sso"]
+          . paths ["/i/teams", toByteString' tid, "features", toByteString' TeamFeatureSSO]
           . expect2xx
       )
   where
     fromResponseBody :: Response (Maybe LByteString) -> Handler SetSSOStatus
     fromResponseBody resp = case responseJsonEither resp of
-      Right (SSOTeamConfig SSOEnabled) -> pure SetSSOEnabled
-      Right (SSOTeamConfig SSODisabled) -> pure SetSSODisabled
+      Right TeamFeatureEnabled -> pure SetSSOEnabled
+      Right TeamFeatureDisabled -> pure SetSSODisabled
       Left errmsg -> throwE (Error status502 "bad-upstream" ("bad response; error message: " <> pack errmsg))
 
 setSSOStatus :: TeamId -> SetSSOStatus -> Handler ()
@@ -505,8 +504,8 @@ setSSOStatus tid status = do
     204 -> pure ()
     _ -> throwE $ responseJsonUnsafe resp
   where
-    toRequestBody SetSSODisabled = SSOTeamConfig SSODisabled
-    toRequestBody SetSSOEnabled = SSOTeamConfig SSOEnabled
+    toRequestBody SetSSODisabled = TeamFeatureDisabled
+    toRequestBody SetSSOEnabled = TeamFeatureEnabled
 
 getTeamSearchVisibilityAvailable :: TeamId -> Handler SetTeamSearchVisibilityAvailable
 getTeamSearchVisibilityAvailable tid = do
@@ -517,14 +516,14 @@ getTeamSearchVisibilityAvailable tid = do
       "galley"
       gly
       ( method GET
-          . paths ["/i/teams", toByteString' tid, "features", "search-visibility"]
+          . paths ["/i/teams", toByteString' tid, "features", toByteString' TeamFeatureSearchVisibility]
           . expect2xx
       )
   where
     fromResponseBody :: Response (Maybe LByteString) -> Handler SetTeamSearchVisibilityAvailable
     fromResponseBody resp = case responseJsonEither resp of
-      Right (TeamSearchVisibilityAvailableView TeamSearchVisibilityEnabled) -> pure SetTeamSearchVisibilityEnabled
-      Right (TeamSearchVisibilityAvailableView TeamSearchVisibilityDisabled) -> pure SetTeamSearchVisibilityDisabled
+      Right TeamFeatureEnabled -> pure SetTeamSearchVisibilityEnabled
+      Right TeamFeatureDisabled -> pure SetTeamSearchVisibilityDisabled
       Left errmsg -> throwE (Error status502 "bad-upstream" ("bad response; error message: " <> pack errmsg))
 
 setTeamSearchVisibilityAvailable :: TeamId -> SetTeamSearchVisibilityAvailable -> Handler ()
@@ -545,8 +544,8 @@ setTeamSearchVisibilityAvailable tid status = do
     204 -> pure ()
     _ -> throwE $ responseJsonUnsafe resp
   where
-    toRequestBody SetTeamSearchVisibilityDisabled = TeamSearchVisibilityAvailableView TeamSearchVisibilityDisabled
-    toRequestBody SetTeamSearchVisibilityEnabled = TeamSearchVisibilityAvailableView TeamSearchVisibilityEnabled
+    toRequestBody SetTeamSearchVisibilityDisabled = TeamFeatureDisabled
+    toRequestBody SetTeamSearchVisibilityEnabled = TeamFeatureEnabled
 
 getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
 getSearchVisibility tid = do

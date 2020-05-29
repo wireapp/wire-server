@@ -80,6 +80,7 @@ dependencies:
   - wai-middleware-prometheus
   - wai-utilities
   - warp
+  - wire-api
   - x509
   - xml-conduit
   - yaml
@@ -145,6 +146,7 @@ executables:
       - wai
       - wai-extra
       - warp-tls
+      - wire-api
       - xml-conduit
       - xml-hamlet
       - xml-lens
