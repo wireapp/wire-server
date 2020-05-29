@@ -29,7 +29,7 @@ where
 
 import Data.Aeson
 import qualified Data.Attoparsec.ByteString as Parser
-import Data.ByteString.Conversion (FromByteString (..))
+import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -51,6 +51,11 @@ instance FromByteString TeamFeatureName where
       Right "sso" -> pure TeamFeatureSSO
       Right "search-visibility" -> pure TeamFeatureSearchVisibility
       Right t -> fail $ "Invalid TeamFeatureName: " <> T.unpack t
+
+instance ToByteString TeamFeatureName where
+  builder TeamFeatureLegalHold = "legalhold"
+  builder TeamFeatureSSO = "sso"
+  builder TeamFeatureSearchVisibility = "search-visibility"
 
 typeFeatureName :: Doc.DataType
 typeFeatureName =

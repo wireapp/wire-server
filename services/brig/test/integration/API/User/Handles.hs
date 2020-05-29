@@ -46,6 +46,7 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
+import Wire.API.Team.Feature (TeamFeatureStatus (..))
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at conf p b c g =
@@ -201,7 +202,7 @@ testHandleQuerySearchVisibilityNoNameOutsideTeam _opts brig galley = do
   (tid1, owner1, [member1]) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
   (_, owner2, [member2]) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
   extern <- randomUserWithHandle brig
-  setTeamTeamSearchVisibilityAvailable galley tid1 Team.TeamSearchVisibilityEnabled
+  setTeamTeamSearchVisibilityAvailable galley tid1 TeamFeatureEnabled
   setTeamSearchVisibility galley tid1 Team.SearchVisibilityNoNameOutsideTeam
   -- this is the same as in 'testHandleQuerySearchVisibilityStandard' above, because we search
   -- for handles, not names.

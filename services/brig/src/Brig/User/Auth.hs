@@ -49,7 +49,6 @@ import qualified Brig.Options as Opt
 import Brig.Phone
 import Brig.Types.Common
 import Brig.Types.Intra
-import Brig.Types.Team.LegalHold (LegalHoldStatus (..), LegalHoldTeamConfig (..))
 import Brig.Types.User
 import Brig.Types.User.Auth hiding (user)
 import Brig.User.Auth.Cookie
@@ -68,6 +67,7 @@ import Imports
 import Network.Wai.Utilities.Error ((!>>))
 import System.Logger (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
+import Wire.API.Team.Feature (TeamFeatureStatus (..))
 
 data Access u = Access
   { accessToken :: !AccessToken,
@@ -296,7 +296,7 @@ legalHoldLogin (LegalHoldLogin uid plainTextPassword label) typ = do
 
 assertLegalHoldEnabled :: TeamId -> ExceptT LegalHoldLoginError AppIO ()
 assertLegalHoldEnabled tid = do
-  LegalHoldTeamConfig stat <- lift $ Intra.getTeamLegalHoldStatus tid
+  stat <- lift $ Intra.getTeamLegalHoldStatus tid
   case stat of
-    LegalHoldDisabled -> throwE LegalHoldLoginLegalHoldNotEnabled
-    LegalHoldEnabled -> pure ()
+    TeamFeatureDisabled -> throwE LegalHoldLoginLegalHoldNotEnabled
+    TeamFeatureEnabled -> pure ()

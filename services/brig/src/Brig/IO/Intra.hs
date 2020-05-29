@@ -68,7 +68,6 @@ import qualified Brig.IO.Journal as Journal
 import Brig.RPC
 import Brig.Types
 import Brig.Types.Intra
-import Brig.Types.Team.LegalHold (LegalHoldTeamConfig)
 import Brig.User.Event
 import qualified Brig.User.Event.Log as Log
 import qualified Brig.User.Search.Index as Search
@@ -98,6 +97,7 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
 import System.Logger.Class as Log hiding ((.=), name)
+import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatus)
 
 -----------------------------------------------------------------------------
 -- Event Handlers
@@ -819,14 +819,14 @@ getTeamName tid = do
       paths ["i", "teams", toByteString' tid, "name"]
         . expect2xx
 
--- | Calls 'Galley.API.getLegalholdStatusInternalH'.
-getTeamLegalHoldStatus :: TeamId -> AppIO LegalHoldTeamConfig
+-- | Calls 'Galley.API.getTeamFeatureStatusH'.
+getTeamLegalHoldStatus :: TeamId -> AppIO TeamFeatureStatus
 getTeamLegalHoldStatus tid = do
   debug $ remote "galley" . msg (val "Get legalhold settings")
   galleyRequest GET req >>= decodeBody "galley"
   where
     req =
-      paths ["i", "teams", toByteString' tid, "features", "legalhold"]
+      paths ["i", "teams", toByteString' tid, "features", toByteString' TeamFeatureLegalHold]
         . expect2xx
 
 -- | Calls 'Galley.API.getSearchVisibilityInternalH'.
