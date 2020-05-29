@@ -39,6 +39,7 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 data TeamFeatureName
   = TeamFeatureLegalHold
   | TeamFeatureSSO
+  | TeamFeatureSearchVisibility
   deriving stock (Eq, Show, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform TeamFeatureName)
 
@@ -48,10 +49,17 @@ instance FromByteString TeamFeatureName where
       Left e -> fail $ "Invalid TeamFeatureName: " <> show e
       Right "legalhold" -> pure TeamFeatureLegalHold
       Right "sso" -> pure TeamFeatureSSO
+      Right "search-visibility" -> pure TeamFeatureSearchVisibility
       Right t -> fail $ "Invalid TeamFeatureName: " <> T.unpack t
 
 typeFeatureName :: Doc.DataType
-typeFeatureName = Doc.string $ Doc.enum ["legalhold", "sso"]
+typeFeatureName =
+  Doc.string $
+    Doc.enum
+      [ "legalhold",
+        "sso",
+        "search-visibility"
+      ]
 
 data TeamFeatureStatus = TeamFeatureEnabled | TeamFeatureDisabled
   deriving stock (Eq, Show, Generic)

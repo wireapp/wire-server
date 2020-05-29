@@ -193,7 +193,7 @@ sitemap = do
 
   put "/i/teams/:tid/features/search-visibility" (continue Teams.setTeamSearchVisibilityAvailableInternalH) $
     capture "tid"
-      .&. jsonRequest @TeamSearchVisibilityAvailableView
+      .&. jsonRequest @Public.TeamFeatureStatus
       .&. accept "application" "json"
 
   -- Misc API (internal) ------------------------------------------------

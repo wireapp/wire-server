@@ -300,7 +300,6 @@ data HiddenPerm
   = ChangeLegalHoldTeamSettings
   | ChangeLegalHoldUserSettings
   | ViewLegalHoldUserSettings
-  | ViewTeamSearchVisibilityAvailable
   | ViewTeamFeature TeamFeatureName
   | ChangeTeamSearchVisibility
   | ViewTeamSearchVisibility
@@ -342,8 +341,8 @@ hiddenPermissionsFromPermissions =
           Set.fromList
             [ ViewTeamFeature TeamFeatureLegalHold,
               ViewTeamFeature TeamFeatureSSO,
+              ViewTeamFeature TeamFeatureSearchVisibility,
               ViewLegalHoldUserSettings,
-              ViewTeamSearchVisibilityAvailable,
               ViewTeamSearchVisibility
             ]
 

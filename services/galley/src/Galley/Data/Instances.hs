@@ -137,18 +137,6 @@ instance Cql Public.TeamFeatureStatus where
   toCql Public.TeamFeatureDisabled = CqlInt 0
   toCql Public.TeamFeatureEnabled = CqlInt 1
 
-instance Cql TeamSearchVisibilityAvailable where
-  ctype = Tagged IntColumn
-
-  fromCql (CqlInt n) = case n of
-    0 -> pure $ TeamSearchVisibilityDisabled
-    1 -> pure $ TeamSearchVisibilityEnabled
-    _ -> fail "fromCql: Invalid TeamSearchVisibilityAvailable"
-  fromCql _ = fail "fromCql: TeamSearchVisibilityAvailable: CqlInt expected"
-
-  toCql TeamSearchVisibilityDisabled = CqlInt 0
-  toCql TeamSearchVisibilityEnabled = CqlInt 1
-
 instance Cql TeamSearchVisibility where
   ctype = Tagged IntColumn
 

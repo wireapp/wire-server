@@ -478,17 +478,6 @@ sitemap = do
     returns (ref Public.modelCustomBackend)
     response 200 "Custom backend" end
 
-  get "/teams/:tid/features/search-visibility" (continue Teams.getTeamSearchVisibilityAvailableH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. accept "application" "json"
-  document "GET" "getTeamSearchVisibilityAvailable" $ do
-    summary "Shows whether Custom Search Visibility feature is enabled for team"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    returns (ref Public.modelTeamSearchVisibilityAvailable)
-    response 200 "Search Visibility status" end
-
   -- Bot API ------------------------------------------------------------
 
   get "/bot/conversation" (continue Query.getBotConversationH) $

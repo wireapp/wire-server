@@ -218,8 +218,6 @@ tests =
       testRoundTrip @Team.Role.Role,
       testRoundTrip @Team.SearchVisibility.TeamSearchVisibility,
       testRoundTrip @Team.SearchVisibility.TeamSearchVisibilityView,
-      testRoundTrip @Team.SearchVisibility.TeamSearchVisibilityAvailable,
-      testRoundTrip @Team.SearchVisibility.TeamSearchVisibilityAvailableView,
       testRoundTrip @User.NewUser,
       testRoundTrip @User.NewUserPublic,
       testRoundTrip @User.UserIdList,
