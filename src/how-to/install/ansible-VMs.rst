@@ -192,15 +192,22 @@ Minio
    you set the 'minio_network_interface' to the name of the interface
    you want minio nodes to talk to each other on. The default from the
    playbook is not going to be correct for your machine. For example:
-
 -  In your 'hosts.ini' file, in the ``[minio:vars]`` section, ensure you
    set minio_access_key and minio_secret key.
+-  If you intend to use a ``deep link`` to configure your clients to
+   talk to the backend, you need to specify your domain (and optionally
+   your prefix), so that links to your deep link json file are generated
+   correctly. By configuring these values, you fill in the blanks of
+   ``https://{{ prefix }}assets.{{ domain }}``.
 
 .. code:: ini
 
    [minio:vars]
    minio_access_key = "REPLACE_THIS_WITH_THE_DESIRED_SECRET_KEY"
    minio_secret_key = "REPLACE_THIS_WITH_THE_DESIRED_SECRET_KEY"
+   # if you want to use deep links for client configuration:
+   #minio_deeplink_prefix = ""
+   #minio_deeplink_domain = "example.com"
 
    [all:vars]
    # Default first interface on ubuntu on kvm:
