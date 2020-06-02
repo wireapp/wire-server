@@ -86,8 +86,9 @@ sitemap = do
   post "/i/users" (continue createUserNoVerifyH) $
     accept "application" "json"
       .&. jsonRequest @NewUser
-  put "/i/self/email" (continue changeSelfEmailNoSendH) $
+  put "/i/self/email" (continue changeSelfEmailMaybeSendH) $
     zauthUserId
+      .&. def False (query "validate")
       .&. jsonRequest @EmailUpdate
 
   -- This endpoint will lead to the following events being sent:
@@ -288,19 +289,17 @@ deleteUserNoVerify uid = do
   void $ lift (API.lookupAccount uid) >>= ifNothing userNotFound
   lift $ API.deleteUserNoVerify uid
 
-changeSelfEmailNoSendH :: UserId ::: JsonRequest EmailUpdate -> Handler Response
-changeSelfEmailNoSendH (u ::: req) = do
+changeSelfEmailMaybeSendH :: UserId ::: Bool ::: JsonRequest EmailUpdate -> Handler Response
+changeSelfEmailMaybeSendH (u ::: validate ::: req) = do
   email <- euEmail <$> parseJsonBody req
-  changeSelfEmailNoSend u email >>= \case
+  changeSelfEmailMaybeSend u validate email >>= \case
     ChangeEmailResponseIdempotent -> pure (setStatus status204 empty)
     ChangeEmailResponseNeedsActivation -> pure (setStatus status202 empty)
 
-data ChangeEmailResponse
-  = ChangeEmailResponseIdempotent
-  | ChangeEmailResponseNeedsActivation
-
-changeSelfEmailNoSend :: UserId -> Email -> Handler ChangeEmailResponse
-changeSelfEmailNoSend u email = do
+changeSelfEmailMaybeSend :: UserId -> Bool -> Email -> Handler ChangeEmailResponse
+changeSelfEmailMaybeSend u True email = do
+  API.changeSelfEmail u email
+changeSelfEmailMaybeSend u False email = do
   API.changeEmail u email !>> changeEmailError >>= \case
     ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
     ChangeEmailNeedsActivation _ -> pure ChangeEmailResponseNeedsActivation
