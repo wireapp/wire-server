@@ -1,0 +1,34 @@
+defaults: 
+  local: ../../../package-defaults.yaml
+name: count-team-owners
+version: '1.0.0'
+synopsis: Backfill billing_team_member table
+category: Network
+author: Wire Swiss GmbH
+maintainer: Wire Swiss GmbH <backend@wire.com>
+copyright: (c) 2020 Wire Swiss GmbH
+license: AGPL-3
+ghc-options:
+- -funbox-strict-fields
+- -threaded
+- -with-rtsopts=-N
+- -with-rtsopts=-T
+- -rtsopts
+dependencies:
+- base
+- cassandra-util
+- containers
+- galley-types
+- imports
+- optparse-applicative
+- text
+- lens
+- tinylog
+- uuid
+- types-common
+- unliftio
+- conduit
+executables:
+  count-team-owners:
+    main: Main.hs
+    source-dirs: src
