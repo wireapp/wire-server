@@ -40,7 +40,7 @@ data TeamFeatureName
   = TeamFeatureLegalHold
   | TeamFeatureSSO
   | TeamFeatureSearchVisibility
-  deriving stock (Eq, Show, Ord, Generic)
+  deriving stock (Eq, Show, Ord, Generic, Enum, Bounded)
   deriving (Arbitrary) via (GenericUniform TeamFeatureName)
 
 instance FromByteString TeamFeatureName where
