@@ -21,6 +21,7 @@
 module Work where
 
 import Cassandra
+import Cassandra.Util
 import Conduit
 import Control.Lens (view)
 import Data.Conduit.Internal (zipSources)
@@ -44,25 +45,27 @@ runCommand l galley =
               >> pure p
         )
       .| C.concatMap (filter isOwner)
-      .| C.map (\(t, u, _) -> (t, u))
+      .| C.map (\(t, u, _, wt) -> (t, u, (writeTimeToUTC wt)))
       .| C.mapM_
         ( \x ->
-            Log.info l (Log.field "writing billing team members" (show (length x)))
+            Log.info l (Log.field "..." (show (x)))
         )
 
 pageSize :: Int32
-pageSize = 1000
+pageSize = 1000 -- "hello"
 
 ----------------------------------------------------------------------------
 -- Queries
 
 -- | Get team members from Galley
-getTeamMembers :: ConduitM () [(TeamId, UserId, Maybe Permissions)] Client ()
+getTeamMembers :: ConduitM () [TeamRow] Client ()
 getTeamMembers = paginateC cql (paramsP Quorum () pageSize) x5
   where
-    cql :: PrepQuery R () (TeamId, UserId, Maybe Permissions)
-    cql = "SELECT team, user, perms FROM team_member"
+    cql :: PrepQuery R () TeamRow
+    cql = "SELECT team, user, perms, writetime(user) FROM team_member"
 
-isOwner :: (TeamId, UserId, Maybe Permissions) -> Bool
-isOwner (_, _, Just p) = SetBilling `Set.member` view self p
+isOwner :: TeamRow -> Bool
+isOwner (_, _, Just p, _) = SetBilling `Set.member` view self p
 isOwner _ = False
+
+type TeamRow = (TeamId, UserId, Maybe Permissions, Int64)
