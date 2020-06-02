@@ -40,4 +40,6 @@ executable count-team-owners
     , types-common
     , unliftio
     , uuid
+    , prometheus-client
+    , wai-middleware-prometheus
   default-language: Haskell2010

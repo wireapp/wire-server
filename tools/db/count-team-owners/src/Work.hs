@@ -28,31 +28,51 @@ import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as C
 import Data.Id
 import qualified Data.Set as Set
+import Data.Set (Set)
 import Galley.Types.Teams
 import Imports
+import qualified Prometheus as P
 import System.Logger (Logger)
 import qualified System.Logger as Log
 
 runCommand :: Logger -> ClientState -> IO ()
-runCommand l galley =
-  runConduit $
-    zipSources
-      (C.sourceList [(1 :: Int32) ..])
-      (transPipe (runClient galley) getTeamMembers)
-      .| C.mapM
-        ( \(i, p) ->
-            Log.info l (Log.field "team members" (show (i * pageSize)))
-              >> pure p
-        )
-      .| C.concatMap (filter isOwner)
-      .| C.map (\(t, u, _, wt) -> (t, u, (writeTimeToUTC wt)))
-      .| C.mapM_
-        ( \x ->
-            Log.info l (Log.field "..." (show (x)))
-        )
+runCommand l galley = do
+  res <-
+    runConduit $
+      zipSources
+        (C.sourceList [(1 :: Int32) ..])
+        (transPipe (runClient galley) getTeamMembers)
+        .| C.mapM
+          ( \(i, p) ->
+              Log.info l (Log.field "team members" (show (i * pageSize)))
+                >> pure p
+          )
+        .| C.concatMap (filter isOwner)
+        .| C.map (\(t, u, _, wt) -> (t, u, (writeTimeToUTC wt)))
+        .| foldlC foo2 initfoo
+  -- .| C.mapAccum foo (0 :: Int32)
+
+  Log.info l (Log.field "res" (show res))
+
+-- .| C.mapM_
+--   ( \x ->
+--       Log.info l (Log.field "..." (show (x)))
+--   )
+--
+--
+-- TODO: libs/metrics-core/src/Data/Metrics.hs
+-- https://hackage.haskell.org/package/prometheus-client-1.0.0.1/docs/Prometheus.html
+
+foo2 :: Accumulator -> row -> Accumulator
+foo2 xs x = undefined
+
+initfoo :: Accumulator
+initfoo = 0
+
+type Accumulator = Int32
 
 pageSize :: Int32
-pageSize = 1000 -- "hello"
+pageSize = 1000
 
 ----------------------------------------------------------------------------
 -- Queries
@@ -62,7 +82,7 @@ getTeamMembers :: ConduitM () [TeamRow] Client ()
 getTeamMembers = paginateC cql (paramsP Quorum () pageSize) x5
   where
     cql :: PrepQuery R () TeamRow
-    cql = "SELECT team, user, perms, writetime(user) FROM team_member"
+    cql = "SELECT team, user, perms, writetime(perms) FROM team_member"
 
 isOwner :: TeamRow -> Bool
 isOwner (_, _, Just p, _) = SetBilling `Set.member` view self p
