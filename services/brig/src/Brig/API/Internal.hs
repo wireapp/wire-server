@@ -86,6 +86,11 @@ sitemap = do
   post "/i/users" (continue createUserNoVerifyH) $
     accept "application" "json"
       .&. jsonRequest @NewUser
+
+  -- internal email activation (used in tests and in spar for validating emails obtains as
+  -- SAML user identifiers).  if the validate query parameter is false or missing, only set
+  -- the activation timeout, but do not send an email, and do not do anything about activating
+  -- the email.
   put "/i/self/email" (continue changeSelfEmailMaybeSendH) $
     zauthUserId
       .&. def False (query "validate")
