@@ -45,13 +45,10 @@ runCommand l galley =
         )
       .| C.concatMap (filter isOwner)
       .| C.map (\(t, u, _) -> (t, u))
-      .| C.chunksOf 50
-      .| C.mapM
+      .| C.mapM_
         ( \x ->
             Log.info l (Log.field "writing billing team members" (show (length x)))
-              >> pure x
         )
-      .| C.mapM_ (runClient galley . createBillingTeamMembers)
 
 pageSize :: Int32
 pageSize = 1000
@@ -65,16 +62,6 @@ getTeamMembers = paginateC cql (paramsP Quorum () pageSize) x5
   where
     cql :: PrepQuery R () (TeamId, UserId, Maybe Permissions)
     cql = "SELECT team, user, perms FROM team_member"
-
-createBillingTeamMembers :: [(TeamId, UserId)] -> Client ()
-createBillingTeamMembers pairs =
-  retry x5 $ batch $ do
-    setType BatchLogged
-    setConsistency Quorum
-    mapM_ (addPrepQuery cql) pairs
-  where
-    cql :: PrepQuery W (TeamId, UserId) ()
-    cql = "INSERT INTO billing_team_member (team, user) values (?, ?)"
 
 isOwner :: (TeamId, UserId, Maybe Permissions) -> Bool
 isOwner (_, _, Just p) = SetBilling `Set.member` view self p

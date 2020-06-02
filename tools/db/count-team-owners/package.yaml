@@ -2,7 +2,7 @@ defaults:
   local: ../../../package-defaults.yaml
 name: count-team-owners
 version: '1.0.0'
-synopsis: Backfill billing_team_member table
+synopsis: Count team owners
 category: Network
 author: Wire Swiss GmbH
 maintainer: Wire Swiss GmbH <backend@wire.com>
