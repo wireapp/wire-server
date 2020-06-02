@@ -39,13 +39,9 @@ module Galley.API.Teams
     getTeamConversationH,
     getTeamConversationRolesH,
     deleteTeamConversationH,
-    getSSOStatusInternalH,
-    setSSOStatusInternalH,
-    getLegalholdStatusInternalH,
-    setLegalholdStatusInternalH,
     getFeatureStatusH,
-    setTeamSearchVisibilityAvailableInternalH,
-    getTeamSearchVisibilityAvailableInternalH,
+    getFeatureStatusInternalH,
+    setFeatureStatusInternalH,
     getSearchVisibilityH,
     setSearchVisibilityH,
     getSearchVisibilityInternalH,
@@ -862,19 +858,33 @@ getFeatureStatus :: UserId -> TeamId -> Public.TeamFeatureName -> Galley Public.
 getFeatureStatus uid tid featureName = do
   zusrMembership <- Data.teamMember tid uid
   void $ permissionCheck (ViewTeamFeature featureName) zusrMembership
+  getFeatureStatusInternal tid featureName
+
+-- | Get feature flag status for a team.  To be called only from authorized personnel (e.g.,
+-- from a backoffice tool)
+getFeatureStatusInternalH :: TeamId ::: Public.TeamFeatureName ::: JSON -> Galley Response
+getFeatureStatusInternalH (tid ::: featureName ::: _) = do
+  json <$> getFeatureStatusInternal tid featureName
+
+getFeatureStatusInternal :: TeamId -> Public.TeamFeatureName -> Galley Public.TeamFeatureStatus
+getFeatureStatusInternal tid featureName = do
   case featureName of
     Public.TeamFeatureLegalHold -> getLegalholdStatusInternal tid
     Public.TeamFeatureSSO -> getSSOStatusInternal tid
     Public.TeamFeatureSearchVisibility -> getTeamSearchVisibilityAvailableInternal tid
 
--- Enable / Disable team features
--- These endpoints are internal only and  meant to be called
--- only from authorized personnel (e.g., from a backoffice tool)
+-- | Enable or disable feature flag for a team.  To be called only from authorized personnel
+-- (e.g., from a backoffice tool)
+setFeatureStatusInternalH :: TeamId ::: Public.TeamFeatureName ::: JsonRequest Public.TeamFeatureStatus ::: JSON -> Galley Response
+setFeatureStatusInternalH (tid ::: featureName ::: req ::: _) =
+  (empty & setStatus status204) <$ (setFeatureStatusInternal tid featureName =<< fromJsonBody req)
 
--- | Get SSO status for a team.
-getSSOStatusInternalH :: TeamId ::: JSON -> Galley Response
-getSSOStatusInternalH (tid ::: _) = do
-  json <$> getSSOStatusInternal tid
+setFeatureStatusInternal :: TeamId -> Public.TeamFeatureName -> Public.TeamFeatureStatus -> Galley ()
+setFeatureStatusInternal tid featureName status = do
+  case featureName of
+    Public.TeamFeatureLegalHold -> setLegalholdStatusInternal tid status
+    Public.TeamFeatureSSO -> setSSOStatusInternal tid status
+    Public.TeamFeatureSearchVisibility -> setTeamSearchVisibilityAvailableInternal tid status
 
 getSSOStatusInternal :: TeamId -> Galley Public.TeamFeatureStatus
 getSSOStatusInternal tid = do
@@ -886,24 +896,12 @@ getSSOStatusInternal tid = do
   ssoTeamConfig <- SSOData.getSSOTeamConfig tid
   pure . fromMaybe defConfig $ ssoTeamConfig
 
--- | Enable or disable SSO for a team.
-setSSOStatusInternalH :: TeamId ::: JsonRequest Public.TeamFeatureStatus ::: JSON -> Galley Response
-setSSOStatusInternalH (tid ::: req ::: _) = do
-  ssoTeamConfig <- fromJsonBody req
-  setSSOStatusInternal tid ssoTeamConfig
-  pure noContent
-
 setSSOStatusInternal :: TeamId -> Public.TeamFeatureStatus -> Galley ()
 setSSOStatusInternal tid ssoTeamConfig = do
   case ssoTeamConfig of
     Public.TeamFeatureDisabled -> throwM disableSsoNotImplemented
     Public.TeamFeatureEnabled -> pure () -- this one is easy to implement :)
   SSOData.setSSOTeamConfig tid ssoTeamConfig
-
--- | Get legal hold status for a team.
-getLegalholdStatusInternalH :: TeamId ::: JSON -> Galley Response
-getLegalholdStatusInternalH (tid ::: _) = do
-  json <$> getLegalholdStatusInternal tid
 
 getLegalholdStatusInternal :: TeamId -> Galley Public.TeamFeatureStatus
 getLegalholdStatusInternal tid = do
@@ -914,13 +912,6 @@ getLegalholdStatusInternal tid = do
       pure (fromMaybe Public.TeamFeatureDisabled legalHoldTeamConfig)
     FeatureLegalHoldDisabledPermanently -> do
       pure Public.TeamFeatureDisabled
-
--- | Enable or disable legal hold for a team.
-setLegalholdStatusInternalH :: TeamId ::: JsonRequest Public.TeamFeatureStatus ::: JSON -> Galley Response
-setLegalholdStatusInternalH (tid ::: req ::: _) = do
-  legalHoldTeamConfig <- fromJsonBody req
-  setLegalholdStatusInternal tid legalHoldTeamConfig
-  pure noContent
 
 setLegalholdStatusInternal :: TeamId -> Public.TeamFeatureStatus -> Galley ()
 setLegalholdStatusInternal tid legalHoldTeamConfig = do
@@ -943,11 +934,6 @@ setLegalholdStatusInternal tid legalHoldTeamConfig = do
       when (size > limit) $ do
         throwM cannotEnableLegalHoldServiceLargeTeam
 
--- | Get Search visibility status for a team.
-getTeamSearchVisibilityAvailableInternalH :: TeamId ::: JSON -> Galley Response
-getTeamSearchVisibilityAvailableInternalH (tid ::: _) = do
-  json <$> getTeamSearchVisibilityAvailableInternal tid
-
 getTeamSearchVisibilityAvailableInternal :: TeamId -> Galley Public.TeamFeatureStatus
 getTeamSearchVisibilityAvailableInternal tid = do
   -- TODO: This is just redundant given there is a decent default
@@ -957,12 +943,6 @@ getTeamSearchVisibilityAvailableInternal tid = do
       FeatureTeamSearchVisibilityEnabledByDefault -> Public.TeamFeatureEnabled
       FeatureTeamSearchVisibilityDisabledByDefault -> Public.TeamFeatureDisabled
   fromMaybe defConfig <$> SearchVisibilityData.getTeamSearchVisibilityAvailable tid
-
--- | Enable or disable custom search visibility for a team.
-setTeamSearchVisibilityAvailableInternalH :: TeamId ::: JsonRequest Public.TeamFeatureStatus ::: JSON -> Galley Response
-setTeamSearchVisibilityAvailableInternalH (tid ::: req ::: _) = do
-  setTeamSearchVisibilityAvailableInternal tid =<< fromJsonBody req
-  pure noContent
 
 setTeamSearchVisibilityAvailableInternal :: TeamId -> Public.TeamFeatureStatus -> Galley ()
 setTeamSearchVisibilityAvailableInternal tid isenabled = do

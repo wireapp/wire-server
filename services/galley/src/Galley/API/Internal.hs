@@ -169,30 +169,14 @@ sitemap = do
   -- Enabling this should only be possible internally.
   -- Viewing the status should be allowed for any admin.
 
-  get "/i/teams/:tid/features/legalhold" (continue Teams.getLegalholdStatusInternalH) $
+  get "/i/teams/:tid/features/:feature" (continue Teams.getFeatureStatusInternalH) $
     capture "tid"
+      .&. capture "feature"
       .&. accept "application" "json"
 
-  put "/i/teams/:tid/features/legalhold" (continue Teams.setLegalholdStatusInternalH) $
+  put "/i/teams/:tid/features/:feature" (continue Teams.setFeatureStatusInternalH) $
     capture "tid"
-      .&. jsonRequest @Public.TeamFeatureStatus
-      .&. accept "application" "json"
-
-  get "/i/teams/:tid/features/sso" (continue Teams.getSSOStatusInternalH) $
-    capture "tid"
-      .&. accept "application" "json"
-
-  put "/i/teams/:tid/features/sso" (continue Teams.setSSOStatusInternalH) $
-    capture "tid"
-      .&. jsonRequest @Public.TeamFeatureStatus
-      .&. accept "application" "json"
-
-  get "/i/teams/:tid/features/search-visibility" (continue Teams.getTeamSearchVisibilityAvailableInternalH) $
-    capture "tid"
-      .&. accept "application" "json"
-
-  put "/i/teams/:tid/features/search-visibility" (continue Teams.setTeamSearchVisibilityAvailableInternalH) $
-    capture "tid"
+      .&. capture "feature"
       .&. jsonRequest @Public.TeamFeatureStatus
       .&. accept "application" "json"
 
