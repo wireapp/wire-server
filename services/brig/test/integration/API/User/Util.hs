@@ -54,12 +54,19 @@ checkHandles brig uid hs num =
       js = RequestBodyLBS $ encode $ CheckHandles hs' num'
    in post (brig . path "/users/handles" . contentJson . zUser uid . body js)
 
-randomUserWithHandle :: HasCallStack => Brig -> Http User
+randomUserWithHandle ::
+  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  Brig ->
+  m User
 randomUserWithHandle brig = do
   u <- randomUser brig
   setRandomHandle brig u
 
-setRandomHandle :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> m User
+setRandomHandle ::
+  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  Brig ->
+  User ->
+  m User
 setRandomHandle brig user = do
   h <- randomHandle
   put

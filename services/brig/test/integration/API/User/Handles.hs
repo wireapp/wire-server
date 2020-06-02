@@ -54,8 +54,8 @@ tests _cl _at conf p b c g =
     "handles"
     [ test p "handles/update" $ testHandleUpdate b c,
       test p "handles/race" $ testHandleRace b,
-      test p "handles/query" $ testHandleQuery conf b g,
-      test p "handles/query - team-search-visibility SearchVisibilityStandard" $ testHandleQuerySearchVisibilityStandard conf b g,
+      test p "handles/query" $ testHandleQuery conf b,
+      test p "handles/query - team-search-visibility SearchVisibilityStandard" $ testHandleQuerySearchVisibilityStandard conf b,
       test p "handles/query - team-search-visibility SearchVisibilityNoNameOutsideTeam" $ testHandleQuerySearchVisibilityNoNameOutsideTeam conf b g
     ]
 
@@ -135,8 +135,8 @@ testHandleRace brig = do
     let owners = catMaybes $ filter (maybe False ((== Just (Handle hdl)) . userHandle)) ps
     liftIO $ assertBool "More than one owner of a handle" (length owners <= 1)
 
-testHandleQuery :: Opt.Opts -> Brig -> Galley -> Http ()
-testHandleQuery opts brig galley = do
+testHandleQuery :: Opt.Opts -> Brig -> Http ()
+testHandleQuery opts brig = do
   uid <- userId <$> randomUser brig
   hdl <- randomHandle
   -- Query for the handle availability (must be free)
@@ -171,8 +171,8 @@ testHandleQuery opts brig galley = do
     const (Just [hdl2, hdl3]) === responseJsonMaybe
 
   -- Let's check for availability outside the team when an option is given
-  (_, user3, _) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 0
-  (_, user4, _) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 0
+  (_, user3, _) <- createPopulatedBindingTeamWithNamesAndHandles brig 0
+  (_, user4, _) <- createPopulatedBindingTeamWithNamesAndHandles brig 0
 
   -- Usually, you can search outside your team
   assertCanFind brig user3 user4
@@ -181,10 +181,10 @@ testHandleQuery opts brig galley = do
   withSettingsOverrides newOpts $
     assertCannotFind brig user3 user4
 
-testHandleQuerySearchVisibilityStandard :: Opt.Opts -> Brig -> Galley -> Http ()
-testHandleQuerySearchVisibilityStandard _opts brig galley = do
-  (_, owner1, [member1]) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
-  (_, owner2, [member2]) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
+testHandleQuerySearchVisibilityStandard :: Opt.Opts -> Brig -> Http ()
+testHandleQuerySearchVisibilityStandard _opts brig = do
+  (_, owner1, [member1]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+  (_, owner2, [member2]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
   extern <- randomUserWithHandle brig
   -- Assert that everyone can find each other:
   --   in the same or different team, by handle - direction does not matter
@@ -199,8 +199,8 @@ testHandleQuerySearchVisibilityStandard _opts brig galley = do
 
 testHandleQuerySearchVisibilityNoNameOutsideTeam :: Opt.Opts -> Brig -> Galley -> Http ()
 testHandleQuerySearchVisibilityNoNameOutsideTeam _opts brig galley = do
-  (tid1, owner1, [member1]) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
-  (_, owner2, [member2]) <- createPopulatedBindingTeamWithNamesAndHandles brig galley 1
+  (tid1, owner1, [member1]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+  (_, owner2, [member2]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
   extern <- randomUserWithHandle brig
   setTeamTeamSearchVisibilityAvailable galley tid1 TeamFeatureEnabled
   setTeamSearchVisibility galley tid1 Team.SearchVisibilityNoNameOutsideTeam

@@ -20,7 +20,7 @@ module Index.Create where
 import qualified Brig.Index.Eval as IndexEval
 import qualified Brig.Index.Options as IndexOpts
 import qualified Brig.Options as BrigOpts
-import Control.Lens ((.~))
+import Control.Lens ((.~), (^.))
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Database.Bloodhound as ES
@@ -46,7 +46,7 @@ spec brigOpts =
 
 testCreateIndexWhenNotPresent :: BrigOpts.Opts -> Assertion
 testCreateIndexWhenNotPresent brigOpts = do
-  let (BrigOpts.ElasticSearchOpts esURL _) = BrigOpts.elasticsearch brigOpts
+  let esURL = brigOpts ^. BrigOpts.elasticsearchL . BrigOpts.urlL
   case parseURI strictURIParserOptions (Text.encodeUtf8 esURL) of
     Left e -> fail $ "Invalid ES URL: " <> show esURL <> "\nerror: " <> show e
     Right esURI -> do
@@ -78,7 +78,7 @@ testCreateIndexWhenNotPresent brigOpts = do
 
 testCreateIndexWhenPresent :: BrigOpts.Opts -> Assertion
 testCreateIndexWhenPresent brigOpts = do
-  let (BrigOpts.ElasticSearchOpts esURL _) = BrigOpts.elasticsearch brigOpts
+  let esURL = brigOpts ^. BrigOpts.elasticsearchL . BrigOpts.urlL
   case parseURI strictURIParserOptions (Text.encodeUtf8 esURL) of
     Left e -> fail $ "Invalid ES URL: " <> show esURL <> "\nerror: " <> show e
     Right esURI -> do

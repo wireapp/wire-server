@@ -4,7 +4,7 @@ cabal-version: 2.0
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e5d8451ece1260dfd9961229c77a0bf91f28fd2a18d523151c5081808d4d6c5a
+-- hash: dcf98702ec8a0c8e7492ffa8ae6df1a373cba27a6c4d46cf36f575ced7818c44
 
 name:           brig
 version:        1.35.0
@@ -248,6 +248,7 @@ library brig-index-lib
     , metrics-core
     , mtl
     , optparse-applicative >=0.13
+    , retry
     , text
     , time
     , tinylog

@@ -1,3 +1,8 @@
+# Next release
+
+* This release fixes a bug with searching. To get this fix, a new elasticsearch index must be used. 
+  The steps for doing this migration can be found in [./docs/reference/elastic-search.md](./docs/reference/elastic-search.md#migrate-to-a-new-index)
+
 # 2020-05-15
 
 ## New Features
