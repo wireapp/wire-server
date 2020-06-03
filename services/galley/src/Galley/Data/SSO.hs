@@ -27,18 +27,19 @@ import Cassandra
 import Data.Id
 import Galley.Data.Instances ()
 import Galley.Data.Queries
-import Galley.Types.Teams.SSO
 import Imports
+import Wire.API.Team.Feature (TeamFeatureStatus (..))
 
--- | Return whether a given team is allowed to enable/disable sso
-getSSOTeamConfig :: MonadClient m => TeamId -> m (Maybe SSOTeamConfig)
+-- | Return whether a given team is allowed to enable/disable sso.
+-- Defaults to 'TeamFeatureDisabled' if null in the DB
+getSSOTeamConfig :: MonadClient m => TeamId -> m (Maybe TeamFeatureStatus)
 getSSOTeamConfig tid = fmap toSSOTeamConfig <$> do
   retry x1 $ query1 selectSSOTeamConfig (params Quorum (Identity tid))
   where
-    toSSOTeamConfig (Identity Nothing) = SSOTeamConfig SSODisabled
-    toSSOTeamConfig (Identity (Just status)) = SSOTeamConfig status
+    toSSOTeamConfig (Identity Nothing) = TeamFeatureDisabled
+    toSSOTeamConfig (Identity (Just status)) = status
 
 -- | Determines whether a given team is allowed to enable/disable sso
-setSSOTeamConfig :: MonadClient m => TeamId -> SSOTeamConfig -> m ()
-setSSOTeamConfig tid SSOTeamConfig {ssoTeamConfigStatus} = do
+setSSOTeamConfig :: MonadClient m => TeamId -> TeamFeatureStatus -> m ()
+setSSOTeamConfig tid ssoTeamConfigStatus = do
   retry x5 $ write updateSSOTeamConfig (params Quorum (ssoTeamConfigStatus, tid))

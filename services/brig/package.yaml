@@ -252,6 +252,7 @@ executables:
     - wai-utilities >=0.9
     - warp
     - warp-tls >=3.2
+    - wire-api
     - yaml
     - zauth
   brig-index:

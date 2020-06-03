@@ -21,14 +21,10 @@
 module Wire.API.Team.SearchVisibility
   ( TeamSearchVisibility (..),
     TeamSearchVisibilityView (..),
-    TeamSearchVisibilityAvailable (..),
-    TeamSearchVisibilityAvailableView (..),
 
     -- * Swagger
     modelTeamSearchVisibility,
-    modelTeamSearchVisibilityAvailable,
     typeSearchVisibility,
-    typeSearchVisibilityAvailable,
   )
 where
 
@@ -103,52 +99,3 @@ instance ToJSON TeamSearchVisibilityView where
 instance FromJSON TeamSearchVisibilityView where
   parseJSON = withObject "TeamSearchVisibilityView" $ \o ->
     TeamSearchVisibilityView <$> o .: "search_visibility"
-
---------------------------------------------------------------------------------
--- TeamSearchVisibilityAvailable
-
--- | Is the feature enabled for a given team?  See also 'FeatureTeamSearchVisibility',
--- 'TeamSearchVisibility'.
-data TeamSearchVisibilityAvailable
-  = TeamSearchVisibilityDisabled
-  | TeamSearchVisibilityEnabled
-  deriving stock (Eq, Show, Ord, Enum, Bounded, Generic)
-  deriving (Arbitrary) via (GenericUniform TeamSearchVisibilityAvailable)
-
-typeSearchVisibilityAvailable :: Doc.DataType
-typeSearchVisibilityAvailable =
-  Doc.string $
-    Doc.enum
-      [ "enabled",
-        "disabled"
-      ]
-
-instance ToJSON TeamSearchVisibilityAvailable where
-  toJSON TeamSearchVisibilityEnabled = "enabled"
-  toJSON TeamSearchVisibilityDisabled = "disabled"
-
-instance FromJSON TeamSearchVisibilityAvailable where
-  parseJSON = withText "TeamSearchVisibilityEnabled" $ \case
-    "enabled" -> pure TeamSearchVisibilityEnabled
-    "disabled" -> pure TeamSearchVisibilityDisabled
-    x -> fail $ "unexpected status type: " <> T.unpack x
-
---------------------------------------------------------------------------------
--- TeamSearchVisibilityAvailableView
-
-newtype TeamSearchVisibilityAvailableView = TeamSearchVisibilityAvailableView TeamSearchVisibilityAvailable
-  deriving stock (Eq, Show, Generic)
-  deriving newtype (Arbitrary)
-
-modelTeamSearchVisibilityAvailable :: Doc.Model
-modelTeamSearchVisibilityAvailable = Doc.defineModel "TeamSearchVisibilityAvailable" $ do
-  Doc.description "Configuration of Search Visibility feature for team"
-  Doc.property "status" typeSearchVisibilityAvailable $ do
-    Doc.description "status"
-
-instance ToJSON TeamSearchVisibilityAvailableView where
-  toJSON (TeamSearchVisibilityAvailableView s) = object ["status" .= s]
-
-instance FromJSON TeamSearchVisibilityAvailableView where
-  parseJSON = withObject "TeamSearchVisibilityAvailableView" $ \o ->
-    TeamSearchVisibilityAvailableView <$> o .: "status"

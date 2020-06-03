@@ -30,7 +30,6 @@ import Bilge.Assert hiding (assert)
 import qualified Brig.Options as Opts
 import qualified Brig.Types.Code as Code
 import Brig.Types.Intra
-import Brig.Types.Team.LegalHold (LegalHoldStatus (..))
 import Brig.Types.User
 import Brig.Types.User.Auth
 import qualified Brig.Types.User.Auth as Auth
@@ -60,6 +59,7 @@ import Test.Tasty.HUnit
 import qualified Test.Tasty.HUnit as HUnit
 import UnliftIO.Async hiding (wait)
 import Util
+import Wire.API.Team.Feature (TeamFeatureStatus (..))
 
 tests :: Opts.Opts -> Manager -> ZAuth.Env -> Brig -> Galley -> Nginz -> TestTree
 tests conf m z b g n =
@@ -165,7 +165,7 @@ testNginzLegalHold :: Brig -> Galley -> Nginz -> Http ()
 testNginzLegalHold b g n = do
   -- create team user Alice
   (alice, tid) <- createUserWithTeam b
-  putLegalHoldEnabled tid LegalHoldEnabled g -- enable it for this team
+  putLegalHoldEnabled tid TeamFeatureEnabled g -- enable it for this team
   rs <-
     legalHoldLogin b (LegalHoldLogin alice (Just defPassword) Nothing) PersistentCookie
       <!! const 200 === statusCode
@@ -396,7 +396,7 @@ testTeamUserLegalHoldLogin brig galley = do
   -- fail if legalhold isn't activated yet for this user
   legalHoldLogin brig (LegalHoldLogin alice (Just defPassword) Nothing) PersistentCookie !!! do
     const 403 === statusCode
-  putLegalHoldEnabled tid LegalHoldEnabled galley -- enable it for this team
+  putLegalHoldEnabled tid TeamFeatureEnabled galley -- enable it for this team
   _rs <-
     legalHoldLogin brig (LegalHoldLogin alice (Just defPassword) Nothing) PersistentCookie
       <!! const 200 === statusCode
@@ -568,7 +568,7 @@ testTokenMismatch z brig galley = do
     const (Just "Token mismatch") =~= responseBody
   -- try refresh with a regular AccessToken but a LegalHoldUserCookie
   (alice, tid) <- createUserWithTeam brig
-  putLegalHoldEnabled tid LegalHoldEnabled galley -- enable it for this team
+  putLegalHoldEnabled tid TeamFeatureEnabled galley -- enable it for this team
   _rs <- legalHoldLogin brig (LegalHoldLogin alice (Just defPassword) Nothing) PersistentCookie
   let c' = decodeCookie _rs
   t' <- toByteString' <$> runZAuth z (randomAccessToken @ZAuth.User @ZAuth.Access)
@@ -840,7 +840,7 @@ prepareLegalHoldUser :: Brig -> Galley -> Http (UserId)
 prepareLegalHoldUser brig galley = do
   (uid, tid) <- createUserWithTeam brig
   -- enable it for this team - without that, legalhold login will fail.
-  putLegalHoldEnabled tid LegalHoldEnabled galley
+  putLegalHoldEnabled tid TeamFeatureEnabled galley
   return uid
 
 decodeCookie :: HasCallStack => Response a -> Http.Cookie

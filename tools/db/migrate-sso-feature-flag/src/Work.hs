@@ -32,11 +32,11 @@ import qualified Data.Conduit.List as C
 import Data.Id
 import Data.Misc
 import Galley.Data.Instances ()
-import Galley.Types.Teams.SSO
 import Imports
 import System.Logger (Logger)
 import qualified System.Logger as Log
 import UnliftIO.Async (pooledMapConcurrentlyN)
+import Wire.API.Team.Feature
 
 deriving instance Cql Name
 
@@ -63,10 +63,10 @@ getSsoTeams = paginateC cql (paramsP Quorum () pageSize) x5
     cql = "select team from idp"
 
 writeSsoFlags :: [TeamId] -> Client ()
-writeSsoFlags = mapM_ (`setSSOTeamConfig` (SSOTeamConfig SSOEnabled))
+writeSsoFlags = mapM_ (`setSSOTeamConfig` TeamFeatureEnabled)
   where
-    setSSOTeamConfig :: MonadClient m => TeamId -> SSOTeamConfig -> m ()
-    setSSOTeamConfig tid SSOTeamConfig {ssoTeamConfigStatus} = do
+    setSSOTeamConfig :: MonadClient m => TeamId -> TeamFeatureStatus -> m ()
+    setSSOTeamConfig tid ssoTeamConfigStatus = do
       retry x5 $ write updateSSOTeamConfig (params Quorum (ssoTeamConfigStatus, tid))
-    updateSSOTeamConfig :: PrepQuery W (SSOStatus, TeamId) ()
+    updateSSOTeamConfig :: PrepQuery W (TeamFeatureStatus, TeamId) ()
     updateSSOTeamConfig = "update team_features set sso_status = ? where team_id = ?"

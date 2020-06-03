@@ -452,27 +452,19 @@ sitemap = do
 
   -- Team Feature Flag API ----------------------------------------------
 
-  get "/teams/:tid/features/legalhold" (continue Teams.getLegalholdStatusH) $
+  get "/teams/:tid/features/:feature" (continue Teams.getFeatureStatusH) $
     zauthUserId
       .&. capture "tid"
+      .&. capture "feature"
       .&. accept "application" "json"
-  document "GET" "getLegalholdStatus" $ do
-    summary "Shows whether the LegalHold feature is enabled for team"
+  document "GET" "getTeamFeature" $ do
+    summary "Shows whether a feature is enabled for a team"
     parameter Path "tid" bytes' $
       description "Team ID"
-    returns (ref Public.modelLegalHoldTeamConfig)
-    response 200 "LegalHold status" end
-
-  get "/teams/:tid/features/sso" (continue Teams.getSSOStatusH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. accept "application" "json"
-  document "GET" "getSSOStatus" $ do
-    summary "Shows whether SSO feature is enabled for team"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    returns (ref Public.modelSsoTeamConfig)
-    response 200 "SSO status" end
+    parameter Path "feature" Public.typeFeatureName $
+      description "Feature name"
+    returns (ref Public.modelTeamFeatureStatus)
+    response 200 "Team feature status" end
 
   -- Custom Backend API -------------------------------------------------
 
@@ -485,17 +477,6 @@ sitemap = do
       description "URL-encoded email domain"
     returns (ref Public.modelCustomBackend)
     response 200 "Custom backend" end
-
-  get "/teams/:tid/features/search-visibility" (continue Teams.getTeamSearchVisibilityAvailableH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. accept "application" "json"
-  document "GET" "getTeamSearchVisibilityAvailable" $ do
-    summary "Shows whether Custom Search Visibility feature is enabled for team"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    returns (ref Public.modelTeamSearchVisibilityAvailable)
-    response 200 "Search Visibility status" end
 
   -- Bot API ------------------------------------------------------------
 

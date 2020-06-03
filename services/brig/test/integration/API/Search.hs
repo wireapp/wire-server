@@ -46,6 +46,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import UnliftIO (Concurrently (..), runConcurrently)
 import Util
+import Wire.API.Team.Feature (TeamFeatureStatus (..))
 
 tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree
 tests opts mgr galley brig = do
@@ -89,7 +90,7 @@ tests opts mgr galley brig = do
     prepareUsersForSearchVisibilityNoNameOutsideTeamTests :: Http ((TeamId, User, User), (TeamId, User, User), User)
     prepareUsersForSearchVisibilityNoNameOutsideTeamTests = do
       (tidA, ownerA, (memberA : _)) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
-      setTeamTeamSearchVisibilityAvailable galley tidA Team.TeamSearchVisibilityEnabled
+      setTeamTeamSearchVisibilityAvailable galley tidA TeamFeatureEnabled
       setTeamSearchVisibility galley tidA Team.SearchVisibilityNoNameOutsideTeam
       (tidB, ownerB, (memberB : _)) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
       regularUser <- randomUserWithHandle brig

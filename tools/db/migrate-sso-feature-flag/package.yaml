@@ -36,6 +36,7 @@ dependencies:
 - types-common
 - unliftio
 - uuid
+- wire-api
 executables:
   migrate-sso-feature-flag:
     main: Main.hs

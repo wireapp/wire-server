@@ -28,11 +28,11 @@ import Data.ByteString.Conversion
 import Data.Id (TeamId, UserId)
 import Data.String.Conversions
 import Galley.Types.Teams
-import Galley.Types.Teams.SSO
 import Imports
 import Network.HTTP.Types (status403)
 import Network.HTTP.Types.Method
 import Spar.Error
+import Wire.API.Team.Feature (TeamFeatureStatus (..))
 
 ----------------------------------------------------------------------
 
@@ -84,6 +84,6 @@ assertSSOEnabled tid = do
         . paths ["i", "teams", toByteString' tid, "features", "sso"]
   unless (statusCode resp == 200) $
     throwSpar (SparGalleyError "Could not retrieve SSO config")
-  SSOTeamConfig status <- parseResponse resp
-  unless (status == SSOEnabled) $
+  status <- parseResponse resp
+  unless (status == TeamFeatureEnabled) $
     throwSpar SparSSODisabled

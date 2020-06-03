@@ -30,9 +30,9 @@ import Galley.Types
 import Galley.Types.Bot ()
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
-import Galley.Types.Teams.SSO
 import Galley.Types.Teams.SearchVisibility
 import Imports
+import qualified Wire.API.Team.Feature as Public
 
 deriving instance Cql MutedStatus
 
@@ -125,29 +125,17 @@ instance Cql TeamStatus where
     n -> fail $ "unexpected team-status: " ++ show n
   fromCql _ = fail "team-status: int expected"
 
-instance Cql SSOStatus where
+instance Cql Public.TeamFeatureStatus where
   ctype = Tagged IntColumn
 
   fromCql (CqlInt n) = case n of
-    0 -> pure $ SSODisabled
-    1 -> pure $ SSOEnabled
-    _ -> fail "fromCql: Invalid SSOStatus"
-  fromCql _ = fail "fromCql: SSOStatus: CqlInt expected"
+    0 -> pure $ Public.TeamFeatureDisabled
+    1 -> pure $ Public.TeamFeatureEnabled
+    _ -> fail "fromCql: Invalid TeamFeatureStatus"
+  fromCql _ = fail "fromCql: TeamFeatureStatus: CqlInt expected"
 
-  toCql SSODisabled = CqlInt 0
-  toCql SSOEnabled = CqlInt 1
-
-instance Cql TeamSearchVisibilityAvailable where
-  ctype = Tagged IntColumn
-
-  fromCql (CqlInt n) = case n of
-    0 -> pure $ TeamSearchVisibilityDisabled
-    1 -> pure $ TeamSearchVisibilityEnabled
-    _ -> fail "fromCql: Invalid TeamSearchVisibilityAvailable"
-  fromCql _ = fail "fromCql: TeamSearchVisibilityAvailable: CqlInt expected"
-
-  toCql TeamSearchVisibilityDisabled = CqlInt 0
-  toCql TeamSearchVisibilityEnabled = CqlInt 1
+  toCql Public.TeamFeatureDisabled = CqlInt 0
+  toCql Public.TeamFeatureEnabled = CqlInt 1
 
 instance Cql TeamSearchVisibility where
   ctype = Tagged IntColumn
