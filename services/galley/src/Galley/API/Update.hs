@@ -435,7 +435,7 @@ joinConversation zusr zcon cnv access = do
   zusrMembership <- maybe (pure Nothing) (`Data.teamMember` zusr) (Data.convTeam conv)
   ensureAccessRole (Data.convAccessRole conv) [(zusr, zusrMembership)]
   let newUsers = filter (notIsMember conv . Local) [zusr]
-  ensureMemberLimit (toList $ Data.convMembers conv) (makeIdOpaque <$> newUsers)
+  ensureMemberLimit (toList $ Data.convMembers conv) (Local <$> newUsers)
   -- NOTE: When joining conversations, all users become members
   -- as this is our desired behavior for these types of conversations
   -- where there is no way to control who joins, etc.
@@ -776,7 +776,7 @@ addBot zusr zcon b = do
       ensureGroupConv c
       ensureActionAllowed AddConversationMember =<< getSelfMember zusr users
       unless (any ((== b ^. addBotId) . botMemId) bots) $
-        ensureMemberLimit (toList $ Data.convMembers c) [makeIdOpaque (botUserId (b ^. addBotId))]
+        ensureMemberLimit (toList $ Data.convMembers c) [Local (botUserId (b ^. addBotId))]
       return (bots, users)
     teamConvChecks cid tid = do
       tcv <- Data.teamConversation tid cid
@@ -830,8 +830,7 @@ ensureGroupConv c = case Data.convType c of
   ConnectConv -> throwM invalidConnectOp
   _ -> return ()
 
--- TODO(mheinzel): probably shouldn't be fully polymorphic?
-ensureMemberLimit :: [Member] -> [a] -> Galley ()
+ensureMemberLimit :: [Member] -> [MappedOrLocalId Id.U] -> Galley ()
 ensureMemberLimit old new = do
   o <- view options
   let maxSize = fromIntegral (o ^. optSettings . setMaxConvSize)
