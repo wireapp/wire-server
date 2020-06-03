@@ -203,14 +203,12 @@ instance ToSchema MockViewLegalHoldServiceStatus where
       opts = defaultSchemaOptions {constructorTagModifier = camelToUnderscore}
 
 instance ToSchema ViewLegalHoldServiceInfo where
-  {-
-  
+  {- please don't put empty lines here: https://github.com/tweag/ormolu/issues/603
   -- FUTUREWORK: The generic instance uses a reference to the UUID type in TeamId.  This
   -- leads to perfectly valid swagger output, but 'validateEveryToJSON' chokes on it
   -- (unknown schema "UUID").  In order to be able to run those tests, we construct the
   -- 'ToSchema' instance manually.
   -- See also: https://github.com/haskell-servant/servant-swagger/pull/104
-  
   declareNamedSchema = genericDeclareNamedSchema opts
     where
       opts = defaultSchemaOptions
@@ -220,7 +218,6 @@ instance ToSchema ViewLegalHoldServiceInfo where
             "viewLegalHoldServiceTeam"        -> "team_id"
             "viewLegalHoldServiceAuthToken"   -> "auth_token"
             "viewLegalHoldServiceKey"         -> "public_key"
-  
         }
   -}
   declareNamedSchema _ =
