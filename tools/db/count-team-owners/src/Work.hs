@@ -24,7 +24,6 @@ import Cassandra
 import Cassandra.Util
 import Conduit
 import Control.Lens (view)
-import Data.ByteString.Conversion
 import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as C
 import Data.Id
@@ -50,8 +49,7 @@ runCommand l galley = do
             Log.info l (Log.field "team members" (show (i * pageSize)))
               >> pure p
         )
-      -- .| C.concat
-      .| C.concatMap id --(filter isOwner)
+      .| C.concatMap id
       .| C.map (\(t, u, perm, wt) -> (t, u, perm, utctDay . writeTimeToUTC <$> wt))
       .| C.mapM
         ( \(t, u, perm, wt) -> do
@@ -60,18 +58,16 @@ runCommand l galley = do
             counterIncr (path . pack $ "month_teamuser_" <> take 12 (show wt)) stats
             pure (t, u, perm, wt)
         )
-      .| C.filter (\(t, u, perm, wt) -> isOwner perm)
-      -- .| C.map (\(t, u, _, wt) -> (t, u, writeTimeToUTC wt))
+      .| C.filter (\(_, _, perm, _) -> isOwner perm)
       .| C.mapM
-        ( \(t, u, perm, wt) -> do
+        ( \(_, _, _, wt) -> do
             counterIncr (path "teamowner") stats
             counterIncr (path . pack $ "teamowner_" <> show wt) stats
             counterIncr (path . pack $ "month_teamowner_" <> take 12 (show wt)) stats
-            pure t
+            pure ()
         )
       .| C.mapM_
-        ( \x -> pure ()
-          -- Log.info l (Log.field "..." (show (x)))
+        ( \_ -> pure ()
         )
 
   results <- P.exportMetricsAsText
