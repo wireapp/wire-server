@@ -461,7 +461,7 @@ sitemap = do
     summary "Shows whether a feature is enabled for a team"
     parameter Path "tid" bytes' $
       description "Team ID"
-    parameter Path "feature" Public.typeFeatureName $
+    parameter Path "feature" Public.typeTeamFeatureName $
       description "Feature name"
     returns (ref Public.modelTeamFeatureStatus)
     response 200 "Team feature status" end
