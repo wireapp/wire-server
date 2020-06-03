@@ -20,10 +20,11 @@
 module Galley.API.Mapping where
 
 import Control.Monad.Catch
-import Data.ByteString.Conversion
+import Data.Id (idToText)
 import qualified Data.Id as Id
-import Data.IdMapping (MappedOrLocalId, opaqueIdFromMappedOrLocal)
+import Data.IdMapping (IdMapping (IdMapping, idMappingGlobal, idMappingLocal), MappedOrLocalId (Local, Mapped), opaqueIdFromMappedOrLocal)
 import qualified Data.List as List
+import Data.Qualified (renderQualifiedId)
 import Galley.App
 import qualified Galley.Data as Data
 import qualified Galley.Types.Conversations.Members as Internal
@@ -52,10 +53,15 @@ conversationView u Data.Conversation {..} = do
     memberNotFound = do
       Log.err . msg $
         val "User "
-          +++ toByteString (opaqueIdFromMappedOrLocal u)
+          +++ showUserId u
           +++ val " is not a member of conv "
-          +++ toByteString convId
+          +++ idToText convId
       throwM badState
+    showUserId = \case
+      Local localId ->
+        idToText localId <> " (local)"
+      Mapped IdMapping {idMappingLocal, idMappingGlobal} ->
+        idToText idMappingLocal <> " (" <> renderQualifiedId idMappingGlobal <> ")"
     badState = Error status500 "bad-state" "Bad internal member state."
 
 toMember :: Internal.Member -> Public.Member
