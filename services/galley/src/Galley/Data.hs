@@ -696,7 +696,7 @@ toMappedOrLocalId = \case
   (Id localId, Nothing, Nothing) ->
     Local (Id localId)
   (Id localId, _, _) ->
-    -- TODO: this should be an error
+    -- TODO(mheinzel): this should be an error
     Local (Id localId)
 
 fromMappedOrLocalId :: MappedOrLocalId a -> (Id (Opaque a), Maybe (Id (Remote a)), Maybe Domain)

@@ -207,14 +207,17 @@ botsAndUsers :: Foldable t => t Member -> ([BotMember], [Member])
 botsAndUsers = foldMap fn
   where
     fn m = case memService m of
-      Just _ -> (toList (mkBotMember m), []) -- TODO: we drop invalid bots here, which shouldn't happen
-      Nothing -> ([], [m])
+      Just _ ->
+        -- TODO(mheinzel): we drop invalid bots here, which shouldn't happen
+        (toList (mkBotMember m), [])
+      Nothing ->
+        ([], [m])
     mkBotMember :: Member -> Maybe BotMember
     mkBotMember m = case memId m of
-      Mapped _ -> Nothing -- remote members can't be bots
+      Mapped _ ->
+        Nothing -- remote members can't be bots
       Local localMemId ->
-        let m' = m {memId = localMemId} :: LocalMember
-         in newBotMember m'
+        newBotMember (m {memId = localMemId} :: LocalMember)
 
 location :: ToByteString a => a -> Response -> Response
 location = addHeader hLocation . toByteString'
