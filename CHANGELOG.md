@@ -1,7 +1,33 @@
-# Next release
+# 2020-06-03
 
-* This release fixes a bug with searching. To get this fix, a new elasticsearch index must be used. 
+## Release Notes
+
+* This release fixes a bug with searching. To get this fix, a new elasticsearch index must be used.
   The steps for doing this migration can be found in [./docs/reference/elastic-search.md](./docs/reference/elastic-search.md#migrate-to-a-new-index)
+  Alternatively the same index can be recreated instead, this will cause downtime.
+  The steps for the recreation can be found in [./docs/reference/elastic-search.md](./docs/reference/elastic-search.md#recreate-an-index-requires-downtime)
+
+## New Features
+
+* Customer Extensions (not documented, disabled by default, use at your own risk, [details](https://github.com/wireapp/wire-server/blob/3a21a82a1781f0d128f503df6a705b0b5f733d7b/services/brig/src/Brig/Options.hs#L465-L504)) (#1108)
+* Upgrade emails to the latest version: small change in the footer (#1106)
+* Add new "team event queue" and send MemberJoin events on it (#1097, #1115)
+* Change maxTeamSize to Word32 to allow for larger teams (#1105)
+
+## Bug fixes
+
+* Implement better prefix search for name/handle (#1052, #1124)
+* Base64 encode error details in HTML presented by Spar. (#1120)
+* Bump schemaVersion for Brig and Galley (#1118)
+
+## Internal Changes
+
+* Copy swagger-ui bundle to nginz conf for integration tests (#1121)
+* Use wire-api types in public endpoints (galley, brig, gundeck, cargohold) (#1114, #1116, #1117)
+* wire-api: extend generic Arbitrary instances with implementation for 'shrink' (#1111)
+* api-client: depend on wire-api only (#1110)
+* Move and add wire-api JSON roundtrip tests (#1098)
+* Spar tests cleanup (#1100)
 
 # 2020-05-15
 
