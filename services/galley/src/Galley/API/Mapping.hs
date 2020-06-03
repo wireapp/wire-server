@@ -56,7 +56,6 @@ conversationView u Data.Conversation {..} = do
           +++ showUserId u
           +++ val " is not a member of conv "
           +++ idToText convId
-          +++ show (showUserId . Internal.memId <$> toList convMembers)
       throwM badState
     showUserId = \case
       Local localId ->
