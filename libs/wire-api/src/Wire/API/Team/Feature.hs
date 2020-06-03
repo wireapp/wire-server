@@ -20,10 +20,12 @@
 
 module Wire.API.Team.Feature
   ( TeamFeatureName (..),
-    typeFeatureName,
     TeamFeatureStatus (..),
+
+    -- * Swagger
     modelTeamFeatureStatus,
-    typeFeatureStatus,
+    typeTeamFeatureName,
+    typeTeamFeatureStatus,
   )
 where
 
@@ -57,8 +59,8 @@ instance ToByteString TeamFeatureName where
   builder TeamFeatureSSO = "sso"
   builder TeamFeatureSearchVisibility = "search-visibility"
 
-typeFeatureName :: Doc.DataType
-typeFeatureName =
+typeTeamFeatureName :: Doc.DataType
+typeTeamFeatureName =
   Doc.string $
     Doc.enum
       [ "legalhold",
@@ -73,10 +75,10 @@ data TeamFeatureStatus = TeamFeatureEnabled | TeamFeatureDisabled
 modelTeamFeatureStatus :: Doc.Model
 modelTeamFeatureStatus = Doc.defineModel "TeamFeatureStatus" $ do
   Doc.description "Configuration of a feature for a team"
-  Doc.property "status" typeFeatureStatus $ Doc.description "status"
+  Doc.property "status" typeTeamFeatureStatus $ Doc.description "status"
 
-typeFeatureStatus :: Doc.DataType
-typeFeatureStatus =
+typeTeamFeatureStatus :: Doc.DataType
+typeTeamFeatureStatus =
   Doc.string $
     Doc.enum
       [ "enabled",
