@@ -677,8 +677,9 @@ newMessage usr con cnv msg now (m, c, t) ~(toBots, toUsers) =
             otrCiphertext = t,
             otrData = newOtrData msg
           }
-      -- TODO(mheinzel)
-      conv = fromMaybe (selfConv $ undefined memId m) cnv -- use recipient's client's self conversation on broadcast
+      -- use recipient's client's self conversation on broadcast
+      -- (with federation, this might not work for remote members)
+      conv = fromMaybe (selfConv $ memId m) cnv
       e = Event OtrMessageAdd conv usr now (Just $ EdOtrMessage o)
       r = recipient (Local <$> m) & recipientClients .~ (RecipientClientsSome $ singleton c)
    in case newBotMember m of
