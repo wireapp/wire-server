@@ -72,7 +72,9 @@ Subcommand `reindex-if-same-or-newer` can be used instead of `reindex`, if you w
 
 This is needed if we want to migrate to a new index. It could be for updating
 analysis settings or to change any other settings on the index which cannot be
-done without restarting the index.
+done without restarting the index. Analysis settings can also be updated by
+recreating the index. Recreating the index is simpler to do, but requires
+downtime, the process is documented [below](#recreate-an-index-requires-downtime)
 
 This can be done in 4 steps:
 
@@ -110,7 +112,7 @@ REFRESH_INTERVAL=<REFRESH_INTERVAL_FOR_THE_INDEX>
 
 Now you can delete the old index.
 
-## Recreate an index
+## Recreate an index (Requires downtime)
 
 When analysis settings of an index need to be changed, e.g. for changes
 introduced in [#1052](https://github.com/wireapp/wire-server/pull/1052),
@@ -129,14 +131,23 @@ ES_HOST=<YOUR_HOST>
 ES_PORT=<YOUR_PORT> # default is 9200
 ES_INDEX=<INDEX_NAME_ALREADY_IN_USE>
 ```
-1. Delete the old index and the migrations index
-   ```bash
-   curl -XDELETE http://$ES_HOST:$ES_PORT/$ES_INDEX
-   curl -XDELETE http://$ES_HOST:$ES_PORT/wire_brig_migrations
-   ```
-1. Redeploy wire-server using the helm chart.
 
-If you're not using the helm charts, you can also do this:
+### Step 1: Delete the old index
+```bash
+curl -XDELETE http://$ES_HOST:$ES_PORT/$ES_INDEX
+curl -XDELETE http://$ES_HOST:$ES_PORT/wire_brig_migrations
+```
+
+### Step 2: Recreate the index
+
+#### When using helm charts from [wire-server-deploy](https://github.com/wireapp/wire-server-deploy)
+
+Just redeploy the helm chart, new index will be created and after the deployment
+data migrations will refill the index with users.
+
+
+#### When not using helm charts from [wire-server-deploy](https://github.com/wireapp/wire-server-deploy)
+
 Set these extra environment variables:
 ```bash
 WIRE_VERSION=<VERSION_YOU_ARE_DEPLOYING>
