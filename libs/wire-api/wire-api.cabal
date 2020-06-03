@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e86154ca496caaeb488bd2810630f53757421d25b05d746b86024ee7224c49ff
+-- hash: b89d6631f18653ec03e69a4a98f3c9f791e886de9a485772e9bff78fbf8a1fc4
 
 name:           wire-api
 version:        0.1.0
@@ -121,7 +121,8 @@ test-suite wire-api-tests
   main-is: Main.hs
   other-modules:
       Test.Wire.API.Call.TURN
-      Test.Wire.API.Roundtrip
+      Test.Wire.API.Roundtrip.Aeson
+      Test.Wire.API.Roundtrip.ByteString
       Test.Wire.API.Team.Member
       Test.Wire.API.User
       Test.Wire.API.User.RichInfo
@@ -134,6 +135,7 @@ test-suite wire-api-tests
       aeson >=0.6
     , aeson-qq
     , base
+    , bytestring-conversion
     , containers >=0.5
     , imports
     , lens

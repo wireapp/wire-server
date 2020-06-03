@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Wire.API.Roundtrip (tests) where
+module Test.Wire.API.Roundtrip.Aeson (tests) where
 
 import Data.Aeson (FromJSON, ToJSON, parseJSON, toJSON)
 import Data.Aeson.Types (parseEither)
