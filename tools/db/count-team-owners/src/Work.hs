@@ -24,11 +24,17 @@ import Cassandra
 import Cassandra.Util
 import Conduit
 import Control.Lens (view)
+import Data.ByteString.Conversion
+import qualified Data.ByteString.Lazy as BL
 import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as C
 import Data.Id
+import Data.Metrics
 import qualified Data.Set as Set
 import Data.Set (Set)
+import Data.Text (pack)
+import Data.Time.Calendar.Compat
+import Data.Time.Clock
 import Galley.Types.Teams
 import Imports
 import qualified Prometheus as P
@@ -37,6 +43,8 @@ import qualified System.Logger as Log
 
 runCommand :: Logger -> ClientState -> IO ()
 runCommand l galley = do
+  stats <- metrics
+  -- P.re
   res <-
     runConduit $
       zipSources
@@ -47,29 +55,33 @@ runCommand l galley = do
               Log.info l (Log.field "team members" (show (i * pageSize)))
                 >> pure p
           )
-        .| C.concatMap (filter isOwner)
-        .| C.map (\(t, u, _, wt) -> (t, u, (writeTimeToUTC wt)))
-        .| foldlC foo2 initfoo
-  -- .| C.mapAccum foo (0 :: Int32)
+        -- .| C.concat
+        .| C.concatMap id --(filter isOwner)
+        .| C.map (\(t, u, perm, wt) -> (t, u, perm, utctDay $ writeTimeToUTC wt))
+        .| C.mapM
+          ( \(t, u, perm, wt) -> do
+              counterIncr (path "teamuser") stats
+              counterIncr (path . pack $ "teamuser_" <> show wt) stats
+              counterIncr (path . pack $ "teamuser_" <> take 7 (show wt)) stats
+              pure (t, u, perm, wt)
+          )
+        .| C.filter (\(t, u, perm, wt) -> isOwner perm)
+        -- .| C.map (\(t, u, _, wt) -> (t, u, writeTimeToUTC wt))
+        .| C.mapM
+          ( \(t, u, perm, wt) -> do
+              counterIncr (path "teamowner") stats
+              counterIncr (path . pack $ "teamowner_" <> show wt) stats
+              counterIncr (path . pack $ "teamowner_" <> take 7 (show wt)) stats
+              -- counterIncr (path . pack $ "teamowner_" <> take 10 (show wt)) stats
+              pure t
+          )
+        .| C.mapM_
+          ( \x -> pure ()
+            -- Log.info l (Log.field "..." (show (x)))
+          )
 
-  Log.info l (Log.field "res" (show res))
-
--- .| C.mapM_
---   ( \x ->
---       Log.info l (Log.field "..." (show (x)))
---   )
---
---
--- TODO: libs/metrics-core/src/Data/Metrics.hs
--- https://hackage.haskell.org/package/prometheus-client-1.0.0.1/docs/Prometheus.html
-
-foo2 :: Accumulator -> row -> Accumulator
-foo2 xs x = undefined
-
-initfoo :: Accumulator
-initfoo = 0
-
-type Accumulator = Int32
+  results <- P.exportMetricsAsText
+  Log.info l (Log.field "res" results)
 
 pageSize :: Int32
 pageSize = 1000
@@ -84,8 +96,8 @@ getTeamMembers = paginateC cql (paramsP Quorum () pageSize) x5
     cql :: PrepQuery R () TeamRow
     cql = "SELECT team, user, perms, writetime(perms) FROM team_member"
 
-isOwner :: TeamRow -> Bool
-isOwner (_, _, Just p, _) = SetBilling `Set.member` view self p
+isOwner :: Maybe Permissions -> Bool
+isOwner (Just p) = SetBilling `Set.member` view self p
 isOwner _ = False
 
 type TeamRow = (TeamId, UserId, Maybe Permissions, Int64)

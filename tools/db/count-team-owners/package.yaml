@@ -28,6 +28,11 @@ dependencies:
 - types-common
 - unliftio
 - conduit
+- metrics-core
+- bytestring
+- bytestring-conversion
+- time
+- time-compat
 executables:
   count-team-owners:
     main: Main.hs

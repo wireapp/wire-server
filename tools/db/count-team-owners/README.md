@@ -1,6 +1,6 @@
-## billing_team_member backfill
+## count-team-owners
 
-A tool for filling table `billing_team_member` from existing data.
+A tool for displaying some information about team users & team owners.
 
 ### How to run this
 
@@ -10,5 +10,7 @@ export GALLEY_KEYSPACE=galley
 
 ssh -v -f ubuntu@${GALLEY_HOST} -L 2021:${GALLEY_HOST}:9042 -N
 
-./dist/count-team-owners --cassandra-host-galley=localhost --cassandra-port-galley=2021 --cassandra-keyspace-galley=${GALLEY_KEYSPACE}
+./dist/count-team-owners --cassandra-host-galley=localhost --cassandra-port-galley=2021 --cassandra-keyspace-galley=${GALLEY_KEYSPACE} > results.txt
+
+cat results.txt | grep -v '#' | sort
 ```

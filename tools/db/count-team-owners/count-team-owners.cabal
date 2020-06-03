@@ -42,4 +42,9 @@ executable count-team-owners
     , uuid
     , prometheus-client
     , wai-middleware-prometheus
+    , metrics-core
+    , bytestring
+    , bytestring-conversion
+    , time
+    , time-compat
   default-language: Haskell2010
