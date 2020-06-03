@@ -263,7 +263,7 @@ selectMembers :: PrepQuery R (Identity [ConvId]) (ConvId, OpaqueUserId, Maybe Re
 selectMembers = "select conv, user, user_remote_id, user_remote_domain, service, provider, status, otr_muted, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from member where conv in ?"
 
 insertMember :: PrepQuery W (ConvId, OpaqueUserId, Maybe RemoteUserId, Maybe Domain, Maybe ServiceId, Maybe ProviderId, RoleName) ()
-insertMember = "insert into member (conv, user, user_remote_id, user_remote_domain, service, provider, status, conversation_role) values (?, ?, ?, ?, 0, ?)"
+insertMember = "insert into member (conv, user, user_remote_id, user_remote_domain, service, provider, status, conversation_role) values (?, ?, ?, ?, ?, ?, 0, ?)"
 
 removeMember :: PrepQuery W (ConvId, OpaqueUserId) ()
 removeMember = "delete from member where conv = ? and user = ?"
