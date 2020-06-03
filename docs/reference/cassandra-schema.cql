@@ -175,6 +175,8 @@ CREATE TABLE galley_test.member (
     provider uuid,
     service uuid,
     status int,
+    user_remote_domain text,
+    user_remote_id uuid,
     PRIMARY KEY (conv, user)
 ) WITH CLUSTERING ORDER BY (user ASC)
     AND bloom_filter_fp_chance = 0.1
@@ -262,6 +264,8 @@ CREATE TABLE galley_test.meta (
 CREATE TABLE galley_test.user (
     user uuid,
     conv uuid,
+    conv_remote_domain text,
+    conv_remote_id uuid,
     PRIMARY KEY (user, conv)
 ) WITH CLUSTERING ORDER BY (conv ASC)
     AND bloom_filter_fp_chance = 0.1
