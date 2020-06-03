@@ -25,15 +25,12 @@ import Cassandra.Util
 import Conduit
 import Control.Lens (view)
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as BL
 import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as C
 import Data.Id
 import Data.Metrics
 import qualified Data.Set as Set
-import Data.Set (Set)
 import Data.Text (pack)
-import Data.Time.Calendar.Compat
 import Data.Time.Clock
 import Galley.Types.Teams
 import Imports
@@ -44,41 +41,38 @@ import qualified System.Logger as Log
 runCommand :: Logger -> ClientState -> IO ()
 runCommand l galley = do
   stats <- metrics
-  -- P.re
-  res <-
-    runConduit $
-      zipSources
-        (C.sourceList [(1 :: Int32) ..])
-        (transPipe (runClient galley) getTeamMembers)
-        .| C.mapM
-          ( \(i, p) ->
-              Log.info l (Log.field "team members" (show (i * pageSize)))
-                >> pure p
-          )
-        -- .| C.concat
-        .| C.concatMap id --(filter isOwner)
-        .| C.map (\(t, u, perm, wt) -> (t, u, perm, utctDay $ writeTimeToUTC wt))
-        .| C.mapM
-          ( \(t, u, perm, wt) -> do
-              counterIncr (path "teamuser") stats
-              counterIncr (path . pack $ "teamuser_" <> show wt) stats
-              counterIncr (path . pack $ "teamuser_" <> take 7 (show wt)) stats
-              pure (t, u, perm, wt)
-          )
-        .| C.filter (\(t, u, perm, wt) -> isOwner perm)
-        -- .| C.map (\(t, u, _, wt) -> (t, u, writeTimeToUTC wt))
-        .| C.mapM
-          ( \(t, u, perm, wt) -> do
-              counterIncr (path "teamowner") stats
-              counterIncr (path . pack $ "teamowner_" <> show wt) stats
-              counterIncr (path . pack $ "teamowner_" <> take 7 (show wt)) stats
-              -- counterIncr (path . pack $ "teamowner_" <> take 10 (show wt)) stats
-              pure t
-          )
-        .| C.mapM_
-          ( \x -> pure ()
-            -- Log.info l (Log.field "..." (show (x)))
-          )
+  runConduit $
+    zipSources
+      (C.sourceList [(1 :: Int32) ..])
+      (transPipe (runClient galley) getTeamMembers)
+      .| C.mapM
+        ( \(i, p) ->
+            Log.info l (Log.field "team members" (show (i * pageSize)))
+              >> pure p
+        )
+      -- .| C.concat
+      .| C.concatMap id --(filter isOwner)
+      .| C.map (\(t, u, perm, wt) -> (t, u, perm, utctDay $ writeTimeToUTC wt))
+      .| C.mapM
+        ( \(t, u, perm, wt) -> do
+            counterIncr (path "teamuser") stats
+            counterIncr (path . pack $ "teamuser_" <> show wt) stats
+            counterIncr (path . pack $ "teamuser_" <> take 7 (show wt)) stats
+            pure (t, u, perm, wt)
+        )
+      .| C.filter (\(t, u, perm, wt) -> isOwner perm)
+      -- .| C.map (\(t, u, _, wt) -> (t, u, writeTimeToUTC wt))
+      .| C.mapM
+        ( \(t, u, perm, wt) -> do
+            counterIncr (path "teamowner") stats
+            counterIncr (path . pack $ "teamowner_" <> show wt) stats
+            counterIncr (path . pack $ "teamowner_" <> take 7 (show wt)) stats
+            pure t
+        )
+      .| C.mapM_
+        ( \x -> pure ()
+          -- Log.info l (Log.field "..." (show (x)))
+        )
 
   results <- P.exportMetricsAsText
   Log.info l (Log.field "res" results)
