@@ -83,6 +83,9 @@ ES_PORT=<YOUR_PORT> # default is 9200
 ES_SRC_INDEX=<INDEX_NAME_ALREADY_IN_USE>
 ES_DEST_INDEX=<NEW_INDEX_NAME>
 WIRE_VERSION=<VERSION_YOU_ARE_DEPLOYING>
+SHARDS=<NUMBER_OF_SHARDS_FOR_THE_INDEX>
+REPLICAS=<NUMBER_OF_REPLICAS_FOR_THE_INDEX>
+REFRESH_INTERVAL=<REFRESH_INTERVAL_FOR_THE_INDEX>
 ```
 
 1. Create the new index (please fill out values in `<>` as required)
@@ -90,9 +93,9 @@ WIRE_VERSION=<VERSION_YOU_ARE_DEPLOYING>
    docker run "quay.io/wire/brig-index:$WIRE_VERSION" create \
        --elasticsearch-server "http://$ES_HOST:$ES_PORT" \
        --elasticsearch-index "$ES_DEST_INDEX" \
-       --elastcsearch-shards <SHARDS> \
-       --elastcsearch-replicas <REPLICAS> \
-       --elastcsearch-refresh-interval <REFRESH_INTERVAL> \
+       --elastcsearch-shards "$SHARDS" \
+       --elastcsearch-replicas "REPLICAS" \
+       --elastcsearch-refresh-interval "$REFRESH_INTERVAL"
    ```
 1. Redeploy brig with `elasticsearch.additionalWriteIndex` set to the name of new index. Make sure no old brigs are running.
 1. Reindex data to the new index
@@ -106,3 +109,48 @@ WIRE_VERSION=<VERSION_YOU_ARE_DEPLOYING>
 1. Redeploy brig without `elasticsearch.additionalWriteIndex` and with `elasticsearch.index` set to the name of new index
 
 Now you can delete the old index.
+
+## Recreate an index
+
+When analysis settings of an index need to be changed, e.g. for changes
+introduced in [#1052](https://github.com/wireapp/wire-server/pull/1052),
+it is not possible to keep the index running while the changes are applied.
+
+To tackle this, a wire-server operator must either migrate to a new index as
+documented [above](#migrate-to-a-new-index) or allow for some downtime. One
+might want to choose downtime for simplicity. These steps are especially simple
+to do when using [wire-server-deploy](https://github.com/wireapp/wire-server-deploy/).
+
+Here are the steps:
+
+Before starting, please set these environment variables
+```bash
+ES_HOST=<YOUR_HOST>
+ES_PORT=<YOUR_PORT> # default is 9200
+ES_INDEX=<INDEX_NAME_ALREADY_IN_USE>
+```
+1. Delete the old index and the migrations index
+   ```bash
+   curl -XDELETE http://$ES_HOST:$ES_PORT/$ES_INDEX
+   curl -XDELETE http://$ES_HOST:$ES_PORT/wire_brig_migrations
+   ```
+1. Redeploy wire-server using the helm chart.
+
+If you're not using the helm charts, you can also do this:
+Set these extra environment variables:
+```bash
+WIRE_VERSION=<VERSION_YOU_ARE_DEPLOYING>
+SHARDS=<NUMBER_OF_SHARDS_FOR_THE_INDEX>
+REPLICAS=<NUMBER_OF_REPLICAS_FOR_THE_INDEX>
+REFRESH_INTERVAL=<REFRESH_INTERVAL_FOR_THE_INDEX>
+```
+1. Create the index
+   ```bash
+   docker run "quay.io/wire/brig-index:$WIRE_VERSION" create \
+       --elasticsearch-server "http://$ES_HOST:$ES_PORT" \
+       --elasticsearch-index "$ES_INDEX" \
+       --elastcsearch-shards "$SHARDS" \
+       --elastcsearch-replicas "$REPLICAS" \
+       --elastcsearch-refresh-interval "$REFRESH_INTERVAL"
+   ```
+1. Refill the index as documented [above](#refill-es-documents-from-cassandra)
