@@ -42,6 +42,7 @@ import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
 import qualified Galley.Data.LegalHold as LegalHoldData
+import qualified Galley.Data.TeamFeatures as TeamFeatures
 import qualified Galley.External.LegalHoldService as LHService
 import qualified Galley.Intra.Client as Client
 import Galley.Types.Teams as Team
@@ -60,7 +61,7 @@ assertLegalHoldEnabled tid = unlessM (isLegalHoldEnabled tid) $ throwM legalHold
 
 isLegalHoldEnabled :: TeamId -> Galley Bool
 isLegalHoldEnabled tid = do
-  lhConfig <- LegalHoldData.getLegalHoldTeamConfig tid
+  lhConfig <- TeamFeatures.getFlag tid Public.TeamFeatureLegalHold
   return $ case lhConfig of
     Just Public.TeamFeatureEnabled -> True
     Just Public.TeamFeatureDisabled -> False
