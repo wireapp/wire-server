@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 94b75597d882804638d7c8f51b2a63a1a43318937ebe569d6d5f4b28fa54a2a6
+-- hash: e86154ca496caaeb488bd2810630f53757421d25b05d746b86024ee7224c49ff
 
 name:           wire-api
 version:        0.1.0
@@ -74,7 +74,7 @@ library
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
-      QuickCheck >=2.9
+      QuickCheck >=2.14
     , aeson >=0.6
     , attoparsec >=0.10
     , base >=4 && <5
@@ -89,6 +89,7 @@ library
     , errors
     , exceptions >=0.10.0
     , extra
+    , generic-random >=1.2
     , hashable
     , hostname-validate
     , imports
@@ -120,8 +121,10 @@ test-suite wire-api-tests
   main-is: Main.hs
   other-modules:
       Test.Wire.API.Call.TURN
-      Test.Wire.API.Team
+      Test.Wire.API.Roundtrip
+      Test.Wire.API.Team.Member
       Test.Wire.API.User
+      Test.Wire.API.User.RichInfo
       Paths_wire_api
   hs-source-dirs:
       test/unit
@@ -135,7 +138,9 @@ test-suite wire-api-tests
     , imports
     , lens
     , tasty
+    , tasty-expected-failure
     , tasty-hunit
     , tasty-quickcheck
+    , types-common >=0.16
     , wire-api
   default-language: Haskell2010

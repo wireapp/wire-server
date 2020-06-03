@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -47,6 +48,9 @@ module Wire.API.Conversation
     ConversationReceiptModeUpdate (..),
     ConversationMessageTimerUpdate (..),
 
+    -- * re-exports
+    module Wire.API.Conversation.Member,
+
     -- * Swagger
     modelConversation,
     modelConversations,
@@ -72,6 +76,8 @@ import Data.Misc
 import Data.String.Conversions (cs)
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
+import qualified Test.QuickCheck as QC
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Conversation.Member
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
 
@@ -95,7 +101,8 @@ data Conversation = Conversation
     cnvMessageTimer :: Maybe Milliseconds,
     cnvReceiptMode :: Maybe ReceiptMode
   }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Conversation)
 
 modelConversation :: Doc.Model
 modelConversation = Doc.defineModel "Conversation" $ do
@@ -153,7 +160,8 @@ modelConversations = Doc.defineModel "Conversations" $ do
 
 instance FromJSON Conversation where
   parseJSON = withObject "conversation" $ \o ->
-    Conversation <$> o .: "id"
+    Conversation
+      <$> o .: "id"
       <*> o .: "type"
       <*> o .: "creator"
       <*> o .: "access"
@@ -168,7 +176,8 @@ data ConversationList a = ConversationList
   { convList :: [a],
     convHasMore :: Bool
   }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform (ConversationList a))
 
 instance ToJSON a => ToJSON (ConversationList a) where
   toJSON (ConversationList l m) =
@@ -179,7 +188,8 @@ instance ToJSON a => ToJSON (ConversationList a) where
 
 instance FromJSON a => FromJSON (ConversationList a) where
   parseJSON = withObject "conversation-list" $ \o ->
-    ConversationList <$> o .: "conversations"
+    ConversationList
+      <$> o .: "conversations"
       <*> o .: "has_more"
 
 --------------------------------------------------------------------------------
@@ -195,7 +205,8 @@ data Access
     LinkAccess
   | -- | User can join knowing [changeable/revokable] code
     CodeAccess
-  deriving (Eq, Ord, Bounded, Enum, Show)
+  deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Access)
 
 typeAccess :: Doc.DataType
 typeAccess = Doc.string . Doc.enum $ cs . encode <$> [(minBound :: Access) ..]
@@ -229,7 +240,8 @@ data AccessRole
     ActivatedAccessRole
   | -- | No checks
     NonActivatedAccessRole
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform AccessRole)
 
 instance ToJSON AccessRole where
   toJSON PrivateAccessRole = String "private"
@@ -251,7 +263,8 @@ data ConvType
   | SelfConv
   | One2OneConv
   | ConnectConv
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConvType)
 
 typeConversationType :: Doc.DataType
 typeConversationType = Doc.int32 $ Doc.enum [0, 1, 2, 3]
@@ -278,7 +291,8 @@ instance FromJSON ConvType where
 --                              2 - send delivery ReceiptModes
 --                              ...
 newtype ReceiptMode = ReceiptMode {unReceiptMode :: Int32}
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show)
+  deriving newtype (Arbitrary)
 
 instance ToJSON ReceiptMode where
   toJSON = toJSON . unReceiptMode
@@ -323,7 +337,7 @@ create managed conversations anyway.
 -}
 
 newtype NewConvManaged = NewConvManaged NewConv
-  deriving (Eq, Show)
+  deriving stock (Eq, Show)
 
 instance ToJSON NewConvManaged where
   toJSON (NewConvManaged nc) = newConvToJSON nc
@@ -331,12 +345,16 @@ instance ToJSON NewConvManaged where
 instance FromJSON NewConvManaged where
   parseJSON v = do
     nc <- newConvParseJSON v
-    unless (maybe False cnvManaged (newConvTeam nc)) $
+    unless (newConvIsManaged nc) $
       fail "only managed conversations are allowed here"
     pure (NewConvManaged nc)
 
+instance Arbitrary NewConvManaged where
+  arbitrary =
+    NewConvManaged <$> (arbitrary `QC.suchThat` newConvIsManaged)
+
 newtype NewConvUnmanaged = NewConvUnmanaged NewConv
-  deriving (Eq, Show)
+  deriving stock (Eq, Show)
 
 -- | Used to describe a 'NewConvUnmanaged'.
 modelNewConversation :: Doc.Model
@@ -365,9 +383,13 @@ instance ToJSON NewConvUnmanaged where
 instance FromJSON NewConvUnmanaged where
   parseJSON v = do
     nc <- newConvParseJSON v
-    when (maybe False cnvManaged (newConvTeam nc)) $
+    when (newConvIsManaged nc) $
       fail "managed conversations have been deprecated"
     pure (NewConvUnmanaged nc)
+
+instance Arbitrary NewConvUnmanaged where
+  arbitrary =
+    NewConvUnmanaged <$> (arbitrary `QC.suchThat` (not . newConvIsManaged))
 
 data NewConv = NewConv
   { newConvUsers :: [OpaqueUserId],
@@ -380,14 +402,16 @@ data NewConv = NewConv
     -- | Every member except for the creator will have this role
     newConvUsersRole :: RoleName
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewConv)
 
-deriving instance Eq NewConv
-
-deriving instance Show NewConv
+newConvIsManaged :: NewConv -> Bool
+newConvIsManaged = maybe False cnvManaged . newConvTeam
 
 newConvParseJSON :: Value -> Parser NewConv
 newConvParseJSON = withObject "new-conv object" $ \i ->
-  NewConv <$> i .: "users"
+  NewConv
+    <$> i .: "users"
     <*> i .:? "name"
     <*> i .:? "access" .!= mempty
     <*> i .:? "access_role"
@@ -413,7 +437,8 @@ data ConvTeamInfo = ConvTeamInfo
   { cnvTeamId :: TeamId,
     cnvManaged :: Bool
   }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConvTeamInfo)
 
 modelTeamInfo :: Doc.Model
 modelTeamInfo = Doc.defineModel "TeamInfo" $ do
@@ -442,10 +467,8 @@ data Invite = Invite
     -- | This role name is to be applied to all users
     invRoleName :: RoleName
   }
-
-deriving instance Eq Invite
-
-deriving instance Show Invite
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Invite)
 
 newInvite :: List1 OpaqueUserId -> Invite
 newInvite us = Invite us roleNameWireAdmin
@@ -473,10 +496,8 @@ instance FromJSON Invite where
 newtype ConversationRename = ConversationRename
   { cupName :: Text
   }
-
-deriving instance Eq ConversationRename
-
-deriving instance Show ConversationRename
+  deriving stock (Eq, Show)
+  deriving newtype (Arbitrary)
 
 modelConversationUpdateName :: Doc.Model
 modelConversationUpdateName = Doc.defineModel "ConversationUpdateName" $ do
@@ -495,7 +516,8 @@ data ConversationAccessUpdate = ConversationAccessUpdate
   { cupAccess :: [Access],
     cupAccessRole :: AccessRole
   }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationAccessUpdate)
 
 modelConversationAccessUpdate :: Doc.Model
 modelConversationAccessUpdate = Doc.defineModel "ConversationAccessUpdate" $ do
@@ -514,13 +536,15 @@ instance ToJSON ConversationAccessUpdate where
 
 instance FromJSON ConversationAccessUpdate where
   parseJSON = withObject "conversation-access-update" $ \o ->
-    ConversationAccessUpdate <$> o .: "access"
+    ConversationAccessUpdate
+      <$> o .: "access"
       <*> o .: "access_role"
 
 data ConversationReceiptModeUpdate = ConversationReceiptModeUpdate
   { cruReceiptMode :: ReceiptMode
   }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationReceiptModeUpdate)
 
 modelConversationReceiptModeUpdate :: Doc.Model
 modelConversationReceiptModeUpdate = Doc.defineModel "conversationReceiptModeUpdate" $ do
@@ -545,7 +569,8 @@ data ConversationMessageTimerUpdate = ConversationMessageTimerUpdate
   { -- | New message timer
     cupMessageTimer :: Maybe Milliseconds
   }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationMessageTimerUpdate)
 
 modelConversationMessageTimerUpdate :: Doc.Model
 modelConversationMessageTimerUpdate = Doc.defineModel "ConversationMessageTimerUpdate" $ do

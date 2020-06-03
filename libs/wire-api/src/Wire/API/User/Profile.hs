@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -66,14 +67,19 @@ import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Imports
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- Name
 
 -- | Usually called display name.
+--
+-- Length is between 1 and 128 characters.
 newtype Name = Name
   {fromName :: Text}
-  deriving (Eq, Ord, Show, ToJSON, FromByteString, ToByteString, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (ToJSON, FromByteString, ToByteString)
+  deriving (Arbitrary) via (Ranged 1 128 Text)
 
 modelUserDisplayName :: Doc.Model
 modelUserDisplayName = Doc.defineModel "UserDisplayName" $ do
@@ -81,6 +87,7 @@ modelUserDisplayName = Doc.defineModel "UserDisplayName" $ do
   Doc.property "name" Doc.string' $
     Doc.description "User name"
 
+-- FUTUREWORK: use @Range 1 128 Text@ and deriving this instance.
 instance FromJSON Name where
   parseJSON x =
     Name . fromRange
@@ -90,7 +97,8 @@ instance FromJSON Name where
 -- Colour
 
 newtype ColourId = ColourId {fromColourId :: Int32}
-  deriving (Eq, Num, Ord, Show, FromJSON, ToJSON, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (Num, FromJSON, ToJSON, Arbitrary)
 
 defaultAccentId :: ColourId
 defaultAccentId = ColourId 0
@@ -103,7 +111,8 @@ data Asset = ImageAsset
   { assetKey :: Text,
     assetSize :: Maybe AssetSize
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Asset)
 
 modelAsset :: Doc.Model
 modelAsset = Doc.defineModel "UserAsset" $ do
@@ -140,7 +149,8 @@ instance FromJSON Asset where
       _ -> fail $ "Invalid asset type: " ++ show typ
 
 data AssetSize = AssetComplete | AssetPreview
-  deriving (Eq, Show, Enum, Bounded, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform AssetSize)
 
 typeAssetSize :: Doc.DataType
 typeAssetSize =
@@ -168,7 +178,8 @@ data Locale = Locale
   { lLanguage :: Language,
     lCountry :: Maybe Country
   }
-  deriving (Eq, Ord, Generic)
+  deriving stock (Eq, Ord, Generic)
+  deriving (Arbitrary) via (GenericUniform Locale)
 
 instance FromJSON Locale where
   parseJSON =
@@ -197,7 +208,8 @@ parseLocale = hush . parseOnly localeParser
 -- Language
 
 newtype Language = Language {fromLanguage :: ISO639_1}
-  deriving (Ord, Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (Arbitrary)
 
 languageParser :: Parser Language
 languageParser = codeParser "language" $ fmap Language . checkAndConvert isLower
@@ -212,7 +224,8 @@ parseLanguage = hush . parseOnly languageParser
 -- Country
 
 newtype Country = Country {fromCountry :: CountryCode}
-  deriving (Ord, Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (Arbitrary)
 
 countryParser :: Parser Country
 countryParser = codeParser "country" $ fmap Country . checkAndConvert isUpper
@@ -246,7 +259,8 @@ data ManagedBy
     -- There are some other things that SCIM can't do yet, like setting accent IDs, but they
     -- are not essential, unlike e.g. passwords.
     ManagedByScim
-  deriving (Eq, Show, Bounded, Enum, Generic)
+  deriving stock (Eq, Bounded, Enum, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ManagedBy)
 
 typeManagedBy :: Doc.DataType
 typeManagedBy =
@@ -275,10 +289,14 @@ defaultManagedBy = ManagedByWire
 
 -- | DEPRECATED
 newtype Pict = Pict {fromPict :: [Object]}
-  deriving (Eq, Show, ToJSON, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (ToJSON)
 
 instance FromJSON Pict where
   parseJSON x = Pict . fromRange @0 @10 <$> parseJSON x
+
+instance Arbitrary Pict where
+  arbitrary = pure $ Pict []
 
 noPict :: Pict
 noPict = Pict []

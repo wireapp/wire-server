@@ -244,3 +244,6 @@ federationNotImplemented qualified =
     rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderMapping) $ qualified
     renderMapping IdMapping {idMappingLocal, idMappingGlobal} =
       idToText idMappingLocal <> " -> " <> renderQualifiedId idMappingGlobal
+
+invalidTeamNotificationId :: Error
+invalidTeamNotificationId = Error status400 "invalid-notification-id" "Could not parse notification id (must be UUIDv1)."

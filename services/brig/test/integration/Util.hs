@@ -44,6 +44,7 @@ import qualified Data.ByteString as BS
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
+import Data.Domain (mkDomain)
 import Data.Id
 import Data.List1 (List1)
 import qualified Data.List1 as List1
@@ -104,18 +105,34 @@ test m n h = testCase n (void $ runHttpT m h)
 test' :: AWS.Env -> Manager -> TestName -> Http a -> TestTree
 test' e m n h = testCase n $ void $ runHttpT m (liftIO (purgeJournalQueue e) >> h)
 
-randomUser :: HasCallStack => Brig -> Http User
+randomUser ::
+  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  Brig ->
+  m User
 randomUser = randomUser' True
 
-randomUser' :: HasCallStack => Bool -> Brig -> Http User
+randomUser' ::
+  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  Bool ->
+  Brig ->
+  m User
 randomUser' hasPwd brig = do
   n <- fromName <$> randomName
   createUser' hasPwd n brig
 
-createUser :: HasCallStack => Text -> Brig -> Http User
+createUser ::
+  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  Text ->
+  Brig ->
+  m User
 createUser = createUser' True
 
-createUser' :: HasCallStack => Bool -> Text -> Brig -> Http User
+createUser' ::
+  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  Bool ->
+  Text ->
+  Brig ->
+  m User
 createUser' hasPwd name brig = do
   r <-
     postUser' hasPwd True name True False Nothing Nothing brig
@@ -193,7 +210,17 @@ postUser = postUser' True True
 
 -- | Use @postUser' True False@ instead of 'postUser' if you want to send broken bodies to test error
 -- messages.  Or @postUser' False True@ if you want to validate the body, but not set a password.
-postUser' :: Bool -> Bool -> Text -> Bool -> Bool -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
+postUser' ::
+  (MonadIO m, MonadHttp m, HasCallStack) =>
+  Bool ->
+  Bool ->
+  Text ->
+  Bool ->
+  Bool ->
+  Maybe UserSSOId ->
+  Maybe TeamId ->
+  Brig ->
+  m ResponseLBS
 postUser' hasPassword validateBody name haveEmail havePhone ssoid teamid brig = do
   email <-
     if haveEmail
@@ -202,7 +229,17 @@ postUser' hasPassword validateBody name haveEmail havePhone ssoid teamid brig = 
   postUserWithEmail hasPassword validateBody name email havePhone ssoid teamid brig
 
 -- | More flexible variant of 'createUserUntrustedEmail' (see above).
-postUserWithEmail :: Bool -> Bool -> Text -> Maybe Email -> Bool -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
+postUserWithEmail ::
+  (MonadIO m, MonadHttp m, HasCallStack) =>
+  Bool ->
+  Bool ->
+  Text ->
+  Maybe Email ->
+  Bool ->
+  Maybe UserSSOId ->
+  Maybe TeamId ->
+  Brig ->
+  m ResponseLBS
 postUserWithEmail hasPassword validateBody name email havePhone ssoid teamid brig = do
   phone <-
     if havePhone
@@ -249,7 +286,7 @@ deleteUserInternal u brig =
     brig
       . paths ["/i/users", toByteString' u]
 
-activate :: Brig -> ActivationPair -> Http ResponseLBS
+activate :: Brig -> ActivationPair -> (MonadIO m, MonadHttp m) => m ResponseLBS
 activate brig (k, c) =
   get $
     brig
@@ -257,7 +294,7 @@ activate brig (k, c) =
       . queryItem "key" (toByteString' k)
       . queryItem "code" (toByteString' c)
 
-getSelfProfile :: Brig -> UserId -> Http SelfProfile
+getSelfProfile :: (MonadIO m, MonadCatch m, MonadHttp m, HasCallStack) => Brig -> UserId -> m SelfProfile
 getSelfProfile brig usr = do
   responseJsonError =<< get (brig . path "/self" . zUser usr)
 
@@ -268,7 +305,7 @@ getUser brig zusr usr =
       . paths ["users", toByteString' usr]
       . zUser zusr
 
-login :: Brig -> Login -> CookieType -> Http ResponseLBS
+login :: Brig -> Login -> CookieType -> (MonadIO m, MonadHttp m) => m ResponseLBS
 login b l t =
   let js = RequestBodyLBS (encode l)
    in post $
@@ -350,7 +387,12 @@ connectUsers b u = mapM_ connectTo
       void $ postConnection b u v
       void $ putConnection b v u Accepted
 
-putHandle :: Brig -> UserId -> Text -> Http ResponseLBS
+putHandle ::
+  (MonadIO m, MonadHttp m, HasCallStack) =>
+  Brig ->
+  UserId ->
+  Text ->
+  m ResponseLBS
 putHandle brig usr h =
   put $
     brig
@@ -362,7 +404,12 @@ putHandle brig usr h =
   where
     payload = RequestBodyLBS . encode $ object ["handle" .= h]
 
-addClient :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, MonadFail m, HasCallStack) => Brig -> UserId -> NewClient -> m ResponseLBS
+addClient ::
+  (Monad m, MonadCatch m, MonadIO m, MonadHttp m, MonadFail m, HasCallStack) =>
+  Brig ->
+  UserId ->
+  NewClient ->
+  m ResponseLBS
 addClient brig uid new = post (addClientReq brig uid new)
 
 addClientInternal :: Brig -> UserId -> NewClient -> Http ResponseLBS
@@ -397,7 +444,12 @@ getPreKey brig u c =
     brig
       . paths ["users", toByteString' u, "prekeys", toByteString' c]
 
-getTeamMember :: HasCallStack => UserId -> TeamId -> Galley -> Http Team.TeamMember
+getTeamMember ::
+  (MonadIO m, MonadCatch m, MonadFail m, MonadHttp m, HasCallStack) =>
+  UserId ->
+  TeamId ->
+  Galley ->
+  m Team.TeamMember
 getTeamMember u tid galley =
   responseJsonError
     =<< get
@@ -407,14 +459,14 @@ getTeamMember u tid galley =
           . expect2xx
       )
 
-getConversation :: Galley -> UserId -> ConvId -> Http ResponseLBS
+getConversation :: Galley -> UserId -> ConvId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 getConversation galley usr cnv =
   get $
     galley
       . paths ["conversations", toByteString' cnv]
       . zAuthAccess usr "conn"
 
-isMember :: Galley -> UserId -> ConvId -> Http Bool
+isMember :: Galley -> UserId -> ConvId -> (MonadIO m, MonadHttp m) => m Bool
 isMember g usr cnv = do
   res <-
     get $
@@ -425,7 +477,7 @@ isMember g usr cnv = do
     Nothing -> return False
     Just m -> return (usr == memId m)
 
-getStatus :: HasCallStack => Brig -> UserId -> HttpT IO AccountStatus
+getStatus :: HasCallStack => Brig -> UserId -> (MonadIO m, MonadHttp m) => m AccountStatus
 getStatus brig u =
   (^?! key "status" . (_JSON @Value @AccountStatus)) . (responseJsonUnsafe @Value)
     <$> get
@@ -433,7 +485,7 @@ getStatus brig u =
           . expect2xx
       )
 
-chkStatus :: HasCallStack => Brig -> UserId -> AccountStatus -> Http ()
+chkStatus :: HasCallStack => Brig -> UserId -> AccountStatus -> (MonadIO m, MonadHttp m, MonadCatch m) => m ()
 chkStatus brig u s =
   get (brig . paths ["i", "users", toByteString' u, "status"]) !!! do
     const 200 === statusCode
@@ -602,7 +654,10 @@ randomHandle = liftIO $ do
   nrs <- replicateM 21 (randomRIO (97, 122)) -- a-z
   return (Text.pack (map chr nrs))
 
--- For testing purposes we restrict ourselves to code points in the
+randomName :: MonadIO m => m Name
+randomName = randomNameWithMaxLen 128
+
+-- | For testing purposes we restrict ourselves to code points in the
 -- Basic Multilingual Plane that are considered to be numbers, letters,
 -- punctuation or symbols and ensure the name starts with a "letter".
 -- That is in order for the name to be searchable at all, since the standard
@@ -611,10 +666,10 @@ randomHandle = liftIO $ do
 -- the standard tokenizer considers as word boundaries (or which are
 -- simply unassigned code points), yielding no tokens to match and thus
 -- no results in search queries.
-randomName :: MonadIO m => m Name
-randomName = liftIO $ do
-  len <- randomRIO (2, 128)
-  chars <- fill (len :: Word) []
+randomNameWithMaxLen :: MonadIO m => Word -> m Name
+randomNameWithMaxLen maxLen = liftIO $ do
+  len <- randomRIO (2, maxLen)
+  chars <- fill len []
   return $ Name (Text.pack chars)
   where
     fill 0 cs = return cs
@@ -645,3 +700,12 @@ withSettingsOverrides :: MonadIO m => Opts.Opts -> WaiTest.Session a -> m a
 withSettingsOverrides opts action = liftIO $ do
   (brigApp, _) <- Run.mkApp opts
   WaiTest.runSession action brigApp
+
+-- | When we remove the customer-specific extension of domain blocking, this test will fail to
+-- compile.
+withDomainsBlockedForRegistration :: (MonadIO m) => Opts.Opts -> [Text] -> WaiTest.Session a -> m a
+withDomainsBlockedForRegistration opts domains sess = do
+  let opts' = opts {Opts.optSettings = (Opts.optSettings opts) {Opts.setCustomerExtensions = Just blocked}}
+      blocked = Opts.CustomerExtensions (Opts.DomainsBlockedForRegistration (unsafeMkDomain <$> domains))
+      unsafeMkDomain = either error id . mkDomain
+  withSettingsOverrides opts' sess

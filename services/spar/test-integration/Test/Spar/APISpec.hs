@@ -33,6 +33,7 @@ import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Proxy
 import Data.String.Conversions
 import qualified Data.Text as ST
+import Data.Text.Ascii (decodeBase64, validateBase64)
 import qualified Data.UUID as UUID hiding (fromByteString, null)
 import qualified Data.UUID.V4 as UUID (nextRandom)
 import qualified Data.ZAuth.Token as ZAuth
@@ -40,9 +41,9 @@ import qualified Galley.Types.Teams as Galley
 import Imports hiding (head)
 import Network.HTTP.Types (status200, status202)
 import SAML2.WebSSO as SAML
-import SAML2.WebSSO.Test.Credentials (sampleIdPCert2, sampleIdPPrivkey, sampleIdPPrivkey2)
 import SAML2.WebSSO.Test.Lenses
 import SAML2.WebSSO.Test.MockResponse
+import SAML2.WebSSO.Test.Util
 import Spar.API.Types
 import qualified Spar.Intra.Brig as Intra
 import Spar.Types
@@ -268,12 +269,25 @@ specFinalizeLogin = do
               authnreq
               True
         sparresp <- submitAuthnResponse authnresp
+        let shouldContainInBase64 :: String -> String -> Expectation
+            shouldContainInBase64 hay needle = cs hay'' `shouldContain` needle
+              where
+                Right (Just hay'') = decodeBase64 <$> validateBase64 hay'
+                hay' = cs $ f hay
+                  where
+                    -- exercise to the reader: do this more idiomatically!
+                    f (splitAt 5 -> ("<pre>", s)) = g s
+                    f (_ : s) = f s
+                    f "" = ""
+                    g (splitAt 6 -> ("</pre>", _)) = ""
+                    g (c : s) = c : g s
+                    g "" = ""
         liftIO $ do
           statusCode sparresp `shouldBe` 404
           -- body should contain the error label in the title, the verbatim haskell error, and the request:
           (cs . fromJust . responseBody $ sparresp) `shouldContain` "<title>wire:sso:error:not-found</title>"
-          (cs . fromJust . responseBody $ sparresp) `shouldContain` "CustomError SparNotFound"
-          (cs . fromJust . responseBody $ sparresp) `shouldContain` "Input {iName = \"SAMLResponse\""
+          (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "CustomError SparNotFound"
+          (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "Input {iName = \"SAMLResponse\""
     -- TODO(arianvp): Ask Matthias what this even means
     context "AuthnResponse does not match any request" $ do
       it "rejects" $ do
@@ -416,7 +430,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
         reBindDifferent :: HasCallStack => UserId -> TestSpar (SignedAuthnResponse, ResponseLBS)
         reBindDifferent uid = do
           env <- ask
-          (metadata, privcreds) <- makeTestIdPMetadata
+          (SampleIdP metadata privcreds _ _) <- makeSampleIdPMetadata
           idp <- call $ callIdpCreate (env ^. teSpar) (Just uid) metadata
           (_, authnResp, sparAuthnResp) <- initialBind uid idp privcreds
           pure (authnResp, sparAuthnResp)
@@ -548,15 +562,13 @@ specCRUDIdentityProvider = do
       it "responds with 2xx and IdP" $ do
         env <- ask
         (owner, _, (^. idpId) -> idpid) <- registerTestIdP
-        _ <- call $ callIdpGet (env ^. teSpar) (Just owner) idpid
-        passes
+        void . call $ callIdpGet (env ^. teSpar) (Just owner) idpid
     context "known IdP, client is team owner (authenticated via sso, user without email)" $ do
       it "responds with 2xx and IdP" $ do
         env <- ask
         (firstOwner, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
         ssoOwner <- mkSsoOwner firstOwner tid idp privcreds
-        _ <- call $ callIdpGet (env ^. teSpar) (Just ssoOwner) (idp ^. idpId)
-        passes
+        void . call $ callIdpGet (env ^. teSpar) (Just ssoOwner) (idp ^. idpId)
   describe "GET /identity-providers" $ do
     context "client is not team owner" $ do
       it "rejects" $ do
@@ -580,14 +592,14 @@ specCRUDIdentityProvider = do
       context "client is team owner with email" $ do
         it "returns a non-empty empty list" $ do
           env <- ask
-          (metadata, _) <- makeTestIdPMetadata
+          (SampleIdP metadata _ _ _) <- makeSampleIdPMetadata
           (owner, _, _) <- registerTestIdPFrom metadata (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
           callIdpGetAll (env ^. teSpar) (Just owner)
             `shouldRespondWith` (not . null . _idplProviders)
       context "client is team owner without email" $ do
         it "returns a non-empty empty list" $ do
           env <- ask
-          (metadata, privcreds) <- makeTestIdPMetadata
+          (SampleIdP metadata privcreds _ _) <- makeSampleIdPMetadata
           (firstOwner, tid, idp) <- registerTestIdPFrom metadata (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
           ssoOwner <- mkSsoOwner firstOwner tid idp privcreds
           callIdpGetAll (env ^. teSpar) (Just ssoOwner)
@@ -665,7 +677,7 @@ specCRUDIdentityProvider = do
       it "rejects" $ do
         env <- ask
         (owner1, _, (^. idpId) -> idpid1, (IdPMetadataValue _ idpmeta1, _)) <- registerTestIdPWithMeta
-        (idpmeta2, _) <- makeTestIdPMetadata
+        (SampleIdP idpmeta2 _ _ _) <- makeSampleIdPMetadata
         _ <- call $ callIdpCreate (env ^. teSpar) (Just owner1) idpmeta2
         let idpmeta3 = idpmeta1 & edIssuer .~ (idpmeta2 ^. edIssuer)
         callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode idpmeta3) undefined)
@@ -739,22 +751,24 @@ specCRUDIdentityProvider = do
         liftIO $ requri `shouldBe` idpmeta' ^. edRequestURI
     describe "new certs" $ do
       let -- Create a team, idp, and update idp with 'sampleIdPCert2'.
-          initidp :: HasCallStack => TestSpar IdP
+          initidp :: HasCallStack => TestSpar (IdP, SignPrivCreds, SignPrivCreds)
           initidp = do
             env <- ask
-            (owner, _, idp, (IdPMetadataValue _ idpmeta, _)) <- registerTestIdPWithMeta
+            (owner, _, idp, (IdPMetadataValue _ idpmeta, oldPrivKey)) <- registerTestIdPWithMeta
+            (SampleIdP _ newPrivKey _ sampleIdPCert2) <- makeSampleIdPMetadata
             let idpmeta' = idpmeta & edCertAuthnResponse .~ (sampleIdPCert2 :| [])
             callIdpUpdate' (env ^. teSpar) (Just owner) (idp ^. idpId) (IdPMetadataValue (cs $ SAML.encode idpmeta') undefined)
               `shouldRespondWith` ((== 200) . statusCode)
-            pure idp
+            pure (idp, oldPrivKey, newPrivKey)
           -- Sign authn response with a given private key (which may be the one matching
           -- 'sampleIdPCert2' or not), and check the status of spars response.
-          check :: HasCallStack => SignPrivCreds -> Int -> String -> Either String () -> TestSpar ()
-          check privkey expectedStatus expectedHtmlTitle expectedCookie = do
-            idp <- initidp
+          check :: HasCallStack => Bool -> Int -> String -> Either String () -> TestSpar ()
+          check useNewPrivKey expectedStatus expectedHtmlTitle expectedCookie = do
+            (idp, oldPrivKey, newPrivKey) <- initidp
             env <- ask
             (_, authnreq) <- call $ callAuthnReq (env ^. teSpar) (idp ^. idpId)
             spmeta <- getTestSPMetadata
+            let privkey = if useNewPrivKey then newPrivKey else oldPrivKey
             idpresp <- runSimpleSP $ mkAuthnResponse privkey idp spmeta authnreq True
             sparresp <- submitAuthnResponse idpresp
             liftIO $ do
@@ -764,13 +778,13 @@ specCRUDIdentityProvider = do
               hasPersistentCookieHeader sparresp `shouldBe` expectedCookie
       it "uses those certs on next auth handshake" $ do
         check
-          sampleIdPPrivkey2
+          True
           200
           "<title>wire:sso:success</title>"
           (Right ())
       it "removes all old certs (even if there were more before)" $ do
         check
-          sampleIdPPrivkey
+          False
           400
           "<title>wire:sso:error:bad-response-signature</title>"
           (Left "no set-cookie header")
@@ -779,7 +793,7 @@ specCRUDIdentityProvider = do
       it "responds with 403 forbidden" $ do
         env <- ask
         (uid, _tid) <- call $ createUserWithTeamDisableSSO (env ^. teBrig) (env ^. teGalley)
-        (metadata, _) <- makeTestIdPMetadata
+        (SampleIdP metadata _ _ _) <- makeSampleIdPMetadata
         callIdpCreate' (env ^. teSpar) (Just uid) metadata
           `shouldRespondWith` checkErr (== 403) "sso-disabled"
     context "bad xml" $ do
@@ -790,14 +804,14 @@ specCRUDIdentityProvider = do
     context "no zuser" $ do
       it "responds with 'client error'" $ do
         env <- ask
-        (idpmeta, _) <- makeTestIdPMetadata
+        (SampleIdP idpmeta _ _ _) <- makeSampleIdPMetadata
         callIdpCreate' (env ^. teSpar) Nothing idpmeta
           `shouldRespondWith` checkErr (== 400) "client-error"
     context "zuser has no team" $ do
       it "responds with 'no team member'" $ do
         env <- ask
         (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
-        (idpmeta, _) <- makeTestIdPMetadata
+        (SampleIdP idpmeta _ _ _) <- makeSampleIdPMetadata
         callIdpCreate' (env ^. teSpar) (Just uid) idpmeta
           `shouldRespondWith` checkErr (== 403) "no-team-member"
     context "zuser is a team member, but not a team owner" $ do
@@ -812,7 +826,7 @@ specCRUDIdentityProvider = do
     context "idp (identified by issuer) is in use by other team" $ do
       it "rejects" $ do
         env <- ask
-        (newMetadata, _) <- makeTestIdPMetadata
+        (SampleIdP newMetadata _ _ _) <- makeSampleIdPMetadata
         (uid1, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
         (uid2, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
         resp1 <- call $ callIdpCreate' (env ^. teSpar) (Just uid1) newMetadata
@@ -828,7 +842,7 @@ specCRUDIdentityProvider = do
       it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
         env <- ask
         (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-        (metadata, _) <- makeTestIdPMetadata
+        (SampleIdP metadata _ _ _) <- makeSampleIdPMetadata
         idp <- call $ callIdpCreate (env ^. teSpar) (Just owner) metadata
         idp' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
         rawmeta <- call $ callIdpGetRaw (env ^. teSpar) (Just owner) (idp ^. idpId)
@@ -849,7 +863,7 @@ specCRUDIdentityProvider = do
         it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
           env <- ask
           (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-          metadata <- Aeson.encode . (IdPMetadataValue mempty) . fst <$> makeTestIdPMetadata
+          metadata <- Aeson.encode . IdPMetadataValue mempty . sampleIdPMetadata <$> makeSampleIdPMetadata
           idp <- call $ callIdpCreateRaw (env ^. teSpar) (Just owner) "application/json" metadata
           idp' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
           rawmeta <- call $ callIdpGetRaw (env ^. teSpar) (Just owner) (idp ^. idpId)

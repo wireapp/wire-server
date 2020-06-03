@@ -44,17 +44,17 @@ tests _cl _at conf p b _c g =
     [ test p "there is default empty rich info" $ testDefaultRichInfo b g,
       test p "missing fields in an update are deleted" $ testDeleteMissingFieldsInUpdates b g,
       test p "fields with empty strings are deleted" $ testDeleteEmptyFields b g,
-      test p "duplicate field names are forbidden" $ testForbidDuplicateFieldNames b g,
-      test p "exceeding rich info size limit is forbidden" $ testRichInfoSizeLimit b g conf,
-      test p "non-team members don't have rich info" $ testNonTeamMembersDoNotHaveRichInfo b g,
-      test p "non-members / other membes / guests cannot see rich info" $ testGuestsCannotSeeRichInfo b g
+      test p "duplicate field names are forbidden" $ testForbidDuplicateFieldNames b,
+      test p "exceeding rich info size limit is forbidden" $ testRichInfoSizeLimit b conf,
+      test p "non-team members don't have rich info" $ testNonTeamMembersDoNotHaveRichInfo b,
+      test p "non-members / other membes / guests cannot see rich info" $ testGuestsCannotSeeRichInfo b
     ]
 
 -- | Test that for team members there is rich info set by default, and that it's empty.
 testDefaultRichInfo :: Brig -> Galley -> Http ()
 testDefaultRichInfo brig galley = do
   -- Create a team with two users
-  (owner, tid) <- createUserWithTeam brig galley
+  (owner, tid) <- createUserWithTeam brig
   member1 <- userId <$> createTeamMember brig galley owner tid Team.noPermissions
   member2 <- userId <$> createTeamMember brig galley owner tid Team.noPermissions
   -- The first user should see the second user's rich info and it should be empty
@@ -67,7 +67,7 @@ testDefaultRichInfo brig galley = do
 
 testDeleteMissingFieldsInUpdates :: Brig -> Galley -> Http ()
 testDeleteMissingFieldsInUpdates brig galley = do
-  (owner, tid) <- createUserWithTeam brig galley
+  (owner, tid) <- createUserWithTeam brig
   member1 <- userId <$> createTeamMember brig galley owner tid Team.noPermissions
   member2 <- userId <$> createTeamMember brig galley owner tid Team.noPermissions
   let superset =
@@ -86,7 +86,7 @@ testDeleteMissingFieldsInUpdates brig galley = do
 
 testDeleteEmptyFields :: Brig -> Galley -> Http ()
 testDeleteEmptyFields brig galley = do
-  (owner, tid) <- createUserWithTeam brig galley
+  (owner, tid) <- createUserWithTeam brig
   member1 <- userId <$> createTeamMember brig galley owner tid Team.noPermissions
   member2 <- userId <$> createTeamMember brig galley owner tid Team.noPermissions
   let withEmpty =
@@ -97,9 +97,9 @@ testDeleteEmptyFields brig galley = do
   withoutEmpty <- getRichInfo brig member1 member2
   liftIO $ assertEqual "dangling rich info fields" (Right emptyRichInfoAssocList) withoutEmpty
 
-testForbidDuplicateFieldNames :: Brig -> Galley -> Http ()
-testForbidDuplicateFieldNames brig galley = do
-  (owner, _) <- createUserWithTeam brig galley
+testForbidDuplicateFieldNames :: Brig -> Http ()
+testForbidDuplicateFieldNames brig = do
+  (owner, _) <- createUserWithTeam brig
   let bad =
         RichInfoAssocList
           [ RichField "department" "blue",
@@ -107,10 +107,10 @@ testForbidDuplicateFieldNames brig galley = do
           ]
   putRichInfo brig owner bad !!! const 400 === statusCode
 
-testRichInfoSizeLimit :: HasCallStack => Brig -> Galley -> Opt.Opts -> Http ()
-testRichInfoSizeLimit brig galley conf = do
+testRichInfoSizeLimit :: HasCallStack => Brig -> Opt.Opts -> Http ()
+testRichInfoSizeLimit brig conf = do
   let maxSize :: Int = setRichInfoLimit $ optSettings conf
-  (owner, _) <- createUserWithTeam brig galley
+  (owner, _) <- createUserWithTeam brig
   let bad1 =
         RichInfoAssocList
           [ RichField "department" (Text.replicate (fromIntegral maxSize) "#")
@@ -125,8 +125,8 @@ testRichInfoSizeLimit brig galley conf = do
 --
 -- Note: it would be nice to also test that non-team members can not set rich info, but for
 -- now there's no public endpoint for setting it in Brig, so we can't do anything.
-testNonTeamMembersDoNotHaveRichInfo :: Brig -> Galley -> Http ()
-testNonTeamMembersDoNotHaveRichInfo brig galley = do
+testNonTeamMembersDoNotHaveRichInfo :: Brig -> Http ()
+testNonTeamMembersDoNotHaveRichInfo brig = do
   -- Create a user
   targetUser <- userId <$> randomUser brig
   -- Another user should get a 'Nothing' when querying their info
@@ -136,14 +136,14 @@ testNonTeamMembersDoNotHaveRichInfo brig galley = do
     liftIO $ assertEqual "rich info is present" (Left 403) richInfo
   -- A team member should also get a 'Nothing' when querying their info
   do
-    (teamUser, _) <- createUserWithTeam brig galley
+    (teamUser, _) <- createUserWithTeam brig
     richInfo <- getRichInfo brig teamUser targetUser
     liftIO $ assertEqual "rich info is present" (Left 403) richInfo
 
-testGuestsCannotSeeRichInfo :: Brig -> Galley -> Http ()
-testGuestsCannotSeeRichInfo brig galley = do
+testGuestsCannotSeeRichInfo :: Brig -> Http ()
+testGuestsCannotSeeRichInfo brig = do
   -- Create a team
-  (owner, _) <- createUserWithTeam brig galley
+  (owner, _) <- createUserWithTeam brig
   -- A non-team user should get "forbidden" when querying rich info for team user.
   do
     nonTeamUser <- userId <$> randomUser brig
@@ -157,6 +157,6 @@ testGuestsCannotSeeRichInfo brig galley = do
     liftIO $ assertEqual "rich info status /= 403" (Left 403) richInfo
   -- ...  or if she's in another team.
   do
-    (otherOwner, _) <- createUserWithTeam brig galley
+    (otherOwner, _) <- createUserWithTeam brig
     richInfo <- getRichInfo brig otherOwner owner
     liftIO $ assertEqual "rich info status /= 403" (Left 403) richInfo

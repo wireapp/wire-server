@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 
@@ -53,6 +54,8 @@ import Data.Json.Util
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Time (UTCTime)
 import Imports
+import qualified Test.QuickCheck as QC
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Team (Team, TeamUpdateData, modelUpdateData)
 import Wire.API.Team.Permission (Permissions)
 
@@ -65,7 +68,7 @@ data Event = Event
     _eventTime :: UTCTime,
     _eventData :: Maybe EventData
   }
-  deriving (Eq, Generic)
+  deriving stock (Eq, Show, Generic)
 
 newEvent :: EventType -> TeamId -> UTCTime -> Event
 newEvent typ tid tme = Event typ tid tme Nothing
@@ -131,9 +134,18 @@ instance FromJSON Event where
   parseJSON = withObject "event" $ \o -> do
     ty <- o .: "type"
     dt <- o .:? "data"
-    Event ty <$> o .: "team"
+    Event ty
+      <$> o .: "team"
       <*> o .: "time"
       <*> parseEventData ty dt
+
+instance Arbitrary Event where
+  arbitrary = do
+    typ <- arbitrary
+    Event typ
+      <$> arbitrary
+      <*> arbitrary
+      <*> genEventData typ
 
 --------------------------------------------------------------------------------
 -- EventType
@@ -147,7 +159,8 @@ data EventType
   | MemberUpdate
   | ConvCreate
   | ConvDelete
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform EventType)
 
 typeEventType :: Doc.DataType
 typeEventType =
@@ -194,7 +207,7 @@ data EventData
   | EdMemberUpdate UserId (Maybe Permissions)
   | EdConvCreate ConvId
   | EdConvDelete ConvId
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
 
 instance ToJSON EventData where
   toJSON (EdTeamCreate tem) = toJSON tem
@@ -236,5 +249,16 @@ parseEventData TeamUpdate Nothing = fail "missing event data for type 'team.upda
 parseEventData TeamUpdate (Just j) = Just . EdTeamUpdate <$> parseJSON j
 parseEventData _ Nothing = pure Nothing
 parseEventData t (Just _) = fail $ "unexpected event data for type " <> show t
+
+genEventData :: EventType -> QC.Gen (Maybe EventData)
+genEventData = \case
+  TeamCreate -> Just . EdTeamCreate <$> arbitrary
+  TeamDelete -> pure Nothing
+  TeamUpdate -> Just . EdTeamUpdate <$> arbitrary
+  MemberJoin -> Just . EdMemberJoin <$> arbitrary
+  MemberLeave -> Just . EdMemberLeave <$> arbitrary
+  MemberUpdate -> Just <$> (EdMemberUpdate <$> arbitrary <*> arbitrary)
+  ConvCreate -> Just . EdConvCreate <$> arbitrary
+  ConvDelete -> Just . EdConvDelete <$> arbitrary
 
 makeLenses ''Event

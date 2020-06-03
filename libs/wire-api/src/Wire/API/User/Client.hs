@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -67,9 +68,9 @@ import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text.Encoding as Text.E
 import Data.UUID (toASCIIBytes)
 import Imports
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..), mapOf', setOf')
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Client.Prekey as Prekey
-import Wire.API.User.Profile ()
 
 --------------------------------------------------------------------------------
 -- UserClientMap
@@ -109,13 +110,17 @@ instance FromJSON a => FromJSON (UserClientMap a) where
         t <- parseJSON v
         return (Map.insert c t m)
 
+instance Arbitrary a => Arbitrary (UserClientMap a) where
+  arbitrary = UserClientMap <$> mapOf' arbitrary (mapOf' arbitrary arbitrary)
+
 --------------------------------------------------------------------------------
 -- UserClients
 
 newtype UserClients = UserClients
   { userClients :: Map OpaqueUserId (Set ClientId)
   }
-  deriving (Eq, Show, Semigroup, Monoid, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Semigroup, Monoid)
 
 modelUserClients :: Doc.Model
 modelUserClients =
@@ -137,6 +142,9 @@ instance FromJSON UserClients where
     where
       fn (k, v) m = Map.insert <$> parseJSON (String k) <*> parseJSON v <*> pure m
 
+instance Arbitrary UserClients where
+  arbitrary = UserClients <$> mapOf' arbitrary (setOf' arbitrary)
+
 filterClients :: (Set ClientId -> Bool) -> UserClients -> UserClients
 filterClients p (UserClients c) = UserClients $ Map.filter p c
 
@@ -153,7 +161,8 @@ data Client = Client
     clientLocation :: Maybe Location,
     clientModel :: Maybe Text
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Client)
 
 modelClient :: Doc.Model
 modelClient = Doc.defineModel "Client" $ do
@@ -196,7 +205,8 @@ instance ToJSON Client where
 
 instance FromJSON Client where
   parseJSON = withObject "Client" $ \o ->
-    Client <$> o .: "id"
+    Client
+      <$> o .: "id"
       <*> o .: "type"
       <*> o .: "time"
       <*> o .:? "class"
@@ -205,14 +215,15 @@ instance FromJSON Client where
       <*> o .:? "location"
       <*> o .:? "model"
 
+--------------------------------------------------------------------------------
+-- PubClient
+
 data PubClient = PubClient
   { pubClientId :: ClientId,
     pubClientClass :: Maybe ClientClass
   }
-  deriving (Eq, Show, Generic)
-
---------------------------------------------------------------------------------
--- PubClient
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform PubClient)
 
 modelPubClient :: Doc.Model
 modelPubClient = Doc.defineModel "PubClient" $ do
@@ -231,7 +242,8 @@ instance ToJSON PubClient where
 
 instance FromJSON PubClient where
   parseJSON = withObject "PubClient" $ \o ->
-    PubClient <$> o .: "id"
+    PubClient
+      <$> o .: "id"
       <*> o .:? "class"
 
 --------------------------------------------------------------------------------
@@ -258,7 +270,8 @@ data ClientType
   = TemporaryClientType
   | PermanentClientType
   | LegalHoldClientType -- see Note [LegalHold]
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ClientType)
 
 typeClientType :: Doc.DataType
 typeClientType =
@@ -286,7 +299,8 @@ data ClientClass
   | TabletClient
   | DesktopClient
   | LegalHoldClient -- see Note [LegalHold]
-  deriving (Eq, Ord, Show)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ClientClass)
 
 typeClientClass :: Doc.DataType
 typeClientClass =
@@ -325,6 +339,8 @@ data NewClient = NewClient
     newClientPassword :: Maybe PlainTextPassword,
     newClientModel :: Maybe Text
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewClient)
 
 modelNewClient :: Doc.Model
 modelNewClient = Doc.defineModel "NewClient" $ do
@@ -390,7 +406,8 @@ instance ToJSON NewClient where
 
 instance FromJSON NewClient where
   parseJSON = withObject "NewClient" $ \o ->
-    NewClient <$> o .: "prekeys"
+    NewClient
+      <$> o .: "prekeys"
       <*> o .: "lastkey"
       <*> o .: "type"
       <*> o .:? "label"
@@ -407,7 +424,8 @@ data UpdateClient = UpdateClient
     updateClientLastKey :: Maybe LastPrekey,
     updateClientLabel :: Maybe Text
   }
-  deriving (Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UpdateClient)
 
 modelUpdateClient :: Doc.Model
 modelUpdateClient = Doc.defineModel "UpdateClient" $ do
@@ -418,7 +436,7 @@ modelUpdateClient = Doc.defineModel "UpdateClient" $ do
   Doc.property "lastkey" (Doc.ref modelPrekey) $ do
     Doc.description "New last-resort prekey."
     Doc.optional
-  -- FUTUREWORK: sigkeys don't seem to be used anymore
+  -- FUTUREWORK: sigkeys don't seem to be used anymore, remove?
   Doc.property "sigkeys" (Doc.ref modelSigkeys) $ do
     Doc.description
       "New signaling keys to use for encryption and signing of OTR native push \
@@ -438,7 +456,8 @@ instance ToJSON UpdateClient where
 
 instance FromJSON UpdateClient where
   parseJSON = withObject "RefreshClient" $ \o ->
-    UpdateClient <$> o .:? "prekeys" .!= []
+    UpdateClient
+      <$> o .:? "prekeys" .!= []
       <*> o .:? "lastkey"
       <*> o .:? "label"
 
@@ -448,7 +467,8 @@ instance FromJSON UpdateClient where
 newtype RmClient = RmClient
   { rmPassword :: Maybe PlainTextPassword
   }
-  deriving (Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
 
 modelDeleteClient :: Doc.Model
 modelDeleteClient = Doc.defineModel "DeleteClient" $ do

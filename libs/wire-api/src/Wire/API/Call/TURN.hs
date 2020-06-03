@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 
@@ -69,19 +70,22 @@ where
 import Control.Applicative (optional)
 import Control.Lens hiding ((.=))
 import Data.Aeson hiding ((<?>))
-import Data.Aeson.Encoding (text)
 import Data.Attoparsec.Text hiding (parse)
 import Data.ByteString.Builder
 import qualified Data.ByteString.Conversion as BC
+import qualified Data.IP as IP
 import Data.List1
 import Data.Misc (IpAddr (IpAddr), Port (..))
 import qualified Data.Swagger.Build.Api as Doc
+import qualified Data.Text as Text
 import Data.Text.Ascii
 import qualified Data.Text.Encoding as TE
 import Data.Text.Strict.Lens (utf8)
 import Data.Time.Clock.POSIX
 import Imports
+import qualified Test.QuickCheck as QC
 import Text.Hostname (validHostname)
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- RTCConfiguration
@@ -95,7 +99,8 @@ data RTCConfiguration = RTCConfiguration
   { _rtcConfIceServers :: List1 RTCIceServer,
     _rtcConfTTL :: Word32
   }
-  deriving (Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform RTCConfiguration)
 
 rtcConfiguration :: List1 RTCIceServer -> Word32 -> RTCConfiguration
 rtcConfiguration = RTCConfiguration
@@ -109,8 +114,11 @@ modelRtcConfiguration = Doc.defineModel "RTCConfiguration" $ do
     Doc.description "Number of seconds after which the configuration should be refreshed (advisory)"
 
 instance ToJSON RTCConfiguration where
-  toEncoding (RTCConfiguration srvs ttl) =
-    pairs ("ice_servers" .= srvs <> "ttl" .= ttl)
+  toJSON (RTCConfiguration srvs ttl) =
+    object
+      [ "ice_servers" .= srvs,
+        "ttl" .= ttl
+      ]
 
 instance FromJSON RTCConfiguration where
   parseJSON = withObject "RTCConfiguration" $ \o ->
@@ -127,7 +135,8 @@ data RTCIceServer = RTCIceServer
     _iceUsername :: TurnUsername,
     _iceCredential :: AsciiBase64
   }
-  deriving (Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform RTCIceServer)
 
 rtcIceServer :: List1 TurnURI -> TurnUsername -> AsciiBase64 -> RTCIceServer
 rtcIceServer = RTCIceServer
@@ -143,12 +152,12 @@ modelRtcIceServer = Doc.defineModel "RTCIceServer" $ do
     Doc.description "Password to use for authenticating against the given TURN servers"
 
 instance ToJSON RTCIceServer where
-  toEncoding (RTCIceServer urls name cred) =
-    pairs
-      ( "urls" .= urls
-          <> "username" .= name
-          <> "credential" .= cred
-      )
+  toJSON (RTCIceServer urls name cred) =
+    object
+      [ "urls" .= urls,
+        "username" .= name,
+        "credential" .= cred
+      ]
 
 instance FromJSON RTCIceServer where
   parseJSON = withObject "RTCIceServer" $ \o ->
@@ -164,13 +173,16 @@ instance FromJSON RTCIceServer where
 -- | scheme        = "turn" / "turns"
 -- | transport     = "udp" / "tcp" / transport-ext
 -- | transport-ext = 1*unreserved
+--
+-- FUTUREWORK: Can contain, but refuses to deserialize IPv6 hosts, see 'parseTurnURI'
+-- and the 'Arbitrary' instance. Please fix this.
 data TurnURI = TurnURI
   { _turiScheme :: Scheme,
     _turiHost :: TurnHost,
     _turiPort :: Port,
     _turiTransport :: Maybe Transport
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
 
 turnURI :: Scheme -> TurnHost -> Port -> Maybe Transport -> TurnURI
 turnURI = TurnURI
@@ -210,10 +222,18 @@ instance ToJSON TurnURI where
 instance FromJSON TurnURI where
   parseJSON = withText "TurnURI" $ either fail pure . parseTurnURI
 
+instance Arbitrary TurnURI where
+  arbitrary = (getGenericUniform <$> arbitrary) `QC.suchThat` (not . isIPv6)
+    where
+      isIPv6 h = case _turiHost h of
+        TurnHostIp (IpAddr (IP.IPv6 _)) -> True
+        _ -> False
+
 data Scheme
   = SchemeTurn
   | SchemeTurns
-  deriving (Eq, Show, Generic, Bounded, Enum)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Scheme)
 
 instance BC.ToByteString Scheme where
   builder SchemeTurn = "turn"
@@ -246,6 +266,23 @@ instance BC.ToByteString TurnHost where
   builder (TurnHostIp ip) = BC.builder ip
   builder (TurnHostName n) = BC.builder n
 
+instance Arbitrary TurnHost where
+  arbitrary =
+    QC.oneof
+      [ TurnHostIp <$> arbitrary,
+        TurnHostName <$> genHostName
+      ]
+    where
+      -- values that should fulfill 'validHostname'
+      genHostName =
+        QC.elements
+          [ "host.name",
+            "a-c",
+            "123",
+            "007.com",
+            "xn--mgbh0fb.xn--kgbechtv"
+          ]
+
 isHostName :: TurnHost -> Bool
 isHostName (TurnHostIp _) = False
 isHostName (TurnHostName _) = True
@@ -261,7 +298,8 @@ parseTurnHost h = case BC.fromByteString host of
 data Transport
   = TransportUDP
   | TransportTCP
-  deriving (Eq, Show, Generic, Enum, Bounded)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Transport)
 
 instance BC.ToByteString Transport where
   builder TransportUDP = "udp"
@@ -285,7 +323,8 @@ instance FromJSON Transport where
 -- TurnUsername
 
 data TurnUsername = TurnUsername
-  { _tuExpiresAt :: POSIXTime,
+  { -- | must be positive, integral number of seconds
+    _tuExpiresAt :: POSIXTime,
     _tuVersion :: Word,
     -- | seems to large, but uint32_t is used in C
     _tuKeyindex :: Word32,
@@ -294,7 +333,7 @@ data TurnUsername = TurnUsername
     -- | [a-z0-9]+
     _tuRandom :: Text
   }
-  deriving (Show, Generic)
+  deriving stock (Eq, Show, Generic)
 
 -- note that the random value is not checked for well-formedness
 turnUsername :: POSIXTime -> Text -> TurnUsername
@@ -308,7 +347,7 @@ turnUsername expires rnd =
     }
 
 instance ToJSON TurnUsername where
-  toEncoding = text . view utf8 . BC.toByteString'
+  toJSON = String . view utf8 . BC.toByteString'
 
 instance FromJSON TurnUsername where
   parseJSON =
@@ -336,6 +375,17 @@ parseTurnUsername =
     <*> (string ".k=" *> decimal)
     <*> (string ".t=" *> anyChar)
     <*> (string ".r=" *> takeWhile1 (inClass "a-z0-9"))
+
+instance Arbitrary TurnUsername where
+  arbitrary =
+    TurnUsername
+      <$> (fromIntegral <$> arbitrary @Word64)
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> (Text.pack <$> QC.listOf1 genAlphaNum)
+    where
+      genAlphaNum = QC.elements $ ['a' .. 'z'] <> ['0' .. '9']
 
 --------------------------------------------------------------------------------
 -- convenience

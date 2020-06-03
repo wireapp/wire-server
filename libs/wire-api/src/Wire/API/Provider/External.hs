@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -27,6 +28,7 @@ import Data.Aeson
 import Data.Id
 import Data.Json.Util ((#))
 import Imports
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Provider.Bot (BotConvView, BotUserView)
 import Wire.API.User.Client.Prekey (LastPrekey, Prekey)
 import Wire.API.User.Profile (Asset, ColourId, Locale, Name)
@@ -50,10 +52,13 @@ data NewBotRequest = NewBotRequest
     -- to use.
     newBotLocale :: Locale
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewBotRequest)
 
 instance FromJSON NewBotRequest where
   parseJSON = withObject "NewBotRequest" $ \o ->
-    NewBotRequest <$> o .: "id"
+    NewBotRequest
+      <$> o .: "id"
       <*> o .: "client"
       <*> o .: "origin"
       <*> o .: "conversation"
@@ -84,10 +89,13 @@ data NewBotResponse = NewBotResponse
     rsNewBotColour :: Maybe ColourId,
     rsNewBotAssets :: Maybe [Asset]
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform NewBotResponse)
 
 instance FromJSON NewBotResponse where
   parseJSON = withObject "NewBotResponse" $ \o ->
-    NewBotResponse <$> o .: "prekeys"
+    NewBotResponse
+      <$> o .: "prekeys"
       <*> o .: "last_prekey"
       <*> o .:? "name"
       <*> o .:? "accent_id"

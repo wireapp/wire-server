@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -30,6 +31,7 @@ import Data.Aeson
 import Data.Id
 import Data.Json.Util ((#))
 import Imports
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Event.Conversation (Event)
 import Wire.API.User.Client.Prekey (Prekey)
 import Wire.API.User.Profile (Asset, ColourId, Locale, Name)
@@ -43,6 +45,8 @@ data AddBot = AddBot
     addBotService :: ServiceId,
     addBotLocale :: Maybe Locale
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform AddBot)
 
 instance ToJSON AddBot where
   toJSON n =
@@ -54,7 +58,8 @@ instance ToJSON AddBot where
 
 instance FromJSON AddBot where
   parseJSON = withObject "NewBot" $ \o ->
-    AddBot <$> o .: "provider"
+    AddBot
+      <$> o .: "provider"
       <*> o .: "service"
       <*> o .:? "locale"
 
@@ -66,6 +71,8 @@ data AddBotResponse = AddBotResponse
     rsAddBotAssets :: [Asset],
     rsAddBotEvent :: Event
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform AddBotResponse)
 
 instance ToJSON AddBotResponse where
   toJSON r =
@@ -80,7 +87,8 @@ instance ToJSON AddBotResponse where
 
 instance FromJSON AddBotResponse where
   parseJSON = withObject "AddBotResponse" $ \o ->
-    AddBotResponse <$> o .: "id"
+    AddBotResponse
+      <$> o .: "id"
       <*> o .: "client"
       <*> o .: "name"
       <*> o .: "accent_id"
@@ -95,6 +103,8 @@ instance FromJSON AddBotResponse where
 newtype RemoveBotResponse = RemoveBotResponse
   { rsRemoveBotEvent :: Event
   }
+  deriving stock (Eq, Show)
+  deriving newtype (Arbitrary)
 
 instance ToJSON RemoveBotResponse where
   toJSON r =
@@ -112,6 +122,8 @@ instance FromJSON RemoveBotResponse where
 newtype UpdateBotPrekeys = UpdateBotPrekeys
   { updateBotPrekeyList :: [Prekey]
   }
+  deriving stock (Eq, Show)
+  deriving newtype (Arbitrary)
 
 instance ToJSON UpdateBotPrekeys where
   toJSON u =

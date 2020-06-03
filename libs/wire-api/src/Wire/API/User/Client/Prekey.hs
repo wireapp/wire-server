@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -41,9 +42,11 @@ import Data.Hashable (hash)
 import Data.Id
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 newtype PrekeyId = PrekeyId {keyId :: Word16}
-  deriving (Eq, Ord, Show, ToJSON, FromJSON, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (ToJSON, FromJSON, Arbitrary)
 
 --------------------------------------------------------------------------------
 -- Prekey
@@ -52,7 +55,8 @@ data Prekey = Prekey
   { prekeyId :: PrekeyId,
     prekeyKey :: Text
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Prekey)
 
 modelPrekey :: Doc.Model
 modelPrekey = Doc.defineModel "Prekey" $ do
@@ -82,7 +86,7 @@ clientIdFromPrekey prekey =
 
 newtype LastPrekey = LastPrekey
   {unpackLastPrekey :: Prekey}
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
 
 instance ToJSON LastPrekey where
   toJSON = toJSON . unpackLastPrekey
@@ -95,6 +99,9 @@ instance FromJSON LastPrekey where
                 then return $ LastPrekey k
                 else fail "Invalid last prekey ID."
           )
+
+instance Arbitrary LastPrekey where
+  arbitrary = lastPrekey <$> arbitrary
 
 lastPrekeyId :: PrekeyId
 lastPrekeyId = PrekeyId maxBound
@@ -109,7 +116,8 @@ data PrekeyBundle = PrekeyBundle
   { prekeyUser :: OpaqueUserId,
     prekeyClients :: [ClientPrekey]
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform PrekeyBundle)
 
 modelPrekeyBundle :: Doc.Model
 modelPrekeyBundle = Doc.defineModel "PrekeyBundle" $ do
@@ -137,7 +145,8 @@ data ClientPrekey = ClientPrekey
   { prekeyClient :: ClientId,
     prekeyData :: Prekey
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ClientPrekey)
 
 modelClientPrekey :: Doc.Model
 modelClientPrekey = Doc.defineModel "ClientPrekey" $ do

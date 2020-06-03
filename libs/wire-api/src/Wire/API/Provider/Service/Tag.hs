@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- This file is part of the Wire Server implementation.
@@ -50,13 +51,14 @@ import qualified Data.Set as Set
 import qualified Data.Text.Encoding as Text
 import GHC.TypeLits (Nat)
 import Imports
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- ServiceTag
 
 newtype ServiceTagList = ServiceTagList [ServiceTag]
   deriving stock (Eq, Ord, Show)
-  deriving newtype (FromJSON, ToJSON)
+  deriving newtype (FromJSON, ToJSON, Arbitrary)
 
 -- | A fixed enumeration of tags for services.
 data ServiceTag
@@ -91,7 +93,8 @@ data ServiceTag
   | TutorialTag
   | VideoTag
   | WeatherTag
-  deriving (Eq, Show, Ord, Enum, Bounded)
+  deriving stock (Eq, Show, Ord, Enum, Bounded, Generic)
+  deriving (Arbitrary) via (GenericUniform ServiceTag)
 
 instance FromByteString ServiceTag where
   parser = parser >>= \t -> case (t :: ByteString) of
@@ -175,7 +178,7 @@ instance FromJSON ServiceTag where
 -- | Bounded logical disjunction of 'm' to 'n' 'QueryAllTags'.
 newtype QueryAnyTags (m :: Nat) (n :: Nat) = QueryAnyTags
   {queryAnyTagsRange :: Range m n (Set (QueryAllTags m n))}
-  deriving (Eq, Show, Ord)
+  deriving stock (Eq, Show, Ord)
 
 queryAnyTags :: LTE m n => MatchAny -> Maybe (QueryAnyTags m n)
 queryAnyTags t = do
@@ -203,7 +206,7 @@ instance LTE m n => FromByteString (QueryAnyTags m n) where
 -- | Bounded logical conjunction of 'm' to 'n' 'ServiceTag's to match.
 newtype QueryAllTags (m :: Nat) (n :: Nat) = QueryAllTags
   {queryAllTagsRange :: Range m n (Set ServiceTag)}
-  deriving (Eq, Show, Ord)
+  deriving stock (Eq, Show, Ord)
 
 queryAllTags :: LTE m n => MatchAll -> Maybe (QueryAllTags m n)
 queryAllTags = fmap QueryAllTags . Range.checked . matchAllSet
@@ -232,12 +235,12 @@ instance LTE m n => FromByteString (QueryAllTags m n) where
 -- | Logical disjunction of 'MatchAllTags' to match.
 newtype MatchAny = MatchAny
   {matchAnySet :: Set MatchAll}
-  deriving (Eq, Show, Ord)
+  deriving stock (Eq, Show, Ord)
 
 -- | Logical conjunction of 'ServiceTag's to match.
 newtype MatchAll = MatchAll
   {matchAllSet :: Set ServiceTag}
-  deriving (Eq, Show, Ord)
+  deriving stock (Eq, Show, Ord)
 
 (.||.) :: MatchAny -> MatchAny -> MatchAny
 (.||.) (MatchAny a) (MatchAny b) = MatchAny (Set.union a b)

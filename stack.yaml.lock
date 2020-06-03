@@ -29,18 +29,18 @@ packages:
     commit: 2e3282e5fb27ba8d989c271a0a989823fad7ec43
 - completed:
     cabal-file:
-      size: 8428
-      sha256: fe2cb8e7ce1a52a945af37523411732004952ceedddaeb10927722c46c96aa9e
+      size: 8392
+      sha256: 2c5d7f46633fb414eeb43facfe1018378f001b8b67dd77a45d110db84e46034c
     name: saml2-web-sso
     version: '0.18'
     git: https://github.com/wireapp/saml2-web-sso
     pantry-tree:
-      size: 4678
-      sha256: 4762eec362681b6bb26651d14d070d6c4da7d3dea1e9d2f166ae082d514d108d
-    commit: 80ecd2e7e01d5c1c17303e81f75fd37e41ee3da4
+      size: 4601
+      sha256: 58cd6e1435b4ad530b99de3f9c7ffbf7d8644ebc75f2da22b2521e4347a92701
+    commit: 687d9ac8ac2994aff8436189c6ecce29faad8500
   original:
     git: https://github.com/wireapp/saml2-web-sso
-    commit: 80ecd2e7e01d5c1c17303e81f75fd37e41ee3da4
+    commit: 687d9ac8ac2994aff8436189c6ecce29faad8500
 - completed:
     cabal-file:
       size: 9076
@@ -141,18 +141,32 @@ packages:
     commit: 0a5142cd3ba48116ff059c041348b817fb7bdb25
 - completed:
     cabal-file:
-      size: 3259
-      sha256: ab576560da2c4a87de631543f22e00cfec4ce545554220e4cf1033816b7695cd
+      size: 3403
+      sha256: 2fd9aef25802bf62848b7087a9476264b50bc7d9f195c7f0012e52d19ed2ebe3
     name: bloodhound
     version: 0.17.0.0
     git: https://github.com/wireapp/bloodhound
     pantry-tree:
-      size: 4116
-      sha256: 74670e260cdbf4c4f433de921c746d0ba0347e66153a72745f87b84261c2787b
-    commit: 88261015a6ea8b10c0c73dedfb5f2ba7f2e36e81
+      size: 4343
+      sha256: f3d35894f570e67a68303e71134a722909151f4de232093375a63b7935a4b761
+    commit: 7d3ccf8039912829b26b8e47cc4eaabc98cb571a
   original:
     git: https://github.com/wireapp/bloodhound
-    commit: 88261015a6ea8b10c0c73dedfb5f2ba7f2e36e81
+    commit: 7d3ccf8039912829b26b8e47cc4eaabc98cb571a
+- completed:
+    hackage: deriving-aeson-0.2.5@sha256:a1efa4ab7ff94f73e6d2733a9d4414cb4c3526761295722cff28027b5b3da1a4,1277
+    pantry-tree:
+      size: 441
+      sha256: 8fa77245ed0f169fae3a337bf4b9114c44e6bd0cd02ce748998f46c19ef32277
+  original:
+    hackage: deriving-aeson-0.2.5@sha256:a1efa4ab7ff94f73e6d2733a9d4414cb4c3526761295722cff28027b5b3da1a4,1277
+- completed:
+    hackage: aeson-1.4.7.1@sha256:6d8d2fd959b7122a1df9389cf4eca30420a053d67289f92cdc0dbc0dab3530ba,7098
+    pantry-tree:
+      size: 40133
+      sha256: caa9306e519c601ab0170d113daa03c1163db53e5466be2968bbd61a771bebcb
+  original:
+    hackage: aeson-1.4.7.1@sha256:6d8d2fd959b7122a1df9389cf4eca30420a053d67289f92cdc0dbc0dab3530ba,7098
 - completed:
     size: 11137527
     subdir: amazonka
@@ -538,6 +552,20 @@ packages:
       sha256: d98288879d370d53e741f0dafaad96de2a58f84556ce4a835322d4029e529b9d
   original:
     hackage: wai-route-0.4.0
+- completed:
+    hackage: QuickCheck-2.14@sha256:a1bac79e48b36d5bccd771e981058c44707f440156a0a411ebdcfec8cfccfda9,6982
+    pantry-tree:
+      size: 2203
+      sha256: 1c8b0f1ff061117c78ddb69cbed242faf313a427c03e5c84233aa33e7e58a5cb
+  original:
+    hackage: QuickCheck-2.14
+- completed:
+    hackage: splitmix-0.0.4@sha256:fb9bb8b54a2e76c8a021fe5c4c3798047e1f60e168379a1f80693047fe00ad0e,4813
+    pantry-tree:
+      size: 872
+      sha256: e58892088b95190bfb59a7c0803f7ef65338e57fc9b938d7c166563605003902
+  original:
+    hackage: splitmix-0.0.4
 - completed:
     hackage: ormolu-0.0.5.0@sha256:e5f49c51c6ebd8b3cd16113e585312de7315c1e1561fbb599988cebc61c14f4e,7956
     pantry-tree:

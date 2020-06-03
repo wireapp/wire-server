@@ -133,7 +133,7 @@ tests mbConf p db b c g = do
               testWhitelistBasic conf db b g,
             test p "search" $ testSearchWhitelist conf db b g,
             test p "search honors enabling and whitelisting" $
-              testSearchWhitelistHonorUpdates conf db b g,
+              testSearchWhitelistHonorUpdates conf db b,
             test p "de-whitelisted bots are removed" $
               testWhitelistKickout conf db b g c,
             test p "de-whitelisting works with deleted conversations" $
@@ -641,7 +641,7 @@ testMessageBotTeam config db brig galley cannon = withTestService config db brig
   let pid = sref ^. serviceRefProvider
   let sid = sref ^. serviceRefId
   -- Prepare user with client
-  (uid, tid) <- Team.createUserWithTeam brig galley
+  (uid, tid) <- Team.createUserWithTeam brig
   let new = defNewClient PermanentClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
   _rs <- addClient brig uid new <!! const 201 === statusCode
   let Just uc = clientId <$> responseJsonMaybe _rs
@@ -699,7 +699,7 @@ testDeleteTeamBotTeam config db brig galley cannon = withTestService config db b
 testWhitelistSearchPermissions :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
 testWhitelistSearchPermissions _config _db brig galley = do
   -- Create a team
-  (owner, tid) <- Team.createUserWithTeam brig galley
+  (owner, tid) <- Team.createUserWithTeam brig
   -- Check that users who are not on the team can't search
   nonMember <- userId <$> randomUser brig
   listTeamServiceProfilesByPrefix brig nonMember tid Nothing True 20 !!! do
@@ -713,7 +713,7 @@ testWhitelistSearchPermissions _config _db brig galley = do
 testWhitelistUpdatePermissions :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
 testWhitelistUpdatePermissions config db brig galley = do
   -- Create a team
-  (owner, tid) <- Team.createUserWithTeam brig galley
+  (owner, tid) <- Team.createUserWithTeam brig
   -- Create a team admin
   let Just adminPermissions = Team.newPermissions Team.serviceWhitelistPermissions mempty
   admin <- userId <$> Team.createTeamMember brig galley owner tid adminPermissions
@@ -739,7 +739,7 @@ testWhitelistUpdatePermissions config db brig galley = do
 testSearchWhitelist :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
 testSearchWhitelist config db brig galley = do
   -- Create a team, a team owner, and a team member with no permissions
-  (owner, tid) <- Team.createUserWithTeam brig galley
+  (owner, tid) <- Team.createUserWithTeam brig
   uid <- userId <$> Team.createTeamMember brig galley owner tid Team.noPermissions
   -- Create services and add them all to the whitelist
   pid <- providerId <$> randomProvider db brig
@@ -813,10 +813,10 @@ testSearchWhitelist config db brig galley = do
         }
     select prefix = filter (Text.isPrefixOf (Text.toLower prefix) . Text.toLower . fromName . snd)
 
-testSearchWhitelistHonorUpdates :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
-testSearchWhitelistHonorUpdates config db brig galley = do
+testSearchWhitelistHonorUpdates :: Config -> DB.ClientState -> Brig -> Http ()
+testSearchWhitelistHonorUpdates config db brig = do
   -- Create a team with an owner
-  (uid, tid) <- Team.createUserWithTeam brig galley
+  (uid, tid) <- Team.createUserWithTeam brig
   let expectWhitelist ifAll ifEnabled = do
         searchServiceWhitelistAll brig 20 uid tid Nothing
           >>= assertServiceDetails "search all" ifAll
@@ -846,7 +846,7 @@ testWhitelistBasic config db brig galley =
     let pid = sref ^. serviceRefProvider
     let sid = sref ^. serviceRefId
     -- Create a team
-    (owner, tid) <- Team.createUserWithTeam brig galley
+    (owner, tid) <- Team.createUserWithTeam brig
     -- Check that the service can't be added to a conversation by default
     cid <- Team.createTeamConv galley tid owner [] Nothing
     addBot brig owner pid sid cid !!! do
@@ -872,7 +872,7 @@ testWhitelistBasic config db brig galley =
 testWhitelistKickout :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testWhitelistKickout config db brig galley cannon = do
   -- Create a team and a conversation
-  (owner, tid) <- Team.createUserWithTeam brig galley
+  (owner, tid) <- Team.createUserWithTeam brig
   cid <- Team.createTeamConv galley tid owner [] Nothing
   -- Create a service
   withTestService config db brig defServiceApp $ \sref buf -> do
@@ -1973,7 +1973,7 @@ prepareBotUsersTeam brig galley sref = do
   let pid = sref ^. serviceRefProvider
   let sid = sref ^. serviceRefId
   -- Prepare users
-  (uid1, tid) <- Team.createUserWithTeam brig galley
+  (uid1, tid) <- Team.createUserWithTeam brig
   u1 <- selfUser <$> getSelfProfile brig uid1
   u2 <- Team.createTeamMember brig galley uid1 tid Team.fullPermissions
   let uid2 = userId u2

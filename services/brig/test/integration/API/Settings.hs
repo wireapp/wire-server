@@ -15,14 +15,13 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API.Settings where
+module API.Settings (tests) where
 
 import API.Team.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Options (Opts)
 import qualified Brig.Options as Opt
-import Brig.Run (mkApp)
 import Brig.Types (Email (..), User (..), userEmail)
 import Control.Arrow ((&&&))
 import Control.Lens
@@ -34,15 +33,9 @@ import Data.Id
 import qualified Data.Set as Set
 import qualified Galley.Types.Teams as Team
 import Imports
-import qualified Network.Wai.Test as WaiTest
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
 import Util
-
-withCustomOptions :: Opts -> WaiTest.Session a -> IO a
-withCustomOptions opts sess = do
-  (app, _) <- mkApp opts
-  WaiTest.runSession sess app
 
 tests :: Opts -> Manager -> Brig -> Galley -> IO TestTree
 tests defOpts manager brig galley = return $ do
@@ -169,8 +162,8 @@ testGetUserEmailShowsEmailsIffExpected opts brig galley viewingUserIs visibility
 
 setup :: Brig -> Galley -> ViewingUserIs -> Http (UserId, User, User, User)
 setup brig galley viewingUserIs = do
-  (creatorId, tid) <- createUserWithTeam brig galley
-  (otherTeamCreatorId, otherTid) <- createUserWithTeam brig galley
+  (creatorId, tid) <- createUserWithTeam brig
+  (otherTeamCreatorId, otherTid) <- createUserWithTeam brig
   userA <- createTeamMember brig galley creatorId tid Team.fullPermissions
   userB <- createTeamMember brig galley otherTeamCreatorId otherTid Team.fullPermissions
   nonTeamUser <- createUser "joe" brig

@@ -30,6 +30,7 @@ import qualified Control.Lens as Lens
 import Data.Aeson (withText)
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (typeMismatch)
+import Data.Domain (Domain)
 import Data.Id
 import Data.Scientific (toBoundedInteger)
 import Data.Time.Clock (NominalDiffTime)
@@ -54,7 +55,9 @@ data ElasticSearchOpts = ElasticSearchOpts
   { -- | ElasticSearch URL
     url :: !Text,
     -- | The name of the ElasticSearch user index
-    index :: !Text
+    index :: !Text,
+    -- | An additional index to write user data, useful while migrating to a new index
+    additionalWriteIndex :: !(Maybe Text)
   }
   deriving (Show, Generic)
 
@@ -421,7 +424,7 @@ data Settings = Settings
     setDefaultLocale :: !Locale,
     -- | Max. # of members in a team.
     --   NOTE: This must be in sync with galley
-    setMaxTeamSize :: !Word16,
+    setMaxTeamSize :: !Word32,
     -- | Max. # of members in a conversation.
     --   NOTE: This must be in sync with galley
     setMaxConvSize :: !Word16,
@@ -451,9 +454,57 @@ data Settings = Settings
     -- ensures that there is only one request every 20 seconds.
     -- However, that parameter is not honoured when using fake-sqs
     -- (where throttling can thus make sense)
-    setSqsThrottleMillis :: !(Maybe Int)
+    setSqsThrottleMillis :: !(Maybe Int),
+    -- Customer extensions
+
+    -- | Customer extensions.  Read 'CustomerExtensions' docs carefully!
+    setCustomerExtensions :: !(Maybe CustomerExtensions)
   }
   deriving (Show, Generic)
+
+-- | Customer extensions naturally are covered by the AGPL like everything else, but use them
+-- at your own risk!  If you use the default server config and do not set
+-- @customerExtensions@, none of this will have any effect.
+--
+-- This is code implemented to comply with particular contracts.  It may change or be removed
+-- at any point in the future without any further notice.
+data CustomerExtensions = CustomerExtensions
+  { -- | You cannot create an account (free user without team or user with new team) if your
+    -- email address has a domain listed here.  You can only accept an invitation from a team
+    -- that has already been created.
+    --
+    -- This feature is a work-around for issues with our somewhat convoluted onboarding
+    -- process.  We are working on a more sustainable solution.  Meanwhile this should not be
+    -- used unless absolutely necessary (legal reasons, constracts).  It has numerous
+    -- drawbacks:
+    --
+    -- * Changing it requires changing the configuration of the backend, which usually means
+    --   a new release.  This is intentional to keep this feature from contaminating more of
+    --   the code base (see below), but it also makes it awkward to use.
+    --
+    -- * So far, we have been using emails as opaque identifiers and not made any assumptions
+    --   about their structure.  Now, email is still securely associated with a user, but can
+    --   also be securely associated with another user who owns the first user's domain.  This
+    --   new setup is more complex, and complexity is bad for security.  Security is now based
+    --   on a much larger number of assumptions, and any one of these assumptions can be
+    --   broken by software or usage errors.  Example: is it even legal for the owner of an
+    --   email domain to keep users from signing up with wire using that email?  This is
+    --   possibly true for domains like @mystartup.com@, but what about
+    --   @globalmailhosting.com@?  Other example: next point.
+    --
+    -- * We could implement something more sophisticated involving 'TXT' DNS records that the
+    --   team admin needs to set up containing some secrets obtainable via team settings.
+    --   This is a lot more involved to implement, and very easy for coders or users to get
+    --   wrong.
+    --
+    -- Bottom line: you probably want to keep either @customerExtensions = Nothing@ or at
+    -- least @domainsBlockedForRegistration = []@.  :)
+    domainsBlockedForRegistration :: DomainsBlockedForRegistration
+  }
+  deriving (Show, FromJSON, Generic)
+
+newtype DomainsBlockedForRegistration = DomainsBlockedForRegistration [Domain]
+  deriving newtype (Show, FromJSON, Generic)
 
 defMaxKeyLen :: Int64
 defMaxKeyLen = 1024
@@ -488,18 +539,26 @@ instance FromJSON Settings
 instance FromJSON Opts
 
 -- TODO: Does it make sense to generate lens'es for all?
-Lens.makeLensesFor [("optSettings", "optionSettings")] ''Opts
+Lens.makeLensesFor
+  [ ("optSettings", "optionSettings"),
+    ("elasticsearch", "elasticsearchL")
+  ]
+  ''Opts
 
-Lens.makeLensesFor [("setEmailVisibility", "emailVisibility")] ''Settings
+Lens.makeLensesFor
+  [ ("setEmailVisibility", "emailVisibility"),
+    ("setPropertyMaxKeyLen", "propertyMaxKeyLen"),
+    ("setPropertyMaxValueLen", "propertyMaxValueLen"),
+    ("setSearchSameTeamOnly", "searchSameTeamOnly"),
+    ("setUserMaxPermClients", "userMaxPermClients"),
+    ("setEnableFederation", "enableFederation"),
+    ("setSqsThrottleMillis", "sqsThrottleMillis")
+  ]
+  ''Settings
 
-Lens.makeLensesFor [("setPropertyMaxKeyLen", "propertyMaxKeyLen")] ''Settings
-
-Lens.makeLensesFor [("setPropertyMaxValueLen", "propertyMaxValueLen")] ''Settings
-
-Lens.makeLensesFor [("setSearchSameTeamOnly", "searchSameTeamOnly")] ''Settings
-
-Lens.makeLensesFor [("setUserMaxPermClients", "userMaxPermClients")] ''Settings
-
-Lens.makeLensesFor [("setEnableFederation", "enableFederation")] ''Settings
-
-Lens.makeLensesFor [("setSqsThrottleMillis", "sqsThrottleMillis")] ''Settings
+Lens.makeLensesFor
+  [ ("url", "urlL"),
+    ("index", "indexL"),
+    ("additionalWriteIndex", "additionalWriteIndexL")
+  ]
+  ''ElasticSearchOpts

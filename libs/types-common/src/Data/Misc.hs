@@ -69,21 +69,24 @@ import Data.ByteString.Builder
 import Data.ByteString.Char8 (unpack)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
-import Data.IP (IP)
+import Data.IP (IP (IPv4, IPv6), toIPv4, toIPv6b)
 import Data.Int (Int64)
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Imports
-import Test.QuickCheck (Arbitrary (..))
+import Test.QuickCheck (Arbitrary (arbitrary))
+import qualified Test.QuickCheck as QC
 import Text.Read (Read (..))
 import URI.ByteString hiding (Port)
+import qualified URI.ByteString.QQ as URI.QQ
 
 --------------------------------------------------------------------------------
 -- IpAddr / Port
 
-newtype IpAddr = IpAddr {ipAddr :: IP} deriving (Eq, Ord, Show, Generic)
+newtype IpAddr = IpAddr {ipAddr :: IP}
+  deriving stock (Eq, Ord, Show, Generic)
 
 instance FromByteString IpAddr where
   parser = do
@@ -100,10 +103,18 @@ instance Read IpAddr where
 
 instance NFData IpAddr where rnf (IpAddr a) = seq a ()
 
+-- TODO: Add an arbitrary instance for IPv6
+instance Arbitrary IpAddr where
+  arbitrary = IpAddr <$> QC.oneof [IPv4 <$> genIPv4, IPv6 <$> genIPv6]
+    where
+      genIPv4 = toIPv4 <$> replicateM 4 genByte
+      genIPv6 = toIPv6b <$> replicateM 16 genByte
+      genByte = QC.chooseInt (0, 255)
+
 newtype Port = Port
-  { portNumber :: Word16
-  }
-  deriving (Eq, Ord, Show, Real, Enum, Num, Integral, NFData, Generic)
+  {portNumber :: Word16}
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (Real, Enum, Num, Integral, NFData, Arbitrary)
 
 instance Read Port where
   readsPrec n = map (\x -> (Port (fst x), snd x)) . readsPrec n
@@ -130,7 +141,7 @@ data Location = Location
   { _latitude :: !Double,
     _longitude :: !Double
   }
-  deriving (Eq, Ord, Generic)
+  deriving stock (Eq, Ord, Generic)
 
 instance Show Location where
   show p =
@@ -144,6 +155,7 @@ instance NFData Location
 
 makeLenses ''Location
 
+-- FUTUREWORK: why not use these in 'Location'?
 newtype Latitude = Latitude Double deriving (NFData, Generic)
 
 newtype Longitude = Longitude Double deriving (NFData, Generic)
@@ -165,8 +177,12 @@ instance ToJSON Location where
 
 instance FromJSON Location where
   parseJSON = withObject "Location" $ \o ->
-    location <$> (Latitude <$> o .: "lat")
+    location
+      <$> (Latitude <$> o .: "lat")
       <*> (Longitude <$> o .: "lon")
+
+instance Arbitrary Location where
+  arbitrary = Location <$> arbitrary <*> arbitrary
 
 instance Cql Latitude where
   ctype = Tagged DoubleColumn
@@ -190,7 +206,8 @@ instance Cql Longitude where
 newtype Milliseconds = Ms
   { ms :: Word64
   }
-  deriving (Eq, Ord, Show, Num, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype (Num, Arbitrary)
 
 -- | Convert milliseconds to 'Int64', with clipping if it doesn't fit.
 msToInt64 :: Milliseconds -> Int64
@@ -219,7 +236,7 @@ instance Cql Milliseconds where
 newtype HttpsUrl = HttpsUrl
   { httpsUrl :: URIRef Absolute
   }
-  deriving (Eq, Generic)
+  deriving stock (Eq, Generic)
 
 mkHttpsUrl :: URIRef Absolute -> Either String HttpsUrl
 mkHttpsUrl uri =
@@ -251,6 +268,9 @@ instance Cql HttpsUrl where
   fromCql (CqlBlob t) = runParser parser (toStrict t)
   fromCql _ = fail "HttpsUrl: Expected CqlBlob"
 
+instance Arbitrary HttpsUrl where
+  arbitrary = pure $ HttpsUrl [URI.QQ.uri|https://example.com|]
+
 --------------------------------------------------------------------------------
 -- Fingerprint
 
@@ -260,7 +280,8 @@ data Rsa
 newtype Fingerprint a = Fingerprint
   { fingerprintBytes :: ByteString
   }
-  deriving (Eq, Show, FromByteString, ToByteString, NFData, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (FromByteString, ToByteString, NFData)
 
 instance FromJSON (Fingerprint Rsa) where
   parseJSON =
@@ -277,12 +298,19 @@ instance Cql (Fingerprint a) where
   fromCql (CqlBlob b) = return (Fingerprint (toStrict b))
   fromCql _ = fail "Fingerprint: Expected CqlBlob"
 
+instance Arbitrary (Fingerprint Rsa) where
+  arbitrary =
+    pure $
+      Fingerprint
+        "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
+
 --------------------------------------------------------------------------------
 -- Password
 
 newtype PlainTextPassword = PlainTextPassword
   {fromPlainTextPassword :: Text}
-  deriving (Eq, ToJSON, Generic)
+  deriving stock (Eq, Generic)
+  deriving newtype (ToJSON)
 
 instance Show PlainTextPassword where
   show _ = "PlainTextPassword <hidden>"

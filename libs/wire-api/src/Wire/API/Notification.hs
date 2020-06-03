@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 
@@ -49,6 +50,7 @@ import Data.List1
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Time.Clock (UTCTime)
 import Imports
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 
 type NotificationId = Id QueuedNotification
 
@@ -70,7 +72,8 @@ data QueuedNotification = QueuedNotification
   { _queuedNotificationId :: NotificationId,
     _queuedNotificationPayload :: List1 Event
   }
-  deriving (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform QueuedNotification)
 
 queuedNotification :: NotificationId -> List1 Event -> QueuedNotification
 queuedNotification = QueuedNotification
@@ -94,7 +97,8 @@ instance ToJSON QueuedNotification where
 
 instance FromJSON QueuedNotification where
   parseJSON = JSON.withObject "QueuedNotification" $ \o ->
-    QueuedNotification <$> o .: "id"
+    QueuedNotification
+      <$> o .: "id"
       <*> o .: "payload"
 
 data QueuedNotificationList = QueuedNotificationList
@@ -102,6 +106,8 @@ data QueuedNotificationList = QueuedNotificationList
     _queuedHasMore :: Bool,
     _queuedTime :: Maybe UTCTime
   }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform QueuedNotificationList)
 
 queuedNotificationList :: [QueuedNotification] -> Bool -> Maybe UTCTime -> QueuedNotificationList
 queuedNotificationList = QueuedNotificationList
@@ -127,6 +133,7 @@ instance ToJSON QueuedNotificationList where
 
 instance FromJSON QueuedNotificationList where
   parseJSON = JSON.withObject "QueuedNotificationList" $ \o ->
-    QueuedNotificationList <$> o .: "notifications"
+    QueuedNotificationList
+      <$> o .: "notifications"
       <*> o .:? "has_more" .!= False
       <*> o .:? "time"

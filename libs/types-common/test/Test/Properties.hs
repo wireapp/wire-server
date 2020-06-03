@@ -39,7 +39,6 @@ import Data.Serialize
 import Data.Text.Ascii
 import qualified Data.Text.Ascii as Ascii
 import Data.Time
-import Data.Time.Clock.POSIX
 import Data.UUID
 import Imports
 import Test.Tasty
@@ -219,6 +218,3 @@ newtype Tag' = Tag' Tag
 
 instance Arbitrary Tag' where
   arbitrary = Tag' <$> choose (0, 536870912)
-
-instance Arbitrary Util.UTCTimeMillis where
-  arbitrary = Util.toUTCTimeMillis . posixSecondsToUTCTime . fromInteger <$> arbitrary

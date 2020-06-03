@@ -52,6 +52,7 @@ import Network.Wai.Predicate hiding (or, result, setStatus)
 import Network.Wai.Utilities as Wai
 import qualified System.Logger.Class as Log
 import UnliftIO.Async (pooledMapConcurrentlyN_)
+import qualified Wire.API.Team.LegalHold as Public
 
 assertLegalHoldEnabled :: TeamId -> Galley ()
 assertLegalHoldEnabled tid = unlessM (isLegalHoldEnabled tid) $ throwM legalHoldNotEnabled
@@ -64,12 +65,12 @@ isLegalHoldEnabled tid = do
     Just LegalHoldDisabled -> False
     Nothing -> False
 
-createSettingsH :: UserId ::: TeamId ::: JsonRequest NewLegalHoldService ::: JSON -> Galley Response
+createSettingsH :: UserId ::: TeamId ::: JsonRequest Public.NewLegalHoldService ::: JSON -> Galley Response
 createSettingsH (zusr ::: tid ::: req ::: _) = do
-  newService :: NewLegalHoldService <- fromJsonBody req
+  newService <- fromJsonBody req
   setStatus status201 . json <$> createSettings zusr tid newService
 
-createSettings :: UserId -> TeamId -> NewLegalHoldService -> Galley ViewLegalHoldService
+createSettings :: UserId -> TeamId -> Public.NewLegalHoldService -> Galley Public.ViewLegalHoldService
 createSettings zusr tid newService = do
   assertLegalHoldEnabled tid
   zusrMembership <- Data.teamMember tid zusr
@@ -90,25 +91,25 @@ getSettingsH :: UserId ::: TeamId ::: JSON -> Galley Response
 getSettingsH (zusr ::: tid ::: _) = do
   json <$> getSettings zusr tid
 
-getSettings :: UserId -> TeamId -> Galley ViewLegalHoldService
+getSettings :: UserId -> TeamId -> Galley Public.ViewLegalHoldService
 getSettings zusr tid = do
   zusrMembership <- Data.teamMember tid zusr
   void $ permissionCheck ViewLegalHoldTeamSettings zusrMembership
   isenabled <- isLegalHoldEnabled tid
   mresult <- LegalHoldData.getSettings tid
   pure $ case (isenabled, mresult) of
-    (False, _) -> ViewLegalHoldServiceDisabled
-    (True, Nothing) -> ViewLegalHoldServiceNotConfigured
+    (False, _) -> Public.ViewLegalHoldServiceDisabled
+    (True, Nothing) -> Public.ViewLegalHoldServiceNotConfigured
     (True, Just result) -> viewLegalHoldService result
 
-removeSettingsH :: UserId ::: TeamId ::: JsonRequest RemoveLegalHoldSettingsRequest ::: JSON -> Galley Response
+removeSettingsH :: UserId ::: TeamId ::: JsonRequest Public.RemoveLegalHoldSettingsRequest ::: JSON -> Galley Response
 removeSettingsH (zusr ::: tid ::: req ::: _) = do
   removeSettingsRequest <- fromJsonBody req
   removeSettings zusr tid removeSettingsRequest
   pure noContent
 
-removeSettings :: UserId -> TeamId -> RemoveLegalHoldSettingsRequest -> Galley ()
-removeSettings zusr tid (RemoveLegalHoldSettingsRequest mPassword) = do
+removeSettings :: UserId -> TeamId -> Public.RemoveLegalHoldSettingsRequest -> Galley ()
+removeSettings zusr tid (Public.RemoveLegalHoldSettingsRequest mPassword) = do
   assertLegalHoldEnabled tid
   zusrMembership <- Data.teamMember tid zusr
   -- let zothers = map (view userId) membs
@@ -150,7 +151,7 @@ getUserStatusH :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
 getUserStatusH (_zusr ::: tid ::: uid ::: _) = do
   json <$> getUserStatus tid uid
 
-getUserStatus :: TeamId -> UserId -> Galley UserLegalHoldStatusResponse
+getUserStatus :: TeamId -> UserId -> Galley Public.UserLegalHoldStatusResponse
 getUserStatus tid uid = do
   mTeamMember <- Data.teamMember tid uid
   teamMember <- maybe (throwM teamMemberNotFound) pure mTeamMember
@@ -172,7 +173,7 @@ getUserStatus tid uid = do
           throwM internalError
         Just lstKey -> pure lstKey
       let clientId = clientIdFromPrekey . unpackLastPrekey $ lastKey
-      pure $ UserLegalHoldStatusResponse status (Just lastKey) (Just clientId)
+      pure $ Public.UserLegalHoldStatusResponse status (Just lastKey) (Just clientId)
 
 -- | Request to provision a device on the legal hold service for a user
 requestDeviceH :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
@@ -219,15 +220,15 @@ requestDevice zusr tid uid = do
 -- it gets interupted. There's really no reason to delete them anyways
 -- since they are replaced if needed when registering new LH devices.
 approveDeviceH ::
-  UserId ::: TeamId ::: UserId ::: ConnId ::: JsonRequest ApproveLegalHoldForUserRequest ::: JSON ->
+  UserId ::: TeamId ::: UserId ::: ConnId ::: JsonRequest Public.ApproveLegalHoldForUserRequest ::: JSON ->
   Galley Response
 approveDeviceH (zusr ::: tid ::: uid ::: connId ::: req ::: _) = do
   approve <- fromJsonBody req
   approveDevice zusr tid uid connId approve
   pure empty
 
-approveDevice :: UserId -> TeamId -> UserId -> ConnId -> ApproveLegalHoldForUserRequest -> Galley ()
-approveDevice zusr tid uid connId (ApproveLegalHoldForUserRequest mPassword) = do
+approveDevice :: UserId -> TeamId -> UserId -> ConnId -> Public.ApproveLegalHoldForUserRequest -> Galley ()
+approveDevice zusr tid uid connId (Public.ApproveLegalHoldForUserRequest mPassword) = do
   assertLegalHoldEnabled tid
   Log.debug $
     Log.field "targets" (toByteString uid)
@@ -263,7 +264,7 @@ approveDevice zusr tid uid connId (ApproveLegalHoldForUserRequest mPassword) = d
         _ -> throwM userLegalHoldNotPending
 
 disableForUserH ::
-  UserId ::: TeamId ::: UserId ::: JsonRequest DisableLegalHoldForUserRequest ::: JSON ->
+  UserId ::: TeamId ::: UserId ::: JsonRequest Public.DisableLegalHoldForUserRequest ::: JSON ->
   Galley Response
 disableForUserH (zusr ::: tid ::: uid ::: req ::: _) = do
   disable <- fromJsonBody req
@@ -275,8 +276,8 @@ data DisableLegalHoldForUserResponse
   = DisableLegalHoldSuccess
   | DisableLegalHoldWasNotEnabled
 
-disableForUser :: UserId -> TeamId -> UserId -> DisableLegalHoldForUserRequest -> Galley DisableLegalHoldForUserResponse
-disableForUser zusr tid uid (DisableLegalHoldForUserRequest mPassword) = do
+disableForUser :: UserId -> TeamId -> UserId -> Public.DisableLegalHoldForUserRequest -> Galley DisableLegalHoldForUserResponse
+disableForUser zusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) = do
   Log.debug $
     Log.field "targets" (toByteString uid)
       . Log.field "action" (Log.val "LegalHold.disableForUser")

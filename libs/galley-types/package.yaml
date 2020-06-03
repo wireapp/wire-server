@@ -26,7 +26,6 @@ library:
   - data-default >=0.5
   - errors
   - exceptions >=0.10.0
-  - gundeck-types >=1.15.13
   - hashable
   - lens >=4.12
   - protobuf >=0.2
@@ -47,10 +46,13 @@ tests:
     - -threaded
     - -with-rtsopts=-N
     dependencies:
+    - aeson
     - base
     - galley-types
     - lens
     - tasty
     - tasty-hunit
+    - tasty-quickcheck
     - types-common
     - containers
+    - QuickCheck

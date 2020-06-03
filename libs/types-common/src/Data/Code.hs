@@ -35,14 +35,17 @@ import Data.Scientific (toBoundedInteger)
 import Data.Text.Ascii
 import Data.Time.Clock
 import Imports
+import Test.QuickCheck (Arbitrary (arbitrary))
 
 -- | A scoped identifier for a 'Value' with an associated 'Timeout'.
 newtype Key = Key {asciiKey :: Range 20 20 AsciiBase64Url}
-  deriving (Eq, Show, FromJSON, ToJSON, FromByteString, ToByteString)
+  deriving (Eq, Show)
+  deriving newtype (FromJSON, ToJSON, FromByteString, ToByteString, Arbitrary)
 
 -- | A secret value bound to a 'Key' and a 'Timeout'.
 newtype Value = Value {asciiValue :: Range 6 20 AsciiBase64Url}
-  deriving (Eq, Show, FromJSON, ToJSON, FromByteString, ToByteString)
+  deriving (Eq, Show)
+  deriving newtype (FromJSON, ToJSON, FromByteString, ToByteString, Arbitrary)
 
 newtype Timeout = Timeout
   {timeoutDiffTime :: NominalDiffTime}
@@ -66,6 +69,9 @@ instance FromJSON Timeout where
           (fail "Invalid timeout value")
           (pure . Timeout . fromIntegral)
           t
+
+instance Arbitrary Timeout where
+  arbitrary = Timeout . fromIntegral <$> arbitrary @Int
 
 deriving instance Cql Key
 

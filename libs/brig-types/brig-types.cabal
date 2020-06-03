@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7708c6030d7990cd7a7a608b49f061bb4e8bbc8e367b3dd33884c75143841366
+-- hash: b7c27bea3301594e838d9d0d39612ad751a4e1e9f52276d6d2fae0c6c3f6ae4a
 
 name:           brig-types
 version:        1.35.0
@@ -33,7 +33,6 @@ library
       Brig.Types.Provider.External
       Brig.Types.Provider.Tag
       Brig.Types.Search
-      Brig.Types.Swagger
       Brig.Types.Team
       Brig.Types.Team.Invitation
       Brig.Types.Team.LegalHold
@@ -61,7 +60,6 @@ library
     , currency-codes >=2.0
     , errors >=1.4
     , extra
-    , galley-types >=0.45.7
     , hashable
     , hostname-validate
     , imports
@@ -112,7 +110,6 @@ test-suite brig-types-tests
     , containers
     , currency-codes
     , extra
-    , galley-types
     , hostname-validate
     , imports
     , iproute

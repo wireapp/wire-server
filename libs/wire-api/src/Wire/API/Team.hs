@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -78,6 +79,7 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Team.Member (TeamMember, modelTeamMember)
 
 --------------------------------------------------------------------------------
@@ -91,7 +93,8 @@ data Team = Team
     _teamIconKey :: Maybe Text,
     _teamBinding :: TeamBinding
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Team)
 
 newTeam :: TeamId -> UserId -> Text -> Text -> TeamBinding -> Team
 newTeam tid uid nme ico bnd = Team tid uid nme ico Nothing bnd
@@ -126,7 +129,8 @@ instance ToJSON Team where
 
 instance FromJSON Team where
   parseJSON = withObject "team" $ \o -> do
-    Team <$> o .: "id"
+    Team
+      <$> o .: "id"
       <*> o .: "creator"
       <*> o .: "name"
       <*> o .: "icon"
@@ -136,7 +140,8 @@ instance FromJSON Team where
 data TeamBinding
   = Binding
   | NonBinding
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform TeamBinding)
 
 instance ToJSON TeamBinding where
   toJSON Binding = Bool True
@@ -154,7 +159,8 @@ data TeamList = TeamList
   { _teamListTeams :: [Team],
     _teamListHasMore :: Bool
   }
-  deriving (Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform TeamList)
 
 newTeamList :: [Team] -> Bool -> TeamList
 newTeamList = TeamList
@@ -176,14 +182,15 @@ instance ToJSON TeamList where
 
 instance FromJSON TeamList where
   parseJSON = withObject "teamlist" $ \o -> do
-    TeamList <$> o .: "teams"
+    TeamList
+      <$> o .: "teams"
       <*> o .: "has_more"
 
 --------------------------------------------------------------------------------
 -- NewTeam
 
 newtype BindingNewTeam = BindingNewTeam (NewTeam ())
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
 
 modelNewBindingTeam :: Doc.Model
 modelNewBindingTeam = Doc.defineModel "NewBindingTeam" $ do
@@ -206,11 +213,19 @@ newTeamJson (NewTeam n i ik _) =
     # "icon_key" .= (fromRange <$> ik)
     # []
 
-deriving instance FromJSON BindingNewTeam
+deriving newtype instance FromJSON BindingNewTeam
+
+-- FUTUREWORK: since new team members do not get serialized, we zero them here.
+-- it may be worth looking into how this can be solved in the types.
+instance Arbitrary BindingNewTeam where
+  arbitrary =
+    BindingNewTeam . zeroTeamMembers <$> arbitrary @(NewTeam ())
+    where
+      zeroTeamMembers tms = tms {_newTeamMembers = Nothing}
 
 -- | FUTUREWORK: this is dead code!  remove!
 newtype NonBindingNewTeam = NonBindingNewTeam (NewTeam (Range 1 127 [TeamMember]))
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
 
 modelNewNonBindingTeam :: Doc.Model
 modelNewNonBindingTeam = Doc.defineModel "newNonBindingTeam" $ do
@@ -232,7 +247,7 @@ instance ToJSON NonBindingNewTeam where
       "members" .= (fromRange <$> _newTeamMembers t)
         # newTeamJson t
 
-deriving instance FromJSON NonBindingNewTeam
+deriving newtype instance FromJSON NonBindingNewTeam
 
 data NewTeam a = NewTeam
   { _newTeamName :: Range 1 256 Text,
@@ -240,7 +255,8 @@ data NewTeam a = NewTeam
     _newTeamIconKey :: Maybe (Range 1 256 Text),
     _newTeamMembers :: Maybe a
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform (NewTeam a))
 
 newNewTeam :: Range 1 256 Text -> Range 1 256 Text -> NewTeam a
 newNewTeam nme ico = NewTeam nme ico Nothing Nothing
@@ -265,7 +281,8 @@ data TeamUpdateData = TeamUpdateData
     _iconUpdate :: Maybe (Range 1 256 Text),
     _iconKeyUpdate :: Maybe (Range 1 256 Text)
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform TeamUpdateData)
 
 modelUpdateData :: Doc.Model
 modelUpdateData = Doc.defineModel "TeamUpdateData" $ do
@@ -309,6 +326,8 @@ instance FromJSON TeamUpdateData where
 newtype TeamDeleteData = TeamDeleteData
   { _tdAuthPassword :: Maybe PlainTextPassword
   }
+  deriving stock (Eq, Show)
+  deriving newtype (Arbitrary)
 
 newTeamDeleteData :: Maybe PlainTextPassword -> TeamDeleteData
 newTeamDeleteData = TeamDeleteData

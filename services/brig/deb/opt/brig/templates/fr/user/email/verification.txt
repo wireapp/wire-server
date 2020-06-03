@@ -8,10 +8,11 @@ code afin de vérifier votre adresse email et créer votre compte.
 
 ${code}
 
-Si vous avez des questions, veuillez contactez-nous [${support}].
+Si vous avez des questions, veuillez nous contacter [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Confidentialité [${legal}] · Report Misuse [${misuse}]
-${copyright}. TOUTES DROITS RESERVED.
+Règles de confidentialité et conditions d'utilisation [${legal}] · Signaler un
+abus [${misuse}]
+${copyright}. TOUS DROITS RÉSERVÉS.
