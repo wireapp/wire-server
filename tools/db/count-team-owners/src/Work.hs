@@ -52,12 +52,12 @@ runCommand l galley = do
         )
       -- .| C.concat
       .| C.concatMap id --(filter isOwner)
-      .| C.map (\(t, u, perm, wt) -> (t, u, perm, utctDay $ writeTimeToUTC wt))
+      .| C.map (\(t, u, perm, wt) -> (t, u, perm, utctDay . writeTimeToUTC <$> wt))
       .| C.mapM
         ( \(t, u, perm, wt) -> do
             counterIncr (path "teamuser") stats
             counterIncr (path . pack $ "teamuser_" <> show wt) stats
-            counterIncr (path . pack $ "teamuser_" <> take 7 (show wt)) stats
+            counterIncr (path . pack $ "month_teamuser_" <> take 12 (show wt)) stats
             pure (t, u, perm, wt)
         )
       .| C.filter (\(t, u, perm, wt) -> isOwner perm)
@@ -66,7 +66,7 @@ runCommand l galley = do
         ( \(t, u, perm, wt) -> do
             counterIncr (path "teamowner") stats
             counterIncr (path . pack $ "teamowner_" <> show wt) stats
-            counterIncr (path . pack $ "teamowner_" <> take 7 (show wt)) stats
+            counterIncr (path . pack $ "month_teamowner_" <> take 12 (show wt)) stats
             pure t
         )
       .| C.mapM_
@@ -94,4 +94,4 @@ isOwner :: Maybe Permissions -> Bool
 isOwner (Just p) = SetBilling `Set.member` view self p
 isOwner _ = False
 
-type TeamRow = (TeamId, UserId, Maybe Permissions, Int64)
+type TeamRow = (TeamId, UserId, Maybe Permissions, Maybe Int64)
