@@ -226,7 +226,7 @@ autoprovisionSamlUserWithId buid suid mbName managedBy = do
 validateEmailIfExists :: UserId -> SAML.UserRef -> Spar ()
 validateEmailIfExists uid (SAML.UserRef _ nameid) = case nameid ^. SAML.nameID of
   UNameIDEmail email -> do
-    Intra.isEmailValidationEnabled uid >>= \case
+    Intra.isEmailValidationEnabledUser uid >>= \case
       True -> Intra.updateEmail uid (castEmail email)
       False -> pure ()
   _ -> pure ()
