@@ -247,7 +247,7 @@ selectUserConvsFrom :: PrepQuery R (UserId, OpaqueConvId) (OpaqueConvId, Maybe R
 selectUserConvsFrom = "select conv, conv_remote_id, conv_remote_domain from user where user = ? and conv > ? order by conv"
 
 insertUserConv :: PrepQuery W (UserId, OpaqueConvId, Maybe RemoteConvId, Maybe Domain) ()
-insertUserConv = "insert into user (user, conv) values (?, ?, ?, ?)"
+insertUserConv = "insert into user (user, conv, conv_remote_id, conv_remote_domain) values (?, ?, ?, ?)"
 
 deleteUserConv :: PrepQuery W (UserId, OpaqueConvId) ()
 deleteUserConv = "delete from user where user = ? and conv = ?"
