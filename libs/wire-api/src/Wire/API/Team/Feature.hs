@@ -31,7 +31,8 @@ where
 
 import Data.Aeson
 import qualified Data.Attoparsec.ByteString as Parser
-import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
+import Data.ByteString.Conversion (FromByteString (..), ToByteString (..), toByteString')
+import Data.String.Conversions (cs)
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -42,6 +43,7 @@ data TeamFeatureName
   = TeamFeatureLegalHold
   | TeamFeatureSSO
   | TeamFeatureSearchVisibility
+  | TeamFeatureValidateSAMLEmails
   deriving stock (Eq, Show, Ord, Generic, Enum, Bounded)
   deriving (Arbitrary) via (GenericUniform TeamFeatureName)
 
@@ -52,21 +54,17 @@ instance FromByteString TeamFeatureName where
       Right "legalhold" -> pure TeamFeatureLegalHold
       Right "sso" -> pure TeamFeatureSSO
       Right "search-visibility" -> pure TeamFeatureSearchVisibility
+      Right "validate-saml-emails" -> pure TeamFeatureValidateSAMLEmails
       Right t -> fail $ "Invalid TeamFeatureName: " <> T.unpack t
 
 instance ToByteString TeamFeatureName where
   builder TeamFeatureLegalHold = "legalhold"
   builder TeamFeatureSSO = "sso"
   builder TeamFeatureSearchVisibility = "search-visibility"
+  builder TeamFeatureValidateSAMLEmails = "validate-saml-emails"
 
 typeTeamFeatureName :: Doc.DataType
-typeTeamFeatureName =
-  Doc.string $
-    Doc.enum
-      [ "legalhold",
-        "sso",
-        "search-visibility"
-      ]
+typeTeamFeatureName = Doc.string . Doc.enum $ cs . toByteString' <$> [(minBound :: TeamFeatureName) ..]
 
 data TeamFeatureStatus = TeamFeatureEnabled | TeamFeatureDisabled
   deriving stock (Eq, Show, Generic)

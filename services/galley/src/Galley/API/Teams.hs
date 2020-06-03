@@ -82,6 +82,7 @@ import qualified Galley.Data.SSO as SSOData
 import qualified Galley.Data.SearchVisibility as SearchVisibilityData
 import Galley.Data.Services (BotMember)
 import qualified Galley.Data.Types as Data
+import qualified Galley.Data.ValidateSAMLEmails as ValidateSAMLEmailsData
 import qualified Galley.External as External
 import qualified Galley.Intra.Journal as Journal
 import Galley.Intra.Push
@@ -872,6 +873,7 @@ getFeatureStatusInternal tid featureName = do
     Public.TeamFeatureLegalHold -> getLegalholdStatusInternal tid
     Public.TeamFeatureSSO -> getSSOStatusInternal tid
     Public.TeamFeatureSearchVisibility -> getTeamSearchVisibilityAvailableInternal tid
+    Public.TeamFeatureValidateSAMLEmails -> getValidateSAMLEmailsInternal tid
 
 -- | Enable or disable feature flag for a team.  To be called only from authorized personnel
 -- (e.g., from a backoffice tool)
@@ -885,6 +887,7 @@ setFeatureStatusInternal tid featureName status = do
     Public.TeamFeatureLegalHold -> setLegalholdStatusInternal tid status
     Public.TeamFeatureSSO -> setSSOStatusInternal tid status
     Public.TeamFeatureSearchVisibility -> setTeamSearchVisibilityAvailableInternal tid status
+    Public.TeamFeatureValidateSAMLEmails -> setValidateSAMLEmailsInternal tid status
 
 getSSOStatusInternal :: TeamId -> Galley Public.TeamFeatureStatus
 getSSOStatusInternal tid = do
@@ -950,6 +953,15 @@ setTeamSearchVisibilityAvailableInternal tid isenabled = do
     Public.TeamFeatureDisabled -> SearchVisibilityData.resetSearchVisibility tid
     Public.TeamFeatureEnabled -> pure () -- This allows the option to be set at the team level
   SearchVisibilityData.setTeamSearchVisibilityAvailable tid isenabled
+
+getValidateSAMLEmailsInternal :: TeamId -> Galley Public.TeamFeatureStatus
+getValidateSAMLEmailsInternal =
+  ValidateSAMLEmailsData.getValidateSAMLEmails >=> \case
+    Nothing -> throwM teamNotFound
+    Just s -> pure s
+
+setValidateSAMLEmailsInternal :: TeamId -> Public.TeamFeatureStatus -> Galley ()
+setValidateSAMLEmailsInternal = ValidateSAMLEmailsData.setValidateSAMLEmails
 
 -- | Modify and get visibility type for a team (internal, no user permission checks)
 getSearchVisibilityInternalH :: TeamId ::: JSON -> Galley Response
