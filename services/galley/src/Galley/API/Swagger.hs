@@ -269,6 +269,7 @@ instance ToSchema TeamFeatureStatus where
         & properties .~ (fromList [("status", Inline status)])
         & required .~ ["status"]
         & type_ ?~ SwaggerObject
+        & description ?~ "whether a given team feature is enabled"
     where
       status =
         mempty
