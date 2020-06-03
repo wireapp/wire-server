@@ -77,12 +77,10 @@ import qualified Galley.API.TeamNotifications as APITeamQueue
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data as Data
-import qualified Galley.Data.LegalHold as LegalHoldData
-import qualified Galley.Data.SSO as SSOData
 import qualified Galley.Data.SearchVisibility as SearchVisibilityData
 import Galley.Data.Services (BotMember)
+import qualified Galley.Data.TeamFeatures as TeamFeatures
 import qualified Galley.Data.Types as Data
-import qualified Galley.Data.ValidateSAMLEmails as ValidateSAMLEmailsData
 import qualified Galley.External as External
 import qualified Galley.Intra.Journal as Journal
 import Galley.Intra.Push
@@ -896,7 +894,7 @@ getSSOStatusInternal tid = do
     pure $ case featureSSO of
       FeatureSSOEnabledByDefault -> Public.TeamFeatureEnabled
       FeatureSSODisabledByDefault -> Public.TeamFeatureDisabled
-  ssoTeamConfig <- SSOData.getSSOTeamConfig tid
+  ssoTeamConfig <- TeamFeatures.getFlag tid Public.TeamFeatureSSO
   pure . fromMaybe defConfig $ ssoTeamConfig
 
 setSSOStatusInternal :: TeamId -> Public.TeamFeatureStatus -> Galley ()
@@ -904,14 +902,14 @@ setSSOStatusInternal tid ssoTeamConfig = do
   case ssoTeamConfig of
     Public.TeamFeatureDisabled -> throwM disableSsoNotImplemented
     Public.TeamFeatureEnabled -> pure () -- this one is easy to implement :)
-  SSOData.setSSOTeamConfig tid ssoTeamConfig
+  TeamFeatures.setFlag tid Public.TeamFeatureSSO ssoTeamConfig
 
 getLegalholdStatusInternal :: TeamId -> Galley Public.TeamFeatureStatus
 getLegalholdStatusInternal tid = do
   featureLegalHold <- view (options . optSettings . setFeatureFlags . flagLegalHold)
   case featureLegalHold of
     FeatureLegalHoldDisabledByDefault -> do
-      legalHoldTeamConfig <- LegalHoldData.getLegalHoldTeamConfig tid
+      legalHoldTeamConfig <- TeamFeatures.getFlag tid Public.TeamFeatureLegalHold
       pure (fromMaybe Public.TeamFeatureDisabled legalHoldTeamConfig)
     FeatureLegalHoldDisabledPermanently -> do
       pure Public.TeamFeatureDisabled
@@ -929,7 +927,7 @@ setLegalholdStatusInternal tid legalHoldTeamConfig = do
     Public.TeamFeatureDisabled -> removeSettings' tid
     -- FUTUREWORK: We cannot enable legalhold on large teams right now
     Public.TeamFeatureEnabled -> checkTeamSize
-  LegalHoldData.setLegalHoldTeamConfig tid legalHoldTeamConfig
+  TeamFeatures.setFlag tid Public.TeamFeatureLegalHold legalHoldTeamConfig
   where
     checkTeamSize = do
       (TeamSize size) <- BrigTeam.getSize tid
@@ -945,23 +943,23 @@ getTeamSearchVisibilityAvailableInternal tid = do
     pure $ case featureTeamSearchVisibility of
       FeatureTeamSearchVisibilityEnabledByDefault -> Public.TeamFeatureEnabled
       FeatureTeamSearchVisibilityDisabledByDefault -> Public.TeamFeatureDisabled
-  fromMaybe defConfig <$> SearchVisibilityData.getTeamSearchVisibilityAvailable tid
+  fromMaybe defConfig <$> TeamFeatures.getFlag tid Public.TeamFeatureSearchVisibility
 
 setTeamSearchVisibilityAvailableInternal :: TeamId -> Public.TeamFeatureStatus -> Galley ()
 setTeamSearchVisibilityAvailableInternal tid isenabled = do
   case isenabled of
     Public.TeamFeatureDisabled -> SearchVisibilityData.resetSearchVisibility tid
     Public.TeamFeatureEnabled -> pure () -- This allows the option to be set at the team level
-  SearchVisibilityData.setTeamSearchVisibilityAvailable tid isenabled
+  TeamFeatures.setFlag tid Public.TeamFeatureSearchVisibility isenabled
 
 getValidateSAMLEmailsInternal :: TeamId -> Galley Public.TeamFeatureStatus
-getValidateSAMLEmailsInternal =
-  ValidateSAMLEmailsData.getValidateSAMLEmails >=> \case
+getValidateSAMLEmailsInternal tid =
+  TeamFeatures.getFlag tid Public.TeamFeatureValidateSAMLEmails >>= \case
     Nothing -> throwM teamNotFound
     Just s -> pure s
 
 setValidateSAMLEmailsInternal :: TeamId -> Public.TeamFeatureStatus -> Galley ()
-setValidateSAMLEmailsInternal = ValidateSAMLEmailsData.setValidateSAMLEmails
+setValidateSAMLEmailsInternal tid = TeamFeatures.setFlag tid Public.TeamFeatureValidateSAMLEmails
 
 -- | Modify and get visibility type for a team (internal, no user permission checks)
 getSearchVisibilityInternalH :: TeamId ::: JSON -> Galley Response
