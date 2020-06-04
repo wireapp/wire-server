@@ -297,14 +297,16 @@ deleteUserNoVerify uid = do
 changeSelfEmailMaybeSendH :: UserId ::: Bool ::: JsonRequest EmailUpdate -> Handler Response
 changeSelfEmailMaybeSendH (u ::: validate ::: req) = do
   email <- euEmail <$> parseJsonBody req
-  changeSelfEmailMaybeSend u validate email >>= \case
+  changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email >>= \case
     ChangeEmailResponseIdempotent -> pure (setStatus status204 empty)
     ChangeEmailResponseNeedsActivation -> pure (setStatus status202 empty)
 
-changeSelfEmailMaybeSend :: UserId -> Bool -> Email -> Handler ChangeEmailResponse
-changeSelfEmailMaybeSend u True email = do
+data MaybeSendEmail = ActuallySendEmail | DoNotSendEmail
+
+changeSelfEmailMaybeSend :: UserId -> MaybeSendEmail -> Email -> Handler ChangeEmailResponse
+changeSelfEmailMaybeSend u ActuallySendEmail email = do
   API.changeSelfEmail u email
-changeSelfEmailMaybeSend u False email = do
+changeSelfEmailMaybeSend u DoNotSendEmail email = do
   API.changeEmail u email !>> changeEmailError >>= \case
     ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
     ChangeEmailNeedsActivation _ -> pure ChangeEmailResponseNeedsActivation
