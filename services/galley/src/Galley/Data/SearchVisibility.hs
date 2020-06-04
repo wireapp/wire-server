@@ -18,7 +18,9 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.Data.SearchVisibility
-  ( setSearchVisibility,
+  ( setTeamSearchVisibilityAvailable,
+    getTeamSearchVisibilityAvailable,
+    setSearchVisibility,
     getSearchVisibility,
     resetSearchVisibility,
   )
@@ -30,6 +32,17 @@ import Galley.Data.Instances ()
 import Galley.Data.Queries
 import Galley.Types.Teams.SearchVisibility
 import Imports
+import Wire.API.Team.Feature (TeamFeatureStatus)
+
+-- | Return whether a given team is allowed to enable/disable sso
+getTeamSearchVisibilityAvailable :: MonadClient m => TeamId -> m (Maybe TeamFeatureStatus)
+getTeamSearchVisibilityAvailable tid = join . fmap runIdentity <$> do
+  retry x1 $ query1 selectTeamSearchVisibilityAvailable (params Quorum (Identity tid))
+
+-- | Determines whether a given team is allowed to enable/disable sso
+setTeamSearchVisibilityAvailable :: MonadClient m => TeamId -> TeamFeatureStatus -> m ()
+setTeamSearchVisibilityAvailable tid isenabled = do
+  retry x5 $ write updateTeamSearchVisibilityAvailable (params Quorum (isenabled, tid))
 
 -- | Return whether a given team is allowed to enable/disable sso
 getSearchVisibility :: MonadClient m => TeamId -> m TeamSearchVisibility
