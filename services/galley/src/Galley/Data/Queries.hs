@@ -403,6 +403,14 @@ updateSearchVisibility :: PrepQuery W (TeamSearchVisibility, TeamId) ()
 updateSearchVisibility =
   "update team set search_visibility = ? where team = ?"
 
+selectValidateSAMLEmails :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamFeatureStatus))
+selectValidateSAMLEmails =
+  "select validate_saml_emails from team_features where team_id = ?"
+
+updateValidateSAMLEmails :: PrepQuery W (TeamFeatureStatus, TeamId) ()
+updateValidateSAMLEmails =
+  "update team_features set validate_saml_emails = ? where team_id = ?"
+
 selectCustomBackend :: PrepQuery R (Identity Domain) (HttpsUrl, HttpsUrl)
 selectCustomBackend =
   "select config_json_url, webapp_welcome_url from custom_backend where domain = ?"

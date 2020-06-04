@@ -73,11 +73,18 @@ data ActivationResult
   | -- | The key/code was valid but already recently activated.
     ActivationPass
 
+-- | Outcome of the invariants check in 'Brig.API.User.changeEmail'.
 data ChangeEmailResult
   = -- | The request was successful, user needs to verify the new email address
     ChangeEmailNeedsActivation !(User, Activation, Email)
   | -- | The user asked to change the email address to the one already owned
     ChangeEmailIdempotent
+
+-- | Typed response of the @put /self/email@ end-point (returned in
+-- 'Brig.API.User.changeSelfEmail'.
+data ChangeEmailResponse
+  = ChangeEmailResponseIdempotent
+  | ChangeEmailResponseNeedsActivation
 
 -------------------------------------------------------------------------------
 -- Failures

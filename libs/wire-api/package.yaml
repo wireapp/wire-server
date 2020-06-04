@@ -61,6 +61,7 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - base
+    - bytestring-conversion
     - wire-api
     - aeson-qq
     - lens

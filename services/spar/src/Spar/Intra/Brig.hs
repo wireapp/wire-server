@@ -36,12 +36,14 @@ module Spar.Intra.Brig
     bindBrigUser,
     deleteBrigUser,
     createBrigUser,
+    updateEmail,
     isTeamUser,
     getZUsrOwnedTeam,
     ensureReAuthorised,
     ssoLogin,
     parseResponse,
     MonadSparToBrig (..),
+    isEmailValidationEnabledUser,
   )
 where
 
@@ -66,7 +68,7 @@ import Imports
 import Network.HTTP.Types.Method
 import qualified SAML2.WebSSO as SAML
 import Spar.Error
-import Spar.Intra.Galley as Galley (MonadSparToGalley, assertIsTeamOwner)
+import Spar.Intra.Galley as Galley (MonadSparToGalley, assertIsTeamOwner, isEmailValidationEnabledTeam)
 import Web.Cookie
 
 ----------------------------------------------------------------------
@@ -168,6 +170,22 @@ createBrigUser suid (Id buid) teamid mbName managedBy = do
         throwSpar . SparBrigErrorWith (responseStatus resp) $ "create user failed"
       | otherwise ->
         throwSpar . SparBrigError . cs $ "create user failed with status " <> show sCode
+
+updateEmail :: (HasCallStack, MonadSparToBrig m) => UserId -> Email -> m ()
+updateEmail buid email = do
+  resp <-
+    call $
+      method PUT
+        . path "/i/self/email"
+        . header "Z-User" (toByteString' buid)
+        . query [("validate", Just "true")]
+        . json (EmailUpdate email)
+  case statusCode resp of
+    204 -> pure ()
+    202 -> pure ()
+    -- everything else is an error; if the response body still cannot be parsed as a
+    -- Wai.Error, it's ok to crash with a 500 here, so we use the unsafe parser.
+    _ -> throwError . SAML.CustomServant . waiToServant . responseJsonUnsafe $ resp
 
 -- | Get a user; returns 'Nothing' if the user was not found or has been deleted.
 getBrigUser :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe User)
@@ -437,3 +455,12 @@ ssoLogin buid = do
         pure Nothing
       | otherwise ->
         throwSpar . SparBrigError . cs $ "sso-login failed with status " <> show sCode
+
+-- | This is more of a brig thing, but we need to get the team for the user first, so it goes
+-- here.  Perhaps we should merge "Spar.Intra.*" into "Spar.Intra"?
+isEmailValidationEnabledUser :: (HasCallStack, MonadSparToGalley m, MonadSparToBrig m) => UserId -> m Bool
+isEmailValidationEnabledUser uid = do
+  user <- getBrigUser uid
+  case user >>= userTeam of
+    Nothing -> pure False
+    Just tid -> isEmailValidationEnabledTeam tid

@@ -34,6 +34,7 @@ module Spar.Error
     -- custom servant monad in the 'MakeCustomError' instances.
     sparToServerError,
     renderSparError,
+    waiToServant,
   )
 where
 

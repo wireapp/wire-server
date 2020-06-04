@@ -58,7 +58,7 @@ import Galley.Types.Teams as Galley
 import Imports
 import Network.URI
 import qualified SAML2.WebSSO as SAML
-import Spar.App (Env, Spar, getUser, sparCtxOpts, wrapMonadClient, wrapMonadClient)
+import Spar.App (Env, Spar, getUser, sparCtxOpts, validateEmailIfExists, wrapMonadClient, wrapMonadClient)
 import qualified Spar.Data as Data
 import Spar.Intra.Brig as Brig
 import qualified Spar.Intra.Brig as Intra.Brig
@@ -351,6 +351,8 @@ createValidScimUser (ValidScimUser user uref idpConfig handl mbName richInfo) = 
   -- FUTUREWORK(arianvp): these two actions we probably want to make transactional
   lift . wrapMonadClient $ Data.insertScimUser buid storedUser
   lift . wrapMonadClient $ Data.insertSAMLUser uref buid
+
+  lift $ validateEmailIfExists buid uref
   pure storedUser
 
 updateValidScimUser ::

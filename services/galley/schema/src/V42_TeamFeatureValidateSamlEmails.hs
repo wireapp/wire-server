@@ -15,29 +15,15 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main
-  ( main,
+module V42_TeamFeatureValidateSamlEmails
+  ( migration,
   )
 where
 
+import Cassandra.Schema
 import Imports
-import Test.Tasty
-import qualified Test.Wire.API.Call.TURN as Call.TURN
-import qualified Test.Wire.API.Roundtrip.Aeson as Roundtrip.Aeson
-import qualified Test.Wire.API.Roundtrip.ByteString as Roundtrip.ByteString
-import qualified Test.Wire.API.Team.Member as Team.Member
-import qualified Test.Wire.API.User as User
-import qualified Test.Wire.API.User.RichInfo as User.RichInfo
+import Text.RawString.QQ
 
-main :: IO ()
-main =
-  defaultMain $
-    testGroup
-      "Tests"
-      [ Call.TURN.tests,
-        Team.Member.tests,
-        User.tests,
-        User.RichInfo.tests,
-        Roundtrip.Aeson.tests,
-        Roundtrip.ByteString.tests
-      ]
+migration :: Migration
+migration = Migration 42 "Add feature flag for validation of saml emails" $ do
+  schema' [r| ALTER TABLE team_features ADD validate_saml_emails int; |]

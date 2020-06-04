@@ -1,3 +1,5 @@
+{-# LANGUAGE ViewPatterns #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -15,29 +17,26 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main
-  ( main,
+module Galley.Data.ValidateSAMLEmails
+  ( setValidateSAMLEmails,
+    getValidateSAMLEmails,
   )
 where
 
+import Cassandra
+import Data.Id
+import Galley.Data.Instances ()
+import Galley.Data.Queries
 import Imports
-import Test.Tasty
-import qualified Test.Wire.API.Call.TURN as Call.TURN
-import qualified Test.Wire.API.Roundtrip.Aeson as Roundtrip.Aeson
-import qualified Test.Wire.API.Roundtrip.ByteString as Roundtrip.ByteString
-import qualified Test.Wire.API.Team.Member as Team.Member
-import qualified Test.Wire.API.User as User
-import qualified Test.Wire.API.User.RichInfo as User.RichInfo
+import Wire.API.Team.Feature (TeamFeatureStatus (..))
 
-main :: IO ()
-main =
-  defaultMain $
-    testGroup
-      "Tests"
-      [ Call.TURN.tests,
-        Team.Member.tests,
-        User.tests,
-        User.RichInfo.tests,
-        Roundtrip.Aeson.tests,
-        Roundtrip.ByteString.tests
-      ]
+getValidateSAMLEmails :: MonadClient m => TeamId -> m (Maybe TeamFeatureStatus)
+getValidateSAMLEmails tid = fmap toFeatureStatus <$> do
+  retry x1 $ query1 selectValidateSAMLEmails (params Quorum (Identity tid))
+  where
+    toFeatureStatus (Identity Nothing) = TeamFeatureDisabled
+    toFeatureStatus (Identity (Just status)) = status
+
+setValidateSAMLEmails :: MonadClient m => TeamId -> TeamFeatureStatus -> m ()
+setValidateSAMLEmails tid featureStatus = do
+  retry x5 $ write updateValidateSAMLEmails (params Quorum (featureStatus, tid))

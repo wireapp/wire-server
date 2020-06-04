@@ -23,6 +23,7 @@ module Brig.API.User
     createUser,
     Brig.API.User.updateUser,
     changeLocale,
+    changeSelfEmail,
     changeEmail,
     changePhone,
     changeHandle,
@@ -81,6 +82,7 @@ module Brig.API.User
   )
 where
 
+import qualified Brig.API.Error as Error
 import Brig.API.Types
 import Brig.App
 import qualified Brig.Code as Code
@@ -377,6 +379,26 @@ checkHandles check num = reverse <$> collectFree [] check num
 -------------------------------------------------------------------------------
 -- Change Email
 
+-- | Call 'changeEmail' and process result: if email changes to itself, succeed, if not, send
+-- validation email.
+changeSelfEmail :: UserId -> Email -> ExceptT Error.Error AppIO ChangeEmailResponse
+changeSelfEmail u email = do
+  changeEmail u email !>> Error.changeEmailError >>= \case
+    ChangeEmailIdempotent ->
+      pure ChangeEmailResponseIdempotent
+    ChangeEmailNeedsActivation (usr, adata, en) -> do
+      lift $ sendOutEmail usr adata en
+      pure ChangeEmailResponseNeedsActivation
+  where
+    sendOutEmail usr adata en = do
+      sendActivationMail
+        en
+        (userDisplayName usr)
+        (activationKey adata, activationCode adata)
+        (Just (userLocale usr))
+        (userIdentity usr)
+
+-- | Prepare changing the email (checking a number of invariants).
 changeEmail :: UserId -> Email -> ExceptT ChangeEmailError AppIO ChangeEmailResult
 changeEmail u email = do
   em <-

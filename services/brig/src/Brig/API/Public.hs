@@ -1242,30 +1242,9 @@ customerExtensionCheckBlockedDomains email = do
 changeSelfEmailH :: UserId ::: ConnId ::: JsonRequest Public.EmailUpdate -> Handler Response
 changeSelfEmailH (u ::: _ ::: req) = do
   email <- Public.euEmail <$> parseJsonBody req
-  changeSelfEmail u email >>= \case
+  API.changeSelfEmail u email >>= \case
     ChangeEmailResponseIdempotent -> pure (setStatus status204 empty)
     ChangeEmailResponseNeedsActivation -> pure (setStatus status202 empty)
-
-data ChangeEmailResponse
-  = ChangeEmailResponseIdempotent
-  | ChangeEmailResponseNeedsActivation
-
-changeSelfEmail :: UserId -> Public.Email -> Handler ChangeEmailResponse
-changeSelfEmail u email = do
-  API.changeEmail u email !>> changeEmailError >>= \case
-    ChangeEmailIdempotent ->
-      pure ChangeEmailResponseIdempotent
-    ChangeEmailNeedsActivation (usr, adata, en) -> do
-      lift $ sendOutEmail usr adata en
-      pure ChangeEmailResponseNeedsActivation
-  where
-    sendOutEmail usr adata en = do
-      sendActivationMail
-        en
-        (Public.userDisplayName usr)
-        (activationKey adata, activationCode adata)
-        (Just (Public.userLocale usr))
-        (Public.userIdentity usr)
 
 createConnectionH :: JSON ::: UserId ::: ConnId ::: JsonRequest Public.ConnectionRequest -> Handler Response
 createConnectionH (_ ::: self ::: conn ::: req) = do

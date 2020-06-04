@@ -87,3 +87,8 @@ assertSSOEnabled tid = do
   status <- parseResponse resp
   unless (status == TeamFeatureEnabled) $
     throwSpar SparSSODisabled
+
+isEmailValidationEnabledTeam :: (HasCallStack, MonadSparToGalley m) => TeamId -> m Bool
+isEmailValidationEnabledTeam tid = do
+  resp <- call $ method GET . paths ["i", "teams", toByteString' tid, "features", "validate-saml-emails"]
+  pure (statusCode resp == 200 && responseJsonMaybe resp == Just TeamFeatureEnabled)
