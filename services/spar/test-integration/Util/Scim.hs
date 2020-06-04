@@ -153,7 +153,7 @@ randomScimUserWithEmail = do
   pure
     ( (Scim.User.empty userSchemas ("scimuser_" <> suffix) (ScimUserExtra (RichInfo mempty mempty)))
         { Scim.User.displayName = Just ("Scim User #" <> suffix),
-          Scim.User.externalId = Just externalId,
+          Scim.User.externalId = Just externalId
         },
       email
     )
