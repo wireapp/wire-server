@@ -1235,9 +1235,10 @@ customerExtensionCheckBlockedDomains email = do
   case mBlockedDomains of
     Nothing -> pure ()
     Just (DomainsBlockedForRegistration blockedDomains) -> do
-      let Right domain = mkDomain (Public.emailDomain email)
-      when (domain `elem` blockedDomains) $ do
-        throwM $ customerExtensionBlockedDomain domain
+      let edomain = mkDomain (Public.emailDomain email)
+      case edomain of
+        _ -> pure ()
+        Right domain | domain `elem` blockedDomains -> throwM $ customerExtensionBlockedDomain domain
 
 changeSelfEmailH :: UserId ::: ConnId ::: JsonRequest Public.EmailUpdate -> Handler Response
 changeSelfEmailH (u ::: _ ::: req) = do
