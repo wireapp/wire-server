@@ -66,6 +66,7 @@ import qualified Stern.Swagger as Doc
 import Stern.Types
 import System.Logger.Class hiding ((.=), Error, name, trace)
 import Util.Options
+import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.SearchVisibility as Public
 import qualified Wire.Swagger as Doc
 
@@ -326,68 +327,32 @@ routes = do
 
   -- feature flags
 
-  get "/teams/:tid/features/legalhold" (continue (liftM json . Intra.getLegalholdStatus)) $
+  get "/teams/:tid/features/:feature" (continue getTeamFeatureFlagH) $
     capture "tid"
-  document "GET" "getLegalholdStatus" $ do
-    summary "Shows whether legalhold feature is enabled for team"
+      .&. capture "feature"
+  document "GET" "getTeamFeatureFlag" $ do
+    summary "Shows whether a feature flag is enabled or not for a given team."
     Doc.parameter Doc.Path "tid" Doc.bytes' $
       description "Team ID"
-    Doc.returns Doc.docSetLegalHoldStatus
-    Doc.response 200 "Legalhold status" Doc.end
-    Doc.returns Doc.bool'
+    Doc.parameter Doc.Path "feature" Public.typeTeamFeatureName $
+      description "Feature name"
+    Doc.returns Public.typeTeamFeatureStatus
+    Doc.response 200 "Team feature flag status" Doc.end
 
-  put "/teams/:tid/features/legalhold" (continue setLegalholdStatus) $
-    contentType "application" "json"
-      .&. capture "tid"
-      .&. jsonRequest @SetLegalHoldStatus
-  document "PUT" "setLegalholdStatus" $ do
-    summary "Disable / enable legalhold feature for team"
-    Doc.parameter Doc.Path "tid" Doc.bytes' $
-      description "Team ID"
-    Doc.body Doc.docSetLegalHoldStatus $
-      Doc.description "JSON body"
-    Doc.response 200 "Legalhold status" Doc.end
-
-  get "/teams/:tid/features/sso" (continue (liftM json . Intra.getSSOStatus)) $
+  put "/teams/:tid/features/:feature" (continue setTeamFeatureFlagH) $
     capture "tid"
-  document "GET" "getSSOStatus" $ do
-    summary "Shows whether SSO feature is enabled for team"
+      .&. capture "feature"
+      .&. contentType "application" "json"
+      .&. jsonRequest @Public.TeamFeatureStatus
+  document "PUT" "setTeamFeatureFlag" $ do
+    summary "Disable / enable feature flag for a given team"
     Doc.parameter Doc.Path "tid" Doc.bytes' $
       description "Team ID"
-    Doc.returns Doc.docSetSSOStatus
-    Doc.response 200 "SSO status" Doc.end
-
-  put "/teams/:tid/features/sso" (continue setSSOStatus) $
-    contentType "application" "json"
-      .&. capture "tid"
-      .&. jsonRequest @SetSSOStatus
-  document "PUT" "setSSOStatus" $ do
-    summary "Disable / enable SSO feature for team"
-    Doc.parameter Doc.Path "tid" Doc.bytes' $
-      description "Team ID"
-    Doc.body Doc.docSetSSOStatus $
+    Doc.parameter Doc.Path "feature" Public.typeTeamFeatureName $
+      description "Feature name"
+    Doc.body Public.typeTeamFeatureStatus $
       Doc.description "JSON body"
-    Doc.response 200 "SSO status" Doc.end
-
-  get "/teams/:tid/features/search-visibility" (continue (liftM json . Intra.getTeamSearchVisibilityAvailable)) $
-    capture "tid"
-  document "GET" "getTeamSearchVisibilityAvailable" $ do
-    summary "Shows whether TeamSearchVisibility feature is enabled for team"
-    Doc.parameter Doc.Path "tid" Doc.bytes' $
-      description "Team ID"
-    Doc.returns Doc.docSetTeamSearchVisibilityAvailable
-    Doc.response 200 "TeamSearchVisibility status" Doc.end
-  put "/teams/:tid/features/search-visibility" (continue setTeamSearchVisibilityAvailable) $
-    contentType "application" "json"
-      .&. capture "tid"
-      .&. jsonRequest @SetTeamSearchVisibilityAvailable
-  document "PUT" "setTeamSearchVisibilityAvailable" $ do
-    summary "Disable / enable TeamSearchVisibility feature for team"
-    Doc.parameter Doc.Path "tid" Doc.bytes' $
-      description "Team ID"
-    Doc.body Doc.docSetTeamSearchVisibilityAvailable $
-      Doc.description "JSON body"
-    Doc.response 200 "TeamSearchVisibility status" Doc.end
+    Doc.response 200 "Team feature flagLegalhold status" Doc.end
 
   -- These endpoints should be part of team settings. Until then, we access them from here
   -- for authorized personnel to enable/disable this on the team's behalf
@@ -614,20 +579,13 @@ getTeamInfo = liftM json . Intra.getTeamInfo
 getTeamAdminInfo :: TeamId -> Handler Response
 getTeamAdminInfo = liftM (json . toAdminInfo) . Intra.getTeamInfo
 
-setLegalholdStatus :: JSON ::: TeamId ::: JsonRequest SetLegalHoldStatus -> Handler Response
-setLegalholdStatus (_ ::: tid ::: req) = do
-  status <- parseBody req !>> Error status400 "client-error"
-  liftM json $ Intra.setLegalholdStatus tid status
+getTeamFeatureFlagH :: TeamId ::: Public.TeamFeatureName -> Handler Response
+getTeamFeatureFlagH (tid ::: feature) =
+  json <$> Intra.getTeamFeatureFlag tid feature
 
-setSSOStatus :: JSON ::: TeamId ::: JsonRequest SetSSOStatus -> Handler Response
-setSSOStatus (_ ::: tid ::: req) = do
-  status :: SetSSOStatus <- parseBody req !>> Error status400 "client-error"
-  liftM json $ Intra.setSSOStatus tid status
-
-setTeamSearchVisibilityAvailable :: JSON ::: TeamId ::: JsonRequest SetTeamSearchVisibilityAvailable -> Handler Response
-setTeamSearchVisibilityAvailable (_ ::: tid ::: req) = do
-  status :: SetTeamSearchVisibilityAvailable <- parseBody req !>> Error status400 "client-error"
-  liftM json $ Intra.setTeamSearchVisibilityAvailable tid status
+setTeamFeatureFlagH :: TeamId ::: Public.TeamFeatureName ::: JSON ::: JsonRequest Public.TeamFeatureStatus -> Handler Response
+setTeamFeatureFlagH (tid ::: feature ::: _ ::: req) =
+  empty <$ (Intra.setTeamFeatureFlag tid feature =<< (parseBody req !>> Error status400 "client-error"))
 
 setSearchVisibility :: JSON ::: TeamId ::: JsonRequest Team.TeamSearchVisibility -> Handler Response
 setSearchVisibility (_ ::: tid ::: req) = do
