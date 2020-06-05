@@ -1232,12 +1232,13 @@ sendActivationCode Public.SendActivationCode {..} = do
 customerExtensionCheckBlockedDomains :: (DomainsBlockedForRegistration ~ DomainsBlockedForRegistration) => Public.Email -> Handler ()
 customerExtensionCheckBlockedDomains email = do
   mBlockedDomains <- asks (fmap domainsBlockedForRegistration . setCustomerExtensions . view settings)
-  case mBlockedDomains of
-    Nothing -> pure ()
-    Just (DomainsBlockedForRegistration blockedDomains) -> do
-      let Right domain = mkDomain (Public.emailDomain email)
-      when (domain `elem` blockedDomains) $ do
-        throwM $ customerExtensionBlockedDomain domain
+  for_ mBlockedDomains $ \(DomainsBlockedForRegistration blockedDomains) -> do
+    case mkDomain (Public.emailDomain email) of
+      Left _ ->
+        pure () -- if it doesn't fit the syntax of blocked domains, it is not blocked
+      Right domain ->
+        when (domain `elem` blockedDomains) $ do
+          throwM $ customerExtensionBlockedDomain domain
 
 changeSelfEmailH :: UserId ::: ConnId ::: JsonRequest Public.EmailUpdate -> Handler Response
 changeSelfEmailH (u ::: _ ::: req) = do
