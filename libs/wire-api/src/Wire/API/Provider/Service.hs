@@ -175,20 +175,22 @@ instance FromJSON ServiceKeyPEM where
       either fail pure . runParser parser . Text.encodeUtf8
 
 instance Arbitrary ServiceKeyPEM where
-  arbitrary = pure $ ServiceKeyPEM k
+  arbitrary =
+    case pemParseBS (BS.unlines key) of
+      Right [k] -> pure $ ServiceKeyPEM k
+      other -> error $ "arbitrary ServiceKeyPEM: unexpected error: " <> show other
     where
-      Right [k] =
-        pemParseBS . BS.unlines $
-          [ "-----BEGIN PUBLIC KEY-----",
-            "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0",
-            "G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH",
-            "WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV",
-            "VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS",
-            "bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8",
-            "7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la",
-            "nQIDAQAB",
-            "-----END PUBLIC KEY-----"
-          ]
+      key =
+        [ "-----BEGIN PUBLIC KEY-----",
+          "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0",
+          "G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH",
+          "WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV",
+          "VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS",
+          "bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8",
+          "7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la",
+          "nQIDAQAB",
+          "-----END PUBLIC KEY-----"
+        ]
 
 --------------------------------------------------------------------------------
 -- Service
