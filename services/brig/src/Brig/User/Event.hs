@@ -1,6 +1,4 @@
 {-# LANGUAGE RecordWildCards #-}
--- for UserEvent
-{-# OPTIONS_GHC -Wno-partial-fields #-}
 
 -- This file is part of the Wire Server implementation.
 --
