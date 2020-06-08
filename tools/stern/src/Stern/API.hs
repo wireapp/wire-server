@@ -39,6 +39,7 @@ import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict)
 import Data.Handle (Handle)
+import qualified Data.HashMap.Strict as M
 import Data.Id
 import Data.Predicate
 import Data.Range
@@ -729,7 +730,7 @@ getUserData uid = do
         "properties" .= properties
       ]
   where
-    noEmail = let Object o = object ["results" .= emptyArray] in MarketoResult o
+    noEmail = MarketoResult $ M.singleton "results" emptyArray
 
 -- Utilities
 

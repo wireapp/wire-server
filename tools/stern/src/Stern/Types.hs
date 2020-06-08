@@ -40,10 +40,14 @@ newtype TeamMemberInfo = TeamMemberInfo {tm :: TeamMember}
 
 instance ToJSON TeamMemberInfo where
   toJSON (TeamMemberInfo m) =
-    let Object o = teamMemberJson (const True) m
-     in Object $ M.insert "can_update_billing" (Bool (hasPermission m SetBilling))
+    case teamMemberJson (const True) m of
+      Object o ->
+        Object
+          $ M.insert "can_update_billing" (Bool (hasPermission m SetBilling))
           $ M.insert "can_view_billing" (Bool (hasPermission m GetBilling))
           $ o
+      other ->
+        error $ "toJSON TeamMemberInfo: not an object: " <> show (encode other)
 
 data TeamInfo = TeamInfo
   { tiData :: TeamData,
