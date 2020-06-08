@@ -29,7 +29,7 @@ import Control.Monad.Catch (MonadCatch, throwM)
 import Data.Id
 import Data.IdMapping (MappedOrLocalId (Local), partitionMappedOrLocalIds)
 import Data.List.NonEmpty (nonEmpty)
-import Data.List1 (List1 (List1), list1)
+import Data.List1 (List1, list1, maybeList1)
 import Data.Range
 import Data.String.Conversions (cs)
 import qualified Galley.API.Clients as Clients
@@ -282,7 +282,7 @@ rmUser user conn = do
                 . set Intra.pushRoute Intra.RouteDirect
           | otherwise -> return Nothing
       for_
-        (List1 <$> nonEmpty (catMaybes pp))
+        (maybeList1 (catMaybes pp))
         Intra.push
       unless (null $ Cql.result ids) $
         leaveConversations u =<< Cql.liftClient (Cql.nextPage ids)

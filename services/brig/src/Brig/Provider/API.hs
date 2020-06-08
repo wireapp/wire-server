@@ -65,8 +65,7 @@ import qualified Data.Conduit.List as C
 import Data.Hashable (hash)
 import Data.Id
 import qualified Data.List as List
-import Data.List.NonEmpty (nonEmpty)
-import Data.List1 (List1 (..))
+import Data.List1 (List1 (..), maybeList1)
 import qualified Data.Map.Strict as Map
 import Data.Misc ((<$$>), Fingerprint (..), Rsa)
 import Data.Predicate
@@ -591,11 +590,11 @@ updateServiceConn pid sid upd = do
   scon <- DB.lookupServiceConn pid sid >>= maybeServiceNotFound
   svc <- DB.lookupServiceProfile pid sid >>= maybeServiceNotFound
   let newBaseUrl = updateServiceConnUrl upd
-  let newTokens = List1 <$> (nonEmpty . fromRange =<< updateServiceConnTokens upd)
+  let newTokens = maybeList1 . fromRange =<< updateServiceConnTokens upd
   let newEnabled = updateServiceConnEnabled upd
   let newKeyPems = fromRange <$> updateServiceConnKeys upd
   keys <- forM newKeyPems (mapM (validateServiceKey >=> maybeInvalidServiceKey))
-  let newKeys = List1 <$> (keys >>= nonEmpty)
+  let newKeys = keys >>= maybeList1
   let newFps = fmap snd <$> newKeys
   DB.updateServiceConn pid sid newBaseUrl newTokens newKeys newEnabled
   let scon' =
