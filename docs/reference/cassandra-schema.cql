@@ -105,7 +105,8 @@ CREATE TABLE galley_test.team_features (
     team_id uuid PRIMARY KEY,
     legalhold_status int,
     search_visibility_status int,
-    sso_status int
+    sso_status int,
+    validate_saml_emails int
 ) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''

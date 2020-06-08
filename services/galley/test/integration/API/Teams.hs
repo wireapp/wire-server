@@ -1880,6 +1880,11 @@ postCryptoBroadcastMessage100OrMaxConns = do
 newTeamMember' :: Permissions -> UserId -> TeamMember
 newTeamMember' perms uid = newTeamMember uid perms Nothing
 
+-- NOTE: all client functions calling @{/i,}/teams/*/features/*@ can be replaced by
+-- hypothetical functions 'getTeamFeatureFlag', 'getTeamFeatureFlagInternal',
+-- 'putTeamFeatureFlagInternal'.  Since these functions all work in slightly different monads
+-- and with different kinds of internal checks, it's quite tedious to do so.
+
 getSSOEnabled :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
 getSSOEnabled uid tid = do
   g <- view tsGalley

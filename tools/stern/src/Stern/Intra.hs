@@ -40,12 +40,8 @@ module Stern.Intra
     getUserBindingTeam,
     isBlacklisted,
     setBlacklistStatus,
-    getLegalholdStatus,
-    setLegalholdStatus,
-    getSSOStatus,
-    setSSOStatus,
-    getTeamSearchVisibilityAvailable,
-    setTeamSearchVisibilityAvailable,
+    getTeamFeatureFlag,
+    setTeamFeatureFlag,
     getSearchVisibility,
     setSearchVisibility,
     getTeamBillingInfo,
@@ -96,7 +92,7 @@ import Stern.Types
 import System.Logger.Class hiding ((.=), Error, name)
 import qualified System.Logger.Class as Log
 import UnliftIO.Exception hiding (Handler)
-import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatus (..))
+import qualified Wire.API.Team.Feature as Public
 
 -------------------------------------------------------------------------------
 
@@ -427,125 +423,29 @@ setBlacklistStatus status emailOrPhone = do
     statusToMethod False = DELETE
     statusToMethod True = POST
 
-getLegalholdStatus :: TeamId -> Handler SetLegalHoldStatus
-getLegalholdStatus tid = do
-  info $ msg "Getting legalhold status"
+getTeamFeatureFlag :: TeamId -> Public.TeamFeatureName -> Handler Public.TeamFeatureStatus
+getTeamFeatureFlag tid feature = do
+  info $ msg "Getting team feature status"
   gly <- view galley
-  (>>= fromResponseBody) . catchRpcErrors $
-    rpc'
-      "galley"
-      gly
-      ( method GET
-          . paths ["/i/teams", toByteString' tid, "features", toByteString' TeamFeatureLegalHold]
+  let req =
+        method GET
+          . paths ["/i/teams", toByteString' tid, "features", toByteString' feature]
           . expect2xx
-      )
-  where
-    fromResponseBody :: Response (Maybe LByteString) -> Handler SetLegalHoldStatus
-    fromResponseBody resp = case responseJsonEither resp of
-      Right TeamFeatureDisabled -> pure SetLegalHoldDisabled
-      Right TeamFeatureEnabled -> pure SetLegalHoldEnabled
-      Left errmsg -> throwE (Error status502 "bad-upstream" ("bad response; error message: " <> pack errmsg))
+  responseJsonUnsafe <$> catchRpcErrors (rpc' "galley" gly req)
 
-setLegalholdStatus :: TeamId -> SetLegalHoldStatus -> Handler ()
-setLegalholdStatus tid status = do
-  info $ msg "Setting legalhold status"
+setTeamFeatureFlag :: TeamId -> Public.TeamFeatureName -> Public.TeamFeatureStatus -> Handler ()
+setTeamFeatureFlag tid feature status = do
+  info $ msg "Setting team feature status"
   gly <- view galley
-  resp <-
-    catchRpcErrors $
-      rpc'
-        "galley"
-        gly
-        ( method PUT
-            . paths ["/i/teams", toByteString' tid, "features", "legalhold"]
-            . lbytes (encode $ toRequestBody status)
-            . contentJson
-        )
+  let req =
+        method PUT
+          . paths ["/i/teams", toByteString' tid, "features", toByteString' feature]
+          . Bilge.json status
+          . contentJson
+  resp <- catchRpcErrors $ rpc' "galley" gly req
   case statusCode resp of
     204 -> pure ()
     _ -> throwE $ responseJsonUnsafe resp
-  where
-    toRequestBody SetLegalHoldDisabled = TeamFeatureDisabled
-    toRequestBody SetLegalHoldEnabled = TeamFeatureEnabled
-
-getSSOStatus :: TeamId -> Handler SetSSOStatus
-getSSOStatus tid = do
-  info $ msg "Getting SSO status"
-  gly <- view galley
-  (>>= fromResponseBody) . catchRpcErrors $
-    rpc'
-      "galley"
-      gly
-      ( method GET
-          . paths ["/i/teams", toByteString' tid, "features", toByteString' TeamFeatureSSO]
-          . expect2xx
-      )
-  where
-    fromResponseBody :: Response (Maybe LByteString) -> Handler SetSSOStatus
-    fromResponseBody resp = case responseJsonEither resp of
-      Right TeamFeatureEnabled -> pure SetSSOEnabled
-      Right TeamFeatureDisabled -> pure SetSSODisabled
-      Left errmsg -> throwE (Error status502 "bad-upstream" ("bad response; error message: " <> pack errmsg))
-
-setSSOStatus :: TeamId -> SetSSOStatus -> Handler ()
-setSSOStatus tid status = do
-  info $ msg "Setting SSO status"
-  gly <- view galley
-  resp <-
-    catchRpcErrors $
-      rpc'
-        "galley"
-        gly
-        ( method PUT
-            . paths ["/i/teams", toByteString' tid, "features", "sso"]
-            . lbytes (encode $ toRequestBody status)
-            . contentJson
-        )
-  case statusCode resp of
-    204 -> pure ()
-    _ -> throwE $ responseJsonUnsafe resp
-  where
-    toRequestBody SetSSODisabled = TeamFeatureDisabled
-    toRequestBody SetSSOEnabled = TeamFeatureEnabled
-
-getTeamSearchVisibilityAvailable :: TeamId -> Handler SetTeamSearchVisibilityAvailable
-getTeamSearchVisibilityAvailable tid = do
-  info $ msg "Getting TeamSearchVisibility status"
-  gly <- view galley
-  (>>= fromResponseBody) . catchRpcErrors $
-    rpc'
-      "galley"
-      gly
-      ( method GET
-          . paths ["/i/teams", toByteString' tid, "features", toByteString' TeamFeatureSearchVisibility]
-          . expect2xx
-      )
-  where
-    fromResponseBody :: Response (Maybe LByteString) -> Handler SetTeamSearchVisibilityAvailable
-    fromResponseBody resp = case responseJsonEither resp of
-      Right TeamFeatureEnabled -> pure SetTeamSearchVisibilityEnabled
-      Right TeamFeatureDisabled -> pure SetTeamSearchVisibilityDisabled
-      Left errmsg -> throwE (Error status502 "bad-upstream" ("bad response; error message: " <> pack errmsg))
-
-setTeamSearchVisibilityAvailable :: TeamId -> SetTeamSearchVisibilityAvailable -> Handler ()
-setTeamSearchVisibilityAvailable tid status = do
-  info $ msg "Setting TeamSearchVisibility status"
-  gly <- view galley
-  resp <-
-    catchRpcErrors $
-      rpc'
-        "galley"
-        gly
-        ( method PUT
-            . paths ["/i/teams", toByteString' tid, "features", "search-visibility"]
-            . lbytes (encode $ toRequestBody status)
-            . contentJson
-        )
-  case statusCode resp of
-    204 -> pure ()
-    _ -> throwE $ responseJsonUnsafe resp
-  where
-    toRequestBody SetTeamSearchVisibilityDisabled = TeamFeatureDisabled
-    toRequestBody SetTeamSearchVisibilityEnabled = TeamFeatureEnabled
 
 getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
 getSearchVisibility tid = do

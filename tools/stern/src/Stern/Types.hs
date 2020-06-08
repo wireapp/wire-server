@@ -154,21 +154,3 @@ data TeamBillingInfoUpdate = TeamBillingInfoUpdate
   deriving (Eq, Show)
 
 deriveJSON toJSONFieldName ''TeamBillingInfoUpdate
-
-data SetLegalHoldStatus = SetLegalHoldDisabled | SetLegalHoldEnabled
-  deriving (Eq, Show, Ord, Enum, Bounded, Generic)
-
-deriveJSON toJSONFieldName ''SetLegalHoldStatus
-
-data SetSSOStatus = SetSSODisabled | SetSSOEnabled
-  deriving (Eq, Show, Ord, Enum, Bounded, Generic)
-
-deriveJSON toJSONFieldName ''SetSSOStatus
-
--- | FUTUREWORK: we should probably use
--- 'Galley.Types.Teams.SearchVisibility.TeamSearchVisibilityEnabled'.  (same for
--- 'SetSSOStatus', 'SetLegalHoldStatus'.
-data SetTeamSearchVisibilityAvailable = SetTeamSearchVisibilityDisabled | SetTeamSearchVisibilityEnabled
-  deriving (Eq, Show, Ord, Enum, Bounded, Generic)
-
-deriveJSON toJSONFieldName ''SetTeamSearchVisibilityAvailable
