@@ -954,9 +954,8 @@ setTeamSearchVisibilityAvailableInternal tid isenabled = do
 
 getValidateSAMLEmailsInternal :: TeamId -> Galley Public.TeamFeatureStatus
 getValidateSAMLEmailsInternal tid =
-  TeamFeatures.getFlag tid Public.TeamFeatureValidateSAMLEmails >>= \case
-    Nothing -> throwM teamNotFound
-    Just s -> pure s
+  fromMaybe Public.TeamFeatureDisabled
+    <$> TeamFeatures.getFlag tid Public.TeamFeatureValidateSAMLEmails
 
 setValidateSAMLEmailsInternal :: TeamId -> Public.TeamFeatureStatus -> Galley ()
 setValidateSAMLEmailsInternal tid = TeamFeatures.setFlag tid Public.TeamFeatureValidateSAMLEmails

@@ -29,12 +29,10 @@ import Galley.Data.Instances ()
 import Imports
 import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatus (..))
 
--- | Is a given feature enabled or disabled?  (If field is null: disabled.)
+-- | Is a given feature enabled or disabled?  Returns 'Nothing' if team does not exist or the
+-- feature flag in Cassandra is null.
 getFlag :: MonadClient m => TeamId -> TeamFeatureName -> m (Maybe TeamFeatureStatus)
-getFlag tid feature = fmap toFlag <$> retry x1 (query1 (select feature) (params Quorum (Identity tid)))
-  where
-    toFlag (Identity Nothing) = TeamFeatureDisabled
-    toFlag (Identity (Just status)) = status
+getFlag tid feature = (>>= runIdentity) <$> retry x1 (query1 (select feature) (params Quorum (Identity tid)))
 
 -- | Enable or disable feature flag.
 setFlag :: MonadClient m => TeamId -> TeamFeatureName -> TeamFeatureStatus -> m ()
