@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2d9f4e86aa180514f111c81be3e6568cfa82063bafd18fb8a40a89f121c62894
+-- hash: 363160f7d303f885aa17d6196ae67c0fdae66ffd9b60ce355bdbaad6676f5651
 
 name:           galley
 version:        0.83.0
@@ -76,6 +76,7 @@ library
   build-depends:
       HsOpenSSL >=0.11
     , HsOpenSSL-x509-system >=0.1
+    , QuickCheck >=2.14
     , aeson >=0.11
     , amazonka >=1.4.5
     , amazonka-sqs >=1.4.5

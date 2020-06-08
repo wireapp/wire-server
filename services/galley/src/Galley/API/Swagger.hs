@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
@@ -36,7 +35,6 @@ import Brig.Types.Team.LegalHold
 import Control.Lens
 import Data.Aeson (toJSON)
 import Data.Aeson (Value (..))
-import Data.ByteString.Conversion (fromByteString)
 import Data.HashMap.Strict.InsOrd
 import Data.Id
 import Data.LegalHold
@@ -44,12 +42,13 @@ import Data.Misc
 import Data.Proxy
 import Data.Swagger hiding (Header (..))
 import Data.Text as Text (unlines)
-import Data.Text.Encoding (encodeUtf8)
-import Data.UUID (UUID, fromText)
+import Data.UUID (UUID)
 import Imports
 import Servant.API hiding (Header)
 import Servant.Swagger
-import URI.ByteString.QQ (uri)
+import qualified Test.QuickCheck as QC
+import qualified Test.QuickCheck.Gen as QC
+import qualified Test.QuickCheck.Random as QC
 import Wire.API.Team.Feature
 
 {-
@@ -161,7 +160,7 @@ instance ToSchema ViewLegalHoldService where
     pure $ NamedSchema (Just "ViewLegalHoldService") $
       mempty
         & properties .~ properties_
-        & example .~ example_
+        & example .~ Just (toJSON example_)
         & required .~ ["status"]
         & minProperties .~ Just 1
         & maxProperties .~ Just 2
@@ -173,27 +172,9 @@ instance ToSchema ViewLegalHoldService where
           [ ("status", Inline (toSchema (Proxy @MockViewLegalHoldServiceStatus))),
             ("settings", Inline (toSchema (Proxy @ViewLegalHoldServiceInfo)))
           ]
-      example_ :: Maybe Value
       example_ =
-        Just . toJSON $
-          ViewLegalHoldService (ViewLegalHoldServiceInfo (Id tid) lhuri fpr tok key)
-        where
-          tok = ServiceToken "sometoken"
-          Just key =
-            fromByteString . encodeUtf8 $ Text.unlines $
-              [ "-----BEGIN PUBLIC KEY-----",
-                "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0",
-                "G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH",
-                "WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV",
-                "VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS",
-                "bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8",
-                "7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la",
-                "nQIDAQAB",
-                "-----END PUBLIC KEY-----"
-              ]
-          Just tid = fromText "7fff70c6-7b9c-11e9-9fbd-f3cc32e6bbec"
-          Right lhuri = mkHttpsUrl [uri|https://example.com/|]
-          fpr = Fingerprint "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
+        ViewLegalHoldService
+          (ViewLegalHoldServiceInfo arbitraryExample arbitraryExample arbitraryExample (ServiceToken "sometoken") arbitraryExample)
 
 -- | this type is only introduce locally here to generate the schema for 'ViewLegalHoldService'.
 data MockViewLegalHoldServiceStatus = Configured | NotConfigured | Disabled
@@ -226,7 +207,7 @@ instance ToSchema ViewLegalHoldServiceInfo where
     pure $ NamedSchema (Just "ViewLegalHoldServiceInfo") $
       mempty
         & properties .~ properties_
-        & example .~ example_
+        & example .~ Just (toJSON example_)
         & required .~ ["team_id", "base_url", "fingerprint", "auth_token", "public_key"]
         & type_ .~ Just SwaggerObject
     where
@@ -239,27 +220,9 @@ instance ToSchema ViewLegalHoldServiceInfo where
             ("auth_token", Inline (toSchema (Proxy @(ServiceToken)))),
             ("public_key", Inline (toSchema (Proxy @(ServiceKeyPEM))))
           ]
-      example_ :: Maybe Value
       example_ =
-        Just . toJSON $
-          ViewLegalHoldServiceInfo (Id tid) lhuri fpr tok key
-        where
-          tok = ServiceToken "sometoken"
-          Just key =
-            fromByteString . encodeUtf8 $ Text.unlines $
-              [ "-----BEGIN PUBLIC KEY-----",
-                "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+Kg/PHHU3atXrUbKnw0",
-                "G06FliXcNt3lMwl2os5twEDcPPFw/feGiAKymxp+7JqZDrseS5D9THGrW+OQRIPH",
-                "WvUBdiLfGrZqJO223DB6D8K2Su/odmnjZJ2z23rhXoEArTplu+Dg9K+c2LVeXTKV",
-                "VPOaOzgtAB21XKRiQ4ermqgi3/njr03rXyq/qNkuNd6tNcg+HAfGxfGvvCSYBfiS",
-                "bUKr/BeArYRcjzr/h5m1In6fG/if9GEI6m8dxHT9JbY53wiksowy6ajCuqskIFg8",
-                "7X883H+LA/d6X5CTiPv1VMxXdBUiGPuC9IT/6CNQ1/LFt0P37ax58+LGYlaFo7la",
-                "nQIDAQAB",
-                "-----END PUBLIC KEY-----"
-              ]
-          Just tid = fromText "7fff70c6-7b9c-11e9-9fbd-f3cc32e6bbec"
-          Right lhuri = mkHttpsUrl [uri|https://example.com/|]
-          fpr = Fingerprint "\138\140\183\EM\226#\129\EOTl\161\183\246\DLE\161\142\220\239&\171\241h|\\GF\172\180O\129\DC1!\159"
+        ViewLegalHoldService
+          (ViewLegalHoldServiceInfo arbitraryExample arbitraryExample arbitraryExample (ServiceToken "sometoken") arbitraryExample)
 
 instance ToSchema TeamFeatureStatus where
   declareNamedSchema _ =
@@ -373,6 +336,9 @@ instance ToSchema LastPrekey where
 
 ----------------------------------------------------------------------
 -- helpers
+
+arbitraryExample :: QC.Arbitrary a => a
+arbitraryExample = QC.unGen QC.arbitrary (QC.mkQCGen 0) 30
 
 camelToUnderscore :: String -> String
 camelToUnderscore = concatMap go . (ix 0 %~ toLower)
