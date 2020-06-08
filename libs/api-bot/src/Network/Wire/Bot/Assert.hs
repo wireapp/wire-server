@@ -20,7 +20,7 @@
 
 module Network.Wire.Bot.Assert where
 
-import Data.Id (ConvId, UserId)
+import Data.Id (ConvId, UserId, makeIdOpaque)
 import qualified Data.Set as Set
 import Imports
 import Network.Wire.Bot.Monad
@@ -39,7 +39,7 @@ assertConvCreated ::
 assertConvCreated c b bs = do
   let everyone = b : bs
   forM_ bs $ \u ->
-    let others = Set.fromList . filter (/= botId u) . map botId $ everyone
+    let others = Set.fromList . map makeIdOpaque . filter (/= botId u) . map botId $ everyone
      in assertEvent u TConvCreate (convCreate (botId u) others)
   where
     convCreate self others = \case
@@ -50,7 +50,7 @@ assertConvCreated c b bs = do
          in cnvId cnv == c
               && convEvtFrom e == botId b
               && cnvType cnv == RegularConv
-              && memId (cmSelf mems) == self
+              && memId (cmSelf mems) == makeIdOpaque self
               && omems == others
       _ -> False
 

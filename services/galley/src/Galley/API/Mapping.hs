@@ -21,10 +21,12 @@ module Galley.API.Mapping where
 
 import Control.Monad.Catch
 import Data.ByteString.Conversion
-import Data.Id
+import qualified Data.Id as Id
+import Data.IdMapping (MappedOrLocalId, opaqueIdFromMappedOrLocal)
 import qualified Data.List as List
 import Galley.App
 import qualified Galley.Data as Data
+import qualified Galley.Types.Conversations.Members as Internal
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
@@ -32,25 +34,30 @@ import qualified System.Logger.Class as Log
 import System.Logger.Message ((+++), msg, val)
 import qualified Wire.API.Conversation as Public
 
-conversationView :: UserId -> Data.Conversation -> Galley Public.Conversation
+conversationView :: MappedOrLocalId Id.U -> Data.Conversation -> Galley Public.Conversation
 conversationView u Data.Conversation {..} = do
   let mm = toList convMembers
-  let (me, them) = List.partition ((u ==) . Public.memId) mm
+  let (me, them) = List.partition ((u ==) . Internal.memId) mm
   m <- maybe memberNotFound return (listToMaybe me)
-  let (name, mems) = (convName, Public.ConvMembers m (map toOther them))
-  return $! Public.Conversation convId convType convCreator convAccess convAccessRole name mems convTeam convMessageTimer convReceiptMode
+  let mems = Public.ConvMembers (toMember m) (toOther <$> them)
+  return $! Public.Conversation convId convType convCreator convAccess convAccessRole convName mems convTeam convMessageTimer convReceiptMode
   where
+    toOther :: Internal.Member -> Public.OtherMember
     toOther x =
       Public.OtherMember
-        { omId = Public.memId x,
-          omService = Public.memService x,
-          omConvRoleName = Public.memConvRoleName x
+        { Public.omId = opaqueIdFromMappedOrLocal (Internal.memId x),
+          Public.omService = Internal.memService x,
+          Public.omConvRoleName = Internal.memConvRoleName x
         }
     memberNotFound = do
       Log.err . msg $
         val "User "
-          +++ toByteString u
+          +++ toByteString (opaqueIdFromMappedOrLocal u)
           +++ val " is not a member of conv "
           +++ toByteString convId
       throwM badState
     badState = Error status500 "bad-state" "Bad internal member state."
+
+toMember :: Internal.Member -> Public.Member
+toMember x@(Internal.Member {..}) =
+  Public.Member {memId = opaqueIdFromMappedOrLocal (Internal.memId x), ..}

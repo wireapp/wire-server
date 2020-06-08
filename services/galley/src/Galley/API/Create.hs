@@ -235,7 +235,7 @@ createConnectConversation usr conn j = do
     update n conv =
       let mems = Data.convMembers conv
        in conversationExisted usr
-            =<< if | makeIdOpaque usr `isMember` mems ->
+            =<< if | Local usr `isMember` mems ->
                      -- we already were in the conversation, maybe also other
                      connect n conv
                    | otherwise -> do
@@ -280,10 +280,10 @@ data ConversationResponse
   | ConversationExisted !Public.Conversation
 
 conversationCreated :: UserId -> Data.Conversation -> Galley ConversationResponse
-conversationCreated usr cnv = ConversationCreated <$> conversationView usr cnv
+conversationCreated usr cnv = ConversationCreated <$> conversationView (Local usr) cnv
 
 conversationExisted :: UserId -> Data.Conversation -> Galley ConversationResponse
-conversationExisted usr cnv = ConversationExisted <$> conversationView usr cnv
+conversationExisted usr cnv = ConversationExisted <$> conversationView (Local usr) cnv
 
 handleConversationResponse :: ConversationResponse -> Response
 handleConversationResponse = \case

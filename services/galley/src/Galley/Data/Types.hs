@@ -40,7 +40,7 @@ import Data.Id
 import Data.Misc (Milliseconds)
 import Data.Range
 import qualified Data.Text.Ascii as Ascii
-import Galley.Types (Access, AccessRole, ConvType (..), Member (..), ReceiptMode)
+import Galley.Types (Access, AccessRole, ConvType (..), Member, ReceiptMode)
 import Imports
 import OpenSSL.EVP.Digest (digestBS, getDigestByName)
 import OpenSSL.Random (randBytes)
@@ -62,7 +62,7 @@ data Conversation = Conversation
     convMessageTimer :: Maybe Milliseconds,
     convReceiptMode :: Maybe ReceiptMode
   }
-  deriving (Eq, Show, Generic)
+  deriving (Show)
 
 isSelfConv :: Conversation -> Bool
 isSelfConv = (SelfConv ==) . convType

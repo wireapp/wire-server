@@ -52,7 +52,7 @@ import qualified Data.UUID as UUID
 import Data.UUID.V4
 import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
-import Galley.Types
+import Galley.Types hiding (InternalMember (..), Member)
 import Galley.Types.Conversations.Roles hiding (DeleteConversation)
 import qualified Galley.Types.Teams as Team
 import Galley.Types.Teams hiding (Event, EventType (..))
@@ -77,6 +77,7 @@ import Test.Tasty.HUnit
 import TestSetup
 import UnliftIO.Timeout
 import Web.Cookie
+import Wire.API.Conversation.Member (Member (..))
 import qualified Wire.API.Event.Team as TE
 import qualified Wire.API.Message.Proto as Proto
 
@@ -877,14 +878,14 @@ assertConvMemberWithRole :: HasCallStack => RoleName -> ConvId -> UserId -> Test
 assertConvMemberWithRole r c u =
   getSelfMember u c !!! do
     const 200 === statusCode
-    const (Right u) === (fmap memId <$> responseJsonEither)
+    const (Right (makeIdOpaque u)) === (fmap memId <$> responseJsonEither)
     const (Right r) === (fmap memConvRoleName <$> responseJsonEither)
 
 assertConvMember :: HasCallStack => UserId -> ConvId -> TestM ()
 assertConvMember u c =
   getSelfMember u c !!! do
     const 200 === statusCode
-    const (Right u) === (fmap memId <$> responseJsonEither)
+    const (Right (makeIdOpaque u)) === (fmap memId <$> responseJsonEither)
 
 assertNotConvMember :: HasCallStack => UserId -> ConvId -> TestM ()
 assertNotConvMember u c =
@@ -940,8 +941,8 @@ assertConvWithRole r t c s us n mt role = do
     assertEqual "type" (Just t) (cnvType <$> cnv)
     assertEqual "creator" (Just c) (cnvCreator <$> cnv)
     assertEqual "message_timer" (Just mt) (cnvMessageTimer <$> cnv)
-    assertEqual "self" (Just s) (memId <$> _self)
-    assertEqual "others" (Just $ Set.fromList us) (Set.fromList . map omId . toList <$> others)
+    assertEqual "self" (Just (makeIdOpaque s)) (memId <$> _self)
+    assertEqual "others" (Just . Set.fromList $ makeIdOpaque <$> us) (Set.fromList . map omId . toList <$> others)
     assertEqual "creator is always and admin" (Just roleNameWireAdmin) (memConvRoleName <$> _self)
     assertBool "others role" (all (\x -> x == role) $ fromMaybe (error "Cannot be null") ((map omConvRoleName . toList <$> others)))
     assertBool "otr muted not false" (Just False == (memOtrMuted <$> _self))

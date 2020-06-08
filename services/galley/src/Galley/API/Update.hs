@@ -60,8 +60,8 @@ import Control.Monad.Catch
 import Control.Monad.State
 import Data.Code
 import Data.Id
+import qualified Data.Id as Id
 import Data.IdMapping
-import Data.List (delete)
 import Data.List.Extra (nubOrdOn)
 import Data.List.NonEmpty (nonEmpty)
 import Data.List1
@@ -109,7 +109,7 @@ acceptConv :: UserId -> Maybe ConnId -> ConvId -> Galley Conversation
 acceptConv usr conn cnv = do
   conv <- Data.conversation cnv >>= ifNothing convNotFound
   conv' <- acceptOne2One usr conv conn
-  conversationView usr conv'
+  conversationView (Local usr) conv'
 
 blockConvH :: UserId ::: ConvId -> Galley Response
 blockConvH (zusr ::: cnv) = do
@@ -122,7 +122,7 @@ blockConv zusr cnv = do
     $ throwM
     $ invalidOp "block: invalid conversation type"
   let mems = Data.convMembers conv
-  when (makeIdOpaque zusr `isMember` mems) $ Data.removeMember zusr cnv
+  when (Local zusr `isMember` mems) $ Data.removeMember (Local zusr) cnv
 
 unblockConvH :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
 unblockConvH (usr ::: conn ::: cnv) = do
@@ -135,7 +135,7 @@ unblockConv usr conn cnv = do
     $ throwM
     $ invalidOp "unblock: invalid conversation type"
   conv' <- acceptOne2One usr conv conn
-  conversationView usr conv'
+  conversationView (Local usr) conv'
 
 -- conversation updates
 
@@ -227,13 +227,20 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
     -- based on those assumptions.
     when (currentRole > ActivatedAccessRole && targetRole <= ActivatedAccessRole) $ do
       mIds <- map memId <$> use usersL
-      activated <- fmap User.userId <$> lift (lookupActivatedUsers mIds)
-      usersL %= filter (\user -> memId user `elem` activated)
+      let (localMemberIds, _) = partitionMappedOrLocalIds mIds
+      activated <- fmap User.userId <$> lift (lookupActivatedUsers localMemberIds)
+      let isActivatedOrRemote user = case memId user of
+            Local l -> l `elem` activated
+            Mapped _ -> True -- remote users don't need to be activated (we can't enforce it anyways)
+      usersL %= filter isActivatedOrRemote
     -- In a team-only conversation we also want to remove bots and guests
     case (targetRole, Data.convTeam conv) of
       (TeamAccessRole, Just tid) -> do
         currentUsers <- use usersL
-        onlyTeamUsers <- filterM (\user -> lift $ isJust <$> Data.teamMember tid (memId user)) currentUsers
+        onlyTeamUsers <- flip filterM currentUsers $ \user ->
+          case memId user of
+            Mapped _ -> pure False -- remote users can't be team members
+            Local localId -> lift $ isJust <$> Data.teamMember tid localId
         assign usersL onlyTeamUsers
         botsL .= []
       _ -> return ()
@@ -249,7 +256,7 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
   case removedUsers of
     [] -> return ()
     x : xs -> do
-      e <- Data.removeMembers conv usr (Local <$> list1 x xs)
+      e <- Data.removeMembers conv usr (list1 x xs)
       -- push event to all clients, including zconn
       -- since updateConversationAccess generates a second (member removal) event here
       for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p -> push1 p
@@ -427,7 +434,7 @@ joinConversation zusr zcon cnv access = do
   ensureAccess conv access
   zusrMembership <- maybe (pure Nothing) (`Data.teamMember` zusr) (Data.convTeam conv)
   ensureAccessRole (Data.convAccessRole conv) [(zusr, zusrMembership)]
-  let newUsers = filter (notIsMember conv . makeIdOpaque) [zusr]
+  let newUsers = filter (notIsMember conv . Local) [zusr]
   ensureMemberLimit (toList $ Data.convMembers conv) (makeIdOpaque <$> newUsers)
   -- NOTE: When joining conversations, all users become members
   -- as this is our desired behavior for these types of conversations
@@ -456,12 +463,13 @@ addMembers zusr zcon cid invite = do
       let mems = botsAndUsers (Data.convMembers conv)
       self <- getSelfMember zusr (snd mems)
       ensureActionAllowed AddConversationMember self
-      toAdd <- fromMemberSize <$> checkedMemberAddSize (toList $ invUsers invite)
-      let newOpaqueUsers = filter (notIsMember conv) (toList toAdd)
-      ensureMemberLimit (toList $ Data.convMembers conv) newOpaqueUsers
+      invitedUsers <- traverse resolveOpaqueUserId (toList $ invUsers invite)
+      toAdd <- fromMemberSize <$> checkedMemberAddSize invitedUsers
+      let newUsers = filter (notIsMember conv) (toList toAdd)
+      ensureMemberLimit (toList $ Data.convMembers conv) newUsers
       ensureAccess conv InviteAccess
       ensureConvRoleNotElevated self (invRoleName invite)
-      (newUsers, newQualifiedUsers) <- partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId newOpaqueUsers
+      let (newLocalUsers, newQualifiedUsers) = partitionMappedOrLocalIds newUsers
       -- FUTUREWORK(federation): allow adding remote members
       -- this one is a bit tricky because all of the checks that need to be done,
       -- some of them on remote backends.
@@ -469,19 +477,19 @@ addMembers zusr zcon cid invite = do
         throwM . federationNotImplemented
       case Data.convTeam conv of
         Nothing -> do
-          ensureAccessRole (Data.convAccessRole conv) (zip newUsers $ repeat Nothing)
-          ensureConnectedOrSameTeam zusr newUsers
-        Just ti -> teamConvChecks ti newUsers convId conv
-      addToConversation mems (zusr, memConvRoleName self) zcon ((,invRoleName invite) <$> newUsers) conv
+          ensureAccessRole (Data.convAccessRole conv) (zip newLocalUsers $ repeat Nothing)
+          ensureConnectedOrSameTeam zusr newLocalUsers
+        Just ti -> teamConvChecks ti newLocalUsers convId conv
+      addToConversation mems (zusr, memConvRoleName self) zcon ((,invRoleName invite) <$> newLocalUsers) conv
     userIsMember u = (^. userId . to (== u))
-    teamConvChecks tid newUsers convId conv = do
-      tms <- Data.teamMembersLimited tid newUsers
-      let userMembershipMap = map (\u -> (u, find (userIsMember u) tms)) newUsers
+    teamConvChecks tid newLocalUsers convId conv = do
+      tms <- Data.teamMembersLimited tid newLocalUsers
+      let userMembershipMap = map (\u -> (u, find (userIsMember u) tms)) newLocalUsers
       ensureAccessRole (Data.convAccessRole conv) userMembershipMap
       tcv <- Data.teamConversation tid convId
       when (maybe True (view managedConversation) tcv) $
         throwM noAddToManaged
-      ensureConnectedOrSameTeam zusr newUsers
+      ensureConnectedOrSameTeam zusr newLocalUsers
 
 updateSelfMemberH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.MemberUpdate -> Galley Response
 updateSelfMemberH (zusr ::: zcon ::: cid ::: req) = do
@@ -495,7 +503,7 @@ updateSelfMember zusr zcon cid update = do
   m <- getSelfMember zusr (Data.convMembers conv)
   -- Ensure no self role upgrades
   for_ (mupConvRoleName update) $ ensureConvRoleNotElevated m
-  void $ processUpdateMemberEvent zusr zcon cid [m] m update
+  void $ processUpdateMemberEvent zusr zcon cid [Local <$> m] m update
 
 updateOtherMemberH :: UserId ::: ConnId ::: ConvId ::: UserId ::: JsonRequest Public.OtherMemberUpdate -> Galley Response
 updateOtherMemberH (zusr ::: zcon ::: cid ::: victim ::: req) = do
@@ -519,26 +527,26 @@ removeMemberH (zusr ::: zcon ::: cid ::: victim) = do
   handleUpdateResult <$> removeMember zusr zcon cid victim
 
 removeMember :: UserId -> ConnId -> OpaqueConvId -> OpaqueUserId -> Galley UpdateResult
-removeMember zusr zcon cid victim = do
+removeMember zusr zcon cid opaqueVictim = do
   resolveOpaqueConvId cid >>= \case
     Mapped idMapping ->
       -- FUTUREWORK(federation, #1274): forward request to conversation's backend.
       throwM . federationNotImplemented $ pure idMapping
-    Local localConvId ->
-      removeMemberOfLocalConversation localConvId
+    Local localConvId -> do
+      victim <- resolveOpaqueUserId opaqueVictim
+      removeMemberOfLocalConversation localConvId victim
   where
-    removeMemberOfLocalConversation convId = do
+    removeMemberOfLocalConversation convId victim = do
       conv <- Data.conversation convId >>= ifNothing convNotFound
       let (bots, users) = botsAndUsers (Data.convMembers conv)
-      genConvChecks conv users
+      genConvChecks conv users victim
       case Data.convTeam conv of
         Nothing -> pure ()
         Just ti -> teamConvChecks convId ti
       if victim `isMember` users
         then do
-          resolvedVictim <- resolveOpaqueUserId victim
-          event <- Data.removeMembers conv zusr (singleton resolvedVictim)
-          case resolvedVictim of
+          event <- Data.removeMembers conv zusr (singleton victim)
+          case victim of
             Local _ -> pure () -- nothing to do
             Mapped _ -> do
               -- FUTUREWORK(federation, #1274): users can be on other backend, how to notify it?
@@ -548,9 +556,9 @@ removeMember zusr zcon cid victim = do
           void . forkIO $ void $ External.deliver (bots `zip` repeat event)
           pure $ Updated event
         else pure Unchanged
-    genConvChecks conv usrs = do
+    genConvChecks conv usrs victim = do
       ensureGroupConv conv
-      if makeIdOpaque zusr == victim
+      if Local zusr == victim
         then ensureActionAllowed LeaveConversation =<< getSelfMember zusr usrs
         else ensureActionAllowed RemoveConversationMember =<< getSelfMember zusr usrs
     teamConvChecks convId tid = do
@@ -658,7 +666,7 @@ newMessage ::
   Maybe ConvId ->
   NewOtrMessage ->
   UTCTime ->
-  (Member, ClientId, Text) ->
+  (LocalMember, ClientId, Text) ->
   ([(BotMember, Event)], [Maybe Push]) ->
   ([(BotMember, Event)], [Maybe Push])
 newMessage usr con cnv msg now (m, c, t) ~(toBots, toUsers) =
@@ -669,9 +677,10 @@ newMessage usr con cnv msg now (m, c, t) ~(toBots, toUsers) =
             otrCiphertext = t,
             otrData = newOtrData msg
           }
-      conv = fromMaybe (selfConv $ memId m) cnv -- use recipient's client's self conversation on broadcast
+      -- TODO(mheinzel)
+      conv = fromMaybe (selfConv $ undefined memId m) cnv -- use recipient's client's self conversation on broadcast
       e = Event OtrMessageAdd conv usr now (Just $ EdOtrMessage o)
-      r = recipient m & recipientClients .~ (RecipientClientsSome $ singleton c)
+      r = recipient (Local <$> m) & recipientClients .~ (RecipientClientsSome $ singleton c)
    in case newBotMember m of
         Just b -> ((b, e) : toBots, toUsers)
         Nothing ->
@@ -719,7 +728,7 @@ isTypingH (zusr ::: zcon ::: cnv ::: req) = do
 isTyping :: UserId -> ConnId -> ConvId -> Public.TypingData -> Galley ()
 isTyping zusr zcon cnv typingData = do
   mm <- Data.members cnv
-  unless (makeIdOpaque zusr `isMember` mm) $
+  unless (Local zusr `isMember` mm) $
     throwM convNotFound
   now <- liftIO getCurrentTime
   let e = Event Typing cnv zusr now (Just $ EdTyping typingData)
@@ -761,7 +770,7 @@ addBot zusr zcon b = do
   where
     regularConvChecks c = do
       let (bots, users) = botsAndUsers (Data.convMembers c)
-      unless (makeIdOpaque zusr `isMember` users) $
+      unless (Local zusr `isMember` users) $
         throwM convNotFound
       ensureGroupConv c
       ensureActionAllowed AddConversationMember =<< getSelfMember zusr users
@@ -781,7 +790,7 @@ rmBotH (zusr ::: zcon ::: req) = do
 rmBot :: UserId -> Maybe ConnId -> RemoveBot -> Galley UpdateResult
 rmBot zusr zcon b = do
   c <- Data.conversation (b ^. rmBotConv) >>= ifNothing convNotFound
-  unless (makeIdOpaque zusr `isMember` Data.convMembers c) $
+  unless (Local zusr `isMember` Data.convMembers c) $
     throwM convNotFound
   let (bots, users) = botsAndUsers (Data.convMembers c)
   if not (any ((== b ^. rmBotId) . botMemId) bots)
@@ -792,7 +801,7 @@ rmBot zusr zcon b = do
       let e = Event MemberLeave (Data.convId c) zusr t evd
       for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
         push1 $ p & pushConn .~ zcon
-      Data.removeMember (botUserId (b ^. rmBotId)) (Data.convId c)
+      Data.removeMember (Local (botUserId (b ^. rmBotId))) (Data.convId c)
       Data.eraseClients (botUserId (b ^. rmBotId))
       void . forkIO $ void $ External.deliver (bots `zip` repeat e)
       pure $ Updated e
@@ -820,19 +829,20 @@ ensureGroupConv c = case Data.convType c of
   ConnectConv -> throwM invalidConnectOp
   _ -> return ()
 
-ensureMemberLimit :: [Member] -> [OpaqueUserId] -> Galley ()
+-- TODO(mheinzel): probably shouldn't be fully polymorphic?
+ensureMemberLimit :: [Member] -> [a] -> Galley ()
 ensureMemberLimit old new = do
   o <- view options
   let maxSize = fromIntegral (o ^. optSettings . setMaxConvSize)
   when (length old + length new > maxSize) $
     throwM tooManyMembers
 
-notIsMember :: Data.Conversation -> OpaqueUserId -> Bool
+notIsMember :: Data.Conversation -> MappedOrLocalId Id.U -> Bool
 notIsMember cc u = not $ isMember u (Data.convMembers cc)
 
 ensureConvMember :: [Member] -> UserId -> Galley ()
 ensureConvMember users usr =
-  unless (makeIdOpaque usr `isMember` users) $
+  unless (Local usr `isMember` users) $
     throwM convNotFound
 
 ensureAccess :: Data.Conversation -> Access -> Galley ()
@@ -840,32 +850,20 @@ ensureAccess conv access =
   unless (access `elem` Data.convAccess conv) $
     throwM convAccessDenied
 
-applyMemUpdateChanges :: Member -> MemberUpdateData -> Member
-applyMemUpdateChanges m u =
-  m
-    { memOtrMuted = fromMaybe (memOtrMuted m) (misOtrMuted u),
-      memOtrMutedRef = misOtrMutedRef u <|> memOtrMutedRef m,
-      memOtrArchived = fromMaybe (memOtrArchived m) (misOtrArchived u),
-      memOtrArchivedRef = misOtrArchivedRef u <|> memOtrArchivedRef m,
-      memHidden = fromMaybe (memHidden m) (misHidden u),
-      memHiddenRef = misHiddenRef u <|> memHiddenRef m,
-      memConvRoleName = fromMaybe (memConvRoleName m) (misConvRoleName u)
-    }
-
 processUpdateMemberEvent ::
   UserId ->
   ConnId ->
   ConvId ->
   [Member] ->
-  Member ->
+  LocalMember ->
   MemberUpdate ->
   Galley Event
 processUpdateMemberEvent zusr zcon cid users target update = do
   up <- Data.updateMember cid (memId target) update
   now <- liftIO getCurrentTime
   let e = Event MemberStateUpdate cid zusr now (Just $ EdMemberUpdate up)
-  let ms = applyMemUpdateChanges target up
-  for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient ms : fmap recipient (delete target users))) $ \p ->
+  let recipients = fmap recipient ((Local <$> target) : filter ((/= Local (memId target)) . memId) users)
+  for_ (newPush ListComplete (evtFrom e) (ConvEvent e) recipients) $ \p ->
     push1 $
       p
         & pushConn ?~ zcon
@@ -878,7 +876,7 @@ processUpdateMemberEvent zusr zcon cid users target update = do
 data CheckedOtrRecipients
   = -- | Valid sender (user and client) and no missing recipients,
     -- or missing recipients have been willfully ignored.
-    ValidOtrRecipients !ClientMismatch [(Member, ClientId, Text)]
+    ValidOtrRecipients !ClientMismatch [(LocalMember, ClientId, Text)]
   | -- | Missing recipients.
     MissingOtrRecipients !ClientMismatch
   | -- | Invalid sender (user).
@@ -892,7 +890,7 @@ withValidOtrBroadcastRecipients ::
   OtrRecipients ->
   OtrFilterMissing ->
   UTCTime ->
-  ([(Member, ClientId, Text)] -> Galley ()) ->
+  ([(LocalMember, ClientId, Text)] -> Galley ()) ->
   Galley OtrResult
 withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam usr $ \tid -> do
   limit <- fromIntegral . fromRange <$> fanoutLimit
@@ -938,21 +936,26 @@ withValidOtrRecipients ::
   OtrRecipients ->
   OtrFilterMissing ->
   UTCTime ->
-  ([(Member, ClientId, Text)] -> Galley ()) ->
+  ([(LocalMember, ClientId, Text)] -> Galley ()) ->
   Galley OtrResult
 withValidOtrRecipients usr clt cnv rcps val now go = do
   alive <- Data.isConvAlive cnv
   unless alive $ do
     Data.deleteConversation cnv
     throwM convNotFound
+  -- FUTUREWORK(federation): also handle remote members
   membs <- Data.members cnv
-  let memIds = (memId <$> membs)
+  let localMembers = flip mapMaybe membs $ \memb ->
+        case memId memb of
+          Local localId -> Just (memb {memId = localId} :: LocalMember)
+          Mapped _ -> Nothing
+  let localMemberIds = memId <$> localMembers
   isInternal <- view $ options . optSettings . setIntraListing
   clts <-
     if isInternal
-      then Clients.fromUserClients <$> Intra.lookupClients memIds
-      else Data.lookupClients memIds
-  handleOtrResponse usr clt rcps membs clts val now go
+      then Clients.fromUserClients <$> Intra.lookupClients localMemberIds
+      else Data.lookupClients localMemberIds
+  handleOtrResponse usr clt rcps localMembers clts val now go
 
 handleOtrResponse ::
   -- | Proposed sender (user)
@@ -962,7 +965,7 @@ handleOtrResponse ::
   -- | Proposed recipients (users & clients).
   OtrRecipients ->
   -- | Members to consider as valid recipients.
-  [Member] ->
+  [LocalMember] ->
   -- | Clients to consider as valid recipients.
   Clients ->
   -- | How to filter missing clients.
@@ -970,7 +973,7 @@ handleOtrResponse ::
   -- | The current timestamp.
   UTCTime ->
   -- | Callback if OtrRecipients are valid
-  ([(Member, ClientId, Text)] -> Galley ()) ->
+  ([(LocalMember, ClientId, Text)] -> Galley ()) ->
   Galley OtrResult
 handleOtrResponse usr clt rcps membs clts val now go = case checkOtrRecipients usr clt rcps membs clts val now of
   ValidOtrRecipients m r -> go r >> pure (OtrSent m)
@@ -990,7 +993,7 @@ checkOtrRecipients ::
   -- | Proposed recipients (users & clients).
   OtrRecipients ->
   -- | Members to consider as valid recipients.
-  [Member] ->
+  [LocalMember] ->
   -- | Clients to consider as valid recipients.
   Clients ->
   -- | How to filter missing clients.
@@ -1008,7 +1011,7 @@ checkOtrRecipients (makeIdOpaque -> usr) sid prs vms vcs val now
     next u c t rs
       | Just m <- member u c = (m, c, t) : rs
       | otherwise = rs
-    member :: OpaqueUserId -> ClientId -> Maybe Member
+    member :: OpaqueUserId -> ClientId -> Maybe LocalMember
     member u c
       | Just m <- Map.lookup u vmembers,
         Clients.contains u c vclients =

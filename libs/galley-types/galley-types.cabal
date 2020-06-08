@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: fb74da023d3b1f2a3ad91fca661ee239b7010e42ec219bec603378749aafabea
+-- hash: 73ad5a5126cffda9d353014c94e6f72b68f8dfbe7ecad75a7f03f55f13e06d7b
 
 name:           galley-types
 version:        0.81.0
@@ -22,6 +22,7 @@ library
       Galley.Types
       Galley.Types.Bot
       Galley.Types.Bot.Service
+      Galley.Types.Conversations.Members
       Galley.Types.Conversations.Roles
       Galley.Types.Teams
       Galley.Types.Teams.Intra

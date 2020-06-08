@@ -83,7 +83,7 @@ instance FromJSON ConvMembers where
 -- Members
 
 data Member = Member
-  { memId :: UserId,
+  { memId :: OpaqueUserId,
     memService :: Maybe ServiceRef,
     -- | DEPRECATED, remove it once enough clients use `memOtrMutedStatus`
     memOtrMuted :: Bool,
@@ -165,7 +165,7 @@ newtype MutedStatus = MutedStatus {fromMutedStatus :: Int32}
   deriving newtype (Num, FromJSON, ToJSON, Arbitrary)
 
 data OtherMember = OtherMember
-  { omId :: UserId,
+  { omId :: OpaqueUserId,
     omService :: Maybe ServiceRef,
     omConvRoleName :: RoleName
   }

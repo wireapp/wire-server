@@ -110,9 +110,10 @@ import Control.Lens hiding ((<|))
 import Control.Monad.Catch (MonadThrow)
 import Data.Bifunctor (first)
 import Data.ByteString.Conversion hiding (parser)
+import Data.Domain (Domain)
 import Data.Function (on)
 import Data.Id as Id
-import Data.IdMapping
+import Data.IdMapping (IdMapping (IdMapping), MappedOrLocalId (Local, Mapped), opaqueIdFromMappedOrLocal)
 import Data.Json.Util (UTCTimeMillis (..))
 import Data.LegalHold (UserLegalHoldStatus (..))
 import qualified Data.List.Extra as List
@@ -120,6 +121,7 @@ import Data.List.Split (chunksOf)
 import Data.List1 (List1, list1, singleton)
 import qualified Data.Map.Strict as Map
 import Data.Misc (Milliseconds)
+import Data.Qualified (Qualified (Qualified))
 import Data.Range
 import qualified Data.Set as Set
 import Data.Time.Clock
@@ -503,23 +505,23 @@ conversationMeta conv =
   where
     toConvMeta (t, c, a, r, n, i, _, mt, rm) = ConversationMeta conv t c (defAccess t a) (maybeRole t r) n i mt rm
 
-conversationIdsFrom :: MonadClient m => UserId -> Maybe OpaqueConvId -> Range 1 1000 Int32 -> m (ResultSet OpaqueConvId)
+conversationIdsFrom :: MonadClient m => UserId -> Maybe OpaqueConvId -> Range 1 1000 Int32 -> m (ResultSet (MappedOrLocalId Id.C))
 conversationIdsFrom usr start (fromRange -> max) =
-  ResultSet . fmap runIdentity . strip <$> case start of
+  ResultSet . fmap toMappedOrLocalId . strip <$> case start of
     Just c -> paginate Cql.selectUserConvsFrom (paramsP Quorum (usr, c) (max + 1))
     Nothing -> paginate Cql.selectUserConvs (paramsP Quorum (Identity usr) (max + 1))
   where
     strip p = p {result = take (fromIntegral max) (result p)}
 
-conversationIdsForPagination :: MonadClient m => UserId -> Maybe OpaqueConvId -> Range 1 1000 Int32 -> m (Page OpaqueConvId)
+conversationIdsForPagination :: MonadClient m => UserId -> Maybe OpaqueConvId -> Range 1 1000 Int32 -> m (Page (MappedOrLocalId Id.C))
 conversationIdsForPagination usr start (fromRange -> max) =
-  fmap runIdentity <$> case start of
+  fmap toMappedOrLocalId <$> case start of
     Just c -> paginate Cql.selectUserConvsFrom (paramsP Quorum (usr, c) max)
     Nothing -> paginate Cql.selectUserConvs (paramsP Quorum (Identity usr) max)
 
-conversationIdsOf :: MonadClient m => UserId -> Range 1 32 (List OpaqueConvId) -> m [OpaqueConvId]
+conversationIdsOf :: MonadClient m => UserId -> Range 1 32 (List OpaqueConvId) -> m [MappedOrLocalId Id.C]
 conversationIdsOf usr (fromList . fromRange -> cids) =
-  map runIdentity <$> retry x1 (query Cql.selectUserConvsIn (params Quorum (usr, cids)))
+  map toMappedOrLocalId <$> retry x1 (query Cql.selectUserConvsIn (params Quorum (usr, cids)))
 
 createConversation ::
   MonadClient m =>
@@ -687,10 +689,27 @@ privateRole = PrivateAccessRole
 privateOnly :: Set Access
 privateOnly = Set [PrivateAccess]
 
+toMappedOrLocalId :: (Id (Opaque a), Maybe (Id (Remote a)), Maybe Domain) -> MappedOrLocalId a
+toMappedOrLocalId = \case
+  (Id mappedId, Just remoteId, Just domain) ->
+    Mapped (IdMapping (Id mappedId) (Qualified remoteId domain))
+  (Id localId, Nothing, Nothing) ->
+    Local (Id localId)
+  (Id localId, _, _) ->
+    -- TODO: this should be an error
+    Local (Id localId)
+
+fromMappedOrLocalId :: MappedOrLocalId a -> (Id (Opaque a), Maybe (Id (Remote a)), Maybe Domain)
+fromMappedOrLocalId = \case
+  Local localId ->
+    (makeIdOpaque localId, Nothing, Nothing)
+  Mapped (IdMapping mappedId (Qualified remoteId domain)) ->
+    (makeMappedIdOpaque mappedId, Just remoteId, Just domain)
+
 -- Conversation Members -----------------------------------------------------
 
 member :: MonadClient m => ConvId -> UserId -> m (Maybe Member)
-member cnv usr = (toMember =<<) <$> retry x1 (query1 Cql.selectMember (params Quorum (cnv, usr)))
+member cnv usr = (toMember =<<) <$> retry x1 (query1 Cql.selectMember (params Quorum (cnv, makeIdOpaque usr)))
 
 memberLists :: MonadClient m => [ConvId] -> m [[Member]]
 memberLists convs = do
@@ -702,21 +721,29 @@ memberLists convs = do
     insert (Just (conv, mem)) acc =
       let f = (Just . maybe [mem] (mem :))
        in Map.alter f conv acc
-    mkMem (cnv, usr, srv, prv, st, omu, omus, omur, oar, oarr, hid, hidr, crn) =
-      (cnv,) <$> toMember (usr, srv, prv, st, omu, omus, omur, oar, oarr, hid, hidr, crn)
+    mkMem (cnv, usr, usrRemoteId, usrRemoteDomain, srv, prv, st, omu, omus, omur, oar, oarr, hid, hidr, crn) =
+      (cnv,) <$> toMember (usr, usrRemoteId, usrRemoteDomain, srv, prv, st, omu, omus, omur, oar, oarr, hid, hidr, crn)
 
 members :: MonadClient m => ConvId -> m [Member]
 members conv = join <$> memberLists [conv]
 
+-- | Add a member to a local conversation, as an admin.
 addMember :: MonadClient m => UTCTime -> ConvId -> UserId -> m (Event, List1 Member)
 addMember t c u = addMembersUnchecked t c u (singleton u)
 
+-- | Add members to a local conversation.
 addMembersWithRole :: MonadClient m => UTCTime -> ConvId -> (UserId, RoleName) -> ConvMemberAddSizeChecked (List1 (UserId, RoleName)) -> m (Event, List1 Member)
 addMembersWithRole t c orig mems = addMembersUncheckedWithRole t c orig (fromMemberSize mems)
 
+-- | Add members to a local conversation, all as admins.
+-- Please make sure the conversation doesn't exceed the maximum size!
 addMembersUnchecked :: MonadClient m => UTCTime -> ConvId -> UserId -> List1 UserId -> m (Event, List1 Member)
 addMembersUnchecked t conv orig usrs = addMembersUncheckedWithRole t conv (orig, roleNameWireAdmin) ((,roleNameWireAdmin) <$> usrs)
 
+-- | Add members to a local conversation.
+-- Please make sure the conversation doesn't exceed the maximum size!
+--
+-- For now, we only accept local 'UserId's, but that will change with federation.
 addMembersUncheckedWithRole :: MonadClient m => UTCTime -> ConvId -> (UserId, RoleName) -> List1 (UserId, RoleName) -> m (Event, List1 Member)
 addMembersUncheckedWithRole t conv (orig, _origRole) usrs = do
   -- batch statement with 500 users are known to be above the batch size limit
@@ -732,10 +759,17 @@ addMembersUncheckedWithRole t conv (orig, _origRole) usrs = do
       setType BatchLogged
       setConsistency Quorum
       for_ chunk $ \(u, r) -> do
-        addPrepQuery Cql.insertUserConv (u, conv)
-        addPrepQuery Cql.insertMember (conv, u, Nothing, Nothing, r)
+        -- Conversation is local, so we can add any member to it (including remote ones).
+        let (usrOpaqueId, usrRemoteId, usrRemoteDomain) = fromMappedOrLocalId (Local u)
+        addPrepQuery Cql.insertMember (conv, usrOpaqueId, usrRemoteId, usrRemoteDomain, Nothing, Nothing, r)
+        -- Once we accept remote users in this function, we need to distinguish here between
+        -- local and remote ones.
+        -- - For local members, we add the conversation to the table as it's done already.
+        -- - For remote members, we don't do anything here and assume an additional call to
+        --   their backend has been (or will be) made separately.
+        addPrepQuery Cql.insertUserConv (u, makeIdOpaque conv, Nothing, Nothing)
   let e = Event MemberJoin conv orig t (Just . EdMembersJoin . SimpleMembers . toSimpleMembers $ toList usrs)
-  return (e, fmap (uncurry newMemberWithRole) usrs)
+  return (e, fmap (uncurry newMemberWithRole . first Local) usrs)
   where
     toSimpleMembers :: [(UserId, RoleName)] -> [SimpleMember]
     toSimpleMembers = fmap (uncurry SimpleMember)
@@ -745,16 +779,17 @@ updateMember cid uid mup = do
   retry x5 $ batch $ do
     setType BatchUnLogged
     setConsistency Quorum
+    let opaqueUserId = makeIdOpaque uid
     for_ (mupOtrMute mup) $ \m ->
-      addPrepQuery Cql.updateOtrMemberMuted (m, mupOtrMuteRef mup, cid, uid)
+      addPrepQuery Cql.updateOtrMemberMuted (m, mupOtrMuteRef mup, cid, opaqueUserId)
     for_ (mupOtrMuteStatus mup) $ \ms ->
-      addPrepQuery Cql.updateOtrMemberMutedStatus (ms, mupOtrMuteRef mup, cid, uid)
+      addPrepQuery Cql.updateOtrMemberMutedStatus (ms, mupOtrMuteRef mup, cid, opaqueUserId)
     for_ (mupOtrArchive mup) $ \a ->
-      addPrepQuery Cql.updateOtrMemberArchived (a, mupOtrArchiveRef mup, cid, uid)
+      addPrepQuery Cql.updateOtrMemberArchived (a, mupOtrArchiveRef mup, cid, opaqueUserId)
     for_ (mupHidden mup) $ \h ->
-      addPrepQuery Cql.updateMemberHidden (h, mupHiddenRef mup, cid, uid)
+      addPrepQuery Cql.updateMemberHidden (h, mupHiddenRef mup, cid, opaqueUserId)
     for_ (mupConvRoleName mup) $ \r ->
-      addPrepQuery Cql.updateMemberConvRoleName (r, cid, uid)
+      addPrepQuery Cql.updateMemberConvRoleName (r, cid, opaqueUserId)
   return
     MemberUpdateData
       { misTarget = Just uid,
@@ -777,8 +812,8 @@ removeMembers conv orig victims = do
     for_ (toList victims) $ \u -> do
       addPrepQuery Cql.removeMember (convId conv, opaqueIdFromMappedOrLocal u)
       case u of
-        Local localId ->
-          addPrepQuery Cql.deleteUserConv (localId, convId conv)
+        Local userLocalId ->
+          addPrepQuery Cql.deleteUserConv (userLocalId, makeIdOpaque (convId conv))
         Mapped _ ->
           -- the user's conversation has to be deleted on their own backend
           pure ()
@@ -790,17 +825,22 @@ removeMembers conv orig victims = do
       Local localId -> Just localId
       Mapped _ -> Nothing
 
-removeMember :: MonadClient m => UserId -> ConvId -> m ()
+removeMember :: MonadClient m => MappedOrLocalId Id.U -> ConvId -> m ()
 removeMember usr cnv = retry x5 $ batch $ do
   setType BatchLogged
   setConsistency Quorum
-  addPrepQuery Cql.removeMember (cnv, makeIdOpaque usr)
-  addPrepQuery Cql.deleteUserConv (usr, cnv)
+  addPrepQuery Cql.removeMember (cnv, opaqueIdFromMappedOrLocal usr)
+  case usr of
+    Local userLocalId ->
+      addPrepQuery Cql.deleteUserConv (userLocalId, makeIdOpaque cnv)
+    Mapped _ ->
+      -- the user's conversation has to be deleted on their own backend
+      pure ()
 
-newMember :: UserId -> Member
+newMember :: a -> InternalMember a
 newMember = flip newMemberWithRole roleNameWireAdmin
 
-newMemberWithRole :: UserId -> RoleName -> Member
+newMemberWithRole :: a -> RoleName -> InternalMember a
 newMemberWithRole u r =
   Member
     { memId = u,
@@ -816,27 +856,33 @@ newMemberWithRole u r =
     }
 
 toMember ::
-  ( UserId,
+  ( OpaqueUserId,
+    Maybe RemoteUserId,
+    Maybe Domain,
     Maybe ServiceId,
     Maybe ProviderId,
     Maybe Cql.MemberStatus,
+    -- otr muted
     Maybe Bool,
     Maybe MutedStatus,
-    Maybe Text, -- otr muted
+    Maybe Text,
+    -- otr archived
     Maybe Bool,
-    Maybe Text, -- otr archived
+    Maybe Text,
+    -- hidden
     Maybe Bool,
-    Maybe Text, -- hidden
-    Maybe RoleName -- conversation role name
+    Maybe Text,
+    -- conversation role name
+    Maybe RoleName
   ) ->
   Maybe Member
-toMember (usr, srv, prv, sta, omu, omus, omur, oar, oarr, hid, hidr, crn) =
+toMember (usr, usrRemoteId, usrRemoteDomain, srv, prv, sta, omu, omus, omur, oar, oarr, hid, hidr, crn) =
   if sta /= Just 0
     then Nothing
     else
       Just $
         Member
-          { memId = usr,
+          { memId = toMappedOrLocalId (usr, usrRemoteId, usrRemoteDomain),
             memService = newServiceRef <$> srv <*> prv,
             memOtrMuted = fromMaybe False omu,
             memOtrMutedStatus = omus,
