@@ -130,8 +130,8 @@ newConfig env limit = do
       -- (see property tests in brig-types)
       -- since the input is List1 and limit is in Range 1 10
       -- it should also be safe to assume the returning list has length >= 1
-      let (x : xs) = Public.limitServers (toList uris) (fromRange lim)
-      List1.list1 x xs
+      List1.maybeList1 (Public.limitServers (toList uris) (fromRange lim))
+        & fromMaybe (error "newConfig:limitedList: empty list of servers")
     genUsername :: Word32 -> MWC.GenIO -> IO Public.TurnUsername
     genUsername ttl prng = do
       rnd <- view (packedBytes . utf8) <$> replicateM 16 (MWC.uniformR (97, 122) prng)
