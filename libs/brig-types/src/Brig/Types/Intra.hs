@@ -120,8 +120,10 @@ instance FromJSON UserAccount where
 instance ToJSON UserAccount where
   toJSON (UserAccount u s) =
     case toJSON u of
-      Object o -> Object $ M.insert "status" (toJSON s) o
-      other -> other -- shouldn't happen
+      Object o ->
+        Object $ M.insert "status" (toJSON s) o
+      other ->
+        error $ "toJSON UserAccount: not an object: " <> show (encode other)
 
 -------------------------------------------------------------------------------
 -- UserList
