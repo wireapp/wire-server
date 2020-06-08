@@ -256,7 +256,7 @@ transition :: HasCallStack => Model r -> Command r -> Response r -> Model r
 transition (Model Nothing) (Init _) (InitResponse st) = Model (Just st)
 transition (Model (Just st)) Run {} RunResponse = Model (Just st)
 transition (Model (Just st)) Wait {} WaitResponse = Model (Just st)
-transition (Model (Just st)) Measure {} MeasureResponse {..} = Model (Just st)
+transition (Model (Just st)) Measure {} MeasureResponse {} = Model (Just st)
 transition _ _ _ = error "impossible."
 
 precondition :: HasCallStack => Model Symbolic -> Command Symbolic -> Logic
