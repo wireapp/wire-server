@@ -692,8 +692,7 @@ getMarketoResult email = do
     404 -> return noEmail
     _ -> throwE (Error status502 "bad-upstream" "")
   where
-    noEmail =
-      MarketoResult $ M.singleton "results" emptyArray
+    noEmail = MarketoResult $ M.singleton "results" emptyArray
 
 getUserConsentLog :: UserId -> Handler ConsentLog
 getUserConsentLog uid = do
