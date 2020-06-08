@@ -352,7 +352,7 @@ routes = do
       description "Feature name"
     Doc.body Public.typeTeamFeatureStatus $
       Doc.description "JSON body"
-    Doc.response 200 "Team feature flagLegalhold status" Doc.end
+    Doc.response 200 "Team feature flag status" Doc.end
 
   -- These endpoints should be part of team settings. Until then, we access them from here
   -- for authorized personnel to enable/disable this on the team's behalf
