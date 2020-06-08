@@ -36,7 +36,6 @@ import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SearchVisibility
 import Imports
 import Text.RawString.QQ
-import Wire.API.Team.Feature (TeamFeatureStatus)
 
 -- Teams --------------------------------------------------------------------
 
@@ -321,12 +320,6 @@ insertBot = "insert into member (conv, user, service, provider, status) values (
 
 -- LegalHold ----------------------------------------------------------------
 
-selectLegalHoldTeamConfig :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamFeatureStatus))
-selectLegalHoldTeamConfig = "select legalhold_status from team_features where team_id = ?"
-
-updateLegalHoldTeamConfig :: PrepQuery W (TeamFeatureStatus, TeamId) ()
-updateLegalHoldTeamConfig = "update team_features set legalhold_status = ? where team_id = ?"
-
 insertLegalHoldSettings :: PrepQuery W (HttpsUrl, Fingerprint Rsa, ServiceToken, ServiceKey, TeamId) ()
 insertLegalHoldSettings =
   [r|
@@ -379,22 +372,6 @@ updateUserLegalHoldStatus =
           where team = ? and user = ?
     |]
 
-selectSSOTeamConfig :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamFeatureStatus))
-selectSSOTeamConfig =
-  "select sso_status from team_features where team_id = ?"
-
-updateSSOTeamConfig :: PrepQuery W (TeamFeatureStatus, TeamId) ()
-updateSSOTeamConfig =
-  "update team_features set sso_status = ? where team_id = ?"
-
-selectTeamSearchVisibilityAvailable :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamFeatureStatus))
-selectTeamSearchVisibilityAvailable =
-  "select search_visibility_status from team_features where team_id = ?"
-
-updateTeamSearchVisibilityAvailable :: PrepQuery W (TeamFeatureStatus, TeamId) ()
-updateTeamSearchVisibilityAvailable =
-  "update team_features set search_visibility_status = ? where team_id = ?"
-
 selectSearchVisibility :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamSearchVisibility))
 selectSearchVisibility =
   "select search_visibility from team where team = ?"
@@ -402,14 +379,6 @@ selectSearchVisibility =
 updateSearchVisibility :: PrepQuery W (TeamSearchVisibility, TeamId) ()
 updateSearchVisibility =
   "update team set search_visibility = ? where team = ?"
-
-selectValidateSAMLEmails :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamFeatureStatus))
-selectValidateSAMLEmails =
-  "select validate_saml_emails from team_features where team_id = ?"
-
-updateValidateSAMLEmails :: PrepQuery W (TeamFeatureStatus, TeamId) ()
-updateValidateSAMLEmails =
-  "update team_features set validate_saml_emails = ? where team_id = ?"
 
 selectCustomBackend :: PrepQuery R (Identity Domain) (HttpsUrl, HttpsUrl)
 selectCustomBackend =
