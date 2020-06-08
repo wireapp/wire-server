@@ -954,6 +954,8 @@ setTeamSearchVisibilityAvailableInternal tid isenabled = do
 
 getValidateSAMLEmailsInternal :: TeamId -> Galley Public.TeamFeatureStatus
 getValidateSAMLEmailsInternal tid =
+  -- FUTUREWORK: we may also want to get a default from the server config file here, like for
+  -- sso, and team search visibility.
   fromMaybe Public.TeamFeatureDisabled
     <$> TeamFeatures.getFlag tid Public.TeamFeatureValidateSAMLEmails
 
