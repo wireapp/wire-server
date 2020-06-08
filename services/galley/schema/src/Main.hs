@@ -46,6 +46,7 @@ import qualified V40_CreateTableDataMigration
 import qualified V41_TeamNotificationQueue
 import qualified V42_TeamFeatureValidateSamlEmails
 import qualified V43_TeamFeatureDigitalSignatures
+import qualified V44_AddRemoteIdentifiers
 
 main :: IO ()
 main = do
@@ -77,7 +78,8 @@ main = do
       V40_CreateTableDataMigration.migration,
       V41_TeamNotificationQueue.migration,
       V42_TeamFeatureValidateSamlEmails.migration,
-      V43_TeamFeatureDigitalSignatures.migration
+      V43_TeamFeatureDigitalSignatures.migration,
+      V44_AddRemoteIdentifiers.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Galley.Data
     ]
