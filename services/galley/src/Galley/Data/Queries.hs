@@ -371,6 +371,8 @@ updateUserLegalHoldStatus =
           where team = ? and user = ?
     |]
 
+-- Search Visibility --------------------------------------------------------
+
 selectSearchVisibility :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamSearchVisibility))
 selectSearchVisibility =
   "select search_visibility from team where team = ?"
@@ -378,6 +380,8 @@ selectSearchVisibility =
 updateSearchVisibility :: PrepQuery W (TeamSearchVisibility, TeamId) ()
 updateSearchVisibility =
   "update team set search_visibility = ? where team = ?"
+
+-- Custom Backend -----------------------------------------------------------
 
 selectCustomBackend :: PrepQuery R (Identity Domain) (HttpsUrl, HttpsUrl)
 selectCustomBackend =
@@ -390,3 +394,13 @@ updateCustomBackend =
 deleteCustomBackend :: PrepQuery W (Identity Domain) ()
 deleteCustomBackend =
   "delete from custom_backend where domain = ?"
+
+-- ID Mapping ---------------------------------------------------------------
+
+selectIdMapping :: PrepQuery R (Identity (Id (Mapped a))) (Id (Remote a), Domain)
+selectIdMapping =
+  "select remote_id, remote_domain from uuid_mapping where local_id = ?"
+
+insertIdMapping :: PrepQuery W (Id (Mapped a), Id (Remote a), Domain) ()
+insertIdMapping =
+  "insert into uuid_mapping (local_id, remote_id, remote_domain) values (?, ?, ?)"
