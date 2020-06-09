@@ -15,7 +15,18 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.IdMapping where
+module Galley.API.IdMapping
+  ( -- * endpoints
+    getIdMappingH,
+    postIdMappingH,
+
+    -- * other functions
+    resolveOpaqueUserId,
+    resolveOpaqueConvId,
+    createUserIdMapping,
+    createConvIdMapping,
+  )
+where
 
 import Control.Monad.Catch (throwM)
 import qualified Data.ByteString as BS
@@ -48,7 +59,7 @@ postIdMappingH ::
   Galley Response
 postIdMappingH (req ::: _) = do
   qualifiedId <- reqQualifiedId <$> fromJsonBody req
-  const empty <$> createIdMapping qualifiedId
+  const empty <$> blindlyCreateIdMapping qualifiedId
 
 --------------------------------------------------------------------------------
 -- helpers
@@ -90,8 +101,6 @@ createConvIdMapping = createIdMapping
 -- identical and can therefore be written to the same table.
 --
 -- We still don't want to expose this function directly and instead use specialized versions.
---
--- TODO(mheinzel): also intra-call Brig if the mapping is new.
 createIdMapping :: Typeable a => Qualified (Id (Id.Remote a)) -> Galley (IdMapping a)
 createIdMapping qualifiedId = do
   isFederationEnabled >>= \case
@@ -99,13 +108,34 @@ createIdMapping qualifiedId = do
       -- TODO(mheinzel): different error "federation-not-enabled"?
       throwM . federationNotImplemented' . pure $ (Nothing, qualifiedId)
     True -> do
+      -- This should be optimized for the common case that the mapping already exists.
+      -- Unfortunately, we have to compute the hash already just to check if there is an
+      -- existing mapping, since the mapped ID is the primary key.
       let mappedId = hashQualifiedId qualifiedId
       let idMapping = IdMapping mappedId qualifiedId
-      -- The mapping is deterministic, so we don't bother reading existing values.
-      -- We just need the entry for the reverse direction (resolving mapped ID).
-      -- If we overwrite an existing entry, then with the same value as it had before.
-      Data.insertIdMapping idMapping
+      Data.getIdMapping mappedId >>= \case
+        Just _ ->
+          -- TODO(mheinzel): assert that new and existing mapping are equal?
+          pure ()
+        Nothing -> do
+          -- TODO(mheinzel): also intra-call Brig, so it adds the mapping as well.
+          Data.insertIdMapping idMapping
       pure idMapping
+
+-- | Just writes to our own the database, unconditionally.
+-- The mapping is deterministic, so we don't bother reading existing values.
+-- If we overwrite an existing entry, then with the same value as it had before.
+--
+-- This function doesn't intra-call Brig, so we don't end up in an infinite loop of calling
+-- each other.
+blindlyCreateIdMapping :: Typeable a => Qualified (Id (Id.Remote a)) -> Galley ()
+blindlyCreateIdMapping qualifiedId = do
+  isFederationEnabled >>= \case
+    False ->
+      pure ()
+    True -> do
+      let mappedId = hashQualifiedId qualifiedId
+      Data.insertIdMapping (IdMapping mappedId qualifiedId)
 
 -- | Deterministically hashes a qualified ID to a single UUID
 --
