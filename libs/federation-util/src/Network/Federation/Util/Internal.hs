@@ -122,7 +122,10 @@ orderSrvResult srvResult = do
       randomNumber <- randomRIO (0, total)
       -- Select the first record with its running sum greater
       -- than or equal to the random number.
-      let (beginning, ((priority, weight, port, domain, _) : end)) = break (\(_, _, _, _, running) -> randomNumber <= running) sublist'
+      let (beginning, (priority, weight, port, domain, _), end) =
+            case break (\(_, _, _, _, running) -> randomNumber <= running) sublist' of
+              (b, (c : e)) -> (b, c, e)
+              _ -> error "orderSrvResult: no record with running sum greater than random number"
       -- Remove the running total number from the remaining
       -- elements.
       let sublist'' = map (\(priority', weight', port', domain', _) -> (priority', weight', port', domain')) (concat [beginning, end])
