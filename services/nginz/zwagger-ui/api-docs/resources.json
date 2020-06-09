@@ -21,6 +21,10 @@
         {
             "path": "/await",
             "description": "Push Notifications"
+        },
+        {
+            "path": "/stern",
+            "description": "Stern"
         }
     ]
 }
