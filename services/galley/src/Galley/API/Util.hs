@@ -21,23 +21,18 @@ import Brig.Types (Relation (..))
 import Brig.Types.Intra (ReAuthUser (..))
 import Control.Lens ((.~), (^.), view)
 import Control.Monad.Catch
-import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
-import Data.Domain (Domain, domainText)
+import Data.Domain (Domain)
 import Data.Id as Id
-import Data.IdMapping (IdMapping (IdMapping), MappedOrLocalId (Local, Mapped), partitionMappedOrLocalIds)
+import Data.IdMapping (MappedOrLocalId (Local, Mapped), partitionMappedOrLocalIds)
 import Data.List.NonEmpty (nonEmpty)
 import Data.Misc (PlainTextPassword (..))
-import Data.Qualified (Qualified (Qualified, _qDomain, _qLocalPart))
 import qualified Data.Set as Set
-import qualified Data.Text.Encoding as Text.E
 import qualified Data.Text.Lazy as LT
 import Data.Time
-import qualified Data.UUID.V5 as UUID.V5
 import Galley.API.Error
 import Galley.App
 import qualified Galley.Data as Data
-import qualified Galley.Data.IdMapping as Data (insertIdMapping)
 import Galley.Data.Services (BotMember, newBotMember)
 import qualified Galley.Data.Types as DataTypes
 import Galley.Intra.Push
@@ -307,65 +302,3 @@ viewFederationDomain = view (options . optSettings . setEnableFederationWithDoma
 
 isFederationEnabled :: Galley Bool
 isFederationEnabled = isJust <$> viewFederationDomain
-
--- FUTUREWORK(federation, #1178): implement function to resolve IDs in batch
-
--- | this exists as a shim to find and mark places where we need to handle 'OpaqueUserId's.
-resolveOpaqueUserId :: OpaqueUserId -> Galley (MappedOrLocalId Id.U)
-resolveOpaqueUserId (Id opaque) = do
-  isFederationEnabled >>= \case
-    False ->
-      -- don't check the ID mapping, just assume it's local
-      pure . Local $ Id opaque
-    True ->
-      -- FUTUREWORK(federation, #1178): implement database lookup
-      pure . Local $ Id opaque
-
--- | this exists as a shim to find and mark places where we need to handle 'OpaqueConvId's.
-resolveOpaqueConvId :: OpaqueConvId -> Galley (MappedOrLocalId Id.C)
-resolveOpaqueConvId (Id opaque) = do
-  isFederationEnabled >>= \case
-    False ->
-      -- don't check the ID mapping, just assume it's local
-      pure . Local $ Id opaque
-    True ->
-      -- FUTUREWORK(federation, #1178): implement database lookup
-      pure . Local $ Id opaque
-
-createUserIdMapping :: Qualified (Id (Remote Id.U)) -> Galley (IdMapping Id.U)
-createUserIdMapping qualifiedUserId = do
-  isFederationEnabled >>= \case
-    False ->
-      -- TODO: different error "federation-not-enabled"?
-      throwM . federationNotImplemented' . pure $ (Nothing, qualifiedUserId)
-    True -> do
-      let mappedId = hashQualifiedId qualifiedUserId
-      let idMapping = IdMapping mappedId qualifiedUserId
-      -- The mapping is deterministic, so we don't bother reading existing values.
-      -- We just need the entry for the reverse direction (resolving mapped ID).
-      -- If we overwrite an existing entry, then with the same value as it had before.
-      Data.insertIdMapping idMapping
-      pure idMapping
-
-createConvIdMapping :: Qualified (Id (Remote Id.C)) -> Galley (IdMapping Id.C)
-createConvIdMapping qualifiedConvId = do
-  isFederationEnabled >>= \case
-    False ->
-      -- TODO: different error "federation-not-enabled"?
-      throwM . federationNotImplemented' . pure $ (Nothing, qualifiedConvId)
-    True -> do
-      let mappedId = hashQualifiedId qualifiedConvId
-      let idMapping = IdMapping mappedId qualifiedConvId
-      -- The mapping is deterministic, so we don't bother reading existing values.
-      -- We just need the entry for the reverse direction (resolving mapped ID).
-      -- If we overwrite an existing entry, then with the same value as it had before.
-      Data.insertIdMapping idMapping
-      pure idMapping
-
--- | Deterministically hashes a qualified ID to a single UUID
-hashQualifiedId :: Qualified (Id (Remote a)) -> Id (Mapped a)
-hashQualifiedId Qualified {_qLocalPart, _qDomain} = Id (UUID.V5.generateNamed namespace object)
-  where
-    -- using the ID as the namespace sounds backwards, but it works
-    namespace = Id.toUUID _qLocalPart
-    object = BS.unpack . Text.E.encodeUtf8 . domainText $ _qDomain

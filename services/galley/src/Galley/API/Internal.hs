@@ -36,6 +36,7 @@ import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
 import qualified Galley.API.Error as Error
+import qualified Galley.API.IdMapping as IdMapping
 import qualified Galley.API.Query as Query
 import Galley.API.Teams (uncheckedDeleteTeamMember)
 import qualified Galley.API.Teams as Teams

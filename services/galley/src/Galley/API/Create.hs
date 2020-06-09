@@ -35,6 +35,7 @@ import qualified Data.Set as Set
 import Data.Time
 import qualified Data.UUID.Tagged as U
 import Galley.API.Error
+import qualified Galley.API.IdMapping as IdMapping
 import Galley.API.Mapping
 import Galley.API.Util
 import Galley.App
@@ -85,7 +86,7 @@ createRegularGroupConv :: UserId -> ConnId -> NewConvUnmanaged -> Galley Convers
 createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
   name <- rangeCheckedMaybe (newConvName body)
   _uids <- checkedConvSize (newConvUsers body) -- currently not needed, as we only consider local IDs
-  mappedOrLocalUserIds <- traverse resolveOpaqueUserId (newConvUsers body)
+  mappedOrLocalUserIds <- traverse IdMapping.resolveOpaqueUserId (newConvUsers body)
   let (localUserIds, remoteUserIds) = partitionMappedOrLocalIds mappedOrLocalUserIds
   ensureConnected zusr mappedOrLocalUserIds
   -- FUTUREWORK(federation): notify remote users' backends about new conversation
@@ -111,7 +112,7 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
 createTeamGroupConv :: UserId -> ConnId -> Public.ConvTeamInfo -> Public.NewConv -> Galley ConversationResponse
 createTeamGroupConv zusr zcon tinfo body = do
   (localUserIds, remoteUserIds) <-
-    partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId (newConvUsers body)
+    partitionMappedOrLocalIds <$> traverse IdMapping.resolveOpaqueUserId (newConvUsers body)
   -- for now, teams don't support conversations with remote members
   for_ (nonEmpty remoteUserIds) $
     throwM . federationNotImplemented
@@ -180,7 +181,7 @@ createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
   when (x == y)
     $ throwM
     $ invalidOp "Cannot create a 1-1 with yourself"
-  otherUserId <- resolveOpaqueUserId other
+  otherUserId <- IdMapping.resolveOpaqueUserId other
   case newConvTeam j of
     Just ti
       | cnvManaged ti -> throwM noManagedTeamConv

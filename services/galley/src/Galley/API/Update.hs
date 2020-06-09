@@ -70,6 +70,7 @@ import Data.Range
 import qualified Data.Set as Set
 import Data.Time
 import Galley.API.Error
+import qualified Galley.API.IdMapping as IdMapping
 import Galley.API.Mapping
 import qualified Galley.API.Teams as Teams
 import Galley.API.Util
@@ -449,7 +450,7 @@ addMembersH (zusr ::: zcon ::: cid ::: req) = do
 
 addMembers :: UserId -> ConnId -> OpaqueConvId -> Public.Invite -> Galley UpdateResult
 addMembers zusr zcon cid invite = do
-  resolveOpaqueConvId cid >>= \case
+  IdMapping.resolveOpaqueConvId cid >>= \case
     Mapped idMapping ->
       -- FUTUREWORK(federation): if the conversation is on another backend, send request there.
       -- in the case of a non-team conversation, we need to think about `ensureConnectedOrSameTeam`,
@@ -530,6 +531,7 @@ removeMemberH (zusr ::: zcon ::: cid ::: victim) = do
 removeMember :: UserId -> ConnId -> OpaqueConvId -> OpaqueUserId -> Galley UpdateResult
 removeMember zusr zcon cid opaqueVictim = do
   resolveOpaqueConvId cid >>= \case
+  IdMapping.resolveOpaqueConvId cid >>= \case
     Mapped idMapping ->
       -- FUTUREWORK(federation, #1274): forward request to conversation's backend.
       throwM . federationNotImplemented $ pure idMapping
@@ -642,7 +644,7 @@ postNewOtrBroadcast usr con val msg = do
 
 postNewOtrMessage :: UserId -> Maybe ConnId -> OpaqueConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
 postNewOtrMessage usr con cnv val msg = do
-  resolveOpaqueConvId cnv >>= \case
+  IdMapping.resolveOpaqueConvId cnv >>= \case
     Mapped idMapping ->
       -- FUTUREWORK(federation, #1261): forward message to backend owning the conversation
       throwM . federationNotImplemented $ pure idMapping
@@ -916,9 +918,9 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam 
   where
     maybeFetchLimitedTeamMemberList limit tid uListInFilter = do
       -- Get the users in the filter (remote ids are not in a local team)
-      (localUserIdsInFilter, _remoteUserIdsInFilter) <- partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId (toList uListInFilter)
+      (localUserIdsInFilter, _remoteUserIdsInFilter) <- partitionMappedOrLocalIds <$> traverse IdMapping.resolveOpaqueUserId (toList uListInFilter)
       -- Get the users in the recipient list (remote ids are not in a local team)
-      (localUserIdsInRcps, _remoteUserIdsInRcps) <- partitionMappedOrLocalIds <$> traverse resolveOpaqueUserId (Map.keys $ userClientMap (otrRecipientsMap rcps))
+      (localUserIdsInRcps, _remoteUserIdsInRcps) <- partitionMappedOrLocalIds <$> traverse IdMapping.resolveOpaqueUserId (Map.keys $ userClientMap (otrRecipientsMap rcps))
       -- Put them in a single list, and ensure it's smaller than the max size
       let localUserIdsToLookup = Set.toList $ Set.union (Set.fromList localUserIdsInFilter) (Set.fromList localUserIdsInRcps)
       unless (length localUserIdsToLookup <= limit) $
