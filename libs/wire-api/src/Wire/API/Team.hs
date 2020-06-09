@@ -47,6 +47,7 @@ module Wire.API.Team
     newTeamIcon,
     newTeamIconKey,
     newTeamMembers,
+    newTeamJson,
 
     -- * TeamUpdateData
     TeamUpdateData (..),

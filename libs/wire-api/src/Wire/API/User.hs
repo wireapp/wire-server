@@ -106,7 +106,7 @@ import Imports
 import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Provider.Service (ServiceRef, modelServiceRef)
-import Wire.API.Team (BindingNewTeam, modelNewBindingTeam)
+import Wire.API.Team (BindingNewTeam (BindingNewTeam), modelNewBindingTeam, newTeamJson)
 import Wire.API.User.Activation (ActivationCode)
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Identity
@@ -701,11 +701,10 @@ data BindingNewTeamUser = BindingNewTeamUser
   deriving (Arbitrary) via (GenericUniform BindingNewTeamUser)
 
 instance ToJSON BindingNewTeamUser where
-  toJSON (BindingNewTeamUser t c) =
-    let (Object t') = toJSON t
-     in object $
-          "currency" .= c
-            # HashMap.toList t'
+  toJSON (BindingNewTeamUser (BindingNewTeam t) c) =
+    object $
+      "currency" .= c
+        # newTeamJson t
 
 instance FromJSON BindingNewTeamUser where
   parseJSON j@(Object o) = do

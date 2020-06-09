@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
@@ -205,7 +206,7 @@ data Response r
   = InitResponse (State r)
   | RunResponse
   | WaitResponse
-  | MeasureResponse {rspConcreteRunning :: Int}
+  | MeasureResponse Int -- concrete running threads
   deriving (Show, Generic, Generic1, Rank2.Functor, Rank2.Foldable, Rank2.Traversable)
 
 generator :: HasCallStack => Model Symbolic -> Maybe (Gen (Command Symbolic))
@@ -248,14 +249,14 @@ semantics (Wait _ howlong) =
 -- 'Measure' looks at the concrete state and records it into the model.
 semantics (Measure (opaque -> (tbs, _, _))) =
   do
-    rspConcreteRunning <- budgetSpent tbs
-    pure MeasureResponse {..}
+    concreteRunning <- budgetSpent tbs
+    pure (MeasureResponse concreteRunning)
 
 transition :: HasCallStack => Model r -> Command r -> Response r -> Model r
 transition (Model Nothing) (Init _) (InitResponse st) = Model (Just st)
 transition (Model (Just st)) Run {} RunResponse = Model (Just st)
 transition (Model (Just st)) Wait {} WaitResponse = Model (Just st)
-transition (Model (Just st)) Measure {} MeasureResponse {..} = Model (Just st)
+transition (Model (Just st)) Measure {} MeasureResponse {} = Model (Just st)
 transition _ _ _ = error "impossible."
 
 precondition :: HasCallStack => Model Symbolic -> Command Symbolic -> Logic
@@ -265,19 +266,19 @@ postcondition :: HasCallStack => Model Concrete -> Command Concrete -> Response 
 postcondition (Model Nothing) Init {} InitResponse {} = Top
 postcondition (Model (Just _)) Run {} RunResponse {} = Top
 postcondition (Model (Just _)) Wait {} WaitResponse {} = Top
-postcondition model@(Model (Just _)) cmd@Measure {} resp@MeasureResponse {..} =
+postcondition model@(Model (Just _)) cmd@Measure {} resp@(MeasureResponse concreteRunning) =
   threadLimitExceeded
   where
     Model (Just state) = transition model cmd resp
-    rspThreadLimit :: Int
-    rspThreadLimit = case opaque state of
+    threadLimit :: Int
+    threadLimit = case opaque state of
       (tbs, _, _) -> tbs ^?! Control.Lens.to threadBudgetLimits . limitHard . _Just
     -- number of running threads is never above the limit.
-    threadLimitExceeded = Annotate "thread limit exceeded" $ rspConcreteRunning .<= rspThreadLimit
+    threadLimitExceeded = Annotate "thread limit exceeded" $ concreteRunning .<= threadLimit
 -- FUTUREWORK: check that the number of running threads matches the model exactly.  looks
 -- plausible, but when i tried to make the model rich enough to express this test i didn't
 -- manage to sort out the timing.
--- syncNumRunning = Annotate "out of sync" $ rspConcreteRunning .== rspModelRunning
+-- syncNumRunning = Annotate "out of sync" $ concreteRunning .== modelRunning
 
 postcondition m c r = error $ "impossible: " <> show (m, c, r)
 
@@ -286,9 +287,7 @@ mock (Model Nothing) (Init _) =
   InitResponse <$> genSym
 mock (Model (Just _)) Run {} = pure RunResponse
 mock (Model (Just _)) Wait {} = pure WaitResponse
-mock (Model (Just _)) Measure {} = pure MeasureResponse {..}
-  where
-    rspConcreteRunning = undefined
+mock (Model (Just _)) Measure {} = pure (MeasureResponse undefined)
 -- FUTUREWORK: mock is cool because if we do this right, it gives us a quickcheck-
 -- validated mock component that we can use in other tests.  it appears it's not needed in
 -- the tests in this module, though, and we will need to keep track of more of the
