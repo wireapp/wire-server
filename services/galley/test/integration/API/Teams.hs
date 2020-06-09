@@ -1885,29 +1885,11 @@ newTeamMember' perms uid = newTeamMember uid perms Nothing
 -- 'putTeamFeatureFlagInternal'.  Since these functions all work in slightly different monads
 -- and with different kinds of internal checks, it's quite tedious to do so.
 
-getSSOEnabled :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
-getSSOEnabled uid tid = do
-  g <- view tsGalley
-  get $
-    g
-      . paths ["teams", toByteString' tid, "features", "sso"]
-      . zUser uid
-
 getSSOEnabledInternal :: HasCallStack => TeamId -> TestM ResponseLBS
-getSSOEnabledInternal tid = do
-  g <- view tsGalley
-  get $
-    g
-      . paths ["i", "teams", toByteString' tid, "features", "sso"]
+getSSOEnabledInternal = getTeamFeatureFlagInternal Public.TeamFeatureSSO
 
 putSSOEnabledInternal :: HasCallStack => TeamId -> Public.TeamFeatureStatus -> TestM ()
-putSSOEnabledInternal tid enabled = do
-  g <- view tsGalley
-  void . put $
-    g
-      . paths ["i", "teams", toByteString' tid, "features", "sso"]
-      . json enabled
-      . expect2xx
+putSSOEnabledInternal = putTeamFeatureFlagInternal' Public.TeamFeatureSSO expect2xx
 
 getSearchVisibility :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 getSearchVisibility g uid tid = do
@@ -1925,75 +1907,98 @@ putSearchVisibility g uid tid vis = do
       . json (TeamSearchVisibilityView vis)
 
 getTeamSearchVisibilityAvailable :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> (MonadIO m, MonadHttp m) => m ResponseLBS
-getTeamSearchVisibilityAvailable g uid tid = do
-  get $
-    g
-      . paths ["teams", toByteString' tid, "features", "search-visibility"]
-      . zUser uid
+getTeamSearchVisibilityAvailable = getTeamFeatureFlagWithGalley Public.TeamFeatureSearchVisibility
 
 getTeamSearchVisibilityAvailableInternal :: HasCallStack => (Request -> Request) -> TeamId -> (MonadIO m, MonadHttp m) => m ResponseLBS
-getTeamSearchVisibilityAvailableInternal g tid = do
-  get $
-    g
-      . paths ["i", "teams", toByteString' tid, "features", "search-visibility"]
+getTeamSearchVisibilityAvailableInternal =
+  getTeamFeatureFlagInternalWithGalley Public.TeamFeatureSearchVisibility
 
 putTeamSearchVisibilityAvailableInternal :: HasCallStack => (Request -> Request) -> TeamId -> Public.TeamFeatureStatus -> (MonadIO m, MonadHttp m) => m ()
-putTeamSearchVisibilityAvailableInternal g tid status = do
-  void . put $
-    g
-      . paths ["i", "teams", toByteString' tid, "features", "search-visibility"]
-      . json status
-      . expect2xx
-
-getLegalHoldEnabled :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
-getLegalHoldEnabled uid tid = do
-  g <- view tsGalley
-  get $
-    g
-      . paths ["teams", toByteString' tid, "features", "legalhold"]
-      . zUser uid
-
-getLegalHoldEnabledInternal :: HasCallStack => TeamId -> TestM ResponseLBS
-getLegalHoldEnabledInternal tid = do
-  g <- view tsGalley
-  get $
-    g
-      . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
-
-putLegalHoldEnabledInternal :: HasCallStack => TeamId -> Public.TeamFeatureStatus -> TestM ()
-putLegalHoldEnabledInternal = putLegalHoldEnabledInternal' expect2xx
+putTeamSearchVisibilityAvailableInternal g =
+  putTeamFeatureFlagInternalWithGalleyAndMod Public.TeamFeatureSearchVisibility g expect2xx
 
 putLegalHoldEnabledInternal' :: HasCallStack => (Request -> Request) -> TeamId -> Public.TeamFeatureStatus -> TestM ()
-putLegalHoldEnabledInternal' reqmod tid enabled = do
+putLegalHoldEnabledInternal' = putTeamFeatureFlagInternal' Public.TeamFeatureLegalHold
+
+putTeamFeatureFlagInternal' :: HasCallStack => Public.TeamFeatureName -> (Request -> Request) -> TeamId -> Public.TeamFeatureStatus -> TestM ()
+putTeamFeatureFlagInternal' feature reqmod tid status = do
   g <- view tsGalley
+  putTeamFeatureFlagInternalWithGalleyAndMod feature g reqmod tid status
+
+putTeamFeatureFlagInternalWithGalleyAndMod ::
+  (MonadIO m, MonadHttp m, HasCallStack) =>
+  Public.TeamFeatureName ->
+  (Request -> Request) ->
+  (Request -> Request) ->
+  TeamId ->
+  Public.TeamFeatureStatus ->
+  m ()
+putTeamFeatureFlagInternalWithGalleyAndMod feature galley reqmod tid status =
   void . put $
-    g
-      . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
-      . json enabled
+    galley
+      . paths ["i", "teams", toByteString' tid, "features", toByteString' feature]
+      . json status
       . reqmod
+
+getTeamFeatureFlagInternal :: HasCallStack => Public.TeamFeatureName -> TeamId -> TestM ResponseLBS
+getTeamFeatureFlagInternal feature tid = do
+  g <- view tsGalley
+  getTeamFeatureFlagInternalWithGalley feature g tid
+
+getTeamFeatureFlagInternalWithGalley :: (MonadIO m, MonadHttp m, HasCallStack) => Public.TeamFeatureName -> (Request -> Request) -> HasCallStack => TeamId -> m ResponseLBS
+getTeamFeatureFlagInternalWithGalley feature g tid = do
+  get $
+    g
+      . paths ["i", "teams", toByteString' tid, "features", toByteString' feature]
+
+getTeamFeatureFlag :: HasCallStack => Public.TeamFeatureName -> UserId -> TeamId -> TestM ResponseLBS
+getTeamFeatureFlag feature uid tid = do
+  g <- view tsGalley
+  getTeamFeatureFlagWithGalley feature g uid tid
+
+getTeamFeatureFlagWithGalley :: (MonadIO m, MonadHttp m, HasCallStack) => Public.TeamFeatureName -> (Request -> Request) -> UserId -> TeamId -> m ResponseLBS
+getTeamFeatureFlagWithGalley feature galley uid tid = do
+  get $
+    galley
+      . paths ["teams", toByteString' tid, "features", toByteString' feature]
+      . zUser uid
 
 testFeatureFlags :: TestM ()
 testFeatureFlags = do
   owner <- Util.randomUser
+  member <- Util.randomUser
   tid <- Util.createNonBindingTeam "foo" owner []
+  Util.connectUsers owner (list1 member [])
+  Util.addTeamMember owner tid (newTeamMember member (rolePermissions RoleMember) Nothing)
+
+  -- Get/Set flag while expecting 200
+  let getFlag :: HasCallStack => Public.TeamFeatureName -> Public.TeamFeatureStatus -> TestM ()
+      getFlag feature expected = getTeamFeatureFlag feature member tid !!! do
+        statusCode === const 200
+        responseJsonEither === const (Right expected)
+      getFlagInternal :: HasCallStack => Public.TeamFeatureName -> Public.TeamFeatureStatus -> TestM ()
+      getFlagInternal feature expected = getTeamFeatureFlagInternal feature tid !!! do
+        statusCode === const 200
+        responseJsonEither === const (Right expected)
+      setFlagInternal :: HasCallStack => Public.TeamFeatureName -> Public.TeamFeatureStatus -> TestM ()
+      setFlagInternal feature = putTeamFeatureFlagInternal' feature expect2xx tid
 
   -- sso
 
   let getSSO :: HasCallStack => Public.TeamFeatureStatus -> TestM ()
-      getSSO expected = getSSOEnabled owner tid !!! do
-        statusCode === const 200
-        responseJsonEither === const (Right expected)
+      getSSO = getFlag Public.TeamFeatureSSO
       getSSOInternal :: HasCallStack => Public.TeamFeatureStatus -> TestM ()
-      getSSOInternal expected = getSSOEnabledInternal tid !!! do
-        statusCode === const 200
-        responseJsonEither === const (Right expected)
+      getSSOInternal = getFlagInternal Public.TeamFeatureSSO
       setSSOInternal :: HasCallStack => Public.TeamFeatureStatus -> TestM ()
-      setSSOInternal = putSSOEnabledInternal tid
+      setSSOInternal = setFlagInternal Public.TeamFeatureSSO
   featureSSO <- view (tsGConf . optSettings . setFeatureFlags . flagSSO)
   case featureSSO of
     FeatureSSODisabledByDefault -> do
+      -- Test default
       getSSO Public.TeamFeatureDisabled
       getSSOInternal Public.TeamFeatureDisabled
+
+      -- Test override
       setSSOInternal Public.TeamFeatureEnabled
       getSSO Public.TeamFeatureEnabled
       getSSOInternal Public.TeamFeatureEnabled
@@ -2006,15 +2011,11 @@ testFeatureFlags = do
   -- legalhold
 
   let getLegalHold :: HasCallStack => Public.TeamFeatureStatus -> TestM ()
-      getLegalHold expected = getLegalHoldEnabled owner tid !!! do
-        statusCode === const 200
-        responseJsonEither === const (Right expected)
+      getLegalHold = getFlag Public.TeamFeatureLegalHold
       getLegalHoldInternal :: HasCallStack => Public.TeamFeatureStatus -> TestM ()
-      getLegalHoldInternal expected = getLegalHoldEnabledInternal tid !!! do
-        statusCode === const 200
-        responseJsonEither === const (Right expected)
+      getLegalHoldInternal = getFlagInternal Public.TeamFeatureLegalHold
       setLegalHoldInternal :: HasCallStack => Public.TeamFeatureStatus -> TestM ()
-      setLegalHoldInternal = putLegalHoldEnabledInternal tid
+      setLegalHoldInternal = setFlagInternal Public.TeamFeatureLegalHold
   getLegalHold Public.TeamFeatureDisabled
   getLegalHoldInternal Public.TeamFeatureDisabled
 
@@ -2022,6 +2023,11 @@ testFeatureFlags = do
   featureLegalHold <- view (tsGConf . optSettings . setFeatureFlags . flagLegalHold)
   case featureLegalHold of
     FeatureLegalHoldDisabledByDefault -> do
+      -- Test default
+      getLegalHold Public.TeamFeatureDisabled
+      getLegalHoldInternal Public.TeamFeatureDisabled
+
+      -- Test override
       setLegalHoldInternal Public.TeamFeatureEnabled
       getLegalHold Public.TeamFeatureEnabled
       getLegalHoldInternal Public.TeamFeatureEnabled
@@ -2076,6 +2082,16 @@ testFeatureFlags = do
     setTeamSearchVisibilityInternal tid3 Public.TeamFeatureEnabled
     getTeamSearchVisibility tid3 Public.TeamFeatureEnabled
     getTeamSearchVisibilityInternal tid3 Public.TeamFeatureEnabled
+
+  forM_ [Public.TeamFeatureDigitalSignatures, Public.TeamFeatureValidateSAMLEmails] $ \(feature) -> do
+    -- Disabled by default
+    getFlag feature Public.TeamFeatureDisabled
+    getFlagInternal feature Public.TeamFeatureDisabled
+
+    -- Settting should work
+    setFlagInternal feature Public.TeamFeatureEnabled
+    getFlag feature Public.TeamFeatureEnabled
+    getFlagInternal feature Public.TeamFeatureEnabled
 
 checkJoinEvent :: (MonadIO m, MonadCatch m) => TeamId -> UserId -> WS.WebSocket -> m ()
 checkJoinEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do
