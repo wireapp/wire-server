@@ -41,7 +41,8 @@ import Galley.API.Error (federationNotImplemented')
 import Galley.API.Util (JSON, isFederationEnabled)
 import Galley.App (Galley, fromJsonBody)
 import qualified Galley.Data.IdMapping as Data (getIdMapping, insertIdMapping)
-import Galley.Types.IdMapping (PostIdMappingRequest (reqQualifiedId))
+import qualified Galley.Intra.IdMapping as Intra
+import Galley.Types.IdMapping (PostIdMappingRequest (reqQualifiedId), mkPostIdMappingRequest)
 import Imports
 import Network.Wai (Response)
 import Network.Wai.Predicate ((:::) ((:::)))
@@ -118,8 +119,8 @@ createIdMapping qualifiedId = do
           -- TODO(mheinzel): assert that new and existing mapping are equal?
           pure ()
         Nothing -> do
-          -- TODO(mheinzel): also intra-call Brig, so it adds the mapping as well.
           Data.insertIdMapping idMapping
+          Intra.createIdMappingInBrig (mkPostIdMappingRequest qualifiedId)
       pure idMapping
 
 -- | Just writes to our own the database, unconditionally.

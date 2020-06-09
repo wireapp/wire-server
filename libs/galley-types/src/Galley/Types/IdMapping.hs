@@ -19,10 +19,12 @@
 
 module Galley.Types.IdMapping
   ( PostIdMappingRequest (..),
+    mkPostIdMappingRequest,
   )
 where
 
 import Data.Aeson
+import Data.Coerce (coerce)
 import Data.Id (Id, Remote)
 import Data.Qualified (Qualified)
 import Imports
@@ -36,6 +38,9 @@ newtype PostIdMappingRequest = PostIdMappingRequest
   { reqQualifiedId :: Qualified (Id (Remote ()))
   }
   deriving stock (Eq, Show)
+
+mkPostIdMappingRequest :: Qualified (Id (Remote a)) -> PostIdMappingRequest
+mkPostIdMappingRequest = PostIdMappingRequest . coerce
 
 instance FromJSON PostIdMappingRequest where
   parseJSON = withObject "PostIdMappingRequest" $ \o ->
