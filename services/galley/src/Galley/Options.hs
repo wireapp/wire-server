@@ -19,6 +19,7 @@ module Galley.Options where
 
 import Control.Lens hiding ((.=), Level)
 import Data.Aeson.TH (deriveFromJSON)
+import Data.Domain (Domain)
 import Data.Misc
 import Data.Range
 import Galley.Types.Teams (FeatureFlags (..), HardTruncationLimit, hardTruncationLimit)
@@ -47,10 +48,10 @@ data Settings = Settings
     _setConcurrentDeletionEvents :: !(Maybe Int),
     -- | Throttling: delay between sending events upon team deletion
     _setDeleteConvThrottleMillis :: !(Maybe Int),
-    -- | When false, assume there are no other backends and IDs are always local.
+    -- | When @Nothing@, assume there are no other backends and IDs are always local.
     -- This means we don't run any queries on federation-related tables and don't
     -- make any calls to the federator service.
-    _setEnableFederation :: !(Maybe Bool),
+    _setEnableFederationWithDomain :: !(Maybe Domain),
     -- | When true, galley will assume data in `billing_team_member` table is
     -- consistent and use it for billing.
     -- When false, billing information for large teams is not guaranteed to have all
@@ -73,9 +74,6 @@ defDeleteConvThrottleMillis = 20
 
 defFanoutLimit :: Range 1 HardTruncationLimit Int32
 defFanoutLimit = unsafeRange hardTruncationLimit
-
-defEnableFederation :: Bool
-defEnableFederation = False
 
 data JournalOpts = JournalOpts
   { -- | SQS queue name to send team events

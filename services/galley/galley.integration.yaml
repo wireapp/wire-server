@@ -30,6 +30,7 @@ settings:
   concurrentDeletionEvents: 1024
   deleteConvThrottleMillis: 0
   enableIndexedBillingTeamMembers: true
+  # enableFederationWithDomain: wire.com
 
   featureFlags:  # see #RefConfigOptions in `/docs/reference`
     sso: disabled-by-default
