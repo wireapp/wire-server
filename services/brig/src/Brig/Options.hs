@@ -329,6 +329,8 @@ data Opts = Opts
     galley :: !Endpoint,
     -- | Gundeck address
     gundeck :: !Endpoint,
+    -- | Federator address
+    federator :: !(Maybe Endpoint),
     -- external
 
     -- | Cassandra settings

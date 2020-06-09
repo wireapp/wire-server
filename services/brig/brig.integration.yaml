@@ -24,6 +24,10 @@ gundeck:
   host: 127.0.0.1
   port: 8086
 
+# federator:
+#   host: 127.0.0.1
+#   port: 8097
+
 # You can set up local SQS/Dynamo running e.g. `../../deploy/dockerephemeral/run.sh`
 aws:
   userJournalQueue: integration-user-events.fifo
