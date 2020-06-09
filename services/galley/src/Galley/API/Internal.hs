@@ -243,6 +243,16 @@ sitemap = do
       .&. jsonRequest @TeamSearchVisibilityView
       .&. accept "application" "json"
 
+  -- Id Mapping (debugging) ---------------------------------------------
+
+  get "/i/id-mapping/:uid" (continue IdMapping.getIdMappingH) $
+    capture "uid"
+      .&. accept "application" "json"
+
+  post "/i/id-mapping" (continue IdMapping.postIdMappingH) $
+    jsonRequest @IdMapping.PostIdMappingRequest
+      .&. accept "application" "json"
+
 rmUserH :: UserId ::: Maybe ConnId -> Galley Response
 rmUserH (user ::: conn) = do
   empty <$ rmUser user conn

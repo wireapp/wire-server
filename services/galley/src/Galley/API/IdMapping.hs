@@ -18,19 +18,48 @@
 module Galley.API.IdMapping where
 
 import Control.Monad.Catch (throwM)
+import Data.Aeson ((.:), FromJSON (parseJSON), withObject)
 import qualified Data.ByteString as BS
 import Data.Domain (domainText)
 import qualified Data.Id as Id
-import Data.Id (ConvId, Id (Id, toUUID), MappedConvId, MappedUserId, OpaqueConvId, OpaqueUserId, UserId)
+import Data.Id (ConvId, Id (Id, toUUID), MappedConvId, MappedUserId, OpaqueConvId, OpaqueUserId, RemoteUserId, UserId)
 import Data.IdMapping (IdMapping (IdMapping), MappedOrLocalId (Local, Mapped))
 import Data.Qualified (Qualified (Qualified, _qDomain, _qLocalPart))
 import qualified Data.Text.Encoding as Text.E
 import qualified Data.UUID.V5 as UUID.V5
 import Galley.API.Error (federationNotImplemented')
-import Galley.API.Util (isFederationEnabled)
-import Galley.App (Galley)
+import Galley.API.Util (JSON, isFederationEnabled)
+import Galley.App (Galley, fromJsonBody)
 import qualified Galley.Data.IdMapping as Data (getIdMapping, insertIdMapping)
 import Imports
+import Network.Wai (Response)
+import Network.Wai.Predicate ((:::) ((:::)))
+import Network.Wai.Utilities (JsonRequest, json)
+
+-- | We just pick 'UserId' here, but the table is the same as for 'ConvId'.
+getIdMappingH :: OpaqueUserId ::: JSON -> Galley Response
+getIdMappingH (opaqueId ::: _) =
+  json <$> resolveOpaqueUserId opaqueId
+
+data PostIdMappingRequest = PostIdMappingRequest
+  { reqQualifiedId :: !(Qualified RemoteUserId)
+  }
+  deriving (Show)
+
+instance FromJSON PostIdMappingRequest where
+  parseJSON = withObject "PostIdMappingRequest" $ \o ->
+    PostIdMappingRequest <$> o .: "qualified-id"
+
+-- | We just pick 'UserId' here, but the table is the same as for 'ConvId'.
+postIdMappingH ::
+  JsonRequest PostIdMappingRequest ::: JSON ->
+  Galley Response
+postIdMappingH (req ::: _) = do
+  qualifiedId <- reqQualifiedId <$> fromJsonBody req
+  json <$> createUserIdMapping qualifiedId
+
+--------------------------------------------------------------------------------
+-- helpers
 
 -- FUTUREWORK(federation, #1178): implement function to resolve IDs in batch
 

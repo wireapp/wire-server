@@ -19,10 +19,14 @@
 
 module Data.IdMapping where
 
+import Data.Aeson ((.=), ToJSON (toJSON), object)
 import Data.Id
 import Data.Qualified
 import Imports
 import Test.QuickCheck (Arbitrary (arbitrary), oneof)
+
+----------------------------------------------------------------------
+-- MappedOrLocalId
 
 data MappedOrLocalId a
   = Mapped (IdMapping a)
@@ -39,11 +43,35 @@ partitionMappedOrLocalIds = foldMap $ \case
   Mapped mapping -> (mempty, [mapping])
   Local localId -> ([localId], mempty)
 
+instance ToJSON (MappedOrLocalId a) where
+  toJSON (Mapped idMapping) =
+    object
+      [ "type" .= ("Mapped" :: Text),
+        "value" .= idMapping
+      ]
+  toJSON (Local localId) =
+    object
+      [ "type" .= ("Local" :: Text),
+        "value" .= object ["local_id" .= localId]
+      ]
+
+----------------------------------------------------------------------
+-- IdMapping
+
 data IdMapping a = IdMapping
   { idMappingLocal :: Id (Mapped a),
     idMappingGlobal :: Qualified (Id (Remote a))
   }
   deriving stock (Eq, Ord, Show)
+
+-- Don't add a FromJSON instance!
+-- We don't want to just accept mappings we didn't create ourselves.
+instance ToJSON (IdMapping a) where
+  toJSON IdMapping {idMappingLocal, idMappingGlobal} =
+    object
+      [ "mapped_id" .= idMappingLocal,
+        "global_id" .= idMappingGlobal
+      ]
 
 ----------------------------------------------------------------------
 -- ARBITRARY
