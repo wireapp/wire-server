@@ -21,39 +21,49 @@ import Control.Monad.Catch
 import qualified Data.ByteString as BS
 import Data.Domain (domainText)
 import Data.Id as Id
-import Data.IdMapping (IdMapping (IdMapping), MappedOrLocalId (Local))
+import Data.IdMapping (IdMapping (IdMapping), MappedOrLocalId (Local, Mapped))
 import Data.Qualified (Qualified (Qualified, _qDomain, _qLocalPart))
 import qualified Data.Text.Encoding as Text.E
 import qualified Data.UUID.V5 as UUID.V5
 import Galley.API.Error
 import Galley.API.Util (isFederationEnabled)
 import Galley.App
-import qualified Galley.Data.IdMapping as Data (insertIdMapping)
+import qualified Galley.Data.IdMapping as Data (getIdMapping, insertIdMapping)
 import Imports
 
 -- FUTUREWORK(federation, #1178): implement function to resolve IDs in batch
 
 -- | this exists as a shim to find and mark places where we need to handle 'OpaqueUserId's.
 resolveOpaqueUserId :: OpaqueUserId -> Galley (MappedOrLocalId Id.U)
-resolveOpaqueUserId (Id opaque) = do
+resolveOpaqueUserId opaqueUserId = do
   isFederationEnabled >>= \case
     False ->
       -- don't check the ID mapping, just assume it's local
-      pure . Local $ Id opaque
-    True ->
-      -- FUTUREWORK(federation, #1178): implement database lookup
-      pure . Local $ Id opaque
+      pure $ Local assumedLocalUserId
+    True -> do
+      -- TODO(mheinzel): should we first check if the user exists locally?
+      Data.getIdMapping assumedMappedUserId <&> \case
+        Just idMapping -> Mapped idMapping
+        Nothing -> Local assumedLocalUserId
+  where
+    assumedMappedUserId = Id (toUUID opaqueUserId) :: MappedUserId
+    assumedLocalUserId = Id (toUUID opaqueUserId) :: UserId
 
 -- | this exists as a shim to find and mark places where we need to handle 'OpaqueConvId's.
 resolveOpaqueConvId :: OpaqueConvId -> Galley (MappedOrLocalId Id.C)
-resolveOpaqueConvId (Id opaque) = do
+resolveOpaqueConvId opaqueConvId = do
   isFederationEnabled >>= \case
     False ->
       -- don't check the ID mapping, just assume it's local
-      pure . Local $ Id opaque
+      pure $ Local assumedLocalConvId
     True ->
-      -- FUTUREWORK(federation, #1178): implement database lookup
-      pure . Local $ Id opaque
+      -- TODO(mheinzel): should we first check if the user exists locally?
+      Data.getIdMapping assumedMappedConvId <&> \case
+        Just idMapping -> Mapped idMapping
+        Nothing -> Local assumedLocalConvId
+  where
+    assumedMappedConvId = Id (toUUID opaqueConvId) :: MappedConvId
+    assumedLocalConvId = Id (toUUID opaqueConvId) :: ConvId
 
 createUserIdMapping :: Qualified (Id (Remote Id.U)) -> Galley (IdMapping Id.U)
 createUserIdMapping qualifiedUserId = do

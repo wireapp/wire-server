@@ -29,6 +29,8 @@ import Galley.Data.Instances ()
 import qualified Galley.Data.Queries as Cql
 import Imports
 
+-- | Only a single namespace/table is used for for potentially multiple different types of
+-- mapped IDs.
 getIdMapping :: MonadClient m => Id (Mapped a) -> m (Maybe (IdMapping a))
 getIdMapping mappedId = fmap (IdMapping mappedId . toQualifiedId) <$> do
   retry x1 $ query1 Cql.selectIdMapping (params Quorum (Identity mappedId))
@@ -39,6 +41,8 @@ getIdMapping mappedId = fmap (IdMapping mappedId . toQualifiedId) <$> do
           _qDomain = domain
         }
 
+-- | Only a single namespace/table is used for for potentially multiple different types of
+-- mapped IDs.
 insertIdMapping :: MonadClient m => IdMapping a -> m ()
 insertIdMapping idMapping = do
   retry x5 $ write Cql.insertIdMapping (params Quorum (mappedId, remoteId, domain))
