@@ -17,17 +17,18 @@
 
 module Galley.API.IdMapping where
 
-import Control.Monad.Catch
+import Control.Monad.Catch (throwM)
 import qualified Data.ByteString as BS
 import Data.Domain (domainText)
-import Data.Id as Id
+import qualified Data.Id as Id
+import Data.Id (ConvId, Id (Id, toUUID), MappedConvId, MappedUserId, OpaqueConvId, OpaqueUserId, UserId)
 import Data.IdMapping (IdMapping (IdMapping), MappedOrLocalId (Local, Mapped))
 import Data.Qualified (Qualified (Qualified, _qDomain, _qLocalPart))
 import qualified Data.Text.Encoding as Text.E
 import qualified Data.UUID.V5 as UUID.V5
-import Galley.API.Error
+import Galley.API.Error (federationNotImplemented')
 import Galley.API.Util (isFederationEnabled)
-import Galley.App
+import Galley.App (Galley)
 import qualified Galley.Data.IdMapping as Data (getIdMapping, insertIdMapping)
 import Imports
 
@@ -65,7 +66,7 @@ resolveOpaqueConvId opaqueConvId = do
     assumedMappedConvId = Id (toUUID opaqueConvId) :: MappedConvId
     assumedLocalConvId = Id (toUUID opaqueConvId) :: ConvId
 
-createUserIdMapping :: Qualified (Id (Remote Id.U)) -> Galley (IdMapping Id.U)
+createUserIdMapping :: Qualified (Id (Id.Remote Id.U)) -> Galley (IdMapping Id.U)
 createUserIdMapping qualifiedUserId = do
   isFederationEnabled >>= \case
     False ->
@@ -80,7 +81,7 @@ createUserIdMapping qualifiedUserId = do
       Data.insertIdMapping idMapping
       pure idMapping
 
-createConvIdMapping :: Qualified (Id (Remote Id.C)) -> Galley (IdMapping Id.C)
+createConvIdMapping :: Qualified (Id (Id.Remote Id.C)) -> Galley (IdMapping Id.C)
 createConvIdMapping qualifiedConvId = do
   isFederationEnabled >>= \case
     False ->
@@ -99,7 +100,7 @@ createConvIdMapping qualifiedConvId = do
 --
 -- FUTUREWORK: This uses V5 UUID namespaces (SHA-1 under the hood). To provide better
 -- protection against collisions, we should use something else, e.g. based on SHA-256.
-hashQualifiedId :: Qualified (Id (Remote a)) -> Id (Mapped a)
+hashQualifiedId :: Qualified (Id (Id.Remote a)) -> Id (Id.Mapped a)
 hashQualifiedId Qualified {_qLocalPart, _qDomain} = Id (UUID.V5.generateNamed namespace object)
   where
     -- using the ID as the namespace sounds backwards, but it works

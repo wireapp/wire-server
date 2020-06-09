@@ -21,7 +21,7 @@ module Galley.Data.IdMapping
   )
 where
 
-import Cassandra
+import Cassandra (Consistency (Quorum), MonadClient, params, query1, retry, write, x1, x5)
 import Data.Id (Id, Mapped)
 import Data.IdMapping (IdMapping (IdMapping, idMappingGlobal, idMappingLocal))
 import Data.Qualified (Qualified (Qualified, _qDomain, _qLocalPart))
