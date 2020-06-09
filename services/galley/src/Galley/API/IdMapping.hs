@@ -18,11 +18,10 @@
 module Galley.API.IdMapping where
 
 import Control.Monad.Catch (throwM)
-import Data.Aeson ((.:), FromJSON (parseJSON), withObject)
 import qualified Data.ByteString as BS
 import Data.Domain (domainText)
 import qualified Data.Id as Id
-import Data.Id (ConvId, Id (Id, toUUID), MappedConvId, MappedUserId, OpaqueConvId, OpaqueUserId, RemoteUserId, UserId)
+import Data.Id (Id (Id, toUUID), OpaqueConvId, OpaqueUserId)
 import Data.IdMapping (IdMapping (IdMapping), MappedOrLocalId (Local, Mapped))
 import Data.Qualified (Qualified (Qualified, _qDomain, _qLocalPart))
 import qualified Data.Text.Encoding as Text.E
@@ -31,94 +30,77 @@ import Galley.API.Error (federationNotImplemented')
 import Galley.API.Util (JSON, isFederationEnabled)
 import Galley.App (Galley, fromJsonBody)
 import qualified Galley.Data.IdMapping as Data (getIdMapping, insertIdMapping)
+import Galley.Types.IdMapping (PostIdMappingRequest (reqQualifiedId))
 import Imports
 import Network.Wai (Response)
 import Network.Wai.Predicate ((:::) ((:::)))
-import Network.Wai.Utilities (JsonRequest, json)
+import Network.Wai.Utilities (JsonRequest, empty, json)
 
--- | We just pick 'UserId' here, but the table is the same as for 'ConvId'.
-getIdMappingH :: OpaqueUserId ::: JSON -> Galley Response
+-- | For debugging and tests.
+-- We just pick @()@ here, as conversation and user ID mappings share a table.
+getIdMappingH :: Id (Id.Opaque ()) ::: JSON -> Galley Response
 getIdMappingH (opaqueId ::: _) =
-  json <$> resolveOpaqueUserId opaqueId
+  json <$> resolveOpaqueId opaqueId
 
-data PostIdMappingRequest = PostIdMappingRequest
-  { reqQualifiedId :: !(Qualified RemoteUserId)
-  }
-  deriving (Show)
-
-instance FromJSON PostIdMappingRequest where
-  parseJSON = withObject "PostIdMappingRequest" $ \o ->
-    PostIdMappingRequest <$> o .: "qualified-id"
-
--- | We just pick 'UserId' here, but the table is the same as for 'ConvId'.
+-- | Used by Brig and Galley to notify each other when they find a new 'IdMapping'.
 postIdMappingH ::
   JsonRequest PostIdMappingRequest ::: JSON ->
   Galley Response
 postIdMappingH (req ::: _) = do
   qualifiedId <- reqQualifiedId <$> fromJsonBody req
-  json <$> createUserIdMapping qualifiedId
+  const empty <$> createIdMapping qualifiedId
 
 --------------------------------------------------------------------------------
 -- helpers
 
 -- FUTUREWORK(federation, #1178): implement function to resolve IDs in batch
 
--- | this exists as a shim to find and mark places where we need to handle 'OpaqueUserId's.
 resolveOpaqueUserId :: OpaqueUserId -> Galley (MappedOrLocalId Id.U)
-resolveOpaqueUserId opaqueUserId = do
-  isFederationEnabled >>= \case
-    False ->
-      -- don't check the ID mapping, just assume it's local
-      pure $ Local assumedLocalUserId
-    True -> do
-      -- TODO(mheinzel): should we first check if the user exists locally?
-      Data.getIdMapping assumedMappedUserId <&> \case
-        Just idMapping -> Mapped idMapping
-        Nothing -> Local assumedLocalUserId
-  where
-    assumedMappedUserId = Id (toUUID opaqueUserId) :: MappedUserId
-    assumedLocalUserId = Id (toUUID opaqueUserId) :: UserId
+resolveOpaqueUserId = resolveOpaqueId
 
--- | this exists as a shim to find and mark places where we need to handle 'OpaqueConvId's.
 resolveOpaqueConvId :: OpaqueConvId -> Galley (MappedOrLocalId Id.C)
-resolveOpaqueConvId opaqueConvId = do
+resolveOpaqueConvId = resolveOpaqueId
+
+-- | It doesn't really matter which type of 'IdMapping' we create, as they will all be
+-- identical and can therefore be written to the same table.
+--
+-- We still don't want to expose this function directly and instead use specialized versions.
+resolveOpaqueId :: forall a. Id (Id.Opaque a) -> Galley (MappedOrLocalId a)
+resolveOpaqueId opaqueId = do
   isFederationEnabled >>= \case
     False ->
       -- don't check the ID mapping, just assume it's local
-      pure $ Local assumedLocalConvId
+      pure $ Local assumedLocalId
     True ->
-      -- TODO(mheinzel): should we first check if the user exists locally?
-      Data.getIdMapping assumedMappedConvId <&> \case
+      -- TODO(mheinzel): should we first check if the user/conv exists locally?
+      Data.getIdMapping assumedMappedId <&> \case
         Just idMapping -> Mapped idMapping
-        Nothing -> Local assumedLocalConvId
+        Nothing -> Local assumedLocalId
   where
-    assumedMappedConvId = Id (toUUID opaqueConvId) :: MappedConvId
-    assumedLocalConvId = Id (toUUID opaqueConvId) :: ConvId
+    assumedMappedId = Id (toUUID opaqueId) :: Id (Id.Mapped a)
+    assumedLocalId = Id (toUUID opaqueId) :: Id a
 
 createUserIdMapping :: Qualified (Id (Id.Remote Id.U)) -> Galley (IdMapping Id.U)
-createUserIdMapping qualifiedUserId = do
-  isFederationEnabled >>= \case
-    False ->
-      -- TODO: different error "federation-not-enabled"?
-      throwM . federationNotImplemented' . pure $ (Nothing, qualifiedUserId)
-    True -> do
-      let mappedId = hashQualifiedId qualifiedUserId
-      let idMapping = IdMapping mappedId qualifiedUserId
-      -- The mapping is deterministic, so we don't bother reading existing values.
-      -- We just need the entry for the reverse direction (resolving mapped ID).
-      -- If we overwrite an existing entry, then with the same value as it had before.
-      Data.insertIdMapping idMapping
-      pure idMapping
+createUserIdMapping = createIdMapping
 
 createConvIdMapping :: Qualified (Id (Id.Remote Id.C)) -> Galley (IdMapping Id.C)
-createConvIdMapping qualifiedConvId = do
+createConvIdMapping = createIdMapping
+
+-- | It doesn't really matter which type of 'IdMapping' we create, as they will all be
+-- identical and can therefore be written to the same table.
+--
+-- We still don't want to expose this function directly and instead use specialized versions.
+--
+-- TODO(mheinzel): also intra-call Brig if the mapping is new.
+createIdMapping :: Typeable a => Qualified (Id (Id.Remote a)) -> Galley (IdMapping a)
+createIdMapping qualifiedId = do
   isFederationEnabled >>= \case
     False ->
-      -- TODO: different error "federation-not-enabled"?
-      throwM . federationNotImplemented' . pure $ (Nothing, qualifiedConvId)
+      -- TODO(mheinzel): different error "federation-not-enabled"?
+      throwM . federationNotImplemented' . pure $ (Nothing, qualifiedId)
     True -> do
-      let mappedId = hashQualifiedId qualifiedConvId
-      let idMapping = IdMapping mappedId qualifiedConvId
+      let mappedId = hashQualifiedId qualifiedId
+      let idMapping = IdMapping mappedId qualifiedId
       -- The mapping is deterministic, so we don't bother reading existing values.
       -- We just need the entry for the reverse direction (resolving mapped ID).
       -- If we overwrite an existing entry, then with the same value as it had before.

@@ -49,6 +49,7 @@ import qualified Galley.Queue as Q
 import Galley.Types
 import Galley.Types.Bot (AddBot, RemoveBot)
 import Galley.Types.Bot.Service
+import Galley.Types.IdMapping (PostIdMappingRequest)
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SearchVisibility
@@ -243,14 +244,14 @@ sitemap = do
       .&. jsonRequest @TeamSearchVisibilityView
       .&. accept "application" "json"
 
-  -- Id Mapping (debugging) ---------------------------------------------
+  -- Id Mapping ---------------------------------------------------------
 
   get "/i/id-mapping/:uid" (continue IdMapping.getIdMappingH) $
     capture "uid"
       .&. accept "application" "json"
 
   post "/i/id-mapping" (continue IdMapping.postIdMappingH) $
-    jsonRequest @IdMapping.PostIdMappingRequest
+    jsonRequest @PostIdMappingRequest
       .&. accept "application" "json"
 
 rmUserH :: UserId ::: Maybe ConnId -> Galley Response
