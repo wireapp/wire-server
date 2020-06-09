@@ -172,7 +172,7 @@ resultSetResult :: ResultSet a -> [a]
 resultSetResult = result . page
 
 schemaVersion :: Int32
-schemaVersion = 42
+schemaVersion = 43
 
 -- | Insert a conversation code
 insertCode :: MonadClient m => Code -> m ()

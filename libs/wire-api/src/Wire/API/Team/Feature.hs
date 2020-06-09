@@ -44,6 +44,7 @@ data TeamFeatureName
   | TeamFeatureSSO
   | TeamFeatureSearchVisibility
   | TeamFeatureValidateSAMLEmails
+  | TeamFeatureDigitalSignatures
   deriving stock (Eq, Show, Ord, Generic, Enum, Bounded)
   deriving (Arbitrary) via (GenericUniform TeamFeatureName)
 
@@ -55,6 +56,7 @@ instance FromByteString TeamFeatureName where
       Right "sso" -> pure TeamFeatureSSO
       Right "search-visibility" -> pure TeamFeatureSearchVisibility
       Right "validate-saml-emails" -> pure TeamFeatureValidateSAMLEmails
+      Right "digital-signatures" -> pure TeamFeatureDigitalSignatures
       Right t -> fail $ "Invalid TeamFeatureName: " <> T.unpack t
 
 instance ToByteString TeamFeatureName where
@@ -62,6 +64,7 @@ instance ToByteString TeamFeatureName where
   builder TeamFeatureSSO = "sso"
   builder TeamFeatureSearchVisibility = "search-visibility"
   builder TeamFeatureValidateSAMLEmails = "validate-saml-emails"
+  builder TeamFeatureDigitalSignatures = "digital-signatures"
 
 typeTeamFeatureName :: Doc.DataType
 typeTeamFeatureName = Doc.string . Doc.enum $ cs . toByteString' <$> [(minBound :: TeamFeatureName) ..]
