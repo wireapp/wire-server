@@ -271,7 +271,7 @@ postUserRegister payload brig = do
   rs <- post (brig . path "/register" . contentJson . body (RequestBodyLBS $ encode payload)) <!! const 201 === statusCode
   maybe (error $ "postUserRegister: Failed to decode user due to: " ++ show rs) return (responseJsonMaybe rs)
 
-deleteUser :: UserId -> Maybe PlainTextPassword -> Brig -> Http ResponseLBS
+deleteUser :: (MonadIO m, MonadHttp m) => UserId -> Maybe PlainTextPassword -> Brig -> m ResponseLBS
 deleteUser u p brig =
   delete $
     brig
@@ -280,7 +280,7 @@ deleteUser u p brig =
       . zUser u
       . body (RequestBodyLBS (encode (mkDeleteUser p)))
 
-deleteUserInternal :: UserId -> Brig -> Http ResponseLBS
+deleteUserInternal :: (MonadIO m, MonadHttp m) => UserId -> Brig -> m ResponseLBS
 deleteUserInternal u brig =
   delete $
     brig

@@ -47,6 +47,7 @@ data IndexUser = IndexUser
     _iuHandle :: Maybe Handle,
     _iuColourId :: Maybe ColourId
   }
+  deriving (Show)
 
 data IndexQuery r = IndexQuery Query Filter
 
@@ -59,6 +60,7 @@ data IndexError
 instance Exception IndexError
 
 newtype IndexVersion = IndexVersion {docVersion :: DocVersion}
+  deriving (Show)
 
 -- | Represents an ES *document*, ie. the subset of user attributes stored in ES.
 -- See also 'IndexUser'.

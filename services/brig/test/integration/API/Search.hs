@@ -24,6 +24,7 @@ import API.Search.Util
 import API.Team.Util
 import API.User.Util
 import Bilge
+import Bilge.Assert
 import qualified Brig.Options as Opt
 import Brig.Types
 import Control.Lens ((.~), (?~), (^.))
@@ -55,6 +56,7 @@ tests opts mgr galley brig = do
     $ testGroup "search"
     $ [ testWithBothIndices opts mgr "by-name" $ testSearchByName brig,
         testWithBothIndices opts mgr "by-handle" $ testSearchByHandle brig,
+        testWithBothIndices opts mgr "deleted-user" $ testSearchDeletedUser brig,
         test mgr "reindex" $ testReindex brig,
         testWithBothIndices opts mgr "no match" $ testSearchNoMatch brig,
         testWithBothIndices opts mgr "no extra results" $ testSearchNoExtraResults brig,
@@ -165,6 +167,16 @@ testSearchNoExtraResults brig = do
   resultUIds <- map contactUserId . searchResults <$> executeSearch brig uid1 (fromName $ userDisplayName u2)
   liftIO $
     assertEqual "Expected search returns only the searched" [uid2] resultUIds
+
+testSearchDeletedUser :: TestConstraints m => Brig -> m ()
+testSearchDeletedUser brig = do
+  u1 <- randomUser brig
+  u2 <- randomUser brig
+  refreshIndex brig
+  assertCanFindByName brig u1 u2
+  Util.deleteUser (userId u2) (Just defPassword) brig !!! const 200 === statusCode
+  refreshIndex brig
+  assertCan'tFindByName brig u1 u2
 
 testReindex :: Brig -> Http ()
 testReindex brig = do
@@ -343,25 +355,41 @@ testMigrationToNewIndex :: TestConstraints m => Opt.Opts -> Brig -> m ()
 testMigrationToNewIndex opts brig = do
   (optsOldIndex, ES.IndexName -> oldIndexName) <- optsForOldIndex opts
   -- Phase 1: Using old index only
-  (phase1NonTeamUser, teamOwner, phase1TeamUser1, phase1TeamUser2, tid) <- withSettingsOverrides optsOldIndex $ do
-    nonTeamUser <- randomUser brig
-    (tid, teamOwner, [teamUser1, teamUser2]) <- createPopulatedBindingTeam brig 2
-    pure (nonTeamUser, teamOwner, teamUser1, teamUser2, tid)
+  ( phase1NonTeamUser,
+    teamOwner,
+    phase1TeamUser1,
+    phase1TeamUser2,
+    tid,
+    phase1Deleted,
+    phase2Deleted,
+    phase3Deleted
+    ) <-
+    withSettingsOverrides optsOldIndex $ do
+      nonTeamUser <- randomUser brig
+      phase1Deleted <- randomUser brig
+      phase2Deleted <- randomUser brig
+      phase3Deleted <- randomUser brig
+      (tid, teamOwner, [teamUser1, teamUser2]) <- createPopulatedBindingTeam brig 2
+      Util.deleteUser (userId phase1Deleted) (Just defPassword) brig !!! const 200 === statusCode
+      pure (nonTeamUser, teamOwner, teamUser1, teamUser2, tid, phase1Deleted, phase2Deleted, phase3Deleted)
 
   -- Phase 2: Using old index for search, writing to both indices, migrations have not run
   let phase2OptsWhile = optsOldIndex & Opt.elasticsearchL . Opt.additionalWriteIndexL ?~ (opts ^. Opt.elasticsearchL . Opt.indexL)
   (phase2NonTeamUser, phase2TeamUser) <- withSettingsOverrides phase2OptsWhile $ do
     phase2NonTeamUser <- randomUser brig
     phase2TeamUser <- inviteAndRegisterUser teamOwner tid brig
+    Util.deleteUser (userId phase2Deleted) (Just defPassword) brig !!! const 200 === statusCode
     refreshIndex brig
 
     -- searching phase1 users should work
     assertCanFindByName brig phase1TeamUser1 phase1TeamUser2
     assertCanFindByName brig phase1TeamUser1 phase1NonTeamUser
+    assertCan'tFindByName brig phase1TeamUser1 phase1Deleted
 
     -- searching phase2 users should work
     assertCanFindByName brig phase1TeamUser1 phase2NonTeamUser
     assertCanFindByName brig phase1TeamUser1 phase2TeamUser
+    assertCan'tFindByName brig phase1TeamUser1 phase2Deleted
     pure (phase2NonTeamUser, phase2TeamUser)
 
   refreshIndex brig
@@ -372,6 +400,7 @@ testMigrationToNewIndex opts brig = do
   -- Before migration the phase2 users should be found in the new index
   assertCanFindByName brig phase1TeamUser1 phase2NonTeamUser
   assertCanFindByName brig phase1TeamUser1 phase2TeamUser
+  assertCan'tFindByName brig phase1TeamUser1 phase2Deleted
 
   -- Run Migrations
   let newIndexName = ES.IndexName $ opts ^. Opt.elasticsearchL . Opt.indexL
@@ -383,6 +412,7 @@ testMigrationToNewIndex opts brig = do
   (phase3NonTeamUser, phase3TeamUser) <- withSettingsOverrides phase2OptsWhile $ do
     phase3NonTeamUser <- randomUser brig
     phase3TeamUser <- inviteAndRegisterUser teamOwner tid brig
+    Util.deleteUser (userId phase3Deleted) (Just defPassword) brig !!! const 200 === statusCode
     refreshIndex brig
 
     -- searching phase1/2 users should work
@@ -390,10 +420,13 @@ testMigrationToNewIndex opts brig = do
     assertCanFindByName brig phase1TeamUser1 phase1NonTeamUser
     assertCanFindByName brig phase1TeamUser1 phase2TeamUser
     assertCanFindByName brig phase1TeamUser1 phase2NonTeamUser
+    assertCan'tFindByName brig phase1TeamUser1 phase1Deleted
+    assertCan'tFindByName brig phase1TeamUser1 phase2Deleted
 
     -- searching new phase3 should also work
     assertCanFindByName brig phase1TeamUser1 phase3NonTeamUser
     assertCanFindByName brig phase1TeamUser1 phase3TeamUser
+    assertCan'tFindByName brig phase1TeamUser1 phase3Deleted
     pure (phase3NonTeamUser, phase3TeamUser)
 
   -- Phase 4: Using only new index
@@ -401,14 +434,17 @@ testMigrationToNewIndex opts brig = do
   -- Searching should work for phase1 users
   assertCanFindByName brig phase1TeamUser1 phase1TeamUser2
   assertCanFindByName brig phase1TeamUser1 phase1NonTeamUser
+  assertCan'tFindByName brig phase1TeamUser1 phase1Deleted
 
   -- Searching should work for phase2 users
   assertCanFindByName brig phase1TeamUser1 phase2TeamUser
   assertCanFindByName brig phase1TeamUser1 phase2NonTeamUser
+  assertCan'tFindByName brig phase1TeamUser1 phase2Deleted
 
   -- Searching should work for phase3 users
   assertCanFindByName brig phase1TeamUser1 phase3NonTeamUser
   assertCanFindByName brig phase1TeamUser1 phase3TeamUser
+  assertCan'tFindByName brig phase1TeamUser1 phase3Deleted
 
 waitForTaskToComplete :: forall a m. (ES.MonadBH m, MonadIO m, MonadThrow m, FromJSON a) => ES.TaskNodeId -> m ()
 waitForTaskToComplete taskNodeId = do

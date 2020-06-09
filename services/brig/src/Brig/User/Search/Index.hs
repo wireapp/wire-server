@@ -307,6 +307,10 @@ matchNonTeamMemberUsers =
 reindex :: (MonadLogger m, MonadIndexIO m, C.MonadClient m) => UserId -> m ()
 reindex u = do
   ixu <- C.liftClient (lookupForIndex u)
+  info $
+    msg (val "Reindex")
+      . field "user" (maybe ("not found" :: ByteString) (const "found") ixu)
+      . field "user-name" (maybe ("not found") (Bytes.toByteString . show) ixu)
   updateIndex (maybe (IndexDeleteUser u) (IndexUpdateUser IndexUpdateIfNewerVersion) ixu)
 
 updateIndex :: MonadIndexIO m => IndexUpdate -> m ()
