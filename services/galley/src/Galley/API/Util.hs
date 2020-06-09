@@ -21,19 +21,23 @@ import Brig.Types (Relation (..))
 import Brig.Types.Intra (ReAuthUser (..))
 import Control.Lens ((.~), (^.), view)
 import Control.Monad.Catch
+import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
-import Data.Domain (Domain)
+import Data.Domain (Domain, domainText)
 import Data.Id as Id
 import Data.IdMapping (IdMapping (IdMapping), MappedOrLocalId (Local, Mapped), partitionMappedOrLocalIds)
 import Data.List.NonEmpty (nonEmpty)
 import Data.Misc (PlainTextPassword (..))
-import Data.Qualified (Qualified)
+import Data.Qualified (Qualified (Qualified, _qDomain, _qLocalPart))
 import qualified Data.Set as Set
+import qualified Data.Text.Encoding as Text.E
 import qualified Data.Text.Lazy as LT
 import Data.Time
+import qualified Data.UUID.V5 as UUID.V5
 import Galley.API.Error
 import Galley.App
 import qualified Galley.Data as Data
+import qualified Galley.Data.IdMapping as Data (insertIdMapping)
 import Galley.Data.Services (BotMember, newBotMember)
 import qualified Galley.Data.Types as DataTypes
 import Galley.Intra.Push
@@ -335,9 +339,13 @@ createUserIdMapping qualifiedUserId = do
       -- TODO: different error "federation-not-enabled"?
       throwM . federationNotImplemented' . pure $ (Nothing, qualifiedUserId)
     True -> do
-      mappedId <- Id.randomId
-      -- FUTUREWORK(federation): create an ID mapping in the database if it doesn't exist
-      pure (IdMapping mappedId qualifiedUserId)
+      let mappedId = hashQualifiedId qualifiedUserId
+      let idMapping = IdMapping mappedId qualifiedUserId
+      -- The mapping is deterministic, so we don't bother reading existing values.
+      -- We just need the entry for the reverse direction (resolving mapped ID).
+      -- If we overwrite an existing entry, then with the same value as it had before.
+      Data.insertIdMapping idMapping
+      pure idMapping
 
 createConvIdMapping :: Qualified (Id (Remote Id.C)) -> Galley (IdMapping Id.C)
 createConvIdMapping qualifiedConvId = do
@@ -346,6 +354,18 @@ createConvIdMapping qualifiedConvId = do
       -- TODO: different error "federation-not-enabled"?
       throwM . federationNotImplemented' . pure $ (Nothing, qualifiedConvId)
     True -> do
-      mappedId <- Id.randomId
-      -- FUTUREWORK(federation): create an ID mapping in the database if it doesn't exist
-      pure (IdMapping mappedId qualifiedConvId)
+      let mappedId = hashQualifiedId qualifiedConvId
+      let idMapping = IdMapping mappedId qualifiedConvId
+      -- The mapping is deterministic, so we don't bother reading existing values.
+      -- We just need the entry for the reverse direction (resolving mapped ID).
+      -- If we overwrite an existing entry, then with the same value as it had before.
+      Data.insertIdMapping idMapping
+      pure idMapping
+
+-- | Deterministically hashes a qualified ID to a single UUID
+hashQualifiedId :: Qualified (Id (Remote a)) -> Id (Mapped a)
+hashQualifiedId Qualified {_qLocalPart, _qDomain} = Id (UUID.V5.generateNamed namespace object)
+  where
+    -- using the ID as the namespace sounds backwards, but it works
+    namespace = Id.toUUID _qLocalPart
+    object = BS.unpack . Text.E.encodeUtf8 . domainText $ _qDomain
