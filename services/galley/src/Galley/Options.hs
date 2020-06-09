@@ -98,6 +98,8 @@ data Opts = Opts
     _optGundeck :: !Endpoint,
     -- | Spar endpoint
     _optSpar :: !Endpoint,
+    -- | Federator endpoint
+    _optFederator :: !(Maybe Endpoint),
     -- | Disco URL
     _optDiscoUrl :: !(Maybe Text),
     -- | Other settings
