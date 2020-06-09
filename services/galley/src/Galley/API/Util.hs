@@ -24,9 +24,10 @@ import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.Id as Id
-import Data.IdMapping (MappedOrLocalId (Local, Mapped), partitionMappedOrLocalIds)
+import Data.IdMapping (IdMapping (IdMapping), MappedOrLocalId (Local, Mapped), partitionMappedOrLocalIds)
 import Data.List.NonEmpty (nonEmpty)
 import Data.Misc (PlainTextPassword (..))
+import Data.Qualified (Qualified)
 import qualified Data.Set as Set
 import qualified Data.Text.Lazy as LT
 import Data.Time
@@ -326,3 +327,25 @@ resolveOpaqueConvId (Id opaque) = do
     True ->
       -- FUTUREWORK(federation, #1178): implement database lookup
       pure . Local $ Id opaque
+
+createUserIdMapping :: Qualified (Id (Remote Id.U)) -> Galley (IdMapping Id.U)
+createUserIdMapping qualifiedUserId = do
+  isFederationEnabled >>= \case
+    False ->
+      -- TODO: different error "federation-not-enabled"?
+      throwM . federationNotImplemented' . pure $ (Nothing, qualifiedUserId)
+    True -> do
+      mappedId <- Id.randomId
+      -- FUTUREWORK(federation): create an ID mapping in the database if it doesn't exist
+      pure (IdMapping mappedId qualifiedUserId)
+
+createConvIdMapping :: Qualified (Id (Remote Id.C)) -> Galley (IdMapping Id.C)
+createConvIdMapping qualifiedConvId = do
+  isFederationEnabled >>= \case
+    False ->
+      -- TODO: different error "federation-not-enabled"?
+      throwM . federationNotImplemented' . pure $ (Nothing, qualifiedConvId)
+    True -> do
+      mappedId <- Id.randomId
+      -- FUTUREWORK(federation): create an ID mapping in the database if it doesn't exist
+      pure (IdMapping mappedId qualifiedConvId)

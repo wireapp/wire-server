@@ -18,10 +18,10 @@
 module Galley.API.Error where
 
 import Data.Domain (Domain, domainText)
-import Data.Id (idToText)
-import Data.IdMapping (IdMapping (IdMapping, idMappingGlobal, idMappingLocal))
+import Data.Id (Id, Mapped, Remote, idToText)
+import Data.IdMapping (IdMapping (idMappingGlobal, idMappingLocal))
 import Data.List.NonEmpty (NonEmpty)
-import Data.Qualified (renderQualifiedId)
+import Data.Qualified (Qualified, renderQualifiedId)
 import Data.String.Conversions (cs)
 import Data.Text.Lazy as LT (pack)
 import qualified Data.Text.Lazy as LT
@@ -236,17 +236,28 @@ customBackendNotFound domain =
     "custom-backend-not-found"
     ("custom backend not found for domain: " <> cs (domainText domain))
 
-federationNotImplemented :: forall a. Typeable a => NonEmpty (IdMapping a) -> Error
-federationNotImplemented qualified =
+invalidTeamNotificationId :: Error
+invalidTeamNotificationId = Error status400 "invalid-notification-id" "Could not parse notification id (must be UUIDv1)."
+
+--------------------------------------------------------------------------------
+-- Federation
+
+federationNotImplemented' ::
+  forall a. Typeable a => NonEmpty (Maybe (Id (Mapped a)), Qualified (Id (Remote a))) -> Error
+federationNotImplemented' qualifiedIds =
   Error
     status403
     "federation-not-implemented"
     ("Federation is not implemented, but global qualified IDs (" <> idType <> ") found: " <> rendered)
   where
     idType = cs (show (typeRep @a))
-    rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderMapping) $ qualified
-    renderMapping IdMapping {idMappingLocal, idMappingGlobal} =
-      idToText idMappingLocal <> " -> " <> renderQualifiedId idMappingGlobal
+    rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderMapping) $ qualifiedIds
+    renderMapping (mMapped, qualified) = case mMapped of
+      Nothing ->
+        renderQualifiedId qualified
+      Just mapped ->
+        idToText mapped <> " -> " <> renderQualifiedId qualified
 
-invalidTeamNotificationId :: Error
-invalidTeamNotificationId = Error status400 "invalid-notification-id" "Could not parse notification id (must be UUIDv1)."
+federationNotImplemented :: forall a. Typeable a => NonEmpty (IdMapping a) -> Error
+federationNotImplemented =
+  federationNotImplemented' . fmap (\i -> (Just (idMappingLocal i), idMappingGlobal i))
