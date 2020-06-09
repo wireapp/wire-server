@@ -47,6 +47,7 @@ import qualified V41_TeamNotificationQueue
 import qualified V42_TeamFeatureValidateSamlEmails
 import qualified V43_TeamFeatureDigitalSignatures
 import qualified V44_AddRemoteIdentifiers
+import qualified V45_AddFederationUUIDMapping
 
 main :: IO ()
 main = do
@@ -79,7 +80,8 @@ main = do
       V41_TeamNotificationQueue.migration,
       V42_TeamFeatureValidateSamlEmails.migration,
       V43_TeamFeatureDigitalSignatures.migration,
-      V44_AddRemoteIdentifiers.migration
+      V44_AddRemoteIdentifiers.migration,
+      V45_AddFederationUUIDMapping.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Galley.Data
     ]
