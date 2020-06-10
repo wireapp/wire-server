@@ -22,7 +22,7 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 43 "Add remote identifiers to conversation related tables" $ do
+migration = Migration 44 "Add remote identifiers to conversation related tables" $ do
   -- The user table answers the question: Which conversations am I a member of?
   -- With federation one now also needs to know: Where are these conversations located?
   schema'
