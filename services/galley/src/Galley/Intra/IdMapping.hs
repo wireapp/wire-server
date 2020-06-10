@@ -27,7 +27,7 @@ import Galley.Types.IdMapping (PostIdMappingRequest)
 import Imports
 import Network.HTTP.Types.Method (StdMethod (POST))
 
--- | Calls 'Brig.API.postIdMappingH'.
+-- | Calls 'Brig.API.IdMapping.postIdMappingH'.
 createIdMappingInBrig :: PostIdMappingRequest -> Galley ()
 createIdMappingInBrig req = do
   (brigHost, brigPort) <- brigReq

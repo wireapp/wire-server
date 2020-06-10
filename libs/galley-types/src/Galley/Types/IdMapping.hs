@@ -60,8 +60,8 @@ newtype PostIdMappingResponse = PostIdMappingResponse
   deriving stock (Eq, Show)
 
 instance ToJSON PostIdMappingResponse where
-  toJSON (PostIdMappingResponse qualifiedId) =
-    object ["mapped_id" .= qualifiedId]
+  toJSON (PostIdMappingResponse mappedId) =
+    object ["mapped_id" .= mappedId]
 
 instance FromJSON PostIdMappingResponse where
   parseJSON = withObject "PostIdMappingResponse" $ \o ->
