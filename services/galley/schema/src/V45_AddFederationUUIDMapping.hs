@@ -25,7 +25,7 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 42 "Add feature flag for validation of saml emails" $ do
+migration = Migration 45 "Add feature flag for validation of saml emails" $ do
   schema'
     [r|
         CREATE TABLE uuid_mapping (
