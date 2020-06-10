@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 79de6e0df943f81b06a385534f150c05146658d23c9b577b6e67d66cb9c67625
+-- hash: 68e5113c1088325ae314f68dcfe34cc49353b1500f48dff408c8a045cf8d94c6
 
 name:           galley
 version:        0.83.0
@@ -336,6 +336,7 @@ executable galley-schema
       V40_CreateTableDataMigration
       V41_TeamNotificationQueue
       V42_TeamFeatureValidateSamlEmails
+      V43_TeamFeatureDigitalSignatures
       Paths_galley
   hs-source-dirs:
       schema/src

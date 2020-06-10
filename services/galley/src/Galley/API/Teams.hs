@@ -872,6 +872,7 @@ getFeatureStatusInternal tid featureName = do
     Public.TeamFeatureSSO -> getSSOStatusInternal tid
     Public.TeamFeatureSearchVisibility -> getTeamSearchVisibilityAvailableInternal tid
     Public.TeamFeatureValidateSAMLEmails -> getValidateSAMLEmailsInternal tid
+    Public.TeamFeatureDigitalSignatures -> getDigitalSignaturesInternal tid
 
 -- | Enable or disable feature flag for a team.  To be called only from authorized personnel
 -- (e.g., from a backoffice tool)
@@ -886,6 +887,7 @@ setFeatureStatusInternal tid featureName status = do
     Public.TeamFeatureSSO -> setSSOStatusInternal tid status
     Public.TeamFeatureSearchVisibility -> setTeamSearchVisibilityAvailableInternal tid status
     Public.TeamFeatureValidateSAMLEmails -> setValidateSAMLEmailsInternal tid status
+    Public.TeamFeatureDigitalSignatures -> setDigitalSignaturesInternal tid status
 
 getSSOStatusInternal :: TeamId -> Galley Public.TeamFeatureStatus
 getSSOStatusInternal tid = do
@@ -961,6 +963,16 @@ getValidateSAMLEmailsInternal tid =
 
 setValidateSAMLEmailsInternal :: TeamId -> Public.TeamFeatureStatus -> Galley ()
 setValidateSAMLEmailsInternal tid = TeamFeatures.setFlag tid Public.TeamFeatureValidateSAMLEmails
+
+getDigitalSignaturesInternal :: TeamId -> Galley Public.TeamFeatureStatus
+getDigitalSignaturesInternal tid =
+  -- FUTUREWORK: we may also want to get a default from the server config file here, like for
+  -- sso, and team search visibility.
+  fromMaybe Public.TeamFeatureDisabled
+    <$> TeamFeatures.getFlag tid Public.TeamFeatureDigitalSignatures
+
+setDigitalSignaturesInternal :: TeamId -> Public.TeamFeatureStatus -> Galley ()
+setDigitalSignaturesInternal tid = TeamFeatures.setFlag tid Public.TeamFeatureDigitalSignatures
 
 -- | Modify and get visibility type for a team (internal, no user permission checks)
 getSearchVisibilityInternalH :: TeamId ::: JSON -> Galley Response
