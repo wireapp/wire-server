@@ -20,21 +20,29 @@ module Galley.Intra.IdMapping
   )
 where
 
-import Bilge (expect2xx, host, json, method, path, port)
+import Bilge (expectStatus, host, json, method, path, port, responseStatus)
+import Data.Qualified (renderQualifiedId)
 import Galley.App (Galley)
 import Galley.Intra.Util (brigReq, call)
-import Galley.Types.IdMapping (PostIdMappingRequest)
+import Galley.Types.IdMapping (PostIdMappingRequest (reqQualifiedId))
 import Imports
-import Network.HTTP.Types.Method (StdMethod (POST))
+import Network.HTTP.Types (StdMethod (POST), statusCode)
+import qualified System.Logger.Class as Log
 
 -- | Calls 'Brig.API.IdMapping.postIdMappingH'.
 createIdMappingInBrig :: PostIdMappingRequest -> Galley ()
 createIdMappingInBrig req = do
   (brigHost, brigPort) <- brigReq
-  void . call "brig" $
-    method POST
-      . host brigHost
-      . port brigPort
-      . path "/i/id-mapping"
-      . json req
-      . expect2xx
+  st <-
+    fmap (statusCode . responseStatus) . call "brig" $
+      method POST
+        . host brigHost
+        . port brigPort
+        . path "/i/id-mapping"
+        . json req
+        . expectStatus (`elem` [200, 403])
+  when (st == 403) $ do
+    -- don't fail, but make some noise
+    Log.err $
+      Log.field "qualified_id" (renderQualifiedId (reqQualifiedId req))
+        . Log.msg @Text "Creating ID mapping in Brig, but federation seems disabled."
