@@ -20,6 +20,10 @@ spar:
   host: 127.0.0.1
   port: 8088
 
+# federator:
+#   host: 127.0.0.1
+#   port: 8097
+
 settings:
   httpPoolSize: 128
   maxTeamSize: 32
@@ -30,6 +34,8 @@ settings:
   concurrentDeletionEvents: 1024
   deleteConvThrottleMillis: 0
   enableIndexedBillingTeamMembers: true
+  # enableFederationWithDomain: wire.com
+  # ^ if you change this, remember to also update it for Brig
 
   featureFlags:  # see #RefConfigOptions in `/docs/reference`
     sso: disabled-by-default

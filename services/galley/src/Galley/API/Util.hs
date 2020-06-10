@@ -22,6 +22,7 @@ import Brig.Types.Intra (ReAuthUser (..))
 import Control.Lens ((.~), (^.), view)
 import Control.Monad.Catch
 import Data.ByteString.Conversion
+import Data.Domain (Domain)
 import Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local, Mapped), partitionMappedOrLocalIds)
 import Data.List.NonEmpty (nonEmpty)
@@ -36,7 +37,7 @@ import Galley.Data.Services (BotMember, newBotMember)
 import qualified Galley.Data.Types as DataTypes
 import Galley.Intra.Push
 import Galley.Intra.User
-import Galley.Options (defEnableFederation, optSettings, setEnableFederation)
+import Galley.Options (optSettings, setEnableFederationWithDomain)
 import Galley.Types
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
@@ -259,32 +260,6 @@ getConversationAndCheckMembershipWithError ex zusr = \case
       throwM ex
     return c
 
--- FUTUREWORK(federation, #1178): implement function to resolve IDs in batch
-
--- | this exists as a shim to find and mark places where we need to handle 'OpaqueUserId's.
-resolveOpaqueUserId :: OpaqueUserId -> Galley (MappedOrLocalId Id.U)
-resolveOpaqueUserId (Id opaque) = do
-  mEnabled <- view (options . optSettings . setEnableFederation)
-  case fromMaybe defEnableFederation mEnabled of
-    False ->
-      -- don't check the ID mapping, just assume it's local
-      pure . Local $ Id opaque
-    True ->
-      -- FUTUREWORK(federation, #1178): implement database lookup
-      pure . Local $ Id opaque
-
--- | this exists as a shim to find and mark places where we need to handle 'OpaqueConvId's.
-resolveOpaqueConvId :: OpaqueConvId -> Galley (MappedOrLocalId Id.C)
-resolveOpaqueConvId (Id opaque) = do
-  mEnabled <- view (options . optSettings . setEnableFederation)
-  case fromMaybe defEnableFederation mEnabled of
-    False ->
-      -- don't check the ID mapping, just assume it's local
-      pure . Local $ Id opaque
-    True ->
-      -- FUTUREWORK(federation, #1178): implement database lookup
-      pure . Local $ Id opaque
-
 -- | Deletion requires a permission check, but also a 'Role' comparison:
 -- Owners can only be deleted by another owner (and not themselves).
 --
@@ -301,3 +276,36 @@ canDeleteMember deleter deletee
     -- (team members having no role is an internal error, but we don't want to deal with that
     -- here, so we pick a reasonable default.)
     getRole mem = fromMaybe RoleMember $ permissionsRole $ mem ^. permissions
+
+--------------------------------------------------------------------------------
+-- Federation
+
+viewFederationDomain :: Galley (Maybe Domain)
+viewFederationDomain = view (options . optSettings . setEnableFederationWithDomain)
+
+isFederationEnabled :: Galley Bool
+isFederationEnabled = isJust <$> viewFederationDomain
+
+-- FUTUREWORK(federation, #1178): implement function to resolve IDs in batch
+
+-- | this exists as a shim to find and mark places where we need to handle 'OpaqueUserId's.
+resolveOpaqueUserId :: OpaqueUserId -> Galley (MappedOrLocalId Id.U)
+resolveOpaqueUserId (Id opaque) = do
+  isFederationEnabled >>= \case
+    False ->
+      -- don't check the ID mapping, just assume it's local
+      pure . Local $ Id opaque
+    True ->
+      -- FUTUREWORK(federation, #1178): implement database lookup
+      pure . Local $ Id opaque
+
+-- | this exists as a shim to find and mark places where we need to handle 'OpaqueConvId's.
+resolveOpaqueConvId :: OpaqueConvId -> Galley (MappedOrLocalId Id.C)
+resolveOpaqueConvId (Id opaque) = do
+  isFederationEnabled >>= \case
+    False ->
+      -- don't check the ID mapping, just assume it's local
+      pure . Local $ Id opaque
+    True ->
+      -- FUTUREWORK(federation, #1178): implement database lookup
+      pure . Local $ Id opaque
