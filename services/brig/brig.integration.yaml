@@ -165,7 +165,8 @@ optSettings:
   # ^ You can limit the max number of permanent clients that a user is allowed
   #   to register, per account. The default value is '7' if the option is unset.
   # enableFederationWithDomain: wire.com
-  # ^ This is used to qualify local IDs and handles, e.g. somehandle@wire.com
+  # ^ This is used to qualify local IDs and handles, e.g. somehandle@wire.com.
+  #   If you change it, remember to also update it for Galley.
 
 logLevel: Warn
 # ^ NOTE: We log too much in brig, if we set this to Info like other services, running tests

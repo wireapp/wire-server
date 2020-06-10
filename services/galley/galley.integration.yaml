@@ -35,6 +35,7 @@ settings:
   deleteConvThrottleMillis: 0
   enableIndexedBillingTeamMembers: true
   # enableFederationWithDomain: wire.com
+  # ^ if you change this, remember to also update it for Brig
 
   featureFlags:  # see #RefConfigOptions in `/docs/reference`
     sso: disabled-by-default
