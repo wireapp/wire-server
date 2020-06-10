@@ -19,39 +19,74 @@
 
 module API.IdMapping where
 
+import API.Util (withSettingsOverrides)
 import Bilge hiding (timeout)
 import Bilge.Assert
-import Control.Lens (view)
+import Control.Lens ((?~), view)
 import Data.ByteString.Conversion (toByteString')
 import Data.Coerce (coerce)
-import Data.Domain (mkDomain)
+import Data.Domain (Domain, mkDomain)
 import qualified Data.Id as Id
 import Data.Id (Id)
 import Data.Qualified (Qualified (Qualified))
-import Galley.Types.IdMapping (PostIdMappingRequest (PostIdMappingRequest))
+import Galley.Options (optSettings, setEnableFederationWithDomain)
+import Galley.Types.IdMapping (PostIdMappingRequest (PostIdMappingRequest), PostIdMappingResponse (PostIdMappingResponse))
 import Imports
+import qualified Network.Wai.Test as WaiTest
 import Test.Tasty (TestTree, testGroup)
 import TestHelpers (test)
-import TestSetup (TestM, TestSetup, tsGalley)
+import TestSetup (TestM, TestSetup, tsGConf, tsGalley)
 
 tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "IdMapping"
-    [ test s "endpoints are disabled by default" endpointsDisabledByDefault
+    [ test s "endpoints are disabled by default" endpointsAreDisabledByDefault,
+      test s "endpoints can be enabled and work" endpointsCanBeEnabled
     ]
 
-endpointsDisabledByDefault :: TestM ()
-endpointsDisabledByDefault = do
+endpointsAreDisabledByDefault :: TestM ()
+endpointsAreDisabledByDefault = do
   g <- view tsGalley
   opaqueId <- Id.randomId
   remoteId <- Id.randomId
-  let Right domain = mkDomain "wire.com"
+  let Right domain = mkDomain "integration.com"
       qualifiedId = Qualified remoteId domain
   getIdMapping g opaqueId
     !!! const 403 === statusCode
   createIdMapping g qualifiedId
     !!! const 403 === statusCode
+
+endpointsCanBeEnabled :: TestM ()
+endpointsCanBeEnabled = do
+  let Right domain = mkDomain "integration.com"
+  g <- view tsGalley
+
+  -- a random mapping doesn't exist
+  withFederationEnabled domain $ do
+    randomOpaqueId <- Id.randomId
+    getIdMapping g randomOpaqueId
+      !!! const 404 === statusCode
+
+  -- but we can add a mapping
+  qualifiedId <- flip Qualified domain <$> Id.randomId
+  PostIdMappingResponse createdMappedId <-
+    withFederationEnabled domain $ do
+      res <-
+        createIdMapping g qualifiedId
+          <!! const 200 === statusCode
+      pure (responseJsonUnsafeWithMsg "IdMapping" res)
+
+  -- and this then exists
+  withFederationEnabled domain $ do
+    getIdMapping g createdMappedId
+      !!! const 200 === statusCode
+
+withFederationEnabled :: Domain -> WaiTest.Session a -> TestM a
+withFederationEnabled domain action = do
+  opts <- view tsGConf
+  let newOpts = opts & optSettings . setEnableFederationWithDomain ?~ domain
+  withSettingsOverrides newOpts action
 
 -- NOTE:
 -- Once we start creating mappings in actual business logic, we want to test that
