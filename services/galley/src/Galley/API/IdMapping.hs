@@ -42,11 +42,12 @@ import Galley.API.Util (JSON, isFederationEnabled)
 import Galley.App (Galley, fromJsonBody)
 import qualified Galley.Data.IdMapping as Data (getIdMapping, insertIdMapping)
 import qualified Galley.Intra.IdMapping as Intra
-import Galley.Types.IdMapping (PostIdMappingRequest (reqQualifiedId), mkPostIdMappingRequest)
+import Galley.Types.IdMapping (PostIdMappingRequest (reqQualifiedId), PostIdMappingResponse (PostIdMappingResponse), mkPostIdMappingRequest)
 import Imports
+import Network.HTTP.Types (forbidden403)
 import Network.Wai (Response)
 import Network.Wai.Predicate ((:::) ((:::)))
-import Network.Wai.Utilities (JsonRequest, empty, json)
+import Network.Wai.Utilities (JsonRequest, empty, json, setStatus)
 
 -- | For debugging and tests.
 -- We just pick @()@ here, as conversation and user ID mappings share a table.
@@ -60,7 +61,15 @@ postIdMappingH ::
   Galley Response
 postIdMappingH (req ::: _) = do
   qualifiedId <- reqQualifiedId <$> fromJsonBody req
-  const empty <$> blindlyCreateIdMapping qualifiedId
+  blindlyCreateIdMapping qualifiedId <&> \case
+    Nothing ->
+      -- TODO(mheinzel): Is this right?
+      -- This should only be called by Brig if federation is enabled there,
+      -- so either there is some mis-configuration going on (Brig and Galley
+      -- out of sync) or there is a bug.
+      empty & setStatus forbidden403
+    Just mappedId ->
+      json (PostIdMappingResponse mappedId)
 
 --------------------------------------------------------------------------------
 -- helpers
@@ -129,14 +138,15 @@ createIdMapping qualifiedId = do
 --
 -- This function doesn't intra-call Brig, so we don't end up in an infinite loop of calling
 -- each other.
-blindlyCreateIdMapping :: Typeable a => Qualified (Id (Id.Remote a)) -> Galley ()
+blindlyCreateIdMapping :: Typeable a => Qualified (Id (Id.Remote a)) -> Galley (Maybe (Id (Id.Mapped a)))
 blindlyCreateIdMapping qualifiedId = do
   isFederationEnabled >>= \case
     False ->
-      pure ()
+      pure Nothing
     True -> do
       let mappedId = hashQualifiedId qualifiedId
       Data.insertIdMapping (IdMapping mappedId qualifiedId)
+      pure (Just mappedId)
 
 -- | Deterministically hashes a qualified ID to a single UUID
 --

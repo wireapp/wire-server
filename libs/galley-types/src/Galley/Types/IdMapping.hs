@@ -20,12 +20,13 @@
 module Galley.Types.IdMapping
   ( PostIdMappingRequest (..),
     mkPostIdMappingRequest,
+    PostIdMappingResponse (..),
   )
 where
 
 import Data.Aeson
 import Data.Coerce (coerce)
-import Data.Id (Id, Remote)
+import Data.Id (Id, Mapped, Remote)
 import Data.Qualified (Qualified)
 import Imports
 
@@ -35,17 +36,33 @@ import Imports
 -- The type of Id (user or conversation) doesn't matter, since it's all the same table.
 -- Therefore, we use @()@.
 newtype PostIdMappingRequest = PostIdMappingRequest
-  { reqQualifiedId :: Qualified (Id (Remote ()))
-  }
+  {reqQualifiedId :: Qualified (Id (Remote ()))}
   deriving stock (Eq, Show)
 
 mkPostIdMappingRequest :: Qualified (Id (Remote a)) -> PostIdMappingRequest
 mkPostIdMappingRequest = PostIdMappingRequest . coerce
 
+instance ToJSON PostIdMappingRequest where
+  toJSON (PostIdMappingRequest qualifiedId) =
+    object ["qualified_id" .= qualifiedId]
+
 instance FromJSON PostIdMappingRequest where
   parseJSON = withObject "PostIdMappingRequest" $ \o ->
     PostIdMappingRequest <$> o .: "qualified_id"
 
-instance ToJSON PostIdMappingRequest where
-  toJSON (PostIdMappingRequest qualifiedId) =
-    object ["qualified_id" .= qualifiedId]
+-- | Response used for inter-service communication between Galley and Brig to ensure that ID
+-- mappings discovered in one service are also known in the other.
+--
+-- The type of Id (user or conversation) doesn't matter, since it's all the same table.
+-- Therefore, we use @()@.
+newtype PostIdMappingResponse = PostIdMappingResponse
+  {resMappedId :: Id (Mapped ())}
+  deriving stock (Eq, Show)
+
+instance ToJSON PostIdMappingResponse where
+  toJSON (PostIdMappingResponse qualifiedId) =
+    object ["mapped_id" .= qualifiedId]
+
+instance FromJSON PostIdMappingResponse where
+  parseJSON = withObject "PostIdMappingResponse" $ \o ->
+    PostIdMappingResponse <$> o .: "mapped_id"
