@@ -42,34 +42,61 @@ import Galley.API.Util (JSON, isFederationEnabled)
 import Galley.App (Galley, fromJsonBody)
 import qualified Galley.Data.IdMapping as Data (getIdMapping, insertIdMapping)
 import qualified Galley.Intra.IdMapping as Intra
-import Galley.Types.IdMapping (PostIdMappingRequest (reqQualifiedId), PostIdMappingResponse (PostIdMappingResponse), mkPostIdMappingRequest)
+import Galley.Types.IdMapping (PostIdMappingRequest (PostIdMappingRequest), PostIdMappingResponse (PostIdMappingResponse), mkPostIdMappingRequest)
 import Imports
-import Network.HTTP.Types (forbidden403)
+import Network.HTTP.Types (forbidden403, notFound404)
 import Network.Wai (Response)
 import Network.Wai.Predicate ((:::) ((:::)))
 import Network.Wai.Utilities (JsonRequest, empty, json, setStatus)
+
+--------------------------------------------------------------------------------
+-- endpoints
 
 -- | For debugging and tests.
 -- We just pick @()@ here, as conversation and user ID mappings share a table.
 getIdMappingH :: Id (Id.Opaque ()) ::: JSON -> Galley Response
 getIdMappingH (opaqueId ::: _) =
-  json <$> resolveOpaqueId opaqueId
+  ifFederationIsEnabled $
+    getIdMapping opaqueId <&> \case
+      Nothing -> empty & setStatus notFound404
+      Just idMapping -> json idMapping
+
+-- TODO(mheinzel): just return qualified ID?
+getIdMapping :: forall a. Id (Id.Opaque a) -> Galley (Maybe (IdMapping a))
+getIdMapping opaqueId = do
+  Data.getIdMapping assumedMappedId
+  where
+    assumedMappedId = Id (toUUID opaqueId) :: Id (Id.Mapped a)
 
 -- | Used by Brig and Galley to notify each other when they find a new 'IdMapping'.
 postIdMappingH ::
   JsonRequest PostIdMappingRequest ::: JSON ->
   Galley Response
-postIdMappingH (req ::: _) = do
-  qualifiedId <- reqQualifiedId <$> fromJsonBody req
-  blindlyCreateIdMapping qualifiedId <&> \case
-    Nothing ->
-      -- TODO(mheinzel): Is this right?
-      -- This should only be called by Brig if federation is enabled there,
-      -- so either there is some mis-configuration going on (Brig and Galley
-      -- out of sync) or there is a bug.
-      empty & setStatus forbidden403
-    Just mappedId ->
-      json (PostIdMappingResponse mappedId)
+postIdMappingH (req ::: _) =
+  ifFederationIsEnabled $
+    fmap json . postIdMapping =<< fromJsonBody req
+
+-- | Blindly writes to our own the database, unconditionally.
+-- The mapping is deterministic, so we don't bother reading existing values.
+-- If we overwrite an existing entry, then with the same value as it had before.
+--
+-- This function doesn't intra-call Brig, so we don't end up in an infinite loop of calling
+-- each other.
+postIdMapping :: PostIdMappingRequest -> Galley PostIdMappingResponse
+postIdMapping (PostIdMappingRequest qualifiedId) = do
+  let mappedId = hashQualifiedId qualifiedId
+  Data.insertIdMapping (IdMapping mappedId qualifiedId)
+  pure (PostIdMappingResponse mappedId)
+
+ifFederationIsEnabled :: Galley Response -> Galley Response
+ifFederationIsEnabled action =
+  isFederationEnabled >>= \case
+    -- TODO(mheinzel): Is this right?
+    -- This should only be called by Brig if federation is enabled there,
+    -- so either there is some mis-configuration going on (Brig and Galley
+    -- out of sync) or there is a bug.
+    False -> pure (empty & setStatus forbidden403)
+    True -> action
 
 --------------------------------------------------------------------------------
 -- helpers
@@ -131,22 +158,6 @@ createIdMapping qualifiedId = do
           Data.insertIdMapping idMapping
           Intra.createIdMappingInBrig (mkPostIdMappingRequest qualifiedId)
       pure idMapping
-
--- | Just writes to our own the database, unconditionally.
--- The mapping is deterministic, so we don't bother reading existing values.
--- If we overwrite an existing entry, then with the same value as it had before.
---
--- This function doesn't intra-call Brig, so we don't end up in an infinite loop of calling
--- each other.
-blindlyCreateIdMapping :: Typeable a => Qualified (Id (Id.Remote a)) -> Galley (Maybe (Id (Id.Mapped a)))
-blindlyCreateIdMapping qualifiedId = do
-  isFederationEnabled >>= \case
-    False ->
-      pure Nothing
-    True -> do
-      let mappedId = hashQualifiedId qualifiedId
-      Data.insertIdMapping (IdMapping mappedId qualifiedId)
-      pure (Just mappedId)
 
 -- | Deterministically hashes a qualified ID to a single UUID
 --

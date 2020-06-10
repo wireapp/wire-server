@@ -43,18 +43,6 @@ partitionMappedOrLocalIds = foldMap $ \case
   Mapped mapping -> (mempty, [mapping])
   Local localId -> ([localId], mempty)
 
-instance ToJSON (MappedOrLocalId a) where
-  toJSON (Mapped idMapping) =
-    object
-      [ "type" .= ("Mapped" :: Text),
-        "value" .= idMapping
-      ]
-  toJSON (Local localId) =
-    object
-      [ "type" .= ("Local" :: Text),
-        "value" .= object ["local_id" .= localId]
-      ]
-
 ----------------------------------------------------------------------
 -- IdMapping
 
