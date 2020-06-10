@@ -103,6 +103,7 @@ CREATE TABLE galley_test.data_migration (
 
 CREATE TABLE galley_test.team_features (
     team_id uuid PRIMARY KEY,
+    digital_signatures int,
     legalhold_status int,
     search_visibility_status int,
     sso_status int,
