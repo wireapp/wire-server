@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -29,15 +30,19 @@ import Bilge
 import Bilge.Assert
 import Brig.Types.User as Brig
 import Control.Lens
+import Control.Monad.Catch (MonadCatch)
+import Control.Retry (exponentialBackoff, limitRetries, recovering)
 import qualified Data.Aeson as Aeson
+import Data.Aeson.Lens (_String, key)
 import Data.Aeson.QQ (aesonQQ)
 import Data.Aeson.Types (fromJSON, toJSON)
 import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle))
-import Data.Id (UserId, randomId)
+import Data.Id (TeamId, UserId, randomId)
 import Data.Ix (inRange)
 import qualified Data.Map as Map
 import Data.String.Conversions (cs)
+import qualified Data.Text.Ascii as Ascii
 import Imports
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified SAML2.WebSSO.Types as SAML
@@ -54,6 +59,8 @@ import qualified Web.Scim.Schema.Common as Scim
 import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.PatchOp as PatchOp
 import qualified Web.Scim.Schema.User as Scim.User
+import qualified Wire.API.Team.Feature as Feature
+import qualified Wire.API.User.Activation as Activation
 
 -- | Tests for @\/scim\/v2\/Users@.
 spec :: SpecWith TestEnv
@@ -65,6 +72,7 @@ spec = do
   specUpdateUser
   specDeleteUser
   specAzureQuirks
+  specEmailValidation
   describe "CRUD operations maintain invariants in mapScimToBrig, mapBrigToScim." $ do
     it "..." $ do
       pendingWith "this is a job for quickcheck-state-machine"
@@ -1065,3 +1073,89 @@ specAzureQuirks = do
       liftIO $ users `shouldBe` []
       users' <- listUsers tok (Just (filterBy "externalId" "f52dcb88-9fa1-4ec7-984f-7bc2d4046a9c"))
       liftIO $ users' `shouldBe` []
+
+----------------------------------------------------------------------------
+-- Email validation of SAML users (depending on team flag)
+
+specEmailValidation :: SpecWith TestEnv
+specEmailValidation = do
+  describe "email validation" $ do
+    let enableSamlEmailValidation :: HasCallStack => TeamId -> TestSpar ()
+        enableSamlEmailValidation tid = do
+          galley <- asks (^. teGalley)
+          let req = put $ galley . paths p . json Feature.TeamFeatureEnabled
+              p = ["/i/teams", toByteString' tid, "features", "validate-saml-emails"]
+          call req !!! const 204 === statusCode
+        --
+        assertEmail :: HasCallStack => UserId -> Maybe Email -> TestSpar ()
+        assertEmail uid expectedEmail = do
+          brig <- asks (^. teBrig)
+          let req = get (brig . path "/self" . zUser uid)
+          call req !!! do
+            const 200 === statusCode
+            const expectedEmail === (userEmail <=< responseJsonMaybe)
+        --
+        eventually :: HasCallStack => TestSpar a -> TestSpar a
+        eventually = recovering (limitRetries 3 <> exponentialBackoff 100000) [] . const
+        --
+        setup :: HasCallStack => Bool -> TestSpar (UserId, Email)
+        setup enabled = do
+          (tok, (_ownerid, teamid, idp)) <- registerIdPAndScimToken
+          when enabled $ enableSamlEmailValidation teamid
+          (user, email) <- randomScimUserWithEmail
+          scimStoredUser <- createUser tok user
+          let Right uref = mkUserRef idp . Scim.User.externalId . Scim.value . Scim.thing $ scimStoredUser
+          uid <- getUserIdViaRef uref
+          brig <- asks (^. teBrig)
+          call $ activateEmail brig email
+          pure (uid, email)
+        --
+        -- copied from brig integration tests.
+        activateEmail ::
+          HasCallStack =>
+          BrigReq ->
+          Email ->
+          (MonadIO m, MonadCatch m, MonadHttp m) => m ()
+        activateEmail brig email = do
+          act <- getActivationCode brig (Left email)
+          case act of
+            Nothing -> pure () -- missing activation key/code; this happens if the feature is
+                -- disabled (second test case below)
+            Just kc -> activate brig kc !!! do
+              const 200 === statusCode
+              const (Just False) === fmap Activation.activatedFirst . responseJsonMaybe
+        --
+        -- copied from brig integration tests.
+        getActivationCode ::
+          HasCallStack =>
+          BrigReq ->
+          Either Email Phone ->
+          (MonadIO m, MonadCatch m, MonadHttp m) => m (Maybe (Activation.ActivationKey, Activation.ActivationCode))
+        getActivationCode brig ep = do
+          let qry = either (queryItem "email" . toByteString') (queryItem "phone" . toByteString') ep
+          r <- get $ brig . path "/i/users/activation-code" . qry
+          let lbs = fromMaybe "" $ responseBody r
+          let akey = Activation.ActivationKey . Ascii.unsafeFromText <$> (lbs ^? key "key" . _String)
+          let acode = Activation.ActivationCode . Ascii.unsafeFromText <$> (lbs ^? key "code" . _String)
+          return $ (,) <$> akey <*> acode
+        --
+        -- copied from brig integration tests.
+        activate ::
+          HasCallStack =>
+          BrigReq ->
+          (Activation.ActivationKey, Activation.ActivationCode) ->
+          (MonadIO m, MonadCatch m, MonadHttp m) => m ResponseLBS
+        activate brig (k, c) =
+          get $
+            brig
+              . path "activate"
+              . queryItem "key" (toByteString' k)
+              . queryItem "code" (toByteString' c)
+
+    context "enabled in team" . it "gives user email" $ do
+      (uid, email) <- setup True
+      eventually $ assertEmail uid (Just email)
+
+    context "not enabled in team" . it "does not give user email" $ do
+      (uid, _) <- setup False
+      eventually $ assertEmail uid Nothing

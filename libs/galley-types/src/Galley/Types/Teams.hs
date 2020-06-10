@@ -37,9 +37,10 @@ module Galley.Types.Teams
     isTeamOwner,
     canSeePermsOf,
     rolePermissions,
+    roleHiddenPermissions,
     permissionsRole,
     HiddenPerm (..),
-    IsPerm,
+    IsPerm (..),
 
     -- * re-exports
     Team,
@@ -80,8 +81,6 @@ module Galley.Types.Teams
     fullPermissions,
     noPermissions,
     serviceWhitelistPermissions,
-    hasPermission,
-    mayGrantPermission,
     self,
     copy,
     Perm (..),
@@ -127,7 +126,7 @@ module Galley.Types.Teams
 where
 
 import Control.Exception (ErrorCall (ErrorCall))
-import Control.Lens ((^.), makeLenses, to, view)
+import Control.Lens ((^.), makeLenses, view)
 import Control.Monad.Catch
 import Data.Aeson
 import Data.Id (UserId)
@@ -141,6 +140,7 @@ import Wire.API.Event.Team
 import Wire.API.Team (NewTeam (..), Team (..), TeamBinding (..))
 import Wire.API.Team
 import Wire.API.Team.Conversation
+import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
@@ -297,15 +297,13 @@ makeLenses ''FeatureFlags
 -- | See Note [hidden team roles]
 data HiddenPerm
   = ChangeLegalHoldTeamSettings
-  | ViewLegalHoldTeamSettings
   | ChangeLegalHoldUserSettings
   | ViewLegalHoldUserSettings
-  | ViewSSOTeamSettings -- (change is only allowed via customer support backoffice)
-  | ViewTeamSearchVisibilityAvailable
+  | ViewTeamFeature TeamFeatureName
   | ChangeTeamSearchVisibility
   | ViewTeamSearchVisibility
   | ViewSameTeamEmails
-  deriving (Eq, Ord, Show, Enum, Bounded)
+  deriving (Eq, Ord, Show)
 
 -- | See Note [hidden team roles]
 data HiddenPermissions = HiddenPermissions
@@ -316,51 +314,50 @@ data HiddenPermissions = HiddenPermissions
 
 makeLenses ''HiddenPermissions
 
--- | Compute 'Role' from 'Permissions', and 'HiddenPermissions' from the 'Role'.  If
--- 'Permissions' matches no 'Role', return no hidden permission bits.
-hiddenPermissionsFromPermissions :: Permissions -> HiddenPermissions
-hiddenPermissionsFromPermissions =
-  maybe (HiddenPermissions mempty mempty) roleHiddenPermissions . permissionsRole
+roleHiddenPermissions :: Role -> HiddenPermissions
+roleHiddenPermissions role = HiddenPermissions p p
   where
-    roleHiddenPermissions :: Role -> HiddenPermissions
-    roleHiddenPermissions role = HiddenPermissions p p
-      where
-        p = roleHiddenPerms role
-        roleHiddenPerms :: Role -> Set HiddenPerm
-        roleHiddenPerms RoleOwner = roleHiddenPerms RoleAdmin
-        roleHiddenPerms RoleAdmin =
-          (roleHiddenPerms RoleMember <>) $
-            Set.fromList
-              [ ChangeLegalHoldTeamSettings,
-                ChangeLegalHoldUserSettings,
-                ChangeTeamSearchVisibility
-              ]
-        roleHiddenPerms RoleMember =
-          (roleHiddenPerms RoleExternalPartner <>) $
-            Set.fromList [ViewSameTeamEmails]
-        roleHiddenPerms RoleExternalPartner =
-          Set.fromList
-            [ ViewLegalHoldTeamSettings,
-              ViewLegalHoldUserSettings,
-              ViewSSOTeamSettings,
-              ViewTeamSearchVisibilityAvailable,
-              ViewTeamSearchVisibility
-            ]
+    p = roleHiddenPerms role
+    roleHiddenPerms :: Role -> Set HiddenPerm
+    roleHiddenPerms RoleOwner = roleHiddenPerms RoleAdmin
+    roleHiddenPerms RoleAdmin =
+      (roleHiddenPerms RoleMember <>) $
+        Set.fromList
+          [ ChangeLegalHoldTeamSettings,
+            ChangeLegalHoldUserSettings,
+            ChangeTeamSearchVisibility
+          ]
+    roleHiddenPerms RoleMember =
+      (roleHiddenPerms RoleExternalPartner <>) $
+        Set.fromList [ViewSameTeamEmails]
+    roleHiddenPerms RoleExternalPartner =
+      Set.fromList
+        [ ViewTeamFeature TeamFeatureLegalHold,
+          ViewTeamFeature TeamFeatureSSO,
+          ViewTeamFeature TeamFeatureSearchVisibility,
+          ViewTeamFeature TeamFeatureValidateSAMLEmails,
+          ViewLegalHoldUserSettings,
+          ViewTeamSearchVisibility
+        ]
 
 -- | See Note [hidden team roles]
 class IsPerm perm where
+  roleHasPerm :: Role -> perm -> Bool
+  roleGrantsPerm :: Role -> perm -> Bool
   hasPermission :: TeamMember -> perm -> Bool
+  hasPermission tm perm = maybe False (`roleHasPerm` perm) . permissionsRole $ tm ^. permissions
   mayGrantPermission :: TeamMember -> perm -> Bool
+  mayGrantPermission tm perm = maybe False (`roleGrantsPerm` perm) . permissionsRole $ tm ^. permissions
 
 instance IsPerm Perm where
+  roleHasPerm r p = p `Set.member` (rolePermissions r ^. self)
+  roleGrantsPerm r p = p `Set.member` (rolePermissions r ^. copy)
   hasPermission tm p = p `Set.member` (tm ^. permissions . self)
   mayGrantPermission tm p = p `Set.member` (tm ^. permissions . copy)
 
 instance IsPerm HiddenPerm where
-  hasPermission tm p =
-    p `Set.member` (tm ^. permissions . to hiddenPermissionsFromPermissions . hself)
-  mayGrantPermission tm p =
-    p `Set.member` (tm ^. permissions . to hiddenPermissionsFromPermissions . hcopy)
+  roleHasPerm r p = p `Set.member` (roleHiddenPermissions r ^. hself)
+  roleGrantsPerm r p = p `Set.member` (roleHiddenPermissions r ^. hcopy)
 
 notTeamMember :: [UserId] -> [TeamMember] -> [UserId]
 notTeamMember uids tmms =

@@ -49,9 +49,9 @@ import qualified Data.Range as Range
 import Data.Range (LTE, Range, fromRange)
 import qualified Data.Set as Set
 import qualified Data.Text.Encoding as Text
-import GHC.TypeLits (Nat)
+import GHC.TypeLits (KnownNat, Nat)
 import Imports
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.API.Arbitrary (Arbitrary (..), GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- ServiceTag
@@ -180,6 +180,9 @@ newtype QueryAnyTags (m :: Nat) (n :: Nat) = QueryAnyTags
   {queryAnyTagsRange :: Range m n (Set (QueryAllTags m n))}
   deriving stock (Eq, Show, Ord)
 
+instance (KnownNat m, KnownNat n, LTE m n) => Arbitrary (QueryAnyTags m n) where
+  arbitrary = QueryAnyTags <$> arbitrary
+
 queryAnyTags :: LTE m n => MatchAny -> Maybe (QueryAnyTags m n)
 queryAnyTags t = do
   x <- mapM queryAllTags (Set.toList (matchAnySet t))
@@ -207,6 +210,9 @@ instance LTE m n => FromByteString (QueryAnyTags m n) where
 newtype QueryAllTags (m :: Nat) (n :: Nat) = QueryAllTags
   {queryAllTagsRange :: Range m n (Set ServiceTag)}
   deriving stock (Eq, Show, Ord)
+
+instance (KnownNat m, KnownNat n, LTE m n) => Arbitrary (QueryAllTags m n) where
+  arbitrary = QueryAllTags <$> arbitrary
 
 queryAllTags :: LTE m n => MatchAll -> Maybe (QueryAllTags m n)
 queryAllTags = fmap QueryAllTags . Range.checked . matchAllSet

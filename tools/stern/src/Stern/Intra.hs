@@ -40,12 +40,8 @@ module Stern.Intra
     getUserBindingTeam,
     isBlacklisted,
     setBlacklistStatus,
-    getLegalholdStatus,
-    setLegalholdStatus,
-    getSSOStatus,
-    setSSOStatus,
-    getTeamSearchVisibilityAvailable,
-    setTeamSearchVisibilityAvailable,
+    getTeamFeatureFlag,
+    setTeamFeatureFlag,
     getSearchVisibility,
     setSearchVisibility,
     getTeamBillingInfo,
@@ -65,7 +61,6 @@ import Bilge hiding (head, options, requestId)
 import Bilge.RPC
 import Brig.Types
 import Brig.Types.Intra
-import Brig.Types.Team.LegalHold hiding (teamId)
 import Brig.Types.User.Auth
 import Control.Error
 import Control.Lens ((^.), view)
@@ -86,7 +81,6 @@ import Data.Text.Lazy (pack)
 import Galley.Types
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
-import Galley.Types.Teams.SSO
 import Galley.Types.Teams.SearchVisibility
 import Gundeck.Types
 import Imports
@@ -98,6 +92,7 @@ import Stern.Types
 import System.Logger.Class hiding ((.=), Error, name)
 import qualified System.Logger.Class as Log
 import UnliftIO.Exception hiding (Handler)
+import qualified Wire.API.Team.Feature as Public
 
 -------------------------------------------------------------------------------
 
@@ -428,125 +423,29 @@ setBlacklistStatus status emailOrPhone = do
     statusToMethod False = DELETE
     statusToMethod True = POST
 
-getLegalholdStatus :: TeamId -> Handler SetLegalHoldStatus
-getLegalholdStatus tid = do
-  info $ msg "Getting legalhold status"
+getTeamFeatureFlag :: TeamId -> Public.TeamFeatureName -> Handler Public.TeamFeatureStatus
+getTeamFeatureFlag tid feature = do
+  info $ msg "Getting team feature status"
   gly <- view galley
-  (>>= fromResponseBody) . catchRpcErrors $
-    rpc'
-      "galley"
-      gly
-      ( method GET
-          . paths ["/i/teams", toByteString' tid, "features", "legalhold"]
+  let req =
+        method GET
+          . paths ["/i/teams", toByteString' tid, "features", toByteString' feature]
           . expect2xx
-      )
-  where
-    fromResponseBody :: Response (Maybe LByteString) -> Handler SetLegalHoldStatus
-    fromResponseBody resp = case responseJsonEither resp of
-      Right (LegalHoldTeamConfig LegalHoldDisabled) -> pure SetLegalHoldDisabled
-      Right (LegalHoldTeamConfig LegalHoldEnabled) -> pure SetLegalHoldEnabled
-      Left errmsg -> throwE (Error status502 "bad-upstream" ("bad response; error message: " <> pack errmsg))
+  responseJsonUnsafe <$> catchRpcErrors (rpc' "galley" gly req)
 
-setLegalholdStatus :: TeamId -> SetLegalHoldStatus -> Handler ()
-setLegalholdStatus tid status = do
-  info $ msg "Setting legalhold status"
+setTeamFeatureFlag :: TeamId -> Public.TeamFeatureName -> Public.TeamFeatureStatus -> Handler ()
+setTeamFeatureFlag tid feature status = do
+  info $ msg "Setting team feature status"
   gly <- view galley
-  resp <-
-    catchRpcErrors $
-      rpc'
-        "galley"
-        gly
-        ( method PUT
-            . paths ["/i/teams", toByteString' tid, "features", "legalhold"]
-            . lbytes (encode $ toRequestBody status)
-            . contentJson
-        )
+  let req =
+        method PUT
+          . paths ["/i/teams", toByteString' tid, "features", toByteString' feature]
+          . Bilge.json status
+          . contentJson
+  resp <- catchRpcErrors $ rpc' "galley" gly req
   case statusCode resp of
     204 -> pure ()
     _ -> throwE $ responseJsonUnsafe resp
-  where
-    toRequestBody SetLegalHoldDisabled = LegalHoldTeamConfig LegalHoldDisabled
-    toRequestBody SetLegalHoldEnabled = LegalHoldTeamConfig LegalHoldEnabled
-
-getSSOStatus :: TeamId -> Handler SetSSOStatus
-getSSOStatus tid = do
-  info $ msg "Getting SSO status"
-  gly <- view galley
-  (>>= fromResponseBody) . catchRpcErrors $
-    rpc'
-      "galley"
-      gly
-      ( method GET
-          . paths ["/i/teams", toByteString' tid, "features", "sso"]
-          . expect2xx
-      )
-  where
-    fromResponseBody :: Response (Maybe LByteString) -> Handler SetSSOStatus
-    fromResponseBody resp = case responseJsonEither resp of
-      Right (SSOTeamConfig SSOEnabled) -> pure SetSSOEnabled
-      Right (SSOTeamConfig SSODisabled) -> pure SetSSODisabled
-      Left errmsg -> throwE (Error status502 "bad-upstream" ("bad response; error message: " <> pack errmsg))
-
-setSSOStatus :: TeamId -> SetSSOStatus -> Handler ()
-setSSOStatus tid status = do
-  info $ msg "Setting SSO status"
-  gly <- view galley
-  resp <-
-    catchRpcErrors $
-      rpc'
-        "galley"
-        gly
-        ( method PUT
-            . paths ["/i/teams", toByteString' tid, "features", "sso"]
-            . lbytes (encode $ toRequestBody status)
-            . contentJson
-        )
-  case statusCode resp of
-    204 -> pure ()
-    _ -> throwE $ responseJsonUnsafe resp
-  where
-    toRequestBody SetSSODisabled = SSOTeamConfig SSODisabled
-    toRequestBody SetSSOEnabled = SSOTeamConfig SSOEnabled
-
-getTeamSearchVisibilityAvailable :: TeamId -> Handler SetTeamSearchVisibilityAvailable
-getTeamSearchVisibilityAvailable tid = do
-  info $ msg "Getting TeamSearchVisibility status"
-  gly <- view galley
-  (>>= fromResponseBody) . catchRpcErrors $
-    rpc'
-      "galley"
-      gly
-      ( method GET
-          . paths ["/i/teams", toByteString' tid, "features", "search-visibility"]
-          . expect2xx
-      )
-  where
-    fromResponseBody :: Response (Maybe LByteString) -> Handler SetTeamSearchVisibilityAvailable
-    fromResponseBody resp = case responseJsonEither resp of
-      Right (TeamSearchVisibilityAvailableView TeamSearchVisibilityEnabled) -> pure SetTeamSearchVisibilityEnabled
-      Right (TeamSearchVisibilityAvailableView TeamSearchVisibilityDisabled) -> pure SetTeamSearchVisibilityDisabled
-      Left errmsg -> throwE (Error status502 "bad-upstream" ("bad response; error message: " <> pack errmsg))
-
-setTeamSearchVisibilityAvailable :: TeamId -> SetTeamSearchVisibilityAvailable -> Handler ()
-setTeamSearchVisibilityAvailable tid status = do
-  info $ msg "Setting TeamSearchVisibility status"
-  gly <- view galley
-  resp <-
-    catchRpcErrors $
-      rpc'
-        "galley"
-        gly
-        ( method PUT
-            . paths ["/i/teams", toByteString' tid, "features", "search-visibility"]
-            . lbytes (encode $ toRequestBody status)
-            . contentJson
-        )
-  case statusCode resp of
-    204 -> pure ()
-    _ -> throwE $ responseJsonUnsafe resp
-  where
-    toRequestBody SetTeamSearchVisibilityDisabled = TeamSearchVisibilityAvailableView TeamSearchVisibilityDisabled
-    toRequestBody SetTeamSearchVisibilityEnabled = TeamSearchVisibilityAvailableView TeamSearchVisibilityEnabled
 
 getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
 getSearchVisibility tid = do
@@ -693,7 +592,7 @@ getMarketoResult email = do
     404 -> return noEmail
     _ -> throwE (Error status502 "bad-upstream" "")
   where
-    noEmail = let Object o = object ["results" .= emptyArray] in MarketoResult o
+    noEmail = MarketoResult $ M.singleton "results" emptyArray
 
 getUserConsentLog :: UserId -> Handler ConsentLog
 getUserConsentLog uid = do

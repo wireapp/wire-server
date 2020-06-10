@@ -18,9 +18,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.Data.LegalHold
-  ( setLegalHoldTeamConfig,
-    getLegalHoldTeamConfig,
-    createSettings,
+  ( createSettings,
     getSettings,
     removeSettings,
     Galley.Data.LegalHold.insertPendingPrekeys,
@@ -40,19 +38,6 @@ import Data.LegalHold
 import Galley.Data.Instances ()
 import Galley.Data.Queries as Q
 import Imports
-
--- | Return whether a given team is allowed to enable/disable legalhold
-getLegalHoldTeamConfig :: MonadClient m => TeamId -> m (Maybe LegalHoldTeamConfig)
-getLegalHoldTeamConfig tid = fmap toLegalHoldTeamConfig <$> do
-  retry x1 $ query1 selectLegalHoldTeamConfig (params Quorum (Identity tid))
-  where
-    toLegalHoldTeamConfig (Identity Nothing) = LegalHoldTeamConfig LegalHoldDisabled
-    toLegalHoldTeamConfig (Identity (Just status)) = LegalHoldTeamConfig status
-
--- | Determines whether a given team is allowed to enable/disable legalhold
-setLegalHoldTeamConfig :: MonadClient m => TeamId -> LegalHoldTeamConfig -> m ()
-setLegalHoldTeamConfig tid LegalHoldTeamConfig {legalHoldTeamConfigStatus} = do
-  retry x5 $ write updateLegalHoldTeamConfig (params Quorum (legalHoldTeamConfigStatus, tid))
 
 -- | Returns 'False' if legal hold is not enabled for this team
 -- The Caller is responsible for checking whether legal hold is enabled for this team

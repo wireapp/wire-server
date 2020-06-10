@@ -68,7 +68,6 @@ import qualified Brig.IO.Journal as Journal
 import Brig.RPC
 import Brig.Types
 import Brig.Types.Intra
-import Brig.Types.Team.LegalHold (LegalHoldTeamConfig)
 import Brig.User.Event
 import qualified Brig.User.Event.Log as Log
 import qualified Brig.User.Search.Index as Search
@@ -98,6 +97,7 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
 import System.Logger.Class as Log hiding ((.=), name)
+import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatus)
 
 -----------------------------------------------------------------------------
 -- Event Handlers
@@ -169,7 +169,7 @@ updateSearchIndex orig e = case e of
   UserResumed {} -> Search.reindex orig
   UserActivated {} -> Search.reindex orig
   UserDeleted {} -> Search.reindex orig
-  UserUpdated {..} -> do
+  UserUpdated UserUpdatedData {..} -> do
     let interesting =
           or
             [ isJust eupName,
@@ -180,13 +180,20 @@ updateSearchIndex orig e = case e of
 
 journalEvent :: UserId -> UserEvent -> AppIO ()
 journalEvent orig e = case e of
-  UserActivated acc -> Journal.userActivate (accountUser acc)
-  UserUpdated {eupName = Just name} -> Journal.userUpdate orig Nothing Nothing (Just name)
-  UserUpdated {eupLocale = Just loc} -> Journal.userUpdate orig Nothing (Just loc) Nothing
-  UserIdentityUpdated _ (Just em) _ -> Journal.userUpdate orig (Just em) Nothing Nothing
-  UserIdentityRemoved _ (Just em) _ -> Journal.userEmailRemove orig em
-  UserDeleted {} -> Journal.userDelete orig
-  _ -> return ()
+  UserActivated acc ->
+    Journal.userActivate (accountUser acc)
+  UserUpdated UserUpdatedData {eupName = Just name} ->
+    Journal.userUpdate orig Nothing Nothing (Just name)
+  UserUpdated UserUpdatedData {eupLocale = Just loc} ->
+    Journal.userUpdate orig Nothing (Just loc) Nothing
+  UserIdentityUpdated (UserIdentityUpdatedData _ (Just em) _) ->
+    Journal.userUpdate orig (Just em) Nothing Nothing
+  UserIdentityRemoved (UserIdentityRemovedData _ (Just em) _) ->
+    Journal.userEmailRemove orig em
+  UserDeleted {} ->
+    Journal.userDelete orig
+  _ ->
+    return ()
 
 -------------------------------------------------------------------------------
 -- Low-Level Event Notification
@@ -202,7 +209,7 @@ dispatchNotifications orig conn e = case e of
   LegalHoldClientRequested {} -> notifyContacts event orig Push.RouteAny conn
   UserLegalHoldDisabled {} -> notifyContacts event orig Push.RouteAny conn
   UserLegalHoldEnabled {} -> notifyContacts event orig Push.RouteAny conn
-  UserUpdated {..}
+  UserUpdated UserUpdatedData {..}
     -- This relies on the fact that we never change the locale AND something else.
     | isJust eupLocale -> notifySelf event orig Push.RouteDirect conn
     | otherwise -> notifyContacts event orig Push.RouteDirect conn
@@ -355,7 +362,7 @@ toPushFormat (UserEvent (UserActivated (UserAccount u _))) =
       [ "type" .= ("user.activate" :: Text),
         "user" .= SelfProfile u
       ]
-toPushFormat (UserEvent (UserUpdated i n pic acc ass hdl loc mb)) =
+toPushFormat (UserEvent (UserUpdated (UserUpdatedData i n pic acc ass hdl loc mb))) =
   Just $
     M.fromList
       [ "type" .= ("user.update" :: Text),
@@ -372,7 +379,7 @@ toPushFormat (UserEvent (UserUpdated i n pic acc ass hdl loc mb)) =
                 # []
             )
       ]
-toPushFormat (UserEvent UserIdentityUpdated {..}) =
+toPushFormat (UserEvent (UserIdentityUpdated UserIdentityUpdatedData {..})) =
   Just $
     M.fromList
       [ "type" .= ("user.update" :: Text),
@@ -384,7 +391,7 @@ toPushFormat (UserEvent UserIdentityUpdated {..}) =
                 # []
             )
       ]
-toPushFormat (UserEvent (UserIdentityRemoved i e p)) =
+toPushFormat (UserEvent (UserIdentityRemoved (UserIdentityRemovedData i e p))) =
   Just $
     M.fromList
       [ "type" .= ("user.identity-remove" :: Text),
@@ -819,14 +826,14 @@ getTeamName tid = do
       paths ["i", "teams", toByteString' tid, "name"]
         . expect2xx
 
--- | Calls 'Galley.API.getLegalholdStatusInternalH'.
-getTeamLegalHoldStatus :: TeamId -> AppIO LegalHoldTeamConfig
+-- | Calls 'Galley.API.getTeamFeatureStatusH'.
+getTeamLegalHoldStatus :: TeamId -> AppIO TeamFeatureStatus
 getTeamLegalHoldStatus tid = do
   debug $ remote "galley" . msg (val "Get legalhold settings")
   galleyRequest GET req >>= decodeBody "galley"
   where
     req =
-      paths ["i", "teams", toByteString' tid, "features", "legalhold"]
+      paths ["i", "teams", toByteString' tid, "features", toByteString' TeamFeatureLegalHold]
         . expect2xx
 
 -- | Calls 'Galley.API.getSearchVisibilityInternalH'.

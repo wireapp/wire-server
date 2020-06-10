@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Wire.API.Roundtrip (tests) where
+module Test.Wire.API.Roundtrip.Aeson (tests) where
 
 import Data.Aeson (FromJSON, ToJSON, parseJSON, toJSON)
 import Data.Aeson.Types (parseEither)
@@ -193,10 +193,7 @@ tests =
       testRoundTrip @Team.TeamDeleteData,
       testRoundTrip @Team.Conversation.TeamConversation,
       testRoundTrip @Team.Conversation.TeamConversationList,
-      testRoundTrip @Team.Feature.LegalHoldStatus,
-      testRoundTrip @Team.Feature.LegalHoldTeamConfig,
-      testRoundTrip @Team.Feature.SSOStatus,
-      testRoundTrip @Team.Feature.SSOTeamConfig,
+      testRoundTrip @Team.Feature.TeamFeatureStatus,
       testRoundTrip @Team.Invitation.InvitationRequest,
       testRoundTrip @Team.Invitation.Invitation,
       testRoundTrip @Team.Invitation.InvitationList,
@@ -221,8 +218,6 @@ tests =
       testRoundTrip @Team.Role.Role,
       testRoundTrip @Team.SearchVisibility.TeamSearchVisibility,
       testRoundTrip @Team.SearchVisibility.TeamSearchVisibilityView,
-      testRoundTrip @Team.SearchVisibility.TeamSearchVisibilityAvailable,
-      testRoundTrip @Team.SearchVisibility.TeamSearchVisibilityAvailableView,
       testRoundTrip @User.NewUser,
       testRoundTrip @User.NewUserPublic,
       testRoundTrip @User.UserIdList,

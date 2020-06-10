@@ -46,6 +46,10 @@ list1 :: a -> [a] -> List1 a
 list1 a = List1 . (N.:|) a
 {-# INLINE list1 #-}
 
+maybeList1 :: [a] -> Maybe (List1 a)
+maybeList1 = fmap List1 . N.nonEmpty
+{-# INLINE maybeList1 #-}
+
 (<|) :: a -> List1 a -> List1 a
 (<|) a = List1 . (N.<|) a . toNonEmpty
 {-# INLINE (<|) #-}

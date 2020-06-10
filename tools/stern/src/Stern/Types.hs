@@ -40,10 +40,14 @@ newtype TeamMemberInfo = TeamMemberInfo {tm :: TeamMember}
 
 instance ToJSON TeamMemberInfo where
   toJSON (TeamMemberInfo m) =
-    let Object o = teamMemberJson (const True) m
-     in Object $ M.insert "can_update_billing" (Bool (hasPermission m SetBilling))
+    case teamMemberJson (const True) m of
+      Object o ->
+        Object
+          $ M.insert "can_update_billing" (Bool (hasPermission m SetBilling))
           $ M.insert "can_view_billing" (Bool (hasPermission m GetBilling))
           $ o
+      other ->
+        error $ "toJSON TeamMemberInfo: not an object: " <> show (encode other)
 
 data TeamInfo = TeamInfo
   { tiData :: TeamData,
@@ -150,21 +154,3 @@ data TeamBillingInfoUpdate = TeamBillingInfoUpdate
   deriving (Eq, Show)
 
 deriveJSON toJSONFieldName ''TeamBillingInfoUpdate
-
-data SetLegalHoldStatus = SetLegalHoldDisabled | SetLegalHoldEnabled
-  deriving (Eq, Show, Ord, Enum, Bounded, Generic)
-
-deriveJSON toJSONFieldName ''SetLegalHoldStatus
-
-data SetSSOStatus = SetSSODisabled | SetSSOEnabled
-  deriving (Eq, Show, Ord, Enum, Bounded, Generic)
-
-deriveJSON toJSONFieldName ''SetSSOStatus
-
--- | FUTUREWORK: we should probably use
--- 'Galley.Types.Teams.SearchVisibility.TeamSearchVisibilityEnabled'.  (same for
--- 'SetSSOStatus', 'SetLegalHoldStatus'.
-data SetTeamSearchVisibilityAvailable = SetTeamSearchVisibilityDisabled | SetTeamSearchVisibilityEnabled
-  deriving (Eq, Show, Ord, Enum, Bounded, Generic)
-
-deriveJSON toJSONFieldName ''SetTeamSearchVisibilityAvailable

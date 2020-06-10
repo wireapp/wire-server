@@ -43,27 +43,9 @@ data UserEvent
     UserResumed !UserId
   | -- | The user account has been deleted.
     UserDeleted !UserId
-  | UserUpdated
-      { eupId :: !UserId,
-        eupName :: !(Maybe Name),
-        -- | DEPRECATED
-        eupPict :: !(Maybe Pict),
-        eupAccentId :: !(Maybe ColourId),
-        eupAssets :: !(Maybe [Asset]),
-        eupHandle :: !(Maybe Handle),
-        eupLocale :: !(Maybe Locale),
-        eupManagedBy :: !(Maybe ManagedBy)
-      }
-  | UserIdentityUpdated
-      { eiuId :: !UserId,
-        eiuEmail :: !(Maybe Email),
-        eiuPhone :: !(Maybe Phone)
-      }
-  | UserIdentityRemoved
-      { eirId :: !UserId,
-        eirEmail :: !(Maybe Email),
-        eirPhone :: !(Maybe Phone)
-      }
+  | UserUpdated !UserUpdatedData
+  | UserIdentityUpdated !UserIdentityUpdatedData
+  | UserIdentityRemoved !UserIdentityRemovedData
   | UserLegalHoldDisabled !UserId
   | UserLegalHoldEnabled !UserId
   | LegalHoldClientRequested LegalHoldClientRequestedData
@@ -83,6 +65,33 @@ data ClientEvent
   = ClientAdded !UserId !Client
   | ClientRemoved !UserId !Client
 
+data UserUpdatedData = UserUpdatedData
+  { eupId :: !UserId,
+    eupName :: !(Maybe Name),
+    -- | DEPRECATED
+    eupPict :: !(Maybe Pict),
+    eupAccentId :: !(Maybe ColourId),
+    eupAssets :: !(Maybe [Asset]),
+    eupHandle :: !(Maybe Handle),
+    eupLocale :: !(Maybe Locale),
+    eupManagedBy :: !(Maybe ManagedBy)
+  }
+  deriving stock (Show)
+
+data UserIdentityUpdatedData = UserIdentityUpdatedData
+  { eiuId :: !UserId,
+    eiuEmail :: !(Maybe Email),
+    eiuPhone :: !(Maybe Phone)
+  }
+  deriving stock (Show)
+
+data UserIdentityRemovedData = UserIdentityRemovedData
+  { eirId :: !UserId,
+    eirEmail :: !(Maybe Email),
+    eirPhone :: !(Maybe Phone)
+  }
+  deriving stock (Show)
+
 data LegalHoldClientRequestedData = LegalHoldClientRequestedData
   { lhcTargetUser :: !UserId,
     lhcLastPrekey :: !LastPrekey,
@@ -91,38 +100,49 @@ data LegalHoldClientRequestedData = LegalHoldClientRequestedData
   deriving stock (Show)
 
 emailRemoved :: UserId -> Email -> UserEvent
-emailRemoved u e = UserIdentityRemoved u (Just e) Nothing
+emailRemoved u e =
+  UserIdentityRemoved $ UserIdentityRemovedData u (Just e) Nothing
 
 phoneRemoved :: UserId -> Phone -> UserEvent
-phoneRemoved u p = UserIdentityRemoved u Nothing (Just p)
+phoneRemoved u p =
+  UserIdentityRemoved $ UserIdentityRemovedData u Nothing (Just p)
 
 emailUpdated :: UserId -> Email -> UserEvent
-emailUpdated u e = UserIdentityUpdated u (Just e) Nothing
+emailUpdated u e =
+  UserIdentityUpdated $ UserIdentityUpdatedData u (Just e) Nothing
 
 phoneUpdated :: UserId -> Phone -> UserEvent
-phoneUpdated u p = UserIdentityUpdated u Nothing (Just p)
+phoneUpdated u p =
+  UserIdentityUpdated $ UserIdentityUpdatedData u Nothing (Just p)
 
 handleUpdated :: UserId -> Handle -> UserEvent
-handleUpdated u h = (emptyUpdate u) {eupHandle = Just h}
+handleUpdated u h =
+  UserUpdated $ (emptyUserUpdatedData u) {eupHandle = Just h}
 
 localeUpdate :: UserId -> Locale -> UserEvent
-localeUpdate u loc = (emptyUpdate u) {eupLocale = Just loc}
+localeUpdate u loc =
+  UserUpdated $ (emptyUserUpdatedData u) {eupLocale = Just loc}
 
 managedByUpdate :: UserId -> ManagedBy -> UserEvent
-managedByUpdate u mb = (emptyUpdate u) {eupManagedBy = Just mb}
+managedByUpdate u mb =
+  UserUpdated $ (emptyUserUpdatedData u) {eupManagedBy = Just mb}
 
 profileUpdated :: UserId -> UserUpdate -> UserEvent
 profileUpdated u UserUpdate {..} =
-  (emptyUpdate u)
-    { eupName = uupName,
-      eupPict = uupPict,
-      eupAccentId = uupAccentId,
-      eupAssets = uupAssets
-    }
+  UserUpdated $
+    (emptyUserUpdatedData u)
+      { eupName = uupName,
+        eupPict = uupPict,
+        eupAccentId = uupAccentId,
+        eupAssets = uupAssets
+      }
 
 emptyUpdate :: UserId -> UserEvent
-emptyUpdate u =
-  UserUpdated
+emptyUpdate = UserUpdated . emptyUserUpdatedData
+
+emptyUserUpdatedData :: UserId -> UserUpdatedData
+emptyUserUpdatedData u =
+  UserUpdatedData
     { eupId = u,
       eupName = Nothing,
       eupPict = Nothing,
@@ -142,9 +162,9 @@ userEventUserId (UserActivated u) = userId (accountUser u)
 userEventUserId (UserSuspended u) = u
 userEventUserId (UserResumed u) = u
 userEventUserId (UserDeleted u) = u
-userEventUserId UserUpdated {..} = eupId
-userEventUserId UserIdentityUpdated {..} = eiuId
-userEventUserId UserIdentityRemoved {..} = eirId
+userEventUserId (UserUpdated u) = eupId u
+userEventUserId (UserIdentityUpdated u) = eiuId u
+userEventUserId (UserIdentityRemoved u) = eirId u
 userEventUserId (UserLegalHoldDisabled uid) = uid
 userEventUserId (UserLegalHoldEnabled uid) = uid
 userEventUserId (LegalHoldClientRequested dat) = lhcTargetUser dat

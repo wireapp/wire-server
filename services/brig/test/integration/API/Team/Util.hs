@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -23,7 +25,6 @@ import Bilge.Assert
 import Brig.Types.Activation
 import Brig.Types.Connection
 import Brig.Types.Team.Invitation
-import Brig.Types.Team.LegalHold (LegalHoldStatus, LegalHoldTeamConfig (..))
 import Brig.Types.User
 import Control.Lens ((^?))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
@@ -46,6 +47,7 @@ import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty.HUnit
 import Util
 import Web.Cookie (parseSetCookie, setCookieName)
+import Wire.API.Team.Feature (TeamFeatureStatus (..))
 
 -- | FUTUREWORK: Remove 'createPopulatedBindingTeam', 'createPopulatedBindingTeamWithNames',
 -- and rename 'createPopulatedBindingTeamWithNamesAndHandles' to 'createPopulatedBindingTeam'.
@@ -282,13 +284,13 @@ getTeams u galley =
 newTeam :: Team.BindingNewTeam
 newTeam = Team.BindingNewTeam $ Team.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")
 
-putLegalHoldEnabled :: HasCallStack => TeamId -> LegalHoldStatus -> Galley -> Http ()
+putLegalHoldEnabled :: HasCallStack => TeamId -> TeamFeatureStatus -> Galley -> Http ()
 putLegalHoldEnabled tid enabled g = do
   void . put $
     g
       . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
       . contentJson
-      . lbytes (encode (LegalHoldTeamConfig enabled))
+      . lbytes (encode enabled)
       . expect2xx
 
 accept :: Email -> InvitationCode -> RequestBody
@@ -439,13 +441,13 @@ stdInvitationRequest :: Email -> Name -> Maybe Locale -> Maybe Team.Role -> Invi
 stdInvitationRequest e inviterName loc role =
   InvitationRequest e inviterName loc role Nothing Nothing
 
-setTeamTeamSearchVisibilityAvailable :: HasCallStack => Galley -> TeamId -> Team.TeamSearchVisibilityAvailable -> Http ()
+setTeamTeamSearchVisibilityAvailable :: HasCallStack => Galley -> TeamId -> TeamFeatureStatus -> Http ()
 setTeamTeamSearchVisibilityAvailable galley tid status =
   put
     ( galley
         . paths ["i/teams", toByteString' tid, "features/search-visibility"]
         . contentJson
-        . body (RequestBodyLBS . encode $ Team.TeamSearchVisibilityAvailableView status)
+        . body (RequestBodyLBS . encode $ status)
     )
     !!! do
       const 204 === statusCode

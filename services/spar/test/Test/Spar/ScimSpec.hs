@@ -8,7 +8,8 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# OPTIONS_GHC -Wno-orphans -Wno-unused-imports #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -34,10 +35,8 @@ import Brig.Types.User (RichField (..), RichInfo (..))
 import Data.Aeson (eitherDecode', encode, parseJSON)
 import Data.Aeson.QQ (aesonQQ)
 import qualified Data.Aeson.Types as Aeson
-import qualified Data.HashMap.Strict as HM
 import Data.Id
 import qualified Data.Map as Map
-import qualified Data.Text as T
 import qualified Data.UUID as UUID
 import Imports
 import Network.URI (parseURI)
@@ -46,13 +45,11 @@ import Spar.Scim
 import Test.Hspec
 import Test.QuickCheck
 import URI.ByteString
-import Web.Scim.AttrName (AttrName (..))
 import qualified Web.Scim.Class.User as ScimC
 import Web.Scim.Filter (AttrPath (..))
 import qualified Web.Scim.Schema.Common as Scim
 import qualified Web.Scim.Schema.Meta as Scim
 import Web.Scim.Schema.PatchOp (Op (Remove), Operation (..), PatchOp (..), Path (NormalPath), applyOperation)
-import qualified Web.Scim.Schema.PatchOp as PatchOp
 import qualified Web.Scim.Schema.ResourceType as ScimR
 import Web.Scim.Schema.Schema (Schema (CustomSchema))
 import qualified Web.Scim.Schema.Schema as Scim

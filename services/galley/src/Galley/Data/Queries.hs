@@ -20,7 +20,6 @@ module Galley.Data.Queries where
 import Brig.Types.Client.Prekey
 import Brig.Types.Code
 import Brig.Types.Provider
-import Brig.Types.Team.LegalHold (LegalHoldStatus)
 import Cassandra as C hiding (Value)
 import Cassandra.Util (Writetime)
 import Data.Domain (Domain)
@@ -34,7 +33,6 @@ import Galley.Types hiding (Conversation)
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
-import Galley.Types.Teams.SSO
 import Galley.Types.Teams.SearchVisibility
 import Imports
 import Text.RawString.QQ
@@ -322,12 +320,6 @@ insertBot = "insert into member (conv, user, service, provider, status) values (
 
 -- LegalHold ----------------------------------------------------------------
 
-selectLegalHoldTeamConfig :: PrepQuery R (Identity TeamId) (Identity (Maybe LegalHoldStatus))
-selectLegalHoldTeamConfig = "select legalhold_status from team_features where team_id = ?"
-
-updateLegalHoldTeamConfig :: PrepQuery W (LegalHoldStatus, TeamId) ()
-updateLegalHoldTeamConfig = "update team_features set legalhold_status = ? where team_id = ?"
-
 insertLegalHoldSettings :: PrepQuery W (HttpsUrl, Fingerprint Rsa, ServiceToken, ServiceKey, TeamId) ()
 insertLegalHoldSettings =
   [r|
@@ -379,22 +371,6 @@ updateUserLegalHoldStatus =
           set legalhold_status = ?
           where team = ? and user = ?
     |]
-
-selectSSOTeamConfig :: PrepQuery R (Identity TeamId) (Identity (Maybe SSOStatus))
-selectSSOTeamConfig =
-  "select sso_status from team_features where team_id = ?"
-
-updateSSOTeamConfig :: PrepQuery W (SSOStatus, TeamId) ()
-updateSSOTeamConfig =
-  "update team_features set sso_status = ? where team_id = ?"
-
-selectTeamSearchVisibilityAvailable :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamSearchVisibilityAvailable))
-selectTeamSearchVisibilityAvailable =
-  "select search_visibility_status from team_features where team_id = ?"
-
-updateTeamSearchVisibilityAvailable :: PrepQuery W (TeamSearchVisibilityAvailable, TeamId) ()
-updateTeamSearchVisibilityAvailable =
-  "update team_features set search_visibility_status = ? where team_id = ?"
 
 selectSearchVisibility :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamSearchVisibility))
 selectSearchVisibility =

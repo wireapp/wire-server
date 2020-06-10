@@ -1,7 +1,5 @@
 {-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -21,110 +19,82 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.Team.Feature
-  ( -- * LegalHoldTeamConfig
-    LegalHoldTeamConfig (..),
-    LegalHoldStatus (..),
-
-    -- * SSOTeamConfig
-    SSOTeamConfig (..),
-    SSOStatus (..),
+  ( TeamFeatureName (..),
+    TeamFeatureStatus (..),
 
     -- * Swagger
-    modelLegalHoldTeamConfig,
-    modelSsoTeamConfig,
-    typeFeatureStatus,
+    modelTeamFeatureStatus,
+    typeTeamFeatureName,
+    typeTeamFeatureStatus,
   )
 where
 
 import Data.Aeson
-import Data.Json.Util ((#))
+import qualified Data.Attoparsec.ByteString as Parser
+import Data.ByteString.Conversion (FromByteString (..), ToByteString (..), toByteString')
+import Data.String.Conversions (cs)
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 
---------------------------------------------------------------------------------
--- LegalHoldTeamConfig
+data TeamFeatureName
+  = TeamFeatureLegalHold
+  | TeamFeatureSSO
+  | TeamFeatureSearchVisibility
+  | TeamFeatureValidateSAMLEmails
+  deriving stock (Eq, Show, Ord, Generic, Enum, Bounded)
+  deriving (Arbitrary) via (GenericUniform TeamFeatureName)
 
-data LegalHoldTeamConfig = LegalHoldTeamConfig
-  { legalHoldTeamConfigStatus :: LegalHoldStatus
-  }
+instance FromByteString TeamFeatureName where
+  parser = Parser.takeByteString >>= \b ->
+    case T.decodeUtf8' b of
+      Left e -> fail $ "Invalid TeamFeatureName: " <> show e
+      Right "legalhold" -> pure TeamFeatureLegalHold
+      Right "sso" -> pure TeamFeatureSSO
+      Right "search-visibility" -> pure TeamFeatureSearchVisibility
+      Right "validate-saml-emails" -> pure TeamFeatureValidateSAMLEmails
+      Right t -> fail $ "Invalid TeamFeatureName: " <> T.unpack t
+
+instance ToByteString TeamFeatureName where
+  builder TeamFeatureLegalHold = "legalhold"
+  builder TeamFeatureSSO = "sso"
+  builder TeamFeatureSearchVisibility = "search-visibility"
+  builder TeamFeatureValidateSAMLEmails = "validate-saml-emails"
+
+typeTeamFeatureName :: Doc.DataType
+typeTeamFeatureName = Doc.string . Doc.enum $ cs . toByteString' <$> [(minBound :: TeamFeatureName) ..]
+
+data TeamFeatureStatus = TeamFeatureEnabled | TeamFeatureDisabled
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform LegalHoldTeamConfig)
+  deriving (Arbitrary) via (GenericUniform TeamFeatureStatus)
 
-modelLegalHoldTeamConfig :: Doc.Model
-modelLegalHoldTeamConfig = Doc.defineModel "LegalHoldTeamConfig" $ do
-  Doc.description "Configuration of LegalHold feature for team"
-  Doc.property "status" typeFeatureStatus $ Doc.description "status"
+modelTeamFeatureStatus :: Doc.Model
+modelTeamFeatureStatus = Doc.defineModel "TeamFeatureStatus" $ do
+  Doc.description "Configuration of a feature for a team"
+  Doc.property "status" typeTeamFeatureStatus $ Doc.description "status"
 
-instance ToJSON LegalHoldTeamConfig where
-  toJSON s =
-    object $
-      "status" .= legalHoldTeamConfigStatus s
-        # []
-
-instance FromJSON LegalHoldTeamConfig where
-  parseJSON = withObject "LegalHoldTeamConfig" $ \o ->
-    LegalHoldTeamConfig <$> o .: "status"
-
-data LegalHoldStatus = LegalHoldDisabled | LegalHoldEnabled
-  deriving stock (Eq, Show, Ord, Enum, Bounded, Generic)
-  deriving (Arbitrary) via (GenericUniform LegalHoldStatus)
-
-typeFeatureStatus :: Doc.DataType
-typeFeatureStatus =
+typeTeamFeatureStatus :: Doc.DataType
+typeTeamFeatureStatus =
   Doc.string $
     Doc.enum
       [ "enabled",
         "disabled"
       ]
 
-instance ToJSON LegalHoldStatus where
-  toJSON LegalHoldEnabled = "enabled"
-  toJSON LegalHoldDisabled = "disabled"
+instance ToJSON TeamFeatureStatus where
+  toJSON status =
+    object
+      [ "status" .= case status of
+          TeamFeatureEnabled -> String "enabled"
+          TeamFeatureDisabled -> String "disabled"
+      ]
 
-instance FromJSON LegalHoldStatus where
-  parseJSON = withText "LegalHoldStatus" $ \case
-    "enabled" -> pure LegalHoldEnabled
-    "disabled" -> pure LegalHoldDisabled
-    x -> fail $ "unexpected status type: " <> T.unpack x
-
---------------------------------------------------------------------------------
--- SSOTeamConfig
-
-data SSOTeamConfig = SSOTeamConfig
-  { ssoTeamConfigStatus :: SSOStatus
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform SSOTeamConfig)
-
-modelSsoTeamConfig :: Doc.Model
-modelSsoTeamConfig = Doc.defineModel "SSOTeamConfig" $ do
-  Doc.description "Configuration of SSO feature for team"
-  Doc.property "status" typeFeatureStatus $ Doc.description "status"
-
-instance ToJSON SSOTeamConfig where
-  toJSON s =
-    object $
-      "status" .= ssoTeamConfigStatus s
-        # []
-
-instance FromJSON SSOTeamConfig where
-  parseJSON = withObject "SSOTeamConfig" $ \o ->
-    SSOTeamConfig <$> o .: "status"
-
-data SSOStatus = SSODisabled | SSOEnabled
-  deriving stock (Eq, Show, Ord, Enum, Bounded, Generic)
-  deriving (Arbitrary) via (GenericUniform SSOStatus)
-
--- also uses the modelFeatureStatus Swagger doc
-
-instance ToJSON SSOStatus where
-  toJSON SSOEnabled = "enabled"
-  toJSON SSODisabled = "disabled"
-
-instance FromJSON SSOStatus where
-  parseJSON = withText "SSOStatus" $ \case
-    "enabled" -> pure SSOEnabled
-    "disabled" -> pure SSODisabled
-    x -> fail $ "unexpected status type: " <> T.unpack x
+instance FromJSON TeamFeatureStatus where
+  parseJSON = withObject "TeamFeatureStatus" $ \o ->
+    o .: "status"
+      >>= \case
+        "enabled" -> pure TeamFeatureEnabled
+        "disabled" -> pure TeamFeatureDisabled
+        x -> fail $ "unexpected status type: " <> T.unpack x

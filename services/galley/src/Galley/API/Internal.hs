@@ -22,7 +22,6 @@ module Galley.API.Internal
   )
 where
 
-import Brig.Types.Team.LegalHold
 import qualified Cassandra as Cql
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding ((.=))
@@ -30,7 +29,7 @@ import Control.Monad.Catch (MonadCatch, throwM)
 import Data.Id
 import Data.IdMapping (MappedOrLocalId (Local), partitionMappedOrLocalIds)
 import Data.List.NonEmpty (nonEmpty)
-import Data.List1 (List1 (List1), list1)
+import Data.List1 (List1, list1, maybeList1)
 import Data.Range
 import Data.String.Conversions (cs)
 import qualified Galley.API.Clients as Clients
@@ -51,7 +50,6 @@ import Galley.Types.Bot (AddBot, RemoveBot)
 import Galley.Types.Bot.Service
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
-import Galley.Types.Teams.SSO
 import Galley.Types.Teams.SearchVisibility
 import Imports hiding (head)
 import Network.Wai
@@ -61,6 +59,7 @@ import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities
 import Network.Wai.Utilities.ZAuth
 import System.Logger.Class hiding (Path)
+import qualified Wire.API.Team.Feature as Public
 
 sitemap :: Routes a Galley ()
 sitemap = do
@@ -170,31 +169,15 @@ sitemap = do
   -- Enabling this should only be possible internally.
   -- Viewing the status should be allowed for any admin.
 
-  get "/i/teams/:tid/features/legalhold" (continue Teams.getLegalholdStatusInternalH) $
+  get "/i/teams/:tid/features/:feature" (continue Teams.getFeatureStatusInternalH) $
     capture "tid"
+      .&. capture "feature"
       .&. accept "application" "json"
 
-  put "/i/teams/:tid/features/legalhold" (continue Teams.setLegalholdStatusInternalH) $
+  put "/i/teams/:tid/features/:feature" (continue Teams.setFeatureStatusInternalH) $
     capture "tid"
-      .&. jsonRequest @LegalHoldTeamConfig
-      .&. accept "application" "json"
-
-  get "/i/teams/:tid/features/sso" (continue Teams.getSSOStatusInternalH) $
-    capture "tid"
-      .&. accept "application" "json"
-
-  put "/i/teams/:tid/features/sso" (continue Teams.setSSOStatusInternalH) $
-    capture "tid"
-      .&. jsonRequest @SSOTeamConfig
-      .&. accept "application" "json"
-
-  get "/i/teams/:tid/features/search-visibility" (continue Teams.getTeamSearchVisibilityAvailableInternalH) $
-    capture "tid"
-      .&. accept "application" "json"
-
-  put "/i/teams/:tid/features/search-visibility" (continue Teams.setTeamSearchVisibilityAvailableInternalH) $
-    capture "tid"
-      .&. jsonRequest @TeamSearchVisibilityAvailableView
+      .&. capture "feature"
+      .&. jsonRequest @Public.TeamFeatureStatus
       .&. accept "application" "json"
 
   -- Misc API (internal) ------------------------------------------------
@@ -299,7 +282,7 @@ rmUser user conn = do
                 . set Intra.pushRoute Intra.RouteDirect
           | otherwise -> return Nothing
       for_
-        (List1 <$> nonEmpty (catMaybes pp))
+        (maybeList1 (catMaybes pp))
         Intra.push
       unless (null $ Cql.result ids) $
         leaveConversations u =<< Cql.liftClient (Cql.nextPage ids)

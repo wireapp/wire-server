@@ -86,8 +86,14 @@ sitemap = do
   post "/i/users" (continue createUserNoVerifyH) $
     accept "application" "json"
       .&. jsonRequest @NewUser
-  put "/i/self/email" (continue changeSelfEmailNoSendH) $
+
+  -- internal email activation (used in tests and in spar for validating emails obtains as
+  -- SAML user identifiers).  if the validate query parameter is false or missing, only set
+  -- the activation timeout, but do not send an email, and do not do anything about activating
+  -- the email.
+  put "/i/self/email" (continue changeSelfEmailMaybeSendH) $
     zauthUserId
+      .&. def False (query "validate")
       .&. jsonRequest @EmailUpdate
 
   -- This endpoint will lead to the following events being sent:
@@ -288,19 +294,19 @@ deleteUserNoVerify uid = do
   void $ lift (API.lookupAccount uid) >>= ifNothing userNotFound
   lift $ API.deleteUserNoVerify uid
 
-changeSelfEmailNoSendH :: UserId ::: JsonRequest EmailUpdate -> Handler Response
-changeSelfEmailNoSendH (u ::: req) = do
+changeSelfEmailMaybeSendH :: UserId ::: Bool ::: JsonRequest EmailUpdate -> Handler Response
+changeSelfEmailMaybeSendH (u ::: validate ::: req) = do
   email <- euEmail <$> parseJsonBody req
-  changeSelfEmailNoSend u email >>= \case
+  changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email >>= \case
     ChangeEmailResponseIdempotent -> pure (setStatus status204 empty)
     ChangeEmailResponseNeedsActivation -> pure (setStatus status202 empty)
 
-data ChangeEmailResponse
-  = ChangeEmailResponseIdempotent
-  | ChangeEmailResponseNeedsActivation
+data MaybeSendEmail = ActuallySendEmail | DoNotSendEmail
 
-changeSelfEmailNoSend :: UserId -> Email -> Handler ChangeEmailResponse
-changeSelfEmailNoSend u email = do
+changeSelfEmailMaybeSend :: UserId -> MaybeSendEmail -> Email -> Handler ChangeEmailResponse
+changeSelfEmailMaybeSend u ActuallySendEmail email = do
+  API.changeSelfEmail u email
+changeSelfEmailMaybeSend u DoNotSendEmail email = do
   API.changeEmail u email !>> changeEmailError >>= \case
     ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
     ChangeEmailNeedsActivation _ -> pure ChangeEmailResponseNeedsActivation

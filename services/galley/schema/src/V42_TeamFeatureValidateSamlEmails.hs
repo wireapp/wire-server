@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -18,10 +15,15 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Types.Teams.SSO
-  ( SSOStatus (..),
-    SSOTeamConfig (..),
+module V42_TeamFeatureValidateSamlEmails
+  ( migration,
   )
 where
 
-import Wire.API.Team.Feature
+import Cassandra.Schema
+import Imports
+import Text.RawString.QQ
+
+migration :: Migration
+migration = Migration 42 "Add feature flag for validation of saml emails" $ do
+  schema' [r| ALTER TABLE team_features ADD validate_saml_emails int; |]

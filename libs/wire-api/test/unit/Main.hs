@@ -23,7 +23,8 @@ where
 import Imports
 import Test.Tasty
 import qualified Test.Wire.API.Call.TURN as Call.TURN
-import qualified Test.Wire.API.Roundtrip as Roundtrip
+import qualified Test.Wire.API.Roundtrip.Aeson as Roundtrip.Aeson
+import qualified Test.Wire.API.Roundtrip.ByteString as Roundtrip.ByteString
 import qualified Test.Wire.API.Team.Member as Team.Member
 import qualified Test.Wire.API.User as User
 import qualified Test.Wire.API.User.RichInfo as User.RichInfo
@@ -37,5 +38,6 @@ main =
         Team.Member.tests,
         User.tests,
         User.RichInfo.tests,
-        Roundtrip.tests
+        Roundtrip.Aeson.tests,
+        Roundtrip.ByteString.tests
       ]

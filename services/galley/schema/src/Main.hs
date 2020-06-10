@@ -44,6 +44,7 @@ import qualified V38_CreateTableBillingTeamMember
 import qualified V39
 import qualified V40_CreateTableDataMigration
 import qualified V41_TeamNotificationQueue
+import qualified V42_TeamFeatureValidateSamlEmails
 
 main :: IO ()
 main = do
@@ -73,7 +74,8 @@ main = do
       V38_CreateTableBillingTeamMember.migration,
       V39.migration,
       V40_CreateTableDataMigration.migration,
-      V41_TeamNotificationQueue.migration
+      V41_TeamNotificationQueue.migration,
+      V42_TeamFeatureValidateSamlEmails.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Galley.Data
     ]

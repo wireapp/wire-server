@@ -24,10 +24,6 @@ module Brig.Types.Team.LegalHold
     viewLegalHoldService,
     LegalHoldClientRequest (..),
 
-    -- * LegalHoldTeamConfig (re-export)
-    LegalHoldTeamConfig (..),
-    LegalHoldStatus (..),
-
     -- * Other (re-export)
     NewLegalHoldService (..),
     ViewLegalHoldService (..),
@@ -52,7 +48,6 @@ import Data.Id
 import Data.Json.Util
 import Data.Misc
 import Imports
-import Wire.API.Team.Feature (LegalHoldStatus (..), LegalHoldTeamConfig (..))
 import Wire.API.Team.LegalHold
 import Wire.API.Team.LegalHold.External (LegalHoldServiceConfirm (..), LegalHoldServiceRemove (..), NewLegalHoldClient (..), RequestNewLegalHoldClient (..))
 

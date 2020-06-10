@@ -19,8 +19,6 @@ module Galley.Types.Teams.SearchVisibility
   ( -- re-exports
     TeamSearchVisibility (..),
     TeamSearchVisibilityView (..),
-    TeamSearchVisibilityAvailable (..),
-    TeamSearchVisibilityAvailableView (..),
   )
 where
 

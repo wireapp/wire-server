@@ -1,3 +1,27 @@
+# 2020-06-10
+
+## Release Notes
+
+- schema migration for cassandra_galley
+- promote stern *after* galley
+- promote spar *after* brig
+- no need to upgrade nginz
+
+## New Features
+
+* Validate saml emails (#1113, #1122, #1129)
+
+## Documentation
+
+* Add a note about unused registration flow in docs (#1119)
+* Update cassandra-schema.cql (#1127)
+
+## Internal changes
+
+* Fix incomplete pattern in code checking email domain (custom extensions) (#1130)
+* Enable additional GHC warnings (#1131)
+* Cleanup export list; swagger names. (#1126)
+
 # 2020-06-03
 
 ## Release Notes
@@ -34,7 +58,7 @@
 ## New Features
 
 * Add tool to migrate data for galley (#1096)
-  This can be used in a more automated way than the backfill-billing-team-member. 
+  This can be used in a more automated way than the backfill-billing-team-member.
   It should be done as a step after deployment.
 
 ## Internal Changes

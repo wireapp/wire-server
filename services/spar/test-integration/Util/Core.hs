@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -152,7 +153,6 @@ import Data.UUID.V4 as UUID (nextRandom)
 import qualified Data.Yaml as Yaml
 import GHC.TypeLits
 import qualified Galley.Types.Teams as Galley
-import qualified Galley.Types.Teams.SSO as Galley
 import Imports hiding (head)
 import Network.HTTP.Client.MultipartFormData
 import qualified Network.Wai.Handler.Warp as Warp
@@ -185,6 +185,7 @@ import Util.Options
 import Util.Types
 import qualified Web.Cookie as Web
 import qualified Web.Scim.Class.User as ScimC.User
+import Wire.API.Team.Feature (TeamFeatureStatus (..))
 
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv
@@ -304,7 +305,7 @@ getUserBrig uid = do
 createUserWithTeam :: (HasCallStack, MonadHttp m, MonadIO m, MonadFail m) => BrigReq -> GalleyReq -> m (UserId, TeamId)
 createUserWithTeam brg gly = do
   (uid, tid) <- createUserWithTeamDisableSSO brg gly
-  putSSOEnabledInternal gly tid Galley.SSOEnabled
+  putSSOEnabledInternal gly tid TeamFeatureEnabled
   pure (uid, tid)
 
 createUserWithTeamDisableSSO :: (HasCallStack, MonadHttp m, MonadIO m, MonadFail m) => BrigReq -> GalleyReq -> m (UserId, TeamId)
@@ -337,12 +338,12 @@ getSSOEnabledInternal gly tid = do
     gly
       . paths ["i", "teams", toByteString' tid, "features", "sso"]
 
-putSSOEnabledInternal :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyReq -> TeamId -> Galley.SSOStatus -> m ()
+putSSOEnabledInternal :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyReq -> TeamId -> TeamFeatureStatus -> m ()
 putSSOEnabledInternal gly tid enabled = do
   void . put $
     gly
       . paths ["i", "teams", toByteString' tid, "features", "sso"]
-      . json (Galley.SSOTeamConfig enabled)
+      . json enabled
       . expect2xx
 
 -- | NB: this does create an SSO UserRef on brig, but not on spar.  this is inconsistent, but the
