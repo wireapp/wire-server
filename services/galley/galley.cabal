@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 68e5113c1088325ae314f68dcfe34cc49353b1500f48dff408c8a045cf8d94c6
+-- hash: 95344a909a53f5c4aedff6805c8679acf34708259b5949d1b5f580509e8f1d58
 
 name:           galley
 version:        0.83.0
@@ -190,8 +190,10 @@ executable galley-integration
       API.Roles
       API.SQS
       API.Teams
+      API.Teams.Feature
       API.Teams.LegalHold
       API.Util
+      API.Util.TeamFeature
       TestHelpers
       TestSetup
       Paths_galley
