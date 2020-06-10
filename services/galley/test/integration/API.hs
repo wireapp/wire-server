@@ -27,6 +27,7 @@ import qualified API.MessageTimer as MessageTimer
 import qualified API.Roles as Roles
 import API.SQS
 import qualified API.Teams as Teams
+import qualified API.Teams.Feature as TeamFeature
 import qualified API.Teams.LegalHold as Teams.LegalHold
 import API.Util
 import Bilge hiding (timeout)
@@ -67,7 +68,8 @@ tests s =
       Teams.tests s,
       MessageTimer.tests s,
       Roles.tests s,
-      CustomBackend.tests s
+      CustomBackend.tests s,
+      TeamFeature.tests s
     ]
   where
     mainTests =
