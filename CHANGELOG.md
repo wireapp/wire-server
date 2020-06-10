@@ -2,7 +2,10 @@
 
 ## Release Notes
 
-No extra steps needed during upgrade.
+- schema migration for cassandra_galley
+- promote stern *after* galley
+- promote spar *after* brig
+- no need to upgrade nginz
 
 ## New Features
 
