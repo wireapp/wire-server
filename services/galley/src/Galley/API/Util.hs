@@ -46,6 +46,7 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
+import qualified System.Logger.Class as Log
 import UnliftIO (concurrently)
 
 type JSON = Media "application" "json"
@@ -203,22 +204,23 @@ isMember u = isJust . find ((u ==) . memId)
 findMember :: Data.Conversation -> MappedOrLocalId Id.U -> Maybe Member
 findMember c u = find ((u ==) . memId) (Data.convMembers c)
 
-botsAndUsers :: Foldable t => t Member -> ([BotMember], [Member])
-botsAndUsers = foldMap fn
+botsAndUsers :: (Log.MonadLogger m, Traversable t) => t Member -> m ([BotMember], [Member])
+botsAndUsers = fmap fold . traverse botOrUser
   where
-    fn m = case memService m of
-      Just _ ->
-        -- TODO(mheinzel): log error!
+    botOrUser m = case memService m of
+      Just _ -> do
         -- we drop invalid bots here, which shouldn't happen
-        (toList (mkBotMember m), [])
+        bot <- mkBotMember m
+        pure (toList bot, [])
       Nothing ->
-        ([], [m])
-    mkBotMember :: Member -> Maybe BotMember
+        pure ([], [m])
+    mkBotMember :: Log.MonadLogger m => Member -> m (Maybe BotMember)
     mkBotMember m = case memId m of
-      Mapped _ ->
-        Nothing -- remote members can't be bots
+      Mapped _ -> do
+        Log.warn $ Log.msg @Text "Bot member with qualified user ID found, ignoring it."
+        pure Nothing -- remote members can't be bots for now
       Local localMemId ->
-        newBotMember (m {memId = localMemId} :: LocalMember)
+        pure $ newBotMember (m {memId = localMemId} :: LocalMember)
 
 location :: ToByteString a => a -> Response -> Response
 location = addHeader hLocation . toByteString'

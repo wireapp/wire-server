@@ -333,7 +333,7 @@ uncheckedDeleteTeam zusr zcon tid = do
       ([Push], [(BotMember, Conv.Event)]) ->
       Galley ([Push], [(BotMember, Conv.Event)])
     createConvDeleteEvents now teamMembs c (pp, ee) = do
-      (bots, convMembs) <- botsAndUsers <$> Data.members (c ^. conversationId)
+      (bots, convMembs) <- botsAndUsers =<< Data.members (c ^. conversationId)
       -- Only nonTeamMembers need to get any events, since on team deletion,
       -- all team users are deleted immediately after these events are sent
       -- and will thus never be able to see these events in practice.
@@ -617,7 +617,7 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
             pushEvent tmids edata now dc
     pushEvent :: Set (MappedOrLocalId Id.U) -> Conv.EventData -> UTCTime -> Data.Conversation -> Galley ()
     pushEvent exceptTo edata now dc = do
-      let (bots, users) = botsAndUsers (Data.convMembers dc)
+      (bots, users) <- botsAndUsers (Data.convMembers dc)
       let x = filter (\m -> not (Conv.memId m `Set.member` exceptTo)) users
       let y = Conv.Event Conv.MemberLeave (Data.convId dc) zusr now (Just edata)
       for_ (newPush (mems ^. teamMemberListType) zusr (ConvEvent y) (recipient <$> x)) $ \p ->
@@ -653,7 +653,7 @@ deleteTeamConversationH (zusr ::: zcon ::: tid ::: cid ::: _) = do
 
 deleteTeamConversation :: UserId -> ConnId -> TeamId -> ConvId -> Galley ()
 deleteTeamConversation zusr zcon tid cid = do
-  (bots, cmems) <- botsAndUsers <$> Data.members cid
+  (bots, cmems) <- botsAndUsers =<< Data.members cid
   ensureActionAllowed Roles.DeleteConversation =<< getSelfMember zusr cmems
   flip Data.deleteCode Data.ReusableCode =<< Data.mkKey cid
   now <- liftIO getCurrentTime
