@@ -519,6 +519,8 @@ conversationIdsForPagination usr start (fromRange -> max) =
     Just c -> paginate Cql.selectUserConvsFrom (paramsP Quorum (usr, c) max)
     Nothing -> paginate Cql.selectUserConvs (paramsP Quorum (Identity usr) max)
 
+-- TODO(mheinzel): do any consumers of this function only need the opaque ID?
+-- if so, should we create a separate function that can't fail on toMappedOrLocalId?
 conversationIdsOf :: MonadClient m => UserId -> Range 1 32 (List OpaqueConvId) -> m [MappedOrLocalId Id.C]
 conversationIdsOf usr (fromList . fromRange -> cids) =
   map toMappedOrLocalId <$> retry x1 (query Cql.selectUserConvsIn (params Quorum (usr, cids)))
@@ -696,7 +698,7 @@ toMappedOrLocalId = \case
   (Id localId, Nothing, Nothing) ->
     Local (Id localId)
   (Id localId, _, _) ->
-    -- TODO(mheinzel): this should be an error
+    -- TODO(mheinzel): return either, raise error
     Local (Id localId)
 
 fromMappedOrLocalId :: MappedOrLocalId a -> (Id (Opaque a), Maybe (Id (Remote a)), Maybe Domain)

@@ -208,7 +208,8 @@ botsAndUsers = foldMap fn
   where
     fn m = case memService m of
       Just _ ->
-        -- TODO(mheinzel): we drop invalid bots here, which shouldn't happen
+        -- TODO(mheinzel): log error!
+        -- we drop invalid bots here, which shouldn't happen
         (toList (mkBotMember m), [])
       Nothing ->
         ([], [m])
