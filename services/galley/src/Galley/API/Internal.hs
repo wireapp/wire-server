@@ -260,9 +260,10 @@ rmUser user conn = do
       mems <- Data.teamMembersForFanout tid
       uncheckedDeleteTeamMember user conn tid user mems
       leaveTeams =<< Cql.liftClient (Cql.nextPage tids)
-    leaveConversations :: List1 UserId -> Cql.Page (MappedOrLocalId Id.C) -> Galley ()
+    leaveConversations :: List1 UserId -> Cql.Page (Data.MappedOrLocalIdRow Id.C) -> Galley ()
     leaveConversations u ids = do
-      let (localConvIds, remoteConvIds) = partitionMappedOrLocalIds (Cql.result ids)
+      (localConvIds, remoteConvIds) <-
+        partitionMappedOrLocalIds <$> traverse Data.toMappedOrLocalId (Cql.result ids)
       -- FUTUREWORK(federation, #1275): leave remote conversations.
       -- If we could just get all conversation IDs at once and then leave conversations
       -- in batches, it would make everything much easier.

@@ -20,6 +20,7 @@
 module Galley.Data
   ( ResultSet,
     ResultSetType (..),
+    mkResultSet,
     resultSetType,
     resultSetResult,
     schemaVersion,
@@ -95,6 +96,8 @@ module Galley.Data
     -- * Utilities
     one2OneConvId,
     newMember,
+    MappedOrLocalIdRow,
+    toMappedOrLocalId,
 
     -- * Defaults
     defRole,
@@ -107,9 +110,10 @@ import Cassandra
 import Cassandra.Util
 import Control.Arrow (second)
 import Control.Lens hiding ((<|))
-import Control.Monad.Catch (MonadThrow)
+import Control.Monad.Catch (MonadThrow, throwM)
 import Data.Bifunctor (first)
 import Data.ByteString.Conversion hiding (parser)
+import Data.Coerce (coerce)
 import Data.Domain (Domain)
 import Data.Function (on)
 import Data.Id as Id
@@ -127,6 +131,7 @@ import qualified Data.Set as Set
 import Data.Time.Clock
 import qualified Data.UUID.Tagged as U
 import Data.UUID.V4 (nextRandom)
+import Galley.API.Error (internalError)
 import Galley.App
 import Galley.Data.Instances ()
 import qualified Galley.Data.Queries as Cql
@@ -156,22 +161,24 @@ import UnliftIO (async, mapConcurrently, wait)
 -- Thus, and since we don't want to expose the ResultSet constructor
 -- because it gives access to `nextPage`, we give accessors to the results
 -- and a more typed `hasMore` (ResultSetComplete | ResultSetTruncated)
-newtype ResultSet a = ResultSet {page :: Page a}
+data ResultSet a = ResultSet
+  { resultSetResult :: [a],
+    resultSetType :: ResultSetType
+  }
+  deriving stock (Show, Functor, Foldable, Traversable)
 
--- A more descriptive type than using a simple bool to represent `hasMore`
+-- | A more descriptive type than using a simple bool to represent `hasMore`
 data ResultSetType
   = ResultSetComplete
   | ResultSetTruncated
-  deriving (Eq)
+  deriving stock (Eq, Show)
 
-resultSetType :: ResultSet a -> ResultSetType
-resultSetType rs =
-  if hasMore (page rs)
-    then ResultSetTruncated
-    else ResultSetComplete
-
-resultSetResult :: ResultSet a -> [a]
-resultSetResult = result . page
+mkResultSet :: Page a -> ResultSet a
+mkResultSet page = ResultSet (result page) typ
+  where
+    typ
+      | hasMore page = ResultSetTruncated
+      | otherwise = ResultSetComplete
 
 schemaVersion :: Int32
 schemaVersion = 44
@@ -216,7 +223,7 @@ teamIdsOf usr (fromList . fromRange -> tids) =
 
 teamIdsFrom :: MonadClient m => UserId -> Maybe TeamId -> Range 1 100 Int32 -> m (ResultSet TeamId)
 teamIdsFrom usr range (fromRange -> max) =
-  ResultSet . fmap runIdentity . strip <$> case range of
+  mkResultSet . fmap runIdentity . strip <$> case range of
     Just c -> paginate Cql.selectUserTeamsFrom (paramsP Quorum (usr, c) (max + 1))
     Nothing -> paginate Cql.selectUserTeams (paramsP Quorum (Identity usr) (max + 1))
   where
@@ -338,7 +345,7 @@ createTeam t uid (fromRange -> n) (fromRange -> i) k b = do
     initialStatus Binding = PendingActive -- Team becomes Active after User account activation
     initialStatus NonBinding = Active
 
-deleteTeam :: MonadClient m => TeamId -> m ()
+deleteTeam :: (MonadClient m, Log.MonadLogger m, MonadThrow m) => TeamId -> m ()
 deleteTeam tid = do
   retry x5 $ write Cql.markTeamDeleted (params Quorum (PendingDelete, tid))
   mems <- teamMembersForPagination tid Nothing (unsafeRange 2000)
@@ -415,7 +422,7 @@ listBillingTeamMembers tid =
   fmap runIdentity
     <$> retry x1 (query Cql.listBillingTeamMembers (params Quorum (Identity tid)))
 
-removeTeamConv :: MonadClient m => TeamId -> ConvId -> m ()
+removeTeamConv :: (MonadClient m, Log.MonadLogger m, MonadThrow m) => TeamId -> ConvId -> m ()
 removeTeamConv tid cid = do
   retry x5 $ batch $ do
     setType BatchLogged
@@ -450,7 +457,7 @@ isConvAlive cid = do
     Just (Just False) -> pure True
 
 conversation ::
-  (MonadUnliftIO m, MonadClient m) =>
+  (MonadUnliftIO m, MonadClient m, Log.MonadLogger m, MonadThrow m) =>
   ConvId ->
   m (Maybe Conversation)
 conversation conv = do
@@ -460,7 +467,10 @@ conversation conv = do
 
 {- "Garbage collect" the conversation, i.e. the conversation may be
    marked as deleted, in which case we delete it and return Nothing -}
-conversationGC :: MonadClient m => (Maybe Conversation) -> m (Maybe Conversation)
+conversationGC ::
+  (MonadClient m, Log.MonadLogger m, MonadThrow m) =>
+  (Maybe Conversation) ->
+  m (Maybe Conversation)
 conversationGC conv = case join (convDeleted <$> conv) of
   (Just True) -> do
     sequence_ $ deleteConversation . convId <$> conv
@@ -505,25 +515,36 @@ conversationMeta conv =
   where
     toConvMeta (t, c, a, r, n, i, _, mt, rm) = ConversationMeta conv t c (defAccess t a) (maybeRole t r) n i mt rm
 
-conversationIdsFrom :: MonadClient m => UserId -> Maybe OpaqueConvId -> Range 1 1000 Int32 -> m (ResultSet (MappedOrLocalId Id.C))
+conversationIdsFrom ::
+  (MonadClient m, Log.MonadLogger m, MonadThrow m) =>
+  UserId ->
+  Maybe OpaqueConvId ->
+  Range 1 1000 Int32 ->
+  m (ResultSet (MappedOrLocalId Id.C))
 conversationIdsFrom usr start (fromRange -> max) =
-  ResultSet . fmap toMappedOrLocalId . strip <$> case start of
+  traverse toMappedOrLocalId . mkResultSet . strip =<< case start of
     Just c -> paginate Cql.selectUserConvsFrom (paramsP Quorum (usr, c) (max + 1))
     Nothing -> paginate Cql.selectUserConvs (paramsP Quorum (Identity usr) (max + 1))
   where
     strip p = p {result = take (fromIntegral max) (result p)}
 
-conversationIdsForPagination :: MonadClient m => UserId -> Maybe OpaqueConvId -> Range 1 1000 Int32 -> m (Page (MappedOrLocalId Id.C))
+-- | We can't easily apply toMappedOrLocalId here, so we leave it to the consumers of this function.
+conversationIdsForPagination :: MonadClient m => UserId -> Maybe OpaqueConvId -> Range 1 1000 Int32 -> m (Page (MappedOrLocalIdRow Id.C))
 conversationIdsForPagination usr start (fromRange -> max) =
-  fmap toMappedOrLocalId <$> case start of
+  case start of
     Just c -> paginate Cql.selectUserConvsFrom (paramsP Quorum (usr, c) max)
     Nothing -> paginate Cql.selectUserConvs (paramsP Quorum (Identity usr) max)
 
 -- TODO(mheinzel): do any consumers of this function only need the opaque ID?
 -- if so, should we create a separate function that can't fail on toMappedOrLocalId?
-conversationIdsOf :: MonadClient m => UserId -> Range 1 32 (List OpaqueConvId) -> m [MappedOrLocalId Id.C]
+conversationIdsOf ::
+  (MonadClient m, Log.MonadLogger m, MonadThrow m) =>
+  UserId ->
+  Range 1 32 (List OpaqueConvId) ->
+  m [MappedOrLocalId Id.C]
 conversationIdsOf usr (fromList . fromRange -> cids) =
-  map toMappedOrLocalId <$> retry x1 (query Cql.selectUserConvsIn (params Quorum (usr, cids)))
+  traverse toMappedOrLocalId
+    =<< retry x1 (query Cql.selectUserConvsIn (params Quorum (usr, cids)))
 
 createConversation ::
   MonadClient m =>
@@ -617,7 +638,7 @@ lookupReceiptMode cid = join . fmap runIdentity <$> retry x1 (query1 Cql.selectR
 updateConversationMessageTimer :: MonadClient m => ConvId -> Maybe Milliseconds -> m ()
 updateConversationMessageTimer cid mtimer = retry x5 $ write Cql.updateConvMessageTimer (params Quorum (mtimer, cid))
 
-deleteConversation :: MonadClient m => ConvId -> m ()
+deleteConversation :: (MonadClient m, Log.MonadLogger m, MonadThrow m) => ConvId -> m ()
 deleteConversation cid = do
   retry x5 $ write Cql.markConvDeleted (params Quorum (Identity cid))
   mm <- members cid
@@ -691,17 +712,26 @@ privateRole = PrivateAccessRole
 privateOnly :: Set Access
 privateOnly = Set [PrivateAccess]
 
-toMappedOrLocalId :: (Id (Opaque a), Maybe (Id (Remote a)), Maybe Domain) -> MappedOrLocalId a
-toMappedOrLocalId = \case
-  (Id mappedId, Just remoteId, Just domain) ->
-    Mapped (IdMapping (Id mappedId) (Qualified remoteId domain))
-  (Id localId, Nothing, Nothing) ->
-    Local (Id localId)
-  (Id localId, _, _) ->
-    -- TODO(mheinzel): return either, raise error
-    Local (Id localId)
+type MappedOrLocalIdRow a = (Id (Opaque a), Maybe (Id (Remote a)), Maybe Domain)
 
-fromMappedOrLocalId :: MappedOrLocalId a -> (Id (Opaque a), Maybe (Id (Remote a)), Maybe Domain)
+toMappedOrLocalId :: (Log.MonadLogger m, MonadThrow m) => MappedOrLocalIdRow a -> m (MappedOrLocalId a)
+toMappedOrLocalId = \case
+  (mappedId, Just remoteId, Just domain) ->
+    pure $ Mapped (IdMapping (coerce mappedId) (Qualified remoteId domain))
+  (localId, Nothing, Nothing) ->
+    pure $ Local (coerce localId)
+  invalid -> do
+    -- This should never happen as we always write rows with either both or none of these
+    -- values.
+    -- FUTUREWORK: we could try to recover from this situation by checking if an ID mapping
+    -- for this mapped ID exists (and potentially even repair the row). At the moment, the
+    -- problem seems unlikely enough not to warrant the complexity, though.
+    -- In some cases it could also be better not to fail, but skip this entry, e.g. when
+    -- deleting a user, we should remove him from all conversations we can, not stop halfway.
+    Log.err . Log.msg $ "Invalid remote ID in database row: " <> show invalid
+    throwM internalError
+
+fromMappedOrLocalId :: MappedOrLocalId a -> MappedOrLocalIdRow a
 fromMappedOrLocalId = \case
   Local localId ->
     (makeIdOpaque localId, Nothing, Nothing)
@@ -710,23 +740,32 @@ fromMappedOrLocalId = \case
 
 -- Conversation Members -----------------------------------------------------
 
-member :: MonadClient m => ConvId -> UserId -> m (Maybe Member)
-member cnv usr = (toMember =<<) <$> retry x1 (query1 Cql.selectMember (params Quorum (cnv, makeIdOpaque usr)))
+member ::
+  (MonadClient m, Log.MonadLogger m, MonadThrow m) =>
+  ConvId ->
+  UserId ->
+  m (Maybe Member)
+member cnv usr =
+  fmap (join @Maybe) . traverse toMember
+    =<< retry x1 (query1 Cql.selectMember (params Quorum (cnv, makeIdOpaque usr)))
 
-memberLists :: MonadClient m => [ConvId] -> m [[Member]]
+memberLists ::
+  (MonadClient m, Log.MonadLogger m, MonadThrow m) =>
+  [ConvId] ->
+  m [[Member]]
 memberLists convs = do
   mems <- retry x1 $ query Cql.selectMembers (params Quorum (Identity convs))
-  let m = foldr (insert . mkMem) Map.empty mems
-  return $ map (\i -> fromMaybe [] (Map.lookup i m)) convs
+  convMembers <- foldrM (\m acc -> liftA2 insert (mkMem m) (pure acc)) Map.empty mems
+  return $ map (\c -> fromMaybe [] (Map.lookup c convMembers)) convs
   where
     insert Nothing acc = acc
     insert (Just (conv, mem)) acc =
       let f = (Just . maybe [mem] (mem :))
        in Map.alter f conv acc
     mkMem (cnv, usr, usrRemoteId, usrRemoteDomain, srv, prv, st, omu, omus, omur, oar, oarr, hid, hidr, crn) =
-      (cnv,) <$> toMember (usr, usrRemoteId, usrRemoteDomain, srv, prv, st, omu, omus, omur, oar, oarr, hid, hidr, crn)
+      fmap (cnv,) <$> toMember (usr, usrRemoteId, usrRemoteDomain, srv, prv, st, omu, omus, omur, oar, oarr, hid, hidr, crn)
 
-members :: MonadClient m => ConvId -> m [Member]
+members :: (MonadClient m, Log.MonadLogger m, MonadThrow m) => ConvId -> m [Member]
 members conv = join <$> memberLists [conv]
 
 -- | Add a member to a local conversation, as an admin.
@@ -858,6 +897,7 @@ newMemberWithRole u r =
     }
 
 toMember ::
+  (Log.MonadLogger m, MonadThrow m) =>
   ( OpaqueUserId,
     Maybe RemoteUserId,
     Maybe Domain,
@@ -877,24 +917,25 @@ toMember ::
     -- conversation role name
     Maybe RoleName
   ) ->
-  Maybe Member
+  m (Maybe Member)
 toMember (usr, usrRemoteId, usrRemoteDomain, srv, prv, sta, omu, omus, omur, oar, oarr, hid, hidr, crn) =
-  if sta /= Just 0
-    then Nothing
-    else
-      Just $
-        Member
-          { memId = toMappedOrLocalId (usr, usrRemoteId, usrRemoteDomain),
-            memService = newServiceRef <$> srv <*> prv,
-            memOtrMuted = fromMaybe False omu,
-            memOtrMutedStatus = omus,
-            memOtrMutedRef = omur,
-            memOtrArchived = fromMaybe False oar,
-            memOtrArchivedRef = oarr,
-            memHidden = fromMaybe False hid,
-            memHiddenRef = hidr,
-            memConvRoleName = fromMaybe roleNameWireAdmin crn
-          }
+  toMappedOrLocalId (usr, usrRemoteId, usrRemoteDomain) <&> \memberId ->
+    if sta /= Just 0
+      then Nothing
+      else
+        Just $
+          Member
+            { memId = memberId,
+              memService = newServiceRef <$> srv <*> prv,
+              memOtrMuted = fromMaybe False omu,
+              memOtrMutedStatus = omus,
+              memOtrMutedRef = omur,
+              memOtrArchived = fromMaybe False oar,
+              memOtrArchivedRef = oarr,
+              memHidden = fromMaybe False hid,
+              memHiddenRef = hidr,
+              memConvRoleName = fromMaybe roleNameWireAdmin crn
+            }
 
 -- Clients ------------------------------------------------------------------
 
