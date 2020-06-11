@@ -92,10 +92,10 @@ getConversationIdsH (zusr ::: start ::: size ::: _) = do
 
 getConversationIds :: UserId -> Maybe OpaqueConvId -> Range 1 1000 Int32 -> Galley (Public.ConversationList OpaqueConvId)
 getConversationIds zusr start size = do
-  ids <- Data.conversationIdsFrom zusr start size
+  ids <- Data.conversationIdRowsFrom zusr start size
   pure $
     Public.ConversationList
-      (opaqueIdFromMappedOrLocal <$> Data.resultSetResult ids)
+      ((\(i, _, _) -> i) <$> Data.resultSetResult ids)
       (Data.resultSetType ids == Data.ResultSetTruncated)
 
 getConversationsH :: UserId ::: Maybe (Either (Range 1 32 (List OpaqueConvId)) OpaqueConvId) ::: Range 1 500 Int32 ::: JSON -> Galley Response

@@ -58,7 +58,8 @@ module Galley.Data
     acceptConnect,
     conversation,
     conversationIdsFrom,
-    conversationIdsForPagination,
+    conversationIdRowsFrom,
+    conversationIdRowsForPagination,
     conversationIdsOf,
     conversationMeta,
     conversations,
@@ -521,22 +522,29 @@ conversationIdsFrom ::
   Maybe OpaqueConvId ->
   Range 1 1000 Int32 ->
   m (ResultSet (MappedOrLocalId Id.C))
-conversationIdsFrom usr start (fromRange -> max) =
-  traverse toMappedOrLocalId . mkResultSet . strip =<< case start of
+conversationIdsFrom usr start max =
+  traverse toMappedOrLocalId =<< conversationIdRowsFrom usr start max
+
+conversationIdRowsFrom ::
+  (MonadClient m) =>
+  UserId ->
+  Maybe OpaqueConvId ->
+  Range 1 1000 Int32 ->
+  m (ResultSet (MappedOrLocalIdRow Id.C))
+conversationIdRowsFrom usr start (fromRange -> max) =
+  mkResultSet . strip <$> case start of
     Just c -> paginate Cql.selectUserConvsFrom (paramsP Quorum (usr, c) (max + 1))
     Nothing -> paginate Cql.selectUserConvs (paramsP Quorum (Identity usr) (max + 1))
   where
     strip p = p {result = take (fromIntegral max) (result p)}
 
 -- | We can't easily apply toMappedOrLocalId here, so we leave it to the consumers of this function.
-conversationIdsForPagination :: MonadClient m => UserId -> Maybe OpaqueConvId -> Range 1 1000 Int32 -> m (Page (MappedOrLocalIdRow Id.C))
-conversationIdsForPagination usr start (fromRange -> max) =
+conversationIdRowsForPagination :: MonadClient m => UserId -> Maybe OpaqueConvId -> Range 1 1000 Int32 -> m (Page (MappedOrLocalIdRow Id.C))
+conversationIdRowsForPagination usr start (fromRange -> max) =
   case start of
     Just c -> paginate Cql.selectUserConvsFrom (paramsP Quorum (usr, c) max)
     Nothing -> paginate Cql.selectUserConvs (paramsP Quorum (Identity usr) max)
 
--- TODO(mheinzel): do any consumers of this function only need the opaque ID?
--- if so, should we create a separate function that can't fail on toMappedOrLocalId?
 conversationIdsOf ::
   (MonadClient m, Log.MonadLogger m, MonadThrow m) =>
   UserId ->

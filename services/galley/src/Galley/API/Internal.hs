@@ -251,7 +251,7 @@ rmUser user conn = do
   let n = unsafeRange 100 :: Range 1 100 Int32
   tids <- Data.teamIdsForPagination user Nothing (rcast n)
   leaveTeams tids
-  cids <- Data.conversationIdsForPagination user Nothing (rcast n)
+  cids <- Data.conversationIdRowsForPagination user Nothing (rcast n)
   let u = list1 user []
   leaveConversations u cids
   Data.eraseClients user
