@@ -30,6 +30,7 @@ where
 
 import Control.Monad.Catch (throwM)
 import qualified Data.ByteString as BS
+import Data.Coerce (coerce)
 import Data.Domain (domainText)
 import qualified Data.Id as Id
 import Data.Id (Id (Id, toUUID), OpaqueConvId, OpaqueUserId, idToText)
@@ -100,8 +101,6 @@ ifFederationIsEnabled action =
 --------------------------------------------------------------------------------
 -- helpers
 
--- FUTUREWORK(federation, #1178): implement function to resolve IDs in batch
-
 resolveOpaqueUserId :: OpaqueUserId -> Galley (MappedOrLocalId Id.U)
 resolveOpaqueUserId = resolveOpaqueId
 
@@ -125,6 +124,29 @@ resolveOpaqueId opaqueId = do
   where
     assumedMappedId = Id (toUUID opaqueId) :: Id (Id.Mapped a)
     assumedLocalId = Id (toUUID opaqueId) :: Id a
+
+resolveOpaqueUserIdBatch :: [OpaqueUserId] -> Galley [MappedOrLocalId Id.U]
+resolveOpaqueUserIdBatch = resolveOpaqueIdBatch
+
+resolveOpaqueConvIdBatch :: [OpaqueConvId] -> Galley [MappedOrLocalId Id.C]
+resolveOpaqueConvIdBatch = resolveOpaqueIdBatch
+
+-- | It doesn't really matter which type of 'IdMapping' we create, as they will all be
+-- identical and can therefore be written to the same table.
+--
+-- We still don't want to expose this function directly and instead use specialized versions.
+resolveOpaqueIdBatch :: forall a. [Id (Id.Opaque a)] -> Galley [MappedOrLocalId a]
+resolveOpaqueIdBatch opaqueIds = do
+  isFederationEnabled >>= \case
+    False ->
+      -- don't check the ID mappings, just assume everything is local
+      pure $ (Local . coerce) <$> opaqueIds
+    True ->
+      _
+
+-- Data.getIdMapping assumedMappedId <&> \case
+-- Just idMapping -> Mapped idMapping
+-- Nothing -> Local assumedLocalId
 
 createUserIdMapping :: Qualified (Id (Id.Remote Id.U)) -> Galley (IdMapping Id.U)
 createUserIdMapping = createIdMapping

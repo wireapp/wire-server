@@ -40,6 +40,18 @@ getIdMapping mappedId = fmap toIdMapping <$> do
 
 -- | Only a single namespace/table is used for for potentially multiple different types of
 -- mapped IDs.
+getIdMappingBatch :: MonadClient m => [Id (Mapped a)] -> m [IdMapping a]
+getIdMappingBatch mappedId =
+
+
+fmap toIdMapping <$> do
+  retry x1 $ query1 Cql.selectIdMapping (params Quorum (Identity mappedId))
+  where
+    toIdMapping (remoteId, domain) =
+      IdMapping mappedId (Qualified remoteId domain)
+
+-- | Only a single namespace/table is used for for potentially multiple different types of
+-- mapped IDs.
 insertIdMapping :: MonadClient m => IdMapping a -> m ()
 insertIdMapping idMapping = do
   retry x5 $ write Cql.insertIdMapping (params Quorum (mappedId, remoteId, domain))
