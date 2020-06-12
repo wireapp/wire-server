@@ -76,9 +76,9 @@ lookupClient mappedOrLocalUserId clientId =
   case mappedOrLocalUserId of
     Local u ->
       lift $ lookupLocalClient u clientId
-    Mapped IdMapping {idMappingMappedId} ->
+    Mapped IdMapping {_imMappedId} ->
       -- FUTUREWORK(federation, #1271): look up remote clients
-      throwE $ ClientUserNotFound (makeMappedIdOpaque idMappingMappedId)
+      throwE $ ClientUserNotFound (makeMappedIdOpaque _imMappedId)
 
 lookupLocalClient :: UserId -> ClientId -> AppIO (Maybe Client)
 lookupLocalClient = Data.lookupClient
@@ -87,9 +87,9 @@ lookupClients :: MappedOrLocalId Id.U -> ExceptT ClientError AppIO [Client]
 lookupClients = \case
   Local u ->
     lift $ lookupLocalClients u
-  Mapped IdMapping {idMappingMappedId} ->
+  Mapped IdMapping {_imMappedId} ->
     -- FUTUREWORK(federation, #1271): look up remote clients
-    throwE $ ClientUserNotFound (makeMappedIdOpaque idMappingMappedId)
+    throwE $ ClientUserNotFound (makeMappedIdOpaque _imMappedId)
 
 lookupLocalClients :: UserId -> AppIO [Client]
 lookupLocalClients = Data.lookupClients
@@ -160,9 +160,9 @@ claimPrekeyBundle :: MappedOrLocalId Id.U -> AppIO PrekeyBundle
 claimPrekeyBundle = \case
   Local localUser ->
     claimLocalPrekeyBundle localUser
-  Mapped IdMapping {idMappingMappedId} ->
+  Mapped IdMapping {_imMappedId} ->
     -- FUTUREWORK(federation, #1272): claim keys from other backend
-    pure $ PrekeyBundle (makeMappedIdOpaque idMappingMappedId) []
+    pure $ PrekeyBundle (makeMappedIdOpaque _imMappedId) []
 
 claimLocalPrekeyBundle :: UserId -> AppIO PrekeyBundle
 claimLocalPrekeyBundle u = do

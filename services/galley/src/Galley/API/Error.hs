@@ -19,7 +19,7 @@ module Galley.API.Error where
 
 import Data.Domain (Domain, domainText)
 import Data.Id (Id, Mapped, Remote, idToText)
-import Data.IdMapping (IdMapping (idMappingMappedId, idMappingQualifiedId))
+import Data.IdMapping (IdMapping (_imMappedId, _imQualifiedId))
 import Data.List.NonEmpty (NonEmpty)
 import Data.Qualified (Qualified, renderQualifiedId)
 import Data.String.Conversions (cs)
@@ -260,4 +260,4 @@ federationNotImplemented' qualifiedIds =
 
 federationNotImplemented :: forall a. Typeable a => NonEmpty (IdMapping a) -> Error
 federationNotImplemented =
-  federationNotImplemented' . fmap (\i -> (Just (idMappingMappedId i), idMappingQualifiedId i))
+  federationNotImplemented' . fmap (\i -> (Just (_imMappedId i), _imQualifiedId i))
