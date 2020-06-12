@@ -48,7 +48,7 @@ import qualified Brig.User.Event.Log as Log
 import Control.Error
 import Control.Lens (view)
 import Data.Id as Id
-import Data.IdMapping (IdMapping (IdMapping, idMappingLocal), MappedOrLocalId (Local, Mapped))
+import Data.IdMapping (IdMapping (IdMapping, idMappingMappedId), MappedOrLocalId (Local, Mapped))
 import Data.Range
 import qualified Data.Set as Set
 import Galley.Types (ConvType (..), cnvType)
@@ -66,9 +66,9 @@ createConnection self req conn = do
   resolveOpaqueUserId (crUser req) >>= \case
     Local u ->
       createConnectionToLocalUser self u req conn
-    Mapped IdMapping {idMappingLocal} ->
+    Mapped IdMapping {idMappingMappedId} ->
       -- FUTUREWORK(federation, #1262): allow creating connections to remote users
-      throwE $ InvalidUser (makeMappedIdOpaque idMappingLocal)
+      throwE $ InvalidUser (makeMappedIdOpaque idMappingMappedId)
 
 createConnectionToLocalUser ::
   UserId ->

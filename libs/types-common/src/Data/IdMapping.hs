@@ -36,7 +36,7 @@ data MappedOrLocalId a
 opaqueIdFromMappedOrLocal :: MappedOrLocalId a -> Id (Opaque a)
 opaqueIdFromMappedOrLocal = \case
   Local localId -> makeIdOpaque localId
-  Mapped IdMapping {idMappingLocal} -> makeMappedIdOpaque idMappingLocal
+  Mapped IdMapping {idMappingMappedId} -> makeMappedIdOpaque idMappingMappedId
 
 partitionMappedOrLocalIds :: Foldable f => f (MappedOrLocalId a) -> ([Id a], [IdMapping a])
 partitionMappedOrLocalIds = foldMap $ \case
@@ -47,18 +47,18 @@ partitionMappedOrLocalIds = foldMap $ \case
 -- IdMapping
 
 data IdMapping a = IdMapping
-  { idMappingLocal :: Id (Mapped a),
-    idMappingGlobal :: Qualified (Id (Remote a))
+  { idMappingMappedId :: Id (Mapped a),
+    idMappingQualifiedId :: Qualified (Id (Remote a))
   }
   deriving stock (Eq, Ord, Show)
 
 -- Don't add a FromJSON instance!
 -- We don't want to just accept mappings we didn't create ourselves.
 instance ToJSON (IdMapping a) where
-  toJSON IdMapping {idMappingLocal, idMappingGlobal} =
+  toJSON IdMapping {idMappingMappedId, idMappingQualifiedId} =
     object
-      [ "mapped_id" .= idMappingLocal,
-        "global_id" .= idMappingGlobal
+      [ "mapped_id" .= idMappingMappedId,
+        "qualified_id" .= idMappingQualifiedId
       ]
 
 ----------------------------------------------------------------------

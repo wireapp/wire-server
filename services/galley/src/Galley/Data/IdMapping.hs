@@ -23,7 +23,7 @@ where
 
 import Cassandra (Consistency (Quorum), MonadClient, params, query1, retry, write, x1, x5)
 import Data.Id (Id, Mapped)
-import Data.IdMapping (IdMapping (IdMapping, idMappingGlobal, idMappingLocal))
+import Data.IdMapping (IdMapping (IdMapping, idMappingMappedId, idMappingQualifiedId))
 import Data.Qualified (Qualified (Qualified, _qDomain, _qLocalPart))
 import Galley.Data.Instances ()
 import qualified Galley.Data.Queries as Cql
@@ -44,6 +44,6 @@ insertIdMapping :: MonadClient m => IdMapping a -> m ()
 insertIdMapping idMapping = do
   retry x5 $ write Cql.insertIdMapping (params Quorum (mappedId, remoteId, domain))
   where
-    mappedId = idMappingLocal idMapping
-    remoteId = _qLocalPart (idMappingGlobal idMapping)
-    domain = _qDomain (idMappingGlobal idMapping)
+    mappedId = idMappingMappedId idMapping
+    remoteId = _qLocalPart (idMappingQualifiedId idMapping)
+    domain = _qDomain (idMappingQualifiedId idMapping)
