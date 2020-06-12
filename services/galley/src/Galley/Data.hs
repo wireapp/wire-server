@@ -129,10 +129,11 @@ import Data.Misc (Milliseconds)
 import Data.Qualified (Qualified (Qualified))
 import Data.Range
 import qualified Data.Set as Set
+import qualified Data.String.Conversions as Str.C (cs)
 import Data.Time.Clock
 import qualified Data.UUID.Tagged as U
 import Data.UUID.V4 (nextRandom)
-import Galley.API.Error (internalError)
+import Galley.API.Error (internalErrorWithDescription)
 import Galley.App
 import Galley.Data.Instances ()
 import qualified Galley.Data.Queries as Cql
@@ -148,7 +149,6 @@ import Galley.Validation
 import Imports hiding (Set, max)
 import System.Logger.Class (MonadLogger)
 import qualified System.Logger.Class as Log
-import System.Logger.Message ((+++), msg, val)
 import UnliftIO (async, mapConcurrently, wait)
 
 -- We use this newtype to highlight the fact that the 'Page' wrapped in here
@@ -495,7 +495,7 @@ conversations ids = do
       return $ map (`Map.lookup` m) ids
     flatten (i, c) cc = case c of
       Nothing -> do
-        Log.warn $ msg (val "No conversation for: " +++ toByteString i)
+        Log.warn $ Log.msg ("No conversation for: " <> toByteString i)
         return cc
       Just c' -> return (c' : cc)
 
@@ -736,8 +736,9 @@ toMappedOrLocalId = \case
     -- problem seems unlikely enough not to warrant the complexity, though.
     -- In some cases it could also be better not to fail, but skip this entry, e.g. when
     -- deleting a user, we should remove him from all conversations we can, not stop halfway.
-    Log.err . Log.msg $ "Invalid remote ID in database row: " <> show invalid
-    throwM internalError
+    let msg = "Invalid remote ID in database row: " <> show invalid
+    Log.err $ Log.msg msg
+    throwM $ internalErrorWithDescription (Str.C.cs msg)
 
 fromMappedOrLocalId :: MappedOrLocalId a -> MappedOrLocalIdRow a
 fromMappedOrLocalId = \case
