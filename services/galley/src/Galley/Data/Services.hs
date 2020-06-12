@@ -46,9 +46,12 @@ import Imports
 
 -- BotMember ------------------------------------------------------------------
 
-newtype BotMember = BotMember {fromBotMember :: Member}
+-- | For now we assume bots to always be local
+--
+-- FUTUREWORK(federation): allow remote bots
+newtype BotMember = BotMember {fromBotMember :: LocalMember}
 
-newBotMember :: Member -> Maybe BotMember
+newBotMember :: LocalMember -> Maybe BotMember
 newBotMember m = const (BotMember m) <$> memService m
 
 botMemId :: BotMember -> BotId
@@ -64,7 +67,7 @@ addBotMember orig s bot cnv now = do
   retry x5 $ batch $ do
     setType BatchLogged
     setConsistency Quorum
-    addPrepQuery insertUserConv (botUserId bot, cnv)
+    addPrepQuery insertUserConv (botUserId bot, makeIdOpaque cnv, Nothing, Nothing)
     addPrepQuery insertBot (cnv, bot, sid, pid)
   let e = Event MemberJoin cnv orig now (Just . EdMembersJoin . SimpleMembers $ (fmap toSimpleMember [botUserId bot]))
   let mem = (newMember (botUserId bot)) {memService = Just s}

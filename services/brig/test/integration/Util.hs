@@ -53,7 +53,6 @@ import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
-import Galley.Types (Member (..))
 import qualified Galley.Types.Teams as Team
 import Gundeck.Types.Notification
 import Imports
@@ -64,6 +63,7 @@ import Test.Tasty.Cannon
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import Util.AWS
+import Wire.API.Conversation.Member (Member (..))
 
 type Brig = Request -> Request
 
@@ -475,7 +475,7 @@ isMember g usr cnv = do
         . expect2xx
   case responseJsonMaybe res of
     Nothing -> return False
-    Just m -> return (usr == memId m)
+    Just m -> return (makeIdOpaque usr == memId m)
 
 getStatus :: HasCallStack => Brig -> UserId -> (MonadIO m, MonadHttp m) => m AccountStatus
 getStatus brig u =

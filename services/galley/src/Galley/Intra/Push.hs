@@ -54,9 +54,12 @@ import Control.Lens ((&), (.~), (^.), makeLenses, set, view)
 import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson (Object)
-import Data.Id
+import Data.Id (ConnId, UserId)
+import qualified Data.Id as Id
+import Data.IdMapping (IdMapping, MappedOrLocalId (Local, Mapped))
 import Data.Json.Util
 import Data.List.Extra (chunksOf)
+import Data.List.NonEmpty (nonEmpty)
 import Data.List1
 import Data.Misc
 import Data.Range
@@ -84,32 +87,38 @@ pushEventJson :: PushEvent -> Object
 pushEventJson (ConvEvent e) = toJSONObject e
 pushEventJson (TeamEvent e) = toJSONObject e
 
-data Recipient = Recipient
-  { _recipientUserId :: UserId,
+type Recipient = RecipientBy (MappedOrLocalId Id.U)
+
+data RecipientBy user = Recipient
+  { _recipientUserId :: user,
     _recipientClients :: RecipientClients
   }
+  deriving stock (Functor, Foldable, Traversable)
 
-makeLenses ''Recipient
+makeLenses ''RecipientBy
 
 recipient :: Member -> Recipient
-recipient m = Recipient (memId m) RecipientClientsAll
+recipient = userRecipient . memId
 
-userRecipient :: UserId -> Recipient
+userRecipient :: user -> RecipientBy user
 userRecipient u = Recipient u RecipientClientsAll
 
-data Push = Push
+type Push = PushTo (MappedOrLocalId Id.U)
+
+data PushTo user = Push
   { _pushConn :: Maybe ConnId,
     _pushTransient :: Bool,
     _pushRoute :: Gundeck.Route,
     _pushNativePriority :: Maybe Gundeck.Priority,
     _pushAsync :: Bool,
     pushOrigin :: UserId,
-    pushRecipients :: List1 Recipient,
+    pushRecipients :: List1 (RecipientBy user),
     pushJson :: Object,
     pushRecipientListType :: Teams.ListType
   }
+  deriving stock (Functor, Foldable, Traversable)
 
-makeLenses ''Push
+makeLenses ''PushTo
 
 newPush1 :: Teams.ListType -> UserId -> PushEvent -> List1 Recipient -> Push
 newPush1 recipientListType from e rr =
@@ -138,11 +147,34 @@ pushSome :: [Push] -> Galley ()
 pushSome [] = return ()
 pushSome (x : xs) = push (list1 x xs)
 
+push :: List1 Push -> Galley ()
+push ps = do
+  let (localPushes, remotePushes) = foldMap (bimap toList toList . splitPush) (toList ps)
+  traverse_ (pushLocal . List1) (nonEmpty localPushes)
+  traverse_ (pushRemote . List1) (nonEmpty remotePushes)
+  where
+    splitPush :: Push -> (Maybe (PushTo UserId), Maybe (PushTo (IdMapping Id.U)))
+    splitPush p =
+      (mkPushTo localRecipients p, mkPushTo remoteRecipients p)
+      where
+        (localRecipients, remoteRecipients) =
+          partitionEithers . fmap localOrRemoteRecipient . toList $ pushRecipients p
+    --
+    localOrRemoteRecipient :: RecipientBy (MappedOrLocalId Id.U) -> Either (RecipientBy UserId) (RecipientBy (IdMapping Id.U))
+    localOrRemoteRecipient rcp = case _recipientUserId rcp of
+      Local localId -> Left $ rcp {_recipientUserId = localId}
+      Mapped idMapping -> Right $ rcp {_recipientUserId = idMapping}
+    --
+    mkPushTo :: [RecipientBy a] -> PushTo b -> Maybe (PushTo a)
+    mkPushTo recipients p =
+      nonEmpty recipients <&> \nonEmptyRecipients ->
+        p {pushRecipients = List1 nonEmptyRecipients}
+
 -- | Asynchronously send multiple pushes, aggregating them into as
 -- few requests as possible, such that no single request targets
 -- more than 128 recipients.
-push :: List1 Push -> Galley ()
-push ps = do
+pushLocal :: List1 (PushTo UserId) -> Galley ()
+pushLocal ps = do
   limit <- fanoutLimit
   -- Do not fan out for very large teams
   let (async, sync) = partition _pushAsync (removeIfLargeFanout limit $ toList ps)
@@ -180,6 +212,12 @@ push ps = do
             (pushRecipientListType p == Teams.ListComplete)
               && (length (pushRecipients p) <= (fromIntegral $ fromRange limit))
         )
+
+-- instead of IdMapping, we could also just take qualified IDs
+pushRemote :: List1 (PushTo (IdMapping Id.U)) -> Galley ()
+pushRemote _ps = do
+  -- FUTUREWORK(federation, #1261): send these to the other backends
+  pure ()
 
 -----------------------------------------------------------------------------
 -- Helpers

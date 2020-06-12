@@ -46,7 +46,7 @@ import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
-import Galley.Types
+import Galley.Types hiding (InternalMember (..), Member)
 import Galley.Types.Conversations.Roles
 import qualified Galley.Types.Teams as Teams
 import Gundeck.Types.Notification
@@ -58,6 +58,7 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
+import Wire.API.Conversation.Member (Member (..))
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -873,7 +874,7 @@ postMembersOk2 = do
   postMembers bob (singleton chuck) conv !!! const 204 === statusCode
   chuck' <- responseJsonUnsafe <$> (getSelfMember chuck conv <!! const 200 === statusCode)
   liftIO $
-    assertEqual "wrong self member" (memId <$> chuck') (Just chuck)
+    assertEqual "wrong self member" (Just (makeIdOpaque chuck)) (memId <$> chuck')
 
 postMembersOk3 :: TestM ()
 postMembersOk3 = do
@@ -1013,7 +1014,7 @@ putMemberOk update = do
   -- Expected member state
   let memberBob =
         Member
-          { memId = bob,
+          { memId = makeIdOpaque bob,
             memService = Nothing,
             memOtrMuted = fromMaybe False (mupOtrMute update),
             memOtrMutedStatus = mupOtrMuteStatus update,
@@ -1146,13 +1147,13 @@ removeUser = do
   mems1 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv1
   mems2 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv2
   mems3 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv3
-  let other u = find ((== u) . omId) . cmOthers
+  let other u = find ((== makeIdOpaque u) . omId) . cmOthers
   liftIO $ do
     (mems1 >>= other bob) @?= Nothing
     (mems2 >>= other bob) @?= Nothing
-    (mems2 >>= other carl) @?= Just (OtherMember carl Nothing roleNameWireAdmin)
+    (mems2 >>= other carl) @?= Just (OtherMember (makeIdOpaque carl) Nothing roleNameWireAdmin)
     (mems3 >>= other bob) @?= Nothing
-    (mems3 >>= other carl) @?= Just (OtherMember carl Nothing roleNameWireAdmin)
+    (mems3 >>= other carl) @?= Just (OtherMember (makeIdOpaque carl) Nothing roleNameWireAdmin)
   where
     matchMemberLeave conv u n = do
       let e = List1.head (WS.unpackPayload n)

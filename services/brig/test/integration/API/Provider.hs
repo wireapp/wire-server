@@ -1938,12 +1938,12 @@ testMessageBotUtil uid uc cid pid sid sref buf brig galley cannon = do
   let Just bcnv = responseJsonMaybe _rs
   liftIO $ do
     assertEqual "id" cid (bcnv ^. Ext.botConvId)
-    assertEqual "members" [OtherMember uid Nothing roleNameWireAdmin] (bcnv ^. Ext.botConvMembers)
+    assertEqual "members" [OtherMember (makeIdOpaque uid) Nothing roleNameWireAdmin] (bcnv ^. Ext.botConvMembers)
   -- The user can identify the bot in the member list
   mems <- fmap cnvMembers . responseJsonError =<< getConversation galley uid cid
   let other = listToMaybe (cmOthers mems)
   liftIO $ do
-    assertEqual "id" (Just buid) (omId <$> other)
+    assertEqual "id" (Just (makeIdOpaque buid)) (omId <$> other)
     assertEqual "service" (Just sref) (omService =<< other)
   -- The bot greets the user
   WS.bracketR cannon uid $ \ws -> do

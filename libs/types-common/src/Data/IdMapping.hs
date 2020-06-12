@@ -27,7 +27,7 @@ import Test.QuickCheck (Arbitrary (arbitrary), oneof)
 data MappedOrLocalId a
   = Mapped (IdMapping a)
   | Local (Id a)
-  deriving (Show)
+  deriving stock (Eq, Ord, Show)
 
 opaqueIdFromMappedOrLocal :: MappedOrLocalId a -> Id (Opaque a)
 opaqueIdFromMappedOrLocal = \case
@@ -41,9 +41,9 @@ partitionMappedOrLocalIds = foldMap $ \case
 
 data IdMapping a = IdMapping
   { idMappingLocal :: Id (Mapped a),
-    idMappingGlobal :: Qualified (Id a)
+    idMappingGlobal :: Qualified (Id (Remote a))
   }
-  deriving (Show)
+  deriving stock (Eq, Ord, Show)
 
 ----------------------------------------------------------------------
 -- ARBITRARY
