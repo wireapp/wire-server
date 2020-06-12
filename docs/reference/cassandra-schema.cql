@@ -330,7 +330,7 @@ CREATE TABLE galley_test.legalhold_service (
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
 
-CREATE TABLE galley_test.uuid_mapping (
+CREATE TABLE galley_test.id_mapping (
     local_id uuid PRIMARY KEY,
     remote_domain text,
     remote_id uuid

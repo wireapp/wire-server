@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V45_AddFederationUUIDMapping
+module V45_AddFederationIdMapping
   ( migration,
   )
 where
@@ -28,7 +28,7 @@ migration :: Migration
 migration = Migration 45 "Add feature flag for validation of saml emails" $ do
   schema'
     [r|
-        CREATE TABLE uuid_mapping (
+        CREATE TABLE id_mapping (
             local_id uuid PRIMARY KEY,
             remote_id uuid,
             remote_domain text,
