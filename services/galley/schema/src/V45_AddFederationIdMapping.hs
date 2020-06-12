@@ -29,7 +29,7 @@ migration = Migration 45 "Add feature flag for validation of saml emails" $ do
   schema'
     [r|
         CREATE TABLE id_mapping (
-            local_id uuid PRIMARY KEY,
+            mapped_id uuid PRIMARY KEY,
             remote_id uuid,
             remote_domain text,
         ) WITH compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}

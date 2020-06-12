@@ -331,7 +331,7 @@ CREATE TABLE galley_test.legalhold_service (
     AND speculative_retry = '99PERCENTILE';
 
 CREATE TABLE galley_test.id_mapping (
-    local_id uuid PRIMARY KEY,
+    mapped_id uuid PRIMARY KEY,
     remote_domain text,
     remote_id uuid
 ) WITH bloom_filter_fp_chance = 0.1
