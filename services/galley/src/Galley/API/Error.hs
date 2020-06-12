@@ -18,8 +18,8 @@
 module Galley.API.Error where
 
 import Data.Domain (Domain, domainText)
-import Data.Id (Id, Mapped, Remote, idToText)
-import Data.IdMapping (IdMapping (_imMappedId, _imQualifiedId))
+import Data.Id (Id, Remote, idToText)
+import Data.IdMapping (IdMapping (IdMapping, _imMappedId, _imQualifiedId))
 import Data.List.NonEmpty (NonEmpty)
 import Data.Qualified (Qualified, renderQualifiedId)
 import Data.String.Conversions (cs)
@@ -242,22 +242,24 @@ invalidTeamNotificationId = Error status400 "invalid-notification-id" "Could not
 --------------------------------------------------------------------------------
 -- Federation
 
-federationNotImplemented' ::
-  forall a. Typeable a => NonEmpty (Maybe (Id (Mapped a)), Qualified (Id (Remote a))) -> Error
-federationNotImplemented' qualifiedIds =
+federationNotEnabled :: forall a. Typeable a => NonEmpty (Qualified (Id (Remote a))) -> Error
+federationNotEnabled qualifiedIds =
+  Error
+    status403
+    "federation-not-enabled"
+    ("Federation is not enabled, but remote qualified IDs (" <> idType <> ") were found: " <> rendered)
+  where
+    idType = cs (show (typeRep @a))
+    rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderQualifiedId) $ qualifiedIds
+
+federationNotImplemented :: forall a. Typeable a => NonEmpty (IdMapping a) -> Error
+federationNotImplemented qualifiedIds =
   Error
     status403
     "federation-not-implemented"
-    ("Federation is not implemented, but global qualified IDs (" <> idType <> ") found: " <> rendered)
+    ("Federation is not implemented, but ID mappings (" <> idType <> ") were found: " <> rendered)
   where
     idType = cs (show (typeRep @a))
     rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderMapping) $ qualifiedIds
-    renderMapping (mMapped, qualified) = case mMapped of
-      Nothing ->
-        renderQualifiedId qualified
-      Just mapped ->
-        idToText mapped <> " -> " <> renderQualifiedId qualified
-
-federationNotImplemented :: forall a. Typeable a => NonEmpty (IdMapping a) -> Error
-federationNotImplemented =
-  federationNotImplemented' . fmap (\i -> (Just (_imMappedId i), _imQualifiedId i))
+    renderMapping IdMapping {_imMappedId, _imQualifiedId} =
+      idToText _imMappedId <> " -> " <> renderQualifiedId _imQualifiedId

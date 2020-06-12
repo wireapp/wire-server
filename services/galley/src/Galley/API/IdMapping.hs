@@ -37,7 +37,7 @@ import Data.IdMapping (IdMapping (IdMapping, _imQualifiedId), MappedOrLocalId (L
 import Data.Qualified (Qualified (Qualified, _qDomain, _qLocalPart), renderQualifiedId)
 import qualified Data.Text.Encoding as Text.E
 import qualified Data.UUID.V5 as UUID.V5
-import Galley.API.Error (federationNotImplemented')
+import Galley.API.Error (federationNotEnabled)
 import Galley.API.Util (JSON, isFederationEnabled)
 import Galley.App (Galley, fromJsonBody)
 import qualified Galley.Data.IdMapping as Data (getIdMapping, insertIdMapping)
@@ -140,8 +140,7 @@ createIdMapping :: Typeable a => Qualified (Id (Id.Remote a)) -> Galley (IdMappi
 createIdMapping qualifiedId = do
   isFederationEnabled >>= \case
     False ->
-      -- TODO(mheinzel): different error "federation-not-enabled"?
-      throwM . federationNotImplemented' . pure $ (Nothing, qualifiedId)
+      throwM . federationNotEnabled $ pure qualifiedId
     True -> do
       -- This should be optimized for the common case that the mapping already exists.
       -- We have to compute the hash already just to check if there is an
