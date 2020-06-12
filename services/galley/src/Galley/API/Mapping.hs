@@ -22,7 +22,7 @@ module Galley.API.Mapping where
 import Control.Monad.Catch
 import Data.Id (idToText)
 import qualified Data.Id as Id
-import Data.IdMapping (IdMapping (IdMapping, idMappingGlobal, idMappingLocal), MappedOrLocalId (Local, Mapped), opaqueIdFromMappedOrLocal)
+import Data.IdMapping (IdMapping (IdMapping, _imMappedId, _imQualifiedId), MappedOrLocalId (Local, Mapped), opaqueIdFromMappedOrLocal)
 import qualified Data.List as List
 import Data.Qualified (renderQualifiedId)
 import Galley.App
@@ -60,8 +60,8 @@ conversationView u Data.Conversation {..} = do
     showUserId = \case
       Local localId ->
         idToText localId <> " (local)"
-      Mapped IdMapping {idMappingLocal, idMappingGlobal} ->
-        idToText idMappingLocal <> " (" <> renderQualifiedId idMappingGlobal <> ")"
+      Mapped IdMapping {_imMappedId, _imQualifiedId} ->
+        idToText _imMappedId <> " (" <> renderQualifiedId _imQualifiedId <> ")"
     badState = Error status500 "bad-state" "Bad internal member state."
 
 toMember :: Internal.Member -> Public.Member

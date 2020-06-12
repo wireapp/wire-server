@@ -465,7 +465,7 @@ addMembers zusr zcon cid invite = do
       mems <- botsAndUsers (Data.convMembers conv)
       self <- getSelfMember zusr (snd mems)
       ensureActionAllowed AddConversationMember self
-      invitedUsers <- traverse resolveOpaqueUserId (toList $ invUsers invite)
+      invitedUsers <- traverse IdMapping.resolveOpaqueUserId (toList $ invUsers invite)
       toAdd <- fromMemberSize <$> checkedMemberAddSize invitedUsers
       let newUsers = filter (notIsMember conv) (toList toAdd)
       ensureMemberLimit (toList $ Data.convMembers conv) newUsers
@@ -530,13 +530,12 @@ removeMemberH (zusr ::: zcon ::: cid ::: victim) = do
 
 removeMember :: UserId -> ConnId -> OpaqueConvId -> OpaqueUserId -> Galley UpdateResult
 removeMember zusr zcon cid opaqueVictim = do
-  resolveOpaqueConvId cid >>= \case
   IdMapping.resolveOpaqueConvId cid >>= \case
     Mapped idMapping ->
       -- FUTUREWORK(federation, #1274): forward request to conversation's backend.
       throwM . federationNotImplemented $ pure idMapping
     Local localConvId -> do
-      victim <- resolveOpaqueUserId opaqueVictim
+      victim <- IdMapping.resolveOpaqueUserId opaqueVictim
       removeMemberOfLocalConversation localConvId victim
   where
     removeMemberOfLocalConversation convId victim = do
