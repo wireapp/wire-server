@@ -32,9 +32,9 @@ import Control.Monad.Catch (throwM)
 import qualified Data.ByteString as BS
 import Data.Domain (domainText)
 import qualified Data.Id as Id
-import Data.Id (Id (Id, toUUID), OpaqueConvId, OpaqueUserId)
-import Data.IdMapping (IdMapping (IdMapping), MappedOrLocalId (Local, Mapped))
-import Data.Qualified (Qualified (Qualified, _qDomain, _qLocalPart))
+import Data.Id (Id (Id, toUUID), OpaqueConvId, OpaqueUserId, idToText)
+import Data.IdMapping (IdMapping (IdMapping, _imQualifiedId), MappedOrLocalId (Local, Mapped))
+import Data.Qualified (Qualified (Qualified, _qDomain, _qLocalPart), renderQualifiedId)
 import qualified Data.Text.Encoding as Text.E
 import qualified Data.UUID.V5 as UUID.V5
 import Galley.API.Error (federationNotImplemented')
@@ -48,6 +48,7 @@ import Network.HTTP.Types (forbidden403, notFound404)
 import Network.Wai (Response)
 import Network.Wai.Predicate ((:::) ((:::)))
 import Network.Wai.Utilities (JsonRequest, empty, json, setStatus)
+import qualified System.Logger.Class as Log
 
 --------------------------------------------------------------------------------
 -- endpoints
@@ -61,7 +62,6 @@ getIdMappingH (opaqueId ::: _) =
       Nothing -> empty & setStatus notFound404
       Just idMapping -> json idMapping
 
--- TODO(mheinzel): just return qualified ID?
 getIdMapping :: forall a. Id (Id.Opaque a) -> Galley (Maybe (IdMapping a))
 getIdMapping opaqueId = do
   Data.getIdMapping assumedMappedId
@@ -91,7 +91,6 @@ postIdMapping (PostIdMappingRequest qualifiedId) = do
 ifFederationIsEnabled :: Galley Response -> Galley Response
 ifFederationIsEnabled action =
   isFederationEnabled >>= \case
-    -- TODO(mheinzel): Is this right?
     -- This should only be called by Brig if federation is enabled there,
     -- so either there is some mis-configuration going on (Brig and Galley
     -- out of sync) or there is a bug.
@@ -120,7 +119,6 @@ resolveOpaqueId opaqueId = do
       -- don't check the ID mapping, just assume it's local
       pure $ Local assumedLocalId
     True ->
-      -- TODO(mheinzel): should we first check if the user/conv exists locally?
       Data.getIdMapping assumedMappedId <&> \case
         Just idMapping -> Mapped idMapping
         Nothing -> Local assumedLocalId
@@ -146,14 +144,18 @@ createIdMapping qualifiedId = do
       throwM . federationNotImplemented' . pure $ (Nothing, qualifiedId)
     True -> do
       -- This should be optimized for the common case that the mapping already exists.
-      -- Unfortunately, we have to compute the hash already just to check if there is an
+      -- We have to compute the hash already just to check if there is an
       -- existing mapping, since the mapped ID is the primary key.
       let mappedId = hashQualifiedId qualifiedId
       let idMapping = IdMapping mappedId qualifiedId
       Data.getIdMapping mappedId >>= \case
-        Just _ ->
-          -- TODO(mheinzel): assert that new and existing mapping are equal?
-          pure ()
+        Just existingMapping ->
+          when (_imQualifiedId existingMapping /= qualifiedId)
+            $ Log.err
+            $ Log.msg @Text "Conflict when creating IdMapping"
+              . Log.field "mapped_id" (idToText mappedId)
+              . Log.field "existing_qualified_id" (renderQualifiedId qualifiedId)
+              . Log.field "new_qualified_id" (renderQualifiedId (_imQualifiedId existingMapping))
         Nothing -> do
           Data.insertIdMapping idMapping
           Intra.createIdMappingInBrig (mkPostIdMappingRequest qualifiedId)
