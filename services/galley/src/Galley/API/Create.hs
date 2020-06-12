@@ -115,6 +115,9 @@ createTeamGroupConv zusr zcon tinfo body = do
     partitionMappedOrLocalIds <$> traverse IdMapping.resolveOpaqueUserId (newConvUsers body)
   -- for now, teams don't support conversations with remote members
   for_ (nonEmpty remoteUserIds) $
+    -- FUTUREWORK: If federation is disabled, we probably want to fail here
+    -- (but with a different error, `federationNotEnabled`).  When making such
+    -- a change, also apply it on other call sites of `federationNotImplemented`.
     throwM . federationNotImplemented
   name <- rangeCheckedMaybe (newConvName body)
   let convTeam = (cnvTeamId tinfo)
