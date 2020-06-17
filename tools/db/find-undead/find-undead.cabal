@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 464a28c74cdb7c3dbf949a3e4cba7e0dcd40626f117b3ebffa8c92e2bf913f71
+-- hash: f3ea09e1b515654dee71de77dde62a14c78830b80217803ef50d0f2d89871610
 
 name:           find-undead
 version:        1.0.0
@@ -40,6 +40,7 @@ executable find-undead
     , lens
     , optparse-applicative
     , text
+    , time
     , tinylog
     , types-common
     , unliftio

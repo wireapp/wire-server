@@ -32,6 +32,7 @@ dependencies:
 - types-common
 - unliftio
 - conduit
+- time
 executables:
   find-undead:
     main: Main.hs
