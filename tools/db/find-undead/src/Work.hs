@@ -23,6 +23,7 @@ module Work where
 
 import Brig.Types.Intra (AccountStatus (..))
 import Cassandra
+import Cassandra.Util (Writetime, writeTimeToUTC)
 import Conduit
 import Control.Lens (_1, _2, view)
 import Data.Aeson ((.:), FromJSON)
@@ -30,7 +31,6 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Conduit.List as C
 import qualified Data.Set as Set
 import qualified Data.Text as Text
-import Data.Time
 import Data.UUID
 import qualified Database.Bloodhound as ES
 import Imports
@@ -58,7 +58,7 @@ runCommand l cas es indexStr mappingStr = do
 logProgress :: MonadIO m => Logger -> [UUID] -> m ()
 logProgress l uuids = Log.info l $ Log.field "Progress" (show $ length uuids)
 
-logDifference :: Logger -> ([UUID], [(UUID, Maybe AccountStatus, Maybe UTCTime)]) -> ES.BH IO ()
+logDifference :: Logger -> ([UUID], [(UUID, Maybe AccountStatus, Maybe (Writetime ()))]) -> ES.BH IO ()
 logDifference l (uuidsFromES, fromCas) = do
   let noStatusUuidsFromCas = filter (isNothing . view _2) fromCas
       deletedUuidsFromCas = filter ((== Just Deleted) . view _2) fromCas
@@ -68,12 +68,12 @@ logDifference l (uuidsFromES, fromCas) = do
   mapM_ (logUUID l "Deleted") deletedUuidsFromCas
   mapM_ (logUUID l "Extra") extraFromCas
 
-logUUID :: MonadIO m => Logger -> ByteString -> (UUID, Maybe AccountStatus, Maybe UTCTime) -> m ()
+logUUID :: MonadIO m => Logger -> ByteString -> (UUID, Maybe AccountStatus, Maybe (Writetime ())) -> m ()
 logUUID l f (uuid, _, time) =
   Log.info l $
     Log.msg f
       . Log.field "uuid" (show uuid)
-      . Log.field "write time" (show time)
+      . Log.field "write time" (show $ writeTimeToUTC <$> time)
 
 getScrolled :: (ES.MonadBH m, MonadThrow m) => ES.IndexName -> ES.MappingName -> ConduitM () [UUID] m ()
 getScrolled index mapping = processRes =<< lift (ES.getInitialScroll index mapping esSearch)
@@ -105,10 +105,10 @@ extractHits = mapMaybe ES.hitSource . ES.hits . ES.searchHits
 extractScrollId :: MonadThrow m => ES.SearchResult a -> m ES.ScrollId
 extractScrollId res = maybe (throwM NoScrollId) pure (ES.scrollId res)
 
-usersInCassandra :: [UUID] -> Client [(UUID, Maybe AccountStatus, Maybe UTCTime)]
+usersInCassandra :: [UUID] -> Client [(UUID, Maybe AccountStatus, Maybe (Writetime ()))]
 usersInCassandra users = retry x1 $ query cql (params Quorum (Identity users))
   where
-    cql :: PrepQuery R (Identity [UUID]) (UUID, Maybe AccountStatus, Maybe UTCTime)
+    cql :: PrepQuery R (Identity [UUID]) (UUID, Maybe AccountStatus, Maybe (Writetime ()))
     cql = "SELECT id, status, writetime(status) from user where id in ?"
 
 newtype User = User {docId :: UUID}
