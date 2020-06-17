@@ -20,6 +20,7 @@ dependencies:
 - cassandra-util
 - containers
 - galley-types
+- brig-types
 - imports
 - optparse-applicative
 - bloodhound

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: dc0556b5dffad5d38b4daf2883000f4e575f6d140efe49650cca523bcdafb1e5
+-- hash: 464a28c74cdb7c3dbf949a3e4cba7e0dcd40626f117b3ebffa8c92e2bf913f71
 
 name:           find-undead
 version:        1.0.0
@@ -30,6 +30,7 @@ executable find-undead
       aeson
     , base
     , bloodhound
+    , brig-types
     , cassandra-util
     , conduit
     , containers

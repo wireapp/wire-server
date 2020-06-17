@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -20,6 +21,7 @@
 
 module Work where
 
+import Brig.Types.Intra (AccountStatus (..))
 import Cassandra
 import Conduit
 import Data.Aeson ((.:), FromJSON)
@@ -48,27 +50,23 @@ runCommand l cas es indexStr mappingStr = do
         )
       .| C.mapM_ (logDifference l)
 
-pageSize :: Int32
-pageSize = 1000
-
 ----------------------------------------------------------------------------
 -- Queries
 
 logProgress :: MonadIO m => Logger -> [UUID] -> m ()
 logProgress l uuids = Log.info l $ Log.field "Progress" (show $ length uuids)
 
-logDifference :: Logger -> ([UUID], [(UUID, Maybe Name)]) -> ES.BH IO ()
+logDifference :: Logger -> ([UUID], [(UUID, Maybe AccountStatus)]) -> ES.BH IO ()
 logDifference l (uuidsFromES, fromCas) = do
-  let unnamedUuidsFromCas = map fst $ filter (isNothing . snd) fromCas
+  let noStatusUuidsFromCas = map fst $ filter (isNothing . snd) fromCas
+      deletedUuidsFromCas = map fst $ filter ((== Just Deleted) . snd) fromCas
       allUuidsFromCas = map fst fromCas
-  mapM_ (logUnnamed l) unnamedUuidsFromCas
-  mapM_ (logExtra l) $ Set.difference (Set.fromList uuidsFromES) (Set.fromList allUuidsFromCas)
+  mapM_ (logUUID l "NoStatus") noStatusUuidsFromCas
+  mapM_ (logUUID l "Deleted") deletedUuidsFromCas
+  mapM_ (logUUID l "Extra") $ Set.difference (Set.fromList uuidsFromES) (Set.fromList allUuidsFromCas)
 
-logUnnamed :: MonadIO m => Logger -> UUID -> m ()
-logUnnamed l uuid = Log.info l $ Log.field "Unnamed" (show uuid)
-
-logExtra :: MonadIO m => Logger -> UUID -> m ()
-logExtra l uuid = Log.info l $ Log.field "Extra" (show uuid)
+logUUID :: MonadIO m => Logger -> ByteString -> UUID -> m ()
+logUUID l f uuid = Log.info l $ Log.field f (show uuid)
 
 getScrolled :: (ES.MonadBH m, MonadThrow m) => ES.IndexName -> ES.MappingName -> ConduitM () [UUID] m ()
 getScrolled index mapping = processRes =<< lift (ES.getInitialScroll index mapping esSearch)
@@ -76,7 +74,7 @@ getScrolled index mapping = processRes =<< lift (ES.getInitialScroll index mappi
     processRes :: (ES.MonadBH m, MonadThrow m) => Either ES.EsError (ES.SearchResult User) -> ConduitM () [UUID] m ()
     processRes = \case
       Left e -> throwM $ EsError e
-      Right res -> do
+      Right res ->
         case map docId $ extractHits res of
           [] -> pure ()
           ids -> do
@@ -89,7 +87,7 @@ esFilter :: ES.Filter
 esFilter = ES.Filter $ ES.QueryExistsQuery (ES.FieldName "normalized")
 
 esSearch :: ES.Search
-esSearch = (ES.mkSearch Nothing (Just esFilter)) {ES.size = ES.Size 1000}
+esSearch = (ES.mkSearch Nothing (Just esFilter)) {ES.size = ES.Size 10000}
 
 extractHits :: ES.SearchResult User -> [User]
 extractHits = mapMaybe ES.hitSource . ES.hits . ES.searchHits
@@ -97,11 +95,11 @@ extractHits = mapMaybe ES.hitSource . ES.hits . ES.searchHits
 extractScrollId :: MonadThrow m => ES.SearchResult a -> m ES.ScrollId
 extractScrollId res = maybe (throwM NoScrollId) pure (ES.scrollId res)
 
-usersInCassandra :: [UUID] -> Client [(UUID, Maybe Name)]
+usersInCassandra :: [UUID] -> Client [(UUID, Maybe AccountStatus)]
 usersInCassandra users = retry x1 $ query cql (params Quorum (Identity users))
   where
-    cql :: PrepQuery R (Identity [UUID]) (UUID, Maybe Name)
-    cql = "SELECT id, name from user where id in ?"
+    cql :: PrepQuery R (Identity [UUID]) (UUID, Maybe AccountStatus)
+    cql = "SELECT id, status from user where id in ?"
 
 newtype User = User {docId :: UUID}
 
@@ -116,3 +114,19 @@ data WorkError
 instance Exception WorkError
 
 type Name = Text
+
+instance Cql AccountStatus where
+  ctype = Tagged IntColumn
+
+  toCql Active = CqlInt 0
+  toCql Suspended = CqlInt 1
+  toCql Deleted = CqlInt 2
+  toCql Ephemeral = CqlInt 3
+
+  fromCql (CqlInt i) = case i of
+    0 -> return Active
+    1 -> return Suspended
+    2 -> return Deleted
+    3 -> return Ephemeral
+    n -> fail $ "unexpected account status: " ++ show n
+  fromCql _ = fail "account status: int expected"
