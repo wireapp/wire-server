@@ -24,11 +24,13 @@ module Work where
 import Brig.Types.Intra (AccountStatus (..))
 import Cassandra
 import Conduit
+import Control.Lens (_1, _2, view)
 import Data.Aeson ((.:), FromJSON)
 import qualified Data.Aeson as Aeson
 import qualified Data.Conduit.List as C
 import qualified Data.Set as Set
 import qualified Data.Text as Text
+import Data.Time
 import Data.UUID
 import qualified Database.Bloodhound as ES
 import Imports
@@ -56,17 +58,22 @@ runCommand l cas es indexStr mappingStr = do
 logProgress :: MonadIO m => Logger -> [UUID] -> m ()
 logProgress l uuids = Log.info l $ Log.field "Progress" (show $ length uuids)
 
-logDifference :: Logger -> ([UUID], [(UUID, Maybe AccountStatus)]) -> ES.BH IO ()
+logDifference :: Logger -> ([UUID], [(UUID, Maybe AccountStatus, Maybe UTCTime)]) -> ES.BH IO ()
 logDifference l (uuidsFromES, fromCas) = do
-  let noStatusUuidsFromCas = map fst $ filter (isNothing . snd) fromCas
-      deletedUuidsFromCas = map fst $ filter ((== Just Deleted) . snd) fromCas
-      allUuidsFromCas = map fst fromCas
+  let noStatusUuidsFromCas = filter (isNothing . view _2) fromCas
+      deletedUuidsFromCas = filter ((== Just Deleted) . view _2) fromCas
+      extraUuids = Set.difference (Set.fromList uuidsFromES) (Set.fromList $ map (view _1) fromCas)
+      extraFromCas = filter (\(u, _, _) -> u `Set.member` extraUuids) fromCas
   mapM_ (logUUID l "NoStatus") noStatusUuidsFromCas
   mapM_ (logUUID l "Deleted") deletedUuidsFromCas
-  mapM_ (logUUID l "Extra") $ Set.difference (Set.fromList uuidsFromES) (Set.fromList allUuidsFromCas)
+  mapM_ (logUUID l "Extra") extraFromCas
 
-logUUID :: MonadIO m => Logger -> ByteString -> UUID -> m ()
-logUUID l f uuid = Log.info l $ Log.field f (show uuid)
+logUUID :: MonadIO m => Logger -> ByteString -> (UUID, Maybe AccountStatus, Maybe UTCTime) -> m ()
+logUUID l f (uuid, _, time) =
+  Log.info l $
+    Log.msg f
+      . Log.field "uuid" (show uuid)
+      . Log.field "write time" (show time)
 
 getScrolled :: (ES.MonadBH m, MonadThrow m) => ES.IndexName -> ES.MappingName -> ConduitM () [UUID] m ()
 getScrolled index mapping = processRes =<< lift (ES.getInitialScroll index mapping esSearch)
@@ -86,8 +93,11 @@ getScrolled index mapping = processRes =<< lift (ES.getInitialScroll index mappi
 esFilter :: ES.Filter
 esFilter = ES.Filter $ ES.QueryExistsQuery (ES.FieldName "normalized")
 
+chunkSize :: Int
+chunkSize = 10000
+
 esSearch :: ES.Search
-esSearch = (ES.mkSearch Nothing (Just esFilter)) {ES.size = ES.Size 10000}
+esSearch = (ES.mkSearch Nothing (Just esFilter)) {ES.size = ES.Size chunkSize}
 
 extractHits :: ES.SearchResult User -> [User]
 extractHits = mapMaybe ES.hitSource . ES.hits . ES.searchHits
@@ -95,11 +105,11 @@ extractHits = mapMaybe ES.hitSource . ES.hits . ES.searchHits
 extractScrollId :: MonadThrow m => ES.SearchResult a -> m ES.ScrollId
 extractScrollId res = maybe (throwM NoScrollId) pure (ES.scrollId res)
 
-usersInCassandra :: [UUID] -> Client [(UUID, Maybe AccountStatus)]
+usersInCassandra :: [UUID] -> Client [(UUID, Maybe AccountStatus, Maybe UTCTime)]
 usersInCassandra users = retry x1 $ query cql (params Quorum (Identity users))
   where
-    cql :: PrepQuery R (Identity [UUID]) (UUID, Maybe AccountStatus)
-    cql = "SELECT id, status from user where id in ?"
+    cql :: PrepQuery R (Identity [UUID]) (UUID, Maybe AccountStatus, Maybe UTCTime)
+    cql = "SELECT id, status, writetime(status) from user where id in ?"
 
 newtype User = User {docId :: UUID}
 
