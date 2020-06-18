@@ -54,6 +54,7 @@ import Data.Time.Clock
 import qualified Data.UUID.V4 as UUID
 import qualified Data.ZAuth.Token as ZAuth
 import Imports
+import Network.HTTP.Client (equivCookie)
 import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -603,7 +604,8 @@ testNewPersistentCookie config b = do
     const 200 === statusCode
     const Nothing =/= getHeader "Set-Cookie"
     const (Just "access_token") =~= responseBody
-  liftIO $ assertEqual "cookie" c' (decodeCookie _rs)
+  -- we got a new cookie value, but the key is the same
+  liftIO $ assertBool "cookie" (c' `equivCookie` decodeCookie _rs)
   -- Refresh with the new cookie should succeed
   -- (without advertising yet another new cookie).
   post (b . path "/access" . cookie c') !!! do
