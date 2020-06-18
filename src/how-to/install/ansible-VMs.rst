@@ -188,6 +188,12 @@ ElasticSearch
 Minio
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Minio is used for asset storage, in the case that you are not
+running on AWS infrastructure, or feel uncomfortable storing assets
+in S3 in encrypted form. If you are using S3 instead of Minio, skip
+this step.
+
+
 -  In your 'hosts.ini' file, in the ``[all:vars]`` section, make sure
    you set the 'minio_network_interface' to the name of the interface
    you want minio nodes to talk to each other on. The default from the
@@ -253,6 +259,11 @@ Restund
 (see
 `defaults/main.yml <https://github.com/wireapp/ansible-restund/blob/master/defaults/main.yml>`__
 for a full list of variables to change if necessary)
+
+- Place a copy of the PEM formatted certificate and key you are going
+  to use for TLS communication to the restund server in
+  ``/tmp/tls_cert_and_priv_key.pem``. Remove it after you have
+  completed deploying restund with ansible.
 
 Install restund:
 
