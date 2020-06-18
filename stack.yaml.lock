@@ -316,35 +316,35 @@ packages:
 - completed:
     subdir: http-client
     cabal-file:
-      size: 5320
-      sha256: 940ca1c45282ef0b18ff9e535b086c4a422f3ebc8372183c1a9432b0f38f1a15
+      size: 5350
+      sha256: 868faa3479fa330ac6eb897e6888296a32f10a249d2d91ece5ab2add9f0c24d4
     name: http-client
-    version: 0.6.4
+    version: 0.7.0
     git: https://github.com/wireapp/http-client
     pantry-tree:
-      size: 3127
-      sha256: fc8c48d7bdccaf2f761f3c6216f6a592ba4424735c9a8544cc13fae9e48a563e
-    commit: a160cef95d9daaff7d9cfe616d95754c2f8202bf
+      size: 3129
+      sha256: 355d13d4b018ab32ad3ba1b88d8d183c4f673efb3a8109d3b0260776b2473ec0
+    commit: 9100baeddbd15d93dc58a826ae812dafff29d5fd
   original:
     subdir: http-client
     git: https://github.com/wireapp/http-client
-    commit: a160cef95d9daaff7d9cfe616d95754c2f8202bf
+    commit: 9100baeddbd15d93dc58a826ae812dafff29d5fd
 - completed:
     subdir: http-client-openssl
     cabal-file:
       size: 1494
-      sha256: 36a5a54e4c7effe1e67310d9fc932e6a9d92a3d865ceb29ae38816d8335ae3bc
+      sha256: 423d74b93d5b2a79991340da8d2cd8fccd496fb470483bad8c73857200509e4e
     name: http-client-openssl
-    version: 0.3.0.0
+    version: 0.3.1.0
     git: https://github.com/wireapp/http-client
     pantry-tree:
       size: 387
-      sha256: 0f1784da10763596a76d3bc8a6c5ab86fab24a120de5faa6b6d0db78209a8d1e
-    commit: a160cef95d9daaff7d9cfe616d95754c2f8202bf
+      sha256: c9265105d25badaa471e8d3d0eb493ebcba3ce17b4d430d2db70b6a0a4f90821
+    commit: 9100baeddbd15d93dc58a826ae812dafff29d5fd
   original:
     subdir: http-client-openssl
     git: https://github.com/wireapp/http-client
-    commit: a160cef95d9daaff7d9cfe616d95754c2f8202bf
+    commit: 9100baeddbd15d93dc58a826ae812dafff29d5fd
 - completed:
     subdir: http-client-tls
     cabal-file:
@@ -356,27 +356,27 @@ packages:
     pantry-tree:
       size: 435
       sha256: 13722b74ba7edde9163e5c194af168fc98c4dc419c37fd42fada45f5a89d2042
-    commit: a160cef95d9daaff7d9cfe616d95754c2f8202bf
+    commit: 9100baeddbd15d93dc58a826ae812dafff29d5fd
   original:
     subdir: http-client-tls
     git: https://github.com/wireapp/http-client
-    commit: a160cef95d9daaff7d9cfe616d95754c2f8202bf
+    commit: 9100baeddbd15d93dc58a826ae812dafff29d5fd
 - completed:
     subdir: http-conduit
     cabal-file:
       size: 2910
-      sha256: 22d6108caaf4a661a822462e53e18915b229a9dc75f397a29df666dc9e92e903
+      sha256: 4e0024c25cb1a6c5a20b687201c78a7a2c781a582f669d0f88125d113e65c326
     name: http-conduit
     version: 2.3.7.3
     git: https://github.com/wireapp/http-client
     pantry-tree:
       size: 1074
-      sha256: 03b9ae4a6d67b5fd875f2c898e04fb45d71db92a954180d906c896312fe6dfb9
-    commit: a160cef95d9daaff7d9cfe616d95754c2f8202bf
+      sha256: ec54f41b6997eabc01aa5e65a584bf37a39efb57a9eaad8f1e8005137f32c625
+    commit: 9100baeddbd15d93dc58a826ae812dafff29d5fd
   original:
     subdir: http-conduit
     git: https://github.com/wireapp/http-client
-    commit: a160cef95d9daaff7d9cfe616d95754c2f8202bf
+    commit: 9100baeddbd15d93dc58a826ae812dafff29d5fd
 - completed:
     hackage: template-0.2.0.10@sha256:f822de4d34c45bc84b33a61bc112c15fedee6fa6dc414c62b10456395a868f85,987
     pantry-tree:

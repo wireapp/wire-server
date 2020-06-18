@@ -133,7 +133,7 @@ extra-deps:
   commit: fe08618e81dee9b7a25f10f5b9d26d1ff1837c79    # master (Mar 25, 2020)
 
 - git: https://github.com/wireapp/http-client
-  commit: a160cef95d9daaff7d9cfe616d95754c2f8202bf    # master (Feb 4, 2020)
+  commit: 9100baeddbd15d93dc58a826ae812dafff29d5fd    # master (Jun 16, 2020)
   subdirs:
   - http-client
   - http-client-openssl

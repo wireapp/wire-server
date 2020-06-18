@@ -615,7 +615,7 @@ endpointToURL endpoint urlpath = either err pure url
 
 shouldRespondWith ::
   forall a.
-  (HasCallStack, Show a, Eq a) =>
+  (HasCallStack, Show a) =>
   Http a ->
   (a -> Bool) ->
   TestSpar ()
