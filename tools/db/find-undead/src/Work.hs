@@ -63,10 +63,9 @@ logDifference l (uuidsFromES, fromCas) = do
   let noStatusUuidsFromCas = filter (isNothing . view _2) fromCas
       deletedUuidsFromCas = filter ((== Just Deleted) . view _2) fromCas
       extraUuids = Set.difference (Set.fromList uuidsFromES) (Set.fromList $ map (view _1) fromCas)
-      extraFromCas = filter (\(u, _, _) -> u `Set.member` extraUuids) fromCas
   mapM_ (logUUID l "NoStatus") noStatusUuidsFromCas
   mapM_ (logUUID l "Deleted") deletedUuidsFromCas
-  mapM_ (logUUID l "Extra") extraFromCas
+  mapM_ (logUUID l "Extra" . (,Nothing,Nothing)) extraUuids
 
 logUUID :: MonadIO m => Logger -> ByteString -> (UUID, Maybe AccountStatus, Maybe (Writetime ())) -> m ()
 logUUID l f (uuid, _, time) =
