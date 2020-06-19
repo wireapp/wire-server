@@ -124,6 +124,8 @@ instance Exception WorkError
 
 type Name = Text
 
+-- FUTUREWORK: you can avoid this by loading brig-the-service as a library:
+-- @"services/brig/src/Brig/Data/Instances.hs:165:instance Cql AccountStatus where"@
 instance Cql AccountStatus where
   ctype = Tagged IntColumn
 
