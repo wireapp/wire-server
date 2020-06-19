@@ -38,6 +38,7 @@ packages:
 - tools/db/migrate-sso-feature-flag
 - tools/db/service-backfill
 - tools/db/billing-team-member-backfill
+- tools/db/find-undead
 - tools/makedeb
 - tools/stern
 

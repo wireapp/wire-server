@@ -112,6 +112,13 @@ REFRESH_INTERVAL=<REFRESH_INTERVAL_FOR_THE_INDEX>
 
 Now you can delete the old index.
 
+**NOTE**: There is a bug hidden when using this way. Sometimes a user won't get
+deleted from the index. Attempts at reproducing this issue in a simpler
+environment have failed. As a workaround, there is a tool in
+[tools/db/find-undead](../../tools/db/find-undead) which can be used to find the
+undead users right after the migration. If they exist, please run refill the ES
+documents from cassandra as described [above](#refill-es-documents-from-cassandra)
+
 ## Recreate an index (Requires downtime)
 
 When analysis settings of an index need to be changed, e.g. for changes
