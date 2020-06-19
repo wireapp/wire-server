@@ -56,7 +56,14 @@ data ElasticSearchOpts = ElasticSearchOpts
     url :: !Text,
     -- | The name of the ElasticSearch user index
     index :: !Text,
-    -- | An additional index to write user data, useful while migrating to a new index
+    -- | An additional index to write user data, useful while migrating to a new
+    -- index.
+    -- There is a bug hidden when using this option. Sometimes a user won't get
+    -- deleted from the index. Attempts at reproducing this issue in a simpler
+    -- environment have failed. As a workaround, there is a tool in
+    -- tools/db/find-undead which can be used to find the undead users right
+    -- after the migration, if they exist, we can run the reindexing to get data
+    -- in elasticsearch in a consistent state.
     additionalWriteIndex :: !(Maybe Text)
   }
   deriving (Show, Generic)
