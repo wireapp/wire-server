@@ -52,7 +52,7 @@ import Util.Attoparsec (takeUpToWhile)
 --
 -- The domain will be normalized to lowercase when parsed.
 newtype Domain = Domain {_domainText :: Text}
-  deriving (Eq, Generic, Show)
+  deriving stock (Eq, Ord, Generic, Show)
 
 domainText :: Domain -> Text
 domainText = _domainText

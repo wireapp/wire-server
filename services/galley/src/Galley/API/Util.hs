@@ -22,6 +22,7 @@ import Brig.Types.Intra (ReAuthUser (..))
 import Control.Lens ((.~), (^.), view)
 import Control.Monad.Catch
 import Data.ByteString.Conversion
+import Data.Domain (Domain)
 import Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local, Mapped), partitionMappedOrLocalIds)
 import Data.List.NonEmpty (nonEmpty)
@@ -36,7 +37,7 @@ import Galley.Data.Services (BotMember, newBotMember)
 import qualified Galley.Data.Types as DataTypes
 import Galley.Intra.Push
 import Galley.Intra.User
-import Galley.Options (defEnableFederation, optSettings, setEnableFederation)
+import Galley.Options (optSettings, setEnableFederationWithDomain)
 import Galley.Types
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
@@ -45,6 +46,7 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
+import qualified System.Logger.Class as Log
 import UnliftIO (concurrently)
 
 type JSON = Media "application" "json"
@@ -110,7 +112,7 @@ ensureReAuthorised u secret = do
 -- is permitted.
 -- If not, throw 'Member'; if the user is found and does not have the given permission, throw
 -- 'operationDenied'.  Otherwise, return the found user.
-ensureActionAllowed :: Action -> Member -> Galley ()
+ensureActionAllowed :: Action -> InternalMember a -> Galley ()
 ensureActionAllowed action mem = case isActionAllowed action (memConvRoleName mem) of
   Just True -> return ()
   Just False -> throwM (actionDenied action)
@@ -123,7 +125,7 @@ ensureActionAllowed action mem = case isActionAllowed action (memConvRoleName me
 --   own. This is used to ensure users cannot "elevate" allowed actions
 --   This function needs to be review when custom roles are introduced since only
 --   custom roles can cause `roleNameToActions` to return a Nothing
-ensureConvRoleNotElevated :: Member -> RoleName -> Galley ()
+ensureConvRoleNotElevated :: InternalMember a -> RoleName -> Galley ()
 ensureConvRoleNotElevated origMember targetRole = do
   case (roleNameToActions targetRole, roleNameToActions (memConvRoleName origMember)) of
     (Just targetActions, Just memberActions) ->
@@ -162,21 +164,21 @@ permissionCheckTeamConv zusr cnv perm = Data.conversation cnv >>= \case
 acceptOne2One :: UserId -> Data.Conversation -> Maybe ConnId -> Galley Data.Conversation
 acceptOne2One usr conv conn = case Data.convType conv of
   One2OneConv ->
-    if makeIdOpaque usr `isMember` mems
+    if Local usr `isMember` mems
       then return conv
       else do
         now <- liftIO getCurrentTime
         mm <- snd <$> Data.addMember now cid usr
         return $ conv {Data.convMembers = mems <> toList mm}
   ConnectConv -> case mems of
-    [_, _] | makeIdOpaque usr `isMember` mems -> promote
+    [_, _] | Local usr `isMember` mems -> promote
     [_, _] -> throwM convNotFound
     _ -> do
       when (length mems > 2) $
         throwM badConvState
       now <- liftIO getCurrentTime
       (e, mm) <- Data.addMember now cid usr
-      conv' <- if isJust (find ((usr /=) . memId) mems) then promote else pure conv
+      conv' <- if isJust (find ((Local usr /=) . memId) mems) then promote else pure conv
       let mems' = mems <> toList mm
       for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> mems')) $ \p ->
         push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
@@ -193,53 +195,69 @@ acceptOne2One usr conv conn = case Data.convType conv of
         "Connect conversation with more than 2 members: "
           <> LT.pack (show cid)
 
-isBot :: Member -> Bool
+isBot :: InternalMember a -> Bool
 isBot = isJust . memService
 
-isMember :: Foldable m => OpaqueUserId -> m Member -> Bool
-isMember u = isJust . find ((u ==) . makeIdOpaque . memId)
+isMember :: (Eq a, Foldable m) => a -> m (InternalMember a) -> Bool
+isMember u = isJust . find ((u ==) . memId)
 
-findMember :: Data.Conversation -> UserId -> Maybe Member
+findMember :: Data.Conversation -> MappedOrLocalId Id.U -> Maybe Member
 findMember c u = find ((u ==) . memId) (Data.convMembers c)
 
-botsAndUsers :: Foldable t => t Member -> ([BotMember], [Member])
-botsAndUsers = foldr fn ([], [])
+botsAndUsers :: (Log.MonadLogger m, Traversable t) => t Member -> m ([BotMember], [Member])
+botsAndUsers = fmap fold . traverse botOrUser
   where
-    fn m ~(bb, mm) = case newBotMember m of
-      Nothing -> (bb, m : mm)
-      Just b -> (b : bb, mm)
+    botOrUser m = case memService m of
+      Just _ -> do
+        -- we drop invalid bots here, which shouldn't happen
+        bot <- mkBotMember m
+        pure (toList bot, [])
+      Nothing ->
+        pure ([], [m])
+    mkBotMember :: Log.MonadLogger m => Member -> m (Maybe BotMember)
+    mkBotMember m = case memId m of
+      Mapped _ -> do
+        Log.warn $ Log.msg @Text "Bot member with qualified user ID found, ignoring it."
+        pure Nothing -- remote members can't be bots for now
+      Local localMemId ->
+        pure $ newBotMember (m {memId = localMemId} :: LocalMember)
 
 location :: ToByteString a => a -> Response -> Response
 location = addHeader hLocation . toByteString'
 
 nonTeamMembers :: [Member] -> [TeamMember] -> [Member]
-nonTeamMembers cm tm = filter (not . flip isTeamMember tm . memId) cm
+nonTeamMembers cm tm = filter (not . isMemberOfTeam . memId) cm
+  where
+    isMemberOfTeam = \case
+      Local uid -> isTeamMember uid tm
+      Mapped _ -> False -- teams and their members are always on the same backend
 
 convMembsAndTeamMembs :: [Member] -> [TeamMember] -> [Recipient]
 convMembsAndTeamMembs convMembs teamMembs =
-  fmap userRecipient . setnub $ map memId convMembs <> map (view userId) teamMembs
+  fmap userRecipient . setnub $ map memId convMembs <> map (Local . view userId) teamMembs
   where
     setnub = Set.toList . Set.fromList
 
 membersToRecipients :: Maybe UserId -> [TeamMember] -> [Recipient]
-membersToRecipients Nothing = map (userRecipient . view userId)
-membersToRecipients (Just u) = map userRecipient . filter (/= u) . map (view userId)
+membersToRecipients Nothing = map (userRecipient . Local . view userId)
+membersToRecipients (Just u) = map (userRecipient . Local) . filter (/= u) . map (view userId)
 
--- Note that we use 2 nearly identical functions but slightly different
+-- | Note that we use 2 nearly identical functions but slightly different
 -- semantics; when using `getSelfMember`, if that user is _not_ part of
 -- the conversation, we don't want to disclose that such a conversation
 -- with that id exists.
-getSelfMember :: Foldable t => UserId -> t Member -> Galley Member
+getSelfMember :: Foldable t => UserId -> t Member -> Galley LocalMember
 getSelfMember = getMember convNotFound
 
-getOtherMember :: Foldable t => UserId -> t Member -> Galley Member
+getOtherMember :: Foldable t => UserId -> t Member -> Galley LocalMember
 getOtherMember = getMember convMemberNotFound
 
-getMember :: Foldable t => Error -> UserId -> t Member -> Galley Member
+-- | Since we search by local user ID, we know that the member must be local.
+getMember :: Foldable t => Error -> UserId -> t Member -> Galley LocalMember
 getMember ex u ms = do
-  let member = find ((u ==) . memId) ms
+  let member = find ((Local u ==) . memId) ms
   case member of
-    Just m -> return m
+    Just m -> return (m {memId = u})
     Nothing -> throwM ex
 
 getConversationAndCheckMembership :: UserId -> MappedOrLocalId Id.C -> Galley Data.Conversation
@@ -255,35 +273,9 @@ getConversationAndCheckMembershipWithError ex zusr = \case
     when (DataTypes.isConvDeleted c) $ do
       Data.deleteConversation convId
       throwM convNotFound
-    unless (makeIdOpaque zusr `isMember` Data.convMembers c) $
+    unless (Local zusr `isMember` Data.convMembers c) $
       throwM ex
     return c
-
--- FUTUREWORK(federation, #1178): implement function to resolve IDs in batch
-
--- | this exists as a shim to find and mark places where we need to handle 'OpaqueUserId's.
-resolveOpaqueUserId :: OpaqueUserId -> Galley (MappedOrLocalId Id.U)
-resolveOpaqueUserId (Id opaque) = do
-  mEnabled <- view (options . optSettings . setEnableFederation)
-  case fromMaybe defEnableFederation mEnabled of
-    False ->
-      -- don't check the ID mapping, just assume it's local
-      pure . Local $ Id opaque
-    True ->
-      -- FUTUREWORK(federation, #1178): implement database lookup
-      pure . Local $ Id opaque
-
--- | this exists as a shim to find and mark places where we need to handle 'OpaqueConvId's.
-resolveOpaqueConvId :: OpaqueConvId -> Galley (MappedOrLocalId Id.C)
-resolveOpaqueConvId (Id opaque) = do
-  mEnabled <- view (options . optSettings . setEnableFederation)
-  case fromMaybe defEnableFederation mEnabled of
-    False ->
-      -- don't check the ID mapping, just assume it's local
-      pure . Local $ Id opaque
-    True ->
-      -- FUTUREWORK(federation, #1178): implement database lookup
-      pure . Local $ Id opaque
 
 -- | Deletion requires a permission check, but also a 'Role' comparison:
 -- Owners can only be deleted by another owner (and not themselves).
@@ -301,3 +293,36 @@ canDeleteMember deleter deletee
     -- (team members having no role is an internal error, but we don't want to deal with that
     -- here, so we pick a reasonable default.)
     getRole mem = fromMaybe RoleMember $ permissionsRole $ mem ^. permissions
+
+--------------------------------------------------------------------------------
+-- Federation
+
+viewFederationDomain :: Galley (Maybe Domain)
+viewFederationDomain = view (options . optSettings . setEnableFederationWithDomain)
+
+isFederationEnabled :: Galley Bool
+isFederationEnabled = isJust <$> viewFederationDomain
+
+-- FUTUREWORK(federation, #1178): implement function to resolve IDs in batch
+
+-- | this exists as a shim to find and mark places where we need to handle 'OpaqueUserId's.
+resolveOpaqueUserId :: OpaqueUserId -> Galley (MappedOrLocalId Id.U)
+resolveOpaqueUserId (Id opaque) = do
+  isFederationEnabled >>= \case
+    False ->
+      -- don't check the ID mapping, just assume it's local
+      pure . Local $ Id opaque
+    True ->
+      -- FUTUREWORK(federation, #1178): implement database lookup
+      pure . Local $ Id opaque
+
+-- | this exists as a shim to find and mark places where we need to handle 'OpaqueConvId's.
+resolveOpaqueConvId :: OpaqueConvId -> Galley (MappedOrLocalId Id.C)
+resolveOpaqueConvId (Id opaque) = do
+  isFederationEnabled >>= \case
+    False ->
+      -- don't check the ID mapping, just assume it's local
+      pure . Local $ Id opaque
+    True ->
+      -- FUTUREWORK(federation, #1178): implement database lookup
+      pure . Local $ Id opaque

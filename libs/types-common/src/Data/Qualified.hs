@@ -92,7 +92,7 @@ data Qualified a = Qualified
   { _qLocalPart :: a,
     _qDomain :: Domain
   }
-  deriving (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
 
 renderQualified :: (a -> Text) -> Qualified a -> Text
 renderQualified renderLocal (Qualified localPart domain) =

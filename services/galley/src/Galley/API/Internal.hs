@@ -26,7 +26,7 @@ import qualified Cassandra as Cql
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch (MonadCatch, throwM)
-import Data.Id
+import Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local), partitionMappedOrLocalIds)
 import Data.List.NonEmpty (nonEmpty)
 import Data.List1 (List1, list1, maybeList1)
@@ -40,7 +40,7 @@ import qualified Galley.API.Query as Query
 import Galley.API.Teams (uncheckedDeleteTeamMember)
 import qualified Galley.API.Teams as Teams
 import qualified Galley.API.Update as Update
-import Galley.API.Util (isMember, resolveOpaqueConvId)
+import Galley.API.Util (isMember)
 import Galley.App
 import qualified Galley.Data as Data
 import qualified Galley.Intra.Push as Intra
@@ -251,7 +251,7 @@ rmUser user conn = do
   let n = unsafeRange 100 :: Range 1 100 Int32
   tids <- Data.teamIdsForPagination user Nothing (rcast n)
   leaveTeams tids
-  cids <- Data.conversationIdsForPagination user Nothing (rcast n)
+  cids <- Data.conversationIdRowsForPagination user Nothing (rcast n)
   let u = list1 user []
   leaveConversations u cids
   Data.eraseClients user
@@ -260,9 +260,10 @@ rmUser user conn = do
       mems <- Data.teamMembersForFanout tid
       uncheckedDeleteTeamMember user conn tid user mems
       leaveTeams =<< Cql.liftClient (Cql.nextPage tids)
-    leaveConversations :: List1 UserId -> Cql.Page OpaqueConvId -> Galley ()
+    leaveConversations :: List1 UserId -> Cql.Page (Data.MappedOrLocalIdRow Id.C) -> Galley ()
     leaveConversations u ids = do
-      (localConvIds, remoteConvIds) <- partitionMappedOrLocalIds <$> traverse resolveOpaqueConvId (Cql.result ids)
+      (localConvIds, remoteConvIds) <-
+        partitionMappedOrLocalIds <$> traverse Data.toMappedOrLocalId (Cql.result ids)
       -- FUTUREWORK(federation, #1275): leave remote conversations.
       -- If we could just get all conversation IDs at once and then leave conversations
       -- in batches, it would make everything much easier.
@@ -271,10 +272,10 @@ rmUser user conn = do
       cc <- Data.conversations localConvIds
       pp <- for cc $ \c -> case Data.convType c of
         SelfConv -> return Nothing
-        One2OneConv -> Data.removeMember user (Data.convId c) >> return Nothing
-        ConnectConv -> Data.removeMember user (Data.convId c) >> return Nothing
+        One2OneConv -> Data.removeMember (Local user) (Data.convId c) >> return Nothing
+        ConnectConv -> Data.removeMember (Local user) (Data.convId c) >> return Nothing
         RegularConv
-          | isMember (makeIdOpaque user) (Data.convMembers c) -> do
+          | Local user `isMember` Data.convMembers c -> do
             e <- Data.removeMembers c user (Local <$> u)
             return $
               (Intra.newPush ListComplete (evtFrom e) (Intra.ConvEvent e) (Intra.recipient <$> Data.convMembers c))

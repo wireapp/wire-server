@@ -56,7 +56,14 @@ data ElasticSearchOpts = ElasticSearchOpts
     url :: !Text,
     -- | The name of the ElasticSearch user index
     index :: !Text,
-    -- | An additional index to write user data, useful while migrating to a new index
+    -- | An additional index to write user data, useful while migrating to a new
+    -- index.
+    -- There is a bug hidden when using this option. Sometimes a user won't get
+    -- deleted from the index. Attempts at reproducing this issue in a simpler
+    -- environment have failed. As a workaround, there is a tool in
+    -- tools/db/find-undead which can be used to find the undead users right
+    -- after the migration, if they exist, we can run the reindexing to get data
+    -- in elasticsearch in a consistent state.
     additionalWriteIndex :: !(Maybe Text)
   }
   deriving (Show, Generic)
@@ -329,6 +336,8 @@ data Opts = Opts
     galley :: !Endpoint,
     -- | Gundeck address
     gundeck :: !Endpoint,
+    -- | Federator address
+    federator :: !(Maybe Endpoint),
     -- external
 
     -- | Cassandra settings
@@ -442,10 +451,10 @@ data Settings = Settings
     -- | When true, search only
     -- returns users from the same team
     setSearchSameTeamOnly :: !(Maybe Bool),
-    -- | When false, assume there are no other backends and IDs are always local.
+    -- | When @Nothing@, assume there are no other backends and IDs are always local.
     -- This means we don't run any queries on federation-related tables and don't
     -- make any calls to the federator service.
-    setEnableFederation :: !(Maybe Bool),
+    setEnableFederationWithDomain :: !(Maybe Domain),
     -- | The amount of time in milliseconds to wait after reading from an SQS queue
     -- returns no message, before asking for messages from SQS again.
     -- defaults to 'defSqsThrottleMillis'.
@@ -521,9 +530,6 @@ defSqsThrottleMillis = 500
 defUserMaxPermClients :: Int
 defUserMaxPermClients = 7
 
-defEnableFederation :: Bool
-defEnableFederation = False
-
 instance FromJSON Timeout where
   parseJSON (Y.Number n) =
     let defaultV = 3600
@@ -551,7 +557,7 @@ Lens.makeLensesFor
     ("setPropertyMaxValueLen", "propertyMaxValueLen"),
     ("setSearchSameTeamOnly", "searchSameTeamOnly"),
     ("setUserMaxPermClients", "userMaxPermClients"),
-    ("setEnableFederation", "enableFederation"),
+    ("setEnableFederationWithDomain", "enableFederationWithDomain"),
     ("setSqsThrottleMillis", "sqsThrottleMillis")
   ]
   ''Settings

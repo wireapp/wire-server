@@ -24,7 +24,9 @@ module Galley.Types
 
     -- * re-exports
     Conversation (..),
-    Member (..),
+    LocalMember,
+    Member,
+    InternalMember (..),
     ConvMembers (..),
     OtherMember (..),
     Connect (..),
@@ -75,8 +77,9 @@ import Data.Id (ClientId, ConvId, OpaqueUserId, TeamId, UserId)
 import Data.Json.Util ((#))
 import qualified Data.Map.Strict as Map
 import Data.Misc (Milliseconds)
+import Galley.Types.Conversations.Members (InternalMember (..), LocalMember, Member)
 import Imports
-import Wire.API.Conversation
+import Wire.API.Conversation hiding (Member (..))
 import Wire.API.Conversation.Code
 import Wire.API.Conversation.Typing
 import Wire.API.CustomBackend
@@ -85,7 +88,8 @@ import Wire.API.Message
 import Wire.API.User (UserIdList (..))
 import Wire.API.User.Client
 
--- Conversations ------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- ConversationMeta
 
 data ConversationMeta = ConversationMeta
   { cmId :: !ConvId,
@@ -100,46 +104,6 @@ data ConversationMeta = ConversationMeta
   }
   deriving (Eq, Show)
 
---------------------------------------------------------------------------------
-
-foldrOtrRecipients :: (OpaqueUserId -> ClientId -> Text -> a -> a) -> a -> OtrRecipients -> a
-foldrOtrRecipients f a =
-  Map.foldrWithKey go a
-    . userClientMap
-    . otrRecipientsMap
-  where
-    go u cs acc = Map.foldrWithKey (f u) acc cs
-
--- | Request payload for accepting a 1-1 conversation.
-newtype Accept = Accept
-  { aUser :: UserId
-  }
-  deriving (Eq, Show, Generic)
-
--- Instances ----------------------------------------------------------------
-
-instance FromJSON Accept where
-  parseJSON = withObject "accept" $ \o ->
-    Accept <$> o .: "user"
-
-instance ToJSON Accept where
-  toJSON a =
-    object
-      [ "user" .= aUser a
-      ]
-
-instance FromJSON ConversationMeta where
-  parseJSON = withObject "conversation-meta" $ \o ->
-    ConversationMeta <$> o .: "id"
-      <*> o .: "type"
-      <*> o .: "creator"
-      <*> o .: "access"
-      <*> o .: "access_role"
-      <*> o .: "name"
-      <*> o .:? "team"
-      <*> o .:? "message_timer"
-      <*> o .:? "receipt_mode"
-
 instance ToJSON ConversationMeta where
   toJSON c =
     object $
@@ -153,3 +117,45 @@ instance ToJSON ConversationMeta where
         # "message_timer" .= cmMessageTimer c
         # "receipt_mode" .= cmReceiptMode c
         # []
+
+instance FromJSON ConversationMeta where
+  parseJSON = withObject "conversation-meta" $ \o ->
+    ConversationMeta <$> o .: "id"
+      <*> o .: "type"
+      <*> o .: "creator"
+      <*> o .: "access"
+      <*> o .: "access_role"
+      <*> o .: "name"
+      <*> o .:? "team"
+      <*> o .:? "message_timer"
+      <*> o .:? "receipt_mode"
+
+--------------------------------------------------------------------------------
+-- Accept
+
+-- | Request payload for accepting a 1-1 conversation.
+newtype Accept = Accept
+  { aUser :: UserId
+  }
+  deriving (Eq, Show, Generic)
+
+instance ToJSON Accept where
+  toJSON a =
+    object
+      [ "user" .= aUser a
+      ]
+
+instance FromJSON Accept where
+  parseJSON = withObject "accept" $ \o ->
+    Accept <$> o .: "user"
+
+--------------------------------------------------------------------------------
+-- utility functions
+
+foldrOtrRecipients :: (OpaqueUserId -> ClientId -> Text -> a -> a) -> a -> OtrRecipients -> a
+foldrOtrRecipients f a =
+  Map.foldrWithKey go a
+    . userClientMap
+    . otrRecipientsMap
+  where
+    go u cs acc = Map.foldrWithKey (f u) acc cs

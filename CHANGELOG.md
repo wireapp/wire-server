@@ -1,3 +1,25 @@
+# 2020-06-19
+
+## Release Notes
+
+- run galley schema migrations
+- no need to upgrade nginz
+
+## New Features
+
+* Add team level flag for digital signtaures (#1132)
+
+## Bug fixes
+
+* Bump http-client (#1138)
+
+## Internal changes
+
+* Script for finding undead users in elasticsearch (#1137)
+* DB changes for federation (#1070)
+* Refactor team feature tests (#1136)
+
+
 # 2020-06-10
 
 ## Release Notes
