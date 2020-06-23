@@ -84,7 +84,7 @@ writeBots ::
   [(ProviderId, ServiceId, BotId, ConvId, Maybe TeamId)] ->
   Client ()
 writeBots [] = pure ()
-writeBots xs = retry x5 $ batch $ do
+writeBots xs = retry x5 . batch $ do
   setConsistency Quorum
   setType BatchLogged
   forM_ xs $ \(pid, sid, bid, cid, mbTid) -> do

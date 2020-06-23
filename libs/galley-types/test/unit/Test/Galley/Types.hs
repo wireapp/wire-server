@@ -38,14 +38,13 @@ tests =
     "Tests"
     [ testCase "owner has all permissions" $
         rolePermissions RoleOwner @=? fullPermissions,
-      testCase "smaller roles (further to the left/top in the type def) are strictly more powerful"
-        $
+      testCase "smaller roles (further to the left/top in the type def) are strictly more powerful" $
         -- we may not want to maintain this property in the future when adding more roles, but for
         -- now it's true, and it's nice to have that written down somewhere.
-        forM_ [(r1, r2) | r1 <- [minBound ..], r2 <- drop 1 [r1 ..]]
-        $ \(r1, r2) -> do
-          assertBool "owner.self" ((rolePermissions r2 ^. self) `isSubsetOf` (rolePermissions r1 ^. self))
-          assertBool "owner.copy" ((rolePermissions r2 ^. copy) `isSubsetOf` (rolePermissions r1 ^. copy)),
+        forM_ [(r1, r2) | r1 <- [minBound ..], r2 <- drop 1 [r1 ..]] $
+          \(r1, r2) -> do
+            assertBool "owner.self" ((rolePermissions r2 ^. self) `isSubsetOf` (rolePermissions r1 ^. self))
+            assertBool "owner.copy" ((rolePermissions r2 ^. copy) `isSubsetOf` (rolePermissions r1 ^. copy)),
       testCase "permissions for viewing feature flags" $
         -- We currently (at the time of writing this test) grant view permissions for all
         -- 'TeamFeatureName's to all roles.  If we add more features in the future and forget to

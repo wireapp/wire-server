@@ -38,7 +38,7 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Fail (MonadFail)
 import Control.Retry
 import Data.Aeson
-import Data.Aeson.Lens (_Integral, _JSON, _String, key)
+import Data.Aeson.Lens (key, _Integral, _JSON, _String)
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString as BS
 import Data.ByteString.Char8 (pack)
@@ -571,9 +571,10 @@ updatePhone brig uid phn = do
   act <- getActivationCode brig (Right phn)
   case act of
     Nothing -> liftIO $ assertFailure "missing activation key/code"
-    Just kc -> activate brig kc !!! do
-      const 200 === statusCode
-      const (Just False) === fmap activatedFirst . responseJsonMaybe
+    Just kc ->
+      activate brig kc !!! do
+        const 200 === statusCode
+        const (Just False) === fmap activatedFirst . responseJsonMaybe
 
 defEmailLogin :: Email -> Login
 defEmailLogin e = emailLogin e defPassword (Just defCookieLabel)

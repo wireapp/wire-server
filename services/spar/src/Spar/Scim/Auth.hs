@@ -34,7 +34,7 @@ module Spar.Scim.Auth
   )
 where
 
-import Control.Lens hiding ((.=), Strict)
+import Control.Lens hiding (Strict, (.=))
 import qualified Data.ByteString.Base64 as ES
 import Data.Id
 import Data.String.Conversions
@@ -43,7 +43,7 @@ import Imports
 import OpenSSL.Random (randBytes)
 import qualified SAML2.WebSSO as SAML
 import Servant
-import Spar.App (Spar, sparCtxOpts, wrapMonadClient, wrapMonadClient)
+import Spar.App (Spar, sparCtxOpts, wrapMonadClient)
 import qualified Spar.Data as Data
 import Spar.Error
 import qualified Spar.Intra.Brig as Intra.Brig

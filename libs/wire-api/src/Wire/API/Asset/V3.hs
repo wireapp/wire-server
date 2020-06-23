@@ -68,7 +68,7 @@ import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LBS
 import Data.Id
-import Data.Json.Util ((#), toUTCTimeMillis)
+import Data.Json.Util (toUTCTimeMillis, (#))
 import Data.Text.Ascii (AsciiBase64Url)
 import qualified Data.Text.Encoding as T
 import Data.Time.Clock
@@ -303,13 +303,14 @@ instance ToByteString AssetRetention where
 
 -- | ByteString representation is used in AssetKey
 instance FromByteString AssetRetention where
-  parser = decimal >>= \d -> case (d :: Word) of
-    1 -> return AssetEternal
-    2 -> return AssetPersistent
-    3 -> return AssetVolatile
-    4 -> return AssetEternalInfrequentAccess
-    5 -> return AssetExpiring
-    _ -> fail $ "Invalid asset retention: " ++ show d
+  parser =
+    decimal >>= \d -> case (d :: Word) of
+      1 -> return AssetEternal
+      2 -> return AssetPersistent
+      3 -> return AssetVolatile
+      4 -> return AssetEternalInfrequentAccess
+      5 -> return AssetExpiring
+      _ -> fail $ "Invalid asset retention: " ++ show d
 
 instance ToJSON AssetRetention where
   toJSON = String . retentionToTextRep

@@ -41,7 +41,7 @@ import Brig.Types.Team (TeamSize)
 import Brig.Types.Team.Invitation
 import Brig.Types.User (Email, InvitationCode, emailIdentity)
 import qualified Brig.User.Search.Index as ESIndex
-import Control.Lens ((^.), view)
+import Control.Lens (view, (^.))
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.Id

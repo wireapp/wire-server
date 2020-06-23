@@ -32,7 +32,7 @@ import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 import qualified System.Logger.Class as Log
-import System.Logger.Message ((+++), msg, val)
+import System.Logger.Message (msg, val, (+++))
 import qualified Wire.API.Conversation as Public
 
 conversationView :: MappedOrLocalId Id.U -> Data.Conversation -> Galley Public.Conversation

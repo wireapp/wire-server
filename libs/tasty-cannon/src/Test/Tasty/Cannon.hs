@@ -75,7 +75,7 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.List1
 import Data.Misc ((<$$>))
-import Data.Timeout ((#), Timeout, TimeoutUnit (..))
+import Data.Timeout (Timeout, TimeoutUnit (..), (#))
 import Gundeck.Types
 import Imports
 import Network.HTTP.Client
@@ -240,15 +240,16 @@ awaitMatch t ws match = go [] []
     go buf errs = do
       mn <- await t ws
       case mn of
-        Just n -> do
-          liftIO (match n)
-          refill buf
-          return (Right n)
-          `catchAll` \e -> case asyncExceptionFromException e of
-            Just x -> throwM (x :: SomeAsyncException)
-            Nothing ->
-              let e' = MatchFailure e
-               in go (n : buf) (e' : errs)
+        Just n ->
+          do
+            liftIO (match n)
+            refill buf
+            return (Right n)
+            `catchAll` \e -> case asyncExceptionFromException e of
+              Just x -> throwM (x :: SomeAsyncException)
+              Nothing ->
+                let e' = MatchFailure e
+                 in go (n : buf) (e' : errs)
         Nothing -> do
           refill buf
           return (Left (MatchTimeout errs))

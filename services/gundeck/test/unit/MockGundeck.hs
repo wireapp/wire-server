@@ -53,7 +53,7 @@ import qualified Data.IntMultiSet as MSet
 import qualified Data.List.NonEmpty as NE
 import Data.List1
 import qualified Data.Map as Map
-import Data.Misc ((<$$>), Milliseconds (Ms))
+import Data.Misc (Milliseconds (Ms), (<$$>))
 import Data.Range
 import qualified Data.Scientific as Scientific
 import qualified Data.Set as Set
@@ -237,9 +237,11 @@ genMockEnv = do
      in nubrec <$> forM uids gencids
   -- Build an 'MockEnv' containing a map with all those 'ClientInfo's, and
   -- check that it validates
-  env <- MockEnv . Map.fromList . fmap (_2 %~ Map.fromList) <$> do
-    forM (zip uids cidss) $ \(uid, cids) -> (uid,) <$> do
-      forM cids $ \cid -> (cid,) <$> genClientInfo uid cid
+  env <-
+    MockEnv . Map.fromList . fmap (_2 %~ Map.fromList) <$> do
+      forM (zip uids cidss) $ \(uid, cids) ->
+        (uid,) <$> do
+          forM cids $ \cid -> (cid,) <$> genClientInfo uid cid
   validateMockEnv env & either error (const $ pure env)
 
 -- Try to shrink a 'MockEnv' by removing some users from '_meClientInfos'.
@@ -354,16 +356,17 @@ genPush env = do
 -- | Shuffle devices.  With probability 0.5, drop at least one device, but not all.  If number of
 -- devices is @<2@ or if devices are set to 'RecipientClientsAll', the input is returned.
 dropSomeDevices :: Recipient -> Gen Recipient
-dropSomeDevices = recipientClients %%~ \case
-  RecipientClientsAll -> pure RecipientClientsAll
-  RecipientClientsSome cids -> do
-    numdevs :: Int <-
-      oneof
-        [ pure $ length cids,
-          choose (1, max 1 (length cids - 1))
-        ]
-    RecipientClientsSome . unsafeList1 . take numdevs
-      <$> QC.shuffle (toList cids)
+dropSomeDevices =
+  recipientClients %%~ \case
+    RecipientClientsAll -> pure RecipientClientsAll
+    RecipientClientsSome cids -> do
+      numdevs :: Int <-
+        oneof
+          [ pure $ length cids,
+            choose (1, max 1 (length cids - 1))
+          ]
+      RecipientClientsSome . unsafeList1 . take numdevs
+        <$> QC.shuffle (toList cids)
 
 shrinkPushes :: HasCallStack => [Push] -> [[Push]]
 shrinkPushes = shrinkList shrinkPush
@@ -408,7 +411,7 @@ runMockGundeck env (MockGundeck m) =
 
 instance MonadThrow MockGundeck where
   throwM = error . show -- (we are not expecting any interesting errors in these tests, so we might
-      -- as well crash badly here, as long as it doesn't go unnoticed...)
+  -- as well crash badly here, as long as it doesn't go unnoticed...)
 
 instance MonadPushAll MockGundeck where
   mpaNotificationTTL = pure $ NotificationTTL 300 -- (longer than we want any test to take.)
@@ -418,7 +421,7 @@ instance MonadPushAll MockGundeck where
   mpaStreamAdd = mockStreamAdd
   mpaPushNative = mockPushNative
   mpaForkIO = id -- just don't fork.  (this *may* cause deadlocks in principle, but as long as it
-    -- doesn't, this is good enough for testing).
+  -- doesn't, this is good enough for testing).
 
   mpaRunWithBudget = \_ _ -> id -- no throttling needed as long as we don't overdo it in the tests...
 
@@ -670,9 +673,10 @@ mockOldSimpleWebPush notif tgts _senderid mconnid connWhitelist = do
           then id
           else targetClients %~ filter ((`elem` connWhitelist) . fakeConnId)
       emptyMeansFullHack :: NotificationTarget -> NotificationTarget
-      emptyMeansFullHack tgt = tgt & targetClients %~ \case
-        [] -> clientIdsOfUser env (tgt ^. targetUser)
-        same@(_ : _) -> same
+      emptyMeansFullHack tgt =
+        tgt & targetClients %~ \case
+          [] -> clientIdsOfUser env (tgt ^. targetUser)
+          same@(_ : _) -> same
   forM_ clients $ \(userid, clientid) -> do
     msWSQueue %= deliver (userid, clientid) (ntfPayload notif)
   pure $ uncurry fakePresence <$> clients
@@ -693,9 +697,10 @@ shrinkPretty shrnk (Pretty xs) = Pretty <$> shrnk xs
 
 sublist1Of :: HasCallStack => [a] -> Gen (List1 a)
 sublist1Of [] = error "sublist1Of: empty list"
-sublist1Of xs = sublistOf xs >>= \case
-  [] -> sublist1Of xs
-  c : cc -> pure (list1 c cc)
+sublist1Of xs =
+  sublistOf xs >>= \case
+    [] -> sublist1Of xs
+    c : cc -> pure (list1 c cc)
 
 unsafeList1 :: HasCallStack => [a] -> List1 a
 unsafeList1 [] = error "unsafeList1: empty list"

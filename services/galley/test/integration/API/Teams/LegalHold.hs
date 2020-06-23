@@ -41,7 +41,7 @@ import Control.Lens
 import Control.Monad.Catch
 import Control.Retry (RetryPolicy, RetryStatus, exponentialBackoff, limitRetries, retrying)
 import qualified Data.Aeson as Aeson
-import Data.Aeson.Types ((.:), FromJSON)
+import Data.Aeson.Types (FromJSON, (.:))
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS
@@ -321,7 +321,7 @@ testDisableLegalHoldForUser = do
     disableLegalHoldForUser Nothing tid owner member !!! const 403 === statusCode
     assertExactlyOneLegalHoldDevice member
     disableLegalHoldForUser (Just defPassword) tid owner member !!! testResponse 200 Nothing
-    liftIO $ assertMatchChan chan $ \(req, _) -> do
+    liftIO . assertMatchChan chan $ \(req, _) -> do
       assertEqual "method" "POST" (requestMethod req)
       assertEqual "path" (pathInfo req) ["legalhold", "remove"]
     assertNotification mws $ \case
@@ -359,7 +359,8 @@ testCreateLegalHoldTeamSettings = do
   let lhapp :: HasCallStack => IsWorking -> Chan Void -> Application
       lhapp NotWorking _ _ cont = cont respondBad
       lhapp Working _ req cont = do
-        if  | pathInfo req /= ["legalhold", "status"] -> cont respondBad
+        if
+            | pathInfo req /= ["legalhold", "status"] -> cont respondBad
             | requestMethod req /= "GET" -> cont respondBad
             | otherwise -> cont respondOk
       respondOk :: Wai.Response
@@ -468,7 +469,7 @@ testRemoveLegalHoldFromTeam = do
     deleteSettings Nothing owner tid !!! testResponse 403 (Just "access-denied")
     let delete'' expectRemoteLHCall = do
           deleteSettings (Just defPassword) owner tid !!! testResponse 204 Nothing
-          when expectRemoteLHCall $ liftIO $ assertMatchChan chan $ \(req, _) -> do
+          when expectRemoteLHCall . liftIO . assertMatchChan chan $ \(req, _) -> do
             putStrLn (show (pathInfo req, pathInfo req == ["legalhold", "remove"]))
             putStrLn (show (requestMethod req, requestMethod req == "POST"))
             assertEqual "path" ["legalhold", "remove"] (pathInfo req)
@@ -843,9 +844,9 @@ withTestService mkApp go = do
   let defs = Warp.defaultSettings {Warp.settingsPort = botPort config}
   buf <- liftIO newChan
   srv <-
-    liftIO . Async.async
-      $ Warp.runTLS tlss defs
-      $ mkApp buf
+    liftIO . Async.async $
+      Warp.runTLS tlss defs $
+        mkApp buf
   go buf `finally` liftIO (Async.cancel srv)
 
 publicKeyNotMatchingService :: PEM
@@ -946,12 +947,13 @@ assertMatchChan c match = go []
     go buf = do
       m <- liftIO . timeout (5 WS.# WS.Second) . readChan $ c
       case m of
-        Just n -> do
-          match n
-          refill buf
-          `catchAll` \e -> case asyncExceptionFromException e of
-            Just x -> throwM (x :: SomeAsyncException)
-            Nothing -> go (n : buf)
+        Just n ->
+          do
+            match n
+            refill buf
+            `catchAll` \e -> case asyncExceptionFromException e of
+              Just x -> throwM (x :: SomeAsyncException)
+              Nothing -> go (n : buf)
         Nothing -> do
           refill buf
           liftIO $ assertBool "Timeout" False

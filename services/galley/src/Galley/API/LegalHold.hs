@@ -31,7 +31,7 @@ where
 import Brig.Types.Client.Prekey
 import Brig.Types.Provider
 import Brig.Types.Team.LegalHold hiding (userId)
-import Control.Lens ((^.), view)
+import Control.Lens (view, (^.))
 import Control.Monad.Catch
 import Data.ByteString.Conversion (toByteString, toByteString')
 import Data.Id

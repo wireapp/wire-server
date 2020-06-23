@@ -369,7 +369,7 @@ deleteTeam tid = do
 
 addTeamMember :: MonadClient m => TeamId -> TeamMember -> m ()
 addTeamMember t m =
-  retry x5 $ batch $ do
+  retry x5 . batch $ do
     setType BatchLogged
     setConsistency Quorum
     addPrepQuery
@@ -394,7 +394,7 @@ updateTeamMember ::
   Permissions ->
   m ()
 updateTeamMember oldPerms tid uid newPerms = do
-  retry x5 $ batch $ do
+  retry x5 . batch $ do
     setType BatchLogged
     setConsistency Quorum
     addPrepQuery Cql.updatePermissions (newPerms, tid, uid)
@@ -411,7 +411,7 @@ updateTeamMember oldPerms tid uid newPerms = do
 
 removeTeamMember :: MonadClient m => TeamId -> UserId -> m ()
 removeTeamMember t m =
-  retry x5 $ batch $ do
+  retry x5 . batch $ do
     setType BatchLogged
     setConsistency Quorum
     addPrepQuery Cql.deleteTeamMember (t, m)
@@ -425,7 +425,7 @@ listBillingTeamMembers tid =
 
 removeTeamConv :: (MonadClient m, Log.MonadLogger m, MonadThrow m) => TeamId -> ConvId -> m ()
 removeTeamConv tid cid = do
-  retry x5 $ batch $ do
+  retry x5 . batch $ do
     setType BatchLogged
     setConsistency Quorum
     addPrepQuery Cql.markConvDeleted (Identity cid)
@@ -436,7 +436,7 @@ updateTeamStatus :: MonadClient m => TeamId -> TeamStatus -> m ()
 updateTeamStatus t s = retry x5 $ write Cql.updateTeamStatus (params Quorum (s, t))
 
 updateTeam :: MonadClient m => TeamId -> TeamUpdateData -> m ()
-updateTeam tid u = retry x5 $ batch $ do
+updateTeam tid u = retry x5 . batch $ do
   setType BatchLogged
   setConsistency Quorum
   for_ (u ^. nameUpdate) $ \n ->
@@ -805,7 +805,7 @@ addMembersUncheckedWithRole t conv (orig, _origRole) usrs = do
   -- With chunk size of 64:
   -- [galley] Server warning: Batch for [galley_test.member, galley_test.user] is of size 7040, exceeding specified threshold of 5120 by 1920.
   for_ (List.chunksOf 32 (toList usrs)) $ \chunk -> do
-    retry x5 $ batch $ do
+    retry x5 . batch $ do
       setType BatchLogged
       setConsistency Quorum
       for_ chunk $ \(u, r) -> do
@@ -826,7 +826,7 @@ addMembersUncheckedWithRole t conv (orig, _origRole) usrs = do
 
 updateMember :: MonadClient m => ConvId -> UserId -> MemberUpdate -> m MemberUpdateData
 updateMember cid uid mup = do
-  retry x5 $ batch $ do
+  retry x5 . batch $ do
     setType BatchUnLogged
     setConsistency Quorum
     let opaqueUserId = makeIdOpaque uid
@@ -856,7 +856,7 @@ updateMember cid uid mup = do
 removeMembers :: MonadClient m => Conversation -> UserId -> List1 (MappedOrLocalId Id.U) -> m Event
 removeMembers conv orig victims = do
   t <- liftIO getCurrentTime
-  retry x5 $ batch $ do
+  retry x5 . batch $ do
     setType BatchLogged
     setConsistency Quorum
     for_ (toList victims) $ \u -> do
@@ -876,7 +876,7 @@ removeMembers conv orig victims = do
       Mapped _ -> Nothing
 
 removeMember :: MonadClient m => MappedOrLocalId Id.U -> ConvId -> m ()
-removeMember usr cnv = retry x5 $ batch $ do
+removeMember usr cnv = retry x5 . batch $ do
   setType BatchLogged
   setConsistency Quorum
   addPrepQuery Cql.removeMember (cnv, opaqueIdFromMappedOrLocal usr)

@@ -22,7 +22,7 @@ import Cassandra (ClientState, Keyspace (..))
 import qualified Cassandra as C
 import qualified Cassandra.Settings as C
 import Control.AutoUpdate
-import Control.Lens ((^.), makeLenses)
+import Control.Lens (makeLenses, (^.))
 import Data.Default (def)
 import qualified Data.List.NonEmpty as NE
 import Data.Metrics.Middleware (Metrics)
@@ -73,17 +73,17 @@ createEnv m o = do
           managerResponseTimeout = responseTimeoutMicro 5000000
         }
   r <-
-    Redis.mkPool (Logger.clone (Just "redis.gundeck") l)
-      $ Redis.setHost (unpack $ o ^. optRedis . epHost)
+    Redis.mkPool (Logger.clone (Just "redis.gundeck") l) $
+      Redis.setHost (unpack $ o ^. optRedis . epHost)
         . Redis.setPort (o ^. optRedis . epPort)
         . Redis.setMaxConnections 100
         . Redis.setPoolStripes 4
         . Redis.setConnectTimeout 3
         . Redis.setSendRecvTimeout 5
-      $ Redis.defSettings
+        $ Redis.defSettings
   p <-
-    C.init
-      $ C.setLogger (C.mkLogger (Logger.clone (Just "cassandra.gundeck") l))
+    C.init $
+      C.setLogger (C.mkLogger (Logger.clone (Just "cassandra.gundeck") l))
         . C.setContacts (NE.head c) (NE.tail c)
         . C.setPortNumber (fromIntegral $ o ^. optCassandra . casEndpoint . epPort)
         . C.setKeyspace (Keyspace (o ^. optCassandra . casKeyspace))
@@ -93,7 +93,7 @@ createEnv m o = do
         . C.setSendTimeout 3
         . C.setResponseTimeout 10
         . C.setProtocolVersion C.V4
-      $ C.defSettings
+        $ C.defSettings
   a <- Aws.mkEnv l o n
   io <-
     mkAutoUpdate

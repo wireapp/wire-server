@@ -104,6 +104,6 @@ _unitTestTestErrorLabel :: IO ()
 _unitTestTestErrorLabel = do
   let val :: Either String TestErrorLabel
       val = Aeson.eitherDecode "{\"code\":404,\"message\":\"Not found.\",\"label\":\"not-found\"}"
-  unless (val == Right "not-found")
-    $ throwIO . ErrorCall . show
-    $ val
+  unless (val == Right "not-found") $
+    throwIO . ErrorCall . show $
+      val

@@ -65,7 +65,7 @@ updateAccountProfile ::
   Maybe HttpsUrl ->
   Maybe Text ->
   m ()
-updateAccountProfile p name url descr = retry x5 $ batch $ do
+updateAccountProfile p name url descr = retry x5 . batch $ do
   setType BatchUnLogged
   setConsistency Quorum
   for_ name $ \x -> addPrepQuery cqlName (x, p)
@@ -110,10 +110,10 @@ lookupPassword ::
   ProviderId ->
   m (Maybe Password)
 lookupPassword p =
-  fmap (fmap runIdentity)
-    $ retry x1
-    $ query1 cql
-    $ params Quorum (Identity p)
+  fmap (fmap runIdentity) $
+    retry x1 $
+      query1 cql $
+        params Quorum (Identity p)
   where
     cql :: PrepQuery R (Identity ProviderId) (Identity Password)
     cql = "SELECT password FROM provider WHERE id = ?"
@@ -148,7 +148,7 @@ insertKey ::
   Maybe EmailKey ->
   EmailKey ->
   m ()
-insertKey p old new = retry x5 $ batch $ do
+insertKey p old new = retry x5 . batch $ do
   setConsistency Quorum
   setType BatchLogged
   for_ old $ \old' -> addPrepQuery cqlKeyDelete (Identity (emailKeyUniq old'))
@@ -167,10 +167,10 @@ lookupKey ::
   EmailKey ->
   m (Maybe ProviderId)
 lookupKey k =
-  fmap (fmap runIdentity)
-    $ retry x1
-    $ query1 cql
-    $ params Quorum (Identity (emailKeyUniq k))
+  fmap (fmap runIdentity) $
+    retry x1 $
+      query1 cql $
+        params Quorum (Identity (emailKeyUniq k))
   where
     cql :: PrepQuery R (Identity Text) (Identity ProviderId)
     cql = "SELECT provider FROM provider_keys WHERE key = ?"
@@ -200,10 +200,11 @@ insertService ::
 insertService pid name summary descr url token key fprint assets tags = do
   sid <- randomId
   let tagSet = C.Set (Set.toList tags)
-  retry x5 $ write cql $
-    params
-      Quorum
-      (pid, sid, name, summary, descr, url, [token], [key], [fprint], assets, tagSet, False)
+  retry x5 $
+    write cql $
+      params
+        Quorum
+        (pid, sid, name, summary, descr, url, [token], [key], [fprint], assets, tagSet, False)
   return sid
   where
     cql ::
@@ -234,10 +235,10 @@ lookupService ::
   ServiceId ->
   m (Maybe Service)
 lookupService pid sid =
-  fmap (fmap mk)
-    $ retry x1
-    $ query1 cql
-    $ params Quorum (pid, sid)
+  fmap (fmap mk) $
+    retry x1 $
+      query1 cql $
+        params Quorum (pid, sid)
   where
     cql ::
       PrepQuery
@@ -255,10 +256,10 @@ listServices ::
   ProviderId ->
   m [Service]
 listServices p =
-  fmap (map mk)
-    $ retry x1
-    $ query cql
-    $ params Quorum (Identity p)
+  fmap (map mk) $
+    retry x1 $
+      query cql $
+        params Quorum (Identity p)
   where
     cql ::
       PrepQuery
@@ -285,7 +286,7 @@ updateService ::
   Maybe (RangedServiceTags, RangedServiceTags) ->
   Bool ->
   m ()
-updateService pid sid svcName svcTags nameChange summary descr assets tagsChange enabled = retry x5 $ batch $ do
+updateService pid sid svcName svcTags nameChange summary descr assets tagsChange enabled = retry x5 . batch $ do
   setConsistency Quorum
   setType BatchUnLogged
   -- If there is a name change, update the service name; if enabled, update indexes
@@ -330,7 +331,7 @@ deleteService pid sid name tags = do
   -- (or as a part of the last batch, in this case) because otherwise API
   -- consumers won't be able to retry a half-done 'deleteService' call.
   deleteServiceWhitelist Nothing pid sid
-  retry x5 $ batch $ do
+  retry x5 . batch $ do
     setConsistency Quorum
     setType BatchUnLogged
     addPrepQuery cql (pid, sid)
@@ -350,10 +351,10 @@ lookupServiceProfile ::
   ServiceId ->
   m (Maybe ServiceProfile)
 lookupServiceProfile p s =
-  fmap (fmap mk)
-    $ retry x1
-    $ query1 cql
-    $ params One (p, s)
+  fmap (fmap mk) $
+    retry x1 $
+      query1 cql $
+        params One (p, s)
   where
     cql :: PrepQuery R (ProviderId, ServiceId) (Name, Maybe Text, Text, [Asset], C.Set ServiceTag, Bool)
     cql =
@@ -369,10 +370,10 @@ listServiceProfiles ::
   ProviderId ->
   m [ServiceProfile]
 listServiceProfiles p =
-  fmap (map mk)
-    $ retry x1
-    $ query cql
-    $ params One (Identity p)
+  fmap (map mk) $
+    retry x1 $
+      query cql $
+        params One (Identity p)
   where
     cql ::
       PrepQuery
@@ -405,10 +406,10 @@ lookupServiceConn ::
   ServiceId ->
   m (Maybe ServiceConn)
 lookupServiceConn pid sid =
-  fmap (fmap mk)
-    $ retry x1
-    $ query1 cql
-    $ params Quorum (pid, sid)
+  fmap (fmap mk) $
+    retry x1 $
+      query1 cql $
+        params Quorum (pid, sid)
   where
     cql :: PrepQuery R (ProviderId, ServiceId) (HttpsUrl, List1 ServiceToken, List1 (Fingerprint Rsa), Bool)
     cql =
@@ -426,7 +427,7 @@ updateServiceConn ::
   Maybe (List1 (ServiceKey, Fingerprint Rsa)) ->
   Maybe Bool ->
   m ()
-updateServiceConn pid sid url tokens keys enabled = retry x5 $ batch $ do
+updateServiceConn pid sid url tokens keys enabled = retry x5 . batch $ do
   setConsistency Quorum
   setType BatchLogged
   for_ url $ \x -> addPrepQuery cqlBaseUrl (x, pid, sid)
@@ -458,7 +459,7 @@ insertServiceIndexes ::
   RangedServiceTags ->
   m ()
 insertServiceIndexes pid sid name tags =
-  retry x5 $ batch $ do
+  retry x5 . batch $ do
     setConsistency Quorum
     setType BatchLogged
     insertServicePrefix pid sid name
@@ -472,7 +473,7 @@ deleteServiceIndexes ::
   RangedServiceTags ->
   m ()
 deleteServiceIndexes pid sid name tags =
-  retry x5 $ batch $ do
+  retry x5 . batch $ do
     setConsistency Quorum
     setType BatchLogged
     deleteServicePrefix sid name
@@ -686,8 +687,9 @@ paginateServiceNames mbPrefix size providerFilter = liftClient $ do
             \FROM service_prefix \
             \WHERE prefix = ? AND name >= ?"
       p <-
-        retry x1 $ paginate cql $
-          paramsP One (mkPrefixIndex (Name prefix), prefix) len
+        retry x1 $
+          paginate cql $
+            paramsP One (mkPrefixIndex (Name prefix), prefix) len
       return $! p {result = trim size (result p)}
 
 -- Pagination utilities
@@ -718,7 +720,7 @@ resolveRow (_, pid, sid) = lookupServiceProfile pid sid
 
 insertServiceWhitelist :: MonadClient m => TeamId -> ProviderId -> ServiceId -> m ()
 insertServiceWhitelist tid pid sid =
-  retry x5 $ batch $ do
+  retry x5 . batch $ do
     addPrepQuery insert1 (tid, pid, sid)
     addPrepQuery insert1Rev (tid, pid, sid)
   where
@@ -740,13 +742,13 @@ deleteServiceWhitelist :: MonadClient m => Maybe TeamId -> ProviderId -> Service
 deleteServiceWhitelist mbTid pid sid = case mbTid of
   Nothing -> do
     teams <- retry x5 $ query lookupRev $ params Quorum (pid, sid)
-    retry x5 $ batch $ do
+    retry x5 . batch $ do
       setType BatchLogged
       setConsistency Quorum
       addPrepQuery deleteAllRev (pid, sid)
       for_ teams $ \(Identity tid) -> addPrepQuery delete1 (tid, pid, sid)
   Just tid ->
-    retry x5 $ batch $ do
+    retry x5 . batch $ do
       setType BatchLogged
       setConsistency Quorum
       addPrepQuery delete1 (tid, pid, sid)

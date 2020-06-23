@@ -23,7 +23,7 @@ import Data.Id (ConvId)
 import Imports
 import qualified Test.Tasty as T
 import Test.Tasty.ExpectedFailure (ignoreTest)
-import Test.Tasty.QuickCheck ((===), Arbitrary, counterexample, testProperty)
+import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (===))
 import Type.Reflection (typeRep)
 import qualified Wire.API.Asset as Asset
 import qualified Wire.API.Asset.V3.Resumable as Asset.Resumable

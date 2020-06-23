@@ -118,10 +118,11 @@ testTeamSize brig = do
   assertSize tid expectedSize
   where
     assertSize :: HasCallStack => TeamId -> Natural -> Http ()
-    assertSize tid expectedSize = void $
-      get (brig . paths ["i", "teams", toByteString' tid, "size"]) <!! do
-        const 200 === statusCode
-        (const . Right $ TeamSize expectedSize) === responseJsonEither
+    assertSize tid expectedSize =
+      void $
+        get (brig . paths ["i", "teams", toByteString' tid, "size"]) <!! do
+          const 200 === statusCode
+          (const . Right $ TeamSize expectedSize) === responseJsonEither
 
 -------------------------------------------------------------------------------
 -- Invitation Tests
@@ -765,9 +766,10 @@ testCreateUserInternalSSO brig galley = do
   postUser' True False "dummy" True False Nothing (Just teamid) brig
     !!! const 400 === statusCode
   -- creating user with sso_id, team_id is ok
-  resp <- postUser "dummy" True False (Just ssoid) (Just teamid) brig <!! do
-    const 201 === statusCode
-    const (Just ssoid) === (userSSOId . selfUser <=< responseJsonMaybe)
+  resp <-
+    postUser "dummy" True False (Just ssoid) (Just teamid) brig <!! do
+      const 201 === statusCode
+      const (Just ssoid) === (userSSOId . selfUser <=< responseJsonMaybe)
   -- self profile contains sso id
   let Just uid = userId <$> responseJsonMaybe resp
   profile <- getSelfProfile brig uid

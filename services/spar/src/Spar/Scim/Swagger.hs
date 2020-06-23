@@ -56,50 +56,54 @@ instance ToSchema ScimTokenInfo where
     createdAtSchema <- declareSchemaRef (Proxy @UTCTime)
     idpSchema <- declareSchemaRef (Proxy @SAML.IdPId)
     descrSchema <- declareSchemaRef (Proxy @Text)
-    return $ NamedSchema (Just "ScimTokenInfo") $
-      mempty
-        & type_ .~ Just SwaggerObject
-        & properties
-          .~ [ ("team", teamSchema),
-               ("id", idSchema),
-               ("created_at", createdAtSchema),
-               ("idp", idpSchema),
-               ("description", descrSchema)
-             ]
-        & required .~ ["team", "id", "created_at", "description"]
+    return $
+      NamedSchema (Just "ScimTokenInfo") $
+        mempty
+          & type_ .~ Just SwaggerObject
+          & properties
+            .~ [ ("team", teamSchema),
+                 ("id", idSchema),
+                 ("created_at", createdAtSchema),
+                 ("idp", idpSchema),
+                 ("description", descrSchema)
+               ]
+          & required .~ ["team", "id", "created_at", "description"]
 
 instance ToSchema CreateScimToken where
   declareNamedSchema _ = do
     textSchema <- declareSchemaRef (Proxy @Text)
-    return $ NamedSchema (Just "CreateScimToken") $
-      mempty
-        & type_ .~ Just SwaggerObject
-        & properties
-          .~ [ ("description", textSchema),
-               ("password", textSchema)
-             ]
-        & required .~ ["description"]
+    return $
+      NamedSchema (Just "CreateScimToken") $
+        mempty
+          & type_ .~ Just SwaggerObject
+          & properties
+            .~ [ ("description", textSchema),
+                 ("password", textSchema)
+               ]
+          & required .~ ["description"]
 
 instance ToSchema CreateScimTokenResponse where
   declareNamedSchema _ = do
     tokenSchema <- declareSchemaRef (Proxy @ScimToken)
     infoSchema <- declareSchemaRef (Proxy @ScimTokenInfo)
-    return $ NamedSchema (Just "CreateScimTokenResponse") $
-      mempty
-        & type_ .~ Just SwaggerObject
-        & properties
-          .~ [ ("token", tokenSchema),
-               ("info", infoSchema)
-             ]
-        & required .~ ["token", "info"]
+    return $
+      NamedSchema (Just "CreateScimTokenResponse") $
+        mempty
+          & type_ .~ Just SwaggerObject
+          & properties
+            .~ [ ("token", tokenSchema),
+                 ("info", infoSchema)
+               ]
+          & required .~ ["token", "info"]
 
 instance ToSchema ScimTokenList where
   declareNamedSchema _ = do
     infoListSchema <- declareSchemaRef (Proxy @[ScimTokenInfo])
-    return $ NamedSchema (Just "ScimTokenList") $
-      mempty
-        & type_ .~ Just SwaggerObject
-        & properties
-          .~ [ ("tokens", infoListSchema)
-             ]
-        & required .~ ["tokens"]
+    return $
+      NamedSchema (Just "ScimTokenList") $
+        mempty
+          & type_ .~ Just SwaggerObject
+          & properties
+            .~ [ ("tokens", infoListSchema)
+               ]
+          & required .~ ["tokens"]

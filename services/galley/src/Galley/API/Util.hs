@@ -19,7 +19,7 @@ module Galley.API.Util where
 
 import Brig.Types (Relation (..))
 import Brig.Types.Intra (ReAuthUser (..))
-import Control.Lens ((.~), (^.), view)
+import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
@@ -154,11 +154,12 @@ assertOnTeam uid tid = do
 -- | If the conversation is in a team, throw iff zusr is a team member and does not have named
 -- permission.  If the conversation is not in a team, do nothing (no error).
 permissionCheckTeamConv :: UserId -> ConvId -> Perm -> Galley ()
-permissionCheckTeamConv zusr cnv perm = Data.conversation cnv >>= \case
-  Just cnv' -> case Data.convTeam cnv' of
-    Just tid -> void $ permissionCheck perm =<< Data.teamMember tid zusr
-    Nothing -> pure ()
-  Nothing -> throwM convNotFound
+permissionCheckTeamConv zusr cnv perm =
+  Data.conversation cnv >>= \case
+    Just cnv' -> case Data.convTeam cnv' of
+      Just tid -> void $ permissionCheck perm =<< Data.teamMember tid zusr
+      Nothing -> pure ()
+    Nothing -> throwM convNotFound
 
 -- | Try to accept a 1-1 conversation, promoting connect conversations as appropriate.
 acceptOne2One :: UserId -> Data.Conversation -> Maybe ConnId -> Galley Data.Conversation

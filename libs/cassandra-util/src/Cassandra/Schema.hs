@@ -125,12 +125,12 @@ schemaVersion = catch (fmap runIdentity <$> qry) h
 versionCheck :: Int32 -> Client ()
 versionCheck v = do
   v' <- schemaVersion
-  unless (Just v <= v')
-    $ error
-    $ "Schema Version too old! Expecting at least: "
-      <> show v
-      <> ", but got: "
-      <> fromMaybe "" (show <$> v')
+  unless (Just v <= v') $
+    error $
+      "Schema Version too old! Expecting at least: "
+        <> show v
+        <> ", but got: "
+        <> fromMaybe "" (show <$> v')
 
 createKeyspace :: Keyspace -> ReplicationStrategy -> Client ()
 createKeyspace (Keyspace k) rs = void $ schema (cql rs) (params All ())
@@ -165,8 +165,8 @@ migrateSchema :: Log.Logger -> MigrationOpts -> [Migration] -> IO ()
 migrateSchema l o ms = do
   hosts <- initialContactsPlain $ pack (migHost o)
   p <-
-    CQL.init
-      $ setLogger (CT.mkLogger l)
+    CQL.init $
+      setLogger (CT.mkLogger l)
         . setContacts (NonEmpty.head hosts) (NonEmpty.tail hosts)
         . setPortNumber (fromIntegral $ migPort o)
         . setMaxConnections 1
@@ -183,7 +183,7 @@ migrateSchema l o ms = do
         . setSendTimeout 20
         . setResponseTimeout 50
         . setProtocolVersion V4
-      $ defSettings
+        $ defSettings
   runClient p $ do
     let keyspace = Keyspace . migKeyspace $ o
     when (migReset o) $ do

@@ -186,14 +186,15 @@ instance FromJSON Relation where
   parseJSON _ = mzero
 
 instance FromByteString Relation where
-  parser = takeByteString >>= \b -> case b of
-    "accepted" -> return Accepted
-    "blocked" -> return Blocked
-    "pending" -> return Pending
-    "ignored" -> return Ignored
-    "sent" -> return Sent
-    "cancelled" -> return Cancelled
-    x -> fail $ "Invalid relation-type " <> show x
+  parser =
+    takeByteString >>= \b -> case b of
+      "accepted" -> return Accepted
+      "blocked" -> return Blocked
+      "pending" -> return Pending
+      "ignored" -> return Ignored
+      "sent" -> return Sent
+      "cancelled" -> return Cancelled
+      x -> fail $ "Invalid relation-type " <> show x
 
 --------------------------------------------------------------------------------
 -- Message

@@ -102,7 +102,7 @@ newtype Amazon a = Amazon
     )
 
 instance MonadUnliftIO Amazon where
-  askUnliftIO = Amazon $ ReaderT $ \r ->
+  askUnliftIO = Amazon . ReaderT $ \r ->
     withUnliftIO $ \u ->
       return (UnliftIO (unliftIO u . flip runReaderT r . unAmazon))
 
@@ -173,7 +173,7 @@ instance Exception Error
 -- SQS
 
 listen :: (FromJSON a, Show a) => Int -> Text -> (a -> IO ()) -> Amazon ()
-listen throttleMillis url callback = forever $ handleAny unexpectedError $ do
+listen throttleMillis url callback = forever . handleAny unexpectedError $ do
   msgs <- view rmrsMessages <$> send receive
   void $ mapConcurrently onMessage msgs
   when (null msgs) $
@@ -182,7 +182,7 @@ listen throttleMillis url callback = forever $ handleAny unexpectedError $ do
     receive =
       SQS.receiveMessage url
         & set SQS.rmWaitTimeSeconds (Just 20)
-        . set SQS.rmMaxNumberOfMessages (Just 10)
+          . set SQS.rmMaxNumberOfMessages (Just 10)
     onMessage m =
       case decodeStrict =<< Text.encodeUtf8 <$> m ^. mBody of
         Nothing -> err $ msg ("Failed to parse SQS event: " ++ show m)
@@ -252,9 +252,9 @@ execCatch ::
   a ->
   m (Either AWS.Error (Rs a))
 execCatch e cmd =
-  runResourceT . AWST.runAWST e
-    $ AWST.trying AWS._Error
-    $ AWST.send cmd
+  runResourceT . AWST.runAWST e $
+    AWST.trying AWS._Error $
+      AWST.send cmd
 
 exec ::
   (AWSRequest a, AWS.HasEnv r, MonadUnliftIO m, MonadCatch m, MonadThrow m, MonadIO m) =>

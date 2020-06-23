@@ -27,7 +27,7 @@ where
 
 import Bilge (Request)
 import Bilge.IO (Http, Manager, runHttpT)
-import Control.Lens ((^.), makeLenses)
+import Control.Lens (makeLenses, (^.))
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit

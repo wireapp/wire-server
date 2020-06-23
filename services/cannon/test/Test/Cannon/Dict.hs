@@ -98,10 +98,11 @@ insertLookup = do
     action d k = do
       v <- toByteString <$> nextRandom
       added <- D.add k v d
-      when added $ replicateM_ 361 $ do
-        threadDelay 3571
-        x <- D.lookup k d
-        Just v @=? x
+      when added $
+        replicateM_ 361 $ do
+          threadDelay 3571
+          x <- D.lookup k d
+          Just v @=? x
 
 assertEq :: (Show a, Eq a, Monad m) => String -> a -> a -> PropertyM m ()
 assertEq m a b

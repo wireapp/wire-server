@@ -38,9 +38,9 @@ writeTimeToUTC = posixSecondsToUTCTime . fromIntegral . (`div` 1000000)
 
 defInitCassandra :: Text -> Text -> Word16 -> Log.Logger -> IO ClientState
 defInitCassandra ks h p lg =
-  init
-    $ setLogger (CT.mkLogger lg)
+  init $
+    setLogger (CT.mkLogger lg)
       . setPortNumber (fromIntegral p)
       . setContacts (unpack h) []
       . setKeyspace (Keyspace ks)
-    $ defSettings
+      $ defSettings

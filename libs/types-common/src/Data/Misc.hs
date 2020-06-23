@@ -60,7 +60,7 @@ module Data.Misc
 where
 
 import Cassandra
-import Control.Lens ((^.), makeLenses)
+import Control.Lens (makeLenses, (^.))
 import Data.Aeson
 import qualified Data.Aeson.Types as Json
 import qualified Data.Attoparsec.ByteString.Char8 as Chars

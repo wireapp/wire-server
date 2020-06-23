@@ -22,7 +22,7 @@ module Gundeck.React
   )
 where
 
-import Control.Lens ((.~), (^.), view)
+import Control.Lens (view, (.~), (^.))
 import Data.ByteString.Conversion
 import Data.Id (ClientId, UserId)
 import qualified Data.List as List
@@ -44,7 +44,7 @@ import qualified Gundeck.Push.Websocket as Web
 import Gundeck.Types
 import Gundeck.Util
 import Imports
-import System.Logger.Class ((+++), (.=), Msg, msg, val, (~~))
+import System.Logger.Class (Msg, msg, val, (+++), (.=), (~~))
 import qualified System.Logger.Class as Log
 
 onEvent :: Event -> Gundeck ()
@@ -76,7 +76,8 @@ onUpdated ev = withEndpoint ev $ \e as ->
       forM_ sup $ \a -> do
         logUserEvent (a ^. addrUser) ev $ msg (val "Removing superseded token")
         deleteToken (a ^. addrUser) ev (a ^. addrToken) (a ^. addrClient)
-      if  | null sup -> return ()
+      if
+          | null sup -> return ()
           | null cur -> deleteEndpoint ev
           | otherwise -> updateEndpoint ev e (map (view addrUser) cur)
 

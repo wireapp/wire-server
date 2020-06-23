@@ -154,8 +154,8 @@ testThreadBudgets :: Assertion
 testThreadBudgets = do
   let timeUnits n = MilliSeconds $ lengthOfTimeUnit * n
       lengthOfTimeUnit = 5 -- if you make this larger, the test will run more slowly, and be
-        -- less likely to have timing issues.  if you make it too small, some of the calls to
-        -- 'delayms' may return too fast and some things may not be ready yet.
+      -- less likely to have timing issues.  if you make it too small, some of the calls to
+      -- 'delayms' may return too fast and some things may not be ready yet.
   tbs <- mkThreadBudgetState (MaxConcurrentNativePushes (Just 5) (Just 5))
   logHistory :: LogHistory <- newMVar []
   watcher <- mkWatcher tbs logHistory

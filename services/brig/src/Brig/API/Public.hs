@@ -45,7 +45,7 @@ import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
 import Brig.User.Phone
 import Control.Error hiding (bool)
-import Control.Lens ((^.), view)
+import Control.Lens (view, (^.))
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
@@ -55,7 +55,7 @@ import Data.Handle (Handle, parseHandle)
 import Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local))
 import qualified Data.Map.Strict as Map
-import Data.Misc ((<$$>), IpAddr (..))
+import Data.Misc (IpAddr (..), (<$$>))
 import Data.Qualified (OptionallyQualified, eitherQualifiedOrNot)
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
@@ -1152,7 +1152,8 @@ checkHandle :: UserId -> Text -> Handler CheckHandleResp
 checkHandle _ uhandle = do
   handle <- validateHandle uhandle
   owner <- lift $ API.lookupHandle handle
-  if  | isJust owner ->
+  if
+      | isJust owner ->
         -- Handle is taken (=> getHandleInfo will return 200)
         return CheckHandleFound
       | API.isBlacklistedHandle handle ->

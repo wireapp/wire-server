@@ -182,9 +182,10 @@ instance FromJSON (UserExtra tag) => FromJSON (User tag) where
   parseJSON = withObject "User" $ \obj -> do
     -- Lowercase all fields
     let o = HM.fromList . map (over _1 toLower) . HM.toList $ obj
-    schemas <- o .:? "schemas" <&> \case
-      Nothing -> [User20]
-      Just xs -> if User20 `elem` xs then xs else User20 : xs
+    schemas <-
+      o .:? "schemas" <&> \case
+        Nothing -> [User20]
+        Just xs -> if User20 `elem` xs then xs else User20 : xs
     userName <- o .: "username"
     externalId <- o .:? "externalid"
     name <- o .:? "name"

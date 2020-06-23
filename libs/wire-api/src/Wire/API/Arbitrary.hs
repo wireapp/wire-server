@@ -43,8 +43,8 @@ import Data.List1 (List1, list1)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import GHC.Generics (Rep)
+import Generic.Random (listOf', (:+) ((:+)))
 import qualified Generic.Random as Generic
-import Generic.Random ((:+) ((:+)), listOf')
 import Imports
 import Test.QuickCheck.Arbitrary (Arbitrary (arbitrary))
 import qualified Test.QuickCheck.Arbitrary as QC

@@ -35,7 +35,7 @@ import qualified Data.Aeson as JSON
 import Data.Id
 import Data.List1 (List1)
 import Data.Range (Range, fromRange)
-import Data.Sequence ((<|), (><), Seq, ViewL (..), ViewR (..))
+import Data.Sequence (Seq, ViewL (..), ViewR (..), (<|), (><))
 import qualified Data.Sequence as Seq
 import Gundeck.Types.Notification
 import Imports
@@ -128,9 +128,9 @@ toNotif (i, b) ns =
     ns
     (\p1 -> queuedNotification notifId p1 : ns)
     ( JSON.decode' (fromBlob b)
-      -- FUTUREWORK: this is from the database, so it's slightly more ok to ignore parse
-      -- errors than if it's data provided by a client.  it would still be better to have an
-      -- error entry in the log file and crash, rather than ignore the error and continue.
+    -- FUTUREWORK: this is from the database, so it's slightly more ok to ignore parse
+    -- errors than if it's data provided by a client.  it would still be better to have an
+    -- error entry in the log file and crash, rather than ignore the error and continue.
     )
   where
     notifId = Id (fromTimeUuid i)

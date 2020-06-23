@@ -271,9 +271,10 @@ typeManagedBy =
       ]
 
 instance ToJSON ManagedBy where
-  toJSON = String . \case
-    ManagedByWire -> "wire"
-    ManagedByScim -> "scim"
+  toJSON =
+    String . \case
+      ManagedByWire -> "wire"
+      ManagedByScim -> "scim"
 
 instance FromJSON ManagedBy where
   parseJSON = withText "ManagedBy" $ \case

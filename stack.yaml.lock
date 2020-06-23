@@ -565,12 +565,12 @@ packages:
   original:
     hackage: splitmix-0.0.4
 - completed:
-    hackage: ormolu-0.0.5.0@sha256:e5f49c51c6ebd8b3cd16113e585312de7315c1e1561fbb599988cebc61c14f4e,7956
+    hackage: ormolu-0.1.2.0@sha256:24e6512750576978b6f045c1e53a7aad28ab61960f738a3c74fb0bc2beaf4030,6237
     pantry-tree:
-      size: 66187
-      sha256: fd591a96bb129610f89d23d2986b1b11dad8c1c41e23ea1c6f03340b7265b617
+      size: 71915
+      sha256: 5a857d9bf0e9579ee4daacfb63b4665cdf9e0a0de31d8e0715a27836007e9c42
   original:
-    hackage: ormolu-0.0.5.0
+    hackage: ormolu-0.1.2.0
 - completed:
     hackage: ghc-lib-parser-8.10.1.20200412@sha256:b0517bb150a02957d7180f131f5b94abd2a7f58a7d1532a012e71618282339c2,8751
     pantry-tree:

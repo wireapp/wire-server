@@ -40,7 +40,8 @@ getRichInfo brig self uid = do
           . paths ["users", toByteString' uid, "rich-info"]
           . zUser self
       )
-  if  | statusCode r == 200 -> Right <$> responseJsonError r
+  if
+      | statusCode r == 200 -> Right <$> responseJsonError r
       | statusCode r `elem` [403, 404] -> pure . Left . statusCode $ r
       | otherwise ->
         error $

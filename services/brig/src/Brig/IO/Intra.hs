@@ -71,7 +71,7 @@ import Brig.Types.Intra
 import Brig.User.Event
 import qualified Brig.User.Event.Log as Log
 import qualified Brig.User.Search.Index as Search
-import Control.Lens ((.~), (?~), (^.), view)
+import Control.Lens (view, (.~), (?~), (^.))
 import Control.Retry
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
@@ -80,8 +80,7 @@ import Data.Coerce (coerce)
 import qualified Data.Currency as Currency
 import qualified Data.HashMap.Strict as M
 import Data.Id
-import Data.Json.Util ((#), UTCTimeMillis)
-import Data.Json.Util ()
+import Data.Json.Util (UTCTimeMillis, (#))
 import Data.List.Split (chunksOf)
 import Data.List1 (List1, list1, singleton)
 import Data.Range
@@ -96,7 +95,7 @@ import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
-import System.Logger.Class as Log hiding ((.=), name)
+import System.Logger.Class as Log hiding (name, (.=))
 import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatus)
 
 -----------------------------------------------------------------------------
@@ -267,23 +266,24 @@ rawPush (toList -> events) usrs orig route conn = do
   for_ events $ \e -> debug $ remote "gundeck" . msg (fst e)
   g <- view gundeck
   forM_ recipients $ \rcps ->
-    void . recovering x3 rpcHandlers $ const $
-      rpc'
-        "gundeck"
-        g
-        ( method POST
-            . path "/i/push/v2"
-            . zUser orig
-            . json (map (mkPush rcps . snd) events)
-            . expect2xx
-        )
+    void . recovering x3 rpcHandlers $
+      const $
+        rpc'
+          "gundeck"
+          g
+          ( method POST
+              . path "/i/push/v2"
+              . zUser orig
+              . json (map (mkPush rcps . snd) events)
+              . expect2xx
+          )
   where
     recipients :: [Range 1 1024 (Set.Set Recipient)]
     recipients =
-      map (unsafeRange . Set.fromList)
-        $ chunksOf 512
-        $ map (`recipient` route)
-        $ toList usrs
+      map (unsafeRange . Set.fromList) $
+        chunksOf 512 $
+          map (`recipient` route) $
+            toList usrs
     mkPush :: Range 1 1024 (Set.Set Recipient) -> (Object, Maybe ApsData) -> Push
     mkPush rcps (o, aps) =
       newPush
@@ -332,9 +332,9 @@ notifyContacts ::
   AppIO ()
 notifyContacts events orig route conn = do
   env <- ask
-  notify events orig route conn
-    $ runAppT env
-    $ list1 orig <$> liftA2 (++) contacts teamContacts
+  notify events orig route conn $
+    runAppT env $
+      list1 orig <$> liftA2 (++) contacts teamContacts
   where
     contacts :: AppIO [UserId]
     contacts = lookupContactList orig
@@ -404,13 +404,14 @@ toPushFormat (UserEvent (UserIdentityRemoved (UserIdentityRemovedData i e p))) =
             )
       ]
 toPushFormat (ConnectionEvent (ConnectionUpdated uc _ name)) =
-  Just $ M.fromList $
-    "type" .= ("user.connection" :: Text)
-      # "connection" .= uc
-      # "user" .= case name of
-        Just n -> Just $ object ["name" .= n]
-        Nothing -> Nothing
-      # []
+  Just $
+    M.fromList $
+      "type" .= ("user.connection" :: Text)
+        # "connection" .= uc
+        # "user" .= case name of
+          Just n -> Just $ object ["name" .= n]
+          Nothing -> Nothing
+        # []
 toPushFormat (UserEvent (UserSuspended i)) =
   Just $
     M.fromList
@@ -520,9 +521,9 @@ createConnectConv from to cname mess conn = do
       . remote "galley"
       . msg (val "Creating connect conversation")
   r <- galleyRequest POST req
-  maybe (error "invalid conv id") return
-    $ fromByteString
-    $ getHeader' "Location" r
+  maybe (error "invalid conv id") return $
+    fromByteString $
+      getHeader' "Location" r
   where
     req =
       path "/i/conversations/connect"
@@ -669,15 +670,16 @@ rmClient u c = do
       . field "client" (BL.fromStrict cid)
       . msg (val "unregister push client")
   g <- view gundeck
-  void . recovering x3 rpcHandlers $ const $
-    rpc'
-      "gundeck"
-      g
-      ( method DELETE
-          . paths ["i", "clients", cid]
-          . zUser u
-          . expect expected
-      )
+  void . recovering x3 rpcHandlers $
+    const $
+      rpc'
+        "gundeck"
+        g
+        ( method DELETE
+            . paths ["i", "clients", cid]
+            . zUser u
+            . expect expected
+        )
   where
     expected = [status200, status204, status404]
 
@@ -729,9 +731,9 @@ createTeam u t@(Team.BindingNewTeam bt) teamid = do
       . msg (val "Creating Team")
   r <- galleyRequest PUT $ req teamid
   tid <-
-    maybe (error "invalid team id") return
-      $ fromByteString
-      $ getHeader' "Location" r
+    maybe (error "invalid team id") return $
+      fromByteString $
+        getHeader' "Location" r
   return (CreateUserTeam tid $ fromRange (bt ^. Team.newTeamName))
   where
     req tid =
@@ -838,9 +840,10 @@ getTeamLegalHoldStatus tid = do
 
 -- | Calls 'Galley.API.getSearchVisibilityInternalH'.
 getTeamSearchVisibility :: TeamId -> AppIO Team.TeamSearchVisibility
-getTeamSearchVisibility tid = coerce @Team.TeamSearchVisibilityView @Team.TeamSearchVisibility <$> do
-  debug $ remote "galley" . msg (val "Get search visibility settings")
-  galleyRequest GET req >>= decodeBody "galley"
+getTeamSearchVisibility tid =
+  coerce @Team.TeamSearchVisibilityView @Team.TeamSearchVisibility <$> do
+    debug $ remote "galley" . msg (val "Get search visibility settings")
+    galleyRequest GET req >>= decodeBody "galley"
   where
     req =
       paths ["i", "teams", toByteString' tid, "search-visibility"]

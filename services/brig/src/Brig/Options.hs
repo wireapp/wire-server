@@ -538,10 +538,10 @@ instance FromJSON Timeout where
   parseJSON (Y.Number n) =
     let defaultV = 3600
         bounded = toBoundedInteger n :: Maybe Int64
-     in pure
-          $ Timeout
-          $ fromIntegral @Int
-          $ maybe defaultV fromIntegral bounded
+     in pure $
+          Timeout $
+            fromIntegral @Int $
+              maybe defaultV fromIntegral bounded
   parseJSON v = typeMismatch "activationTimeout" v
 
 instance FromJSON Settings

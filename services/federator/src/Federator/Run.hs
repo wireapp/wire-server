@@ -37,7 +37,7 @@ where
 import Bilge (RequestId (unRequestId))
 import Bilge.RPC (HasRequestId (..))
 import Control.Error
-import Control.Lens ((^.), view)
+import Control.Lens (view, (^.))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Control.Monad.Trans.Resource
 import Data.Default (def)
@@ -118,7 +118,7 @@ instance Monad m => HasRequestId (AppT m) where
 
 instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
   withRunInIO inner =
-    AppT $ ReaderT $ \r ->
+    AppT . ReaderT $ \r ->
       withRunInIO $ \runner ->
         inner (runner . flip runReaderT r . unAppT)
 

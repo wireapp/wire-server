@@ -237,8 +237,8 @@ specFinalizeLogin = do
                   . expect2xx
               )
             liftIO $ threadDelay 100000 -- make sure deletion is done.  if we don't want to take
-                -- the time, we should find another way to robustly
-                -- confirm that deletion has compelted in the background.
+            -- the time, we should find another way to robustly
+            -- confirm that deletion has compelted in the background.
 
           -- second login
           do
@@ -1015,10 +1015,10 @@ specDeleteCornerCases = describe "delete corner cases" $ do
     samlUserShouldSatisfy uref isJust
     deleteViaBrig uid
     samlUserShouldSatisfy uref isJust -- brig doesn't talk to spar right now when users
-      -- are deleted there.  we need to work around this
-      -- fact for now.  (if the test fails here, this may
-      -- mean that you fixed the behavior and can
-      -- change this to 'isNothing'.)
+    -- are deleted there.  we need to work around this
+    -- fact for now.  (if the test fails here, this may
+    -- mean that you fixed the behavior and can
+    -- change this to 'isNothing'.)
     (Just _) <- createViaSaml idp privcreds uref
     samlUserShouldSatisfy uref isJust
   where

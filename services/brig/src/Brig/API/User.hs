@@ -119,7 +119,7 @@ import qualified Brig.User.Search.Index as Index
 import Control.Arrow ((&&&))
 import Control.Concurrent.Async (mapConcurrently, mapConcurrently_)
 import Control.Error
-import Control.Lens ((^.), view)
+import Control.Lens (view, (^.))
 import Control.Monad.Catch
 import Data.ByteString.Conversion
 import qualified Data.Currency as Currency
@@ -129,8 +129,7 @@ import Data.IdMapping (MappedOrLocalId, partitionMappedOrLocalIds)
 import Data.Json.Util
 import Data.List1 (List1)
 import qualified Data.Map.Strict as Map
-import Data.Misc ((<$$>))
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (PlainTextPassword (..), (<$$>))
 import Data.Time.Clock (diffUTCTime)
 import Data.UUID.V4 (nextRandom)
 import qualified Galley.Types.Teams as Team
@@ -229,9 +228,9 @@ createUser new@NewUser {..} = do
   where
     checkKey u k = do
       av <- lift $ Data.keyAvailable k u
-      unless av
-        $ throwE
-        $ DuplicateUserKey k
+      unless av $
+        throwE $
+          DuplicateUserKey k
     createTeam uid activating t tid = do
       created <- Intra.createTeam uid t tid
       return $
@@ -248,24 +247,27 @@ createUser new@NewUser {..} = do
           Maybe (Team.Invitation, Team.InvitationInfo),
           Maybe TeamId
         )
-    handleTeam (Just (NewTeamMember i)) e = findTeamInvitation e i >>= return . \case
-      Just (inv, info, tid) -> (Nothing, Just (inv, info), Just tid)
-      Nothing -> (Nothing, Nothing, Nothing)
+    handleTeam (Just (NewTeamMember i)) e =
+      findTeamInvitation e i
+        >>= return . \case
+          Just (inv, info, tid) -> (Nothing, Just (inv, info), Just tid)
+          Nothing -> (Nothing, Nothing, Nothing)
     handleTeam (Just (NewTeamCreator t)) _ = (Just t,Nothing,) <$> (Just . Id <$> liftIO nextRandom)
     handleTeam (Just (NewTeamMemberSSO tid)) _ = pure (Nothing, Nothing, Just tid)
     handleTeam Nothing _ = return (Nothing, Nothing, Nothing)
     findTeamInvitation :: Maybe UserKey -> InvitationCode -> ExceptT CreateUserError AppIO (Maybe (Team.Invitation, Team.InvitationInfo, TeamId))
     findTeamInvitation Nothing _ = throwE MissingIdentity
-    findTeamInvitation (Just e) c = lift (Team.lookupInvitationInfo c) >>= \case
-      Just ii -> do
-        inv <- lift $ Team.lookupInvitation (Team.iiTeam ii) (Team.iiInvId ii)
-        case (inv, Team.inIdentity <$> inv) of
-          (Just invite, Just em)
-            | e == userEmailKey em -> do
-              _ <- ensureMemberCanJoin (Team.iiTeam ii)
-              return $ Just (invite, ii, Team.iiTeam ii)
-          _ -> throwE InvalidInvitationCode
-      Nothing -> throwE InvalidInvitationCode
+    findTeamInvitation (Just e) c =
+      lift (Team.lookupInvitationInfo c) >>= \case
+        Just ii -> do
+          inv <- lift $ Team.lookupInvitation (Team.iiTeam ii) (Team.iiInvId ii)
+          case (inv, Team.inIdentity <$> inv) of
+            (Just invite, Just em)
+              | e == userEmailKey em -> do
+                _ <- ensureMemberCanJoin (Team.iiTeam ii)
+                return $ Just (invite, ii, Team.iiTeam ii)
+            _ -> throwE InvalidInvitationCode
+        Nothing -> throwE InvalidInvitationCode
     ensureMemberCanJoin :: TeamId -> ExceptT CreateUserError AppIO ()
     ensureMemberCanJoin tid = do
       maxSize <- fromIntegral . setMaxTeamSize <$> view settings
@@ -281,9 +283,9 @@ createUser new@NewUser {..} = do
     acceptTeamInvitation account inv ii uk ident = do
       let uid = userId (accountUser account)
       ok <- lift $ Data.claimKey uk uid
-      unless ok
-        $ throwE
-        $ DuplicateUserKey uk
+      unless ok $
+        throwE $
+          DuplicateUserKey uk
       let minvmeta :: (Maybe (UserId, UTCTimeMillis), Team.Role)
           minvmeta = ((,inCreatedAt inv) <$> inCreatedBy inv, Team.inRole inv)
       added <- lift $ Intra.addTeamMember uid (Team.iiTeam ii) minvmeta
@@ -432,9 +434,9 @@ changeEmail u email = do
   when blacklisted $
     throwE (ChangeBlacklistedEmail email)
   available <- lift $ Data.keyAvailable ek (Just u)
-  unless available
-    $ throwE
-    $ EmailExists email
+  unless available $
+    throwE $
+      EmailExists email
   usr <- maybe (throwM $ UserProfileNotFound u) return =<< lift (Data.lookupUser u)
   case join (emailIdentity <$> userIdentity usr) of
     -- The user already has an email address and the new one is exactly the same
@@ -456,9 +458,9 @@ changePhone u phone = do
       =<< lift (validatePhone phone)
   let pk = userPhoneKey ph
   available <- lift $ Data.keyAvailable pk (Just u)
-  unless available
-    $ throwE
-    $ PhoneExists phone
+  unless available $
+    throwE $
+      PhoneExists phone
   timeout <- setActivationTimeout <$> view settings
   act <- lift $ Data.newActivation pk timeout (Just u)
   return (act, ph)
@@ -504,15 +506,16 @@ revokeIdentity key = do
   mu <- Data.lookupKey uk
   case mu of
     Nothing -> return ()
-    Just u -> fetchUserIdentity u >>= \case
-      Just (FullIdentity _ _) -> revokeKey u uk
-      Just (EmailIdentity e) | Left e == key -> do
-        revokeKey u uk
-        Data.deactivateUser u
-      Just (PhoneIdentity p) | Right p == key -> do
-        revokeKey u uk
-        Data.deactivateUser u
-      _ -> return ()
+    Just u ->
+      fetchUserIdentity u >>= \case
+        Just (FullIdentity _ _) -> revokeKey u uk
+        Just (EmailIdentity e) | Left e == key -> do
+          revokeKey u uk
+          Data.deactivateUser u
+        Just (PhoneIdentity p) | Right p == key -> do
+          revokeKey u uk
+          Data.deactivateUser u
+        _ -> return ()
   where
     revokeKey u uk = do
       deleteKey uk
@@ -545,9 +548,10 @@ changeAccountStatus usrs status = do
       Intra.onUserEvent u Nothing (ev u)
 
 suspendAccount :: HasCallStack => List1 UserId -> AppIO ()
-suspendAccount usrs = runExceptT (changeAccountStatus usrs Suspended) >>= \case
-  Right _ -> pure ()
-  Left InvalidAccountStatus -> error "impossible."
+suspendAccount usrs =
+  runExceptT (changeAccountStatus usrs Suspended) >>= \case
+    Right _ -> pure ()
+    Left InvalidAccountStatus -> error "impossible."
 
 -------------------------------------------------------------------------------
 -- Activation
@@ -580,9 +584,9 @@ activateWithCurrency tgt code usr cur = do
     Nothing -> return ActivationPass
     Just e -> do
       (uid, ident, first) <- lift $ onActivated e
-      when first
-        $ lift
-        $ activateTeam uid
+      when first $
+        lift $
+          activateTeam uid
       return $ ActivationSuccess ident first
   where
     activateTeam uid = do
@@ -618,9 +622,9 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
         (return . userEmailKey)
         (validateEmail email)
     exists <- lift $ isJust <$> Data.lookupKey ek
-    when exists
-      $ throwE
-      $ UserKeyInUse ek
+    when exists $
+      throwE $
+        UserKeyInUse ek
     blacklisted <- lift $ Blacklist.exists ek
     when blacklisted $
       throwE (ActivationBlacklistedUserKey ek)
@@ -638,9 +642,9 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
         =<< lift (validatePhone phone)
     let pk = userPhoneKey canonical
     exists <- lift $ isJust <$> Data.lookupKey pk
-    when exists
-      $ throwE
-      $ UserKeyInUse pk
+    when exists $
+      throwE $
+        UserKeyInUse pk
     blacklisted <- lift $ Blacklist.exists pk
     when blacklisted $
       throwE (ActivationBlacklistedUserKey pk)

@@ -28,7 +28,7 @@ import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User.Auth hiding (user)
 import qualified CargoHold.Types.V3 as CHV3
 import qualified Codec.MIME.Type as MIME
-import Control.Lens ((^?), preview)
+import Control.Lens (preview, (^?))
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson
 import Data.Aeson.Lens
@@ -131,9 +131,10 @@ activateEmail brig email = do
   act <- getActivationCode brig (Left email)
   case act of
     Nothing -> liftIO $ assertFailure "missing activation key/code"
-    Just kc -> activate brig kc !!! do
-      const 200 === statusCode
-      const (Just False) === fmap activatedFirst . responseJsonMaybe
+    Just kc ->
+      activate brig kc !!! do
+        const 200 === statusCode
+        const (Just False) === fmap activatedFirst . responseJsonMaybe
 
 checkEmail :: HasCallStack => Brig -> UserId -> Email -> HttpT IO ()
 checkEmail brig uid expectedEmail =
@@ -254,9 +255,10 @@ countCookies brig u label = do
   return $ Vec.length <$> (preview (key "cookies" . _Array) =<< responseJsonMaybe @Value r)
 
 assertConnections :: HasCallStack => Brig -> UserId -> [ConnectionStatus] -> Http ()
-assertConnections brig u cs = listConnections brig u !!! do
-  const 200 === statusCode
-  const (Just True) === fmap (check . map status . clConnections) . responseJsonMaybe
+assertConnections brig u cs =
+  listConnections brig u !!! do
+    const 200 === statusCode
+    const (Just True) === fmap (check . map status . clConnections) . responseJsonMaybe
   where
     check xs = all (`elem` xs) cs
     status c = ConnectionStatus (ucFrom c) (ucTo c) (ucStatus c)

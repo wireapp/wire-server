@@ -229,19 +229,20 @@ validateScimUser' idp richInfoLimit user = do
     validateRichInfo :: RichInfo -> m RichInfo
     validateRichInfo richInfo = do
       let sze = richInfoSize richInfo
-      when (sze > richInfoLimit) $ throwError $
-        ( Scim.badRequest
-            Scim.InvalidValue
-            ( Just . cs $
-                show [richInfoMapURN, richInfoAssocListURN]
-                  <> " together exceed the size limit: max "
-                  <> show richInfoLimit
-                  <> " characters, but got "
-                  <> show sze
-            )
-        )
-          { Scim.status = Scim.Status 413
-          }
+      when (sze > richInfoLimit) $
+        throwError $
+          ( Scim.badRequest
+              Scim.InvalidValue
+              ( Just . cs $
+                  show [richInfoMapURN, richInfoAssocListURN]
+                    <> " together exceed the size limit: max "
+                    <> show richInfoLimit
+                    <> " characters, but got "
+                    <> show sze
+              )
+          )
+            { Scim.status = Scim.Status 413
+            }
       pure richInfo
 
 -- | Given an 'externalId' and an 'IdP', construct a 'SAML.UserRef'.
@@ -410,12 +411,12 @@ updateValidScimUser tokinfo uid newScimUser = do
         case newScimUser ^. vsuName of
           Just nm | oldScimUser ^. vsuName /= Just nm -> Brig.setBrigUserName uid nm
           _ -> pure ()
-        when (oldScimUser ^. vsuHandle /= newScimUser ^. vsuHandle)
-          $ Brig.setBrigUserHandle uid
-          $ newScimUser ^. vsuHandle
-        when (oldScimUser ^. vsuRichInfo /= newScimUser ^. vsuRichInfo)
-          $ Brig.setBrigUserRichInfo uid
-          $ newScimUser ^. vsuRichInfo
+        when (oldScimUser ^. vsuHandle /= newScimUser ^. vsuHandle) $
+          Brig.setBrigUserHandle uid $
+            newScimUser ^. vsuHandle
+        when (oldScimUser ^. vsuRichInfo /= newScimUser ^. vsuRichInfo) $
+          Brig.setBrigUserRichInfo uid $
+            newScimUser ^. vsuRichInfo
 
       lift $
         Brig.getStatus uid >>= \old -> do
@@ -446,9 +447,9 @@ toScimStoredUser' ::
   Scim.User SparTag ->
   Scim.StoredUser SparTag
 toScimStoredUser' createdAt lastChangedAt baseuri uid usr =
-  Scim.WithMeta meta
-    $ Scim.WithId uid
-    $ usr {Scim.User.schemas = userSchemas}
+  Scim.WithMeta meta $
+    Scim.WithId uid $
+      usr {Scim.User.schemas = userSchemas}
   where
     mkLocation :: String -> URI
     mkLocation pathSuffix = convURI $ baseuri SAML.=/ cs pathSuffix
@@ -503,11 +504,10 @@ deleteScimUser ScimTokenInfo {stiTeam} uid = do
       -- FUTUREWORK: currently it's impossible to delete the last available team owner via SCIM
       -- (because that owner won't be managed by SCIM in the first place), but if it ever becomes
       -- possible, we should do a check here and prohibit it.
-      unless (userTeam brigUser == Just stiTeam)
-        $
+      unless (userTeam brigUser == Just stiTeam) $
         -- users from other teams get you a 404.
-        throwError
-        $ Scim.notFound "user" (idToText uid)
+        throwError $
+          Scim.notFound "user" (idToText uid)
       ssoId <-
         maybe
           (logThenServerError $ "no userSSOId for user " <> cs (idToText uid))
@@ -573,9 +573,10 @@ assertHandleUnused :: Handle -> UserId -> Scim.ScimHandler Spar ()
 assertHandleUnused = assertHandleUnused' "userName is already taken"
 
 assertHandleUnused' :: Text -> Handle -> UserId -> Scim.ScimHandler Spar ()
-assertHandleUnused' msg hndl uid = lift (Brig.checkHandleAvailable hndl uid) >>= \case
-  True -> pure ()
-  False -> throwError Scim.conflict {Scim.detail = Just msg}
+assertHandleUnused' msg hndl uid =
+  lift (Brig.checkHandleAvailable hndl uid) >>= \case
+    True -> pure ()
+    False -> throwError Scim.conflict {Scim.detail = Just msg}
 
 assertHandleNotUsedElsewhere :: Handle -> UserId -> Scim.ScimHandler Spar ()
 assertHandleNotUsedElsewhere hndl uid = do

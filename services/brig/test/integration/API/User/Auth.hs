@@ -36,7 +36,7 @@ import Brig.Types.User.Auth
 import qualified Brig.Types.User.Auth as Auth
 import Brig.ZAuth (ZAuth, runZAuth)
 import qualified Brig.ZAuth as ZAuth
-import Control.Lens ((^.), (^?), set)
+import Control.Lens (set, (^.), (^?))
 import Control.Retry
 import Data.Aeson
 import Data.Aeson.Lens
@@ -158,8 +158,9 @@ testNginz b n = do
   _rs <- get (n . path "/clients" . header "Authorization" ("Bearer " <> (toByteString' t)))
   liftIO $ assertEqual "Ensure nginz is started. Ensure nginz and brig share the same private/public zauth keys. Ensure ACL file is correct." 200 (statusCode _rs)
   -- ensure nginz allows refresh at /access
-  _rs <- post (n . path "/access" . cookie c . header "Authorization" ("Bearer " <> (toByteString' t))) <!! do
-    const 200 === statusCode
+  _rs <-
+    post (n . path "/access" . cookie c . header "Authorization" ("Bearer " <> (toByteString' t))) <!! do
+      const 200 === statusCode
   -- ensure regular user tokens can fetch notifications
   get (n . path "/notifications" . header "Authorization" ("Bearer " <> (toByteString' t))) !!! const 200 === statusCode
 
@@ -591,19 +592,21 @@ testNewPersistentCookie config b = do
   -- Wait for the cookie to be eligible for renewal
   liftIO $ threadDelay minAge
   -- Refresh tokens
-  _rs <- post (b . path "/access" . cookie c) <!! do
-    const 200 === statusCode
-    const Nothing =/= getHeader "Set-Cookie"
-    const (Just "access_token") =~= responseBody
+  _rs <-
+    post (b . path "/access" . cookie c) <!! do
+      const 200 === statusCode
+      const Nothing =/= getHeader "Set-Cookie"
+      const (Just "access_token") =~= responseBody
   let c' = decodeCookie _rs
   liftIO $ assertBool "expiry" (cookie_expiry_time c' > cookie_expiry_time c)
   -- Refresh with the old cookie should still work for the
   -- duration of another BRIG_COOKIE_RENEW_AGE seconds,
   -- but the response should keep advertising the new cookie.
-  _rs <- post (b . path "/access" . cookie c) <!! do
-    const 200 === statusCode
-    const Nothing =/= getHeader "Set-Cookie"
-    const (Just "access_token") =~= responseBody
+  _rs <-
+    post (b . path "/access" . cookie c) <!! do
+      const 200 === statusCode
+      const Nothing =/= getHeader "Set-Cookie"
+      const (Just "access_token") =~= responseBody
   -- we got a new cookie value, but the key is the same
   liftIO $ assertBool "cookie" (c' `equivCookie` decodeCookie _rs)
   -- Refresh with the new cookie should succeed

@@ -45,12 +45,12 @@ spec = do
     let withoutRaw (IdPMetadataValue _ x) = x
     (withoutRaw <$> (Aeson.eitherDecode . Aeson.encode) val) `shouldBe` Right (withoutRaw val)
   describe "SsoSettings JSON instance" $ do
-    it "always has and requires the field default_sso_code"
-      $ property
-      $ \(ssoSettings :: SsoSettings) -> do
-        let object = Aeson.toJSON ssoSettings
-        let objectWithoutKey = Lens.over Aeson._Object (HM.delete "default_sso_code") $ object
-        (HM.lookup "default_sso_code" =<< Lens.preview Aeson._Object object)
-          `shouldSatisfy` isJust
-        Aeson.parseMaybe (Aeson.parseJSON @SsoSettings) objectWithoutKey
-          `shouldSatisfy` isNothing
+    it "always has and requires the field default_sso_code" $
+      property $
+        \(ssoSettings :: SsoSettings) -> do
+          let object = Aeson.toJSON ssoSettings
+          let objectWithoutKey = Lens.over Aeson._Object (HM.delete "default_sso_code") $ object
+          (HM.lookup "default_sso_code" =<< Lens.preview Aeson._Object object)
+            `shouldSatisfy` isJust
+          Aeson.parseMaybe (Aeson.parseJSON @SsoSettings) objectWithoutKey
+            `shouldSatisfy` isNothing

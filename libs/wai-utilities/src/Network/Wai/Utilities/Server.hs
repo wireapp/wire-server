@@ -99,14 +99,14 @@ newSettings (Server h p l m t) = do
   -- (Atomically) initialise the standard metrics, to avoid races.
   void $ gaugeGet (path "net.connections") m
   void $ counterGet (path "net.errors") m
-  return
-    $ setHost (fromString h)
+  return $
+    setHost (fromString h)
       . setPort (fromIntegral p)
       . setBeforeMainLoop logStart
       . setOnOpen (const $ connStart >> return True)
       . setOnClose (const connEnd)
       . setTimeout (fromMaybe 300 t)
-    $ defaultSettings
+      $ defaultSettings
   where
     connStart = gaugeIncr (path "net.connections") m
     connEnd = gaugeDecr (path "net.connections") m
@@ -357,10 +357,11 @@ runHandlers e [] = throw e
 runHandlers e (Handler h : hs) = maybe (runHandlers e hs) h (fromException e)
 
 restrict :: Int -> Int -> Predicate r P.Error Int -> Predicate r P.Error Int
-restrict l u = fmap $ \x -> x >>= \v ->
-  if v >= l && v <= u
-    then x
-    else Fail (setMessage (emsg v) . setReason TypeError $ e400)
+restrict l u = fmap $ \x ->
+  x >>= \v ->
+    if v >= l && v <= u
+      then x
+      else Fail (setMessage (emsg v) . setReason TypeError $ e400)
   where
     emsg v =
       LBS.toStrict . toLazyByteString $

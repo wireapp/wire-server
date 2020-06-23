@@ -240,10 +240,11 @@ instance BC.ToByteString Scheme where
   builder SchemeTurns = "turns"
 
 instance BC.FromByteString Scheme where
-  parser = BC.parser >>= \t -> case (t :: ByteString) of
-    "turn" -> pure SchemeTurn
-    "turns" -> pure SchemeTurns
-    _ -> fail $ "Invalid turn scheme: " ++ show t
+  parser =
+    BC.parser >>= \t -> case (t :: ByteString) of
+      "turn" -> pure SchemeTurn
+      "turns" -> pure SchemeTurns
+      _ -> fail $ "Invalid turn scheme: " ++ show t
 
 instance ToJSON Scheme where
   toJSON = String . TE.decodeUtf8 . BC.toByteString'
@@ -306,10 +307,11 @@ instance BC.ToByteString Transport where
   builder TransportTCP = "tcp"
 
 instance BC.FromByteString Transport where
-  parser = BC.parser >>= \t -> case (t :: ByteString) of
-    "udp" -> pure TransportUDP
-    "tcp" -> pure TransportTCP
-    _ -> fail $ "Invalid turn transport: " ++ show t
+  parser =
+    BC.parser >>= \t -> case (t :: ByteString) of
+      "udp" -> pure TransportUDP
+      "tcp" -> pure TransportTCP
+      _ -> fail $ "Invalid turn transport: " ++ show t
 
 instance ToJSON Transport where
   toJSON = String . TE.decodeUtf8 . BC.toByteString'

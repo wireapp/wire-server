@@ -35,7 +35,7 @@ import Imports
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), checkResponse)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
-import System.Logger.Class hiding ((.=), name)
+import System.Logger.Class hiding (name, (.=))
 
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000
@@ -55,9 +55,9 @@ expect ss rq = rq {checkResponse = check}
     check rq' rs = do
       let s = responseStatus rs
           rs' = rs {responseBody = ()}
-      when (statusIsServerError s || s `notElem` ss)
-        $ throwM
-        $ HttpExceptionRequest rq' (StatusCodeException rs' mempty)
+      when (statusIsServerError s || s `notElem` ss) $
+        throwM $
+          HttpExceptionRequest rq' (StatusCodeException rs' mempty)
 
 cargoholdRequest ::
   StdMethod ->
@@ -85,8 +85,9 @@ serviceRequest ::
   AppIO (Response (Maybe BL.ByteString))
 serviceRequest nm svc m r = do
   service <- view svc
-  recovering x3 rpcHandlers $ const $
-    rpc' nm service (method m . r)
+  recovering x3 rpcHandlers $
+    const $
+      rpc' nm service (method m . r)
 
 -- | Failed to parse a response from another service.
 data ParseException = ParseException
