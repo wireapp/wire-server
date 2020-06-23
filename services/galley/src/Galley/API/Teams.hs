@@ -512,21 +512,20 @@ updateTeamMember zusr zcon tid targetMember = do
   updateJournal team updatedMembers
   updatePeers targetId targetPermissions updatedMembers
   where
-    --
     canDowngradeOwner = canDeleteMember
-    --
+
     downgradesOwner :: TeamMember -> Permissions -> Bool
     downgradesOwner previousMember targetPermissions =
       permissionsRole (previousMember ^. permissions) == Just RoleOwner
         && permissionsRole targetPermissions /= Just RoleOwner
-    --
+
     updateJournal :: Team -> TeamMemberList -> Galley ()
     updateJournal team mems = do
       when (team ^. teamBinding == Binding) $ do
         (TeamSize size) <- BrigTeam.getSize tid
         billingUserIds <- Journal.getBillingUserIds tid $ Just mems
         Journal.teamUpdate tid size billingUserIds
-    --
+
     updatePeers :: UserId -> Permissions -> TeamMemberList -> Galley ()
     updatePeers targetId targetPermissions updatedMembers = do
       -- inform members of the team about the change
@@ -798,14 +797,14 @@ getTeamNotificationsH (zusr ::: sinceRaw ::: size ::: _) = do
   where
     parseSince :: Galley (Maybe Public.NotificationId)
     parseSince = maybe (pure Nothing) (fmap Just . parseUUID) sinceRaw
-    --
+
     parseUUID :: ByteString -> Galley Public.NotificationId
     parseUUID raw =
       maybe
         (throwM invalidTeamNotificationId)
         (pure . Id)
         ((UUID.fromASCIIBytes >=> isV1UUID) raw)
-    --
+
     isV1UUID :: UUID.UUID -> Maybe UUID.UUID
     isV1UUID u = if UUID.version u == 1 then Just u else Nothing
 

@@ -125,7 +125,7 @@ waitForTaskToComplete timeoutSeconds taskNodeId = do
     isTaskComplete :: Either ES.EsError (ES.TaskResponse a) -> m Bool
     isTaskComplete (Left e) = throwM $ ReindexFromAnotherIndexError $ "Error response while getting task: " <> show e
     isTaskComplete (Right taskRes) = pure $ ES.taskResponseCompleted taskRes
-    --
+
     errTaskGet :: MonadThrow m => ES.EsError -> m x
     errTaskGet e = throwM $ ReindexFromAnotherIndexError $ "Error response while getting task: " <> show e
 

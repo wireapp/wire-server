@@ -1189,7 +1189,7 @@ specEmailValidation = do
           let req = put $ galley . paths p . json (Feature.TeamFeatureStatus Feature.TeamFeatureEnabled)
               p = ["/i/teams", toByteString' tid, "features", "validate-saml-emails"]
           call req !!! const 204 === statusCode
-        --
+
         assertEmail :: HasCallStack => UserId -> Maybe Email -> TestSpar ()
         assertEmail uid expectedEmail = do
           brig <- asks (^. teBrig)
@@ -1197,10 +1197,10 @@ specEmailValidation = do
           call req !!! do
             const 200 === statusCode
             const expectedEmail === (userEmail <=< responseJsonMaybe)
-        --
+
         eventually :: HasCallStack => TestSpar a -> TestSpar a
         eventually = recovering (limitRetries 3 <> exponentialBackoff 100000) [] . const
-        --
+
         setup :: HasCallStack => Bool -> TestSpar (UserId, Email)
         setup enabled = do
           (tok, (_ownerid, teamid, idp)) <- registerIdPAndScimToken
@@ -1212,7 +1212,7 @@ specEmailValidation = do
           brig <- asks (^. teBrig)
           call $ activateEmail brig email
           pure (uid, email)
-        --
+
         -- copied from brig integration tests.
         activateEmail ::
           HasCallStack =>
@@ -1228,7 +1228,7 @@ specEmailValidation = do
               activate brig kc !!! do
                 const 200 === statusCode
                 const (Just False) === fmap Activation.activatedFirst . responseJsonMaybe
-        --
+
         -- copied from brig integration tests.
         getActivationCode ::
           HasCallStack =>
@@ -1242,7 +1242,7 @@ specEmailValidation = do
           let akey = Activation.ActivationKey . Ascii.unsafeFromText <$> (lbs ^? key "key" . _String)
           let acode = Activation.ActivationCode . Ascii.unsafeFromText <$> (lbs ^? key "code" . _String)
           return $ (,) <$> akey <*> acode
-        --
+
         -- copied from brig integration tests.
         activate ::
           HasCallStack =>

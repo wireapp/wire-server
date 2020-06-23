@@ -985,7 +985,7 @@ lookupProfilesOfLocalUsers self others = do
   where
     toMap :: [ConnectionStatus] -> Map UserId Relation
     toMap = Map.fromList . map (csFrom &&& csStatus)
-    --
+
     getSelfInfo :: AppIO (Maybe (TeamId, Team.TeamMember))
     getSelfInfo = do
       -- FUTUREWORK: it is an internal error for the two lookups (for 'User' and 'TeamMember')
@@ -995,7 +995,7 @@ lookupProfilesOfLocalUsers self others = do
       case userTeam =<< mUser of
         Nothing -> pure Nothing
         Just tid -> (tid,) <$$> Intra.getTeamMember self tid
-    --
+
     toProfile :: EmailVisibility' -> Map UserId Relation -> User -> UserProfile
     toProfile emailVisibility'' css u =
       let cs = Map.lookup (userId u) css

@@ -102,11 +102,11 @@ getBillingUserIds tid maybeMemberList = do
   where
     fetchFromDB :: Galley [UserId]
     fetchFromDB = Data.listBillingTeamMembers tid
-    --
+
     filterFromMembers :: TeamMemberList -> Galley [UserId]
     filterFromMembers list =
       pure $ map (view userId) $ filter (`hasPermission` SetBilling) (list ^. teamMembers)
-    --
+
     handleList :: Bool -> TeamMemberList -> Galley [UserId]
     handleList enableIndexedBillingTeamMembers list =
       case list ^. teamMemberListType of

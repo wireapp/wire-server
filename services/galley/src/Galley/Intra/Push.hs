@@ -159,12 +159,12 @@ push ps = do
       where
         (localRecipients, remoteRecipients) =
           partitionEithers . fmap localOrRemoteRecipient . toList $ pushRecipients p
-    --
+
     localOrRemoteRecipient :: RecipientBy (MappedOrLocalId Id.U) -> Either (RecipientBy UserId) (RecipientBy (IdMapping Id.U))
     localOrRemoteRecipient rcp = case _recipientUserId rcp of
       Local localId -> Left $ rcp {_recipientUserId = localId}
       Mapped idMapping -> Right $ rcp {_recipientUserId = idMapping}
-    --
+
     mkPushTo :: [RecipientBy a] -> PushTo b -> Maybe (PushTo a)
     mkPushTo recipients p =
       nonEmpty recipients <&> \nonEmptyRecipients ->
