@@ -65,7 +65,7 @@ updateAccountProfile ::
   Maybe HttpsUrl ->
   Maybe Text ->
   m ()
-updateAccountProfile p name url descr = retry x5 $ batch $ do
+updateAccountProfile p name url descr = retry x5 . batch $ do
   setType BatchUnLogged
   setConsistency Quorum
   for_ name $ \x -> addPrepQuery cqlName (x, p)
@@ -148,7 +148,7 @@ insertKey ::
   Maybe EmailKey ->
   EmailKey ->
   m ()
-insertKey p old new = retry x5 $ batch $ do
+insertKey p old new = retry x5 . batch $ do
   setConsistency Quorum
   setType BatchLogged
   for_ old $ \old' -> addPrepQuery cqlKeyDelete (Identity (emailKeyUniq old'))
@@ -285,7 +285,7 @@ updateService ::
   Maybe (RangedServiceTags, RangedServiceTags) ->
   Bool ->
   m ()
-updateService pid sid svcName svcTags nameChange summary descr assets tagsChange enabled = retry x5 $ batch $ do
+updateService pid sid svcName svcTags nameChange summary descr assets tagsChange enabled = retry x5 . batch $ do
   setConsistency Quorum
   setType BatchUnLogged
   -- If there is a name change, update the service name; if enabled, update indexes
@@ -330,7 +330,7 @@ deleteService pid sid name tags = do
   -- (or as a part of the last batch, in this case) because otherwise API
   -- consumers won't be able to retry a half-done 'deleteService' call.
   deleteServiceWhitelist Nothing pid sid
-  retry x5 $ batch $ do
+  retry x5 . batch $ do
     setConsistency Quorum
     setType BatchUnLogged
     addPrepQuery cql (pid, sid)
@@ -426,7 +426,7 @@ updateServiceConn ::
   Maybe (List1 (ServiceKey, Fingerprint Rsa)) ->
   Maybe Bool ->
   m ()
-updateServiceConn pid sid url tokens keys enabled = retry x5 $ batch $ do
+updateServiceConn pid sid url tokens keys enabled = retry x5 . batch $ do
   setConsistency Quorum
   setType BatchLogged
   for_ url $ \x -> addPrepQuery cqlBaseUrl (x, pid, sid)
@@ -458,7 +458,7 @@ insertServiceIndexes ::
   RangedServiceTags ->
   m ()
 insertServiceIndexes pid sid name tags =
-  retry x5 $ batch $ do
+  retry x5 . batch $ do
     setConsistency Quorum
     setType BatchLogged
     insertServicePrefix pid sid name
@@ -472,7 +472,7 @@ deleteServiceIndexes ::
   RangedServiceTags ->
   m ()
 deleteServiceIndexes pid sid name tags =
-  retry x5 $ batch $ do
+  retry x5 . batch $ do
     setConsistency Quorum
     setType BatchLogged
     deleteServicePrefix sid name
@@ -718,7 +718,7 @@ resolveRow (_, pid, sid) = lookupServiceProfile pid sid
 
 insertServiceWhitelist :: MonadClient m => TeamId -> ProviderId -> ServiceId -> m ()
 insertServiceWhitelist tid pid sid =
-  retry x5 $ batch $ do
+  retry x5 . batch $ do
     addPrepQuery insert1 (tid, pid, sid)
     addPrepQuery insert1Rev (tid, pid, sid)
   where
@@ -740,13 +740,13 @@ deleteServiceWhitelist :: MonadClient m => Maybe TeamId -> ProviderId -> Service
 deleteServiceWhitelist mbTid pid sid = case mbTid of
   Nothing -> do
     teams <- retry x5 $ query lookupRev $ params Quorum (pid, sid)
-    retry x5 $ batch $ do
+    retry x5 . batch $ do
       setType BatchLogged
       setConsistency Quorum
       addPrepQuery deleteAllRev (pid, sid)
       for_ teams $ \(Identity tid) -> addPrepQuery delete1 (tid, pid, sid)
   Just tid ->
-    retry x5 $ batch $ do
+    retry x5 . batch $ do
       setType BatchLogged
       setConsistency Quorum
       addPrepQuery delete1 (tid, pid, sid)

@@ -88,7 +88,7 @@ listCookies u =
         }
 
 deleteCookies :: MonadClient m => UserId -> [Cookie a] -> m ()
-deleteCookies u cs = retry x5 $ batch $ do
+deleteCookies u cs = retry x5 . batch $ do
   setType BatchUnLogged
   setConsistency Quorum
   for_ cs $ \c -> addPrepQuery cql (u, cookieExpires c, cookieId c)

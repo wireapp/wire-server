@@ -49,13 +49,13 @@ import UnliftIO.Async (pooledMapConcurrentlyN_)
 connectUsers :: UserId -> [(UserId, ConvId)] -> AppIO [UserConnection]
 connectUsers from to = do
   now <- toUTCTimeMillis <$> liftIO getCurrentTime
-  retry x5 $ batch $ do
+  retry x5 . batch $ do
     setType BatchLogged
     setConsistency Quorum
     forM_ to $ \(u, c) -> do
       addPrepQuery connectionInsert (from, u, Accepted, now, Nothing, c)
       addPrepQuery connectionInsert (u, from, Accepted, now, Nothing, c)
-  return $ concat $ (`map` to) $ \(u, c) ->
+  return . concat . (`map` to) $ \(u, c) ->
     [ UserConnection from u Accepted now Nothing (Just c),
       UserConnection u from Accepted now Nothing (Just c)
     ]

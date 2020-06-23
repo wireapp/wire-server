@@ -164,7 +164,7 @@ validateOptions l o = do
 
 instance MonadUnliftIO Galley where
   askUnliftIO =
-    Galley $ ReaderT $ \r ->
+    Galley . ReaderT $ \r ->
       withUnliftIO $ \u ->
         return (UnliftIO (unliftIO u . flip runReaderT r . unGalley))
 

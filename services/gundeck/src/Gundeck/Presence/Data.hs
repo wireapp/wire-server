@@ -60,7 +60,7 @@ add p = do
   let k = toKey (userId p)
   let v = toField (connId p)
   let d = encode $ PresenceData (resource p) (clientId p) now
-  retry x3 $ commands $ do
+  retry x3 . commands $ do
     multi
     void $ hset k v d
     -- nb. All presences of a user are expired 'maxIdleTime' after the
@@ -77,7 +77,7 @@ deleteAll [] = return ()
 deleteAll pp = for_ pp $ \p -> do
   let k = toKey (userId p)
   let f = __field p
-  retry x3 $ commands $ do
+  retry x3 . commands $ do
     watch (pure k)
     value <- hget k f
     multi

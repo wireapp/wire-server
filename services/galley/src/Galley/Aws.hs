@@ -95,7 +95,7 @@ newtype Amazon a = Amazon
     )
 
 instance MonadUnliftIO Amazon where
-  askUnliftIO = Amazon $ ReaderT $ \r ->
+  askUnliftIO = Amazon . ReaderT $ \r ->
     withUnliftIO $ \u ->
       return (UnliftIO (unliftIO u . flip runReaderT r . unAmazon))
 

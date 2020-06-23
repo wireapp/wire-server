@@ -465,7 +465,7 @@ deleteIdPConfig ::
   SAML.Issuer ->
   TeamId ->
   m ()
-deleteIdPConfig idp issuer team = retry x5 $ batch $ do
+deleteIdPConfig idp issuer team = retry x5 . batch $ do
   setType BatchLogged
   setConsistency Quorum
   addPrepQuery delDefaultIdp (Identity idp)
@@ -587,7 +587,7 @@ insertScimToken ::
   ScimToken ->
   ScimTokenInfo ->
   m ()
-insertScimToken token ScimTokenInfo {..} = retry x5 $ batch $ do
+insertScimToken token ScimTokenInfo {..} = retry x5 . batch $ do
   setType BatchLogged
   setConsistency Quorum
   addPrepQuery insByToken (token, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr)
@@ -650,7 +650,7 @@ deleteScimToken ::
   m ()
 deleteScimToken team tokenid = do
   mbToken <- retry x1 . query1 selById $ params Quorum (team, tokenid)
-  retry x5 $ batch $ do
+  retry x5 . batch $ do
     setType BatchLogged
     setConsistency Quorum
     addPrepQuery delById (team, tokenid)
@@ -683,7 +683,7 @@ deleteTeamScimTokens ::
   m ()
 deleteTeamScimTokens team = do
   tokens <- retry x5 $ query sel $ params Quorum (Identity team)
-  retry x5 $ batch $ do
+  retry x5 . batch $ do
     setType BatchLogged
     setConsistency Quorum
     addPrepQuery delByTeam (Identity team)

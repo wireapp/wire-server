@@ -159,7 +159,7 @@ listen b q callback =
                 runInIO $ callback (msgContent m)
                 stompTimeout "listen/ack" 1000000 $ ack conn m
     handlers = skipAsyncExceptions ++ [logError]
-    logError = const $ Handler $ \(e :: SomeException) -> do
+    logError = const . Handler $ \(e :: SomeException) -> do
       Log.err $
         msg (val "Exception when listening to a STOMP queue")
           ~~ field "queue" (show q)

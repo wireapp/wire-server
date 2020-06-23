@@ -141,7 +141,7 @@ newtype Amazon a = Amazon
     )
 
 instance MonadUnliftIO Amazon where
-  askUnliftIO = Amazon $ ReaderT $ \r ->
+  askUnliftIO = Amazon . ReaderT $ \r ->
     withUnliftIO $ \u ->
       return (UnliftIO (unliftIO u . flip runReaderT r . unAmazon))
 
@@ -438,7 +438,7 @@ publish arn txt attrs = do
 listen :: Int -> (Event -> IO ()) -> Amazon ()
 listen throttleMillis callback = do
   QueueUrl url <- view eventQueue
-  forever $ handleAny unexpectedError $ do
+  forever . handleAny unexpectedError $ do
     msgs <- view rmrsMessages <$> send (receive url)
     void $ mapConcurrently (onMessage url) msgs
     when (null msgs) $

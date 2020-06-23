@@ -75,7 +75,7 @@ testHandleUpdate brig cannon = do
   WS.bracketR cannon uid $ \ws -> do
     put (brig . path "/self/handle" . contentJson . zUser uid . zConn "c" . body update)
       !!! const 200 === statusCode
-    void . liftIO $ WS.assertMatch (5 # Second) ws $ \n -> do
+    void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
       let j = Object $ List1.head (ntfPayload n)
       j ^? key "type" . _String @?= Just "user.update"
       let u = j ^?! key "user"
@@ -126,10 +126,10 @@ testHandleRace brig = do
   -- 10 races. In each race, 10 users try to claim the same handle.
   -- At most one of them should get the handle in each race
   -- (usually no-one due to the contention).
-  void $ replicateM 10 $ do
+  void . replicateM 10 $ do
     hdl <- randomHandle
     let update = RequestBodyLBS . encode $ HandleUpdate hdl
-    void $ flip mapConcurrently us $ \u ->
+    void . flip mapConcurrently us $ \u ->
       put (brig . path "/self/handle" . contentJson . zUser u . zConn "c" . body update)
     ps <- forM us $ \u -> responseJsonMaybe <$> get (brig . path "/self" . zUser u)
     let owners = catMaybes $ filter (maybe False ((== Just (Handle hdl)) . userHandle)) ps

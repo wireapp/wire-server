@@ -615,7 +615,7 @@ scheduleAssert bot typ f out = whenAsserts $ do
         writeTQueue (botAsserts bot) (EventAssertion typ t f out callStack)
         writeTVar (botAssertCount bot) (n + 1)
         return True
-  unless r $ liftBotNet $ do
+  unless r . liftBotNet $ do
     incrAssertFailed
     runBotSession bot . log Error . msg $
       "Too many event assertions. Dropped: " <> eventTypeText typ
@@ -698,7 +698,7 @@ mkBot tag user pw = do
   return bot
 
 connectPush :: Bot -> BotNetEnv -> IO (Async ())
-connectPush bot e = runBotNet e $ runBotSession bot $ do
+connectPush bot e = runBotNet e . runBotSession bot $ do
   log Info $ msg (val "Establishing push channel")
   awaitNotifications (consume bot e)
 

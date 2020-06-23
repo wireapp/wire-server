@@ -842,7 +842,7 @@ testEmailPhoneDelete brig cannon = do
   WS.bracketR cannon uid $ \ws -> do
     delete (brig . path "/self/email" . zUser uid . zConn "c")
       !!! (const 200 === statusCode)
-    void . liftIO $ WS.assertMatch (5 # Second) ws $ \n -> do
+    void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
       let j = Object $ List1.head (ntfPayload n)
       let etype = j ^? key "type" . _String
       let euser = j ^? key "user" . key "id" . _String
@@ -869,7 +869,7 @@ testEmailPhoneDelete brig cannon = do
   WS.bracketR cannon uid $ \ws -> do
     delete (brig . path "/self/phone" . zUser uid . zConn "c")
       !!! const 200 === statusCode
-    void . liftIO $ WS.assertMatch (5 # Second) ws $ \n -> do
+    void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
       let j = Object $ List1.head (ntfPayload n)
       let etype = j ^? key "type" . _String
       let euser = j ^? key "user" . key "id" . _String
@@ -1156,7 +1156,7 @@ setHandleAndDeleteUser brig cannon u others aws execDelete = do
   -- Delete the user
   WS.bracketRN cannon (uid : others) $ \wss -> do
     execDelete uid
-    void . liftIO $ WS.assertMatchN (5 # Second) wss $ \n -> do
+    void . liftIO . WS.assertMatchN (5 # Second) wss $ \n -> do
       let j = Object $ List1.head (ntfPayload n)
       let etype = j ^? key "type" . _String
       let euser = j ^? key "id" . _String
