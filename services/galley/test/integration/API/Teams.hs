@@ -941,7 +941,7 @@ testDeleteTeam = do
   Util.assertConvMember owner cid1
   Util.assertConvMember extern cid1
   Util.assertNotConvMember (member ^. userId) cid1
-  void $ WS.bracketR3 c owner extern (member ^. userId) $ \(wsOwner, wsExtern, wsMember) -> do
+  void . WS.bracketR3 c owner extern (member ^. userId) $ \(wsOwner, wsExtern, wsMember) -> do
     delete (g . paths ["teams", toByteString' tid] . zUser owner . zConn "conn")
       !!! const 202 === statusCode
     checkTeamDeleteEvent tid wsOwner
@@ -1004,7 +1004,7 @@ testDeleteBindingTeamSingleMember = do
       (/= Just True)
       (getDeletedState extern (other ^. userId))
 
-  void $ WS.bracketRN c [owner, extern] $ \[wsOwner, wsExtern] -> do
+  void . WS.bracketRN c [owner, extern] $ \[wsOwner, wsExtern] -> do
     delete
       ( g
           . paths ["/i/teams", toByteString' tid]
@@ -1075,7 +1075,7 @@ testDeleteBindingTeam ownerHasPassword = do
     !!! const 202
     === statusCode
   assertQueue "team member leave 1" $ tUpdate 4 [ownerWithPassword, owner]
-  void $ WS.bracketRN c [owner, (mem1 ^. userId), (mem2 ^. userId), extern] $ \[wsOwner, wsMember1, wsMember2, wsExtern] -> do
+  void . WS.bracketRN c [owner, (mem1 ^. userId), (mem2 ^. userId), extern] $ \[wsOwner, wsMember1, wsMember2, wsExtern] -> do
     delete
       ( g
           . paths ["teams", toByteString' tid]
@@ -1327,7 +1327,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
     deleteTeam tid owner otherRealUsersInTeam teamCidsThatExternBelongsTo extern = do
       c <- view tsCannon
       g <- view tsGalley
-      void $ WS.bracketRN c (owner : extern : otherRealUsersInTeam) $ \(_wsOwner : wsExtern : _wsotherRealUsersInTeam) -> do
+      void . WS.bracketRN c (owner : extern : otherRealUsersInTeam) $ \(_wsOwner : wsExtern : _wsotherRealUsersInTeam) -> do
         delete
           ( g
               . paths ["teams", toByteString' tid]

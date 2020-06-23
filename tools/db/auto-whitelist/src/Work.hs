@@ -72,7 +72,7 @@ whitelistService l (pid, sid, tid) = do
       . Log.field "provider" (show pid)
       . Log.field "service" (show sid)
       . Log.field "team" (show tid)
-  retry x5 $ batch $ do
+  retry x5 . batch $ do
     setConsistency Quorum
     setType BatchLogged
     addPrepQuery insert1 (tid, pid, sid)

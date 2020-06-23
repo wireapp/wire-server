@@ -118,7 +118,7 @@ instance Monad m => HasRequestId (AppT m) where
 
 instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
   withRunInIO inner =
-    AppT $ ReaderT $ \r ->
+    AppT . ReaderT $ \r ->
       withRunInIO $ \runner ->
         inner (runner . flip runReaderT r . unAppT)
 

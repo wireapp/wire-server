@@ -115,7 +115,7 @@ newtype Clock = Clock (IORef Word64)
 mkClock :: IO Clock
 mkClock = do
   r <- newIORef 0
-  void . forkIO $ forever $ do
+  void . forkIO . forever $ do
     threadDelay (1 # Second)
     modifyIORef' r (+ 1)
   return $ Clock r

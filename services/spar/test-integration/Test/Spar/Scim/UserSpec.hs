@@ -129,7 +129,7 @@ specSuspend = do
             void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active)
 
     it "PUT will change state from active to inactive and back" $ do
-      void $ activeInactiveAndBack $ \tok uid user active ->
+      void . activeInactiveAndBack $ \tok uid user active ->
         updateUser tok uid user {Scim.User.active = Just active}
 
     it "PATCH will change state from active to inactive and back" $ do
@@ -138,7 +138,7 @@ specSuspend = do
               PatchOp.Replace
               (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
               (Just (toJSON value))
-      void $ activeInactiveAndBack $ \tok uid _user active ->
+      void . activeInactiveAndBack $ \tok uid _user active ->
         patchUser tok uid $ PatchOp.PatchOp [replaceAttrib "active" active]
 
     -- Consider the following series of events:

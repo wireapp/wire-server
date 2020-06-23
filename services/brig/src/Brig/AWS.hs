@@ -102,7 +102,7 @@ newtype Amazon a = Amazon
     )
 
 instance MonadUnliftIO Amazon where
-  askUnliftIO = Amazon $ ReaderT $ \r ->
+  askUnliftIO = Amazon . ReaderT $ \r ->
     withUnliftIO $ \u ->
       return (UnliftIO (unliftIO u . flip runReaderT r . unAmazon))
 
@@ -173,7 +173,7 @@ instance Exception Error
 -- SQS
 
 listen :: (FromJSON a, Show a) => Int -> Text -> (a -> IO ()) -> Amazon ()
-listen throttleMillis url callback = forever $ handleAny unexpectedError $ do
+listen throttleMillis url callback = forever . handleAny unexpectedError $ do
   msgs <- view rmrsMessages <$> send receive
   void $ mapConcurrently onMessage msgs
   when (null msgs) $

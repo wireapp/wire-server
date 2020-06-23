@@ -535,7 +535,7 @@ getConvsOk2 = do
   let cs = convList <$> responseJsonUnsafe rs
   let c1 = cs >>= find ((== cnvId cnv1) . cnvId)
   let c2 = cs >>= find ((== cnvId cnv2) . cnvId)
-  liftIO $ forM_ [(cnv1, c1), (cnv2, c2)] $ \(expected, actual) -> do
+  liftIO . forM_ [(cnv1, c1), (cnv2, c2)] $ \(expected, actual) -> do
     assertEqual
       "name mismatch"
       (Just $ cnvName expected)
@@ -968,7 +968,7 @@ putConvRenameOk = do
   -- This endpoint should be deprecated but clients still use it
   WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
     void $ putConversationName bob conv "gossip++" !!! const 200 === statusCode
-    void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
+    void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
       let e = List1.head (WS.unpackPayload n)
       ntfTransient n @?= False
       evtConv e @?= conv
@@ -1030,7 +1030,7 @@ putMemberOk update = do
   -- Update member state & verify push notification
   WS.bracketR c bob $ \ws -> do
     putMember bob update conv !!! const 200 === statusCode
-    void . liftIO $ WS.assertMatch (5 # Second) ws $ \n -> do
+    void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
       let e = List1.head (WS.unpackPayload n)
       ntfTransient n @?= False
       evtConv e @?= conv

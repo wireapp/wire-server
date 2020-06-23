@@ -177,7 +177,7 @@ insertAccount ::
   -- | Whether the user is activated
   Bool ->
   AppIO ()
-insertAccount (UserAccount u status) mbConv password activated = retry x5 $ batch $ do
+insertAccount (UserAccount u status) mbConv password activated = retry x5 . batch $ do
   setType BatchLogged
   setConsistency Quorum
   let Locale l c = userLocale u
@@ -223,7 +223,7 @@ updateLocale :: UserId -> Locale -> AppIO ()
 updateLocale u (Locale l c) = write userLocaleUpdate (params Quorum (l, c, u))
 
 updateUser :: UserId -> UserUpdate -> AppIO ()
-updateUser u UserUpdate {..} = retry x5 $ batch $ do
+updateUser u UserUpdate {..} = retry x5 . batch $ do
   setType BatchLogged
   setConsistency Quorum
   for_ uupName $ \n -> addPrepQuery userDisplayNameUpdate (n, u)
@@ -270,7 +270,7 @@ deleteServiceUser :: ProviderId -> ServiceId -> BotId -> AppIO ()
 deleteServiceUser pid sid bid = do
   lookupServiceUser pid sid bid >>= \case
     Nothing -> pure ()
-    Just (_, mbTid) -> retry x5 $ batch $ do
+    Just (_, mbTid) -> retry x5 . batch $ do
       setType BatchLogged
       setConsistency Quorum
       addPrepQuery cql (pid, sid, bid)

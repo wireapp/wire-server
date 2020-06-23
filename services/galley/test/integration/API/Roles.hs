@@ -72,7 +72,7 @@ handleConversationRoleAdmin = do
   WS.bracketR3 c alice bob chuck $ \(wsA, wsB, wsC) -> do
     let updateDown = OtherMemberUpdate (Just roleNameWireMember)
     putOtherMember alice bob updateDown cid !!! assertActionSucceeded
-    void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $ do
+    void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $ do
       wsAssertMemberUpdateWithRole cid alice bob roleNameWireMember
   wireMemberChecks cid bob alice jack
 
@@ -105,7 +105,7 @@ handleConversationRoleMember = do
     -- Chuck cannot update, member only
     putOtherMember chuck bob updateUp cid !!! assertActionDenied
     putOtherMember alice bob updateUp cid !!! assertActionSucceeded
-    void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $ do
+    void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $ do
       wsAssertMemberUpdateWithRole cid alice bob roleNameWireAdmin
   wireAdminChecks cid bob alice chuck
 

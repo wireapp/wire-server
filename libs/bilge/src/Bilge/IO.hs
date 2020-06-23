@@ -205,7 +205,7 @@ instance MonadBaseControl IO (HttpT IO) where
 
 instance MonadUnliftIO m => MonadUnliftIO (HttpT m) where
   withRunInIO inner =
-    HttpT $ ReaderT $ \r ->
+    HttpT . ReaderT $ \r ->
       withRunInIO $ \run ->
         inner (run . runHttpT r)
 

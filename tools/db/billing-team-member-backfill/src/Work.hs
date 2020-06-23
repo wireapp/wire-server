@@ -68,7 +68,7 @@ getTeamMembers = paginateC cql (paramsP Quorum () pageSize) x5
 
 createBillingTeamMembers :: [(TeamId, UserId)] -> Client ()
 createBillingTeamMembers pairs =
-  retry x5 $ batch $ do
+  retry x5 . batch $ do
     setType BatchLogged
     setConsistency Quorum
     mapM_ (addPrepQuery cql) pairs

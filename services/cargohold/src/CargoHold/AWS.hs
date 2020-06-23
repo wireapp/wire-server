@@ -97,7 +97,7 @@ instance MonadLogger Amazon where
   log l m = view logger >>= \g -> Logger.log g l m
 
 instance MonadUnliftIO Amazon where
-  askUnliftIO = Amazon $ ReaderT $ \r ->
+  askUnliftIO = Amazon . ReaderT $ \r ->
     withUnliftIO $ \u ->
       return (UnliftIO (unliftIO u . flip runReaderT r . unAmazon))
 

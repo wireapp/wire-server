@@ -321,7 +321,7 @@ testDisableLegalHoldForUser = do
     disableLegalHoldForUser Nothing tid owner member !!! const 403 === statusCode
     assertExactlyOneLegalHoldDevice member
     disableLegalHoldForUser (Just defPassword) tid owner member !!! testResponse 200 Nothing
-    liftIO $ assertMatchChan chan $ \(req, _) -> do
+    liftIO . assertMatchChan chan $ \(req, _) -> do
       assertEqual "method" "POST" (requestMethod req)
       assertEqual "path" (pathInfo req) ["legalhold", "remove"]
     assertNotification mws $ \case
@@ -468,7 +468,7 @@ testRemoveLegalHoldFromTeam = do
     deleteSettings Nothing owner tid !!! testResponse 403 (Just "access-denied")
     let delete'' expectRemoteLHCall = do
           deleteSettings (Just defPassword) owner tid !!! testResponse 204 Nothing
-          when expectRemoteLHCall $ liftIO $ assertMatchChan chan $ \(req, _) -> do
+          when expectRemoteLHCall . liftIO . assertMatchChan chan $ \(req, _) -> do
             putStrLn (show (pathInfo req, pathInfo req == ["legalhold", "remove"]))
             putStrLn (show (requestMethod req, requestMethod req == "POST"))
             assertEqual "path" ["legalhold", "remove"] (pathInfo req)

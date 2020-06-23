@@ -128,7 +128,7 @@ urlPort (HttpsUrl u) = do
 sendMessage :: [Fingerprint Rsa] -> (Request -> Request) -> Galley ()
 sendMessage fprs reqBuilder = do
   (man, verifyFingerprints) <- view (extEnv . extGetManager)
-  liftIO $ withVerifiedSslConnection (verifyFingerprints fprs) man reqBuilder $ \req ->
+  liftIO . withVerifiedSslConnection (verifyFingerprints fprs) man reqBuilder $ \req ->
     Http.withResponse req man (const $ return ())
 
 x3 :: RetryPolicy

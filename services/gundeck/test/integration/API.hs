@@ -322,7 +322,7 @@ sendMultipleUsers = do
   -- 'uid1' and 'uid2' should each have 1 notification
   ntfs1 <- listNotifications uid1 Nothing
   ntfs2 <- listNotifications uid2 Nothing
-  liftIO $ forM_ [ntfs1, ntfs2] $ \ntfs -> do
+  liftIO . forM_ [ntfs1, ntfs2] $ \ntfs -> do
     assertEqual "Not exactly 1 notification" 1 (length ntfs)
     let p = view queuedNotificationPayload (Prelude.head ntfs)
     assertEqual "Wrong events in notification" pload p
@@ -390,7 +390,7 @@ targetClientPush = do
   -- Check the notification stream
   ns1 <- listNotifications uid (Just cid1)
   ns2 <- listNotifications uid (Just cid2)
-  liftIO $ forM_ [(ns1, cid1), (ns2, cid2)] $ \(ns, c) -> do
+  liftIO . forM_ [(ns1, cid1), (ns2, cid2)] $ \(ns, c) -> do
     assertEqual "Not exactly 1 notification" 1 (length ns)
     let p = view queuedNotificationPayload (Prelude.head ns)
     assertEqual "Wrong events in notification" (pload c) p
