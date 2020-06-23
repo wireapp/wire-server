@@ -117,25 +117,8 @@ module Imports
   )
 where
 
--- Explicitly saying what to import because some things from Prelude clash
--- with e.g. UnliftIO modules
-
-import Control.Applicative hiding (empty, many, optional, some) -- common in
--- some libs
-
--- conflicts with Options.Applicative.Option (should we care?)
--- First and Last are going to be deprecated. Use Semigroup instead
-
--- 'insert' and 'delete' are
--- common in database modules
-
--- Handle is hidden
--- because it's common
--- in Brig
--- Permissions is common in Galley
-
--- Lazy and strict versions are the same
-
+-- common in some libs
+import Control.Applicative hiding (empty, many, optional, some)
 import Control.DeepSeq (NFData (..), deepseq)
 import Control.Monad hiding (forM, forM_, mapM, mapM_, msum, sequence, sequence_)
 import Control.Monad.Extra (unlessM, whenM)
@@ -165,11 +148,15 @@ import Data.Functor.Identity
 import Data.HashMap.Strict (HashMap)
 import Data.HashSet (HashSet)
 import Data.Int
+-- 'insert' and 'delete' are common in database modules
 import Data.List hiding (delete, insert)
+-- Lazy and strict versions are the same
 import Data.Map (Map)
 import Data.Maybe
+-- First and Last are going to be deprecated. Use Semigroup instead
 import Data.Monoid hiding (First (..), Last (..))
 import Data.Ord
+-- conflicts with Options.Applicative.Option (should we care?)
 import Data.Semigroup hiding (Option, diff, option)
 import Data.Set (Set)
 import Data.String
@@ -184,13 +171,17 @@ import GHC.Generics (Generic)
 import GHC.Stack (HasCallStack)
 import Text.Read (readEither, readMaybe)
 import UnliftIO.Concurrent
+-- Permissions is common in Galley
 import UnliftIO.Directory hiding (Permissions)
 import UnliftIO.Environment
 import UnliftIO.Exception
+-- Handle is hidden because it's common in Brig
 import UnliftIO.IO hiding (Handle, getMonotonicTime)
 import UnliftIO.IORef
 import UnliftIO.MVar
 import UnliftIO.STM
+-- Explicitly saying what to import because some things from Prelude clash
+-- with e.g. UnliftIO modules
 import Prelude
   ( Bounded (..),
     Double,
