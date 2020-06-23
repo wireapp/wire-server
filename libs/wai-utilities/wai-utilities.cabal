@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 03b270072cba482a38b85bce9aa85fba04e5bd4a10561c7e636d64b797c9989a
+-- hash: 6cebd33b352df1c2bf4f33553facf68fb2437ced7defa185e4a240e50f759983
 
 name:           wai-utilities
 version:        0.16.1
@@ -27,6 +27,7 @@ library
       Network.Wai.Utilities.Server
       Network.Wai.Utilities.Swagger
       Network.Wai.Utilities.ZAuth
+      Test.Hspec.Wai.Extra
   other-modules:
       Paths_wai_utilities
   hs-source-dirs:
@@ -42,6 +43,7 @@ library
     , containers >=0.5
     , errors >=2.0
     , exceptions >=0.6
+    , hspec-wai
     , http-types >=0.8
     , imports
     , metrics-core >=0.1
@@ -58,6 +60,7 @@ library
     , types-common >=0.12
     , unix >=2.7
     , wai >=3.0
+    , wai-extra
     , wai-predicates >=0.8
     , wai-routing >=0.12
     , warp >=3.0
