@@ -83,8 +83,8 @@ extra-deps:
   commit: 300a6f46384bfca33e545c8bab52ef3717452d12
 
 # https://github.com/hspec/hspec-wai/pull/49
-# - git: https://github.com/wireapp/hspec-wai
-#  commit: 0a5142cd3ba48116ff059c041348b817fb7bdb25
+- git: https://github.com/wireapp/hspec-wai
+  commit: 0a5142cd3ba48116ff059c041348b817fb7bdb25
 
 - git: https://github.com/wireapp/bloodhound
   commit: 7d3ccf8039912829b26b8e47cc4eaabc98cb571a # (2020-05-25) branch: feature/reindex
