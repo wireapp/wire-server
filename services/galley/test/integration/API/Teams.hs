@@ -286,9 +286,11 @@ testEnableSSOPerTeam = do
   owner <- Util.randomUser
   tid <- Util.createBindingTeamInternal "foo" owner
   assertQueue "create team" tActivate
-  let check :: HasCallStack => String -> Public.TeamFeatureStatus -> TestM ()
+  let check :: HasCallStack => String -> Public.TeamFeatureStatusValue -> TestM ()
       check msg enabledness = do
-        status <- responseJsonUnsafe <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
+        status <-
+          Public.teamFeatureStatusValue . responseJsonUnsafe
+            <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
         liftIO $ assertEqual msg enabledness status
   let putSSOEnabledInternalCheckNotImplemented :: HasCallStack => TestM ()
       putSSOEnabledInternalCheckNotImplemented = do
@@ -298,7 +300,7 @@ testEnableSSOPerTeam = do
             <$> put
               ( g
                   . paths ["i", "teams", toByteString' tid, "features", "sso"]
-                  . json Public.TeamFeatureDisabled
+                  . json (Public.TeamFeatureStatus Public.TeamFeatureDisabled)
               )
         liftIO $ do
           assertEqual "bad status" status403 status
@@ -315,9 +317,11 @@ testEnableTeamSearchVisibilityPerTeam :: TestM ()
 testEnableTeamSearchVisibilityPerTeam = do
   g <- view tsGalley
   (tid, owner, (member : _)) <- Util.createBindingTeamWithMembers 2
-  let check :: (HasCallStack, MonadCatch m, MonadIO m, Monad m, MonadHttp m) => String -> Public.TeamFeatureStatus -> m ()
+  let check :: (HasCallStack, MonadCatch m, MonadIO m, Monad m, MonadHttp m) => String -> Public.TeamFeatureStatusValue -> m ()
       check msg enabledness = do
-        status <- responseJsonUnsafe <$> (Util.getTeamSearchVisibilityAvailableInternal g tid <!! testResponse 200 Nothing)
+        status <-
+          Public.teamFeatureStatusValue . responseJsonUnsafe
+            <$> (Util.getTeamSearchVisibilityAvailableInternal g tid <!! testResponse 200 Nothing)
         liftIO $ assertEqual msg enabledness status
   let putSearchVisibilityCheckNotAllowed :: (HasCallStack, Monad m, MonadIO m, MonadHttp m) => m ()
       putSearchVisibilityCheckNotAllowed = do
@@ -1887,7 +1891,7 @@ newTeamMember' perms uid = newTeamMember uid perms Nothing
 getSSOEnabledInternal :: HasCallStack => TeamId -> TestM ResponseLBS
 getSSOEnabledInternal = Util.getTeamFeatureFlagInternal Public.TeamFeatureSSO
 
-putSSOEnabledInternal :: HasCallStack => TeamId -> Public.TeamFeatureStatus -> TestM ()
+putSSOEnabledInternal :: HasCallStack => TeamId -> Public.TeamFeatureStatusValue -> TestM ()
 putSSOEnabledInternal = Util.putTeamFeatureFlagInternal' Public.TeamFeatureSSO expect2xx
 
 getSearchVisibility :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> (MonadIO m, MonadHttp m) => m ResponseLBS

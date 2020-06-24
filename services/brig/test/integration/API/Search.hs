@@ -48,7 +48,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import UnliftIO (Concurrently (..), runConcurrently)
 import Util
-import Wire.API.Team.Feature (TeamFeatureStatus (..))
+import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 
 tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree
 tests opts mgr galley brig = do

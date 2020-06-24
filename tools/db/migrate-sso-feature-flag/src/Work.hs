@@ -65,8 +65,8 @@ getSsoTeams = paginateC cql (paramsP Quorum () pageSize) x5
 writeSsoFlags :: [TeamId] -> Client ()
 writeSsoFlags = mapM_ (`setSSOTeamConfig` TeamFeatureEnabled)
   where
-    setSSOTeamConfig :: MonadClient m => TeamId -> TeamFeatureStatus -> m ()
+    setSSOTeamConfig :: MonadClient m => TeamId -> TeamFeatureStatusValue -> m ()
     setSSOTeamConfig tid ssoTeamConfigStatus = do
       retry x5 $ write updateSSOTeamConfig (params Quorum (ssoTeamConfigStatus, tid))
-    updateSSOTeamConfig :: PrepQuery W (TeamFeatureStatus, TeamId) ()
+    updateSSOTeamConfig :: PrepQuery W (TeamFeatureStatusValue, TeamId) ()
     updateSSOTeamConfig = "update team_features set sso_status = ? where team_id = ?"

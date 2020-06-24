@@ -47,7 +47,7 @@ import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty.HUnit
 import Util
 import Web.Cookie (parseSetCookie, setCookieName)
-import Wire.API.Team.Feature (TeamFeatureStatus (..))
+import Wire.API.Team.Feature (TeamFeatureStatus (..), TeamFeatureStatusValue (..))
 
 -- | FUTUREWORK: Remove 'createPopulatedBindingTeam', 'createPopulatedBindingTeamWithNames',
 -- and rename 'createPopulatedBindingTeamWithNamesAndHandles' to 'createPopulatedBindingTeam'.
@@ -284,13 +284,13 @@ getTeams u galley =
 newTeam :: Team.BindingNewTeam
 newTeam = Team.BindingNewTeam $ Team.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")
 
-putLegalHoldEnabled :: HasCallStack => TeamId -> TeamFeatureStatus -> Galley -> Http ()
+putLegalHoldEnabled :: HasCallStack => TeamId -> TeamFeatureStatusValue -> Galley -> Http ()
 putLegalHoldEnabled tid enabled g = do
   void . put $
     g
       . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
       . contentJson
-      . lbytes (encode enabled)
+      . lbytes (encode (TeamFeatureStatus enabled))
       . expect2xx
 
 accept :: Email -> InvitationCode -> RequestBody
@@ -441,13 +441,13 @@ stdInvitationRequest :: Email -> Name -> Maybe Locale -> Maybe Team.Role -> Invi
 stdInvitationRequest e inviterName loc role =
   InvitationRequest e inviterName loc role Nothing Nothing
 
-setTeamTeamSearchVisibilityAvailable :: HasCallStack => Galley -> TeamId -> TeamFeatureStatus -> Http ()
+setTeamTeamSearchVisibilityAvailable :: HasCallStack => Galley -> TeamId -> TeamFeatureStatusValue -> Http ()
 setTeamTeamSearchVisibilityAvailable galley tid status =
   put
     ( galley
         . paths ["i/teams", toByteString' tid, "features/search-visibility"]
         . contentJson
-        . body (RequestBodyLBS . encode $ status)
+        . body (RequestBodyLBS . encode $ TeamFeatureStatus status)
     )
     !!! do
       const 204 === statusCode

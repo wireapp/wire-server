@@ -228,12 +228,12 @@ instance ToSchema TeamFeatureStatus where
   declareNamedSchema _ =
     pure $ NamedSchema (Just "TeamFeatureStatus") $
       mempty
-        & properties .~ (fromList [("status", Inline status)])
+        & properties .~ (fromList [("status", Inline statusValue)])
         & required .~ ["status"]
         & type_ ?~ SwaggerObject
         & description ?~ "whether a given team feature is enabled"
     where
-      status =
+      statusValue =
         mempty
           & enum_ ?~ [String "enabled", String "disabled"]
 
