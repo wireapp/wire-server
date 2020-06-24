@@ -37,6 +37,7 @@ module Brig.Types.Common
     Email (..),
     fromEmail,
     parseEmail,
+    validateEmail,
     Phone (..),
     parsePhone,
     isValidPhone,

@@ -83,7 +83,7 @@ tests _ at opts p b c ch g aws =
       test' aws p "post /register - 201 pending" $ testCreateUserPending b,
       test' aws p "post /register - 201 existing activation" $ testCreateAccountPendingActivationKey b,
       test' aws p "post /register - 409 conflict" $ testCreateUserConflict b,
-      test' aws p "post /register - 400" $ testCreateUserInvalidPhone b,
+      test' aws p "post /register - 400 invalid input" $ testCreateUserInvalidEmailOrPhone b,
       test' aws p "post /register - 403 blacklist" $ testCreateUserBlacklist b aws,
       test' aws p "post /register - 400 external-SSO" $ testCreateUserExternalSSO b,
       test' aws p "post /activate - 200/204 + expiry" $ testActivateWithExpiry b at,
@@ -97,7 +97,8 @@ tests _ at opts p b c ch g aws =
       test' aws p "put /self/password - 200" $ testPasswordChange b,
       test' aws p "put /self/locale - 200" $ testUserLocaleUpdate b aws,
       test' aws p "post /activate/send - 200" $ testSendActivationCode b,
-      test' aws p "post /activate/send - 403" $ testSendActivationCodePrefixExcluded b,
+      test' aws p "post /activate/send - 400 invalid input" $ testSendActivationCodeInvalidEmailOrPhone b,
+      test' aws p "post /activate/send - 403 prefix excluded" $ testSendActivationCodePrefixExcluded b,
       test' aws p "post /i/users/phone-prefix" $ testInternalPhonePrefixes b,
       test' aws p "put /i/users/:uid/status (suspend)" $ testSuspendUser b,
       test' aws p "get /i/users?:(email|phone) - 200" $ testGetByIdentity b,
@@ -284,10 +285,10 @@ testCreateUserConflict brig = do
     const 409 === statusCode
     const (Just "key-exists") === fmap Error.label . responseJsonMaybe
 
-testCreateUserInvalidPhone :: Brig -> Http ()
-testCreateUserInvalidPhone brig = do
+testCreateUserInvalidEmailOrPhone :: Brig -> Http ()
+testCreateUserInvalidEmailOrPhone brig = do
   email <- randomEmail
-  let p =
+  let reqEmail =
         RequestBodyLBS . encode $
           object
             [ "name" .= ("foo" :: Text),
@@ -295,7 +296,19 @@ testCreateUserInvalidPhone brig = do
               "password" .= defPassword,
               "phone" .= ("123456" :: Text) -- invalid phone nr
             ]
-  post (brig . path "/register" . contentJson . body p)
+  post (brig . path "/register" . contentJson . body reqEmail)
+    !!! const 400 === statusCode
+
+  phone <- randomPhone
+  let reqPhone =
+        RequestBodyLBS . encode $
+          object
+            [ "name" .= ("foo" :: Text),
+              "email" .= ("invalid@email" :: Text), -- invalid since there's only a single label
+              "password" .= defPassword,
+              "phone" .= fromPhone phone
+            ]
+  post (brig . path "/register" . contentJson . body reqPhone)
     !!! const 400 === statusCode
 
 testCreateUserBlacklist :: Brig -> AWS.Env -> Http ()
@@ -734,6 +747,15 @@ testSendActivationCode brig = do
   let Just email = userEmail =<< responseJsonMaybe r
   -- Re-request existing activation code
   requestActivationCode brig 200 (Left email)
+
+testSendActivationCodeInvalidEmailOrPhone :: Brig -> Http ()
+testSendActivationCodeInvalidEmailOrPhone brig = do
+  let Just invalidEmail = parseEmail "?@?"
+  let invalidPhone = Phone "1234"
+  -- Code for phone pre-verification
+  requestActivationCode brig 400 (Right invalidPhone)
+  -- Code for email pre-verification
+  requestActivationCode brig 400 (Left invalidEmail)
 
 testSendActivationCodePrefixExcluded :: Brig -> Http ()
 testSendActivationCodePrefixExcluded brig = do
