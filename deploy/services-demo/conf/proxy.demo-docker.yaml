@@ -1,0 +1,9 @@
+host: proxy
+port: 8087
+
+httpPoolSize: 1000
+maxConns: 5000
+secretsConfig: resources/proxy.config
+
+logLevel: Info
+logNetStrings: false
