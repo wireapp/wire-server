@@ -56,7 +56,38 @@ You should now have the following directory structure:
 
 Inside the ``nginx-ingress-services`` directory, open ``values.yaml`` and replace ``example.com`` with a domain of your choosing. You can try using ``sed -i 's/example.com/<your-domain>/g' values.yaml``.
 
-Next, open ``secrets.yaml`` and add a TLS wildcard certificate and private key matching your domain. For ``example.com``, you need a certficate for ``*.example.com``. The easiest and cheapest option is `Let's Encrypt <https://letsencrypt.org/getting-started/>`__
+Next, open ``secrets.yaml`` and add a TLS wildcard certificate and private key matching your domain. For ``example.com``, you need a certificate for ``*.example.com``. The easiest and cheapest option is `Let's Encrypt <https://letsencrypt.org/getting-started/>`__
+
+.. note::
+
+    `Let's Encrypt <https://letsencrypt.org/getting-started/>`__ & `cert-manager <https://cert-manager.io/docs/tutorials/acme/http-validation/>`__
+
+    As an alternative to providing your own certificate, you may want to allow for automated certificate issuing through
+    Let's Encrypt. For this, you have to install the *cert-manager* first:
+
+    .. code:: shell
+
+        helm upgrade --install -n cert-manager-ns --set 'installCRDs=true' cert-manager jetstack/cert-manager
+
+    Afterwards, you have to make some minor adjustments to the ``nginx-ingress-services/values.yaml`` you have just copied
+    and edited. Make sure the following properties are set accordingly:
+
+    .. code:: yaml
+
+        tls:
+          enabled: true
+          useCertManager: true
+
+        certManager:
+          # NOTE: You may set this to `true` when deploying the first time, just to make
+          #       sure everything is order, and only to `false` before deploying again, so
+          #       that a valid certificate is actually issued.
+          inTestMode: false
+          certmasterEmail: "ADD-VALID-ADDRESS-HERE"
+
+
+    Please note, in this case, you can omit the ``secrets.yaml`` file entirely.
+
 
 Install the nodeport nginx ingress:
 
