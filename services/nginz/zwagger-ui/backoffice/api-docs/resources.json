@@ -6,5 +6,8 @@
             "path": "/stern",
             "description": "Back Office"
         }
-    ]
+    ],
+    "info": {
+        "description": "The Back Office can only be used if Stern is running. It usually shouldn't be running, and if it is, make sure it can only be reached by admins, as it allows unauthorized access to endpoints. For more details see `tools/stern/README.md` in the `wire-server` repository."
+    }
 }
