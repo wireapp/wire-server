@@ -1,6 +1,35 @@
 Trouble shooting & FAQ
 ======================
 
+
+Can I use the same SSO login code for multiple teams?
+-----------------------------------------------------
+
+No, but there is a good reason for it and a work-around.
+
+Reason: we *could* implement this, but that would require that we
+disable implicit user creation for those teams.  Implicit user
+creation means that a person who has never logged onto wire before can
+use her credentials for the IdP to get access to wire, and create a
+new user based on those credentials.  In order for this to work, the
+IdP must uniquely determine the team.
+
+Work-around: on your IdP dashboard, you can set up a separate app for
+every wire team you own.  Each IdP will get a different metadata file,
+and can be registered with its target team only.  This way, users from
+different teams have different SSO logins, but the IdP operators can
+still use the same user base for all teams.  This has the extra
+advantage that a user can be part of two teams with the same
+credentials, which would be impossible even with the hypothetical fix.
+
+
+Can an existing user without IdP (or with a different IdP) be bound to a new IdP?
+---------------------------------------------------------------------------------
+
+No.  This is a feature we never fully implemented.  Details / latest
+updates: https://github.com/zinfra/backend-issues/issues/731
+
+
 If you get an error when returning from your IdP
 ------------------------------------------------
 
