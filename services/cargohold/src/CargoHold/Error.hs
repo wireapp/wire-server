@@ -1,3 +1,6 @@
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE StandaloneDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -15,18 +18,18 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main
-  ( main,
-  )
-where
+module CargoHold.Error where
 
-import CargoHold.Run (run)
+import qualified Crypto.PubKey.RSA.Types as RSA
 import Imports
-import Util.Options
+import qualified Network.AWS as AWS
 
-main :: IO ()
-main = do
-  getOptions desc Nothing defaultPath >>= run
-  where
-    desc = "Cargohold - Asset Storage"
-    defaultPath = "/etc/wire/cargohold/conf/cargohold.yaml"
+data Error where
+  GeneralError :: (Show e, AWS.AsError e) => e -> Error
+  SigningError :: RSA.Error -> Error
+
+deriving instance Show Error
+
+deriving instance Typeable Error
+
+instance Exception Error

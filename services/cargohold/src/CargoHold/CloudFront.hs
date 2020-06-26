@@ -27,7 +27,12 @@ module CargoHold.CloudFront
   )
 where
 
+import qualified CargoHold.Error as AWS
 import Control.AutoUpdate
+import Control.Monad.Catch
+import Crypto.Hash.Algorithms (SHA1 (..))
+import Crypto.PubKey.RSA
+import qualified Crypto.PubKey.RSA.PKCS15 as RSA
 import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Builder
 import qualified Data.ByteString.Char8 as C8
@@ -35,11 +40,10 @@ import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock.POSIX
+import Data.X509 (PrivKey (..))
+import Data.X509.File
 import Data.Yaml (FromJSON)
 import Imports
-import OpenSSL.EVP.Digest (getDigestByName)
-import qualified OpenSSL.EVP.Sign as SSL
-import OpenSSL.PEM (PemPasswordSupply (PwNone), readPrivateKey)
 import URI.ByteString
 
 newtype KeyPairId = KeyPairId Text
@@ -53,7 +57,7 @@ data CloudFront = CloudFront
     _keyPairId :: KeyPairId,
     _ttl :: Word,
     _clock :: IO POSIXTime,
-    _func :: ByteString -> IO ByteString
+    _func :: ByteString -> IO (Either Error ByteString)
   }
 
 initCloudFront :: MonadIO m => FilePath -> KeyPairId -> Word -> Domain -> m CloudFront
@@ -73,16 +77,18 @@ initCloudFront kfp kid ttl (Domain dom) =
 signedURL :: (MonadIO m, ToByteString p) => CloudFront -> p -> m URI
 signedURL (CloudFront base kid ttl clock sign) path = liftIO $ do
   time <- (+ ttl) . round <$> clock
-  sig <- sign (toStrict (toLazyByteString (policy url time)))
-  return
-    $! url
-      { uriQuery =
-          Query
-            [ ("Expires", toByteString' time),
-              ("Signature", b64 sig),
-              ("Key-Pair-Id", toByteString' kid)
-            ]
-      }
+  sign (toStrict (toLazyByteString (policy url time))) >>= \case
+    Left e -> throwM $ AWS.SigningError e
+    Right sig ->
+      return
+        $! url
+          { uriQuery =
+              Query
+                [ ("Expires", toByteString' time),
+                  ("Signature", b64 sig),
+                  ("Key-Pair-Id", toByteString' kid)
+                ]
+          }
   where
     url = base {uriPath = "/" <> toByteString' path}
     policy r t =
@@ -100,15 +106,14 @@ signedURL (CloudFront base kid ttl clock sign) path = liftIO $ do
         f '/' = '~'
         f c = c
 
-sha1Rsa :: FilePath -> IO (ByteString -> IO ByteString)
+sha1Rsa :: FilePath -> IO (ByteString -> IO (Either Error ByteString))
 sha1Rsa fp = do
-  sha1 <-
-    liftIO $
-      getDigestByName "SHA1"
-        >>= maybe (error "OpenSSL: SHA1 not found") return
-  kbs <- readFile fp
-  key <- readPrivateKey kbs PwNone
-  return (SSL.signBS sha1 key)
+  kbs <- readKeyFile fp
+  let key = case kbs of
+        [] -> error $ "no keys found in " ++ show fp
+        (PrivKeyRSA k : []) -> k
+        _ -> error $ "Not one RSA key found in " ++ show fp
+  return (RSA.signSafer (Just SHA1) key)
 
 mkPOSIXClock :: IO (IO POSIXTime)
 mkPOSIXClock =

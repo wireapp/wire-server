@@ -35,18 +35,19 @@ import qualified CargoHold.Types.V3 as V3
 import CargoHold.Util
 import qualified Codec.MIME.Parse as MIME
 import qualified Codec.MIME.Type as MIME
+import qualified Conduit as Conduit
 import Control.Applicative (optional)
 import Control.Error
 import Control.Lens ((^.), set, view)
+import Control.Monad.Trans.Resource
 import Crypto.Hash
+import Crypto.Random (getRandomBytes)
 import Data.Aeson (eitherDecodeStrict')
 import Data.Attoparsec.ByteString.Char8
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.CaseInsensitive as CI
 import Data.Conduit
-import qualified Data.Conduit as Conduit
 import qualified Data.Conduit.Attoparsec as Conduit
-import qualified Data.Conduit.Binary as Conduit
 import Data.Id
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (decodeLatin1)
@@ -56,10 +57,9 @@ import Data.UUID.V4
 import Imports hiding (take)
 import Network.HTTP.Types.Header
 import Network.Wai.Utilities (Error (..))
-import OpenSSL.Random (randBytes)
 import URI.ByteString
 
-upload :: V3.Principal -> ConduitM () ByteString IO () -> Handler V3.Asset
+upload :: V3.Principal -> ConduitM () ByteString (ResourceT IO) () -> Handler V3.Asset
 upload own bdy = do
   (rsrc, sets) <- parseMetadata bdy assetSettings
   (src, hdrs) <- parseHeaders rsrc assetHeaders
@@ -69,12 +69,11 @@ upload own bdy = do
   maxTotalBytes <- view (settings . setMaxTotalBytes)
   when (cl > maxTotalBytes) $
     throwE assetTooLarge
-  let stream = src .| Conduit.isolate cl
   ast <- liftIO $ Id <$> nextRandom
   tok <- if sets ^. V3.setAssetPublic then return Nothing else Just <$> randToken
   let ret = fromMaybe V3.AssetPersistent (sets ^. V3.setAssetRetention)
   let key = V3.AssetKeyV3 ast ret
-  void $ S3.uploadV3 own key hdrs tok stream
+  void $ S3.uploadV3 own key hdrs tok src
   Metrics.s3UploadOk
   Metrics.s3UploadSize cl
   expires <- case V3.assetRetentionSeconds ret of
@@ -102,7 +101,7 @@ updateToken own key tok = do
   S3.updateMetadataV3 key m'
 
 randToken :: MonadIO m => m V3.AssetToken
-randToken = liftIO $ V3.AssetToken . Ascii.encodeBase64Url <$> randBytes 16
+randToken = liftIO $ V3.AssetToken . Ascii.encodeBase64Url <$> getRandomBytes 16
 
 download :: V3.Principal -> V3.AssetKey -> Maybe V3.AssetToken -> Handler (Maybe URI)
 download own key tok = S3.getMetadataV3 key >>= maybe notFound found
@@ -111,6 +110,7 @@ download own key tok = S3.getMetadataV3 key >>= maybe notFound found
     found s3
       | own /= S3.v3AssetOwner s3 && tok /= S3.v3AssetToken s3 = return Nothing
       | otherwise = do
+        -- url <- genSignedURI (S3.s3Key $ S3.mkKey key)
         url <- genSignedURL (S3.mkKey key)
         return $! Just $! url
 
@@ -124,18 +124,18 @@ delete own key = do
 -----------------------------------------------------------------------------
 -- Streaming multipart parsing
 
-parseMetadata :: ConduitM () ByteString IO () -> Parser a -> Handler (SealedConduitT () ByteString IO (), a)
+parseMetadata :: ConduitM () ByteString (ResourceT IO) () -> Parser a -> Handler (SealedConduitT () ByteString (ResourceT IO) (), a)
 parseMetadata src psr = do
-  (rsrc, meta) <- liftIO $ src $$+ sinkParser psr
+  (rsrc, meta) <- liftIO . runResourceT $ src $$+ sinkParser psr
   (rsrc,) <$> hoistEither meta
 
-parseHeaders :: SealedConduitT () ByteString IO () -> Parser a -> Handler (ConduitM () ByteString IO (), a)
+parseHeaders :: SealedConduitT () ByteString (ResourceT IO) () -> Parser a -> Handler (ConduitM () ByteString (ResourceT IO) (), a)
 parseHeaders src prs = do
-  (rsrc, hdrs) <- liftIO $ src $$++ sinkParser prs
+  (rsrc, hdrs) <- liftIO $ runResourceT $ src $$++ sinkParser prs
   let src' = Conduit.unsealConduitT rsrc
   (src',) <$> hoistEither hdrs
 
-sinkParser :: Parser a -> ConduitM ByteString o IO (Either Error a)
+sinkParser :: Parser a -> ConduitM ByteString o (ResourceT IO) (Either Error a)
 sinkParser p = fmapL mkError <$> Conduit.sinkParserEither p
   where
     mkError = clientError . LT.pack . mkMsg

@@ -244,12 +244,26 @@ packages:
     url: https://github.com/brendanhay/amazonka/archive/9cf5b5777b69ac494d23d43a692294882927df34.tar.gz
     sha256: c3044f803a7652aee88fe600a97321175cdc1443d671246ba7ff78e14bf5b49f
 - completed:
+    hackage: amazonka-cloudfront-1.6.1@sha256:79c95e0ec544437a613cab891a2057bc35f1b0fed2361b36e7f05437839bdce2,5668
+    pantry-tree:
+      size: 12793
+      sha256: 3f2158d91b5bcdfe3b80209bc2bd8368a638d0ff6d0df36c6e1f11027b806c61
+  original:
+    hackage: amazonka-cloudfront-1.6.1@sha256:79c95e0ec544437a613cab891a2057bc35f1b0fed2361b36e7f05437839bdce2,5668
+- completed:
     hackage: amazonka-dynamodb-1.6.1@sha256:6b8852049c65207a7b3741aafa3e4e6c77cfa115e05de3c74868218ae642b6b0,4459
     pantry-tree:
       size: 8333
       sha256: bd7469b4077272ecf37fe30dcff64c3af0a820b610ca592c172d7fa97d9e6833
   original:
     hackage: amazonka-dynamodb-1.6.1@sha256:6b8852049c65207a7b3741aafa3e4e6c77cfa115e05de3c74868218ae642b6b0,4459
+- completed:
+    hackage: amazonka-s3-1.6.1@sha256:9d07240fca59ad5197fb614ce3051e701e4951e6d4625a2dab4a9c17a1900194,6317
+    pantry-tree:
+      size: 18385
+      sha256: 5cab233d241615764d9fd6927bc397f02887154450a9932c38c2e17ea86d79bc
+  original:
+    hackage: amazonka-s3-1.6.1@sha256:9d07240fca59ad5197fb614ce3051e701e4951e6d4625a2dab4a9c17a1900194,6317
 - completed:
     hackage: amazonka-ses-1.6.1@sha256:335796c855121ca34affd35097676587d5ebe0b2e576da42faaedd9d163881b0,6425
     pantry-tree:

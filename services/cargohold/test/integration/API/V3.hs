@@ -84,7 +84,8 @@ testSimpleRoundtrip c = do
       uid <- liftIO $ Id <$> nextRandom
       uid2 <- liftIO $ Id <$> nextRandom
       -- Initial upload
-      let bdy = (applicationText, "Hello World")
+      let dat = C8.replicate 100000 'h'
+      let bdy = (applicationText, dat)
       r1 <-
         uploadSimple (c . path "/assets/v3") uid sets bdy
           <!! const 201 === statusCode
@@ -107,7 +108,7 @@ testSimpleRoundtrip c = do
         assertEqual "content-type mismatch" (Just applicationText) (getContentType r3)
         assertEqual "token mismatch" tok (decodeHeader "x-amz-meta-token" r3)
         assertEqual "user mismatch" uid (decodeHeader "x-amz-meta-user" r3)
-        assertEqual "data mismatch" (Just "Hello World") (responseBody r3)
+        assertEqual "data mismatch" (Just $ Lazy.fromStrict dat) (responseBody r3)
       -- Delete (forbidden for other users)
       deleteAsset c uid2 (view V3.assetKey ast) !!! const 403 === statusCode
       -- Delete (allowed for creator)

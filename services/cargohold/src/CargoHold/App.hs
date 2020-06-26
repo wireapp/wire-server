@@ -22,10 +22,9 @@
 module CargoHold.App
   ( -- * Environment
     Env,
-    AwsEnv (..),
     newEnv,
     closeEnv,
-    CargoHold.App.aws,
+    aws,
     httpManager,
     metrics,
     appLogger,
@@ -44,56 +43,42 @@ module CargoHold.App
   )
 where
 
-import qualified Aws
-import qualified Aws.Core as Aws
-import qualified Aws.S3 as Aws
-import Bilge (Manager, MonadHttp, RequestId (..), newManager, withResponse)
+import Bilge (Manager, MonadHttp, RequestId (..), withResponse)
 import qualified Bilge
 import Bilge.RPC (HasRequestId (..))
-import CargoHold.CloudFront
+import qualified CargoHold.AWS as AWS
 import CargoHold.Options as Opt
 import Control.Error (ExceptT, exceptT)
 import Control.Lens ((^.), makeLenses, set, view)
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
-import Data.Default (def)
+import Data.Default
 import Data.Metrics.Middleware (Metrics)
 import qualified Data.Metrics.Middleware as Metrics
 import Imports hiding (log)
+import Network.Connection as NC
 import Network.HTTP.Client (ManagerSettings (..), responseTimeoutMicro)
-import Network.HTTP.Client.OpenSSL
+import Network.HTTP.Client.TLS
+import qualified Network.TLS as TLS
+import qualified Network.TLS.Extra as TLS
 import Network.Wai (Request, ResponseReceived)
 import Network.Wai.Routing (Continue)
 import Network.Wai.Utilities (Error (..), lookupRequestId)
 import qualified Network.Wai.Utilities.Server as Server
-import OpenSSL.Session (SSLContext, SSLOption (..))
-import qualified OpenSSL.Session as SSL
-import qualified OpenSSL.X509.SystemStore as SSL
-import qualified Ropes.Aws as Aws
 import System.Logger.Class hiding (settings)
 import qualified System.Logger.Extended as Log
-import Util.Options
+import System.X509 (getSystemCertificateStore)
 
 -------------------------------------------------------------------------------
 -- Environment
 
 data Env = Env
-  { _aws :: AwsEnv,
+  { _aws :: AWS.Env,
     _metrics :: Metrics,
     _appLogger :: Logger,
     _httpManager :: Manager,
     _requestId :: RequestId,
     _settings :: Opt.Settings
-  }
-
-data AwsEnv = AwsEnv
-  { awsEnv :: Aws.Env,
-    -- | Needed for presigned, S3 requests (Only works with GET)
-    s3UriOnly :: Aws.S3Configuration Aws.UriOnlyQuery,
-    -- | For all other requests
-    s3Config :: Aws.S3Configuration Aws.NormalQuery,
-    s3Bucket :: Text,
-    cloudFront :: Maybe CloudFront
   }
 
 makeLenses ''Env
@@ -103,58 +88,42 @@ newEnv o = do
   met <- Metrics.metrics
   lgr <- Log.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings) (o ^. optLogFormat)
   mgr <- initHttpManager
-  awe <- initAws o lgr mgr
-  return $ Env awe met lgr mgr def (o ^. optSettings)
+  ama <- initAws (o ^. optAws) lgr mgr
+  return $ Env ama met lgr mgr def (o ^. optSettings)
 
-initAws :: Opts -> Logger -> Manager -> IO AwsEnv
-initAws o l m = do
-  let awsOpts = o ^. optAws
-  amz <- Aws.newEnv l m $ liftM2 (,) (awsOpts ^. awsKeyId) (awsOpts ^. awsSecretKey)
-  sig <- newCloudFrontEnv (o ^. optAws . awsCloudFront) (o ^. optSettings . setDownloadLinkTTL)
-  let s3cfg :: Aws.S3Configuration queryType
-      s3cfg = endpointToConfig (awsOpts ^. awsS3Endpoint)
-      s3cfgDownload = maybe s3cfg endpointToConfig (awsOpts ^. awsS3DownloadEndpoint)
-  return $! AwsEnv amz s3cfgDownload s3cfg (awsOpts ^. awsS3Bucket) sig
+initAws :: AWSOpts -> Logger -> Manager -> IO AWS.Env
+initAws o l m =
+  AWS.mkEnv
+    l
+    (o ^. awsS3Endpoint)
+    downloadEndpoint
+    (o ^. awsS3Bucket)
+    (o ^. awsCloudFront)
+    m
   where
-    newCloudFrontEnv Nothing _ = return Nothing
-    newCloudFrontEnv (Just cf) ttl =
-      return . Just
-        =<< initCloudFront
-          (cf ^. cfPrivateKey)
-          (cf ^. cfKeyPairId)
-          ttl
-          (cf ^. cfDomain)
-
-endpointToConfig :: AWSEndpoint -> Aws.S3Configuration qt
-endpointToConfig (AWSEndpoint host secure port) =
-  (Aws.s3 (toProtocol secure) host False)
-    { Aws.s3Port = port,
-      Aws.s3RequestStyle = Aws.PathStyle
-    }
-  where
-    toProtocol :: Bool -> Aws.Protocol
-    toProtocol True = Aws.HTTPS
-    toProtocol False = Aws.HTTP
+    downloadEndpoint = fromMaybe (o ^. awsS3Endpoint) (o ^. awsS3DownloadEndpoint)
 
 initHttpManager :: IO Manager
-initHttpManager =
-  newManager
-    (opensslManagerSettings initSSLContext)
-      { managerConnCount = 1024,
-        managerIdleConnectionCount = 2048,
-        managerResponseTimeout = responseTimeoutMicro 10000000
-      }
-
-initSSLContext :: IO SSLContext
-initSSLContext = do
-  ctx <- SSL.context
-  SSL.contextAddOption ctx SSL_OP_NO_SSLv2
-  SSL.contextAddOption ctx SSL_OP_NO_SSLv3
-  SSL.contextSetCiphers ctx "HIGH"
-  SSL.contextLoadSystemCerts ctx
-  SSL.contextSetVerificationMode ctx $
-    SSL.VerifyPeer True True Nothing
-  return ctx
+initHttpManager = do
+  cs <- getSystemCertificateStore
+  let tlsClientParams =
+        (TLS.defaultParamsClient "" mempty)
+          { TLS.clientSupported = def {TLS.supportedCiphers = TLS.ciphersuite_strong},
+            TLS.clientShared =
+              def
+                { TLS.sharedCAStore = cs,
+                  TLS.sharedValidationCache = def
+                }
+          }
+  let manSettings = mkManagerSettings (NC.TLSSettings tlsClientParams) Nothing
+  mgr <-
+    newTlsManagerWith
+      manSettings
+        { managerConnCount = 1024,
+          managerIdleConnectionCount = 2048,
+          managerResponseTimeout = responseTimeoutMicro 10000000
+        }
+  return mgr
 
 closeEnv :: Env -> IO ()
 closeEnv e = Log.close $ e ^. appLogger
