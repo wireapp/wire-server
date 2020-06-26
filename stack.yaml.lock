@@ -99,20 +99,6 @@ packages:
     commit: 300a6f46384bfca33e545c8bab52ef3717452d12
 - completed:
     cabal-file:
-      size: 14131
-      sha256: 1fb476b11373acad65a203fb6c1bea2b92c2603da3ad77c9c64e8155991e5aa7
-    name: aws
-    version: '0.20'
-    git: https://github.com/wireapp/aws
-    pantry-tree:
-      size: 7219
-      sha256: 25fb343439f2f14ced7a8c587a7f0647275d0eddc70a719c5ebde33637607be4
-    commit: 42695688fc20f80bf89cec845c57403954aab0a2
-  original:
-    git: https://github.com/wireapp/aws
-    commit: 42695688fc20f80bf89cec845c57403954aab0a2
-- completed:
-    cabal-file:
       size: 2289
       sha256: 07c1e684acf4ba1c097fe5dd2525cb887269f7d3335c42783c1f4d2bfdc01283
     name: hspec-wai
