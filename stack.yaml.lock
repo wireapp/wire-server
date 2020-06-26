@@ -140,95 +140,95 @@ packages:
   original:
     hackage: aeson-1.4.7.1@sha256:6d8d2fd959b7122a1df9389cf4eca30420a053d67289f92cdc0dbc0dab3530ba,7098
 - completed:
-    size: 11137527
+    size: 11138293
     subdir: amazonka
-    url: https://github.com/brendanhay/amazonka/archive/9cf5b5777b69ac494d23d43a692294882927df34.tar.gz
+    url: https://github.com/brendanhay/amazonka/archive/adf6afb09771d18ecb84bf1c7a2f00bce964c3c9.tar.gz
     cabal-file:
-      size: 3420
-      sha256: fe5d9d604135b54c0fed2e695c089586f8b66409a43f038db7ed08adaa2f7484
+      size: 3457
+      sha256: 7ac360751e371ba853f56d357e861c5fe103b1da17f045ac47fd285c164a37f7
     name: amazonka
     version: 1.6.1
-    sha256: c3044f803a7652aee88fe600a97321175cdc1443d671246ba7ff78e14bf5b49f
+    sha256: db0c64c019b9396c117459978754a4ac493f2ad0cb09dd6946e51d0997e04996
     pantry-tree:
       size: 1038
-      sha256: 7b9c7488007e3d803516121fe89d7674918a6e6dd09a22ac9ecabc2eed48346d
+      sha256: 59c7840fe6c9609d1d5022149010e72db5778e4978b9384b6dee8a4a207c96b3
   original:
-    size: 11137527
+    size: 11138293
     subdir: amazonka
-    url: https://github.com/brendanhay/amazonka/archive/9cf5b5777b69ac494d23d43a692294882927df34.tar.gz
-    sha256: c3044f803a7652aee88fe600a97321175cdc1443d671246ba7ff78e14bf5b49f
+    url: https://github.com/brendanhay/amazonka/archive/adf6afb09771d18ecb84bf1c7a2f00bce964c3c9.tar.gz
+    sha256: db0c64c019b9396c117459978754a4ac493f2ad0cb09dd6946e51d0997e04996
 - completed:
-    size: 11137527
+    size: 11138293
     subdir: amazonka-elb
-    url: https://github.com/brendanhay/amazonka/archive/9cf5b5777b69ac494d23d43a692294882927df34.tar.gz
+    url: https://github.com/brendanhay/amazonka/archive/adf6afb09771d18ecb84bf1c7a2f00bce964c3c9.tar.gz
     cabal-file:
       size: 4462
       sha256: a208c16093be1afc6e616a61ae436079829d6d9234a06a7fc61581ba4a3b2e6f
     name: amazonka-elb
     version: 1.6.1
-    sha256: c3044f803a7652aee88fe600a97321175cdc1443d671246ba7ff78e14bf5b49f
+    sha256: db0c64c019b9396c117459978754a4ac493f2ad0cb09dd6946e51d0997e04996
     pantry-tree:
       size: 8370
       sha256: 881b55c8859c59765ab7b5e51401257687a4a86e249e4da20f9f7cf8ffde0d65
   original:
-    size: 11137527
+    size: 11138293
     subdir: amazonka-elb
-    url: https://github.com/brendanhay/amazonka/archive/9cf5b5777b69ac494d23d43a692294882927df34.tar.gz
-    sha256: c3044f803a7652aee88fe600a97321175cdc1443d671246ba7ff78e14bf5b49f
+    url: https://github.com/brendanhay/amazonka/archive/adf6afb09771d18ecb84bf1c7a2f00bce964c3c9.tar.gz
+    sha256: db0c64c019b9396c117459978754a4ac493f2ad0cb09dd6946e51d0997e04996
 - completed:
-    size: 11137527
+    size: 11138293
     subdir: amazonka-redshift
-    url: https://github.com/brendanhay/amazonka/archive/9cf5b5777b69ac494d23d43a692294882927df34.tar.gz
+    url: https://github.com/brendanhay/amazonka/archive/adf6afb09771d18ecb84bf1c7a2f00bce964c3c9.tar.gz
     cabal-file:
       size: 6412
       sha256: c67838874f38dd3add8017a0be83c726b3f77760c25e2c2bcc43acdc37fc8bfd
     name: amazonka-redshift
     version: 1.6.1
-    sha256: c3044f803a7652aee88fe600a97321175cdc1443d671246ba7ff78e14bf5b49f
+    sha256: db0c64c019b9396c117459978754a4ac493f2ad0cb09dd6946e51d0997e04996
     pantry-tree:
       size: 16687
       sha256: 3f14ef6b9291c4080ee39cb0e32e763eae6a1f6e74e4a325a0042e9e9be35eb4
   original:
-    size: 11137527
+    size: 11138293
     subdir: amazonka-redshift
-    url: https://github.com/brendanhay/amazonka/archive/9cf5b5777b69ac494d23d43a692294882927df34.tar.gz
-    sha256: c3044f803a7652aee88fe600a97321175cdc1443d671246ba7ff78e14bf5b49f
+    url: https://github.com/brendanhay/amazonka/archive/adf6afb09771d18ecb84bf1c7a2f00bce964c3c9.tar.gz
+    sha256: db0c64c019b9396c117459978754a4ac493f2ad0cb09dd6946e51d0997e04996
 - completed:
-    size: 11137527
+    size: 11138293
     subdir: amazonka-route53
-    url: https://github.com/brendanhay/amazonka/archive/9cf5b5777b69ac494d23d43a692294882927df34.tar.gz
+    url: https://github.com/brendanhay/amazonka/archive/adf6afb09771d18ecb84bf1c7a2f00bce964c3c9.tar.gz
     cabal-file:
       size: 5949
       sha256: a9839d8fc55de06a4fb242bc6597d454251363478909d4fe7dca8832c2a1fd73
     name: amazonka-route53
     version: 1.6.1
-    sha256: c3044f803a7652aee88fe600a97321175cdc1443d671246ba7ff78e14bf5b49f
+    sha256: db0c64c019b9396c117459978754a4ac493f2ad0cb09dd6946e51d0997e04996
     pantry-tree:
       size: 14795
       sha256: d842125c99d714a09c49a951bb99ea67efd679170a40e82f575f583a8dcf09ca
   original:
-    size: 11137527
+    size: 11138293
     subdir: amazonka-route53
-    url: https://github.com/brendanhay/amazonka/archive/9cf5b5777b69ac494d23d43a692294882927df34.tar.gz
-    sha256: c3044f803a7652aee88fe600a97321175cdc1443d671246ba7ff78e14bf5b49f
+    url: https://github.com/brendanhay/amazonka/archive/adf6afb09771d18ecb84bf1c7a2f00bce964c3c9.tar.gz
+    sha256: db0c64c019b9396c117459978754a4ac493f2ad0cb09dd6946e51d0997e04996
 - completed:
-    size: 11137527
+    size: 11138293
     subdir: core
-    url: https://github.com/brendanhay/amazonka/archive/9cf5b5777b69ac494d23d43a692294882927df34.tar.gz
+    url: https://github.com/brendanhay/amazonka/archive/adf6afb09771d18ecb84bf1c7a2f00bce964c3c9.tar.gz
     cabal-file:
       size: 4957
       sha256: 8ff9614130407588370e12e905f3539a733b76f6d9397ed3522ce54fc154d918
     name: amazonka-core
     version: 1.6.1
-    sha256: c3044f803a7652aee88fe600a97321175cdc1443d671246ba7ff78e14bf5b49f
+    sha256: db0c64c019b9396c117459978754a4ac493f2ad0cb09dd6946e51d0997e04996
     pantry-tree:
       size: 3484
-      sha256: fc9c1a8d6a8fefa4432c42c3b104e910d214cded3d0795f8bf46cc85f4f9d838
+      sha256: dbd45ae65d2df195ac670bed949d98ab3764bf5c691594c861337d8228ccc9fb
   original:
-    size: 11137527
+    size: 11138293
     subdir: core
-    url: https://github.com/brendanhay/amazonka/archive/9cf5b5777b69ac494d23d43a692294882927df34.tar.gz
-    sha256: c3044f803a7652aee88fe600a97321175cdc1443d671246ba7ff78e14bf5b49f
+    url: https://github.com/brendanhay/amazonka/archive/adf6afb09771d18ecb84bf1c7a2f00bce964c3c9.tar.gz
+    sha256: db0c64c019b9396c117459978754a4ac493f2ad0cb09dd6946e51d0997e04996
 - completed:
     hackage: amazonka-cloudfront-1.6.1@sha256:79c95e0ec544437a613cab891a2057bc35f1b0fed2361b36e7f05437839bdce2,5668
     pantry-tree:

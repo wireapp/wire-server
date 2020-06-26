@@ -98,12 +98,12 @@ extra-deps:
 # More precisely, we pull just some libraries out of it,
 # the other packages weren't changed between 1.6.1 and this commit,
 # so we can use Stackage-supplied versions for them.
-# See https://github.com/brendanhay/amazonka/compare/1.6.1...9cf5b5777b69ac494d23d43a692294882927df34
+# See https://github.com/brendanhay/amazonka/compare/1.6.1...adf6afb09771d18ecb84bf1c7a2f00bce964c3c9
 #
 # Once there has been made a new hackage release, we can use that instead.
-- archive: https://github.com/brendanhay/amazonka/archive/9cf5b5777b69ac494d23d43a692294882927df34.tar.gz
-  sha256: c3044f803a7652aee88fe600a97321175cdc1443d671246ba7ff78e14bf5b49f
-  size: 11137527
+- archive: https://github.com/brendanhay/amazonka/archive/adf6afb09771d18ecb84bf1c7a2f00bce964c3c9.tar.gz
+  sha256: db0c64c019b9396c117459978754a4ac493f2ad0cb09dd6946e51d0997e04996
+  size: 11138293
   subdirs:
   - amazonka
   - amazonka-elb
