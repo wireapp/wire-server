@@ -212,24 +212,6 @@ packages:
     url: https://github.com/brendanhay/amazonka/archive/adf6afb09771d18ecb84bf1c7a2f00bce964c3c9.tar.gz
     sha256: db0c64c019b9396c117459978754a4ac493f2ad0cb09dd6946e51d0997e04996
 - completed:
-    size: 11138293
-    subdir: core
-    url: https://github.com/brendanhay/amazonka/archive/adf6afb09771d18ecb84bf1c7a2f00bce964c3c9.tar.gz
-    cabal-file:
-      size: 4957
-      sha256: 8ff9614130407588370e12e905f3539a733b76f6d9397ed3522ce54fc154d918
-    name: amazonka-core
-    version: 1.6.1
-    sha256: db0c64c019b9396c117459978754a4ac493f2ad0cb09dd6946e51d0997e04996
-    pantry-tree:
-      size: 3484
-      sha256: dbd45ae65d2df195ac670bed949d98ab3764bf5c691594c861337d8228ccc9fb
-  original:
-    size: 11138293
-    subdir: core
-    url: https://github.com/brendanhay/amazonka/archive/adf6afb09771d18ecb84bf1c7a2f00bce964c3c9.tar.gz
-    sha256: db0c64c019b9396c117459978754a4ac493f2ad0cb09dd6946e51d0997e04996
-- completed:
     hackage: amazonka-cloudfront-1.6.1@sha256:79c95e0ec544437a613cab891a2057bc35f1b0fed2361b36e7f05437839bdce2,5668
     pantry-tree:
       size: 12793

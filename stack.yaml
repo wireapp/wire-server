@@ -42,6 +42,7 @@ packages:
 - tools/db/find-undead
 - tools/makedeb
 - tools/stern
+- ../amazonka/core
 
 nix:
   shell-file: stack-deps.nix
@@ -109,7 +110,7 @@ extra-deps:
   - amazonka-elb
   - amazonka-redshift
   - amazonka-route53
-  - core
+  # - core
 
 # Was dropped from LTS
 - amazonka-cloudfront-1.6.1@sha256:79c95e0ec544437a613cab891a2057bc35f1b0fed2361b36e7f05437839bdce2,5668
