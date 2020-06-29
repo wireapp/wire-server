@@ -112,6 +112,7 @@ mkEnv ::
   Manager ->
   IO Env
 mkEnv lgr s3End _s3Download bucket cfOpts mgr = do
+  -- TODO: we need to respect _s3Download!
   let g = Logger.clone (Just "aws.cargohold") lgr
   e <- mkAwsEnv g (mkEndpoint S3.s3 s3End)
   cf <- mkCfEnv cfOpts
