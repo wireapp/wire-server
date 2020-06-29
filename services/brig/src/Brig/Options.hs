@@ -143,8 +143,9 @@ data EmailSMSGeneralOpts = EmailSMSGeneralOpts
     templateDir :: !FilePath,
     -- | Email sender address
     emailSender :: !Email,
-    -- | Twilio sender identifier (number or
-    --   messaging service ID)
+    -- | Twilio sender identifier (sender phone number in E.104 format)
+    --   or twilio messaging sender ID - see
+    --   https://www.twilio.com/docs/sms/send-messages#use-an-alphanumeric-sender-id
     smsSender :: !Text,
     -- | Customizable branding text for
     --   emails/sms/calls
