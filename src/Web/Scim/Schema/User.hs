@@ -297,20 +297,23 @@ applyUserOperation user (Operation Replace (Just (NormalPath (AttrPath _schema a
       (\x -> user {displayName = x}) <$> resultToScimError (fromJSON value)
     "externalid" ->
       (\x -> user {externalId = x}) <$> resultToScimError (fromJSON value)
-    _ -> throwError (badRequest InvalidPath (Just "we only support attributes username, displayname, externalid"))
+    "active" ->
+      (\x -> user {active = x}) <$> resultToScimError (fromJSON value)
+    _ -> throwError (badRequest InvalidPath (Just "we only support attributes username, displayname, externalid, active"))
 applyUserOperation _ (Operation Replace (Just (IntoValuePath _ _)) _) = do
   throwError (badRequest InvalidPath (Just "can not lens into multi-valued attributes yet"))
 applyUserOperation user (Operation Replace Nothing (Just value)) = do
   case value of
-    Object hm | null ((AttrName <$> HM.keys hm) \\ ["username", "displayname", "externalid"]) -> pure ()
-    _ -> throwError (badRequest InvalidPath (Just "we only support attributes username, displayname, externalid"))
-  (u :: User tag) <- resultToScimError $ fromJSON value
-  pure $
-    user
-      { userName = userName u,
-        displayName = displayName u,
-        externalId = externalId u
-      }
+    Object hm | null ((AttrName <$> HM.keys hm) \\ ["username", "displayname", "externalid", "active"]) -> do
+      (u :: User tag) <- resultToScimError $ fromJSON value
+      pure $
+        user
+          { userName = userName u,
+            displayName = displayName u,
+            externalId = externalId u,
+            active = active u
+          }
+    _ -> throwError (badRequest InvalidPath (Just "we only support attributes username, displayname, externalid, active"))
 applyUserOperation _ (Operation Replace _ Nothing) =
   throwError (badRequest InvalidValue (Just "No value was provided"))
 applyUserOperation _ (Operation Remove Nothing _) = throwError (badRequest NoTarget Nothing)
@@ -319,6 +322,7 @@ applyUserOperation user (Operation Remove (Just (NormalPath (AttrPath _schema at
     "username" -> throwError (badRequest Mutability Nothing)
     "displayname" -> pure $ user {displayName = Nothing}
     "externalid" -> pure $ user {externalId = Nothing}
+    "active" -> pure $ user {active = Nothing}
     _ -> pure user
 applyUserOperation _ (Operation Remove (Just (IntoValuePath _ _)) _) = do
   throwError (badRequest InvalidPath (Just "can not lens into multi-valued attributes yet"))

@@ -16,6 +16,9 @@ data Name
       }
   deriving (Show, Eq, Generic)
 
+emptyName :: Name
+emptyName = Name Nothing Nothing Nothing Nothing Nothing Nothing
+
 instance FromJSON Name where
   parseJSON = genericParseJSON parseOptions . jsonLower
 
