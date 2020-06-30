@@ -64,6 +64,7 @@ tests =
       testRoundTrip @Provider.Service.Tag.ServiceTag,
       testRoundTrip @Push.V2.Token.Token,
       testRoundTrip @Team.Feature.TeamFeatureName,
+      testRoundTrip @Team.Feature.TeamFeatureStatusValue,
       testRoundTrip @User.Activation.ActivationCode,
       testRoundTrip @User.Activation.ActivationKey,
       testRoundTrip @User.Auth.CookieLabel,

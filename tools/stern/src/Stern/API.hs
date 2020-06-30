@@ -583,11 +583,8 @@ getTeamFeatureFlagH :: TeamId ::: Public.TeamFeatureName -> Handler Response
 getTeamFeatureFlagH (tid ::: feature) =
   json <$> Intra.getTeamFeatureFlag tid feature
 
-setTeamFeatureFlagH :: TeamId ::: Public.TeamFeatureName ::: LByteString -> Handler Response
-setTeamFeatureFlagH (tid ::: feature ::: statusString) = do
-  status <-
-    eitherDecode' statusString
-      & either (const . throwE $ Error status400 "bad status value" "must be enabled, disabled") pure
+setTeamFeatureFlagH :: TeamId ::: Public.TeamFeatureName ::: Public.TeamFeatureStatusValue -> Handler Response
+setTeamFeatureFlagH (tid ::: feature ::: status) = do
   empty <$ Intra.setTeamFeatureFlag tid feature status
 
 setSearchVisibility :: JSON ::: TeamId ::: JsonRequest Team.TeamSearchVisibility -> Handler Response

@@ -115,3 +115,15 @@ instance FromJSON TeamFeatureStatusValue where
     "enabled" -> pure TeamFeatureEnabled
     "disabled" -> pure TeamFeatureDisabled
     x -> fail $ "unexpected status type: " <> T.unpack x
+
+instance ToByteString TeamFeatureStatusValue where
+  builder TeamFeatureEnabled = "enabled"
+  builder TeamFeatureDisabled = "disabled"
+
+instance FromByteString TeamFeatureStatusValue where
+  parser = Parser.takeByteString >>= \b ->
+    case T.decodeUtf8' b of
+      Right "enabled" -> pure TeamFeatureEnabled
+      Right "disabled" -> pure TeamFeatureDisabled
+      Right t -> fail $ "Invalid TeamFeatureName: " <> T.unpack t
+      Left e -> fail $ "Invalid TeamFeatureName: " <> show e
