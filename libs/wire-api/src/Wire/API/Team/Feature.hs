@@ -125,5 +125,5 @@ instance FromByteString TeamFeatureStatusValue where
     case T.decodeUtf8' b of
       Right "enabled" -> pure TeamFeatureEnabled
       Right "disabled" -> pure TeamFeatureDisabled
-      Right t -> fail $ "Invalid TeamFeatureName: " <> T.unpack t
-      Left e -> fail $ "Invalid TeamFeatureName: " <> show e
+      Right t -> fail $ "Invalid TeamFeatureStatusValue: " <> T.unpack t
+      Left e -> fail $ "Invalid TeamFeatureStatusValue: " <> show e
