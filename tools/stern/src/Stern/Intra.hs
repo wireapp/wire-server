@@ -423,7 +423,7 @@ setBlacklistStatus status emailOrPhone = do
     statusToMethod False = DELETE
     statusToMethod True = POST
 
-getTeamFeatureFlag :: TeamId -> Public.TeamFeatureName -> Handler Public.TeamFeatureStatusValue
+getTeamFeatureFlag :: TeamId -> Public.TeamFeatureName -> Handler Public.TeamFeatureStatus
 getTeamFeatureFlag tid feature = do
   info $ msg "Getting team feature status"
   gly <- view galley
@@ -431,8 +431,7 @@ getTeamFeatureFlag tid feature = do
         method GET
           . paths ["/i/teams", toByteString' tid, "features", toByteString' feature]
           . expect2xx
-  Public.teamFeatureStatusValue . responseJsonUnsafe
-    <$> catchRpcErrors (rpc' "galley" gly req)
+  responseJsonUnsafe <$> catchRpcErrors (rpc' "galley" gly req)
 
 setTeamFeatureFlag :: TeamId -> Public.TeamFeatureName -> Public.TeamFeatureStatusValue -> Handler ()
 setTeamFeatureFlag tid feature status = do
