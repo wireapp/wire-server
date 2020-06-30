@@ -32,6 +32,7 @@ settings:
   featureFlags:  # see #RefConfigOptions in `/docs/reference`
     sso: disabled-by-default
     legalhold: disabled-by-default
+    teamSearchVisibility: disabled-by-default
 
 logLevel: Info
 logNetStrings: false

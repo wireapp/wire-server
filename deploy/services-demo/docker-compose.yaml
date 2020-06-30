@@ -113,7 +113,7 @@ services:
     entrypoint:
       - /usr/bin/proxy
       - -c
-      - /configs/conf/proxy.demo.yaml
+      - /configs/conf/proxy.demo-docker.yaml
     working_dir: /configs
     networks:
       - dockerephemeral_demo_wire
