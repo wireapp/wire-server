@@ -32,7 +32,7 @@ import Imports
 import Network.HTTP.Types (status403)
 import Network.HTTP.Types.Method
 import Spar.Error
-import Wire.API.Team.Feature (TeamFeatureStatus (..))
+import Wire.API.Team.Feature (TeamFeatureStatus (..), TeamFeatureStatusValue (..))
 
 ----------------------------------------------------------------------
 
@@ -84,11 +84,11 @@ assertSSOEnabled tid = do
         . paths ["i", "teams", toByteString' tid, "features", "sso"]
   unless (statusCode resp == 200) $
     throwSpar (SparGalleyError "Could not retrieve SSO config")
-  status <- parseResponse resp
+  TeamFeatureStatus status <- parseResponse resp
   unless (status == TeamFeatureEnabled) $
     throwSpar SparSSODisabled
 
 isEmailValidationEnabledTeam :: (HasCallStack, MonadSparToGalley m) => TeamId -> m Bool
 isEmailValidationEnabledTeam tid = do
   resp <- call $ method GET . paths ["i", "teams", toByteString' tid, "features", "validate-saml-emails"]
-  pure (statusCode resp == 200 && responseJsonMaybe resp == Just TeamFeatureEnabled)
+  pure (statusCode resp == 200 && responseJsonMaybe resp == Just (TeamFeatureStatus TeamFeatureEnabled))

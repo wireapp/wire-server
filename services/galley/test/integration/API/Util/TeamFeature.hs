@@ -43,14 +43,14 @@ getTeamSearchVisibilityAvailableInternal :: HasCallStack => (Request -> Request)
 getTeamSearchVisibilityAvailableInternal =
   getTeamFeatureFlagInternalWithGalley Public.TeamFeatureSearchVisibility
 
-putTeamSearchVisibilityAvailableInternal :: HasCallStack => (Request -> Request) -> TeamId -> Public.TeamFeatureStatus -> (MonadIO m, MonadHttp m) => m ()
+putTeamSearchVisibilityAvailableInternal :: HasCallStack => (Request -> Request) -> TeamId -> Public.TeamFeatureStatusValue -> (MonadIO m, MonadHttp m) => m ()
 putTeamSearchVisibilityAvailableInternal g =
   putTeamFeatureFlagInternalWithGalleyAndMod Public.TeamFeatureSearchVisibility g expect2xx
 
-putLegalHoldEnabledInternal' :: HasCallStack => (Request -> Request) -> TeamId -> Public.TeamFeatureStatus -> TestM ()
+putLegalHoldEnabledInternal' :: HasCallStack => (Request -> Request) -> TeamId -> Public.TeamFeatureStatusValue -> TestM ()
 putLegalHoldEnabledInternal' = putTeamFeatureFlagInternal' Public.TeamFeatureLegalHold
 
-putTeamFeatureFlagInternal' :: HasCallStack => Public.TeamFeatureName -> (Request -> Request) -> TeamId -> Public.TeamFeatureStatus -> TestM ()
+putTeamFeatureFlagInternal' :: HasCallStack => Public.TeamFeatureName -> (Request -> Request) -> TeamId -> Public.TeamFeatureStatusValue -> TestM ()
 putTeamFeatureFlagInternal' feature reqmod tid status = do
   g <- view tsGalley
   putTeamFeatureFlagInternalWithGalleyAndMod feature g reqmod tid status
@@ -61,13 +61,13 @@ putTeamFeatureFlagInternalWithGalleyAndMod ::
   (Request -> Request) ->
   (Request -> Request) ->
   TeamId ->
-  Public.TeamFeatureStatus ->
+  Public.TeamFeatureStatusValue ->
   m ()
 putTeamFeatureFlagInternalWithGalleyAndMod feature galley reqmod tid status =
   void . put $
     galley
       . paths ["i", "teams", toByteString' tid, "features", toByteString' feature]
-      . json status
+      . json (Public.TeamFeatureStatus status)
       . reqmod
 
 getTeamFeatureFlagInternal :: HasCallStack => Public.TeamFeatureName -> TeamId -> TestM ResponseLBS

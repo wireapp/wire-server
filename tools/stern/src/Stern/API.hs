@@ -337,22 +337,23 @@ routes = do
       description "Team ID"
     Doc.parameter Doc.Path "feature" Public.typeTeamFeatureName $
       description "Feature name"
-    Doc.returns Public.typeTeamFeatureStatus
+    Doc.returns (Doc.ref Public.modelTeamFeatureStatus)
     Doc.response 200 "Team feature flag status" Doc.end
 
   put "/teams/:tid/features/:feature" (continue setTeamFeatureFlagH) $
     capture "tid"
       .&. capture "feature"
-      .&. contentType "application" "json"
-      .&. jsonRequest @Public.TeamFeatureStatus
+      -- We use a query parameter "status" here instead of a JSON body.
+      -- This improves usability, since swagger-ui displays is as a dropdown, not a text box.
+      .&. param "status"
   document "PUT" "setTeamFeatureFlag" $ do
     summary "Disable / enable feature flag for a given team"
     Doc.parameter Doc.Path "tid" Doc.bytes' $
       description "Team ID"
     Doc.parameter Doc.Path "feature" Public.typeTeamFeatureName $
       description "Feature name"
-    Doc.body Public.typeTeamFeatureStatus $
-      Doc.description "JSON body"
+    Doc.parameter Doc.Query "status" Public.typeTeamFeatureStatusValue $ do
+      Doc.description "team feature status (enabled or disabled)"
     Doc.response 200 "Team feature flag status" Doc.end
 
   -- These endpoints should be part of team settings. Until then, we access them from here
@@ -584,9 +585,9 @@ getTeamFeatureFlagH :: TeamId ::: Public.TeamFeatureName -> Handler Response
 getTeamFeatureFlagH (tid ::: feature) =
   json <$> Intra.getTeamFeatureFlag tid feature
 
-setTeamFeatureFlagH :: TeamId ::: Public.TeamFeatureName ::: JSON ::: JsonRequest Public.TeamFeatureStatus -> Handler Response
-setTeamFeatureFlagH (tid ::: feature ::: _ ::: req) =
-  empty <$ (Intra.setTeamFeatureFlag tid feature =<< (parseBody req !>> Error status400 "client-error"))
+setTeamFeatureFlagH :: TeamId ::: Public.TeamFeatureName ::: Public.TeamFeatureStatusValue -> Handler Response
+setTeamFeatureFlagH (tid ::: feature ::: status) = do
+  empty <$ Intra.setTeamFeatureFlag tid feature status
 
 setSearchVisibility :: JSON ::: TeamId ::: JsonRequest Team.TeamSearchVisibility -> Handler Response
 setSearchVisibility (_ ::: tid ::: req) = do

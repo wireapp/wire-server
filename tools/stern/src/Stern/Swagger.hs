@@ -21,11 +21,13 @@ module Stern.Swagger where
 
 import Data.Swagger.Build.Api
 import Imports
+import Wire.API.Team.SearchVisibility (modelTeamSearchVisibility)
 
 sternModels :: [Model]
 sternModels =
   [ emailUpdate,
     phoneUpdate,
+    modelTeamSearchVisibility,
     teamBillingInfo,
     teamBillingInfoUpdate
   ]
