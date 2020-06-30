@@ -343,6 +343,8 @@ routes = do
   put "/teams/:tid/features/:feature" (continue setTeamFeatureFlagH) $
     capture "tid"
       .&. capture "feature"
+      -- We use a query parameter "status" here instead of a JSON body.
+      -- This improves usability, since swagger-ui displays is as a dropdown, not a text box.
       .&. param "status"
   document "PUT" "setTeamFeatureFlag" $ do
     summary "Disable / enable feature flag for a given team"
