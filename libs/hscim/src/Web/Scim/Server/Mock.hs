@@ -41,6 +41,10 @@ data Mock
 --
 -- >>> eitherDecode' @Id . encode $ (Id 3)
 -- Right (Id {unId = 3})
+--
+-- WARNING: {doctests don't work in our
+-- infrastructure](https://github.com/zinfra/backend-issues/issues/1549), so this is
+-- duplicated in the unit tests.
 newtype Id = Id {unId :: Int}
   deriving (Eq, Show, Ord, Hashable, ToHttpApiData, FromHttpApiData)
 

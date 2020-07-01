@@ -19,6 +19,7 @@ module Web.Scim.Test.Util
     patch',
     get',
     delete',
+    (<//>),
 
     -- * Request/response quasiquoter
     scim,
@@ -121,6 +122,10 @@ defAcceptanceQueryConfig = AcceptanceQueryConfig {..}
 --
 -- >>> ["a" <//> "b", "a" <//> "/b", "a/" <//> "b", "a/" <//> "/b"]
 -- ["a/b","a/b","a/b","a/b"]
+--
+-- WARNING: {doctests don't work in our
+-- infrastructure](https://github.com/zinfra/backend-issues/issues/1549), so this is
+-- duplicated in the unit tests.
 (<//>) :: ByteString -> ByteString -> ByteString
 (<//>) a b = a' <> "/" <> b'
   where

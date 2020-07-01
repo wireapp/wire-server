@@ -97,12 +97,3 @@ tests:
       - hspec-discover:hspec-discover
     dependencies:
       - hscim
-
-  doctests:
-    main: doctests.hs
-    ghc-options: -threaded -rtsopts -with-rtsopts=-N
-    source-dirs:
-      - doctests
-    dependencies:
-      - base
-      - doctest

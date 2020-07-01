@@ -11,6 +11,7 @@ packages:
 - libs/federation-util
 - libs/galley-types
 - libs/gundeck-types
+- libs/hscim
 - libs/imports
 - libs/metrics-core
 - libs/metrics-wai
@@ -63,8 +64,6 @@ extra-deps:
   # (required: https://github.com/fimad/prometheus-haskell/pull/45)
 - git: https://github.com/wireapp/saml2-web-sso
   commit: 687d9ac8ac2994aff8436189c6ecce29faad8500  # master (May 18, 2020)
-- git: https://github.com/wireapp/hscim
-  commit: 2909c81a0aa4bd4c2c21acafa64b2f744f787df6  # master (Mar 27, 2020)
 
 - git: https://github.com/kim/hs-collectd
   commit: 885da222be2375f78c7be36127620ed772b677c9
