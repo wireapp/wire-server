@@ -27,7 +27,7 @@ Can an existing user without IdP (or with a different IdP) be bound to a new IdP
 ---------------------------------------------------------------------------------
 
 No.  This is a feature we never fully implemented.  Details / latest
-updates: https://github.com/zinfra/backend-issues/issues/731
+updates: https://github.com/wireapp/wire-server/issues/1151
 
 
 If you get an error when returning from your IdP
