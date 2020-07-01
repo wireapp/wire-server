@@ -5,11 +5,10 @@ import Data.Text (Text)
 import GHC.Generics
 import Web.Scim.Schema.Common
 
-data Certificate
-  = Certificate
-      { typ :: Maybe Text,
-        value :: Maybe Text
-      }
+data Certificate = Certificate
+  { typ :: Maybe Text,
+    value :: Maybe Text
+  }
   deriving (Show, Eq, Generic)
 
 instance FromJSON Certificate where

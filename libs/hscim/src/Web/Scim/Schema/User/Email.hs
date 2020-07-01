@@ -7,9 +7,8 @@ import GHC.Generics (Generic)
 import Text.Email.Validate
 import Web.Scim.Schema.Common
 
-newtype EmailAddress2
-  = EmailAddress2
-      {unEmailAddress :: EmailAddress}
+newtype EmailAddress2 = EmailAddress2
+  {unEmailAddress :: EmailAddress}
   deriving (Show, Eq)
 
 instance FromJSON EmailAddress2 where
@@ -20,12 +19,11 @@ instance FromJSON EmailAddress2 where
 instance ToJSON EmailAddress2 where
   toJSON (EmailAddress2 e) = String $ decodeUtf8 . toByteString $ e
 
-data Email
-  = Email
-      { typ :: Maybe Text,
-        value :: EmailAddress2,
-        primary :: Maybe Bool
-      }
+data Email = Email
+  { typ :: Maybe Text,
+    value :: EmailAddress2,
+    primary :: Maybe Bool
+  }
   deriving (Show, Eq, Generic)
 
 instance FromJSON Email where

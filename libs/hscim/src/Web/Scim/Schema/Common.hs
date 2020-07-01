@@ -8,11 +8,10 @@ import Data.String (IsString)
 import Data.Text hiding (dropWhile)
 import qualified Network.URI as Network
 
-data WithId id a
-  = WithId
-      { id :: id,
-        value :: a
-      }
+data WithId id a = WithId
+  { id :: id,
+    value :: a
+  }
   deriving (Eq, Show)
 
 instance (ToJSON id, ToJSON a) => ToJSON (WithId id a) where

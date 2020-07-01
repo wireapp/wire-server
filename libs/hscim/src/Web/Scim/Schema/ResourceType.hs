@@ -28,12 +28,11 @@ instance FromJSON ResourceType where
     other -> fail ("unknown ResourceType: " ++ show other)
 
 -- | Definitions of endpoints, returned by @/ResourceTypes@.
-data Resource
-  = Resource
-      { name :: Text,
-        endpoint :: URI,
-        schema :: Schema
-      }
+data Resource = Resource
+  { name :: Text,
+    endpoint :: URI,
+    schema :: Schema
+  }
   deriving (Show, Eq, Generic)
 
 instance ToJSON Resource where

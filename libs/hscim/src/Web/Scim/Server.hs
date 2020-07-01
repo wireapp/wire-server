@@ -46,22 +46,21 @@ type GroupAPI tag = ToServantApi (GroupSite tag)
 
 type SiteAPI tag = ToServantApi (Site tag)
 
-data Site tag route
-  = Site
-      { config ::
-          route
-            :- ConfigAPI,
-        users ::
-          route
-            :- Header "Authorization" (AuthData tag)
-            :> "Users"
-            :> UserAPI tag,
-        groups ::
-          route
-            :- Header "Authorization" (AuthData tag)
-            :> "Groups"
-            :> GroupAPI tag
-      }
+data Site tag route = Site
+  { config ::
+      route
+        :- ConfigAPI,
+    users ::
+      route
+        :- Header "Authorization" (AuthData tag)
+        :> "Users"
+        :> UserAPI tag,
+    groups ::
+      route
+        :- Header "Authorization" (AuthData tag)
+        :> "Groups"
+        :> GroupAPI tag
+  }
   deriving (Generic)
 
 ----------------------------------------------------------------------------

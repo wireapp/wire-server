@@ -20,14 +20,13 @@ import Web.Scim.Schema.Schema
 --
 -- FUTUREWORK: Support for pagination might be added once we have to handle
 -- organizations with lots of users.
-data ListResponse a
-  = ListResponse
-      { schemas :: [Schema],
-        totalResults :: Int,
-        itemsPerPage :: Int,
-        startIndex :: Int,
-        resources :: [a]
-      }
+data ListResponse a = ListResponse
+  { schemas :: [Schema],
+    totalResults :: Int,
+    itemsPerPage :: Int,
+    startIndex :: Int,
+    resources :: [a]
+  }
   deriving (Show, Eq, Generic)
 
 fromList :: [a] -> ListResponse a

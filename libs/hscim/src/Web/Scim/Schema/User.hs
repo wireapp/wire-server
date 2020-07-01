@@ -80,48 +80,47 @@ import Web.Scim.Schema.User.Photo (Photo)
 import Web.Scim.Schema.UserTypes
 
 -- | SCIM user record, parametrized with type-level tag @t@ (see 'UserTypes').
-data User tag
-  = User
-      { schemas :: [Schema],
-        -- Mandatory fields
-        userName :: Text,
-        -- Optional fields
-        externalId :: Maybe Text,
-        name :: Maybe Name,
-        displayName :: Maybe Text,
-        nickName :: Maybe Text,
-        profileUrl :: Maybe URI,
-        title :: Maybe Text,
-        userType :: Maybe Text,
-        preferredLanguage :: Maybe Text,
-        locale :: Maybe Text,
-        active :: Maybe Bool,
-        password :: Maybe Text,
-        -- Multi-valued fields
-        emails :: [Email],
-        phoneNumbers :: [Phone],
-        ims :: [IM],
-        photos :: [Photo],
-        addresses :: [Address],
-        entitlements :: [Text],
-        roles :: [Text],
-        x509Certificates :: [Certificate],
-        -- Extra data.
-        --
-        -- During rendering, we'll convert it to JSON; if it's an object we'll merge it with the
-        -- main user object, if it's @null@ we'll do nothing, otherwise we'll add it under the
-        -- @"extra"@ field (though you should definitely not rely on this).
-        --
-        -- During parsing, we'll attempt to parse the /whole/ user object as @extra@, so your
-        -- 'FromJSON' instance should be prepared to ignore unrelated fields. Also keep in mind that
-        -- the SCIM spec requires field names to be case-insensitive, i.e. if you're looking for a
-        -- field "foo" you should also handle a field called "FOO". Look at the @FromJSON User@
-        -- instance to see how it can be done.
-        --
-        -- FUTUREWORK: make it easy for hscim users to implement a proper parser (with correct
-        -- rendering of optional and multivalued fields, lowercase objects, etc).
-        extra :: UserExtra tag
-      }
+data User tag = User
+  { schemas :: [Schema],
+    -- Mandatory fields
+    userName :: Text,
+    -- Optional fields
+    externalId :: Maybe Text,
+    name :: Maybe Name,
+    displayName :: Maybe Text,
+    nickName :: Maybe Text,
+    profileUrl :: Maybe URI,
+    title :: Maybe Text,
+    userType :: Maybe Text,
+    preferredLanguage :: Maybe Text,
+    locale :: Maybe Text,
+    active :: Maybe Bool,
+    password :: Maybe Text,
+    -- Multi-valued fields
+    emails :: [Email],
+    phoneNumbers :: [Phone],
+    ims :: [IM],
+    photos :: [Photo],
+    addresses :: [Address],
+    entitlements :: [Text],
+    roles :: [Text],
+    x509Certificates :: [Certificate],
+    -- Extra data.
+    --
+    -- During rendering, we'll convert it to JSON; if it's an object we'll merge it with the
+    -- main user object, if it's @null@ we'll do nothing, otherwise we'll add it under the
+    -- @"extra"@ field (though you should definitely not rely on this).
+    --
+    -- During parsing, we'll attempt to parse the /whole/ user object as @extra@, so your
+    -- 'FromJSON' instance should be prepared to ignore unrelated fields. Also keep in mind that
+    -- the SCIM spec requires field names to be case-insensitive, i.e. if you're looking for a
+    -- field "foo" you should also handle a field called "FOO". Look at the @FromJSON User@
+    -- instance to see how it can be done.
+    --
+    -- FUTUREWORK: make it easy for hscim users to implement a proper parser (with correct
+    -- rendering of optional and multivalued fields, lowercase objects, etc).
+    extra :: UserExtra tag
+  }
   deriving (Generic)
 
 deriving instance Show (UserExtra tag) => Show (User tag)

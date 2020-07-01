@@ -36,12 +36,11 @@ class GroupTypes tag where
   type GroupId tag
 
 -- TODO
-data Member
-  = Member
-      { value :: Text,
-        typ :: Text,
-        ref :: Text
-      }
+data Member = Member
+  { value :: Text,
+    typ :: Text,
+    ref :: Text
+  }
   deriving (Show, Eq, Generic)
 
 instance FromJSON Member where
@@ -50,12 +49,11 @@ instance FromJSON Member where
 instance ToJSON Member where
   toJSON = genericToJSON serializeOptions
 
-data Group
-  = Group
-      { schemas :: [Schema],
-        displayName :: Text,
-        members :: [Member]
-      }
+data Group = Group
+  { schemas :: [Schema],
+    displayName :: Text,
+    members :: [Member]
+  }
   deriving (Show, Eq, Generic)
 
 instance FromJSON Group where
@@ -66,34 +64,33 @@ instance ToJSON Group where
 
 type StoredGroup tag = WithMeta (WithId (GroupId tag) Group)
 
-data GroupSite tag route
-  = GroupSite
-      { gsGetGroups ::
-          route
-            :- Get '[SCIM] (ListResponse (StoredGroup tag)),
-        gsGetGroup ::
-          route
-            :- Capture "id" (GroupId tag)
-            :> Get '[SCIM] (StoredGroup tag),
-        gsPostGroup ::
-          route
-            :- ReqBody '[SCIM] Group
-            :> PostCreated '[SCIM] (StoredGroup tag),
-        gsPutGroup ::
-          route
-            :- Capture "id" (GroupId tag)
-            :> ReqBody '[SCIM] Group
-            :> Put '[SCIM] (StoredGroup tag),
-        gsPatchGroup ::
-          route
-            :- Capture "id" (GroupId tag)
-            :> ReqBody '[SCIM] Aeson.Value
-            :> Patch '[SCIM] (StoredGroup tag),
-        gsDeleteGroup ::
-          route
-            :- Capture "id" (GroupId tag)
-            :> DeleteNoContent '[SCIM] NoContent
-      }
+data GroupSite tag route = GroupSite
+  { gsGetGroups ::
+      route
+        :- Get '[SCIM] (ListResponse (StoredGroup tag)),
+    gsGetGroup ::
+      route
+        :- Capture "id" (GroupId tag)
+        :> Get '[SCIM] (StoredGroup tag),
+    gsPostGroup ::
+      route
+        :- ReqBody '[SCIM] Group
+        :> PostCreated '[SCIM] (StoredGroup tag),
+    gsPutGroup ::
+      route
+        :- Capture "id" (GroupId tag)
+        :> ReqBody '[SCIM] Group
+        :> Put '[SCIM] (StoredGroup tag),
+    gsPatchGroup ::
+      route
+        :- Capture "id" (GroupId tag)
+        :> ReqBody '[SCIM] Aeson.Value
+        :> Patch '[SCIM] (StoredGroup tag),
+    gsDeleteGroup ::
+      route
+        :- Capture "id" (GroupId tag)
+        :> DeleteNoContent '[SCIM] NoContent
+  }
   deriving (Generic)
 
 ----------------------------------------------------------------------------

@@ -82,19 +82,18 @@ shouldEventuallyRespondWith action matcher =
       (\_ -> pure . either (const True) (const False))
       (\_ -> doesRespondWith action matcher)
 
-data AcceptanceConfig tag
-  = AcceptanceConfig
-      { scimAppAndConfig :: IO (Application, AcceptanceQueryConfig tag),
-        genUserName :: IO Text,
-        -- | some acceptance tests match against a fully rendered
-        -- response body, which will now work when running the test
-        -- as a library user (since the response will have more and
-        -- other information).  if you leave this on 'False' (default
-        -- from 'defAcceptanceConfig'), the test will only check some
-        -- invariants on the response instead that must hold in all
-        -- cases.
-        responsesFullyKnown :: Bool
-      }
+data AcceptanceConfig tag = AcceptanceConfig
+  { scimAppAndConfig :: IO (Application, AcceptanceQueryConfig tag),
+    genUserName :: IO Text,
+    -- | some acceptance tests match against a fully rendered
+    -- response body, which will now work when running the test
+    -- as a library user (since the response will have more and
+    -- other information).  if you leave this on 'False' (default
+    -- from 'defAcceptanceConfig'), the test will only check some
+    -- invariants on the response instead that must hold in all
+    -- cases.
+    responsesFullyKnown :: Bool
+  }
 
 defAcceptanceConfig :: IO Application -> AcceptanceConfig tag
 defAcceptanceConfig scimApp = AcceptanceConfig {..}
@@ -103,11 +102,10 @@ defAcceptanceConfig scimApp = AcceptanceConfig {..}
     genUserName = ("Test_User_" <>) . UUID.toText <$> UUID.nextRandom
     responsesFullyKnown = False
 
-data AcceptanceQueryConfig tag
-  = AcceptanceQueryConfig
-      { scimPathPrefix :: BS.ByteString,
-        scimAuthToken :: BS.ByteString
-      }
+data AcceptanceQueryConfig tag = AcceptanceQueryConfig
+  { scimPathPrefix :: BS.ByteString,
+    scimAuthToken :: BS.ByteString
+  }
 
 defAcceptanceQueryConfig :: AcceptanceQueryConfig tag
 defAcceptanceQueryConfig = AcceptanceQueryConfig {..}

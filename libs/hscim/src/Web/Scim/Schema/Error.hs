@@ -66,13 +66,12 @@ newtype Status = Status {unStatus :: Int}
 instance ToJSON Status where
   toJSON (Status stat) = String . pack . show $ stat
 
-data ScimError
-  = ScimError
-      { schemas :: [Schema],
-        status :: Status,
-        scimType :: Maybe ScimErrorType,
-        detail :: Maybe Text
-      }
+data ScimError = ScimError
+  { schemas :: [Schema],
+    status :: Status,
+    scimType :: Maybe ScimErrorType,
+    detail :: Maybe Text
+  }
   deriving (Show, Eq, Generic)
 
 instance ToJSON ScimError where

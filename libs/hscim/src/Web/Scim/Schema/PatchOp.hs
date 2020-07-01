@@ -17,9 +17,8 @@ import Web.Scim.Schema.Error
 import Web.Scim.Schema.Schema (Schema (PatchOp20))
 import Web.Scim.Schema.UserTypes (UserTypes (supportedSchemas))
 
-newtype PatchOp tag
-  = PatchOp
-      {getOperations :: [Operation]}
+newtype PatchOp tag = PatchOp
+  {getOperations :: [Operation]}
   deriving (Eq, Show)
 
 -- | The 'Path' attribute value is a 'String' containing an attribute path
@@ -33,12 +32,11 @@ newtype PatchOp tag
 --
 -- NOTE: When the path contains a schema, this schema must be implicitly added
 -- to the list of schemas on the result type
-data Operation
-  = Operation
-      { op :: Op,
-        path :: Maybe Path,
-        value :: Maybe Value
-      }
+data Operation = Operation
+  { op :: Op,
+    path :: Maybe Path,
+    value :: Maybe Value
+  }
   deriving (Eq, Show)
 
 data Op

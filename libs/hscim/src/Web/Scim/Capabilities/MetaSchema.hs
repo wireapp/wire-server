@@ -31,11 +31,10 @@ import Web.Scim.Schema.ResourceType hiding (schema)
 import Web.Scim.Schema.Schema
 import Prelude hiding (filter)
 
-data Supported a
-  = Supported
-      { supported :: Bool,
-        subConfig :: a
-      }
+data Supported a = Supported
+  { supported :: Bool,
+    subConfig :: a
+  }
   deriving (Show, Eq, Generic)
 
 instance ToJSON a => ToJSON (Supported a) where
@@ -43,37 +42,34 @@ instance ToJSON a => ToJSON (Supported a) where
     (Object o) -> Object $ HML.insert "supported" (Bool b) o
     _ -> Object $ HML.fromList [("supported", Bool b)]
 
-data BulkConfig
-  = BulkConfig
-      { maxOperations :: Int,
-        maxPayloadSize :: Int
-      }
+data BulkConfig = BulkConfig
+  { maxOperations :: Int,
+    maxPayloadSize :: Int
+  }
   deriving (Show, Eq, Generic)
 
 instance ToJSON BulkConfig where
   toJSON = genericToJSON serializeOptions
 
-data FilterConfig
-  = FilterConfig
-      { maxResults :: Int
-      }
+data FilterConfig = FilterConfig
+  { maxResults :: Int
+  }
   deriving (Show, Eq, Generic)
 
 instance ToJSON FilterConfig where
   toJSON = genericToJSON serializeOptions
 
-data Configuration
-  = Configuration
-      { documentationUri :: Maybe URI,
-        schemas :: [Schema],
-        patch :: Supported (),
-        bulk :: Supported BulkConfig,
-        filter :: Supported FilterConfig,
-        changePassword :: Supported (),
-        sort :: Supported (),
-        etag :: Supported (),
-        authenticationSchemes :: [AuthenticationSchemeEncoding]
-      }
+data Configuration = Configuration
+  { documentationUri :: Maybe URI,
+    schemas :: [Schema],
+    patch :: Supported (),
+    bulk :: Supported BulkConfig,
+    filter :: Supported FilterConfig,
+    changePassword :: Supported (),
+    sort :: Supported (),
+    etag :: Supported (),
+    authenticationSchemes :: [AuthenticationSchemeEncoding]
+  }
   deriving (Show, Eq, Generic)
 
 instance ToJSON Configuration where
@@ -126,11 +122,10 @@ configServer config =
             ]
     }
 
-data ConfigSite route
-  = ConfigSite
-      { spConfig :: route :- "ServiceProviderConfig" :> Get '[SCIM] Configuration,
-        getSchemas :: route :- "Schemas" :> Get '[SCIM] (ListResponse Value),
-        schema :: route :- "Schemas" :> Capture "id" Text :> Get '[SCIM] Value,
-        resourceTypes :: route :- "ResourceTypes" :> Get '[SCIM] (ListResponse Resource)
-      }
+data ConfigSite route = ConfigSite
+  { spConfig :: route :- "ServiceProviderConfig" :> Get '[SCIM] Configuration,
+    getSchemas :: route :- "Schemas" :> Get '[SCIM] (ListResponse Value),
+    schema :: route :- "Schemas" :> Capture "id" Text :> Get '[SCIM] Value,
+    resourceTypes :: route :- "ResourceTypes" :> Get '[SCIM] (ListResponse Resource)
+  }
   deriving (Generic)

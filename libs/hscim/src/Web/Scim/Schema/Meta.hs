@@ -28,23 +28,22 @@ instance FromJSON ETag where
         Right x -> pure x
         Left e -> fail ("couldn't unquote the string: " <> e)
 
-data Meta
-  = Meta
-      { resourceType :: ResourceType,
-        created :: UTCTime,
-        lastModified :: UTCTime,
-        -- | Resource version: <https://tools.ietf.org/html/rfc7644#section-3.14>.
-        --
-        -- A version is an /opaque/ string that doesn't need to conform to any
-        -- format (e.g. it does not have to be a monotonically increasing integer,
-        -- contrary to what the word @version@ suggests).
-        --
-        -- For 'Weak' versions we have to guarantee that different resources will
-        -- have different 'version's. For 'Strong' versions we also have to
-        -- guarantee that same resources will have the same 'version'.
-        version :: ETag,
-        location :: URI
-      }
+data Meta = Meta
+  { resourceType :: ResourceType,
+    created :: UTCTime,
+    lastModified :: UTCTime,
+    -- | Resource version: <https://tools.ietf.org/html/rfc7644#section-3.14>.
+    --
+    -- A version is an /opaque/ string that doesn't need to conform to any
+    -- format (e.g. it does not have to be a monotonically increasing integer,
+    -- contrary to what the word @version@ suggests).
+    --
+    -- For 'Weak' versions we have to guarantee that different resources will
+    -- have different 'version's. For 'Strong' versions we also have to
+    -- guarantee that same resources will have the same 'version'.
+    version :: ETag,
+    location :: URI
+  }
   deriving (Eq, Show, Generic)
 
 instance ToJSON Meta where
@@ -53,11 +52,10 @@ instance ToJSON Meta where
 instance FromJSON Meta where
   parseJSON = genericParseJSON parseOptions . jsonLower
 
-data WithMeta a
-  = WithMeta
-      { meta :: Meta,
-        thing :: a
-      }
+data WithMeta a = WithMeta
+  { meta :: Meta,
+    thing :: a
+  }
   deriving (Eq, Show, Generic)
 
 instance (ToJSON a) => ToJSON (WithMeta a) where

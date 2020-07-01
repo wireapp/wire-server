@@ -54,11 +54,10 @@ type UserStorage = STMMap.Map Id (StoredUser Mock)
 
 type GroupStorage = STMMap.Map Id (StoredGroup Mock)
 
-data TestStorage
-  = TestStorage
-      { userDB :: UserStorage,
-        groupDB :: GroupStorage
-      }
+data TestStorage = TestStorage
+  { userDB :: UserStorage,
+    groupDB :: GroupStorage
+  }
 
 emptyTestStorage :: IO TestStorage
 emptyTestStorage =

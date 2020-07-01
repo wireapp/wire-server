@@ -29,21 +29,20 @@ data AuthenticationScheme
 -- | The way authentication schemes are expected to be represented in the
 -- configuration. Each 'AuthenticationScheme' corresponds to one of such
 -- encodings.
-data AuthenticationSchemeEncoding
-  = AuthenticationSchemeEncoding
-      { -- | The authentication scheme
-        typ :: Text,
-        -- | The common authentication scheme name, e.g. HTTP Basic
-        name :: Text,
-        -- | A description of the authentication scheme
-        description :: Text,
-        -- | An HTTP-addressable URL pointing to the authentication scheme's
-        -- specification
-        specUri :: Maybe URI,
-        -- | An HTTP-addressable URL pointing to the authentication scheme's usage
-        -- documentation
-        documentationUri :: Maybe URI
-      }
+data AuthenticationSchemeEncoding = AuthenticationSchemeEncoding
+  { -- | The authentication scheme
+    typ :: Text,
+    -- | The common authentication scheme name, e.g. HTTP Basic
+    name :: Text,
+    -- | A description of the authentication scheme
+    description :: Text,
+    -- | An HTTP-addressable URL pointing to the authentication scheme's
+    -- specification
+    specUri :: Maybe URI,
+    -- | An HTTP-addressable URL pointing to the authentication scheme's usage
+    -- documentation
+    documentationUri :: Maybe URI
+  }
   deriving (Show, Eq, Generic)
 
 instance ToJSON AuthenticationSchemeEncoding where

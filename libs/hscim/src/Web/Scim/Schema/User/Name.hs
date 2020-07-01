@@ -5,15 +5,14 @@ import Data.Text (Text)
 import GHC.Generics
 import Web.Scim.Schema.Common
 
-data Name
-  = Name
-      { formatted :: Maybe Text,
-        familyName :: Maybe Text,
-        givenName :: Maybe Text,
-        middleName :: Maybe Text,
-        honorificPrefix :: Maybe Text,
-        honorificSuffix :: Maybe Text
-      }
+data Name = Name
+  { formatted :: Maybe Text,
+    familyName :: Maybe Text,
+    givenName :: Maybe Text,
+    middleName :: Maybe Text,
+    honorificPrefix :: Maybe Text,
+    honorificSuffix :: Maybe Text
+  }
   deriving (Show, Eq, Generic)
 
 emptyName :: Name
