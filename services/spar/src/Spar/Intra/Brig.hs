@@ -44,6 +44,8 @@ module Spar.Intra.Brig
     parseResponse,
     MonadSparToBrig (..),
     isEmailValidationEnabledUser,
+    getStatus,
+    setSuspended
   )
 where
 
@@ -464,3 +466,10 @@ isEmailValidationEnabledUser uid = do
   case user >>= userTeam of
     Nothing -> pure False
     Just tid -> isEmailValidationEnabledTeam tid
+
+
+getStatus :: (HasCallStack, MonadSparToBrig m) => UserId -> m AccountStatus
+getStatus = undefined
+
+setStatus :: (HasCallStack, MonadSparToBrig m) => UserId  -> AccountStatus -> m ()
+setStatus = undefined
