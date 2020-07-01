@@ -185,11 +185,19 @@ instance Scim.Patchable ScimUserExtra where
     | otherwise = throwError $ Scim.badRequest Scim.InvalidValue $ Just "unknown schema, cannot patch"
   applyOperation _ _ = throwError $ Scim.badRequest Scim.InvalidValue $ Just "invalid patch op for rich info"
 
--- | SCIM user with 'SAML.UserRef' and mapping to 'Brig.User'.  Constructed by 'validateScimUser'.
+-- | SCIM user with all the data spar is actively processing.  Constructed by
+-- 'validateScimUser'.  The idea is that the type we get back from hscim is too general, and
+-- we need a second round of parsing (aka validation), of which 'ValidScimUser' is the result.
+--
+-- 'NeededInfo' is similar to this, but used for creating scim users rather than as a result
+-- of parsing them.
 --
 -- Data contained in '_vsuHandle' and '_vsuName' is guaranteed to a) correspond to the data in
 -- the 'Scim.User.User' and b) be valid in regard to our own user schema requirements (only
 -- certain characters allowed in handles, etc).
+--
+-- FUTUREWORK: eliminate '_vsuUser' and keep everything we need as parsed values rather than
+-- the raw input.
 data ValidScimUser = ValidScimUser
   { _vsuUser :: Scim.User.User SparTag,
     -- SAML SSO
