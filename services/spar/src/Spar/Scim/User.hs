@@ -40,6 +40,7 @@ module Spar.Scim.User
   )
 where
 
+import Brig.Types.Intra (AccountStatus(Suspended, Deleted))
 import Brig.Types.User as BrigTypes
 import Control.Error ((!?), (??))
 import Control.Exception (assert)
@@ -348,6 +349,8 @@ createValidScimUser (ValidScimUser user uref idpConfig handl mbName richInfo) = 
   lift $ Intra.Brig.setBrigUserRichInfo buid richInfo
   -- If we crash now, same as above, but the PATCH will only contain externalId
 
+  -- TODO(arianvp): suspend on creation?
+
   -- FUTUREWORK(arianvp): these two actions we probably want to make transactional
   lift . wrapMonadClient $ Data.insertScimUser buid storedUser
   lift . wrapMonadClient $ Data.insertSAMLUser uref buid
@@ -403,6 +406,7 @@ updateValidScimUser tokinfo uid newScimUser = do
       -- this can only happen if user is found in spar.scim_user, but missing on brig.
       -- (internal error?  race condition?)
 
+      -- TODO get detailed Suspended information
       oldScimUser :: ValidScimUser <-
         validateScimUser tokinfo . Scim.value . Scim.thing $ oldScimStoredUser
       -- the old scim user from our db is already validated, but this also recovers
@@ -418,6 +422,13 @@ updateValidScimUser tokinfo uid newScimUser = do
         when (oldScimUser ^. vsuRichInfo /= newScimUser ^. vsuRichInfo)
           $ Intra.Brig.setBrigUserRichInfo uid
           $ newScimUser ^. vsuRichInfo
+        when (oldScimUser ^. vsuSuspended /= newScimUser ^.vsuSuspended) $ do
+          --  If the user is Epehemeral; refuse to suspend? Is this something we
+          --  should handle in brig? otherwise suspension/unsuspension loses info
+          --  which might be bad?
+          if newScimUser ^. vsuSuspended
+            then Brig.setStatus uid Suspended
+            else Brig.setStatus uid Active
       -- store new user value to scim_user table (spar). (this must happen last, so in case
       -- of crash the client can repeat the operation and it won't be considered a noop.)
       lift . wrapMonadClient $ Data.insertScimUser uid newScimStoredUser
@@ -584,7 +595,8 @@ data NeededInfo = NeededInfo
   { neededHandle :: Handle,
     neededName :: Name,
     neededExternalId :: Text,
-    neededRichInfo :: RichInfo
+    neededRichInfo :: RichInfo,
+    neededSuspended :: Bool
   }
 
 synthesizeScimUser :: NeededInfo -> Scim.User SparTag
@@ -593,7 +605,8 @@ synthesizeScimUser info =
       Name displayName = neededName info
    in (Scim.empty userSchemas userName (ScimUserExtra (neededRichInfo info)))
         { Scim.externalId = Just $ neededExternalId info,
-          Scim.displayName = Just displayName
+          Scim.displayName = Just displayName,
+          Scim.active = Just (neededSuspended info)
         }
 
 -- | Helper function that given a brig user, creates a scim user on the fly or returns
@@ -609,12 +622,13 @@ getOrCreateScimUser stiTeam brigUser = do
       handle <- getUserHandle' brigUser'
       let name = userDisplayName brigUser'
       richInfo <- getRichInfo' uid
+      status <- getStatus' uid
       -- NOTE: If user is not an SSO User; this returns Nothing
       -- Hence; we should only set managedByScim if this _succeeds_
       ssoIdentity' <- getSSOIdentity' brigUser'
       externalId <- toExternalId' ssoIdentity'
       setManagedBy' uid ManagedByScim
-      let neededInfo = NeededInfo handle name externalId richInfo
+      let neededInfo = NeededInfo handle name externalId richInfo (status `elem` [Suspended, Deleted])
       let user = synthesizeScimUser neededInfo
       storedUser <- toScimStoredUser'' uid user
       insertScimUser' uid storedUser
@@ -625,6 +639,7 @@ getOrCreateScimUser stiTeam brigUser = do
     getUserHandle' = MaybeT . pure . userHandle
     setManagedBy' uid = lift . lift . Intra.Brig.setBrigUserManagedBy uid
     getRichInfo' = lift . lift . Intra.Brig.getBrigUserRichInfo
+    getStatus' = lift . lift . Intra.Brig.getStatus
     getSSOIdentity' = MaybeT . pure . (userIdentity >=> ssoIdentity)
     toExternalId' =
       either
