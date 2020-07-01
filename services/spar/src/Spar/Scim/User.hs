@@ -591,6 +591,8 @@ assertHandleNotUsedElsewhere hndl uid = do
     assertHandleUnused' "userName does not match UserId" hndl uid
 
 -- | The information needed to synthesize a Scim user.
+--
+-- See haddocks on 'ValidScimUser'.
 data NeededInfo = NeededInfo
   { neededHandle :: Handle,
     neededName :: Name,
