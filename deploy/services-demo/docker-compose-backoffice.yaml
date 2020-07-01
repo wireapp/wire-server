@@ -1,0 +1,19 @@
+networks:
+  dockerephemeral_demo_wire:
+    external: true
+
+version: '2'
+services:
+  stern:
+    image: quay.io/wire/stern
+    ports:
+      - 127.0.0.1:8091:8091
+    volumes:
+      - ./:/configs
+    entrypoint:
+      - /usr/bin/stern
+      - -c
+      - /configs/conf/stern.demo-docker.yaml
+    working_dir: /configs
+    networks:
+      - dockerephemeral_demo_wire

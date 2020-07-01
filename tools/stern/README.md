@@ -19,14 +19,8 @@ TODO: This section is under construction
 
 ## How to run stern locally with the `services-demo`
 
-First, follow the instruction in [`deploy/services-demo/README.md`](../../deploy/services-demo/README.md),
-running the services natively (not with Docker).
-
-In another terminal, run stern:
-
-```
-./dist/stern -c tools/stern/stern.example.yaml
-```
+Follow the instruction in [`deploy/services-demo/README.md`](../../deploy/services-demo/README.md),
+using the `--run-backoffice` option, e.g. `deploy/sevices-demo/demo.sh --run-backoffice`
 
 When you now open `localhost:8080/swagger-ui` in a browser, you can switch to the
 "Back Office" tab.
