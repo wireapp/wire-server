@@ -43,20 +43,6 @@ packages:
     commit: 687d9ac8ac2994aff8436189c6ecce29faad8500
 - completed:
     cabal-file:
-      size: 9076
-      sha256: a40e84ca590cc055e2f0d1b884d015f20197addfd16890044797e9ac56c41f22
-    name: hscim
-    version: 0.3.4
-    git: https://github.com/wireapp/hscim
-    pantry-tree:
-      size: 3779
-      sha256: c266a1739d01bf02c8196d72741dc5cafcbcf343d64a4731dce00158816fb041
-    commit: 2909c81a0aa4bd4c2c21acafa64b2f744f787df6
-  original:
-    git: https://github.com/wireapp/hscim
-    commit: 2909c81a0aa4bd4c2c21acafa64b2f744f787df6
-- completed:
-    cabal-file:
       size: 912
       sha256: 71d9fd9fd55cfb7b549eb2cecfb5258171be14669f990e4d05c6b3508dd5878b
     name: collectd
@@ -553,10 +539,10 @@ packages:
   original:
     hackage: wai-route-0.4.0
 - completed:
-    hackage: QuickCheck-2.14@sha256:a1bac79e48b36d5bccd771e981058c44707f440156a0a411ebdcfec8cfccfda9,6982
+    hackage: QuickCheck-2.14@sha256:3f536a4b86bef7ec39025f04ef8d76c5ac5a78ba0b42e660b25d0a8f9c811045,7004
     pantry-tree:
       size: 2203
-      sha256: 1c8b0f1ff061117c78ddb69cbed242faf313a427c03e5c84233aa33e7e58a5cb
+      sha256: 7067593c50ff2e5e83c637ac73009f4bd8f43c29ff256e976bbb14674033abe9
   original:
     hackage: QuickCheck-2.14
 - completed:
