@@ -20,6 +20,7 @@ module Wire.API.Swagger where
 import Data.Swagger.Build.Api (Model)
 import qualified Wire.API.Call.TURN as Call.TURN
 import qualified Wire.API.Connection as Connection
+import qualified Wire.API.Conversation as Conversation
 import qualified Wire.API.Conversation.Code as Conversation.Code
 import qualified Wire.API.Conversation.Member as Conversation.Member
 import qualified Wire.API.Conversation.Role as Conversation.Role
@@ -30,6 +31,7 @@ import qualified Wire.API.Event.Team as Event.Team
 import qualified Wire.API.Message as Message
 import qualified Wire.API.Notification as Notification
 import qualified Wire.API.Properties as Properties
+import qualified Wire.API.Provider.Service as Provider.Service
 import qualified Wire.API.Push.Token as Push.Token
 import qualified Wire.API.Team as Team
 import qualified Wire.API.Team.Conversation as Team.Conversation
@@ -42,6 +44,8 @@ import qualified Wire.API.User as User
 import qualified Wire.API.User.Activation as User.Activation
 import qualified Wire.API.User.Auth as User.Auth
 import qualified Wire.API.User.Client as User.Client
+import qualified Wire.API.User.Client.Prekey as User.Client.Prekey
+import qualified Wire.API.User.Handle as User.Handle
 import qualified Wire.API.User.Password as User.Password
 import qualified Wire.API.User.Profile as User.Profile
 import qualified Wire.API.User.RichInfo as User.RichInfo
@@ -55,6 +59,16 @@ models =
     Connection.modelConnection,
     Connection.modelConnectionRequest,
     Connection.modelConnectionUpdate,
+    Conversation.modelConversation,
+    Conversation.modelConversations,
+    Conversation.modelConversationIds,
+    Conversation.modelInvite,
+    Conversation.modelNewConversation,
+    Conversation.modelTeamInfo,
+    Conversation.modelConversationUpdateName,
+    Conversation.modelConversationAccessUpdate,
+    Conversation.modelConversationReceiptModeUpdate,
+    Conversation.modelConversationMessageTimerUpdate,
     Conversation.Code.modelConversationCode,
     Conversation.Member.modelConversationMembers,
     Conversation.Member.modelOtherMember,
@@ -95,6 +109,7 @@ models =
     Notification.modelNotificationList,
     Properties.modelPropertyValue,
     Properties.modelPropertyDictionary,
+    Provider.Service.modelServiceRef,
     Push.Token.modelPushToken,
     Push.Token.modelPushTokenList,
     Team.modelTeam,
@@ -111,8 +126,8 @@ models =
     Team.Invitation.modelTeamInvitationRequest,
     Team.Member.modelTeamMember,
     Team.Member.modelTeamMemberList,
-    Team.Member.modelTeamMemberDelete,
     Team.Member.modelNewTeamMember,
+    Team.Member.modelTeamMemberDelete,
     Team.Permission.modelPermissions,
     Team.SearchVisibility.modelTeamSearchVisibility,
     User.modelUserIdList,
@@ -139,6 +154,18 @@ models =
     User.Auth.modelAccessToken,
     User.Client.modelOtrClientMap,
     User.Client.modelUserClients,
+    User.Client.modelNewClient,
+    User.Client.modelUpdateClient,
+    User.Client.modelDeleteClient,
+    User.Client.modelClient,
+    User.Client.modelSigkeys,
+    User.Client.modelLocation, -- re-export from types-common
+    User.Client.modelPubClient,
+    User.Client.Prekey.modelPrekeyBundle,
+    User.Client.Prekey.modelClientPrekey,
+    User.Client.Prekey.modelPrekey,
+    User.Handle.modelUserHandleInfo,
+    User.Handle.modelCheckHandles,
     User.Password.modelNewPasswordReset,
     User.Password.modelCompletePasswordReset,
     User.Profile.modelUserDisplayName,
