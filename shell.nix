@@ -5,5 +5,7 @@ with pkgs; mkShell {
     docker-compose
     gnumake
     stack
+    kind
+    kubectl
   ];
 }
