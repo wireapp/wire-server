@@ -87,7 +87,7 @@ ES_DEST_INDEX=<NEW_INDEX_NAME>
 WIRE_VERSION=<VERSION_YOU_ARE_DEPLOYING>
 SHARDS=<NUMBER_OF_SHARDS_FOR_THE_INDEX>
 REPLICAS=<NUMBER_OF_REPLICAS_FOR_THE_INDEX>
-REFRESH_INTERVAL=<REFRESH_INTERVAL_FOR_THE_INDEX>
+REFRESH_INTERVAL=<REFRESH_INTERVAL_IN_SECONDS>
 ```
 
 1. Create the new index (please fill out values in `<>` as required)
@@ -95,9 +95,9 @@ REFRESH_INTERVAL=<REFRESH_INTERVAL_FOR_THE_INDEX>
    docker run "quay.io/wire/brig-index:$WIRE_VERSION" create \
        --elasticsearch-server "http://$ES_HOST:$ES_PORT" \
        --elasticsearch-index "$ES_DEST_INDEX" \
-       --elastcsearch-shards "$SHARDS" \
-       --elastcsearch-replicas "REPLICAS" \
-       --elastcsearch-refresh-interval "$REFRESH_INTERVAL"
+       --elasticsearch-shards "$SHARDS" \
+       --elasticsearch-replicas "$REPLICAS" \
+       --elasticsearch-refresh-interval "$REFRESH_INTERVAL"
    ```
 1. Redeploy brig with `elasticsearch.additionalWriteIndex` set to the name of new index. Make sure no old brigs are running.
 1. Reindex data to the new index
