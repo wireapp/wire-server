@@ -16,3 +16,11 @@ Some endpoints (marked as such on the Swagger interface) depend on internal serv
 ## How to run stern together with the rest of wire-server
 
 TODO: This section is under construction
+
+## How to run stern locally with the `services-demo`
+
+Follow the instruction in [`deploy/services-demo/README.md`](../../deploy/services-demo/README.md),
+using the `--run-backoffice` option, e.g. `deploy/sevices-demo/demo.sh --run-backoffice`
+
+When you now open `localhost:8080/swagger-ui` in a browser, you can switch to the
+"Back Office" tab.

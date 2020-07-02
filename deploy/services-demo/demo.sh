@@ -4,15 +4,19 @@
 
 set -eo pipefail
 
-USAGE="$0 [docker]"
-MODE="$1"
+USAGE="$0 [docker] [--run-backoffice]"
 docker_deployment="false"
-if [ "$MODE" = "docker" ]; then
+if [ "$1" = "docker" ] || [ "$2" = "docker" ] ; then
     docker_deployment="true"
+fi
+run_backoffice="false"
+if [ "$1" = "--run-backoffice" ] || [ "$2" = "--run-backoffice" ] ; then
+    run_backoffice="true"
 fi
 TOP_LEVEL="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../.." && pwd )"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 DOCKER_FILE="$SCRIPT_DIR/docker-compose.yaml"
+DOCKER_FILE_BACKOFFICE="$SCRIPT_DIR/docker-compose-backoffice.yaml"
 DIR="${TOP_LEVEL}/services"
 PARENT_PID=$$
 rm -f /tmp/demo.* # remove previous temp files, if any
@@ -32,7 +36,7 @@ function list_descendants () {
 }
 
 function kill_gracefully() {
-    pkill "gundeck|brig|galley|cargohold|cannon|spar"
+    pkill "gundeck|brig|galley|cargohold|cannon|spar|stern"
     sleep 1
     kill $(list_descendants $PARENT_PID) &> /dev/null
 }
@@ -83,6 +87,7 @@ function check_prerequisites() {
             && test -f ${DIR}/../dist/cargohold \
             && test -f ${DIR}/../dist/proxy \
             && test -f ${DIR}/../dist/spar \
+            && test -f ${DIR}/../dist/stern \
             && test -f ${DIR}/../dist/nginx \
             || { echo "Not all services are compiled. How about you run 'cd ${TOP_LEVEL} && make services' first?"; exit 1; }
     fi
@@ -146,9 +151,16 @@ if [ "$docker_deployment" = "false" ]; then
     run_haskell_service cargohold ${purpleish}
     run_haskell_service proxy ${redish}
     run_haskell_service spar ${orange}
+    if [ "$run_backoffice" = "true" ]; then
+        run_haskell_service stern ${orange}
+    fi
     run_nginz ${blueish}
 else
-    docker-compose --file "$DOCKER_FILE" up
+    if [ "$run_backoffice" = "true" ]; then
+        docker-compose --file "$DOCKER_FILE" --file "$DOCKER_FILE_BACKOFFICE" up
+    else
+        docker-compose --file "$DOCKER_FILE" up
+    fi
 fi
 
 sleep 3 # wait a moment for services to start before continuing
