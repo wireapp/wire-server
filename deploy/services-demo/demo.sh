@@ -88,7 +88,7 @@ function check_prerequisites() {
             && test -f ${DIR}/../dist/proxy \
             && test -f ${DIR}/../dist/spar \
             && test -f ${DIR}/../dist/stern \
-            && test -f ${DIR}/../dist/nginx \
+            && ( test -f ${DIR}/../dist/nginx || which nix-build ) \
             || { echo "Not all services are compiled. How about you run 'cd ${TOP_LEVEL} && make services' first?"; exit 1; }
     fi
 }
@@ -112,8 +112,18 @@ function run_haskell_service() {
 function run_nginz() {
     colour=$1
     prefix=$([ -w /usr/local ] && echo /usr/local || echo "${HOME}/.wire-dev")
-    (cd ${SCRIPT_DIR} && LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${prefix}/lib/ ${DIR}/../dist/nginx -p ${SCRIPT_DIR} -c ${SCRIPT_DIR}/conf/nginz/nginx.conf -g 'daemon off;' || kill_all) \
-        | sed -e "s/^/$(tput setaf ${colour})[nginz] /" -e "s/$/$(tput sgr0)/" &
+
+    # For nix we dont need LD_LIBRARY_PATH; we link against libzauth directly.
+    # nix-build will put a symlink to ./result with the nginx artifact
+    if which nix-build; then
+      nginz=$(nix-build "${DIR}/../nix" -A nginz --no-out-link )
+      (cd ${SCRIPT_DIR} && ${nginz}/bin/nginx -p ${SCRIPT_DIR} -c ${SCRIPT_DIR}/conf/nginz/nginx.conf -g 'daemon off;' || kill_all) \
+          | sed -e "s/^/$(tput setaf ${colour})[nginz] /" -e "s/$/$(tput sgr0)/" &
+    else
+      prefix=$([ -w /usr/local ] && echo /usr/local || echo "${HOME}/.wire-dev")
+      (cd ${SCRIPT_DIR} && LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${prefix}/lib/ ${DIR}/../dist/nginx -p ${SCRIPT_DIR} -c ${SCRIPT_DIR}/conf/nginz/nginx.conf -g 'daemon off;' || kill_all) \
+          | sed -e "s/^/$(tput setaf ${colour})[nginz] /" -e "s/$/$(tput sgr0)/" &
+    fi
 }
 
 function copy_brig_templates() {
