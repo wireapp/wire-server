@@ -45,7 +45,7 @@ module Spar.Intra.Brig
     MonadSparToBrig (..),
     isEmailValidationEnabledUser,
     getStatus,
-    setSuspended
+    setStatus,
   )
 where
 

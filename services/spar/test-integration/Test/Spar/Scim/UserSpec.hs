@@ -48,6 +48,7 @@ import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified SAML2.WebSSO.Types as SAML
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
+import Brig.Types.Intra(AccountStatus(Active,Suspended))
 import Spar.Scim
 import Spar.Types (IdP)
 import qualified Text.XML.DSig as SAML
@@ -73,12 +74,56 @@ spec = do
   specDeleteUser
   specAzureQuirks
   specEmailValidation
+  specSuspend
   describe "CRUD operations maintain invariants in mapScimToBrig, mapBrigToScim." $ do
     it "..." $ do
       pendingWith "this is a job for quickcheck-state-machine"
   describe "validateScimUser'" $ do
     it "works" $ do
       pendingWith "write a list of unit tests here that make the mapping explicit, exhaustive, and easy to read."
+
+specSuspend :: SpecWith TestEnv
+specSuspend = do
+  describe "suspend" $ do
+    it "pre-existing suspended users are inactive" $ do
+      (_, teamid, idp, (_, privCreds)) <- registerTestIdPWithMeta
+      member <- loginSsoUserFirstTime idp privCreds
+      -- NOTE: once SCIM is enabled SSO Auto-provisioning is disabled
+      tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
+      handle'@(Handle handle) <- nextHandle
+      runSpar $ Intra.setBrigUserHandle member handle'
+      runSpar $ Intra.setStatus member Suspended
+      [user] <- listUsers tok (Just (filterBy "userName" handle))
+      lift $ (Scim.User.active . Scim.value . Scim.thing  $ user) `shouldBe` Just False
+
+    it "PUT will change state from active to inactive and back" $ do
+      user <- randomScimUser
+      (tok, _) <- registerIdPAndScimToken
+      scimStoredUserBlah <- createUser tok user
+      let uid = Scim.id . Scim.thing $ scimStoredUserBlah
+      do
+        status <- runSpar $ Intra.getStatus uid
+        lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUserBlah) `shouldBe` Just True
+        lift $ status `shouldBe` Active
+      do
+        scimStoredUser <- updateUser tok uid user { Scim.User.active = Just True }
+        lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just True
+        status <- runSpar $ Intra.getStatus uid
+        lift $ status `shouldBe` Active
+      do
+        scimStoredUser <- updateUser tok uid user { Scim.User.active = Just False }
+        lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just False
+        status <- runSpar $ Intra.getStatus uid
+        lift $ status `shouldBe` Suspended
+      do
+        scimStoredUser <- updateUser tok uid user { Scim.User.active = Just True }
+        lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just True
+        status <- runSpar $ Intra.getStatus uid
+        lift $ status `shouldBe` Active
+
+    it "PATCH will change state from active to inactive" $ do undefined
+    it "PATCH will change state from inactive to active" $ do undefined
+
 
 ----------------------------------------------------------------------------
 -- User creation

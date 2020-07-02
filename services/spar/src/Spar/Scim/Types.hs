@@ -209,7 +209,8 @@ data ValidScimUser = ValidScimUser
     -- mapping to 'Brig.User'
     _vsuHandle :: Handle,
     _vsuName :: Maybe Name,
-    _vsuRichInfo :: RichInfo
+    _vsuRichInfo :: RichInfo,
+    _vsuActive :: Maybe Bool
   }
   deriving (Eq, Show)
 

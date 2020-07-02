@@ -40,7 +40,7 @@ module Spar.Scim.User
   )
 where
 
-import Brig.Types.Intra (AccountStatus(Suspended, Deleted))
+import Brig.Types.Intra (AccountStatus(Active, Suspended))
 import Brig.Types.User as BrigTypes
 import Control.Error ((!?), (??))
 import Control.Exception (assert)
@@ -139,6 +139,10 @@ instance Scim.UserDB SparTag Spar where
       brigUser <- getBrigUser' uid
       team' <- getUserTeam' brigUser
       guard $ stiTeam == team'
+      -- TODO: this is a consitency bug. If people change things in brig this
+      -- wont be reflected here. Fix:  Get rid of the scim table and just
+      -- always call synthesizeUser on whatever data we get from brig.
+      -- pure $ synthesizeScimUser brigUser
       getScimUser' uid
     maybe (throwError . Scim.notFound "User" $ idToText uid) pure user
     where
@@ -233,7 +237,8 @@ validateScimUser' idp richInfoLimit user = do
   -- be a little less brittle.
   mbName <- mapM validateName (Scim.displayName user)
   richInfo <- validateRichInfo (Scim.extra user ^. sueRichInfo)
-  pure $ ValidScimUser user uref idp handl mbName richInfo
+  let active = Scim.active user
+  pure $ ValidScimUser user uref idp handl mbName richInfo active
   where
     -- Validate a name (@displayName@). It has to conform to standard Wire rules.
     validateName :: Text -> m Name
@@ -314,7 +319,7 @@ createValidScimUser ::
   (m ~ Scim.ScimHandler Spar) =>
   ValidScimUser ->
   m (Scim.StoredUser SparTag)
-createValidScimUser (ValidScimUser user uref idpConfig handl mbName richInfo) = do
+createValidScimUser (ValidScimUser user uref idpConfig handl mbName richInfo active) = do
   -- sanity check: do tenant of the URef and the Issuer of the IdP match?  (this is mostly
   -- here to make sure a refactoring we did in the past is sound: we removed a lookup by
   -- tenant and had the idp config already in context from an earlier lookup.)
@@ -356,6 +361,8 @@ createValidScimUser (ValidScimUser user uref idpConfig handl mbName richInfo) = 
   lift . wrapMonadClient $ Data.insertSAMLUser uref buid
 
   lift $ validateEmailIfExists buid uref
+
+  when (not (fromMaybe True active)) $ lift $ Brig.setStatus buid Suspended
   pure storedUser
 
 updateValidScimUser ::
@@ -422,13 +429,9 @@ updateValidScimUser tokinfo uid newScimUser = do
         when (oldScimUser ^. vsuRichInfo /= newScimUser ^. vsuRichInfo)
           $ Intra.Brig.setBrigUserRichInfo uid
           $ newScimUser ^. vsuRichInfo
-        when (oldScimUser ^. vsuSuspended /= newScimUser ^.vsuSuspended) $ do
-          --  If the user is Epehemeral; refuse to suspend? Is this something we
-          --  should handle in brig? otherwise suspension/unsuspension loses info
-          --  which might be bad?
-          if newScimUser ^. vsuSuspended
-            then Brig.setStatus uid Suspended
-            else Brig.setStatus uid Active
+
+      when (not (fromMaybe True (newScimUser  ^. vsuActive))) $ lift $ Intra.Brig.setStatus uid Suspended
+
       -- store new user value to scim_user table (spar). (this must happen last, so in case
       -- of crash the client can repeat the operation and it won't be considered a noop.)
       lift . wrapMonadClient $ Data.insertScimUser uid newScimStoredUser
@@ -598,7 +601,7 @@ data NeededInfo = NeededInfo
     neededName :: Name,
     neededExternalId :: Text,
     neededRichInfo :: RichInfo,
-    neededSuspended :: Bool
+    neededActive :: Maybe Bool
   }
 
 synthesizeScimUser :: NeededInfo -> Scim.User SparTag
@@ -608,7 +611,7 @@ synthesizeScimUser info =
    in (Scim.empty userSchemas userName (ScimUserExtra (neededRichInfo info)))
         { Scim.externalId = Just $ neededExternalId info,
           Scim.displayName = Just displayName,
-          Scim.active = Just (neededSuspended info)
+          Scim.active = neededActive info
         }
 
 -- | Helper function that given a brig user, creates a scim user on the fly or returns
@@ -630,7 +633,9 @@ getOrCreateScimUser stiTeam brigUser = do
       ssoIdentity' <- getSSOIdentity' brigUser'
       externalId <- toExternalId' ssoIdentity'
       setManagedBy' uid ManagedByScim
-      let neededInfo = NeededInfo handle name externalId richInfo (status `elem` [Suspended, Deleted])
+      -- NOTE: A user can be 'Active | Deleted | Ephemeral | Suspended'. We
+      -- only consider them Active when they're 'Active'
+      let neededInfo = NeededInfo handle name externalId richInfo (Just (status == Active))
       let user = synthesizeScimUser neededInfo
       storedUser <- toScimStoredUser'' uid user
       insertScimUser' uid storedUser
