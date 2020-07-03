@@ -372,10 +372,6 @@ getAccountStatusH (_ ::: usr) = do
     Just s -> json $ AccountStatusResp s
     Nothing -> setStatus status404 empty
 
-data AccountStatusResp = AccountStatusResp AccountStatus
-
-instance ToJSON AccountStatusResp where
-  toJSON (AccountStatusResp s) = object ["status" .= s]
 
 getConnectionsStatusH ::
   JSON ::: JsonRequest ConnectionsStatusRequest ::: Maybe Relation ->

@@ -23,6 +23,7 @@
 module Brig.Types.Intra
   ( AccountStatus (..),
     AccountStatusUpdate (..),
+    AccountStatusResp (..),
     ConnectionStatus (..),
     UserAccount (..),
     UserSet (..),
@@ -62,6 +63,15 @@ instance ToJSON AccountStatus where
   toJSON Suspended = String "suspended"
   toJSON Deleted = String "deleted"
   toJSON Ephemeral = String "ephemeral"
+
+data AccountStatusResp = AccountStatusResp AccountStatus
+
+instance ToJSON AccountStatusResp where
+  toJSON (AccountStatusResp s) = object ["status" .= s]
+
+instance FromJSON AccountStatusResp where
+  parseJSON = withObject "account-status" $ \o ->
+    AccountStatusResp <$> o .: "status"
 
 newtype AccountStatusUpdate = AccountStatusUpdate
   {suStatus :: AccountStatus}

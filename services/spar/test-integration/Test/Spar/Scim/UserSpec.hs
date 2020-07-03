@@ -28,6 +28,7 @@ where
 
 import Bilge
 import Bilge.Assert
+import Brig.Types.Intra (AccountStatus (Active, Suspended))
 import Brig.Types.User as Brig
 import Control.Lens
 import Control.Monad.Catch (MonadCatch)
@@ -48,7 +49,6 @@ import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified SAML2.WebSSO.Types as SAML
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
-import Brig.Types.Intra(AccountStatus(Active,Suspended))
 import Spar.Scim
 import Spar.Types (IdP)
 import qualified Text.XML.DSig as SAML
@@ -94,36 +94,72 @@ specSuspend = do
       runSpar $ Intra.setBrigUserHandle member handle'
       runSpar $ Intra.setStatus member Suspended
       [user] <- listUsers tok (Just (filterBy "userName" handle))
-      lift $ (Scim.User.active . Scim.value . Scim.thing  $ user) `shouldBe` Just False
-
+      lift $ (Scim.User.active . Scim.value . Scim.thing $ user) `shouldBe` Just False
+    it "pre-existing unsuspended users are active" $ do
+      (_, teamid, idp, (_, privCreds)) <- registerTestIdPWithMeta
+      member <- loginSsoUserFirstTime idp privCreds
+      -- NOTE: once SCIM is enabled SSO Auto-provisioning is disabled
+      tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
+      handle'@(Handle handle) <- nextHandle
+      runSpar $ Intra.setBrigUserHandle member handle'
+      [user] <- listUsers tok (Just (filterBy "userName" handle))
+      lift $ (Scim.User.active . Scim.value . Scim.thing $ user) `shouldBe` Just True
+    let activeInactiveAndBack f = do
+          user <- randomScimUser
+          (tok, _) <- registerIdPAndScimToken
+          scimStoredUserBlah <- createUser tok user
+          let uid = Scim.id . Scim.thing $ scimStoredUserBlah
+          do
+            -- NOTE: It's Nothing, not Just True, as we want to also test the fact that existing
+            -- SCIM records don't have the active field. absence of active should be interpreted as Active.
+            -- Once we get rid of the `scim` table and make scim serve brig records directly, this is
+            -- not an issue anymore.
+            lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUserBlah) `shouldBe` Nothing
+            void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active)
+          do
+            scimStoredUser <- f tok uid user True
+            lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just True
+            void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active)
+          do
+            scimStoredUser <- f tok uid user False
+            lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just False
+            void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Suspended)
+          do
+            scimStoredUser <- f tok uid user True
+            lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just True
+            void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active)
     it "PUT will change state from active to inactive and back" $ do
+      void $ activeInactiveAndBack $ \tok uid user active ->
+        updateUser tok uid user {Scim.User.active = Just active}
+    it "PATCH will change state from active to inactive and back" $ do
+      let replaceAttrib name value =
+            PatchOp.Operation
+              PatchOp.Replace
+              (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
+              (Just (toJSON value))
+      void $ activeInactiveAndBack $ \tok uid _user active ->
+        patchUser tok uid $ PatchOp.PatchOp [replaceAttrib "active" active]
+    -- NOTE: This one might be wrong? Reviewer should carefully decide if they agree.
+    -- Rationale:  when we GET data from scim currently, it doesnt check
+    -- at all if it is consistent with brig at the moment. it just returns what we have.
+    -- We make the assumption that when the `active` field is not there, that the user is
+    -- active by default; such that the IdP will de-activate it when it disagrees with the IdP
+    -- state.   Now if the IdP wants to remove the "active" field altogether, we dont "know"
+    -- anything again, and this should cause the user to be "active" again. This
+    it "PATCH removing the active attribute makes you active" $ do
+      let deleteAttrib name =
+            PatchOp.Operation
+              PatchOp.Remove
+              (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
+              Nothing
       user <- randomScimUser
       (tok, _) <- registerIdPAndScimToken
       scimStoredUserBlah <- createUser tok user
       let uid = Scim.id . Scim.thing $ scimStoredUserBlah
-      do
-        status <- runSpar $ Intra.getStatus uid
-        lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUserBlah) `shouldBe` Just True
-        lift $ status `shouldBe` Active
-      do
-        scimStoredUser <- updateUser tok uid user { Scim.User.active = Just True }
-        lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just True
-        status <- runSpar $ Intra.getStatus uid
-        lift $ status `shouldBe` Active
-      do
-        scimStoredUser <- updateUser tok uid user { Scim.User.active = Just False }
-        lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just False
-        status <- runSpar $ Intra.getStatus uid
-        lift $ status `shouldBe` Suspended
-      do
-        scimStoredUser <- updateUser tok uid user { Scim.User.active = Just True }
-        lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just True
-        status <- runSpar $ Intra.getStatus uid
-        lift $ status `shouldBe` Active
-
-    it "PATCH will change state from active to inactive" $ do undefined
-    it "PATCH will change state from inactive to active" $ do undefined
-
+      runSpar $ Intra.setStatus uid Suspended
+      void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Suspended)
+      void $ patchUser tok uid $ PatchOp.PatchOp [deleteAttrib "active"]
+      void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active)
 
 ----------------------------------------------------------------------------
 -- User creation
@@ -1196,11 +1232,9 @@ specEmailValidation = do
               . path "activate"
               . queryItem "key" (toByteString' k)
               . queryItem "code" (toByteString' c)
-
     context "enabled in team" . it "gives user email" $ do
       (uid, email) <- setup True
       eventually $ assertEmail uid (Just email)
-
     context "not enabled in team" . it "does not give user email" $ do
       (uid, _) <- setup False
       eventually $ assertEmail uid Nothing

@@ -469,7 +469,20 @@ isEmailValidationEnabledUser uid = do
 
 
 getStatus :: (HasCallStack, MonadSparToBrig m) => UserId -> m AccountStatus
-getStatus = undefined
+getStatus uid = do
+  resp <- call $
+    method GET
+      . paths ["/i/users", toByteString' uid, "status"]
+  case statusCode resp of
+    200 -> (\(AccountStatusResp status) -> status) <$> parseResponse @AccountStatusResp resp
+    _ -> throwSpar (SparBrigErrorWith (responseStatus resp) "Could not retrieve  account status")
 
 setStatus :: (HasCallStack, MonadSparToBrig m) => UserId  -> AccountStatus -> m ()
-setStatus = undefined
+setStatus uid status = do
+  resp <- call $
+    method PUT
+      . paths ["/i/users", toByteString' uid, "status"]
+      . json (AccountStatusUpdate status)
+  case statusCode resp of
+    200 -> pure ()
+    _ -> throwSpar (SparBrigErrorWith (responseStatus resp) "Could not set status")
