@@ -42,7 +42,6 @@ packages:
 - tools/db/find-undead
 - tools/makedeb
 - tools/stern
-- ../amazonka/core
 
 nix:
   shell-file: stack-deps.nix
@@ -93,32 +92,27 @@ extra-deps:
 # For bloodhound
 - deriving-aeson-0.2.5@sha256:a1efa4ab7ff94f73e6d2733a9d4414cb4c3526761295722cff28027b5b3da1a4,1277
 - aeson-1.4.7.1@sha256:6d8d2fd959b7122a1df9389cf4eca30420a053d67289f92cdc0dbc0dab3530ba,7098
-# amazonka-1.6.1 is buggy: https://github.com/brendanhay/amazonka/issues/466
+
+# amazonka-1.6.1 is buggy:
+# https://github.com/brendanhay/amazonka/pull/493
+# Also, we needed a fix to make V4 signatures work with custom ports:
+# https://github.com/brendanhay/amazonka/pull/588
+#
 # Therefore we pin an unreleased commit directly.
 #
-# More precisely, we pull just some libraries out of it,
-# the other packages weren't changed between 1.6.1 and this commit,
-# so we can use Stackage-supplied versions for them.
-# See https://github.com/brendanhay/amazonka/compare/1.6.1...adf6afb09771d18ecb84bf1c7a2f00bce964c3c9
-#
-# Once there has been made a new hackage release, we can use that instead.
-- archive: https://github.com/brendanhay/amazonka/archive/adf6afb09771d18ecb84bf1c7a2f00bce964c3c9.tar.gz
-  sha256: db0c64c019b9396c117459978754a4ac493f2ad0cb09dd6946e51d0997e04996
-  size: 11138293
+# Once the fix has been merged (and released on hackage), we can pin that instead.
+- archive: https://github.com/wireapp/amazonka/archive/9de5e0e4b2511ec555fb0975581b3087a94c1b4a.tar.gz
+  sha256: b9277a51b60d639fbd91b630f353bf9db305f5759f8e1ee48f0ab026e6b43d00
+  size: 11138812
   subdirs:
   - amazonka
-  - amazonka-elb
-  - amazonka-redshift
-  - amazonka-route53
-  # - core
-
-# Was dropped from LTS
-- amazonka-cloudfront-1.6.1@sha256:79c95e0ec544437a613cab891a2057bc35f1b0fed2361b36e7f05437839bdce2,5668
-- amazonka-dynamodb-1.6.1@sha256:6b8852049c65207a7b3741aafa3e4e6c77cfa115e05de3c74868218ae642b6b0,4459
-- amazonka-s3-1.6.1@sha256:9d07240fca59ad5197fb614ce3051e701e4951e6d4625a2dab4a9c17a1900194,6317
-- amazonka-ses-1.6.1@sha256:335796c855121ca34affd35097676587d5ebe0b2e576da42faaedd9d163881b0,6425
-- amazonka-sns-1.6.1@sha256:b07fbf8a2806fe775b25ea74d0d78f14f286811e4aa59f9c50e97ed99f2a14a6,4271
-- amazonka-sqs-1.6.1@sha256:1578844a31a2e53f9f21fd217e14406a3f02aefa637678ef88b201b01fbed492,3708
+  - amazonka-cloudfront
+  - amazonka-dynamodb
+  - amazonka-s3
+  - amazonka-ses
+  - amazonka-sns
+  - amazonka-sqs
+  - core
 
 
 ############################################################
