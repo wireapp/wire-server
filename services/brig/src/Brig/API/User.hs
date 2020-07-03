@@ -508,8 +508,6 @@ revokeIdentity key = do
 -------------------------------------------------------------------------------
 -- Change Account Status
 
--- TODO: There is never a case where there are multiple elements in this list.
--- Change the type??
 changeAccountStatus :: List1 UserId -> AccountStatus -> ExceptT AccountStatusError AppIO ()
 changeAccountStatus usrs status = do
   e <- ask
