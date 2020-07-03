@@ -85,26 +85,24 @@ spec = do
 specSuspend :: SpecWith TestEnv
 specSuspend = do
   describe "suspend" $ do
+    let checkPreExistingUser :: Bool -> TestSpar ()
+        checkPreExistingUser isActive = do
+          (_, teamid, idp, (_, privCreds)) <- registerTestIdPWithMeta
+          member <- loginSsoUserFirstTime idp privCreds
+          -- NOTE: once SCIM is enabled SSO Auto-provisioning is disabled
+          tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
+          handle'@(Handle handle) <- nextHandle
+          runSpar $ Intra.setBrigUserHandle member handle'
+          unless isActive $ do
+            runSpar $ Intra.setStatus member Suspended
+          [user] <- listUsers tok (Just (filterBy "userName" handle))
+          lift $ (Scim.User.active . Scim.value . Scim.thing $ user) `shouldBe` Just isActive
     it "pre-existing suspended users are inactive" $ do
-      (_, teamid, idp, (_, privCreds)) <- registerTestIdPWithMeta
-      member <- loginSsoUserFirstTime idp privCreds
-      -- NOTE: once SCIM is enabled SSO Auto-provisioning is disabled
-      tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
-      handle'@(Handle handle) <- nextHandle
-      runSpar $ Intra.setBrigUserHandle member handle'
-      runSpar $ Intra.setStatus member Suspended
-      [user] <- listUsers tok (Just (filterBy "userName" handle))
-      lift $ (Scim.User.active . Scim.value . Scim.thing $ user) `shouldBe` Just False
+      checkPreExistingUser False
     it "pre-existing unsuspended users are active" $ do
-      (_, teamid, idp, (_, privCreds)) <- registerTestIdPWithMeta
-      member <- loginSsoUserFirstTime idp privCreds
-      -- NOTE: once SCIM is enabled SSO Auto-provisioning is disabled
-      tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
-      handle'@(Handle handle) <- nextHandle
-      runSpar $ Intra.setBrigUserHandle member handle'
-      [user] <- listUsers tok (Just (filterBy "userName" handle))
-      lift $ (Scim.User.active . Scim.value . Scim.thing $ user) `shouldBe` Just True
-    let activeInactiveAndBack f = do
+      checkPreExistingUser True
+
+    let activeInactiveAndBack putOrPatch = do
           user <- randomScimUser
           (tok, _) <- registerIdPAndScimToken
           scimStoredUserBlah <- createUser tok user
@@ -117,20 +115,22 @@ specSuspend = do
             lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUserBlah) `shouldBe` Nothing
             void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active)
           do
-            scimStoredUser <- f tok uid user True
+            scimStoredUser <- putOrPatch tok uid user True
             lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just True
             void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active)
           do
-            scimStoredUser <- f tok uid user False
+            scimStoredUser <- putOrPatch tok uid user False
             lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just False
             void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Suspended)
           do
-            scimStoredUser <- f tok uid user True
+            scimStoredUser <- putOrPatch tok uid user True
             lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just True
             void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active)
+
     it "PUT will change state from active to inactive and back" $ do
       void $ activeInactiveAndBack $ \tok uid user active ->
         updateUser tok uid user {Scim.User.active = Just active}
+
     it "PATCH will change state from active to inactive and back" $ do
       let replaceAttrib name value =
             PatchOp.Operation
@@ -139,6 +139,7 @@ specSuspend = do
               (Just (toJSON value))
       void $ activeInactiveAndBack $ \tok uid _user active ->
         patchUser tok uid $ PatchOp.PatchOp [replaceAttrib "active" active]
+
     -- NOTE: This one might be wrong? Reviewer should carefully decide if they agree.
     -- Rationale:  when we GET data from scim currently, it doesnt check
     -- at all if it is consistent with brig at the moment. it just returns what we have.
