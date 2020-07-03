@@ -372,7 +372,6 @@ getAccountStatusH (_ ::: usr) = do
     Just s -> json $ AccountStatusResp s
     Nothing -> setStatus status404 empty
 
-
 getConnectionsStatusH ::
   JSON ::: JsonRequest ConnectionsStatusRequest ::: Maybe Relation ->
   Handler Response

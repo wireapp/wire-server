@@ -40,7 +40,7 @@ module Spar.Scim.User
   )
 where
 
-import Brig.Types.Intra (AccountStatus(Active, Suspended))
+import Brig.Types.Intra (AccountStatus (Active, Suspended))
 import Brig.Types.User as BrigTypes
 import Control.Error ((!?), (??))
 import Control.Exception (assert)
@@ -430,7 +430,7 @@ updateValidScimUser tokinfo uid newScimUser = do
           $ Intra.Brig.setBrigUserRichInfo uid
           $ newScimUser ^. vsuRichInfo
 
-      when (not (fromMaybe True (newScimUser  ^. vsuActive))) $ lift $ Intra.Brig.setStatus uid Suspended
+      when (not (fromMaybe True (newScimUser ^. vsuActive))) $ lift $ Intra.Brig.setStatus uid Suspended
 
       -- store new user value to scim_user table (spar). (this must happen last, so in case
       -- of crash the client can repeat the operation and it won't be considered a noop.)
