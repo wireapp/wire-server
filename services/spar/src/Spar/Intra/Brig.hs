@@ -475,7 +475,7 @@ getStatus uid = do
         . paths ["/i/users", toByteString' uid, "status"]
   case statusCode resp of
     200 -> (\(AccountStatusResp status) -> status) <$> parseResponse @AccountStatusResp resp
-    _ -> throwSpar (SparBrigErrorWith (responseStatus resp) "Could not retrieve  account status")
+    _ -> throwSpar (SparBrigErrorWith (responseStatus resp) "Could not retrieve account status")
 
 setStatus :: (HasCallStack, MonadSparToBrig m) => UserId -> AccountStatus -> m ()
 setStatus uid status = do

@@ -1232,9 +1232,11 @@ specEmailValidation = do
               . path "activate"
               . queryItem "key" (toByteString' k)
               . queryItem "code" (toByteString' c)
+
     context "enabled in team" . it "gives user email" $ do
       (uid, email) <- setup True
       eventually $ assertEmail uid (Just email)
+
     context "not enabled in team" . it "does not give user email" $ do
       (uid, _) <- setup False
       eventually $ assertEmail uid Nothing

@@ -143,6 +143,7 @@ instance Scim.UserDB SparTag Spar where
       -- wont be reflected here. Fix:  Get rid of the scim table and just
       -- always call synthesizeUser on whatever data we get from brig.
       -- pure $ synthesizeScimUser brigUser
+      -- [see also](https://github.com/zinfra/backend-issues/issues/1006)
       getScimUser' uid
     maybe (throwError . Scim.notFound "User" $ idToText uid) pure user
     where
@@ -354,14 +355,17 @@ createValidScimUser (ValidScimUser user uref idpConfig handl mbName richInfo act
   lift $ Intra.Brig.setBrigUserRichInfo buid richInfo
   -- If we crash now, same as above, but the PATCH will only contain externalId
 
-  -- TODO(arianvp): suspend on creation?
-
   -- FUTUREWORK(arianvp): these two actions we probably want to make transactional
   lift . wrapMonadClient $ Data.insertScimUser buid storedUser
   lift . wrapMonadClient $ Data.insertSAMLUser uref buid
 
   lift $ validateEmailIfExists buid uref
 
+  -- TODO(fisx): suspension has yet another race condition: if we don't reach the following
+  -- line, the user will be active.
+  -- TODO(fisx): what happens with suspended users that have emails?  should emails still be
+  -- validated?  will that work on suspended users?  (i think it won't, but i haven't
+  -- checked.)
   when (not (fromMaybe True active)) $ lift $ Brig.setStatus buid Suspended
   pure storedUser
 
@@ -413,7 +417,9 @@ updateValidScimUser tokinfo uid newScimUser = do
       -- this can only happen if user is found in spar.scim_user, but missing on brig.
       -- (internal error?  race condition?)
 
-      -- TODO get detailed Suspended information
+      -- TODO: if the user has been suspended or unsuspended in brig since the last scim
+      -- write, we'll find the wrong information here.
+      -- [see also](https://github.com/zinfra/backend-issues/issues/1006)
       oldScimUser :: ValidScimUser <-
         validateScimUser tokinfo . Scim.value . Scim.thing $ oldScimStoredUser
       -- the old scim user from our db is already validated, but this also recovers
