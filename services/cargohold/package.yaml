@@ -21,6 +21,7 @@ dependencies:
 - errors >=1.4
 - exceptions >=0.6
 - extended
+- HsOpenSSL >=0.11
 - http-client >=0.4
 - http-types >=0.8
 - mime >=0.4
@@ -50,10 +51,10 @@ library:
   - case-insensitive >=1.0
   - conduit >=1.2
   - conduit-extra >=1.1.5
-  - connection >=0.2
   - cryptonite >=0.20
   - either >=4.3
-  - http-client-tls >=0.3.5
+  - HsOpenSSL-x509-system >=0.1
+  - http-client-openssl >=0.2
   - http-conduit >=2.1
   - lens >=4.1
   - lifted-async >=0.9.3
@@ -69,16 +70,12 @@ library:
   - swagger >=0.2
   - time >=1.4
   - tinylog >=0.10
-  - tls >=1.2
   - types-common >=0.16
   - split >=0.2
   - unliftio-core >=0.1
   - unordered-containers >=0.2
   - uri-bytestring >=0.2
   - uuid >=1.3.5
-  - x509 >=1.6
-  - x509-store >=1.6
-  - x509-system >=1.6
   - wai >=3.0
   - wai-conduit >=3.0
   - wai-extra >=3.0

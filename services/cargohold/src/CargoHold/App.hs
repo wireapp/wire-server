@@ -43,7 +43,7 @@ module CargoHold.App
   )
 where
 
-import Bilge (Manager, MonadHttp, RequestId (..), withResponse)
+import Bilge (Manager, MonadHttp, RequestId (..), newManager, withResponse)
 import qualified Bilge
 import Bilge.RPC (HasRequestId (..))
 import qualified CargoHold.AWS as AWS
@@ -52,22 +52,21 @@ import Control.Error (ExceptT, exceptT)
 import Control.Lens ((^.), makeLenses, set, view)
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
-import Data.Default
+import Data.Default (def)
 import Data.Metrics.Middleware (Metrics)
 import qualified Data.Metrics.Middleware as Metrics
 import Imports hiding (log)
-import Network.Connection as NC
 import Network.HTTP.Client (ManagerSettings (..), responseTimeoutMicro)
-import Network.HTTP.Client.TLS
-import qualified Network.TLS as TLS
-import qualified Network.TLS.Extra as TLS
+import Network.HTTP.Client.OpenSSL
 import Network.Wai (Request, ResponseReceived)
 import Network.Wai.Routing (Continue)
 import Network.Wai.Utilities (Error (..), lookupRequestId)
 import qualified Network.Wai.Utilities.Server as Server
+import OpenSSL.Session (SSLContext, SSLOption (..))
+import qualified OpenSSL.Session as SSL
+import qualified OpenSSL.X509.SystemStore as SSL
 import System.Logger.Class hiding (settings)
 import qualified System.Logger.Extended as Log
-import System.X509 (getSystemCertificateStore)
 
 -------------------------------------------------------------------------------
 -- Environment
@@ -104,26 +103,24 @@ initAws o l m =
     downloadEndpoint = fromMaybe (o ^. awsS3Endpoint) (o ^. awsS3DownloadEndpoint)
 
 initHttpManager :: IO Manager
-initHttpManager = do
-  cs <- getSystemCertificateStore
-  let tlsClientParams =
-        (TLS.defaultParamsClient "" mempty)
-          { TLS.clientSupported = def {TLS.supportedCiphers = TLS.ciphersuite_strong},
-            TLS.clientShared =
-              def
-                { TLS.sharedCAStore = cs,
-                  TLS.sharedValidationCache = def
-                }
-          }
-  let manSettings = mkManagerSettings (NC.TLSSettings tlsClientParams) Nothing
-  mgr <-
-    newTlsManagerWith
-      manSettings
-        { managerConnCount = 1024,
-          managerIdleConnectionCount = 2048,
-          managerResponseTimeout = responseTimeoutMicro 10000000
-        }
-  return mgr
+initHttpManager =
+  newManager
+    (opensslManagerSettings initSSLContext)
+      { managerConnCount = 1024,
+        managerIdleConnectionCount = 2048,
+        managerResponseTimeout = responseTimeoutMicro 10000000
+      }
+
+initSSLContext :: IO SSLContext
+initSSLContext = do
+  ctx <- SSL.context
+  SSL.contextAddOption ctx SSL_OP_NO_SSLv2
+  SSL.contextAddOption ctx SSL_OP_NO_SSLv3
+  SSL.contextSetCiphers ctx "HIGH"
+  SSL.contextLoadSystemCerts ctx
+  SSL.contextSetVerificationMode ctx $
+    SSL.VerifyPeer True True Nothing
+  return ctx
 
 closeEnv :: Env -> IO ()
 closeEnv e = Log.close $ e ^. appLogger
