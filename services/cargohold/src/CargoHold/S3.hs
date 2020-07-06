@@ -26,8 +26,6 @@ module CargoHold.S3
     getMetadataV3,
     updateMetadataV3,
     deleteV3,
-    -- What???
-    s3Key,
     mkKey,
     signedURL,
 
