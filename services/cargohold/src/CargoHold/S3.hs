@@ -194,7 +194,9 @@ signedURL path = do
   now <- liftIO getCurrentTime
   ttl <- view (settings . setDownloadLinkTTL)
   let req = getObject (BucketName b) (ObjectKey . Text.decodeLatin1 $ toByteString' path)
-  signed <- AWS.execute e (presignURL now (Seconds $ fromIntegral ttl) req)
+  signed <-
+    AWS.execute (AWS.useDownloadEndpoint e) $
+      presignURL now (Seconds (fromIntegral ttl)) req
   return =<< toUri signed
   where
     toUri x = case parseURI strictURIParserOptions x of

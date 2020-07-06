@@ -28,6 +28,7 @@ module CargoHold.AWS
   ( -- * Monad
     Env,
     mkEnv,
+    useDownloadEndpoint,
     Amazon,
     amazonkaEnv,
     execute,
@@ -63,16 +64,28 @@ import qualified Network.AWS.S3 as S3
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), Manager)
 import qualified System.Logger as Logger
 import System.Logger.Class
-import Util.Options
+import Util.Options (AWSEndpoint (..))
 
 data Env = Env
   { _logger :: !Logger,
     _s3Bucket :: !Text,
     _amazonkaEnv :: !AWS.Env,
+    -- | Endpoint for downloading assets (for the external world).
+    -- This gets used with Minio, which Cargohold can reach using a cluster-internal endpoint,
+    -- but clients can't, so we need to use a public one for pre-signed URLs we redirect to.
+    _amazonkaDownloadEndpoint :: !AWSEndpoint,
     _cloudFront :: !(Maybe CloudFront)
   }
 
 makeLenses ''Env
+
+-- | Override the endpoint in the '_amazonkaEnv' with '_amazonkaDownloadEndpoint'.
+useDownloadEndpoint :: Env -> Env
+useDownloadEndpoint e =
+  e & amazonkaEnv %~ AWS.override (setAWSEndpoint (e ^. amazonkaDownloadEndpoint))
+
+setAWSEndpoint :: AWSEndpoint -> AWS.Service -> AWS.Service
+setAWSEndpoint e = AWS.setEndpoint (_awsSecure e) (_awsHost e) (_awsPort e)
 
 newtype Amazon a = Amazon
   { unAmazon :: ReaderT Env (ResourceT IO) a
@@ -111,19 +124,17 @@ mkEnv ::
   Maybe CloudFrontOpts ->
   Manager ->
   IO Env
-mkEnv lgr s3End _s3Download bucket cfOpts mgr = do
-  -- TODO: we need to respect _s3Download!
+mkEnv lgr s3End s3Download bucket cfOpts mgr = do
   let g = Logger.clone (Just "aws.cargohold") lgr
-  e <- mkAwsEnv g (mkEndpoint S3.s3 s3End)
+  e <- mkAwsEnv g (setAWSEndpoint s3End S3.s3)
   cf <- mkCfEnv cfOpts
-  return (Env g bucket e cf)
+  return (Env g bucket e s3Download cf)
   where
     mkCfEnv (Just o) = Just <$> initCloudFront (o ^. cfPrivateKey) (o ^. cfKeyPairId) 300 (o ^. cfDomain)
     mkCfEnv Nothing = return Nothing
-    mkEndpoint svc e = AWS.setEndpoint (e ^. awsSecure) (e ^. awsHost) (e ^. awsPort) svc
     mkAwsEnv g s3 =
-      set AWS.envLogger (awsLogger g)
-        <$> AWS.newEnvWith AWS.Discover Nothing mgr
+      AWS.newEnvWith AWS.Discover Nothing mgr
+        <&> set AWS.envLogger (awsLogger g)
         <&> AWS.configure s3
     awsLogger g l = Logger.log g (mapLevel l) . Logger.msg . toLazyByteString
     mapLevel AWS.Info = Logger.Info
