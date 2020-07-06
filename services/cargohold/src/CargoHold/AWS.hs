@@ -43,7 +43,6 @@ where
 
 import Blaze.ByteString.Builder (toLazyByteString)
 import CargoHold.CloudFront
-import CargoHold.Error
 import CargoHold.Options
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
@@ -138,6 +137,15 @@ mkEnv lgr s3End s3Download bucket cfOpts mgr = do
 
 execute :: MonadIO m => Env -> Amazon a -> m a
 execute e m = liftIO $ runResourceT (runReaderT (unAmazon m) e)
+
+data Error where
+  GeneralError :: (Show e, AWS.AsError e) => e -> Error
+
+deriving instance Show Error
+
+deriving instance Typeable Error
+
+instance Exception Error
 
 --------------------------------------------------------------------------------
 -- Utilities

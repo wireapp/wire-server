@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a04b16e73306ee6c6a80d4b9e921b7c3c33fc5e23236ad94bc479c23caa3f61e
+-- hash: ea68fedecc39058c59c6aed5135cc0416845c7ce21f34ac85efb430dde89d905
 
 name:           cargohold
 version:        1.5.0
@@ -34,7 +34,6 @@ library
       CargoHold.App
       CargoHold.AWS
       CargoHold.CloudFront
-      CargoHold.Error
       CargoHold.Metrics
       CargoHold.Options
       CargoHold.Run
