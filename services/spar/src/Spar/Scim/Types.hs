@@ -40,6 +40,7 @@
 -- * Request and response types for SCIM-related endpoints.
 module Spar.Scim.Types where
 
+import Brig.Types.Intra (AccountStatus (Active, Deleted, Ephemeral, Suspended))
 import Brig.Types.User as Brig
 import Control.Lens hiding ((#), (.=), Strict)
 import Data.Aeson as Aeson
@@ -200,6 +201,8 @@ instance Scim.Patchable ScimUserExtra where
 --
 -- FUTUREWORK: eliminate '_vsuUser' and keep everything we need as parsed values rather than
 -- the raw input.
+--
+-- FUTUREWORK: move 'NeededInfo' closer to here.  perhaps we can make do with one of the two.
 data ValidScimUser = ValidScimUser
   { _vsuUser :: Scim.User.User SparTag,
     -- SAML SSO
@@ -217,6 +220,19 @@ data ValidScimUser = ValidScimUser
   deriving (Eq, Show)
 
 makeLenses ''ValidScimUser
+
+scimActiveFlagFromAccountStatus :: AccountStatus -> Bool
+scimActiveFlagFromAccountStatus = \case
+  Active -> True
+  Suspended -> False
+  Deleted -> False
+  Ephemeral -> True -- do not treat ephemeral users any different from active ones.
+
+scimActiveFlagToAccountStatus :: AccountStatus -> Maybe Bool -> AccountStatus
+scimActiveFlagToAccountStatus oldstatus = \case
+  Nothing -> if oldstatus == Ephemeral then Ephemeral else Active
+  Just True -> Active
+  Just False -> Suspended
 
 ----------------------------------------------------------------------------
 -- Request and response types

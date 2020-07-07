@@ -40,7 +40,6 @@ module Spar.Scim.User
   )
 where
 
-import Brig.Types.Intra (AccountStatus (Active, Deleted, Ephemeral, Suspended))
 import Brig.Types.User as BrigTypes
 import Control.Error ((!?), (??))
 import Control.Exception (assert)
@@ -366,7 +365,10 @@ createValidScimUser (ValidScimUser user uref idpConfig handl mbName richInfo act
   -- TODO(fisx): what happens with suspended users that have emails?  should emails still be
   -- validated?  will that work on suspended users?  (i think it won't, but i haven't
   -- checked.)
-  when (not (fromMaybe True active)) $ lift $ Brig.setStatus buid Suspended
+  lift $
+    Brig.getStatus buid >>= \old -> do
+      let new = scimActiveFlagToAccountStatus old active
+      when (new /= old) $ Brig.setStatus buid new
   pure storedUser
 
 updateValidScimUser ::
@@ -436,7 +438,10 @@ updateValidScimUser tokinfo uid newScimUser = do
           $ Intra.Brig.setBrigUserRichInfo uid
           $ newScimUser ^. vsuRichInfo
 
-      when (not (fromMaybe True (newScimUser ^. vsuActive))) $ lift $ Intra.Brig.setStatus uid Suspended
+      lift $
+        Brig.getStatus uid >>= \old -> do
+          let new = scimActiveFlagToAccountStatus old (newScimUser ^. vsuActive)
+          when (new /= old) $ Brig.setStatus uid new
 
       -- store new user value to scim_user table (spar). (this must happen last, so in case
       -- of crash the client can repeat the operation and it won't be considered a noop.)
@@ -633,17 +638,7 @@ getOrCreateScimUser stiTeam brigUser = do
       handle <- getUserHandle' brigUser'
       let name = userDisplayName brigUser'
       richInfo <- getRichInfo' uid
-      isActive <- getStatus' uid >>= \case
-        Active -> pure True
-        Suspended -> pure False
-        Deleted -> throwError $ Scim.serverError "lookup found deleted user"
-        Ephemeral ->
-          -- I don't think there is any big obstacle to handling this case, but it would
-          -- require understanding how the ephemeral user can be activated in brig.  It's not
-          -- enough to just *treat* it as a normal active user here, that would lead to
-          -- confusing if the ephemeral user expires, and spar doesn't know what's going on.
-          throwError $
-            Scim.conflict {Scim.detail = Just "Onboarding ephemeral users with SCIM is not supported"}
+      isActive <- scimActiveFlagFromAccountStatus <$> getStatus' uid
       ssoIdentity' <- do
         -- TODO: If user is not an SSO User; @ssoIdentity'@ is Nothing
         -- Hence; we should only set managedByScim if this _succeeds_
