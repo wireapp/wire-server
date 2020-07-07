@@ -140,13 +140,20 @@ specSuspend = do
       void $ activeInactiveAndBack $ \tok uid _user active ->
         patchUser tok uid $ PatchOp.PatchOp [replaceAttrib "active" active]
 
-    -- NOTE: This one might be wrong? Reviewer should carefully decide if they agree.
-    -- Rationale:  when we GET data from scim currently, it doesnt check
-    -- at all if it is consistent with brig at the moment. it just returns what we have.
-    -- We make the assumption that when the `active` field is not there, that the user is
-    -- active by default; such that the IdP will de-activate it when it disagrees with the IdP
-    -- state.   Now if the IdP wants to remove the "active" field altogether, we dont "know"
-    -- anything again, and this should cause the user to be "active" again. This
+    -- Consider the following series of events:
+    --
+    -- ```
+    -- { }                 --- patch "active" true --->
+    -- { "active": true }  --- patch "active" false --->
+    -- { "active": false } --- delete "active" --->
+    -- { }
+    -- ```
+    --
+    -- Since we give the case of missing active flag the same meaning as the flag set to
+    -- @True@, it's most consistent to also re-activating a suspended user if the active flag
+    -- is removed: the active flag must have been @False@ before (otherwise the user would
+    -- have been active already), and if we didn't re-activate the user, the next scim-get
+    -- would yield @{ "active": false }@, which is plainly wrong.
     it "PATCH removing the active attribute makes you active" $ do
       let deleteAttrib name =
             PatchOp.Operation
