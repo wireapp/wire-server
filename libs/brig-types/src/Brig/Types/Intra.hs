@@ -91,11 +91,11 @@ instance FromJSON ConnectionStatus where
       <*> o .: "status"
 
 instance ToJSON ConnectionStatus where
-  toJSON cs =
+  toJSON conns =
     object
-      [ "from" .= csFrom cs,
-        "to" .= csTo cs,
-        "status" .= csStatus cs
+      [ "from" .= csFrom conns,
+        "to" .= csTo conns,
+        "status" .= csStatus conns
       ]
 
 -------------------------------------------------------------------------------
