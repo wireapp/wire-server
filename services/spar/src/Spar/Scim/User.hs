@@ -637,7 +637,13 @@ getOrCreateScimUser stiTeam brigUser = do
         Active -> pure True
         Suspended -> pure False
         Deleted -> throwError $ Scim.serverError "lookup found deleted user"
-        Ephemeral -> throwError $ Scim.conflict {Scim.detail = Just "Onboarding ephemeral users with SCIM is not supported"}
+        Ephemeral ->
+          -- I don't think there is any big obstacle to handling this case, but it would
+          -- require understanding how the ephemeral user can be activated in brig.  It's not
+          -- enough to just *treat* it as a normal active user here, that would lead to
+          -- confusing if the ephemeral user expires, and spar doesn't know what's going on.
+          throwError $
+            Scim.conflict {Scim.detail = Just "Onboarding ephemeral users with SCIM is not supported"}
       ssoIdentity' <- do
         -- TODO: If user is not an SSO User; @ssoIdentity'@ is Nothing
         -- Hence; we should only set managedByScim if this _succeeds_
