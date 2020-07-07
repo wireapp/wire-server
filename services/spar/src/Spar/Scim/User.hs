@@ -40,7 +40,7 @@ module Spar.Scim.User
   )
 where
 
-import Brig.Types.Intra (AccountStatus (Active, Suspended))
+import Brig.Types.Intra (AccountStatus (Active, Deleted, Ephemeral, Suspended))
 import Brig.Types.User as BrigTypes
 import Control.Error ((!?), (??))
 import Control.Exception (assert)
@@ -633,16 +633,18 @@ getOrCreateScimUser stiTeam brigUser = do
       handle <- getUserHandle' brigUser'
       let name = userDisplayName brigUser'
       richInfo <- getRichInfo' uid
-      status <- getStatus' uid
+      isActive <- getStatus' uid >>= \case
+        Active -> pure True
+        Suspended -> pure False
+        Deleted -> throwError $ Scim.serverError "lookup found deleted user"
+        Ephemeral -> throwError $ Scim.conflict {Scim.detail = Just "Onboarding ephemeral users with SCIM is not supported"}
       ssoIdentity' <- do
         -- TODO: If user is not an SSO User; @ssoIdentity'@ is Nothing
         -- Hence; we should only set managedByScim if this _succeeds_
         getSSOIdentity' brigUser'
       externalId <- toExternalId' ssoIdentity'
       setManagedBy' uid ManagedByScim
-      -- NOTE: A user can be 'Active | Deleted | Ephemeral | Suspended'. We
-      -- only consider them Active when they're 'Active'
-      let neededInfo = NeededInfo handle name externalId richInfo (Just (status == Active))
+      let neededInfo = NeededInfo handle name externalId richInfo (Just isActive)
       let user = synthesizeScimUser neededInfo
       storedUser <- toScimStoredUser'' uid user
       insertScimUser' uid storedUser
