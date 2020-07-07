@@ -22,6 +22,7 @@
 -- TODO: Move to Brig.Types.User.Intra / Internal
 module Brig.Types.Intra
   ( AccountStatus (..),
+    changeAccountStatusStateMachine,
     AccountStatusUpdate (..),
     ConnectionStatus (..),
     UserAccount (..),
@@ -32,10 +33,12 @@ where
 
 import Brig.Types.Connection
 import Brig.Types.User
+import Control.Monad.Except (throwError)
 import Data.Aeson
 import qualified Data.HashMap.Strict as M
 import Data.Id (UserId)
 import Data.Misc (PlainTextPassword (..))
+import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import Imports
 
@@ -48,6 +51,18 @@ data AccountStatus
   | Deleted
   | Ephemeral
   deriving (Eq, Show, Generic)
+
+changeAccountStatusStateMachine :: AccountStatus -> AccountStatus -> Either String AccountStatus
+changeAccountStatusStateMachine = switch
+  where
+    switch Active Active = pure Active
+    switch Active Suspended = pure Suspended
+    switch Active Deleted = pure Deleted
+    switch Suspended Active = pure Active
+    switch Suspended Suspended = pure Suspended
+    switch Suspended Deleted = pure Deleted
+    switch Ephemeral Deleted = pure Deleted
+    switch old new = throwError . cs $ "AccountStatus cannot be changed from " <> encode old <> " to " <> encode new
 
 instance FromJSON AccountStatus where
   parseJSON = withText "account-status" $ \s -> case Text.toLower s of
