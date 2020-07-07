@@ -634,9 +634,10 @@ getOrCreateScimUser stiTeam brigUser = do
       let name = userDisplayName brigUser'
       richInfo <- getRichInfo' uid
       status <- getStatus' uid
-      -- NOTE: If user is not an SSO User; this returns Nothing
-      -- Hence; we should only set managedByScim if this _succeeds_
-      ssoIdentity' <- getSSOIdentity' brigUser'
+      ssoIdentity' <- do
+        -- TODO: If user is not an SSO User; @ssoIdentity'@ is Nothing
+        -- Hence; we should only set managedByScim if this _succeeds_
+        getSSOIdentity' brigUser'
       externalId <- toExternalId' ssoIdentity'
       setManagedBy' uid ManagedByScim
       -- NOTE: A user can be 'Active | Deleted | Ephemeral | Suspended'. We
