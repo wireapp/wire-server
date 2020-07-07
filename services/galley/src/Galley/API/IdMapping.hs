@@ -76,9 +76,10 @@ postIdMappingH (req ::: _) =
   ifFederationIsEnabled $
     fmap json . postIdMapping =<< fromJsonBody req
 
--- | Blindly writes to our own the database, unconditionally.
+-- | Blindly writes the mapping to our own database, unconditionally.
 -- The mapping is deterministic, so we don't bother reading existing values.
--- If we overwrite an existing entry, then with the same value as it had before.
+-- If we overwrite an existing entry, then it will be overwritten with the same value as it
+-- had before.
 --
 -- This function doesn't intra-call Brig, so we don't end up in an infinite loop of calling
 -- each other.
