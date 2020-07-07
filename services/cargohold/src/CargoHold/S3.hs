@@ -452,12 +452,7 @@ uploadChunk r offset rsrc = do
     putPart up chunk size = do
       let S3AssetKey k = mkKey (resumableAsset r)
       let req b =
-            uploadPart
-              (BucketName b)
-              (ObjectKey k)
-              (fromIntegral nr)
-              up
-              (toBody chunk)
+            uploadPart (BucketName b) (ObjectKey k) (fromIntegral nr) up (toBody chunk)
       tg <- view uprsETag <$> exec req
       etag <- case tg of
         Just (ETag t) -> return $ S3ETag (Text.decodeLatin1 t)
