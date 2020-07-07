@@ -24,8 +24,9 @@ import Cassandra.Schema
 import Imports
 import Text.RawString.QQ
 
+-- | See <https://github.com/wearezeta/documentation/blob/master/topics/federation/federation-design.md#namespaces-and-user-identity>.
 migration :: Migration
-migration = Migration 45 "Add feature flag for validation of saml emails" $ do
+migration = Migration 45 "Add ID mapping for federation" $ do
   schema'
     [r|
         CREATE TABLE id_mapping (
