@@ -228,10 +228,17 @@ scimActiveFlagFromAccountStatus = \case
   Deleted -> False
   Ephemeral -> True -- do not treat ephemeral users any different from active ones.
 
+-- | The second argument is constructed from a (potentially missing) json object field, hence
+-- @Nothing@ has the same meaning as @Just True@.  This way, we stay consistent between the
+-- original status and one after an update.
+--
+-- FUTUREWORK: 'Ephemeral' shouldn't really be possible here, since there is no use case for
+-- it.  (If there was, this is most likely how we would have to implement it, but still.)  We
+-- should change the types so that the 'Ephemeral' case can be ruled out by the compiler.
 scimActiveFlagToAccountStatus :: AccountStatus -> Maybe Bool -> AccountStatus
 scimActiveFlagToAccountStatus oldstatus = \case
   Nothing -> if oldstatus == Ephemeral then Ephemeral else Active
-  Just True -> Active
+  Just True -> if oldstatus == Ephemeral then Ephemeral else Active
   Just False -> Suspended
 
 ----------------------------------------------------------------------------
