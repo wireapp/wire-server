@@ -1,10 +1,10 @@
 cabal-version: 2.0
 
--- This file has been generated from package.yaml by hpack version 0.31.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d809bb98d16ea3605158fe91187390c00a5552a47d5c27bab8d85fab8d440cf4
+-- hash: 16f0184bbf0f777bbb5412ebda6182f34dd8209cfa19ec54d346eb8cc5b22f8d
 
 name:           brig
 version:        1.35.0
@@ -434,6 +434,7 @@ executable brig-schema
       V57
       V58
       V59
+      V60_AddFederationIdMapping
       V9
       Paths_brig
   hs-source-dirs:

@@ -69,6 +69,7 @@ import qualified V56
 import qualified V57
 import qualified V58
 import qualified V59
+import qualified V60_AddFederationIdMapping
 import qualified V9
 
 main :: IO ()
@@ -127,7 +128,8 @@ main = do
       V56.migration,
       V57.migration,
       V58.migration,
-      V59.migration
+      V59.migration,
+      V60_AddFederationIdMapping.migration
       -- FUTUREWORK: undo V41 (searchable flag); we stopped using it in
       -- https://github.com/wireapp/wire-server/pull/964
     ]
