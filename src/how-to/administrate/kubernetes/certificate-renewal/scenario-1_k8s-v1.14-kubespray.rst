@@ -124,6 +124,9 @@ renewed. This can be confirmed, by executing parts of (1).*
 
 4. Based on those renewed certificates, generate new kubeconfig files
 
+The first command assumes it's being executed on a master node. You may need to swap ``masters`` with ``nodes`` in
+case you are on a different sort of machines.
+
 .. code:: bash
 
    kubeadm alpha kubeconfig user --org system:masters --client-name kubernetes-admin  > /etc/kubernetes/admin.conf
@@ -132,6 +135,17 @@ renewed. This can be confirmed, by executing parts of (1).*
 
 *Again, check if ownership and permission for these files are the same
 as all the others around them.*
+
+And, in case you are operating the cluster from the current node, you may want to replace the user's kubeconfig.
+Afterwards, compare the backup version with the new one, to see if any configuration (e.g. pre-configured *namespace*)
+might need to be moved over, too.
+
+.. code:: bash
+
+    mv ~/.kube/config ~/.kube/config.bkp
+    cp /etc/kubernetes/admin.conf ~/.kube/config
+    chown $(id -u):$(id -g) ~/.kube/config
+    chmod 770 ~/.kube/config
 
 5. Now that certificates and configuration files are in place, the
    control plane must be restarted. They typically run in containers, so
