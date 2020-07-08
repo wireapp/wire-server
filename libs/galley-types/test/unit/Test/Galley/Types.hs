@@ -1,6 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
@@ -24,6 +23,7 @@ module Test.Galley.Types where
 
 import Control.Lens
 import Data.Set hiding (drop)
+import Galley.Types.IdMapping (PostIdMappingRequest (..), PostIdMappingResponse (..))
 import Galley.Types.Teams
 import Imports
 import Test.Galley.Roundtrip (testRoundTrip)
@@ -54,7 +54,9 @@ tests =
         -- accordingly.  Just maintain the property that adding a new feature name will break
         -- this test, and force future develpers to consider what permissions they want to set.
         assertBool "all covered" (all (roleHasPerm RoleExternalPartner) (ViewTeamFeature <$> [minBound ..])),
-      testRoundTrip @FeatureFlags
+      testRoundTrip @FeatureFlags,
+      testRoundTrip @PostIdMappingRequest,
+      testRoundTrip @PostIdMappingRequest
     ]
 
 instance Arbitrary FeatureFlags where
@@ -63,3 +65,7 @@ instance Arbitrary FeatureFlags where
       <$> QC.elements [minBound ..]
       <*> QC.elements [minBound ..]
       <*> QC.elements [minBound ..]
+
+deriving newtype instance Arbitrary PostIdMappingRequest
+
+deriving newtype instance Arbitrary PostIdMappingResponse

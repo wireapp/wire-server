@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0078da3c962467f70b278c32cbc35b9daca407ca541f11862b2262160c86c27b
+-- hash: d61c32c046efc149b7de08f80cc5f16ac31a6c90f59d51f04b53949da3a3c1b8
 
 name:           galley
 version:        0.83.0
@@ -29,6 +29,7 @@ library
       Galley.API.Create
       Galley.API.CustomBackend
       Galley.API.Error
+      Galley.API.IdMapping
       Galley.API.Internal
       Galley.API.LegalHold
       Galley.API.Mapping
@@ -43,6 +44,7 @@ library
       Galley.Aws
       Galley.Data
       Galley.Data.CustomBackend
+      Galley.Data.IdMapping
       Galley.Data.Instances
       Galley.Data.LegalHold
       Galley.Data.Queries
@@ -54,6 +56,7 @@ library
       Galley.External
       Galley.External.LegalHoldService
       Galley.Intra.Client
+      Galley.Intra.IdMapping
       Galley.Intra.Journal
       Galley.Intra.Push
       Galley.Intra.Spar
@@ -186,6 +189,7 @@ executable galley-integration
   other-modules:
       API
       API.CustomBackend
+      API.IdMapping
       API.MessageTimer
       API.Roles
       API.SQS
@@ -340,6 +344,7 @@ executable galley-schema
       V42_TeamFeatureValidateSamlEmails
       V43_TeamFeatureDigitalSignatures
       V44_AddRemoteIdentifiers
+      V45_AddFederationIdMapping
       Paths_galley
   hs-source-dirs:
       schema/src

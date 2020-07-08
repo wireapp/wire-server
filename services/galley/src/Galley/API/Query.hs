@@ -32,6 +32,7 @@ import Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local), opaqueIdFromMappedOrLocal, partitionMappedOrLocalIds)
 import Data.Range
 import Galley.API.Error
+import qualified Galley.API.IdMapping as IdMapping
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Util
 import Galley.App
@@ -70,7 +71,7 @@ getConversationH (zusr ::: cnv ::: _) = do
 
 getConversation :: UserId -> OpaqueConvId -> Galley Public.Conversation
 getConversation zusr opaqueCnv = do
-  cnv <- resolveOpaqueConvId opaqueCnv
+  cnv <- IdMapping.resolveOpaqueConvId opaqueCnv
   c <- getConversationAndCheckMembership zusr cnv
   Mapping.conversationView (Local zusr) c
 
@@ -80,7 +81,7 @@ getConversationRolesH (zusr ::: cnv ::: _) = do
 
 getConversationRoles :: UserId -> OpaqueConvId -> Galley Public.ConversationRolesList
 getConversationRoles zusr opaqueCnv = do
-  cnv <- resolveOpaqueConvId opaqueCnv
+  cnv <- IdMapping.resolveOpaqueConvId opaqueCnv
   void $ getConversationAndCheckMembership zusr cnv
   -- NOTE: If/when custom roles are added, these roles should
   --       be merged with the team roles (if they exist)

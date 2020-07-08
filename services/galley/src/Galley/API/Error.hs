@@ -18,10 +18,10 @@
 module Galley.API.Error where
 
 import Data.Domain (Domain, domainText)
-import Data.Id (idToText)
-import Data.IdMapping (IdMapping (IdMapping, idMappingGlobal, idMappingLocal))
+import Data.Id (Id, Remote, idToText)
+import Data.IdMapping (IdMapping (IdMapping, _imMappedId, _imQualifiedId))
 import Data.List.NonEmpty (NonEmpty)
-import Data.Qualified (renderQualifiedId)
+import Data.Qualified (Qualified, renderQualifiedId)
 import Data.String.Conversions (cs)
 import Data.Text.Lazy as LT (pack)
 import qualified Data.Text.Lazy as LT
@@ -236,17 +236,30 @@ customBackendNotFound domain =
     "custom-backend-not-found"
     ("custom backend not found for domain: " <> cs (domainText domain))
 
+invalidTeamNotificationId :: Error
+invalidTeamNotificationId = Error status400 "invalid-notification-id" "Could not parse notification id (must be UUIDv1)."
+
+--------------------------------------------------------------------------------
+-- Federation
+
+federationNotEnabled :: forall a. Typeable a => NonEmpty (Qualified (Id (Remote a))) -> Error
+federationNotEnabled qualifiedIds =
+  Error
+    status403
+    "federation-not-enabled"
+    ("Federation is not enabled, but remote qualified IDs (" <> idType <> ") were found: " <> rendered)
+  where
+    idType = cs (show (typeRep @a))
+    rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderQualifiedId) $ qualifiedIds
+
 federationNotImplemented :: forall a. Typeable a => NonEmpty (IdMapping a) -> Error
-federationNotImplemented qualified =
+federationNotImplemented qualifiedIds =
   Error
     status403
     "federation-not-implemented"
-    ("Federation is not implemented, but global qualified IDs (" <> idType <> ") found: " <> rendered)
+    ("Federation is not implemented, but ID mappings (" <> idType <> ") were found: " <> rendered)
   where
     idType = cs (show (typeRep @a))
-    rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderMapping) $ qualified
-    renderMapping IdMapping {idMappingLocal, idMappingGlobal} =
-      idToText idMappingLocal <> " -> " <> renderQualifiedId idMappingGlobal
-
-invalidTeamNotificationId :: Error
-invalidTeamNotificationId = Error status400 "invalid-notification-id" "Could not parse notification id (must be UUIDv1)."
+    rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderMapping) $ qualifiedIds
+    renderMapping IdMapping {_imMappedId, _imQualifiedId} =
+      idToText _imMappedId <> " -> " <> renderQualifiedId _imQualifiedId
