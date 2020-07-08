@@ -27,10 +27,10 @@ import qualified Brig.API.Client as API
 import qualified Brig.API.Connection as API
 import Brig.API.Error
 import Brig.API.Handler
+import Brig.API.IdMapping (resolveOpaqueUserId)
 import qualified Brig.API.Properties as API
 import Brig.API.Types
 import qualified Brig.API.User as API
-import Brig.API.Util (resolveOpaqueUserId)
 import Brig.App
 import qualified Brig.Data.User as Data
 import Brig.Options hiding (internalEvents, sesQueue)
@@ -856,17 +856,17 @@ getPrekeyH (u ::: c ::: _) = do
     Nothing -> setStatus status404 empty
 
 getPrekey :: OpaqueUserId -> ClientId -> Handler (Maybe Public.ClientPrekey)
-getPrekey u c = do
+getPrekey u c = lift $ do
   resolvedUserId <- resolveOpaqueUserId u
-  lift $ API.claimPrekey resolvedUserId c
+  API.claimPrekey resolvedUserId c
 
 getPrekeyBundleH :: OpaqueUserId ::: JSON -> Handler Response
 getPrekeyBundleH (u ::: _) = json <$> getPrekeyBundle u
 
 getPrekeyBundle :: OpaqueUserId -> Handler Public.PrekeyBundle
-getPrekeyBundle u = do
+getPrekeyBundle u = lift $ do
   resolvedUserId <- resolveOpaqueUserId u
-  lift $ API.claimPrekeyBundle resolvedUserId
+  API.claimPrekeyBundle resolvedUserId
 
 getMultiPrekeyBundlesH :: JsonRequest Public.UserClients ::: JSON -> Handler Response
 getMultiPrekeyBundlesH (req ::: _) = do
@@ -935,7 +935,7 @@ getUserClientsH (user ::: _) =
 
 getUserClients :: OpaqueUserId -> Handler [Public.PubClient]
 getUserClients opaqueUserId = do
-  resolvedUserId <- resolveOpaqueUserId opaqueUserId
+  resolvedUserId <- lift $ resolveOpaqueUserId opaqueUserId
   API.pubClient <$$> API.lookupClients resolvedUserId !>> clientError
 
 getUserClientH :: OpaqueUserId ::: ClientId ::: JSON -> Handler Response
@@ -944,7 +944,7 @@ getUserClientH (user ::: cid ::: _) = do
 
 getUserClient :: OpaqueUserId -> ClientId -> Handler (Maybe Public.PubClient)
 getUserClient opaqueUserId clientId = do
-  resolvedUserId <- resolveOpaqueUserId opaqueUserId
+  resolvedUserId <- lift $ resolveOpaqueUserId opaqueUserId
   API.pubClient <$$> API.lookupClient resolvedUserId clientId !>> clientError
 
 getRichInfoH :: UserId ::: UserId ::: JSON -> Handler Response
@@ -1048,9 +1048,9 @@ getUserH (_ ::: self ::: uid) = do
   fmap json . ifNothing userNotFound =<< getUser self uid
 
 getUser :: UserId -> OpaqueUserId -> Handler (Maybe Public.UserProfile)
-getUser self opaqueUserId = do
+getUser self opaqueUserId = lift $ do
   resolvedUserId <- resolveOpaqueUserId opaqueUserId
-  lift $ API.lookupProfile self resolvedUserId
+  API.lookupProfile self resolvedUserId
 
 getUserDisplayNameH :: JSON ::: UserId -> Handler Response
 getUserDisplayNameH (_ ::: self) = do
@@ -1070,7 +1070,7 @@ listUsersH (_ ::: self ::: qry) =
 listUsers :: UserId -> Either (List OpaqueUserId) (Range 1 4 (List (OptionallyQualified Handle))) -> Handler [Public.UserProfile]
 listUsers self = \case
   Left us -> do
-    resolvedUserIds <- traverse resolveOpaqueUserId (fromList us)
+    resolvedUserIds <- lift $ traverse resolveOpaqueUserId (fromList us)
     byIds resolvedUserIds
   Right hs -> do
     us <- getIds (fromList $ fromRange hs)

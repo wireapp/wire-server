@@ -27,10 +27,10 @@ import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import qualified Data.HashMap.Strict as HashMap
-import Data.Id (idToText)
+import Data.Id (Id, Remote, idToText)
 import Data.IdMapping (IdMapping (IdMapping, _imMappedId, _imQualifiedId))
 import Data.List.NonEmpty (NonEmpty)
-import Data.Qualified (renderQualifiedId)
+import Data.Qualified (Qualified, renderQualifiedId)
 import Data.String.Conversions (cs)
 import qualified Data.Text.Lazy as LT
 import qualified Data.ZAuth.Validation as ZAuth
@@ -480,18 +480,6 @@ can'tAddLegalHoldClient =
 legalHoldNotEnabled :: Wai.Error
 legalHoldNotEnabled = Wai.Error status403 "legalhold-not-enabled" "LegalHold must be enabled and configured on the team first"
 
-federationNotImplemented :: forall a. Typeable a => NonEmpty (IdMapping a) -> Wai.Error
-federationNotImplemented qualified =
-  Wai.Error
-    status403
-    "federation-not-implemented"
-    ("Federation is not implemented, but global qualified IDs (" <> idType <> ") found: " <> rendered)
-  where
-    idType = cs (show (typeRep @a))
-    rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderMapping) $ qualified
-    renderMapping IdMapping {_imMappedId, _imQualifiedId} =
-      idToText _imMappedId <> " -> " <> renderQualifiedId _imQualifiedId
-
 -- (the tautological constraint in the type signature is added so that once we remove the
 -- feature, ghc will guide us here.)
 customerExtensionBlockedDomain :: (DomainsBlockedForRegistration ~ DomainsBlockedForRegistration) => Domain -> Wai.Error
@@ -501,3 +489,28 @@ customerExtensionBlockedDomain domain = Wai.Error (mkStatus 451 "Unavailable For
       "[Customer extension] the email domain " <> cs (show domain)
         <> " that you are attempting to register a user with has been \
            \blocked for creating wire users.  Please contact your IT department."
+
+--------------------------------------------------------------------------------
+-- Federation
+
+federationNotEnabled :: forall a. Typeable a => NonEmpty (Qualified (Id (Remote a))) -> Wai.Error
+federationNotEnabled qualifiedIds =
+  Wai.Error
+    status403
+    "federation-not-enabled"
+    ("Federation is not enabled, but remote qualified IDs (" <> idType <> ") were found: " <> rendered)
+  where
+    idType = cs (show (typeRep @a))
+    rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderQualifiedId) $ qualifiedIds
+
+federationNotImplemented :: forall a. Typeable a => NonEmpty (IdMapping a) -> Wai.Error
+federationNotImplemented qualified =
+  Wai.Error
+    status403
+    "federation-not-implemented"
+    ("Federation is not implemented, but ID mappings (" <> idType <> ") found: " <> rendered)
+  where
+    idType = cs (show (typeRep @a))
+    rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderMapping) $ qualified
+    renderMapping IdMapping {_imMappedId, _imQualifiedId} =
+      idToText _imMappedId <> " -> " <> renderQualifiedId _imQualifiedId
