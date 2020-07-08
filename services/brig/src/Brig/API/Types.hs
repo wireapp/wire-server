@@ -99,6 +99,7 @@ data CreateUserError
   | DuplicateUserKey UserKey
   | BlacklistedUserKey UserKey
   | TooManyTeamMembers
+  | UserCreationRestricted
   | -- | Some precondition on another Wire service failed. We propagate this error.
     ExternalPreconditionFailed Wai.Error
 
