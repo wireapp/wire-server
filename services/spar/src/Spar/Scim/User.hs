@@ -58,7 +58,7 @@ import Galley.Types.Teams as Galley
 import Imports
 import Network.URI
 import qualified SAML2.WebSSO as SAML
-import Spar.App (Env, Spar, getUser, sparCtxOpts, validateEmailIfExists, wrapMonadClient, wrapMonadClient)
+import Spar.App (Env, Spar, getUser, sparCtxOpts, validateEmailIfExists, wrapMonadClient)
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Brig
 import Spar.Intra.Galley as Galley
@@ -657,11 +657,9 @@ getOrCreateScimUser stiTeam brigUser = do
     getRichInfo' = lift . lift . Brig.getBrigUserRichInfo
     getStatus' = lift . lift . Brig.getStatus
     getSSOIdentity' = MaybeT . pure . (userIdentity >=> ssoIdentity)
-    toExternalId' =
-      either
-        (const (throwError (Scim.badRequest Scim.InvalidFilter (Just "Invalid externalId"))))
-        pure
-        . Brig.toExternalId
+    toExternalId' = either err pure . Brig.toExternalId
+      where
+        err = const . throwError $ Scim.badRequest Scim.InvalidFilter (Just "Invalid externalId")
     toScimStoredUser'' uid = lift . lift . toScimStoredUser uid
     insertScimUser' uid = lift . lift . wrapMonadClient . Data.insertScimUser uid
 
