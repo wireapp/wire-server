@@ -60,8 +60,7 @@ import Network.URI
 import qualified SAML2.WebSSO as SAML
 import Spar.App (Env, Spar, getUser, sparCtxOpts, validateEmailIfExists, wrapMonadClient, wrapMonadClient)
 import qualified Spar.Data as Data
-import Spar.Intra.Brig as Brig
-import qualified Spar.Intra.Brig as Intra.Brig
+import qualified Spar.Intra.Brig as Brig
 import Spar.Intra.Galley as Galley
 import Spar.Scim.Auth ()
 import Spar.Scim.Types
@@ -105,7 +104,7 @@ instance Scim.UserDB SparTag Spar where
     -- but it would complicate this code a bit, instead of leaving it as is.
     members <- lift $ Galley.getTeamMembers stiTeam
     brigusers :: [User] <-
-      lift (Intra.Brig.getBrigUsers ((^. Galley.userId) <$> members))
+      lift (Brig.getBrigUsers ((^. Galley.userId) <$> members))
     scimusers :: [Scim.StoredUser SparTag] <-
       lift . wrapMonadClient . Data.getScimUsers $ BrigTypes.userId <$> brigusers
     pure $ Scim.fromList scimusers
@@ -118,12 +117,12 @@ instance Scim.UserDB SparTag Spar where
           x <- runMaybeT $ case attrName of
             "username" -> do
               handle <- MaybeT . pure . parseHandle . Text.toLower $ val
-              brigUser <- MaybeT . lift . Intra.Brig.getBrigUserByHandle $ handle
+              brigUser <- MaybeT . lift . Brig.getBrigUserByHandle $ handle
               getOrCreateScimUser stiTeam brigUser
             "externalid" -> do
               uref <- mkUserRef idpConfig (pure val)
               uid <- MaybeT . lift . wrapMonadClient . Data.getSAMLUser $ uref
-              brigUser <- MaybeT . lift . Intra.Brig.getBrigUser $ uid
+              brigUser <- MaybeT . lift . Brig.getBrigUser $ uid
               getOrCreateScimUser stiTeam brigUser
             _ -> throwError (Scim.badRequest Scim.InvalidFilter (Just "Unsupported attribute"))
           pure $ Scim.fromList (toList x)
@@ -147,7 +146,7 @@ instance Scim.UserDB SparTag Spar where
     maybe (throwError . Scim.notFound "User" $ idToText uid) pure user
     where
       -- pretty wrappers; should use some MTL instances to get rid of lifts
-      getBrigUser' = MaybeT . lift . Intra.Brig.getBrigUser
+      getBrigUser' = MaybeT . lift . Brig.getBrigUser
       getUserTeam' = MaybeT . pure . userTeam
       getScimUser' = MaybeT . lift . wrapMonadClient . Data.getScimUser
   postUser ::
@@ -340,18 +339,18 @@ createValidScimUser (ValidScimUser user uref idpConfig handl mbName richInfo act
   -- This is the pain and the price you pay for the horribleness called MTL
   storedUser <- lift $ toScimStoredUser buid user
   let teamid = idpConfig ^. SAML.idpExtraInfo . wiTeam
-  buid' <- lift $ Intra.Brig.createBrigUser uref buid teamid mbName ManagedByScim
+  buid' <- lift $ Brig.createBrigUser uref buid teamid mbName ManagedByScim
   assert (buid == buid') $ pure ()
   -- If we crash now, we have an active user that cannot login. And can not
   -- be bound this will be a zombie user that needs to be manually cleaned
   -- up.  We should consider making setUserHandle part of createUser and
   -- making it transactional.  If the user redoes the POST A new standalone
   -- user will be created
-  lift $ Intra.Brig.setBrigUserHandle buid handl
+  lift $ Brig.setBrigUserHandle buid handl
   -- If we crash now,  a POST retry will fail with 409 user already exists.
   -- Azure at some point will retry with GET /Users?filter=userName eq handle
   -- and then issue a PATCH containing the rich info and the externalId
-  lift $ Intra.Brig.setBrigUserRichInfo buid richInfo
+  lift $ Brig.setBrigUserRichInfo buid richInfo
   -- If we crash now, same as above, but the PATCH will only contain externalId
 
   -- FUTUREWORK(arianvp): these two actions we probably want to make transactional
@@ -413,7 +412,7 @@ updateValidScimUser tokinfo uid newScimUser = do
         lift . wrapMonadClient $ Data.deleteSAMLUser olduref
         lift . wrapMonadClient $ Data.insertSAMLUser newuref uid
       -- update 'SAML.UserRef' on brig
-      bindok <- lift $ Intra.Brig.bindBrigUser uid newuref
+      bindok <- lift $ Brig.bindBrigUser uid newuref
       unless bindok . throwError $
         Scim.serverError "Failed to update SAML UserRef on brig."
       -- this can only happen if user is found in spar.scim_user, but missing on brig.
@@ -429,13 +428,13 @@ updateValidScimUser tokinfo uid newScimUser = do
 
       lift $ do
         case newScimUser ^. vsuName of
-          Just nm | oldScimUser ^. vsuName /= Just nm -> Intra.Brig.setBrigUserName uid nm
+          Just nm | oldScimUser ^. vsuName /= Just nm -> Brig.setBrigUserName uid nm
           _ -> pure ()
         when (oldScimUser ^. vsuHandle /= newScimUser ^. vsuHandle)
-          $ Intra.Brig.setBrigUserHandle uid
+          $ Brig.setBrigUserHandle uid
           $ newScimUser ^. vsuHandle
         when (oldScimUser ^. vsuRichInfo /= newScimUser ^. vsuRichInfo)
-          $ Intra.Brig.setBrigUserRichInfo uid
+          $ Brig.setBrigUserRichInfo uid
           $ newScimUser ^. vsuRichInfo
 
       lift $
@@ -515,7 +514,7 @@ updScimStoredUser' (SAML.Time moddate) usr (Scim.WithMeta meta (Scim.WithId scim
 deleteScimUser ::
   ScimTokenInfo -> UserId -> Scim.ScimHandler Spar ()
 deleteScimUser ScimTokenInfo {stiTeam} uid = do
-  mbBrigUser <- lift (Intra.Brig.getBrigUser uid)
+  mbBrigUser <- lift (Brig.getBrigUser uid)
   case mbBrigUser of
     Nothing -> do
       -- double-deletion gets you a 404.
@@ -534,10 +533,10 @@ deleteScimUser ScimTokenInfo {stiTeam} uid = do
           (logThenServerError $ "no userSSOId for user " <> cs (idToText uid))
           pure
           $ BrigTypes.userSSOId brigUser
-      uref <- either logThenServerError pure $ Intra.Brig.fromUserSSOId ssoId
+      uref <- either logThenServerError pure $ Brig.fromUserSSOId ssoId
       lift . wrapMonadClient $ Data.deleteSAMLUser uref
       lift . wrapMonadClient $ Data.deleteScimUser uid
-      lift $ Intra.Brig.deleteBrigUser uid
+      lift $ Brig.deleteBrigUser uid
       return ()
   where
     logThenServerError :: String -> Scim.ScimHandler Spar b
@@ -654,15 +653,15 @@ getOrCreateScimUser stiTeam brigUser = do
     getScimUser' = MaybeT . lift . wrapMonadClient . Data.getScimUser
     getUserTeam' = MaybeT . pure . userTeam
     getUserHandle' = MaybeT . pure . userHandle
-    setManagedBy' uid = lift . lift . Intra.Brig.setBrigUserManagedBy uid
-    getRichInfo' = lift . lift . Intra.Brig.getBrigUserRichInfo
-    getStatus' = lift . lift . Intra.Brig.getStatus
+    setManagedBy' uid = lift . lift . Brig.setBrigUserManagedBy uid
+    getRichInfo' = lift . lift . Brig.getBrigUserRichInfo
+    getStatus' = lift . lift . Brig.getStatus
     getSSOIdentity' = MaybeT . pure . (userIdentity >=> ssoIdentity)
     toExternalId' =
       either
         (const (throwError (Scim.badRequest Scim.InvalidFilter (Just "Invalid externalId"))))
         pure
-        . toExternalId
+        . Brig.toExternalId
     toScimStoredUser'' uid = lift . lift . toScimStoredUser uid
     insertScimUser' uid = lift . lift . wrapMonadClient . Data.insertScimUser uid
 
