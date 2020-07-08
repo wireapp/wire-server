@@ -86,6 +86,7 @@ tests _ at opts p b c ch g aws =
       test' aws p "post /register - 400 invalid input" $ testCreateUserInvalidEmailOrPhone b,
       test' aws p "post /register - 403 blacklist" $ testCreateUserBlacklist b aws,
       test' aws p "post /register - 400 external-SSO" $ testCreateUserExternalSSO b,
+      test' aws p "post /register - 403 restricted user creation" $ testRestrictedUserCreation opts b,
       test' aws p "post /activate - 200/204 + expiry" $ testActivateWithExpiry b at,
       test' aws p "get /users/:uid - 404" $ testNonExistingUser b,
       test' aws p "get /users/:uid - 200" $ testExistingUser b,
@@ -1046,6 +1047,25 @@ testDomainsBlockedForRegistration opts brig = withDomainsBlockedForRegistration 
     const 200 === statusCode
   where
     p email = RequestBodyLBS . encode $ SendActivationCode (Left email) Nothing False
+
+testRestrictedUserCreation :: Opt.Opts -> Brig -> Http ()
+testRestrictedUserCreation opts brig = do
+  let opts' = opts {Opt.optSettings = (Opt.optSettings opts) {Opt.setRestrictUserCreation = Just True}}
+  withSettingsOverrides opts' $ do
+    e <- randomEmail
+    let emailReq = RequestBodyLBS . encode $ object ["email" .= fromEmail e]
+    post (brig . path "/activate/send" . contentJson . body emailReq)
+      !!! (const 200 === statusCode)
+    getActivationCode brig (Left e) >>= \case
+      Nothing -> liftIO $ assertFailure "missing activation key/code"
+      Just (_, c) -> do
+        let Object reg =
+              object
+                [ "name" .= Name "Alice",
+                  "email" .= fromEmail e,
+                  "email_code" .= c
+                ]
+        postUserRegister' reg brig !!! const 403 === statusCode
 
 -- helpers
 

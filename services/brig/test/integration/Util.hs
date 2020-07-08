@@ -168,7 +168,11 @@ requestActivationCode brig expectedStatus ep =
     bdy (Left e) = object ["email" .= fromEmail e]
     bdy (Right p) = object ["phone" .= fromPhone p]
 
-getActivationCode :: Brig -> Either Email Phone -> Http (Maybe (ActivationKey, ActivationCode))
+getActivationCode ::
+  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  Brig ->
+  Either Email Phone ->
+  m (Maybe (ActivationKey, ActivationCode))
 getActivationCode brig ep = do
   let qry = either (queryItem "email" . toByteString') (queryItem "phone" . toByteString') ep
   r <- get $ brig . path "/i/users/activation-code" . qry
@@ -268,8 +272,12 @@ postUserInternal payload brig = do
 
 postUserRegister :: Object -> Brig -> Http User
 postUserRegister payload brig = do
-  rs <- post (brig . path "/register" . contentJson . body (RequestBodyLBS $ encode payload)) <!! const 201 === statusCode
+  rs <- postUserRegister' payload brig <!! const 201 === statusCode
   maybe (error $ "postUserRegister: Failed to decode user due to: " ++ show rs) return (responseJsonMaybe rs)
+
+postUserRegister' :: (MonadIO m, MonadCatch m, MonadHttp m) => Object -> Brig -> m ResponseLBS
+postUserRegister' payload brig = do
+  post (brig . path "/register" . contentJson . body (RequestBodyLBS $ encode payload))
 
 deleteUser :: UserId -> Maybe PlainTextPassword -> Brig -> Http ResponseLBS
 deleteUser u p brig =
