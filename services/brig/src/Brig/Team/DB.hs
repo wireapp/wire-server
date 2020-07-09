@@ -28,9 +28,12 @@ module Brig.Team.DB
     lookupInvitations,
     lookupInvitationByCode,
     lookupInvitationInfo,
+    lookupInvitationInfoByEmail,
+    lookupInvitationByEmail,
     mkInvitationCode,
     mkInvitationId,
     InvitationInfo (..),
+    InvitationByEmail (..),
   )
 where
 
@@ -40,7 +43,7 @@ import Brig.Options
 import Brig.Types.Common
 import Brig.Types.Team.Invitation
 import Brig.Types.User
-import Cassandra
+import Cassandra as C
 import Data.Conduit ((.|), runConduit)
 import qualified Data.Conduit.List as C
 import Data.Id
@@ -53,6 +56,7 @@ import Galley.Types.Teams (Role)
 import qualified Galley.Types.Teams as Team
 import Imports
 import OpenSSL.Random (randBytes)
+import qualified System.Logger.Class as Log
 import UnliftIO.Async (pooledMapConcurrentlyN_)
 
 mkInvitationCode :: IO InvitationCode
@@ -67,6 +71,11 @@ data InvitationInfo = InvitationInfo
     iiInvId :: InvitationId
   }
   deriving (Eq, Show)
+
+data InvitationByEmail
+  = InvitationByEmail InvitationInfo
+  | InvitationByEmailNotFound
+  | InvitationByEmailMoreThanOne
 
 insertInvitation ::
   MonadClient m =>
@@ -89,12 +98,16 @@ insertInvitation t role email (toUTCTimeMillis -> now) minviter inviteeName phon
     setConsistency Quorum
     addPrepQuery cqlInvitation (t, role, iid, code, email, now, minviter, inviteeName, phone, round timeout)
     addPrepQuery cqlInvitationInfo (code, t, iid, round timeout)
+    addPrepQuery cqlInvitationByEmail (email, t, iid, code, round timeout)
   return (inv, code)
   where
     cqlInvitationInfo :: PrepQuery W (InvitationCode, TeamId, InvitationId, Int32) ()
     cqlInvitationInfo = "INSERT INTO team_invitation_info (code, team, id) VALUES (?, ?, ?) USING TTL ?"
     cqlInvitation :: PrepQuery W (TeamId, Role, InvitationId, InvitationCode, Email, UTCTimeMillis, Maybe UserId, Maybe Name, Maybe Phone, Int32) ()
     cqlInvitation = "INSERT INTO team_invitation (team, role, id, code, email, created_at, created_by, name, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) USING TTL ?"
+    -- Note: the edge case of multiple invites to the same team by different admins from the same team results in last-invite-wins in the team_invitation_email table.
+    cqlInvitationByEmail :: PrepQuery W (Email, TeamId, InvitationId, InvitationCode, Int32) ()
+    cqlInvitationByEmail = "INSERT INTO team_invitation_email (email, team, invitation, code) VALUES (?, ?, ?, ?) USING TTL ?"
 
 lookupInvitation :: MonadClient m => TeamId -> InvitationId -> m (Maybe Invitation)
 lookupInvitation t r =
@@ -117,6 +130,12 @@ lookupInvitationCode t r =
     cqlInvitationCode :: PrepQuery R (TeamId, InvitationId) (Identity InvitationCode)
     cqlInvitationCode = "SELECT code FROM team_invitation WHERE team = ? AND id = ?"
 
+lookupInvitationCodeEmail :: MonadClient m => TeamId -> InvitationId -> m (Maybe (InvitationCode, Email))
+lookupInvitationCodeEmail t r = retry x1 (query1 cqlInvitationCodeEmail (params Quorum (t, r)))
+  where
+    cqlInvitationCodeEmail :: PrepQuery R (TeamId, InvitationId) (InvitationCode, Email)
+    cqlInvitationCodeEmail = "SELECT code, email FROM team_invitation WHERE team = ? AND id = ?"
+
 lookupInvitations :: MonadClient m => TeamId -> Maybe InvitationId -> Range 1 500 Int32 -> m (ResultPage Invitation)
 lookupInvitations team start (fromRange -> size) = do
   page <- case start of
@@ -138,13 +157,14 @@ lookupInvitations team start (fromRange -> size) = do
 
 deleteInvitation :: MonadClient m => TeamId -> InvitationId -> m ()
 deleteInvitation t i = do
-  code <- lookupInvitationCode t i
-  case code of
-    Just invCode -> retry x5 $ batch $ do
+  codeEmail <- lookupInvitationCodeEmail t i
+  case codeEmail of
+    Just (invCode, invEmail) -> retry x5 $ batch $ do
       setType BatchLogged
       setConsistency Quorum
       addPrepQuery cqlInvitation (t, i)
       addPrepQuery cqlInvitationInfo (Identity invCode)
+      addPrepQuery cqlInvitationEmail (invEmail, t)
     Nothing ->
       retry x5 $ write cqlInvitation (params Quorum (t, i))
   where
@@ -152,6 +172,8 @@ deleteInvitation t i = do
     cqlInvitation = "DELETE FROM team_invitation where team = ? AND id = ?"
     cqlInvitationInfo :: PrepQuery W (Identity InvitationCode) ()
     cqlInvitationInfo = "DELETE FROM team_invitation_info WHERE code = ?"
+    cqlInvitationEmail :: PrepQuery W (Email, TeamId) ()
+    cqlInvitationEmail = "DELETE FROM team_invitation_email WHERE email = ? AND team = ?"
 
 deleteInvitations :: (MonadClient m, MonadUnliftIO m) => TeamId -> m ()
 deleteInvitations t =
@@ -173,6 +195,29 @@ lookupInvitationInfo ic@(InvitationCode c)
     toInvitationInfo i (t, r) = InvitationInfo i t r
     cqlInvitationInfo :: PrepQuery R (Identity InvitationCode) (TeamId, InvitationId)
     cqlInvitationInfo = "SELECT team, id FROM team_invitation_info WHERE code = ?"
+
+lookupInvitationByEmail :: (Log.MonadLogger m, MonadClient m) => Email -> m (Maybe Invitation)
+lookupInvitationByEmail e = lookupInvitationInfoByEmail e >>= \case
+  InvitationByEmail InvitationInfo {..} -> lookupInvitation iiTeam iiInvId
+  _ -> return Nothing
+
+lookupInvitationInfoByEmail :: (Log.MonadLogger m, MonadClient m) => Email -> m InvitationByEmail
+lookupInvitationInfoByEmail email = do
+  res <- retry x1 (query cqlInvitationEmail (params Quorum (Identity email)))
+  case res of
+    [] -> return InvitationByEmailNotFound
+    (tid, invId, code) : [] ->
+      -- one invite pending
+      return $ InvitationByEmail (InvitationInfo code tid invId)
+    _ : _ : _ -> do
+      -- edge case: more than one pending invite from different teams
+      Log.info $
+        Log.msg (Log.val "team_invidation_email: multiple pending invites from different teams for the same email")
+          Log.~~ Log.field "email" (show email)
+      return InvitationByEmailMoreThanOne
+  where
+    cqlInvitationEmail :: PrepQuery R (Identity Email) (TeamId, InvitationId, InvitationCode)
+    cqlInvitationEmail = "SELECT team, invitation, code FROM team_invitation_email WHERE email = ?"
 
 countInvitations :: MonadClient m => TeamId -> m Int64
 countInvitations t =
