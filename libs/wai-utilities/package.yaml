@@ -36,6 +36,8 @@ dependencies:
 - wai >=3.0
 - wai-predicates >=0.8
 - wai-routing >=0.12
+- wai-extra
+- hspec-wai
 - warp >=3.0
 library:
   source-dirs: src
