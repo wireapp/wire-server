@@ -75,19 +75,19 @@ tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon
 tests _ at opts p b c ch g aws =
   testGroup
     "account"
-    [ test' aws p "post /register - 201 (with preverified)" $ testCreateUserWithPreverified b aws,
+    [ test' aws p "post /register - 201 (with preverified)" $ testCreateUserWithPreverified opts b aws,
       test' aws p "post /register - 201" $ testCreateUser b g,
       test' aws p "post /register - 201 + no email" $ testCreateUserNoEmailNoPassword b,
       test' aws p "post /register - 201 anonymous" $ testCreateUserAnon b g,
       test' aws p "post /register - 201 anonymous expiry" $ testCreateUserAnonExpiry b,
-      test' aws p "post /register - 201 pending" $ testCreateUserPending b,
-      test' aws p "post /register - 201 existing activation" $ testCreateAccountPendingActivationKey b,
-      test' aws p "post /register - 409 conflict" $ testCreateUserConflict b,
-      test' aws p "post /register - 400 invalid input" $ testCreateUserInvalidEmailOrPhone b,
-      test' aws p "post /register - 403 blacklist" $ testCreateUserBlacklist b aws,
+      test' aws p "post /register - 201 pending" $ testCreateUserPending opts b,
+      test' aws p "post /register - 201 existing activation" $ testCreateAccountPendingActivationKey opts b,
+      test' aws p "post /register - 409 conflict" $ testCreateUserConflict opts b,
+      test' aws p "post /register - 400 invalid input" $ testCreateUserInvalidEmailOrPhone opts b,
+      test' aws p "post /register - 403 blacklist" $ testCreateUserBlacklist opts b aws,
       test' aws p "post /register - 400 external-SSO" $ testCreateUserExternalSSO b,
       test' aws p "post /register - 403 restricted user creation" $ testRestrictedUserCreation opts b,
-      test' aws p "post /activate - 200/204 + expiry" $ testActivateWithExpiry b at,
+      test' aws p "post /activate - 200/204 + expiry" $ testActivateWithExpiry opts b at,
       test' aws p "get /users/:uid - 404" $ testNonExistingUser b,
       test' aws p "get /users/:uid - 200" $ testExistingUser b,
       test' aws p "get /users?:id=.... - 200" $ testMultipleUsers b,
@@ -97,7 +97,7 @@ tests _ at opts p b c ch g aws =
       test' aws p "head /self/password - 200/404" $ testPasswordSet b,
       test' aws p "put /self/password - 200" $ testPasswordChange b,
       test' aws p "put /self/locale - 200" $ testUserLocaleUpdate b aws,
-      test' aws p "post /activate/send - 200" $ testSendActivationCode b,
+      test' aws p "post /activate/send - 200" $ testSendActivationCode opts b,
       test' aws p "post /activate/send - 400 invalid input" $ testSendActivationCodeInvalidEmailOrPhone b,
       test' aws p "post /activate/send - 403 prefix excluded" $ testSendActivationCodePrefixExcluded b,
       test' aws p "post /i/users/phone-prefix" $ testInternalPhonePrefixes b,
@@ -117,8 +117,8 @@ tests _ at opts p b c ch g aws =
         ]
     ]
 
-testCreateUserWithPreverified :: Brig -> AWS.Env -> Http ()
-testCreateUserWithPreverified brig aws = do
+testCreateUserWithPreverified :: Opt.Opts -> Brig -> AWS.Env -> Http ()
+testCreateUserWithPreverified opts brig aws = do
   -- Register (pre verified) user with phone
   p <- randomPhone
   let phoneReq = RequestBodyLBS . encode $ object ["phone" .= fromPhone p]
@@ -133,12 +133,16 @@ testCreateUserWithPreverified brig aws = do
                 "phone" .= fromPhone p,
                 "phone_code" .= c
               ]
-      usr <- postUserRegister reg brig
-      let uid = userId usr
-      get (brig . path "/self" . zUser uid) !!! do
-        const 200 === statusCode
-        const (Just p) === (userPhone <=< responseJsonMaybe)
-      liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled usr)
+      if Opt.setRestrictUserCreation (Opt.optSettings opts) == Just True
+        then do
+          postUserRegister' reg brig !!! const 403 === statusCode
+        else do
+          usr <- postUserRegister reg brig
+          let uid = userId usr
+          get (brig . path "/self" . zUser uid) !!! do
+            const 200 === statusCode
+            const (Just p) === (userPhone <=< responseJsonMaybe)
+          liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled usr)
   -- Register (pre verified) user with email
   e <- randomEmail
   let emailReq = RequestBodyLBS . encode $ object ["email" .= fromEmail e]
@@ -153,15 +157,19 @@ testCreateUserWithPreverified brig aws = do
                 "email" .= fromEmail e,
                 "email_code" .= c
               ]
-      usr <- postUserRegister reg brig
-      let uid = userId usr
-      get (brig . path "/self" . zUser uid) !!! do
-        const 200 === statusCode
-        const (Just e) === (userEmail <=< responseJsonMaybe)
-      liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled usr)
+      if Opt.setRestrictUserCreation (Opt.optSettings opts) == Just True
+        then do
+          postUserRegister' reg brig !!! const 403 === statusCode
+        else do
+          usr <- postUserRegister reg brig
+          let uid = userId usr
+          get (brig . path "/self" . zUser uid) !!! do
+            const 200 === statusCode
+            const (Just e) === (userEmail <=< responseJsonMaybe)
+          liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled usr)
   liftIO $ Util.assertEmptyUserJournalQueue aws
 
-testCreateUser :: Brig -> Galley -> Http ()
+testCreateUser :: Brig -> Galley -> Http () -- TODO: this has nothing to do with /register.  what's going on here?
 testCreateUser brig galley = do
   uid <- userId <$> randomUser brig
   get (galley . path "conversations" . zAuthAccess uid "conn") !!! do
@@ -206,8 +214,9 @@ testCreateUserAnon brig galley = do
   Search.refreshIndex brig
   Search.assertCan'tFind brig suid uid "Mr. Pink"
 
-testCreateUserPending :: Brig -> Http ()
-testCreateUserPending brig = do
+testCreateUserPending :: Opt.Opts -> Brig -> Http ()
+testCreateUserPending (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
+testCreateUserPending _ brig = do
   e <- randomEmail
   let p =
         RequestBodyLBS . encode $
@@ -258,8 +267,9 @@ testCreateUserNoEmailNoPassword brig = do
     !!! const 202 === statusCode
 
 -- | email address must not be taken on @/register@.
-testCreateUserConflict :: Brig -> Http ()
-testCreateUserConflict brig = do
+testCreateUserConflict :: Opt.Opts -> Brig -> Http ()
+testCreateUserConflict (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
+testCreateUserConflict _ brig = do
   -- trusted email domains
   u <- createUser "conflict" brig
   let p =
@@ -286,8 +296,9 @@ testCreateUserConflict brig = do
     const 409 === statusCode
     const (Just "key-exists") === fmap Error.label . responseJsonMaybe
 
-testCreateUserInvalidEmailOrPhone :: Brig -> Http ()
-testCreateUserInvalidEmailOrPhone brig = do
+testCreateUserInvalidEmailOrPhone :: Opt.Opts -> Brig -> Http ()
+testCreateUserInvalidEmailOrPhone (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
+testCreateUserInvalidEmailOrPhone _ brig = do
   email <- randomEmail
   let reqEmail =
         RequestBodyLBS . encode $
@@ -312,8 +323,9 @@ testCreateUserInvalidEmailOrPhone brig = do
   post (brig . path "/register" . contentJson . body reqPhone)
     !!! const 400 === statusCode
 
-testCreateUserBlacklist :: Brig -> AWS.Env -> Http ()
-testCreateUserBlacklist brig aws =
+testCreateUserBlacklist :: Opt.Opts -> Brig -> AWS.Env -> Http ()
+testCreateUserBlacklist (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ _ = pure ()
+testCreateUserBlacklist _ brig aws =
   mapM_ ensureBlacklist ["bounce", "complaint"]
   where
     ensureBlacklist typ = do
@@ -370,8 +382,9 @@ testCreateUserExternalSSO brig = do
   post (brig . path "/register" . contentJson . body (p True True))
     !!! const 400 === statusCode
 
-testActivateWithExpiry :: Brig -> Opt.Timeout -> Http ()
-testActivateWithExpiry brig timeout = do
+testActivateWithExpiry :: Opt.Opts -> Brig -> Opt.Timeout -> Http ()
+testActivateWithExpiry (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ _ = pure ()
+testActivateWithExpiry _ brig timeout = do
   u <- responseJsonError =<< registerUser "dilbert" brig
   let email = fromMaybe (error "missing email") (userEmail u)
   act <- getActivationCode brig (Left email)
@@ -385,10 +398,11 @@ testActivateWithExpiry brig timeout = do
       awaitExpiry (round timeout + 5) kc
       activate brig kc !!! const 404 === statusCode
   where
+    actualBody :: HasCallStack => ResponseLBS -> Maybe (Maybe UserIdentity, Bool)
     actualBody rs = do
       a <- responseJsonMaybe rs
       Just (Just (activatedIdentity a), activatedFirst a)
-    awaitExpiry :: Int -> ActivationPair -> Http ()
+    awaitExpiry :: HasCallStack => Int -> ActivationPair -> Http ()
     awaitExpiry n kc = do
       liftIO $ threadDelay 1000000
       r <- activate brig kc
@@ -577,8 +591,9 @@ testPhoneUpdate brig = do
     const 200 === statusCode
     const (Just phn) === (userPhone <=< responseJsonMaybe)
 
-testCreateAccountPendingActivationKey :: Brig -> Http ()
-testCreateAccountPendingActivationKey brig = do
+testCreateAccountPendingActivationKey :: Opt.Opts -> Brig -> Http ()
+testCreateAccountPendingActivationKey (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
+testCreateAccountPendingActivationKey _ brig = do
   uid <- userId <$> randomUser brig
   phn <- randomPhone
   -- update phone
@@ -737,17 +752,21 @@ testPasswordChange brig = do
           [ "new_password" .= newPass
           ]
 
-testSendActivationCode :: Brig -> Http ()
-testSendActivationCode brig = do
+testSendActivationCode :: Opt.Opts -> Brig -> Http ()
+testSendActivationCode opts brig = do
   -- Code for phone pre-verification
   requestActivationCode brig 200 . Right =<< randomPhone
   -- Code for email pre-verification
   requestActivationCode brig 200 . Left =<< randomEmail
   -- Standard email registration flow
-  r <- registerUser "Alice" brig <!! const 201 === statusCode
-  let Just email = userEmail =<< responseJsonMaybe r
-  -- Re-request existing activation code
-  requestActivationCode brig 200 (Left email)
+  if Opt.setRestrictUserCreation (Opt.optSettings opts) == Just True
+    then do
+      registerUser "Alice" brig !!! const 403 === statusCode
+    else do
+      r <- registerUser "Alice" brig <!! const 201 === statusCode
+      let Just email = userEmail =<< responseJsonMaybe r
+      -- Re-request existing activation code
+      requestActivationCode brig 200 (Left email)
 
 testSendActivationCodeInvalidEmailOrPhone :: Brig -> Http ()
 testSendActivationCodeInvalidEmailOrPhone brig = do
@@ -1048,6 +1067,11 @@ testDomainsBlockedForRegistration opts brig = withDomainsBlockedForRegistration 
   where
     p email = RequestBodyLBS . encode $ SendActivationCode (Left email) Nothing False
 
+-- | FUTUREWORK: This is not very exhaustive.  You can change the flag in
+-- brig.integration.yaml manually and re-run the integration tests for more coverage.  If you
+-- want to have that coverage permanently, grep this module for @setRestrictUserCreation@ and
+-- change all those tests to run with both settings.  Use 'testRestrictedUserCreation' here as
+-- an instructive example.
 testRestrictedUserCreation :: Opt.Opts -> Brig -> Http ()
 testRestrictedUserCreation opts brig = do
   let opts' = opts {Opt.optSettings = (Opt.optSettings opts) {Opt.setRestrictUserCreation = Just True}}
