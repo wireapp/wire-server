@@ -27,5 +27,5 @@ import Text.RawString.QQ
 migration :: Migration
 migration = Migration 8 "Remove deprecated tables" $ do
   schema' [r| drop columnfamily clients; |]
-  schema' [r| drop columnfamily fallback; |]
+  schema' [r| alter columnfamily user_push drop fallback; |]
   schema' [r| drop columnfamily fallback_cancel; |]
