@@ -156,7 +156,7 @@ optSettings:
   setPropertyMaxValueLen: 4096
   setDeleteThrottleMillis: 0
   setSqsThrottleMillis: 1000
-  setRestrictUserCreation: true
+  setRestrictUserCreation: false
   # setSearchSameTeamOnly: false
   # ^ NOTE: this filters out search results for team users,
   #   i.e., if you are a team user the search endpoints will
