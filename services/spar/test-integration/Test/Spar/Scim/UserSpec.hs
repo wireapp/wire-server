@@ -28,6 +28,7 @@ where
 
 import Bilge
 import Bilge.Assert
+import Brig.Types.Intra (AccountStatus (Active, Suspended))
 import Brig.Types.User as Brig
 import Control.Lens
 import Control.Monad.Catch (MonadCatch)
@@ -73,12 +74,100 @@ spec = do
   specDeleteUser
   specAzureQuirks
   specEmailValidation
+  specSuspend
   describe "CRUD operations maintain invariants in mapScimToBrig, mapBrigToScim." $ do
     it "..." $ do
       pendingWith "this is a job for quickcheck-state-machine"
   describe "validateScimUser'" $ do
     it "works" $ do
       pendingWith "write a list of unit tests here that make the mapping explicit, exhaustive, and easy to read."
+
+specSuspend :: SpecWith TestEnv
+specSuspend = do
+  describe "suspend" $ do
+    let checkPreExistingUser :: Bool -> TestSpar ()
+        checkPreExistingUser isActive = do
+          (_, teamid, idp, (_, privCreds)) <- registerTestIdPWithMeta
+          member <- loginSsoUserFirstTime idp privCreds
+          -- NOTE: once SCIM is enabled SSO Auto-provisioning is disabled
+          tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
+          handle'@(Handle handle) <- nextHandle
+          runSpar $ Intra.setBrigUserHandle member handle'
+          unless isActive $ do
+            runSpar $ Intra.setStatus member Suspended
+          [user] <- listUsers tok (Just (filterBy "userName" handle))
+          lift $ (Scim.User.active . Scim.value . Scim.thing $ user) `shouldBe` Just isActive
+    it "pre-existing suspended users are inactive" $ do
+      checkPreExistingUser False
+    it "pre-existing unsuspended users are active" $ do
+      checkPreExistingUser True
+
+    let activeInactiveAndBack putOrPatch = do
+          user <- randomScimUser
+          (tok, _) <- registerIdPAndScimToken
+          scimStoredUserBlah <- createUser tok user
+          let uid = Scim.id . Scim.thing $ scimStoredUserBlah
+          do
+            -- NOTE: It's Nothing, not Just True, as we want to also test the fact that existing
+            -- SCIM records don't have the active field. absence of active should be interpreted as Active.
+            -- Once we get rid of the `scim` table and make scim serve brig records directly, this is
+            -- not an issue anymore.
+            lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUserBlah) `shouldBe` Nothing
+            void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active)
+          do
+            scimStoredUser <- putOrPatch tok uid user True
+            lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just True
+            void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active)
+          do
+            scimStoredUser <- putOrPatch tok uid user False
+            lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just False
+            void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Suspended)
+          do
+            scimStoredUser <- putOrPatch tok uid user True
+            lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just True
+            void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active)
+
+    it "PUT will change state from active to inactive and back" $ do
+      void $ activeInactiveAndBack $ \tok uid user active ->
+        updateUser tok uid user {Scim.User.active = Just active}
+
+    it "PATCH will change state from active to inactive and back" $ do
+      let replaceAttrib name value =
+            PatchOp.Operation
+              PatchOp.Replace
+              (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
+              (Just (toJSON value))
+      void $ activeInactiveAndBack $ \tok uid _user active ->
+        patchUser tok uid $ PatchOp.PatchOp [replaceAttrib "active" active]
+
+    -- Consider the following series of events:
+    --
+    -- ```
+    -- { }                 --- patch "active" true --->
+    -- { "active": true }  --- patch "active" false --->
+    -- { "active": false } --- delete "active" --->
+    -- { }
+    -- ```
+    --
+    -- Since we give the case of missing active flag the same meaning as the flag set to
+    -- @True@, it's most consistent to also re-activating a suspended user if the active flag
+    -- is removed: the active flag must have been @False@ before (otherwise the user would
+    -- have been active already), and if we didn't re-activate the user, the next scim-get
+    -- would yield @{ "active": false }@, which is plainly wrong.
+    it "PATCH removing the active attribute makes you active" $ do
+      let deleteAttrib name =
+            PatchOp.Operation
+              PatchOp.Remove
+              (Just (PatchOp.NormalPath (Filter.topLevelAttrPath name)))
+              Nothing
+      user <- randomScimUser
+      (tok, _) <- registerIdPAndScimToken
+      scimStoredUserBlah <- createUser tok user
+      let uid = Scim.id . Scim.thing $ scimStoredUserBlah
+      runSpar $ Intra.setStatus uid Suspended
+      void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Suspended)
+      void $ patchUser tok uid $ PatchOp.PatchOp [deleteAttrib "active"]
+      void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active)
 
 ----------------------------------------------------------------------------
 -- User creation

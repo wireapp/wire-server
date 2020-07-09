@@ -44,6 +44,8 @@ module Spar.Intra.Brig
     parseResponse,
     MonadSparToBrig (..),
     isEmailValidationEnabledUser,
+    getStatus,
+    setStatus,
   )
 where
 
@@ -464,3 +466,24 @@ isEmailValidationEnabledUser uid = do
   case user >>= userTeam of
     Nothing -> pure False
     Just tid -> isEmailValidationEnabledTeam tid
+
+getStatus :: (HasCallStack, MonadSparToBrig m) => UserId -> m AccountStatus
+getStatus uid = do
+  resp <-
+    call $
+      method GET
+        . paths ["/i/users", toByteString' uid, "status"]
+  case statusCode resp of
+    200 -> (\(AccountStatusResp status) -> status) <$> parseResponse @AccountStatusResp resp
+    _ -> throwSpar (SparBrigErrorWith (responseStatus resp) "Could not retrieve account status")
+
+setStatus :: (HasCallStack, MonadSparToBrig m) => UserId -> AccountStatus -> m ()
+setStatus uid status = do
+  resp <-
+    call $
+      method PUT
+        . paths ["/i/users", toByteString' uid, "status"]
+        . json (AccountStatusUpdate status)
+  case statusCode resp of
+    200 -> pure ()
+    _ -> throwSpar (SparBrigErrorWith (responseStatus resp) "Could not set status")
