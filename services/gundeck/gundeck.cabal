@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4a119da87d623ed68d204d4b28a7f65ea3c098fee20179700bee34a417431ab6
+-- hash: 44d624e87420752a7ddbc1c7428a29eb51826a54766d2deb77d56efc43ee27d3
 
 name:           gundeck
 version:        1.45.0
@@ -221,6 +221,7 @@ executable gundeck-schema
       V5
       V6
       V7
+      V8
       Paths_gundeck
   hs-source-dirs:
       schema/src
