@@ -1089,7 +1089,9 @@ testRestrictedUserCreation opts brig = do
                   "email" .= fromEmail e,
                   "email_code" .= c
                 ]
-        postUserRegister' reg brig !!! const 403 === statusCode
+        postUserRegister' reg brig !!! do
+          const 403 === statusCode
+          const (Just "user-creation-restricted") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
 
 -- helpers
 
