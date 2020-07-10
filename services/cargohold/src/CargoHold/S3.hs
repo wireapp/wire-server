@@ -128,7 +128,7 @@ uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders ct cl md5) tok src = do
     md5Res = Text.decodeLatin1 $ digestToBase Base64 md5
     req b =
       putObject (BucketName b) (ObjectKey key) (toBody reqBdy)
-        & poContentType ?~ encodeMIMEType ct
+        & poContentType ?~ MIME.showType ct
         & poContentMD5 ?~ md5Res
         & poMetadata .~ metaHeaders tok prc
 
@@ -143,7 +143,7 @@ getMetadataV3 (s3Key . mkKey -> key) = do
   where
     req b = headObject (BucketName b) (ObjectKey key)
     handle r = do
-      let ct = fromMaybe octets (parseMIMEType =<< r ^. horsContentType)
+      let ct = fromMaybe octets (MIME.parseMIMEType =<< r ^. horsContentType)
       let meta = HML.toList $ r ^. horsMetadata
       return $ parse ct meta
     parse ct h =
@@ -181,7 +181,7 @@ updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok ct) = do
         $ Text.encodeUtf8 (b <> "/" <> key)
     req b =
       copyObject (BucketName b) (copySrc b) (ObjectKey key)
-        & coContentType ?~ encodeMIMEType ct
+        & coContentType ?~ MIME.showType ct
         & coMetadataDirective ?~ MDReplace
         & coMetadata .~ metaHeaders tok prc
 
@@ -195,7 +195,7 @@ signedURL path = do
   signed <-
     AWS.execute (AWS.useDownloadEndpoint e) $
       presignURL now (Seconds (fromIntegral ttl)) req
-  return =<< toUri signed
+  toUri signed
   where
     toUri x = case parseURI strictURIParserOptions x of
       Left e -> do
@@ -352,7 +352,7 @@ getResumable k = do
     mk = mkResumableKeyMeta k
     req b = headObject (BucketName b) (ObjectKey $ s3ResumableKey mk)
     handle r = do
-      let ct = fromMaybe octets (parseMIMEType =<< view horsContentType r)
+      let ct = fromMaybe octets (MIME.parseMIMEType =<< view horsContentType r)
       let meta = HML.toList $ view horsMetadata r
       case parse ct meta of
         Nothing -> return Nothing
@@ -397,7 +397,7 @@ createResumable k p typ size tok = do
       | otherwise = return Nothing
     first key ct meta b =
       putObject (BucketName b) (ObjectKey key) (toBody (mempty :: ByteString))
-        & poContentType ?~ encodeMIMEType ct
+        & poContentType ?~ MIME.showType ct
         & poMetadata .~ HML.fromList meta
     -- Determine whether a given 'S3Resumable' is eligible for the
     -- S3 multipart upload API. That is the case if the chunk size
@@ -441,7 +441,7 @@ uploadChunk r offset rsrc = do
   return (r', rest)
   where
     nr = mkChunkNr r offset
-    ct = encodeMIMEType (resumableType r)
+    ct = MIME.showType (resumableType r)
     putChunk chunk size = do
       let S3ChunkKey k = mkChunkKey (resumableKey r) nr
       let req b =
@@ -491,7 +491,7 @@ completeResumable r = do
       let reqBdy = Chunked $ ChunkedBody chunkSize totalSize (chunkSource e chunks)
       let putRq b =
             putObject (BucketName b) (ObjectKey (s3Key (mkKey ast))) reqBdy
-              & poContentType ?~ encodeMIMEType (resumableType r)
+              & poContentType ?~ MIME.showType (resumableType r)
               & poMetadata .~ metaHeaders (resumableToken r) own
       void $ exec putRq
 
@@ -723,12 +723,6 @@ parseAmzMeta k h = lookupCI k h >>= fromByteString . encodeUtf8
 
 -------------------------------------------------------------------------------
 -- Utilities
-
-parseMIMEType :: Text -> Maybe MIME.Type
-parseMIMEType = MIME.parseMIMEType
-
-encodeMIMEType :: MIME.Type -> Text
-encodeMIMEType = MIME.showType
 
 octets :: MIME.Type
 octets = MIME.Type (MIME.Application "octet-stream") []
