@@ -22,11 +22,13 @@ where
 
 import CargoHold.Run (run)
 import Imports
+import OpenSSL (withOpenSSL)
 import Util.Options
 
 main :: IO ()
-main = do
-  getOptions desc Nothing defaultPath >>= run
+main =
+  withOpenSSL $
+    getOptions desc Nothing defaultPath >>= run
   where
     desc = "Cargohold - Asset Storage"
     defaultPath = "/etc/wire/cargohold/conf/cargohold.yaml"
