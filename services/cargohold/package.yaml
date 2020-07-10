@@ -45,8 +45,6 @@ library:
   - auto-update >=0.1.4
   - byteable >=0.1
   - base16-bytestring >=0.1
-  - blaze-builder >=0.3
-  - binary >=0.8
   - cargohold-types >=0.5
   - case-insensitive >=1.0
   - conduit >=1.2

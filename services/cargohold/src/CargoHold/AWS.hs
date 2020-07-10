@@ -41,7 +41,6 @@ module CargoHold.AWS
   )
 where
 
-import Blaze.ByteString.Builder (toLazyByteString)
 import CargoHold.CloudFront
 import CargoHold.Options
 import Control.Lens hiding ((.=))
@@ -49,6 +48,7 @@ import Control.Monad.Catch
 import qualified Control.Monad.Trans.AWS as AWST
 import Control.Monad.Trans.Resource
 import Control.Retry
+import Data.ByteString.Builder (toLazyByteString)
 import Imports
 import Network.AWS (AWSRequest, Rs)
 import qualified Network.AWS as AWS

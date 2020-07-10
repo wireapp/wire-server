@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ea68fedecc39058c59c6aed5135cc0416845c7ce21f34ac85efb430dde89d905
+-- hash: 8d783eed9262ccdd5d845888d2283d21217d99e85c7d1d32262a9022ab9fa1b0
 
 name:           cargohold
 version:        1.5.0
@@ -61,8 +61,6 @@ library
     , base16-bytestring >=0.1
     , base64-bytestring >=1.0
     , bilge >=0.21
-    , binary >=0.8
-    , blaze-builder >=0.3
     , byteable >=0.1
     , bytestring >=0.10
     , bytestring-conversion >=0.2

@@ -61,7 +61,7 @@ import Conduit
 import Control.Error (ExceptT, throwE)
 import Control.Lens hiding ((.=), (:<), (:>), parts)
 import Control.Retry
-import Data.Binary.Builder (toLazyByteString)
+import Data.ByteString.Builder (toLazyByteString)
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LBS
