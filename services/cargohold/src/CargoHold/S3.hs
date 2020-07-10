@@ -60,7 +60,6 @@ import qualified Codec.MIME.Type as MIME
 import Conduit
 import Control.Error (ExceptT, throwE)
 import Control.Lens hiding ((.=), (:<), (:>), parts)
-import Control.Retry
 import Data.ByteString.Builder (toLazyByteString)
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
@@ -86,7 +85,7 @@ import Network.AWS.S3
 import Network.Wai.Utilities.Error (Error (..))
 import Safe (readMay)
 import qualified System.Logger.Class as Log
-import System.Logger.Message
+import System.Logger.Message ((.=), msg, val, (~~))
 import URI.ByteString
 
 newtype S3AssetKey = S3AssetKey {s3Key :: Text}
@@ -729,27 +728,16 @@ octets = MIME.Type (MIME.Application "octet-stream") []
 
 exec :: (AWSRequest r) => (Text -> r) -> ExceptT Error App (Rs r)
 exec req = do
-  e <- view aws
-  b <- view (aws . AWS.s3Bucket)
-  AWS.execute e (AWS.send $ req b)
+  env <- view aws
+  AWS.exec env req
 
 execCatch ::
   (AWSRequest r, Show r) =>
   (Text -> r) ->
   ExceptT Error App (Maybe (Rs r))
-execCatch rq = do
-  e <- view aws
-  b <- view (aws . AWS.s3Bucket)
-  let req = rq b
-  resp <- AWS.execute e (retrying AWS.retry5x (const AWS.canRetry) (const (AWS.sendCatch req)))
-  case resp of
-    Left err -> do
-      Log.debug $
-        "remote" .= val "S3"
-          ~~ msg (show err)
-          ~~ msg (show req)
-      return Nothing
-    Right r -> return $ Just r
+execCatch req = do
+  env <- view aws
+  AWS.execCatch env req
 
 --------------------------------------------------------------------------------
 -- Legacy

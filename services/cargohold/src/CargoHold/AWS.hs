@@ -31,13 +31,10 @@ module CargoHold.AWS
     Error (..),
 
     -- * AWS
+    send,
+    sendCatch,
     exec,
     execCatch,
-    throwA,
-    sendCatch,
-    canRetry,
-    retry5x,
-    send,
   )
 where
 
@@ -56,7 +53,8 @@ import qualified Network.AWS.Env as AWS
 import qualified Network.AWS.S3 as S3
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), Manager)
 import qualified System.Logger as Logger
-import System.Logger.Class
+import qualified System.Logger.Class as Log
+import System.Logger.Class (Logger, MonadLogger (log), (~~))
 import Util.Options (AWSEndpoint (..))
 
 data Env = Env
@@ -129,7 +127,7 @@ mkEnv lgr s3End s3Download bucket cfOpts mgr = do
       AWS.newEnvWith AWS.Discover Nothing mgr
         <&> set AWS.envLogger (awsLogger g)
         <&> AWS.configure s3
-    awsLogger g l = Logger.log g (mapLevel l) . Logger.msg . toLazyByteString
+    awsLogger g l = Logger.log g (mapLevel l) . Log.msg . toLazyByteString
     mapLevel AWS.Info = Logger.Info
     mapLevel AWS.Debug = Logger.Trace
     mapLevel AWS.Trace = Logger.Trace
@@ -159,22 +157,31 @@ send r = throwA =<< sendCatch r
 throwA :: Either AWS.Error a -> Amazon a
 throwA = either (throwM . GeneralError) return
 
-execCatch ::
-  (AWSRequest a, AWS.HasEnv r, MonadUnliftIO m, MonadCatch m, MonadThrow m) =>
-  r ->
-  a ->
-  m (Either AWS.Error (Rs a))
-execCatch e cmd =
-  runResourceT . AWST.runAWST e
-    $ AWST.trying AWS._Error
-    $ AWST.send cmd
-
 exec ::
-  (AWSRequest a, AWS.HasEnv r, MonadUnliftIO m, MonadCatch m, MonadThrow m) =>
-  r ->
-  a ->
-  m (Rs a)
-exec e cmd = execCatch e cmd >>= either (throwM . GeneralError) return
+  (AWSRequest r, MonadIO m) =>
+  Env ->
+  (Text -> r) ->
+  m (Rs r)
+exec env request = do
+  let bucket = _s3Bucket env
+  execute env (AWS.send $ request bucket)
+
+execCatch ::
+  (AWSRequest r, Show r, MonadLogger m, MonadIO m) =>
+  Env ->
+  (Text -> r) ->
+  m (Maybe (Rs r))
+execCatch env request = do
+  let req = request (_s3Bucket env)
+  resp <- execute env (retrying retry5x (const canRetry) (const (sendCatch req)))
+  case resp of
+    Left err -> do
+      Log.debug $
+        Log.field "remote" (Log.val "S3")
+          ~~ Log.msg (show err)
+          ~~ Log.msg (show req)
+      return Nothing
+    Right r -> return $ Just r
 
 canRetry :: MonadIO m => Either AWS.Error a -> m Bool
 canRetry (Right _) = pure False
