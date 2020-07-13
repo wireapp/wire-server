@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d61c32c046efc149b7de08f80cc5f16ac31a6c90f59d51f04b53949da3a3c1b8
+-- hash: 85f04ae9c723a855be519c59f49ed58d99684c46e4541c67b15592f702fa26ea
 
 name:           galley
 version:        0.83.0
@@ -87,7 +87,6 @@ library
     , base >=4.6 && <5
     , base64-bytestring >=1.0
     , bilge >=0.21.1
-    , blaze-builder >=0.3
     , brig-types >=0.73.1
     , bytestring >=0.9
     , bytestring-conversion >=0.2

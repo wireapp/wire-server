@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8e1fc11eb8dfecf6b35bf33c8cd612ed3e50f371781a549f8728286a79acb547
+-- hash: d24f5fff02a52bee31f4c44250bf1b220b95113bb66026289808204f560ad4bd
 
 name:           ropes
 version:        0.4.20
@@ -19,8 +19,6 @@ build-type:     Simple
 
 library
   exposed-modules:
-      Ropes.Aws
-      Ropes.Aws.Ses
       Ropes.Nexmo
       Ropes.Twilio
   other-modules:
@@ -31,7 +29,6 @@ library
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       aeson >=0.6
-    , aws >=0.10.2
     , base ==4.*
     , bytestring >=0.9
     , errors >=2.0
@@ -49,55 +46,4 @@ library
     , tinylog >=0.10.2
     , transformers >=0.3
     , yaml >=0.8.22
-  default-language: Haskell2010
-
-executable ropes-aws-auth-test
-  main-is: Main.hs
-  other-modules:
-      Paths_ropes
-  hs-source-dirs:
-      test/integration-aws-auth
-  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded
-  build-depends:
-      aws
-    , base >=4 && <5
-    , bytestring >=0.9
-    , errors >=2.0
-    , http-client
-    , imports
-    , mime-mail >=0.4
-    , ropes
-    , semigroups >=0.11
-    , time
-    , tinylog
-  default-language: Haskell2010
-
-executable ropes-aws-test
-  main-is: Main.hs
-  other-modules:
-      Tests.Ropes.Aws.Ses
-      Paths_ropes
-  hs-source-dirs:
-      test/integration-aws
-  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded
-  build-depends:
-      aws
-    , base >=4 && <5
-    , bytestring >=0.9
-    , errors >=2.0
-    , exceptions
-    , http-client
-    , http-client-tls
-    , imports
-    , mime-mail >=0.4
-    , resourcet
-    , ropes
-    , semigroups >=0.11
-    , tasty >=0.2
-    , tasty-hunit >=0.2
-    , text >=0.11.3
-    , tinylog
-    , transformers
   default-language: Haskell2010

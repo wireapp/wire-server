@@ -44,7 +44,6 @@ module Brig.AWS
   )
 where
 
-import Blaze.ByteString.Builder (toLazyByteString)
 import qualified Brig.Options as Opt
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
@@ -52,6 +51,7 @@ import qualified Control.Monad.Trans.AWS as AWST
 import Control.Monad.Trans.Resource
 import Control.Retry
 import Data.Aeson hiding ((.=))
+import Data.ByteString.Builder (toLazyByteString)
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text

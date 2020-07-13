@@ -17,6 +17,7 @@
 
 module CargoHold.Util where
 
+import CargoHold.AWS
 import CargoHold.App
 import qualified CargoHold.CloudFront as CloudFront
 import qualified CargoHold.S3 as S3
@@ -27,7 +28,7 @@ import URI.ByteString hiding (urlEncode)
 
 genSignedURL :: (ToByteString p) => p -> Handler URI
 genSignedURL path = do
-  uri <- cloudFront <$> view aws >>= \case
+  uri <- view (aws . cloudFront) >>= \case
     Nothing -> S3.signedURL path
     Just cf -> CloudFront.signedURL cf path
   return $! uri
