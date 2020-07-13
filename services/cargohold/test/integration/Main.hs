@@ -34,6 +34,7 @@ import qualified Metrics
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS
 import Network.Wai.Utilities.Server (compile)
+import OpenSSL
 import Options.Applicative
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -80,7 +81,7 @@ runTests run = defaultMainWithIngredients ings
         : defaultIngredients
 
 main :: IO ()
-main = runTests go
+main = withOpenSSL $ runTests go
   where
     go c i = withResource (getOpts c i) releaseOpts $ \opts ->
       testGroup

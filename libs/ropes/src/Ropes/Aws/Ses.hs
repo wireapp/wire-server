@@ -15,19 +15,20 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module CargoHold.Util where
+module Ropes.Aws.Ses where
 
-import CargoHold.App
-import qualified CargoHold.CloudFront as CloudFront
-import qualified CargoHold.S3 as S3
-import Control.Lens
-import Data.ByteString.Conversion
+import Aws.Ses
+import Data.ByteString.Lazy (toStrict)
 import Imports
-import URI.ByteString hiding (urlEncode)
+import Network.Mail.Mime
 
-genSignedURL :: (ToByteString p) => p -> Handler URI
-genSignedURL path = do
-  uri <- cloudFront <$> view aws >>= \case
-    Nothing -> S3.signedURL path
-    Just cf -> CloudFront.signedURL cf path
-  return $! uri
+-- | Convenience function for constructing a 'SendRawEmail' command,
+-- which involves extracting/duplicating some data from the MIME 'Mail'.
+sendRawEmail :: MonadIO m => Mail -> m SendRawEmail
+sendRawEmail m = do
+  msg <- liftIO $ toStrict <$> renderMail' m
+  return $
+    SendRawEmail
+      (map addressEmail (mailTo m))
+      (RawMessage msg)
+      (Just . Sender . addressEmail $ mailFrom m)

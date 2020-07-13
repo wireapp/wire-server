@@ -21,6 +21,7 @@ library:
   - aeson                     >= 0.11
   - attoparsec                >= 0.12
   - bilge                     >= 0.12
+  - blaze-builder             >= 0.3
   - brig-types                >= 0.9.6
   - bytestring                >= 0.10
   - bytestring-conversion     >= 0.2

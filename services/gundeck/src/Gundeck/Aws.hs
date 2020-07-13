@@ -50,6 +50,7 @@ module Gundeck.Aws
   )
 where
 
+import Blaze.ByteString.Builder (toLazyByteString)
 import Control.Error hiding (err, isRight)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
@@ -58,7 +59,6 @@ import Control.Monad.Trans.Resource
 import Control.Retry (limitRetries, retrying)
 import Data.Aeson (decodeStrict)
 import Data.Attoparsec.Text
-import Data.ByteString.Builder (toLazyByteString)
 import qualified Data.HashMap.Strict as Map
 import Data.Id
 import qualified Data.Set as Set
