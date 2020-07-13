@@ -63,12 +63,6 @@ Please refer to [Stack's installation instructions](https://docs.haskellstack.or
 
 When you're done, ensure `stack --version` is recent, ideally the same as `STACK_ALPINE_VERSION` in [`build/alpine/Dockerfile.prebuilder`](../../build/alpine/Dockerfile.prebuilder).
 
-You may wish to make executables installed by stack available, by e.g. adding the following to your shell profile:
-
-```bash
-export PATH=~/.local/bin:$PATH
-```
-
 ### Ubuntu / Debian
 _Note_: The packaged versions of `haskell-stack` are too old. It is recommended to follow the generic instructions or to use stack to update stack (`stack upgrade`).
 
