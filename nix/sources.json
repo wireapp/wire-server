@@ -5,22 +5,22 @@
         "homepage": "https://github.com/nmattia/niv",
         "owner": "nmattia",
         "repo": "niv",
-        "rev": "50600603b51432839c4b6267fd6a0d00ae6b0451",
-        "sha256": "1rrhlscbqdn9a77ws49acl536n3mz6bai68z08mpg8qqa4ahr2sn",
+        "rev": "c27f5a6c57de4495045450b6587d4a2c489851c8",
+        "sha256": "064lyr1661pk7hh7npgxsmk4cni9bc34hb2d6r76qp4cs2hcazim",
         "type": "tarball",
-        "url": "https://github.com/nmattia/niv/archive/50600603b51432839c4b6267fd6a0d00ae6b0451.tar.gz",
+        "url": "https://github.com/nmattia/niv/archive/c27f5a6c57de4495045450b6587d4a2c489851c8.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     },
     "nixpkgs": {
-        "branch": "nixos-19.09",
+        "branch": "nixpkgs-unstable",
         "description": "A read-only mirror of NixOS/nixpkgs tracking the released channels. Send issues and PRs to",
         "homepage": "https://github.com/NixOS/nixpkgs",
         "owner": "NixOS",
         "repo": "nixpkgs-channels",
-        "rev": "8731aaaf8b30888bc24994096db830993090d7c4",
-        "sha256": "1hcc89rxi47nb0mpk05nl9rbbb04kfw97xfydhpmmgh57yrp3zqa",
+        "rev": "0260f04fe257f56b7221dccc427dc104de1e6d77",
+        "sha256": "0k3vinxj4n96bjy1p8rk9rwdzyp4s0xsyc47wgraibnbiq9gpqzl",
         "type": "tarball",
-        "url": "https://github.com/NixOS/nixpkgs-channels/archive/8731aaaf8b30888bc24994096db830993090d7c4.tar.gz",
+        "url": "https://github.com/NixOS/nixpkgs-channels/archive/0260f04fe257f56b7221dccc427dc104de1e6d77.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     }
 }
