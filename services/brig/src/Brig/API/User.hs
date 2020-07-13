@@ -21,6 +21,7 @@
 module Brig.API.User
   ( -- * User Accounts / Profiles
     createUser,
+    checkRestrictedUserCreation,
     Brig.API.User.updateUser,
     changeLocale,
     changeSelfEmail,
@@ -311,6 +312,21 @@ createUser new@NewUser {..} = do
             . msg (val "Added via SSO")
       Team.TeamName nm <- lift $ Intra.getTeamName tid
       pure $ CreateUserTeam tid nm
+
+-- | docs/reference/user/registration.md {#RefRestrictRegistration}.
+checkRestrictedUserCreation :: NewUser -> ExceptT CreateUserError AppIO ()
+checkRestrictedUserCreation new = do
+  let memail = newUserEmail new
+      mphone = newUserPhone new
+      msso = newUserSSOId new
+      mteam = newUserTeam new
+  restrictPlease <- lift . asks $ fromMaybe False . setRestrictUserCreation . view settings
+  when
+    ( restrictPlease
+        && or [isJust memail, isJust mphone]
+        && and [isNothing msso, isNothing mteam]
+    )
+    $ throwE UserCreationRestricted
 
 -------------------------------------------------------------------------------
 -- Update Profile

@@ -100,6 +100,7 @@ newUserError (EmailActivationError e) = actError e
 newUserError (PhoneActivationError e) = actError e
 newUserError (BlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const blacklistedPhone) k
 newUserError TooManyTeamMembers = StdError tooManyTeamMembers
+newUserError UserCreationRestricted = StdError userCreationRestricted
 newUserError (ExternalPreconditionFailed e) = StdError e
 
 sendLoginCodeError :: SendLoginCodeError -> Error
@@ -440,6 +441,10 @@ tooManyTeamInvitations = Wai.Error status403 "too-many-team-invitations" "Too ma
 
 tooManyTeamMembers :: Wai.Error
 tooManyTeamMembers = Wai.Error status403 "too-many-team-members" "Too many members in this team."
+
+-- | docs/reference/user/registration.md {#RefRestrictRegistration}.
+userCreationRestricted :: Wai.Error
+userCreationRestricted = Wai.Error status403 "user-creation-restricted" "This instance does not allow creation of personal users or teams."
 
 -- | In contrast to 'tooManyFailedLogins', this is about too many *successful* logins.
 loginsTooFrequent :: Wai.Error

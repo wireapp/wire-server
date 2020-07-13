@@ -465,6 +465,9 @@ data Settings = Settings
     -- However, that parameter is not honoured when using fake-sqs
     -- (where throttling can thus make sense)
     setSqsThrottleMillis :: !(Maybe Int),
+    -- | Do not allow certain user creation flows.
+    -- docs/reference/user/registration.md {#RefRestrictRegistration}.
+    setRestrictUserCreation :: !(Maybe Bool),
     -- Customer extensions
 
     -- | Customer extensions.  Read 'CustomerExtensions' docs carefully!
