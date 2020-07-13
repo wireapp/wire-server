@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 44d624e87420752a7ddbc1c7428a29eb51826a54766d2deb77d56efc43ee27d3
+-- hash: 7c00515f661d51b626cf4501b3ce58e96ba8c0c8404e68b12410deb9ee5fcd27
 
 name:           gundeck
 version:        1.45.0
@@ -72,7 +72,6 @@ library
     , base >=4.7 && <5
     , base64-bytestring >=1.0
     , bilge >=0.21
-    , blaze-builder >=0.3
     , bytestring >=0.9
     , bytestring-conversion >=0.2
     , case-insensitive >=1.0

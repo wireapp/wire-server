@@ -28,7 +28,6 @@ library:
   - base >=4.6 && <5
   - base64-bytestring >=1.0
   - bilge >=0.21.1
-  - blaze-builder >=0.3
   - brig-types >=0.73.1
   - bytestring >=0.9
   - bytestring-conversion >=0.2

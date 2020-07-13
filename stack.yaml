@@ -82,10 +82,6 @@ extra-deps:
 - git: https://github.com/wireapp/haskell-multihash.git
   commit: 300a6f46384bfca33e545c8bab52ef3717452d12
 
-# Our fork of aws with minor fixes
-- git: https://github.com/wireapp/aws
-  commit: 42695688fc20f80bf89cec845c57403954aab0a2
-
 # https://github.com/hspec/hspec-wai/pull/49
 - git: https://github.com/wireapp/hspec-wai
   commit: 0a5142cd3ba48116ff059c041348b817fb7bdb25
@@ -96,30 +92,27 @@ extra-deps:
 # For bloodhound
 - deriving-aeson-0.2.5@sha256:a1efa4ab7ff94f73e6d2733a9d4414cb4c3526761295722cff28027b5b3da1a4,1277
 - aeson-1.4.7.1@sha256:6d8d2fd959b7122a1df9389cf4eca30420a053d67289f92cdc0dbc0dab3530ba,7098
-# amazonka-1.6.1 is buggy: https://github.com/brendanhay/amazonka/issues/466
+
+# amazonka-1.6.1 is buggy:
+# https://github.com/brendanhay/amazonka/pull/493
+# Also, we needed a fix to make V4 signatures work with custom ports:
+# https://github.com/brendanhay/amazonka/pull/588
+#
 # Therefore we pin an unreleased commit directly.
 #
-# More precisely, we pull just some libraries out of it,
-# the other packages weren't changed between 1.6.1 and this commit,
-# so we can use Stackage-supplied versions for them.
-# See https://github.com/brendanhay/amazonka/compare/1.6.1...9cf5b5777b69ac494d23d43a692294882927df34
-#
-# Once there has been made a new hackage release, we can use that instead.
-- archive: https://github.com/brendanhay/amazonka/archive/9cf5b5777b69ac494d23d43a692294882927df34.tar.gz
-  sha256: c3044f803a7652aee88fe600a97321175cdc1443d671246ba7ff78e14bf5b49f
-  size: 11137527
+# Once the fix has been merged (and released on hackage), we can pin that instead.
+- archive: https://github.com/wireapp/amazonka/archive/9de5e0e4b2511ec555fb0975581b3087a94c1b4a.tar.gz
+  sha256: b9277a51b60d639fbd91b630f353bf9db305f5759f8e1ee48f0ab026e6b43d00
+  size: 11138812
   subdirs:
   - amazonka
-  - amazonka-elb
-  - amazonka-redshift
-  - amazonka-route53
+  - amazonka-cloudfront
+  - amazonka-dynamodb
+  - amazonka-s3
+  - amazonka-ses
+  - amazonka-sns
+  - amazonka-sqs
   - core
-
-# Was dropped from LTS
-- amazonka-dynamodb-1.6.1@sha256:6b8852049c65207a7b3741aafa3e4e6c77cfa115e05de3c74868218ae642b6b0,4459
-- amazonka-ses-1.6.1@sha256:335796c855121ca34affd35097676587d5ebe0b2e576da42faaedd9d163881b0,6425
-- amazonka-sns-1.6.1@sha256:b07fbf8a2806fe775b25ea74d0d78f14f286811e4aa59f9c50e97ed99f2a14a6,4271
-- amazonka-sqs-1.6.1@sha256:1578844a31a2e53f9f21fd217e14406a3f02aefa637678ef88b201b01fbed492,3708
 
 
 ############################################################

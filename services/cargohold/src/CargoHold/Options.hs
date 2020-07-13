@@ -23,7 +23,6 @@ import CargoHold.CloudFront (Domain (..), KeyPairId (..))
 import Control.Lens hiding (Level)
 import Data.Aeson.TH
 import Imports
-import qualified Ropes.Aws as Aws
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 import Util.Options.Common
@@ -44,13 +43,7 @@ deriveFromJSON toOptionFieldName ''CloudFrontOpts
 makeLenses ''CloudFrontOpts
 
 data AWSOpts = AWSOpts
-  { -- | Key ID; if 'Nothing', will be taken from the environment or from instance metadata
-    -- (when running on an AWS instance)
-    _awsKeyId :: !(Maybe Aws.AccessKeyId),
-    -- | Secret key
-    _awsSecretKey :: !(Maybe Aws.SecretAccessKey),
-    -- | S3 endpoint
-    _awsS3Endpoint :: !AWSEndpoint,
+  { _awsS3Endpoint :: !AWSEndpoint,
     -- | S3 endpoint for generating download links. Useful if Cargohold is configured to use
     -- an S3 replacement running inside the internal network (in which case internally we
     -- would use one hostname for S3, and when generating an asset link for a client app, we

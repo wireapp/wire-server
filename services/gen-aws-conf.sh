@@ -56,6 +56,11 @@ done
 #   aws:
 #     s3Bucket: <bucket_name>
 #     s3Endpoint: https://s3.eu-west-1.amazonaws.com
+#     # Uncomment the lines below if you want to test cloudfront too
+#     # cloudFront:
+#     #   domain: <DomainForTheDistribution>
+#     #   keyPairId: <KeyPairID>
+#     #   privateKey: /tmp/cargohold/cf-pk.pem
 #
 # galley:
 #   journal:
