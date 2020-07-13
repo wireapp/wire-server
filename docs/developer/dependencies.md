@@ -17,7 +17,7 @@ sudo dnf install -y pkgconfig haskell-platform libstdc++-devel libstdc++-static 
 
 ### Ubuntu / Debian:
 
-_Note_: Debian is not recommended due to this issue when running local integration tests: [#327](https://github.com/wireapp/wire-server/issues/327)*. This issue does not occur with Ubuntu.
+_Note_: Debian is not recommended due to this issue when running local integration tests: [#327](https://github.com/wireapp/wire-server/issues/327). This issue does not occur with Ubuntu.
 
 ```bash
 sudo apt install pkg-config libsodium-dev openssl-dev libtool automake build-essential libicu-dev libsnappy-dev libgeoip-dev protobuf-compiler libxml2-dev zlib1g-dev -y
@@ -59,7 +59,9 @@ sudo installer -pkg /Library/Developer/CommandLineTools/Packages/macOS_SDK_heade
 
 ## Haskell Stack
 
-When you're done, ensure `stack --version` is >= 1.6.5
+Please refer to [Stack's installation instructions](https://docs.haskellstack.org/en/stable/README/#how-to-install).
+
+When you're done, ensure `stack --version` is recent, ideally the same as `STACK_ALPINE_VERSION` in [`build/alpine/Dockerfile.prebuilder`](../../build/alpine/Dockerfile.prebuilder).
 
 You may wish to make executables installed by stack available, by e.g. adding the following to your shell profile:
 
@@ -67,8 +69,8 @@ You may wish to make executables installed by stack available, by e.g. adding th
 export PATH=~/.local/bin:$PATH
 ```
 
-### Ubuntu / Debian Unstable
-_Note_: Debian stretch packages too old of a version of haskell-stack. It is recommended to retrieve the version available from testing, or unstable, or to use stack to update stack.(https://github.com/commercialhaskell/stack/issues/3686)*
+### Ubuntu / Debian
+_Note_: The packaged versions of `haskell-stack` are too old. It is recommended to follow the generic instructions or to use stack to update stack (`stack upgrade`).
 
 ```bash
 sudo apt install haskell-stack -y
