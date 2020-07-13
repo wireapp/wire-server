@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4a119da87d623ed68d204d4b28a7f65ea3c098fee20179700bee34a417431ab6
+-- hash: 7c00515f661d51b626cf4501b3ce58e96ba8c0c8404e68b12410deb9ee5fcd27
 
 name:           gundeck
 version:        1.45.0
@@ -221,6 +221,7 @@ executable gundeck-schema
       V5
       V6
       V7
+      V8
       Paths_gundeck
   hs-source-dirs:
       schema/src

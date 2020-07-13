@@ -15,39 +15,17 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main where
+module V8
+  ( migration,
+  )
+where
 
 import Cassandra.Schema
-import Control.Exception (finally)
 import Imports
-import qualified System.Logger.Extended as Log
-import Util.Options
-import qualified V1
-import qualified V2
-import qualified V3
-import qualified V4
-import qualified V5
-import qualified V6
-import qualified V7
-import qualified V8
+import Text.RawString.QQ
 
-main :: IO ()
-main = do
-  o <- getOptions desc (Just migrationOptsParser) defaultPath
-  l <- Log.mkLogger'
-  migrateSchema
-    l
-    o
-    [ V1.migration,
-      V2.migration,
-      V3.migration,
-      V4.migration,
-      V5.migration,
-      V6.migration,
-      V7.migration,
-      V8.migration
-    ]
-    `finally` Log.close l
-  where
-    desc = "Gundeck Cassandra Schema Migrations"
-    defaultPath = "/etc/wire/gundeck/conf/gundeck-schema.yaml"
+migration :: Migration
+migration = Migration 8 "Remove deprecated tables" $ do
+  schema' [r| drop columnfamily clients; |]
+  schema' [r| alter columnfamily user_push drop fallback; |]
+  schema' [r| drop columnfamily fallback_cancel; |]
