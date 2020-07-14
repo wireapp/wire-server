@@ -1,4 +1,5 @@
 {-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -21,11 +22,12 @@
 module Wire.API.Team.Feature
   ( TeamFeatureName (..),
     TeamFeatureStatus (..),
+    TeamFeatureStatusValue (..),
 
     -- * Swagger
-    modelTeamFeatureStatus,
     typeTeamFeatureName,
-    typeTeamFeatureStatus,
+    modelTeamFeatureStatus,
+    typeTeamFeatureStatusValue,
   )
 where
 
@@ -69,35 +71,59 @@ instance ToByteString TeamFeatureName where
 typeTeamFeatureName :: Doc.DataType
 typeTeamFeatureName = Doc.string . Doc.enum $ cs . toByteString' <$> [(minBound :: TeamFeatureName) ..]
 
-data TeamFeatureStatus = TeamFeatureEnabled | TeamFeatureDisabled
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform TeamFeatureStatus)
+newtype TeamFeatureStatus = TeamFeatureStatus
+  {teamFeatureStatusValue :: TeamFeatureStatusValue}
+  deriving stock (Eq, Show)
+  deriving newtype (Arbitrary)
 
 modelTeamFeatureStatus :: Doc.Model
 modelTeamFeatureStatus = Doc.defineModel "TeamFeatureStatus" $ do
   Doc.description "Configuration of a feature for a team"
-  Doc.property "status" typeTeamFeatureStatus $ Doc.description "status"
+  Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
 
-typeTeamFeatureStatus :: Doc.DataType
-typeTeamFeatureStatus =
+instance ToJSON TeamFeatureStatus where
+  toJSON (TeamFeatureStatus status) =
+    object
+      [ "status" .= status
+      ]
+
+instance FromJSON TeamFeatureStatus where
+  parseJSON = withObject "TeamFeatureStatus" $ \o ->
+    TeamFeatureStatus <$> o .: "status"
+
+data TeamFeatureStatusValue
+  = TeamFeatureEnabled
+  | TeamFeatureDisabled
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform TeamFeatureStatusValue)
+
+typeTeamFeatureStatusValue :: Doc.DataType
+typeTeamFeatureStatusValue =
   Doc.string $
     Doc.enum
       [ "enabled",
         "disabled"
       ]
 
-instance ToJSON TeamFeatureStatus where
-  toJSON status =
-    object
-      [ "status" .= case status of
-          TeamFeatureEnabled -> String "enabled"
-          TeamFeatureDisabled -> String "disabled"
-      ]
+instance ToJSON TeamFeatureStatusValue where
+  toJSON = \case
+    TeamFeatureEnabled -> String "enabled"
+    TeamFeatureDisabled -> String "disabled"
 
-instance FromJSON TeamFeatureStatus where
-  parseJSON = withObject "TeamFeatureStatus" $ \o ->
-    o .: "status"
-      >>= \case
-        "enabled" -> pure TeamFeatureEnabled
-        "disabled" -> pure TeamFeatureDisabled
-        x -> fail $ "unexpected status type: " <> T.unpack x
+instance FromJSON TeamFeatureStatusValue where
+  parseJSON = withText "TeamFeatureStatusValue" $ \case
+    "enabled" -> pure TeamFeatureEnabled
+    "disabled" -> pure TeamFeatureDisabled
+    x -> fail $ "unexpected status type: " <> T.unpack x
+
+instance ToByteString TeamFeatureStatusValue where
+  builder TeamFeatureEnabled = "enabled"
+  builder TeamFeatureDisabled = "disabled"
+
+instance FromByteString TeamFeatureStatusValue where
+  parser = Parser.takeByteString >>= \b ->
+    case T.decodeUtf8' b of
+      Right "enabled" -> pure TeamFeatureEnabled
+      Right "disabled" -> pure TeamFeatureDisabled
+      Right t -> fail $ "Invalid TeamFeatureStatusValue: " <> T.unpack t
+      Left e -> fail $ "Invalid TeamFeatureStatusValue: " <> show e

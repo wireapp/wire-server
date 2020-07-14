@@ -53,7 +53,7 @@ module Wire.API.User.Client
     modelDeleteClient,
     modelClient,
     modelSigkeys,
-    modelLocation, -- re-export
+    modelLocation, -- re-export from types-common
     modelPubClient,
   )
 where

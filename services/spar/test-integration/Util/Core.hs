@@ -185,7 +185,7 @@ import Util.Options
 import Util.Types
 import qualified Web.Cookie as Web
 import qualified Web.Scim.Class.User as ScimC.User
-import Wire.API.Team.Feature (TeamFeatureStatus (..))
+import Wire.API.Team.Feature (TeamFeatureStatus (..), TeamFeatureStatusValue (..))
 
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv
@@ -338,12 +338,12 @@ getSSOEnabledInternal gly tid = do
     gly
       . paths ["i", "teams", toByteString' tid, "features", "sso"]
 
-putSSOEnabledInternal :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyReq -> TeamId -> TeamFeatureStatus -> m ()
+putSSOEnabledInternal :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyReq -> TeamId -> TeamFeatureStatusValue -> m ()
 putSSOEnabledInternal gly tid enabled = do
   void . put $
     gly
       . paths ["i", "teams", toByteString' tid, "features", "sso"]
-      . json enabled
+      . json (TeamFeatureStatus enabled)
       . expect2xx
 
 -- | NB: this does create an SSO UserRef on brig, but not on spar.  this is inconsistent, but the

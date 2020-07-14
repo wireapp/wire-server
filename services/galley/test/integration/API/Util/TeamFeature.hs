@@ -1,3 +1,20 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module API.Util.TeamFeature where
 
 import qualified API.Util as Util
@@ -26,14 +43,14 @@ getTeamSearchVisibilityAvailableInternal :: HasCallStack => (Request -> Request)
 getTeamSearchVisibilityAvailableInternal =
   getTeamFeatureFlagInternalWithGalley Public.TeamFeatureSearchVisibility
 
-putTeamSearchVisibilityAvailableInternal :: HasCallStack => (Request -> Request) -> TeamId -> Public.TeamFeatureStatus -> (MonadIO m, MonadHttp m) => m ()
+putTeamSearchVisibilityAvailableInternal :: HasCallStack => (Request -> Request) -> TeamId -> Public.TeamFeatureStatusValue -> (MonadIO m, MonadHttp m) => m ()
 putTeamSearchVisibilityAvailableInternal g =
   putTeamFeatureFlagInternalWithGalleyAndMod Public.TeamFeatureSearchVisibility g expect2xx
 
-putLegalHoldEnabledInternal' :: HasCallStack => (Request -> Request) -> TeamId -> Public.TeamFeatureStatus -> TestM ()
+putLegalHoldEnabledInternal' :: HasCallStack => (Request -> Request) -> TeamId -> Public.TeamFeatureStatusValue -> TestM ()
 putLegalHoldEnabledInternal' = putTeamFeatureFlagInternal' Public.TeamFeatureLegalHold
 
-putTeamFeatureFlagInternal' :: HasCallStack => Public.TeamFeatureName -> (Request -> Request) -> TeamId -> Public.TeamFeatureStatus -> TestM ()
+putTeamFeatureFlagInternal' :: HasCallStack => Public.TeamFeatureName -> (Request -> Request) -> TeamId -> Public.TeamFeatureStatusValue -> TestM ()
 putTeamFeatureFlagInternal' feature reqmod tid status = do
   g <- view tsGalley
   putTeamFeatureFlagInternalWithGalleyAndMod feature g reqmod tid status
@@ -44,13 +61,13 @@ putTeamFeatureFlagInternalWithGalleyAndMod ::
   (Request -> Request) ->
   (Request -> Request) ->
   TeamId ->
-  Public.TeamFeatureStatus ->
+  Public.TeamFeatureStatusValue ->
   m ()
 putTeamFeatureFlagInternalWithGalleyAndMod feature galley reqmod tid status =
   void . put $
     galley
       . paths ["i", "teams", toByteString' tid, "features", toByteString' feature]
-      . json status
+      . json (Public.TeamFeatureStatus status)
       . reqmod
 
 getTeamFeatureFlagInternal :: HasCallStack => Public.TeamFeatureName -> TeamId -> TestM ResponseLBS

@@ -433,14 +433,14 @@ getTeamFeatureFlag tid feature = do
           . expect2xx
   responseJsonUnsafe <$> catchRpcErrors (rpc' "galley" gly req)
 
-setTeamFeatureFlag :: TeamId -> Public.TeamFeatureName -> Public.TeamFeatureStatus -> Handler ()
+setTeamFeatureFlag :: TeamId -> Public.TeamFeatureName -> Public.TeamFeatureStatusValue -> Handler ()
 setTeamFeatureFlag tid feature status = do
   info $ msg "Setting team feature status"
   gly <- view galley
   let req =
         method PUT
           . paths ["/i/teams", toByteString' tid, "features", toByteString' feature]
-          . Bilge.json status
+          . Bilge.json (Public.TeamFeatureStatus status)
           . contentJson
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case statusCode resp of

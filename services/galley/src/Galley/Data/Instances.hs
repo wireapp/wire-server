@@ -125,14 +125,14 @@ instance Cql TeamStatus where
     n -> fail $ "unexpected team-status: " ++ show n
   fromCql _ = fail "team-status: int expected"
 
-instance Cql Public.TeamFeatureStatus where
+instance Cql Public.TeamFeatureStatusValue where
   ctype = Tagged IntColumn
 
   fromCql (CqlInt n) = case n of
     0 -> pure $ Public.TeamFeatureDisabled
     1 -> pure $ Public.TeamFeatureEnabled
-    _ -> fail "fromCql: Invalid TeamFeatureStatus"
-  fromCql _ = fail "fromCql: TeamFeatureStatus: CqlInt expected"
+    _ -> fail "fromCql: Invalid TeamFeatureStatusValue"
+  fromCql _ = fail "fromCql: TeamFeatureStatusValue: CqlInt expected"
 
   toCql Public.TeamFeatureDisabled = CqlInt 0
   toCql Public.TeamFeatureEnabled = CqlInt 1

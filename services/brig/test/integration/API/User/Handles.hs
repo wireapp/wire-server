@@ -46,7 +46,7 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
-import Wire.API.Team.Feature (TeamFeatureStatus (..))
+import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at conf p b c g =

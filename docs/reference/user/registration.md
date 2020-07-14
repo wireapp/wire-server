@@ -1,6 +1,6 @@
 # Registration {#RefRegistration}
 
-_Author: Artyom Kazak_
+_Authors: Artyom Kazak, Matthias Fischmann_
 
 ---
 
@@ -138,3 +138,72 @@ Set-Cookie: zuid=...
     "picture": [],
 }
 ```
+
+## Blocking creation of personal users, new teams {#RefRestrictRegistration}
+
+There are some unauthenticated end-points that allow arbitrary users on the open internet to do things like create a new team.  This is desired in the cloud, and not an issue on many on-prem solutions (eg. all of those that are not exposed to the global IP address space).  However, if you run an on-prem setup that is open to the world, you likely want to block this.
+
+Brig has a server option for this:
+
+```yaml
+optSettings:
+  setRestrictUserCreation: true
+```
+
+If `setRestrictUserCreation` is `true`, requests to `/register` that create a new personal account or a new team are answered with `403 forbidden`.
+
+If you operate an instance with restricted user creation, you can still create new teams (and, if you really want to, personal users): see [`/deploy/services-demo/create_test_team_admins.sh`](https://github.com/wireapp/wire-server/blob/b9a84f9b654a69c9a296761b36c042dc993236d3/deploy/services-demo/create_test_team_admins.sh) to see how.
+
+### Details
+
+You can find the exhaustive list of all routes here:
+
+https://github.com/wireapp/wire-server-deploy/blob/de7e3e8c709f8baaae66b1540a1778871044f170/charts/nginz/values.yaml#L35-L371
+
+The paths not cryptographically authenticated can be found by searching for the `disable_zauth:` flag (must be true for `env: prod` or `env: all`).
+
+Two of them allow users to create new users or teams:
+
+- `/register`
+- `/activate`
+
+These end-points support 5 flows:
+
+1. new team account
+2. new personal (teamless) account
+3. invitation code from team, new member
+4. ephemeral/guest user
+5. [not supported by clients] new *inactive* user account
+
+We need an option to block 1, 2, 5 on-prem; 3, 4 should remain available (no block option).  There are also provisioning flows via SAML or SCIM, which are not critical (see below).
+
+How to decide whether to block:
+
+```
+Body has `team_code`        => case 3.
+Body has `sso_id`           => provisioned by SAML or SCIM.
+Body has `email` or `phone` => case 1, 2, or 5.
+Otherwise                   => case 4
+```
+
+So `/register` blocks iff `email` or `phone` exist and neither `sso_id` nor `team_code` exist.
+
+The rest of the unauthorized end-points is safe:
+
+- `/password-reset`
+- `/delete`: similar to password reset, for deleting a personal account with password.
+- `/login`
+- `/login/send`
+- `/access`
+- `/sso/initiate-login`: authenticated via IdP.
+- `/sso/finalize-login`: authenticated via IdP.
+- `/sso`: authenticated via IdP or ok to expose to world (`/metadata`)
+- `/scim/v2`: authenticated via HTTP simple auth.
+- `~* ^/teams/invitations/info$`: only `GET`; requires invitation code.
+- `/invitations/info`: discontinued feature, can be removed from nginz config.
+- `/conversations/code-check`: link validatoin for ephemeral/guest users.
+- `/provider/*`: bots need to be registered to a team before becoming active.  so if an attacker does not get access to a team, they cannot deploy a bot.
+- `~* ^/custom-backend/by-domain/([^/]*)$`: only `GET`; only exposes a list of domains that has is maintained through an internal end-point.  used to redirect stock clients from the cloud instance to on-prem instances.
+- `~* ^/teams/api-docs`: only `GET`; swagger for part of the rest API.  safe: it is trivial to identify the software that is running on the instance, and from there it is trivial to get to the source on github, where this can be obtained easily, and more.
+- `/billing`: separate billing service, usually not installed for on-prem instances.
+- `/calling-test`: separate testing service that has its own authentication.

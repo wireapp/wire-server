@@ -26,6 +26,13 @@ settings:
   maxConvSize: 128
   intraListing: false
   conversationCodeURI: https://cannon/join/
+  concurrentDeletionEvents: 1024
+  deleteConvThrottleMillis: 0
+
+  featureFlags:  # see #RefConfigOptions in `/docs/reference`
+    sso: disabled-by-default
+    legalhold: disabled-by-default
+    teamSearchVisibility: disabled-by-default
 
 logLevel: Info
 logNetStrings: false

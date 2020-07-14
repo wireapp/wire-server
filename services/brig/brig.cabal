@@ -4,7 +4,7 @@ cabal-version: 2.0
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b6a944d4d084f81687d2b816c99a5fe95cdd1d7c6aa866bf3f709981c28fe442
+-- hash: 5b6d9d31d5e95d40726d293fd31802c4a12c0d31327e3b948142f77d22117abb
 
 name:           brig
 version:        1.35.0
@@ -136,7 +136,6 @@ library
     , data-timeout >=0.3
     , directory >=1.2
     , either >=4.3
-    , email-validate >=2.0
     , enclosed-exceptions >=1.0
     , errors >=1.4
     , exceptions >=0.5

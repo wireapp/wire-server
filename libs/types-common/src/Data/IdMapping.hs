@@ -19,10 +19,14 @@
 
 module Data.IdMapping where
 
+import Data.Aeson ((.=), ToJSON (toJSON), object)
 import Data.Id
 import Data.Qualified
 import Imports
 import Test.QuickCheck (Arbitrary (arbitrary), oneof)
+
+----------------------------------------------------------------------
+-- MappedOrLocalId
 
 data MappedOrLocalId a
   = Mapped (IdMapping a)
@@ -32,18 +36,30 @@ data MappedOrLocalId a
 opaqueIdFromMappedOrLocal :: MappedOrLocalId a -> Id (Opaque a)
 opaqueIdFromMappedOrLocal = \case
   Local localId -> makeIdOpaque localId
-  Mapped IdMapping {idMappingLocal} -> makeMappedIdOpaque idMappingLocal
+  Mapped IdMapping {_imMappedId} -> makeMappedIdOpaque _imMappedId
 
 partitionMappedOrLocalIds :: Foldable f => f (MappedOrLocalId a) -> ([Id a], [IdMapping a])
 partitionMappedOrLocalIds = foldMap $ \case
   Mapped mapping -> (mempty, [mapping])
   Local localId -> ([localId], mempty)
 
+----------------------------------------------------------------------
+-- IdMapping
+
 data IdMapping a = IdMapping
-  { idMappingLocal :: Id (Mapped a),
-    idMappingGlobal :: Qualified (Id (Remote a))
+  { _imMappedId :: Id (Mapped a),
+    _imQualifiedId :: Qualified (Id (Remote a))
   }
   deriving stock (Eq, Ord, Show)
+
+-- Don't add a FromJSON instance!
+-- We don't want to just accept mappings we didn't create ourselves.
+instance ToJSON (IdMapping a) where
+  toJSON IdMapping {_imMappedId, _imQualifiedId} =
+    object
+      [ "mapped_id" .= _imMappedId,
+        "qualified_id" .= _imQualifiedId
+      ]
 
 ----------------------------------------------------------------------
 -- ARBITRARY

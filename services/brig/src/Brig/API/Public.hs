@@ -982,6 +982,7 @@ data CreateUserResponse
 
 createUser :: Public.NewUserPublic -> Handler CreateUserResponse
 createUser (Public.NewUserPublic new) = do
+  API.checkRestrictedUserCreation new !>> newUserError
   for_ (Public.newUserEmail new) $ checkWhitelist . Left
   for_ (Public.newUserPhone new) $ checkWhitelist . Right
   result <- API.createUser new !>> newUserError

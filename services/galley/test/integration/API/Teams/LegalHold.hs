@@ -497,11 +497,11 @@ testEnablePerTeam = do
   addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
   ensureQueueEmpty
   do
-    status <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+    Public.TeamFeatureStatus status <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
     liftIO $ assertEqual "Teams should start with LegalHold disabled" status Public.TeamFeatureDisabled
   putEnabled tid Public.TeamFeatureEnabled -- enable it for this team
   do
-    status <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+    Public.TeamFeatureStatus status <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
     liftIO $ assertEqual "Calling 'putEnabled True' should enable LegalHold" status Public.TeamFeatureEnabled
   withDummyTestServiceForTeam owner tid $ \_chan -> do
     requestLegalHoldDevice owner member tid !!! const 201 === statusCode
@@ -511,7 +511,7 @@ testEnablePerTeam = do
       liftIO $ assertEqual "User legal hold status should be enabled" UserLegalHoldEnabled status
     do
       putEnabled tid Public.TeamFeatureDisabled -- disable again
-      status <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+      Public.TeamFeatureStatus status <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
       liftIO $ assertEqual "Calling 'putEnabled False' should disable LegalHold" status Public.TeamFeatureDisabled
     do
       UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
@@ -529,7 +529,7 @@ testEnablePerTeamTooLarge = do
   let fanoutLimit = fromIntegral . fromRange $ Galley.currentFanoutLimit o
   (tid, _owner, _others) <- createBindingTeamWithMembers (fanoutLimit + 1)
 
-  status <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+  Public.TeamFeatureStatus status <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
   liftIO $ assertEqual "Teams should start with LegalHold disabled" status Public.TeamFeatureDisabled
   -- You cannot enable legal hold on a team that is too large
   putEnabled' id tid Public.TeamFeatureEnabled !!! do
@@ -541,7 +541,7 @@ testAddTeamUserTooLargeWithLegalhold = do
   o <- view tsGConf
   let fanoutLimit = fromIntegral . fromRange $ Galley.currentFanoutLimit o
   (tid, owner, _others) <- createBindingTeamWithMembers fanoutLimit
-  status <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+  Public.TeamFeatureStatus status <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
   liftIO $ assertEqual "Teams should start with LegalHold disabled" status Public.TeamFeatureDisabled
   -- You can still enable for this team
   putEnabled tid Public.TeamFeatureEnabled
@@ -623,16 +623,16 @@ renewToken tok = do
       . cookieRaw "zuid" (toByteString' tok)
       . expect2xx
 
-putEnabled :: HasCallStack => TeamId -> Public.TeamFeatureStatus -> TestM ()
+putEnabled :: HasCallStack => TeamId -> Public.TeamFeatureStatusValue -> TestM ()
 putEnabled tid enabled = void $ putEnabled' expect2xx tid enabled
 
-putEnabled' :: HasCallStack => (Bilge.Request -> Bilge.Request) -> TeamId -> Public.TeamFeatureStatus -> TestM ResponseLBS
+putEnabled' :: HasCallStack => (Bilge.Request -> Bilge.Request) -> TeamId -> Public.TeamFeatureStatusValue -> TestM ResponseLBS
 putEnabled' extra tid enabled = do
   g <- view tsGalley
   put $
     g
       . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
-      . json enabled
+      . json (Public.TeamFeatureStatus enabled)
       . extra
 
 postSettings :: HasCallStack => UserId -> TeamId -> NewLegalHoldService -> TestM ResponseLBS

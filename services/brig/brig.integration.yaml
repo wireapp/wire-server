@@ -76,7 +76,7 @@ emailSMS:
   general:
     templateDir: deb/opt/brig/templates
     emailSender: backend-integration@wire.com
-    smsSender: "<insert-sender-number-here>"
+    smsSender: "+123456789" # or MG123456789... (twilio alphanumeric sender id)
     templateBranding:
       brand: Wire
       brandUrl: https://wire.com
@@ -156,6 +156,7 @@ optSettings:
   setPropertyMaxValueLen: 4096
   setDeleteThrottleMillis: 0
   setSqsThrottleMillis: 1000
+  setRestrictUserCreation: false
   # setSearchSameTeamOnly: false
   # ^ NOTE: this filters out search results for team users,
   #   i.e., if you are a team user the search endpoints will

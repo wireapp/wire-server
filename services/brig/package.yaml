@@ -42,7 +42,6 @@ library:
   - data-timeout >=0.3
   - directory >=1.2
   - either >=4.3
-  - email-validate >=2.0
   - enclosed-exceptions >=1.0
   - errors >=1.4
   - extra >=1.3

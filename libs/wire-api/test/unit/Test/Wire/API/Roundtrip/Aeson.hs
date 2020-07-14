@@ -194,6 +194,7 @@ tests =
       testRoundTrip @Team.Conversation.TeamConversation,
       testRoundTrip @Team.Conversation.TeamConversationList,
       testRoundTrip @Team.Feature.TeamFeatureStatus,
+      testRoundTrip @Team.Feature.TeamFeatureStatusValue,
       testRoundTrip @Team.Invitation.InvitationRequest,
       testRoundTrip @Team.Invitation.Invitation,
       testRoundTrip @Team.Invitation.InvitationList,

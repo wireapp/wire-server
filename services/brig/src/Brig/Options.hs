@@ -143,8 +143,9 @@ data EmailSMSGeneralOpts = EmailSMSGeneralOpts
     templateDir :: !FilePath,
     -- | Email sender address
     emailSender :: !Email,
-    -- | Twilio sender identifier (number or
-    --   messaging service ID)
+    -- | Twilio sender identifier (sender phone number in E.104 format)
+    --   or twilio messaging sender ID - see
+    --   https://www.twilio.com/docs/sms/send-messages#use-an-alphanumeric-sender-id
     smsSender :: !Text,
     -- | Customizable branding text for
     --   emails/sms/calls
@@ -464,6 +465,9 @@ data Settings = Settings
     -- However, that parameter is not honoured when using fake-sqs
     -- (where throttling can thus make sense)
     setSqsThrottleMillis :: !(Maybe Int),
+    -- | Do not allow certain user creation flows.
+    -- docs/reference/user/registration.md {#RefRestrictRegistration}.
+    setRestrictUserCreation :: !(Maybe Bool),
     -- Customer extensions
 
     -- | Customer extensions.  Read 'CustomerExtensions' docs carefully!

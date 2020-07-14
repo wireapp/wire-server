@@ -40,6 +40,7 @@
 -- * Request and response types for SCIM-related endpoints.
 module Spar.Scim.Types where
 
+import Brig.Types.Intra (AccountStatus (Active, Deleted, Ephemeral, Suspended))
 import Brig.Types.User as Brig
 import Control.Lens hiding ((#), (.=), Strict)
 import Data.Aeson as Aeson
@@ -185,11 +186,23 @@ instance Scim.Patchable ScimUserExtra where
     | otherwise = throwError $ Scim.badRequest Scim.InvalidValue $ Just "unknown schema, cannot patch"
   applyOperation _ _ = throwError $ Scim.badRequest Scim.InvalidValue $ Just "invalid patch op for rich info"
 
--- | SCIM user with 'SAML.UserRef' and mapping to 'Brig.User'.  Constructed by 'validateScimUser'.
+-- | SCIM user with all the data spar is actively processing.  Constructed by
+-- 'validateScimUser'.  The idea is that the type we get back from hscim is too general, and
+-- we need a second round of parsing (aka validation), of which 'ValidScimUser' is the result.
+--
+-- 'NeededInfo' is similar to this, but used for creating scim users rather than as a result
+-- of parsing them.  On second thought, we probably should only have one of the two, or at
+-- least they should look more closely related in the code: the only difference is that one is
+-- for post, the other for patch.
 --
 -- Data contained in '_vsuHandle' and '_vsuName' is guaranteed to a) correspond to the data in
 -- the 'Scim.User.User' and b) be valid in regard to our own user schema requirements (only
 -- certain characters allowed in handles, etc).
+--
+-- FUTUREWORK: eliminate '_vsuUser' and keep everything we need as parsed values rather than
+-- the raw input.
+--
+-- FUTUREWORK: move 'NeededInfo' closer to here.  perhaps we can make do with one of the two.
 data ValidScimUser = ValidScimUser
   { _vsuUser :: Scim.User.User SparTag,
     -- SAML SSO
@@ -201,11 +214,32 @@ data ValidScimUser = ValidScimUser
     -- mapping to 'Brig.User'
     _vsuHandle :: Handle,
     _vsuName :: Maybe Name,
-    _vsuRichInfo :: RichInfo
+    _vsuRichInfo :: RichInfo,
+    _vsuActive :: Maybe Bool
   }
   deriving (Eq, Show)
 
 makeLenses ''ValidScimUser
+
+scimActiveFlagFromAccountStatus :: AccountStatus -> Bool
+scimActiveFlagFromAccountStatus = \case
+  Active -> True
+  Suspended -> False
+  Deleted -> False
+  Ephemeral -> True -- do not treat ephemeral users any different from active ones.
+
+-- | The second argument is constructed from a (potentially missing) json object field, hence
+-- @Nothing@ has the same meaning as @Just True@.  This way, we stay consistent between the
+-- original status and one after an update.
+--
+-- FUTUREWORK: 'Ephemeral' shouldn't really be possible here, since there is no use case for
+-- it.  (If there was, this is most likely how we would have to implement it, but still.)  We
+-- should change the types so that the 'Ephemeral' case can be ruled out by the compiler.
+scimActiveFlagToAccountStatus :: AccountStatus -> Maybe Bool -> AccountStatus
+scimActiveFlagToAccountStatus oldstatus = \case
+  Nothing -> if oldstatus == Ephemeral then Ephemeral else Active
+  Just True -> if oldstatus == Ephemeral then Ephemeral else Active
+  Just False -> Suspended
 
 ----------------------------------------------------------------------------
 -- Request and response types
