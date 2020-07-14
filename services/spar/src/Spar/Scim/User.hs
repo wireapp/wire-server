@@ -43,7 +43,7 @@ where
 import Brig.Types.User as BrigTypes
 import Control.Error ((!?), (??))
 import Control.Exception (assert)
-import Control.Lens ((^.), (^?!), _Just, view)
+import Control.Lens ((^.), view)
 import Control.Monad.Except
 import Control.Monad.Trans.Maybe
 import Crypto.Hash
@@ -237,7 +237,7 @@ validateScimUser' idp richInfoLimit user = do
   mbName <- mapM validateName (Scim.displayName user)
   richInfo <- validateRichInfo (Scim.extra user ^. sueRichInfo)
   let active = Scim.active user
-  pure $ ValidScimUser (Just user) (SAMLIdentity idp uref) handl mbName richInfo active
+  pure $ ValidScimUser (SAMLIdentity idp uref) handl mbName richInfo active
   where
     -- Validate a name (@displayName@). It has to conform to standard Wire rules.
     validateName :: Text -> m Name
@@ -318,8 +318,7 @@ createValidScimUser ::
   (m ~ Scim.ScimHandler Spar) =>
   ValidScimUser ->
   m (Scim.StoredUser SparTag)
-createValidScimUser (ValidScimUser Nothing _ _ _ _ _) = error "TODO"
-createValidScimUser (ValidScimUser (Just user) samlIdentity handl mbName richInfo active) = do
+createValidScimUser vsu@(ValidScimUser samlIdentity handl mbName richInfo active) = do
   let uref = samlIdentity ^. siUserRef
       idpConfig = samlIdentity ^. siIdP
   -- sanity check: do tenant of the URef and the Issuer of the IdP match?  (this is mostly
@@ -340,7 +339,7 @@ createValidScimUser (ValidScimUser (Just user) samlIdentity handl mbName richInf
 
   -- FUTUREWORK(arianvp): Get rid of manual lifting. Needs to be SCIM instances for ExceptT
   -- This is the pain and the price you pay for the horribleness called MTL
-  storedUser <- lift $ toScimStoredUser buid user
+  storedUser <- lift . toScimStoredUser buid $ synthesizeScimUser vsu
   let teamid = idpConfig ^. SAML.idpExtraInfo . wiTeam
   buid' <- lift $ Brig.createBrigUser uref buid teamid mbName ManagedByScim
   assert (buid == buid') $ pure ()
@@ -395,13 +394,15 @@ updateValidScimUser tokinfo uid newScimUser = do
   -- construct old and new user values with metadata.
   oldScimStoredUser :: Scim.StoredUser SparTag <-
     Scim.getUser tokinfo uid
+  oldValidScimUser :: ValidScimUser <-
+    validateScimUser tokinfo . Scim.value . Scim.thing $ oldScimStoredUser
   assertUserRefNotUsedElsewhere (newScimUser ^. vsuUserRef) uid
   assertHandleNotUsedElsewhere (newScimUser ^. vsuHandle) uid
-  if Scim.value (Scim.thing oldScimStoredUser) == (newScimUser ^?! vsuUser . _Just)
+  if oldValidScimUser == newScimUser
     then pure oldScimStoredUser
     else do
       newScimStoredUser :: Scim.StoredUser SparTag <-
-        lift $ updScimStoredUser (newScimUser ^?! vsuUser . _Just) oldScimStoredUser
+        lift $ updScimStoredUser (synthesizeScimUser newScimUser) oldScimStoredUser
       -- update 'SAML.UserRef' on spar (also delete the old 'SAML.UserRef' if it exists and
       -- is different from the new one)
       let newuref = newScimUser ^. vsuUserRef
@@ -607,7 +608,6 @@ assertHandleNotUsedElsewhere hndl uid = do
     assertHandleUnused' "userName does not match UserId" hndl uid
 
 synthesizeScimUser :: ValidScimUser -> Scim.User SparTag
-synthesizeScimUser info | isJust $ info ^. vsuUser = error "TODO: vsuUser needs to be removed before this can go to staging"
 synthesizeScimUser info =
   let Handle userName = info ^. vsuHandle
       mDisplayName = fromName <$> (info ^. vsuName)
@@ -650,7 +650,7 @@ getOrCreateScimUser stiTeam brigUser = do
               "SCIM is only supported for teams with exactly one IdP, you have " <> show (length l)
         toSAMLIdentity' idp ssoIdentity'
       setManagedBy' uid ManagedByScim
-      let validScimUser = ValidScimUser Nothing samlIdentity handle (Just name) richInfo (Just isActive)
+      let validScimUser = ValidScimUser samlIdentity handle (Just name) richInfo (Just isActive)
       let user = synthesizeScimUser validScimUser
       storedUser <- toScimStoredUser'' uid user
       insertScimUser' uid storedUser

@@ -195,15 +195,15 @@ instance Scim.Patchable ScimUserExtra where
 -- the 'Scim.User.User' and b) be valid in regard to our own user schema requirements (only
 -- certain characters allowed in handles, etc).
 --
--- FUTUREWORK: eliminate '_vsuUser' and keep everything we need as parsed values rather than
--- the raw input.  this would also eliminate the need for the type aliases 'ValidScimUser',
--- 'NeededInfo' below.
+-- Note that it's ok for us to ignore parts of the content sent to us, as explained
+-- [here](https://tools.ietf.org/html/rfc7644#section-3.3): "Since the server is free to alter
+-- and/or ignore POSTed content, returning the full representation can be useful to the
+-- client, enabling it to correlate the client's and server's views of the new resource."
 --
 -- FUTUREWORK: make '_vsuSAMLIdentity' a 'Maybe' and allow for SCIM users without a SAML SSO
 -- identity.
 data ValidScimUser = ValidScimUser
-  { _vsuUser :: Maybe (Scim.User.User SparTag),
-    _vsuSAMLIdentity :: SAMLIdentity,
+  { _vsuSAMLIdentity :: SAMLIdentity,
     _vsuHandle :: Handle,
     _vsuName :: Maybe Name,
     _vsuRichInfo :: RichInfo,
