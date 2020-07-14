@@ -205,12 +205,9 @@ instance Scim.Patchable ScimUserExtra where
 -- FUTUREWORK: move 'NeededInfo' closer to here.  perhaps we can make do with one of the two.
 data ValidScimUser = ValidScimUser
   { _vsuUser :: Scim.User.User SparTag,
-    -- SAML SSO
-
-    -- | (In the future, we may make this a 'Maybe' and allow for
-    -- SCIM users without a SAML SSO identity.)
-    _vsuSAMLUserRef :: SAML.UserRef,
-    _vsuIdp :: IdP,
+    -- | FUTUREWORK: we may make this a 'Maybe' and allow for SCIM users without a SAML SSO
+    -- identity.
+    _vsuSAMLIdentity :: SAMLIdentity,
     -- mapping to 'Brig.User'
     _vsuHandle :: Handle,
     _vsuName :: Maybe Name,
@@ -220,6 +217,12 @@ data ValidScimUser = ValidScimUser
   deriving (Eq, Show)
 
 makeLenses ''ValidScimUser
+
+vsuUserRef :: Lens' ValidScimUser SAML.UserRef
+vsuUserRef = vsuSAMLIdentity . siUserRef
+
+vsuIdP :: Lens' ValidScimUser IdP
+vsuIdP = vsuSAMLIdentity . siIdP
 
 scimActiveFlagFromAccountStatus :: AccountStatus -> Bool
 scimActiveFlagFromAccountStatus = \case

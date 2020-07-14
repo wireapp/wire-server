@@ -544,9 +544,9 @@ instance IsUser ValidScimUser where
   maybeUserId = Nothing
   maybeHandle = Just (Just . view vsuHandle)
   maybeName = Just (view vsuName)
-  maybeTenant = Just (Just . view (vsuSAMLUserRef . SAML.uidTenant))
-  maybeSubject = Just (Just . view (vsuSAMLUserRef . SAML.uidSubject))
-  maybeSubjectRaw = Just (SAML.shortShowNameID . view (vsuSAMLUserRef . SAML.uidSubject))
+  maybeTenant = Just (Just . view (vsuUserRef . SAML.uidTenant))
+  maybeSubject = Just (Just . view (vsuUserRef . SAML.uidSubject))
+  maybeSubjectRaw = Just (SAML.shortShowNameID . view (vsuUserRef . SAML.uidSubject))
 
 instance IsUser (WrappedScimStoredUser SparTag) where
   maybeUserId = Just $ scimUserId . fromWrappedScimStoredUser

@@ -132,6 +132,14 @@ instance ToJSON IdPMetadataInfo where
   toJSON (IdPMetadataValue _ xml) =
     object ["value" .= SAML.encode xml]
 
+data SAMLIdentity = SAMLIdentity
+  { _siIdP :: IdP,
+    _siUserRef :: SAML.UserRef
+  }
+  deriving (Eq, Show, Generic)
+
+makeLenses ''SAMLIdentity
+
 ----------------------------------------------------------------------------
 -- SCIM
 
