@@ -187,28 +187,23 @@ instance Scim.Patchable ScimUserExtra where
   applyOperation _ _ = throwError $ Scim.badRequest Scim.InvalidValue $ Just "invalid patch op for rich info"
 
 -- | SCIM user with all the data spar is actively processing.  Constructed by
--- 'validateScimUser'.  The idea is that the type we get back from hscim is too general, and
+-- 'validateScimUser', or manually from data obtained from brig to pass them on to scim peers.
+-- The idea is that the type we get back from hscim is too general, and
 -- we need a second round of parsing (aka validation), of which 'ValidScimUser' is the result.
---
--- 'NeededInfo' is similar to this, but used for creating scim users rather than as a result
--- of parsing them.  On second thought, we probably should only have one of the two, or at
--- least they should look more closely related in the code: the only difference is that one is
--- for post, the other for patch.
 --
 -- Data contained in '_vsuHandle' and '_vsuName' is guaranteed to a) correspond to the data in
 -- the 'Scim.User.User' and b) be valid in regard to our own user schema requirements (only
 -- certain characters allowed in handles, etc).
 --
 -- FUTUREWORK: eliminate '_vsuUser' and keep everything we need as parsed values rather than
--- the raw input.
+-- the raw input.  this would also eliminate the need for the type aliases 'ValidScimUser',
+-- 'NeededInfo' below.
 --
--- FUTUREWORK: move 'NeededInfo' closer to here.  perhaps we can make do with one of the two.
+-- FUTUREWORK: make '_vsuSAMLIdentity' a 'Maybe' and allow for SCIM users without a SAML SSO
+-- identity.
 data ValidScimUser = ValidScimUser
-  { _vsuUser :: Scim.User.User SparTag,
-    -- | FUTUREWORK: we may make this a 'Maybe' and allow for SCIM users without a SAML SSO
-    -- identity.
+  { _vsuUser :: Maybe (Scim.User.User SparTag),
     _vsuSAMLIdentity :: SAMLIdentity,
-    -- mapping to 'Brig.User'
     _vsuHandle :: Handle,
     _vsuName :: Maybe Name,
     _vsuRichInfo :: RichInfo,
