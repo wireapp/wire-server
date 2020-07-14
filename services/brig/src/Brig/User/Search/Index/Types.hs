@@ -19,6 +19,7 @@
 
 module Brig.User.Search.Index.Types where
 
+import Brig.Types.Intra (AccountStatus)
 import Brig.Types.User
 import Control.Lens (makeLenses)
 import Control.Monad.Catch
@@ -45,7 +46,8 @@ data IndexUser = IndexUser
     _iuTeam :: Maybe TeamId,
     _iuName :: Maybe Name,
     _iuHandle :: Maybe Handle,
-    _iuColourId :: Maybe ColourId
+    _iuColourId :: Maybe ColourId,
+    _iuAccountStatus :: Maybe AccountStatus
   }
 
 data IndexQuery r = IndexQuery Query Filter
@@ -72,7 +74,8 @@ data UserDoc = UserDoc
     udName :: Maybe Name,
     udNormalized :: Maybe Text,
     udHandle :: Maybe Handle,
-    udColourId :: Maybe ColourId
+    udColourId :: Maybe ColourId,
+    udAccountStatus :: Maybe AccountStatus
   }
   deriving (Eq, Show)
 
@@ -84,7 +87,8 @@ instance ToJSON UserDoc where
         "name" .= udName ud,
         "normalized" .= udNormalized ud,
         "handle" .= udHandle ud,
-        "accent_id" .= udColourId ud
+        "accent_id" .= udColourId ud,
+        "account_status" .= udAccountStatus ud
       ]
 
 instance FromJSON UserDoc where
@@ -95,6 +99,7 @@ instance FromJSON UserDoc where
       <*> o .:? "normalized"
       <*> o .:? "handle"
       <*> o .:? "accent_id"
+      <*> o .:? "account_status"
 
 makeLenses ''IndexUser
 
@@ -109,6 +114,7 @@ mkIndexUser u v =
   IndexUser
     { _iuUserId = u,
       _iuVersion = v,
+      _iuAccountStatus = Nothing,
       _iuTeam = Nothing,
       _iuName = Nothing,
       _iuHandle = Nothing,

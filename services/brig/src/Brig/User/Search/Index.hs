@@ -167,15 +167,6 @@ searchIndex ::
   m (SearchResult Contact)
 searchIndex u teamSearchInfo q = queryIndex (defaultUserQuery u teamSearchInfo q)
 
--- [Note: suspended]  TODO: has this happened by now and we can resolve this note?
--- ~~~~~~~~~~~~~~~~~
---
--- The suspended field in the ES index is an artifact of the legacy system,
--- which would not remove data from the index upon user suspension. The filter
--- clause can be removed after the first full re-index, as this will have
--- cleared the data of suspended users.
---
-
 queryIndex ::
   (MonadIndexIO m, FromJSON r) =>
   IndexQuery r ->
@@ -258,11 +249,17 @@ mkUserQuery (review _TextId -> self) teamSearchInfo q =
   IndexQuery q
     $ ES.Filter . ES.QueryBoolQuery
     $ boolQuery
-      { ES.boolQueryMustNotMatch =
-          [ termQ "suspended" "1", -- [Note: suspended]
-            termQ "_id" self
-          ],
-        ES.boolQueryMustMatch = [optionallySearchWithinTeam teamSearchInfo]
+      { ES.boolQueryMustNotMatch = [termQ "_id" self],
+        ES.boolQueryMustMatch =
+          [ optionallySearchWithinTeam teamSearchInfo,
+            ES.QueryBoolQuery
+              boolQuery
+                { ES.boolQueryShouldMatch =
+                    [ termQ "account_status" "active",
+                      ES.QueryBoolQuery boolQuery {ES.boolQueryMustNotMatch = [ES.QueryExistsQuery (ES.FieldName "account_status")]} -- TODO: Write note about this being legacy
+                    ]
+                }
+          ]
       }
   where
     termQ f v =
@@ -531,6 +528,7 @@ userDoc iu =
     { udId = _iuUserId iu,
       udTeam = _iuTeam iu,
       udName = _iuName iu,
+      udAccountStatus = _iuAccountStatus iu,
       udNormalized = normalized . fromName <$> _iuName iu,
       udHandle = _iuHandle iu,
       udColourId = _iuColourId iu
@@ -613,6 +611,14 @@ indexMapping =
                 { mpType = MPByte,
                   mpStore = False,
                   mpIndex = False,
+                  mpAnalyzer = Nothing,
+                  mpFields = mempty
+                },
+            "account_status"
+              .= MappingProperty
+                { mpType = MPKeyword,
+                  mpStore = False,
+                  mpIndex = True,
                   mpAnalyzer = Nothing,
                   mpFields = mempty
                 }
@@ -755,19 +761,23 @@ reindexRowToIndexUser (u, mteam, name, t0, status, t1, handle, t2, colour, t4, a
     pure $
       if shouldIndex
         then
-          iu & set iuTeam mteam
+          iu
+            & set iuTeam mteam
             . set iuName (Just name)
             . set iuHandle handle
             . set iuColourId (Just colour)
-        else iu
+            . set iuAccountStatus status
+        else
+          iu
+            & set iuAccountStatus status
   where
     version :: [Maybe (Writetime Name)] -> m IndexVersion
     version = mkIndexVersion . getMax . mconcat . fmap Max . catMaybes
     shouldIndex =
       and
         [ case status of
-            Just Active -> True
             Nothing -> True
+            Just Active -> True
             Just Suspended -> True
             Just Deleted -> False
             Just Ephemeral -> False,
