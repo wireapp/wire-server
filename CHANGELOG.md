@@ -1,3 +1,35 @@
+# 2020-07-13
+
+## Release Notes
+
+* If you are self-hosting wire on the public internet, consider [changing your brig server config](https://github.com/wireapp/wire-server/blob/49f414add470f4c5e969814a37bc851e26f6d9a7/docs/reference/user/registration.md#blocking-creation-of-personal-users-new-teams-refrestrictregistration).
+* Deploy all services except nginz.
+* No migrations, no restrictions on deployment order.
+
+## New Features
+
+* Restrict user creation in on-prem installations (#1161)
+* Implement active flag in SCIM for user suspension (#1158)
+
+## Bug Fixes
+
+* Fix setting team feature status in Stern/backoffice (#1146)
+* Add missing Swagger models (#1153)
+* docs/reference/elastic-search.md: fix typos (#1154)
+
+## Internal changes
+
+* Federation: Implement ID mapping (galley) (#1134)
+* Tweak cassandra container settings to get it to work on nixos. (#1155)
+* Merge wireapp/subtree-hscim repository under `/libs`, preserving history (#1152)
+* Add link to twilio message ID format (#1150)
+* Run backoffice locally (#1148)
+* Fix services-demo (#1149, #1156)
+* Add missing license headers (#1143)
+* Test sign up with invalid email (#1141)
+* Fix ormolu script (source code pretty-printing) (#1142)
+
+
 # 2020-06-19
 
 ## Release Notes

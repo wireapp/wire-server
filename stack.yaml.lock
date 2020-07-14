@@ -99,6 +99,20 @@ packages:
     commit: 300a6f46384bfca33e545c8bab52ef3717452d12
 - completed:
     cabal-file:
+      size: 14131
+      sha256: 1fb476b11373acad65a203fb6c1bea2b92c2603da3ad77c9c64e8155991e5aa7
+    name: aws
+    version: '0.20'
+    git: https://github.com/wireapp/aws
+    pantry-tree:
+      size: 7219
+      sha256: 25fb343439f2f14ced7a8c587a7f0647275d0eddc70a719c5ebde33637607be4
+    commit: 42695688fc20f80bf89cec845c57403954aab0a2
+  original:
+    git: https://github.com/wireapp/aws
+    commit: 42695688fc20f80bf89cec845c57403954aab0a2
+- completed:
+    cabal-file:
       size: 2289
       sha256: 07c1e684acf4ba1c097fe5dd2525cb887269f7d3335c42783c1f4d2bfdc01283
     name: hspec-wai
@@ -140,149 +154,123 @@ packages:
   original:
     hackage: aeson-1.4.7.1@sha256:6d8d2fd959b7122a1df9389cf4eca30420a053d67289f92cdc0dbc0dab3530ba,7098
 - completed:
-    size: 11138812
+    size: 11137527
     subdir: amazonka
-    url: https://github.com/wireapp/amazonka/archive/9de5e0e4b2511ec555fb0975581b3087a94c1b4a.tar.gz
+    url: https://github.com/brendanhay/amazonka/archive/9cf5b5777b69ac494d23d43a692294882927df34.tar.gz
     cabal-file:
-      size: 3457
-      sha256: 7ac360751e371ba853f56d357e861c5fe103b1da17f045ac47fd285c164a37f7
+      size: 3420
+      sha256: fe5d9d604135b54c0fed2e695c089586f8b66409a43f038db7ed08adaa2f7484
     name: amazonka
     version: 1.6.1
-    sha256: b9277a51b60d639fbd91b630f353bf9db305f5759f8e1ee48f0ab026e6b43d00
+    sha256: c3044f803a7652aee88fe600a97321175cdc1443d671246ba7ff78e14bf5b49f
     pantry-tree:
       size: 1038
-      sha256: 59c7840fe6c9609d1d5022149010e72db5778e4978b9384b6dee8a4a207c96b3
+      sha256: 7b9c7488007e3d803516121fe89d7674918a6e6dd09a22ac9ecabc2eed48346d
   original:
-    size: 11138812
+    size: 11137527
     subdir: amazonka
-    url: https://github.com/wireapp/amazonka/archive/9de5e0e4b2511ec555fb0975581b3087a94c1b4a.tar.gz
-    sha256: b9277a51b60d639fbd91b630f353bf9db305f5759f8e1ee48f0ab026e6b43d00
+    url: https://github.com/brendanhay/amazonka/archive/9cf5b5777b69ac494d23d43a692294882927df34.tar.gz
+    sha256: c3044f803a7652aee88fe600a97321175cdc1443d671246ba7ff78e14bf5b49f
 - completed:
-    size: 11138812
-    subdir: amazonka-cloudfront
-    url: https://github.com/wireapp/amazonka/archive/9de5e0e4b2511ec555fb0975581b3087a94c1b4a.tar.gz
+    size: 11137527
+    subdir: amazonka-elb
+    url: https://github.com/brendanhay/amazonka/archive/9cf5b5777b69ac494d23d43a692294882927df34.tar.gz
     cabal-file:
-      size: 5668
-      sha256: 79c95e0ec544437a613cab891a2057bc35f1b0fed2361b36e7f05437839bdce2
-    name: amazonka-cloudfront
+      size: 4462
+      sha256: a208c16093be1afc6e616a61ae436079829d6d9234a06a7fc61581ba4a3b2e6f
+    name: amazonka-elb
     version: 1.6.1
-    sha256: b9277a51b60d639fbd91b630f353bf9db305f5759f8e1ee48f0ab026e6b43d00
+    sha256: c3044f803a7652aee88fe600a97321175cdc1443d671246ba7ff78e14bf5b49f
     pantry-tree:
-      size: 12839
-      sha256: f0f27588c628d9996c298ab035b19999572ad8432ea05526497b608b009b1258
+      size: 8370
+      sha256: 881b55c8859c59765ab7b5e51401257687a4a86e249e4da20f9f7cf8ffde0d65
   original:
-    size: 11138812
-    subdir: amazonka-cloudfront
-    url: https://github.com/wireapp/amazonka/archive/9de5e0e4b2511ec555fb0975581b3087a94c1b4a.tar.gz
-    sha256: b9277a51b60d639fbd91b630f353bf9db305f5759f8e1ee48f0ab026e6b43d00
+    size: 11137527
+    subdir: amazonka-elb
+    url: https://github.com/brendanhay/amazonka/archive/9cf5b5777b69ac494d23d43a692294882927df34.tar.gz
+    sha256: c3044f803a7652aee88fe600a97321175cdc1443d671246ba7ff78e14bf5b49f
 - completed:
-    size: 11138812
-    subdir: amazonka-dynamodb
-    url: https://github.com/wireapp/amazonka/archive/9de5e0e4b2511ec555fb0975581b3087a94c1b4a.tar.gz
+    size: 11137527
+    subdir: amazonka-redshift
+    url: https://github.com/brendanhay/amazonka/archive/9cf5b5777b69ac494d23d43a692294882927df34.tar.gz
     cabal-file:
-      size: 4459
-      sha256: 6b8852049c65207a7b3741aafa3e4e6c77cfa115e05de3c74868218ae642b6b0
-    name: amazonka-dynamodb
+      size: 6412
+      sha256: c67838874f38dd3add8017a0be83c726b3f77760c25e2c2bcc43acdc37fc8bfd
+    name: amazonka-redshift
     version: 1.6.1
-    sha256: b9277a51b60d639fbd91b630f353bf9db305f5759f8e1ee48f0ab026e6b43d00
+    sha256: c3044f803a7652aee88fe600a97321175cdc1443d671246ba7ff78e14bf5b49f
     pantry-tree:
-      size: 8379
-      sha256: d513775676879e3b2ff8393528882df1670a79110120b65ce6c68765581a2473
+      size: 16687
+      sha256: 3f14ef6b9291c4080ee39cb0e32e763eae6a1f6e74e4a325a0042e9e9be35eb4
   original:
-    size: 11138812
-    subdir: amazonka-dynamodb
-    url: https://github.com/wireapp/amazonka/archive/9de5e0e4b2511ec555fb0975581b3087a94c1b4a.tar.gz
-    sha256: b9277a51b60d639fbd91b630f353bf9db305f5759f8e1ee48f0ab026e6b43d00
+    size: 11137527
+    subdir: amazonka-redshift
+    url: https://github.com/brendanhay/amazonka/archive/9cf5b5777b69ac494d23d43a692294882927df34.tar.gz
+    sha256: c3044f803a7652aee88fe600a97321175cdc1443d671246ba7ff78e14bf5b49f
 - completed:
-    size: 11138812
-    subdir: amazonka-s3
-    url: https://github.com/wireapp/amazonka/archive/9de5e0e4b2511ec555fb0975581b3087a94c1b4a.tar.gz
+    size: 11137527
+    subdir: amazonka-route53
+    url: https://github.com/brendanhay/amazonka/archive/9cf5b5777b69ac494d23d43a692294882927df34.tar.gz
     cabal-file:
-      size: 6317
-      sha256: 9d07240fca59ad5197fb614ce3051e701e4951e6d4625a2dab4a9c17a1900194
-    name: amazonka-s3
+      size: 5949
+      sha256: a9839d8fc55de06a4fb242bc6597d454251363478909d4fe7dca8832c2a1fd73
+    name: amazonka-route53
     version: 1.6.1
-    sha256: b9277a51b60d639fbd91b630f353bf9db305f5759f8e1ee48f0ab026e6b43d00
+    sha256: c3044f803a7652aee88fe600a97321175cdc1443d671246ba7ff78e14bf5b49f
     pantry-tree:
-      size: 18431
-      sha256: a19d02da301bbcad502e6092d7418a59543747c8bb6f12932bcbc4606f7814ab
+      size: 14795
+      sha256: d842125c99d714a09c49a951bb99ea67efd679170a40e82f575f583a8dcf09ca
   original:
-    size: 11138812
-    subdir: amazonka-s3
-    url: https://github.com/wireapp/amazonka/archive/9de5e0e4b2511ec555fb0975581b3087a94c1b4a.tar.gz
-    sha256: b9277a51b60d639fbd91b630f353bf9db305f5759f8e1ee48f0ab026e6b43d00
+    size: 11137527
+    subdir: amazonka-route53
+    url: https://github.com/brendanhay/amazonka/archive/9cf5b5777b69ac494d23d43a692294882927df34.tar.gz
+    sha256: c3044f803a7652aee88fe600a97321175cdc1443d671246ba7ff78e14bf5b49f
 - completed:
-    size: 11138812
-    subdir: amazonka-ses
-    url: https://github.com/wireapp/amazonka/archive/9de5e0e4b2511ec555fb0975581b3087a94c1b4a.tar.gz
-    cabal-file:
-      size: 6425
-      sha256: 335796c855121ca34affd35097676587d5ebe0b2e576da42faaedd9d163881b0
-    name: amazonka-ses
-    version: 1.6.1
-    sha256: b9277a51b60d639fbd91b630f353bf9db305f5759f8e1ee48f0ab026e6b43d00
-    pantry-tree:
-      size: 18197
-      sha256: cd9b02c30d7571dc87868b054ed3826d5b8d26b717f3158da6443377e8dfd563
-  original:
-    size: 11138812
-    subdir: amazonka-ses
-    url: https://github.com/wireapp/amazonka/archive/9de5e0e4b2511ec555fb0975581b3087a94c1b4a.tar.gz
-    sha256: b9277a51b60d639fbd91b630f353bf9db305f5759f8e1ee48f0ab026e6b43d00
-- completed:
-    size: 11138812
-    subdir: amazonka-sns
-    url: https://github.com/wireapp/amazonka/archive/9de5e0e4b2511ec555fb0975581b3087a94c1b4a.tar.gz
-    cabal-file:
-      size: 4271
-      sha256: b07fbf8a2806fe775b25ea74d0d78f14f286811e4aa59f9c50e97ed99f2a14a6
-    name: amazonka-sns
-    version: 1.6.1
-    sha256: b9277a51b60d639fbd91b630f353bf9db305f5759f8e1ee48f0ab026e6b43d00
-    pantry-tree:
-      size: 7905
-      sha256: e5a6d407b92e423ccf58d784fe42d4a0598204f65c0e7753569c130428bfb5eb
-  original:
-    size: 11138812
-    subdir: amazonka-sns
-    url: https://github.com/wireapp/amazonka/archive/9de5e0e4b2511ec555fb0975581b3087a94c1b4a.tar.gz
-    sha256: b9277a51b60d639fbd91b630f353bf9db305f5759f8e1ee48f0ab026e6b43d00
-- completed:
-    size: 11138812
-    subdir: amazonka-sqs
-    url: https://github.com/wireapp/amazonka/archive/9de5e0e4b2511ec555fb0975581b3087a94c1b4a.tar.gz
-    cabal-file:
-      size: 3708
-      sha256: 1578844a31a2e53f9f21fd217e14406a3f02aefa637678ef88b201b01fbed492
-    name: amazonka-sqs
-    version: 1.6.1
-    sha256: b9277a51b60d639fbd91b630f353bf9db305f5759f8e1ee48f0ab026e6b43d00
-    pantry-tree:
-      size: 5351
-      sha256: 990b7e4467d557e43959483063f7229f5039857a8cd67decb53f9a5c513db7f8
-  original:
-    size: 11138812
-    subdir: amazonka-sqs
-    url: https://github.com/wireapp/amazonka/archive/9de5e0e4b2511ec555fb0975581b3087a94c1b4a.tar.gz
-    sha256: b9277a51b60d639fbd91b630f353bf9db305f5759f8e1ee48f0ab026e6b43d00
-- completed:
-    size: 11138812
+    size: 11137527
     subdir: core
-    url: https://github.com/wireapp/amazonka/archive/9de5e0e4b2511ec555fb0975581b3087a94c1b4a.tar.gz
+    url: https://github.com/brendanhay/amazonka/archive/9cf5b5777b69ac494d23d43a692294882927df34.tar.gz
     cabal-file:
       size: 4957
       sha256: 8ff9614130407588370e12e905f3539a733b76f6d9397ed3522ce54fc154d918
     name: amazonka-core
     version: 1.6.1
-    sha256: b9277a51b60d639fbd91b630f353bf9db305f5759f8e1ee48f0ab026e6b43d00
+    sha256: c3044f803a7652aee88fe600a97321175cdc1443d671246ba7ff78e14bf5b49f
     pantry-tree:
       size: 3484
-      sha256: d4e427a362d66c9ee0dc0de810015633e43e3953944a84b24cfa2e71bcf0ed4d
+      sha256: fc9c1a8d6a8fefa4432c42c3b104e910d214cded3d0795f8bf46cc85f4f9d838
   original:
-    size: 11138812
+    size: 11137527
     subdir: core
-    url: https://github.com/wireapp/amazonka/archive/9de5e0e4b2511ec555fb0975581b3087a94c1b4a.tar.gz
-    sha256: b9277a51b60d639fbd91b630f353bf9db305f5759f8e1ee48f0ab026e6b43d00
+    url: https://github.com/brendanhay/amazonka/archive/9cf5b5777b69ac494d23d43a692294882927df34.tar.gz
+    sha256: c3044f803a7652aee88fe600a97321175cdc1443d671246ba7ff78e14bf5b49f
+- completed:
+    hackage: amazonka-dynamodb-1.6.1@sha256:6b8852049c65207a7b3741aafa3e4e6c77cfa115e05de3c74868218ae642b6b0,4459
+    pantry-tree:
+      size: 8333
+      sha256: bd7469b4077272ecf37fe30dcff64c3af0a820b610ca592c172d7fa97d9e6833
+  original:
+    hackage: amazonka-dynamodb-1.6.1@sha256:6b8852049c65207a7b3741aafa3e4e6c77cfa115e05de3c74868218ae642b6b0,4459
+- completed:
+    hackage: amazonka-ses-1.6.1@sha256:335796c855121ca34affd35097676587d5ebe0b2e576da42faaedd9d163881b0,6425
+    pantry-tree:
+      size: 18151
+      sha256: 1b4746acac660d5418731b3972c4ff2285ee3435c709dfda67df49665f781d0a
+  original:
+    hackage: amazonka-ses-1.6.1@sha256:335796c855121ca34affd35097676587d5ebe0b2e576da42faaedd9d163881b0,6425
+- completed:
+    hackage: amazonka-sns-1.6.1@sha256:b07fbf8a2806fe775b25ea74d0d78f14f286811e4aa59f9c50e97ed99f2a14a6,4271
+    pantry-tree:
+      size: 7859
+      sha256: d7791240fd6ed273f602e7739c141c56dd9f08ea37cc1ea7d0cfb095489e595d
+  original:
+    hackage: amazonka-sns-1.6.1@sha256:b07fbf8a2806fe775b25ea74d0d78f14f286811e4aa59f9c50e97ed99f2a14a6,4271
+- completed:
+    hackage: amazonka-sqs-1.6.1@sha256:1578844a31a2e53f9f21fd217e14406a3f02aefa637678ef88b201b01fbed492,3708
+    pantry-tree:
+      size: 5305
+      sha256: 4ba2af33686b13cdfb473035500c7e07028564ed4b6ab2a4a6e0bd027b919ef8
+  original:
+    hackage: amazonka-sqs-1.6.1@sha256:1578844a31a2e53f9f21fd217e14406a3f02aefa637678ef88b201b01fbed492,3708
 - completed:
     cabal-file:
       size: 1150

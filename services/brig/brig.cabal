@@ -4,7 +4,7 @@ cabal-version: 2.0
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d809bb98d16ea3605158fe91187390c00a5552a47d5c27bab8d85fab8d440cf4
+-- hash: 5b6d9d31d5e95d40726d293fd31802c4a12c0d31327e3b948142f77d22117abb
 
 name:           brig
 version:        1.35.0
@@ -121,6 +121,7 @@ library
     , base16-bytestring >=0.1
     , base64-bytestring >=1.0
     , bilge >=0.21.1
+    , blaze-builder >=0.3
     , bloodhound >=0.13
     , brig-types >=0.91.1
     , bytestring >=0.10

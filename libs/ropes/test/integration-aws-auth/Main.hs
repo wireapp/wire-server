@@ -15,19 +15,30 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module CargoHold.Util where
+module Main where
 
-import CargoHold.App
-import qualified CargoHold.CloudFront as CloudFront
-import qualified CargoHold.S3 as S3
-import Control.Lens
-import Data.ByteString.Conversion
+import Data.Time.Clock
 import Imports
-import URI.ByteString hiding (urlEncode)
+import Network.HTTP.Client
+import Ropes.Aws
+import qualified System.Logger as Logger
 
-genSignedURL :: (ToByteString p) => p -> Handler URI
-genSignedURL path = do
-  uri <- cloudFront <$> view aws >>= \case
-    Nothing -> S3.signedURL path
-    Just cf -> CloudFront.signedURL cf path
-  return $! uri
+main :: IO ()
+main = do
+  hSetBuffering stdout NoBuffering
+  l <- Logger.new Logger.defSettings -- TODO: use mkLogger'?
+  m <- newManager defaultManagerSettings
+  e <- newEnv l m Nothing
+  forever $ do
+    now <- getCurrentTime
+    crd <- getCredentials e
+    putStrLn $ "Time: " ++ show now ++ " - Credentials: " ++ showCreds crd
+    threadDelay $ 60 * 1000 * 1000 -- every minute
+  where
+    showCreds (Credentials k s _ t) =
+      "AccessKeyId: " ++ show k ++ " - "
+        ++ "SecretAccessKey: "
+        ++ show s
+        ++ " - "
+        ++ "SessionToken: "
+        ++ show t
