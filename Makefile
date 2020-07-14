@@ -179,6 +179,11 @@ git-add-cassandra-schema: db-reset
 	( echo '-- automatically generated with `make git-add-cassandra-schema`' ; docker exec -i $(CASSANDRA_CONTAINER) /usr/bin/cqlsh -e "DESCRIBE schema;" ) > ./docs/reference/cassandra-schema.cql
 	git add ./docs/reference/cassandra-schema.cql
 
+.PHONY: cqlsh
+cqlsh:
+	@echo "make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
+	docker exec -it $(CASSANDRA_CONTAINER) /usr/bin/cqlsh
+
 .PHONY: db-reset
 db-reset:
 	@echo "make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
