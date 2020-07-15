@@ -35,6 +35,7 @@
 module Spar.Scim.User
   ( -- * Internals (for testing)
     validateScimUser',
+    synthesizeScimUser,
     toScimStoredUser',
     mkUserRef,
   )

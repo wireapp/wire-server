@@ -50,6 +50,7 @@ import qualified SAML2.WebSSO.Types as SAML
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import Spar.Scim
+import qualified Spar.Types
 import Spar.Types (IdP)
 import qualified Text.XML.DSig as SAML
 import Util
@@ -776,7 +777,7 @@ testScimSideIsUpdated :: TestSpar ()
 testScimSideIsUpdated = do
   -- Create a user via SCIM
   user <- randomScimUser
-  (tok, _) <- registerIdPAndScimToken
+  (tok, (_, _, idp)) <- registerIdPAndScimToken
   storedUser <- createUser tok user
   let userid = scimUserId storedUser
   -- Overwrite the user with another randomly-generated user
@@ -788,8 +789,9 @@ testScimSideIsUpdated = do
   liftIO $ updatedUser `shouldBe` storedUser'
   -- Check that the updated user also matches the data that we sent with
   -- 'updateUser'
+  richInfoLimit <- asks (Spar.Types.richInfoLimit . view teOpts)
   liftIO $ do
-    Scim.value (Scim.thing storedUser') `shouldBe` user'
+    Right (Scim.value (Scim.thing storedUser')) `shouldBe` whatSparReturnsFor idp richInfoLimit user'
     Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)
     let meta = Scim.meta storedUser
         meta' = Scim.meta storedUser'
@@ -826,7 +828,7 @@ testUpdateSameHandle :: TestSpar ()
 testUpdateSameHandle = do
   -- Create a user via SCIM
   user <- randomScimUser
-  (tok, _) <- registerIdPAndScimToken
+  (tok, (_, _, idp)) <- registerIdPAndScimToken
   storedUser <- createUser tok user
   let userid = scimUserId storedUser
   -- Overwrite the user with another randomly-generated user who has the same name and
@@ -841,8 +843,9 @@ testUpdateSameHandle = do
   storedUser' <- getUser tok userid
   liftIO $ updatedUser `shouldBe` storedUser'
   -- Check that the updated user also matches the data that we sent with 'updateUser'
+  richInfoLimit <- asks (Spar.Types.richInfoLimit . view teOpts)
   liftIO $ do
-    Scim.value (Scim.thing storedUser') `shouldBe` user'
+    Right (Scim.value (Scim.thing storedUser')) `shouldBe` whatSparReturnsFor idp richInfoLimit user'
     Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)
     let meta = Scim.meta storedUser
         meta' = Scim.meta storedUser'
