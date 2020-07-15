@@ -63,8 +63,8 @@ routesInternal = do
 -- endpoints
 
 -- | For debugging and tests.
--- We just pick @()@ here, as conversation and user ID mappings share a table.
-getIdMappingH :: Id (Id.Opaque ()) ::: JSON -> Handler Response
+-- We allow any type of ID, as conversation and user ID mappings share a table.
+getIdMappingH :: Id (Id.Opaque a) ::: JSON -> Handler Response
 getIdMappingH (opaqueId ::: _) =
   ifFederationIsEnabled $
     lift (getIdMapping opaqueId) <&> \case
