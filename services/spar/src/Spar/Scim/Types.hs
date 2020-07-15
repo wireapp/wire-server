@@ -187,31 +187,23 @@ instance Scim.Patchable ScimUserExtra where
   applyOperation _ _ = throwError $ Scim.badRequest Scim.InvalidValue $ Just "invalid patch op for rich info"
 
 -- | SCIM user with all the data spar is actively processing.  Constructed by
--- 'validateScimUser'.  The idea is that the type we get back from hscim is too general, and
+-- 'validateScimUser', or manually from data obtained from brig to pass them on to scim peers.
+-- The idea is that the type we get back from hscim is too general, and
 -- we need a second round of parsing (aka validation), of which 'ValidScimUser' is the result.
---
--- 'NeededInfo' is similar to this, but used for creating scim users rather than as a result
--- of parsing them.  On second thought, we probably should only have one of the two, or at
--- least they should look more closely related in the code: the only difference is that one is
--- for post, the other for patch.
 --
 -- Data contained in '_vsuHandle' and '_vsuName' is guaranteed to a) correspond to the data in
 -- the 'Scim.User.User' and b) be valid in regard to our own user schema requirements (only
 -- certain characters allowed in handles, etc).
 --
--- FUTUREWORK: eliminate '_vsuUser' and keep everything we need as parsed values rather than
--- the raw input.
+-- Note that it's ok for us to ignore parts of the content sent to us, as explained
+-- [here](https://tools.ietf.org/html/rfc7644#section-3.3): "Since the server is free to alter
+-- and/or ignore POSTed content, returning the full representation can be useful to the
+-- client, enabling it to correlate the client's and server's views of the new resource."
 --
--- FUTUREWORK: move 'NeededInfo' closer to here.  perhaps we can make do with one of the two.
+-- FUTUREWORK: make '_vsuSAMLIdentity' a 'Maybe' and allow for SCIM users without a SAML SSO
+-- identity.
 data ValidScimUser = ValidScimUser
-  { _vsuUser :: Scim.User.User SparTag,
-    -- SAML SSO
-
-    -- | (In the future, we may make this a 'Maybe' and allow for
-    -- SCIM users without a SAML SSO identity.)
-    _vsuSAMLUserRef :: SAML.UserRef,
-    _vsuIdp :: IdP,
-    -- mapping to 'Brig.User'
+  { _vsuUserRef :: SAML.UserRef,
     _vsuHandle :: Handle,
     _vsuName :: Maybe Name,
     _vsuRichInfo :: RichInfo,

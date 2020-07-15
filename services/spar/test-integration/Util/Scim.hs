@@ -42,6 +42,7 @@ import Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import Spar.Scim (CreateScimToken (..), CreateScimTokenResponse (..), ScimTokenList (..))
 import Spar.Scim.Types
+import Spar.Scim.User (synthesizeScimUser, validateScimUser')
 import Spar.Types (IdP, IdPMetadataInfo (..), ScimToken (..), ScimTokenInfo (..))
 import qualified Text.Email.Parser as Email
 import qualified Text.XML.DSig as SAML
@@ -544,9 +545,9 @@ instance IsUser ValidScimUser where
   maybeUserId = Nothing
   maybeHandle = Just (Just . view vsuHandle)
   maybeName = Just (view vsuName)
-  maybeTenant = Just (Just . view (vsuSAMLUserRef . SAML.uidTenant))
-  maybeSubject = Just (Just . view (vsuSAMLUserRef . SAML.uidSubject))
-  maybeSubjectRaw = Just (SAML.shortShowNameID . view (vsuSAMLUserRef . SAML.uidSubject))
+  maybeTenant = Just (Just . view (vsuUserRef . SAML.uidTenant))
+  maybeSubject = Just (Just . view (vsuUserRef . SAML.uidSubject))
+  maybeSubjectRaw = Just (SAML.shortShowNameID . view (vsuUserRef . SAML.uidSubject))
 
 instance IsUser (WrappedScimStoredUser SparTag) where
   maybeUserId = Just $ scimUserId . fromWrappedScimStoredUser
@@ -617,3 +618,10 @@ urefFromBrig brigUser = case userIdentity brigUser of
           <> ", error = "
           <> e
   _ -> Nothing
+
+-- | The spar scim implementation makes use of its right to drop a lot of attributes on the
+-- floor.  This function calls the spar functions that do that.  This allows us to express
+-- what we expect a user that comes back from spar to look like in terms of what it looked
+-- like when we sent it there.
+whatSparReturnsFor :: HasCallStack => IdP -> Int -> Scim.User.User SparTag -> Either String (Scim.User.User SparTag)
+whatSparReturnsFor idp richInfoSizeLimit = either (Left . show) (Right . synthesizeScimUser) . validateScimUser' idp richInfoSizeLimit

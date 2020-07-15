@@ -35,6 +35,7 @@
 module Spar.Scim.User
   ( -- * Internals (for testing)
     validateScimUser',
+    synthesizeScimUser,
     toScimStoredUser',
     mkUserRef,
   )
@@ -153,7 +154,7 @@ instance Scim.UserDB SparTag Spar where
     ScimTokenInfo ->
     Scim.User SparTag ->
     Scim.ScimHandler Spar (Scim.StoredUser SparTag)
-  postUser tokinfo user = createValidScimUser =<< validateScimUser tokinfo user
+  postUser tokinfo user = createValidScimUser tokinfo =<< validateScimUser tokinfo user
 
   putUser ::
     ScimTokenInfo ->
@@ -178,13 +179,16 @@ validateScimUser ::
   ScimTokenInfo ->
   Scim.User SparTag ->
   m ValidScimUser
-validateScimUser ScimTokenInfo {stiIdP} user = do
-  idp <- stiIdP ?? Scim.serverError "No IdP configured for the provisioning token"
-  idpConfig <-
-    (wrapMonadClient . Data.getIdPConfig $ idp)
-      !? Scim.serverError "No IdP configured for the provisioning token"
+validateScimUser tokinfo user = do
+  idpConfig <- tokenInfoToIdP tokinfo
   richInfoLimit <- lift $ asks (richInfoLimit . sparCtxOpts)
   validateScimUser' idpConfig richInfoLimit user
+
+tokenInfoToIdP :: ScimTokenInfo -> Scim.ScimHandler Spar IdP
+tokenInfoToIdP ScimTokenInfo {stiIdP} = do
+  iid <- stiIdP ?? Scim.serverError "No IdP configured for the provisioning token"
+  midp <- lift . wrapMonadClient . Data.getIdPConfig $ iid
+  midp ?? Scim.serverError "Unknown IdP configured for the provisioning token"
 
 -- | Validate a handle (@userName@).
 validateHandle :: MonadError Scim.ScimError m => Text -> m Handle
@@ -237,7 +241,7 @@ validateScimUser' idp richInfoLimit user = do
   mbName <- mapM validateName (Scim.displayName user)
   richInfo <- validateRichInfo (Scim.extra user ^. sueRichInfo)
   let active = Scim.active user
-  pure $ ValidScimUser user uref idp handl mbName richInfo active
+  pure $ ValidScimUser uref handl mbName richInfo active
   where
     -- Validate a name (@displayName@). It has to conform to standard Wire rules.
     validateName :: Text -> m Name
@@ -316,9 +320,11 @@ mkUserRef idp extid = case extid of
 createValidScimUser ::
   forall m.
   (m ~ Scim.ScimHandler Spar) =>
+  ScimTokenInfo ->
   ValidScimUser ->
   m (Scim.StoredUser SparTag)
-createValidScimUser (ValidScimUser user uref idpConfig handl mbName richInfo active) = do
+createValidScimUser tokinfo vsu@(ValidScimUser uref handl mbName richInfo active) = do
+  idpConfig <- tokenInfoToIdP tokinfo
   -- sanity check: do tenant of the URef and the Issuer of the IdP match?  (this is mostly
   -- here to make sure a refactoring we did in the past is sound: we removed a lookup by
   -- tenant and had the idp config already in context from an earlier lookup.)
@@ -337,7 +343,7 @@ createValidScimUser (ValidScimUser user uref idpConfig handl mbName richInfo act
 
   -- FUTUREWORK(arianvp): Get rid of manual lifting. Needs to be SCIM instances for ExceptT
   -- This is the pain and the price you pay for the horribleness called MTL
-  storedUser <- lift $ toScimStoredUser buid user
+  storedUser <- lift . toScimStoredUser buid $ synthesizeScimUser vsu
   let teamid = idpConfig ^. SAML.idpExtraInfo . wiTeam
   buid' <- lift $ Brig.createBrigUser uref buid teamid mbName ManagedByScim
   assert (buid == buid') $ pure ()
@@ -392,21 +398,22 @@ updateValidScimUser tokinfo uid newScimUser = do
   -- construct old and new user values with metadata.
   oldScimStoredUser :: Scim.StoredUser SparTag <-
     Scim.getUser tokinfo uid
-  assertUserRefNotUsedElsewhere (newScimUser ^. vsuSAMLUserRef) uid
+  oldValidScimUser :: ValidScimUser <-
+    validateScimUser tokinfo . Scim.value . Scim.thing $ oldScimStoredUser
+  assertUserRefNotUsedElsewhere (newScimUser ^. vsuUserRef) uid
   assertHandleNotUsedElsewhere (newScimUser ^. vsuHandle) uid
-  if Scim.value (Scim.thing oldScimStoredUser) == (newScimUser ^. vsuUser)
+  if oldValidScimUser == newScimUser
     then pure oldScimStoredUser
     else do
       newScimStoredUser :: Scim.StoredUser SparTag <-
-        lift $ updScimStoredUser (newScimUser ^. vsuUser) oldScimStoredUser
+        lift $ updScimStoredUser (synthesizeScimUser newScimUser) oldScimStoredUser
       -- update 'SAML.UserRef' on spar (also delete the old 'SAML.UserRef' if it exists and
       -- is different from the new one)
-      let newuref = newScimUser ^. vsuSAMLUserRef
+      let newuref = newScimUser ^. vsuUserRef
       olduref <- do
         let extid :: Maybe Text
             extid = Scim.externalId . Scim.value . Scim.thing $ oldScimStoredUser
-            idp :: IdP
-            idp = newScimUser ^. vsuIdp
+        idp <- tokenInfoToIdP tokinfo
         mkUserRef idp extid
       when (olduref /= newuref) $ do
         lift . wrapMonadClient $ Data.deleteSAMLUser olduref
@@ -603,25 +610,16 @@ assertHandleNotUsedElsewhere hndl uid = do
   unless ((userHandle =<< musr) == Just hndl) $
     assertHandleUnused' "userName does not match UserId" hndl uid
 
--- | The information needed to synthesize a Scim user.
---
--- See haddocks on 'ValidScimUser'.
-data NeededInfo = NeededInfo
-  { neededHandle :: Handle,
-    neededName :: Name,
-    neededExternalId :: Text,
-    neededRichInfo :: RichInfo,
-    neededActive :: Maybe Bool
-  }
-
-synthesizeScimUser :: NeededInfo -> Scim.User SparTag
+synthesizeScimUser :: ValidScimUser -> Scim.User SparTag
 synthesizeScimUser info =
-  let Handle userName = neededHandle info
-      Name displayName = neededName info
-   in (Scim.empty userSchemas userName (ScimUserExtra (neededRichInfo info)))
-        { Scim.externalId = Just $ neededExternalId info,
-          Scim.displayName = Just displayName,
-          Scim.active = neededActive info
+  let Handle userName = info ^. vsuHandle
+      mDisplayName = fromName <$> (info ^. vsuName)
+      toExternalId' :: SAML.UserRef -> Maybe Text
+      toExternalId' = either (const Nothing) Just . Brig.toExternalId . Brig.toUserSSOId
+   in (Scim.empty userSchemas userName (ScimUserExtra (info ^. vsuRichInfo)))
+        { Scim.externalId = toExternalId' $ info ^. vsuUserRef,
+          Scim.displayName = mDisplayName,
+          Scim.active = info ^. vsuActive
         }
 
 -- | Helper function that given a brig user, creates a scim user on the fly or returns
@@ -641,11 +639,13 @@ getOrCreateScimUser stiTeam brigUser = do
       ssoIdentity' <- do
         -- TODO: If user is not an SSO User; @ssoIdentity'@ is Nothing
         -- Hence; we should only set managedByScim if this _succeeds_
+        -- and only lookup idp conditionally.
         getSSOIdentity' brigUser'
-      externalId <- toExternalId' ssoIdentity'
+      samlIdentity <- do
+        toSAMLIdentity' ssoIdentity'
       setManagedBy' uid ManagedByScim
-      let neededInfo = NeededInfo handle name externalId richInfo (Just isActive)
-      let user = synthesizeScimUser neededInfo
+      let validScimUser = ValidScimUser samlIdentity handle (Just name) richInfo (Just isActive)
+      let user = synthesizeScimUser validScimUser
       storedUser <- toScimStoredUser'' uid user
       insertScimUser' uid storedUser
       pure storedUser
@@ -657,7 +657,7 @@ getOrCreateScimUser stiTeam brigUser = do
     getRichInfo' = lift . lift . Brig.getBrigUserRichInfo
     getStatus' = lift . lift . Brig.getStatus
     getSSOIdentity' = MaybeT . pure . (userIdentity >=> ssoIdentity)
-    toExternalId' = either err pure . Brig.toExternalId
+    toSAMLIdentity' = either err pure . Brig.fromUserSSOId
       where
         err = const . throwError $ Scim.badRequest Scim.InvalidFilter (Just "Invalid externalId")
     toScimStoredUser'' uid = lift . lift . toScimStoredUser uid
