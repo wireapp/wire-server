@@ -114,9 +114,9 @@ mkIndexUser u v =
   IndexUser
     { _iuUserId = u,
       _iuVersion = v,
-      _iuAccountStatus = Nothing,
       _iuTeam = Nothing,
       _iuName = Nothing,
       _iuHandle = Nothing,
-      _iuColourId = Nothing
+      _iuColourId = Nothing,
+      _iuAccountStatus = Nothing
     }
