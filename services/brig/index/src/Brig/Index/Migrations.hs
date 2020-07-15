@@ -49,7 +49,7 @@ migrate l es cas = do
 
 -- | Increase this number any time you want to force reindexing.
 expectedMigrationVersion :: MigrationVersion
-expectedMigrationVersion = MigrationVersion 1
+expectedMigrationVersion = MigrationVersion 2
 
 indexName :: ES.IndexName
 indexName = ES.IndexName "wire_brig_migrations"
