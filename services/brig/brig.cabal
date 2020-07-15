@@ -4,7 +4,7 @@ cabal-version: 2.0
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 569c2e513825afb99305f83cb7146a6dd4c42b06b991923f534ad980a8bc8c2e
+-- hash: f150b19d31eda4f6f32ad2782dccc7deae05b01ffd46558fe1f403ba49500307
 
 name:           brig
 version:        1.35.0
@@ -227,7 +227,6 @@ library brig-index-lib
       Brig.Index.Eval
       Brig.Index.Migrations
       Brig.Index.Migrations.Types
-      Brig.Index.Migrations.V1_ReIndexForSearchTeamMembers
       Brig.Index.Options
       Main
   other-modules:

@@ -32,12 +32,6 @@ import Numeric.Natural (Natural)
 import qualified System.Logger as Logger
 import System.Logger.Class (MonadLogger (..))
 
-data Migration = Migration
-  { version :: MigrationVersion,
-    text :: Text,
-    action :: MigrationActionT IO ()
-  }
-
 newtype MigrationVersion = MigrationVersion {migrationVersion :: Natural}
   deriving (Show, Eq, Ord)
 
