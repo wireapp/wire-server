@@ -34,7 +34,7 @@ createIdMappingInGalley :: PostIdMappingRequest -> AppIO ()
 createIdMappingInGalley body = do
   Log.debug $ remote "galley" . Log.msg (Log.val "Create ID mapping")
   st <- statusCode <$> galleyRequest POST req
-  when (st /= 403) $ do
+  when (st == 403) $ do
     -- don't fail, but make some noise
     Log.err $
       Log.field "qualified_id" (renderQualifiedId (reqQualifiedId body))
