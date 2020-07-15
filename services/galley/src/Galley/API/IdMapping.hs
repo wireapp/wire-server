@@ -81,7 +81,7 @@ postIdMappingH (req ::: _) =
 -- each other.
 postIdMapping :: PostIdMappingRequest -> Galley PostIdMappingResponse
 postIdMapping (PostIdMappingRequest qualifiedId) = do
-  let mappedId = hashQualifiedId qualifiedId
+  let mappedId = Id (hashQualifiedId qualifiedId)
   Data.insertIdMapping (IdMapping mappedId qualifiedId)
   pure (PostIdMappingResponse mappedId)
 
@@ -142,7 +142,7 @@ createIdMapping qualifiedId = do
       -- This should be optimized for the common case that the mapping already exists.
       -- We have to compute the hash already just to check if there is an
       -- existing mapping, since the mapped ID is the primary key.
-      let mappedId = hashQualifiedId qualifiedId
+      let mappedId = Id (hashQualifiedId qualifiedId)
       let idMapping = IdMapping mappedId qualifiedId
       Data.getIdMapping mappedId >>= \case
         Just existingMapping ->

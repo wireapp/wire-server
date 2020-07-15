@@ -26,6 +26,7 @@ import Data.Domain (domainText)
 import Data.Id
 import Data.Qualified
 import qualified Data.Text.Encoding as Text.E
+import Data.UUID (UUID)
 import qualified Data.UUID.V5 as UUID.V5
 import Imports
 import Test.QuickCheck (Arbitrary (arbitrary), oneof)
@@ -68,10 +69,16 @@ instance ToJSON (IdMapping a) where
 
 -- | Deterministically hashes a qualified ID to a single UUID
 --
+-- Note that when using this function to obtain a mapped ID, you should also create
+-- an entry for it in the ID mapping table, so it can be translated to the qualified
+-- ID again.
+-- This is also why the result type is not an @Id (Mapped a)@. Mapped IDs should
+-- always have a corresponding entry in the table.
+--
 -- FUTUREWORK: This uses V5 UUID namespaces (SHA-1 under the hood). To provide better
 -- protection against collisions, we should use something else, e.g. based on SHA-256.
-hashQualifiedId :: Qualified (Id (Remote a)) -> Id (Mapped a)
-hashQualifiedId Qualified {_qLocalPart, _qDomain} = Id (UUID.V5.generateNamed namespace object)
+hashQualifiedId :: Qualified (Id (Remote a)) -> UUID
+hashQualifiedId Qualified {_qLocalPart, _qDomain} = UUID.V5.generateNamed namespace object
   where
     -- using the ID as the namespace sounds backwards, but it works
     namespace = toUUID _qLocalPart
