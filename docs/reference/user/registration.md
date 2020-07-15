@@ -200,6 +200,7 @@ The rest of the unauthorized end-points is safe:
 - `/sso`: authenticated via IdP or ok to expose to world (`/metadata`)
 - `/scim/v2`: authenticated via HTTP simple auth.
 - `~* ^/teams/invitations/info$`: only `GET`; requires invitation code.
+- `~* ^/teams/invitations/by-email$`: only `HEAD`.
 - `/invitations/info`: discontinued feature, can be removed from nginz config.
 - `/conversations/code-check`: link validatoin for ephemeral/guest users.
 - `/provider/*`: bots need to be registered to a team before becoming active.  so if an attacker does not get access to a team, they cannot deploy a bot.

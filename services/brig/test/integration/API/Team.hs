@@ -60,8 +60,8 @@ import Web.Cookie (parseSetCookie, setCookieName)
 
 newtype TeamSizeLimit = TeamSizeLimit Word32
 
-tests :: Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> AWS.Env -> IO TestTree
-tests conf m b c g aws = do
+tests :: Opt.Opts -> Manager -> Nginz -> Brig -> Cannon -> Galley -> AWS.Env -> IO TestTree
+tests conf m n b c g aws = do
   let tl = TeamSizeLimit . Opt.setMaxTeamSize . Opt.optSettings $ conf
   let it = Opt.setTeamInvitationTimeout . Opt.optSettings $ conf
   return $
@@ -70,6 +70,7 @@ tests conf m b c g aws = do
       [ testGroup "invitation" $
           [ test m "post /teams/:tid/invitations - 201" $ testInvitationEmail b,
             test m "post /teams/:tid/invitations - email lookup" $ testInvitationEmailLookup b,
+            test m "post /teams/:tid/invitations - email lookup nginz" $ testInvitationEmailLookupNginz b n,
             test m "post /teams/:tid/invitations - email lookup register" $ testInvitationEmailLookupRegister b,
             test m "post /teams/:tid/invitations - 403 no permission" $ testInvitationNoPermission b,
             test m "post /teams/:tid/invitations - 403 too many pending" $ testInvitationTooManyPending b tl,
@@ -182,6 +183,17 @@ testInvitationEmailLookupRegister brig = do
   void $ registerInvite brig tid inv email
   -- expect a 404 after invitation has been used.
   headInvitationByEmail brig email 404
+
+testInvitationEmailLookupNginz :: Brig -> Nginz -> Http ()
+testInvitationEmailLookupNginz brig nginz = do
+  email <- randomEmail
+  -- expect no invitation to be found for an email before that person is invited
+  headInvitationByEmail nginz email 404
+  (uid, tid) <- createUserWithTeam brig
+  let invite = stdInvitationRequest email (Name "Bob") Nothing Nothing
+  void $ postInvitation brig tid uid invite
+  -- expect an invitation to be found querying with email after invite
+  headInvitationByEmail nginz email 200
 
 headInvitationByEmail :: Brig -> Email -> Int -> Http ()
 headInvitationByEmail brig email expectedCode =
