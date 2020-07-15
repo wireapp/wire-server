@@ -29,14 +29,10 @@ module Galley.API.IdMapping
 where
 
 import Control.Monad.Catch (throwM)
-import qualified Data.ByteString as BS
-import Data.Domain (domainText)
 import qualified Data.Id as Id
 import Data.Id (Id (Id, toUUID), OpaqueConvId, OpaqueUserId, idToText)
-import Data.IdMapping (IdMapping (IdMapping, _imQualifiedId), MappedOrLocalId (Local, Mapped))
-import Data.Qualified (Qualified (Qualified, _qDomain, _qLocalPart), renderQualifiedId)
-import qualified Data.Text.Encoding as Text.E
-import qualified Data.UUID.V5 as UUID.V5
+import Data.IdMapping (IdMapping (IdMapping, _imQualifiedId), MappedOrLocalId (Local, Mapped), hashQualifiedId)
+import Data.Qualified (Qualified, renderQualifiedId)
 import Galley.API.Error (federationNotEnabled)
 import Galley.API.Util (JSON, isFederationEnabled)
 import Galley.App (Galley, fromJsonBody)
@@ -160,14 +156,3 @@ createIdMapping qualifiedId = do
           Data.insertIdMapping idMapping
           Intra.createIdMappingInBrig (mkPostIdMappingRequest qualifiedId)
       pure idMapping
-
--- | Deterministically hashes a qualified ID to a single UUID
---
--- FUTUREWORK: This uses V5 UUID namespaces (SHA-1 under the hood). To provide better
--- protection against collisions, we should use something else, e.g. based on SHA-256.
-hashQualifiedId :: Qualified (Id (Id.Remote a)) -> Id (Id.Mapped a)
-hashQualifiedId Qualified {_qLocalPart, _qDomain} = Id (UUID.V5.generateNamed namespace object)
-  where
-    -- using the ID as the namespace sounds backwards, but it works
-    namespace = Id.toUUID _qLocalPart
-    object = BS.unpack . Text.E.encodeUtf8 . domainText $ _qDomain
