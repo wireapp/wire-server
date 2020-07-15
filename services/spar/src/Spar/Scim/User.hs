@@ -44,7 +44,7 @@ where
 import Brig.Types.User as BrigTypes
 import Control.Error ((!?), (??))
 import Control.Exception (assert)
-import Control.Lens ((^.), view)
+import Control.Lens ((^.))
 import Control.Monad.Except
 import Control.Monad.Trans.Maybe
 import Crypto.Hash
@@ -154,7 +154,7 @@ instance Scim.UserDB SparTag Spar where
     ScimTokenInfo ->
     Scim.User SparTag ->
     Scim.ScimHandler Spar (Scim.StoredUser SparTag)
-  postUser tokinfo user = createValidScimUser =<< validateScimUser tokinfo user
+  postUser tokinfo user = createValidScimUser tokinfo =<< validateScimUser tokinfo user
 
   putUser ::
     ScimTokenInfo ->
@@ -179,13 +179,16 @@ validateScimUser ::
   ScimTokenInfo ->
   Scim.User SparTag ->
   m ValidScimUser
-validateScimUser ScimTokenInfo {stiIdP} user = do
-  idp <- stiIdP ?? Scim.serverError "No IdP configured for the provisioning token"
-  idpConfig <-
-    (wrapMonadClient . Data.getIdPConfig $ idp)
-      !? Scim.serverError "No IdP configured for the provisioning token"
+validateScimUser tokinfo user = do
+  idpConfig <- tokenInfoToIdP tokinfo
   richInfoLimit <- lift $ asks (richInfoLimit . sparCtxOpts)
   validateScimUser' idpConfig richInfoLimit user
+
+tokenInfoToIdP :: ScimTokenInfo -> Scim.ScimHandler Spar IdP
+tokenInfoToIdP ScimTokenInfo {stiIdP} = do
+  iid <- stiIdP ?? Scim.serverError "No IdP configured for the provisioning token"
+  midp <- lift . wrapMonadClient . Data.getIdPConfig $ iid
+  midp ?? Scim.serverError "Unknown IdP configured for the provisioning token"
 
 -- | Validate a handle (@userName@).
 validateHandle :: MonadError Scim.ScimError m => Text -> m Handle
@@ -238,7 +241,7 @@ validateScimUser' idp richInfoLimit user = do
   mbName <- mapM validateName (Scim.displayName user)
   richInfo <- validateRichInfo (Scim.extra user ^. sueRichInfo)
   let active = Scim.active user
-  pure $ ValidScimUser (SAMLIdentity idp uref) handl mbName richInfo active
+  pure $ ValidScimUser uref handl mbName richInfo active
   where
     -- Validate a name (@displayName@). It has to conform to standard Wire rules.
     validateName :: Text -> m Name
@@ -317,11 +320,11 @@ mkUserRef idp extid = case extid of
 createValidScimUser ::
   forall m.
   (m ~ Scim.ScimHandler Spar) =>
+  ScimTokenInfo ->
   ValidScimUser ->
   m (Scim.StoredUser SparTag)
-createValidScimUser vsu@(ValidScimUser samlIdentity handl mbName richInfo active) = do
-  let uref = samlIdentity ^. siUserRef
-      idpConfig = samlIdentity ^. siIdP
+createValidScimUser tokinfo vsu@(ValidScimUser uref handl mbName richInfo active) = do
+  idpConfig <- tokenInfoToIdP tokinfo
   -- sanity check: do tenant of the URef and the Issuer of the IdP match?  (this is mostly
   -- here to make sure a refactoring we did in the past is sound: we removed a lookup by
   -- tenant and had the idp config already in context from an earlier lookup.)
@@ -410,8 +413,7 @@ updateValidScimUser tokinfo uid newScimUser = do
       olduref <- do
         let extid :: Maybe Text
             extid = Scim.externalId . Scim.value . Scim.thing $ oldScimStoredUser
-            idp :: IdP
-            idp = newScimUser ^. vsuIdP
+        idp <- tokenInfoToIdP tokinfo
         mkUserRef idp extid
       when (olduref /= newuref) $ do
         lift . wrapMonadClient $ Data.deleteSAMLUser olduref
@@ -612,10 +614,10 @@ synthesizeScimUser :: ValidScimUser -> Scim.User SparTag
 synthesizeScimUser info =
   let Handle userName = info ^. vsuHandle
       mDisplayName = fromName <$> (info ^. vsuName)
-      toExternalId' :: SAMLIdentity -> Maybe Text
-      toExternalId' = either (const Nothing) Just . Brig.toExternalId . Brig.toUserSSOId . view siUserRef
+      toExternalId' :: SAML.UserRef -> Maybe Text
+      toExternalId' = either (const Nothing) Just . Brig.toExternalId . Brig.toUserSSOId
    in (Scim.empty userSchemas userName (ScimUserExtra (info ^. vsuRichInfo)))
-        { Scim.externalId = toExternalId' $ info ^. vsuSAMLIdentity,
+        { Scim.externalId = toExternalId' $ info ^. vsuUserRef,
           Scim.displayName = mDisplayName,
           Scim.active = info ^. vsuActive
         }
@@ -640,16 +642,7 @@ getOrCreateScimUser stiTeam brigUser = do
         -- and only lookup idp conditionally.
         getSSOIdentity' brigUser'
       samlIdentity <- do
-        idps :: [IdP] <- lift . lift . wrapMonadClient $ Data.getIdPConfigsByTeam stiTeam
-        idp :: IdP <- case idps of
-          [i] -> pure i
-          [] ->
-            throwError . Scim.serverError $
-              "No IdP configured for the provisioning token"
-          l@(_ : _ : _) ->
-            throwError . Scim.serverError . cs $
-              "SCIM is only supported for teams with exactly one IdP, you have " <> show (length l)
-        toSAMLIdentity' idp ssoIdentity'
+        toSAMLIdentity' ssoIdentity'
       setManagedBy' uid ManagedByScim
       let validScimUser = ValidScimUser samlIdentity handle (Just name) richInfo (Just isActive)
       let user = synthesizeScimUser validScimUser
@@ -664,7 +657,7 @@ getOrCreateScimUser stiTeam brigUser = do
     getRichInfo' = lift . lift . Brig.getBrigUserRichInfo
     getStatus' = lift . lift . Brig.getStatus
     getSSOIdentity' = MaybeT . pure . (userIdentity >=> ssoIdentity)
-    toSAMLIdentity' idp = either err (pure . SAMLIdentity idp) . Brig.fromUserSSOId
+    toSAMLIdentity' = either err pure . Brig.fromUserSSOId
       where
         err = const . throwError $ Scim.badRequest Scim.InvalidFilter (Just "Invalid externalId")
     toScimStoredUser'' uid = lift . lift . toScimStoredUser uid

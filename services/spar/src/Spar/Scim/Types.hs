@@ -203,7 +203,7 @@ instance Scim.Patchable ScimUserExtra where
 -- FUTUREWORK: make '_vsuSAMLIdentity' a 'Maybe' and allow for SCIM users without a SAML SSO
 -- identity.
 data ValidScimUser = ValidScimUser
-  { _vsuSAMLIdentity :: SAMLIdentity,
+  { _vsuUserRef :: SAML.UserRef,
     _vsuHandle :: Handle,
     _vsuName :: Maybe Name,
     _vsuRichInfo :: RichInfo,
@@ -212,12 +212,6 @@ data ValidScimUser = ValidScimUser
   deriving (Eq, Show)
 
 makeLenses ''ValidScimUser
-
-vsuUserRef :: Lens' ValidScimUser SAML.UserRef
-vsuUserRef = vsuSAMLIdentity . siUserRef
-
-vsuIdP :: Lens' ValidScimUser IdP
-vsuIdP = vsuSAMLIdentity . siIdP
 
 scimActiveFlagFromAccountStatus :: AccountStatus -> Bool
 scimActiveFlagFromAccountStatus = \case
