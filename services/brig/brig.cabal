@@ -1,10 +1,10 @@
 cabal-version: 2.0
 
--- This file has been generated from package.yaml by hpack version 0.31.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d809bb98d16ea3605158fe91187390c00a5552a47d5c27bab8d85fab8d440cf4
+-- hash: 55852968c279333fd398a37b642b9e7428944ec63da4b95f2d3e0d02b1d2df28
 
 name:           brig
 version:        1.35.0
@@ -24,6 +24,7 @@ library
       Brig.API.Connection
       Brig.API.Error
       Brig.API.Handler
+      Brig.API.IdMapping
       Brig.API.Internal
       Brig.API.Properties
       Brig.API.Public
@@ -40,6 +41,7 @@ library
       Brig.Data.Blacklist
       Brig.Data.Client
       Brig.Data.Connection
+      Brig.Data.IdMapping
       Brig.Data.Instances
       Brig.Data.LoginCode
       Brig.Data.PasswordReset
@@ -51,6 +53,7 @@ library
       Brig.InternalEvent.Process
       Brig.InternalEvent.Types
       Brig.IO.Intra
+      Brig.IO.Intra.IdMapping
       Brig.IO.Journal
       Brig.Locale
       Brig.Options
@@ -287,6 +290,7 @@ executable brig-index
 executable brig-integration
   main-is: Main.hs
   other-modules:
+      API.IdMapping
       API.Metrics
       API.Provider
       API.RichInfo.Util
@@ -434,6 +438,7 @@ executable brig-schema
       V57
       V58
       V59
+      V60_AddFederationIdMapping
       V9
       Paths_brig
   hs-source-dirs:

@@ -34,8 +34,8 @@ module Brig.API.Connection
   )
 where
 
+import Brig.API.IdMapping (resolveOpaqueUserId)
 import Brig.API.Types
-import Brig.API.Util (resolveOpaqueUserId)
 import Brig.App
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
@@ -63,7 +63,7 @@ createConnection ::
   ConnId ->
   ExceptT ConnectionError AppIO ConnectionResult
 createConnection self req conn = do
-  resolveOpaqueUserId (crUser req) >>= \case
+  lift (resolveOpaqueUserId (crUser req)) >>= \case
     Local u ->
       createConnectionToLocalUser self u req conn
     Mapped IdMapping {_imMappedId} ->

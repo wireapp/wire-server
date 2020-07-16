@@ -15,82 +15,89 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.IdMapping
+module Brig.API.IdMapping
   ( -- * endpoints
-    getIdMappingH,
-    postIdMappingH,
+    routesInternal,
 
     -- * other functions
     resolveOpaqueUserId,
-    resolveOpaqueConvId,
     createUserIdMapping,
-    createConvIdMapping,
   )
 where
 
+import Brig.API.Error (federationNotEnabled)
+import Brig.API.Handler (Handler, JSON, parseJsonBody)
+import Brig.API.Util (isFederationEnabled)
+import Brig.App (AppIO)
+import qualified Brig.Data.IdMapping as Data (getIdMapping, insertIdMapping)
+import qualified Brig.IO.Intra.IdMapping as Intra
 import Control.Monad.Catch (throwM)
 import qualified Data.Id as Id
-import Data.Id (Id (Id, toUUID), OpaqueConvId, OpaqueUserId, idToText)
+import Data.Id (Id (Id, toUUID), OpaqueUserId, idToText)
 import Data.IdMapping (IdMapping (IdMapping, _imQualifiedId), MappedOrLocalId (Local, Mapped), hashQualifiedId)
 import Data.Qualified (Qualified, renderQualifiedId)
-import Galley.API.Error (federationNotEnabled)
-import Galley.API.Util (JSON, isFederationEnabled)
-import Galley.App (Galley, fromJsonBody)
-import qualified Galley.Data.IdMapping as Data (getIdMapping, insertIdMapping)
-import qualified Galley.Intra.IdMapping as Intra
 import Galley.Types.IdMapping (PostIdMappingRequest (PostIdMappingRequest), PostIdMappingResponse (PostIdMappingResponse), mkPostIdMappingRequest)
 import Imports
 import Network.HTTP.Types (forbidden403, notFound404)
 import Network.Wai (Response)
-import Network.Wai.Predicate ((:::) ((:::)))
-import Network.Wai.Utilities (JsonRequest, empty, json, setStatus)
+import Network.Wai.Predicate ((.&.), (:::) ((:::)), accept)
+import Network.Wai.Routing (Routes, capture, continue, get, post)
+import Network.Wai.Utilities (JsonRequest, empty, json, jsonRequest, setStatus)
 import qualified System.Logger.Class as Log
+
+routesInternal :: Routes a Handler ()
+routesInternal = do
+  get "/i/id-mapping/:uid" (continue getIdMappingH) $
+    capture "uid"
+      .&. accept "application" "json"
+
+  post "/i/id-mapping" (continue postIdMappingH) $
+    jsonRequest @PostIdMappingRequest
+      .&. accept "application" "json"
 
 --------------------------------------------------------------------------------
 -- endpoints
 
 -- | For debugging and tests.
--- We just pick @()@ here, as conversation and user ID mappings share a table.
-getIdMappingH :: Id (Id.Opaque ()) ::: JSON -> Galley Response
+-- We allow any type of ID, as conversation and user ID mappings share a table.
+getIdMappingH :: Id (Id.Opaque a) ::: JSON -> Handler Response
 getIdMappingH (opaqueId ::: _) =
   ifFederationIsEnabled $
-    getIdMapping opaqueId <&> \case
+    lift (getIdMapping opaqueId) <&> \case
       Nothing -> empty & setStatus notFound404
       Just idMapping -> json idMapping
 
-getIdMapping :: forall a. Id (Id.Opaque a) -> Galley (Maybe (IdMapping a))
+getIdMapping :: forall a. Id (Id.Opaque a) -> AppIO (Maybe (IdMapping a))
 getIdMapping opaqueId = do
   Data.getIdMapping assumedMappedId
   where
     assumedMappedId = Id (toUUID opaqueId) :: Id (Id.Mapped a)
 
 -- | Used by Brig and Galley to notify each other when they find a new 'IdMapping'.
-postIdMappingH ::
-  JsonRequest PostIdMappingRequest ::: JSON ->
-  Galley Response
+postIdMappingH :: JsonRequest PostIdMappingRequest ::: JSON -> Handler Response
 postIdMappingH (req ::: _) =
   ifFederationIsEnabled $
-    fmap json . postIdMapping =<< fromJsonBody req
+    lift . fmap json . postIdMapping =<< parseJsonBody req
 
 -- | Blindly writes the mapping to our own database, unconditionally.
 -- The mapping is deterministic, so we don't bother reading existing values.
 -- If we overwrite an existing entry, then it will be overwritten with the same value as it
 -- had before.
 --
--- This function doesn't intra-call Brig, so we don't end up in an infinite loop of calling
+-- This function doesn't intra-call Galley, so we don't end up in an infinite loop of calling
 -- each other.
-postIdMapping :: PostIdMappingRequest -> Galley PostIdMappingResponse
+postIdMapping :: PostIdMappingRequest -> AppIO PostIdMappingResponse
 postIdMapping (PostIdMappingRequest qualifiedId) = do
   let mappedId = Id (hashQualifiedId qualifiedId)
   Data.insertIdMapping (IdMapping mappedId qualifiedId)
   pure (PostIdMappingResponse mappedId)
 
-ifFederationIsEnabled :: Galley Response -> Galley Response
+ifFederationIsEnabled :: Handler Response -> Handler Response
 ifFederationIsEnabled action =
   isFederationEnabled >>= \case
-    -- This should only be called by Brig if federation is enabled there,
-    -- so either there is some mis-configuration going on (Brig and Galley
-    -- out of sync) or there is a bug.
+    -- The endpoints should only be called by Galley if federation is enabled there,
+    -- so either there is some mis-configuration going on (Brig and Galley out of sync)
+    -- or there is a bug.
     False -> pure (empty & setStatus forbidden403)
     True -> action
 
@@ -99,17 +106,14 @@ ifFederationIsEnabled action =
 
 -- FUTUREWORK(federation, #1178): implement function to resolve IDs in batch
 
-resolveOpaqueUserId :: OpaqueUserId -> Galley (MappedOrLocalId Id.U)
+resolveOpaqueUserId :: OpaqueUserId -> AppIO (MappedOrLocalId Id.U)
 resolveOpaqueUserId = resolveOpaqueId
-
-resolveOpaqueConvId :: OpaqueConvId -> Galley (MappedOrLocalId Id.C)
-resolveOpaqueConvId = resolveOpaqueId
 
 -- | It doesn't really matter which type of 'IdMapping' we create, as they will all be
 -- identical and can therefore be written to the same table.
 --
 -- We still don't want to expose this function directly and instead use specialized versions.
-resolveOpaqueId :: forall a. Id (Id.Opaque a) -> Galley (MappedOrLocalId a)
+resolveOpaqueId :: forall a. Id (Id.Opaque a) -> AppIO (MappedOrLocalId a)
 resolveOpaqueId opaqueId = do
   isFederationEnabled >>= \case
     False ->
@@ -123,17 +127,14 @@ resolveOpaqueId opaqueId = do
     assumedMappedId = Id (toUUID opaqueId) :: Id (Id.Mapped a)
     assumedLocalId = Id (toUUID opaqueId) :: Id a
 
-createUserIdMapping :: Qualified (Id (Id.Remote Id.U)) -> Galley (IdMapping Id.U)
+createUserIdMapping :: Qualified (Id (Id.Remote Id.U)) -> AppIO (IdMapping Id.U)
 createUserIdMapping = createIdMapping
-
-createConvIdMapping :: Qualified (Id (Id.Remote Id.C)) -> Galley (IdMapping Id.C)
-createConvIdMapping = createIdMapping
 
 -- | It doesn't really matter which type of 'IdMapping' we create, as they will all be
 -- identical and can therefore be written to the same table.
 --
 -- We still don't want to expose this function directly and instead use specialized versions.
-createIdMapping :: Typeable a => Qualified (Id (Id.Remote a)) -> Galley (IdMapping a)
+createIdMapping :: Typeable a => Qualified (Id (Id.Remote a)) -> AppIO (IdMapping a)
 createIdMapping qualifiedId = do
   isFederationEnabled >>= \case
     False ->
@@ -154,5 +155,5 @@ createIdMapping qualifiedId = do
               . Log.field "new_qualified_id" (renderQualifiedId (_imQualifiedId existingMapping))
         Nothing -> do
           Data.insertIdMapping idMapping
-          Intra.createIdMappingInBrig (mkPostIdMappingRequest qualifiedId)
+          Intra.createIdMappingInGalley (mkPostIdMappingRequest qualifiedId)
       pure idMapping
