@@ -465,6 +465,9 @@ updateMapping = liftIndexIO $ do
   ex <- ES.indexExists idx
   unless ex $
     throwM (IndexError "Index does not exist.")
+  -- FUTUREWORK: check return code (ES.isSuccess) and fail if appropriate.
+  -- But to do that we have to consider the consequences of this failing in our helm chart:
+  -- https://github.com/wireapp/wire-server-deploy/blob/92311d189818ffc5e26ff589f81b95c95de8722c/charts/elasticsearch-index/templates/create-index.yaml
   void $ traceES "Put mapping" $
     ES.putMapping idx (ES.MappingName "user") indexMapping
 
