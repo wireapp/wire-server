@@ -4,7 +4,7 @@ cabal-version: 2.0
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 55852968c279333fd398a37b642b9e7428944ec63da4b95f2d3e0d02b1d2df28
+-- hash: 569c2e513825afb99305f83cb7146a6dd4c42b06b991923f534ad980a8bc8c2e
 
 name:           brig
 version:        1.35.0
@@ -439,6 +439,7 @@ executable brig-schema
       V58
       V59
       V60_AddFederationIdMapping
+      V61_team_invitation_email
       V9
       Paths_brig
   hs-source-dirs:
