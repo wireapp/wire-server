@@ -1,3 +1,9 @@
+# Spar braindump {#SparBrainDump}
+
+_Author: Matthias Fischmann_
+
+---
+
 # the spar service for user provisioning (scim) and authentication (saml) - a brain dump
 
 this is a mix of information on inmplementation details, architecture,
@@ -252,8 +258,7 @@ If you can't find what you're looking for there, please add at least a
 pending test case explaining what's missing.
 
 Side note: Users in brig carry an enum type
-[`ManagedBy`](https://github.com/wireapp/wire-server/blob/010ca7e460d13160b465de24dd3982a397f94c16/libs/brig-types/src/Brig/Types/Common.hs#L393-L413);
-see also {#DevScimOneWaySync}.  This is a half-implemented feature for
+[`ManagedBy`](https://github.com/wireapp/wire-server/blob/010ca7e460d13160b465de24dd3982a397f94c16/libs/brig-types/src/Brig/Types/Common.hs#L393-L413).  This is a half-implemented feature for
 managing conflicts between changes via scim vs. changes from wire
 clients; and does currently not affect deletability of users.
 

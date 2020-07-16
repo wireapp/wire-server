@@ -337,7 +337,7 @@ checkRestrictedUserCreation new = do
 -- Update Profile
 
 -- FUTUREWORK: this and other functions should refuse to modify a ManagedByScim user. See
--- {#DevScimOneWaySync}
+-- {#SparBrainDump}
 
 updateUser :: UserId -> ConnId -> UserUpdate -> AppIO ()
 updateUser uid conn uu = do

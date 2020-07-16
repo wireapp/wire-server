@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 84ff7e7ee95f7419098b8029990a04ec98e64a1ed2ea41c534bea60d87be1a33
+-- hash: 032057d81f563685925f83bd11795dfde9ab38ec5b711c1a2aa5319a365d45a5
 
 name:           spar
 version:        0.1
@@ -312,6 +312,7 @@ executable spar-schema
       V6
       V7
       V8
+      V9
       Paths_spar
   hs-source-dirs:
       schema/src

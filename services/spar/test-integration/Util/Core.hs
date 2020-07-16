@@ -113,7 +113,6 @@ module Util.Core
     getSsoidViaSelf',
     getUserIdViaRef,
     getUserIdViaRef',
-    getScimUser,
     callGetDefaultSsoCode,
     callSetDefaultSsoCode,
     callDeleteDefaultSsoCode,
@@ -170,7 +169,6 @@ import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Options
 import Spar.Run
-import Spar.Scim.Types
 import Spar.Types
 import qualified System.Logger.Extended as Log
 import System.Random (randomRIO)
@@ -184,7 +182,6 @@ import URI.ByteString
 import Util.Options
 import Util.Types
 import qualified Web.Cookie as Web
-import qualified Web.Scim.Class.User as ScimC.User
 import Wire.API.Team.Feature (TeamFeatureStatus (..), TeamFeatureStatusValue (..))
 
 -- | Call 'mkEnv' with options from config files.
@@ -1084,10 +1081,3 @@ getUserIdViaRef uref = maybe (error "not found") pure =<< getUserIdViaRef' uref
 getUserIdViaRef' :: HasCallStack => UserRef -> TestSpar (Maybe UserId)
 getUserIdViaRef' uref = do
   aFewTimes (runSparCass $ Data.getSAMLUser uref) isJust
-
--- | FUTUREWORK: arguably this function should move to Util.Scim, but it also is related to
--- the other lookups above into the various user tables in the various cassandras.  we should
--- probably clean this up a little, and also pick better names for everything.
-getScimUser :: HasCallStack => UserId -> TestSpar (Maybe (ScimC.User.StoredUser SparTag))
-getScimUser uid = do
-  aFewTimes (runSparCass $ Data.getScimUser uid) isJust

@@ -110,27 +110,23 @@ instance Scim.Auth.AuthTypes SparTag where
 --
 -- * what we're doing here: wrap the type synonyms we can't instantiate into newtypes in the
 --   code using hscim.
-
+--
 -- * do not instantiate the type synonym, but its value (in this case
 --   @Web.Scim.Schema.Meta.WithMeta (Web.Scim.Schema.Common.WithId (Id U) (Scim.User tag))@
 --
-
 -- * Use newtypes instead type in hscim.  This will carry around the tag as a data type rather
 --   than applying it, which in turn will enable ghc to type-check instances like @Cql
 --   (Scim.StoredUser tag)@.
 --
-
 -- * make the type classes parametric in not only the tag, but also all the values of the type
 --   families, and add functional dependencies, like this: @class UserInfo tag uid extrainfo |
 --   (uid, extrainfo) -> tag, tag -> (uid, extrainfo)@.  this will make writing the instances
 --   only a little more awkward, but the rest of the code should change very little, as long
 --   as we just apply the type families rather than explicitly imposing the class constraints.
 --
-
 -- * given a lot of time: extend ghc with something vaguely similar to @AllowAmbigiousTypes@,
 --   where the instance typechecks, and non-injectivity errors are raised when checking the
 --   constraint that "calls" the instance.  :)
-
 newtype WrappedScimStoredUser tag = WrappedScimStoredUser
   {fromWrappedScimStoredUser :: Scim.User.StoredUser tag}
 
@@ -207,7 +203,7 @@ data ValidScimUser = ValidScimUser
     _vsuHandle :: Handle,
     _vsuName :: Maybe Name,
     _vsuRichInfo :: RichInfo,
-    _vsuActive :: Maybe Bool
+    _vsuActive :: Bool
   }
   deriving (Eq, Show)
 

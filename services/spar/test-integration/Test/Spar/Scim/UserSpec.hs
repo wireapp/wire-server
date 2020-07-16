@@ -54,7 +54,6 @@ import qualified Spar.Types
 import Spar.Types (IdP)
 import qualified Text.XML.DSig as SAML
 import Util
-import qualified Web.Scim.Class.User as ScimC.User
 import qualified Web.Scim.Class.User as Scim.UserC
 import qualified Web.Scim.Filter as Filter
 import qualified Web.Scim.Schema.Common as Scim
@@ -113,7 +112,7 @@ specSuspend = do
             -- SCIM records don't have the active field. absence of active should be interpreted as Active.
             -- Once we get rid of the `scim` table and make scim serve brig records directly, this is
             -- not an issue anymore.
-            lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUserBlah) `shouldBe` Nothing
+            lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUserBlah) `shouldBe` Just True
             void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active)
           do
             scimStoredUser <- putOrPatch tok uid user True
@@ -506,15 +505,10 @@ testFindProvisionedUser = do
   (tok, (_, _, _)) <- registerIdPAndScimToken
   storedUser <- createUser tok user
   users <- listUsers tok (Just (filterBy "userName" (Scim.User.userName user)))
-  liftIO $ users `shouldContain` [storedUser]
+  liftIO $ users `shouldBe` [storedUser]
   let Just externalId = Scim.User.externalId user
   users' <- listUsers tok (Just (filterBy "externalId" externalId))
-  liftIO $ users' `shouldContain` [storedUser]
-  -- TODO(arianvp): We will stop supporting list users without filter in the
-  -- future, as it is a performance issue.
-  users'' <- listUsers tok Nothing
-  liftIO $ users'' `shouldContain` [storedUser]
-  pure ()
+  liftIO $ users' `shouldBe` [storedUser]
 
 -- NOTE: I'm not sure if this is desired behaviour yet.  But there can be cases
 -- where people logged in but haven't set the handle yet in the UI. We do not
@@ -1088,8 +1082,8 @@ specDeleteUser = do
         aFewTimes (runSpar $ Intra.getBrigUser uid) isNothing
       samlUser :: Maybe UserId <-
         aFewTimes (getUserIdViaRef' uref) isNothing
-      scimUser :: Maybe (ScimC.User.StoredUser SparTag) <-
-        aFewTimes (getScimUser uid) isNothing
+      scimUser <-
+        aFewTimes (runSparCass $ Data.readScimUserTimes uid) isNothing
       liftIO $
         (brigUser, samlUser, scimUser)
           `shouldBe` (Nothing, Nothing, Nothing)
@@ -1143,7 +1137,7 @@ specDeleteUser = do
       let uid = scimUserId storedUser
       deleteUser_ (Just tok) (Just uid) spar
         !!! const 204 === statusCode
-      getUser_ (Just tok) uid spar
+      aFewTimes (getUser_ (Just tok) uid spar) ((== 404) . statusCode)
         !!! const 404 === statusCode
     it "whether implemented or not, does *NOT EVER* respond with 5xx!" $ do
       env <- ask

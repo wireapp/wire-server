@@ -36,6 +36,7 @@ import Data.Aeson (eitherDecode', encode, parseJSON)
 import Data.Aeson.QQ (aesonQQ)
 import qualified Data.Aeson.Types as Aeson
 import Data.Id
+import Data.Json.Util (fromUTCTimeMillis, toUTCTimeMillis)
 import qualified Data.Map as Map
 import qualified Data.UUID as UUID
 import Imports
@@ -103,21 +104,21 @@ spec = describe "toScimStoredUser'" $ do
         meta =
           Scim.Meta
             { Scim.resourceType = ScimR.UserResource,
-              Scim.created = now,
-              Scim.lastModified = now,
+              Scim.created = fromUTCTimeMillis now,
+              Scim.lastModified = fromUTCTimeMillis now,
               Scim.version = Scim.Weak "46246ab15ccab8a70b59f97f7182d6fb557dd454c0f06cdcb83d99d027cff08e",
               Scim.location =
                 Scim.URI . fromJust $
                   Network.URI.parseURI
                     "https://127.0.0.1/scim/v2/Users/90b5ee1c-088e-11e9-9a16-73f80f483813"
             }
-        now'@(SAML.Time now) = SAML.unsafeReadTime "1918-04-14T09:58:58.457Z"
+        SAML.Time (toUTCTimeMillis -> now) = SAML.unsafeReadTime "1918-04-14T09:58:58.457Z"
         baseuri :: URI =
           either (error . show) id $
             URI.ByteString.parseURI laxURIParserOptions "https://127.0.0.1/scim/v2/"
         uid = Id . fromJust . UUID.fromText $ "90b5ee1c-088e-11e9-9a16-73f80f483813"
         result :: ScimC.StoredUser SparTag
-        result = toScimStoredUser' now' baseuri uid usr
+        result = toScimStoredUser' now now baseuri uid usr
     Scim.meta result `shouldBe` meta
     Scim.value (Scim.thing result) `shouldBe` usr
   it "roundtrips" . property $ do

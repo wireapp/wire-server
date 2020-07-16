@@ -31,6 +31,7 @@ import qualified V5
 import qualified V6
 import qualified V7
 import qualified V8
+import qualified V9
 
 main :: IO ()
 main = do
@@ -49,7 +50,8 @@ main = do
       V5.migration,
       V6.migration,
       V7.migration,
-      V8.migration
+      V8.migration,
+      V9.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Spar.Data
 
