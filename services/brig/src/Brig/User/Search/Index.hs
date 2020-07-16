@@ -570,10 +570,19 @@ userDoc iu =
 -- searched tokens are not bigger than 30 characters by truncating them, this is
 -- necessary as our "prefix_index" analyzer only creates edge_ngrams until 30
 -- characters.
+--
+-- About the dynamic field: When this is not set and we add another field to our
+-- user document, elasticsearch will try to guess how it is supposed to be indexed.
+-- Changes to this require creating a new index and a cumbersome migration. So it is
+-- important that we set this field to `false`. This will make new fields will just
+-- not be indexed. After we decide what they should look like, we can just run a
+-- reindex to make them usable. More info:
+-- https://www.elastic.co/guide/en/elasticsearch/reference/7.7/dynamic.html
 indexMapping :: Value
 indexMapping =
   object
-    [ "properties"
+    [ "dynamic" .= False,
+      "properties"
         .= object
           [ "normalized" -- normalized user name
               .= MappingProperty
