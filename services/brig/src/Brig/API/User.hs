@@ -324,10 +324,12 @@ checkRestrictedUserCreation new = do
   when
     ( restrictPlease
         && or [isJust memail, isJust mphone]
-        && and [isNothing msso, isNothing mteam]
+        && and [isNothing msso, isNotTeamMember mteam]
     )
     $ throwE UserCreationRestricted
-
+  where
+    isNotTeamMember (Just (NewTeamMember _)) = False
+    isNotTeamMember _ = True
 -------------------------------------------------------------------------------
 -- Update Profile
 
