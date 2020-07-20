@@ -20,6 +20,7 @@
 module Test.Brig.User.Search.Index.Types where
 
 import Brig.Types.Common
+import Brig.Types.Intra (AccountStatus (..))
 import Brig.User.Search.Index
 import Data.Aeson
 import Data.Handle
@@ -39,7 +40,7 @@ tests =
           "failed"
           (eitherDecode' (encode userDoc1))
           (Right userDoc1),
-      testCase "aeson half-roundtrip: UserDoc" $
+      testCase "backwards comptibility test: UserDoc" $
         assertEqual
           "failed"
           (toJSON userDoc1)
@@ -59,14 +60,15 @@ userDoc1 =
       udName = Just . Name $ "Carl Phoomp",
       udNormalized = Just $ "carl phoomp",
       udHandle = Just . fromJust . parseHandle $ "phoompy",
-      udColourId = Just . ColourId $ 32
+      udColourId = Just . ColourId $ 32,
+      udAccountStatus = Just Active
     }
 
 userDoc1Value :: Value
 userDoc1Value = fromJust (decode userDoc1ByteString)
 
 userDoc1ByteString :: LByteString
-userDoc1ByteString = "{\"team\":\"17c59b18-57d6-11ea-9220-8bbf5eee961a\",\"handle\":\"phoompy\",\"accent_id\":32,\"name\":\"Carl Phoomp\",\"id\":\"0a96b396-57d6-11ea-a04b-7b93d1a5c19c\",\"normalized\":\"carl phoomp\"}"
+userDoc1ByteString = "{\"team\":\"17c59b18-57d6-11ea-9220-8bbf5eee961a\",\"handle\":\"phoompy\",\"accent_id\":32,\"name\":\"Carl Phoomp\",\"id\":\"0a96b396-57d6-11ea-a04b-7b93d1a5c19c\",\"normalized\":\"carl phoomp\",\"account_status\":\"active\"}"
 
 indexUser1 :: IndexUser
 indexUser1 =
@@ -76,5 +78,6 @@ indexUser1 =
       _iuTeam = udTeam userDoc1,
       _iuName = udName userDoc1,
       _iuHandle = udHandle userDoc1,
-      _iuColourId = udColourId userDoc1
+      _iuColourId = udColourId userDoc1,
+      _iuAccountStatus = udAccountStatus userDoc1
     }

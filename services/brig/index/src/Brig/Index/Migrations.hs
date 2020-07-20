@@ -21,8 +21,8 @@ module Brig.Index.Migrations
 where
 
 import Brig.Index.Migrations.Types
-import qualified Brig.Index.Migrations.V1_ReIndexForSearchTeamMembers as V1_ReIndexForSearchTeamMembers
 import qualified Brig.Index.Options as Opts
+import qualified Brig.User.Search.Index as Search
 import qualified Cassandra as C
 import qualified Cassandra.Settings as C
 import Control.Lens ((^.), view)
@@ -45,7 +45,11 @@ migrate l es cas = do
       runMigrationAction env $ do
         failIfIndexAbsent (es ^. Opts.esIndex)
         createMigrationsIndexIfNotPresent
-        runMigrations [V1_ReIndexForSearchTeamMembers.migration]
+        runMigration expectedMigrationVersion
+
+-- | Increase this number any time you want to force reindexing.
+expectedMigrationVersion :: MigrationVersion
+expectedMigrationVersion = MigrationVersion 2
 
 indexName :: ES.IndexName
 indexName = ES.IndexName "wire_brig_migrations"
@@ -105,20 +109,16 @@ failIfIndexAbsent targetIndex =
     (throwM $ TargetIndexAbsent targetIndex)
 
 -- | Runs only the migrations which need to run
-runMigrations :: [Migration] -> MigrationActionT IO ()
-runMigrations migrations = do
+runMigration :: MigrationVersion -> MigrationActionT IO ()
+runMigration ver = do
   vmax <- latestMigrationVersion
-  let pendingMigrations = filter (\m -> version m > vmax) migrations
-  if null pendingMigrations
-    then info "No new migrations."
-    else info "New migrations found."
-  mapM_ runMigration pendingMigrations
-
-runMigration :: Migration -> MigrationActionT IO ()
-runMigration (Migration ver txt mig) = do
-  info $ "Running: [" <> show (migrationVersion ver) <> "] " <> Text.unpack txt
-  mig
-  persistVersion ver
+  if ver > vmax
+    then do
+      info "Migration necessary."
+      Search.reindexAllIfSameOrNewer
+      persistVersion ver
+    else do
+      info "No migration necessary."
 
 persistVersion :: (Monad m, MonadThrow m, MonadIO m) => MigrationVersion -> MigrationActionT m ()
 persistVersion v =

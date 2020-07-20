@@ -50,6 +50,7 @@ import Imports
 import Network.HTTP.Client (Manager)
 import qualified Network.Wai.Test as WaiTest
 import qualified Network.Wai.Utilities.Error as Error
+import Numeric.Natural (Natural)
 import Test.Tasty hiding (Timeout)
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
@@ -107,11 +108,20 @@ testTeamSize :: Brig -> Http ()
 testTeamSize brig = do
   (tid, _, _) <- createPopulatedBindingTeam brig 10
   SearchUtil.refreshIndex brig
-  void $
-    get (brig . paths ["i", "teams", toByteString' tid, "size"]) <!! do
-      const 200 === statusCode
-      -- 10 Team Members and an admin
-      (const . Right $ TeamSize 11) === responseJsonEither
+  -- 10 Team Members and an admin
+  let expectedSize = 11
+  assertSize tid expectedSize
+
+  -- Even suspended teams should report correct size
+  suspendTeam brig tid !!! const 200 === statusCode
+  SearchUtil.refreshIndex brig
+  assertSize tid expectedSize
+  where
+    assertSize :: HasCallStack => TeamId -> Natural -> Http ()
+    assertSize tid expectedSize = void $
+      get (brig . paths ["i", "teams", toByteString' tid, "size"]) <!! do
+        const 200 === statusCode
+        (const . Right $ TeamSize expectedSize) === responseJsonEither
 
 -------------------------------------------------------------------------------
 -- Invitation Tests

@@ -167,15 +167,6 @@ searchIndex ::
   m (SearchResult Contact)
 searchIndex u teamSearchInfo q = queryIndex (defaultUserQuery u teamSearchInfo q)
 
--- [Note: suspended]  TODO: has this happened by now and we can resolve this note?
--- ~~~~~~~~~~~~~~~~~
---
--- The suspended field in the ES index is an artifact of the legacy system,
--- which would not remove data from the index upon user suspension. The filter
--- clause can be removed after the first full re-index, as this will have
--- cleared the data of suspended users.
---
-
 queryIndex ::
   (MonadIndexIO m, FromJSON r) =>
   IndexQuery r ->
@@ -258,11 +249,26 @@ mkUserQuery (review _TextId -> self) teamSearchInfo q =
   IndexQuery q
     $ ES.Filter . ES.QueryBoolQuery
     $ boolQuery
-      { ES.boolQueryMustNotMatch =
-          [ termQ "suspended" "1", -- [Note: suspended]
-            termQ "_id" self
-          ],
-        ES.boolQueryMustMatch = [optionallySearchWithinTeam teamSearchInfo]
+      { ES.boolQueryMustNotMatch = [termQ "_id" self],
+        ES.boolQueryMustMatch =
+          [ optionallySearchWithinTeam teamSearchInfo,
+            ES.QueryBoolQuery
+              boolQuery
+                { ES.boolQueryShouldMatch =
+                    [ termQ "account_status" "active",
+                      -- Also match entries where the account_status field is not present.
+                      -- These must have been inserted before we added the account_status
+                      -- and at that time we only inserted active users in the first place.
+                      -- This should be unnecessary after re-indexing, but let's be lenient
+                      -- here for a while.
+                      ES.QueryBoolQuery
+                        boolQuery
+                          { ES.boolQueryMustNotMatch =
+                              [ES.QueryExistsQuery (ES.FieldName "account_status")]
+                          }
+                    ]
+                }
+          ]
       }
   where
     termQ f v =
@@ -468,6 +474,9 @@ updateMapping = liftIndexIO $ do
   ex <- ES.indexExists idx
   unless ex $
     throwM (IndexError "Index does not exist.")
+  -- FUTUREWORK: check return code (ES.isSuccess) and fail if appropriate.
+  -- But to do that we have to consider the consequences of this failing in our helm chart:
+  -- https://github.com/wireapp/wire-server-deploy/blob/92311d189818ffc5e26ff589f81b95c95de8722c/charts/elasticsearch-index/templates/create-index.yaml
   void $ traceES "Put mapping" $
     ES.putMapping idx (ES.MappingName "user") indexMapping
 
@@ -531,6 +540,7 @@ userDoc iu =
     { udId = _iuUserId iu,
       udTeam = _iuTeam iu,
       udName = _iuName iu,
+      udAccountStatus = _iuAccountStatus iu,
       udNormalized = normalized . fromName <$> _iuName iu,
       udHandle = _iuHandle iu,
       udColourId = _iuColourId iu
@@ -569,10 +579,19 @@ userDoc iu =
 -- searched tokens are not bigger than 30 characters by truncating them, this is
 -- necessary as our "prefix_index" analyzer only creates edge_ngrams until 30
 -- characters.
+--
+-- About the dynamic field: When this is not set and we add another field to our
+-- user document, elasticsearch will try to guess how it is supposed to be indexed.
+-- Changes to this require creating a new index and a cumbersome migration. So it is
+-- important that we set this field to `false`. This will make new fields will just
+-- not be indexed. After we decide what they should look like, we can just run a
+-- reindex to make them usable. More info:
+-- https://www.elastic.co/guide/en/elasticsearch/reference/7.7/dynamic.html
 indexMapping :: Value
 indexMapping =
   object
-    [ "properties"
+    [ "dynamic" .= False,
+      "properties"
         .= object
           [ "normalized" -- normalized user name
               .= MappingProperty
@@ -613,6 +632,14 @@ indexMapping =
                 { mpType = MPByte,
                   mpStore = False,
                   mpIndex = False,
+                  mpAnalyzer = Nothing,
+                  mpFields = mempty
+                },
+            "account_status"
+              .= MappingProperty
+                { mpType = MPKeyword,
+                  mpStore = False,
+                  mpIndex = True,
                   mpAnalyzer = Nothing,
                   mpFields = mempty
                 }
@@ -755,20 +782,26 @@ reindexRowToIndexUser (u, mteam, name, t0, status, t1, handle, t2, colour, t4, a
     pure $
       if shouldIndex
         then
-          iu & set iuTeam mteam
+          iu
+            & set iuTeam mteam
             . set iuName (Just name)
             . set iuHandle handle
             . set iuColourId (Just colour)
-        else iu
+            . set iuAccountStatus status
+        else
+          iu
+            -- We insert a tombstone-style user here, as it's easier than deleting the old one.
+            -- It's mostly empty, but having the status here might be useful in the future.
+            & set iuAccountStatus status
   where
     version :: [Maybe (Writetime Name)] -> m IndexVersion
     version = mkIndexVersion . getMax . mconcat . fmap Max . catMaybes
     shouldIndex =
       and
         [ case status of
-            Just Active -> True
             Nothing -> True
-            Just Suspended -> False
+            Just Active -> True
+            Just Suspended -> True
             Just Deleted -> False
             Just Ephemeral -> False,
           activated, -- FUTUREWORK: how is this adding to the first case?

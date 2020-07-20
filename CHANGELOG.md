@@ -1,3 +1,17 @@
+# Next Release
+
+## Release Notes
+
+* This release makes a couple of changes to the elasticsearch mapping and requires a data migration. The correct order of upgrade is:
+  1. [Update mapping](./docs/reference/elastic-search.md#update-mapping)
+  1. Upgrade brig as usual
+  1. [Run data migration](./docs/reference/elastic-search.md#migrate-data)
+  Search should continue to work normally during this upgrade.
+
+## Bug Fixes
+
+* Fix member count of suspended teams in journal events (#1171)
+
 # 2020-07-13
 
 ## Release Notes
