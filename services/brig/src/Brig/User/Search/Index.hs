@@ -256,7 +256,16 @@ mkUserQuery (review _TextId -> self) teamSearchInfo q =
               boolQuery
                 { ES.boolQueryShouldMatch =
                     [ termQ "account_status" "active",
-                      ES.QueryBoolQuery boolQuery {ES.boolQueryMustNotMatch = [ES.QueryExistsQuery (ES.FieldName "account_status")]} -- TODO: Write note about this being legacy
+                      -- Also match entries where the account_status field is not present.
+                      -- These must have been inserted before we added the account_status
+                      -- and at that time we only inserted active users in the first place.
+                      -- This should be unnecessary after re-indexing, but let's be lenient
+                      -- here for a while.
+                      ES.QueryBoolQuery
+                        boolQuery
+                          { ES.boolQueryMustNotMatch =
+                              [ES.QueryExistsQuery (ES.FieldName "account_status")]
+                          }
                     ]
                 }
           ]
@@ -781,6 +790,8 @@ reindexRowToIndexUser (u, mteam, name, t0, status, t1, handle, t2, colour, t4, a
             . set iuAccountStatus status
         else
           iu
+            -- We insert a tombstone-style user here, as it's easier than deleting the old one.
+            -- It's mostly empty, but having the status here might be useful in the future.
             & set iuAccountStatus status
   where
     version :: [Maybe (Writetime Name)] -> m IndexVersion
