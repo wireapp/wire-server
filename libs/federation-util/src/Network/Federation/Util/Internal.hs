@@ -107,7 +107,7 @@ srvLookup'' lookupF prefix realm resolvSeed = withResolver resolvSeed $ \resolve
 -- uses a random process to order the records with the same
 -- priority based on their weight.
 --
--- Taken from http://hackage.haskell.org/package/pontarius-xmpp (BSD3 licence)
+-- Taken from http://hackage.haskell.org/package/pontarius-xmpp (BSD3 licence) and refactored.
 orderSrvResult :: [(Word16, Word16, Word16, Domain)] -> IO [(Word16, Word16, Word16, Domain)]
 orderSrvResult =
   -- Order the result set by priority.
@@ -116,7 +116,7 @@ orderSrvResult =
     -- The result type is `[[(Word16, Word16, Word16, Domain)]]' (nested list).
     >>> groupBy (\(priority, _, _, _) (priority', _, _, _) -> priority == priority')
     -- For each sublist, put records with a weight of zero first.
-    >>> map (\sublist -> let (a, b) = partition (\(_, weight, _, _) -> weight == 0) sublist in concat [a, b])
+    >>> map (uncurry (++) . partition (\(_, weight, _, _) -> weight == 0))
     -- Order each sublist.
     >>> mapM orderSublist
     -- Concatenate the results.
@@ -125,22 +125,19 @@ orderSrvResult =
     orderSublist :: [(Word16, Word16, Word16, Domain)] -> IO [(Word16, Word16, Word16, Domain)]
     orderSublist [] = return []
     orderSublist sublist = do
-      -- Compute the running sum, as well as the total sum of
-      -- the sublist. Add the running sum to the SRV tuples.
-      let (total, sublist') = mapAccumL (\total' (priority, weight, port, domain) -> (total' + weight, (priority, weight, port, domain, total' + weight))) 0 sublist
-      -- Choose a random number between 0 and the total sum
-      -- (inclusive).
+      -- Compute the running sum, as well as the total sum of the sublist.
+      -- Add the running sum to the SRV tuples.
+      let (total, sublistWithRunning) = mapAccumL (\acc srv@(_, weight, _, _) -> (acc + weight, (srv, acc + weight))) 0 sublist
+      -- Choose a random number between 0 and the total sum (inclusive).
       randomNumber <- randomRIO (0, total)
       -- Select the first record with its running sum greater
       -- than or equal to the random number.
-      let (beginning, (priority, weight, port, domain, _), end) =
-            case break (\(_, _, _, _, running) -> randomNumber <= running) sublist' of
+      let (beginning, (firstSrv, _), end) =
+            case break (\(_, running) -> randomNumber <= running) sublistWithRunning of
               (b, (c : e)) -> (b, c, e)
               _ -> error "orderSrvResult: no record with running sum greater than random number"
-      -- Remove the running total number from the remaining
-      -- elements.
-      let sublist'' = map (\(priority', weight', port', domain', _) -> (priority', weight', port', domain')) (concat [beginning, end])
-      -- Repeat the ordering procedure on the remaining
-      -- elements.
-      rest <- orderSublist sublist''
-      return $ ((priority, weight, port, domain) : rest)
+      -- Remove the running total number from the remaining elements.
+      let remainingSrvs = map (\(srv, _) -> srv) (concat [beginning, end])
+      -- Repeat the ordering procedure on the remaining elements.
+      rest <- orderSublist remainingSrvs
+      return $ firstSrv : rest
