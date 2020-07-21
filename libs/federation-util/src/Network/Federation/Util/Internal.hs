@@ -57,6 +57,7 @@
 
 module Network.Federation.Util.Internal where
 
+import Control.Category ((>>>))
 import Data.Text.Encoding (encodeUtf8)
 import Imports
 import Network.DNS (DNSError, Domain, ResolvSeed, Resolver, lookupSRV, withResolver)
@@ -108,18 +109,18 @@ srvLookup'' lookupF prefix realm resolvSeed = withResolver resolvSeed $ \resolve
 --
 -- Taken from http://hackage.haskell.org/package/pontarius-xmpp (BSD3 licence)
 orderSrvResult :: [(Word16, Word16, Word16, Domain)] -> IO [(Word16, Word16, Word16, Domain)]
-orderSrvResult srvResult = do
+orderSrvResult =
   -- Order the result set by priority.
-  let srvResult' = sortBy (comparing (\(priority, _, _, _) -> priority)) srvResult
-  -- Group elements in sublists based on their priority. The
-  -- type is `[[(Word16, Word16, Word16, Domain)]]'.
-  let srvResult'' = groupBy (\(priority, _, _, _) (priority', _, _, _) -> priority == priority') srvResult' :: [[(Word16, Word16, Word16, Domain)]]
-  -- For each sublist, put records with a weight of zero first.
-  let srvResult''' = map (\sublist -> let (a, b) = partition (\(_, weight, _, _) -> weight == 0) sublist in concat [a, b]) srvResult''
-  -- Order each sublist.
-  srvResult'''' <- mapM orderSublist srvResult'''
-  -- Concatenate the results.
-  return $ concat srvResult''''
+  sortBy (comparing (\(priority, _, _, _) -> priority))
+    -- Group elements in sublists based on their priority.
+    -- The result type is `[[(Word16, Word16, Word16, Domain)]]' (nested list).
+    >>> groupBy (\(priority, _, _, _) (priority', _, _, _) -> priority == priority')
+    -- For each sublist, put records with a weight of zero first.
+    >>> map (\sublist -> let (a, b) = partition (\(_, weight, _, _) -> weight == 0) sublist in concat [a, b])
+    -- Order each sublist.
+    >>> mapM orderSublist
+    -- Concatenate the results.
+    >>> fmap concat
   where
     orderSublist :: [(Word16, Word16, Word16, Domain)] -> IO [(Word16, Word16, Word16, Domain)]
     orderSublist [] = return []
