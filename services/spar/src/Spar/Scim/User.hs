@@ -584,24 +584,26 @@ assertHandleNotUsedElsewhere hndl uid = do
 -- an already existing scim user
 synthesizeStoredUser :: TeamId -> User -> Scim.ScimHandler Spar (Scim.StoredUser SparTag)
 synthesizeStoredUser tid usr = do
-  let readState :: Spar (RichInfo, AccountStatus, UTCTimeMillis, UTCTimeMillis, URIBS.URI)
+  let readState :: Spar (RichInfo, AccountStatus, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI)
       readState = do
         richInfo <- Brig.getBrigUserRichInfo (BrigTypes.userId usr)
         accStatus <- Brig.getStatus (BrigTypes.userId usr)
-        SAML.Time (toUTCTimeMillis -> now) <- SAML.getNow
-        (createdAt, lastUpdatedAt) <- fromMaybe (now, now) <$> wrapMonadClient (Data.readScimUserTimes (BrigTypes.userId usr))
+        accessTimes <- wrapMonadClient (Data.readScimUserTimes (BrigTypes.userId usr))
         baseuri <- asks $ derivedOptsScimBaseURI . derivedOpts . sparCtxOpts
-        pure (richInfo, accStatus, createdAt, lastUpdatedAt, baseuri)
+        pure (richInfo, accStatus, accessTimes, baseuri)
 
-  let writeState :: UserId -> ManagedBy -> Scim.StoredUser SparTag -> Spar ()
-      writeState uid managedBy storedUser = do
-        when (managedBy /= ManagedByScim) $ do
+  let writeState :: UserId -> Maybe (UTCTimeMillis, UTCTimeMillis) -> ManagedBy -> Scim.StoredUser SparTag -> Spar ()
+      writeState uid accessTimes managedBy storedUser = do
+        when (isNothing accessTimes) $ do
           wrapMonadClient $ Data.writeScimUserTimes storedUser
+        when (managedBy /= ManagedByScim) $ do
           Brig.setBrigUserManagedBy uid ManagedByScim
 
-  (richInfo, accStatus, createdAt, lastUpdatedAt, baseuri) <- lift $ readState
+  (richInfo, accStatus, accessTimes, baseuri) <- lift $ readState
+  SAML.Time (toUTCTimeMillis -> now) <- lift $ SAML.getNow
+  let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
   storedUser <- synthesizeStoredUser' tid usr richInfo accStatus createdAt lastUpdatedAt baseuri
-  lift $ writeState (BrigTypes.userId usr) (BrigTypes.userManagedBy usr) storedUser
+  lift $ writeState (BrigTypes.userId usr) accessTimes (BrigTypes.userManagedBy usr) storedUser
   pure storedUser
 
 synthesizeStoredUser' ::
