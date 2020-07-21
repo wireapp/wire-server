@@ -53,6 +53,7 @@ import Data.Aeson as Aeson
 import Data.Handle (Handle (Handle), parseHandle)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, fromUTCTimeMillis, toUTCTimeMillis)
+import qualified Data.Map as Map
 import Data.Range
 import Data.String.Conversions
 import qualified Data.Text as Text
@@ -584,7 +585,7 @@ assertHandleNotUsedElsewhere hndl uid = do
 -- an already existing scim user
 synthesizeStoredUser :: TeamId -> User -> Scim.ScimHandler Spar (Scim.StoredUser SparTag)
 synthesizeStoredUser tid usr = do
-  let readState :: Spar (RichInfo, AccountStatus, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI)
+  let readState :: Spar (RichInfoAssocList, AccountStatus, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI)
       readState = do
         richInfo <- Brig.getBrigUserRichInfo (BrigTypes.userId usr)
         accStatus <- Brig.getStatus (BrigTypes.userId usr)
@@ -602,9 +603,16 @@ synthesizeStoredUser tid usr = do
   (richInfo, accStatus, accessTimes, baseuri) <- lift $ readState
   SAML.Time (toUTCTimeMillis -> now) <- lift $ SAML.getNow
   let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
-  storedUser <- synthesizeStoredUser' tid usr richInfo accStatus createdAt lastUpdatedAt baseuri
+  storedUser <- synthesizeStoredUser' tid usr (synthesizeRichInfo richInfo) accStatus createdAt lastUpdatedAt baseuri
   lift $ writeState (BrigTypes.userId usr) accessTimes (BrigTypes.userManagedBy usr) storedUser
   pure storedUser
+
+-- TODO: This function belongs to Wire.API.User.RichInfo and can be unit tested
+-- Also maybe we don't need to support the map anymore
+synthesizeRichInfo :: RichInfoAssocList -> RichInfo
+synthesizeRichInfo (RichInfoAssocList riList) = RichInfo riMap riList
+  where
+    riMap = Map.fromList $ map (\(RichField key value) -> (key, value)) riList
 
 synthesizeStoredUser' ::
   TeamId ->

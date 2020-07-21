@@ -330,7 +330,7 @@ setBrigUserRichInfo buid richInfo = do
         throwSpar . SparBrigError . cs $ "set richInfo failed with status " <> show sCode
 
 -- TODO: We should add an internal endpoint for this instead
-getBrigUserRichInfo :: (HasCallStack, MonadSparToBrig m) => UserId -> m RichInfo
+getBrigUserRichInfo :: (HasCallStack, MonadSparToBrig m) => UserId -> m RichInfoAssocList
 getBrigUserRichInfo buid = do
   resp <-
     call $
@@ -339,7 +339,7 @@ getBrigUserRichInfo buid = do
         . header "Z-User" (toByteString' buid)
         . header "Z-Connection" ""
   case statusCode resp of
-    200 -> parseResponse @RichInfo resp
+    200 -> parseResponse resp
     _ -> throwSpar (SparBrigErrorWith (responseStatus resp) "Could not retrieve rich info")
 
 -- | At the time of writing this, @HEAD /users/handles/:uid@ does not use the 'UserId' for
