@@ -50,6 +50,8 @@ import qualified Wire.API.Call.TURN as Public
 
 routesPublic :: Routes Doc.ApiBuilder Handler ()
 routesPublic = do
+  -- Deprecated endpoint, but still used by old clients.
+  -- See https://github.com/zinfra/backend-issues/issues/1616 for context
   get "/calls/config" (continue getCallsConfigH) $
     accept "application" "json"
       .&. header "Z-User"
@@ -78,7 +80,7 @@ routesPublic = do
     Doc.response 200 "RTCConfiguration" Doc.end
 
 getCallsConfigV2H :: JSON ::: UserId ::: ConnId ::: Maybe (Range 1 10 Int) -> Handler Response
-getCallsConfigV2H (_ ::: uid ::: connid ::: limit) = do
+getCallsConfigV2H (_ ::: uid ::: connid ::: limit) =
   json <$> getCallsConfigV2 uid connid limit
 
 -- | ('UserId', 'ConnId' are required as args here to make sure this is an authenticated end-point.)
@@ -88,7 +90,7 @@ getCallsConfigV2 _ _ limit = do
   newConfig env limit
 
 getCallsConfigH :: JSON ::: UserId ::: ConnId -> Handler Response
-getCallsConfigH (_ ::: uid ::: connid) = do
+getCallsConfigH (_ ::: uid ::: connid) =
   json <$> getCallsConfig uid connid
 
 getCallsConfig :: UserId -> ConnId -> Handler Public.RTCConfiguration
@@ -125,7 +127,7 @@ newConfig env limit = do
       (f : fs) <- shuffleM (toList xs)
       return $ List1.list1 f fs
     limitedList :: List1 Public.TurnURI -> Range 1 10 Int -> List1 Public.TurnURI
-    limitedList uris lim = do
+    limitedList uris lim =
       -- assuming limitServers is safe with respect to the length of its return value
       -- (see property tests in brig-types)
       -- since the input is List1 and limit is in Range 1 10

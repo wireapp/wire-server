@@ -207,7 +207,7 @@ parseTurnURI = parseOnly (parser <* endOfInput)
         <$> ((takeWhile1 (/= ':') <* char ':' >>= parseScheme) <?> "parsingScheme")
         <*> ((takeWhile1 (/= ':') <* char ':' >>= parseHost) <?> "parsingHost")
         <*> (decimal <?> "parsingPort")
-        <*> ((optional ((string "?transport=" *> takeText) >>= parseTransport)) <?> "parsingTransport")
+        <*> (optional ((string "?transport=" *> takeText) >>= parseTransport) <?> "parsingTransport")
     parseScheme = parse "parseScheme"
     parseHost = parse "parseHost"
     parseTransport = parse "parseTransport"
@@ -421,19 +421,19 @@ limitServers uris limit = limitServers' [] limit uris
 isUdp :: TurnURI -> Bool
 isUdp uri =
   _turiScheme uri == SchemeTurn
-    && ( _turiTransport uri == Just (TransportUDP)
-           || _turiTransport uri == Nothing
+    && ( _turiTransport uri == Just TransportUDP
+           || isNothing (_turiTransport uri)
        )
 
 isTcp :: TurnURI -> Bool
 isTcp uri =
   _turiScheme uri == SchemeTurn
-    && _turiTransport uri == Just (TransportTCP)
+    && _turiTransport uri == Just TransportTCP
 
 isTls :: TurnURI -> Bool
 isTls uri =
   _turiScheme uri == SchemeTurns
-    && _turiTransport uri == Just (TransportTCP)
+    && _turiTransport uri == Just TransportTCP
 
 makeLenses ''RTCConfiguration
 makeLenses ''RTCIceServer
