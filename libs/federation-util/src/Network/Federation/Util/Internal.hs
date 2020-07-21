@@ -57,37 +57,58 @@
 
 module Network.Federation.Util.Internal where
 
+import Control.Category ((>>>))
 import Data.Text.Encoding (encodeUtf8)
 import Imports
-import Network.DNS
-import System.Random
+import Network.DNS (DNSError, Domain, ResolvSeed, Resolver, lookupSRV, withResolver)
+import System.Random (randomRIO)
+
+data SrvEntry = SrvEntry
+  { srvPriority :: !Word16,
+    srvWeight :: !Word16,
+    srvTarget :: !SrvTarget
+  }
+  deriving (Eq, Show)
+
+data SrvTarget = SrvTarget
+  { -- | the hostname on which the service is offered
+    srvTargetDomain :: !Domain,
+    -- | the port on which the service is offered
+    srvTargetPort :: !Word16
+  }
+  deriving (Eq, Show)
+
+toSrvEntry :: (Word16, Word16, Word16, Domain) -> SrvEntry
+toSrvEntry (prio, weight, port, domain) = SrvEntry prio weight (SrvTarget domain port)
 
 -- Given a prefix (e.g. _wire-server) and a domain (e.g. wire.com),
 -- provides a list of A(AAA) names and port numbers upon a successful
 -- DNS-SRV request, or `Nothing' if the DNS-SRV request failed.
 -- Modified version inspired from http://hackage.haskell.org/package/pontarius-xmpp
-srvLookup' :: Text -> Text -> ResolvSeed -> IO (Maybe [(Domain, Word16)])
+srvLookup' :: Text -> Text -> ResolvSeed -> IO (Maybe [SrvTarget])
 srvLookup' = srvLookup'' lookupSRV
 
 -- internal version for testing
+--
+-- FUTUREWORK: return more precise errors than 'Nothing'?
 srvLookup'' ::
   (Resolver -> Domain -> IO (Either DNSError [(Word16, Word16, Word16, Domain)])) ->
   Text ->
   Text ->
   ResolvSeed ->
-  IO (Maybe [(Domain, Word16)])
+  IO (Maybe [SrvTarget])
 srvLookup'' lookupF prefix realm resolvSeed = withResolver resolvSeed $ \resolver -> do
   srvResult <- lookupF resolver $ encodeUtf8 $ prefix <> "._tcp." <> realm <> "."
   case srvResult of
+    -- The service is not available at this domain.
+    Left _ -> return Nothing
     Right [] -> return Nothing
     Right [(_, _, _, ".")] -> return Nothing -- "not available" as in RFC2782
     Right srvResult' -> do
+      let srvEntries = toSrvEntry <$> srvResult'
       -- Get [(Domain, PortNumber)] of SRV request, if any.
       -- Sorts the records based on the priority value.
-      orderedSrvResult <- orderSrvResult srvResult'
-      return $ Just $ fmap (\(_, _, port, domain) -> (domain, port)) orderedSrvResult
-    -- The service is not available at this domain.
-    Left _ -> return Nothing
+      Just . fmap srvTarget <$> orderSrvResult srvEntries
 
 -- FUTUREWORK: maybe improve sorting algorithm here? (with respect to performance and code style)
 --
@@ -96,40 +117,38 @@ srvLookup'' lookupF prefix realm resolvSeed = withResolver resolvSeed $ \resolve
 -- uses a random process to order the records with the same
 -- priority based on their weight.
 --
--- Taken from http://hackage.haskell.org/package/pontarius-xmpp (BSD3 licence)
-orderSrvResult :: [(Word16, Word16, Word16, Domain)] -> IO [(Word16, Word16, Word16, Domain)]
-orderSrvResult srvResult = do
+-- Taken from http://hackage.haskell.org/package/pontarius-xmpp (BSD3 licence) and refactored.
+orderSrvResult :: [SrvEntry] -> IO [SrvEntry]
+orderSrvResult =
   -- Order the result set by priority.
-  let srvResult' = sortBy (comparing (\(priority, _, _, _) -> priority)) srvResult
-  -- Group elements in sublists based on their priority. The
-  -- type is `[[(Word16, Word16, Word16, Domain)]]'.
-  let srvResult'' = groupBy (\(priority, _, _, _) (priority', _, _, _) -> priority == priority') srvResult' :: [[(Word16, Word16, Word16, Domain)]]
-  -- For each sublist, put records with a weight of zero first.
-  let srvResult''' = map (\sublist -> let (a, b) = partition (\(_, weight, _, _) -> weight == 0) sublist in concat [a, b]) srvResult''
-  -- Order each sublist.
-  srvResult'''' <- mapM orderSublist srvResult'''
-  -- Concatenate the results.
-  return $ concat srvResult''''
+  sortBy (comparing srvPriority)
+    -- Group elements in sublists based on their priority.
+    -- The result type is `[[(Word16, Word16, Word16, Domain)]]' (nested list).
+    >>> groupBy ((==) `on` srvPriority)
+    -- For each sublist, put records with a weight of zero first.
+    >>> map (uncurry (++) . partition ((== 0) . srvWeight))
+    -- Order each sublist.
+    >>> mapM orderSublist
+    -- Concatenate the results.
+    >>> fmap concat
   where
-    orderSublist :: [(Word16, Word16, Word16, Domain)] -> IO [(Word16, Word16, Word16, Domain)]
+    orderSublist :: [SrvEntry] -> IO [SrvEntry]
     orderSublist [] = return []
     orderSublist sublist = do
-      -- Compute the running sum, as well as the total sum of
-      -- the sublist. Add the running sum to the SRV tuples.
-      let (total, sublist') = mapAccumL (\total' (priority, weight, port, domain) -> (total' + weight, (priority, weight, port, domain, total' + weight))) 0 sublist
-      -- Choose a random number between 0 and the total sum
-      -- (inclusive).
+      -- Compute the running sum, as well as the total sum of the sublist.
+      -- Add the running sum to the SRV tuples.
+      let (total, sublistWithRunning) =
+            mapAccumL (\acc srv -> let acc' = acc + srvWeight srv in (acc', (srv, acc'))) 0 sublist
+      -- Choose a random number between 0 and the total sum (inclusive).
       randomNumber <- randomRIO (0, total)
       -- Select the first record with its running sum greater
       -- than or equal to the random number.
-      let (beginning, (priority, weight, port, domain, _), end) =
-            case break (\(_, _, _, _, running) -> randomNumber <= running) sublist' of
+      let (beginning, (firstSrv, _), end) =
+            case break (\(_, running) -> randomNumber <= running) sublistWithRunning of
               (b, (c : e)) -> (b, c, e)
               _ -> error "orderSrvResult: no record with running sum greater than random number"
-      -- Remove the running total number from the remaining
-      -- elements.
-      let sublist'' = map (\(priority', weight', port', domain', _) -> (priority', weight', port', domain')) (concat [beginning, end])
-      -- Repeat the ordering procedure on the remaining
-      -- elements.
-      rest <- orderSublist sublist''
-      return $ ((priority, weight, port, domain) : rest)
+      -- Remove the running total number from the remaining elements.
+      let remainingSrvs = map (\(srv, _) -> srv) (concat [beginning, end])
+      -- Repeat the ordering procedure on the remaining elements.
+      rest <- orderSublist remainingSrvs
+      return $ firstSrv : rest

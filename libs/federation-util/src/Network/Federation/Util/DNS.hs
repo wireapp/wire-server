@@ -17,6 +17,7 @@
 
 module Network.Federation.Util.DNS
   ( srvLookup,
+    SrvTarget (..),
   )
 where
 
@@ -37,7 +38,7 @@ import Network.Federation.Util.Internal
 -- > main = do
 -- >   rs <- makeResolvSeed defaultResolvConf
 -- >   x <- srvLookup "staging.zinfra.io" rs
-srvLookup :: Text -> ResolvSeed -> IO (Maybe [(Domain, Word16)])
+srvLookup :: Text -> ResolvSeed -> IO (Maybe [SrvTarget])
 srvLookup = srvLookup' srvDefaultPrefix
 
 srvDefaultPrefix :: Text
