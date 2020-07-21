@@ -63,6 +63,13 @@ import Imports
 import Network.DNS (DNSError, Domain, ResolvSeed, Resolver, lookupSRV, withResolver)
 import System.Random (randomRIO)
 
+data SrvEntry = SrvEntry
+  { srvPriority :: !Word16,
+    srvWeight :: !Word16,
+    srvTarget :: !SrvTarget
+  }
+  deriving (Eq, Show)
+
 data SrvTarget = SrvTarget
   { -- | the hostname on which the service is offered
     srvTargetDomain :: !Domain,
@@ -70,6 +77,9 @@ data SrvTarget = SrvTarget
     srvTargetPort :: !Word16
   }
   deriving (Eq, Show)
+
+toSrvEntry :: (Word16, Word16, Word16, Domain) -> SrvEntry
+toSrvEntry (prio, weight, port, domain) = SrvEntry prio weight (SrvTarget domain port)
 
 -- Given a prefix (e.g. _wire-server) and a domain (e.g. wire.com),
 -- provides a list of A(AAA) names and port numbers upon a successful
@@ -95,10 +105,10 @@ srvLookup'' lookupF prefix realm resolvSeed = withResolver resolvSeed $ \resolve
     Right [] -> return Nothing
     Right [(_, _, _, ".")] -> return Nothing -- "not available" as in RFC2782
     Right srvResult' -> do
+      let srvEntries = toSrvEntry <$> srvResult'
       -- Get [(Domain, PortNumber)] of SRV request, if any.
       -- Sorts the records based on the priority value.
-      orderedSrvResult <- orderSrvResult srvResult'
-      return $ Just $ fmap (\(_, _, port, domain) -> SrvTarget domain port) orderedSrvResult
+      Just . fmap srvTarget <$> orderSrvResult srvEntries
 
 -- FUTUREWORK: maybe improve sorting algorithm here? (with respect to performance and code style)
 --
@@ -108,26 +118,27 @@ srvLookup'' lookupF prefix realm resolvSeed = withResolver resolvSeed $ \resolve
 -- priority based on their weight.
 --
 -- Taken from http://hackage.haskell.org/package/pontarius-xmpp (BSD3 licence) and refactored.
-orderSrvResult :: [(Word16, Word16, Word16, Domain)] -> IO [(Word16, Word16, Word16, Domain)]
+orderSrvResult :: [SrvEntry] -> IO [SrvEntry]
 orderSrvResult =
   -- Order the result set by priority.
-  sortBy (comparing (\(priority, _, _, _) -> priority))
+  sortBy (comparing srvPriority)
     -- Group elements in sublists based on their priority.
     -- The result type is `[[(Word16, Word16, Word16, Domain)]]' (nested list).
-    >>> groupBy (\(priority, _, _, _) (priority', _, _, _) -> priority == priority')
+    >>> groupBy ((==) `on` srvPriority)
     -- For each sublist, put records with a weight of zero first.
-    >>> map (uncurry (++) . partition (\(_, weight, _, _) -> weight == 0))
+    >>> map (uncurry (++) . partition ((== 0) . srvWeight))
     -- Order each sublist.
     >>> mapM orderSublist
     -- Concatenate the results.
     >>> fmap concat
   where
-    orderSublist :: [(Word16, Word16, Word16, Domain)] -> IO [(Word16, Word16, Word16, Domain)]
+    orderSublist :: [SrvEntry] -> IO [SrvEntry]
     orderSublist [] = return []
     orderSublist sublist = do
       -- Compute the running sum, as well as the total sum of the sublist.
       -- Add the running sum to the SRV tuples.
-      let (total, sublistWithRunning) = mapAccumL (\acc srv@(_, weight, _, _) -> (acc + weight, (srv, acc + weight))) 0 sublist
+      let (total, sublistWithRunning) =
+            mapAccumL (\acc srv -> let acc' = acc + srvWeight srv in (acc', (srv, acc'))) 0 sublist
       -- Choose a random number between 0 and the total sum (inclusive).
       randomNumber <- randomRIO (0, total)
       -- Select the first record with its running sum greater
