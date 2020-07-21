@@ -109,21 +109,17 @@ instance Scim.UserDB SparTag Spar where
           pure $ Scim.fromList (toList x)
         | otherwise -> throwError $ Scim.badRequest Scim.InvalidFilter (Just "Unsupported schema")
       _ -> throwError $ Scim.badRequest Scim.InvalidFilter (Just "Operation not supported")
+
   getUser ::
     ScimTokenInfo ->
     UserId ->
     Scim.ScimHandler Spar (Scim.StoredUser SparTag)
   getUser ScimTokenInfo {stiTeam} uid = do
-    user <- runMaybeT $ do
-      brigUser <- getBrigUser' uid
-      team' <- getUserTeam' brigUser
-      guard $ stiTeam == team'
-      lift $ synthesizeStoredUser team' brigUser
-    maybe (throwError . Scim.notFound "User" $ idToText uid) pure user
-    where
-      -- pretty wrappers; should use some MTL instances to get rid of lifts
-      getBrigUser' = MaybeT . lift . Brig.getBrigUser
-      getUserTeam' = MaybeT . pure . userTeam
+    brigUser <-
+      lift (Brig.getBrigUser uid)
+        >>= maybe (throwError . Scim.notFound "User" $ idToText uid) pure
+    synthesizeStoredUser stiTeam brigUser
+
   postUser ::
     ScimTokenInfo ->
     Scim.User SparTag ->
