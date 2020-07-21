@@ -108,7 +108,7 @@ randomScimUserWithSubject ::
   (HasCallStack, MonadRandom m) =>
   m (Scim.User.User SparTag, SAML.UnqualifiedNameID)
 randomScimUserWithSubject = do
-  fieldCount <- getRandomR (0, 3)
+  fieldCount <- getRandomR (1, 3)
   fields <-
     replicateM fieldCount $
       (,) <$> (CI.mk . cs <$> replicateM 10 (getRandomR ('A', 'z')))
