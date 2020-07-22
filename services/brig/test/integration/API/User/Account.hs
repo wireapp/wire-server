@@ -23,7 +23,7 @@ module API.User.Account
 where
 
 import qualified API.Search.Util as Search
-import API.Team.Util (createTeamMember, createUserWithTeam)
+import API.Team.Util hiding (listConnections)
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
@@ -1072,6 +1072,9 @@ testDomainsBlockedForRegistration opts brig = withDomainsBlockedForRegistration 
 -- can probably be removed and simplified. It's probably a good candidate for Quickcheck.
 testRestrictedUserCreation :: Opt.Opts -> Brig -> Http ()
 testRestrictedUserCreation opts brig = do
+  -- We create a team before to help in other tests
+  (teamOwner, createdTeam) <- createUserWithTeam brig
+
   let opts' = opts {Opt.optSettings = (Opt.optSettings opts) {Opt.setRestrictUserCreation = Just True}}
   withSettingsOverrides opts' $ do
     e <- randomEmail
@@ -1107,6 +1110,9 @@ testRestrictedUserCreation opts brig = do
     postUserRegister' teamCreator brig !!! do
         const 403 === statusCode
         const (Just "user-creation-restricted") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
+
+    -- Ensure you can invite team users
+    void $ inviteAndRegisterUser teamOwner createdTeam brig
 
     -- Ephemeral users can always be created
     let Object ephemeralUser =
