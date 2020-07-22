@@ -63,6 +63,12 @@ import Wire.API.Arbitrary (Arbitrary (arbitrary))
 --------------------------------------------------------------------------------
 -- RichInfo
 
+-- | Represents all the ways we can recieve 'RichInfo' from a SCIM peer.
+-- 'richInfoMap' represents fields given under 'richInfoMapURN'. It is expected
+-- to be a JSON object. 'richInfoAssocList' represents fields given under
+-- 'richInfoAssocListURN'. It is expected to be an assoc list. Use the much
+-- simpler 'RichInfoAssocList' if you can. Use 'toRichInfoAssocList' to turn
+-- 'RichInfo' into 'RichInfoAssocList'.
 data RichInfo = RichInfo
   { richInfoMap :: Map (CI Text) Text,
     richInfoAssocList :: [RichField]
