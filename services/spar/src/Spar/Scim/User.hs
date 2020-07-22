@@ -53,7 +53,6 @@ import Data.Aeson as Aeson
 import Data.Handle (Handle (Handle), parseHandle)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, fromUTCTimeMillis, toUTCTimeMillis)
-import qualified Data.Map as Map
 import Data.Range
 import Data.String.Conversions
 import qualified Data.Text as Text
@@ -79,6 +78,7 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.ResourceType as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User (schemas)
+import qualified Wire.API.User.RichInfo as RichInfo
 
 ----------------------------------------------------------------------------
 -- UserDB instance
@@ -587,11 +587,11 @@ synthesizeStoredUser :: TeamId -> User -> Scim.ScimHandler Spar (Scim.StoredUser
 synthesizeStoredUser tid usr = do
   let readState :: Spar (RichInfoAssocList, AccountStatus, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI)
       readState = do
-        richInfo <- Brig.getBrigUserRichInfo (BrigTypes.userId usr)
+        richInfoAssocList <- Brig.getBrigUserRichInfo (BrigTypes.userId usr)
         accStatus <- Brig.getStatus (BrigTypes.userId usr)
         accessTimes <- wrapMonadClient (Data.readScimUserTimes (BrigTypes.userId usr))
         baseuri <- asks $ derivedOptsScimBaseURI . derivedOpts . sparCtxOpts
-        pure (richInfo, accStatus, accessTimes, baseuri)
+        pure (richInfoAssocList, accStatus, accessTimes, baseuri)
 
   let writeState :: UserId -> Maybe (UTCTimeMillis, UTCTimeMillis) -> ManagedBy -> Scim.StoredUser SparTag -> Spar ()
       writeState uid accessTimes managedBy storedUser = do
@@ -600,19 +600,12 @@ synthesizeStoredUser tid usr = do
         when (managedBy /= ManagedByScim) $ do
           Brig.setBrigUserManagedBy uid ManagedByScim
 
-  (richInfo, accStatus, accessTimes, baseuri) <- lift $ readState
-  SAML.Time (toUTCTimeMillis -> now) <- lift $ SAML.getNow
+  (richInfoAssocList, accStatus, accessTimes, baseuri) <- lift readState
+  SAML.Time (toUTCTimeMillis -> now) <- lift SAML.getNow
   let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
-  storedUser <- synthesizeStoredUser' tid usr (synthesizeRichInfo richInfo) accStatus createdAt lastUpdatedAt baseuri
+  storedUser <- synthesizeStoredUser' tid usr (RichInfo.assocListToRichInfo richInfoAssocList) accStatus createdAt lastUpdatedAt baseuri
   lift $ writeState (BrigTypes.userId usr) accessTimes (BrigTypes.userManagedBy usr) storedUser
   pure storedUser
-
--- TODO: This function belongs to Wire.API.User.RichInfo and can be unit tested
--- Also maybe we don't need to support the map anymore
-synthesizeRichInfo :: RichInfoAssocList -> RichInfo
-synthesizeRichInfo (RichInfoAssocList riList) = RichInfo riMap riList
-  where
-    riMap = Map.fromList $ map (\(RichField key value) -> (key, value)) riList
 
 synthesizeStoredUser' ::
   TeamId ->

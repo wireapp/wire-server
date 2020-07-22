@@ -23,6 +23,7 @@ module Wire.API.User.RichInfo
   ( -- * RichInfo
     RichInfo (..),
     toRichInfoAssocList,
+    fromRichInfoAssocList,
     richInfoMapSize,
     normalizeRichInfo,
     richInfoMapURN,
@@ -140,6 +141,11 @@ toRichInfoAssocList (RichInfo mp al) = RichInfoAssocList . nubrf $ toal mp <> al
     nubrf = nubBy ((==) `on` \(RichField k _) -> CI.mk k)
     toal :: Map (CI Text) Text -> [RichField]
     toal = map (\(k, v) -> RichField k v) . Map.toAscList
+
+fromRichInfoAssocList :: RichInfoAssocList -> RichInfo
+fromRichInfoAssocList (RichInfoAssocList riList) = RichInfo riMap riList
+  where
+    riMap = Map.fromList $ map (\(RichField key value) -> (key, value)) riList
 
 -- | Uniform Resource Names used for serialization of 'RichInfo'.
 richInfoMapURN, richInfoAssocListURN :: Text
