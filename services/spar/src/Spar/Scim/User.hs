@@ -603,7 +603,7 @@ synthesizeStoredUser tid usr = do
   (richInfoAssocList, accStatus, accessTimes, baseuri) <- lift readState
   SAML.Time (toUTCTimeMillis -> now) <- lift SAML.getNow
   let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
-  storedUser <- synthesizeStoredUser' tid usr (RichInfo.assocListToRichInfo richInfoAssocList) accStatus createdAt lastUpdatedAt baseuri
+  storedUser <- synthesizeStoredUser' tid usr (RichInfo.fromRichInfoAssocList richInfoAssocList) accStatus createdAt lastUpdatedAt baseuri
   lift $ writeState (BrigTypes.userId usr) accessTimes (BrigTypes.userManagedBy usr) storedUser
   pure storedUser
 
