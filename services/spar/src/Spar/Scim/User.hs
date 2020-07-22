@@ -605,34 +605,32 @@ synthesizeStoredUser usr = do
   (richInfoAssocList, accStatus, accessTimes, baseuri) <- lift readState
   SAML.Time (toUTCTimeMillis -> now) <- lift SAML.getNow
   let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
-  storedUser <- synthesizeStoredUser' usr (RichInfo.fromRichInfoAssocList richInfoAssocList) accStatus createdAt lastUpdatedAt baseuri
+  handle <- lift $ Brig.giveDefaultHandle usr
+  storedUser <- synthesizeStoredUser' usr handle (RichInfo.fromRichInfoAssocList richInfoAssocList) accStatus createdAt lastUpdatedAt baseuri
   lift $ writeState (BrigTypes.userId usr) accessTimes (BrigTypes.userManagedBy usr) storedUser
   pure storedUser
 
 synthesizeStoredUser' ::
   User ->
+  Handle ->
   RichInfo ->
   AccountStatus ->
   UTCTimeMillis ->
   UTCTimeMillis ->
   URIBS.URI ->
   MonadError Scim.ScimError m => m (Scim.StoredUser SparTag)
-synthesizeStoredUser' usr richInfo accStatus createdAt lastUpdatedAt baseuri = do
+synthesizeStoredUser' usr handle richInfo accStatus createdAt lastUpdatedAt baseuri = do
   sso <- do
     let uref = either (const Nothing) Just . Brig.fromUserSSOId
         err = throwError $ Scim.notFound "User" (cs . show . userId $ usr) -- See https://github.com/zinfra/backend-issues/issues/1365
     maybe err pure $ (userIdentity >=> ssoIdentity >=> uref) usr
-
-  handle <- do
-    let err = throwError $ Scim.serverError "User has no handle (scim user name)"
-    maybe err pure $ BrigTypes.userHandle usr
 
   let scimUser :: Scim.User SparTag
       scimUser =
         synthesizeScimUser
           ValidScimUser
             { _vsuUserRef = sso,
-              _vsuHandle = handle,
+              _vsuHandle = handle, -- 'Maybe' there is one in @usr@, but we want to type checker to make sure this exists.
               _vsuName = Just $ BrigTypes.userDisplayName usr,
               _vsuRichInfo = richInfo,
               _vsuActive = scimActiveFlagFromAccountStatus accStatus
