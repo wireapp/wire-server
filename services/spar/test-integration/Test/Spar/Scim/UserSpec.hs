@@ -605,18 +605,11 @@ testUserFindFailsWithNotFoundIfOutsideTeam = do
 -- | Tests for @GET \/Users\/:id@.
 specGetUser :: SpecWith TestEnv
 specGetUser = describe "GET /Users/:id" $ do
-  it "finds a SCIM-provisioned user" $ testGetUser
-  it "does not find a non-SCIM-provisioned user" $ do
-    pendingWith
-      "TODO: fails because the user has no handle (UPDATE: \
-      \it *should* fail, too, just need to make sure it's \
-      \for the right reasons.)"
-  it "doesn't find a user that's not part of the team" $ do
-    pending
-  -- create another team and another user in it
-  -- check that this user can not be found in the "wrong" team
-  it "doesn't find a deleted user" $ testGetNoDeletedUsers
-  it "doesn't find users from other teams" $ testUserGetFailsWithNotFoundIfOutsideTeam
+  it "finds a SCIM-provisioned user" testGetUser
+  it "finds a non-SCIM-provisioned user and puts it under SCIM management" testGetNonScimUser
+  it "finds a user that has no handle, and gives it a default handle before responding with it" testGetUserWithNoHandle
+  it "doesn't find a deleted user" testGetNoDeletedUsers
+  it "doesn't find users from other teams" testUserGetFailsWithNotFoundIfOutsideTeam
 
 -- | Test that a SCIM-provisioned user is fetchable.
 testGetUser :: TestSpar ()
@@ -628,6 +621,15 @@ testGetUser = do
   -- Check that the SCIM-provisioned user can be fetched
   storedUser' <- getUser tok (scimUserId storedUser)
   liftIO $ storedUser' `shouldBe` storedUser
+
+-- | This is the behavior on develop as well as on the branch where this test was turned on.
+-- TODO: find out if this is really what we want, or open an issue and reference the issue
+-- here.
+testGetNonScimUser :: TestSpar ()
+testGetNonScimUser = error "finds a non-SCIM-provisioned user and puts it under SCIM management"
+
+testGetUserWithNoHandle :: TestSpar ()
+testGetUserWithNoHandle = error "finds a user that has no handle, and gives it a default handle before responding with it"
 
 -- | Test that a deleted SCIM-provisioned user is not fetchable.
 testGetNoDeletedUsers :: TestSpar ()
