@@ -100,12 +100,14 @@ instance Scim.UserDB SparTag Spar where
             "username" -> do
               handle <- MaybeT . pure . parseHandle . Text.toLower $ val
               brigUser <- MaybeT . lift . Brig.getBrigUserByHandle $ handle
-              lift $ synthesizeStoredUser stiTeam brigUser
+              guard $ userTeam brigUser == Just stiTeam
+              lift $ synthesizeStoredUser brigUser
             "externalid" -> do
               uref <- mkUserRef idpConfig (pure val)
               uid <- MaybeT . lift . wrapMonadClient . Data.getSAMLUser $ uref
               brigUser <- MaybeT . lift . Brig.getBrigUser $ uid
-              lift $ synthesizeStoredUser stiTeam brigUser
+              guard $ userTeam brigUser == Just stiTeam
+              lift $ synthesizeStoredUser brigUser
             _ -> throwError (Scim.badRequest Scim.InvalidFilter (Just "Unsupported attribute"))
           pure $ Scim.fromList (toList x)
         | otherwise -> throwError $ Scim.badRequest Scim.InvalidFilter (Just "Unsupported schema")
@@ -116,10 +118,10 @@ instance Scim.UserDB SparTag Spar where
     UserId ->
     Scim.ScimHandler Spar (Scim.StoredUser SparTag)
   getUser ScimTokenInfo {stiTeam} uid = do
-    brigUser <-
-      lift (Brig.getBrigUser uid)
-        >>= maybe (throwError . Scim.notFound "User" $ idToText uid) pure
-    synthesizeStoredUser stiTeam brigUser
+    let notfound = Scim.notFound "User" (idToText uid)
+    brigUser <- lift (Brig.getBrigUser uid) >>= maybe (throwError notfound) pure
+    unless (userTeam brigUser == Just stiTeam) (throwError notfound)
+    synthesizeStoredUser brigUser
 
   postUser ::
     ScimTokenInfo ->
@@ -583,8 +585,8 @@ assertHandleNotUsedElsewhere hndl uid = do
 
 -- | Helper function that given a brig user, creates a scim user on the fly or returns
 -- an already existing scim user
-synthesizeStoredUser :: TeamId -> User -> Scim.ScimHandler Spar (Scim.StoredUser SparTag)
-synthesizeStoredUser tid usr = do
+synthesizeStoredUser :: User -> Scim.ScimHandler Spar (Scim.StoredUser SparTag)
+synthesizeStoredUser usr = do
   let readState :: Spar (RichInfoAssocList, AccountStatus, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI)
       readState = do
         richInfoAssocList <- Brig.getBrigUserRichInfo (BrigTypes.userId usr)
@@ -603,12 +605,11 @@ synthesizeStoredUser tid usr = do
   (richInfoAssocList, accStatus, accessTimes, baseuri) <- lift readState
   SAML.Time (toUTCTimeMillis -> now) <- lift SAML.getNow
   let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
-  storedUser <- synthesizeStoredUser' tid usr (RichInfo.fromRichInfoAssocList richInfoAssocList) accStatus createdAt lastUpdatedAt baseuri
+  storedUser <- synthesizeStoredUser' usr (RichInfo.fromRichInfoAssocList richInfoAssocList) accStatus createdAt lastUpdatedAt baseuri
   lift $ writeState (BrigTypes.userId usr) accessTimes (BrigTypes.userManagedBy usr) storedUser
   pure storedUser
 
 synthesizeStoredUser' ::
-  TeamId ->
   User ->
   RichInfo ->
   AccountStatus ->
@@ -616,10 +617,7 @@ synthesizeStoredUser' ::
   UTCTimeMillis ->
   URIBS.URI ->
   MonadError Scim.ScimError m => m (Scim.StoredUser SparTag)
-synthesizeStoredUser' tid usr richInfo accStatus createdAt lastUpdatedAt baseuri = do
-  unless (userTeam usr == Just tid) $ do
-    throwError $ Scim.notFound "User" (cs . show . userId $ usr)
-
+synthesizeStoredUser' usr richInfo accStatus createdAt lastUpdatedAt baseuri = do
   sso <- do
     let uref = either (const Nothing) Just . Brig.fromUserSSOId
         err = throwError $ Scim.notFound "User" (cs . show . userId $ usr) -- See https://github.com/zinfra/backend-issues/issues/1365
