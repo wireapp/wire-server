@@ -63,12 +63,11 @@ import Wire.API.Arbitrary (Arbitrary (arbitrary))
 --------------------------------------------------------------------------------
 -- RichInfo
 
--- | Represents all the ways we can recieve 'RichInfo' from a SCIM peer.
--- 'richInfoMap' represents fields given under 'richInfoMapURN'. It is expected
--- to be a JSON object. 'richInfoAssocList' represents fields given under
--- 'richInfoAssocListURN'. It is expected to be an assoc list. Use the much
--- simpler 'RichInfoAssocList' if you can. Use 'toRichInfoAssocList' to turn
--- 'RichInfo' into 'RichInfoAssocList'.
+-- | Represents all the ways we can recieve 'RichInfo' from a SCIM peer.  'richInfoMap'
+-- represents fields given under 'richInfoMapURN' as a JSON object.  'richInfoAssocList'
+-- represents fields given under 'richInfoAssocListURN' as an assoc list.  Use the much
+-- simpler 'RichInfoAssocList' if you can.  Use 'toRichInfoAssocList' to turn 'RichInfo' into
+-- 'RichInfoAssocList'.
 data RichInfo = RichInfo
   { richInfoMap :: Map (CI Text) Text,
     richInfoAssocList :: [RichField]
@@ -140,6 +139,9 @@ instance Arbitrary RichInfo where
     richInfoMap <- arbitrary
     pure RichInfo {..}
 
+-- | Lossy transformation of map-and-list representation into list-only representation.  The
+-- order of the list part of 'RichInfo' is not changed in the output; keys in the map that do
+-- not appear in the list are appended in alpha order.
 toRichInfoAssocList :: RichInfo -> RichInfoAssocList
 toRichInfoAssocList (RichInfo mp al) =
   RichInfoAssocList $ foldl' go al (Map.toAscList mp)
