@@ -141,12 +141,14 @@ instance Arbitrary RichInfo where
     pure RichInfo {..}
 
 toRichInfoAssocList :: RichInfo -> RichInfoAssocList
-toRichInfoAssocList (RichInfo mp al) = RichInfoAssocList . nubrf $ toal mp <> al
+toRichInfoAssocList (RichInfo mp al) =
+  RichInfoAssocList $ foldl' go al (Map.toAscList mp)
   where
-    nubrf :: [RichField] -> [RichField]
-    nubrf = nubBy ((==) `on` \(RichField k _) -> CI.mk k)
-    toal :: Map (CI Text) Text -> [RichField]
-    toal = map (\(k, v) -> RichField k v) . Map.toAscList
+    go :: [RichField] -> (CI Text, Text) -> [RichField]
+    go rfs (key, val) =
+      case break (\(RichField rfKey _) -> rfKey == key) rfs of
+        (xs, []) -> xs <> [RichField key val]
+        (xs, (_ : ys)) -> xs <> [RichField key val] <> ys
 
 fromRichInfoAssocList :: RichInfoAssocList -> RichInfo
 fromRichInfoAssocList (RichInfoAssocList riList) = RichInfo riMap riList

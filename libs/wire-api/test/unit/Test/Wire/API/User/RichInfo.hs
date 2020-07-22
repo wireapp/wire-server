@@ -27,6 +27,7 @@ import qualified Data.Map as Map
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
+import Test.Tasty.QuickCheck
 import Wire.API.User.RichInfo
 
 tests :: TestTree
@@ -35,13 +36,13 @@ tests =
 
 testRichInfo :: [TestTree]
 testRichInfo =
-  [ let check msg ri rial = testCase msg $ assertEqual "failed" (toRichInfoAssocList ri) rial
+  [ let check msg ri rial = testCase msg $ assertEqual "failed" rial (toRichInfoAssocList ri)
      in testGroup
           "RichInfo to RichInfoAssocList"
           [ check
-              "map comes in alpha order, prepended to the assoc list"
+              "map comes in alpha order, at the end of the assoc list"
               (RichInfo (Map.fromList [("c", "3"), ("a", "1")]) [RichField "b" "2"])
-              (RichInfoAssocList [RichField "a" "1", RichField "c" "3", RichField "b" "2"]),
+              (RichInfoAssocList [RichField "b" "2", RichField "a" "1", RichField "c" "3"]),
             check
               "map overwrites assoc list"
               (RichInfo (Map.singleton "a" "b") [RichField "a" "c"])
@@ -51,6 +52,8 @@ testRichInfo =
               (RichInfo (Map.singleton "a" "b") [RichField "A" "c", RichField "B" "b"])
               (RichInfoAssocList [RichField "a" "b", RichField "B" "b"])
           ],
+    testProperty "RichInfoAssocList <-> RichInfo roundtrip" $ \riAssocList ->
+      toRichInfoAssocList (fromRichInfoAssocList riAssocList) === riAssocList,
     testGroup
       "RichInfo Examples"
       [ testCase "Empty rich info" $ do
