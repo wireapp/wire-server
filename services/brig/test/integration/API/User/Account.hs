@@ -1078,6 +1078,15 @@ testRestrictedUserCreation opts brig = do
   let opts' = opts {Opt.optSettings = (Opt.optSettings opts) {Opt.setRestrictUserCreation = Just True}}
   withSettingsOverrides opts' $ do
     e <- randomEmail
+    -- Ephemeral users MUST have an expires_in
+    let Object ephemeralUserWithoutExpires =
+            object
+              [ "name" .= Name "Alice"
+              ]
+    postUserRegister' ephemeralUserWithoutExpires brig !!! do
+        const 403 === statusCode
+        const (Just "user-creation-restricted") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
+
     let Object regularUser =
             object
               [ "name" .= Name "Alice",
@@ -1118,6 +1127,7 @@ testRestrictedUserCreation opts brig = do
     let Object ephemeralUser =
             object
               [ "name" .= Name "Alice"
+              , "expires_in" .= (600000 :: Int)
               ]
     postUserRegister' ephemeralUser brig !!! const 201 === statusCode
 
