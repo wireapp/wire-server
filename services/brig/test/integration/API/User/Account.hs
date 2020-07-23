@@ -1080,66 +1080,66 @@ testRestrictedUserCreation opts brig = do
     e <- randomEmail
     -- Ephemeral users MUST have an expires_in
     let Object ephemeralUserWithoutExpires =
-            object
-              [ "name" .= Name "Alice"
-              ]
+          object
+            [ "name" .= Name "Alice"
+            ]
     postUserRegister' ephemeralUserWithoutExpires brig !!! do
-        const 403 === statusCode
-        const (Just "user-creation-restricted") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
+      const 403 === statusCode
+      const (Just "user-creation-restricted") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
 
     let Object regularUser =
-            object
-              [ "name" .= Name "Alice",
-                "email" .= fromEmail e,
-                "email_code" .= ("123456" :: Text),
-                "password" .= PlainTextPassword "123123123"
-              ]
+          object
+            [ "name" .= Name "Alice",
+              "email" .= fromEmail e,
+              "email_code" .= ("123456" :: Text),
+              "password" .= PlainTextPassword "123123123"
+            ]
     postUserRegister' regularUser brig !!! do
-        const 403 === statusCode
-        const (Just "user-creation-restricted") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
+      const 403 === statusCode
+      const (Just "user-creation-restricted") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
 
     let Object regularUserNotPreActivated =
-            object
-              [ "name" .= Name "Alice",
-                "email" .= fromEmail e,
-                "password" .= PlainTextPassword "123123123"
-              ]
+          object
+            [ "name" .= Name "Alice",
+              "email" .= fromEmail e,
+              "password" .= PlainTextPassword "123123123"
+            ]
     postUserRegister' regularUserNotPreActivated brig !!! do
-        const 403 === statusCode
-        const (Just "user-creation-restricted") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
+      const 403 === statusCode
+      const (Just "user-creation-restricted") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
 
     let Object teamCreator =
-            object
-              [ "name" .= Name "Alice",
-                "email" .= fromEmail e,
-                "email_code" .= ("123456" :: Text),
-                "team" .= object ["name" .= ("Alice team" :: Text), "icon" .= ("default" :: Text), "binding" .= True],
-                "password" .= PlainTextPassword "123123123"
-              ]
+          object
+            [ "name" .= Name "Alice",
+              "email" .= fromEmail e,
+              "email_code" .= ("123456" :: Text),
+              "team" .= object ["name" .= ("Alice team" :: Text), "icon" .= ("default" :: Text), "binding" .= True],
+              "password" .= PlainTextPassword "123123123"
+            ]
     postUserRegister' teamCreator brig !!! do
-        const 403 === statusCode
-        const (Just "user-creation-restricted") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
+      const 403 === statusCode
+      const (Just "user-creation-restricted") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
 
     -- Ensure you can invite team users
     void $ inviteAndRegisterUser teamOwner createdTeam brig
 
     -- Ephemeral users can always be created
     let Object ephemeralUser =
-            object
-              [ "name" .= Name "Alice"
-              , "expires_in" .= (600000 :: Int)
-              ]
+          object
+            [ "name" .= Name "Alice",
+              "expires_in" .= (600000 :: Int)
+            ]
     postUserRegister' ephemeralUser brig !!! const 201 === statusCode
 
     -- NOTE: SSO users are anyway not allowed on the `/register` endpoint
     teamid <- Id <$> liftIO UUID.nextRandom
     let ssoid = UserSSOId "nil" "nil"
     let Object ssoUser =
-            object
-              [ "name" .= Name "Alice",
-                "sso_id" .= Just ssoid,
-                "team_id" .= Just teamid
-              ]
+          object
+            [ "name" .= Name "Alice",
+              "sso_id" .= Just ssoid,
+              "team_id" .= Just teamid
+            ]
     postUserRegister' ssoUser brig !!! const 400 === statusCode
 
 -- helpers
