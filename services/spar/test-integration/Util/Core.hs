@@ -53,6 +53,7 @@ module Util.Core
     createUserWithTeamDisableSSO,
     getSSOEnabledInternal,
     putSSOEnabledInternal,
+    inviteAndRegisterUser,
     createTeamMember,
     deleteUserOnBrig,
     getTeams,
@@ -146,6 +147,7 @@ import Data.Proxy
 import Data.Range
 import Data.String.Conversions
 import qualified Data.Text.Ascii as Ascii
+import Data.Text.Encoding (encodeUtf8)
 import Data.Time
 import Data.UUID as UUID hiding (fromByteString, null)
 import Data.UUID.V4 as UUID (nextRandom)
@@ -183,6 +185,8 @@ import Util.Options
 import Util.Types
 import qualified Web.Cookie as Web
 import Wire.API.Team.Feature (TeamFeatureStatus (..), TeamFeatureStatusValue (..))
+import qualified Wire.API.Team.Invitation as TeamInvitation
+import qualified Wire.API.User as User
 
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv
@@ -342,6 +346,75 @@ putSSOEnabledInternal gly tid enabled = do
       . paths ["i", "teams", toByteString' tid, "features", "sso"]
       . json (TeamFeatureStatus enabled)
       . expect2xx
+
+-- | cloned from `/services/brig/test/integration/API/Team/Util.hs`.
+inviteAndRegisterUser ::
+  (MonadIO m, MonadCatch m, MonadFail m, MonadHttp m, HasCallStack) =>
+  BrigReq ->
+  UserId ->
+  TeamId ->
+  m User
+inviteAndRegisterUser brig u tid = do
+  inviteeEmail <- randomEmail
+  let invite = TeamInvitation.InvitationRequest inviteeEmail (User.Name "Bob") Nothing Nothing Nothing Nothing
+  inv <- responseJsonError =<< postInvitation tid u invite
+  Just inviteeCode <- getInvitationCode tid (TeamInvitation.inInvitation inv)
+  rspInvitee <-
+    post
+      ( brig . path "/register"
+          . contentJson
+          . body (accept' inviteeEmail inviteeCode)
+      )
+      <!! const 201
+      === statusCode
+  let Just invitee = responseJsonMaybe rspInvitee
+  unless (Just tid == userTeam invitee) $ error "Team ID in registration and team table do not match"
+  selfTeam <- userTeam . selfUser <$> getSelfProfile brig (userId invitee)
+  unless (selfTeam == Just tid) $ error "Team ID in self profile and team table do not match"
+  return invitee
+  where
+    accept' :: User.Email -> User.InvitationCode -> RequestBody
+    accept' email code = acceptWithName (User.Name "Bob") email code
+    --
+    acceptWithName :: User.Name -> User.Email -> User.InvitationCode -> RequestBody
+    acceptWithName name email code =
+      RequestBodyLBS . Aeson.encode $
+        object
+          [ "name" .= User.fromName name,
+            "email" .= email,
+            "password" .= defPassword,
+            "team_code" .= code
+          ]
+    --
+    postInvitation ::
+      (MonadIO m, MonadHttp m, HasCallStack) =>
+      TeamId ->
+      UserId ->
+      TeamInvitation.InvitationRequest ->
+      m ResponseLBS
+    postInvitation t u' i =
+      post $
+        brig
+          . paths ["teams", toByteString' t, "invitations"]
+          . contentJson
+          . body (RequestBodyLBS $ Aeson.encode i)
+          . zAuthAccess u' "conn"
+    --
+    getInvitationCode ::
+      (MonadIO m, MonadHttp m, HasCallStack) =>
+      TeamId ->
+      InvitationId ->
+      m (Maybe User.InvitationCode)
+    getInvitationCode t ref = do
+      r <-
+        get
+          ( brig
+              . path "/i/teams/invitation-code"
+              . queryItem "team" (toByteString' t)
+              . queryItem "invitation_id" (toByteString' ref)
+          )
+      let lbs = fromMaybe "" $ responseBody r
+      return $ fromByteString . fromMaybe (error "No code?") $ encodeUtf8 <$> (lbs ^? key "code" . _String)
 
 -- | NB: this does create an SSO UserRef on brig, but not on spar.  this is inconsistent, but the
 -- inconsistency does not affect the tests we're running with this.  to resolve it, we could add an

@@ -39,6 +39,7 @@ import Data.Aeson.QQ (aesonQQ)
 import Data.Aeson.Types (fromJSON, toJSON)
 import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle))
+import Data.Handle (fromHandle)
 import Data.Id (TeamId, UserId, randomId)
 import Data.Ix (inRange)
 import qualified Data.Map as Map
@@ -606,7 +607,8 @@ testUserFindFailsWithNotFoundIfOutsideTeam = do
 specGetUser :: SpecWith TestEnv
 specGetUser = describe "GET /Users/:id" $ do
   it "finds a SCIM-provisioned user" testGetUser
-  it "finds a non-SCIM-provisioned user and puts it under SCIM management" testGetNonScimUser
+  it "does not find a user invited old-school via team-settings" testGetNonScimInviteUser
+  it "finds a user auto-provisioned via SAML and puts it under SCIM management" testGetNonScimSAMLUser
   it "finds a user that has no handle, and gives it a default handle before responding with it" testGetUserWithNoHandle
   it "doesn't find a deleted user" testGetNoDeletedUsers
   it "doesn't find users from other teams" testUserGetFailsWithNotFoundIfOutsideTeam
@@ -622,14 +624,49 @@ testGetUser = do
   storedUser' <- getUser tok (scimUserId storedUser)
   liftIO $ storedUser' `shouldBe` storedUser
 
--- | This is the behavior on develop as well as on the branch where this test was turned on.
--- TODO: find out if this is really what we want, or open an issue and reference the issue
--- here.
-testGetNonScimUser :: TestSpar ()
-testGetNonScimUser = error "finds a non-SCIM-provisioned user and puts it under SCIM management"
+shouldBeManagedBy :: HasCallStack => UserId -> ManagedBy -> TestSpar ()
+shouldBeManagedBy uid flag = do
+  managedBy <- maybe (error "user not found") userManagedBy <$> runSpar (Intra.getBrigUser uid)
+  liftIO $ managedBy `shouldBe` flag
+
+-- | This is (roughly) the behavior on develop as well as on the branch where this test was
+-- turned on.  TODO: find out if this is really what we want, or open an issue and reference
+-- the issue here.
+testGetNonScimSAMLUser :: TestSpar ()
+testGetNonScimSAMLUser = do
+  (_, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
+  -- NOTE: once SCIM is enabled SSO Auto-provisioning is disabled, so we register the scim token later.
+
+  uidSso <- loginSsoUserFirstTime idp privcreds
+  tok <- registerScimToken tid (Just (idp ^. SAML.idpId))
+
+  shouldBeManagedBy uidSso ManagedByWire
+  _ <- getUser tok uidSso
+  shouldBeManagedBy uidSso ManagedByScim
+
+testGetNonScimInviteUser :: TestSpar ()
+testGetNonScimInviteUser = do
+  brig <- asks (^. teBrig)
+  (tok, (owner, tid, _)) <- registerIdPAndScimToken
+
+  uidNoSso <- userId <$> call (inviteAndRegisterUser brig owner tid)
+  getUser_ (Just tok) uidNoSso brig !!! const 404 === statusCode
 
 testGetUserWithNoHandle :: TestSpar ()
-testGetUserWithNoHandle = error "finds a user that has no handle, and gives it a default handle before responding with it"
+testGetUserWithNoHandle = do
+  (_, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
+  -- NOTE: once SCIM is enabled SSO Auto-provisioning is disabled, so we register the scim token later.
+  uid <- loginSsoUserFirstTime idp privcreds
+  tok <- registerScimToken tid (Just (idp ^. SAML.idpId))
+
+  mhandle :: Maybe Handle <- maybe (error "user not found") userHandle <$> runSpar (Intra.getBrigUser uid)
+  liftIO $ mhandle `shouldSatisfy` isNothing
+
+  storedUser <- getUser tok uid
+  liftIO $ (Scim.User.displayName . Scim.value . Scim.thing) storedUser `shouldSatisfy` isJust
+  mhandle' :: Maybe Handle <- aFewTimes (maybe (error "user not found") userHandle <$> runSpar (Intra.getBrigUser uid)) isJust
+  liftIO $ mhandle' `shouldSatisfy` isJust
+  liftIO $ (fromHandle <$> mhandle') `shouldBe` (Just . Scim.User.userName . Scim.value . Scim.thing $ storedUser)
 
 -- | Test that a deleted SCIM-provisioned user is not fetchable.
 testGetNoDeletedUsers :: TestSpar ()
