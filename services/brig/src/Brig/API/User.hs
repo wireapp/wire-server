@@ -322,7 +322,8 @@ checkRestrictedUserCreation new = do
   restrictPlease <- lift . asks $ fromMaybe False . setRestrictUserCreation . view settings
   when
     ( restrictPlease
-           && not (or [isTeamMember nTeam, isEphemeral nExpires])
+           && not (isTeamMember nTeam)
+           && not (isEphemeral nExpires)
     )
     $ throwE UserCreationRestricted
   where
