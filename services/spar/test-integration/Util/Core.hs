@@ -420,7 +420,8 @@ inviteAndRegisterUser brig u tid = do
 -- inconsistency does not affect the tests we're running with this.  to resolve it, we could add an
 -- internal end-point to spar that allows us to create users without idp response verification.
 --
--- TODO: drop this and always use 'loginSsoUserFirstTime' instead!
+-- FUTUREWORK: same as 'addTeamMember'.  drop this and always use 'loginSsoUserFirstTime' or
+-- 'inviteAndRegisterUser' instead!
 createTeamMember ::
   (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) =>
   BrigReq ->
@@ -441,6 +442,9 @@ createTeamMember brigreq galleyreq teamid perms = do
   addTeamMember galleyreq teamid (Galley.newNewTeamMember tmem)
   pure nobody
 
+-- | FUTUREWORK(fisx): use the specified & supported flows for scaffolding; this is a hack
+-- that builds up the internal structure from scratch, without too much thought.  For
+-- instance, the team field in the user in brig won't be updated.
 addTeamMember ::
   (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) =>
   GalleyReq ->

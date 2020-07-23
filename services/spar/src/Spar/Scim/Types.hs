@@ -196,12 +196,12 @@ instance Scim.Patchable ScimUserExtra where
 -- and/or ignore POSTed content, returning the full representation can be useful to the
 -- client, enabling it to correlate the client's and server's views of the new resource."
 --
--- FUTUREWORK: make '_vsuSAMLIdentity' a 'Maybe' and allow for SCIM users without a SAML SSO
+-- FUTUREWORK: make '_vsuUserRef' a 'Maybe' and allow for SCIM users without a SAML SSO
 -- identity.
 data ValidScimUser = ValidScimUser
   { _vsuUserRef :: SAML.UserRef,
     _vsuHandle :: Handle,
-    _vsuName :: Maybe Name,
+    _vsuName :: Maybe Name, -- TODO: remove the 'Maybe' here, and construct the name not in "Spar.Intra.Brig", but in 'validateScimUser'.
     _vsuRichInfo :: RichInfo,
     _vsuActive :: Bool
   }
