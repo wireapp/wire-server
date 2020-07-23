@@ -104,7 +104,7 @@ data AcceptanceConfig tag = AcceptanceConfig
   { scimAppAndConfig :: IO (Application, AcceptanceQueryConfig tag),
     genUserName :: IO Text,
     -- | some acceptance tests match against a fully rendered
-    -- response body, which will now work when running the test
+    -- response body, which will not work when running the test
     -- as a library user (since the response will have more and
     -- other information).  if you leave this on 'False' (default
     -- from 'defAcceptanceConfig'), the test will only check some

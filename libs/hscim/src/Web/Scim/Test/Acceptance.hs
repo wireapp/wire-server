@@ -27,7 +27,6 @@ module Web.Scim.Test.Acceptance
   )
 where
 
-import Control.Concurrent (threadDelay)
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
@@ -37,7 +36,7 @@ import Data.Text (Text)
 import Network.HTTP.Types.Status
 import Network.Wai.Test
 import Servant.API as Servant
-import Test.Hspec (Spec, beforeAll, describe, it, pending, pendingWith, shouldBe)
+import Test.Hspec (Spec, beforeAll, describe, it, pending, pendingWith, shouldBe, shouldSatisfy)
 import Test.Hspec.Wai (matchStatus)
 import Test.Hspec.Wai.Internal (runWaiSession)
 import Web.Scim.Class.User
@@ -102,13 +101,14 @@ microsoftAzure AcceptanceConfig {..} = do
           testuid =
             either (error . show . (,resp)) (cs . Servant.toUrlPiece . Hscim.id . thing) $
               Aeson.eitherDecode' @(StoredUser tag) (simpleBody resp)
-      -- Get user with query
-      get' queryConfig "/Users" `shouldRespondWith` 400
-      -- Get user by query
+      -- Get users without query
+      get' queryConfig "/Users" >>= \rsp -> liftIO $ do
+        simpleStatus rsp `shouldSatisfy` (`elem` [status200, status400])
+      -- Get single user by query
       get' queryConfig (cs $ "/Users?filter=userName eq " <> show userName1) >>= \rsp -> liftIO $ do
         simpleStatus rsp `shouldBe` status200
         ListResponse.totalResults <$> Aeson.eitherDecode' @(ListResponse.ListResponse (StoredUser tag)) (simpleBody rsp) `shouldBe` Right 1
-      -- Get user by query, zero results
+      -- Get single user by query, zero results
       get' queryConfig (cs $ "/Users?filter=userName eq " <> show userName2)
         `shouldRespondWith` [scim|
           {
@@ -121,11 +121,11 @@ microsoftAzure AcceptanceConfig {..} = do
         |]
           { matchStatus = 200
           }
-      -- Get user by externalId works
-      liftIO $ threadDelay 1000000
-      get' queryConfig "/Users?filter=externalId eq \"0a21f0f2-8d2a-4f8e-479e-a20b-2d77186b5dd1\"" >>= \rsp -> liftIO $ do
-        simpleStatus rsp `shouldBe` status200
-        ListResponse.totalResults <$> Aeson.eitherDecode' @(ListResponse.ListResponse (StoredUser tag)) (simpleBody rsp) `shouldBe` Right 1
+      -- Get single user by externalId works
+      ignore $ do
+        get' queryConfig "/Users?filter=externalId eq \"0a21f0f2-8d2a-4f8e-479e-a20b-2d77186b5dd1\"" >>= \rsp -> liftIO $ do
+          simpleStatus rsp `shouldBe` status200
+          ListResponse.totalResults <$> Aeson.eitherDecode' @(ListResponse.ListResponse (StoredUser tag)) (simpleBody rsp) `shouldBe` Right 1
       -- Update user [Multi-valued properties]
       ignore $
         patch'

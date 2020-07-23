@@ -475,7 +475,7 @@ testScimCreateVsUserRef = do
 specListUsers :: SpecWith TestEnv
 specListUsers = describe "GET /Users" $ do
   it "lists all SCIM users in a team" $ testListProvisionedUsers
-  it "finds a SCIM-provisioned user" $ testFindProvisionedUser
+  it "finds a SCIM-provisioned user by userName or externalId" $ testFindProvisionedUser
   it "finds a non-SCIM-provisioned user by userName or externalId" $ testFindNonProvisionedUser
   it "doesn't list deleted users" $ testListNoDeletedUsers
   it "doesnt't find deleted users by userName or externalId" $ testFindNoDeletedUsers
