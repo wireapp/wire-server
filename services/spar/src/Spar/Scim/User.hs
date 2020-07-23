@@ -606,12 +606,25 @@ synthesizeStoredUser usr = do
   SAML.Time (toUTCTimeMillis -> now) <- lift SAML.getNow
   let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
   handle <- lift $ Brig.giveDefaultHandle usr
-  storedUser <- synthesizeStoredUser' usr handle (RichInfo.fromRichInfoAssocList richInfoAssocList) accStatus createdAt lastUpdatedAt baseuri
+  let uref = either (const Nothing) Just . Brig.fromUserSSOId
+  storedUser <-
+    synthesizeStoredUser'
+      (userId usr)
+      (userIdentity >=> ssoIdentity >=> uref $ usr)
+      (userDisplayName usr)
+      handle
+      (RichInfo.fromRichInfoAssocList richInfoAssocList)
+      accStatus
+      createdAt
+      lastUpdatedAt
+      baseuri
   lift $ writeState (BrigTypes.userId usr) accessTimes (BrigTypes.userManagedBy usr) storedUser
   pure storedUser
 
 synthesizeStoredUser' ::
-  User ->
+  UserId ->
+  Maybe SAML.UserRef ->
+  Name ->
   Handle ->
   RichInfo ->
   AccountStatus ->
@@ -619,11 +632,10 @@ synthesizeStoredUser' ::
   UTCTimeMillis ->
   URIBS.URI ->
   MonadError Scim.ScimError m => m (Scim.StoredUser SparTag)
-synthesizeStoredUser' usr handle richInfo accStatus createdAt lastUpdatedAt baseuri = do
+synthesizeStoredUser' uid ssoid dname handle richInfo accStatus createdAt lastUpdatedAt baseuri = do
   sso <- do
-    let uref = either (const Nothing) Just . Brig.fromUserSSOId
-        err = throwError $ Scim.notFound "User" (cs . show . userId $ usr) -- See https://github.com/zinfra/backend-issues/issues/1365
-    maybe err pure $ (userIdentity >=> ssoIdentity >=> uref) usr
+    let err = throwError $ Scim.notFound "User" (cs $ show uid) -- See https://github.com/zinfra/backend-issues/issues/1365
+    maybe err pure ssoid
 
   let scimUser :: Scim.User SparTag
       scimUser =
@@ -631,12 +643,12 @@ synthesizeStoredUser' usr handle richInfo accStatus createdAt lastUpdatedAt base
           ValidScimUser
             { _vsuUserRef = sso,
               _vsuHandle = handle, -- 'Maybe' there is one in @usr@, but we want to type checker to make sure this exists.
-              _vsuName = Just $ BrigTypes.userDisplayName usr,
+              _vsuName = Just dname,
               _vsuRichInfo = richInfo,
               _vsuActive = scimActiveFlagFromAccountStatus accStatus
             }
 
-  pure $ toScimStoredUser' createdAt lastUpdatedAt baseuri (BrigTypes.userId usr) scimUser
+  pure $ toScimStoredUser' createdAt lastUpdatedAt baseuri uid scimUser
 
 synthesizeScimUser :: ValidScimUser -> Scim.User SparTag
 synthesizeScimUser info =
