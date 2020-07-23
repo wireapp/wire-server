@@ -50,6 +50,7 @@ import Util.Core
 import Util.Types
 import Web.HttpApiData (toHeader)
 import qualified Web.Scim.Class.User as Scim
+import qualified Web.Scim.Filter as Filter
 import qualified Web.Scim.Filter as Scim
 import qualified Web.Scim.Schema.Common as Scim
 import qualified Web.Scim.Schema.ListResponse as Scim
@@ -427,6 +428,12 @@ listUsers_ auth mbFilter spar_ = do
         . scimAuth auth
         . acceptScim
     )
+
+filterBy :: Text -> Text -> Filter.Filter
+filterBy name value = Filter.FilterAttrCompare (Filter.topLevelAttrPath name) Filter.OpEq (Filter.ValString value)
+
+filterForStoredUser :: HasCallStack => Scim.StoredUser SparTag -> Filter.Filter
+filterForStoredUser = filterBy "externalId" . fromJust . Scim.User.externalId . Scim.value . Scim.thing
 
 -- | Get one user.
 getUser_ ::

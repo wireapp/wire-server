@@ -24,6 +24,7 @@ module Wire.API.User.RichInfo
     RichInfo (..),
     toRichInfoAssocList,
     fromRichInfoAssocList,
+    canonicalizeRichInfo,
     richInfoMapSize,
     normalizeRichInfo,
     richInfoMapURN,
@@ -157,6 +158,12 @@ fromRichInfoAssocList (RichInfoAssocList riList) = RichInfo riMap riList
   where
     riMap = Map.fromList $ map (\(RichField key value) -> (key, value)) riList
 
+-- | Mostly for testing: If you construct an arbitrary valid 'RichInfo' value and pass it to
+-- spar, 'canonicalizeRichInfo' can tell you what it will look like when you get it back.  See also:
+-- 'normalizeRichInfo'.
+canonicalizeRichInfo :: RichInfo -> RichInfo
+canonicalizeRichInfo = fromRichInfoAssocList . toRichInfoAssocList
+
 -- | Uniform Resource Names used for serialization of 'RichInfo'.
 richInfoMapURN, richInfoAssocListURN :: Text
 richInfoMapURN = "urn:ietf:params:scim:schemas:extension:wire:1.0:User"
@@ -257,7 +264,7 @@ richInfoAssocListSize fields = sum [Text.length (CI.original t) + Text.length v 
 richInfoMapSize :: RichInfo -> Int
 richInfoMapSize rif = sum [Text.length (CI.original k) + Text.length v | (k, v) <- Map.toList $ richInfoMap rif]
 
--- | Remove fields with @""@ values.
+-- | Remove fields with @""@ values.  See also: 'canonicalizeRichInfo'.
 normalizeRichInfo :: RichInfo -> RichInfo
 normalizeRichInfo (RichInfo rifMap assocList) =
   RichInfo

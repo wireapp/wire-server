@@ -63,6 +63,7 @@ import qualified Web.Scim.Schema.PatchOp as PatchOp
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Wire.API.Team.Feature as Feature
 import qualified Wire.API.User.Activation as Activation
+import Wire.API.User.RichInfo (canonicalizeRichInfo)
 
 -- | Tests for @\/scim\/v2\/Users@.
 spec :: SpecWith TestEnv
@@ -311,7 +312,7 @@ testLocation = do
   liftIO $ responseJsonUnsafe r `shouldBe` scimStoredUser
 
 testRichInfo :: PatchOp.PatchOp SparTag -> RichInfo -> RichInfo -> RichInfo -> TestSpar ()
-testRichInfo patchOp richInfo richInfoOverwritten richInfoPatched = do
+testRichInfo patchOp (canonicalizeRichInfo -> richInfo) (canonicalizeRichInfo -> richInfoOverwritten) (canonicalizeRichInfo -> richInfoPatched) = do
   brig <- asks (view teBrig)
   -- set things up
   (user, _) <- randomScimUserWithSubjectAndRichInfo richInfo
@@ -476,29 +477,20 @@ specListUsers = describe "GET /Users" $ do
   it "lists all SCIM users in a team" $ testListProvisionedUsers
   it "finds a SCIM-provisioned user" $ testFindProvisionedUser
   it "finds a non-SCIM-provisioned user by userName or externalId" $ testFindNonProvisionedUser
-  it "can't find users that don't have a handle" $ testSsoUsersWithoutHandleSilentlyIgnored
   it "doesn't list deleted users" $ testListNoDeletedUsers
   it "doesnt't find deleted users by userName or externalId" $ testFindNoDeletedUsers
   it "doesn't list users from other teams" $ testUserListFailsWithNotFoundIfOutsideTeam
   it "doesn't find users from other teams" $ testUserFindFailsWithNotFoundIfOutsideTeam
 
-filterBy :: Text -> Text -> Filter.Filter
-filterBy name value = Filter.FilterAttrCompare (Filter.topLevelAttrPath name) Filter.OpEq (Filter.ValString value)
-
 -- | Test that SCIM-provisioned team members are listed, and users that were not provisioned
 -- via SCIM are not listed.
 testListProvisionedUsers :: TestSpar ()
 testListProvisionedUsers = do
-  -- Create a user via SCIM
-  user <- randomScimUser
-  (tok, (owner, _, _)) <- registerIdPAndScimToken
-  storedUser <- createUser tok user
-  -- Get all users via SCIM
-  users <- listUsers tok Nothing
-  -- Check that the SCIM user is present
-  liftIO $ users `shouldContain` [storedUser]
-  -- Check that the (non-SCIM-provisioned) team owner is NOT present
-  liftIO $ (scimUserId <$> users) `shouldNotContain` [owner]
+  spar <- asks (^. teSpar)
+  (tok, _) <- registerIdPAndScimToken
+  listUsers_ (Just tok) Nothing spar !!! do
+    const 400 === statusCode
+    const (Just "tooMany") =~= responseBody
 
 testFindProvisionedUser :: TestSpar ()
 testFindProvisionedUser = do
@@ -510,21 +502,6 @@ testFindProvisionedUser = do
   let Just externalId = Scim.User.externalId user
   users' <- listUsers tok (Just (filterBy "externalId" externalId))
   liftIO $ users' `shouldBe` [storedUser]
-
--- NOTE: I'm not sure if this is desired behaviour yet.  But there can be cases
--- where people logged in but haven't set the handle yet in the UI. We do not
--- want to 'crash' for those cases apparently.
-testSsoUsersWithoutHandleSilentlyIgnored :: TestSpar ()
-testSsoUsersWithoutHandleSilentlyIgnored = do
-  (_, teamid, idp, (_, privCreds)) <- registerTestIdPWithMeta
-  member <- loginSsoUserFirstTime idp privCreds
-  -- NOTE: once SCIM is enabled SSO Auto-provisioning is disabled
-  tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
-  Just brigUser <- runSpar $ Intra.getBrigUser member
-  let Just ssoIdentity' = userIdentity >=> ssoIdentity $ brigUser
-  let Right externalId = Intra.toExternalId ssoIdentity'
-  users <- listUsers tok (Just (filterBy "externalId" externalId))
-  liftIO $ users `shouldSatisfy` all ((/= member) . scimUserId)
 
 -- When explicitly filtering, we should be able to find non-SCIM-provisioned users
 testFindNonProvisionedUser :: TestSpar ()
@@ -557,10 +534,12 @@ testListNoDeletedUsers = do
   (tok, _) <- registerIdPAndScimToken
   storedUser <- createUser tok user
   let userid = scimUserId storedUser
-  -- Delete the user (TODO: do it via SCIM) TODO(arianvp): Ask @fisx what he meant with this comment???
+  -- Delete the user
+  -- TODO(fisx): use 'Util.Scim.deleteUser' instead of 'Util.Core.deleteUserOnBrig' (in fact,
+  -- we should probably do both)
   call $ deleteUserOnBrig (env ^. teBrig) userid
   -- Get all users
-  users <- listUsers tok Nothing
+  users <- listUsers tok (Just (filterForStoredUser storedUser))
   -- Check that the user is absent
   liftIO $ users `shouldSatisfy` all ((/= userid) . scimUserId)
 
@@ -580,14 +559,14 @@ testFindNoDeletedUsers = do
   liftIO $ users'' `shouldSatisfy` all ((/= userid) . scimUserId)
 
 -- | Test that users are not listed if not in the team associated with the token.
-testUserListFailsWithNotFoundIfOutsideTeam :: TestSpar ()
+testUserListFailsWithNotFoundIfOutsideTeam :: HasCallStack => TestSpar ()
 testUserListFailsWithNotFoundIfOutsideTeam = do
   user <- randomScimUser
   (tokTeamA, _) <- registerIdPAndScimToken
   (tokTeamB, _) <- registerIdPAndScimToken
   storedUser <- createUser tokTeamA user
   let userid = scimUserId storedUser
-  users <- listUsers tokTeamB Nothing
+  users <- listUsers tokTeamB (Just (filterForStoredUser storedUser))
   liftIO $ users `shouldSatisfy` all ((/= userid) . scimUserId)
 
 testUserFindFailsWithNotFoundIfOutsideTeam :: TestSpar ()
