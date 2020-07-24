@@ -95,8 +95,9 @@ instance Semigroup RichInfo where
 -- (use case: wire native code; we used this so we can give the client arbitrary order in
 -- which to show the rich info).
 --
--- Use the much simpler 'RichInfoAssocList' if you can.  Use 'toRichInfoAssocList' to turn
--- 'RichInfo' into 'RichInfoAssocList'.
+-- Internally we only store one assoc list.  This type is just to keep serialization separate
+-- from the tricky semantics of how the map is merged into the list.  See
+-- 'toRichInfoAssocList', 'fromRichInfoAssocList' for the merge semantics.
 --
 -- TODO: https://github.com/zinfra/backend-issues/issues/1627
 data RichInfoMapAndList = RichInfoMapAndList
