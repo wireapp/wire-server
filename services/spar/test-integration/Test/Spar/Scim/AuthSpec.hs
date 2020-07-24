@@ -276,10 +276,3 @@ testAuthIsNeeded = do
   -- Try to do @GET /Users@ without a token and check that it fails
   listUsers_ Nothing Nothing (env ^. teSpar)
     !!! checkErr 401 Nothing
-
-checkErr :: HasCallStack => Int -> Maybe TestErrorLabel -> Assertions ()
-checkErr status mlabel = do
-  const status === statusCode
-  case mlabel of
-    Nothing -> pure ()
-    Just label -> const (Right label) === responseJsonEither

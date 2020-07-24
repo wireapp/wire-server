@@ -117,11 +117,13 @@ module Util.Core
     callGetDefaultSsoCode,
     callSetDefaultSsoCode,
     callDeleteDefaultSsoCode,
+    checkErr,
+    checkErrHspec,
   )
 where
 
 import Bilge hiding (getCookie) -- we use Web.Cookie instead of the http-client type
-import Bilge.Assert ((!!!), (<!!), (===))
+import Bilge.Assert ((!!!), (<!!), (===), Assertions)
 import qualified Brig.Types.Activation as Brig
 import Brig.Types.Common (UserIdentity (..), UserSSOId (..))
 import Brig.Types.User (User (..), selfUser, userIdentity)
@@ -1158,3 +1160,13 @@ getUserIdViaRef uref = maybe (error "not found") pure =<< getUserIdViaRef' uref
 getUserIdViaRef' :: HasCallStack => UserRef -> TestSpar (Maybe UserId)
 getUserIdViaRef' uref = do
   aFewTimes (runSparCass $ Data.getSAMLUser uref) isJust
+
+checkErr :: HasCallStack => Int -> Maybe TestErrorLabel -> Assertions ()
+checkErr status mlabel = do
+  const status === statusCode
+  case mlabel of
+    Nothing -> pure ()
+    Just label -> const (Right label) === responseJsonEither
+
+checkErrHspec :: HasCallStack => Int -> TestErrorLabel -> ResponseLBS -> Bool
+checkErrHspec status label resp = status == statusCode resp && responseJsonEither resp == Right label
