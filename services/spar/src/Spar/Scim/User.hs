@@ -586,7 +586,7 @@ assertHandleNotUsedElsewhere hndl uid = do
 -- | Helper function that translates a given brig user into a 'Scim.StoredUser', with some
 -- effects like updating the 'ManagedBy' field in brig and storing creation and update time
 -- stamps.
-synthesizeStoredUser :: BrigUser.User -> Scim.ScimHandler Spar (Scim.StoredUser SparTag)
+synthesizeStoredUser :: BrigTypes.User -> Scim.ScimHandler Spar (Scim.StoredUser SparTag)
 synthesizeStoredUser usr = do
   let readState :: Spar (RichInfo, AccountStatus, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI)
       readState = do
