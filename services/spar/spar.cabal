@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 032057d81f563685925f83bd11795dfde9ab38ec5b711c1a2aa5319a365d45a5
+-- hash: c4215bccf7e235dad19c5eb68954faf664f92ff0b3d7aeacdfb6ac21b448503b
 
 name:           spar
 version:        0.1
@@ -217,6 +217,7 @@ executable spar-integration
   build-depends:
       HsOpenSSL
     , MonadRandom
+    , QuickCheck
     , aeson
     , aeson-pretty
     , aeson-qq

@@ -78,7 +78,7 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.ResourceType as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User (schemas)
-import qualified Wire.API.User.RichInfo as RichInfo
+import Wire.API.User.RichInfo
 
 ----------------------------------------------------------------------------
 -- UserDB instance
@@ -228,20 +228,20 @@ validateScimUser' idp richInfoLimit user = do
     -- Validate rich info (@richInfo@). It must not exceed the rich info limit.
     validateRichInfo :: RichInfo -> m RichInfo
     validateRichInfo richInfo = do
-      let errorIfTooBig s name =
-            when (s > richInfoLimit) $ throwError $
-              ( Scim.badRequest
-                  Scim.InvalidValue
-                  ( Just . cs $
-                      cs name <> " exceeds the limit: max " <> show richInfoLimit
-                        <> " characters, but got "
-                        <> show s
-                  )
-              )
-                { Scim.status = Scim.Status 413
-                }
-      errorIfTooBig (richInfoAssocListSize $ richInfoAssocList richInfo) richInfoAssocListURN
-      errorIfTooBig (richInfoMapSize richInfo) richInfoMapURN
+      let sze = richInfoSize richInfo
+      when (sze > richInfoLimit) $ throwError $
+        ( Scim.badRequest
+            Scim.InvalidValue
+            ( Just . cs $
+                show [richInfoMapURN, richInfoAssocListURN]
+                  <> " together exceed the size limit: max "
+                  <> show richInfoLimit
+                  <> " characters, but got "
+                  <> show sze
+            )
+        )
+          { Scim.status = Scim.Status 413
+          }
       pure richInfo
 
 -- | Given an 'externalId' and an 'IdP', construct a 'SAML.UserRef'.
@@ -587,13 +587,13 @@ assertHandleNotUsedElsewhere hndl uid = do
 -- an already existing scim user
 synthesizeStoredUser :: User -> Scim.ScimHandler Spar (Scim.StoredUser SparTag)
 synthesizeStoredUser usr = do
-  let readState :: Spar (RichInfoAssocList, AccountStatus, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI)
+  let readState :: Spar (RichInfo, AccountStatus, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI)
       readState = do
-        richInfoAssocList <- Brig.getBrigUserRichInfo (BrigTypes.userId usr)
+        richInfo <- Brig.getBrigUserRichInfo (BrigTypes.userId usr)
         accStatus <- Brig.getStatus (BrigTypes.userId usr)
         accessTimes <- wrapMonadClient (Data.readScimUserTimes (BrigTypes.userId usr))
         baseuri <- asks $ derivedOptsScimBaseURI . derivedOpts . sparCtxOpts
-        pure (richInfoAssocList, accStatus, accessTimes, baseuri)
+        pure (richInfo, accStatus, accessTimes, baseuri)
 
   let writeState :: UserId -> Maybe (UTCTimeMillis, UTCTimeMillis) -> ManagedBy -> Scim.StoredUser SparTag -> Spar ()
       writeState uid accessTimes managedBy storedUser = do
@@ -602,7 +602,7 @@ synthesizeStoredUser usr = do
         when (managedBy /= ManagedByScim) $ do
           Brig.setBrigUserManagedBy uid ManagedByScim
 
-  (richInfoAssocList, accStatus, accessTimes, baseuri) <- lift readState
+  (richInfo, accStatus, accessTimes, baseuri) <- lift readState
   SAML.Time (toUTCTimeMillis -> now) <- lift SAML.getNow
   let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
   handle <- lift $ Brig.giveDefaultHandle usr
@@ -613,7 +613,7 @@ synthesizeStoredUser usr = do
       (userIdentity >=> ssoIdentity >=> uref $ usr)
       (userDisplayName usr)
       handle
-      (RichInfo.fromRichInfoAssocList richInfoAssocList)
+      richInfo
       accStatus
       createdAt
       lastUpdatedAt

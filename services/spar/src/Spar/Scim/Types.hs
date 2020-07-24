@@ -68,6 +68,7 @@ import qualified Web.Scim.Schema.PatchOp as Scim
 import Web.Scim.Schema.Schema (Schema (CustomSchema))
 import qualified Web.Scim.Schema.Schema as Scim
 import qualified Web.Scim.Schema.User as Scim.User
+import Wire.API.User.RichInfo
 
 ----------------------------------------------------------------------------
 -- Schemas
@@ -149,35 +150,35 @@ instance ToJSON ScimUserExtra where
   toJSON (ScimUserExtra rif) = toJSON rif
 
 instance Scim.Patchable ScimUserExtra where
-  applyOperation (ScimUserExtra rinf) (Operation o (Just (NormalPath (AttrPath (Just (CustomSchema schema)) (AttrName attrName) Nothing))) val)
+  applyOperation (ScimUserExtra (RichInfo rinfRaw)) (Operation o (Just (NormalPath (AttrPath (Just (CustomSchema schema)) (AttrName (CI.mk -> ciAttrName)) Nothing))) val)
     | schema == richInfoMapURN =
-      let ciAttrName = CI.mk attrName
-          theMap = richInfoMap rinf
-       in case o of
+      let rinf = richInfoMap $ fromRichInfoAssocList rinfRaw
+          unrinf = ScimUserExtra . RichInfo . toRichInfoAssocList . (`RichInfoMapAndList` mempty)
+       in unrinf <$> case o of
             Scim.Remove ->
-              pure $ ScimUserExtra $ rinf {richInfoMap = Map.delete ciAttrName theMap}
+              pure $ Map.delete ciAttrName rinf
             _AddOrReplace ->
               case val of
                 (Just (String textVal)) ->
-                  pure $ ScimUserExtra $ rinf {richInfoMap = Map.insert ciAttrName textVal theMap}
+                  pure $ Map.insert ciAttrName textVal rinf
                 _ -> throwError $ Scim.badRequest Scim.InvalidValue $ Just "rich info values can only be text"
     | schema == richInfoAssocListURN =
-      let ciAttrName = CI.mk attrName
+      let rinf = richInfoAssocList $ fromRichInfoAssocList rinfRaw
+          unrinf = ScimUserExtra . RichInfo . toRichInfoAssocList . (mempty `RichInfoMapAndList`)
           matchesAttrName (RichField k _) = k == ciAttrName
-          assocList = richInfoAssocList rinf
-       in case o of
+       in unrinf <$> case o of
             Scim.Remove ->
-              pure $ ScimUserExtra $ rinf {richInfoAssocList = filter (not . matchesAttrName) assocList}
+              pure $ filter (not . matchesAttrName) rinf
             _AddOrReplace ->
               case val of
                 (Just (String textVal)) ->
                   let newField = RichField ciAttrName textVal
                       replaceIfMatchesAttrName f = if matchesAttrName f then newField else f
                       newRichInfo =
-                        if not $ any matchesAttrName assocList
-                          then rinf {richInfoAssocList = assocList ++ [newField]}
-                          else rinf {richInfoAssocList = map replaceIfMatchesAttrName assocList}
-                   in pure $ ScimUserExtra $ newRichInfo
+                        if not $ any matchesAttrName rinf
+                          then rinf ++ [newField]
+                          else map replaceIfMatchesAttrName rinf
+                   in pure newRichInfo
                 _ -> throwError $ Scim.badRequest Scim.InvalidValue $ Just "rich info values can only be text"
     | otherwise = throwError $ Scim.badRequest Scim.InvalidValue $ Just "unknown schema, cannot patch"
   applyOperation _ _ = throwError $ Scim.badRequest Scim.InvalidValue $ Just "invalid patch op for rich info"

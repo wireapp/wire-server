@@ -42,7 +42,6 @@ import Data.Handle (Handle (Handle))
 import Data.Handle (fromHandle)
 import Data.Id (TeamId, UserId, randomId)
 import Data.Ix (inRange)
-import qualified Data.Map as Map
 import Data.String.Conversions (cs)
 import qualified Data.Text.Ascii as Ascii
 import Imports
@@ -63,7 +62,7 @@ import qualified Web.Scim.Schema.PatchOp as PatchOp
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Wire.API.Team.Feature as Feature
 import qualified Wire.API.User.Activation as Activation
-import Wire.API.User.RichInfo (canonicalizeRichInfo)
+import Wire.API.User.RichInfo
 
 -- | Tests for @\/scim\/v2\/Users@.
 spec :: SpecWith TestEnv
@@ -186,8 +185,7 @@ specCreateUser = describe "POST /Users" $ do
   it "allows an occupied externalId when the IdP is different" $
     testCreateSameExternalIds
   it "provides a correct location in the 'meta' field" $ testLocation
-  it "handles rich info assocList correctly (this also tests put, get)" $ testRichInfoAssocList
-  it "handles rich info map correctly (this also tests put, get)" $ testRichInfoMap
+  it "handles rich info correctly (this also tests put, get)" $ testRichInfo
   it "gives created user a valid 'SAML.UserRef' for SSO" $ testScimCreateVsUserRef
   it "attributes of {brig, scim, saml} user are mapped as documented" $ pending
   it "writes all the stuff to all the places" $
@@ -311,8 +309,33 @@ testLocation = do
   r <- call (get (const req)) <!! const 200 === statusCode
   liftIO $ responseJsonUnsafe r `shouldBe` scimStoredUser
 
-testRichInfo :: PatchOp.PatchOp SparTag -> RichInfo -> RichInfo -> RichInfo -> TestSpar ()
-testRichInfo patchOp (canonicalizeRichInfo -> richInfo) (canonicalizeRichInfo -> richInfoOverwritten) (canonicalizeRichInfo -> richInfoPatched) = do
+testRichInfo :: TestSpar ()
+testRichInfo = do
+  let richInfo = RichInfo (RichInfoAssocList [RichField "Platforms" "OpenBSD; Plan9"])
+      richInfoOverwritten = RichInfo (RichInfoAssocList [RichField "Platforms" "Windows10"])
+      richInfoPatchedMap = RichInfo (RichInfoAssocList [RichField "Platforms" "Arch, BTW"])
+      richInfoPatchedList = RichInfo (RichInfoAssocList [RichField "Platforms" "none"])
+      (Aeson.Success patchOpMap) =
+        fromJSON
+          [aesonQQ|{
+                                                      "schemas" : [ "urn:ietf:params:scim:api:messages:2.0:PatchOp" ],
+                                                      "operations" : [{
+                                                        "op" : "replace",
+                                                        "path" : "urn:ietf:params:scim:schemas:extension:wire:1.0:User:Platforms",
+                                                        "value" : "Arch, BTW"
+                                                      }]
+                                                    }|]
+      (Aeson.Success patchOpList) =
+        fromJSON
+          [aesonQQ|{
+                                                      "schemas" : [ "urn:ietf:params:scim:api:messages:2.0:PatchOp" ],
+                                                      "operations" : [{
+                                                        "op" : "replace",
+                                                        "path" : "urn:wire:scim:schemas:profile:1.0:Platforms",
+                                                        "value" : "none"
+                                                      }]
+                                                    }|]
+
   brig <- asks (view teBrig)
   -- set things up
   (user, _) <- randomScimUserWithSubjectAndRichInfo richInfo
@@ -326,7 +349,7 @@ testRichInfo patchOp (canonicalizeRichInfo -> richInfo) (canonicalizeRichInfo ->
         TestSpar ()
       checkStoredUser storedUser rinf = liftIO $ do
         (Scim.User.extra . Scim.value . Scim.thing) storedUser
-          `shouldBe` (ScimUserExtra rinf)
+          `shouldBe` ScimUserExtra rinf
       -- validate server state after the fact
       probeUser ::
         HasCallStack =>
@@ -347,7 +370,7 @@ testRichInfo patchOp (canonicalizeRichInfo -> richInfo) (canonicalizeRichInfo ->
               )
         liftIO $ do
           statusCode resp `shouldBe` 200
-          responseJsonEither resp `shouldBe` Right (toRichInfoAssocList rinf)
+          responseJsonEither resp `shouldBe` Right (unRichInfo rinf)
   -- post response contains correct rich info.
   postResp :: Scim.UserC.StoredUser SparTag <- createUser tok user
   let postUid = scimUserId postResp
@@ -362,46 +385,22 @@ testRichInfo patchOp (canonicalizeRichInfo -> richInfo) (canonicalizeRichInfo ->
   liftIO $ putUid `shouldBe` postUid
   probeUser putUid richInfoOverwritten
   -- patch response contains correct rich info.
-  patchResp :: Scim.UserC.StoredUser SparTag <- patchUser tok postUid patchOp
-  let patchUid = scimUserId patchResp
-  checkStoredUser patchResp richInfoPatched
-  -- patch updates the backend as expected.
-  liftIO $ patchUid `shouldBe` postUid
-  probeUser patchUid richInfoPatched
-
-testRichInfoMap :: TestSpar ()
-testRichInfoMap =
-  let richInfo = RichInfo (Map.singleton "Platforms" "OpenBSD; Plan9") mempty
-      richInfoOverwritten = RichInfo (Map.singleton "Platforms" "Windows10") mempty
-      richInfoPatched = RichInfo (Map.singleton "Platforms" "Arch, BTW") mempty
-      (Aeson.Success patchOp) =
-        fromJSON
-          [aesonQQ|{
-                                                      "schemas" : [ "urn:ietf:params:scim:api:messages:2.0:PatchOp" ],
-                                                      "operations" : [{
-                                                        "op" : "replace",
-                                                        "path" : "urn:ietf:params:scim:schemas:extension:wire:1.0:User:Platforms",
-                                                        "value" : "Arch, BTW"
-                                                      }]
-                                                    }|]
-   in testRichInfo patchOp richInfo richInfoOverwritten richInfoPatched
-
-testRichInfoAssocList :: TestSpar ()
-testRichInfoAssocList =
-  let richInfo = RichInfo mempty [RichField "Platforms" "OpenBSD; Plan9"]
-      richInfoOverwritten = RichInfo mempty [RichField "Platforms" "Windows10"]
-      richInfoPatched = RichInfo mempty [RichField "Platforms" "Arch, BTW"]
-      (Aeson.Success patchOp) =
-        fromJSON
-          [aesonQQ|{
-                                                      "schemas" : [ "urn:ietf:params:scim:api:messages:2.0:PatchOp" ],
-                                                      "operations" : [{
-                                                        "op" : "replace",
-                                                        "path" : "urn:wire:scim:schemas:profile:1.0:Platforms",
-                                                        "value" : "Arch, BTW"
-                                                      }]
-                                                    }|]
-   in testRichInfo patchOp richInfo richInfoOverwritten richInfoPatched
+  do
+    -- patch via map schema
+    patchResp :: Scim.UserC.StoredUser SparTag <- patchUser tok postUid patchOpMap
+    let patchUid = scimUserId patchResp
+    checkStoredUser patchResp richInfoPatchedMap
+    -- patch updates the backend as expected.
+    liftIO $ patchUid `shouldBe` postUid
+    probeUser patchUid richInfoPatchedMap
+  do
+    -- patch via list schema (deprecated, probably)
+    patchResp :: Scim.UserC.StoredUser SparTag <- patchUser tok postUid patchOpList
+    let patchUid = scimUserId patchResp
+    checkStoredUser patchResp richInfoPatchedList
+    -- patch updates the backend as expected.
+    liftIO $ patchUid `shouldBe` postUid
+    probeUser patchUid richInfoPatchedList
 
 -- | Create a user implicitly via saml login; remove it via brig leaving a dangling entry in
 -- @spar.user@; create it via scim.  This should work despite the dangling database entry.

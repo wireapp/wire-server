@@ -58,6 +58,7 @@ import Network.Wai.Routing
 import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.Response (json)
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
+import Wire.API.User.RichInfo
 
 ---------------------------------------------------------------------------
 -- Sitemap
@@ -451,7 +452,7 @@ updateRichInfo :: UserId -> RichInfoUpdate -> Handler ()
 updateRichInfo uid rup = do
   let RichInfoAssocList richInfo = normalizeRichInfoAssocList . riuRichInfo $ rup
   maxSize <- setRichInfoLimit <$> view settings
-  when (richInfoAssocListSize richInfo > maxSize) $ throwStd tooLargeRichInfo
+  when (richInfoSize (RichInfo (RichInfoAssocList richInfo)) > maxSize) $ throwStd tooLargeRichInfo
   -- FUTUREWORK: send an event
   -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)
   lift $ Data.updateRichInfo uid (RichInfoAssocList richInfo)

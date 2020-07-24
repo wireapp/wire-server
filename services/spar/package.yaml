@@ -137,6 +137,7 @@ executables:
       - hspec-wai
       - lens-aeson
       - MonadRandom
+      - QuickCheck
       - random
       - servant-client
       - silently

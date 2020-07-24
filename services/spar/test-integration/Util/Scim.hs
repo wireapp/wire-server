@@ -27,10 +27,8 @@ import Control.Lens
 import Control.Monad.Random
 import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion
-import qualified Data.CaseInsensitive as CI
 import Data.Handle (Handle (Handle))
 import Data.Id
-import qualified Data.Map as Map
 import Data.String.Conversions (cs)
 import Data.Time
 import Data.UUID as UUID
@@ -44,6 +42,7 @@ import Spar.Scim (CreateScimToken (..), CreateScimTokenResponse (..), ScimTokenL
 import Spar.Scim.Types
 import Spar.Scim.User (synthesizeScimUser, validateScimUser')
 import Spar.Types (IdP, IdPMetadataInfo (..), ScimToken (..), ScimTokenInfo (..))
+import Test.QuickCheck (arbitrary, generate)
 import qualified Text.Email.Parser as Email
 import qualified Text.XML.DSig as SAML
 import Util.Core
@@ -59,6 +58,7 @@ import qualified Web.Scim.Schema.PatchOp as Scim.PatchOp
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Web.Scim.Schema.User.Email as Email
 import qualified Web.Scim.Schema.User.Phone as Phone
+import Wire.API.User.RichInfo
 
 -- | Call 'registerTestIdP', then 'registerScimToken'.  The user returned is the owner of the team;
 -- the IdP is registered with the team; the SCIM token can be used to manipulate the team.
@@ -100,25 +100,20 @@ registerScimToken teamid midpid = do
 --
 -- FUTUREWORK: make this more exhaustive.  change everything that can be changed!  move this to the
 -- hspec package when done.
-randomScimUser :: MonadRandom m => m (Scim.User.User SparTag)
+randomScimUser :: (HasCallStack, MonadRandom m, MonadIO m) => m (Scim.User.User SparTag)
 randomScimUser = fst <$> randomScimUserWithSubject
 
 -- | Like 'randomScimUser', but also returns the intended subject ID that the user should
 -- have. It's already available as 'Scim.User.externalId' but it's not structured.
 randomScimUserWithSubject ::
-  (HasCallStack, MonadRandom m) =>
+  (HasCallStack, MonadRandom m, MonadIO m) =>
   m (Scim.User.User SparTag, SAML.UnqualifiedNameID)
 randomScimUserWithSubject = do
-  fieldCount <- getRandomR (1, 3)
-  fields <-
-    replicateM fieldCount $
-      (,) <$> (CI.mk . cs <$> replicateM 10 (getRandomR ('A', 'z')))
-        <*> (cs <$> replicateM 3 (getRandomR ('A', 'z')))
-  randomScimUserWithSubjectAndRichInfo $ RichInfo (Map.fromList fields) (map (uncurry RichField) fields)
+  randomScimUserWithSubjectAndRichInfo =<< liftIO (generate arbitrary)
 
 -- | See 'randomScimUser', 'randomScimUserWithSubject'.
 randomScimUserWithSubjectAndRichInfo ::
-  MonadRandom m =>
+  (HasCallStack, MonadRandom m, MonadIO m) =>
   RichInfo ->
   m (Scim.User.User SparTag, SAML.UnqualifiedNameID)
 randomScimUserWithSubjectAndRichInfo richInfo = do
@@ -153,7 +148,7 @@ randomScimUserWithEmail = do
   let email = Email ("email" <> suffix) "example.com"
       externalId = fromEmail email
   pure
-    ( (Scim.User.empty userSchemas ("scimuser_" <> suffix) (ScimUserExtra (RichInfo mempty mempty)))
+    ( (Scim.User.empty userSchemas ("scimuser_" <> suffix) (ScimUserExtra mempty))
         { Scim.User.displayName = Just ("Scim User #" <> suffix),
           Scim.User.externalId = Just externalId
         },

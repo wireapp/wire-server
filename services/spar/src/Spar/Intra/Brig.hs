@@ -74,6 +74,7 @@ import qualified Servant.Server as Servant
 import Spar.Error
 import Spar.Intra.Galley as Galley (MonadSparToGalley, assertIsTeamOwner, isEmailValidationEnabledTeam)
 import Web.Cookie
+import Wire.API.User.RichInfo as RichInfo
 
 ----------------------------------------------------------------------
 
@@ -322,7 +323,7 @@ setBrigUserRichInfo buid richInfo = do
     call $
       method PUT
         . paths ["i", "users", toByteString' buid, "rich-info"]
-        . json (RichInfoUpdate $ toRichInfoAssocList richInfo)
+        . json (RichInfoUpdate $ unRichInfo richInfo)
   let sCode = statusCode resp
   if  | sCode < 300 ->
         pure ()
@@ -332,8 +333,8 @@ setBrigUserRichInfo buid richInfo = do
         throwSpar . SparBrigError . cs $ "set richInfo failed with status " <> show sCode
 
 -- TODO: We should add an internal endpoint for this instead
-getBrigUserRichInfo :: (HasCallStack, MonadSparToBrig m) => UserId -> m RichInfoAssocList
-getBrigUserRichInfo buid = do
+getBrigUserRichInfo :: (HasCallStack, MonadSparToBrig m) => UserId -> m RichInfo
+getBrigUserRichInfo buid = RichInfo.RichInfo <$> do
   resp <-
     call $
       method GET
