@@ -583,9 +583,10 @@ assertHandleNotUsedElsewhere hndl uid = do
   unless ((userHandle =<< musr) == Just hndl) $
     assertHandleUnused' "userName does not match UserId" hndl uid
 
--- | Helper function that given a brig user, creates a scim user on the fly or returns
--- an already existing scim user
-synthesizeStoredUser :: User -> Scim.ScimHandler Spar (Scim.StoredUser SparTag)
+-- | Helper function that translates a given brig user into a 'Scim.StoredUser', with some
+-- effects like updating the 'ManagedBy' field in brig and storing creation and update time
+-- stamps.
+synthesizeStoredUser :: BrigUser.User -> Scim.ScimHandler Spar (Scim.StoredUser SparTag)
 synthesizeStoredUser usr = do
   let readState :: Spar (RichInfo, AccountStatus, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI)
       readState = do
