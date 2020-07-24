@@ -41,21 +41,22 @@
 module Spar.Scim.Types where
 
 import Brig.Types.Intra (AccountStatus (Active, Deleted, Ephemeral, Suspended))
-import Brig.Types.User as Brig
-import Control.Lens hiding ((#), (.=), Strict)
-import Data.Aeson as Aeson
+import qualified Brig.Types.User as BT
+import Control.Lens (makeLenses)
+import Control.Monad.Except (throwError)
+import qualified Data.Aeson as Aeson
 import qualified Data.CaseInsensitive as CI
 import Data.Handle (Handle)
-import Data.Id
+import Data.Id (ScimTokenId, UserId)
 import Data.Json.Util ((#))
 import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword)
 import Imports
 import qualified SAML2.WebSSO as SAML
-import Servant
+import Servant ((:<|>), (:>), DeleteNoContent, Get, Header, JSON, NoContent, Post, QueryParam', ReqBody, Required, Strict)
 import Servant.API.Generic ((:-), ToServantApi)
-import Spar.API.Util
-import Spar.Types
+import Spar.API.Util (OmitDocs)
+import Spar.Types (ScimToken, ScimTokenInfo)
 import Web.Scim.AttrName (AttrName (..))
 import qualified Web.Scim.Capabilities.MetaSchema as Scim.Meta
 import qualified Web.Scim.Class.Auth as Scim.Auth
@@ -68,7 +69,7 @@ import qualified Web.Scim.Schema.PatchOp as Scim
 import Web.Scim.Schema.Schema (Schema (CustomSchema))
 import qualified Web.Scim.Schema.Schema as Scim
 import qualified Web.Scim.Schema.User as Scim.User
-import Wire.API.User.RichInfo
+import qualified Wire.API.User.RichInfo as RI
 
 ----------------------------------------------------------------------------
 -- Schemas
@@ -76,8 +77,8 @@ import Wire.API.User.RichInfo
 userSchemas :: [Scim.Schema]
 userSchemas =
   [ Scim.User20,
-    Scim.CustomSchema richInfoAssocListURN,
-    Scim.CustomSchema richInfoMapURN
+    Scim.CustomSchema RI.richInfoAssocListURN,
+    Scim.CustomSchema RI.richInfoMapURN
   ]
 
 ----------------------------------------------------------------------------
@@ -137,42 +138,42 @@ newtype WrappedScimUser tag = WrappedScimUser
 
 -- | Extra Wire-specific data contained in a SCIM user profile.
 data ScimUserExtra = ScimUserExtra
-  { _sueRichInfo :: RichInfo
+  { _sueRichInfo :: RI.RichInfo
   }
   deriving (Eq, Show)
 
 makeLenses ''ScimUserExtra
 
-instance FromJSON ScimUserExtra where
-  parseJSON v = ScimUserExtra <$> parseJSON v
+instance Aeson.FromJSON ScimUserExtra where
+  parseJSON v = ScimUserExtra <$> Aeson.parseJSON v
 
-instance ToJSON ScimUserExtra where
-  toJSON (ScimUserExtra rif) = toJSON rif
+instance Aeson.ToJSON ScimUserExtra where
+  toJSON (ScimUserExtra rif) = Aeson.toJSON rif
 
 instance Scim.Patchable ScimUserExtra where
-  applyOperation (ScimUserExtra (RichInfo rinfRaw)) (Operation o (Just (NormalPath (AttrPath (Just (CustomSchema schema)) (AttrName (CI.mk -> ciAttrName)) Nothing))) val)
-    | schema == richInfoMapURN =
-      let rinf = richInfoMap $ fromRichInfoAssocList rinfRaw
-          unrinf = ScimUserExtra . RichInfo . toRichInfoAssocList . (`RichInfoMapAndList` mempty)
+  applyOperation (ScimUserExtra (RI.RichInfo rinfRaw)) (Operation o (Just (NormalPath (AttrPath (Just (CustomSchema schema)) (AttrName (CI.mk -> ciAttrName)) Nothing))) val)
+    | schema == RI.richInfoMapURN =
+      let rinf = RI.richInfoMap $ RI.fromRichInfoAssocList rinfRaw
+          unrinf = ScimUserExtra . RI.RichInfo . RI.toRichInfoAssocList . (`RI.RichInfoMapAndList` mempty)
        in unrinf <$> case o of
             Scim.Remove ->
               pure $ Map.delete ciAttrName rinf
             _AddOrReplace ->
               case val of
-                (Just (String textVal)) ->
+                (Just (Aeson.String textVal)) ->
                   pure $ Map.insert ciAttrName textVal rinf
                 _ -> throwError $ Scim.badRequest Scim.InvalidValue $ Just "rich info values can only be text"
-    | schema == richInfoAssocListURN =
-      let rinf = richInfoAssocList $ fromRichInfoAssocList rinfRaw
-          unrinf = ScimUserExtra . RichInfo . toRichInfoAssocList . (mempty `RichInfoMapAndList`)
-          matchesAttrName (RichField k _) = k == ciAttrName
+    | schema == RI.richInfoAssocListURN =
+      let rinf = RI.richInfoAssocList $ RI.fromRichInfoAssocList rinfRaw
+          unrinf = ScimUserExtra . RI.RichInfo . RI.toRichInfoAssocList . (mempty `RI.RichInfoMapAndList`)
+          matchesAttrName (RI.RichField k _) = k == ciAttrName
        in unrinf <$> case o of
             Scim.Remove ->
               pure $ filter (not . matchesAttrName) rinf
             _AddOrReplace ->
               case val of
-                (Just (String textVal)) ->
-                  let newField = RichField ciAttrName textVal
+                (Just (Aeson.String textVal)) ->
+                  let newField = RI.RichField ciAttrName textVal
                       replaceIfMatchesAttrName f = if matchesAttrName f then newField else f
                       newRichInfo =
                         if not $ any matchesAttrName rinf
@@ -202,8 +203,8 @@ instance Scim.Patchable ScimUserExtra where
 data ValidScimUser = ValidScimUser
   { _vsuUserRef :: SAML.UserRef,
     _vsuHandle :: Handle,
-    _vsuName :: Maybe Name, -- TODO: remove the 'Maybe' here, and construct the name not in "Spar.Intra.Brig", but in 'validateScimUser'.
-    _vsuRichInfo :: RichInfo,
+    _vsuName :: Maybe BT.Name, -- TODO: remove the 'Maybe' here, and construct the name not in "Spar.Intra.Brig", but in 'validateScimUser'.
+    _vsuRichInfo :: RI.RichInfo,
     _vsuActive :: Bool
   }
   deriving (Eq, Show)
@@ -242,18 +243,18 @@ data CreateScimToken = CreateScimToken
   }
   deriving (Eq, Show)
 
-instance FromJSON CreateScimToken where
-  parseJSON = withObject "CreateScimToken" $ \o -> do
-    createScimTokenDescr <- o .: "description"
-    createScimTokenPassword <- o .:? "password"
+instance Aeson.FromJSON CreateScimToken where
+  parseJSON = Aeson.withObject "CreateScimToken" $ \o -> do
+    createScimTokenDescr <- o Aeson..: "description"
+    createScimTokenPassword <- o Aeson..:? "password"
     pure CreateScimToken {..}
 
 -- Used for integration tests
-instance ToJSON CreateScimToken where
+instance Aeson.ToJSON CreateScimToken where
   toJSON CreateScimToken {..} =
-    object $
-      "description" .= createScimTokenDescr
-        # "password" .= createScimTokenPassword
+    Aeson.object $
+      "description" Aeson..= createScimTokenDescr
+        # "password" Aeson..= createScimTokenPassword
         # []
 
 -- | Type used for the response of 'APIScimTokenCreate'.
@@ -264,17 +265,17 @@ data CreateScimTokenResponse = CreateScimTokenResponse
   deriving (Eq, Show)
 
 -- Used for integration tests
-instance FromJSON CreateScimTokenResponse where
-  parseJSON = withObject "CreateScimTokenResponse" $ \o -> do
-    createScimTokenResponseToken <- o .: "token"
-    createScimTokenResponseInfo <- o .: "info"
+instance Aeson.FromJSON CreateScimTokenResponse where
+  parseJSON = Aeson.withObject "CreateScimTokenResponse" $ \o -> do
+    createScimTokenResponseToken <- o Aeson..: "token"
+    createScimTokenResponseInfo <- o Aeson..: "info"
     pure CreateScimTokenResponse {..}
 
-instance ToJSON CreateScimTokenResponse where
+instance Aeson.ToJSON CreateScimTokenResponse where
   toJSON CreateScimTokenResponse {..} =
-    object
-      [ "token" .= createScimTokenResponseToken,
-        "info" .= createScimTokenResponseInfo
+    Aeson.object
+      [ "token" Aeson..= createScimTokenResponseToken,
+        "info" Aeson..= createScimTokenResponseInfo
       ]
 
 -- | Type used for responses of endpoints that return a list of SCIM tokens.
@@ -286,15 +287,15 @@ data ScimTokenList = ScimTokenList
   }
   deriving (Eq, Show)
 
-instance FromJSON ScimTokenList where
-  parseJSON = withObject "ScimTokenList" $ \o -> do
-    scimTokenListTokens <- o .: "tokens"
+instance Aeson.FromJSON ScimTokenList where
+  parseJSON = Aeson.withObject "ScimTokenList" $ \o -> do
+    scimTokenListTokens <- o Aeson..: "tokens"
     pure ScimTokenList {..}
 
-instance ToJSON ScimTokenList where
+instance Aeson.ToJSON ScimTokenList where
   toJSON ScimTokenList {..} =
-    object
-      [ "tokens" .= scimTokenListTokens
+    Aeson.object
+      [ "tokens" Aeson..= scimTokenListTokens
       ]
 
 ----------------------------------------------------------------------

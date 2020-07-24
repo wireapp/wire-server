@@ -30,16 +30,16 @@ module Spar.Scim.Swagger
   )
 where
 
-import Control.Lens
-import Data.Id
-import Data.Proxy
+import Control.Lens ((&), (.~), (?~), mapped)
+import Data.Id (ScimTokenId, TeamId)
+import Data.Proxy (Proxy (Proxy))
 import Data.Swagger hiding (Header (..))
-import Data.Time
+import Data.Time (UTCTime)
 import Imports
 import qualified SAML2.WebSSO as SAML
 import Spar.Orphans ()
-import Spar.Scim
-import Spar.Types
+import Spar.Scim (CreateScimToken, CreateScimTokenResponse (..), ScimTokenList (..))
+import Spar.Types (ScimToken, ScimTokenInfo)
 
 instance ToParamSchema ScimToken where
   toParamSchema _ = toParamSchema (Proxy @Text)
