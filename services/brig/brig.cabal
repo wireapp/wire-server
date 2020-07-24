@@ -4,7 +4,7 @@ cabal-version: 2.0
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f150b19d31eda4f6f32ad2782dccc7deae05b01ffd46558fe1f403ba49500307
+-- hash: 66e9d5651b6bea264d8f71f929a1477a8ef70a8fa3e6af97f623cbd977663a3c
 
 name:           brig
 version:        1.35.0
@@ -36,6 +36,7 @@ library
       Brig.AWS.SesNotification
       Brig.AWS.Types
       Brig.Budget
+      Brig.Calling
       Brig.Code
       Brig.Data.Activation
       Brig.Data.Blacklist
@@ -103,7 +104,7 @@ library
   hs-source-dirs:
       src
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -fplugin=Polysemy.Plugin
   build-depends:
       HaskellNet >=0.3
     , HaskellNet-SSL >=0.3
@@ -137,6 +138,8 @@ library
     , data-default >=0.5
     , data-timeout >=0.3
     , directory >=1.2
+    , dns
+    , dns-srv
     , either >=4.3
     , enclosed-exceptions >=1.0
     , errors >=1.4
@@ -172,6 +175,8 @@ library
     , network-uri >=2.6
     , optparse-applicative >=0.11
     , pem >=0.2
+    , polysemy
+    , polysemy-plugin
     , prometheus-client
     , proto-lens >=0.1
     , random-shuffle >=0.0.3
@@ -462,6 +467,7 @@ test-suite brig-tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
+      Test.Brig.Calling
       Test.Brig.User.Search.Index.Types
       Paths_brig
   hs-source-dirs:

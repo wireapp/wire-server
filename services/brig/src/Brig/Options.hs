@@ -30,13 +30,17 @@ import qualified Control.Lens as Lens
 import Data.Aeson (withText)
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (typeMismatch)
+import qualified Data.Char as Char
 import Data.Domain (Domain)
 import Data.Id
 import Data.Scientific (toBoundedInteger)
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import Data.Time.Clock (NominalDiffTime)
-import Data.Yaml (FromJSON (..), ToJSON (..))
+import Data.Yaml ((.:), (.:?), FromJSON (..), ToJSON (..))
 import qualified Data.Yaml as Y
 import Imports
+import qualified Network.DNS as DNS
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 
@@ -379,8 +383,8 @@ data Opts = Opts
     logFormat :: !(Maybe (Last LogFormat)),
     -- | TURN server settings
     turn :: !TurnOpts,
-    -- Runtime settings
-
+    -- | SFT Settings
+    sft :: !(Maybe SFTOptions),
     -- | Runtime settings
     optSettings :: !Settings
   }
@@ -518,6 +522,24 @@ data CustomerExtensions = CustomerExtensions
 
 newtype DomainsBlockedForRegistration = DomainsBlockedForRegistration [Domain]
   deriving newtype (Show, FromJSON, Generic)
+
+data SFTOptions = SFTOptions
+  { sftBaseDomain :: !DNS.Domain,
+    sftSRVServiceName :: !(Maybe ByteString)
+  }
+  deriving (Show, Generic)
+
+instance FromJSON SFTOptions where
+  parseJSON = Y.withObject "SFTOptions" $ \o ->
+    SFTOptions
+      <$> (asciiOnly =<< o .: "sftBaseDomain")
+      <*> (mapM asciiOnly =<< o .:? "sftSRVServiceName")
+    where
+      asciiOnly :: Text -> Y.Parser ByteString
+      asciiOnly t =
+        if Text.all Char.isAscii t
+          then pure $ Text.encodeUtf8 t
+          else fail $ "Expected ascii string only, found: " <> Text.unpack t
 
 defMaxKeyLen :: Int64
 defMaxKeyLen = 1024

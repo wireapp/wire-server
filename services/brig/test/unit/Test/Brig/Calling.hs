@@ -15,21 +15,29 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main
-  ( main,
-  )
-where
+module Test.Brig.Calling where
 
+import Brig.Calling
+import Brig.Options
 import Imports
-import qualified Test.Brig.Calling
-import qualified Test.Brig.User.Search.Index.Types
 import Test.Tasty
+import Test.Tasty.HUnit
 
-main :: IO ()
-main =
-  defaultMain $
-    testGroup
-      "Tests"
-      [ Test.Brig.User.Search.Index.Types.tests,
-        Test.Brig.Calling.tests
-      ]
+tests :: TestTree
+tests =
+  testGroup
+    "Calling"
+    [ testGroup
+        "sftDomain"
+        [ testCase "when service name is provided" $
+            assertEqual
+              "should use the service name to form domain"
+              "_foo._tcp.example.com."
+              (mkSFTDomain (SFTOptions "example.com" (Just "foo"))),
+          testCase "when service name is not provided" $
+            assertEqual
+              "should assume service name to be 'sft'"
+              "_sft._tcp.example.com."
+              (mkSFTDomain (SFTOptions "example.com" Nothing))
+        ]
+    ]

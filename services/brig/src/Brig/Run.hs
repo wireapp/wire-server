@@ -27,6 +27,7 @@ import Brig.AWS (sesQueue)
 import qualified Brig.AWS as AWS
 import qualified Brig.AWS.SesNotification as SesNotification
 import Brig.App
+import qualified Brig.Calling as Calling
 import qualified Brig.InternalEvent.Process as Internal
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Queue as Queue
@@ -59,9 +60,13 @@ run o = do
     Async.async
       $ AWS.execute (e ^. awsEnv)
       $ AWS.listen throttleMillis q (runAppT e . SesNotification.onEvent)
+  sftDiscovery <- case e ^. sftEnv of
+    Nothing -> Async.async (pure ()) -- TODO: This looks fishy
+    Just sftEnv' -> Async.async $ Calling.startSFTServiceDiscovery sftEnv'
   runSettingsWithShutdown s app 5 `finally` do
     mapM_ Async.cancel emailListener
     Async.cancel internalEventListener
+    Async.cancel sftDiscovery
     closeEnv e
   where
     endpoint = brig o

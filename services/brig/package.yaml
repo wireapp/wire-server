@@ -12,6 +12,8 @@ ghc-options:
 - -funbox-strict-fields
 library:
   source-dirs: src
+  ghc-options:
+  - -fplugin=Polysemy.Plugin
   dependencies:
   - aeson >=0.11
   - amazonka >=1.3.7
@@ -40,6 +42,8 @@ library:
   - data-default >=0.5
   - data-timeout >=0.3
   - directory >=1.2
+  - dns
+  - dns-srv
   - either >=4.3
   - enclosed-exceptions >=1.0
   - errors >=1.4
@@ -80,6 +84,8 @@ library:
   - network-uri >=2.6
   - optparse-applicative >=0.11
   - pem >=0.2
+  - polysemy
+  - polysemy-plugin
   - proto-lens >=0.1
   - prometheus-client
   - resourcet >=1.1

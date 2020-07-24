@@ -51,6 +51,7 @@ module Brig.App
     applog,
     turnEnv,
     turnEnvV2,
+    sftEnv,
     internalEvents,
 
     -- * App Monad
@@ -67,6 +68,7 @@ import Bilge (Manager, MonadHttp, RequestId (..), newManager, withResponse)
 import qualified Bilge as RPC
 import Bilge.RPC (HasRequestId (..))
 import qualified Brig.AWS as AWS
+import qualified Brig.Calling as Calling
 import Brig.Options (Opts, Settings)
 import qualified Brig.Options as Opt
 import Brig.Provider.Template
@@ -157,6 +159,7 @@ data Env = Env
     _fsWatcher :: FS.WatchManager,
     _turnEnv :: IORef TURN.Env,
     _turnEnvV2 :: IORef TURN.Env,
+    _sftEnv :: Maybe Calling.SFTEnv,
     _currentTime :: IO UTCTime,
     _zauthEnv :: ZAuth.Env,
     _digestSHA256 :: Digest,
@@ -202,6 +205,7 @@ newEnv o = do
   eventsQueue <- case Opt.internalEventsQueue (Opt.internalEvents o) of
     StompQueue q -> pure (StompQueue q)
     SqsQueue q -> SqsQueue <$> AWS.getQueueUrl (aws ^. AWS.amazonkaEnv) q
+  mSFTEnv <- mapM Calling.mkSFTEnv $ Opt.sft o
   return
     $! Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
@@ -227,6 +231,7 @@ newEnv o = do
         _geoDb = g,
         _turnEnv = turn,
         _turnEnvV2 = turnV2,
+        _sftEnv = mSFTEnv,
         _fsWatcher = w,
         _currentTime = clock,
         _zauthEnv = zau,
