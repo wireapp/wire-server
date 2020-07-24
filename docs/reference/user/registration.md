@@ -172,21 +172,23 @@ These end-points support 5 flows:
 1. new team account
 2. new personal (teamless) account
 3. invitation code from team, new member
-4. ephemeral/guest user
+4. ephemeral user
 5. [not supported by clients] new *inactive* user account
 
-We need an option to block 1, 2, 5 on-prem; 3, 4 should remain available (no block option).  There are also provisioning flows via SAML or SCIM, which are not critical (see below).
+We need an option to block 1, 2, 5 on-prem; 3, 4 should remain available (no block option).  There are also provisioning flows via SAML or SCIM, which are not critical. In short, this could refactored into:
 
-How to decide whether to block:
+ * Allow team members to register (via email/phone or SSO)
+ * Allow ephemeral users
+
+During registration, we can take advantage of [NewUserOrigin](https://github.com/wireapp/wire-server/blob/a89b9cd818997e7837e5d0938ecfd90cf8dd9e52/libs/wire-api/src/Wire/API/User.hs#L625); we're particularly interested in `NewUserOriginTeamUser` --> only `NewTeamMember` or `NewTeamMemberSSO` should be accepted. In case this is a `Nothing`, we need to check if the user expires, i.e., `newUserExpiresIn` must be a `Just`.
+
+So `/register` should only succeed iff at least one of these conditions is true:
 
 ```
-Body has `team_code`        => case 3.
-Body has `sso_id`           => provisioned by SAML or SCIM.
-Body has `email` or `phone` => case 1, 2, or 5.
-Otherwise                   => case 4
+newUserTeam == (Just (NewTeamMember _)) OR
+newUserTeam == (Just (NewTeamMemberSSO _)) OR
+newUserExpiresIn == (Just _)
 ```
-
-So `/register` blocks iff `email` or `phone` exist and neither `sso_id` nor `team_code` exist.
 
 The rest of the unauthorized end-points is safe:
 
