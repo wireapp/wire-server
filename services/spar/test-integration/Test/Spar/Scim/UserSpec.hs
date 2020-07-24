@@ -39,9 +39,9 @@ import Data.Aeson.QQ (aesonQQ)
 import Data.Aeson.Types (fromJSON, toJSON)
 import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle))
+import Data.Handle (fromHandle)
 import Data.Id (TeamId, UserId, randomId)
 import Data.Ix (inRange)
-import qualified Data.Map as Map
 import Data.String.Conversions (cs)
 import qualified Data.Text.Ascii as Ascii
 import Imports
@@ -54,7 +54,6 @@ import qualified Spar.Types
 import Spar.Types (IdP)
 import qualified Text.XML.DSig as SAML
 import Util
-import qualified Web.Scim.Class.User as ScimC.User
 import qualified Web.Scim.Class.User as Scim.UserC
 import qualified Web.Scim.Filter as Filter
 import qualified Web.Scim.Schema.Common as Scim
@@ -63,6 +62,7 @@ import qualified Web.Scim.Schema.PatchOp as PatchOp
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Wire.API.Team.Feature as Feature
 import qualified Wire.API.User.Activation as Activation
+import Wire.API.User.RichInfo
 
 -- | Tests for @\/scim\/v2\/Users@.
 spec :: SpecWith TestEnv
@@ -113,7 +113,7 @@ specSuspend = do
             -- SCIM records don't have the active field. absence of active should be interpreted as Active.
             -- Once we get rid of the `scim` table and make scim serve brig records directly, this is
             -- not an issue anymore.
-            lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUserBlah) `shouldBe` Nothing
+            lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUserBlah) `shouldBe` Just True
             void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active)
           do
             scimStoredUser <- putOrPatch tok uid user True
@@ -185,8 +185,7 @@ specCreateUser = describe "POST /Users" $ do
   it "allows an occupied externalId when the IdP is different" $
     testCreateSameExternalIds
   it "provides a correct location in the 'meta' field" $ testLocation
-  it "handles rich info assocList correctly (this also tests put, get)" $ testRichInfoAssocList
-  it "handles rich info map correctly (this also tests put, get)" $ testRichInfoMap
+  it "handles rich info correctly (this also tests put, get)" $ testRichInfo
   it "gives created user a valid 'SAML.UserRef' for SSO" $ testScimCreateVsUserRef
   it "attributes of {brig, scim, saml} user are mapped as documented" $ pending
   it "writes all the stuff to all the places" $
@@ -310,8 +309,33 @@ testLocation = do
   r <- call (get (const req)) <!! const 200 === statusCode
   liftIO $ responseJsonUnsafe r `shouldBe` scimStoredUser
 
-testRichInfo :: PatchOp.PatchOp SparTag -> RichInfo -> RichInfo -> RichInfo -> TestSpar ()
-testRichInfo patchOp richInfo richInfoOverwritten richInfoPatched = do
+testRichInfo :: TestSpar ()
+testRichInfo = do
+  let richInfo = RichInfo (RichInfoAssocList [RichField "Platforms" "OpenBSD; Plan9"])
+      richInfoOverwritten = RichInfo (RichInfoAssocList [RichField "Platforms" "Windows10"])
+      richInfoPatchedMap = RichInfo (RichInfoAssocList [RichField "Platforms" "Arch, BTW"])
+      richInfoPatchedList = RichInfo (RichInfoAssocList [RichField "Platforms" "none"])
+      (Aeson.Success patchOpMap) =
+        fromJSON
+          [aesonQQ|{
+                                                      "schemas" : [ "urn:ietf:params:scim:api:messages:2.0:PatchOp" ],
+                                                      "operations" : [{
+                                                        "op" : "replace",
+                                                        "path" : "urn:ietf:params:scim:schemas:extension:wire:1.0:User:Platforms",
+                                                        "value" : "Arch, BTW"
+                                                      }]
+                                                    }|]
+      (Aeson.Success patchOpList) =
+        fromJSON
+          [aesonQQ|{
+                                                      "schemas" : [ "urn:ietf:params:scim:api:messages:2.0:PatchOp" ],
+                                                      "operations" : [{
+                                                        "op" : "replace",
+                                                        "path" : "urn:wire:scim:schemas:profile:1.0:Platforms",
+                                                        "value" : "none"
+                                                      }]
+                                                    }|]
+
   brig <- asks (view teBrig)
   -- set things up
   (user, _) <- randomScimUserWithSubjectAndRichInfo richInfo
@@ -325,7 +349,7 @@ testRichInfo patchOp richInfo richInfoOverwritten richInfoPatched = do
         TestSpar ()
       checkStoredUser storedUser rinf = liftIO $ do
         (Scim.User.extra . Scim.value . Scim.thing) storedUser
-          `shouldBe` (ScimUserExtra rinf)
+          `shouldBe` ScimUserExtra rinf
       -- validate server state after the fact
       probeUser ::
         HasCallStack =>
@@ -346,7 +370,7 @@ testRichInfo patchOp richInfo richInfoOverwritten richInfoPatched = do
               )
         liftIO $ do
           statusCode resp `shouldBe` 200
-          responseJsonEither resp `shouldBe` Right (toRichInfoAssocList rinf)
+          responseJsonEither resp `shouldBe` Right (unRichInfo rinf)
   -- post response contains correct rich info.
   postResp :: Scim.UserC.StoredUser SparTag <- createUser tok user
   let postUid = scimUserId postResp
@@ -361,46 +385,22 @@ testRichInfo patchOp richInfo richInfoOverwritten richInfoPatched = do
   liftIO $ putUid `shouldBe` postUid
   probeUser putUid richInfoOverwritten
   -- patch response contains correct rich info.
-  patchResp :: Scim.UserC.StoredUser SparTag <- patchUser tok postUid patchOp
-  let patchUid = scimUserId patchResp
-  checkStoredUser patchResp richInfoPatched
-  -- patch updates the backend as expected.
-  liftIO $ patchUid `shouldBe` postUid
-  probeUser patchUid richInfoPatched
-
-testRichInfoMap :: TestSpar ()
-testRichInfoMap =
-  let richInfo = RichInfo (Map.singleton "Platforms" "OpenBSD; Plan9") mempty
-      richInfoOverwritten = RichInfo (Map.singleton "Platforms" "Windows10") mempty
-      richInfoPatched = RichInfo (Map.singleton "Platforms" "Arch, BTW") mempty
-      (Aeson.Success patchOp) =
-        fromJSON
-          [aesonQQ|{
-                                                      "schemas" : [ "urn:ietf:params:scim:api:messages:2.0:PatchOp" ],
-                                                      "operations" : [{
-                                                        "op" : "replace",
-                                                        "path" : "urn:ietf:params:scim:schemas:extension:wire:1.0:User:Platforms",
-                                                        "value" : "Arch, BTW"
-                                                      }]
-                                                    }|]
-   in testRichInfo patchOp richInfo richInfoOverwritten richInfoPatched
-
-testRichInfoAssocList :: TestSpar ()
-testRichInfoAssocList =
-  let richInfo = RichInfo mempty [RichField "Platforms" "OpenBSD; Plan9"]
-      richInfoOverwritten = RichInfo mempty [RichField "Platforms" "Windows10"]
-      richInfoPatched = RichInfo mempty [RichField "Platforms" "Arch, BTW"]
-      (Aeson.Success patchOp) =
-        fromJSON
-          [aesonQQ|{
-                                                      "schemas" : [ "urn:ietf:params:scim:api:messages:2.0:PatchOp" ],
-                                                      "operations" : [{
-                                                        "op" : "replace",
-                                                        "path" : "urn:wire:scim:schemas:profile:1.0:Platforms",
-                                                        "value" : "Arch, BTW"
-                                                      }]
-                                                    }|]
-   in testRichInfo patchOp richInfo richInfoOverwritten richInfoPatched
+  do
+    -- patch via map schema
+    patchResp :: Scim.UserC.StoredUser SparTag <- patchUser tok postUid patchOpMap
+    let patchUid = scimUserId patchResp
+    checkStoredUser patchResp richInfoPatchedMap
+    -- patch updates the backend as expected.
+    liftIO $ patchUid `shouldBe` postUid
+    probeUser patchUid richInfoPatchedMap
+  do
+    -- patch via list schema (deprecated, probably)
+    patchResp :: Scim.UserC.StoredUser SparTag <- patchUser tok postUid patchOpList
+    let patchUid = scimUserId patchResp
+    checkStoredUser patchResp richInfoPatchedList
+    -- patch updates the backend as expected.
+    liftIO $ patchUid `shouldBe` postUid
+    probeUser patchUid richInfoPatchedList
 
 -- | Create a user implicitly via saml login; remove it via brig leaving a dangling entry in
 -- @spar.user@; create it via scim.  This should work despite the dangling database entry.
@@ -474,31 +474,22 @@ testScimCreateVsUserRef = do
 specListUsers :: SpecWith TestEnv
 specListUsers = describe "GET /Users" $ do
   it "lists all SCIM users in a team" $ testListProvisionedUsers
-  it "finds a SCIM-provisioned user" $ testFindProvisionedUser
+  it "finds a SCIM-provisioned user by userName or externalId" $ testFindProvisionedUser
   it "finds a non-SCIM-provisioned user by userName or externalId" $ testFindNonProvisionedUser
-  it "can't find users that don't have a handle" $ testSsoUsersWithoutHandleSilentlyIgnored
   it "doesn't list deleted users" $ testListNoDeletedUsers
   it "doesnt't find deleted users by userName or externalId" $ testFindNoDeletedUsers
   it "doesn't list users from other teams" $ testUserListFailsWithNotFoundIfOutsideTeam
   it "doesn't find users from other teams" $ testUserFindFailsWithNotFoundIfOutsideTeam
 
-filterBy :: Text -> Text -> Filter.Filter
-filterBy name value = Filter.FilterAttrCompare (Filter.topLevelAttrPath name) Filter.OpEq (Filter.ValString value)
-
 -- | Test that SCIM-provisioned team members are listed, and users that were not provisioned
 -- via SCIM are not listed.
 testListProvisionedUsers :: TestSpar ()
 testListProvisionedUsers = do
-  -- Create a user via SCIM
-  user <- randomScimUser
-  (tok, (owner, _, _)) <- registerIdPAndScimToken
-  storedUser <- createUser tok user
-  -- Get all users via SCIM
-  users <- listUsers tok Nothing
-  -- Check that the SCIM user is present
-  liftIO $ users `shouldContain` [storedUser]
-  -- Check that the (non-SCIM-provisioned) team owner is NOT present
-  liftIO $ (scimUserId <$> users) `shouldNotContain` [owner]
+  spar <- asks (^. teSpar)
+  (tok, _) <- registerIdPAndScimToken
+  listUsers_ (Just tok) Nothing spar !!! do
+    const 400 === statusCode
+    const (Just "tooMany") =~= responseBody
 
 testFindProvisionedUser :: TestSpar ()
 testFindProvisionedUser = do
@@ -506,30 +497,10 @@ testFindProvisionedUser = do
   (tok, (_, _, _)) <- registerIdPAndScimToken
   storedUser <- createUser tok user
   users <- listUsers tok (Just (filterBy "userName" (Scim.User.userName user)))
-  liftIO $ users `shouldContain` [storedUser]
+  liftIO $ users `shouldBe` [storedUser]
   let Just externalId = Scim.User.externalId user
   users' <- listUsers tok (Just (filterBy "externalId" externalId))
-  liftIO $ users' `shouldContain` [storedUser]
-  -- TODO(arianvp): We will stop supporting list users without filter in the
-  -- future, as it is a performance issue.
-  users'' <- listUsers tok Nothing
-  liftIO $ users'' `shouldContain` [storedUser]
-  pure ()
-
--- NOTE: I'm not sure if this is desired behaviour yet.  But there can be cases
--- where people logged in but haven't set the handle yet in the UI. We do not
--- want to 'crash' for those cases apparently.
-testSsoUsersWithoutHandleSilentlyIgnored :: TestSpar ()
-testSsoUsersWithoutHandleSilentlyIgnored = do
-  (_, teamid, idp, (_, privCreds)) <- registerTestIdPWithMeta
-  member <- loginSsoUserFirstTime idp privCreds
-  -- NOTE: once SCIM is enabled SSO Auto-provisioning is disabled
-  tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
-  Just brigUser <- runSpar $ Intra.getBrigUser member
-  let Just ssoIdentity' = userIdentity >=> ssoIdentity $ brigUser
-  let Right externalId = Intra.toExternalId ssoIdentity'
-  users <- listUsers tok (Just (filterBy "externalId" externalId))
-  liftIO $ users `shouldSatisfy` all ((/= member) . scimUserId)
+  liftIO $ users' `shouldBe` [storedUser]
 
 -- When explicitly filtering, we should be able to find non-SCIM-provisioned users
 testFindNonProvisionedUser :: TestSpar ()
@@ -562,10 +533,12 @@ testListNoDeletedUsers = do
   (tok, _) <- registerIdPAndScimToken
   storedUser <- createUser tok user
   let userid = scimUserId storedUser
-  -- Delete the user (TODO: do it via SCIM) TODO(arianvp): Ask @fisx what he meant with this comment???
+  -- Delete the user
+  -- TODO(fisx): use 'Util.Scim.deleteUser' instead of 'Util.Core.deleteUserOnBrig' (in fact,
+  -- we should probably do both)
   call $ deleteUserOnBrig (env ^. teBrig) userid
   -- Get all users
-  users <- listUsers tok Nothing
+  users <- listUsers tok (Just (filterForStoredUser storedUser))
   -- Check that the user is absent
   liftIO $ users `shouldSatisfy` all ((/= userid) . scimUserId)
 
@@ -585,14 +558,14 @@ testFindNoDeletedUsers = do
   liftIO $ users'' `shouldSatisfy` all ((/= userid) . scimUserId)
 
 -- | Test that users are not listed if not in the team associated with the token.
-testUserListFailsWithNotFoundIfOutsideTeam :: TestSpar ()
+testUserListFailsWithNotFoundIfOutsideTeam :: HasCallStack => TestSpar ()
 testUserListFailsWithNotFoundIfOutsideTeam = do
   user <- randomScimUser
   (tokTeamA, _) <- registerIdPAndScimToken
   (tokTeamB, _) <- registerIdPAndScimToken
   storedUser <- createUser tokTeamA user
   let userid = scimUserId storedUser
-  users <- listUsers tokTeamB Nothing
+  users <- listUsers tokTeamB (Just (filterForStoredUser storedUser))
   liftIO $ users `shouldSatisfy` all ((/= userid) . scimUserId)
 
 testUserFindFailsWithNotFoundIfOutsideTeam :: TestSpar ()
@@ -611,18 +584,12 @@ testUserFindFailsWithNotFoundIfOutsideTeam = do
 -- | Tests for @GET \/Users\/:id@.
 specGetUser :: SpecWith TestEnv
 specGetUser = describe "GET /Users/:id" $ do
-  it "finds a SCIM-provisioned user" $ testGetUser
-  it "does not find a non-SCIM-provisioned user" $ do
-    pendingWith
-      "TODO: fails because the user has no handle (UPDATE: \
-      \it *should* fail, too, just need to make sure it's \
-      \for the right reasons.)"
-  it "doesn't find a user that's not part of the team" $ do
-    pending
-  -- create another team and another user in it
-  -- check that this user can not be found in the "wrong" team
-  it "doesn't find a deleted user" $ testGetNoDeletedUsers
-  it "doesn't find users from other teams" $ testUserGetFailsWithNotFoundIfOutsideTeam
+  it "finds a SCIM-provisioned user" testGetUser
+  it "does not find a user invited old-school via team-settings" testGetNonScimInviteUser
+  it "finds a user auto-provisioned via SAML and puts it under SCIM management" testGetNonScimSAMLUser
+  it "finds a user that has no handle, and gives it a default handle before responding with it" testGetUserWithNoHandle
+  it "doesn't find a deleted user" testGetNoDeletedUsers
+  it "doesn't find users from other teams" testUserGetFailsWithNotFoundIfOutsideTeam
 
 -- | Test that a SCIM-provisioned user is fetchable.
 testGetUser :: TestSpar ()
@@ -634,6 +601,50 @@ testGetUser = do
   -- Check that the SCIM-provisioned user can be fetched
   storedUser' <- getUser tok (scimUserId storedUser)
   liftIO $ storedUser' `shouldBe` storedUser
+
+shouldBeManagedBy :: HasCallStack => UserId -> ManagedBy -> TestSpar ()
+shouldBeManagedBy uid flag = do
+  managedBy <- maybe (error "user not found") userManagedBy <$> runSpar (Intra.getBrigUser uid)
+  liftIO $ managedBy `shouldBe` flag
+
+-- | This is (roughly) the behavior on develop as well as on the branch where this test was
+-- turned on.  TODO: find out if this is really what we want, or open an issue and reference
+-- the issue here.
+testGetNonScimSAMLUser :: TestSpar ()
+testGetNonScimSAMLUser = do
+  (_, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
+  -- NOTE: once SCIM is enabled SSO Auto-provisioning is disabled, so we register the scim token later.
+
+  uidSso <- loginSsoUserFirstTime idp privcreds
+  tok <- registerScimToken tid (Just (idp ^. SAML.idpId))
+
+  shouldBeManagedBy uidSso ManagedByWire
+  _ <- getUser tok uidSso
+  shouldBeManagedBy uidSso ManagedByScim
+
+testGetNonScimInviteUser :: TestSpar ()
+testGetNonScimInviteUser = do
+  brig <- asks (^. teBrig)
+  (tok, (owner, tid, _)) <- registerIdPAndScimToken
+
+  uidNoSso <- userId <$> call (inviteAndRegisterUser brig owner tid)
+  getUser_ (Just tok) uidNoSso brig !!! const 404 === statusCode
+
+testGetUserWithNoHandle :: TestSpar ()
+testGetUserWithNoHandle = do
+  (_, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
+  -- NOTE: once SCIM is enabled SSO Auto-provisioning is disabled, so we register the scim token later.
+  uid <- loginSsoUserFirstTime idp privcreds
+  tok <- registerScimToken tid (Just (idp ^. SAML.idpId))
+
+  mhandle :: Maybe Handle <- maybe (error "user not found") userHandle <$> runSpar (Intra.getBrigUser uid)
+  liftIO $ mhandle `shouldSatisfy` isNothing
+
+  storedUser <- getUser tok uid
+  liftIO $ (Scim.User.displayName . Scim.value . Scim.thing) storedUser `shouldSatisfy` isJust
+  mhandle' :: Maybe Handle <- aFewTimes (maybe (error "user not found") userHandle <$> runSpar (Intra.getBrigUser uid)) isJust
+  liftIO $ mhandle' `shouldSatisfy` isJust
+  liftIO $ (fromHandle <$> mhandle') `shouldBe` (Just . Scim.User.userName . Scim.value . Scim.thing $ storedUser)
 
 -- | Test that a deleted SCIM-provisioned user is not fetchable.
 testGetNoDeletedUsers :: TestSpar ()
@@ -1088,8 +1099,8 @@ specDeleteUser = do
         aFewTimes (runSpar $ Intra.getBrigUser uid) isNothing
       samlUser :: Maybe UserId <-
         aFewTimes (getUserIdViaRef' uref) isNothing
-      scimUser :: Maybe (ScimC.User.StoredUser SparTag) <-
-        aFewTimes (getScimUser uid) isNothing
+      scimUser <-
+        aFewTimes (runSparCass $ Data.readScimUserTimes uid) isNothing
       liftIO $
         (brigUser, samlUser, scimUser)
           `shouldBe` (Nothing, Nothing, Nothing)
@@ -1143,7 +1154,7 @@ specDeleteUser = do
       let uid = scimUserId storedUser
       deleteUser_ (Just tok) (Just uid) spar
         !!! const 204 === statusCode
-      getUser_ (Just tok) uid spar
+      aFewTimes (getUser_ (Just tok) uid spar) ((== 404) . statusCode)
         !!! const 404 === statusCode
     it "whether implemented or not, does *NOT EVER* respond with 5xx!" $ do
       env <- ask

@@ -23,6 +23,7 @@ import Data.ByteString.Conversion
 import Data.Id
 import Imports
 import Util
+import Wire.API.User.RichInfo
 
 getRichInfo ::
   HasCallStack =>

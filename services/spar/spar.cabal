@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 84ff7e7ee95f7419098b8029990a04ec98e64a1ed2ea41c534bea60d87be1a33
+-- hash: c4215bccf7e235dad19c5eb68954faf664f92ff0b3d7aeacdfb6ac21b448503b
 
 name:           spar
 version:        0.1
@@ -217,6 +217,7 @@ executable spar-integration
   build-depends:
       HsOpenSSL
     , MonadRandom
+    , QuickCheck
     , aeson
     , aeson-pretty
     , aeson-qq
@@ -312,6 +313,7 @@ executable spar-schema
       V6
       V7
       V8
+      V9
       Paths_spar
   hs-source-dirs:
       schema/src

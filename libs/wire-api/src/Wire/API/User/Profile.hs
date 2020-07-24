@@ -240,7 +240,7 @@ parseCountry = hush . parseOnly countryParser
 -- ManagedBy
 
 -- | Who controls changes to the user profile (where the profile is defined as "all
--- user-editable, user-visible attributes").  See {#DevScimOneWaySync}.
+-- user-editable, user-visible attributes").  See {#SparBrainDump}.
 data ManagedBy
   = -- | The profile can be changed in-app; user doesn't show up via SCIM at all.
     ManagedByWire

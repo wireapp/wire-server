@@ -23,16 +23,18 @@ module Wire.API.User.RichInfo
   ( -- * RichInfo
     RichInfo (..),
     toRichInfoAssocList,
-    richInfoMapSize,
-    normalizeRichInfo,
+    fromRichInfoAssocList,
+    richInfoSize,
     richInfoMapURN,
-    richInfoAssocListURN,
+
+    -- * RichInfoMapAndList
+    RichInfoMapAndList (..),
 
     -- * RichInfoAssocList
     RichInfoAssocList (..),
     emptyRichInfoAssocList,
-    richInfoAssocListSize,
     normalizeRichInfoAssocList,
+    richInfoAssocListURN,
 
     -- * RichField
     RichField (..),
@@ -62,12 +64,49 @@ import Wire.API.Arbitrary (Arbitrary (arbitrary))
 --------------------------------------------------------------------------------
 -- RichInfo
 
-data RichInfo = RichInfo
+-- | A 'RichInfoAssocList' that parses and renders as 'RichInfoMapAndList'.
+newtype RichInfo = RichInfo {unRichInfo :: RichInfoAssocList}
+  deriving stock (Eq, Show, Generic)
+
+instance ToJSON RichInfo where
+  toJSON = toJSON . fromRichInfoAssocList . unRichInfo
+
+instance FromJSON RichInfo where
+  parseJSON = fmap (RichInfo . toRichInfoAssocList) . parseJSON
+
+instance Arbitrary RichInfo where
+  arbitrary = RichInfo <$> arbitrary
+
+instance Monoid RichInfo where
+  mempty = RichInfo mempty
+
+instance Semigroup RichInfo where
+  RichInfo a <> RichInfo b = RichInfo $ a <> b
+
+--------------------------------------------------------------------------------
+-- RichInfoMapAndList
+
+-- | Represents all the ways we can recieve 'RichInfo' from a SCIM peer.
+--
+-- 'richInfoMap' represents fields given under 'richInfoMapURN' as a JSON object (use case:
+-- enterprise extensions as sent by eg. microsoft azure).
+--
+-- 'richInfoAssocList' represents fields given under 'richInfoAssocListURN' as an assoc list
+-- (use case: wire native code; we used this so we can give the client arbitrary order in
+-- which to show the rich info).
+--
+-- Internally we only store one assoc list.  This type is just to keep serialization separate
+-- from the tricky semantics of how the map is merged into the list.  See
+-- 'toRichInfoAssocList', 'fromRichInfoAssocList' for the merge semantics.
+--
+-- TODO: https://github.com/zinfra/backend-issues/issues/1627
+data RichInfoMapAndList = RichInfoMapAndList
   { richInfoMap :: Map (CI Text) Text,
     richInfoAssocList :: [RichField]
   }
   deriving stock (Eq, Show, Generic)
 
+-- | TODO: this is model is wrong, it says nothing about the map part.
 modelRichInfo :: Doc.Model
 modelRichInfo = Doc.defineModel "RichInfo" $ do
   Doc.description "Rich info about the user"
@@ -76,7 +115,7 @@ modelRichInfo = Doc.defineModel "RichInfo" $ do
   Doc.property "version" Doc.int32' $
     Doc.description "Format version (the current version is 0)"
 
-instance ToJSON RichInfo where
+instance ToJSON RichInfoMapAndList where
   toJSON u =
     object
       [ richInfoAssocListURN
@@ -90,13 +129,13 @@ instance ToJSON RichInfo where
         richInfoMapURN .= (Map.mapKeys CI.original $ richInfoMap u)
       ]
 
-instance FromJSON RichInfo where
+instance FromJSON RichInfoMapAndList where
   parseJSON =
     withObject "RichInfo" $
       \o ->
         let objWithCIKeys = hmMapKeys CI.mk o
-         in normalizeRichInfo
-              <$> ( RichInfo
+         in normalizeRichInfoMapAndList
+              <$> ( RichInfoMapAndList
                       <$> extractMap objWithCIKeys
                       <*> extractAssocList objWithCIKeys
                   )
@@ -127,19 +166,33 @@ instance FromJSON RichInfo where
         Nothing -> fail $ "key '" ++ show key ++ "' not found"
         Just v -> return v
 
-instance Arbitrary RichInfo where
+instance Arbitrary RichInfoMapAndList where
   arbitrary = do
     RichInfoAssocList richInfoAssocList <- arbitrary
     richInfoMap <- arbitrary
-    pure RichInfo {..}
+    pure RichInfoMapAndList {..}
 
-toRichInfoAssocList :: RichInfo -> RichInfoAssocList
-toRichInfoAssocList (RichInfo mp al) = RichInfoAssocList . nubrf $ toal mp <> al
+-- | Lossy transformation of map-and-list representation into list-only representation.  The
+-- order of the list part of 'RichInfo' is not changed in the output; keys in the map that do
+-- not appear in the list are appended in alpha order.
+toRichInfoAssocList :: RichInfoMapAndList -> RichInfoAssocList
+toRichInfoAssocList (RichInfoMapAndList mp al) =
+  RichInfoAssocList $ foldl' go al (Map.toAscList mp)
   where
-    nubrf :: [RichField] -> [RichField]
-    nubrf = nubBy ((==) `on` \(RichField k _) -> CI.mk k)
-    toal :: Map (CI Text) Text -> [RichField]
-    toal = map (\(k, v) -> RichField k v) . Map.toAscList
+    go :: [RichField] -> (CI Text, Text) -> [RichField]
+    go rfs (key, val) =
+      case break (\(RichField rfKey _) -> rfKey == key) rfs of
+        (xs, []) -> xs <> [RichField key val]
+        (xs, (_ : ys)) -> xs <> [RichField key val] <> ys
+
+-- | This is called by spar to recover the more type that also contains a map.  Since we don't
+-- know where the data came from when it was posted or where the SCIM peer expects the data to
+-- be (map or assoc list), we copy the assoc list into the map, and provide all attributes
+-- twice.
+fromRichInfoAssocList :: RichInfoAssocList -> RichInfoMapAndList
+fromRichInfoAssocList (RichInfoAssocList riList) = RichInfoMapAndList riMap riList
+  where
+    riMap = Map.fromList $ map (\(RichField key value) -> (key, value)) riList
 
 -- | Uniform Resource Names used for serialization of 'RichInfo'.
 richInfoMapURN, richInfoAssocListURN :: Text
@@ -149,8 +202,14 @@ richInfoAssocListURN = "urn:wire:scim:schemas:profile:1.0"
 --------------------------------------------------------------------------------
 -- RichInfoAssocList
 
-newtype RichInfoAssocList = RichInfoAssocList [RichField]
+newtype RichInfoAssocList = RichInfoAssocList {unRichInfoAssocList :: [RichField]}
   deriving stock (Eq, Show, Generic)
+
+instance Monoid RichInfoAssocList where
+  mempty = RichInfoAssocList mempty
+
+instance Semigroup RichInfoAssocList where
+  RichInfoAssocList a <> RichInfoAssocList b = RichInfoAssocList $ a <> b
 
 instance ToJSON RichInfoAssocList where
   toJSON (RichInfoAssocList l) =
@@ -229,22 +288,15 @@ instance Arbitrary RichField where
 -- | Calculate the length of user-supplied data in 'RichInfo'. Used for enforcing
 -- 'setRichInfoLimit'
 --
--- This works on @[RichField]@ so it can be reused by @RichInfoAssocList@
---
 -- NB: we could just calculate the length of JSON-encoded payload, but it is fragile because
 -- if our JSON encoding changes, existing payloads might become unacceptable.
-richInfoAssocListSize :: [RichField] -> Int
-richInfoAssocListSize fields = sum [Text.length (CI.original t) + Text.length v | RichField t v <- fields]
+richInfoSize :: RichInfo -> Int
+richInfoSize (RichInfo (RichInfoAssocList fields)) = sum [Text.length (CI.original t) + Text.length v | RichField t v <- fields]
 
--- | Calculate the length of user-supplied data in 'RichInfo'. Used for enforcing
--- 'setRichInfoLimit'
-richInfoMapSize :: RichInfo -> Int
-richInfoMapSize rif = sum [Text.length (CI.original k) + Text.length v | (k, v) <- Map.toList $ richInfoMap rif]
-
--- | Remove fields with @""@ values.
-normalizeRichInfo :: RichInfo -> RichInfo
-normalizeRichInfo (RichInfo rifMap assocList) =
-  RichInfo
+-- | Remove fields with @""@ values.  See also: 'canonicalizeRichInfo'.
+normalizeRichInfoMapAndList :: RichInfoMapAndList -> RichInfoMapAndList
+normalizeRichInfoMapAndList (RichInfoMapAndList rifMap assocList) =
+  RichInfoMapAndList
     { richInfoAssocList = filter (not . Text.null . richFieldValue) assocList,
       richInfoMap = rifMap
     }

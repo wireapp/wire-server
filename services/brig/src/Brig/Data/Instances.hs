@@ -37,6 +37,7 @@ import Data.Range ()
 import Data.String.Conversions (LBS, ST, cs)
 import Data.Text.Ascii ()
 import Imports
+import Wire.API.User.RichInfo
 
 deriving instance Cql Name
 

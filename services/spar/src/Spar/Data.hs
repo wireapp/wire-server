@@ -75,11 +75,10 @@ module Spar.Data
     deleteScimToken,
     deleteTeamScimTokens,
 
-    -- * SCIM user records
-    insertScimUser,
-    getScimUser,
-    getScimUsers,
-    deleteScimUser,
+    -- * SCIM user timestampes
+    writeScimUserTimes,
+    readScimUserTimes,
+    deleteScimUserTimes,
   )
 where
 
@@ -87,6 +86,7 @@ import Cassandra as Cas
 import Control.Lens
 import Control.Monad.Except
 import Data.Id
+import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import qualified Data.List.NonEmpty as NL
 import Data.Misc ((<$$>))
 import Data.String.Conversions
@@ -96,16 +96,16 @@ import GHC.TypeLits (KnownSymbol)
 import Imports
 import qualified SAML2.WebSSO as SAML
 import Spar.Data.Instances (VerdictFormatCon, VerdictFormatRow, fromVerdictFormat, toVerdictFormat)
-import Spar.Scim.Types
 import Spar.Types
 import Text.RawString.QQ
 import URI.ByteString
 import qualified Web.Cookie as Cky
-import qualified Web.Scim.Class.User as ScimC.User
+import Web.Scim.Schema.Common (WithId (..))
+import Web.Scim.Schema.Meta (Meta (..), WithMeta (..))
 
 -- | A lower bound: @schemaVersion <= whatWeFoundOnCassandra@, not @==@.
 schemaVersion :: Int32
-schemaVersion = 8
+schemaVersion = 9
 
 ----------------------------------------------------------------------
 -- helpers
@@ -701,55 +701,35 @@ deleteTeamScimTokens team = do
 --
 -- docs/developer/scim/storage.md {#DevScimStorageUsers}
 
--- | Store the scim user in its entirety and return the 'Scim.StoredUser'.
---
--- NB: we can add optional columns in the future and extract parts of the json blob should the need
--- arise.  For instance, if we want to support different versions of SCIM, we could extract
--- @schemas@ and, throw an exception if the list of values is not supported, and store it
--- in a separate column otherwise, allowing for fast version filtering on the database.
-insertScimUser ::
-  (HasCallStack, MonadClient m) =>
-  UserId ->
-  ScimC.User.StoredUser SparTag ->
-  m ()
-insertScimUser uid usr =
+-- | Store creation and last-update time from the scim metadata under a user id.
+writeScimUserTimes :: (HasCallStack, MonadClient m) => WithMeta (WithId UserId a) -> m ()
+writeScimUserTimes (WithMeta meta (WithId uid _)) =
   retry x5 . write ins $
-    params Quorum (uid, WrappedScimStoredUser usr)
+    params
+      Quorum
+      ( uid,
+        toUTCTimeMillis $ created meta,
+        toUTCTimeMillis $ lastModified meta
+      )
   where
-    ins :: PrepQuery W (UserId, WrappedScimStoredUser SparTag) ()
-    ins = "INSERT INTO scim_user (id, json) VALUES (?, ?)"
+    ins :: PrepQuery W (UserId, UTCTimeMillis, UTCTimeMillis) ()
+    ins = "INSERT INTO scim_user_times (uid, created_at, last_updated_at) VALUES (?, ?, ?)"
 
-getScimUser ::
-  (HasCallStack, MonadClient m) =>
-  UserId ->
-  m (Maybe (ScimC.User.StoredUser SparTag))
-getScimUser uid =
-  fromWrappedScimStoredUser . runIdentity
-    <$$> (retry x1 . query1 sel $ params Quorum (Identity uid))
+-- | Read creation and last-update time from database for a given user id.
+readScimUserTimes :: (HasCallStack, MonadClient m) => UserId -> m (Maybe (UTCTimeMillis, UTCTimeMillis))
+readScimUserTimes uid = do
+  retry x1 . query1 sel $ params Quorum (Identity uid)
   where
-    sel :: PrepQuery R (Identity UserId) (Identity (WrappedScimStoredUser SparTag))
-    sel = "SELECT json FROM scim_user WHERE id = ?"
+    sel :: PrepQuery R (Identity UserId) (UTCTimeMillis, UTCTimeMillis)
+    sel = "SELECT created_at, last_updated_at FROM scim_user_times WHERE uid = ?"
 
--- | Return all users that can be found under a given list of 'UserId's.  If some cannot be found,
--- the output list will just be shorter (no errors).
-getScimUsers ::
-  (HasCallStack, MonadClient m) =>
-  [UserId] ->
-  m [ScimC.User.StoredUser SparTag]
-getScimUsers uids =
-  fromWrappedScimStoredUser . runIdentity
-    <$$> retry x1 (query sel (params Quorum (Identity uids)))
-  where
-    sel :: PrepQuery R (Identity [UserId]) (Identity (WrappedScimStoredUser SparTag))
-    sel = "SELECT json FROM scim_user WHERE id in ?"
-
--- | Delete a SCIM user by id.
+-- | Delete a SCIM user's access times by id.
 -- You'll also want to ensure they are deleted in Brig and in the SAML Users table.
-deleteScimUser ::
+deleteScimUserTimes ::
   (HasCallStack, MonadClient m) =>
   UserId ->
   m ()
-deleteScimUser uid = retry x5 . write del $ params Quorum (Identity uid)
+deleteScimUserTimes uid = retry x5 . write del $ params Quorum (Identity uid)
   where
     del :: PrepQuery W (Identity UserId) ()
-    del = "DELETE FROM scim_user WHERE id = ?"
+    del = "DELETE FROM scim_user_times WHERE uid = ?"
