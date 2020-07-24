@@ -28,6 +28,7 @@ migration :: Migration
 migration = Migration 9 "As replacement for `scim_user`, add smaller table for storing time stamps only" $ do
   void $
     schema'
+      -- FUTUREWORK: https://github.com/zinfra/backend-issues/issues/1629
       [r|
         CREATE TABLE if not exists scim_user_times
           ( uid             uuid
