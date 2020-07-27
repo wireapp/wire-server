@@ -20,11 +20,13 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
+-- TODO: Rename this module to Call.Config
 module Wire.API.Call.TURN
   ( -- * RTCConfiguration
     RTCConfiguration,
     rtcConfiguration,
     rtcConfIceServers,
+    rtcConfSftServers,
     rtcConfTTL,
 
     -- * RTCIceServer
@@ -55,6 +57,11 @@ module Wire.API.Call.TURN
     tuT,
     tuRandom,
 
+    -- * SFTServer
+    SFTServer,
+    sftServer,
+    sftURL,
+
     -- * convenience
     isUdp,
     isTcp,
@@ -74,8 +81,8 @@ import Data.Attoparsec.Text hiding (parse)
 import Data.ByteString.Builder
 import qualified Data.ByteString.Conversion as BC
 import qualified Data.IP as IP
-import Data.List1
-import Data.Misc (IpAddr (IpAddr), Port (..))
+import Data.List.NonEmpty (NonEmpty)
+import Data.Misc (HttpsUrl (..), IpAddr (IpAddr), Port (..))
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Data.Text.Ascii
@@ -93,16 +100,18 @@ import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 -- | A configuration object resembling \"RTCConfiguration\"
 --
 -- The \"ttl\" field is a proprietary extension
+-- The \"sft_servers\" field is a proprietary extension
 --
 -- cf. https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/RTCPeerConnection#RTCConfiguration_dictionary
 data RTCConfiguration = RTCConfiguration
-  { _rtcConfIceServers :: List1 RTCIceServer,
+  { _rtcConfIceServers :: NonEmpty RTCIceServer,
+    _rtcConfSftServers :: Maybe (NonEmpty SFTServer),
     _rtcConfTTL :: Word32
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RTCConfiguration)
 
-rtcConfiguration :: List1 RTCIceServer -> Word32 -> RTCConfiguration
+rtcConfiguration :: NonEmpty RTCIceServer -> Maybe (NonEmpty SFTServer) -> Word32 -> RTCConfiguration
 rtcConfiguration = RTCConfiguration
 
 modelRtcConfiguration :: Doc.Model
@@ -110,19 +119,52 @@ modelRtcConfiguration = Doc.defineModel "RTCConfiguration" $ do
   Doc.description "A subset of the WebRTC 'RTCConfiguration' dictionary"
   Doc.property "ice_servers" (Doc.array (Doc.ref modelRtcIceServer)) $
     Doc.description "Array of 'RTCIceServer' objects"
+  Doc.property "sft_servers" (Doc.array (Doc.ref modelRtcSftServer)) $
+    Doc.description "Array of 'SFTServer' objects (optional)"
   Doc.property "ttl" Doc.int32' $
     Doc.description "Number of seconds after which the configuration should be refreshed (advisory)"
 
 instance ToJSON RTCConfiguration where
-  toJSON (RTCConfiguration srvs ttl) =
+  toJSON (RTCConfiguration srvs sfts ttl) =
     object
       [ "ice_servers" .= srvs,
+        "sft_servers" .= sfts,
         "ttl" .= ttl
       ]
 
 instance FromJSON RTCConfiguration where
   parseJSON = withObject "RTCConfiguration" $ \o ->
-    RTCConfiguration <$> o .: "ice_servers" <*> o .: "ttl"
+    RTCConfiguration <$> o .: "ice_servers" <*> o .: "sft_servers" <*> o .: "ttl"
+
+--------------------------------------------------------------------------------
+-- SFTServer
+
+newtype SFTServer = SFTServer
+  { _sftURL :: HttpsUrl
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform SFTServer) --TODO is this correct?
+
+instance ToJSON SFTServer where
+  toJSON (SFTServer url) =
+    object
+      [ "urls" .= [url]
+      ]
+
+instance FromJSON SFTServer where
+  parseJSON = withObject "SFTServer" $ \o ->
+    o .: "urls" >>= \case
+      [url] -> pure $ SFTServer url
+      xs -> fail $ "SFTServer can only have exactly one URL, found " <> show (length xs)
+
+sftServer :: HttpsUrl -> SFTServer
+sftServer = SFTServer
+
+modelRtcSftServer :: Doc.Model
+modelRtcSftServer = Doc.defineModel "RTC SFT Server" $ do
+  Doc.description "Inspired by WebRTC 'RTCIceServer' object, contains details of SFT servers"
+  Doc.property "urls" (Doc.array Doc.string') $
+    Doc.description "Array of SFT server addresses of the form 'https://<addr>:<port>'"
 
 --------------------------------------------------------------------------------
 -- RTCIceServer
@@ -131,14 +173,14 @@ instance FromJSON RTCConfiguration where
 --
 -- cf. https://developer.mozilla.org/en-US/docs/Web/API/RTCIceServer
 data RTCIceServer = RTCIceServer
-  { _iceURLs :: List1 TurnURI,
+  { _iceURLs :: NonEmpty TurnURI,
     _iceUsername :: TurnUsername,
     _iceCredential :: AsciiBase64
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RTCIceServer)
 
-rtcIceServer :: List1 TurnURI -> TurnUsername -> AsciiBase64 -> RTCIceServer
+rtcIceServer :: NonEmpty TurnURI -> TurnUsername -> AsciiBase64 -> RTCIceServer
 rtcIceServer = RTCIceServer
 
 modelRtcIceServer :: Doc.Model
@@ -439,3 +481,4 @@ makeLenses ''RTCConfiguration
 makeLenses ''RTCIceServer
 makeLenses ''TurnURI
 makeLenses ''TurnUsername
+makeLenses ''SFTServer

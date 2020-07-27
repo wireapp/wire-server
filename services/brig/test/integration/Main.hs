@@ -97,7 +97,7 @@ runTests iConf bConf otherArgs = do
   providerApi <- Provider.tests (provider <$> iConf) mg db b c g
   searchApis <- Search.tests brigOpts mg g b
   teamApis <- Team.tests brigOpts mg n b c g awsEnv
-  turnApi <- TURN.tests mg b turnFile turnFileV2
+  turnApi <- TURN.tests mg b brigOpts turnFile turnFileV2
   idMappingApi <- pure $ IdMapping.tests brigOpts mg b
   metricsApi <- Metrics.tests mg b
   settingsApi <- Settings.tests brigOpts mg b g

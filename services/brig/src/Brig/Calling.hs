@@ -26,7 +26,7 @@ import Wire.Network.DNS.Effect
 import Wire.Network.DNS.SRV
 
 data SFTEnv = SFTEnv
-  { sftServers :: IORef [SrvEntry],
+  { sftServers :: IORef (Maybe (NonEmpty SrvEntry)),
     sftDomain :: DNS.Domain
   }
 
@@ -43,19 +43,20 @@ mkSFTDomain (SFTOptions base maybeSrv) = DNS.normalize $ maybe "_sft" ("_" <>) m
 
 -- TODO: How can I remove the Embed IO? Even if I cannot, this is better than
 -- just IO () as I can still mock DNSLookup
+-- TODO: Test that `Nothing` is never explicitly written to the IORef
 sftDiscoveryLoop :: Members [DNSLookup, Embed IO] r => SFTEnv -> Sem r ()
 sftDiscoveryLoop (SFTEnv serversRef domain) = forever $ do
   servers <- discoverSFTServers domain
   case servers of
     Nothing -> pure ()
-    Just (e :| es) -> atomicWriteIORef serversRef (e : es)
+    es -> atomicWriteIORef serversRef es
   -- TODO: What should this number be? Use Control.Retry?
   threadDelay 1000000
 
 mkSFTEnv :: SFTOptions -> IO SFTEnv
 mkSFTEnv opts =
   SFTEnv
-    <$> newIORef []
+    <$> newIORef Nothing
     <*> pure (mkSFTDomain opts)
 
 startSFTServiceDiscovery :: SFTEnv -> IO ()

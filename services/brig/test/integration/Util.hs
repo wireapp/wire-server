@@ -25,6 +25,8 @@ import Bilge
 import Bilge.Assert
 import qualified Brig.AWS as AWS
 import Brig.AWS.Types
+import Brig.App (sftEnv)
+import Brig.Calling as Calling
 import qualified Brig.Options as Opts
 import qualified Brig.Run as Run
 import Brig.Types.Activation
@@ -33,7 +35,7 @@ import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.Types.User
 import Brig.Types.User.Auth
-import Control.Lens ((^?), (^?!))
+import Control.Lens ((^.), (^?), (^?!))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Fail (MonadFail)
 import Control.Retry
@@ -62,6 +64,7 @@ import Test.Tasty (TestName, TestTree)
 import Test.Tasty.Cannon
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
+import qualified UnliftIO.Async as Async
 import Util.AWS
 import Wire.API.Conversation.Member (Member (..))
 
@@ -704,10 +707,17 @@ retryWhileN n f m =
 -- | This allows you to run requests against a brig instantiated using the given options.
 --   Note that ONLY 'brig' calls should occur within the provided action, calls to other
 --   services will fail.
+--
+--   Beware: Not all async parts of brig are running in this.
 withSettingsOverrides :: MonadIO m => Opts.Opts -> WaiTest.Session a -> m a
 withSettingsOverrides opts action = liftIO $ do
-  (brigApp, _) <- Run.mkApp opts
-  WaiTest.runSession action brigApp
+  (brigApp, env) <- Run.mkApp opts
+  asyncDiscovery <- case env ^. sftEnv of
+    Nothing -> Async.async (pure ()) --TODO: This looks fishy
+    Just e -> Async.async $ Calling.startSFTServiceDiscovery e
+  res <- WaiTest.runSession action brigApp
+  Async.cancel asyncDiscovery
+  pure res
 
 -- | When we remove the customer-specific extension of domain blocking, this test will fail to
 -- compile.

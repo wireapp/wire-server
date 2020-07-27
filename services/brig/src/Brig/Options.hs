@@ -573,7 +573,8 @@ instance FromJSON Opts
 -- TODO: Does it make sense to generate lens'es for all?
 Lens.makeLensesFor
   [ ("optSettings", "optionSettings"),
-    ("elasticsearch", "elasticsearchL")
+    ("elasticsearch", "elasticsearchL"),
+    ("sft", "sftL")
   ]
   ''Opts
 
@@ -594,3 +595,5 @@ Lens.makeLensesFor
     ("additionalWriteIndex", "additionalWriteIndexL")
   ]
   ''ElasticSearchOpts
+
+Lens.makeLensesFor [("sftBaseDomain", "sftBaseDomainL")] ''SFTOptions
