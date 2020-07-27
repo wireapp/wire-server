@@ -664,7 +664,7 @@ specCRUDIdentityProvider = do
           env <- ask
           (owner, _, (^. idpId) -> idpid) <- registerTestIdP
           callIdpUpdate' (env ^. teSpar) (Just owner) idpid (IdPMetadataValue "<NotSAML>bloo</NotSAML>" undefined)
-            `shouldRespondWith` checkErrHspec 400 ""
+            `shouldRespondWith` checkErrHspec 400 "invalid-metadata"
     describe "issuer changed to one that already exists in *another* team" $ do
       it "rejects" $ do
         env <- ask
