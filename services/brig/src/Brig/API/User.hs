@@ -176,7 +176,7 @@ createUser new@NewUser {..} = do
   activatedTeam <- lift $ do
     Data.insertAccount account Nothing pw False
     Intra.createSelfConv uid
-    Intra.onUserEvent uid Nothing (UserCreated account)
+    Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
     -- If newUserEmailCode is set, team gets activated _now_ else createUser fails
     case (tid, newTeam) of
       (Just t, Just nt) -> createTeam uid (isJust newUserEmailCode) (bnuTeam nt) t
@@ -603,7 +603,7 @@ onActivated (AccountActivated account) = do
   let uid = userId (accountUser account)
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.onActivated")
   Log.info $ field "user" (toByteString uid) . msg (val "User activated")
-  Intra.onUserEvent uid Nothing $ UserActivated account
+  Intra.onUserEvent uid Nothing $ UserActivated (accountUser account)
   return (uid, userIdentity (accountUser account), True)
 onActivated (EmailActivated uid email) = do
   Intra.onUserEvent uid Nothing (emailUpdated uid email)
