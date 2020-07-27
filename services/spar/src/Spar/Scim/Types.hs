@@ -48,7 +48,6 @@ import qualified Data.Aeson as Aeson
 import qualified Data.CaseInsensitive as CI
 import Data.Handle (Handle)
 import Data.Id (ScimTokenId, UserId)
-import Data.Json.Util ((#))
 import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword)
 import Imports
@@ -252,10 +251,10 @@ instance Aeson.FromJSON CreateScimToken where
 -- Used for integration tests
 instance Aeson.ToJSON CreateScimToken where
   toJSON CreateScimToken {..} =
-    Aeson.object $
-      "description" Aeson..= createScimTokenDescr
-        # "password" Aeson..= createScimTokenPassword
-        # []
+    Aeson.object
+      [ "description" Aeson..= createScimTokenDescr,
+        "password" Aeson..= createScimTokenPassword
+      ]
 
 -- | Type used for the response of 'APIScimTokenCreate'.
 data CreateScimTokenResponse = CreateScimTokenResponse
