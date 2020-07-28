@@ -23,7 +23,7 @@ where
 import Brig.API.Handler
 import Brig.App
 import Brig.Calling
-import qualified Brig.Calling as TURN
+import qualified Brig.Calling as Calling
 import Control.Lens
 import Control.Monad.Fail (MonadFail)
 import Control.Monad.Random.Class
@@ -112,7 +112,7 @@ getCallsConfig _ _ = do
         (Public.rtcConfIceServers . traverse . Public.iceURLs . traverse . Public.turiTransport)
         Nothing
 
-newConfig :: MonadIO m => TURN.Env -> Maybe SFTEnv -> Maybe (Range 1 10 Int) -> m Public.RTCConfiguration
+newConfig :: MonadIO m => Calling.Env -> Maybe SFTEnv -> Maybe (Range 1 10 Int) -> m Public.RTCConfiguration
 newConfig env mSftEnv limit = do
   let (sha, secret, tTTL, cTTL, prng) = (env ^. turnSHA512, env ^. turnSecret, env ^. turnTokenTTL, env ^. turnConfigTTL, env ^. turnPrng)
   -- randomize list of servers (before limiting the list, to ensure not always the same servers are chosen if limit is set)

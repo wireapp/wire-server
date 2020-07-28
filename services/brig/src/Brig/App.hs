@@ -75,7 +75,6 @@ import Brig.Provider.Template
 import qualified Brig.Queue.Stomp as Stomp
 import Brig.Queue.Types (Queue (..))
 import qualified Brig.SMTP as SMTP
-import qualified Brig.Calling as TURN
 import Brig.Team.Template
 import Brig.Template (Localised, TemplateBranding, forLocale, genTemplateBranding)
 import Brig.Types (Locale (..), TurnURI)
@@ -157,8 +156,8 @@ data Env = Env
     _twilioCreds :: Twilio.Credentials,
     _geoDb :: Maybe (IORef GeoIp.GeoDB),
     _fsWatcher :: FS.WatchManager,
-    _turnEnv :: IORef TURN.Env,
-    _turnEnvV2 :: IORef TURN.Env,
+    _turnEnv :: IORef Calling.Env,
+    _turnEnvV2 :: IORef Calling.Env,
     _sftEnv :: Maybe Calling.SFTEnv,
     _currentTime :: IO UTCTime,
     _zauthEnv :: ZAuth.Env,
@@ -269,7 +268,7 @@ geoSetup lgr w (Just db) = do
   startWatching w path (replaceGeoDb lgr geodb)
   return $ Just geodb
 
-turnSetup :: Logger -> FS.WatchManager -> Digest -> Opt.TurnOpts -> IO (IORef TURN.Env, IORef TURN.Env)
+turnSetup :: Logger -> FS.WatchManager -> Digest -> Opt.TurnOpts -> IO (IORef Calling.Env, IORef Calling.Env)
 turnSetup lgr w dig o = do
   secret <- Text.encodeUtf8 . Text.strip <$> Text.readFile (Opt.secret o)
   cfg <- setupTurn secret (Opt.servers o)
@@ -279,7 +278,7 @@ turnSetup lgr w dig o = do
     setupTurn secret cfg = do
       path <- canonicalizePath cfg
       servers <- fromMaybe (error "Empty TURN list, check turn file!") <$> readTurnList path
-      te <- newIORef =<< TURN.newEnv dig servers (Opt.tokenTTL o) (Opt.configTTL o) secret
+      te <- newIORef =<< Calling.newEnv dig servers (Opt.tokenTTL o) (Opt.configTTL o) secret
       startWatching w path (replaceTurnServers lgr te)
       return te
 
@@ -298,13 +297,13 @@ replaceGeoDb g ref e = do
     GeoIp.openGeoDB (FS.eventPath e) >>= atomicWriteIORef ref
     Log.info g (msg $ val "New GeoIP database loaded.")
 
-replaceTurnServers :: Logger -> IORef TURN.Env -> FS.Event -> IO ()
+replaceTurnServers :: Logger -> IORef Calling.Env -> FS.Event -> IO ()
 replaceTurnServers g ref e = do
   let logErr x = Log.err g (msg $ val "Error loading turn servers: " +++ show x)
   handleAny logErr $
     readTurnList (FS.eventPath e) >>= \case
       Just servers -> readIORef ref >>= \old -> do
-        atomicWriteIORef ref (old & TURN.turnServers .~ servers)
+        atomicWriteIORef ref (old & Calling.turnServers .~ servers)
         Log.info g (msg $ val "New turn servers loaded.")
       Nothing -> Log.warn g (msg $ val "Empty or malformed turn servers list, ignoring!")
 

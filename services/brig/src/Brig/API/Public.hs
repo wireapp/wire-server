@@ -35,7 +35,7 @@ import Brig.App
 import qualified Brig.Data.User as Data
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
-import qualified Brig.Calling.API as TURN
+import qualified Brig.Calling.API as Calling
 import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
 import Brig.Types.Intra (AccountStatus (Ephemeral), UserAccount (UserAccount, accountUser))
@@ -781,7 +781,7 @@ sitemap o = do
   Auth.routesPublic
   Search.routesPublic
   Team.routesPublic
-  TURN.routesPublic
+  Calling.routesPublic
 
 apiDocs :: Opts -> Routes Doc.ApiBuilder Handler ()
 apiDocs o = do
