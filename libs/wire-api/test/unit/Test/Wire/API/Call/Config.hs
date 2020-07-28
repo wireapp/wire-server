@@ -15,14 +15,14 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Wire.API.Call.TURN where
+module Test.Wire.API.Call.Config where
 
 import Data.Aeson
 import Imports
 import Test.Tasty
 import Test.Tasty.QuickCheck hiding (total)
 import Wire.API.Arbitrary ()
-import Wire.API.Call.TURN (TurnURI, isTcp, isTls, isUdp, limitServers)
+import Wire.API.Call.Config (TurnURI, isTcp, isTls, isUdp, limitServers)
 
 tests :: TestTree
 tests =

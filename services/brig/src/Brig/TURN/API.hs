@@ -53,7 +53,7 @@ import qualified System.Random.MWC as MWC
 import System.Random.Shuffle
 import qualified URI.ByteString as URI
 import qualified URI.ByteString.QQ as URI
-import qualified Wire.API.Call.TURN as Public
+import qualified Wire.API.Call.Config as Public
 import Wire.Network.DNS.SRV (SrvTarget (..), srvTarget)
 
 routesPublic :: Routes Doc.ApiBuilder Handler ()

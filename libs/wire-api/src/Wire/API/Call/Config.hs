@@ -20,8 +20,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- TODO: Rename this module to Call.Config
-module Wire.API.Call.TURN
+module Wire.API.Call.Config
   ( -- * RTCConfiguration
     RTCConfiguration,
     rtcConfiguration,

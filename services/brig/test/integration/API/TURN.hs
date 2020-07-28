@@ -42,7 +42,7 @@ import URI.ByteString.QQ (uri)
 import UnliftIO.Exception (finally)
 import qualified UnliftIO.Temporary as Temp
 import Util
-import Wire.API.Call.TURN
+import Wire.API.Call.Config
 
 tests :: Manager -> Brig -> Opts.Opts -> FilePath -> FilePath -> IO TestTree
 tests m b opts turn turnV2 = do

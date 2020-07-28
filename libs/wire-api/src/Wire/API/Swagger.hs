@@ -18,7 +18,7 @@
 module Wire.API.Swagger where
 
 import Data.Swagger.Build.Api (Model)
-import qualified Wire.API.Call.TURN as Call.TURN
+import qualified Wire.API.Call.Config as Call.Config
 import qualified Wire.API.Connection as Connection
 import qualified Wire.API.Conversation as Conversation
 import qualified Wire.API.Conversation.Code as Conversation.Code
@@ -53,8 +53,8 @@ import qualified Wire.API.User.Search as User.Search
 
 models :: [Model]
 models =
-  [ Call.TURN.modelRtcConfiguration,
-    Call.TURN.modelRtcIceServer,
+  [ Call.Config.modelRtcConfiguration,
+    Call.Config.modelRtcIceServer,
     Connection.modelConnectionList,
     Connection.modelConnection,
     Connection.modelConnectionRequest,

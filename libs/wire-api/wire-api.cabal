@@ -23,7 +23,7 @@ library
       Wire.API.Asset
       Wire.API.Asset.V3
       Wire.API.Asset.V3.Resumable
-      Wire.API.Call.TURN
+      Wire.API.Call.Config
       Wire.API.Connection
       Wire.API.Conversation
       Wire.API.Conversation.Bot
@@ -121,7 +121,7 @@ test-suite wire-api-tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
-      Test.Wire.API.Call.TURN
+      Test.Wire.API.Call.Config
       Test.Wire.API.Roundtrip.Aeson
       Test.Wire.API.Roundtrip.ByteString
       Test.Wire.API.Team.Member

@@ -50,4 +50,4 @@ module Brig.Types.TURN
   )
 where
 
-import Wire.API.Call.TURN
+import Wire.API.Call.Config
