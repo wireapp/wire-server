@@ -46,7 +46,7 @@ import Util.Options
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it
 -- and brig could start misbehaving. We should ensure that brig dies whenever a
--- thread is returns for any reason.
+-- thread terminates for any reason.
 run :: Opts -> IO ()
 run o = do
   (app, e) <- mkApp o
