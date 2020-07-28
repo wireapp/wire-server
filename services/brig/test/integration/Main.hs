@@ -25,7 +25,7 @@ import qualified API.Metrics as Metrics
 import qualified API.Provider as Provider
 import qualified API.Search as Search
 import qualified API.Settings as Settings
-import qualified API.TURN as TURN
+import qualified API.Calling as TURN
 import qualified API.Team as Team
 import qualified API.User as User
 import Bilge hiding (header)

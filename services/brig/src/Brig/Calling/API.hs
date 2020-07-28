@@ -15,8 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- TODO: Rename this module to Brig.Calling.API
-module Brig.TURN.API
+module Brig.Calling.API
   ( routesPublic,
   )
 where
@@ -24,8 +23,7 @@ where
 import Brig.API.Handler
 import Brig.App
 import Brig.Calling
-import Brig.TURN hiding (Env)
-import qualified Brig.TURN as TURN
+import qualified Brig.Calling as TURN
 import Control.Lens
 import Control.Monad.Fail (MonadFail)
 import Control.Monad.Random.Class

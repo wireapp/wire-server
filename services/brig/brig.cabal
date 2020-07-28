@@ -4,7 +4,7 @@ cabal-version: 2.0
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c68f27a03bfd39881dae41fb34852c67f4859be99feab6635121ed7425b20210
+-- hash: 7791287309106815961c909f52ba63652c036239415e412ce1edc5c025614994
 
 name:           brig
 version:        1.35.0
@@ -37,6 +37,7 @@ library
       Brig.AWS.Types
       Brig.Budget
       Brig.Calling
+      Brig.Calling.API
       Brig.Code
       Brig.Data.Activation
       Brig.Data.Blacklist
@@ -77,8 +78,6 @@ library
       Brig.Team.Template
       Brig.Team.Util
       Brig.Template
-      Brig.TURN
-      Brig.TURN.API
       Brig.Unique
       Brig.User.API.Auth
       Brig.User.API.Search
@@ -294,6 +293,7 @@ executable brig-index
 executable brig-integration
   main-is: Main.hs
   other-modules:
+      API.Calling
       API.IdMapping
       API.Metrics
       API.Provider
@@ -303,7 +303,6 @@ executable brig-integration
       API.Settings
       API.Team
       API.Team.Util
-      API.TURN
       API.User
       API.User.Account
       API.User.Auth

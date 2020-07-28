@@ -15,25 +15,39 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.TURN where
+module Brig.Types.Calling
+  ( -- * re-exports
+    RTCConfiguration,
+    rtcConfiguration,
+    rtcConfIceServers,
+    rtcConfTTL,
+    RTCIceServer,
+    rtcIceServer,
+    iceURLs,
+    iceUsername,
+    iceCredential,
+    TurnURI,
+    turnURI,
+    turiScheme,
+    Scheme (..),
+    turiHost,
+    turiPort,
+    turiTransport,
+    Transport (..),
+    TurnHost,
+    isHostName,
+    TurnUsername,
+    turnUsername,
+    tuExpiresAt,
+    tuVersion,
+    tuKeyindex,
+    tuT,
+    tuRandom,
+    isUdp,
+    isTcp,
+    isTls,
+    limitServers,
+  )
+where
 
-import Brig.Types (TurnURI)
-import Control.Lens
-import Data.List1
-import Imports
-import OpenSSL.EVP.Digest (Digest)
-import System.Random.MWC (GenIO, createSystemRandom)
-
-data Env = Env
-  { _turnServers :: List1 TurnURI,
-    _turnTokenTTL :: Word32,
-    _turnConfigTTL :: Word32,
-    _turnSecret :: ByteString,
-    _turnSHA512 :: Digest,
-    _turnPrng :: GenIO
-  }
-
-makeLenses ''Env
-
-newEnv :: Digest -> List1 TurnURI -> Word32 -> Word32 -> ByteString -> IO Env
-newEnv sha512 srvs tTTL cTTL secret = Env srvs tTTL cTTL secret sha512 <$> createSystemRandom
+import Wire.API.Call.Config

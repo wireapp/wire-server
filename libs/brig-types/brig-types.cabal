@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7497d04521f12339e2a8f5537dacf242839dea9034f69e67f0a254b1548cadd9
+-- hash: fe16e52e870cb548573366fe9192319004e52c3e4d2ece172df69e408cbe391b
 
 name:           brig-types
 version:        1.35.0
@@ -21,6 +21,7 @@ library
   exposed-modules:
       Brig.Types
       Brig.Types.Activation
+      Brig.Types.Calling
       Brig.Types.Client
       Brig.Types.Client.Prekey
       Brig.Types.Code
@@ -37,7 +38,6 @@ library
       Brig.Types.Team.Invitation
       Brig.Types.Team.LegalHold
       Brig.Types.Test.Arbitrary
-      Brig.Types.TURN
       Brig.Types.User
       Brig.Types.User.Auth
   other-modules:
