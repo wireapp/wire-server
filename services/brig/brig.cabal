@@ -4,7 +4,7 @@ cabal-version: 2.0
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 66e9d5651b6bea264d8f71f929a1477a8ef70a8fa3e6af97f623cbd977663a3c
+-- hash: c68f27a03bfd39881dae41fb34852c67f4859be99feab6635121ed7425b20210
 
 name:           brig
 version:        1.35.0
@@ -473,16 +473,22 @@ test-suite brig-tests
   hs-source-dirs:
       test/unit
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -fplugin=Polysemy.Plugin
   build-depends:
       aeson
     , base
     , bloodhound
     , brig
     , brig-types
+    , dns
+    , dns-srv
     , imports
+    , polysemy
+    , polysemy-plugin
+    , retry
     , tasty
     , tasty-hunit
     , types-common
+    , unliftio
     , uuid
   default-language: Haskell2010

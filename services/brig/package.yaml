@@ -163,16 +163,23 @@ tests:
     ghc-options:
     - -threaded
     - -with-rtsopts=-N
+    - -fplugin=Polysemy.Plugin
     dependencies:
     - aeson
     - base
     - bloodhound
     - brig
     - brig-types
+    - dns
+    - dns-srv
+    - polysemy
+    - polysemy-plugin
     - imports
+    - retry
     - tasty
     - tasty-hunit
     - types-common
+    - unliftio
     - uuid
 executables:
   brig-schema:
