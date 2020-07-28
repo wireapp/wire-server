@@ -1,6 +1,6 @@
 defaults:
   local: ../../package-defaults.yaml
-name: dns-srv
+name: dns-util
 version: '0.1.0'
 synopsis: Library to deal with DNS SRV records
 description: Library to deal with DNS SRV records
@@ -31,4 +31,4 @@ tests:
       - hspec
       - hspec-discover
       - QuickCheck
-      - dns-srv
+      - dns-util

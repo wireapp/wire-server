@@ -43,7 +43,7 @@ library:
   - data-timeout >=0.3
   - directory >=1.2
   - dns
-  - dns-srv
+  - dns-util
   - either >=4.3
   - enclosed-exceptions >=1.0
   - errors >=1.4
@@ -171,7 +171,7 @@ tests:
     - brig
     - brig-types
     - dns
-    - dns-srv
+    - dns-util
     - polysemy
     - polysemy-plugin
     - imports
