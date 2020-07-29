@@ -78,9 +78,13 @@ testDiscoveryWhenSuccessful = do
       returnedEntries = (entry1 :| [entry2, entry3])
   fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvAvailable returnedEntries)
   sftEnv <- mkSFTEnv (SFTOptions "foo.example.com" Nothing)
+
   discoveryLoop <- Async.async $ runM . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
   void $ retryEveryMillisecondWhileN 2000 (== 0) (length <$> readIORef (fakeLookupCalls fakeDNSEnv))
+  -- We don't want to stop the loop before it has written to the sftServers IORef
+  void $ retryEveryMillisecondWhileN 2000 (isNothing) (readIORef (sftServers sftEnv))
   Async.cancel discoveryLoop
+
   actualServers <- readIORef (sftServers sftEnv)
   assertEqual "servers should be the ones read from DNS" (Just returnedEntries) actualServers
   pure sftEnv
@@ -89,9 +93,13 @@ testDiscoveryWhenUnsuccessful :: IO ()
 testDiscoveryWhenUnsuccessful = do
   fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvNotAvailable)
   sftEnv <- mkSFTEnv (SFTOptions "foo.example.com" Nothing)
+
   discoveryLoop <- Async.async $ runM . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
-  void $ retryEveryMillisecondWhileN 2000 (== 0) (length <$> readIORef (fakeLookupCalls fakeDNSEnv))
+  -- We wait for at least two lookups to be sure that the lookup loop looped at
+  -- least once
+  void $ retryEveryMillisecondWhileN 2000 (<= 1) (length <$> readIORef (fakeLookupCalls fakeDNSEnv))
   Async.cancel discoveryLoop
+
   actualServers <- readIORef (sftServers sftEnv)
   assertEqual "servers should be the ones read from DNS" Nothing actualServers
 
@@ -104,8 +112,11 @@ testDiscoveryWhenUnsuccessfulAfterSuccess = do
   -- replicate what will happen when a dns lookup fails after success
   failingFakeDNSEnv <- newFakeDNSEnv (\_ -> SrvNotAvailable)
   discoveryLoop <- Async.async $ runM . runFakeDNSLookup failingFakeDNSEnv $ sftDiscoveryLoop sftEnv
-  void $ retryEveryMillisecondWhileN 2000 (== 0) (length <$> readIORef (fakeLookupCalls failingFakeDNSEnv))
+  -- We wait for at least two lookups to be sure that the lookup loop looped at
+  -- least once
+  void $ retryEveryMillisecondWhileN 2000 (<= 1) (length <$> readIORef (fakeLookupCalls failingFakeDNSEnv))
   Async.cancel discoveryLoop
+
   actualServers <- readIORef (sftServers sftEnv)
   assertEqual "servers shouldn't get overwriten" previousEntries actualServers
 
@@ -122,7 +133,10 @@ testDiscoveryWhenURLsChange = do
   fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvAvailable newEntries)
   discoveryLoop <- Async.async $ runM . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
   void $ retryEveryMillisecondWhileN 2000 (== 0) (length <$> readIORef (fakeLookupCalls fakeDNSEnv))
+  -- We don't want to stop the loop before it has written to the sftServers IORef
+  void $ retryEveryMillisecondWhileN 2000 (== Just newEntries) (readIORef (sftServers sftEnv))
   Async.cancel discoveryLoop
+
   actualServers <- readIORef (sftServers sftEnv)
   assertEqual "servers should get overwritten" (Just newEntries) actualServers
 
