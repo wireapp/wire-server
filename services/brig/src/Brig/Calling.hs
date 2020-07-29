@@ -19,7 +19,7 @@
 
 module Brig.Calling where
 
-import Brig.Options (SFTOptions (..))
+import Brig.Options (SFTOptions (..), defSftDiscoveryIntervalSeconds, defSftServiceName)
 import qualified Brig.Options as Opts
 import Brig.PolyLog
 import Brig.Types (TurnURI)
@@ -56,7 +56,7 @@ discoverSFTServers domain =
       pure Nothing
 
 mkSFTDomain :: SFTOptions -> DNS.Domain
-mkSFTDomain SFTOptions {..} = DNS.normalize $ maybe "_sft" ("_" <>) sftSRVServiceName <> "._tcp." <> sftBaseDomain
+mkSFTDomain SFTOptions {..} = DNS.normalize $ maybe defSftServiceName ("_" <>) sftSRVServiceName <> "._tcp." <> sftBaseDomain
 
 -- FUTUREWORK: Remove Embed IO from here and put threadDelay into another
 -- effect. This will also make tests for this faster and deterministic
@@ -73,11 +73,7 @@ mkSFTEnv opts =
   SFTEnv
     <$> newIORef Nothing
     <*> pure (mkSFTDomain opts)
-    <*> pure (maybe defaultDiscoveryInterval diffTimeToMicroseconds (Opts.sftDiscoveryIntervalSeconds opts))
-
--- | 10 seconds
-defaultDiscoveryInterval :: Int
-defaultDiscoveryInterval = 10000000
+    <*> pure (diffTimeToMicroseconds (maybe defSftDiscoveryIntervalSeconds (Opts.sftDiscoveryIntervalSeconds opts)))
 
 startSFTServiceDiscovery :: Log.Logger -> SFTEnv -> IO ()
 startSFTServiceDiscovery logger =

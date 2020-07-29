@@ -526,8 +526,8 @@ newtype DomainsBlockedForRegistration = DomainsBlockedForRegistration [Domain]
 
 data SFTOptions = SFTOptions
   { sftBaseDomain :: !DNS.Domain,
-    sftSRVServiceName :: !(Maybe ByteString),
-    sftDiscoveryIntervalSeconds :: !(Maybe DiffTime)
+    sftSRVServiceName :: !(Maybe ByteString), -- defaults to defSftServiceName if unset
+    sftDiscoveryIntervalSeconds :: !(Maybe DiffTime) -- defaults to defSftDiscoveryIntervalSeconds
   }
   deriving (Show, Generic)
 
@@ -558,6 +558,12 @@ defSqsThrottleMillis = 500
 
 defUserMaxPermClients :: Int
 defUserMaxPermClients = 7
+
+defSftServiceName :: ByteString
+defSftServiceName = "_sft"
+
+defSftDiscoveryIntervalSeconds :: DiffTime
+defSftDiscoveryIntervalSeconds = secondsToDiffTime 10
 
 instance FromJSON Timeout where
   parseJSON (Y.Number n) =
