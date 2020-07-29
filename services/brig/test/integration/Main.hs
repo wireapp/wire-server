@@ -20,12 +20,12 @@ module Main
   )
 where
 
+import qualified API.Calling as Calling
 import qualified API.IdMapping as IdMapping
 import qualified API.Metrics as Metrics
 import qualified API.Provider as Provider
 import qualified API.Search as Search
 import qualified API.Settings as Settings
-import qualified API.Calling as Calling
 import qualified API.Team as Team
 import qualified API.User as User
 import Bilge hiding (header)

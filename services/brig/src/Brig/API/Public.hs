@@ -32,10 +32,10 @@ import qualified Brig.API.Properties as API
 import Brig.API.Types
 import qualified Brig.API.User as API
 import Brig.App
+import qualified Brig.Calling.API as Calling
 import qualified Brig.Data.User as Data
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
-import qualified Brig.Calling.API as Calling
 import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
 import Brig.Types.Intra (AccountStatus (Ephemeral), UserAccount (UserAccount, accountUser))
