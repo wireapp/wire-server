@@ -37,6 +37,7 @@ RUN apk add --no-cache \
         libxml2-dev \
         git \
         ncurses \
+        ncurses-dev \
         sed
 
 # get static version of Haskell Stack and use system ghc by default
