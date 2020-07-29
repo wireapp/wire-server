@@ -1,4 +1,4 @@
-# Next Release
+# 2020-07-29
 
 ## Release Notes
 
@@ -11,6 +11,24 @@
 ## Bug Fixes
 
 * Fix member count of suspended teams in journal events (#1171)
+* Disallow team creation when setRestrictUserCreation is true (#1174)
+
+## New Features
+
+* Pending invitations by email lookup (#1168)
+* Support s3 v4 signatures (and use package amazonka instead of aws in cargohold) (#1157)
+* Federation: Implement ID mapping (brig) (#1162)
+
+## Internal changes
+
+* SCIM cleanup; drop table `spar.scim_user` (#1169, #1172)
+* ormolu script: use ++FAILURES as it will not evaluate to 0 (#1178)
+* Refactor: Simplify SRV lookup logic in federation-util (#1175)
+* handy cqlsh make target to manually poke at the database (#1170)
+* hscim: add license headers (#1165)
+* Upgrade stack to 2.3.1 (#1166)
+* gundeck: drop deprecated tables (#1163)
+
 
 # 2020-07-13
 
