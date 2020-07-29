@@ -12,8 +12,6 @@ ghc-options:
 - -funbox-strict-fields
 library:
   source-dirs: src
-  ghc-options:
-  - -fplugin=Polysemy.Plugin
   dependencies:
   - aeson >=0.11
   - amazonka >=1.3.7
@@ -85,7 +83,6 @@ library:
   - optparse-applicative >=0.11
   - pem >=0.2
   - polysemy
-  - polysemy-plugin
   - proto-lens >=0.1
   - prometheus-client
   - resourcet >=1.1
@@ -163,7 +160,6 @@ tests:
     ghc-options:
     - -threaded
     - -with-rtsopts=-N
-    - -fplugin=Polysemy.Plugin
     dependencies:
     - aeson
     - base
@@ -173,7 +169,6 @@ tests:
     - dns
     - dns-util
     - polysemy
-    - polysemy-plugin
     - imports
     - retry
     - tasty

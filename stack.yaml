@@ -173,7 +173,6 @@ extra-deps:
 
 # Newer than the one one stackage
 - polysemy-1.3.0.0
-- polysemy-plugin-0.2.5.0
 
 ############################################################
 # Development tools

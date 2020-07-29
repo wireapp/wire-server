@@ -4,7 +4,7 @@ cabal-version: 2.0
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7791287309106815961c909f52ba63652c036239415e412ce1edc5c025614994
+-- hash: 8e2e09c1b88f68da089efdd2db9f705a1fcad7e4365bf4ca44bdc488b7186edb
 
 name:           brig
 version:        1.35.0
@@ -103,7 +103,7 @@ library
   hs-source-dirs:
       src
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -fplugin=Polysemy.Plugin
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
   build-depends:
       HaskellNet >=0.3
     , HaskellNet-SSL >=0.3
@@ -175,7 +175,6 @@ library
     , optparse-applicative >=0.11
     , pem >=0.2
     , polysemy
-    , polysemy-plugin
     , prometheus-client
     , proto-lens >=0.1
     , random-shuffle >=0.0.3
@@ -472,7 +471,7 @@ test-suite brig-tests
   hs-source-dirs:
       test/unit
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -fplugin=Polysemy.Plugin
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N
   build-depends:
       aeson
     , base
@@ -483,7 +482,6 @@ test-suite brig-tests
     , dns-util
     , imports
     , polysemy
-    , polysemy-plugin
     , retry
     , tasty
     , tasty-hunit
