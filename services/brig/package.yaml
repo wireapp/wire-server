@@ -175,7 +175,9 @@ tests:
     - tasty-hunit
     - types-common
     - unliftio
+    - uri-bytestring
     - uuid
+    - wire-api
 executables:
   brig-schema:
     main: Main.hs

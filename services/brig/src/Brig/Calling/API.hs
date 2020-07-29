@@ -24,17 +24,17 @@ import Brig.API.Handler
 import Brig.App
 import Brig.Calling
 import qualified Brig.Calling as Calling
+import Brig.Calling.Internal
 import Control.Lens
 import Control.Monad.Fail (MonadFail)
 import Control.Monad.Random.Class
-import qualified Data.ByteString.Char8 as BS
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Lens
 import Data.Id
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.List1 as List1
-import Data.Misc ((<$$>), mkHttpsUrl)
+import Data.Misc ((<$$>))
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii (AsciiBase64, encodeBase64)
@@ -49,10 +49,8 @@ import Network.Wai.Utilities.Swagger (document)
 import OpenSSL.EVP.Digest (Digest, hmacBS)
 import qualified System.Random.MWC as MWC
 import System.Random.Shuffle
-import qualified URI.ByteString as URI
-import qualified URI.ByteString.QQ as URI
 import qualified Wire.API.Call.Config as Public
-import Wire.Network.DNS.SRV (SrvTarget (..), srvTarget)
+import Wire.Network.DNS.SRV (srvTarget)
 
 routesPublic :: Routes Doc.ApiBuilder Handler ()
 routesPublic = do
@@ -151,18 +149,3 @@ newConfig env mSftEnv limit = do
       pure $ Public.turnUsername t rnd
     computeCred :: Digest -> ByteString -> Public.TurnUsername -> AsciiBase64
     computeCred dig secret = encodeBase64 . hmacBS dig secret . toByteString'
-
--- TODO: Write unit test
-sftServerFromSrvTarget :: SrvTarget -> Public.SFTServer
-sftServerFromSrvTarget (SrvTarget host port) =
-  let uriPort = URI.Port (fromIntegral port)
-      uri =
-        [URI.uri|https://|]
-          & URI.authorityL ?~ URI.Authority Nothing (URI.Host (dropTrailingDot host)) (Just uriPort)
-   in either (error "sftServerFromSrvTarget: invalid https URI") Public.sftServer (mkHttpsUrl uri)
-  where
-    dropTrailingDot :: ByteString -> ByteString
-    dropTrailingDot bs =
-      if BS.last bs == '.'
-        then BS.init bs
-        else bs

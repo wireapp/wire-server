@@ -4,7 +4,7 @@ cabal-version: 2.0
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8e2e09c1b88f68da089efdd2db9f705a1fcad7e4365bf4ca44bdc488b7186edb
+-- hash: 96200db468bfe0719ac1316ddc3667540214310c093f5a1fa30776c32d6dba11
 
 name:           brig
 version:        1.35.0
@@ -38,6 +38,7 @@ library
       Brig.Budget
       Brig.Calling
       Brig.Calling.API
+      Brig.Calling.Internal
       Brig.Code
       Brig.Data.Activation
       Brig.Data.Blacklist
@@ -466,6 +467,7 @@ test-suite brig-tests
   main-is: Main.hs
   other-modules:
       Test.Brig.Calling
+      Test.Brig.Calling.Internal
       Test.Brig.User.Search.Index.Types
       Paths_brig
   hs-source-dirs:
@@ -487,5 +489,7 @@ test-suite brig-tests
     , tasty-hunit
     , types-common
     , unliftio
+    , uri-bytestring
     , uuid
+    , wire-api
   default-language: Haskell2010

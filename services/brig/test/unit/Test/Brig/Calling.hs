@@ -49,8 +49,7 @@ runFakeDNSLookup FakeDNSEnv {..} = interpret $ \case
 
 tests :: TestTree
 tests =
-  testGroup
-    "Calling"
+  testGroup "Calling" $
     [ testGroup "mkSFTDomain" $
         [ testCase "when service name is provided" $
             assertEqual
