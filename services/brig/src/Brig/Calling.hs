@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -18,10 +20,12 @@
 module Brig.Calling where
 
 import Brig.Options (SFTOptions (..))
+import qualified Brig.Options as Opts
 import Brig.Types (TurnURI)
 import Control.Lens
 import Data.List.NonEmpty
 import Data.List1
+import Data.Time.Clock (DiffTime, diffTimeToPicoseconds)
 import Imports
 import qualified Network.DNS as DNS
 import OpenSSL.EVP.Digest (Digest)
@@ -32,7 +36,9 @@ import Wire.Network.DNS.SRV
 
 data SFTEnv = SFTEnv
   { sftServers :: IORef (Maybe (NonEmpty SrvEntry)),
-    sftDomain :: DNS.Domain
+    sftDomain :: DNS.Domain,
+    -- | Microseconds, as expected by 'threadDelay'
+    sftDiscoveryInterval :: Int
   }
 
 -- TODO: Log stuff here (and test it?)
@@ -44,28 +50,37 @@ discoverSFTServers domain =
     SrvResponseError _ -> pure Nothing
 
 mkSFTDomain :: SFTOptions -> DNS.Domain
-mkSFTDomain (SFTOptions base maybeSrv) = DNS.normalize $ maybe "_sft" ("_" <>) maybeSrv <> "._tcp." <> base
+mkSFTDomain SFTOptions {..} = DNS.normalize $ maybe "_sft" ("_" <>) sftSRVServiceName <> "._tcp." <> sftBaseDomain
 
 -- TODO: How can I remove the Embed IO? Even if I cannot, this is better than
 -- just IO () as I can still mock DNSLookup
 sftDiscoveryLoop :: Members [DNSLookup, Embed IO] r => SFTEnv -> Sem r ()
-sftDiscoveryLoop (SFTEnv serversRef domain) = forever $ do
-  servers <- discoverSFTServers domain
+sftDiscoveryLoop SFTEnv {..} = forever $ do
+  servers <- discoverSFTServers sftDomain
   case servers of
     Nothing -> pure ()
-    es -> atomicWriteIORef serversRef es
-  -- TODO: What should this number be? Use Control.Retry?
-  threadDelay 1000000
+    es -> atomicWriteIORef sftServers es
+  threadDelay sftDiscoveryInterval
 
 mkSFTEnv :: SFTOptions -> IO SFTEnv
 mkSFTEnv opts =
   SFTEnv
     <$> newIORef Nothing
     <*> pure (mkSFTDomain opts)
+    <*> pure (maybe defaultDiscoveryInterval diffTimeToMicroseconds (Opts.sftDiscoveryIntervalSeconds opts))
+
+-- | 10 seconds
+defaultDiscoveryInterval :: Int
+defaultDiscoveryInterval = 10000000
 
 startSFTServiceDiscovery :: SFTEnv -> IO ()
 startSFTServiceDiscovery =
   runM . runDNSLookupDefault . sftDiscoveryLoop
+
+-- | >>> diffTimeToMicroseconds 1
+-- 1000000
+diffTimeToMicroseconds :: DiffTime -> Int
+diffTimeToMicroseconds = fromIntegral . (`quot` 1000000) . diffTimeToPicoseconds
 
 -- TURN specific
 

@@ -33,10 +33,11 @@ import Data.Aeson.Types (typeMismatch)
 import qualified Data.Char as Char
 import Data.Domain (Domain)
 import Data.Id
+import Data.Misc ((<$$>))
 import Data.Scientific (toBoundedInteger)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import Data.Time.Clock (NominalDiffTime)
+import Data.Time.Clock (DiffTime, NominalDiffTime, secondsToDiffTime)
 import Data.Yaml ((.:), (.:?), FromJSON (..), ToJSON (..))
 import qualified Data.Yaml as Y
 import Imports
@@ -525,7 +526,8 @@ newtype DomainsBlockedForRegistration = DomainsBlockedForRegistration [Domain]
 
 data SFTOptions = SFTOptions
   { sftBaseDomain :: !DNS.Domain,
-    sftSRVServiceName :: !(Maybe ByteString)
+    sftSRVServiceName :: !(Maybe ByteString),
+    sftDiscoveryIntervalSeconds :: !(Maybe DiffTime)
   }
   deriving (Show, Generic)
 
@@ -534,6 +536,7 @@ instance FromJSON SFTOptions where
     SFTOptions
       <$> (asciiOnly =<< o .: "sftBaseDomain")
       <*> (mapM asciiOnly =<< o .:? "sftSRVServiceName")
+      <*> (secondsToDiffTime <$$> o .:? "sftDiscoveryIntervalSeconds")
     where
       asciiOnly :: Text -> Y.Parser ByteString
       asciiOnly t =

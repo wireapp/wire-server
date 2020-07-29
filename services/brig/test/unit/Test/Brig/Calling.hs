@@ -55,12 +55,12 @@ tests =
             assertEqual
               "should use the service name to form domain"
               "_foo._tcp.example.com."
-              (mkSFTDomain (SFTOptions "example.com" (Just "foo"))),
+              (mkSFTDomain (SFTOptions "example.com" (Just "foo") Nothing)),
           testCase "when service name is not provided" $
             assertEqual
               "should assume service name to be 'sft'"
               "_sft._tcp.example.com."
-              (mkSFTDomain (SFTOptions "example.com" Nothing))
+              (mkSFTDomain (SFTOptions "example.com" Nothing Nothing))
         ],
       testGroup "sftDiscoveryLoop" $
         [ testCase "when service can be discovered" $ void testDiscoveryWhenSuccessful,
@@ -77,12 +77,12 @@ testDiscoveryWhenSuccessful = do
       entry3 = SrvEntry 0 0 (SrvTarget "sft3.foo.example.com." 443)
       returnedEntries = (entry1 :| [entry2, entry3])
   fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvAvailable returnedEntries)
-  sftEnv <- mkSFTEnv (SFTOptions "foo.example.com" Nothing)
+  sftEnv <- mkSFTEnv (SFTOptions "foo.example.com" Nothing (Just 0.001))
 
   discoveryLoop <- Async.async $ runM . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
-  void $ retryEveryMillisecondWhileN 2000 (== 0) (length <$> readIORef (fakeLookupCalls fakeDNSEnv))
+  void $ retryEvery10MicrosWhileN 2000 (== 0) (length <$> readIORef (fakeLookupCalls fakeDNSEnv))
   -- We don't want to stop the loop before it has written to the sftServers IORef
-  void $ retryEveryMillisecondWhileN 2000 (isNothing) (readIORef (sftServers sftEnv))
+  void $ retryEvery10MicrosWhileN 2000 (isNothing) (readIORef (sftServers sftEnv))
   Async.cancel discoveryLoop
 
   actualServers <- readIORef (sftServers sftEnv)
@@ -92,12 +92,12 @@ testDiscoveryWhenSuccessful = do
 testDiscoveryWhenUnsuccessful :: IO ()
 testDiscoveryWhenUnsuccessful = do
   fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvNotAvailable)
-  sftEnv <- mkSFTEnv (SFTOptions "foo.example.com" Nothing)
+  sftEnv <- mkSFTEnv (SFTOptions "foo.example.com" Nothing (Just 0.001))
 
   discoveryLoop <- Async.async $ runM . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
   -- We wait for at least two lookups to be sure that the lookup loop looped at
   -- least once
-  void $ retryEveryMillisecondWhileN 2000 (<= 1) (length <$> readIORef (fakeLookupCalls fakeDNSEnv))
+  void $ retryEvery10MicrosWhileN 2000 (<= 1) (length <$> readIORef (fakeLookupCalls fakeDNSEnv))
   Async.cancel discoveryLoop
 
   actualServers <- readIORef (sftServers sftEnv)
@@ -114,7 +114,7 @@ testDiscoveryWhenUnsuccessfulAfterSuccess = do
   discoveryLoop <- Async.async $ runM . runFakeDNSLookup failingFakeDNSEnv $ sftDiscoveryLoop sftEnv
   -- We wait for at least two lookups to be sure that the lookup loop looped at
   -- least once
-  void $ retryEveryMillisecondWhileN 2000 (<= 1) (length <$> readIORef (fakeLookupCalls failingFakeDNSEnv))
+  void $ retryEvery10MicrosWhileN 2000 (<= 1) (length <$> readIORef (fakeLookupCalls failingFakeDNSEnv))
   Async.cancel discoveryLoop
 
   actualServers <- readIORef (sftServers sftEnv)
@@ -132,17 +132,17 @@ testDiscoveryWhenURLsChange = do
 
   fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvAvailable newEntries)
   discoveryLoop <- Async.async $ runM . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
-  void $ retryEveryMillisecondWhileN 2000 (== 0) (length <$> readIORef (fakeLookupCalls fakeDNSEnv))
+  void $ retryEvery10MicrosWhileN 2000 (== 0) (length <$> readIORef (fakeLookupCalls fakeDNSEnv))
   -- We don't want to stop the loop before it has written to the sftServers IORef
-  void $ retryEveryMillisecondWhileN 2000 (== Just newEntries) (readIORef (sftServers sftEnv))
+  void $ retryEvery10MicrosWhileN 2000 (== Just newEntries) (readIORef (sftServers sftEnv))
   Async.cancel discoveryLoop
 
   actualServers <- readIORef (sftServers sftEnv)
   assertEqual "servers should get overwritten" (Just newEntries) actualServers
 
-retryEveryMillisecondWhileN :: (MonadIO m) => Int -> (a -> Bool) -> m a -> m a
-retryEveryMillisecondWhileN n f m =
+retryEvery10MicrosWhileN :: (MonadIO m) => Int -> (a -> Bool) -> m a -> m a
+retryEvery10MicrosWhileN n f m =
   retrying
-    (constantDelay 1000 <> limitRetries n)
+    (constantDelay 10 <> limitRetries n)
     (const (return . f))
     (const m)
