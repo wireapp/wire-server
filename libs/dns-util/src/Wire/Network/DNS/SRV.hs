@@ -15,11 +15,53 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
+-- Parts of this code, namely functions interpretResponse and orderSrvResult,
+-- which were taken from http://hackage.haskell.org/package/pontarius-xmpp
+-- are also licensed under the three-clause BSD license:
+--
+-- Copyright © 2005-2011 Dmitry Astapov
+-- Copyright © 2005-2011 Pierre Kovalev
+-- Copyright © 2010-2011 Mahdi Abdinejadi
+-- Copyright © 2010-2013 Jon Kristensen
+-- Copyright © 2011      IETF Trust
+-- Copyright © 2012-2013 Philipp Balzarek
+--
+-- All rights reserved.
+--
+-- Pontarius XMPP is licensed under the three-clause BSD license.
+--
+-- Redistribution and use in source and binary forms, with or without
+-- modification, are permitted provided that the following conditions are met:
+--
+-- - Redistributions of source code must retain the above copyright notice, this
+--   list of conditions and the following disclaimer.
+--
+-- - Redistributions in binary form must reproduce the above copyright notice,
+--   this list of conditions and the following disclaimer in the documentation
+--   and/or other materials provided with the distribution.
+--
+-- - Neither the name of the Pontarius project nor the names of its contributors
+--   may be used to endorse or promote products derived from this software without
+--   specific prior written permission.
+--
+-- THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+-- ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+-- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+-- DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR THE PONTARIUS PROJECT BE
+-- LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+-- CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+-- GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+-- HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+-- LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
+-- OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 module Wire.Network.DNS.SRV where
 
-import Data.List.NonEmpty
+import Control.Category ((>>>))
+import Data.List.NonEmpty (NonEmpty (..))
 import Imports
 import Network.DNS (DNSError, Domain)
+import System.Random (randomRIO)
 
 data SrvEntry = SrvEntry
   { srvPriority :: !Word16,
@@ -63,7 +105,7 @@ toSrvEntry (prio, weight, port, domain) = SrvEntry prio weight (SrvTarget domain
 orderSrvResult :: [SrvEntry] -> IO [SrvEntry]
 orderSrvResult =
   -- Order the result set by priority.
-  sortBy (comparing srvPriority)
+  sortOn srvPriority
     -- Group elements in sublists based on their priority.
     -- The result type is `[[(Word16, Word16, Word16, Domain)]]' (nested list).
     >>> groupBy ((==) `on` srvPriority)
@@ -90,7 +132,7 @@ orderSrvResult =
               (b, (c : e)) -> (b, c, e)
               _ -> error "orderSrvResult: no record with running sum greater than random number"
       -- Remove the running total number from the remaining elements.
-      let remainingSrvs = map (\(srv, _) -> srv) (concat [beginning, end])
+      let remainingSrvs = map fst (concat [beginning, end])
       -- Repeat the ordering procedure on the remaining elements.
       rest <- orderSublist remainingSrvs
       return $ firstSrv : rest
