@@ -142,7 +142,7 @@ newtype SFTServer = SFTServer
   { _sftURL :: HttpsUrl
   }
   deriving stock (Eq, Show, Ord, Generic)
-  deriving (Arbitrary) via (GenericUniform SFTServer) --TODO is this correct?
+  deriving (Arbitrary) via (GenericUniform SFTServer)
 
 instance ToJSON SFTServer where
   toJSON (SFTServer url) =
