@@ -125,13 +125,15 @@ newConfig env mSftEnv limit = do
     pure $ Public.rtcIceServer (uri :| []) u (computeCred sha secret u)
   sftSrvEntries <- maybe (pure Nothing) (readIORef . sftServers) mSftEnv
   -- According to RFC2782, the SRV Entries are supposed to be tried in order of
-  -- priority and weight, but the clients try all of them concurrently, so there
-  -- is no point ordering these entries
-  pure $ Public.rtcConfiguration srvs (sftServerFromSrvTarget . srvTarget <$$> sftSrvEntries) cTTL
+  -- priority and weight, but we internally agreed to randomize the list of
+  -- available servers for poor man's "load balancing" purposes.
+  -- FUTUREWORK: be smarter about list orderding depending on how much capacity SFT servers have.
+  randomizedSftEntries <- liftIO $ randomize <$> sftSrvEntries
+  pure $ Public.rtcConfiguration srvs (sftServerFromSrvTarget . srvTarget <$$> randomizedSftSrvEntries) cTTL
   where
     -- NOTE: even though `shuffleM` works only for [a], input is List1 so it's
     --       safe to pattern match; ideally, we'd have `shuffleM` for `NonEmpty`
-    randomize :: (MonadRandom m, MonadFail m) => NonEmpty Public.TurnURI -> m (NonEmpty Public.TurnURI)
+    randomize :: (MonadRandom m, MonadFail m) => NonEmpty a -> m (NonEmpty a)
     randomize xs = NonEmpty.fromList <$> shuffleM (NonEmpty.toList xs)
     --
     limitedList :: NonEmpty Public.TurnURI -> Range 1 10 Int -> NonEmpty Public.TurnURI
