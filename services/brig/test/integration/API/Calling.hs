@@ -95,6 +95,7 @@ testSFT b opts = do
       (cfg ^. rtcConfSftServers)
   withSettingsOverrides (opts & Opts.sftL ?~ Opts.SFTOptions "integration-tests.zinfra.io" Nothing (Just 0.001)) $ do
     cfg1 <- retryWhileN 10 (isNothing . view rtcConfSftServers) (getTurnConfigurationV2 uid b)
+    -- These values are controlled by https://github.com/zinfra/cailleach/tree/77ca2d23cf2959aa183dd945d0a0b13537a8950d/environments/dns-integration-tests
     let Right server1 = mkHttpsUrl [uri|https://sft01.integration-tests.zinfra.io:443|]
     let Right server2 = mkHttpsUrl [uri|https://sft02.integration-tests.zinfra.io:8443|]
     liftIO $
