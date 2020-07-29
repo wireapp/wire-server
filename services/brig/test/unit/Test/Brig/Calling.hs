@@ -21,11 +21,13 @@ module Test.Brig.Calling where
 
 import Brig.Calling
 import Brig.Options
+import Brig.PolyLog
 import Control.Retry
 import Data.List.NonEmpty (NonEmpty (..))
 import Imports
 import Network.DNS
 import Polysemy
+import qualified System.Logger as Log
 import Test.Tasty
 import Test.Tasty.HUnit
 import qualified UnliftIO.Async as Async
@@ -47,6 +49,18 @@ runFakeDNSLookup FakeDNSEnv {..} = interpret $ \case
     modifyIORef' fakeLookupCalls (++ [domain])
     pure $ fakeLookupFn domain
 
+newtype LogRecorder = LogRecorder {recordedLogs :: IORef [(Log.Level, LByteString)]}
+
+newLogRecorder :: IO LogRecorder
+newLogRecorder = LogRecorder <$> newIORef []
+
+recordLogs :: Member (Embed IO) r => LogRecorder -> Sem (PolyLog ': r) a -> Sem r a
+recordLogs LogRecorder {..} = interpret $ \(PolyLog lvl msg) ->
+  modifyIORef' recordedLogs (++ [(lvl, Log.render (Log.renderDefault ", ") msg)])
+
+ignoreLogs :: Sem (PolyLog ': r) a -> Sem r a
+ignoreLogs = interpret $ \(PolyLog _ _) -> pure ()
+
 tests :: TestTree
 tests =
   testGroup "Calling" $
@@ -63,15 +77,20 @@ tests =
               (mkSFTDomain (SFTOptions "example.com" Nothing Nothing))
         ],
       testGroup "sftDiscoveryLoop" $
-        [ testCase "when service can be discovered" $ void testDiscoveryWhenSuccessful,
-          testCase "when service can be discovered and the URLs change" testDiscoveryWhenURLsChange,
-          testCase "when service cannot be discovered" testDiscoveryWhenUnsuccessful,
-          testCase "when service cannot be discovered after a successful discovery" testDiscoveryWhenUnsuccessfulAfterSuccess
+        [ testCase "when service can be discovered" $ void testDiscoveryLoopWhenSuccessful,
+          testCase "when service can be discovered and the URLs change" testDiscoveryLoopWhenURLsChange,
+          testCase "when service cannot be discovered" testDiscoveryLoopWhenUnsuccessful,
+          testCase "when service cannot be discovered after a successful discovery" testDiscoveryLoopWhenUnsuccessfulAfterSuccess
+        ],
+      testGroup "discoverSFTServers" $
+        [ testCase "when service is available" testSFTDiscoverWhenAvailable,
+          testCase "when service is not available" testSFTDiscoverWhenNotAvailable,
+          testCase "when dns lookup fails" testSFTDiscoverWhenDNSFails
         ]
     ]
 
-testDiscoveryWhenSuccessful :: IO SFTEnv
-testDiscoveryWhenSuccessful = do
+testDiscoveryLoopWhenSuccessful :: IO SFTEnv
+testDiscoveryLoopWhenSuccessful = do
   let entry1 = SrvEntry 0 0 (SrvTarget "sft1.foo.example.com." 443)
       entry2 = SrvEntry 0 0 (SrvTarget "sft2.foo.example.com." 443)
       entry3 = SrvEntry 0 0 (SrvTarget "sft3.foo.example.com." 443)
@@ -79,7 +98,7 @@ testDiscoveryWhenSuccessful = do
   fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvAvailable returnedEntries)
   sftEnv <- mkSFTEnv (SFTOptions "foo.example.com" Nothing (Just 0.001))
 
-  discoveryLoop <- Async.async $ runM . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
+  discoveryLoop <- Async.async $ runM . ignoreLogs . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
   void $ retryEvery10MicrosWhileN 2000 (== 0) (length <$> readIORef (fakeLookupCalls fakeDNSEnv))
   -- We don't want to stop the loop before it has written to the sftServers IORef
   void $ retryEvery10MicrosWhileN 2000 (isNothing) (readIORef (sftServers sftEnv))
@@ -89,12 +108,12 @@ testDiscoveryWhenSuccessful = do
   assertEqual "servers should be the ones read from DNS" (Just returnedEntries) actualServers
   pure sftEnv
 
-testDiscoveryWhenUnsuccessful :: IO ()
-testDiscoveryWhenUnsuccessful = do
+testDiscoveryLoopWhenUnsuccessful :: IO ()
+testDiscoveryLoopWhenUnsuccessful = do
   fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvNotAvailable)
   sftEnv <- mkSFTEnv (SFTOptions "foo.example.com" Nothing (Just 0.001))
 
-  discoveryLoop <- Async.async $ runM . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
+  discoveryLoop <- Async.async $ runM . ignoreLogs . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
   -- We wait for at least two lookups to be sure that the lookup loop looped at
   -- least once
   void $ retryEvery10MicrosWhileN 2000 (<= 1) (length <$> readIORef (fakeLookupCalls fakeDNSEnv))
@@ -103,15 +122,15 @@ testDiscoveryWhenUnsuccessful = do
   actualServers <- readIORef (sftServers sftEnv)
   assertEqual "servers should be the ones read from DNS" Nothing actualServers
 
-testDiscoveryWhenUnsuccessfulAfterSuccess :: IO ()
-testDiscoveryWhenUnsuccessfulAfterSuccess = do
-  sftEnv <- testDiscoveryWhenSuccessful
+testDiscoveryLoopWhenUnsuccessfulAfterSuccess :: IO ()
+testDiscoveryLoopWhenUnsuccessfulAfterSuccess = do
+  sftEnv <- testDiscoveryLoopWhenSuccessful
   previousEntries <- readIORef (sftServers sftEnv)
 
   -- In the following lines we re-use the 'sftEnv' from a successful lookup to
   -- replicate what will happen when a dns lookup fails after success
   failingFakeDNSEnv <- newFakeDNSEnv (\_ -> SrvNotAvailable)
-  discoveryLoop <- Async.async $ runM . runFakeDNSLookup failingFakeDNSEnv $ sftDiscoveryLoop sftEnv
+  discoveryLoop <- Async.async $ runM . ignoreLogs . runFakeDNSLookup failingFakeDNSEnv $ sftDiscoveryLoop sftEnv
   -- We wait for at least two lookups to be sure that the lookup loop looped at
   -- least once
   void $ retryEvery10MicrosWhileN 2000 (<= 1) (length <$> readIORef (fakeLookupCalls failingFakeDNSEnv))
@@ -120,9 +139,9 @@ testDiscoveryWhenUnsuccessfulAfterSuccess = do
   actualServers <- readIORef (sftServers sftEnv)
   assertEqual "servers shouldn't get overwriten" previousEntries actualServers
 
-testDiscoveryWhenURLsChange :: IO ()
-testDiscoveryWhenURLsChange = do
-  sftEnv <- testDiscoveryWhenSuccessful
+testDiscoveryLoopWhenURLsChange :: IO ()
+testDiscoveryLoopWhenURLsChange = do
+  sftEnv <- testDiscoveryLoopWhenSuccessful
 
   -- In the following lines we re-use the 'sftEnv' from a successful lookup to
   -- replicate what will happen when a dns lookup returns new URLs
@@ -131,7 +150,7 @@ testDiscoveryWhenURLsChange = do
       newEntries = (entry1 :| [entry2])
 
   fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvAvailable newEntries)
-  discoveryLoop <- Async.async $ runM . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
+  discoveryLoop <- Async.async $ runM . ignoreLogs . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
   void $ retryEvery10MicrosWhileN 2000 (== 0) (length <$> readIORef (fakeLookupCalls fakeDNSEnv))
   -- We don't want to stop the loop before it has written to the sftServers IORef
   void $ retryEvery10MicrosWhileN 2000 (== Just newEntries) (readIORef (sftServers sftEnv))
@@ -139,6 +158,45 @@ testDiscoveryWhenURLsChange = do
 
   actualServers <- readIORef (sftServers sftEnv)
   assertEqual "servers should get overwritten" (Just newEntries) actualServers
+
+testSFTDiscoverWhenAvailable :: IO ()
+testSFTDiscoverWhenAvailable = do
+  logRecorder <- newLogRecorder
+  let entry1 = SrvEntry 0 0 (SrvTarget "sft7.foo.example.com." 443)
+      entry2 = SrvEntry 0 0 (SrvTarget "sft8.foo.example.com." 8843)
+      returnedEntries = (entry1 :| [entry2])
+  fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvAvailable returnedEntries)
+
+  assertEqual "discovered servers should be returned" (Just returnedEntries)
+    =<< ( runM . recordLogs logRecorder . runFakeDNSLookup fakeDNSEnv $
+            discoverSFTServers "_sft._tcp.foo.example.com"
+        )
+  assertEqual "nothing should be logged" []
+    =<< readIORef (recordedLogs logRecorder)
+
+testSFTDiscoverWhenNotAvailable :: IO ()
+testSFTDiscoverWhenNotAvailable = do
+  logRecorder <- newLogRecorder
+  fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvNotAvailable)
+
+  assertEqual "discovered servers should be returned" Nothing
+    =<< ( runM . recordLogs logRecorder . runFakeDNSLookup fakeDNSEnv $
+            discoverSFTServers "_sft._tcp.foo.example.com"
+        )
+  assertEqual "should warn about it in the logs" [(Log.Warn, "No SFT servers available\n")]
+    =<< readIORef (recordedLogs logRecorder)
+
+testSFTDiscoverWhenDNSFails :: IO ()
+testSFTDiscoverWhenDNSFails = do
+  logRecorder <- newLogRecorder
+  fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvResponseError IllegalDomain)
+
+  assertEqual "discovered servers should be returned" Nothing
+    =<< ( runM . recordLogs logRecorder . runFakeDNSLookup fakeDNSEnv $
+            discoverSFTServers "_sft._tcp.foo.example.com"
+        )
+  assertEqual "should warn about it in the logs" [(Log.Error, "DNS Lookup failed for SFT Discovery, Error=IllegalDomain\n")]
+    =<< readIORef (recordedLogs logRecorder)
 
 retryEvery10MicrosWhileN :: (MonadIO m) => Int -> (a -> Bool) -> m a -> m a
 retryEvery10MicrosWhileN n f m =

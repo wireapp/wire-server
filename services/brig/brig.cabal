@@ -4,7 +4,7 @@ cabal-version: 2.0
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 96200db468bfe0719ac1316ddc3667540214310c093f5a1fa30776c32d6dba11
+-- hash: 49345fd7c41cab0441ba95bd4fdd01b1f64b6053e348ec991695254be96ed5d4
 
 name:           brig
 version:        1.35.0
@@ -62,6 +62,7 @@ library
       Brig.Options
       Brig.Password
       Brig.Phone
+      Brig.PolyLog
       Brig.Provider.API
       Brig.Provider.DB
       Brig.Provider.Email
@@ -487,6 +488,7 @@ test-suite brig-tests
     , retry
     , tasty
     , tasty-hunit
+    , tinylog
     , types-common
     , unliftio
     , uri-bytestring

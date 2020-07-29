@@ -25,7 +25,7 @@ import Bilge
 import Bilge.Assert
 import qualified Brig.AWS as AWS
 import Brig.AWS.Types
-import Brig.App (sftEnv)
+import Brig.App (applog, sftEnv)
 import Brig.Calling as Calling
 import qualified Brig.Options as Opts
 import qualified Brig.Run as Run
@@ -714,7 +714,7 @@ withSettingsOverrides opts action = liftIO $ do
   (brigApp, env) <- Run.mkApp opts
   asyncDiscovery <- case env ^. sftEnv of
     Nothing -> Async.async (pure ()) --TODO: This looks fishy
-    Just e -> Async.async $ Calling.startSFTServiceDiscovery e
+    Just e -> Async.async $ Calling.startSFTServiceDiscovery (env ^. applog) e
   res <- WaiTest.runSession action brigApp
   Async.cancel asyncDiscovery
   pure res

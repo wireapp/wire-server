@@ -173,6 +173,7 @@ tests:
     - retry
     - tasty
     - tasty-hunit
+    - tinylog
     - types-common
     - unliftio
     - uri-bytestring
