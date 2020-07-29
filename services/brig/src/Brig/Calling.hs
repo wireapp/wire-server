@@ -52,8 +52,8 @@ discoverSFTServers domain =
 mkSFTDomain :: SFTOptions -> DNS.Domain
 mkSFTDomain SFTOptions {..} = DNS.normalize $ maybe "_sft" ("_" <>) sftSRVServiceName <> "._tcp." <> sftBaseDomain
 
--- TODO: How can I remove the Embed IO? Even if I cannot, this is better than
--- just IO () as I can still mock DNSLookup
+-- FUTUREWORK: Remove Embed IO from here and put threadDelay into another
+-- effect. This will also make tests for this faster and deterministic
 sftDiscoveryLoop :: Members [DNSLookup, Embed IO] r => SFTEnv -> Sem r ()
 sftDiscoveryLoop SFTEnv {..} = forever $ do
   servers <- discoverSFTServers sftDomain
