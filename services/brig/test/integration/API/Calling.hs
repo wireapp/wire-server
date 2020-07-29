@@ -25,6 +25,7 @@ import qualified Brig.Options as Opts
 import Brig.Types
 import Control.Lens ((?~), (^.), view)
 import Control.Monad.Catch (MonadCatch, MonadThrow)
+import Data.Bifunctor (Bifunctor (first))
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LB
 import Data.Id
@@ -39,7 +40,7 @@ import Network.HTTP.Client (Manager)
 import System.FilePath ((</>))
 import Test.Tasty
 import Test.Tasty.HUnit
-import URI.ByteString.QQ (uri)
+import URI.ByteString (laxURIParserOptions, parseURI)
 import UnliftIO.Exception (finally)
 import qualified UnliftIO.Temporary as Temp
 import Util
@@ -96,8 +97,8 @@ testSFT b opts = do
   withSettingsOverrides (opts & Opts.sftL ?~ Opts.SFTOptions "integration-tests.zinfra.io" Nothing (Just 0.001)) $ do
     cfg1 <- retryWhileN 10 (isNothing . view rtcConfSftServers) (getTurnConfigurationV2 uid b)
     -- These values are controlled by https://github.com/zinfra/cailleach/tree/77ca2d23cf2959aa183dd945d0a0b13537a8950d/environments/dns-integration-tests
-    let Right server1 = mkHttpsUrl [uri|https://sft01.integration-tests.zinfra.io:443|]
-    let Right server2 = mkHttpsUrl [uri|https://sft02.integration-tests.zinfra.io:8443|]
+    let Right server1 = mkHttpsUrl =<< first show (parseURI laxURIParserOptions "https://sft01.integration-tests.zinfra.io:443")
+    let Right server2 = mkHttpsUrl =<< first show (parseURI laxURIParserOptions "https://sft02.integration-tests.zinfra.io:8443")
     liftIO $
       assertEqual
         "when SFT discovery is enabled, sft_servers should be returned"
