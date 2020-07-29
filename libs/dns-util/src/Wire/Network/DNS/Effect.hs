@@ -35,8 +35,3 @@ runDNSLookupDefault =
     embed $ DNS.withResolver rs $ \resolver ->
       case l of
         LookupSRV domain -> interpretResponse <$> DNS.lookupSRV resolver domain
-
--- TODO: remove comment?
--- class Monad m => MonadDNSLookup m where
---   monadLookupSRV :: Domain -> m SrvResponse
--- I don't know how to make this choice at runtime
