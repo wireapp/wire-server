@@ -29,10 +29,11 @@ import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LB
 import Data.Id
 import Data.List ((\\))
-import Data.List.NonEmpty (NonEmpty (..))
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.List1 (List1)
 import qualified Data.List1 as List1
 import Data.Misc (Port, mkHttpsUrl)
+import qualified Data.Set as Set
 import Imports
 import Network.HTTP.Client (Manager)
 import System.FilePath ((</>))
@@ -92,15 +93,15 @@ testSFT b opts = do
       "when SFT discovery is not enabled, sft_servers shouldn't be returned"
       Nothing
       (cfg ^. rtcConfSftServers)
-  withSettingsOverrides (opts & Opts.sftL ?~ Opts.SFTOptions "integration-tests.zinfra.io" Nothing) $ do
-    cfg1 <- retryWhileN 10 (isJust . view rtcConfSftServers) (getTurnConfigurationV2 uid b)
+  withSettingsOverrides (opts & Opts.sftL ?~ Opts.SFTOptions "integration-tests.zinfra.io" Nothing (Just 0.001)) $ do
+    cfg1 <- retryWhileN 10 (isNothing . view rtcConfSftServers) (getTurnConfigurationV2 uid b)
     let Right server1 = mkHttpsUrl [uri|https://sft01.integration-tests.zinfra.io:443|]
     let Right server2 = mkHttpsUrl [uri|https://sft02.integration-tests.zinfra.io:8443|]
     liftIO $
       assertEqual
         "when SFT discovery is enabled, sft_servers should be returned"
-        (Just (sftServer server1 :| [sftServer server2]))
-        (cfg1 ^. rtcConfSftServers)
+        (Set.fromList [sftServer server1, sftServer server2])
+        (Set.fromList $ maybe [] NonEmpty.toList $ cfg1 ^. rtcConfSftServers)
 
 modifyAndAssert ::
   Brig ->

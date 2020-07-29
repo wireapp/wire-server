@@ -141,7 +141,7 @@ instance FromJSON RTCConfiguration where
 newtype SFTServer = SFTServer
   { _sftURL :: HttpsUrl
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform SFTServer) --TODO is this correct?
 
 instance ToJSON SFTServer where

@@ -236,7 +236,7 @@ instance Cql Milliseconds where
 newtype HttpsUrl = HttpsUrl
   { httpsUrl :: URIRef Absolute
   }
-  deriving stock (Eq, Generic)
+  deriving stock (Eq, Ord, Generic)
 
 mkHttpsUrl :: URIRef Absolute -> Either String HttpsUrl
 mkHttpsUrl uri =
