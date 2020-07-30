@@ -43,7 +43,6 @@ data SFTEnv = SFTEnv
     sftDiscoveryInterval :: Int
   }
 
--- TODO: Log stuff here (and test it?)
 discoverSFTServers :: Members [DNSLookup, PolyLog] r => DNS.Domain -> Sem r (Maybe (NonEmpty SrvEntry))
 discoverSFTServers domain =
   lookupSRV domain >>= \case
