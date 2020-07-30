@@ -48,13 +48,14 @@ import Wire.API.Call.Config
 
 tests :: Manager -> Brig -> Opts.Opts -> FilePath -> FilePath -> IO TestTree
 tests m b opts turn turnV2 = do
-  return $
-    testGroup
-      "calling"
-      [ test m "basic /calls/config - 200" $ testCallsConfig b,
-        -- FIXME: requires tests to run on same host as brig
-        test m "multiple servers /calls/config - 200" . withTurnFile turn $ testCallsConfigMultiple b,
-        test m "multiple servers /calls/config/v2 - 200" . withTurnFile turnV2 $ testCallsConfigMultipleV2 b,
+  return
+    $ testGroup "calling"
+    $ [ testGroup "turn" $
+          [ test m "basic /calls/config - 200" $ testCallsConfig b,
+            -- FIXME: requires tests to run on same host as brig
+            test m "multiple servers /calls/config - 200" . withTurnFile turn $ testCallsConfigMultiple b,
+            test m "multiple servers /calls/config/v2 - 200" . withTurnFile turnV2 $ testCallsConfigMultipleV2 b
+          ],
         test m "SFT servers /calls/config/v2 - 200" $ testSFT b opts
       ]
 
