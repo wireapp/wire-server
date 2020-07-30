@@ -7,6 +7,7 @@
   1. Upgrade brig as usual
   1. [Run data migration](./docs/reference/elastic-search.md#migrate-data)
   Search should continue to work normally during this upgrade.
+* Now with cargohold using V4 signatures, the region is part of the Authorization header, so please make sure it is configured correctly. This can be provided the same way as the AWS credentials, e.g. using the AWS_REGION environment variable.
 
 ## Bug Fixes
 
