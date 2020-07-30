@@ -712,11 +712,11 @@ retryWhileN n f m =
 withSettingsOverrides :: MonadIO m => Opts.Opts -> WaiTest.Session a -> m a
 withSettingsOverrides opts action = liftIO $ do
   (brigApp, env) <- Run.mkApp opts
-  asyncDiscovery <- case env ^. sftEnv of
-    Nothing -> Async.async (pure ()) --TODO: This looks fishy
-    Just e -> Async.async $ Calling.startSFTServiceDiscovery (env ^. applog) e
+  sftDiscovery <-
+    forM (env ^. sftEnv) $ \sftEnv' ->
+      Async.async $ Calling.startSFTServiceDiscovery (env ^. applog) sftEnv'
   res <- WaiTest.runSession action brigApp
-  Async.cancel asyncDiscovery
+  mapM_ Async.cancel sftDiscovery
   pure res
 
 -- | When we remove the customer-specific extension of domain blocking, this test will fail to

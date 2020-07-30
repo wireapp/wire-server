@@ -60,13 +60,13 @@ run o = do
     Async.async
       $ AWS.execute (e ^. awsEnv)
       $ AWS.listen throttleMillis q (runAppT e . SesNotification.onEvent)
-  sftDiscovery <- case e ^. sftEnv of
-    Nothing -> Async.async (pure ()) -- TODO: This looks fishy
-    Just sftEnv' -> Async.async $ Calling.startSFTServiceDiscovery (e ^. applog) sftEnv'
+  sftDiscovery <-
+    forM (e ^. sftEnv) $ \sftEnv' ->
+      Async.async $ Calling.startSFTServiceDiscovery (e ^. applog) sftEnv'
   runSettingsWithShutdown s app 5 `finally` do
     mapM_ Async.cancel emailListener
     Async.cancel internalEventListener
-    Async.cancel sftDiscovery
+    mapM_ Async.cancel sftDiscovery
     closeEnv e
   where
     endpoint = brig o
