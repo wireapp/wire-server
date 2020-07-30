@@ -128,8 +128,8 @@ newConfig env mSftEnv limit = do
   -- priority and weight, but we internally agreed to randomize the list of
   -- available servers for poor man's "load balancing" purposes.
   -- FUTUREWORK: be smarter about list orderding depending on how much capacity SFT servers have.
-  randomizedSftEntries <- liftIO $ randomize <$> sftSrvEntries
-  pure $ Public.rtcConfiguration srvs (sftServerFromSrvTarget . srvTarget <$$> randomizedSftSrvEntries) cTTL
+  randomizedSftEntries <- liftIO $ mapM randomize sftSrvEntries
+  pure $ Public.rtcConfiguration srvs (sftServerFromSrvTarget . srvTarget <$$> randomizedSftEntries) cTTL
   where
     -- NOTE: even though `shuffleM` works only for [a], input is List1 so it's
     --       safe to pattern match; ideally, we'd have `shuffleM` for `NonEmpty`

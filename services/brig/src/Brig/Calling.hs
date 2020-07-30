@@ -73,7 +73,7 @@ mkSFTEnv opts =
   SFTEnv
     <$> newIORef Nothing
     <*> pure (mkSFTDomain opts)
-    <*> pure (diffTimeToMicroseconds (maybe defSftDiscoveryIntervalSeconds (Opts.sftDiscoveryIntervalSeconds opts)))
+    <*> pure (diffTimeToMicroseconds (fromMaybe defSftDiscoveryIntervalSeconds (Opts.sftDiscoveryIntervalSeconds opts)))
 
 startSFTServiceDiscovery :: Log.Logger -> SFTEnv -> IO ()
 startSFTServiceDiscovery logger =
