@@ -39,8 +39,8 @@ where
 
 import Brig.API.Error (federationNotImplemented, throwStd)
 import Brig.API.Handler (Handler)
+import Brig.API.IdMapping (resolveOpaqueUserId)
 import Brig.API.Types
-import Brig.API.Util (resolveOpaqueUserId)
 import Brig.App
 import qualified Brig.Data.Client as Data
 import qualified Brig.Data.User as Data
@@ -171,7 +171,7 @@ claimLocalPrekeyBundle u = do
 
 claimMultiPrekeyBundles :: UserClients -> Handler (UserClientMap (Maybe Prekey))
 claimMultiPrekeyBundles (UserClients clientMap) = do
-  resolved <- traverse (bitraverse resolveOpaqueUserId pure) $ Map.toList clientMap
+  resolved <- lift . traverse (bitraverse resolveOpaqueUserId pure) $ Map.toList clientMap
   let (localUsers, remoteUsers) = partitionEithers $ map localOrRemoteUser resolved
   for_ (nonEmpty remoteUsers) $
     throwStd . federationNotImplemented . fmap fst

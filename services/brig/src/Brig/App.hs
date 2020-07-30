@@ -127,7 +127,7 @@ import qualified System.Logger.Extended as Log
 import Util.Options
 
 schemaVersion :: Int32
-schemaVersion = 59
+schemaVersion = 61
 
 -------------------------------------------------------------------------------
 -- Environment

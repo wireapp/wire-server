@@ -2,6 +2,23 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module Web.Scim.Test.Util
   ( shouldRespondWith,
     shouldEventuallyRespondWith,
@@ -87,7 +104,7 @@ data AcceptanceConfig tag = AcceptanceConfig
   { scimAppAndConfig :: IO (Application, AcceptanceQueryConfig tag),
     genUserName :: IO Text,
     -- | some acceptance tests match against a fully rendered
-    -- response body, which will now work when running the test
+    -- response body, which will not work when running the test
     -- as a library user (since the response will have more and
     -- other information).  if you leave this on 'False' (default
     -- from 'defAcceptanceConfig'), the test will only check some

@@ -23,7 +23,7 @@ module API.User.Account
 where
 
 import qualified API.Search.Util as Search
-import API.Team.Util (createTeamMember, createUserWithTeam)
+import API.Team.Util hiding (listConnections)
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
@@ -1067,31 +1067,80 @@ testDomainsBlockedForRegistration opts brig = withDomainsBlockedForRegistration 
   where
     p email = RequestBodyLBS . encode $ SendActivationCode (Left email) Nothing False
 
--- | FUTUREWORK: This is not very exhaustive.  You can change the flag in
--- brig.integration.yaml manually and re-run the integration tests for more coverage.  If you
--- want to have that coverage permanently, grep this module for @setRestrictUserCreation@ and
--- change all those tests to run with both settings.  Use 'testRestrictedUserCreation' here as
--- an instructive example.
+-- | FUTUREWORK: @setRestrictUserCreation@ perhaps needs to be tested in one place only, since it's the
+-- first thing that we check on the /register endpoint. Other tests that make use of @setRestrictUserCreation@
+-- can probably be removed and simplified. It's probably a good candidate for Quickcheck.
 testRestrictedUserCreation :: Opt.Opts -> Brig -> Http ()
 testRestrictedUserCreation opts brig = do
+  -- We create a team before to help in other tests
+  (teamOwner, createdTeam) <- createUserWithTeam brig
+
   let opts' = opts {Opt.optSettings = (Opt.optSettings opts) {Opt.setRestrictUserCreation = Just True}}
   withSettingsOverrides opts' $ do
     e <- randomEmail
-    let emailReq = RequestBodyLBS . encode $ object ["email" .= fromEmail e]
-    post (brig . path "/activate/send" . contentJson . body emailReq)
-      !!! (const 200 === statusCode)
-    getActivationCode brig (Left e) >>= \case
-      Nothing -> liftIO $ assertFailure "missing activation key/code"
-      Just (_, c) -> do
-        let Object reg =
-              object
-                [ "name" .= Name "Alice",
-                  "email" .= fromEmail e,
-                  "email_code" .= c
-                ]
-        postUserRegister' reg brig !!! do
-          const 403 === statusCode
-          const (Just "user-creation-restricted") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
+    -- Ephemeral users MUST have an expires_in
+    let Object ephemeralUserWithoutExpires =
+          object
+            [ "name" .= Name "Alice"
+            ]
+    postUserRegister' ephemeralUserWithoutExpires brig !!! do
+      const 403 === statusCode
+      const (Just "user-creation-restricted") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
+
+    let Object regularUser =
+          object
+            [ "name" .= Name "Alice",
+              "email" .= fromEmail e,
+              "email_code" .= ("123456" :: Text),
+              "password" .= PlainTextPassword "123123123"
+            ]
+    postUserRegister' regularUser brig !!! do
+      const 403 === statusCode
+      const (Just "user-creation-restricted") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
+
+    let Object regularUserNotPreActivated =
+          object
+            [ "name" .= Name "Alice",
+              "email" .= fromEmail e,
+              "password" .= PlainTextPassword "123123123"
+            ]
+    postUserRegister' regularUserNotPreActivated brig !!! do
+      const 403 === statusCode
+      const (Just "user-creation-restricted") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
+
+    let Object teamCreator =
+          object
+            [ "name" .= Name "Alice",
+              "email" .= fromEmail e,
+              "email_code" .= ("123456" :: Text),
+              "team" .= object ["name" .= ("Alice team" :: Text), "icon" .= ("default" :: Text), "binding" .= True],
+              "password" .= PlainTextPassword "123123123"
+            ]
+    postUserRegister' teamCreator brig !!! do
+      const 403 === statusCode
+      const (Just "user-creation-restricted") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
+
+    -- Ensure you can invite team users
+    void $ inviteAndRegisterUser teamOwner createdTeam brig
+
+    -- Ephemeral users can always be created
+    let Object ephemeralUser =
+          object
+            [ "name" .= Name "Alice",
+              "expires_in" .= (600000 :: Int)
+            ]
+    postUserRegister' ephemeralUser brig !!! const 201 === statusCode
+
+    -- NOTE: SSO users are anyway not allowed on the `/register` endpoint
+    teamid <- Id <$> liftIO UUID.nextRandom
+    let ssoid = UserSSOId "nil" "nil"
+    let Object ssoUser =
+          object
+            [ "name" .= Name "Alice",
+              "sso_id" .= Just ssoid,
+              "team_id" .= Just teamid
+            ]
+    postUserRegister' ssoUser brig !!! const 400 === statusCode
 
 -- helpers
 

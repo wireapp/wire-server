@@ -68,6 +68,7 @@ import qualified Web.Scim.Schema.PatchOp as Scim
 import Web.Scim.Schema.Schema (Schema (CustomSchema))
 import qualified Web.Scim.Schema.Schema as Scim
 import qualified Web.Scim.Schema.User as Scim.User
+import Wire.API.User.RichInfo
 
 ----------------------------------------------------------------------------
 -- Schemas
@@ -110,27 +111,23 @@ instance Scim.Auth.AuthTypes SparTag where
 --
 -- * what we're doing here: wrap the type synonyms we can't instantiate into newtypes in the
 --   code using hscim.
-
+--
 -- * do not instantiate the type synonym, but its value (in this case
 --   @Web.Scim.Schema.Meta.WithMeta (Web.Scim.Schema.Common.WithId (Id U) (Scim.User tag))@
 --
-
 -- * Use newtypes instead type in hscim.  This will carry around the tag as a data type rather
 --   than applying it, which in turn will enable ghc to type-check instances like @Cql
 --   (Scim.StoredUser tag)@.
 --
-
 -- * make the type classes parametric in not only the tag, but also all the values of the type
 --   families, and add functional dependencies, like this: @class UserInfo tag uid extrainfo |
 --   (uid, extrainfo) -> tag, tag -> (uid, extrainfo)@.  this will make writing the instances
 --   only a little more awkward, but the rest of the code should change very little, as long
 --   as we just apply the type families rather than explicitly imposing the class constraints.
 --
-
 -- * given a lot of time: extend ghc with something vaguely similar to @AllowAmbigiousTypes@,
 --   where the instance typechecks, and non-injectivity errors are raised when checking the
 --   constraint that "calls" the instance.  :)
-
 newtype WrappedScimStoredUser tag = WrappedScimStoredUser
   {fromWrappedScimStoredUser :: Scim.User.StoredUser tag}
 
@@ -153,69 +150,61 @@ instance ToJSON ScimUserExtra where
   toJSON (ScimUserExtra rif) = toJSON rif
 
 instance Scim.Patchable ScimUserExtra where
-  applyOperation (ScimUserExtra rinf) (Operation o (Just (NormalPath (AttrPath (Just (CustomSchema schema)) (AttrName attrName) Nothing))) val)
+  applyOperation (ScimUserExtra (RichInfo rinfRaw)) (Operation o (Just (NormalPath (AttrPath (Just (CustomSchema schema)) (AttrName (CI.mk -> ciAttrName)) Nothing))) val)
     | schema == richInfoMapURN =
-      let ciAttrName = CI.mk attrName
-          theMap = richInfoMap rinf
-       in case o of
+      let rinf = richInfoMap $ fromRichInfoAssocList rinfRaw
+          unrinf = ScimUserExtra . RichInfo . toRichInfoAssocList . (`RichInfoMapAndList` mempty)
+       in unrinf <$> case o of
             Scim.Remove ->
-              pure $ ScimUserExtra $ rinf {richInfoMap = Map.delete ciAttrName theMap}
+              pure $ Map.delete ciAttrName rinf
             _AddOrReplace ->
               case val of
                 (Just (String textVal)) ->
-                  pure $ ScimUserExtra $ rinf {richInfoMap = Map.insert ciAttrName textVal theMap}
+                  pure $ Map.insert ciAttrName textVal rinf
                 _ -> throwError $ Scim.badRequest Scim.InvalidValue $ Just "rich info values can only be text"
     | schema == richInfoAssocListURN =
-      let ciAttrName = CI.mk attrName
+      let rinf = richInfoAssocList $ fromRichInfoAssocList rinfRaw
+          unrinf = ScimUserExtra . RichInfo . toRichInfoAssocList . (mempty `RichInfoMapAndList`)
           matchesAttrName (RichField k _) = k == ciAttrName
-          assocList = richInfoAssocList rinf
-       in case o of
+       in unrinf <$> case o of
             Scim.Remove ->
-              pure $ ScimUserExtra $ rinf {richInfoAssocList = filter (not . matchesAttrName) assocList}
+              pure $ filter (not . matchesAttrName) rinf
             _AddOrReplace ->
               case val of
                 (Just (String textVal)) ->
                   let newField = RichField ciAttrName textVal
                       replaceIfMatchesAttrName f = if matchesAttrName f then newField else f
                       newRichInfo =
-                        if not $ any matchesAttrName assocList
-                          then rinf {richInfoAssocList = assocList ++ [newField]}
-                          else rinf {richInfoAssocList = map replaceIfMatchesAttrName assocList}
-                   in pure $ ScimUserExtra $ newRichInfo
+                        if not $ any matchesAttrName rinf
+                          then rinf ++ [newField]
+                          else map replaceIfMatchesAttrName rinf
+                   in pure newRichInfo
                 _ -> throwError $ Scim.badRequest Scim.InvalidValue $ Just "rich info values can only be text"
     | otherwise = throwError $ Scim.badRequest Scim.InvalidValue $ Just "unknown schema, cannot patch"
   applyOperation _ _ = throwError $ Scim.badRequest Scim.InvalidValue $ Just "invalid patch op for rich info"
 
 -- | SCIM user with all the data spar is actively processing.  Constructed by
--- 'validateScimUser'.  The idea is that the type we get back from hscim is too general, and
+-- 'validateScimUser', or manually from data obtained from brig to pass them on to scim peers.
+-- The idea is that the type we get back from hscim is too general, and
 -- we need a second round of parsing (aka validation), of which 'ValidScimUser' is the result.
---
--- 'NeededInfo' is similar to this, but used for creating scim users rather than as a result
--- of parsing them.  On second thought, we probably should only have one of the two, or at
--- least they should look more closely related in the code: the only difference is that one is
--- for post, the other for patch.
 --
 -- Data contained in '_vsuHandle' and '_vsuName' is guaranteed to a) correspond to the data in
 -- the 'Scim.User.User' and b) be valid in regard to our own user schema requirements (only
 -- certain characters allowed in handles, etc).
 --
--- FUTUREWORK: eliminate '_vsuUser' and keep everything we need as parsed values rather than
--- the raw input.
+-- Note that it's ok for us to ignore parts of the content sent to us, as explained
+-- [here](https://tools.ietf.org/html/rfc7644#section-3.3): "Since the server is free to alter
+-- and/or ignore POSTed content, returning the full representation can be useful to the
+-- client, enabling it to correlate the client's and server's views of the new resource."
 --
--- FUTUREWORK: move 'NeededInfo' closer to here.  perhaps we can make do with one of the two.
+-- FUTUREWORK: make '_vsuUserRef' a 'Maybe' and allow for SCIM users without a SAML SSO
+-- identity.
 data ValidScimUser = ValidScimUser
-  { _vsuUser :: Scim.User.User SparTag,
-    -- SAML SSO
-
-    -- | (In the future, we may make this a 'Maybe' and allow for
-    -- SCIM users without a SAML SSO identity.)
-    _vsuSAMLUserRef :: SAML.UserRef,
-    _vsuIdp :: IdP,
-    -- mapping to 'Brig.User'
+  { _vsuUserRef :: SAML.UserRef,
     _vsuHandle :: Handle,
-    _vsuName :: Maybe Name,
+    _vsuName :: Maybe Name, -- TODO: remove the 'Maybe' here, and construct the name not in "Spar.Intra.Brig", but in 'validateScimUser'.
     _vsuRichInfo :: RichInfo,
-    _vsuActive :: Maybe Bool
+    _vsuActive :: Bool
   }
   deriving (Eq, Show)
 

@@ -78,7 +78,8 @@ testCreateToken = do
           createScimTokenPassword = Just defPassword
         }
   -- Try to do @GET /Users@ and check that it succeeds
-  listUsers_ (Just token) Nothing (env ^. teSpar)
+  let fltr = filterBy "externalId" "67c196a0-cd0e-11ea-93c7-ef550ee48502"
+  listUsers_ (Just token) (Just fltr) (env ^. teSpar)
     !!! const 200 === statusCode
 
 -- | Test that only up to @maxScimTokens@ can be created.
@@ -238,7 +239,8 @@ testDeletedTokensAreUnusable = do
           createScimTokenPassword = Just defPassword
         }
   -- An operation with the token should succeed
-  listUsers_ (Just token) Nothing (env ^. teSpar)
+  let fltr = filterBy "externalId" "67c196a0-cd0e-11ea-93c7-ef550ee48502"
+  listUsers_ (Just token) (Just fltr) (env ^. teSpar)
     !!! const 200 === statusCode
   -- Delete the token and now the operation should fail
   deleteToken owner (stiId tokenInfo)

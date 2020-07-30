@@ -26,6 +26,7 @@ import qualified Brig.API.Client as API
 import qualified Brig.API.Connection as API
 import Brig.API.Error
 import Brig.API.Handler
+import qualified Brig.API.IdMapping as IdMapping
 import Brig.API.Types
 import qualified Brig.API.User as API
 import Brig.App
@@ -57,6 +58,7 @@ import Network.Wai.Routing
 import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.Response (json)
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
+import Wire.API.User.RichInfo
 
 ---------------------------------------------------------------------------
 -- Sitemap
@@ -213,6 +215,7 @@ sitemap = do
   Auth.routesInternal
   Search.routesInternal
   Team.routesInternal
+  IdMapping.routesInternal
 
 ---------------------------------------------------------------------------
 -- Handlers
@@ -449,7 +452,7 @@ updateRichInfo :: UserId -> RichInfoUpdate -> Handler ()
 updateRichInfo uid rup = do
   let RichInfoAssocList richInfo = normalizeRichInfoAssocList . riuRichInfo $ rup
   maxSize <- setRichInfoLimit <$> view settings
-  when (richInfoAssocListSize richInfo > maxSize) $ throwStd tooLargeRichInfo
+  when (richInfoSize (RichInfo (RichInfoAssocList richInfo)) > maxSize) $ throwStd tooLargeRichInfo
   -- FUTUREWORK: send an event
   -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)
   lift $ Data.updateRichInfo uid (RichInfoAssocList richInfo)

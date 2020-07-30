@@ -25,6 +25,7 @@ where
 import qualified API.Search.Util as SearchUtil
 import API.Team.Util
 import Bilge hiding (accept, head, timeout)
+import qualified Bilge
 import Bilge.Assert
 import qualified Brig.AWS as AWS
 import qualified Brig.Options as Opt
@@ -39,8 +40,7 @@ import Control.Monad.Fail (MonadFail)
 import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
-import Data.Json.Util (UTCTimeMillis)
-import Data.Json.Util (toUTCTimeMillis)
+import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import qualified Data.Text.Ascii as Ascii
 import Data.Time (addUTCTime, getCurrentTime)
 import qualified Data.UUID.V4 as UUID
@@ -50,6 +50,7 @@ import Imports
 import Network.HTTP.Client (Manager)
 import qualified Network.Wai.Test as WaiTest
 import qualified Network.Wai.Utilities.Error as Error
+import Numeric.Natural (Natural)
 import Test.Tasty hiding (Timeout)
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
@@ -60,8 +61,8 @@ import Web.Cookie (parseSetCookie, setCookieName)
 
 newtype TeamSizeLimit = TeamSizeLimit Word32
 
-tests :: Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> AWS.Env -> IO TestTree
-tests conf m b c g aws = do
+tests :: Opt.Opts -> Manager -> Nginz -> Brig -> Cannon -> Galley -> AWS.Env -> IO TestTree
+tests conf m n b c g aws = do
   let tl = TeamSizeLimit . Opt.setMaxTeamSize . Opt.optSettings $ conf
   let it = Opt.setTeamInvitationTimeout . Opt.optSettings $ conf
   return $
@@ -69,6 +70,9 @@ tests conf m b c g aws = do
       "team"
       [ testGroup "invitation" $
           [ test m "post /teams/:tid/invitations - 201" $ testInvitationEmail b,
+            test m "post /teams/:tid/invitations - email lookup" $ testInvitationEmailLookup b,
+            test m "post /teams/:tid/invitations - email lookup nginz" $ testInvitationEmailLookupNginz b n,
+            test m "post /teams/:tid/invitations - email lookup register" $ testInvitationEmailLookupRegister b,
             test m "post /teams/:tid/invitations - 403 no permission" $ testInvitationNoPermission b,
             test m "post /teams/:tid/invitations - 403 too many pending" $ testInvitationTooManyPending b tl,
             test m "post /teams/:tid/invitations - roles" $ testInvitationRoles b g,
@@ -104,11 +108,20 @@ testTeamSize :: Brig -> Http ()
 testTeamSize brig = do
   (tid, _, _) <- createPopulatedBindingTeam brig 10
   SearchUtil.refreshIndex brig
-  void $
-    get (brig . paths ["i", "teams", toByteString' tid, "size"]) <!! do
-      const 200 === statusCode
-      -- 10 Team Members and an admin
-      (const . Right $ TeamSize 11) === responseJsonEither
+  -- 10 Team Members and an admin
+  let expectedSize = 11
+  assertSize tid expectedSize
+
+  -- Even suspended teams should report correct size
+  suspendTeam brig tid !!! const 200 === statusCode
+  SearchUtil.refreshIndex brig
+  assertSize tid expectedSize
+  where
+    assertSize :: HasCallStack => TeamId -> Natural -> Http ()
+    assertSize tid expectedSize = void $
+      get (brig . paths ["i", "teams", toByteString' tid, "size"]) <!! do
+        const 200 === statusCode
+        (const . Right $ TeamSize expectedSize) === responseJsonEither
 
 -------------------------------------------------------------------------------
 -- Invitation Tests
@@ -152,6 +165,51 @@ testInvitationEmail brig = do
   let invite = stdInvitationRequest invitee (Name "Bob") Nothing Nothing
   void $ postInvitation brig tid inviter invite
 
+testInvitationEmailLookup :: Brig -> Http ()
+testInvitationEmailLookup brig = do
+  email <- randomEmail
+  -- expect no invitation to be found for an email before that person is invited
+  headInvitationByEmail brig email 404
+  (uid, tid) <- createUserWithTeam brig
+  let invite = stdInvitationRequest email (Name "Bob") Nothing Nothing
+  void $ postInvitation brig tid uid invite
+  -- expect an invitation to be found querying with email after invite
+  headInvitationByEmail brig email 200
+  (uid2, tid2) <- createUserWithTeam brig
+  let invite2 = stdInvitationRequest email (Name "Bob2") Nothing Nothing
+  void $ postInvitation brig tid2 uid2 invite2
+  -- expect a 409 conflict result for a second team inviting the same user
+  headInvitationByEmail brig email 409
+
+testInvitationEmailLookupRegister :: Brig -> Http ()
+testInvitationEmailLookupRegister brig = do
+  email <- randomEmail
+  (owner, tid) <- createUserWithTeam brig
+  let invite = stdInvitationRequest email (Name "Bob") Nothing Nothing
+  void $ postInvitation brig tid owner invite
+  inv :: Invitation <- responseJsonError =<< postInvitation brig tid owner invite
+  -- expect an invitation to be found querying with email after invite
+  headInvitationByEmail brig email 200
+  void $ registerInvite brig tid inv email
+  -- expect a 404 after invitation has been used.
+  headInvitationByEmail brig email 404
+
+testInvitationEmailLookupNginz :: Brig -> Nginz -> Http ()
+testInvitationEmailLookupNginz brig nginz = do
+  email <- randomEmail
+  -- expect no invitation to be found for an email before that person is invited
+  headInvitationByEmail nginz email 404
+  (uid, tid) <- createUserWithTeam brig
+  let invite = stdInvitationRequest email (Name "Bob") Nothing Nothing
+  void $ postInvitation brig tid uid invite
+  -- expect an invitation to be found querying with email after invite
+  headInvitationByEmail nginz email 200
+
+headInvitationByEmail :: Brig -> Email -> Int -> Http ()
+headInvitationByEmail brig email expectedCode =
+  Bilge.head (brig . path "/teams/invitations/by-email" . contentJson . queryItem "email" (toByteString' email))
+    !!! const expectedCode === statusCode
+
 testInvitationTooManyPending :: Brig -> TeamSizeLimit -> Http ()
 testInvitationTooManyPending brig (TeamSizeLimit limit) = do
   (inviter, tid) <- createUserWithTeam brig
@@ -166,28 +224,29 @@ testInvitationTooManyPending brig (TeamSizeLimit limit) = do
     const 403 === statusCode
     const (Just "too-many-team-invitations") === fmap Error.label . responseJsonMaybe
 
+registerInvite :: Brig -> TeamId -> Invitation -> Email -> Http UserId
+registerInvite brig tid inv invemail = do
+  Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
+  rsp <-
+    post
+      ( brig . path "/register"
+          . contentJson
+          . body (accept invemail inviteeCode)
+      )
+      <!! const 201 === statusCode
+  let Just invitee = userId <$> responseJsonMaybe rsp
+  pure invitee
+
 -- | Admins can invite external partners, but not owners.
 testInvitationRoles :: HasCallStack => Brig -> Galley -> Http ()
 testInvitationRoles brig galley = do
   (owner, tid) <- createUserWithTeam brig
-  let registerInvite :: Invitation -> Email -> Http UserId
-      registerInvite inv invemail = do
-        Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
-        rsp <-
-          post
-            ( brig . path "/register"
-                . contentJson
-                . body (accept invemail inviteeCode)
-            )
-            <!! const 201 === statusCode
-        let Just invitee = userId <$> responseJsonMaybe rsp
-        pure invitee
   -- owner creates a member alice.
   alice :: UserId <- do
     aliceEmail <- randomEmail
     let invite = stdInvitationRequest aliceEmail (Name "Alice") Nothing (Just Team.RoleAdmin)
     inv :: Invitation <- responseJsonError =<< postInvitation brig tid owner invite
-    registerInvite inv aliceEmail
+    registerInvite brig tid inv aliceEmail
   -- alice creates a external partner bob.  success!  bob only has externalPartner perms.
   do
     bobEmail <- randomEmail
@@ -197,7 +256,7 @@ testInvitationRoles brig galley = do
         =<< ( postInvitation brig tid alice invite <!! do
                 const 201 === statusCode
             )
-    uid <- registerInvite inv bobEmail
+    uid <- registerInvite brig tid inv bobEmail
     let memreq =
           galley . zUser owner . zConn "c"
             . paths ["teams", toByteString' tid, "members", toByteString' uid]
@@ -573,6 +632,7 @@ testInvitationInfoExpired brig timeout = do
   -- Note: This value must be larger than the option passed as `team-invitation-timeout`
   awaitExpiry (round timeout + 5) tid (inInvitation inv)
   getCode tid (inInvitation inv) !!! const 400 === statusCode
+  headInvitationByEmail brig email 404
   where
     getCode t i =
       get

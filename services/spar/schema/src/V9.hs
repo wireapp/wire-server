@@ -15,27 +15,25 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main
-  ( main,
+module V9
+  ( migration,
   )
 where
 
-import Data.ByteString.Char8 (pack)
+import Cassandra.Schema
 import Imports
-import Network.HTTP.Client
-import Network.HTTP.Client.TLS
-import Ropes.Aws
-import qualified System.Logger as Logger
-import Test.Tasty
-import qualified Tests.Ropes.Aws.Ses as SES
+import Text.RawString.QQ
 
-main :: IO ()
-main = do
-  l <- Logger.new Logger.defSettings -- TODO: use mkLogger'?
-  k <- pack <$> getEnv "AWS_ACCESS_KEY"
-  s <- pack <$> getEnv "AWS_SECRET_KEY"
-  m <- newManager tlsManagerSettings
-  e <- newEnv l m $ Just (AccessKeyId k, SecretAccessKey s)
-  defaultMain $ tests e
-  where
-    tests = SES.tests
+migration :: Migration
+migration = Migration 9 "As replacement for `scim_user`, add smaller table for storing time stamps only" $ do
+  void $
+    schema'
+      -- FUTUREWORK: https://github.com/zinfra/backend-issues/issues/1631
+      [r|
+        CREATE TABLE if not exists scim_user_times
+          ( uid             uuid
+          , created_at      timestamp
+          , last_updated_at timestamp
+          , primary key (uid)
+          ) with compaction = {'class': 'LeveledCompactionStrategy'};
+      |]

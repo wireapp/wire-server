@@ -15,30 +15,17 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main where
+module V8
+  ( migration,
+  )
+where
 
-import Data.Time.Clock
+import Cassandra.Schema
 import Imports
-import Network.HTTP.Client
-import Ropes.Aws
-import qualified System.Logger as Logger
+import Text.RawString.QQ
 
-main :: IO ()
-main = do
-  hSetBuffering stdout NoBuffering
-  l <- Logger.new Logger.defSettings -- TODO: use mkLogger'?
-  m <- newManager defaultManagerSettings
-  e <- newEnv l m Nothing
-  forever $ do
-    now <- getCurrentTime
-    crd <- getCredentials e
-    putStrLn $ "Time: " ++ show now ++ " - Credentials: " ++ showCreds crd
-    threadDelay $ 60 * 1000 * 1000 -- every minute
-  where
-    showCreds (Credentials k s _ t) =
-      "AccessKeyId: " ++ show k ++ " - "
-        ++ "SecretAccessKey: "
-        ++ show s
-        ++ " - "
-        ++ "SessionToken: "
-        ++ show t
+migration :: Migration
+migration = Migration 8 "Remove deprecated tables" $ do
+  schema' [r| drop columnfamily clients; |]
+  schema' [r| alter columnfamily user_push drop fallback; |]
+  schema' [r| drop columnfamily fallback_cancel; |]

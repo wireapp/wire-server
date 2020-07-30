@@ -1,3 +1,6 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -15,17 +18,27 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Index.Migrations.V1_ReIndexForSearchTeamMembers
+module V61_team_invitation_email
   ( migration,
   )
 where
 
-import qualified Brig.Index.Migrations.Types as Types
-import qualified Brig.User.Search.Index as Search
+import Cassandra.Schema
+import Imports
+import Text.RawString.QQ
 
-migration :: Types.Migration
-migration = Types.Migration ver txt mig
-  where
-    ver = Types.MigrationVersion 1
-    txt = "Reindex all users for search within team"
-    mig = Search.reindexAllIfSameOrNewer
+migration :: Migration
+migration =
+  -- This table adds a lookup-by-email possibility,
+  -- see also the team_invitation table
+  Migration 61 "Add team_invitation_email table" $
+    schema'
+      [r|
+        CREATE TABLE team_invitation_email
+            ( email text
+            , team uuid
+            , invitation uuid
+            , code ascii
+            , primary key (email, team)
+            )
+    |]

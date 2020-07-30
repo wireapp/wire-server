@@ -30,12 +30,14 @@ import Cassandra.CQL
 import Control.Error (note)
 import Data.Aeson (eitherDecode, encode)
 import qualified Data.Aeson as JSON
+import Data.Domain (Domain, domainText, mkDomain)
 import Data.Handle (Handle (..))
 import Data.Id ()
 import Data.Range ()
 import Data.String.Conversions (LBS, ST, cs)
 import Data.Text.Ascii ()
 import Imports
+import Wire.API.User.RichInfo
 
 deriving instance Cql Name
 
@@ -243,3 +245,9 @@ instance Cql RichInfoAssocList where
   toCql = toCql . Blob . JSON.encode
   fromCql (CqlBlob v) = JSON.eitherDecode v
   fromCql _ = fail "RichInfo: Blob expected"
+
+instance Cql Domain where
+  ctype = Tagged TextColumn
+  toCql = CqlText . domainText
+  fromCql (CqlText txt) = either fail pure $ mkDomain txt
+  fromCql _ = fail "Domain: Text expected"

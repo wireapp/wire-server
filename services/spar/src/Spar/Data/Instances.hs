@@ -32,18 +32,14 @@ module Spar.Data.Instances
 where
 
 import Cassandra as Cas
-import Data.Aeson (FromJSON, ToJSON)
-import qualified Data.Aeson as Aeson
 import Data.String.Conversions
 import Data.X509 (SignedCertificate)
 import Imports
 import SAML2.Util (parseURI')
 import qualified SAML2.WebSSO as SAML
-import Spar.Scim.Types
 import Spar.Types
 import Text.XML.DSig (parseKeyInfo, renderKeyInfo)
 import URI.ByteString
-import qualified Web.Scim.Schema.User as Scim
 
 instance Cql SAML.XmlText where
   ctype = Tagged TextColumn
@@ -105,20 +101,3 @@ toVerdictFormat (VerdictFormatConMobile, Just succredir, Just errredir) = Just $
 toVerdictFormat _ = Nothing
 
 deriving instance Cql ScimToken
-
-instance
-  ( Scim.UserTypes tag,
-    uid ~ Scim.UserId tag,
-    extra ~ Scim.UserExtra tag,
-    FromJSON extra,
-    ToJSON extra,
-    FromJSON uid,
-    ToJSON uid
-  ) =>
-  Cql (WrappedScimStoredUser tag)
-  where
-  ctype = Tagged BlobColumn
-  toCql = CqlBlob . Aeson.encode . fromWrappedScimStoredUser
-
-  fromCql (CqlBlob t) = WrappedScimStoredUser <$> Aeson.eitherDecode t
-  fromCql _ = fail "Scim.StoredUser: expected CqlBlob"

@@ -15,20 +15,24 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Ropes.Aws.Ses where
+module V60_AddFederationIdMapping
+  ( migration,
+  )
+where
 
-import Aws.Ses
-import Data.ByteString.Lazy (toStrict)
+import Cassandra.Schema
 import Imports
-import Network.Mail.Mime
+import Text.RawString.QQ
 
--- | Convenience function for constructing a 'SendRawEmail' command,
--- which involves extracting/duplicating some data from the MIME 'Mail'.
-sendRawEmail :: MonadIO m => Mail -> m SendRawEmail
-sendRawEmail m = do
-  msg <- liftIO $ toStrict <$> renderMail' m
-  return $
-    SendRawEmail
-      (map addressEmail (mailTo m))
-      (RawMessage msg)
-      (Just . Sender . addressEmail $ mailFrom m)
+-- | See <https://github.com/wearezeta/documentation/blob/master/topics/federation/federation-design.md#namespaces-and-user-identity>.
+migration :: Migration
+migration = Migration 60 "Add ID mapping for federation" $ do
+  schema'
+    [r|
+        CREATE TABLE id_mapping (
+            mapped_id uuid PRIMARY KEY,
+            remote_id uuid,
+            remote_domain text,
+        ) WITH compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
+           AND gc_grace_seconds = 864000;
+    |]

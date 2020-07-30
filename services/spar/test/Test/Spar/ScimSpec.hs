@@ -31,12 +31,11 @@
 module Test.Spar.ScimSpec where
 
 import Brig.Types.Test.Arbitrary
-import Brig.Types.User (RichField (..), RichInfo (..))
 import Data.Aeson (eitherDecode', encode, parseJSON)
 import Data.Aeson.QQ (aesonQQ)
 import qualified Data.Aeson.Types as Aeson
 import Data.Id
-import qualified Data.Map as Map
+import Data.Json.Util (fromUTCTimeMillis, toUTCTimeMillis)
 import qualified Data.UUID as UUID
 import Imports
 import Network.URI (parseURI)
@@ -55,6 +54,7 @@ import Web.Scim.Schema.Schema (Schema (CustomSchema))
 import qualified Web.Scim.Schema.Schema as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User.Name as ScimN
+import Wire.API.User.RichInfo
 
 spec :: Spec
 spec = describe "toScimStoredUser'" $ do
@@ -97,27 +97,27 @@ spec = describe "toScimStoredUser'" $ do
               Scim.entitlements = [],
               Scim.roles = [],
               Scim.x509Certificates = [],
-              Scim.extra = ScimUserExtra (RichInfo mempty mempty)
+              Scim.extra = ScimUserExtra mempty
             }
         meta :: Scim.Meta
         meta =
           Scim.Meta
             { Scim.resourceType = ScimR.UserResource,
-              Scim.created = now,
-              Scim.lastModified = now,
+              Scim.created = fromUTCTimeMillis now,
+              Scim.lastModified = fromUTCTimeMillis now,
               Scim.version = Scim.Weak "46246ab15ccab8a70b59f97f7182d6fb557dd454c0f06cdcb83d99d027cff08e",
               Scim.location =
                 Scim.URI . fromJust $
                   Network.URI.parseURI
                     "https://127.0.0.1/scim/v2/Users/90b5ee1c-088e-11e9-9a16-73f80f483813"
             }
-        now'@(SAML.Time now) = SAML.unsafeReadTime "1918-04-14T09:58:58.457Z"
+        SAML.Time (toUTCTimeMillis -> now) = SAML.unsafeReadTime "1918-04-14T09:58:58.457Z"
         baseuri :: URI =
           either (error . show) id $
             URI.ByteString.parseURI laxURIParserOptions "https://127.0.0.1/scim/v2/"
         uid = Id . fromJust . UUID.fromText $ "90b5ee1c-088e-11e9-9a16-73f80f483813"
         result :: ScimC.StoredUser SparTag
-        result = toScimStoredUser' now' baseuri uid usr
+        result = toScimStoredUser' now now baseuri uid usr
     Scim.meta result `shouldBe` meta
     Scim.value (Scim.thing result) `shouldBe` usr
   it "roundtrips" . property $ do
@@ -136,8 +136,8 @@ spec = describe "toScimStoredUser'" $ do
                                        }]
                                      }|]
         let (Aeson.Success (PatchOp [operation])) = Aeson.parse (parseJSON @(PatchOp SparTag)) operationJSON
-        applyOperation (ScimUserExtra (RichInfo mempty mempty)) operation
-          `shouldBe` (Right (ScimUserExtra (RichInfo (Map.singleton "newAttr" "newValue") mempty)))
+        applyOperation (ScimUserExtra mempty) operation
+          `shouldBe` (Right (ScimUserExtra (RichInfo (RichInfoAssocList [RichField "newAttr" "newValue"]))))
       it "can replace in rich info map" $ do
         let operationJSON =
               [aesonQQ|{
@@ -149,8 +149,8 @@ spec = describe "toScimStoredUser'" $ do
                                        }]
                                      }|]
         let (Aeson.Success (PatchOp [operation])) = Aeson.parse (parseJSON @(PatchOp SparTag)) operationJSON
-        applyOperation (ScimUserExtra (RichInfo (Map.singleton "oldAttr" "oldValue") mempty)) operation
-          `shouldBe` (Right (ScimUserExtra (RichInfo (Map.singleton "oldAttr" "newValue") mempty)))
+        applyOperation (ScimUserExtra (RichInfo (RichInfoAssocList [RichField "oldAttr" "oldValue"]))) operation
+          `shouldBe` (Right (ScimUserExtra (RichInfo (RichInfoAssocList [RichField "oldAttr" "newValue"]))))
       it "treats rich info map case insensitively" $ do
         let operationJSON =
               [aesonQQ|{
@@ -162,8 +162,8 @@ spec = describe "toScimStoredUser'" $ do
                                        }]
                                      }|]
         let (Aeson.Success (PatchOp [operation])) = Aeson.parse (parseJSON @(PatchOp SparTag)) operationJSON
-        applyOperation (ScimUserExtra (RichInfo (Map.singleton "oldAttr" "oldValue") mempty)) operation
-          `shouldBe` (Right (ScimUserExtra (RichInfo (Map.singleton "oldAttr" "newValue") mempty)))
+        applyOperation (ScimUserExtra (RichInfo (RichInfoAssocList [RichField "oldAttr" "oldValue"]))) operation
+          `shouldBe` (Right (ScimUserExtra (RichInfo (RichInfoAssocList [RichField "oldAttr" "newValue"]))))
       it "can remove from rich info map" $ do
         let operationJSON =
               [aesonQQ|{
@@ -174,8 +174,8 @@ spec = describe "toScimStoredUser'" $ do
                                        }]
                                      }|]
         let (Aeson.Success (PatchOp [operation])) = Aeson.parse (parseJSON @(PatchOp SparTag)) operationJSON
-        applyOperation (ScimUserExtra (RichInfo (Map.singleton "oldAttr" "oldValue") mempty)) operation
-          `shouldBe` (Right (ScimUserExtra (RichInfo mempty mempty)))
+        applyOperation (ScimUserExtra (RichInfo (RichInfoAssocList [RichField "oldAttr" "oldValue"]))) operation
+          `shouldBe` (Right (ScimUserExtra mempty))
       it "adds new fields to rich info assoc list at the end" $ do
         let operationJSON =
               [aesonQQ|{
@@ -187,8 +187,8 @@ spec = describe "toScimStoredUser'" $ do
                                        }]
                                      }|]
         let (Aeson.Success (PatchOp [operation])) = Aeson.parse (parseJSON @(PatchOp SparTag)) operationJSON
-        applyOperation (ScimUserExtra (RichInfo mempty [RichField "oldAttr" "oldValue"])) operation
-          `shouldBe` (Right (ScimUserExtra (RichInfo mempty [RichField "oldAttr" "oldValue", RichField "newAttr" "newValue"])))
+        applyOperation (ScimUserExtra (RichInfo (RichInfoAssocList [RichField "oldAttr" "oldValue"]))) operation
+          `shouldBe` (Right (ScimUserExtra (RichInfo (RichInfoAssocList [RichField "oldAttr" "oldValue", RichField "newAttr" "newValue"]))))
       it "can replace in rich info assoc list while maintaining order" $ do
         let operationJSON =
               [aesonQQ|{
@@ -210,8 +210,8 @@ spec = describe "toScimStoredUser'" $ do
                 RichField "secondAttr" "newSecondVal",
                 RichField "thirdAttr" "thirdVal"
               ]
-        applyOperation (ScimUserExtra (RichInfo mempty origAssocList)) operation
-          `shouldBe` (Right (ScimUserExtra (RichInfo mempty expectedAssocList)))
+        applyOperation (ScimUserExtra (RichInfo (RichInfoAssocList origAssocList))) operation
+          `shouldBe` (Right (ScimUserExtra (RichInfo (RichInfoAssocList expectedAssocList))))
       it "can remove from rich info assoc list" $ do
         let operationJSON =
               [aesonQQ|{
@@ -222,13 +222,13 @@ spec = describe "toScimStoredUser'" $ do
                                        }]
                                      }|]
         let (Aeson.Success (PatchOp [operation])) = Aeson.parse (parseJSON @(PatchOp SparTag)) operationJSON
-        applyOperation (ScimUserExtra (RichInfo mempty [RichField "oldAttr" "oldValue"])) operation
-          `shouldBe` (Right (ScimUserExtra (RichInfo mempty mempty)))
+        applyOperation (ScimUserExtra (RichInfo (RichInfoAssocList [RichField "oldAttr" "oldValue"]))) operation
+          `shouldBe` (Right (ScimUserExtra mempty))
       it "throws error if asked to patch an recognized schema" $ do
         let schema = Just (CustomSchema "wrong-schema")
             path = Just (NormalPath (AttrPath schema "oldAttr" Nothing))
             operation = Operation Remove path Nothing
-        isLeft (applyOperation (ScimUserExtra (RichInfo mempty [RichField "oldAttr" "oldValue"])) operation)
+        isLeft (applyOperation (ScimUserExtra (RichInfo (RichInfoAssocList [RichField "oldAttr" "oldValue"]))) operation)
           `shouldBe` True
       it "treats rich info assoc list case insensitively" $ do
         let operationJSON =
@@ -251,8 +251,8 @@ spec = describe "toScimStoredUser'" $ do
                 RichField "secondAttr" "newSecondVal",
                 RichField "thirdAttr" "thirdVal"
               ]
-        applyOperation (ScimUserExtra (RichInfo mempty origAssocList)) operation
-          `shouldBe` (Right (ScimUserExtra (RichInfo mempty expectedAssocList)))
+        applyOperation (ScimUserExtra (RichInfo (RichInfoAssocList origAssocList))) operation
+          `shouldBe` (Right (ScimUserExtra (RichInfo (RichInfoAssocList expectedAssocList))))
 
 instance Arbitrary ScimUserExtra where
   arbitrary = ScimUserExtra <$> arbitrary

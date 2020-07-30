@@ -39,7 +39,7 @@ import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)
 import Brig.Types.Intra (AccountStatus (..))
 import Brig.Types.Team (TeamSize)
 import Brig.Types.Team.Invitation
-import Brig.Types.User (InvitationCode, emailIdentity)
+import Brig.Types.User (Email, InvitationCode, emailIdentity)
 import qualified Brig.User.Search.Index as ESIndex
 import Control.Lens ((^.), view)
 import Data.Aeson hiding (json)
@@ -50,11 +50,11 @@ import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
-import Imports
+import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
 import Network.Wai.Predicate hiding (and, result, setStatus)
-import Network.Wai.Routing hiding (head)
+import Network.Wai.Routing
 import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
@@ -141,6 +141,18 @@ routesPublic = do
     Doc.returns (Doc.ref Public.modelTeamInvitation)
     Doc.response 200 "Invitation successful." Doc.end
     Doc.errorResponse invalidInvitationCode
+
+  -- FUTUREWORK: Add another endpoint to allow resending of invitation codes
+  head "/teams/invitations/by-email" (continue headInvitationsByEmailH) $
+    accept "application" "json"
+      .&. query "email"
+  document "HEAD" "headInvitationPending" $ do
+    Doc.summary "Check if there is an invitation pending given an email address."
+    Doc.parameter Doc.Query "email" Doc.bytes' $
+      Doc.description "Email address"
+    Doc.response 200 "Pending invitation exists." Doc.end
+    Doc.response 404 "No pending invitations exists." Doc.end
+    Doc.response 409 "Multiple conflicting invitations to different teams exists." Doc.end
 
 routesInternal :: Routes a Handler ()
 routesInternal = do
@@ -274,6 +286,14 @@ getInvitationByCode :: Public.InvitationCode -> Handler Public.Invitation
 getInvitationByCode c = do
   inv <- lift $ DB.lookupInvitationByCode c
   maybe (throwStd invalidInvitationCode) return inv
+
+headInvitationsByEmailH :: JSON ::: Email -> Handler Response
+headInvitationsByEmailH (_ ::: e) = do
+  inv <- lift $ DB.lookupInvitationInfoByEmail e
+  return $ case inv of
+    DB.InvitationByEmail _ -> setStatus status200 empty
+    DB.InvitationByEmailNotFound -> setStatus status404 empty
+    DB.InvitationByEmailMoreThanOne -> setStatus status409 empty
 
 suspendTeamH :: JSON ::: TeamId -> Handler Response
 suspendTeamH (_ ::: tid) = do

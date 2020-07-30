@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 359297a5d2e072c399e6e27b49065ef7ca860f07e1fb84b106df4f3eca12d21a
+-- hash: d47906946bda6a0b6f632f1e110faf587549509d2a81d5216e445ff7651434f8
 
 name:           stern
 version:        1.7.2
@@ -42,7 +42,6 @@ library
     , attoparsec >=0.12
     , base >=4.5 && <5
     , bilge >=0.12
-    , blaze-builder >=0.3
     , brig-types >=0.9.6
     , bytestring >=0.10
     , bytestring-conversion >=0.2

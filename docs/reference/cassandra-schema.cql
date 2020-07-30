@@ -437,13 +437,15 @@ CREATE TABLE galley_test.team_member (
 
 CREATE KEYSPACE gundeck_test WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}  AND durable_writes = true;
 
-CREATE TABLE gundeck_test.clients (
-    user uuid,
+CREATE TABLE gundeck_test.push (
+    ptoken text,
+    app text,
+    transport int,
     client text,
-    enckey blob,
-    mackey blob,
-    PRIMARY KEY (user, client)
-) WITH CLUSTERING ORDER BY (client ASC)
+    connection blob,
+    usr uuid,
+    PRIMARY KEY (ptoken, app, transport)
+) WITH CLUSTERING ORDER BY (app ASC, transport ASC)
     AND bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
@@ -453,26 +455,6 @@ CREATE TABLE gundeck_test.clients (
     AND dclocal_read_repair_chance = 0.1
     AND default_time_to_live = 0
     AND gc_grace_seconds = 864000
-    AND max_index_interval = 2048
-    AND memtable_flush_period_in_ms = 0
-    AND min_index_interval = 128
-    AND read_repair_chance = 0.0
-    AND speculative_retry = '99PERCENTILE';
-
-CREATE TABLE gundeck_test.fallback_cancel (
-    user uuid,
-    id timeuuid,
-    PRIMARY KEY (user, id)
-) WITH CLUSTERING ORDER BY (id ASC)
-    AND bloom_filter_fp_chance = 0.1
-    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
-    AND comment = ''
-    AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
-    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
-    AND crc_check_chance = 1.0
-    AND dclocal_read_repair_chance = 0.1
-    AND default_time_to_live = 0
-    AND gc_grace_seconds = 0
     AND max_index_interval = 2048
     AND memtable_flush_period_in_ms = 0
     AND min_index_interval = 128
@@ -523,30 +505,6 @@ CREATE TABLE gundeck_test.meta (
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
 
-CREATE TABLE gundeck_test.push (
-    ptoken text,
-    app text,
-    transport int,
-    client text,
-    connection blob,
-    usr uuid,
-    PRIMARY KEY (ptoken, app, transport)
-) WITH CLUSTERING ORDER BY (app ASC, transport ASC)
-    AND bloom_filter_fp_chance = 0.1
-    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
-    AND comment = ''
-    AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
-    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
-    AND crc_check_chance = 1.0
-    AND dclocal_read_repair_chance = 0.1
-    AND default_time_to_live = 0
-    AND gc_grace_seconds = 864000
-    AND max_index_interval = 2048
-    AND memtable_flush_period_in_ms = 0
-    AND min_index_interval = 128
-    AND read_repair_chance = 0.0
-    AND speculative_retry = '99PERCENTILE';
-
 CREATE TABLE gundeck_test.user_push (
     usr uuid,
     ptoken text,
@@ -555,7 +513,6 @@ CREATE TABLE gundeck_test.user_push (
     arn text,
     client text,
     connection blob,
-    fallback int,
     PRIMARY KEY (usr, ptoken, app, transport)
 ) WITH CLUSTERING ORDER BY (ptoken ASC, app ASC, transport ASC)
     AND bloom_filter_fp_chance = 0.1
@@ -838,6 +795,28 @@ CREATE TABLE brig_test.service (
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
 
+CREATE TABLE brig_test.team_invitation_email (
+    email text,
+    team uuid,
+    code ascii,
+    invitation uuid,
+    PRIMARY KEY (email, team)
+) WITH CLUSTERING ORDER BY (team ASC)
+    AND bloom_filter_fp_chance = 0.01
+    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
+    AND comment = ''
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}
+    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+    AND crc_check_chance = 1.0
+    AND dclocal_read_repair_chance = 0.1
+    AND default_time_to_live = 0
+    AND gc_grace_seconds = 864000
+    AND max_index_interval = 2048
+    AND memtable_flush_period_in_ms = 0
+    AND min_index_interval = 128
+    AND read_repair_chance = 0.0
+    AND speculative_retry = '99PERCENTILE';
+
 CREATE TABLE brig_test.invitation_info (
     code ascii PRIMARY KEY,
     id uuid,
@@ -984,6 +963,25 @@ CREATE TABLE brig_test.service_whitelist_rev (
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}
+    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+    AND crc_check_chance = 1.0
+    AND dclocal_read_repair_chance = 0.1
+    AND default_time_to_live = 0
+    AND gc_grace_seconds = 864000
+    AND max_index_interval = 2048
+    AND memtable_flush_period_in_ms = 0
+    AND min_index_interval = 128
+    AND read_repair_chance = 0.0
+    AND speculative_retry = '99PERCENTILE';
+
+CREATE TABLE brig_test.id_mapping (
+    mapped_id uuid PRIMARY KEY,
+    remote_domain text,
+    remote_id uuid
+) WITH bloom_filter_fp_chance = 0.1
+    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
+    AND comment = ''
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
     AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
     AND crc_check_chance = 1.0
     AND dclocal_read_repair_chance = 0.1

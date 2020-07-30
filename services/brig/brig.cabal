@@ -1,10 +1,10 @@
 cabal-version: 2.0
 
--- This file has been generated from package.yaml by hpack version 0.31.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5b6d9d31d5e95d40726d293fd31802c4a12c0d31327e3b948142f77d22117abb
+-- hash: f150b19d31eda4f6f32ad2782dccc7deae05b01ffd46558fe1f403ba49500307
 
 name:           brig
 version:        1.35.0
@@ -24,6 +24,7 @@ library
       Brig.API.Connection
       Brig.API.Error
       Brig.API.Handler
+      Brig.API.IdMapping
       Brig.API.Internal
       Brig.API.Properties
       Brig.API.Public
@@ -40,6 +41,7 @@ library
       Brig.Data.Blacklist
       Brig.Data.Client
       Brig.Data.Connection
+      Brig.Data.IdMapping
       Brig.Data.Instances
       Brig.Data.LoginCode
       Brig.Data.PasswordReset
@@ -51,6 +53,7 @@ library
       Brig.InternalEvent.Process
       Brig.InternalEvent.Types
       Brig.IO.Intra
+      Brig.IO.Intra.IdMapping
       Brig.IO.Journal
       Brig.Locale
       Brig.Options
@@ -121,7 +124,6 @@ library
     , base16-bytestring >=0.1
     , base64-bytestring >=1.0
     , bilge >=0.21.1
-    , blaze-builder >=0.3
     , bloodhound >=0.13
     , brig-types >=0.91.1
     , bytestring >=0.10
@@ -225,7 +227,6 @@ library brig-index-lib
       Brig.Index.Eval
       Brig.Index.Migrations
       Brig.Index.Migrations.Types
-      Brig.Index.Migrations.V1_ReIndexForSearchTeamMembers
       Brig.Index.Options
       Main
   other-modules:
@@ -288,6 +289,7 @@ executable brig-index
 executable brig-integration
   main-is: Main.hs
   other-modules:
+      API.IdMapping
       API.Metrics
       API.Provider
       API.RichInfo.Util
@@ -435,6 +437,8 @@ executable brig-schema
       V57
       V58
       V59
+      V60_AddFederationIdMapping
+      V61_team_invitation_email
       V9
       Paths_brig
   hs-source-dirs:

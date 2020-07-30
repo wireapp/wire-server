@@ -25,7 +25,6 @@ library:
   - auto-update >=0.1
   - base >=4.7 && <5
   - bilge >=0.21
-  - blaze-builder >=0.3
   - bytestring >=0.9
   - bytestring-conversion >=0.2
   - base64-bytestring >=1.0

@@ -2,6 +2,23 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 -- | A bunch of hspec acceptance tests that assert that your SCIM
 -- implementation is compatible with popular SCIM 2.0 providers
 module Web.Scim.Test.Acceptance
@@ -19,11 +36,12 @@ import Data.Text (Text)
 import Network.HTTP.Types.Status
 import Network.Wai.Test
 import Servant.API as Servant
-import Test.Hspec (Spec, beforeAll, describe, it, pending, pendingWith, shouldBe)
+import Test.Hspec (Spec, beforeAll, describe, it, pending, pendingWith, shouldBe, shouldSatisfy)
 import Test.Hspec.Wai (matchStatus)
 import Test.Hspec.Wai.Internal (runWaiSession)
 import Web.Scim.Class.User
 import Web.Scim.Schema.Common as Hscim
+import qualified Web.Scim.Schema.ListResponse as ListResponse
 import Web.Scim.Schema.Meta
 import Web.Scim.Schema.UserTypes
 import Web.Scim.Test.Util
@@ -83,9 +101,14 @@ microsoftAzure AcceptanceConfig {..} = do
           testuid =
             either (error . show . (,resp)) (cs . Servant.toUrlPiece . Hscim.id . thing) $
               Aeson.eitherDecode' @(StoredUser tag) (simpleBody resp)
-      -- Get user by query
-      get' queryConfig (cs $ "/Users?filter userName eq " <> show userName1) `shouldRespondWith` 200
-      -- Get user by query, zero results
+      -- Get users without query
+      get' queryConfig "/Users" >>= \rsp -> liftIO $ do
+        simpleStatus rsp `shouldSatisfy` (`elem` [status200, status400])
+      -- Get single user by query
+      get' queryConfig (cs $ "/Users?filter=userName eq " <> show userName1) >>= \rsp -> liftIO $ do
+        simpleStatus rsp `shouldBe` status200
+        ListResponse.totalResults <$> Aeson.eitherDecode' @(ListResponse.ListResponse (StoredUser tag)) (simpleBody rsp) `shouldBe` Right 1
+      -- Get single user by query, zero results
       get' queryConfig (cs $ "/Users?filter=userName eq " <> show userName2)
         `shouldRespondWith` [scim|
           {
@@ -98,8 +121,11 @@ microsoftAzure AcceptanceConfig {..} = do
         |]
           { matchStatus = 200
           }
-      -- Get user by externalId works
-      get' queryConfig "/Users?filter externalId eq \"0a21f0f2-8d2a-4f8e-479e-a20b-2d77186b5dd1\"" `shouldRespondWith` 200
+      -- Get single user by externalId works
+      ignore $ do
+        get' queryConfig "/Users?filter=externalId eq \"0a21f0f2-8d2a-4f8e-479e-a20b-2d77186b5dd1\"" >>= \rsp -> liftIO $ do
+          simpleStatus rsp `shouldBe` status200
+          ListResponse.totalResults <$> Aeson.eitherDecode' @(ListResponse.ListResponse (StoredUser tag)) (simpleBody rsp) `shouldBe` Right 1
       -- Update user [Multi-valued properties]
       ignore $
         patch'

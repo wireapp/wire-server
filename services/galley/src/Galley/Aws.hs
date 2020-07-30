@@ -32,13 +32,13 @@ module Galley.Aws
   )
 where
 
-import Blaze.ByteString.Builder (toLazyByteString)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import qualified Control.Monad.Trans.AWS as AWST
 import Control.Monad.Trans.Resource
 import Control.Retry (exponentialBackoff, limitRetries, retrying)
 import qualified Data.ByteString.Base64 as B64
+import Data.ByteString.Builder (toLazyByteString)
 import Data.ProtoLens.Encoding
 import Data.Text.Encoding (decodeLatin1)
 import Data.UUID (toText)

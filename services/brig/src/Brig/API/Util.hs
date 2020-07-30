@@ -26,7 +26,6 @@ import Control.Lens (view)
 import Control.Monad
 import Data.Domain (Domain)
 import Data.Id as Id
-import Data.IdMapping (MappedOrLocalId (Local))
 import Data.Maybe
 import Imports
 
@@ -45,16 +44,3 @@ viewFederationDomain = view (settings . enableFederationWithDomain)
 
 isFederationEnabled :: MonadReader Env m => m Bool
 isFederationEnabled = isJust <$> viewFederationDomain
-
--- FUTUREWORK(federation, #1178): implement function to resolve IDs in batch
-
--- | this exists as a shim to find and mark places where we need to handle 'OpaqueUserId's.
-resolveOpaqueUserId :: MonadReader Env m => OpaqueUserId -> m (MappedOrLocalId Id.U)
-resolveOpaqueUserId (Id opaque) = do
-  isFederationEnabled >>= \case
-    False ->
-      -- don't check the ID mapping, just assume it's local
-      pure . Local $ Id opaque
-    True ->
-      -- FUTUREWORK(federation, #1178): implement database lookup
-      pure . Local $ Id opaque

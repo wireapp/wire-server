@@ -46,6 +46,7 @@ module Spar.Intra.Brig
     isEmailValidationEnabledUser,
     getStatus,
     setStatus,
+    giveDefaultHandle,
   )
 where
 
@@ -60,7 +61,7 @@ import Control.Lens
 import Control.Monad.Except
 import Data.Aeson (FromJSON, eitherDecode')
 import Data.ByteString.Conversion
-import Data.Handle (Handle (fromHandle))
+import Data.Handle (Handle (Handle, fromHandle))
 import Data.Id (Id (Id), TeamId, UserId)
 import Data.Ix
 import Data.Misc (PlainTextPassword)
@@ -69,9 +70,11 @@ import Data.String.Conversions
 import Imports
 import Network.HTTP.Types.Method
 import qualified SAML2.WebSSO as SAML
+import qualified Servant.Server as Servant
 import Spar.Error
 import Spar.Intra.Galley as Galley (MonadSparToGalley, assertIsTeamOwner, isEmailValidationEnabledTeam)
 import Web.Cookie
+import Wire.API.User.RichInfo as RichInfo
 
 ----------------------------------------------------------------------
 
@@ -320,7 +323,7 @@ setBrigUserRichInfo buid richInfo = do
     call $
       method PUT
         . paths ["i", "users", toByteString' buid, "rich-info"]
-        . json (RichInfoUpdate $ toRichInfoAssocList richInfo)
+        . json (RichInfoUpdate $ unRichInfo richInfo)
   let sCode = statusCode resp
   if  | sCode < 300 ->
         pure ()
@@ -331,7 +334,7 @@ setBrigUserRichInfo buid richInfo = do
 
 -- TODO: We should add an internal endpoint for this instead
 getBrigUserRichInfo :: (HasCallStack, MonadSparToBrig m) => UserId -> m RichInfo
-getBrigUserRichInfo buid = do
+getBrigUserRichInfo buid = RichInfo.RichInfo <$> do
   resp <-
     call $
       method GET
@@ -339,7 +342,7 @@ getBrigUserRichInfo buid = do
         . header "Z-User" (toByteString' buid)
         . header "Z-Connection" ""
   case statusCode resp of
-    200 -> parseResponse @RichInfo resp
+    200 -> parseResponse resp
     _ -> throwSpar (SparBrigErrorWith (responseStatus resp) "Could not retrieve rich info")
 
 -- | At the time of writing this, @HEAD /users/handles/:uid@ does not use the 'UserId' for
@@ -487,3 +490,46 @@ setStatus uid status = do
   case statusCode resp of
     200 -> pure ()
     _ -> throwSpar (SparBrigErrorWith (responseStatus resp) "Could not set status")
+
+-- | If the user has no 'Handle', set it to its 'UserId' and update the user in brig.
+-- Return the handle the user now has (the old one if it existed, the newly created one
+-- otherwise).
+--
+-- RATIONALE: Finding the handle can fail for users that have been created without scim, and
+-- have stopped the onboarding process at the point where they are asked by the client to
+-- enter a handle.
+--
+-- We make up a handle in this case, and the scim peer can find the user, see that the handle
+-- is not the one it expects, and update it.
+--
+-- We cannot simply respond with 404 in this case, because the user exists.  404 would suggest
+-- do the scim peer that it should post the user to create it, but that would create a new
+-- user instead of finding the old that should be put under scim control.
+giveDefaultHandle :: (HasCallStack, MonadSparToBrig m) => User -> m Handle
+giveDefaultHandle usr = case userHandle usr of
+  Just handle -> pure handle
+  Nothing -> do
+    let handle :: Handle = Handle . cs . toByteString' . userId $ usr
+    resp :: Response (Maybe LBS) <-
+      call $
+        method PUT
+          . path "/self/handle"
+          . header "Z-User" (toByteString' . userId $ usr)
+          . header "Z-Connection" ""
+          . (json . HandleUpdate . fromHandle $ handle)
+    if statusCode resp == 200
+      then pure handle
+      else rethrow resp
+
+-- | If a call to brig fails, we often just want to respond with whatever brig said.
+--
+-- FUTUREWORK: with servant, there will be a way for the type checker to confirm that we
+-- handle all exceptions that brig can legally throw!
+rethrow :: ResponseLBS -> (HasCallStack, MonadSparToBrig m) => m a
+rethrow resp = throwError $ SAML.CustomServant (withDefault mServantErr)
+  where
+    withDefault :: Maybe Servant.ServerError -> Servant.ServerError
+    withDefault = fromMaybe (Servant.ServerError 500 "unexpected brig response" mempty mempty)
+    --
+    mServantErr :: Maybe Servant.ServerError
+    mServantErr = waiToServant <$> responseJsonMaybe resp
