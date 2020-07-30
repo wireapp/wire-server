@@ -30,8 +30,7 @@ makeSem ''DNSLookup
 
 runDNSLookupDefault :: Member (Embed IO) r => Sem (DNSLookup ': r) a -> Sem r a
 runDNSLookupDefault =
-  interpret $ \l -> do
-    rs <- embed $ DNS.makeResolvSeed DNS.defaultResolvConf
-    embed $ DNS.withResolver rs $ \resolver ->
-      case l of
-        LookupSRV domain -> interpretResponse <$> DNS.lookupSRV resolver domain
+  interpret $ \(LookupSRV domain) -> embed $ do
+    rs <- DNS.makeResolvSeed DNS.defaultResolvConf
+    DNS.withResolver rs $ \resolver ->
+      interpretResponse <$> DNS.lookupSRV resolver domain
