@@ -123,7 +123,7 @@ newConfig env mSftEnv limit = do
   srvs <- for finalUris $ \uri -> do
     u <- liftIO $ genUsername tTTL prng
     pure $ Public.rtcIceServer (uri :| []) u (computeCred sha secret u)
-  sftSrvEntries <- maybe (pure Nothing) (readIORef . sftServers) mSftEnv
+  sftSrvEntries <- maybe (pure Nothing) ((fmap discoveryToMaybe) . readIORef . sftServers) mSftEnv
   -- According to RFC2782, the SRV Entries are supposed to be tried in order of
   -- priority and weight, but we internally agreed to randomize the list of
   -- available servers for poor man's "load balancing" purposes.

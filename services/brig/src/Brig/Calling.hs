@@ -37,11 +37,24 @@ import Wire.Network.DNS.Effect
 import Wire.Network.DNS.SRV
 
 data SFTEnv = SFTEnv
-  { sftServers :: IORef (Maybe (NonEmpty SrvEntry)),
+  { -- | Starts off as `NotDiscoveredYet`, once it has servers, it should never
+    -- go back to `NotDiscoveredYet` and continue having stale values if
+    -- subsequent discovries fail
+    sftServers :: IORef (Discovery (NonEmpty SrvEntry)),
     sftDomain :: DNS.Domain,
     -- | Microseconds, as expected by 'threadDelay'
     sftDiscoveryInterval :: Int
   }
+
+data Discovery a
+  = NotDiscoveredYet
+  | Discovered a
+  deriving (Show, Eq)
+
+discoveryToMaybe :: Discovery a -> Maybe a
+discoveryToMaybe = \case
+  NotDiscoveredYet -> Nothing
+  Discovered x -> Just x
 
 discoverSFTServers :: Members [DNSLookup, PolyLog] r => DNS.Domain -> Sem r (Maybe (NonEmpty SrvEntry))
 discoverSFTServers domain =
@@ -64,13 +77,13 @@ sftDiscoveryLoop SFTEnv {..} = forever $ do
   servers <- discoverSFTServers sftDomain
   case servers of
     Nothing -> pure ()
-    es -> atomicWriteIORef sftServers es
+    Just es -> atomicWriteIORef sftServers (Discovered es)
   threadDelay sftDiscoveryInterval
 
 mkSFTEnv :: SFTOptions -> IO SFTEnv
 mkSFTEnv opts =
   SFTEnv
-    <$> newIORef Nothing
+    <$> newIORef NotDiscoveredYet
     <*> pure (mkSFTDomain opts)
     <*> pure (diffTimeToMicroseconds (fromMaybe defSftDiscoveryIntervalSeconds (Opts.sftDiscoveryIntervalSeconds opts)))
 

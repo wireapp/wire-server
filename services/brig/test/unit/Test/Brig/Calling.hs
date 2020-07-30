@@ -101,11 +101,11 @@ testDiscoveryLoopWhenSuccessful = do
   discoveryLoop <- Async.async $ runM . ignoreLogs . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
   void $ retryEvery10MicrosWhileN 2000 (== 0) (length <$> readIORef (fakeLookupCalls fakeDNSEnv))
   -- We don't want to stop the loop before it has written to the sftServers IORef
-  void $ retryEvery10MicrosWhileN 2000 (isNothing) (readIORef (sftServers sftEnv))
+  void $ retryEvery10MicrosWhileN 2000 (== NotDiscoveredYet) (readIORef (sftServers sftEnv))
   Async.cancel discoveryLoop
 
   actualServers <- readIORef (sftServers sftEnv)
-  assertEqual "servers should be the ones read from DNS" (Just returnedEntries) actualServers
+  assertEqual "servers should be the ones read from DNS" (Discovered returnedEntries) actualServers
   pure sftEnv
 
 testDiscoveryLoopWhenUnsuccessful :: IO ()
@@ -120,7 +120,7 @@ testDiscoveryLoopWhenUnsuccessful = do
   Async.cancel discoveryLoop
 
   actualServers <- readIORef (sftServers sftEnv)
-  assertEqual "servers should be the ones read from DNS" Nothing actualServers
+  assertEqual "servers should be the ones read from DNS" NotDiscoveredYet actualServers
 
 testDiscoveryLoopWhenUnsuccessfulAfterSuccess :: IO ()
 testDiscoveryLoopWhenUnsuccessfulAfterSuccess = do
@@ -153,11 +153,11 @@ testDiscoveryLoopWhenURLsChange = do
   discoveryLoop <- Async.async $ runM . ignoreLogs . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
   void $ retryEvery10MicrosWhileN 2000 (== 0) (length <$> readIORef (fakeLookupCalls fakeDNSEnv))
   -- We don't want to stop the loop before it has written to the sftServers IORef
-  void $ retryEvery10MicrosWhileN 2000 (== Just newEntries) (readIORef (sftServers sftEnv))
+  void $ retryEvery10MicrosWhileN 2000 (== Discovered newEntries) (readIORef (sftServers sftEnv))
   Async.cancel discoveryLoop
 
   actualServers <- readIORef (sftServers sftEnv)
-  assertEqual "servers should get overwritten" (Just newEntries) actualServers
+  assertEqual "servers should get overwritten" (Discovered newEntries) actualServers
 
 testSFTDiscoverWhenAvailable :: IO ()
 testSFTDiscoverWhenAvailable = do
