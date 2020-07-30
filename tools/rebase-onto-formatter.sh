@@ -2,24 +2,42 @@
 
 set -euo pipefail
 
-echo "INSTRUCTIONS:"
-echo "1. Make a copy of your branch (or be prepared to salvage it from reflog)."
-echo "2. Find out the what the base commit is (in our case ...)"
-echo "3. Rebase onto the base commit yourself."
-echo "4. Make sure the formatting tool is installed with the correct version and settings (i.e. stack install ormolu)."
-echo "5. Run this script."
-echo ""
-echo "Running the script now. This will take a while."
-[[ "$(read -e -p 'Continue? [y/N]> '; echo $REPLY)" == [Yy]* ]] || exit 0
+command -v sed  >/dev/null 2>&1 || { echo >&2 "sed is not installed, aborting."; exit 1; }
 
-set -x
-
-# TODO: check existence of tools
-
-# TODO: just show usage/instructions if arguments are not supplied?
 BASE_COMMIT=$1
 TARGET_COMMIT=$2
 FORMATTING_COMMAND='make formatf'
+USAGE="
+USAGE: $0 BASE_COMMIT TARGET_COMMIT
+    BASE_COMMIT:
+    TARGET_COMMIT:
+
+Rebase a branch onto changes created by an automated formatter. The script
+will keep the (linear) history of the branch intact and make the commits appear
+as if the changes had been applied onto the newly-formatted version all along.
+
+TODO: explain base commit etc.
+
+INSTRUCTIONS:
+1. Make a copy of your branch (or be prepared to salvage it from reflog).
+2. Find out the what the base commit is.
+3. Rebase onto the base commit yourself.
+4. Make sure the formatting tool is installed with the correct version and settings (i.e. stack install ormolu).
+5. Run this script.
+
+"
+
+if [ -z "$BASE_COMMIT" || -z "$TARGET_COMMIT" || -z "$FORMATTING_COMMAND" ]
+then
+  echo "$USAGE" 1>&2
+  exit 1
+fi
+
+echo "Running the script now. This might take a while..."
+
+# The idea behind the sscript is ... TODO
+
+set -x
 
 # edit every commit Ci, adding f(Ci) and r(F(Ci))
 git rebase $BASE_COMMIT~1 --exec "$FORMATTING_COMMAND && git commit -am "format" && git revert HEAD --no-edit"
@@ -28,8 +46,8 @@ git rebase $BASE_COMMIT~1 --exec "$FORMATTING_COMMAND && git commit -am "format"
 git reset HEAD~1 --hard
 
 # now for every Ci, squash with the previous and next commit (i.e. r(f(C(i-1))) and f(Ci))
-# in sequence editor, squash lines 3, 6, 9, ... and fixup lines 4, 7, 10, ...
-# in commit message editor, drop drop first 9 lines
+# - in sequence editor, squash lines 3, 6, 9, ... and fixup lines 4, 7, 10, ...
+# - in commit message editor, drop drop first 9 lines (removing the commit message of the revert commit)
 GIT_SEQUENCE_EDITOR='sed -i -e "3~3s/pick/squash/" -e "4~3s/pick/fixup/"' \
   GIT_EDITOR='sed -i "1,9d"' \
   git rebase --interactive $BASE_COMMIT
