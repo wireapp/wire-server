@@ -26,6 +26,8 @@ import qualified URI.ByteString.QQ as URI
 import qualified Wire.API.Call.Config as Public
 import Wire.Network.DNS.SRV (SrvTarget (..))
 
+-- FUTUREWORK: Extract function to translate SrvTarget to HttpsUrl and use it
+-- wherever we use DNS for service discovery
 sftServerFromSrvTarget :: SrvTarget -> Public.SFTServer
 sftServerFromSrvTarget (SrvTarget host port) =
   let uriPort = URI.Port (fromIntegral port)
