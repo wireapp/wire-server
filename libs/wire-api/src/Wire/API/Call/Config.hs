@@ -163,7 +163,7 @@ modelRtcSftServer :: Doc.Model
 modelRtcSftServer = Doc.defineModel "RTC SFT Server" $ do
   Doc.description "Inspired by WebRTC 'RTCIceServer' object, contains details of SFT servers"
   Doc.property "urls" (Doc.array Doc.string') $
-    Doc.description "Array of SFT server addresses of the form 'https://<addr>:<port>'"
+    Doc.description "Array containing exactly one SFT server address of the form 'https://<addr>:<port>'"
 
 --------------------------------------------------------------------------------
 -- RTCIceServer
