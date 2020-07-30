@@ -31,9 +31,8 @@ import Wire.Network.DNS.SRV (SrvTarget (..))
 sftServerFromSrvTarget :: SrvTarget -> Public.SFTServer
 sftServerFromSrvTarget (SrvTarget host port) =
   let uriPort = URI.Port (fromIntegral port)
-      uri =
-        [URI.uri|https://|]
-          & URI.authorityL ?~ URI.Authority Nothing (URI.Host (dropTrailingDot host)) (Just uriPort)
+      uriHost = URI.Host (dropTrailingDot host)
+      uri = [URI.uri|https://|] & URI.authorityL ?~ URI.Authority Nothing uriHost (Just uriPort)
    in Public.sftServer (ensureHttpsUrl uri)
   where
     dropTrailingDot :: ByteString -> ByteString
