@@ -19,7 +19,7 @@ module Brig.Calling.Internal where
 
 import Control.Lens ((?~))
 import qualified Data.ByteString.Char8 as BS
-import Data.Misc (mkHttpsUrl)
+import Data.Misc (ensureHttpsUrl)
 import Imports
 import qualified URI.ByteString as URI
 import qualified URI.ByteString.QQ as URI
@@ -32,7 +32,7 @@ sftServerFromSrvTarget (SrvTarget host port) =
       uri =
         [URI.uri|https://|]
           & URI.authorityL ?~ URI.Authority Nothing (URI.Host (dropTrailingDot host)) (Just uriPort)
-   in either (error "sftServerFromSrvTarget: invalid https URI") Public.sftServer (mkHttpsUrl uri)
+   in Public.sftServer (ensureHttpsUrl uri)
   where
     dropTrailingDot :: ByteString -> ByteString
     dropTrailingDot bs =
