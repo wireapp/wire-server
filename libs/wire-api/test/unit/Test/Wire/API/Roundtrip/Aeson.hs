@@ -92,6 +92,7 @@ tests =
       testRoundTrip @Call.Config.TurnUsername,
       testRoundTrip @Call.Config.RTCIceServer,
       testRoundTrip @Call.Config.RTCConfiguration,
+      testRoundTrip @Call.Config.SFTServer,
       testRoundTrip @Connection.ConnectionRequest,
       testRoundTrip @Connection.Relation,
       testRoundTrip @Connection.Message,
