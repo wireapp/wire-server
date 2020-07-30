@@ -61,6 +61,7 @@ routesPublic = do
       .&. header "Z-User"
       .&. header "Z-Connection"
   document "GET" "getCallsConfig" $ do
+    Doc.deprecated
     Doc.summary
       "Retrieve TURN server addresses and credentials for \
       \ IP addresses, scheme `turn` and transport `udp` only "
