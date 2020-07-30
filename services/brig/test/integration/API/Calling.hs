@@ -56,7 +56,7 @@ tests m b opts turn turnV2 = do
             test m "multiple servers /calls/config - 200" . withTurnFile turn $ testCallsConfigMultiple b,
             test m "multiple servers /calls/config/v2 - 200" . withTurnFile turnV2 $ testCallsConfigMultipleV2 b
           ],
-        test m "SFT servers /calls/config/v2 - 200" $ testSFT b opts
+        testGroup "sft" $ [test m "SFT servers /calls/config/v2 - 200" $ testSFT b opts]
       ]
 
 testCallsConfig :: Brig -> Http ()
