@@ -67,7 +67,6 @@ import Brig.Data.Connection (lookupContactList)
 import qualified Brig.IO.Journal as Journal
 import Brig.RPC
 import Brig.Types
-import Brig.Types.Intra
 import Brig.User.Event
 import qualified Brig.User.Event.Log as Log
 import qualified Brig.User.Search.Index as Search
@@ -181,7 +180,7 @@ updateSearchIndex orig e = case e of
 journalEvent :: UserId -> UserEvent -> AppIO ()
 journalEvent orig e = case e of
   UserActivated acc ->
-    Journal.userActivate (accountUser acc)
+    Journal.userActivate acc
   UserUpdated UserUpdatedData {eupName = Just name} ->
     Journal.userUpdate orig Nothing Nothing (Just name)
   UserUpdated UserUpdatedData {eupLocale = Just loc} ->
@@ -350,13 +349,13 @@ notifyContacts events orig route conn = do
 -- Event Serialisation:
 
 toPushFormat :: Event -> Maybe Object
-toPushFormat (UserEvent (UserCreated (UserAccount u _))) =
+toPushFormat (UserEvent (UserCreated u)) =
   Just $
     M.fromList
       [ "type" .= ("user.new" :: Text),
         "user" .= SelfProfile (u {userIdentity = Nothing})
       ]
-toPushFormat (UserEvent (UserActivated (UserAccount u _))) =
+toPushFormat (UserEvent (UserActivated u)) =
   Just $
     M.fromList
       [ "type" .= ("user.activate" :: Text),

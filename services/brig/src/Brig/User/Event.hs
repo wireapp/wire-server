@@ -20,7 +20,6 @@
 module Brig.User.Event where
 
 import Brig.Types
-import Brig.Types.Intra
 import Data.Handle (Handle)
 import Data.Id
 import Imports
@@ -32,10 +31,10 @@ data Event
   | ClientEvent !ClientEvent
 
 data UserEvent
-  = UserCreated !UserAccount
+  = UserCreated !User
   | -- | A user is activated when the first user identity (email address or phone number)
     -- is verified. {#RefActivationEvent}
-    UserActivated !UserAccount
+    UserActivated !User
   | -- | Account & API access of a user has been suspended.
     UserSuspended !UserId
   | -- | Account & API access of a previously suspended user
@@ -157,8 +156,8 @@ connEventUserId :: ConnectionEvent -> UserId
 connEventUserId ConnectionUpdated {..} = ucFrom ucConn
 
 userEventUserId :: UserEvent -> UserId
-userEventUserId (UserCreated u) = userId (accountUser u)
-userEventUserId (UserActivated u) = userId (accountUser u)
+userEventUserId (UserCreated u) = userId u
+userEventUserId (UserActivated u) = userId u
 userEventUserId (UserSuspended u) = u
 userEventUserId (UserResumed u) = u
 userEventUserId (UserDeleted u) = u
