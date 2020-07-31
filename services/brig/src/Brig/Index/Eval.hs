@@ -99,13 +99,13 @@ runCommand l = \case
       ES.mkBHEnv (toESServer esURI)
         <$> newManager defaultManagerSettings
     initDb cas =
-      C.init
-        $ C.setLogger (C.mkLogger l)
+      C.init $
+        C.setLogger (C.mkLogger l)
           . C.setContacts (view cHost cas) []
           . C.setPortNumber (fromIntegral (view cPort cas))
           . C.setKeyspace (view cKeyspace cas)
           . C.setProtocolVersion C.V4
-        $ C.defSettings
+          $ C.defSettings
 
 waitForTaskToComplete :: forall a m. (ES.MonadBH m, MonadIO m, MonadThrow m, FromJSON a) => Int -> ES.TaskNodeId -> m ()
 waitForTaskToComplete timeoutSeconds taskNodeId = do
@@ -117,9 +117,10 @@ waitForTaskToComplete timeoutSeconds taskNodeId = do
   unless (ES.taskResponseCompleted task) $ do
     throwM $ ReindexFromAnotherIndexError $ "Timed out waiting for task: " <> show taskNodeId
   when (isJust $ ES.taskResponseError task) $ do
-    throwM $ ReindexFromAnotherIndexError $
-      "Task failed with error: "
-        <> LensBS.unpackLazy8 (Aeson.encode $ ES.taskResponseError task)
+    throwM $
+      ReindexFromAnotherIndexError $
+        "Task failed with error: "
+          <> LensBS.unpackLazy8 (Aeson.encode $ ES.taskResponseError task)
   where
     isTaskComplete :: Either ES.EsError (ES.TaskResponse a) -> m Bool
     isTaskComplete (Left e) = throwM $ ReindexFromAnotherIndexError $ "Error response while getting task: " <> show e

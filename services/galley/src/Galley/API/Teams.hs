@@ -62,8 +62,8 @@ import Brig.Types.Team (TeamSize (..))
 import Control.Lens
 import Control.Monad.Catch
 import Data.ByteString.Conversion hiding (fromList)
-import qualified Data.Id as Id
 import Data.Id
+import qualified Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local))
 import qualified Data.List.Extra as List
 import Data.List1 (list1)
@@ -493,11 +493,12 @@ updateTeamMember zusr zcon tid targetMember = do
 
   -- user may not elevate permissions
   targetPermissions `ensureNotElevated` user
-  previousMember <- Data.teamMember tid targetId >>= \case
-    Nothing ->
-      -- target user must be in same team
-      throwM teamMemberNotFound
-    Just previousMember -> pure previousMember
+  previousMember <-
+    Data.teamMember tid targetId >>= \case
+      Nothing ->
+        -- target user must be in same team
+        throwM teamMemberNotFound
+      Just previousMember -> pure previousMember
   when
     ( downgradesOwner previousMember targetPermissions
         && not (canDowngradeOwner user previousMember)
@@ -609,12 +610,13 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
       let tmids = Set.fromList $ map (Local . view userId) (mems ^. teamMembers)
       let edata = Conv.EdMembersLeave (Conv.UserIdList [remove])
       cc <- Data.teamConversations tid
-      for_ cc $ \c -> Data.conversation (c ^. conversationId) >>= \conv ->
-        for_ conv $ \dc -> when (Local remove `isMember` Data.convMembers dc) $ do
-          Data.removeMember (Local remove) (c ^. conversationId)
-          -- If the list was truncated, then the tmids list is incomplete so we simply drop these events
-          unless (c ^. managedConversation || mems ^. teamMemberListType == ListTruncated) $
-            pushEvent tmids edata now dc
+      for_ cc $ \c ->
+        Data.conversation (c ^. conversationId) >>= \conv ->
+          for_ conv $ \dc -> when (Local remove `isMember` Data.convMembers dc) $ do
+            Data.removeMember (Local remove) (c ^. conversationId)
+            -- If the list was truncated, then the tmids list is incomplete so we simply drop these events
+            unless (c ^. managedConversation || mems ^. teamMemberListType == ListTruncated) $
+              pushEvent tmids edata now dc
     pushEvent :: Set (MappedOrLocalId Id.U) -> Conv.EventData -> UTCTime -> Data.Conversation -> Galley ()
     pushEvent exceptTo edata now dc = do
       (bots, users) <- botsAndUsers (Data.convMembers dc)

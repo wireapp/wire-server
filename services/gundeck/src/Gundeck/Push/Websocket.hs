@@ -27,7 +27,7 @@ import Bilge.RPC
 import Bilge.Retry (rpcHandlers)
 import Control.Arrow ((&&&))
 import Control.Exception (ErrorCall (ErrorCall))
-import Control.Lens ((%~), (^.), _2, view)
+import Control.Lens (view, (%~), (^.), _2)
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow, catch, throwM, try)
 import Control.Retry
 import Data.Aeson (eitherDecode, encode)
@@ -51,7 +51,7 @@ import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..))
 import qualified Network.HTTP.Client.Internal as Http
 import Network.HTTP.Types (StdMethod (POST), status200, status410)
 import qualified Network.URI as URI
-import System.Logger.Class ((+++), val, (~~))
+import System.Logger.Class (val, (+++), (~~))
 import qualified System.Logger.Class as Log
 import UnliftIO (handleAny, mapConcurrently)
 
@@ -368,12 +368,13 @@ send n pp =
   where
     fn js p = do
       req <- Http.setUri empty (fromURI (resource p))
-      recovering x1 rpcHandlers $ const
-        $ rpc' "cannon" (check req)
-        $ method POST
-          . contentJson
-          . lbytes js
-          . timeout 3000 -- ms
+      recovering x1 rpcHandlers $
+        const $
+          rpc' "cannon" (check req) $
+            method POST
+              . contentJson
+              . lbytes js
+              . timeout 3000 -- ms
     check r =
       r
         { Http.checkResponse = \rq rs ->

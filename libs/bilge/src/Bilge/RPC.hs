@@ -109,9 +109,9 @@ statusCheck ::
   Response (Maybe LByteString) ->
   m ()
 statusCheck c f r =
-  unless (statusCode r == c)
-    $ throwError
-    $ f ("unexpected status code: " <> pack (show $ statusCode r))
+  unless (statusCode r == c) $
+    throwError $
+      f ("unexpected status code: " <> pack (show $ statusCode r))
 
 parseResponse ::
   (Exception e, MonadThrow m, Monad m, FromJSON a) =>

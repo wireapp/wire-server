@@ -187,16 +187,16 @@ initMetrics = do
   return m
   where
     counters =
-      Metrics.assertionsTotal
-        : Metrics.assertionsFailed
-        : Metrics.exceptionsTotal
-        : Metrics.botsCreatedNew
-        : Metrics.botsCreatedCached
-        : Metrics.eventsTotalRcvd
-        : Metrics.eventsTotalAckd
-        : Metrics.eventsTotalIgnd
-        : Metrics.eventsTotalMssd
-        : concatMap etc [(minBound :: EventType) ..]
+      Metrics.assertionsTotal :
+      Metrics.assertionsFailed :
+      Metrics.exceptionsTotal :
+      Metrics.botsCreatedNew :
+      Metrics.botsCreatedCached :
+      Metrics.eventsTotalRcvd :
+      Metrics.eventsTotalAckd :
+      Metrics.eventsTotalIgnd :
+      Metrics.eventsTotalMssd :
+      concatMap etc [(minBound :: EventType) ..]
     etc t =
       [ Metrics.eventTypeRcvd t,
         Metrics.eventTypeAckd t,
@@ -562,9 +562,9 @@ assertEqual a b m =
 
 assertTrue :: (HasCallStack, MonadBotNet m) => Bool -> Text -> m ()
 assertTrue b m =
-  whenAsserts
-    $ unless b
-    $ assertFailure m -- the 'unless' is hidden under 'whenAsserts'
+  whenAsserts $
+    unless b $
+      assertFailure m -- the 'unless' is hidden under 'whenAsserts'
       -- because we don't want 'b' to be evaluated
       -- when asserts are disabled
 
@@ -725,14 +725,14 @@ heartbeat bot e = forever $ do
   let l = botNetLogger e
   -- Refresh the auth token, if necessary
   (auth, expiry) <- readIORef $ botAuth bot
-  when (now > expiry)
-    $ void . forkIO . runBotNet e . runBotSession bot
-    $ do
-      log Debug $ msg (val "Refreshing auth token")
-      refreshAuth auth
-        >>= maybe
-          (log Error $ msg (val "Failed to refresh auth token"))
-          setAuth
+  when (now > expiry) $
+    void . forkIO . runBotNet e . runBotSession bot $
+      do
+        log Debug $ msg (val "Refreshing auth token")
+        refreshAuth auth
+          >>= maybe
+            (log Error $ msg (val "Failed to refresh auth token"))
+            setAuth
   -- Event & assertion maintenance
   when (botNetAssert e) $ do
     -- Remove old events from the inbox
@@ -742,17 +742,18 @@ heartbeat bot e = forever $ do
         msg ("Event Timeout: " <> showEventType evt)
     -- Check if the event inbox is full and if so, log a warning
     size <- fst <$> readTVarIO (botEvents bot)
-    when (size == botMaxEvents (botSettings bot))
-      $ botLog l bot Warn
-      $ msg (val "Event inbox full!")
+    when (size == botMaxEvents (botSettings bot)) $
+      botLog l bot Warn $
+        msg (val "Event inbox full!")
     -- Remove old assertions from the backlog
     asserts <- atomically $ gcBacklog bot now
     forM_ asserts $ \(EventAssertion typ _ _ out stack) -> do
       for_ out $ liftIO . atomically . flip tryPutTMVar Nothing
-      botLog l bot Warn $ msg $
-        "Assertion Timeout: " <> eventTypeText typ
-          <> "\nAssertion was created at: "
-          <> pack (prettyCallStack stack)
+      botLog l bot Warn $
+        msg $
+          "Assertion Timeout: " <> eventTypeText typ
+            <> "\nAssertion was created at: "
+            <> pack (prettyCallStack stack)
   -- Re-establish the push connection, if it died
   push <- maybe (return Nothing) poll =<< readIORef (botPushThread bot)
   case push of
@@ -922,24 +923,25 @@ incrEventsMssd b e =
     HashMap.insertWith (+) (Metrics.eventTypeMssd e) 1
 
 transferBotMetrics :: MonadBotNet m => Bot -> m ()
-transferBotMetrics b = getMetrics >>= \m -> liftIO $ do
-  -- Obtain current values
-  l@[rcvd, ackd, ignd, mssd] <- atomically $ do
-    rcvd <- readTVar $ botEventsRcvd (botMetrics b)
-    ackd <- readTVar $ botEventsAckd (botMetrics b)
-    ignd <- readTVar $ botEventsIgnd (botMetrics b)
-    mssd <- readTVar $ botEventsMssd (botMetrics b)
-    return [rcvd, ackd, ignd, mssd]
-  -- Update per event type counters
-  let add (p, n) = Metrics.counterAdd n p m
-  mapM_ add (concatMap HashMap.toList l)
-  -- Update Totals
-  add (Metrics.eventsTotalRcvd, sum rcvd)
-  add (Metrics.eventsTotalAckd, sum ackd)
-  add (Metrics.eventsTotalIgnd, sum ignd)
-  let s = sum mssd
-  add (Metrics.eventsTotalMssd, s)
-  add (Metrics.assertionsFailed, s)
+transferBotMetrics b =
+  getMetrics >>= \m -> liftIO $ do
+    -- Obtain current values
+    l@[rcvd, ackd, ignd, mssd] <- atomically $ do
+      rcvd <- readTVar $ botEventsRcvd (botMetrics b)
+      ackd <- readTVar $ botEventsAckd (botMetrics b)
+      ignd <- readTVar $ botEventsIgnd (botMetrics b)
+      mssd <- readTVar $ botEventsMssd (botMetrics b)
+      return [rcvd, ackd, ignd, mssd]
+    -- Update per event type counters
+    let add (p, n) = Metrics.counterAdd n p m
+    mapM_ add (concatMap HashMap.toList l)
+    -- Update Totals
+    add (Metrics.eventsTotalRcvd, sum rcvd)
+    add (Metrics.eventsTotalAckd, sum ackd)
+    add (Metrics.eventsTotalIgnd, sum ignd)
+    let s = sum mssd
+    add (Metrics.eventsTotalMssd, s)
+    add (Metrics.assertionsFailed, s)
 
 -------------------------------------------------------------------------------
 -- Logging

@@ -32,15 +32,15 @@ import Brig.App (AppIO)
 import qualified Brig.Data.IdMapping as Data (getIdMapping, insertIdMapping)
 import qualified Brig.IO.Intra.IdMapping as Intra
 import Control.Monad.Catch (throwM)
-import qualified Data.Id as Id
 import Data.Id (Id (Id, toUUID), OpaqueUserId, idToText)
+import qualified Data.Id as Id
 import Data.IdMapping (IdMapping (IdMapping, _imQualifiedId), MappedOrLocalId (Local, Mapped), hashQualifiedId)
 import Data.Qualified (Qualified, renderQualifiedId)
 import Galley.Types.IdMapping (PostIdMappingRequest (PostIdMappingRequest), PostIdMappingResponse (PostIdMappingResponse), mkPostIdMappingRequest)
 import Imports
 import Network.HTTP.Types (forbidden403, notFound404)
 import Network.Wai (Response)
-import Network.Wai.Predicate ((.&.), (:::) ((:::)), accept)
+import Network.Wai.Predicate (accept, (.&.), (:::) ((:::)))
 import Network.Wai.Routing (Routes, capture, continue, get, post)
 import Network.Wai.Utilities (JsonRequest, empty, json, jsonRequest, setStatus)
 import qualified System.Logger.Class as Log
@@ -147,12 +147,12 @@ createIdMapping qualifiedId = do
       let idMapping = IdMapping mappedId qualifiedId
       Data.getIdMapping mappedId >>= \case
         Just existingMapping ->
-          when (_imQualifiedId existingMapping /= qualifiedId)
-            $ Log.err
-            $ Log.msg @Text "Conflict when creating IdMapping"
-              . Log.field "mapped_id" (idToText mappedId)
-              . Log.field "existing_qualified_id" (renderQualifiedId qualifiedId)
-              . Log.field "new_qualified_id" (renderQualifiedId (_imQualifiedId existingMapping))
+          when (_imQualifiedId existingMapping /= qualifiedId) $
+            Log.err $
+              Log.msg @Text "Conflict when creating IdMapping"
+                . Log.field "mapped_id" (idToText mappedId)
+                . Log.field "existing_qualified_id" (renderQualifiedId qualifiedId)
+                . Log.field "new_qualified_id" (renderQualifiedId (_imQualifiedId existingMapping))
         Nothing -> do
           Data.insertIdMapping idMapping
           Intra.createIdMappingInGalley (mkPostIdMappingRequest qualifiedId)

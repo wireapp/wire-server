@@ -78,9 +78,10 @@ registerIdPAndScimTokenWithMeta = do
 registerScimToken :: HasCallStack => TeamId -> Maybe IdPId -> TestSpar ScimToken
 registerScimToken teamid midpid = do
   env <- ask
-  tok <- ScimToken <$> do
-    code <- liftIO UUID.nextRandom
-    pure $ "scim-test-token/" <> "team=" <> idToText teamid <> "/code=" <> UUID.toText code
+  tok <-
+    ScimToken <$> do
+      code <- liftIO UUID.nextRandom
+      pure $ "scim-test-token/" <> "team=" <> idToText teamid <> "/code=" <> UUID.toText code
   scimTokenId <- randomId
   now <- liftIO getCurrentTime
   runClient (env ^. teCql) $
@@ -121,17 +122,18 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
   emails <- getRandomR (0, 3) >>= \n -> replicateM n randomScimEmail
   phones <- getRandomR (0, 3) >>= \n -> replicateM n randomScimPhone
   -- Related, but non-trivial to re-use here: 'nextSubject'
-  (externalId, subj) <- getRandomR (0, 1 :: Int) <&> \case
-    0 ->
-      ( "scimuser_extid_" <> suffix <> "@example.com",
-        either (error . show) id $
-          SAML.mkUNameIDEmail ("scimuser_extid_" <> suffix <> "@example.com")
-      )
-    1 ->
-      ( "scimuser_extid_" <> suffix,
-        SAML.mkUNameIDUnspecified ("scimuser_extid_" <> suffix)
-      )
-    _ -> error "randomScimUserWithSubject: impossible"
+  (externalId, subj) <-
+    getRandomR (0, 1 :: Int) <&> \case
+      0 ->
+        ( "scimuser_extid_" <> suffix <> "@example.com",
+          either (error . show) id $
+            SAML.mkUNameIDEmail ("scimuser_extid_" <> suffix <> "@example.com")
+        )
+      1 ->
+        ( "scimuser_extid_" <> suffix,
+          SAML.mkUNameIDUnspecified ("scimuser_extid_" <> suffix)
+        )
+      _ -> error "randomScimUserWithSubject: impossible"
   pure
     ( (Scim.User.empty userSchemas ("scimuser_" <> suffix) (ScimUserExtra richInfo))
         { Scim.User.displayName = Just ("Scim User #" <> suffix),
@@ -159,7 +161,7 @@ randomScimEmail :: MonadRandom m => m Email.Email
 randomScimEmail = do
   let typ :: Maybe Text = Nothing
       primary :: Maybe Bool = Nothing -- TODO: where should we catch users with more than one
-        -- primary email?
+      -- primary email?
   value :: Email.EmailAddress2 <- do
     localpart <- cs <$> replicateM 15 (getRandomR ('a', 'z'))
     domainpart <- (<> ".com") . cs <$> replicateM 15 (getRandomR ('a', 'z'))

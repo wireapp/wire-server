@@ -96,10 +96,10 @@ deleteClaim u v t = do
 -- | Lookup the current claims on a value.
 lookupClaims :: MonadClient m => Text -> m [Id a]
 lookupClaims v =
-  fmap (maybe [] (fromSet . runIdentity))
-    $ retry x1
-    $ query1 cql
-    $ params Quorum (Identity v)
+  fmap (maybe [] (fromSet . runIdentity)) $
+    retry x1 $
+      query1 cql $
+        params Quorum (Identity v)
   where
     cql :: PrepQuery R (Identity Text) (Identity (C.Set (Id a)))
     cql = "SELECT claims FROM unique_claims WHERE value = ?"

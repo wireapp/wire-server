@@ -22,7 +22,7 @@ module Gundeck.Push.Native.Serialise
 where
 
 import Control.Lens ((^.), (^?), _Just)
-import Data.Aeson ((.=), Value, object)
+import Data.Aeson (Value, object, (.=))
 import Data.Aeson.Text (encodeToTextBuilder)
 import qualified Data.ByteString as BS
 import Data.Json.Util
@@ -85,8 +85,10 @@ renderText t aps prio x = case t of
                 # "loc-args" .= (aps ^? _Just . apsLocArgs)
                 # []
             )
-          # "sound" .= (aps ^? _Just . apsSound)
-          # "content-available" .= '1'
+          # "sound"
+          .= (aps ^? _Just . apsSound)
+          # "content-available"
+          .= '1'
           # []
     apsDict LowPriority =
       object $

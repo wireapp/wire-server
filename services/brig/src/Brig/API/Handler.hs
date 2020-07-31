@@ -79,10 +79,10 @@ onError :: Logger -> Request -> Continue IO -> Error -> IO ResponseReceived
 onError g r k e = do
   Server.logError g (Just r) we
   Server.flushRequestBody r
-  k
-    $ setStatus (WaiError.code we)
+  k $
+    setStatus (WaiError.code we)
       . appEndo (foldMap (Endo . uncurry addHeader) hs)
-    $ json e
+      $ json e
   where
     (we, hs) = case e of
       StdError x -> (x, [])

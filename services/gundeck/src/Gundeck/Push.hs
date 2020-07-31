@@ -34,7 +34,7 @@ where
 import Control.Arrow ((&&&))
 import Control.Error
 import Control.Exception (ErrorCall (ErrorCall))
-import Control.Lens ((%~), (.~), (^.), _2, view)
+import Control.Lens (view, (%~), (.~), (^.), _2)
 import Control.Monad.Catch
 import Data.Aeson as Aeson (Object)
 import Data.Id
@@ -65,7 +65,7 @@ import Gundeck.Util
 import Imports
 import Network.HTTP.Types
 import Network.Wai.Utilities
-import System.Logger.Class ((+++), (.=), msg, val, (~~))
+import System.Logger.Class (msg, val, (+++), (.=), (~~))
 import qualified System.Logger.Class as Log
 import UnliftIO.Concurrent (forkIO)
 import qualified Wire.API.Push.Token as Public
@@ -221,9 +221,9 @@ pushAll pushes = do
       -- to be sent out.
       -- If perPushConcurrency is defined, we take the min with 'perNativePushConcurrency', as native push requests
       -- to cassandra and SNS are limited to 'perNativePushConcurrency' in parallel.
-      unless (psh ^. pushTransient)
-        $ mpaRunWithBudget cost ()
-        $ mpaPushNative notif psh =<< nativeTargets psh rcps' alreadySent
+      unless (psh ^. pushTransient) $
+        mpaRunWithBudget cost () $
+          mpaPushNative notif psh =<< nativeTargets psh rcps' alreadySent
 
 -- REFACTOR: @[Presence]@ here should be @newtype WebSockedDelivered = WebSockedDelivered [Presence]@
 compilePushReq :: (Push, (Notification, List1 (Recipient, [Presence]))) -> (Notification, [Presence])
@@ -319,10 +319,10 @@ nativeTargets psh rcps' alreadySent =
     addresses :: Recipient -> m [Address]
     addresses u = do
       addrs <- mntgtLookupAddresses (u ^. recipientId)
-      return
-        $ preference
+      return $
+        preference
           . filter (eligible u)
-        $ addrs
+          $ addrs
     eligible :: Recipient -> Address -> Bool
     eligible u a
       -- Never include the origin client.
@@ -459,27 +459,28 @@ addToken uid cid newtok = mpaRunWithBudget 1 AddTokenNoBudget $ do
       ept <- Aws.execute aws (Aws.lookupEndpoint arn)
       case ept of
         Nothing -> create (n + 1) t
-        Just ep -> do
-          updateEndpoint uid t arn ep
-          Data.insert
-            uid
-            (t ^. tokenTransport)
-            (t ^. tokenApp)
-            (t ^. token)
-            arn
-            cid
-            (t ^. tokenClient)
-          return (Right (mkAddr t arn))
-          `catch` \case
-            -- Note: If the endpoint was recently deleted (not necessarily
-            -- concurrently), we may get an EndpointNotFound error despite
-            -- the previous lookup, i.e. endpoint lookups may exhibit eventually
-            -- consistent semantics with regards to endpoint deletion (or
-            -- possibly updates in general). We make another attempt to (re-)create
-            -- the endpoint in these cases instead of failing immediately.
-            Aws.EndpointNotFound {} -> create (n + 1) t
-            Aws.InvalidCustomData {} -> return (Left AddTokenMetadataTooLong)
-            ex -> throwM ex
+        Just ep ->
+          do
+            updateEndpoint uid t arn ep
+            Data.insert
+              uid
+              (t ^. tokenTransport)
+              (t ^. tokenApp)
+              (t ^. token)
+              arn
+              cid
+              (t ^. tokenClient)
+            return (Right (mkAddr t arn))
+            `catch` \case
+              -- Note: If the endpoint was recently deleted (not necessarily
+              -- concurrently), we may get an EndpointNotFound error despite
+              -- the previous lookup, i.e. endpoint lookups may exhibit eventually
+              -- consistent semantics with regards to endpoint deletion (or
+              -- possibly updates in general). We make another attempt to (re-)create
+              -- the endpoint in these cases instead of failing immediately.
+              Aws.EndpointNotFound {} -> create (n + 1) t
+              Aws.InvalidCustomData {} -> return (Left AddTokenMetadataTooLong)
+              ex -> throwM ex
     --
     mkAddr ::
       PushToken ->

@@ -36,7 +36,7 @@ module Data.Json.Util
 where
 
 import qualified Cassandra as CQL
-import Control.Lens ((%~), coerced)
+import Control.Lens (coerced, (%~))
 import Data.Aeson
 import Data.Aeson.Types
 import qualified Data.ByteString.Base64.Lazy as EL

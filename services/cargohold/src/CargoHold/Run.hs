@@ -30,8 +30,8 @@ import Data.Text (unpack)
 import Imports
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Middleware.Gzip as GZip
-import qualified Network.Wai.Utilities.Server as Server
 import Network.Wai.Utilities.Server
+import qualified Network.Wai.Utilities.Server as Server
 import Util.Options
 
 run :: Opts -> IO ()

@@ -367,9 +367,10 @@ validateIdPUpdate ::
   SAML.IdPId ->
   m (TeamId, IdP)
 validateIdPUpdate zusr _idpMetadata _idpId = do
-  previousIdP <- wrapMonadClient (Data.getIdPConfig _idpId) >>= \case
-    Nothing -> throwError errUnknownIdPId
-    Just idp -> pure idp
+  previousIdP <-
+    wrapMonadClient (Data.getIdPConfig _idpId) >>= \case
+      Nothing -> throwError errUnknownIdPId
+      Just idp -> pure idp
   teamId <- authorizeIdP zusr previousIdP
   unless (previousIdP ^. SAML.idpExtraInfo . wiTeam == teamId) $ do
     throwError errUnknownIdP

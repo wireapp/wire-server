@@ -181,9 +181,9 @@ decryptSymmetric _ (SymmetricKeys ekey mkey) msg = liftIO $ do
   let (dgst, ciphertext) = BS.splitAt 32 msg
   sha256 <- requireMaybe (digestFromByteString dgst) "Bad MAC"
   let mac = hmac (toByteString' mkey) ciphertext :: HMAC SHA256
-  unless (HMAC sha256 == mac)
-    $ throwM
-    $ RequirementFailed "Bad MAC"
+  unless (HMAC sha256 == mac) $
+    throwM $
+      RequirementFailed "Bad MAC"
   let (iv, dat) = BS.splitAt 16 ciphertext
   return $ unpadPKCS7 $ cbcDecrypt aes (aesIV iv) dat
 

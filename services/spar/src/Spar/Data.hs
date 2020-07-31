@@ -142,7 +142,8 @@ mkTTL now maxttl endOfLife = mkTTLNDT maxttl $ endOfLife `diffUTCTime` now
 
 mkTTLNDT :: (MonadError TTLError m, KnownSymbol a) => TTL a -> NominalDiffTime -> m (TTL a)
 mkTTLNDT maxttl ttlNDT =
-  if  | actualttl > maxttl -> throwError $ TTLTooLong (showTTL actualttl) (showTTL maxttl)
+  if
+      | actualttl > maxttl -> throwError $ TTLTooLong (showTTL actualttl) (showTTL maxttl)
       | actualttl <= 0 -> throwError $ TTLNegative (showTTL actualttl)
       | otherwise -> pure actualttl
   where
@@ -320,8 +321,9 @@ insertBindCookie cky uid ttlNDT = do
 
 -- | The counter-part of 'insertBindCookie'.
 lookupBindCookie :: (HasCallStack, MonadClient m) => BindCookie -> m (Maybe UserId)
-lookupBindCookie (cs . fromBindCookie -> ckyval :: ST) = runIdentity <$$> do
-  (retry x1 . query1 sel $ params Quorum (Identity ckyval))
+lookupBindCookie (cs . fromBindCookie -> ckyval :: ST) =
+  runIdentity <$$> do
+    (retry x1 . query1 sel $ params Quorum (Identity ckyval))
   where
     sel :: PrepQuery R (Identity ST) (Identity UserId)
     sel = "SELECT session_owner FROM bind_cookie WHERE cookie = ?"

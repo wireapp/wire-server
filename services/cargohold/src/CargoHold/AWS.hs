@@ -53,8 +53,8 @@ import qualified Network.AWS.Env as AWS
 import qualified Network.AWS.S3 as S3
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), Manager)
 import qualified System.Logger as Logger
-import qualified System.Logger.Class as Log
 import System.Logger.Class (Logger, MonadLogger (log), (~~))
+import qualified System.Logger.Class as Log
 import Util.Options (AWSEndpoint (..))
 
 data Env = Env

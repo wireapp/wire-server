@@ -92,9 +92,9 @@ instance
         -- See also "W3C Internet Media Type registration, consistency of use"
         -- http://www.w3.org/2001/tag/2002/0129-mime
         let contentTypeH =
-              fromMaybe "application/octet-stream"
-                $ lookup hContentType
-                $ requestHeaders request
+              fromMaybe "application/octet-stream" $
+                lookup hContentType $
+                  requestHeaders request
         case canHandleCTypeH (Proxy :: Proxy list) (cs contentTypeH) :: Maybe (BL.ByteString -> Either String a) of
           Nothing -> delayedFail err415
           Just f -> return f

@@ -80,12 +80,12 @@ getCookieValue :: ByteString -> Response a -> Maybe ByteString
 getCookieValue cookieName resp =
   resp
     ^? to responseHeaders
-    . traversed -- Over each header
-    . filtered ((== "Set-Cookie") . fst) -- Select the cookie headers by name
-    . _2 -- Select Set-Cookie values
-    . to parseSetCookie
-    . filtered ((== cookieName) . setCookieName) -- Select only the cookie we want
-    . to setCookieValue -- extract the cookie value
+      . traversed -- Over each header
+      . filtered ((== "Set-Cookie") . fst) -- Select the cookie headers by name
+      . _2 -- Select Set-Cookie values
+      . to parseSetCookie
+      . filtered ((== cookieName) . setCookieName) -- Select only the cookie we want
+      . to setCookieValue -- extract the cookie value
 
 type ResponseLBS = Response (Maybe LByteString)
 

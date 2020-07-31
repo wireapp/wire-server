@@ -88,7 +88,7 @@ module Brig.ZAuth
   )
 where
 
-import Control.Lens (Lens', (^.), makeLenses, over)
+import Control.Lens (Lens', makeLenses, over, (^.))
 import Control.Monad.Catch
 import Data.Aeson
 import Data.Bits
@@ -292,51 +292,58 @@ instance UserTokenLike LegalHoldUser where
 mkUserToken' :: MonadZAuth m => UserId -> Word32 -> UTCTime -> m UserToken
 mkUserToken' u r t = liftZAuth $ do
   z <- ask
-  liftIO $ ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
-    ZC.newToken (utcTimeToPOSIXSeconds t) U Nothing (mkUser (toUUID u) r)
+  liftIO $
+    ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
+      ZC.newToken (utcTimeToPOSIXSeconds t) U Nothing (mkUser (toUUID u) r)
 
 newUserToken' :: MonadZAuth m => UserId -> m UserToken
 newUserToken' u = liftZAuth $ do
   z <- ask
   r <- liftIO randomValue
-  liftIO $ ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
-    let UserTokenTimeout ttl = z ^. settings . userTokenTimeout
-     in ZC.userToken ttl (toUUID u) r
+  liftIO $
+    ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
+      let UserTokenTimeout ttl = z ^. settings . userTokenTimeout
+       in ZC.userToken ttl (toUUID u) r
 
 newSessionToken' :: MonadZAuth m => UserId -> m UserToken
 newSessionToken' u = liftZAuth $ do
   z <- ask
   r <- liftIO randomValue
-  liftIO $ ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
-    let SessionTokenTimeout ttl = z ^. settings . sessionTokenTimeout
-     in ZC.sessionToken ttl (toUUID u) r
+  liftIO $
+    ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
+      let SessionTokenTimeout ttl = z ^. settings . sessionTokenTimeout
+       in ZC.sessionToken ttl (toUUID u) r
 
 newAccessToken' :: MonadZAuth m => UserToken -> m AccessToken
 newAccessToken' xt = liftZAuth $ do
   z <- ask
-  liftIO $ ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
-    let AccessTokenTimeout ttl = z ^. settings . accessTokenTimeout
-     in ZC.accessToken1 ttl (xt ^. body . user)
+  liftIO $
+    ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
+      let AccessTokenTimeout ttl = z ^. settings . accessTokenTimeout
+       in ZC.accessToken1 ttl (xt ^. body . user)
 
 renewAccessToken' :: MonadZAuth m => AccessToken -> m AccessToken
 renewAccessToken' old = liftZAuth $ do
   z <- ask
-  liftIO $ ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
-    let AccessTokenTimeout ttl = z ^. settings . accessTokenTimeout
-     in ZC.renewToken ttl old
+  liftIO $
+    ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
+      let AccessTokenTimeout ttl = z ^. settings . accessTokenTimeout
+       in ZC.renewToken ttl old
 
 newBotToken :: MonadZAuth m => ProviderId -> BotId -> ConvId -> m BotToken
 newBotToken pid bid cid = liftZAuth $ do
   z <- ask
-  liftIO $ ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
-    ZC.botToken (toUUID pid) (toUUID (botUserId bid)) (toUUID cid)
+  liftIO $
+    ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
+      ZC.botToken (toUUID pid) (toUUID (botUserId bid)) (toUUID cid)
 
 newProviderToken :: MonadZAuth m => ProviderId -> m ProviderToken
 newProviderToken pid = liftZAuth $ do
   z <- ask
-  liftIO $ ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
-    let ProviderTokenTimeout ttl = z ^. settings . providerTokenTimeout
-     in ZC.providerToken ttl (toUUID pid)
+  liftIO $
+    ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
+      let ProviderTokenTimeout ttl = z ^. settings . providerTokenTimeout
+       in ZC.providerToken ttl (toUUID pid)
 
 -- FUTUREWORK: this function is very similar to mkUserToken',
 -- the differences are
@@ -347,30 +354,34 @@ newProviderToken pid = liftZAuth $ do
 mkLegalHoldUserToken :: MonadZAuth m => UserId -> Word32 -> UTCTime -> m LegalHoldUserToken
 mkLegalHoldUserToken u r t = liftZAuth $ do
   z <- ask
-  liftIO $ ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
-    ZC.newToken (utcTimeToPOSIXSeconds t) LU Nothing (mkLegalHoldUser (toUUID u) r)
+  liftIO $
+    ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
+      ZC.newToken (utcTimeToPOSIXSeconds t) LU Nothing (mkLegalHoldUser (toUUID u) r)
 
 newLegalHoldUserToken :: MonadZAuth m => UserId -> m LegalHoldUserToken
 newLegalHoldUserToken u = liftZAuth $ do
   z <- ask
   r <- liftIO randomValue
-  liftIO $ ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
-    let LegalHoldUserTokenTimeout ttl = z ^. settings . legalHoldUserTokenTimeout
-     in ZC.legalHoldUserToken ttl (toUUID u) r
+  liftIO $
+    ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
+      let LegalHoldUserTokenTimeout ttl = z ^. settings . legalHoldUserTokenTimeout
+       in ZC.legalHoldUserToken ttl (toUUID u) r
 
 newLegalHoldAccessToken :: MonadZAuth m => LegalHoldUserToken -> m LegalHoldAccessToken
 newLegalHoldAccessToken xt = liftZAuth $ do
   z <- ask
-  liftIO $ ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
-    let LegalHoldAccessTokenTimeout ttl = z ^. settings . legalHoldAccessTokenTimeout
-     in ZC.legalHoldAccessToken1 ttl (xt ^. body . legalHoldUser . user)
+  liftIO $
+    ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
+      let LegalHoldAccessTokenTimeout ttl = z ^. settings . legalHoldAccessTokenTimeout
+       in ZC.legalHoldAccessToken1 ttl (xt ^. body . legalHoldUser . user)
 
 renewLegalHoldAccessToken :: MonadZAuth m => LegalHoldAccessToken -> m LegalHoldAccessToken
 renewLegalHoldAccessToken old = liftZAuth $ do
   z <- ask
-  liftIO $ ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
-    let LegalHoldAccessTokenTimeout ttl = z ^. settings . legalHoldAccessTokenTimeout
-     in ZC.renewToken ttl old
+  liftIO $
+    ZC.runCreate (z ^. private) (z ^. settings . keyIndex) $
+      let LegalHoldAccessTokenTimeout ttl = z ^. settings . legalHoldAccessTokenTimeout
+       in ZC.renewToken ttl old
 
 validateToken ::
   (MonadZAuth m, ToByteString a) =>

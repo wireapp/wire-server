@@ -83,7 +83,8 @@ instance ToText (Id a) where
   toText = Text.decodeUtf8 . Uuid.toASCIIBytes . toUUID
 
 instance FromText (Id a) where
-  parser = Parser.take 36 >>= \txt ->
-    txt & Text.encodeUtf8
-      & Uuid.fromASCIIBytes
-      & maybe (fail "Invalid UUID") (return . Id)
+  parser =
+    Parser.take 36 >>= \txt ->
+      txt & Text.encodeUtf8
+        & Uuid.fromASCIIBytes
+        & maybe (fail "Invalid UUID") (return . Id)

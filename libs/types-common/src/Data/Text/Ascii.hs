@@ -371,12 +371,13 @@ check m f t
   | otherwise = Left m
 
 parseBytes :: (Text -> Either String a) -> Parser a
-parseBytes f = parser >>= \bs ->
-  case decodeUtf8' bs of
-    Left _ -> fail $ "Invalid ASCII characters in: " ++ C8.unpack bs
-    Right t -> case f t of
-      Left e -> fail $ e ++ ": " ++ Text.unpack t
-      Right a -> pure a
+parseBytes f =
+  parser >>= \bs ->
+    case decodeUtf8' bs of
+      Left _ -> fail $ "Invalid ASCII characters in: " ++ C8.unpack bs
+      Right t -> case f t of
+        Left e -> fail $ e ++ ": " ++ Text.unpack t
+        Right a -> pure a
 
 unsafeString :: (Text -> Either String a) -> String -> a
 unsafeString f s = case f (Text.pack s) of

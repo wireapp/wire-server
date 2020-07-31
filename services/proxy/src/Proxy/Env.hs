@@ -28,7 +28,7 @@ module Proxy.Env
   )
 where
 
-import Control.Lens ((^.), makeLenses)
+import Control.Lens (makeLenses, (^.))
 import Data.Configurator
 import Data.Configurator.Types
 import Data.Default (def)

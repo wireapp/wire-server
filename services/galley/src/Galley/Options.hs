@@ -17,7 +17,7 @@
 
 module Galley.Options where
 
-import Control.Lens hiding ((.=), Level)
+import Control.Lens hiding (Level, (.=))
 import Data.Aeson.TH (deriveFromJSON)
 import Data.Domain (Domain)
 import Data.Misc

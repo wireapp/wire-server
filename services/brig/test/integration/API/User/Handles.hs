@@ -27,7 +27,7 @@ import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import qualified Brig.Options as Opt
 import Brig.Types
-import Control.Lens hiding ((#), from)
+import Control.Lens hiding (from, (#))
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson
 import Data.Aeson.Lens

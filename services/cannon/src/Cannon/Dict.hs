@@ -30,7 +30,7 @@ where
 import Data.Hashable (Hashable, hash)
 import Data.SizedHashMap (SizedHashMap)
 import qualified Data.SizedHashMap as SHM
-import Data.Vector ((!), Vector)
+import Data.Vector (Vector, (!))
 import qualified Data.Vector as V
 import Imports hiding (lookup)
 

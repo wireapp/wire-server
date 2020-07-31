@@ -29,8 +29,8 @@ module Galley.API.IdMapping
 where
 
 import Control.Monad.Catch (throwM)
-import qualified Data.Id as Id
 import Data.Id (Id (Id, toUUID), OpaqueConvId, OpaqueUserId, idToText)
+import qualified Data.Id as Id
 import Data.IdMapping (IdMapping (IdMapping, _imQualifiedId), MappedOrLocalId (Local, Mapped), hashQualifiedId)
 import Data.Qualified (Qualified, renderQualifiedId)
 import Galley.API.Error (federationNotEnabled)
@@ -146,12 +146,12 @@ createIdMapping qualifiedId = do
       let idMapping = IdMapping mappedId qualifiedId
       Data.getIdMapping mappedId >>= \case
         Just existingMapping ->
-          when (_imQualifiedId existingMapping /= qualifiedId)
-            $ Log.err
-            $ Log.msg @Text "Conflict when creating IdMapping"
-              . Log.field "mapped_id" (idToText mappedId)
-              . Log.field "existing_qualified_id" (renderQualifiedId qualifiedId)
-              . Log.field "new_qualified_id" (renderQualifiedId (_imQualifiedId existingMapping))
+          when (_imQualifiedId existingMapping /= qualifiedId) $
+            Log.err $
+              Log.msg @Text "Conflict when creating IdMapping"
+                . Log.field "mapped_id" (idToText mappedId)
+                . Log.field "existing_qualified_id" (renderQualifiedId qualifiedId)
+                . Log.field "new_qualified_id" (renderQualifiedId (_imQualifiedId existingMapping))
         Nothing -> do
           Data.insertIdMapping idMapping
           Intra.createIdMappingInBrig (mkPostIdMappingRequest qualifiedId)

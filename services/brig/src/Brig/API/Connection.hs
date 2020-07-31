@@ -77,16 +77,16 @@ createConnectionToLocalUser ::
   ConnId ->
   ExceptT ConnectionError AppIO ConnectionResult
 createConnectionToLocalUser self crUser ConnectionRequest {crName, crMessage} conn = do
-  when (self == crUser)
-    $ throwE
-    $ InvalidUser (makeIdOpaque crUser)
+  when (self == crUser) $
+    throwE $
+      InvalidUser (makeIdOpaque crUser)
   selfActive <- lift $ Data.isActivated self
   unless selfActive $
     throwE ConnectNoIdentity
   otherActive <- lift $ Data.isActivated crUser
-  unless otherActive
-    $ throwE
-    $ InvalidUser (makeIdOpaque crUser)
+  unless otherActive $
+    throwE $
+      InvalidUser (makeIdOpaque crUser)
   -- Users belonging to the same team are always treated as connected, so creating a
   -- connection between them is useless. {#RefConnectionTeam}
   sameTeam <- lift $ belongSameTeam
@@ -321,6 +321,6 @@ checkLimit :: UserId -> ExceptT ConnectionError AppIO ()
 checkLimit u = do
   n <- lift $ Data.countConnections u [Accepted, Sent]
   l <- setUserMaxConnections <$> view settings
-  unless (n < l)
-    $ throwE
-    $ TooManyConnections u
+  unless (n < l) $
+    throwE $
+      TooManyConnections u

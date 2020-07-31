@@ -121,7 +121,7 @@ where
 -- with e.g. UnliftIO modules
 
 import Control.Applicative hiding (empty, many, optional, some) -- common in
-  -- some libs
+-- some libs
 
 -- conflicts with Options.Applicative.Option (should we care?)
 -- First and Last are going to be deprecated. Use Semigroup instead
@@ -191,10 +191,8 @@ import UnliftIO.IO hiding (Handle, getMonotonicTime)
 import UnliftIO.IORef
 import UnliftIO.MVar
 import UnliftIO.STM
-import qualified Prelude as P
 import Prelude
-  ( ($!),
-    Bounded (..),
+  ( Bounded (..),
     Double,
     Enum (..),
     Eq (..),
@@ -215,8 +213,6 @@ import Prelude
     RealFrac (..),
     Show (..),
     ShowS,
-    (^),
-    (^^),
     error,
     even,
     fromIntegral,
@@ -235,7 +231,11 @@ import Prelude
     shows,
     subtract,
     undefined,
+    ($!),
+    (^),
+    (^^),
   )
+import qualified Prelude as P
 
 ----------------------------------------------------------------------------
 -- Type aliases

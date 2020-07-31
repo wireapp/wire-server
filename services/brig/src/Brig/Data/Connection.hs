@@ -37,7 +37,7 @@ import Brig.Data.Types as T
 import Brig.Types
 import Brig.Types.Intra
 import Cassandra
-import Data.Conduit ((.|), runConduit)
+import Data.Conduit (runConduit, (.|))
 import qualified Data.Conduit.List as C
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
@@ -97,9 +97,10 @@ lookupConnection from to =
 
 -- | For a given user 'A', lookup his outgoing connections (A -> X) to other users.
 lookupConnections :: UserId -> Maybe UserId -> Range 1 500 Int32 -> AppIO (ResultPage UserConnection)
-lookupConnections from start (fromRange -> size) = toResult <$> case start of
-  Just u -> retry x1 $ paginate connectionsSelectFrom (paramsP Quorum (from, u) (size + 1))
-  Nothing -> retry x1 $ paginate connectionsSelect (paramsP Quorum (Identity from) (size + 1))
+lookupConnections from start (fromRange -> size) =
+  toResult <$> case start of
+    Just u -> retry x1 $ paginate connectionsSelectFrom (paramsP Quorum (from, u) (size + 1))
+    Nothing -> retry x1 $ paginate connectionsSelect (paramsP Quorum (Identity from) (size + 1))
   where
     toResult = cassandraResultPage . fmap toUserConnection . trim
     trim p = p {result = take (fromIntegral size) (result p)}

@@ -27,8 +27,8 @@ import Control.Lens ((?~))
 import Data.ByteString.Conversion (toByteString')
 import Data.Coerce (coerce)
 import Data.Domain (Domain, mkDomain)
-import qualified Data.Id as Id
 import Data.Id (Id)
+import qualified Data.Id as Id
 import Data.Qualified (Qualified (Qualified))
 import Galley.Types.IdMapping (PostIdMappingRequest (PostIdMappingRequest), PostIdMappingResponse (PostIdMappingResponse))
 import Imports

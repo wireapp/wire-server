@@ -89,7 +89,7 @@ import qualified Cassandra.Settings as Cas
 import Control.AutoUpdate
 import Control.Error
 import Control.Exception.Enclosed (handleAny)
-import Control.Lens hiding ((.=), index)
+import Control.Lens hiding (index, (.=))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
@@ -302,9 +302,10 @@ replaceTurnServers g ref e = do
   let logErr x = Log.err g (msg $ val "Error loading turn servers: " +++ show x)
   handleAny logErr $
     readTurnList (FS.eventPath e) >>= \case
-      Just servers -> readIORef ref >>= \old -> do
-        atomicWriteIORef ref (old & Calling.turnServers .~ servers)
-        Log.info g (msg $ val "New turn servers loaded.")
+      Just servers ->
+        readIORef ref >>= \old -> do
+          atomicWriteIORef ref (old & Calling.turnServers .~ servers)
+          Log.info g (msg $ val "New turn servers loaded.")
       Nothing -> Log.warn g (msg $ val "Empty or malformed turn servers list, ignoring!")
 
 initZAuth :: Opts -> IO ZAuth.Env
@@ -381,8 +382,8 @@ initCassandra o g = do
       (Cas.initialContactsDisco "cassandra_brig")
       (unpack <$> Opt.discoUrl o)
   p <-
-    Cas.init
-      $ Cas.setLogger (Cas.mkLogger (Log.clone (Just "cassandra.brig") g))
+    Cas.init $
+      Cas.setLogger (Cas.mkLogger (Log.clone (Just "cassandra.brig") g))
         . Cas.setContacts (NE.head c) (NE.tail c)
         . Cas.setPortNumber (fromIntegral ((Opt.cassandra o) ^. casEndpoint . epPort))
         . Cas.setKeyspace (Keyspace ((Opt.cassandra o) ^. casKeyspace))
@@ -391,7 +392,7 @@ initCassandra o g = do
         . Cas.setSendTimeout 3
         . Cas.setResponseTimeout 10
         . Cas.setProtocolVersion Cas.V4
-      $ Cas.defSettings
+        $ Cas.defSettings
   runClient p $ versionCheck schemaVersion
   return p
 
@@ -500,13 +501,14 @@ forkAppIO u ma = do
     user = maybe id (field "user" . toByteString)
 
 locationOf :: (MonadIO m, MonadReader Env m) => IP -> m (Maybe Location)
-locationOf ip = view geoDb >>= \case
-  Just g -> do
-    database <- liftIO $ readIORef g
-    return $! do
-      loc <- GeoIp.geoLocation =<< hush (GeoIp.findGeoData database "en" ip)
-      return $ location (Latitude $ GeoIp.locationLatitude loc) (Longitude $ GeoIp.locationLongitude loc)
-  Nothing -> return Nothing
+locationOf ip =
+  view geoDb >>= \case
+    Just g -> do
+      database <- liftIO $ readIORef g
+      return $! do
+        loc <- GeoIp.geoLocation =<< hush (GeoIp.findGeoData database "en" ip)
+        return $ location (Latitude $ GeoIp.locationLatitude loc) (Longitude $ GeoIp.locationLongitude loc)
+    Nothing -> return Nothing
 
 readTurnList :: FilePath -> IO (Maybe (List1 TurnURI))
 readTurnList = Text.readFile >=> return . fn . mapMaybe fromByteString . fmap Text.encodeUtf8 . Text.lines

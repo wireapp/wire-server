@@ -45,8 +45,8 @@ import qualified Data.Aeson as JSON
 import qualified Data.ByteString.Builder as BB
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
-import qualified Data.Range as Range
 import Data.Range (LTE, Range, fromRange)
+import qualified Data.Range as Range
 import qualified Data.Set as Set
 import qualified Data.Text.Encoding as Text
 import GHC.TypeLits (KnownNat, Nat)
@@ -97,39 +97,40 @@ data ServiceTag
   deriving (Arbitrary) via (GenericUniform ServiceTag)
 
 instance FromByteString ServiceTag where
-  parser = parser >>= \t -> case (t :: ByteString) of
-    "audio" -> pure AudioTag
-    "books" -> pure BooksTag
-    "business" -> pure BusinessTag
-    "design" -> pure DesignTag
-    "education" -> pure EducationTag
-    "entertainment" -> pure EntertainmentTag
-    "finance" -> pure FinanceTag
-    "fitness" -> pure FitnessTag
-    "food-drink" -> pure FoodDrinkTag
-    "games" -> pure GamesTag
-    "graphics" -> pure GraphicsTag
-    "health" -> pure HealthTag
-    "integration" -> pure IntegrationTag
-    "lifestyle" -> pure LifestyleTag
-    "media" -> pure MediaTag
-    "medical" -> pure MedicalTag
-    "movies" -> pure MoviesTag
-    "music" -> pure MusicTag
-    "news" -> pure NewsTag
-    "photography" -> pure PhotographyTag
-    "poll" -> pure PollTag
-    "productivity" -> pure ProductivityTag
-    "quiz" -> pure QuizTag
-    "rating" -> pure RatingTag
-    "shopping" -> pure ShoppingTag
-    "social" -> pure SocialTag
-    "sports" -> pure SportsTag
-    "travel" -> pure TravelTag
-    "tutorial" -> pure TutorialTag
-    "video" -> pure VideoTag
-    "weather" -> pure WeatherTag
-    _ -> fail $ "Invalid tag: " ++ show t
+  parser =
+    parser >>= \t -> case (t :: ByteString) of
+      "audio" -> pure AudioTag
+      "books" -> pure BooksTag
+      "business" -> pure BusinessTag
+      "design" -> pure DesignTag
+      "education" -> pure EducationTag
+      "entertainment" -> pure EntertainmentTag
+      "finance" -> pure FinanceTag
+      "fitness" -> pure FitnessTag
+      "food-drink" -> pure FoodDrinkTag
+      "games" -> pure GamesTag
+      "graphics" -> pure GraphicsTag
+      "health" -> pure HealthTag
+      "integration" -> pure IntegrationTag
+      "lifestyle" -> pure LifestyleTag
+      "media" -> pure MediaTag
+      "medical" -> pure MedicalTag
+      "movies" -> pure MoviesTag
+      "music" -> pure MusicTag
+      "news" -> pure NewsTag
+      "photography" -> pure PhotographyTag
+      "poll" -> pure PollTag
+      "productivity" -> pure ProductivityTag
+      "quiz" -> pure QuizTag
+      "rating" -> pure RatingTag
+      "shopping" -> pure ShoppingTag
+      "social" -> pure SocialTag
+      "sports" -> pure SportsTag
+      "travel" -> pure TravelTag
+      "tutorial" -> pure TutorialTag
+      "video" -> pure VideoTag
+      "weather" -> pure WeatherTag
+      _ -> fail $ "Invalid tag: " ++ show t
 
 instance ToByteString ServiceTag where
   builder AudioTag = "audio"

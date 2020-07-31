@@ -155,14 +155,16 @@ instance ToJSON Recipient where
 
 -- "All clients" is encoded in the API as an empty list.
 instance FromJSON RecipientClients where
-  parseJSON x = parseJSON @[ClientId] x >>= \case
-    [] -> pure RecipientClientsAll
-    c : cs -> pure (RecipientClientsSome (list1 c cs))
+  parseJSON x =
+    parseJSON @[ClientId] x >>= \case
+      [] -> pure RecipientClientsAll
+      c : cs -> pure (RecipientClientsSome (list1 c cs))
 
 instance ToJSON RecipientClients where
-  toJSON = toJSON . \case
-    RecipientClientsAll -> []
-    RecipientClientsSome cs -> toList cs
+  toJSON =
+    toJSON . \case
+      RecipientClientsAll -> []
+      RecipientClientsSome cs -> toList cs
 
 -----------------------------------------------------------------------------
 -- ApsData

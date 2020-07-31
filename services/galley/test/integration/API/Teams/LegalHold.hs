@@ -41,7 +41,7 @@ import Control.Lens
 import Control.Monad.Catch
 import Control.Retry (RetryPolicy, RetryStatus, exponentialBackoff, limitRetries, retrying)
 import qualified Data.Aeson as Aeson
-import Data.Aeson.Types ((.:), FromJSON)
+import Data.Aeson.Types (FromJSON, (.:))
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS
@@ -359,7 +359,8 @@ testCreateLegalHoldTeamSettings = do
   let lhapp :: HasCallStack => IsWorking -> Chan Void -> Application
       lhapp NotWorking _ _ cont = cont respondBad
       lhapp Working _ req cont = do
-        if  | pathInfo req /= ["legalhold", "status"] -> cont respondBad
+        if
+            | pathInfo req /= ["legalhold", "status"] -> cont respondBad
             | requestMethod req /= "GET" -> cont respondBad
             | otherwise -> cont respondOk
       respondOk :: Wai.Response
@@ -843,9 +844,9 @@ withTestService mkApp go = do
   let defs = Warp.defaultSettings {Warp.settingsPort = botPort config}
   buf <- liftIO newChan
   srv <-
-    liftIO . Async.async
-      $ Warp.runTLS tlss defs
-      $ mkApp buf
+    liftIO . Async.async $
+      Warp.runTLS tlss defs $
+        mkApp buf
   go buf `finally` liftIO (Async.cancel srv)
 
 publicKeyNotMatchingService :: PEM
@@ -946,12 +947,13 @@ assertMatchChan c match = go []
     go buf = do
       m <- liftIO . timeout (5 WS.# WS.Second) . readChan $ c
       case m of
-        Just n -> do
-          match n
-          refill buf
-          `catchAll` \e -> case asyncExceptionFromException e of
-            Just x -> throwM (x :: SomeAsyncException)
-            Nothing -> go (n : buf)
+        Just n ->
+          do
+            match n
+            refill buf
+            `catchAll` \e -> case asyncExceptionFromException e of
+              Just x -> throwM (x :: SomeAsyncException)
+              Nothing -> go (n : buf)
         Nothing -> do
           refill buf
           liftIO $ assertBool "Timeout" False

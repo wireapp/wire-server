@@ -44,9 +44,9 @@ where
 
 import qualified Cassandra as Cql
 import qualified Control.Error.Util as Err
-import Control.Lens ((^.), makeLenses)
+import Control.Lens (makeLenses, (^.))
 import Data.Aeson
-import Data.Bits ((.|.), testBit)
+import Data.Bits (testBit, (.|.))
 import Data.Json.Util
 import qualified Data.Set as Set
 import qualified Data.Swagger.Build.Api as Doc
@@ -89,10 +89,11 @@ instance FromJSON Permissions where
       Just ps -> pure ps
 
 instance Arbitrary Permissions where
-  arbitrary = maybe (error "instance Arbitrary Permissions") pure =<< do
-    selfperms <- arbitrary
-    copyperms <- Set.intersection selfperms <$> arbitrary
-    pure $ newPermissions selfperms copyperms
+  arbitrary =
+    maybe (error "instance Arbitrary Permissions") pure =<< do
+      selfperms <- arbitrary
+      copyperms <- Set.intersection selfperms <$> arbitrary
+      pure $ newPermissions selfperms copyperms
 
 newPermissions ::
   -- | User's permissions

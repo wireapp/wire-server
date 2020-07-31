@@ -169,7 +169,8 @@ createBrigUser suid (Id buid) teamid mbName managedBy = do
         . path "/i/users"
         . json newUser
   let sCode = statusCode resp
-  if  | sCode < 300 ->
+  if
+      | sCode < 300 ->
         userId . selfUser <$> parseResponse @SelfProfile resp
       | inRange (400, 499) sCode ->
         throwSpar . SparBrigErrorWith (responseStatus resp) $ "create user failed"
@@ -256,7 +257,8 @@ setBrigUserName buid name = do
               uupAccentId = Nothing
             }
   let sCode = statusCode resp
-  if  | sCode < 300 ->
+  if
+      | sCode < 300 ->
         pure ()
       | inRange (400, 499) sCode ->
         throwSpar . SparBrigErrorWith (responseStatus resp) $ "set name failed"
@@ -275,7 +277,8 @@ setBrigUserHandle buid handle = do
         . header "Z-Connection" ""
         . json (HandleUpdate (fromHandle handle))
   let sCode = statusCode resp
-  if  | sCode < 300 ->
+  if
+      | sCode < 300 ->
         pure ()
       | inRange (400, 499) sCode ->
         throwSpar . SparBrigErrorWith (responseStatus resp) $ "set handle failed"
@@ -292,7 +295,8 @@ setBrigUserManagedBy buid managedBy = do
         . paths ["i", "users", toByteString' buid, "managed-by"]
         . json (ManagedByUpdate managedBy)
   let sCode = statusCode resp
-  if  | sCode < 300 ->
+  if
+      | sCode < 300 ->
         pure ()
       | inRange (400, 499) sCode ->
         throwSpar . SparBrigErrorWith (responseStatus resp) $ "set managedBy failed"
@@ -308,7 +312,8 @@ setBrigUserUserRef buid uref = do
         . paths ["i", "users", toByteString' buid, "sso-id"]
         . json (toUserSSOId uref)
   let sCode = statusCode resp
-  if  | sCode < 300 ->
+  if
+      | sCode < 300 ->
         pure ()
       | inRange (400, 499) sCode ->
         throwSpar . SparBrigErrorWith (responseStatus resp) $ "set UserSSOId failed"
@@ -325,7 +330,8 @@ setBrigUserRichInfo buid richInfo = do
         . paths ["i", "users", toByteString' buid, "rich-info"]
         . json (RichInfoUpdate $ unRichInfo richInfo)
   let sCode = statusCode resp
-  if  | sCode < 300 ->
+  if
+      | sCode < 300 ->
         pure ()
       | inRange (400, 499) sCode ->
         throwSpar . SparBrigErrorWith (responseStatus resp) $ "set richInfo failed"
@@ -334,16 +340,17 @@ setBrigUserRichInfo buid richInfo = do
 
 -- TODO: We should add an internal endpoint for this instead
 getBrigUserRichInfo :: (HasCallStack, MonadSparToBrig m) => UserId -> m RichInfo
-getBrigUserRichInfo buid = RichInfo.RichInfo <$> do
-  resp <-
-    call $
-      method GET
-        . paths ["users", toByteString' buid, "rich-info"]
-        . header "Z-User" (toByteString' buid)
-        . header "Z-Connection" ""
-  case statusCode resp of
-    200 -> parseResponse resp
-    _ -> throwSpar (SparBrigErrorWith (responseStatus resp) "Could not retrieve rich info")
+getBrigUserRichInfo buid =
+  RichInfo.RichInfo <$> do
+    resp <-
+      call $
+        method GET
+          . paths ["users", toByteString' buid, "rich-info"]
+          . header "Z-User" (toByteString' buid)
+          . header "Z-Connection" ""
+    case statusCode resp of
+      200 -> parseResponse resp
+      _ -> throwSpar (SparBrigErrorWith (responseStatus resp) "Could not retrieve rich info")
 
 -- | At the time of writing this, @HEAD /users/handles/:uid@ does not use the 'UserId' for
 -- anything but authorization.
@@ -356,7 +363,8 @@ checkHandleAvailable hnd buid = do
         . header "Z-User" (toByteString' buid)
         . header "Z-Connection" ""
   let sCode = statusCode resp
-  if  | sCode == 200 -> -- handle exists
+  if
+      | sCode == 200 -> -- handle exists
         pure False
       | sCode == 404 -> -- handle not found
         pure True
@@ -386,7 +394,8 @@ deleteBrigUser buid = do
       method DELETE
         . paths ["/i/users", toByteString' buid]
   let sCode = statusCode resp
-  if  | sCode < 300 -> pure ()
+  if
+      | sCode < 300 -> pure ()
       | inRange (400, 499) sCode ->
         throwSpar $ SparBrigErrorWith (responseStatus resp) "failed to delete user"
       | otherwise ->
@@ -430,7 +439,8 @@ ensureReAuthorised (Just uid) secret = do
         . paths ["/i/users", toByteString' uid, "reauthenticate"]
         . json (ReAuthUser secret)
   let sCode = statusCode resp
-  if  | sCode == 200 ->
+  if
+      | sCode == 200 ->
         pure ()
       | sCode == 403 ->
         throwSpar SparReAuthRequired
@@ -454,7 +464,8 @@ ssoLogin buid = do
         . json (SsoLogin buid Nothing)
         . queryItem "persist" "true"
   let sCode = statusCode resp
-  if  | sCode < 300 ->
+  if
+      | sCode < 300 ->
         Just <$> respToCookie resp
       | inRange (400, 499) sCode ->
         pure Nothing

@@ -38,7 +38,7 @@ import qualified Codec.MIME.Type as MIME
 import qualified Conduit as Conduit
 import Control.Applicative (optional)
 import Control.Error
-import Control.Lens ((^.), set, view)
+import Control.Lens (set, view, (^.))
 import Control.Monad.Trans.Resource
 import Crypto.Hash
 import Crypto.Random (getRandomBytes)
@@ -214,9 +214,9 @@ headers names = count (length names) (header names)
 header :: [HeaderName] -> Parser (HeaderName, ByteString)
 header names = do
   name <- CI.mk <$> takeTill (== ':') <?> "header name"
-  unless (name `elem` names)
-    $ fail
-    $ "Unexpected header: " ++ show (CI.original name)
+  unless (name `elem` names) $
+    fail $
+      "Unexpected header: " ++ show (CI.original name)
   _ <- char ':'
   skipSpace
   value <- takeTill isEOL <?> "header value"

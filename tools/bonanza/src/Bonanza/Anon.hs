@@ -21,7 +21,7 @@ module Bonanza.Anon
 where
 
 import Bonanza.Types
-import Control.Lens ((%~), _Wrapped', over)
+import Control.Lens (over, (%~), _Wrapped')
 import Data.HashMap.Strict (filterWithKey)
 import Imports
 

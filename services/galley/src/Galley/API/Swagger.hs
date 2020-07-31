@@ -33,8 +33,7 @@ import Brig.Types.Client.Prekey (LastPrekey, Prekey, PrekeyId)
 import Brig.Types.Provider
 import Brig.Types.Team.LegalHold
 import Control.Lens
-import Data.Aeson (toJSON)
-import Data.Aeson (Value (..))
+import Data.Aeson (Value (..), toJSON)
 import Data.HashMap.Strict.InsOrd
 import Data.Id
 import Data.LegalHold
@@ -157,14 +156,15 @@ instance ToSchema NewLegalHoldService where
 
 instance ToSchema ViewLegalHoldService where
   declareNamedSchema _ =
-    pure $ NamedSchema (Just "ViewLegalHoldService") $
-      mempty
-        & properties .~ properties_
-        & example .~ Just (toJSON example_)
-        & required .~ ["status"]
-        & minProperties .~ Just 1
-        & maxProperties .~ Just 2
-        & type_ .~ Just SwaggerObject
+    pure $
+      NamedSchema (Just "ViewLegalHoldService") $
+        mempty
+          & properties .~ properties_
+          & example .~ Just (toJSON example_)
+          & required .~ ["status"]
+          & minProperties .~ Just 1
+          & maxProperties .~ Just 2
+          & type_ .~ Just SwaggerObject
     where
       properties_ :: InsOrdHashMap Text (Referenced Schema)
       properties_ =
@@ -204,12 +204,13 @@ instance ToSchema ViewLegalHoldServiceInfo where
         }
   -}
   declareNamedSchema _ =
-    pure $ NamedSchema (Just "ViewLegalHoldServiceInfo") $
-      mempty
-        & properties .~ properties_
-        & example .~ Just (toJSON example_)
-        & required .~ ["team_id", "base_url", "fingerprint", "auth_token", "public_key"]
-        & type_ .~ Just SwaggerObject
+    pure $
+      NamedSchema (Just "ViewLegalHoldServiceInfo") $
+        mempty
+          & properties .~ properties_
+          & example .~ Just (toJSON example_)
+          & required .~ ["team_id", "base_url", "fingerprint", "auth_token", "public_key"]
+          & type_ .~ Just SwaggerObject
     where
       properties_ :: InsOrdHashMap Text (Referenced Schema)
       properties_ =
@@ -226,12 +227,13 @@ instance ToSchema ViewLegalHoldServiceInfo where
 
 instance ToSchema TeamFeatureStatus where
   declareNamedSchema _ =
-    pure $ NamedSchema (Just "TeamFeatureStatus") $
-      mempty
-        & properties .~ (fromList [("status", Inline statusValue)])
-        & required .~ ["status"]
-        & type_ ?~ SwaggerObject
-        & description ?~ "whether a given team feature is enabled"
+    pure $
+      NamedSchema (Just "TeamFeatureStatus") $
+        mempty
+          & properties .~ (fromList [("status", Inline statusValue)])
+          & required .~ ["status"]
+          & type_ ?~ SwaggerObject
+          & description ?~ "whether a given team feature is enabled"
     where
       statusValue =
         mempty
@@ -259,13 +261,14 @@ instance ToSchema NewLegalHoldClient where
 
 instance ToSchema UserLegalHoldStatusResponse where
   declareNamedSchema _ =
-    pure $ NamedSchema (Just "UserLegalHoldStatusResponse") $
-      mempty
-        & properties .~ properties_
-        & required .~ ["status"]
-        & minProperties .~ Just 1
-        & maxProperties .~ Just 3
-        & type_ .~ Just SwaggerObject
+    pure $
+      NamedSchema (Just "UserLegalHoldStatusResponse") $
+        mempty
+          & properties .~ properties_
+          & required .~ ["status"]
+          & minProperties .~ Just 1
+          & maxProperties .~ Just 3
+          & type_ .~ Just SwaggerObject
     where
       properties_ :: InsOrdHashMap Text (Referenced Schema)
       properties_ =
@@ -277,11 +280,12 @@ instance ToSchema UserLegalHoldStatusResponse where
 
 instance ToSchema a => ToSchema (IdObject a) where
   declareNamedSchema _ =
-    pure $ NamedSchema (Just "IdObject a") $
-      mempty
-        & properties .~ properties_
-        & required .~ ["id"]
-        & type_ .~ Just SwaggerObject
+    pure $
+      NamedSchema (Just "IdObject a") $
+        mempty
+          & properties .~ properties_
+          & required .~ ["id"]
+          & type_ .~ Just SwaggerObject
     where
       properties_ :: InsOrdHashMap Text (Referenced Schema)
       properties_ =

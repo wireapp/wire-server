@@ -94,19 +94,20 @@ enqueue b q m =
     retryPredicate _ res = pure (isLeft res)
     retryPolicy = limitRetries 5 <> exponentialBackoff 50000
     enqueueAction =
-      liftIO $ try @StomplException
-        $ stompTimeout "enqueue" 500000
-        $ withConnection' b
-        $ \conn ->
-          withWriter
-            conn
-            (unpack q)
-            (unpack q)
-            [OWithReceipt, OWaitReceipt]
-            []
-            oconv
-            $ \w ->
-              writeQ w jsonType [("persistent", "true")] m
+      liftIO $
+        try @StomplException $
+          stompTimeout "enqueue" 500000 $
+            withConnection' b $
+              \conn ->
+                withWriter
+                  conn
+                  (unpack q)
+                  (unpack q)
+                  [OWithReceipt, OWaitReceipt]
+                  []
+                  oconv
+                  $ \w ->
+                    writeQ w jsonType [("persistent", "true")] m
 
 -- Note [receipts]
 -- ~~~
@@ -204,8 +205,10 @@ withConnection' b =
 -- | Like 'timeout', but throws an 'AppException' instead of returning a
 -- 'Maybe'. Not very composable, but kinda convenient here.
 stompTimeout :: String -> Int -> IO a -> IO a
-stompTimeout location t act = timeout t act >>= \case
-  Just x -> pure x
-  Nothing ->
-    throwIO $ AppException $
-      location <> ": STOMP request took more than " <> show t <> "mcs and has timed out"
+stompTimeout location t act =
+  timeout t act >>= \case
+    Just x -> pure x
+    Nothing ->
+      throwIO $
+        AppException $
+          location <> ": STOMP request took more than " <> show t <> "mcs and has timed out"
