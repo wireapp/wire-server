@@ -41,17 +41,56 @@ fi
 
 echo "Running the script now. This might take a while..."
 
-# The idea behind the sscript is ... TODO
+# The general idea is the following:
+#
+# We have a branch consisting of changes C1, C2, ... on top of our BASE_COMMIT 0.
+# Also, from the base commit, a formatting change `f(0)` was made.
+#
+# ```
+#  0 --- C1 ---> 1 --- C2 ---> 2 --- C3 ---> ... --- Cn ---> n
+#  |
+#  f
+#  |
+#  v
+#  0'
+# ```
+#
+# Now, how do we obtain versions of our changes operating on the formatted code (let's call them Ci')?
+#
+# ```
+#  0 --- C1 ---> 1 --- C2 ---> 2 --- C3 ---> ... --- Cn ---> n
+#  |
+#  f
+#  |
+#  v
+#  0' -- C1' --> 1' -- C2' --> 2' -- C3' --> ... --- Cn' --> n'
+# ```
+#
+# One useful thing is that since `f` is defined by an automated tool,
+# we know `f(i)` on every commit `i`.
+#
+# ```
+#  0 --- C1 ---> 1 --- C2 ---> 2 --- C3 ---> ... --- Cn ---> n
+#  |             |             |                             |
+#  f             f             f                             f
+#  |             |             |                             |
+#  v             v             v                             v
+#  0' -- C1' --> 1' -- C2' --> 2' -- C3' --> ... --- Cn' --> n'
+# ```
+#
+# And we can also get its inverse `r(f(i))` by reverting the commit.
+#
+# So we can obtain `Ci' by composing `r(f(i-1)), `Ci` and `f(i)`.
 
 set -x
 
-# edit every commit Ci, adding f(Ci) and r(F(Ci))
+# edit every commit i, adding f(i) and r(f(i))
 git rebase $BASE_COMMIT~1 --exec "$FORMATTING_COMMAND && git commit -am "format" && git revert HEAD --no-edit"
 
 # drop last commit
 git reset HEAD~1 --hard
 
-# now for every Ci, squash with the previous and next commit (i.e. r(f(C(i-1))) and f(Ci))
+# now for every i, squash with the previous and next commit (i.e. r(f(i-1)) and f(i))
 # - in sequence editor, squash lines 3, 6, 9, ... and fixup lines 4, 7, 10, ...
 # - in commit message editor, drop first 9 lines (removing the commit message of the revert commit)
 GIT_SEQUENCE_EDITOR='sed -i -e "3~3s/pick/squash/" -e "4~3s/pick/fixup/"' \
