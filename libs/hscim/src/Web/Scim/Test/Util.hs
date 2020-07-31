@@ -52,7 +52,7 @@ where
 
 import qualified Control.Retry as Retry
 import Data.Aeson
-import Data.Aeson.Internal ((<?>), JSONPathElement (Key))
+import Data.Aeson.Internal (JSONPathElement (Key), (<?>))
 import Data.Aeson.QQ
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
@@ -71,8 +71,7 @@ import Network.Wai (Application)
 import Network.Wai.Test (SResponse)
 import Test.Hspec.Expectations (expectationFailure)
 import Test.Hspec.Wai hiding (patch, post, put, shouldRespondWith)
-import Test.Hspec.Wai.Matcher (bodyEquals)
-import Test.Hspec.Wai.Matcher (match)
+import Test.Hspec.Wai.Matcher (bodyEquals, match)
 import Web.Scim.Class.Auth (AuthTypes (..))
 import Web.Scim.Class.Group (GroupTypes (..))
 import Web.Scim.Schema.Schema (Schema (CustomSchema, User20))

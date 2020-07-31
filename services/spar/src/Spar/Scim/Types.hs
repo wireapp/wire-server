@@ -52,8 +52,8 @@ import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword)
 import Imports
 import qualified SAML2.WebSSO as SAML
-import Servant ((:<|>), (:>), DeleteNoContent, Get, Header, JSON, NoContent, Post, QueryParam', ReqBody, Required, Strict)
-import Servant.API.Generic ((:-), ToServantApi)
+import Servant (DeleteNoContent, Get, Header, JSON, NoContent, Post, QueryParam', ReqBody, Required, Strict, (:<|>), (:>))
+import Servant.API.Generic (ToServantApi, (:-))
 import Spar.API.Util (OmitDocs)
 import Spar.Types (ScimToken, ScimTokenInfo)
 import Web.Scim.AttrName (AttrName (..))

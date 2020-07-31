@@ -37,7 +37,7 @@ where
 
 import Bilge (HttpT (..), Manager, MonadHttp, Request, runHttpT)
 import qualified Cassandra as Cql
-import Control.Lens ((^.), makeLenses)
+import Control.Lens (makeLenses, (^.))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Control.Monad.Fail (MonadFail)
 import Imports

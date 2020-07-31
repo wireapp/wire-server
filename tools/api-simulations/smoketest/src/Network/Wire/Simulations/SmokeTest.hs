@@ -128,15 +128,17 @@ mainBotNet n = do
   let carlWithTablet = (carl, carlTablet)
   let people :: [(Bot, ConvId, BotClient)] -- everyone except for Ally
       people =
-        (bill, a2b, billPC) : (carl, a2c, carlTablet)
-          : zip3 goons a2goons goonClients
+        (bill, a2b, billPC) :
+        (carl, a2c, carlTablet) :
+        zip3 goons a2goons goonClients
   info $ msg (val "OTR 1-1 greetings")
   -- Ally greets everyone in 1-1
-  runBotSession ally $ for_ people $ \(user, conv, _client) -> do
-    botInitSession (botId user)
-    Clients.addMembers (botClientSessions allyPhone) conv [botId user]
-    let message = "Hey " <> unTag (botTag user) <> ", Everything secure?"
-    postOtrTextMsg allyPhone conv message >>= assertNoClientMismatch
+  runBotSession ally $
+    for_ people $ \(user, conv, _client) -> do
+      botInitSession (botId user)
+      Clients.addMembers (botClientSessions allyPhone) conv [botId user]
+      let message = "Hey " <> unTag (botTag user) <> ", Everything secure?"
+      postOtrTextMsg allyPhone conv message >>= assertNoClientMismatch
   -- Everyone answers
   for_ people $ \(user, conv, client) -> runBotSession user $ do
     pkm <- awaitOtrMsg conv allyWithPhone (user, client)
@@ -148,14 +150,15 @@ mainBotNet n = do
     Clients.addMembers (botClientSessions client) conv [botId ally]
     postOtrTextMsg client conv "Thanks Ally, All good." >>= assertNoClientMismatch
   -- Ally confirms the answers
-  runBotSession ally $ for_ people $ \(user, conv, client) -> do
-    message <- awaitOtrMsg conv (user, client) allyWithPhone
-    plain <- decryptTextMsg allyPhone message
-    assertEqual
-      plain
-      "Thanks Ally, All good."
-      ("Ally (from " <> unTag (botTag user) <> "): Plaintext /= CipherText")
-    postOtrTextMsg allyPhone conv "Glad to hear that." >>= assertNoClientMismatch
+  runBotSession ally $
+    for_ people $ \(user, conv, client) -> do
+      message <- awaitOtrMsg conv (user, client) allyWithPhone
+      plain <- decryptTextMsg allyPhone message
+      assertEqual
+        plain
+        "Thanks Ally, All good."
+        ("Ally (from " <> unTag (botTag user) <> "): Plaintext /= CipherText")
+      postOtrTextMsg allyPhone conv "Glad to hear that." >>= assertNoClientMismatch
   -- Everyone checks Ally's response
   for_ people $ \(user, conv, client) -> runBotSession user $ do
     message <- awaitOtrMsg conv allyWithPhone (user, client)

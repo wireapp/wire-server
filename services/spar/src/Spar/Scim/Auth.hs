@@ -34,7 +34,7 @@ module Spar.Scim.Auth
   )
 where
 
-import Control.Lens hiding ((.=), Strict)
+import Control.Lens hiding (Strict, (.=))
 import qualified Data.ByteString.Base64 as ES
 import Data.Id (ScimTokenId, UserId, randomId)
 import Data.String.Conversions (cs)
@@ -42,8 +42,8 @@ import Data.Time (getCurrentTime)
 import Imports
 import OpenSSL.Random (randBytes)
 import qualified SAML2.WebSSO as SAML
-import Servant ((:<|>) ((:<|>)), NoContent (NoContent), ServerT)
-import Spar.App (Spar, sparCtxOpts, wrapMonadClient, wrapMonadClient)
+import Servant (NoContent (NoContent), ServerT, (:<|>) ((:<|>)))
+import Spar.App (Spar, sparCtxOpts, wrapMonadClient)
 import qualified Spar.Data as Data
 import qualified Spar.Error as E
 import qualified Spar.Intra.Brig as Intra.Brig
@@ -51,7 +51,6 @@ import Spar.Scim.Types
   ( APIScimToken,
     CreateScimToken (CreateScimToken),
     CreateScimTokenResponse (..),
-    ScimTokenList,
     ScimTokenList (..),
     SparTag,
     createScimTokenDescr,

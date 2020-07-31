@@ -32,7 +32,7 @@ import qualified Galley.Types.Teams as Teams
 import Imports hiding (head)
 import Network.Wai.Utilities.Error
 import Test.Tasty
-import Test.Tasty.Cannon ((#), TimeoutUnit (..))
+import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
 import TestHelpers
 import TestSetup
@@ -151,8 +151,9 @@ messageTimerEvent = do
     let update = ConversationMessageTimerUpdate timer1sec
     putMessageTimerUpdate alice cid update
       !!! const 200 === statusCode
-    void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $
-      wsAssertConvMessageTimerUpdate cid alice update
+    void . liftIO $
+      WS.assertMatchN (5 # Second) [wsA, wsB] $
+        wsAssertConvMessageTimerUpdate cid alice update
 
 ----------------------------------------------------------------------------
 -- Utilities

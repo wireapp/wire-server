@@ -23,7 +23,7 @@ import Bilge
 import Bilge.Assert
 import qualified Brig.Options as Opts
 import Brig.Types
-import Control.Lens ((?~), (^.), view)
+import Control.Lens (view, (?~), (^.))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Data.Bifunctor (Bifunctor (first))
 import Data.ByteString.Conversion
@@ -48,15 +48,16 @@ import Wire.API.Call.Config
 
 tests :: Manager -> Brig -> Opts.Opts -> FilePath -> FilePath -> IO TestTree
 tests m b opts turn turnV2 = do
-  return $ testGroup "calling" $
-    [ testGroup "turn" $
-        [ test m "basic /calls/config - 200" $ testCallsConfig b,
-          -- FIXME: requires tests to run on same host as brig
-          test m "multiple servers /calls/config - 200" . withTurnFile turn $ testCallsConfigMultiple b,
-          test m "multiple servers /calls/config/v2 - 200" . withTurnFile turnV2 $ testCallsConfigMultipleV2 b
-        ],
-      testGroup "sft" $ [test m "SFT servers /calls/config/v2 - 200" $ testSFT b opts]
-    ]
+  return $
+    testGroup "calling" $
+      [ testGroup "turn" $
+          [ test m "basic /calls/config - 200" $ testCallsConfig b,
+            -- FIXME: requires tests to run on same host as brig
+            test m "multiple servers /calls/config - 200" . withTurnFile turn $ testCallsConfigMultiple b,
+            test m "multiple servers /calls/config/v2 - 200" . withTurnFile turnV2 $ testCallsConfigMultipleV2 b
+          ],
+        testGroup "sft" $ [test m "SFT servers /calls/config/v2 - 200" $ testSFT b opts]
+      ]
 
 testCallsConfig :: Brig -> Http ()
 testCallsConfig b = do

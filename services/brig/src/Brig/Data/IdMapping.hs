@@ -33,8 +33,9 @@ import Imports
 -- | Only a single namespace/table is used for for potentially multiple different types of
 -- mapped IDs.
 getIdMapping :: Id (Mapped a) -> AppIO (Maybe (IdMapping a))
-getIdMapping mappedId = fmap toIdMapping <$> do
-  retry x1 $ query1 idMappingSelect (params Quorum (Identity mappedId))
+getIdMapping mappedId =
+  fmap toIdMapping <$> do
+    retry x1 $ query1 idMappingSelect (params Quorum (Identity mappedId))
   where
     toIdMapping (remoteId, domain) =
       IdMapping mappedId (Qualified remoteId domain)

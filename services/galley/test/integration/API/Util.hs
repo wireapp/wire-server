@@ -25,12 +25,12 @@ import Bilge.Assert
 import Brig.Types
 import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth (CookieLabel (..))
-import Control.Lens hiding ((#), (.=), from, to)
+import Control.Lens hiding (from, to, (#), (.=))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Fail (MonadFail)
 import Control.Retry (constantDelay, limitRetries, retrying)
 import Data.Aeson hiding (json)
-import Data.Aeson.Lens (_String, key)
+import Data.Aeson.Lens (key, _String)
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as C
 import Data.ByteString.Conversion
@@ -46,16 +46,16 @@ import Data.Range
 import Data.Serialize (runPut)
 import qualified Data.Set as Set
 import Data.String.Conversions (ST, cs)
-import qualified Data.Text.Encoding as Text
 import Data.Text.Encoding (decodeUtf8)
+import qualified Data.Text.Encoding as Text
 import qualified Data.UUID as UUID
 import Data.UUID.V4
 import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
 import Galley.Types hiding (InternalMember (..), Member)
 import Galley.Types.Conversations.Roles hiding (DeleteConversation)
-import qualified Galley.Types.Teams as Team
 import Galley.Types.Teams hiding (Event, EventType (..))
+import qualified Galley.Types.Teams as Team
 import Galley.Types.Teams.Intra
 import Gundeck.Types.Notification
   ( Notification (..),
@@ -71,7 +71,7 @@ import Gundeck.Types.Notification
 import Imports
 import qualified Network.Wai.Test as WaiTest
 import qualified Test.QuickCheck as Q
-import Test.Tasty.Cannon ((#), TimeoutUnit (..))
+import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestSetup
@@ -138,9 +138,10 @@ createNonBindingTeam name owner mems = do
   g <- view tsGalley
   let mm = if null mems then Nothing else Just $ unsafeRange (take 127 mems)
   let nt = NonBindingNewTeam $ newNewTeam (unsafeRange name) (unsafeRange "icon") & newTeamMembers .~ mm
-  resp <- post (g . path "/teams" . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
-    const 201 === statusCode
-    const True === isJust . getHeader "Location"
+  resp <-
+    post (g . path "/teams" . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
+      const 201 === statusCode
+      const True === isJust . getHeader "Location"
   fromBS (getHeader' "Location" resp)
 
 changeTeamStatus :: HasCallStack => TeamId -> TeamStatus -> TestM ()
@@ -164,9 +165,10 @@ createBindingTeamInternalNoActivate name owner = do
   g <- view tsGalley
   tid <- randomId
   let nt = BindingNewTeam $ newNewTeam (unsafeRange name) (unsafeRange "icon")
-  _ <- put (g . paths ["/i/teams", toByteString' tid] . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
-    const 201 === statusCode
-    const True === isJust . getHeader "Location"
+  _ <-
+    put (g . paths ["/i/teams", toByteString' tid] . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
+      const 201 === statusCode
+      const True === isJust . getHeader "Location"
   return tid
 
 createBindingTeamInternalWithCurrency :: HasCallStack => Text -> UserId -> Currency.Alpha -> TestM TeamId
@@ -1414,8 +1416,9 @@ withSettingsOverrides opts action = liftIO $ do
 waitForMemberDeletion :: UserId -> TeamId -> UserId -> TestM ()
 waitForMemberDeletion zusr tid uid = do
   maybeTimedOut <- timeout 2000000 loop
-  liftIO $ when (isNothing maybeTimedOut) $
-    assertFailure "Timed out waiting for member deletion"
+  liftIO $
+    when (isNothing maybeTimedOut) $
+      assertFailure "Timed out waiting for member deletion"
   where
     loop = do
       galley <- view tsGalley

@@ -98,9 +98,10 @@ testSimpleRoundtrip c = do
       when (isJust $ join (V3.assetRetentionSeconds <$> (sets ^. V3.setAssetRetention))) $ do
         liftIO $ assertBool "invalid expiration" (Just utc < view V3.assetExpires ast)
       -- Lookup with token and download via redirect.
-      r2 <- get (c . path loc . zUser uid . header "Asset-Token" (toByteString' tok) . noRedirect) <!! do
-        const 302 === statusCode
-        const Nothing === responseBody
+      r2 <-
+        get (c . path loc . zUser uid . header "Asset-Token" (toByteString' tok) . noRedirect) <!! do
+          const 302 === statusCode
+          const Nothing === responseBody
       r3 <- flip get' id =<< parseUrlThrow (C8.unpack (getHeader' "Location" r2))
       liftIO $ do
         assertEqual "status" status200 (responseStatus r3)
@@ -150,9 +151,10 @@ testSimpleTokens c = do
   let Just tok' = V3.newAssetToken <$> responseJsonMaybe r2
   liftIO $ assertBool "token unchanged" (tok /= tok')
   -- Download by owner with new token.
-  r3 <- get (c . path loc . zUser uid . header "Asset-Token" (toByteString' tok') . noRedirect) <!! do
-    const 302 === statusCode
-    const Nothing === responseBody
+  r3 <-
+    get (c . path loc . zUser uid . header "Asset-Token" (toByteString' tok') . noRedirect) <!! do
+      const 302 === statusCode
+      const Nothing === responseBody
   r4 <- flip get' id =<< parseUrlThrow (C8.unpack (getHeader' "Location" r3))
   liftIO $ do
     assertEqual "status" status200 (responseStatus r4)
@@ -347,9 +349,10 @@ getAsset c u k t =
 
 downloadAsset :: HasCallStack => CargoHold -> UserId -> V3.AssetKey -> Maybe V3.AssetToken -> Http (Response (Maybe Lazy.ByteString))
 downloadAsset c u k t = do
-  r <- getAsset c u k t <!! do
-    const 302 === statusCode
-    const Nothing === responseBody
+  r <-
+    getAsset c u k t <!! do
+      const 302 === statusCode
+      const Nothing === responseBody
   l <- parseUrlThrow (C8.unpack (getHeader' "Location" r))
   get' l id
 

@@ -1071,10 +1071,11 @@ filterMissing = (>>= go) <$> (query "ignore_missing" ||| query "report_missing")
     users :: ByteString -> ByteString -> P.Result P.Error (Set OpaqueUserId)
     users src bs = case fromByteString bs of
       Nothing ->
-        P.Fail $ P.setMessage "Boolean or list of user IDs expected."
-          $ P.setReason P.TypeError
-          $ P.setSource src
-          $ P.err status400
+        P.Fail $
+          P.setMessage "Boolean or list of user IDs expected." $
+            P.setReason P.TypeError $
+              P.setSource src $
+                P.err status400
       -- NB. 'fromByteString' parses a comma-separated list ('List') of
       -- user IDs, and then 'fromList' unwraps it; took me a while to
       -- understand this

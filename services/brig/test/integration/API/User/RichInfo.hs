@@ -116,9 +116,10 @@ testRichInfoSizeLimit brig conf = do
         RichInfoAssocList
           [ RichField "department" (Text.replicate (fromIntegral maxSize) "#")
           ]
-      bad2 = RichInfoAssocList $
-        [0 .. ((maxSize `div` 2))]
-          <&> \i -> RichField (CI.mk $ Text.pack $ show i) "#"
+      bad2 =
+        RichInfoAssocList $
+          [0 .. ((maxSize `div` 2))]
+            <&> \i -> RichField (CI.mk $ Text.pack $ show i) "#"
   putRichInfo brig owner bad1 !!! const 413 === statusCode
   putRichInfo brig owner bad2 !!! const 413 === statusCode
 

@@ -79,7 +79,8 @@ readLocalesDir defLocale base typ load = do
     -- Ignore locales if no such directory exist for the locale
     ls <-
       filterM (doesDirectoryExist . basePath)
-        . filter (/= defLocaleDir) =<< listDirectory base
+        . filter (/= defLocaleDir)
+        =<< listDirectory base
     Map.fromList . zip (map readLocale ls) <$> mapM (load . basePath) ls
   where
     basePath :: FilePath -> FilePath

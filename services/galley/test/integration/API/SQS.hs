@@ -59,20 +59,23 @@ ensureQueueEmptyIO (Just env) = liftIO $ Aws.execute env purgeQueue
 ensureQueueEmptyIO Nothing = return ()
 
 assertQueue :: String -> (String -> Maybe E.TeamEvent -> IO ()) -> TestM ()
-assertQueue label check = view tsAwsEnv >>= \case
-  Just env -> liftIO $ Aws.execute env $ fetchMessage label check
-  Nothing -> return ()
+assertQueue label check =
+  view tsAwsEnv >>= \case
+    Just env -> liftIO $ Aws.execute env $ fetchMessage label check
+    Nothing -> return ()
 
 -- Try to assert an event in the queue for a `timeout` amount of seconds
 tryAssertQueue :: Int -> String -> (String -> Maybe E.TeamEvent -> IO ()) -> TestM ()
-tryAssertQueue timeout label check = view tsAwsEnv >>= \case
-  Just env -> liftIO $ Aws.execute env $ awaitMessage label timeout check
-  Nothing -> return ()
+tryAssertQueue timeout label check =
+  view tsAwsEnv >>= \case
+    Just env -> liftIO $ Aws.execute env $ awaitMessage label timeout check
+    Nothing -> return ()
 
 assertQueueEmpty :: (HasCallStack) => TestM ()
-assertQueueEmpty = view tsAwsEnv >>= \case
-  Just env -> liftIO $ Aws.execute env ensureNoMessages
-  Nothing -> return ()
+assertQueueEmpty =
+  view tsAwsEnv >>= \case
+    Just env -> liftIO $ Aws.execute env ensureNoMessages
+    Nothing -> return ()
 
 tActivateWithCurrency :: HasCallStack => Maybe Currency.Alpha -> String -> Maybe E.TeamEvent -> IO ()
 tActivateWithCurrency c l (Just e) = do
@@ -161,12 +164,13 @@ tryMatch label tries url callback = go tries
         liftIO $ threadDelay (10 ^ (6 :: Int))
         go (n - 1)
     check :: Maybe E.TeamEvent -> Amazon (Either MatchFailure String)
-    check e = do
-      liftIO $ callback label e
-      return (Right $ show e)
-      `catchAll` \ex -> case asyncExceptionFromException ex of
-        Just x -> throwM (x :: SomeAsyncException)
-        Nothing -> return . Left $ MatchFailure (e, ex)
+    check e =
+      do
+        liftIO $ callback label e
+        return (Right $ show e)
+        `catchAll` \ex -> case asyncExceptionFromException ex of
+          Just x -> throwM (x :: SomeAsyncException)
+          Nothing -> return . Left $ MatchFailure (e, ex)
 
 -- Note that Amazon's purge queue is a bit incovenient for testing purposes because
 -- it may be delayed in ~60 seconds which causes messages that are published later
@@ -178,8 +182,8 @@ receive :: Int -> Text -> SQS.ReceiveMessage
 receive n url =
   SQS.receiveMessage url
     & set SQS.rmWaitTimeSeconds (Just 1)
-    . set SQS.rmMaxNumberOfMessages (Just n)
-    . set SQS.rmVisibilityTimeout (Just 1)
+      . set SQS.rmMaxNumberOfMessages (Just n)
+      . set SQS.rmVisibilityTimeout (Just 1)
 
 queueEvent :: E.TeamEvent -> Amazon ()
 queueEvent e = do

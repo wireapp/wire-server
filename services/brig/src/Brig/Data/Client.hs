@@ -91,9 +91,9 @@ addClient u newId c maxPermClients loc = do
   let typed = filter ((== newClientType c) . clientType) clients
   let count = length typed
   let upsert = any exists typed
-  unless (count == 0 || upsert)
-    $ fmapLT ClientReAuthError
-    $ User.reauthenticate u (newClientPassword c)
+  unless (count == 0 || upsert) $
+    fmapLT ClientReAuthError $
+      User.reauthenticate u (newClientPassword c)
   let capacity = fmap (+ (- count)) limit
   unless (maybe True (> 0) capacity || upsert) $
     throwE TooManyClients

@@ -83,6 +83,7 @@ handleParser = do
     isHandleChar = Atto.inClass "a-z0-9_.-"
 
 instance Arbitrary Handle where
-  arbitrary = Handle . Text.pack <$> do
-    len <- oneof [choose (2, 10), choose (2, 256)] -- prefer short handles
-    replicateM len (elements $ ['a' .. 'z'] <> ['0' .. '9'] <> "_-.")
+  arbitrary =
+    Handle . Text.pack <$> do
+      len <- oneof [choose (2, 10), choose (2, 256)] -- prefer short handles
+      replicateM len (elements $ ['a' .. 'z'] <> ['0' .. '9'] <> "_-.")

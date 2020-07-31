@@ -113,9 +113,9 @@ createTeam u galley = do
           . expect2xx
           . lbytes (encode newTeam)
       )
-  maybe (error "invalid team id") return
-    $ fromByteString
-    $ getHeader' "Location" r
+  maybe (error "invalid team id") return $
+    fromByteString $
+      getHeader' "Location" r
 
 -- | Create user and binding team.
 --
@@ -218,9 +218,9 @@ createTeamConv g tid u us mtimer = do
       )
       <!! const 201
       === statusCode
-  maybe (error "invalid conv id") return
-    $ fromByteString
-    $ getHeader' "Location" r
+  maybe (error "invalid conv id") return $
+    fromByteString $
+      getHeader' "Location" r
 
 -- See Note [managed conversations]
 createManagedConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Maybe Milliseconds -> Http ConvId
@@ -240,9 +240,9 @@ createManagedConv g tid u us mtimer = do
       )
       <!! const 201
       === statusCode
-  maybe (error "invalid conv id") return
-    $ fromByteString
-    $ getHeader' "Location" r
+  maybe (error "invalid conv id") return $
+    fromByteString $
+      getHeader' "Location" r
 
 deleteTeamConv :: HasCallStack => Galley -> TeamId -> ConvId -> UserId -> Http ()
 deleteTeamConv g tid cid u = do

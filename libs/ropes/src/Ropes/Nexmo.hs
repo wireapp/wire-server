@@ -319,9 +319,9 @@ sendFeedback cr mgr fb = httpLbs req mgr >>= parseResponse
     -- You must _always_ specify a timestamp
     nexmoTimeFormat = formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S"
     parseResponse res =
-      unless (responseStatus res == status200)
-        $ throwIO
-        $ FeedbackErrorResponse (decodeUtf8 . toStrict . responseBody $ res)
+      unless (responseStatus res == status200) $
+        throwIO $
+          FeedbackErrorResponse (decodeUtf8 . toStrict . responseBody $ res)
 
 sendMessage :: Credentials -> Manager -> Message -> IO MessageResponse
 sendMessage cr mgr msg = N.head <$> sendMessages cr mgr (msg :| [])

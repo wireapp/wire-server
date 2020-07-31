@@ -119,8 +119,9 @@ apiScim =
         -- We caught an exception that's not a Spar exception at all. It is wrapped into
         -- Scim.serverError.
         Left someException ->
-          pure $ Left . SAML.CustomError . SparScimError $
-            Scim.serverError (cs (displayException someException))
+          pure $
+            Left . SAML.CustomError . SparScimError $
+              Scim.serverError (cs (displayException someException))
         -- We caught a 'SparScimError' exception. It is left as-is.
         Right err@(Left (SAML.CustomError (SparScimError _))) ->
           pure err
@@ -129,8 +130,9 @@ apiScim =
         -- TODO: does it have to be logged?
         Right (Left sparError) -> do
           err <- sparToServerErrorWithLogging (sparCtxLogger env) sparError
-          pure $ Left . SAML.CustomError . SparScimError $
-            Scim.serverError (cs (errBody err))
+          pure $
+            Left . SAML.CustomError . SparScimError $
+              Scim.serverError (cs (errBody err))
         -- No exceptions! Good.
         Right (Right x) -> pure $ Right x
 

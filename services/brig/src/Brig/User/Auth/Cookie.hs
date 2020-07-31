@@ -136,20 +136,21 @@ renewCookie old = do
 -- 'newCookieLimited' if there is a chance that the user should be suspended (we don't do it
 -- implicitly because of cyclical dependencies).
 mustSuspendInactiveUser :: UserId -> AppIO Bool
-mustSuspendInactiveUser uid = view (settings . to setSuspendInactiveUsers) >>= \case
-  Nothing -> pure False
-  Just (SuspendInactiveUsers (Timeout suspendAge)) -> do
-    now <- liftIO =<< view currentTime
-    let suspendHere :: UTCTime
-        suspendHere = addUTCTime (- suspendAge) now
-        youngEnough :: Cookie () -> Bool
-        youngEnough = (>= suspendHere) . cookieCreated
-    ckies <- listCookies uid []
-    let mustSuspend
-          | null ckies = False
-          | any youngEnough ckies = False
-          | otherwise = True
-    pure mustSuspend
+mustSuspendInactiveUser uid =
+  view (settings . to setSuspendInactiveUsers) >>= \case
+    Nothing -> pure False
+    Just (SuspendInactiveUsers (Timeout suspendAge)) -> do
+      now <- liftIO =<< view currentTime
+      let suspendHere :: UTCTime
+          suspendHere = addUTCTime (- suspendAge) now
+          youngEnough :: Cookie () -> Bool
+          youngEnough = (>= suspendHere) . cookieCreated
+      ckies <- listCookies uid []
+      let mustSuspend
+            | null ckies = False
+            | any youngEnough ckies = False
+            | otherwise = True
+      pure mustSuspend
 
 newAccessToken :: forall u a. ZAuth.TokenPair u a => Cookie (ZAuth.Token u) -> Maybe (ZAuth.Token a) -> AppIO AccessToken
 newAccessToken c mt = do

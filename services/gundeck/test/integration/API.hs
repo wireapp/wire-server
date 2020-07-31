@@ -27,7 +27,7 @@ import Bilge.Assert
 import qualified Cassandra as Cql
 import Control.Arrow ((&&&))
 import Control.Concurrent.Async (Async, async, concurrently_, forConcurrently_, wait)
-import Control.Lens ((%~), (.~), (<&>), (^.), (^?), _2, view)
+import Control.Lens (view, (%~), (.~), (<&>), (^.), (^?), _2)
 import Control.Retry (constantDelay, limitRetries, recoverAll, retrying)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens
@@ -260,9 +260,10 @@ bulkPush isE2E numUsers numConnsPerUser = do
     ploadE2E :: ConnId -> List1 Aeson.Object
     ploadE2E connid = List1.singleton $ HashMap.fromList ["connid" .= connid]
     pushE2E :: UserId -> [(UserId, [(ConnId, Bool)])] -> [Push]
-    pushE2E u ucs = targets <&> \(uid, connid) ->
-      newPush u (toRecipients [uid]) (ploadE2E connid)
-        & pushConnections .~ Set.singleton connid
+    pushE2E u ucs =
+      targets <&> \(uid, connid) ->
+        newPush u (toRecipients [uid]) (ploadE2E connid)
+          & pushConnections .~ Set.singleton connid
       where
         targets :: [(UserId, ConnId)]
         targets =
@@ -797,10 +798,10 @@ testSharePushToken = do
     let t2 = tk c2
     t1' <- registerPushToken u1 t1
     t2' <- registerPushToken u2 t2 -- share the token with u1
-        -- Unfortunately this fails locally :(
-        -- "Duplicate endpoint token: 61d22005-af6e-4199-add9-899aae79c70a"
-        -- Instead of getting something in the lines of
-        -- "Invalid parameter: Token Reason: Endpoint <arn> " already exists with the same Token, but different attributes."
+    -- Unfortunately this fails locally :(
+    -- "Duplicate endpoint token: 61d22005-af6e-4199-add9-899aae79c70a"
+    -- Instead of getting something in the lines of
+    -- "Invalid parameter: Token Reason: Endpoint <arn> " already exists with the same Token, but different attributes."
     liftIO $ assertEqual "token mismatch" (t1 ^. token) t1'
     liftIO $ assertEqual "token mismatch" (t2 ^. token) t2'
     liftIO $ assertEqual "token mismatch" t1' t2'
@@ -889,12 +890,13 @@ connectUsersAndDevicesWithSendingClients ::
   [(UserId, [ConnId])] ->
   TestM [(UserId, [(TChan ByteString, TChan ByteString)])]
 connectUsersAndDevicesWithSendingClients ca uidsAndConnIds = do
-  chs <- forM uidsAndConnIds $ \(uid, conns) -> (uid,) <$> do
-    forM conns $ \conn -> do
-      chread <- liftIO $ atomically newTChan
-      chwrite <- liftIO $ atomically newTChan
-      _ <- wsRun ca uid conn (wsReaderWriter chread chwrite)
-      pure (chread, chwrite)
+  chs <- forM uidsAndConnIds $ \(uid, conns) ->
+    (uid,) <$> do
+      forM conns $ \conn -> do
+        chread <- liftIO $ atomically newTChan
+        chwrite <- liftIO $ atomically newTChan
+        _ <- wsRun ca uid conn (wsReaderWriter chread chwrite)
+        pure (chread, chwrite)
   (\(uid, conns) -> wsAssertPresences uid (length conns)) `mapM_` uidsAndConnIds
   pure chs
 
@@ -1009,20 +1011,22 @@ listNotifications u c = do
         (view queuedTime ns)
 
 getNotifications :: UserId -> Maybe ClientId -> TestM (Response (Maybe BL.ByteString))
-getNotifications u c = view tsGundeck >>= \gu ->
-  get $
-    runGundeckR gu
-      . zUser u
-      . path "notifications"
-      . maybe id (queryItem "client" . toByteString') c
+getNotifications u c =
+  view tsGundeck >>= \gu ->
+    get $
+      runGundeckR gu
+        . zUser u
+        . path "notifications"
+        . maybe id (queryItem "client" . toByteString') c
 
 getLastNotification :: UserId -> Maybe ClientId -> TestM (Response (Maybe BL.ByteString))
-getLastNotification u c = view tsGundeck >>= \gu ->
-  get $
-    runGundeckR gu
-      . zUser u
-      . paths ["notifications", "last"]
-      . maybe id (queryItem "client" . toByteString') c
+getLastNotification u c =
+  view tsGundeck >>= \gu ->
+    get $
+      runGundeckR gu
+        . zUser u
+        . paths ["notifications", "last"]
+        . maybe id (queryItem "client" . toByteString') c
 
 sendPush :: HasCallStack => Push -> TestM ()
 sendPush push = sendPushes [push]
@@ -1101,10 +1105,11 @@ toRecipients :: [UserId] -> Range 1 1024 (Set Recipient)
 toRecipients = unsafeRange . Set.fromList . map (`recipient` RouteAny)
 
 randomConnId :: MonadIO m => m ConnId
-randomConnId = liftIO $
-  ConnId <$> do
-    r <- randomIO :: IO Word32
-    return $ C.pack $ show r
+randomConnId =
+  liftIO $
+    ConnId <$> do
+      r <- randomIO :: IO Word32
+      return $ C.pack $ show r
 
 randomClientId :: MonadIO m => m ClientId
 randomClientId = liftIO $ newClientId <$> (randomIO :: IO Word64)

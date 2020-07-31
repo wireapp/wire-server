@@ -25,8 +25,8 @@ import Brig.Types.Intra (AccountStatus (..))
 import Cassandra
 import Cassandra.Util (Writetime, writeTimeToUTC)
 import Conduit
-import Control.Lens (_1, _2, view)
-import Data.Aeson ((.:), FromJSON)
+import Control.Lens (view, _1, _2)
+import Data.Aeson (FromJSON, (.:))
 import qualified Data.Aeson as Aeson
 import qualified Data.Conduit.List as C
 import qualified Data.Set as Set
@@ -41,16 +41,16 @@ runCommand :: Logger -> ClientState -> ES.BHEnv -> String -> String -> IO ()
 runCommand l cas es indexStr mappingStr = do
   let index = ES.IndexName $ Text.pack indexStr
       mapping = ES.MappingName $ Text.pack mappingStr
-  runConduit
-    $ transPipe (ES.runBH es)
-    $ getScrolled index mapping
-      .| C.iterM (logProgress l)
-      .| C.mapM
-        ( \uuids -> do
-            fromCas <- runClient cas $ usersInCassandra uuids
-            pure (uuids, fromCas)
-        )
-      .| C.mapM_ (logDifference l)
+  runConduit $
+    transPipe (ES.runBH es) $
+      getScrolled index mapping
+        .| C.iterM (logProgress l)
+        .| C.mapM
+          ( \uuids -> do
+              fromCas <- runClient cas $ usersInCassandra uuids
+              pure (uuids, fromCas)
+          )
+        .| C.mapM_ (logDifference l)
 
 ----------------------------------------------------------------------------
 -- Queries

@@ -30,8 +30,7 @@ import Cannon.WS hiding (env)
 import qualified Control.Concurrent.Async as Async
 import Control.Exception.Safe (catchAny)
 import Control.Lens ((^.))
-import Control.Monad.Catch (MonadCatch)
-import Control.Monad.Catch (finally)
+import Control.Monad.Catch (MonadCatch, finally)
 import Data.Metrics.Middleware (gaugeSet, path)
 import qualified Data.Metrics.Middleware as Middleware
 import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
@@ -95,7 +94,8 @@ refreshMetrics = do
     threadDelay 1000000
   where
     safeForever :: (MonadIO m, LC.MonadLogger m, MonadCatch m) => m () -> m ()
-    safeForever action = forever $
-      action `catchAny` \exc -> do
-        LC.err $ "error" LC..= show exc LC.~~ LC.msg (LC.val "refreshMetrics failed")
-        threadDelay 60000000 -- pause to keep worst-case noise in logs manageable
+    safeForever action =
+      forever $
+        action `catchAny` \exc -> do
+          LC.err $ "error" LC..= show exc LC.~~ LC.msg (LC.val "refreshMetrics failed")
+          threadDelay 60000000 -- pause to keep worst-case noise in logs manageable

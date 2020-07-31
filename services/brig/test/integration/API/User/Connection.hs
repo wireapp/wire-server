@@ -305,9 +305,10 @@ testBadUpdateConnection brig = do
   assertBadUpdate uid1 uid2 Accepted
   assertBadUpdate uid2 uid1 Sent
   where
-    assertBadUpdate u1 u2 s = putConnection brig u1 u2 s !!! do
-      const 403 === statusCode
-      const (Just "bad-conn-update") === fmap Error.label . responseJsonMaybe
+    assertBadUpdate u1 u2 s =
+      putConnection brig u1 u2 s !!! do
+        const 403 === statusCode
+        const (Just "bad-conn-update") === fmap Error.label . responseJsonMaybe
 
 testConnectionPaging :: Brig -> Http ()
 testConnectionPaging b = do
@@ -357,11 +358,12 @@ testAutoConnectionOK :: Brig -> Galley -> Http ()
 testAutoConnectionOK brig galley = do
   uid1 <- userId <$> randomUser brig
   uid2 <- userId <$> randomUser brig
-  bdy <- postAutoConnection brig uid1 [uid2] <!! do
-    const 200 === statusCode
-    const (Just 2) === \r -> do
-      b <- responseBody r
-      Vec.length <$> (decode b :: Maybe (Vector UserConnection))
+  bdy <-
+    postAutoConnection brig uid1 [uid2] <!! do
+      const 200 === statusCode
+      const (Just 2) === \r -> do
+        b <- responseBody r
+        Vec.length <$> (decode b :: Maybe (Vector UserConnection))
   assertConnections brig uid1 [ConnectionStatus uid1 uid2 Accepted]
   assertConnections brig uid2 [ConnectionStatus uid2 uid1 Accepted]
   case responseJsonMaybe bdy >>= headMay >>= ucConvId of

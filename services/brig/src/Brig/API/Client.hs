@@ -57,8 +57,8 @@ import Control.Lens (view)
 import Data.Bitraversable (bitraverse)
 import Data.ByteString.Conversion
 import Data.IP (IP)
-import qualified Data.Id as Id
 import Data.Id (ClientId, ConnId, UserId, makeIdOpaque, makeMappedIdOpaque)
+import qualified Data.Id as Id
 import Data.IdMapping
 import Data.List.NonEmpty (nonEmpty)
 import Data.List.Split (chunksOf)
@@ -108,10 +108,10 @@ addClient u con ip new = do
     Intra.newClient u (clientId clt)
     Intra.onClientEvent u con (ClientAdded u clt)
     when (clientType clt == LegalHoldClientType) $ Intra.onUserEvent u con (UserLegalHoldEnabled u)
-    when (count > 1)
-      $ for_ (userEmail usr)
-      $ \email ->
-        sendNewClientEmail (userDisplayName usr) email clt (userLocale usr)
+    when (count > 1) $
+      for_ (userEmail usr) $
+        \email ->
+          sendNewClientEmail (userDisplayName usr) email clt (userLocale usr)
   return clt
   where
     clientId' = clientIdFromPrekey (unpackLastPrekey $ newClientLastKey new)

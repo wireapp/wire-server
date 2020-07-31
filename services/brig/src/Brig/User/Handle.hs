@@ -42,16 +42,16 @@ claimHandle u h = do
     _ -> do
       env <- ask
       let key = "@" <> fromHandle h
-      claimed <- withClaim (userId u) key (30 # Minute)
-        $ runAppT env
-        $ do
-          -- Record ownership
-          retry x5 $ write handleInsert (params Quorum (h, userId u))
-          -- Update profile
-          User.updateHandle (userId u) h
-          -- Free old handle (if it changed)
-          for_ (mfilter (/= h) (userHandle u)) $
-            freeHandle u
+      claimed <- withClaim (userId u) key (30 # Minute) $
+        runAppT env $
+          do
+            -- Record ownership
+            retry x5 $ write handleInsert (params Quorum (h, userId u))
+            -- Update profile
+            User.updateHandle (userId u) h
+            -- Free old handle (if it changed)
+            for_ (mfilter (/= h) (userHandle u)) $
+              freeHandle u
       return (isJust claimed)
 
 -- | Free a 'Handle', making it available to be claimed again.

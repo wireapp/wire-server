@@ -63,7 +63,7 @@ import qualified Network.Wai.Utilities.Error as Wai
 import qualified Proto.TeamEvents as E
 import qualified Proto.TeamEvents_Fields as E
 import Test.Tasty
-import Test.Tasty.Cannon ((#), TimeoutUnit (..))
+import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers (test)
@@ -330,9 +330,10 @@ testEnableTeamSearchVisibilityPerTeam = do
           assertEqual "bad status" status403 status
           assertEqual "bad label" "team-search-visibility-not-enabled" label
   let getSearchVisibilityCheck :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => TeamSearchVisibility -> m ()
-      getSearchVisibilityCheck vis = getSearchVisibility g owner tid !!! do
-        const 200 === statusCode
-        const (Just (TeamSearchVisibilityView vis)) === responseJsonUnsafe
+      getSearchVisibilityCheck vis =
+        getSearchVisibility g owner tid !!! do
+          const 200 === statusCode
+          const (Just (TeamSearchVisibilityView vis)) === responseJsonUnsafe
 
   Util.withCustomSearchFeature FeatureTeamSearchVisibilityEnabledByDefault $ do
     check "Teams should start with Custom Search Visibility enabled" Public.TeamFeatureEnabled
@@ -1769,7 +1770,7 @@ postCryptoBroadcastMessageJson2 = do
   cc <- Util.randomClient charlie (someLastPrekeys !! 2)
   connectUsers alice (list1 charlie [])
   let t = 3 # Second -- WS receive timeout
-      -- Missing charlie
+  -- Missing charlie
   let m1 = [(bob, bc, "ciphertext1")]
   Util.postOtrBroadcastMessage id alice ac m1 !!! do
     const 412 === statusCode

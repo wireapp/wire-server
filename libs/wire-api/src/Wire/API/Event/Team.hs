@@ -98,9 +98,9 @@ modelMemberEvent = Doc.defineModel "TeamMemberEvent" $ do
 
 modelMemberData :: Doc.Model
 modelMemberData =
-  Doc.defineModel "MemberData"
-    $ Doc.property "user" Doc.bytes'
-    $ Doc.description "user ID"
+  Doc.defineModel "MemberData" $
+    Doc.property "user" Doc.bytes' $
+      Doc.description "user ID"
 
 modelConvEvent :: Doc.Model
 modelConvEvent = Doc.defineModel "TeamConversationEvent" $ do
@@ -109,9 +109,9 @@ modelConvEvent = Doc.defineModel "TeamConversationEvent" $ do
 
 modelConversationData :: Doc.Model
 modelConversationData =
-  Doc.defineModel "ConversationData"
-    $ Doc.property "conv" Doc.bytes'
-    $ Doc.description "conversation ID"
+  Doc.defineModel "ConversationData" $
+    Doc.property "conv" Doc.bytes' $
+      Doc.description "conversation ID"
 
 modelUpdateEvent :: Doc.Model
 modelUpdateEvent = Doc.defineModel "TeamUpdateEvent" $ do

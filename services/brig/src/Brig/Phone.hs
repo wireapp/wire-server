@@ -80,8 +80,9 @@ sendCall call = unless (isTestPhone $ Nexmo.callTo call) $ do
   cred <- view nexmoCreds
   withCallBudget (Nexmo.callTo call) $ do
     r <-
-      liftIO . try @_ @Nexmo.CallErrorResponse . recovering x3 nexmoHandlers $ const $
-        Nexmo.sendCall cred m call
+      liftIO . try @_ @Nexmo.CallErrorResponse . recovering x3 nexmoHandlers $
+        const $
+          Nexmo.sendCall cred m call
     case r of
       Left ex -> case Nexmo.caStatus ex of
         Nexmo.CallDestinationNotPermitted -> unreachable ex
@@ -135,9 +136,10 @@ sendSms loc SMSMessage {..} = unless (isTestPhone smsTo) $ do
     sendNexmoSms :: Manager -> AppIO ()
     sendNexmoSms mgr = do
       crd <- view nexmoCreds
-      void . liftIO . recovering x3 nexmoHandlers $ const
-        $ Nexmo.sendMessage crd mgr
-        $ Nexmo.Message "Wire" smsTo smsText (toNexmoCharset loc)
+      void . liftIO . recovering x3 nexmoHandlers $
+        const $
+          Nexmo.sendMessage crd mgr $
+            Nexmo.Message "Wire" smsTo smsText (toNexmoCharset loc)
     toNexmoCharset :: Locale -> Nexmo.Charset
     toNexmoCharset l = case fromLanguage (lLanguage l) of
       RU -> Nexmo.UCS2
@@ -151,8 +153,9 @@ sendSms loc SMSMessage {..} = unless (isTestPhone smsTo) $ do
     sendTwilioSms :: Manager -> AppIO ()
     sendTwilioSms mgr = do
       crd <- view twilioCreds
-      void . liftIO . recovering x3 twilioHandlers $ const $
-        Twilio.sendMessage crd mgr (Twilio.Message smsFrom smsTo smsText)
+      void . liftIO . recovering x3 twilioHandlers $
+        const $
+          Twilio.sendMessage crd mgr (Twilio.Message smsFrom smsTo smsText)
     nexmoFailed =
       [ Handler $ \(ex :: HttpException) ->
           return (Just (SomeException ex)),
@@ -199,8 +202,10 @@ validatePhone (Phone p)
     c <- view twilioCreds
     m <- view httpManager
     r <-
-      liftIO . try @_ @Twilio.ErrorResponse $ recovering x3 httpHandlers $ const $
-        Twilio.lookupPhone c m p LookupNoDetail Nothing
+      liftIO . try @_ @Twilio.ErrorResponse $
+        recovering x3 httpHandlers $
+          const $
+            Twilio.lookupPhone c m p LookupNoDetail Nothing
     case r of
       Right x -> return (Just (Phone (Twilio.lookupE164 x)))
       Left e | Twilio.errStatus e == 404 -> return Nothing

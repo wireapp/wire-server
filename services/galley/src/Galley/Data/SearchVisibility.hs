@@ -33,8 +33,9 @@ import Imports
 
 -- | Return whether a given team is allowed to enable/disable sso
 getSearchVisibility :: MonadClient m => TeamId -> m TeamSearchVisibility
-getSearchVisibility tid = toSearchVisibility <$> do
-  retry x1 $ query1 selectSearchVisibility (params Quorum (Identity tid))
+getSearchVisibility tid =
+  toSearchVisibility <$> do
+    retry x1 $ query1 selectSearchVisibility (params Quorum (Identity tid))
   where
     -- The value is either set or we return the default
     toSearchVisibility :: (Maybe (Identity (Maybe TeamSearchVisibility))) -> TeamSearchVisibility

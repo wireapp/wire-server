@@ -119,7 +119,7 @@ upload own key off len src = do
       let totalBytes = V3.totalSizeBytes (S3.resumableTotalSize r)
       let numBytes = min (chunkSize r) remaining
       if numBytes < chunkSize r && coerce offset + remaining < totalBytes
-        then-- Remaining input that is not a full chunk size and does
+        then -- Remaining input that is not a full chunk size and does
         -- not constitute the last chunk is ignored, i.e. all chunks
         -- except the last must have the same size (the chunk size).
           return (r, offset)

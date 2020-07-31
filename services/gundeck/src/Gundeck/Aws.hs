@@ -72,8 +72,7 @@ import Gundeck.Options
 import Gundeck.Types.Push (AppName (..), Token, Transport (..))
 import qualified Gundeck.Types.Push as Push
 import Imports
-import Network.AWS (AWSRequest, Rs)
-import Network.AWS (serviceAbbrev, serviceCode, serviceMessage, serviceStatus)
+import Network.AWS (AWSRequest, Rs, serviceAbbrev, serviceCode, serviceMessage, serviceStatus)
 import qualified Network.AWS as AWS
 import qualified Network.AWS.Data as AWS
 import qualified Network.AWS.Env as AWS
@@ -202,9 +201,9 @@ mkEnv lgr opts mgr = do
     getQueueUrl :: AWS.Env -> Text -> IO QueueUrl
     getQueueUrl e q = do
       x <-
-        runResourceT . AWST.runAWST e
-          $ AWST.trying AWS._Error
-          $ AWST.send (SQS.getQueueURL q)
+        runResourceT . AWST.runAWST e $
+          AWST.trying AWS._Error $
+            AWST.send (SQS.getQueueURL q)
       either
         (throwM . GeneralError)
         (return . QueueUrl . view SQS.gqursQueueURL)
@@ -447,7 +446,7 @@ listen throttleMillis callback = do
     receive url =
       SQS.receiveMessage url
         & set SQS.rmWaitTimeSeconds (Just 20)
-        . set SQS.rmMaxNumberOfMessages (Just 10)
+          . set SQS.rmMaxNumberOfMessages (Just 10)
     onMessage url m =
       case decodeStrict =<< Text.encodeUtf8 <$> m ^. mBody of
         Nothing ->

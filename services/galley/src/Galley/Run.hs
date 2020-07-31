@@ -25,15 +25,15 @@ import Cassandra (runClient, shutdown)
 import Cassandra.Schema (versionCheck)
 import qualified Control.Concurrent.Async as Async
 import Control.Exception (finally)
-import Control.Lens ((^.), view)
+import Control.Lens (view, (^.))
 import qualified Data.Metrics.Middleware as M
 import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
 import Data.Misc (portNumber)
 import Data.Text (unpack)
 import Galley.API (sitemap)
 import qualified Galley.API.Internal as Internal
-import qualified Galley.App as App
 import Galley.App
+import qualified Galley.App as App
 import qualified Galley.Data as Data
 import Galley.Options (Opts, optGalley)
 import qualified Galley.Queue as Q

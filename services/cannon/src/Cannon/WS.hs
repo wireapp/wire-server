@@ -61,7 +61,7 @@ import Data.Default (def)
 import Data.Hashable
 import Data.Id (ClientId, ConnId (..), UserId)
 import Data.Text.Encoding (decodeUtf8)
-import Data.Timeout ((#), TimeoutUnit (..))
+import Data.Timeout (TimeoutUnit (..), (#))
 import Gundeck.Types
 import Imports hiding (threadDelay)
 import Network.HTTP.Types.Method
@@ -69,7 +69,7 @@ import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 import Network.WebSockets hiding (Request)
 import qualified System.Logger as Logger
-import System.Logger.Class hiding ((.=), Error, Settings, close)
+import System.Logger.Class hiding (Error, Settings, close, (.=))
 import System.Random.MWC (GenIO, uniform)
 
 -----------------------------------------------------------------------------
@@ -208,16 +208,19 @@ registerRemote k c = do
   debug $ client kb . msg (val "register-remote")
   e <- WS ask
   i <- regInfo k c
-  void $ recovering retry3x rpcHandlers $ const $
-    rpc' "gundeck" (upstream e) (method POST . path "/i/presences" . i . expect2xx)
+  void $
+    recovering retry3x rpcHandlers $
+      const $
+        rpc' "gundeck" (upstream e) (method POST . path "/i/presences" . i . expect2xx)
   debug $ client kb . msg (val "registered")
 
 isRemoteRegistered :: UserId -> ConnId -> WS Bool
 isRemoteRegistered u c = do
   e <- WS ask
   rs <-
-    recovering retry3x rpcHandlers $ const $
-      rpc' "gundeck" (upstream e) (method GET . paths ["/i/presences", toByteString' u] . expect2xx)
+    recovering retry3x rpcHandlers $
+      const $
+        rpc' "gundeck" (upstream e) (method GET . paths ["/i/presences", toByteString' u] . expect2xx)
   cs <- map connId <$> parseResponse (Error status502 "server-error") rs
   return $ c `elem` cs
 

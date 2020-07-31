@@ -20,7 +20,7 @@ module Test.Wire.API.Roundtrip.ByteString (tests) where
 import Data.ByteString.Conversion
 import Imports
 import qualified Test.Tasty as T
-import Test.Tasty.QuickCheck ((===), Arbitrary, counterexample, testProperty)
+import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (===))
 import Type.Reflection (typeRep)
 import qualified Wire.API.Arbitrary as Arbitrary ()
 import qualified Wire.API.Asset.V3 as Asset.V3

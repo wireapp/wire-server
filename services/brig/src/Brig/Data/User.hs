@@ -105,11 +105,12 @@ data ReAuthError
 newAccount :: NewUser -> Maybe InvitationId -> Maybe TeamId -> AppIO (UserAccount, Maybe Password)
 newAccount u inv tid = do
   defLoc <- setDefaultLocale <$> view settings
-  uid <- Id <$> do
-    case (inv, newUserUUID u) of
-      (Just (toUUID -> uuid), _) -> pure uuid
-      (_, Just uuid) -> pure uuid
-      (Nothing, Nothing) -> liftIO nextRandom
+  uid <-
+    Id <$> do
+      case (inv, newUserUUID u) of
+        (Just (toUUID -> uuid), _) -> pure uuid
+        (_, Just uuid) -> pure uuid
+        (Nothing, Nothing) -> liftIO nextRandom
   passwd <- maybe (return Nothing) (fmap Just . liftIO . mkSafePassword) pass
   expiry <- case status of
     Ephemeral -> do
@@ -140,27 +141,29 @@ newAccount u inv tid = do
 
 -- | Mandatory password authentication.
 authenticate :: UserId -> PlainTextPassword -> ExceptT AuthError AppIO ()
-authenticate u pw = lift (lookupAuth u) >>= \case
-  Nothing -> throwE AuthInvalidUser
-  Just (_, Deleted) -> throwE AuthInvalidUser
-  Just (_, Suspended) -> throwE AuthSuspended
-  Just (_, Ephemeral) -> throwE AuthEphemeral
-  Just (Nothing, _) -> throwE AuthInvalidCredentials
-  Just (Just pw', Active) ->
-    unless (verifyPassword pw pw') $
-      throwE AuthInvalidCredentials
+authenticate u pw =
+  lift (lookupAuth u) >>= \case
+    Nothing -> throwE AuthInvalidUser
+    Just (_, Deleted) -> throwE AuthInvalidUser
+    Just (_, Suspended) -> throwE AuthSuspended
+    Just (_, Ephemeral) -> throwE AuthEphemeral
+    Just (Nothing, _) -> throwE AuthInvalidCredentials
+    Just (Just pw', Active) ->
+      unless (verifyPassword pw pw') $
+        throwE AuthInvalidCredentials
 
 -- | Password reauthentication. If the account has a password, reauthentication
 -- is mandatory. If the account has no password and no password is given,
 -- reauthentication is a no-op.
 reauthenticate :: (MonadClient m) => UserId -> Maybe PlainTextPassword -> ExceptT ReAuthError m ()
-reauthenticate u pw = lift (lookupAuth u) >>= \case
-  Nothing -> throwE (ReAuthError AuthInvalidUser)
-  Just (_, Deleted) -> throwE (ReAuthError AuthInvalidUser)
-  Just (_, Suspended) -> throwE (ReAuthError AuthSuspended)
-  Just (Nothing, _) -> for_ pw $ const (throwE $ ReAuthError AuthInvalidCredentials)
-  Just (Just pw', Active) -> maybeReAuth pw'
-  Just (Just pw', Ephemeral) -> maybeReAuth pw'
+reauthenticate u pw =
+  lift (lookupAuth u) >>= \case
+    Nothing -> throwE (ReAuthError AuthInvalidUser)
+    Just (_, Deleted) -> throwE (ReAuthError AuthInvalidUser)
+    Just (_, Suspended) -> throwE (ReAuthError AuthSuspended)
+    Just (Nothing, _) -> for_ pw $ const (throwE $ ReAuthError AuthInvalidCredentials)
+    Just (Just pw', Active) -> maybeReAuth pw'
+    Just (Just pw', Ephemeral) -> maybeReAuth pw'
   where
     maybeReAuth pw' = case pw of
       Nothing -> throwE ReAuthMissingPassword

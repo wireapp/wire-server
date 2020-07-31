@@ -50,7 +50,7 @@ deleteBox :: UserId -> Maybe Text -> IO ()
 deleteBox uid label = do
   dir <- getBoxDir uid label
   removePathForcibly dir -- using "forcibly" so that it wouldn't fail
-    -- if the directory doesn't exist
+  -- if the directory doesn't exist
 
 genPrekeys :: Box -> Word16 -> IO [C.Prekey]
 genPrekeys box n = mapM (genPrekey box) [1 .. n - 1]

@@ -32,7 +32,7 @@ import Control.Lens ((.~), (?~), (^.))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.Fail (MonadFail)
 import Control.Retry
-import Data.Aeson ((.=), FromJSON, Value)
+import Data.Aeson (FromJSON, Value, (.=))
 import qualified Data.Aeson as Aeson
 import Data.Handle (fromHandle)
 import Data.Id
@@ -41,8 +41,8 @@ import qualified Data.Text as Text
 import qualified Database.Bloodhound as ES
 import qualified Galley.Types.Teams.SearchVisibility as Team
 import Imports
-import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Client (Manager)
+import qualified Network.HTTP.Client as HTTP
 import qualified Network.Wai.Test as WaiTest
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -53,9 +53,9 @@ import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree
 tests opts mgr galley brig = do
   testSetupOutboundOnly <- runHttpT mgr prepareUsersForSearchVisibilityNoNameOutsideTeamTests
-  return
-    $ testGroup "search"
-    $ [ testWithBothIndices opts mgr "by-name" $ testSearchByName brig,
+  return $
+    testGroup "search" $
+      [ testWithBothIndices opts mgr "by-name" $ testSearchByName brig,
         testWithBothIndices opts mgr "by-handle" $ testSearchByHandle brig,
         test mgr "reindex" $ testReindex brig,
         testWithBothIndices opts mgr "no match" $ testSearchNoMatch brig,

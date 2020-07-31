@@ -60,24 +60,25 @@ instance IsOption ServiceConfigFile where
   optionName = return "service-config"
   optionHelp = return "Service config file to read from"
   optionCLParser =
-    fmap ServiceConfigFile $ strOption $
-      ( short (untag (return 's' :: Tagged ServiceConfigFile Char))
-          <> long (untag (optionName :: Tagged ServiceConfigFile String))
-          <> help (untag (optionHelp :: Tagged ServiceConfigFile String))
-      )
+    fmap ServiceConfigFile $
+      strOption $
+        ( short (untag (return 's' :: Tagged ServiceConfigFile Char))
+            <> long (untag (optionName :: Tagged ServiceConfigFile String))
+            <> help (untag (optionHelp :: Tagged ServiceConfigFile String))
+        )
 
 runTests :: (String -> String -> TestTree) -> IO ()
-runTests run = defaultMainWithIngredients ings
-  $ askOption
-  $ \(ServiceConfigFile c) ->
-    askOption $ \(IntegrationConfigFile i) -> run c i
+runTests run = defaultMainWithIngredients ings $
+  askOption $
+    \(ServiceConfigFile c) ->
+      askOption $ \(IntegrationConfigFile i) -> run c i
   where
     ings =
       includingOptions
         [ Option (Proxy :: Proxy ServiceConfigFile),
           Option (Proxy :: Proxy IntegrationConfigFile)
-        ]
-        : defaultIngredients
+        ] :
+      defaultIngredients
 
 main :: IO ()
 main = runTests go

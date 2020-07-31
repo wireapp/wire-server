@@ -530,7 +530,7 @@ testUserUpdate brig cannon aws = do
                 fmap userAssets u
               )
           )
-      . responseJsonMaybe
+        . responseJsonMaybe
   -- get only the new name
   get (brig . path "/self/name" . zUser alice) !!! do
     const 200 === statusCode
@@ -921,9 +921,10 @@ testDeleteUserByPassword brig cannon aws = do
   act <- getActivationCode brig (Left eml)
   case act of
     Nothing -> liftIO $ assertFailure "missing activation key/code"
-    Just kc -> activate brig kc !!! do
-      const 404 === statusCode
-      const (Just "invalid-code") === fmap Error.label . responseJsonMaybe
+    Just kc ->
+      activate brig kc !!! do
+        const 404 === statusCode
+        const (Just "invalid-code") === fmap Error.label . responseJsonMaybe
   -- Connections involving uid1 are gone (uid2 <-> uid3 remains)
   let u1Conns = UserConnectionList [] False
   let u2Conns = UserConnectionList (maybeToList (responseJsonMaybe con23)) False
@@ -1207,7 +1208,7 @@ setHandleAndDeleteUser brig cannon u others aws execDelete = do
                   userHandle =<< u'
                 )
             )
-        . responseJsonMaybe
+          . responseJsonMaybe
     assertDeletedProfilePublic = do
       const 200 === statusCode
       const (Just noPict, Just True, Nothing)
@@ -1217,4 +1218,4 @@ setHandleAndDeleteUser brig cannon u others aws execDelete = do
                   profileHandle =<< u'
                 )
             )
-        . responseJsonMaybe
+          . responseJsonMaybe

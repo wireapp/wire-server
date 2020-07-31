@@ -59,7 +59,7 @@ import qualified Codec.MIME.Parse as MIME
 import qualified Codec.MIME.Type as MIME
 import Conduit
 import Control.Error (ExceptT, throwE)
-import Control.Lens hiding ((.=), (:<), (:>), parts)
+import Control.Lens hiding (parts, (.=), (:<), (:>))
 import Data.ByteString.Builder (toLazyByteString)
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
@@ -85,7 +85,7 @@ import Network.AWS.S3
 import Network.Wai.Utilities.Error (Error (..))
 import Safe (readMay)
 import qualified System.Logger.Class as Log
-import System.Logger.Message ((.=), msg, val, (~~))
+import System.Logger.Message (msg, val, (.=), (~~))
 import URI.ByteString
 
 newtype S3AssetKey = S3AssetKey {s3Key :: Text}
@@ -175,9 +175,9 @@ updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok ct) = do
   void $ exec req
   where
     copySrc b =
-      decodeLatin1 . LBS.toStrict . toLazyByteString
-        $ urlEncode []
-        $ Text.encodeUtf8 (b <> "/" <> key)
+      decodeLatin1 . LBS.toStrict . toLazyByteString $
+        urlEncode [] $
+          Text.encodeUtf8 (b <> "/" <> key)
     req b =
       copyObject (BucketName b) (copySrc b) (ObjectKey key)
         & coContentType ?~ MIME.showType ct
@@ -308,7 +308,8 @@ calculateChunkSize (fromIntegral -> total) =
       smallSize = total `quot` smallChunks
       bigSize = total `quot` bigChunks
    in V3.ChunkSize $
-        if  | smallChunks < maxSmallChunks -> minSmallSize
+        if
+            | smallChunks < maxSmallChunks -> minSmallSize
             | smallSize <= maxSmallSize -> smallSize
             | bigChunks < maxTotalChunks -> minBigSize
             | otherwise -> bigSize
@@ -406,14 +407,14 @@ createResumable k p typ size tok = do
         chunkBytes = V3.chunkSizeBytes (resumableChunkSize r)
         totalBytes = V3.totalSizeBytes (resumableTotalSize r)
     resumableMeta csize expires upl =
-      setAmzMetaPrincipal p
-        : setAmzMetaTotalSize size
-        : setAmzMetaChunkSize csize
-        : setAmzMetaUploadExpires expires
-        : catMaybes
-          [ setAmzMetaToken <$> tok,
-            setAmzMetaUploadId <$> upl
-          ]
+      setAmzMetaPrincipal p :
+      setAmzMetaTotalSize size :
+      setAmzMetaChunkSize csize :
+      setAmzMetaUploadExpires expires :
+      catMaybes
+        [ setAmzMetaToken <$> tok,
+          setAmzMetaUploadId <$> upl
+        ]
 
 uploadChunk ::
   S3Resumable ->
@@ -499,8 +500,8 @@ completeResumable r = do
       -- the same here.
       let rk = resumableKey r
       let keys =
-            s3ResumableKey rk
-              : map (s3ChunkKey . mkChunkKey rk . chunkNr) (toList chunks)
+            s3ResumableKey rk :
+            map (s3ChunkKey . mkChunkKey rk . chunkNr) (toList chunks)
       let del =
             delete' & dObjects .~ map (objectIdentifier . ObjectKey) keys
               & dQuiet ?~ True
@@ -530,9 +531,9 @@ completeResumable r = do
     -- upload is complete.
     verifyChunks cs = do
       let !total = V3.TotalSize $ foldl' (\t v -> t + chunkSize v) 0 cs
-      unless (total == resumableTotalSize r)
-        $ throwE
-        $ uploadIncomplete (resumableTotalSize r) total
+      unless (total == resumableTotalSize r) $
+        throwE $
+          uploadIncomplete (resumableTotalSize r) total
     -- Construct a 'Source' by downloading the chunks.
     -- chunkSource :: AWS.Env
     --             -> Seq S3Chunk
@@ -544,9 +545,10 @@ completeResumable r = do
         let b = view AWS.s3Bucket env
         let req = getObject (BucketName b) (ObjectKey ck)
         v <-
-          lift $ AWS.execute env $
-            AWS.send req
-              >>= flip sinkBody Conduit.sinkLbs . view gorsBody
+          lift $
+            AWS.execute env $
+              AWS.send req
+                >>= flip sinkBody Conduit.sinkLbs . view gorsBody
         Conduit.yield (LBS.toStrict v) >> chunkSource env cc
 
 listChunks :: S3Resumable -> ExceptT Error App (Maybe (Seq S3Chunk))

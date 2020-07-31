@@ -56,7 +56,7 @@ module Web.Scim.Filter
   )
 where
 
-import Control.Applicative ((<|>), optional)
+import Control.Applicative (optional, (<|>))
 import Data.Aeson as Aeson
 import Data.Aeson.Parser as Aeson
 import Data.Aeson.Text as Aeson

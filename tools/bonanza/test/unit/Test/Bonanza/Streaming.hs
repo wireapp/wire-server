@@ -31,7 +31,7 @@ import Bonanza.Types
 import Data.Attoparsec.ByteString.Char8
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy as BL
-import Data.Conduit ((.|), runConduit)
+import Data.Conduit (runConduit, (.|))
 import qualified Data.Conduit.Binary as Conduit
 import qualified Data.Conduit.List as Conduit
 import Imports
@@ -110,12 +110,12 @@ run_prop ::
   [ParseInput a] ->
   Property
 run_prop p i =
-  ioProperty
-    $ runConduit
-    $ Conduit.sourceLbs inp
-      .| P.stream (P.MkParser p)
-      .| Conduit.consume
-      >>= pure . (=== out) . map secs
+  ioProperty $
+    runConduit $
+      Conduit.sourceLbs inp
+        .| P.stream (P.MkParser p)
+        .| Conduit.consume
+        >>= pure . (=== out) . map secs
   where
     inp = BL.fromStrict . B.intercalate "\n" $ map (snd . parseInput) i
     out = map (secs . toLogEvent . fst . parseInput) i

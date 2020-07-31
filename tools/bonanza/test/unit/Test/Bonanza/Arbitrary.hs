@@ -281,8 +281,8 @@ instance Arbitrary (ParseInput TinyLogRecord) where
           encodeUtf8 . mconcat $
             [ maybe "" (\d -> decodeUtf8 $ df d <> ", ") date,
               T.intercalate ", " $
-                T.singleton level
-                  : map (\(k, v) -> alnum k <> "=" <> fieldValue v) fields
+                T.singleton level :
+                map (\(k, v) -> alnum k <> "=" <> fieldValue v) fields
                   ++ [message]
             ]
     return $ ParseInput (rec, inp)
@@ -351,9 +351,9 @@ instance Arbitrary (ParseInput (NginzLogRecord)) where
             { cTime = date,
               cFields =
                 mapMaybe (\(k, v) -> (,) k <$> fromField v) $
-                  ("remote_addr", raddr)
-                    : ("remote_user", ruser)
-                    : fields,
+                  ("remote_addr", raddr) :
+                  ("remote_user", ruser) :
+                  fields,
               cRequest = req
             }
         inp =

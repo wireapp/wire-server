@@ -26,7 +26,7 @@ import Cannon.WS
 import Control.Concurrent.Async
 import Control.Concurrent.Timeout
 import Control.Monad.Catch
-import Data.Aeson hiding ((.=), Error)
+import Data.Aeson hiding (Error, (.=))
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import Data.Id (ClientId)
@@ -106,7 +106,8 @@ writeLoop ws clock (TTL ttl) st = loop
   where
     loop = do
       s <- readIORef st
-      if  | s ^. counter == 0 -> do
+      if
+          | s ^. counter == 0 -> do
             set counter st succ
             threadDelay $ s ^. pingFreq
             keepAlive

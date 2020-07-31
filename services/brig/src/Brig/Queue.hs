@@ -29,7 +29,7 @@ import Brig.Options
 import qualified Brig.Queue.Stomp as Stomp
 import Brig.Queue.Types
 import Control.Exception (ErrorCall (..))
-import Control.Lens ((^.), view)
+import Control.Lens (view, (^.))
 import Control.Monad.Catch
 import Data.Aeson
 import qualified Data.ByteString.Base16 as B16

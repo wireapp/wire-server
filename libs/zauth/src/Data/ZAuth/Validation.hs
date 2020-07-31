@@ -37,7 +37,7 @@ import Control.Monad.Except
 import qualified Data.ByteString as Strict
 import Data.ByteString.Conversion
 import Data.Time.Clock.POSIX
-import Data.Vector ((!), Vector)
+import Data.Vector (Vector, (!))
 import qualified Data.Vector as Vec
 import Data.ZAuth.Token
 import Imports

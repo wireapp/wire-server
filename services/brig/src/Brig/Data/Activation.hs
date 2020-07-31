@@ -118,9 +118,9 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
         return . Just $ foldKey (EmailActivated uid) (PhoneActivated uid) key
     claim key uid = do
       ok <- lift $ claimKey key uid
-      unless ok
-        $ throwE . UserKeyExists . LT.fromStrict
-        $ foldKey fromEmail fromPhone key
+      unless ok $
+        throwE . UserKeyExists . LT.fromStrict $
+          foldKey fromEmail fromPhone key
 
 -- | Create a new pending activation for a given 'UserKey'.
 newActivation ::
@@ -162,7 +162,8 @@ verifyCode key code = do
   s <- lift . retry x1 . query1 keySelect $ params Quorum (Identity key)
   case s of
     Just (ttl, Ascii t, k, c, u, r) ->
-      if  | c == code -> mkScope t k u
+      if
+          | c == code -> mkScope t k u
           | r >= 1 -> countdown (key, t, k, c, u, r -1, ttl) >> throwE invalidCode
           | otherwise -> revoke >> throwE invalidCode
     Nothing -> throwE invalidCode

@@ -110,10 +110,10 @@ lookupPassword ::
   ProviderId ->
   m (Maybe Password)
 lookupPassword p =
-  fmap (fmap runIdentity)
-    $ retry x1
-    $ query1 cql
-    $ params Quorum (Identity p)
+  fmap (fmap runIdentity) $
+    retry x1 $
+      query1 cql $
+        params Quorum (Identity p)
   where
     cql :: PrepQuery R (Identity ProviderId) (Identity Password)
     cql = "SELECT password FROM provider WHERE id = ?"
@@ -167,10 +167,10 @@ lookupKey ::
   EmailKey ->
   m (Maybe ProviderId)
 lookupKey k =
-  fmap (fmap runIdentity)
-    $ retry x1
-    $ query1 cql
-    $ params Quorum (Identity (emailKeyUniq k))
+  fmap (fmap runIdentity) $
+    retry x1 $
+      query1 cql $
+        params Quorum (Identity (emailKeyUniq k))
   where
     cql :: PrepQuery R (Identity Text) (Identity ProviderId)
     cql = "SELECT provider FROM provider_keys WHERE key = ?"
@@ -200,10 +200,11 @@ insertService ::
 insertService pid name summary descr url token key fprint assets tags = do
   sid <- randomId
   let tagSet = C.Set (Set.toList tags)
-  retry x5 $ write cql $
-    params
-      Quorum
-      (pid, sid, name, summary, descr, url, [token], [key], [fprint], assets, tagSet, False)
+  retry x5 $
+    write cql $
+      params
+        Quorum
+        (pid, sid, name, summary, descr, url, [token], [key], [fprint], assets, tagSet, False)
   return sid
   where
     cql ::
@@ -234,10 +235,10 @@ lookupService ::
   ServiceId ->
   m (Maybe Service)
 lookupService pid sid =
-  fmap (fmap mk)
-    $ retry x1
-    $ query1 cql
-    $ params Quorum (pid, sid)
+  fmap (fmap mk) $
+    retry x1 $
+      query1 cql $
+        params Quorum (pid, sid)
   where
     cql ::
       PrepQuery
@@ -255,10 +256,10 @@ listServices ::
   ProviderId ->
   m [Service]
 listServices p =
-  fmap (map mk)
-    $ retry x1
-    $ query cql
-    $ params Quorum (Identity p)
+  fmap (map mk) $
+    retry x1 $
+      query cql $
+        params Quorum (Identity p)
   where
     cql ::
       PrepQuery
@@ -350,10 +351,10 @@ lookupServiceProfile ::
   ServiceId ->
   m (Maybe ServiceProfile)
 lookupServiceProfile p s =
-  fmap (fmap mk)
-    $ retry x1
-    $ query1 cql
-    $ params One (p, s)
+  fmap (fmap mk) $
+    retry x1 $
+      query1 cql $
+        params One (p, s)
   where
     cql :: PrepQuery R (ProviderId, ServiceId) (Name, Maybe Text, Text, [Asset], C.Set ServiceTag, Bool)
     cql =
@@ -369,10 +370,10 @@ listServiceProfiles ::
   ProviderId ->
   m [ServiceProfile]
 listServiceProfiles p =
-  fmap (map mk)
-    $ retry x1
-    $ query cql
-    $ params One (Identity p)
+  fmap (map mk) $
+    retry x1 $
+      query cql $
+        params One (Identity p)
   where
     cql ::
       PrepQuery
@@ -405,10 +406,10 @@ lookupServiceConn ::
   ServiceId ->
   m (Maybe ServiceConn)
 lookupServiceConn pid sid =
-  fmap (fmap mk)
-    $ retry x1
-    $ query1 cql
-    $ params Quorum (pid, sid)
+  fmap (fmap mk) $
+    retry x1 $
+      query1 cql $
+        params Quorum (pid, sid)
   where
     cql :: PrepQuery R (ProviderId, ServiceId) (HttpsUrl, List1 ServiceToken, List1 (Fingerprint Rsa), Bool)
     cql =
@@ -686,8 +687,9 @@ paginateServiceNames mbPrefix size providerFilter = liftClient $ do
             \FROM service_prefix \
             \WHERE prefix = ? AND name >= ?"
       p <-
-        retry x1 $ paginate cql $
-          paramsP One (mkPrefixIndex (Name prefix), prefix) len
+        retry x1 $
+          paginate cql $
+            paramsP One (mkPrefixIndex (Name prefix), prefix) len
       return $! p {result = trim size (result p)}
 
 -- Pagination utilities

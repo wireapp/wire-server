@@ -50,7 +50,7 @@ where
 import Bilge hiding (options)
 import Bilge.RPC
 import Bilge.Retry
-import Control.Lens ((&), (.~), (^.), makeLenses, set, view)
+import Control.Lens (makeLenses, set, view, (&), (.~), (^.))
 import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson (Object)
