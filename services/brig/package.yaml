@@ -131,28 +131,6 @@ library:
   - wire-api
   - yaml >=0.8.22
   - zauth >=0.10.3
-internal-libraries:
-  brig-index-lib:
-    source-dirs: index/src
-    dependencies:
-    - aeson
-    - base
-    - bloodhound
-    - brig
-    - cassandra-util >=0.12
-    - exceptions
-    - http-client
-    - imports
-    - lens
-    - metrics-core
-    - mtl
-    - optparse-applicative >=0.13
-    - retry
-    - text
-    - time
-    - tinylog
-    - types-common
-    - uri-bytestring
 tests:
   brig-tests:
     main: Main.hs
@@ -205,7 +183,6 @@ executables:
     - bloodhound
     - base
     - brig
-    - brig-index-lib
     - brig-types
     - bytestring >=0.9
     - bytestring-conversion
@@ -271,7 +248,7 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - base
-    - brig-index-lib
+    - brig
     - imports
     - optparse-applicative
     - tinylog
