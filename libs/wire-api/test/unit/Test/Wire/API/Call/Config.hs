@@ -18,11 +18,12 @@
 module Test.Wire.API.Call.Config where
 
 import Data.Aeson
+import qualified Data.HashMap.Strict as HM
 import Imports
 import Test.Tasty
 import Test.Tasty.QuickCheck hiding (total)
 import Wire.API.Arbitrary ()
-import Wire.API.Call.Config (TurnURI, isTcp, isTls, isUdp, limitServers)
+import Wire.API.Call.Config (RTCConfiguration, TurnURI, isTcp, isTls, isUdp, limitServers)
 
 tests :: TestTree
 tests =
@@ -33,7 +34,8 @@ tests =
       testProperty "limitServers/fairness udp" (fairnessProp isUdp),
       testProperty "limitServers/fairness tls" (fairnessProp isTls),
       testProperty "limitServers/fairness tcp" (fairnessProp isTcp),
-      testProperty "limitServers/udpPriority" udpPriority
+      testProperty "limitServers/udpPriority" udpPriority,
+      testProperty "RTCConfiguration/toJson: sftServersAreNeverNull" sftServersAreNeverNull
     ]
 
 turnURIid :: TurnURI -> Property
@@ -63,6 +65,11 @@ udpPriority uris = do
   if totalUdp >= 2
     then returnedUdp >= 2
     else True
+
+sftServersAreNeverNull :: RTCConfiguration -> Bool
+sftServersAreNeverNull cfg = case toJSON cfg of
+  Object o -> HM.lookup "sft_servers" o /= Just Null
+  v -> error . show $ "type mismatch, expected RTCConfiguration to be Object, but got: " <> encode v
 
 newtype ZeroToTen = ZeroToTen Int
   deriving (Eq, Show)

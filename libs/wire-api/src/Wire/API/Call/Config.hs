@@ -126,14 +126,15 @@ modelRtcConfiguration = Doc.defineModel "RTCConfiguration" $ do
 instance ToJSON RTCConfiguration where
   toJSON (RTCConfiguration srvs sfts ttl) =
     object
-      [ "ice_servers" .= srvs,
-        "sft_servers" .= sfts,
-        "ttl" .= ttl
-      ]
+      ( [ "ice_servers" .= srvs,
+          "ttl" .= ttl
+        ]
+          <> ["sft_servers" .= sfts | isJust sfts]
+      )
 
 instance FromJSON RTCConfiguration where
   parseJSON = withObject "RTCConfiguration" $ \o ->
-    RTCConfiguration <$> o .: "ice_servers" <*> o .: "sft_servers" <*> o .: "ttl"
+    RTCConfiguration <$> o .: "ice_servers" <*> o .:? "sft_servers" <*> o .: "ttl"
 
 --------------------------------------------------------------------------------
 -- SFTServer
