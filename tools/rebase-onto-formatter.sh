@@ -44,7 +44,7 @@ echo "Running the script now. This might take a while..."
 # The general idea is the following:
 #
 # We have a branch consisting of commits C1, C2, ... on top of our BASE_COMMIT C0.
-# Also, from C0 a formatting change f(C0) was made on some branch (e.g. develop).
+# Also, from C0 an automated formatting change f was made on some branch (e.g. develop).
 #
 #  C0 ----> C1 ----> C2 ----> ... ----> Cn
 #  |
@@ -63,28 +63,45 @@ echo "Running the script now. This might take a while..."
 #  C0' ---> C1' ---> C2' ---> ... ----> Cn'
 #
 # One useful thing is that since f is defined by an automated tool,
-# we know f(Ci) on every commit Ci.
+# we know f applied at every commit Ci, resulting in a hypothetical Ci'.
 #
 #  C0 ----> C1 ----> C2 ----> ... ----> Cn
 #  |        |        |                  |
 #  f        f        f                  f
 #  |        |        |                  |
 #  v        v        v                  v
+#  C0'      C1'      C2'                Cn'
+#
+# And we can also get its inverse g (applied at Ci') by reverting the commit.
+#
+#  C0 ----> C1 ----> C2 ----> ... ----> Cn
+#  |^       |^       |^                 |^
+#  f|       f|       f|                 f|
+#  |g       |g       |g                 |g
+#  v|       v|       v|                 v|
+#  C0'      C1'      C2'                Cn'
+#
+# Finally, we can get from C(i-1)' to Ci' by composing three arrows:
+# - g at C(i-1)
+# - Ci
+# - f at C1
+#
+#  C0 ----> C1 ----> C2 ----> ... ----> Cn
+#  |^       |^       |^                 |^
+#  f|       f|       f|                 f|
+#  |g       |g       |g                 |g
+#  v|       v|       v|                 v|
 #  C0' ---> C1' ---> C2' ---> ... ----> Cn'
-#
-# And we can also get its inverse r(f(Ci)) by reverting the commit.
-#
-# So we can obtain Ci' by composing r(f(C(i-1))), Ci and f(Ci).
 
 set -x
 
-# edit every commit Ci, adding f(Ci) and r(f(Ci))
+# edit every commit Ci, adding new commits representing f at Ci and it's inverse g
 git rebase $BASE_COMMIT~1 --exec "$FORMATTING_COMMAND && git commit -am "format" && git revert HEAD --no-edit"
 
 # drop last commit
 git reset HEAD~1 --hard
 
-# now for every Ci, squash with the previous and next commit (i.e. r(f(C(i-1))) and f(Ci))
+# now for every Ci, squash with the previous and next commit (i.e. g at C(i-1) and f at Ci)
 # - in sequence editor, squash lines 3, 6, 9, ... and fixup lines 4, 7, 10, ...
 # - in commit message editor, drop first 9 lines (removing the commit message of the revert commit)
 GIT_SEQUENCE_EDITOR='sed -i -e "3~3s/pick/squash/" -e "4~3s/pick/fixup/"' \
