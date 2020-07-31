@@ -65,16 +65,17 @@ teamSuspend :: TeamId -> Galley ()
 teamSuspend tid = journalEvent TeamEvent'TEAM_SUSPEND tid Nothing Nothing
 
 journalEvent :: TeamEvent'EventType -> TeamId -> Maybe TeamEvent'EventData -> Maybe TeamCreationTime -> Galley ()
-journalEvent typ tid dat tim = view aEnv >>= \mEnv -> for_ mEnv $ \e -> do
-  -- writetime is in microseconds in cassandra 3.11
-  ts <- maybe now (return . (`div` 1000000) . view tcTime) tim
-  let ev =
-        defMessage
-          & T.eventType .~ typ
-          & T.teamId .~ toBytes tid
-          & T.utcTime .~ ts
-          & T.maybe'eventData .~ dat
-  Aws.execute e (Aws.enqueue ev)
+journalEvent typ tid dat tim =
+  view aEnv >>= \mEnv -> for_ mEnv $ \e -> do
+    -- writetime is in microseconds in cassandra 3.11
+    ts <- maybe now (return . (`div` 1000000) . view tcTime) tim
+    let ev =
+          defMessage
+            & T.eventType .~ typ
+            & T.teamId .~ toBytes tid
+            & T.utcTime .~ ts
+            & T.maybe'eventData .~ dat
+    Aws.execute e (Aws.enqueue ev)
 
 ----------------------------------------------------------------------------
 -- utils

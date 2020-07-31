@@ -46,7 +46,7 @@ import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.Aeson.Types
 import Data.ByteString.Conversion
-import Data.Json.Util ((#), toUTCTimeMillis)
+import Data.Json.Util (toUTCTimeMillis, (#))
 import Data.Time.Clock
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))

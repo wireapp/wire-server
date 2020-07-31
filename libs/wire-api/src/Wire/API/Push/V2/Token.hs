@@ -156,13 +156,14 @@ instance FromJSON Transport where
     x -> fail $ "Invalid push transport: " ++ show x
 
 instance FromByteString Transport where
-  parser = takeByteString >>= \case
-    "GCM" -> return GCM
-    "APNS" -> return APNS
-    "APNS_SANDBOX" -> return APNSSandbox
-    "APNS_VOIP" -> return APNSVoIP
-    "APNS_VOIP_SANDBOX" -> return APNSVoIPSandbox
-    x -> fail $ "Invalid push transport: " <> show x
+  parser =
+    takeByteString >>= \case
+      "GCM" -> return GCM
+      "APNS" -> return APNS
+      "APNS_SANDBOX" -> return APNSSandbox
+      "APNS_VOIP" -> return APNSVoIP
+      "APNS_VOIP_SANDBOX" -> return APNSVoIPSandbox
+      x -> fail $ "Invalid push transport: " <> show x
 
 newtype Token = Token
   { tokenText :: Text

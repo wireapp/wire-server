@@ -131,12 +131,13 @@ instance ToSchema SAML.IdPMetadata where
 
 instance ToSchema IdPMetadataInfo where
   declareNamedSchema _ =
-    pure $ NamedSchema (Just "IdPMetadataInfo") $
-      mempty
-        & properties .~ properties_
-        & minProperties ?~ 1
-        & maxProperties ?~ 1
-        & type_ .~ Just SwaggerObject
+    pure $
+      NamedSchema (Just "IdPMetadataInfo") $
+        mempty
+          & properties .~ properties_
+          & minProperties ?~ 1
+          & maxProperties ?~ 1
+          & type_ .~ Just SwaggerObject
     where
       properties_ :: InsOrdHashMap Text (Referenced Schema)
       properties_ =

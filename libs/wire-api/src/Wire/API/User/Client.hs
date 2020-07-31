@@ -124,9 +124,9 @@ newtype UserClients = UserClients
 
 modelUserClients :: Doc.Model
 modelUserClients =
-  Doc.defineModel "UserClients"
-    $ Doc.property "" (Doc.unique $ Doc.array Doc.bytes')
-    $ Doc.description "Map of user IDs to sets of client IDs ({ UserId: [ClientId] })."
+  Doc.defineModel "UserClients" $
+    Doc.property "" (Doc.unique $ Doc.array Doc.bytes') $
+      Doc.description "Map of user IDs to sets of client IDs ({ UserId: [ClientId] })."
 
 instance ToJSON UserClients where
   toJSON =
@@ -256,12 +256,15 @@ instance FromJSON PubClient where
 -- team on a per-user basis
 
 -- * A LegalHoldClient is a client outside that user's control (but under the
+
 --   control of that team's business)
 
 -- * Users need to click "accept" before a LegalHoldClient is added to their
+
 --   account.
 
 -- * Any user interacting with a user which has a LegalHoldClient will upon
+
 --   first interaction receive a warning, have the option of cancelling the
 --   interaction, and on an ongoing basis see a visual indication in all
 --   conversations where such a device is active.

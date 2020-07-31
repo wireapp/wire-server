@@ -113,7 +113,7 @@ runConv s g = do
         Clients.addMembers (botClientSessions client) conv (map botId bots)
   let removeClients (b, st) =
         mapM_ (removeBotClient b) (botClient st : botOtherClients st)
-  void $ flip mapConcurrently (zip bots states) $ \(b, st) ->
+  void . flip mapConcurrently (zip bots states) $ \(b, st) ->
     runBotSession b $ do
       log Info $ msg $ val "Starting bot"
       runBot s st `Ex.onException` removeClients (b, st)

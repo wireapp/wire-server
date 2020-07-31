@@ -53,8 +53,8 @@ instance ToLogEvent TinyLogRecord where
     where
       tgs =
         Tags . fromList . map (second String) $
-          ("level", T.singleton tLevel)
-            : tFields
+          ("level", T.singleton tLevel) :
+          tFields
             ++ maybeToList ((,) "time" <$> tDate)
 
 tinyLogRecord :: Parser TinyLogRecord

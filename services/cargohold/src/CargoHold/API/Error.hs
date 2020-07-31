@@ -50,14 +50,15 @@ requestTimeout =
 
 invalidOffset :: Offset -> Offset -> Error
 invalidOffset expected given =
-  Error status409 "invalid-offset" $ toLazyText $
-    "Invalid offset: "
-      <> "expected: "
-      <> decimal expected
-      <> ", "
-      <> "given: "
-      <> decimal given
-      <> "."
+  Error status409 "invalid-offset" $
+    toLazyText $
+      "Invalid offset: "
+        <> "expected: "
+        <> decimal expected
+        <> ", "
+        <> "given: "
+        <> decimal given
+        <> "."
 
 uploadTooSmall :: Error
 uploadTooSmall =
@@ -77,14 +78,15 @@ uploadTooLarge =
 
 uploadIncomplete :: TotalSize -> TotalSize -> Error
 uploadIncomplete expected actual =
-  Error status403 "client-error" $ toLazyText $
-    "The upload is incomplete: "
-      <> "expected size: "
-      <> decimal expected
-      <> ", "
-      <> "current size: "
-      <> decimal actual
-      <> "."
+  Error status403 "client-error" $
+    toLazyText $
+      "The upload is incomplete: "
+        <> "expected size: "
+        <> decimal expected
+        <> ", "
+        <> "current size: "
+        <> decimal actual
+        <> "."
 
 clientError :: LText -> Error
 clientError = Error status400 "client-error"

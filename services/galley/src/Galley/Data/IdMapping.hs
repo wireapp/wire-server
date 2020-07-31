@@ -32,8 +32,9 @@ import Imports
 -- | Only a single namespace/table is used for for potentially multiple different types of
 -- mapped IDs.
 getIdMapping :: MonadClient m => Id (Mapped a) -> m (Maybe (IdMapping a))
-getIdMapping mappedId = fmap toIdMapping <$> do
-  retry x1 $ query1 Cql.selectIdMapping (params Quorum (Identity mappedId))
+getIdMapping mappedId =
+  fmap toIdMapping <$> do
+    retry x1 $ query1 Cql.selectIdMapping (params Quorum (Identity mappedId))
   where
     toIdMapping (remoteId, domain) =
       IdMapping mappedId (Qualified remoteId domain)

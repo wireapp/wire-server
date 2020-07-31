@@ -96,7 +96,7 @@ import qualified Data.Currency as Currency
 import Data.Handle (Handle)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
-import Data.Json.Util ((#), UTCTimeMillis)
+import Data.Json.Util (UTCTimeMillis, (#))
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc

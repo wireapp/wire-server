@@ -17,10 +17,10 @@
 
 module API.Util.TeamFeature where
 
-import qualified API.Util as Util
 import API.Util (zUser)
+import qualified API.Util as Util
 import Bilge
-import Control.Lens ((.~), view)
+import Control.Lens (view, (.~))
 import Data.ByteString.Conversion (toByteString')
 import Data.Id (TeamId, UserId)
 import Galley.Options (optSettings, setFeatureFlags)

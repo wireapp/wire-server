@@ -53,7 +53,7 @@ import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import Data.Time.Clock.POSIX
 import Data.UUID
-import Data.Vector ((!), Vector)
+import Data.Vector (Vector, (!))
 import qualified Data.Vector as Vec
 import Data.ZAuth.Token hiding (signature)
 import Imports

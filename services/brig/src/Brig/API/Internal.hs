@@ -257,12 +257,12 @@ autoConnectH (_ ::: uid ::: conn ::: req) = do
 autoConnect :: UserId -> Maybe ConnId -> UserSet -> Handler [UserConnection]
 autoConnect uid conn (UserSet to) = do
   let num = Set.size to
-  when (num < 1)
-    $ throwStd
-    $ badRequest "No users given for auto-connect."
-  when (num > 25)
-    $ throwStd
-    $ badRequest "Too many users given for auto-connect (> 25)."
+  when (num < 1) $
+    throwStd $
+      badRequest "No users given for auto-connect."
+  when (num > 25) $
+    throwStd $
+      badRequest "Too many users given for auto-connect (> 25)."
   API.autoConnect uid to conn !>> connError
 
 createUserNoVerifyH :: JSON ::: JsonRequest NewUser -> Handler Response

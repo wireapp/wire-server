@@ -70,13 +70,13 @@ mkEnv l cas =
     <*> initLogger
   where
     initCassandra =
-      C.init
-        $ C.setLogger (C.mkLogger l)
+      C.init $
+        C.setLogger (C.mkLogger l)
           . C.setContacts (cHost cas) []
           . C.setPortNumber (fromIntegral (cPort cas))
           . C.setKeyspace (cKeyspace cas)
           . C.setProtocolVersion C.V4
-        $ C.defSettings
+          $ C.defSettings
     initLogger = pure l
 
 -- | Runs only the migrations which need to run

@@ -85,9 +85,9 @@ instance ToLogEvent CommonLogRecord where
 
 commonLogFields :: [Text]
 commonLogFields =
-  "remote_addr"
-    : "remote_user"
-    : map fst fieldParsers
+  "remote_addr" :
+  "remote_user" :
+  map fst fieldParsers
 
 fieldParsers :: [(Text, Parser CommonLogField)]
 fieldParsers =
@@ -112,9 +112,9 @@ commonLogRecord moreFieldParsers = do
                 (_, CEmpty) -> Nothing
                 (k, CField v) -> Just (k, v)
             )
-            $ ("remote_addr", raddr)
-              : ("remote_user", ruser)
-              : flds,
+            $ ("remote_addr", raddr) :
+            ("remote_user", ruser) :
+            flds,
         cRequest = req
       }
   where

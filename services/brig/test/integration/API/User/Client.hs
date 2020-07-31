@@ -81,7 +81,7 @@ testAddGetClient hasPwd brig cannon = do
                 const 201 === statusCode
                 const True === isJust . getHeader "Location"
             )
-    void . liftIO $ WS.assertMatch (5 # Second) ws $ \n -> do
+    void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
       let j = Object $ List1.head (ntfPayload n)
       let etype = j ^? key "type" . _String
       let eclient = j ^? key "client"
@@ -228,7 +228,7 @@ testRemoveClient hasPwd brig cannon = do
   WS.bracketR cannon uid $ \ws -> do
     deleteClient brig uid (clientId c) (if hasPwd then Just defPassword else Nothing)
       !!! const 200 === statusCode
-    void . liftIO $ WS.assertMatch (5 # Second) ws $ \n -> do
+    void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
       let j = Object $ List1.head (ntfPayload n)
       let etype = j ^? key "type" . _String
       let eclient = j ^? key "client" . key "id" . _String

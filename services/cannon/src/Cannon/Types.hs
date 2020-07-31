@@ -81,9 +81,10 @@ newtype Cannon a = Cannon
     )
 
 mapConcurrentlyCannon :: Traversable t => (a -> Cannon b) -> t a -> Cannon (t b)
-mapConcurrentlyCannon action inputs = Cannon $
-  ask >>= \e ->
-    liftIO $ mapConcurrently ((`runReaderT` e) . unCannon . action) inputs
+mapConcurrentlyCannon action inputs =
+  Cannon $
+    ask >>= \e ->
+      liftIO $ mapConcurrently ((`runReaderT` e) . unCannon . action) inputs
 
 instance MonadLogger Cannon where
   log l m = Cannon $ do

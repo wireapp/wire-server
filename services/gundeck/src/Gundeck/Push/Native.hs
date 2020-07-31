@@ -22,7 +22,7 @@ module Gundeck.Push.Native
   )
 where
 
-import Control.Lens ((.~), (^.), view)
+import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch
 import Data.ByteString.Conversion.To
 import Data.Id

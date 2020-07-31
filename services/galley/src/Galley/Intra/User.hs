@@ -28,10 +28,9 @@ where
 
 import Bilge hiding (getHeader, options, statusCode)
 import Bilge.RPC
-import Brig.Types.Connection (UserIds (..))
-import Brig.Types.Connection (ConnectionsStatusRequest (..), Relation (..))
-import Brig.Types.Intra (ConnectionStatus (..), ReAuthUser (..))
+import Brig.Types.Connection (ConnectionsStatusRequest (..), Relation (..), UserIds (..))
 import Brig.Types.Intra
+import Brig.Types.Intra (ConnectionStatus (..), ReAuthUser (..))
 import Brig.Types.User (User)
 import Control.Monad.Catch (throwM)
 import Data.ByteString.Char8 (pack)
@@ -71,13 +70,14 @@ getConnections uFrom uTo rlt = do
 deleteBot :: ConvId -> BotId -> Galley ()
 deleteBot cid bot = do
   (h, p) <- brigReq
-  void $ call "brig" $
-    method DELETE . host h . port p
-      . path "/bot/self"
-      . header "Z-Type" "bot"
-      . header "Z-Bot" (toByteString' bot)
-      . header "Z-Conversation" (toByteString' cid)
-      . expect2xx
+  void $
+    call "brig" $
+      method DELETE . host h . port p
+        . path "/bot/self"
+        . header "Z-Type" "bot"
+        . header "Z-Bot" (toByteString' bot)
+        . header "Z-Conversation" (toByteString' cid)
+        . expect2xx
 
 -- | Calls 'Brig.User.API.Auth.reAuthUserH'.
 reAuthUser :: UserId -> ReAuthUser -> Galley Bool
@@ -129,10 +129,11 @@ getUser uid = do
 deleteUser :: UserId -> Galley ()
 deleteUser uid = do
   (h, p) <- brigReq
-  void $ call "brig" $
-    method DELETE . host h . port p
-      . paths ["/i/users", toByteString' uid]
-      . expect2xx
+  void $
+    call "brig" $
+      method DELETE . host h . port p
+        . paths ["/i/users", toByteString' uid]
+        . expect2xx
 
 -- | Calls 'Brig.API.getContactListH'.
 getContactList :: UserId -> Galley [UserId]

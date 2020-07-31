@@ -35,11 +35,12 @@ instance IsOption IntegrationConfigFile where
   optionName = return "integration-config"
   optionHelp = return "Integration config file to read from"
   optionCLParser =
-    fmap IntegrationConfigFile $ strOption $
-      ( short (untag (return 'i' :: Tagged IntegrationConfigFile Char))
-          <> long (untag (optionName :: Tagged IntegrationConfigFile String))
-          <> help (untag (optionHelp :: Tagged IntegrationConfigFile String))
-      )
+    fmap IntegrationConfigFile $
+      strOption $
+        ( short (untag (return 'i' :: Tagged IntegrationConfigFile Char))
+            <> long (untag (optionName :: Tagged IntegrationConfigFile String))
+            <> help (untag (optionHelp :: Tagged IntegrationConfigFile String))
+        )
 
 handleParseError :: (Show a) => Either a b -> IO (Maybe b)
 handleParseError (Left err) = do

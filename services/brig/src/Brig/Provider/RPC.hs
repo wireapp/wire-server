@@ -36,7 +36,7 @@ import Brig.RPC
 import Brig.Types.Provider (HttpsUrl (..))
 import Brig.Types.Provider.External
 import Control.Error
-import Control.Lens ((^.), set, view)
+import Control.Lens (set, view, (^.))
 import Control.Monad.Catch
 import Control.Retry (recovering)
 import Data.Aeson
@@ -70,10 +70,13 @@ createBot scon new = do
   let fprs = toList (sconFingerprints scon)
   (man, verifyFingerprints) <- view extGetManager
   extHandleAll onExc $ do
-    rs <- lift $ recovering x3 httpHandlers $ const $ liftIO
-      $ withVerifiedSslConnection (verifyFingerprints fprs) man reqBuilder
-      $ \req ->
-        Http.httpLbs req man
+    rs <- lift $
+      recovering x3 httpHandlers $
+        const $
+          liftIO $
+            withVerifiedSslConnection (verifyFingerprints fprs) man reqBuilder $
+              \req ->
+                Http.httpLbs req man
     case Bilge.statusCode rs of
       201 -> decodeBytes "External" (responseBody rs)
       409 -> throwE ServiceBotConflict

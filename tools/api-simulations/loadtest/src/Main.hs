@@ -92,14 +92,16 @@ ltsSettingsParser = do
   conversationRamp <-
     optional $
       asum
-        [ fmap RampStep $ option auto $
-            long "ramp-step"
-              <> metavar "INT"
-              <> help "delay in microseconds between conversations start",
-          fmap RampTotal $ option auto $
-            long "ramp-total"
-              <> metavar "INT"
-              <> help "time in microseconds until full load"
+        [ fmap RampStep $
+            option auto $
+              long "ramp-step"
+                <> metavar "INT"
+                <> help "delay in microseconds between conversations start",
+          fmap RampTotal $
+            option auto $
+              long "ramp-total"
+                <> metavar "INT"
+                <> help "time in microseconds until full load"
         ]
   conversationsTotal <-
     option auto $

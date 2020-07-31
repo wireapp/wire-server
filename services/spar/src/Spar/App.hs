@@ -43,7 +43,7 @@ import Control.Exception (assert)
 import Control.Lens hiding ((.=))
 import qualified Control.Monad.Catch as Catch
 import Control.Monad.Except
-import Data.Aeson as Aeson ((.=), encode, object)
+import Data.Aeson as Aeson (encode, object, (.=))
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import Data.Id
@@ -401,10 +401,11 @@ verdictHandlerResultCore bindCky = \case
 --   not be the title of any page sent by the IdP while it negotiates with the user.
 -- - The page broadcasts a message to '*', to be picked up by the app.
 verdictHandlerWeb :: HasCallStack => VerdictHandlerResult -> Spar SAML.ResponseVerdict
-verdictHandlerWeb = pure . \case
-  VerifyHandlerGranted cky _uid -> successPage cky
-  VerifyHandlerDenied reasons -> forbiddenPage "forbidden" (explainDeniedReason <$> reasons)
-  VerifyHandlerError lbl msg -> forbiddenPage lbl [msg]
+verdictHandlerWeb =
+  pure . \case
+    VerifyHandlerGranted cky _uid -> successPage cky
+    VerifyHandlerDenied reasons -> forbiddenPage "forbidden" (explainDeniedReason <$> reasons)
+    VerifyHandlerError lbl msg -> forbiddenPage lbl [msg]
   where
     forbiddenPage :: ST -> [ST] -> SAML.ResponseVerdict
     forbiddenPage errlbl reasons =

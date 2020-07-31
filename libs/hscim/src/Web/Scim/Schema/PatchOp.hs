@@ -20,12 +20,12 @@ module Web.Scim.Schema.PatchOp where
 import Control.Applicative
 import Control.Monad (guard)
 import Control.Monad.Except
-import Data.Aeson.Types ((.:), (.:?), (.=), FromJSON (parseJSON), ToJSON (toJSON), Value (String), object, withObject, withText)
+import Data.Aeson.Types (FromJSON (parseJSON), ToJSON (toJSON), Value (String), object, withObject, withText, (.:), (.:?), (.=))
 import qualified Data.Aeson.Types as Aeson
 import Data.Attoparsec.ByteString (Parser, endOfInput, parseOnly)
 import Data.Bifunctor (first)
-import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashMap.Strict as HM
+import qualified Data.HashMap.Strict as HashMap
 import Data.Text (Text, toCaseFold, toLower)
 import Data.Text.Encoding (encodeUtf8)
 import Web.Scim.AttrName (AttrName (..))

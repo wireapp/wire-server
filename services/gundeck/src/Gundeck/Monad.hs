@@ -75,7 +75,7 @@ newtype Gundeck a = Gundeck
 
 instance MonadUnliftIO Gundeck where
   askUnliftIO =
-    Gundeck $ ReaderT $ \r ->
+    Gundeck . ReaderT $ \r ->
       withUnliftIO $ \u ->
         return (UnliftIO (unliftIO u . flip runReaderT r . unGundeck))
 

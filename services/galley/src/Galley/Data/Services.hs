@@ -64,7 +64,7 @@ addBotMember :: UserId -> ServiceRef -> BotId -> ConvId -> UTCTime -> Galley (Ev
 addBotMember orig s bot cnv now = do
   let pid = s ^. serviceRefProvider
   let sid = s ^. serviceRefId
-  retry x5 $ batch $ do
+  retry x5 . batch $ do
     setType BatchLogged
     setConsistency Quorum
     addPrepQuery insertUserConv (botUserId bot, makeIdOpaque cnv, Nothing, Nothing)

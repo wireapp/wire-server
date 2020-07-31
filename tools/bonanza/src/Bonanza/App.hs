@@ -33,7 +33,7 @@ import qualified Bonanza.Streaming.Snappy as Snappy
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
-import Data.Conduit ((.|), ConduitM, runConduit)
+import Data.Conduit (ConduitM, runConduit, (.|))
 import Data.Conduit.Binary (sinkHandle, sourceHandle)
 import qualified Data.Conduit.List as Conduit
 import qualified Data.Conduit.Zlib as Conduit
@@ -184,48 +184,49 @@ optInfo =
     )
 
 runBonanza :: IO ()
-runBonanza = execParser optInfo >>= \(Opts CommonOpts {..} cmd) -> do
-  started <- getCurrentTime
-  (bytes_in, bytes_out, events_in) <-
-    (,,)
-      <$> newIORef 0
-      <*> newIORef 0
-      <*> newIORef 0
-  geoDB <- mkGeo geodat
-  runConduit $
-    sourceHandle stdin
-      .| runDecompress decomp
-      .| Conduit.mapM
-        ( \bs ->
-            modifyIORef' bytes_in (+ fromIntegral (BS.length bs))
-              *> pure bs
-        )
-      .| readWith parser
-      .| Conduit.mapM
-        ( \evt ->
-            modifyIORef' events_in (+ 1)
-              *> pure evt
-        )
-      .| runGeo geo geoDB
-      .| runAnonymise anon
-      .| runCmd cmd
-      .| runCompress comp
-      .| Conduit.mapM
-        ( \bs ->
-            modifyIORef' bytes_out (+ fromIntegral (BS.length bs))
-              *> pure bs
-        )
-      .| sinkHandle stdout
-  completed <- getCurrentTime
-  stats <-
-    Stats
-      <$> readIORef bytes_in
-      <*> readIORef bytes_out
-      <*> (picosecondsToDiffTime <$> getCPUTime)
-      <*> pure (completed `diffUTCTime` started)
-      <*> readIORef events_in
-  unless quiet $ do
-    dumpStderr stats
+runBonanza =
+  execParser optInfo >>= \(Opts CommonOpts {..} cmd) -> do
+    started <- getCurrentTime
+    (bytes_in, bytes_out, events_in) <-
+      (,,)
+        <$> newIORef 0
+        <*> newIORef 0
+        <*> newIORef 0
+    geoDB <- mkGeo geodat
+    runConduit $
+      sourceHandle stdin
+        .| runDecompress decomp
+        .| Conduit.mapM
+          ( \bs ->
+              modifyIORef' bytes_in (+ fromIntegral (BS.length bs))
+                *> pure bs
+          )
+        .| readWith parser
+        .| Conduit.mapM
+          ( \evt ->
+              modifyIORef' events_in (+ 1)
+                *> pure evt
+          )
+        .| runGeo geo geoDB
+        .| runAnonymise anon
+        .| runCmd cmd
+        .| runCompress comp
+        .| Conduit.mapM
+          ( \bs ->
+              modifyIORef' bytes_out (+ fromIntegral (BS.length bs))
+                *> pure bs
+          )
+        .| sinkHandle stdout
+    completed <- getCurrentTime
+    stats <-
+      Stats
+        <$> readIORef bytes_in
+        <*> readIORef bytes_out
+        <*> (picosecondsToDiffTime <$> getCPUTime)
+        <*> pure (completed `diffUTCTime` started)
+        <*> readIORef events_in
+    unless quiet $ do
+      dumpStderr stats
   where
     runGeo [] _ = Conduit.map id
     runGeo tags db =

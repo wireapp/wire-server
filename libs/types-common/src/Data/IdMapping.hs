@@ -19,7 +19,7 @@
 
 module Data.IdMapping where
 
-import Data.Aeson ((.=), ToJSON (toJSON))
+import Data.Aeson (ToJSON (toJSON), (.=))
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
 import Data.Domain (domainText)

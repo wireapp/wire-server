@@ -21,8 +21,7 @@ module Data.Metrics.Middleware.Prometheus
 where
 
 import Data.Maybe (fromMaybe)
-import Data.Metrics.Types (Paths)
-import Data.Metrics.Types (treeLookup)
+import Data.Metrics.Types (Paths, treeLookup)
 import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Text (Text)
 import qualified Data.Text.Encoding as T

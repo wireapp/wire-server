@@ -63,7 +63,7 @@ import qualified Network.Wai.Utilities.Error as Wai
 import qualified Proto.TeamEvents as E
 import qualified Proto.TeamEvents_Fields as E
 import Test.Tasty
-import Test.Tasty.Cannon ((#), TimeoutUnit (..))
+import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers (test)
@@ -330,9 +330,10 @@ testEnableTeamSearchVisibilityPerTeam = do
           assertEqual "bad status" status403 status
           assertEqual "bad label" "team-search-visibility-not-enabled" label
   let getSearchVisibilityCheck :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => TeamSearchVisibility -> m ()
-      getSearchVisibilityCheck vis = getSearchVisibility g owner tid !!! do
-        const 200 === statusCode
-        const (Just (TeamSearchVisibilityView vis)) === responseJsonUnsafe
+      getSearchVisibilityCheck vis =
+        getSearchVisibility g owner tid !!! do
+          const 200 === statusCode
+          const (Just (TeamSearchVisibilityView vis)) === responseJsonUnsafe
 
   Util.withCustomSearchFeature FeatureTeamSearchVisibilityEnabledByDefault $ do
     check "Teams should start with Custom Search Visibility enabled" Public.TeamFeatureEnabled
@@ -941,7 +942,7 @@ testDeleteTeam = do
   Util.assertConvMember owner cid1
   Util.assertConvMember extern cid1
   Util.assertNotConvMember (member ^. userId) cid1
-  void $ WS.bracketR3 c owner extern (member ^. userId) $ \(wsOwner, wsExtern, wsMember) -> do
+  void . WS.bracketR3 c owner extern (member ^. userId) $ \(wsOwner, wsExtern, wsMember) -> do
     delete (g . paths ["teams", toByteString' tid] . zUser owner . zConn "conn")
       !!! const 202 === statusCode
     checkTeamDeleteEvent tid wsOwner
@@ -1004,7 +1005,7 @@ testDeleteBindingTeamSingleMember = do
       (/= Just True)
       (getDeletedState extern (other ^. userId))
 
-  void $ WS.bracketRN c [owner, extern] $ \[wsOwner, wsExtern] -> do
+  void . WS.bracketRN c [owner, extern] $ \[wsOwner, wsExtern] -> do
     delete
       ( g
           . paths ["/i/teams", toByteString' tid]
@@ -1075,7 +1076,7 @@ testDeleteBindingTeam ownerHasPassword = do
     !!! const 202
     === statusCode
   assertQueue "team member leave 1" $ tUpdate 4 [ownerWithPassword, owner]
-  void $ WS.bracketRN c [owner, (mem1 ^. userId), (mem2 ^. userId), extern] $ \[wsOwner, wsMember1, wsMember2, wsExtern] -> do
+  void . WS.bracketRN c [owner, (mem1 ^. userId), (mem2 ^. userId), extern] $ \[wsOwner, wsMember1, wsMember2, wsExtern] -> do
     delete
       ( g
           . paths ["teams", toByteString' tid]
@@ -1327,7 +1328,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
     deleteTeam tid owner otherRealUsersInTeam teamCidsThatExternBelongsTo extern = do
       c <- view tsCannon
       g <- view tsGalley
-      void $ WS.bracketRN c (owner : extern : otherRealUsersInTeam) $ \(_wsOwner : wsExtern : _wsotherRealUsersInTeam) -> do
+      void . WS.bracketRN c (owner : extern : otherRealUsersInTeam) $ \(_wsOwner : wsExtern : _wsotherRealUsersInTeam) -> do
         delete
           ( g
               . paths ["teams", toByteString' tid]
@@ -1769,7 +1770,7 @@ postCryptoBroadcastMessageJson2 = do
   cc <- Util.randomClient charlie (someLastPrekeys !! 2)
   connectUsers alice (list1 charlie [])
   let t = 3 # Second -- WS receive timeout
-      -- Missing charlie
+  -- Missing charlie
   let m1 = [(bob, bc, "ciphertext1")]
   Util.postOtrBroadcastMessage id alice ac m1 !!! do
     const 412 === statusCode

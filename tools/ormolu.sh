@@ -74,7 +74,7 @@ FAILURES=0
 
 for hsfile in $(git ls-files | grep '\.hsc\?$'); do
     FAILED=0
-    ormolu --mode $ARG_ORMOLU_MODE --check-idempotency $LANGUAGE_EXTS "$hsfile" || FAILED=1
+    ormolu --mode $ARG_ORMOLU_MODE --check-idempotence $LANGUAGE_EXTS "$hsfile" || FAILED=1
     if [ "$FAILED" == "1" ]; then
         ((++FAILURES))
         echo "$hsfile...  *** FAILED"

@@ -95,7 +95,7 @@ newtype Amazon a = Amazon
     )
 
 instance MonadUnliftIO Amazon where
-  askUnliftIO = Amazon $ ReaderT $ \r ->
+  askUnliftIO = Amazon . ReaderT $ \r ->
     withUnliftIO $ \u ->
       return (UnliftIO (unliftIO u . flip runReaderT r . unAmazon))
 
@@ -150,9 +150,9 @@ mkEnv lgr mgr opts = do
     getQueueUrl :: AWS.Env -> Text -> IO QueueUrl
     getQueueUrl e q = do
       x <-
-        runResourceT . AWST.runAWST e
-          $ AWST.trying AWS._Error
-          $ AWST.send (SQS.getQueueURL q)
+        runResourceT . AWST.runAWST e $
+          AWST.trying AWS._Error $
+            AWST.send (SQS.getQueueURL q)
       either
         (throwM . GeneralError)
         (return . QueueUrl . view SQS.gqursQueueURL)

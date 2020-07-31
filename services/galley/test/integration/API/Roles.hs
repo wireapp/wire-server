@@ -28,7 +28,7 @@ import Galley.Types.Conversations.Roles
 import Imports
 import Network.Wai.Utilities.Error
 import Test.Tasty
-import Test.Tasty.Cannon ((#), TimeoutUnit (..))
+import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
 import TestHelpers
 import TestSetup
@@ -59,12 +59,14 @@ handleConversationRoleAdmin = do
     let cid = decodeConvId rsp
     -- Make sure everyone gets the correct event
     postMembersWithRole alice (singleton eve) cid role !!! const 200 === statusCode
-    void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $
-      wsAssertMemberJoinWithRole cid alice [eve] role
+    void . liftIO $
+      WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $
+        wsAssertMemberJoinWithRole cid alice [eve] role
     -- Add a member to help out with testing
     postMembersWithRole alice (singleton jack) cid roleNameWireMember !!! const 200 === statusCode
-    void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $
-      wsAssertMemberJoinWithRole cid alice [jack] roleNameWireMember
+    void . liftIO $
+      WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $
+        wsAssertMemberJoinWithRole cid alice [jack] roleNameWireMember
     return cid
   -- Added bob as a wire_admin and do the checks
   wireAdminChecks cid alice bob jack
@@ -72,7 +74,7 @@ handleConversationRoleAdmin = do
   WS.bracketR3 c alice bob chuck $ \(wsA, wsB, wsC) -> do
     let updateDown = OtherMemberUpdate (Just roleNameWireMember)
     putOtherMember alice bob updateDown cid !!! assertActionSucceeded
-    void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $ do
+    void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $ do
       wsAssertMemberUpdateWithRole cid alice bob roleNameWireMember
   wireMemberChecks cid bob alice jack
 
@@ -94,8 +96,9 @@ handleConversationRoleMember = do
     let cid = decodeConvId rsp
     -- Make sure everyone gets the correct event
     postMembersWithRole alice (singleton eve) cid role !!! const 200 === statusCode
-    void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $
-      wsAssertMemberJoinWithRole cid alice [eve] role
+    void . liftIO $
+      WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $
+        wsAssertMemberJoinWithRole cid alice [eve] role
     return cid
   -- Added bob as a wire_member and do the checks
   wireMemberChecks cid bob alice chuck
@@ -105,7 +108,7 @@ handleConversationRoleMember = do
     -- Chuck cannot update, member only
     putOtherMember chuck bob updateUp cid !!! assertActionDenied
     putOtherMember alice bob updateUp cid !!! assertActionSucceeded
-    void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $ do
+    void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $ do
       wsAssertMemberUpdateWithRole cid alice bob roleNameWireAdmin
   wireAdminChecks cid bob alice chuck
 

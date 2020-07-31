@@ -32,8 +32,9 @@ import Galley.Types
 import Imports
 
 getCustomBackend :: MonadClient m => Domain -> m (Maybe CustomBackend)
-getCustomBackend domain = fmap toCustomBackend <$> do
-  retry x1 $ query1 Cql.selectCustomBackend (params Quorum (Identity domain))
+getCustomBackend domain =
+  fmap toCustomBackend <$> do
+    retry x1 $ query1 Cql.selectCustomBackend (params Quorum (Identity domain))
   where
     toCustomBackend (backendConfigJsonUrl, backendWebappWelcomeUrl) =
       CustomBackend {..}

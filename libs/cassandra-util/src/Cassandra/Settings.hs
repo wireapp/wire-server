@@ -46,13 +46,14 @@ initialContactsDisco (pack -> srv) url = liftIO $ do
         Nothing -> [srv, srv <> "_seed"]
         Just _ -> [srv] -- requesting only seeds is a valid use-case
   let ip =
-        rs ^.. responseBody
-          . key "roles"
-          . members
-          . indices (`elem` srvs)
-          . values
-          . key "privateIpAddress"
-          . _String
+        rs
+          ^.. responseBody
+            . key "roles"
+            . members
+            . indices (`elem` srvs)
+            . values
+            . key "privateIpAddress"
+            . _String
           & map unpack
   case ip of
     i : ii -> return (i :| ii)

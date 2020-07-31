@@ -185,40 +185,46 @@ makeLenses ''LegalHoldUser
 makeLenses ''LegalHoldAccess
 
 instance FromByteString (Token Access) where
-  parser = takeLazyByteString >>= \b ->
-    case readToken A readAccessBody b of
-      Nothing -> fail "Invalid access token"
-      Just t -> return t
+  parser =
+    takeLazyByteString >>= \b ->
+      case readToken A readAccessBody b of
+        Nothing -> fail "Invalid access token"
+        Just t -> return t
 
 instance FromByteString (Token User) where
-  parser = takeLazyByteString >>= \b ->
-    case readToken U readUserBody b of
-      Nothing -> fail "Invalid user token"
-      Just t -> return t
+  parser =
+    takeLazyByteString >>= \b ->
+      case readToken U readUserBody b of
+        Nothing -> fail "Invalid user token"
+        Just t -> return t
 
 instance FromByteString (Token Bot) where
-  parser = takeLazyByteString >>= \b ->
-    case readToken B readBotBody b of
-      Nothing -> fail "Invalid bot token"
-      Just t -> return t
+  parser =
+    takeLazyByteString >>= \b ->
+      case readToken B readBotBody b of
+        Nothing -> fail "Invalid bot token"
+        Just t -> return t
 
 instance FromByteString (Token Provider) where
-  parser = takeLazyByteString >>= \b ->
-    case readToken P readProviderBody b of
-      Nothing -> fail "Invalid provider token"
-      Just t -> return t
+  parser =
+    takeLazyByteString >>= \b ->
+      case readToken P readProviderBody b of
+        Nothing -> fail "Invalid provider token"
+        Just t -> return t
 
 instance FromByteString (Token LegalHoldAccess) where
-  parser = takeLazyByteString >>= \b ->
-    case readToken LA readLegalHoldAccessBody b of
-      Nothing -> fail "Invalid access token"
-      Just t -> return t
+  parser =
+    takeLazyByteString >>= \b ->
+      case readToken LA readLegalHoldAccessBody b of
+        Nothing -> fail "Invalid access token"
+        Just t -> return t
 
 instance FromByteString (Token LegalHoldUser) where
-  parser = takeLazyByteString >>= \b ->
-    case readToken LU readLegalHoldUserBody b of
-      Nothing -> fail "Invalid user token"
-      Just t -> return t
+  parser =
+    takeLazyByteString >>= \b ->
+      case readToken LU readLegalHoldUserBody b of
+        Nothing -> fail "Invalid user token"
+        Just t -> return t
 
 instance ToByteString a => ToByteString (Token a) where
   builder = writeToken

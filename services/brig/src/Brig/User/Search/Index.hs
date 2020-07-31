@@ -82,13 +82,13 @@ import Network.HTTP.Client hiding (path)
 import Network.HTTP.Types (hContentType, statusCode)
 import qualified System.Logger as Log
 import System.Logger.Class
-  ( (+++),
-    Logger,
+  ( Logger,
     MonadLogger (..),
     field,
     info,
     msg,
     val,
+    (+++),
     (~~),
   )
 
@@ -246,30 +246,30 @@ defaultUserQuery u teamSearchInfo (normalized -> term') =
 
 mkUserQuery :: UserId -> TeamSearchInfo -> ES.Query -> IndexQuery Contact
 mkUserQuery (review _TextId -> self) teamSearchInfo q =
-  IndexQuery q
-    $ ES.Filter . ES.QueryBoolQuery
-    $ boolQuery
-      { ES.boolQueryMustNotMatch = [termQ "_id" self],
-        ES.boolQueryMustMatch =
-          [ optionallySearchWithinTeam teamSearchInfo,
-            ES.QueryBoolQuery
-              boolQuery
-                { ES.boolQueryShouldMatch =
-                    [ termQ "account_status" "active",
-                      -- Also match entries where the account_status field is not present.
-                      -- These must have been inserted before we added the account_status
-                      -- and at that time we only inserted active users in the first place.
-                      -- This should be unnecessary after re-indexing, but let's be lenient
-                      -- here for a while.
-                      ES.QueryBoolQuery
-                        boolQuery
-                          { ES.boolQueryMustNotMatch =
-                              [ES.QueryExistsQuery (ES.FieldName "account_status")]
-                          }
-                    ]
-                }
-          ]
-      }
+  IndexQuery q $
+    ES.Filter . ES.QueryBoolQuery $
+      boolQuery
+        { ES.boolQueryMustNotMatch = [termQ "_id" self],
+          ES.boolQueryMustMatch =
+            [ optionallySearchWithinTeam teamSearchInfo,
+              ES.QueryBoolQuery
+                boolQuery
+                  { ES.boolQueryShouldMatch =
+                      [ termQ "account_status" "active",
+                        -- Also match entries where the account_status field is not present.
+                        -- These must have been inserted before we added the account_status
+                        -- and at that time we only inserted active users in the first place.
+                        -- This should be unnecessary after re-indexing, but let's be lenient
+                        -- here for a while.
+                        ES.QueryBoolQuery
+                          boolQuery
+                            { ES.boolQueryMustNotMatch =
+                                [ES.QueryExistsQuery (ES.FieldName "account_status")]
+                            }
+                      ]
+                  }
+            ]
+        }
   where
     termQ f v =
       ES.TermQuery
@@ -477,8 +477,9 @@ updateMapping = liftIndexIO $ do
   -- FUTUREWORK: check return code (ES.isSuccess) and fail if appropriate.
   -- But to do that we have to consider the consequences of this failing in our helm chart:
   -- https://github.com/wireapp/wire-server-deploy/blob/92311d189818ffc5e26ff589f81b95c95de8722c/charts/elasticsearch-index/templates/create-index.yaml
-  void $ traceES "Put mapping" $
-    ES.putMapping idx (ES.MappingName "user") indexMapping
+  void $
+    traceES "Put mapping" $
+      ES.putMapping idx (ES.MappingName "user") indexMapping
 
 resetIndex ::
   MonadIndexIO m =>
@@ -488,9 +489,10 @@ resetIndex ::
   m ()
 resetIndex settings shardCount = liftIndexIO $ do
   idx <- asks idxName
-  gone <- ES.indexExists idx >>= \case
-    True -> ES.isSuccess <$> traceES "Delete Index" (ES.deleteIndex idx)
-    False -> return True
+  gone <-
+    ES.indexExists idx >>= \case
+      True -> ES.isSuccess <$> traceES "Delete Index" (ES.deleteIndex idx)
+      False -> return True
   if gone
     then createIndex settings shardCount
     else throwM (IndexError "Index deletion failed.")
@@ -784,10 +786,10 @@ reindexRowToIndexUser (u, mteam, name, t0, status, t1, handle, t2, colour, t4, a
         then
           iu
             & set iuTeam mteam
-            . set iuName (Just name)
-            . set iuHandle handle
-            . set iuColourId (Just colour)
-            . set iuAccountStatus status
+              . set iuName (Just name)
+              . set iuHandle handle
+              . set iuColourId (Just colour)
+              . set iuAccountStatus status
         else
           iu
             -- We insert a tombstone-style user here, as it's easier than deleting the old one.

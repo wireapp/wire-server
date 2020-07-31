@@ -25,9 +25,9 @@ import qualified Brig.Index.Options as Opts
 import qualified Brig.User.Search.Index as Search
 import qualified Cassandra as C
 import qualified Cassandra.Settings as C
-import Control.Lens ((^.), view)
+import Control.Lens (view, (^.))
 import Control.Monad.Catch (Exception, MonadThrow, finally, throwM)
-import Data.Aeson ((.=), Value, object)
+import Data.Aeson (Value, object, (.=))
 import qualified Data.Metrics as Metrics
 import qualified Data.Text as Text
 import qualified Database.Bloodhound as ES
@@ -79,13 +79,13 @@ mkEnv l es cas =
         (Opts.toESServer (es ^. Opts.esServer))
         <$> HTTP.newManager HTTP.defaultManagerSettings
     initCassandra =
-      C.init
-        $ C.setLogger (C.mkLogger l)
+      C.init $
+        C.setLogger (C.mkLogger l)
           . C.setContacts (view Opts.cHost cas) []
           . C.setPortNumber (fromIntegral (view Opts.cPort cas))
           . C.setKeyspace (view Opts.cKeyspace cas)
           . C.setProtocolVersion C.V4
-        $ C.defSettings
+          $ C.defSettings
     initLogger = pure l
 
 createMigrationsIndexIfNotPresent :: (MonadThrow m, MonadIO m, ES.MonadBH m) => m ()
@@ -98,9 +98,9 @@ createMigrationsIndexIfNotPresent =
       >>= throwIfNotCreated PutMappingFailed
   where
     throwIfNotCreated err response =
-      unless (ES.isSuccess response)
-        $ throwM
-        $ err (show response)
+      unless (ES.isSuccess response) $
+        throwM $
+          err (show response)
 
 failIfIndexAbsent :: (MonadThrow m, MonadIO m, ES.MonadBH m) => ES.IndexName -> m ()
 failIfIndexAbsent targetIndex =

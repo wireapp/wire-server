@@ -100,23 +100,24 @@ optInfo =
 data Signal = Stop | Go
 
 main :: IO ()
-main = execParser optInfo >>= \Opts {..} -> do
-  mgr <- newManager tlsManagerSettings
-  req <- baseReq url
-  buffer <- newTVarIO Seq.empty
-  signal <- newTVarIO Go
-  -- Start consumers
-  cs <-
-    replicateM concurrency
-      $ async
-      $ consume buffer req signal mgr maxBulkSize
-  -- Setup producer pipeline
-  runConduit $
-    CB.sourceHandle stdin
-      .| breakByte 0
-      .| CL.mapM_ (produce buffer maxBufferSize)
-  -- Graceful stop
-  drain buffer >> atomically (writeTVar signal Stop) >> mapM_ wait cs
+main =
+  execParser optInfo >>= \Opts {..} -> do
+    mgr <- newManager tlsManagerSettings
+    req <- baseReq url
+    buffer <- newTVarIO Seq.empty
+    signal <- newTVarIO Go
+    -- Start consumers
+    cs <-
+      replicateM concurrency $
+        async $
+          consume buffer req signal mgr maxBulkSize
+    -- Setup producer pipeline
+    runConduit $
+      CB.sourceHandle stdin
+        .| breakByte 0
+        .| CL.mapM_ (produce buffer maxBufferSize)
+    -- Graceful stop
+    drain buffer >> atomically (writeTVar signal Stop) >> mapM_ wait cs
   where
     baseReq url =
       (\req -> req {path = "/_bulk", method = "POST"})
@@ -127,14 +128,15 @@ main = execParser optInfo >>= \Opts {..} -> do
         then retry
         else writeTVar b (xs |> x)
     consume b r s m i = do
-      chunk <- atomically $
-        readTVar s >>= \case
-          Stop -> return Seq.empty
-          Go -> do
-            (now, later) <- Seq.splitAt i <$> readTVar b
-            if Seq.null now
-              then retry
-              else writeTVar b later >> return now
+      chunk <-
+        atomically $
+          readTVar s >>= \case
+            Stop -> return Seq.empty
+            Go -> do
+              (now, later) <- Seq.splitAt i <$> readTVar b
+              if Seq.null now
+                then retry
+                else writeTVar b later >> return now
       unless (Seq.null chunk) $ do
         let body = requestBodySourceChunked (mapM_ yield chunk)
         let req = r {requestBody = body}
