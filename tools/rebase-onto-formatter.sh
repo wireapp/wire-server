@@ -22,10 +22,14 @@ as if the changes had been applied onto the newly-formatted version all along.
 
 INSTRUCTIONS:
 1. Make a copy of your branch (or be prepared to salvage it from reflog).
+   $ git branch mybranch-backup
 2. Find out what the base commit is.
 3. Rebase onto the base commit yourself.
-4. Make sure the formatting tool is installed with the correct version and settings (i.e. stack install ormolu).
+   $ git rebase \$BASE_COMMIT
+4. Make sure the formatting tool is installed with the correct version and settings.
+   $ stack install ormolu
 5. Run this script.
+   $ $0 \$TARGET_COMMIT \$BASE_COMMIT
 
 "
 
