@@ -70,3 +70,4 @@ tests:
     - tasty-expected-failure
     - tasty-hunit
     - tasty-quickcheck
+    - unordered-containers
