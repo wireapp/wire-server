@@ -56,6 +56,8 @@ Otherwise you need to create a ``.json`` file, and host it somewhere users can g
       "title" : "Production"
    }
 
+**IMPORTANT NOTE:** Clients require **ALL** keys to be present in the JSON file; if some of these keys are irrelevant to your installation (e.g., you don't have a websiteURL) you can leave these values as indicated in the above example.
+
 There is no requirement for these hosts to be consistent, e.g. the REST endpoint could be `wireapp.pineapple.com` and the team setting `teams.banana.com`. If you have been following this documentation closely, these hosts will likely be consistent in naming, regardless.
 
 You now need to get a link referring to that ``.json`` file to your users, prepended with ``wire://access/?config=``. For example, you can save the above ``.json`` file as ``https://example.com/wire.json``, and save the following HTML content as ``https://example.com/wire.html``:
