@@ -4,8 +4,8 @@ set -euo pipefail
 
 command -v sed  >/dev/null 2>&1 || { echo >&2 "sed is not installed, aborting."; exit 1; }
 
-BASE_COMMIT=$1
-TARGET_COMMIT=$2
+BASE_COMMIT=${1:-}
+TARGET_COMMIT=${2:-}
 FORMATTING_COMMAND='make formatf'
 USAGE="
 USAGE: $0 BASE_COMMIT TARGET_COMMIT
@@ -27,7 +27,7 @@ INSTRUCTIONS:
 
 "
 
-if [ -z "$BASE_COMMIT" || -z "$TARGET_COMMIT" || -z "$FORMATTING_COMMAND" ]
+if [ -n "$BASE_COMMIT" ] || [ -n "$TARGET_COMMIT" ] || [ -n "$FORMATTING_COMMAND" ]
 then
   echo "$USAGE" 1>&2
   exit 1
