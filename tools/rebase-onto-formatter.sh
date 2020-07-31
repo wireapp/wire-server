@@ -20,7 +20,7 @@ TODO: explain base commit etc.
 
 INSTRUCTIONS:
 1. Make a copy of your branch (or be prepared to salvage it from reflog).
-2. Find out the what the base commit is.
+2. Find out what the base commit is.
 3. Rebase onto the base commit yourself.
 4. Make sure the formatting tool is installed with the correct version and settings (i.e. stack install ormolu).
 5. Run this script.
@@ -47,7 +47,7 @@ git reset HEAD~1 --hard
 
 # now for every Ci, squash with the previous and next commit (i.e. r(f(C(i-1))) and f(Ci))
 # - in sequence editor, squash lines 3, 6, 9, ... and fixup lines 4, 7, 10, ...
-# - in commit message editor, drop drop first 9 lines (removing the commit message of the revert commit)
+# - in commit message editor, drop first 9 lines (removing the commit message of the revert commit)
 GIT_SEQUENCE_EDITOR='sed -i -e "3~3s/pick/squash/" -e "4~3s/pick/fixup/"' \
   GIT_EDITOR='sed -i "1,9d"' \
   git rebase --interactive $BASE_COMMIT
