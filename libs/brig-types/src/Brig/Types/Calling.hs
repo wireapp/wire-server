@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Types.TURN
+module Brig.Types.Calling
   ( -- * re-exports
     RTCConfiguration,
     rtcConfiguration,
@@ -50,4 +50,4 @@ module Brig.Types.TURN
   )
 where
 
-import Wire.API.Call.TURN
+import Wire.API.Call.Config

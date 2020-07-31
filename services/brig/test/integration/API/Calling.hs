@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -15,38 +17,46 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API.TURN where
+module API.Calling where
 
 import Bilge
 import Bilge.Assert
+import qualified Brig.Options as Opts
 import Brig.Types
-import Control.Lens ((^.))
+import Control.Lens ((?~), (^.), view)
+import Control.Monad.Catch (MonadCatch, MonadThrow)
+import Data.Bifunctor (Bifunctor (first))
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LB
 import Data.Id
 import Data.List ((\\))
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.List1 (List1)
 import qualified Data.List1 as List1
-import Data.Misc (Port)
+import Data.Misc (Port, mkHttpsUrl)
+import qualified Data.Set as Set
 import Imports
 import Network.HTTP.Client (Manager)
 import System.FilePath ((</>))
 import Test.Tasty
 import Test.Tasty.HUnit
+import URI.ByteString (laxURIParserOptions, parseURI)
 import UnliftIO.Exception (finally)
 import qualified UnliftIO.Temporary as Temp
 import Util
+import Wire.API.Call.Config
 
-tests :: Manager -> Brig -> FilePath -> FilePath -> IO TestTree
-tests m b turn turnV2 = do
-  return $
-    testGroup
-      "turn"
-      [ test m "basic /calls/config - 200" $ testCallsConfig b,
-        -- FIXME: requires tests to run on same host as brig
-        test m "multiple servers /calls/config - 200" . withTurnFile turn $ testCallsConfigMultiple b,
-        test m "multiple servers /calls/config/v2 - 200" . withTurnFile turnV2 $ testCallsConfigMultipleV2 b
-      ]
+tests :: Manager -> Brig -> Opts.Opts -> FilePath -> FilePath -> IO TestTree
+tests m b opts turn turnV2 = do
+  return $ testGroup "calling" $
+    [ testGroup "turn" $
+        [ test m "basic /calls/config - 200" $ testCallsConfig b,
+          -- FIXME: requires tests to run on same host as brig
+          test m "multiple servers /calls/config - 200" . withTurnFile turn $ testCallsConfigMultiple b,
+          test m "multiple servers /calls/config/v2 - 200" . withTurnFile turnV2 $ testCallsConfigMultipleV2 b
+        ],
+      testGroup "sft" $ [test m "SFT servers /calls/config/v2 - 200" $ testSFT b opts]
+    ]
 
 testCallsConfig :: Brig -> Http ()
 testCallsConfig b = do
@@ -74,6 +84,26 @@ testCallsConfigMultiple b turnUpdater = do
   -- Revert the config file back to the original
   let _expected = List1.singleton (toTurnURILegacy "127.0.0.1" 3478)
   modifyAndAssert b uid getTurnConfigurationV1 turnUpdater "turn:127.0.0.1:3478" _expected
+
+testSFT :: Brig -> Opts.Opts -> Http ()
+testSFT b opts = do
+  uid <- userId <$> randomUser b
+  cfg <- getTurnConfigurationV2 uid b
+  liftIO $
+    assertEqual
+      "when SFT discovery is not enabled, sft_servers shouldn't be returned"
+      Nothing
+      (cfg ^. rtcConfSftServers)
+  withSettingsOverrides (opts & Opts.sftL ?~ Opts.SFTOptions "integration-tests.zinfra.io" Nothing (Just 0.001)) $ do
+    cfg1 <- retryWhileN 10 (isNothing . view rtcConfSftServers) (getTurnConfigurationV2 uid b)
+    -- These values are controlled by https://github.com/zinfra/cailleach/tree/77ca2d23cf2959aa183dd945d0a0b13537a8950d/environments/dns-integration-tests
+    let Right server1 = mkHttpsUrl =<< first show (parseURI laxURIParserOptions "https://sft01.integration-tests.zinfra.io:443")
+    let Right server2 = mkHttpsUrl =<< first show (parseURI laxURIParserOptions "https://sft02.integration-tests.zinfra.io:8443")
+    liftIO $
+      assertEqual
+        "when SFT discovery is enabled, sft_servers should be returned"
+        (Set.fromList [sftServer server1, sftServer server2])
+        (Set.fromList $ maybe [] NonEmpty.toList $ cfg1 ^. rtcConfSftServers)
 
 modifyAndAssert ::
   Brig ->
@@ -150,10 +180,10 @@ assertConfiguration cfg turns =
 getTurnConfigurationV1 :: UserId -> Brig -> Http RTCConfiguration
 getTurnConfigurationV1 = getAndValidateTurnConfiguration ""
 
-getTurnConfigurationV2 :: UserId -> Brig -> Http RTCConfiguration
+getTurnConfigurationV2 :: HasCallStack => UserId -> Brig -> ((Monad m, MonadHttp m, MonadIO m, MonadCatch m) => m RTCConfiguration)
 getTurnConfigurationV2 = getAndValidateTurnConfiguration "v2"
 
-getTurnConfiguration :: ByteString -> UserId -> Brig -> Http (Response (Maybe LB.ByteString))
+getTurnConfiguration :: ByteString -> UserId -> Brig -> ((MonadHttp m, MonadIO m) => m (Response (Maybe LB.ByteString)))
 getTurnConfiguration suffix u b =
   get
     ( b
@@ -162,7 +192,7 @@ getTurnConfiguration suffix u b =
         . zConn "conn"
     )
 
-getAndValidateTurnConfiguration :: HasCallStack => ByteString -> UserId -> Brig -> Http RTCConfiguration
+getAndValidateTurnConfiguration :: HasCallStack => ByteString -> UserId -> Brig -> ((Monad m, MonadIO m, MonadHttp m, MonadThrow m, MonadCatch m) => m RTCConfiguration)
 getAndValidateTurnConfiguration suffix u b =
   responseJsonError =<< (getTurnConfiguration suffix u b <!! const 200 === statusCode)
 

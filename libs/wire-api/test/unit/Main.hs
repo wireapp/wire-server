@@ -22,7 +22,7 @@ where
 
 import Imports
 import Test.Tasty
-import qualified Test.Wire.API.Call.TURN as Call.TURN
+import qualified Test.Wire.API.Call.Config as Call.Config
 import qualified Test.Wire.API.Roundtrip.Aeson as Roundtrip.Aeson
 import qualified Test.Wire.API.Roundtrip.ByteString as Roundtrip.ByteString
 import qualified Test.Wire.API.Team.Member as Team.Member
@@ -34,7 +34,7 @@ main =
   defaultMain $
     testGroup
       "Tests"
-      [ Call.TURN.tests,
+      [ Call.Config.tests,
         Team.Member.tests,
         User.tests,
         User.RichInfo.tests,

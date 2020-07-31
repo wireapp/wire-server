@@ -20,12 +20,12 @@ module Main
   )
 where
 
+import qualified API.Calling as Calling
 import qualified API.IdMapping as IdMapping
 import qualified API.Metrics as Metrics
 import qualified API.Provider as Provider
 import qualified API.Search as Search
 import qualified API.Settings as Settings
-import qualified API.TURN as TURN
 import qualified API.Team as Team
 import qualified API.User as User
 import Bilge hiding (header)
@@ -97,7 +97,7 @@ runTests iConf bConf otherArgs = do
   providerApi <- Provider.tests (provider <$> iConf) mg db b c g
   searchApis <- Search.tests brigOpts mg g b
   teamApis <- Team.tests brigOpts mg n b c g awsEnv
-  turnApi <- TURN.tests mg b turnFile turnFileV2
+  turnApi <- Calling.tests mg b brigOpts turnFile turnFileV2
   idMappingApi <- pure $ IdMapping.tests brigOpts mg b
   metricsApi <- Metrics.tests mg b
   settingsApi <- Settings.tests brigOpts mg b g

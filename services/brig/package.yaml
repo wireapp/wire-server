@@ -40,6 +40,8 @@ library:
   - data-default >=0.5
   - data-timeout >=0.3
   - directory >=1.2
+  - dns
+  - dns-util
   - either >=4.3
   - enclosed-exceptions >=1.0
   - errors >=1.4
@@ -80,6 +82,7 @@ library:
   - network-uri >=2.6
   - optparse-applicative >=0.11
   - pem >=0.2
+  - polysemy
   - proto-lens >=0.1
   - prometheus-client
   - resourcet >=1.1
@@ -163,11 +166,19 @@ tests:
     - bloodhound
     - brig
     - brig-types
+    - dns
+    - dns-util
+    - polysemy
     - imports
+    - retry
     - tasty
     - tasty-hunit
+    - tinylog
     - types-common
+    - unliftio
+    - uri-bytestring
     - uuid
+    - wire-api
 executables:
   brig-schema:
     main: Main.hs

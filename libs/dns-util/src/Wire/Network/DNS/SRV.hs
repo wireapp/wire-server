@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- Parts of this code, namely functions srvLookup'' and orderSrvResult,
+-- Parts of this code, namely functions interpretResponse and orderSrvResult,
 -- which were taken from http://hackage.haskell.org/package/pontarius-xmpp
 -- are also licensed under the three-clause BSD license:
 --
@@ -55,12 +55,12 @@
 -- LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
 -- OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-module Network.Federation.Util.Internal where
+module Wire.Network.DNS.SRV where
 
 import Control.Category ((>>>))
-import Data.Text.Encoding (encodeUtf8)
+import Data.List.NonEmpty (NonEmpty (..))
 import Imports
-import Network.DNS (DNSError, Domain, ResolvSeed, Resolver, lookupSRV, withResolver)
+import Network.DNS (DNSError, Domain)
 import System.Random (randomRIO)
 
 data SrvEntry = SrvEntry
@@ -78,37 +78,21 @@ data SrvTarget = SrvTarget
   }
   deriving (Eq, Show)
 
+data SrvResponse
+  = SrvNotAvailable
+  | SrvAvailable (NonEmpty SrvEntry)
+  | SrvResponseError DNSError
+  deriving (Eq, Show)
+
+interpretResponse :: Either DNSError [(Word16, Word16, Word16, Domain)] -> SrvResponse
+interpretResponse = \case
+  Left err -> SrvResponseError err
+  Right [] -> SrvNotAvailable
+  Right [(_, _, _, ".")] -> SrvNotAvailable -- According to RFC2782
+  Right (r : rs) -> SrvAvailable $ fmap toSrvEntry (r :| rs)
+
 toSrvEntry :: (Word16, Word16, Word16, Domain) -> SrvEntry
 toSrvEntry (prio, weight, port, domain) = SrvEntry prio weight (SrvTarget domain port)
-
--- Given a prefix (e.g. _wire-server) and a domain (e.g. wire.com),
--- provides a list of A(AAA) names and port numbers upon a successful
--- DNS-SRV request, or `Nothing' if the DNS-SRV request failed.
--- Modified version inspired from http://hackage.haskell.org/package/pontarius-xmpp
-srvLookup' :: Text -> Text -> ResolvSeed -> IO (Maybe [SrvTarget])
-srvLookup' = srvLookup'' lookupSRV
-
--- internal version for testing
---
--- FUTUREWORK: return more precise errors than 'Nothing'?
-srvLookup'' ::
-  (Resolver -> Domain -> IO (Either DNSError [(Word16, Word16, Word16, Domain)])) ->
-  Text ->
-  Text ->
-  ResolvSeed ->
-  IO (Maybe [SrvTarget])
-srvLookup'' lookupF prefix realm resolvSeed = withResolver resolvSeed $ \resolver -> do
-  srvResult <- lookupF resolver $ encodeUtf8 $ prefix <> "._tcp." <> realm <> "."
-  case srvResult of
-    -- The service is not available at this domain.
-    Left _ -> return Nothing
-    Right [] -> return Nothing
-    Right [(_, _, _, ".")] -> return Nothing -- "not available" as in RFC2782
-    Right srvResult' -> do
-      let srvEntries = toSrvEntry <$> srvResult'
-      -- Get [(Domain, PortNumber)] of SRV request, if any.
-      -- Sorts the records based on the priority value.
-      Just . fmap srvTarget <$> orderSrvResult srvEntries
 
 -- FUTUREWORK: maybe improve sorting algorithm here? (with respect to performance and code style)
 --
@@ -121,7 +105,7 @@ srvLookup'' lookupF prefix realm resolvSeed = withResolver resolvSeed $ \resolve
 orderSrvResult :: [SrvEntry] -> IO [SrvEntry]
 orderSrvResult =
   -- Order the result set by priority.
-  sortBy (comparing srvPriority)
+  sortOn srvPriority
     -- Group elements in sublists based on their priority.
     -- The result type is `[[(Word16, Word16, Word16, Domain)]]' (nested list).
     >>> groupBy ((==) `on` srvPriority)
@@ -148,7 +132,7 @@ orderSrvResult =
               (b, (c : e)) -> (b, c, e)
               _ -> error "orderSrvResult: no record with running sum greater than random number"
       -- Remove the running total number from the remaining elements.
-      let remainingSrvs = map (\(srv, _) -> srv) (concat [beginning, end])
+      let remainingSrvs = map fst (concat [beginning, end])
       -- Repeat the ordering procedure on the remaining elements.
       rest <- orderSublist remainingSrvs
       return $ firstSrv : rest

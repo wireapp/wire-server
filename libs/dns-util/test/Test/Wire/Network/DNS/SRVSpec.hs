@@ -15,16 +15,38 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.DNSSpec where
+module Test.Wire.Network.DNS.SRVSpec where
 
+import Data.List.NonEmpty (NonEmpty (..))
 import Imports
-import Network.DNS
-import Network.Federation.Util.Internal
+import qualified Network.DNS as DNS
 import Test.Hspec
+import Wire.Network.DNS.SRV
 
 spec :: Spec
 spec = do
-  describe "order" $ do
+  describe "interpretResponse" $ do
+    it "should interpret error correctly" $
+      interpretResponse (Left DNS.UnknownDNSError) `shouldBe` SrvResponseError DNS.UnknownDNSError
+
+    it "should interpret empty response as SrvNotAvailable" $
+      interpretResponse (Right []) `shouldBe` SrvNotAvailable
+
+    it "should interpret explicitly not available response as SrvNotAvailable" $
+      interpretResponse (Right [(0, 0, 0, ".")]) `shouldBe` SrvNotAvailable
+
+    it "should interpret an available service correctly" $ do
+      let input =
+            [ (0, 1, 443, "service01.example.com."),
+              (10, 20, 8443, "service02.example.com.")
+            ]
+      let expectedOutput =
+            SrvAvailable
+              ( SrvEntry 0 1 (SrvTarget "service01.example.com." 443)
+                  :| [SrvEntry 10 20 (SrvTarget "service02.example.com." 8443)]
+              )
+      interpretResponse (Right input) `shouldBe` expectedOutput
+  describe "orderSrvResult" $ do
     it "orders records according to ascending priority" $ do
       actual <-
         orderSrvResult . map toSrvEntry $
@@ -59,29 +81,3 @@ spec = do
       length x `shouldSatisfy` (< 49)
       length y `shouldSatisfy` (> 0)
       length y `shouldSatisfy` (< 49)
-  describe "srvLookup" $ do
-    it "returns the expected result for wire.com" $ do
-      rs <- makeResolvSeed defaultResolvConf
-      wire <- srvLookup'' mockLookupSRV "_wire-server" "wire.com" rs
-      wire `shouldBe` Just [SrvTarget "wire.com" 443]
-    it "filters out single '.' results" $ do
-      rs <- makeResolvSeed defaultResolvConf
-      exampleDotCom <- srvLookup'' mockLookupSRV "_wire-server" "example.com" rs
-      exampleDotCom `shouldBe` Nothing
-    it "can return multiple results" $ do
-      rs <- makeResolvSeed defaultResolvConf
-      zinfra <- srvLookup'' mockLookupSRV "_wire-server" "zinfra.io" rs
-      (length <$> zinfra) `shouldBe` Just 2
-    it "returns Nothing if there is no DNS record" $ do
-      rs <- makeResolvSeed defaultResolvConf
-      noRecord <- srvLookup'' mockLookupSRV "_wire-server" "no-record-here" rs
-      noRecord `shouldBe` Nothing
-
--- mock function matching Network.DNS's 'lookupSRV' types
-mockLookupSRV :: Resolver -> Domain -> IO (Either DNSError [(Word16, Word16, Word16, Domain)])
-mockLookupSRV _ domain = do
-  case domain of
-    "_wire-server._tcp.wire.com." -> return $ Right [(0, 0, 443, "wire.com")]
-    "_wire-server._tcp.zinfra.io." -> return $ Right [(0, 0, 443, "server1.zinfra.io"), (0, 0, 443, "server2.zinfra.io")]
-    "_wire-server._tcp.example.com." -> return $ Right [(0, 0, 443, ".")]
-    _ -> return $ Right []

@@ -30,13 +30,18 @@ import qualified Control.Lens as Lens
 import Data.Aeson (withText)
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (typeMismatch)
+import qualified Data.Char as Char
 import Data.Domain (Domain)
 import Data.Id
+import Data.Misc ((<$$>))
 import Data.Scientific (toBoundedInteger)
-import Data.Time.Clock (NominalDiffTime)
-import Data.Yaml (FromJSON (..), ToJSON (..))
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
+import Data.Time.Clock (DiffTime, NominalDiffTime, secondsToDiffTime)
+import Data.Yaml ((.:), (.:?), FromJSON (..), ToJSON (..))
 import qualified Data.Yaml as Y
 import Imports
+import qualified Network.DNS as DNS
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 
@@ -379,8 +384,8 @@ data Opts = Opts
     logFormat :: !(Maybe (Last LogFormat)),
     -- | TURN server settings
     turn :: !TurnOpts,
-    -- Runtime settings
-
+    -- | SFT Settings
+    sft :: !(Maybe SFTOptions),
     -- | Runtime settings
     optSettings :: !Settings
   }
@@ -519,6 +524,26 @@ data CustomerExtensions = CustomerExtensions
 newtype DomainsBlockedForRegistration = DomainsBlockedForRegistration [Domain]
   deriving newtype (Show, FromJSON, Generic)
 
+data SFTOptions = SFTOptions
+  { sftBaseDomain :: !DNS.Domain,
+    sftSRVServiceName :: !(Maybe ByteString), -- defaults to defSftServiceName if unset
+    sftDiscoveryIntervalSeconds :: !(Maybe DiffTime) -- defaults to defSftDiscoveryIntervalSeconds
+  }
+  deriving (Show, Generic)
+
+instance FromJSON SFTOptions where
+  parseJSON = Y.withObject "SFTOptions" $ \o ->
+    SFTOptions
+      <$> (asciiOnly =<< o .: "sftBaseDomain")
+      <*> (mapM asciiOnly =<< o .:? "sftSRVServiceName")
+      <*> (secondsToDiffTime <$$> o .:? "sftDiscoveryIntervalSeconds")
+    where
+      asciiOnly :: Text -> Y.Parser ByteString
+      asciiOnly t =
+        if Text.all Char.isAscii t
+          then pure $ Text.encodeUtf8 t
+          else fail $ "Expected ascii string only, found: " <> Text.unpack t
+
 defMaxKeyLen :: Int64
 defMaxKeyLen = 1024
 
@@ -533,6 +558,12 @@ defSqsThrottleMillis = 500
 
 defUserMaxPermClients :: Int
 defUserMaxPermClients = 7
+
+defSftServiceName :: ByteString
+defSftServiceName = "_sft"
+
+defSftDiscoveryIntervalSeconds :: DiffTime
+defSftDiscoveryIntervalSeconds = secondsToDiffTime 10
 
 instance FromJSON Timeout where
   parseJSON (Y.Number n) =
@@ -551,7 +582,8 @@ instance FromJSON Opts
 -- TODO: Does it make sense to generate lens'es for all?
 Lens.makeLensesFor
   [ ("optSettings", "optionSettings"),
-    ("elasticsearch", "elasticsearchL")
+    ("elasticsearch", "elasticsearchL"),
+    ("sft", "sftL")
   ]
   ''Opts
 
@@ -572,3 +604,5 @@ Lens.makeLensesFor
     ("additionalWriteIndex", "additionalWriteIndexL")
   ]
   ''ElasticSearchOpts
+
+Lens.makeLensesFor [("sftBaseDomain", "sftBaseDomainL")] ''SFTOptions
