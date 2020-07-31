@@ -1,10 +1,10 @@
-cabal-version: 2.0
+cabal-version: 1.12
 
 -- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 49345fd7c41cab0441ba95bd4fdd01b1f64b6053e348ec991695254be96ed5d4
+-- hash: 0efba75abb2e931761d20c36d7c690eb2cf9711711c4b002dfd2cd5ff7bd60ee
 
 name:           brig
 version:        1.35.0
@@ -53,6 +53,10 @@ library
       Brig.Data.User
       Brig.Data.UserKey
       Brig.Email
+      Brig.Index.Eval
+      Brig.Index.Migrations
+      Brig.Index.Migrations.Types
+      Brig.Index.Options
       Brig.InternalEvent.Process
       Brig.InternalEvent.Types
       Brig.IO.Intra
@@ -227,40 +231,6 @@ library
     , zauth >=0.10.3
   default-language: Haskell2010
 
-library brig-index-lib
-  exposed-modules:
-      Brig.Index.Eval
-      Brig.Index.Migrations
-      Brig.Index.Migrations.Types
-      Brig.Index.Options
-      Main
-  other-modules:
-      Paths_brig
-  hs-source-dirs:
-      index/src
-  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
-  build-depends:
-      aeson
-    , base
-    , bloodhound
-    , brig
-    , cassandra-util >=0.12
-    , exceptions
-    , http-client
-    , imports
-    , lens
-    , metrics-core
-    , mtl
-    , optparse-applicative >=0.13
-    , retry
-    , text
-    , time
-    , tinylog
-    , types-common
-    , uri-bytestring
-  default-language: Haskell2010
-
 executable brig
   main-is: src/Main.hs
   other-modules:
@@ -285,7 +255,7 @@ executable brig-index
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N
   build-depends:
       base
-    , brig-index-lib
+    , brig
     , imports
     , optparse-applicative
     , tinylog
@@ -331,7 +301,6 @@ executable brig-integration
     , bilge
     , bloodhound
     , brig
-    , brig-index-lib
     , brig-types
     , bytestring >=0.9
     , bytestring-conversion
