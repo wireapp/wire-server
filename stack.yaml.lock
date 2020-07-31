@@ -84,17 +84,6 @@ packages:
     git: https://github.com/wireapp/hspec-wai
     commit: 0a5142cd3ba48116ff059c041348b817fb7bdb25
 - completed:
-    name: bloodhound
-    version: 0.17.0.0
-    git: https://github.com/wireapp/bloodhound
-    pantry-tree:
-      size: 4343
-      sha256: f3d35894f570e67a68303e71134a722909151f4de232093375a63b7935a4b761
-    commit: 7d3ccf8039912829b26b8e47cc4eaabc98cb571a
-  original:
-    git: https://github.com/wireapp/bloodhound
-    commit: 7d3ccf8039912829b26b8e47cc4eaabc98cb571a
-- completed:
     hackage: deriving-aeson-0.2.5@sha256:a1efa4ab7ff94f73e6d2733a9d4414cb4c3526761295722cff28027b5b3da1a4,1277
     pantry-tree:
       size: 441
@@ -527,13 +516,6 @@ packages:
   original:
     hackage: cql-io-1.1.1@sha256:897ef0811b227c8b1a269b29b9c1ebfb09c46f00d66834e2e8c6f19ea7f90f7d,4611
 - completed:
-    hackage: hex-0.1.2@sha256:1ea06834d1b5616edda6601b2945c5242b44cff9be84ff3a27595a136dcb154e,616
-    pantry-tree:
-      size: 197
-      sha256: 4d16492d2bf61d231c94e10a55d5fed2f33521e09ae9cf0c511700992b919191
-  original:
-    hackage: hex-0.1.2@sha256:1ea06834d1b5616edda6601b2945c5242b44cff9be84ff3a27595a136dcb154e,616
-- completed:
     hackage: primitive-extras-0.8@sha256:fca0310150496867f5b9421fe1541ecda87fae17eae44885a29f9c52dd00c8ff,2963
     pantry-tree:
       size: 1105
@@ -575,6 +557,17 @@ packages:
       sha256: 6871bd9281acf589296d0998a3d62892b036040ab10e74e8a0f356f68c194f4f
   original:
     hackage: markov-chain-usage-model-0.0.0@sha256:1afa95faeb9213c4d960a669190078b41b89169462b8edd910472980671ba8c0,2112
+- completed:
+    name: hex
+    version: 0.1.1
+    git: https://github.com/akshaymankar/haskell-hex
+    pantry-tree:
+      size: 197
+      sha256: 5776a07f09545dc94c374760e63d80153833eff7a2bd16065377f88ad3cbdf96
+    commit: 85795a95dde91583f31a028fe399b35ab9e4b5d0
+  original:
+    git: https://github.com/akshaymankar/haskell-hex
+    commit: 85795a95dde91583f31a028fe399b35ab9e4b5d0
 snapshots:
 - completed:
     size: 531932

@@ -88,7 +88,7 @@ extra-deps:
   commit: 0a5142cd3ba48116ff059c041348b817fb7bdb25
 
 - git: https://github.com/wireapp/bloodhound
-  commit: 7d3ccf8039912829b26b8e47cc4eaabc98cb571a # (2020-05-25) branch: feature/reindex
+  commit: 8c2b6f77bf6cd2506ea0ad3c1cd1251c9f42545b # (2020-05-25) branch: wire-fork-ghc-8.8
 
 # For bloodhound
 - deriving-aeson-0.2.5@sha256:a1efa4ab7ff94f73e6d2733a9d4414cb4c3526761295722cff28027b5b3da1a4,1277
@@ -185,10 +185,13 @@ extra-deps:
 - HsOpenSSL-x509-system-0.1.0.3@sha256:f4958ee0eec555c5c213662eff6764bddefe5665e2afcfd32733ce3801a9b687,1774
 - cql-4.0.2@sha256:a0006a5ac13d6f86d5eff28c11be80928246309f217ea6d5f5c8a76a5d16b48b,3157
 - cql-io-1.1.1@sha256:897ef0811b227c8b1a269b29b9c1ebfb09c46f00d66834e2e8c6f19ea7f90f7d,4611
-- hex-0.1.2@sha256:1ea06834d1b5616edda6601b2945c5242b44cff9be84ff3a27595a136dcb154e,616
 - primitive-extras-0.8@sha256:fca0310150496867f5b9421fe1541ecda87fae17eae44885a29f9c52dd00c8ff,2963
 - servant-multipart-0.11.6@sha256:1863862e507dd6f672b4c9d2c6d87d4faec19686ced3d828d712ada07536cddb,2655
 - text-format-0.3.2@sha256:2a3fc17cf87120fcfdbca62a0da59759755549285841cdc1483081c35fb3d115,1814
 - wai-predicates-0.10.0@sha256:6b096fd8c4487e06e910911ed35447756aa217426c39db44a4bdc55e0131b9aa,2849
 - quickcheck-state-machine-0.7.0@sha256:4fc4467380e35b88aab72c278856aacebbf95688059d8ad70eb82fe048df476b,4958
 - markov-chain-usage-model-0.0.0@sha256:1afa95faeb9213c4d960a669190078b41b89169462b8edd910472980671ba8c0,2112
+
+# Forked due to ghc-8.8
+- git: https://github.com/akshaymankar/haskell-hex
+  commit: 85795a95dde91583f31a028fe399b35ab9e4b5d0
