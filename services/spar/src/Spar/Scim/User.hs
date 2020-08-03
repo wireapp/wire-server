@@ -66,7 +66,7 @@ import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Brig
 import Spar.Scim.Auth ()
 import qualified Spar.Scim.Types as ST
-import Spar.Types (IdP, ScimTokenInfo (..), derivedOpts, derivedOptsScimBaseURI, richInfoLimit, wiTeam)
+import Spar.Types (IdP, ScimTokenInfo (..), derivedOpts, derivedOptsScimBaseURI, richInfoLimit)
 import qualified System.Logger.Class as Log
 import qualified URI.ByteString as URIBS
 import qualified Web.Scim.Class.User as Scim
@@ -298,15 +298,7 @@ createValidScimUser ::
   ScimTokenInfo ->
   ST.ValidScimUser ->
   m (Scim.StoredUser ST.SparTag)
-createValidScimUser tokinfo vsu@(ST.ValidScimUser uref handl mbName richInfo active) = do
-  idpConfig <- tokenInfoToIdP tokinfo
-  -- sanity check: do tenant of the URef and the Issuer of the IdP match?  (this is mostly
-  -- here to make sure a refactoring we did in the past is sound: we removed a lookup by
-  -- tenant and had the idp config already in context from an earlier lookup.)
-  () <-
-    let inidp = idpConfig ^. SAML.idpMetadata . SAML.edIssuer
-        inuref = uref ^. SAML.uidTenant
-     in assert (inidp == inuref) $ pure ()
+createValidScimUser ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser uref handl mbName richInfo active) = do
   -- Generate a UserId will be used both for scim user in spar and for brig.
   buid <- Id <$> liftIO UUID.nextRandom
   -- ensure uniqueness constraints of all affected identifiers.
@@ -319,8 +311,7 @@ createValidScimUser tokinfo vsu@(ST.ValidScimUser uref handl mbName richInfo act
   -- FUTUREWORK(arianvp): Get rid of manual lifting. Needs to be SCIM instances for ExceptT
   -- This is the pain and the price you pay for the horribleness called MTL
   storedUser <- lift . toScimStoredUser buid $ synthesizeScimUser vsu
-  let teamid = idpConfig ^. SAML.idpExtraInfo . wiTeam
-  buid' <- lift $ Brig.createBrigUser uref buid teamid mbName ManagedByScim
+  buid' <- lift $ Brig.createBrigUser uref buid stiTeam mbName ManagedByScim
   assert (buid == buid') $ pure ()
   -- If we crash now, we have an active user that cannot login. And can not
   -- be bound this will be a zombie user that needs to be manually cleaned
