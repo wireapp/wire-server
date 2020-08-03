@@ -348,7 +348,7 @@ updateValidScimUser tokinfo uid newScimUser = do
     Scim.getUser tokinfo uid
   oldValidScimUser :: ST.ValidScimUser <-
     validateScimUser tokinfo . Scim.value . Scim.thing $ oldScimStoredUser
-  (`assertUserRefNotUsedElsewhere` uid) `mapM_` (newScimUser ^. ST.vsuUserRef)
+  (`assertUserRefNotUsedElsewhere` uid) `traverse_` (newScimUser ^. ST.vsuUserRef)
   assertHandleNotUsedElsewhere (newScimUser ^. ST.vsuHandle) uid
   if oldValidScimUser == newScimUser
     then pure oldScimStoredUser
