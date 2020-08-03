@@ -175,28 +175,36 @@ specSuspend = do
 -- | Tests for @POST /Users@.
 specCreateUser :: SpecWith TestEnv
 specCreateUser = describe "POST /Users" $ do
-  it "creates a user in an existing team" $ testCreateUser
-  it "adds a Wire scheme to the user record" $ testSchemaIsAdded
-  it "requires externalId to be present" $ testExternalIdIsRequired
-  it "rejects invalid handle" $ testCreateRejectsInvalidHandle
-  it "rejects occupied handle" $ testCreateRejectsTakenHandle
-  it "rejects occupied externalId" $ testCreateRejectsTakenExternalId
-  it "allows an occupied externalId when the IdP is different" $
-    testCreateSameExternalIds
-  it "provides a correct location in the 'meta' field" $ testLocation
-  it "handles rich info correctly (this also tests put, get)" $ testRichInfo
-  it "gives created user a valid 'SAML.UserRef' for SSO" $ testScimCreateVsUserRef
-  it "attributes of {brig, scim, saml} user are mapped as documented" $ pending
-  it "writes all the stuff to all the places" $
-    pendingWith "factor this out of the PUT tests we already wrote."
+  context "team has no SAML IdP" $ do
+    it "creates a user in an existing team" $ testCreateUserNIdPs 0
+  context "team has one SAML IdP" $ do
+    it "creates a user in an existing team" $ testCreateUserNIdPs 1
+    it "adds a Wire scheme to the user record" $ testSchemaIsAdded
+    it "requires externalId to be present" $ testExternalIdIsRequired
+    it "rejects invalid handle" $ testCreateRejectsInvalidHandle
+    it "rejects occupied handle" $ testCreateRejectsTakenHandle
+    it "rejects occupied externalId" $ testCreateRejectsTakenExternalId
+    it "allows an occupied externalId when the IdP is different" $
+      testCreateSameExternalIds
+    it "provides a correct location in the 'meta' field" $ testLocation
+    it "handles rich info correctly (this also tests put, get)" $ testRichInfo
+    it "gives created user a valid 'SAML.UserRef' for SSO" $ testScimCreateVsUserRef
+    it "attributes of {brig, scim, saml} user are mapped as documented" $ pending
+    it "writes all the stuff to all the places" $
+      pendingWith "factor this out of the PUT tests we already wrote."
 
--- | Test that a user can be created via SCIM and that it also appears on the Brig side.
-testCreateUser :: TestSpar ()
-testCreateUser = do
+testCreateUserNIdPs :: Int -> TestSpar ()
+testCreateUserNIdPs numIdPs = do
   env <- ask
   -- Create a user via SCIM
   user <- randomScimUser
-  (tok, _) <- registerIdPAndScimToken
+  tok <- case numIdPs of
+    0 -> do
+      (_, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+      registerScimToken tid Nothing
+    1 -> do
+      fst <$> registerIdPAndScimToken
+    n -> error $ "unsupported numIdPs: " <> show n
   scimStoredUser <- createUser tok user
   let userid = scimUserId scimStoredUser
   -- Check that this user is present in Brig and that Brig's view of the user
