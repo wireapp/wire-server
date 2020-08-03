@@ -32,6 +32,7 @@ module Spar.Error
     renderSparErrorWithLogging,
     -- FUTUREWORK: we really shouldn't export this, but that requires that we can use our
     -- custom servant monad in the 'MakeCustomError' instances.
+    servantToWaiError,
     sparToServerError,
     renderSparError,
     waiToServant,
