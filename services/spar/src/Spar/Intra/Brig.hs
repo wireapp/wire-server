@@ -128,16 +128,14 @@ class MonadError SparError m => MonadSparToBrig m where
 instance MonadSparToBrig m => MonadSparToBrig (ReaderT r m) where
   call = lift . call
 
--- | Create a user on brig.  User name is derived from 'SAML.UserRef'.
+-- | Create a user on brig.
 createBrigUser ::
   (HasCallStack, MonadSparToBrig m) =>
   -- | SSO identity
   Maybe SAML.UserRef ->
   UserId ->
   TeamId ->
-  -- | User name (if 'Nothing', the subject ID will be used)
   Name ->
-  -- | Who should have control over the user
   ManagedBy ->
   m UserId
 createBrigUser mUref (Id buid) teamid uname managedBy = do
