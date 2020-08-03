@@ -548,7 +548,7 @@ class IsUser u where
 instance IsUser ValidScimUser where
   maybeUserId = Nothing
   maybeHandle = Just (Just . view vsuHandle)
-  maybeName = Just (view vsuName)
+  maybeName = Just (Just . view vsuName)
   maybeTenant = Just (Just . view (vsuUserRef . SAML.uidTenant))
   maybeSubject = Just (Just . view (vsuUserRef . SAML.uidSubject))
   maybeSubjectRaw = Just (SAML.shortShowNameID . view (vsuUserRef . SAML.uidSubject))

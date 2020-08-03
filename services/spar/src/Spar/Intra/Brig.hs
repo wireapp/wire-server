@@ -22,6 +22,7 @@ module Spar.Intra.Brig
   ( toUserSSOId,
     fromUserSSOId,
     toExternalId,
+    mkUserName,
     getBrigUser,
     getBrigUserTeam,
     getBrigUsers,
@@ -65,7 +66,6 @@ import Data.Handle (Handle (Handle, fromHandle))
 import Data.Id (Id (Id), TeamId, UserId)
 import Data.Ix
 import Data.Misc (PlainTextPassword)
-import Data.Range
 import Data.String.Conversions
 import Imports
 import Network.HTTP.Types.Method
@@ -74,6 +74,7 @@ import qualified Servant.Server as Servant
 import Spar.Error
 import Spar.Intra.Galley as Galley (MonadSparToGalley, assertIsTeamOwner, isEmailValidationEnabledTeam)
 import Web.Cookie
+import Wire.API.User
 import Wire.API.User.RichInfo as RichInfo
 
 ----------------------------------------------------------------------
@@ -95,6 +96,12 @@ toExternalId ssoid = do
   uref <- either (throwSpar . SparCouldNotParseBrigResponse . cs) pure $ fromUserSSOId ssoid
   let subj = uref ^. SAML.uidSubject
   pure $ SAML.nameIDToST subj
+
+-- | Take a maybe text, a saml user ref, and construct a 'Name' from it.  If the text isn't
+-- present, use the saml subject (usually an email address).
+mkUserName :: Maybe Text -> SAML.UserRef -> Name
+mkUserName (Just n) _ = mkName n
+mkUserName Nothing uref = mkName (SAML.unsafeShowNameID $ uref ^. SAML.uidSubject)
 
 parseResponse :: (FromJSON a, MonadError SparError m) => Response (Maybe LBS) -> m a
 parseResponse resp = do
@@ -128,23 +135,11 @@ createBrigUser ::
   UserId ->
   TeamId ->
   -- | User name (if 'Nothing', the subject ID will be used)
-  Maybe Name ->
+  Name ->
   -- | Who should have control over the user
   ManagedBy ->
   m UserId
-createBrigUser suid (Id buid) teamid mbName managedBy = do
-  uname :: Name <- case mbName of
-    Just n -> pure n
-    Nothing -> do
-      -- 1. use 'SAML.unsafeShowNameID' to get a 'Name'.  rationale: it does not need to be
-      --    unique.
-      let subj = suid ^. SAML.uidSubject
-          subjtxt = SAML.unsafeShowNameID subj
-          muname = checked @ST @1 @128 subjtxt
-          err = SparBadUserName $ "must have >= 1, <= 128 chars: " <> cs subjtxt
-      case muname of
-        Just uname -> pure . Name . fromRange $ uname
-        Nothing -> throwSpar err
+createBrigUser suid (Id buid) teamid uname managedBy = do
   let newUser :: NewUser
       newUser =
         NewUser

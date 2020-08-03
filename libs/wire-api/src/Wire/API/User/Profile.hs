@@ -21,6 +21,8 @@
 
 module Wire.API.User.Profile
   ( Name (..),
+    mkName,
+    mkName',
     ColourId (..),
     defaultAccentId,
 
@@ -80,6 +82,15 @@ newtype Name = Name
   deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (ToJSON, FromByteString, ToByteString)
   deriving (Arbitrary) via (Ranged 1 128 Text)
+
+-- | Truncate input (or make it @" "@ if empty), and parse it into a 'Name'.
+mkName :: Text -> Name
+mkName "" = Name " "
+mkName txt = Name $ Text.take 128 txt
+
+-- | Partial version of 'mkName' that does not truncate the input, but throws 'Left'.
+mkName' :: Text -> Either String Name
+mkName' txt = Name . fromRange <$> checkedEitherMsg @_ @1 @128 "Name" txt
 
 modelUserDisplayName :: Doc.Model
 modelUserDisplayName = Doc.defineModel "UserDisplayName" $ do
