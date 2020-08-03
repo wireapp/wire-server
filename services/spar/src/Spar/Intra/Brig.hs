@@ -70,7 +70,6 @@ import Data.String.Conversions
 import Imports
 import Network.HTTP.Types.Method
 import qualified SAML2.WebSSO as SAML
-import qualified Servant.Server as Servant
 import Spar.Error
 import Spar.Intra.Galley as Galley (MonadSparToGalley, assertIsTeamOwner, isEmailValidationEnabledTeam)
 import Web.Cookie
@@ -165,14 +164,9 @@ createBrigUser mUref (Id buid) teamid uname managedBy = do
       method POST
         . path "/i/users"
         . json newUser
-  let sCode = statusCode resp
-  if
-      | sCode < 300 ->
-        userId . selfUser <$> parseResponse @SelfProfile resp
-      | inRange (400, 499) sCode ->
-        throwSpar . SparBrigErrorWith (responseStatus resp) $ "create user failed"
-      | otherwise ->
-        throwSpar . SparBrigError . cs $ "create user failed with status " <> show sCode
+  if statusCode resp `elem` [200, 201]
+    then userId . selfUser <$> parseResponse @SelfProfile resp
+    else rethrow resp
 
 updateEmail :: (HasCallStack, MonadSparToBrig m) => UserId -> Email -> m ()
 updateEmail buid email = do
@@ -531,13 +525,16 @@ giveDefaultHandle usr = case userHandle usr of
 
 -- | If a call to brig fails, we often just want to respond with whatever brig said.
 --
+-- TODO: https://github.com/zinfra/backend-issues/issues/1613
+--
 -- FUTUREWORK: with servant, there will be a way for the type checker to confirm that we
 -- handle all exceptions that brig can legally throw!
 rethrow :: ResponseLBS -> (HasCallStack, MonadSparToBrig m) => m a
-rethrow resp = throwError $ SAML.CustomServant (withDefault mServantErr)
+rethrow resp = throwError err
   where
-    withDefault :: Maybe Servant.ServerError -> Servant.ServerError
-    withDefault = fromMaybe (Servant.ServerError 500 "unexpected brig response" mempty mempty)
-    --
-    mServantErr :: Maybe Servant.ServerError
-    mServantErr = waiToServant <$> responseJsonMaybe resp
+    err :: SparError
+    err =
+      responseJsonMaybe resp
+        & maybe
+          (SAML.CustomError . SparBrigError . cs . fromMaybe "" . responseBody $ resp)
+          (SAML.CustomServant . waiToServant)
