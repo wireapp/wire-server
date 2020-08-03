@@ -320,7 +320,7 @@ createValidScimUser ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser uref handl mbN
   lift . wrapMonadClient $ Data.writeScimUserTimes storedUser
   for_ uref $ (lift . wrapMonadClient . (`Data.insertSAMLUser` buid))
 
-  (lift . validateEmailIfExists buid) `mapM_` uref
+  for_ uref (lift . validateEmailIfExists buid)
 
   -- TODO(fisx): suspension has yet another race condition: if we don't reach the following
   -- line, the user will be active.
