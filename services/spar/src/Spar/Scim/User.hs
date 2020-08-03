@@ -359,15 +359,6 @@ updateValidScimUser ::
   ST.ValidScimUser ->
   m (Scim.StoredUser ST.SparTag)
 updateValidScimUser tokinfo uid newScimUser = do
-  -- TODO: currently the types in @hscim@ are constructed in such a way that
-  -- 'Scim.User.User' doesn't contain an ID, only 'Scim.StoredUser'
-  -- does. @fisx believes that this situation could be improved (see
-  -- <https://github.com/wireapp/wire-server/pull/559#discussion_r247392882>).
-  --
-  -- If 'Scim.User.User' and 'ValidScimUser' did contain the user ID, we wouldn't need
-  -- 'uidText' in this function -- or we could at least check in hscim that the ID in the
-  -- user object matches the ID in the path.
-
   -- TODO: how do we get this safe w.r.t. race conditions / crashes?
 
   -- construct old and new user values with metadata.
