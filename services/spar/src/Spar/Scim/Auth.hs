@@ -104,31 +104,32 @@ createScimToken zusr CreateScimToken {..} = do
   unless (tokenNumber < maxTokens) $
     E.throwSpar E.SparProvisioningTokenLimitReached
   idps <- wrapMonadClient $ Data.getIdPConfigsByTeam teamid
+
+  -- TODO: sign tokens. Also, we might want to use zauth, if we can / if
+  -- it makes sense semantically
+
+  let caseOneOrNoIdP :: Maybe SAML.IdPId -> Spar CreateScimTokenResponse
+      caseOneOrNoIdP midpid = do
+        token <- ScimToken . cs . ES.encode <$> liftIO (randBytes 32)
+        tokenid <- randomId
+        now <- liftIO getCurrentTime
+        let info =
+              ScimTokenInfo
+                { stiId = tokenid,
+                  stiTeam = teamid,
+                  stiCreatedAt = now,
+                  stiIdP = midpid,
+                  stiDescr = descr
+                }
+        wrapMonadClient $ Data.insertScimToken token info
+        pure $ CreateScimTokenResponse token info
+
   case idps of
-    [idp] -> do
-      -- TODO: sign tokens. Also, we might want to use zauth, if we can / if
-      -- it makes sense semantically
-      token <- ScimToken . cs . ES.encode <$> liftIO (randBytes 32)
-      tokenid <- randomId
-      now <- liftIO getCurrentTime
-      let idpid = idp ^. SAML.idpId
-          info =
-            ScimTokenInfo
-              { stiId = tokenid,
-                stiTeam = teamid,
-                stiCreatedAt = now,
-                stiIdP = Just idpid,
-                stiDescr = descr
-              }
-      wrapMonadClient $ Data.insertScimToken token info
-      pure $ CreateScimTokenResponse token info
-    -- NB: if the two following cases do not result in errors, 'validateScimUser' needs to
-    -- be changed.  currently, it relies on the fact that there is always an IdP.
-    [] ->
-      E.throwSpar $
-        E.SparProvisioningNoSingleIdP
-          "SCIM tokens can only be created for a team with an IdP, \
-          \but none are found"
+    [idp] -> caseOneOrNoIdP . Just $ idp ^. SAML.idpId
+    [] -> caseOneOrNoIdP Nothing
+    -- NB: if the following case does not result in errors, 'validateScimUser' needs to
+    -- be changed.  currently, it relies on the fact that there is never more than one IdP.
+    -- https://github.com/zinfra/backend-issues/issues/1377
     _ ->
       E.throwSpar $
         E.SparProvisioningNoSingleIdP
