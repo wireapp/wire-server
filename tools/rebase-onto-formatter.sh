@@ -8,13 +8,13 @@ BASE_COMMIT=${1:-}
 TARGET_COMMIT=${2:-}
 FORMATTING_COMMAND='make formatf'
 USAGE="
-USAGE: $0 TARGET_COMMIT BASE_COMMIT
+USAGE: $0 BASE_COMMIT TARGET_COMMIT
 
-    TARGET_COMMIT:
-        The commit introducing the formatting that you want to rebase onto.
     BASE_COMMIT:
         A commit very similar to TARGET_COMMIT, just that the automated formatting changes are not applied yet.
         It has to include changes to formatting version and config already.
+    TARGET_COMMIT:
+        The commit introducing the formatting that you want to rebase onto.
 
 Rebase a branch onto changes created by an automated formatter. The script
 will keep the (linear) history of the branch intact and make the commits appear
