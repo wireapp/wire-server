@@ -1045,7 +1045,7 @@ setProviderCookie t r = do
       Cookie.def
         { Cookie.setCookieName = "zprovider",
           Cookie.setCookieValue = toByteString' t,
-          Cookie.setCookieDomain = Just $ Text.encodeUtf8 . setCookieDomain $ s,
+          Cookie.setCookieDomain = Nothing,
           Cookie.setCookiePath = Just "/provider",
           Cookie.setCookieExpires = Just (ZAuth.tokenExpiresUTC t),
           Cookie.setCookieSecure = not (setCookieInsecure s),
