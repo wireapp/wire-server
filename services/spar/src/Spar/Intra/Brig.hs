@@ -138,13 +138,24 @@ createBrigUser ::
   Name ->
   ManagedBy ->
   m UserId
-createBrigUser mUref (Id buid) teamid uname managedBy = do
+createBrigUser (Just uref) buid teamid uname managedBy = createBrigUserSaml uref buid teamid uname managedBy
+createBrigUser Nothing buid teamid uname managedBy = createBrigUserInvite buid teamid uname managedBy
+
+createBrigUserSaml ::
+  (HasCallStack, MonadSparToBrig m) =>
+  SAML.UserRef ->
+  UserId ->
+  TeamId ->
+  Name ->
+  ManagedBy ->
+  m UserId
+createBrigUserSaml uref (Id buid) teamid uname managedBy = do
   let newUser :: NewUser
       newUser =
         NewUser
           { newUserDisplayName = uname,
             newUserUUID = Just buid,
-            newUserIdentity = (\uref -> SSOIdentity (toUserSSOId uref) Nothing Nothing) <$> mUref,
+            newUserIdentity = Just $ SSOIdentity (toUserSSOId uref) Nothing Nothing,
             newUserPict = Nothing,
             newUserAssets = [],
             newUserAccentId = Nothing,
@@ -165,6 +176,16 @@ createBrigUser mUref (Id buid) teamid uname managedBy = do
   if statusCode resp `elem` [200, 201]
     then userId . selfUser <$> parseResponse @SelfProfile resp
     else rethrow resp
+
+createBrigUserInvite ::
+  (HasCallStack, MonadSparToBrig m) =>
+  UserId ->
+  TeamId ->
+  Name ->
+  ManagedBy ->
+  m UserId
+createBrigUserInvite (Id _buid) _teamid _uname _managedBy = do
+  undefined
 
 updateEmail :: (HasCallStack, MonadSparToBrig m) => UserId -> Email -> m ()
 updateEmail buid email = do
