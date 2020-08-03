@@ -318,7 +318,7 @@ createValidScimUser ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser uref handl mbN
 
   -- FUTUREWORK(arianvp): these two actions we probably want to make transactional
   lift . wrapMonadClient $ Data.writeScimUserTimes storedUser
-  (lift . wrapMonadClient . (`Data.insertSAMLUser` buid)) `mapM_` uref
+  for_ uref $ (lift . wrapMonadClient . (`Data.insertSAMLUser` buid))
 
   (lift . validateEmailIfExists buid) `mapM_` uref
 
