@@ -11,8 +11,11 @@ USAGE="
 USAGE: $0 BASE_COMMIT TARGET_COMMIT
 
     BASE_COMMIT:
-        A commit very similar to TARGET_COMMIT, just that the automated formatting changes are not applied yet.
-        It has to include changes to formatting version and config already.
+        A commit that contains the changes to formatting version and
+        config already from TARGET_COMMIT, but not the automatically
+        applied formatting changes.  Must be the first commit on the
+        branch you are about to rebase (not the one returned by
+        git-merge-base). It will be removed from the resulting branch.
     TARGET_COMMIT:
         The commit introducing the formatting that you want to rebase onto.
 
