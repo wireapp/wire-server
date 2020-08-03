@@ -367,7 +367,7 @@ updateValidScimUser tokinfo uid newScimUser = do
         for_ mOldUref $ lift . wrapMonadClient . Data.deleteSAMLUser
         for_ mNewUref $ \newUref -> lift . wrapMonadClient $ Data.insertSAMLUser newUref uid
       -- update 'SAML.UserRef' on brig
-      forM_ mNewUref $ \newUref -> do
+      for_ mNewUref $ \newUref -> do
         bindok <- lift $ Brig.bindBrigUser uid newUref
         unless bindok $ do
           throwError $
