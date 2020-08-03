@@ -98,7 +98,7 @@ set -x
 # edit every commit Ci, adding new commits representing f at Ci and it's inverse g
 git rebase $BASE_COMMIT~1 --exec "$FORMATTING_COMMAND && git commit -am "format" && git revert HEAD --no-edit"
 
-# drop last commit
+# drop last commit (do not revert formatting at the end of the branch)
 git reset HEAD~1 --hard
 
 # now for every Ci, squash with the previous and next commit (i.e. g at C(i-1) and f at Ci)
