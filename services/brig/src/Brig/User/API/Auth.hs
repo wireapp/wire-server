@@ -305,11 +305,17 @@ tokenRequest = opt (userToken ||| legalHoldUserToken) .&. opt (accessToken ||| l
     legalHoldUserToken = cookieErr @ZAuth.LegalHoldUser <$> cookie "zuid"
     accessToken = parse @ZAuth.Access <$> (tokenHeader .|. tokenQuery)
     legalHoldAccessToken = parse @ZAuth.LegalHoldAccess <$> (tokenHeader .|. tokenQuery)
+    --
+    tokenHeader :: r -> Result P.Error ByteString
     tokenHeader = bearer <$> header "authorization"
+    --
+    tokenQuery :: r -> Result P.Error ByteString
     tokenQuery = query "access_token"
+    --
     cookieErr :: ZAuth.UserTokenLike u => Result P.Error (ZAuth.Token u) -> Result P.Error (ZAuth.Token u)
     cookieErr x@Okay {} = x
     cookieErr (Fail x) = Fail (setMessage "Invalid user token" (P.setStatus status403 x))
+    --
     -- Extract the access token from the Authorization header.
     bearer :: Result P.Error ByteString -> Result P.Error ByteString
     bearer (Fail x) = Fail x
@@ -323,6 +329,7 @@ tokenRequest = opt (userToken ||| legalHoldUserToken) .&. opt (accessToken ||| l
                     TypeError
                     (setMessage "Invalid authorization scheme" (err status403))
                 )
+    --
     -- Parse the access token
     parse :: ZAuth.AccessTokenLike a => Result P.Error ByteString -> Result P.Error (ZAuth.Token a)
     parse (Fail x) = Fail x
