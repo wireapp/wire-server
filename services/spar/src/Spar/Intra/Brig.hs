@@ -23,6 +23,7 @@ module Spar.Intra.Brig
     fromUserSSOId,
     toExternalId,
     mkUserName,
+    mkUserName',
     getBrigUser,
     getBrigUserTeam,
     getBrigUsers,
@@ -100,8 +101,13 @@ toExternalId ssoid = do
 -- | Take a maybe text, a saml user ref, and construct a 'Name' from it.  If the text isn't
 -- present, use the saml subject (usually an email address).
 mkUserName :: Maybe Text -> SAML.UserRef -> Name
-mkUserName (Just n) _ = mkName n
-mkUserName Nothing uref = mkName (SAML.unsafeShowNameID $ uref ^. SAML.uidSubject)
+mkUserName n u = fromJust $ mkUserName' n (Just u)
+
+-- | Partial variant of mkUserName.
+mkUserName' :: Maybe Text -> Maybe SAML.UserRef -> Maybe Name
+mkUserName' (Just n) _ = Just $ mkName n
+mkUserName' Nothing (Just uref) = Just $ mkName (SAML.unsafeShowNameID $ uref ^. SAML.uidSubject)
+mkUserName' Nothing Nothing = Nothing
 
 parseResponse :: (FromJSON a, MonadError SparError m) => Response (Maybe LBS) -> m a
 parseResponse resp = do
@@ -131,7 +137,7 @@ instance MonadSparToBrig m => MonadSparToBrig (ReaderT r m) where
 createBrigUser ::
   (HasCallStack, MonadSparToBrig m) =>
   -- | SSO identity
-  SAML.UserRef ->
+  Maybe SAML.UserRef ->
   UserId ->
   TeamId ->
   -- | User name (if 'Nothing', the subject ID will be used)
@@ -139,13 +145,13 @@ createBrigUser ::
   -- | Who should have control over the user
   ManagedBy ->
   m UserId
-createBrigUser suid (Id buid) teamid uname managedBy = do
+createBrigUser mUref (Id buid) teamid uname managedBy = do
   let newUser :: NewUser
       newUser =
         NewUser
           { newUserDisplayName = uname,
             newUserUUID = Just buid,
-            newUserIdentity = Just $ SSOIdentity (toUserSSOId suid) Nothing Nothing,
+            newUserIdentity = (\uref -> SSOIdentity (toUserSSOId uref) Nothing Nothing) <$> mUref,
             newUserPict = Nothing,
             newUserAssets = [],
             newUserAccentId = Nothing,

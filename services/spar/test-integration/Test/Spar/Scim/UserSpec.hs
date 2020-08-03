@@ -876,7 +876,7 @@ testUpdateUserRefIndex = do
         user <- randomScimUser
         storedUser <- createUser tok user
         let userid = scimUserId storedUser
-        uref <- either (error . show) pure $ mkUserRef idp (Scim.User.externalId user)
+        uref <- either (error . show) pure $ mkUserRef (Just idp) (Scim.User.externalId user)
         -- Overwrite the user with another randomly-generated user
         user' <-
           let upd u =
@@ -885,9 +885,9 @@ testUpdateUserRefIndex = do
                   else u {Scim.User.externalId = Scim.User.externalId user}
            in randomScimUser <&> upd
         _ <- updateUser tok userid user'
-        uref' <- either (error . show) pure $ mkUserRef idp (Scim.User.externalId user')
-        muserid <- runSparCass $ Data.getSAMLUser uref
-        muserid' <- runSparCass $ Data.getSAMLUser uref'
+        uref' <- either (error . show) pure $ mkUserRef (Just idp) (Scim.User.externalId user')
+        muserid <- maybe (pure Nothing) (runSparCass . Data.getSAMLUser) uref
+        muserid' <- maybe (pure Nothing) (runSparCass . Data.getSAMLUser) uref'
         liftIO $ do
           (changeUserRef, muserid)
             `shouldBe` (changeUserRef, if changeUserRef then Nothing else Just userid)
@@ -907,7 +907,7 @@ testBrigSideIsUpdated = do
   _ <- updateUser tok userid user'
   validScimUser <-
     either (error . show) pure $
-      validateScimUser' idp 999999 user'
+      validateScimUser' (Just idp) 999999 user'
   brigUser <- maybe (error "no brig user") pure =<< runSpar (Intra.getBrigUser userid)
   brigUser `userShouldMatch` validScimUser
 
@@ -1207,8 +1207,8 @@ specEmailValidation = do
           when enabled $ enableSamlEmailValidation teamid
           (user, email) <- randomScimUserWithEmail
           scimStoredUser <- createUser tok user
-          let Right uref = mkUserRef idp . Scim.User.externalId . Scim.value . Scim.thing $ scimStoredUser
-          uid <- getUserIdViaRef uref
+          let Right uref = mkUserRef (Just idp) . Scim.User.externalId . Scim.value . Scim.thing $ scimStoredUser
+          uid <- maybe (error "no uref") getUserIdViaRef uref
           brig <- asks (^. teBrig)
           call $ activateEmail brig email
           pure (uid, email)
