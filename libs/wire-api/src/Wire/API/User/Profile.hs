@@ -83,9 +83,12 @@ newtype Name = Name
   deriving newtype (ToJSON, FromByteString, ToByteString)
   deriving (Arbitrary) via (Ranged 1 128 Text)
 
--- | Truncate input (or make it @" "@ if empty), and parse it into a 'Name'.
+-- | Truncate input (or make it @"default"@ if empty), and parse it into a 'Name'.
+--
+-- This is useful for situations in which you have an arbitrary 'Text' and need a 'Name', but
+-- don't care what it is, eg. during creation of users via SCIM.
 mkName :: Text -> Name
-mkName "" = Name " "
+mkName "" = Name "default"
 mkName txt = Name $ Text.take 128 txt
 
 -- | Partial version of 'mkName' that does not truncate the input, but throws 'Left'.
