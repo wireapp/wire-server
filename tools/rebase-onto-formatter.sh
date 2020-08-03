@@ -96,7 +96,7 @@ echo "Running the script now. This might take a while..."
 set -x
 
 # edit every commit Ci, adding new commits representing f at Ci and it's inverse g
-git rebase $BASE_COMMIT~1 --exec "$FORMATTING_COMMAND && git commit -am "format" && git revert HEAD --no-edit"
+git rebase $BASE_COMMIT~1 --exec "$FORMATTING_COMMAND && git commit -am format && git revert HEAD --no-edit"
 
 # drop last commit (do not revert formatting at the end of the branch)
 git reset HEAD~1 --hard
