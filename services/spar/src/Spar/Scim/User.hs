@@ -210,8 +210,8 @@ validateScimUser' midp richInfoLimit user = do
   -- FUTUREWORK: 'Scim.userName' should be case insensitive; then the toLower here would
   -- be a little less brittle.
   uname <- do
-    let err = Scim.badRequest Scim.InvalidValue (Just "either externalId or displayName must be present")
-    maybe (throwError err) pure $ Brig.mkUserName' (Scim.displayName user) mUref
+    let err = throwError . Scim.badRequest Scim.InvalidValue . Just . cs
+    either err pure $ Brig.mkUserName (Scim.displayName user) mUref
   richInfo <- validateRichInfo (Scim.extra user ^. ST.sueRichInfo)
   let active = Scim.active user
   pure $ ST.ValidScimUser mUref handl uname richInfo (fromMaybe True active)

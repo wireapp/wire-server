@@ -22,7 +22,6 @@
 module Wire.API.User.Profile
   ( Name (..),
     mkName,
-    mkName',
     ColourId (..),
     defaultAccentId,
 
@@ -83,17 +82,8 @@ newtype Name = Name
   deriving newtype (ToJSON, FromByteString, ToByteString)
   deriving (Arbitrary) via (Ranged 1 128 Text)
 
--- | Truncate input (or make it @"default"@ if empty), and parse it into a 'Name'.
---
--- This is useful for situations in which you have an arbitrary 'Text' and need a 'Name', but
--- don't care what it is, eg. during creation of users via SCIM.
-mkName :: Text -> Name
-mkName "" = Name "default"
-mkName txt = Name $ Text.take 128 txt
-
--- | Partial version of 'mkName' that does not truncate the input, but throws 'Left'.
-mkName' :: Text -> Either String Name
-mkName' txt = Name . fromRange <$> checkedEitherMsg @_ @1 @128 "Name" txt
+mkName :: Text -> Either String Name
+mkName txt = Name . fromRange <$> checkedEitherMsg @_ @1 @128 "Name" txt
 
 modelUserDisplayName :: Doc.Model
 modelUserDisplayName = Doc.defineModel "UserDisplayName" $ do

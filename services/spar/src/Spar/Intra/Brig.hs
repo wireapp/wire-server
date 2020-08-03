@@ -23,7 +23,6 @@ module Spar.Intra.Brig
     fromUserSSOId,
     toExternalId,
     mkUserName,
-    mkUserName',
     getBrigUser,
     getBrigUserTeam,
     getBrigUsers,
@@ -98,16 +97,13 @@ toExternalId ssoid = do
   let subj = uref ^. SAML.uidSubject
   pure $ SAML.nameIDToST subj
 
--- | Take a maybe text, a saml user ref, and construct a 'Name' from it.  If the text isn't
--- present, use the saml subject (usually an email address).
-mkUserName :: Maybe Text -> SAML.UserRef -> Name
-mkUserName n u = fromJust $ mkUserName' n (Just u)
-
--- | Partial variant of mkUserName.
-mkUserName' :: Maybe Text -> Maybe SAML.UserRef -> Maybe Name
-mkUserName' (Just n) _ = Just $ mkName n
-mkUserName' Nothing (Just uref) = Just $ mkName (SAML.unsafeShowNameID $ uref ^. SAML.uidSubject)
-mkUserName' Nothing Nothing = Nothing
+-- | Take a maybe text, construct a 'Name' from what we have in a scim user.  If the text
+-- isn't present, use the saml subject (usually an email address).  If both are 'Nothing',
+-- fail.
+mkUserName :: Maybe Text -> Maybe SAML.UserRef -> Either String Name
+mkUserName (Just n) _ = mkName n
+mkUserName Nothing (Just uref) = mkName (SAML.unsafeShowNameID $ uref ^. SAML.uidSubject)
+mkUserName Nothing Nothing = Left "either externalId or displayName must be present"
 
 parseResponse :: (FromJSON a, MonadError SparError m) => Response (Maybe LBS) -> m a
 parseResponse resp = do
