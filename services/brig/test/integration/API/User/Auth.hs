@@ -94,7 +94,8 @@ tests conf m z b g n =
           testGroup
             "nginz"
             [ test m "nginz-login" (testNginz b n),
-              test m "nginz-legalhold-login" (testNginzLegalHold b g n)
+              test m "nginz-legalhold-login" (testNginzLegalHold b g n),
+              test m "nginz-login-legacy-cookies" (testNginzLegacyCookies b n)
             ]
         ],
       testGroup
@@ -194,6 +195,42 @@ testNginzLegalHold b g n = do
   get (n . path "/self" . header "Authorization" ("Bearer " <> (toByteString' t))) !!! const 403 === statusCode
   -- ensure legal hold tokens can fetch notifications
   get (n . path "/notifications" . header "Authorization" ("Bearer " <> (toByteString' t))) !!! const 200 === statusCode
+
+-- | Corner case for 'testNginz': when upgrading a wire backend from the old behavior (setting
+-- cookie domain to eg. @*.wire.com@) to the new behavior (leaving cookie domain empty,
+-- effectively setting it to the backend host), clients may start sending two cookies for a
+-- while: because the domains differ, new ones will not overwrite old ones.  This should be
+-- handled gracefully (ie., one invalid cookie should just be ignored if up to two cookies
+-- with label @"zuid"@ are present).
+testNginzLegacyCookies :: Brig -> Nginz -> Http ()
+testNginzLegacyCookies b n = do
+  u <- randomUser b
+  let Just email = userEmail u
+      dologin :: HasCallStack => Http ResponseLBS
+      dologin = login n (defEmailLogin email) PersistentCookie <!! const 200 === statusCode
+  outdatedCookie <- decodeCookie <$> dologin
+  currentCookie <- decodeCookie <$> dologin
+  liftIO $ do
+    -- BEWARE: cookie equality is not what you think it is as of http-client-0.6.4:
+    -- https://github.com/snoyberg/http-client/issues/433
+    assertBool "every login must issue a new cookie" (not $ cookie_value currentCookie == cookie_value outdatedCookie)
+  post (n . path "/access" . cookie outdatedCookie . cookie currentCookie) !!! const 200 === statusCode
+  post (n . path "/access" . cookie currentCookie . cookie outdatedCookie) !!! const 200 === statusCode
+
+--
+--
+-- TODO:
+--
+--
+-- delay of 6secs between the two logins doesn't make the test fail.
+--
+-- neither does only sending currentCookie first.
+--
+-- i need to understand better how cookies are invalidated.  perhaps manually try to login
+-- with old backend first, then with new one?
+--
+-- To fix (once it fails), we may need to return *all* cookies in
+-- 'Brig.User.API.Auth.tokenRequest', not an arbitrary one.
 
 -------------------------------------------------------------------------------
 -- Login
