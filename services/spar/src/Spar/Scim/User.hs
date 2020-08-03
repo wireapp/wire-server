@@ -294,7 +294,7 @@ createValidScimUser ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser uref handl mbN
   buid <- Id <$> liftIO UUID.nextRandom
   -- ensure uniqueness constraints of all affected identifiers.
   -- if we crash now, retry POST will just work
-  assertUserRefUnused `mapM_` uref
+  for_ uref assertUserRefUnused
   assertHandleUnused handl buid
   -- if we crash now, retry POST will just work, or user gets told the handle
   -- is already in use and stops POSTing
