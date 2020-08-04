@@ -38,3 +38,4 @@ tests:
       - wire-api-federation
       - hspec
       - hspec-discover
+      - metrics-wai
