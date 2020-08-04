@@ -32,7 +32,7 @@ INSTRUCTIONS:
 4. Make sure the formatting tool is installed with the correct version and settings.
    $ stack install ormolu
 5. Run this script.
-   $ $0 \$TARGET_COMMIT \$BASE_COMMIT
+   $ $0 \$BASE_COMMIT \$TARGET_COMMIT
 
 "
 
