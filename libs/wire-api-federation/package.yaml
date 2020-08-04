@@ -1,0 +1,40 @@
+defaults:
+  local: ../../package-defaults.yaml
+name: wire-api-federation
+version: '0.1.0'
+synopsis: The Wire server-to-server API for federation
+description: Servant endpoints and types for implementing a Wire backend that can federate with others
+category: Web
+author: Wire Swiss GmbH
+maintainer: Wire Swiss GmbH <backend@wire.com>
+copyright: (c) 2020 Wire Swiss GmbH
+license: AGPL-3
+dependencies:
+- aeson >=1.4
+- base >=4.6 && <5.0
+- bytestring >=0.10
+- bytestring-conversion >=0.3
+- containers >=0.5
+- errors >=2.0
+- exceptions >=0.6
+- imports
+- servant >=0.16
+- text >=0.11
+- time >=1.8
+- transformers >=0.3
+- types-common
+- QuickCheck >=2.13
+
+library:
+  source-dirs: src
+
+tests:
+  spec:
+    main: Spec.hs
+    source-dirs:
+      - test
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    dependencies:
+      - wire-api-federation
+      - hspec
+      - hspec-discover

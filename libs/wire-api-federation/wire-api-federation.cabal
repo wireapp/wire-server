@@ -1,0 +1,76 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 365781b146aeb5cff30955591ab1c8141b368aaa3b9a25b566331dfa677431b2
+
+name:           wire-api-federation
+version:        0.1.0
+synopsis:       The Wire server-to-server API for federation
+description:    Servant endpoints and types for implementing a Wire backend that can federate with others
+category:       Web
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+copyright:      (c) 2020 Wire Swiss GmbH
+license:        AGPL-3
+license-file:   LICENSE
+build-type:     Simple
+
+library
+  exposed-modules:
+      Wire.API.Federation.Event
+      Wire.API.Federation.Util.Aeson
+  other-modules:
+      Paths_wire_api_federation
+  hs-source-dirs:
+      src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  build-depends:
+      QuickCheck >=2.13
+    , aeson >=1.4
+    , base >=4.6 && <5.0
+    , bytestring >=0.10
+    , bytestring-conversion >=0.3
+    , containers >=0.5
+    , errors >=2.0
+    , exceptions >=0.6
+    , imports
+    , servant >=0.16
+    , text >=0.11
+    , time >=1.8
+    , transformers >=0.3
+    , types-common
+  default-language: Haskell2010
+
+test-suite spec
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Test.SerializationSpec
+      Paths_wire_api_federation
+  hs-source-dirs:
+      test
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      QuickCheck >=2.13
+    , aeson >=1.4
+    , base >=4.6 && <5.0
+    , bytestring >=0.10
+    , bytestring-conversion >=0.3
+    , containers >=0.5
+    , errors >=2.0
+    , exceptions >=0.6
+    , hspec
+    , hspec-discover
+    , imports
+    , servant >=0.16
+    , text >=0.11
+    , time >=1.8
+    , transformers >=0.3
+    , types-common
+    , wire-api-federation
+  default-language: Haskell2010
