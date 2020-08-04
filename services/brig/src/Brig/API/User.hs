@@ -136,6 +136,7 @@ import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
 import Imports
 import Network.Wai.Utilities
+import Polysemy
 import qualified System.Logger.Class as Log
 import System.Logger.Message
 
@@ -341,18 +342,39 @@ checkRestrictedUserCreation new = do
 -- FUTUREWORK: this and other functions should refuse to modify a ManagedByScim user. See
 -- {#SparBrainDump}
 
-updateUser :: UserId -> ConnId -> UserUpdate -> AppIO ()
-updateUser uid conn uu = do
-  Data.updateUser uid uu
-  Intra.onUserEvent uid (Just conn) (profileUpdated uid uu)
+updateUser ::
+  Members
+    [ Embed AppIO,
+      Intra.Trigger UserNameUpdated {- and 3 more events if we split up the profile update event -}
+    ]
+    r =>
+  UserId ->
+  ConnId ->
+  UserUpdate ->
+  Sem r ()
+updateUser uid _conn uu@UserUpdate {..} = do
+  embed $ Data.updateUser uid uu
+  for_ uupName $ Intra.trigger . UserNameUpdated uid
+  for_ uupPict $ undefined
+  for_ uupAssets $ undefined
+  for_ uupAccentId $ undefined
 
 -------------------------------------------------------------------------------
 -- Update Locale
 
-changeLocale :: UserId -> ConnId -> LocaleUpdate -> AppIO ()
-changeLocale uid conn (LocaleUpdate loc) = do
-  Data.updateLocale uid loc
-  Intra.onUserEvent uid (Just conn) (localeUpdate uid loc)
+changeLocale ::
+  Members
+    [ Embed AppIO,
+      Intra.Trigger UserLocaleUpdated
+    ]
+    r =>
+  UserId ->
+  ConnId ->
+  LocaleUpdate ->
+  Sem r ()
+changeLocale uid _conn (LocaleUpdate loc) = do
+  embed $ Data.updateLocale uid loc
+  Intra.trigger $ UserLocaleUpdated uid loc
 
 -------------------------------------------------------------------------------
 -- Update ManagedBy

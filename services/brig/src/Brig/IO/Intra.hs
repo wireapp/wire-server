@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -18,45 +19,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 -- TODO: Move to Brig.User.RPC or similar.
-module Brig.IO.Intra
-  ( -- * Pushing & Journaling Events
-    onUserEvent,
-    onConnectionEvent,
-    onPropertyEvent,
-    onClientEvent,
-
-    -- * Conversations
-    createSelfConv,
-    createConnectConv,
-    acceptConnectConv,
-    blockConv,
-    unblockConv,
-    getConv,
-
-    -- * Clients
-    Brig.IO.Intra.newClient,
-    rmClient,
-
-    -- * Account Deletion
-    rmUser,
-
-    -- * Teams
-    addTeamMember,
-    checkUserCanJoinTeam,
-    createTeam,
-    getTeamMember,
-    getTeamMembers,
-    memberIsTeamOwner,
-    getTeam,
-    getTeamConv,
-    getTeamName,
-    getTeamId,
-    getTeamContacts,
-    getTeamLegalHoldStatus,
-    changeTeamStatus,
-    getTeamSearchVisibility,
-  )
-where
+module Brig.IO.Intra where
 
 import Bilge hiding (head, options, requestId)
 import Bilge.RPC
@@ -84,6 +47,7 @@ import Data.List.Split (chunksOf)
 import Data.List1 (List1, list1, singleton)
 import Data.Range
 import qualified Data.Set as Set
+import Data.Typeable (cast)
 import Galley.Types (Connect (..), Conversation)
 import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
@@ -94,17 +58,44 @@ import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
+import Polysemy
 import System.Logger.Class as Log hiding (name, (.=))
 import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatus)
+
+----------------------------------------------------------------------
+-- polysemi
+
+-- class IsEvent e -- TODO: we have 'IsUserEvent' for now, but we may want something more general later.
+
+data Trigger e m a where
+  Trigger :: e -> Trigger e m ()
+
+-- we probably want something like this...
+--
+-- >>> data Trigger e es m a where
+-- >>>   Trigger :: Member e es => e -> Trigger e es m ()
+--
+-- but let's keep things simple for now.
+
+makeSem ''Trigger
+
+triggerToIO :: (IsUserEvent e, Member (Embed AppIO) r) => Sem (Trigger e ': r) a -> Sem r a
+triggerToIO = interpret $ \(Trigger e) -> embed $ onUserEvent (userEventUserId e) mconn e
+  where
+    mconn = undefined -- this is a complication, not sure what to do with it.
 
 -----------------------------------------------------------------------------
 -- Event Handlers
 
-onUserEvent :: UserId -> Maybe ConnId -> UserEvent -> AppIO ()
-onUserEvent orig conn e =
+onUserEvent :: IsUserEvent e => UserId -> Maybe ConnId -> e -> AppIO ()
+onUserEvent orig conn e = do
+  -- I am tempted to try and use 'Chan' to simply drop events, and then let updateSearchIndex,
+  -- dispatchNotifications, and journalEvent all subscribe to duplicates of that 'Chan'.  This
+  -- would potentially make the backend more responsive, but we would have to worry about
+  -- keeping the listener threads alive, so I'm not sure it'd be worth it.
   updateSearchIndex orig e
-    *> dispatchNotifications orig conn e
-    *> journalEvent orig e
+  dispatchNotifications orig conn e
+  journalEvent orig e
 
 onConnectionEvent ::
   -- | Originator of the event.
@@ -154,44 +145,23 @@ onClientEvent orig conn e = do
   -- in the stream.
   push events rcps orig Push.RouteAny conn
 
-updateSearchIndex :: UserId -> UserEvent -> AppIO ()
-updateSearchIndex orig e = case e of
-  -- no-ops
-  UserCreated {} -> return ()
-  UserIdentityUpdated {} -> return ()
-  UserIdentityRemoved {} -> return ()
-  UserLegalHoldDisabled {} -> return ()
-  UserLegalHoldEnabled {} -> return ()
-  LegalHoldClientRequested {} -> return ()
-  UserSuspended {} -> Search.reindex orig
-  UserResumed {} -> Search.reindex orig
-  UserActivated {} -> Search.reindex orig
-  UserDeleted {} -> Search.reindex orig
-  UserUpdated UserUpdatedData {..} -> do
-    let interesting =
-          or
-            [ isJust eupName,
-              isJust eupAccentId,
-              isJust eupHandle
-            ]
-    when (interesting) $ Search.reindex orig
+-- (this function shows that things get a lot simpler and type info increases, but i think we
+-- will still want to write unit tests for eg. this function and every situation that triggers
+-- an event.  which of course means that we need to extend the use of polysemi to all more
+-- effects.)
+updateSearchIndex :: forall e. IsUserEvent e => UserId -> e -> AppIO ()
+updateSearchIndex orig e = do
+  if
+      | isJust (cast @e @UserSuspended e) -> Search.reindex orig
+      | isJust (cast @e @UserResumed e) -> Search.reindex orig
+      | isJust (cast @e @UserActivated e) -> Search.reindex orig
+      | isJust (cast @e @UserDeleted e) -> Search.reindex orig
+      | isJust (cast @e @UserNameUpdated e) -> Search.reindex orig
+      -- | ...  (two more relevant update events.)
+      | True -> pure ()
 
-journalEvent :: UserId -> UserEvent -> AppIO ()
-journalEvent orig e = case e of
-  UserActivated acc ->
-    Journal.userActivate acc
-  UserUpdated UserUpdatedData {eupName = Just name} ->
-    Journal.userUpdate orig Nothing Nothing (Just name)
-  UserUpdated UserUpdatedData {eupLocale = Just loc} ->
-    Journal.userUpdate orig Nothing (Just loc) Nothing
-  UserIdentityUpdated (UserIdentityUpdatedData _ (Just em) _) ->
-    Journal.userUpdate orig (Just em) Nothing Nothing
-  UserIdentityRemoved (UserIdentityRemovedData _ (Just em) _) ->
-    Journal.userEmailRemove orig em
-  UserDeleted {} ->
-    Journal.userDelete orig
-  _ ->
-    return ()
+journalEvent :: IsUserEvent e => UserId -> e -> AppIO ()
+journalEvent = undefined  -- same trick as for 'updateSearchIndex' applies.
 
 -------------------------------------------------------------------------------
 -- Low-Level Event Notification
@@ -199,28 +169,8 @@ journalEvent orig e = case e of
 -- | Notify the origin user's contact list (first-level contacts),
 -- as well as his other clients about a change to his user account
 -- or profile.
-dispatchNotifications :: UserId -> Maybe ConnId -> UserEvent -> AppIO ()
-dispatchNotifications orig conn e = case e of
-  UserCreated {} -> return ()
-  UserSuspended {} -> return ()
-  UserResumed {} -> return ()
-  LegalHoldClientRequested {} -> notifyContacts event orig Push.RouteAny conn
-  UserLegalHoldDisabled {} -> notifyContacts event orig Push.RouteAny conn
-  UserLegalHoldEnabled {} -> notifyContacts event orig Push.RouteAny conn
-  UserUpdated UserUpdatedData {..}
-    -- This relies on the fact that we never change the locale AND something else.
-    | isJust eupLocale -> notifySelf event orig Push.RouteDirect conn
-    | otherwise -> notifyContacts event orig Push.RouteDirect conn
-  UserActivated {} -> notifySelf event orig Push.RouteAny conn
-  UserIdentityUpdated {} -> notifySelf event orig Push.RouteDirect conn
-  UserIdentityRemoved {} -> notifySelf event orig Push.RouteDirect conn
-  UserDeleted {} -> do
-    -- n.b. Synchronously fetch the contact list on the current thread.
-    -- If done asynchronously, the connections may already have been deleted.
-    recipients <- list1 orig <$> lookupContactList orig
-    notify event orig Push.RouteDirect conn (pure recipients)
-  where
-    event = singleton $ UserEvent e
+dispatchNotifications :: IsUserEvent e => UserId -> Maybe ConnId -> e -> AppIO ()
+dispatchNotifications = undefined  -- same trick as for 'updateSearchIndex' applies.
 
 -- | Push events to other users.
 push ::
@@ -347,6 +297,14 @@ notifyContacts events orig route conn = do
     screenMemberList _ = return []
 
 -- Event Serialisation:
+
+toPushFormat :: Event -> Maybe Object
+toPushFormat = undefined
+
+{-
+
+-- this should just be ToJSON instances.  if we want to insist on using toPushFormat for now,
+-- we can introduce another ad-hoc class to implement it for all IsUserEvent instances.
 
 toPushFormat :: Event -> Maybe Object
 toPushFormat (UserEvent (UserCreated u)) =
@@ -480,6 +438,7 @@ toPushFormat (UserEvent (LegalHoldClientRequested payload)) =
             "last_prekey" .= lastPrekey',
             "client" .= IdObject clientId
           ]
+-}
 
 toApsData :: Event -> Maybe ApsData
 toApsData (ConnectionEvent (ConnectionUpdated uc _ name)) =
