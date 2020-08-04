@@ -1,3 +1,6 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RecordWildCards #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -15,14 +18,20 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Federator.Util
-  ( wireJsonOptions,
+module Federator.Impl
+  ( app,
   )
 where
 
-import Data.Aeson as Aeson
-import qualified Data.Char as Char
-import Imports
+import Data.Proxy
+import qualified Federator.API as API
+import Federator.Types
+import Network.Wai
+import Servant.API.Generic
+import Servant.Mock
+import Servant.Server
 
-wireJsonOptions :: Options
-wireJsonOptions = defaultOptions {fieldLabelModifier = camelTo2 '_' . dropWhile (not . Char.isUpper)}
+app :: Env -> Application
+app _ = serve api (mock api Proxy)
+  where
+    api = Proxy @(ToServantApi API.API)

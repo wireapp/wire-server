@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 05e45399becaef2bbecfa958ec4d5633900e2e1d8e1c1a2e7ecd2afbdbc2404f
+-- hash: 339b59c40e10d025dce6a4204b1b184e629a00a5472260379e4bda2a3b2ab515
 
 name:           federator
 version:        1.0.0
@@ -20,6 +20,7 @@ library
   exposed-modules:
       Federator.API
       Federator.App
+      Federator.Impl
       Federator.Options
       Federator.Run
       Federator.Types
@@ -60,6 +61,7 @@ library
     , wai
     , wai-utilities
     , warp
+    , wire-api-federation
   default-language: Haskell2010
 
 executable federator
@@ -101,4 +103,5 @@ executable federator
     , wai
     , wai-utilities
     , warp
+    , wire-api-federation
   default-language: Haskell2010
