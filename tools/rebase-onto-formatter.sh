@@ -8,13 +8,16 @@ BASE_COMMIT=${1:-}
 TARGET_COMMIT=${2:-}
 FORMATTING_COMMAND='make formatf'
 USAGE="
-USAGE: $0 TARGET_COMMIT BASE_COMMIT
+USAGE: $0 BASE_COMMIT TARGET_COMMIT
 
+    BASE_COMMIT:
+        A commit that contains the changes to formatting version and
+        config already from TARGET_COMMIT, but not the automatically
+        applied formatting changes.  Must be the first commit on the
+        branch you are about to rebase (not the one returned by
+        git-merge-base). It will be removed from the resulting branch.
     TARGET_COMMIT:
         The commit introducing the formatting that you want to rebase onto.
-    BASE_COMMIT:
-        A commit very similar to TARGET_COMMIT, just that the automated formatting changes are not applied yet.
-        It has to include changes to formatting version and config already.
 
 Rebase a branch onto changes created by an automated formatter. The script
 will keep the (linear) history of the branch intact and make the commits appear
@@ -29,7 +32,7 @@ INSTRUCTIONS:
 4. Make sure the formatting tool is installed with the correct version and settings.
    $ stack install ormolu
 5. Run this script.
-   $ $0 \$TARGET_COMMIT \$BASE_COMMIT
+   $ $0 \$BASE_COMMIT \$TARGET_COMMIT
 
 "
 
@@ -96,9 +99,9 @@ echo "Running the script now. This might take a while..."
 set -x
 
 # edit every commit Ci, adding new commits representing f at Ci and it's inverse g
-git rebase $BASE_COMMIT~1 --exec "$FORMATTING_COMMAND && git commit -am "format" && git revert HEAD --no-edit"
+git rebase $BASE_COMMIT~1 --exec "$FORMATTING_COMMAND && git commit -am format && git revert HEAD --no-edit"
 
-# drop last commit
+# drop last commit (do not revert formatting at the end of the branch)
 git reset HEAD~1 --hard
 
 # now for every Ci, squash with the previous and next commit (i.e. g at C(i-1) and f at Ci)
