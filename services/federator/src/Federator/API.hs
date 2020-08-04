@@ -17,20 +17,28 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Federator.API where
+module Federator.API
+  ( API (..),
+    FUser (..),
+    module Fed,
+  )
+where
 
 import Brig.Types.Client.Prekey
 import Brig.Types.Test.Arbitrary ()
 import Data.Aeson.TH (deriveJSON)
 import Data.Handle (Handle (..))
-import Data.Id (UserId)
+import Data.Id (ConvId, UserId)
 import Data.Qualified
 import Federator.Util
 import Imports
 import Servant.API
 import Servant.API.Generic
-import Test.QuickCheck
+import Test.QuickCheck (Arbitrary, arbitrary)
+import Wire.API.Federation.API.Conversation as Fed hiding (Api)
+import Wire.API.Federation.Event as Fed
 
+-- TODO: rename to Api
 data API route = API
   { _gapiSearch ::
       route
@@ -45,7 +53,18 @@ data API route = API
         :> "users"
         :> Capture "fqu" (Qualified UserId)
         :> "prekeys"
-        :> Get '[JSON] PrekeyBundle
+        -- FUTUREWORK(federation):
+        -- this should return a version of PrekeyBundle with qualified UserId,
+        -- defined in wire-api-federation
+        :> Get '[JSON] PrekeyBundle,
+    _gapiJoinConversationById ::
+      route
+        :- "i"
+        :> "conversations"
+        :> Capture "cnv" (Qualified ConvId)
+        :> "join"
+        :> ReqBody '[JSON] Fed.JoinConversationByIdRequest
+        :> Post '[JSON] (Fed.ConversationUpdateResult Fed.MemberJoin)
   }
   deriving (Generic)
 
@@ -57,13 +76,15 @@ data API route = API
 -- TODO: the client ids in the 'PrekeyBundle' aren't really needed here.  do we want to make a
 -- new type for that, then?
 
+-- TODO: rename
 data FUser = FUser
   { _fuGlobalHandle :: !(Qualified Handle),
     _fuFQU :: !(Qualified UserId)
   }
   deriving (Eq, Show, Generic)
 
-deriveJSON (wireJsonOptions "_fu") ''FUser
+-- TODO: use Generics
+deriveJSON wireJsonOptions ''FUser
 
 instance Arbitrary FUser where
   arbitrary = FUser <$> arbitrary <*> arbitrary
