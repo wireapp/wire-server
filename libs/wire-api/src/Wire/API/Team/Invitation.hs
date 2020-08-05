@@ -44,12 +44,12 @@ import Wire.API.User.Profile (Locale, Name)
 -- InvitationRequest
 
 data InvitationRequest = InvitationRequest
-  { irEmail :: Email,
-    irName :: Name,
+  { irName :: Name,
     irLocale :: Maybe Locale,
     irRole :: Maybe Role,
     irInviteeName :: Maybe Name,
-    irPhone :: Maybe Phone
+    irInviteeEmail :: Email,
+    irInviteePhone :: Maybe Phone
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform InvitationRequest)
@@ -77,22 +77,22 @@ modelTeamInvitationRequest = Doc.defineModel "TeamInvitationRequest" $ do
 instance ToJSON InvitationRequest where
   toJSON i =
     object $
-      [ "email" .= irEmail i,
+      [ "email" .= irInviteeEmail i,
         "inviter_name" .= irName i,
         "locale" .= irLocale i,
         "role" .= irRole i,
         "name" .= irInviteeName i,
-        "phone" .= irPhone i
+        "phone" .= irInviteePhone i
       ]
 
 instance FromJSON InvitationRequest where
   parseJSON = withObject "invitation-request" $ \o ->
     InvitationRequest
-      <$> o .: "email"
-      <*> o .: "inviter_name"
+      <$> o .: "inviter_name"
       <*> o .:? "locale"
       <*> o .:? "role"
       <*> o .:? "name"
+      <*> o .: "email"
       <*> o .:? "phone"
 
 --------------------------------------------------------------------------------
@@ -108,7 +108,7 @@ data Invitation = Invitation
     -- migration it is allowed to be 'Nothing'.
     inCreatedBy :: Maybe UserId,
     inInviteeName :: Maybe Name,
-    inPhone :: Maybe Phone
+    inInviteePhone :: Maybe Phone
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Invitation)
@@ -152,7 +152,7 @@ instance ToJSON Invitation where
         "created_at" .= inCreatedAt i,
         "created_by" .= inCreatedBy i,
         "name" .= inInviteeName i,
-        "phone" .= inPhone i
+        "phone" .= inInviteePhone i
       ]
 
 instance FromJSON Invitation where
