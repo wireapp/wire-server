@@ -215,7 +215,7 @@ createInvitation uid tid body = do
   --             sendActivationCode. Refactor this to a single place
 
   -- Validate e-mail
-  email <- either (const $ throwStd invalidEmail) return (Email.validateEmail (irEmail body))
+  email <- either (const $ throwStd invalidEmail) return (Email.validateEmail (irInviteeEmail body))
   let uke = userEmailKey email
   blacklistedEm <- lift $ Blacklist.exists uke
   when blacklistedEm $
@@ -224,7 +224,7 @@ createInvitation uid tid body = do
   when emailTaken $
     throwStd emailExists
   -- Validate phone
-  phone <- for (irPhone body) $ \p -> do
+  phone <- for (irInviteePhone body) $ \p -> do
     validatedPhone <- maybe (throwStd invalidPhone) return =<< lift (Phone.validatePhone p)
     let ukp = userPhoneKey validatedPhone
     blacklistedPh <- lift $ Blacklist.exists ukp
