@@ -408,14 +408,14 @@ addToken uid cid newtok = mpaRunWithBudget 1 AddTokenNoBudget $ do
           then (Just a, old)
           else (x, a : old)
       | otherwise = (x, old)
-    --
+
     continue ::
       PushToken ->
       Maybe Address ->
       Gundeck (Either AddTokenResponse Address)
     continue t Nothing = create (0 :: Int) t
     continue t (Just a) = update (0 :: Int) t (a ^. addrEndpoint)
-    --
+
     create ::
       Int ->
       PushToken ->
@@ -445,7 +445,7 @@ addToken uid cid newtok = mpaRunWithBudget 1 AddTokenNoBudget $ do
         Right arn -> do
           Data.insert uid trp app tok arn cid (t ^. tokenClient)
           return (Right (mkAddr t arn))
-    --
+
     update ::
       Int ->
       PushToken ->
@@ -481,7 +481,7 @@ addToken uid cid newtok = mpaRunWithBudget 1 AddTokenNoBudget $ do
               Aws.EndpointNotFound {} -> create (n + 1) t
               Aws.InvalidCustomData {} -> return (Left AddTokenMetadataTooLong)
               ex -> throwM ex
-    --
+
     mkAddr ::
       PushToken ->
       EndpointArn ->

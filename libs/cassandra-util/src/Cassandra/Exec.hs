@@ -33,10 +33,9 @@ where
 import Cassandra.CQL (Consistency, R)
 import Control.Monad.Catch
 import Data.Conduit
--- Things we just import and re-export.
-
 -- We only use these locally.
 import Database.CQL.IO (RetrySettings, RunQ, defRetrySettings, eagerRetrySettings)
+-- Things we just import and re-export.
 import Database.CQL.IO as C (BatchM, Client, ClientState, MonadClient, Page (..), PrepQuery, Row, addPrepQuery, addQuery, adjustConsistency, adjustResponseTimeout, adjustSendTimeout, batch, emptyPage, init, liftClient, localState, paginate, prepared, query, query1, queryString, retry, runClient, schema, setConsistency, setSerialConsistency, setType, shutdown, trans, write)
 import Database.CQL.Protocol (Error, QueryParams (QueryParams), Tuple)
 import Imports hiding (init)
