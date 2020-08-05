@@ -175,8 +175,8 @@ specSuspend = do
 -- | Tests for @POST /Users@.
 specCreateUser :: SpecWith TestEnv
 specCreateUser = describe "POST /Users" $ do
-  context "team has no SAML IdP" $ do
-    it "creates a user in an existing team" $ testCreateUserNIdPs 0
+  --  context "team has no SAML IdP" $ do
+  --    it "creates a user in an existing team" $ testCreateUserNIdPs 0
   context "team has one SAML IdP" $ do
     it "creates a user in an existing team" $ testCreateUserNIdPs 1
     it "adds a Wire scheme to the user record" $ testSchemaIsAdded
