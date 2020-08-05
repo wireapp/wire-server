@@ -243,7 +243,7 @@ createInvitation uid tid body = do
     doInvite role toEmail from lc toName toPhone = lift $ do
       now <- liftIO =<< view currentTime
       timeout <- setTeamInvitationTimeout <$> view settings
-      (newInv, code) <- DB.insertInvitation tid role toEmail now (Just uid) toName toPhone timeout
+      (newInv, code) <- DB.insertInvitation tid role toEmail now (Just uid) toName toPhone Nothing timeout
       void $ sendInvitationMail toEmail tid from code lc
       return newInv
 

@@ -84,7 +84,7 @@ createPopulatedBindingTeamWithNames brig names = do
   (inviter, tid) <- createUserWithTeam' brig
   invitees <- forM names $ \name -> do
     inviteeEmail <- randomEmail
-    let invite = InvitationRequest Nothing Nothing (Just name) inviteeEmail Nothing
+    let invite = InvitationRequest Nothing Nothing (Just name) inviteeEmail Nothing ManagedByWire
     inv <- responseJsonError =<< postInvitation brig tid (userId inviter) invite
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
     rsp2 <-
@@ -170,7 +170,7 @@ inviteAndRegisterUser ::
   m User
 inviteAndRegisterUser u tid brig = do
   inviteeEmail <- randomEmail
-  let invite = InvitationRequest Nothing Nothing Nothing inviteeEmail Nothing
+  let invite = InvitationRequest Nothing Nothing Nothing inviteeEmail Nothing ManagedByWire
   inv <- responseJsonError =<< postInvitation brig tid u invite
   Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
   rspInvitee <-
