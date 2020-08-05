@@ -34,4 +34,4 @@ import Servant.Server
 app :: Env -> Application
 app _ = serve api (mock api Proxy)
   where
-    api = Proxy @(ToServantApi API.API)
+    api = Proxy @(ToServantApi API.Api)

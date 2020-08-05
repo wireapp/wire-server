@@ -18,7 +18,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Federator.API
-  ( API (..),
+  ( Api (..),
     FUser (..),
     module Fed,
   )
@@ -38,8 +38,7 @@ import Test.QuickCheck (Arbitrary, arbitrary)
 import Wire.API.Federation.API.Conversation as Fed hiding (Api)
 import Wire.API.Federation.Event as Fed
 
--- TODO: rename to Api
-data API route = API
+data Api route = Api
   { _gapiSearch ::
       route
         :- "i"
