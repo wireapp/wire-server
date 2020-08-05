@@ -38,7 +38,7 @@ import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Team.Role (Role, defaultRole, typeRole)
 import Wire.API.User.Identity (Email, Phone)
-import Wire.API.User.Profile (Locale, Name)
+import Wire.API.User.Profile (Locale, ManagedBy (..), Name, typeManagedBy)
 
 --------------------------------------------------------------------------------
 -- InvitationRequest
@@ -48,7 +48,8 @@ data InvitationRequest = InvitationRequest
     irRole :: Maybe Role,
     irInviteeName :: Maybe Name,
     irInviteeEmail :: Email,
-    irInviteePhone :: Maybe Phone
+    irInviteePhone :: Maybe Phone,
+    irManagedBy :: ManagedBy
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform InvitationRequest)
@@ -72,6 +73,9 @@ modelTeamInvitationRequest = Doc.defineModel "TeamInvitationRequest" $ do
   Doc.property "phone" Doc.string' $ do
     Doc.description "Phone number of the invitee, in the E.164 format"
     Doc.optional
+  Doc.property "managed_by" typeManagedBy $ do
+    Doc.description "The channel over which the user is invited"
+    Doc.optional
 
 instance ToJSON InvitationRequest where
   toJSON i =
@@ -80,7 +84,8 @@ instance ToJSON InvitationRequest where
         "locale" .= irLocale i,
         "role" .= irRole i,
         "name" .= irInviteeName i,
-        "phone" .= irInviteePhone i
+        "phone" .= irInviteePhone i,
+        "managed_by" .= irManagedBy i
       ]
 
 instance FromJSON InvitationRequest where
@@ -91,6 +96,7 @@ instance FromJSON InvitationRequest where
       <*> o .:? "name"
       <*> o .: "email"
       <*> o .:? "phone"
+      <*> o .:? "managed_by" .!= ManagedByWire
 
 --------------------------------------------------------------------------------
 -- Invitation
@@ -105,7 +111,8 @@ data Invitation = Invitation
     -- migration it is allowed to be 'Nothing'.
     inCreatedBy :: Maybe UserId,
     inInviteeName :: Maybe Name,
-    inInviteePhone :: Maybe Phone
+    inInviteePhone :: Maybe Phone,
+    inManagedBy :: ManagedBy
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Invitation)
@@ -138,6 +145,9 @@ modelTeamInvitation = Doc.defineModel "TeamInvitation" $ do
   Doc.property "phone" Doc.string' $ do
     Doc.description "Phone number of the invitee, in the E.164 format"
     Doc.optional
+  Doc.property "managed_by" typeManagedBy $ do
+    Doc.description "The channel over which the user is invited"
+    Doc.optional
 
 instance ToJSON Invitation where
   toJSON i =
@@ -149,7 +159,8 @@ instance ToJSON Invitation where
         "created_at" .= inCreatedAt i,
         "created_by" .= inCreatedBy i,
         "name" .= inInviteeName i,
-        "phone" .= inInviteePhone i
+        "phone" .= inInviteePhone i,
+        "managed_by" .= inManagedBy i
       ]
 
 instance FromJSON Invitation where
@@ -164,6 +175,7 @@ instance FromJSON Invitation where
       <*> o .:? "created_by"
       <*> o .:? "name"
       <*> o .:? "phone"
+      <*> o .:? "managed_by" .!= ManagedByWire
 
 --------------------------------------------------------------------------------
 -- InvitationList
