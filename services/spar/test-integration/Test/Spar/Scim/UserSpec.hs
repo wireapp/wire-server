@@ -217,6 +217,8 @@ testCreateUserNIdPs numIdPs = do
           . expect2xx
       )
   brigUser `userShouldMatch` WrappedScimStoredUser scimStoredUser
+  accStatus <- aFewTimes (runSpar $ Intra.getStatus (userId brigUser)) (== Active)
+  liftIO $ accStatus `shouldBe` Active
 
 -- | Test that Wire-specific schemas are added to the SCIM user record, even if the schemas
 -- were not present in the original record during creation.
