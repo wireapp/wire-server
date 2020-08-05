@@ -358,7 +358,7 @@ inviteAndRegisterUser ::
   m User
 inviteAndRegisterUser brig u tid = do
   inviteeEmail <- randomEmail
-  let invite = TeamInvitation.InvitationRequest (User.Name "Bob") Nothing Nothing Nothing inviteeEmail Nothing
+  let invite = TeamInvitation.InvitationRequest Nothing Nothing Nothing inviteeEmail Nothing
   inv <- responseJsonError =<< postInvitation tid u invite
   Just inviteeCode <- getInvitationCode tid (TeamInvitation.inInvitation inv)
   rspInvitee <-

@@ -270,10 +270,6 @@ addTeamMemberInternal' tid mem = do
   let payload = json (newNewTeamMember mem)
   post (g . paths ["i", "teams", toByteString' tid, "members"] . payload)
 
-stdInvitationRequest :: Name -> Maybe Locale -> Maybe Team.Role -> Email -> InvitationRequest
-stdInvitationRequest inviterName loc role email =
-  InvitationRequest inviterName loc role Nothing email Nothing
-
 addUserToTeam :: HasCallStack => UserId -> TeamId -> TestM TeamMember
 addUserToTeam = addUserToTeamWithRole Nothing
 
@@ -297,7 +293,7 @@ addUserToTeamWithRole' role inviter tid = do
   brig <- view tsBrig
   inviteeEmail <- randomEmail
   let name = Name $ fromEmail inviteeEmail
-  let invite = stdInvitationRequest name Nothing role inviteeEmail
+  let invite = InvitationRequest Nothing role (Just name) inviteeEmail Nothing
   invResponse <- postInvitation tid inviter invite
   inv <- responseJsonError invResponse
   Just inviteeCode <- getInvitationCode tid (inInvitation inv)

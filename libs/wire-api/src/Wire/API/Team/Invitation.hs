@@ -44,8 +44,7 @@ import Wire.API.User.Profile (Locale, Name)
 -- InvitationRequest
 
 data InvitationRequest = InvitationRequest
-  { irName :: Name,
-    irLocale :: Maybe Locale,
+  { irLocale :: Maybe Locale,
     irRole :: Maybe Role,
     irInviteeName :: Maybe Name,
     irInviteeEmail :: Email,
@@ -58,7 +57,7 @@ modelTeamInvitationRequest :: Doc.Model
 modelTeamInvitationRequest = Doc.defineModel "TeamInvitationRequest" $ do
   Doc.description "A request to join a team on Wire."
   Doc.property "inviter_name" Doc.string' $
-    Doc.description "Name of the inviter (1 - 128 characters)"
+    Doc.description "DEPRECATED - WILL BE IGNORED IN FAVOR OF REQ AUTH DATA - Name of the inviter (1 - 128 characters)"
   Doc.property "email" Doc.string' $
     Doc.description "Email of the invitee"
   Doc.property "locale" Doc.string' $ do
@@ -78,7 +77,6 @@ instance ToJSON InvitationRequest where
   toJSON i =
     object $
       [ "email" .= irInviteeEmail i,
-        "inviter_name" .= irName i,
         "locale" .= irLocale i,
         "role" .= irRole i,
         "name" .= irInviteeName i,
@@ -88,8 +86,7 @@ instance ToJSON InvitationRequest where
 instance FromJSON InvitationRequest where
   parseJSON = withObject "invitation-request" $ \o ->
     InvitationRequest
-      <$> o .: "inviter_name"
-      <*> o .:? "locale"
+      <$> o .:? "locale"
       <*> o .:? "role"
       <*> o .:? "name"
       <*> o .: "email"
