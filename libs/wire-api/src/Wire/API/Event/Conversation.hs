@@ -224,9 +224,6 @@ instance FromJSON EventType where
   parseJSON (String "conversation.otr-message-add") = return OtrMessageAdd
   parseJSON x = fail $ "No event-type: " <> show (encode x)
 
--- FUTUREWORK(federation, #1213):
--- A lot of information in the events can contain remote IDs, but the
--- receiver might be on another backend, so mapped IDs don't work for them.
 data EventData
   = EdMembersJoin SimpleMembers
   | EdMembersLeave UserIdList
