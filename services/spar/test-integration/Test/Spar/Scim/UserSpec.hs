@@ -175,8 +175,10 @@ specSuspend = do
 -- | Tests for @POST /Users@.
 specCreateUser :: SpecWith TestEnv
 specCreateUser = describe "POST /Users" $ do
-  --  context "team has no SAML IdP" $ do
-  --    it "creates a user in an existing team" $ testCreateUserNIdPs 0
+  it "rejects attempts at setting a password" $ do
+    error "TODO: write this test case; write something in /docs about this, and link from the error message and from the code."
+  context "team has no SAML IdP" $ do
+    it "creates a user in an existing team" $ testCreateUserNIdPs 0
   context "team has one SAML IdP" $ do
     it "creates a user in an existing team" $ testCreateUserNIdPs 1
     it "adds a Wire scheme to the user record" $ testSchemaIsAdded
@@ -219,6 +221,7 @@ testCreateUserNIdPs numIdPs = do
   brigUser `userShouldMatch` WrappedScimStoredUser scimStoredUser
   accStatus <- aFewTimes (runSpar $ Intra.getStatus (userId brigUser)) (== Active)
   liftIO $ accStatus `shouldBe` Active
+  liftIO $ userManagedBy brigUser `shouldBe` ManagedByScim
 
 -- | Test that Wire-specific schemas are added to the SCIM user record, even if the schemas
 -- were not present in the original record during creation.
