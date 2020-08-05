@@ -41,15 +41,17 @@ import Test.QuickCheck (Arbitrary (arbitrary))
 import qualified Test.QuickCheck as QC
 import Wire.API.Federation.Util.Aeson (CustomEncoded (CustomEncoded))
 
--- | Similar to 'Galley.Types.Event', but all IDs are qualified, to allow this
--- representation to be sent across backends.
 data AnyEvent
   = EventMemberJoin (ConversationEvent MemberJoin)
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded AnyEvent)
 
--- | Instead of just being a generic event, it also allows to specify which type
+-- | Similar to 'Wire.API.Event.ConversationEvent', but all IDs are qualified to allow
+-- this representation to be sent across backends.
+--
+-- Also, instead of having a sum type in 'eventData', it allows specifying which type
 -- of event it is, e.g. @ConversationEvent MemberJoin@.
+-- To represent possiblity of multiple different event types, use a sum type around it.
 data ConversationEvent a = ConversationEvent
   { eventConversation :: Qualified ConvId,
     eventFrom :: Qualified UserId,
