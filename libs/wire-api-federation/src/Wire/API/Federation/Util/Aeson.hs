@@ -26,6 +26,10 @@ import qualified Data.Char as Char
 import GHC.Generics (Rep)
 import Imports
 
+-- | Drops record field name prefixes (anything until the first upper-case char)
+-- and turns the rest into snake_case.
+--
+-- For example, it converts @_recordFieldLabel@ into @field_label@.
 customEncodingOptions :: Options
 customEncodingOptions =
   defaultOptions
