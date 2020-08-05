@@ -23,7 +23,7 @@
 
 module Wire.API.Federation.Event
   ( AnyEvent (..),
-    Event (..),
+    ConversationEvent (..),
 
     -- * MemberJoin
     MemberJoin (..),
@@ -44,20 +44,20 @@ import Wire.API.Federation.Util.Aeson (CustomEncoded (CustomEncoded))
 -- | Similar to 'Galley.Types.Event', but all IDs are qualified, to allow this
 -- representation to be sent across backends.
 data AnyEvent
-  = EventMemberJoin (Event MemberJoin)
+  = EventMemberJoin (ConversationEvent MemberJoin)
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded AnyEvent)
 
 -- | Instead of just being a generic event, it also allows to specify which type
--- of event it is, e.g. @Event MemberJoin@.
-data Event a = Event
+-- of event it is, e.g. @ConversationEvent MemberJoin@.
+data ConversationEvent a = ConversationEvent
   { eventConversation :: Qualified ConvId,
     eventFrom :: Qualified UserId,
     eventTime :: UTCTime,
     eventData :: a
   }
   deriving stock (Eq, Show, Generic, Foldable, Functor, Traversable)
-  deriving (ToJSON, FromJSON) via (CustomEncoded (Event a))
+  deriving (ToJSON, FromJSON) via (CustomEncoded (ConversationEvent a))
 
 newtype MemberJoin = MemberJoin
   { smUsers :: [SimpleMember]
@@ -86,8 +86,8 @@ instance Arbitrary AnyEvent where
       [ EventMemberJoin <$> arbitrary
       ]
 
-instance Arbitrary a => Arbitrary (Event a) where
-  arbitrary = Event <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+instance Arbitrary a => Arbitrary (ConversationEvent a) where
+  arbitrary = ConversationEvent <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary MemberJoin where
   arbitrary = MemberJoin <$> arbitrary
