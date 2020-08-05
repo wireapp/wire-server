@@ -84,7 +84,7 @@ createPopulatedBindingTeamWithNames brig names = do
   (inviter, tid) <- createUserWithTeam' brig
   invitees <- forM names $ \name -> do
     inviteeEmail <- randomEmail
-    let invite = stdInvitationRequest name Nothing Nothing inviteeEmail
+    let invite = InvitationRequest Nothing Nothing (Just name) inviteeEmail Nothing
     inv <- responseJsonError =<< postInvitation brig tid (userId inviter) invite
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
     rsp2 <-
@@ -170,7 +170,7 @@ inviteAndRegisterUser ::
   m User
 inviteAndRegisterUser u tid brig = do
   inviteeEmail <- randomEmail
-  let invite = stdInvitationRequest (Name "Bob") Nothing Nothing inviteeEmail
+  let invite = InvitationRequest Nothing Nothing Nothing inviteeEmail Nothing
   inv <- responseJsonError =<< postInvitation brig tid u invite
   Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
   rspInvitee <-
@@ -436,10 +436,6 @@ isActivatedUser uid brig = do
   pure $ case responseJsonMaybe @[User] resp of
     Just (_ : _) -> True
     _ -> False
-
-stdInvitationRequest :: Name -> Maybe Locale -> Maybe Team.Role -> Email -> InvitationRequest
-stdInvitationRequest inviterName loc role e =
-  InvitationRequest inviterName loc role Nothing e Nothing
 
 setTeamTeamSearchVisibilityAvailable :: HasCallStack => Galley -> TeamId -> TeamFeatureStatusValue -> Http ()
 setTeamTeamSearchVisibilityAvailable galley tid status =
