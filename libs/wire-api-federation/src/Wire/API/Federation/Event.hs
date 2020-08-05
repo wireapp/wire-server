@@ -22,9 +22,10 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.Federation.Event
-  ( AnyEvent,
+  ( AnyEvent (..),
     Event (..),
-    AnyEventData (..),
+
+    -- * MemberJoin
     MemberJoin (..),
     SimpleMember (..),
     ConversationRole (..),
@@ -40,11 +41,12 @@ import Test.QuickCheck (Arbitrary (arbitrary))
 import qualified Test.QuickCheck as QC
 import Wire.API.Federation.Util.Aeson (CustomEncoded (CustomEncoded))
 
--- TODO(mheinzel): compare to `api-client`
-
 -- | Similar to 'Galley.Types.Event', but all IDs are qualified, to allow this
 -- representation to be sent across backends.
-type AnyEvent = Event AnyEventData
+data AnyEvent
+  = EventMemberJoin (Event MemberJoin)
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded AnyEvent)
 
 -- | Instead of just being a generic event, it also allows to specify which type
 -- of event it is, e.g. @Event MemberJoin@.
@@ -57,16 +59,6 @@ data Event a = Event
   deriving stock (Eq, Show, Generic, Foldable, Functor, Traversable)
   deriving (ToJSON, FromJSON) via (CustomEncoded (Event a))
 
--- FUTUREWORK(federation): Extend with the other Event types that need to be
--- sent across backends.
-data AnyEventData
-  = DataMemberJoin MemberJoin
-  deriving stock (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON) via (CustomEncoded AnyEventData)
-
--- TODO(mheinzel):
--- when putting this into Event, we don't get a tag, making the representation
--- different to the one wrapped into AnyEventData
 newtype MemberJoin = MemberJoin
   { smUsers :: [SimpleMember]
   }
@@ -87,6 +79,12 @@ data ConversationRole
   deriving (ToJSON, FromJSON) via (CustomEncoded ConversationRole)
 
 -- Arbitrary
+
+instance Arbitrary AnyEvent where
+  arbitrary =
+    QC.oneof
+      [ EventMemberJoin <$> arbitrary
+      ]
 
 instance Arbitrary a => Arbitrary (Event a) where
   arbitrary = Event <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
