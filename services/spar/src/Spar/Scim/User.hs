@@ -41,6 +41,7 @@ module Spar.Scim.User
   )
 where
 
+import Brig.Types.Common (Email (..), fromEmail, parseEmail)
 import Brig.Types.Intra (AccountStatus)
 import Brig.Types.User (ManagedBy (..), Name (..), User (..), ssoIdentity)
 import qualified Brig.Types.User as BT
@@ -76,6 +77,7 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.ResourceType as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User (schemas)
+import qualified Wire.API.User.Identity as Id
 import qualified Wire.API.User.RichInfo as RI
 
 ----------------------------------------------------------------------------
@@ -103,7 +105,8 @@ instance Scim.UserDB ST.SparTag Spar where
               uref <- mkUserRef mIdpConfig (pure val)
               uid <- do
                 -- TODO: without idp, we can't search for externalId now any more...  this is a bit stupid.
-                MaybeT $ maybe (pure Nothing) (lift . wrapMonadClient . Data.getSAMLUser) uref
+                -- (I just added an integration test so we won't forget this.)
+                MaybeT $ either (const $ pure Nothing) (lift . wrapMonadClient . Data.getSAMLUser) uref
               brigUser <- MaybeT . lift . Brig.getBrigUser $ uid
               guard $ userTeam brigUser == Just stiTeam
               lift $ synthesizeStoredUser brigUser
@@ -204,7 +207,7 @@ validateScimUser' ::
   Scim.User ST.SparTag ->
   m ST.ValidScimUser
 validateScimUser' midp richInfoLimit user = do
-  mUref :: Maybe SAML.UserRef <- mkUserRef midp (Scim.externalId user)
+  mUref <- mkUserRef midp (Scim.externalId user)
   handl <- validateHandle . Text.toLower . Scim.userName $ user
   -- FUTUREWORK: 'Scim.userName' should be case insensitive; then the toLower here would
   -- be a little less brittle.
@@ -244,18 +247,22 @@ mkUserRef ::
   (MonadError Scim.ScimError m) =>
   Maybe IdP ->
   Maybe Text ->
-  m (Maybe SAML.UserRef)
-mkUserRef Nothing _ = pure Nothing
-mkUserRef (Just idp) extid = case extid of
-  Just subjectTxt -> do
-    let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
-    subject <- validateSubject subjectTxt
-    pure . Just $ SAML.UserRef issuer subject
-  Nothing ->
-    throwError $
-      Scim.badRequest
-        Scim.InvalidValue
-        (Just "externalId is required for SAML users")
+  m (Either Email SAML.UserRef)
+mkUserRef _ Nothing = do
+  throwError $
+    Scim.badRequest
+      Scim.InvalidValue
+      (Just "externalId is required for SAML users")
+mkUserRef Nothing (Just extid) = do
+  let err =
+        Scim.badRequest
+          Scim.InvalidValue
+          (Just "externalId must be a valid email or a valid SAML NameID")
+  maybe (throwError err) (pure . Left) $ parseEmail extid
+mkUserRef (Just idp) (Just extid) = do
+  let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
+  subject <- validateSubject extid
+  pure . Right $ SAML.UserRef issuer subject
   where
     -- Validate a subject ID (@externalId@).
     validateSubject :: Text -> m SAML.NameID
@@ -297,15 +304,11 @@ createValidScimUser ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser muref handl mb
   -- is already in use and stops POSTing
 
   buid <- lift $ case muref of
-    Just uref -> do
+    Right uref -> do
       -- Generate a UserId will be used both for scim user in spar and for brig.
       buid <- Id <$> liftIO UUID.nextRandom
       Brig.createBrigUserSaml uref buid stiTeam mbName ManagedByScim
-    Nothing -> do
-      let email =
-            -- TODO: compute in ValidScimUser.  i think we need to make the Maybe URef an Either
-            -- Email URef..
-            undefined
+    Left email -> do
       Brig.createBrigUserInvite email stiTeam mbName ManagedByScim
 
   -- FUTUREWORK(arianvp): Get rid of manual lifting. Needs to be SCIM instances for ExceptT
@@ -592,10 +595,12 @@ synthesizeStoredUser usr = do
   let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
   handle <- lift $ Brig.giveDefaultHandle usr
   let uref = either (const Nothing) Just . Brig.fromUserSSOId
+      -- (userIdentity >=> ssoIdentity >=> uref $ usr :: Maybe SAML.UserRef)
+      urefOrEmail = undefined ssoIdentity uref
   storedUser <-
     synthesizeStoredUser'
       (userId usr)
-      (userIdentity >=> ssoIdentity >=> uref $ usr)
+      urefOrEmail
       (userDisplayName usr)
       handle
       richInfo
@@ -608,7 +613,7 @@ synthesizeStoredUser usr = do
 
 synthesizeStoredUser' ::
   UserId ->
-  Maybe SAML.UserRef ->
+  Either Email SAML.UserRef ->
   Name ->
   Handle ->
   RI.RichInfo ->
@@ -635,10 +640,9 @@ synthesizeScimUser :: ST.ValidScimUser -> Scim.User ST.SparTag
 synthesizeScimUser info =
   let Handle userName = info ^. ST.vsuHandle
       displayName = fromName (info ^. ST.vsuName)
-      toExternalId' :: Maybe SAML.UserRef -> Maybe Text
-      toExternalId' = (>>= either (const Nothing) Just . Brig.toExternalId . Brig.toUserSSOId)
+      extid = either fromEmail (Id.userSSOIdSubject . Brig.toUserSSOId) $ info ^. ST.vsuUserRef
    in (Scim.empty ST.userSchemas userName (ST.ScimUserExtra (info ^. ST.vsuRichInfo)))
-        { Scim.externalId = toExternalId' $ info ^. ST.vsuUserRef,
+        { Scim.externalId = Just extid,
           Scim.displayName = Just displayName,
           Scim.active = Just $ info ^. ST.vsuActive
         }

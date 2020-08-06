@@ -82,6 +82,7 @@ module Brig.API.User
 
     -- * Utilities
     fetchUserIdentity,
+    validateHandle,
   )
 where
 
