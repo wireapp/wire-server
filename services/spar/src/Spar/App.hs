@@ -192,7 +192,7 @@ createSamlUserWithId :: UserId -> SAML.UserRef -> ManagedBy -> Spar ()
 createSamlUserWithId buid suid managedBy = do
   teamid <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (suid ^. uidTenant)
   uname <- either (throwSpar . SparBadUserName . cs) pure $ Intra.mkUserName Nothing (Just suid)
-  buid' <- Intra.createBrigUser (Just suid) buid teamid uname managedBy
+  buid' <- Intra.createBrigUserSaml suid buid teamid uname managedBy
   assert (buid == buid') $ pure ()
   insertUser suid buid
 

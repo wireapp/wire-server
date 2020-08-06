@@ -36,7 +36,8 @@ module Spar.Intra.Brig
     checkHandleAvailable,
     bindBrigUser,
     deleteBrigUser,
-    createBrigUser,
+    createBrigUserSaml,
+    createBrigUserInvite,
     updateEmail,
     isTeamUser,
     getZUsrOwnedTeam,
@@ -62,8 +63,9 @@ import Control.Lens
 import Control.Monad.Except
 import Data.Aeson (FromJSON, eitherDecode')
 import Data.ByteString.Conversion
+import Data.Coerce (coerce)
 import Data.Handle (Handle (Handle, fromHandle))
-import Data.Id (Id (Id), TeamId, UserId)
+import Data.Id (Id (Id), InvitationId, TeamId, UserId)
 import Data.Ix
 import Data.Misc (PlainTextPassword)
 import Data.String.Conversions
@@ -129,19 +131,7 @@ class MonadError SparError m => MonadSparToBrig m where
 instance MonadSparToBrig m => MonadSparToBrig (ReaderT r m) where
   call = lift . call
 
--- | Create a user on brig.
-createBrigUser ::
-  (HasCallStack, MonadSparToBrig m) =>
-  -- | SSO identity
-  Maybe SAML.UserRef ->
-  UserId ->
-  TeamId ->
-  Name ->
-  ManagedBy ->
-  m UserId
-createBrigUser (Just uref) buid teamid uname managedBy = createBrigUserSaml uref buid teamid uname managedBy
-createBrigUser Nothing buid teamid uname managedBy = createBrigUserInvite buid teamid uname managedBy
-
+-- | Create a user on brig with saml credentials.
 createBrigUserSaml ::
   (HasCallStack, MonadSparToBrig m) =>
   SAML.UserRef ->
@@ -178,23 +168,24 @@ createBrigUserSaml uref (Id buid) teamid uname managedBy = do
     then userId . selfUser <$> parseResponse @SelfProfile resp
     else rethrow resp
 
+-- | Create a user on brig via the traditional team invite procedure.
 createBrigUserInvite ::
   (HasCallStack, MonadSparToBrig m) =>
-  UserId ->
+  Email ->
   TeamId ->
   Name ->
   ManagedBy ->
   m UserId
-createBrigUserInvite (Id _buid) teamid uname _managedBy = do
-  let invreq = Inv.InvitationRequest inviterEmail inviterName Nothing Nothing (Just uname) Nothing
-      inviteeEmail = undefined
-      inviterName = undefined
-
-  invraw <- call $ method POST . paths ["/i/teams", toByteString' teamid, "invitations"] . json invreq
-  let mkuid :: ResponseLBS -> UserId
-      mkuid = undefined
-  () <- error "TODO: handle brig errors and response body parse errors"
-  pure $ mkuid invraw
+createBrigUserInvite email teamid uname managedBy = do
+  let invreq = Inv.InvitationRequest Nothing Nothing (Just uname) email Nothing managedBy
+  invresp <- call $ method POST . paths ["/i/teams", toByteString' teamid, "invitations"] . json invreq
+  if statusCode invresp `notElem` [200, 201]
+    then rethrow invresp
+    else
+      responseJsonMaybe invresp
+        & maybe
+          (throwSpar (SparBrigError "Could not parse invitation in response body"))
+          (pure . coerce @InvitationId @UserId . Inv.inInvitation)
 
 updateEmail :: (HasCallStack, MonadSparToBrig m) => UserId -> Email -> m ()
 updateEmail buid email = do

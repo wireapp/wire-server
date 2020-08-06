@@ -289,12 +289,12 @@ createValidScimUser ::
   ScimTokenInfo ->
   ST.ValidScimUser ->
   m (Scim.StoredUser ST.SparTag)
-createValidScimUser ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser uref handl mbName richInfo active) = do
+createValidScimUser ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser muref handl mbName richInfo active) = do
   -- Generate a UserId will be used both for scim user in spar and for brig.
   buid <- Id <$> liftIO UUID.nextRandom
   -- ensure uniqueness constraints of all affected identifiers.
   -- if we crash now, retry POST will just work
-  for_ uref assertUserRefUnused
+  for_ muref assertUserRefUnused
   assertHandleUnused handl buid
   -- if we crash now, retry POST will just work, or user gets told the handle
   -- is already in use and stops POSTing
@@ -302,8 +302,21 @@ createValidScimUser ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser uref handl mbN
   -- FUTUREWORK(arianvp): Get rid of manual lifting. Needs to be SCIM instances for ExceptT
   -- This is the pain and the price you pay for the horribleness called MTL
   storedUser <- lift . toScimStoredUser buid $ synthesizeScimUser vsu
-  buid' <- lift $ Brig.createBrigUser uref buid stiTeam mbName ManagedByScim
-  assert (buid == buid') $ pure ()
+  let email =
+        -- TODO: compute in ValidScimUser.  i think we need to make the Maybe URef an Either
+        -- Email URef..
+        undefined
+  buid' <- lift $ case muref of
+    Just uref -> Brig.createBrigUserSaml uref buid stiTeam mbName ManagedByScim
+    Nothing -> Brig.createBrigUserInvite email stiTeam mbName ManagedByScim
+  assert (buid == buid') $
+    -- ERROR: this will crash for Brig.createBrigUserInvite.
+    --
+    -- FIX: refactor this code to not need a buid before creating the brig user!
+    -- assertHandleUnused should call an internal end-point that doesn't require zauth, and
+    -- storedUser can be created after the brig user.  it's both equally race-conditiony.
+    pure ()
+
   -- If we crash now, we have an active user that cannot login. And can not
   -- be bound this will be a zombie user that needs to be manually cleaned
   -- up.  We should consider making setUserHandle part of createUser and
@@ -318,9 +331,9 @@ createValidScimUser ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser uref handl mbN
 
   -- FUTUREWORK(arianvp): these two actions we probably want to make transactional
   lift . wrapMonadClient $ Data.writeScimUserTimes storedUser
-  for_ uref $ (lift . wrapMonadClient . (`Data.insertSAMLUser` buid))
+  for_ muref (lift . wrapMonadClient . (`Data.insertSAMLUser` buid))
 
-  for_ uref (lift . validateEmailIfExists buid)
+  for_ muref (lift . validateEmailIfExists buid)
 
   -- TODO(fisx): suspension has yet another race condition: if we don't reach the following
   -- line, the user will be active.
