@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -38,11 +39,14 @@ import Data.Aeson.Lens (key, _String)
 import Data.Aeson.QQ (aesonQQ)
 import Data.Aeson.Types (fromJSON, toJSON)
 import Data.ByteString.Conversion
+import Data.Coerce (coerce)
 import Data.Handle (Handle (Handle), fromHandle)
-import Data.Id (TeamId, UserId, randomId)
+import Data.Id (InvitationId, TeamId, UserId, randomId)
 import Data.Ix (inRange)
+import Data.Misc (PlainTextPassword (PlainTextPassword))
 import Data.String.Conversions (cs)
 import qualified Data.Text.Ascii as Ascii
+import Data.Text.Encoding (encodeUtf8)
 import Imports
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified SAML2.WebSSO.Types as SAML
@@ -60,6 +64,8 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.PatchOp as PatchOp
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Wire.API.Team.Feature as Feature
+import qualified Wire.API.Team.Invitation as Inv
+import Wire.API.User (emptyNewUser)
 import qualified Wire.API.User.Activation as Activation
 import Wire.API.User.RichInfo
 
@@ -176,11 +182,14 @@ specSuspend = do
 specCreateUser :: SpecWith TestEnv
 specCreateUser = describe "POST /Users" $ do
   it "rejects attempts at setting a password" $ do
-    error "TODO: write this test case; write something in /docs about this, and link from the error message and from the code."
+    testCreateUserWithPass
   context "team has no SAML IdP" $ do
-    focus $ it "creates a user in an existing team" $ testCreateUserNIdPs 0
+    it "sends out a team invite to the user by email and yields scim user on request" $ do
+      testCreateUserInvite
+    it "fails if no email can be extraced from externalId" $ do
+      testCreateUserInviteNoEmail
   context "team has one SAML IdP" $ do
-    focus $ it "creates a user in an existing team" $ testCreateUserNIdPs 1
+    focus $ it "creates a user in an existing team" $ testCreateUserWithSamlIdP
     it "adds a Wire scheme to the user record" $ testSchemaIsAdded
     it "requires externalId to be present" $ testExternalIdIsRequired
     it "rejects invalid handle" $ testCreateRejectsInvalidHandle
@@ -195,18 +204,110 @@ specCreateUser = describe "POST /Users" $ do
     it "writes all the stuff to all the places" $
       pendingWith "factor this out of the PUT tests we already wrote."
 
-testCreateUserNIdPs :: Int -> TestSpar ()
-testCreateUserNIdPs numIdPs = do
+testCreateUserWithPass :: TestSpar ()
+testCreateUserWithPass = do
+  env <- ask
+  tok <- do
+    (_, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+    registerScimToken tid Nothing
+  user <- randomScimUser <&> \u -> u {Scim.User.password = Just "geheim"}
+  createUser_ (Just tok) user (env ^. teSpar) !!! do
+    const 400 === statusCode
+    -- (yes, we should just test for error labels consistently...)
+    const (Just "setting password via scim is not supported") =~= responseBody
+
+testCreateUserInvite :: TestSpar ()
+testCreateUserInvite = do
   env <- ask
   -- Create a user via SCIM
   user <- randomScimUser
-  tok <- case numIdPs of
-    0 -> do
-      (_, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-      registerScimToken tid Nothing
-    1 -> do
-      fst <$> registerIdPAndScimToken
-    n -> error $ "unsupported numIdPs: " <> show n
+  (_, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  tok <- registerScimToken tid Nothing
+  scimStoredUser <- createUser tok user
+  let userid = scimUserId scimStoredUser
+      invid = coerce @UserId @InvitationId userid
+  inv <-
+    aFewTimes (runSpar $ Intra.getBrigInvitation invid) isJust
+      >>= maybe
+        (error "could not find invitation")
+        pure
+  inv `userShouldMatch` WrappedScimStoredUser scimStoredUser
+  accStatus <- runSpar $ Intra.getStatusMaybe userid
+  liftIO $ accStatus `shouldBe` Nothing
+  liftIO $ Inv.inManagedBy inv `shouldBe` ManagedByScim
+
+  let email :: Email
+      email =
+        fromMaybe (error "externalId is not an email address") $
+          parseEmail =<< (Scim.User.externalId . Scim.value . Scim.thing $ scimStoredUser)
+
+      name :: Name
+      name = Name "bob"
+
+      checkRetrieved :: Scim.UserC.StoredUser SparTag -> TestSpar ()
+      checkRetrieved susr = do
+        WrappedScimStoredUser susr `userShouldMatch` WrappedScimStoredUser scimStoredUser
+        let usr = Scim.value . Scim.thing $ susr
+        liftIO $ Scim.User.active usr `shouldBe` Just True
+        liftIO $ Scim.User.externalId usr `shouldBe` Just (fromEmail email)
+
+      acceptInvite :: TestSpar ()
+      acceptInvite = do
+        code <- call $ getInvitationCode (env ^. teBrig) tid invid
+        void . call $
+          post
+            ( (env ^. teBrig) . path "/register"
+                . contentJson
+                . json
+                  ( (emptyNewUser name)
+                      { newUserIdentity = Just $ EmailIdentity email,
+                        newUserPassword = Just $ PlainTextPassword "geheim",
+                        newUserOrigin = Just $ NewUserOriginInvitationCode code
+                      }
+                  )
+            )
+            <!! const 201 === statusCode
+
+  getUser tok userid >>= checkRetrieved
+  acceptInvite
+  getUser tok userid >>= checkRetrieved
+
+-- | copied from brig integration tests (and improved slightly).
+getInvitationCode ::
+  (MonadIO m, MonadHttp m, HasCallStack) =>
+  BrigReq ->
+  TeamId ->
+  InvitationId ->
+  m InvitationCode
+getInvitationCode brig t ref = do
+  r <-
+    get
+      ( brig
+          . path "/i/teams/invitation-code"
+          . queryItem "team" (toByteString' t)
+          . queryItem "invitation_id" (toByteString' ref)
+      )
+  maybe (error "No code?") pure $ do
+    fromByteString . encodeUtf8 =<< (^? key "code" . _String) =<< responseBody r
+
+testCreateUserInviteNoEmail :: TestSpar ()
+testCreateUserInviteNoEmail = do
+  env <- ask
+  tok <- do
+    (_, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+    registerScimToken tid Nothing
+  user <- randomScimUser <&> \u -> u {Scim.User.externalId = Just "notanemail"}
+  createUser_ (Just tok) user (env ^. teSpar) !!! do
+    const 400 === statusCode
+    -- (yes, we should just test for error labels consistently...)
+    const (Just "externalId must be a valid SAML NameID or an email address (or both)") =~= responseBody
+
+testCreateUserWithSamlIdP :: TestSpar ()
+testCreateUserWithSamlIdP = do
+  env <- ask
+  -- Create a user via SCIM
+  user <- randomScimUser
+  (tok, _) <- registerIdPAndScimToken
   scimStoredUser <- createUser tok user
   let userid = scimUserId scimStoredUser
   -- Check that this user is present in Brig and that Brig's view of the user
