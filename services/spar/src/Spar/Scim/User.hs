@@ -295,7 +295,7 @@ createValidScimUser ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser muref handl mb
   -- ensure uniqueness constraints of all affected identifiers.
   -- if we crash now, retry POST will just work
   for_ muref assertUserRefUnused
-  assertHandleUnused handl buid
+  assertHandleUnused handl
   -- if we crash now, retry POST will just work, or user gets told the handle
   -- is already in use and stops POSTing
 
@@ -557,12 +557,12 @@ assertUserRefNotUsedElsewhere userRef wireUserId = do
   unless (mExistingUserId `elem` [Nothing, Just wireUserId]) $ do
     throwError Scim.conflict {Scim.detail = Just "externalId does not match UserId"}
 
-assertHandleUnused :: Handle -> UserId -> Scim.ScimHandler Spar ()
+assertHandleUnused :: Handle -> Scim.ScimHandler Spar ()
 assertHandleUnused = assertHandleUnused' "userName is already taken"
 
-assertHandleUnused' :: Text -> Handle -> UserId -> Scim.ScimHandler Spar ()
-assertHandleUnused' msg hndl uid =
-  lift (Brig.checkHandleAvailable hndl uid) >>= \case
+assertHandleUnused' :: Text -> Handle -> Scim.ScimHandler Spar ()
+assertHandleUnused' msg hndl =
+  lift (Brig.checkHandleAvailable hndl) >>= \case
     True -> pure ()
     False -> throwError Scim.conflict {Scim.detail = Just msg}
 
@@ -570,7 +570,7 @@ assertHandleNotUsedElsewhere :: Handle -> UserId -> Scim.ScimHandler Spar ()
 assertHandleNotUsedElsewhere hndl uid = do
   musr <- lift $ Brig.getBrigUser uid
   unless ((userHandle =<< musr) == Just hndl) $
-    assertHandleUnused' "userName does not match UserId" hndl uid
+    assertHandleUnused' "userName does not match UserId" hndl
 
 -- | Helper function that translates a given brig user into a 'Scim.StoredUser', with some
 -- effects like updating the 'ManagedBy' field in brig and storing creation and update time

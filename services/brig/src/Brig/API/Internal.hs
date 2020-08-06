@@ -211,6 +211,9 @@ sitemap = do
     capture "uid"
       .&. accept "application" "json"
 
+  head "/i/users/handles/:handle" (continue checkHandleInternalH) $
+    capture "handle"
+
   Provider.routesInternal
   Auth.routesInternal
   Search.routesInternal
@@ -461,6 +464,13 @@ getContactListH :: JSON ::: UserId -> Handler Response
 getContactListH (_ ::: uid) = do
   contacts <- lift $ API.lookupContactList uid
   return $ json $ (UserIds contacts)
+
+checkHandleInternalH :: Text -> Handler Response
+checkHandleInternalH =
+  API.checkHandle >=> \case
+    API.CheckHandleInvalid -> throwE (StdError invalidHandle)
+    API.CheckHandleFound -> pure $ setStatus status200 empty
+    API.CheckHandleNotFound -> pure $ setStatus status404 empty
 
 -- Deprecated
 
