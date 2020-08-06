@@ -220,11 +220,24 @@ getBrigUser buid = do
         if (userDeleted user)
           then Nothing
           else Just user
-    404 -> pure Nothing
+    404 ->
+      error
+        "look at all callers to getBrigUser and make sure they don't forget \
+        \to call getBrigInvitation and construct a scim user from that if \
+        \this fails."
+        >> pure Nothing
     _ -> throwSpar (SparBrigError "Could not retrieve user")
 
-getBrigInvitation :: (HasCallStack, MonadSparToBrig m) => InvitationId -> m (Maybe Inv.Invitation)
-getBrigInvitation = undefined
+getBrigInvitation :: (HasCallStack, MonadSparToBrig m) => TeamId -> InvitationId -> m (Maybe Inv.Invitation)
+getBrigInvitation tid invid = do
+  resp :: ResponseLBS <-
+    call $
+      method GET
+        . paths ["/i/teams/", toByteString' tid, "/invitations/", toByteString' invid]
+  case (statusCode resp, responseJsonMaybe resp) of
+    (200, Just inv) -> pure inv
+    (404, _) -> pure Nothing
+    _ -> rethrow resp
 
 -- | Get a list of users; returns a shorter list if some 'UserId's come up empty (no errors).
 --
