@@ -178,9 +178,9 @@ specCreateUser = describe "POST /Users" $ do
   it "rejects attempts at setting a password" $ do
     error "TODO: write this test case; write something in /docs about this, and link from the error message and from the code."
   context "team has no SAML IdP" $ do
-    it "creates a user in an existing team" $ testCreateUserNIdPs 0
+    focus $ it "creates a user in an existing team" $ testCreateUserNIdPs 0
   context "team has one SAML IdP" $ do
-    it "creates a user in an existing team" $ testCreateUserNIdPs 1
+    focus $ it "creates a user in an existing team" $ testCreateUserNIdPs 1
     it "adds a Wire scheme to the user record" $ testSchemaIsAdded
     it "requires externalId to be present" $ testExternalIdIsRequired
     it "rejects invalid handle" $ testCreateRejectsInvalidHandle

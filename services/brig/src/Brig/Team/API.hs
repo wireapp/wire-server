@@ -59,7 +59,7 @@ import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import qualified Wire.API.Team.Invitation as Public
-import qualified Wire.API.User as Public (InvitationCode)
+import qualified Wire.API.User as Public
 
 routesPublic :: Routes Doc.ApiBuilder Handler ()
 routesPublic = do
@@ -156,6 +156,16 @@ routesPublic = do
 
 routesInternal :: Routes a Handler ()
 routesInternal = do
+  post "/i/teams/:tid/invitations" (continue createInvitationInternalH) $
+    accept "application" "json"
+      .&. capture "tid"
+      .&. jsonRequest @Public.InvitationRequest
+
+  get "/i/teams/:tid/invitations/:iid" (continue getInvitationInternalH) $
+    accept "application" "json"
+      .&. capture "tid"
+      .&. capture "iid"
+
   get "/i/teams/invitation-code" (continue getInvitationCodeH) $
     accept "application" "json"
       .&. param "team"
@@ -197,20 +207,40 @@ instance ToJSON FoundInvitationCode where
 createInvitationH :: JSON ::: UserId ::: TeamId ::: JsonRequest Public.InvitationRequest -> Handler Response
 createInvitationH (_ ::: uid ::: tid ::: req) = do
   body <- parseJsonBody req
-  newInv <- createInvitation uid tid body
+  newInv <- createInvitation (CreateInvitationExternal uid) tid body
   pure . setStatus status201 . loc (inInvitation newInv) . json $ newInv
   where
     loc iid =
       addHeader "Location" $
         "/teams/" <> toByteString' tid <> "/invitations/" <> toByteString' iid
 
-createInvitation :: UserId -> TeamId -> Public.InvitationRequest -> Handler Public.Invitation
-createInvitation uid tid body = do
-  idt <- maybe (throwStd noIdentity) return =<< lift (fetchUserIdentity uid)
-  from <- maybe (throwStd noEmail) return (emailIdentity idt)
+data CreateInvitationMode = CreateInvitationInternal | CreateInvitationExternal UserId
+  deriving (Eq, Show)
+
+data CreateInvitationInviter = CreateInvitationInviter
+  { inviterUid :: UserId,
+    inviterEmail :: Email
+  }
+  deriving (Eq, Show)
+
+createInvitationInternalH :: JSON ::: TeamId ::: JsonRequest Public.InvitationRequest -> Handler Response
+createInvitationInternalH (_ ::: tid ::: req) = do
+  body <- parseJsonBody req
+  newInv <- createInvitation CreateInvitationInternal tid body
+  pure . setStatus status201 . json $ newInv
+
+createInvitation :: CreateInvitationMode -> TeamId -> Public.InvitationRequest -> Handler Public.Invitation
+createInvitation mode tid body = do
   let inviteePerms = Team.rolePermissions inviteeRole
       inviteeRole = fromMaybe Team.defaultRole . irRole $ body
-  ensurePermissionToAddUser uid tid inviteePerms
+  mInviter <- case mode of
+    CreateInvitationExternal uid -> do
+      idt <- maybe (throwStd noIdentity) return =<< lift (fetchUserIdentity uid)
+      from <- maybe (throwStd noEmail) return (emailIdentity idt)
+      ensurePermissionToAddUser uid tid inviteePerms
+      pure . Just $ CreateInvitationInviter uid from
+    CreateInvitationInternal -> pure Nothing
+
   -- FUTUREWORK: These validations are nearly copy+paste from accountCreation and
   --             sendActivationCode. Refactor this to a single place
 
@@ -238,14 +268,22 @@ createInvitation uid tid body = do
   pending <- lift $ DB.countInvitations tid
   when (fromIntegral pending >= maxSize) $
     throwStd tooManyTeamInvitations
-  doInvite inviteeRole email from (irLocale body) (irInviteeName body) phone
+  doInvite inviteeRole email mInviter (irLocale body) (irInviteeName body) phone
   where
-    doInvite role toEmail from lc toName toPhone = lift $ do
+    doInvite role toEmail mInviter lc toName toPhone = lift $ do
       now <- liftIO =<< view currentTime
       timeout <- setTeamInvitationTimeout <$> view settings
-      (newInv, code) <- DB.insertInvitation tid role toEmail now (Just uid) toName toPhone Nothing timeout
-      void $ sendInvitationMail toEmail tid from code lc
+      (newInv, code) <- DB.insertInvitation tid role toEmail now (inviterUid <$> mInviter) toName toPhone undefined timeout
+      for_ mInviter $ \inviter -> void $ sendInvitationMail toEmail tid (inviterEmail inviter) code lc
       return newInv
+
+getInvitationInternalH :: JSON ::: TeamId ::: InvitationId -> Handler Response
+getInvitationInternalH (_ ::: tid ::: iid) =
+  maybe (setStatus status404 empty) json
+    <$> getInvitationInternal tid iid
+
+getInvitationInternal :: TeamId -> InvitationId -> Handler (Maybe Invitation)
+getInvitationInternal tid iid = lift $ DB.lookupInvitation tid iid
 
 deleteInvitationH :: JSON ::: UserId ::: TeamId ::: InvitationId -> Handler Response
 deleteInvitationH (_ ::: uid ::: tid ::: iid) = do
