@@ -27,6 +27,7 @@ import Control.Lens
 import Control.Monad.Random
 import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion
+import Data.Coerce (coerce)
 import Data.Handle (Handle (Handle))
 import Data.Id
 import Data.String.Conversions (cs)
@@ -58,6 +59,7 @@ import qualified Web.Scim.Schema.PatchOp as Scim.PatchOp
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Web.Scim.Schema.User.Email as Email
 import qualified Web.Scim.Schema.User.Phone as Phone
+import qualified Wire.API.Team.Invitation as Inv
 import Wire.API.User.RichInfo
 
 -- | Call 'registerTestIdP', then 'registerScimToken'.  The user returned is the owner of the team;
@@ -579,6 +581,14 @@ instance IsUser User where
   maybeTenant = Just (fmap (view SAML.uidTenant) . urefFromBrig)
   maybeSubject = Just (fmap (view SAML.uidSubject) . urefFromBrig)
   maybeSubjectRaw = Just (SAML.shortShowNameID . view SAML.uidSubject <=< urefFromBrig)
+
+instance IsUser Inv.Invitation where
+  maybeUserId = Just (coerce @InvitationId @UserId . Inv.inInvitation)
+  maybeHandle = Nothing
+  maybeName = Just Inv.inInviteeName
+  maybeTenant = Nothing
+  maybeSubject = Nothing
+  maybeSubjectRaw = Just (Just . fromEmail . Inv.inIdentity)
 
 -- | For all properties that are present in both @u1@ and @u2@, check that they match.
 --

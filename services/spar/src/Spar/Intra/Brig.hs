@@ -24,6 +24,7 @@ module Spar.Intra.Brig
     toExternalId,
     mkUserName,
     getBrigUser,
+    getBrigInvitation,
     getBrigUserTeam,
     getBrigUsers,
     getBrigUserByHandle,
@@ -47,6 +48,7 @@ module Spar.Intra.Brig
     MonadSparToBrig (..),
     isEmailValidationEnabledUser,
     getStatus,
+    getStatusMaybe,
     setStatus,
     giveDefaultHandle,
   )
@@ -220,6 +222,9 @@ getBrigUser buid = do
           else Just user
     404 -> pure Nothing
     _ -> throwSpar (SparBrigError "Could not retrieve user")
+
+getBrigInvitation :: (HasCallStack, MonadSparToBrig m) => InvitationId -> m (Maybe Inv.Invitation)
+getBrigInvitation = undefined
 
 -- | Get a list of users; returns a shorter list if some 'UserId's come up empty (no errors).
 --
@@ -492,13 +497,17 @@ isEmailValidationEnabledUser uid = do
     Just tid -> isEmailValidationEnabledTeam tid
 
 getStatus :: (HasCallStack, MonadSparToBrig m) => UserId -> m AccountStatus
-getStatus uid = do
+getStatus uid = getStatusMaybe uid >>= maybe (throwSpar SparNotFound) pure
+
+getStatusMaybe :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe AccountStatus)
+getStatusMaybe uid = do
   resp <-
     call $
       method GET
         . paths ["/i/users", toByteString' uid, "status"]
   case statusCode resp of
-    200 -> (\(AccountStatusResp status) -> status) <$> parseResponse @AccountStatusResp resp
+    200 -> (\(AccountStatusResp status) -> Just status) <$> parseResponse @AccountStatusResp resp
+    404 -> pure Nothing
     _ -> throwSpar (SparBrigErrorWith (responseStatus resp) "Could not retrieve account status")
 
 setStatus :: (HasCallStack, MonadSparToBrig m) => UserId -> AccountStatus -> m ()
