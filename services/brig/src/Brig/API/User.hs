@@ -28,6 +28,8 @@ module Brig.API.User
     changeEmail,
     changePhone,
     changeHandle,
+    CheckHandleResp (..),
+    checkHandle,
     lookupHandle,
     changeManagedBy,
     changeAccountStatus,
@@ -84,6 +86,7 @@ module Brig.API.User
 where
 
 import qualified Brig.API.Error as Error
+import qualified Brig.API.Handler as API (Handler)
 import Brig.API.Types
 import Brig.App
 import qualified Brig.Code as Code
@@ -123,7 +126,7 @@ import Control.Lens (view, (^.))
 import Control.Monad.Catch
 import Data.ByteString.Conversion
 import qualified Data.Currency as Currency
-import Data.Handle (Handle)
+import Data.Handle (Handle, parseHandle)
 import Data.Id as Id
 import Data.IdMapping (MappedOrLocalId, partitionMappedOrLocalIds)
 import Data.Json.Util
@@ -383,6 +386,29 @@ changeHandle uid conn hdl = do
       lift $ Intra.onUserEvent uid (Just conn) (handleUpdated uid hdl)
 
 --------------------------------------------------------------------------------
+-- Check Handle
+
+data CheckHandleResp
+  = CheckHandleInvalid
+  | CheckHandleFound
+  | CheckHandleNotFound
+
+checkHandle :: Text -> API.Handler CheckHandleResp
+checkHandle uhandle = do
+  xhandle <- validateHandle uhandle
+  owner <- lift $ lookupHandle xhandle
+  if
+      | isJust owner ->
+        -- Handle is taken (=> getHandleInfo will return 200)
+        return CheckHandleFound
+      | isBlacklistedHandle xhandle ->
+        -- Handle is free but cannot be taken
+        return CheckHandleInvalid
+      | otherwise ->
+        -- Handle is free and can be taken
+        return CheckHandleNotFound
+
+--------------------------------------------------------------------------------
 -- Check Handles
 
 checkHandles :: [Handle] -> Word -> AppIO [Handle]
@@ -404,7 +430,7 @@ checkHandles check num = reverse <$> collectFree [] check num
 
 -- | Call 'changeEmail' and process result: if email changes to itself, succeed, if not, send
 -- validation email.
-changeSelfEmail :: UserId -> Email -> ExceptT Error.Error AppIO ChangeEmailResponse
+changeSelfEmail :: UserId -> Email -> API.Handler ChangeEmailResponse
 changeSelfEmail u email = do
   changeEmail u email !>> Error.changeEmailError >>= \case
     ChangeEmailIdempotent ->
@@ -1078,3 +1104,6 @@ fetchUserIdentity uid =
     >>= maybe
       (throwM $ UserProfileNotFound uid)
       (return . userIdentity . selfUser)
+
+validateHandle :: Text -> API.Handler Handle
+validateHandle = maybe (throwE (Error.StdError Error.invalidHandle)) return . parseHandle

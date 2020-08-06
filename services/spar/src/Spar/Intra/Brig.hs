@@ -380,16 +380,12 @@ getBrigUserRichInfo buid =
       200 -> parseResponse resp
       _ -> throwSpar (SparBrigErrorWith (responseStatus resp) "Could not retrieve rich info")
 
--- | At the time of writing this, @HEAD /users/handles/:uid@ does not use the 'UserId' for
--- anything but authorization.
-checkHandleAvailable :: (HasCallStack, MonadSparToBrig m) => Handle -> UserId -> m Bool
-checkHandleAvailable hnd buid = do
+checkHandleAvailable :: (HasCallStack, MonadSparToBrig m) => Handle -> m Bool
+checkHandleAvailable hnd = do
   resp <-
     call $
       method HEAD
-        . paths ["users", "handles", toByteString' hnd]
-        . header "Z-User" (toByteString' buid)
-        . header "Z-Connection" ""
+        . paths ["/i/users", "handles", toByteString' hnd]
   let sCode = statusCode resp
   if
       | sCode == 200 -> -- handle exists
