@@ -40,6 +40,7 @@
 -- * Request and response types for SCIM-related endpoints.
 module Spar.Scim.Types where
 
+import Brig.Types.Common (Email (..))
 import Brig.Types.Intra (AccountStatus (Active, Deleted, Ephemeral, Suspended))
 import qualified Brig.Types.User as BT
 import Control.Lens (makeLenses)
@@ -197,7 +198,7 @@ instance Scim.Patchable ScimUserExtra where
 -- and/or ignore POSTed content, returning the full representation can be useful to the
 -- client, enabling it to correlate the client's and server's views of the new resource."
 data ValidScimUser = ValidScimUser
-  { _vsuUserRef :: Maybe SAML.UserRef,
+  { _vsuUserRef :: Either Email SAML.UserRef,
     _vsuHandle :: Handle,
     _vsuName :: BT.Name,
     _vsuRichInfo :: RI.RichInfo,

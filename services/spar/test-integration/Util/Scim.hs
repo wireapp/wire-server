@@ -532,6 +532,10 @@ scimUserId = Scim.id . Scim.thing
 --
 -- Note: we don't compare rich info here, because 'User' doesn't contain it. However, we have
 -- separate tests for rich info that cover that.
+--
+-- FUTUREWORK: tenant, subject, subjectraw are not scim concepts, we should use the
+-- corresponding scim terminology for that.  subjectraw is externalId; the other two don't
+-- have exact correspondences.  perhaps they can be removed?  or changed to fit scim better?
 class IsUser u where
   maybeUserId :: Maybe (u -> UserId)
   maybeHandle :: Maybe (u -> Maybe Handle)
@@ -551,9 +555,12 @@ instance IsUser ValidScimUser where
   maybeUserId = Nothing
   maybeHandle = Just (Just . view vsuHandle)
   maybeName = Just (Just . view vsuName)
-  maybeTenant = Just (^? (vsuUserRef . _Just . SAML.uidTenant))
-  maybeSubject = Just (^? (vsuUserRef . _Just . SAML.uidSubject))
-  maybeSubjectRaw = Just (SAML.shortShowNameID <=< (^? (vsuUserRef . _Just . SAML.uidSubject)))
+  maybeTenant = Just (^? (vsuUserRef . _Right . SAML.uidTenant))
+  maybeSubject = Just (^? (vsuUserRef . _Right . SAML.uidSubject))
+  maybeSubjectRaw = Just (\vsc -> email vsc <|> uref vsc)
+    where
+      email = fmap fromEmail . (^? (vsuUserRef . _Left))
+      uref = SAML.shortShowNameID <=< (^? (vsuUserRef . _Right . SAML.uidSubject))
 
 instance IsUser (WrappedScimStoredUser SparTag) where
   maybeUserId = Just $ scimUserId . fromWrappedScimStoredUser

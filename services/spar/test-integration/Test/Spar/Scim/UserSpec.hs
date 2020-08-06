@@ -188,6 +188,8 @@ specCreateUser = describe "POST /Users" $ do
       testCreateUserInvite
     it "fails if no email can be extraced from externalId" $ do
       testCreateUserInviteNoEmail
+    it "leaves a user that is searchable by externalId" $ do
+      error "TODO: implement this test case, but also move it to the other search tests."
   context "team has one SAML IdP" $ do
     focus $ it "creates a user in an existing team" $ testCreateUserWithSamlIdP
     it "adds a Wire scheme to the user record" $ testSchemaIsAdded
@@ -227,7 +229,7 @@ testCreateUserInvite = do
   let userid = scimUserId scimStoredUser
       invid = coerce @UserId @InvitationId userid
   inv <-
-    aFewTimes (runSpar $ Intra.getBrigInvitation invid) isJust
+    aFewTimes (runSpar $ Intra.getBrigInvitation tid invid) isJust
       >>= maybe
         (error "could not find invitation")
         pure
@@ -632,8 +634,7 @@ testFindNonProvisionedUser = do
   liftIO $ userManagedBy brigUser' `shouldBe` ManagedByScim
   -- a scim record should've been inserted too
   _ <- getUser tok member
-  let Just ssoIdentity' = userIdentity >=> ssoIdentity $ brigUser'
-  let Right externalId = Intra.toExternalId ssoIdentity'
+  let Just externalId = userSSOIdSubject <$> (userIdentity >=> ssoIdentity $ brigUser')
   users' <- listUsers tok (Just (filterBy "externalId" externalId))
   liftIO $ (scimUserId <$> users') `shouldContain` [member]
 
@@ -1000,8 +1001,9 @@ testUpdateUserRefIndex = do
            in randomScimUser <&> upd
         _ <- updateUser tok userid user'
         uref' <- either (error . show) pure $ mkUserRef (Just idp) (Scim.User.externalId user')
-        muserid <- maybe (pure Nothing) (runSparCass . Data.getSAMLUser) uref
-        muserid' <- maybe (pure Nothing) (runSparCass . Data.getSAMLUser) uref'
+        muserid <- either undefined (runSparCass . Data.getSAMLUser) uref
+        muserid' <- either undefined (runSparCass . Data.getSAMLUser) uref'
+        --                   ^^^ TODO: make emails searchable in spar even if there is no saml!
         liftIO $ do
           (changeUserRef, muserid)
             `shouldBe` (changeUserRef, if changeUserRef then Nothing else Just userid)
@@ -1322,7 +1324,7 @@ specEmailValidation = do
           (user, email) <- randomScimUserWithEmail
           scimStoredUser <- createUser tok user
           let Right uref = mkUserRef (Just idp) . Scim.User.externalId . Scim.value . Scim.thing $ scimStoredUser
-          uid <- maybe (error "no uref") getUserIdViaRef uref
+          uid <- either (const $ error "no uref") getUserIdViaRef uref
           brig <- asks (^. teBrig)
           call $ activateEmail brig email
           pure (uid, email)

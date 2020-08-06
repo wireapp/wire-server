@@ -1175,7 +1175,7 @@ changeHandleH (u ::: conn ::: req) = do
 
 changeHandle :: UserId -> ConnId -> Public.HandleUpdate -> Handler ()
 changeHandle u conn (Public.HandleUpdate h) = do
-  handle <- validateHandle h
+  handle <- API.validateHandle h
   API.changeHandle u conn handle !>> changeHandleError
 
 beginPasswordResetH :: JSON ::: JsonRequest Public.NewPasswordReset -> Handler Response
