@@ -73,6 +73,7 @@ import qualified SAML2.WebSSO as SAML
 import Spar.Error
 import Spar.Intra.Galley as Galley (MonadSparToGalley, assertIsTeamOwner, isEmailValidationEnabledTeam)
 import Web.Cookie
+import qualified Wire.API.Team.Invitation as Inv
 import Wire.API.User
 import Wire.API.User.RichInfo as RichInfo
 
@@ -184,8 +185,16 @@ createBrigUserInvite ::
   Name ->
   ManagedBy ->
   m UserId
-createBrigUserInvite (Id _buid) _teamid _uname _managedBy = do
-  undefined
+createBrigUserInvite (Id _buid) teamid uname _managedBy = do
+  let invreq = Inv.InvitationRequest inviterEmail inviterName Nothing Nothing (Just uname) Nothing
+      inviteeEmail = undefined
+      inviterName = undefined
+
+  invraw <- call $ method POST . paths ["/i/teams", toByteString' teamid, "invitations"] . json invreq
+  let mkuid :: ResponseLBS -> UserId
+      mkuid = undefined
+  () <- error "TODO: handle brig errors and response body parse errors"
+  pure $ mkuid invraw
 
 updateEmail :: (HasCallStack, MonadSparToBrig m) => UserId -> Email -> m ()
 updateEmail buid email = do
