@@ -31,6 +31,7 @@ module Wire.API.Team.Invitation
 where
 
 import Data.Aeson
+import Data.Handle
 import Data.Id
 import Data.Json.Util
 import qualified Data.Swagger.Build.Api as Doc
@@ -47,6 +48,7 @@ data InvitationRequest = InvitationRequest
   { irLocale :: Maybe Locale,
     irRole :: Maybe Role,
     irInviteeName :: Maybe Name,
+    irInviteeHandle :: Maybe Handle,
     irInviteeEmail :: Email,
     irInviteePhone :: Maybe Phone,
     irManagedBy :: ManagedBy
@@ -59,17 +61,20 @@ modelTeamInvitationRequest = Doc.defineModel "TeamInvitationRequest" $ do
   Doc.description "A request to join a team on Wire."
   Doc.property "inviter_name" Doc.string' $
     Doc.description "DEPRECATED - WILL BE IGNORED IN FAVOR OF REQ AUTH DATA - Name of the inviter (1 - 128 characters)"
-  Doc.property "email" Doc.string' $
-    Doc.description "Email of the invitee"
-  Doc.property "locale" Doc.string' $ do
-    Doc.description "Locale to use for the invitation."
-    Doc.optional
   Doc.property "role" typeRole $ do
     Doc.description "Role of the invited user"
+    Doc.optional
+  Doc.property "locale" Doc.string' $ do
+    Doc.description "Locale to use for the invitation."
     Doc.optional
   Doc.property "name" Doc.string' $ do
     Doc.description "Name of the invitee (1 - 128 characters)"
     Doc.optional
+  Doc.property "handle" Doc.string' $ do
+    Doc.description "Handle of the invitee (2 - 256 characters chosen from [a-z0-9_.-])"
+    Doc.optional
+  Doc.property "email" Doc.string' $
+    Doc.description "Email of the invitee"
   Doc.property "phone" Doc.string' $ do
     Doc.description "Phone number of the invitee, in the E.164 format"
     Doc.optional
@@ -80,10 +85,11 @@ modelTeamInvitationRequest = Doc.defineModel "TeamInvitationRequest" $ do
 instance ToJSON InvitationRequest where
   toJSON i =
     object $
-      [ "email" .= irInviteeEmail i,
-        "locale" .= irLocale i,
+      [ "locale" .= irLocale i,
         "role" .= irRole i,
         "name" .= irInviteeName i,
+        "handle" .= irInviteeHandle i,
+        "email" .= irInviteeEmail i,
         "phone" .= irInviteePhone i,
         "managed_by" .= irManagedBy i
       ]
@@ -94,6 +100,7 @@ instance FromJSON InvitationRequest where
       <$> o .:? "locale"
       <*> o .:? "role"
       <*> o .:? "name"
+      <*> o .:? "handle"
       <*> o .: "email"
       <*> o .:? "phone"
       <*> o .:? "managed_by" .!= ManagedByWire
@@ -111,6 +118,7 @@ data Invitation = Invitation
     -- migration it is allowed to be 'Nothing'.
     inCreatedBy :: Maybe UserId,
     inInviteeName :: Maybe Name,
+    inInviteeHandle :: Maybe Handle,
     inInviteePhone :: Maybe Phone,
     inManagedBy :: ManagedBy
   }
@@ -174,6 +182,7 @@ instance FromJSON Invitation where
       <*> o .: "created_at"
       <*> o .:? "created_by"
       <*> o .:? "name"
+      <*> o .:? "handle"
       <*> o .:? "phone"
       <*> o .:? "managed_by" .!= ManagedByWire
 
