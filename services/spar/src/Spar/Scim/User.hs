@@ -53,6 +53,7 @@ import qualified Data.Aeson as Aeson
 import Data.Handle (Handle (Handle), parseHandle)
 import Data.Id (Id (Id), UserId, idToText)
 import Data.Json.Util (UTCTimeMillis, fromUTCTimeMillis, toUTCTimeMillis)
+import Data.Misc ((<$$>))
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Data.UUID.V4 as UUID
@@ -104,9 +105,11 @@ instance Scim.UserDB ST.SparTag Spar where
             "externalid" -> do
               uref <- mkUserRef mIdpConfig (pure val)
               uid <- do
-                -- TODO: without idp, we can't search for externalId now any more...  this is a bit stupid.
-                -- (I just added an integration test so we won't forget this.)
-                MaybeT $ either (const $ pure Nothing) (lift . wrapMonadClient . Data.getSAMLUser) uref
+                MaybeT $
+                  uref
+                    & either
+                      ((userId <$$>) . lift . Brig.getBrigUserByEmail)
+                      (lift . wrapMonadClient . Data.getSAMLUser)
               brigUser <- MaybeT . lift . Brig.getBrigUser $ uid
               guard $ userTeam brigUser == Just stiTeam
               lift $ synthesizeStoredUser brigUser
