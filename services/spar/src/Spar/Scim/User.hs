@@ -43,7 +43,7 @@ where
 
 import Brig.Types.Common (Email (..), fromEmail, parseEmail)
 import Brig.Types.Intra (AccountStatus)
-import Brig.Types.User (ManagedBy (..), Name (..), User (..), ssoIdentity)
+import Brig.Types.User (ManagedBy (..), Name (..), User (..))
 import qualified Brig.Types.User as BT
 import Control.Lens ((^.))
 import Control.Monad.Except (MonadError, throwError)
@@ -597,9 +597,17 @@ synthesizeStoredUser usr = do
   SAML.Time (toUTCTimeMillis -> now) <- lift SAML.getNow
   let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
   handle <- lift $ Brig.giveDefaultHandle usr
-  let uref = either (const Nothing) Just . Brig.fromUserSSOId
-      -- (userIdentity >=> ssoIdentity >=> uref $ usr :: Maybe SAML.UserRef)
-      urefOrEmail = undefined ssoIdentity uref
+  urefOrEmail :: Either Email SAML.UserRef <- do
+    let sso :: Maybe Id.UserSSOId = Id.ssoIdentity <=< userIdentity $ usr
+        email :: Maybe Email = Id.emailIdentity <=< userIdentity $ usr
+    case (sso, email) of
+      (Just (Brig.fromUserSSOId -> Right it), _) -> pure $ Right it
+      (Nothing, Just it) -> pure $ Left it
+      -- the following should not happen.
+      (Just _, _) ->
+        throwError $ Scim.serverError "found brig user with corrupted saml saml credentials."
+      (Nothing, Nothing) -> do
+        throwError $ Scim.serverError "found user in brig with no email and no saml credentials."
   storedUser <-
     synthesizeStoredUser'
       (userId usr)
@@ -643,9 +651,9 @@ synthesizeScimUser :: ST.ValidScimUser -> Scim.User ST.SparTag
 synthesizeScimUser info =
   let Handle userName = info ^. ST.vsuHandle
       displayName = fromName (info ^. ST.vsuName)
-      extid = either fromEmail (Id.userSSOIdSubject . Brig.toUserSSOId) $ info ^. ST.vsuUserRef
+      extid = either (Just . fromEmail) (Brig.urefToExternalId) $ info ^. ST.vsuUserRef
    in (Scim.empty ST.userSchemas userName (ST.ScimUserExtra (info ^. ST.vsuRichInfo)))
-        { Scim.externalId = Just extid,
+        { Scim.externalId = extid,
           Scim.displayName = Just displayName,
           Scim.active = Just $ info ^. ST.vsuActive
         }

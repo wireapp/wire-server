@@ -189,7 +189,7 @@ specCreateUser = describe "POST /Users" $ do
     it "fails if no email can be extraced from externalId" $ do
       testCreateUserInviteNoEmail
   context "team has one SAML IdP" $ do
-    focus $ it "creates a user in an existing team" $ testCreateUserWithSamlIdP
+    it "creates a user in an existing team" $ testCreateUserWithSamlIdP
     it "adds a Wire scheme to the user record" $ testSchemaIsAdded
     it "requires externalId to be present" $ testExternalIdIsRequired
     it "rejects invalid handle" $ testCreateRejectsInvalidHandle
