@@ -21,6 +21,7 @@
 module Spar.Intra.Brig
   ( toUserSSOId,
     fromUserSSOId,
+    urefToExternalId,
     mkUserName,
     getBrigUser,
     getBrigInvitation,
@@ -93,6 +94,9 @@ fromUserSSOId (UserSSOId (cs -> tenant) (cs -> subject)) =
     (Right t, Right s) -> pure $ SAML.UserRef t s
     (Left msg, _) -> throwError msg
     (_, Left msg) -> throwError msg
+
+urefToExternalId :: SAML.UserRef -> Maybe Text
+urefToExternalId = SAML.shortShowNameID . view SAML.uidSubject
 
 -- | Take a maybe text, construct a 'Name' from what we have in a scim user.  If the text
 -- isn't present, use the saml subject (usually an email address).  If both are 'Nothing',
