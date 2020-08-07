@@ -46,6 +46,7 @@ import Brig.Types.User
 import Cassandra as C
 import Data.Conduit (runConduit, (.|))
 import qualified Data.Conduit.List as C
+import Data.Handle
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Range
@@ -85,27 +86,28 @@ insertInvitation ::
   UTCTime ->
   Maybe UserId ->
   Maybe Name ->
+  Maybe Handle ->
   Maybe Phone ->
   Maybe ManagedBy ->
   -- | The timeout for the invitation code.
   Timeout ->
   m (Invitation, InvitationCode)
-insertInvitation t role email (toUTCTimeMillis -> now) minviter inviteeName phone managedBy timeout = do
+insertInvitation t role email (toUTCTimeMillis -> now) minviter inviteeName inviteeHandle phone managedBy timeout = do
   iid <- liftIO mkInvitationId
   code <- liftIO mkInvitationCode
-  let inv = toInvitation (t, Just role, iid, email, now, minviter, inviteeName, phone, managedBy)
+  let inv = toInvitation (t, Just role, iid, email, now, minviter, inviteeName, inviteeHandle, phone, managedBy)
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency Quorum
-    addPrepQuery cqlInvitation (t, role, iid, code, email, now, minviter, inviteeName, phone, managedBy, round timeout)
+    addPrepQuery cqlInvitation (t, role, iid, code, email, now, minviter, inviteeName, inviteeHandle, phone, managedBy, round timeout)
     addPrepQuery cqlInvitationInfo (code, t, iid, round timeout)
     addPrepQuery cqlInvitationByEmail (email, t, iid, code, round timeout)
   return (inv, code)
   where
     cqlInvitationInfo :: PrepQuery W (InvitationCode, TeamId, InvitationId, Int32) ()
     cqlInvitationInfo = "INSERT INTO team_invitation_info (code, team, id) VALUES (?, ?, ?) USING TTL ?"
-    cqlInvitation :: PrepQuery W (TeamId, Role, InvitationId, InvitationCode, Email, UTCTimeMillis, Maybe UserId, Maybe Name, Maybe Phone, Maybe ManagedBy, Int32) ()
-    cqlInvitation = "INSERT INTO team_invitation (team, role, id, code, email, created_at, created_by, name, phone, managed_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) USING TTL ?"
+    cqlInvitation :: PrepQuery W (TeamId, Role, InvitationId, InvitationCode, Email, UTCTimeMillis, Maybe UserId, Maybe Name, Maybe Handle, Maybe Phone, Maybe ManagedBy, Int32) ()
+    cqlInvitation = "INSERT INTO team_invitation (team, role, id, code, email, created_at, created_by, name, handle, phone, managed_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) USING TTL ?"
     -- Note: the edge case of multiple invites to the same team by different admins from the same team results in last-invite-wins in the team_invitation_email table.
     cqlInvitationByEmail :: PrepQuery W (Email, TeamId, InvitationId, InvitationCode, Int32) ()
     cqlInvitationByEmail = "INSERT INTO team_invitation_email (email, team, invitation, code) VALUES (?, ?, ?, ?) USING TTL ?"
@@ -115,8 +117,8 @@ lookupInvitation t r =
   fmap toInvitation
     <$> retry x1 (query1 cqlInvitation (params Quorum (t, r)))
   where
-    cqlInvitation :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, Email, UTCTimeMillis, Maybe UserId, Maybe Name, Maybe Phone, Maybe ManagedBy)
-    cqlInvitation = "SELECT team, role, id, email, created_at, created_by, name, phone, managed_by FROM team_invitation WHERE team = ? AND id = ?"
+    cqlInvitation :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, Email, UTCTimeMillis, Maybe UserId, Maybe Name, Maybe Handle, Maybe Phone, Maybe ManagedBy)
+    cqlInvitation = "SELECT team, role, id, email, created_at, created_by, name, handle, phone, managed_by FROM team_invitation WHERE team = ? AND id = ?"
 
 lookupInvitationByCode :: MonadClient m => InvitationCode -> m (Maybe Invitation)
 lookupInvitationByCode i =
@@ -152,10 +154,10 @@ lookupInvitations team start (fromRange -> size) = do
           { result = invs,
             hasMore = more
           }
-    cqlSelect :: PrepQuery R (Identity TeamId) (TeamId, Maybe Role, InvitationId, Email, UTCTimeMillis, Maybe UserId, Maybe Name, Maybe Phone, Maybe ManagedBy)
-    cqlSelect = "SELECT team, role, id, email, created_at, created_by, name, phone, managed_by FROM team_invitation WHERE team = ? ORDER BY id ASC"
-    cqlSelectFrom :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, Email, UTCTimeMillis, Maybe UserId, Maybe Name, Maybe Phone, Maybe ManagedBy)
-    cqlSelectFrom = "SELECT team, role, id, email, created_at, created_by, name, phone, managed_by FROM team_invitation WHERE team = ? AND id > ? ORDER BY id ASC"
+    cqlSelect :: PrepQuery R (Identity TeamId) (TeamId, Maybe Role, InvitationId, Email, UTCTimeMillis, Maybe UserId, Maybe Name, Maybe Handle, Maybe Phone, Maybe ManagedBy)
+    cqlSelect = "SELECT team, role, id, email, created_at, created_by, name, handle, phone, managed_by FROM team_invitation WHERE team = ? ORDER BY id ASC"
+    cqlSelectFrom :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, Email, UTCTimeMillis, Maybe UserId, Maybe Name, Maybe Handle, Maybe Phone, Maybe ManagedBy)
+    cqlSelectFrom = "SELECT team, role, id, email, created_at, created_by, name, handle, phone, managed_by FROM team_invitation WHERE team = ? AND id > ? ORDER BY id ASC"
 
 deleteInvitation :: MonadClient m => TeamId -> InvitationId -> m ()
 deleteInvitation t i = do
@@ -232,5 +234,18 @@ countInvitations t =
 
 -- | brig used to not store the role, so for migration we allow this to be empty and fill in the
 -- default here.
-toInvitation :: (TeamId, Maybe Role, InvitationId, Email, UTCTimeMillis, Maybe UserId, Maybe Name, Maybe Phone, Maybe ManagedBy) -> Invitation
-toInvitation (t, r, i, e, tm, minviter, inviteeName, p, m) = Invitation t (fromMaybe Team.defaultRole r) i e tm minviter inviteeName p (fromMaybe ManagedByWire m)
+toInvitation ::
+  ( TeamId,
+    Maybe Role,
+    InvitationId,
+    Email,
+    UTCTimeMillis,
+    Maybe UserId,
+    Maybe Name,
+    Maybe Handle,
+    Maybe Phone,
+    Maybe ManagedBy
+  ) ->
+  Invitation
+toInvitation (t, r, i, e, tm, minviter, inviteeName, inviteeHandle, p, m) =
+  Invitation t (fromMaybe Team.defaultRole r) i e tm minviter inviteeName inviteeHandle p (fromMaybe ManagedByWire m)

@@ -18,7 +18,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V62_team_invitation_managed_by
+module V62_widen_team_invitations
   ( migration,
   )
 where
@@ -29,5 +29,5 @@ import Text.RawString.QQ
 
 migration :: Migration
 migration =
-  Migration 62 "Add managed_by to team_invitation table" $
-    schema' [r| alter table team_invitation add managed_by int; |]
+  Migration 62 "Add optional handle, mandatory managed_by to team_invitation table" $ do
+    schema' [r| alter table team_invitation add managed_by int, handle text; |]

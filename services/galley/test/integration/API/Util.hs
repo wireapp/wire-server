@@ -293,7 +293,7 @@ addUserToTeamWithRole' role inviter tid = do
   brig <- view tsBrig
   inviteeEmail <- randomEmail
   let name = Name $ fromEmail inviteeEmail
-  let invite = InvitationRequest Nothing role (Just name) inviteeEmail Nothing ManagedByWire
+  let invite = InvitationRequest Nothing role (Just name) Nothing inviteeEmail Nothing ManagedByWire
   invResponse <- postInvitation tid inviter invite
   inv <- responseJsonError invResponse
   Just inviteeCode <- getInvitationCode tid (inInvitation inv)

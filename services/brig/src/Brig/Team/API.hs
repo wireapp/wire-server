@@ -268,9 +268,9 @@ createInvitation mode tid body = do
   pending <- lift $ DB.countInvitations tid
   when (fromIntegral pending >= maxSize) $
     throwStd tooManyTeamInvitations
-  doInvite inviteeRole email mInviter (irLocale body) (irInviteeName body) phone
+  doInvite inviteeRole email mInviter (irLocale body) (irInviteeName body) (irInviteeHandle body) phone
   where
-    doInvite role toEmail mInviter lc toName toPhone = lift $ do
+    doInvite role toEmail mInviter lc toName toHandle toPhone = lift $ do
       now <- liftIO =<< view currentTime
       timeout <- setTeamInvitationTimeout <$> view settings
       (newInv, code) <-
@@ -281,6 +281,7 @@ createInvitation mode tid body = do
           now
           (inviterUid <$> mInviter)
           toName
+          toHandle
           toPhone
           (Just $ irManagedBy body)
           timeout
