@@ -282,7 +282,7 @@ createInvitation mode tid body = do
           (inviterUid <$> mInviter)
           toName
           toPhone
-          undefined
+          (Just $ irManagedBy body)
           timeout
       for_ mInviter $ \inviter -> void $ sendInvitationMail toEmail tid (inviterEmail inviter) code lc
       return newInv
