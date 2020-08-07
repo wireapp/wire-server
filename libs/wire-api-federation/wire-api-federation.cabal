@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 365781b146aeb5cff30955591ab1c8141b368aaa3b9a25b566331dfa677431b2
+-- hash: 942d9870717b6c174641f5f84d1344154f017118bd6870e939fba4eedc747d34
 
 name:           wire-api-federation
 version:        0.1.0
@@ -20,6 +20,8 @@ build-type:     Simple
 
 library
   exposed-modules:
+      Wire.API.Federation.API
+      Wire.API.Federation.API.Conversation
       Wire.API.Federation.Event
       Wire.API.Federation.Util.Aeson
   other-modules:
@@ -49,7 +51,7 @@ test-suite spec
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      Test.SerializationSpec
+      Test.Wire.API.Federation.APISpec
       Paths_wire_api_federation
   hs-source-dirs:
       test
@@ -67,6 +69,7 @@ test-suite spec
     , hspec
     , hspec-discover
     , imports
+    , metrics-wai
     , servant >=0.16
     , text >=0.11
     , time >=1.8

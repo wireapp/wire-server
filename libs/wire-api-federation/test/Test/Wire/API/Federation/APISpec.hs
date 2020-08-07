@@ -15,11 +15,15 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.SerializationSpec where
+module Test.Wire.API.Federation.APISpec where
 
+import Data.Metrics.Servant (routesToPaths)
+import Data.Metrics.Test (pathsConsistencyCheck)
 import Imports
-import Test.Hspec
+import Test.Hspec (Spec, it, shouldBe)
+import Wire.API.Federation.API as API
 
 spec :: Spec
 spec = do
-  pure ()
+  it "API consistency" $ do
+    pathsConsistencyCheck (routesToPaths @API.PlainApi) `shouldBe` mempty
