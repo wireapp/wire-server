@@ -104,11 +104,13 @@ git rebase $BASE_COMMIT~1 --exec "$FORMATTING_COMMAND && git commit -am format &
 # drop last commit (do not revert formatting at the end of the branch)
 git reset HEAD~1 --hard
 
-# now for every Ci, squash with the previous and next commit (i.e. g at C(i-1) and f at Ci)
-# - in sequence editor, squash lines 3, 6, 9, ... and fixup lines 4, 7, 10, ...
-# - in commit message editor, drop first 9 lines (removing the commit message of the revert commit)
-GIT_SEQUENCE_EDITOR='sed -i -e "3~3s/pick/squash/" -e "4~3s/pick/fixup/"' \
-  GIT_EDITOR='sed -i "1,9d"' \
+# now for every Ci, squash with the previous and next commit (i.e. g at C(i-1) and f at Ci).
+# However, we want to use Ci's commit message and author.
+# To do this, we run the following command after each group of these 3 commits:
+# Ci=$(git rev-parse HEAD~1); git reset --soft HEAD~3; git commit --reuse-message $Ci
+# We do an interactive rebase, but instead of editing the commit sequence manually,
+# we use sed for that, inserting an `exec` command after every 3 commits.
+GIT_SEQUENCE_EDITOR='sed -i -e "4~3s/^\(pick \S* format\)$/\1\nexec Ci=\$(git rev-parse HEAD~1); git reset --soft HEAD~3; git commit --reuse-message \$Ci/"' \
   git rebase --interactive $BASE_COMMIT
 
 # rebase onto TARGET_COMMIT.
