@@ -47,6 +47,7 @@ module Util.Core
     endpointToURL,
 
     -- * Other
+    randomEmail,
     defPassword,
     getUserBrig,
     createUserWithTeam,
