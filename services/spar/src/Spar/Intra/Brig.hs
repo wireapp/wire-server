@@ -27,6 +27,7 @@ module Spar.Intra.Brig
     getBrigUserTeam,
     getBrigUsers,
     getBrigUserByHandle,
+    getBrigUserByEmail,
     getBrigUserRichInfo,
     setBrigUserName,
     setBrigUserHandle,
@@ -257,7 +258,23 @@ getBrigUserByHandle handle = do
   where
     parse :: [UserAccount] -> Maybe User
     parse (x : []) = Just $ accountUser x
-    parse _ = Nothing -- TODO: What if more accounts get returned?
+    parse _ = Nothing
+
+getBrigUserByEmail :: (HasCallStack, MonadSparToBrig m) => Email -> m (Maybe User)
+getBrigUserByEmail email = do
+  resp :: ResponseLBS <-
+    call $
+      method GET
+        . path "/i/users"
+        . queryItem "email" (toByteString' email)
+  case statusCode resp of
+    200 -> parse <$> parseResponse @[UserAccount] resp
+    404 -> pure Nothing
+    _ -> throwSpar (SparBrigError "Could not retrieve user")
+  where
+    parse :: [UserAccount] -> Maybe User
+    parse (x : []) = Just $ accountUser x
+    parse _ = Nothing
 
 -- | Set user' name.  Fails with status <500 if brig fails with <500, and with 500 if brig
 -- fails with >= 500.
