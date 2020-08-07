@@ -273,7 +273,17 @@ createInvitation mode tid body = do
     doInvite role toEmail mInviter lc toName toPhone = lift $ do
       now <- liftIO =<< view currentTime
       timeout <- setTeamInvitationTimeout <$> view settings
-      (newInv, code) <- DB.insertInvitation tid role toEmail now (inviterUid <$> mInviter) toName toPhone undefined timeout
+      (newInv, code) <-
+        DB.insertInvitation
+          tid
+          role
+          toEmail
+          now
+          (inviterUid <$> mInviter)
+          toName
+          toPhone
+          undefined
+          timeout
       for_ mInviter $ \inviter -> void $ sendInvitationMail toEmail tid (inviterEmail inviter) code lc
       return newInv
 
