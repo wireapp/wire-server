@@ -173,10 +173,11 @@ createBrigUserInvite ::
   Email ->
   TeamId ->
   Name ->
+  Handle ->
   ManagedBy ->
   m UserId
-createBrigUserInvite email teamid uname managedBy = do
-  let invreq = Inv.InvitationRequest Nothing Nothing (Just uname) Nothing email Nothing managedBy
+createBrigUserInvite email teamid uname uhandle managedBy = do
+  let invreq = Inv.InvitationRequest Nothing Nothing (Just uname) (Just uhandle) email Nothing managedBy
   invresp <- call $ method POST . paths ["/i/teams", toByteString' teamid, "invitations"] . json invreq
   if statusCode invresp `notElem` [200, 201]
     then rethrow invresp

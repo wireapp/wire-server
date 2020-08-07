@@ -310,20 +310,21 @@ createValidScimUser ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser muref handl mb
     Right uref -> do
       -- Generate a UserId will be used both for scim user in spar and for brig.
       buid <- Id <$> liftIO UUID.nextRandom
-      Brig.createBrigUserSaml uref buid stiTeam mbName ManagedByScim
+      _ <- Brig.createBrigUserSaml uref buid stiTeam mbName ManagedByScim
+      -- If we crash now, we have an active user that cannot login. And can not
+      -- be bound this will be a zombie user that needs to be manually cleaned
+      -- up.  We should consider making setUserHandle part of createUser and
+      -- making it transactional.  If the user redoes the POST A new standalone
+      -- user will be created
+      Brig.setBrigUserHandle buid handl
+      pure buid
     Left email -> do
-      Brig.createBrigUserInvite email stiTeam mbName ManagedByScim
+      Brig.createBrigUserInvite email stiTeam mbName handl ManagedByScim
 
   -- FUTUREWORK(arianvp): Get rid of manual lifting. Needs to be SCIM instances for ExceptT
   -- This is the pain and the price you pay for the horribleness called MTL
   storedUser <- lift . toScimStoredUser buid $ synthesizeScimUser vsu
 
-  -- If we crash now, we have an active user that cannot login. And can not
-  -- be bound this will be a zombie user that needs to be manually cleaned
-  -- up.  We should consider making setUserHandle part of createUser and
-  -- making it transactional.  If the user redoes the POST A new standalone
-  -- user will be created
-  lift $ Brig.setBrigUserHandle buid handl
   -- If we crash now,  a POST retry will fail with 409 user already exists.
   -- Azure at some point will retry with GET /Users?filter=userName eq handle
   -- and then issue a PATCH containing the rich info and the externalId
