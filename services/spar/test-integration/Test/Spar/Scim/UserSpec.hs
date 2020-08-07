@@ -815,9 +815,7 @@ specUpdateUser = describe "PUT /Users/:id" $ do
   it "works fine when neither name nor handle are changed" $ testUpdateSameHandle
   it "updates the 'SAML.UserRef' index in Spar" $ testUpdateUserRefIndex
   it "updates the matching Brig user" $ testBrigSideIsUpdated
-  it
-    "cannot update user to match another user's externalId"
-    testUpdateToExistingExternalIdFails
+  it "cannot update user to match another user's externalId" $ testUpdateToExistingExternalIdFails
   it "cannot remove display name" $ testCannotRemoveDisplayName
   context "user is from different team" $ do
     it "fails to update user with 404" testUserUpdateFailsWithNotFoundIfOutsideTeam
@@ -850,17 +848,16 @@ testCannotRemoveDisplayName = do
   --  However; I don't think this is currently blocking us on Azure.
   --  We should however fix this behaviour in the future TODO(arianvp)
   pendingWith
+    {-
+    env <- ask
+    user <- randomScimUser
+    (tok, _) <- registerIdPAndScimToken
+    storedUser <- createUser tok user
+    let userid = scimUserId storedUser
+    let user' = user { Scim.User.displayName = Nothing }
+    updateUser_ (Just tok) (Just userid) user'  (env ^. teSpar) !!! const 409 === statusCode
+    -}
     "We default to the externalId when displayName is removed. lets keep that for now"
-
-{-
-env <- ask
-user <- randomScimUser
-(tok, _) <- registerIdPAndScimToken
-storedUser <- createUser tok user
-let userid = scimUserId storedUser
-let user' = user { Scim.User.displayName = Nothing }
-updateUser_ (Just tok) (Just userid) user'  (env ^. teSpar) !!! const 409 === statusCode
--}
 
 -- | Test that when you're not changing any fields, then that update should not
 -- change anything (Including version field)
@@ -985,7 +982,7 @@ testUpdateSameHandle = do
 testUpdateUserRefIndex :: TestSpar ()
 testUpdateUserRefIndex = do
   (tok, (_, _, idp)) <- registerIdPAndScimToken
-  let checkUpdateUserRef :: Bool -> TestSpar ()
+  let checkUpdateUserRef :: HasCallStack => Bool -> TestSpar ()
       checkUpdateUserRef changeUserRef = do
         -- Create a user via SCIM
         user <- randomScimUser
