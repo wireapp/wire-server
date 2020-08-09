@@ -167,6 +167,7 @@ instance ToJSON Invitation where
         "created_at" .= inCreatedAt i,
         "created_by" .= inCreatedBy i,
         "name" .= inInviteeName i,
+        "handle" .= inInviteeHandle i,
         "phone" .= inInviteePhone i,
         "managed_by" .= inManagedBy i
       ]
