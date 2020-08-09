@@ -30,4 +30,4 @@ import Text.RawString.QQ
 migration :: Migration
 migration =
   Migration 62 "Add optional handle, mandatory managed_by to team_invitation table" $ do
-    schema' [r| alter table team_invitation add managed_by int, handle text; |]
+    schema' [r| alter table team_invitation add (managed_by int, handle text); |]
