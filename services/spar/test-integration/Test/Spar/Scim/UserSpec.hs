@@ -1057,7 +1057,8 @@ testUpdateExternalId withidp = do
   let checkUpdate :: HasCallStack => Bool -> TestSpar ()
       checkUpdate hasChanged = do
         -- Create a user via SCIM
-        user <- randomScimUser
+        email <- randomEmail
+        user <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
         storedUser <- createUser tok user
         let userid = scimUserId storedUser
         uref <- either (error . show) pure $ mkUserRef midp (Scim.User.externalId user)
