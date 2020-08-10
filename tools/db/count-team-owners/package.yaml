@@ -16,23 +16,25 @@ ghc-options:
 - -rtsopts
 dependencies:
 - base
+- bytestring
+- bytestring-conversion
 - cassandra-util
+- conduit
 - containers
 - galley-types
 - imports
-- optparse-applicative
-- text
 - lens
-- tinylog
-- uuid
-- types-common
-- unliftio
-- conduit
 - metrics-core
-- bytestring
-- bytestring-conversion
+- optparse-applicative
+- prometheus-client
+- text
 - time
 - time-compat
+- tinylog
+- types-common
+- unliftio
+- uuid
+- wai-middleware-prometheus
 executables:
   count-team-owners:
     main: Main.hs
