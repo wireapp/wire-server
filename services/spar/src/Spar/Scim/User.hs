@@ -51,7 +51,7 @@ import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Crypto.Hash (Digest, SHA256, hashlazy)
 import qualified Data.Aeson as Aeson
 import Data.Handle (Handle (Handle), parseHandle)
-import Data.Id (Id (Id), UserId, idToText)
+import Data.Id (Id (Id), TeamId, UserId, idToText)
 import Data.Json.Util (UTCTimeMillis, fromUTCTimeMillis, toUTCTimeMillis)
 import Data.Misc ((<$$>))
 import Data.String.Conversions (cs)
@@ -111,7 +111,7 @@ instance Scim.UserDB ST.SparTag Spar where
                     & either
                       ((Brig.userOrInvitationId <$$>) . lift . Brig.getBrigUserByEmail)
                       (lift . wrapMonadClient . Data.getSAMLUser)
-              brigUser <- MaybeT . lift . Brig.getBrigUser $ uid
+              brigUser <- MaybeT . lift . Brig.getBrigUser stiTeam $ uid
               guard $ Brig.userOrInvitationTeam brigUser == Just stiTeam
               lift $ synthesizeStoredUser brigUser
             _ -> throwError (Scim.badRequest Scim.InvalidFilter (Just "Unsupported attribute"))
@@ -125,7 +125,7 @@ instance Scim.UserDB ST.SparTag Spar where
     Scim.ScimHandler Spar (Scim.StoredUser ST.SparTag)
   getUser ScimTokenInfo {stiTeam} uid = do
     let notfound = Scim.notFound "User" (idToText uid)
-    brigUser <- lift (Brig.getBrigUser uid) >>= maybe (throwError notfound) pure
+    brigUser <- lift (Brig.getBrigUser stiTeam uid) >>= maybe (throwError notfound) pure
     unless (Brig.userOrInvitationTeam brigUser == Just stiTeam) (throwError notfound)
     synthesizeStoredUser brigUser
 
@@ -320,7 +320,7 @@ createValidScimUser ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser muref handl mb
       Brig.setBrigUserHandle buid handl
       pure buid
     Left email -> do
-      Brig.createBrigUserInvite email stiTeam mbName handl ManagedByScim
+      Brig.createBrigUserInvitation email stiTeam mbName handl ManagedByScim
 
   -- FUTUREWORK(arianvp): Get rid of manual lifting. Needs to be SCIM instances for ExceptT
   -- This is the pain and the price you pay for the horribleness called MTL
@@ -358,7 +358,7 @@ updateValidScimUser ::
   UserId ->
   ST.ValidScimUser ->
   m (Scim.StoredUser ST.SparTag)
-updateValidScimUser tokinfo uid newScimUser = do
+updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid newScimUser = do
   -- TODO: how do we get this safe w.r.t. race conditions / crashes?
 
   -- construct old and new user values with metadata.
@@ -367,7 +367,7 @@ updateValidScimUser tokinfo uid newScimUser = do
   oldValidScimUser :: ST.ValidScimUser <-
     validateScimUser tokinfo . Scim.value . Scim.thing $ oldScimStoredUser
   (`assertUserRefNotUsedElsewhere` uid) `traverse_` (newScimUser ^. ST.vsuUserRef)
-  assertHandleNotUsedElsewhere (newScimUser ^. ST.vsuHandle) uid
+  assertHandleNotUsedElsewhere stiTeam uid (newScimUser ^. ST.vsuHandle)
   if oldValidScimUser == newScimUser
     then pure oldScimStoredUser
     else do
@@ -485,7 +485,7 @@ updScimStoredUser' now usr (Scim.WithMeta meta (Scim.WithId scimuid _)) =
 deleteScimUser ::
   ScimTokenInfo -> UserId -> Scim.ScimHandler Spar ()
 deleteScimUser ScimTokenInfo {stiTeam} uid = do
-  mbBrigUser <- lift (Brig.getBrigUser uid)
+  mbBrigUser <- lift (Brig.getBrigUser stiTeam uid)
   case mbBrigUser of
     Nothing -> do
       -- double-deletion gets you a 404.
@@ -505,7 +505,7 @@ deleteScimUser ScimTokenInfo {stiTeam} uid = do
         uref <- either logThenServerError pure $ Brig.fromUserSSOId ssoId
         lift . wrapMonadClient $ Data.deleteSAMLUser uref
       lift . wrapMonadClient $ Data.deleteScimUserTimes uid
-      lift $ Brig.deleteBrigUser uid
+      lift $ Brig.deleteBrigUser stiTeam uid
       return ()
   where
     logThenServerError :: String -> Scim.ScimHandler Spar b
@@ -562,14 +562,15 @@ assertHandleUnused :: Handle -> Scim.ScimHandler Spar ()
 assertHandleUnused = assertHandleUnused' "userName is already taken"
 
 assertHandleUnused' :: Text -> Handle -> Scim.ScimHandler Spar ()
-assertHandleUnused' msg hndl =
+assertHandleUnused' msg hndl = do
+  () <- error "so we also need to patch brig to make sure that it blocks the handles we add to the invitations?!  it doesn't end..."
   lift (Brig.checkHandleAvailable hndl) >>= \case
     True -> pure ()
     False -> throwError Scim.conflict {Scim.detail = Just msg}
 
-assertHandleNotUsedElsewhere :: Handle -> UserId -> Scim.ScimHandler Spar ()
-assertHandleNotUsedElsewhere hndl uid = do
-  musr <- lift $ Brig.getBrigUser uid
+assertHandleNotUsedElsewhere :: TeamId -> UserId -> Handle -> Scim.ScimHandler Spar ()
+assertHandleNotUsedElsewhere tid uid hndl = do
+  musr <- lift $ Brig.getBrigUser tid uid
   unless ((Brig.userOrInvitationHandle =<< musr) == Just hndl) $
     assertHandleUnused' "userName does not match UserId" hndl
 

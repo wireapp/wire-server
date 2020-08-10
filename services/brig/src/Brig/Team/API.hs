@@ -166,6 +166,11 @@ routesInternal = do
       .&. capture "tid"
       .&. capture "iid"
 
+  delete "/i/teams/:tid/invitations/:iid" (continue deleteInvitationInternalH) $
+    accept "application" "json"
+      .&. capture "tid"
+      .&. capture "iid"
+
   get "/i/teams/invitation-code" (continue getInvitationCodeH) $
     accept "application" "json"
       .&. param "team"
@@ -303,6 +308,14 @@ deleteInvitationH (_ ::: uid ::: tid ::: iid) = do
 deleteInvitation :: UserId -> TeamId -> InvitationId -> Handler ()
 deleteInvitation uid tid iid = do
   ensurePermissions uid tid [Team.AddTeamMember]
+  lift $ DB.deleteInvitation tid iid
+
+deleteInvitationInternalH :: JSON ::: TeamId ::: InvitationId -> Handler Response
+deleteInvitationInternalH (_ ::: tid ::: iid) = do
+  empty <$ deleteInvitationInternal tid iid
+
+deleteInvitationInternal :: TeamId -> InvitationId -> Handler ()
+deleteInvitationInternal tid iid = do
   lift $ DB.deleteInvitation tid iid
 
 listInvitationsH :: JSON ::: UserId ::: TeamId ::: Maybe InvitationId ::: Range 1 500 Int32 -> Handler Response

@@ -228,7 +228,7 @@ testCreateUserInvite = do
       invid = coerce @UserId @InvitationId userid
       handle = Handle . Scim.User.userName . Scim.value . Scim.thing $ scimStoredUser
   inv <-
-    aFewTimes (runSpar $ Intra.getBrigInvitation invid) isJust
+    aFewTimes (runSpar $ Intra.getBrigInvitation tid invid) isJust
       >>= maybe (error "could not find invitation") pure
   inv `userShouldMatch` WrappedScimStoredUser scimStoredUser
   accStatus <- runSpar $ Intra.getStatusMaybe userid
@@ -630,11 +630,11 @@ testFindNonProvisionedUser = do
   tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
   handle'@(Handle handle) <- nextHandle
   runSpar $ Intra.setBrigUserHandle member handle'
-  Just brigUser <- runSpar $ Intra.getBrigUser member
+  Just brigUser <- runSpar $ Intra.getBrigUser teamid member
   liftIO $ Intra.userOrInvitationManagedBy brigUser `shouldBe` ManagedByWire
   users <- listUsers tok (Just (filterBy "userName" handle))
   liftIO $ (scimUserId <$> users) `shouldContain` [member]
-  Just brigUser' <- runSpar $ Intra.getBrigUser member
+  Just brigUser' <- runSpar $ Intra.getBrigUser teamid member
   liftIO $ Intra.userOrInvitationManagedBy brigUser' `shouldBe` ManagedByScim
   -- a scim record should've been inserted too
   _ <- getUser tok member
@@ -757,9 +757,9 @@ testGetUser = do
   storedUser' <- getUser tok (scimUserId storedUser)
   liftIO $ storedUser' `shouldBe` storedUser
 
-shouldBeManagedBy :: HasCallStack => UserId -> ManagedBy -> TestSpar ()
-shouldBeManagedBy uid flag = do
-  managedBy <- maybe (error "user not found") Intra.userOrInvitationManagedBy <$> runSpar (Intra.getBrigUser uid)
+shouldBeManagedBy :: HasCallStack => TeamId -> UserId -> ManagedBy -> TestSpar ()
+shouldBeManagedBy tid uid flag = do
+  managedBy <- maybe (error "user not found") Intra.userOrInvitationManagedBy <$> runSpar (Intra.getBrigUser tid uid)
   liftIO $ managedBy `shouldBe` flag
 
 -- | This is (roughly) the behavior on develop as well as on the branch where this test was
@@ -773,9 +773,9 @@ testGetNonScimSAMLUser = do
   uidSso <- loginSsoUserFirstTime idp privcreds
   tok <- registerScimToken tid (Just (idp ^. SAML.idpId))
 
-  shouldBeManagedBy uidSso ManagedByWire
+  shouldBeManagedBy tid uidSso ManagedByWire
   _ <- getUser tok uidSso
-  shouldBeManagedBy uidSso ManagedByScim
+  shouldBeManagedBy tid uidSso ManagedByScim
 
 testGetNonScimInviteUser :: TestSpar ()
 testGetNonScimInviteUser = do
@@ -784,9 +784,9 @@ testGetNonScimInviteUser = do
 
   uidNoSso <- userId <$> call (inviteAndRegisterUser brig owner tid)
 
-  shouldBeManagedBy uidNoSso ManagedByWire
+  shouldBeManagedBy tid uidNoSso ManagedByWire
   _ <- getUser tok uidNoSso
-  shouldBeManagedBy uidNoSso ManagedByScim
+  shouldBeManagedBy tid uidNoSso ManagedByScim
 
 testGetUserNoIdP :: TestSpar ()
 testGetUserNoIdP = do
@@ -801,9 +801,9 @@ testGetNonScimInviteUserNoIdP = do
 
   uidNoSso <- userId <$> call (inviteAndRegisterUser (env ^. teBrig) owner tid)
 
-  shouldBeManagedBy uidNoSso ManagedByWire
+  shouldBeManagedBy tid uidNoSso ManagedByWire
   _ <- getUser tok uidNoSso
-  shouldBeManagedBy uidNoSso ManagedByScim
+  shouldBeManagedBy tid uidNoSso ManagedByScim
 
 testGetUserWithNoHandle :: TestSpar ()
 testGetUserWithNoHandle = do
@@ -812,12 +812,12 @@ testGetUserWithNoHandle = do
   uid <- loginSsoUserFirstTime idp privcreds
   tok <- registerScimToken tid (Just (idp ^. SAML.idpId))
 
-  mhandle :: Maybe Handle <- maybe (error "user not found") Intra.userOrInvitationHandle <$> runSpar (Intra.getBrigUser uid)
+  mhandle :: Maybe Handle <- maybe (error "user not found") Intra.userOrInvitationHandle <$> runSpar (Intra.getBrigUser tid uid)
   liftIO $ mhandle `shouldSatisfy` isNothing
 
   storedUser <- getUser tok uid
   liftIO $ (Scim.User.displayName . Scim.value . Scim.thing) storedUser `shouldSatisfy` isJust
-  mhandle' :: Maybe Handle <- aFewTimes (maybe (error "user not found") Intra.userOrInvitationHandle <$> runSpar (Intra.getBrigUser uid)) isJust
+  mhandle' :: Maybe Handle <- aFewTimes (maybe (error "user not found") Intra.userOrInvitationHandle <$> runSpar (Intra.getBrigUser tid uid)) isJust
   liftIO $ mhandle' `shouldSatisfy` isJust
   liftIO $ (fromHandle <$> mhandle') `shouldBe` (Just . Scim.User.userName . Scim.value . Scim.thing $ storedUser)
 
@@ -1082,7 +1082,7 @@ testUpdateExternalId withidp = do
 testBrigSideIsUpdated :: TestSpar ()
 testBrigSideIsUpdated = do
   user <- randomScimUser
-  (tok, (_, _, idp)) <- registerIdPAndScimToken
+  (tok, (_, tid, idp)) <- registerIdPAndScimToken
   storedUser <- createUser tok user
   user' <- randomScimUser
   let userid = scimUserId storedUser
@@ -1090,7 +1090,7 @@ testBrigSideIsUpdated = do
   validScimUser <-
     either (error . show) pure $
       validateScimUser' (Just idp) 999999 user'
-  brigUser <- maybe (error "no brig user") pure =<< runSpar (Intra.getBrigUser userid)
+  brigUser <- maybe (error "no brig user") pure =<< runSpar (Intra.getBrigUser tid userid)
   brigUser `userOrInvitationShouldMatch` validScimUser
 
 ----------------------------------------------------------------------------

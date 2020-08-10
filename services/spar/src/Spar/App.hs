@@ -171,7 +171,7 @@ getUser uref = do
   case muid of
     Nothing -> pure Nothing
     Just uid -> do
-      itis <- Intra.isTeamUser uid
+      itis <- isJust <$> Intra.getBrigActualUserTeam uid
       pure $ if itis then Just uid else Nothing
 
 -- | Create a fresh 'Data.Id.UserId', store it on C* locally together with 'SAML.UserRef', then
@@ -229,7 +229,9 @@ autoprovisionSamlUserWithId buid suid managedBy = do
 validateEmailIfExists :: UserId -> SAML.UserRef -> Spar ()
 validateEmailIfExists uid (SAML.UserRef _ nameid) = case nameid ^. SAML.nameID of
   UNameIDEmail email -> do
-    Intra.isEmailValidationEnabledUser uid >>= \case
+    tid <- Intra.getBrigActualUserTeam uid
+    enabled <- maybe (pure False) Intra.isEmailValidationEnabledTeam tid
+    case enabled of
       True -> Intra.updateEmail uid (castEmail email)
       False -> pure ()
   _ -> pure ()

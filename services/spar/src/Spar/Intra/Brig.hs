@@ -32,7 +32,7 @@ module Spar.Intra.Brig
     getBrigUser,
     getBrigActualUser,
     getBrigInvitation,
-    getBrigUserTeam,
+    getBrigActualUserTeam,
     getBrigUsers,
     getBrigUserByHandle,
     getBrigUserByEmail,
@@ -45,15 +45,13 @@ module Spar.Intra.Brig
     checkHandleAvailable,
     deleteBrigUser,
     createBrigUserSaml,
-    createBrigUserInvite,
+    createBrigUserInvitation,
     updateEmail,
-    isTeamUser,
     getZUsrOwnedTeam,
     ensureReAuthorised,
     ssoLogin,
     parseResponse,
     MonadSparToBrig (..),
-    isEmailValidationEnabledUser,
     getStatus,
     getStatusMaybe,
     setStatus,
@@ -82,7 +80,7 @@ import Imports
 import Network.HTTP.Types.Method
 import qualified SAML2.WebSSO as SAML
 import Spar.Error
-import Spar.Intra.Galley as Galley (MonadSparToGalley, assertIsTeamOwner, isEmailValidationEnabledTeam)
+import Spar.Intra.Galley as Galley (MonadSparToGalley, assertIsTeamOwner)
 import Web.Cookie
 import qualified Wire.API.Team.Invitation as Inv
 import Wire.API.User
@@ -209,7 +207,7 @@ createBrigUserSaml uref (Id buid) teamid uname managedBy = do
     else rethrow resp
 
 -- | Create a user on brig via the traditional team invite procedure.
-createBrigUserInvite ::
+createBrigUserInvitation ::
   (HasCallStack, MonadSparToBrig m) =>
   Email ->
   TeamId ->
@@ -217,7 +215,7 @@ createBrigUserInvite ::
   Handle ->
   ManagedBy ->
   m UserId
-createBrigUserInvite email teamid uname uhandle managedBy = do
+createBrigUserInvitation email teamid uname uhandle managedBy = do
   let invreq = Inv.InvitationRequest Nothing Nothing (Just uname) (Just uhandle) email Nothing managedBy
   invresp <- call $ method POST . paths ["/i/teams", toByteString' teamid, "invitations"] . json invreq
   if statusCode invresp `notElem` [200, 201]
@@ -245,12 +243,12 @@ updateEmail buid email = do
     _ -> throwError . SAML.CustomServant . waiToServant . responseJsonUnsafe $ resp
 
 -- | Get a user; returns 'Nothing' if the user was not found or has been deleted.
-getBrigUser :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe UserOrInvitation)
-getBrigUser uid = do
+getBrigUser :: (HasCallStack, MonadSparToBrig m) => TeamId -> UserId -> m (Maybe UserOrInvitation)
+getBrigUser tid uid = do
   getBrigActualUser uid >>= \case
     Just u -> pure . Just . JustUser $ u
     Nothing ->
-      getBrigInvitation (coerce uid) >>= \case
+      getBrigInvitation tid (coerce uid) >>= \case
         Just i -> pure . Just . JustInvitation $ i
         Nothing -> pure Nothing
 
@@ -271,12 +269,12 @@ getBrigActualUser buid = do
     404 -> pure Nothing
     _ -> throwSpar (SparBrigError "Could not retrieve user")
 
-getBrigInvitation :: (HasCallStack, MonadSparToBrig m) => InvitationId -> m (Maybe Inv.Invitation)
-getBrigInvitation invid = do
+getBrigInvitation :: (HasCallStack, MonadSparToBrig m) => TeamId -> InvitationId -> m (Maybe Inv.Invitation)
+getBrigInvitation tid invid = do
   resp :: ResponseLBS <-
     call $
       method GET
-        . paths ["/i/teams/", toByteString' (error "this is not used anyway, and it's in the way!" :: Int), "/invitations/", toByteString' invid]
+        . paths ["/i/teams/", toByteString' tid, "/invitations/", toByteString' invid]
   case (statusCode resp, responseJsonMaybe resp) of
     (200, Just inv) -> pure inv
     (404, _) -> pure Nothing
@@ -286,8 +284,9 @@ getBrigInvitation invid = do
 --
 -- TODO: implement an internal end-point on brig that makes this possible with one request.
 -- TODO(arianvp): This endpoint exists!
-getBrigUsers :: (HasCallStack, MonadSparToBrig m) => [UserId] -> m [UserOrInvitation]
-getBrigUsers = fmap catMaybes . mapM getBrigUser
+-- TODO(fisx): not any more with the invitations also qualifying as scim users!
+getBrigUsers :: (HasCallStack, MonadSparToBrig m) => TeamId -> [UserId] -> m [UserOrInvitation]
+getBrigUsers tid = fmap catMaybes . mapM (getBrigUser tid)
 
 -- | Get a user; returns 'Nothing' if the user was not found.
 --
@@ -499,10 +498,10 @@ checkHandleAvailable hnd = do
         throwSpar . SparBrigError . cs $ "check handle failed with status " <> show sCode
 
 -- | Call brig to delete a user or an invitation
-deleteBrigUser :: (HasCallStack, MonadSparToBrig m, MonadIO m) => UserId -> m ()
-deleteBrigUser buid = do
+deleteBrigUser :: (HasCallStack, MonadSparToBrig m, MonadIO m) => TeamId -> UserId -> m ()
+deleteBrigUser tid buid = do
   deleteBrigActualUser buid
-  deleteBrigInvitation (coerce @UserId @InvitationId buid)
+  deleteBrigInvitation tid (coerce @UserId @InvitationId buid)
 
 deleteBrigActualUser :: (HasCallStack, MonadSparToBrig m, MonadIO m) => UserId -> m ()
 deleteBrigActualUser buid = do
@@ -518,18 +517,17 @@ deleteBrigActualUser buid = do
       | otherwise ->
         throwSpar $ SparBrigError ("delete user failed with status " <> cs (show sCode))
 
-deleteBrigInvitation :: (HasCallStack, MonadSparToBrig m, MonadIO m) => InvitationId -> m ()
-deleteBrigInvitation = error "3226989a-db39-11ea-ab4f-679c8cc2d9fe"
+deleteBrigInvitation :: (HasCallStack, MonadSparToBrig m, MonadIO m) => TeamId -> InvitationId -> m ()
+deleteBrigInvitation tid invid = do
+  resp <- call $ method DELETE . paths ["/i/teams", toByteString' tid, "invitations", toByteString' invid]
+  unless (statusCode resp == 200) $ do
+    rethrow resp
 
 -- | Check that a user id exists on brig and has a team id.
-isTeamUser :: (HasCallStack, MonadSparToBrig m) => UserId -> m Bool
-isTeamUser buid = isJust <$> getBrigUserTeam buid
-
--- | Check that a user id exists on brig and has a team id.
-getBrigUserTeam :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe TeamId)
-getBrigUserTeam buid = do
-  usr <- getBrigUser buid
-  pure $ userOrInvitationTeam =<< usr
+getBrigActualUserTeam :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe TeamId)
+getBrigActualUserTeam buid = do
+  usr <- getBrigActualUser buid
+  pure $ userTeam =<< usr
 
 -- | Get the team that the user is an owner of.
 --
@@ -591,15 +589,6 @@ ssoLogin buid = do
         pure Nothing
       | otherwise ->
         throwSpar . SparBrigError . cs $ "sso-login failed with status " <> show sCode
-
--- | This is more of a brig thing, but we need to get the team for the user first, so it goes
--- here.  Perhaps we should merge "Spar.Intra.*" into "Spar.Intra"?
-isEmailValidationEnabledUser :: (HasCallStack, MonadSparToGalley m, MonadSparToBrig m) => UserId -> m Bool
-isEmailValidationEnabledUser uid = do
-  user <- getBrigUser uid
-  case userOrInvitationTeam =<< user of
-    Nothing -> pure False
-    Just tid -> isEmailValidationEnabledTeam tid
 
 getStatus' :: (HasCallStack, MonadSparToBrig m) => UserId -> m ResponseLBS
 getStatus' uid = call $ method GET . paths ["/i/users", toByteString' uid, "status"]

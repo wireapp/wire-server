@@ -248,7 +248,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
       doPurge = do
         some <- wrapMonadClient (Data.getSAMLSomeUsersByIssuer issuer)
         forM_ some $ \(uref, uid) -> do
-          Brig.deleteBrigUser uid
+          Brig.deleteBrigUser team uid
           wrapMonadClient (Data.deleteSAMLUser uref)
         unless (null some) doPurge
   when (not idpIsEmpty) $ do
