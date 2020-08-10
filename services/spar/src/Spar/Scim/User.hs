@@ -343,9 +343,11 @@ createValidScimUser ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser muref handl mb
   -- validated?  will that work on suspended users?  (i think it won't, but i haven't
   -- checked.)
   lift $
-    Brig.getStatus buid >>= \old -> do
-      let new = ST.scimActiveFlagToAccountStatus old (Just active)
-      when (new /= old) $ Brig.setStatus buid new
+    Brig.getStatusMaybe buid >>= \case
+      Nothing -> pure () -- if an invitation has not been accepted yet, there is no active status.
+      Just old -> do
+        let new = ST.scimActiveFlagToAccountStatus old (Just active)
+        when (new /= old) $ Brig.setStatus buid new
   pure storedUser
 
 updateValidScimUser ::
@@ -409,9 +411,11 @@ updateValidScimUser tokinfo uid newScimUser = do
             newScimUser ^. ST.vsuRichInfo
 
       lift $
-        Brig.getStatus uid >>= \old -> do
-          let new = ST.scimActiveFlagToAccountStatus old (Just $ newScimUser ^. ST.vsuActive)
-          when (new /= old) $ Brig.setStatus uid new
+        Brig.getStatusMaybe uid >>= \case
+          Nothing -> pure ()
+          Just old -> do
+            let new = ST.scimActiveFlagToAccountStatus old (Just $ newScimUser ^. ST.vsuActive)
+            when (new /= old) $ Brig.setStatus uid new
 
       -- store new user value to scim_user table (spar). (this must happen last, so in case
       -- of crash the client can repeat the operation and it won't be considered a noop.)
