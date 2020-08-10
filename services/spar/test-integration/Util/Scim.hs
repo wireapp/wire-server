@@ -597,15 +597,6 @@ instance IsUser Inv.Invitation where
   maybeSubject = Nothing
   maybeSubjectRaw = Just (Just . fromEmail . Inv.inIdentity)
 
-instance IsUser Intra.UserOrInvitation where
-  -- TODO: copy User and Invitation instances in here and define the former in terms of this one.
-  maybeUserId = undefined
-  maybeHandle = undefined
-  maybeName = undefined
-  maybeTenant = undefined
-  maybeSubject = undefined
-  maybeSubjectRaw = undefined
-
 -- | For all properties that are present in both @u1@ and @u2@, check that they match.
 --
 -- Example:
@@ -635,6 +626,10 @@ userShouldMatch u1 u2 = liftIO $ do
     check field getField = case (getField <&> ($ u1), getField <&> ($ u2)) of
       (Just a1, Just a2) -> (field, a1) `shouldBe` (field, a2)
       _ -> pure ()
+
+userOrInvitationShouldMatch :: (HasCallStack, MonadIO m, IsUser u) => Intra.UserOrInvitation -> u -> m ()
+userOrInvitationShouldMatch (Intra.JustUser usr) = userShouldMatch usr
+userOrInvitationShouldMatch (Intra.JustInvitation inv) = userShouldMatch inv
 
 urefFromBrig :: User -> Maybe SAML.UserRef
 urefFromBrig brigUser = case userIdentity brigUser of

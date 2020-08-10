@@ -1091,7 +1091,7 @@ testBrigSideIsUpdated = do
     either (error . show) pure $
       validateScimUser' (Just idp) 999999 user'
   brigUser <- maybe (error "no brig user") pure =<< runSpar (Intra.getBrigUser userid)
-  brigUser `userShouldMatch` validScimUser
+  brigUser `userOrInvitationShouldMatch` validScimUser
 
 ----------------------------------------------------------------------------
 -- Patching users
