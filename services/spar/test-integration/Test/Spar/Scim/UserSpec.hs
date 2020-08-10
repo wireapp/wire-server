@@ -1066,8 +1066,8 @@ testUpdateExternalId withidp = do
         user' <-
           let upd u =
                 if hasChanged
-                  then u
-                  else u {Scim.User.externalId = Scim.User.externalId user}
+                  then u {Scim.User.externalId = Scim.User.externalId user}
+                  else u
            in randomScimUser <&> upd
         _ <- updateUser tok userid user'
         uref' <- either (error . show) pure $ mkUserRef midp (Scim.User.externalId user')
@@ -1075,10 +1075,8 @@ testUpdateExternalId withidp = do
         muserid <- either impossible (runSparCass . Data.getSAMLUser) uref
         muserid' <- either impossible (runSparCass . Data.getSAMLUser) uref'
         liftIO $ do
-          (hasChanged, muserid)
-            `shouldBe` (hasChanged, if hasChanged then Nothing else Just userid)
-          (hasChanged, muserid')
-            `shouldBe` (hasChanged, Just userid)
+          (hasChanged, muserid) `shouldBe` (hasChanged, if hasChanged then Just userid else Nothing)
+          muserid' `shouldBe` Just userid
   checkUpdate True
   checkUpdate False
 
