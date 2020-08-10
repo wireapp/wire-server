@@ -69,7 +69,6 @@ import Data.ByteString.Conversion
 import Data.Coerce (coerce)
 import Data.Handle (Handle (Handle, fromHandle))
 import Data.Id (Id (Id), InvitationId, TeamId, UserId)
-import Data.Ix
 import Data.Misc (PlainTextPassword)
 import Data.String.Conversions
 import Imports
@@ -77,6 +76,7 @@ import Network.HTTP.Types.Method
 import qualified SAML2.WebSSO as SAML
 import Spar.Error
 import Spar.Intra.Galley as Galley (MonadSparToGalley, assertIsTeamOwner, isEmailValidationEnabledTeam)
+import qualified System.Logger.Class as Log
 import Web.Cookie
 import qualified Wire.API.Team.Invitation as Inv
 import Wire.API.User
@@ -106,17 +106,17 @@ mkUserName (Just n) _ = mkName n
 mkUserName Nothing (Right uref) = mkName (SAML.unsafeShowNameID $ uref ^. SAML.uidSubject)
 mkUserName Nothing (Left email) = mkName (fromEmail email)
 
-parseResponse :: (FromJSON a, MonadError SparError m) => Response (Maybe LBS) -> m a
+parseResponse :: (FromJSON a, MonadError SparError m) => ResponseLBS -> m a
 parseResponse resp = do
-  bdy <- maybe (throwSpar SparNoBodyInBrigResponse) pure $ responseBody resp
-  either (throwSpar . SparCouldNotParseBrigResponse . cs) pure $ eitherDecode' bdy
+  bdy <- maybe (throwSpar $ SparCouldNotParseRfcResponse "brig" "no body") pure $ responseBody resp
+  either (throwSpar . SparCouldNotParseRfcResponse "brig" . cs) pure $ eitherDecode' bdy
 
 -- | Similar to 'Network.Wire.Client.API.Auth.tokenResponse', but easier: we just need to set the
 -- cookie in the response, and the redirect will make the client negotiate a fresh auth token.
 -- (This is the easiest way, since the login-request that we are in the middle of responding to here
 -- is not from the wire client, but from a browser that is still processing a redirect from the
 -- IdP.)
-respToCookie :: (HasCallStack, MonadError SparError m) => Response (Maybe LBS) -> m SetCookie
+respToCookie :: (HasCallStack, MonadError SparError m) => ResponseLBS -> m SetCookie
 respToCookie resp = do
   let crash = throwSpar SparCouldNotRetrieveCookie
   unless (statusCode resp == 200) crash
@@ -124,11 +124,8 @@ respToCookie resp = do
 
 ----------------------------------------------------------------------
 
-class MonadError SparError m => MonadSparToBrig m where
-  call :: (Request -> Request) -> m (Response (Maybe LBS))
-
-instance MonadSparToBrig m => MonadSparToBrig (ReaderT r m) where
-  call = lift . call
+class (Log.MonadLogger m, MonadError SparError m) => MonadSparToBrig m where
+  call :: (Request -> Request) -> m ResponseLBS
 
 -- | Create a user on brig with saml credentials.
 createBrigUserSaml ::
@@ -158,14 +155,14 @@ createBrigUserSaml uref (Id buid) teamid uname managedBy = do
             newUserExpiresIn = Nothing,
             newUserManagedBy = Just managedBy
           }
-  resp :: Response (Maybe LBS) <-
+  resp :: ResponseLBS <-
     call $
       method POST
         . path "/i/users"
         . json newUser
   if statusCode resp `elem` [200, 201]
     then userId . selfUser <$> parseResponse @SelfProfile resp
-    else rethrow resp
+    else rethrow "brig" resp
 
 -- | Create a user on brig via the traditional team invite procedure.
 createBrigUserInvite ::
@@ -180,11 +177,11 @@ createBrigUserInvite email teamid uname uhandle managedBy = do
   let invreq = Inv.InvitationRequest Nothing Nothing (Just uname) (Just uhandle) email Nothing managedBy
   invresp <- call $ method POST . paths ["/i/teams", toByteString' teamid, "invitations"] . json invreq
   if statusCode invresp `notElem` [200, 201]
-    then rethrow invresp
+    then rethrow "brig" invresp
     else
-      responseJsonMaybe invresp
-        & maybe
-          (throwSpar (SparBrigError "Could not parse invitation in response body"))
+      responseJsonEither invresp
+        & either
+          (throwSpar . SparCouldNotParseRfcResponse "brig" . ("not an invitation: " <>) . cs . show)
           (pure . coerce @InvitationId @UserId . Inv.inInvitation)
 
 updateEmail :: (HasCallStack, MonadSparToBrig m) => UserId -> Email -> m ()
@@ -206,7 +203,7 @@ updateEmail buid email = do
 -- | Get a user; returns 'Nothing' if the user was not found or has been deleted.
 getBrigUser :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe User)
 getBrigUser buid = do
-  resp :: Response (Maybe LBS) <-
+  resp :: ResponseLBS <-
     call $
       method GET
         . path "/self"
@@ -224,7 +221,7 @@ getBrigUser buid = do
         \to call getBrigInvitation and construct a scim user from that if \
         \this fails."
         >> pure Nothing
-    _ -> throwSpar (SparBrigError "Could not retrieve user")
+    _ -> rethrow "brig" resp
 
 getBrigInvitation :: (HasCallStack, MonadSparToBrig m) => TeamId -> InvitationId -> m (Maybe Inv.Invitation)
 getBrigInvitation tid invid = do
@@ -235,7 +232,7 @@ getBrigInvitation tid invid = do
   case (statusCode resp, responseJsonMaybe resp) of
     (200, Just inv) -> pure inv
     (404, _) -> pure Nothing
-    _ -> rethrow resp
+    _ -> rethrow "brig" resp
 
 -- | Get a list of users; returns a shorter list if some 'UserId's come up empty (no errors).
 --
@@ -250,7 +247,7 @@ getBrigUsers = fmap catMaybes . mapM getBrigUser
 -- @hscim@ stops doing checks during user creation.
 getBrigUserByHandle :: (HasCallStack, MonadSparToBrig m) => Handle -> m (Maybe User)
 getBrigUserByHandle handle = do
-  resp :: Response (Maybe LBS) <-
+  resp :: ResponseLBS <-
     call $
       method GET
         . path "/i/users"
@@ -259,7 +256,7 @@ getBrigUserByHandle handle = do
   case statusCode resp of
     200 -> parse <$> parseResponse @[UserAccount] resp
     404 -> pure Nothing
-    _ -> throwSpar (SparBrigError "Could not retrieve user")
+    _ -> rethrow "brig" resp
   where
     parse :: [UserAccount] -> Maybe User
     parse (x : []) = Just $ accountUser x
@@ -275,7 +272,7 @@ getBrigUserByEmail email = do
   case statusCode resp of
     200 -> parse <$> parseResponse @[UserAccount] resp
     404 -> pure Nothing
-    _ -> throwSpar (SparBrigError "Could not retrieve user")
+    _ -> rethrow "brig" resp
   where
     parse :: [UserAccount] -> Maybe User
     parse (x : []) = Just $ accountUser x
@@ -298,14 +295,7 @@ setBrigUserName buid name = do
               uupAssets = Nothing,
               uupAccentId = Nothing
             }
-  let sCode = statusCode resp
-  if
-      | sCode < 300 ->
-        pure ()
-      | inRange (400, 499) sCode ->
-        throwSpar . SparBrigErrorWith (responseStatus resp) $ "set name failed"
-      | otherwise ->
-        throwSpar . SparBrigError . cs $ "set name failed with status " <> show sCode
+  unless (statusCode resp == 200) $ rethrow "brig" resp
 
 -- | Set user's handle.  Fails with status <500 if brig fails with <500, and with 500 if brig fails
 -- with >= 500.
@@ -318,14 +308,8 @@ setBrigUserHandle buid handle = do
         . header "Z-User" (toByteString' buid)
         . header "Z-Connection" ""
         . json (HandleUpdate (fromHandle handle))
-  let sCode = statusCode resp
-  if
-      | sCode < 300 ->
-        pure ()
-      | inRange (400, 499) sCode ->
-        throwSpar . SparBrigErrorWith (responseStatus resp) $ "set handle failed"
-      | otherwise ->
-        throwSpar . SparBrigError . cs $ "set handle failed with status " <> show sCode
+  unless (statusCode resp == 200) $
+    rethrow "brig" resp
 
 -- | Set user's managedBy. Fails with status <500 if brig fails with <500, and with 500 if
 -- brig fails with >= 500.
@@ -336,14 +320,8 @@ setBrigUserManagedBy buid managedBy = do
       method PUT
         . paths ["i", "users", toByteString' buid, "managed-by"]
         . json (ManagedByUpdate managedBy)
-  let sCode = statusCode resp
-  if
-      | sCode < 300 ->
-        pure ()
-      | inRange (400, 499) sCode ->
-        throwSpar . SparBrigErrorWith (responseStatus resp) $ "set managedBy failed"
-      | otherwise ->
-        throwSpar . SparBrigError . cs $ "set managedBy failed with status " <> show sCode
+  unless (statusCode resp == 200) $
+    rethrow "brig" resp
 
 -- | Set user's UserSSOId.
 setBrigUserUserRef :: (HasCallStack, MonadSparToBrig m) => UserId -> SAML.UserRef -> m ()
@@ -353,14 +331,8 @@ setBrigUserUserRef buid uref = do
       method PUT
         . paths ["i", "users", toByteString' buid, "sso-id"]
         . json (toUserSSOId uref)
-  let sCode = statusCode resp
-  if
-      | sCode < 300 ->
-        pure ()
-      | inRange (400, 499) sCode ->
-        throwSpar . SparBrigErrorWith (responseStatus resp) $ "set UserSSOId failed"
-      | otherwise ->
-        throwSpar . SparBrigError . cs $ "set UserSSOId failed with status " <> show sCode
+  unless (statusCode resp == 200) $
+    rethrow "brig" resp
 
 -- | Set user's richInfo. Fails with status <500 if brig fails with <500, and with 500 if
 -- brig fails with >= 500.
@@ -371,14 +343,8 @@ setBrigUserRichInfo buid richInfo = do
       method PUT
         . paths ["i", "users", toByteString' buid, "rich-info"]
         . json (RichInfoUpdate $ unRichInfo richInfo)
-  let sCode = statusCode resp
-  if
-      | sCode < 300 ->
-        pure ()
-      | inRange (400, 499) sCode ->
-        throwSpar . SparBrigErrorWith (responseStatus resp) $ "set richInfo failed"
-      | otherwise ->
-        throwSpar . SparBrigError . cs $ "set richInfo failed with status " <> show sCode
+  unless (statusCode resp == 200) $
+    rethrow "brig" resp
 
 -- TODO: We should add an internal endpoint for this instead
 getBrigUserRichInfo :: (HasCallStack, MonadSparToBrig m) => UserId -> m RichInfo
@@ -392,7 +358,7 @@ getBrigUserRichInfo buid =
           . header "Z-Connection" ""
     case statusCode resp of
       200 -> parseResponse resp
-      _ -> throwSpar (SparBrigErrorWith (responseStatus resp) "Could not retrieve rich info")
+      _ -> rethrow "brig" resp
 
 checkHandleAvailable :: (HasCallStack, MonadSparToBrig m) => Handle -> m Bool
 checkHandleAvailable hnd = do
@@ -400,16 +366,10 @@ checkHandleAvailable hnd = do
     call $
       method HEAD
         . paths ["/i/users", "handles", toByteString' hnd]
-  let sCode = statusCode resp
-  if
-      | sCode == 200 -> -- handle exists
-        pure False
-      | sCode == 404 -> -- handle not found
-        pure True
-      | sCode < 500 ->
-        throwSpar . SparBrigErrorWith (responseStatus resp) $ "check handle failed"
-      | otherwise ->
-        throwSpar . SparBrigError . cs $ "check handle failed with status " <> show sCode
+  case statusCode resp of
+    200 -> pure False -- handle exists
+    404 -> pure True -- handle not found
+    _ -> rethrow "brig" resp
 
 -- | This works under the assumption that the user must exist on brig.  If it does not, brig
 -- responds with 404 and this function returns 'False'.
@@ -427,17 +387,12 @@ bindBrigUser uid (toUserSSOId -> ussoid) = do
 -- | Call brig to delete a user
 deleteBrigUser :: (HasCallStack, MonadSparToBrig m, MonadIO m) => UserId -> m ()
 deleteBrigUser buid = do
-  resp :: Response (Maybe LBS) <-
+  resp :: ResponseLBS <-
     call $
       method DELETE
         . paths ["/i/users", toByteString' buid]
-  let sCode = statusCode resp
-  if
-      | sCode < 300 -> pure ()
-      | inRange (400, 499) sCode ->
-        throwSpar $ SparBrigErrorWith (responseStatus resp) "failed to delete user"
-      | otherwise ->
-        throwSpar $ SparBrigError ("delete user failed with status " <> cs (show sCode))
+  unless (statusCode resp == 202) $
+    rethrow "brig" resp
 
 -- | Check that a user id exists on brig and has a team id.
 isTeamUser :: (HasCallStack, MonadSparToBrig m) => UserId -> m Bool
@@ -476,16 +431,8 @@ ensureReAuthorised (Just uid) secret = do
       method GET
         . paths ["/i/users", toByteString' uid, "reauthenticate"]
         . json (ReAuthUser secret)
-  let sCode = statusCode resp
-  if
-      | sCode == 200 ->
-        pure ()
-      | sCode == 403 ->
-        throwSpar SparReAuthRequired
-      | inRange (400, 499) sCode ->
-        throwSpar . SparBrigErrorWith (responseStatus resp) $ "reauthentication failed"
-      | otherwise ->
-        throwSpar . SparBrigError . cs $ "reauthentication failed with status " <> show sCode
+  unless (statusCode resp == 200) $
+    rethrow "brig" resp
 
 -- | Get persistent cookie from brig and redirect user past login process.
 --
@@ -493,22 +440,17 @@ ensureReAuthorised (Just uid) secret = do
 ssoLogin ::
   (HasCallStack, SAML.HasConfig m, MonadSparToBrig m) =>
   UserId ->
-  m (Maybe SetCookie)
+  m SetCookie
 ssoLogin buid = do
-  resp :: Response (Maybe LBS) <-
+  resp :: ResponseLBS <-
     call $
       method POST
         . path "/i/sso-login"
         . json (SsoLogin buid Nothing)
         . queryItem "persist" "true"
-  let sCode = statusCode resp
-  if
-      | sCode < 300 ->
-        Just <$> respToCookie resp
-      | inRange (400, 499) sCode ->
-        pure Nothing
-      | otherwise ->
-        throwSpar . SparBrigError . cs $ "sso-login failed with status " <> show sCode
+  if (statusCode resp == 200)
+    then respToCookie resp
+    else rethrow "brig" resp
 
 -- | This is more of a brig thing, but we need to get the team for the user first, so it goes
 -- here.  Perhaps we should merge "Spar.Intra.*" into "Spar.Intra"?
@@ -527,7 +469,7 @@ getStatus uid = do
   resp <- getStatus' uid
   case statusCode resp of
     200 -> fromAccountStatusResp <$> parseResponse @AccountStatusResp resp
-    _ -> rethrow resp
+    _ -> rethrow "brig" resp
 
 getStatusMaybe :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe AccountStatus)
 getStatusMaybe uid = do
@@ -535,7 +477,7 @@ getStatusMaybe uid = do
   case statusCode resp of
     200 -> Just . fromAccountStatusResp <$> parseResponse @AccountStatusResp resp
     404 -> pure Nothing
-    _ -> rethrow resp
+    _ -> rethrow "brig" resp
 
 setStatus :: (HasCallStack, MonadSparToBrig m) => UserId -> AccountStatus -> m ()
 setStatus uid status = do
@@ -546,7 +488,7 @@ setStatus uid status = do
         . json (AccountStatusUpdate status)
   case statusCode resp of
     200 -> pure ()
-    _ -> throwSpar (SparBrigErrorWith (responseStatus resp) "Could not set status")
+    _ -> rethrow "brig" resp
 
 -- | If the user has no 'Handle', set it to its 'UserId' and update the user in brig.
 -- Return the handle the user now has (the old one if it existed, the newly created one
@@ -567,7 +509,7 @@ giveDefaultHandle usr = case userHandle usr of
   Just handle -> pure handle
   Nothing -> do
     let handle :: Handle = Handle . cs . toByteString' . userId $ usr
-    resp :: Response (Maybe LBS) <-
+    resp :: ResponseLBS <-
       call $
         method PUT
           . path "/self/handle"
@@ -576,20 +518,4 @@ giveDefaultHandle usr = case userHandle usr of
           . (json . HandleUpdate . fromHandle $ handle)
     if statusCode resp == 200
       then pure handle
-      else rethrow resp
-
--- | If a call to brig fails, we often just want to respond with whatever brig said.
---
--- TODO: https://github.com/zinfra/backend-issues/issues/1613
---
--- FUTUREWORK: with servant, there will be a way for the type checker to confirm that we
--- handle all exceptions that brig can legally throw!
-rethrow :: ResponseLBS -> (HasCallStack, MonadSparToBrig m) => m a
-rethrow resp = throwError err
-  where
-    err :: SparError
-    err =
-      responseJsonMaybe resp
-        & maybe
-          (SAML.CustomError . SparBrigError . cs . fromMaybe "" . responseBody $ resp)
-          (SAML.CustomServant . waiToServant)
+      else rethrow "brig" resp

@@ -388,11 +388,8 @@ verdictHandlerResultCore bindCky = \case
           -- to see why, consider the condition on the call to 'findUserWithOldIssuer' above.
           error "impossible."
     SAML.logger SAML.Debug ("granting sso login for " <> show uid)
-    mcky :: Maybe SetCookie <- Intra.ssoLogin uid
-    -- (creating users is synchronous and does a quorum vote, so there is no race condition here.)
-    case mcky of
-      Just cky -> pure $ VerifyHandlerGranted cky uid
-      Nothing -> throwSpar $ SparBrigError "sso-login failed (race condition?)"
+    cky <- Intra.ssoLogin uid
+    pure $ VerifyHandlerGranted cky uid
 
 -- | If the client is web, it will be served with an HTML page that it can process to decide whether
 -- to log the user in or show an error.
