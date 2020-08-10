@@ -78,6 +78,7 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.ResourceType as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User (schemas)
+import qualified Wire.API.Team.Invitation as Inv
 import qualified Wire.API.User.Identity as Id
 import qualified Wire.API.User.RichInfo as RI
 
@@ -100,7 +101,7 @@ instance Scim.UserDB ST.SparTag Spar where
             "username" -> do
               handle <- MaybeT . pure . parseHandle . Text.toLower $ val
               brigUser <- MaybeT . lift . Brig.getBrigUserByHandle $ handle
-              guard $ userTeam brigUser == Just stiTeam
+              guard $ Brig.userOrInvitationTeam brigUser == Just stiTeam
               lift $ synthesizeStoredUser brigUser
             "externalid" -> do
               uref <- mkUserRef mIdpConfig (pure val)
@@ -108,10 +109,10 @@ instance Scim.UserDB ST.SparTag Spar where
                 MaybeT $
                   uref
                     & either
-                      ((userId <$$>) . lift . Brig.getBrigUserByEmail)
+                      ((Brig.userOrInvitationId <$$>) . lift . Brig.getBrigUserByEmail)
                       (lift . wrapMonadClient . Data.getSAMLUser)
               brigUser <- MaybeT . lift . Brig.getBrigUser $ uid
-              guard $ userTeam brigUser == Just stiTeam
+              guard $ Brig.userOrInvitationTeam brigUser == Just stiTeam
               lift $ synthesizeStoredUser brigUser
             _ -> throwError (Scim.badRequest Scim.InvalidFilter (Just "Unsupported attribute"))
           pure $ Scim.fromList (toList x)
@@ -125,7 +126,7 @@ instance Scim.UserDB ST.SparTag Spar where
   getUser ScimTokenInfo {stiTeam} uid = do
     let notfound = Scim.notFound "User" (idToText uid)
     brigUser <- lift (Brig.getBrigUser uid) >>= maybe (throwError notfound) pure
-    unless (userTeam brigUser == Just stiTeam) (throwError notfound)
+    unless (Brig.userOrInvitationTeam brigUser == Just stiTeam) (throwError notfound)
     synthesizeStoredUser brigUser
 
   postUser ::
@@ -385,12 +386,7 @@ updateValidScimUser tokinfo uid newScimUser = do
         for_ mNewUref $ \newUref -> lift . wrapMonadClient $ Data.insertSAMLUser newUref uid
       -- update 'SAML.UserRef' on brig
       for_ mNewUref $ \newUref -> do
-        bindok <- lift $ Brig.bindBrigUser uid newUref
-        unless bindok $ do
-          throwError $
-            -- this can only happen if user is found in spar.scim_user, but missing on brig.
-            -- (internal error?  race condition?)
-            Scim.serverError "Failed to update SAML UserRef on brig."
+        lift $ Brig.setBrigUserUserRef uid newUref
 
       -- TODO: if the user has been suspended or unsuspended in brig since the last scim
       -- write, we'll find the wrong information here.
@@ -498,17 +494,16 @@ deleteScimUser ScimTokenInfo {stiTeam} uid = do
       -- FUTUREWORK: currently it's impossible to delete the last available team owner via SCIM
       -- (because that owner won't be managed by SCIM in the first place), but if it ever becomes
       -- possible, we should do a check here and prohibit it.
-      unless (userTeam brigUser == Just stiTeam) $
+      unless (Brig.userOrInvitationTeam brigUser == Just stiTeam) $
         -- users from other teams get you a 404.
         throwError $
           Scim.notFound "user" (idToText uid)
-      ssoId <-
-        maybe
-          (logThenServerError $ "no userSSOId for user " <> cs (idToText uid))
-          pure
-          $ BT.userSSOId brigUser
-      uref <- either logThenServerError pure $ Brig.fromUserSSOId ssoId
-      lift . wrapMonadClient $ Data.deleteSAMLUser uref
+      let mSsoId = case brigUser of
+            Brig.JustUser usr -> BT.userSSOId usr
+            Brig.JustInvitation _ -> Nothing
+      for_ mSsoId $ \ssoId -> do
+        uref <- either logThenServerError pure $ Brig.fromUserSSOId ssoId
+        lift . wrapMonadClient $ Data.deleteSAMLUser uref
       lift . wrapMonadClient $ Data.deleteScimUserTimes uid
       lift $ Brig.deleteBrigUser uid
       return ()
@@ -575,14 +570,22 @@ assertHandleUnused' msg hndl =
 assertHandleNotUsedElsewhere :: Handle -> UserId -> Scim.ScimHandler Spar ()
 assertHandleNotUsedElsewhere hndl uid = do
   musr <- lift $ Brig.getBrigUser uid
-  unless ((userHandle =<< musr) == Just hndl) $
+  unless ((Brig.userOrInvitationHandle =<< musr) == Just hndl) $
     assertHandleUnused' "userName does not match UserId" hndl
 
 -- | Helper function that translates a given brig user into a 'Scim.StoredUser', with some
 -- effects like updating the 'ManagedBy' field in brig and storing creation and update time
 -- stamps.
-synthesizeStoredUser :: BT.User -> Scim.ScimHandler Spar (Scim.StoredUser ST.SparTag)
-synthesizeStoredUser usr = do
+synthesizeStoredUser :: Brig.UserOrInvitation -> Scim.ScimHandler Spar (Scim.StoredUser ST.SparTag)
+synthesizeStoredUser = \case
+  Brig.JustUser usr -> synthesizeStoredUserU usr
+  Brig.JustInvitation inv -> synthesizeStoredUserI inv
+
+synthesizeStoredUserI :: Inv.Invitation -> Scim.ScimHandler Spar (Scim.StoredUser ST.SparTag)
+synthesizeStoredUserI = undefined
+
+synthesizeStoredUserU :: BT.User -> Scim.ScimHandler Spar (Scim.StoredUser ST.SparTag)
+synthesizeStoredUserU usr = do
   let readState :: Spar (RI.RichInfo, AccountStatus, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI)
       readState = do
         richInfo <- Brig.getBrigUserRichInfo (BT.userId usr)

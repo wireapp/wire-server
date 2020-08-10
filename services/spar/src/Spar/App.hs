@@ -71,6 +71,7 @@ import System.Logger.Class (MonadLogger (log))
 import Text.Email.Parser (domainPart, localPart)
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
+import qualified Wire.API.User as User
 import qualified Wire.API.User.Identity as WireEmail
 
 newtype Spar a = Spar {fromSpar :: ReaderT Env (ExceptT SparError IO) a}
@@ -154,8 +155,9 @@ wrapMonadClient action = do
 insertUser :: SAML.UserRef -> UserId -> Spar ()
 insertUser uref uid = wrapMonadClient $ Data.insertSAMLUser uref uid
 
--- | Look up user locally, then in brig, then return the 'UserId'.  If either lookup fails, or
--- user is not in a team, return 'Nothing'.  See also: 'Spar.App.createUser'.
+-- | Look up user locally in table @spar.user@, then in brig, then return the 'UserId'.  If
+-- either lookup fails, or user is not in a team, return 'Nothing'.  See also:
+-- 'Spar.App.createUser'.
 --
 -- It makes sense to require that users are required to be team members: the idp is created in
 -- the context of a team, and the only way for users to be created is as team members.  If a
@@ -240,16 +242,13 @@ validateEmailIfExists uid (SAML.UserRef _ nameid) = case nameid ^. SAML.nameID o
 bindUser :: UserId -> SAML.UserRef -> Spar UserId
 bindUser buid userref = do
   teamid <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (userref ^. uidTenant)
-  uteamid <- Intra.getBrigUserTeam buid
-  unless
-    (uteamid == Just teamid)
-    (throwSpar . SparBindFromWrongOrNoTeam . cs . show $ uteamid)
+  do
+    muser <- Intra.getBrigActualUser buid
+    unless ((User.userTeam =<< muser) == Just teamid) $ do
+      throwSpar . SparBindFromWrongOrNoTeam . cs . show $ buid
   insertUser userref buid
-  Intra.bindBrigUser buid userref >>= \case
-    True -> pure buid
-    False -> do
-      SAML.logger SAML.Warn $ "SparBindUserDisappearedFromBrig: " <> show buid
-      throwSpar SparBindUserDisappearedFromBrig
+  Intra.setBrigUserUserRef buid userref
+  pure buid
 
 instance SPHandler SparError Spar where
   type NTCTX Spar = Env

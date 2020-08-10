@@ -23,7 +23,14 @@ module Spar.Intra.Brig
     fromUserSSOId,
     urefToExternalId,
     mkUserName,
+    UserOrInvitation (JustUser, JustInvitation),
+    userOrInvitationTeam,
+    userOrInvitationId,
+    userOrInvitationHandle,
+    userOrInvitationManagedBy,
+    userOrInvitationScimExternalId,
     getBrigUser,
+    getBrigActualUser,
     getBrigInvitation,
     getBrigUserTeam,
     getBrigUsers,
@@ -36,7 +43,6 @@ module Spar.Intra.Brig
     setBrigUserUserRef,
     setBrigUserRichInfo,
     checkHandleAvailable,
-    bindBrigUser,
     deleteBrigUser,
     createBrigUserSaml,
     createBrigUserInvite,
@@ -83,6 +89,41 @@ import Wire.API.User
 import Wire.API.User.RichInfo as RichInfo
 
 ----------------------------------------------------------------------
+
+data UserOrInvitation
+  = JustUser User
+  | JustInvitation Inv.Invitation
+  deriving (Eq, Show, Generic)
+
+userOrInvitationTeam :: UserOrInvitation -> Maybe TeamId
+userOrInvitationTeam = \case
+  JustUser usr -> userTeam usr
+  JustInvitation inv -> Just $ Inv.inTeam inv
+
+userOrInvitationId :: UserOrInvitation -> UserId
+userOrInvitationId = \case
+  JustUser usr -> userId usr
+  JustInvitation inv -> coerce $ Inv.inInvitation inv
+
+userOrInvitationHandle :: UserOrInvitation -> Maybe Handle
+userOrInvitationHandle = \case
+  JustUser usr -> userHandle usr
+  JustInvitation inv -> Inv.inInviteeHandle inv
+
+userOrInvitationManagedBy :: UserOrInvitation -> ManagedBy
+userOrInvitationManagedBy = \case
+  JustUser usr -> userManagedBy usr
+  JustInvitation inv -> Inv.inManagedBy inv
+
+userOrInvitationScimExternalId :: UserOrInvitation -> Either String Text
+userOrInvitationScimExternalId = \case
+  JustUser usr -> case (userIdentity >=> ssoIdentity $ usr, userEmail usr) of
+    (Just ssoid, _) -> case fromUserSSOId ssoid of
+      Right (SAML.UserRef _ subj) -> maybe (Left "bad uref from brig") Right $ SAML.shortShowNameID subj
+      Left err -> Left err
+    (Nothing, Just email) -> Right $ fromEmail email
+    (Nothing, Nothing) -> Left "brig user without external id"
+  JustInvitation inv -> Right . fromEmail . Inv.inIdentity $ inv
 
 toUserSSOId :: SAML.UserRef -> UserSSOId
 toUserSSOId (SAML.UserRef tenant subject) =
@@ -204,8 +245,17 @@ updateEmail buid email = do
     _ -> throwError . SAML.CustomServant . waiToServant . responseJsonUnsafe $ resp
 
 -- | Get a user; returns 'Nothing' if the user was not found or has been deleted.
-getBrigUser :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe User)
-getBrigUser buid = do
+getBrigUser :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe UserOrInvitation)
+getBrigUser uid = do
+  getBrigActualUser uid >>= \case
+    Just u -> pure . Just . JustUser $ u
+    Nothing ->
+      getBrigInvitation (coerce uid) >>= \case
+        Just i -> pure . Just . JustInvitation $ i
+        Nothing -> pure Nothing
+
+getBrigActualUser :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe User)
+getBrigActualUser buid = do
   resp :: Response (Maybe LBS) <-
     call $
       method GET
@@ -218,20 +268,15 @@ getBrigUser buid = do
         if (userDeleted user)
           then Nothing
           else Just user
-    404 ->
-      error
-        "look at all callers to getBrigUser and make sure they don't forget \
-        \to call getBrigInvitation and construct a scim user from that if \
-        \this fails."
-        >> pure Nothing
+    404 -> pure Nothing
     _ -> throwSpar (SparBrigError "Could not retrieve user")
 
-getBrigInvitation :: (HasCallStack, MonadSparToBrig m) => TeamId -> InvitationId -> m (Maybe Inv.Invitation)
-getBrigInvitation tid invid = do
+getBrigInvitation :: (HasCallStack, MonadSparToBrig m) => InvitationId -> m (Maybe Inv.Invitation)
+getBrigInvitation invid = do
   resp :: ResponseLBS <-
     call $
       method GET
-        . paths ["/i/teams/", toByteString' tid, "/invitations/", toByteString' invid]
+        . paths ["/i/teams/", toByteString' (error "this is not used anyway, and it's in the way!" :: Int), "/invitations/", toByteString' invid]
   case (statusCode resp, responseJsonMaybe resp) of
     (200, Just inv) -> pure inv
     (404, _) -> pure Nothing
@@ -241,15 +286,24 @@ getBrigInvitation tid invid = do
 --
 -- TODO: implement an internal end-point on brig that makes this possible with one request.
 -- TODO(arianvp): This endpoint exists!
-getBrigUsers :: (HasCallStack, MonadSparToBrig m) => [UserId] -> m [User]
+getBrigUsers :: (HasCallStack, MonadSparToBrig m) => [UserId] -> m [UserOrInvitation]
 getBrigUsers = fmap catMaybes . mapM getBrigUser
 
 -- | Get a user; returns 'Nothing' if the user was not found.
 --
 -- TODO: currently this is not used, but it might be useful later when/if
 -- @hscim@ stops doing checks during user creation.
-getBrigUserByHandle :: (HasCallStack, MonadSparToBrig m) => Handle -> m (Maybe User)
+getBrigUserByHandle :: (HasCallStack, MonadSparToBrig m) => Handle -> m (Maybe UserOrInvitation)
 getBrigUserByHandle handle = do
+  getBrigActualUserByHandle handle >>= \case
+    Just u -> pure . Just . JustUser $ u
+    Nothing ->
+      getBrigInvitationByHandle handle >>= \case
+        Just i -> pure . Just . JustInvitation $ i
+        Nothing -> pure Nothing
+
+getBrigActualUserByHandle :: (HasCallStack, MonadSparToBrig m) => Handle -> m (Maybe User)
+getBrigActualUserByHandle handle = do
   resp :: Response (Maybe LBS) <-
     call $
       method GET
@@ -265,8 +319,23 @@ getBrigUserByHandle handle = do
     parse (x : []) = Just $ accountUser x
     parse _ = Nothing
 
-getBrigUserByEmail :: (HasCallStack, MonadSparToBrig m) => Email -> m (Maybe User)
-getBrigUserByEmail email = do
+getBrigInvitationByHandle :: (HasCallStack, MonadSparToBrig m) => Handle -> m (Maybe Inv.Invitation)
+getBrigInvitationByHandle = do
+  -- call the end-point used in 'getBrigInvitation', but mutate it to take a query with
+  -- anything in it.
+  undefined
+
+getBrigUserByEmail :: (HasCallStack, MonadSparToBrig m) => Email -> m (Maybe UserOrInvitation)
+getBrigUserByEmail email =
+  getBrigActualUserByEmail email >>= \case
+    Just u -> pure . Just . JustUser $ u
+    Nothing ->
+      getBrigInvitationByEmail email >>= \case
+        Just i -> pure . Just . JustInvitation $ i
+        Nothing -> pure Nothing
+
+getBrigActualUserByEmail :: (HasCallStack, MonadSparToBrig m) => Email -> m (Maybe User)
+getBrigActualUserByEmail email = do
   resp :: ResponseLBS <-
     call $
       method GET
@@ -281,10 +350,19 @@ getBrigUserByEmail email = do
     parse (x : []) = Just $ accountUser x
     parse _ = Nothing
 
+getBrigInvitationByEmail :: (HasCallStack, MonadSparToBrig m) => Email -> m (Maybe Inv.Invitation)
+getBrigInvitationByEmail = do
+  -- same pattern as 'getBrigInvitationByHandle'
+  undefined
+
 -- | Set user' name.  Fails with status <500 if brig fails with <500, and with 500 if brig
 -- fails with >= 500.
 setBrigUserName :: (HasCallStack, MonadSparToBrig m) => UserId -> Name -> m ()
 setBrigUserName buid name = do
+  () <- undefined
+  -- make this an internal end-point in brig: first attempt to set name on user; if that
+  -- yields "not found", attempt to update the invitation.  this way we don't have a race
+  -- condition.  ('setBrigUserManagedBy' already has that end-point, use that.)
   resp <-
     call $
       method PUT
@@ -311,6 +389,8 @@ setBrigUserName buid name = do
 -- with >= 500.
 setBrigUserHandle :: (HasCallStack, MonadSparToBrig m) => UserId -> Handle -> m ()
 setBrigUserHandle buid handle = do
+  () <- undefined
+  -- like 'setBrigUserName'
   resp <-
     call $
       method PUT
@@ -331,6 +411,8 @@ setBrigUserHandle buid handle = do
 -- brig fails with >= 500.
 setBrigUserManagedBy :: (HasCallStack, MonadSparToBrig m) => UserId -> ManagedBy -> m ()
 setBrigUserManagedBy buid managedBy = do
+  () <- undefined
+  -- like 'setBrigUserName'  (or perhaps we can use this one?)
   resp <-
     call $
       method PUT
@@ -345,7 +427,9 @@ setBrigUserManagedBy buid managedBy = do
       | otherwise ->
         throwSpar . SparBrigError . cs $ "set managedBy failed with status " <> show sCode
 
--- | Set user's UserSSOId.
+-- | Take an existing brig user and assign it saml credentials.  If brig user does not exist,
+-- try to find an invitation.  If the invitation exists, delete it, and create a new saml user
+-- like when auto-provisioning.
 setBrigUserUserRef :: (HasCallStack, MonadSparToBrig m) => UserId -> SAML.UserRef -> m ()
 setBrigUserUserRef buid uref = do
   resp <-
@@ -353,6 +437,7 @@ setBrigUserUserRef buid uref = do
       method PUT
         . paths ["i", "users", toByteString' buid, "sso-id"]
         . json (toUserSSOId uref)
+  () <- error "implement what the haddocks promise."
   let sCode = statusCode resp
   if
       | sCode < 300 ->
@@ -366,6 +451,7 @@ setBrigUserUserRef buid uref = do
 -- brig fails with >= 500.
 setBrigUserRichInfo :: (HasCallStack, MonadSparToBrig m) => UserId -> RichInfo -> m ()
 setBrigUserRichInfo buid richInfo = do
+  () <- error "i suppose we have to add this to the invitation now, too?"
   resp <-
     call $
       method PUT
@@ -382,7 +468,8 @@ setBrigUserRichInfo buid richInfo = do
 
 -- TODO: We should add an internal endpoint for this instead
 getBrigUserRichInfo :: (HasCallStack, MonadSparToBrig m) => UserId -> m RichInfo
-getBrigUserRichInfo buid =
+getBrigUserRichInfo buid = do
+  () <- error "i suppose we have to add this to the invitation now, too?"
   RichInfo.RichInfo <$> do
     resp <-
       call $
@@ -411,22 +498,14 @@ checkHandleAvailable hnd = do
       | otherwise ->
         throwSpar . SparBrigError . cs $ "check handle failed with status " <> show sCode
 
--- | This works under the assumption that the user must exist on brig.  If it does not, brig
--- responds with 404 and this function returns 'False'.
---
--- See also: 'setBrigUserUserRef'.
-bindBrigUser :: (HasCallStack, MonadSparToBrig m) => UserId -> SAML.UserRef -> m Bool
-bindBrigUser uid (toUserSSOId -> ussoid) = do
-  resp <-
-    call $
-      method PUT
-        . paths ["/i/users", toByteString' uid, "sso-id"]
-        . json ussoid
-  pure $ Bilge.statusCode resp < 300
-
--- | Call brig to delete a user
+-- | Call brig to delete a user or an invitation
 deleteBrigUser :: (HasCallStack, MonadSparToBrig m, MonadIO m) => UserId -> m ()
 deleteBrigUser buid = do
+  deleteBrigActualUser buid
+  deleteBrigInvitation (coerce @UserId @InvitationId buid)
+
+deleteBrigActualUser :: (HasCallStack, MonadSparToBrig m, MonadIO m) => UserId -> m ()
+deleteBrigActualUser buid = do
   resp :: Response (Maybe LBS) <-
     call $
       method DELETE
@@ -439,6 +518,9 @@ deleteBrigUser buid = do
       | otherwise ->
         throwSpar $ SparBrigError ("delete user failed with status " <> cs (show sCode))
 
+deleteBrigInvitation :: (HasCallStack, MonadSparToBrig m, MonadIO m) => InvitationId -> m ()
+deleteBrigInvitation = undefined
+
 -- | Check that a user id exists on brig and has a team id.
 isTeamUser :: (HasCallStack, MonadSparToBrig m) => UserId -> m Bool
 isTeamUser buid = isJust <$> getBrigUserTeam buid
@@ -447,7 +529,7 @@ isTeamUser buid = isJust <$> getBrigUserTeam buid
 getBrigUserTeam :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe TeamId)
 getBrigUserTeam buid = do
   usr <- getBrigUser buid
-  pure $ userTeam =<< usr
+  pure $ userOrInvitationTeam =<< usr
 
 -- | Get the team that the user is an owner of.
 --
@@ -458,7 +540,7 @@ getZUsrOwnedTeam ::
   m TeamId
 getZUsrOwnedTeam Nothing = throwSpar SparMissingZUsr
 getZUsrOwnedTeam (Just uid) = do
-  usr <- getBrigUser uid
+  usr <- getBrigActualUser uid
   case userTeam =<< usr of
     Nothing -> throwSpar SparNotInTeam
     Just teamid -> teamid <$ Galley.assertIsTeamOwner teamid uid
@@ -515,7 +597,7 @@ ssoLogin buid = do
 isEmailValidationEnabledUser :: (HasCallStack, MonadSparToGalley m, MonadSparToBrig m) => UserId -> m Bool
 isEmailValidationEnabledUser uid = do
   user <- getBrigUser uid
-  case user >>= userTeam of
+  case userOrInvitationTeam =<< user of
     Nothing -> pure False
     Just tid -> isEmailValidationEnabledTeam tid
 

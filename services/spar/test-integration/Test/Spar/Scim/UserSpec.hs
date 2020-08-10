@@ -228,10 +228,8 @@ testCreateUserInvite = do
       invid = coerce @UserId @InvitationId userid
       handle = Handle . Scim.User.userName . Scim.value . Scim.thing $ scimStoredUser
   inv <-
-    aFewTimes (runSpar $ Intra.getBrigInvitation tid invid) isJust
-      >>= maybe
-        (error "could not find invitation")
-        pure
+    aFewTimes (runSpar $ Intra.getBrigInvitation invid) isJust
+      >>= maybe (error "could not find invitation") pure
   inv `userShouldMatch` WrappedScimStoredUser scimStoredUser
   accStatus <- runSpar $ Intra.getStatusMaybe userid
   liftIO $ accStatus `shouldBe` Nothing
@@ -633,14 +631,14 @@ testFindNonProvisionedUser = do
   handle'@(Handle handle) <- nextHandle
   runSpar $ Intra.setBrigUserHandle member handle'
   Just brigUser <- runSpar $ Intra.getBrigUser member
-  liftIO $ userManagedBy brigUser `shouldBe` ManagedByWire
+  liftIO $ Intra.userOrInvitationManagedBy brigUser `shouldBe` ManagedByWire
   users <- listUsers tok (Just (filterBy "userName" handle))
   liftIO $ (scimUserId <$> users) `shouldContain` [member]
   Just brigUser' <- runSpar $ Intra.getBrigUser member
-  liftIO $ userManagedBy brigUser' `shouldBe` ManagedByScim
+  liftIO $ Intra.userOrInvitationManagedBy brigUser' `shouldBe` ManagedByScim
   -- a scim record should've been inserted too
   _ <- getUser tok member
-  let Just externalId = userSSOIdSubject <$> (userIdentity >=> ssoIdentity $ brigUser')
+  let externalId = either error id $ Intra.userOrInvitationScimExternalId brigUser'
   users' <- listUsers tok (Just (filterBy "externalId" externalId))
   liftIO $ (scimUserId <$> users') `shouldContain` [member]
 
@@ -660,7 +658,7 @@ testFindNonProvisionedUserNoIdP testSearchBy = do
   uid <- userId <$> call (inviteAndRegisterUser (env ^. teBrig) owner teamid)
   handle'@(Handle handle) <- nextHandle
   runSpar $ Intra.setBrigUserHandle uid handle'
-  Just brigUser <- runSpar $ Intra.getBrigUser uid
+  Just brigUser <- runSpar $ Intra.getBrigActualUser uid
   let Just email = userEmail brigUser
 
   do
@@ -673,7 +671,7 @@ testFindNonProvisionedUserNoIdP testSearchBy = do
     TestSearchByEmail -> listUsers tok (Just (filterBy "externalId" (fromEmail email)))
 
   liftIO $ (scimUserId <$> users) `shouldBe` [uid]
-  Just brigUser' <- runSpar $ Intra.getBrigUser uid
+  Just brigUser' <- runSpar $ Intra.getBrigActualUser uid
   liftIO $ userManagedBy brigUser' `shouldBe` ManagedByScim
   liftIO $ brigUser' {userManagedBy = ManagedByWire} `shouldBe` brigUser
 
@@ -761,7 +759,7 @@ testGetUser = do
 
 shouldBeManagedBy :: HasCallStack => UserId -> ManagedBy -> TestSpar ()
 shouldBeManagedBy uid flag = do
-  managedBy <- maybe (error "user not found") userManagedBy <$> runSpar (Intra.getBrigUser uid)
+  managedBy <- maybe (error "user not found") Intra.userOrInvitationManagedBy <$> runSpar (Intra.getBrigUser uid)
   liftIO $ managedBy `shouldBe` flag
 
 -- | This is (roughly) the behavior on develop as well as on the branch where this test was
@@ -814,12 +812,12 @@ testGetUserWithNoHandle = do
   uid <- loginSsoUserFirstTime idp privcreds
   tok <- registerScimToken tid (Just (idp ^. SAML.idpId))
 
-  mhandle :: Maybe Handle <- maybe (error "user not found") userHandle <$> runSpar (Intra.getBrigUser uid)
+  mhandle :: Maybe Handle <- maybe (error "user not found") Intra.userOrInvitationHandle <$> runSpar (Intra.getBrigUser uid)
   liftIO $ mhandle `shouldSatisfy` isNothing
 
   storedUser <- getUser tok uid
   liftIO $ (Scim.User.displayName . Scim.value . Scim.thing) storedUser `shouldSatisfy` isJust
-  mhandle' :: Maybe Handle <- aFewTimes (maybe (error "user not found") userHandle <$> runSpar (Intra.getBrigUser uid)) isJust
+  mhandle' :: Maybe Handle <- aFewTimes (maybe (error "user not found") Intra.userOrInvitationHandle <$> runSpar (Intra.getBrigUser uid)) isJust
   liftIO $ mhandle' `shouldSatisfy` isJust
   liftIO $ (fromHandle <$> mhandle') `shouldBe` (Just . Scim.User.userName . Scim.value . Scim.thing $ storedUser)
 
@@ -877,7 +875,7 @@ specUpdateUser = describe "PUT /Users/:id" $ do
   it "updates user attributes in scim_user" $ testScimSideIsUpdated
   it "works fine when neither name nor handle are changed" $ testUpdateSameHandle
   it "updates the 'SAML.UserRef' index in Spar" $ testUpdateExternalId True
-  it "updates the 'Email' index in Brig" $ testUpdateExternalId False
+  focus $ it "updates the 'Email' index in Brig" $ testUpdateExternalId False
   it "updates the matching Brig user" $ testBrigSideIsUpdated
   it "cannot update user to match another user's externalId" $ testUpdateToExistingExternalIdFails
   it "cannot remove display name" $ testCannotRemoveDisplayName
@@ -1274,13 +1272,13 @@ specDeleteUser = do
       storedUser <- createUser tok user
       let uid :: UserId = scimUserId storedUser
       uref :: SAML.UserRef <- do
-        usr <- runSpar $ Intra.getBrigUser uid
+        usr <- runSpar $ Intra.getBrigActualUser uid
         maybe (error "no UserRef from brig") pure $ urefFromBrig =<< usr
       spar <- view teSpar
       deleteUser_ (Just tok) (Just uid) spar
         !!! const 204 === statusCode
       brigUser :: Maybe User <-
-        aFewTimes (runSpar $ Intra.getBrigUser uid) isNothing
+        aFewTimes (runSpar $ Intra.getBrigActualUser uid) isNothing
       samlUser :: Maybe UserId <-
         aFewTimes (getUserIdViaRef' uref) isNothing
       scimUser <-

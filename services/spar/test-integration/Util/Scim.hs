@@ -597,6 +597,15 @@ instance IsUser Inv.Invitation where
   maybeSubject = Nothing
   maybeSubjectRaw = Just (Just . fromEmail . Inv.inIdentity)
 
+instance IsUser Intra.UserOrInvitation where
+  -- TODO: copy User and Invitation instances in here and define the former in terms of this one.
+  maybeUserId = undefined
+  maybeHandle = undefined
+  maybeName = undefined
+  maybeTenant = undefined
+  maybeSubject = undefined
+  maybeSubjectRaw = undefined
+
 -- | For all properties that are present in both @u1@ and @u2@, check that they match.
 --
 -- Example:

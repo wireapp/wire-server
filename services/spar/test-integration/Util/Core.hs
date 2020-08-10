@@ -1149,7 +1149,7 @@ getSsoidViaSelf uid = maybe (error "not found") pure =<< getSsoidViaSelf' uid
 
 getSsoidViaSelf' :: HasCallStack => UserId -> TestSpar (Maybe UserSSOId)
 getSsoidViaSelf' uid = do
-  musr <- aFewTimes (runSpar $ Intra.getBrigUser uid) isJust
+  musr <- aFewTimes (runSpar $ Intra.getBrigActualUser uid) isJust
   pure $ case userIdentity =<< musr of
     Just (SSOIdentity ssoid _ _) -> Just ssoid
     Just (FullIdentity _ _) -> Nothing
