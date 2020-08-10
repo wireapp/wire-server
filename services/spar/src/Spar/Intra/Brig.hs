@@ -323,7 +323,7 @@ getBrigInvitationByHandle :: (HasCallStack, MonadSparToBrig m) => Handle -> m (M
 getBrigInvitationByHandle = do
   -- call the end-point used in 'getBrigInvitation', but mutate it to take a query with
   -- anything in it.
-  undefined
+  error "50542396-db39-11ea-92f1-37b88331a005"
 
 getBrigUserByEmail :: (HasCallStack, MonadSparToBrig m) => Email -> m (Maybe UserOrInvitation)
 getBrigUserByEmail email =
@@ -353,13 +353,13 @@ getBrigActualUserByEmail email = do
 getBrigInvitationByEmail :: (HasCallStack, MonadSparToBrig m) => Email -> m (Maybe Inv.Invitation)
 getBrigInvitationByEmail = do
   -- same pattern as 'getBrigInvitationByHandle'
-  undefined
+  error "142de79e-db39-11ea-a664-5b96fdbcbf86"
 
 -- | Set user' name.  Fails with status <500 if brig fails with <500, and with 500 if brig
 -- fails with >= 500.
 setBrigUserName :: (HasCallStack, MonadSparToBrig m) => UserId -> Name -> m ()
 setBrigUserName buid name = do
-  () <- undefined
+  () <- error "20755ee2-db39-11ea-a4ab-9ffed167c9d2"
   -- make this an internal end-point in brig: first attempt to set name on user; if that
   -- yields "not found", attempt to update the invitation.  this way we don't have a race
   -- condition.  ('setBrigUserManagedBy' already has that end-point, use that.)
@@ -389,7 +389,7 @@ setBrigUserName buid name = do
 -- with >= 500.
 setBrigUserHandle :: (HasCallStack, MonadSparToBrig m) => UserId -> Handle -> m ()
 setBrigUserHandle buid handle = do
-  () <- undefined
+  () <- error "267ae9e2-db39-11ea-bda2-638c09a6a425"
   -- like 'setBrigUserName'
   resp <-
     call $
@@ -411,7 +411,7 @@ setBrigUserHandle buid handle = do
 -- brig fails with >= 500.
 setBrigUserManagedBy :: (HasCallStack, MonadSparToBrig m) => UserId -> ManagedBy -> m ()
 setBrigUserManagedBy buid managedBy = do
-  () <- undefined
+  () <- error "2ccc7b44-db39-11ea-9c0a-e3ac0ccdea3b"
   -- like 'setBrigUserName'  (or perhaps we can use this one?)
   resp <-
     call $
@@ -437,7 +437,7 @@ setBrigUserUserRef buid uref = do
       method PUT
         . paths ["i", "users", toByteString' buid, "sso-id"]
         . json (toUserSSOId uref)
-  () <- error "implement what the haddocks promise."
+  () <- error "62450eda-db39-11ea-a590-3b8694239e39 - implement what the haddocks promise."
   let sCode = statusCode resp
   if
       | sCode < 300 ->
@@ -451,7 +451,7 @@ setBrigUserUserRef buid uref = do
 -- brig fails with >= 500.
 setBrigUserRichInfo :: (HasCallStack, MonadSparToBrig m) => UserId -> RichInfo -> m ()
 setBrigUserRichInfo buid richInfo = do
-  () <- error "i suppose we have to add this to the invitation now, too?"
+  () <- error "6ba31eb8-db39-11ea-ad08-ab7a82fc2f69 - i suppose we have to add this to the invitation now, too?"
   resp <-
     call $
       method PUT
@@ -469,7 +469,7 @@ setBrigUserRichInfo buid richInfo = do
 -- TODO: We should add an internal endpoint for this instead
 getBrigUserRichInfo :: (HasCallStack, MonadSparToBrig m) => UserId -> m RichInfo
 getBrigUserRichInfo buid = do
-  () <- error "i suppose we have to add this to the invitation now, too?"
+  () <- error "7e6e77ea-db39-11ea-9b70-23b33bb90345 - i suppose we have to add this to the invitation now, too?"
   RichInfo.RichInfo <$> do
     resp <-
       call $
@@ -519,7 +519,7 @@ deleteBrigActualUser buid = do
         throwSpar $ SparBrigError ("delete user failed with status " <> cs (show sCode))
 
 deleteBrigInvitation :: (HasCallStack, MonadSparToBrig m, MonadIO m) => InvitationId -> m ()
-deleteBrigInvitation = undefined
+deleteBrigInvitation = error "3226989a-db39-11ea-ab4f-679c8cc2d9fe"
 
 -- | Check that a user id exists on brig and has a team id.
 isTeamUser :: (HasCallStack, MonadSparToBrig m) => UserId -> m Bool

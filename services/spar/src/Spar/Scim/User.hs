@@ -582,7 +582,7 @@ synthesizeStoredUser = \case
   Brig.JustInvitation inv -> synthesizeStoredUserI inv
 
 synthesizeStoredUserI :: Inv.Invitation -> Scim.ScimHandler Spar (Scim.StoredUser ST.SparTag)
-synthesizeStoredUserI = undefined
+synthesizeStoredUserI = error "c9c631ec-db39-11ea-a7ca-a3c78dace6e8"
 
 synthesizeStoredUserU :: BT.User -> Scim.ScimHandler Spar (Scim.StoredUser ST.SparTag)
 synthesizeStoredUserU usr = do

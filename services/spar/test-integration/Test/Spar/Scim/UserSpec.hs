@@ -875,7 +875,7 @@ specUpdateUser = describe "PUT /Users/:id" $ do
   it "updates user attributes in scim_user" $ testScimSideIsUpdated
   it "works fine when neither name nor handle are changed" $ testUpdateSameHandle
   it "updates the 'SAML.UserRef' index in Spar" $ testUpdateExternalId True
-  focus $ it "updates the 'Email' index in Brig" $ testUpdateExternalId False
+  it "updates the 'Email' index in Brig" $ testUpdateExternalId False
   it "updates the matching Brig user" $ testBrigSideIsUpdated
   it "cannot update user to match another user's externalId" $ testUpdateToExistingExternalIdFails
   it "cannot remove display name" $ testCannotRemoveDisplayName
