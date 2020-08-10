@@ -39,7 +39,7 @@ main = do
   where
     desc =
       header "count-team-owners"
-        <> progDesc "Backfill billing_team_member table"
+        <> progDesc "Count team members"
         <> fullDesc
     initLogger =
       Log.new
