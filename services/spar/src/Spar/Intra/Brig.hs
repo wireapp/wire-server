@@ -519,19 +519,23 @@ isEmailValidationEnabledUser uid = do
     Nothing -> pure False
     Just tid -> isEmailValidationEnabledTeam tid
 
+getStatus' :: (HasCallStack, MonadSparToBrig m) => UserId -> m ResponseLBS
+getStatus' uid = call $ method GET . paths ["/i/users", toByteString' uid, "status"]
+
 getStatus :: (HasCallStack, MonadSparToBrig m) => UserId -> m AccountStatus
-getStatus uid = getStatusMaybe uid >>= maybe (throwSpar SparNotFound) pure
+getStatus uid = do
+  resp <- getStatus' uid
+  case statusCode resp of
+    200 -> fromAccountStatusResp <$> parseResponse @AccountStatusResp resp
+    _ -> rethrow resp
 
 getStatusMaybe :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe AccountStatus)
 getStatusMaybe uid = do
-  resp <-
-    call $
-      method GET
-        . paths ["/i/users", toByteString' uid, "status"]
+  resp <- getStatus' uid
   case statusCode resp of
-    200 -> (\(AccountStatusResp status) -> Just status) <$> parseResponse @AccountStatusResp resp
+    200 -> Just . fromAccountStatusResp <$> parseResponse @AccountStatusResp resp
     404 -> pure Nothing
-    _ -> throwSpar (SparBrigErrorWith (responseStatus resp) "Could not retrieve account status")
+    _ -> rethrow resp
 
 setStatus :: (HasCallStack, MonadSparToBrig m) => UserId -> AccountStatus -> m ()
 setStatus uid status = do
