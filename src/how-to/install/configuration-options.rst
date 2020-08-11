@@ -3,14 +3,113 @@
 Part 3 - configuration options in a production setup
 ====================================================================
 
-This contains instructions to improve production setup depending on your needs.
+This contains instructions to configure specific aspects of your production setup depending on your needs.
 
-Depending on your use-case and requirements, you may only need to
+Depending on your use-case and requirements, you may need to
 configure none, or only a subset of the following sections.
 
-.. warning::
+Redirect some traffic through a http(s) proxy
+---------------------------------------------
 
-   As of 2019-10-15, this documentation section is partially out of date and needs to be updated.
+In case you wish to use http(s) proxies, you can add a configuration like this to the wire-server services in question:
+
+Assuming your proxy can be reached from within Kubernetes at ``http://proxy:8080``, add the following for each affected service (e.g. ``gundeck``) to your Helm overrides in ``values/wire-server/values.yaml`` :
+
+.. code:: yaml
+
+    gundeck:
+      # ...
+      config:
+        # ...
+        proxy:
+          httpProxy: "http://proxy:8080"
+          httpsProxy: "http://proxy:8080"
+          noProxyList:
+            - "localhost"
+            - "127.0.0.1"
+            - "10.0.0.0/8"
+            - "elasticsearch-external"
+            - "cassandra-external"
+            - "redis-ephemeral"
+            - "fake-aws-sqs"
+            - "fake-aws-dynamodb"
+            - "fake-aws-sns"
+            - "brig"
+            - "cargohold"
+            - "galley"
+            - "gundeck"
+            - "proxy"
+            - "spar"
+            - "federator"
+            - "cannon"
+            - "cannon-0.cannon.default"
+            - "cannon-1.cannon.default"
+            - "cannon-2.cannon.default"
+
+Depending on your setup, you may need to repeat this for the other services like ``brig`` as well.
+
+
+Enable push notifications using the public appstore / playstore mobile Wire clients
+-----------------------------------------------------------------------------------
+
+1. You need to get in touch with us. Please talk to sales or customer support - see https://wire.com
+2. If a contract agreement has been reached, we can set up a separate AWS account for you containing the necessary AWS SQS/SNS setup to route push notifications through to the mobile apps. We will then forward some configuration / access credentials that looks like:
+
+.. code::
+
+    push_notification_settings = {
+      "gundeck_access_key" = "REDACTED"
+      "gundeck_access_secret" = "REDACTED"
+      "notification_queue_name" = "<environment>-gundeck-events"
+      "sns_endpoint" = "https://sns.<region>.amazonaws.com"
+      "sqs_endpoint" = "https://sqs.<region>.amazonaws.com"
+    }
+
+To make use of those, first test the credentials are correct, e.g. using the ``aws`` command-line tool (for more information on how to configure credentials, please refer to the `official docs <https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-quickstart.html#cli-configure-quickstart-precedence>`__):
+
+.. code::
+
+    AWS_REGION=<region>
+    AWS_ACCESS_KEY_ID=<...>
+    AWS_SECRET_ACCESS_KEY=<...>
+
+    aws sqs list-queues
+
+You should get a result like this:
+
+.. code::
+
+    {
+        "QueueUrls": [
+            "https://<region>.queue.amazonaws.com/<aws-account-id>/<environment>-gundeck-events"
+        ]
+    }
+
+Then add them to your gundeck configuration overrides:
+
+.. code:: yaml
+
+   # in values/wire-server/values.yaml
+
+    gundeck:
+      # ...
+      config:
+        aws:
+          queueName: # e.g. staging-gundeck-events
+          region: # e.g. eu-central-1
+          snsEndpoint: # e.g. https://sns.eu-central-1.amazonaws.com
+          sqsEndpoint: # e.g. https://sqs.eu-central-1.amazonaws.com
+          arnEnv: # e.g. staging
+
+.. code:: yaml
+
+   # in values/wire-server/secrets.yaml
+
+    gundeck:
+      # ...
+      secrets:
+        awsKeyId: CHANGE-ME
+        awsSecretKey: CHANGE-ME
 
 
 You may want
@@ -24,6 +123,10 @@ You may want
    limitations without an AWS account in the following sections.
 -  one or more people able to maintain the installation
 -  official support by Wire (`contact us <https://wire.com/pricing/>`__)
+
+.. warning::
+
+   As of 2020-08-10, the documentation sections below are partially out of date and need to be updated.
 
 Metrics/logging
 ---------------
@@ -131,6 +234,7 @@ Install ``nginx-ingress-[controller,services]``:
        --wait
 
 Now, create DNS records for the URLs configured above.
+
 
 Load Balancer on cloud-provider
 -------------------------------
