@@ -270,11 +270,18 @@ getBrigActualUser buid = do
     _ -> throwSpar (SparBrigError "Could not retrieve user")
 
 getBrigInvitation :: (HasCallStack, MonadSparToBrig m) => TeamId -> InvitationId -> m (Maybe Inv.Invitation)
-getBrigInvitation tid invid = do
+getBrigInvitation tid = getBrigInvitationBy "by-id" (Just tid) . toByteString'
+
+getBrigInvitationBy :: (HasCallStack, MonadSparToBrig m) => ByteString -> Maybe TeamId -> ByteString -> m (Maybe Inv.Invitation)
+getBrigInvitationBy keyType mtid keyValue = do
   resp :: ResponseLBS <-
     call $
       method GET
-        . paths ["/i/teams/", toByteString' tid, "/invitations/", toByteString' invid]
+        . paths
+          ( ["/i/teams/"]
+              <> (maybe [] ((: []) . toByteString') mtid)
+              <> ["/invitations/", keyType, keyValue]
+          )
   case (statusCode resp, responseJsonMaybe resp) of
     (200, Just inv) -> pure inv
     (404, _) -> pure Nothing
@@ -319,10 +326,7 @@ getBrigActualUserByHandle handle = do
     parse _ = Nothing
 
 getBrigInvitationByHandle :: (HasCallStack, MonadSparToBrig m) => Handle -> m (Maybe Inv.Invitation)
-getBrigInvitationByHandle = do
-  -- call the end-point used in 'getBrigInvitation', but mutate it to take a query with
-  -- anything in it.
-  error "50542396-db39-11ea-92f1-37b88331a005"
+getBrigInvitationByHandle = getBrigInvitationBy "handle" Nothing . toByteString'
 
 getBrigUserByEmail :: (HasCallStack, MonadSparToBrig m) => Email -> m (Maybe UserOrInvitation)
 getBrigUserByEmail email =
@@ -350,9 +354,7 @@ getBrigActualUserByEmail email = do
     parse _ = Nothing
 
 getBrigInvitationByEmail :: (HasCallStack, MonadSparToBrig m) => Email -> m (Maybe Inv.Invitation)
-getBrigInvitationByEmail = do
-  -- same pattern as 'getBrigInvitationByHandle'
-  error "142de79e-db39-11ea-a664-5b96fdbcbf86"
+getBrigInvitationByEmail = getBrigInvitationBy "email" Nothing . toByteString'
 
 -- | Set user' name.  Fails with status <500 if brig fails with <500, and with 500 if brig
 -- fails with >= 500.

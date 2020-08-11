@@ -44,6 +44,7 @@ import qualified Brig.User.Search.Index as ESIndex
 import Control.Lens (view, (^.))
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
+import Data.Handle (Handle)
 import Data.Id
 import qualified Data.List1 as List1
 import Data.Range
@@ -161,10 +162,20 @@ routesInternal = do
       .&. capture "tid"
       .&. jsonRequest @Public.InvitationRequest
 
-  get "/i/teams/:tid/invitations/:iid" (continue getInvitationInternalH) $
+  get "/i/teams/:tid/invitations/by-id/:iid" (continue getInvitationInternalH) $
     accept "application" "json"
       .&. capture "tid"
       .&. capture "iid"
+
+  get "/i/teams/:tid/invitations/by-handle/:handle" (continue getInvitationInternalByHandleH) $
+    accept "application" "json"
+      .&. capture "tid"
+      .&. capture "handle"
+
+  get "/i/teams/:tid/invitations/by-email/:email" (continue getInvitationInternalByEmailH) $
+    accept "application" "json"
+      .&. capture "tid"
+      .&. capture "email"
 
   delete "/i/teams/:tid/invitations/:iid" (continue deleteInvitationInternalH) $
     accept "application" "json"
@@ -300,6 +311,22 @@ getInvitationInternalH (_ ::: tid ::: iid) =
 
 getInvitationInternal :: TeamId -> InvitationId -> Handler (Maybe Invitation)
 getInvitationInternal tid iid = lift $ DB.lookupInvitation tid iid
+
+getInvitationInternalByHandleH :: JSON ::: TeamId ::: Handle -> Handler Response
+getInvitationInternalByHandleH (_ ::: tid ::: handle) =
+  maybe (setStatus status404 empty) json
+    <$> getInvitationInternalByHandle tid handle
+
+getInvitationInternalByHandle :: TeamId -> Handle -> Handler (Maybe Invitation)
+getInvitationInternalByHandle _ = lift . DB.lookupInvitationByHandle
+
+getInvitationInternalByEmailH :: JSON ::: TeamId ::: Email -> Handler Response
+getInvitationInternalByEmailH (_ ::: tid ::: email) =
+  maybe (setStatus status404 empty) json
+    <$> getInvitationInternalByEmail tid email
+
+getInvitationInternalByEmail :: TeamId -> Email -> Handler (Maybe Invitation)
+getInvitationInternalByEmail _ = lift . DB.lookupInvitationByEmail
 
 deleteInvitationH :: JSON ::: UserId ::: TeamId ::: InvitationId -> Handler Response
 deleteInvitationH (_ ::: uid ::: tid ::: iid) = do
