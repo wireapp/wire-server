@@ -29,6 +29,7 @@ module Brig.Team.DB
     lookupInvitationByCode,
     lookupInvitationInfo,
     lookupInvitationInfoByEmail,
+    lookupInvitationByHandle,
     lookupInvitationByEmail,
     mkInvitationCode,
     mkInvitationId,
@@ -199,6 +200,9 @@ lookupInvitationInfo ic@(InvitationCode c)
     toInvitationInfo i (t, r) = InvitationInfo i t r
     cqlInvitationInfo :: PrepQuery R (Identity InvitationCode) (TeamId, InvitationId)
     cqlInvitationInfo = "SELECT team, id FROM team_invitation_info WHERE code = ?"
+
+lookupInvitationByHandle :: (HasCallStack, Log.MonadLogger m, MonadClient m) => Handle -> m (Maybe Invitation)
+lookupInvitationByHandle = error "do this like lookupInvitationByEmail, which requires a new c* index."
 
 lookupInvitationByEmail :: (Log.MonadLogger m, MonadClient m) => Email -> m (Maybe Invitation)
 lookupInvitationByEmail e =
