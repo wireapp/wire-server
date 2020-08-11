@@ -213,7 +213,8 @@ testCreateUserWithPass = do
   user <- randomScimUser <&> \u -> u {Scim.User.password = Just "geheim"}
   createUser_ (Just tok) user (env ^. teSpar) !!! do
     const 400 === statusCode
-    -- (yes, we should just test for error labels consistently...)
+    -- TODO: write a FAQ entry in wire-docs, reference it in the error description.
+    -- TODO: yes, we should just test for error labels consistently, i know...
     const (Just "setting password via scim is not supported") =~= responseBody
 
 testCreateUserInvite :: TestSpar ()
