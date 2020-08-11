@@ -438,7 +438,7 @@ setBrigUserUserRef buid uref = do
       method PUT
         . paths ["i", "users", toByteString' buid, "sso-id"]
         . json (toUserSSOId uref)
-  () <- error "62450eda-db39-11ea-a590-3b8694239e39 - implement what the haddocks promise."
+  () <- error "62450eda-db39-11ea-a590-3b8694239e39 - implement what the haddocks promise.  or perhaps the logic should go elsewhere, outside of this module?"
   let sCode = statusCode resp
   if
       | sCode < 300 ->
