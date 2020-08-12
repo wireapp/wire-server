@@ -393,8 +393,8 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid newScimUser = do
       -- [see also](https://github.com/zinfra/backend-issues/issues/1006)
       oldScimUser :: ST.ValidScimUser <-
         validateScimUser tokinfo . Scim.value . Scim.thing $ oldScimStoredUser
-      -- the old scim user from our db is already validated, but this also recovers
-      -- the extra details not stored in the DB that we need here.
+      -- the old scim user from our db is already validated, but this also reconstructs the
+      -- 'ValidScimUser' that we need here.
 
       lift $ do
         when (newScimUser ^. ST.vsuName /= oldScimUser ^. ST.vsuName) $

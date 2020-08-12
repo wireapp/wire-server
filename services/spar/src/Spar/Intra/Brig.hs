@@ -242,7 +242,8 @@ updateEmail buid email = do
     -- Wai.Error, it's ok to crash with a 500 here, so we use the unsafe parser.
     _ -> throwError . SAML.CustomServant . waiToServant . responseJsonUnsafe $ resp
 
--- | Get a user; returns 'Nothing' if the user was not found or has been deleted.
+-- | Get a user; returns 'Nothing' if neither user nor invitation is found or if user and/or
+-- invitation have been deleted.
 getBrigUser :: (HasCallStack, MonadSparToBrig m) => TeamId -> UserId -> m (Maybe UserOrInvitation)
 getBrigUser tid uid = do
   getBrigActualUser uid >>= \case
