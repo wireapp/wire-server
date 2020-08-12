@@ -583,70 +583,23 @@ assertHandleNotUsedElsewhere tid uid hndl = do
 -- FUTUREWORK: race condition: if a team invitation is accepted while being updated, the
 -- update may create a bogus invitation, and the user may not be upgraded.
 synthesizeStoredUser :: Brig.UserOrInvitation -> Scim.ScimHandler Spar (Scim.StoredUser ST.SparTag)
-synthesizeStoredUser = \case
-  Brig.JustUser usr -> synthesizeStoredUserU usr
-  Brig.JustInvitation inv -> synthesizeStoredUserI inv
+synthesizeStoredUser invOrUser = do
+  (tid, uid) <- case invOrUser of
+    Brig.JustUser usr -> do
+      tid <- userTeam usr & maybe (throwError $ Scim.serverError "found brig user without team id.") pure
+      pure (tid, userId usr)
+    Brig.JustInvitation inv -> do
+      pure (Inv.inTeam inv, coerce @InvitationId @UserId (Inv.inInvitation inv))
 
-synthesizeStoredUserU :: BT.User -> Scim.ScimHandler Spar (Scim.StoredUser ST.SparTag)
-synthesizeStoredUserU usr = do
-  let readState :: Scim.ScimHandler Spar (TeamId, RI.RichInfo, AccountStatus, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI)
-      readState = do
-        tid <-
-          userTeam usr
-            & maybe (throwError $ Scim.serverError "found brig user without team id.") pure
-        richInfo <- lift $ Brig.getBrigUserRichInfo (BT.userId usr)
-        accStatus <- lift $ Brig.getStatus (BT.userId usr)
-        accessTimes <- lift $ wrapMonadClient (Data.readScimUserTimes (BT.userId usr))
-        baseuri <- asks $ derivedOptsScimBaseURI . derivedOpts . sparCtxOpts
-        pure (tid, richInfo, accStatus, accessTimes, baseuri)
-
-  let writeState :: TeamId -> UserId -> Maybe (UTCTimeMillis, UTCTimeMillis) -> ManagedBy -> Scim.StoredUser ST.SparTag -> Spar ()
-      writeState tid uid oldAccessTimes managedBy storedUser = do
-        when (isNothing oldAccessTimes) $ do
-          wrapMonadClient $ Data.writeScimUserTimes storedUser
-        when (managedBy /= ManagedByScim) $ do
-          Brig.setBrigUserManagedBy tid uid ManagedByScim
-
-  (tid, richInfo, accStatus, accessTimes, baseuri) <- readState
-  SAML.Time (toUTCTimeMillis -> now) <- lift SAML.getNow
-  let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
-  handle <- lift $ Brig.giveDefaultHandleUser tid usr
-  urefOrEmail :: Either Email SAML.UserRef <- do
-    let sso :: Maybe Id.UserSSOId = Id.ssoIdentity <=< userIdentity $ usr
-        email :: Maybe Email = Id.emailIdentity <=< userIdentity $ usr
-    case (sso, email) of
-      (Just (Brig.fromUserSSOId -> Right it), _) -> pure $ Right it
-      (Nothing, Just it) -> pure $ Left it
-      -- the following should not happen.
-      (Just _, _) ->
-        throwError $ Scim.serverError "found brig user with corrupted saml saml credentials."
-      (Nothing, Nothing) -> do
-        throwError $ Scim.serverError "found user in brig with no email and no saml credentials."
-  storedUser <-
-    synthesizeStoredUser'
-      (userId usr)
-      urefOrEmail
-      (userDisplayName usr)
-      handle
-      richInfo
-      (Just accStatus)
-      createdAt
-      lastUpdatedAt
-      baseuri
-  lift $ writeState tid (BT.userId usr) accessTimes (BT.userManagedBy usr) storedUser
-  pure storedUser
-
-synthesizeStoredUserI :: Inv.Invitation -> Scim.ScimHandler Spar (Scim.StoredUser ST.SparTag)
-synthesizeStoredUserI inv = do
-  let tid = Inv.inTeam inv
-      uid = coerce @InvitationId @UserId (Inv.inInvitation inv)
-
-  let readState :: Spar (RI.RichInfo, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI)
+  let readState :: Spar (RI.RichInfo, Maybe AccountStatus, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI)
       readState = do
         richInfo <- Brig.getBrigUserRichInfo uid
+        mAccStatus <- case invOrUser of
+          Brig.JustUser usr -> Just <$> Brig.getStatus (BT.userId usr)
+          Brig.JustInvitation _ -> pure Nothing
         accessTimes <- wrapMonadClient (Data.readScimUserTimes uid)
         baseuri <- asks $ derivedOptsScimBaseURI . derivedOpts . sparCtxOpts
-        pure (richInfo, accessTimes, baseuri)
+        pure (richInfo, mAccStatus, accessTimes, baseuri)
 
   let writeState :: Maybe (UTCTimeMillis, UTCTimeMillis) -> ManagedBy -> Scim.StoredUser ST.SparTag -> Spar ()
       writeState oldAccessTimes managedBy storedUser = do
@@ -655,23 +608,48 @@ synthesizeStoredUserI inv = do
         when (managedBy /= ManagedByScim) $ do
           Brig.setBrigUserManagedBy tid uid ManagedByScim
 
-  (richInfo, accessTimes, baseuri) <- lift readState
+  (richInfo, mAccStatus, accessTimes, baseuri) <- lift readState
   SAML.Time (toUTCTimeMillis -> now) <- lift SAML.getNow
   let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
-  handle <- lift $ Brig.giveDefaultHandleInv tid inv
-  let name = fromMaybe Profile.defaultName (Inv.inInviteeName inv)
+
+  handle <- case invOrUser of
+    Brig.JustUser usr -> lift $ Brig.giveDefaultHandleUser tid usr
+    Brig.JustInvitation inv -> lift $ Brig.giveDefaultHandleInv tid inv
+
+  urefOrEmail :: Either Email SAML.UserRef <- case invOrUser of
+    Brig.JustUser usr -> do
+      let sso :: Maybe Id.UserSSOId = Id.ssoIdentity <=< userIdentity $ usr
+          email :: Maybe Email = Id.emailIdentity <=< userIdentity $ usr
+      case (sso, email) of
+        (Just (Brig.fromUserSSOId -> Right it), _) -> pure $ Right it
+        (Nothing, Just it) -> pure $ Left it
+        -- the following should not happen.
+        (Just _, _) ->
+          throwError $ Scim.serverError "found brig user with corrupted saml saml credentials."
+        (Nothing, Nothing) -> do
+          throwError $ Scim.serverError "found user in brig with no email and no saml credentials."
+    Brig.JustInvitation inv -> do
+      pure . Left $ Inv.inIdentity inv
+
+  let name = case invOrUser of
+        Brig.JustUser usr -> userDisplayName usr
+        Brig.JustInvitation inv -> fromMaybe Profile.defaultName (Inv.inInviteeName inv)
+      managedBy = case invOrUser of
+        Brig.JustUser usr -> BT.userManagedBy usr
+        Brig.JustInvitation inv -> Inv.inManagedBy inv
+
   storedUser <-
     synthesizeStoredUser'
       uid
-      (Left $ Inv.inIdentity inv)
+      urefOrEmail
       name
       handle
       richInfo
-      Nothing
+      mAccStatus
       createdAt
       lastUpdatedAt
       baseuri
-  lift $ writeState accessTimes (Inv.inManagedBy inv) storedUser
+  lift $ writeState accessTimes managedBy storedUser
   pure storedUser
 
 synthesizeStoredUser' ::
