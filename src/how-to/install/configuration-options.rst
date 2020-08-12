@@ -58,6 +58,7 @@ Enable push notifications using the public appstore / playstore mobile Wire clie
 .. code::
 
     push_notification_settings = {
+      "aws_account_id" = "REDACTED"
       "gundeck_access_key" = "REDACTED"
       "gundeck_access_secret" = "REDACTED"
       "notification_queue_name" = "<environment>-gundeck-events"
@@ -72,17 +73,16 @@ To make use of those, first test the credentials are correct, e.g. using the ``a
     AWS_REGION=<region>
     AWS_ACCESS_KEY_ID=<...>
     AWS_SECRET_ACCESS_KEY=<...>
+    ENV=<environment> #e.g staging
 
-    aws sqs list-queues
+    aws sqs get-queue-url --queue-name "$ENV-gundeck-events"
 
 You should get a result like this:
 
 .. code::
 
     {
-        "QueueUrls": [
-            "https://<region>.queue.amazonaws.com/<aws-account-id>/<environment>-gundeck-events"
-        ]
+        "QueueUrl": "https://<region>.queue.amazonaws.com/<aws-account-id>/<environment>-gundeck-events"
     }
 
 Then add them to your gundeck configuration overrides:
@@ -96,10 +96,11 @@ Then add them to your gundeck configuration overrides:
       config:
         aws:
           queueName: # e.g. staging-gundeck-events
+          account: # <aws-account-id>, e.g. 123456789
           region: # e.g. eu-central-1
           snsEndpoint: # e.g. https://sns.eu-central-1.amazonaws.com
           sqsEndpoint: # e.g. https://sqs.eu-central-1.amazonaws.com
-          arnEnv: # e.g. staging
+          arnEnv: # e.g. staging - this must match the environment name (first part of queueName)
 
 .. code:: yaml
 
@@ -111,6 +112,8 @@ Then add them to your gundeck configuration overrides:
         awsKeyId: CHANGE-ME
         awsSecretKey: CHANGE-ME
 
+
+After making this change and applying it to gundeck (ensure gundeck pods have restarted to make use of the updated configuration - that should happen automatically), make sure to reset the push token on any mobile devices that you may have in use.
 
 You may want
 --------------
