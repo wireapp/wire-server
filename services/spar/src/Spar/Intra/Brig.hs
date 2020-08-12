@@ -411,14 +411,12 @@ setBrigUserHandle buid handle = do
 
 -- | Set user's managedBy. Fails with status <500 if brig fails with <500, and with 500 if
 -- brig fails with >= 500.
-setBrigUserManagedBy :: (HasCallStack, MonadSparToBrig m) => UserId -> ManagedBy -> m ()
-setBrigUserManagedBy buid managedBy = do
-  () <- error "2ccc7b44-db39-11ea-9c0a-e3ac0ccdea3b"
-  -- like 'setBrigUserName'  (or perhaps we can use this one?)
+setBrigUserManagedBy :: (HasCallStack, MonadSparToBrig m) => TeamId -> UserId -> ManagedBy -> m ()
+setBrigUserManagedBy tid buid managedBy = do
   resp <-
     call $
       method PUT
-        . paths ["i", "users", toByteString' buid, "managed-by"]
+        . paths ["/i/teams/", toByteString' tid, "/managed-by/", toByteString' buid]
         . json (ManagedByUpdate managedBy)
   let sCode = statusCode resp
   if

@@ -587,22 +587,25 @@ synthesizeStoredUserI = error "c9c631ec-db39-11ea-a7ca-a3c78dace6e8"
 
 synthesizeStoredUserU :: BT.User -> Scim.ScimHandler Spar (Scim.StoredUser ST.SparTag)
 synthesizeStoredUserU usr = do
-  let readState :: Spar (RI.RichInfo, AccountStatus, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI)
+  let readState :: Scim.ScimHandler Spar (TeamId, RI.RichInfo, AccountStatus, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI)
       readState = do
-        richInfo <- Brig.getBrigUserRichInfo (BT.userId usr)
-        accStatus <- Brig.getStatus (BT.userId usr)
-        accessTimes <- wrapMonadClient (Data.readScimUserTimes (BT.userId usr))
+        tid <-
+          userTeam usr
+            & maybe (throwError $ Scim.serverError "found brig user without team id.") pure
+        richInfo <- lift $ Brig.getBrigUserRichInfo (BT.userId usr)
+        accStatus <- lift $ Brig.getStatus (BT.userId usr)
+        accessTimes <- lift $ wrapMonadClient (Data.readScimUserTimes (BT.userId usr))
         baseuri <- asks $ derivedOptsScimBaseURI . derivedOpts . sparCtxOpts
-        pure (richInfo, accStatus, accessTimes, baseuri)
+        pure (tid, richInfo, accStatus, accessTimes, baseuri)
 
-  let writeState :: UserId -> Maybe (UTCTimeMillis, UTCTimeMillis) -> ManagedBy -> Scim.StoredUser ST.SparTag -> Spar ()
-      writeState uid accessTimes managedBy storedUser = do
+  let writeState :: TeamId -> UserId -> Maybe (UTCTimeMillis, UTCTimeMillis) -> ManagedBy -> Scim.StoredUser ST.SparTag -> Spar ()
+      writeState tid uid accessTimes managedBy storedUser = do
         when (isNothing accessTimes) $ do
           wrapMonadClient $ Data.writeScimUserTimes storedUser
         when (managedBy /= ManagedByScim) $ do
-          Brig.setBrigUserManagedBy uid ManagedByScim
+          Brig.setBrigUserManagedBy tid uid ManagedByScim
 
-  (richInfo, accStatus, accessTimes, baseuri) <- lift readState
+  (tid, richInfo, accStatus, accessTimes, baseuri) <- readState
   SAML.Time (toUTCTimeMillis -> now) <- lift SAML.getNow
   let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
   handle <- lift $ Brig.giveDefaultHandle usr
@@ -628,7 +631,7 @@ synthesizeStoredUserU usr = do
       createdAt
       lastUpdatedAt
       baseuri
-  lift $ writeState (BT.userId usr) accessTimes (BT.userManagedBy usr) storedUser
+  lift $ writeState tid (BT.userId usr) accessTimes (BT.userManagedBy usr) storedUser
   pure storedUser
 
 synthesizeStoredUser' ::

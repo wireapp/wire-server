@@ -174,11 +174,6 @@ sitemap = do
       .&. accept "application" "json"
       .&. jsonRequest @UserSSOId
 
-  put "/i/users/:uid/managed-by" (continue updateManagedByH) $
-    capture "uid"
-      .&. accept "application" "json"
-      .&. jsonRequest @ManagedByUpdate
-
   get "/i/users/:uid/rich-info" (continue getRichInfoInternalH) $
     capture "uid"
       .&. accept "application" "json"
@@ -445,12 +440,6 @@ updateSSOIdH (uid ::: _ ::: req) = do
   if success
     then return empty
     else return . setStatus status404 $ plain "User does not exist or has no team."
-
-updateManagedByH :: UserId ::: JSON ::: JsonRequest ManagedByUpdate -> Handler Response
-updateManagedByH (uid ::: _ ::: req) = do
-  ManagedByUpdate managedBy <- parseJsonBody req
-  lift $ Data.updateManagedBy uid managedBy
-  return empty
 
 getRichInfoInternalH :: UserId ::: JSON -> Handler Response
 getRichInfoInternalH (user ::: _) = do

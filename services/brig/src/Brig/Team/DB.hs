@@ -35,6 +35,7 @@ module Brig.Team.DB
     mkInvitationId,
     InvitationInfo (..),
     InvitationByEmail (..),
+    updInvitationManagedBy,
   )
 where
 
@@ -253,3 +254,9 @@ toInvitation ::
   Invitation
 toInvitation (t, r, i, e, tm, minviter, inviteeName, inviteeHandle, p, m) =
   Invitation t (fromMaybe Team.defaultRole r) i e tm minviter inviteeName inviteeHandle p (fromMaybe ManagedByWire m)
+
+updInvitationManagedBy :: MonadClient m => TeamId -> InvitationId -> ManagedBy -> m ()
+updInvitationManagedBy tid invid managedBy = retry x5 $ write upd (params Quorum (managedBy, tid, invid))
+  where
+    upd :: PrepQuery W (ManagedBy, TeamId, InvitationId) ()
+    upd = "UPDATE team_invitation SET managed_by = ? WHERE team = ? and id = ?"

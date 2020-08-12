@@ -27,6 +27,7 @@ import Brig.API.User (fetchUserIdentity)
 import qualified Brig.API.User as API
 import Brig.App (currentTime, settings)
 import qualified Brig.Data.Blacklist as Blacklist
+import qualified Brig.Data.User as DB
 import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
 import qualified Brig.Email as Email
@@ -36,6 +37,7 @@ import qualified Brig.Phone as Phone
 import qualified Brig.Team.DB as DB
 import Brig.Team.Email
 import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)
+import Brig.Types (ManagedByUpdate (..))
 import Brig.Types.Intra (AccountStatus (..))
 import Brig.Types.Team (TeamSize)
 import Brig.Types.Team.Invitation
@@ -44,6 +46,7 @@ import qualified Brig.User.Search.Index as ESIndex
 import Control.Lens (view, (^.))
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
+import Data.Coerce (coerce)
 import Data.Handle (Handle)
 import Data.Id
 import qualified Data.List1 as List1
@@ -57,8 +60,10 @@ import Network.Wai (Response)
 import Network.Wai.Predicate hiding (and, result, setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities hiding (code, message)
+import Network.Wai.Utilities.Response (json)
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
+import qualified System.Logger.Class as Log
 import qualified Wire.API.Team.Invitation as Public
 import qualified Wire.API.User as Public
 
@@ -161,6 +166,12 @@ routesInternal = do
     accept "application" "json"
       .&. capture "tid"
       .&. jsonRequest @Public.InvitationRequest
+
+  put "/i/teams/:tid/managed-by/:uid" (continue updateManagedByInternalH) $
+    accept "application" "json"
+      .&. capture "tid"
+      .&. capture "uid"
+      .&. jsonRequest @ManagedByUpdate
 
   get "/i/teams/:tid/invitations/by-id/:iid" (continue getInvitationInternalH) $
     accept "application" "json"
@@ -303,6 +314,25 @@ createInvitation mode tid body = do
           timeout
       for_ mInviter $ \inviter -> void $ sendInvitationMail toEmail tid (inviterEmail inviter) code lc
       return newInv
+
+updateManagedByInternalH :: JSON ::: TeamId ::: UserId ::: JsonRequest ManagedByUpdate -> Handler Response
+updateManagedByInternalH (_ ::: tid ::: uid ::: req) = do
+  empty <$ (updateManagedByInternal tid uid =<< parseJsonBody req)
+
+updateManagedByInternal :: TeamId -> UserId -> ManagedByUpdate -> Handler ()
+updateManagedByInternal tid uid (ManagedByUpdate managedBy) = do
+  let invid = coerce @UserId @InvitationId uid
+  lift (DB.lookupUser uid) >>= \case
+    Just _ -> lift $ DB.updateManagedBy uid managedBy
+    Nothing ->
+      DB.lookupInvitation tid invid >>= \case
+        Just _ -> lift $ DB.updInvitationManagedBy tid invid managedBy
+        Nothing ->
+          Log.warn
+            ( Log.msg @Text
+                "unexpected: internal end-point `updateManagedBy` \
+                \called on uid that has no user and no invitation."
+            )
 
 getInvitationInternalH :: JSON ::: TeamId ::: InvitationId -> Handler Response
 getInvitationInternalH (_ ::: tid ::: iid) =
