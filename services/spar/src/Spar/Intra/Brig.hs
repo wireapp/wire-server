@@ -55,7 +55,8 @@ module Spar.Intra.Brig
     getStatus,
     getStatusMaybe,
     setStatus,
-    giveDefaultHandle,
+    giveDefaultHandleUser,
+    giveDefaultHandleInv,
   )
 where
 
@@ -621,21 +622,21 @@ setStatus uid status = do
 -- We cannot simply respond with 404 in this case, because the user exists.  404 would suggest
 -- do the scim peer that it should post the user to create it, but that would create a new
 -- user instead of finding the old that should be put under scim control.
-giveDefaultHandle :: (HasCallStack, MonadSparToBrig m) => User -> m Handle
-giveDefaultHandle usr = case userHandle usr of
+giveDefaultHandleUser :: (HasCallStack, MonadSparToBrig m) => TeamId -> User -> m Handle
+giveDefaultHandleUser tid usr = case userHandle usr of
   Just handle -> pure handle
   Nothing -> do
     let handle :: Handle = Handle . cs . toByteString' . userId $ usr
-    resp :: Response (Maybe LBS) <-
-      call $
-        method PUT
-          . path "/self/handle"
-          . header "Z-User" (toByteString' . userId $ usr)
-          . header "Z-Connection" ""
-          . (json . HandleUpdate . fromHandle $ handle)
-    if statusCode resp == 200
-      then pure handle
-      else rethrow resp
+    setBrigUserHandle tid (userId usr) handle
+    pure handle
+
+giveDefaultHandleInv :: (HasCallStack, MonadSparToBrig m) => TeamId -> Inv.Invitation -> m Handle
+giveDefaultHandleInv tid inv = case Inv.inInviteeHandle inv of
+  Just handle -> pure handle
+  Nothing -> do
+    let handle :: Handle = Handle . cs . toByteString' . Inv.inInvitation $ inv
+    setBrigUserHandle tid (coerce @InvitationId @UserId (Inv.inInvitation inv)) handle
+    pure handle
 
 -- | If a call to brig fails, we often just want to respond with whatever brig said.
 --

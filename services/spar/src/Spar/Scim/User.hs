@@ -50,8 +50,9 @@ import Control.Monad.Except (MonadError, throwError)
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Crypto.Hash (Digest, SHA256, hashlazy)
 import qualified Data.Aeson as Aeson
+import Data.Coerce (coerce)
 import Data.Handle (Handle (Handle), parseHandle)
-import Data.Id (Id (Id), TeamId, UserId, idToText)
+import Data.Id (Id (Id), InvitationId, TeamId, UserId, idToText)
 import Data.Json.Util (UTCTimeMillis, fromUTCTimeMillis, toUTCTimeMillis)
 import Data.Misc ((<$$>))
 import Data.String.Conversions (cs)
@@ -80,6 +81,7 @@ import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User (schemas)
 import qualified Wire.API.Team.Invitation as Inv
 import qualified Wire.API.User.Identity as Id
+import qualified Wire.API.User.Profile as Profile
 import qualified Wire.API.User.RichInfo as RI
 
 ----------------------------------------------------------------------------
@@ -577,13 +579,13 @@ assertHandleNotUsedElsewhere tid uid hndl = do
 -- | Helper function that translates a given brig user into a 'Scim.StoredUser', with some
 -- effects like updating the 'ManagedBy' field in brig and storing creation and update time
 -- stamps.
+--
+-- FUTUREWORK: race condition: if a team invitation is accepted while being updated, the
+-- update may create a bogus invitation, and the user may not be upgraded.
 synthesizeStoredUser :: Brig.UserOrInvitation -> Scim.ScimHandler Spar (Scim.StoredUser ST.SparTag)
 synthesizeStoredUser = \case
   Brig.JustUser usr -> synthesizeStoredUserU usr
   Brig.JustInvitation inv -> synthesizeStoredUserI inv
-
-synthesizeStoredUserI :: Inv.Invitation -> Scim.ScimHandler Spar (Scim.StoredUser ST.SparTag)
-synthesizeStoredUserI = error "c9c631ec-db39-11ea-a7ca-a3c78dace6e8"
 
 synthesizeStoredUserU :: BT.User -> Scim.ScimHandler Spar (Scim.StoredUser ST.SparTag)
 synthesizeStoredUserU usr = do
@@ -599,8 +601,8 @@ synthesizeStoredUserU usr = do
         pure (tid, richInfo, accStatus, accessTimes, baseuri)
 
   let writeState :: TeamId -> UserId -> Maybe (UTCTimeMillis, UTCTimeMillis) -> ManagedBy -> Scim.StoredUser ST.SparTag -> Spar ()
-      writeState tid uid accessTimes managedBy storedUser = do
-        when (isNothing accessTimes) $ do
+      writeState tid uid oldAccessTimes managedBy storedUser = do
+        when (isNothing oldAccessTimes) $ do
           wrapMonadClient $ Data.writeScimUserTimes storedUser
         when (managedBy /= ManagedByScim) $ do
           Brig.setBrigUserManagedBy tid uid ManagedByScim
@@ -608,7 +610,7 @@ synthesizeStoredUserU usr = do
   (tid, richInfo, accStatus, accessTimes, baseuri) <- readState
   SAML.Time (toUTCTimeMillis -> now) <- lift SAML.getNow
   let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
-  handle <- lift $ Brig.giveDefaultHandle usr
+  handle <- lift $ Brig.giveDefaultHandleUser tid usr
   urefOrEmail :: Either Email SAML.UserRef <- do
     let sso :: Maybe Id.UserSSOId = Id.ssoIdentity <=< userIdentity $ usr
         email :: Maybe Email = Id.emailIdentity <=< userIdentity $ usr
@@ -627,11 +629,49 @@ synthesizeStoredUserU usr = do
       (userDisplayName usr)
       handle
       richInfo
-      accStatus
+      (Just accStatus)
       createdAt
       lastUpdatedAt
       baseuri
   lift $ writeState tid (BT.userId usr) accessTimes (BT.userManagedBy usr) storedUser
+  pure storedUser
+
+synthesizeStoredUserI :: Inv.Invitation -> Scim.ScimHandler Spar (Scim.StoredUser ST.SparTag)
+synthesizeStoredUserI inv = do
+  let tid = Inv.inTeam inv
+      uid = coerce @InvitationId @UserId (Inv.inInvitation inv)
+
+  let readState :: Spar (RI.RichInfo, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI)
+      readState = do
+        richInfo <- Brig.getBrigUserRichInfo uid
+        accessTimes <- wrapMonadClient (Data.readScimUserTimes uid)
+        baseuri <- asks $ derivedOptsScimBaseURI . derivedOpts . sparCtxOpts
+        pure (richInfo, accessTimes, baseuri)
+
+  let writeState :: Maybe (UTCTimeMillis, UTCTimeMillis) -> ManagedBy -> Scim.StoredUser ST.SparTag -> Spar ()
+      writeState oldAccessTimes managedBy storedUser = do
+        when (isNothing oldAccessTimes) $ do
+          wrapMonadClient $ Data.writeScimUserTimes storedUser
+        when (managedBy /= ManagedByScim) $ do
+          Brig.setBrigUserManagedBy tid uid ManagedByScim
+
+  (richInfo, accessTimes, baseuri) <- lift readState
+  SAML.Time (toUTCTimeMillis -> now) <- lift SAML.getNow
+  let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
+  handle <- lift $ Brig.giveDefaultHandleInv tid inv
+  let name = fromMaybe Profile.defaultName (Inv.inInviteeName inv)
+  storedUser <-
+    synthesizeStoredUser'
+      uid
+      (Left $ Inv.inIdentity inv)
+      name
+      handle
+      richInfo
+      Nothing
+      createdAt
+      lastUpdatedAt
+      baseuri
+  lift $ writeState accessTimes (Inv.inManagedBy inv) storedUser
   pure storedUser
 
 synthesizeStoredUser' ::
@@ -640,12 +680,12 @@ synthesizeStoredUser' ::
   Name ->
   Handle ->
   RI.RichInfo ->
-  AccountStatus ->
+  Maybe AccountStatus ->
   UTCTimeMillis ->
   UTCTimeMillis ->
   URIBS.URI ->
   MonadError Scim.ScimError m => m (Scim.StoredUser ST.SparTag)
-synthesizeStoredUser' uid ssoid dname handle richInfo accStatus createdAt lastUpdatedAt baseuri = do
+synthesizeStoredUser' uid ssoid dname handle richInfo mAccStatus createdAt lastUpdatedAt baseuri = do
   let scimUser :: Scim.User ST.SparTag
       scimUser =
         synthesizeScimUser
@@ -654,7 +694,7 @@ synthesizeStoredUser' uid ssoid dname handle richInfo accStatus createdAt lastUp
               ST._vsuHandle = handle, -- 'Maybe' there is one in @usr@, but we want to type checker to make sure this exists.
               ST._vsuName = dname,
               ST._vsuRichInfo = richInfo,
-              ST._vsuActive = ST.scimActiveFlagFromAccountStatus accStatus
+              ST._vsuActive = maybe False ST.scimActiveFlagFromAccountStatus mAccStatus
             }
 
   pure $ toScimStoredUser' createdAt lastUpdatedAt baseuri uid scimUser

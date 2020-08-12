@@ -22,6 +22,7 @@
 module Wire.API.User.Profile
   ( Name (..),
     mkName,
+    defaultName,
     ColourId (..),
     defaultAccentId,
 
@@ -85,6 +86,9 @@ newtype Name = Name
 
 mkName :: Text -> Either String Name
 mkName txt = Name . fromRange <$> checkedEitherMsg @_ @1 @128 "Name" txt
+
+defaultName :: Name
+defaultName = Name "default"
 
 modelUserDisplayName :: Doc.Model
 modelUserDisplayName = Doc.defineModel "UserDisplayName" $ do
