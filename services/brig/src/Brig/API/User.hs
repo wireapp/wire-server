@@ -381,7 +381,7 @@ changeHandle uid conn hdl = do
     claim u = do
       unless (isJust (userIdentity u)) $
         throwE ChangeHandleNoIdentity
-      claimed <- lift $ claimHandle u hdl
+      claimed <- lift $ claimHandle (userId u) (userHandle u) hdl
       unless claimed $
         throwE ChangeHandleExists
       lift $ Intra.onUserEvent uid (Just conn) (handleUpdated uid hdl)
@@ -909,7 +909,7 @@ deleteAccount account@(accountUser -> user) = do
   -- Free unique keys
   for_ (userEmail user) $ deleteKey . userEmailKey
   for_ (userPhone user) $ deleteKey . userPhoneKey
-  for_ (userHandle user) $ freeHandle user
+  for_ (userHandle user) $ freeHandle (userId user)
   -- Wipe data
   Data.clearProperties uid
   tombstone <- mkTombstone
