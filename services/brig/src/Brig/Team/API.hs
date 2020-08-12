@@ -179,6 +179,12 @@ routesInternal = do
       .&. capture "uid"
       .&. jsonRequest @Public.HandleUpdate
 
+  put "/i/teams/:tid/user-name/:uid" (continue updateUserNameInternalH) $
+    accept "application" "json"
+      .&. capture "tid"
+      .&. capture "uid"
+      .&. jsonRequest @Public.NameUpdate
+
   get "/i/teams/:tid/invitations/by-id/:iid" (continue getInvitationInternalH) $
     accept "application" "json"
       .&. capture "tid"
@@ -357,6 +363,33 @@ updateHandleInternal tid uid (Public.HandleUpdate handleUpd) = do
           Log.warn
             ( Log.msg @Text
                 "unexpected: internal end-point `updateHandleInternal` \
+                \called on uid that has no user and no invitation."
+            )
+
+updateUserNameInternalH :: JSON ::: TeamId ::: UserId ::: JsonRequest Public.NameUpdate -> Handler Response
+updateUserNameInternalH (_ ::: tid ::: uid ::: req) = do
+  empty <$ (updateUserNameInternal tid uid =<< parseJsonBody req)
+
+updateUserNameInternal :: TeamId -> UserId -> Public.NameUpdate -> Handler ()
+updateUserNameInternal tid uid (Public.NameUpdate nameUpd) = do
+  let invid = coerce @UserId @InvitationId uid
+  name <- either (const $ throwStd invalidUser) pure $ Public.mkName nameUpd
+  let uu =
+        Public.UserUpdate
+          { Public.uupName = Just name,
+            Public.uupPict = Nothing,
+            Public.uupAssets = Nothing,
+            Public.uupAccentId = Nothing
+          }
+  lift (DB.lookupUser uid) >>= \case
+    Just _ -> lift $ API.updateUser uid Nothing uu
+    Nothing ->
+      DB.lookupInvitation tid invid >>= \case
+        Just _ -> DB.updInvitationName tid invid name
+        Nothing ->
+          Log.warn
+            ( Log.msg @Text
+                "unexpected: internal end-point `updateUserNameInternal` \
                 \called on uid that has no user and no invitation."
             )
 

@@ -1095,7 +1095,7 @@ instance ToJSON GetActivationCodeResp where
 updateUserH :: UserId ::: ConnId ::: JsonRequest Public.UserUpdate -> Handler Response
 updateUserH (uid ::: conn ::: req) = do
   uu <- parseJsonBody req
-  lift $ API.updateUser uid conn uu
+  lift $ API.updateUser uid (Just conn) uu
   return empty
 
 changePhoneH :: UserId ::: ConnId ::: JsonRequest Public.PhoneUpdate -> Handler Response

@@ -37,6 +37,7 @@ module Brig.Team.DB
     InvitationByEmail (..),
     updInvitationManagedBy,
     updInvitationHandle,
+    updInvitationName,
   )
 where
 
@@ -267,3 +268,9 @@ updInvitationHandle tid invid handle = retry x5 $ write upd (params Quorum (hand
   where
     upd :: PrepQuery W (Handle, TeamId, InvitationId) ()
     upd = "UPDATE team_invitation SET handle = ? WHERE team = ? and id = ?"
+
+updInvitationName :: MonadClient m => TeamId -> InvitationId -> Name -> m ()
+updInvitationName tid invid name = retry x5 $ write upd (params Quorum (name, tid, invid))
+  where
+    upd :: PrepQuery W (Name, TeamId, InvitationId) ()
+    upd = "UPDATE team_invitation SET name = ? WHERE team = ? and id = ?"

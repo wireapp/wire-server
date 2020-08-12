@@ -57,6 +57,7 @@ module Wire.API.User
     EmailUpdate (..),
     PhoneUpdate (..),
     HandleUpdate (..),
+    NameUpdate (..),
 
     -- * Account Deletion
     DeleteUser (..),
@@ -874,6 +875,17 @@ instance ToJSON HandleUpdate where
 instance FromJSON HandleUpdate where
   parseJSON = withObject "handle-update" $ \o ->
     HandleUpdate <$> o .: "handle"
+
+newtype NameUpdate = NameUpdate {nuHandle :: Text}
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
+
+instance ToJSON NameUpdate where
+  toJSON h = object ["name" .= nuHandle h]
+
+instance FromJSON NameUpdate where
+  parseJSON = withObject "name-update" $ \o ->
+    NameUpdate <$> o .: "name"
 
 -----------------------------------------------------------------------------
 -- Account Deletion

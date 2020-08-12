@@ -398,7 +398,7 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid newScimUser = do
 
       lift $ do
         when (newScimUser ^. ST.vsuName /= oldScimUser ^. ST.vsuName) $
-          Brig.setBrigUserName uid (newScimUser ^. ST.vsuName)
+          Brig.setBrigUserName stiTeam uid (newScimUser ^. ST.vsuName)
         when (oldScimUser ^. ST.vsuHandle /= newScimUser ^. ST.vsuHandle) $
           Brig.setBrigUserHandle stiTeam uid $
             newScimUser ^. ST.vsuHandle

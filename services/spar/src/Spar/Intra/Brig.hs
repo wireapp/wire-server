@@ -359,25 +359,13 @@ getBrigInvitationByEmail = getBrigInvitationBy "email" Nothing . toByteString'
 
 -- | Set user' name.  Fails with status <500 if brig fails with <500, and with 500 if brig
 -- fails with >= 500.
-setBrigUserName :: (HasCallStack, MonadSparToBrig m) => UserId -> Name -> m ()
-setBrigUserName buid name = do
-  () <- error "20755ee2-db39-11ea-a4ab-9ffed167c9d2"
-  -- make this an internal end-point in brig: first attempt to set name on user; if that
-  -- yields "not found", attempt to update the invitation.  this way we don't have a race
-  -- condition.  ('setBrigUserManagedBy' already has that end-point, use that.)
+setBrigUserName :: (HasCallStack, MonadSparToBrig m) => TeamId -> UserId -> Name -> m ()
+setBrigUserName tid buid (Name name) = do
   resp <-
     call $
       method PUT
-        . path "/self"
-        . header "Z-User" (toByteString' buid)
-        . header "Z-Connection" ""
-        . json
-          UserUpdate
-            { uupName = Just name,
-              uupPict = Nothing,
-              uupAssets = Nothing,
-              uupAccentId = Nothing
-            }
+        . paths ["/i/teams/", toByteString' tid, "/user/", toByteString' buid]
+        . json (NameUpdate name)
   let sCode = statusCode resp
   if
       | sCode < 300 ->
