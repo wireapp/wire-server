@@ -396,6 +396,9 @@ data CheckHandleResp
 
 checkHandle :: Text -> API.Handler CheckHandleResp
 checkHandle uhandle = do
+  _
+  -- this is the function called for handle availability check both in the public and the
+  -- internal api.  undrestand how it works, and make sure this also works for invitations!
   xhandle <- validateHandle uhandle
   owner <- lift $ lookupHandle xhandle
   if

@@ -469,9 +469,9 @@ headInvitationsByEmailH :: JSON ::: Email -> Handler Response
 headInvitationsByEmailH (_ ::: e) = do
   inv <- lift $ DB.lookupInvitationInfoByEmail e
   return $ case inv of
-    DB.InvitationByEmail _ -> setStatus status200 empty
-    DB.InvitationByEmailNotFound -> setStatus status404 empty
-    DB.InvitationByEmailMoreThanOne -> setStatus status409 empty
+    DB.InvitationByKey _ -> setStatus status200 empty
+    DB.InvitationByKeyNotFound -> setStatus status404 empty
+    DB.InvitationByKeyMoreThanOne -> setStatus status409 empty
 
 suspendTeamH :: JSON ::: TeamId -> Handler Response
 suspendTeamH (_ ::: tid) = do

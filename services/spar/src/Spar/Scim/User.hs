@@ -565,7 +565,6 @@ assertHandleUnused = assertHandleUnused' "userName is already taken"
 
 assertHandleUnused' :: Text -> Handle -> Scim.ScimHandler Spar ()
 assertHandleUnused' msg hndl = do
-  () <- error "so we also need to patch brig to make sure that it blocks the handles we add to the invitations?!  it doesn't end..."
   lift (Brig.checkHandleAvailable hndl) >>= \case
     True -> pure ()
     False -> throwError Scim.conflict {Scim.detail = Just msg}
