@@ -452,7 +452,6 @@ setBrigUserUserRef buid uref = do
 -- brig fails with >= 500.
 setBrigUserRichInfo :: (HasCallStack, MonadSparToBrig m) => UserId -> RichInfo -> m ()
 setBrigUserRichInfo buid richInfo = do
-  () <- error "6ba31eb8-db39-11ea-ad08-ab7a82fc2f69 - i suppose we have to add this to the invitation now, too?"
   resp <-
     call $
       method PUT
@@ -467,17 +466,13 @@ setBrigUserRichInfo buid richInfo = do
       | otherwise ->
         throwSpar . SparBrigError . cs $ "set richInfo failed with status " <> show sCode
 
--- TODO: We should add an internal endpoint for this instead
 getBrigUserRichInfo :: (HasCallStack, MonadSparToBrig m) => UserId -> m RichInfo
 getBrigUserRichInfo buid = do
-  () <- error "7e6e77ea-db39-11ea-9b70-23b33bb90345 - i suppose we have to add this to the invitation now, too?"
   RichInfo.RichInfo <$> do
     resp <-
       call $
         method GET
-          . paths ["users", toByteString' buid, "rich-info"]
-          . header "Z-User" (toByteString' buid)
-          . header "Z-Connection" ""
+          . paths ["i", "users", toByteString' buid, "rich-info"]
     case statusCode resp of
       200 -> parseResponse resp
       _ -> throwSpar (SparBrigErrorWith (responseStatus resp) "Could not retrieve rich info")

@@ -59,6 +59,7 @@ import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.Response (json)
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
 import Wire.API.User.RichInfo
+import qualified Wire.API.User.RichInfo as Public
 
 ---------------------------------------------------------------------------
 -- Sitemap
@@ -177,6 +178,10 @@ sitemap = do
     capture "uid"
       .&. accept "application" "json"
       .&. jsonRequest @ManagedByUpdate
+
+  get "/i/users/:uid/rich-info" (continue getRichInfoInternalH) $
+    capture "uid"
+      .&. accept "application" "json"
 
   put "/i/users/:uid/rich-info" (continue updateRichInfoH) $
     capture "uid"
@@ -446,6 +451,16 @@ updateManagedByH (uid ::: _ ::: req) = do
   ManagedByUpdate managedBy <- parseJsonBody req
   lift $ Data.updateManagedBy uid managedBy
   return empty
+
+getRichInfoInternalH :: UserId ::: JSON -> Handler Response
+getRichInfoInternalH (user ::: _) = do
+  json <$> getRichInfoInternal user
+
+-- | Unauthenticated copy of 'Brig.API.Public.getRichInfo', which also looks for an
+-- 'Invitation' if no 'User' can be found.
+getRichInfoInternal :: UserId -> Handler Public.RichInfoAssocList
+getRichInfoInternal uid = do
+  fromMaybe Public.emptyRichInfoAssocList <$> lift (API.lookupRichInfo uid)
 
 updateRichInfoH :: UserId ::: JSON ::: JsonRequest RichInfoUpdate -> Handler Response
 updateRichInfoH (uid ::: _ ::: req) = do
