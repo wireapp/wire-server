@@ -404,6 +404,10 @@ checkHandle uhandle = do
         return CheckHandleFound
       | isBlacklistedHandle xhandle ->
         -- Handle is free but cannot be taken
+        --
+        -- FUTUREWORK: i wonder if this is correct?  isn't this the error for malformed
+        -- handles?  shouldn't we throw not-found here?  or should there be a fourth case
+        -- 'CheckHandleBlacklisted'?
         return CheckHandleInvalid
       | otherwise ->
         -- Handle is free and can be taken
