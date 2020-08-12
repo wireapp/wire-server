@@ -389,16 +389,20 @@ setBrigUserName buid name = do
 
 -- | Set user's handle.  Fails with status <500 if brig fails with <500, and with 500 if brig fails
 -- with >= 500.
-setBrigUserHandle :: (HasCallStack, MonadSparToBrig m) => UserId -> Handle -> m ()
-setBrigUserHandle buid handle = do
-  () <- error "267ae9e2-db39-11ea-bda2-638c09a6a425"
-  -- like 'setBrigUserName'
+--
+-- This calls an internal end-point that also changes the value on invitations.  Invitations
+-- are only hit in the corner case of a scim update between an invitation being created and
+-- accepted.
+--
+-- NB: that this doesn't take a 'HandleUpdate', since we already construct a valid handle in
+-- 'validateScimUser' to increase the odds that user creation doesn't fail half-way through
+-- the many database write operations.
+setBrigUserHandle :: (HasCallStack, MonadSparToBrig m) => TeamId -> UserId -> Handle {- not 'HandleUpdate'! -} -> m ()
+setBrigUserHandle tid buid handle = do
   resp <-
     call $
       method PUT
-        . path "/self/handle"
-        . header "Z-User" (toByteString' buid)
-        . header "Z-Connection" ""
+        . paths ["/i/teams/", toByteString' tid, "/handle/", toByteString' buid]
         . json (HandleUpdate (fromHandle handle))
   let sCode = statusCode resp
   if

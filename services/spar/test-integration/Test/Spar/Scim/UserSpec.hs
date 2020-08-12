@@ -98,7 +98,7 @@ specSuspend = do
           -- NOTE: once SCIM is enabled SSO Auto-provisioning is disabled
           tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
           handle'@(Handle handle) <- nextHandle
-          runSpar $ Intra.setBrigUserHandle member handle'
+          runSpar $ Intra.setBrigUserHandle teamid member handle'
           unless isActive $ do
             runSpar $ Intra.setStatus member Suspended
           [user] <- listUsers tok (Just (filterBy "userName" handle))
@@ -630,7 +630,7 @@ testFindNonProvisionedUser = do
   -- NOTE: once SCIM is enabled SSO Auto-provisioning is disabled
   tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
   handle'@(Handle handle) <- nextHandle
-  runSpar $ Intra.setBrigUserHandle member handle'
+  runSpar $ Intra.setBrigUserHandle teamid member handle'
   Just brigUser <- runSpar $ Intra.getBrigUser teamid member
   liftIO $ Intra.userOrInvitationManagedBy brigUser `shouldBe` ManagedByWire
   users <- listUsers tok (Just (filterBy "userName" handle))
@@ -658,7 +658,7 @@ testFindNonProvisionedUserNoIdP testSearchBy = do
 
   uid <- userId <$> call (inviteAndRegisterUser (env ^. teBrig) owner teamid)
   handle'@(Handle handle) <- nextHandle
-  runSpar $ Intra.setBrigUserHandle uid handle'
+  runSpar $ Intra.setBrigUserHandle teamid uid handle'
   Just brigUser <- runSpar $ Intra.getBrigActualUser uid
   let Just email = userEmail brigUser
 

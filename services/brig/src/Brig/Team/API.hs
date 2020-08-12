@@ -173,6 +173,12 @@ routesInternal = do
       .&. capture "uid"
       .&. jsonRequest @ManagedByUpdate
 
+  put "/i/teams/:tid/handle/:uid" (continue updateHandleInternalH) $
+    accept "application" "json"
+      .&. capture "tid"
+      .&. capture "uid"
+      .&. jsonRequest @Public.HandleUpdate
+
   get "/i/teams/:tid/invitations/by-id/:iid" (continue getInvitationInternalH) $
     accept "application" "json"
       .&. capture "tid"
@@ -331,6 +337,26 @@ updateManagedByInternal tid uid (ManagedByUpdate managedBy) = do
           Log.warn
             ( Log.msg @Text
                 "unexpected: internal end-point `updateManagedBy` \
+                \called on uid that has no user and no invitation."
+            )
+
+updateHandleInternalH :: JSON ::: TeamId ::: UserId ::: JsonRequest Public.HandleUpdate -> Handler Response
+updateHandleInternalH (_ ::: tid ::: uid ::: req) = do
+  empty <$ (updateHandleInternal tid uid =<< parseJsonBody req)
+
+updateHandleInternal :: TeamId -> UserId -> Public.HandleUpdate -> Handler ()
+updateHandleInternal tid uid (Public.HandleUpdate handleUpd) = do
+  let invid = coerce @UserId @InvitationId uid
+  handle <- API.validateHandle handleUpd
+  lift (DB.lookupUser uid) >>= \case
+    Just _ -> lift $ DB.updateHandle uid handle
+    Nothing ->
+      DB.lookupInvitation tid invid >>= \case
+        Just _ -> lift $ DB.updInvitationHandle tid invid handle
+        Nothing ->
+          Log.warn
+            ( Log.msg @Text
+                "unexpected: internal end-point `updateHandleInternal` \
                 \called on uid that has no user and no invitation."
             )
 
