@@ -48,6 +48,9 @@ testParsingSimple = do
   print jsonBody
   print res
   assertBool "can parse SES event as SESNotification" (isJust res)
+  case res of
+    Just (MailBounce BounceTransient [e]) -> print e
+    _ -> print ("meh" :: Text)
 
 testParsing :: IO ()
 testParsing = do
@@ -58,6 +61,9 @@ testParsing = do
   print jsonBody
   print res
   assertBool "can parse SES event as SESNotification" (isJust res)
+  case res of
+    Just (MailBounce BounceTransient [e]) -> print e
+    _ -> print ("meh" :: Text)
 
 customSesNotificationJson :: Text -> ByteString
 customSesNotificationJson email = Text.encodeUtf8 $ "{\"notificationType\":\"Bounce\",\"bounce\":{\"bounceType\":\"Transient\",\"bounceSubType\":\"General\",\"bouncedRecipients\":[{\"emailAddress\":\"" <> email <> "\"}],\"timestamp\":\"2020-08-10T13:00:37.000Z\",\"feedbackId\":\"01020173d8756050-7d9a1f36-4b8f-424b-b167-83d58c4d8a02-000000\"},\"mail\":{\"timestamp\":\"2020-08-10T13:00:37.906Z\",\"source\":\"Wire <payments@wire.com>\",\"sourceArn\":\"arn:aws:ses:eu-west-1:1234:identity/wire.com\",\"sourceIp\":\"1.2.3.4\",\"sendingAccountId\":\"1234\",\"messageId\":\"01020173d87558cf-ca4a2c12-5133-4e81-9676-a5cd106bfe12-000000\",\"destination\":[\"email@domain.com\"]}}"
