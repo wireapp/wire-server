@@ -474,7 +474,7 @@ checkHandleAvailable hnd = do
   resp <-
     call $
       method HEAD
-        . paths ["/i/users", "handles", toByteString' hnd]
+        . paths ["/i/users/handles", toByteString' hnd]
   let sCode = statusCode resp
   if
       | sCode == 200 -> -- handle exists

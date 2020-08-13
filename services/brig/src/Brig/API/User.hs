@@ -369,8 +369,8 @@ changeManagedBy uid conn (ManagedByUpdate mb) = do
 --------------------------------------------------------------------------------
 -- Change Handle
 
-changeHandle :: UserId -> ConnId -> Handle -> ExceptT ChangeHandleError AppIO ()
-changeHandle uid conn hdl = do
+changeHandle :: UserId -> Maybe ConnId -> Handle -> ExceptT ChangeHandleError AppIO ()
+changeHandle uid mconn hdl = do
   when (isBlacklistedHandle hdl) $
     throwE ChangeHandleInvalid
   usr <- lift $ Data.lookupUser uid
@@ -384,7 +384,7 @@ changeHandle uid conn hdl = do
       claimed <- lift $ claimHandle (userId u) (userHandle u) hdl
       unless claimed $
         throwE ChangeHandleExists
-      lift $ Intra.onUserEvent uid (Just conn) (handleUpdated uid hdl)
+      lift $ Intra.onUserEvent uid mconn (handleUpdated uid hdl)
 
 --------------------------------------------------------------------------------
 -- Check Handle
@@ -396,9 +396,6 @@ data CheckHandleResp
 
 checkHandle :: Text -> API.Handler CheckHandleResp
 checkHandle uhandle = do
-  _
-  -- this is the function called for handle availability check both in the public and the
-  -- internal api.  undrestand how it works, and make sure this also works for invitations!
   xhandle <- validateHandle uhandle
   owner <- lift $ lookupHandle xhandle
   if

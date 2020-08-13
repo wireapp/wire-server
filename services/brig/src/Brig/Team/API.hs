@@ -23,9 +23,10 @@ where
 
 import Brig.API.Error
 import Brig.API.Handler
+import Brig.API.Types (ChangeHandleError (..))
 import Brig.API.User (fetchUserIdentity)
 import qualified Brig.API.User as API
-import Brig.App (currentTime, settings)
+import Brig.App (AppIO, currentTime, settings)
 import qualified Brig.Data.Blacklist as Blacklist
 import qualified Brig.Data.User as DB
 import Brig.Data.UserKey
@@ -42,8 +43,11 @@ import Brig.Types.Intra (AccountStatus (..))
 import Brig.Types.Team (TeamSize)
 import Brig.Types.Team.Invitation
 import Brig.Types.User (Email, InvitationCode, emailIdentity)
+import Brig.User.Handle (claimHandleInvitation)
+import qualified Brig.User.Handle.Blacklist as Blacklist
 import qualified Brig.User.Search.Index as ESIndex
 import Control.Lens (view, (^.))
+import Control.Monad.Trans.Except -- (ExceptT, throwE)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.Coerce (coerce)
@@ -350,21 +354,40 @@ updateHandleInternalH :: JSON ::: TeamId ::: UserId ::: JsonRequest Public.Handl
 updateHandleInternalH (_ ::: tid ::: uid ::: req) = do
   empty <$ (updateHandleInternal tid uid =<< parseJsonBody req)
 
+-- | This is like eg. 'updateManagedByInternal', but we also need to 'claimHandle' or
+-- 'claimHandleInvitation' the handle before writing it.
 updateHandleInternal :: TeamId -> UserId -> Public.HandleUpdate -> Handler ()
 updateHandleInternal tid uid (Public.HandleUpdate handleUpd) = do
-  let invid = coerce @UserId @InvitationId uid
   handle <- API.validateHandle handleUpd
-  lift (DB.lookupUser uid) >>= \case
-    Just _ -> lift $ DB.updateHandle uid handle
-    Nothing ->
-      DB.lookupInvitation tid invid >>= \case
-        Just _ -> lift $ DB.updInvitationHandle tid invid handle
-        Nothing ->
+  let tryboth a b =
+        ExceptT $
+          runExceptT a >>= \case
+            Left ChangeHandleInvalid -> runExceptT b
+            other -> pure other
+      onUser = API.changeHandle uid Nothing handle
+      onInv = changeInvitationHandle (coerce uid) handle
+  tryboth onUser onInv !>> changeHandleError
+  where
+    -- This is a clone of 'API.changeHandle'.
+    changeInvitationHandle :: InvitationId -> Handle -> ExceptT ChangeHandleError AppIO ()
+    changeInvitationHandle invid handle = do
+      when (Blacklist.isBlacklistedHandle handle) $
+        throwE ChangeHandleInvalid
+      minv <- DB.lookupInvitation tid invid
+      case minv of
+        Just inv -> claim inv
+        Nothing -> do
           Log.warn
             ( Log.msg @Text
                 "unexpected: internal end-point `updateHandleInternal` \
                 \called on uid that has no user and no invitation."
             )
+          throwE ChangeHandleNoIdentity
+      where
+        claim inv = do
+          claimed <- lift $ claimHandleInvitation tid (inInvitation inv) Nothing handle
+          unless claimed $
+            throwE ChangeHandleExists
 
 updateUserNameInternalH :: JSON ::: TeamId ::: UserId ::: JsonRequest Public.NameUpdate -> Handler Response
 updateUserNameInternalH (_ ::: tid ::: uid ::: req) = do

@@ -18,6 +18,7 @@
 -- | Ownership of unique user handles.
 module Brig.User.Handle
   ( claimHandle,
+    claimHandleInvitation,
     freeHandle,
     lookupHandle,
     glimpseHandle,
@@ -27,14 +28,27 @@ where
 import Brig.App
 import Brig.Data.Instances ()
 import qualified Brig.Data.User as User
+import qualified Brig.Team.DB as Inv
 import Brig.Unique
 import Cassandra
+import Data.Coerce (coerce)
 import Data.Handle (Handle, fromHandle)
 import Data.Id
 import Imports
 
 claimHandle :: UserId -> Maybe Handle -> Handle -> AppIO Bool
-claimHandle uid oldHandle h = do
+claimHandle = claimHandle' (User.updateHandle)
+
+claimHandleInvitation :: TeamId -> InvitationId -> Maybe Handle -> Handle -> AppIO Bool
+claimHandleInvitation tid invid = claimHandle' (Inv.updInvitationHandle tid . back) (forth invid)
+  where
+    back = coerce @UserId @InvitationId
+    forth = coerce @InvitationId @UserId
+
+-- | Claim a handle for an invitation or a user.  Invitations can be referenced by the coerced
+-- 'UserId'.
+claimHandle' :: (UserId -> Handle -> AppIO ()) -> UserId -> Maybe Handle -> Handle -> AppIO Bool
+claimHandle' updOperation uid oldHandle h = do
   owner <- lookupHandle h
   case owner of
     Just uid' | uid /= uid' -> return False
@@ -47,7 +61,7 @@ claimHandle uid oldHandle h = do
             -- Record ownership
             retry x5 $ write handleInsert (params Quorum (h, uid))
             -- Update profile
-            User.updateHandle uid h
+            updOperation uid h
             -- Free old handle (if it changed)
             for_ (mfilter (/= h) oldHandle) $
               freeHandle uid
