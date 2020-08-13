@@ -140,17 +140,20 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - aeson
+    - aeson-qq
     - base
     - bloodhound
     - brig
     - brig-types
+    - bytestring
     - dns
     - dns-util
-    - polysemy
     - imports
+    - polysemy
     - retry
     - tasty
     - tasty-hunit
+    - text
     - tinylog
     - types-common
     - unliftio

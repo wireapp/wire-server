@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0efba75abb2e931761d20c36d7c690eb2cf9711711c4b002dfd2cd5ff7bd60ee
+-- hash: 2077ff67eb96d74fccdc7b68f9531e42b1abb880cf22a3e9f5c5d048614addc2
 
 name:           brig
 version:        1.35.0
@@ -436,6 +436,7 @@ test-suite brig-tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
+      Test.Brig.Aws
       Test.Brig.Calling
       Test.Brig.Calling.Internal
       Test.Brig.User.Search.Index.Types
@@ -446,10 +447,12 @@ test-suite brig-tests
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N
   build-depends:
       aeson
+    , aeson-qq
     , base
     , bloodhound
     , brig
     , brig-types
+    , bytestring
     , dns
     , dns-util
     , imports
@@ -457,6 +460,7 @@ test-suite brig-tests
     , retry
     , tasty
     , tasty-hunit
+    , text
     , tinylog
     , types-common
     , unliftio
