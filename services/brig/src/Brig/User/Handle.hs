@@ -19,6 +19,7 @@
 module Brig.User.Handle
   ( claimHandle,
     claimHandleInvitation,
+    claimHandleWith,
     freeHandle,
     lookupHandle,
     glimpseHandle,
@@ -36,36 +37,37 @@ import Data.Handle (Handle, fromHandle)
 import Data.Id
 import Imports
 
+-- | Claim a new handle for an existing 'User'.
 claimHandle :: UserId -> Maybe Handle -> Handle -> AppIO Bool
-claimHandle = claimHandle' (User.updateHandle)
+claimHandle uid oldHandle newHandle = isJust <$> claimHandleWith (User.updateHandle) uid oldHandle newHandle
 
+-- | Claim a new handle for an existing 'Invitation'.
 claimHandleInvitation :: TeamId -> InvitationId -> Maybe Handle -> Handle -> AppIO Bool
-claimHandleInvitation tid invid = claimHandle' (Inv.updInvitationHandle tid . back) (forth invid)
-  where
-    back = coerce @UserId @InvitationId
-    forth = coerce @InvitationId @UserId
+claimHandleInvitation tid invid oldHandle newHandle =
+  isJust
+    <$> claimHandleWith (Inv.updInvitationHandle tid . coerce) (coerce invid) oldHandle newHandle
 
 -- | Claim a handle for an invitation or a user.  Invitations can be referenced by the coerced
 -- 'UserId'.
-claimHandle' :: (UserId -> Handle -> AppIO ()) -> UserId -> Maybe Handle -> Handle -> AppIO Bool
-claimHandle' updOperation uid oldHandle h = do
+claimHandleWith :: (UserId -> Handle -> AppIO a) -> UserId -> Maybe Handle -> Handle -> AppIO (Maybe a)
+claimHandleWith updOperation uid oldHandle h = do
   owner <- lookupHandle h
   case owner of
-    Just uid' | uid /= uid' -> return False
+    Just uid' | uid /= uid' -> return Nothing
     _ -> do
       env <- ask
       let key = "@" <> fromHandle h
-      claimed <- withClaim uid key (30 # Minute) $
+      withClaim uid key (30 # Minute) $
         runAppT env $
           do
             -- Record ownership
             retry x5 $ write handleInsert (params Quorum (h, uid))
             -- Update profile
-            updOperation uid h
+            result <- updOperation uid h
             -- Free old handle (if it changed)
             for_ (mfilter (/= h) oldHandle) $
               freeHandle uid
-      return (isJust claimed)
+            return result
 
 -- | Free a 'Handle', making it available to be claimed again.
 freeHandle :: UserId -> Handle -> AppIO ()

@@ -43,7 +43,7 @@ import Brig.Types.Intra (AccountStatus (..))
 import Brig.Types.Team (TeamSize)
 import Brig.Types.Team.Invitation
 import Brig.Types.User (Email, InvitationCode, emailIdentity)
-import Brig.User.Handle (claimHandleInvitation)
+import Brig.User.Handle (claimHandleInvitation, claimHandleWith, freeHandle)
 import qualified Brig.User.Handle.Blacklist as Blacklist
 import qualified Brig.User.Search.Index as ESIndex
 import Control.Lens (view, (^.))
@@ -311,13 +311,26 @@ createInvitation mode tid body = do
   pending <- lift $ DB.countInvitations tid
   when (fromIntegral pending >= maxSize) $
     throwStd tooManyTeamInvitations
-  doInvite inviteeRole email mInviter (irLocale body) (irInviteeName body) (irInviteeHandle body) phone
+
+  iid <- liftIO DB.mkInvitationId
+  let doit :: AppIO Invitation
+      doit = doInvite iid inviteeRole email mInviter (irLocale body) (irInviteeName body) Nothing phone
+
+      maybeClaimHandleAndInvite :: AppIO (Maybe Invitation)
+      maybeClaimHandleAndInvite = case irInviteeHandle body of
+        Nothing -> Just <$> doit
+        Just handle -> claimHandleWith (\_ _ -> doit) (coerce iid) Nothing handle
+
+  lift maybeClaimHandleAndInvite >>= \case
+    Just inv -> pure inv
+    Nothing -> throwE $ changeHandleError ChangeHandleExists
   where
-    doInvite role toEmail mInviter lc toName toHandle toPhone = lift $ do
+    doInvite iid role toEmail mInviter lc toName toHandle toPhone = do
       now <- liftIO =<< view currentTime
       timeout <- setTeamInvitationTimeout <$> view settings
       (newInv, code) <-
         DB.insertInvitation
+          iid
           tid
           role
           toEmail
@@ -447,7 +460,7 @@ deleteInvitationH (_ ::: uid ::: tid ::: iid) = do
 deleteInvitation :: UserId -> TeamId -> InvitationId -> Handler ()
 deleteInvitation uid tid iid = do
   ensurePermissions uid tid [Team.AddTeamMember]
-  lift $ DB.deleteInvitation tid iid
+  lift $ deleteInvitationAndFreeHandle tid iid
 
 deleteInvitationInternalH :: JSON ::: TeamId ::: InvitationId -> Handler Response
 deleteInvitationInternalH (_ ::: tid ::: iid) = do
@@ -455,7 +468,7 @@ deleteInvitationInternalH (_ ::: tid ::: iid) = do
 
 deleteInvitationInternal :: TeamId -> InvitationId -> Handler ()
 deleteInvitationInternal tid iid = do
-  lift $ DB.deleteInvitation tid iid
+  lift $ deleteInvitationAndFreeHandle tid iid
 
 listInvitationsH :: JSON ::: UserId ::: TeamId ::: Maybe InvitationId ::: Range 1 500 Int32 -> Handler Response
 listInvitationsH (_ ::: uid ::: tid ::: start ::: size) = do
@@ -503,7 +516,7 @@ suspendTeamH (_ ::: tid) = do
 suspendTeam :: TeamId -> Handler ()
 suspendTeam tid = do
   changeTeamAccountStatuses tid Suspended
-  lift $ DB.deleteInvitations tid
+  lift $ deleteInvitationsAndFreeHandles tid
   lift $ Intra.changeTeamStatus tid Team.Suspended Nothing
 
 unsuspendTeamH :: JSON ::: TeamId -> Handler Response
@@ -528,3 +541,20 @@ changeTeamAccountStatuses tid s = do
   where
     toList1 (x : xs) = return $ List1.list1 x xs
     toList1 [] = throwStd (notFound "Team not found or no members")
+
+deleteInvitationAndFreeHandle :: TeamId -> InvitationId -> AppIO ()
+deleteInvitationAndFreeHandle tid iid = do
+  minv <- DB.lookupInvitation tid iid
+  freeHandle (coerce iid) `mapM_` (inInviteeHandle =<< minv)
+  DB.deleteInvitation tid iid
+
+-- | TODO: make this asynchronous!
+deleteInvitationsAndFreeHandles :: TeamId -> AppIO ()
+deleteInvitationsAndFreeHandles tid = do
+  let loop = do
+        invs <- DB.resultList <$> DB.lookupInvitations tid Nothing maxBound
+        unless (null invs) . for_ invs $ \inv -> do
+          freeHandle (coerce (inInvitation inv)) `mapM_` inInviteeHandle inv
+          loop
+  loop
+  DB.deleteInvitations tid

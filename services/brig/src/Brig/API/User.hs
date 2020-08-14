@@ -302,6 +302,9 @@ createUser new@NewUser {..} = do
           field "user" (toByteString uid)
             . field "team" (toByteString $ Team.iiTeam ii)
             . msg (val "Accepting invitation")
+        -- do not call freeHandle if the invitation contains a handle.  instead, re-use the
+        -- handle for the newly created account.
+        updateHandle uid `mapM_` Team.inInviteeHandle inv
         Team.deleteInvitation (Team.inTeam inv) (Team.inInvitation inv)
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT CreateUserError AppIO CreateUserTeam
     addUserToTeamSSO account tid ident = do
