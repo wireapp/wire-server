@@ -128,6 +128,7 @@ changePwError ChangePasswordMustDiffer = StdError changePasswordMustDiffer
 
 changeHandleError :: ChangeHandleError -> Error
 changeHandleError ChangeHandleNoIdentity = StdError noIdentity
+changeHandleError ChangeHandleNotSupportedOnPendingInvitation = StdError changeHandleNotSupportedOnPendingInvitation
 changeHandleError ChangeHandleExists = StdError handleExists
 changeHandleError ChangeHandleInvalid = StdError invalidHandle
 
@@ -291,6 +292,9 @@ phoneExists = Wai.Error status409 "phone-exists" "The given phone number is in u
 
 handleExists :: Wai.Error
 handleExists = Wai.Error status409 "handle-exists" "The given handle is already taken."
+
+changeHandleNotSupportedOnPendingInvitation :: Wai.Error
+changeHandleNotSupportedOnPendingInvitation = Wai.Error status409 "pending-invitation" "Change handle is only supported on active users."
 
 invalidHandle :: Wai.Error
 invalidHandle = Wai.Error status400 "invalid-handle" "The given handle is invalid."

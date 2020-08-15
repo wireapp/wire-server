@@ -36,7 +36,6 @@ module Brig.Team.DB
     InvitationInfo (..),
     InvitationByKey (..),
     updInvitationManagedBy,
-    updInvitationHandle,
     updInvitationName,
   )
 where
@@ -289,12 +288,6 @@ updInvitationManagedBy tid invid managedBy = retry x5 $ write upd (params Quorum
   where
     upd :: PrepQuery W (ManagedBy, TeamId, InvitationId) ()
     upd = "UPDATE team_invitation SET managed_by = ? WHERE team = ? and id = ?"
-
-updInvitationHandle :: MonadClient m => TeamId -> InvitationId -> Handle -> m ()
-updInvitationHandle tid invid handle = retry x5 $ write upd (params Quorum (handle, tid, invid))
-  where
-    upd :: PrepQuery W (Handle, TeamId, InvitationId) ()
-    upd = "UPDATE team_invitation SET handle = ? WHERE team = ? and id = ?"
 
 updInvitationName :: MonadClient m => TeamId -> InvitationId -> Name -> m ()
 updInvitationName tid invid name = retry x5 $ write upd (params Quorum (name, tid, invid))

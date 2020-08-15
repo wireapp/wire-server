@@ -18,7 +18,6 @@
 -- | Ownership of unique user handles.
 module Brig.User.Handle
   ( claimHandle,
-    claimHandleInvitation,
     claimHandleWith,
     freeHandle,
     lookupHandle,
@@ -29,10 +28,8 @@ where
 import Brig.App
 import Brig.Data.Instances ()
 import qualified Brig.Data.User as User
-import qualified Brig.Team.DB as Inv
 import Brig.Unique
 import Cassandra
-import Data.Coerce (coerce)
 import Data.Handle (Handle, fromHandle)
 import Data.Id
 import Imports
@@ -40,12 +37,6 @@ import Imports
 -- | Claim a new handle for an existing 'User'.
 claimHandle :: UserId -> Maybe Handle -> Handle -> AppIO Bool
 claimHandle uid oldHandle newHandle = isJust <$> claimHandleWith (User.updateHandle) uid oldHandle newHandle
-
--- | Claim a new handle for an existing 'Invitation'.
-claimHandleInvitation :: TeamId -> InvitationId -> Maybe Handle -> Handle -> AppIO Bool
-claimHandleInvitation tid invid oldHandle newHandle =
-  isJust
-    <$> claimHandleWith (Inv.updInvitationHandle tid . coerce) (coerce invid) oldHandle newHandle
 
 -- | Claim a handle for an invitation or a user.  Invitations can be referenced by the coerced
 -- 'UserId'.

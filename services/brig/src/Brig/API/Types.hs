@@ -166,6 +166,7 @@ data ChangeEmailError
 
 data ChangeHandleError
   = ChangeHandleNoIdentity
+  | ChangeHandleNotSupportedOnPendingInvitation
   | ChangeHandleExists
   | ChangeHandleInvalid
 
