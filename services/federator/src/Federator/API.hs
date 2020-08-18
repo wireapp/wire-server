@@ -19,38 +19,25 @@
 
 module Federator.API
   ( Api (..),
-    FUser (..),
     module Fed,
   )
 where
 
-import Brig.Types.Client.Prekey
-import Brig.Types.Test.Arbitrary ()
-import Data.Aeson.TH (deriveJSON)
-import Data.Handle (Handle (..))
 import Data.Id (ConvId, UserId)
-import Data.Qualified
-import Federator.Util
+import Data.Qualified (Qualified)
 import Imports
 import Servant.API
 import Servant.API.Generic
-import Test.QuickCheck (Arbitrary, arbitrary)
 import Wire.API.Federation.API.Conversation as Fed hiding (Api)
 import Wire.API.Federation.Event as Fed
+import Wire.API.User.Client.Prekey (PrekeyBundle)
 
 data Api route = Api
-  { _gapiSearch ::
-      route
-        :- "i"
-        :> "search"
-        -- QUESTION: what exactly should the query be? text + domain?
-        :> QueryParam' [Required, Strict] "q" (Qualified Handle)
-        :> Get '[JSON] FUser,
-    _gapiPrekeys ::
+  { _gapiPrekeys ::
       route
         :- "i"
         :> "users"
-        :> Capture "fqu" (Qualified UserId)
+        :> Capture "id" (Qualified UserId)
         :> "prekeys"
         -- FUTUREWORK(federation):
         -- this should return a version of PrekeyBundle with qualified UserId,
@@ -67,23 +54,5 @@ data Api route = Api
   }
   deriving (Generic)
 
--- curl http://localhost:8097/i/search?q=wef@a.com; curl http://localhost:8097/i/users/`uuid`@example.com/prekeys
-
 ----------------------------------------------------------------------
--- TODO: add roundtrip tests for *HttpApiData, *JSON, ...
---
--- TODO: the client ids in the 'PrekeyBundle' aren't really needed here.  do we want to make a
--- new type for that, then?
-
--- TODO: rename
-data FUser = FUser
-  { _fuGlobalHandle :: !(Qualified Handle),
-    _fuFQU :: !(Qualified UserId)
-  }
-  deriving (Eq, Show, Generic)
-
--- TODO: use Generics
-deriveJSON wireJsonOptions ''FUser
-
-instance Arbitrary FUser where
-  arbitrary = FUser <$> arbitrary <*> arbitrary
+-- FUTUREWORK: add roundtrip tests for *HttpApiData, *JSON, ...
