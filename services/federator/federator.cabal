@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 72597caf8878551b0609bfdc790852575f38db429ea5c83935a399c676ee3c2c
+-- hash: 13069bb95f08c4eb2b56a74be2cfda2c3488d45f4235a93377a354438dd3a7ee
 
 name:           federator
 version:        1.0.0
@@ -20,8 +20,10 @@ library
   exposed-modules:
       Federator.API
       Federator.App
+      Federator.Error
       Federator.Impl
       Federator.Options
+      Federator.Remote
       Federator.Run
       Federator.Types
   other-modules:
@@ -31,25 +33,36 @@ library
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
-      QuickCheck
+      HsOpenSSL
+    , HsOpenSSL-x509-system
+    , QuickCheck
     , aeson
     , base
     , bilge
+    , brig-types
     , bytestring-conversion
     , data-default
+    , dns
+    , dns-util
     , email-validate
     , errors
     , exceptions
     , extended
+    , galley-types
+    , http-client
+    , http-client-openssl
+    , http-types
     , imports
     , lens
     , metrics-core
     , metrics-wai
     , resourcet
     , servant
-    , servant-mock
+    , servant-client
+    , servant-client-core
     , servant-server
     , servant-swagger
+    , ssl-util
     , string-conversions
     , text
     , tinylog
@@ -58,7 +71,6 @@ library
     , wai
     , wai-utilities
     , warp
-    , wire-api
     , wire-api-federation
   default-language: Haskell2010
 
@@ -71,26 +83,37 @@ executable federator
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N1 -with-rtsopts=-T -rtsopts
   build-depends:
-      QuickCheck
+      HsOpenSSL
+    , HsOpenSSL-x509-system
+    , QuickCheck
     , aeson
     , base
     , bilge
+    , brig-types
     , bytestring-conversion
     , data-default
+    , dns
+    , dns-util
     , email-validate
     , errors
     , exceptions
     , extended
     , federator
+    , galley-types
+    , http-client
+    , http-client-openssl
+    , http-types
     , imports
     , lens
     , metrics-core
     , metrics-wai
     , resourcet
     , servant
-    , servant-mock
+    , servant-client
+    , servant-client-core
     , servant-server
     , servant-swagger
+    , ssl-util
     , string-conversions
     , text
     , tinylog
@@ -99,6 +122,5 @@ executable federator
     , wai
     , wai-utilities
     , warp
-    , wire-api
     , wire-api-federation
   default-language: Haskell2010

@@ -1,6 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -18,18 +15,28 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Federator.Types where
+module Federator.Error
+  ( internalError,
+    internalErrorWithDescription,
+    remoteBackendNotFound,
+  )
+where
 
-import Bilge (Manager, RequestId)
-import Control.Lens (makeLenses)
-import Data.Metrics (Metrics)
-import qualified System.Logger.Class as LC
+import Data.Domain (Domain, domainText)
+import Data.String.Conversions (cs)
+import Imports
+import Network.HTTP.Types (status500)
+import Network.Wai.Utilities.Error (Error (Error))
 
-data Env = Env
-  { _metrics :: Metrics,
-    _applog :: LC.Logger,
-    _requestId :: RequestId,
-    _manager :: Manager
-  }
+internalError :: Error
+internalError = internalErrorWithDescription "internal error"
 
-makeLenses ''Env
+internalErrorWithDescription :: LText -> Error
+internalErrorWithDescription = Error status500 "internal-error"
+
+remoteBackendNotFound :: Domain -> Error
+remoteBackendNotFound domain =
+  Error
+    status500
+    "federation-backend-not-found"
+    ("No SRV record for the domain " <> cs (domainText domain))

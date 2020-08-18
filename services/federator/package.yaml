@@ -12,12 +12,21 @@ dependencies:
 - aeson
 - base
 - bilge
+- brig-types
 - bytestring-conversion
 - data-default
+- dns
+- dns-util
 - email-validate
 - errors
 - exceptions
 - extended
+- galley-types
+- HsOpenSSL
+- HsOpenSSL-x509-system
+- http-client
+- http-client-openssl
+- http-types
 - imports
 - lens
 - metrics-core
@@ -25,9 +34,11 @@ dependencies:
 - QuickCheck
 - resourcet
 - servant
-- servant-mock
+- servant-client
+- servant-client-core
 - servant-server
 - servant-swagger
+- ssl-util
 - string-conversions
 - text
 - tinylog
@@ -36,7 +47,6 @@ dependencies:
 - wai
 - wai-utilities
 - warp
-- wire-api
 - wire-api-federation
 library:
   source-dirs: src

@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -20,10 +21,17 @@
 
 module Federator.Options where
 
-import Data.Aeson
+import Data.Aeson (FromJSON)
 import Imports
-import System.Logger.Extended
-import Util.Options
+import System.Logger.Extended (Level, LogFormat)
+import Util.Options (Endpoint)
+
+data Settings = Settings
+  { -- | Number of connections for the HTTP client pool
+    httpPoolSize :: Int
+  }
+  deriving stock (Show, Generic)
+  deriving anyclass (FromJSON)
 
 data Opts = Opts
   { -- | Host and port
@@ -33,8 +41,9 @@ data Opts = Opts
     -- | Use netstrings encoding (see <http://cr.yp.to/proto/netstrings.txt>)
     logNetStrings :: Maybe (Last Bool),
     -- | Logformat to use
-    logFormat :: !(Maybe (Last LogFormat))
+    logFormat :: Maybe (Last LogFormat),
+    -- | Other settings
+    settings :: Settings
   }
-  deriving (Show, Generic)
-
-instance FromJSON Opts
+  deriving stock (Show, Generic)
+  deriving anyclass (FromJSON)
