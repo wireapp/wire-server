@@ -46,7 +46,7 @@ import Data.String.Conversions (cs)
 import qualified Data.Text.Encoding as Text.E
 import qualified Data.UUID as UUID
 import Imports hiding (local)
-import Servant.API (FromHttpApiData (parseUrlPiece))
+import Servant.API (FromHttpApiData (parseUrlPiece), ToHttpApiData (toUrlPiece))
 import Test.QuickCheck (Arbitrary (arbitrary))
 
 ----------------------------------------------------------------------
@@ -116,6 +116,9 @@ instance ToJSON (Qualified (Id a)) where
 instance FromJSON (Qualified (Id a)) where
   parseJSON = withText "QualifiedUserId" $ either fail pure . mkQualifiedId
 
+instance ToHttpApiData (Qualified (Id a)) where
+  toUrlPiece = renderQualifiedId
+
 instance FromHttpApiData (Qualified (Id a)) where
   parseUrlPiece = first cs . mkQualifiedId
 
@@ -135,6 +138,9 @@ instance ToJSON (Qualified Handle) where
 
 instance FromJSON (Qualified Handle) where
   parseJSON = withText "QualifiedHandle" $ either fail pure . mkQualifiedHandle
+
+instance ToHttpApiData (Qualified Handle) where
+  toUrlPiece = renderQualifiedHandle
 
 instance FromHttpApiData (Qualified Handle) where
   parseUrlPiece = first cs . mkQualifiedHandle

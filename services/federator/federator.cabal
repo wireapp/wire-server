@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 72597caf8878551b0609bfdc790852575f38db429ea5c83935a399c676ee3c2c
+-- hash: b053d266e19c0b6d5cc59b5fc66763ff813688c1e5fad18cd81b6cc357be79c2
 
 name:           federator
 version:        1.0.0
@@ -20,8 +20,10 @@ library
   exposed-modules:
       Federator.API
       Federator.App
+      Federator.Error
       Federator.Impl
       Federator.Options
+      Federator.Remote
       Federator.Run
       Federator.Types
   other-modules:
@@ -31,25 +33,34 @@ library
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
-      QuickCheck
+      HsOpenSSL
+    , HsOpenSSL-x509-system
+    , QuickCheck
     , aeson
     , base
     , bilge
     , bytestring-conversion
     , data-default
+    , dns
+    , dns-util
     , email-validate
     , errors
     , exceptions
     , extended
+    , http-client
+    , http-client-openssl
+    , http-types
     , imports
     , lens
     , metrics-core
     , metrics-wai
     , resourcet
     , servant
-    , servant-mock
+    , servant-client
+    , servant-client-core
     , servant-server
     , servant-swagger
+    , ssl-util
     , string-conversions
     , text
     , tinylog
@@ -71,26 +82,35 @@ executable federator
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N1 -with-rtsopts=-T -rtsopts
   build-depends:
-      QuickCheck
+      HsOpenSSL
+    , HsOpenSSL-x509-system
+    , QuickCheck
     , aeson
     , base
     , bilge
     , bytestring-conversion
     , data-default
+    , dns
+    , dns-util
     , email-validate
     , errors
     , exceptions
     , extended
     , federator
+    , http-client
+    , http-client-openssl
+    , http-types
     , imports
     , lens
     , metrics-core
     , metrics-wai
     , resourcet
     , servant
-    , servant-mock
+    , servant-client
+    , servant-client-core
     , servant-server
     , servant-swagger
+    , ssl-util
     , string-conversions
     , text
     , tinylog

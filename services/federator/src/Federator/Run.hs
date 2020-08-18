@@ -36,9 +36,14 @@ import qualified Federator.Impl as Impl
 import Federator.Options as Opt
 import Federator.Types
 import Imports
+import Network.HTTP.Client (Manager, managerConnCount, managerIdleConnectionCount, managerResponseTimeout, newManager, responseTimeoutMicro)
+import Network.HTTP.Client.OpenSSL (opensslManagerSettings)
 import Network.Wai (Application)
 import qualified Network.Wai.Handler.Warp as Warp
 import Network.Wai.Utilities.Server as Server
+import OpenSSL.Session as Ssl
+import qualified OpenSSL.X509.SystemStore as Ssl
+import qualified Ssl.Util as Ssl
 import qualified System.Logger.Extended as Log
 import Util.Options
 
@@ -61,6 +66,7 @@ mkApp opts = do
 
 newEnv :: Opts -> IO Env
 newEnv o = do
+  _manager <- initHttpManager o
   _metrics <- Metrics.metrics
   _applog <- Log.mkLogger (Opt.logLevel o) (Opt.logNetStrings o) (Opt.logFormat o)
   let _requestId = def
@@ -70,3 +76,19 @@ closeEnv :: Env -> IO ()
 closeEnv e = do
   Log.flush $ e ^. applog
   Log.close $ e ^. applog
+
+initHttpManager :: Opts -> IO Manager
+initHttpManager o = do
+  ctx <- Ssl.context
+  Ssl.contextSetVerificationMode ctx $ Ssl.VerifyPeer True True Nothing
+  Ssl.contextAddOption ctx SSL_OP_NO_SSLv2
+  Ssl.contextAddOption ctx SSL_OP_NO_SSLv3
+  Ssl.contextAddOption ctx SSL_OP_NO_TLSv1
+  Ssl.contextSetCiphers ctx Ssl.rsaCiphers
+  Ssl.contextLoadSystemCerts ctx
+  newManager
+    (opensslManagerSettings (pure ctx))
+      { managerResponseTimeout = responseTimeoutMicro 10000000,
+        managerConnCount = httpPoolSize . settings $ o,
+        managerIdleConnectionCount = (3 *) . httpPoolSize . settings $ o
+      }
