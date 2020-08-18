@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 05e45399becaef2bbecfa958ec4d5633900e2e1d8e1c1a2e7ecd2afbdbc2404f
+-- hash: 72597caf8878551b0609bfdc790852575f38db429ea5c83935a399c676ee3c2c
 
 name:           federator
 version:        1.0.0
@@ -20,10 +20,10 @@ library
   exposed-modules:
       Federator.API
       Federator.App
+      Federator.Impl
       Federator.Options
       Federator.Run
       Federator.Types
-      Federator.Util
   other-modules:
       Paths_federator
   hs-source-dirs:
@@ -35,14 +35,12 @@ library
     , aeson
     , base
     , bilge
-    , brig-types
     , bytestring-conversion
     , data-default
     , email-validate
     , errors
     , exceptions
     , extended
-    , galley-types
     , imports
     , lens
     , metrics-core
@@ -60,6 +58,8 @@ library
     , wai
     , wai-utilities
     , warp
+    , wire-api
+    , wire-api-federation
   default-language: Haskell2010
 
 executable federator
@@ -75,7 +75,6 @@ executable federator
     , aeson
     , base
     , bilge
-    , brig-types
     , bytestring-conversion
     , data-default
     , email-validate
@@ -83,7 +82,6 @@ executable federator
     , exceptions
     , extended
     , federator
-    , galley-types
     , imports
     , lens
     , metrics-core
@@ -101,4 +99,6 @@ executable federator
     , wai
     , wai-utilities
     , warp
+    , wire-api
+    , wire-api-federation
   default-language: Haskell2010
