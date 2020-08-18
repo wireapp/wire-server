@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 85f04ae9c723a855be519c59f49ed58d99684c46e4541c67b15592f702fa26ea
+-- hash: d0a7f2be95a41d1306374082d50c04ea73ecf0590c5b59f53ced9241712dee85
 
 name:           galley
 version:        0.83.0
@@ -29,6 +29,7 @@ library
       Galley.API.Create
       Galley.API.CustomBackend
       Galley.API.Error
+      Galley.API.Federation
       Galley.API.IdMapping
       Galley.API.Internal
       Galley.API.LegalHold
@@ -55,6 +56,7 @@ library
       Galley.Data.Types
       Galley.External
       Galley.External.LegalHoldService
+      Galley.Federation
       Galley.Intra.Client
       Galley.Intra.IdMapping
       Galley.Intra.Journal
@@ -158,6 +160,7 @@ library
     , wai-utilities >=0.16
     , warp >=3.0
     , wire-api
+    , wire-api-federation
     , zauth
   default-language: Haskell2010
 
