@@ -31,6 +31,7 @@ import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
 import Data.Misc (portNumber)
 import Data.Text (unpack)
 import Galley.API (sitemap)
+import qualified Galley.API.Federation as Fed
 import qualified Galley.API.Internal as Internal
 import Galley.App
 import qualified Galley.App as App
@@ -85,8 +86,8 @@ mkApp o = do
       Servant.serve
         -- we don't host any Servant endpoints yet, but will add some for the
         -- federation API, replacing the empty API.
-        (Proxy @(Servant.EmptyAPI :<|> Servant.Raw))
-        (Servant.emptyServer :<|> Servant.Tagged (app e))
+        (Proxy @(Fed.PlainApi :<|> Servant.Raw))
+        (Fed.server e r :<|> Servant.Tagged (app e))
         r
     middlewares l m =
       waiPrometheusMiddleware sitemap
