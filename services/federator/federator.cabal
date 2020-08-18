@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 13069bb95f08c4eb2b56a74be2cfda2c3488d45f4235a93377a354438dd3a7ee
+-- hash: b053d266e19c0b6d5cc59b5fc66763ff813688c1e5fad18cd81b6cc357be79c2
 
 name:           federator
 version:        1.0.0
@@ -39,7 +39,6 @@ library
     , aeson
     , base
     , bilge
-    , brig-types
     , bytestring-conversion
     , data-default
     , dns
@@ -48,7 +47,6 @@ library
     , errors
     , exceptions
     , extended
-    , galley-types
     , http-client
     , http-client-openssl
     , http-types
@@ -71,6 +69,7 @@ library
     , wai
     , wai-utilities
     , warp
+    , wire-api
     , wire-api-federation
   default-language: Haskell2010
 
@@ -89,7 +88,6 @@ executable federator
     , aeson
     , base
     , bilge
-    , brig-types
     , bytestring-conversion
     , data-default
     , dns
@@ -99,7 +97,6 @@ executable federator
     , exceptions
     , extended
     , federator
-    , galley-types
     , http-client
     , http-client-openssl
     , http-types
@@ -122,5 +119,6 @@ executable federator
     , wai
     , wai-utilities
     , warp
+    , wire-api
     , wire-api-federation
   default-language: Haskell2010

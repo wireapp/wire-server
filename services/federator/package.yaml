@@ -12,7 +12,6 @@ dependencies:
 - aeson
 - base
 - bilge
-- brig-types
 - bytestring-conversion
 - data-default
 - dns
@@ -21,7 +20,6 @@ dependencies:
 - errors
 - exceptions
 - extended
-- galley-types
 - HsOpenSSL
 - HsOpenSSL-x509-system
 - http-client
@@ -47,6 +45,7 @@ dependencies:
 - wai
 - wai-utilities
 - warp
+- wire-api
 - wire-api-federation
 library:
   source-dirs: src

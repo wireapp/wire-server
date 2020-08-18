@@ -32,8 +32,8 @@ import Imports
 import Servant.Client (ClientError (FailureResponse), ClientM, mkClientEnv, runClientM)
 import Servant.Client.Core (BaseUrl)
 import Servant.Client.Generic (AsClientT, genericClientHoist)
-import qualified Wire.API.Federation.Conversation as Fed
-import qualified Wire.API.Federation.Types.Event as Fed
+import qualified Wire.API.Federation.API.Conversation as Fed
+import qualified Wire.API.Federation.Event as Fed
 
 joinConversationById :: BaseUrl -> Qualified ConvId -> Fed.JoinConversationByIdRequest -> AppIO (Fed.ConversationUpdateResult Fed.MemberJoin)
 joinConversationById = Fed.joinConversationById . client

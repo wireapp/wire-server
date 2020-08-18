@@ -22,13 +22,13 @@ module Federator.Impl
   )
 where
 
-import Brig.Types (PrekeyBundle (PrekeyBundle))
 import Control.Monad.Catch (throwM)
 import Data.Domain (Domain, domainText)
 import Data.Handle (Handle)
 import Data.Id (ConvId, UserId, makeIdOpaque, randomId)
 import Data.Qualified (Qualified (Qualified, _qDomain, _qLocalPart))
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text.E
 import qualified Federator.API as API
 import Federator.App (AppIO, runAppT)
 import Federator.Error (remoteBackendNotFound)
@@ -36,13 +36,14 @@ import qualified Federator.Remote as Remote
 import Federator.Types (Env)
 import Imports
 import Network.DNS.Resolver as DNS
-import qualified Network.Federation.Util.DNS as DNS.Fed
 import Network.Wai (Application)
 import Servant.Client.Core (BaseUrl (..), Scheme (Https))
 import Servant.Server (Handler)
 import Servant.Server.Generic (AsServerT, genericServeT)
-import qualified Wire.API.Federation.Conversation as Fed
-import qualified Wire.API.Federation.Types.Event as Fed
+import qualified Wire.API.Federation.API.Conversation as Fed
+import qualified Wire.API.Federation.Event as Fed
+import Wire.API.User.Client.Prekey (PrekeyBundle (PrekeyBundle))
+import qualified Wire.Network.DNS.SRV as Srv
 
 app :: Env -> Application
 app env = genericServeT nat api
@@ -50,20 +51,12 @@ app env = genericServeT nat api
     nat :: AppIO a -> Handler a
     nat = liftIO . runAppT env
 
-api :: API.API (AsServerT AppIO)
+api :: API.Api (AsServerT AppIO)
 api =
-  API.API
-    { _gapiSearch,
-      _gapiPrekeys,
+  API.Api
+    { _gapiPrekeys,
       _gapiJoinConversationById
     }
-
--- | dummy implementation
-_gapiSearch :: Qualified Handle -> AppIO API.FUser
-_gapiSearch qualifiedHandle = do
-  uuid <- randomId
-  let qualifiedId = Qualified uuid (_qDomain qualifiedHandle)
-  pure $ API.FUser qualifiedHandle qualifiedId
 
 -- | dummy implementation
 _gapiPrekeys :: Qualified UserId -> AppIO PrekeyBundle
@@ -93,17 +86,26 @@ withRemoteBackend domainName action =
   where
     -- TODO(federation): make resolv conf configurable?
     resolve = do
-      resolvSeed <- DNS.makeResolvSeed DNS.defaultResolvConf
-      DNS.Fed.srvLookup (domainText domainName) resolvSeed
-    -- TODO(federation): extract this and test it thoroughly, based on docs for
-    -- https://www.stackage.org/haddock/lts-14.27/dns/Network-DNS-Types.html#t:Domain
-    toBaseUrl :: DNS.Fed.SrvTarget -> BaseUrl
-    toBaseUrl (DNS.Fed.SrvTarget domain port) =
+      -- TODO: I'm not sure what to call here anymore after rebasing onto
+      -- https://github.com/wireapp/wire-server/pull/1177/files.
+      -- I don't want to switch everything to Polysemy right now and also it
+      -- doesn't seem like the implementation doesn't use orderSrvResult anymore?
+      --
+      -- previously was:
+      --
+      -- resolvSeed <- DNS.makeResolvSeed DNS.defaultResolvConf
+      -- Srv.srvLookup (domainText domainName) resolvSeed
+      undefined
+    toBaseUrl :: Srv.SrvTarget -> BaseUrl
+    toBaseUrl (Srv.SrvTarget domain port) =
+      -- TODO(federation): extract this and test it thoroughly, based on docs for
+      -- https://www.stackage.org/haddock/lts-14.27/dns/Network-DNS-Types.html#t:Domain
       -- TODO: remove trailing dot?
       -- TODO: should we allow custom ports?
       BaseUrl
         { baseUrlScheme = Https,
-          baseUrlHost = Text.unpack domain,
+          -- TODO: avoid partial decodeUtf8, Text vs ByteString...
+          baseUrlHost = Text.unpack (Text.E.decodeUtf8 domain),
           baseUrlPort = fromIntegral port,
           baseUrlPath = ""
         }
