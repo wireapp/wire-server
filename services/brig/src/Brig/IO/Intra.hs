@@ -63,7 +63,7 @@ import System.Logger.Class as Log hiding (name, (.=))
 import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatus)
 
 ----------------------------------------------------------------------
--- polysemi
+-- polysemy
 
 -- class IsEvent e -- TODO: we have 'IsUserEvent' for now, but we may want something more general later.
 
