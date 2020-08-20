@@ -124,7 +124,7 @@ extra-deps:
   commit: 7546a1a25635ef65183e3d44c1052285e8401608    # master (Jul 21, 2016)
 
 - git: https://github.com/wireapp/hsaml2
-  commit: fe08618e81dee9b7a25f10f5b9d26d1ff1837c79    # master (Mar 25, 2020)
+  commit: 26edb4507084b1860bf8a1b49b306f41e31b3189   # pull-upstream (Aug 20, 2020)
 
 - git: https://github.com/wireapp/http-client
   commit: 9100baeddbd15d93dc58a826ae812dafff29d5fd    # master (Jun 16, 2020)
