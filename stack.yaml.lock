@@ -22,12 +22,12 @@ packages:
     version: '0.18'
     git: https://github.com/wireapp/saml2-web-sso
     pantry-tree:
-      size: 4601
-      sha256: 58cd6e1435b4ad530b99de3f9c7ffbf7d8644ebc75f2da22b2521e4347a92701
-    commit: 687d9ac8ac2994aff8436189c6ecce29faad8500
+      size: 4657
+      sha256: c1c5ff18a9c8996aa33dd571662033928cda4ae4ebcda98b6777f8ebd0cc7102
+    commit: be04baaffb92ff64d8e1d9f400ec45849d754faf
   original:
     git: https://github.com/wireapp/saml2-web-sso
-    commit: 687d9ac8ac2994aff8436189c6ecce29faad8500
+    commit: be04baaffb92ff64d8e1d9f400ec45849d754faf
 - completed:
     name: collectd
     version: 0.0.0.2
@@ -234,11 +234,11 @@ packages:
     git: https://github.com/wireapp/hsaml2
     pantry-tree:
       size: 3918
-      sha256: ea8078ffc4228fb085c7c95d2de73b1a9e4cbd80011396ccbd467bb88d03080e
-    commit: 26edb4507084b1860bf8a1b49b306f41e31b3189
+      sha256: c2f2849bc28cc7fb8a4ec843dbc7606df179915dc54c5cc2aa2e30b974ef3d61
+    commit: 2ff7b0c11a9d510f1ec411f436bc134b216ebd4a
   original:
     git: https://github.com/wireapp/hsaml2
-    commit: 26edb4507084b1860bf8a1b49b306f41e31b3189
+    commit: 2ff7b0c11a9d510f1ec411f436bc134b216ebd4a
 - completed:
     subdir: http-client
     name: http-client
@@ -523,12 +523,12 @@ packages:
   original:
     hackage: primitive-extras-0.8@sha256:fca0310150496867f5b9421fe1541ecda87fae17eae44885a29f9c52dd00c8ff,2963
 - completed:
-    hackage: servant-multipart-0.11.6@sha256:1863862e507dd6f672b4c9d2c6d87d4faec19686ced3d828d712ada07536cddb,2655
+    hackage: servant-multipart-0.11.5@sha256:1633f715b5b53d648a1da69839bdc5046599f4f7244944d4bbf852dba38d8f4b,2319
     pantry-tree:
-      size: 386
-      sha256: 3d45dc52822a30de2ee524358bf91ad77c041c4385ab75d636effa17e02e351e
+      size: 333
+      sha256: b3e1fd2ad2e654475be000c2f0ac6f717b5499436fa73eec50ceccddf352dcec
   original:
-    hackage: servant-multipart-0.11.6@sha256:1863862e507dd6f672b4c9d2c6d87d4faec19686ced3d828d712ada07536cddb,2655
+    hackage: servant-multipart-0.11.5
 - completed:
     hackage: text-format-0.3.2@sha256:2a3fc17cf87120fcfdbca62a0da59759755549285841cdc1483081c35fb3d115,1814
     pantry-tree:
@@ -537,12 +537,16 @@ packages:
   original:
     hackage: text-format-0.3.2@sha256:2a3fc17cf87120fcfdbca62a0da59759755549285841cdc1483081c35fb3d115,1814
 - completed:
-    hackage: wai-predicates-0.10.0@sha256:6b096fd8c4487e06e910911ed35447756aa217426c39db44a4bdc55e0131b9aa,2849
+    name: wai-predicates
+    version: 0.10.0
+    git: https://gitlab.com/axeman/wai-predicates.git
     pantry-tree:
-      size: 1378
-      sha256: d3325d68312f18fc76fb2ef687c9de5c5aaa74294e79158f1c41824e120ce92e
+      size: 1585
+      sha256: 64b646102d2a187aa662c00f20071cc8e2574da9240bacbf4710a4928528f0d7
+    commit: dc8813c17645251c050599485cdc2b5874daac30
   original:
-    hackage: wai-predicates-0.10.0@sha256:6b096fd8c4487e06e910911ed35447756aa217426c39db44a4bdc55e0131b9aa,2849
+    git: https://gitlab.com/axeman/wai-predicates.git
+    commit: dc8813c17645251c050599485cdc2b5874daac30
 - completed:
     hackage: quickcheck-state-machine-0.7.0@sha256:4fc4467380e35b88aab72c278856aacebbf95688059d8ad70eb82fe048df476b,4958
     pantry-tree:

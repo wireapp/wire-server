@@ -64,7 +64,7 @@ extra-deps:
   # a version > 1.0.0 of wai-middleware-prometheus is available
   # (required: https://github.com/fimad/prometheus-haskell/pull/45)
 - git: https://github.com/wireapp/saml2-web-sso
-  commit: 687d9ac8ac2994aff8436189c6ecce29faad8500  # master (May 18, 2020)
+  commit: be04baaffb92ff64d8e1d9f400ec45849d754faf  # akshaymankar/ghc-8.8 (Aug 21, 2020)
 
 - git: https://github.com/kim/hs-collectd
   commit: 885da222be2375f78c7be36127620ed772b677c9
@@ -124,7 +124,7 @@ extra-deps:
   commit: 7546a1a25635ef65183e3d44c1052285e8401608    # master (Jul 21, 2016)
 
 - git: https://github.com/wireapp/hsaml2
-  commit: 26edb4507084b1860bf8a1b49b306f41e31b3189   # pull-upstream (Aug 20, 2020)
+  commit: 2ff7b0c11a9d510f1ec411f436bc134b216ebd4a   # pull-upstream (Aug 20, 2020)
 
 - git: https://github.com/wireapp/http-client
   commit: 9100baeddbd15d93dc58a826ae812dafff29d5fd    # master (Jun 16, 2020)
@@ -186,9 +186,11 @@ extra-deps:
 - cql-4.0.2@sha256:a0006a5ac13d6f86d5eff28c11be80928246309f217ea6d5f5c8a76a5d16b48b,3157
 - cql-io-1.1.1@sha256:897ef0811b227c8b1a269b29b9c1ebfb09c46f00d66834e2e8c6f19ea7f90f7d,4611
 - primitive-extras-0.8@sha256:fca0310150496867f5b9421fe1541ecda87fae17eae44885a29f9c52dd00c8ff,2963
-- servant-multipart-0.11.6@sha256:1863862e507dd6f672b4c9d2c6d87d4faec19686ced3d828d712ada07536cddb,2655
+- servant-multipart-0.11.5 # Dropped from stackage, 0.11.6 has a breaking change
 - text-format-0.3.2@sha256:2a3fc17cf87120fcfdbca62a0da59759755549285841cdc1483081c35fb3d115,1814
-- wai-predicates-0.10.0@sha256:6b096fd8c4487e06e910911ed35447756aa217426c39db44a4bdc55e0131b9aa,2849
+# - wai-predicates-0.10.0@sha256:6b096fd8c4487e06e910911ed35447756aa217426c39db44a4bdc55e0131b9aa,2849
+- git: https://gitlab.com/axeman/wai-predicates.git
+  commit: dc8813c17645251c050599485cdc2b5874daac30
 - quickcheck-state-machine-0.7.0@sha256:4fc4467380e35b88aab72c278856aacebbf95688059d8ad70eb82fe048df476b,4958
 - markov-chain-usage-model-0.0.0@sha256:1afa95faeb9213c4d960a669190078b41b89169462b8edd910472980671ba8c0,2112
 
