@@ -68,8 +68,8 @@ instance Cql Email where
 
   fromCql (CqlText t) = case parseEmail t of
     Just e -> return e
-    Nothing -> fail "fromCql: Invalid email"
-  fromCql _ = fail "fromCql: email: CqlText expected"
+    Nothing -> Left "fromCql: Invalid email"
+  fromCql _ = Left "fromCql: email: CqlText expected"
 
   toCql = toCql . fromEmail
 
@@ -78,8 +78,8 @@ instance Cql UserSSOId where
 
   fromCql (CqlText t) = case eitherDecode $ cs t of
     Right i -> return i
-    Left msg -> fail $ "fromCql: Invalid UserSSOId: " ++ msg
-  fromCql _ = fail "fromCql: UserSSOId: CqlText expected"
+    Left msg -> Left $ "fromCql: Invalid UserSSOId: " ++ msg
+  fromCql _ = Left "fromCql: UserSSOId: CqlText expected"
 
   toCql = toCql . cs @LBS @ST . encode
 
@@ -93,8 +93,8 @@ instance Cql Relation where
     3 -> return Ignored
     4 -> return Sent
     5 -> return Cancelled
-    n -> fail $ "unexpected relation: " ++ show n
-  fromCql _ = fail "relation: int expected"
+    n -> Left $ "unexpected relation: " ++ show n
+  fromCql _ = Left "relation: int expected"
 
   toCql Accepted = CqlInt 0
   toCql Blocked = CqlInt 1
@@ -120,7 +120,7 @@ instance Cql AssetSize where
 
   fromCql (CqlInt 0) = return AssetPreview
   fromCql (CqlInt 1) = return AssetComplete
-  fromCql n = fail $ "Unexpected asset size: " ++ show n
+  fromCql n = Left $ "Unexpected asset size: " ++ show n
 
   toCql AssetPreview = CqlInt 0
   toCql AssetComplete = CqlInt 1
@@ -145,16 +145,16 @@ instance Cql Asset where
     s <- optional "size"
     case (t :: Int32) of
       0 -> return $! ImageAsset k s
-      _ -> fail $ "unexpected user asset type: " ++ show t
+      _ -> Left $ "unexpected user asset type: " ++ show t
     where
       required :: Cql r => Text -> Either String r
       required f =
         maybe
-          (fail ("Asset: Missing required field '" ++ show f ++ "'"))
+          (Left ("Asset: Missing required field '" ++ show f ++ "'"))
           fromCql
           (lookup f fs)
       optional f = maybe (Right Nothing) fromCql (lookup f fs)
-  fromCql _ = fail "UserAsset: UDT expected"
+  fromCql _ = Left "UserAsset: UDT expected"
 
   -- Note: Order must match up with the 'ctype' definition.
   toCql (ImageAsset k s) =
@@ -177,8 +177,8 @@ instance Cql AccountStatus where
     1 -> return Suspended
     2 -> return Deleted
     3 -> return Ephemeral
-    n -> fail $ "unexpected account status: " ++ show n
-  fromCql _ = fail "account status: int expected"
+    n -> Left $ "unexpected account status: " ++ show n
+  fromCql _ = Left "account status: int expected"
 
 instance Cql ClientType where
   ctype = Tagged IntColumn
@@ -189,7 +189,7 @@ instance Cql ClientType where
   fromCql (CqlInt 0) = return TemporaryClientType
   fromCql (CqlInt 1) = return PermanentClientType
   fromCql (CqlInt 2) = return LegalHoldClientType
-  fromCql _ = fail "ClientType: Int [0, 2] expected"
+  fromCql _ = Left "ClientType: Int [0, 2] expected"
 
 instance Cql ClientClass where
   ctype = Tagged IntColumn
@@ -202,15 +202,15 @@ instance Cql ClientClass where
   fromCql (CqlInt 1) = return TabletClient
   fromCql (CqlInt 2) = return DesktopClient
   fromCql (CqlInt 3) = return LegalHoldClient
-  fromCql _ = fail "ClientClass: Int [0, 3] expected"
+  fromCql _ = Left "ClientClass: Int [0, 3] expected"
 
 instance Cql PropertyValue where
   ctype = Tagged BlobColumn
   toCql = toCql . Blob . JSON.encode . propertyValueJson
   fromCql (CqlBlob v) = case JSON.eitherDecode v of
-    Left e -> fail ("Failed to read property value: " <> e)
+    Left e -> Left ("Failed to read property value: " <> e)
     Right x -> pure (PropertyValue x)
-  fromCql _ = fail "PropertyValue: Blob expected"
+  fromCql _ = Left "PropertyValue: Blob expected"
 
 instance Cql Country where
   ctype = Tagged AsciiColumn
@@ -218,8 +218,8 @@ instance Cql Country where
 
   fromCql (CqlAscii c) = case parseCountry c of
     Just c' -> return c'
-    Nothing -> fail "Country: ISO 3166-1-alpha2 expected."
-  fromCql _ = fail "Country: ASCII expected"
+    Nothing -> Left "Country: ISO 3166-1-alpha2 expected."
+  fromCql _ = Left "Country: ASCII expected"
 
 instance Cql Language where
   ctype = Tagged AsciiColumn
@@ -227,15 +227,15 @@ instance Cql Language where
 
   fromCql (CqlAscii l) = case parseLanguage l of
     Just l' -> return l'
-    Nothing -> fail "Language: ISO 639-1 expected."
-  fromCql _ = fail "Language: ASCII expected"
+    Nothing -> Left "Language: ISO 639-1 expected."
+  fromCql _ = Left "Language: ASCII expected"
 
 instance Cql ManagedBy where
   ctype = Tagged IntColumn
 
   fromCql (CqlInt 0) = return ManagedByWire
   fromCql (CqlInt 1) = return ManagedByScim
-  fromCql n = fail $ "Unexpected ManagedBy: " ++ show n
+  fromCql n = Left $ "Unexpected ManagedBy: " ++ show n
 
   toCql ManagedByWire = CqlInt 0
   toCql ManagedByScim = CqlInt 1
@@ -244,10 +244,10 @@ instance Cql RichInfoAssocList where
   ctype = Tagged BlobColumn
   toCql = toCql . Blob . JSON.encode
   fromCql (CqlBlob v) = JSON.eitherDecode v
-  fromCql _ = fail "RichInfo: Blob expected"
+  fromCql _ = Left "RichInfo: Blob expected"
 
 instance Cql Domain where
   ctype = Tagged TextColumn
   toCql = CqlText . domainText
-  fromCql (CqlText txt) = either fail pure $ mkDomain txt
-  fromCql _ = fail "Domain: Text expected"
+  fromCql (CqlText txt) = mkDomain txt
+  fromCql _ = Left "Domain: Text expected"

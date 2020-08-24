@@ -48,7 +48,6 @@ where
 
 import Cassandra.CQL (Cql)
 import Data.Bits
-import Data.List (foldl')
 import Data.Range
 import qualified Data.Set as Set
 import Imports

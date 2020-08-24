@@ -46,28 +46,28 @@ instance Cql SAML.XmlText where
   toCql = CqlText . SAML.unsafeFromXmlText
 
   fromCql (CqlText t) = pure $ SAML.mkXmlText t
-  fromCql _ = fail "XmlText: expected CqlText"
+  fromCql _ = Left "XmlText: expected CqlText"
 
 instance Cql (SignedCertificate) where
   ctype = Tagged BlobColumn
   toCql = CqlBlob . cs . renderKeyInfo
 
   fromCql (CqlBlob t) = parseKeyInfo False (cs t)
-  fromCql _ = fail "SignedCertificate: expected CqlBlob"
+  fromCql _ = Left "SignedCertificate: expected CqlBlob"
 
 instance Cql (URIRef Absolute) where
   ctype = Tagged TextColumn
   toCql = CqlText . SAML.renderURI
 
   fromCql (CqlText t) = parseURI' t
-  fromCql _ = fail "URI: expected CqlText"
+  fromCql _ = Left "URI: expected CqlText"
 
 instance Cql SAML.NameID where
   ctype = Tagged TextColumn
   toCql = CqlText . cs . SAML.encodeElem
 
   fromCql (CqlText t) = SAML.decodeElem (cs t)
-  fromCql _ = fail "NameID: expected CqlText"
+  fromCql _ = Left "NameID: expected CqlText"
 
 deriving instance Cql SAML.Issuer
 
@@ -88,8 +88,8 @@ instance Cql VerdictFormatCon where
   fromCql (CqlInt i) = case i of
     0 -> return VerdictFormatConWeb
     1 -> return VerdictFormatConMobile
-    n -> fail $ "unexpected VerdictFormatCon: " ++ show n
-  fromCql _ = fail "member-status: int expected"
+    n -> Left $ "unexpected VerdictFormatCon: " ++ show n
+  fromCql _ = Left "member-status: int expected"
 
 fromVerdictFormat :: VerdictFormat -> VerdictFormatRow
 fromVerdictFormat VerdictFormatWeb = (VerdictFormatConWeb, Nothing, Nothing)

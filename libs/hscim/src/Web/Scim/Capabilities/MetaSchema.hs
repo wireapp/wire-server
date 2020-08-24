@@ -29,7 +29,6 @@ where
 import Data.Aeson
 import qualified Data.HashMap.Lazy as HML
 import Data.Text (Text)
-import GHC.Generics (Generic)
 import Servant hiding (URI)
 import Servant.API.Generic
 import Servant.Server.Generic

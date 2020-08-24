@@ -44,7 +44,6 @@ import Control.Lens (Lens', makeLenses, view, (^.))
 import Data.Id (ClientId, ConnId, UserId)
 import Gundeck.Aws.Arn
 import Gundeck.Types
-import Gundeck.Types.Push.V2 (PushToken)
 import Imports
 
 -- | Native push address information of a device.

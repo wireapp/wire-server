@@ -38,7 +38,6 @@ import Control.Monad.Writer.Class
 import Control.Monad.Writer.Strict
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as Lazy
-import Data.List (intersperse, isInfixOf)
 import Imports
 import Network.HTTP.Client
 import System.Console.ANSI

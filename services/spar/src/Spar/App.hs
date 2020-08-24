@@ -58,7 +58,6 @@ import SAML2.WebSSO hiding (Email (..), UserRef (..))
 import qualified SAML2.WebSSO as SAML
 import Servant
 import qualified Servant.Multipart as Multipart
-import Servant.Server (errBody, errReasonPhrase)
 import Spar.API.Swagger ()
 import qualified Spar.Data as Data
 import Spar.Error

@@ -253,7 +253,7 @@ parseTurnURI = parseOnly (parser <* endOfInput)
     parseScheme = parse "parseScheme"
     parseHost = parse "parseHost"
     parseTransport = parse "parseTransport"
-    parse :: (BC.FromByteString b, Monad m) => String -> Text -> m b
+    parse :: (BC.FromByteString b, Monad m, MonadFail m) => String -> Text -> m b
     parse err x = case BC.fromByteString (TE.encodeUtf8 x) of
       Just ok -> return ok
       Nothing -> fail (err ++ " failed when parsing: " ++ show x)

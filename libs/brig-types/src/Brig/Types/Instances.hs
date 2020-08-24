@@ -33,15 +33,15 @@ instance Cql PrekeyId where
   ctype = Tagged IntColumn
   toCql = CqlInt . fromIntegral . keyId
   fromCql (CqlInt i) = return $ PrekeyId (fromIntegral i)
-  fromCql _ = fail "PrekeyId: Int expected"
+  fromCql _ = Left "PrekeyId: Int expected"
 
 instance Cql ServiceTag where
   ctype = Tagged BigIntColumn
 
   fromCql (CqlBigInt i) = case intToTag i of
     Just t -> return t
-    Nothing -> fail $ "unexpected service tag: " ++ show i
-  fromCql _ = fail "service tag: int expected"
+    Nothing -> Left $ "unexpected service tag: " ++ show i
+  fromCql _ = Left "service tag: int expected"
 
   toCql = CqlBigInt . tagToInt
 
@@ -50,10 +50,10 @@ instance Cql ServiceKeyPEM where
 
   fromCql (CqlBlob b) =
     maybe
-      (fail "service key pem: malformed key")
+      (Left "service key pem: malformed key")
       pure
       (fromByteString' b)
-  fromCql _ = fail "service key pem: blob expected"
+  fromCql _ = Left "service key pem: blob expected"
 
   toCql = CqlBlob . toByteString
 
@@ -74,15 +74,15 @@ instance Cql ServiceKey where
     p <- required "pem"
     case (t :: Int32) of
       0 -> return $! ServiceKey RsaServiceKey s p
-      _ -> fail $ "Unexpected service key type: " ++ show t
+      _ -> Left $ "Unexpected service key type: " ++ show t
     where
       required :: Cql r => Text -> Either String r
       required f =
         maybe
-          (fail ("ServiceKey: Missing required field '" ++ show f ++ "'"))
+          (Left ("ServiceKey: Missing required field '" ++ show f ++ "'"))
           fromCql
           (lookup f fs)
-  fromCql _ = fail "service key: udt expected"
+  fromCql _ = Left "service key: udt expected"
 
   toCql (ServiceKey RsaServiceKey siz pem) =
     CqlUdt

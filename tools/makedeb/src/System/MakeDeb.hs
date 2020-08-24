@@ -30,10 +30,10 @@ where
 import Data.Text (pack)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
-import Filesystem.Path.CurrentOS (decodeString, encodeString)
+import Filesystem.Path.CurrentOS (FilePath, decodeString, encodeString)
 import Imports hiding (FilePath)
 import Options.Applicative
-import Shelly
+import Shelly hiding (FilePath)
 import System.MakeDeb.FileUtils
 
 data MakeDebOpts = MakeDebOpts

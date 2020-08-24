@@ -65,7 +65,7 @@ where
 
 import Control.Concurrent.Async
 import Control.Concurrent.Timeout hiding (threadDelay)
-import Control.Exception (SomeAsyncException, asyncExceptionFromException, throwIO)
+import Control.Exception (asyncExceptionFromException, throwIO)
 import Control.Monad.Catch hiding (bracket)
 import qualified Control.Monad.Catch as Catch
 import Data.Aeson (FromJSON, Value (..), decodeStrict', fromJSON)

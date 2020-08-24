@@ -72,7 +72,6 @@ module Web.Scim.Schema.User
   )
 where
 
-import Control.Monad (foldM)
 import Control.Monad.Except
 import Data.Aeson
 import qualified Data.HashMap.Strict as HM
