@@ -306,13 +306,6 @@ packages:
   original:
     hackage: HaskellNet-0.5.2
 - completed:
-    hackage: HaskellNet-SSL-0.3.4.1@sha256:3ca14dd69460a380cf69aed40654fb10c4c03e344632b6a9986568c87feda157,1843
-    pantry-tree:
-      size: 577
-      sha256: 33fbfd0d8bbaa689f0169d442861dafcdcd4fe795a4b42aa0bedbfa41aa65b23
-  original:
-    hackage: HaskellNet-SSL-0.3.4.1
-- completed:
     hackage: snappy-0.2.0.2@sha256:2931b03c5fdab2dac8d7eadb3be2f4ef8906666e43f1f1db65a06efd57ea701b,1591
     pantry-tree:
       size: 709
@@ -333,13 +326,6 @@ packages:
       sha256: 059c5a2d657d392aca0a887648f57380d6321734dc8879c056a44d4414308ac6
   original:
     hackage: stm-containers-1.1.0.4
-- completed:
-    hackage: redis-io-1.0.0@sha256:8885d41408ec7305d7503e21bd3f334fb02fb2367d26b9998d8a6fcbccf8339b,2734
-    pantry-tree:
-      size: 855
-      sha256: ed28c921459e22410513f00d97c9915bcba7f7b083a8b80d067fc5c5114a9db1
-  original:
-    hackage: redis-io-1.0.0
 - completed:
     hackage: redis-resp-1.0.0@sha256:c134ac23e79d57071fdc8559e2b2e72280ea11786a8ba4118c10ed506dc7d991,1615
     pantry-tree:
@@ -567,11 +553,33 @@ packages:
     git: https://github.com/akshaymankar/haskell-hex
     pantry-tree:
       size: 197
-      sha256: 5776a07f09545dc94c374760e63d80153833eff7a2bd16065377f88ad3cbdf96
-    commit: 85795a95dde91583f31a028fe399b35ab9e4b5d0
+      sha256: dc3375135f836ce0073f10225476cda3ea723524a731534c516499041f10646b
+    commit: d20af1ce51381b67a9cd63657a931d80b640f361
   original:
     git: https://github.com/akshaymankar/haskell-hex
-    commit: 85795a95dde91583f31a028fe399b35ab9e4b5d0
+    commit: d20af1ce51381b67a9cd63657a931d80b640f361
+- completed:
+    name: redis-io
+    version: 1.0.0
+    git: https://gitlab.com/axeman/redis-io.git
+    pantry-tree:
+      size: 912
+      sha256: cab38ce5d67d9089342f001b9abf874d7065e5f45aac82aa02b6c01e7b61a248
+    commit: e113fa4de8fcc3665c3c562a05a07f7a1d63b3cc
+  original:
+    git: https://gitlab.com/axeman/redis-io.git
+    commit: e113fa4de8fcc3665c3c562a05a07f7a1d63b3cc
+- completed:
+    name: HaskellNet-SSL
+    version: 0.3.4.2
+    git: https://github.com/zoominsoftware/HaskellNet-SSL
+    pantry-tree:
+      size: 786
+      sha256: c6a64c9e64bc834842756be28eaac2d842f0dde3753542bfa0cfd87ae5cf0bc5
+    commit: 5b4f4ab49a6321b57f6dbeba64a7f4bb8ffa5cbc
+  original:
+    git: https://github.com/zoominsoftware/HaskellNet-SSL
+    commit: 5b4f4ab49a6321b57f6dbeba64a7f4bb8ffa5cbc
 snapshots:
 - completed:
     size: 531932

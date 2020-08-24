@@ -137,11 +137,9 @@ extra-deps:
 # Dropped from upstream snapshot
 - template-0.2.0.10
 - HaskellNet-0.5.2
-- HaskellNet-SSL-0.3.4.1
 - snappy-0.2.0.2
 - smtp-mail-0.2.0.0
 - stm-containers-1.1.0.4 # Latest: lts-15.16
-- redis-io-1.0.0
 - redis-resp-1.0.0
 - stm-hamt-1.2.0.4 # Latest: lts-15.16
 # - hedgehog-quickcheck-0.1.1
@@ -196,4 +194,9 @@ extra-deps:
 
 # Forked due to ghc-8.8
 - git: https://github.com/akshaymankar/haskell-hex
-  commit: 85795a95dde91583f31a028fe399b35ab9e4b5d0
+  commit: d20af1ce51381b67a9cd63657a931d80b640f361 # ghc-8.8 (Aug 24, 2020)
+
+- git: https://gitlab.com/axeman/redis-io.git
+  commit: e113fa4de8fcc3665c3c562a05a07f7a1d63b3cc # ghc-8.8 (Aug 24, 2020)
+- git: https://github.com/zoominsoftware/HaskellNet-SSL
+  commit: 5b4f4ab49a6321b57f6dbeba64a7f4bb8ffa5cbc # allow-newer-network, dpwright/HaskellNet-SSL#24  (Aug 24, 2020)
