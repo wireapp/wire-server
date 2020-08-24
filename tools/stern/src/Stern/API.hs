@@ -29,13 +29,10 @@ where
 
 import Brig.Types
 import Brig.Types.Intra
-import Control.Applicative ((<|>))
 import Control.Error
 import Control.Lens ((^.))
-import Control.Monad (liftM, void, when)
 import Data.Aeson hiding (Error, json)
 import Data.Aeson.Types (emptyArray)
-import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict)
 import Data.Handle (Handle)
@@ -45,7 +42,7 @@ import Data.Predicate
 import Data.Range
 import Data.Swagger.Build.Api hiding (Response, def, min, response)
 import qualified Data.Swagger.Build.Api as Doc
-import Data.Text (Text, unpack)
+import Data.Text (unpack)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeLatin1)
 import qualified Galley.Types.Teams.SearchVisibility as Team

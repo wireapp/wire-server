@@ -67,7 +67,6 @@ import Control.Lens (view, (^.))
 import Control.Monad.Reader
 import Data.Aeson hiding (Error)
 import Data.Aeson.Types (emptyArray)
-import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as BS
 import Data.ByteString.Conversion
 import Data.Handle (Handle)
@@ -75,7 +74,7 @@ import qualified Data.HashMap.Strict as M
 import Data.Id
 import Data.Int
 import Data.List.Split (chunksOf)
-import Data.Text (Text, strip)
+import Data.Text (strip)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.Lazy (pack)
 import Galley.Types

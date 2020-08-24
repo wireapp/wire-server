@@ -19,7 +19,6 @@ module Brig.User.Auth.Cookie.Limit where
 
 import Brig.Types.User.Auth
 import Data.Aeson
-import Data.List (sortBy)
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import qualified Data.Vector as Vector

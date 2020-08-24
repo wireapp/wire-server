@@ -135,7 +135,6 @@ import Control.Exception
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Control.Monad.Except
-import Control.Monad.Fail (MonadFail)
 import Control.Retry
 import Crypto.Random.Types (MonadRandom)
 import Data.Aeson as Aeson hiding (json)

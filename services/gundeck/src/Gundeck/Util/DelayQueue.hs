@@ -32,7 +32,6 @@ where
 
 import Data.OrdPSQ (OrdPSQ)
 import qualified Data.OrdPSQ as PSQ
-import Data.Tuple (swap)
 import Imports hiding (length)
 
 data DelayQueue k v = DelayQueue

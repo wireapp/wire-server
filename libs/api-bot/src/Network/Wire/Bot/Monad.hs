@@ -94,7 +94,6 @@ import Control.Concurrent.Async
 import Control.Concurrent.STM (retry)
 import Control.Monad.Base
 import Control.Monad.Catch hiding (try)
-import Control.Monad.Fail (MonadFail)
 import Control.Monad.Trans.Control
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
