@@ -294,7 +294,8 @@ updInvitationHandle :: MonadClient m => TeamId -> InvitationId -> Handle -> m ()
 updInvitationHandle tid invid handle = retry x5 $ write upd (params Quorum (handle, tid, invid))
   where
     upd :: PrepQuery W (Handle, TeamId, InvitationId) ()
-    upd = "UPDATE team_invitation SET handle = ? WHERE team = ? and id = ?"
+    upd = _ -- "UPDATE team_invitation SET handle = ? WHERE team = ? and id = ?"
+    -- TODO: keep indices in sync
 
 updInvitationName :: MonadClient m => TeamId -> InvitationId -> Name -> m ()
 updInvitationName tid invid name = retry x5 $ write upd (params Quorum (name, tid, invid))

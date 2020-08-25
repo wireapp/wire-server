@@ -55,8 +55,7 @@ module Spar.Intra.Brig
     getStatus,
     getStatusMaybe,
     setStatus,
-    giveDefaultHandleUser,
-    giveDefaultHandleInv,
+    giveDefaultHandle,
   )
 where
 
@@ -79,6 +78,7 @@ import Data.Misc (PlainTextPassword)
 import Data.String.Conversions
 import Imports
 import Network.HTTP.Types.Method
+import qualified Network.Wai.Utilities.Error as Wai
 import qualified SAML2.WebSSO as SAML
 import Spar.Error
 import Spar.Intra.Galley as Galley (MonadSparToGalley, assertIsTeamOwner)
@@ -393,14 +393,11 @@ setBrigUserHandle tid buid handle = do
       method PUT
         . paths ["/i/teams/", toByteString' tid, "/handle/", toByteString' buid]
         . json (HandleUpdate (fromHandle handle))
-  let sCode = statusCode resp
-  if
-      | sCode < 300 ->
-        pure ()
-      | inRange (400, 499) sCode ->
-        throwSpar . SparBrigErrorWith (responseStatus resp) $ "set handle failed"
-      | otherwise ->
-        throwSpar . SparBrigError . cs $ "set handle failed with status " <> show sCode
+  case (statusCode resp, Wai.label <$> responseJsonMaybe @Wai.Error resp) of
+    (200, Nothing) -> do
+      pure ()
+    _ -> do
+      rethrow resp
 
 -- | Set user's managedBy. Fails with status <500 if brig fails with <500, and with 500 if
 -- brig fails with >= 500.
@@ -622,25 +619,19 @@ setStatus uid status = do
 -- We cannot simply respond with 404 in this case, because the user exists.  404 would suggest
 -- do the scim peer that it should post the user to create it, but that would create a new
 -- user instead of finding the old that should be put under scim control.
-giveDefaultHandleUser :: (HasCallStack, MonadSparToBrig m) => TeamId -> User -> m Handle
-giveDefaultHandleUser tid usr = case userHandle usr of
+giveDefaultHandle :: (HasCallStack, MonadSparToBrig m) => TeamId -> UserOrInvitation -> m Handle
+giveDefaultHandle tid usr = case userOrInvitationHandle usr of
   Just handle -> pure handle
   Nothing -> do
-    let handle :: Handle = Handle . cs . toByteString' . userId $ usr
-    setBrigUserHandle tid (userId usr) handle
-    pure handle
-
-giveDefaultHandleInv :: (HasCallStack, MonadSparToBrig m) => TeamId -> Inv.Invitation -> m Handle
-giveDefaultHandleInv tid inv = case Inv.inInviteeHandle inv of
-  Just handle -> pure handle
-  Nothing -> do
-    let handle :: Handle = Handle . cs . toByteString' . Inv.inInvitation $ inv
-    setBrigUserHandle tid (coerce @InvitationId @UserId (Inv.inInvitation inv)) handle
+    let handle = Handle . cs . toByteString' $ uid
+        uid = userOrInvitationId usr
+    setBrigUserHandle tid uid handle
     pure handle
 
 -- | If a call to brig fails, we often just want to respond with whatever brig said.
 --
--- TODO: https://github.com/zinfra/backend-issues/issues/1613
+-- TODO: https://github.com/zinfra/backend-issues/issues/1613 (also, consistently check error
+-- labels everywhere like in 'setBrigActualUserHandle')
 --
 -- FUTUREWORK: with servant, there will be a way for the type checker to confirm that we
 -- handle all exceptions that brig can legally throw!
