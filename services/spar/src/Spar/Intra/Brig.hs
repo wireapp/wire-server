@@ -74,6 +74,7 @@ import qualified Servant.Server as Servant
 import Spar.Error
 import Spar.Intra.Galley as Galley (MonadSparToGalley, assertIsTeamOwner, isEmailValidationEnabledTeam)
 import Web.Cookie
+import Wire.API.User
 import Wire.API.User.RichInfo as RichInfo
 
 ----------------------------------------------------------------------
@@ -147,20 +148,10 @@ createBrigUser suid (Id buid) teamid mbName managedBy = do
         Nothing -> throwSpar err
   let newUser :: NewUser
       newUser =
-        NewUser
-          { newUserDisplayName = uname,
-            newUserUUID = Just buid,
+        (emptyNewUser uname)
+          { newUserUUID = Just buid,
             newUserIdentity = Just $ SSOIdentity (toUserSSOId suid) Nothing Nothing,
-            newUserPict = Nothing,
-            newUserAssets = [],
-            newUserAccentId = Nothing,
-            newUserEmailCode = Nothing,
-            newUserPhoneCode = Nothing,
             newUserOrigin = Just . NewUserOriginTeamUser . NewTeamMemberSSO $ teamid,
-            newUserLabel = Nothing,
-            newUserLocale = Nothing,
-            newUserPassword = Nothing,
-            newUserExpiresIn = Nothing,
             newUserManagedBy = Just managedBy
           }
   resp :: Response (Maybe LBS) <-
