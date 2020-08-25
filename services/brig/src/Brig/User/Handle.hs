@@ -18,7 +18,7 @@
 -- | Ownership of unique user handles.
 module Brig.User.Handle
   ( claimHandle,
-    claimHandleInvitation,
+    claimInvitationHandle,
     claimHandleWith,
     freeHandle,
     lookupHandle,
@@ -42,8 +42,8 @@ claimHandle :: UserId -> Maybe Handle -> Handle -> AppIO Bool
 claimHandle uid oldHandle newHandle = isJust <$> claimHandleWith (User.updateHandle) uid oldHandle newHandle
 
 -- | Claim a new handle for an existing 'Invitation'.
-claimHandleInvitation :: TeamId -> InvitationId -> Maybe Handle -> Handle -> AppIO Bool
-claimHandleInvitation tid invid oldHandle newHandle =
+claimInvitationHandle :: TeamId -> InvitationId -> Maybe Handle -> Handle -> AppIO Bool
+claimInvitationHandle tid invid oldHandle newHandle =
   isJust
     <$> claimHandleWith (Inv.updInvitationHandle tid . coerce) (coerce invid) oldHandle newHandle
 

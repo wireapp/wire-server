@@ -43,8 +43,7 @@ import Brig.Types.Intra (AccountStatus (..))
 import Brig.Types.Team (TeamSize)
 import Brig.Types.Team.Invitation
 import Brig.Types.User (Email, InvitationCode, emailIdentity)
-import Brig.User.Handle (claimHandleInvitation, claimHandleWith, freeHandle)
-import qualified Brig.User.Handle.Blacklist as Blacklist
+import Brig.User.Handle (claimHandleWith, freeHandle)
 import qualified Brig.User.Search.Index as ESIndex
 import Control.Lens (view, (^.))
 import Control.Monad.Trans.Except -- (ExceptT, throwE)
@@ -378,29 +377,8 @@ updateHandleInternal tid uid (Public.HandleUpdate handleUpd) = do
             Left ChangeHandleInvalid -> runExceptT b
             other -> pure other
       onUser = API.changeHandle uid Nothing handle
-      onInv = changeInvitationHandle (coerce uid) handle
+      onInv = API.changeInvitationHandle tid (coerce uid) handle
   tryboth onUser onInv !>> changeHandleError
-  where
-    -- This is a clone of 'API.changeHandle'.
-    changeInvitationHandle :: InvitationId -> Handle -> ExceptT ChangeHandleError AppIO ()
-    changeInvitationHandle invid handle = do
-      when (Blacklist.isBlacklistedHandle handle) $
-        throwE ChangeHandleInvalid
-      minv <- DB.lookupInvitation tid invid
-      case minv of
-        Just inv -> claim inv
-        Nothing -> do
-          Log.warn
-            ( Log.msg @Text
-                "unexpected: internal end-point `updateHandleInternal` \
-                \called on uid that has no user and no invitation."
-            )
-          throwE ChangeHandleNoIdentity
-      where
-        claim inv = do
-          claimed <- lift $ claimHandleInvitation tid (inInvitation inv) Nothing handle
-          unless claimed $
-            throwE ChangeHandleExists
 
 updateUserNameInternalH :: JSON ::: TeamId ::: UserId ::: JsonRequest Public.NameUpdate -> Handler Response
 updateUserNameInternalH (_ ::: tid ::: uid ::: req) = do

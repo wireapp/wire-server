@@ -28,6 +28,7 @@ module Brig.API.User
     changeEmail,
     changePhone,
     changeHandle,
+    changeInvitationHandle,
     CheckHandleResp (..),
     checkHandle,
     lookupHandle,
@@ -142,6 +143,7 @@ import Imports
 import Network.Wai.Utilities
 import qualified System.Logger.Class as Log
 import System.Logger.Message
+import qualified Wire.API.Team.Invitation as Inv
 
 -------------------------------------------------------------------------------
 -- Create User
@@ -388,6 +390,23 @@ changeHandle uid mconn hdl = do
       unless claimed $
         throwE ChangeHandleExists
       lift $ Intra.onUserEvent uid mconn (handleUpdated uid hdl)
+
+-- | Like 'changeHandle', but on users that have been invited, but not accepted their
+-- invitation.  We don't need notifications for changing invitation handles (nobody knows
+-- these users yet), so we don't need the 'ConnId' yet either.
+changeInvitationHandle :: TeamId -> InvitationId -> Handle -> ExceptT ChangeHandleError AppIO ()
+changeInvitationHandle tid invid hndl = do
+  when (isBlacklistedHandle hndl) $
+    throwE ChangeHandleInvalid
+  inv <- Team.lookupInvitation tid invid
+  case inv of
+    Nothing -> throwE ChangeHandleNoIdentity
+    Just i -> claim i
+  where
+    claim i = do
+      claimed <- lift $ claimInvitationHandle tid (Inv.inInvitation i) (Inv.inInviteeHandle i) hndl
+      unless claimed $
+        throwE ChangeHandleExists
 
 --------------------------------------------------------------------------------
 -- Check Handle
