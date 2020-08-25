@@ -82,7 +82,7 @@ You then need to restart the ``brig`` pods if your code is older than September 
 
 .. code:: bash
 
-  delete pod -l wireService=brig
+  kubectl delete pod -l wireService=brig
 
 2. Wait for traffic to drain. This can take up to 12 hours after the configuration change. Wait until current allocations (people connected to the restund server) return 0. See :ref:`allocations`.
 3. It's now safe to ``systemctl stop restund``, and take any necessary actions.
