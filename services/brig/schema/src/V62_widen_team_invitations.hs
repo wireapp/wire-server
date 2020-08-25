@@ -42,9 +42,7 @@ migration =
       [r|
         CREATE TABLE team_invitation_handle
             ( handle text
-            , team uuid
             , invitation uuid
-            , code ascii
-            , primary key (handle, team)
+            , primary key (handle)
             )
       |]

@@ -116,8 +116,8 @@ insertInvitation iid t role email (toUTCTimeMillis -> now) minviter inviteeName 
     -- Note: the edge case of multiple invites to the same team by different admins from the same team results in last-invite-wins in the team_invitation_email table.
     cqlInvitationByEmail :: PrepQuery W (Email, TeamId, InvitationId, InvitationCode, Int32) ()
     cqlInvitationByEmail = "INSERT INTO team_invitation_email (email, team, invitation, code) VALUES (?, ?, ?, ?) USING TTL ?"
-    cqlInvitationByHandle :: PrepQuery W (Handle, TeamId, InvitationId, InvitationCode, Int32) ()
-    cqlInvitationByHandle = "INSERT INTO team_invitation_handle (handle, team, invitation, code) VALUES (?, ?, ?, ?) USING TTL ?"
+    cqlInvitationByHandle :: PrepQuery W (Handle, TeamId, InvitationId, Int32) ()
+    cqlInvitationByHandle = "INSERT INTO team_invitation_handle (handle, team, invitation) VALUES (?, ?, ?) USING TTL ?"
 
 lookupInvitation :: MonadClient m => TeamId -> InvitationId -> m (Maybe Invitation)
 lookupInvitation t r =
@@ -290,12 +290,19 @@ updInvitationManagedBy tid invid managedBy = retry x5 $ write upd (params Quorum
     upd :: PrepQuery W (ManagedBy, TeamId, InvitationId) ()
     upd = "UPDATE team_invitation SET managed_by = ? WHERE team = ? and id = ?"
 
+-- | TODO: does the TTL from insertion of the invitation survive this update?
 updInvitationHandle :: MonadClient m => TeamId -> InvitationId -> Handle -> m ()
 updInvitationHandle tid invid handle = retry x5 $ write upd (params Quorum (handle, tid, invid))
   where
+    -- steps, in order:
+    -- update team_invitation
+    -- lookup by_handle entry (for the details)
+
     upd :: PrepQuery W (Handle, TeamId, InvitationId) ()
-    upd = _ -- "UPDATE team_invitation SET handle = ? WHERE team = ? and id = ?"
-    -- TODO: keep indices in sync
+    upd = "UPDATE team_invitation SET handle = ? WHERE team = ? and id = ?"
+
+    cqlInvitationByHandle :: PrepQuery W (Handle, TeamId, InvitationId, InvitationCode, Int32) ()
+    cqlInvitationByHandle = "INSERT INTO team_invitation_handle (handle, team, invitation, code) VALUES (?, ?, ?, ?) USING TTL ?"
 
 updInvitationName :: MonadClient m => TeamId -> InvitationId -> Name -> m ()
 updInvitationName tid invid name = retry x5 $ write upd (params Quorum (name, tid, invid))

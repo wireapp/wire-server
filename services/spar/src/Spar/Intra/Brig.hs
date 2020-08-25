@@ -173,7 +173,7 @@ instance MonadSparToBrig m => MonadSparToBrig (ReaderT r m) where
 -- | Create a user on brig with saml credentials.
 createBrigUserSaml ::
   (HasCallStack, MonadSparToBrig m) =>
-  SAML.UserRef ->
+  Maybe SAML.UserRef ->
   UserId ->
   TeamId ->
   Name ->
@@ -185,7 +185,7 @@ createBrigUserSaml uref (Id buid) teamid uname managedBy = do
         NewUser
           { newUserDisplayName = uname,
             newUserUUID = Just buid,
-            newUserIdentity = Just $ SSOIdentity (toUserSSOId uref) Nothing Nothing,
+            newUserIdentity = _, -- Just $ SSOIdentity (toUserSSOId =<< uref) Nothing Nothing,
             newUserPict = Nothing,
             newUserAssets = [],
             newUserAccentId = Nothing,
@@ -233,7 +233,7 @@ updateEmail buid email = do
     call $
       method PUT
         . path "/i/self/email"
-        . header "Z-User" (toByteString' buid)
+        . header "Z-User" (toByteString' buid) -- TODO: i think this is wrong.
         . query [("validate", Just "true")]
         . json (EmailUpdate email)
   case statusCode resp of
@@ -396,6 +396,22 @@ setBrigUserHandle tid buid handle = do
   case (statusCode resp, Wai.label <$> responseJsonMaybe @Wai.Error resp) of
     (200, Nothing) -> do
       pure ()
+    (_, Just _) -> do
+      _
+    {-
+
+        if both are ChangeHandleNoIdentity =>
+
+          Log.warn -- we don't expect this to happen; if it does, we should investigate!
+            ( Log.msg @Text
+                "unexpected: internal end-point `updateHandleInternal` \
+                \called on uid that has no user and no invitation."
+            )
+
+        (perhaps do this on spar side)
+
+    -}
+
     _ -> do
       rethrow resp
 
