@@ -319,7 +319,7 @@ createValidScimUser ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser muref handl mb
       -- up.  We should consider making setUserHandle part of createUser and
       -- making it transactional.  If the user redoes the POST A new standalone
       -- user will be created
-      Brig.setBrigActualUserHandle stiTeam buid handl
+      Brig.setBrigUserHandle stiTeam buid handl
       pure buid
     Left email -> do
       Brig.createBrigUserInvitation email stiTeam mbName handl ManagedByScim

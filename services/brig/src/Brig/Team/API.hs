@@ -43,7 +43,7 @@ import Brig.Types.Intra (AccountStatus (..))
 import Brig.Types.Team (TeamSize)
 import Brig.Types.Team.Invitation
 import Brig.Types.User (Email, InvitationCode, emailIdentity)
-import Brig.User.Handle (claimHandleWith, freeHandle)
+import Brig.User.Handle (claimHandleInvitation, claimHandleWith, freeHandle)
 import qualified Brig.User.Handle.Blacklist as Blacklist
 import qualified Brig.User.Search.Index as ESIndex
 import Control.Lens (view, (^.))
@@ -396,20 +396,11 @@ updateHandleInternal tid uid (Public.HandleUpdate handleUpd) = do
                 \called on uid that has no user and no invitation."
             )
           throwE ChangeHandleNoIdentity
-
-    claim :: any1 -> ExceptT ChangeHandleError AppIO any2
-    claim _ = do
-      -- this is unlikely to happen a lot, and awkward to implement: we would need to delete
-      -- the row in `team_invitation_handle` and add a new row; for the new row we would need
-      -- to know the code, so we would have to look up the old row before deleting it; we
-      -- would have to claim the new handle and free the old one.  and all of this without
-      -- running into any race conditions.
-      Log.warn
-        ( Log.msg @Text
-            "`updateHandleInternal` on a pending invitation: \
-            \https://github.com/zinfra/backend-issues/issues/1674"
-        )
-      throwE ChangeHandleNotSupportedOnPendingInvitation
+      where
+        claim inv = do
+          claimed <- lift $ claimHandleInvitation tid (inInvitation inv) Nothing handle
+          unless claimed $
+            throwE ChangeHandleExists
 
 updateUserNameInternalH :: JSON ::: TeamId ::: UserId ::: JsonRequest Public.NameUpdate -> Handler Response
 updateUserNameInternalH (_ ::: tid ::: uid ::: req) = do
