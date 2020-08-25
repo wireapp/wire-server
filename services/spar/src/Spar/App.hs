@@ -36,7 +36,7 @@ module Spar.App
 where
 
 import Bilge
-import Brig.Types (ManagedBy (..), Name)
+import Brig.Types (ManagedBy (..))
 import Cassandra
 import qualified Cassandra as Cas
 import Control.Exception (assert)
@@ -188,24 +188,25 @@ getUser uref = do
 -- FUTUREWORK: once we support <https://github.com/wireapp/hscim scim>, brig will refuse to delete
 -- users that have an sso id, unless the request comes from spar.  then we can make users
 -- undeletable in the team admin page, and ask admins to go talk to their IdP system.
-createSamlUserWithId :: UserId -> SAML.UserRef -> Maybe Name -> ManagedBy -> Spar ()
-createSamlUserWithId buid suid mbName managedBy = do
+createSamlUserWithId :: UserId -> SAML.UserRef -> ManagedBy -> Spar ()
+createSamlUserWithId buid suid managedBy = do
   teamid <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (suid ^. uidTenant)
-  buid' <- Intra.createBrigUser suid buid teamid mbName managedBy
+  uname <- either (throwSpar . SparBadUserName . cs) pure $ Intra.mkUserName Nothing suid
+  buid' <- Intra.createBrigUser suid buid teamid uname managedBy
   assert (buid == buid') $ pure ()
   insertUser suid buid
 
 -- | If the team has no scim token, call 'createSamlUser'.  Otherwise, raise "invalid
 -- credentials".
-autoprovisionSamlUser :: SAML.UserRef -> Maybe Name -> ManagedBy -> Spar UserId
-autoprovisionSamlUser suid mbName managedBy = do
+autoprovisionSamlUser :: SAML.UserRef -> ManagedBy -> Spar UserId
+autoprovisionSamlUser suid managedBy = do
   buid <- Id <$> liftIO UUID.nextRandom
-  autoprovisionSamlUserWithId buid suid mbName managedBy
+  autoprovisionSamlUserWithId buid suid managedBy
   pure buid
 
 -- | Like 'autoprovisionSamlUser', but for an already existing 'UserId'.
-autoprovisionSamlUserWithId :: UserId -> SAML.UserRef -> Maybe Name -> ManagedBy -> Spar ()
-autoprovisionSamlUserWithId buid suid mbName managedBy = do
+autoprovisionSamlUserWithId :: UserId -> SAML.UserRef -> ManagedBy -> Spar ()
+autoprovisionSamlUserWithId buid suid managedBy = do
   idp <- getIdPConfigByIssuer (suid ^. uidTenant)
   unless (isNothing $ idp ^. idpExtraInfo . wiReplacedBy) $ do
     throwSpar $ SparCannotCreateUsersOnReplacedIdP (cs . SAML.idPIdToST $ idp ^. idpId)
@@ -213,7 +214,7 @@ autoprovisionSamlUserWithId buid suid mbName managedBy = do
   scimtoks <- wrapMonadClient $ Data.getScimTokens teamid
   if null scimtoks
     then do
-      createSamlUserWithId buid suid mbName managedBy
+      createSamlUserWithId buid suid managedBy
       validateEmailIfExists buid suid
     else
       throwError . SAML.Forbidden $
@@ -367,7 +368,7 @@ verdictHandlerResultCore bindCky = \case
         -- This is the first SSO authentication, so we auto-create a user. We know the user
         -- has not been created via SCIM because then we would've ended up in the
         -- "reauthentication" branch, so we pass 'ManagedByWire'.
-        (Nothing, Nothing, Nothing) -> autoprovisionSamlUser userref Nothing ManagedByWire
+        (Nothing, Nothing, Nothing) -> autoprovisionSamlUser userref ManagedByWire
         -- If the user is only found under an old (previous) issuer, move it here.
         (Nothing, Nothing, Just (oldUserRef, uid)) -> moveUserToNewIssuer oldUserRef userref uid >> pure uid
         -- SSO re-authentication (the most common case).

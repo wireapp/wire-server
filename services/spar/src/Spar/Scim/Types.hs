@@ -202,7 +202,7 @@ instance Scim.Patchable ScimUserExtra where
 data ValidScimUser = ValidScimUser
   { _vsuUserRef :: SAML.UserRef,
     _vsuHandle :: Handle,
-    _vsuName :: Maybe BT.Name, -- TODO: remove the 'Maybe' here, and construct the name not in "Spar.Intra.Brig", but in 'validateScimUser'.
+    _vsuName :: BT.Name,
     _vsuRichInfo :: RI.RichInfo,
     _vsuActive :: Bool
   }

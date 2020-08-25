@@ -21,6 +21,7 @@
 
 module Wire.API.User.Profile
   ( Name (..),
+    mkName,
     ColourId (..),
     defaultAccentId,
 
@@ -80,6 +81,9 @@ newtype Name = Name
   deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (ToJSON, FromByteString, ToByteString)
   deriving (Arbitrary) via (Ranged 1 128 Text)
+
+mkName :: Text -> Either String Name
+mkName txt = Name . fromRange <$> checkedEitherMsg @_ @1 @128 "Name" txt
 
 modelUserDisplayName :: Doc.Model
 modelUserDisplayName = Doc.defineModel "UserDisplayName" $ do

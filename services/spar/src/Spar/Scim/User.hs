@@ -54,7 +54,6 @@ import qualified Data.Aeson as Aeson
 import Data.Handle (Handle (Handle), parseHandle)
 import Data.Id (Id (Id), UserId, idToText)
 import Data.Json.Util (UTCTimeMillis, fromUTCTimeMillis, toUTCTimeMillis)
-import Data.Range (checkedEitherMsg, fromRange)
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Data.UUID.V4 as UUID
@@ -212,20 +211,13 @@ validateScimUser' idp richInfoLimit user = do
   handl <- validateHandle . Text.toLower . Scim.userName $ user
   -- FUTUREWORK: 'Scim.userName' should be case insensitive; then the toLower here would
   -- be a little less brittle.
-  mbName <- mapM validateName (Scim.displayName user)
+  uname <- do
+    let err = throwError . Scim.badRequest Scim.InvalidValue . Just . cs
+    either err pure $ Brig.mkUserName (Scim.displayName user) uref
   richInfo <- validateRichInfo (Scim.extra user ^. ST.sueRichInfo)
   let active = Scim.active user
-  pure $ ST.ValidScimUser uref handl mbName richInfo (fromMaybe True active)
+  pure $ ST.ValidScimUser uref handl uname richInfo (fromMaybe True active)
   where
-    -- Validate a name (@displayName@). It has to conform to standard Wire rules.
-    validateName :: Text -> m Name
-    validateName txt = case checkedEitherMsg @_ @1 @128 "displayName" txt of
-      Right rtxt -> pure $ Name (fromRange rtxt)
-      Left err ->
-        throwError $
-          Scim.badRequest
-            Scim.InvalidValue
-            (Just ("displayName must be a valid Wire name, but: " <> Text.pack err))
     -- Validate rich info (@richInfo@). It must not exceed the rich info limit.
     validateRichInfo :: RI.RichInfo -> m RI.RichInfo
     validateRichInfo richInfo = do
@@ -409,9 +401,8 @@ updateValidScimUser tokinfo uid newScimUser = do
       -- the extra details not stored in the DB that we need here.
 
       lift $ do
-        case newScimUser ^. ST.vsuName of
-          Just nm | oldScimUser ^. ST.vsuName /= Just nm -> Brig.setBrigUserName uid nm
-          _ -> pure ()
+        when (newScimUser ^. ST.vsuName /= oldScimUser ^. ST.vsuName) $
+          Brig.setBrigUserName uid (newScimUser ^. ST.vsuName)
         when (oldScimUser ^. ST.vsuHandle /= newScimUser ^. ST.vsuHandle) $
           Brig.setBrigUserHandle uid $
             newScimUser ^. ST.vsuHandle
@@ -646,7 +637,7 @@ synthesizeStoredUser' uid ssoid dname handle richInfo accStatus createdAt lastUp
           ST.ValidScimUser
             { ST._vsuUserRef = sso,
               ST._vsuHandle = handle, -- 'Maybe' there is one in @usr@, but we want to type checker to make sure this exists.
-              ST._vsuName = Just dname,
+              ST._vsuName = dname,
               ST._vsuRichInfo = richInfo,
               ST._vsuActive = ST.scimActiveFlagFromAccountStatus accStatus
             }
@@ -656,12 +647,11 @@ synthesizeStoredUser' uid ssoid dname handle richInfo accStatus createdAt lastUp
 synthesizeScimUser :: ST.ValidScimUser -> Scim.User ST.SparTag
 synthesizeScimUser info =
   let Handle userName = info ^. ST.vsuHandle
-      mDisplayName = fromName <$> (info ^. ST.vsuName)
       toExternalId' :: SAML.UserRef -> Maybe Text
       toExternalId' = either (const Nothing) Just . Brig.toExternalId . Brig.toUserSSOId
    in (Scim.empty ST.userSchemas userName (ST.ScimUserExtra (info ^. ST.vsuRichInfo)))
         { Scim.externalId = toExternalId' $ info ^. ST.vsuUserRef,
-          Scim.displayName = mDisplayName,
+          Scim.displayName = Just $ fromName (info ^. ST.vsuName),
           Scim.active = Just $ info ^. ST.vsuActive
         }
 
