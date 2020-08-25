@@ -36,6 +36,7 @@ module Wire.API.User
     -- * NewUser
     NewUserPublic (..),
     NewUser (..),
+    emptyNewUser,
     ExpiresIn,
     newUserInvitationCode,
     newUserTeam,
@@ -513,6 +514,25 @@ data NewUser = NewUser
     newUserManagedBy :: Maybe ManagedBy
   }
   deriving stock (Eq, Show, Generic)
+
+emptyNewUser :: Name -> NewUser
+emptyNewUser name =
+  NewUser
+    { newUserDisplayName = name,
+      newUserUUID = Nothing,
+      newUserIdentity = Nothing,
+      newUserPict = Nothing,
+      newUserAssets = [],
+      newUserAccentId = Nothing,
+      newUserEmailCode = Nothing,
+      newUserPhoneCode = Nothing,
+      newUserOrigin = Nothing,
+      newUserLabel = Nothing,
+      newUserLocale = Nothing,
+      newUserPassword = Nothing,
+      newUserExpiresIn = Nothing,
+      newUserManagedBy = Nothing
+    }
 
 -- | 1 second - 1 week
 type ExpiresIn = Range 1 604800 Integer
