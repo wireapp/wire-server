@@ -99,19 +99,19 @@ options =
 
 makeDeb :: MakeDebOpts -> IO ()
 makeDeb opts = shelly . silently . withTmpDir $ \tmp -> do
-  void . escaping False $ cmd "cp" "-R" "-L" (deb opts </> "*") tmp
-  let opts' = opts {deb = tmp}
+  void . escaping False $ run "cp" ["-R", "-L", Text.pack $ encodeString (deb opts) </> "*", Text.pack tmp]
+  let opts' = opts {deb = decodeString tmp}
   substitute opts'
   package opts'
 
 package :: MakeDebOpts -> Sh ()
 package MakeDebOpts {..} = do
   let f = name <> "_" <> version <> "+" <> build <> "_" <> arch
-  cmd "dpkg-deb" "-b" deb (out </> fromText f <.> "deb")
+  run_ "dpkg-deb" ["-b", Text.pack $ encodeString deb, Text.pack $ encodeString out </> fromText f <.> "deb"]
 
 substitute :: MakeDebOpts -> Sh ()
 substitute MakeDebOpts {..} = flip traverseFiles (encodeString deb) $ \fname -> do
-  mime <- cmd "file" "--brief" "--mime" (decodeString fname)
+  mime <- run "file" ["--brief", "--mime", Text.pack fname]
   when ("text/plain" `Text.isPrefixOf` mime) $
     replace
       [ ("<<VERSION_NUMBER>>", version),
