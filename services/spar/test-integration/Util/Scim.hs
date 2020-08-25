@@ -530,6 +530,10 @@ scimUserId = Scim.id . Scim.thing
 --
 -- Note: we don't compare rich info here, because 'User' doesn't contain it. However, we have
 -- separate tests for rich info that cover that.
+--
+-- FUTUREWORK: tenant, subject, subjectraw are not scim concepts, we should use the
+-- corresponding scim terminology for that.  subjectraw is externalId; the other two don't
+-- have exact correspondences.  perhaps they can be removed?  or changed to fit scim better?
 class IsUser u where
   maybeUserId :: Maybe (u -> UserId)
   maybeHandle :: Maybe (u -> Maybe Handle)
