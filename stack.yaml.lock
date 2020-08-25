@@ -534,13 +534,6 @@ packages:
     git: https://gitlab.com/axeman/wai-predicates.git
     commit: dc8813c17645251c050599485cdc2b5874daac30
 - completed:
-    hackage: quickcheck-state-machine-0.7.0@sha256:4fc4467380e35b88aab72c278856aacebbf95688059d8ad70eb82fe048df476b,4958
-    pantry-tree:
-      size: 3022
-      sha256: 045794fff983e385560b321ff5576f6ec5c2821748c3042053f72daaca7beba8
-  original:
-    hackage: quickcheck-state-machine-0.7.0@sha256:4fc4467380e35b88aab72c278856aacebbf95688059d8ad70eb82fe048df476b,4958
-- completed:
     hackage: markov-chain-usage-model-0.0.0@sha256:1afa95faeb9213c4d960a669190078b41b89169462b8edd910472980671ba8c0,2112
     pantry-tree:
       size: 432
@@ -580,6 +573,13 @@ packages:
   original:
     git: https://github.com/zoominsoftware/HaskellNet-SSL
     commit: 5b4f4ab49a6321b57f6dbeba64a7f4bb8ffa5cbc
+- completed:
+    hackage: quickcheck-state-machine-0.6.0@sha256:3e4f8df0f6b5d415e3c8840dc75034a63e37f56f5f8cfa1035ded16345235ac4,3825
+    pantry-tree:
+      size: 1926
+      sha256: ae502fd7f4c6680294149bed482d1896904c1259d5ae614093da01e0731ec92e
+  original:
+    hackage: quickcheck-state-machine-0.6.0
 snapshots:
 - completed:
     size: 531932

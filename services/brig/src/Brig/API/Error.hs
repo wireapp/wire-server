@@ -38,7 +38,7 @@ import Imports
 import Network.HTTP.Types.Header
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
-import Type.Reflection (Typeable, typeRep)
+import Type.Reflection (typeRep)
 
 data Error where
   StdError :: !Wai.Error -> Error

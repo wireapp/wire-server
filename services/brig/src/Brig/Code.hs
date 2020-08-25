@@ -127,7 +127,7 @@ instance Cql Scope where
   fromCql (CqlInt 3) = return PasswordReset
   fromCql (CqlInt 4) = return AccountLogin
   fromCql (CqlInt 5) = return AccountApproval
-  fromCql _ = fail "fromCql: Scope: int expected"
+  fromCql _ = Left "fromCql: Scope: int expected"
 
 newtype Retries = Retries {numRetries :: Word8}
   deriving (Eq, Show, Ord, Num, Integral, Enum, Real)
@@ -136,7 +136,7 @@ instance Cql Retries where
   ctype = Tagged IntColumn
   toCql = CqlInt . fromIntegral . numRetries
   fromCql (CqlInt n) = return (Retries (fromIntegral n))
-  fromCql _ = fail "fromCql: Retries: int expected"
+  fromCql _ = Left "fromCql: Retries: int expected"
 
 --------------------------------------------------------------------------------
 -- Generation

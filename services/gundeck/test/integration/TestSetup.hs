@@ -39,7 +39,6 @@ import Bilge (HttpT (..), Manager, MonadHttp, Request, runHttpT)
 import qualified Cassandra as Cql
 import Control.Lens (makeLenses, (^.))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
-import Control.Monad.Fail (MonadFail)
 import Imports
 import qualified System.Logger as Log
 import Test.Tasty (TestName, TestTree)

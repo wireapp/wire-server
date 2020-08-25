@@ -36,7 +36,7 @@ import qualified Cassandra.Exec as Cql
 import qualified Control.Concurrent.Async as Async
 import Control.Concurrent.Chan
 import Control.Concurrent.Timeout hiding (threadDelay)
-import Control.Exception (SomeAsyncException, asyncExceptionFromException)
+import Control.Exception (asyncExceptionFromException)
 import Control.Lens
 import Control.Monad.Catch
 import Control.Retry (RetryPolicy, RetryStatus, exponentialBackoff, limitRetries, retrying)
@@ -83,7 +83,6 @@ import Test.QuickCheck.Instances ()
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
-import Test.Tasty.HUnit (assertBool)
 import TestHelpers
 import TestSetup
 import qualified Wire.API.Team.Feature as Public

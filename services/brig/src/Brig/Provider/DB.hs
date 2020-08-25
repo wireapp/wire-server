@@ -29,7 +29,6 @@ import Brig.Types.Provider.Tag
 import Cassandra as C
 import Control.Arrow ((&&&))
 import Data.Id
-import Data.List (minimumBy, sortOn, uncons, unfoldr)
 import Data.List1 (List1)
 import Data.Misc
 import Data.Range (Range, fromRange, rcast, rnil)

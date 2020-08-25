@@ -189,7 +189,6 @@ extra-deps:
 # - wai-predicates-0.10.0@sha256:6b096fd8c4487e06e910911ed35447756aa217426c39db44a4bdc55e0131b9aa,2849
 - git: https://gitlab.com/axeman/wai-predicates.git
   commit: dc8813c17645251c050599485cdc2b5874daac30
-- quickcheck-state-machine-0.7.0@sha256:4fc4467380e35b88aab72c278856aacebbf95688059d8ad70eb82fe048df476b,4958
 - markov-chain-usage-model-0.0.0@sha256:1afa95faeb9213c4d960a669190078b41b89169462b8edd910472980671ba8c0,2112
 
 # Forked due to ghc-8.8
@@ -200,3 +199,6 @@ extra-deps:
   commit: e113fa4de8fcc3665c3c562a05a07f7a1d63b3cc # ghc-8.8 (Aug 24, 2020)
 - git: https://github.com/zoominsoftware/HaskellNet-SSL
   commit: 5b4f4ab49a6321b57f6dbeba64a7f4bb8ffa5cbc # allow-newer-network, dpwright/HaskellNet-SSL#24  (Aug 24, 2020)
+
+# Not in the LTS, not using latest on hackage due to breaking change
+- quickcheck-state-machine-0.6.0

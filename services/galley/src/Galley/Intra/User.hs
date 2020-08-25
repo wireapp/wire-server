@@ -30,7 +30,6 @@ import Bilge hiding (getHeader, options, statusCode)
 import Bilge.RPC
 import Brig.Types.Connection (ConnectionsStatusRequest (..), Relation (..), UserIds (..))
 import Brig.Types.Intra
-import Brig.Types.Intra (ConnectionStatus (..), ReAuthUser (..))
 import Brig.Types.User (User)
 import Control.Monad.Catch (throwM)
 import Data.ByteString.Char8 (pack)
@@ -40,7 +39,7 @@ import Data.Id
 import Galley.App
 import Galley.Intra.Util
 import Imports
-import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..))
+import Network.HTTP.Client (HttpExceptionContent (..))
 import qualified Network.HTTP.Client.Internal as Http
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
