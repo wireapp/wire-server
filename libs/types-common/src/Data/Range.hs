@@ -89,6 +89,10 @@ newtype Range (n :: Nat) (m :: Nat) a = Range
   }
   deriving (Eq, Ord, Show)
 
+instance (Show a, Num a, Within a n m, KnownNat n, KnownNat m) => Bounded (Range n m a) where
+  minBound = unsafeRange $ (fromKnownNat (Proxy @n) :: a)
+  maxBound = unsafeRange $ (fromKnownNat (Proxy @m) :: a)
+
 instance NFData (Range n m a) where rnf (Range a) = seq a ()
 
 instance ToJSON a => ToJSON (Range n m a) where
