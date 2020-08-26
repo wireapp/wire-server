@@ -81,18 +81,18 @@ insertInvitation ::
   MonadClient m =>
   TeamId ->
   Role ->
-  Email ->
   UTCTime ->
   Maybe UserId ->
+  Email ->
   Maybe Name ->
   Maybe Phone ->
   -- | The timeout for the invitation code.
   Timeout ->
   m (Invitation, InvitationCode)
-insertInvitation t role email (toUTCTimeMillis -> now) minviter inviteeName phone timeout = do
+insertInvitation t role (toUTCTimeMillis -> now) minviter email inviteeName phone timeout = do
   iid <- liftIO mkInvitationId
   code <- liftIO mkInvitationCode
-  let inv = Invitation t role iid email now minviter inviteeName phone
+  let inv = Invitation t role iid now minviter email inviteeName phone
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency Quorum
@@ -114,8 +114,8 @@ lookupInvitation t r =
   fmap toInvitation
     <$> retry x1 (query1 cqlInvitation (params Quorum (t, r)))
   where
-    cqlInvitation :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, Email, UTCTimeMillis, Maybe UserId, Maybe Name, Maybe Phone)
-    cqlInvitation = "SELECT team, role, id, email, created_at, created_by, name, phone FROM team_invitation WHERE team = ? AND id = ?"
+    cqlInvitation :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, UTCTimeMillis, Maybe UserId, Email, Maybe Name, Maybe Phone)
+    cqlInvitation = "SELECT team, role, id, created_at, created_by, email, name, phone FROM team_invitation WHERE team = ? AND id = ?"
 
 lookupInvitationByCode :: MonadClient m => InvitationCode -> m (Maybe Invitation)
 lookupInvitationByCode i =
@@ -151,10 +151,10 @@ lookupInvitations team start (fromRange -> size) = do
           { result = invs,
             hasMore = more
           }
-    cqlSelect :: PrepQuery R (Identity TeamId) (TeamId, Maybe Role, InvitationId, Email, UTCTimeMillis, Maybe UserId, Maybe Name, Maybe Phone)
-    cqlSelect = "SELECT team, role, id, email, created_at, created_by, name, phone FROM team_invitation WHERE team = ? ORDER BY id ASC"
-    cqlSelectFrom :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, Email, UTCTimeMillis, Maybe UserId, Maybe Name, Maybe Phone)
-    cqlSelectFrom = "SELECT team, role, id, email, created_at, created_by, name, phone FROM team_invitation WHERE team = ? AND id > ? ORDER BY id ASC"
+    cqlSelect :: PrepQuery R (Identity TeamId) (TeamId, Maybe Role, InvitationId, UTCTimeMillis, Maybe UserId, Email, Maybe Name, Maybe Phone)
+    cqlSelect = "SELECT team, role, id, created_at, created_by, email, name, phone FROM team_invitation WHERE team = ? ORDER BY id ASC"
+    cqlSelectFrom :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, UTCTimeMillis, Maybe UserId, Email, Maybe Name, Maybe Phone)
+    cqlSelectFrom = "SELECT team, role, id, created_at, created_by, email, name, phone FROM team_invitation WHERE team = ? AND id > ? ORDER BY id ASC"
 
 deleteInvitation :: MonadClient m => TeamId -> InvitationId -> m ()
 deleteInvitation t i = do
@@ -231,5 +231,16 @@ countInvitations t =
 
 -- | brig used to not store the role, so for migration we allow this to be empty and fill in the
 -- default here.
-toInvitation :: (TeamId, Maybe Role, InvitationId, Email, UTCTimeMillis, Maybe UserId, Maybe Name, Maybe Phone) -> Invitation
-toInvitation (t, r, i, e, tm, minviter, inviteeName, p) = Invitation t (fromMaybe Team.defaultRole r) i e tm minviter inviteeName p
+toInvitation ::
+  ( TeamId,
+    Maybe Role,
+    InvitationId,
+    UTCTimeMillis,
+    Maybe UserId,
+    Email,
+    Maybe Name,
+    Maybe Phone
+  ) ->
+  Invitation
+toInvitation (t, r, i, tm, minviter, e, inviteeName, p) =
+  Invitation t (fromMaybe Team.defaultRole r) i tm minviter e inviteeName p

@@ -28,6 +28,8 @@ module Brig.API.User
     changeEmail,
     changePhone,
     changeHandle,
+    CheckHandleResp (..),
+    checkHandle,
     lookupHandle,
     changeManagedBy,
     changeAccountStatus,
@@ -36,7 +38,6 @@ module Brig.API.User
     Data.lookupAccount,
     Data.lookupStatus,
     lookupAccountsByIdentity,
-    lookupSelfProfile,
     lookupProfile,
     lookupProfiles,
     Data.lookupName,
@@ -84,7 +85,9 @@ module Brig.API.User
 where
 
 import qualified Brig.API.Error as Error
+import qualified Brig.API.Handler as API (Handler)
 import Brig.API.Types
+import Brig.API.Util (fetchUserIdentity, validateHandle)
 import Brig.App
 import qualified Brig.Code as Code
 import Brig.Data.Activation (ActivationEvent (..))
@@ -183,7 +186,7 @@ createUser new@NewUser {..} = do
       _ -> return Nothing
   (teamEmailInvited, joinedTeamInvite) <- case teamInvitation of
     Just (inv, invInfo) -> do
-      let em = Team.inIdentity inv
+      let em = Team.inInviteeEmail inv
       acceptTeamInvitation account inv invInfo (userEmailKey em) (EmailIdentity em)
       Team.TeamName nm <- lift $ Intra.getTeamName (Team.inTeam inv)
       return (True, Just $ CreateUserTeam (Team.inTeam inv) nm)
@@ -261,7 +264,7 @@ createUser new@NewUser {..} = do
       lift (Team.lookupInvitationInfo c) >>= \case
         Just ii -> do
           inv <- lift $ Team.lookupInvitation (Team.iiTeam ii) (Team.iiInvId ii)
-          case (inv, Team.inIdentity <$> inv) of
+          case (inv, Team.inInviteeEmail <$> inv) of
             (Just invite, Just em)
               | e == userEmailKey em -> do
                 _ <- ensureMemberCanJoin (Team.iiTeam ii)
@@ -381,6 +384,33 @@ changeHandle uid conn hdl = do
       unless claimed $
         throwE ChangeHandleExists
       lift $ Intra.onUserEvent uid (Just conn) (handleUpdated uid hdl)
+
+--------------------------------------------------------------------------------
+-- Check Handle
+
+data CheckHandleResp
+  = CheckHandleInvalid
+  | CheckHandleFound
+  | CheckHandleNotFound
+
+checkHandle :: Text -> API.Handler CheckHandleResp
+checkHandle uhandle = do
+  xhandle <- validateHandle uhandle
+  owner <- lift $ lookupHandle xhandle
+  if
+      | isJust owner ->
+        -- Handle is taken (=> getHandleInfo will return 200)
+        return CheckHandleFound
+      | isBlacklistedHandle xhandle ->
+        -- Handle is free but cannot be taken
+        --
+        -- FUTUREWORK: i wonder if this is correct?  isn't this the error for malformed
+        -- handles?  shouldn't we throw not-found here?  or should there be a fourth case
+        -- 'CheckHandleBlacklisted'?
+        return CheckHandleInvalid
+      | otherwise ->
+        -- Handle is free and can be taken
+        return CheckHandleNotFound
 
 --------------------------------------------------------------------------------
 -- Check Handles
@@ -1029,12 +1059,6 @@ getEmailForProfile profileOwner (EmailVisibleIfOnSameTeam' (Just (viewerTeamId, 
 getEmailForProfile _ (EmailVisibleIfOnSameTeam' Nothing) = Nothing
 getEmailForProfile _ EmailVisibleToSelf' = Nothing
 
--- | Obtain a profile for a user as he can see himself.
-lookupSelfProfile :: UserId -> AppIO (Maybe SelfProfile)
-lookupSelfProfile = fmap (fmap mk) . Data.lookupAccount
-  where
-    mk a = SelfProfile (accountUser a)
-
 -- | Find user accounts for a given identity, both activated and those
 -- currently pending activation.
 lookupAccountsByIdentity :: Either Email Phone -> AppIO [UserAccount]
@@ -1067,14 +1091,3 @@ phonePrefixDelete = Blacklist.deletePrefix
 
 phonePrefixInsert :: ExcludedPrefix -> AppIO ()
 phonePrefixInsert = Blacklist.insertPrefix
-
--------------------------------------------------------------------------------
--- Utilities
-
--- TODO: Move to a util module or similar
-fetchUserIdentity :: UserId -> AppIO (Maybe UserIdentity)
-fetchUserIdentity uid =
-  lookupSelfProfile uid
-    >>= maybe
-      (throwM $ UserProfileNotFound uid)
-      (return . userIdentity . selfUser)

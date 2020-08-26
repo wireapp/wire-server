@@ -292,8 +292,7 @@ addUserToTeamWithRole' :: HasCallStack => Maybe Role -> UserId -> TeamId -> Test
 addUserToTeamWithRole' role inviter tid = do
   brig <- view tsBrig
   inviteeEmail <- randomEmail
-  let name = Name $ fromEmail inviteeEmail
-  let invite = InvitationRequest inviteeEmail name Nothing role Nothing Nothing
+  let invite = InvitationRequest Nothing role Nothing inviteeEmail Nothing
   invResponse <- postInvitation tid inviter invite
   inv <- responseJsonError invResponse
   Just inviteeCode <- getInvitationCode tid (inInvitation inv)
@@ -301,7 +300,7 @@ addUserToTeamWithRole' role inviter tid = do
     post
       ( brig . path "/register"
           . contentJson
-          . body (acceptInviteBody name inviteeEmail inviteeCode)
+          . body (acceptInviteBody inviteeEmail inviteeCode)
       )
   return (inv, r)
 
@@ -326,11 +325,11 @@ makeOwner owner mem tid = do
     !!! const 200
     === statusCode
 
-acceptInviteBody :: Name -> Email -> InvitationCode -> RequestBody
-acceptInviteBody name email code =
+acceptInviteBody :: Email -> InvitationCode -> RequestBody
+acceptInviteBody email code =
   RequestBodyLBS . encode $
     object
-      [ "name" .= fromName name,
+      [ "name" .= Name "bob",
         "email" .= fromEmail email,
         "password" .= defPassword,
         "team_code" .= code

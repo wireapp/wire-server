@@ -358,7 +358,7 @@ inviteAndRegisterUser ::
   m User
 inviteAndRegisterUser brig u tid = do
   inviteeEmail <- randomEmail
-  let invite = TeamInvitation.InvitationRequest inviteeEmail (User.Name "Bob") Nothing Nothing Nothing Nothing
+  let invite = stdInvitationRequest inviteeEmail
   inv <- responseJsonError =<< postInvitation tid u invite
   Just inviteeCode <- getInvitationCode tid (TeamInvitation.inInvitation inv)
   rspInvitee <-
@@ -1172,3 +1172,12 @@ checkErr status mlabel = do
 
 checkErrHspec :: HasCallStack => Int -> TestErrorLabel -> ResponseLBS -> Bool
 checkErrHspec status label resp = status == statusCode resp && responseJsonEither resp == Right label
+
+-- | copied from brig integration tests
+stdInvitationRequest :: User.Email -> TeamInvitation.InvitationRequest
+stdInvitationRequest = stdInvitationRequest' Nothing Nothing
+
+-- | copied from brig integration tests
+stdInvitationRequest' :: Maybe User.Locale -> Maybe Galley.Role -> User.Email -> TeamInvitation.InvitationRequest
+stdInvitationRequest' loc role email =
+  TeamInvitation.InvitationRequest loc role Nothing email Nothing
