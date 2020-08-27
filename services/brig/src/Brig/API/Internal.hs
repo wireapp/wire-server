@@ -89,7 +89,7 @@ sitemap = do
     accept "application" "json"
       .&. jsonRequest @NewUser
 
-  -- internal email activation (used in tests and in spar for validating emails obtains as
+  -- internal email activation (used in tests and in spar for validating emails obtained as
   -- SAML user identifiers).  if the validate query parameter is false or missing, only set
   -- the activation timeout, but do not send an email, and do not do anything about activating
   -- the email.
