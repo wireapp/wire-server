@@ -243,9 +243,9 @@ bulkGetTeamMembersTruncated usr tid uids trnc = do
     )
 
 getTeamMember :: HasCallStack => UserId -> TeamId -> UserId -> TestM TeamMember
-getTeamMember usr tid mid = do
+getTeamMember getter tid gettee = do
   g <- view tsGalley
-  r <- get (g . paths ["teams", toByteString' tid, "members", toByteString' mid] . zUser usr) <!! const 200 === statusCode
+  r <- get (g . paths ["teams", toByteString' tid, "members", toByteString' gettee] . zUser getter) <!! const 200 === statusCode
   responseJsonError r
 
 getTeamMemberInternal :: HasCallStack => TeamId -> UserId -> TestM TeamMember
@@ -282,7 +282,7 @@ addUserToTeamWithRole role inviter tid = do
   let invitee :: User = responseJsonUnsafe rsp2
       inviteeId = Brig.Types.userId invitee
   let invmeta = Just (inviter, inCreatedAt inv)
-  mem <- getTeamMember inviteeId tid inviteeId
+  mem <- getTeamMember inviter tid inviteeId
   liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Team.invitation)
   let zuid = parseSetCookie <$> getHeader "Set-Cookie" rsp2
   liftIO $ assertEqual "Wrong cookie" (Just "zuid") (setCookieName <$> zuid)
