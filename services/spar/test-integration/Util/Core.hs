@@ -47,6 +47,7 @@ module Util.Core
     endpointToURL,
 
     -- * Other
+    randomEmail,
     defPassword,
     getUserBrig,
     createUserWithTeam,
@@ -741,7 +742,7 @@ registerTestIdPWithMeta ::
   (HasCallStack, MonadRandom m, MonadIO m, MonadReader TestEnv m) =>
   m (UserId, TeamId, IdP, (IdPMetadataInfo, SAML.SignPrivCreds))
 registerTestIdPWithMeta = do
-  (SampleIdP idpmeta privkey _ _) <- makeSampleIdPMetadata
+  SampleIdP idpmeta privkey _ _ <- makeSampleIdPMetadata
   env <- ask
   (uid, tid, idp) <- registerTestIdPFrom idpmeta (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
   pure (uid, tid, idp, (IdPMetadataValue (cs $ SAML.encode idpmeta) idpmeta, privkey))

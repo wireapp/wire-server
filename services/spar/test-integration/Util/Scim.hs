@@ -553,9 +553,12 @@ instance IsUser ValidScimUser where
   maybeUserId = Nothing
   maybeHandle = Just (Just . view vsuHandle)
   maybeName = Just (Just . view vsuName)
-  maybeTenant = Just (Just . view (vsuUserRef . SAML.uidTenant))
-  maybeSubject = Just (Just . view (vsuUserRef . SAML.uidSubject))
-  maybeSubjectRaw = Just (SAML.shortShowNameID . view (vsuUserRef . SAML.uidSubject))
+  maybeTenant = Just (^? (vsuExternalId . veidUref . SAML.uidTenant))
+  maybeSubject = Just (^? (vsuExternalId . veidUref . SAML.uidSubject))
+  maybeSubjectRaw = Just (\vsc -> email vsc <|> uref vsc)
+    where
+      email = fmap fromEmail . (^? (vsuExternalId . veidEmail))
+      uref = SAML.shortShowNameID <=< (^? (vsuExternalId . veidUref . SAML.uidSubject))
 
 instance IsUser (WrappedScimStoredUser SparTag) where
   maybeUserId = Just $ scimUserId . fromWrappedScimStoredUser
@@ -632,4 +635,4 @@ urefFromBrig brigUser = case userIdentity brigUser of
 -- what we expect a user that comes back from spar to look like in terms of what it looked
 -- like when we sent it there.
 whatSparReturnsFor :: HasCallStack => IdP -> Int -> Scim.User.User SparTag -> Either String (Scim.User.User SparTag)
-whatSparReturnsFor idp richInfoSizeLimit = either (Left . show) (Right . synthesizeScimUser) . validateScimUser' idp richInfoSizeLimit
+whatSparReturnsFor idp richInfoSizeLimit = either (Left . show) (Right . synthesizeScimUser) . validateScimUser' (Just idp) richInfoSizeLimit

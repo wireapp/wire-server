@@ -173,7 +173,7 @@ instance FromJSON ScimTokenInfo where
     stiTeam <- o .: "team"
     stiId <- o .: "id"
     stiCreatedAt <- o .: "created_at"
-    stiIdP <- o .: "idp"
+    stiIdP <- o .:? "idp"
     stiDescr <- o .: "description"
     pure ScimTokenInfo {..}
 

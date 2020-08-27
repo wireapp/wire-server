@@ -238,7 +238,7 @@ updateEmail u e = retry x5 $ write userEmailUpdate (params Quorum (e, u))
 updatePhone :: UserId -> Phone -> AppIO ()
 updatePhone u p = retry x5 $ write userPhoneUpdate (params Quorum (p, u))
 
-updateSSOId :: UserId -> UserSSOId -> AppIO Bool
+updateSSOId :: UserId -> Maybe UserSSOId -> AppIO Bool
 updateSSOId u ssoid = do
   mteamid <- lookupUserTeam u
   case mteamid of
@@ -549,7 +549,7 @@ userEmailUpdate = "UPDATE user SET email = ? WHERE id = ?"
 userPhoneUpdate :: PrepQuery W (Phone, UserId) ()
 userPhoneUpdate = "UPDATE user SET phone = ? WHERE id = ?"
 
-userSSOIdUpdate :: PrepQuery W (UserSSOId, UserId) ()
+userSSOIdUpdate :: PrepQuery W (Maybe UserSSOId, UserId) ()
 userSSOIdUpdate = "UPDATE user SET sso_id = ? WHERE id = ?"
 
 userManagedByUpdate :: PrepQuery W (ManagedBy, UserId) ()

@@ -175,6 +175,10 @@ sitemap = do
       .&. accept "application" "json"
       .&. jsonRequest @UserSSOId
 
+  delete "/i/users/:uid/sso-id" (continue deleteSSOIdH) $
+    capture "uid"
+      .&. accept "application" "json"
+
   put "/i/users/:uid/managed-by" (continue updateManagedByH) $
     capture "uid"
       .&. accept "application" "json"
@@ -451,7 +455,14 @@ addPhonePrefixH (_ ::: req) = do
 updateSSOIdH :: UserId ::: JSON ::: JsonRequest UserSSOId -> Handler Response
 updateSSOIdH (uid ::: _ ::: req) = do
   ssoid :: UserSSOId <- parseJsonBody req
-  success <- lift $ Data.updateSSOId uid ssoid
+  success <- lift $ Data.updateSSOId uid (Just ssoid)
+  if success
+    then return empty
+    else return . setStatus status404 $ plain "User does not exist or has no team."
+
+deleteSSOIdH :: UserId ::: JSON -> Handler Response
+deleteSSOIdH (uid ::: _) = do
+  success <- lift $ Data.updateSSOId uid Nothing
   if success
     then return empty
     else return . setStatus status404 $ plain "User does not exist or has no team."

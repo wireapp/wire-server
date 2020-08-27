@@ -40,9 +40,10 @@
 -- * Request and response types for SCIM-related endpoints.
 module Spar.Scim.Types where
 
+import Brig.Types.Common (Email)
 import Brig.Types.Intra (AccountStatus (Active, Deleted, Ephemeral, Suspended))
 import qualified Brig.Types.User as BT
-import Control.Lens (makeLenses)
+import Control.Lens (Prism', makeLenses, prism')
 import Control.Monad.Except (throwError)
 import qualified Data.Aeson as Aeson
 import qualified Data.CaseInsensitive as CI
@@ -196,11 +197,8 @@ instance Scim.Patchable ScimUserExtra where
 -- [here](https://tools.ietf.org/html/rfc7644#section-3.3): "Since the server is free to alter
 -- and/or ignore POSTed content, returning the full representation can be useful to the
 -- client, enabling it to correlate the client's and server's views of the new resource."
---
--- FUTUREWORK: make '_vsuUserRef' a 'Maybe' and allow for SCIM users without a SAML SSO
--- identity.
 data ValidScimUser = ValidScimUser
-  { _vsuUserRef :: SAML.UserRef,
+  { _vsuExternalId :: ValidExternalId,
     _vsuHandle :: Handle,
     _vsuName :: BT.Name,
     _vsuRichInfo :: RI.RichInfo,
@@ -208,7 +206,35 @@ data ValidScimUser = ValidScimUser
   }
   deriving (Eq, Show)
 
+data ValidExternalId
+  = EmailAndUref Email SAML.UserRef
+  | UrefOnly SAML.UserRef
+  | EmailOnly Email
+  deriving (Eq, Show)
+
+-- | Take apart a 'ValidExternalId', using 'SAML.UserRef' if available, otehrwise 'Email'.
+runValidExternalId :: (SAML.UserRef -> a) -> (Email -> a) -> ValidExternalId -> a
+runValidExternalId doUref doEmail = \case
+  EmailAndUref _ uref -> doUref uref
+  UrefOnly uref -> doUref uref
+  EmailOnly email -> doEmail email
+
+veidUref :: Prism' ValidExternalId SAML.UserRef
+veidUref = prism' UrefOnly $
+  \case
+    EmailAndUref _ uref -> Just uref
+    UrefOnly uref -> Just uref
+    EmailOnly _ -> Nothing
+
+veidEmail :: Prism' ValidExternalId Email
+veidEmail = prism' EmailOnly $
+  \case
+    EmailAndUref email _ -> Just email
+    UrefOnly _ -> Nothing
+    EmailOnly email -> Just email
+
 makeLenses ''ValidScimUser
+makeLenses ''ValidExternalId
 
 scimActiveFlagFromAccountStatus :: AccountStatus -> Bool
 scimActiveFlagFromAccountStatus = \case
