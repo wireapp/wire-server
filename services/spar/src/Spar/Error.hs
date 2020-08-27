@@ -68,7 +68,6 @@ data SparCustomError
   | SparSSODisabled
   | SparInitLoginWithAuth
   | SparInitBindWithoutAuth
-  | SparBindUserDisappearedFromBrig
   | SparNoSuchRequest
   | SparNoRequestRefInResponse LT
   | SparCouldNotSubstituteSuccessURI LT
@@ -169,7 +168,6 @@ renderSparError (SAML.CustomError SparNotTeamOwner) = Right $ Wai.Error status40
 renderSparError (SAML.CustomError SparSSODisabled) = Right $ Wai.Error status403 "sso-disabled" "Please ask customer support to enable this feature for your team."
 renderSparError (SAML.CustomError SparInitLoginWithAuth) = Right $ Wai.Error status403 "login-with-auth" "This end-point is only for login, not binding."
 renderSparError (SAML.CustomError SparInitBindWithoutAuth) = Right $ Wai.Error status403 "bind-without-auth" "This end-point is only for binding, not login."
-renderSparError (SAML.CustomError SparBindUserDisappearedFromBrig) = Right $ Wai.Error status404 "bind-user-disappeared" "Your user appears to have been deleted?"
 renderSparError SAML.UnknownError = Right $ Wai.Error status500 "server-error" "Unknown server error."
 renderSparError (SAML.BadServerConfig msg) = Right $ Wai.Error status500 "server-error" ("Error in server config: " <> msg)
 renderSparError (SAML.InvalidCert msg) = Right $ Wai.Error status500 "invalid-certificate" ("Error in idp certificate: " <> msg)

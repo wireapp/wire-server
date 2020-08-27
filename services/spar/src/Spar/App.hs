@@ -245,11 +245,7 @@ bindUser buid userref = do
     (uteamid == Just teamid)
     (throwSpar . SparBindFromWrongOrNoTeam . cs . show $ uteamid)
   insertUser userref buid
-  Intra.bindBrigUser buid userref >>= \case
-    True -> pure buid
-    False -> do
-      SAML.logger SAML.Warn $ "SparBindUserDisappearedFromBrig: " <> show buid
-      throwSpar SparBindUserDisappearedFromBrig
+  buid <$ Intra.setBrigUserUserRef buid userref
 
 instance SPHandler SparError Spar where
   type NTCTX Spar = Env

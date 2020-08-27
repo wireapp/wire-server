@@ -386,11 +386,7 @@ updateValidScimUser tokinfo uid newScimUser = do
         lift . wrapMonadClient $ Data.deleteSAMLUser olduref
         lift . wrapMonadClient $ Data.insertSAMLUser newuref uid
       -- update 'SAML.UserRef' on brig
-      bindok <- lift $ Brig.bindBrigUser uid newuref
-      unless bindok . throwError $
-        Scim.serverError "Failed to update SAML UserRef on brig."
-      -- this can only happen if user is found in spar.scim_user, but missing on brig.
-      -- (internal error?  race condition?)
+      lift $ Brig.setBrigUserUserRef uid newuref
 
       -- TODO: if the user has been suspended or unsuspended in brig since the last scim
       -- write, we'll find the wrong information here.
