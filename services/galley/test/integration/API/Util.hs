@@ -278,7 +278,7 @@ addUserToTeam' u t = snd <$> addUserToTeamWithRole' Nothing u t
 
 addUserToTeamWithRole :: HasCallStack => Maybe Role -> UserId -> TeamId -> TestM TeamMember
 addUserToTeamWithRole role inviter tid = do
-  (inv, rsp2) <- addUserToTeamWithRole' role inviter tid -- TODO: <!! const 201 === statusCode
+  (inv, rsp2) <- addUserToTeamWithRole' role inviter tid
   let invitee :: User = responseJsonUnsafe rsp2
       inviteeId = Brig.Types.userId invitee
   let invmeta = Just (inviter, inCreatedAt inv)
