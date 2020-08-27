@@ -318,22 +318,13 @@ createUser new@NewUser {..} = do
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.
 checkRestrictedUserCreation :: NewUser -> ExceptT CreateUserError AppIO ()
 checkRestrictedUserCreation new = do
-  let nTeam = newUserTeam new
-      nExpires = newUserExpiresIn new
-
   restrictPlease <- lift . asks $ fromMaybe False . setRestrictUserCreation . view settings
   when
     ( restrictPlease
-        && not (isTeamMember nTeam)
-        && not (isEphemeral nExpires)
+        && not (isNewUserTeamMember new)
+        && not (isNewUserEphemeral new)
     )
     $ throwE UserCreationRestricted
-  where
-    isTeamMember (Just (NewTeamMember _)) = True
-    isTeamMember (Just (NewTeamMemberSSO _)) = True
-    isTeamMember _ = False
-    isEphemeral (Just _) = True
-    isEphemeral _ = False
 
 -------------------------------------------------------------------------------
 -- Update Profile
