@@ -37,7 +37,6 @@ module Spar.Intra.Brig
     deleteBrigUser,
     createBrigUser,
     updateEmail,
-    isTeamUser,
     getZUsrOwnedTeam,
     ensureReAuthorised,
     ssoLogin,
@@ -372,10 +371,6 @@ deleteBrigUser buid = do
         throwSpar $ SparBrigErrorWith (responseStatus resp) "failed to delete user"
       | otherwise ->
         throwSpar $ SparBrigError ("delete user failed with status " <> cs (show sCode))
-
--- | Check that a user id exists on brig and has a team id.
-isTeamUser :: (HasCallStack, MonadSparToBrig m) => UserId -> m Bool
-isTeamUser buid = isJust <$> getBrigUserTeam buid
 
 -- | Check that a user id exists on brig and has a team id.
 getBrigUserTeam :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe TeamId)

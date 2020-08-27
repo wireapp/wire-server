@@ -169,7 +169,7 @@ getUser uref = do
   case muid of
     Nothing -> pure Nothing
     Just uid -> do
-      itis <- Intra.isTeamUser uid
+      itis <- isJust <$> Intra.getBrigUserTeam uid
       pure $ if itis then Just uid else Nothing
 
 -- | Create a fresh 'Data.Id.UserId', store it on C* locally together with 'SAML.UserRef', then
