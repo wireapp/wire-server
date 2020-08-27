@@ -79,6 +79,7 @@ data InvitationByEmail
 
 insertInvitation ::
   MonadClient m =>
+  InvitationId ->
   TeamId ->
   Role ->
   UTCTime ->
@@ -89,8 +90,7 @@ insertInvitation ::
   -- | The timeout for the invitation code.
   Timeout ->
   m (Invitation, InvitationCode)
-insertInvitation t role (toUTCTimeMillis -> now) minviter email inviteeName phone timeout = do
-  iid <- liftIO mkInvitationId
+insertInvitation iid t role (toUTCTimeMillis -> now) minviter email inviteeName phone timeout = do
   code <- liftIO mkInvitationCode
   let inv = Invitation t role iid now minviter email inviteeName phone
   retry x5 . batch $ do

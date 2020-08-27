@@ -248,9 +248,11 @@ createInvitation uid tid body = do
   when (fromIntegral pending >= maxSize) $
     throwStd tooManyTeamInvitations
 
-  lift $ doInvite inviteeRole inviter (irLocale body) email (irInviteeName body) phone
+  iid <- liftIO DB.mkInvitationId
+  lift $ doInvite iid inviteeRole inviter (irLocale body) email (irInviteeName body) phone
   where
     doInvite ::
+      InvitationId ->
       Team.Role ->
       CreateInvitationInviter ->
       Maybe Public.Locale ->
@@ -258,11 +260,12 @@ createInvitation uid tid body = do
       Maybe Public.Name ->
       Maybe Public.Phone ->
       AppIO Invitation
-    doInvite role inviter lc toEmail toName toPhone = do
+    doInvite iid role inviter lc toEmail toName toPhone = do
       now <- liftIO =<< view currentTime
       timeout <- setTeamInvitationTimeout <$> view settings
       (newInv, code) <-
         DB.insertInvitation
+          iid
           tid
           role
           now
