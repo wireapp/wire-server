@@ -503,7 +503,8 @@ isNewUserTeamMember :: NewUser -> Bool
 isNewUserTeamMember u = case newUserTeam u of
   Just (NewTeamMember _) -> True
   Just (NewTeamMemberSSO _) -> True
-  _ -> False
+  Just (NewTeamCreator _) -> False
+  Nothing -> False
 
 instance Arbitrary NewUserPublic where
   arbitrary = arbitrary `QC.suchThatMap` (rightMay . validateNewUserPublic)
