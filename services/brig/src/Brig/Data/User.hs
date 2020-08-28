@@ -128,9 +128,10 @@ newAccount u inv tid = do
     name = newUserDisplayName u
     pict = fromMaybe noPict (newUserPict u)
     assets = newUserAssets u
-    status = if isNewUserEphemeral u
-      then Ephemeral
-      else Active
+    status =
+      if isNewUserEphemeral u
+        then Ephemeral
+        else Active
     colour = fromMaybe defaultAccentId (newUserAccentId u)
     locale defLoc = fromMaybe defLoc (newUserLocale u)
     managedBy = fromMaybe defaultManagedBy (newUserManagedBy u)
