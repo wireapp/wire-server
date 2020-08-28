@@ -276,7 +276,6 @@ createInvitation uid tid body = do
           timeout
       newInv <$ sendInvitationMail toEmail tid (inviterEmail inviter) code lc
 
-
 deleteInvitationH :: JSON ::: UserId ::: TeamId ::: InvitationId -> Handler Response
 deleteInvitationH (_ ::: uid ::: tid ::: iid) = do
   empty <$ deleteInvitation uid tid iid
