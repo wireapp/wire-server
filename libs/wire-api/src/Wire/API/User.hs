@@ -497,9 +497,7 @@ validateNewUserPublic nu
 -- | Any user registering without either an email or a phone is Ephemeral,
 -- i.e. can be deleted after expires_in or sessionTokenTimeout
 isNewUserEphemeral :: NewUser -> Bool
-isNewUserEphemeral u = case newUserIdentity u of
-  Nothing -> True
-  Just _ -> False
+isNewUserEphemeral = isNothing . newUserIdentity
 
 isNewUserTeamMember :: NewUser -> Bool
 isNewUserTeamMember u = case newUserTeam u of
