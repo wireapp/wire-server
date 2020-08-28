@@ -63,16 +63,18 @@ freeHandle u h = do
 
 -- | Lookup the current owner of a 'Handle'.
 lookupHandle :: Handle -> AppIO (Maybe UserId)
-lookupHandle h =
-  join . fmap runIdentity
-    <$> retry x1 (query1 handleSelect (params Quorum (Identity h)))
+lookupHandle = lookupHandleWithPolicy Quorum
 
 -- | A weaker version of 'lookupHandle' that trades availability
 -- (and potentially speed) for the possibility of returning stale data.
 glimpseHandle :: Handle -> AppIO (Maybe UserId)
-glimpseHandle h =
+glimpseHandle = lookupHandleWithPolicy One
+
+{-# INLINE lookupHandleWithPolicy #-}
+lookupHandleWithPolicy :: Consistency -> Handle -> AppIO (Maybe UserId)
+lookupHandleWithPolicy policy h = do
   join . fmap runIdentity
-    <$> retry x1 (query1 handleSelect (params One (Identity h)))
+    <$> retry x1 (query1 handleSelect (params policy (Identity h)))
 
 --------------------------------------------------------------------------------
 -- Queries
