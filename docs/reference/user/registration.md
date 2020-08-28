@@ -185,7 +185,8 @@ During registration, we can take advantage of [NewUserOrigin](https://github.com
 So `/register` should only succeed iff at least one of these conditions is true:
 
 ```
-NewUserIsTeamUser OR newUserIsEphemeral
+import Brig.Types.User
+isNewUserTeamMember || isNewUserEphemeral
 ```
 
 The rest of the unauthorized end-points is safe:
