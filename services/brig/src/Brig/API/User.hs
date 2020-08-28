@@ -333,7 +333,7 @@ checkRestrictedUserCreation new = do
 -- Update Profile
 
 -- FUTUREWORK: this and other functions should refuse to modify a ManagedByScim user. See
--- {#SparBrainDump}
+-- {#SparBrainDump}  https://github.com/zinfra/backend-issues/issues/1632
 
 updateUser :: UserId -> ConnId -> UserUpdate -> AppIO ()
 updateUser uid conn uu = do
