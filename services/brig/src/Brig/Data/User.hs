@@ -128,12 +128,10 @@ newAccount u inv tid = do
     name = newUserDisplayName u
     pict = fromMaybe noPict (newUserPict u)
     assets = newUserAssets u
-    status = case ident of
-      Nothing ->
-        -- any user registering without either an email or a phone is Ephemeral,
-        -- i.e. can be deleted after expires_in or sessionTokenTimeout
-        Ephemeral
-      Just _ -> Active
+    status =
+      if isNewUserEphemeral u
+        then Ephemeral
+        else Active
     colour = fromMaybe defaultAccentId (newUserAccentId u)
     locale defLoc = fromMaybe defLoc (newUserLocale u)
     managedBy = fromMaybe defaultManagedBy (newUserManagedBy u)
