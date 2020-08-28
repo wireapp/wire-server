@@ -25,7 +25,7 @@ import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.User (fetchUserIdentity)
 import qualified Brig.API.User as API
-import Brig.App (currentTime, settings)
+import Brig.App (AppIO, currentTime, settings)
 import qualified Brig.Data.Blacklist as Blacklist
 import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
@@ -59,7 +59,7 @@ import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import qualified Wire.API.Team.Invitation as Public
-import qualified Wire.API.User as Public (InvitationCode)
+import qualified Wire.API.User as Public
 
 routesPublic :: Routes Doc.ApiBuilder Handler ()
 routesPublic = do
@@ -204,18 +204,27 @@ createInvitationH (_ ::: uid ::: tid ::: req) = do
       addHeader "Location" $
         "/teams/" <> toByteString' tid <> "/invitations/" <> toByteString' iid
 
+data CreateInvitationInviter = CreateInvitationInviter
+  { inviterUid :: UserId,
+    inviterEmail :: Email
+  }
+  deriving (Eq, Show)
+
 createInvitation :: UserId -> TeamId -> Public.InvitationRequest -> Handler Public.Invitation
 createInvitation uid tid body = do
-  idt <- maybe (throwStd noIdentity) return =<< lift (fetchUserIdentity uid)
-  from <- maybe (throwStd noEmail) return (emailIdentity idt)
   let inviteePerms = Team.rolePermissions inviteeRole
       inviteeRole = fromMaybe Team.defaultRole . irRole $ body
-  ensurePermissionToAddUser uid tid inviteePerms
+  inviter <- do
+    idt <- maybe (throwStd noIdentity) return =<< lift (fetchUserIdentity uid)
+    from <- maybe (throwStd noEmail) return (emailIdentity idt)
+    ensurePermissionToAddUser uid tid inviteePerms
+    pure $ CreateInvitationInviter uid from
+
   -- FUTUREWORK: These validations are nearly copy+paste from accountCreation and
   --             sendActivationCode. Refactor this to a single place
 
   -- Validate e-mail
-  email <- either (const $ throwStd invalidEmail) return (Email.validateEmail (irEmail body))
+  email <- either (const $ throwStd invalidEmail) return (Email.validateEmail (irInviteeEmail body))
   let uke = userEmailKey email
   blacklistedEm <- lift $ Blacklist.exists uke
   when blacklistedEm $
@@ -224,7 +233,7 @@ createInvitation uid tid body = do
   when emailTaken $
     throwStd emailExists
   -- Validate phone
-  phone <- for (irPhone body) $ \p -> do
+  phone <- for (irInviteePhone body) $ \p -> do
     validatedPhone <- maybe (throwStd invalidPhone) return =<< lift (Phone.validatePhone p)
     let ukp = userPhoneKey validatedPhone
     blacklistedPh <- lift $ Blacklist.exists ukp
@@ -238,14 +247,34 @@ createInvitation uid tid body = do
   pending <- lift $ DB.countInvitations tid
   when (fromIntegral pending >= maxSize) $
     throwStd tooManyTeamInvitations
-  doInvite inviteeRole email from (irLocale body) (irInviteeName body) phone
+
+  iid <- liftIO DB.mkInvitationId
+  lift $ doInvite iid inviteeRole inviter (irLocale body) email (irInviteeName body) phone
   where
-    doInvite role toEmail from lc toName toPhone = lift $ do
+    doInvite ::
+      InvitationId ->
+      Team.Role ->
+      CreateInvitationInviter ->
+      Maybe Public.Locale ->
+      Email ->
+      Maybe Public.Name ->
+      Maybe Public.Phone ->
+      AppIO Invitation
+    doInvite iid role inviter lc toEmail toName toPhone = do
       now <- liftIO =<< view currentTime
       timeout <- setTeamInvitationTimeout <$> view settings
-      (newInv, code) <- DB.insertInvitation tid role toEmail now (Just uid) toName toPhone timeout
-      void $ sendInvitationMail toEmail tid from code lc
-      return newInv
+      (newInv, code) <-
+        DB.insertInvitation
+          iid
+          tid
+          role
+          now
+          (Just $ inviterUid inviter)
+          toEmail
+          toName
+          toPhone
+          timeout
+      newInv <$ sendInvitationMail toEmail tid (inviterEmail inviter) code lc
 
 deleteInvitationH :: JSON ::: UserId ::: TeamId ::: InvitationId -> Handler Response
 deleteInvitationH (_ ::: uid ::: tid ::: iid) = do

@@ -243,9 +243,9 @@ bulkGetTeamMembersTruncated usr tid uids trnc = do
     )
 
 getTeamMember :: HasCallStack => UserId -> TeamId -> UserId -> TestM TeamMember
-getTeamMember usr tid mid = do
+getTeamMember getter tid gettee = do
   g <- view tsGalley
-  r <- get (g . paths ["teams", toByteString' tid, "members", toByteString' mid] . zUser usr) <!! const 200 === statusCode
+  r <- get (g . paths ["teams", toByteString' tid, "members", toByteString' gettee] . zUser getter) <!! const 200 === statusCode
   responseJsonError r
 
 getTeamMemberInternal :: HasCallStack => TeamId -> UserId -> TestM TeamMember
@@ -278,11 +278,11 @@ addUserToTeam' u t = snd <$> addUserToTeamWithRole' Nothing u t
 
 addUserToTeamWithRole :: HasCallStack => Maybe Role -> UserId -> TeamId -> TestM TeamMember
 addUserToTeamWithRole role inviter tid = do
-  (inv, rsp2) <- addUserToTeamWithRole' role inviter tid -- TODO: <!! const 201 === statusCode
+  (inv, rsp2) <- addUserToTeamWithRole' role inviter tid
   let invitee :: User = responseJsonUnsafe rsp2
       inviteeId = Brig.Types.userId invitee
   let invmeta = Just (inviter, inCreatedAt inv)
-  mem <- getTeamMember inviteeId tid inviteeId
+  mem <- getTeamMember inviter tid inviteeId
   liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Team.invitation)
   let zuid = parseSetCookie <$> getHeader "Set-Cookie" rsp2
   liftIO $ assertEqual "Wrong cookie" (Just "zuid") (setCookieName <$> zuid)
@@ -292,8 +292,7 @@ addUserToTeamWithRole' :: HasCallStack => Maybe Role -> UserId -> TeamId -> Test
 addUserToTeamWithRole' role inviter tid = do
   brig <- view tsBrig
   inviteeEmail <- randomEmail
-  let name = Name $ fromEmail inviteeEmail
-  let invite = InvitationRequest inviteeEmail name Nothing role Nothing Nothing
+  let invite = InvitationRequest Nothing role Nothing inviteeEmail Nothing
   invResponse <- postInvitation tid inviter invite
   inv <- responseJsonError invResponse
   Just inviteeCode <- getInvitationCode tid (inInvitation inv)
@@ -301,7 +300,7 @@ addUserToTeamWithRole' role inviter tid = do
     post
       ( brig . path "/register"
           . contentJson
-          . body (acceptInviteBody name inviteeEmail inviteeCode)
+          . body (acceptInviteBody inviteeEmail inviteeCode)
       )
   return (inv, r)
 
@@ -326,11 +325,11 @@ makeOwner owner mem tid = do
     !!! const 200
     === statusCode
 
-acceptInviteBody :: Name -> Email -> InvitationCode -> RequestBody
-acceptInviteBody name email code =
+acceptInviteBody :: Email -> InvitationCode -> RequestBody
+acceptInviteBody email code =
   RequestBodyLBS . encode $
     object
-      [ "name" .= fromName name,
+      [ "name" .= Name "bob",
         "email" .= fromEmail email,
         "password" .= defPassword,
         "team_code" .= code
