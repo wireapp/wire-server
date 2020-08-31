@@ -494,10 +494,17 @@ validateNewUserPublic nu
   | otherwise =
     Right (NewUserPublic nu)
 
--- | Any user registering without either an email or a phone is Ephemeral,
--- i.e. can be deleted after expires_in or sessionTokenTimeout
+-- | A user is Ephemeral if she has neither email, phone, nor sso credentials and is not
+-- created via scim.  Ephemeral users can be deleted after expires_in or sessionTokenTimeout
+-- (whichever comes earlier).
 isNewUserEphemeral :: NewUser -> Bool
-isNewUserEphemeral = isNothing . newUserIdentity
+isNewUserEphemeral u = noId && noScim
+  where
+    noId = isNothing $ newUserIdentity u
+    noScim = case newUserManagedBy u of
+      Nothing -> True
+      Just ManagedByWire -> True
+      Just ManagedByScim -> False
 
 isNewUserTeamMember :: NewUser -> Bool
 isNewUserTeamMember u = case newUserTeam u of
