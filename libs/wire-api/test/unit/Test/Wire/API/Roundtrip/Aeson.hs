@@ -220,6 +220,7 @@ tests =
       testRoundTrip @Team.Role.Role,
       testRoundTrip @Team.SearchVisibility.TeamSearchVisibility,
       testRoundTrip @Team.SearchVisibility.TeamSearchVisibilityView,
+      testRoundTrip @User.NameUpdate,
       testRoundTrip @User.NewUser,
       testRoundTrip @User.NewUserPublic,
       testRoundTrip @User.UserIdList,

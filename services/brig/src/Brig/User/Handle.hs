@@ -27,52 +27,59 @@ where
 import Brig.App
 import Brig.Data.Instances ()
 import qualified Brig.Data.User as User
-import Brig.Types.User
 import Brig.Unique
 import Cassandra
 import Data.Handle (Handle, fromHandle)
 import Data.Id
 import Imports
 
-claimHandle :: User -> Handle -> AppIO Bool
-claimHandle u h = do
+-- | Claim a new handle for an existing 'User'.
+claimHandle :: UserId -> Maybe Handle -> Handle -> AppIO Bool
+claimHandle uid oldHandle newHandle = isJust <$> claimHandleWith (User.updateHandle) uid oldHandle newHandle
+
+-- | Claim a handle for an invitation or a user.  Invitations can be referenced by the coerced
+-- 'UserId'.
+claimHandleWith :: (UserId -> Handle -> AppIO a) -> UserId -> Maybe Handle -> Handle -> AppIO (Maybe a)
+claimHandleWith updOperation uid oldHandle h = do
   owner <- lookupHandle h
   case owner of
-    Just u' | userId u /= u' -> return False
+    Just uid' | uid /= uid' -> return Nothing
     _ -> do
       env <- ask
       let key = "@" <> fromHandle h
-      claimed <- withClaim (userId u) key (30 # Minute) $
+      withClaim uid key (30 # Minute) $
         runAppT env $
           do
             -- Record ownership
-            retry x5 $ write handleInsert (params Quorum (h, userId u))
+            retry x5 $ write handleInsert (params Quorum (h, uid))
             -- Update profile
-            User.updateHandle (userId u) h
+            result <- updOperation uid h
             -- Free old handle (if it changed)
-            for_ (mfilter (/= h) (userHandle u)) $
-              freeHandle u
-      return (isJust claimed)
+            for_ (mfilter (/= h) oldHandle) $
+              freeHandle uid
+            return result
 
 -- | Free a 'Handle', making it available to be claimed again.
-freeHandle :: User -> Handle -> AppIO ()
-freeHandle u h = do
+freeHandle :: UserId -> Handle -> AppIO ()
+freeHandle uid h = do
   retry x5 $ write handleDelete (params Quorum (Identity h))
   let key = "@" <> fromHandle h
-  deleteClaim (userId u) key (30 # Minute)
+  deleteClaim uid key (30 # Minute)
 
 -- | Lookup the current owner of a 'Handle'.
 lookupHandle :: Handle -> AppIO (Maybe UserId)
-lookupHandle h =
-  join . fmap runIdentity
-    <$> retry x1 (query1 handleSelect (params Quorum (Identity h)))
+lookupHandle = lookupHandleWithPolicy Quorum
 
 -- | A weaker version of 'lookupHandle' that trades availability
 -- (and potentially speed) for the possibility of returning stale data.
 glimpseHandle :: Handle -> AppIO (Maybe UserId)
-glimpseHandle h =
+glimpseHandle = lookupHandleWithPolicy One
+
+{-# INLINE lookupHandleWithPolicy #-}
+lookupHandleWithPolicy :: Consistency -> Handle -> AppIO (Maybe UserId)
+lookupHandleWithPolicy policy h = do
   join . fmap runIdentity
-    <$> retry x1 (query1 handleSelect (params One (Identity h)))
+    <$> retry x1 (query1 handleSelect (params policy (Identity h)))
 
 --------------------------------------------------------------------------------
 -- Queries

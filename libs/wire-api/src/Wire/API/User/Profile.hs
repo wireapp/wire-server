@@ -59,6 +59,7 @@ import Control.Applicative (optional)
 import Control.Error (hush)
 import Data.Aeson hiding ((<?>))
 import qualified Data.Aeson.Types as Json
+import Data.Attoparsec.ByteString.Char8 (takeByteString)
 import Data.Attoparsec.Text
 import Data.ByteString.Conversion
 import Data.ISO3166_CountryCodes
@@ -285,6 +286,17 @@ instance FromJSON ManagedBy where
     "wire" -> pure ManagedByWire
     "scim" -> pure ManagedByScim
     other -> fail $ "Invalid ManagedBy: " ++ show other
+
+instance ToByteString ManagedBy where
+  builder ManagedByWire = "wire"
+  builder ManagedByScim = "scim"
+
+instance FromByteString ManagedBy where
+  parser =
+    takeByteString >>= \case
+      "wire" -> pure ManagedByWire
+      "scim" -> pure ManagedByScim
+      x -> fail $ "Invalid ManagedBy value: " <> show x
 
 defaultManagedBy :: ManagedBy
 defaultManagedBy = ManagedByWire

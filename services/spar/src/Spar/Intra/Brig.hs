@@ -34,11 +34,9 @@ module Spar.Intra.Brig
     setBrigUserUserRef,
     setBrigUserRichInfo,
     checkHandleAvailable,
-    bindBrigUser,
     deleteBrigUser,
     createBrigUser,
     updateEmail,
-    isTeamUser,
     getZUsrOwnedTeam,
     ensureReAuthorised,
     ssoLogin,
@@ -359,19 +357,6 @@ checkHandleAvailable hnd buid = do
       | otherwise ->
         throwSpar . SparBrigError . cs $ "check handle failed with status " <> show sCode
 
--- | This works under the assumption that the user must exist on brig.  If it does not, brig
--- responds with 404 and this function returns 'False'.
---
--- See also: 'setBrigUserUserRef'.
-bindBrigUser :: (HasCallStack, MonadSparToBrig m) => UserId -> SAML.UserRef -> m Bool
-bindBrigUser uid (toUserSSOId -> ussoid) = do
-  resp <-
-    call $
-      method PUT
-        . paths ["/i/users", toByteString' uid, "sso-id"]
-        . json ussoid
-  pure $ Bilge.statusCode resp < 300
-
 -- | Call brig to delete a user
 deleteBrigUser :: (HasCallStack, MonadSparToBrig m, MonadIO m) => UserId -> m ()
 deleteBrigUser buid = do
@@ -386,10 +371,6 @@ deleteBrigUser buid = do
         throwSpar $ SparBrigErrorWith (responseStatus resp) "failed to delete user"
       | otherwise ->
         throwSpar $ SparBrigError ("delete user failed with status " <> cs (show sCode))
-
--- | Check that a user id exists on brig and has a team id.
-isTeamUser :: (HasCallStack, MonadSparToBrig m) => UserId -> m Bool
-isTeamUser buid = isJust <$> getBrigUserTeam buid
 
 -- | Check that a user id exists on brig and has a team id.
 getBrigUserTeam :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe TeamId)

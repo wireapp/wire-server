@@ -61,14 +61,13 @@ throwSpar :: MonadError SparError m => SparCustomError -> m a
 throwSpar = throwError . SAML.CustomError
 
 data SparCustomError
-  = SparNotFound
+  = SparIdPNotFound
   | SparMissingZUsr
   | SparNotInTeam
   | SparNotTeamOwner
   | SparSSODisabled
   | SparInitLoginWithAuth
   | SparInitBindWithoutAuth
-  | SparBindUserDisappearedFromBrig
   | SparNoSuchRequest
   | SparNoRequestRefInResponse LT
   | SparCouldNotSubstituteSuccessURI LT
@@ -162,14 +161,13 @@ renderSparError SAML.BadSamlResponseIssuerMissing = Right $ Wai.Error status400 
 renderSparError SAML.BadSamlResponseNoAssertions = Right $ Wai.Error status400 "bad-response-saml" ("Bad response: no assertions in AuthnResponse")
 renderSparError SAML.BadSamlResponseAssertionWithoutID = Right $ Wai.Error status400 "bad-response-saml" ("Bad response: assertion without ID")
 renderSparError (SAML.BadSamlResponseInvalidSignature msg) = Right $ Wai.Error status400 "bad-response-signature" (cs msg)
-renderSparError (SAML.CustomError SparNotFound) = Right $ Wai.Error status404 "not-found" "Could not find IdP."
+renderSparError (SAML.CustomError SparIdPNotFound) = Right $ Wai.Error status404 "not-found" "Could not find IdP."
 renderSparError (SAML.CustomError SparMissingZUsr) = Right $ Wai.Error status400 "client-error" "[header] 'Z-User' required"
 renderSparError (SAML.CustomError SparNotInTeam) = Right $ Wai.Error status403 "no-team-member" "Requesting user is not a team member or not a member of this team."
 renderSparError (SAML.CustomError SparNotTeamOwner) = Right $ Wai.Error status403 "insufficient-permissions" "You need to be a team owner."
 renderSparError (SAML.CustomError SparSSODisabled) = Right $ Wai.Error status403 "sso-disabled" "Please ask customer support to enable this feature for your team."
 renderSparError (SAML.CustomError SparInitLoginWithAuth) = Right $ Wai.Error status403 "login-with-auth" "This end-point is only for login, not binding."
 renderSparError (SAML.CustomError SparInitBindWithoutAuth) = Right $ Wai.Error status403 "bind-without-auth" "This end-point is only for binding, not login."
-renderSparError (SAML.CustomError SparBindUserDisappearedFromBrig) = Right $ Wai.Error status404 "bind-user-disappeared" "Your user appears to have been deleted?"
 renderSparError SAML.UnknownError = Right $ Wai.Error status500 "server-error" "Unknown server error."
 renderSparError (SAML.BadServerConfig msg) = Right $ Wai.Error status500 "server-error" ("Error in server config: " <> msg)
 renderSparError (SAML.InvalidCert msg) = Right $ Wai.Error status500 "invalid-certificate" ("Error in idp certificate: " <> msg)

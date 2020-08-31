@@ -61,6 +61,8 @@ tests =
       testRoundTrip @Provider.HttpsUrl,
       testRoundTrip @Provider.Service.ServiceKeyPEM,
       testRoundTrip @Provider.Service.ServiceToken,
+      testRoundTrip @(Provider.Service.Tag.QueryAllTags 3 5),
+      testRoundTrip @(Provider.Service.Tag.QueryAnyTags 3 5),
       testRoundTrip @Provider.Service.Tag.ServiceTag,
       testRoundTrip @Push.V2.Token.Token,
       testRoundTrip @Team.Feature.TeamFeatureName,
@@ -73,9 +75,8 @@ tests =
       testRoundTrip @User.InvitationCode,
       testRoundTrip @User.Password.PasswordResetCode,
       testRoundTrip @User.Password.PasswordResetKey,
-      testRoundTrip @User.Profile.Name,
-      testRoundTrip @(Provider.Service.Tag.QueryAllTags 3 5),
-      testRoundTrip @(Provider.Service.Tag.QueryAnyTags 3 5)
+      testRoundTrip @User.Profile.ManagedBy,
+      testRoundTrip @User.Profile.Name
       -- FUTUREWORK:
       -- testCase "Call.Config.TurnUsername (doesn't have FromByteString)" ...
       -- testCase "User.Activation.ActivationTarget (doesn't have FromByteString)" ...
