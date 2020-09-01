@@ -29,9 +29,9 @@ In the file that you use as override when running ``helm install/update -f <over
 
 For more info, you can have a look at respective charts values files, i.e.:
 
-  * https://github.com/wireapp/wire-server-deploy/blob/develop/charts/account-pages/values.yaml
-  * https://github.com/wireapp/wire-server-deploy/blob/develop/charts/team-settings/values.yaml
-  * https://github.com/wireapp/wire-server-deploy/blob/develop/charts/webapp/values.yaml
+  * `charts/account-pages/values.yaml <https://github.com/wireapp/wire-server-deploy/blob/develop/charts/account-pages/values.yaml>`__
+  * `charts/team-settings/values.yaml <https://github.com/wireapp/wire-server-deploy/blob/develop/charts/team-settings/values.yaml>`__
+  * `charts/webapp/values.yaml <https://github.com/wireapp/wire-server-deploy/blob/develop/charts/webapp/values.yaml>`__
 
 Problems with ansible and python versions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
