@@ -1,12 +1,12 @@
 Troubleshooting during installation
 -------------------------------------
 
-Problems with CORS on the webapp
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Problems with CORS on the web based applications (webapp, team-settings, account-pages)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-If you have installed wire-server, but the webapp page in your browser has connection problems and throws errors in the console, make sure to check that you have configured the ``CSP_EXTRA_`` environment variables.
+If you have installed wire-server, but the web application page in your browser has connection problems and throws errors in the console such as `"Refused to connect to 'https://assets.example.com' because it violates the following Content Security Policies"`, make sure to check that you have configured the ``CSP_EXTRA_`` environment variables.
 
-In the file that you use as override when running ``helm install/update -f <override values.yaml>``:
+In the file that you use as override when running ``helm install/update -f <override values.yaml>`` (using the webapp as an example):
 
 .. code:: yaml
 
@@ -27,6 +27,11 @@ In the file that you use as override when running ``helm install/update -f <over
         CSP_EXTRA_STYLE_SRC: "https://*.example.com"
         CSP_EXTRA_WORKER_SRC: "https://*.example.com"
 
+For more info, you can have a look at respective charts values files, i.e.:
+
+  * `charts/account-pages/values.yaml <https://github.com/wireapp/wire-server-deploy/blob/develop/charts/account-pages/values.yaml>`__
+  * `charts/team-settings/values.yaml <https://github.com/wireapp/wire-server-deploy/blob/develop/charts/team-settings/values.yaml>`__
+  * `charts/webapp/values.yaml <https://github.com/wireapp/wire-server-deploy/blob/develop/charts/webapp/values.yaml>`__
 
 Problems with ansible and python versions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
