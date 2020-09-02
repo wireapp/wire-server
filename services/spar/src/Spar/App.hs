@@ -235,12 +235,9 @@ validateEmailIfExists uid uref = case (uref ^? veidEmail, uref ^? veidUref) of
     doValidate :: Bool -> SAML.Email -> Spar ()
     doValidate always email = do
       enabled <- do
-        if always
-          then pure True
-          else do
-            tid <- Intra.getBrigUserTeam uid
-            maybe (pure False) Intra.isEmailValidationEnabledTeam tid
-      case enabled of
+        tid <- Intra.getBrigUserTeam uid
+        maybe (pure False) Intra.isEmailValidationEnabledTeam tid
+      case enabled || always of
         True -> Intra.updateEmail uid (Intra.emailFromSAML email)
         False -> pure ()
 
