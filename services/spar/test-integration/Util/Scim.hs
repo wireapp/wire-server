@@ -25,7 +25,6 @@ import Brig.Types.User
 import Cassandra
 import Control.Lens
 import Control.Monad.Random
-import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle))
 import Data.Id
@@ -352,7 +351,7 @@ createUser_ auth user spar_ = do
         . paths ["scim", "v2", "Users"]
         . scimAuth auth
         . contentScim
-        . body (RequestBodyLBS . Aeson.encode $ user)
+        . json user
         . acceptScim
     )
 
@@ -374,7 +373,7 @@ updateUser_ auth muid user spar_ = do
         . paths (["scim", "v2", "Users"] <> maybeToList (toByteString' <$> muid))
         . scimAuth auth
         . contentScim
-        . body (RequestBodyLBS . Aeson.encode $ user)
+        . json user
         . acceptScim
     )
 
@@ -386,7 +385,7 @@ patchUser_ auth muid patchop spar_ =
         . paths (["scim", "v2", "Users"] <> maybeToList (toByteString' <$> muid))
         . scimAuth auth
         . contentScim
-        . body (RequestBodyLBS . Aeson.encode $ patchop)
+        . json patchop
         . acceptScim
     )
 
@@ -463,7 +462,7 @@ createToken_ userid payload spar_ = do
         . paths ["scim", "auth-tokens"]
         . zUser userid
         . contentJson
-        . body (RequestBodyLBS . Aeson.encode $ payload)
+        . json payload
         . acceptJson
     )
 
