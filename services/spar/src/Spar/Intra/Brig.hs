@@ -28,8 +28,8 @@ module Spar.Intra.Brig
     emailFromSAML,
     emailToSAML,
     getBrigUser,
+    getBrigUserAccount,
     getBrigUserTeam,
-    getBrigUsers,
     getBrigUserByHandle,
     getBrigUserByEmail,
     getBrigUserRichInfo,
@@ -70,7 +70,7 @@ import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle, fromHandle))
 import Data.Id (Id (Id), TeamId, UserId)
 import Data.Ix
-import Data.Misc (PlainTextPassword)
+import Data.Misc (PlainTextPassword, (<$$>))
 import Data.String.Conversions
 import Data.String.Conversions (cs)
 import Imports
@@ -205,53 +205,45 @@ updateEmail buid email = do
     -- Wai.Error, it's ok to crash with a 500 here, so we use the unsafe parser.
     _ -> throwError . SAML.CustomServant . waiToServant . responseJsonUnsafe $ resp
 
--- | Get a user; returns 'Nothing' if the user was not found or has been deleted.
 getBrigUser :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe User)
-getBrigUser buid = do
-  resp :: Response (Maybe LBS) <-
+getBrigUser = (accountUser <$$>) . getBrigUserAccount
+
+-- | Get a user; returns 'Nothing' if the user was not found or has been deleted.
+getBrigUserAccount :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe UserAccount)
+getBrigUserAccount buid = do
+  resp :: ResponseLBS <-
     call $
       method GET
-        . path "/self"
-        . header "Z-User" (toByteString' buid)
+        . paths ["/i/users"]
+        . query [("ids", Just $ toByteString' buid)]
   case statusCode resp of
     200 -> do
-      user <- selfUser <$> parseResponse @SelfProfile resp
-      pure $
-        if (userDeleted user)
-          then Nothing
-          else Just user
+      parseResponse @[UserAccount] resp >>= \case
+        [account] ->
+          pure $
+            if userDeleted $ accountUser account
+              then Nothing
+              else Just account
+        _ -> pure Nothing -- impossible
     404 -> pure Nothing
-    _ -> throwSpar (SparBrigError "Could not retrieve user")
-
--- | Get a list of users; returns a shorter list if some 'UserId's come up empty (no errors).
---
--- TODO: implement an internal end-point on brig that makes this possible with one request.
--- TODO(arianvp): This endpoint exists!
-getBrigUsers :: (HasCallStack, MonadSparToBrig m) => [UserId] -> m [User]
-getBrigUsers = fmap catMaybes . mapM getBrigUser
+    _ -> rethrow resp
 
 -- | Get a user; returns 'Nothing' if the user was not found.
 --
 -- TODO: currently this is not used, but it might be useful later when/if
 -- @hscim@ stops doing checks during user creation.
-getBrigUserByHandle :: (HasCallStack, MonadSparToBrig m) => Handle -> m (Maybe User)
+getBrigUserByHandle :: (HasCallStack, MonadSparToBrig m) => Handle -> m (Maybe UserAccount)
 getBrigUserByHandle handle = do
   resp :: Response (Maybe LBS) <-
     call $
       method GET
         . path "/i/users"
         . queryItem "handles" (toByteString' handle)
-  -- This returns [UserAccount]
   case statusCode resp of
-    200 -> parse <$> parseResponse @[UserAccount] resp
-    404 -> pure Nothing
-    _ -> throwSpar (SparBrigError "Could not retrieve user")
-  where
-    parse :: [UserAccount] -> Maybe User
-    parse (x : []) = Just $ accountUser x
-    parse _ = Nothing -- more than one account is impossible, since the handle is unique.
+    200 -> listToMaybe <$> parseResponse @[UserAccount] resp
+    _ -> rethrow resp
 
-getBrigUserByEmail :: (HasCallStack, MonadSparToBrig m) => Email -> m (Maybe User)
+getBrigUserByEmail :: (HasCallStack, MonadSparToBrig m) => Email -> m (Maybe UserAccount)
 getBrigUserByEmail email = do
   resp :: ResponseLBS <-
     call $
@@ -259,13 +251,9 @@ getBrigUserByEmail email = do
         . path "/i/users"
         . queryItem "email" (toByteString' email)
   case statusCode resp of
-    200 -> parse <$> parseResponse @[UserAccount] resp
+    200 -> listToMaybe <$> parseResponse @[UserAccount] resp
     404 -> pure Nothing
-    _ -> throwSpar (SparBrigError "Could not retrieve user")
-  where
-    parse :: [UserAccount] -> Maybe User
-    parse (x : []) = Just $ accountUser x
-    parse _ = Nothing
+    _ -> rethrow resp
 
 -- | Set user' name.  Fails with status <500 if brig fails with <500, and with 500 if brig
 -- fails with >= 500.
@@ -411,9 +399,7 @@ deleteBrigUser buid = do
 
 -- | Check that a user id exists on brig and has a team id.
 getBrigUserTeam :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe TeamId)
-getBrigUserTeam buid = do
-  usr <- getBrigUser buid
-  pure $ userTeam =<< usr
+getBrigUserTeam = fmap (userTeam =<<) . getBrigUser
 
 -- | Get the team that the user is an owner of.
 --
@@ -424,10 +410,10 @@ getZUsrOwnedTeam ::
   m TeamId
 getZUsrOwnedTeam Nothing = throwSpar SparMissingZUsr
 getZUsrOwnedTeam (Just uid) = do
-  usr <- getBrigUser uid
-  case userTeam =<< usr of
-    Nothing -> throwSpar SparNotInTeam
-    Just teamid -> teamid <$ Galley.assertIsTeamOwner teamid uid
+  getBrigUserTeam uid
+    >>= maybe
+      (throwSpar SparNotInTeam)
+      (\teamid -> teamid <$ Galley.assertIsTeamOwner teamid uid)
 
 -- | Verify user's password (needed for certain powerful operations).
 ensureReAuthorised ::
@@ -479,6 +465,7 @@ ssoLogin buid = do
 getStatus' :: (HasCallStack, MonadSparToBrig m) => UserId -> m ResponseLBS
 getStatus' uid = call $ method GET . paths ["/i/users", toByteString' uid, "status"]
 
+-- | FUTUREWORK: this is probably unnecessary, and we can get the status info from 'UserAccount'.
 getStatus :: (HasCallStack, MonadSparToBrig m) => UserId -> m AccountStatus
 getStatus uid = do
   resp <- getStatus' uid
@@ -486,6 +473,7 @@ getStatus uid = do
     200 -> fromAccountStatusResp <$> parseResponse @AccountStatusResp resp
     _ -> rethrow resp
 
+-- | FUTUREWORK: this is probably unnecessary, and we can get the status info from 'UserAccount'.
 getStatusMaybe :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe AccountStatus)
 getStatusMaybe uid = do
   resp <- getStatus' uid
@@ -532,12 +520,12 @@ giveDefaultHandle usr = case userHandle usr of
 --
 -- FUTUREWORK: with servant, there will be a way for the type checker to confirm that we
 -- handle all exceptions that brig can legally throw!
-rethrow :: ResponseLBS -> (HasCallStack, MonadSparToBrig m) => m a
+rethrow :: (HasCallStack, MonadSparToBrig m) => ResponseLBS -> m a
 rethrow resp = throwError err
   where
     err :: SparError
     err =
       responseJsonMaybe resp
         & maybe
-          (SAML.CustomError . SparBrigError . cs . fromMaybe "" . responseBody $ resp)
+          (SAML.CustomError . SparBrigError . cs . show $ (statusCode resp, responseBody resp))
           (SAML.CustomServant . waiToServant)

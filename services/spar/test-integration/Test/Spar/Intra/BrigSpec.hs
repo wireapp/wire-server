@@ -20,13 +20,37 @@ module Test.Spar.Intra.BrigSpec
   )
 where
 
+import Brig.Types.Common (fromEmail)
+import Control.Lens ((^.))
+import Data.Id (Id (Id))
+import qualified Data.UUID as UUID
 import Imports hiding (head)
+import qualified Spar.Intra.Brig as Intra
 import Util
+import qualified Web.Scim.Schema.User as Scim.User
 
 spec :: SpecWith TestEnv
 spec = do
   describe "user deletion between brig and spar" $ do
     it "if a user gets deleted on brig, it will be deleted on spar as well." $ do
       pending
-    it "if a user gets deleted on spar, it will be deleted on spar as well." $ do
+    it "if a user gets deleted on spar, it will be deleted on brig as well." $ do
       pendingWith "or deactivated?  we should decide what we want here."
+
+  describe "getBrigUser" $ do
+    it "return Nothing if n/a" $ do
+      musr <- runSpar $ Intra.getBrigUser (Id . fromJust $ UUID.fromText "29546d9e-ed5b-11ea-8228-c324b1ea1030")
+      liftIO $ musr `shouldSatisfy` isNothing
+
+    it "return Just if /a" $ do
+      let setup = do
+            env <- ask
+            email <- randomEmail
+            scimUser <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
+            (_, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+            tok <- registerScimToken tid Nothing
+            scimUserId <$> createUser tok scimUser
+
+      uid <- setup
+      musr <- runSpar $ Intra.getBrigUser uid
+      liftIO $ musr `shouldSatisfy` isJust

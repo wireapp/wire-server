@@ -42,7 +42,7 @@ module Spar.Scim.User
 where
 
 import Brig.Types.Common (Email (..), parseEmail)
-import Brig.Types.Intra (AccountStatus)
+import Brig.Types.Intra (AccountStatus, UserAccount (accountStatus, accountUser))
 import Brig.Types.User (ManagedBy (..), Name (..), User (..))
 import qualified Brig.Types.User as BT
 import Control.Lens ((^.), (^?))
@@ -100,7 +100,7 @@ instance Scim.UserDB ST.SparTag Spar where
             "username" -> do
               handle <- MaybeT . pure . parseHandle . Text.toLower $ val
               brigUser <- MaybeT . lift . Brig.getBrigUserByHandle $ handle
-              guard $ userTeam brigUser == Just stiTeam
+              guard $ userTeam (accountUser brigUser) == Just stiTeam
               lift $ synthesizeStoredUser brigUser
             "externalid" -> do
               veid <- mkUserRef mIdpConfig (pure val)
@@ -108,10 +108,10 @@ instance Scim.UserDB ST.SparTag Spar where
                 MaybeT $
                   ST.runValidExternalId
                     (lift . wrapMonadClient . Data.getSAMLUser)
-                    (\email -> userId <$$> lift (Brig.getBrigUserByEmail email))
+                    (\email -> userId . accountUser <$$> lift (Brig.getBrigUserByEmail email))
                     veid
-              brigUser <- MaybeT . lift . Brig.getBrigUser $ uid
-              guard $ userTeam brigUser == Just stiTeam
+              brigUser <- MaybeT . lift . Brig.getBrigUserAccount $ uid
+              guard $ userTeam (accountUser brigUser) == Just stiTeam
               lift $ synthesizeStoredUser brigUser
             _ -> throwError (Scim.badRequest Scim.InvalidFilter (Just "Unsupported attribute"))
           pure $ Scim.fromList (toList x)
@@ -124,8 +124,8 @@ instance Scim.UserDB ST.SparTag Spar where
     Scim.ScimHandler Spar (Scim.StoredUser ST.SparTag)
   getUser ScimTokenInfo {stiTeam} uid = do
     let notfound = Scim.notFound "User" (idToText uid)
-    brigUser <- lift (Brig.getBrigUser uid) >>= maybe (throwError notfound) pure
-    unless (userTeam brigUser == Just stiTeam) (throwError notfound)
+    brigUser <- lift (Brig.getBrigUserAccount uid) >>= maybe (throwError notfound) pure
+    unless (userTeam (accountUser brigUser) == Just stiTeam) (throwError notfound)
     synthesizeStoredUser brigUser
 
   postUser ::
@@ -342,7 +342,7 @@ createValidScimUser ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid handl mbN
   -- If applicable, trigger email validation procedure on brig.
   lift $ validateEmailIfExists buid veid
 
-  -- {suspension via scim:: if we don't reach the following line, the user will be active.}
+  -- {suspension via scim: if we don't reach the following line, the user will be active.}
   lift $ do
     old <- Brig.getStatus buid
     let new = ST.scimActiveFlagToAccountStatus old (Just active)
@@ -572,17 +572,17 @@ assertHandleNotUsedElsewhere uid hndl = do
 -- | Helper function that translates a given brig user into a 'Scim.StoredUser', with some
 -- effects like updating the 'ManagedBy' field in brig and storing creation and update time
 -- stamps.
-synthesizeStoredUser :: User -> Scim.ScimHandler Spar (Scim.StoredUser ST.SparTag)
+synthesizeStoredUser :: UserAccount -> Scim.ScimHandler Spar (Scim.StoredUser ST.SparTag)
 synthesizeStoredUser usr = do
-  let uid = userId usr
+  let uid = userId (accountUser usr)
+      accStatus = accountStatus usr
 
-  let readState :: Spar (RI.RichInfo, AccountStatus, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI)
+  let readState :: Spar (RI.RichInfo, Maybe (UTCTimeMillis, UTCTimeMillis), URIBS.URI)
       readState = do
         richInfo <- Brig.getBrigUserRichInfo uid
-        accStatus <- Brig.getStatus (BT.userId usr)
         accessTimes <- wrapMonadClient (Data.readScimUserTimes uid)
         baseuri <- asks $ derivedOptsScimBaseURI . derivedOpts . sparCtxOpts
-        pure (richInfo, accStatus, accessTimes, baseuri)
+        pure (richInfo, accessTimes, baseuri)
 
   let writeState :: Maybe (UTCTimeMillis, UTCTimeMillis) -> ManagedBy -> Scim.StoredUser ST.SparTag -> Spar ()
       writeState oldAccessTimes managedBy storedUser = do
@@ -591,15 +591,15 @@ synthesizeStoredUser usr = do
         when (managedBy /= ManagedByScim) $ do
           Brig.setBrigUserManagedBy uid ManagedByScim
 
-  (richInfo, accStatus, accessTimes, baseuri) <- lift readState
+  (richInfo, accessTimes, baseuri) <- lift readState
   SAML.Time (toUTCTimeMillis -> now) <- lift SAML.getNow
   let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
 
-  handle <- lift $ Brig.giveDefaultHandle usr
+  handle <- lift $ Brig.giveDefaultHandle (accountUser usr)
 
   veid :: ST.ValidExternalId <- do
-    let sso :: Maybe Id.UserSSOId = Id.ssoIdentity <=< userIdentity $ usr
-        memail :: Maybe Email = Id.emailIdentity <=< userIdentity $ usr
+    let sso :: Maybe Id.UserSSOId = Id.ssoIdentity <=< userIdentity $ accountUser usr
+        memail :: Maybe Email = Id.emailIdentity <=< userIdentity $ accountUser usr
     case (sso, memail) of
       (Just (Brig.fromUserSSOId -> Right uref), Just email) -> pure $ ST.EmailAndUref email uref
       (Just (Brig.fromUserSSOId -> Right uref), Nothing) -> pure $ ST.UrefOnly uref
@@ -614,14 +614,14 @@ synthesizeStoredUser usr = do
     synthesizeStoredUser'
       uid
       veid
-      (userDisplayName usr)
+      (userDisplayName (accountUser usr))
       handle
       richInfo
       accStatus
       createdAt
       lastUpdatedAt
       baseuri
-  lift $ writeState accessTimes (userManagedBy usr) storedUser
+  lift $ writeState accessTimes (userManagedBy (accountUser usr)) storedUser
   pure storedUser
 
 synthesizeStoredUser' ::

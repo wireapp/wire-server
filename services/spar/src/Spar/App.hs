@@ -71,7 +71,6 @@ import qualified System.Logger as Log
 import System.Logger.Class (MonadLogger (log))
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
-import qualified Wire.API.User as User
 
 newtype Spar a = Spar {fromSpar :: ReaderT Env (ExceptT SparError IO) a}
   deriving (Functor, Applicative, Monad, MonadIO, MonadReader Env, MonadError SparError)
@@ -247,8 +246,8 @@ bindUser :: UserId -> SAML.UserRef -> Spar UserId
 bindUser buid userref = do
   teamid <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (userref ^. uidTenant)
   do
-    muser <- Intra.getBrigUser buid
-    unless ((User.userTeam =<< muser) == Just teamid) $ do
+    mteamid' <- Intra.getBrigUserTeam buid
+    unless (mteamid' == Just teamid) $ do
       throwSpar . SparBindFromWrongOrNoTeam . cs . show $ buid
   insertUser userref buid
   buid <$ Intra.setBrigUserUserRef buid userref
