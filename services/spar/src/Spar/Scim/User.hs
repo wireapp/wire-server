@@ -41,10 +41,11 @@ module Spar.Scim.User
   )
 where
 
-import Brig.Types.Common (Email (..), parseEmail)
+import Brig.Types.Common (parseEmail)
 import Brig.Types.Intra (AccountStatus, UserAccount (accountStatus, accountUser))
 import Brig.Types.User (ManagedBy (..), Name (..), User (..))
 import qualified Brig.Types.User as BT
+import qualified Control.Applicative as Applicative (empty)
 import Control.Lens ((^.), (^?))
 import Control.Monad.Except (MonadError, throwError)
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
@@ -78,7 +79,6 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.ResourceType as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User (schemas)
-import qualified Wire.API.User.Identity as Id
 import qualified Wire.API.User.RichInfo as RI
 
 ----------------------------------------------------------------------------
@@ -101,7 +101,9 @@ instance Scim.UserDB ST.SparTag Spar where
               handle <- MaybeT . pure . parseHandle . Text.toLower $ val
               brigUser <- MaybeT . lift . Brig.getBrigUserByHandle $ handle
               guard $ userTeam (accountUser brigUser) == Just stiTeam
-              lift $ synthesizeStoredUser brigUser
+              case Brig.veidFromBrigUser (accountUser brigUser) ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) of
+                Right veid -> lift $ synthesizeStoredUser brigUser veid
+                Left _ -> Applicative.empty
             "externalid" -> do
               veid <- mkUserRef mIdpConfig (pure val)
               uid <- do
@@ -112,7 +114,7 @@ instance Scim.UserDB ST.SparTag Spar where
                     veid
               brigUser <- MaybeT . lift . Brig.getBrigUserAccount $ uid
               guard $ userTeam (accountUser brigUser) == Just stiTeam
-              lift $ synthesizeStoredUser brigUser
+              lift $ synthesizeStoredUser brigUser veid
             _ -> throwError (Scim.badRequest Scim.InvalidFilter (Just "Unsupported attribute"))
           pure $ Scim.fromList (toList x)
         | otherwise -> throwError $ Scim.badRequest Scim.InvalidFilter (Just "Unsupported schema")
@@ -122,11 +124,14 @@ instance Scim.UserDB ST.SparTag Spar where
     ScimTokenInfo ->
     UserId ->
     Scim.ScimHandler Spar (Scim.StoredUser ST.SparTag)
-  getUser ScimTokenInfo {stiTeam} uid = do
+  getUser ScimTokenInfo {stiTeam, stiIdP} uid = do
+    mIdpConfig <- maybe (pure Nothing) (lift . wrapMonadClient . Data.getIdPConfig) stiIdP
     let notfound = Scim.notFound "User" (idToText uid)
     brigUser <- lift (Brig.getBrigUserAccount uid) >>= maybe (throwError notfound) pure
     unless (userTeam (accountUser brigUser) == Just stiTeam) (throwError notfound)
-    synthesizeStoredUser brigUser
+    case Brig.veidFromBrigUser (accountUser brigUser) ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) of
+      Right veid -> synthesizeStoredUser brigUser veid
+      Left _ -> throwError notfound
 
   postUser ::
     ScimTokenInfo ->
@@ -318,7 +323,7 @@ createValidScimUser ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid handl mbN
   buid <- lift $ do
     -- Generate a UserId will be used both for scim user in spar and for brig.
     buid <- Id <$> liftIO UUID.nextRandom
-    _ <- Brig.createBrigUser (veid ^? ST.veidUref) buid stiTeam mbName ManagedByScim
+    _ <- Brig.createBrigUser veid buid stiTeam mbName ManagedByScim
     -- {If we crash now, we have an active user that cannot login. And can not
     -- be bound this will be a zombie user that needs to be manually cleaned
     -- up.  We should consider making setUserHandle part of createUser and
@@ -572,8 +577,8 @@ assertHandleNotUsedElsewhere uid hndl = do
 -- | Helper function that translates a given brig user into a 'Scim.StoredUser', with some
 -- effects like updating the 'ManagedBy' field in brig and storing creation and update time
 -- stamps.
-synthesizeStoredUser :: UserAccount -> Scim.ScimHandler Spar (Scim.StoredUser ST.SparTag)
-synthesizeStoredUser usr = do
+synthesizeStoredUser :: UserAccount -> ST.ValidExternalId -> Scim.ScimHandler Spar (Scim.StoredUser ST.SparTag)
+synthesizeStoredUser usr veid = do
   let uid = userId (accountUser usr)
       accStatus = accountStatus usr
 
@@ -596,19 +601,6 @@ synthesizeStoredUser usr = do
   let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
 
   handle <- lift $ Brig.giveDefaultHandle (accountUser usr)
-
-  veid :: ST.ValidExternalId <- do
-    let sso :: Maybe Id.UserSSOId = Id.ssoIdentity <=< userIdentity $ accountUser usr
-        memail :: Maybe Email = Id.emailIdentity <=< userIdentity $ accountUser usr
-    case (sso, memail) of
-      (Just (Brig.fromUserSSOId -> Right uref), Just email) -> pure $ ST.EmailAndUref email uref
-      (Just (Brig.fromUserSSOId -> Right uref), Nothing) -> pure $ ST.UrefOnly uref
-      (_, Just email) -> pure $ ST.EmailOnly email
-      (_, Nothing) -> do
-        -- TODO: this can happen if a user has an email address pending validation and no saml
-        -- credentials.
-        -- https://github.com/zinfra/backend-issues/issues/1365#issuecomment-684892805
-        error "7261620a-ec5f-11ea-857b-73f01b91a79e"
 
   storedUser <-
     synthesizeStoredUser'

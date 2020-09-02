@@ -593,12 +593,12 @@ instance FromJSON NewUser where
     newUserLabel <- o .:? "label"
     newUserLocale <- o .:? "locale"
     newUserPassword <- o .:? "password"
-    newUserManagedBy <- o .:? "managed_by"
-    newUserOrigin <- parseNewUserOrigin newUserPassword newUserIdentity ssoid newUserManagedBy o
+    newUserOrigin <- parseNewUserOrigin newUserPassword newUserIdentity ssoid o
     newUserExpires <- o .:? "expires_in"
     newUserExpiresIn <- case (newUserExpires, newUserIdentity) of
       (Just _, Just _) -> fail "Only users without an identity can expire"
       _ -> return newUserExpires
+    newUserManagedBy <- o .:? "managed_by"
     return NewUser {..}
 
 -- FUTUREWORK: align more with FromJSON instance?
@@ -681,10 +681,9 @@ parseNewUserOrigin ::
   Maybe PlainTextPassword ->
   Maybe UserIdentity ->
   Maybe UserSSOId ->
-  Maybe ManagedBy ->
   Object ->
   Aeson.Parser (Maybe NewUserOrigin)
-parseNewUserOrigin pass uid ssoid managedBy o = do
+parseNewUserOrigin pass uid ssoid o = do
   invcode <- o .:? "invitation_code"
   teamcode <- o .:? "team_code"
   team <- o .:? "team"
@@ -696,14 +695,10 @@ parseNewUserOrigin pass uid ssoid managedBy o = do
     (Nothing, Nothing, Nothing, Just _, Just t) -> return . Just . NewUserOriginTeamUser $ NewTeamMemberSSO t
     (Nothing, Nothing, Nothing, Nothing, Nothing) -> return Nothing
     (_, _, _, Just _, Nothing) -> fail "sso_id, team_id must be either both present or both absent."
-    (_, _, _, Nothing, Just t) ->
-      if managedBy == Just ManagedByScim
-        then return . Just . NewUserOriginTeamUser $ NewTeamMemberSSO t
-        else fail "sso_id, team_id must be either both present or both absent."
+    (_, _, _, Nothing, Just _) -> fail "sso_id, team_id must be either both present or both absent."
     _ -> fail "team_code, team, invitation_code, sso_id, and the pair (sso_id, team_id) are mutually exclusive"
   case (result, pass, uid) of
     (_, _, Just SSOIdentity {}) -> pure result
-    (Just (NewUserOriginTeamUser (NewTeamMemberSSO _)), Nothing, Nothing) -> pure result
     (Just (NewUserOriginTeamUser _), Nothing, _) -> fail "all team users must set a password on creation"
     _ -> pure result
 

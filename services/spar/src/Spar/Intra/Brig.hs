@@ -21,8 +21,12 @@
 module Spar.Intra.Brig
   ( toUserSSOId,
     fromUserSSOId,
+    veidToUserSSOId,
+    veidFromUserSSOId,
     urefToExternalId,
+    urefToEmail,
     userToScimExternalId,
+    veidFromBrigUser,
     mkUserName,
     renderValidExternalId,
     emailFromSAML,
@@ -59,7 +63,6 @@ where
 -- master data (first name, last name, ...)
 
 import Bilge
-import qualified Brig.Types.Common
 import Brig.Types.Intra
 import Brig.Types.User
 import Brig.Types.User.Auth (SsoLogin (..))
@@ -92,22 +95,61 @@ toUserSSOId (SAML.UserRef tenant subject) =
   UserSSOId (cs $ SAML.encodeElem tenant) (cs $ SAML.encodeElem subject)
 
 fromUserSSOId :: MonadError String m => UserSSOId -> m SAML.UserRef
-fromUserSSOId (UserSSOId (cs -> tenant) (cs -> subject)) =
-  case (SAML.decodeElem tenant, SAML.decodeElem subject) of
-    (Right t, Right s) -> pure $ SAML.UserRef t s
-    (Left msg, _) -> throwError msg
-    (_, Left msg) -> throwError msg
+fromUserSSOId = \case
+  UserSSOId tenant subject ->
+    case (SAML.decodeElem $ cs tenant, SAML.decodeElem $ cs subject) of
+      (Right t, Right s) -> pure $ SAML.UserRef t s
+      (Left msg, _) -> throwError msg
+      (_, Left msg) -> throwError msg
+  UserScimExternalId _ ->
+    throwError "no issuer"
+
+veidToUserSSOId :: ValidExternalId -> UserSSOId
+veidToUserSSOId = runValidExternalId toUserSSOId (UserScimExternalId . fromEmail)
+
+veidFromUserSSOId :: MonadError String m => UserSSOId -> m ValidExternalId
+veidFromUserSSOId = \case
+  UserSSOId tenant subject ->
+    case (SAML.decodeElem $ cs tenant, SAML.decodeElem $ cs subject) of
+      (Right t, Right s) -> do
+        let uref = SAML.UserRef t s
+        case urefToEmail uref of
+          Nothing -> pure $ UrefOnly uref
+          Just email -> pure $ EmailAndUref email uref
+      (Left msg, _) -> throwError msg
+      (_, Left msg) -> throwError msg
+  UserScimExternalId email ->
+    maybe
+      (throwError "externalId not an email and no issuer")
+      (pure . EmailOnly)
+      (parseEmail email)
 
 urefToExternalId :: SAML.UserRef -> Maybe Text
 urefToExternalId = SAML.shortShowNameID . view SAML.uidSubject
 
+urefToEmail :: SAML.UserRef -> Maybe Email
+urefToEmail uref = case uref ^. SAML.uidSubject . SAML.nameID of
+  SAML.UNameIDEmail email -> Just $ emailFromSAML email
+  _ -> Nothing
+
 userToScimExternalId :: User -> Either String Text
-userToScimExternalId usr = case (userIdentity >=> ssoIdentity $ usr, userEmail usr) of
+userToScimExternalId usr = case (userSSOId usr, userEmail usr) of
   (Just ssoid, _) -> case fromUserSSOId ssoid of
     Right (SAML.UserRef _ subj) -> maybe (Left "bad uref from brig") Right $ SAML.shortShowNameID subj
     Left err -> Left err
   (Nothing, Just email) -> Right $ fromEmail email
   (Nothing, Nothing) -> Left "brig user without external id"
+
+-- | If the brig user has a 'UserSSOId', transform that into a 'ValidExternalId' (this is a
+-- total function as long as brig obeys the api).  Otherwise, if the user has an email, we can
+-- construct a return value from that (and an optional saml issuer).  If a user only has a
+-- phone number, or no identity at all, throw an error.
+veidFromBrigUser :: MonadError String m => User -> Maybe SAML.Issuer -> m ValidExternalId
+veidFromBrigUser usr mIssuer = case (userSSOId usr, userEmail usr, mIssuer) of
+  (Just ssoid, _, _) -> veidFromUserSSOId ssoid
+  (Nothing, Just email, Just issuer) -> pure $ EmailAndUref email (SAML.UserRef issuer (emailToSAMLNameID email))
+  (Nothing, Just email, Nothing) -> pure $ EmailOnly email
+  (Nothing, Nothing, _) -> throwError "user has neither ssoIdentity nor userEmail"
 
 -- | Take a maybe text, construct a 'Name' from what we have in a scim user.  If the text
 -- isn't present, use an email address or a saml subject (usually also an email address).  If
@@ -138,18 +180,23 @@ respToCookie resp = do
   unless (statusCode resp == 200) crash
   maybe crash (pure . parseSetCookie) $ getHeader "Set-Cookie" resp
 
-emailFromSAML :: HasCallStack => SAML.Email -> Brig.Types.Common.Email
+emailFromSAML :: HasCallStack => SAML.Email -> Email
 emailFromSAML =
-  fromJust . Brig.Types.Common.parseEmail . cs
+  fromJust . parseEmail . cs
     . Text.Email.Parser.toByteString
     . SAML.fromEmail
 
-emailToSAML :: HasCallStack => Brig.Types.Common.Email -> SAML.Email
+emailToSAML :: HasCallStack => Email -> SAML.Email
 emailToSAML brigEmail =
   SAML.Email $
     Text.Email.Parser.unsafeEmailAddress
-      (cs $ Brig.Types.Common.emailLocal brigEmail)
-      (cs $ Brig.Types.Common.emailDomain brigEmail)
+      (cs $ emailLocal brigEmail)
+      (cs $ emailDomain brigEmail)
+
+-- | FUTUREWORK(fisx): if saml2-web-sso exported the 'NameID' constructor, we could make this
+-- function total without all that praying and hoping.
+emailToSAMLNameID :: HasCallStack => Email -> SAML.NameID
+emailToSAMLNameID = fromRight (error "impossible") . SAML.emailNameID . fromEmail
 
 ----------------------------------------------------------------------
 
@@ -163,7 +210,7 @@ instance MonadSparToBrig m => MonadSparToBrig (ReaderT r m) where
 createBrigUser ::
   (HasCallStack, MonadSparToBrig m) =>
   -- | SSO identity
-  Maybe SAML.UserRef ->
+  ValidExternalId ->
   UserId ->
   TeamId ->
   -- | User name
@@ -171,12 +218,12 @@ createBrigUser ::
   -- | Who should have control over the user
   ManagedBy ->
   m UserId
-createBrigUser mUref (Id buid) teamid uname managedBy = do
+createBrigUser veid (Id buid) teamid uname managedBy = do
   let newUser :: NewUser
       newUser =
         (emptyNewUser uname)
           { newUserUUID = Just buid,
-            newUserIdentity = maybe Nothing (\uref -> Just $ SSOIdentity (toUserSSOId uref) Nothing Nothing) mUref,
+            newUserIdentity = Just $ SSOIdentity (veidToUserSSOId veid) Nothing Nothing,
             newUserOrigin = Just . NewUserOriginTeamUser . NewTeamMemberSSO $ teamid,
             newUserManagedBy = Just managedBy
           }

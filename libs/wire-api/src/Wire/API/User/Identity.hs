@@ -247,24 +247,36 @@ isValidPhone = either (const False) (const True) . parseOnly e164
 -- Morally this is the same thing as 'SAML.UserRef', but we forget the
 -- structure -- i.e. we just store XML-encoded SAML blobs. If the structure
 -- of those blobs changes, Brig won't have to deal with it, only Spar will.
-data UserSSOId = UserSSOId
-  { -- | An XML blob pointing to the identity provider that can confirm
-    -- user's identity.
-    userSSOIdTenant :: Text,
-    -- | An XML blob specifying the user's ID on the identity provider's side.
-    userSSOIdSubject :: Text
-  }
+--
+-- FUTUREWORK: rename the data type to @UserSparId@ (not the two constructors, those are ok).
+data UserSSOId
+  = UserSSOId
+      { -- | An XML blob pointing to the identity provider that can confirm
+        -- user's identity.
+        userSSOIdTenant :: Text,
+        -- | An XML blob specifying the user's ID on the identity provider's side.
+        userSSOIdSubject :: Text
+      }
+  | UserScimExternalId
+      { userScimExternalId :: Text
+      }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserSSOId)
 
 instance ToJSON UserSSOId where
-  toJSON (UserSSOId tenant subject) = object ["tenant" .= tenant, "subject" .= subject]
+  toJSON = \case
+    UserSSOId tenant subject -> object ["tenant" .= tenant, "subject" .= subject]
+    UserScimExternalId eid -> object ["scim_external_id" .= eid]
 
 instance FromJSON UserSSOId where
-  parseJSON = withObject "UserSSOId" $ \obj ->
-    UserSSOId
-      <$> obj .: "tenant"
-      <*> obj .: "subject"
+  parseJSON = withObject "UserSSOId" $ \obj -> do
+    mtenant <- obj .:? "tenant"
+    msubject <- obj .:? "subject"
+    meid <- obj .:? "scim_external_id"
+    case (mtenant, msubject, meid) of
+      (Just tenant, Just subject, Nothing) -> pure $ UserSSOId tenant subject
+      (Nothing, Nothing, Just eid) -> pure $ UserScimExternalId eid
+      _ -> fail "either need tenant and subject, or scim_external_id, but not both"
 
 -- | If the budget for SMS and voice calls for a phone number
 -- has been exhausted within a certain time frame, this timeout
