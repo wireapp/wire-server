@@ -215,6 +215,11 @@ validateScimUser' ::
   Scim.User ST.SparTag ->
   m ST.ValidScimUser
 validateScimUser' midp richInfoLimit user = do
+  unless (isNothing $ Scim.password user) $
+    throwError $
+      Scim.badRequest
+        Scim.InvalidValue
+        (Just "Setting user passwords is not supported for security reasons.")
   veid <- mkUserRef midp (Scim.externalId user)
   handl <- validateHandle . Text.toLower . Scim.userName $ user
   -- FUTUREWORK: 'Scim.userName' should be case insensitive; then the toLower here would

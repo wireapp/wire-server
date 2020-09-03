@@ -213,7 +213,7 @@ testCreateUserWithPass = do
     const 400 === statusCode
     -- TODO: write a FAQ entry in wire-docs, reference it in the error description.
     -- TODO: yes, we should just test for error labels consistently, i know...
-    const (Just "setting password via scim is not supported") =~= responseBody
+    const (Just "Setting user passwords is not supported for security reasons.") =~= responseBody
 
 testCreateUserNoIdP :: TestSpar ()
 testCreateUserNoIdP = do
