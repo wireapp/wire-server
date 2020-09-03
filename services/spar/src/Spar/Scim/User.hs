@@ -418,14 +418,17 @@ updateVsuUref uid old new = do
   when (old ^? ST.veidEmail /= new ^? ST.veidEmail) $ do
     validateEmailIfExists uid new
 
-  for_ (old ^? ST.veidUref) $ \uref -> do
-    wrapMonadClient $ Data.deleteSAMLUser uref
-    when (isNothing $ new ^? ST.veidUref) $ do
-      Brig.deleteBrigUserUserRef uid
+  ST.runValidExternalId
+    (wrapMonadClient . Data.deleteSAMLUser)
+    (\_ -> pure ()) -- TODO: update externalId-to-UserId table in spar!
+    old
 
-  for_ (new ^? ST.veidUref) $ \uref -> do
-    wrapMonadClient $ Data.insertSAMLUser uref uid
-    Brig.setBrigUserUserRef uid uref
+  ST.runValidExternalId
+    (wrapMonadClient . (`Data.insertSAMLUser` uid))
+    (\_ -> pure ()) -- TODO: update externalId-to-UserId table in spar!
+    new
+
+  Brig.setBrigUserVeid uid new
 
 toScimStoredUser ::
   UserId ->

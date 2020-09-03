@@ -41,8 +41,7 @@ module Spar.Intra.Brig
     setBrigUserName,
     setBrigUserHandle,
     setBrigUserManagedBy,
-    setBrigUserUserRef,
-    deleteBrigUserUserRef,
+    setBrigUserVeid,
     setBrigUserRichInfo,
     checkHandleAvailable,
     deleteBrigUser,
@@ -351,30 +350,16 @@ setBrigUserManagedBy buid managedBy = do
         throwSpar . SparBrigError . cs $ "set managedBy failed with status " <> show sCode
 
 -- | Set user's UserSSOId.
-setBrigUserUserRef :: (HasCallStack, MonadSparToBrig m) => UserId -> SAML.UserRef -> m ()
-setBrigUserUserRef buid uref = do
+setBrigUserVeid :: (HasCallStack, MonadSparToBrig m) => UserId -> ValidExternalId -> m ()
+setBrigUserVeid buid veid = do
   resp <-
     call $
       method PUT
         . paths ["i", "users", toByteString' buid, "sso-id"]
-        . json (toUserSSOId uref)
+        . json (veidToUserSSOId veid)
   case statusCode resp of
-    200 -> do
-      pure ()
-    _ -> do
-      rethrow resp
-
-deleteBrigUserUserRef :: (HasCallStack, MonadSparToBrig m) => UserId -> m ()
-deleteBrigUserUserRef buid = do
-  resp <-
-    call $
-      method DELETE
-        . paths ["i", "users", toByteString' buid, "sso-id"]
-  case statusCode resp of
-    200 -> do
-      pure ()
-    _ -> do
-      rethrow resp
+    200 -> pure ()
+    _ -> rethrow resp
 
 -- | Set user's richInfo. Fails with status <500 if brig fails with <500, and with 500 if
 -- brig fails with >= 500.

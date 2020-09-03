@@ -250,7 +250,7 @@ bindUser buid userref = do
     unless (mteamid' == Just teamid) $ do
       throwSpar . SparBindFromWrongOrNoTeam . cs . show $ buid
   insertUser userref buid
-  buid <$ Intra.setBrigUserUserRef buid userref
+  buid <$ Intra.setBrigUserVeid buid (UrefOnly userref)
 
 instance SPHandler SparError Spar where
   type NTCTX Spar = Env
@@ -347,7 +347,7 @@ findUserWithOldIssuer (SAML.UserRef issuer subject) = do
 moveUserToNewIssuer :: SAML.UserRef -> SAML.UserRef -> UserId -> Spar ()
 moveUserToNewIssuer oldUserRef newUserRef uid = do
   wrapMonadClient $ Data.insertSAMLUser newUserRef uid
-  Intra.setBrigUserUserRef uid newUserRef
+  Intra.setBrigUserVeid uid (UrefOnly newUserRef)
   wrapMonadClient $ Data.deleteSAMLUser oldUserRef
 
 verdictHandlerResultCore :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
