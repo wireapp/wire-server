@@ -29,6 +29,15 @@ activateEmail brig email = do
         const 200 === statusCode
         const (Just False) === fmap activatedFirst . responseJsonMaybe
 
+failActivatingEmail ::
+  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  BrigReq ->
+  Email ->
+  MonadHttp m => m ()
+failActivatingEmail brig email = do
+  act <- getActivationCode brig (Left email)
+  liftIO $ assertEqual "there should be no pending activation" act Nothing
+
 checkEmail ::
   (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
   BrigReq ->

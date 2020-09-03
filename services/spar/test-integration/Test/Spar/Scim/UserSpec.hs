@@ -741,13 +741,13 @@ testGetNonScimSAMLUser = do
 
 testGetNonScimInviteUser :: TestSpar ()
 testGetNonScimInviteUser = do
-  brig <- asks (^. teBrig)
+  env <- ask
   (tok, (owner, tid, _)) <- registerIdPAndScimToken
 
-  uidNoSso <- userId <$> call (inviteAndRegisterUser brig owner tid)
+  uidNoSso <- userId <$> call (inviteAndRegisterUser (env ^. teBrig) owner tid)
 
   shouldBeManagedBy uidNoSso ManagedByWire
-  getUser_ (Just tok) uidNoSso brig !!! const 200 === statusCode
+  getUser_ (Just tok) uidNoSso (env ^. teSpar) !!! const 200 === statusCode
   shouldBeManagedBy uidNoSso ManagedByScim
 
 testGetUserNoIdP :: TestSpar ()
@@ -1385,7 +1385,11 @@ specEmailValidation = do
           uid :: UserId <-
             getUserIdViaRef uref
           brig <- asks (^. teBrig)
-          call $ activateEmail brig email
+          -- we intentionally activate the email even if it's not set up to work, to make sure
+          -- it doesn't if the feature is disabled.
+          if enabled
+            then call $ activateEmail brig email
+            else call $ failActivatingEmail brig email
           pure (uid, email)
 
     context "enabled in team" . it "gives user email" $ do

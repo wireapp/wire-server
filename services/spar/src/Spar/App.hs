@@ -65,7 +65,7 @@ import Spar.Error
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Intra.Galley as Intra
 import Spar.Orphans ()
-import Spar.Scim.Types (ValidExternalId (..), veidEmail, veidUref)
+import Spar.Scim.Types (ValidExternalId (..), runValidExternalId)
 import Spar.Types
 import qualified System.Logger as Log
 import System.Logger.Class (MonadLogger (log))
@@ -225,11 +225,13 @@ autoprovisionSamlUserWithId buid suid managedBy = do
 -- enabled, or (b) user's SCIM externalId is an email address and there is no SAML involved:
 -- make brig initiate the email validate procedure.
 validateEmailIfExists :: UserId -> ValidExternalId -> Spar ()
-validateEmailIfExists uid uref = case (uref ^? veidEmail, uref ^? veidUref) of
-  (Just email, _) -> doValidate True $ Intra.emailToSAML email
-  (_, Just (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email))) -> doValidate False email
-  (_, Just _) -> pure ()
-  (Nothing, Nothing) -> pure () -- (impossible)
+validateEmailIfExists uid =
+  runValidExternalId
+    ( \case
+        (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email)) -> doValidate False email
+        _ -> pure ()
+    )
+    (doValidate True . Intra.emailToSAML)
   where
     doValidate :: Bool -> SAML.Email -> Spar ()
     doValidate always email = do
