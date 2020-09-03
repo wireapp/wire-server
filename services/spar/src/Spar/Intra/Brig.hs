@@ -290,7 +290,11 @@ getBrigUserByEmail email = do
         . path "/i/users"
         . queryItem "email" (toByteString' email)
   case statusCode resp of
-    200 -> listToMaybe <$> parseResponse @[UserAccount] resp
+    200 -> do
+      macc <- listToMaybe <$> parseResponse @[UserAccount] resp
+      case userEmail . accountUser =<< macc of
+        Just email' | email' == email -> pure macc
+        _ -> pure Nothing
     404 -> pure Nothing
     _ -> rethrow resp
 
