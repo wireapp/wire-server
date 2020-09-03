@@ -411,6 +411,8 @@ updateVsuUref uid old new = do
 
   Brig.setBrigUserVeid uid new
 
+-- TODO: how do we claim emails before writing them?
+
 toScimStoredUser ::
   UserId ->
   Scim.User ST.SparTag ->
@@ -530,7 +532,7 @@ calculateVersion uid usr = Scim.Weak (Text.pack (show h))
 --
 -- ASSUMPTION: every scim user has a 'SAML.UserRef', and the `SAML.NameID` in it corresponds
 -- to a single `externalId`.
-assertUserRefUnused :: SAML.UserRef -> Scim.ScimHandler Spar ()
+assertUserRefUnused :: SAML.UserRef -> Scim.ScimHandler Spar () -- we could take a veid here and check that scim_external_ids doesn't have an entry either.  very race-conditionie!
 assertUserRefUnused userRef = do
   mExistingUserId <- lift $ getUser userRef
   unless (isNothing mExistingUserId) $
