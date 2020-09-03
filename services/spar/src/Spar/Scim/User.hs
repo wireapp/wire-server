@@ -52,7 +52,7 @@ import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Crypto.Hash (Digest, SHA256, hashlazy)
 import qualified Data.Aeson as Aeson
 import Data.Handle (Handle (Handle), parseHandle)
-import Data.Id (Id (Id), UserId, idToText)
+import Data.Id (Id (Id), TeamId, UserId, idToText)
 import Data.Json.Util (UTCTimeMillis, fromUTCTimeMillis, toUTCTimeMillis)
 import Data.Misc ((<$$>))
 import Data.String.Conversions (cs)
@@ -97,24 +97,8 @@ instance Scim.UserDB ST.SparTag Spar where
       Scim.FilterAttrCompare (Scim.AttrPath schema attrName _subAttr) Scim.OpEq (Scim.ValString val)
         | Scim.isUserSchema schema -> do
           x <- runMaybeT $ case attrName of
-            "username" -> do
-              handle <- MaybeT . pure . parseHandle . Text.toLower $ val
-              brigUser <- MaybeT . lift . Brig.getBrigUserByHandle $ handle
-              guard $ userTeam (accountUser brigUser) == Just stiTeam
-              case Brig.veidFromBrigUser (accountUser brigUser) ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) of
-                Right veid -> lift $ synthesizeStoredUser brigUser veid
-                Left _ -> Applicative.empty
-            "externalid" -> do
-              veid <- mkUserRef mIdpConfig (pure val)
-              uid <- do
-                MaybeT $
-                  ST.runValidExternalId
-                    (lift . wrapMonadClient . Data.getSAMLUser)
-                    (\email -> userId . accountUser <$$> lift (Brig.getBrigUserByEmail email))
-                    veid
-              brigUser <- MaybeT . lift . Brig.getBrigUserAccount $ uid
-              guard $ userTeam (accountUser brigUser) == Just stiTeam
-              lift $ synthesizeStoredUser brigUser veid
+            "username" -> scimFindUserByHandle mIdpConfig stiTeam val
+            "externalid" -> scimFindUserByEmail mIdpConfig stiTeam val
             _ -> throwError (Scim.badRequest Scim.InvalidFilter (Just "Unsupported attribute"))
           pure $ Scim.fromList (toList x)
         | otherwise -> throwError $ Scim.badRequest Scim.InvalidFilter (Just "Unsupported schema")
@@ -662,6 +646,28 @@ synthesizeScimUser info =
           Scim.displayName = Just $ fromName (info ^. ST.vsuName),
           Scim.active = Just $ info ^. ST.vsuActive
         }
+
+scimFindUserByHandle :: Maybe IdP -> TeamId -> Text -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser ST.SparTag)
+scimFindUserByHandle mIdpConfig stiTeam val = do
+  handle <- MaybeT . pure . parseHandle . Text.toLower $ val
+  brigUser <- MaybeT . lift . Brig.getBrigUserByHandle $ handle
+  guard $ userTeam (accountUser brigUser) == Just stiTeam
+  case Brig.veidFromBrigUser (accountUser brigUser) ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) of
+    Right veid -> lift $ synthesizeStoredUser brigUser veid
+    Left _ -> Applicative.empty
+
+scimFindUserByEmail :: Maybe IdP -> TeamId -> Text -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser ST.SparTag)
+scimFindUserByEmail mIdpConfig stiTeam val = do
+  veid <- mkUserRef mIdpConfig (pure val)
+  uid <- do
+    MaybeT $
+      ST.runValidExternalId
+        (lift . wrapMonadClient . Data.getSAMLUser)
+        (\email -> userId . accountUser <$$> lift (Brig.getBrigUserByEmail email))
+        veid
+  brigUser <- MaybeT . lift . Brig.getBrigUserAccount $ uid
+  guard $ userTeam (accountUser brigUser) == Just stiTeam
+  lift $ synthesizeStoredUser brigUser veid
 
 {- TODO: might be useful later.
 ~~~~~~~~~~~~~~~~~~~~~~~~~
