@@ -29,9 +29,11 @@ where
 
 import Bilge
 import Bilge.Assert
-import Brig.Types.Intra (AccountStatus (Active, Suspended), UserAccount (accountUser))
+import Brig.Types.Intra (AccountStatus (Active, Suspended))
 import Brig.Types.User as Brig
 import Control.Lens
+import Control.Monad.Trans.Except
+import Control.Monad.Trans.Maybe
 import Control.Retry (exponentialBackoff, limitRetries, recovering)
 import qualified Data.Aeson as Aeson
 import Data.Aeson.QQ (aesonQQ)
@@ -40,7 +42,6 @@ import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle), fromHandle)
 import Data.Id (TeamId, UserId, randomId)
 import Data.Ix (inRange)
-import Data.Misc ((<$$>))
 import Data.String.Conversions (cs)
 import Imports
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
@@ -48,6 +49,7 @@ import qualified SAML2.WebSSO.Types as SAML
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import Spar.Scim
+import qualified Spar.Scim.User as SU
 import Spar.Types (IdP)
 import qualified Spar.Types
 import qualified Text.XML.DSig as SAML
@@ -762,7 +764,7 @@ testGetNonScimInviteUserNoIdP = do
   uidNoSso <- userId <$> call (inviteAndRegisterUser (env ^. teBrig) owner tid)
 
   shouldBeManagedBy uidNoSso ManagedByWire
-  getUser_ (Just tok) uidNoSso (env ^. teBrig) !!! const 200 === statusCode
+  getUser_ (Just tok) uidNoSso (env ^. teSpar) !!! const 200 === statusCode
   shouldBeManagedBy uidNoSso ManagedByScim
 
 testGetUserWithNoHandle :: TestSpar ()
@@ -1004,14 +1006,14 @@ testUpdateSameHandle = do
 testUpdateExternalId :: Bool -> TestSpar ()
 testUpdateExternalId withidp = do
   env <- ask
-  (tok, midp) <-
+  (tok, midp, tid) <-
     if withidp
       then do
-        (tok, (_, _, idp)) <- registerIdPAndScimToken
-        pure (tok, Just idp)
+        (tok, (_, tid, idp)) <- registerIdPAndScimToken
+        pure (tok, Just idp, tid)
       else do
         (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-        (,Nothing) <$> registerScimToken tid Nothing
+        (,Nothing,tid) <$> registerScimToken tid Nothing
 
   let checkUpdate :: HasCallStack => Bool -> TestSpar ()
       checkUpdate hasChanged {- is externalId updated with a different value, or with itself? -} = do
@@ -1052,7 +1054,13 @@ testUpdateExternalId withidp = do
       lookupByValidExternalId =
         runValidExternalId
           (runSparCass . Data.getSAMLUser)
-          (runSpar . (userId . accountUser <$$>) . Intra.getBrigUserByEmail)
+          ( \email -> do
+              let action = SU.scimFindUserByEmail midp tid $ fromEmail email
+              result <- runSpar . runExceptT . runMaybeT $ action
+              case result of
+                Right muser -> pure $ Scim.id . Scim.thing <$> muser
+                Left err -> error $ show err
+          )
 
   checkUpdate True
   checkUpdate False

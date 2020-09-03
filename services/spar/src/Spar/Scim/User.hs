@@ -33,11 +33,11 @@
 --
 -- Provides a 'Scim.Class.User.UserDB' instance.
 module Spar.Scim.User
-  ( -- * Internals (for testing)
-    validateScimUser',
+  ( validateScimUser',
     synthesizeScimUser,
     toScimStoredUser',
     mkUserRef,
+    scimFindUserByEmail,
   )
 where
 
@@ -645,8 +645,8 @@ synthesizeScimUser info =
         }
 
 scimFindUserByHandle :: Maybe IdP -> TeamId -> Text -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser ST.SparTag)
-scimFindUserByHandle mIdpConfig stiTeam val = do
-  handle <- MaybeT . pure . parseHandle . Text.toLower $ val
+scimFindUserByHandle mIdpConfig stiTeam hndl = do
+  handle <- MaybeT . pure . parseHandle . Text.toLower $ hndl
   brigUser <- MaybeT . lift . Brig.getBrigUserByHandle $ handle
   guard $ userTeam (accountUser brigUser) == Just stiTeam
   case Brig.veidFromBrigUser (accountUser brigUser) ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) of
@@ -654,8 +654,8 @@ scimFindUserByHandle mIdpConfig stiTeam val = do
     Left _ -> Applicative.empty
 
 scimFindUserByEmail :: Maybe IdP -> TeamId -> Text -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser ST.SparTag)
-scimFindUserByEmail mIdpConfig stiTeam val = do
-  veid <- mkUserRef mIdpConfig (pure val)
+scimFindUserByEmail mIdpConfig stiTeam email = do
+  veid <- mkUserRef mIdpConfig (pure email)
   uid <- MaybeT . lift $ ST.runValidExternalId withUref withEmailOnly veid
   brigUser <- MaybeT . lift . Brig.getBrigUserAccount $ uid
   guard $ userTeam (accountUser brigUser) == Just stiTeam
@@ -665,11 +665,11 @@ scimFindUserByEmail mIdpConfig stiTeam val = do
     withUref = wrapMonadClient . Data.getSAMLUser
 
     withEmailOnly :: BT.Email -> Spar (Maybe UserId)
-    withEmailOnly email = maybe inbrig (pure . Just) =<< inspar
+    withEmailOnly eml = maybe inbrig (pure . Just) =<< inspar
       where
         inspar, inbrig :: Spar (Maybe UserId)
-        inspar = wrapMonadClient $ Data.lookupScimExternalId email
-        inbrig = userId . accountUser <$$> Brig.getBrigUserByEmail email
+        inspar = wrapMonadClient $ Data.lookupScimExternalId eml
+        inbrig = userId . accountUser <$$> Brig.getBrigUserByEmail eml
 
 {- TODO: might be useful later.
 ~~~~~~~~~~~~~~~~~~~~~~~~~
