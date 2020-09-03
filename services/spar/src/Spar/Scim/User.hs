@@ -633,7 +633,9 @@ synthesizeStoredUser' uid veid dname handle richInfo accStatus createdAt lastUpd
         synthesizeScimUser
           ST.ValidScimUser
             { ST._vsuExternalId = veid,
-              ST._vsuHandle = handle, -- 'Maybe' there is one in @usr@, but we want to type checker to make sure this exists.
+              ST._vsuHandle = handle {- 'Maybe' there is one in @usr@, but we want the type
+                                        checker to make sure this exists, so we add it here
+                                        redundantly, without the 'Maybe'. -},
               ST._vsuName = dname,
               ST._vsuRichInfo = richInfo,
               ST._vsuActive = ST.scimActiveFlagFromAccountStatus accStatus

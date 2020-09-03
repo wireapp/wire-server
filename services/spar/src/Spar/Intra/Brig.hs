@@ -60,16 +60,12 @@ module Spar.Intra.Brig
   )
 where
 
--- TODO: when creating user, we need to be able to provide more
--- master data (first name, last name, ...)
-
 import Bilge
 import Brig.Types.Intra
 import Brig.Types.User
 import Brig.Types.User.Auth (SsoLogin (..))
 import Control.Lens
 import Control.Monad.Except
-import Data.Aeson (FromJSON, eitherDecode')
 import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle, fromHandle))
 import Data.Id (Id (Id), TeamId, UserId)
@@ -82,6 +78,7 @@ import Network.HTTP.Types.Method
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified SAML2.WebSSO as SAML
 import Spar.Error
+import Spar.Intra.Galley (parseResponse)
 import Spar.Intra.Galley as Galley (MonadSparToGalley, assertIsTeamOwner)
 import Spar.Scim.Types (ValidExternalId (..), runValidExternalId)
 import qualified Text.Email.Parser
@@ -164,11 +161,6 @@ mkUserName Nothing =
 
 renderValidExternalId :: ValidExternalId -> Maybe Text
 renderValidExternalId = runValidExternalId urefToExternalId (Just . fromEmail)
-
-parseResponse :: (FromJSON a, MonadError SparError m) => Response (Maybe LBS) -> m a
-parseResponse resp = do
-  bdy <- maybe (throwSpar SparNoBodyInBrigResponse) pure $ responseBody resp
-  either (throwSpar . SparCouldNotParseBrigResponse . cs) pure $ eitherDecode' bdy
 
 -- | Similar to 'Network.Wire.Client.API.Auth.tokenResponse', but easier: we just need to set the
 -- cookie in the response, and the redirect will make the client negotiate a fresh auth token.
