@@ -46,7 +46,7 @@ import Brig.Types.Intra (AccountStatus, UserAccount (accountStatus, accountUser)
 import Brig.Types.User (ManagedBy (..), Name (..), User (..))
 import qualified Brig.Types.User as BT
 import qualified Control.Applicative as Applicative (empty)
-import Control.Lens ((^.), (^?))
+import Control.Lens (view, (^.), (^?))
 import Control.Monad.Except (MonadError, throwError)
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Crypto.Hash (Digest, SHA256, hashlazy)
@@ -589,12 +589,15 @@ synthesizeStoredUser usr veid = do
         baseuri <- asks $ derivedOptsScimBaseURI . derivedOpts . sparCtxOpts
         pure (richInfo, accessTimes, baseuri)
 
-  let writeState :: Maybe (UTCTimeMillis, UTCTimeMillis) -> ManagedBy -> Scim.StoredUser ST.SparTag -> Spar ()
-      writeState oldAccessTimes managedBy storedUser = do
+  let writeState :: Maybe (UTCTimeMillis, UTCTimeMillis) -> ManagedBy -> RI.RichInfo -> Scim.StoredUser ST.SparTag -> Spar ()
+      writeState oldAccessTimes oldManagedBy oldRichInfo storedUser = do
         when (isNothing oldAccessTimes) $ do
           wrapMonadClient $ Data.writeScimUserTimes storedUser
-        when (managedBy /= ManagedByScim) $ do
+        when (oldManagedBy /= ManagedByScim) $ do
           Brig.setBrigUserManagedBy uid ManagedByScim
+        let newRichInfo = view ST.sueRichInfo . Scim.extra . Scim.value . Scim.thing $ storedUser
+        when (oldRichInfo /= newRichInfo) $ do
+          Brig.setBrigUserRichInfo uid newRichInfo
 
   (richInfo, accessTimes, baseuri) <- lift readState
   SAML.Time (toUTCTimeMillis -> now) <- lift SAML.getNow
@@ -613,7 +616,7 @@ synthesizeStoredUser usr veid = do
       createdAt
       lastUpdatedAt
       baseuri
-  lift $ writeState accessTimes (userManagedBy (accountUser usr)) storedUser
+  lift $ writeState accessTimes (userManagedBy (accountUser usr)) richInfo storedUser
   pure storedUser
 
 synthesizeStoredUser' ::
