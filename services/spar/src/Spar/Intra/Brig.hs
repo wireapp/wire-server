@@ -395,15 +395,14 @@ setBrigUserRichInfo buid richInfo = do
         throwSpar . SparBrigError . cs $ "set richInfo failed with status " <> show sCode
 
 getBrigUserRichInfo :: (HasCallStack, MonadSparToBrig m) => UserId -> m RichInfo
-getBrigUserRichInfo buid =
-  RichInfo.RichInfo <$> do
-    resp <-
-      call $
-        method GET
-          . paths ["/i/users", toByteString' buid, "rich-info"]
-    case statusCode resp of
-      200 -> parseResponse resp
-      _ -> rethrow resp
+getBrigUserRichInfo buid = do
+  resp <-
+    call $
+      method GET
+        . paths ["/i/users", toByteString' buid, "rich-info"]
+  case statusCode resp of
+    200 -> parseResponse resp
+    _ -> rethrow resp
 
 checkHandleAvailable :: (HasCallStack, MonadSparToBrig m) => Handle -> m Bool
 checkHandleAvailable hnd = do
