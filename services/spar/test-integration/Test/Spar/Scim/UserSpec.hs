@@ -186,8 +186,6 @@ specCreateUser = describe "POST /Users" $ do
   context "team has one SAML IdP" $ do
     it "creates a user in an existing team" $ do
       testCreateUserWithSamlIdP
-    it "validates email address if feature flag is on" $ do
-      testValidateEmailsInSamlUrefs
   it "adds a Wire scheme to the user record" $ testSchemaIsAdded
   it "requires externalId to be present" $ testExternalIdIsRequired
   it "rejects invalid handle" $ testCreateRejectsInvalidHandle
@@ -300,9 +298,6 @@ testCreateUserWithSamlIdP = do
   accStatus <- aFewTimes (runSpar $ Intra.getStatus (userId brigUser)) (== Active)
   liftIO $ accStatus `shouldBe` Active
   liftIO $ userManagedBy brigUser `shouldBe` ManagedByScim
-
-testValidateEmailsInSamlUrefs :: TestSpar ()
-testValidateEmailsInSamlUrefs = undefined
 
 -- | Test that Wire-specific schemas are added to the SCIM user record, even if the schemas
 -- were not present in the original record during creation.
