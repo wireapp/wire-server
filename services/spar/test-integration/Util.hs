@@ -21,5 +21,6 @@ module Util
 where
 
 import Util.Core as U
+import Util.Email as U
 import Util.Scim as U
 import Util.Types as U

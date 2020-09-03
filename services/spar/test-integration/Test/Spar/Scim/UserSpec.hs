@@ -32,10 +32,8 @@ import Bilge.Assert
 import Brig.Types.Intra (AccountStatus (Active, Suspended))
 import Brig.Types.User as Brig
 import Control.Lens
-import Control.Monad.Catch (MonadCatch)
 import Control.Retry (exponentialBackoff, limitRetries, recovering)
 import qualified Data.Aeson as Aeson
-import Data.Aeson.Lens (key, _String)
 import Data.Aeson.QQ (aesonQQ)
 import Data.Aeson.Types (fromJSON, toJSON)
 import Data.ByteString.Conversion
@@ -43,7 +41,6 @@ import Data.Handle (Handle (Handle), fromHandle)
 import Data.Id (TeamId, UserId, randomId)
 import Data.Ix (inRange)
 import Data.String.Conversions (cs)
-import qualified Data.Text.Ascii as Ascii
 import Imports
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified SAML2.WebSSO.Types as SAML
@@ -61,7 +58,6 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.PatchOp as PatchOp
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Wire.API.Team.Feature as Feature
-import qualified Wire.API.User.Activation as Activation
 import Wire.API.User.RichInfo
 
 -- | Tests for @\/scim\/v2\/Users@.
@@ -247,21 +243,11 @@ testCreateUserNoIdP = do
         listUsers tok (Just (filterBy "externalId" $ fromEmail email)) >>= \users ->
           liftIO $ users `shouldBe` [scimStoredUser]
 
-      doValidateEmail :: TestSpar ()
-      doValidateEmail = do
-        undefined
-
-      emailValidatedInBrig :: TestSpar ()
-      emailValidatedInBrig = do
-        brigUser' <-
-          aFewTimes (runSpar $ Intra.getBrigUser userid) (maybe False (isJust . userEmail))
-            >>= maybe (error "could not find user in brig") pure
-        liftIO $ userEmail brigUser' `shouldSatisfy` isJust
-
   checkGet
   checkSearch
-  doValidateEmail
-  emailValidatedInBrig
+  call $ do
+    activateEmail (env ^. teBrig) email
+    checkEmail (env ^. teBrig) userid email
   checkGet
   checkSearch
 
@@ -1374,49 +1360,6 @@ specEmailValidation = do
           brig <- asks (^. teBrig)
           call $ activateEmail brig email
           pure (uid, email)
-
-        -- copied from brig integration tests.
-        activateEmail ::
-          HasCallStack =>
-          BrigReq ->
-          Email ->
-          (MonadIO m, MonadCatch m, MonadHttp m) => m ()
-        activateEmail brig email = do
-          act <- getActivationCode brig (Left email)
-          case act of
-            Nothing -> pure () -- missing activation key/code; this happens if the feature is
-            -- disabled (second test case below)
-            Just kc ->
-              activate brig kc !!! do
-                const 200 === statusCode
-                const (Just False) === fmap Activation.activatedFirst . responseJsonMaybe
-
-        -- copied from brig integration tests.
-        getActivationCode ::
-          HasCallStack =>
-          BrigReq ->
-          Either Email Phone ->
-          (MonadIO m, MonadCatch m, MonadHttp m) => m (Maybe (Activation.ActivationKey, Activation.ActivationCode))
-        getActivationCode brig ep = do
-          let qry = either (queryItem "email" . toByteString') (queryItem "phone" . toByteString') ep
-          r <- get $ brig . path "/i/users/activation-code" . qry
-          let lbs = fromMaybe "" $ responseBody r
-          let akey = Activation.ActivationKey . Ascii.unsafeFromText <$> (lbs ^? key "key" . _String)
-          let acode = Activation.ActivationCode . Ascii.unsafeFromText <$> (lbs ^? key "code" . _String)
-          return $ (,) <$> akey <*> acode
-
-        -- copied from brig integration tests.
-        activate ::
-          HasCallStack =>
-          BrigReq ->
-          (Activation.ActivationKey, Activation.ActivationCode) ->
-          (MonadIO m, MonadCatch m, MonadHttp m) => m ResponseLBS
-        activate brig (k, c) =
-          get $
-            brig
-              . path "activate"
-              . queryItem "key" (toByteString' k)
-              . queryItem "code" (toByteString' c)
 
     context "enabled in team" . it "gives user email" $ do
       (uid, email) <- setup True
