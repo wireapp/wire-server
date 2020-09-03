@@ -4,12 +4,16 @@ import qualified Cassandra as C
 import qualified Cassandra.Settings as C
 import Brig.Types
 import Control.Lens hiding ((.=))
+import Data.Aeson
+import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Id
+import Data.Text.Ascii
 import qualified Data.Text as Text
 import Imports
 import Options
 import Options.Applicative
+import qualified Data.Aeson as JSON
 import qualified System.Logger.Extended as Log
 
 main :: IO ()
@@ -19,33 +23,20 @@ main = do
   casClient <- initCassandra l (s^.setCasBrig)
   C.runClient casClient $ do
     page1 <- scanForIndex 2500
-    go l (s^.setDomains) 0 page1
+    goCheckProperties l 0 0 page1
   where
     desc = header   "list-emails-with-domain"
         <> progDesc "User script"
         <> fullDesc
 
-    go l domains n page = do
+    goCheckProperties l total n page = do
       let result = C.result page
           newCount = n + length result
-      mapM_ (printIfMatchesDomain l domains) result
+      mapM_ (countTeamMemberIfHasProperties l) result
       Log.info l $ (Log.msg $ Log.val $ toByteString' ("Scanned " ++ show newCount))
       when (C.hasMore page) $ do
         nextPage <- C.liftClient (C.nextPage page)
-        go l domains newCount nextPage
-
-printIfMatchesDomain :: MonadIO m => Log.Logger -> [Text] -> UserRow -> m ()
-printIfMatchesDomain _ _       (_     , Nothing    , _    , _         ) = pure ()
-printIfMatchesDomain l domains (userId, Just mEmail, mTeam, mActivated) = do
-  let email = parseEmail (Text.toLower mEmail)
-  let interestingDomains = map (Just . Text.toLower) domains
-  if (emailDomain <$> email) `elem` interestingDomains
-    then Log.info l (Log.msg $ Log.val $ toByteString' $ show (userId, pretty email, pretty mTeam, pretty mActivated))
-    else pure ()
- where
-  pretty :: Show a => Maybe a -> String
-  pretty (Just x) = show x
-  pretty Nothing  = ""
+        goCheckProperties l total newCount nextPage
 
 initCassandra ::
   MonadIO m =>
@@ -82,3 +73,37 @@ scanForIndex num =
       \team, \
       \activated \
       \FROM user"
+
+-- Copied due to lack of Cql instance
+type PropertyKeyCql = AsciiPrintable
+type PropertyValueCql = Value
+
+instance C.Cql PropertyValueCql where
+  ctype = C.Tagged C.BlobColumn
+  toCql = C.toCql . C.Blob . JSON.encode
+  fromCql (C.CqlBlob v) = case JSON.eitherDecode v of
+    Left e -> fail ("Failed to read property value: " <> e)
+    Right x -> pure x
+  fromCql _ = fail "PropertyValue: Blob expected"
+
+propertySelect :: C.PrepQuery C.R (UserId, PropertyKeyCql) (Identity PropertyValueCql)
+propertySelect = "SELECT value FROM properties where user = ? and key = ?"
+
+lookupProperty :: C.MonadClient m => UserId -> PropertyKeyCql -> m (Maybe PropertyValueCql)
+lookupProperty u k =
+  fmap runIdentity
+    <$> (C.query1 propertySelect (C.params C.Quorum (u, k)))
+
+countTeamMemberIfHasProperties :: C.MonadClient m => Log.Logger -> UserRow -> m ()
+countTeamMemberIfHasProperties _ (_     , _    , Nothing   , _         ) = pure ()
+countTeamMemberIfHasProperties l (userId, _    , Just mTeam, mActivated) = do
+  mProperty <- lookupProperty userId "webapp"
+  let hasConsent = case mProperty of
+                      Just property -> hasUserGivenConsent property
+                      _ -> False
+  when hasConsent $
+    Log.info l (Log.msg $ Log.val $ toByteString' $ show (userId, show mTeam))
+ where
+  -- {\"settings\":{\"privacy\":{\"improve_wire\":true}}}
+  hasUserGivenConsent :: Value -> Bool
+  hasUserGivenConsent x = x ^? key "settings" . key "privacy" . key "improve_wire" . _Bool == Just True
