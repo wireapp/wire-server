@@ -25,12 +25,13 @@ module Spar.Intra.Brig
     veidFromUserSSOId,
     urefToExternalId,
     urefToEmail,
-    userToScimExternalId,
+    userToExternalId,
     veidFromBrigUser,
     mkUserName,
     renderValidExternalId,
     emailFromSAML,
     emailToSAML,
+    emailToSAMLNameID,
     getBrigUser,
     getBrigUserAccount,
     getBrigUserTeam,
@@ -132,8 +133,8 @@ urefToEmail uref = case uref ^. SAML.uidSubject . SAML.nameID of
   SAML.UNameIDEmail email -> Just $ emailFromSAML email
   _ -> Nothing
 
-userToScimExternalId :: User -> Either String Text
-userToScimExternalId usr = case (userSSOId usr, userEmail usr) of
+userToExternalId :: User -> Either String Text
+userToExternalId usr = case (userSSOId usr, userEmail usr) of
   (Just ssoid, _) -> case fromUserSSOId ssoid of
     Right (SAML.UserRef _ subj) -> maybe (Left "bad uref from brig") Right $ SAML.shortShowNameID subj
     Left err -> Left err
@@ -271,7 +272,7 @@ getBrigUserAccount buid = do
             if userDeleted $ accountUser account
               then Nothing
               else Just account
-        _ -> pure Nothing -- impossible
+        _ -> pure Nothing
     404 -> pure Nothing
     _ -> rethrow resp
 
@@ -410,7 +411,7 @@ getBrigUserRichInfo buid =
           . paths ["/i/users", toByteString' buid, "rich-info"]
     case statusCode resp of
       200 -> parseResponse resp
-      _ -> throwSpar (SparBrigErrorWith (responseStatus resp) "Could not retrieve rich info")
+      _ -> rethrow resp
 
 checkHandleAvailable :: (HasCallStack, MonadSparToBrig m) => Handle -> m Bool
 checkHandleAvailable hnd = do

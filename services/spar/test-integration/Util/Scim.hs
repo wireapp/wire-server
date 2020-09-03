@@ -582,9 +582,21 @@ instance IsUser User where
   maybeUserId = Just userId
   maybeHandle = Just userHandle
   maybeName = Just (Just . userDisplayName)
-  maybeTenant = Just (fmap (view SAML.uidTenant) . urefFromBrig)
-  maybeSubject = Just (fmap (view SAML.uidSubject) . urefFromBrig)
-  maybeSubjectRaw = Just (SAML.shortShowNameID . view SAML.uidSubject <=< urefFromBrig)
+  maybeTenant = Just tenantFromBrigUser
+  maybeSubject = Just subjectFromBrigUser
+  maybeSubjectRaw = Just (SAML.shortShowNameID <=< subjectFromBrigUser)
+
+tenantFromBrigUser :: User -> Maybe SAML.Issuer
+tenantFromBrigUser usr =
+  case Intra.veidFromBrigUser usr Nothing of
+    Left _ -> Nothing
+    Right veid -> runValidExternalId (Just . view SAML.uidTenant) (const Nothing) veid
+
+subjectFromBrigUser :: User -> Maybe SAML.NameID
+subjectFromBrigUser usr =
+  case Intra.veidFromBrigUser usr Nothing of
+    Left _ -> Nothing
+    Right veid -> Just $ runValidExternalId (view SAML.uidSubject) (Intra.emailToSAMLNameID) veid
 
 -- | For all properties that are present in both @u1@ and @u2@, check that they match.
 --
@@ -615,19 +627,6 @@ userShouldMatch u1 u2 = liftIO $ do
     check field getField = case (getField <&> ($ u1), getField <&> ($ u2)) of
       (Just a1, Just a2) -> (field, a1) `shouldBe` (field, a2)
       _ -> pure ()
-
-urefFromBrig :: User -> Maybe SAML.UserRef
-urefFromBrig brigUser = case userIdentity brigUser of
-  Just (SSOIdentity ssoid _ _) -> case Intra.fromUserSSOId ssoid of
-    Right uref -> Just uref
-    Left e ->
-      error $
-        "urefFromBrig: bad SSO id: "
-          <> "UserSSOId = "
-          <> show ssoid
-          <> ", error = "
-          <> e
-  _ -> Nothing
 
 -- | The spar scim implementation makes use of its right to drop a lot of attributes on the
 -- floor.  This function calls the spar functions that do that.  This allows us to express

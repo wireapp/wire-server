@@ -616,7 +616,7 @@ testFindNonProvisionedUser = do
   Just brigUser' <- runSpar $ Intra.getBrigUser member
   liftIO $ userManagedBy brigUser' `shouldBe` ManagedByScim
   _ <- getUser tok member
-  let externalId = either error id $ Intra.userToScimExternalId brigUser'
+  let externalId = either error id $ Intra.userToExternalId brigUser'
   users' <- listUsers tok (Just (filterBy "externalId" externalId))
   liftIO $ (scimUserId <$> users') `shouldContain` [member]
 
@@ -1252,7 +1252,10 @@ specDeleteUser = do
       let uid :: UserId = scimUserId storedUser
       uref :: SAML.UserRef <- do
         usr <- runSpar $ Intra.getBrigUser uid
-        maybe (error "no UserRef from brig") pure $ urefFromBrig =<< usr
+        let err = error . ("brig user without UserRef: " <>) . show
+        case (`Intra.veidFromBrigUser` Nothing) <$> usr of
+          bad@(Just (Right veid)) -> runValidExternalId pure (const $ err bad) veid
+          bad -> err bad
       spar <- view teSpar
       deleteUser_ (Just tok) (Just uid) spar
         !!! const 204 === statusCode
