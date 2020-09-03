@@ -328,10 +328,13 @@ createValidScimUser ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid handl mbN
   storedUser <- lift . toScimStoredUser buid $ synthesizeScimUser vsu
 
   -- {(arianvp): these two actions we probably want to make transactional.}
-  lift $ do
-    -- Store scim timestamps and saml credentials locally in spar.
-    wrapMonadClient $ Data.writeScimUserTimes storedUser
-    for_ (veid ^? ST.veidUref) (wrapMonadClient . (`Data.insertSAMLUser` buid))
+  lift . wrapMonadClient $ do
+    -- Store scim timestamps, saml credentials, scim externalId locally in spar.
+    Data.writeScimUserTimes storedUser
+    ST.runValidExternalId
+      (`Data.insertSAMLUser` buid)
+      (`Data.insertScimExternalId` buid)
+      veid
 
   -- If applicable, trigger email validation procedure on brig.
   lift $ validateEmailIfExists buid veid
@@ -402,15 +405,9 @@ updateVsuUref uid old new = do
   when (old ^? ST.veidEmail /= new ^? ST.veidEmail) $ do
     validateEmailIfExists uid new
 
-  ST.runValidExternalId
-    (wrapMonadClient . Data.deleteSAMLUser)
-    (\_ -> pure ()) -- TODO: update externalId-to-UserId table in spar!
-    old
-
-  ST.runValidExternalId
-    (wrapMonadClient . (`Data.insertSAMLUser` uid))
-    (\_ -> pure ()) -- TODO: update externalId-to-UserId table in spar!
-    new
+  wrapMonadClient $ do
+    old & ST.runValidExternalId Data.deleteSAMLUser Data.deleteScimExternalId
+    new & ST.runValidExternalId (`Data.insertSAMLUser` uid) (`Data.insertScimExternalId` uid)
 
   Brig.setBrigUserVeid uid new
 
@@ -659,15 +656,20 @@ scimFindUserByHandle mIdpConfig stiTeam val = do
 scimFindUserByEmail :: Maybe IdP -> TeamId -> Text -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser ST.SparTag)
 scimFindUserByEmail mIdpConfig stiTeam val = do
   veid <- mkUserRef mIdpConfig (pure val)
-  uid <- do
-    MaybeT $
-      ST.runValidExternalId
-        (lift . wrapMonadClient . Data.getSAMLUser)
-        (\email -> userId . accountUser <$$> lift (Brig.getBrigUserByEmail email))
-        veid
+  uid <- MaybeT . lift $ ST.runValidExternalId withUref withEmailOnly veid
   brigUser <- MaybeT . lift . Brig.getBrigUserAccount $ uid
   guard $ userTeam (accountUser brigUser) == Just stiTeam
   lift $ synthesizeStoredUser brigUser veid
+  where
+    withUref :: SAML.UserRef -> Spar (Maybe UserId)
+    withUref = wrapMonadClient . Data.getSAMLUser
+
+    withEmailOnly :: BT.Email -> Spar (Maybe UserId)
+    withEmailOnly email = maybe inbrig (pure . Just) =<< inspar
+      where
+        inspar, inbrig :: Spar (Maybe UserId)
+        inspar = wrapMonadClient $ Data.lookupScimExternalId email
+        inbrig = userId . accountUser <$$> Brig.getBrigUserByEmail email
 
 {- TODO: might be useful later.
 ~~~~~~~~~~~~~~~~~~~~~~~~~
