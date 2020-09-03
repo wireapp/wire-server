@@ -270,7 +270,7 @@ mkUserRef Nothing (Just extid) = do
   let err =
         Scim.badRequest
           Scim.InvalidValue
-          (Just "externalId must be a valid email or a valid SAML NameID")
+          (Just "externalId must be a valid email address or (if there is a SAML IdP) a valid SAML NameID")
   maybe (throwError err) (pure . ST.EmailOnly) $ parseEmail extid
 mkUserRef (Just idp) (Just extid) = do
   let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
