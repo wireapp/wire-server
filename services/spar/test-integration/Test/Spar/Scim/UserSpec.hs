@@ -29,7 +29,7 @@ where
 
 import Bilge
 import Bilge.Assert
-import Brig.Types.Intra (AccountStatus (Active, Suspended))
+import Brig.Types.Intra (AccountStatus (Active, Suspended), UserAccount (accountUser))
 import Brig.Types.User as Brig
 import Control.Lens
 import Control.Retry (exponentialBackoff, limitRetries, recovering)
@@ -40,6 +40,7 @@ import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle), fromHandle)
 import Data.Id (TeamId, UserId, randomId)
 import Data.Ix (inRange)
+import Data.Misc ((<$$>))
 import Data.String.Conversions (cs)
 import Imports
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
@@ -1003,16 +1004,17 @@ testUpdateSameHandle = do
 testUpdateExternalId :: Bool -> TestSpar ()
 testUpdateExternalId withidp = do
   env <- ask
-  (tok, midp) <- case withidp of
-    True -> do
-      (tok, (_, _, idp)) <- registerIdPAndScimToken
-      pure (tok, Just idp)
-    False -> do
-      (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-      (,Nothing) <$> registerScimToken tid Nothing
+  (tok, midp) <-
+    if withidp
+      then do
+        (tok, (_, _, idp)) <- registerIdPAndScimToken
+        pure (tok, Just idp)
+      else do
+        (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+        (,Nothing) <$> registerScimToken tid Nothing
 
   let checkUpdate :: HasCallStack => Bool -> TestSpar ()
-      checkUpdate hasChanged {- if externalId is updated with itself -} = do
+      checkUpdate hasChanged {- is externalId updated with a different value, or with itself? -} = do
         -- Create a user via SCIM
         email <- randomEmail
         user <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
@@ -1021,19 +1023,36 @@ testUpdateExternalId withidp = do
         veid :: ValidExternalId <-
           either (error . show) pure $ mkUserRef midp (Scim.User.externalId user)
         -- Overwrite the user with another randomly-generated user (only controlling externalId)
-        user' <-
+        user' <- do
+          otherEmail <- randomEmail
           let upd u =
-                if hasChanged
-                  then u {Scim.User.externalId = Scim.User.externalId user}
-                  else u
-           in randomScimUser <&> upd
+                u
+                  { Scim.User.externalId =
+                      if hasChanged
+                        then Just $ fromEmail otherEmail
+                        else Scim.User.externalId user
+                  }
+          randomScimUser <&> upd
+        let veid' = either (error . show) id $ mkUserRef midp (Scim.User.externalId user')
+
         _ <- updateUser tok userid user'
-        veid' <- either (error . show) pure $ mkUserRef midp (Scim.User.externalId user')
-        muserid <- runSparCass $ Data.getSAMLUser (veid ^?! veidUref)
-        muserid' <- runSparCass $ Data.getSAMLUser (veid' ^?! veidUref)
+
+        muserid <- lookupByValidExternalId veid
+        muserid' <- lookupByValidExternalId veid'
         liftIO $ do
-          (hasChanged, muserid) `shouldBe` (hasChanged, if hasChanged then Just userid else Nothing)
-          muserid' `shouldBe` Just userid
+          if hasChanged
+            then do
+              (hasChanged, muserid) `shouldBe` (hasChanged, Nothing)
+              (hasChanged, muserid') `shouldBe` (hasChanged, Just userid)
+            else do
+              (hasChanged, veid') `shouldBe` (hasChanged, veid)
+              (hasChanged, muserid') `shouldBe` (hasChanged, Just userid)
+
+      lookupByValidExternalId :: ValidExternalId -> TestSpar (Maybe UserId)
+      lookupByValidExternalId =
+        runValidExternalId
+          (runSparCass . Data.getSAMLUser)
+          (runSpar . (userId . accountUser <$$>) . Intra.getBrigUserByEmail)
 
   checkUpdate True
   checkUpdate False
