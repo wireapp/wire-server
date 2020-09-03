@@ -1362,6 +1362,7 @@ specEmailValidation = do
               p = ["/i/teams", toByteString' tid, "features", "validate-saml-emails"]
           call req !!! const 204 === statusCode
 
+        -- (This may be the same as 'Util.Email.checkEmail'.)
         assertEmail :: HasCallStack => UserId -> Maybe Email -> TestSpar ()
         assertEmail uid expectedEmail = do
           brig <- asks (^. teBrig)
