@@ -411,8 +411,6 @@ updateVsuUref uid old new = do
 
   Brig.setBrigUserVeid uid new
 
--- TODO: how do we claim emails before writing them?
-
 toScimStoredUser ::
   UserId ->
   Scim.User ST.SparTag ->

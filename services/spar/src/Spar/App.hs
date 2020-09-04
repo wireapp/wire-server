@@ -246,8 +246,8 @@ validateEmailIfExists uid =
 -- 'UserRef' into the 'UserIdentity'.  Otherwise, throw an error.
 bindUser :: UserId -> SAML.UserRef -> Spar UserId
 bindUser buid userref = do
-  teamid <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (userref ^. uidTenant)
   do
+    teamid <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (userref ^. uidTenant)
     mteamid' <- Intra.getBrigUserTeam buid
     unless (mteamid' == Just teamid) $ do
       throwSpar . SparBindFromWrongOrNoTeam . cs . show $ buid
