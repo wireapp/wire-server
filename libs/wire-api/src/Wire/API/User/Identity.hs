@@ -251,15 +251,13 @@ isValidPhone = either (const False) (const True) . parseOnly e164
 -- FUTUREWORK: rename the data type to @UserSparId@ (not the two constructors, those are ok).
 data UserSSOId
   = UserSSOId
-      { -- | An XML blob pointing to the identity provider that can confirm
-        -- user's identity.
-        userSSOIdTenant :: Text,
-        -- | An XML blob specifying the user's ID on the identity provider's side.
-        userSSOIdSubject :: Text
-      }
+      -- An XML blob pointing to the identity provider that can confirm
+      -- user's identity.
+      Text
+      -- An XML blob specifying the user's ID on the identity provider's side.
+      Text
   | UserScimExternalId
-      { userScimExternalId :: Text
-      }
+      Text
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserSSOId)
 
