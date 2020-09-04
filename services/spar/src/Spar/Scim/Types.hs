@@ -71,7 +71,6 @@ import qualified Web.Scim.Schema.PatchOp as Scim
 import Web.Scim.Schema.Schema (Schema (CustomSchema))
 import qualified Web.Scim.Schema.Schema as Scim
 import qualified Web.Scim.Schema.User as Scim.User
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import qualified Wire.API.User.RichInfo as RI
 
 ----------------------------------------------------------------------------
@@ -214,7 +213,6 @@ data ValidExternalId
   | UrefOnly SAML.UserRef
   | EmailOnly Email
   deriving (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ValidExternalId)
 
 -- | Take apart a 'ValidExternalId', using 'SAML.UserRef' if available, otehrwise 'Email'.
 runValidExternalId :: (SAML.UserRef -> a) -> (Email -> a) -> ValidExternalId -> a

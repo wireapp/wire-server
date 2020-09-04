@@ -30,6 +30,7 @@ module Spar.Intra.Brig
     emailFromSAML,
     emailToSAML,
     emailToSAMLNameID,
+    emailFromSAMLNameID,
     getBrigUser,
     getBrigUserAccount,
     getBrigUserTeam,
@@ -183,6 +184,11 @@ emailToSAML brigEmail =
 -- function total without all that praying and hoping.
 emailToSAMLNameID :: HasCallStack => Email -> SAML.NameID
 emailToSAMLNameID = fromRight (error "impossible") . SAML.emailNameID . fromEmail
+
+emailFromSAMLNameID :: HasCallStack => SAML.NameID -> Maybe Email
+emailFromSAMLNameID nid = case nid ^. SAML.nameID of
+  SAML.UNameIDEmail email -> Just $ emailFromSAML email
+  _ -> Nothing
 
 ----------------------------------------------------------------------
 
