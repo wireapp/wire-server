@@ -1063,7 +1063,7 @@ specScimAndSAML = do
     userid' <- getUserIdViaRef' userref
     liftIO $ ('i', userid') `shouldBe` ('i', Just userid)
     userssoid <- getSsoidViaSelf' userid
-    liftIO $ ('r', Intra.veidFromUserSSOId <$> userssoid) `shouldBe` ('r', Just (Right (UrefOnly userref)))
+    liftIO $ ('r', preview veidUref <$$> (Intra.veidFromUserSSOId <$> userssoid)) `shouldBe` ('r', Just (Right (Just userref)))
     -- login a user for the first time with the scim-supplied credentials
     authnreq <- negotiateAuthnRequest idp
     spmeta <- getTestSPMetadata
