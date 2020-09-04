@@ -304,7 +304,7 @@ createValidScimUser ::
 createValidScimUser ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid handl mbName richInfo active) = do
   -- ensure uniqueness constraints of all affected identifiers.
   -- {if we crash now, retry POST will just work}
-  for_ (veid ^? ST.veidUref) assertUserRefUnused
+  assertExternalIdUnused veid
   assertHandleUnused handl
   -- {if we crash now, retry POST will just work, or user gets told the handle
   -- is already in use and stops POSTing}
@@ -363,7 +363,7 @@ updateValidScimUser tokinfo uid newValidScimUser = do
 
   -- assertions about new valid scim user that cannot be checked in 'validateScimUser' because
   -- they differ from the ones in 'createValidScimUser'.
-  (`assertUserRefNotUsedElsewhere` uid) `traverse_` (newValidScimUser ^? ST.vsuExternalId . ST.veidUref)
+  assertExternalIdNotUsedElsewhere (newValidScimUser ^. ST.vsuExternalId) uid
   assertHandleNotUsedElsewhere uid (newValidScimUser ^. ST.vsuHandle)
 
   if oldValidScimUser == newValidScimUser
@@ -532,9 +532,9 @@ calculateVersion uid usr = Scim.Weak (Text.pack (show h))
 --
 -- ASSUMPTION: every scim user has a 'SAML.UserRef', and the `SAML.NameID` in it corresponds
 -- to a single `externalId`.
-assertUserRefUnused :: SAML.UserRef -> Scim.ScimHandler Spar () -- we could take a veid here and check that scim_external_ids doesn't have an entry either.  very race-conditionie!
-assertUserRefUnused userRef = do
-  mExistingUserId <- lift $ getUser userRef
+assertExternalIdUnused :: ST.ValidExternalId -> Scim.ScimHandler Spar ()
+assertExternalIdUnused veid = do
+  mExistingUserId <- lift $ getUser veid
   unless (isNothing mExistingUserId) $
     throwError Scim.conflict {Scim.detail = Just "externalId is already taken"}
 
@@ -544,9 +544,9 @@ assertUserRefUnused userRef = do
 --
 -- ASSUMPTION: every scim user has a 'SAML.UserRef', and the `SAML.NameID` in it corresponds
 -- to a single `externalId`.
-assertUserRefNotUsedElsewhere :: SAML.UserRef -> UserId -> Scim.ScimHandler Spar ()
-assertUserRefNotUsedElsewhere userRef wireUserId = do
-  mExistingUserId <- lift $ getUser userRef
+assertExternalIdNotUsedElsewhere :: ST.ValidExternalId -> UserId -> Scim.ScimHandler Spar ()
+assertExternalIdNotUsedElsewhere veid wireUserId = do
+  mExistingUserId <- lift $ getUser veid
   unless (mExistingUserId `elem` [Nothing, Just wireUserId]) $ do
     throwError Scim.conflict {Scim.detail = Just "externalId does not match UserId"}
 

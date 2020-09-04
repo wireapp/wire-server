@@ -163,9 +163,9 @@ insertUser uref uid = wrapMonadClient $ Data.insertSAMLUser uref uid
 --
 -- ASSUMPTIONS: User creation on brig/galley is idempotent.  Any incomplete creation (because of
 -- brig or galley crashing) will cause the lookup here to yield invalid user.
-getUser :: SAML.UserRef -> Spar (Maybe UserId)
-getUser uref = do
-  muid <- wrapMonadClient $ Data.getSAMLUser uref
+getUser :: ValidExternalId -> Spar (Maybe UserId)
+getUser veid = do
+  muid <- wrapMonadClient $ runValidExternalId Data.getSAMLUser Data.lookupScimExternalId veid
   case muid of
     Nothing -> pure Nothing
     Just uid -> do
@@ -339,7 +339,7 @@ findUserWithOldIssuer (SAML.UserRef issuer subject) = do
   idp <- getIdPConfigByIssuer issuer
   let tryFind :: Maybe (SAML.UserRef, UserId) -> Issuer -> Spar (Maybe (SAML.UserRef, UserId))
       tryFind found@(Just _) _ = pure found
-      tryFind Nothing oldIssuer = (uref,) <$$> getUser uref
+      tryFind Nothing oldIssuer = (uref,) <$$> getUser (UrefOnly uref)
         where
           uref = SAML.UserRef oldIssuer subject
   foldM tryFind Nothing (idp ^. idpExtraInfo . wiOldIssuers)
@@ -359,7 +359,7 @@ verdictHandlerResultCore bindCky = \case
   SAML.AccessGranted userref -> do
     uid :: UserId <- do
       viaBindCookie <- maybe (pure Nothing) (wrapMonadClient . Data.lookupBindCookie) bindCky
-      viaSparCassandra <- getUser userref
+      viaSparCassandra <- getUser (UrefOnly userref)
       -- race conditions: if the user has been created on spar, but not on brig, 'getUser'
       -- returns 'Nothing'.  this is ok assuming 'createUser', 'bindUser' (called below) are
       -- idempotent.
