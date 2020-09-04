@@ -19,9 +19,7 @@
 
 -- | Client functions for interacting with the Brig API.
 module Spar.Intra.Brig
-  ( toUserSSOId,
-    fromUserSSOId,
-    veidToUserSSOId,
+  ( veidToUserSSOId,
     veidFromUserSSOId,
     urefToExternalId,
     urefToEmail,
@@ -87,22 +85,11 @@ import Wire.API.User.RichInfo as RichInfo
 
 ----------------------------------------------------------------------
 
-toUserSSOId :: SAML.UserRef -> UserSSOId
-toUserSSOId (SAML.UserRef tenant subject) =
-  UserSSOId (cs $ SAML.encodeElem tenant) (cs $ SAML.encodeElem subject)
-
-fromUserSSOId :: MonadError String m => UserSSOId -> m SAML.UserRef
-fromUserSSOId = \case
-  UserSSOId tenant subject ->
-    case (SAML.decodeElem $ cs tenant, SAML.decodeElem $ cs subject) of
-      (Right t, Right s) -> pure $ SAML.UserRef t s
-      (Left msg, _) -> throwError msg
-      (_, Left msg) -> throwError msg
-  UserScimExternalId _ ->
-    throwError "no issuer"
-
 veidToUserSSOId :: ValidExternalId -> UserSSOId
-veidToUserSSOId = runValidExternalId toUserSSOId (UserScimExternalId . fromEmail)
+veidToUserSSOId =
+  runValidExternalId
+    (\(SAML.UserRef t s) -> UserSSOId (cs $ SAML.encodeElem t) (cs $ SAML.encodeElem s))
+    (UserScimExternalId . fromEmail)
 
 veidFromUserSSOId :: MonadError String m => UserSSOId -> m ValidExternalId
 veidFromUserSSOId = \case
@@ -129,13 +116,16 @@ urefToEmail uref = case uref ^. SAML.uidSubject . SAML.nameID of
   SAML.UNameIDEmail email -> Just $ emailFromSAML email
   _ -> Nothing
 
-userToExternalId :: User -> Either String Text
-userToExternalId usr = case (userSSOId usr, userEmail usr) of
-  (Just ssoid, _) -> case fromUserSSOId ssoid of
-    Right (SAML.UserRef _ subj) -> maybe (Left "bad uref from brig") Right $ SAML.shortShowNameID subj
-    Left err -> Left err
-  (Nothing, Just email) -> Right $ fromEmail email
-  (Nothing, Nothing) -> Left "brig user without external id"
+userToExternalId :: MonadError String m => User -> m Text
+userToExternalId usr =
+  case veidFromUserSSOId <$> userSSOId usr of
+    Nothing -> throwError "brig user without sso_id"
+    Just (Left err) -> throwError err
+    Just (Right veid) ->
+      runValidExternalId
+        (\(SAML.UserRef _ subj) -> maybe (throwError "bad uref from brig") pure $ SAML.shortShowNameID subj)
+        (pure . fromEmail)
+        veid
 
 -- | If the brig user has a 'UserSSOId', transform that into a 'ValidExternalId' (this is a
 -- total function as long as brig obeys the api).  Otherwise, if the user has an email, we can

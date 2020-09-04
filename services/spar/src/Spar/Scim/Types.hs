@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -53,6 +54,7 @@ import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword)
 import Imports
 import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO.Test.Arbitrary ()
 import Servant (DeleteNoContent, Get, Header, JSON, NoContent, Post, QueryParam', ReqBody, Required, Strict, (:<|>), (:>))
 import Servant.API.Generic (ToServantApi, (:-))
 import Spar.API.Util (OmitDocs)
@@ -69,6 +71,7 @@ import qualified Web.Scim.Schema.PatchOp as Scim
 import Web.Scim.Schema.Schema (Schema (CustomSchema))
 import qualified Web.Scim.Schema.Schema as Scim
 import qualified Web.Scim.Schema.User as Scim.User
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import qualified Wire.API.User.RichInfo as RI
 
 ----------------------------------------------------------------------------
@@ -210,7 +213,8 @@ data ValidExternalId
   = EmailAndUref Email SAML.UserRef
   | UrefOnly SAML.UserRef
   | EmailOnly Email
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ValidExternalId)
 
 -- | Take apart a 'ValidExternalId', using 'SAML.UserRef' if available, otehrwise 'Email'.
 runValidExternalId :: (SAML.UserRef -> a) -> (Email -> a) -> ValidExternalId -> a

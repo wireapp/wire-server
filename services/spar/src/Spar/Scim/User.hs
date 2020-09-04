@@ -492,8 +492,12 @@ deleteScimUser ScimTokenInfo {stiTeam} uid = do
         throwError $
           Scim.notFound "user" (idToText uid)
       for_ (BT.userSSOId brigUser) $ \ssoId -> do
-        uref <- either logThenServerError pure $ Brig.fromUserSSOId ssoId
-        lift . wrapMonadClient $ Data.deleteSAMLUser uref
+        veid <- either logThenServerError pure $ Brig.veidFromUserSSOId ssoId
+        lift . wrapMonadClient $
+          ST.runValidExternalId
+            Data.deleteSAMLUser
+            Data.deleteScimExternalId
+            veid
       lift . wrapMonadClient $ Data.deleteScimUserTimes uid
       lift $ Brig.deleteBrigUser uid
       return ()

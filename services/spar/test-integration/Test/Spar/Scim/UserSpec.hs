@@ -356,7 +356,8 @@ testCreateRejectsTakenExternalId withidp = do
         registerScimToken tid Nothing
 
   -- Create and add a first user: success!
-  user1 <- randomScimUser
+  email <- randomEmail
+  user1 <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
   _ <- createUser tok user1
   -- Try to create different user with same @externalId@ in same team, and fail.
   user2 <- randomScimUser

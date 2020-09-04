@@ -25,6 +25,7 @@ import Data.String.Conversions (ST, cs)
 import Imports
 import SAML2.WebSSO as SAML
 import Spar.Intra.Brig
+import Spar.Scim.Types
 import Test.Hspec
 import Test.QuickCheck
 import URI.ByteString (URI, laxURIParserOptions, parseURI)
@@ -41,29 +42,31 @@ spec = do
 
     it "example" $ do
       let have =
-            UserRef
-              (Issuer $ mkuri "http://wire.com/")
-              ( either (error . show) id $
-                  mkNameID (mkUNameIDTransient "V") (Just "kati") (Just "rolli") (Just "jaan")
-              )
+            UrefOnly $
+              UserRef
+                (Issuer $ mkuri "http://wire.com/")
+                ( either (error . show) id $
+                    mkNameID (mkUNameIDTransient "V") (Just "kati") (Just "rolli") (Just "jaan")
+                )
           want =
             UserSSOId
               "<Issuer xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">http://wire.com/</Issuer>"
               "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" Format=\"urn:oasis:names:tc:SAML:2.0:nameid-format:transient\" NameQualifier=\"kati\" SPNameQualifier=\"rolli\" SPProvidedID=\"jaan\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">V</NameID>"
-      toUserSSOId have `shouldBe` want
-      fromUserSSOId want `shouldBe` Right have
+      veidToUserSSOId have `shouldBe` want
+      veidFromUserSSOId want `shouldBe` Right have
     it "another example" $ do
       let have =
-            UserRef
-              (Issuer $ mkuri "http://wire.com/")
-              ( either (error . show) id $
-                  mkNameID (mkUNameIDPersistent "PWkS") (Just "hendrik") Nothing (Just "marye")
-              )
+            UrefOnly $
+              UserRef
+                (Issuer $ mkuri "http://wire.com/")
+                ( either (error . show) id $
+                    mkNameID (mkUNameIDPersistent "PWkS") (Just "hendrik") Nothing (Just "marye")
+                )
           want =
             UserSSOId
               "<Issuer xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">http://wire.com/</Issuer>"
               "<NameID xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names:tc:SAML:2.0:assertion\" xmlns:samlm=\"urn:oasis:names:tc:SAML:2.0:metadata\" xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\" Format=\"urn:oasis:names:tc:SAML:2.0:nameid-format:persistent\" NameQualifier=\"hendrik\" SPProvidedID=\"marye\" xmlns=\"urn:oasis:names:tc:SAML:2.0:assertion\">PWkS</NameID>"
-      toUserSSOId have `shouldBe` want
-      fromUserSSOId want `shouldBe` Right have
+      veidToUserSSOId have `shouldBe` want
+      veidFromUserSSOId want `shouldBe` Right have
     it "roundtrips" . property $
-      \(x :: SAML.UserRef) -> (fromUserSSOId @(Either String) . toUserSSOId) x == Right x
+      \(x :: ValidExternalId) -> (veidFromUserSSOId @(Either String) . veidToUserSSOId) x == Right x
