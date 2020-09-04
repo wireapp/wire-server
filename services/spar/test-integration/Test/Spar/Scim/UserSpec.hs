@@ -189,7 +189,8 @@ specCreateUser = describe "POST /Users" $ do
   it "requires externalId to be present" $ testExternalIdIsRequired
   it "rejects invalid handle" $ testCreateRejectsInvalidHandle
   it "rejects occupied handle" $ testCreateRejectsTakenHandle
-  it "rejects occupied externalId" $ testCreateRejectsTakenExternalId
+  it "rejects occupied externalId (uref)" $ testCreateRejectsTakenExternalId True
+  it "rejects occupied externalId (email)" $ testCreateRejectsTakenExternalId False
   it "allows an occupied externalId when the IdP is different" $
     testCreateSameExternalIds
   it "provides a correct location in the 'meta' field" $ testLocation
@@ -341,10 +342,19 @@ testCreateRejectsTakenHandle = do
     !!! const 409 === statusCode
 
 -- | Test that user creation fails if the @externalId@ is already in use for given IdP.
-testCreateRejectsTakenExternalId :: TestSpar ()
-testCreateRejectsTakenExternalId = do
+testCreateRejectsTakenExternalId :: Bool -> TestSpar ()
+testCreateRejectsTakenExternalId withidp = do
   env <- ask
-  (tok, _) <- registerIdPAndScimToken
+
+  tok <-
+    if withidp
+      then do
+        (tok, _) <- registerIdPAndScimToken
+        pure tok
+      else do
+        (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+        registerScimToken tid Nothing
+
   -- Create and add a first user: success!
   user1 <- randomScimUser
   _ <- createUser tok user1
