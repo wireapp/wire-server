@@ -202,17 +202,19 @@ testNginzLegalHold b g n = do
 -- while: because the domains differ, new ones will not overwrite old ones.  This should be
 -- handled gracefully (ie., one invalid cookie should just be ignored if up to two cookies
 -- with label @"zuid"@ are present).
+--
+-- look at 'testNewPersistentCookie', to the same thing here, only add domain to old cookie.
 testNginzLegacyCookies :: Brig -> Nginz -> Http ()
 testNginzLegacyCookies b n = do
   u <- randomUser b
   let Just email = userEmail u
       dologin :: HasCallStack => Http ResponseLBS
       dologin = login n (defEmailLogin email) PersistentCookie <!! const 200 === statusCode
-  outdatedCookie <- decodeCookie <$> dologin
+  outdatedCookie <- (\c -> c {cookie_domain = "this domain must match the one nginz is running on; try using integration.yaml info for that"}) . decodeCookie <$> dologin
   currentCookie <- decodeCookie <$> dologin
   liftIO $ do
     -- BEWARE: cookie equality is not what you think it is as of http-client-0.6.4:
-    -- https://github.com/snoyberg/http-client/issues/433
+    -- https://github.com/snoyberg/http-client/issues/433 (we may have this PR by now).
     assertBool "every login must issue a new cookie" (not $ cookie_value currentCookie == cookie_value outdatedCookie)
   post (n . path "/access" . cookie outdatedCookie . cookie currentCookie) !!! const 200 === statusCode
   post (n . path "/access" . cookie currentCookie . cookie outdatedCookie) !!! const 200 === statusCode
