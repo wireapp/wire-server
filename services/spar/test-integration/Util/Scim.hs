@@ -539,12 +539,7 @@ class IsUser u where
   maybeName :: Maybe (u -> Maybe Name)
   maybeTenant :: Maybe (u -> Maybe SAML.Issuer)
   maybeSubject :: Maybe (u -> Maybe SAML.NameID)
-
-  -- | Some types (e.g. 'Scim.User.User') have a subject ID as a raw string, i.e. not in a
-  -- structured form. Having 'maybeSubjectRaw' available allows us to compare things like
-  -- SCIM 'Scim.User.User' and a Brig 'User', even though they store subject IDs in a
-  -- different way.
-  maybeSubjectRaw :: Maybe (u -> Maybe Text)
+  maybeScimExternalId :: Maybe (u -> Maybe Text)
 
 -- | 'ValidScimUser' is tested in ScimSpec.hs exhaustively with literal inputs, so here we assume it
 -- is correct and don't aim to verify that name, handle, etc correspond to ones in 'vsuUser'.
@@ -554,10 +549,7 @@ instance IsUser ValidScimUser where
   maybeName = Just (Just . view vsuName)
   maybeTenant = Just (^? (vsuExternalId . veidUref . SAML.uidTenant))
   maybeSubject = Just (^? (vsuExternalId . veidUref . SAML.uidSubject))
-  maybeSubjectRaw = Just (\vsc -> email vsc <|> uref vsc)
-    where
-      email = fmap fromEmail . (^? (vsuExternalId . veidEmail))
-      uref = SAML.shortShowNameID <=< (^? (vsuExternalId . veidUref . SAML.uidSubject))
+  maybeScimExternalId = Just (runValidExternalId Intra.urefToExternalId (Just . fromEmail) . view vsuExternalId)
 
 instance IsUser (WrappedScimStoredUser SparTag) where
   maybeUserId = Just $ scimUserId . fromWrappedScimStoredUser
@@ -565,7 +557,7 @@ instance IsUser (WrappedScimStoredUser SparTag) where
   maybeName = maybeName <&> _wrappedStoredUserToWrappedUser
   maybeTenant = maybeTenant <&> _wrappedStoredUserToWrappedUser
   maybeSubject = maybeSubject <&> _wrappedStoredUserToWrappedUser
-  maybeSubjectRaw = maybeSubjectRaw <&> _wrappedStoredUserToWrappedUser
+  maybeScimExternalId = maybeScimExternalId <&> _wrappedStoredUserToWrappedUser
 
 _wrappedStoredUserToWrappedUser :: (WrappedScimUser tag -> a) -> (WrappedScimStoredUser tag -> a)
 _wrappedStoredUserToWrappedUser f = f . WrappedScimUser . Scim.value . Scim.thing . fromWrappedScimStoredUser
@@ -576,27 +568,27 @@ instance IsUser (WrappedScimUser SparTag) where
   maybeName = Just (fmap Name . Scim.User.displayName . fromWrappedScimUser)
   maybeTenant = Nothing
   maybeSubject = Nothing
-  maybeSubjectRaw = Just $ Scim.User.externalId . fromWrappedScimUser
+  maybeScimExternalId = Just $ Scim.User.externalId . fromWrappedScimUser
 
 instance IsUser User where
   maybeUserId = Just userId
   maybeHandle = Just userHandle
   maybeName = Just (Just . userDisplayName)
-  maybeTenant = Just tenantFromBrigUser
-  maybeSubject = Just subjectFromBrigUser
-  maybeSubjectRaw = Just (SAML.shortShowNameID <=< subjectFromBrigUser)
-
-tenantFromBrigUser :: User -> Maybe SAML.Issuer
-tenantFromBrigUser usr =
-  case Intra.veidFromBrigUser usr Nothing of
-    Left _ -> Nothing
-    Right veid -> runValidExternalId (Just . view SAML.uidTenant) (const Nothing) veid
-
-subjectFromBrigUser :: User -> Maybe SAML.NameID
-subjectFromBrigUser usr =
-  case Intra.veidFromBrigUser usr Nothing of
-    Left _ -> Nothing
-    Right veid -> Just $ runValidExternalId (view SAML.uidSubject) (Intra.emailToSAMLNameID) veid
+  maybeTenant = Just $ \usr ->
+    Intra.veidFromBrigUser usr Nothing
+      & either
+        (const Nothing)
+        (preview (veidUref . SAML.uidTenant))
+  maybeSubject = Just $ \usr ->
+    Intra.veidFromBrigUser usr Nothing
+      & either
+        (const Nothing)
+        (preview (veidUref . SAML.uidSubject))
+  maybeScimExternalId = Just $ \usr ->
+    Intra.veidFromBrigUser usr Nothing
+      & either
+        (const Nothing)
+        (runValidExternalId Intra.urefToExternalId (Just . fromEmail))
 
 -- | For all properties that are present in both @u1@ and @u2@, check that they match.
 --
@@ -617,7 +609,7 @@ userShouldMatch u1 u2 = liftIO $ do
   check "name" maybeName
   check "tenant" maybeTenant
   check "subject" maybeSubject
-  check "subject (raw)" maybeSubjectRaw
+  check "scim externalId" maybeScimExternalId
   where
     check ::
       (Eq a, Show a) =>

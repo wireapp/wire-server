@@ -131,6 +131,10 @@ userToExternalId usr =
 -- total function as long as brig obeys the api).  Otherwise, if the user has an email, we can
 -- construct a return value from that (and an optional saml issuer).  If a user only has a
 -- phone number, or no identity at all, throw an error.
+--
+-- Note: the saml issuer is only needed in the case where a user has been invited via team
+-- settings and is now onboarded to saml/scim.  If this case can safely be ruled out, it's ok
+-- to just set it to 'Nothing'.
 veidFromBrigUser :: MonadError String m => User -> Maybe SAML.Issuer -> m ValidExternalId
 veidFromBrigUser usr mIssuer = case (userSSOId usr, userEmail usr, mIssuer) of
   (Just ssoid, _, _) -> veidFromUserSSOId ssoid
