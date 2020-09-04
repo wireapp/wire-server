@@ -648,16 +648,13 @@ testFindNonProvisionedUserNoIdP = do
 -- | Test that deleted users are not listed.
 testListNoDeletedUsers :: TestSpar ()
 testListNoDeletedUsers = do
-  env <- ask
   -- Create a user via SCIM
   user <- randomScimUser
   (tok, _) <- registerIdPAndScimToken
   storedUser <- createUser tok user
   let userid = scimUserId storedUser
   -- Delete the user
-  -- TODO(fisx): use 'Util.Scim.deleteUser' instead of 'Util.Core.deleteUserOnBrig' (in fact,
-  -- we should probably do both)
-  call $ deleteUserOnBrig (env ^. teBrig) userid
+  _ <- deleteUser tok userid
   -- Get all users
   users <- listUsers tok (Just (filterForStoredUser storedUser))
   -- Check that the user is absent
