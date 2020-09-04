@@ -567,8 +567,7 @@ specListUsers = describe "GET /Users" $ do
     it "finds a non-SCIM-provisioned user by userName or externalId" $ testFindNonProvisionedUser
   context "0 SAML IdP" $ do
     it "finds a SCIM-provisioned user by userName or externalId" $ testFindProvisionedUserNoIdP
-    it "finds a non-SCIM-provisioned user by userName" $ testFindNonProvisionedUserNoIdP TestSearchByHandle
-    it "finds a non-SCIM-provisioned user by externalId" $ testFindNonProvisionedUserNoIdP TestSearchByEmail
+    it "finds a non-SCIM-provisioned user by userName or externalId" $ testFindNonProvisionedUserNoIdP
   it "doesn't list deleted users" $ testListNoDeletedUsers
   it "doesnt't find deleted users by userName or externalId" $ testFindNoDeletedUsers
   it "doesn't list users from other teams" $ testUserListFailsWithNotFoundIfOutsideTeam
@@ -620,10 +619,8 @@ testFindProvisionedUserNoIdP = do
   -- covered in 'testCreateUserNoIdP' (as of Mon 31 Aug 2020 08:37:05 PM CEST)
   pure ()
 
-data TestSearchBy = TestSearchByHandle | TestSearchByEmail
-
-testFindNonProvisionedUserNoIdP :: TestSearchBy -> TestSpar ()
-testFindNonProvisionedUserNoIdP testSearchBy = do
+testFindNonProvisionedUserNoIdP :: TestSpar ()
+testFindNonProvisionedUserNoIdP = do
   env <- ask
   (owner, teamid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
   tok <- registerScimToken teamid Nothing
@@ -639,14 +636,14 @@ testFindNonProvisionedUserNoIdP testSearchBy = do
     liftIO $ userManagedBy brigUser `shouldBe` ManagedByWire
     liftIO $ userEmail brigUser `shouldSatisfy` isJust
 
-  users <- case testSearchBy of
-    TestSearchByHandle -> listUsers tok (Just (filterBy "userName" (fromHandle handle)))
-    TestSearchByEmail -> listUsers tok (Just (filterBy "externalId" (fromEmail email)))
+  byHandle <- listUsers tok (Just (filterBy "userName" (fromHandle handle)))
+  byExternalId <- listUsers tok (Just (filterBy "externalId" (fromEmail email)))
 
-  liftIO $ (scimUserId <$> users) `shouldBe` [uid]
-  Just brigUser' <- runSpar $ Intra.getBrigUser uid
-  liftIO $ userManagedBy brigUser' `shouldBe` ManagedByScim
-  liftIO $ brigUser' `shouldBe` brigUser {userManagedBy = ManagedByScim}
+  for_ [byHandle, byExternalId] $ \users -> do
+    liftIO $ (scimUserId <$> users) `shouldBe` [uid]
+    Just brigUser' <- runSpar $ Intra.getBrigUser uid
+    liftIO $ userManagedBy brigUser' `shouldBe` ManagedByScim
+    liftIO $ brigUser' `shouldBe` brigUser {userManagedBy = ManagedByScim}
 
 -- | Test that deleted users are not listed.
 testListNoDeletedUsers :: TestSpar ()
