@@ -199,40 +199,36 @@ testNginzLegalHold b g n = do
 -- | Corner case for 'testNginz': when upgrading a wire backend from the old behavior (setting
 -- cookie domain to eg. @*.wire.com@) to the new behavior (leaving cookie domain empty,
 -- effectively setting it to the backend host), clients may start sending two cookies for a
--- while: because the domains differ, new ones will not overwrite old ones.  This should be
--- handled gracefully (ie., one invalid cookie should just be ignored if up to two cookies
--- with label @"zuid"@ are present).
+-- while: because the domains differ, new ones will not overwrite old ones locally (it was seen
+-- on different browsers) although the cookie does get overriden in the DB). This should be handled
+-- gracefully (ie., one invalid cookie should just be ignored if up to two cookies with label @"zuid"@ are present).
 --
--- look at 'testNewPersistentCookie', to the same thing here, only add domain to old cookie.
+-- In this test, we actually don't use different domains (testing that correctly is actually pretty
+-- complex) - instead, we simply set 2 cookies with the same name and different values and http-client
+-- will replicate the situation: we have 2 cookies, one of them is incorrect (but must parse correctly!)
+-- and the other is valid.
+--
+-- Currently: brig will take **only** the first zuid value so order matters! If the first cookie is valid
+-- then the request succeeds so make sure that in this test the bad cookie is created **before** the bad
+-- cookie.
+-- TODO: Verify indeed that in the cookieJar older cookies are placed in front of new ones.
+--       Empirically, I noticed that if you reverse the creation of badCookie and goodCookie, the test no longer fails.
 testNginzLegacyCookies :: Brig -> Nginz -> Http ()
 testNginzLegacyCookies b n = do
   u <- randomUser b
   let Just email = userEmail u
       dologin :: HasCallStack => Http ResponseLBS
       dologin = login n (defEmailLogin email) PersistentCookie <!! const 200 === statusCode
-  outdatedCookie <- (\c -> c {cookie_domain = "this domain must match the one nginz is running on; try using integration.yaml info for that"}) . decodeCookie <$> dologin
-  currentCookie <- decodeCookie <$> dologin
-  liftIO $ do
-    -- BEWARE: cookie equality is not what you think it is as of http-client-0.6.4:
-    -- https://github.com/snoyberg/http-client/issues/433 (we may have this PR by now).
-    assertBool "every login must issue a new cookie" (not $ cookie_value currentCookie == cookie_value outdatedCookie)
-  post (n . path "/access" . cookie outdatedCookie . cookie currentCookie) !!! const 200 === statusCode
-  post (n . path "/access" . cookie currentCookie . cookie outdatedCookie) !!! const 200 === statusCode
+  badCookie <- (\c -> c {cookie_value = "SKsjKQbiqxuEugGMWVbq02fNEA7QFdNmTiSa1Y0YMgaEP5tWl3nYHWlIrM5F8Tt7Cfn2Of738C7oeiY8xzPHAA==.v=1.k=1.d=1.t=u.l=.u=13da31b4-c6bb-4561-8fed-07e728fa6cc5.r=f844b420"}) . decodeCookie <$> dologin
+  goodCookie <- decodeCookie <$> dologin
 
---
---
--- TODO:
---
---
--- delay of 6secs between the two logins doesn't make the test fail.
---
--- neither does only sending currentCookie first.
---
--- i need to understand better how cookies are invalidated.  perhaps manually try to login
--- with old backend first, then with new one?
---
--- To fix (once it fails), we may need to return *all* cookies in
--- 'Brig.User.API.Auth.tokenRequest', not an arbitrary one.
+  post (n . path "/access" . cookie goodCookie) !!! const 200 === statusCode
+  post (n . path "/access" . cookie badCookie) !!! const 403 === statusCode
+  -- Sending both cookies should always work, regardless of the order
+  post (n . path "/access" . cookie goodCookie . cookie badCookie) !!! const 200 === statusCode
+
+  -- To fix (once it fails), we may need to return *all* cookies in
+  -- 'Brig.User.API.Auth.tokenRequest', not an arbitrary one.
 
 -------------------------------------------------------------------------------
 -- Login
