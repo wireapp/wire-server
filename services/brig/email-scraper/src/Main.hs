@@ -22,21 +22,31 @@ main = do
   l <- Log.mkLogger'
   casClient <- initCassandra l (s^.setCasBrig)
   C.runClient casClient $ do
-    page1 <- scanForIndex 2500
-    goCheckProperties l 0 0 page1
+    page1 <- scanForIndex 5000
+    goCheckProperties l 0 0 0 0 0 page1
   where
     desc = header   "list-emails-with-domain"
         <> progDesc "User script"
         <> fullDesc
 
-    goCheckProperties l total n page = do
+    goCheckProperties l totalUsers totalTeamUsers totalDesktopTeamUsers totalDesktopTeamUsersWithConsent n page = do
       let result = C.result page
           newCount = n + length result
-      mapM_ (countTeamMemberIfHasProperties l) result
+      counts <- mapM (countTeamMemberIfHasProperties l) result
+      let x@(totalUsers', totalTeamUsers', totalDesktopTeamUsers', totalDesktopTeamUsersWithConsent') = countAll counts
+      Log.info l (Log.msg $ show x)
+      Log.info l (Log.msg $ show ((totalUsers + totalUsers'), (totalTeamUsers + totalTeamUsers'), (totalDesktopTeamUsers + totalDesktopTeamUsers'), (totalDesktopTeamUsersWithConsent + totalDesktopTeamUsersWithConsent')))
       Log.info l $ (Log.msg $ Log.val $ toByteString' ("Scanned " ++ show newCount))
       when (C.hasMore page) $ do
         nextPage <- C.liftClient (C.nextPage page)
-        goCheckProperties l total newCount nextPage
+        goCheckProperties l (totalUsers + totalUsers') (totalTeamUsers + totalTeamUsers') (totalDesktopTeamUsers + totalDesktopTeamUsers') (totalDesktopTeamUsersWithConsent + totalDesktopTeamUsersWithConsent') newCount nextPage
+
+    countAll :: [MemCountType] -> MemCountType
+    countAll xs = go (0, 0, 0, 0) xs
+      where
+        go :: MemCountType -> [MemCountType] -> MemCountType
+        go acc [] = acc
+        go (a1,b1,c1,d1) ((a2,b2,c2,d2):xs) = go (a1 + a2, b1 + b2, c1 + c2, d1 + d2) xs
 
 initCassandra ::
   MonadIO m =>
@@ -94,15 +104,17 @@ lookupProperty u k =
   fmap runIdentity
     <$> (C.query1 propertySelect (C.params C.Quorum (u, k)))
 
-countTeamMemberIfHasProperties :: C.MonadClient m => Log.Logger -> UserRow -> m ()
-countTeamMemberIfHasProperties _ (_     , _    , Nothing   , _         ) = pure ()
+--   MemCountType = (user, team user, team user with webapp property, team user with webapp property and said yes)
+type MemCountType = (Int, Int, Int, Int)
+
+countTeamMemberIfHasProperties :: C.MonadClient m => Log.Logger -> UserRow -> m MemCountType
+countTeamMemberIfHasProperties _ (_     , _    , Nothing   , _         ) = return (1, 0, 0, 0)
 countTeamMemberIfHasProperties l (userId, _    , Just mTeam, mActivated) = do
   mProperty <- lookupProperty userId "webapp"
-  let hasConsent = case mProperty of
-                      Just property -> hasUserGivenConsent property
-                      _ -> False
-  when hasConsent $
-    Log.info l (Log.msg $ Log.val $ toByteString' $ show (userId, show mTeam))
+  case mProperty of
+      Just property | hasUserGivenConsent property       -> Log.info l (Log.msg $ Log.val $ toByteString' $ show (userId, show mTeam)) >> return (0, 0, 0, 1)
+      Just property | not (hasUserGivenConsent property) -> return (0, 0, 1, 0)
+      _ -> return (0, 1, 0, 0)
  where
   -- {\"settings\":{\"privacy\":{\"improve_wire\":true}}}
   hasUserGivenConsent :: Value -> Bool
