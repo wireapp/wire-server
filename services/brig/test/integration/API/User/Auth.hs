@@ -207,28 +207,21 @@ testNginzLegalHold b g n = do
 -- complex) - instead, we simply set 2 cookies with the same name and different values and http-client
 -- will replicate the situation: we have 2 cookies, one of them is incorrect (but must parse correctly!)
 -- and the other is valid.
---
--- Currently: brig will take **only** the first zuid value so order matters! If the first cookie is valid
--- then the request succeeds so make sure that in this test the bad cookie is created **before** the bad
--- cookie.
--- TODO: Verify indeed that in the cookieJar older cookies are placed in front of new ones.
---       Empirically, I noticed that if you reverse the creation of badCookie and goodCookie, the test no longer fails.
 testNginzLegacyCookies :: Brig -> Nginz -> Http ()
 testNginzLegacyCookies b n = do
   u <- randomUser b
   let Just email = userEmail u
       dologin :: HasCallStack => Http ResponseLBS
       dologin = login n (defEmailLogin email) PersistentCookie <!! const 200 === statusCode
-  badCookie <- (\c -> c {cookie_value = "SKsjKQbiqxuEugGMWVbq02fNEA7QFdNmTiSa1Y0YMgaEP5tWl3nYHWlIrM5F8Tt7Cfn2Of738C7oeiY8xzPHAA==.v=1.k=1.d=1.t=u.l=.u=13da31b4-c6bb-4561-8fed-07e728fa6cc5.r=f844b420"}) . decodeCookie <$> dologin
+  badCookie1 <- (\c -> c {cookie_value = "SKsjKQbiqxuEugGMWVbq02fNEA7QFdNmTiSa1Y0YMgaEP5tWl3nYHWlIrM5F8Tt7Cfn2Of738C7oeiY8xzPHAA==.v=1.k=1.d=1.t=u.l=.u=13da31b4-c6bb-4561-8fed-07e728fa6cc5.r=f844b420"}) . decodeCookie <$> dologin
   goodCookie <- decodeCookie <$> dologin
+  badCookie2 <- (\c -> c {cookie_value = "SKsjKQbiqxuEugGMWVbq02fNEA7QFdNmTiSa1Y0YMgaEP5tWl3nYHWlIrM5F8Tt7Cfn2Of738C7oeiY8xzPHAA==.v=1.k=1.d=1.t=u.l=.u=13da31b4-c6bb-4561-8fed-07e728fa6cc5.r=f844b420"}) . decodeCookie <$> dologin
 
   post (n . path "/access" . cookie goodCookie) !!! const 200 === statusCode
-  post (n . path "/access" . cookie badCookie) !!! const 403 === statusCode
+  post (n . path "/access" . cookie badCookie1) !!! const 403 === statusCode
+  post (n . path "/access" . cookie badCookie2) !!! const 403 === statusCode
   -- Sending both cookies should always work, regardless of the order
-  post (n . path "/access" . cookie goodCookie . cookie badCookie) !!! const 200 === statusCode
-
-  -- To fix (once it fails), we may need to return *all* cookies in
-  -- 'Brig.User.API.Auth.tokenRequest', not an arbitrary one.
+  post (n . path "/access" . cookie badCookie1 . cookie goodCookie . cookie badCookie2) !!! const 200 === statusCode
 
 -------------------------------------------------------------------------------
 -- Login

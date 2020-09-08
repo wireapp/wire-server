@@ -252,29 +252,34 @@ isPendingActivation ident = case ident of
             Just SSOIdentity {} -> False -- sso-created users are activated immediately.
             Nothing -> True
 
+-- | Validate a list of (User/LH) tokens potentially with an associated access token.
+--   If there are multiple valid cookies, we try all of them. When an access token is
+--   given, we perform the usual checks.
+--   If multiple cookies are given and several are valid, we return the first valid one.
 validateTokens ::
   ZAuth.TokenPair u a =>
   [ZAuth.Token u] -> -- FUTUREWORK: This should be a NonEmpty
   Maybe (ZAuth.Token a) ->
   ExceptT ZAuth.Failure AppIO (UserId, Cookie (ZAuth.Token u))
 validateTokens [] _ = throwE ZAuth.Invalid
-validateTokens (ut:[]) at = validate ut at
+validateTokens (ut:[]) at = validateToken ut at
 validateTokens uts at = do
-  tokens <- forM uts $ \ut -> lift $ runExceptT (validate ut at)
+  tokens <- forM uts $ \ut -> lift $ runExceptT (validateToken ut at)
   parseResults tokens
   where
+    -- FUTUREWORK: There is surely a better way to do this
     parseResults :: [Either ZAuth.Failure (UserId, Cookie (ZAuth.Token u))] -> ExceptT ZAuth.Failure AppIO (UserId, Cookie (ZAuth.Token u))
     parseResults res = case (lefts res, rights res) of
       (_  , (suc:_)) -> return suc
       ((e:_), _    ) -> throwE e
-      _              -> throwE ZAuth.Invalid -- Impossible
+      _              -> throwE ZAuth.Invalid -- Impossible with NonEmpty
 
-validate ::
+validateToken ::
   ZAuth.TokenPair u a =>
   ZAuth.Token u ->
   Maybe (ZAuth.Token a) ->
   ExceptT ZAuth.Failure AppIO (UserId, Cookie (ZAuth.Token u))
-validate ut at = do
+validateToken ut at = do
   unless (maybe True ((ZAuth.userTokenOf ut ==) . ZAuth.accessTokenOf) at) $
     throwE ZAuth.Invalid
   ExceptT (ZAuth.validateToken ut)
