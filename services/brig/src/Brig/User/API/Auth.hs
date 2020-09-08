@@ -346,11 +346,13 @@ tokenResponse :: ZAuth.UserTokenLike u => Auth.Access u -> AppIO Response
 tokenResponse (Auth.Access t Nothing) = pure $ json t
 tokenResponse (Auth.Access t (Just c)) = Auth.setResponseCookie c (json t)
 
+-- Utilities
 -- Internal: These functions are nearly copies verbatim from the original
 -- project: https://gitlab.com/twittner/wai-predicates/-/blob/develop/src/Network/Wai/Predicate.hs#L106-112
 -- I will still make an upstream PR but would not like to block this PR because of
 -- it. Main difference: the original stops after finding the first valid cookie which
 -- is a problem if clients send more than 1 cookie and one of them happens to be invalid
+-- We should also be dropping this in favor of servant which will make this redundant
 cookies :: (R.HasCookies r, FromByteString a) => ByteString -> Predicate r P.Error [a]
 cookies k r =
     case R.lookupCookie k r of
