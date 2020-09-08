@@ -152,18 +152,18 @@ withRetryLimit action uid = do
       BudgetExhausted ttl -> throwE . LoginBlocked . RetryAfter . floor $ ttl
       BudgetedValue () _ -> pure ()
 
-logout :: ZAuth.TokenPair u a => ZAuth.Token u -> ZAuth.Token a -> ExceptT ZAuth.Failure AppIO ()
-logout ut at = do
-  (u, ck) <- validateTokens ut (Just at)
+logout :: ZAuth.TokenPair u a => [ZAuth.Token u] -> ZAuth.Token a -> ExceptT ZAuth.Failure AppIO ()
+logout uts at = do
+  (u, ck) <- validateTokens uts (Just at)
   lift $ revokeCookies u [cookieId ck] []
 
 renewAccess ::
   ZAuth.TokenPair u a =>
-  ZAuth.Token u ->
+  [ZAuth.Token u] ->
   Maybe (ZAuth.Token a) ->
   ExceptT ZAuth.Failure AppIO (Access u)
-renewAccess ut at = do
-  (uid, ck) <- validateTokens ut at
+renewAccess uts at = do
+  (uid, ck) <- validateTokens uts at
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.renewAccess")
   catchSuspendInactiveUser uid ZAuth.Expired
   ck' <- lift $ nextCookie ck
@@ -254,10 +254,27 @@ isPendingActivation ident = case ident of
 
 validateTokens ::
   ZAuth.TokenPair u a =>
+  [ZAuth.Token u] -> -- FUTUREWORK: This should be a NonEmpty
+  Maybe (ZAuth.Token a) ->
+  ExceptT ZAuth.Failure AppIO (UserId, Cookie (ZAuth.Token u))
+validateTokens [] _ = throwE ZAuth.Invalid
+validateTokens (ut:[]) at = validate ut at
+validateTokens uts at = do
+  tokens <- forM uts $ \ut -> lift $ runExceptT (validate ut at)
+  parseResults tokens
+  where
+    parseResults :: [Either ZAuth.Failure (UserId, Cookie (ZAuth.Token u))] -> ExceptT ZAuth.Failure AppIO (UserId, Cookie (ZAuth.Token u))
+    parseResults res = case (lefts res, rights res) of
+      (_  , (suc:_)) -> return suc
+      ((e:_), _    ) -> throwE e
+      _              -> throwE ZAuth.Invalid -- Impossible
+
+validate ::
+  ZAuth.TokenPair u a =>
   ZAuth.Token u ->
   Maybe (ZAuth.Token a) ->
   ExceptT ZAuth.Failure AppIO (UserId, Cookie (ZAuth.Token u))
-validateTokens ut at = do
+validate ut at = do
   unless (maybe True ((ZAuth.userTokenOf ut ==) . ZAuth.accessTokenOf) at) $
     throwE ZAuth.Invalid
   ExceptT (ZAuth.validateToken ut)
