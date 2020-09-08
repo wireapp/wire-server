@@ -301,6 +301,7 @@ tokenRequest ::
     )
 tokenRequest = opt (userToken ||| legalHoldUserToken) .&. opt (accessToken ||| legalHoldAccessToken)
   where
+    -- cookie -> lookupCookie: returns **multiple** values -> readValues: returns first that satisfies
     userToken = cookieErr @ZAuth.User <$> cookie "zuid"
     legalHoldUserToken = cookieErr @ZAuth.LegalHoldUser <$> cookie "zuid"
     accessToken = parse @ZAuth.Access <$> (tokenHeader .|. tokenQuery)
