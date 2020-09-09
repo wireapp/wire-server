@@ -241,7 +241,7 @@ deleteUser tok userid = do
       (Just tok)
       (Just userid)
       (env ^. teSpar)
-      <!! const 200 === statusCode -- status code maybe some other 2xx?
+      <!! const 204 === statusCode
   pure (responseJsonUnsafe r)
 
 -- | List all users.
