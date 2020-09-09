@@ -27,6 +27,7 @@ import Data.Aeson (FromJSON, eitherDecode')
 import Data.ByteString.Conversion
 import Data.Id (TeamId, UserId)
 import Data.String.Conversions
+import Data.Typeable (typeRep)
 import Galley.Types.Teams
 import Imports
 import Network.HTTP.Types (status403)
@@ -36,10 +37,13 @@ import Wire.API.Team.Feature (TeamFeatureStatus (..), TeamFeatureStatusValue (..
 
 ----------------------------------------------------------------------
 
-parseResponse :: (FromJSON a, MonadError SparError m) => Response (Maybe LBS) -> m a
+parseResponse :: forall a m. (FromJSON a, MonadError SparError m, Typeable a) => ResponseLBS -> m a
 parseResponse resp = do
-  bdy <- maybe (throwSpar SparNoBodyInGalleyResponse) pure $ responseBody resp
-  either (throwSpar . SparCouldNotParseGalleyResponse . cs) pure $ eitherDecode' bdy
+  bdy <- maybe (throwSpar SparNoBodyInBrigResponse) pure $ responseBody resp
+  either err pure $ eitherDecode' bdy
+  where
+    err = throwSpar . SparCouldNotParseBrigResponse . (typeinfo <>) . cs
+    typeinfo = cs $ show (typeRep ([] @a)) <> ": "
 
 ----------------------------------------------------------------------
 

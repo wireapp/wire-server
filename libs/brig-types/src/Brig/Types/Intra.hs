@@ -64,7 +64,7 @@ instance ToJSON AccountStatus where
   toJSON Deleted = String "deleted"
   toJSON Ephemeral = String "ephemeral"
 
-data AccountStatusResp = AccountStatusResp AccountStatus
+data AccountStatusResp = AccountStatusResp {fromAccountStatusResp :: AccountStatus}
 
 instance ToJSON AccountStatusResp where
   toJSON (AccountStatusResp s) = object ["status" .= s]

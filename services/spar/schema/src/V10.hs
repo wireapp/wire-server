@@ -15,12 +15,23 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Util
-  ( module U,
+module V10
+  ( migration,
   )
 where
 
-import Util.Core as U
-import Util.Email as U
-import Util.Scim as U
-import Util.Types as U
+import Cassandra.Schema
+import Imports
+import Text.RawString.QQ
+
+migration :: Migration
+migration = Migration 10 "Add table for mapping scim external ids to brig user ids" $ do
+  void $
+    schema'
+      [r|
+        CREATE TABLE if not exists scim_external_ids
+          ( external  text
+          , user      uuid
+          , primary key (external)
+          ) with compaction = {'class': 'LeveledCompactionStrategy'};
+      |]

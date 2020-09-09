@@ -29,6 +29,7 @@ import Brig.API.Handler
 import qualified Brig.API.IdMapping as IdMapping
 import Brig.API.Types
 import qualified Brig.API.User as API
+import Brig.API.Util (validateHandle)
 import Brig.App
 import qualified Brig.Data.User as Data
 import Brig.Options hiding (internalEvents, sesQueue)
@@ -58,6 +59,7 @@ import Network.Wai.Routing
 import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.Response (json)
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
+import Wire.API.User
 import Wire.API.User.RichInfo
 
 ---------------------------------------------------------------------------
@@ -173,6 +175,10 @@ sitemap = do
       .&. accept "application" "json"
       .&. jsonRequest @UserSSOId
 
+  delete "/i/users/:uid/sso-id" (continue deleteSSOIdH) $
+    capture "uid"
+      .&. accept "application" "json"
+
   put "/i/users/:uid/managed-by" (continue updateManagedByH) $
     capture "uid"
       .&. accept "application" "json"
@@ -182,6 +188,22 @@ sitemap = do
     capture "uid"
       .&. accept "application" "json"
       .&. jsonRequest @RichInfoUpdate
+
+  put "/i/users/:uid/handle" (continue updateHandleH) $
+    capture "uid"
+      .&. accept "application" "json"
+      .&. jsonRequest @HandleUpdate
+
+  put "/i/users/:uid/name" (continue updateUserNameH) $
+    capture "uid"
+      .&. accept "application" "json"
+      .&. jsonRequest @NameUpdate
+
+  get "/i/users/:uid/rich-info" (continue getRichInfoH) $
+    capture "uid"
+
+  head "/i/users/handles/:handle" (continue checkHandleInternalH) $
+    capture "handle"
 
   post "/i/clients" (continue internalListClientsH) $
     accept "application" "json"
@@ -433,7 +455,14 @@ addPhonePrefixH (_ ::: req) = do
 updateSSOIdH :: UserId ::: JSON ::: JsonRequest UserSSOId -> Handler Response
 updateSSOIdH (uid ::: _ ::: req) = do
   ssoid :: UserSSOId <- parseJsonBody req
-  success <- lift $ Data.updateSSOId uid ssoid
+  success <- lift $ Data.updateSSOId uid (Just ssoid)
+  if success
+    then return empty
+    else return . setStatus status404 $ plain "User does not exist or has no team."
+
+deleteSSOIdH :: UserId ::: JSON -> Handler Response
+deleteSSOIdH (uid ::: _) = do
+  success <- lift $ Data.updateSSOId uid Nothing
   if success
     then return empty
     else return . setStatus status404 $ plain "User does not exist or has no team."
@@ -456,6 +485,44 @@ updateRichInfo uid rup = do
   -- FUTUREWORK: send an event
   -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)
   lift $ Data.updateRichInfo uid (RichInfoAssocList richInfo)
+
+getRichInfoH :: UserId -> Handler Response
+getRichInfoH uid = json <$> getRichInfo uid
+
+getRichInfo :: UserId -> Handler RichInfo
+getRichInfo uid = RichInfo . fromMaybe emptyRichInfoAssocList <$> lift (API.lookupRichInfo uid)
+
+updateHandleH :: UserId ::: JSON ::: JsonRequest HandleUpdate -> Handler Response
+updateHandleH (uid ::: _ ::: body) = empty <$ (updateHandle uid =<< parseJsonBody body)
+
+updateHandle :: UserId -> HandleUpdate -> Handler ()
+updateHandle uid (HandleUpdate handleUpd) = do
+  handle <- validateHandle handleUpd
+  API.changeHandle uid Nothing handle !>> changeHandleError
+
+updateUserNameH :: UserId ::: JSON ::: JsonRequest NameUpdate -> Handler Response
+updateUserNameH (uid ::: _ ::: body) = empty <$ (updateUserName uid =<< parseJsonBody body)
+
+updateUserName :: UserId -> NameUpdate -> Handler ()
+updateUserName uid (NameUpdate nameUpd) = do
+  name <- either (const $ throwStd invalidUser) pure $ mkName nameUpd
+  let uu =
+        UserUpdate
+          { uupName = Just name,
+            uupPict = Nothing,
+            uupAssets = Nothing,
+            uupAccentId = Nothing
+          }
+  lift (Data.lookupUser uid) >>= \case
+    Just _ -> lift $ API.updateUser uid Nothing uu
+    Nothing -> throwStd invalidUser
+
+checkHandleInternalH :: Text -> Handler Response
+checkHandleInternalH =
+  API.checkHandle >=> \case
+    API.CheckHandleInvalid -> throwE (StdError invalidHandle)
+    API.CheckHandleFound -> pure $ setStatus status200 empty
+    API.CheckHandleNotFound -> pure $ setStatus status404 empty
 
 getContactListH :: JSON ::: UserId -> Handler Response
 getContactListH (_ ::: uid) = do

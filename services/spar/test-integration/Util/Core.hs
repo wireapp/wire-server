@@ -47,6 +47,7 @@ module Util.Core
     endpointToURL,
 
     -- * Other
+    randomEmail,
     defPassword,
     getUserBrig,
     createUserWithTeam,
@@ -173,6 +174,7 @@ import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Options
 import Spar.Run
+import Spar.Scim.Types (runValidExternalId)
 import Spar.Types
 import qualified System.Logger.Extended as Log
 import System.Random (randomRIO)
@@ -741,7 +743,7 @@ registerTestIdPWithMeta ::
   (HasCallStack, MonadRandom m, MonadIO m, MonadReader TestEnv m) =>
   m (UserId, TeamId, IdP, (IdPMetadataInfo, SAML.SignPrivCreds))
 registerTestIdPWithMeta = do
-  (SampleIdP idpmeta privkey _ _) <- makeSampleIdPMetadata
+  SampleIdP idpmeta privkey _ _ <- makeSampleIdPMetadata
   env <- ask
   (uid, tid, idp) <- registerTestIdPFrom idpmeta (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
   pure (uid, tid, idp, (IdPMetadataValue (cs $ SAML.encode idpmeta) idpmeta, privkey))
@@ -1103,8 +1105,12 @@ callDeleteDefaultSsoCode sparreq_ = do
 -- | Look up 'UserId' under 'UserSSOId' on spar's cassandra directly.
 ssoToUidSpar :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => Brig.UserSSOId -> m (Maybe UserId)
 ssoToUidSpar ssoid = do
-  ssoref <- either (error . ("could not parse UserRef: " <>)) pure $ Intra.fromUserSSOId ssoid
-  runSparCass @Client $ Data.getSAMLUser ssoref
+  veid <- either (error . ("could not parse brig sso_id: " <>)) pure $ Intra.veidFromUserSSOId ssoid
+  runSparCass @Client $
+    runValidExternalId
+      Data.getSAMLUser
+      Data.lookupScimExternalId
+      veid
 
 runSparCass ::
   (HasCallStack, m ~ Client, MonadIO m', MonadReader TestEnv m') =>

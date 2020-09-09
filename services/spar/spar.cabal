@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c4215bccf7e235dad19c5eb68954faf664f92ff0b3d7aeacdfb6ac21b448503b
+-- hash: 88a250ccd05fb0ad0b42a8b133068a52e559f6b5e00efb0df3098445c92f2a45
 
 name:           spar
 version:        0.1
@@ -207,6 +207,7 @@ executable spar-integration
       Test.Spar.Scim.UserSpec
       Util
       Util.Core
+      Util.Email
       Util.Scim
       Util.Types
       Paths_spar
@@ -277,6 +278,7 @@ executable spar-integration
     , stm
     , string-conversions
     , swagger2
+    , tasty-hunit
     , text
     , text-latin1
     , time
@@ -306,6 +308,7 @@ executable spar-schema
   other-modules:
       V0
       V1
+      V10
       V2
       V3
       V4

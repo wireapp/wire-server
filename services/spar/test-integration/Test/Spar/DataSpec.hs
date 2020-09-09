@@ -33,7 +33,8 @@ import Data.UUID.V4 as UUID
 import Imports
 import SAML2.WebSSO as SAML
 import Spar.Data as Data
-import Spar.Intra.Brig (fromUserSSOId)
+import Spar.Intra.Brig (veidFromUserSSOId)
+import Spar.Scim.Types
 import Spar.Types
 import Type.Reflection (typeRep)
 import URI.ByteString.QQ (uri)
@@ -274,12 +275,24 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
     liftIO $ tokens `shouldBe` []
   -- The users from 'user':
   do
-    let Right uref1 = fromUserSSOId ssoid1
-    mbUser1 <- runSparCass $ Data.getSAMLUser uref1
+    mbUser1 <- case veidFromUserSSOId ssoid1 of
+      Right veid ->
+        runSparCass $
+          runValidExternalId
+            Data.getSAMLUser
+            undefined -- could be @Data.lookupScimExternalId@, but we don't hit that path.
+            veid
+      Left _email -> undefined -- runSparCass . Data.lookupScimExternalId . fromEmail $ _email
     liftIO $ mbUser1 `shouldBe` Nothing
   do
-    let Right uref2 = fromUserSSOId ssoid2
-    mbUser2 <- runSparCass $ Data.getSAMLUser uref2
+    mbUser2 <- case veidFromUserSSOId ssoid2 of
+      Right veid ->
+        runSparCass $
+          runValidExternalId
+            Data.getSAMLUser
+            undefined
+            veid
+      Left _email -> undefined
     liftIO $ mbUser2 `shouldBe` Nothing
   -- The config from 'idp':
   do

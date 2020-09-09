@@ -31,6 +31,7 @@ import Control.Lens
 import Data.Misc (PlainTextPassword (..))
 import qualified Galley.Types.Teams as Galley
 import Imports
+import qualified SAML2.WebSSO.Test.Util as SAML
 import Spar.Scim
 import Spar.Types (ScimTokenInfo (..))
 import Util
@@ -52,7 +53,7 @@ specCreateToken :: SpecWith TestEnv
 specCreateToken = describe "POST /auth-tokens" $ do
   it "works" $ testCreateToken
   it "respects the token limit" $ testTokenLimit
-  it "requires the team to have an IdP" $ testIdPIsNeeded
+  it "requires the team to have no more than one IdP" $ testNumIdPs
   it "authorizes only team owner" $ testCreateTokenAuthorizesOnlyTeamOwner
   it "requires a password" $ testCreateTokenRequiresPassword
 
@@ -114,25 +115,27 @@ testTokenLimit = do
     (env ^. teSpar)
     !!! checkErr 403 (Just "token-limit-reached")
 
--- | Test that a token can't be created for a team without an IdP.
---
--- (We don't support SCIM without SSO.)
-testIdPIsNeeded :: TestSpar ()
-testIdPIsNeeded = do
+testNumIdPs :: TestSpar ()
+testNumIdPs = do
   env <- ask
-  -- Create a new team and don't associate an IdP with it
-  (userid, _teamid) <-
+  (owner, _) <-
     runHttpT (env ^. teMgr) $
       createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-  -- Creating a token should fail now
-  createToken_
-    userid
-    CreateScimToken
-      { createScimTokenDescr = "testIdPIsNeeded",
-        createScimTokenPassword = Just defPassword
-      }
-    (env ^. teSpar)
-    !!! checkErr 400 (Just "no-single-idp")
+
+  let addSomeIdP :: TestSpar ()
+      addSomeIdP = do
+        spar <- asks (view teSpar)
+        SAML.SampleIdP metadata _ _ _ <- SAML.makeSampleIdPMetadata
+        void $ call $ Util.callIdpCreate spar (Just owner) metadata
+
+  createToken owner (CreateScimToken "eins" (Just defPassword))
+    >>= deleteToken owner . stiId . createScimTokenResponseInfo
+  addSomeIdP
+  createToken owner (CreateScimToken "zwei" (Just defPassword))
+    >>= deleteToken owner . stiId . createScimTokenResponseInfo
+  addSomeIdP
+  createToken_ owner (CreateScimToken "drei" (Just defPassword)) (env ^. teSpar)
+    !!! checkErr 400 (Just "more-than-one-idp")
 
 -- | Test that a token can only be created as a team owner
 testCreateTokenAuthorizesOnlyTeamOwner :: TestSpar ()

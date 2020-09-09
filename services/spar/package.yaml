@@ -143,6 +143,7 @@ executables:
       - silently
       - spar
       - stm
+      - tasty-hunit
       - tinylog
       - wai
       - wai-extra
