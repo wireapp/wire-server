@@ -213,6 +213,7 @@ testNginzLegacyCookies b n = do
   let Just email = userEmail u
       dologin :: HasCallStack => Http ResponseLBS
       dologin = login n (defEmailLogin email) PersistentCookie <!! const 200 === statusCode
+  unparseableCookie <- (\c -> c {cookie_value = "ThisIsNotAZauthCookie"}) . decodeCookie <$> dologin
   badCookie1 <- (\c -> c {cookie_value = "SKsjKQbiqxuEugGMWVbq02fNEA7QFdNmTiSa1Y0YMgaEP5tWl3nYHWlIrM5F8Tt7Cfn2Of738C7oeiY8xzPHAA==.v=1.k=1.d=1.t=u.l=.u=13da31b4-c6bb-4561-8fed-07e728fa6cc5.r=f844b420"}) . decodeCookie <$> dologin
   goodCookie <- decodeCookie <$> dologin
   badCookie2 <- (\c -> c {cookie_value = "SKsjKQbiqxuEugGMWVbq02fNEA7QFdNmTiSa1Y0YMgaEP5tWl3nYHWlIrM5F8Tt7Cfn2Of738C7oeiY8xzPHAA==.v=1.k=1.d=1.t=u.l=.u=13da31b4-c6bb-4561-8fed-07e728fa6cc5.r=f844b420"}) . decodeCookie <$> dologin
@@ -222,6 +223,8 @@ testNginzLegacyCookies b n = do
   post (n . path "/access" . cookie badCookie2) !!! const 403 === statusCode
   -- Sending both cookies should always work, regardless of the order
   post (n . path "/access" . cookie badCookie1 . cookie goodCookie . cookie badCookie2) !!! const 200 === statusCode
+  -- Sending a bad cookie and an unparseble one should work too
+  post (n . path "/access" . cookie unparseableCookie . cookie goodCookie) !!! const 200 === statusCode
 
 -------------------------------------------------------------------------------
 -- Login

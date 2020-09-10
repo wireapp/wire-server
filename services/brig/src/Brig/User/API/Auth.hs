@@ -346,8 +346,7 @@ tokenResponse :: ZAuth.UserTokenLike u => Auth.Access u -> AppIO Response
 tokenResponse (Auth.Access t Nothing) = pure $ json t
 tokenResponse (Auth.Access t (Just c)) = Auth.setResponseCookie c (json t)
 
--- Utilities
--- Internal: These functions are nearly copies verbatim from the original
+-- | Internal utilities: These functions are nearly copies verbatim from the original
 -- project: https://gitlab.com/twittner/wai-predicates/-/blob/develop/src/Network/Wai/Predicate.hs#L106-112
 -- I will still make an upstream PR but would not like to block this PR because of
 -- it. Main difference: the original stops after finding the first valid cookie which
@@ -358,10 +357,9 @@ cookies k r =
   case R.lookupCookie k r of
     [] -> Fail . addLabel "cookie" $ notAvailable k
     cc ->
-      maybe
-        (Fail . addLabel "cookie" . typeError k $ "Failed to get zuid cookies")
-        return
-        (traverse fromByteString cc)
+      case mapMaybe fromByteString cc of
+        []  -> (Fail . addLabel "cookie" . typeError k $ "Failed to get zuid cookies")
+        cks -> return cks
 
 notAvailable :: ByteString -> P.Error
 notAvailable k = e400 & setReason NotAvailable . setSource k
