@@ -355,11 +355,13 @@ tokenResponse (Auth.Access t (Just c)) = Auth.setResponseCookie c (json t)
 -- We should also be dropping this in favor of servant which will make this redundant
 cookies :: (R.HasCookies r, FromByteString a) => ByteString -> Predicate r P.Error [a]
 cookies k r =
-    case R.lookupCookie k r of
-        [] -> Fail . addLabel "cookie" $ notAvailable k
-        cc -> maybe (Fail . addLabel "cookie" . typeError k $ "Failed to get zuid cookies")
-                    return
-                    (traverse fromByteString cc)
+  case R.lookupCookie k r of
+    [] -> Fail . addLabel "cookie" $ notAvailable k
+    cc ->
+      maybe
+        (Fail . addLabel "cookie" . typeError k $ "Failed to get zuid cookies")
+        return
+        (traverse fromByteString cc)
 
 notAvailable :: ByteString -> P.Error
 notAvailable k = e400 & setReason NotAvailable . setSource k

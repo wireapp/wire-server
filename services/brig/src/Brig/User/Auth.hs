@@ -262,7 +262,7 @@ validateTokens ::
   Maybe (ZAuth.Token a) ->
   ExceptT ZAuth.Failure AppIO (UserId, Cookie (ZAuth.Token u))
 validateTokens [] _ = throwE ZAuth.Invalid
-validateTokens (ut:[]) at = validateToken ut at
+validateTokens (ut : []) at = validateToken ut at
 validateTokens uts at = do
   tokens <- forM uts $ \ut -> lift $ runExceptT (validateToken ut at)
   parseResults tokens
@@ -270,9 +270,9 @@ validateTokens uts at = do
     -- FUTUREWORK: There is surely a better way to do this
     parseResults :: [Either ZAuth.Failure (UserId, Cookie (ZAuth.Token u))] -> ExceptT ZAuth.Failure AppIO (UserId, Cookie (ZAuth.Token u))
     parseResults res = case (lefts res, rights res) of
-      (_  , (suc:_)) -> return suc
-      ((e:_), _    ) -> throwE e
-      _              -> throwE ZAuth.Invalid -- Impossible with NonEmpty
+      (_, (suc : _)) -> return suc
+      ((e : _), _) -> throwE e
+      _ -> throwE ZAuth.Invalid -- Impossible with NonEmpty
 
 validateToken ::
   ZAuth.TokenPair u a =>
