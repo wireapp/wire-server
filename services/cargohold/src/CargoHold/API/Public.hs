@@ -30,7 +30,7 @@ import CargoHold.Options
 import qualified CargoHold.TUS as TUS
 import qualified CargoHold.Types.V3 as V3 (Principal (..))
 import Control.Error
-import Control.Lens ((^.), view)
+import Control.Lens (view, (^.))
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Predicate

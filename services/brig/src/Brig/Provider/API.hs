@@ -47,35 +47,31 @@ import qualified Brig.Queue as Queue
 import Brig.Team.Util
 import Brig.Types.Client (Client (..), ClientType (..), newClient, newClientPrekeys)
 import Brig.Types.Intra (AccountStatus (..), UserAccount (..))
-import Brig.Types.Provider (DeleteProvider (..), PasswordChange (..), Provider (..), ProviderLogin (..), UpdateProvider (..))
-import Brig.Types.Provider (Service (..), ServiceProfile (..), ServiceToken (..))
-import Brig.Types.Provider (DeleteService (..), NewService (..), UpdateService (..), UpdateServiceConn (..), UpdateServiceWhitelist (..))
-import Brig.Types.Provider (AddBot (..), UpdateBotPrekeys (..))
+import Brig.Types.Provider (AddBot (..), DeleteProvider (..), DeleteService (..), NewService (..), PasswordChange (..), Provider (..), ProviderLogin (..), Service (..), ServiceProfile (..), ServiceToken (..), UpdateBotPrekeys (..), UpdateProvider (..), UpdateService (..), UpdateServiceConn (..), UpdateServiceWhitelist (..))
 import qualified Brig.Types.Provider.External as Ext
 import Brig.Types.User (ManagedBy (..), Name (..), Pict (..), User (..), defaultAccentId)
 import qualified Brig.ZAuth as ZAuth
 import Control.Error (throwE)
 import Control.Exception.Enclosed (handleAny)
-import Control.Lens ((^.), view)
+import Control.Lens (view, (^.))
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy.Char8 as LC8
-import Data.Conduit ((.|), runConduit)
+import Data.Conduit (runConduit, (.|))
 import qualified Data.Conduit.List as C
 import Data.Hashable (hash)
 import Data.Id
 import qualified Data.List as List
 import Data.List1 (maybeList1)
 import qualified Data.Map.Strict as Map
-import Data.Misc ((<$$>), Fingerprint (..), Rsa)
+import Data.Misc (Fingerprint (..), Rsa, (<$$>))
 import Data.Predicate
 import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Text.Encoding as Text
-import Galley.Types (AccessRole (..), ConvMembers (..), ConvType (..), Conversation (..))
-import Galley.Types (OtherMember (..))
+import Galley.Types (AccessRole (..), ConvMembers (..), ConvType (..), Conversation (..), OtherMember (..))
 import Galley.Types.Bot (newServiceRef, serviceRefId, serviceRefProvider)
 import Galley.Types.Conversations.Roles (roleNameWireAdmin)
 import qualified Galley.Types.Teams as Teams
@@ -784,15 +780,16 @@ updateServiceWhitelist uid con tid upd = do
     (True, False) -> do
       -- When the service is de-whitelisted, remove its bots from team
       -- conversations
-      lift $ runConduit $
-        User.lookupServiceUsersForTeam pid sid tid
-          .| C.mapM_
-            ( pooledMapConcurrentlyN_
-                16
-                ( \(bid, cid) ->
-                    deleteBot uid (Just con) bid cid
-                )
-            )
+      lift $
+        runConduit $
+          User.lookupServiceUsersForTeam pid sid tid
+            .| C.mapM_
+              ( pooledMapConcurrentlyN_
+                  16
+                  ( \(bid, cid) ->
+                      deleteBot uid (Just con) bid cid
+                  )
+              )
       DB.deleteServiceWhitelist (Just tid) pid sid
       return UpdateServiceWhitelistRespChanged
 
@@ -1007,20 +1004,21 @@ deleteBot zusr zcon bid cid = do
   return ev
 
 validateServiceKey :: MonadIO m => Public.ServiceKeyPEM -> m (Maybe (Public.ServiceKey, Fingerprint Rsa))
-validateServiceKey pem = liftIO $
-  readPublicKey >>= \pk ->
-    case join (SSL.toPublicKey <$> pk) of
-      Nothing -> return Nothing
-      Just pk' -> do
-        Just sha <- SSL.getDigestByName "SHA256"
-        let size = SSL.rsaSize (pk' :: SSL.RSAPubKey)
-        if size < minRsaKeySize
-          then return Nothing
-          else do
-            fpr <- Fingerprint <$> SSL.rsaFingerprint sha pk'
-            let bits = fromIntegral size * 8
-            let key = Public.ServiceKey Public.RsaServiceKey bits pem
-            return $ Just (key, fpr)
+validateServiceKey pem =
+  liftIO $
+    readPublicKey >>= \pk ->
+      case join (SSL.toPublicKey <$> pk) of
+        Nothing -> return Nothing
+        Just pk' -> do
+          Just sha <- SSL.getDigestByName "SHA256"
+          let size = SSL.rsaSize (pk' :: SSL.RSAPubKey)
+          if size < minRsaKeySize
+            then return Nothing
+            else do
+              fpr <- Fingerprint <$> SSL.rsaFingerprint sha pk'
+              let bits = fromIntegral size * 8
+              let key = Public.ServiceKey Public.RsaServiceKey bits pem
+              return $ Just (key, fpr)
   where
     readPublicKey =
       handleAny

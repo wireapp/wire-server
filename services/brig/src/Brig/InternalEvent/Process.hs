@@ -55,9 +55,10 @@ onEvent n = handleTimeout $ case n of
         ~~ field "service" (toByteString sid)
     API.finishDeleteService pid sid
   where
-    handleTimeout act = timeout 60000000 act >>= \case
-      Just x -> pure x
-      Nothing -> throwM (InternalEventTimeout n)
+    handleTimeout act =
+      timeout 60000000 act >>= \case
+        Just x -> pure x
+        Nothing -> throwM (InternalEventTimeout n)
 
 data InternalEventException
   = -- | 'onEvent' has timed out

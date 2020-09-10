@@ -40,6 +40,8 @@ library:
   - data-default >=0.5
   - data-timeout >=0.3
   - directory >=1.2
+  - dns
+  - dns-util
   - either >=4.3
   - enclosed-exceptions >=1.0
   - errors >=1.4
@@ -80,6 +82,7 @@ library:
   - network-uri >=2.6
   - optparse-applicative >=0.11
   - pem >=0.2
+  - polysemy
   - proto-lens >=0.1
   - prometheus-client
   - resourcet >=1.1
@@ -128,28 +131,6 @@ library:
   - wire-api
   - yaml >=0.8.22
   - zauth >=0.10.3
-internal-libraries:
-  brig-index-lib:
-    source-dirs: index/src
-    dependencies:
-    - aeson
-    - base
-    - bloodhound
-    - brig
-    - cassandra-util >=0.12
-    - exceptions
-    - http-client
-    - imports
-    - lens
-    - metrics-core
-    - mtl
-    - optparse-applicative >=0.13
-    - retry
-    - text
-    - time
-    - tinylog
-    - types-common
-    - uri-bytestring
 tests:
   brig-tests:
     main: Main.hs
@@ -163,11 +144,19 @@ tests:
     - bloodhound
     - brig
     - brig-types
+    - dns
+    - dns-util
+    - polysemy
     - imports
+    - retry
     - tasty
     - tasty-hunit
+    - tinylog
     - types-common
+    - unliftio
+    - uri-bytestring
     - uuid
+    - wire-api
 executables:
   brig-schema:
     main: Main.hs
@@ -194,7 +183,6 @@ executables:
     - bloodhound
     - base
     - brig
-    - brig-index-lib
     - brig-types
     - bytestring >=0.9
     - bytestring-conversion
@@ -260,7 +248,7 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - base
-    - brig-index-lib
+    - brig
     - imports
     - optparse-applicative
     - tinylog

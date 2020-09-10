@@ -40,7 +40,7 @@ module Gundeck.Push.Native.Types
   )
 where
 
-import Control.Lens (Lens', (^.), makeLenses, view)
+import Control.Lens (Lens', makeLenses, view, (^.))
 import Data.Id (ClientId, ConnId, UserId)
 import Gundeck.Aws.Arn
 import Gundeck.Types

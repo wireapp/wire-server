@@ -62,7 +62,7 @@ empty :: IO Cache
 empty = Cache <$> newIORef []
 
 get :: (MonadIO m, HasCallStack) => Cache -> m CachedUser
-get c = liftIO $ atomicModifyIORef (cache c) $ \u ->
+get c = liftIO . atomicModifyIORef (cache c) $ \u ->
   case u of
     [] ->
       error
@@ -71,7 +71,7 @@ get c = liftIO $ atomicModifyIORef (cache c) $ \u ->
     (x : xs) -> (xs, x)
 
 put :: MonadIO m => Cache -> CachedUser -> m ()
-put c a = liftIO $ atomicModifyIORef (cache c) $ \u -> (a : u, ())
+put c a = liftIO . atomicModifyIORef (cache c) $ \u -> (a : u, ())
 
 toUser :: HasCallStack => Logger -> [CachedUser] -> [LText] -> IO [CachedUser]
 toUser _ acc [i, e, p] = do

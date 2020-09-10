@@ -15,17 +15,30 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.API.Util where
+module Brig.API.Util
+  ( fetchUserIdentity,
+    isFederationEnabled,
+    lookupProfilesMaybeFilterSameTeamOnly,
+    lookupSelfProfile,
+    validateHandle,
+    viewFederationDomain,
+  )
+where
 
+import qualified Brig.API.Error as Error
 import Brig.API.Handler
-import Brig.App (Env, settings)
+import Brig.API.Types
+import Brig.App (AppIO, Env, settings)
 import qualified Brig.Data.User as Data
 import Brig.Options (enableFederationWithDomain)
 import Brig.Types
+import Brig.Types.Intra (accountUser)
 import Control.Lens (view)
-import Control.Monad
+import Control.Monad.Catch (throwM)
+import Control.Monad.Trans.Except (throwE)
 import Data.Domain (Domain)
-import Data.Id as Id
+import Data.Handle (Handle, parseHandle)
+import Data.Id
 import Data.Maybe
 import Imports
 
@@ -35,6 +48,22 @@ lookupProfilesMaybeFilterSameTeamOnly self us = do
   return $ case selfTeam of
     Just team -> filter (\x -> profileTeam x == Just team) us
     Nothing -> us
+
+fetchUserIdentity :: UserId -> AppIO (Maybe UserIdentity)
+fetchUserIdentity uid =
+  lookupSelfProfile uid
+    >>= maybe
+      (throwM $ UserProfileNotFound uid)
+      (return . userIdentity . selfUser)
+
+-- | Obtain a profile for a user as he can see himself.
+lookupSelfProfile :: UserId -> AppIO (Maybe SelfProfile)
+lookupSelfProfile = fmap (fmap mk) . Data.lookupAccount
+  where
+    mk a = SelfProfile (accountUser a)
+
+validateHandle :: Text -> Handler Handle
+validateHandle = maybe (throwE (Error.StdError Error.invalidHandle)) return . parseHandle
 
 --------------------------------------------------------------------------------
 -- Federation

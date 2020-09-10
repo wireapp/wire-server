@@ -20,12 +20,12 @@ module Test.Wire.API.Roundtrip.ByteString (tests) where
 import Data.ByteString.Conversion
 import Imports
 import qualified Test.Tasty as T
-import Test.Tasty.QuickCheck ((===), Arbitrary, counterexample, testProperty)
+import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (===))
 import Type.Reflection (typeRep)
 import qualified Wire.API.Arbitrary as Arbitrary ()
 import qualified Wire.API.Asset.V3 as Asset.V3
 import qualified Wire.API.Asset.V3.Resumable as Asset.V3.Resumable
-import qualified Wire.API.Call.TURN as Call.TURN
+import qualified Wire.API.Call.Config as Call.Config
 import qualified Wire.API.Conversation.Code as Conversation.Code
 import qualified Wire.API.Conversation.Role as Conversation.Role
 import qualified Wire.API.Properties as Properties
@@ -50,10 +50,10 @@ tests =
       testRoundTrip @Asset.V3.Resumable.ChunkSize,
       testRoundTrip @Asset.V3.Resumable.Offset,
       testRoundTrip @Asset.V3.Resumable.TotalSize,
-      testRoundTrip @Call.TURN.Scheme,
-      testRoundTrip @Call.TURN.Transport,
-      testRoundTrip @Call.TURN.TurnHost,
-      testRoundTrip @Call.TURN.TurnURI,
+      testRoundTrip @Call.Config.Scheme,
+      testRoundTrip @Call.Config.Transport,
+      testRoundTrip @Call.Config.TurnHost,
+      testRoundTrip @Call.Config.TurnURI,
       testRoundTrip @Conversation.Code.Key,
       testRoundTrip @Conversation.Code.Value,
       testRoundTrip @Conversation.Role.RoleName,
@@ -61,6 +61,8 @@ tests =
       testRoundTrip @Provider.HttpsUrl,
       testRoundTrip @Provider.Service.ServiceKeyPEM,
       testRoundTrip @Provider.Service.ServiceToken,
+      testRoundTrip @(Provider.Service.Tag.QueryAllTags 3 5),
+      testRoundTrip @(Provider.Service.Tag.QueryAnyTags 3 5),
       testRoundTrip @Provider.Service.Tag.ServiceTag,
       testRoundTrip @Push.V2.Token.Token,
       testRoundTrip @Team.Feature.TeamFeatureName,
@@ -73,11 +75,10 @@ tests =
       testRoundTrip @User.InvitationCode,
       testRoundTrip @User.Password.PasswordResetCode,
       testRoundTrip @User.Password.PasswordResetKey,
-      testRoundTrip @User.Profile.Name,
-      testRoundTrip @(Provider.Service.Tag.QueryAllTags 3 5),
-      testRoundTrip @(Provider.Service.Tag.QueryAnyTags 3 5)
+      testRoundTrip @User.Profile.ManagedBy,
+      testRoundTrip @User.Profile.Name
       -- FUTUREWORK:
-      -- testCase "Call.TURN.TurnUsername (doesn't have FromByteString)" ...
+      -- testCase "Call.Config.TurnUsername (doesn't have FromByteString)" ...
       -- testCase "User.Activation.ActivationTarget (doesn't have FromByteString)" ...
     ]
 

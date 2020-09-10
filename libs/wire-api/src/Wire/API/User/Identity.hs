@@ -219,11 +219,12 @@ instance FromByteString Phone where
   parser = parser >>= maybe (fail "Invalid phone") return . parsePhone
 
 instance Arbitrary Phone where
-  arbitrary = Phone . Text.pack <$> do
-    let mkdigits n = replicateM n (QC.elements ['0' .. '9'])
-    mini <- mkdigits 8
-    maxi <- mkdigits =<< QC.chooseInt (0, 7)
-    pure $ '+' : mini <> maxi
+  arbitrary =
+    Phone . Text.pack <$> do
+      let mkdigits n = replicateM n (QC.elements ['0' .. '9'])
+      mini <- mkdigits 8
+      maxi <- mkdigits =<< QC.chooseInt (0, 7)
+      pure $ '+' : mini <> maxi
 
 -- | Parses a phone number in E.164 format with a mandatory leading '+'.
 parsePhone :: Text -> Maybe Phone

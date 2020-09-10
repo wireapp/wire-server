@@ -63,7 +63,7 @@ import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.User.Auth
 import Control.Error
-import Control.Lens ((^.), view)
+import Control.Lens (view, (^.))
 import Control.Monad.Reader
 import Data.Aeson hiding (Error)
 import Data.Aeson.Types (emptyArray)
@@ -89,7 +89,7 @@ import Network.HTTP.Types.Status hiding (statusCode)
 import Network.Wai.Utilities (Error (..))
 import Stern.App
 import Stern.Types
-import System.Logger.Class hiding ((.=), Error, name)
+import System.Logger.Class hiding (Error, name, (.=))
 import qualified System.Logger.Class as Log
 import UnliftIO.Exception hiding (Handler)
 import qualified Wire.API.Team.Feature as Public
@@ -100,33 +100,35 @@ putUser :: UserId -> UserUpdate -> Handler ()
 putUser uid upd = do
   info $ userMsg uid . msg "Changing user state"
   b <- view brig
-  void $ catchRpcErrors $
-    rpc'
-      "brig"
-      b
-      ( method PUT
-          . path "/self"
-          . header "Z-User" (toByteString' uid)
-          . header "Z-Connection" (toByteString' "")
-          . lbytes (encode upd)
-          . contentJson
-          . expect2xx
-      )
+  void $
+    catchRpcErrors $
+      rpc'
+        "brig"
+        b
+        ( method PUT
+            . path "/self"
+            . header "Z-User" (toByteString' uid)
+            . header "Z-Connection" (toByteString' "")
+            . lbytes (encode upd)
+            . contentJson
+            . expect2xx
+        )
 
 putUserStatus :: AccountStatus -> UserId -> Handler ()
 putUserStatus status uid = do
   info $ userMsg uid . msg "Changing user status"
   b <- view brig
-  void $ catchRpcErrors $
-    rpc'
-      "brig"
-      b
-      ( method PUT
-          . paths ["/i/users", toByteString' uid, "status"]
-          . lbytes (encode payload)
-          . contentJson
-          . expect2xx
-      )
+  void $
+    catchRpcErrors $
+      rpc'
+        "brig"
+        b
+        ( method PUT
+            . paths ["/i/users", toByteString' uid, "status"]
+            . lbytes (encode payload)
+            . contentJson
+            . expect2xx
+        )
   where
     payload = AccountStatusUpdate status
 
@@ -335,10 +337,11 @@ getUserBindingTeam u = do
             . expect2xx
         )
   teams <- parseResponse (Error status502 "bad-upstream") r
-  return $ listToMaybe
-    $ fmap (view teamId)
-    $ filter ((== Binding) . view teamBinding)
-    $ teams ^. teamListTeams
+  return $
+    listToMaybe $
+      fmap (view teamId) $
+        filter ((== Binding) . view teamBinding) $
+          teams ^. teamListTeams
 
 getInvoiceUrl :: TeamId -> InvoiceId -> Handler ByteString
 getInvoiceUrl tid iid = do

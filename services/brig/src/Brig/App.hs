@@ -51,6 +51,7 @@ module Brig.App
     applog,
     turnEnv,
     turnEnvV2,
+    sftEnv,
     internalEvents,
 
     -- * App Monad
@@ -67,13 +68,13 @@ import Bilge (Manager, MonadHttp, RequestId (..), newManager, withResponse)
 import qualified Bilge as RPC
 import Bilge.RPC (HasRequestId (..))
 import qualified Brig.AWS as AWS
+import qualified Brig.Calling as Calling
 import Brig.Options (Opts, Settings)
 import qualified Brig.Options as Opt
 import Brig.Provider.Template
 import qualified Brig.Queue.Stomp as Stomp
 import Brig.Queue.Types (Queue (..))
 import qualified Brig.SMTP as SMTP
-import qualified Brig.TURN as TURN
 import Brig.Team.Template
 import Brig.Template (Localised, TemplateBranding, forLocale, genTemplateBranding)
 import Brig.Types (Locale (..), TurnURI)
@@ -88,7 +89,7 @@ import qualified Cassandra.Settings as Cas
 import Control.AutoUpdate
 import Control.Error
 import Control.Exception.Enclosed (handleAny)
-import Control.Lens hiding ((.=), index)
+import Control.Lens hiding (index, (.=))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
 import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
@@ -155,8 +156,9 @@ data Env = Env
     _twilioCreds :: Twilio.Credentials,
     _geoDb :: Maybe (IORef GeoIp.GeoDB),
     _fsWatcher :: FS.WatchManager,
-    _turnEnv :: IORef TURN.Env,
-    _turnEnvV2 :: IORef TURN.Env,
+    _turnEnv :: IORef Calling.Env,
+    _turnEnvV2 :: IORef Calling.Env,
+    _sftEnv :: Maybe Calling.SFTEnv,
     _currentTime :: IO UTCTime,
     _zauthEnv :: ZAuth.Env,
     _digestSHA256 :: Digest,
@@ -202,6 +204,7 @@ newEnv o = do
   eventsQueue <- case Opt.internalEventsQueue (Opt.internalEvents o) of
     StompQueue q -> pure (StompQueue q)
     SqsQueue q -> SqsQueue <$> AWS.getQueueUrl (aws ^. AWS.amazonkaEnv) q
+  mSFTEnv <- mapM Calling.mkSFTEnv $ Opt.sft o
   return
     $! Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
@@ -227,6 +230,7 @@ newEnv o = do
         _geoDb = g,
         _turnEnv = turn,
         _turnEnvV2 = turnV2,
+        _sftEnv = mSFTEnv,
         _fsWatcher = w,
         _currentTime = clock,
         _zauthEnv = zau,
@@ -264,7 +268,7 @@ geoSetup lgr w (Just db) = do
   startWatching w path (replaceGeoDb lgr geodb)
   return $ Just geodb
 
-turnSetup :: Logger -> FS.WatchManager -> Digest -> Opt.TurnOpts -> IO (IORef TURN.Env, IORef TURN.Env)
+turnSetup :: Logger -> FS.WatchManager -> Digest -> Opt.TurnOpts -> IO (IORef Calling.Env, IORef Calling.Env)
 turnSetup lgr w dig o = do
   secret <- Text.encodeUtf8 . Text.strip <$> Text.readFile (Opt.secret o)
   cfg <- setupTurn secret (Opt.servers o)
@@ -274,7 +278,7 @@ turnSetup lgr w dig o = do
     setupTurn secret cfg = do
       path <- canonicalizePath cfg
       servers <- fromMaybe (error "Empty TURN list, check turn file!") <$> readTurnList path
-      te <- newIORef =<< TURN.newEnv dig servers (Opt.tokenTTL o) (Opt.configTTL o) secret
+      te <- newIORef =<< Calling.newEnv dig servers (Opt.tokenTTL o) (Opt.configTTL o) secret
       startWatching w path (replaceTurnServers lgr te)
       return te
 
@@ -293,14 +297,15 @@ replaceGeoDb g ref e = do
     GeoIp.openGeoDB (FS.eventPath e) >>= atomicWriteIORef ref
     Log.info g (msg $ val "New GeoIP database loaded.")
 
-replaceTurnServers :: Logger -> IORef TURN.Env -> FS.Event -> IO ()
+replaceTurnServers :: Logger -> IORef Calling.Env -> FS.Event -> IO ()
 replaceTurnServers g ref e = do
   let logErr x = Log.err g (msg $ val "Error loading turn servers: " +++ show x)
   handleAny logErr $
     readTurnList (FS.eventPath e) >>= \case
-      Just servers -> readIORef ref >>= \old -> do
-        atomicWriteIORef ref (old & TURN.turnServers .~ servers)
-        Log.info g (msg $ val "New turn servers loaded.")
+      Just servers ->
+        readIORef ref >>= \old -> do
+          atomicWriteIORef ref (old & Calling.turnServers .~ servers)
+          Log.info g (msg $ val "New turn servers loaded.")
       Nothing -> Log.warn g (msg $ val "Empty or malformed turn servers list, ignoring!")
 
 initZAuth :: Opts -> IO ZAuth.Env
@@ -377,8 +382,8 @@ initCassandra o g = do
       (Cas.initialContactsDisco "cassandra_brig")
       (unpack <$> Opt.discoUrl o)
   p <-
-    Cas.init
-      $ Cas.setLogger (Cas.mkLogger (Log.clone (Just "cassandra.brig") g))
+    Cas.init $
+      Cas.setLogger (Cas.mkLogger (Log.clone (Just "cassandra.brig") g))
         . Cas.setContacts (NE.head c) (NE.tail c)
         . Cas.setPortNumber (fromIntegral ((Opt.cassandra o) ^. casEndpoint . epPort))
         . Cas.setKeyspace (Keyspace ((Opt.cassandra o) ^. casKeyspace))
@@ -387,7 +392,7 @@ initCassandra o g = do
         . Cas.setSendTimeout 3
         . Cas.setResponseTimeout 10
         . Cas.setProtocolVersion Cas.V4
-      $ Cas.defSettings
+        $ Cas.defSettings
   runClient p $ versionCheck schemaVersion
   return p
 
@@ -470,7 +475,7 @@ instance Monad m => HasRequestId (AppT m) where
 
 instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
   withRunInIO inner =
-    AppT $ ReaderT $ \r ->
+    AppT . ReaderT $ \r ->
       withRunInIO $ \run ->
         inner (run . flip runReaderT r . unAppT)
 
@@ -496,13 +501,14 @@ forkAppIO u ma = do
     user = maybe id (field "user" . toByteString)
 
 locationOf :: (MonadIO m, MonadReader Env m) => IP -> m (Maybe Location)
-locationOf ip = view geoDb >>= \case
-  Just g -> do
-    database <- liftIO $ readIORef g
-    return $! do
-      loc <- GeoIp.geoLocation =<< hush (GeoIp.findGeoData database "en" ip)
-      return $ location (Latitude $ GeoIp.locationLatitude loc) (Longitude $ GeoIp.locationLongitude loc)
-  Nothing -> return Nothing
+locationOf ip =
+  view geoDb >>= \case
+    Just g -> do
+      database <- liftIO $ readIORef g
+      return $! do
+        loc <- GeoIp.geoLocation =<< hush (GeoIp.findGeoData database "en" ip)
+        return $ location (Latitude $ GeoIp.locationLatitude loc) (Longitude $ GeoIp.locationLongitude loc)
+    Nothing -> return Nothing
 
 readTurnList :: FilePath -> IO (Maybe (List1 TurnURI))
 readTurnList = Text.readFile >=> return . fn . mapMaybe fromByteString . fmap Text.encodeUtf8 . Text.lines

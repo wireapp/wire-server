@@ -43,6 +43,8 @@ module Brig.Types.User
     newUserEmail,
     newUserPhone,
     newUserSSOId,
+    isNewUserEphemeral,
+    isNewUserTeamMember,
     InvitationCode (..),
     BindingNewTeamUser (..),
     NewTeamUser (..),

@@ -60,23 +60,10 @@ import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Encoding as Text
 import Data.Time.Clock
-import Data.Timeout ((#), TimedOut (..), Timeout, TimeoutUnit (..))
+import Data.Timeout (TimedOut (..), Timeout, TimeoutUnit (..), (#))
 import qualified Data.UUID as UUID
 import qualified Data.ZAuth.Token as ZAuth
-import Galley.Types
-  ( Access (..),
-    AccessRole (..),
-    Conversation (..),
-    ConversationAccessUpdate (..),
-    NewConv (..),
-    NewConvUnmanaged (..),
-    SimpleMember (..),
-    SimpleMembers (..),
-    SimpleMembers (..),
-    UserIdList (..),
-  )
-import Galley.Types (ConvMembers (..), OtherMember (..))
-import Galley.Types (Event (..), EventData (..), EventType (..), OtrMessage (..))
+import Galley.Types (Access (..), AccessRole (..), ConvMembers (..), Conversation (..), ConversationAccessUpdate (..), Event (..), EventData (..), EventType (..), NewConv (..), NewConvUnmanaged (..), OtherMember (..), OtrMessage (..), SimpleMember (..), SimpleMembers (..), UserIdList (..))
 import Galley.Types.Bot (ServiceRef, newServiceRef, serviceRefId, serviceRefProvider)
 import Galley.Types.Conversations.Roles (roleNameWireAdmin)
 import qualified Galley.Types.Teams as Team
@@ -196,9 +183,10 @@ testLoginProvider db brig = do
   prv <- randomProvider db brig
   let pid = providerId prv
   let email = providerEmail prv
-  _rs <- loginProvider brig email defProviderPassword <!! do
-    const 200 === statusCode
-    const Nothing === responseBody
+  _rs <-
+    loginProvider brig email defProviderPassword <!! do
+      const 200 === statusCode
+      const Nothing === responseBody
   let Just cok = parseSetCookie <$> getHeader "Set-Cookie" _rs
   now <- liftIO getCurrentTime
   let ttl = (`diffUTCTime` now) <$> setCookieExpires cok
@@ -372,7 +360,7 @@ testUpdateService config db brig = do
   let newSummary = "short"
   let newDescr = "looooooooooooong"
   let newAssets = [] -- TODO
-    -- Exercise all updateable attributes
+  -- Exercise all updateable attributes
   let upd =
         UpdateService
           { updateServiceName = Just newName,
@@ -1558,7 +1546,8 @@ randServiceKey = liftIO $ do
 waitFor :: MonadIO m => Timeout -> (a -> Bool) -> m a -> m a
 waitFor t f ma = do
   a <- ma
-  if  | f a -> return a
+  if
+      | f a -> return a
       | t <= 0 -> liftIO $ throwM TimedOut
       | otherwise -> do
         liftIO $ threadDelay (1 # Second)
@@ -1600,9 +1589,9 @@ runService config mkApp go = do
   let defs = Warp.defaultSettings {Warp.settingsPort = botPort config}
   buf <- liftIO newChan
   srv <-
-    liftIO . Async.async
-      $ Warp.runTLS tlss defs
-      $ mkApp buf
+    liftIO . Async.async $
+      Warp.runTLS tlss defs $
+        mkApp buf
   go buf `finally` liftIO (Async.cancel srv)
 
 data TestBot = TestBot
@@ -1667,48 +1656,52 @@ defServiceApp buf =
           k $ responseLBS status200 [] "success"
 
 wsAssertMemberJoin :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> [UserId] -> m ()
-wsAssertMemberJoin ws conv usr new = void $ liftIO
-  $ WS.assertMatch (5 # Second) ws
-  $ \n -> do
-    let e = List1.head (unpackEvents n)
-    ntfTransient n @?= False
-    evtConv e @?= conv
-    evtType e @?= MemberJoin
-    evtFrom e @?= usr
-    evtData e @?= Just (EdMembersJoin (SimpleMembers (fmap (\u -> SimpleMember u roleNameWireAdmin) new)))
+wsAssertMemberJoin ws conv usr new = void $
+  liftIO $
+    WS.assertMatch (5 # Second) ws $
+      \n -> do
+        let e = List1.head (unpackEvents n)
+        ntfTransient n @?= False
+        evtConv e @?= conv
+        evtType e @?= MemberJoin
+        evtFrom e @?= usr
+        evtData e @?= Just (EdMembersJoin (SimpleMembers (fmap (\u -> SimpleMember u roleNameWireAdmin) new)))
 
 wsAssertMemberLeave :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> [UserId] -> m ()
-wsAssertMemberLeave ws conv usr old = void $ liftIO
-  $ WS.assertMatch (5 # Second) ws
-  $ \n -> do
-    let e = List1.head (unpackEvents n)
-    ntfTransient n @?= False
-    evtConv e @?= conv
-    evtType e @?= MemberLeave
-    evtFrom e @?= usr
-    evtData e @?= Just (EdMembersLeave (UserIdList old))
+wsAssertMemberLeave ws conv usr old = void $
+  liftIO $
+    WS.assertMatch (5 # Second) ws $
+      \n -> do
+        let e = List1.head (unpackEvents n)
+        ntfTransient n @?= False
+        evtConv e @?= conv
+        evtType e @?= MemberLeave
+        evtFrom e @?= usr
+        evtData e @?= Just (EdMembersLeave (UserIdList old))
 
 wsAssertConvDelete :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> m ()
-wsAssertConvDelete ws conv from = void $ liftIO
-  $ WS.assertMatch (5 # Second) ws
-  $ \n -> do
-    let e = List1.head (WS.unpackPayload n)
-    ntfTransient n @?= False
-    evtConv e @?= conv
-    evtType e @?= ConvDelete
-    evtFrom e @?= from
-    evtData e @?= Nothing
+wsAssertConvDelete ws conv from = void $
+  liftIO $
+    WS.assertMatch (5 # Second) ws $
+      \n -> do
+        let e = List1.head (WS.unpackPayload n)
+        ntfTransient n @?= False
+        evtConv e @?= conv
+        evtType e @?= ConvDelete
+        evtFrom e @?= from
+        evtData e @?= Nothing
 
 wsAssertMessage :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> ClientId -> ClientId -> Text -> m ()
-wsAssertMessage ws conv fromu fromc to txt = void $ liftIO
-  $ WS.assertMatch (5 # Second) ws
-  $ \n -> do
-    let e = List1.head (unpackEvents n)
-    ntfTransient n @?= False
-    evtConv e @?= conv
-    evtType e @?= OtrMessageAdd
-    evtFrom e @?= fromu
-    evtData e @?= Just (EdOtrMessage (OtrMessage fromc to txt (Just "data")))
+wsAssertMessage ws conv fromu fromc to txt = void $
+  liftIO $
+    WS.assertMatch (5 # Second) ws $
+      \n -> do
+        let e = List1.head (unpackEvents n)
+        ntfTransient n @?= False
+        evtConv e @?= conv
+        evtType e @?= OtrMessageAdd
+        evtFrom e @?= fromu
+        evtData e @?= Just (EdOtrMessage (OtrMessage fromc to txt (Just "data")))
 
 svcAssertMemberJoin :: MonadIO m => Chan TestBotEvent -> UserId -> [UserId] -> ConvId -> m ()
 svcAssertMemberJoin buf usr new cnv = liftIO $ do

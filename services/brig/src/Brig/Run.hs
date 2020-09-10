@@ -27,6 +27,7 @@ import Brig.AWS (sesQueue)
 import qualified Brig.AWS as AWS
 import qualified Brig.AWS.SesNotification as SesNotification
 import Brig.App
+import qualified Brig.Calling as Calling
 import qualified Brig.InternalEvent.Process as Internal
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Queue as Queue
@@ -43,22 +44,28 @@ import Network.Wai.Utilities.Server
 import qualified Network.Wai.Utilities.Server as Server
 import Util.Options
 
+-- FUTUREWORK: If any of these async threads die, we will have no clue about it
+-- and brig could start misbehaving. We should ensure that brig dies whenever a
+-- thread terminates for any reason.
+-- https://github.com/zinfra/backend-issues/issues/1647
 run :: Opts -> IO ()
 run o = do
   (app, e) <- mkApp o
   s <- Server.newSettings (server e)
   internalEventListener <-
-    Async.async
-      $ runAppT e
-      $ Queue.listen (e ^. internalEvents) Internal.onEvent
+    Async.async $
+      runAppT e $
+        Queue.listen (e ^. internalEvents) Internal.onEvent
   let throttleMillis = fromMaybe defSqsThrottleMillis $ setSqsThrottleMillis (optSettings o)
   emailListener <- for (e ^. awsEnv . sesQueue) $ \q ->
-    Async.async
-      $ AWS.execute (e ^. awsEnv)
-      $ AWS.listen throttleMillis q (runAppT e . SesNotification.onEvent)
+    Async.async $
+      AWS.execute (e ^. awsEnv) $
+        AWS.listen throttleMillis q (runAppT e . SesNotification.onEvent)
+  sftDiscovery <- forM (e ^. sftEnv) $ Async.async . Calling.startSFTServiceDiscovery (e ^. applog)
   runSettingsWithShutdown s app 5 `finally` do
     mapM_ Async.cancel emailListener
     Async.cancel internalEventListener
+    mapM_ Async.cancel sftDiscovery
     closeEnv e
   where
     endpoint = brig o

@@ -180,14 +180,13 @@ We need an option to block 1, 2, 5 on-prem; 3, 4 should remain available (no blo
  * Allow team members to register (via email/phone or SSO)
  * Allow ephemeral users
 
-During registration, we can take advantage of [NewUserOrigin](https://github.com/wireapp/wire-server/blob/a89b9cd818997e7837e5d0938ecfd90cf8dd9e52/libs/wire-api/src/Wire/API/User.hs#L625); we're particularly interested in `NewUserOriginTeamUser` --> only `NewTeamMember` or `NewTeamMemberSSO` should be accepted. In case this is a `Nothing`, we need to check if the user expires, i.e., `newUserExpiresIn` must be a `Just`.
+During registration, we can take advantage of [NewUserOrigin](https://github.com/wireapp/wire-server/blob/a89b9cd818997e7837e5d0938ecfd90cf8dd9e52/libs/wire-api/src/Wire/API/User.hs#L625); we're particularly interested in `NewUserOriginTeamUser` --> only `NewTeamMember` or `NewTeamMemberSSO` should be accepted. In case this is a `Nothing`, we need to check if the user expires, i.e., if the user has no identity (and thus `Ephemeral`).
 
 So `/register` should only succeed iff at least one of these conditions is true:
 
 ```
-newUserTeam == (Just (NewTeamMember _)) OR
-newUserTeam == (Just (NewTeamMemberSSO _)) OR
-newUserExpiresIn == (Just _)
+import Brig.Types.User
+isNewUserTeamMember || isNewUserEphemeral
 ```
 
 The rest of the unauthorized end-points is safe:

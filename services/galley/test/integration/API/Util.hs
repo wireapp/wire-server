@@ -25,12 +25,12 @@ import Bilge.Assert
 import Brig.Types
 import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth (CookieLabel (..))
-import Control.Lens hiding ((#), (.=), from, to)
+import Control.Lens hiding (from, to, (#), (.=))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Fail (MonadFail)
 import Control.Retry (constantDelay, limitRetries, retrying)
 import Data.Aeson hiding (json)
-import Data.Aeson.Lens (_String, key)
+import Data.Aeson.Lens (key, _String)
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as C
 import Data.ByteString.Conversion
@@ -46,16 +46,16 @@ import Data.Range
 import Data.Serialize (runPut)
 import qualified Data.Set as Set
 import Data.String.Conversions (ST, cs)
-import qualified Data.Text.Encoding as Text
 import Data.Text.Encoding (decodeUtf8)
+import qualified Data.Text.Encoding as Text
 import qualified Data.UUID as UUID
 import Data.UUID.V4
 import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
 import Galley.Types hiding (InternalMember (..), Member)
 import Galley.Types.Conversations.Roles hiding (DeleteConversation)
-import qualified Galley.Types.Teams as Team
 import Galley.Types.Teams hiding (Event, EventType (..))
+import qualified Galley.Types.Teams as Team
 import Galley.Types.Teams.Intra
 import Gundeck.Types.Notification
   ( Notification (..),
@@ -71,7 +71,7 @@ import Gundeck.Types.Notification
 import Imports
 import qualified Network.Wai.Test as WaiTest
 import qualified Test.QuickCheck as Q
-import Test.Tasty.Cannon ((#), TimeoutUnit (..))
+import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestSetup
@@ -138,9 +138,10 @@ createNonBindingTeam name owner mems = do
   g <- view tsGalley
   let mm = if null mems then Nothing else Just $ unsafeRange (take 127 mems)
   let nt = NonBindingNewTeam $ newNewTeam (unsafeRange name) (unsafeRange "icon") & newTeamMembers .~ mm
-  resp <- post (g . path "/teams" . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
-    const 201 === statusCode
-    const True === isJust . getHeader "Location"
+  resp <-
+    post (g . path "/teams" . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
+      const 201 === statusCode
+      const True === isJust . getHeader "Location"
   fromBS (getHeader' "Location" resp)
 
 changeTeamStatus :: HasCallStack => TeamId -> TeamStatus -> TestM ()
@@ -164,9 +165,10 @@ createBindingTeamInternalNoActivate name owner = do
   g <- view tsGalley
   tid <- randomId
   let nt = BindingNewTeam $ newNewTeam (unsafeRange name) (unsafeRange "icon")
-  _ <- put (g . paths ["/i/teams", toByteString' tid] . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
-    const 201 === statusCode
-    const True === isJust . getHeader "Location"
+  _ <-
+    put (g . paths ["/i/teams", toByteString' tid] . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
+      const 201 === statusCode
+      const True === isJust . getHeader "Location"
   return tid
 
 createBindingTeamInternalWithCurrency :: HasCallStack => Text -> UserId -> Currency.Alpha -> TestM TeamId
@@ -241,9 +243,9 @@ bulkGetTeamMembersTruncated usr tid uids trnc = do
     )
 
 getTeamMember :: HasCallStack => UserId -> TeamId -> UserId -> TestM TeamMember
-getTeamMember usr tid mid = do
+getTeamMember getter tid gettee = do
   g <- view tsGalley
-  r <- get (g . paths ["teams", toByteString' tid, "members", toByteString' mid] . zUser usr) <!! const 200 === statusCode
+  r <- get (g . paths ["teams", toByteString' tid, "members", toByteString' gettee] . zUser getter) <!! const 200 === statusCode
   responseJsonError r
 
 getTeamMemberInternal :: HasCallStack => TeamId -> UserId -> TestM TeamMember
@@ -268,10 +270,6 @@ addTeamMemberInternal' tid mem = do
   let payload = json (newNewTeamMember mem)
   post (g . paths ["i", "teams", toByteString' tid, "members"] . payload)
 
-stdInvitationRequest :: Email -> Name -> Maybe Locale -> Maybe Team.Role -> InvitationRequest
-stdInvitationRequest e inviterName loc role =
-  InvitationRequest e inviterName loc role Nothing Nothing
-
 addUserToTeam :: HasCallStack => UserId -> TeamId -> TestM TeamMember
 addUserToTeam = addUserToTeamWithRole Nothing
 
@@ -280,11 +278,11 @@ addUserToTeam' u t = snd <$> addUserToTeamWithRole' Nothing u t
 
 addUserToTeamWithRole :: HasCallStack => Maybe Role -> UserId -> TeamId -> TestM TeamMember
 addUserToTeamWithRole role inviter tid = do
-  (inv, rsp2) <- addUserToTeamWithRole' role inviter tid -- TODO: <!! const 201 === statusCode
+  (inv, rsp2) <- addUserToTeamWithRole' role inviter tid
   let invitee :: User = responseJsonUnsafe rsp2
       inviteeId = Brig.Types.userId invitee
   let invmeta = Just (inviter, inCreatedAt inv)
-  mem <- getTeamMember inviteeId tid inviteeId
+  mem <- getTeamMember inviter tid inviteeId
   liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Team.invitation)
   let zuid = parseSetCookie <$> getHeader "Set-Cookie" rsp2
   liftIO $ assertEqual "Wrong cookie" (Just "zuid") (setCookieName <$> zuid)
@@ -294,8 +292,7 @@ addUserToTeamWithRole' :: HasCallStack => Maybe Role -> UserId -> TeamId -> Test
 addUserToTeamWithRole' role inviter tid = do
   brig <- view tsBrig
   inviteeEmail <- randomEmail
-  let name = Name $ fromEmail inviteeEmail
-  let invite = stdInvitationRequest inviteeEmail name Nothing role
+  let invite = InvitationRequest Nothing role Nothing inviteeEmail Nothing
   invResponse <- postInvitation tid inviter invite
   inv <- responseJsonError invResponse
   Just inviteeCode <- getInvitationCode tid (inInvitation inv)
@@ -303,7 +300,7 @@ addUserToTeamWithRole' role inviter tid = do
     post
       ( brig . path "/register"
           . contentJson
-          . body (acceptInviteBody name inviteeEmail inviteeCode)
+          . body (acceptInviteBody inviteeEmail inviteeCode)
       )
   return (inv, r)
 
@@ -328,11 +325,11 @@ makeOwner owner mem tid = do
     !!! const 200
     === statusCode
 
-acceptInviteBody :: Name -> Email -> InvitationCode -> RequestBody
-acceptInviteBody name email code =
+acceptInviteBody :: Email -> InvitationCode -> RequestBody
+acceptInviteBody email code =
   RequestBodyLBS . encode $
     object
-      [ "name" .= fromName name,
+      [ "name" .= Name "bob",
         "email" .= fromEmail email,
         "password" .= defPassword,
         "team_code" .= code
@@ -844,10 +841,10 @@ getTeamQueue zusr msince msize onlyLast = do
         error $ "expected time: Nothing; but found: " <> show (qnl ^. queuedTime)
       | otherwise =
         fmap (_2 %~ parseEvt) . mconcat . fmap parseEvts . view queuedNotifications $ qnl
-    --
+
     parseEvts :: QueuedNotification -> [(NotificationId, Object)]
     parseEvts qn = (qn ^. queuedNotificationId,) <$> (toList . toNonEmpty $ qn ^. queuedNotificationPayload)
-    --
+
     parseEvt :: Object -> UserId
     parseEvt o = case fromJSON (Object o) of
       (Error msg) -> error msg
@@ -1414,8 +1411,9 @@ withSettingsOverrides opts action = liftIO $ do
 waitForMemberDeletion :: UserId -> TeamId -> UserId -> TestM ()
 waitForMemberDeletion zusr tid uid = do
   maybeTimedOut <- timeout 2000000 loop
-  liftIO $ when (isNothing maybeTimedOut) $
-    assertFailure "Timed out waiting for member deletion"
+  liftIO $
+    when (isNothing maybeTimedOut) $
+      assertFailure "Timed out waiting for member deletion"
   where
     loop = do
       galley <- view tsGalley

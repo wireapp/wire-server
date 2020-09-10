@@ -34,20 +34,28 @@ module Spar.Scim.Auth
   )
 where
 
-import Control.Lens hiding ((.=), Strict)
+import Control.Lens hiding (Strict, (.=))
 import qualified Data.ByteString.Base64 as ES
-import Data.Id
-import Data.String.Conversions
-import Data.Time
+import Data.Id (ScimTokenId, UserId, randomId)
+import Data.String.Conversions (cs)
+import Data.Time (getCurrentTime)
 import Imports
 import OpenSSL.Random (randBytes)
 import qualified SAML2.WebSSO as SAML
-import Servant
-import Spar.App (Spar, sparCtxOpts, wrapMonadClient, wrapMonadClient)
+import Servant (NoContent (NoContent), ServerT, (:<|>) ((:<|>)))
+import Spar.App (Spar, sparCtxOpts, wrapMonadClient)
 import qualified Spar.Data as Data
-import Spar.Error
+import qualified Spar.Error as E
 import qualified Spar.Intra.Brig as Intra.Brig
 import Spar.Scim.Types
+  ( APIScimToken,
+    CreateScimToken (CreateScimToken),
+    CreateScimTokenResponse (..),
+    ScimTokenList (..),
+    SparTag,
+    createScimTokenDescr,
+    createScimTokenPassword,
+  )
 import Spar.Types
 -- FUTUREWORK: these imports are not very handy.  split up Spar.Scim into
 -- Spar.Scim.{Core,User,Group} to avoid at least some of the hscim name clashes?
@@ -94,7 +102,7 @@ createScimToken zusr CreateScimToken {..} = do
   tokenNumber <- fmap length $ wrapMonadClient $ Data.getScimTokens teamid
   maxTokens <- asks (maxScimTokens . sparCtxOpts)
   unless (tokenNumber < maxTokens) $
-    throwSpar SparProvisioningTokenLimitReached
+    E.throwSpar E.SparProvisioningTokenLimitReached
   idps <- wrapMonadClient $ Data.getIdPConfigsByTeam teamid
   case idps of
     [idp] -> do
@@ -117,13 +125,13 @@ createScimToken zusr CreateScimToken {..} = do
     -- NB: if the two following cases do not result in errors, 'validateScimUser' needs to
     -- be changed.  currently, it relies on the fact that there is always an IdP.
     [] ->
-      throwSpar $
-        SparProvisioningNoSingleIdP
+      E.throwSpar $
+        E.SparProvisioningNoSingleIdP
           "SCIM tokens can only be created for a team with an IdP, \
           \but none are found"
     _ ->
-      throwSpar $
-        SparProvisioningNoSingleIdP
+      E.throwSpar $
+        E.SparProvisioningNoSingleIdP
           "SCIM tokens can only be created for a team with exactly one IdP, \
           \but more are found"
 

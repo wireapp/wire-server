@@ -67,19 +67,18 @@ import Data.Aeson
 import Data.Aeson.Types (Parser)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
-import Data.Json.Util ((#), ToJSONObject (toJSONObject), toUTCTimeMillis)
+import Data.Json.Util (ToJSONObject (toJSONObject), toUTCTimeMillis, (#))
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Time
 import Imports
 import qualified Test.QuickCheck as QC
 import URI.ByteString ()
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
-import Wire.API.Conversation (modelConversationAccessUpdate, modelConversationMessageTimerUpdate, modelConversationReceiptModeUpdate, modelConversationUpdateName)
 import Wire.API.Conversation
+import Wire.API.Conversation (modelConversationAccessUpdate, modelConversationMessageTimerUpdate, modelConversationReceiptModeUpdate, modelConversationUpdateName)
 import Wire.API.Conversation.Code (ConversationCode (..), modelConversationCode)
 import Wire.API.Conversation.Role
-import Wire.API.Conversation.Typing (modelTyping)
-import Wire.API.Conversation.Typing (TypingData (..))
+import Wire.API.Conversation.Typing (TypingData (..), modelTyping)
 import Wire.API.User (UserIdList (..))
 
 --------------------------------------------------------------------------------
@@ -225,9 +224,6 @@ instance FromJSON EventType where
   parseJSON (String "conversation.otr-message-add") = return OtrMessageAdd
   parseJSON x = fail $ "No event-type: " <> show (encode x)
 
--- FUTUREWORK(federation, #1213):
--- A lot of information in the events can contain remote IDs, but the
--- receiver might be on another backend, so mapped IDs don't work for them.
 data EventData
   = EdMembersJoin SimpleMembers
   | EdMembersLeave UserIdList
@@ -359,9 +355,9 @@ newtype SimpleMembers = SimpleMembers
 -- | Used both for 'SimpleMembers' and 'UserIdList'.
 modelMembers :: Doc.Model
 modelMembers =
-  Doc.defineModel "Members"
-    $ Doc.property "users" (Doc.unique $ Doc.array Doc.bytes')
-    $ Doc.description "List of user IDs"
+  Doc.defineModel "Members" $
+    Doc.property "users" (Doc.unique $ Doc.array Doc.bytes') $
+      Doc.description "List of user IDs"
 
 instance ToJSON SimpleMembers where
   toJSON e =

@@ -21,6 +21,7 @@
 
 module Wire.API.User.Profile
   ( Name (..),
+    mkName,
     ColourId (..),
     defaultAccentId,
 
@@ -58,6 +59,7 @@ import Control.Applicative (optional)
 import Control.Error (hush)
 import Data.Aeson hiding ((<?>))
 import qualified Data.Aeson.Types as Json
+import Data.Attoparsec.ByteString.Char8 (takeByteString)
 import Data.Attoparsec.Text
 import Data.ByteString.Conversion
 import Data.ISO3166_CountryCodes
@@ -80,6 +82,9 @@ newtype Name = Name
   deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (ToJSON, FromByteString, ToByteString)
   deriving (Arbitrary) via (Ranged 1 128 Text)
+
+mkName :: Text -> Either String Name
+mkName txt = Name . fromRange <$> checkedEitherMsg @_ @1 @128 "Name" txt
 
 modelUserDisplayName :: Doc.Model
 modelUserDisplayName = Doc.defineModel "UserDisplayName" $ do
@@ -271,15 +276,27 @@ typeManagedBy =
       ]
 
 instance ToJSON ManagedBy where
-  toJSON = String . \case
-    ManagedByWire -> "wire"
-    ManagedByScim -> "scim"
+  toJSON =
+    String . \case
+      ManagedByWire -> "wire"
+      ManagedByScim -> "scim"
 
 instance FromJSON ManagedBy where
   parseJSON = withText "ManagedBy" $ \case
     "wire" -> pure ManagedByWire
     "scim" -> pure ManagedByScim
     other -> fail $ "Invalid ManagedBy: " ++ show other
+
+instance ToByteString ManagedBy where
+  builder ManagedByWire = "wire"
+  builder ManagedByScim = "scim"
+
+instance FromByteString ManagedBy where
+  parser =
+    takeByteString >>= \case
+      "wire" -> pure ManagedByWire
+      "scim" -> pure ManagedByScim
+      x -> fail $ "Invalid ManagedBy value: " <> show x
 
 defaultManagedBy :: ManagedBy
 defaultManagedBy = ManagedByWire

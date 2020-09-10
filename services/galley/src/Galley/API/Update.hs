@@ -94,7 +94,7 @@ import Gundeck.Types.Push.V2 (RecipientClients (..))
 import Imports
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Predicate hiding (_1, _2, failure, setStatus)
+import Network.Wai.Predicate hiding (failure, setStatus, _1, _2)
 import Network.Wai.Utilities
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
@@ -119,9 +119,9 @@ blockConvH (zusr ::: cnv) = do
 blockConv :: UserId -> ConvId -> Galley ()
 blockConv zusr cnv = do
   conv <- Data.conversation cnv >>= ifNothing convNotFound
-  unless (Data.convType conv `elem` [ConnectConv, One2OneConv])
-    $ throwM
-    $ invalidOp "block: invalid conversation type"
+  unless (Data.convType conv `elem` [ConnectConv, One2OneConv]) $
+    throwM $
+      invalidOp "block: invalid conversation type"
   let mems = Data.convMembers conv
   when (Local zusr `isMember` mems) $ Data.removeMember (Local zusr) cnv
 
@@ -132,9 +132,9 @@ unblockConvH (usr ::: conn ::: cnv) = do
 unblockConv :: UserId -> Maybe ConnId -> ConvId -> Galley Conversation
 unblockConv usr conn cnv = do
   conv <- Data.conversation cnv >>= ifNothing convNotFound
-  unless (Data.convType conv `elem` [ConnectConv, One2OneConv])
-    $ throwM
-    $ invalidOp "unblock: invalid conversation type"
+  unless (Data.convType conv `elem` [ConnectConv, One2OneConv]) $
+    throwM $
+      invalidOp "unblock: invalid conversation type"
   conv' <- acceptOne2One usr conv conn
   conversationView (Local usr) conv'
 
@@ -690,9 +690,9 @@ newMessage usr con cnv msg now (m, c, t) ~(toBots, toUsers) =
           let p =
                 newPush ListComplete (evtFrom e) (ConvEvent e) [r]
                   <&> set pushConn con
-                  . set pushNativePriority (newOtrNativePriority msg)
-                  . set pushRoute (bool RouteDirect RouteAny (newOtrNativePush msg))
-                  . set pushTransient (newOtrTransient msg)
+                    . set pushNativePriority (newOtrNativePriority msg)
+                    . set pushRoute (bool RouteDirect RouteAny (newOtrNativePush msg))
+                    . set pushTransient (newOtrTransient msg)
            in (toBots, p : toUsers)
 
 updateConversationDeprecatedH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.ConversationRename -> Galley Response
@@ -902,9 +902,10 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam 
   -- In large teams, we may still use the broadcast endpoint but only if `report_missing`
   -- is used and length `report_missing` < limit since we cannot fetch larger teams than
   -- that.
-  tMembers <- fmap (view userId) <$> case val of
-    OtrReportMissing us -> maybeFetchLimitedTeamMemberList limit tid us
-    _ -> maybeFetchAllMembersInTeam tid
+  tMembers <-
+    fmap (view userId) <$> case val of
+      OtrReportMissing us -> maybeFetchLimitedTeamMemberList limit tid us
+      _ -> maybeFetchAllMembersInTeam tid
   contacts <- getContactList usr
   let users = Set.toList $ Set.union (Set.fromList tMembers) (Set.fromList contacts)
   isInternal <- view $ options . optSettings . setIntraListing

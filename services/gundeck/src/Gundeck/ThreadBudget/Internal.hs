@@ -226,14 +226,15 @@ removeStaleHandles ref = do
     "watchThreadBudgetState: total overall thread budget diverged from async weights (repaired)."
   where
     getStaleHandles :: m (Set UUID)
-    getStaleHandles = Set.fromList . mconcat <$> do
-      handles <- HM.toList . bmap <$> readIORef ref
-      forM handles $ \case
-        (_, (_, Nothing)) -> do
-          pure []
-        (key, (_, Just handle)) -> do
-          status <- poll handle
-          pure [key | isJust status]
+    getStaleHandles =
+      Set.fromList . mconcat <$> do
+        handles <- HM.toList . bmap <$> readIORef ref
+        forM handles $ \case
+          (_, (_, Nothing)) -> do
+            pure []
+          (key, (_, Just handle)) -> do
+            status <- poll handle
+            pure [key | isJust status]
     warnStaleHandles :: Int -> BudgetMap -> m ()
     warnStaleHandles num (BudgetMap spent _) =
       LC.warn $
@@ -245,7 +246,8 @@ safeForever ::
   (MonadIO m, LC.MonadLogger m, MonadCatch m) =>
   m () ->
   m ()
-safeForever action = forever $
-  action `catchAny` \exc -> do
-    LC.err $ "error" LC..= show exc LC.~~ LC.msg (LC.val "watchThreadBudgetState: crashed; retrying")
-    threadDelay 60000000 -- pause to keep worst-case noise in logs manageable
+safeForever action =
+  forever $
+    action `catchAny` \exc -> do
+      LC.err $ "error" LC..= show exc LC.~~ LC.msg (LC.val "watchThreadBudgetState: crashed; retrying")
+      threadDelay 60000000 -- pause to keep worst-case noise in logs manageable

@@ -50,9 +50,10 @@ import Network.Mail.Mime
 
 -------------------------------------------------------------------------------
 sendMail :: Mail -> AppIO ()
-sendMail m = view smtpEnv >>= \case
-  Just smtp -> SMTP.sendMail smtp m
-  Nothing -> view awsEnv >>= \e -> AWS.execute e $ AWS.sendMail m
+sendMail m =
+  view smtpEnv >>= \case
+    Just smtp -> SMTP.sendMail smtp m
+    Nothing -> view awsEnv >>= \e -> AWS.execute e $ AWS.sendMail m
 
 -------------------------------------------------------------------------------
 -- Unique Keys

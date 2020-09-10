@@ -1,10 +1,10 @@
-cabal-version: 2.0
+cabal-version: 1.12
 
 -- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f150b19d31eda4f6f32ad2782dccc7deae05b01ffd46558fe1f403ba49500307
+-- hash: 0efba75abb2e931761d20c36d7c690eb2cf9711711c4b002dfd2cd5ff7bd60ee
 
 name:           brig
 version:        1.35.0
@@ -36,6 +36,9 @@ library
       Brig.AWS.SesNotification
       Brig.AWS.Types
       Brig.Budget
+      Brig.Calling
+      Brig.Calling.API
+      Brig.Calling.Internal
       Brig.Code
       Brig.Data.Activation
       Brig.Data.Blacklist
@@ -50,6 +53,10 @@ library
       Brig.Data.User
       Brig.Data.UserKey
       Brig.Email
+      Brig.Index.Eval
+      Brig.Index.Migrations
+      Brig.Index.Migrations.Types
+      Brig.Index.Options
       Brig.InternalEvent.Process
       Brig.InternalEvent.Types
       Brig.IO.Intra
@@ -59,6 +66,7 @@ library
       Brig.Options
       Brig.Password
       Brig.Phone
+      Brig.PolyLog
       Brig.Provider.API
       Brig.Provider.DB
       Brig.Provider.Email
@@ -76,8 +84,6 @@ library
       Brig.Team.Template
       Brig.Team.Util
       Brig.Template
-      Brig.TURN
-      Brig.TURN.API
       Brig.Unique
       Brig.User.API.Auth
       Brig.User.API.Search
@@ -137,6 +143,8 @@ library
     , data-default >=0.5
     , data-timeout >=0.3
     , directory >=1.2
+    , dns
+    , dns-util
     , either >=4.3
     , enclosed-exceptions >=1.0
     , errors >=1.4
@@ -172,6 +180,7 @@ library
     , network-uri >=2.6
     , optparse-applicative >=0.11
     , pem >=0.2
+    , polysemy
     , prometheus-client
     , proto-lens >=0.1
     , random-shuffle >=0.0.3
@@ -222,40 +231,6 @@ library
     , zauth >=0.10.3
   default-language: Haskell2010
 
-library brig-index-lib
-  exposed-modules:
-      Brig.Index.Eval
-      Brig.Index.Migrations
-      Brig.Index.Migrations.Types
-      Brig.Index.Options
-      Main
-  other-modules:
-      Paths_brig
-  hs-source-dirs:
-      index/src
-  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
-  build-depends:
-      aeson
-    , base
-    , bloodhound
-    , brig
-    , cassandra-util >=0.12
-    , exceptions
-    , http-client
-    , imports
-    , lens
-    , metrics-core
-    , mtl
-    , optparse-applicative >=0.13
-    , retry
-    , text
-    , time
-    , tinylog
-    , types-common
-    , uri-bytestring
-  default-language: Haskell2010
-
 executable brig
   main-is: src/Main.hs
   other-modules:
@@ -280,7 +255,7 @@ executable brig-index
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N
   build-depends:
       base
-    , brig-index-lib
+    , brig
     , imports
     , optparse-applicative
     , tinylog
@@ -289,6 +264,7 @@ executable brig-index
 executable brig-integration
   main-is: Main.hs
   other-modules:
+      API.Calling
       API.IdMapping
       API.Metrics
       API.Provider
@@ -298,7 +274,6 @@ executable brig-integration
       API.Settings
       API.Team
       API.Team.Util
-      API.TURN
       API.User
       API.User.Account
       API.User.Auth
@@ -326,7 +301,6 @@ executable brig-integration
     , bilge
     , bloodhound
     , brig
-    , brig-index-lib
     , brig-types
     , bytestring >=0.9
     , bytestring-conversion
@@ -462,6 +436,8 @@ test-suite brig-tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
+      Test.Brig.Calling
+      Test.Brig.Calling.Internal
       Test.Brig.User.Search.Index.Types
       Paths_brig
   hs-source-dirs:
@@ -474,9 +450,17 @@ test-suite brig-tests
     , bloodhound
     , brig
     , brig-types
+    , dns
+    , dns-util
     , imports
+    , polysemy
+    , retry
     , tasty
     , tasty-hunit
+    , tinylog
     , types-common
+    , unliftio
+    , uri-bytestring
     , uuid
+    , wire-api
   default-language: Haskell2010

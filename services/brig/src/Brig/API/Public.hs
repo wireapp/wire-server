@@ -31,11 +31,12 @@ import Brig.API.IdMapping (resolveOpaqueUserId)
 import qualified Brig.API.Properties as API
 import Brig.API.Types
 import qualified Brig.API.User as API
+import qualified Brig.API.Util as API
 import Brig.App
+import qualified Brig.Calling.API as Calling
 import qualified Brig.Data.User as Data
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
-import qualified Brig.TURN.API as TURN
 import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
 import Brig.Types.Intra (AccountStatus (Ephemeral), UserAccount (UserAccount, accountUser))
@@ -45,7 +46,7 @@ import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
 import Brig.User.Phone
 import Control.Error hiding (bool)
-import Control.Lens ((^.), view)
+import Control.Lens (view, (^.))
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
@@ -55,7 +56,7 @@ import Data.Handle (Handle, parseHandle)
 import Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local))
 import qualified Data.Map.Strict as Map
-import Data.Misc ((<$$>), IpAddr (..))
+import Data.Misc (IpAddr (..), (<$$>))
 import Data.Qualified (OptionallyQualified, eitherQualifiedOrNot)
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
@@ -781,7 +782,7 @@ sitemap o = do
   Auth.routesPublic
   Search.routesPublic
   Team.routesPublic
-  TURN.routesPublic
+  Calling.routesPublic
 
 apiDocs :: Opts -> Routes Doc.ApiBuilder Handler ()
 apiDocs o = do
@@ -1136,31 +1137,14 @@ changeLocaleH (u ::: conn ::: req) = do
   lift $ API.changeLocale u conn l
   return empty
 
-data CheckHandleResp
-  = CheckHandleInvalid
-  | CheckHandleFound
-  | CheckHandleNotFound
-
+-- | (zusr are is ignored by this handler, ie. checking handles is allowed as long as you have
+-- *any* account.)
 checkHandleH :: UserId ::: Text -> Handler Response
-checkHandleH (uid ::: hndl) = do
-  checkHandle uid hndl >>= \case
-    CheckHandleInvalid -> throwE (StdError invalidHandle)
-    CheckHandleFound -> pure $ setStatus status200 empty
-    CheckHandleNotFound -> pure $ setStatus status404 empty
-
-checkHandle :: UserId -> Text -> Handler CheckHandleResp
-checkHandle _ uhandle = do
-  handle <- validateHandle uhandle
-  owner <- lift $ API.lookupHandle handle
-  if  | isJust owner ->
-        -- Handle is taken (=> getHandleInfo will return 200)
-        return CheckHandleFound
-      | API.isBlacklistedHandle handle ->
-        -- Handle is free but cannot be taken
-        return CheckHandleInvalid
-      | otherwise ->
-        -- Handle is free and can be taken
-        return CheckHandleNotFound
+checkHandleH (_uid ::: hndl) = do
+  API.checkHandle hndl >>= \case
+    API.CheckHandleInvalid -> throwE (StdError invalidHandle)
+    API.CheckHandleFound -> pure $ setStatus status200 empty
+    API.CheckHandleNotFound -> pure $ setStatus status404 empty
 
 checkHandlesH :: JSON ::: UserId ::: JsonRequest Public.CheckHandles -> Handler Response
 checkHandlesH (_ ::: _ ::: req) = do
@@ -1192,7 +1176,7 @@ changeHandleH (u ::: conn ::: req) = do
 
 changeHandle :: UserId -> ConnId -> Public.HandleUpdate -> Handler ()
 changeHandle u conn (Public.HandleUpdate h) = do
-  handle <- validateHandle h
+  handle <- API.validateHandle h
   API.changeHandle u conn handle !>> changeHandleError
 
 beginPasswordResetH :: JSON ::: JsonRequest Public.NewPasswordReset -> Handler Response
@@ -1355,9 +1339,6 @@ deprecatedCompletePasswordResetH (_ ::: k ::: req) = do
   return empty
 
 -- Utilities
-
-validateHandle :: Text -> Handler Handle
-validateHandle = maybe (throwE (StdError invalidHandle)) return . parseHandle
 
 ifNothing :: Utilities.Error -> Maybe a -> Handler a
 ifNothing e = maybe (throwStd e) return

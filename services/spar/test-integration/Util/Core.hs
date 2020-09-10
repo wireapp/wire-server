@@ -117,11 +117,13 @@ module Util.Core
     callGetDefaultSsoCode,
     callSetDefaultSsoCode,
     callDeleteDefaultSsoCode,
+    checkErr,
+    checkErrHspec,
   )
 where
 
 import Bilge hiding (getCookie) -- we use Web.Cookie instead of the http-client type
-import Bilge.Assert ((!!!), (<!!), (===))
+import Bilge.Assert (Assertions, (!!!), (<!!), (===))
 import qualified Brig.Types.Activation as Brig
 import Brig.Types.Common (UserIdentity (..), UserSSOId (..))
 import Brig.Types.User (User (..), selfUser, userIdentity)
@@ -356,7 +358,7 @@ inviteAndRegisterUser ::
   m User
 inviteAndRegisterUser brig u tid = do
   inviteeEmail <- randomEmail
-  let invite = TeamInvitation.InvitationRequest inviteeEmail (User.Name "Bob") Nothing Nothing Nothing Nothing
+  let invite = stdInvitationRequest inviteeEmail
   inv <- responseJsonError =<< postInvitation tid u invite
   Just inviteeCode <- getInvitationCode tid (TeamInvitation.inInvitation inv)
   rspInvitee <-
@@ -504,10 +506,11 @@ nextHandle = liftIO $ Handle . cs . show <$> randomRIO (0 :: Int, 13371137)
 -- | Generate a 'SAML.UserRef' subject.
 nextSubject :: (HasCallStack, MonadIO m) => m NameID
 nextSubject = liftIO $ do
-  unameId <- randomRIO (0, 1 :: Int) >>= \case
-    0 -> either (error . show) id . SAML.mkUNameIDEmail . Brig.fromEmail <$> randomEmail
-    1 -> SAML.mkUNameIDUnspecified . UUID.toText <$> UUID.nextRandom
-    _ -> error "nextSubject: impossible"
+  unameId <-
+    randomRIO (0, 1 :: Int) >>= \case
+      0 -> either (error . show) id . SAML.mkUNameIDEmail . Brig.fromEmail <$> randomEmail
+      1 -> SAML.mkUNameIDUnspecified . UUID.toText <$> UUID.nextRandom
+      _ -> error "nextSubject: impossible"
   either (error . show) pure $ SAML.mkNameID unameId Nothing Nothing Nothing
 
 nextUserRef :: MonadIO m => m SAML.UserRef
@@ -774,9 +777,9 @@ getCookie proxy rsp = do
 hasPersistentCookieHeader :: ResponseLBS -> Either String ()
 hasPersistentCookieHeader rsp = do
   cky <- getCookie (Proxy @"zuid") rsp
-  when (isNothing . Web.setCookieExpires $ fromSimpleSetCookie cky)
-    $ Left
-    $ "expiration date should NOT empty: " <> show cky
+  when (isNothing . Web.setCookieExpires $ fromSimpleSetCookie cky) $
+    Left $
+      "expiration date should NOT empty: " <> show cky
 
 -- | A bind cookie is always sent, but if we do not want to send one, it looks like this:
 -- "wire.com=; Path=/sso/finalize-login; Expires=Thu, 01-Jan-1970 00:00:00 GMT; Max-Age=-1; Secure"
@@ -833,10 +836,11 @@ negotiateAuthnRequest ::
   (HasCallStack, MonadIO m, MonadReader TestEnv m) =>
   IdP ->
   m SAML.AuthnRequest
-negotiateAuthnRequest idp = negotiateAuthnRequest' DoInitiateLogin idp id >>= \case
-  (req, cky) -> case maybe (Left "missing") isDeleteBindCookie cky of
-    Right () -> pure req
-    Left msg -> error $ "unexpected bind cookie: " <> show (cky, msg)
+negotiateAuthnRequest idp =
+  negotiateAuthnRequest' DoInitiateLogin idp id >>= \case
+    (req, cky) -> case maybe (Left "missing") isDeleteBindCookie cky of
+      Right () -> pure req
+      Left msg -> error $ "unexpected bind cookie: " <> show (cky, msg)
 
 doInitiatePath :: DoInitiate -> [ST]
 doInitiatePath DoInitiateLogin = ["sso", "initiate-login"]
@@ -1158,3 +1162,22 @@ getUserIdViaRef uref = maybe (error "not found") pure =<< getUserIdViaRef' uref
 getUserIdViaRef' :: HasCallStack => UserRef -> TestSpar (Maybe UserId)
 getUserIdViaRef' uref = do
   aFewTimes (runSparCass $ Data.getSAMLUser uref) isJust
+
+checkErr :: HasCallStack => Int -> Maybe TestErrorLabel -> Assertions ()
+checkErr status mlabel = do
+  const status === statusCode
+  case mlabel of
+    Nothing -> pure ()
+    Just label -> const (Right label) === responseJsonEither
+
+checkErrHspec :: HasCallStack => Int -> TestErrorLabel -> ResponseLBS -> Bool
+checkErrHspec status label resp = status == statusCode resp && responseJsonEither resp == Right label
+
+-- | copied from brig integration tests
+stdInvitationRequest :: User.Email -> TeamInvitation.InvitationRequest
+stdInvitationRequest = stdInvitationRequest' Nothing Nothing
+
+-- | copied from brig integration tests
+stdInvitationRequest' :: Maybe User.Locale -> Maybe Galley.Role -> User.Email -> TeamInvitation.InvitationRequest
+stdInvitationRequest' loc role email =
+  TeamInvitation.InvitationRequest loc role Nothing email Nothing

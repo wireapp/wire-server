@@ -42,8 +42,8 @@ module Wire.API.Notification
 where
 
 import Control.Lens (makeLenses)
+import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON), (.!=), (.:), (.:?), (.=))
 import qualified Data.Aeson as JSON
-import Data.Aeson ((.!=), (.:), (.:?), (.=), FromJSON (parseJSON), ToJSON (toJSON))
 import Data.Id
 import Data.Json.Util ((#))
 import Data.List1

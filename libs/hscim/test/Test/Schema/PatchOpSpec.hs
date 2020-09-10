@@ -21,8 +21,8 @@
 module Test.Schema.PatchOpSpec where
 
 import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Types as Aeson
 import Data.Aeson.Types (Result (Error, Success), Value (String), fromJSON, toJSON)
+import qualified Data.Aeson.Types as Aeson
 import Data.Attoparsec.ByteString (parseOnly)
 import Data.Either (isLeft)
 import Data.Foldable (for_)

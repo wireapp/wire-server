@@ -8,7 +8,7 @@ packages:
 - libs/cargohold-types
 - libs/cassandra-util
 - libs/extended
-- libs/federation-util
+- libs/dns-util
 - libs/galley-types
 - libs/gundeck-types
 - libs/hscim
@@ -24,6 +24,7 @@ packages:
 - libs/types-common-journal
 - libs/wai-utilities
 - libs/wire-api
+- libs/wire-api-federation
 - libs/zauth
 - services/brig
 - services/cannon
@@ -170,11 +171,14 @@ extra-deps:
 - QuickCheck-2.14
 - splitmix-0.0.4 # needed for QuickCheck
 
+# Newer than the one one stackage
+- polysemy-1.3.0.0
+
 ############################################################
 # Development tools
 ############################################################
 
-- ormolu-0.0.5.0
-- ghc-lib-parser-8.10.1.20200412@sha256:b0517bb150a02957d7180f131f5b94abd2a7f58a7d1532a012e71618282339c2,8751  # for ormolu-0.0.5.0
+- ormolu-0.1.2.0
+- ghc-lib-parser-8.10.1.20200412@sha256:b0517bb150a02957d7180f131f5b94abd2a7f58a7d1532a012e71618282339c2,8751  # for ormolu-0.1.2.0
 
 - headroom-0.2.1.0

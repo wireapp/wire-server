@@ -25,32 +25,20 @@ module Federator.Run
     -- * App Environment
     newEnv,
     closeEnv,
-
-    -- * App Monad
-    AppT,
-    AppIO,
-    runAppT,
-    runAppResourceT,
   )
 where
 
-import Bilge (RequestId (unRequestId))
-import Bilge.RPC (HasRequestId (..))
-import Control.Error
-import Control.Lens ((^.), view)
-import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
-import Control.Monad.Trans.Resource
+import Control.Lens ((^.))
 import Data.Default (def)
 import qualified Data.Metrics.Middleware as Metrics
 import Data.Text (unpack)
-import qualified Federator.App as App
+import qualified Federator.Impl as Impl
 import Federator.Options as Opt
 import Federator.Types
 import Imports
 import Network.Wai (Application)
 import qualified Network.Wai.Handler.Warp as Warp
 import Network.Wai.Utilities.Server as Server
-import System.Logger.Class as LC
 import qualified System.Logger.Extended as Log
 import Util.Options
 
@@ -66,7 +54,7 @@ run opts = do
 mkApp :: Opts -> IO (Application, Env)
 mkApp opts = do
   env <- newEnv opts
-  pure (App.app env, env)
+  pure (Impl.app env, env)
 
 -------------------------------------------------------------------------------
 -- Environment
@@ -82,50 +70,3 @@ closeEnv :: Env -> IO ()
 closeEnv e = do
   Log.flush $ e ^. applog
   Log.close $ e ^. applog
-
--------------------------------------------------------------------------------
--- App Monad
-
--- FUTUREWORK: this code re-occurs in every service.  introduce 'MkAppT' in types-common that
--- takes 'Env' as one more argument.
-newtype AppT m a = AppT
-  { unAppT :: ReaderT Env m a
-  }
-  deriving
-    ( Functor,
-      Applicative,
-      Monad,
-      MonadIO,
-      MonadThrow,
-      MonadCatch,
-      MonadMask,
-      MonadReader Env
-    )
-
-type AppIO = AppT IO
-
-instance MonadIO m => LC.MonadLogger (AppT m) where
-  log l m = do
-    g <- view applog
-    r <- view requestId
-    Log.log g l $ field "request" (unRequestId r) ~~ m
-
-instance MonadIO m => LC.MonadLogger (ExceptT err (AppT m)) where
-  log l m = lift (LC.log l m)
-
-instance Monad m => HasRequestId (AppT m) where
-  getRequestId = view requestId
-
-instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
-  withRunInIO inner =
-    AppT $ ReaderT $ \r ->
-      withRunInIO $ \runner ->
-        inner (runner . flip runReaderT r . unAppT)
-
-runAppT :: Env -> AppT m a -> m a
-runAppT e (AppT ma) = runReaderT ma e
-
-runAppResourceT :: ResourceT AppIO a -> AppIO a
-runAppResourceT ma = do
-  e <- ask
-  liftIO . runResourceT $ transResourceT (runAppT e) ma

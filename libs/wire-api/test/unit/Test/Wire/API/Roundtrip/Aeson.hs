@@ -23,11 +23,11 @@ import Data.Id (ConvId)
 import Imports
 import qualified Test.Tasty as T
 import Test.Tasty.ExpectedFailure (ignoreTest)
-import Test.Tasty.QuickCheck ((===), Arbitrary, counterexample, testProperty)
+import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (===))
 import Type.Reflection (typeRep)
 import qualified Wire.API.Asset as Asset
 import qualified Wire.API.Asset.V3.Resumable as Asset.Resumable
-import qualified Wire.API.Call.TURN as Call.TURN
+import qualified Wire.API.Call.Config as Call.Config
 import qualified Wire.API.Connection as Connection
 import qualified Wire.API.Conversation as Conversation
 import qualified Wire.API.Conversation.Bot as Conversation.Bot
@@ -85,13 +85,14 @@ tests =
       testRoundTrip @Asset.Resumable.ChunkSize,
       testRoundTrip @Asset.Resumable.Offset,
       currentlyFailing (testRoundTrip @Asset.Resumable.ResumableAsset), -- because ToJSON is rounding UTCTime
-      testRoundTrip @Call.TURN.TurnHost,
-      testRoundTrip @Call.TURN.Scheme,
-      testRoundTrip @Call.TURN.Transport,
-      testRoundTrip @Call.TURN.TurnURI,
-      testRoundTrip @Call.TURN.TurnUsername,
-      testRoundTrip @Call.TURN.RTCIceServer,
-      testRoundTrip @Call.TURN.RTCConfiguration,
+      testRoundTrip @Call.Config.TurnHost,
+      testRoundTrip @Call.Config.Scheme,
+      testRoundTrip @Call.Config.Transport,
+      testRoundTrip @Call.Config.TurnURI,
+      testRoundTrip @Call.Config.TurnUsername,
+      testRoundTrip @Call.Config.RTCIceServer,
+      testRoundTrip @Call.Config.RTCConfiguration,
+      testRoundTrip @Call.Config.SFTServer,
       testRoundTrip @Connection.ConnectionRequest,
       testRoundTrip @Connection.Relation,
       testRoundTrip @Connection.Message,
@@ -219,6 +220,7 @@ tests =
       testRoundTrip @Team.Role.Role,
       testRoundTrip @Team.SearchVisibility.TeamSearchVisibility,
       testRoundTrip @Team.SearchVisibility.TeamSearchVisibilityView,
+      testRoundTrip @User.NameUpdate,
       testRoundTrip @User.NewUser,
       testRoundTrip @User.NewUserPublic,
       testRoundTrip @User.UserIdList,

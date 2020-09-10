@@ -36,12 +36,15 @@ module Wire.API.User
     -- * NewUser
     NewUserPublic (..),
     NewUser (..),
+    emptyNewUser,
     ExpiresIn,
     newUserInvitationCode,
     newUserTeam,
     newUserEmail,
     newUserPhone,
     newUserSSOId,
+    isNewUserEphemeral,
+    isNewUserTeamMember,
 
     -- * NewUserOrigin
     NewUserOrigin (..),
@@ -56,6 +59,7 @@ module Wire.API.User
     EmailUpdate (..),
     PhoneUpdate (..),
     HandleUpdate (..),
+    NameUpdate (..),
 
     -- * Account Deletion
     DeleteUser (..),
@@ -96,7 +100,7 @@ import qualified Data.Currency as Currency
 import Data.Handle (Handle)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
-import Data.Json.Util ((#), UTCTimeMillis)
+import Data.Json.Util (UTCTimeMillis, (#))
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
@@ -491,6 +495,25 @@ validateNewUserPublic nu
   | otherwise =
     Right (NewUserPublic nu)
 
+-- | A user is Ephemeral if she has neither email, phone, nor sso credentials and is not
+-- created via scim.  Ephemeral users can be deleted after expires_in or sessionTokenTimeout
+-- (whichever comes earlier).
+isNewUserEphemeral :: NewUser -> Bool
+isNewUserEphemeral u = noId && noScim
+  where
+    noId = isNothing $ newUserIdentity u
+    noScim = case newUserManagedBy u of
+      Nothing -> True
+      Just ManagedByWire -> True
+      Just ManagedByScim -> False
+
+isNewUserTeamMember :: NewUser -> Bool
+isNewUserTeamMember u = case newUserTeam u of
+  Just (NewTeamMember _) -> True
+  Just (NewTeamMemberSSO _) -> True
+  Just (NewTeamCreator _) -> False
+  Nothing -> False
+
 instance Arbitrary NewUserPublic where
   arbitrary = arbitrary `QC.suchThatMap` (rightMay . validateNewUserPublic)
 
@@ -513,6 +536,25 @@ data NewUser = NewUser
     newUserManagedBy :: Maybe ManagedBy
   }
   deriving stock (Eq, Show, Generic)
+
+emptyNewUser :: Name -> NewUser
+emptyNewUser name =
+  NewUser
+    { newUserDisplayName = name,
+      newUserUUID = Nothing,
+      newUserIdentity = Nothing,
+      newUserPict = Nothing,
+      newUserAssets = [],
+      newUserAccentId = Nothing,
+      newUserEmailCode = Nothing,
+      newUserPhoneCode = Nothing,
+      newUserOrigin = Nothing,
+      newUserLabel = Nothing,
+      newUserLocale = Nothing,
+      newUserPassword = Nothing,
+      newUserExpiresIn = Nothing,
+      newUserManagedBy = Nothing
+    }
 
 -- | 1 second - 1 week
 type ExpiresIn = Range 1 604800 Integer
@@ -854,6 +896,17 @@ instance ToJSON HandleUpdate where
 instance FromJSON HandleUpdate where
   parseJSON = withObject "handle-update" $ \o ->
     HandleUpdate <$> o .: "handle"
+
+newtype NameUpdate = NameUpdate {nuHandle :: Text}
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
+
+instance ToJSON NameUpdate where
+  toJSON h = object ["name" .= nuHandle h]
+
+instance FromJSON NameUpdate where
+  parseJSON = withObject "name-update" $ \o ->
+    NameUpdate <$> o .: "name"
 
 -----------------------------------------------------------------------------
 -- Account Deletion

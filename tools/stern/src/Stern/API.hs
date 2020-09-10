@@ -65,7 +65,7 @@ import qualified Stern.Intra as Intra
 import Stern.Options
 import qualified Stern.Swagger as Doc
 import Stern.Types
-import System.Logger.Class hiding ((.=), Error, name, trace)
+import System.Logger.Class hiding (Error, name, trace, (.=))
 import Util.Options
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.SearchVisibility as Public
@@ -649,9 +649,9 @@ getTeamInvoice (tid ::: iid ::: _) = do
 getConsentLog :: Email -> Handler Response
 getConsentLog e = do
   acc <- (listToMaybe <$> Intra.getUserProfilesByIdentity (Left e))
-  when (isJust acc)
-    $ throwE
-    $ Error status403 "user-exists" "Trying to access consent log of existing user!"
+  when (isJust acc) $
+    throwE $
+      Error status403 "user-exists" "Trying to access consent log of existing user!"
   consentLog <- Intra.getEmailConsentLog e
   marketo <- Intra.getMarketoResult e
   return . json $

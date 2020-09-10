@@ -70,7 +70,8 @@ import URI.ByteString (uriPath)
 checkLegalHoldServiceStatus :: Fingerprint Rsa -> HttpsUrl -> Galley ()
 checkLegalHoldServiceStatus fpr url = do
   resp <- makeVerifiedRequestFreshManager fpr url reqBuilder
-  if  | Bilge.statusCode resp < 400 -> pure ()
+  if
+      | Bilge.statusCode resp < 400 -> pure ()
       | otherwise -> do
         Log.info . Log.msg $ showResponse resp
         throwM legalHoldServiceBadResponse
@@ -176,10 +177,12 @@ makeVerifiedRequestWithManager :: Http.Manager -> ([Fingerprint Rsa] -> SSL.SSL 
 makeVerifiedRequestWithManager mgr verifyFingerprints fpr (HttpsUrl url) reqBuilder = do
   let verified = verifyFingerprints [fpr]
   extHandleAll errHandler $ do
-    recovering x3 httpHandlers $ const $ liftIO
-      $ withVerifiedSslConnection verified mgr (reqBuilderMods . reqBuilder)
-      $ \req ->
-        Http.httpLbs req mgr
+    recovering x3 httpHandlers $
+      const $
+        liftIO $
+          withVerifiedSslConnection verified mgr (reqBuilderMods . reqBuilder) $
+            \req ->
+              Http.httpLbs req mgr
   where
     reqBuilderMods =
       maybe id Bilge.host (Bilge.extHost url)
@@ -211,20 +214,21 @@ makeVerifiedRequestWithManager mgr verifyFingerprints fpr (HttpsUrl url) reqBuil
 -- FUTUREWORK: It would be nice to move (part of) this to ssl-util, but it has types from
 -- brig-types and types-common.
 validateServiceKey :: MonadIO m => ServiceKeyPEM -> m (Maybe (ServiceKey, Fingerprint Rsa))
-validateServiceKey pem = liftIO $
-  readPublicKey >>= \pk ->
-    case join (SSL.toPublicKey <$> pk) of
-      Nothing -> return Nothing
-      Just pk' -> do
-        Just sha <- SSL.getDigestByName "SHA256"
-        let size = SSL.rsaSize (pk' :: SSL.RSAPubKey)
-        if size < minRsaKeySize
-          then return Nothing
-          else do
-            fpr <- Fingerprint <$> SSL.rsaFingerprint sha pk'
-            let bits = fromIntegral size * 8
-            let key = ServiceKey RsaServiceKey bits pem
-            return $ Just (key, fpr)
+validateServiceKey pem =
+  liftIO $
+    readPublicKey >>= \pk ->
+      case join (SSL.toPublicKey <$> pk) of
+        Nothing -> return Nothing
+        Just pk' -> do
+          Just sha <- SSL.getDigestByName "SHA256"
+          let size = SSL.rsaSize (pk' :: SSL.RSAPubKey)
+          if size < minRsaKeySize
+            then return Nothing
+            else do
+              fpr <- Fingerprint <$> SSL.rsaFingerprint sha pk'
+              let bits = fromIntegral size * 8
+              let key = ServiceKey RsaServiceKey bits pem
+              return $ Just (key, fpr)
   where
     readPublicKey =
       handleAny

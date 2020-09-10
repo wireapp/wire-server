@@ -181,9 +181,9 @@ createOne2OneConversation :: UserId -> ConnId -> NewConvUnmanaged -> Galley Conv
 createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
   other <- head . fromRange <$> (rangeChecked (newConvUsers j) :: Galley (Range 1 1 [OpaqueUserId]))
   (x, y) <- toUUIDs (makeIdOpaque zusr) other
-  when (x == y)
-    $ throwM
-    $ invalidOp "Cannot create a 1-1 with yourself"
+  when (x == y) $
+    throwM $
+      invalidOp "Cannot create a 1-1 with yourself"
   otherUserId <- IdMapping.resolveOpaqueUserId other
   case newConvTeam j of
     Just ti
@@ -239,26 +239,27 @@ createConnectConversation usr conn j = do
     update n conv =
       let mems = Data.convMembers conv
        in conversationExisted usr
-            =<< if | Local usr `isMember` mems ->
-                     -- we already were in the conversation, maybe also other
-                     connect n conv
-                   | otherwise -> do
-                     now <- liftIO getCurrentTime
-                     mm <- snd <$> Data.addMember now (Data.convId conv) usr
-                     let conv' =
-                           conv
-                             { Data.convMembers = Data.convMembers conv <> toList mm
-                             }
-                     if null mems
-                       then do
-                         -- the conversation was empty
-                         connect n conv'
-                       else do
-                         -- we were not in the conversation, but someone else
-                         conv'' <- acceptOne2One usr conv' conn
-                         if Data.convType conv'' == ConnectConv
-                           then connect n conv''
-                           else return conv''
+            =<< if
+                | Local usr `isMember` mems ->
+                  -- we already were in the conversation, maybe also other
+                  connect n conv
+                | otherwise -> do
+                  now <- liftIO getCurrentTime
+                  mm <- snd <$> Data.addMember now (Data.convId conv) usr
+                  let conv' =
+                        conv
+                          { Data.convMembers = Data.convMembers conv <> toList mm
+                          }
+                  if null mems
+                    then do
+                      -- the conversation was empty
+                      connect n conv'
+                    else do
+                      -- we were not in the conversation, but someone else
+                      conv'' <- acceptOne2One usr conv' conn
+                      if Data.convType conv'' == ConnectConv
+                        then connect n conv''
+                        else return conv''
     connect n conv
       | Data.convType conv == ConnectConv = do
         n' <- case n of

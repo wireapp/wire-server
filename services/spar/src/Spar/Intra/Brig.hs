@@ -22,6 +22,7 @@ module Spar.Intra.Brig
   ( toUserSSOId,
     fromUserSSOId,
     toExternalId,
+    mkUserName,
     getBrigUser,
     getBrigUserTeam,
     getBrigUsers,
@@ -33,11 +34,9 @@ module Spar.Intra.Brig
     setBrigUserUserRef,
     setBrigUserRichInfo,
     checkHandleAvailable,
-    bindBrigUser,
     deleteBrigUser,
     createBrigUser,
     updateEmail,
-    isTeamUser,
     getZUsrOwnedTeam,
     ensureReAuthorised,
     ssoLogin,
@@ -65,7 +64,6 @@ import Data.Handle (Handle (Handle, fromHandle))
 import Data.Id (Id (Id), TeamId, UserId)
 import Data.Ix
 import Data.Misc (PlainTextPassword)
-import Data.Range
 import Data.String.Conversions
 import Imports
 import Network.HTTP.Types.Method
@@ -74,6 +72,7 @@ import qualified Servant.Server as Servant
 import Spar.Error
 import Spar.Intra.Galley as Galley (MonadSparToGalley, assertIsTeamOwner, isEmailValidationEnabledTeam)
 import Web.Cookie
+import Wire.API.User
 import Wire.API.User.RichInfo as RichInfo
 
 ----------------------------------------------------------------------
@@ -95,6 +94,13 @@ toExternalId ssoid = do
   uref <- either (throwSpar . SparCouldNotParseBrigResponse . cs) pure $ fromUserSSOId ssoid
   let subj = uref ^. SAML.uidSubject
   pure $ SAML.nameIDToST subj
+
+-- | Take a maybe text, construct a 'Name' from what we have in a scim user.  If the text
+-- isn't present, use the saml subject (usually an email address).  If both are 'Nothing',
+-- fail.
+mkUserName :: Maybe Text -> SAML.UserRef -> Either String Name
+mkUserName (Just n) _ = mkName n
+mkUserName Nothing uref = mkName (SAML.unsafeShowNameID $ uref ^. SAML.uidSubject)
 
 parseResponse :: (FromJSON a, MonadError SparError m) => Response (Maybe LBS) -> m a
 parseResponse resp = do
@@ -120,47 +126,25 @@ class MonadError SparError m => MonadSparToBrig m where
 instance MonadSparToBrig m => MonadSparToBrig (ReaderT r m) where
   call = lift . call
 
--- | Create a user on brig.  User name is derived from 'SAML.UserRef'.
+-- | Create a user on brig.
 createBrigUser ::
   (HasCallStack, MonadSparToBrig m) =>
   -- | SSO identity
   SAML.UserRef ->
   UserId ->
   TeamId ->
-  -- | User name (if 'Nothing', the subject ID will be used)
-  Maybe Name ->
+  -- | User name
+  Name ->
   -- | Who should have control over the user
   ManagedBy ->
   m UserId
-createBrigUser suid (Id buid) teamid mbName managedBy = do
-  uname :: Name <- case mbName of
-    Just n -> pure n
-    Nothing -> do
-      -- 1. use 'SAML.unsafeShowNameID' to get a 'Name'.  rationale: it does not need to be
-      --    unique.
-      let subj = suid ^. SAML.uidSubject
-          subjtxt = SAML.unsafeShowNameID subj
-          muname = checked @ST @1 @128 subjtxt
-          err = SparBadUserName $ "must have >= 1, <= 128 chars: " <> cs subjtxt
-      case muname of
-        Just uname -> pure . Name . fromRange $ uname
-        Nothing -> throwSpar err
+createBrigUser suid (Id buid) teamid uname managedBy = do
   let newUser :: NewUser
       newUser =
-        NewUser
-          { newUserDisplayName = uname,
-            newUserUUID = Just buid,
+        (emptyNewUser uname)
+          { newUserUUID = Just buid,
             newUserIdentity = Just $ SSOIdentity (toUserSSOId suid) Nothing Nothing,
-            newUserPict = Nothing,
-            newUserAssets = [],
-            newUserAccentId = Nothing,
-            newUserEmailCode = Nothing,
-            newUserPhoneCode = Nothing,
             newUserOrigin = Just . NewUserOriginTeamUser . NewTeamMemberSSO $ teamid,
-            newUserLabel = Nothing,
-            newUserLocale = Nothing,
-            newUserPassword = Nothing,
-            newUserExpiresIn = Nothing,
             newUserManagedBy = Just managedBy
           }
   resp :: Response (Maybe LBS) <-
@@ -169,7 +153,8 @@ createBrigUser suid (Id buid) teamid mbName managedBy = do
         . path "/i/users"
         . json newUser
   let sCode = statusCode resp
-  if  | sCode < 300 ->
+  if
+      | sCode < 300 ->
         userId . selfUser <$> parseResponse @SelfProfile resp
       | inRange (400, 499) sCode ->
         throwSpar . SparBrigErrorWith (responseStatus resp) $ "create user failed"
@@ -256,7 +241,8 @@ setBrigUserName buid name = do
               uupAccentId = Nothing
             }
   let sCode = statusCode resp
-  if  | sCode < 300 ->
+  if
+      | sCode < 300 ->
         pure ()
       | inRange (400, 499) sCode ->
         throwSpar . SparBrigErrorWith (responseStatus resp) $ "set name failed"
@@ -275,7 +261,8 @@ setBrigUserHandle buid handle = do
         . header "Z-Connection" ""
         . json (HandleUpdate (fromHandle handle))
   let sCode = statusCode resp
-  if  | sCode < 300 ->
+  if
+      | sCode < 300 ->
         pure ()
       | inRange (400, 499) sCode ->
         throwSpar . SparBrigErrorWith (responseStatus resp) $ "set handle failed"
@@ -292,7 +279,8 @@ setBrigUserManagedBy buid managedBy = do
         . paths ["i", "users", toByteString' buid, "managed-by"]
         . json (ManagedByUpdate managedBy)
   let sCode = statusCode resp
-  if  | sCode < 300 ->
+  if
+      | sCode < 300 ->
         pure ()
       | inRange (400, 499) sCode ->
         throwSpar . SparBrigErrorWith (responseStatus resp) $ "set managedBy failed"
@@ -308,7 +296,8 @@ setBrigUserUserRef buid uref = do
         . paths ["i", "users", toByteString' buid, "sso-id"]
         . json (toUserSSOId uref)
   let sCode = statusCode resp
-  if  | sCode < 300 ->
+  if
+      | sCode < 300 ->
         pure ()
       | inRange (400, 499) sCode ->
         throwSpar . SparBrigErrorWith (responseStatus resp) $ "set UserSSOId failed"
@@ -325,7 +314,8 @@ setBrigUserRichInfo buid richInfo = do
         . paths ["i", "users", toByteString' buid, "rich-info"]
         . json (RichInfoUpdate $ unRichInfo richInfo)
   let sCode = statusCode resp
-  if  | sCode < 300 ->
+  if
+      | sCode < 300 ->
         pure ()
       | inRange (400, 499) sCode ->
         throwSpar . SparBrigErrorWith (responseStatus resp) $ "set richInfo failed"
@@ -334,16 +324,17 @@ setBrigUserRichInfo buid richInfo = do
 
 -- TODO: We should add an internal endpoint for this instead
 getBrigUserRichInfo :: (HasCallStack, MonadSparToBrig m) => UserId -> m RichInfo
-getBrigUserRichInfo buid = RichInfo.RichInfo <$> do
-  resp <-
-    call $
-      method GET
-        . paths ["users", toByteString' buid, "rich-info"]
-        . header "Z-User" (toByteString' buid)
-        . header "Z-Connection" ""
-  case statusCode resp of
-    200 -> parseResponse resp
-    _ -> throwSpar (SparBrigErrorWith (responseStatus resp) "Could not retrieve rich info")
+getBrigUserRichInfo buid =
+  RichInfo.RichInfo <$> do
+    resp <-
+      call $
+        method GET
+          . paths ["users", toByteString' buid, "rich-info"]
+          . header "Z-User" (toByteString' buid)
+          . header "Z-Connection" ""
+    case statusCode resp of
+      200 -> parseResponse resp
+      _ -> throwSpar (SparBrigErrorWith (responseStatus resp) "Could not retrieve rich info")
 
 -- | At the time of writing this, @HEAD /users/handles/:uid@ does not use the 'UserId' for
 -- anything but authorization.
@@ -356,7 +347,8 @@ checkHandleAvailable hnd buid = do
         . header "Z-User" (toByteString' buid)
         . header "Z-Connection" ""
   let sCode = statusCode resp
-  if  | sCode == 200 -> -- handle exists
+  if
+      | sCode == 200 -> -- handle exists
         pure False
       | sCode == 404 -> -- handle not found
         pure True
@@ -364,19 +356,6 @@ checkHandleAvailable hnd buid = do
         throwSpar . SparBrigErrorWith (responseStatus resp) $ "check handle failed"
       | otherwise ->
         throwSpar . SparBrigError . cs $ "check handle failed with status " <> show sCode
-
--- | This works under the assumption that the user must exist on brig.  If it does not, brig
--- responds with 404 and this function returns 'False'.
---
--- See also: 'setBrigUserUserRef'.
-bindBrigUser :: (HasCallStack, MonadSparToBrig m) => UserId -> SAML.UserRef -> m Bool
-bindBrigUser uid (toUserSSOId -> ussoid) = do
-  resp <-
-    call $
-      method PUT
-        . paths ["/i/users", toByteString' uid, "sso-id"]
-        . json ussoid
-  pure $ Bilge.statusCode resp < 300
 
 -- | Call brig to delete a user
 deleteBrigUser :: (HasCallStack, MonadSparToBrig m, MonadIO m) => UserId -> m ()
@@ -386,15 +365,12 @@ deleteBrigUser buid = do
       method DELETE
         . paths ["/i/users", toByteString' buid]
   let sCode = statusCode resp
-  if  | sCode < 300 -> pure ()
+  if
+      | sCode < 300 -> pure ()
       | inRange (400, 499) sCode ->
         throwSpar $ SparBrigErrorWith (responseStatus resp) "failed to delete user"
       | otherwise ->
         throwSpar $ SparBrigError ("delete user failed with status " <> cs (show sCode))
-
--- | Check that a user id exists on brig and has a team id.
-isTeamUser :: (HasCallStack, MonadSparToBrig m) => UserId -> m Bool
-isTeamUser buid = isJust <$> getBrigUserTeam buid
 
 -- | Check that a user id exists on brig and has a team id.
 getBrigUserTeam :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe TeamId)
@@ -430,7 +406,8 @@ ensureReAuthorised (Just uid) secret = do
         . paths ["/i/users", toByteString' uid, "reauthenticate"]
         . json (ReAuthUser secret)
   let sCode = statusCode resp
-  if  | sCode == 200 ->
+  if
+      | sCode == 200 ->
         pure ()
       | sCode == 403 ->
         throwSpar SparReAuthRequired
@@ -454,7 +431,8 @@ ssoLogin buid = do
         . json (SsoLogin buid Nothing)
         . queryItem "persist" "true"
   let sCode = statusCode resp
-  if  | sCode < 300 ->
+  if
+      | sCode < 300 ->
         Just <$> respToCookie resp
       | inRange (400, 499) sCode ->
         pure Nothing

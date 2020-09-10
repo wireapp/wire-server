@@ -91,8 +91,8 @@ receive :: Int -> Text -> SQS.ReceiveMessage
 receive n url =
   SQS.receiveMessage url
     & set SQS.rmWaitTimeSeconds (Just 1)
-    . set SQS.rmMaxNumberOfMessages (Just n)
-    . set SQS.rmVisibilityTimeout (Just 1)
+      . set SQS.rmMaxNumberOfMessages (Just n)
+      . set SQS.rmVisibilityTimeout (Just 1)
 
 fetchMessage :: (MonadIO m, AWS.MonadAWS m, Message a) => Text -> String -> (String -> Maybe a -> IO ()) -> m ()
 fetchMessage url label callback = do
@@ -140,9 +140,10 @@ tryMatch label tries url callback = go tries
       when (null ok) $ do
         liftIO $ threadDelay (10 ^ (6 :: Int))
         go (n - 1)
-    check e = do
-      liftIO $ callback label e
-      return (Right $ show e)
-      `catchAll` \ex -> case asyncExceptionFromException ex of
-        Just x -> throwM (x :: SomeAsyncException)
-        Nothing -> return . Left $ MatchFailure (e, ex)
+    check e =
+      do
+        liftIO $ callback label e
+        return (Right $ show e)
+        `catchAll` \ex -> case asyncExceptionFromException ex of
+          Just x -> throwM (x :: SomeAsyncException)
+          Nothing -> return . Left $ MatchFailure (e, ex)

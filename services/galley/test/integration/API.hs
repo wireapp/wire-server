@@ -54,7 +54,7 @@ import Gundeck.Types.Notification
 import Imports
 import Network.Wai.Utilities.Error
 import Test.Tasty
-import Test.Tasty.Cannon ((#), TimeoutUnit (..))
+import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers
@@ -384,8 +384,9 @@ postJoinConvOk = do
   WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
     postJoinConv bob conv !!! const 200 === statusCode
     postJoinConv bob conv !!! const 204 === statusCode
-    void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $
-      wsAssertMemberJoinWithRole conv bob [bob] roleNameWireMember
+    void . liftIO $
+      WS.assertMatchN (5 # Second) [wsA, wsB] $
+        wsAssertMemberJoinWithRole conv bob [bob] roleNameWireMember
 
 postJoinCodeConvOk :: TestM ()
 postJoinCodeConvOk = do
@@ -412,8 +413,9 @@ postJoinCodeConvOk = do
     postJoinCodeConv bob payload !!! const 204 === statusCode
     -- eve cannot join
     postJoinCodeConv eve payload !!! const 403 === statusCode
-    void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $
-      wsAssertMemberJoinWithRole conv bob [bob] roleNameWireMember
+    void . liftIO $
+      WS.assertMatchN (5 # Second) [wsA, wsB] $
+        wsAssertMemberJoinWithRole conv bob [bob] roleNameWireMember
     -- changing access to non-activated should give eve access
     let nonActivatedAccess = ConversationAccessUpdate [CodeAccess] NonActivatedAccessRole
     putAccessUpdate alice conv nonActivatedAccess !!! const 200 === statusCode
@@ -441,8 +443,9 @@ postConvertCodeConv = do
     putAccessUpdate alice conv nonActivatedAccess !!! const 200 === statusCode
     -- test no-op
     putAccessUpdate alice conv nonActivatedAccess !!! const 204 === statusCode
-    void . liftIO $ WS.assertMatchN (5 # Second) [wsA] $
-      wsAssertConvAccessUpdate conv alice nonActivatedAccess
+    void . liftIO $
+      WS.assertMatchN (5 # Second) [wsA] $
+        wsAssertConvAccessUpdate conv alice nonActivatedAccess
   -- Create/get/update/delete codes
   getConvCode alice conv !!! const 404 === statusCode
   c1 <- decodeConvCodeEvent <$> (postConvCode alice conv <!! const 201 === statusCode)
@@ -485,16 +488,19 @@ postConvertTeamConv = do
   j <- decodeConvCodeEvent <$> postConvCode alice conv
   WS.bracketR3 c alice bob eve $ \(wsA, wsB, wsE) -> do
     postJoinCodeConv mallory j !!! const 200 === statusCode
-    void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB, wsE] $
-      wsAssertMemberJoinWithRole conv mallory [mallory] roleNameWireMember
+    void . liftIO $
+      WS.assertMatchN (5 # Second) [wsA, wsB, wsE] $
+        wsAssertMemberJoinWithRole conv mallory [mallory] roleNameWireMember
   WS.bracketRN c [alice, bob, eve, mallory] $ \[wsA, wsB, wsE, wsM] -> do
     let teamAccess = ConversationAccessUpdate [InviteAccess, CodeAccess] TeamAccessRole
     putAccessUpdate alice conv teamAccess !!! const 200 === statusCode
-    void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB, wsE, wsM] $
-      wsAssertConvAccessUpdate conv alice teamAccess
+    void . liftIO $
+      WS.assertMatchN (5 # Second) [wsA, wsB, wsE, wsM] $
+        wsAssertConvAccessUpdate conv alice teamAccess
     -- non-team members get kicked out
-    void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB, wsE, wsM] $
-      wsAssertMemberLeave conv alice [eve, mallory]
+    void . liftIO $
+      WS.assertMatchN (5 # Second) [wsA, wsB, wsE, wsM] $
+        wsAssertMemberLeave conv alice [eve, mallory]
     -- joining (for mallory) is no longer possible
     postJoinCodeConv mallory j !!! const 403 === statusCode
     -- team members (dave) can still join
@@ -535,7 +541,7 @@ getConvsOk2 = do
   let cs = convList <$> responseJsonUnsafe rs
   let c1 = cs >>= find ((== cnvId cnv1) . cnvId)
   let c2 = cs >>= find ((== cnvId cnv2) . cnvId)
-  liftIO $ forM_ [(cnv1, c1), (cnv2, c2)] $ \(expected, actual) -> do
+  liftIO . forM_ [(cnv1, c1), (cnv2, c2)] $ \(expected, actual) -> do
     assertEqual
       "name mismatch"
       (Just $ cnvName expected)
@@ -968,7 +974,7 @@ putConvRenameOk = do
   -- This endpoint should be deprecated but clients still use it
   WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
     void $ putConversationName bob conv "gossip++" !!! const 200 === statusCode
-    void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
+    void . liftIO . WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
       let e = List1.head (WS.unpackPayload n)
       ntfTransient n @?= False
       evtConv e @?= conv
@@ -1030,7 +1036,7 @@ putMemberOk update = do
   -- Update member state & verify push notification
   WS.bracketR c bob $ \ws -> do
     putMember bob update conv !!! const 200 === statusCode
-    void . liftIO $ WS.assertMatch (5 # Second) ws $ \n -> do
+    void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
       let e = List1.head (WS.unpackPayload n)
       ntfTransient n @?= False
       evtConv e @?= conv
@@ -1141,10 +1147,12 @@ removeUser = do
   conv3 <- decodeConvId <$> postConv alice [carl] (Just "gossip3") [] Nothing Nothing
   WS.bracketR3 c alice bob carl $ \(wsA, wsB, wsC) -> do
     deleteUser bob
-    void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $
-      matchMemberLeave conv1 bob
-    void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $
-      matchMemberLeave conv2 bob
+    void . liftIO $
+      WS.assertMatchN (5 # Second) [wsA, wsB] $
+        matchMemberLeave conv1 bob
+    void . liftIO $
+      WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $
+        matchMemberLeave conv2 bob
   -- Check memberships
   mems1 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv1
   mems2 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv2

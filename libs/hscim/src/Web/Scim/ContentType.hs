@@ -38,10 +38,10 @@ data SCIM
 instance Accept SCIM where
   contentTypes _ =
     "application" // "scim+json" /: ("charset", "utf-8")
-      :| "application" // "scim+json"
-      : "application" // "json" /: ("charset", "utf-8")
-      : "application" // "json"
-      : []
+      :| "application" // "scim+json" :
+    "application" // "json" /: ("charset", "utf-8") :
+    "application" // "json" :
+    []
 
 instance ToJSON a => MimeRender SCIM a where
   mimeRender _ = mimeRender (Proxy @JSON)

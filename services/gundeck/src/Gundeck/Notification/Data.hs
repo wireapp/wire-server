@@ -31,7 +31,7 @@ import qualified Data.Aeson as JSON
 import Data.Id
 import Data.List1 (List1)
 import Data.Range (Range, fromRange)
-import Data.Sequence ((<|), (><), Seq, ViewL (..), ViewR (..))
+import Data.Sequence (Seq, ViewL (..), ViewR (..), (<|), (><))
 import qualified Data.Sequence as Seq
 import Gundeck.Options (NotificationTTL (..))
 import Gundeck.Types.Notification
@@ -87,9 +87,10 @@ fetchLast u c = do
   ls <- query cqlLast (params Quorum (Identity u)) & retry x1
   case ls of
     [] -> return Nothing
-    ns@(n : _) -> ns `getFirstOrElse` do
-      p <- paginate cqlSeek (paramsP Quorum (u, n ^. _1) 100) & retry x1
-      seek p
+    ns@(n : _) ->
+      ns `getFirstOrElse` do
+        p <- paginate cqlSeek (paramsP Quorum (u, n ^. _1) 100) & retry x1
+        seek p
   where
     seek p =
       result p

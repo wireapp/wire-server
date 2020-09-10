@@ -84,7 +84,7 @@ createPopulatedBindingTeamWithNames brig names = do
   (inviter, tid) <- createUserWithTeam' brig
   invitees <- forM names $ \name -> do
     inviteeEmail <- randomEmail
-    let invite = stdInvitationRequest inviteeEmail name Nothing Nothing
+    let invite = stdInvitationRequest inviteeEmail
     inv <- responseJsonError =<< postInvitation brig tid (userId inviter) invite
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
     rsp2 <-
@@ -113,9 +113,9 @@ createTeam u galley = do
           . expect2xx
           . lbytes (encode newTeam)
       )
-  maybe (error "invalid team id") return
-    $ fromByteString
-    $ getHeader' "Location" r
+  maybe (error "invalid team id") return $
+    fromByteString $
+      getHeader' "Location" r
 
 -- | Create user and binding team.
 --
@@ -170,7 +170,7 @@ inviteAndRegisterUser ::
   m User
 inviteAndRegisterUser u tid brig = do
   inviteeEmail <- randomEmail
-  let invite = stdInvitationRequest inviteeEmail (Name "Bob") Nothing Nothing
+  let invite = stdInvitationRequest inviteeEmail
   inv <- responseJsonError =<< postInvitation brig tid u invite
   Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
   rspInvitee <-
@@ -218,9 +218,9 @@ createTeamConv g tid u us mtimer = do
       )
       <!! const 201
       === statusCode
-  maybe (error "invalid conv id") return
-    $ fromByteString
-    $ getHeader' "Location" r
+  maybe (error "invalid conv id") return $
+    fromByteString $
+      getHeader' "Location" r
 
 -- See Note [managed conversations]
 createManagedConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Maybe Milliseconds -> Http ConvId
@@ -240,9 +240,9 @@ createManagedConv g tid u us mtimer = do
       )
       <!! const 201
       === statusCode
-  maybe (error "invalid conv id") return
-    $ fromByteString
-    $ getHeader' "Location" r
+  maybe (error "invalid conv id") return $
+    fromByteString $
+      getHeader' "Location" r
 
 deleteTeamConv :: HasCallStack => Galley -> TeamId -> ConvId -> UserId -> Http ()
 deleteTeamConv g tid cid u = do
@@ -437,9 +437,12 @@ isActivatedUser uid brig = do
     Just (_ : _) -> True
     _ -> False
 
-stdInvitationRequest :: Email -> Name -> Maybe Locale -> Maybe Team.Role -> InvitationRequest
-stdInvitationRequest e inviterName loc role =
-  InvitationRequest e inviterName loc role Nothing Nothing
+stdInvitationRequest :: Email -> InvitationRequest
+stdInvitationRequest = stdInvitationRequest' Nothing Nothing
+
+stdInvitationRequest' :: Maybe Locale -> Maybe Team.Role -> Email -> InvitationRequest
+stdInvitationRequest' loc role email =
+  InvitationRequest loc role Nothing email Nothing
 
 setTeamTeamSearchVisibilityAvailable :: HasCallStack => Galley -> TeamId -> TeamFeatureStatusValue -> Http ()
 setTeamTeamSearchVisibilityAvailable galley tid status =

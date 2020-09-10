@@ -22,12 +22,12 @@ module API.IdMapping where
 import API.Util (withSettingsOverrides)
 import Bilge hiding (timeout)
 import Bilge.Assert
-import Control.Lens ((?~), view)
+import Control.Lens (view, (?~))
 import Data.ByteString.Conversion (toByteString')
 import Data.Coerce (coerce)
 import Data.Domain (Domain, mkDomain)
-import qualified Data.Id as Id
 import Data.Id (Id)
+import qualified Data.Id as Id
 import Data.Qualified (Qualified (Qualified))
 import Galley.Options (optSettings, setEnableFederationWithDomain)
 import Galley.Types.IdMapping (PostIdMappingRequest (PostIdMappingRequest), PostIdMappingResponse (PostIdMappingResponse))

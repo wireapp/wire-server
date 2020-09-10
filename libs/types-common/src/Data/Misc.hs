@@ -42,6 +42,7 @@ module Data.Misc
     -- * HttpsUrl
     HttpsUrl (..),
     mkHttpsUrl,
+    ensureHttpsUrl,
 
     -- * Fingerprint
     Fingerprint (..),
@@ -60,7 +61,7 @@ module Data.Misc
 where
 
 import Cassandra
-import Control.Lens ((^.), makeLenses)
+import Control.Lens (makeLenses, (.~), (^.))
 import Data.Aeson
 import qualified Data.Aeson.Types as Json
 import qualified Data.Attoparsec.ByteString.Char8 as Chars
@@ -236,13 +237,16 @@ instance Cql Milliseconds where
 newtype HttpsUrl = HttpsUrl
   { httpsUrl :: URIRef Absolute
   }
-  deriving stock (Eq, Generic)
+  deriving stock (Eq, Ord, Generic)
 
 mkHttpsUrl :: URIRef Absolute -> Either String HttpsUrl
 mkHttpsUrl uri =
   if uri ^. uriSchemeL . schemeBSL == "https"
     then Right $ HttpsUrl uri
     else Left $ "Non-HTTPS URL: " ++ show uri
+
+ensureHttpsUrl :: URIRef Absolute -> HttpsUrl
+ensureHttpsUrl = HttpsUrl . (uriSchemeL . schemeBSL .~ "https")
 
 instance Show HttpsUrl where
   showsPrec i = showsPrec i . httpsUrl

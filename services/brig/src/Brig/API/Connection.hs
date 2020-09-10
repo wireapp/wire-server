@@ -77,16 +77,16 @@ createConnectionToLocalUser ::
   ConnId ->
   ExceptT ConnectionError AppIO ConnectionResult
 createConnectionToLocalUser self crUser ConnectionRequest {crName, crMessage} conn = do
-  when (self == crUser)
-    $ throwE
-    $ InvalidUser (makeIdOpaque crUser)
+  when (self == crUser) $
+    throwE $
+      InvalidUser (makeIdOpaque crUser)
   selfActive <- lift $ Data.isActivated self
   unless selfActive $
     throwE ConnectNoIdentity
   otherActive <- lift $ Data.isActivated crUser
-  unless otherActive
-    $ throwE
-    $ InvalidUser (makeIdOpaque crUser)
+  unless otherActive $
+    throwE $
+      InvalidUser (makeIdOpaque crUser)
   -- Users belonging to the same team are always treated as connected, so creating a
   -- connection between them is useless. {#RefConnectionTeam}
   sameTeam <- lift $ belongSameTeam
@@ -209,7 +209,7 @@ updateConnection self other newStatus conn = do
     (old, _, new)
       | old == new -> return Nothing
     _ -> throwE $ InvalidTransition self newStatus
-  lift $ for_ s2o' $ \c ->
+  lift . for_ s2o' $ \c ->
     let e2s = ConnectionUpdated c (Just $ ucStatus s2o) Nothing
      in Intra.onConnectionEvent self conn e2s
   return s2o'
@@ -219,12 +219,12 @@ updateConnection self other newStatus conn = do
       Log.info $
         Log.connection self (ucTo s2o)
           . msg (val "Accepting connection")
-      cnv <- lift $ for (ucConvId s2o) $ Intra.acceptConnectConv self conn
+      cnv <- lift . for (ucConvId s2o) $ Intra.acceptConnectConv self conn
       -- Note: The check for @Pending@ accounts for situations in which both
       --       sides are pending, which can occur due to rare race conditions
       --       when sending mutual connection requests, combined with untimely
       --       crashes.
-      when (ucStatus o2s `elem` [Sent, Pending]) $ lift $ do
+      when (ucStatus o2s `elem` [Sent, Pending]) . lift $ do
         o2s' <-
           if (cnvType <$> cnv) /= Just ConnectConv
             then Data.updateConnection o2s Accepted
@@ -244,8 +244,8 @@ updateConnection self other newStatus conn = do
       Log.info $
         Log.connection self (ucTo s2o)
           . msg (val "Unblocking connection")
-      cnv <- lift $ for (ucConvId s2o) $ Intra.unblockConv (ucFrom s2o) conn
-      when (ucStatus o2s == Sent && new == Accepted) $ lift $ do
+      cnv <- lift . for (ucConvId s2o) $ Intra.unblockConv (ucFrom s2o) conn
+      when (ucStatus o2s == Sent && new == Accepted) . lift $ do
         o2s' <-
           if (cnvType <$> cnv) /= Just ConnectConv
             then Data.updateConnection o2s Accepted
@@ -257,7 +257,7 @@ updateConnection self other newStatus conn = do
       Log.info $
         Log.connection self (ucTo s2o)
           . msg (val "Cancelling connection")
-      lift $ for_ (ucConvId s2o) $ Intra.blockConv (ucFrom s2o) conn
+      lift . for_ (ucConvId s2o) $ Intra.blockConv (ucFrom s2o) conn
       o2s' <- lift $ Data.updateConnection o2s Cancelled
       let e2o = ConnectionUpdated o2s' (Just $ ucStatus o2s) Nothing
       lift $ Intra.onConnectionEvent self conn e2o
@@ -321,6 +321,6 @@ checkLimit :: UserId -> ExceptT ConnectionError AppIO ()
 checkLimit u = do
   n <- lift $ Data.countConnections u [Accepted, Sent]
   l <- setUserMaxConnections <$> view settings
-  unless (n < l)
-    $ throwE
-    $ TooManyConnections u
+  unless (n < l) $
+    throwE $
+      TooManyConnections u

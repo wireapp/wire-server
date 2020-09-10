@@ -142,7 +142,8 @@ mkTTL now maxttl endOfLife = mkTTLNDT maxttl $ endOfLife `diffUTCTime` now
 
 mkTTLNDT :: (MonadError TTLError m, KnownSymbol a) => TTL a -> NominalDiffTime -> m (TTL a)
 mkTTLNDT maxttl ttlNDT =
-  if  | actualttl > maxttl -> throwError $ TTLTooLong (showTTL actualttl) (showTTL maxttl)
+  if
+      | actualttl > maxttl -> throwError $ TTLTooLong (showTTL actualttl) (showTTL maxttl)
       | actualttl <= 0 -> throwError $ TTLNegative (showTTL actualttl)
       | otherwise -> pure actualttl
   where
@@ -320,8 +321,9 @@ insertBindCookie cky uid ttlNDT = do
 
 -- | The counter-part of 'insertBindCookie'.
 lookupBindCookie :: (HasCallStack, MonadClient m) => BindCookie -> m (Maybe UserId)
-lookupBindCookie (cs . fromBindCookie -> ckyval :: ST) = runIdentity <$$> do
-  (retry x1 . query1 sel $ params Quorum (Identity ckyval))
+lookupBindCookie (cs . fromBindCookie -> ckyval :: ST) =
+  runIdentity <$$> do
+    (retry x1 . query1 sel $ params Quorum (Identity ckyval))
   where
     sel :: PrepQuery R (Identity ST) (Identity UserId)
     sel = "SELECT session_owner FROM bind_cookie WHERE cookie = ?"
@@ -465,7 +467,7 @@ deleteIdPConfig ::
   SAML.Issuer ->
   TeamId ->
   m ()
-deleteIdPConfig idp issuer team = retry x5 $ batch $ do
+deleteIdPConfig idp issuer team = retry x5 . batch $ do
   setType BatchLogged
   setConsistency Quorum
   addPrepQuery delDefaultIdp (Identity idp)
@@ -587,7 +589,7 @@ insertScimToken ::
   ScimToken ->
   ScimTokenInfo ->
   m ()
-insertScimToken token ScimTokenInfo {..} = retry x5 $ batch $ do
+insertScimToken token ScimTokenInfo {..} = retry x5 . batch $ do
   setType BatchLogged
   setConsistency Quorum
   addPrepQuery insByToken (token, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr)
@@ -650,7 +652,7 @@ deleteScimToken ::
   m ()
 deleteScimToken team tokenid = do
   mbToken <- retry x1 . query1 selById $ params Quorum (team, tokenid)
-  retry x5 $ batch $ do
+  retry x5 . batch $ do
     setType BatchLogged
     setConsistency Quorum
     addPrepQuery delById (team, tokenid)
@@ -683,7 +685,7 @@ deleteTeamScimTokens ::
   m ()
 deleteTeamScimTokens team = do
   tokens <- retry x5 $ query sel $ params Quorum (Identity team)
-  retry x5 $ batch $ do
+  retry x5 . batch $ do
     setType BatchLogged
     setConsistency Quorum
     addPrepQuery delByTeam (Identity team)

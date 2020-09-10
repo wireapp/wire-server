@@ -99,11 +99,12 @@ sendLoginCode phone call force = do
         return c
 
 lookupLoginCode :: Phone -> AppIO (Maybe PendingLoginCode)
-lookupLoginCode phone = Data.lookupKey (userPhoneKey phone) >>= \case
-  Nothing -> return Nothing
-  Just u -> do
-    Log.debug $ field "user" (toByteString u) . field "action" (Log.val "User.lookupLoginCode")
-    Data.lookupLoginCode u
+lookupLoginCode phone =
+  Data.lookupKey (userPhoneKey phone) >>= \case
+    Nothing -> return Nothing
+    Just u -> do
+      Log.debug $ field "user" (toByteString u) . field "action" (Log.val "User.lookupLoginCode")
+      Data.lookupLoginCode u
 
 login :: Login -> CookieType -> ExceptT LoginError AppIO (Access ZAuth.User)
 login (PasswordLogin li pw label) typ = do

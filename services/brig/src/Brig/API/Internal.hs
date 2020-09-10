@@ -89,7 +89,7 @@ sitemap = do
     accept "application" "json"
       .&. jsonRequest @NewUser
 
-  -- internal email activation (used in tests and in spar for validating emails obtains as
+  -- internal email activation (used in tests and in spar for validating emails obtained as
   -- SAML user identifiers).  if the validate query parameter is false or missing, only set
   -- the activation timeout, but do not send an email, and do not do anything about activating
   -- the email.
@@ -257,12 +257,12 @@ autoConnectH (_ ::: uid ::: conn ::: req) = do
 autoConnect :: UserId -> Maybe ConnId -> UserSet -> Handler [UserConnection]
 autoConnect uid conn (UserSet to) = do
   let num = Set.size to
-  when (num < 1)
-    $ throwStd
-    $ badRequest "No users given for auto-connect."
-  when (num > 25)
-    $ throwStd
-    $ badRequest "Too many users given for auto-connect (> 25)."
+  when (num < 1) $
+    throwStd $
+      badRequest "No users given for auto-connect."
+  when (num > 25) $
+    throwStd $
+      badRequest "Too many users given for auto-connect (> 25)."
   API.autoConnect uid to conn !>> connError
 
 createUserNoVerifyH :: JSON ::: JsonRequest NewUser -> Handler Response

@@ -220,7 +220,7 @@ idpGetRaw zusr idpid = do
   _ <- authorizeIdP zusr idp
   wrapMonadClient (Data.getIdPRawMetadata idpid) >>= \case
     Just txt -> pure $ RawIdPMetadata txt
-    Nothing -> throwSpar SparNotFound
+    Nothing -> throwSpar SparIdPNotFound
 
 idpGetAll :: Maybe UserId -> Spar IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
@@ -329,7 +329,7 @@ validateNewIdP _idpMetadata teamId mReplaces = do
   oldIssuers :: [SAML.Issuer] <- case mReplaces of
     Nothing -> pure []
     Just replaces -> do
-      idp <- wrapMonadClient (Data.getIdPConfig replaces) >>= maybe (throwSpar SparNotFound) pure
+      idp <- wrapMonadClient (Data.getIdPConfig replaces) >>= maybe (throwSpar SparIdPNotFound) pure
       pure $ (idp ^. SAML.idpMetadata . SAML.edIssuer) : (idp ^. SAML.idpExtraInfo . wiOldIssuers)
   let requri = _idpMetadata ^. SAML.edRequestURI
       _idpExtraInfo = WireIdP teamId oldIssuers Nothing
@@ -367,9 +367,10 @@ validateIdPUpdate ::
   SAML.IdPId ->
   m (TeamId, IdP)
 validateIdPUpdate zusr _idpMetadata _idpId = do
-  previousIdP <- wrapMonadClient (Data.getIdPConfig _idpId) >>= \case
-    Nothing -> throwError errUnknownIdPId
-    Just idp -> pure idp
+  previousIdP <-
+    wrapMonadClient (Data.getIdPConfig _idpId) >>= \case
+      Nothing -> throwError errUnknownIdPId
+      Just idp -> pure idp
   teamId <- authorizeIdP zusr previousIdP
   unless (previousIdP ^. SAML.idpExtraInfo . wiTeam == teamId) $ do
     throwError errUnknownIdP
@@ -439,7 +440,7 @@ internalPutSsoSettings SsoSettings {defaultSsoCode = Just code} = do
       -- this will return a 404, which is not quite right,
       -- but it's an internal endpoint and the message clearly says
       -- "Could not find IdP".
-      throwSpar SparNotFound
+      throwSpar SparIdPNotFound
     Just _ -> do
       wrapMonadClient $ Data.storeDefaultSsoCode code
       pure NoContent

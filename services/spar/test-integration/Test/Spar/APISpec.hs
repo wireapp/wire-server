@@ -237,8 +237,8 @@ specFinalizeLogin = do
                   . expect2xx
               )
             liftIO $ threadDelay 100000 -- make sure deletion is done.  if we don't want to take
-                -- the time, we should find another way to robustly
-                -- confirm that deletion has compelted in the background.
+            -- the time, we should find another way to robustly
+            -- confirm that deletion has compelted in the background.
 
           -- second login
           do
@@ -288,7 +288,7 @@ specFinalizeLogin = do
           statusCode sparresp `shouldBe` 404
           -- body should contain the error label in the title, the verbatim haskell error, and the request:
           (cs . fromJust . responseBody $ sparresp) `shouldContain` "<title>wire:sso:error:not-found</title>"
-          (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "CustomError SparNotFound"
+          (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "CustomError SparIdPNotFound"
           (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "Input {iName = \"SAMLResponse\""
     -- TODO(arianvp): Ask Matthias what this even means
     context "AuthnResponse does not match any request" $ do
@@ -501,9 +501,6 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
       context "with bind cookie and two other cookies in the request" $ do
         check (\bindcky -> Just . addAtEnd cky1 . addAtEnd cky2 . addAtBeginning cky3 $ bindcky) True
 
-checkErr :: HasCallStack => (Int -> Bool) -> TestErrorLabel -> ResponseLBS -> Bool
-checkErr statusIs label resp = statusIs (statusCode resp) && responseJsonEither resp == Right label
-
 testGetPutDelete :: HasCallStack => (SparReq -> Maybe UserId -> IdPId -> IdPMetadataInfo -> Http ResponseLBS) -> SpecWith TestEnv
 testGetPutDelete whichone = do
   context "unknown IdP" $ do
@@ -511,20 +508,20 @@ testGetPutDelete whichone = do
       env <- ask
       (_, _, _, (idpmeta, _)) <- registerTestIdPWithMeta
       whichone (env ^. teSpar) Nothing (IdPId UUID.nil) idpmeta
-        `shouldRespondWith` checkErr (== 404) "not-found"
+        `shouldRespondWith` checkErrHspec 404 "not-found"
   context "no zuser" $ do
     it "responds with 'client error'" $ do
       env <- ask
       (_, _, (^. idpId) -> idpid, (idpmeta, _)) <- registerTestIdPWithMeta
       whichone (env ^. teSpar) Nothing idpid idpmeta
-        `shouldRespondWith` checkErr (== 400) "client-error"
+        `shouldRespondWith` checkErrHspec 400 "client-error"
   context "zuser has no team" $ do
     it "responds with 'no team member'" $ do
       env <- ask
       (_, _, (^. idpId) -> idpid, (idpmeta, _)) <- registerTestIdPWithMeta
       (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
       whichone (env ^. teSpar) (Just uid) idpid idpmeta
-        `shouldRespondWith` checkErr (== 403) "no-team-member"
+        `shouldRespondWith` checkErrHspec 403 "no-team-member"
   context "zuser is a team member, but not a team owner" $ do
     it "responds with 'insufficient-permissions' and a helpful message" $ do
       env <- ask
@@ -533,7 +530,7 @@ testGetPutDelete whichone = do
         let Just perms = Galley.newPermissions mempty mempty
          in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
       whichone (env ^. teSpar) (Just newmember) idpid idpmeta
-        `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
+        `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
 
 -- Authenticate via sso, and assign owner status to the thus created user.  (This doesn't work
 -- via the cookie, since we don't talk to nginz here, so we assume there is only one user in
@@ -559,7 +556,7 @@ specCRUDIdentityProvider = do
         (_, _, (^. idpId) -> idpid) <- registerTestIdP
         (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
         callIdpGet' (env ^. teSpar) (Just uid) idpid
-          `shouldRespondWith` checkErr (== 403) "no-team-member"
+          `shouldRespondWith` checkErrHspec 403 "no-team-member"
     context "known IdP, client is team owner" $ do
       it "responds with 2xx and IdP" $ do
         env <- ask
@@ -581,7 +578,7 @@ specCRUDIdentityProvider = do
           let Just perms = Galley.newPermissions mempty mempty
            in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
         callIdpGetAll' (env ^. teSpar) (Just member)
-          `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
+          `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
     context "no idps registered" $ do
       context "client is team owner" $ do
         it "returns an empty list" $ do
@@ -614,7 +611,7 @@ specCRUDIdentityProvider = do
         (_, _, (^. idpId) -> idpid) <- registerTestIdP
         (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
         callIdpDelete' (env ^. teSpar) (Just uid) idpid
-          `shouldRespondWith` checkErr (== 403) "no-team-member"
+          `shouldRespondWith` checkErrHspec 403 "no-team-member"
     context "known IdP, IdP empty, client is team owner, without email" $ do
       it "responds with 2xx and removes IdP" $ do
         env <- ask
@@ -622,16 +619,16 @@ specCRUDIdentityProvider = do
         callIdpDelete' (env ^. teSpar) (Just userid) idpid
           `shouldRespondWith` \resp -> statusCode resp < 300
         callIdpGet' (env ^. teSpar) (Just userid) idpid
-          `shouldRespondWith` checkErr (== 404) "not-found"
+          `shouldRespondWith` checkErrHspec 404 "not-found"
         callIdpGetRaw' (env ^. teSpar) (Just userid) idpid
-          `shouldRespondWith` checkErr (== 404) "not-found"
+          `shouldRespondWith` checkErrHspec 404 "not-found"
     context "with email, idp non-empty, purge=false" $ do
       it "responds with 412 and does not remove IdP" $ do
         env <- ask
         (firstOwner, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
         ssoOwner <- mkSsoOwner firstOwner tid idp privcreds
         callIdpDelete' (env ^. teSpar) (Just ssoOwner) (idp ^. idpId)
-          `shouldRespondWith` checkErr (== 412) "idp-has-bound-users"
+          `shouldRespondWith` checkErrHspec 412 "idp-has-bound-users"
         callIdpGet' (env ^. teSpar) (Just ssoOwner) (idp ^. idpId)
           `shouldRespondWith` \resp -> statusCode resp < 300
     context "with email, idp non-empty, purge=true" $ do
@@ -648,7 +645,7 @@ specCRUDIdentityProvider = do
           ssoOwner' `shouldBe` Nothing
           firstOwner' `shouldBe` Just firstOwner
         callIdpGet' (env ^. teSpar) (Just firstOwner) (idp ^. idpId)
-          `shouldRespondWith` checkErr (== 404) "not-found"
+          `shouldRespondWith` checkErrHspec 404 "not-found"
   describe "PUT /identity-providers/:idp" $ do
     testGetPutDelete callIdpUpdate'
     context "known IdP, client is team owner" $ do
@@ -667,14 +664,14 @@ specCRUDIdentityProvider = do
           env <- ask
           (owner, _, (^. idpId) -> idpid) <- registerTestIdP
           callIdpUpdate' (env ^. teSpar) (Just owner) idpid (IdPMetadataValue "<NotSAML>bloo</NotSAML>" undefined)
-            `shouldRespondWith` ((== 400) . statusCode)
+            `shouldRespondWith` checkErrHspec 400 "invalid-metadata"
     describe "issuer changed to one that already exists in *another* team" $ do
       it "rejects" $ do
         env <- ask
         (owner1, _, (^. idpId) -> idpid1) <- registerTestIdP
         (_, _, _, (IdPMetadataValue _ idpmeta2, _)) <- registerTestIdPWithMeta
         callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode idpmeta2) undefined)
-          `shouldRespondWith` checkErr (== 400) "idp-issuer-in-use"
+          `shouldRespondWith` checkErrHspec 400 "idp-issuer-in-use"
     describe "issuer changed to one that already exists in *the same* team" $ do
       it "rejects" $ do
         env <- ask
@@ -683,7 +680,7 @@ specCRUDIdentityProvider = do
         _ <- call $ callIdpCreate (env ^. teSpar) (Just owner1) idpmeta2
         let idpmeta3 = idpmeta1 & edIssuer .~ (idpmeta2 ^. edIssuer)
         callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode idpmeta3) undefined)
-          `shouldRespondWith` checkErr (== 400) "idp-issuer-in-use"
+          `shouldRespondWith` checkErrHspec 400 "idp-issuer-in-use"
     describe "issuer changed to one that is new" $ do
       it "updates old idp, updating both issuer and old_issuers" $ do
         env <- ask
@@ -797,25 +794,25 @@ specCRUDIdentityProvider = do
         (uid, _tid) <- call $ createUserWithTeamDisableSSO (env ^. teBrig) (env ^. teGalley)
         (SampleIdP metadata _ _ _) <- makeSampleIdPMetadata
         callIdpCreate' (env ^. teSpar) (Just uid) metadata
-          `shouldRespondWith` checkErr (== 403) "sso-disabled"
+          `shouldRespondWith` checkErrHspec 403 "sso-disabled"
     context "bad xml" $ do
       it "responds with a 'client error'" $ do
         env <- ask
         callIdpCreateRaw' (env ^. teSpar) Nothing "application/xml" "@@ bad xml ###"
-          `shouldRespondWith` checkErr (== 400) "invalid-metadata"
+          `shouldRespondWith` checkErrHspec 400 "invalid-metadata"
     context "no zuser" $ do
       it "responds with 'client error'" $ do
         env <- ask
         (SampleIdP idpmeta _ _ _) <- makeSampleIdPMetadata
         callIdpCreate' (env ^. teSpar) Nothing idpmeta
-          `shouldRespondWith` checkErr (== 400) "client-error"
+          `shouldRespondWith` checkErrHspec 400 "client-error"
     context "zuser has no team" $ do
       it "responds with 'no team member'" $ do
         env <- ask
         (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
         (SampleIdP idpmeta _ _ _) <- makeSampleIdPMetadata
         callIdpCreate' (env ^. teSpar) (Just uid) idpmeta
-          `shouldRespondWith` checkErr (== 403) "no-team-member"
+          `shouldRespondWith` checkErrHspec 403 "no-team-member"
     context "zuser is a team member, but not a team owner" $ do
       it "responds with 'insufficient-permissions' and a helpful message" $ do
         env <- ask
@@ -824,7 +821,7 @@ specCRUDIdentityProvider = do
           let Just perms = Galley.newPermissions mempty mempty
            in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
         callIdpCreate' (env ^. teSpar) (Just newmember) (idp ^. idpMetadata)
-          `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
+          `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
     context "idp (identified by issuer) is in use by other team" $ do
       it "rejects" $ do
         env <- ask
@@ -860,7 +857,7 @@ specCRUDIdentityProvider = do
         it "responds with a 'client error'" $ do
           env <- ask
           callIdpCreateRaw' (env ^. teSpar) Nothing "application/json" "@@ bad json ###"
-            `shouldRespondWith` checkErr (== 400) "invalid-metadata"
+            `shouldRespondWith` checkErrHspec 400 "invalid-metadata"
       context "good json" $ do
         it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
           env <- ask
@@ -1015,10 +1012,10 @@ specDeleteCornerCases = describe "delete corner cases" $ do
     samlUserShouldSatisfy uref isJust
     deleteViaBrig uid
     samlUserShouldSatisfy uref isJust -- brig doesn't talk to spar right now when users
-      -- are deleted there.  we need to work around this
-      -- fact for now.  (if the test fails here, this may
-      -- mean that you fixed the behavior and can
-      -- change this to 'isNothing'.)
+    -- are deleted there.  we need to work around this
+    -- fact for now.  (if the test fails here, this may
+    -- mean that you fixed the behavior and can
+    -- change this to 'isNothing'.)
     (Just _) <- createViaSaml idp privcreds uref
     samlUserShouldSatisfy uref isJust
   where

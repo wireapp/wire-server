@@ -44,12 +44,11 @@ import Wire.API.User.Profile (Locale, Name)
 -- InvitationRequest
 
 data InvitationRequest = InvitationRequest
-  { irEmail :: Email,
-    irName :: Name,
-    irLocale :: Maybe Locale,
+  { irLocale :: Maybe Locale,
     irRole :: Maybe Role,
     irInviteeName :: Maybe Name,
-    irPhone :: Maybe Phone
+    irInviteeEmail :: Email,
+    irInviteePhone :: Maybe Phone
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform InvitationRequest)
@@ -57,42 +56,40 @@ data InvitationRequest = InvitationRequest
 modelTeamInvitationRequest :: Doc.Model
 modelTeamInvitationRequest = Doc.defineModel "TeamInvitationRequest" $ do
   Doc.description "A request to join a team on Wire."
-  Doc.property "inviter_name" Doc.string' $
-    Doc.description "Name of the inviter (1 - 128 characters)"
-  Doc.property "email" Doc.string' $
-    Doc.description "Email of the invitee"
   Doc.property "locale" Doc.string' $ do
     Doc.description "Locale to use for the invitation."
     Doc.optional
   Doc.property "role" typeRole $ do
-    Doc.description "Role of the invited user"
+    Doc.description "Role of the invitee (invited user)."
     Doc.optional
   Doc.property "name" Doc.string' $ do
-    Doc.description "Name of the invitee (1 - 128 characters)"
+    Doc.description "Name of the invitee (1 - 128 characters)."
     Doc.optional
+  Doc.property "email" Doc.string' $
+    Doc.description "Email of the invitee."
   Doc.property "phone" Doc.string' $ do
-    Doc.description "Phone number of the invitee, in the E.164 format"
+    Doc.description "Phone number of the invitee, in the E.164 format."
     Doc.optional
+  Doc.property "inviter_name" Doc.string' $
+    Doc.description "DEPRECATED - WILL BE IGNORED IN FAVOR OF REQ AUTH DATA - Name of the inviter (1 - 128 characters)."
 
 instance ToJSON InvitationRequest where
   toJSON i =
     object $
-      [ "email" .= irEmail i,
-        "inviter_name" .= irName i,
-        "locale" .= irLocale i,
+      [ "locale" .= irLocale i,
         "role" .= irRole i,
         "name" .= irInviteeName i,
-        "phone" .= irPhone i
+        "email" .= irInviteeEmail i,
+        "phone" .= irInviteePhone i
       ]
 
 instance FromJSON InvitationRequest where
   parseJSON = withObject "invitation-request" $ \o ->
     InvitationRequest
-      <$> o .: "email"
-      <*> o .: "inviter_name"
-      <*> o .:? "locale"
+      <$> o .:? "locale"
       <*> o .:? "role"
       <*> o .:? "name"
+      <*> o .: "email"
       <*> o .:? "phone"
 
 --------------------------------------------------------------------------------
@@ -102,22 +99,19 @@ data Invitation = Invitation
   { inTeam :: TeamId,
     inRole :: Role,
     inInvitation :: InvitationId,
-    inIdentity :: Email,
     inCreatedAt :: UTCTimeMillis,
     -- | this is always 'Just' for new invitations, but for
     -- migration it is allowed to be 'Nothing'.
     inCreatedBy :: Maybe UserId,
+    inInviteeEmail :: Email,
     inInviteeName :: Maybe Name,
-    inPhone :: Maybe Phone
+    inInviteePhone :: Maybe Phone
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Invitation)
 
--- | This is *not* the swagger model for the 'TeamInvitation' type (which does not exist), but
--- for the use of 'Invitation' under @/teams/{tid}/invitations@.
---
--- TODO: swagger should be replaced by something more type-safe at some point so this will be
--- forcibly resolved and won't happen again.
+-- | (This is *not* the swagger model for the 'TeamInvitation' type (which does not exist),
+-- but for the use of 'Invitation' under @/teams/{tid}/invitations@.)
 modelTeamInvitation :: Doc.Model
 modelTeamInvitation = Doc.defineModel "TeamInvitation" $ do
   Doc.description "An invitation to join a team on Wire"
@@ -128,13 +122,13 @@ modelTeamInvitation = Doc.defineModel "TeamInvitation" $ do
     Doc.optional
   Doc.property "id" Doc.bytes' $
     Doc.description "UUID used to refer the invitation"
-  Doc.property "email" Doc.string' $
-    Doc.description "Email of the invitee"
   Doc.property "created_at" Doc.dateTime' $
     Doc.description "Timestamp of invitation creation"
   Doc.property "created_by" Doc.bytes' $ do
     Doc.description "ID of the inviting user"
     Doc.optional
+  Doc.property "email" Doc.string' $
+    Doc.description "Email of the invitee"
   Doc.property "name" Doc.string' $ do
     Doc.description "Name of the invitee (1 - 128 characters)"
     Doc.optional
@@ -148,11 +142,11 @@ instance ToJSON Invitation where
       [ "team" .= inTeam i,
         "role" .= inRole i,
         "id" .= inInvitation i,
-        "email" .= inIdentity i,
         "created_at" .= inCreatedAt i,
         "created_by" .= inCreatedBy i,
+        "email" .= inInviteeEmail i,
         "name" .= inInviteeName i,
-        "phone" .= inPhone i
+        "phone" .= inInviteePhone i
       ]
 
 instance FromJSON Invitation where
@@ -162,9 +156,9 @@ instance FromJSON Invitation where
       -- clients, when leaving "role" empty, can leave the default role choice to us
       <*> o .:? "role" .!= defaultRole
       <*> o .: "id"
-      <*> o .: "email"
       <*> o .: "created_at"
       <*> o .:? "created_by"
+      <*> o .: "email"
       <*> o .:? "name"
       <*> o .:? "phone"
 

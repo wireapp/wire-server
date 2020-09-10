@@ -530,7 +530,7 @@ testUserUpdate brig cannon aws = do
                 fmap userAssets u
               )
           )
-      . responseJsonMaybe
+        . responseJsonMaybe
   -- get only the new name
   get (brig . path "/self/name" . zUser alice) !!! do
     const 200 === statusCode
@@ -842,7 +842,7 @@ testEmailPhoneDelete brig cannon = do
   WS.bracketR cannon uid $ \ws -> do
     delete (brig . path "/self/email" . zUser uid . zConn "c")
       !!! (const 200 === statusCode)
-    void . liftIO $ WS.assertMatch (5 # Second) ws $ \n -> do
+    void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
       let j = Object $ List1.head (ntfPayload n)
       let etype = j ^? key "type" . _String
       let euser = j ^? key "user" . key "id" . _String
@@ -869,7 +869,7 @@ testEmailPhoneDelete brig cannon = do
   WS.bracketR cannon uid $ \ws -> do
     delete (brig . path "/self/phone" . zUser uid . zConn "c")
       !!! const 200 === statusCode
-    void . liftIO $ WS.assertMatch (5 # Second) ws $ \n -> do
+    void . liftIO . WS.assertMatch (5 # Second) ws $ \n -> do
       let j = Object $ List1.head (ntfPayload n)
       let etype = j ^? key "type" . _String
       let euser = j ^? key "user" . key "id" . _String
@@ -921,9 +921,10 @@ testDeleteUserByPassword brig cannon aws = do
   act <- getActivationCode brig (Left eml)
   case act of
     Nothing -> liftIO $ assertFailure "missing activation key/code"
-    Just kc -> activate brig kc !!! do
-      const 404 === statusCode
-      const (Just "invalid-code") === fmap Error.label . responseJsonMaybe
+    Just kc ->
+      activate brig kc !!! do
+        const 404 === statusCode
+        const (Just "invalid-code") === fmap Error.label . responseJsonMaybe
   -- Connections involving uid1 are gone (uid2 <-> uid3 remains)
   let u1Conns = UserConnectionList [] False
   let u2Conns = UserConnectionList (maybeToList (responseJsonMaybe con23)) False
@@ -1078,14 +1079,6 @@ testRestrictedUserCreation opts brig = do
   let opts' = opts {Opt.optSettings = (Opt.optSettings opts) {Opt.setRestrictUserCreation = Just True}}
   withSettingsOverrides opts' $ do
     e <- randomEmail
-    -- Ephemeral users MUST have an expires_in
-    let Object ephemeralUserWithoutExpires =
-          object
-            [ "name" .= Name "Alice"
-            ]
-    postUserRegister' ephemeralUserWithoutExpires brig !!! do
-      const 403 === statusCode
-      const (Just "user-creation-restricted") === (^? AesonL.key "label" . AesonL._String) . (responseJsonUnsafe @Value)
 
     let Object regularUser =
           object
@@ -1123,13 +1116,21 @@ testRestrictedUserCreation opts brig = do
     -- Ensure you can invite team users
     void $ inviteAndRegisterUser teamOwner createdTeam brig
 
-    -- Ephemeral users can always be created
+    -- Ephemeral users can always be created (expires_in is OPTIONAL)
     let Object ephemeralUser =
           object
             [ "name" .= Name "Alice",
               "expires_in" .= (600000 :: Int)
             ]
     postUserRegister' ephemeralUser brig !!! const 201 === statusCode
+
+    -- Ephemeral users can always be created (expires_in is OPTIONAL and
+    -- used for instance when creating guestrooms
+    let Object ephemeralUserWithoutExpires =
+          object
+            [ "name" .= Name "Alice"
+            ]
+    postUserRegister' ephemeralUserWithoutExpires brig !!! const 201 === statusCode
 
     -- NOTE: SSO users are anyway not allowed on the `/register` endpoint
     teamid <- Id <$> liftIO UUID.nextRandom
@@ -1156,7 +1157,7 @@ setHandleAndDeleteUser brig cannon u others aws execDelete = do
   -- Delete the user
   WS.bracketRN cannon (uid : others) $ \wss -> do
     execDelete uid
-    void . liftIO $ WS.assertMatchN (5 # Second) wss $ \n -> do
+    void . liftIO . WS.assertMatchN (5 # Second) wss $ \n -> do
       let j = Object $ List1.head (ntfPayload n)
       let etype = j ^? key "type" . _String
       let euser = j ^? key "id" . _String
@@ -1207,7 +1208,7 @@ setHandleAndDeleteUser brig cannon u others aws execDelete = do
                   userHandle =<< u'
                 )
             )
-        . responseJsonMaybe
+          . responseJsonMaybe
     assertDeletedProfilePublic = do
       const 200 === statusCode
       const (Just noPict, Just True, Nothing)
@@ -1217,4 +1218,4 @@ setHandleAndDeleteUser brig cannon u others aws execDelete = do
                   profileHandle =<< u'
                 )
             )
-        . responseJsonMaybe
+          . responseJsonMaybe

@@ -179,15 +179,16 @@ options =
         long "data"
           <> metavar "STRING"
           <> help "token data"
-    toMode = readerAsk >>= \s -> case s of
-      "create-user" -> return CreateUser
-      "create-session" -> return CreateSession
-      "create-access" -> return CreateAccess
-      "create-bot" -> return CreateBot
-      "create-provider" -> return CreateProvider
-      "verify-user" -> return VerifyUser
-      "verify-access" -> return VerifyAccess
-      "verify-bot" -> return VerifyBot
-      "verify-provider" -> return VerifyProvider
-      "gen-keypair" -> return GenKeyPair
-      other -> readerError $ "invalid mode: " <> other
+    toMode =
+      readerAsk >>= \s -> case s of
+        "create-user" -> return CreateUser
+        "create-session" -> return CreateSession
+        "create-access" -> return CreateAccess
+        "create-bot" -> return CreateBot
+        "create-provider" -> return CreateProvider
+        "verify-user" -> return VerifyUser
+        "verify-access" -> return VerifyAccess
+        "verify-bot" -> return VerifyBot
+        "verify-provider" -> return VerifyProvider
+        "gen-keypair" -> return GenKeyPair
+        other -> readerError $ "invalid mode: " <> other

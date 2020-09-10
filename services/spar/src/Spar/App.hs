@@ -36,14 +36,14 @@ module Spar.App
 where
 
 import Bilge
-import Brig.Types (ManagedBy (..), Name)
+import Brig.Types (ManagedBy (..))
 import Cassandra
 import qualified Cassandra as Cas
 import Control.Exception (assert)
 import Control.Lens hiding ((.=))
 import qualified Control.Monad.Catch as Catch
 import Control.Monad.Except
-import Data.Aeson as Aeson ((.=), encode, object)
+import Data.Aeson as Aeson (encode, object, (.=))
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import Data.Id
@@ -130,10 +130,10 @@ instance SPStoreIdP SparError Spar where
   storeIdPConfig idp = wrapMonadClient $ Data.storeIdPConfig idp
 
   getIdPConfig :: IdPId -> Spar IdP
-  getIdPConfig = (>>= maybe (throwSpar SparNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfig
+  getIdPConfig = (>>= maybe (throwSpar SparIdPNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfig
 
   getIdPConfigByIssuer :: Issuer -> Spar IdP
-  getIdPConfigByIssuer = (>>= maybe (throwSpar SparNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfigByIssuer
+  getIdPConfigByIssuer = (>>= maybe (throwSpar SparIdPNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfigByIssuer
 
 -- | 'wrapMonadClient' with an 'Env' in a 'ReaderT', and exceptions. If you
 -- don't need either of those, 'wrapMonadClient' will suffice.
@@ -169,7 +169,7 @@ getUser uref = do
   case muid of
     Nothing -> pure Nothing
     Just uid -> do
-      itis <- Intra.isTeamUser uid
+      itis <- isJust <$> Intra.getBrigUserTeam uid
       pure $ if itis then Just uid else Nothing
 
 -- | Create a fresh 'Data.Id.UserId', store it on C* locally together with 'SAML.UserRef', then
@@ -188,24 +188,25 @@ getUser uref = do
 -- FUTUREWORK: once we support <https://github.com/wireapp/hscim scim>, brig will refuse to delete
 -- users that have an sso id, unless the request comes from spar.  then we can make users
 -- undeletable in the team admin page, and ask admins to go talk to their IdP system.
-createSamlUserWithId :: UserId -> SAML.UserRef -> Maybe Name -> ManagedBy -> Spar ()
-createSamlUserWithId buid suid mbName managedBy = do
+createSamlUserWithId :: UserId -> SAML.UserRef -> ManagedBy -> Spar ()
+createSamlUserWithId buid suid managedBy = do
   teamid <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (suid ^. uidTenant)
-  buid' <- Intra.createBrigUser suid buid teamid mbName managedBy
+  uname <- either (throwSpar . SparBadUserName . cs) pure $ Intra.mkUserName Nothing suid
+  buid' <- Intra.createBrigUser suid buid teamid uname managedBy
   assert (buid == buid') $ pure ()
   insertUser suid buid
 
 -- | If the team has no scim token, call 'createSamlUser'.  Otherwise, raise "invalid
 -- credentials".
-autoprovisionSamlUser :: SAML.UserRef -> Maybe Name -> ManagedBy -> Spar UserId
-autoprovisionSamlUser suid mbName managedBy = do
+autoprovisionSamlUser :: SAML.UserRef -> ManagedBy -> Spar UserId
+autoprovisionSamlUser suid managedBy = do
   buid <- Id <$> liftIO UUID.nextRandom
-  autoprovisionSamlUserWithId buid suid mbName managedBy
+  autoprovisionSamlUserWithId buid suid managedBy
   pure buid
 
 -- | Like 'autoprovisionSamlUser', but for an already existing 'UserId'.
-autoprovisionSamlUserWithId :: UserId -> SAML.UserRef -> Maybe Name -> ManagedBy -> Spar ()
-autoprovisionSamlUserWithId buid suid mbName managedBy = do
+autoprovisionSamlUserWithId :: UserId -> SAML.UserRef -> ManagedBy -> Spar ()
+autoprovisionSamlUserWithId buid suid managedBy = do
   idp <- getIdPConfigByIssuer (suid ^. uidTenant)
   unless (isNothing $ idp ^. idpExtraInfo . wiReplacedBy) $ do
     throwSpar $ SparCannotCreateUsersOnReplacedIdP (cs . SAML.idPIdToST $ idp ^. idpId)
@@ -213,7 +214,7 @@ autoprovisionSamlUserWithId buid suid mbName managedBy = do
   scimtoks <- wrapMonadClient $ Data.getScimTokens teamid
   if null scimtoks
     then do
-      createSamlUserWithId buid suid mbName managedBy
+      createSamlUserWithId buid suid managedBy
       validateEmailIfExists buid suid
     else
       throwError . SAML.Forbidden $
@@ -244,11 +245,7 @@ bindUser buid userref = do
     (uteamid == Just teamid)
     (throwSpar . SparBindFromWrongOrNoTeam . cs . show $ uteamid)
   insertUser userref buid
-  Intra.bindBrigUser buid userref >>= \case
-    True -> pure buid
-    False -> do
-      SAML.logger SAML.Warn $ "SparBindUserDisappearedFromBrig: " <> show buid
-      throwSpar SparBindUserDisappearedFromBrig
+  buid <$ Intra.setBrigUserUserRef buid userref
 
 instance SPHandler SparError Spar where
   type NTCTX Spar = Env
@@ -367,7 +364,7 @@ verdictHandlerResultCore bindCky = \case
         -- This is the first SSO authentication, so we auto-create a user. We know the user
         -- has not been created via SCIM because then we would've ended up in the
         -- "reauthentication" branch, so we pass 'ManagedByWire'.
-        (Nothing, Nothing, Nothing) -> autoprovisionSamlUser userref Nothing ManagedByWire
+        (Nothing, Nothing, Nothing) -> autoprovisionSamlUser userref ManagedByWire
         -- If the user is only found under an old (previous) issuer, move it here.
         (Nothing, Nothing, Just (oldUserRef, uid)) -> moveUserToNewIssuer oldUserRef userref uid >> pure uid
         -- SSO re-authentication (the most common case).
@@ -401,10 +398,11 @@ verdictHandlerResultCore bindCky = \case
 --   not be the title of any page sent by the IdP while it negotiates with the user.
 -- - The page broadcasts a message to '*', to be picked up by the app.
 verdictHandlerWeb :: HasCallStack => VerdictHandlerResult -> Spar SAML.ResponseVerdict
-verdictHandlerWeb = pure . \case
-  VerifyHandlerGranted cky _uid -> successPage cky
-  VerifyHandlerDenied reasons -> forbiddenPage "forbidden" (explainDeniedReason <$> reasons)
-  VerifyHandlerError lbl msg -> forbiddenPage lbl [msg]
+verdictHandlerWeb =
+  pure . \case
+    VerifyHandlerGranted cky _uid -> successPage cky
+    VerifyHandlerDenied reasons -> forbiddenPage "forbidden" (explainDeniedReason <$> reasons)
+    VerifyHandlerError lbl msg -> forbiddenPage lbl [msg]
   where
     forbiddenPage :: ST -> [ST] -> SAML.ResponseVerdict
     forbiddenPage errlbl reasons =

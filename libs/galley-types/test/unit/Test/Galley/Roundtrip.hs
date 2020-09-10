@@ -21,7 +21,7 @@ import Data.Aeson (FromJSON, ToJSON, parseJSON, toJSON)
 import Data.Aeson.Types (parseEither)
 import Imports
 import Test.Tasty (TestTree)
-import Test.Tasty.QuickCheck ((===), Arbitrary, counterexample, testProperty)
+import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (===))
 import Type.Reflection (typeRep)
 
 testRoundTrip ::

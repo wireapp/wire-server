@@ -1,3 +1,26 @@
+# 2020-09-04
+
+## Release Notes
+
+## Bug Fixes
+
+* Fixed logic related to ephemeral users (#1197)
+
+## New Features
+
+* SFT servers now exposed over /calls/config/v2 (#1177)
+* First federation endpoint (#1188)
+
+## Internal changes
+
+* ormolu upgrade to 0.1.2.0 and formatting (#1145, #1185, #1186)
+* handy cqlsh make target to manually poke at the database (#1170)
+* spar cleanup
+* brig user name during scim user parsing (#1195)
+* invitation refactor (#1196)
+* SCIM users are never ephemeral (#1198)
+
+
 # 2020-07-29
 
 ## Release Notes
