@@ -191,9 +191,7 @@ extra-deps:
   commit: dc8813c17645251c050599485cdc2b5874daac30
 - markov-chain-usage-model-0.0.0@sha256:1afa95faeb9213c4d960a669190078b41b89169462b8edd910472980671ba8c0,2112
 
-# Forked due to ghc-8.8
-- git: https://github.com/akshaymankar/haskell-hex
-  commit: d20af1ce51381b67a9cd63657a931d80b640f361 # ghc-8.8 (Aug 24, 2020)
+- hex-0.2.0
 
 - git: https://gitlab.com/axeman/redis-io.git
   commit: e113fa4de8fcc3665c3c562a05a07f7a1d63b3cc # ghc-8.8 (Aug 24, 2020)

@@ -541,16 +541,12 @@ packages:
   original:
     hackage: markov-chain-usage-model-0.0.0@sha256:1afa95faeb9213c4d960a669190078b41b89169462b8edd910472980671ba8c0,2112
 - completed:
-    name: hex
-    version: 0.1.1
-    git: https://github.com/akshaymankar/haskell-hex
+    hackage: hex-0.2.0@sha256:197d2561d2e216c4ead035b4911dabc6e678ac6257cb71b64e324c822f6f9f5a,726
     pantry-tree:
       size: 197
-      sha256: dc3375135f836ce0073f10225476cda3ea723524a731534c516499041f10646b
-    commit: d20af1ce51381b67a9cd63657a931d80b640f361
+      sha256: 1e5aba0165fb8ffa93d1516a87026a59c245750ca5f2ed42bd53b8328620f98e
   original:
-    git: https://github.com/akshaymankar/haskell-hex
-    commit: d20af1ce51381b67a9cd63657a931d80b640f361
+    hackage: hex-0.2.0
 - completed:
     name: redis-io
     version: 1.0.0
