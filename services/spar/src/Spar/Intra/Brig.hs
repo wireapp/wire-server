@@ -70,7 +70,6 @@ import Data.Id (Id (Id), TeamId, UserId)
 import Data.Ix
 import Data.Misc (PlainTextPassword, (<$$>))
 import Data.String.Conversions
-import Data.String.Conversions (cs)
 import Imports
 import Network.HTTP.Types.Method
 import qualified Network.Wai.Utilities.Error as Wai

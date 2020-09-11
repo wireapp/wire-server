@@ -53,7 +53,6 @@ import qualified Data.UUID.V4 as UUID
 import Imports hiding (log)
 import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
-import SAML2.Util (renderURI)
 import SAML2.WebSSO hiding (Email (..), UserRef (..))
 import qualified SAML2.WebSSO as SAML
 import Servant
