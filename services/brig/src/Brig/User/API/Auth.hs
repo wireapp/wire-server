@@ -34,6 +34,8 @@ import qualified Brig.ZAuth as ZAuth
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import Data.Either.Combinators (leftToMaybe, rightToMaybe)
+import Data.List1 (List1)
+import qualified Data.List1 as List1
 import Data.Id
 import Data.Predicate
 import qualified Data.Swagger.Build.Api as Doc
@@ -225,12 +227,12 @@ legalHoldLogin l = do
   let typ = PersistentCookie -- Session cookie isn't a supported use case here
   Auth.legalHoldLogin l typ !>> legalHoldLoginError
 
-logoutH :: JSON ::: Maybe (Either [ZAuth.UserToken] [ZAuth.LegalHoldUserToken]) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> Handler Response
+logoutH :: JSON ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> Handler Response
 logoutH (_ ::: ut ::: at) = empty <$ logout ut at
 
 -- TODO: add legalhold test checking cookies are revoked (/access/logout is called) when legalhold device is deleted.
 logout ::
-  Maybe (Either [ZAuth.UserToken] [ZAuth.LegalHoldUserToken]) ->
+  Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ->
   Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) ->
   Handler ()
 logout Nothing Nothing = throwStd authMissingCookieAndToken
@@ -256,7 +258,7 @@ rmCookies :: UserId -> Public.RemoveCookies -> Handler ()
 rmCookies uid (Public.RemoveCookies pw lls ids) = do
   Auth.revokeAccess uid pw ids lls !>> authError
 
-renewH :: JSON ::: Maybe (Either [ZAuth.UserToken] [ZAuth.LegalHoldUserToken]) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> Handler Response
+renewH :: JSON ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> Handler Response
 renewH (_ ::: ut ::: at) = lift . either tokenResponse tokenResponse =<< renew ut at
 
 -- | renew access for either:
@@ -265,7 +267,7 @@ renewH (_ ::: ut ::: at) = lift . either tokenResponse tokenResponse =<< renew u
 --
 -- Other combinations of provided inputs will cause an error to be raised.
 renew ::
-  Maybe (Either [ZAuth.UserToken] [ZAuth.LegalHoldUserToken]) ->
+  Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ->
   Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) ->
   Handler (Either (Auth.Access ZAuth.User) (Auth.Access ZAuth.LegalHoldUser))
 renew = \case
@@ -296,7 +298,7 @@ tokenRequest ::
   Predicate
     r
     P.Error
-    ( Maybe (Either [ZAuth.UserToken] [ZAuth.LegalHoldUserToken])
+    ( Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken))
         ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken)
     )
 tokenRequest = opt (userToken ||| legalHoldUserToken) .&. opt (accessToken ||| legalHoldAccessToken)
@@ -312,7 +314,7 @@ tokenRequest = opt (userToken ||| legalHoldUserToken) .&. opt (accessToken ||| l
     tokenQuery :: r -> Result P.Error ByteString
     tokenQuery = query "access_token"
     --
-    cookieErr :: ZAuth.UserTokenLike u => Result P.Error [ZAuth.Token u] -> Result P.Error [ZAuth.Token u]
+    cookieErr :: ZAuth.UserTokenLike u => Result P.Error (List1 (ZAuth.Token u)) -> Result P.Error (List1 (ZAuth.Token u))
     cookieErr x@Okay {} = x
     cookieErr (Fail x) = Fail (setMessage "Invalid user token" (P.setStatus status403 x))
     --
@@ -352,14 +354,14 @@ tokenResponse (Auth.Access t (Just c)) = Auth.setResponseCookie c (json t)
 -- it. Main difference: the original stops after finding the first valid cookie which
 -- is a problem if clients send more than 1 cookie and one of them happens to be invalid
 -- We should also be dropping this in favor of servant which will make this redundant
-cookies :: (R.HasCookies r, FromByteString a) => ByteString -> Predicate r P.Error [a]
+cookies :: (R.HasCookies r, FromByteString a) => ByteString -> Predicate r P.Error (List1 a)
 cookies k r =
   case R.lookupCookie k r of
     [] -> Fail . addLabel "cookie" $ notAvailable k
     cc ->
       case mapMaybe fromByteString cc of
-        []  -> (Fail . addLabel "cookie" . typeError k $ "Failed to get zuid cookies")
-        cks -> return cks
+        []     -> (Fail . addLabel "cookie" . typeError k $ "Failed to get zuid cookies")
+        (x:xs) -> return $ List1.list1 x xs
 
 notAvailable :: ByteString -> P.Error
 notAvailable k = e400 & setReason NotAvailable . setSource k

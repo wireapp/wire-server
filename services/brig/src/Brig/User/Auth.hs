@@ -60,7 +60,9 @@ import Control.Lens (to, view)
 import Data.ByteString.Conversion (toByteString)
 import Data.Handle (Handle)
 import Data.Id
-import Data.List1 (singleton)
+import qualified Data.List1 as List1
+import Data.List1 (List1)
+import qualified Data.List.NonEmpty as NE
 import Data.Misc (PlainTextPassword (..))
 import qualified Data.ZAuth.Token as ZAuth
 import Imports
@@ -152,14 +154,14 @@ withRetryLimit action uid = do
       BudgetExhausted ttl -> throwE . LoginBlocked . RetryAfter . floor $ ttl
       BudgetedValue () _ -> pure ()
 
-logout :: ZAuth.TokenPair u a => [ZAuth.Token u] -> ZAuth.Token a -> ExceptT ZAuth.Failure AppIO ()
+logout :: ZAuth.TokenPair u a => List1 (ZAuth.Token u) -> ZAuth.Token a -> ExceptT ZAuth.Failure AppIO ()
 logout uts at = do
   (u, ck) <- validateTokens uts (Just at)
   lift $ revokeCookies u [cookieId ck] []
 
 renewAccess ::
   ZAuth.TokenPair u a =>
-  [ZAuth.Token u] ->
+  List1 (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
   ExceptT ZAuth.Failure AppIO (Access u)
 renewAccess uts at = do
@@ -192,7 +194,7 @@ catchSuspendInactiveUser uid errval = do
       msg (val "Suspending user due to inactivity")
         ~~ field "user" (toByteString uid)
         ~~ field "action" ("user.suspend" :: String)
-    lift $ suspendAccount (singleton uid)
+    lift $ suspendAccount (List1.singleton uid)
     throwE errval
 
 newAccess :: forall u a. ZAuth.TokenPair u a => UserId -> CookieType -> Maybe CookieLabel -> ExceptT LoginError AppIO (Access u)
@@ -258,21 +260,19 @@ isPendingActivation ident = case ident of
 --   If multiple cookies are given and several are valid, we return the first valid one.
 validateTokens ::
   ZAuth.TokenPair u a =>
-  [ZAuth.Token u] -> -- FUTUREWORK: This should be a NonEmpty
+  List1 (ZAuth.Token u) ->
   Maybe (ZAuth.Token a) ->
   ExceptT ZAuth.Failure AppIO (UserId, Cookie (ZAuth.Token u))
-validateTokens [] _ = throwE ZAuth.Invalid
-validateTokens (ut : []) at = validateToken ut at
 validateTokens uts at = do
   tokens <- forM uts $ \ut -> lift $ runExceptT (validateToken ut at)
-  parseResults tokens
+  getFirstSuccessOrFirstFail tokens
   where
     -- FUTUREWORK: There is surely a better way to do this
-    parseResults :: [Either ZAuth.Failure (UserId, Cookie (ZAuth.Token u))] -> ExceptT ZAuth.Failure AppIO (UserId, Cookie (ZAuth.Token u))
-    parseResults res = case (lefts res, rights res) of
+    getFirstSuccessOrFirstFail :: List1 (Either ZAuth.Failure (UserId, Cookie (ZAuth.Token u))) -> ExceptT ZAuth.Failure AppIO (UserId, Cookie (ZAuth.Token u))
+    getFirstSuccessOrFirstFail tks = case (lefts $ NE.toList $ List1.toNonEmpty tks, rights $ NE.toList $ List1.toNonEmpty tks) of
       (_, (suc : _)) -> return suc
       ((e : _), _) -> throwE e
-      _ -> throwE ZAuth.Invalid -- Impossible with NonEmpty
+      _ -> throwE ZAuth.Invalid -- Impossible
 
 validateToken ::
   ZAuth.TokenPair u a =>
