@@ -158,13 +158,23 @@ throwA :: Either AWS.Error a -> Amazon a
 throwA = either (throwM . GeneralError) return
 
 exec ::
-  (AWSRequest r, MonadIO m) =>
+  (AWSRequest r, Show r, MonadLogger m, MonadIO m, MonadThrow m) =>
   Env ->
   (Text -> r) ->
   m (Rs r)
 exec env request = do
-  let bucket = _s3Bucket env
-  execute env (AWS.send $ request bucket)
+  let req = request (_s3Bucket env)
+  resp <- execute env (sendCatch req)
+  case resp of
+    Left err -> do
+      Log.info $
+        Log.field "remote" (Log.val "S3")
+          ~~ Log.msg (show err)
+          ~~ Log.msg (show req)
+      -- We just re-throw the error, but logging it here also gives us the request
+      -- that caused it.
+      throwM (GeneralError err)
+    Right r -> return r
 
 execCatch ::
   (AWSRequest r, Show r, MonadLogger m, MonadIO m) =>
@@ -176,7 +186,7 @@ execCatch env request = do
   resp <- execute env (retrying retry5x (const canRetry) (const (sendCatch req)))
   case resp of
     Left err -> do
-      Log.debug $
+      Log.info $
         Log.field "remote" (Log.val "S3")
           ~~ Log.msg (show err)
           ~~ Log.msg (show req)
