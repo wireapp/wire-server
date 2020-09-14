@@ -234,7 +234,6 @@ setResponseCookie c r = do
       WebCookie.def
         { WebCookie.setCookieName = "zuid",
           WebCookie.setCookieValue = toByteString' (cookieValue c),
-          WebCookie.setCookieDomain = Nothing,
           WebCookie.setCookiePath = Just "/access",
           WebCookie.setCookieExpires =
             if cookieType c == PersistentCookie

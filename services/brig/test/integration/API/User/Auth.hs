@@ -95,7 +95,7 @@ tests conf m z b g n =
             "nginz"
             [ test m "nginz-login" (testNginz b n),
               test m "nginz-legalhold-login" (testNginzLegalHold b g n),
-              test m "nginz-login-legacy-cookies" (testNginzLegacyCookies b n)
+              test m "nginz-login-multiple-cookies" (testNginzMultipleCookies conf b n)
             ]
         ],
       testGroup
@@ -203,28 +203,48 @@ testNginzLegalHold b g n = do
 -- on different browsers) although the cookie does get overriden in the DB). This should be handled
 -- gracefully (ie., one invalid cookie should just be ignored if up to two cookies with label @"zuid"@ are present).
 --
--- In this test, we actually don't use different domains (testing that correctly is actually pretty
--- complex) - instead, we simply set 2 cookies with the same name and different values and http-client
+-- In this test, we actually don't use different domains - testing that correctly is actually pretty
+-- complex. The reason why testing 2 domains is complicated has to do with the fact that we need to
+-- have 2 distinct domains that point to the same backend; i.e., this is the case on our staging env where
+-- old cookies had the domain to the TLD and new ones to <subdomain>.TLD. This is hard to do on k8s for instance
+--
+-- Instead, we simply set 2 cookies with the same name and different values and the http client
 -- will replicate the situation: we have 2 cookies, one of them is incorrect (but must parse correctly!)
 -- and the other is valid.
-testNginzLegacyCookies :: Brig -> Nginz -> Http ()
-testNginzLegacyCookies b n = do
+-- In order to make the test even more similar, we also use VALID and NON-EXPIRED but SUPERSEDED cookies
+-- cookies to test sending 2 perfectly valid cookies where one of them simply got overriden due to the revew age
+testNginzMultipleCookies :: Opts.Opts -> Brig -> Nginz -> Http ()
+testNginzMultipleCookies o b n = do
   u <- randomUser b
   let Just email = userEmail u
       dologin :: HasCallStack => Http ResponseLBS
       dologin = login n (defEmailLogin email) PersistentCookie <!! const 200 === statusCode
   unparseableCookie <- (\c -> c {cookie_value = "ThisIsNotAZauthCookie"}) . decodeCookie <$> dologin
-  badCookie1 <- (\c -> c {cookie_value = "SKsjKQbiqxuEugGMWVbq02fNEA7QFdNmTiSa1Y0YMgaEP5tWl3nYHWlIrM5F8Tt7Cfn2Of738C7oeiY8xzPHAA==.v=1.k=1.d=1.t=u.l=.u=13da31b4-c6bb-4561-8fed-07e728fa6cc5.r=f844b420"}) . decodeCookie <$> dologin
+  badCookie1 <- (\c -> c {cookie_value = "SKsjKQbiqxuEugGMWVbq02fNEA7QFdNmTiSa1Y0YMgaEP5tWl3nYHWlIrM5F8Tt7Cfn2Of738C7oeiY8xzPHAB==.v=1.k=1.d=1.t=u.l=.u=13da31b4-c6bb-4561-8fed-07e728fa6cc5.r=f844b420"}) . decodeCookie <$> dologin
   goodCookie <- decodeCookie <$> dologin
-  badCookie2 <- (\c -> c {cookie_value = "SKsjKQbiqxuEugGMWVbq02fNEA7QFdNmTiSa1Y0YMgaEP5tWl3nYHWlIrM5F8Tt7Cfn2Of738C7oeiY8xzPHAA==.v=1.k=1.d=1.t=u.l=.u=13da31b4-c6bb-4561-8fed-07e728fa6cc5.r=f844b420"}) . decodeCookie <$> dologin
+  badCookie2 <- (\c -> c {cookie_value = "SKsjKQbiqxuEugGMWVbq02fNEA7QFdNmTiSa1Y0YMgaEP5tWl3nYHWlIrM5F8Tt7Cfn2Of738C7oeiY8xzPHAC==.v=1.k=1.d=1.t=u.l=.u=13da31b4-c6bb-4561-8fed-07e728fa6cc5.r=f844b420"}) . decodeCookie <$> dologin
 
+  -- Basic sanity checks
   post (n . path "/access" . cookie goodCookie) !!! const 200 === statusCode
   post (n . path "/access" . cookie badCookie1) !!! const 403 === statusCode
   post (n . path "/access" . cookie badCookie2) !!! const 403 === statusCode
-  -- Sending both cookies should always work, regardless of the order
+
+  -- Sending both cookies should always work, regardless of the order (they are ordered by time)
   post (n . path "/access" . cookie badCookie1 . cookie goodCookie . cookie badCookie2) !!! const 200 === statusCode
-  -- Sending a bad cookie and an unparseble one should work too
+  post (n . path "/access" . cookie goodCookie . cookie badCookie1 . cookie badCookie2) !!! const 200 === statusCode
+  post (n . path "/access" . cookie badCookie1 . cookie badCookie2 . cookie goodCookie) !!! const 200 === statusCode -- -- Sending a bad cookie and an unparseble one should work too
   post (n . path "/access" . cookie unparseableCookie . cookie goodCookie) !!! const 200 === statusCode
+  post (n . path "/access" . cookie goodCookie . cookie unparseableCookie) !!! const 200 === statusCode
+
+  -- We want to make sure we are using a cookie that was deleted from the DB but not expired - this way the client
+  -- will still have it in the cookie jar because it did not get overriden
+  (deleted, valid) <- getAndTestDBSupersededCookieAndItsValidSuccessor o b
+  now <- liftIO getCurrentTime
+  liftIO $ assertBool "cookie should not be expired" (cookie_expiry_time deleted > now)
+  post (n . path "/access" . cookie deleted) !!! const 403 === statusCode
+  post (n . path "/access" . cookie valid) !!! const 200 === statusCode
+  post (n . path "/access" . cookie deleted . cookie valid) !!! const 200 === statusCode
+  post (n . path "/access" . cookie valid . cookie deleted) !!! const 200 === statusCode
 
 -------------------------------------------------------------------------------
 -- Login
@@ -624,6 +644,10 @@ testTokenMismatch z brig galley = do
 
 testNewPersistentCookie :: Opts.Opts -> Brig -> Http ()
 testNewPersistentCookie config b = do
+  void $ getAndTestDBSupersededCookieAndItsValidSuccessor config b
+
+getAndTestDBSupersededCookieAndItsValidSuccessor :: Opts.Opts -> Brig -> Http (Http.Cookie, Http.Cookie)
+getAndTestDBSupersededCookieAndItsValidSuccessor config b = do
   u <- randomUser b
   let renewAge = Opts.setUserCookieRenewAge $ Opts.optSettings config
   let minAge = fromIntegral $ renewAge * 1000000 + 1
@@ -671,6 +695,9 @@ testNewPersistentCookie config b = do
   liftIO $ do
     [PersistentCookie] @=? map cookieType _cs
     [Nothing] @=? map cookieSucc _cs
+  -- Return non-expired cookie but removed from DB (because it was renewed)
+  -- and a valid cookie
+  return (c, c')
 
 testNewSessionCookie :: Opts.Opts -> Brig -> Http ()
 testNewSessionCookie config b = do

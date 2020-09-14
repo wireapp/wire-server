@@ -34,9 +34,9 @@ import qualified Brig.ZAuth as ZAuth
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import Data.Either.Combinators (leftToMaybe, rightToMaybe)
+import Data.Id
 import Data.List1 (List1)
 import qualified Data.List1 as List1
-import Data.Id
 import Data.Predicate
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.ZAuth.Token as ZAuth
@@ -360,8 +360,8 @@ cookies k r =
     [] -> Fail . addLabel "cookie" $ notAvailable k
     cc ->
       case mapMaybe fromByteString cc of
-        []     -> (Fail . addLabel "cookie" . typeError k $ "Failed to get zuid cookies")
-        (x:xs) -> return $ List1.list1 x xs
+        [] -> (Fail . addLabel "cookie" . typeError k $ "Failed to get zuid cookies")
+        (x : xs) -> return $ List1.list1 x xs
 
 notAvailable :: ByteString -> P.Error
 notAvailable k = e400 & setReason NotAvailable . setSource k
