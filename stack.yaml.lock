@@ -528,11 +528,11 @@ packages:
     git: https://gitlab.com/axeman/wai-predicates.git
     pantry-tree:
       size: 1585
-      sha256: 64b646102d2a187aa662c00f20071cc8e2574da9240bacbf4710a4928528f0d7
-    commit: dc8813c17645251c050599485cdc2b5874daac30
+      sha256: 8675a538bbbfb171b9d565831f333e443118ea5a70b1be8bffa635cb847d04fa
+    commit: 999d195b27104b9b39174f5ce18f5214b018a177
   original:
     git: https://gitlab.com/axeman/wai-predicates.git
-    commit: dc8813c17645251c050599485cdc2b5874daac30
+    commit: 999d195b27104b9b39174f5ce18f5214b018a177
 - completed:
     hackage: markov-chain-usage-model-0.0.0@sha256:1afa95faeb9213c4d960a669190078b41b89169462b8edd910472980671ba8c0,2112
     pantry-tree:

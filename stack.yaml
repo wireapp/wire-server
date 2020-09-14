@@ -188,7 +188,7 @@ extra-deps:
 - text-format-0.3.2@sha256:2a3fc17cf87120fcfdbca62a0da59759755549285841cdc1483081c35fb3d115,1814
 # - wai-predicates-0.10.0@sha256:6b096fd8c4487e06e910911ed35447756aa217426c39db44a4bdc55e0131b9aa,2849
 - git: https://gitlab.com/axeman/wai-predicates.git
-  commit: dc8813c17645251c050599485cdc2b5874daac30
+  commit: 999d195b27104b9b39174f5ce18f5214b018a177 # ghc-8.8 (Sep 14, 2020, PR: https://gitlab.com/twittner/wai-predicates/-/merge_requests/1)
 - markov-chain-usage-model-0.0.0@sha256:1afa95faeb9213c4d960a669190078b41b89169462b8edd910472980671ba8c0,2112
 
 - hex-0.2.0
