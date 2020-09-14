@@ -195,8 +195,8 @@ extra-deps:
 
 - git: https://gitlab.com/axeman/redis-io.git
   commit: e113fa4de8fcc3665c3c562a05a07f7a1d63b3cc # ghc-8.8 (Aug 24, 2020)
-- git: https://github.com/zoominsoftware/HaskellNet-SSL
-  commit: 5b4f4ab49a6321b57f6dbeba64a7f4bb8ffa5cbc # allow-newer-network, dpwright/HaskellNet-SSL#24  (Aug 24, 2020)
+- git: https://github.com/dpwright/HaskellNet-SSL
+  commit: ca84ef29a93eaef7673fa58056cdd8dae1568d2d # master (Sep 14, 2020)
 
 # Not in the LTS, not using latest on hackage due to breaking change
 - quickcheck-state-machine-0.6.0

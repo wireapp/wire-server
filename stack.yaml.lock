@@ -561,14 +561,14 @@ packages:
 - completed:
     name: HaskellNet-SSL
     version: 0.3.4.2
-    git: https://github.com/zoominsoftware/HaskellNet-SSL
+    git: https://github.com/dpwright/HaskellNet-SSL
     pantry-tree:
       size: 786
       sha256: c6a64c9e64bc834842756be28eaac2d842f0dde3753542bfa0cfd87ae5cf0bc5
-    commit: 5b4f4ab49a6321b57f6dbeba64a7f4bb8ffa5cbc
+    commit: ca84ef29a93eaef7673fa58056cdd8dae1568d2d
   original:
-    git: https://github.com/zoominsoftware/HaskellNet-SSL
-    commit: 5b4f4ab49a6321b57f6dbeba64a7f4bb8ffa5cbc
+    git: https://github.com/dpwright/HaskellNet-SSL
+    commit: ca84ef29a93eaef7673fa58056cdd8dae1568d2d
 - completed:
     hackage: quickcheck-state-machine-0.6.0@sha256:3e4f8df0f6b5d415e3c8840dc75034a63e37f56f5f8cfa1035ded16345235ac4,3825
     pantry-tree:
