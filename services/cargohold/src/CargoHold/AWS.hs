@@ -129,8 +129,17 @@ mkEnv lgr s3End s3Download bucket cfOpts mgr = do
         <&> AWS.configure s3
     awsLogger g l = Logger.log g (mapLevel l) . Log.msg . toLazyByteString
     mapLevel AWS.Info = Logger.Info
+    -- Debug output from amazonka can be very useful for tracing requests
+    -- but is very verbose (and multiline which we don't handle well)
+    -- distracting from our own debug logs, so we map amazonka's 'Debug'
+    -- level to our 'Trace' level.
     mapLevel AWS.Debug = Logger.Trace
     mapLevel AWS.Trace = Logger.Trace
+    -- n.b. Errors are either returned or thrown. In both cases they will
+    -- already be logged if left unhandled. We don't want errors to be
+    -- logged inside amazonka already, before we even had a chance to handle
+    -- them, which results in distracting noise. For debugging purposes,
+    -- they are still revealed on debug level.
     mapLevel AWS.Error = Logger.Debug
 
 execute :: MonadIO m => Env -> Amazon a -> m a
