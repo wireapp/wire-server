@@ -1,9 +1,7 @@
 # Requires docker >= 17.05 (requires support for multi-stage builds)
-
-ARG prebuilder_tag=latest
 ARG prebuilder=quay.io/wire/alpine-prebuilder
 
-FROM ${prebuilder}:${prebuilder_tag}
+FROM ${prebuilder}
 WORKDIR /
 
 # Download stack indices and compile/cache dependencies to speed up subsequent
