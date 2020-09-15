@@ -22,6 +22,7 @@ where
 
 import Imports
 import qualified Test.Brig.Calling
+import qualified Test.Brig.Aws
 import qualified Test.Brig.Calling.Internal
 import qualified Test.Brig.User.Search.Index.Types
 import Test.Tasty
@@ -33,5 +34,6 @@ main =
       "Tests"
       [ Test.Brig.User.Search.Index.Types.tests,
         Test.Brig.Calling.tests,
-        Test.Brig.Calling.Internal.tests
+        Test.Brig.Calling.Internal.tests,
+        Test.Brig.Aws.tests
       ]
