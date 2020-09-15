@@ -238,7 +238,7 @@ testNginzMultipleCookies o b n = do
 
   -- We want to make sure we are using a cookie that was deleted from the DB but not expired - this way the client
   -- will still have it in the cookie jar because it did not get overriden
-  (deleted, valid) <- getAndTestDBSupersededCookieAndItsValidSuccessor o b
+  (deleted, valid) <- getAndTestDBSupersededCookieAndItsValidSuccessor o b n
   now <- liftIO getCurrentTime
   liftIO $ assertBool "cookie should not be expired" (cookie_expiry_time deleted > now)
   liftIO $ assertBool "cookie should not be expired" (cookie_expiry_time valid > now)
@@ -643,25 +643,28 @@ testTokenMismatch z brig galley = do
     const 403 === statusCode
     const (Just "Token mismatch") =~= responseBody
 
+-- | We are a little bit nasty on this test. For most cases, one can use brig and nginz interchangeably.
+--   In this case, the issue relates to the usage of `getAndTestDBSupersededCookieAndItsValidSuccessor`.
+--   That function can be refactored though to make this more clear
 testNewPersistentCookie :: Opts.Opts -> Brig -> Http ()
-testNewPersistentCookie config b = do
-  void $ getAndTestDBSupersededCookieAndItsValidSuccessor config b
+testNewPersistentCookie config b =
+  void $ getAndTestDBSupersededCookieAndItsValidSuccessor config b b
 
-getAndTestDBSupersededCookieAndItsValidSuccessor :: Opts.Opts -> Brig -> Http (Http.Cookie, Http.Cookie)
-getAndTestDBSupersededCookieAndItsValidSuccessor config b = do
+getAndTestDBSupersededCookieAndItsValidSuccessor :: Opts.Opts -> Brig -> Nginz -> Http (Http.Cookie, Http.Cookie)
+getAndTestDBSupersededCookieAndItsValidSuccessor config b n = do
   u <- randomUser b
   let renewAge = Opts.setUserCookieRenewAge $ Opts.optSettings config
   let minAge = fromIntegral $ renewAge * 1000000 + 1
       Just email = userEmail u
   _rs <-
-    login b (emailLogin email defPassword (Just "nexus1")) PersistentCookie
+    login n (emailLogin email defPassword (Just "nexus1")) PersistentCookie
       <!! const 200 === statusCode
   let c = decodeCookie _rs
   -- Wait for the cookie to be eligible for renewal
   liftIO $ threadDelay minAge
   -- Refresh tokens
   _rs <-
-    post (b . path "/access" . cookie c) <!! do
+    post (n . path "/access" . cookie c) <!! do
       const 200 === statusCode
       const Nothing =/= getHeader "Set-Cookie"
       const (Just "access_token") =~= responseBody
@@ -671,7 +674,7 @@ getAndTestDBSupersededCookieAndItsValidSuccessor config b = do
   -- duration of another BRIG_COOKIE_RENEW_AGE seconds,
   -- but the response should keep advertising the new cookie.
   _rs <-
-    post (b . path "/access" . cookie c) <!! do
+    post (n . path "/access" . cookie c) <!! do
       const 200 === statusCode
       const Nothing =/= getHeader "Set-Cookie"
       const (Just "access_token") =~= responseBody
@@ -679,7 +682,7 @@ getAndTestDBSupersededCookieAndItsValidSuccessor config b = do
   liftIO $ assertBool "cookie" (c' `equivCookie` decodeCookie _rs)
   -- Refresh with the new cookie should succeed
   -- (without advertising yet another new cookie).
-  post (b . path "/access" . cookie c') !!! do
+  post (n . path "/access" . cookie c') !!! do
     const 200 === statusCode
     const Nothing === getHeader "Set-Cookie"
     const (Just "access_token") =~= responseBody
