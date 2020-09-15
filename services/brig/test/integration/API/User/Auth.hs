@@ -241,6 +241,7 @@ testNginzMultipleCookies o b n = do
   (deleted, valid) <- getAndTestDBSupersededCookieAndItsValidSuccessor o b
   now <- liftIO getCurrentTime
   liftIO $ assertBool "cookie should not be expired" (cookie_expiry_time deleted > now)
+  liftIO $ assertBool "cookie should not be expired" (cookie_expiry_time valid > now)
   post (n . path "/access" . cookie deleted) !!! const 403 === statusCode
   post (n . path "/access" . cookie valid) !!! const 200 === statusCode
   post (n . path "/access" . cookie deleted . cookie valid) !!! const 200 === statusCode
