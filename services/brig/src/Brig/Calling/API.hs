@@ -1,3 +1,5 @@
+{-# LANGUAGE BlockArguments #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -40,7 +42,7 @@ import Data.Text.Strict.Lens
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Imports hiding (head)
 import Network.Wai (Response)
-import Network.Wai.Predicate hiding ((#), and, result, setStatus)
+import Network.Wai.Predicate hiding (and, result, setStatus, (#))
 import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
@@ -122,25 +124,28 @@ newConfig env mSftEnv limit = do
   srvs <- for finalUris $ \uri -> do
     u <- liftIO $ genUsername tTTL prng
     pure $ Public.rtcIceServer (uri :| []) u (computeCred sha secret u)
-  sftSrvEntries <- maybe (pure Nothing) (fmap discoveryToMaybe . readIORef . sftServers) mSftEnv
-  -- According to RFC2782, the SRV Entries are supposed to be tried in order of
-  -- priority and weight, but we internally agreed to randomize the list of
-  -- available servers for poor man's "load balancing" purposes.
-  -- FUTUREWORK: be smarter about list orderding depending on how much capacity SFT servers have.
-  randomizedSftEntries <- liftIO $ mapM randomize sftSrvEntries
+  sftEntries <- case mSftEnv of
+    Nothing -> pure Nothing
+    Just actualSftEnv -> do
+      sftSrvEntries <- fmap discoveryToMaybe . readIORef . sftServers $ actualSftEnv
+      -- According to RFC2782, the SRV Entries are supposed to be tried in order of
+      -- priority and weight, but we internally agreed to randomize the list of
+      -- available servers for poor man's "load balancing" purposes.
+      -- FUTUREWORK: be smarter about list orderding depending on how much capacity SFT servers have.
+      randomizedSftEntries <- liftIO $ mapM randomize sftSrvEntries
 
-  -- Currently (Sept 2020) the client initiating an SFT call will try all servers
-  -- in this list. Limit this list to a smaller subset (here: 6) in case many SFT
-  -- servers are advertised in a given environment.
-  let subsetLength = Calling.sftListLength <$> mSftEnv
-  let subsetSftEntries = subsetSft subsetLength <$> randomizedSftEntries
+      -- Currently (Sept 2020) the client initiating an SFT call will try all servers
+      -- in this list. Limit this list to a smaller subset (here: 6) in case many SFT
+      -- servers are advertised in a given environment.
+      let subsetLength = Calling.sftListLength actualSftEnv
+      return $ subsetSft subsetLength <$> randomizedSftEntries
 
-  pure $ Public.rtcConfiguration srvs (sftServerFromSrvTarget . srvTarget <$$> subsetSftEntries) cTTL
+  pure $ Public.rtcConfiguration srvs (sftServerFromSrvTarget . srvTarget <$$> sftEntries) cTTL
   where
-    subsetSft :: Int -> NonEmpty a -> NonEmpty a
+    subsetSft :: Range 1 100 Int -> NonEmpty a -> NonEmpty a
     subsetSft l entries = do
       let entry1 = NonEmpty.head entries
-      let entryTail = take (l - 1) (NonEmpty.tail entries)
+      let entryTail = take (fromRange l - 1) (NonEmpty.tail entries)
       entry1 :| entryTail
 
     -- NOTE: even though `shuffleM` works only for [a], input is List1 so it's

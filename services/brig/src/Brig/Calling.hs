@@ -19,9 +19,10 @@
 
 module Brig.Calling where
 
-import Brig.Options (SFTOptions (..), defSftDiscoveryIntervalSeconds, defSftServiceName, defSftListLength)
+import Brig.Options (SFTOptions (..), defSftDiscoveryIntervalSeconds, defSftListLength, defSftServiceName)
 import qualified Brig.Options as Opts
 import Brig.PolyLog
+import Data.Range
 import Brig.Types (TurnURI)
 import Control.Lens
 import Data.List.NonEmpty
@@ -46,7 +47,7 @@ data SFTEnv = SFTEnv
     sftDiscoveryInterval :: Int,
     -- | maximum amount of servers to give out,
     -- even if more are in the SRV record
-    sftListLength :: Int
+    sftListLength :: Range 1 100 Int
   }
 
 data Discovery a

@@ -33,11 +33,12 @@ import Data.Aeson.Types (typeMismatch)
 import qualified Data.Char as Char
 import Data.Domain (Domain)
 import Data.Id
+import Data.Range
 import Data.Scientific (toBoundedInteger)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Time.Clock (DiffTime, NominalDiffTime, secondsToDiffTime)
-import Data.Yaml (FromJSON (..), ToJSON (..), (.:), (.:?))
+import Data.Yaml ((.:), (.:?), FromJSON (..), ToJSON (..))
 import qualified Data.Yaml as Y
 import Imports
 import qualified Network.DNS as DNS
@@ -525,7 +526,7 @@ data SFTOptions = SFTOptions
   { sftBaseDomain :: !DNS.Domain,
     sftSRVServiceName :: !(Maybe ByteString), -- defaults to defSftServiceName if unset
     sftDiscoveryIntervalSeconds :: !(Maybe DiffTime), -- defaults to defSftDiscoveryIntervalSeconds
-    sftListLength :: !(Maybe Int) -- defaults to defSftListLength
+    sftListLength :: !(Maybe (Range 1 100 Int)) -- defaults to defSftListLength
   }
   deriving (Show, Generic)
 
@@ -564,17 +565,17 @@ defSftServiceName = "_sft"
 defSftDiscoveryIntervalSeconds :: DiffTime
 defSftDiscoveryIntervalSeconds = secondsToDiffTime 10
 
-defSftListLength :: Int
-defSftListLength = 5
+defSftListLength :: Range 1 100 Int
+defSftListLength = unsafeRange 5
 
 instance FromJSON Timeout where
   parseJSON (Y.Number n) =
     let defaultV = 3600
         bounded = toBoundedInteger n :: Maybe Int64
-     in pure $
-          Timeout $
-            fromIntegral @Int $
-              maybe defaultV fromIntegral bounded
+     in pure
+          $ Timeout
+          $ fromIntegral @Int
+          $ maybe defaultV fromIntegral bounded
   parseJSON v = typeMismatch "activationTimeout" v
 
 instance FromJSON Settings
