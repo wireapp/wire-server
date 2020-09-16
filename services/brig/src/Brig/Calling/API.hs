@@ -134,9 +134,9 @@ newConfig env mSftEnv limit = do
       -- FUTUREWORK: be smarter about list orderding depending on how much capacity SFT servers have.
       randomizedSftEntries <- liftIO $ mapM randomize sftSrvEntries
 
-      -- Currently (Sept 2020) the client initiating an SFT call will try all servers
-      -- in this list. Limit this list to a smaller subset (here: 6) in case many SFT
-      -- servers are advertised in a given environment.
+      -- Currently (Sept 2020) the client initiating an SFT call will try all
+      -- servers in this list. Limit this list to a smaller subset in case many
+      -- SFT servers are advertised in a given environment.
       let subsetLength = Calling.sftListLength actualSftEnv
       return $ subsetSft subsetLength <$> randomizedSftEntries
 
