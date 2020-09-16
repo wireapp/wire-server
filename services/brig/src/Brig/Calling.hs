@@ -19,7 +19,7 @@
 
 module Brig.Calling where
 
-import Brig.Options (SFTOptions (..), defSftDiscoveryIntervalSeconds, defSftServiceName)
+import Brig.Options (SFTOptions (..), defSftDiscoveryIntervalSeconds, defSftServiceName, defSftListLength)
 import qualified Brig.Options as Opts
 import Brig.PolyLog
 import Brig.Types (TurnURI)
@@ -43,7 +43,10 @@ data SFTEnv = SFTEnv
     sftServers :: IORef (Discovery (NonEmpty SrvEntry)),
     sftDomain :: DNS.Domain,
     -- | Microseconds, as expected by 'threadDelay'
-    sftDiscoveryInterval :: Int
+    sftDiscoveryInterval :: Int,
+    -- | maximum amount of servers to give out,
+    -- even if more are in the SRV record
+    sftListLength :: Int
   }
 
 data Discovery a
@@ -86,6 +89,7 @@ mkSFTEnv opts =
     <$> newIORef NotDiscoveredYet
     <*> pure (mkSFTDomain opts)
     <*> pure (diffTimeToMicroseconds (fromMaybe defSftDiscoveryIntervalSeconds (Opts.sftDiscoveryIntervalSeconds opts)))
+    <*> pure (fromMaybe defSftListLength (Opts.sftListLength opts))
 
 startSFTServiceDiscovery :: Log.Logger -> SFTEnv -> IO ()
 startSFTServiceDiscovery logger =

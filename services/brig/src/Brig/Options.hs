@@ -524,7 +524,8 @@ newtype DomainsBlockedForRegistration = DomainsBlockedForRegistration [Domain]
 data SFTOptions = SFTOptions
   { sftBaseDomain :: !DNS.Domain,
     sftSRVServiceName :: !(Maybe ByteString), -- defaults to defSftServiceName if unset
-    sftDiscoveryIntervalSeconds :: !(Maybe DiffTime) -- defaults to defSftDiscoveryIntervalSeconds
+    sftDiscoveryIntervalSeconds :: !(Maybe DiffTime), -- defaults to defSftDiscoveryIntervalSeconds
+    sftListLength :: !(Maybe Int) -- defaults to defSftListLength
   }
   deriving (Show, Generic)
 
@@ -534,6 +535,7 @@ instance FromJSON SFTOptions where
       <$> (asciiOnly =<< o .: "sftBaseDomain")
       <*> (mapM asciiOnly =<< o .:? "sftSRVServiceName")
       <*> (secondsToDiffTime <$$> o .:? "sftDiscoveryIntervalSeconds")
+      <*> (o .:? "sftListLength")
     where
       asciiOnly :: Text -> Y.Parser ByteString
       asciiOnly t =
@@ -561,6 +563,9 @@ defSftServiceName = "_sft"
 
 defSftDiscoveryIntervalSeconds :: DiffTime
 defSftDiscoveryIntervalSeconds = secondsToDiffTime 10
+
+defSftListLength :: Int
+defSftListLength = 5
 
 instance FromJSON Timeout where
   parseJSON (Y.Number n) =

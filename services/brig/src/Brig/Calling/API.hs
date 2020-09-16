@@ -132,14 +132,15 @@ newConfig env mSftEnv limit = do
   -- Currently (Sept 2020) the client initiating an SFT call will try all servers
   -- in this list. Limit this list to a smaller subset (here: 6) in case many SFT
   -- servers are advertised in a given environment.
-  let subsetSftEntries = subsetSft <$> randomizedSftEntries
+  let subsetLength = Calling.sftListLength <$> mSftEnv
+  let subsetSftEntries = subsetSft subsetLength <$> randomizedSftEntries
 
   pure $ Public.rtcConfiguration srvs (sftServerFromSrvTarget . srvTarget <$$> subsetSftEntries) cTTL
   where
-    subsetSft :: NonEmpty a -> NonEmpty a
-    subsetSft entries = do
+    subsetSft :: Int -> NonEmpty a -> NonEmpty a
+    subsetSft l entries = do
       let entry1 = NonEmpty.head entries
-      let entryTail = take 5 (NonEmpty.tail entries)
+      let entryTail = take (l - 1) (NonEmpty.tail entries)
       entry1 :| entryTail
 
     -- NOTE: even though `shuffleM` works only for [a], input is List1 so it's
