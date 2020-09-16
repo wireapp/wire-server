@@ -40,7 +40,7 @@ import Data.Text.Strict.Lens
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Imports hiding (head)
 import Network.Wai (Response)
-import Network.Wai.Predicate hiding (and, result, setStatus, (#))
+import Network.Wai.Predicate hiding ((#), and, result, setStatus)
 import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
@@ -122,14 +122,26 @@ newConfig env mSftEnv limit = do
   srvs <- for finalUris $ \uri -> do
     u <- liftIO $ genUsername tTTL prng
     pure $ Public.rtcIceServer (uri :| []) u (computeCred sha secret u)
-  sftSrvEntries <- maybe (pure Nothing) ((fmap discoveryToMaybe) . readIORef . sftServers) mSftEnv
+  sftSrvEntries <- maybe (pure Nothing) (fmap discoveryToMaybe . readIORef . sftServers) mSftEnv
   -- According to RFC2782, the SRV Entries are supposed to be tried in order of
   -- priority and weight, but we internally agreed to randomize the list of
   -- available servers for poor man's "load balancing" purposes.
   -- FUTUREWORK: be smarter about list orderding depending on how much capacity SFT servers have.
   randomizedSftEntries <- liftIO $ mapM randomize sftSrvEntries
-  pure $ Public.rtcConfiguration srvs (sftServerFromSrvTarget . srvTarget <$$> randomizedSftEntries) cTTL
+
+  -- Currently (Sept 2020) the client initiating an SFT call will try all servers
+  -- in this list. Limit this list to a smaller subset (here: 6) in case many SFT
+  -- servers are advertised in a given environment.
+  let subsetSftEntries = subsetSft <$> randomizedSftEntries
+
+  pure $ Public.rtcConfiguration srvs (sftServerFromSrvTarget . srvTarget <$$> subsetSftEntries) cTTL
   where
+    subsetSft :: NonEmpty a -> NonEmpty a
+    subsetSft entries = do
+      let entry1 = NonEmpty.head entries
+      let entryTail = take 5 (NonEmpty.tail entries)
+      entry1 :| entryTail
+
     -- NOTE: even though `shuffleM` works only for [a], input is List1 so it's
     --       safe to pattern match; ideally, we'd have `shuffleM` for `NonEmpty`
     randomize :: (MonadRandom m, MonadFail m) => NonEmpty a -> m (NonEmpty a)
