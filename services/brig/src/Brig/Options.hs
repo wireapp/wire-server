@@ -410,8 +410,6 @@ data Settings = Settings
     setUserMaxConnections :: !Int64,
     -- | Max. number of permanent clients per user
     setUserMaxPermClients :: !(Maybe Int),
-    -- | The domain to restrict cookies to
-    setCookieDomain :: !Text,
     -- | Whether to allow plain HTTP transmission
     --   of cookies (for testing purposes only)
     setCookieInsecure :: !Bool,
