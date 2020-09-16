@@ -102,12 +102,6 @@ tests:
     ghc-options:
     - -threaded
     - -with-rtsopts=-N
-    - -fsimpl-tick-factor=250 # Without this GHC's simplifier fails as it runs
-                              # out of time while compiling
-                              # 'Test.Bonanza.Arbitrary'. While compiling this
-                              # module GHC takes up quite a lot of RAM (about
-                              # 8GB). Looks like a GHC bug. To be further
-                              # investigated.
     dependencies:
     - aeson
     - attoparsec
