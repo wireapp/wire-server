@@ -1,4 +1,4 @@
-resolver: lts-16.7
+resolver: lts-16.14
 
 packages:
 - libs/api-bot

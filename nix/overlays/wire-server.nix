@@ -5,14 +5,15 @@ self: super: {
       rustPlatform.buildRustPackage rec {
         name = "cryptobox-c-${version}";
         version = "2019-06-17";
-        buildInputs = [ pkgconfig libsodium ];
+        nativeBuildInputs = [ pkgconfig ];
+        buildInputs = [ libsodium ];
         src = fetchFromGitHub {
           owner = "wireapp";
           repo = "cryptobox-c";
           rev = "4067ad96b125942545dbdec8c1a89f1e1b65d013";
           sha256 = "1i9dlhw0xk1viglyhail9fb36v1awrypps8jmhrkz8k1bhx98ci3";
         };
-        cargoSha256 = "0m85c49hvvxxv7jdipfcaydy4n8iw4h6myzv63v7qc0fxnp1vfm8";
+        cargoSha256 = "0zs8ibv7rinrrzp9naxd7yak7kn1gp3pjb3g8i4wf7xw2hkkq81z";
         postInstall = ''
           mkdir -p $out/include
           cp src/cbox.h $out/include
@@ -25,11 +26,12 @@ self: super: {
       rustPlatform.buildRustPackage rec {
         name = "libzauth-${version}";
         version = "3.0.0";
-        buildInputs = [ libsodium pkgconfig ];
+        nativeBuildInputs = [ pkgconfig ];
+        buildInputs = [ libsodium ];
         src = self.nix-gitignore.gitignoreSourcePure [ ../../.gitignore ] ../../libs/libzauth;
         sourceRoot = "libzauth/libzauth-c";
 
-        cargoSha256 = "01yj1rchqmjnpj5cb9wl7vdzrycjwjhm60xh1jghw02n8jhl51p2"; # self.lib.fakeSha256;
+        cargoSha256 = "10ijvi3rnnqpy589hhhp8s4p7xfpsbb1c3mzqnf65ra96q4nd6bf"; # self.lib.fakeSha256;
         postInstall = ''
           mkdir -p $out/lib/pkgconfig
           mkdir -p $out/include
@@ -37,7 +39,7 @@ self: super: {
           sed -e "s~<<VERSION>>~${version}~" \
             -e "s~<<PREFIX>>~$out~" \
             src/libzauth.pc > $out/lib/pkgconfig/libzauth.pc
-          cp target/release/libzauth.so $out/lib/
+          cp target/release-tmp/libzauth.so $out/lib/
         '';
       }
   ) {};
