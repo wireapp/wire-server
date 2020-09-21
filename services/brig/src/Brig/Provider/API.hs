@@ -64,7 +64,7 @@ import Data.Id
 import qualified Data.List as List
 import Data.List1 (maybeList1)
 import qualified Data.Map.Strict as Map
-import Data.Misc (Fingerprint (..), Rsa, (<$$>))
+import Data.Misc (Fingerprint (..), Rsa)
 import Data.Predicate
 import Data.Range
 import qualified Data.Set as Set

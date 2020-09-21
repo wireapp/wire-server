@@ -68,7 +68,7 @@ import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle, fromHandle))
 import Data.Id (Id (Id), TeamId, UserId)
 import Data.Ix
-import Data.Misc (PlainTextPassword, (<$$>))
+import Data.Misc (PlainTextPassword)
 import Data.String.Conversions
 import Data.String.Conversions (cs)
 import Imports

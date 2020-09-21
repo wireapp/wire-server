@@ -54,7 +54,6 @@ import qualified Data.Aeson as Aeson
 import Data.Handle (Handle (Handle), parseHandle)
 import Data.Id (Id (Id), TeamId, UserId, idToText)
 import Data.Json.Util (UTCTimeMillis, fromUTCTimeMillis, toUTCTimeMillis)
-import Data.Misc ((<$$>))
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Data.UUID.V4 as UUID
