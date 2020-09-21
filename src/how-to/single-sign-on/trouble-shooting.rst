@@ -1,3 +1,5 @@
+.. _trouble-shooting-faq:
+
 Trouble shooting & FAQ
 ======================
 
@@ -137,3 +139,36 @@ minimal example that still works, we'd be love to take a look.
         </saml:AuthnContext>
       </saml:AuthnStatement>
     </saml:Assertion>
+
+
+Why does the auth response not contain a reference to an auth request?  (Also: can i use IdP-initiated login?)
+-----------------------------------------------------------------------------------------------------------------
+
+tl;dr: Wire only supports SP-initiated login, where the user selects
+the auth method from inside the app's login screen.  It does not
+support IdP-initiated login, where the user enters the app from a list
+of applications in the IdP UI.
+
+The full story
+^^^^^^^^^^^^^^
+
+SAML authentication can be initiated by the IdP (eg., Okta or Azure),
+or by the SP (Wire).
+
+A user doing IdP-initiated authentication starts from some dashboard
+in her IdP portal, and selects a button or link to the SP she wants to
+interact with.  The IdP will then refer the user to the SP with the
+SAML credentials in the redirect request.  The user needs to do
+nothing but wait for the App to start.
+
+In SP-initiated authentication, the user starts off on the login
+screen of the app or web site of the SP.  She selects the IdP she
+wants to authenticate with, and gets redirected there with an
+authentication request.
+
+That last part is important: the authentication request contains
+cryptographic credentials that make some attacks (like
+machine-in-the-middle attacks for stealing sessions and making users
+impersonate rogue accounts) hard that were otherwise quite feasible.
+
+Wire therefore only supports SP-initiated login.

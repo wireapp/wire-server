@@ -440,7 +440,12 @@ Single Sign-On
 
 Users that are part of a team, for which a team admin has configured SSO (Single Sign On), authentication can happen through SAML.
 
-TODO: Link to, or write SSO documentation
+More information:
+
+* `FAQ <https://docs.wire.com/how-to/single-sign-on/trouble-shooting.html>`__
+* `setup howtos for various IdP vendors <https://docs.wire.com/how-to/single-sign-on/index.html>`__
+* `a few fragments that may help admins <https://github.com/wireapp/wire-server/blob/develop/docs/reference/spar-braindump.md>`__
+
 
 LegalHold
 ~~~~~~~~~~
