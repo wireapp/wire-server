@@ -1,4 +1,4 @@
-.. _ntp-check:
+.. _logrotation-check:
 
 Logs and Data Protection checks
 ===============================
