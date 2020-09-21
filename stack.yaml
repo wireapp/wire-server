@@ -194,7 +194,7 @@ extra-deps:
 - hex-0.2.0
 
 - git: https://gitlab.com/axeman/redis-io.git
-  commit: e113fa4de8fcc3665c3c562a05a07f7a1d63b3cc # ghc-8.8 (Aug 24, 2020)
+  commit: a0f39b1c517df21ad284ff91ecb062cbe41a4ad1 # ghc-8.8 (Sep 21 , 2020, https://gitlab.com/twittner/redis-io/-/merge_requests/5)
 - git: https://github.com/dpwright/HaskellNet-SSL
   commit: ca84ef29a93eaef7673fa58056cdd8dae1568d2d # master (Sep 14, 2020)
 

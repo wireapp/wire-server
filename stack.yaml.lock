@@ -553,11 +553,11 @@ packages:
     git: https://gitlab.com/axeman/redis-io.git
     pantry-tree:
       size: 912
-      sha256: cab38ce5d67d9089342f001b9abf874d7065e5f45aac82aa02b6c01e7b61a248
-    commit: e113fa4de8fcc3665c3c562a05a07f7a1d63b3cc
+      sha256: 3e8093b581c621df7ecbf2f6f79686afdea8bfeb56f0e546fff1e9d86de3bf80
+    commit: a0f39b1c517df21ad284ff91ecb062cbe41a4ad1
   original:
     git: https://gitlab.com/axeman/redis-io.git
-    commit: e113fa4de8fcc3665c3c562a05a07f7a1d63b3cc
+    commit: a0f39b1c517df21ad284ff91ecb062cbe41a4ad1
 - completed:
     name: HaskellNet-SSL
     version: 0.3.4.2
