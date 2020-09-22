@@ -33,7 +33,6 @@ module Gundeck.Types.Push.V2
     pushNativeIncludeOrigin,
     pushNativeEncrypt,
     pushNativeAps,
-    pushNativePriority,
     pushPayload,
     singletonRecipient,
     singletonPayload,
@@ -54,9 +53,6 @@ module Gundeck.Types.Push.V2
     apsSound,
     apsPreference,
     apsBadge,
-
-    -- * Priority (re-export)
-    Priority (..),
 
     -- * PushToken (re-export)
     PushTokenList (..),
@@ -84,7 +80,6 @@ import Data.Range
 import qualified Data.Range as Range
 import qualified Data.Set as Set
 import Imports
-import Wire.API.Message (Priority (..))
 import Wire.API.Push.V2.Token
 
 -----------------------------------------------------------------------------
@@ -257,8 +252,6 @@ data Push = Push
     _pushNativeEncrypt :: !Bool,
     -- | APNs-specific metadata.  REFACTOR: can this be removed?
     _pushNativeAps :: !(Maybe ApsData),
-    -- | Native push priority.
-    _pushNativePriority :: !Priority,
     -- | Opaque payload
     _pushPayload :: !(List1 Object)
   }
@@ -277,7 +270,6 @@ newPush from to pload =
       _pushNativeIncludeOrigin = True,
       _pushNativeEncrypt = True,
       _pushNativeAps = Nothing,
-      _pushNativePriority = HighPriority,
       _pushPayload = pload
     }
 
@@ -297,7 +289,6 @@ instance FromJSON Push where
       <*> p .:? "native_include_origin" .!= True
       <*> p .:? "native_encrypt" .!= True
       <*> p .:? "native_aps"
-      <*> p .:? "native_priority" .!= HighPriority
       <*> p .: "payload"
 
 instance ToJSON Push where
@@ -311,7 +302,6 @@ instance ToJSON Push where
         # "native_include_origin" .= ifNot (== True) (_pushNativeIncludeOrigin p)
         # "native_encrypt" .= ifNot (== True) (_pushNativeEncrypt p)
         # "native_aps" .= _pushNativeAps p
-        # "native_priority" .= ifNot (== HighPriority) (_pushNativePriority p)
         # "payload" .= _pushPayload p
         # []
     where

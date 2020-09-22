@@ -627,7 +627,7 @@ postOtrBroadcast zusr zcon val message =
 -- in the filter query than fits the url length limit.  for details, see
 -- https://github.com/zinfra/backend-issues/issues/1248
 allowOtrFilterMissingInBody :: OtrFilterMissing -> NewOtrMessage -> OtrFilterMissing
-allowOtrFilterMissingInBody val (NewOtrMessage _ _ _ _ _ _ mrepmiss) = case mrepmiss of
+allowOtrFilterMissingInBody val (NewOtrMessage _ _ _ _ _ mrepmiss) = case mrepmiss of
   Nothing -> val
   Just uids -> OtrReportMissing $ Set.fromList uids
 
@@ -690,7 +690,6 @@ newMessage usr con cnv msg now (m, c, t) ~(toBots, toUsers) =
           let p =
                 newPush ListComplete (evtFrom e) (ConvEvent e) [r]
                   <&> set pushConn con
-                    . set pushNativePriority (newOtrNativePriority msg)
                     . set pushRoute (bool RouteDirect RouteAny (newOtrNativePush msg))
                     . set pushTransient (newOtrTransient msg)
            in (toBots, p : toUsers)

@@ -31,7 +31,6 @@ module Galley.Intra.Push
     pushConn,
     pushTransient,
     pushRoute,
-    pushNativePriority,
     pushAsync,
 
     -- * Push Recipients
@@ -43,14 +42,13 @@ module Galley.Intra.Push
 
     -- * Re-Exports
     Gundeck.Route (..),
-    Gundeck.Priority (..),
   )
 where
 
 import Bilge hiding (options)
 import Bilge.RPC
 import Bilge.Retry
-import Control.Lens (makeLenses, set, view, (&), (.~), (^.))
+import Control.Lens (makeLenses, view, (&), (.~), (^.))
 import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson (Object)
@@ -109,7 +107,6 @@ data PushTo user = Push
   { _pushConn :: Maybe ConnId,
     _pushTransient :: Bool,
     _pushRoute :: Gundeck.Route,
-    _pushNativePriority :: Maybe Gundeck.Priority,
     _pushAsync :: Bool,
     pushOrigin :: UserId,
     pushRecipients :: List1 (RecipientBy user),
@@ -126,7 +123,6 @@ newPush1 recipientListType from e rr =
     { _pushConn = Nothing,
       _pushTransient = False,
       _pushRoute = Gundeck.RouteAny,
-      _pushNativePriority = Nothing,
       _pushAsync = False,
       pushRecipientListType = recipientListType,
       pushJson = pushEventJson e,
@@ -201,7 +197,6 @@ pushLocal ps = do
        in Gundeck.newPush (pushOrigin p) (unsafeRange (Set.fromList r)) pload
             & Gundeck.pushOriginConnection .~ _pushConn p
             & Gundeck.pushTransient .~ _pushTransient p
-            & maybe id (set Gundeck.pushNativePriority) (_pushNativePriority p)
     toRecipient p r =
       Gundeck.recipient (_recipientUserId r) (_pushRoute p)
         & Gundeck.recipientClients .~ _recipientClients r

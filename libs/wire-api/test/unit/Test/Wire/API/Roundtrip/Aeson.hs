@@ -141,7 +141,6 @@ tests =
       testRoundTrip @Event.Conversation.OtrMessage,
       currentlyFailing (testRoundTrip @Event.Team.Event), -- flaky, fails because of TeamUpdateData
       testRoundTrip @Event.Team.EventType,
-      testRoundTrip @Message.Priority,
       testRoundTrip @Message.OtrRecipients,
       testRoundTrip @Message.NewOtrMessage,
       currentlyFailing (testRoundTrip @Message.ClientMismatch), -- because ToJSON is rounding UTCTime

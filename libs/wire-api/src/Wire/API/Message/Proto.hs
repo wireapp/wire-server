@@ -37,15 +37,11 @@ module Wire.API.Message.Proto
     userEntryClients,
     toOtrRecipients,
     fromOtrRecipients,
-    Priority (..),
-    toPriority,
-    fromPriority,
     NewOtrMessage,
     newOtrMessage,
     newOtrMessageSender,
     newOtrMessageRecipients,
     newOtrMessageNativePush,
-    newOtrMessageNativePriority,
     newOtrMessageData,
     newOtrMessageTransient,
     newOtrMessageReportMissing,
@@ -189,36 +185,6 @@ fromOtrRecipients rcps =
     mkClientEntry (clt, t) = clientEntry (fromClientId clt) (fromBase64Text t)
 
 --------------------------------------------------------------------------------
--- Priority
-
-data Priority = LowPriority | HighPriority
-  deriving stock (Eq, Show, Ord, Generic)
-
-instance Encode Priority
-
-instance Decode Priority
-
-instance Enum Priority where
-  toEnum 1 = LowPriority
-  toEnum 2 = HighPriority
-  toEnum x = error $ "Wire.API.Message.Proto.Priority: invalid enum value: " ++ show x
-
-  fromEnum LowPriority = 1
-  fromEnum HighPriority = 2
-
-instance Bounded Priority where
-  minBound = LowPriority
-  maxBound = HighPriority
-
-toPriority :: Priority -> Msg.Priority
-toPriority LowPriority = Msg.LowPriority
-toPriority HighPriority = Msg.HighPriority
-
-fromPriority :: Msg.Priority -> Priority
-fromPriority Msg.LowPriority = LowPriority
-fromPriority Msg.HighPriority = HighPriority
-
---------------------------------------------------------------------------------
 -- NewOtrMessage
 
 data NewOtrMessage = NewOtrMessage
@@ -226,7 +192,7 @@ data NewOtrMessage = NewOtrMessage
     _newOtrRecipients :: Repeated 2 (Message UserEntry),
     _newOtrNativePush :: Optional 3 (Value Bool),
     _newOtrData :: Optional 4 (Value ByteString),
-    _newOtrNativePriority :: Optional 5 (Enumeration Priority), -- See note [orphans]
+    -- removed: @_newOtrNativePriority :: Optional 5 (Enumeration Priority),@
     _newOtrTransient :: Optional 6 (Value Bool),
     _newOtrReportMissing :: Repeated 7 (Message UserId)
   }
@@ -243,7 +209,6 @@ newOtrMessage c us =
       _newOtrRecipients = putField us,
       _newOtrNativePush = putField Nothing,
       _newOtrData = putField Nothing,
-      _newOtrNativePriority = putField Nothing,
       _newOtrTransient = putField Nothing,
       _newOtrReportMissing = putField []
     }
@@ -267,9 +232,6 @@ newOtrMessageTransient f c =
 newOtrMessageData :: Functor f => (Maybe ByteString -> f (Maybe ByteString)) -> NewOtrMessage -> f NewOtrMessage
 newOtrMessageData f c = (\x -> c {_newOtrData = x}) <$> field f (_newOtrData c)
 
-newOtrMessageNativePriority :: Functor f => (Maybe Priority -> f (Maybe Priority)) -> NewOtrMessage -> f NewOtrMessage
-newOtrMessageNativePriority f c = (\x -> c {_newOtrNativePriority = x}) <$> field f (_newOtrNativePriority c)
-
 newOtrMessageReportMissing :: Functor f => ([UserId] -> f [UserId]) -> NewOtrMessage -> f NewOtrMessage
 newOtrMessageReportMissing f c = (\x -> c {_newOtrReportMissing = x}) <$> field f (_newOtrReportMissing c)
 
@@ -281,7 +243,6 @@ toNewOtrMessage msg =
       Msg.newOtrNativePush = view newOtrMessageNativePush msg,
       Msg.newOtrTransient = view newOtrMessageTransient msg,
       Msg.newOtrData = toBase64Text <$> view newOtrMessageData msg,
-      Msg.newOtrNativePriority = toPriority <$> view newOtrMessageNativePriority msg,
       Msg.newOtrReportMissing = toReportMissing $ view newOtrMessageReportMissing msg
     }
 

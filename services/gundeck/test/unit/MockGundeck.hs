@@ -597,10 +597,9 @@ mockStreamAdd _ (toList -> targets) pay _ =
 mockPushNative ::
   (HasCallStack, m ~ MockGundeck) =>
   Notification ->
-  Push ->
   [Address] ->
   m ()
-mockPushNative _nid ((^. pushPayload) -> payload) addrs = do
+mockPushNative (ntfPayload -> payload) addrs = do
   env <- ask
   forM_ addrs $ \addr -> do
     when (nativeReachableAddr env addr) $

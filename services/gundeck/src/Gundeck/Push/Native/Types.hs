@@ -105,6 +105,5 @@ data Failure
 
 data NativePush = NativePush
   { npNotificationid :: NotificationId,
-    npPriority :: Priority,
     npApsData :: Maybe ApsData
   }

@@ -23,9 +23,6 @@ module Wire.API.Message
   ( -- * Message
     NewOtrMessage (..),
 
-    -- * Priority
-    Priority (..),
-
     -- * Recipients
     OtrRecipients (..),
     UserClientMap (..),
@@ -39,7 +36,6 @@ module Wire.API.Message
     modelNewOtrMessage,
     modelOtrRecipients,
     modelClientMismatch,
-    typePriority,
   )
 where
 
@@ -60,7 +56,6 @@ data NewOtrMessage = NewOtrMessage
     newOtrRecipients :: OtrRecipients,
     newOtrNativePush :: Bool,
     newOtrTransient :: Bool,
-    newOtrNativePriority :: Maybe Priority,
     newOtrData :: Maybe Text,
     newOtrReportMissing :: Maybe [OpaqueUserId]
     -- FUTUREWORK: if (and only if) clients can promise this uid list will always exactly
@@ -84,9 +79,6 @@ modelNewOtrMessage = Doc.defineModel "NewOtrMessage" $ do
   Doc.property "transient" Doc.bool' $ do
     Doc.description "Whether to put this message into the notification queue."
     Doc.optional
-  Doc.property "native_priority" typePriority $ do
-    Doc.description "The native push priority (default 'high')."
-    Doc.optional
   Doc.property "data" Doc.bytes' $ do
     Doc.description
       "Extra (symmetric) data (i.e. ciphertext) that is replicated \
@@ -103,7 +95,6 @@ instance ToJSON NewOtrMessage where
         # "recipients" .= newOtrRecipients otr
         # "native_push" .= newOtrNativePush otr
         # "transient" .= newOtrTransient otr
-        # "native_priority" .= newOtrNativePriority otr
         # "data" .= newOtrData otr
         # "report_missing" .= newOtrReportMissing otr
         # []
@@ -115,45 +106,8 @@ instance FromJSON NewOtrMessage where
       <*> o .: "recipients"
       <*> o .:? "native_push" .!= True
       <*> o .:? "transient" .!= False
-      <*> o .:? "native_priority"
       <*> o .:? "data"
       <*> o .:? "report_missing"
-
---------------------------------------------------------------------------------
--- Priority
-
--- | REFACTOR: do we ever use LowPriority?  to test, (a) remove the constructor and see what goes
--- wrong; (b) log use of 'LowPriority' by clients in production and watch it a few days.  if it is
--- not used anywhere, consider removing the entire type, or just the unused constructor.
---
--- @neongreen writes: [...] nobody seems to ever set `native_priority` in the client code. Exhibits
--- A1 and A2:
---
--- * <https://github.com/search?q=org%3Awireapp+native_priority&type=Code>
--- * <https://sourcegraph.com/search?q=native_priority+repo:^github\.com/wireapp/+#1>
---
--- see also: 'Wire.API.Message.Proto.Priority'.
-data Priority = LowPriority | HighPriority
-  deriving stock (Eq, Show, Ord, Enum, Generic)
-  deriving (Arbitrary) via (GenericUniform Priority)
-
-typePriority :: Doc.DataType
-typePriority =
-  Doc.string $
-    Doc.enum
-      [ "low",
-        "high"
-      ]
-
-instance ToJSON Priority where
-  toJSON LowPriority = String "low"
-  toJSON HighPriority = String "high"
-
-instance FromJSON Priority where
-  parseJSON = withText "Priority" $ \case
-    "low" -> pure LowPriority
-    "high" -> pure HighPriority
-    x -> fail $ "Invalid push priority: " ++ show x
 
 --------------------------------------------------------------------------------
 -- Recipients

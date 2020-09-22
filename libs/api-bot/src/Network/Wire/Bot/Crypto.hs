@@ -139,7 +139,6 @@ encryptMessage clt cnv msg =
     <$> encrypt clt cnv msg
     <*> pure False -- Native push?
     <*> pure False -- Transient?
-    <*> pure Nothing -- Priority
     <*> pure Nothing -- Extra data distributed to all recipients
     <*> pure Nothing
 

@@ -152,7 +152,7 @@ randNotif size = do
     Notification i <$> arbitrary <*> pure pload
 
 randMessage :: Notification -> IO NativePush
-randMessage n = pure $ NativePush (ntfId n) HighPriority Nothing
+randMessage n = pure $ NativePush (ntfId n) Nothing
 
 -----------------------------------------------------------------------------
 -- Utilities

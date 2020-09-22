@@ -38,24 +38,24 @@ serialise m a = do
   rs <- prepare m a
   case rs of
     Left failure -> return $! Left $! failure
-    Right (v, prio, aps) -> case renderText (a ^. addrTransport) aps prio v of
+    Right (v, aps) -> case renderText (a ^. addrTransport) aps v of
       Nothing -> return $ Left PayloadTooLarge
       Just txt -> return $ Right txt
 
-prepare :: NativePush -> Address -> IO (Either Failure (Value, Priority, Maybe ApsData))
+prepare :: NativePush -> Address -> IO (Either Failure (Value, Maybe ApsData))
 prepare m a = case m of
-  NativePush nid prio aps ->
+  NativePush nid aps ->
     let o =
           object
             [ "type" .= ("notice" :: Text),
               "data" .= object ["id" .= nid],
               "user" .= (a ^. addrUser)
             ]
-     in return $ Right (o, prio, aps)
+     in return $ Right (o, aps)
 
 -- | Assemble a final SNS JSON string for transmission.
-renderText :: Transport -> Maybe ApsData -> Priority -> Value -> Maybe LT.Text
-renderText t aps prio x = case t of
+renderText :: Transport -> Maybe ApsData -> Value -> Maybe LT.Text
+renderText t aps x = case t of
   GCM -> trim "GCM" (jsonString gcmJson)
   APNS -> trim "APNS" (jsonString stdApnsJson)
   APNSSandbox -> trim "APNS_SANDBOX" (jsonString stdApnsJson)
@@ -65,11 +65,11 @@ renderText t aps prio x = case t of
     gcmJson =
       object
         [ "data" .= x,
-          "priority" .= gcmPriority prio
+          "priority" .= ("high" :: Text)
         ]
     stdApnsJson =
       object
-        [ "aps" .= apsDict prio,
+        [ "aps" .= apsDict,
           "data" .= x
         ]
     voipApnsJson =
@@ -77,7 +77,7 @@ renderText t aps prio x = case t of
         [ "aps" .= object [],
           "data" .= x
         ]
-    apsDict HighPriority =
+    apsDict =
       object $
         "alert"
           .= object
@@ -89,10 +89,6 @@ renderText t aps prio x = case t of
           .= (aps ^? _Just . apsSound)
           # "content-available"
           .= '1'
-          # []
-    apsDict LowPriority =
-      object $
-        "content-available" .= '1'
           # []
     maxLen = maxPayloadSize t
     -- see <https://github.com/wireapp/wire-server/issues/341>.
@@ -108,10 +104,6 @@ maxPayloadSize APNS = 2048
 maxPayloadSize APNSSandbox = 2048
 maxPayloadSize APNSVoIP = 4096
 maxPayloadSize APNSVoIPSandbox = 4096
-
-gcmPriority :: Priority -> Text
-gcmPriority LowPriority = "normal"
-gcmPriority HighPriority = "high"
 
 jsonString :: Value -> LT.Text
 jsonString = LTB.toLazyTextWith 512 . encodeToTextBuilder
