@@ -345,6 +345,11 @@ nativeTargets psh rcps' alreadySent =
     -- Apply transport preference in case of alternative transports for the
     -- same client (currently only APNS vs APNS VoIP). If no explicit
     -- preference is given, the default preference depends on the priority.
+    -- This is particularly relevant now that we are going to be going back
+    -- to regular APNS notifications with `{"mutable-content": "1"}`
+    -- For more info: https://github.com/zinfra/backend-issues/issues/889
+    -- FUTUREWORK: Allow setting low/high prio all the way from clients complicates
+    -- things a bit. Do clients _ever_ make use of this?
     preference as =
       let pref = psh ^. pushNativeAps >>= view apsPreference
        in filter (pick (fromMaybe defPreference pref)) as

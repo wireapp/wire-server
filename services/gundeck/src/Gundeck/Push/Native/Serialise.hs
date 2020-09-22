@@ -78,22 +78,13 @@ renderText t aps prio x = case t of
           "data" .= x
         ]
     apsDict HighPriority =
-      object $
-        "alert"
-          .= object
-            ( "loc-key" .= (aps ^? _Just . apsLocKey)
-                # "loc-args" .= (aps ^? _Just . apsLocArgs)
-                # []
-            )
-          # "sound"
-          .= (aps ^? _Just . apsSound)
-          # "content-available"
-          .= '1'
-          # []
+      object
+        [ "mutable-content" .= '1'
+        ]
     apsDict LowPriority =
-      object $
-        "content-available" .= '1'
-          # []
+      object
+        [ "mutable-content" .= '1'
+        ]
     maxLen = maxPayloadSize t
     -- see <https://github.com/wireapp/wire-server/issues/341>.
     trim k j =
