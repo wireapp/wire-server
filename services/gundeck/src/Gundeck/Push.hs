@@ -345,16 +345,14 @@ nativeTargets psh rcps' alreadySent =
     -- same client (currently only APNS vs APNS VoIP). If no explicit
     -- preference is given, the default preference depends on the priority.
     preference as =
-      let pref = psh ^. pushNativeAps >>= view apsPreference
-          defPreference = ApsVoIPPreference
-       in filter (pick (fromMaybe defPreference pref)) as
+      filter pick as
       where
-        pick pr a = case a ^. addrTransport of
+        pick a = case a ^. addrTransport of
           GCM -> True
-          APNS -> pr == ApsStdPreference || notAny a APNSVoIP
-          APNSSandbox -> pr == ApsStdPreference || notAny a APNSVoIPSandbox
-          APNSVoIP -> pr == ApsVoIPPreference || notAny a APNS
-          APNSVoIPSandbox -> pr == ApsVoIPPreference || notAny a APNSSandbox
+          APNS -> notAny a APNSVoIP
+          APNSSandbox -> notAny a APNSVoIPSandbox
+          APNSVoIP -> True
+          APNSVoIPSandbox -> True
         notAny a t =
           not
             ( any

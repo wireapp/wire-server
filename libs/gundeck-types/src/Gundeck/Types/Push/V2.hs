@@ -44,14 +44,12 @@ module Gundeck.Types.Push.V2
     recipientClients,
     Route (..),
     ApsData,
-    ApsPreference (..),
     ApsLocKey (..),
     ApsSound (..),
     apsData,
     apsLocKey,
     apsLocArgs,
     apsSound,
-    apsPreference,
     apsBadge,
 
     -- * PushToken (re-export)
@@ -170,26 +168,10 @@ newtype ApsSound = ApsSound {fromSound :: Text}
 newtype ApsLocKey = ApsLocKey {fromLocKey :: Text}
   deriving (Eq, Show, ToJSON, FromJSON)
 
-data ApsPreference
-  = ApsStdPreference
-  | ApsVoIPPreference
-  deriving (Eq, Show)
-
-instance ToJSON ApsPreference where
-  toJSON ApsVoIPPreference = "voip"
-  toJSON ApsStdPreference = "std"
-
-instance FromJSON ApsPreference where
-  parseJSON = withText "ApsPreference" $ \case
-    "voip" -> pure ApsVoIPPreference
-    "std" -> pure ApsStdPreference
-    x -> fail $ "Invalid preference: " ++ show x
-
 data ApsData = ApsData
   { _apsLocKey :: !ApsLocKey,
     _apsLocArgs :: [Text],
     _apsSound :: !(Maybe ApsSound),
-    _apsPreference :: !(Maybe ApsPreference),
     _apsBadge :: !Bool
   }
   deriving (Eq, Show)
@@ -197,15 +179,14 @@ data ApsData = ApsData
 makeLenses ''ApsData
 
 apsData :: ApsLocKey -> [Text] -> ApsData
-apsData lk la = ApsData lk la Nothing Nothing True
+apsData lk la = ApsData lk la Nothing True
 
 instance ToJSON ApsData where
-  toJSON (ApsData k a s p b) =
+  toJSON (ApsData k a s b) =
     object $
       "loc_key" .= k
         # "loc_args" .= a
         # "sound" .= s
-        # "preference" .= p
         # "badge" .= b
         # []
 
@@ -214,7 +195,6 @@ instance FromJSON ApsData where
     ApsData <$> o .: "loc_key"
       <*> o .:? "loc_args" .!= []
       <*> o .:? "sound"
-      <*> o .:? "preference"
       <*> o .:? "badge" .!= True
 
 -----------------------------------------------------------------------------
@@ -250,7 +230,7 @@ data Push = Push
     -- REFACTOR: this make no sense any more since native push notifications have no more payload.
     -- https://github.com/wireapp/wire-server/pull/546
     _pushNativeEncrypt :: !Bool,
-    -- | APNs-specific metadata.  REFACTOR: can this be removed?
+    -- | APNs-specific metadata (needed eg. in "Brig.IO.Intra.toApsData").
     _pushNativeAps :: !(Maybe ApsData),
     -- | Opaque payload
     _pushPayload :: !(List1 Object)
