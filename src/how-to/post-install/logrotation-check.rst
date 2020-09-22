@@ -14,7 +14,10 @@ Look at the timestamps of your earliest nginz logs:
 
 .. code:: sh
 
-   kubectl logs -n wire -l wireService=nginz -c nginz | head -10
+   export NAMESPACE=default # this may be 'default' or 'wire'
+   kubectl -n "$NAMESPACE" get pods | grep nginz
+   # choose one of the resulting names, it might be named e.g. nginz-6d75755c5c-h9fwn
+   kubectl -n "$NAMESPACE" logs <name-from-previous-command> -c nginz | head -10
 
 If the timestamp is more than 3 days in the past, your logs are kept for unnecessary long amount of time and you should configure log rotation.
 
