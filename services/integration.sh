@@ -62,6 +62,14 @@ if [[ $INTEGRATION_USE_REAL_AWS -eq 1 ]]; then
     [ -z "$AWS_SECRET_ACCESS_KEY" ] && echo "Need to set AWS_SECRET_ACCESS_KEY in your environment" && exit 1;
     "${TOP_LEVEL}"/services/gen-aws-conf.sh
     integration_file_extension='-aws.yaml'
+elif [[ $INTEGRATION_CARGOHOLD_ONLY_COMPAT -eq 1 ]]; then
+    echo "Running tests using specific S3 buckets for cargohold using folder $CARGOHOLD_COMPAT_CONFIG_FOLDER"
+    if [ ! -f "${CARGOHOLD_COMPAT_CONFIG_FOLDER}/env.sh" ] \
+        && [ ! -f "${CARGOHOLD_COMPAT_CONFIG_FOLDER}/cargohold.integration.yaml" ]; then
+        echo 'expecting a CARGOHOLD_COMPAT_CONFIG_FOLDER/cargohold.integration.yaml and'
+        echo 'expecting a CARGOHOLD_COMPAT_CONFIG_FOLDER/env.sh'
+        exit 1;
+    fi
 else
     # brig,gundeck,galley use the amazonka library's 'Discover', which expects AWS credentials
     # even if those are not used/can be dummy values with the fake sqs/ses/etc containers used
@@ -77,6 +85,7 @@ function run() {
     service=$1
     instance=$2
     colour=$3
+    configfile=${4:-"${service}${instance}.integration${integration_file_extension}"}
     # Check if we're on a Mac
     if [[ "$OSTYPE" == "darwin"* ]]; then
         # Mac sed uses '-l' to set line-by-line buffering
@@ -88,21 +97,26 @@ function run() {
         echo -e "\n\nWARNING: log output is buffered and may not show on your screen!\n\n"
         UNBUFFERED=''
     fi
-    ( ( cd "${DIR}/${service}" && "${TOP_LEVEL}/dist/${service}" -c "${service}${instance}.integration${integration_file_extension}" ) || kill_all) \
+    ( ( cd "${DIR}/${service}" && "${TOP_LEVEL}/dist/${service}" -c "${configfile}" ) || kill_all) \
         | sed ${UNBUFFERED} -e "s/^/$(tput setaf ${colour})[${service}] /" -e "s/$/$(tput sgr0)/" &
 }
 
 
-check_prerequisites
-
-run brig "" ${green}
-run galley "" ${yellow}
-run gundeck "" ${blue}
-run cannon "" ${orange}
-run cannon "2" ${orange}
-run cargohold "" ${purpleish}
-run spar "" ${orange}
-run federator "" ${blue}
+if [[ $INTEGRATION_CARGOHOLD_ONLY_COMPAT -eq 1 ]]; then
+    source "${CARGOHOLD_COMPAT_CONFIG_FOLDER}/env.sh"
+    echo run cargohold "" ${purpleish} "${CARGOHOLD_COMPAT_CONFIG_FOLDER}/cargohold.integration.yaml"
+    run cargohold "" ${purpleish} "${CARGOHOLD_COMPAT_CONFIG_FOLDER}/cargohold.integration.yaml"
+else
+    check_prerequisites
+    run brig "" ${green}
+    run galley "" ${yellow}
+    run gundeck "" ${blue}
+    run cannon "" ${orange}
+    run cannon "2" ${orange}
+    run cargohold "" ${purpleish}
+    run spar "" ${orange}
+    run federator "" ${blue}
+fi
 
 function run_nginz() {
     colour=$1
@@ -132,9 +146,15 @@ if [[ $INTEGRATION_USE_NGINZ -eq 1 ]]; then
 fi
 
 # the ports are copied from ./integration.yaml
+if [[ $INTEGRATION_CARGOHOLD_ONLY_COMPAT -eq 1 ]]; then
+    PORT_LIST="8084"
+else
+    PORT_LIST="8082 8083 8084 8085 8086 8088 $NGINZ_PORT"
+fi
+
 while [ "$all_services_are_up" == "" ]; do
     export all_services_are_up="1"
-    for port in $(seq 8082 8086) 8088 $NGINZ_PORT; do
+    for port in $PORT_LIST; do
         ( curl --write-out '%{http_code}' --silent --output /dev/null http://localhost:"$port"/i/status \
                 | grep -q '^20[04]' ) \
             || export all_services_are_up=""
