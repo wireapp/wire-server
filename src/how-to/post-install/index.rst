@@ -2,7 +2,7 @@ Verifying your wire-server installation
 =======================================
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :glob:
 
     How to verify that you have properly set up wire-server <checks.rst>
