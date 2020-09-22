@@ -54,7 +54,25 @@ import Imports hiding (log)
 import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
 import SAML2.Util (renderURI)
-import SAML2.WebSSO hiding (Email (..), UserRef (..))
+import SAML2.WebSSO
+  ( Assertion (..),
+    AuthnRequest (..),
+    HasConfig (..),
+    HasCreateUUID (..),
+    HasLogger (..),
+    HasNow (..),
+    IdPId (..),
+    Issuer (..),
+    SPHandler (..),
+    SPStoreID (..),
+    SPStoreIdP (..),
+    UnqualifiedNameID (..),
+    explainDeniedReason,
+    fromTime,
+    idpExtraInfo,
+    idpId,
+    uidTenant,
+  )
 import qualified SAML2.WebSSO as SAML
 import Servant
 import qualified Servant.Multipart as Multipart

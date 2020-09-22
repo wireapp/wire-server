@@ -51,10 +51,6 @@ module Data.Misc
     -- * PlainTextPassword
     PlainTextPassword (..),
 
-    -- * Functor infix ops
-    (<$$>),
-    (<$$$>),
-
     -- * Swagger
     modelLocation,
   )
@@ -327,16 +323,3 @@ instance FromJSON PlainTextPassword where
 instance Arbitrary PlainTextPassword where
   -- TODO: why 6..1024? For tests we might want invalid passwords as well, e.g. 3 chars
   arbitrary = PlainTextPassword . fromRange <$> genRangeText @6 @1024 arbitrary
-
-----------------------------------------------------------------------
--- Functor
-
-(<$$>) :: (Functor f, Functor g) => (a -> b) -> f (g a) -> f (g b)
-(<$$>) = fmap . fmap
-
-infix 4 <$$>
-
-(<$$$>) :: (Functor f, Functor g, Functor h) => (a -> b) -> f (g (h a)) -> f (g (h b))
-(<$$$>) = fmap . fmap . fmap
-
-infix 4 <$$$>

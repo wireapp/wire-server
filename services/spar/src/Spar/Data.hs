@@ -92,7 +92,6 @@ import Control.Monad.Except
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import qualified Data.List.NonEmpty as NL
-import Data.Misc ((<$$>))
 import Data.String.Conversions
 import Data.Time
 import Data.X509 (SignedCertificate)

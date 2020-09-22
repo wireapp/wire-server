@@ -42,7 +42,26 @@ import qualified Data.ZAuth.Token as ZAuth
 import qualified Galley.Types.Teams as Galley
 import Imports hiding (head)
 import Network.HTTP.Types (status200, status202)
-import SAML2.WebSSO as SAML
+import SAML2.WebSSO
+  ( AuthnResponse,
+    IdPId (..),
+    Issuer (..),
+    NameID,
+    SimpleSetCookie (..),
+    UserRef (..),
+    edCertAuthnResponse,
+    edIssuer,
+    edRequestURI,
+    getUserRef,
+    idPIdToST,
+    idpExtraInfo,
+    idpId,
+    idpMetadata,
+    mkNameID,
+    parseFromDocument,
+    (-/),
+  )
+import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.Lenses
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util

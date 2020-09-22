@@ -33,7 +33,6 @@ import Data.Aeson.Types (typeMismatch)
 import qualified Data.Char as Char
 import Data.Domain (Domain)
 import Data.Id
-import Data.Misc ((<$$>))
 import Data.Scientific (toBoundedInteger)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
