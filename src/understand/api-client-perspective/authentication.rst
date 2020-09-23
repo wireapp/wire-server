@@ -442,7 +442,7 @@ Users that are part of a team, for which a team admin has configured SSO (Single
 
 More information:
 
-* `FAQ <https://docs.wire.com/how-to/single-sign-on/trouble-shooting.html>`__
+* :ref:`FAQ <trouble-shooting-faq>`
 * `setup howtos for various IdP vendors <https://docs.wire.com/how-to/single-sign-on/index.html>`__
 * `a few fragments that may help admins <https://github.com/wireapp/wire-server/blob/develop/docs/reference/spar-braindump.md>`__
 
