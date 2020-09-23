@@ -839,7 +839,7 @@ testUserGetFailsWithNotFoundIfOutsideTeam = do
 specUpdateUser :: SpecWith TestEnv
 specUpdateUser = describe "PUT /Users/:id" $ do
   it "requires a user ID" $ testUpdateRequiresUserId
-  it "updates user attributes in scim_user" $ testScimSideIsUpdated
+  it "updates user attributes in brig" $ testScimSideIsUpdated
   it "works fine when neither name nor handle are changed" $ testUpdateSameHandle
   it "updates the 'SAML.UserRef' index in Spar" $ testUpdateExternalId True
   it "updates the 'Email' index in Brig" $ testUpdateExternalId False
@@ -848,7 +848,7 @@ specUpdateUser = describe "PUT /Users/:id" $ do
   it "cannot remove display name" $ testCannotRemoveDisplayName
   context "user is from different team" $ do
     it "fails to update user with 404" testUserUpdateFailsWithNotFoundIfOutsideTeam
-  context "scim_user has no entry with this id" $ do
+  context "user does not exist" $ do
     it "fails" $ pending
   it "does not update if nothing changed" $ testSameUpdateNoChange
   context "brig user is updated" $ do
@@ -1258,7 +1258,7 @@ specDeleteUser = do
       deleteUser_ (Just tok) Nothing (env ^. teSpar)
         !!! const 405 === statusCode
   describe "DELETE /Users/:id" $ do
-    it "should delete user from brig, spar.scim_user, spar.user" $ do
+    it "should delete user from brig, spar.scim_user_times, spar.user" $ do
       (tok, _) <- registerIdPAndScimToken
       user <- randomScimUser
       storedUser <- createUser tok user
