@@ -76,6 +76,16 @@ i-list:
 i-%:
 	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*" $(WIRE_INTEGRATION_TEST_OPTIONS)
 
+# Before using this target, create a symlink to a directory containing configurations to
+# test different S3-like buckets to see if cargohold can interact with them.
+#   ln -s /path/to/private/folder compat
+# If you have a folder compat/minio, run e.g.
+#   make compat-minio
+# Currently only the "simple" integration test group is run.
+.PHONY: compat-%
+compat-%:
+	INTEGRATION_CARGOHOLD_ONLY_COMPAT=1 CARGOHOLD_COMPAT_CONFIG_FOLDER=compat/$* ../integration.sh $(EXE_IT) -s compat/$*/cargohold.integration.yaml -i ../integration.yaml -p simple $(WIRE_INTEGRATION_TEST_OPTIONS)
+
 .PHONY: integration
 integration: fast i
 

@@ -107,7 +107,7 @@ uploadV3 ::
   Conduit.ConduitM () ByteString (ResourceT IO) () ->
   ExceptT Error App ()
 uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders ct cl md5) tok src = do
-  Log.debug $
+  Log.info $
     "remote" .= val "S3"
       ~~ "asset.owner" .= toByteString prc
       ~~ "asset.key" .= key
@@ -728,7 +728,7 @@ parseAmzMeta k h = lookupCI k h >>= fromByteString . encodeUtf8
 octets :: MIME.Type
 octets = MIME.Type (MIME.Application "octet-stream") []
 
-exec :: (AWSRequest r) => (Text -> r) -> ExceptT Error App (Rs r)
+exec :: (AWSRequest r, Show r) => (Text -> r) -> ExceptT Error App (Rs r)
 exec req = do
   env <- view aws
   AWS.exec env req

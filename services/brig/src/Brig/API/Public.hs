@@ -56,7 +56,7 @@ import Data.Handle (Handle, parseHandle)
 import Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local))
 import qualified Data.Map.Strict as Map
-import Data.Misc (IpAddr (..), (<$$>))
+import Data.Misc (IpAddr (..))
 import Data.Qualified (OptionallyQualified, eitherQualifiedOrNot)
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc

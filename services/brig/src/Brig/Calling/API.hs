@@ -33,7 +33,6 @@ import Data.Id
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.List1 as List1
-import Data.Misc ((<$$>))
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii (AsciiBase64, encodeBase64)

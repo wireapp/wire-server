@@ -33,7 +33,6 @@ import Data.Aeson.Types (typeMismatch)
 import qualified Data.Char as Char
 import Data.Domain (Domain)
 import Data.Id
-import Data.Misc ((<$$>))
 import Data.Scientific (toBoundedInteger)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
@@ -410,8 +409,6 @@ data Settings = Settings
     setUserMaxConnections :: !Int64,
     -- | Max. number of permanent clients per user
     setUserMaxPermClients :: !(Maybe Int),
-    -- | The domain to restrict cookies to
-    setCookieDomain :: !Text,
     -- | Whether to allow plain HTTP transmission
     --   of cookies (for testing purposes only)
     setCookieInsecure :: !Bool,

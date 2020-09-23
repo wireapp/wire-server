@@ -35,6 +35,7 @@ import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.Types.User
 import Brig.Types.User.Auth
+import qualified Brig.ZAuth as ZAuth
 import Control.Lens ((^.), (^?), (^?!))
 import Control.Monad.Catch (MonadCatch)
 import Control.Retry
@@ -52,6 +53,7 @@ import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
+import Data.Text.Encoding (encodeUtf8)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import qualified Galley.Types.Teams as Team
@@ -315,6 +317,9 @@ getUser brig zusr usr =
       . paths ["users", toByteString' usr]
       . zUser zusr
 
+-- | NB: you can also use nginz as the first argument here.  The type aliases are compatible,
+-- and so are the end-points.  This is important in tests where the cookie must come from the
+-- nginz domain, so it can be passed back to it.
 login :: Brig -> Login -> CookieType -> (MonadIO m, MonadHttp m) => m ResponseLBS
 login b l t =
   let js = RequestBodyLBS (encode l)
@@ -344,6 +349,18 @@ legalHoldLogin b l t =
           . contentJson
           . (if t == PersistentCookie then queryItem "persist" "true" else id)
           . body js
+
+decodeCookie :: HasCallStack => Response a -> Bilge.Cookie
+decodeCookie = fromMaybe (error "missing zuid cookie") . getCookie "zuid"
+
+decodeToken :: HasCallStack => Response (Maybe LByteString) -> ZAuth.AccessToken
+decodeToken = decodeToken'
+
+decodeToken' :: (HasCallStack, ZAuth.AccessTokenLike a) => Response (Maybe LByteString) -> ZAuth.Token a
+decodeToken' r = fromMaybe (error "invalid access_token") $ do
+  x <- responseBody r
+  t <- x ^? key "access_token" . _String
+  fromByteString (encodeUtf8 t)
 
 data LoginCodeType = LoginCodeSMS | LoginCodeVoice
   deriving (Eq)

@@ -114,6 +114,10 @@ module Imports
     -- * Extra Helpers
     whenM,
     unlessM,
+
+    -- * Functor
+    (<$$>),
+    (<$$$>),
   )
 where
 
@@ -275,3 +279,16 @@ readIO = liftIO . P.readIO
 
 readLn :: (Read a, MonadIO m) => m a
 readLn = liftIO P.readLn
+
+----------------------------------------------------------------------
+-- Functor
+
+(<$$>) :: (Functor f, Functor g) => (a -> b) -> f (g a) -> f (g b)
+(<$$>) = fmap . fmap
+
+infix 4 <$$>
+
+(<$$$>) :: (Functor f, Functor g, Functor h) => (a -> b) -> f (g (h a)) -> f (g (h b))
+(<$$$>) = fmap . fmap . fmap
+
+infix 4 <$$$>

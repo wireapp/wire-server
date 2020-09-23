@@ -74,7 +74,6 @@ import qualified Data.ByteString.Char8 as C
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List1
-import Data.Misc ((<$$>))
 import Data.Timeout (Timeout, TimeoutUnit (..), (#))
 import Gundeck.Types
 import Imports

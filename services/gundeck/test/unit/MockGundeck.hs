@@ -53,7 +53,7 @@ import qualified Data.IntMultiSet as MSet
 import qualified Data.List.NonEmpty as NE
 import Data.List1
 import qualified Data.Map as Map
-import Data.Misc (Milliseconds (Ms), (<$$>))
+import Data.Misc (Milliseconds (Ms))
 import Data.Range
 import qualified Data.Scientific as Scientific
 import qualified Data.Set as Set

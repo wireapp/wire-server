@@ -36,10 +36,9 @@ import Brig.Types.User.Auth
 import qualified Brig.Types.User.Auth as Auth
 import Brig.ZAuth (ZAuth, runZAuth)
 import qualified Brig.ZAuth as ZAuth
-import Control.Lens (set, (^.), (^?))
+import Control.Lens (set, (^.))
 import Control.Retry
 import Data.Aeson
-import Data.Aeson.Lens
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
@@ -48,7 +47,6 @@ import Data.Id
 import Data.Misc (PlainTextPassword (..))
 import Data.Proxy
 import qualified Data.Text as Text
-import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Lazy as Lazy
 import Data.Time.Clock
 import qualified Data.UUID.V4 as UUID
@@ -96,7 +94,8 @@ tests conf m z b g n =
           testGroup
             "nginz"
             [ test m "nginz-login" (testNginz b n),
-              test m "nginz-legalhold-login" (testNginzLegalHold b g n)
+              test m "nginz-legalhold-login" (testNginzLegalHold b g n),
+              test m "nginz-login-multiple-cookies" (testNginzMultipleCookies conf b n)
             ]
         ],
       testGroup
@@ -146,7 +145,7 @@ testNginz b n = do
   let Just email = userEmail u
   -- Login with email
   rs <-
-    login b (defEmailLogin email) PersistentCookie
+    login n (defEmailLogin email) PersistentCookie
       <!! const 200 === statusCode
   let c = decodeCookie rs
       t = decodeToken rs
@@ -167,13 +166,27 @@ testNginz b n = do
 testNginzLegalHold :: Brig -> Galley -> Nginz -> Http ()
 testNginzLegalHold b g n = do
   -- create team user Alice
-  (alice, tid) <- createUserWithTeam b
+  (alice, tid) <- createUserWithTeam' b
   putLegalHoldEnabled tid TeamFeatureEnabled g -- enable it for this team
-  rs <-
-    legalHoldLogin b (LegalHoldLogin alice (Just defPassword) Nothing) PersistentCookie
-      <!! const 200 === statusCode
-  let c = decodeCookie rs
-      t = decodeToken' @ZAuth.LegalHoldAccess rs
+  (c, t) <- do
+    -- we need to get the cookie domain from a login through nginz.  otherwise, if brig and
+    -- nginz are running on different hosts, no cookie will be presented in the later requests
+    -- to nginz in this test.  for simplicity, we use the internal end-point for
+    -- authenticating an LH dev, and then steal the domain from a cookie obtained via user
+    -- login.
+    rsUsr <- do
+      let Just email = userEmail alice
+      login n (defEmailLogin email) PersistentCookie
+        <!! const 200 === statusCode
+    rsLhDev <-
+      legalHoldLogin b (LegalHoldLogin (userId alice) (Just defPassword) Nothing) PersistentCookie
+        <!! const 200 === statusCode
+    let t = decodeToken' @ZAuth.LegalHoldAccess rsLhDev
+        c = cLhDev {cookie_domain = cookie_domain cUsr}
+        cLhDev = decodeCookie rsLhDev
+        cUsr = decodeCookie rsUsr
+    pure (c, t)
+
   -- ensure nginz allows passing legalhold cookies / tokens through to /access
   post (n . path "/access" . cookie c . header "Authorization" ("Bearer " <> (toByteString' t))) !!! do
     const 200 === statusCode
@@ -182,6 +195,57 @@ testNginzLegalHold b g n = do
   get (n . path "/self" . header "Authorization" ("Bearer " <> (toByteString' t))) !!! const 403 === statusCode
   -- ensure legal hold tokens can fetch notifications
   get (n . path "/notifications" . header "Authorization" ("Bearer " <> (toByteString' t))) !!! const 200 === statusCode
+
+-- | Corner case for 'testNginz': when upgrading a wire backend from the old behavior (setting
+-- cookie domain to eg. @*.wire.com@) to the new behavior (leaving cookie domain empty,
+-- effectively setting it to the backend host), clients may start sending two cookies for a
+-- while: because the domains differ, new ones will not overwrite old ones locally (it was seen
+-- on different browsers) although the cookie does get overriden in the DB). This should be handled
+-- gracefully (ie., one invalid cookie should just be ignored if up to two cookies with label @"zuid"@ are present).
+--
+-- In this test, we actually don't use different domains - testing that correctly is actually pretty
+-- complex. The reason why testing 2 domains is complicated has to do with the fact that we need to
+-- have 2 distinct domains that point to the same backend; i.e., this is the case on our staging env where
+-- old cookies had the domain to the TLD and new ones to <subdomain>.TLD. This is hard to do on k8s for instance
+--
+-- Instead, we simply set 2 cookies with the same name and different values and the http client
+-- will replicate the situation: we have 2 cookies, one of them is incorrect (but must parse correctly!)
+-- and the other is valid.
+-- In order to make the test even more similar, we also use VALID and NON-EXPIRED but SUPERSEDED cookies
+-- cookies to test sending 2 perfectly valid cookies where one of them simply got overriden due to the revew age
+testNginzMultipleCookies :: Opts.Opts -> Brig -> Nginz -> Http ()
+testNginzMultipleCookies o b n = do
+  u <- randomUser b
+  let Just email = userEmail u
+      dologin :: HasCallStack => Http ResponseLBS
+      dologin = login n (defEmailLogin email) PersistentCookie <!! const 200 === statusCode
+  unparseableCookie <- (\c -> c {cookie_value = "ThisIsNotAZauthCookie"}) . decodeCookie <$> dologin
+  badCookie1 <- (\c -> c {cookie_value = "SKsjKQbiqxuEugGMWVbq02fNEA7QFdNmTiSa1Y0YMgaEP5tWl3nYHWlIrM5F8Tt7Cfn2Of738C7oeiY8xzPHAB==.v=1.k=1.d=1.t=u.l=.u=13da31b4-c6bb-4561-8fed-07e728fa6cc5.r=f844b420"}) . decodeCookie <$> dologin
+  goodCookie <- decodeCookie <$> dologin
+  badCookie2 <- (\c -> c {cookie_value = "SKsjKQbiqxuEugGMWVbq02fNEA7QFdNmTiSa1Y0YMgaEP5tWl3nYHWlIrM5F8Tt7Cfn2Of738C7oeiY8xzPHAC==.v=1.k=1.d=1.t=u.l=.u=13da31b4-c6bb-4561-8fed-07e728fa6cc5.r=f844b420"}) . decodeCookie <$> dologin
+
+  -- Basic sanity checks
+  post (n . path "/access" . cookie goodCookie) !!! const 200 === statusCode
+  post (n . path "/access" . cookie badCookie1) !!! const 403 === statusCode
+  post (n . path "/access" . cookie badCookie2) !!! const 403 === statusCode
+
+  -- Sending both cookies should always work, regardless of the order (they are ordered by time)
+  post (n . path "/access" . cookie badCookie1 . cookie goodCookie . cookie badCookie2) !!! const 200 === statusCode
+  post (n . path "/access" . cookie goodCookie . cookie badCookie1 . cookie badCookie2) !!! const 200 === statusCode
+  post (n . path "/access" . cookie badCookie1 . cookie badCookie2 . cookie goodCookie) !!! const 200 === statusCode -- -- Sending a bad cookie and an unparseble one should work too
+  post (n . path "/access" . cookie unparseableCookie . cookie goodCookie) !!! const 200 === statusCode
+  post (n . path "/access" . cookie goodCookie . cookie unparseableCookie) !!! const 200 === statusCode
+
+  -- We want to make sure we are using a cookie that was deleted from the DB but not expired - this way the client
+  -- will still have it in the cookie jar because it did not get overriden
+  (deleted, valid) <- getAndTestDBSupersededCookieAndItsValidSuccessor o b n
+  now <- liftIO getCurrentTime
+  liftIO $ assertBool "cookie should not be expired" (cookie_expiry_time deleted > now)
+  liftIO $ assertBool "cookie should not be expired" (cookie_expiry_time valid > now)
+  post (n . path "/access" . cookie deleted) !!! const 403 === statusCode
+  post (n . path "/access" . cookie valid) !!! const 200 === statusCode
+  post (n . path "/access" . cookie deleted . cookie valid) !!! const 200 === statusCode
+  post (n . path "/access" . cookie valid . cookie deleted) !!! const 200 === statusCode
 
 -------------------------------------------------------------------------------
 -- Login
@@ -579,21 +643,28 @@ testTokenMismatch z brig galley = do
     const 403 === statusCode
     const (Just "Token mismatch") =~= responseBody
 
+-- | We are a little bit nasty on this test. For most cases, one can use brig and nginz interchangeably.
+--   In this case, the issue relates to the usage of `getAndTestDBSupersededCookieAndItsValidSuccessor`.
+--   That function can be refactored though to make this more clear
 testNewPersistentCookie :: Opts.Opts -> Brig -> Http ()
-testNewPersistentCookie config b = do
+testNewPersistentCookie config b =
+  void $ getAndTestDBSupersededCookieAndItsValidSuccessor config b b
+
+getAndTestDBSupersededCookieAndItsValidSuccessor :: Opts.Opts -> Brig -> Nginz -> Http (Http.Cookie, Http.Cookie)
+getAndTestDBSupersededCookieAndItsValidSuccessor config b n = do
   u <- randomUser b
   let renewAge = Opts.setUserCookieRenewAge $ Opts.optSettings config
   let minAge = fromIntegral $ renewAge * 1000000 + 1
       Just email = userEmail u
   _rs <-
-    login b (emailLogin email defPassword (Just "nexus1")) PersistentCookie
+    login n (emailLogin email defPassword (Just "nexus1")) PersistentCookie
       <!! const 200 === statusCode
   let c = decodeCookie _rs
   -- Wait for the cookie to be eligible for renewal
   liftIO $ threadDelay minAge
   -- Refresh tokens
   _rs <-
-    post (b . path "/access" . cookie c) <!! do
+    post (n . path "/access" . cookie c) <!! do
       const 200 === statusCode
       const Nothing =/= getHeader "Set-Cookie"
       const (Just "access_token") =~= responseBody
@@ -603,7 +674,7 @@ testNewPersistentCookie config b = do
   -- duration of another BRIG_COOKIE_RENEW_AGE seconds,
   -- but the response should keep advertising the new cookie.
   _rs <-
-    post (b . path "/access" . cookie c) <!! do
+    post (n . path "/access" . cookie c) <!! do
       const 200 === statusCode
       const Nothing =/= getHeader "Set-Cookie"
       const (Just "access_token") =~= responseBody
@@ -611,7 +682,7 @@ testNewPersistentCookie config b = do
   liftIO $ assertBool "cookie" (c' `equivCookie` decodeCookie _rs)
   -- Refresh with the new cookie should succeed
   -- (without advertising yet another new cookie).
-  post (b . path "/access" . cookie c') !!! do
+  post (n . path "/access" . cookie c') !!! do
     const 200 === statusCode
     const Nothing === getHeader "Set-Cookie"
     const (Just "access_token") =~= responseBody
@@ -628,6 +699,9 @@ testNewPersistentCookie config b = do
   liftIO $ do
     [PersistentCookie] @=? map cookieType _cs
     [Nothing] @=? map cookieSucc _cs
+  -- Return non-expired cookie but removed from DB (because it was renewed)
+  -- and a valid cookie
+  return (c, c')
 
 testNewSessionCookie :: Opts.Opts -> Brig -> Http ()
 testNewSessionCookie config b = do
@@ -848,18 +922,6 @@ prepareLegalHoldUser brig galley = do
   -- enable it for this team - without that, legalhold login will fail.
   putLegalHoldEnabled tid TeamFeatureEnabled galley
   return uid
-
-decodeCookie :: HasCallStack => Response a -> Http.Cookie
-decodeCookie = fromMaybe (error "missing zuid cookie") . getCookie "zuid"
-
-decodeToken :: HasCallStack => Response (Maybe Lazy.ByteString) -> ZAuth.AccessToken
-decodeToken = decodeToken' @ZAuth.Access
-
-decodeToken' :: (HasCallStack, ZAuth.AccessTokenLike a) => Response (Maybe Lazy.ByteString) -> ZAuth.Token a
-decodeToken' r = fromMaybe (error "invalid access_token") $ do
-  x <- responseBody r
-  t <- x ^? key "access_token" . _String
-  fromByteString (encodeUtf8 t)
 
 getCookieId :: forall u. (HasCallStack, ZAuth.UserTokenLike u) => Http.Cookie -> CookieId
 getCookieId c =

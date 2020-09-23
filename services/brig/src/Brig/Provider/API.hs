@@ -64,7 +64,7 @@ import Data.Id
 import qualified Data.List as List
 import Data.List1 (maybeList1)
 import qualified Data.Map.Strict as Map
-import Data.Misc (Fingerprint (..), Rsa, (<$$>))
+import Data.Misc (Fingerprint (..), Rsa)
 import Data.Predicate
 import Data.Range
 import qualified Data.Set as Set
@@ -1045,7 +1045,6 @@ setProviderCookie t r = do
       Cookie.def
         { Cookie.setCookieName = "zprovider",
           Cookie.setCookieValue = toByteString' t,
-          Cookie.setCookieDomain = Just $ Text.encodeUtf8 . setCookieDomain $ s,
           Cookie.setCookiePath = Just "/provider",
           Cookie.setCookieExpires = Just (ZAuth.tokenExpiresUTC t),
           Cookie.setCookieSecure = not (setCookieInsecure s),

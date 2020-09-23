@@ -48,7 +48,6 @@ import Data.Handle (Handle)
 import Data.Id as Id
 import qualified Data.List1 as List1
 import qualified Data.Map.Strict as Map
-import Data.Misc ((<$$>))
 import qualified Data.Set as Set
 import Galley.Types (UserClients (..))
 import Imports hiding (head)

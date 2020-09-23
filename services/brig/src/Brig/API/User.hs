@@ -132,7 +132,7 @@ import Data.IdMapping (MappedOrLocalId, partitionMappedOrLocalIds)
 import Data.Json.Util
 import Data.List1 (List1)
 import qualified Data.Map.Strict as Map
-import Data.Misc (PlainTextPassword (..), (<$$>))
+import Data.Misc (PlainTextPassword (..))
 import Data.Time.Clock (diffUTCTime)
 import Data.UUID.V4 (nextRandom)
 import qualified Galley.Types.Teams as Team
