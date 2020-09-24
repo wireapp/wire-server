@@ -671,7 +671,10 @@ scimFindUserByEmail mIdpConfig stiTeam email = do
   lift $ synthesizeStoredUser brigUser veid
   where
     withUref :: SAML.UserRef -> Spar (Maybe UserId)
-    withUref = wrapMonadClient . Data.getSAMLUser
+    withUref uref = do
+      wrapMonadClient (Data.getSAMLUser uref) >>= \case
+        Nothing -> maybe (pure Nothing) withEmailOnly $ Brig.urefToEmail uref
+        Just uid -> pure (Just uid)
 
     withEmailOnly :: BT.Email -> Spar (Maybe UserId)
     withEmailOnly eml = maybe inbrig (pure . Just) =<< inspar
