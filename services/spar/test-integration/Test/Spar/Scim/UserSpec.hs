@@ -567,6 +567,7 @@ specListUsers = describe "GET /Users" $ do
     it "finds a user autoprovisioned via saml by externalId via email" $ testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO
     it "finds a user invited via team settings by externalId via email" $ testFindTeamSettingsInvitedUserMigratedWithEmailInTeamWithSSO
     it "finds a user invited via team settings by UserId" $ testFindTeamSettingsInvitedUserMigratedWithEmailInTeamWithSSOViaUserId
+    it "gives users invited via team settings saml credentials" $ testInviteThenScimThenSaml
   context "0 SAML IdP" $ do
     it "finds a SCIM-provisioned user by userName or externalId" $ testFindProvisionedUserNoIdP
     it "finds a non-SCIM-provisioned user by userName" $ testFindNonProvisionedUserNoIdP FindByHandle
@@ -647,6 +648,43 @@ testFindTeamSettingsInvitedUserMigratedWithEmailInTeamWithSSOViaUserId = do
   _ <- getUser tok memberIdInvited
   Just brigUserInvited' <- runSpar $ Intra.getBrigUser (memberIdInvited)
   liftIO $ userManagedBy brigUserInvited' `shouldBe` ManagedByScim
+
+-- | user is invited to saml team, then onboarded via scim.  doesn't have a saml id.  now he's
+-- trying to auth with saml.  success, and now he does have a saml id.
+testInviteThenScimThenSaml :: TestSpar ()
+testInviteThenScimThenSaml = do
+  env <- ask
+  (tok, (owner, teamid, idp, (_, privIdPCreds))) <- registerIdPAndScimTokenWithMeta
+
+  memberInvited <- call (inviteAndRegisterUser (env ^. teBrig) owner teamid)
+  let memberIdInvited = userId memberInvited
+
+  _ <- getUser tok memberIdInvited
+  Just brigUserInvited' <- runSpar $ Intra.getBrigUser (memberIdInvited)
+  liftIO $ userManagedBy brigUserInvited' `shouldBe` ManagedByScim
+
+  let lookupSAMLUser :: TestSpar (Maybe UserId)
+      lookupSAMLUser = runSparCass $ Data.getSAMLUser uref
+        where
+          uref :: SAML.UserRef
+          uref = do
+            let Just email = fromEmail <$> userEmail memberInvited
+                run = either (error . show) (runValidExternalId id (error . show))
+            run $ mkValidExternalId (Just idp) (Just email)
+
+  -- doesn't have a saml id (it's been invited via team-settings)
+  lookupSAMLUser >>= liftIO . (`shouldBe` Nothing)
+
+  -- try to auth via saml; success!
+  do
+    spmeta <- getTestSPMetadata
+    authnreq <- negotiateAuthnRequest idp -- TODO: this must match memberInvited by email!
+    authnresp <- runSimpleSP $ SAML.mkAuthnResponse privIdPCreds idp spmeta authnreq True
+    sparresp <- submitAuthnResponse authnresp
+    liftIO $ statusCode sparresp `shouldBe` 200
+
+  -- does have saml id
+  lookupSAMLUser >>= liftIO . (`shouldSatisfy` isJust)
 
 testFindProvisionedUserNoIdP :: TestSpar ()
 testFindProvisionedUserNoIdP = do
