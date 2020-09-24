@@ -656,6 +656,12 @@ scimFindUserByHandle mIdpConfig stiTeam hndl = do
     Right veid -> lift $ synthesizeStoredUser brigUser veid
     Left _ -> Applicative.empty
 
+-- | Construct a 'ValidExternalid'.  If it an 'Email', find the non-SAML SCIM user in spar; if
+-- that fails, find the user by email in brig.  If it is a 'UserRef', find the SAML user.
+-- Return the result as a SCIM user.
+--
+-- Note the user won't get an entry in `spar.user`.  That will only happen on their first
+-- successful authentication with their SAML credentials.
 scimFindUserByEmail :: Maybe IdP -> TeamId -> Text -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser ST.SparTag)
 scimFindUserByEmail mIdpConfig stiTeam email = do
   veid <- mkUserRef mIdpConfig (pure email)
