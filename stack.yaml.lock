@@ -432,6 +432,13 @@ packages:
   original:
     hackage: pattern-trie-0.1.0
 - completed:
+    hackage: markov-chain-usage-model-0.0.0@sha256:1afa95faeb9213c4d960a669190078b41b89169462b8edd910472980671ba8c0,2112
+    pantry-tree:
+      size: 432
+      sha256: 6871bd9281acf589296d0998a3d62892b036040ab10e74e8a0f356f68c194f4f
+  original:
+    hackage: markov-chain-usage-model-0.0.0
+- completed:
     hackage: wai-route-0.4.0@sha256:ee52f13d2945e4a56147e91e515e184f840654f2e3d9071c73bec3d8aa1f4444,2119
     pantry-tree:
       size: 566
@@ -452,34 +459,6 @@ packages:
       sha256: e58892088b95190bfb59a7c0803f7ef65338e57fc9b938d7c166563605003902
   original:
     hackage: splitmix-0.0.4
-- completed:
-    hackage: polysemy-1.3.0.0@sha256:fa76e96a883fd1c4bdbad792a0a9d88f59f84817651aea5c71d9b4f74e42c5b6,6141
-    pantry-tree:
-      size: 4309
-      sha256: 3d2fb15ddda9053f6bfd4b0810a79a9542505acb5e7e528856ec3cd86d6df066
-  original:
-    hackage: polysemy-1.3.0.0
-- completed:
-    hackage: ormolu-0.1.2.0@sha256:24e6512750576978b6f045c1e53a7aad28ab61960f738a3c74fb0bc2beaf4030,6237
-    pantry-tree:
-      size: 71915
-      sha256: 5a857d9bf0e9579ee4daacfb63b4665cdf9e0a0de31d8e0715a27836007e9c42
-  original:
-    hackage: ormolu-0.1.2.0
-- completed:
-    hackage: ghc-lib-parser-8.10.1.20200412@sha256:b0517bb150a02957d7180f131f5b94abd2a7f58a7d1532a012e71618282339c2,8751
-    pantry-tree:
-      size: 19497
-      sha256: b11275740480138dd1fce4a22a2aa8835cddfecaa8da58a153f130b4575f9df5
-  original:
-    hackage: ghc-lib-parser-8.10.1.20200412@sha256:b0517bb150a02957d7180f131f5b94abd2a7f58a7d1532a012e71618282339c2,8751
-- completed:
-    hackage: headroom-0.2.1.0@sha256:084b72a071454516bff30c3f50e4f671fb12ee062602693ad5ffcafdea5fab99,8140
-    pantry-tree:
-      size: 9195
-      sha256: 11d2ac77cee54cc1f222e574e4126189fe5b60a47a1aedbafc2ab0de709b29c6
-  original:
-    hackage: headroom-0.2.1.0
 - completed:
     hackage: HsOpenSSL-x509-system-0.1.0.3@sha256:f4958ee0eec555c5c213662eff6764bddefe5665e2afcfd32733ce3801a9b687,1774
     pantry-tree:
@@ -509,13 +488,6 @@ packages:
   original:
     hackage: primitive-extras-0.8@sha256:fca0310150496867f5b9421fe1541ecda87fae17eae44885a29f9c52dd00c8ff,2963
 - completed:
-    hackage: servant-multipart-0.11.5@sha256:1633f715b5b53d648a1da69839bdc5046599f4f7244944d4bbf852dba38d8f4b,2319
-    pantry-tree:
-      size: 333
-      sha256: b3e1fd2ad2e654475be000c2f0ac6f717b5499436fa73eec50ceccddf352dcec
-  original:
-    hackage: servant-multipart-0.11.5
-- completed:
     hackage: text-format-0.3.2@sha256:2a3fc17cf87120fcfdbca62a0da59759755549285841cdc1483081c35fb3d115,1814
     pantry-tree:
       size: 1029
@@ -523,41 +495,26 @@ packages:
   original:
     hackage: text-format-0.3.2@sha256:2a3fc17cf87120fcfdbca62a0da59759755549285841cdc1483081c35fb3d115,1814
 - completed:
-    name: wai-predicates
-    version: 0.10.0
-    git: https://gitlab.com/axeman/wai-predicates.git
-    pantry-tree:
-      size: 1585
-      sha256: 8675a538bbbfb171b9d565831f333e443118ea5a70b1be8bffa635cb847d04fa
-    commit: 999d195b27104b9b39174f5ce18f5214b018a177
-  original:
-    git: https://gitlab.com/axeman/wai-predicates.git
-    commit: 999d195b27104b9b39174f5ce18f5214b018a177
-- completed:
-    hackage: markov-chain-usage-model-0.0.0@sha256:1afa95faeb9213c4d960a669190078b41b89169462b8edd910472980671ba8c0,2112
-    pantry-tree:
-      size: 432
-      sha256: 6871bd9281acf589296d0998a3d62892b036040ab10e74e8a0f356f68c194f4f
-  original:
-    hackage: markov-chain-usage-model-0.0.0@sha256:1afa95faeb9213c4d960a669190078b41b89169462b8edd910472980671ba8c0,2112
-- completed:
     hackage: hex-0.2.0@sha256:197d2561d2e216c4ead035b4911dabc6e678ac6257cb71b64e324c822f6f9f5a,726
     pantry-tree:
       size: 197
       sha256: 1e5aba0165fb8ffa93d1516a87026a59c245750ca5f2ed42bd53b8328620f98e
   original:
-    hackage: hex-0.2.0
+    hackage: hex-0.2.0@sha256:197d2561d2e216c4ead035b4911dabc6e678ac6257cb71b64e324c822f6f9f5a,726
 - completed:
-    name: redis-io
-    version: 1.0.0
-    git: https://gitlab.com/axeman/redis-io.git
+    hackage: quickcheck-state-machine-0.6.0@sha256:3e4f8df0f6b5d415e3c8840dc75034a63e37f56f5f8cfa1035ded16345235ac4,3825
     pantry-tree:
-      size: 912
-      sha256: 3e8093b581c621df7ecbf2f6f79686afdea8bfeb56f0e546fff1e9d86de3bf80
-    commit: a0f39b1c517df21ad284ff91ecb062cbe41a4ad1
+      size: 1926
+      sha256: ae502fd7f4c6680294149bed482d1896904c1259d5ae614093da01e0731ec92e
   original:
-    git: https://gitlab.com/axeman/redis-io.git
-    commit: a0f39b1c517df21ad284ff91ecb062cbe41a4ad1
+    hackage: quickcheck-state-machine-0.6.0
+- completed:
+    hackage: servant-multipart-0.11.5@sha256:1633f715b5b53d648a1da69839bdc5046599f4f7244944d4bbf852dba38d8f4b,2319
+    pantry-tree:
+      size: 333
+      sha256: b3e1fd2ad2e654475be000c2f0ac6f717b5499436fa73eec50ceccddf352dcec
+  original:
+    hackage: servant-multipart-0.11.5@sha256:1633f715b5b53d648a1da69839bdc5046599f4f7244944d4bbf852dba38d8f4b,2319
 - completed:
     name: HaskellNet-SSL
     version: 0.3.4.2
@@ -570,12 +527,48 @@ packages:
     git: https://github.com/dpwright/HaskellNet-SSL
     commit: ca84ef29a93eaef7673fa58056cdd8dae1568d2d
 - completed:
-    hackage: quickcheck-state-machine-0.6.0@sha256:3e4f8df0f6b5d415e3c8840dc75034a63e37f56f5f8cfa1035ded16345235ac4,3825
+    name: wai-predicates
+    version: 0.10.0
+    git: https://gitlab.com/axeman/wai-predicates.git
     pantry-tree:
-      size: 1926
-      sha256: ae502fd7f4c6680294149bed482d1896904c1259d5ae614093da01e0731ec92e
+      size: 1585
+      sha256: 8675a538bbbfb171b9d565831f333e443118ea5a70b1be8bffa635cb847d04fa
+    commit: 999d195b27104b9b39174f5ce18f5214b018a177
   original:
-    hackage: quickcheck-state-machine-0.6.0
+    git: https://gitlab.com/axeman/wai-predicates.git
+    commit: 999d195b27104b9b39174f5ce18f5214b018a177
+- completed:
+    name: redis-io
+    version: 1.0.0
+    git: https://gitlab.com/axeman/redis-io.git
+    pantry-tree:
+      size: 912
+      sha256: 3e8093b581c621df7ecbf2f6f79686afdea8bfeb56f0e546fff1e9d86de3bf80
+    commit: a0f39b1c517df21ad284ff91ecb062cbe41a4ad1
+  original:
+    git: https://gitlab.com/axeman/redis-io.git
+    commit: a0f39b1c517df21ad284ff91ecb062cbe41a4ad1
+- completed:
+    hackage: ormolu-0.1.2.0@sha256:24e6512750576978b6f045c1e53a7aad28ab61960f738a3c74fb0bc2beaf4030,6237
+    pantry-tree:
+      size: 71915
+      sha256: 5a857d9bf0e9579ee4daacfb63b4665cdf9e0a0de31d8e0715a27836007e9c42
+  original:
+    hackage: ormolu-0.1.2.0
+- completed:
+    hackage: ghc-lib-parser-8.10.1.20200412@sha256:b0517bb150a02957d7180f131f5b94abd2a7f58a7d1532a012e71618282339c2,8751
+    pantry-tree:
+      size: 19497
+      sha256: b11275740480138dd1fce4a22a2aa8835cddfecaa8da58a153f130b4575f9df5
+  original:
+    hackage: ghc-lib-parser-8.10.1.20200412@sha256:b0517bb150a02957d7180f131f5b94abd2a7f58a7d1532a012e71618282339c2,8751
+- completed:
+    hackage: headroom-0.2.1.0@sha256:084b72a071454516bff30c3f50e4f671fb12ee062602693ad5ffcafdea5fab99,8140
+    pantry-tree:
+      size: 9195
+      sha256: 11d2ac77cee54cc1f222e574e4126189fe5b60a47a1aedbafc2ab0de709b29c6
+  original:
+    hackage: headroom-0.2.1.0
 snapshots:
 - completed:
     size: 532382

@@ -142,8 +142,6 @@ extra-deps:
 - stm-containers-1.1.0.4 # Latest: lts-15.16
 - redis-resp-1.0.0
 - stm-hamt-1.2.0.4 # Latest: lts-15.16
-# - hedgehog-quickcheck-0.1.1
-# - optics-th-0.2
 - primitive-unlifted-0.1.2.0 # Latest: lts-15.16
 
 # Not on stackage
@@ -159,6 +157,7 @@ extra-deps:
 - base58-bytestring-0.1.0
 - stompl-0.5.0
 - pattern-trie-0.1.0
+- markov-chain-usage-model-0.0.0
 
 # Not latest as latst one breaks wai-routing
 - wai-route-0.4.0
@@ -167,8 +166,29 @@ extra-deps:
 - QuickCheck-2.14
 - splitmix-0.0.4 # needed for QuickCheck
 
-# Newer than the one one stackage
-- polysemy-1.3.0.0
+- HsOpenSSL-x509-system-0.1.0.3@sha256:f4958ee0eec555c5c213662eff6764bddefe5665e2afcfd32733ce3801a9b687,1774 # Latest: lts-14.27
+- cql-4.0.2@sha256:a0006a5ac13d6f86d5eff28c11be80928246309f217ea6d5f5c8a76a5d16b48b,3157 # Latest: lts-14.27
+- cql-io-1.1.1@sha256:897ef0811b227c8b1a269b29b9c1ebfb09c46f00d66834e2e8c6f19ea7f90f7d,4611 # Latest: lts-14.27
+- primitive-extras-0.8@sha256:fca0310150496867f5b9421fe1541ecda87fae17eae44885a29f9c52dd00c8ff,2963 # Latest: lts-15.16
+- text-format-0.3.2@sha256:2a3fc17cf87120fcfdbca62a0da59759755549285841cdc1483081c35fb3d115,1814 # Latest: lts-14.27
+- hex-0.2.0@sha256:197d2561d2e216c4ead035b4911dabc6e678ac6257cb71b64e324c822f6f9f5a,726 # Latest: lts-14.27
+
+# Not in the upstream snapshot and not using latest version on hackage due to
+# breaking change
+- quickcheck-state-machine-0.6.0
+- servant-multipart-0.11.5@sha256:1633f715b5b53d648a1da69839bdc5046599f4f7244944d4bbf852dba38d8f4b,2319
+
+# Dependencies on upstream source
+
+# Required for GHC 8.8, but not released to hackage yet
+- git: https://github.com/dpwright/HaskellNet-SSL
+  commit: ca84ef29a93eaef7673fa58056cdd8dae1568d2d # master (Sep 14, 2020)
+
+# Forks with pending PRs
+- git: https://gitlab.com/axeman/wai-predicates.git
+  commit: 999d195b27104b9b39174f5ce18f5214b018a177 # ghc-8.8 (Sep 14, 2020, PR: https://gitlab.com/twittner/wai-predicates/-/merge_requests/1)
+- git: https://gitlab.com/axeman/redis-io.git
+  commit: a0f39b1c517df21ad284ff91ecb062cbe41a4ad1 # ghc-8.8 (Sep 21 , 2020, https://gitlab.com/twittner/redis-io/-/merge_requests/5)
 
 ############################################################
 # Development tools
@@ -178,25 +198,3 @@ extra-deps:
 - ghc-lib-parser-8.10.1.20200412@sha256:b0517bb150a02957d7180f131f5b94abd2a7f58a7d1532a012e71618282339c2,8751  # for ormolu-0.1.2.0
 
 - headroom-0.2.1.0
-
-## For lts-16.7
-- HsOpenSSL-x509-system-0.1.0.3@sha256:f4958ee0eec555c5c213662eff6764bddefe5665e2afcfd32733ce3801a9b687,1774
-- cql-4.0.2@sha256:a0006a5ac13d6f86d5eff28c11be80928246309f217ea6d5f5c8a76a5d16b48b,3157
-- cql-io-1.1.1@sha256:897ef0811b227c8b1a269b29b9c1ebfb09c46f00d66834e2e8c6f19ea7f90f7d,4611
-- primitive-extras-0.8@sha256:fca0310150496867f5b9421fe1541ecda87fae17eae44885a29f9c52dd00c8ff,2963
-- servant-multipart-0.11.5 # Dropped from stackage, 0.11.6 has a breaking change
-- text-format-0.3.2@sha256:2a3fc17cf87120fcfdbca62a0da59759755549285841cdc1483081c35fb3d115,1814
-# - wai-predicates-0.10.0@sha256:6b096fd8c4487e06e910911ed35447756aa217426c39db44a4bdc55e0131b9aa,2849
-- git: https://gitlab.com/axeman/wai-predicates.git
-  commit: 999d195b27104b9b39174f5ce18f5214b018a177 # ghc-8.8 (Sep 14, 2020, PR: https://gitlab.com/twittner/wai-predicates/-/merge_requests/1)
-- markov-chain-usage-model-0.0.0@sha256:1afa95faeb9213c4d960a669190078b41b89169462b8edd910472980671ba8c0,2112
-
-- hex-0.2.0
-
-- git: https://gitlab.com/axeman/redis-io.git
-  commit: a0f39b1c517df21ad284ff91ecb062cbe41a4ad1 # ghc-8.8 (Sep 21 , 2020, https://gitlab.com/twittner/redis-io/-/merge_requests/5)
-- git: https://github.com/dpwright/HaskellNet-SSL
-  commit: ca84ef29a93eaef7673fa58056cdd8dae1568d2d # master (Sep 14, 2020)
-
-# Not in the LTS, not using latest on hackage due to breaking change
-- quickcheck-state-machine-0.6.0
