@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c393e7ad1fa91da04b5c2445faaa5c3b0a72153a9529d757776e97fc0c48d70b
+-- hash: c65bea2c25598cbdee588334b4a36a838abbe0612536a104ef9be32b01c3078b
 
 name:           bonanza
 version:        3.6.0
@@ -79,7 +79,7 @@ library
     , snappy
     , snappy-framing
     , text
-    , time >=1.5 && <1.9
+    , time >=1.5
     , types-common >=0.14.1
     , unordered-containers
     , vector
