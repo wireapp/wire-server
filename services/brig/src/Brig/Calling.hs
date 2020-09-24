@@ -22,11 +22,11 @@ module Brig.Calling where
 import Brig.Options (SFTOptions (..), defSftDiscoveryIntervalSeconds, defSftListLength, defSftServiceName)
 import qualified Brig.Options as Opts
 import Brig.PolyLog
-import Data.Range
 import Brig.Types (TurnURI)
 import Control.Lens
 import Data.List.NonEmpty
 import Data.List1
+import Data.Range
 import Data.Time.Clock (DiffTime, diffTimeToPicoseconds)
 import Imports
 import qualified Network.DNS as DNS

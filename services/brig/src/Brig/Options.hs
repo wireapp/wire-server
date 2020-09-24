@@ -38,7 +38,7 @@ import Data.Scientific (toBoundedInteger)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Time.Clock (DiffTime, NominalDiffTime, secondsToDiffTime)
-import Data.Yaml ((.:), (.:?), FromJSON (..), ToJSON (..))
+import Data.Yaml (FromJSON (..), ToJSON (..), (.:), (.:?))
 import qualified Data.Yaml as Y
 import Imports
 import qualified Network.DNS as DNS
@@ -572,10 +572,10 @@ instance FromJSON Timeout where
   parseJSON (Y.Number n) =
     let defaultV = 3600
         bounded = toBoundedInteger n :: Maybe Int64
-     in pure
-          $ Timeout
-          $ fromIntegral @Int
-          $ maybe defaultV fromIntegral bounded
+     in pure $
+          Timeout $
+            fromIntegral @Int $
+              maybe defaultV fromIntegral bounded
   parseJSON v = typeMismatch "activationTimeout" v
 
 instance FromJSON Settings
