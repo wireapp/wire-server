@@ -36,7 +36,7 @@ module Spar.Scim.User
   ( validateScimUser',
     synthesizeScimUser,
     toScimStoredUser',
-    mkUserRef,
+    mkValidExternalId,
     scimFindUserByEmail,
   )
 where
@@ -203,7 +203,7 @@ validateScimUser' midp richInfoLimit user = do
       Scim.badRequest
         Scim.InvalidValue
         (Just "Setting user passwords is not supported for security reasons.")
-  veid <- mkUserRef midp (Scim.externalId user)
+  veid <- mkValidExternalId midp (Scim.externalId user)
   handl <- validateHandle . Text.toLower . Scim.userName $ user
   -- FUTUREWORK: 'Scim.userName' should be case insensitive; then the toLower here would
   -- be a little less brittle.
@@ -234,28 +234,28 @@ validateScimUser' midp richInfoLimit user = do
             }
       pure richInfo
 
--- | Given an 'externalId' and an 'IdP', construct a 'SAML.UserRef'.
+-- | Given an 'externalId' and an 'IdP', construct a 'ST.ValidExternalId'.
 --
 -- This is needed primarily in 'validateScimUser', but also in 'updateValidScimUser' to
 -- recover the 'SAML.UserRef' of the scim user before the update from the database.
-mkUserRef ::
+mkValidExternalId ::
   forall m.
   (MonadError Scim.ScimError m) =>
   Maybe IdP ->
   Maybe Text ->
   m ST.ValidExternalId
-mkUserRef _ Nothing = do
+mkValidExternalId _ Nothing = do
   throwError $
     Scim.badRequest
       Scim.InvalidValue
       (Just "externalId is required for SAML users")
-mkUserRef Nothing (Just extid) = do
+mkValidExternalId Nothing (Just extid) = do
   let err =
         Scim.badRequest
           Scim.InvalidValue
           (Just "externalId must be a valid email address or (if there is a SAML IdP) a valid SAML NameID")
   maybe (throwError err) (pure . ST.EmailOnly) $ parseEmail extid
-mkUserRef (Just idp) (Just extid) = do
+mkValidExternalId (Just idp) (Just extid) = do
   let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
   subject <- validateSubject extid
   let uref = SAML.UserRef issuer subject
@@ -664,7 +664,7 @@ scimFindUserByHandle mIdpConfig stiTeam hndl = do
 -- successful authentication with their SAML credentials.
 scimFindUserByEmail :: Maybe IdP -> TeamId -> Text -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser ST.SparTag)
 scimFindUserByEmail mIdpConfig stiTeam email = do
-  veid <- mkUserRef mIdpConfig (pure email)
+  veid <- mkValidExternalId mIdpConfig (pure email)
   uid <- MaybeT . lift $ ST.runValidExternalId withUref withEmailOnly veid
   brigUser <- MaybeT . lift . Brig.getBrigUserAccount $ uid
   guard $ userTeam (accountUser brigUser) == Just stiTeam
@@ -679,6 +679,8 @@ scimFindUserByEmail mIdpConfig stiTeam email = do
     withEmailOnly :: BT.Email -> Spar (Maybe UserId)
     withEmailOnly eml = maybe inbrig (pure . Just) =<< inspar
       where
+        -- FUTUREWORK: we could also always lookup brig, that's simpler and possibly faster,
+        -- and it never should be visible in spar, but not in brig.
         inspar, inbrig :: Spar (Maybe UserId)
         inspar = wrapMonadClient $ Data.lookupScimExternalId eml
         inbrig = userId . accountUser <$$> Brig.getBrigUserByEmail eml
