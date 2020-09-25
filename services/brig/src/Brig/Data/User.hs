@@ -131,7 +131,7 @@ newAccount u inv tid = do
     status =
       if isNewUserEphemeral u
         then Ephemeral
-        else Active -- TODO: Is this still true?  I think so?
+        else Active -- TODO: Is this still true?  (no, it's not, this is sometimes PendingActivation.)
     colour = fromMaybe defaultAccentId (newUserAccentId u)
     locale defLoc = fromMaybe defLoc (newUserLocale u)
     managedBy = fromMaybe defaultManagedBy (newUserManagedBy u)

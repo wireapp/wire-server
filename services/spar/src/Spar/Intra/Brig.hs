@@ -275,7 +275,9 @@ updateEmail buid email = do
     _ -> throwError . SAML.CustomServant . waiToServant . responseJsonUnsafe $ resp
 
 getBrigUser :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe User)
-getBrigUser = (accountUser <$$>) . getBrigUserAccount
+getBrigUser =
+  -- TODO: we sometimes need to also retrieve PendingInvitation-statussed users here.
+  (accountUser <$$>) . getBrigUserAccount
 
 -- | Get a user; returns 'Nothing' if the user was not found or has been deleted.
 getBrigUserAccount :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe UserAccount)

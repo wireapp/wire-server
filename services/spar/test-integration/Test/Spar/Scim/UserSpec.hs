@@ -179,6 +179,11 @@ specCreateUser = describe "POST /Users" $ do
     testCreateUserWithPass
   context "team has no SAML IdP" $ do
     it "creates an active user without an email, and triggers email validation" $ do
+      () <-
+        error
+          "creates a user with PendingInvitation, and user can follow usual\
+          \ invitation process.  user ends up Active.  while PendingInvitation,\
+          \ scim get still produces the user (as inactive)."
       testCreateUserNoIdP
     it "fails if no email can be extraced from externalId" $ do
       testCreateUserNoIdPNoEmail

@@ -85,7 +85,14 @@ sitemap = do
   -- This endpoint can lead to the following events being sent:
   -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
   -- - UserIdentityUpdated event to created user, if email or phone get activated
-  post "/i/users" (continue createUserNoVerifyH) $
+  post "/i/users" (continue (createUserNoVerifyH CreateUserNoVerifyNOTViaScim)) $
+    accept "application" "json"
+      .&. jsonRequest @NewUser
+
+  -- This endpoint can lead to the following events being sent:
+  -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
+  -- - UserIdentityUpdated event to created user, if email or phone get activated
+  post "/i/users/invite-via-scim" (continue (createUserNoVerifyH CreateUserNoVerifyViaScim)) $
     accept "application" "json"
       .&. jsonRequest @NewUser
 
@@ -285,17 +292,23 @@ autoConnect uid conn (UserSet to) = do
       badRequest "Too many users given for auto-connect (> 25)."
   API.autoConnect uid to conn !>> connError
 
-createUserNoVerifyH :: JSON ::: JsonRequest NewUser -> Handler Response
-createUserNoVerifyH (_ ::: req) = do
-  CreateUserNoVerifyResponse uid prof <- createUserNoVerify =<< parseJsonBody req
+createUserNoVerifyH :: CreateUserNoVerifyViaScim -> JSON ::: JsonRequest NewUser -> Handler Response
+createUserNoVerifyH viaScim (_ ::: req) = do
+  CreateUserNoVerifyResponse uid prof <- createUserNoVerify viaScim =<< parseJsonBody req
   return . setStatus status201
     . addHeader "Location" (toByteString' uid)
     $ json prof
 
+data CreateUserNoVerifyViaScim = CreateUserNoVerifyNOTViaScim | CreateUserNoVerifyViaScim
+
 data CreateUserNoVerifyResponse = CreateUserNoVerifyResponse UserId SelfProfile
 
-createUserNoVerify :: NewUser -> Handler CreateUserNoVerifyResponse
-createUserNoVerify uData = do
+createUserNoVerify :: CreateUserNoVerifyViaScim -> NewUser -> Handler CreateUserNoVerifyResponse
+createUserNoVerify viaScim uData = do
+  when viaScim $ do
+    error "make sure API.createUser will create the user with status PendingInvitation (below in this function)"
+    error "___"
+
   result <- API.createUser uData !>> newUserError
   let acc = createdAccount result
   let usr = accountUser acc
