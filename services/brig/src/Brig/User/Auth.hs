@@ -248,7 +248,7 @@ isPendingActivation ident = case ident of
     checkAccount k a =
       let s = accountStatus a
           i = userIdentity (accountUser a)
-       in s == Active'182 && case i of
+       in s == Active && case i of
             Just (EmailIdentity e) -> userEmailKey e /= k
             Just (PhoneIdentity p) -> userPhoneKey p /= k
             Just (FullIdentity e p) -> userEmailKey e /= k && userPhoneKey p /= k

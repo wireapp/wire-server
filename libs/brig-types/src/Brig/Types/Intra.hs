@@ -44,27 +44,27 @@ import Imports
 -- AccountStatus
 
 data AccountStatus
-  = Active'182
-  | Suspended'182
-  | Deleted'182
-  | Ephemeral'182
+  = Active
+  | Suspended
+  | Deleted
+  | Ephemeral
   | PendingInvitation
   deriving (Eq, Show, Generic)
 
 instance FromJSON AccountStatus where
   parseJSON = withText "account-status" $ \s -> case Text.toLower s of
-    "active" -> pure Active'182
-    "suspended" -> pure Suspended'182
-    "deleted" -> pure Deleted'182
-    "ephemeral" -> pure Ephemeral'182
+    "active" -> pure Active
+    "suspended" -> pure Suspended
+    "deleted" -> pure Deleted
+    "ephemeral" -> pure Ephemeral
     "pending-invitation" -> pure PendingInvitation
     _ -> fail $ "Invalid account status: " ++ Text.unpack s
 
 instance ToJSON AccountStatus where
-  toJSON Active'182 = String "active"
-  toJSON Suspended'182 = String "suspended"
-  toJSON Deleted'182 = String "deleted"
-  toJSON Ephemeral'182 = String "ephemeral"
+  toJSON Active = String "active"
+  toJSON Suspended = String "suspended"
+  toJSON Deleted = String "deleted"
+  toJSON Ephemeral = String "ephemeral"
   toJSON PendingInvitation = String "pending-invitation"
 
 data AccountStatusResp = AccountStatusResp {fromAccountStatusResp :: AccountStatus}

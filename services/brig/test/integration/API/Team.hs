@@ -673,13 +673,13 @@ testSuspendTeam brig = do
     const 403 === statusCode
     const (Just "suspended") === fmap Error.label . responseJsonMaybe
   -- check status
-  chkStatus brig inviter Suspended'182
-  chkStatus brig invitee Suspended'182
+  chkStatus brig inviter Suspended
+  chkStatus brig invitee Suspended
   assertNoInvitationCode brig tid (inInvitation inv2)
   -- unsuspend
   unsuspendTeam brig tid !!! const 200 === statusCode
-  chkStatus brig inviter Active'182
-  chkStatus brig invitee Active'182
+  chkStatus brig inviter Active
+  chkStatus brig invitee Active
   login brig (defEmailLogin email) PersistentCookie !!! const 200 === statusCode
 
 testDeleteTeamUser :: Brig -> Galley -> Http ()
@@ -717,8 +717,8 @@ testDeleteTeamUser brig galley = do
   -- Ensure internal endpoints are also exercised
   deleteUserInternal invitee brig !!! const 202 === statusCode
   -- Eventually the user will be deleted, leaving the team orphan
-  void $ retryWhileN 20 (/= Deleted'182) (getStatus brig invitee)
-  chkStatus brig invitee Deleted'182
+  void $ retryWhileN 20 (/= Deleted) (getStatus brig invitee)
+  chkStatus brig invitee Deleted
 
 testSSOIsTeamOwner :: Brig -> Galley -> Http ()
 testSSOIsTeamOwner brig galley = do

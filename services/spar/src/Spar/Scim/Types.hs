@@ -240,10 +240,10 @@ makeLenses ''ValidExternalId
 
 scimActiveFlagFromAccountStatus :: AccountStatus -> Bool
 scimActiveFlagFromAccountStatus = \case
-  Active'182 -> True
-  Suspended'182 -> False
-  Deleted'182 -> False
-  Ephemeral'182 -> True -- do not treat ephemeral users any different from active ones.
+  Active -> True
+  Suspended -> False
+  Deleted -> False
+  Ephemeral -> True -- do not treat ephemeral users any different from active ones.
   PendingInvitation -> False
 
 -- | The second argument is constructed from a (potentially missing) json object field, hence
@@ -257,19 +257,19 @@ scimActiveFlagToAccountStatus :: AccountStatus -> Maybe Bool -> AccountStatus
 scimActiveFlagToAccountStatus oldstatus = \case
   Nothing -> active
   Just True -> active
-  Just False -> Suspended'182
+  Just False -> Suspended
   where
     active = case oldstatus of
-      Active'182 -> Active'182
-      Suspended'182 -> Active'182
-      Deleted'182 ->
+      Active -> Active
+      Suspended -> Active
+      Deleted ->
         -- TODO: old behavior was "this reactivates deleted users", which i think was wrong.
         -- should we throw an error here, instead of silently ignoring the status change?
-        Deleted'182
-      Ephemeral'182 -> Ephemeral'182
+        Deleted
+      Ephemeral -> Ephemeral
       PendingInvitation ->
         -- TODO: what happens if the user is suspended via scim while in 'PendingInvitation', then unsuspended?
-        Suspended'182
+        Suspended
 
 ----------------------------------------------------------------------------
 -- Request and response types

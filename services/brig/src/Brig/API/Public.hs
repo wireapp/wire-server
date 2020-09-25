@@ -39,7 +39,7 @@ import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
 import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
-import Brig.Types.Intra (AccountStatus (Ephemeral'182), UserAccount (UserAccount, accountUser))
+import Brig.Types.Intra (AccountStatus (Ephemeral), UserAccount (UserAccount, accountUser))
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
 import qualified Brig.User.Auth.Cookie as Auth
@@ -1005,7 +1005,7 @@ createUser (Public.NewUserPublic new) = do
     for_ (liftM3 (,,) userEmail (createdUserTeam result) newUserTeam) $ \(e, ct, ut) ->
       sendWelcomeEmail e ct ut (Just userLocale)
   cok <- case acc of
-    UserAccount _ Ephemeral'182 -> lift $ Auth.newCookie @ZAuth.User userId Public.SessionCookie newUserLabel
+    UserAccount _ Ephemeral -> lift $ Auth.newCookie @ZAuth.User userId Public.SessionCookie newUserLabel
     UserAccount _ _ -> lift $ Auth.newCookie @ZAuth.User userId Public.PersistentCookie newUserLabel
   pure $ CreateUserResponse cok userId (Public.SelfProfile usr)
   where

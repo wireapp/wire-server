@@ -61,7 +61,7 @@ userDoc1 =
       udNormalized = Just $ "carl phoomp",
       udHandle = Just . fromJust . parseHandle $ "phoompy",
       udColourId = Just . ColourId $ 32,
-      udAccountStatus = Just Active'182
+      udAccountStatus = Just Active
     }
 
 userDoc1Value :: Value

@@ -488,7 +488,7 @@ testSuspendedLegalHoldLogin :: Brig -> Http ()
 testSuspendedLegalHoldLogin brig = do
   -- Create a user and immediately suspend them
   (uid, _tid) <- createUserWithTeam brig
-  setStatus brig uid Suspended'182
+  setStatus brig uid Suspended
   -- Try to login and see if we fail
   legalHoldLogin brig (LegalHoldLogin uid (Just defPassword) Nothing) PersistentCookie !!! do
     const 403 === statusCode
@@ -551,7 +551,7 @@ testSuspendedSsoLogin :: Brig -> Http ()
 testSuspendedSsoLogin brig = do
   -- Create a user and immediately suspend them
   uid <- userId <$> randomUser brig
-  setStatus brig uid Suspended'182
+  setStatus brig uid Suspended
   -- Try to login and see if we fail
   ssoLogin brig (SsoLogin uid Nothing) PersistentCookie !!! do
     const 403 === statusCode
@@ -751,13 +751,13 @@ testSuspendInactiveUsers config brig = do
               have <-
                 retrying
                   (exponentialBackoff 200000 <> limitRetries 6)
-                  (\_ have -> pure $ have == Suspended'182)
+                  (\_ have -> pure $ have == Suspended)
                   (\_ -> getStatus brig (userId user))
               let errmsg = "testSuspendInactiveUsers: " <> show (want, cookieType, endPoint, waitTime, suspendAge)
               liftIO $ HUnit.assertEqual errmsg want have
-        assertStatus Suspended'182
-        setStatus brig (userId user) Active'182
-        assertStatus Active'182
+        assertStatus Suspended
+        setStatus brig (userId user) Active
+        assertStatus Active
         login brig (emailLogin email defPassword Nothing) cookieType
           !!! const 200 === statusCode
   check SessionCookie "/access"
@@ -906,7 +906,7 @@ testReauthentication b = do
     const (Just "invalid-credentials") === errorLabel
   get (b . paths ["/i/users", toByteString' u, "reauthenticate"] . contentJson . payload (Just defPassword)) !!! do
     const 200 === statusCode
-  setStatus b u Suspended'182
+  setStatus b u Suspended
   get (b . paths ["/i/users", toByteString' u, "reauthenticate"] . contentJson . payload (Just defPassword)) !!! do
     const 403 === statusCode
     const (Just "suspended") === errorLabel

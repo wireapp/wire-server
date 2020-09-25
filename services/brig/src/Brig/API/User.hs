@@ -557,12 +557,12 @@ changeAccountStatus :: List1 UserId -> AccountStatus -> ExceptT AccountStatusErr
 changeAccountStatus usrs status = do
   e <- ask
   ev <- case status of
-    Active'182 -> return UserResumed -- TODO: if we're coming from 'PendingInvitation', this
+    Active -> return UserResumed -- TODO: if we're coming from 'PendingInvitation', this
     -- would not be the right thing to do.  so i guess better
     -- not 'changeAccountStatus' it in that context?
-    Suspended'182 -> liftIO $ mapConcurrently (runAppT e . revokeAllCookies) usrs >> return UserSuspended
-    Deleted'182 -> throwE InvalidAccountStatus
-    Ephemeral'182 -> throwE InvalidAccountStatus
+    Suspended -> liftIO $ mapConcurrently (runAppT e . revokeAllCookies) usrs >> return UserSuspended
+    Deleted -> throwE InvalidAccountStatus
+    Ephemeral -> throwE InvalidAccountStatus
     PendingInvitation -> throwE InvalidAccountStatus
   liftIO $ mapConcurrently_ (runAppT e . (update ev)) usrs
   where
@@ -573,7 +573,7 @@ changeAccountStatus usrs status = do
 
 suspendAccount :: HasCallStack => List1 UserId -> AppIO ()
 suspendAccount usrs =
-  runExceptT (changeAccountStatus usrs Suspended'182) >>= \case
+  runExceptT (changeAccountStatus usrs Suspended) >>= \case
     Right _ -> pure ()
     Left InvalidAccountStatus -> error "impossible."
 
@@ -760,7 +760,7 @@ beginPasswordReset target = do
   user <- lift (Data.lookupKey key) >>= maybe (throwE InvalidPasswordResetKey) return
   Log.debug $ field "user" (toByteString user) . field "action" (Log.val "User.beginPasswordReset")
   status <- lift $ Data.lookupStatus user
-  unless (status == Just Active'182) $
+  unless (status == Just Active) $
     throwE InvalidPasswordResetKey
   code <- lift $ Data.lookupPasswordResetCode user
   when (isJust code) $
@@ -815,10 +815,10 @@ deleteUser uid pwd = do
   case account of
     Nothing -> throwE DeleteUserInvalid
     Just a -> case accountStatus a of
-      Deleted'182 -> return Nothing
-      Suspended'182 -> ensureNotOwner a >> go a
-      Active'182 -> ensureNotOwner a >> go a
-      Ephemeral'182 -> go a
+      Deleted -> return Nothing
+      Suspended -> ensureNotOwner a >> go a
+      Active -> ensureNotOwner a >> go a
+      Ephemeral -> go a
       PendingInvitation -> go a
   where
     ensureNotOwner :: UserAccount -> ExceptT DeleteUserError (AppT IO) ()
@@ -920,7 +920,7 @@ deleteAccount account@(accountUser -> user) = do
       defLoc <- setDefaultLocale <$> view settings
       return $
         account
-          { accountStatus = Deleted'182,
+          { accountStatus = Deleted,
             accountUser =
               user
                 { userDisplayName = Name "default",
