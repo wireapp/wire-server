@@ -644,20 +644,20 @@ testSuspendUser brig = do
   u <- randomUser brig
   let uid = userId u
       Just email = userEmail u
-  setStatus brig uid Suspended
+  setStatus brig uid Suspended'182
   -- login fails
   login brig (defEmailLogin email) PersistentCookie !!! do
     const 403 === statusCode
     const (Just "suspended") === fmap Error.label . responseJsonMaybe
   -- check status
-  chkStatus brig uid Suspended
+  chkStatus brig uid Suspended'182
   -- should not appear in search
   suid <- userId <$> randomUser brig
   Search.refreshIndex brig
   Search.assertCan'tFind brig suid uid (fromName (userDisplayName u))
   -- re-activate
-  setStatus brig uid Active
-  chkStatus brig uid Active
+  setStatus brig uid Active'182
+  chkStatus brig uid Active'182
   -- should appear in search again
   Search.refreshIndex brig
   Search.assertCanFind brig suid uid (fromName (userDisplayName u))

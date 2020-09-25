@@ -498,7 +498,7 @@ validateNewUserPublic nu
 -- | A user is Ephemeral if she has neither email, phone, nor sso credentials and is not
 -- created via scim.  Ephemeral users can be deleted after expires_in or sessionTokenTimeout
 -- (whichever comes earlier).
-isNewUserEphemeral :: NewUser -> Bool
+isNewUserEphemeral :: NewUser -> Bool -- TODO: Is this still true?  I think so?
 isNewUserEphemeral u = noId && noScim
   where
     noId = isNothing $ newUserIdentity u

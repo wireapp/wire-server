@@ -330,7 +330,7 @@ suspendTeamH (_ ::: tid) = do
 
 suspendTeam :: TeamId -> Handler ()
 suspendTeam tid = do
-  changeTeamAccountStatuses tid Suspended
+  changeTeamAccountStatuses tid Suspended'182
   lift $ DB.deleteInvitations tid
   lift $ Intra.changeTeamStatus tid Team.Suspended Nothing
 
@@ -340,7 +340,7 @@ unsuspendTeamH (_ ::: tid) = do
 
 unsuspendTeam :: TeamId -> Handler ()
 unsuspendTeam tid = do
-  changeTeamAccountStatuses tid Active
+  changeTeamAccountStatuses tid Active'182
   lift $ Intra.changeTeamStatus tid Team.Active Nothing
 
 -------------------------------------------------------------------------------

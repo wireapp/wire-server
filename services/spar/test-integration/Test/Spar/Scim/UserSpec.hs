@@ -29,7 +29,7 @@ where
 
 import Bilge
 import Bilge.Assert
-import Brig.Types.Intra (AccountStatus (Active, Suspended))
+import Brig.Types.Intra (AccountStatus (Active'182, Suspended'182))
 import Brig.Types.User as Brig
 import Control.Lens
 import Control.Monad.Trans.Except
@@ -94,7 +94,7 @@ specSuspend = do
           handle'@(Handle handle) <- nextHandle
           runSpar $ Intra.setBrigUserHandle member handle'
           unless isActive $ do
-            runSpar $ Intra.setStatus member Suspended
+            runSpar $ Intra.setStatus member Suspended'182
           [user] <- listUsers tok (Just (filterBy "userName" handle))
           lift $ (Scim.User.active . Scim.value . Scim.thing $ user) `shouldBe` Just isActive
     it "pre-existing suspended users are inactive" $ do
@@ -113,19 +113,19 @@ specSuspend = do
             -- Once we get rid of the `scim` table and make scim serve brig records directly, this is
             -- not an issue anymore.
             lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUserBlah) `shouldBe` Just True
-            void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active)
+            void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active'182)
           do
             scimStoredUser <- putOrPatch tok uid user True
             lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just True
-            void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active)
+            void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active'182)
           do
             scimStoredUser <- putOrPatch tok uid user False
             lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just False
-            void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Suspended)
+            void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Suspended'182)
           do
             scimStoredUser <- putOrPatch tok uid user True
             lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just True
-            void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active)
+            void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active'182)
 
     it "PUT will change state from active to inactive and back" $ do
       void . activeInactiveAndBack $ \tok uid user active ->
@@ -164,10 +164,10 @@ specSuspend = do
       (tok, _) <- registerIdPAndScimToken
       scimStoredUserBlah <- createUser tok user
       let uid = Scim.id . Scim.thing $ scimStoredUserBlah
-      runSpar $ Intra.setStatus uid Suspended
-      void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Suspended)
+      runSpar $ Intra.setStatus uid Suspended'182
+      void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Suspended'182)
       void $ patchUser tok uid $ PatchOp.PatchOp [deleteAttrib "active"]
-      void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active)
+      void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active'182)
 
 ----------------------------------------------------------------------------
 -- User creation
@@ -229,7 +229,7 @@ testCreateUserNoIdP = do
   brigUser `userShouldMatch` WrappedScimStoredUser scimStoredUser
   liftIO $ userEmail brigUser `shouldBe` Nothing
   accStatus <- runSpar $ Intra.getStatusMaybe userid
-  liftIO $ accStatus `shouldBe` Just Active
+  liftIO $ accStatus `shouldBe` Just Active'182
   liftIO $ userManagedBy brigUser `shouldBe` ManagedByScim
 
   let checkGet :: TestSpar ()
@@ -285,8 +285,8 @@ testCreateUserWithSamlIdP = do
           . expect2xx
       )
   brigUser `userShouldMatch` WrappedScimStoredUser scimStoredUser
-  accStatus <- aFewTimes (runSpar $ Intra.getStatus (userId brigUser)) (== Active)
-  liftIO $ accStatus `shouldBe` Active
+  accStatus <- aFewTimes (runSpar $ Intra.getStatus (userId brigUser)) (== Active'182)
+  liftIO $ accStatus `shouldBe` Active'182
   liftIO $ userManagedBy brigUser `shouldBe` ManagedByScim
 
 -- | Test that Wire-specific schemas are added to the SCIM user record, even if the schemas

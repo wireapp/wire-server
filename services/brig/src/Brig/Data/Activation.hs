@@ -84,7 +84,7 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
     pickUser (uk, u') = maybe (throwE invalidUser) (return . (uk,)) (u <|> u')
     activate (key, uid) = do
       a <- lift (lookupAccount uid) >>= maybe (throwE invalidUser) return
-      unless (accountStatus a == Active) $
+      unless (accountStatus a == Active'182) $
         throwE invalidCode
       case userIdentity (accountUser a) of
         Nothing -> do

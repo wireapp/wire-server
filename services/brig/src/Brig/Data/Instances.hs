@@ -167,16 +167,18 @@ instance Cql Asset where
 instance Cql AccountStatus where
   ctype = Tagged IntColumn
 
-  toCql Active = CqlInt 0
-  toCql Suspended = CqlInt 1
-  toCql Deleted = CqlInt 2
-  toCql Ephemeral = CqlInt 3
+  toCql Active'182 = CqlInt 0
+  toCql Suspended'182 = CqlInt 1
+  toCql Deleted'182 = CqlInt 2
+  toCql Ephemeral'182 = CqlInt 3
+  toCql PendingInvitation = CqlInt 4
 
   fromCql (CqlInt i) = case i of
-    0 -> return Active
-    1 -> return Suspended
-    2 -> return Deleted
-    3 -> return Ephemeral
+    0 -> return Active'182
+    1 -> return Suspended'182
+    2 -> return Deleted'182
+    3 -> return Ephemeral'182
+    4 -> return PendingInvitation
     n -> Left $ "unexpected account status: " ++ show n
   fromCql _ = Left "account status: int expected"
 

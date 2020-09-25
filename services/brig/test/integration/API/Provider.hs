@@ -676,8 +676,8 @@ testDeleteTeamBotTeam config db brig galley cannon = withTestService config db b
   svcAssertEventuallyConvDelete buf uid1 cid
   -- Wait until all users have been deleted (can take a while)
   forM_ [uid1, uid2] $ \uid -> do
-    void $ retryWhileN 20 (/= Intra.Deleted) (getStatus brig uid)
-    chkStatus brig uid Intra.Deleted
+    void $ retryWhileN 20 (/= Intra.Deleted'182) (getStatus brig uid)
+    chkStatus brig uid Intra.Deleted'182
     getConversation galley uid cid !!! const 404 === statusCode
   -- Check the bot cannot see the conversation either
   getBotConv galley bid cid !!! const 404 === statusCode

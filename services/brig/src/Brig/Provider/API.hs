@@ -851,7 +851,7 @@ addBot zuid zcon cid add = do
         (newClient PermanentClientType (Ext.rsNewBotLastPrekey rs))
           { newClientPrekeys = Ext.rsNewBotPrekeys rs
           }
-  lift $ User.insertAccount (UserAccount usr Active) (Just (cid, cnvTeam cnv)) Nothing True
+  lift $ User.insertAccount (UserAccount usr Active'182) (Just (cid, cnvTeam cnv)) Nothing True
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> Opt.setUserMaxPermClients <$> view settings
   (clt, _, _) <-
     User.addClient (botUserId bid) bcl newClt maxPermClients Nothing
@@ -1000,7 +1000,7 @@ deleteBot zusr zcon bid cid = do
     User.deleteServiceUser pid sid bid
   -- TODO: Consider if we can actually delete the bot user entirely,
   -- i.e. not just marking the account as deleted.
-  User.updateStatus buid Deleted
+  User.updateStatus buid Deleted'182
   return ev
 
 validateServiceKey :: MonadIO m => Public.ServiceKeyPEM -> m (Maybe (Public.ServiceKey, Fingerprint Rsa))

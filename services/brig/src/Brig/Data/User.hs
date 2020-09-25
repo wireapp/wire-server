@@ -95,6 +95,7 @@ data AuthError
   | AuthInvalidCredentials
   | AuthSuspended
   | AuthEphemeral
+  | AuthPendingInvitation
 
 -- | Re-authentication errors.
 data ReAuthError
@@ -112,7 +113,7 @@ newAccount u inv tid = do
         (Nothing, Nothing) -> liftIO nextRandom
   passwd <- maybe (return Nothing) (fmap Just . liftIO . mkSafePassword) pass
   expiry <- case status of
-    Ephemeral -> do
+    Ephemeral'182 -> do
       -- Ephemeral users' expiry time is in expires_in (default sessionTokenTimeout) seconds
       e <- view zauthEnv
       let ZAuth.SessionTokenTimeout defTTL = e ^. ZAuth.settings . ZAuth.sessionTokenTimeout
@@ -129,8 +130,8 @@ newAccount u inv tid = do
     assets = newUserAssets u
     status =
       if isNewUserEphemeral u
-        then Ephemeral
-        else Active
+        then Ephemeral'182
+        else Active'182 -- TODO: Is this still true?  I think so?
     colour = fromMaybe defaultAccentId (newUserAccentId u)
     locale defLoc = fromMaybe defLoc (newUserLocale u)
     managedBy = fromMaybe defaultManagedBy (newUserManagedBy u)
@@ -141,11 +142,12 @@ authenticate :: UserId -> PlainTextPassword -> ExceptT AuthError AppIO ()
 authenticate u pw =
   lift (lookupAuth u) >>= \case
     Nothing -> throwE AuthInvalidUser
-    Just (_, Deleted) -> throwE AuthInvalidUser
-    Just (_, Suspended) -> throwE AuthSuspended
-    Just (_, Ephemeral) -> throwE AuthEphemeral
+    Just (_, Deleted'182) -> throwE AuthInvalidUser
+    Just (_, Suspended'182) -> throwE AuthSuspended
+    Just (_, Ephemeral'182) -> throwE AuthEphemeral
+    Just (_, PendingInvitation) -> throwE AuthPendingInvitation
     Just (Nothing, _) -> throwE AuthInvalidCredentials
-    Just (Just pw', Active) ->
+    Just (Just pw', Active'182) ->
       unless (verifyPassword pw pw') $
         throwE AuthInvalidCredentials
 
@@ -156,11 +158,12 @@ reauthenticate :: (MonadClient m) => UserId -> Maybe PlainTextPassword -> Except
 reauthenticate u pw =
   lift (lookupAuth u) >>= \case
     Nothing -> throwE (ReAuthError AuthInvalidUser)
-    Just (_, Deleted) -> throwE (ReAuthError AuthInvalidUser)
-    Just (_, Suspended) -> throwE (ReAuthError AuthSuspended)
+    Just (_, Deleted'182) -> throwE (ReAuthError AuthInvalidUser)
+    Just (_, Suspended'182) -> throwE (ReAuthError AuthSuspended)
+    Just (_, PendingInvitation) -> throwE (ReAuthError AuthPendingInvitation)
     Just (Nothing, _) -> for_ pw $ const (throwE $ ReAuthError AuthInvalidCredentials)
-    Just (Just pw', Active) -> maybeReAuth pw'
-    Just (Just pw', Ephemeral) -> maybeReAuth pw'
+    Just (Just pw', Active'182) -> maybeReAuth pw'
+    Just (Just pw', Ephemeral'182) -> maybeReAuth pw'
   where
     maybeReAuth pw' = case pw of
       Nothing -> throwE ReAuthMissingPassword
@@ -296,13 +299,15 @@ isActivated u =
   (== Just (Identity True))
     <$> retry x1 (query1 activatedSelect (params Quorum (Identity u)))
 
-filterActive :: [UserId] -> AppIO [UserId]
+filterActive :: [UserId] -> AppIO [UserId] -- TODO: is this still doing what it's supposed
+-- to?  or does 'PendingInvitation' cound as
+-- 'Active', and we need to change this?
 filterActive us =
   map (view _1) . filter isActiveUser
     <$> retry x1 (query accountStateSelectAll (params Quorum (Identity us)))
   where
     isActiveUser :: (UserId, Bool, Maybe AccountStatus) -> Bool
-    isActiveUser (_, True, Just Active) = True
+    isActiveUser (_, True, Just Active'182) = True
     isActiveUser _ = False
 
 lookupUser :: UserId -> AppIO (Maybe User)
@@ -355,7 +360,7 @@ lookupUsersTeam us =
 lookupAuth :: (MonadClient m) => UserId -> m (Maybe (Maybe Password, AccountStatus))
 lookupAuth u = fmap f <$> retry x1 (query1 authSelect (params Quorum (Identity u)))
   where
-    f (pw, st) = (pw, fromMaybe Active st)
+    f (pw, st) = (pw, fromMaybe Active'182 st)
 
 -- | Return users with given IDs.
 --
@@ -608,8 +613,8 @@ toUserAccount
     managed_by
     ) =
     let ident = toIdentity activated email phone ssoid
-        deleted = maybe False (== Deleted) status
-        expiration = if status == Just Ephemeral then expires else Nothing
+        deleted = maybe False (== Deleted'182) status
+        expiration = if status == Just Ephemeral'182 then expires else Nothing
         loc = toLocale defaultLocale (lan, con)
         svc = newServiceRef <$> sid <*> pid
      in UserAccount
@@ -628,7 +633,7 @@ toUserAccount
               tid
               (fromMaybe ManagedByWire managed_by)
           )
-          (fromMaybe Active status)
+          (fromMaybe Active'182 status)
 
 toUsers :: Locale -> [UserRow] -> [User]
 toUsers defaultLocale = fmap mk
@@ -654,8 +659,8 @@ toUsers defaultLocale = fmap mk
         managed_by
         ) =
         let ident = toIdentity activated email phone ssoid
-            deleted = maybe False (== Deleted) status
-            expiration = if status == Just Ephemeral then expires else Nothing
+            deleted = maybe False (== Deleted'182) status
+            expiration = if status == Just Ephemeral'182 then expires else Nothing
             loc = toLocale defaultLocale (lan, con)
             svc = newServiceRef <$> sid <*> pid
          in User

@@ -801,10 +801,11 @@ reindexRowToIndexUser (u, mteam, name, t0, status, t1, handle, t2, colour, t4, a
       and
         [ case status of
             Nothing -> True
-            Just Active -> True
-            Just Suspended -> True
-            Just Deleted -> False
-            Just Ephemeral -> False,
+            Just Active'182 -> True
+            Just Suspended'182 -> True
+            Just Deleted'182 -> False
+            Just Ephemeral'182 -> False
+            Just PendingInvitation -> undefined,
           activated, -- FUTUREWORK: how is this adding to the first case?
           isNothing service
         ]

@@ -42,7 +42,7 @@
 module Spar.Scim.Types where
 
 import Brig.Types.Common (Email)
-import Brig.Types.Intra (AccountStatus (Active, Deleted, Ephemeral, Suspended))
+import Brig.Types.Intra (AccountStatus (..))
 import qualified Brig.Types.User as BT
 import Control.Lens (Prism', makeLenses, prism')
 import Control.Monad.Except (throwError)
@@ -240,10 +240,11 @@ makeLenses ''ValidExternalId
 
 scimActiveFlagFromAccountStatus :: AccountStatus -> Bool
 scimActiveFlagFromAccountStatus = \case
-  Active -> True
-  Suspended -> False
-  Deleted -> False
-  Ephemeral -> True -- do not treat ephemeral users any different from active ones.
+  Active'182 -> True
+  Suspended'182 -> False
+  Deleted'182 -> False
+  Ephemeral'182 -> True -- do not treat ephemeral users any different from active ones.
+  PendingInvitation -> False
 
 -- | The second argument is constructed from a (potentially missing) json object field, hence
 -- @Nothing@ has the same meaning as @Just True@.  This way, we stay consistent between the
@@ -254,9 +255,21 @@ scimActiveFlagFromAccountStatus = \case
 -- should change the types so that the 'Ephemeral' case can be ruled out by the compiler.
 scimActiveFlagToAccountStatus :: AccountStatus -> Maybe Bool -> AccountStatus
 scimActiveFlagToAccountStatus oldstatus = \case
-  Nothing -> if oldstatus == Ephemeral then Ephemeral else Active
-  Just True -> if oldstatus == Ephemeral then Ephemeral else Active
-  Just False -> Suspended
+  Nothing -> active
+  Just True -> active
+  Just False -> Suspended'182
+  where
+    active = case oldstatus of
+      Active'182 -> Active'182
+      Suspended'182 -> Active'182
+      Deleted'182 ->
+        -- TODO: old behavior was "this reactivates deleted users", which i think was wrong.
+        -- should we throw an error here, instead of silently ignoring the status change?
+        Deleted'182
+      Ephemeral'182 -> Ephemeral'182
+      PendingInvitation ->
+        -- TODO: what happens if the user is suspended via scim while in 'PendingInvitation', then unsuspended?
+        Suspended'182
 
 ----------------------------------------------------------------------------
 -- Request and response types

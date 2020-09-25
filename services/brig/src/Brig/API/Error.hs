@@ -158,6 +158,7 @@ authError AuthInvalidUser = StdError badCredentials
 authError AuthInvalidCredentials = StdError badCredentials
 authError AuthSuspended = StdError accountSuspended
 authError AuthEphemeral = StdError accountEphemeral
+authError AuthPendingInvitation = StdError accountPending
 
 reauthError :: ReAuthError -> Error
 reauthError ReAuthMissingPassword = StdError missingAuthError
