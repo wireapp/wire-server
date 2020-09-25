@@ -255,21 +255,23 @@ scimActiveFlagFromAccountStatus = \case
 -- should change the types so that the 'Ephemeral' case can be ruled out by the compiler.
 scimActiveFlagToAccountStatus :: AccountStatus -> Maybe Bool -> AccountStatus
 scimActiveFlagToAccountStatus oldstatus = \case
-  Nothing -> active
-  Just True -> active
-  Just False -> Suspended
+  Nothing -> activate
+  Just True -> activate
+  Just False -> deactivate
   where
-    active = case oldstatus of
+    deactivate = case oldstatus of
+      Active -> Suspended
+      Suspended -> Suspended
+      Deleted -> Deleted -- this shouldn't happen, but it's harmless if it does.
+      Ephemeral -> Ephemeral -- never suspend ephemeral users via scim.  doesn't really make sense anyway.
+      PendingInvitation -> PendingInvitation
+
+    activate = case oldstatus of
       Active -> Active
       Suspended -> Active
-      Deleted ->
-        -- TODO: old behavior was "this reactivates deleted users", which i think was wrong.
-        -- should we throw an error here, instead of silently ignoring the status change?
-        Deleted
+      Deleted -> Deleted -- this shouldn't happen, but it's harmless if it does.
       Ephemeral -> Ephemeral
-      PendingInvitation ->
-        -- TODO: what happens if the user is suspended via scim while in 'PendingInvitation', then unsuspended?
-        Suspended
+      PendingInvitation -> PendingInvitation -- (do not activate: see 'scimActiveFlagFromAccountStatus')
 
 ----------------------------------------------------------------------------
 -- Request and response types

@@ -48,7 +48,10 @@ data AccountStatus
   | Suspended
   | Deleted
   | Ephemeral
-  | PendingInvitation
+  | -- | for most intents & purposes, this is another form of inactive.  it is used for
+    -- allowing scim to find users that have not accepted their invitation yet after
+    -- creating via scim.
+    PendingInvitation
   deriving (Eq, Show, Generic)
 
 instance FromJSON AccountStatus where

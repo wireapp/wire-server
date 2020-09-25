@@ -299,9 +299,7 @@ isActivated u =
   (== Just (Identity True))
     <$> retry x1 (query1 activatedSelect (params Quorum (Identity u)))
 
-filterActive :: [UserId] -> AppIO [UserId] -- TODO: is this still doing what it's supposed
--- to?  or does 'PendingInvitation' cound as
--- 'Active', and we need to change this?
+filterActive :: [UserId] -> AppIO [UserId]
 filterActive us =
   map (view _1) . filter isActiveUser
     <$> retry x1 (query accountStateSelectAll (params Quorum (Identity us)))

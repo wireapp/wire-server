@@ -144,8 +144,7 @@ data LegalHoldLoginError
 
 data LoginError
   = LoginFailed
-  | -- | account status is 'Suspended' or 'PendingActivation'.
-    LoginSuspended
+  | LoginSuspended
   | LoginEphemeral
   | LoginPendingActivation
   | LoginThrottled RetryAfter

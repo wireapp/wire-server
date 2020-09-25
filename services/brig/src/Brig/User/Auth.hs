@@ -301,7 +301,7 @@ ssoLogin (SsoLogin uid label) typ = do
       AuthInvalidCredentials -> pure ()
       AuthSuspended -> throwE LoginSuspended
       AuthEphemeral -> throwE LoginEphemeral
-      AuthPendingInvitation -> throwE LoginSuspended
+      AuthPendingInvitation -> throwE LoginPendingActivation
   newAccess @ZAuth.User @ZAuth.Access uid typ label
 
 -- | Log in as a LegalHold service, getting LegalHoldUser/Access Tokens.

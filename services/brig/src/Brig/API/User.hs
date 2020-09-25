@@ -557,9 +557,7 @@ changeAccountStatus :: List1 UserId -> AccountStatus -> ExceptT AccountStatusErr
 changeAccountStatus usrs status = do
   e <- ask
   ev <- case status of
-    Active -> return UserResumed -- TODO: if we're coming from 'PendingInvitation', this
-    -- would not be the right thing to do.  so i guess better
-    -- not 'changeAccountStatus' it in that context?
+    Active -> return UserResumed
     Suspended -> liftIO $ mapConcurrently (runAppT e . revokeAllCookies) usrs >> return UserSuspended
     Deleted -> throwE InvalidAccountStatus
     Ephemeral -> throwE InvalidAccountStatus
