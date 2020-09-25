@@ -45,6 +45,7 @@ module Spar.Intra.Brig
     checkHandleAvailable,
     deleteBrigUser,
     createBrigUser,
+    createBrigUserScimInvite,
     updateEmail,
     getZUsrOwnedTeam,
     ensureReAuthorised,
@@ -209,7 +210,37 @@ createBrigUser ::
   -- | Who should have control over the user
   ManagedBy ->
   m UserId
-createBrigUser veid (Id buid) teamid uname managedBy = do
+createBrigUser = createBrigUserInternal False
+
+-- | Create an *invitation* on brig, plus a user with status 'PendingInvitation'.
+createBrigUserScimInvite ::
+  (HasCallStack, MonadSparToBrig m) =>
+  -- | SSO identity
+  ValidExternalId ->
+  UserId ->
+  TeamId ->
+  -- | User name
+  Name ->
+  -- | Who should have control over the user
+  ManagedBy ->
+  m UserId
+createBrigUserScimInvite = createBrigUserInternal True
+
+-- | Create a user on brig.
+createBrigUserInternal ::
+  (HasCallStack, MonadSparToBrig m) =>
+  -- | via scim?
+  Bool ->
+  -- | SSO identity
+  ValidExternalId ->
+  UserId ->
+  TeamId ->
+  -- | User name
+  Name ->
+  -- | Who should have control over the user
+  ManagedBy ->
+  m UserId
+createBrigUserInternal viaScim veid (Id buid) teamid uname managedBy = do
   let newUser :: NewUser
       newUser =
         (emptyNewUser uname)
@@ -221,7 +252,7 @@ createBrigUser veid (Id buid) teamid uname managedBy = do
   resp :: Response (Maybe LBS) <-
     call $
       method POST
-        . path "/i/users"
+        . paths (["/i/users"] <> ["invite-via-scim" | viaScim])
         . json newUser
   if statusCode resp `elem` [200, 201]
     then userId . selfUser <$> parseResponse @SelfProfile resp
