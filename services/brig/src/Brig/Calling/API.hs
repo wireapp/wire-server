@@ -28,7 +28,6 @@ import Brig.Calling
 import qualified Brig.Calling as Calling
 import Brig.Calling.Internal
 import Control.Lens
-import Control.Monad.Random.Class
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Lens
 import Data.Id
@@ -48,7 +47,6 @@ import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
 import OpenSSL.EVP.Digest (Digest, hmacBS)
 import qualified System.Random.MWC as MWC
-import System.Random.Shuffle
 import qualified Wire.API.Call.Config as Public
 import Wire.Network.DNS.SRV (srvTarget)
 
@@ -128,31 +126,12 @@ newConfig env mSftEnv limit = do
     Nothing -> pure Nothing
     Just actualSftEnv -> do
       sftSrvEntries <- fmap discoveryToMaybe . readIORef . sftServers $ actualSftEnv
-      -- According to RFC2782, the SRV Entries are supposed to be tried in order of
-      -- priority and weight, but we internally agreed to randomize the list of
-      -- available servers for poor man's "load balancing" purposes.
-      -- FUTUREWORK: be smarter about list orderding depending on how much capacity SFT servers have.
-      randomizedSftEntries <- liftIO $ mapM randomize sftSrvEntries
 
-      -- Currently (Sept 2020) the client initiating an SFT call will try all
-      -- servers in this list. Limit this list to a smaller subset in case many
-      -- SFT servers are advertised in a given environment.
       let subsetLength = Calling.sftListLength actualSftEnv
-      return $ subsetSft subsetLength <$> randomizedSftEntries
+      liftIO $ mapM (getRandomSFTServers subsetLength) sftSrvEntries
 
   pure $ Public.rtcConfiguration srvs (sftServerFromSrvTarget . srvTarget <$$> sftEntries) cTTL
   where
-    subsetSft :: Range 1 100 Int -> NonEmpty a -> NonEmpty a
-    subsetSft l entries = do
-      let entry1 = NonEmpty.head entries
-      let entryTail = take (fromRange l - 1) (NonEmpty.tail entries)
-      entry1 :| entryTail
-
-    -- NOTE: even though `shuffleM` works only for [a], input is List1 so it's
-    --       safe to pattern match; ideally, we'd have `shuffleM` for `NonEmpty`
-    randomize :: (MonadRandom m, MonadFail m) => NonEmpty a -> m (NonEmpty a)
-    randomize xs = NonEmpty.fromList <$> shuffleM (NonEmpty.toList xs)
-    --
     limitedList :: NonEmpty Public.TurnURI -> Range 1 10 Int -> NonEmpty Public.TurnURI
     limitedList uris lim =
       -- assuming limitServers is safe with respect to the length of its return value
