@@ -5,8 +5,7 @@ Preprequisites
 --------------
 
 - http://azure.microsoft.com account, admin access to that account
-- Wire team, admin access to that team
-
+- See also :ref:`SSO generic setup`.
 
 Steps
 -----

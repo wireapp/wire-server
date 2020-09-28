@@ -16,6 +16,7 @@ We use [sphinx](http://sphinx-doc.org/) for rendering.  Here is a [cheat
 sheet](http://docutils.sourceforge.net/docs/user/rst/quickref.html)
 for writing re-structured text (`*.rst`).
 [here is another one](http://docutils.sourceforge.net/docs/user/rst/cheatsheet.html).
+And [another one](https://sublime-and-sphinx-guide.readthedocs.io/en/latest/references.html).
 
 Generate docs (using docker, so you don't need to install python dependencies yourself)
 
