@@ -77,6 +77,6 @@ instance (Cql a) => Cql (List1 a) where
 
   toCql = CqlList . map toCql . toList
 
-  fromCql (CqlList []) = fail "At least 1 element in list required."
+  fromCql (CqlList []) = Left "At least 1 element in list required."
   fromCql (CqlList l) = List1 . N.fromList <$> mapM fromCql l
   fromCql _ = Left "Expected CqlList."

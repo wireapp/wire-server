@@ -51,8 +51,8 @@ instance Cql ConvType where
     1 -> return SelfConv
     2 -> return One2OneConv
     3 -> return ConnectConv
-    n -> fail $ "unexpected conversation-type: " ++ show n
-  fromCql _ = fail "conv-type: int expected"
+    n -> Left $ "unexpected conversation-type: " ++ show n
+  fromCql _ = Left "conv-type: int expected"
 
 instance Cql Access where
   ctype = Tagged IntColumn
@@ -67,8 +67,8 @@ instance Cql Access where
     2 -> return InviteAccess
     3 -> return LinkAccess
     4 -> return CodeAccess
-    n -> fail $ "Unexpected Access value: " ++ show n
-  fromCql _ = fail "Access value: int expected"
+    n -> Left $ "Unexpected Access value: " ++ show n
+  fromCql _ = Left "Access value: int expected"
 
 instance Cql AccessRole where
   ctype = Tagged IntColumn
@@ -83,8 +83,8 @@ instance Cql AccessRole where
     2 -> return TeamAccessRole
     3 -> return ActivatedAccessRole
     4 -> return NonActivatedAccessRole
-    n -> fail $ "Unexpected AccessRole value: " ++ show n
-  fromCql _ = fail "AccessRole value: int expected"
+    n -> Left $ "Unexpected AccessRole value: " ++ show n
+  fromCql _ = Left "AccessRole value: int expected"
 
 instance Cql ConvTeamInfo where
   ctype = Tagged $ UdtColumn "teaminfo" [("teamid", UuidColumn), ("managed", BooleanColumn)]
@@ -95,7 +95,7 @@ instance Cql ConvTeamInfo where
     t <- note "missing 'teamid' in teaminfo" ("teamid" `lookup` u) >>= fromCql
     m <- note "missing 'managed' in teaminfo" ("managed" `lookup` u) >>= fromCql
     pure (ConvTeamInfo t m)
-  fromCql _ = fail "teaminfo: udt expected"
+  fromCql _ = Left "teaminfo: udt expected"
 
 instance Cql TeamBinding where
   ctype = Tagged BooleanColumn
@@ -105,7 +105,7 @@ instance Cql TeamBinding where
 
   fromCql (CqlBoolean True) = pure Binding
   fromCql (CqlBoolean False) = pure NonBinding
-  fromCql _ = fail "teambinding: boolean expected"
+  fromCql _ = Left "teambinding: boolean expected"
 
 instance Cql TeamStatus where
   ctype = Tagged IntColumn
@@ -122,8 +122,8 @@ instance Cql TeamStatus where
     2 -> return Deleted
     3 -> return Suspended
     4 -> return PendingActive
-    n -> fail $ "unexpected team-status: " ++ show n
-  fromCql _ = fail "team-status: int expected"
+    n -> Left $ "unexpected team-status: " ++ show n
+  fromCql _ = Left "team-status: int expected"
 
 instance Cql Public.TeamFeatureStatusValue where
   ctype = Tagged IntColumn
@@ -131,8 +131,8 @@ instance Cql Public.TeamFeatureStatusValue where
   fromCql (CqlInt n) = case n of
     0 -> pure $ Public.TeamFeatureDisabled
     1 -> pure $ Public.TeamFeatureEnabled
-    _ -> fail "fromCql: Invalid TeamFeatureStatusValue"
-  fromCql _ = fail "fromCql: TeamFeatureStatusValue: CqlInt expected"
+    _ -> Left "fromCql: Invalid TeamFeatureStatusValue"
+  fromCql _ = Left "fromCql: TeamFeatureStatusValue: CqlInt expected"
 
   toCql Public.TeamFeatureDisabled = CqlInt 0
   toCql Public.TeamFeatureEnabled = CqlInt 1
@@ -143,8 +143,8 @@ instance Cql TeamSearchVisibility where
   fromCql (CqlInt n) = case n of
     0 -> pure $ SearchVisibilityStandard
     1 -> pure $ SearchVisibilityNoNameOutsideTeam
-    _ -> fail "fromCql: Invalid TeamSearchVisibility"
-  fromCql _ = fail "fromCql: TeamSearchVisibility: CqlInt expected"
+    _ -> Left "fromCql: Invalid TeamSearchVisibility"
+  fromCql _ = Left "fromCql: TeamSearchVisibility: CqlInt expected"
 
   toCql SearchVisibilityStandard = CqlInt 0
   toCql SearchVisibilityNoNameOutsideTeam = CqlInt 1
@@ -152,5 +152,5 @@ instance Cql TeamSearchVisibility where
 instance Cql Domain where
   ctype = Tagged TextColumn
   toCql = CqlText . domainText
-  fromCql (CqlText txt) = either fail pure $ mkDomain txt
-  fromCql _ = fail "Domain: Text expected"
+  fromCql (CqlText txt) = mkDomain txt
+  fromCql _ = Left "Domain: Text expected"

@@ -45,7 +45,6 @@ module Wire.API.User.RichInfo
   )
 where
 
-import Control.Monad.Fail (MonadFail)
 import Data.Aeson
 import qualified Data.Aeson.Types as Aeson
 import Data.CaseInsensitive (CI)
@@ -53,7 +52,7 @@ import qualified Data.CaseInsensitive as CI
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashMap.Strict as HashMap
 import Data.Hashable (Hashable)
-import Data.List.Extra (nubOn)
+import Data.List.Extra (nubOrdOn)
 import qualified Data.Map as Map
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
@@ -237,7 +236,7 @@ richInfoAssocListFromObject richinfoObj = do
         ds -> fail ("duplicate fields: " <> show (map head ds))
 
 instance Arbitrary RichInfoAssocList where
-  arbitrary = RichInfoAssocList <$> nubOn richFieldType <$> arbitrary
+  arbitrary = RichInfoAssocList <$> nubOrdOn richFieldType <$> arbitrary
 
 emptyRichInfoAssocList :: RichInfoAssocList
 emptyRichInfoAssocList = RichInfoAssocList []

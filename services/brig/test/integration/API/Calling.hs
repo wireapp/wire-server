@@ -29,14 +29,12 @@ import Data.Bifunctor (Bifunctor (first))
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LB
 import Data.Id
-import Data.List ((\\))
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.List1 (List1)
 import qualified Data.List1 as List1
 import Data.Misc (Port, mkHttpsUrl)
 import qualified Data.Set as Set
 import Imports
-import Network.HTTP.Client (Manager)
 import System.FilePath ((</>))
 import Test.Tasty
 import Test.Tasty.HUnit

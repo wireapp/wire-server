@@ -40,7 +40,7 @@ instance Cql CookieId where
   toCql = CqlBigInt . fromIntegral . cookieIdNum
 
   fromCql (CqlBigInt i) = return (CookieId (fromIntegral i))
-  fromCql _ = fail "fromCql: invalid cookie id"
+  fromCql _ = Left "fromCql: invalid cookie id"
 
 instance Cql CookieType where
   ctype = Tagged IntColumn
@@ -50,4 +50,4 @@ instance Cql CookieType where
 
   fromCql (CqlInt 0) = return SessionCookie
   fromCql (CqlInt 1) = return PersistentCookie
-  fromCql _ = fail "fromCql: invalid cookie type"
+  fromCql _ = Left "fromCql: invalid cookie type"

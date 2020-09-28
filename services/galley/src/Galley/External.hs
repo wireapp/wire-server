@@ -22,7 +22,6 @@ where
 
 import Bilge.Request
 import Bilge.Retry (httpHandlers)
-import Control.Exception (fromException)
 import Control.Lens
 import Control.Retry
 import Data.ByteString.Conversion.To

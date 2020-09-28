@@ -30,7 +30,6 @@ import Data.Id
 import qualified Data.List as List
 import Data.String.Conversions
 import Imports
-import SAML2.Util ((-/))
 import SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified Servant

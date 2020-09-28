@@ -37,7 +37,6 @@ module Web.Scim.Server
   )
 where
 
-import GHC.Generics (Generic)
 import Network.Wai
 import Servant
 import Servant.API.Generic

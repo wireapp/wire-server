@@ -33,7 +33,6 @@ import Network.Wai.Handler.WebSockets
 import Network.Wai.Predicate
 import Network.Wai.Routing
 import Network.Wai.Utilities
-import Network.Wai.Utilities.Response (json)
 import Network.Wai.Utilities.Swagger
 import qualified Network.WebSockets as Ws
 

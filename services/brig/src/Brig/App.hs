@@ -90,7 +90,7 @@ import Control.AutoUpdate
 import Control.Error
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens hiding (index, (.=))
-import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
+import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
 import Data.Default (def)

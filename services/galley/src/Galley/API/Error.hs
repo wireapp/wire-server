@@ -30,7 +30,7 @@ import Galley.Types.Teams (IsPerm, hardTruncationLimit)
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
-import Type.Reflection (Typeable, typeRep)
+import Type.Reflection (typeRep)
 
 internalError :: Error
 internalError = internalErrorWithDescription "internal error"

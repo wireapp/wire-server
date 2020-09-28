@@ -56,7 +56,6 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.UUID hiding (null)
-import Data.Yaml (FromJSON (..))
 import Imports hiding (group)
 import Network.AWS (AWSRequest, Rs)
 import qualified Network.AWS as AWS

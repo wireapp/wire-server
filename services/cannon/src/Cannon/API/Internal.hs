@@ -37,8 +37,6 @@ import Network.Wai
 import Network.Wai.Predicate
 import Network.Wai.Routing
 import Network.Wai.Utilities
-import Network.Wai.Utilities.Request (parseBody')
-import Network.Wai.Utilities.Response (json)
 import System.Logger.Class (msg, val)
 import qualified System.Logger.Class as LC
 

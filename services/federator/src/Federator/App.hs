@@ -31,7 +31,7 @@ import Bilge.RPC (HasRequestId (..))
 import Control.Error (ExceptT)
 import Control.Lens (view)
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
-import Control.Monad.Trans.Resource (MonadUnliftIO, ResourceT, runResourceT, transResourceT)
+import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
 import Federator.Types (Env, applog, requestId)
 import Imports
 import Servant.API.Generic ()

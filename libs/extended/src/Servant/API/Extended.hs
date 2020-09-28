@@ -21,10 +21,8 @@
 -- errors instead of plaintext.
 module Servant.API.Extended where
 
-import Control.Monad.Trans (liftIO)
 import qualified Data.ByteString.Lazy as BL
 import Data.EitherR (fmapL)
-import Data.Maybe (fromMaybe)
 import Data.String.Conversions (cs)
 import Data.Typeable
 import GHC.TypeLits

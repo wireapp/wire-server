@@ -72,8 +72,8 @@ instance Cql UKHashType where
   fromCql (CqlInt i) = case i of
     0 -> return UKHashPhone
     1 -> return UKHashEmail
-    n -> fail $ "unexpected hashtype: " ++ show n
-  fromCql _ = fail "userkeyhashtype: int expected"
+    n -> Left $ "unexpected hashtype: " ++ show n
+  fromCql _ = Left "userkeyhashtype: int expected"
 
   toCql UKHashPhone = CqlInt 0
   toCql UKHashEmail = CqlInt 1
@@ -84,9 +84,9 @@ instance Cql UserKeyHash where
   ctype = Tagged BlobColumn
 
   fromCql (CqlBlob lbs) = case MH.decode (toStrict lbs) of
-    Left e -> fail ("userkeyhash: " ++ e)
+    Left e -> Left ("userkeyhash: " ++ e)
     Right h -> return $ UserKeyHash h
-  fromCql _ = fail "userkeyhash: expected blob"
+  fromCql _ = Left "userkeyhash: expected blob"
 
   toCql (UserKeyHash d) = CqlBlob $ MH.encode (MH.algorithm d) (MH.digest d)
 

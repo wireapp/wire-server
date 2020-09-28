@@ -38,7 +38,6 @@ import Brig.Types.User.Auth
 import qualified Brig.ZAuth as ZAuth
 import Control.Lens ((^.), (^?), (^?!))
 import Control.Monad.Catch (MonadCatch)
-import Control.Monad.Fail (MonadFail)
 import Control.Retry
 import Data.Aeson
 import Data.Aeson.Lens (key, _Integral, _JSON, _String)
@@ -557,7 +556,7 @@ mkEmailRandomLocalSuffix e = do
   uid <- liftIO UUID.nextRandom
   case parseEmail e of
     Just (Email loc dom) -> return $ Email (loc <> "+" <> UUID.toText uid) dom
-    Nothing -> fail $ "Invalid email address: " ++ Text.unpack e
+    Nothing -> error $ "Invalid email address: " ++ Text.unpack e
 
 -- | Generate emails that are in the trusted whitelist of domains whose @+@ suffices count for email
 -- disambiguation.  See also: 'Brig.Email.mkEmailKey'.

@@ -32,7 +32,6 @@ import Data.Id (ScimTokenId, TeamId, UserId)
 import Data.Json.Util
 import Data.Proxy (Proxy (Proxy))
 import Data.String.Conversions
-import Data.String.Conversions (ST)
 import qualified Data.Text as ST
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time

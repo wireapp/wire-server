@@ -44,7 +44,6 @@ import Brig.Types
 import Control.Lens (view)
 import Control.Monad.Catch
 import Control.Retry
-import Data.Char (isSpace)
 import Data.LanguageCodes
 import qualified Data.Metrics as Metrics
 import qualified Data.Text as Text

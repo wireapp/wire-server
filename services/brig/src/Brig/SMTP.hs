@@ -20,7 +20,6 @@ module Brig.SMTP where
 import Control.Lens
 import Data.Aeson
 import Data.Aeson.TH
-import Data.Char (toLower)
 import Data.Pool
 import Data.Text (unpack)
 import Imports

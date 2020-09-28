@@ -47,7 +47,7 @@ import Gundeck.Types.Notification
 import Gundeck.Types.Presence
 import Gundeck.Util
 import Imports
-import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..))
+import Network.HTTP.Client (HttpExceptionContent (..))
 import qualified Network.HTTP.Client.Internal as Http
 import Network.HTTP.Types (StdMethod (POST), status200, status410)
 import qualified Network.URI as URI

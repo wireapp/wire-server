@@ -139,5 +139,5 @@ instance Cql AccountStatus where
     1 -> return Suspended
     2 -> return Deleted
     3 -> return Ephemeral
-    n -> fail $ "unexpected account status: " ++ show n
-  fromCql _ = fail "account status: int expected"
+    n -> Left $ "unexpected account status: " ++ show n
+  fromCql _ = Left "account status: int expected"

@@ -27,7 +27,6 @@ import Cassandra
 import Control.Lens
 import Control.Monad.Except
 import Data.Kind (Type)
-import Data.Typeable (Typeable)
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
 import Imports

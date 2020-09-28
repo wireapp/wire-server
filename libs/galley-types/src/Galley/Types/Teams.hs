@@ -138,7 +138,6 @@ import Data.String.Conversions (cs)
 import Imports
 import Wire.API.Event.Team
 import Wire.API.Team
-import Wire.API.Team (NewTeam (..), Team (..), TeamBinding (..))
 import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
 import Wire.API.Team.Member

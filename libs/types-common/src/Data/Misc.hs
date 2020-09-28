@@ -67,7 +67,6 @@ import Data.ByteString.Char8 (unpack)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import Data.IP (IP (IPv4, IPv6), toIPv4, toIPv6b)
-import Data.Int (Int64)
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
@@ -187,7 +186,7 @@ instance Cql Latitude where
   toCql (Latitude x) = CqlDouble x
 
   fromCql (CqlDouble x) = return (Latitude x)
-  fromCql _ = fail "Latitude: Expected CqlDouble."
+  fromCql _ = Left "Latitude: Expected CqlDouble."
 
 instance Cql Longitude where
   ctype = Tagged DoubleColumn
@@ -195,7 +194,7 @@ instance Cql Longitude where
   toCql (Longitude x) = CqlDouble x
 
   fromCql (CqlDouble x) = return (Longitude x)
-  fromCql _ = fail "Longitude: Expected CqlDouble."
+  fromCql _ = Left "Longitude: Expected CqlDouble."
 
 --------------------------------------------------------------------------------
 -- Time
@@ -225,7 +224,7 @@ instance Cql Milliseconds where
   toCql = CqlBigInt . msToInt64
   fromCql = \case
     CqlBigInt i -> pure $ int64ToMs i
-    _ -> fail "Milliseconds: expected CqlBigInt"
+    _ -> Left "Milliseconds: expected CqlBigInt"
 
 --------------------------------------------------------------------------------
 -- HttpsUrl
@@ -266,7 +265,7 @@ instance Cql HttpsUrl where
   toCql = CqlBlob . toByteString
 
   fromCql (CqlBlob t) = runParser parser (toStrict t)
-  fromCql _ = fail "HttpsUrl: Expected CqlBlob"
+  fromCql _ = Left "HttpsUrl: Expected CqlBlob"
 
 instance Arbitrary HttpsUrl where
   arbitrary = pure $ HttpsUrl [URI.QQ.uri|https://example.com|]
@@ -296,7 +295,7 @@ instance Cql (Fingerprint a) where
   toCql = CqlBlob . toByteString
 
   fromCql (CqlBlob b) = return (Fingerprint (toStrict b))
-  fromCql _ = fail "Fingerprint: Expected CqlBlob"
+  fromCql _ = Left "Fingerprint: Expected CqlBlob"
 
 instance Arbitrary (Fingerprint Rsa) where
   arbitrary =

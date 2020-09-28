@@ -27,7 +27,6 @@ module Web.Scim.Class.User
 where
 
 import Data.Aeson.Types (FromJSON)
-import GHC.Generics (Generic)
 import Servant
 import Servant.API.Generic
 import Servant.Server.Generic

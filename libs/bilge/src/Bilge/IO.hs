@@ -72,7 +72,6 @@ import Bilge.Request
 import Bilge.Response
 import Control.Monad.Base
 import Control.Monad.Catch
-import Control.Monad.Fail (MonadFail)
 import Control.Monad.Trans.Control
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.ByteString.Lazy as Lazy

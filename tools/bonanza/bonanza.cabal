@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8d08766e828f1eb6b5314808808037082ec748509c5640b48410a0691beeaa1a
+-- hash: c65bea2c25598cbdee588334b4a36a838abbe0612536a104ef9be32b01c3078b
 
 name:           bonanza
 version:        3.6.0
@@ -71,6 +71,7 @@ library
     , lens-aeson
     , mtl
     , network
+    , network-bsd
     , optparse-applicative >=0.11
     , protobuf >=0.2.1.1
     , resourcet
@@ -78,7 +79,7 @@ library
     , snappy
     , snappy-framing
     , text
-    , time >=1.5 && <1.9
+    , time >=1.5
     , types-common >=0.14.1
     , unordered-containers
     , vector

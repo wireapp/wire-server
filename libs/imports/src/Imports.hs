@@ -168,7 +168,6 @@ import Data.Text (Text)
 import qualified Data.Text.Lazy
 import Data.Traversable
 import Data.Tuple
-import Data.Typeable (Typeable)
 import Data.Void
 import Data.Word
 import GHC.Generics (Generic)

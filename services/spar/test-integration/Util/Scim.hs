@@ -37,7 +37,6 @@ import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types (IdPId, idpId)
 import Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
-import Spar.Scim (CreateScimToken (..), CreateScimTokenResponse (..), ScimTokenList (..))
 import Spar.Scim.Types
 import Spar.Scim.User (synthesizeScimUser, validateScimUser')
 import Spar.Types (IdP, IdPMetadataInfo (..), ScimToken (..), ScimTokenInfo (..))

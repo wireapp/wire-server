@@ -27,7 +27,6 @@ import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth (CookieLabel (..))
 import Control.Lens hiding (from, to, (#), (.=))
 import Control.Monad.Catch (MonadCatch)
-import Control.Monad.Fail (MonadFail)
 import Control.Retry (constantDelay, limitRetries, retrying)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key, _String)
@@ -1264,7 +1263,7 @@ randomUserWithClient lk = do
 newNonce :: TestM (Id ())
 newNonce = randomId
 
-fromBS :: (HasCallStack, FromByteString a, Monad m) => ByteString -> m a
+fromBS :: (HasCallStack, FromByteString a, MonadFail m) => ByteString -> m a
 fromBS = maybe (fail "fromBS: no parse") return . fromByteString
 
 convRange :: Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> Request -> Request

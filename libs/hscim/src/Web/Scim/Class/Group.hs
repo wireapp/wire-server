@@ -31,7 +31,6 @@ where
 import Data.Aeson
 import qualified Data.Aeson as Aeson
 import Data.Text
-import GHC.Generics (Generic)
 import Servant
 import Servant.API.Generic
 import Servant.Server.Generic

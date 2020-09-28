@@ -122,5 +122,5 @@ instance Cql.Cql Role where
     2 -> return RoleAdmin
     3 -> return RoleMember
     4 -> return RoleExternalPartner
-    n -> fail $ "Unexpected Role value: " ++ show n
-  fromCql _ = fail "Role value: int expected"
+    n -> Left $ "Unexpected Role value: " ++ show n
+  fromCql _ = Left "Role value: int expected"

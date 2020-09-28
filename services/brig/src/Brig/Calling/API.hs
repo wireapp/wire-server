@@ -26,7 +26,6 @@ import Brig.Calling
 import qualified Brig.Calling as Calling
 import Brig.Calling.Internal
 import Control.Lens
-import Control.Monad.Fail (MonadFail)
 import Control.Monad.Random.Class
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Lens

@@ -27,7 +27,6 @@ where
 import Bilge hiding (getHeader, options, statusCode)
 import Bilge.RPC
 import Brig.Types.Client
-import Brig.Types.Client.Prekey (LastPrekey, Prekey)
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User.Auth (LegalHoldLogin (..))

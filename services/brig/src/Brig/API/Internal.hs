@@ -56,7 +56,6 @@ import Network.Wai (Response)
 import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities as Utilities
-import Network.Wai.Utilities.Response (json)
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
 import Wire.API.User
 import Wire.API.User.RichInfo

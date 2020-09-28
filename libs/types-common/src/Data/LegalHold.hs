@@ -58,8 +58,8 @@ instance Cql UserLegalHoldStatus where
     0 -> pure $ UserLegalHoldDisabled
     1 -> pure $ UserLegalHoldPending
     2 -> pure $ UserLegalHoldEnabled
-    _ -> fail "fromCql: Invalid UserLegalHoldStatus"
-  fromCql _ = fail "fromCql: UserLegalHoldStatus: CqlInt expected"
+    _ -> Left "fromCql: Invalid UserLegalHoldStatus"
+  fromCql _ = Left "fromCql: UserLegalHoldStatus: CqlInt expected"
 
   toCql UserLegalHoldDisabled = CqlInt 0
   toCql UserLegalHoldPending = CqlInt 1

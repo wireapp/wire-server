@@ -30,18 +30,15 @@ import qualified Brig.Options as Opt
 import Brig.Types
 import Control.Lens ((.~), (?~), (^.))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
-import Control.Monad.Fail (MonadFail)
 import Control.Retry
 import Data.Aeson (FromJSON, Value, (.=))
 import qualified Data.Aeson as Aeson
 import Data.Handle (fromHandle)
 import Data.Id
-import Data.List (elemIndex)
 import qualified Data.Text as Text
 import qualified Database.Bloodhound as ES
 import qualified Galley.Types.Teams.SearchVisibility as Team
 import Imports
-import Network.HTTP.Client (Manager)
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.Wai.Test as WaiTest
 import Test.Tasty
