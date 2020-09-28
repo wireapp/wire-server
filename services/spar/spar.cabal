@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 88a250ccd05fb0ad0b42a8b133068a52e559f6b5e00efb0df3098445c92f2a45
+-- hash: 8a7b77bbc7e9d990ac78dd068fccb94f15521732eac4d3a2cc9bc44aa38c7e7f
 
 name:           spar
 version:        0.1
@@ -309,6 +309,7 @@ executable spar-schema
       V0
       V1
       V10
+      V11
       V2
       V3
       V4

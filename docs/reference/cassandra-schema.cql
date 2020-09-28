@@ -1335,13 +1335,10 @@ CREATE TABLE brig_test.service_prefix (
 
 CREATE KEYSPACE spar_test WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}  AND durable_writes = true;
 
-CREATE TABLE spar_test.user (
-    issuer text,
-    sso_id text,
-    uid uuid,
-    PRIMARY KEY (issuer, sso_id)
-) WITH CLUSTERING ORDER BY (sso_id ASC)
-    AND bloom_filter_fp_chance = 0.1
+CREATE TABLE spar_test.scim_external_ids (
+    external text PRIMARY KEY,
+    user uuid
+) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
@@ -1598,10 +1595,32 @@ CREATE TABLE spar_test.team_provisioning_by_token (
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
 
-CREATE TABLE spar_test.scim_user (
-    id uuid PRIMARY KEY,
-    json blob
+CREATE TABLE spar_test.scim_user_times (
+    uid uuid PRIMARY KEY,
+    created_at timestamp,
+    last_updated_at timestamp
 ) WITH bloom_filter_fp_chance = 0.1
+    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
+    AND comment = ''
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
+    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+    AND crc_check_chance = 1.0
+    AND dclocal_read_repair_chance = 0.1
+    AND default_time_to_live = 0
+    AND gc_grace_seconds = 864000
+    AND max_index_interval = 2048
+    AND memtable_flush_period_in_ms = 0
+    AND min_index_interval = 128
+    AND read_repair_chance = 0.0
+    AND speculative_retry = '99PERCENTILE';
+
+CREATE TABLE spar_test.user (
+    issuer text,
+    sso_id text,
+    uid uuid,
+    PRIMARY KEY (issuer, sso_id)
+) WITH CLUSTERING ORDER BY (sso_id ASC)
+    AND bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}

@@ -108,7 +108,7 @@ import Web.Scim.Schema.Meta (Meta (..), WithMeta (..))
 
 -- | A lower bound: @schemaVersion <= whatWeFoundOnCassandra@, not @==@.
 schemaVersion :: Int32
-schemaVersion = 10
+schemaVersion = 11
 
 ----------------------------------------------------------------------
 -- helpers
