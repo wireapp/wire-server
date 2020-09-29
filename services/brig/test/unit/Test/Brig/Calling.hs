@@ -24,6 +24,9 @@ import Brig.Options
 import Brig.PolyLog
 import Control.Retry
 import Data.List.NonEmpty (NonEmpty (..))
+import qualified Data.List.NonEmpty as NonEmpty
+import Data.Range
+import qualified Data.Set as Set
 import Imports
 import Network.DNS
 import Polysemy
@@ -40,7 +43,7 @@ data FakeDNSEnv = FakeDNSEnv
   }
 
 newFakeDNSEnv :: (Domain -> SrvResponse) -> IO FakeDNSEnv
-newFakeDNSEnv lookupFn = do
+newFakeDNSEnv lookupFn =
   FakeDNSEnv lookupFn <$> newIORef []
 
 runFakeDNSLookup :: Member (Embed IO) r => FakeDNSEnv -> Sem (DNSLookup ': r) a -> Sem r a
@@ -61,6 +64,7 @@ recordLogs LogRecorder {..} = interpret $ \(PolyLog lvl msg) ->
 ignoreLogs :: Sem (PolyLog ': r) a -> Sem r a
 ignoreLogs = interpret $ \(PolyLog _ _) -> pure ()
 
+{-# ANN tests ("HLint: ignore" :: String) #-}
 tests :: TestTree
 tests =
   testGroup "Calling" $
@@ -69,12 +73,12 @@ tests =
             assertEqual
               "should use the service name to form domain"
               "_foo._tcp.example.com."
-              (mkSFTDomain (SFTOptions "example.com" (Just "foo") Nothing)),
+              (mkSFTDomain (SFTOptions "example.com" (Just "foo") Nothing Nothing)),
           testCase "when service name is not provided" $
             assertEqual
               "should assume service name to be 'sft'"
               "_sft._tcp.example.com."
-              (mkSFTDomain (SFTOptions "example.com" Nothing Nothing))
+              (mkSFTDomain (SFTOptions "example.com" Nothing Nothing Nothing))
         ],
       testGroup "sftDiscoveryLoop" $
         [ testCase "when service can be discovered" $ void testDiscoveryLoopWhenSuccessful,
@@ -86,6 +90,11 @@ tests =
         [ testCase "when service is available" testSFTDiscoverWhenAvailable,
           testCase "when service is not available" testSFTDiscoverWhenNotAvailable,
           testCase "when dns lookup fails" testSFTDiscoverWhenDNSFails
+        ],
+      testGroup "getRandomSFTServers" $
+        [ testCase "more servers in SRV than limit" testSFTManyServers,
+          testCase "fewer servers in SRV than limit" testSFTFewerServers
+          -- the randomization part is not (yet?) tested here.
         ]
     ]
 
@@ -94,9 +103,9 @@ testDiscoveryLoopWhenSuccessful = do
   let entry1 = SrvEntry 0 0 (SrvTarget "sft1.foo.example.com." 443)
       entry2 = SrvEntry 0 0 (SrvTarget "sft2.foo.example.com." 443)
       entry3 = SrvEntry 0 0 (SrvTarget "sft3.foo.example.com." 443)
-      returnedEntries = (entry1 :| [entry2, entry3])
+      returnedEntries = entry1 :| [entry2, entry3]
   fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvAvailable returnedEntries)
-  sftEnv <- mkSFTEnv (SFTOptions "foo.example.com" Nothing (Just 0.001))
+  sftEnv <- mkSFTEnv (SFTOptions "foo.example.com" Nothing (Just 0.001) Nothing)
 
   discoveryLoop <- Async.async $ runM . ignoreLogs . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
   void $ retryEvery10MicrosWhileN 2000 (== 0) (length <$> readIORef (fakeLookupCalls fakeDNSEnv))
@@ -105,13 +114,13 @@ testDiscoveryLoopWhenSuccessful = do
   Async.cancel discoveryLoop
 
   actualServers <- readIORef (sftServers sftEnv)
-  assertEqual "servers should be the ones read from DNS" (Discovered returnedEntries) actualServers
+  assertEqual "servers should be the ones read from DNS" (Discovered (mkSFTServers returnedEntries)) actualServers
   pure sftEnv
 
 testDiscoveryLoopWhenUnsuccessful :: IO ()
 testDiscoveryLoopWhenUnsuccessful = do
   fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvNotAvailable)
-  sftEnv <- mkSFTEnv (SFTOptions "foo.example.com" Nothing (Just 0.001))
+  sftEnv <- mkSFTEnv (SFTOptions "foo.example.com" Nothing (Just 0.001) Nothing)
 
   discoveryLoop <- Async.async $ runM . ignoreLogs . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
   -- We wait for at least two lookups to be sure that the lookup loop looped at
@@ -153,11 +162,11 @@ testDiscoveryLoopWhenURLsChange = do
   discoveryLoop <- Async.async $ runM . ignoreLogs . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
   void $ retryEvery10MicrosWhileN 2000 (== 0) (length <$> readIORef (fakeLookupCalls fakeDNSEnv))
   -- We don't want to stop the loop before it has written to the sftServers IORef
-  void $ retryEvery10MicrosWhileN 2000 (== Discovered newEntries) (readIORef (sftServers sftEnv))
+  void $ retryEvery10MicrosWhileN 2000 (== Discovered (mkSFTServers newEntries)) (readIORef (sftServers sftEnv))
   Async.cancel discoveryLoop
 
   actualServers <- readIORef (sftServers sftEnv)
-  assertEqual "servers should get overwritten" (Discovered newEntries) actualServers
+  assertEqual "servers should get overwritten" (Discovered (mkSFTServers newEntries)) actualServers
 
 testSFTDiscoverWhenAvailable :: IO ()
 testSFTDiscoverWhenAvailable = do
@@ -197,6 +206,32 @@ testSFTDiscoverWhenDNSFails = do
         )
   assertEqual "should warn about it in the logs" [(Log.Error, "DNS Lookup failed for SFT Discovery, Error=IllegalDomain\n")]
     =<< readIORef (recordedLogs logRecorder)
+
+testSFTManyServers :: IO ()
+testSFTManyServers = do
+  let entry1 = SrvEntry 0 0 (SrvTarget "sft1.foo.example.com." 443)
+      entry2 = SrvEntry 0 0 (SrvTarget "sft2.foo.example.com." 443)
+      entry3 = SrvEntry 0 0 (SrvTarget "sft3.foo.example.com." 443)
+      entry4 = SrvEntry 0 0 (SrvTarget "sft4.foo.example.com." 443)
+      entry5 = SrvEntry 0 0 (SrvTarget "sft5.foo.example.com." 443)
+      entry6 = SrvEntry 0 0 (SrvTarget "sft6.foo.example.com." 443)
+      entry7 = SrvEntry 0 0 (SrvTarget "sft7.foo.example.com." 443)
+      entries = entry1 :| [entry2, entry3, entry4, entry5, entry6, entry7]
+      sftServers = mkSFTServers entries
+  someServers <- getRandomSFTServers (unsafeRange 3) sftServers
+  assertEqual "should return only 3 servers" 3 (length someServers)
+
+testSFTFewerServers :: IO ()
+testSFTFewerServers = do
+  let entry1 = SrvEntry 0 0 (SrvTarget "sft1.foo.example.com." 443)
+      entry2 = SrvEntry 0 0 (SrvTarget "sft2.foo.example.com." 443)
+      entry3 = SrvEntry 0 0 (SrvTarget "sft3.foo.example.com." 443)
+      entry4 = SrvEntry 0 0 (SrvTarget "sft4.foo.example.com." 443)
+      entries = entry1 :| [entry2, entry3, entry4]
+      sftServers = mkSFTServers entries
+
+  allServers <- getRandomSFTServers (unsafeRange 10) sftServers
+  assertEqual "should return all of them" (Set.fromList $ NonEmpty.toList allServers) (Set.fromList $ NonEmpty.toList entries)
 
 retryEvery10MicrosWhileN :: (MonadIO m) => Int -> (a -> Bool) -> m a -> m a
 retryEvery10MicrosWhileN n f m =

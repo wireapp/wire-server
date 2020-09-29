@@ -144,10 +144,11 @@ tests:
     - bloodhound
     - brig
     - brig-types
+    - containers
     - dns
     - dns-util
-    - polysemy
     - imports
+    - polysemy
     - retry
     - tasty
     - tasty-hunit

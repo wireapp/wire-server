@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0efba75abb2e931761d20c36d7c690eb2cf9711711c4b002dfd2cd5ff7bd60ee
+-- hash: 7c9aee98315a9a56aa48fcb0af9a9e82954d9913fc94cafa512a0811f40b2ad3
 
 name:           brig
 version:        1.35.0
@@ -450,6 +450,7 @@ test-suite brig-tests
     , bloodhound
     , brig
     , brig-types
+    , containers
     , dns
     , dns-util
     , imports
