@@ -18,9 +18,9 @@
 module Brig.Calling.Internal where
 
 import Control.Lens ((?~))
-import Imports
 import qualified Data.ByteString.Char8 as BS
 import Data.Misc (ensureHttpsUrl)
+import Imports
 import qualified URI.ByteString as URI
 import qualified URI.ByteString.QQ as URI
 import qualified Wire.API.Call.Config as Public
