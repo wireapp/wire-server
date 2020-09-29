@@ -68,7 +68,7 @@ renderText t prio x = case t of
         ]
     stdApnsJson =
       object
-        [ "aps" .= apsDict prio,
+        [ "aps" .= apsDict,
           "data" .= x
         ]
     voipApnsJson =
@@ -77,14 +77,9 @@ renderText t prio x = case t of
           "data" .= x
         ]
     -- https://developer.apple.com/documentation/usernotifications/modifying_content_in_newly_delivered_notifications
-    -- Must contain `mutable-content: 1` and  include an alert dictionary with title, subtitle, or body information.
-    -- Since we have no useful data here, we send a default payload that gets overriden by the client
-    apsDict HighPriority =
-      object
-        [ "alert" .= object ["title" .= ("New message" :: Text)],
-          "mutable-content" .= '1'
-        ]
-    apsDict LowPriority =
+    -- Must contain `mutable-content: 1` and include an alert dictionary with title, subtitle, or body information.
+    -- Since we have no useful data here, we send a default payload that gets overridden by the client
+    apsDict =
       object
         [ "alert" .= object ["title" .= ("New message" :: Text)],
           "mutable-content" .= '1'
