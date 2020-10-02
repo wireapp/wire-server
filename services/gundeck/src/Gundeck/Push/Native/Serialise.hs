@@ -21,11 +21,10 @@ module Gundeck.Push.Native.Serialise
   )
 where
 
-import Control.Lens ((^.), (^?), _Just)
+import Control.Lens ((^.))
 import Data.Aeson (Value, object, (.=))
 import Data.Aeson.Text (encodeToTextBuilder)
 import qualified Data.ByteString as BS
-import Data.Json.Util
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Lazy as LT
 import qualified Data.Text.Lazy.Builder as LTB
@@ -38,24 +37,24 @@ serialise m a = do
   rs <- prepare m a
   case rs of
     Left failure -> return $! Left $! failure
-    Right (v, prio, aps) -> case renderText (a ^. addrTransport) aps prio v of
+    Right (v, prio) -> case renderText (a ^. addrTransport) prio v of
       Nothing -> return $ Left PayloadTooLarge
       Just txt -> return $ Right txt
 
-prepare :: NativePush -> Address -> IO (Either Failure (Value, Priority, Maybe ApsData))
+prepare :: NativePush -> Address -> IO (Either Failure (Value, Priority))
 prepare m a = case m of
-  NativePush nid prio aps ->
+  NativePush nid prio _aps ->
     let o =
           object
             [ "type" .= ("notice" :: Text),
               "data" .= object ["id" .= nid],
               "user" .= (a ^. addrUser)
             ]
-     in return $ Right (o, prio, aps)
+     in return $ Right (o, prio)
 
 -- | Assemble a final SNS JSON string for transmission.
-renderText :: Transport -> Maybe ApsData -> Priority -> Value -> Maybe LT.Text
-renderText t aps prio x = case t of
+renderText :: Transport -> Priority -> Value -> Maybe LT.Text
+renderText t prio x = case t of
   GCM -> trim "GCM" (jsonString gcmJson)
   APNS -> trim "APNS" (jsonString stdApnsJson)
   APNSSandbox -> trim "APNS_SANDBOX" (jsonString stdApnsJson)
@@ -69,7 +68,7 @@ renderText t aps prio x = case t of
         ]
     stdApnsJson =
       object
-        [ "aps" .= apsDict prio,
+        [ "aps" .= apsDict,
           "data" .= x
         ]
     voipApnsJson =
@@ -77,23 +76,15 @@ renderText t aps prio x = case t of
         [ "aps" .= object [],
           "data" .= x
         ]
-    apsDict HighPriority =
-      object $
-        "alert"
-          .= object
-            ( "loc-key" .= (aps ^? _Just . apsLocKey)
-                # "loc-args" .= (aps ^? _Just . apsLocArgs)
-                # []
-            )
-          # "sound"
-          .= (aps ^? _Just . apsSound)
-          # "content-available"
-          .= '1'
-          # []
-    apsDict LowPriority =
-      object $
-        "content-available" .= '1'
-          # []
+    -- https://developer.apple.com/documentation/usernotifications/modifying_content_in_newly_delivered_notifications
+    -- Must contain `mutable-content: 1` and include an alert dictionary with title, subtitle, or body information.
+    -- Since we have no useful data here, we send a default payload that gets overridden by the client
+    apsDict =
+      object
+        [ "alert" .= object ["title" .= ("New message" :: Text)],
+          "mutable-content" .= '1'
+        ]
+
     maxLen = maxPayloadSize t
     -- see <https://github.com/wireapp/wire-server/issues/341>.
     trim k j =
@@ -102,12 +93,13 @@ renderText t aps prio x = case t of
             then Nothing
             else Just $! jsonString $! object [k .= j']
 
+-- | APNS: Check size at https://developer.apple.com/documentation/usernotifications/setting_up_a_remote_notification_server/generating_a_remote_notification
 maxPayloadSize :: Transport -> Int64
 maxPayloadSize GCM = 4096
-maxPayloadSize APNS = 2048
-maxPayloadSize APNSSandbox = 2048
-maxPayloadSize APNSVoIP = 4096
-maxPayloadSize APNSVoIPSandbox = 4096
+maxPayloadSize APNS = 4096
+maxPayloadSize APNSSandbox = 4096
+maxPayloadSize APNSVoIP = 5120
+maxPayloadSize APNSVoIPSandbox = 5120
 
 gcmPriority :: Priority -> Text
 gcmPriority LowPriority = "normal"
