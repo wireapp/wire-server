@@ -1,3 +1,29 @@
+# 2020-10-05
+
+## Release Notes
+
+With this release, the `setCookieDomain` configuration (under `brig`/`config`.`optSettings`) no longer has any effect, and can be removed.
+
+## Security improvements
+
+* Authentication cookies are set to the specific DNS name of the backend server (like nginz-https.example.com), instead of a wildcard domain (like *.example.com). This is achieved by leaving the domain empty in the Set-Cookie header, but changing the code to allow clients with old cookies to continue using them until they get renewed. (#1102)
+
+## Bug Fixes
+
+* Match users on email in SCIM search: Manage invited user by SCIM when SSO is enabled (#1207)
+
+## New Features
+
+* Amount of SFT servers returned on /calls/config/v2 can be limited (default 5, configurable) (#1206)
+* Allow SCIM without SAML (#1200)
+
+## Internal changes
+
+* Cargohold: Log more about AWS errors, ease compatibility testing (#1205, #1210)
+* GHC upgrade to 8.8.4 (#1204)
+* Preparation for APNS notification on iOS 13 devices: Use mutable content for non-voip notifications and update limits (#1212)
+* Cleanup: remove unused scim_user table (#1211)
+
 # 2020-09-04
 
 ## Release Notes
