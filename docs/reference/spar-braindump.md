@@ -21,6 +21,25 @@ documentation answering your questions, look here!
 - if you want to work on our saml/scim implementation and do not have access to [https://github.com/zinfra/backend-issues/issues?q=is%3Aissue+is%3Aopen+label%3Aspar] and [https://github.com/wireapp/design-specs/tree/master/Single%20Sign%20On], please get in touch with us.
 
 
+## design considerations
+
+### SCIM without SAML.
+
+Before https://github.com/wireapp/wire-server/pull/1200, scim tokens could only be added to teams that already had exactly one SAML IdP.  Now, we also allow SAML-less teams to have SCIM provisioning.  This is an alternative to onboarding via team-settings and produces user accounts that are authenticated with email and password.  (Phone may or may not work, but is not officially supported.)
+
+The way this works is different from team-settings: we don't send invites, but we create active users immediately the moment the SCIM user post is processed.  The new thing is that the created user has neither email nor phone nor a SAML identity, nor a password.
+
+How does this work?
+
+**email:** If no SAML IdP is present, SCIM user posts must contain an externalId that is an email address.  This email address is not added to the newly created user, because it has not been validated.  Instead, the flow for changing an email address is triggered in brig: an email is sent to the address containing a validation key, and once the user completes the flow, brig will add the email address to the user.  We had to add very little code for this in this PR, it's all an old feature.
+
+When SCIM user gets are processed, in order to reconstruct the externalId from the user spar is retrieving from brig, we introduce a new json object for the `sso_id` field that looks like this: `{'scim_external_id': 'me@example.com'}`.
+
+In order to find users that have email addresses pending validation, we introduce a new table in spar's cassandra called `scim_external_ids`, in analogy to `user`.  We have tried to use brig's internal `GET /i/user&email=...`, but that also finds pending email addresses, and there are corner cases when changing email addresses and waiting for the new address to be validated and the old to be removed...  that made this approach seem infeasible.
+
+**password:** once the user has validated their email address, they need to trigger the "forgot password" flow -- also old code.
+
+
 ## operations
 
 ### enabling / disabling the sso feature for a team

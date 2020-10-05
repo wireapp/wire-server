@@ -1,3 +1,5 @@
+{-# LANGUAGE BlockArguments #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -26,15 +28,12 @@ import Brig.Calling
 import qualified Brig.Calling as Calling
 import Brig.Calling.Internal
 import Control.Lens
-import Control.Monad.Fail (MonadFail)
-import Control.Monad.Random.Class
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Lens
 import Data.Id
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.List1 as List1
-import Data.Misc ((<$$>))
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii (AsciiBase64, encodeBase64)
@@ -48,7 +47,6 @@ import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
 import OpenSSL.EVP.Digest (Digest, hmacBS)
 import qualified System.Random.MWC as MWC
-import System.Random.Shuffle
 import qualified Wire.API.Call.Config as Public
 import Wire.Network.DNS.SRV (srvTarget)
 
@@ -124,19 +122,16 @@ newConfig env mSftEnv limit = do
   srvs <- for finalUris $ \uri -> do
     u <- liftIO $ genUsername tTTL prng
     pure $ Public.rtcIceServer (uri :| []) u (computeCred sha secret u)
-  sftSrvEntries <- maybe (pure Nothing) ((fmap discoveryToMaybe) . readIORef . sftServers) mSftEnv
-  -- According to RFC2782, the SRV Entries are supposed to be tried in order of
-  -- priority and weight, but we internally agreed to randomize the list of
-  -- available servers for poor man's "load balancing" purposes.
-  -- FUTUREWORK: be smarter about list orderding depending on how much capacity SFT servers have.
-  randomizedSftEntries <- liftIO $ mapM randomize sftSrvEntries
-  pure $ Public.rtcConfiguration srvs (sftServerFromSrvTarget . srvTarget <$$> randomizedSftEntries) cTTL
+  sftEntries <- case mSftEnv of
+    Nothing -> pure Nothing
+    Just actualSftEnv -> do
+      sftSrvEntries <- fmap discoveryToMaybe . readIORef . sftServers $ actualSftEnv
+
+      let subsetLength = Calling.sftListLength actualSftEnv
+      liftIO $ mapM (getRandomSFTServers subsetLength) sftSrvEntries
+
+  pure $ Public.rtcConfiguration srvs (sftServerFromSrvTarget . srvTarget <$$> sftEntries) cTTL
   where
-    -- NOTE: even though `shuffleM` works only for [a], input is List1 so it's
-    --       safe to pattern match; ideally, we'd have `shuffleM` for `NonEmpty`
-    randomize :: (MonadRandom m, MonadFail m) => NonEmpty a -> m (NonEmpty a)
-    randomize xs = NonEmpty.fromList <$> shuffleM (NonEmpty.toList xs)
-    --
     limitedList :: NonEmpty Public.TurnURI -> Range 1 10 Int -> NonEmpty Public.TurnURI
     limitedList uris lim =
       -- assuming limitServers is safe with respect to the length of its return value

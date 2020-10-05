@@ -15,12 +15,19 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Util
-  ( module U,
+module V11
+  ( migration,
   )
 where
 
-import Util.Core as U
-import Util.Email as U
-import Util.Scim as U
-import Util.Types as U
+import Cassandra.Schema
+import Imports
+import Text.RawString.QQ
+
+migration :: Migration
+migration = Migration 11 "Remove unused table" $ do
+  void $
+    schema'
+      [r|
+        DROP TABLE scim_user;
+      |]

@@ -116,7 +116,6 @@ import Data.Bifunctor (first)
 import Data.ByteString.Conversion hiding (parser)
 import Data.Coerce (coerce)
 import Data.Domain (Domain)
-import Data.Function (on)
 import Data.Id as Id
 import Data.IdMapping (IdMapping (IdMapping), MappedOrLocalId (Local, Mapped), opaqueIdFromMappedOrLocal)
 import Data.Json.Util (UTCTimeMillis (..))

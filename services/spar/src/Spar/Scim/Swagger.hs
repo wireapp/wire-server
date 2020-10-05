@@ -30,7 +30,7 @@ module Spar.Scim.Swagger
   )
 where
 
-import Control.Lens (mapped, (&), (.~), (?~))
+import Control.Lens (mapped, (.~), (?~))
 import Data.Id (ScimTokenId, TeamId)
 import Data.Proxy (Proxy (Proxy))
 import Data.Swagger hiding (Header (..))

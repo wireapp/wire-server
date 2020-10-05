@@ -132,7 +132,7 @@ import Data.IdMapping (MappedOrLocalId, partitionMappedOrLocalIds)
 import Data.Json.Util
 import Data.List1 (List1)
 import qualified Data.Map.Strict as Map
-import Data.Misc (PlainTextPassword (..), (<$$>))
+import Data.Misc (PlainTextPassword (..))
 import Data.Time.Clock (diffUTCTime)
 import Data.UUID.V4 (nextRandom)
 import qualified Galley.Types.Teams as Team
@@ -335,10 +335,10 @@ checkRestrictedUserCreation new = do
 -- FUTUREWORK: this and other functions should refuse to modify a ManagedByScim user. See
 -- {#SparBrainDump}  https://github.com/zinfra/backend-issues/issues/1632
 
-updateUser :: UserId -> ConnId -> UserUpdate -> AppIO ()
-updateUser uid conn uu = do
+updateUser :: UserId -> Maybe ConnId -> UserUpdate -> AppIO ()
+updateUser uid mconn uu = do
   Data.updateUser uid uu
-  Intra.onUserEvent uid (Just conn) (profileUpdated uid uu)
+  Intra.onUserEvent uid mconn (profileUpdated uid uu)
 
 -------------------------------------------------------------------------------
 -- Update Locale
@@ -359,8 +359,8 @@ changeManagedBy uid conn (ManagedByUpdate mb) = do
 --------------------------------------------------------------------------------
 -- Change Handle
 
-changeHandle :: UserId -> ConnId -> Handle -> ExceptT ChangeHandleError AppIO ()
-changeHandle uid conn hdl = do
+changeHandle :: UserId -> Maybe ConnId -> Handle -> ExceptT ChangeHandleError AppIO ()
+changeHandle uid mconn hdl = do
   when (isBlacklistedHandle hdl) $
     throwE ChangeHandleInvalid
   usr <- lift $ Data.lookupUser uid
@@ -374,7 +374,7 @@ changeHandle uid conn hdl = do
       claimed <- lift $ claimHandle (userId u) (userHandle u) hdl
       unless claimed $
         throwE ChangeHandleExists
-      lift $ Intra.onUserEvent uid (Just conn) (handleUpdated uid hdl)
+      lift $ Intra.onUserEvent uid mconn (handleUpdated uid hdl)
 
 --------------------------------------------------------------------------------
 -- Check Handle

@@ -28,7 +28,6 @@ import Brig.Types.Team.Invitation
 import Brig.Types.User
 import Control.Lens ((^?))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
-import Control.Monad.Fail (MonadFail)
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion

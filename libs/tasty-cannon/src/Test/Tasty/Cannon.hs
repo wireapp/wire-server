@@ -65,7 +65,7 @@ where
 
 import Control.Concurrent.Async
 import Control.Concurrent.Timeout hiding (threadDelay)
-import Control.Exception (SomeAsyncException, asyncExceptionFromException, throwIO)
+import Control.Exception (asyncExceptionFromException, throwIO)
 import Control.Monad.Catch hiding (bracket)
 import qualified Control.Monad.Catch as Catch
 import Data.Aeson (FromJSON, Value (..), decodeStrict', fromJSON)
@@ -74,7 +74,6 @@ import qualified Data.ByteString.Char8 as C
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List1
-import Data.Misc ((<$$>))
 import Data.Timeout (Timeout, TimeoutUnit (..), (#))
 import Gundeck.Types
 import Imports

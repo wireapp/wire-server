@@ -100,7 +100,7 @@ instance Cql Scope where
   toCql ReusableCode = CqlInt 1
 
   fromCql (CqlInt 1) = return ReusableCode
-  fromCql _ = fail "unknown Scope"
+  fromCql _ = Left "unknown Scope"
 
 toCode :: Key -> Scope -> (Value, Int32, ConvId) -> Code
 toCode k s (val, ttl, cnv) =

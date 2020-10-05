@@ -43,7 +43,7 @@ instance Cql Password where
   ctype = Tagged BlobColumn
 
   fromCql (CqlBlob lbs) = return . Password . EncryptedPass $ toStrict lbs
-  fromCql _ = fail "password: expected blob"
+  fromCql _ = Left "password: expected blob"
 
   toCql = CqlBlob . fromStrict . getEncryptedPass . fromPassword
 

@@ -35,6 +35,8 @@ import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import Data.Either.Combinators (leftToMaybe, rightToMaybe)
 import Data.Id
+import Data.List1 (List1)
+import qualified Data.List1 as List1
 import Data.Predicate
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.ZAuth.Token as ZAuth
@@ -43,7 +45,7 @@ import Network.HTTP.Types.Status
 import Network.Wai (Response)
 import Network.Wai.Predicate
 import qualified Network.Wai.Predicate as P
-import Network.Wai.Predicate.Request
+import qualified Network.Wai.Predicate.Request as R
 import Network.Wai.Routing
 import Network.Wai.Utilities.Error ((!>>))
 import Network.Wai.Utilities.Request (JsonRequest, jsonRequest)
@@ -225,12 +227,12 @@ legalHoldLogin l = do
   let typ = PersistentCookie -- Session cookie isn't a supported use case here
   Auth.legalHoldLogin l typ !>> legalHoldLoginError
 
-logoutH :: JSON ::: Maybe (Either ZAuth.UserToken ZAuth.LegalHoldUserToken) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> Handler Response
+logoutH :: JSON ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> Handler Response
 logoutH (_ ::: ut ::: at) = empty <$ logout ut at
 
 -- TODO: add legalhold test checking cookies are revoked (/access/logout is called) when legalhold device is deleted.
 logout ::
-  Maybe (Either ZAuth.UserToken ZAuth.LegalHoldUserToken) ->
+  Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ->
   Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) ->
   Handler ()
 logout Nothing Nothing = throwStd authMissingCookieAndToken
@@ -256,7 +258,7 @@ rmCookies :: UserId -> Public.RemoveCookies -> Handler ()
 rmCookies uid (Public.RemoveCookies pw lls ids) = do
   Auth.revokeAccess uid pw ids lls !>> authError
 
-renewH :: JSON ::: Maybe (Either ZAuth.UserToken ZAuth.LegalHoldUserToken) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> Handler Response
+renewH :: JSON ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> Handler Response
 renewH (_ ::: ut ::: at) = lift . either tokenResponse tokenResponse =<< renew ut at
 
 -- | renew access for either:
@@ -265,21 +267,21 @@ renewH (_ ::: ut ::: at) = lift . either tokenResponse tokenResponse =<< renew u
 --
 -- Other combinations of provided inputs will cause an error to be raised.
 renew ::
-  Maybe (Either ZAuth.UserToken ZAuth.LegalHoldUserToken) ->
+  Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ->
   Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) ->
   Handler (Either (Auth.Access ZAuth.User) (Auth.Access ZAuth.LegalHoldUser))
 renew = \case
   Nothing ->
     const $ throwStd authMissingCookie
-  (Just (Left userToken)) ->
+  (Just (Left userTokens)) ->
     -- normal UserToken, so we want a normal AccessToken
-    fmap Left . renewAccess userToken <=< matchingOrNone leftToMaybe
-  (Just (Right legalholdUserToken)) ->
+    fmap Left . renewAccess userTokens <=< matchingOrNone leftToMaybe
+  (Just (Right legalholdUserTokens)) ->
     -- LegalholdUserToken, so we want a LegalholdAccessToken
-    fmap Right . renewAccess legalholdUserToken <=< matchingOrNone rightToMaybe
+    fmap Right . renewAccess legalholdUserTokens <=< matchingOrNone rightToMaybe
   where
-    renewAccess ut mat =
-      Auth.renewAccess ut mat !>> zauthError
+    renewAccess uts mat =
+      Auth.renewAccess uts mat !>> zauthError
     matchingOrNone :: (a -> Maybe b) -> Maybe a -> Handler (Maybe b)
     matchingOrNone matching = traverse $ \accessToken ->
       case matching accessToken of
@@ -292,24 +294,30 @@ renew = \case
 -- | A predicate that captures user and access tokens for a request handler.
 tokenRequest ::
   forall r.
-  (HasCookies r, HasHeaders r, HasQuery r) =>
+  (R.HasCookies r, R.HasHeaders r, R.HasQuery r) =>
   Predicate
     r
     P.Error
-    ( Maybe (Either ZAuth.UserToken ZAuth.LegalHoldUserToken)
+    ( Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken))
         ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken)
     )
 tokenRequest = opt (userToken ||| legalHoldUserToken) .&. opt (accessToken ||| legalHoldAccessToken)
   where
-    userToken = cookieErr @ZAuth.User <$> cookie "zuid"
-    legalHoldUserToken = cookieErr @ZAuth.LegalHoldUser <$> cookie "zuid"
+    userToken = cookieErr @ZAuth.User <$> cookies "zuid"
+    legalHoldUserToken = cookieErr @ZAuth.LegalHoldUser <$> cookies "zuid"
     accessToken = parse @ZAuth.Access <$> (tokenHeader .|. tokenQuery)
     legalHoldAccessToken = parse @ZAuth.LegalHoldAccess <$> (tokenHeader .|. tokenQuery)
+    --
+    tokenHeader :: r -> Result P.Error ByteString
     tokenHeader = bearer <$> header "authorization"
+    --
+    tokenQuery :: r -> Result P.Error ByteString
     tokenQuery = query "access_token"
-    cookieErr :: ZAuth.UserTokenLike u => Result P.Error (ZAuth.Token u) -> Result P.Error (ZAuth.Token u)
+    --
+    cookieErr :: ZAuth.UserTokenLike u => Result P.Error (List1 (ZAuth.Token u)) -> Result P.Error (List1 (ZAuth.Token u))
     cookieErr x@Okay {} = x
     cookieErr (Fail x) = Fail (setMessage "Invalid user token" (P.setStatus status403 x))
+    --
     -- Extract the access token from the Authorization header.
     bearer :: Result P.Error ByteString -> Result P.Error ByteString
     bearer (Fail x) = Fail x
@@ -323,6 +331,7 @@ tokenRequest = opt (userToken ||| legalHoldUserToken) .&. opt (accessToken ||| l
                     TypeError
                     (setMessage "Invalid authorization scheme" (err status403))
                 )
+    --
     -- Parse the access token
     parse :: ZAuth.AccessTokenLike a => Result P.Error ByteString -> Result P.Error (ZAuth.Token a)
     parse (Fail x) = Fail x
@@ -338,3 +347,26 @@ tokenRequest = opt (userToken ||| legalHoldUserToken) .&. opt (accessToken ||| l
 tokenResponse :: ZAuth.UserTokenLike u => Auth.Access u -> AppIO Response
 tokenResponse (Auth.Access t Nothing) = pure $ json t
 tokenResponse (Auth.Access t (Just c)) = Auth.setResponseCookie c (json t)
+
+-- | Internal utilities: These functions are nearly copies verbatim from the original
+-- project: https://gitlab.com/twittner/wai-predicates/-/blob/develop/src/Network/Wai/Predicate.hs#L106-112
+-- I will still make an upstream PR but would not like to block this PR because of
+-- it. Main difference: the original stops after finding the first valid cookie which
+-- is a problem if clients send more than 1 cookie and one of them happens to be invalid
+-- We should also be dropping this in favor of servant which will make this redundant
+cookies :: (R.HasCookies r, FromByteString a) => ByteString -> Predicate r P.Error (List1 a)
+cookies k r =
+  case R.lookupCookie k r of
+    [] -> Fail . addLabel "cookie" $ notAvailable k
+    cc ->
+      case mapMaybe fromByteString cc of
+        [] -> (Fail . addLabel "cookie" . typeError k $ "Failed to get zuid cookies")
+        (x : xs) -> return $ List1.list1 x xs
+
+notAvailable :: ByteString -> P.Error
+notAvailable k = e400 & setReason NotAvailable . setSource k
+{-# INLINE notAvailable #-}
+
+typeError :: ByteString -> ByteString -> P.Error
+typeError k m = e400 & setReason TypeError . setSource k . setMessage m
+{-# INLINE typeError #-}

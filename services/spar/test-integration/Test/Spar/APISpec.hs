@@ -42,12 +42,32 @@ import qualified Data.ZAuth.Token as ZAuth
 import qualified Galley.Types.Teams as Galley
 import Imports hiding (head)
 import Network.HTTP.Types (status200, status202)
-import SAML2.WebSSO as SAML
+import SAML2.WebSSO
+  ( AuthnResponse,
+    IdPId (..),
+    Issuer (..),
+    NameID,
+    SimpleSetCookie (..),
+    UserRef (..),
+    edCertAuthnResponse,
+    edIssuer,
+    edRequestURI,
+    getUserRef,
+    idPIdToST,
+    idpExtraInfo,
+    idpId,
+    idpMetadata,
+    mkNameID,
+    parseFromDocument,
+    (-/),
+  )
+import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.Lenses
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util
 import Spar.API.Types
 import qualified Spar.Intra.Brig as Intra
+import Spar.Scim.Types
 import Spar.Types
 import Text.XML.DSig (SignPrivCreds, mkSignCredsWithCert)
 import URI.ByteString.QQ (uri)
@@ -394,7 +414,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
         getSsoidViaAuthResp aresp = do
           parsed :: AuthnResponse <-
             either error pure . parseFromDocument $ fromSignedAuthnResponse aresp
-          either error (pure . Intra.toUserSSOId) $ getUserRef parsed
+          either error (pure . Intra.veidToUserSSOId . UrefOnly) $ getUserRef parsed
         initialBind :: HasCallStack => UserId -> IdP -> SignPrivCreds -> TestSpar (NameID, SignedAuthnResponse, ResponseLBS)
         initialBind = initialBind' Just
         initialBind' ::
@@ -1062,7 +1082,7 @@ specScimAndSAML = do
     userid' <- getUserIdViaRef' userref
     liftIO $ ('i', userid') `shouldBe` ('i', Just userid)
     userssoid <- getSsoidViaSelf' userid
-    liftIO $ ('r', Intra.fromUserSSOId <$> userssoid) `shouldBe` ('r', Just (Right userref))
+    liftIO $ ('r', preview veidUref <$$> (Intra.veidFromUserSSOId <$> userssoid)) `shouldBe` ('r', Just (Right (Just userref)))
     -- login a user for the first time with the scim-supplied credentials
     authnreq <- negotiateAuthnRequest idp
     spmeta <- getTestSPMetadata

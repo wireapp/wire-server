@@ -23,7 +23,6 @@ module Brig.Index.Migrations.Types where
 import qualified Brig.User.Search.Index as Search
 import qualified Cassandra as C
 import Control.Monad.Catch (MonadThrow)
-import Control.Monad.Reader (MonadReader (..), ReaderT, lift, runReaderT)
 import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.=))
 import Data.Metrics (Metrics)
 import qualified Database.Bloodhound as ES

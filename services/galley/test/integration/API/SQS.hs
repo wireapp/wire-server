@@ -19,7 +19,7 @@
 -- instead.
 module API.SQS where
 
-import Control.Exception (SomeAsyncException, asyncExceptionFromException)
+import Control.Exception (asyncExceptionFromException)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch hiding (bracket)
 import qualified Data.ByteString.Base64 as B64

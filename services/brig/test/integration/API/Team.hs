@@ -36,7 +36,6 @@ import Brig.Types.User.Auth
 import Control.Arrow ((&&&))
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
-import Control.Monad.Fail (MonadFail)
 import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
@@ -47,7 +46,6 @@ import qualified Data.UUID.V4 as UUID
 import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
 import Imports
-import Network.HTTP.Client (Manager)
 import qualified Network.Wai.Test as WaiTest
 import qualified Network.Wai.Utilities.Error as Error
 import Numeric.Natural (Natural)

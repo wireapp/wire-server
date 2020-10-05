@@ -35,7 +35,7 @@ import Data.Aeson
 import Data.Text
 import Data.Text.Encoding (encodeUtf8)
 import Imports
-import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), parseRequest)
+import Network.HTTP.Client (HttpExceptionContent (..))
 
 -- | A service providing a whitelist of allowed email addresses and phone numbers
 data Whitelist = Whitelist

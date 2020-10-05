@@ -27,7 +27,7 @@ import Bilge.Assert
 import qualified Cassandra as Cql
 import Control.Arrow ((&&&))
 import Control.Concurrent.Async (Async, async, concurrently_, forConcurrently_, wait)
-import Control.Lens (view, (%~), (.~), (<&>), (^.), (^?), _2)
+import Control.Lens (view, (%~), (.~), (^.), (^?), _2)
 import Control.Retry (constantDelay, limitRetries, recoverAll, retrying)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens

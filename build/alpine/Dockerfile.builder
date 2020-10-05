@@ -1,9 +1,7 @@
 # Requires docker >= 17.05 (requires support for multi-stage builds)
-
-ARG prebuilder_tag=latest
 ARG prebuilder=quay.io/wire/alpine-prebuilder
 
-FROM ${prebuilder}:${prebuilder_tag}
+FROM ${prebuilder}
 WORKDIR /
 
 # Download stack indices and compile/cache dependencies to speed up subsequent
@@ -13,6 +11,7 @@ WORKDIR /
 # a Haddock segfault. See https://github.com/haskell/haddock/issues/928
 
 ARG wire_server_branch=develop
+ARG THREADS=4
 RUN set -x && \
     echo ${wire_server_branch} && \
     git clone -b ${wire_server_branch} https://github.com/wireapp/wire-server.git && \
@@ -21,7 +20,7 @@ RUN set -x && \
     echo "allow-different-user: true" >> /root/.stack/config.yaml && \
     stack build --haddock --dependencies-only haskell-src-exts && \
     stack build --haddock --no-haddock-hyperlink-source haskell-src-exts && \
-    stack build --pedantic --haddock --test --no-run-tests --bench --no-run-benchmarks --dependencies-only && \
+    stack build --pedantic --haddock --test --no-run-tests --bench --no-run-benchmarks --dependencies-only -j${THREADS} && \
     stack install ormolu && \
     cd / && \
     # we run the build only to cache the built source in /root/.stack, we can remove the source code itself

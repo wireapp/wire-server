@@ -71,7 +71,6 @@ import Data.Id
 import qualified Data.Map as Map
 import Data.Metrics
 import Data.Range
-import Data.Semigroup (Max (..))
 import Data.Text.ICU.Translit (trans, transliterate)
 import Data.Text.Lazy.Builder.Int (decimal)
 import Data.Text.Lens hiding (text)

@@ -151,7 +151,7 @@ instance FromJSON Base64ByteString where
       stToLbs = L.fromChunks . pure . Data.Text.Encoding.encodeUtf8
       handleError =
         either
-          (fail "parse Base64ByteString: invalid base64 encoding")
+          (const $ fail "parse Base64ByteString: invalid base64 encoding")
           (pure . Base64ByteString)
   parseJSON _ = fail "parse Base64ByteString: not a string"
 

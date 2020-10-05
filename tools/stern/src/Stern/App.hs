@@ -24,7 +24,6 @@
 module Stern.App where
 
 import qualified Bilge
-import qualified Bilge.IO as Bilge (withResponse)
 import Bilge.RPC (HasRequestId (..))
 import Control.Error
 import Control.Lens (makeLenses, set, view, (^.))
@@ -32,7 +31,6 @@ import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.IO.Class
 import Control.Monad.Reader.Class
 import Control.Monad.Trans.Class
-import Control.Monad.Trans.Reader (ReaderT (..), runReaderT)
 import Data.ByteString.Conversion (toByteString')
 import Data.Default (def)
 import Data.Id (UserId)

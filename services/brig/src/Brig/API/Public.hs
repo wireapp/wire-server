@@ -56,7 +56,7 @@ import Data.Handle (Handle, parseHandle)
 import Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local))
 import qualified Data.Map.Strict as Map
-import Data.Misc (IpAddr (..), (<$$>))
+import Data.Misc (IpAddr (..))
 import Data.Qualified (OptionallyQualified, eitherQualifiedOrNot)
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
@@ -71,7 +71,6 @@ import Network.Wai (Response, lazyRequestBody)
 import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities as Utilities
-import Network.Wai.Utilities.Response (json)
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
@@ -1096,7 +1095,7 @@ instance ToJSON GetActivationCodeResp where
 updateUserH :: UserId ::: ConnId ::: JsonRequest Public.UserUpdate -> Handler Response
 updateUserH (uid ::: conn ::: req) = do
   uu <- parseJsonBody req
-  lift $ API.updateUser uid conn uu
+  lift $ API.updateUser uid (Just conn) uu
   return empty
 
 changePhoneH :: UserId ::: ConnId ::: JsonRequest Public.PhoneUpdate -> Handler Response
@@ -1177,7 +1176,7 @@ changeHandleH (u ::: conn ::: req) = do
 changeHandle :: UserId -> ConnId -> Public.HandleUpdate -> Handler ()
 changeHandle u conn (Public.HandleUpdate h) = do
   handle <- API.validateHandle h
-  API.changeHandle u conn handle !>> changeHandleError
+  API.changeHandle u (Just conn) handle !>> changeHandleError
 
 beginPasswordResetH :: JSON ::: JsonRequest Public.NewPasswordReset -> Handler Response
 beginPasswordResetH (_ ::: req) = do

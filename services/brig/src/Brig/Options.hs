@@ -33,7 +33,7 @@ import Data.Aeson.Types (typeMismatch)
 import qualified Data.Char as Char
 import Data.Domain (Domain)
 import Data.Id
-import Data.Misc ((<$$>))
+import Data.Range
 import Data.Scientific (toBoundedInteger)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
@@ -410,8 +410,6 @@ data Settings = Settings
     setUserMaxConnections :: !Int64,
     -- | Max. number of permanent clients per user
     setUserMaxPermClients :: !(Maybe Int),
-    -- | The domain to restrict cookies to
-    setCookieDomain :: !Text,
     -- | Whether to allow plain HTTP transmission
     --   of cookies (for testing purposes only)
     setCookieInsecure :: !Bool,
@@ -527,7 +525,8 @@ newtype DomainsBlockedForRegistration = DomainsBlockedForRegistration [Domain]
 data SFTOptions = SFTOptions
   { sftBaseDomain :: !DNS.Domain,
     sftSRVServiceName :: !(Maybe ByteString), -- defaults to defSftServiceName if unset
-    sftDiscoveryIntervalSeconds :: !(Maybe DiffTime) -- defaults to defSftDiscoveryIntervalSeconds
+    sftDiscoveryIntervalSeconds :: !(Maybe DiffTime), -- defaults to defSftDiscoveryIntervalSeconds
+    sftListLength :: !(Maybe (Range 1 100 Int)) -- defaults to defSftListLength
   }
   deriving (Show, Generic)
 
@@ -537,6 +536,7 @@ instance FromJSON SFTOptions where
       <$> (asciiOnly =<< o .: "sftBaseDomain")
       <*> (mapM asciiOnly =<< o .:? "sftSRVServiceName")
       <*> (secondsToDiffTime <$$> o .:? "sftDiscoveryIntervalSeconds")
+      <*> (o .:? "sftListLength")
     where
       asciiOnly :: Text -> Y.Parser ByteString
       asciiOnly t =
@@ -564,6 +564,9 @@ defSftServiceName = "_sft"
 
 defSftDiscoveryIntervalSeconds :: DiffTime
 defSftDiscoveryIntervalSeconds = secondsToDiffTime 10
+
+defSftListLength :: Range 1 100 Int
+defSftListLength = unsafeRange 5
 
 instance FromJSON Timeout where
   parseJSON (Y.Number n) =

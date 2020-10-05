@@ -17,5 +17,5 @@ pkgs.haskell.lib.buildStackProject {
     snappy
     zlib
   ];
-  ghc = pkgs.haskell.compiler.ghc865;
+  ghc = pkgs.haskell.compiler.ghc884;
 }

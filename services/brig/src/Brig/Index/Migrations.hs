@@ -26,7 +26,7 @@ import qualified Brig.User.Search.Index as Search
 import qualified Cassandra as C
 import qualified Cassandra.Settings as C
 import Control.Lens (view, (^.))
-import Control.Monad.Catch (Exception, MonadThrow, finally, throwM)
+import Control.Monad.Catch (MonadThrow, finally, throwM)
 import Data.Aeson (Value, object, (.=))
 import qualified Data.Metrics as Metrics
 import qualified Data.Text as Text

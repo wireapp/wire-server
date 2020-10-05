@@ -40,7 +40,6 @@ import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities
-import Network.Wai.Utilities.Response (json, setStatus)
 import Network.Wai.Utilities.Swagger
 import Wire.API.Notification (NotificationId)
 import qualified Wire.API.Notification as Public

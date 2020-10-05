@@ -18,7 +18,6 @@
 module Web.Scim.Schema.PatchOp where
 
 import Control.Applicative
-import Control.Monad (guard)
 import Control.Monad.Except
 import Data.Aeson.Types (FromJSON (parseJSON), ToJSON (toJSON), Value (String), object, withObject, withText, (.:), (.:?), (.=))
 import qualified Data.Aeson.Types as Aeson

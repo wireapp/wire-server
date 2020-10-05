@@ -32,6 +32,7 @@ module Spar.Error
     renderSparErrorWithLogging,
     -- FUTUREWORK: we really shouldn't export this, but that requires that we can use our
     -- custom servant monad in the 'MakeCustomError' instances.
+    servantToWaiError,
     sparToServerError,
     renderSparError,
     waiToServant,
@@ -94,7 +95,7 @@ data SparCustomError
   | SparNewIdPWantHttps LT
   | SparIdPHasBoundUsers
   | SparIdPIssuerInUse
-  | SparProvisioningNoSingleIdP LT
+  | SparProvisioningMoreThanOneIdP LT
   | SparProvisioningTokenLimitReached
   | -- | All errors returned from SCIM handlers are wrapped into 'SparScimError'
     SparScimError Scim.ScimError
@@ -179,7 +180,7 @@ renderSparError (SAML.CustomError (SparNewIdPWantHttps msg)) = Right $ Wai.Error
 renderSparError (SAML.CustomError SparIdPHasBoundUsers) = Right $ Wai.Error status412 "idp-has-bound-users" "an idp can only be deleted if it is empty"
 renderSparError (SAML.CustomError SparIdPIssuerInUse) = Right $ Wai.Error status400 "idp-issuer-in-use" "The issuer of your IdP is already in use.  Remove the entry in the team that uses it, or construct a new IdP issuer."
 -- Errors related to provisioning
-renderSparError (SAML.CustomError (SparProvisioningNoSingleIdP msg)) = Right $ Wai.Error status400 "no-single-idp" ("Team should have exactly one IdP configured: " <> msg)
+renderSparError (SAML.CustomError (SparProvisioningMoreThanOneIdP msg)) = Right $ Wai.Error status400 "more-than-one-idp" ("Team can have at most one IdP configured: " <> msg)
 renderSparError (SAML.CustomError SparProvisioningTokenLimitReached) = Right $ Wai.Error status403 "token-limit-reached" "The limit of provisioning tokens per team has been reached"
 -- SCIM errors
 renderSparError (SAML.CustomError (SparScimError err)) = Left $ Scim.scimToServerError err

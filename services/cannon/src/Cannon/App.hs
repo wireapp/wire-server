@@ -33,7 +33,7 @@ import Data.Id (ClientId)
 import qualified Data.Text.Lazy as Text
 import Data.Timeout
 import Imports hiding (threadDelay)
-import Lens.Family hiding (set)
+import Lens.Family hiding (reset, set)
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 import Network.WebSockets hiding (Request, Response, requestHeaders)

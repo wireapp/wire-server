@@ -25,7 +25,6 @@ import Brig.Types.User
 import Cassandra
 import Control.Lens
 import Control.Monad.Random
-import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle))
 import Data.Id
@@ -38,7 +37,6 @@ import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types (IdPId, idpId)
 import Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
-import Spar.Scim (CreateScimToken (..), CreateScimTokenResponse (..), ScimTokenList (..))
 import Spar.Scim.Types
 import Spar.Scim.User (synthesizeScimUser, validateScimUser')
 import Spar.Types (IdP, IdPMetadataInfo (..), ScimToken (..), ScimTokenInfo (..))
@@ -242,7 +240,7 @@ deleteUser tok userid = do
       (Just tok)
       (Just userid)
       (env ^. teSpar)
-      <!! const 200 === statusCode -- status code maybe some other 2xx?
+      <!! const 204 === statusCode
   pure (responseJsonUnsafe r)
 
 -- | List all users.
@@ -352,7 +350,7 @@ createUser_ auth user spar_ = do
         . paths ["scim", "v2", "Users"]
         . scimAuth auth
         . contentScim
-        . body (RequestBodyLBS . Aeson.encode $ user)
+        . json user
         . acceptScim
     )
 
@@ -374,7 +372,7 @@ updateUser_ auth muid user spar_ = do
         . paths (["scim", "v2", "Users"] <> maybeToList (toByteString' <$> muid))
         . scimAuth auth
         . contentScim
-        . body (RequestBodyLBS . Aeson.encode $ user)
+        . json user
         . acceptScim
     )
 
@@ -386,7 +384,7 @@ patchUser_ auth muid patchop spar_ =
         . paths (["scim", "v2", "Users"] <> maybeToList (toByteString' <$> muid))
         . scimAuth auth
         . contentScim
-        . body (RequestBodyLBS . Aeson.encode $ patchop)
+        . json patchop
         . acceptScim
     )
 
@@ -463,7 +461,7 @@ createToken_ userid payload spar_ = do
         . paths ["scim", "auth-tokens"]
         . zUser userid
         . contentJson
-        . body (RequestBodyLBS . Aeson.encode $ payload)
+        . json payload
         . acceptJson
     )
 
@@ -540,12 +538,7 @@ class IsUser u where
   maybeName :: Maybe (u -> Maybe Name)
   maybeTenant :: Maybe (u -> Maybe SAML.Issuer)
   maybeSubject :: Maybe (u -> Maybe SAML.NameID)
-
-  -- | Some types (e.g. 'Scim.User.User') have a subject ID as a raw string, i.e. not in a
-  -- structured form. Having 'maybeSubjectRaw' available allows us to compare things like
-  -- SCIM 'Scim.User.User' and a Brig 'User', even though they store subject IDs in a
-  -- different way.
-  maybeSubjectRaw :: Maybe (u -> Maybe Text)
+  maybeScimExternalId :: Maybe (u -> Maybe Text)
 
 -- | 'ValidScimUser' is tested in ScimSpec.hs exhaustively with literal inputs, so here we assume it
 -- is correct and don't aim to verify that name, handle, etc correspond to ones in 'vsuUser'.
@@ -553,9 +546,9 @@ instance IsUser ValidScimUser where
   maybeUserId = Nothing
   maybeHandle = Just (Just . view vsuHandle)
   maybeName = Just (Just . view vsuName)
-  maybeTenant = Just (Just . view (vsuUserRef . SAML.uidTenant))
-  maybeSubject = Just (Just . view (vsuUserRef . SAML.uidSubject))
-  maybeSubjectRaw = Just (SAML.shortShowNameID . view (vsuUserRef . SAML.uidSubject))
+  maybeTenant = Just (^? (vsuExternalId . veidUref . SAML.uidTenant))
+  maybeSubject = Just (^? (vsuExternalId . veidUref . SAML.uidSubject))
+  maybeScimExternalId = Just (runValidExternalId Intra.urefToExternalId (Just . fromEmail) . view vsuExternalId)
 
 instance IsUser (WrappedScimStoredUser SparTag) where
   maybeUserId = Just $ scimUserId . fromWrappedScimStoredUser
@@ -563,7 +556,7 @@ instance IsUser (WrappedScimStoredUser SparTag) where
   maybeName = maybeName <&> _wrappedStoredUserToWrappedUser
   maybeTenant = maybeTenant <&> _wrappedStoredUserToWrappedUser
   maybeSubject = maybeSubject <&> _wrappedStoredUserToWrappedUser
-  maybeSubjectRaw = maybeSubjectRaw <&> _wrappedStoredUserToWrappedUser
+  maybeScimExternalId = maybeScimExternalId <&> _wrappedStoredUserToWrappedUser
 
 _wrappedStoredUserToWrappedUser :: (WrappedScimUser tag -> a) -> (WrappedScimStoredUser tag -> a)
 _wrappedStoredUserToWrappedUser f = f . WrappedScimUser . Scim.value . Scim.thing . fromWrappedScimStoredUser
@@ -574,15 +567,27 @@ instance IsUser (WrappedScimUser SparTag) where
   maybeName = Just (fmap Name . Scim.User.displayName . fromWrappedScimUser)
   maybeTenant = Nothing
   maybeSubject = Nothing
-  maybeSubjectRaw = Just $ Scim.User.externalId . fromWrappedScimUser
+  maybeScimExternalId = Just $ Scim.User.externalId . fromWrappedScimUser
 
 instance IsUser User where
   maybeUserId = Just userId
   maybeHandle = Just userHandle
   maybeName = Just (Just . userDisplayName)
-  maybeTenant = Just (fmap (view SAML.uidTenant) . urefFromBrig)
-  maybeSubject = Just (fmap (view SAML.uidSubject) . urefFromBrig)
-  maybeSubjectRaw = Just (SAML.shortShowNameID . view SAML.uidSubject <=< urefFromBrig)
+  maybeTenant = Just $ \usr ->
+    Intra.veidFromBrigUser usr Nothing
+      & either
+        (const Nothing)
+        (preview (veidUref . SAML.uidTenant))
+  maybeSubject = Just $ \usr ->
+    Intra.veidFromBrigUser usr Nothing
+      & either
+        (const Nothing)
+        (preview (veidUref . SAML.uidSubject))
+  maybeScimExternalId = Just $ \usr ->
+    Intra.veidFromBrigUser usr Nothing
+      & either
+        (const Nothing)
+        (runValidExternalId Intra.urefToExternalId (Just . fromEmail))
 
 -- | For all properties that are present in both @u1@ and @u2@, check that they match.
 --
@@ -603,7 +608,7 @@ userShouldMatch u1 u2 = liftIO $ do
   check "name" maybeName
   check "tenant" maybeTenant
   check "subject" maybeSubject
-  check "subject (raw)" maybeSubjectRaw
+  check "scim externalId" maybeScimExternalId
   where
     check ::
       (Eq a, Show a) =>
@@ -614,22 +619,9 @@ userShouldMatch u1 u2 = liftIO $ do
       (Just a1, Just a2) -> (field, a1) `shouldBe` (field, a2)
       _ -> pure ()
 
-urefFromBrig :: User -> Maybe SAML.UserRef
-urefFromBrig brigUser = case userIdentity brigUser of
-  Just (SSOIdentity ssoid _ _) -> case Intra.fromUserSSOId ssoid of
-    Right uref -> Just uref
-    Left e ->
-      error $
-        "urefFromBrig: bad SSO id: "
-          <> "UserSSOId = "
-          <> show ssoid
-          <> ", error = "
-          <> e
-  _ -> Nothing
-
 -- | The spar scim implementation makes use of its right to drop a lot of attributes on the
 -- floor.  This function calls the spar functions that do that.  This allows us to express
 -- what we expect a user that comes back from spar to look like in terms of what it looked
 -- like when we sent it there.
 whatSparReturnsFor :: HasCallStack => IdP -> Int -> Scim.User.User SparTag -> Either String (Scim.User.User SparTag)
-whatSparReturnsFor idp richInfoSizeLimit = either (Left . show) (Right . synthesizeScimUser) . validateScimUser' idp richInfoSizeLimit
+whatSparReturnsFor idp richInfoSizeLimit = either (Left . show) (Right . synthesizeScimUser) . validateScimUser' (Just idp) richInfoSizeLimit

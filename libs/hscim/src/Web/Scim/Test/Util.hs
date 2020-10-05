@@ -52,8 +52,8 @@ where
 
 import qualified Control.Retry as Retry
 import Data.Aeson
-import Data.Aeson.Internal (JSONPathElement (Key), (<?>))
 import Data.Aeson.QQ
+import Data.Aeson.Types (JSONPathElement (Key))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8

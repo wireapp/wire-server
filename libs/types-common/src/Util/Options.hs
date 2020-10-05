@@ -23,7 +23,6 @@
 module Util.Options where
 
 import Control.Lens
-import Data.Aeson (FromJSON)
 import Data.Aeson.TH
 import qualified Data.ByteString.Char8 as BS
 import Data.ByteString.Conversion
@@ -33,7 +32,7 @@ import Imports
 import Options.Applicative
 import Options.Applicative.Types
 import System.Exit (die)
-import System.IO (hPutStrLn, stderr)
+import System.IO (hPutStrLn)
 import URI.ByteString
 import Util.Options.Common
 

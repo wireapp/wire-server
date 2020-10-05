@@ -694,10 +694,9 @@ parseNewUserOrigin pass uid ssoid o = do
     (Nothing, Nothing, Just a, Nothing, Nothing) -> return . Just . NewUserOriginTeamUser $ NewTeamCreator a
     (Nothing, Nothing, Nothing, Just _, Just t) -> return . Just . NewUserOriginTeamUser $ NewTeamMemberSSO t
     (Nothing, Nothing, Nothing, Nothing, Nothing) -> return Nothing
-    (_, _, _, _, _) ->
-      fail $
-        "team_code, team, invitation_code, sso_id are mutually exclusive\
-        \ and sso_id, team_id must be either both present or both absent."
+    (_, _, _, Just _, Nothing) -> fail "sso_id, team_id must be either both present or both absent."
+    (_, _, _, Nothing, Just _) -> fail "sso_id, team_id must be either both present or both absent."
+    _ -> fail "team_code, team, invitation_code, sso_id, and the pair (sso_id, team_id) are mutually exclusive"
   case (result, pass, uid) of
     (_, _, Just SSOIdentity {}) -> pure result
     (Just (NewUserOriginTeamUser _), Nothing, _) -> fail "all team users must set a password on creation"
@@ -729,7 +728,8 @@ data NewTeamUser
   = -- | requires email address
     NewTeamMember InvitationCode
   | NewTeamCreator BindingNewTeamUser
-  | NewTeamMemberSSO TeamId
+  | -- | sso: users with saml credentials and/or created via scim
+    NewTeamMemberSSO TeamId
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewTeamUser)
 

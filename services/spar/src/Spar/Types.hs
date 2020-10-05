@@ -32,7 +32,6 @@ import Data.Id (ScimTokenId, TeamId, UserId)
 import Data.Json.Util
 import Data.Proxy (Proxy (Proxy))
 import Data.String.Conversions
-import Data.String.Conversions (ST)
 import qualified Data.Text as ST
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time
@@ -173,7 +172,7 @@ instance FromJSON ScimTokenInfo where
     stiTeam <- o .: "team"
     stiId <- o .: "id"
     stiCreatedAt <- o .: "created_at"
-    stiIdP <- o .: "idp"
+    stiIdP <- o .:? "idp"
     stiDescr <- o .: "description"
     pure ScimTokenInfo {..}
 
@@ -253,7 +252,6 @@ instance FromJSON (Opts' (Maybe ()))
 
 data DerivedOpts = DerivedOpts
   { derivedOptsBindCookiePath :: !SBS,
-    derivedOptsBindCookieDomain :: !SBS,
     derivedOptsScimBaseURI :: !URI
   }
   deriving (Show, Generic)

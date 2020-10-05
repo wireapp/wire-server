@@ -202,4 +202,4 @@ instance Cql.Cql Permissions where
     d <- Err.note "missing 'copy' permissions" ("copy" `lookup` p) >>= Cql.fromCql
     r <- Err.note "invalid permissions" (newPermissions (f s) (f d))
     pure r
-  fromCql _ = fail "permissions: udt expected"
+  fromCql _ = Left "permissions: udt expected"

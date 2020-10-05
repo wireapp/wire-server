@@ -68,7 +68,7 @@ data SrvEntry = SrvEntry
     srvWeight :: !Word16,
     srvTarget :: !SrvTarget
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Ord)
 
 data SrvTarget = SrvTarget
   { -- | the hostname on which the service is offered
@@ -76,7 +76,7 @@ data SrvTarget = SrvTarget
     -- | the port on which the service is offered
     srvTargetPort :: !Word16
   }
-  deriving (Eq, Show)
+  deriving (Eq, Show, Ord)
 
 data SrvResponse
   = SrvNotAvailable

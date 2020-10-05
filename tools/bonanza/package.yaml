@@ -40,12 +40,13 @@ library:
   - lens-aeson
   - mtl
   - network
+  - network-bsd
   - optparse-applicative >=0.11
   - protobuf >=0.2.1.1
   - scientific
   - snappy
   - snappy-framing
-  - time >=1.5 && <1.9
+  - time >=1.5
   - types-common >=0.14.1
   - unordered-containers
   - vector

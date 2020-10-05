@@ -32,7 +32,7 @@ import Data.Id
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy as LT
 import Imports
-import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), checkResponse)
+import Network.HTTP.Client (HttpExceptionContent (..), checkResponse)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import System.Logger.Class hiding (name, (.=))

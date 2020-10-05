@@ -39,7 +39,6 @@ import Bilge (Manager, MonadHttp (..), Request, withResponse)
 import qualified Cassandra as Cql
 import Control.Lens (makeLenses, view)
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
-import Control.Monad.Fail (MonadFail)
 import Data.Aeson
 import qualified Galley.Aws as Aws
 import Galley.Options (Opts)

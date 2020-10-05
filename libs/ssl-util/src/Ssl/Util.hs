@@ -39,7 +39,6 @@ import Data.Byteable (constEqBytes)
 import Data.Dynamic (fromDynamic)
 import Data.Time.Clock (getCurrentTime)
 import Imports
-import Network.HTTP.Client (defaultRequest)
 import Network.HTTP.Client.Internal
 import OpenSSL.BN (integerToMPI)
 import OpenSSL.EVP.Digest (Digest, digestLBS)

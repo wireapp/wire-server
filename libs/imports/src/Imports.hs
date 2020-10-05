@@ -114,6 +114,10 @@ module Imports
     -- * Extra Helpers
     whenM,
     unlessM,
+
+    -- * Functor
+    (<$$>),
+    (<$$$>),
   )
 where
 
@@ -164,7 +168,6 @@ import Data.Text (Text)
 import qualified Data.Text.Lazy
 import Data.Traversable
 import Data.Tuple
-import Data.Typeable (Typeable)
 import Data.Void
 import Data.Word
 import GHC.Generics (Generic)
@@ -276,3 +279,16 @@ readIO = liftIO . P.readIO
 
 readLn :: (Read a, MonadIO m) => m a
 readLn = liftIO P.readLn
+
+----------------------------------------------------------------------
+-- Functor
+
+(<$$>) :: (Functor f, Functor g) => (a -> b) -> f (g a) -> f (g b)
+(<$$>) = fmap . fmap
+
+infix 4 <$$>
+
+(<$$$>) :: (Functor f, Functor g, Functor h) => (a -> b) -> f (g (h a)) -> f (g (h b))
+(<$$$>) = fmap . fmap . fmap
+
+infix 4 <$$$>
