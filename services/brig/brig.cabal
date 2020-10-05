@@ -247,6 +247,31 @@ executable brig
     , types-common
   default-language: Haskell2010
 
+executable brig-email-scraper
+  main-is: Main.hs
+  other-modules:
+      Options
+      Paths_brig
+  hs-source-dirs:
+      email-scraper/src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N1 -with-rtsopts=-T -rtsopts
+  build-depends:
+      base
+    , brig-types
+    , bytestring-conversion >=0.2
+    , cassandra-util >=0.12
+    , directory >=1.3
+    , extended
+    , imports
+    , lens
+    , optparse-applicative >=0.10
+    , raw-strings-qq >=1.0
+    , text
+    , tinylog
+    , types-common
+  default-language: Haskell2010
+
 executable brig-index
   main-is: index/src/Main.hs
   other-modules:
