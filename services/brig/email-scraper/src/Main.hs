@@ -1,8 +1,8 @@
 module Main where
 
+import Brig.Types
 import qualified Cassandra as C
 import qualified Cassandra.Settings as C
-import Brig.Types
 import Control.Lens hiding ((.=))
 import Data.ByteString.Conversion
 import Data.Id
@@ -16,12 +16,13 @@ main :: IO ()
 main = do
   s <- execParser (info (helper <*> settingsParser) desc)
   l <- Log.mkLogger'
-  casClient <- initCassandra l (s^.setCasBrig)
+  casClient <- initCassandra l (s ^. setCasBrig)
   C.runClient casClient $ do
     page1 <- scanForIndex 2500
-    go l (s^.setDomains) 0 page1
+    go l (s ^. setDomains) 0 page1
   where
-    desc = header   "list-emails-with-domain"
+    desc =
+      header "list-emails-with-domain"
         <> progDesc "User script"
         <> fullDesc
 
@@ -35,17 +36,17 @@ main = do
         go l domains newCount nextPage
 
 printIfMatchesDomain :: MonadIO m => Log.Logger -> [Text] -> UserRow -> m ()
-printIfMatchesDomain _ _       (_     , Nothing    , _    , _         ) = pure ()
+printIfMatchesDomain _ _ (_, Nothing, _, _) = pure ()
 printIfMatchesDomain l domains (userId, Just mEmail, mTeam, mActivated) = do
   let email = parseEmail (Text.toLower mEmail)
   let interestingDomains = map (Just . Text.toLower) domains
   if (emailDomain <$> email) `elem` interestingDomains
     then Log.info l (Log.msg $ Log.val $ toByteString' $ show (userId, pretty email, pretty mTeam, pretty mActivated))
     else pure ()
- where
-  pretty :: Show a => Maybe a -> String
-  pretty (Just x) = show x
-  pretty Nothing  = ""
+  where
+    pretty :: Show a => Maybe a -> String
+    pretty (Just x) = show x
+    pretty Nothing = ""
 
 initCassandra ::
   MonadIO m =>
@@ -53,13 +54,13 @@ initCassandra ::
   CassandraSettings ->
   m C.ClientState
 initCassandra l settings =
-  C.init
-    $ C.setLogger (C.mkLogger l)
-      . C.setContacts (settings^.cHosts) []
-      . C.setPortNumber (fromIntegral $ settings^.cPort)
-      . C.setKeyspace (settings^.cKeyspace)
+  C.init $
+    C.setLogger (C.mkLogger l)
+      . C.setContacts (settings ^. cHosts) []
+      . C.setPortNumber (fromIntegral $ settings ^. cPort)
+      . C.setKeyspace (settings ^. cKeyspace)
       . C.setProtocolVersion C.V4
-    $ C.defSettings
+      $ C.defSettings
 
 type Activated = Bool
 
