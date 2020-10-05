@@ -21,6 +21,7 @@
 module Brig.API.User
   ( -- * User Accounts / Profiles
     createUser,
+    createUser',
     checkRestrictedUserCreation,
     Brig.API.User.updateUser,
     changeLocale,
@@ -147,7 +148,10 @@ import System.Logger.Message
 
 -- docs/reference/user/registration.md {#RefRegistration}
 createUser :: NewUser -> ExceptT CreateUserError AppIO CreateUserResult
-createUser new@NewUser {..} = do
+createUser = createUser' CreateUserNoVerifyNOTViaScim
+
+createUser' :: CreateUserNoVerifyViaScim -> NewUser -> ExceptT CreateUserError AppIO CreateUserResult
+createUser' viaScim new@NewUser {..} = do
   -- Validate e-mail
   email <- for (newUserEmail new) $ \e ->
     either
@@ -172,7 +176,7 @@ createUser new@NewUser {..} = do
   -- team user registration
   (newTeam, teamInvitation, tid) <- handleTeam (newUserTeam new) emKey
   -- Create account
-  (account, pw) <- lift $ newAccount new {newUserIdentity = ident} (Team.inInvitation . fst <$> teamInvitation) tid
+  (account, pw) <- lift $ newAccount viaScim new {newUserIdentity = ident} (Team.inInvitation . fst <$> teamInvitation) tid
   let uid = userId (accountUser account)
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.createUser")
   Log.info $ field "user" (toByteString uid) . msg (val "Creating user")
@@ -234,12 +238,14 @@ createUser new@NewUser {..} = do
       unless av $
         throwE $
           DuplicateUserKey k
+
     createTeam uid activating t tid = do
       created <- Intra.createTeam uid t tid
       return $
         if activating
           then Just created
           else Nothing
+
     handleTeam ::
       Maybe NewTeamUser ->
       Maybe UserKey ->
@@ -255,9 +261,16 @@ createUser new@NewUser {..} = do
         >>= return . \case
           Just (inv, info, tid) -> (Nothing, Just (inv, info), Just tid)
           Nothing -> (Nothing, Nothing, Nothing)
-    handleTeam (Just (NewTeamCreator t)) _ = (Just t,Nothing,) <$> (Just . Id <$> liftIO nextRandom)
+    handleTeam (Just (NewTeamCreator t)) _ = do
+      -- invariant: viaScim /= CreateUserNoVerifyViaScim
+      -- FUTUREWORK: throw 400 in case of violation
+      (Just t,Nothing,) <$> (Just . Id <$> liftIO nextRandom)
     handleTeam (Just (NewTeamMemberSSO tid)) _ = pure (Nothing, Nothing, Just tid)
-    handleTeam Nothing _ = return (Nothing, Nothing, Nothing)
+    handleTeam Nothing _ = do
+      -- invariant: viaScim /= CreateUserNoVerifyViaScim
+      -- FUTUREWORK: throw 400 in case of violation
+      return (Nothing, Nothing, Nothing)
+
     findTeamInvitation :: Maybe UserKey -> InvitationCode -> ExceptT CreateUserError AppIO (Maybe (Team.Invitation, Team.InvitationInfo, TeamId))
     findTeamInvitation Nothing _ = throwE MissingIdentity
     findTeamInvitation (Just e) c =
@@ -271,6 +284,7 @@ createUser new@NewUser {..} = do
                 return $ Just (invite, ii, Team.iiTeam ii)
             _ -> throwE InvalidInvitationCode
         Nothing -> throwE InvalidInvitationCode
+
     ensureMemberCanJoin :: TeamId -> ExceptT CreateUserError AppIO ()
     ensureMemberCanJoin tid = do
       maxSize <- fromIntegral . setMaxTeamSize <$> view settings
@@ -283,6 +297,14 @@ createUser new@NewUser {..} = do
       case canAdd of
         Just e -> throwE (ExternalPreconditionFailed e)
         Nothing -> pure ()
+
+    acceptTeamInvitation
+      :: UserAccount
+      -> Team.Invitation
+      -> Team.InvitationInfo
+      -> UserKey
+      -> UserIdentity
+      -> ExceptT CreateUserError (AppT IO) ()
     acceptTeamInvitation account inv ii uk ident = do
       let uid = userId (accountUser account)
       ok <- lift $ Data.claimKey uk uid
@@ -302,6 +324,7 @@ createUser new@NewUser {..} = do
             . field "team" (toByteString $ Team.iiTeam ii)
             . msg (val "Accepting invitation")
         Team.deleteInvitation (Team.inTeam inv) (Team.inInvitation inv)
+
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT CreateUserError AppIO CreateUserTeam
     addUserToTeamSSO account tid ident = do
       let uid = userId (accountUser account)

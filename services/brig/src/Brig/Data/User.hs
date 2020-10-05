@@ -24,6 +24,8 @@
 module Brig.Data.User
   ( AuthError (..),
     ReAuthError (..),
+    CreateUserNoVerifyViaScim (..),
+
     newAccount,
     insertAccount,
     authenticate,
@@ -63,7 +65,7 @@ module Brig.Data.User
     -- * Deletions
     deleteEmail,
     deletePhone,
-    deleteServiceUser,
+    deleteServiceUser
   )
 where
 
@@ -102,8 +104,12 @@ data ReAuthError
   = ReAuthError !AuthError
   | ReAuthMissingPassword
 
-newAccount :: NewUser -> Maybe InvitationId -> Maybe TeamId -> AppIO (UserAccount, Maybe Password)
-newAccount u inv tid = do
+data CreateUserNoVerifyViaScim
+  = CreateUserNoVerifyNOTViaScim
+  | CreateUserNoVerifyViaScim
+
+newAccount :: CreateUserNoVerifyViaScim -> NewUser -> Maybe InvitationId -> Maybe TeamId -> AppIO (UserAccount, Maybe Password)
+newAccount viaScim u inv tid = do
   defLoc <- setDefaultLocale <$> view settings
   uid <-
     Id <$> do
@@ -131,7 +137,10 @@ newAccount u inv tid = do
     status =
       if isNewUserEphemeral u
         then Ephemeral
-        else Active -- TODO: Is this still true?  (no, it's not, this is sometimes PendingActivation.)
+        else
+          case viaScim of
+            CreateUserNoVerifyViaScim -> PendingInvitation
+            CreateUserNoVerifyNOTViaScim -> Active
     colour = fromMaybe defaultAccentId (newUserAccentId u)
     locale defLoc = fromMaybe defLoc (newUserLocale u)
     managedBy = fromMaybe defaultManagedBy (newUserManagedBy u)

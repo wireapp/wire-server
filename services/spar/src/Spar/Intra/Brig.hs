@@ -245,7 +245,7 @@ createBrigUserInternal viaScim veid (Id buid) teamid uname managedBy = do
       newUser =
         (emptyNewUser uname)
           { newUserUUID = Just buid,
-            newUserIdentity = Just $ SSOIdentity (veidToUserSSOId veid) Nothing Nothing,
+            newUserIdentity = Just $ SSOIdentity (veidToUserSSOId veid) Nothing Nothing, -- TODO what if no IDP?
             newUserOrigin = Just . NewUserOriginTeamUser . NewTeamMemberSSO $ teamid,
             newUserManagedBy = Just managedBy
           }

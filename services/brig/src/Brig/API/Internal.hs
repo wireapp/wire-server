@@ -85,14 +85,14 @@ sitemap = do
   -- This endpoint can lead to the following events being sent:
   -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
   -- - UserIdentityUpdated event to created user, if email or phone get activated
-  post "/i/users" (continue (createUserNoVerifyH CreateUserNoVerifyNOTViaScim)) $
+  post "/i/users" (continue (createUserNoVerifyH Data.CreateUserNoVerifyNOTViaScim)) $
     accept "application" "json"
       .&. jsonRequest @NewUser
 
   -- This endpoint can lead to the following events being sent:
   -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
   -- - UserIdentityUpdated event to created user, if email or phone get activated
-  post "/i/users/invite-via-scim" (continue (createUserNoVerifyH CreateUserNoVerifyViaScim)) $
+  post "/i/users/invite-via-scim" (continue (createUserNoVerifyH Data.CreateUserNoVerifyViaScim)) $
     accept "application" "json"
       .&. jsonRequest @NewUser
 
@@ -292,24 +292,18 @@ autoConnect uid conn (UserSet to) = do
       badRequest "Too many users given for auto-connect (> 25)."
   API.autoConnect uid to conn !>> connError
 
-createUserNoVerifyH :: CreateUserNoVerifyViaScim -> JSON ::: JsonRequest NewUser -> Handler Response
+createUserNoVerifyH :: Data.CreateUserNoVerifyViaScim -> JSON ::: JsonRequest NewUser -> Handler Response
 createUserNoVerifyH viaScim (_ ::: req) = do
   CreateUserNoVerifyResponse uid prof <- createUserNoVerify viaScim =<< parseJsonBody req
   return . setStatus status201
     . addHeader "Location" (toByteString' uid)
     $ json prof
 
-data CreateUserNoVerifyViaScim = CreateUserNoVerifyNOTViaScim | CreateUserNoVerifyViaScim
-
 data CreateUserNoVerifyResponse = CreateUserNoVerifyResponse UserId SelfProfile
 
-createUserNoVerify :: CreateUserNoVerifyViaScim -> NewUser -> Handler CreateUserNoVerifyResponse
+createUserNoVerify :: Data.CreateUserNoVerifyViaScim -> NewUser -> Handler CreateUserNoVerifyResponse
 createUserNoVerify viaScim uData = do
-  when viaScim $ do
-    error "make sure API.createUser will create the user with status PendingInvitation (below in this function)"
-    error "___"
-
-  result <- API.createUser uData !>> newUserError
+  result <- API.createUser' viaScim uData !>> newUserError
   let acc = createdAccount result
   let usr = accountUser acc
   let uid = userId usr
