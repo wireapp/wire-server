@@ -29,7 +29,7 @@ where
 
 import Bilge
 import Bilge.Assert
-import Brig.Types.Intra (AccountStatus (Active, Suspended))
+import Brig.Types.Intra (AccountStatus (Active, PendingInvitation, Suspended), accountStatus, accountUser)
 import Brig.Types.User as Brig
 import Control.Lens
 import Control.Monad.Trans.Except
@@ -178,13 +178,9 @@ specCreateUser = describe "POST /Users" $ do
   it "rejects attempts at setting a password" $ do
     testCreateUserWithPass
   context "team has no SAML IdP" $ do
-    it "creates an active user without an email, and triggers email validation" $ do
-      () <-
-        error
-          "creates a user with PendingInvitation, and user can follow usual\
-          \ invitation process.  user ends up Active.  while PendingInvitation,\
-          \ scim get still produces the user (as inactive)."
-      testCreateUserNoIdP
+    focus $
+      it "creates a user with PendingInvitation, and user can follow usual invitation process" $ do
+        testCreateUserNoIdP
     it "fails if no email can be extraced from externalId" $ do
       testCreateUserNoIdPNoEmail
   context "team has one SAML IdP" $ do
@@ -228,37 +224,53 @@ testCreateUserNoIdP = do
   scimStoredUser <- createUser tok scimUser
   let userid = scimUserId scimStoredUser
       handle = Handle . Scim.User.userName . Scim.value . Scim.thing $ scimStoredUser
-  brigUser <-
-    aFewTimes (runSpar $ Intra.getBrigUser userid) isJust
-      >>= maybe (error "could not find user in brig") pure
-  brigUser `userShouldMatch` WrappedScimStoredUser scimStoredUser
-  liftIO $ userEmail brigUser `shouldBe` Nothing
-  accStatus <- runSpar $ Intra.getStatusMaybe userid
-  liftIO $ accStatus `shouldBe` Just Active
-  liftIO $ userManagedBy brigUser `shouldBe` ManagedByScim
 
-  let checkGet :: TestSpar ()
-      checkGet = do
-        susr <- getUser tok userid
-        WrappedScimStoredUser susr `userShouldMatch` WrappedScimStoredUser scimStoredUser
-        let usr = Scim.value . Scim.thing $ susr
-        liftIO $ Scim.User.active usr `shouldBe` Just True
-        liftIO $ Scim.User.externalId usr `shouldBe` Just (fromEmail email)
+  -- get account from brig, status should be PendingInvitation
+  do
+    brigUserAccount <-
+      aFewTimes (runSpar $ Intra.getBrigUserAccount userid) isJust
+        >>= maybe (error "could not find user in brig") pure
+    let brigUser = accountUser brigUserAccount
+    brigUser `userShouldMatch` WrappedScimStoredUser scimStoredUser
+    liftIO $ accountStatus brigUserAccount `shouldBe` PendingInvitation
+    liftIO $ userEmail brigUser `shouldBe` Just email
+    liftIO $ userManagedBy brigUser `shouldBe` ManagedByScim
 
-      checkSearch :: TestSpar ()
-      checkSearch = do
-        listUsers tok (Just (filterBy "userName" $ fromHandle handle)) >>= \users ->
-          liftIO $ users `shouldBe` [scimStoredUser]
-        listUsers tok (Just (filterBy "externalId" $ fromEmail email)) >>= \users ->
-          liftIO $ users `shouldBe` [scimStoredUser]
+  -- searching user in brig should fail
+  undefined
 
-  checkGet
-  checkSearch
-  call $ do
-    activateEmail (env ^. teBrig) email
-    checkEmail (env ^. teBrig) userid email
-  checkGet
-  checkSearch
+  -- scim-get should produce same stored user; stored user should be inactive and have an
+  -- email.
+  do
+    susr <- getUser tok userid
+    WrappedScimStoredUser susr `userShouldMatch` WrappedScimStoredUser scimStoredUser
+    let usr = Scim.value . Scim.thing $ susr
+    liftIO $ Scim.User.active usr `shouldNotBe` Just True
+    liftIO $ Scim.User.externalId usr `shouldBe` Just (fromEmail email)
+
+  -- scim search should succeed
+  do
+    listUsers tok (Just (filterBy "userName" $ fromHandle handle)) >>= \users ->
+      liftIO $ users `shouldBe` [scimStoredUser]
+    listUsers tok (Just (filterBy "externalId" $ fromEmail email)) >>= \users ->
+      liftIO $ users `shouldBe` [scimStoredUser]
+
+  -- user should be able to follow old team invitation flow
+  undefined
+
+  -- user should now be active
+  do
+    brigUser <-
+      aFewTimes (runSpar $ Intra.getBrigUserAccount userid) isJust
+        >>= maybe (error "could not find user in brig") pure
+    liftIO $ accountStatus brigUser `shouldBe` Active
+
+    susr <- getUser tok userid
+    let usr = Scim.value . Scim.thing $ susr
+    liftIO $ Scim.User.active usr `shouldBe` Just True
+
+  -- searching user in brig should succeed
+  undefined
 
 testCreateUserNoIdPNoEmail :: TestSpar ()
 testCreateUserNoIdPNoEmail = do
