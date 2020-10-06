@@ -87,10 +87,10 @@ import Wire.API.User.RichInfo as RichInfo
 ----------------------------------------------------------------------
 
 veidToUserSSOId :: ValidExternalId -> UserSSOId
-veidToUserSSOId =
-  runValidExternalId
-    (\(SAML.UserRef t s) -> UserSSOId (cs $ SAML.encodeElem t) (cs $ SAML.encodeElem s))
-    (UserScimExternalId . fromEmail)
+veidToUserSSOId = runValidExternalId urefToUserSSOId (UserScimExternalId . fromEmail)
+
+urefToUserSSOId :: SAML.UserRef -> UserSSOId
+urefToUserSSOId (SAML.UserRef t s) = UserSSOId (cs $ SAML.encodeElem t) (cs $ SAML.encodeElem s)
 
 veidFromUserSSOId :: MonadError String m => UserSSOId -> m ValidExternalId
 veidFromUserSSOId = \case
@@ -245,10 +245,34 @@ createBrigUserInternal viaScim veid (Id buid) teamid uname managedBy = do
       newUser =
         (emptyNewUser uname)
           { newUserUUID = Just buid,
-            newUserIdentity = Just $ SSOIdentity (veidToUserSSOId veid) Nothing Nothing, -- TODO what if no IDP?
-            newUserOrigin = Just . NewUserOriginTeamUser . NewTeamMemberSSO $ teamid,
+            newUserIdentity = user,
+            newUserOrigin = origin,
             newUserManagedBy = Just managedBy
           }
+
+      (user, origin) =
+        runValidExternalId
+          ( \uref -> -- with SAML IdP
+              ( Just $ SSOIdentity (urefToUserSSOId uref) Nothing Nothing,
+                Just . NewUserOriginTeamUser . NewTeamMemberSSO $ teamid
+              )
+          )
+          ( \email -> -- without SAML IdP
+              ( Just $ EmailIdentity email,
+                Just . NewUserOriginTeamUser . NewTeamMemberScimInvitation $ teamid -- this
+                -- would
+                -- make
+                -- the
+                -- extra
+                -- end-point
+                -- and
+                -- the
+                -- extra
+                -- boolean
+                -- unnecessary.
+              )
+          )
+          veid
   resp :: Response (Maybe LBS) <-
     call $
       method POST
