@@ -10,6 +10,7 @@ pkgs.haskell.lib.buildStackProject {
     icu
     libsodium
     libxml2
+    ncurses
     openssl
     pkgconfig
     protobuf
