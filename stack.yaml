@@ -42,6 +42,7 @@ packages:
 - tools/db/billing-team-member-backfill
 - tools/db/find-undead
 - tools/makedeb
+- tools/rex
 - tools/stern
 
 nix:
