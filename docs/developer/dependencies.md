@@ -178,8 +178,3 @@ Using Stack's [Nix integration](https://docs.haskellstack.org/en/stable/nix_inte
 dependencies automatically - including `cryptobox-c`. If new system dependencies are needed, add them to the `stack-deps.nix` file in the project root.
 Just type `$ nix-shell` and you will automatically have `make`, `docker-compose` and `stack` in `PATH`.
 You can then run all the builds, and the native dependencies will be automatically present.
-
-Nix might only ship a more recent minor version of GHC than the current Stackage snapshot specifies. The releases should be totally compatible, but we need to convince stack that this is true. Hence, we can add the following to our global stack config in `~/.stack/config.yaml`
-```bash
-skip-ghc-check: true
-```
