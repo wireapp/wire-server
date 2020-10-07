@@ -104,7 +104,7 @@ services:
     environment:
       # what's present in the jvm.options file by default:
       #- "CS_JAVA_OPTIONS=-Xmx1024M -Xms1024M -Xmn200M"
-      - "CS_JVM_OPTIONS=-Xmx128M -Xms128M -Xmn50M"
+      - "CS_JVM_OPTIONS=-Xmx256M -Xms256M -Xmn100M"
 
       # on nixos, you also may need to run
       #   sysctl -w vm.max_map_count=1048576
