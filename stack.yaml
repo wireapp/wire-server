@@ -139,6 +139,7 @@ extra-deps:
 - redis-resp-1.0.0
 - stm-hamt-1.2.0.4 # Latest: lts-15.16
 - primitive-unlifted-0.1.2.0 # Latest: lts-15.16
+- prometheus-2.2.2 # Only in nightly so far
 
 # Not on stackage
 - currency-codes-3.0.0.1

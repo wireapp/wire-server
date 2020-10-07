@@ -1,7 +1,7 @@
 cabal-version:       >=1.10
 
 name:                rex
-version:             0.2.2
+version:             0.3.0
 synopsis:            Scrape and expose restund metrics for prometheus
 description:         @rex@ = @restund-exporter@ in prometheus jargon
 category:            Network

@@ -2,6 +2,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -35,7 +36,6 @@ import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Data.IP
 import Data.Maybe
-import Data.Monoid
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
@@ -45,7 +45,7 @@ import Data.Traversable
 import Data.Word
 import Network.DNS hiding (header)
 import Network.HTTP.Types
-import Network.Socket hiding (recvFrom)
+import Network.Socket
 import Network.Socket.ByteString
 import Network.Wai
 import Network.Wai.Handler.Warp
@@ -55,7 +55,7 @@ import qualified System.Logger as Log
 import System.Logger.Message (msg, val)
 -- this library sucks
 import System.Metrics.Prometheus.Concurrent.RegistryT
-import System.Metrics.Prometheus.Encode
+import System.Metrics.Prometheus.Encode.Text
 import qualified System.Metrics.Prometheus.Metric.Counter as Counter
 import System.Metrics.Prometheus.Metric.Gauge (Gauge)
 import qualified System.Metrics.Prometheus.Metric.Gauge as Gauge
