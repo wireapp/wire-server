@@ -259,17 +259,7 @@ createBrigUserInternal viaScim veid (Id buid) teamid uname managedBy = do
           )
           ( \email -> -- without SAML IdP
               ( Just $ EmailIdentity email,
-                Just . NewUserOriginTeamUser . error "NewTeamMemberScimInvitation" $ teamid -- this
-                -- would
-                -- make
-                -- the
-                -- extra
-                -- end-point
-                -- and
-                -- the
-                -- extra
-                -- boolean
-                -- unnecessary.
+                Just . NewUserOriginTeamUser . error "NewTeamMemberScimInvitation" {- this would make the extra end-point and the extra boolean unnecessary. -} $ teamid
               )
           )
           veid
