@@ -36,13 +36,15 @@ import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Control.Retry (exponentialBackoff, limitRetries, recovering)
 import qualified Data.Aeson as Aeson
+import Data.Aeson.Lens (key, _String)
 import Data.Aeson.QQ (aesonQQ)
 import Data.Aeson.Types (fromJSON, toJSON)
 import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle), fromHandle)
-import Data.Id (TeamId, UserId, randomId)
+import Data.Id (InvitationId, TeamId, UserId, randomId)
 import Data.Ix (inRange)
 import Data.String.Conversions (cs)
+import Data.Text.Encoding (encodeUtf8)
 import Imports
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified SAML2.WebSSO.Types as SAML
@@ -61,7 +63,9 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.PatchOp as PatchOp
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Wire.API.Team.Feature as Feature
+import Wire.API.Team.Invitation (Invitation (..))
 import Wire.API.User.RichInfo
+import qualified Wire.API.User.Search as Search
 
 -- | Tests for @\/scim\/v2\/Users@.
 spec :: SpecWith TestEnv
@@ -217,16 +221,17 @@ testCreateUserWithPass = do
 testCreateUserNoIdP :: TestSpar ()
 testCreateUserNoIdP = do
   env <- ask
+  let brig = env ^. teBrig
   email <- randomEmail
   scimUser <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
-  (_, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  (owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
   tok <- registerScimToken tid Nothing
   scimStoredUser <- createUser tok scimUser
   let userid = scimUserId scimStoredUser
       handle = Handle . Scim.User.userName . Scim.value . Scim.thing $ scimStoredUser
 
   -- get account from brig, status should be PendingInvitation
-  do
+  userName <- do
     brigUserAccount <-
       aFewTimes (runSpar $ Intra.getBrigUserAccount userid) isJust
         >>= maybe (error "could not find user in brig") pure
@@ -235,9 +240,10 @@ testCreateUserNoIdP = do
     liftIO $ accountStatus brigUserAccount `shouldBe` PendingInvitation
     liftIO $ userEmail brigUser `shouldBe` Just email
     liftIO $ userManagedBy brigUser `shouldBe` ManagedByScim
+    pure $ userDisplayName brigUser
 
   -- searching user in brig should fail
-  undefined
+  searchUser brig owner userName False
 
   -- scim-get should produce same stored user; stored user should be inactive and have an
   -- email.
@@ -256,7 +262,11 @@ testCreateUserNoIdP = do
       liftIO $ users `shouldBe` [scimStoredUser]
 
   -- user should be able to follow old team invitation flow
-  undefined
+  do
+    call $ do
+      inv <- getInvitation brig email
+      void $ registerInvite brig tid inv email
+      headInvitation brig email
 
   -- user should now be active
   do
@@ -270,7 +280,81 @@ testCreateUserNoIdP = do
     liftIO $ Scim.User.active usr `shouldBe` Just True
 
   -- searching user in brig should succeed
-  undefined
+  searchUser brig owner userName True
+  where
+    -- cloned from brig's integration tests
+
+    searchUser :: BrigReq -> UserId -> Name -> Bool -> TestSpar ()
+    searchUser brig searcherId searchQuery shouldSucceed = do
+      () <- error "refresh index"
+      resp <- call $ executeSearch brig searcherId (undefined searchQuery)
+      liftIO $ resp `shouldBe` if shouldSucceed then noEmpty else yesEmpty
+
+    executeSearch :: BrigReq -> UserId -> Text -> Http (Search.SearchResult Search.Contact)
+    executeSearch brig self q = do
+      r <-
+        get
+          ( brig
+              . path "/search/contacts"
+              . zUser self
+              . queryItem "q" (encodeUtf8 q)
+          )
+          <!! const 200
+          === statusCode
+      responseJsonError r
+
+    getInvitation :: BrigReq -> Email -> Http Invitation
+    getInvitation brig email =
+      responseJsonUnsafe
+        <$> Bilge.get
+          ( brig . path "/teams/invitations/by-email" . contentJson
+              . queryItem "email" (toByteString' email)
+              . expect2xx
+          )
+
+    headInvitation :: BrigReq -> Email -> Http ()
+    headInvitation brig email = do
+      Bilge.head (brig . path "/teams/invitations/by-email" . contentJson . queryItem "email" (toByteString' email))
+        !!! const 404 === statusCode
+
+    registerInvite :: BrigReq -> TeamId -> Invitation -> Email -> Http UserId
+    registerInvite brig tid inv invemail = do
+      Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
+      rsp <-
+        post
+          ( brig . path "/register"
+              . contentJson
+              . json (acceptWithName (Name "Bob") invemail inviteeCode)
+          )
+          <!! const 201 === statusCode
+      let Just invitee = userId <$> responseJsonMaybe rsp
+      pure invitee
+
+    acceptWithName :: Name -> Email -> InvitationCode -> Aeson.Value
+    acceptWithName name email code =
+      Aeson.object
+        [ "name" Aeson..= fromName name,
+          "email" Aeson..= fromEmail email,
+          "password" Aeson..= defPassword,
+          "team_code" Aeson..= code
+        ]
+
+    getInvitationCode ::
+      (MonadIO m, MonadHttp m, HasCallStack) =>
+      BrigReq ->
+      TeamId ->
+      InvitationId ->
+      m (Maybe InvitationCode)
+    getInvitationCode brig t ref = do
+      r <-
+        get
+          ( brig
+              . path "/i/teams/invitation-code"
+              . queryItem "team" (toByteString' t)
+              . queryItem "invitation_id" (toByteString' ref)
+          )
+      let lbs = fromMaybe "" $ responseBody r
+      return $ fromByteString . fromMaybe (error "No code?") $ encodeUtf8 <$> (lbs ^? key "code" . _String)
 
 testCreateUserNoIdPNoEmail :: TestSpar ()
 testCreateUserNoIdPNoEmail = do
