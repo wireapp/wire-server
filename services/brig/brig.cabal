@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7c9aee98315a9a56aa48fcb0af9a9e82954d9913fc94cafa512a0811f40b2ad3
+-- hash: 82d006499cc245f9cd8ca75f3293023302984a4172a6252daf0e471b8d8af304
 
 name:           brig
 version:        1.35.0
@@ -310,6 +310,7 @@ executable brig-integration
     , containers
     , cookie
     , data-timeout
+    , dns
     , exceptions
     , extra
     , filepath >=1.4

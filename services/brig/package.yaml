@@ -193,6 +193,7 @@ executables:
     - containers
     - cookie
     - data-timeout
+    - dns
     - extra
     - exceptions
     - filepath >=1.4
