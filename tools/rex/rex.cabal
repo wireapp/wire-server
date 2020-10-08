@@ -1,11 +1,15 @@
+cabal-version:       >=1.10
+
 name:                rex
 version:             0.2.2
 synopsis:            Scrape and expose restund metrics for prometheus
 description:         @rex@ = @restund-exporter@ in prometheus jargon
-author:              Kim Altintop
-maintainer:          kim@wire.com
+category:            Network
+author:              Wire Swiss GmbH
+maintainer:          Wire Swiss GmbH <backend@wire.com>
+license:             AGPL-3
+license-file:        LICENSE
 build-type:          Simple
-cabal-version:       >=1.10
 
 flag static
     Description: Enable static linking
