@@ -45,6 +45,7 @@ module Wire.API.User
     newUserSSOId,
     isNewUserEphemeral,
     isNewUserTeamMember,
+    isNewUserCreatedViaScim,
 
     -- * NewUserOrigin
     NewUserOrigin (..),
@@ -507,11 +508,29 @@ isNewUserEphemeral u = noId && noScim
       Just ManagedByWire -> True
       Just ManagedByScim -> False
 
+
+-- | TODO(matthias): does this make sense?
+isNewUserCreatedViaScim :: NewUser -> Bool
+isNewUserCreatedViaScim u =
+  case newUserOrigin u of
+    Nothing -> False
+    Just origin ->
+      case origin of
+        (NewUserOriginInvitationCode _) -> False
+        (NewUserOriginTeamUser newTeamUser) ->
+          case newTeamUser of
+            (NewTeamMember _) -> False
+            (NewTeamCreator _) -> False
+            (NewTeamMemberSSO _) -> False
+            (NewTeamMemberScimInvitation _) -> True
+
+
 isNewUserTeamMember :: NewUser -> Bool
 isNewUserTeamMember u = case newUserTeam u of
   Just (NewTeamMember _) -> True
   Just (NewTeamMemberSSO _) -> True
   Just (NewTeamCreator _) -> False
+  Just (NewTeamMemberScimInvitation _) -> True
   Nothing -> False
 
 instance Arbitrary NewUserPublic where
@@ -676,6 +695,7 @@ jsonNewUserOrigin = \case
   NewUserOriginTeamUser (NewTeamMember tc) -> ["team_code" .= tc]
   NewUserOriginTeamUser (NewTeamCreator team) -> ["team" .= team]
   NewUserOriginTeamUser (NewTeamMemberSSO ti) -> ["team_id" .= ti]
+  NewUserOriginTeamUser (NewTeamMemberScimInvitation ti) -> ["scim_invitation_team_id" .= ti]
 
 parseNewUserOrigin ::
   Maybe PlainTextPassword ->
@@ -688,15 +708,17 @@ parseNewUserOrigin pass uid ssoid o = do
   teamcode <- o .:? "team_code"
   team <- o .:? "team"
   teamid <- o .:? "team_id"
-  result <- case (invcode, teamcode, team, ssoid, teamid) of
-    (Just a, Nothing, Nothing, Nothing, Nothing) -> return . Just . NewUserOriginInvitationCode $ a
-    (Nothing, Just a, Nothing, Nothing, Nothing) -> return . Just . NewUserOriginTeamUser $ NewTeamMember a
-    (Nothing, Nothing, Just a, Nothing, Nothing) -> return . Just . NewUserOriginTeamUser $ NewTeamCreator a
-    (Nothing, Nothing, Nothing, Just _, Just t) -> return . Just . NewUserOriginTeamUser $ NewTeamMemberSSO t
-    (Nothing, Nothing, Nothing, Nothing, Nothing) -> return Nothing
-    (_, _, _, Just _, Nothing) -> fail "sso_id, team_id must be either both present or both absent."
-    (_, _, _, Nothing, Just _) -> fail "sso_id, team_id must be either both present or both absent."
-    _ -> fail "team_code, team, invitation_code, sso_id, and the pair (sso_id, team_id) are mutually exclusive"
+  scimInvTeamid <- o .:? "scim_invitation_team_id"
+  result <- case (invcode, teamcode, team, ssoid, teamid, scimInvTeamid) of
+    (Just a, Nothing, Nothing, Nothing, Nothing, Nothing) -> return . Just . NewUserOriginInvitationCode $ a
+    (Nothing, Just a, Nothing, Nothing, Nothing, Nothing) -> return . Just . NewUserOriginTeamUser $ NewTeamMember a
+    (Nothing, Nothing, Just a, Nothing, Nothing, Nothing) -> return . Just . NewUserOriginTeamUser $ NewTeamCreator a
+    (Nothing, Nothing, Nothing, Just _, Just t, Nothing) -> return . Just . NewUserOriginTeamUser $ NewTeamMemberSSO t
+    (Nothing, Nothing, Nothing, Nothing, Nothing, Just t) -> return . Just . NewUserOriginTeamUser $ NewTeamMemberScimInvitation t
+    (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing) -> return Nothing
+    (_, _, _, Just _, Nothing, Nothing) -> fail "sso_id, team_id must be either both present or both absent."
+    (_, _, _, Nothing, Just _, Nothing) -> fail "sso_id, team_id must be either both present or both absent."
+    _ -> fail "team_code, team, invitation_code, sso_id, scim_invitation_team_id, and the pair (sso_id, team_id) are mutually exclusive"
   case (result, pass, uid) of
     (_, _, Just SSOIdentity {}) -> pure result
     (Just (NewUserOriginTeamUser _), Nothing, _) -> fail "all team users must set a password on creation"
@@ -728,8 +750,9 @@ data NewTeamUser
   = -- | requires email address
     NewTeamMember InvitationCode
   | NewTeamCreator BindingNewTeamUser
-  | -- | sso: users with saml credentials and/or created via scim
+  | -- | sso: users with SAML credentials
     NewTeamMemberSSO TeamId
+  | NewTeamMemberScimInvitation TeamId
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewTeamUser)
 

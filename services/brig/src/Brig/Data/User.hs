@@ -24,7 +24,6 @@
 module Brig.Data.User
   ( AuthError (..),
     ReAuthError (..),
-    CreateUserNoVerifyViaScim (..),
 
     newAccount,
     insertAccount,
@@ -104,12 +103,8 @@ data ReAuthError
   = ReAuthError !AuthError
   | ReAuthMissingPassword
 
-data CreateUserNoVerifyViaScim
-  = CreateUserNoVerifyNOTViaScim
-  | CreateUserNoVerifyViaScim
-
-newAccount :: CreateUserNoVerifyViaScim -> NewUser -> Maybe InvitationId -> Maybe TeamId -> AppIO (UserAccount, Maybe Password)
-newAccount viaScim u inv tid = do
+newAccount :: NewUser -> Maybe InvitationId -> Maybe TeamId -> AppIO (UserAccount, Maybe Password)
+newAccount u inv tid = do
   defLoc <- setDefaultLocale <$> view settings
   uid <-
     Id <$> do
@@ -135,12 +130,9 @@ newAccount viaScim u inv tid = do
     pict = fromMaybe noPict (newUserPict u)
     assets = newUserAssets u
     status =
-      if isNewUserEphemeral u
-        then Ephemeral
-        else
-          case viaScim of
-            CreateUserNoVerifyViaScim -> PendingInvitation
-            CreateUserNoVerifyNOTViaScim -> Active
+      if | isNewUserEphemeral u -> Ephemeral
+         | isNewUserCreatedViaScim u -> PendingInvitation
+         | otherwise -> Active
     colour = fromMaybe defaultAccentId (newUserAccentId u)
     locale defLoc = fromMaybe defLoc (newUserLocale u)
     managedBy = fromMaybe defaultManagedBy (newUserManagedBy u)

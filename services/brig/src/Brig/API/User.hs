@@ -21,7 +21,6 @@
 module Brig.API.User
   ( -- * User Accounts / Profiles
     createUser,
-    createUser',
     checkRestrictedUserCreation,
     Brig.API.User.updateUser,
     changeLocale,
@@ -146,12 +145,8 @@ import System.Logger.Message
 -------------------------------------------------------------------------------
 -- Create User
 
--- docs/reference/user/registration.md {#RefRegistration}
 createUser :: NewUser -> ExceptT CreateUserError AppIO CreateUserResult
-createUser = createUser' CreateUserNoVerifyNOTViaScim
-
-createUser' :: CreateUserNoVerifyViaScim -> NewUser -> ExceptT CreateUserError AppIO CreateUserResult
-createUser' viaScim new@NewUser {..} = do
+createUser new@NewUser {..} = do
   -- Validate e-mail
   email <- for (newUserEmail new) $ \e ->
     either
@@ -176,7 +171,7 @@ createUser' viaScim new@NewUser {..} = do
   -- team user registration
   (newTeam, teamInvitation, tid) <- handleTeam (newUserTeam new) emKey
   -- Create account
-  (account, pw) <- lift $ newAccount viaScim new {newUserIdentity = ident} (Team.inInvitation . fst <$> teamInvitation) tid
+  (account, pw) <- lift $ newAccount new {newUserIdentity = ident} (Team.inInvitation . fst <$> teamInvitation) tid
   let uid = userId (accountUser account)
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.createUser")
   Log.info $ field "user" (toByteString uid) . msg (val "Creating user")
@@ -262,14 +257,10 @@ createUser' viaScim new@NewUser {..} = do
           Just (inv, info, tid) -> (Nothing, Just (inv, info), Just tid)
           Nothing -> (Nothing, Nothing, Nothing)
     handleTeam (Just (NewTeamCreator t)) _ = do
-      -- invariant: viaScim /= CreateUserNoVerifyViaScim
-      -- FUTUREWORK: throw 400 in case of violation
       (Just t,Nothing,) <$> (Just . Id <$> liftIO nextRandom)
     handleTeam (Just (NewTeamMemberSSO tid)) _ = pure (Nothing, Nothing, Just tid)
-    handleTeam Nothing _ = do
-      -- invariant: viaScim /= CreateUserNoVerifyViaScim
-      -- FUTUREWORK: throw 400 in case of violation
-      return (Nothing, Nothing, Nothing)
+    handleTeam (Just (NewTeamMemberScimInvitation tid)) _ = pure (Nothing, Nothing, Just tid)
+    handleTeam Nothing _ = pure (Nothing, Nothing, Nothing)
 
     findTeamInvitation :: Maybe UserKey -> InvitationCode -> ExceptT CreateUserError AppIO (Maybe (Team.Invitation, Team.InvitationInfo, TeamId))
     findTeamInvitation Nothing _ = throwE MissingIdentity

@@ -1025,6 +1025,8 @@ createUser (Public.NewUserPublic new) = do
         Team.sendMemberWelcomeMail e t n l
       Public.NewTeamMemberSSO _ ->
         Team.sendMemberWelcomeMail e t n l
+      Public.NewTeamMemberScimInvitation _ ->
+        return () -- TODO: send mail here?
 
 checkUserExistsH :: UserId ::: OpaqueUserId -> Handler Response
 checkUserExistsH (self ::: uid) = do
