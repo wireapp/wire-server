@@ -93,13 +93,13 @@ extra-deps:
 # https://github.com/brendanhay/amazonka/pull/493
 # Also, we needed a fix to make V4 signatures work with custom ports:
 # https://github.com/brendanhay/amazonka/pull/588
+# And one dropping the Content-Length header (for specific S3 implementations):
+# https://github.com/wireapp/amazonka/commit/5d31aa49177e33ff1d6a00255f28e4ef3b711f7d
 #
-# Therefore we pin an unreleased commit directly.
-#
-# Once the fix has been merged (and released on hackage), we can pin that instead.
-- archive: https://github.com/wireapp/amazonka/archive/9de5e0e4b2511ec555fb0975581b3087a94c1b4a.tar.gz
-  sha256: b9277a51b60d639fbd91b630f353bf9db305f5759f8e1ee48f0ab026e6b43d00
-  size: 11138812
+# Therefore we pin a commit in our fork directly.
+- archive: https://github.com/wireapp/amazonka/archive/5d31aa49177e33ff1d6a00255f28e4ef3b711f7d.tar.gz
+  # sha256: cf863ebfe4fcfd5ccf72a6125e4a604dbc1dcc3c23ed055381d4f2b47ec83314
+  # size: 11157657
   subdirs:
   - amazonka
   - amazonka-cloudfront
