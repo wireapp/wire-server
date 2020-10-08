@@ -24,6 +24,7 @@ where
 
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch
+import Data.Aeson (encode)
 import Data.ByteString.Conversion.To
 import Data.Id
 import Data.List1
@@ -68,6 +69,9 @@ push1 m a = do
       Log.debug $
         field "user" (toByteString (a ^. addrUser))
           ~~ field "arn" (toText (a ^. addrEndpoint))
+          ~~ field "notification_id" (toText (npNotificationid m))
+          ~~ field "prio" (show (npPriority m))
+          ~~ field "payload" (encode (npApsData m))
           ~~ Log.msg (val "Native push success")
       view monitor >>= counterIncr (path "push.native.success")
     Failure EndpointDisabled _ -> onDisabled
