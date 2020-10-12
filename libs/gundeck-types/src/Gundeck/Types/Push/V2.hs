@@ -255,7 +255,7 @@ data Push = Push
     -- REFACTOR: this make no sense any more since native push notifications have no more payload.
     -- https://github.com/wireapp/wire-server/pull/546
     _pushNativeEncrypt :: !Bool,
-    -- | APNs-specific metadata.  REFACTOR: can this be removed?
+    -- | APNs-specific metadata (needed eg. in "Brig.IO.Intra.toApsData").
     _pushNativeAps :: !(Maybe ApsData),
     -- | Native push priority.
     _pushNativePriority :: !Priority,
