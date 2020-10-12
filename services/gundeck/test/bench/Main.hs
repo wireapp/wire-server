@@ -20,6 +20,7 @@ module Main
   )
 where
 
+import Control.Lens ((^.))
 import Criterion.Main
 import Data.Id (ClientId (..), ConnId (..), randomId)
 import qualified Data.Text.Lazy as LT
@@ -57,7 +58,9 @@ notice = do
   i <- randomId
   a <- mkAddress GCM
   let msg = NativePush i HighPriority Nothing
-  Right txt <- serialise msg a
+      uid = a ^. addrUser
+      transp = a ^. addrTransport
+  Right txt <- serialise msg uid transp
   return $! LT.toStrict txt
 
 bench_BudgetSpent' :: IORef BudgetMap -> IO ()

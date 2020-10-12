@@ -32,8 +32,8 @@ import Gundeck.Push.Native.Types
 import Gundeck.Types
 import Imports
 
-serialise :: HasCallStack => NativePush -> (UserId, Transport) -> IO (Either Failure LT.Text)
-serialise m (uid, transport) = do
+serialise :: HasCallStack => NativePush -> UserId -> Transport -> IO (Either Failure LT.Text)
+serialise m uid transport = do
   rs <- prepare m uid
   case rs of
     Left failure -> return $! Left $! failure

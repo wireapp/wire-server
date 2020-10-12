@@ -119,7 +119,7 @@ publish m a = flip catches pushException $ do
   let ept = a ^. addrEndpoint
       uid = a ^. addrUser
       transp = a ^. addrTransport
-  txt <- liftIO $ serialise m (uid, transp)
+  txt <- liftIO $ serialise m uid transp
   Log.debug $
     field "user" (toByteString (a ^. addrUser))
       ~~ field "arn" (toText (a ^. addrEndpoint))
