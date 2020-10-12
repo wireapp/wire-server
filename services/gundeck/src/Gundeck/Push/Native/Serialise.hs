@@ -34,14 +34,14 @@ import Imports
 
 serialise :: HasCallStack => NativePush -> UserId -> Transport -> IO (Either Failure LT.Text)
 serialise m uid transport = do
-  rs <- prepare m uid
+  let rs = prepare m uid
   case rs of
     Left failure -> return $! Left $! failure
     Right (v, prio) -> case renderText transport prio v of
       Nothing -> return $ Left PayloadTooLarge
       Just txt -> return $ Right txt
 
-prepare :: HasCallStack => NativePush -> UserId -> IO (Either Failure (Value, Priority))
+prepare :: NativePush -> UserId -> Either Failure (Value, Priority)
 prepare m uid = case m of
   NativePush nid prio _aps ->
     let o =
@@ -50,7 +50,7 @@ prepare m uid = case m of
               "data" .= object ["id" .= nid],
               "user" .= uid
             ]
-     in return $ Right (o, prio)
+     in Right (o, prio)
 
 -- | Assemble a final SNS JSON string for transmission.
 renderText :: Transport -> Priority -> Value -> Maybe LT.Text
