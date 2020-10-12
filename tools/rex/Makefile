@@ -1,43 +1,43 @@
+LANG         := en_US.UTF-8
 SHELL        := /usr/bin/env bash
 SRC          := Main.hs
-VERSION      := $(shell sed -n 's/^version: *\(.*\)$$/\1/p' $(CURDIR)/rex.cabal)
-BUILD_NUMBER ?= 0
-DOCKER       ?= true
-ACI          := rex-$(VERSION)b$(BUILD_NUMBER)_linux_amd64.aci
+NAME         := rex
+VERSION      ?=
 
-include ../../mk/publish.mk
+default: clean install
 
-
-default: dist
-
-.PHONY: dist
-dist: clean $(ACI)
-
-.PHONY: build
-build: rex
-
-.PHONY: publish
-publish: $(ACI) $(ACI).asc s3-exists/$(ACI) s3-upload/$(ACI)
+guard-%:
+	@ if [ "${${*}}" = "" ]; then \
+	      echo "Environment variable $* not set"; \
+	    exit 1; \
+	fi
 
 .PHONY: clean
 clean:
-	stack clean
+	stack clean $(NAME)
 	rm -f rex *.docker *.aci *.asc
 
-$(ACI): rex
-	docker build -t wire.com/rex:$(VERSION) .
-	docker save -o rex-$(VERSION).docker wire.com/rex:$(VERSION)
-	docker2aci -debug rex-$(VERSION).docker
-	mv rex-$(VERSION).aci $(ACI)
-	rm rex-$(VERSION).docker
+init:
+	mkdir -p ../../dist
 
-ifeq ($(DOCKER),true)
-rex: rex.cabal stack.yaml $(SRC)
+# dynamically compiled rex added to ../../dist/
+.PHONY: install
+install: init
+	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
+
+# dynamically compiled rex added to ../../dist/
+.PHONY: fast
+fast: init
+	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
+
+.PHONY:
+compile:
+	stack build . --pedantic --test --bench --no-run-benchmarks --no-copy-bins
+
+# build a statically linked binary by compiling on alpine. Will result in a 'rex-static' binary in dist.
+.PHONY: static
+static: $(SRC)
 	docker run --rm \
-		-v $(CURDIR):/rex \
-		quay.io/wire/alpine-ghc-8 \
-		sh -c 'cd /rex && stack --system-ghc --local-bin-path . --allow-different-user install --flag rex:static'
-else
-rex: rex.cabal stack.yaml $(SRC)
-	stack --local-bin-path . install
-endif
+		-v $(CURDIR)/../..:/wire-server \
+		quay.io/wire/alpine-builder:develop \
+		sh -c 'apk add --no-cache zlib-static && cd /wire-server/tools/rex && stack --system-ghc --local-bin-path . --allow-different-user install --flag rex:static . && mv rex dist/rex-static'
