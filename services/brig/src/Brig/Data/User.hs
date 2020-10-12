@@ -24,7 +24,6 @@
 module Brig.Data.User
   ( AuthError (..),
     ReAuthError (..),
-
     newAccount,
     insertAccount,
     authenticate,
@@ -64,7 +63,7 @@ module Brig.Data.User
     -- * Deletions
     deleteEmail,
     deletePhone,
-    deleteServiceUser
+    deleteServiceUser,
   )
 where
 
@@ -130,9 +129,10 @@ newAccount u inv tid = do
     pict = fromMaybe noPict (newUserPict u)
     assets = newUserAssets u
     status =
-      if | isNewUserEphemeral u -> Ephemeral
-         | isNewUserCreatedViaScim u -> PendingInvitation
-         | otherwise -> Active
+      if
+          | isNewUserEphemeral u -> Ephemeral
+          | isNewUserInvitedViaScim u -> PendingInvitation
+          | otherwise -> Active
     colour = fromMaybe defaultAccentId (newUserAccentId u)
     locale defLoc = fromMaybe defLoc (newUserLocale u)
     managedBy = fromMaybe defaultManagedBy (newUserManagedBy u)

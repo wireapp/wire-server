@@ -45,7 +45,7 @@ module Wire.API.User
     newUserSSOId,
     isNewUserEphemeral,
     isNewUserTeamMember,
-    isNewUserCreatedViaScim,
+    isNewUserInvitedViaScim,
 
     -- * NewUserOrigin
     NewUserOrigin (..),
@@ -421,17 +421,7 @@ publicProfile u =
 
 -- | We use the same 'NewUser' type for the @\/register@ and @\/i\/users@ endpoints. This
 -- newtype is used as request body type for the public @\/register@ endpoint, where only a
--- subset of the 'NewUser' functionality should be allowed.
---
--- Specifically, we forbid the following:
---
---   * Setting 'SSOIdentity' (SSO users are created by Spar)
---
---   * Setting the UUID (only needed so that Spar can find the user if Spar crashes before it
---     finishes creating the user).
---
---   * Setting 'ManagedBy' (it should be the default in all cases unless Spar creates a
---     SCIM-managed user)
+-- subset of the 'NewUser' functionality should be allowed. See 'validateNewUserPublic'.
 newtype NewUserPublic = NewUserPublic NewUser
   deriving stock (Eq, Show, Generic)
   deriving newtype (ToJSON)
@@ -485,6 +475,19 @@ instance FromJSON NewUserPublic where
     nu <- parseJSON val
     either fail pure $ validateNewUserPublic nu
 
+-- | Validates public interface to NewUser
+--
+-- Specifically, we forbid the following:
+--
+--   * Setting 'SSOIdentity' (SSO users are created by Spar)
+--
+--   * Setting 'NewTeamMemberScimInvitation'
+--
+--   * Setting the UUID (only needed so that Spar can find the user if Spar crashes before it
+--     finishes creating the user).
+--
+--   * Setting 'ManagedBy' (it should be the default in all cases unless Spar creates a
+--     SCIM-managed user)
 validateNewUserPublic :: NewUser -> Either String NewUserPublic
 validateNewUserPublic nu
   | isJust (newUserSSOId nu) =
@@ -493,6 +496,8 @@ validateNewUserPublic nu
     Left "it is not allowed to provide a UUID for the users here."
   | newUserManagedBy nu `notElem` [Nothing, Just ManagedByWire] =
     Left "only managed-by-Wire users can be created here."
+  | isNewUserInvitedViaScim nu =
+    Left "users invited via SCIM are not allow here"
   | otherwise =
     Right (NewUserPublic nu)
 
@@ -508,22 +513,15 @@ isNewUserEphemeral u = noId && noScim
       Just ManagedByWire -> True
       Just ManagedByScim -> False
 
-
--- | TODO(matthias): does this make sense?
-isNewUserCreatedViaScim :: NewUser -> Bool
-isNewUserCreatedViaScim u =
+isNewUserInvitedViaScim :: NewUser -> Bool
+isNewUserInvitedViaScim u =
   case newUserOrigin u of
     Nothing -> False
-    Just origin ->
-      case origin of
-        (NewUserOriginInvitationCode _) -> False
-        (NewUserOriginTeamUser newTeamUser) ->
-          case newTeamUser of
-            (NewTeamMember _) -> False
-            (NewTeamCreator _) -> False
-            (NewTeamMemberSSO _) -> False
-            (NewTeamMemberScimInvitation _) -> True
-
+    Just (NewUserOriginInvitationCode _) -> False
+    Just (NewUserOriginTeamUser (NewTeamMember _)) -> False
+    Just (NewUserOriginTeamUser (NewTeamCreator _)) -> False
+    Just (NewUserOriginTeamUser (NewTeamMemberSSO _)) -> False
+    Just (NewUserOriginTeamUser (NewTeamMemberScimInvitation _)) -> True
 
 isNewUserTeamMember :: NewUser -> Bool
 isNewUserTeamMember u = case newUserTeam u of
@@ -716,8 +714,8 @@ parseNewUserOrigin pass uid ssoid o = do
     (Nothing, Nothing, Nothing, Just _, Just t, Nothing) -> return . Just . NewUserOriginTeamUser $ NewTeamMemberSSO t
     (Nothing, Nothing, Nothing, Nothing, Nothing, Just t) -> return . Just . NewUserOriginTeamUser $ NewTeamMemberScimInvitation t
     (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing) -> return Nothing
-    (_, _, _, Just _, Nothing, Nothing) -> fail "sso_id, team_id must be either both present or both absent."
-    (_, _, _, Nothing, Just _, Nothing) -> fail "sso_id, team_id must be either both present or both absent."
+    (_, _, _, Just _, Nothing, _) -> fail "sso_id, team_id must be either both present or both absent."
+    (_, _, _, Nothing, Just _, _) -> fail "sso_id, team_id must be either both present or both absent."
     _ -> fail "team_code, team, invitation_code, sso_id, scim_invitation_team_id, and the pair (sso_id, team_id) are mutually exclusive"
   case (result, pass, uid) of
     (_, _, Just SSOIdentity {}) -> pure result
