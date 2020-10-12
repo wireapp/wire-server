@@ -17,6 +17,7 @@
 
 module Native where
 
+import Control.Lens ((^.))
 import Data.Aeson
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id (ClientId (..), ConnId (..), UserId, randomId)
@@ -48,7 +49,7 @@ serialiseOkProp t = ioProperty $ do
   a <- mkAddress t
   n <- randNotif (0, 1280)
   m <- randMessage n
-  r <- serialise m a
+  r <- serialise m (a ^. addrUser) (a ^. addrTransport)
   let sn = either (const Nothing) Just r >>= decode' . LT.encodeUtf8
   let equalTransport = fmap snsNotifTransport sn == Just t
   equalNotif <- case snsNotifBundle <$> sn of
