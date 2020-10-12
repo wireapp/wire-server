@@ -120,7 +120,9 @@ push1 m a = do
 publish :: NativePush -> Address -> Aws.Amazon Result
 publish m a = flip catches pushException $ do
   let ept = a ^. addrEndpoint
-  txt <- liftIO $ serialise m a
+      uid = a ^. addrUser
+      transp = a ^. addrTransport
+  txt <- liftIO $ serialise m (uid, transp)
   case txt of
     Left f -> return $! Failure f a
     Right v -> toResult <$> Aws.publish ept v mempty
