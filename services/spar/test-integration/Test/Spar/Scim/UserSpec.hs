@@ -184,7 +184,7 @@ specCreateUser = describe "POST /Users" $ do
   it "rejects attempts at setting a password" $ do
     testCreateUserWithPass
   context "team has no SAML IdP" $ do
-    focus $
+    focus $ -- TODO(stefan) remove this when
       it "creates a user with PendingInvitation, and user can follow usual invitation process" $ do
         testCreateUserNoIdP
     it "fails if no email can be extraced from externalId" $ do
