@@ -170,15 +170,21 @@ wrapMonadClient action = do
 insertUser :: SAML.UserRef -> UserId -> Spar ()
 insertUser uref uid = wrapMonadClient $ Data.insertSAMLUser uref uid
 
--- | Look up user locally in table @spar.user@, then in brig, then return the 'UserId'.  If
--- either lookup fails, or user is not in a team, return 'Nothing'.
+-- | Look up user locally in table @spar.user@ or @spar.scim_user@ (depending on the
+-- argument), then in brig, then return the 'UserId'.  If either lookup fails, or user is not
+-- in a team, return 'Nothing'.
 --
--- It makes sense to require that users are required to be team members: the idp is created in
--- the context of a team, and the only way for users to be created is as team members.  If a
--- user is not a team member, it cannot have been created using SAML.
+-- It makes sense to require that users are required to be team members: both IdPs and SCIM
+-- tokens are created in the context of teams, and the only way for users to be created is as
+-- team members.  If a user is not a team member, it cannot have been created using SAML or
+-- SCIM.
+--
+-- If a user has been created via scim invite (ie., no IdP present), and has status
+-- 'PendingInvitation', its 'UserId' will be returned here, since for SCIM purposes it is an
+-- existing (if inactive) user.
 --
 -- ASSUMPTIONS: User creation on brig/galley is idempotent.  Any incomplete creation (because of
--- brig or galley crashing) will cause the lookup here to yield invalid user.
+-- brig or galley crashing) will cause the lookup here to yield 'Nothing'.
 getUser :: ValidExternalId -> Spar (Maybe UserId)
 getUser veid = do
   muid <- wrapMonadClient $ runValidExternalId Data.getSAMLUser Data.lookupScimExternalId veid
@@ -261,8 +267,9 @@ validateEmailIfExists uid =
         True -> Intra.updateEmail uid (Intra.emailFromSAML email)
         False -> pure ()
 
--- | Check if 'UserId' is in the team that hosts the idp that owns the 'UserRef'.  If so, write the
--- 'UserRef' into the 'UserIdentity'.  Otherwise, throw an error.
+-- | Check if 'UserId' is in the team that hosts the idp that owns the 'UserRef'.  If so,
+-- register a the user under its SAML credentials and write the 'UserRef' into the
+-- 'UserIdentity'.  Otherwise, throw an error.
 bindUser :: UserId -> SAML.UserRef -> Spar UserId
 bindUser buid userref = do
   do
