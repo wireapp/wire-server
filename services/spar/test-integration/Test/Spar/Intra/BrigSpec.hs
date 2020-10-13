@@ -39,7 +39,7 @@ spec = do
 
   describe "getBrigUser" $ do
     it "return Nothing if n/a" $ do
-      musr <- runSpar $ Intra.getBrigUser (Id . fromJust $ UUID.fromText "29546d9e-ed5b-11ea-8228-c324b1ea1030")
+      musr <- runSpar $ Intra.getBrigUser Intra.NoPendingInvitations (Id . fromJust $ UUID.fromText "29546d9e-ed5b-11ea-8228-c324b1ea1030")
       liftIO $ musr `shouldSatisfy` isNothing
 
     it "return Just if /a" $ do
@@ -52,5 +52,5 @@ spec = do
             scimUserId <$> createUser tok scimUser
 
       uid <- setup
-      musr <- runSpar $ Intra.getBrigUser uid
+      musr <- runSpar $ Intra.getBrigUser Intra.NoPendingInvitations uid
       liftIO $ musr `shouldSatisfy` isJust

@@ -36,7 +36,8 @@ module Spar.App
 where
 
 import Bilge
-import Brig.Types (ManagedBy (..))
+import Brig.Types (ManagedBy (..), userTeam)
+import Brig.Types.Intra (AccountStatus (..), accountStatus, accountUser)
 import Cassandra
 import qualified Cassandra as Cas
 import Control.Exception (assert)
@@ -191,7 +192,7 @@ getUser veid = do
   case muid of
     Nothing -> pure Nothing
     Just uid -> do
-      itis <- isJust <$> Intra.getBrigUserTeam uid
+      itis <- isJust <$> Intra.getBrigUserTeam Intra.WithPendingInvitations uid
       pure $ if itis then Just uid else Nothing
 
 -- | Create a fresh 'UserId', store it on C* locally together with 'SAML.UserRef', then
@@ -261,7 +262,7 @@ validateEmailIfExists uid =
     doValidate :: Bool -> SAML.Email -> Spar ()
     doValidate always email = do
       enabled <- do
-        tid <- Intra.getBrigUserTeam uid
+        tid <- Intra.getBrigUserTeam Intra.NoPendingInvitations uid
         maybe (pure False) Intra.isEmailValidationEnabledTeam tid
       case enabled || always of
         True -> Intra.updateEmail uid (Intra.emailFromSAML email)
@@ -272,13 +273,24 @@ validateEmailIfExists uid =
 -- 'UserIdentity'.  Otherwise, throw an error.
 bindUser :: UserId -> SAML.UserRef -> Spar UserId
 bindUser buid userref = do
-  do
+  oldStatus <- do
+    let err :: Spar a
+        err = throwSpar . SparBindFromWrongOrNoTeam . cs . show $ buid
     teamid <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (userref ^. uidTenant)
-    mteamid' <- Intra.getBrigUserTeam buid
-    unless (mteamid' == Just teamid) $ do
-      throwSpar . SparBindFromWrongOrNoTeam . cs . show $ buid
+    acc <- Intra.getBrigUserAccount Intra.WithPendingInvitations buid >>= maybe err pure
+    teamid' <- userTeam (accountUser acc) & maybe err pure
+    unless (teamid' == teamid) err
+    pure (accountStatus acc)
   insertUser userref buid
-  buid <$ Intra.setBrigUserVeid buid (UrefOnly userref)
+  buid <$ do
+    Intra.setBrigUserVeid buid (UrefOnly userref)
+    let err = throwSpar . SparBindFromBadAccountStatus . cs . show
+    case oldStatus of
+      Active -> pure ()
+      Suspended -> err oldStatus
+      Deleted -> err oldStatus
+      Ephemeral -> err oldStatus
+      PendingInvitation -> Intra.setStatus buid Active
 
 instance SPHandler SparError Spar where
   type NTCTX Spar = Env
