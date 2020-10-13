@@ -287,7 +287,7 @@ testCreateUserNoIdP = do
     -- cloned from brig's integration tests
 
     searchUser :: BrigReq -> UserId -> Name -> Bool -> TestSpar ()
-    searchUser brig searcherId searchTargetshouldSucceed = do
+    searchUser brig searcherId searchTarget shouldSucceed = do
       call $ refreshIndex brig
       let searchQuery = "name=" <> fromName searchTarget -- if searching fails where it shouldn't this may very well just be wrong.
       resp <- call $ executeSearch brig searcherId searchQuery
