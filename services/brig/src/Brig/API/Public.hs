@@ -39,6 +39,7 @@ import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
 import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
+import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra (AccountStatus (Ephemeral), UserAccount (UserAccount, accountUser))
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
@@ -1009,6 +1010,7 @@ createUser (Public.NewUserPublic new) = do
     UserAccount _ _ -> lift $ Auth.newCookie @ZAuth.User userId Public.PersistentCookie newUserLabel
   pure $ CreateUserResponse cok userId (Public.SelfProfile usr)
   where
+    sendActivationEmail :: Public.Email -> Public.Name -> ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> AppIO ()
     sendActivationEmail e u p l mTeamUser
       | Just teamUser <- mTeamUser,
         Public.NewTeamCreator creator <- teamUser,
@@ -1016,6 +1018,7 @@ createUser (Public.NewUserPublic new) = do
         sendTeamActivationMail e u p l (fromRange $ team ^. Public.newTeamName)
       | otherwise =
         sendActivationMail e u p l Nothing
+
     sendWelcomeEmail :: Public.Email -> CreateUserTeam -> Public.NewTeamUser -> Maybe Public.Locale -> AppIO ()
     -- NOTE: Welcome e-mails for the team creator are not dealt by brig anymore
     sendWelcomeEmail e (CreateUserTeam t n) newUser l = case newUser of
