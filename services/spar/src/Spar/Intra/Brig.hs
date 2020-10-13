@@ -444,9 +444,8 @@ deleteBrigUser buid = do
 getBrigUserTeam :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe TeamId)
 getBrigUserTeam = fmap (userTeam =<<) . getBrigUser
 
--- | Get the team that the user is an owner of.
---
--- Called by post handler, and by 'authorizeIdP'.
+-- | Get the team that the user is an owner of.  This is used for authorization.  It will fail
+-- if the user is not in status 'Active'.
 getZUsrOwnedTeam ::
   (HasCallStack, SAML.SP m, MonadSparToBrig m, MonadSparToGalley m) =>
   Maybe UserId ->

@@ -171,8 +171,7 @@ insertUser :: SAML.UserRef -> UserId -> Spar ()
 insertUser uref uid = wrapMonadClient $ Data.insertSAMLUser uref uid
 
 -- | Look up user locally in table @spar.user@, then in brig, then return the 'UserId'.  If
--- either lookup fails, or user is not in a team, return 'Nothing'.  See also:
--- 'Spar.App.createUser'.
+-- either lookup fails, or user is not in a team, return 'Nothing'.
 --
 -- It makes sense to require that users are required to be team members: the idp is created in
 -- the context of a team, and the only way for users to be created is as team members.  If a
@@ -189,8 +188,8 @@ getUser veid = do
       itis <- isJust <$> Intra.getBrigUserTeam uid
       pure $ if itis then Just uid else Nothing
 
--- | Create a fresh 'Data.Id.UserId', store it on C* locally together with 'SAML.UserRef', then
--- create user on brig.  See also: 'Spar.App.getUser'.
+-- | Create a fresh 'UserId', store it on C* locally together with 'SAML.UserRef', then
+-- create user on brig.
 --
 -- The manual for the team admin should say this: when deleting a user, delete it on the IdP first,
 -- then delete it on the team admin page in wire.  If a user is deleted in wire but not in the IdP,
@@ -238,9 +237,12 @@ autoprovisionSamlUserWithId buid suid managedBy = do
         "bad credentials (note that your team uses SCIM, "
           <> "which disables saml auto-provisioning)"
 
--- | If (a) user's 'NameID' is an email address and the team has email validation for SSO
--- enabled, or (b) user's SCIM externalId is an email address and there is no SAML involved:
+-- | If user's 'NameID' is an email address and the team has email validation for SSO enabled,
 -- make brig initiate the email validate procedure.
+--
+-- If user's SCIM externalId is an email address, but there is no SAML involved, the user is
+-- created with account status 'PendingInvitation', and the traditional invitation flow is
+-- triggered.  In that case, this function does nothing.
 validateEmailIfExists :: UserId -> ValidExternalId -> Spar ()
 validateEmailIfExists uid =
   runValidExternalId
