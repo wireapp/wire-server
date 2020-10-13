@@ -285,10 +285,16 @@ testCreateUserNoIdP = do
     -- cloned from brig's integration tests
 
     searchUser :: BrigReq -> UserId -> Name -> Bool -> TestSpar ()
-    searchUser brig searcherId searchQuery shouldSucceed = do
-      () <- error "refresh index"
-      resp <- call $ executeSearch brig searcherId (undefined searchQuery)
-      liftIO $ resp `shouldBe` if shouldSucceed then noEmpty else yesEmpty
+    searchUser brig searcherId searchTarget shouldSucceed = do
+      let searchQuery = "name=" <> fromName searchTarget -- if searching fails where it shouldn't this may very well just be wrong.
+      resp <- call $ refreshIndex brig >> executeSearch brig searcherId searchQuery
+      liftIO $
+        if shouldSucceed
+          then Search.searchFound resp `shouldNotBe` 0
+          else Search.searchFound resp `shouldBe` 0
+
+    refreshIndex :: BrigReq -> Http ()
+    refreshIndex brig = void $ post (brig . path "/i/index/reindex" . expect2xx)
 
     executeSearch :: BrigReq -> UserId -> Text -> Http (Search.SearchResult Search.Contact)
     executeSearch brig self q = do
@@ -298,9 +304,8 @@ testCreateUserNoIdP = do
               . path "/search/contacts"
               . zUser self
               . queryItem "q" (encodeUtf8 q)
+              . expect2xx
           )
-          <!! const 200
-          === statusCode
       responseJsonError r
 
     getInvitation :: BrigReq -> Email -> Http Invitation
