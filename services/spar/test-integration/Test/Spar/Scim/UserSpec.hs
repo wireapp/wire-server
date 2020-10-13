@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -65,6 +66,7 @@ import qualified Web.Scim.Schema.User as Scim.User
 import qualified Wire.API.Team.Feature as Feature
 import Wire.API.Team.Invitation (Invitation (..))
 import Wire.API.User.RichInfo
+import Wire.API.User.Search (SearchResult (..))
 import qualified Wire.API.User.Search as Search
 
 -- | Tests for @\/scim\/v2\/Users@.
@@ -286,9 +288,17 @@ testCreateUserNoIdP = do
 
     searchUser :: BrigReq -> UserId -> Name -> Bool -> TestSpar ()
     searchUser brig searcherId searchQuery shouldSucceed = do
-      () <- error "refresh index"
+      call $ refreshIndex brig
       resp <- call $ executeSearch brig searcherId (undefined searchQuery)
-      liftIO $ resp `shouldBe` if shouldSucceed then noEmpty else yesEmpty
+      liftIO $ (searchFound resp) `shouldSatisfy` if shouldSucceed then (> 0) else (== 0)
+
+    refreshIndex :: BrigReq -> Http ()
+    refreshIndex brig = do
+      void $
+        post
+          (brig . path "/i/index/refresh")
+          <!! const 200
+          === statusCode
 
     executeSearch :: BrigReq -> UserId -> Text -> Http (Search.SearchResult Search.Contact)
     executeSearch brig self q = do

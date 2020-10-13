@@ -300,7 +300,7 @@ createValidScimUser ::
   ScimTokenInfo ->
   ST.ValidScimUser ->
   m (Scim.StoredUser ST.SparTag)
-createValidScimUser ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid handl mbName richInfo active) = do
+createValidScimUser ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid handl name richInfo active) = do
   -- ensure uniqueness constraints of all affected identifiers.
   -- {if we crash now, retry POST will just work}
   assertExternalIdUnused veid
@@ -311,9 +311,7 @@ createValidScimUser ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid handl mbN
   buid <- lift $ do
     -- Generate a UserId will be used both for scim user in spar and for brig.
     buid <- Id <$> liftIO UUID.nextRandom
-    _ <- do
-      () <- error "if idp exists, call Brig.createBrigUser!"
-      Brig.createBrigUserScimInvite veid buid stiTeam mbName ManagedByScim
+    _ <- Brig.createBrigUser veid buid stiTeam name ManagedByScim
     -- {If we crash now, we have an active user that cannot login. And can not
     -- be bound this will be a zombie user that needs to be manually cleaned
     -- up.  We should consider making setUserHandle part of createUser and
