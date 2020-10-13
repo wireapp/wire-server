@@ -289,13 +289,13 @@ createUser new@NewUser {..} = do
         Just e -> throwE (ExternalPreconditionFailed e)
         Nothing -> pure ()
 
-    acceptTeamInvitation
-      :: UserAccount
-      -> Team.Invitation
-      -> Team.InvitationInfo
-      -> UserKey
-      -> UserIdentity
-      -> ExceptT CreateUserError (AppT IO) ()
+    acceptTeamInvitation ::
+      UserAccount ->
+      Team.Invitation ->
+      Team.InvitationInfo ->
+      UserKey ->
+      UserIdentity ->
+      ExceptT CreateUserError (AppT IO) ()
     acceptTeamInvitation account inv ii uk ident = do
       let uid = userId (accountUser account)
       ok <- lift $ Data.claimKey uk uid
