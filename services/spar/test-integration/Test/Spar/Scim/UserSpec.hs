@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -65,6 +66,7 @@ import qualified Web.Scim.Schema.User as Scim.User
 import qualified Wire.API.Team.Feature as Feature
 import Wire.API.Team.Invitation (Invitation (..))
 import Wire.API.User.RichInfo
+import Wire.API.User.Search (SearchResult (..))
 import qualified Wire.API.User.Search as Search
 
 -- | Tests for @\/scim\/v2\/Users@.
@@ -182,7 +184,7 @@ specCreateUser = describe "POST /Users" $ do
   it "rejects attempts at setting a password" $ do
     testCreateUserWithPass
   context "team has no SAML IdP" $ do
-    focus $
+    focus $ -- TODO(stefan) remove this when
       it "creates a user with PendingInvitation, and user can follow usual invitation process" $ do
         testCreateUserNoIdP
     it "fails if no email can be extraced from externalId" $ do
@@ -285,13 +287,11 @@ testCreateUserNoIdP = do
     -- cloned from brig's integration tests
 
     searchUser :: BrigReq -> UserId -> Name -> Bool -> TestSpar ()
-    searchUser brig searcherId searchTarget shouldSucceed = do
+    searchUser brig searcherId searchTargetshouldSucceed = do
+      call $ refreshIndex brig
       let searchQuery = "name=" <> fromName searchTarget -- if searching fails where it shouldn't this may very well just be wrong.
-      resp <- call $ refreshIndex brig >> executeSearch brig searcherId searchQuery
-      liftIO $
-        if shouldSucceed
-          then Search.searchFound resp `shouldNotBe` 0
-          else Search.searchFound resp `shouldBe` 0
+      resp <- call $ executeSearch brig searcherId searchQuery
+      liftIO $ (searchFound resp) `shouldSatisfy` if shouldSucceed then (> 0) else (== 0)
 
     refreshIndex :: BrigReq -> Http ()
     refreshIndex brig = void $ post (brig . path "/i/index/reindex" . expect2xx)

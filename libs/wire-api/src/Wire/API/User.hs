@@ -719,6 +719,7 @@ parseNewUserOrigin pass uid ssoid o = do
     _ -> fail "team_code, team, invitation_code, sso_id, scim_invitation_team_id, and the pair (sso_id, team_id) are mutually exclusive"
   case (result, pass, uid) of
     (_, _, Just SSOIdentity {}) -> pure result
+    (Just (NewUserOriginTeamUser (NewTeamMemberScimInvitation _)), _, _) -> pure result
     (Just (NewUserOriginTeamUser _), Nothing, _) -> fail "all team users must set a password on creation"
     _ -> pure result
 
