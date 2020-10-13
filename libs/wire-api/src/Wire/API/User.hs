@@ -750,7 +750,8 @@ data NewTeamUser
   | NewTeamCreator BindingNewTeamUser
   | -- | sso: users with SAML credentials
     NewTeamMemberSSO TeamId
-  | NewTeamMemberScimInvitation TeamId
+  | -- | users invited via scim (as opposed to via team settings)
+    NewTeamMemberScimInvitation TeamId
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewTeamUser)
 
