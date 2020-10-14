@@ -312,14 +312,13 @@ createUserNoVerify uData = do
     then do
       case (eac, newUserEmail uData) of
         (Just adata, Just email) -> do
-          void $
-            lift $
-              sendActivationEmail
-                email
-                (newUserDisplayName uData)
-                (activationKey adata, activationCode adata)
-                (newUserLocale uData)
-                Nothing
+          void . lift $
+            sendActivationEmail
+              email
+              (newUserDisplayName uData)
+              (activationKey adata, activationCode adata)
+              (newUserLocale uData)
+              (Public.newUserTeam uData)
         _ -> pure ()
     else do
       for_ (catMaybes [eac, pac]) $ \adata ->
