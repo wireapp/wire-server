@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeApplications #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -40,14 +41,16 @@ import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
+import Brig.User.Email (sendActivationMail, sendTeamActivationMail)
 import Control.Error hiding (bool)
-import Control.Lens (view)
+import Control.Lens (view, (^.))
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.Handle (Handle)
 import Data.Id as Id
 import qualified Data.List1 as List1
 import qualified Data.Map.Strict as Map
+import Data.Range
 import qualified Data.Set as Set
 import Galley.Types (UserClients (..))
 import Imports hiding (head)
@@ -57,7 +60,9 @@ import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
+import qualified Wire.API.Team as Public
 import Wire.API.User
+import qualified Wire.API.User as Public
 import Wire.API.User.RichInfo
 
 ---------------------------------------------------------------------------
@@ -302,11 +307,36 @@ createUserNoVerify uData = do
   let uid = userId usr
   let eac = createdEmailActivation result
   let pac = createdPhoneActivation result
-  for_ (catMaybes [eac, pac]) $ \adata ->
-    let key = ActivateKey $ activationKey adata
-        code = activationCode adata
-     in API.activate key code (Just uid) !>> actError
+
+  if isNewUserInvitedViaScim uData
+    then do
+      case (eac, newUserEmail uData) of
+        (Just adata, Just email) -> do
+          void $
+            lift $
+              sendActivationEmail
+                email
+                (newUserDisplayName uData)
+                (activationKey adata, activationCode adata)
+                (newUserLocale uData)
+                Nothing
+        _ -> pure ()
+    else do
+      for_ (catMaybes [eac, pac]) $ \adata ->
+        let key = ActivateKey $ activationKey adata
+            code = activationCode adata
+         in API.activate key code (Just uid) !>> actError
+
   return $ CreateUserNoVerifyResponse uid (SelfProfile usr)
+  where
+    sendActivationEmail :: Public.Email -> Public.Name -> ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> AppIO ()
+    sendActivationEmail e u p l mTeamUser
+      | Just teamUser <- mTeamUser,
+        Public.NewTeamCreator creator <- teamUser,
+        let Public.BindingNewTeamUser (Public.BindingNewTeam team) _ = creator =
+        sendTeamActivationMail e u p l (fromRange $ team ^. Public.newTeamName)
+      | otherwise =
+        sendActivationMail e u p l Nothing
 
 deleteUserNoVerifyH :: UserId -> Handler Response
 deleteUserNoVerifyH uid = do
