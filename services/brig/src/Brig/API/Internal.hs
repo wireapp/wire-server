@@ -122,6 +122,7 @@ sitemap = do
   get "/i/users" (continue listActivatedAccountsH) $
     accept "application" "json"
       .&. (param "ids" ||| param "handles")
+      .&. def False (query "includePendingInvitations")
 
   get "/i/users" (continue listAccountsByIdentityH) $
     accept "application" "json"
@@ -364,20 +365,26 @@ changeSelfEmailMaybeSend u DoNotSendEmail email = do
     ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
     ChangeEmailNeedsActivation _ -> pure ChangeEmailResponseNeedsActivation
 
-listActivatedAccountsH :: JSON ::: Either (List UserId) (List Handle) -> Handler Response
-listActivatedAccountsH (_ ::: qry) = do
-  json <$> lift (listActivatedAccounts qry)
+listActivatedAccountsH :: JSON ::: Either (List UserId) (List Handle) ::: Bool -> Handler Response
+listActivatedAccountsH (_ ::: qry ::: includePendingInvitations) = do
+  json <$> lift (listActivatedAccounts qry includePendingInvitations)
 
-listActivatedAccounts :: Either (List UserId) (List Handle) -> AppIO [UserAccount]
-listActivatedAccounts = \case
-  Left us -> byIds (fromList us)
-  Right hs -> do
-    us <- mapM (API.lookupHandle) (fromList hs)
-    byIds (catMaybes us)
+listActivatedAccounts :: Either (List UserId) (List Handle) -> Bool -> AppIO [UserAccount]
+listActivatedAccounts elh includePendingInvitations =
+  case elh of
+    Left us -> byIds (fromList us)
+    Right hs -> do
+      us <- mapM (API.lookupHandle) (fromList hs)
+      byIds (catMaybes us)
   where
-    byIds uids =
-      filter (isJust . userIdentity . accountUser)
-        <$> API.lookupAccounts uids
+    byIds uids = do
+      filter condition <$> API.lookupAccounts uids
+    condition account =
+      if includePendingInvitations
+        then hasIdentity account || isPendingActivation account
+        else hasIdentity account
+    hasIdentity = isJust . userIdentity . accountUser
+    isPendingActivation = (== PendingInvitation) . accountStatus
 
 listAccountsByIdentityH :: JSON ::: Either Email Phone -> Handler Response
 listAccountsByIdentityH (_ ::: emailOrPhone) =

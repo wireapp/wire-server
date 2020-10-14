@@ -267,13 +267,22 @@ getBrigUser ifpend = (accountUser <$$>) . getBrigUserAccount ifpend
 
 -- | Get a user; returns 'Nothing' if the user was not found or has been deleted.
 getBrigUserAccount :: (HasCallStack, MonadSparToBrig m) => HavePendingInvitations -> UserId -> m (Maybe UserAccount)
-getBrigUserAccount WithPendingInvitations _ = error "perhaps add a query param to the brig internal end-point that makes this happen?"
-getBrigUserAccount NoPendingInvitations buid = do
+getBrigUserAccount havePending buid = do
   resp :: ResponseLBS <-
     call $
       method GET
         . paths ["/i/users"]
-        . query [("ids", Just $ toByteString' buid)]
+        . query
+          [ ("ids", Just $ toByteString' buid),
+            ( "includePendingInvitations",
+              Just $
+                toByteString' $
+                  case havePending of
+                    WithPendingInvitations -> True
+                    NoPendingInvitations -> True
+            )
+          ]
+
   case statusCode resp of
     200 -> do
       parseResponse @[UserAccount] resp >>= \case
