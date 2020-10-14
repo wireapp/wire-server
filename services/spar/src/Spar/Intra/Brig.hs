@@ -275,11 +275,10 @@ getBrigUserAccount havePending buid = do
         . query
           [ ("ids", Just $ toByteString' buid),
             ( "includePendingInvitations",
-              Just $
-                toByteString' $
-                  case havePending of
-                    WithPendingInvitations -> True
-                    NoPendingInvitations -> True
+              Just . toByteString' $
+                case havePending of
+                  WithPendingInvitations -> True
+                  NoPendingInvitations -> False
             )
           ]
 
