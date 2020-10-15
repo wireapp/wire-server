@@ -212,7 +212,7 @@ createBrigUser ::
   -- | Who should have control over the user
   ManagedBy ->
   m UserId
-createBrigUser = runValidExternalId createBrigUserSAML createBrigUserSCIM
+createBrigUser = runValidExternalId createBrigUserSAML createBrigUserNoSAML
 
 createBrigUserSAML ::
   (HasCallStack, MonadSparToBrig m) =>
@@ -242,7 +242,7 @@ createBrigUserSAML uref (Id buid) teamid uname managedBy = do
     then userId . selfUser <$> parseResponse @SelfProfile resp
     else rethrow resp
 
-createBrigUserSCIM ::
+createBrigUserNoSAML ::
   (HasCallStack, MonadSparToBrig m) =>
   Email ->
   UserId ->
@@ -252,7 +252,7 @@ createBrigUserSCIM ::
   -- | Who should have control over the user
   ManagedBy ->
   m UserId
-createBrigUserSCIM email (Id buid) teamid uname managedBy = do
+createBrigUserNoSAML email (Id buid) teamid uname managedBy = do
   let newUser :: NewUser
       newUser =
         (emptyNewUser uname)
