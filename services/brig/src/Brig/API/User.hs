@@ -371,7 +371,7 @@ createUserInviteViaScim new = do
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.createUser")
   Log.info $ field "user" (toByteString uid) . msg (val "Creating user")
   lift $ do
-    Data.insertAccount account Nothing pw False
+    Data.insertAccount account Nothing pw False -- insert a user as activated=False
     Intra.createSelfConv uid
     Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
   -- Handle e-mail activation

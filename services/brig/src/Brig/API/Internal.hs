@@ -376,7 +376,7 @@ listActivatedAccounts elh includePendingInvitations =
       byIds (catMaybes us)
   where
     byIds uids = do
-      filter condition <$> API.lookupAccounts uids
+      filter condition <$> API.lookupAccounts uids -- TODO: this only returns activated users, so filtering on pendingInvitation doesn't work...
     condition account =
       if includePendingInvitations
         then hasIdentity account || isPendingActivation account
