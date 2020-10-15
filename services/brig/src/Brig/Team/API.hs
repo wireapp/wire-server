@@ -25,7 +25,7 @@ import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.User (fetchUserIdentity)
 import qualified Brig.API.User as API
-import Brig.App (AppIO, currentTime, settings)
+import Brig.App (AppIO, currentTime, emailSender, settings)
 import qualified Brig.Data.Blacklist as Blacklist
 import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
@@ -59,6 +59,7 @@ import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import qualified Wire.API.Team.Invitation as Public
+import qualified Wire.API.Team.Role as Public
 import qualified Wire.API.User as Public
 
 routesPublic :: Routes Doc.ApiBuilder Handler ()
@@ -173,6 +174,11 @@ routesInternal = do
     accept "application" "json"
       .&. capture "tid"
 
+  post "/i/teams/:tid/invitations" (continue createInvitationByBackendH) $
+    accept "application" "json"
+      .&. capture "tid"
+      .&. jsonRequest @Public.InvitationRequest
+
 teamSizeH :: JSON ::: TeamId -> Handler Response
 teamSizeH (_ ::: t) = json <$> teamSize t
 
@@ -212,28 +218,50 @@ data CreateInvitationInviter = CreateInvitationInviter
 
 createInvitation :: UserId -> TeamId -> Public.InvitationRequest -> Handler Public.Invitation
 createInvitation uid tid body = do
-  let inviteePerms = Team.rolePermissions inviteeRole
-      inviteeRole = fromMaybe Team.defaultRole . irRole $ body
+  let inviteeRole = fromMaybe Team.defaultRole . irRole $ body
   inviter <- do
+    let inviteePerms = Team.rolePermissions inviteeRole
     idt <- maybe (throwStd noIdentity) return =<< lift (fetchUserIdentity uid)
     from <- maybe (throwStd noEmail) return (emailIdentity idt)
     ensurePermissionToAddUser uid tid inviteePerms
     pure $ CreateInvitationInviter uid from
 
+  createInvitationInternal tid inviteeRole (Just (inviterUid inviter)) (inviterEmail inviter) body
+
+createInvitationByBackendH :: JSON ::: TeamId ::: JsonRequest Public.InvitationRequest -> Handler Response
+createInvitationByBackendH (_ ::: tid ::: req) = do
+  body <- parseJsonBody req
+  newInv <- createInvitationByBackend tid body
+  pure . setStatus status201 . loc (inInvitation newInv) . json $ newInv
+  where
+    loc iid =
+      addHeader "Location" $
+        "/teams/" <> toByteString' tid <> "/invitations/" <> toByteString' iid
+
+createInvitationByBackend :: TeamId -> Public.InvitationRequest -> Handler Public.Invitation
+createInvitationByBackend tid body = do
+  env <- ask
+  let inviteeRole = fromMaybe Team.defaultRole . irRole $ body
+  let fromEmail = env ^. emailSender
+  createInvitationInternal tid inviteeRole Nothing fromEmail body
+
+createInvitationInternal :: TeamId -> Public.Role -> Maybe UserId -> Email -> Public.InvitationRequest -> Handler Public.Invitation
+createInvitationInternal tid inviteeRole mbInviterUid fromEmail body = do
   -- FUTUREWORK: These validations are nearly copy+paste from accountCreation and
   --             sendActivationCode. Refactor this to a single place
 
   -- Validate e-mail
-  email <- either (const $ throwStd invalidEmail) return (Email.validateEmail (irInviteeEmail body))
-  let uke = userEmailKey email
+  inviteeEmail <- either (const $ throwStd invalidEmail) return (Email.validateEmail (irInviteeEmail body))
+  let uke = userEmailKey inviteeEmail
   blacklistedEm <- lift $ Blacklist.exists uke
   when blacklistedEm $
     throwStd blacklistedEmail
   emailTaken <- lift $ isJust <$> Data.lookupKey uke
   when emailTaken $
     throwStd emailExists
+
   -- Validate phone
-  phone <- for (irInviteePhone body) $ \p -> do
+  inviteePhone <- for (irInviteePhone body) $ \p -> do
     validatedPhone <- maybe (throwStd invalidPhone) return =<< lift (Phone.validatePhone p)
     let ukp = userPhoneKey validatedPhone
     blacklistedPh <- lift $ Blacklist.exists ukp
@@ -248,33 +276,25 @@ createInvitation uid tid body = do
   when (fromIntegral pending >= maxSize) $
     throwStd tooManyTeamInvitations
 
-  iid <- liftIO DB.mkInvitationId
-  lift $ doInvite iid inviteeRole inviter (irLocale body) email (irInviteeName body) phone
-  where
-    doInvite ::
-      InvitationId ->
-      Team.Role ->
-      CreateInvitationInviter ->
-      Maybe Public.Locale ->
-      Email ->
-      Maybe Public.Name ->
-      Maybe Public.Phone ->
-      AppIO Invitation
-    doInvite iid role inviter lc toEmail toName toPhone = do
-      now <- liftIO =<< view currentTime
-      timeout <- setTeamInvitationTimeout <$> view settings
-      (newInv, code) <-
-        DB.insertInvitation
-          iid
-          tid
-          role
-          now
-          (Just $ inviterUid inviter)
-          toEmail
-          toName
-          toPhone
-          timeout
-      newInv <$ sendInvitationMail toEmail tid (inviterEmail inviter) code lc
+  let locale = irLocale body
+  let inviteeName = irInviteeName body
+
+  lift $ do
+    iid <- liftIO DB.mkInvitationId
+    now <- liftIO =<< view currentTime
+    timeout <- setTeamInvitationTimeout <$> view settings
+    (newInv, code) <-
+      DB.insertInvitation
+        iid
+        tid
+        inviteeRole
+        now
+        mbInviterUid
+        inviteeEmail
+        inviteeName
+        inviteePhone
+        timeout
+    newInv <$ sendInvitationMail inviteeEmail tid fromEmail code locale
 
 deleteInvitationH :: JSON ::: UserId ::: TeamId ::: InvitationId -> Handler Response
 deleteInvitationH (_ ::: uid ::: tid ::: iid) = do

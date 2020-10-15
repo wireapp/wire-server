@@ -53,6 +53,7 @@ module Brig.App
     turnEnvV2,
     sftEnv,
     internalEvents,
+    emailSender,
 
     -- * App Monad
     AppT,
@@ -126,6 +127,7 @@ import System.Logger.Class hiding (Settings, settings)
 import qualified System.Logger.Class as LC
 import qualified System.Logger.Extended as Log
 import Util.Options
+import Wire.API.User.Identity (Email)
 
 schemaVersion :: Int32
 schemaVersion = 61
@@ -163,7 +165,8 @@ data Env = Env
     _zauthEnv :: ZAuth.Env,
     _digestSHA256 :: Digest,
     _digestMD5 :: Digest,
-    _indexEnv :: IndexEnv
+    _indexEnv :: IndexEnv,
+    _emailSender :: Email
   }
 
 makeLenses ''Env
@@ -236,7 +239,8 @@ newEnv o = do
         _zauthEnv = zau,
         _digestMD5 = md5,
         _digestSHA256 = sha256,
-        _indexEnv = mkIndexEnv o lgr mgr mtr
+        _indexEnv = mkIndexEnv o lgr mgr mtr,
+        _emailSender = Opt.emailSender . Opt.general . Opt.emailSMS $ o
       }
   where
     emailConn _ (Opt.EmailAWS aws) = return (Just aws, Nothing)
