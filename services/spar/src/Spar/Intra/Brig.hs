@@ -212,23 +212,19 @@ createBrigUser ::
   -- | Who should have control over the user
   ManagedBy ->
   m UserId
-createBrigUser veid buid teamid uname managedBy =
-  runValidExternalId
-    (\uref -> createBrigUserSAML teamid buid uref uname managedBy)
-    (\email -> createBrigUserSCIM teamid buid email uname managedBy)
-    veid
+createBrigUser = runValidExternalId createBrigUserSAML createBrigUserSCIM
 
 createBrigUserSAML ::
   (HasCallStack, MonadSparToBrig m) =>
-  TeamId ->
-  UserId ->
   SAML.UserRef ->
+  UserId ->
+  TeamId ->
   -- | User name
   Name ->
   -- | Who should have control over the user
   ManagedBy ->
   m UserId
-createBrigUserSAML teamid (Id buid) uref uname managedBy = do
+createBrigUserSAML uref (Id buid) teamid uname managedBy = do
   let newUser :: NewUser
       newUser =
         (emptyNewUser uname)
@@ -248,15 +244,15 @@ createBrigUserSAML teamid (Id buid) uref uname managedBy = do
 
 createBrigUserSCIM ::
   (HasCallStack, MonadSparToBrig m) =>
-  TeamId ->
-  UserId ->
   Email ->
+  UserId ->
+  TeamId ->
   -- | User name
   Name ->
   -- | Who should have control over the user
   ManagedBy ->
   m UserId
-createBrigUserSCIM teamid (Id buid) email uname managedBy = do
+createBrigUserSCIM email (Id buid) teamid uname managedBy = do
   let newUser :: NewUser
       newUser =
         (emptyNewUser uname)
