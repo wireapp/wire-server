@@ -25,7 +25,7 @@ import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.User (fetchUserIdentity)
 import qualified Brig.API.User as API
-import Brig.App (AppIO, currentTime, emailSender, settings)
+import Brig.App (currentTime, emailSender, settings)
 import qualified Brig.Data.Blacklist as Blacklist
 import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
