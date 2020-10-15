@@ -56,7 +56,6 @@ module Spar.Intra.Brig
     getStatusMaybe,
     setStatus,
     giveDefaultHandle,
-    createBrigInvitation,
   )
 where
 
@@ -269,6 +268,25 @@ createBrigUserNoSAML email (Id buid) teamid uname managedBy = do
   if statusCode resp `elem` [200, 201]
     then userId . selfUser <$> parseResponse @SelfProfile resp
     else rethrow resp
+  where
+    createBrigInvitation ::
+      (HasCallStack, MonadSparToBrig m) =>
+      UserId ->
+      TeamId ->
+      InvitationRequest ->
+      m Invitation
+    -- TODO: we probably don't want to have this, but create invitation and user from the same
+    -- internal brig end-point.
+    createBrigInvitation uid tid ireq = do
+      resp <-
+        call $
+          method POST
+            . paths ["/teams", toByteString' tid, "invitations"]
+            . json ireq
+            . header "Z-User" (toByteString' uid)
+      case statusCode resp of
+        200 -> parseResponse resp
+        _ -> rethrow resp
 
 updateEmail :: (HasCallStack, MonadSparToBrig m) => UserId -> Email -> m ()
 updateEmail buid email = do
@@ -612,20 +630,3 @@ rethrow resp = throwError err
         & maybe
           (SAML.CustomError . SparBrigError . cs . show $ (statusCode resp, responseBody resp))
           (SAML.CustomServant . waiToServant)
-
-createBrigInvitation ::
-  (HasCallStack, MonadSparToBrig m) =>
-  UserId ->
-  TeamId ->
-  InvitationRequest ->
-  m Invitation
-createBrigInvitation buid tid ireq = do
-  resp <-
-    call $
-      method POST
-        . paths ["/teams", toByteString' tid, "invitations"]
-        . json ireq
-        . header "Z-User" (toByteString' buid)
-  case statusCode resp of
-    200 -> parseResponse resp
-    _ -> rethrow resp
