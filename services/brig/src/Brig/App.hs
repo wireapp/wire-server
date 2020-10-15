@@ -141,6 +141,7 @@ data Env = Env
     _gundeck :: RPC.Request,
     _casClient :: Cas.ClientState,
     _smtpEnv :: Maybe SMTP.SMTP,
+    _emailSender :: Email,
     _awsEnv :: AWS.Env,
     _stompEnv :: Maybe Stomp.Env,
     _metrics :: Metrics,
@@ -165,8 +166,7 @@ data Env = Env
     _zauthEnv :: ZAuth.Env,
     _digestSHA256 :: Digest,
     _digestMD5 :: Digest,
-    _indexEnv :: IndexEnv,
-    _emailSender :: Email
+    _indexEnv :: IndexEnv
   }
 
 makeLenses ''Env
@@ -215,6 +215,7 @@ newEnv o = do
         _gundeck = mkEndpoint $ Opt.gundeck o,
         _casClient = cas,
         _smtpEnv = emailSMTP,
+        _emailSender = Opt.emailSender . Opt.general . Opt.emailSMS $ o,
         _awsEnv = aws,
         _stompEnv = stomp,
         _metrics = mtr,
@@ -239,8 +240,7 @@ newEnv o = do
         _zauthEnv = zau,
         _digestMD5 = md5,
         _digestSHA256 = sha256,
-        _indexEnv = mkIndexEnv o lgr mgr mtr,
-        _emailSender = Opt.emailSender . Opt.general . Opt.emailSMS $ o
+        _indexEnv = mkIndexEnv o lgr mgr mtr
       }
   where
     emailConn _ (Opt.EmailAWS aws) = return (Just aws, Nothing)
