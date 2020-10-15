@@ -56,6 +56,7 @@ module Spar.Intra.Brig
     getStatusMaybe,
     setStatus,
     giveDefaultHandle,
+    createBrigInvitation,
   )
 where
 
@@ -81,6 +82,7 @@ import Spar.Intra.Galley as Galley (MonadSparToGalley, assertIsTeamOwner)
 import Spar.Scim.Types (ValidExternalId (..), runValidExternalId)
 import qualified Text.Email.Parser
 import Web.Cookie
+import Wire.API.Team.Invitation (Invitation, InvitationRequest (..))
 import Wire.API.User
 import Wire.API.User.RichInfo as RichInfo
 
@@ -210,29 +212,59 @@ createBrigUser ::
   -- | Who should have control over the user
   ManagedBy ->
   m UserId
-createBrigUser veid (Id buid) teamid uname managedBy = do
+createBrigUser veid buid teamid uname managedBy =
+  runValidExternalId
+    (\uref -> createBrigUserSAML teamid buid uref uname managedBy)
+    (\email -> createBrigUserSCIM teamid buid email uname managedBy)
+    veid
+
+createBrigUserSAML ::
+  (HasCallStack, MonadSparToBrig m) =>
+  TeamId ->
+  UserId ->
+  SAML.UserRef ->
+  -- | User name
+  Name ->
+  -- | Who should have control over the user
+  ManagedBy ->
+  m UserId
+createBrigUserSAML teamid (Id buid) uref uname managedBy = do
   let newUser :: NewUser
       newUser =
         (emptyNewUser uname)
           { newUserUUID = Just buid,
-            newUserIdentity = user,
-            newUserOrigin = origin,
+            newUserIdentity = Just (SSOIdentity (urefToUserSSOId uref) Nothing Nothing),
+            newUserOrigin = Just (NewUserOriginTeamUser . NewTeamMemberSSO $ teamid),
             newUserManagedBy = Just managedBy
           }
+  resp :: Response (Maybe LBS) <-
+    call $
+      method POST
+        . path "/i/users"
+        . json newUser
+  if statusCode resp `elem` [200, 201]
+    then userId . selfUser <$> parseResponse @SelfProfile resp
+    else rethrow resp
 
-      (user, origin) =
-        runValidExternalId
-          ( \uref -> -- with SAML IdP
-              ( Just $ SSOIdentity (urefToUserSSOId uref) Nothing Nothing,
-                Just . NewUserOriginTeamUser . NewTeamMemberSSO $ teamid
-              )
-          )
-          ( \email -> -- without SAML IdP
-              ( Just $ EmailIdentity email,
-                Just . NewUserOriginTeamUser . NewTeamMemberScimInvitation $ teamid
-              )
-          )
-          veid
+createBrigUserSCIM ::
+  (HasCallStack, MonadSparToBrig m) =>
+  TeamId ->
+  UserId ->
+  Email ->
+  -- | User name
+  Name ->
+  -- | Who should have control over the user
+  ManagedBy ->
+  m UserId
+createBrigUserSCIM teamid (Id buid) email uname managedBy = do
+  let newUser :: NewUser
+      newUser =
+        (emptyNewUser uname)
+          { newUserUUID = Just buid,
+            newUserIdentity = Just (EmailIdentity email),
+            newUserOrigin = Just (NewUserOriginTeamUser . NewTeamMemberScimInvitation $ teamid),
+            newUserManagedBy = Just managedBy
+          }
   resp :: Response (Maybe LBS) <-
     call $
       method POST
@@ -584,3 +616,20 @@ rethrow resp = throwError err
         & maybe
           (SAML.CustomError . SparBrigError . cs . show $ (statusCode resp, responseBody resp))
           (SAML.CustomServant . waiToServant)
+
+createBrigInvitation ::
+  (HasCallStack, MonadSparToBrig m) =>
+  UserId ->
+  TeamId ->
+  InvitationRequest ->
+  m Invitation
+createBrigInvitation buid tid ireq = do
+  resp <-
+    call $
+      method POST
+        . paths ["/teams", toByteString' tid, "invitations"]
+        . json ireq
+        . header "Z-User" (toByteString' buid)
+  case statusCode resp of
+    200 -> parseResponse resp
+    _ -> rethrow resp
