@@ -64,7 +64,7 @@ import qualified Wire.API.User as Public
 
 routesPublic :: Routes Doc.ApiBuilder Handler ()
 routesPublic = do
-  post "/teams/:tid/invitations" (continue createInvitationH) $
+  post "/teams/:tid/invitations" (continue createInvitationPublicH) $
     accept "application" "json"
       .&. header "Z-User"
       .&. capture "tid"
@@ -174,7 +174,7 @@ routesInternal = do
     accept "application" "json"
       .&. capture "tid"
 
-  post "/i/teams/:tid/invitations" (continue createInvitationByBackendH) $
+  post "/i/teams/:tid/invitations" (continue createInvitationInternalH) $
     accept "application" "json"
       .&. capture "tid"
       .&. jsonRequest @Public.InvitationRequest
@@ -200,10 +200,10 @@ data FoundInvitationCode = FoundInvitationCode InvitationCode
 instance ToJSON FoundInvitationCode where
   toJSON (FoundInvitationCode c) = object ["code" .= c]
 
-createInvitationH :: JSON ::: UserId ::: TeamId ::: JsonRequest Public.InvitationRequest -> Handler Response
-createInvitationH (_ ::: uid ::: tid ::: req) = do
+createInvitationPublicH :: JSON ::: UserId ::: TeamId ::: JsonRequest Public.InvitationRequest -> Handler Response
+createInvitationPublicH (_ ::: uid ::: tid ::: req) = do
   body <- parseJsonBody req
-  newInv <- createInvitation uid tid body
+  newInv <- createInvitationPublic uid tid body
   pure . setStatus status201 . loc (inInvitation newInv) . json $ newInv
   where
     loc iid =
@@ -216,8 +216,8 @@ data CreateInvitationInviter = CreateInvitationInviter
   }
   deriving (Eq, Show)
 
-createInvitation :: UserId -> TeamId -> Public.InvitationRequest -> Handler Public.Invitation
-createInvitation uid tid body = do
+createInvitationPublic :: UserId -> TeamId -> Public.InvitationRequest -> Handler Public.Invitation
+createInvitationPublic uid tid body = do
   let inviteeRole = fromMaybe Team.defaultRole . irRole $ body
   inviter <- do
     let inviteePerms = Team.rolePermissions inviteeRole
@@ -226,22 +226,22 @@ createInvitation uid tid body = do
     ensurePermissionToAddUser uid tid inviteePerms
     pure $ CreateInvitationInviter uid from
 
-  createInvitationInternal tid inviteeRole (Just (inviterUid inviter)) (inviterEmail inviter) body
+  createInvitation' tid inviteeRole (Just (inviterUid inviter)) (inviterEmail inviter) body
 
-createInvitationByBackendH :: JSON ::: TeamId ::: JsonRequest Public.InvitationRequest -> Handler Response
-createInvitationByBackendH (_ ::: tid ::: req) = do
+createInvitationInternalH :: JSON ::: TeamId ::: JsonRequest Public.InvitationRequest -> Handler Response
+createInvitationInternalH (_ ::: tid ::: req) = do
   body <- parseJsonBody req
-  setStatus status201 . json <$> createInvitationByBackend tid body
+  setStatus status201 . json <$> createInvitationInternal tid body
 
-createInvitationByBackend :: TeamId -> Public.InvitationRequest -> Handler Public.Invitation
-createInvitationByBackend tid body = do
+createInvitationInternal :: TeamId -> Public.InvitationRequest -> Handler Public.Invitation
+createInvitationInternal tid body = do
   env <- ask
   let inviteeRole = fromMaybe Team.defaultRole . irRole $ body
   let fromEmail = env ^. emailSender
-  createInvitationInternal tid inviteeRole Nothing fromEmail body
+  createInvitation' tid inviteeRole Nothing fromEmail body
 
-createInvitationInternal :: TeamId -> Public.Role -> Maybe UserId -> Email -> Public.InvitationRequest -> Handler Public.Invitation
-createInvitationInternal tid inviteeRole mbInviterUid fromEmail body = do
+createInvitation' :: TeamId -> Public.Role -> Maybe UserId -> Email -> Public.InvitationRequest -> Handler Public.Invitation
+createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
   -- FUTUREWORK: These validations are nearly copy+paste from accountCreation and
   --             sendActivationCode. Refactor this to a single place
 
