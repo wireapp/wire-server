@@ -231,12 +231,7 @@ createInvitation uid tid body = do
 createInvitationByBackendH :: JSON ::: TeamId ::: JsonRequest Public.InvitationRequest -> Handler Response
 createInvitationByBackendH (_ ::: tid ::: req) = do
   body <- parseJsonBody req
-  newInv <- createInvitationByBackend tid body
-  pure . setStatus status201 . loc (inInvitation newInv) . json $ newInv
-  where
-    loc iid =
-      addHeader "Location" $
-        "/teams/" <> toByteString' tid <> "/invitations/" <> toByteString' iid
+  setStatus status201 . json <$> createInvitationByBackend tid body
 
 createInvitationByBackend :: TeamId -> Public.InvitationRequest -> Handler Public.Invitation
 createInvitationByBackend tid body = do
