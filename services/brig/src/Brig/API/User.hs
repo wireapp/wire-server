@@ -21,6 +21,7 @@
 module Brig.API.User
   ( -- * User Accounts / Profiles
     createUser,
+    createUserInviteViaScim,
     checkRestrictedUserCreation,
     Brig.API.User.updateUser,
     changeLocale,
@@ -124,6 +125,7 @@ import Control.Concurrent.Async (mapConcurrently, mapConcurrently_)
 import Control.Error
 import Control.Lens (view, (^.))
 import Control.Monad.Catch
+import Data.Aeson
 import Data.ByteString.Conversion
 import qualified Data.Currency as Currency
 import Data.Handle (Handle)
@@ -331,6 +333,63 @@ createUser new@NewUser {..} = do
             . msg (val "Added via SSO")
       Team.TeamName nm <- lift $ Intra.getTeamName tid
       pure $ CreateUserTeam tid nm
+
+newtype NewUserScimInvitation = NewUserScimInvitation NewUser -- TODO: better have a type that allows only valid values, and no validation function.
+  deriving (Eq, Show)
+
+instance FromJSON NewUserScimInvitation where
+  parseJSON = error "parse NewUser, then call validateNewUserScimInvitation"
+
+-- validateNewUserScimInvitation :: NewUser -> Either String NewUserScimInvitation
+-- validateNewUserScimInvitation = undefined
+
+instance ToJSON NewUserScimInvitation where
+  toJSON (NewUserScimInvitation nu) = toJSON nu
+
+-- | 'createUser' is becoming hard to maintian, and instead of adding more case distinctions
+-- all over the place there, we add a new function that handles just the one new flow where
+-- users are invited to the team via scim.
+createUserInviteViaScim :: NewUserScimInvitation -> ExceptT CreateUserError AppIO CreateUserResult
+createUserInviteViaScim new = do
+  let rawEmail :: Email = undefined new
+      tid :: TeamId = undefined new
+      newUser :: NewUser = undefined new
+  -- Validate e-mail
+  email <- either (throwE . InvalidEmail rawEmail) pure (validateEmail rawEmail)
+  let ident = newIdentity (Just email) Nothing Nothing
+  let emKey = userEmailKey email
+  -- Verify uniqueness and check the blacklist
+  do
+    -- TODO: this block (at least) is shared code between 'createUserInviteViaScim' and 'createUser'
+    checkKey Nothing emKey
+    blacklisted <- lift $ Blacklist.exists emKey
+    when blacklisted $
+      throwE (BlacklistedUserKey emKey)
+  -- Create account
+  (account, pw) <- lift $ newAccount newUser {newUserIdentity = ident} (error "invitationId") (Just tid)
+  let uid = userId (accountUser account)
+  Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.createUser")
+  Log.info $ field "user" (toByteString uid) . msg (val "Creating user")
+  lift $ do
+    Data.insertAccount account Nothing pw False
+    Intra.createSelfConv uid
+    Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
+  -- Handle e-mail activation
+  edata <- do
+    timeout <- setActivationTimeout <$> view settings
+    edata <- lift $ Data.newActivation emKey timeout (Just uid)
+    Log.info $
+      field "user" (toByteString uid)
+        . field "activation.key" (toByteString $ activationKey edata)
+        . msg (val "Created email activation key/code pair")
+    return $ Just edata
+  return $! CreateUserResult account edata Nothing Nothing
+  where
+    checkKey u k = do
+      av <- lift $ Data.keyAvailable k u
+      unless av $
+        throwE $
+          DuplicateUserKey k
 
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.
 checkRestrictedUserCreation :: NewUser -> ExceptT CreateUserError AppIO ()
