@@ -353,13 +353,14 @@ instance ToJSON NewUserScimInvitation where
 -- users are invited to the team via scim.
 createUserInviteViaScim :: NewUserScimInvitation -> ExceptT CreateUserError AppIO CreateUserResult
 createUserInviteViaScim new = do
-  let rawEmail :: Email = undefined new
+  let uid :: UserId = undefined new
+      tid :: TeamId = undefined new
+      name :: Name = undefined new
+      rawEmail :: Email = undefined new
   email <- either (throwE . InvalidEmail rawEmail) pure (validateEmail rawEmail)
-  let tid :: TeamId = undefined new
-      newUser :: NewUser = undefined newUser {newUserIdentity = newIdentity (Just email) Nothing Nothing}
   let emKey = userEmailKey email
   verifyUniquenessAndCheckBlacklist emKey
-  account <- lift $ fst <$> newAccount newUser Nothing (Just tid) -- TODO: can we inline the little code we use from newAccount?  do we want to?
+  account <- lift $ newAccountInviteViaScim uid tid name email
   Log.debug $ field "user" (toByteString . userId . accountUser $ account) . field "action" (Log.val "User.createUserInviteViaScim")
   lift $ Data.insertAccount account Nothing Nothing False
   return $! CreateUserResult account Nothing Nothing Nothing

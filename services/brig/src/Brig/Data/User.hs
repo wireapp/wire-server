@@ -25,6 +25,7 @@ module Brig.Data.User
   ( AuthError (..),
     ReAuthError (..),
     newAccount,
+    newAccountInviteViaScim,
     insertAccount,
     authenticate,
     reauthenticate,
@@ -137,6 +138,27 @@ newAccount u inv tid = do
     locale defLoc = fromMaybe defLoc (newUserLocale u)
     managedBy = fromMaybe defaultManagedBy (newUserManagedBy u)
     user uid l e = User uid ident name pict assets colour False l Nothing Nothing e tid managedBy
+
+newAccountInviteViaScim :: UserId -> TeamId -> Name -> Email -> AppIO UserAccount
+newAccountInviteViaScim uid tid name email = do
+  defLoc <- setDefaultLocale <$> view settings
+  return (UserAccount (user defLoc) PendingInvitation)
+  where
+    user loc =
+      User
+        uid
+        (Just $ EmailIdentity email)
+        name
+        (Pict [])
+        []
+        defaultAccentId
+        False
+        loc
+        Nothing
+        Nothing
+        Nothing
+        (Just tid)
+        ManagedByScim
 
 -- | Mandatory password authentication.
 authenticate :: UserId -> PlainTextPassword -> ExceptT AuthError AppIO ()
