@@ -206,7 +206,7 @@ createUser new@NewUser {..} = do
     _ -> pure Nothing
   let joinedTeam :: Maybe CreateUserTeam
       joinedTeam = joinedTeamInvite <|> joinedTeamSSO
-  -- Handle e-mail activation
+  -- Handle e-mail activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
   edata <-
     if teamEmailInvited
       then return Nothing
@@ -223,7 +223,7 @@ createUser new@NewUser {..} = do
           ak <- liftIO $ Data.mkActivationKey ek
           void $ activateWithCurrency (ActivateKey ak) c (Just uid) (join (bnuCurrency <$> newTeam)) !>> EmailActivationError
           return Nothing
-  -- Handle phone activation
+  -- Handle phone activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
   pdata <- fmap join . for phKey $ \pk -> case newUserPhoneCode of
     Nothing -> do
       timeout <- setActivationTimeout <$> view settings
@@ -359,22 +359,10 @@ createUserInviteViaScim new = do
       newUser :: NewUser = undefined newUser {newUserIdentity = newIdentity (Just email) Nothing Nothing}
   let emKey = userEmailKey email
   verifyUniquenessAndCheckBlacklist emKey
-  -- Create account
   account <- lift $ fst <$> newAccount newUser Nothing (Just tid) -- TODO: can we inline the little code we use from newAccount?  do we want to?
-  let uid = userId (accountUser account)
-  Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.createUserInviteViaScim")
+  Log.debug $ field "user" (toByteString . userId . accountUser $ account) . field "action" (Log.val "User.createUserInviteViaScim")
   lift $ Data.insertAccount account Nothing Nothing False
-  -- Handle e-mail activation
-  edata <- do
-    -- TODO: why isn't this done when the invitation is created and stored in cassandra, and the email is sent out?
-    timeout <- setActivationTimeout <$> view settings
-    edata <- lift $ Data.newActivation emKey timeout (Just uid)
-    Log.info $
-      field "user" (toByteString uid)
-        . field "activation.key" (toByteString $ activationKey edata)
-        . msg (val "Created email activation key/code pair")
-    return $ Just edata
-  return $! CreateUserResult account edata Nothing Nothing
+  return $! CreateUserResult account Nothing Nothing Nothing
 
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.
 checkRestrictedUserCreation :: NewUser -> ExceptT CreateUserError AppIO ()
