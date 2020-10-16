@@ -1,3 +1,4 @@
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -188,6 +189,9 @@ specCreateUser = describe "POST /Users" $ do
         testCreateUserNoIdP
     it "fails if no email can be extraced from externalId" $ do
       testCreateUserNoIdPNoEmail
+    it "doesn't list users that exceed their invivtation period, and allows recreating them" $ do
+      testCreateUserTimeout
+
   context "team has one SAML IdP" $ do
     it "creates a user in an existing team" $ do
       testCreateUserWithSamlIdP
@@ -659,6 +663,93 @@ testScimCreateVsUserRef = do
       brig <- view teBrig
       (call . delete $ brig . paths ["i", "users", toByteString' uid])
         !!! const 202 === statusCode
+
+testCreateUserTimeout :: TestSpar ()
+testCreateUserTimeout = do
+  env <- ask
+
+  email <- randomEmail
+  scimUser <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
+  (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  tok <- registerScimToken tid Nothing
+
+  testFlow tid tok scimUser email
+  -- creating the same user again should behave the same
+  testFlow tid tok scimUser email
+  where
+    testFlow tid tok scimUser email = do
+      env <- ask
+      let brig = env ^. teBrig
+
+      scimStoredUser <- createUser tok scimUser
+      let handle = Handle . Scim.User.userName . Scim.value . Scim.thing $ scimStoredUser
+
+      inv <- call $ getInvitation brig email
+
+      -- Wait for user and invitation to expire
+      let setTeamInvitationTimeout = 5 -- Must match the value in brig.integration.yaml
+      threadDelay $ (setTeamInvitationTimeout + 1) * 1_000_000
+
+      -- User doesn't show in scim
+      do
+        listUsers tok (Just (filterBy "userName" $ fromHandle handle)) >>= \users ->
+          liftIO $ users `shouldBe` []
+        listUsers tok (Just (filterBy "externalId" $ fromEmail email)) >>= \users ->
+          liftIO $ users `shouldBe` []
+
+      -- User should fail to register invitation
+      do
+        call $ do
+          void $ do
+            Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
+            post
+              ( brig . path "/register"
+                  . contentJson
+                  . json (acceptWithName (Name "Bob") email inviteeCode)
+              )
+              <!! const 201 =/= statusCode
+
+      -- User still doesn't show in scim
+      do
+        listUsers tok (Just (filterBy "userName" $ fromHandle handle)) >>= \users ->
+          liftIO $ users `shouldBe` []
+        listUsers tok (Just (filterBy "externalId" $ fromEmail email)) >>= \users ->
+          liftIO $ users `shouldBe` []
+
+    getInvitation :: BrigReq -> Email -> Http Invitation
+    getInvitation brig email =
+      responseJsonUnsafe
+        <$> Bilge.get
+          ( brig . path "/teams/invitations/by-email" . contentJson
+              . queryItem "email" (toByteString' email)
+              . expect2xx
+          )
+
+    acceptWithName :: Name -> Email -> InvitationCode -> Aeson.Value
+    acceptWithName name email code =
+      Aeson.object
+        [ "name" Aeson..= fromName name,
+          "email" Aeson..= fromEmail email,
+          "password" Aeson..= defPassword,
+          "team_code" Aeson..= code
+        ]
+
+    getInvitationCode ::
+      (MonadIO m, MonadHttp m, HasCallStack) =>
+      BrigReq ->
+      TeamId ->
+      InvitationId ->
+      m (Maybe InvitationCode)
+    getInvitationCode brig t ref = do
+      r <-
+        get
+          ( brig
+              . path "/i/teams/invitation-code"
+              . queryItem "team" (toByteString' t)
+              . queryItem "invitation_id" (toByteString' ref)
+          )
+      let lbs = fromMaybe "" $ responseBody r
+      return $ fromByteString . fromMaybe (error "No code?") $ encodeUtf8 <$> (lbs ^? key "code" . _String)
 
 ----------------------------------------------------------------------------
 -- Listing users
