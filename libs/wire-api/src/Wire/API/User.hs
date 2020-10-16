@@ -45,7 +45,6 @@ module Wire.API.User
     newUserSSOId,
     isNewUserEphemeral,
     isNewUserTeamMember,
-    isNewUserInvitedViaScim,
 
     -- * NewUserOrigin
     NewUserOrigin (..),
@@ -421,7 +420,17 @@ publicProfile u =
 
 -- | We use the same 'NewUser' type for the @\/register@ and @\/i\/users@ endpoints. This
 -- newtype is used as request body type for the public @\/register@ endpoint, where only a
--- subset of the 'NewUser' functionality should be allowed. See 'validateNewUserPublic'.
+-- subset of the 'NewUser' functionality should be allowed.
+--
+-- Specifically, we forbid the following:
+--
+--   * Setting 'SSOIdentity' (SSO users are created by Spar)
+--
+--   * Setting the UUID (only needed so that Spar can find the user if Spar crashes before it
+--     finishes creating the user).
+--
+--   * Setting 'ManagedBy' (it should be the default in all cases unless Spar creates a
+--     SCIM-managed user)
 newtype NewUserPublic = NewUserPublic NewUser
   deriving stock (Eq, Show, Generic)
   deriving newtype (ToJSON)
@@ -475,19 +484,6 @@ instance FromJSON NewUserPublic where
     nu <- parseJSON val
     either fail pure $ validateNewUserPublic nu
 
--- | Validates public interface to NewUser
---
--- Specifically, we forbid the following:
---
---   * Setting 'SSOIdentity' (SSO users are created by Spar)
---
---   * Setting 'NewTeamMemberScimInvitation'
---
---   * Setting the UUID (only needed so that Spar can find the user if Spar crashes before it
---     finishes creating the user).
---
---   * Setting 'ManagedBy' (it should be the default in all cases unless Spar creates a
---     SCIM-managed user)
 validateNewUserPublic :: NewUser -> Either String NewUserPublic
 validateNewUserPublic nu
   | isJust (newUserSSOId nu) =
@@ -496,8 +492,6 @@ validateNewUserPublic nu
     Left "it is not allowed to provide a UUID for the users here."
   | newUserManagedBy nu `notElem` [Nothing, Just ManagedByWire] =
     Left "only managed-by-Wire users can be created here."
-  | isNewUserInvitedViaScim nu =
-    Left "users invited via SCIM are not allow here"
   | otherwise =
     Right (NewUserPublic nu)
 
@@ -513,22 +507,11 @@ isNewUserEphemeral u = noId && noScim
       Just ManagedByWire -> True
       Just ManagedByScim -> False
 
-isNewUserInvitedViaScim :: NewUser -> Bool
-isNewUserInvitedViaScim u =
-  case newUserOrigin u of
-    Nothing -> False
-    Just (NewUserOriginInvitationCode _) -> False
-    Just (NewUserOriginTeamUser (NewTeamMember _)) -> False
-    Just (NewUserOriginTeamUser (NewTeamCreator _)) -> False
-    Just (NewUserOriginTeamUser (NewTeamMemberSSO _)) -> False
-    Just (NewUserOriginTeamUser (NewTeamMemberScimInvitation _)) -> True
-
 isNewUserTeamMember :: NewUser -> Bool
 isNewUserTeamMember u = case newUserTeam u of
   Just (NewTeamMember _) -> True
   Just (NewTeamMemberSSO _) -> True
   Just (NewTeamCreator _) -> False
-  Just (NewTeamMemberScimInvitation _) -> True
   Nothing -> False
 
 instance Arbitrary NewUserPublic where
@@ -693,7 +676,6 @@ jsonNewUserOrigin = \case
   NewUserOriginTeamUser (NewTeamMember tc) -> ["team_code" .= tc]
   NewUserOriginTeamUser (NewTeamCreator team) -> ["team" .= team]
   NewUserOriginTeamUser (NewTeamMemberSSO ti) -> ["team_id" .= ti]
-  NewUserOriginTeamUser (NewTeamMemberScimInvitation ti) -> ["scim_invitation_team_id" .= ti]
 
 parseNewUserOrigin ::
   Maybe PlainTextPassword ->
@@ -706,20 +688,17 @@ parseNewUserOrigin pass uid ssoid o = do
   teamcode <- o .:? "team_code"
   team <- o .:? "team"
   teamid <- o .:? "team_id"
-  scimInvTeamid <- o .:? "scim_invitation_team_id"
-  result <- case (invcode, teamcode, team, ssoid, teamid, scimInvTeamid) of
-    (Just a, Nothing, Nothing, Nothing, Nothing, Nothing) -> return . Just . NewUserOriginInvitationCode $ a
-    (Nothing, Just a, Nothing, Nothing, Nothing, Nothing) -> return . Just . NewUserOriginTeamUser $ NewTeamMember a
-    (Nothing, Nothing, Just a, Nothing, Nothing, Nothing) -> return . Just . NewUserOriginTeamUser $ NewTeamCreator a
-    (Nothing, Nothing, Nothing, Just _, Just t, Nothing) -> return . Just . NewUserOriginTeamUser $ NewTeamMemberSSO t
-    (Nothing, Nothing, Nothing, Nothing, Nothing, Just t) -> return . Just . NewUserOriginTeamUser $ NewTeamMemberScimInvitation t
-    (Nothing, Nothing, Nothing, Nothing, Nothing, Nothing) -> return Nothing
-    (_, _, _, Just _, Nothing, _) -> fail "sso_id, team_id must be either both present or both absent."
-    (_, _, _, Nothing, Just _, _) -> fail "sso_id, team_id must be either both present or both absent."
-    _ -> fail "team_code, team, invitation_code, sso_id, scim_invitation_team_id, and the pair (sso_id, team_id) are mutually exclusive"
+  result <- case (invcode, teamcode, team, ssoid, teamid) of
+    (Just a, Nothing, Nothing, Nothing, Nothing) -> return . Just . NewUserOriginInvitationCode $ a
+    (Nothing, Just a, Nothing, Nothing, Nothing) -> return . Just . NewUserOriginTeamUser $ NewTeamMember a
+    (Nothing, Nothing, Just a, Nothing, Nothing) -> return . Just . NewUserOriginTeamUser $ NewTeamCreator a
+    (Nothing, Nothing, Nothing, Just _, Just t) -> return . Just . NewUserOriginTeamUser $ NewTeamMemberSSO t
+    (Nothing, Nothing, Nothing, Nothing, Nothing) -> return Nothing
+    (_, _, _, Just _, Nothing) -> fail "sso_id, team_id must be either both present or both absent."
+    (_, _, _, Nothing, Just _) -> fail "sso_id, team_id must be either both present or both absent."
+    _ -> fail "team_code, team, invitation_code, sso_id, and the pair (sso_id, team_id) are mutually exclusive"
   case (result, pass, uid) of
     (_, _, Just SSOIdentity {}) -> pure result
-    (Just (NewUserOriginTeamUser (NewTeamMemberScimInvitation _)), _, _) -> pure result
     (Just (NewUserOriginTeamUser _), Nothing, _) -> fail "all team users must set a password on creation"
     _ -> pure result
 
@@ -749,10 +728,8 @@ data NewTeamUser
   = -- | requires email address
     NewTeamMember InvitationCode
   | NewTeamCreator BindingNewTeamUser
-  | -- | sso: users with SAML credentials
+  | -- | sso: users with saml credentials and/or created via scim
     NewTeamMemberSSO TeamId
-  | -- | users invited via scim (as opposed to via team settings)
-    NewTeamMemberScimInvitation TeamId
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewTeamUser)
 

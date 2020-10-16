@@ -262,7 +262,6 @@ createUser new@NewUser {..} = do
           Nothing -> (Nothing, Nothing, Nothing)
     handleTeam (Just (NewTeamCreator t)) _ = (Just t,Nothing,) <$> (Just . Id <$> liftIO nextRandom)
     handleTeam (Just (NewTeamMemberSSO tid)) _ = pure (Nothing, Nothing, Just tid)
-    handleTeam (Just (NewTeamMemberScimInvitation tid)) _ = pure (Nothing, Nothing, Just tid)
     handleTeam Nothing _ = return (Nothing, Nothing, Nothing)
 
     findTeamInvitation :: Maybe UserKey -> InvitationCode -> ExceptT CreateUserError AppIO (Maybe (Team.Invitation, Team.InvitationInfo, TeamId))

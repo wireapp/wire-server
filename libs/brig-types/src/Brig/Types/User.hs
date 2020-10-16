@@ -45,7 +45,6 @@ module Brig.Types.User
     newUserSSOId,
     isNewUserEphemeral,
     isNewUserTeamMember,
-    isNewUserInvitedViaScim,
     InvitationCode (..),
     BindingNewTeamUser (..),
     NewTeamUser (..),

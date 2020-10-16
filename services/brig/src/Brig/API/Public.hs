@@ -1028,8 +1028,6 @@ createUser (Public.NewUserPublic new) = do
         Team.sendMemberWelcomeMail e t n l
       Public.NewTeamMemberSSO _ ->
         Team.sendMemberWelcomeMail e t n l
-      Public.NewTeamMemberScimInvitation _ ->
-        error "impossible (new user record has type Public.NewUserPublic, which rules this out)"
 
 checkUserExistsH :: UserId ::: OpaqueUserId -> Handler Response
 checkUserExistsH (self ::: uid) = do

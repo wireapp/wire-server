@@ -307,35 +307,11 @@ createUserNoVerify uData = do
   let uid = userId usr
   let eac = createdEmailActivation result
   let pac = createdPhoneActivation result
-
-  if isNewUserInvitedViaScim uData
-    then do
-      case (eac, newUserEmail uData) of
-        (Just adata, Just email) -> do
-          void . lift $
-            sendActivationEmail
-              email
-              (newUserDisplayName uData)
-              (activationKey adata, activationCode adata)
-              (newUserLocale uData)
-              (Public.newUserTeam uData)
-        _ -> pure ()
-    else do
-      for_ (catMaybes [eac, pac]) $ \adata ->
-        let key = ActivateKey $ activationKey adata
-            code = activationCode adata
-         in API.activate key code (Just uid) !>> actError
-
+  for_ (catMaybes [eac, pac]) $ \adata ->
+    let key = ActivateKey $ activationKey adata
+        code = activationCode adata
+     in API.activate key code (Just uid) !>> actError
   return $ CreateUserNoVerifyResponse uid (SelfProfile usr)
-  where
-    sendActivationEmail :: Public.Email -> Public.Name -> ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> AppIO ()
-    sendActivationEmail e u p l mTeamUser
-      | Just teamUser <- mTeamUser,
-        Public.NewTeamCreator creator <- teamUser,
-        let Public.BindingNewTeamUser (Public.BindingNewTeam team) _ = creator =
-        sendTeamActivationMail e u p l (fromRange $ team ^. Public.newTeamName)
-      | otherwise =
-        sendActivationMail e u p l Nothing
 
 deleteUserNoVerifyH :: UserId -> Handler Response
 deleteUserNoVerifyH uid = do
