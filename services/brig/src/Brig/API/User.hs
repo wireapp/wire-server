@@ -147,6 +147,19 @@ import System.Logger.Message
 -------------------------------------------------------------------------------
 -- Create User
 
+verifyUniquenessAndCheckBlacklist :: UserKey -> ExceptT CreateUserError AppIO ()
+verifyUniquenessAndCheckBlacklist uk = do
+  checkKey Nothing uk
+  blacklisted <- lift $ Blacklist.exists uk
+  when blacklisted $
+    throwE (BlacklistedUserKey uk)
+  where
+    checkKey u k = do
+      av <- lift $ Data.keyAvailable k u
+      unless av $
+        throwE $
+          DuplicateUserKey k
+
 -- docs/reference/user/registration.md {#RefRegistration}
 createUser :: NewUser -> ExceptT CreateUserError AppIO CreateUserResult
 createUser new@NewUser {..} = do
@@ -165,12 +178,7 @@ createUser new@NewUser {..} = do
   let ident = newIdentity email phone (newUserSSOId new)
   let emKey = userEmailKey <$> email
   let phKey = userPhoneKey <$> phone
-  -- Verify uniqueness and check the blacklist
-  for_ (catMaybes [emKey, phKey]) $ \uk -> do
-    checkKey Nothing uk
-    blacklisted <- lift $ Blacklist.exists uk
-    when blacklisted $
-      throwE (BlacklistedUserKey uk)
+  for_ (catMaybes [emKey, phKey]) $ verifyUniquenessAndCheckBlacklist
   -- team user registration
   (newTeam, teamInvitation, tid) <- handleTeam (newUserTeam new) emKey
   -- Create account
@@ -231,12 +239,6 @@ createUser new@NewUser {..} = do
       return Nothing
   return $! CreateUserResult account edata pdata (activatedTeam <|> joinedTeam)
   where
-    checkKey u k = do
-      av <- lift $ Data.keyAvailable k u
-      unless av $
-        throwE $
-          DuplicateUserKey k
-
     createTeam uid activating t tid = do
       created <- Intra.createTeam uid t tid
       return $
@@ -359,12 +361,7 @@ createUserInviteViaScim new = do
   let ident = newIdentity (Just email) Nothing Nothing
   let emKey = userEmailKey email
   -- Verify uniqueness and check the blacklist
-  do
-    -- TODO: this block (at least) is shared code between 'createUserInviteViaScim' and 'createUser'
-    checkKey Nothing emKey
-    blacklisted <- lift $ Blacklist.exists emKey
-    when blacklisted $
-      throwE (BlacklistedUserKey emKey)
+  verifyUniquenessAndCheckBlacklist emKey
   -- Create account
   (account, pw) <- lift $ newAccount newUser {newUserIdentity = ident} (error "invitationId") (Just tid)
   let uid = userId (accountUser account)
@@ -384,12 +381,6 @@ createUserInviteViaScim new = do
         . msg (val "Created email activation key/code pair")
     return $ Just edata
   return $! CreateUserResult account edata Nothing Nothing
-  where
-    checkKey u k = do
-      av <- lift $ Data.keyAvailable k u
-      unless av $
-        throwE $
-          DuplicateUserKey k
 
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.
 checkRestrictedUserCreation :: NewUser -> ExceptT CreateUserError AppIO ()
