@@ -139,10 +139,10 @@ newAccount u inv tid = do
     managedBy = fromMaybe defaultManagedBy (newUserManagedBy u)
     user uid l e = User uid ident name pict assets colour False l Nothing Nothing e tid managedBy
 
-newAccountInviteViaScim :: UserId -> TeamId -> Name -> Email -> AppIO UserAccount
-newAccountInviteViaScim uid tid name email = do
+newAccountInviteViaScim :: UserId -> TeamId -> Maybe Locale -> Name -> Email -> AppIO UserAccount
+newAccountInviteViaScim uid tid locale name email = do
   defLoc <- setDefaultLocale <$> view settings
-  return (UserAccount (user defLoc) PendingInvitation)
+  return (UserAccount (user (fromMaybe defLoc locale)) PendingInvitation)
   where
     user loc =
       User

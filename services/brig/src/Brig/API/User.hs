@@ -125,7 +125,6 @@ import Control.Concurrent.Async (mapConcurrently, mapConcurrently_)
 import Control.Error
 import Control.Lens (view, (^.))
 import Control.Monad.Catch
-import Data.Aeson
 import Data.ByteString.Conversion
 import qualified Data.Currency as Currency
 import Data.Handle (Handle)
@@ -336,31 +335,15 @@ createUser new@NewUser {..} = do
       Team.TeamName nm <- lift $ Intra.getTeamName tid
       pure $ CreateUserTeam tid nm
 
-newtype NewUserScimInvitation = NewUserScimInvitation NewUser -- TODO: better have a type that allows only valid values, and no validation function.
-  deriving (Eq, Show)
-
-instance FromJSON NewUserScimInvitation where
-  parseJSON = error "parse NewUser, then call validateNewUserScimInvitation"
-
--- validateNewUserScimInvitation :: NewUser -> Either String NewUserScimInvitation
--- validateNewUserScimInvitation = undefined
-
-instance ToJSON NewUserScimInvitation where
-  toJSON (NewUserScimInvitation nu) = toJSON nu
-
 -- | 'createUser' is becoming hard to maintian, and instead of adding more case distinctions
 -- all over the place there, we add a new function that handles just the one new flow where
 -- users are invited to the team via scim.
 createUserInviteViaScim :: NewUserScimInvitation -> ExceptT CreateUserError AppIO CreateUserResult
-createUserInviteViaScim new = do
-  let uid :: UserId = undefined new
-      tid :: TeamId = undefined new
-      name :: Name = undefined new
-      rawEmail :: Email = undefined new
+createUserInviteViaScim (NewUserScimInvitation uid tid loc name rawEmail) = do
   email <- either (throwE . InvalidEmail rawEmail) pure (validateEmail rawEmail)
   let emKey = userEmailKey email
   verifyUniquenessAndCheckBlacklist emKey
-  account <- lift $ newAccountInviteViaScim uid tid name email
+  account <- lift $ newAccountInviteViaScim uid tid loc name email
   Log.debug $ field "user" (toByteString . userId . accountUser $ account) . field "action" (Log.val "User.createUserInviteViaScim")
   lift $ Data.insertAccount account Nothing Nothing False
   return $! CreateUserResult account Nothing Nothing Nothing

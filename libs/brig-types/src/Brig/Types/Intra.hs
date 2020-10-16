@@ -26,6 +26,7 @@ module Brig.Types.Intra
     AccountStatusResp (..),
     ConnectionStatus (..),
     UserAccount (..),
+    NewUserScimInvitation (..),
     UserSet (..),
     ReAuthUser (..),
   )
@@ -35,7 +36,7 @@ import Brig.Types.Connection
 import Brig.Types.User
 import Data.Aeson
 import qualified Data.HashMap.Strict as M
-import Data.Id (UserId)
+import Data.Id (TeamId, UserId)
 import Data.Misc (PlainTextPassword (..))
 import qualified Data.Text as Text
 import Imports
@@ -140,6 +141,37 @@ instance ToJSON UserAccount where
         Object $ M.insert "status" (toJSON s) o
       other ->
         error $ "toJSON UserAccount: not an object: " <> show (encode other)
+
+-------------------------------------------------------------------------------
+-- NewUserScimInvitation
+
+data NewUserScimInvitation = NewUserScimInvitation
+  { newUserScimInvUserId :: UserId,
+    newUserScimInvTeamId :: TeamId,
+    newUserScimInvLocale :: Maybe Locale,
+    newUserScimInvName :: Name,
+    newUserScimInvEmail :: Email
+  }
+  deriving (Eq, Show, Generic)
+
+instance FromJSON NewUserScimInvitation where
+  parseJSON = withObject "NewUserScimInvitation" $ \o ->
+    NewUserScimInvitation
+      <$> o .: "user_id"
+      <*> o .: "team_id"
+      <*> o .:? "locale"
+      <*> o .: "name"
+      <*> o .: "email"
+
+instance ToJSON NewUserScimInvitation where
+  toJSON (NewUserScimInvitation uid tid loc name email) =
+    object
+      [ "user_id" .= uid,
+        "team_id" .= tid,
+        "locale" .= loc,
+        "name" .= name,
+        "email" .= email
+      ]
 
 -------------------------------------------------------------------------------
 -- UserList
