@@ -125,6 +125,7 @@ import Control.Concurrent.Async (mapConcurrently, mapConcurrently_)
 import Control.Error
 import Control.Lens (view, (^.))
 import Control.Monad.Catch
+import Control.Monad.Extra (whenJust)
 import Data.ByteString.Conversion
 import qualified Data.Currency as Currency
 import Data.Handle (Handle)
@@ -180,13 +181,21 @@ createUser new@NewUser {..} = do
   for_ (catMaybes [emKey, phKey]) $ verifyUniquenessAndCheckBlacklist
   -- team user registration
   (newTeam, teamInvitation, tid) <- handleTeam (newUserTeam new) emKey
+
+  -- user was created via scim
+  whenJust newUserUUID $ \uid ->
+    when (isJust teamInvitation) $ do
+      mbAccount <- lift (lookupAccount (Id uid))
+      whenJust mbAccount $ \account ->
+        removeTTL account
+
   -- Create account
   (account, pw) <- lift $ newAccount new {newUserIdentity = ident} (Team.inInvitation . fst <$> teamInvitation) tid
   let uid = userId (accountUser account)
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.createUser")
   Log.info $ field "user" (toByteString uid) . msg (val "Creating user")
   activatedTeam <- lift $ do
-    Data.insertAccount account Nothing pw False
+    Data.insertAccount account Nothing pw False Nothing
     Intra.createSelfConv uid
     Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
     -- If newUserEmailCode is set, team gets activated _now_ else createUser fails
@@ -263,6 +272,11 @@ createUser new@NewUser {..} = do
     handleTeam (Just (NewTeamCreator t)) _ = (Just t,Nothing,) <$> (Just . Id <$> liftIO nextRandom)
     handleTeam (Just (NewTeamMemberSSO tid)) _ = pure (Nothing, Nothing, Just tid)
     handleTeam Nothing _ = return (Nothing, Nothing, Nothing)
+
+    removeTTL account = do
+      let pw = Nothing
+      let activated = False
+      lift $ Data.insertAccount account Nothing pw activated (Just 0)
 
     findTeamInvitation :: Maybe UserKey -> InvitationCode -> ExceptT CreateUserError AppIO (Maybe (Team.Invitation, Team.InvitationInfo, TeamId))
     findTeamInvitation Nothing _ = throwE MissingIdentity
@@ -344,7 +358,8 @@ createUserInviteViaScim (NewUserScimInvitation uid tid loc name rawEmail) = (`ca
   verifyUniquenessAndCheckBlacklist emKey
   account <- lift $ newAccountInviteViaScim uid tid loc name email
   Log.debug $ field "user" (toByteString . userId . accountUser $ account) . field "action" (Log.val "User.createUserInviteViaScim")
-  lift $ Data.insertAccount account Nothing Nothing False
+  ttl <- round . setTeamInvitationTimeout <$> view settings --TODO(stefan): verify that it really is seconds
+  lift $ Data.insertAccount account Nothing Nothing False (Just ttl)
   return account
 
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.
@@ -934,7 +949,7 @@ deleteAccount account@(accountUser -> user) = do
   -- Wipe data
   Data.clearProperties uid
   tombstone <- mkTombstone
-  Data.insertAccount tombstone Nothing Nothing False
+  Data.insertAccount tombstone Nothing Nothing False Nothing
   Intra.rmUser uid (userAssets user)
   Data.lookupClients uid >>= mapM_ (Data.rmClient uid . clientId)
   Intra.onUserEvent uid Nothing (UserDeleted uid)

@@ -201,8 +201,10 @@ insertAccount ::
   Maybe Password ->
   -- | Whether the user is activated
   Bool ->
+  -- | TTL
+  Maybe Int32 ->
   AppIO ()
-insertAccount (UserAccount u status) mbConv password activated = retry x5 . batch $ do
+insertAccount (UserAccount u status) mbConv password activated mbTTL = retry x5 . batch $ do
   setType BatchLogged
   setConsistency Quorum
   let Locale l c = userLocale u
@@ -226,7 +228,8 @@ insertAccount (UserAccount u status) mbConv password activated = retry x5 . batc
       view serviceRefId <$> userService u,
       userHandle u,
       userTeam u,
-      userManagedBy u
+      userManagedBy u,
+      fromMaybe 0 mbTTL
     )
   for_ ((,) <$> userService u <*> mbConv) $ \(sref, (cid, mbTid)) -> do
     let pid = sref ^. serviceRefProvider
@@ -477,7 +480,8 @@ type UserRowInsert =
     Maybe ServiceId,
     Maybe Handle,
     Maybe TeamId,
-    ManagedBy
+    ManagedBy,
+    Int32
   )
 
 deriving instance Show UserRowInsert
@@ -553,7 +557,8 @@ userInsert =
   "INSERT INTO user (id, name, picture, assets, email, phone, sso_id, \
   \accent_id, password, activated, status, expires, language, \
   \country, provider, service, handle, team, managed_by) \
-  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
+  \USING TTL ?"
 
 userDisplayNameUpdate :: PrepQuery W (Name, UserId) ()
 userDisplayNameUpdate = "UPDATE user SET name = ? WHERE id = ?"
