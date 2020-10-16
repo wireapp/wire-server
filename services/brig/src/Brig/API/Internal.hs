@@ -40,16 +40,14 @@ import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
-import Brig.User.Email (sendActivationMail, sendTeamActivationMail)
 import Control.Error hiding (bool)
-import Control.Lens (view, (^.))
+import Control.Lens (view)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.Handle (Handle)
 import Data.Id as Id
 import qualified Data.List1 as List1
 import qualified Data.Map.Strict as Map
-import Data.Range
 import qualified Data.Set as Set
 import Galley.Types (UserClients (..))
 import Imports hiding (head)
@@ -59,9 +57,7 @@ import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
-import qualified Wire.API.Team as Public
 import Wire.API.User
-import qualified Wire.API.User as Public
 import Wire.API.User.RichInfo
 
 ---------------------------------------------------------------------------
