@@ -248,45 +248,20 @@ createBrigUserNoSAML ::
   TeamId ->
   -- | User name
   Name ->
-  -- | Who should have control over the user
+  -- | Note: this argument is ignored
   ManagedBy ->
   m UserId
-createBrigUserNoSAML email (Id buid) teamid uname managedBy = do
-  let newUser :: NewUser
-      newUser =
-        (emptyNewUser uname)
-          { newUserUUID = Just buid,
-            newUserIdentity = Just (EmailIdentity email),
-            newUserOrigin = Just (NewUserOriginTeamUser . NewTeamMemberScimInvitation $ teamid),
-            newUserManagedBy = Just managedBy
-          }
+createBrigUserNoSAML email buid teamid uname _managedBy = do
+  let newUser = NewUserScimInvitation buid teamid Nothing uname email
   resp :: Response (Maybe LBS) <-
     call $
       method POST
-        . path "/i/users"
+        . paths ["/i/teams", toByteString' buid, "invitations"]
         . json newUser
+
   if statusCode resp `elem` [200, 201]
-    then userId . selfUser <$> parseResponse @SelfProfile resp
+    then userId . accountUser <$> parseResponse @UserAccount resp
     else rethrow resp
-  where
-    createBrigInvitation ::
-      (HasCallStack, MonadSparToBrig m) =>
-      UserId ->
-      TeamId ->
-      InvitationRequest ->
-      m Invitation
-    -- TODO: we probably don't want to have this, but create invitation and user from the same
-    -- internal brig end-point.
-    createBrigInvitation uid tid ireq = do
-      resp <-
-        call $
-          method POST
-            . paths ["/teams", toByteString' tid, "invitations"]
-            . json ireq
-            . header "Z-User" (toByteString' uid)
-      case statusCode resp of
-        200 -> parseResponse resp
-        _ -> rethrow resp
 
 updateEmail :: (HasCallStack, MonadSparToBrig m) => UserId -> Email -> m ()
 updateEmail buid email = do
