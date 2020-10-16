@@ -338,15 +338,15 @@ createUser new@NewUser {..} = do
 -- | 'createUser' is becoming hard to maintian, and instead of adding more case distinctions
 -- all over the place there, we add a new function that handles just the one new flow where
 -- users are invited to the team via scim.
-createUserInviteViaScim :: NewUserScimInvitation -> ExceptT CreateUserError AppIO CreateUserResult
-createUserInviteViaScim (NewUserScimInvitation uid tid loc name rawEmail) = do
+createUserInviteViaScim :: NewUserScimInvitation -> ExceptT Error.Error AppIO UserAccount
+createUserInviteViaScim (NewUserScimInvitation uid tid loc name rawEmail) = (`catchE` (throwE . Error.newUserError)) $ do
   email <- either (throwE . InvalidEmail rawEmail) pure (validateEmail rawEmail)
   let emKey = userEmailKey email
   verifyUniquenessAndCheckBlacklist emKey
   account <- lift $ newAccountInviteViaScim uid tid loc name email
   Log.debug $ field "user" (toByteString . userId . accountUser $ account) . field "action" (Log.val "User.createUserInviteViaScim")
   lift $ Data.insertAccount account Nothing Nothing False
-  return $! CreateUserResult account Nothing Nothing Nothing
+  return account
 
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.
 checkRestrictedUserCreation :: NewUser -> ExceptT CreateUserError AppIO ()

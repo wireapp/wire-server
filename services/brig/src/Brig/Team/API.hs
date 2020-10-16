@@ -23,7 +23,7 @@ where
 
 import Brig.API.Error
 import Brig.API.Handler
-import Brig.API.User (fetchUserIdentity)
+import Brig.API.User (createUserInviteViaScim, fetchUserIdentity)
 import qualified Brig.API.User as API
 import Brig.App (currentTime, emailSender, settings)
 import qualified Brig.Data.Blacklist as Blacklist
@@ -36,7 +36,7 @@ import qualified Brig.Phone as Phone
 import qualified Brig.Team.DB as DB
 import Brig.Team.Email
 import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)
-import Brig.Types.Intra (AccountStatus (..))
+import Brig.Types.Intra (AccountStatus (..), NewUserScimInvitation (..), UserAccount (..))
 import Brig.Types.Team (TeamSize)
 import Brig.Types.Team.Invitation
 import Brig.Types.User (Email, InvitationCode, emailIdentity)
@@ -176,8 +176,7 @@ routesInternal = do
 
   post "/i/teams/:tid/invitations" (continue createInvitationInternalH) $
     accept "application" "json"
-      .&. capture "tid"
-      .&. jsonRequest @Public.InvitationRequest
+      .&. jsonRequest @NewUserScimInvitation
 
 teamSizeH :: JSON ::: TeamId -> Handler Response
 teamSizeH (_ ::: t) = json <$> teamSize t
@@ -228,17 +227,26 @@ createInvitationPublic uid tid body = do
 
   createInvitation' tid inviteeRole (Just (inviterUid inviter)) (inviterEmail inviter) body
 
-createInvitationInternalH :: JSON ::: TeamId ::: JsonRequest Public.InvitationRequest -> Handler Response
-createInvitationInternalH (_ ::: tid ::: req) = do
+createInvitationInternalH :: JSON ::: JsonRequest NewUserScimInvitation -> Handler Response
+createInvitationInternalH (_ ::: req) = do
   body <- parseJsonBody req
-  setStatus status201 . json <$> createInvitationInternal tid body
+  setStatus status201 . json <$> createInvitationInternal body
 
-createInvitationInternal :: TeamId -> Public.InvitationRequest -> Handler Public.Invitation
-createInvitationInternal tid body = do
+createInvitationInternal :: NewUserScimInvitation -> Handler UserAccount
+createInvitationInternal newUser@(NewUserScimInvitation _ tid loc name email) = do
   env <- ask
-  let inviteeRole = fromMaybe Team.defaultRole . irRole $ body
-  let fromEmail = env ^. emailSender
-  createInvitation' tid inviteeRole Nothing fromEmail body
+  let inviteeRole = Team.defaultRole
+      fromEmail = env ^. emailSender
+      invreq =
+        InvitationRequest
+          { irLocale = loc,
+            irRole = Nothing, -- (unused, it's in the type for 'createInvitationPublicH')
+            irInviteeName = Just name,
+            irInviteeEmail = email,
+            irInviteePhone = Nothing
+          }
+  _ <- createInvitation' tid inviteeRole Nothing fromEmail invreq
+  createUserInviteViaScim newUser
 
 createInvitation' :: TeamId -> Public.Role -> Maybe UserId -> Email -> Public.InvitationRequest -> Handler Public.Invitation
 createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
