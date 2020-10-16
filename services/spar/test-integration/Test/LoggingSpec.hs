@@ -46,7 +46,7 @@ spec = describe "logging" $ do
   context "loglevel == debug" $ do
     it "400 on finalize-login causes log of entire request" $ do
       pendingWith "TODO: We don't log this any more.  See /libs/extended/src/Servant/API/Extended.hs for details."
-      (app, env) <- liftIO . mkApp =<< view teOpts
+      (app, env) <- liftIO . mkApp =<< view teSparOpts
       let badbody = "@@badxml"
       (out, resp) <- liftIO . capture $ do
         resp <- HW.withApplication app $ HW.post "/sso/finalize-login" badbody

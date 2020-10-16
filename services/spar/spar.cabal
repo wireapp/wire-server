@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8a7b77bbc7e9d990ac78dd068fccb94f15521732eac4d3a2cc9bc44aa38c7e7f
+-- hash: 6df882abdaebb2c26a538fea5855cb3d9364f5dc988661e465f2aea5cbe0723c
 
 name:           spar
 version:        0.1
@@ -227,6 +227,7 @@ executable spar-integration
     , base64-bytestring
     , bilge
     , binary
+    , brig
     , brig-types
     , bytestring
     , bytestring-conversion

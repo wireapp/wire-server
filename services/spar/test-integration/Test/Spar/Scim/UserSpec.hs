@@ -30,8 +30,10 @@ where
 
 import Bilge
 import Bilge.Assert
+import qualified Brig.Options
 import Brig.Types.Intra (AccountStatus (Active, PendingInvitation, Suspended), accountStatus, accountUser)
 import Brig.Types.User as Brig
+import qualified Control.Exception
 import Control.Lens
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
@@ -687,8 +689,10 @@ testCreateUserTimeout = do
       inv <- call $ getInvitation brig email
 
       -- Wait for user and invitation to expire
-      let setTeamInvitationTimeout = 5 -- Must match the value in brig.integration.yaml
-      threadDelay $ (setTeamInvitationTimeout + 1) * 1_000_000
+      let setTeamInvitationTimeout =
+            round . Brig.Options.setTeamInvitationTimeout . Brig.Options.optSettings . view teBrigOpts $ env
+      Control.Exception.assert (setTeamInvitationTimeout < 30) $ do
+        threadDelay $ (setTeamInvitationTimeout + 1) * 1_000_000
 
       -- User doesn't show in scim
       do
@@ -1175,7 +1179,7 @@ testScimSideIsUpdated = do
   liftIO $ updatedUser `shouldBe` storedUser'
   -- Check that the updated user also matches the data that we sent with
   -- 'updateUser'
-  richInfoLimit <- asks (Spar.Types.richInfoLimit . view teOpts)
+  richInfoLimit <- asks (Spar.Types.richInfoLimit . view teSparOpts)
   liftIO $ do
     Right (Scim.value (Scim.thing storedUser')) `shouldBe` whatSparReturnsFor idp richInfoLimit user'
     Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)
@@ -1230,7 +1234,7 @@ testUpdateSameHandle = do
   storedUser' <- getUser tok userid
   liftIO $ updatedUser `shouldBe` storedUser'
   -- Check that the updated user also matches the data that we sent with 'updateUser'
-  richInfoLimit <- asks (Spar.Types.richInfoLimit . view teOpts)
+  richInfoLimit <- asks (Spar.Types.richInfoLimit . view teSparOpts)
   liftIO $ do
     Right (Scim.value (Scim.thing storedUser')) `shouldBe` whatSparReturnsFor idp richInfoLimit user'
     Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)

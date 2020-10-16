@@ -131,6 +131,7 @@ executables:
     dependencies:
       - aeson-qq
       - async
+      - brig
       - galley-types
       - hspec
       - hspec-discover

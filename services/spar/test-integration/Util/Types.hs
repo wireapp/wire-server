@@ -29,7 +29,8 @@ module Util.Types
     teGalley,
     teSpar,
     teSparEnv,
-    teOpts,
+    teSparOpts,
+    teBrigOpts,
     teTstOpts,
     Select,
     ResponseLBS,
@@ -39,6 +40,7 @@ module Util.Types
 where
 
 import Bilge
+import qualified Brig.Options
 import Cassandra as Cas
 import Control.Exception
 import Control.Lens (makeLenses)
@@ -73,8 +75,8 @@ data TestEnv = TestEnv
     _teGalley :: GalleyReq,
     _teSpar :: SparReq,
     _teSparEnv :: Spar.Env,
-    -- | spar config
-    _teOpts :: Opts,
+    _teSparOpts :: Opts,
+    _teBrigOpts :: Brig.Options.Opts,
     -- | integration test config
     _teTstOpts :: IntegrationConfig
   }

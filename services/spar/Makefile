@@ -66,7 +66,7 @@ $(DEB_SCHEMA): install
 
 .PHONY: i
 i:
-	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml $(WIRE_INTEGRATION_TEST_OPTIONS)
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -b ../brig/brig.integration.yaml $(WIRE_INTEGRATION_TEST_OPTIONS)
 
 .PHONY: i-aws
 i-aws:

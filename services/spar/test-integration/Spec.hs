@@ -83,7 +83,7 @@ mkspec' env = do
     microsoftAzure @SparTag AcceptanceConfig {..}
   where
     scimAppAndConfig = do
-      (app, _) <- mkApp (env ^. teOpts)
+      (app, _) <- mkApp (env ^. teSparOpts)
       scimAuthToken <- toHeader . fst <$> registerIdPAndScimToken `runReaderT` env
       let queryConfig = AcceptanceQueryConfig {..}
           scimPathPrefix = "/scim/v2"
