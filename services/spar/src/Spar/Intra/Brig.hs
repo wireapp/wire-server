@@ -81,7 +81,7 @@ import Spar.Intra.Galley as Galley (MonadSparToGalley, assertIsTeamOwner)
 import Spar.Scim.Types (ValidExternalId (..), runValidExternalId)
 import qualified Text.Email.Parser
 import Web.Cookie
-import Wire.API.Team.Invitation (Invitation, InvitationRequest (..))
+import Wire.API.Team.Invitation (InvitationRequest (..))
 import Wire.API.User
 import Wire.API.User.RichInfo as RichInfo
 
