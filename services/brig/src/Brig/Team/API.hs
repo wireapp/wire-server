@@ -174,7 +174,7 @@ routesInternal = do
     accept "application" "json"
       .&. capture "tid"
 
-  post "/i/teams/:tid/invitations" (continue createInvitationInternalH) $
+  post "/i/teams/:tid/invitations" (continue createInvitationViaScimH) $
     accept "application" "json"
       .&. jsonRequest @NewUserScimInvitation
 
@@ -227,13 +227,13 @@ createInvitationPublic uid tid body = do
 
   createInvitation' tid inviteeRole (Just (inviterUid inviter)) (inviterEmail inviter) body
 
-createInvitationInternalH :: JSON ::: JsonRequest NewUserScimInvitation -> Handler Response
-createInvitationInternalH (_ ::: req) = do
+createInvitationViaScimH :: JSON ::: JsonRequest NewUserScimInvitation -> Handler Response
+createInvitationViaScimH (_ ::: req) = do
   body <- parseJsonBody req
-  setStatus status201 . json <$> createInvitationInternal body
+  setStatus status201 . json <$> createInvitationViaScim body
 
-createInvitationInternal :: NewUserScimInvitation -> Handler UserAccount
-createInvitationInternal newUser@(NewUserScimInvitation _ tid loc name email) = do
+createInvitationViaScim :: NewUserScimInvitation -> Handler UserAccount
+createInvitationViaScim newUser@(NewUserScimInvitation _ tid loc name email) = do
   env <- ask
   let inviteeRole = Team.defaultRole
       fromEmail = env ^. emailSender
