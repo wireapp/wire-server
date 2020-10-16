@@ -354,25 +354,19 @@ instance ToJSON NewUserScimInvitation where
 createUserInviteViaScim :: NewUserScimInvitation -> ExceptT CreateUserError AppIO CreateUserResult
 createUserInviteViaScim new = do
   let rawEmail :: Email = undefined new
-      tid :: TeamId = undefined new
-      newUser :: NewUser = undefined new
-  -- Validate e-mail
   email <- either (throwE . InvalidEmail rawEmail) pure (validateEmail rawEmail)
-  let ident = newIdentity (Just email) Nothing Nothing
+  let tid :: TeamId = undefined new
+      newUser :: NewUser = undefined newUser {newUserIdentity = newIdentity (Just email) Nothing Nothing}
   let emKey = userEmailKey email
-  -- Verify uniqueness and check the blacklist
   verifyUniquenessAndCheckBlacklist emKey
   -- Create account
-  (account, pw) <- lift $ newAccount newUser {newUserIdentity = ident} (error "invitationId") (Just tid)
+  account <- lift $ fst <$> newAccount newUser Nothing (Just tid) -- TODO: can we inline the little code we use from newAccount?  do we want to?
   let uid = userId (accountUser account)
-  Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.createUser")
-  Log.info $ field "user" (toByteString uid) . msg (val "Creating user")
-  lift $ do
-    Data.insertAccount account Nothing pw False -- insert a user as activated=False
-    Intra.createSelfConv uid
-    Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
+  Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.createUserInviteViaScim")
+  lift $ Data.insertAccount account Nothing Nothing False
   -- Handle e-mail activation
   edata <- do
+    -- TODO: why isn't this done when the invitation is created and stored in cassandra, and the email is sent out?
     timeout <- setActivationTimeout <$> view settings
     edata <- lift $ Data.newActivation emKey timeout (Just uid)
     Log.info $
