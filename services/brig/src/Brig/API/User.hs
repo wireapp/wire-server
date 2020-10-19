@@ -359,7 +359,7 @@ createUserInviteViaScim (NewUserScimInvitation uid tid loc name rawEmail) = (`ca
   account <- lift $ newAccountInviteViaScim uid tid loc name email
   Log.debug $ field "user" (toByteString . userId . accountUser $ account) . field "action" (Log.val "User.createUserInviteViaScim")
   ttl <- round . setTeamInvitationTimeout <$> view settings
-  lift $ Data.insertAccount account Nothing Nothing True (Just ttl)
+  lift $ Data.insertAccount account Nothing Nothing False (Just ttl)
   return account
 
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.
