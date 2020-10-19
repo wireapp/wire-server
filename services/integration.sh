@@ -163,7 +163,7 @@ while [ "$all_services_are_up" == "" ]; do
 done
 echo "all services are up!"
 
-( ${EXE} "${@:3}" && echo 0 > "${EXIT_STATUS_LOCATION}" && kill_gracefully ) || kill_gracefully &
+( ${EXE} "${@:2}" && echo 0 > "${EXIT_STATUS_LOCATION}" && kill_gracefully ) || kill_gracefully &
 
 wait
 exit $(<"${EXIT_STATUS_LOCATION}")

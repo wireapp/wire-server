@@ -63,6 +63,7 @@ partitionArgs = go [] []
   where
     go wireArgs hspecArgs ("-s" : x : xs) = go (wireArgs <> ["-s", x]) hspecArgs xs
     go wireArgs hspecArgs ("-i" : x : xs) = go (wireArgs <> ["-i", x]) hspecArgs xs
+    go wireArgs hspecArgs ("-b" : x : xs) = go (wireArgs <> ["-b", x]) hspecArgs xs
     go wireArgs hspecArgs (x : xs) = go wireArgs (hspecArgs <> [x]) xs
     go wireArgs hspecArgs [] = (wireArgs, hspecArgs)
 

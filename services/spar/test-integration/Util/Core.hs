@@ -225,11 +225,12 @@ cliOptsParser =
               <> OPA.short 'b'
               <> OPA.help "Brig application config to load"
               <> OPA.showDefault
-              <> OPA.value defaultSparPath
+              <> OPA.value defaultBrigPath
         )
   where
     defaultIntPath = "/etc/wire/integration/integration.yaml"
     defaultSparPath = "/etc/wire/spar/conf/spar.yaml"
+    defaultBrigPath = "/etc/wire/brig/conf/brig.yaml"
 
 -- | Create an environment for integration tests from integration and spar config files.
 --
