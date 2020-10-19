@@ -805,7 +805,7 @@ reindexRowToIndexUser (u, mteam, name, t0, status, t1, handle, t2, colour, t4, a
             Just Suspended -> True
             Just Deleted -> False
             Just Ephemeral -> False
-            Just PendingInvitation -> undefined,
+            Just PendingInvitation -> False,
           activated, -- FUTUREWORK: how is this adding to the first case?
           isNothing service
         ]
