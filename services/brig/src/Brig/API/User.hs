@@ -358,7 +358,7 @@ createUserInviteViaScim (NewUserScimInvitation uid tid loc name rawEmail) = (`ca
   verifyUniquenessAndCheckBlacklist emKey
   account <- lift $ newAccountInviteViaScim uid tid loc name email
   Log.debug $ field "user" (toByteString . userId . accountUser $ account) . field "action" (Log.val "User.createUserInviteViaScim")
-  ttl <- round . setTeamInvitationTimeout <$> view settings --TODO(stefan): verify that it really is seconds
+  ttl <- round . setTeamInvitationTimeout <$> view settings
   lift $ Data.insertAccount account Nothing Nothing False (Just ttl)
   return account
 
