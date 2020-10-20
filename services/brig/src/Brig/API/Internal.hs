@@ -35,6 +35,7 @@ import qualified Brig.Data.User as Data
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
 import qualified Brig.Team.API as Team
+import Brig.Team.DB (lookupInvitationByEmail)
 import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
@@ -117,7 +118,6 @@ sitemap = do
   get "/i/users" (continue listActivatedAccountsH) $
     accept "application" "json"
       .&. (param "ids" ||| param "handles")
-      .&. def False (query "includePendingInvitations")
 
   get "/i/users" (continue listAccountsByIdentityH) $
     accept "application" "json"
@@ -335,26 +335,37 @@ changeSelfEmailMaybeSend u DoNotSendEmail email = do
     ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
     ChangeEmailNeedsActivation _ -> pure ChangeEmailResponseNeedsActivation
 
-listActivatedAccountsH :: JSON ::: Either (List UserId) (List Handle) ::: Bool -> Handler Response
-listActivatedAccountsH (_ ::: qry ::: includePendingInvitations) = do
-  json <$> lift (listActivatedAccounts qry includePendingInvitations)
+listActivatedAccountsH :: JSON ::: Either (List UserId) (List Handle) -> Handler Response
+listActivatedAccountsH (_ ::: qry) = do
+  json <$> lift (listActivatedAccounts qry)
 
-listActivatedAccounts :: Either (List UserId) (List Handle) -> Bool -> AppIO [UserAccount]
-listActivatedAccounts elh includePendingInvitations =
+listActivatedAccounts :: Either (List UserId) (List Handle) -> AppIO [UserAccount]
+listActivatedAccounts elh =
   case elh of
     Left us -> byIds (fromList us)
     Right hs -> do
       us <- mapM (API.lookupHandle) (fromList hs)
       byIds (catMaybes us)
   where
-    byIds uids = do
-      filter condition <$> API.lookupAccounts uids -- TODO: this only returns activated users, so filtering on pendingInvitation doesn't work...
-    condition account =
-      if includePendingInvitations
-        then hasIdentity account || isPendingActivation account
-        else hasIdentity account
-    hasIdentity = isJust . userIdentity . accountUser
-    isPendingActivation = (== PendingInvitation) . accountStatus
+    byIds :: [UserId] -> AppIO [UserAccount]
+    byIds uids = catMaybes <$> (API.lookupAccounts uids >>= mapM accountValid)
+
+    accountValid :: UserAccount -> AppIO (Maybe UserAccount)
+    accountValid account = case (userIdentity . accountUser $ account) of
+      Nothing -> pure Nothing
+      Just ident
+        | accountStatus account == PendingInvitation -> do
+          case emailIdentity ident of
+            Nothing -> pure (Just account) -- should not happend, scim-invited user always have an email
+            Just email -> do
+              mbInv <- lookupInvitationByEmail email
+              if isJust mbInv
+                then pure (Just account)
+                else do
+                  -- user invited via scim should expire together with its invitation
+                  API.deleteUserNoVerify (userId . accountUser $ account)
+                  pure Nothing
+        | otherwise -> pure (Just account)
 
 listAccountsByIdentityH :: JSON ::: Either Email Phone -> Handler Response
 listAccountsByIdentityH (_ ::: emailOrPhone) =
