@@ -234,7 +234,7 @@ testCreateUserNoIdP = do
   (owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
   tok <- registerScimToken tid Nothing
   scimStoredUser <- createUser tok scimUser
-  liftIO $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldNotBe` Just True
+  liftIO $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just False
   let userid = scimUserId scimStoredUser
       handle = Handle . Scim.User.userName . Scim.value . Scim.thing $ scimStoredUser
 
@@ -259,7 +259,7 @@ testCreateUserNoIdP = do
     susr <- getUser tok userid
     liftIO $ susr `shouldBe` scimStoredUser
     let usr = Scim.value . Scim.thing $ susr
-    liftIO $ Scim.User.active usr `shouldNotBe` Just True
+    liftIO $ Scim.User.active usr `shouldBe` Just False
     liftIO $ Scim.User.externalId usr `shouldBe` Just (fromEmail email)
 
   -- scim search should succeed
@@ -285,7 +285,7 @@ testCreateUserNoIdP = do
 
     susr <- getUser tok userid
     let usr = Scim.value . Scim.thing $ susr
-    liftIO $ Scim.User.active usr `shouldBe` Just True
+    liftIO $ Scim.User.active usr `shouldNotBe` Just False
 
   -- searching user in brig should succeed
   searchUser brig owner userName True
