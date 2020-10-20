@@ -344,7 +344,13 @@ createUserInviteViaScim (NewUserScimInvitation uid tid loc name rawEmail) = (`ca
   verifyUniquenessAndCheckBlacklist emKey
   account <- lift $ newAccountInviteViaScim uid tid loc name email
   Log.debug $ field "user" (toByteString . userId . accountUser $ account) . field "action" (Log.val "User.createUserInviteViaScim")
-  lift $ Data.insertAccount account Nothing Nothing False
+  let activated =
+        -- It would be nice to set this to 'False' to make sure we're not accidentally
+        -- treating 'PendingActivation' as 'Active', but then 'Brig.Data.User.toIdentity'
+        -- would not produce an identity, and so we won't have the email address to construct
+        -- the SCIM user.
+        True
+  lift $ Data.insertAccount account Nothing Nothing activated
   return account
 
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.
