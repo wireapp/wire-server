@@ -147,11 +147,25 @@ routesPublic = do
   head "/teams/invitations/by-email" (continue headInvitationsByEmailH) $
     accept "application" "json"
       .&. query "email"
+
   document "HEAD" "headInvitationPending" $ do
     Doc.summary "Check if there is an invitation pending given an email address."
     Doc.parameter Doc.Query "email" Doc.bytes' $
       Doc.description "Email address"
     Doc.response 200 "Pending invitation exists." Doc.end
+    Doc.response 404 "No pending invitations exists." Doc.end
+    Doc.response 409 "Multiple conflicting invitations to different teams exists." Doc.end
+
+  get "/teams/invitations/by-email" (continue getInvitationByEmailH) $
+    accept "application" "json"
+      .&. query "email"
+
+  -- TODO: check if this correct
+  document "GET" "getInvitationByEmail" $ do
+    Doc.summary "Get a pending invitation for a given an email address."
+    Doc.parameter Doc.Query "email" Doc.bytes' $
+      Doc.description "Email address"
+    Doc.returns (Doc.ref Public.modelTeamInvitation)
     Doc.response 404 "No pending invitations exists." Doc.end
     Doc.response 409 "Multiple conflicting invitations to different teams exists." Doc.end
 
@@ -346,6 +360,15 @@ headInvitationsByEmailH (_ ::: e) = do
     DB.InvitationByEmail _ -> setStatus status200 empty
     DB.InvitationByEmailNotFound -> setStatus status404 empty
     DB.InvitationByEmailMoreThanOne -> setStatus status409 empty
+
+getInvitationByEmailH :: JSON ::: Email -> Handler Response
+getInvitationByEmailH (_ ::: email) =
+  json <$> getInvitationByEmail email
+
+getInvitationByEmail :: Email -> Handler Public.Invitation
+getInvitationByEmail email = do
+  inv <- lift $ DB.lookupInvitationByEmail email
+  maybe (throwStd (notFound "Invitation not found")) return inv
 
 suspendTeamH :: JSON ::: TeamId -> Handler Response
 suspendTeamH (_ ::: tid) = do

@@ -39,12 +39,11 @@ import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Control.Retry (exponentialBackoff, limitRetries, recovering)
 import qualified Data.Aeson as Aeson
-import Data.Aeson.Lens (key, _String)
 import Data.Aeson.QQ (aesonQQ)
 import Data.Aeson.Types (fromJSON, toJSON)
 import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle), fromHandle)
-import Data.Id (InvitationId, TeamId, UserId, randomId)
+import Data.Id (TeamId, UserId, randomId)
 import Data.Ix (inRange)
 import Data.String.Conversions (cs)
 import Data.Text.Encoding (encodeUtf8)
@@ -59,6 +58,7 @@ import Spar.Types (IdP)
 import qualified Spar.Types
 import qualified Text.XML.DSig as SAML
 import Util
+import Util.Invitation (getInvitation, getInvitationCode)
 import qualified Web.Scim.Class.User as Scim.UserC
 import qualified Web.Scim.Filter as Filter
 import qualified Web.Scim.Schema.Common as Scim
@@ -314,15 +314,6 @@ testCreateUserNoIdP = do
           )
       responseJsonError r
 
-    getInvitation :: BrigReq -> Email -> Http Invitation
-    getInvitation brig email =
-      responseJsonUnsafe
-        <$> Bilge.get
-          ( brig . path "/teams/invitations/by-email" . contentJson
-              . queryItem "email" (toByteString' email)
-              . expect2xx
-          )
-
     headInvitation :: BrigReq -> Email -> Http ()
     headInvitation brig email = do
       Bilge.head (brig . path "/teams/invitations/by-email" . contentJson . queryItem "email" (toByteString' email))
@@ -349,23 +340,6 @@ testCreateUserNoIdP = do
           "password" Aeson..= defPassword,
           "team_code" Aeson..= code
         ]
-
-    getInvitationCode ::
-      (MonadIO m, MonadHttp m, HasCallStack) =>
-      BrigReq ->
-      TeamId ->
-      InvitationId ->
-      m (Maybe InvitationCode)
-    getInvitationCode brig t ref = do
-      r <-
-        get
-          ( brig
-              . path "/i/teams/invitation-code"
-              . queryItem "team" (toByteString' t)
-              . queryItem "invitation_id" (toByteString' ref)
-          )
-      let lbs = fromMaybe "" $ responseBody r
-      return $ fromByteString . fromMaybe (error "No code?") $ encodeUtf8 <$> (lbs ^? key "code" . _String)
 
 testCreateUserNoIdPNoEmail :: TestSpar ()
 testCreateUserNoIdPNoEmail = do
@@ -677,23 +651,23 @@ testCreateUserTimeout = do
   tok <- registerScimToken tid Nothing
 
   testFlow tid tok scimUser email
-  -- creating the same user again should behave the same
+  waitUserExpiration
   testFlow tid tok scimUser email
   where
+    -- creating the same user again should behave the same
+    -- testFlow tid tok scimUser email
+
     testFlow tid tok scimUser email = do
       env <- ask
       let brig = env ^. teBrig
 
       scimStoredUser <- createUser tok scimUser
       let handle = Handle . Scim.User.userName . Scim.value . Scim.thing $ scimStoredUser
-
       inv <- call $ getInvitation brig email
+      Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
 
       -- Wait for user and invitation to expire
-      let setTeamInvitationTimeout =
-            round . Brig.Options.setTeamInvitationTimeout . Brig.Options.optSettings . view teBrigOpts $ env
-      Control.Exception.assert (setTeamInvitationTimeout < 30) $ do
-        threadDelay $ (setTeamInvitationTimeout + 1) * 1_000_000
+      waitUserExpiration
 
       -- User doesn't show in scim
       do
@@ -706,13 +680,12 @@ testCreateUserTimeout = do
       do
         call $ do
           void $ do
-            Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
             post
               ( brig . path "/register"
                   . contentJson
                   . json (acceptWithName (Name "Bob") email inviteeCode)
               )
-              <!! const 201 =/= statusCode
+              <!! const 400 === statusCode
 
       -- User still doesn't show in scim
       do
@@ -721,14 +694,11 @@ testCreateUserTimeout = do
         listUsers tok (Just (filterBy "externalId" $ fromEmail email)) >>= \users ->
           liftIO $ users `shouldBe` []
 
-    getInvitation :: BrigReq -> Email -> Http Invitation
-    getInvitation brig email =
-      responseJsonUnsafe
-        <$> Bilge.get
-          ( brig . path "/teams/invitations/by-email" . contentJson
-              . queryItem "email" (toByteString' email)
-              . expect2xx
-          )
+    waitUserExpiration = do
+      env <- ask
+      let setTeamInvitationTimeout = round . Brig.Options.setTeamInvitationTimeout . Brig.Options.optSettings . view teBrigOpts $ env
+      Control.Exception.assert (setTeamInvitationTimeout < 30) $ do
+        threadDelay $ (setTeamInvitationTimeout + 1) * 1_000_000
 
     acceptWithName :: Name -> Email -> InvitationCode -> Aeson.Value
     acceptWithName name email code =
@@ -738,23 +708,6 @@ testCreateUserTimeout = do
           "password" Aeson..= defPassword,
           "team_code" Aeson..= code
         ]
-
-    getInvitationCode ::
-      (MonadIO m, MonadHttp m, HasCallStack) =>
-      BrigReq ->
-      TeamId ->
-      InvitationId ->
-      m (Maybe InvitationCode)
-    getInvitationCode brig t ref = do
-      r <-
-        get
-          ( brig
-              . path "/i/teams/invitation-code"
-              . queryItem "team" (toByteString' t)
-              . queryItem "invitation_id" (toByteString' ref)
-          )
-      let lbs = fromMaybe "" $ responseBody r
-      return $ fromByteString . fromMaybe (error "No code?") $ encodeUtf8 <$> (lbs ^? key "code" . _String)
 
 ----------------------------------------------------------------------------
 -- Listing users

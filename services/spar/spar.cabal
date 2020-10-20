@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.2.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6df882abdaebb2c26a538fea5855cb3d9364f5dc988661e465f2aea5cbe0723c
+-- hash: f67a8e0ca4f319f47903e34c42355769fe0105b275f353d2d3209fa807c9caaf
 
 name:           spar
 version:        0.1
@@ -208,6 +208,7 @@ executable spar-integration
       Util
       Util.Core
       Util.Email
+      Util.Invitation
       Util.Scim
       Util.Types
       Paths_spar
