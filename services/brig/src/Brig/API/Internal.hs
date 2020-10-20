@@ -353,23 +353,23 @@ listActivatedAccounts elh includePendingInvitations =
 
     accountValid :: UserAccount -> AppIO Bool
     accountValid account = case userIdentity . accountUser $ account of
-      Nothing -> pure Nothing
+      Nothing -> pure False
       Just ident ->
         if accountStatus account == PendingInvitation
           then
             if includePendingInvitations
               then case emailIdentity ident of
-                Nothing -> pure (Just account) -- should not happend, scim-invited user always have an email
+                Nothing -> pure True
                 Just email -> do
                   mbInv <- lookupInvitationByEmail email
                   if isJust mbInv
-                    then pure (Just account)
+                    then pure True
                     else do
                       -- user invited via scim should expire together with its invitation
                       API.deleteUserNoVerify (userId . accountUser $ account)
-                      pure Nothing
-              else pure Nothing
-          else pure (Just account)
+                      pure False
+              else pure False
+          else pure True
 
 listAccountsByIdentityH :: JSON ::: Either Email Phone -> Handler Response
 listAccountsByIdentityH (_ ::: emailOrPhone) =
