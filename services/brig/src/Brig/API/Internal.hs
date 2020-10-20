@@ -349,9 +349,9 @@ listActivatedAccounts elh includePendingInvitations =
       byIds (catMaybes us)
   where
     byIds :: [UserId] -> AppIO [UserAccount]
-    byIds uids = catMaybes <$> (API.lookupAccounts uids >>= traverse accountValid)
+    byIds uids = API.lookupAccounts uids >>= filterM accountValid
 
-    accountValid :: UserAccount -> AppIO (Maybe UserAccount)
+    accountValid :: UserAccount -> AppIO Bool
     accountValid account = case (userIdentity . accountUser $ account) of
       Nothing -> pure Nothing
       Just ident
