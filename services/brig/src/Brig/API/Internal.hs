@@ -352,7 +352,7 @@ listActivatedAccounts elh includePendingInvitations =
     byIds uids = API.lookupAccounts uids >>= filterM accountValid
 
     accountValid :: UserAccount -> AppIO Bool
-    accountValid account = case (userIdentity . accountUser $ account) of
+    accountValid account = case userIdentity . accountUser $ account of
       Nothing -> pure Nothing
       Just ident
         | accountStatus account == PendingInvitation ->
