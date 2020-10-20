@@ -234,6 +234,7 @@ testCreateUserNoIdP = do
   (owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
   tok <- registerScimToken tid Nothing
   scimStoredUser <- createUser tok scimUser
+  liftIO $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldNotBe` Just True
   let userid = scimUserId scimStoredUser
       handle = Handle . Scim.User.userName . Scim.value . Scim.thing $ scimStoredUser
 
@@ -256,7 +257,7 @@ testCreateUserNoIdP = do
   -- email.
   do
     susr <- getUser tok userid
-    WrappedScimStoredUser susr `userShouldMatch` WrappedScimStoredUser scimStoredUser
+    liftIO $ susr `shouldBe` scimStoredUser
     let usr = Scim.value . Scim.thing $ susr
     liftIO $ Scim.User.active usr `shouldNotBe` Just True
     liftIO $ Scim.User.externalId usr `shouldBe` Just (fromEmail email)
