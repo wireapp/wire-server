@@ -192,7 +192,7 @@ getUser veid = do
   case muid of
     Nothing -> pure Nothing
     Just uid -> do
-      itis <- isJust <$> Intra.getBrigUserTeam uid
+      itis <- isJust <$> Intra.getBrigUserTeam Intra.WithPendingInvitations uid
       pure $ if itis then Just uid else Nothing
 
 -- | Create a fresh 'UserId', store it on C* locally together with 'SAML.UserRef', then
@@ -262,7 +262,7 @@ validateEmailIfExists uid =
     doValidate :: Bool -> SAML.Email -> Spar ()
     doValidate always email = do
       enabled <- do
-        tid <- Intra.getBrigUserTeam uid
+        tid <- Intra.getBrigUserTeam Intra.NoPendingInvitations uid
         maybe (pure False) Intra.isEmailValidationEnabledTeam tid
       case enabled || always of
         True -> Intra.updateEmail uid (Intra.emailFromSAML email)
@@ -277,7 +277,7 @@ bindUser buid userref = do
     let err :: Spar a
         err = throwSpar . SparBindFromWrongOrNoTeam . cs . show $ buid
     teamid <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (userref ^. uidTenant)
-    acc <- Intra.getBrigUserAccount buid >>= maybe err pure
+    acc <- Intra.getBrigUserAccount Intra.WithPendingInvitations buid >>= maybe err pure
     teamid' <- userTeam (accountUser acc) & maybe err pure
     unless (teamid' == teamid) err
     pure (accountStatus acc)

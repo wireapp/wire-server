@@ -32,6 +32,7 @@ module Spar.Intra.Brig
     emailToSAMLNameID,
     emailFromSAMLNameID,
     getBrigUserAccount,
+    HavePendingInvitations (..),
     getBrigUser,
     getBrigUserTeam,
     getBrigUserByHandle,
@@ -277,18 +278,29 @@ updateEmail buid email = do
     -- Wai.Error, it's ok to crash with a 500 here, so we use the unsafe parser.
     _ -> throwError . SAML.CustomServant . waiToServant . responseJsonUnsafe $ resp
 
-getBrigUser :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe User)
-getBrigUser = (accountUser <$$>) . getBrigUserAccount
+data HavePendingInvitations
+  = WithPendingInvitations
+  | NoPendingInvitations
+
+getBrigUser :: (HasCallStack, MonadSparToBrig m) => HavePendingInvitations -> UserId -> m (Maybe User)
+getBrigUser ifpend = (accountUser <$$>) . getBrigUserAccount ifpend
 
 -- | Get a user; returns 'Nothing' if the user was not found or has been deleted.
-getBrigUserAccount :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe UserAccount)
-getBrigUserAccount buid = do
+getBrigUserAccount :: (HasCallStack, MonadSparToBrig m) => HavePendingInvitations -> UserId -> m (Maybe UserAccount)
+getBrigUserAccount havePending buid = do
   resp :: ResponseLBS <-
     call $
       method GET
         . paths ["/i/users"]
         . query
-          [("ids", Just $ toByteString' buid)]
+          [ ("ids", Just $ toByteString' buid),
+            ( "includePendingInvitations",
+              Just . toByteString' $
+                case havePending of
+                  WithPendingInvitations -> True
+                  NoPendingInvitations -> False
+            )
+          ]
 
   case statusCode resp of
     200 -> do
@@ -460,9 +472,10 @@ deleteBrigUser buid = do
       | otherwise ->
         throwSpar $ SparBrigError ("delete user failed with status " <> cs (show sCode))
 
--- | Check that an id maps to an user on brig that is 'Active' and has a team id.
-getBrigUserTeam :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe TeamId)
-getBrigUserTeam = fmap (userTeam =<<) . getBrigUser
+-- | Check that an id maps to an user on brig that is 'Active' (or optionally
+-- 'PendingInvitation') and has a team id.
+getBrigUserTeam :: (HasCallStack, MonadSparToBrig m) => HavePendingInvitations -> UserId -> m (Maybe TeamId)
+getBrigUserTeam ifpend = fmap (userTeam =<<) . getBrigUser ifpend
 
 -- | Get the team that the user is an owner of.  This is used for authorization.  It will fail
 -- if the user is not in status 'Active'.
@@ -472,7 +485,7 @@ getZUsrOwnedTeam ::
   m TeamId
 getZUsrOwnedTeam Nothing = throwSpar SparMissingZUsr
 getZUsrOwnedTeam (Just uid) = do
-  getBrigUserTeam uid
+  getBrigUserTeam NoPendingInvitations uid
     >>= maybe
       (throwSpar SparNotInTeam)
       (\teamid -> teamid <$ Galley.assertIsTeamOwner teamid uid)
