@@ -311,7 +311,9 @@ createValidScimUser ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid handl nam
   buid <- lift $ do
     -- Generate a UserId will be used both for scim user in spar and for brig.
     buid <- Id <$> liftIO UUID.nextRandom
-    _ <- Brig.createBrigUser veid buid stiTeam name ManagedByScim
+    brigUser <- Brig.createBrigUser veid buid stiTeam name ManagedByScim
+    Log.debug (Log.msg $ "createValidScimUser: brig says " <> show brigUser)
+
     -- {If we crash now, we have an active user that cannot login. And can not
     -- be bound this will be a zombie user that needs to be manually cleaned
     -- up.  We should consider making setUserHandle part of createUser and
@@ -325,6 +327,7 @@ createValidScimUser ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid handl nam
   -- and then issue a PATCH containing the rich info and the externalId.}
 
   storedUser <- lift . toScimStoredUser buid $ synthesizeScimUser vsu
+  lift $ Log.debug (Log.msg $ "createValidScimUser: spar says " <> show (vsu, synthesizeScimUser vsu, storedUser))
 
   -- {(arianvp): these two actions we probably want to make transactional.}
   lift . wrapMonadClient $ do
