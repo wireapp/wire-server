@@ -110,7 +110,7 @@ instance Scim.UserDB ST.SparTag Spar where
   getUser ScimTokenInfo {stiTeam, stiIdP} uid = do
     mIdpConfig <- maybe (pure Nothing) (lift . wrapMonadClient . Data.getIdPConfig) stiIdP
     let notfound = Scim.notFound "User" (idToText uid)
-    brigUser <- lift (Brig.getBrigUserAccount Brig.WithPendingInvitations uid) >>= maybe (throwError notfound) pure
+    brigUser <- lift (Brig.getBrigUserAccount uid) >>= maybe (throwError notfound) pure
     unless (userTeam (accountUser brigUser) == Just stiTeam) (throwError notfound)
     case Brig.veidFromBrigUser (accountUser brigUser) ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) of
       Right veid -> synthesizeStoredUser brigUser veid
@@ -477,7 +477,7 @@ updScimStoredUser' now usr (Scim.WithMeta meta (Scim.WithId scimuid _)) =
 deleteScimUser ::
   ScimTokenInfo -> UserId -> Scim.ScimHandler Spar ()
 deleteScimUser ScimTokenInfo {stiTeam} uid = do
-  mbBrigUser <- lift (Brig.getBrigUser Brig.WithPendingInvitations uid)
+  mbBrigUser <- lift (Brig.getBrigUser uid)
   case mbBrigUser of
     Nothing -> do
       -- double-deletion gets you a 404.
@@ -562,7 +562,7 @@ assertHandleUnused' msg hndl =
 
 assertHandleNotUsedElsewhere :: UserId -> Handle -> Scim.ScimHandler Spar ()
 assertHandleNotUsedElsewhere uid hndl = do
-  musr <- lift $ Brig.getBrigUser Brig.WithPendingInvitations uid
+  musr <- lift $ Brig.getBrigUser uid
   unless ((userHandle =<< musr) == Just hndl) $
     assertHandleUnused' "userName does not match UserId" hndl
 
@@ -666,7 +666,7 @@ scimFindUserByEmail :: Maybe IdP -> TeamId -> Text -> MaybeT (Scim.ScimHandler S
 scimFindUserByEmail mIdpConfig stiTeam email = do
   veid <- mkValidExternalId mIdpConfig (pure email)
   uid <- MaybeT . lift $ ST.runValidExternalId withUref withEmailOnly veid
-  brigUser <- MaybeT . lift . Brig.getBrigUserAccount Brig.WithPendingInvitations $ uid
+  brigUser <- MaybeT . lift . Brig.getBrigUserAccount $ uid
   guard $ userTeam (accountUser brigUser) == Just stiTeam
   lift $ synthesizeStoredUser brigUser veid
   where
