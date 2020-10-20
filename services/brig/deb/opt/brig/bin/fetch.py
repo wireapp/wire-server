@@ -1,28 +1,26 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # coding: utf-8
 #
-# Wire
-# Copyright (C) 2018 Wire Swiss GmbH
+# This file is part of the Wire Server implementation.
 #
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
+# Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
+# This program is free software: you can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option) any
+# later version.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program. If not, see http://www.gnu.org/licenses/.
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+# details.
 #
+# You should have received a copy of the GNU Affero General Public License along
+# with this program. If not, see <https://www.gnu.org/licenses/>.
 
 import os
 import shutil
 import sys
-reload(sys)
-sys.setdefaultencoding('utf8')
 
 IGNORE_DIRS = ['billing', 'marketing']
 TEAM_SUPPORT = ['en', 'de']
@@ -52,13 +50,13 @@ def recursive_overwrite(src, dest):
   else:
     shutil.copyfile(src, dest)
 
-print ''
-print '-' * 32
-print 'this script clones github.com/wireapp/wire-emails and copies the changes to', dist
-print 'to list all versions, `cd wire-emails && git tag -l`.'
-print 'reading new version from', template_version_file, '...'
-print '-' * 32
-print ''
+print('')
+print('-' * 32)
+print('this script clones github.com/wireapp/wire-emails and copies the changes to', dist)
+print('to list all versions, `cd wire-emails && git tag -l`.')
+print('reading new version from', template_version_file, '...')
+print('-' * 32)
+print('')
 
 with open(template_version_file) as f:
   new_version = f.readline().replace('\n', '').strip()
@@ -69,12 +67,12 @@ try:
 except IOError:
   current_version = '0.0.0'
 
-print '-' * 32
-print 'New version:    ', new_version
-print 'Current version:', current_version
-print 'Branch name:    ', pr_branch_name
-print 'Status:         ', 'Up to date' if new_version == current_version else 'Fetching...'
-print '-' * 32
+print('-' * 32)
+print('New version:    ', new_version)
+print('Current version:', current_version)
+print('Branch name:    ', pr_branch_name)
+print('Status:         ', 'Up to date' if new_version == current_version else 'Fetching...')
+print('-' * 32)
 
 if new_version != current_version:
   # Clone the wire-emails project at new version
