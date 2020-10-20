@@ -300,7 +300,7 @@ createValidScimUser ::
   ScimTokenInfo ->
   ST.ValidScimUser ->
   m (Scim.StoredUser ST.SparTag)
-createValidScimUser ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid handl name richInfo active) = do
+createValidScimUser ScimTokenInfo {stiTeam} (ST.ValidScimUser veid handl name richInfo _) = do
   -- ensure uniqueness constraints of all affected identifiers.
   -- {if we crash now, retry POST will just work}
   assertExternalIdUnused veid
@@ -326,8 +326,16 @@ createValidScimUser ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid handl nam
   -- Azure at some point will retry with GET /Users?filter=userName eq handle
   -- and then issue a PATCH containing the rich info and the externalId.}
 
-  storedUser <- lift . toScimStoredUser buid $ synthesizeScimUser vsu
-  lift $ Log.debug (Log.msg $ "createValidScimUser: spar says " <> show (vsu, synthesizeScimUser vsu, storedUser))
+  -- By now, vsu that was passed to 'createValidScimUser' may be outdated.  Eg., if user is
+  -- invited via scim, we have @active == True@ above, but brig has stored the account in
+  -- @AccountStatus == PendingActivation@, which translates to @active == False@.  So we need
+  -- to reload the Account from brig.
+  storedUser <- do
+    acc <-
+      lift (Brig.getBrigUserAccount Brig.WithPendingInvitations buid)
+        >>= maybe (throwError $ Scim.serverError "Server error: user vanished") pure
+    synthesizeStoredUser acc veid
+  lift $ Log.debug (Log.msg $ "createValidScimUser: spar says " <> show storedUser)
 
   -- {(arianvp): these two actions we probably want to make transactional.}
   lift . wrapMonadClient $ do
@@ -344,7 +352,8 @@ createValidScimUser ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid handl nam
   -- {suspension via scim: if we don't reach the following line, the user will be active.}
   lift $ do
     old <- Brig.getStatus buid
-    let new = ST.scimActiveFlagToAccountStatus old (Just active)
+    let new = ST.scimActiveFlagToAccountStatus old active
+        active = Scim.active . Scim.value . Scim.thing $ storedUser
     when (new /= old) $ Brig.setStatus buid new
   pure storedUser
 
@@ -412,16 +421,6 @@ updateVsuUref uid old new = do
     new & ST.runValidExternalId (`Data.insertSAMLUser` uid) (`Data.insertScimExternalId` uid)
 
   Brig.setBrigUserVeid uid new
-
-toScimStoredUser ::
-  UserId ->
-  Scim.User ST.SparTag ->
-  Spar (Scim.StoredUser ST.SparTag)
-toScimStoredUser uid usr = do
-  SAML.Time (toUTCTimeMillis -> now) <- SAML.getNow
-  (createdAt, lastUpdatedAt) <- fromMaybe (now, now) <$> wrapMonadClient (Data.readScimUserTimes uid)
-  baseuri <- asks $ derivedOptsScimBaseURI . derivedOpts . sparCtxOpts
-  pure $ toScimStoredUser' createdAt lastUpdatedAt baseuri uid usr
 
 toScimStoredUser' ::
   HasCallStack =>
