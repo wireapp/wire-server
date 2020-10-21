@@ -1,5 +1,5 @@
 module Util.Invitation
-  ( headInvitation,
+  ( headInvitation404,
     getInvitation,
     getInvitationCode,
     registerInvitation,
@@ -19,8 +19,8 @@ import Imports
 import Util
 import Wire.API.Team.Invitation (Invitation (..))
 
-headInvitation :: BrigReq -> Email -> Http ()
-headInvitation brig email = do
+headInvitation404 :: BrigReq -> Email -> Http ()
+headInvitation404 brig email = do
   Bilge.head (brig . path "/teams/invitations/by-email" . contentJson . queryItem "email" (toByteString' email))
     !!! const 404 === statusCode
 

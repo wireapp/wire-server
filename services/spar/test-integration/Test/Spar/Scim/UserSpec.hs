@@ -58,7 +58,7 @@ import Spar.Types (IdP)
 import qualified Spar.Types
 import qualified Text.XML.DSig as SAML
 import Util
-import Util.Invitation (getInvitation, getInvitationCode, headInvitation, registerInvitation)
+import Util.Invitation (getInvitation, getInvitationCode, headInvitation404, registerInvitation)
 import qualified Web.Scim.Class.User as Scim.UserC
 import qualified Web.Scim.Filter as Filter
 import qualified Web.Scim.Schema.Common as Scim
@@ -274,7 +274,7 @@ testCreateUserNoIdP = do
     inv <- call $ getInvitation brig email
     Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
     registerInvitation email inviteeCode True
-    call $ headInvitation brig email
+    call $ headInvitation404 brig email
 
   -- user should now be active
   do
