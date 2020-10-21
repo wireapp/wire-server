@@ -234,10 +234,11 @@ testCreateUserNoIdP = do
   scimStoredUser <- createUser tok scimUser
   liftIO $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just False
   let userid = scimUserId scimStoredUser
-      handle = Handle . Scim.User.userName . Scim.value . Scim.thing $ scimStoredUser
+      handle = Handle $ Scim.User.userName scimUser
+      userName = Name . fromJust . Scim.User.displayName $ scimUser
 
   -- get account from brig, status should be PendingInvitation
-  userName <- do
+  do
     brigUserAccount <-
       aFewTimes (runSpar $ Intra.getBrigUserAccount Intra.WithPendingInvitations userid) isJust
         >>= maybe (error "could not find user in brig") pure
@@ -246,7 +247,6 @@ testCreateUserNoIdP = do
     liftIO $ accountStatus brigUserAccount `shouldBe` PendingInvitation
     liftIO $ userEmail brigUser `shouldBe` Just email
     liftIO $ userManagedBy brigUser `shouldBe` ManagedByScim
-    pure $ userDisplayName brigUser
 
   -- searching user in brig should fail
   searchUser brig owner userName False
@@ -271,7 +271,7 @@ testCreateUserNoIdP = do
   do
     inv <- call $ getInvitation brig email
     Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
-    registerInvitation email inviteeCode True
+    registerInvitation email userName inviteeCode True
     call $ headInvitation404 brig email
 
   -- user should now be active
@@ -621,11 +621,12 @@ testCreateUserTimeout = do
 
   email <- randomEmail
   scimUser <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
+  let userName = Name . fromJust . Scim.User.displayName $ scimUser
 
   (scimStoredUser1, _inv, inviteeCode) <- createUser'step tok tid scimUser email
   waitUserExpiration
   searchUser tok scimUser email False
-  registerInvitation email inviteeCode False
+  registerInvitation email userName inviteeCode False
   searchUser tok scimUser email False
 
   threadDelay $ 1 * 1_000_000 -- wait for async user deletion to complete
@@ -635,7 +636,7 @@ testCreateUserTimeout = do
   let id2 = (Scim.id . Scim.thing) scimStoredUser2
   liftIO $ id1 `shouldNotBe` id2
 
-  registerInvitation email inviteeCode2 True
+  registerInvitation email userName inviteeCode2 True
   searchUser tok scimUser email True
   waitUserExpiration
   searchUser tok scimUser email True

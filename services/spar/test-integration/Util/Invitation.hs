@@ -50,8 +50,8 @@ getInvitationCode brig t ref = do
   let lbs = fromMaybe "" $ responseBody r
   return $ fromByteString . fromMaybe (error "No code?") $ encodeUtf8 <$> (lbs ^? key "code" . _String)
 
-registerInvitation :: Email -> InvitationCode -> Bool -> TestSpar ()
-registerInvitation email inviteeCode shouldSucceed = do
+registerInvitation :: Email -> Name -> InvitationCode -> Bool -> TestSpar ()
+registerInvitation email name inviteeCode shouldSucceed = do
   env <- ask
   let brig = env ^. teBrig
   call $
@@ -59,7 +59,7 @@ registerInvitation email inviteeCode shouldSucceed = do
       post
         ( brig . path "/register"
             . contentJson
-            . json (acceptWithName (Name "Bob") email inviteeCode)
+            . json (acceptWithName name email inviteeCode)
         )
         <!! const (if shouldSucceed then 201 else 400) === statusCode
 
