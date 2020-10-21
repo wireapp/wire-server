@@ -311,8 +311,7 @@ createValidScimUser ScimTokenInfo {stiTeam} (ST.ValidScimUser veid handl name ri
 
   buid <- lift $ do
     -- Generate a UserId will be used both for scim user in spar and for brig.
-    buid <- Id <$> liftIO UUID.nextRandom
-    brigUser <- Brig.createBrigUser veid buid stiTeam name ManagedByScim
+    brigUser <- Brig.createBrigUser veid Nothing stiTeam name ManagedByScim
     Log.debug (Log.msg $ "createValidScimUser: brig says " <> show brigUser)
 
     -- {If we crash now, we have an active user that cannot login. And can not

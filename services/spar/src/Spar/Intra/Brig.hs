@@ -198,20 +198,6 @@ class MonadError SparError m => MonadSparToBrig m where
 instance MonadSparToBrig m => MonadSparToBrig (ReaderT r m) where
   call = lift . call
 
--- | Create a user on brig.
-createBrigUser ::
-  (HasCallStack, MonadSparToBrig m) =>
-  -- | SSO identity
-  ValidExternalId ->
-  UserId ->
-  TeamId ->
-  -- | User name
-  Name ->
-  -- | Who should have control over the user
-  ManagedBy ->
-  m UserId
-createBrigUser = runValidExternalId createBrigUserSAML createBrigUserNoSAML
-
 createBrigUserSAML ::
   (HasCallStack, MonadSparToBrig m) =>
   SAML.UserRef ->
@@ -243,15 +229,14 @@ createBrigUserSAML uref (Id buid) teamid uname managedBy = do
 createBrigUserNoSAML ::
   (HasCallStack, MonadSparToBrig m) =>
   Email ->
-  UserId ->
   TeamId ->
   -- | User name
   Name ->
   -- | Note: this argument is ignored
   ManagedBy ->
   m UserId
-createBrigUserNoSAML email buid teamid uname _managedBy = do
-  let newUser = NewUserScimInvitation buid teamid Nothing uname email
+createBrigUserNoSAML email teamid uname _managedBy = do
+  let newUser = NewUserScimInvitation teamid Nothing uname email
   resp :: Response (Maybe LBS) <-
     call $
       method POST

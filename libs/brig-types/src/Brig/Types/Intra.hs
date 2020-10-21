@@ -146,8 +146,7 @@ instance ToJSON UserAccount where
 -- NewUserScimInvitation
 
 data NewUserScimInvitation = NewUserScimInvitation
-  { newUserScimInvUserId :: UserId,
-    newUserScimInvTeamId :: TeamId,
+  { newUserScimInvTeamId :: TeamId,
     newUserScimInvLocale :: Maybe Locale,
     newUserScimInvName :: Name,
     newUserScimInvEmail :: Email

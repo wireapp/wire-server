@@ -247,7 +247,7 @@ createInvitationViaScimH (_ ::: req) = do
   setStatus status201 . json <$> createInvitationViaScim body
 
 createInvitationViaScim :: NewUserScimInvitation -> Handler UserAccount
-createInvitationViaScim newUser@(NewUserScimInvitation _ tid loc name email) = do
+createInvitationViaScim newUser@(NewUserScimInvitation tid loc name email) = do
   env <- ask
   let inviteeRole = Team.defaultRole
       fromEmail = env ^. emailSender
@@ -259,8 +259,9 @@ createInvitationViaScim newUser@(NewUserScimInvitation _ tid loc name email) = d
             irInviteeEmail = email,
             irInviteePhone = Nothing
           }
-  _ <- createInvitation' tid inviteeRole Nothing fromEmail invreq
-  createUserInviteViaScim newUser
+  inv <- createInvitation' tid inviteeRole Nothing fromEmail invreq
+  -- TODO: this invitation must have same UUID as is given in NewUserScimInvitation, but it doesn't.
+  createUserInviteViaScim newUser {newUserId = cast $ inv ^. invId}
 
 createInvitation' :: TeamId -> Public.Role -> Maybe UserId -> Email -> Public.InvitationRequest -> Handler Public.Invitation
 createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
