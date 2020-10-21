@@ -359,7 +359,8 @@ listActivatedAccounts elh includePendingInvitations =
           then
             if includePendingInvitations
               then case emailIdentity ident of
-                Nothing -> pure True
+                Nothing -> pure True  -- this cannot happen (accounts in status
+                                      -- 'PendingInvitation' always have an email identity)
                 Just email -> do
                   mbInv <- lookupInvitationByEmail email
                   if isJust mbInv
