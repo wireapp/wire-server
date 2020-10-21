@@ -657,10 +657,10 @@ testCreateUserTimeout = do
       pure (scimStoredUser, inv, inviteeCode)
 
     searchUser :: HasCallStack => Spar.Types.ScimToken -> Scim.User.User tag -> Email -> Bool -> TestSpar ()
-    searchUser tok _scimUser email shouldSucceed = do
-      -- let handle = Handle . Scim.User.userName $ scimUser
-      -- listUsers tok (Just (filterBy "userName" $ fromHandle handle)) >>= \users ->
-      --   liftIO $ length users `shouldSatisfy` if shouldSucceed then (> 0) else (== 0)
+    searchUser tok scimUser email shouldSucceed = do
+      let handle = Handle . Scim.User.userName $ scimUser
+      listUsers tok (Just (filterBy "userName" $ fromHandle handle)) >>= \users ->
+        liftIO $ length users `shouldSatisfy` if shouldSucceed then (> 0) else (== 0)
       listUsers tok (Just (filterBy "externalId" $ fromEmail email)) >>= \users ->
         liftIO $ length users `shouldSatisfy` if shouldSucceed then (> 0) else (== 0)
 
