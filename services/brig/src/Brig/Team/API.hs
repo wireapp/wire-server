@@ -260,8 +260,8 @@ createInvitationViaScim newUser@(NewUserScimInvitation tid loc name email) = do
             irInviteePhone = Nothing
           }
   inv <- createInvitation' tid inviteeRole Nothing fromEmail invreq
-  -- TODO: this invitation must have same UUID as is given in NewUserScimInvitation, but it doesn't.
-  createUserInviteViaScim newUser {newUserId = cast $ inv ^. invId}
+  let uid = Id (toUUID (inInvitation inv))
+  createUserInviteViaScim uid newUser
 
 createInvitation' :: TeamId -> Public.Role -> Maybe UserId -> Email -> Public.InvitationRequest -> Handler Public.Invitation
 createInvitation' tid inviteeRole mbInviterUid fromEmail body = do

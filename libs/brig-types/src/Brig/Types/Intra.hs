@@ -156,17 +156,15 @@ data NewUserScimInvitation = NewUserScimInvitation
 instance FromJSON NewUserScimInvitation where
   parseJSON = withObject "NewUserScimInvitation" $ \o ->
     NewUserScimInvitation
-      <$> o .: "user_id"
-      <*> o .: "team_id"
+      <$> o .: "team_id"
       <*> o .:? "locale"
       <*> o .: "name"
       <*> o .: "email"
 
 instance ToJSON NewUserScimInvitation where
-  toJSON (NewUserScimInvitation uid tid loc name email) =
+  toJSON (NewUserScimInvitation tid loc name email) =
     object
-      [ "user_id" .= uid,
-        "team_id" .= tid,
+      [ "team_id" .= tid,
         "locale" .= loc,
         "name" .= name,
         "email" .= email
