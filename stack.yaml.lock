@@ -348,6 +348,13 @@ packages:
   original:
     hackage: primitive-unlifted-0.1.2.0
 - completed:
+    hackage: prometheus-2.2.2@sha256:d794f5fe975be2f3ca7d7af71a7aeeb006615ad7d98835fa42caba9457a51936,4288
+    pantry-tree:
+      size: 1559
+      sha256: 3b1cb27cf8cb0a8da83b5730e85132e058e808f8dd1be349ea3dbb162c7f14c3
+  original:
+    hackage: prometheus-2.2.2
+- completed:
     hackage: currency-codes-3.0.0.1@sha256:a4b24669dd91e805b11d9eb267becd0ba6d726927e535e03d5f3f368f44c1cf4,2902
     pantry-tree:
       size: 548
