@@ -91,6 +91,7 @@ instance Scim.UserDB ST.SparTag Spar where
   getUsers _ Nothing = do
     throwError $ Scim.badRequest Scim.TooMany (Just "Please specify a filter when getting users.")
   getUsers ScimTokenInfo {stiTeam, stiIdP} (Just filter') = do
+    lift $ Log.debug (Log.msg $ "getUsers" <> show (stiTeam, stiIdP, filter'))
     mIdpConfig <- maybe (pure Nothing) (lift . wrapMonadClient . Data.getIdPConfig) stiIdP
     case filter' of
       Scim.FilterAttrCompare (Scim.AttrPath schema attrName _subAttr) Scim.OpEq (Scim.ValString val)
@@ -666,9 +667,13 @@ scimFindUserByHandle mIdpConfig stiTeam hndl = do
 -- successful authentication with their SAML credentials.
 scimFindUserByEmail :: Maybe IdP -> TeamId -> Text -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser ST.SparTag)
 scimFindUserByEmail mIdpConfig stiTeam email = do
+  lift $ lift $ Log.debug (Log.msg $ "scimFindUserByEmail 1: " <> (show (stiTeam, email)))
   veid <- mkValidExternalId mIdpConfig (pure email)
+  lift $ lift $ Log.debug (Log.msg $ "scimFindUserByEmail 2: " <> (show veid))
   uid <- MaybeT . lift $ ST.runValidExternalId withUref withEmailOnly veid
+  lift $ lift $ Log.debug (Log.msg $ "scimFindUserByEmail 3: " <> (show uid))
   brigUser <- MaybeT . lift . Brig.getBrigUserAccount Brig.WithPendingInvitations $ uid
+  lift $ lift $ Log.debug (Log.msg $ "scimFindUserByEmail 4: " <> (show brigUser))
   guard $ userTeam (accountUser brigUser) == Just stiTeam
   lift $ synthesizeStoredUser brigUser veid
   where

@@ -75,6 +75,7 @@ import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
+import qualified System.Logger.Class as Log
 import qualified Wire.API.Connection as Public
 import qualified Wire.API.Properties as Public
 import qualified Wire.API.Swagger as Public.Swagger (models)
@@ -988,6 +989,8 @@ createUser (Public.NewUserPublic new) = do
   for_ (Public.newUserPhone new) $ checkWhitelist . Right
   result <- API.createUser new !>> newUserError
   let acc = createdAccount result
+
+  lift $ Log.debug (Log.msg $ "createUser: acc: " <> show acc)
   let eac = createdEmailActivation result
   let pac = createdPhoneActivation result
   let epair = (,) <$> (activationKey <$> eac) <*> (activationCode <$> eac)
@@ -995,6 +998,7 @@ createUser (Public.NewUserPublic new) = do
   let newUserLabel = Public.newUserLabel new
   let newUserTeam = Public.newUserTeam new
   let usr = accountUser acc
+  lift $ Log.debug (Log.msg $ "createUser: usr: " <> show usr)
   let Public.User {userLocale, userDisplayName, userId} = usr
   let userEmail = Public.userEmail usr
   let userPhone = Public.userPhone usr

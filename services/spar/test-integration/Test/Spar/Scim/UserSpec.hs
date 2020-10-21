@@ -645,54 +645,58 @@ testCreateUserTimeout :: TestSpar ()
 testCreateUserTimeout = do
   env <- ask
 
-  email <- randomEmail
-  scimUser <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
   (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
   tok <- registerScimToken tid Nothing
 
-  testFlow tid tok scimUser email
-  waitUserExpiration
-  testFlow tid tok scimUser email
-  where
-    -- creating the same user again should behave the same
-    -- testFlow tid tok scimUser email
+  email <- randomEmail
+  scimUser <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
 
-    testFlow tid tok scimUser email = do
+  (scimStoredUser1, _inv, inviteeCode) <- createUser'step tok tid scimUser email
+  waitUserExpiration
+  searchUser tok scimUser email False
+  register email inviteeCode False
+  searchUser tok scimUser email False
+
+  threadDelay $ 1 * 1_000_000 -- wait for async user deletion to complete
+  (scimStoredUser2, _inv, inviteeCode2) <- createUser'step tok tid scimUser email
+
+  let id1 = (Scim.id . Scim.thing) scimStoredUser1
+  let id2 = (Scim.id . Scim.thing) scimStoredUser2
+  liftIO $ id1 `shouldNotBe` id2
+
+  register email inviteeCode2 True
+  searchUser tok scimUser email True -- this fails, user has state 2
+  waitUserExpiration
+  searchUser tok scimUser email True
+  where
+    createUser'step tok tid scimUser email = do
       env <- ask
       let brig = env ^. teBrig
 
       scimStoredUser <- createUser tok scimUser
-      let handle = Handle . Scim.User.userName . Scim.value . Scim.thing $ scimStoredUser
       inv <- call $ getInvitation brig email
       Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
+      pure (scimStoredUser, inv, inviteeCode)
 
-      -- Wait for user and invitation to expire
-      waitUserExpiration
+    searchUser :: HasCallStack => Spar.Types.ScimToken -> Scim.User.User tag -> Email -> Bool -> TestSpar ()
+    searchUser tok _scimUser email shouldSucceed = do
+      -- let handle = Handle . Scim.User.userName $ scimUser
+      -- listUsers tok (Just (filterBy "userName" $ fromHandle handle)) >>= \users ->
+      --   liftIO $ length users `shouldSatisfy` if shouldSucceed then (> 0) else (== 0)
+      listUsers tok (Just (filterBy "externalId" $ fromEmail email)) >>= \users ->
+        liftIO $ length users `shouldSatisfy` if shouldSucceed then (> 0) else (== 0)
 
-      -- User doesn't show in scim
-      do
-        listUsers tok (Just (filterBy "userName" $ fromHandle handle)) >>= \users ->
-          liftIO $ users `shouldBe` []
-        listUsers tok (Just (filterBy "externalId" $ fromEmail email)) >>= \users ->
-          liftIO $ users `shouldBe` []
-
-      -- User should fail to register invitation
-      do
-        call $ do
-          void $ do
-            post
-              ( brig . path "/register"
-                  . contentJson
-                  . json (acceptWithName (Name "Bob") email inviteeCode)
-              )
-              <!! const 400 === statusCode
-
-      -- User still doesn't show in scim
-      do
-        listUsers tok (Just (filterBy "userName" $ fromHandle handle)) >>= \users ->
-          liftIO $ users `shouldBe` []
-        listUsers tok (Just (filterBy "externalId" $ fromEmail email)) >>= \users ->
-          liftIO $ users `shouldBe` []
+    register email inviteeCode shouldSucceed = do
+      env <- ask
+      let brig = env ^. teBrig
+      call $
+        void $
+          post
+            ( brig . path "/register"
+                . contentJson
+                . json (acceptWithName (Name "Bob") email inviteeCode)
+            )
+            <!! const (if shouldSucceed then 201 else 400) === statusCode
 
     waitUserExpiration = do
       env <- ask
