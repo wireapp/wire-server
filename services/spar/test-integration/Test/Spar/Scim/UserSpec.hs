@@ -286,6 +286,10 @@ testCreateUserNoIdP = do
     liftIO $ Scim.User.active usr `shouldNotBe` Just False
 
   -- searching user in brig should succeed
+
+  -- TODO(fisx): This fails, but I'm not sure why.  I couldn't get any search to work, and
+  -- there are limitations to search for team users.  I thought a team owner should be able to
+  -- find its members by substring of the name.  What am I missing?
   searchUser brig owner userName True
   where
     -- cloned from brig's integration tests
