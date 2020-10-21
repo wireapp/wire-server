@@ -160,14 +160,13 @@ routesPublic = do
     accept "application" "json"
       .&. query "email"
 
-  -- TODO: check if this correct
   document "GET" "getInvitationByEmail" $ do
     Doc.summary "Get a pending invitation for a given an email address."
     Doc.parameter Doc.Query "email" Doc.bytes' $
       Doc.description "Email address"
     Doc.returns (Doc.ref Public.modelTeamInvitation)
+    Doc.response 200 "Pending invitation exists." Doc.end
     Doc.response 404 "No pending invitations exists." Doc.end
-    Doc.response 409 "Multiple conflicting invitations to different teams exists." Doc.end
 
 routesInternal :: Routes a Handler ()
 routesInternal = do
@@ -362,6 +361,9 @@ headInvitationByEmailH (_ ::: e) = do
     DB.InvitationByEmailNotFound -> setStatus status404 empty
     DB.InvitationByEmailMoreThanOne -> setStatus status409 empty
 
+-- | FUTUREWORK: This should also respond with status 409 in case of
+-- @DB.InvitationByEmailMoreThanOne@.  Refactor so that 'headInvitationByEmailH' and
+-- 'getInvitationByEmailH' are almost the same thing.
 getInvitationByEmailH :: JSON ::: Email -> Handler Response
 getInvitationByEmailH (_ ::: email) =
   json <$> getInvitationByEmail email
