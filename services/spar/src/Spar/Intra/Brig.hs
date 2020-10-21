@@ -325,6 +325,7 @@ getBrigUserByHandle handle = do
       method GET
         . path "/i/users"
         . queryItem "handles" (toByteString' handle)
+        . queryItem "includePendingInvitations" "true"
   case statusCode resp of
     200 -> listToMaybe <$> parseResponse @[UserAccount] resp
     _ -> rethrow resp
