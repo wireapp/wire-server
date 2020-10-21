@@ -636,7 +636,7 @@ testCreateUserTimeout = do
   liftIO $ id1 `shouldNotBe` id2
 
   registerInvitation email inviteeCode2 True
-  searchUser tok scimUser email True -- this fails, user has state 2
+  searchUser tok scimUser email True
   waitUserExpiration
   searchUser tok scimUser email True
   where
