@@ -239,6 +239,8 @@ testCreateUserNoIdP = do
 
   -- get account from brig, status should be PendingInvitation
   do
+    aFewTimes (runSpar $ Intra.getBrigUserAccount Intra.NoPendingInvitations userid) isJust
+      >>= maybe (pure ()) (error "pending user in brig is visible, even though it should not be")
     brigUserAccount <-
       aFewTimes (runSpar $ Intra.getBrigUserAccount Intra.WithPendingInvitations userid) isJust
         >>= maybe (error "could not find user in brig") pure
