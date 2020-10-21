@@ -2,8 +2,8 @@
 
 ${brand_label_url} [${brand_url}]
 
-WILLKOMMEN ZU ${team_name}.
-Du bist soeben mit ${email} einem Team namens ${team_name} auf ${brand}
+WILLKOMMEN BEI ${team_name}.
+Sie sind soeben mit ${email} einem Team namens ${team_name} auf ${brand}
 beigetreten.
 
 ${brand} vereint sichere Verschlüsselung mit reichhaltigem Funktionsumfang und
