@@ -144,7 +144,7 @@ routesPublic = do
     Doc.errorResponse invalidInvitationCode
 
   -- FUTUREWORK: Add another endpoint to allow resending of invitation codes
-  head "/teams/invitations/by-email" (continue headInvitationsByEmailH) $
+  head "/teams/invitations/by-email" (continue headInvitationByEmailH) $
     accept "application" "json"
       .&. query "email"
 
@@ -353,8 +353,8 @@ getInvitationByCode c = do
   inv <- lift $ DB.lookupInvitationByCode c
   maybe (throwStd invalidInvitationCode) return inv
 
-headInvitationsByEmailH :: JSON ::: Email -> Handler Response
-headInvitationsByEmailH (_ ::: e) = do
+headInvitationByEmailH :: JSON ::: Email -> Handler Response
+headInvitationByEmailH (_ ::: e) = do
   inv <- lift $ DB.lookupInvitationInfoByEmail e
   return $ case inv of
     DB.InvitationByEmail _ -> setStatus status200 empty
