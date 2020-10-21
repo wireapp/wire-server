@@ -293,7 +293,7 @@ testCreateUserNoIdP = do
     searchUser :: HasCallStack => BrigReq -> UserId -> Name -> Bool -> TestSpar ()
     searchUser brig searcherId searchTarget shouldSucceed = do
       call $ refreshIndex brig
-      let searchQuery = "name=" <> fromName searchTarget -- if searching fails where it shouldn't this may very well just be wrong.
+      let searchQuery = fromName searchTarget
       resp <- call $ executeSearch brig searcherId searchQuery
       liftIO $ (searchFound resp) `shouldSatisfy` if shouldSucceed then (> 0) else (== 0)
 
