@@ -21,6 +21,7 @@ module CargoHold.Options where
 
 import CargoHold.CloudFront (Domain (..), KeyPairId (..))
 import Control.Lens hiding (Level)
+import Data.Aeson (FromJSON (..), withText)
 import Data.Aeson.TH
 import Imports
 import System.Logger.Extended (Level, LogFormat)
@@ -51,10 +52,23 @@ data AWSOpts = AWSOpts
     _awsS3DownloadEndpoint :: !(Maybe AWSEndpoint),
     -- | S3 bucket name
     _awsS3Bucket :: !Text,
+    -- | Enable this option for compatibility with specific S3 backends.
+    _awsS3Compatibility :: !(Maybe (Last S3Compatibility)),
     -- | AWS CloudFront options
     _awsCloudFront :: !(Maybe CloudFrontOpts)
   }
   deriving (Show, Generic)
+
+data S3Compatibility
+  = -- | Scality RING, might also work for Zenko CloudServer
+    -- <https://www.scality.com/products/ring/>
+    S3CompatibilityScalityRing
+  deriving (Eq, Show)
+
+instance FromJSON S3Compatibility where
+  parseJSON = withText "S3Compatibility" $ \case
+    "scality-ring" -> pure S3CompatibilityScalityRing
+    other -> fail $ "invalid S3Compatibility: " <> show other
 
 deriveFromJSON toOptionFieldName ''AWSOpts
 

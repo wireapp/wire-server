@@ -56,7 +56,7 @@ import Data.Default (def)
 import Data.Metrics.Middleware (Metrics)
 import qualified Data.Metrics.Middleware as Metrics
 import Imports hiding (log)
-import Network.HTTP.Client (ManagerSettings (..), responseTimeoutMicro)
+import Network.HTTP.Client (ManagerSettings (..), requestHeaders, responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import Network.Wai (Request, ResponseReceived)
 import Network.Wai.Routing (Continue)
@@ -86,7 +86,7 @@ newEnv :: Opts -> IO Env
 newEnv o = do
   met <- Metrics.metrics
   lgr <- Log.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings) (o ^. optLogFormat)
-  mgr <- initHttpManager
+  mgr <- initHttpManager (getLast <$> o ^. optAws . awsS3Compatibility)
   ama <- initAws (o ^. optAws) lgr mgr
   return $ Env ama met lgr mgr def (o ^. optSettings)
 
@@ -96,14 +96,29 @@ initAws o l m =
   where
     downloadEndpoint = fromMaybe (o ^. awsS3Endpoint) (o ^. awsS3DownloadEndpoint)
 
-initHttpManager :: IO Manager
-initHttpManager =
+initHttpManager :: Maybe S3Compatibility -> IO Manager
+initHttpManager s3Compat =
   newManager
     (opensslManagerSettings initSSLContext)
       { managerConnCount = 1024,
         managerIdleConnectionCount = 2048,
-        managerResponseTimeout = responseTimeoutMicro 10000000
+        managerResponseTimeout = responseTimeoutMicro 10000000,
+        managerModifyRequest =
+          pure . case s3Compat of
+            Nothing -> id
+            -- Not a nice place to do this, but it doesn't seem like amazonka
+            -- allows us to do it differently in a non-invasive way.
+            -- See https://github.com/zinfra/backend-issues/issues/1659.
+            Just S3CompatibilityScalityRing -> dropContentLengthHeaderIfChunked
       }
+  where
+    dropContentLengthHeaderIfChunked req
+      | ("content-encoding", "aws-chunked") `elem` requestHeaders req =
+        modifyRequestHeaders (filter ((/= "content-length") . fst)) req
+      | otherwise =
+        req
+    modifyRequestHeaders f req =
+      req {requestHeaders = f (requestHeaders req)}
 
 initSSLContext :: IO SSLContext
 initSSLContext = do
