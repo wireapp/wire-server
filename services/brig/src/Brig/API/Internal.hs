@@ -58,6 +58,7 @@ import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
+import qualified System.Logger.Class as Log
 import Wire.API.User
 import Wire.API.User.RichInfo
 
@@ -341,7 +342,8 @@ listActivatedAccountsH (_ ::: qry ::: includePendingInvitations) = do
   json <$> lift (listActivatedAccounts qry includePendingInvitations)
 
 listActivatedAccounts :: Either (List UserId) (List Handle) -> Bool -> AppIO [UserAccount]
-listActivatedAccounts elh includePendingInvitations =
+listActivatedAccounts elh includePendingInvitations = do
+  Log.debug (Log.msg $ "listActivatedAccounts: " <> show (elh, includePendingInvitations))
   case elh of
     Left us -> byIds (fromList us)
     Right hs -> do

@@ -652,8 +652,11 @@ synthesizeScimUser info =
 
 scimFindUserByHandle :: Maybe IdP -> TeamId -> Text -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser ST.SparTag)
 scimFindUserByHandle mIdpConfig stiTeam hndl = do
+  lift . lift $ Log.debug (Log.msg $ "scimFindUserByHandle 1: " <> show (stiTeam, hndl))
   handle <- MaybeT . pure . parseHandle . Text.toLower $ hndl
+  lift . lift $ Log.debug (Log.msg $ "scimFindUserByHandle 2: " <> show handle)
   brigUser <- MaybeT . lift . Brig.getBrigUserByHandle $ handle
+  lift . lift $ Log.debug (Log.msg $ "scimFindUserByHandle 3: " <> show brigUser)
   guard $ userTeam (accountUser brigUser) == Just stiTeam
   case Brig.veidFromBrigUser (accountUser brigUser) ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) of
     Right veid -> lift $ synthesizeStoredUser brigUser veid
