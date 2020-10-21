@@ -52,7 +52,7 @@ import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Crypto.Hash (Digest, SHA256, hashlazy)
 import qualified Data.Aeson as Aeson
 import Data.Handle (Handle (Handle), parseHandle)
-import Data.Id (Id (Id), TeamId, UserId, idToText)
+import Data.Id (Id (..), TeamId, UserId, idToText)
 import Data.Json.Util (UTCTimeMillis, fromUTCTimeMillis, toUTCTimeMillis)
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
@@ -309,19 +309,32 @@ createValidScimUser ScimTokenInfo {stiTeam} (ST.ValidScimUser veid handl name ri
   -- {if we crash now, retry POST will just work, or user gets told the handle
   -- is already in use and stops POSTing}
 
-  buid <- lift $ do
-    -- Generate a UserId will be used both for scim user in spar and for brig.
-    brigUser <- Brig.createBrigUser veid Nothing stiTeam name ManagedByScim
-    Log.debug (Log.msg $ "createValidScimUser: brig says " <> show brigUser)
+  -- Generate a UserId will be used both for scim user in spar and for brig.
+  buid <-
+    lift $ do
+      buid <-
+        ST.runValidExternalId
+          ( \uref ->
+              do
+                uid <- liftIO $ Id <$> UUID.nextRandom
+                Brig.createBrigUserSAML uref uid stiTeam name ManagedByScim
+          )
+          ( \email -> do
+              Brig.createBrigUserNoSAML email stiTeam name
+          )
+          veid
 
-    -- {If we crash now, we have an active user that cannot login. And can not
-    -- be bound this will be a zombie user that needs to be manually cleaned
-    -- up.  We should consider making setUserHandle part of createUser and
-    -- making it transactional.  If the user redoes the POST A new standalone
-    -- user will be created.}
-    Brig.setBrigUserHandle buid handl
-    Brig.setBrigUserRichInfo buid richInfo
-    pure buid
+      Log.debug (Log.msg $ "createValidScimUser: brig says " <> show buid)
+
+      -- {If we crash now, we have an active user that cannot login. And can not
+      -- be bound this will be a zombie user that needs to be manually cleaned
+      -- up.  We should consider making setUserHandle part of createUser and
+      -- making it transactional.  If the user redoes the POST A new standalone
+      -- user will be created.}
+      Brig.setBrigUserHandle buid handl
+      Brig.setBrigUserRichInfo buid richInfo
+      pure buid
+
   -- {If we crash now,  a POST retry will fail with 409 user already exists.
   -- Azure at some point will retry with GET /Users?filter=userName eq handle
   -- and then issue a PATCH containing the rich info and the externalId.}

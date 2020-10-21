@@ -45,7 +45,8 @@ module Spar.Intra.Brig
     setBrigUserRichInfo,
     checkHandleAvailable,
     deleteBrigUser,
-    createBrigUser,
+    createBrigUserSAML,
+    createBrigUserNoSAML,
     updateEmail,
     getZUsrOwnedTeam,
     ensureReAuthorised,
@@ -232,15 +233,13 @@ createBrigUserNoSAML ::
   TeamId ->
   -- | User name
   Name ->
-  -- | Note: this argument is ignored
-  ManagedBy ->
   m UserId
-createBrigUserNoSAML email teamid uname _managedBy = do
+createBrigUserNoSAML email teamid uname = do
   let newUser = NewUserScimInvitation teamid Nothing uname email
   resp :: Response (Maybe LBS) <-
     call $
       method POST
-        . paths ["/i/teams", toByteString' buid, "invitations"]
+        . paths ["/i/teams", toByteString' teamid, "invitations"]
         . json newUser
 
   if statusCode resp `elem` [200, 201]
