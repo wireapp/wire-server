@@ -58,7 +58,7 @@ import Spar.Types (IdP)
 import qualified Spar.Types
 import qualified Text.XML.DSig as SAML
 import Util
-import Util.Invitation (getInvitation, getInvitationCode)
+import Util.Invitation (getInvitation, getInvitationCode, headInvitation, registerInvitation)
 import qualified Web.Scim.Class.User as Scim.UserC
 import qualified Web.Scim.Filter as Filter
 import qualified Web.Scim.Schema.Common as Scim
@@ -271,10 +271,10 @@ testCreateUserNoIdP = do
 
   -- user should be able to follow old team invitation flow
   do
-    call $ do
-      inv <- getInvitation brig email
-      void $ registerInvite brig tid inv email
-      headInvitation brig email
+    inv <- call $ getInvitation brig email
+    Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
+    registerInvitation email inviteeCode True
+    call $ headInvitation brig email
 
   -- user should now be active
   do
@@ -313,33 +313,6 @@ testCreateUserNoIdP = do
               . expect2xx
           )
       responseJsonError r
-
-    headInvitation :: BrigReq -> Email -> Http ()
-    headInvitation brig email = do
-      Bilge.head (brig . path "/teams/invitations/by-email" . contentJson . queryItem "email" (toByteString' email))
-        !!! const 404 === statusCode
-
-    registerInvite :: BrigReq -> TeamId -> Invitation -> Email -> Http UserId
-    registerInvite brig tid inv invemail = do
-      Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
-      rsp <-
-        post
-          ( brig . path "/register"
-              . contentJson
-              . json (acceptWithName (Name "Bob") invemail inviteeCode)
-          )
-          <!! const 201 === statusCode
-      let Just invitee = userId <$> responseJsonMaybe rsp
-      pure invitee
-
-    acceptWithName :: Name -> Email -> InvitationCode -> Aeson.Value
-    acceptWithName name email code =
-      Aeson.object
-        [ "name" Aeson..= fromName name,
-          "email" Aeson..= fromEmail email,
-          "password" Aeson..= defPassword,
-          "team_code" Aeson..= code
-        ]
 
 testCreateUserNoIdPNoEmail :: TestSpar ()
 testCreateUserNoIdPNoEmail = do
@@ -654,7 +627,7 @@ testCreateUserTimeout = do
   (scimStoredUser1, _inv, inviteeCode) <- createUser'step tok tid scimUser email
   waitUserExpiration
   searchUser tok scimUser email False
-  register email inviteeCode False
+  registerInvitation email inviteeCode False
   searchUser tok scimUser email False
 
   threadDelay $ 1 * 1_000_000 -- wait for async user deletion to complete
@@ -664,7 +637,7 @@ testCreateUserTimeout = do
   let id2 = (Scim.id . Scim.thing) scimStoredUser2
   liftIO $ id1 `shouldNotBe` id2
 
-  register email inviteeCode2 True
+  registerInvitation email inviteeCode2 True
   searchUser tok scimUser email True -- this fails, user has state 2
   waitUserExpiration
   searchUser tok scimUser email True
@@ -686,32 +659,11 @@ testCreateUserTimeout = do
       listUsers tok (Just (filterBy "externalId" $ fromEmail email)) >>= \users ->
         liftIO $ length users `shouldSatisfy` if shouldSucceed then (> 0) else (== 0)
 
-    register email inviteeCode shouldSucceed = do
-      env <- ask
-      let brig = env ^. teBrig
-      call $
-        void $
-          post
-            ( brig . path "/register"
-                . contentJson
-                . json (acceptWithName (Name "Bob") email inviteeCode)
-            )
-            <!! const (if shouldSucceed then 201 else 400) === statusCode
-
     waitUserExpiration = do
       env <- ask
       let setTeamInvitationTimeout = round . Brig.Options.setTeamInvitationTimeout . Brig.Options.optSettings . view teBrigOpts $ env
       Control.Exception.assert (setTeamInvitationTimeout < 30) $ do
         threadDelay $ (setTeamInvitationTimeout + 1) * 1_000_000
-
-    acceptWithName :: Name -> Email -> InvitationCode -> Aeson.Value
-    acceptWithName name email code =
-      Aeson.object
-        [ "name" Aeson..= fromName name,
-          "email" Aeson..= fromEmail email,
-          "password" Aeson..= defPassword,
-          "team_code" Aeson..= code
-        ]
 
 ----------------------------------------------------------------------------
 -- Listing users
