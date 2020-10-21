@@ -52,5 +52,5 @@ spec = do
             scimUserId <$> createUser tok scimUser
 
       uid <- setup
-      musr <- runSpar $ Intra.getBrigUser Intra.NoPendingInvitations uid
+      musr <- runSpar $ Intra.getBrigUser Intra.WithPendingInvitations uid
       liftIO $ musr `shouldSatisfy` isJust
