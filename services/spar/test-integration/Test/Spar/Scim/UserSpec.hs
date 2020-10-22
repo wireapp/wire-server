@@ -288,23 +288,22 @@ testCreateUserNoIdP = do
     liftIO $ Scim.User.active usr `shouldNotBe` Just False
 
   -- searching user in brig should succeed
-
-  -- TODO(fisx): This fails, but I'm not sure why.  I couldn't get any search to work, and
-  -- there are limitations to search for team users.  I thought a team owner should be able to
-  -- find its members by substring of the name.  What am I missing?
   searchUser brig owner userName True
   where
     -- cloned from brig's integration tests
 
     searchUser :: HasCallStack => BrigReq -> UserId -> Name -> Bool -> TestSpar ()
     searchUser brig searcherId searchTarget shouldSucceed = do
-      call $ refreshIndex brig
+      refreshIndex brig
       let searchQuery = fromName searchTarget
       resp <- call $ executeSearch brig searcherId searchQuery
       liftIO $ (searchFound resp) `shouldSatisfy` if shouldSucceed then (> 0) else (== 0)
 
-    refreshIndex :: BrigReq -> Http ()
-    refreshIndex brig = void $ post (brig . path "/i/index/reindex" . expect2xx)
+    refreshIndex :: BrigReq -> TestSpar ()
+    refreshIndex brig = do
+      call $ void $ post (brig . path "/i/index/reindex" . expect2xx)
+      -- wait for async reindexing to complete (hopefully)
+      lift $ threadDelay 1_000_000
 
     executeSearch :: BrigReq -> UserId -> Text -> Http (Search.SearchResult Search.Contact)
     executeSearch brig self q = do
