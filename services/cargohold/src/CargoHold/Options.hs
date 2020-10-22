@@ -53,7 +53,7 @@ data AWSOpts = AWSOpts
     -- | S3 bucket name
     _awsS3Bucket :: !Text,
     -- | Enable this option for compatibility with specific S3 backends.
-    _awsS3Compatibility :: !(Maybe (Last S3Compatibility)),
+    _awsS3Compatibility :: !(Maybe S3Compatibility),
     -- | AWS CloudFront options
     _awsCloudFront :: !(Maybe CloudFrontOpts)
   }

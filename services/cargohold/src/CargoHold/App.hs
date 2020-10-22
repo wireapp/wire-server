@@ -86,7 +86,7 @@ newEnv :: Opts -> IO Env
 newEnv o = do
   met <- Metrics.metrics
   lgr <- Log.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings) (o ^. optLogFormat)
-  mgr <- initHttpManager (getLast <$> o ^. optAws . awsS3Compatibility)
+  mgr <- initHttpManager (o ^. optAws . awsS3Compatibility)
   ama <- initAws (o ^. optAws) lgr mgr
   return $ Env ama met lgr mgr def (o ^. optSettings)
 
