@@ -336,7 +336,7 @@ sitemap o = do
       Doc.description "JSON body"
     Doc.response 200 "Password changed." Doc.end
     Doc.errorResponse badCredentials
-    Doc.errorResponse noIdentity
+    Doc.errorResponse (noIdentity 4)
 
   put "/self/locale" (continue changeLocaleH) $
     zauthUserId
@@ -453,7 +453,7 @@ sitemap o = do
     Doc.response 201 "The connection was created." Doc.end
     Doc.errorResponse connectionLimitReached
     Doc.errorResponse invalidUser
-    Doc.errorResponse noIdentity
+    Doc.errorResponse (noIdentity 5)
 
   get "/connections" (continue listConnectionsH) $
     accept "application" "json"

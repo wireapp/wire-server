@@ -2,12 +2,12 @@
 
 ${brand_label_url} [${brand_url}]
 
-TEAM EINLADUNG
-${inviter} hat dich auf ${brand} zu einem Team eingeladen. Klicke auf den
-nachstehenden Button um die Einladung zu akzeptieren.
+EINLADUNG ZUM TEAM
+${inviter} hat Sie auf ${brand} zu einem Team eingeladen. Klicken Sie bitte auf
+den unteren Button, um die Einladung anzunehmen.
 
-Einladung akzeptieren [${url}]Falls du nicht auf den Button klicken kannst,
-kopiere den Link und füge ihn in deinem Browser ein:
+Einladung annehmen [${url}]Falls du nicht auf den Button klicken kannst, kopiere
+den Link und füge ihn in deinem Browser ein:
 
 ${url}
 

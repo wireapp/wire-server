@@ -1,0 +1,50 @@
+cabal-version:       >=1.10
+
+name:                rex
+version:             0.3.0
+synopsis:            Scrape and expose restund metrics for prometheus
+description:         @rex@ = @restund-exporter@ in prometheus jargon
+category:            Network
+author:              Wire Swiss GmbH
+maintainer:          Wire Swiss GmbH <backend@wire.com>
+license:             AGPL-3
+license-file:        LICENSE
+build-type:          Simple
+
+flag static
+    Description: Enable static linking
+    Default:     False
+
+executable rex
+  main-is:
+    Main.hs
+
+  build-depends:
+      async
+    , attoparsec
+    , base           == 4.*
+    , bifunctors
+    , bytestring
+    , clock
+    , dns            >= 2.0.8
+    , exceptions
+    , http-types
+    , iproute
+    , mtl
+    , network
+    , optparse-applicative
+    , prometheus
+    , text
+    , tinylog
+    , unordered-containers
+    , wai
+    , warp
+
+  ghc-options:
+    -Wall -O1 -funbox-small-strict-fields
+
+  if flag(static)
+    ld-options: -static
+
+  default-language:
+    Haskell2010

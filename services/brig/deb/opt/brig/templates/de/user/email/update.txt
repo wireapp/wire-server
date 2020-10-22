@@ -2,12 +2,12 @@
 
 ${brand_label_url} [${brand_url}]
 
-BESTÄTIGE DEINE E-MAIL-ADRESSE
+BESTÄTIGEN SIE IHRE E-MAIL-ADRESSE
 ${email} wurde als deine neue E-Mail-Adresse auf ${brand} registriert. Klicke
 auf den nachstehenden Button, um deine neue Adresse zu bestätigen.
 
-Überprüfe [${url}]Falls du nicht auf den Button klicken kannst, kopiere den Link
-und füge ihn in deinem Browser ein:
+Bestätigen [${url}]Falls du nicht auf den Button klicken kannst, kopiere den
+Link und füge ihn in deinem Browser ein:
 
 ${url}
 

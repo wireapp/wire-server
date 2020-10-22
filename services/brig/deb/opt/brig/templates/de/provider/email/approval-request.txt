@@ -3,8 +3,8 @@
 ${brand_label_url} [${brand_url}]
 
 ANFRAGE GENEHMIGEN
-Ein neuer ${brand_service} hat sich registriert und erwartet deine Genehmigung.
-Bitte überprüfe die folgenden Informationen.
+Ein neuer ${brand_service} ist registriert und wartet auf die Genehmigung. Bitte
+lesen Sie die unten angegebenen Informationen.
 
 Name: ${name}
 
@@ -14,13 +14,13 @@ Website: ${url}
 
 Beschreibung: ${description}
 
-Wenn die Anfrage echt scheint, kannst du den Service-Provider genehmigen, indem
-du auf den unteren Button klickst. Sobald genehmigt, kann der Service-Provider
-sich anmelden und anfangen Dienste zu registrieren, die ${brand} Nutzer zu ihren
-Unterhaltungen hinzufügen werden können.
+Wenn die Anfrage echt scheint, können Sie den Anbieter genehmigen, indem Sie auf
+den unteren Button klicken. Sobald genehmigt, kann sich der Anbieter anmelden
+und mit der Registrierung von Diensten beginnen, die ${brand}-Nutzer ihren
+Unterhaltungen hinzufügen können.
 
-Falls die Anfrage zweifelhaft scheint, kontaktiere bitte den Service-Provider
-für Klarstellung bevor du fortfährst.
+Falls die Anfrage zweifelhaft scheint, wenden Sie sich bitte an den Anbieter zur
+Klärung, bevor Sie fortfahren.
 
 Genehmigen [${url}]Falls du nicht auf den Button klicken kannst, kopiere den
 Link und füge ihn in deinem Browser ein:
