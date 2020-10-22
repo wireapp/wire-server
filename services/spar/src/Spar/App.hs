@@ -266,14 +266,17 @@ validateEmailIfExists uid = \case
 -- | Check if 'UserId' is in the team that hosts the idp that owns the 'UserRef'.  If so,
 -- register a the user under its SAML credentials and write the 'UserRef' into the
 -- 'UserIdentity'.  Otherwise, throw an error.
+--
+-- Before returning, change account status or fail if account is nto active or pending an
+-- invitation.
 bindUser :: UserId -> SAML.UserRef -> Spar UserId
 bindUser buid userref = do
   oldStatus <- do
     let err :: Spar a
         err = throwSpar . SparBindFromWrongOrNoTeam . cs . show $ buid
-    teamid <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (userref ^. uidTenant)
+    teamid :: TeamId <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (userref ^. uidTenant)
     acc <- Intra.getBrigUserAccount Intra.WithPendingInvitations buid >>= maybe err pure
-    teamid' <- userTeam (accountUser acc) & maybe err pure
+    teamid' :: TeamId <- userTeam (accountUser acc) & maybe err pure
     unless (teamid' == teamid) err
     pure (accountStatus acc)
   insertUser userref buid
