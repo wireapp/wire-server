@@ -46,7 +46,7 @@ import Brig.Types.Intra (AccountStatus, UserAccount (accountStatus, accountUser)
 import Brig.Types.User (ManagedBy (..), Name (..), User (..))
 import qualified Brig.Types.User as BT
 import qualified Control.Applicative as Applicative (empty)
-import Control.Lens (view, (^.), (^?))
+import Control.Lens (view, (^.))
 import Control.Monad.Except (MonadError, throwError)
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Crypto.Hash (Digest, SHA256, hashlazy)
@@ -360,7 +360,7 @@ createValidScimUser ScimTokenInfo {stiTeam} (ST.ValidScimUser veid handl name ri
       veid
 
   -- If applicable, trigger email validation procedure on brig.
-  lift $ validateEmailIfExists buid veid
+  lift $ ST.runValidExternalId (validateEmailIfExists buid) (\_ -> pure ()) veid
 
   -- {suspension via scim: if we don't reach the following line, the user will be active.}
   lift $ do
@@ -426,8 +426,10 @@ updateVsuUref ::
   ST.ValidExternalId ->
   Spar ()
 updateVsuUref uid old new = do
-  when (old ^? ST.veidEmail /= new ^? ST.veidEmail) $ do
-    validateEmailIfExists uid new
+  let geturef = ST.runValidExternalId Just (const Nothing)
+  case (geturef old, geturef new) of
+    (mo, mn@(Just newuref)) | mo /= mn -> validateEmailIfExists uid newuref
+    _ -> pure ()
 
   wrapMonadClient $ do
     old & ST.runValidExternalId Data.deleteSAMLUser Data.deleteScimExternalId

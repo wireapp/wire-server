@@ -242,7 +242,7 @@ autoprovisionSamlUserWithId buid suid managedBy = do
   if null scimtoks
     then do
       createSamlUserWithId buid suid managedBy
-      validateEmailIfExists buid (UrefOnly suid)
+      validateEmailIfExists buid suid
     else
       throwError . SAML.Forbidden $
         "bad credentials (note that your team uses SCIM, "
@@ -250,27 +250,18 @@ autoprovisionSamlUserWithId buid suid managedBy = do
 
 -- | If user's 'NameID' is an email address and the team has email validation for SSO enabled,
 -- make brig initiate the email validate procedure.
---
--- If user's SCIM externalId is an email address, but there is no SAML involved, the user is
--- created with account status 'PendingInvitation', and the traditional invitation flow is
--- triggered.  In that case, this function does nothing.
-validateEmailIfExists :: UserId -> ValidExternalId -> Spar ()
-validateEmailIfExists uid =
-  runValidExternalId
-    ( \case
-        (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email)) -> doValidate False email
-        _ -> pure ()
-    )
-    (doValidate True . Intra.emailToSAML)
+validateEmailIfExists :: UserId -> SAML.UserRef -> Spar ()
+validateEmailIfExists uid = \case
+  (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email)) -> doValidate email
+  _ -> pure ()
   where
-    doValidate :: Bool -> SAML.Email -> Spar ()
-    doValidate always email = do
+    doValidate :: SAML.Email -> Spar ()
+    doValidate email = do
       enabled <- do
         tid <- Intra.getBrigUserTeam Intra.NoPendingInvitations uid
         maybe (pure False) Intra.isEmailValidationEnabledTeam tid
-      case enabled || always of
-        True -> Intra.updateEmail uid (Intra.emailFromSAML email)
-        False -> pure ()
+      when enabled $ do
+        Intra.updateEmail uid (Intra.emailFromSAML email)
 
 -- | Check if 'UserId' is in the team that hosts the idp that owns the 'UserRef'.  If so,
 -- register a the user under its SAML credentials and write the 'UserRef' into the
