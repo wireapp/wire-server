@@ -989,7 +989,6 @@ createUser (Public.NewUserPublic new) = do
   for_ (Public.newUserPhone new) $ checkWhitelist . Right
   result <- API.createUser new !>> newUserError
   let acc = createdAccount result
-
   lift $ Log.debug (Log.msg $ "createUser: acc: " <> show acc)
   let eac = createdEmailActivation result
   let pac = createdPhoneActivation result
@@ -998,7 +997,6 @@ createUser (Public.NewUserPublic new) = do
   let newUserLabel = Public.newUserLabel new
   let newUserTeam = Public.newUserTeam new
   let usr = accountUser acc
-  lift $ Log.debug (Log.msg $ "createUser: usr: " <> show usr)
   let Public.User {userLocale, userDisplayName, userId} = usr
   let userEmail = Public.userEmail usr
   let userPhone = Public.userPhone usr

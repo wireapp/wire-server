@@ -182,7 +182,10 @@ insertUser uref uid = wrapMonadClient $ Data.insertSAMLUser uref uid
 --
 -- If a user has been created via scim invite (ie., no IdP present), and has status
 -- 'PendingInvitation', its 'UserId' will be returned here, since for SCIM purposes it is an
--- existing (if inactive) user.
+-- existing (if inactive) user.  If 'getUser' is called during SAML authentication, this may
+-- cause an inactive user to log in, but that's ok: `PendingActivation` means that email and
+-- password handshake have not been completed; it's still ok for the user to gain access to
+-- the team with valid SAML credentials.
 --
 -- ASSUMPTIONS: User creation on brig/galley is idempotent.  Any incomplete creation (because of
 -- brig or galley crashing) will cause the lookup here to yield 'Nothing'.
@@ -192,7 +195,8 @@ getUser veid = do
   case muid of
     Nothing -> pure Nothing
     Just uid -> do
-      itis <- isJust <$> Intra.getBrigUserTeam Intra.WithPendingInvitations uid
+      let withpending = Intra.WithPendingInvitations -- see haddocks above
+      itis <- isJust <$> Intra.getBrigUserTeam withpending uid
       pure $ if itis then Just uid else Nothing
 
 -- | Create a fresh 'UserId', store it on C* locally together with 'SAML.UserRef', then
