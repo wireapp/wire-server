@@ -12,7 +12,7 @@ Preprequisites
     - Ask customer support to enable the SSO feature flag for you.
 - If you are running your own on-prem instance:
     - for handling the feature flag, you can run your own `backoffice <https://github.com/wireapp/wire-server-deploy/tree/259cd2664a4e4d890be797217cc715499d72acfc/charts/backoffice>`_ service.
-    - More simply, you can configure the galley service so that sso is always enabled (just put "enabled-by-default" `here <https://github.com/wireapp/wire-server-deploy/blob/259cd2664a4e4d890be797217cc715499d72acfc/charts/galley/values.yaml#L29>`_).
+    - More simply, you can configure the galley service so that sso is always enabled (just put "enabled-by-default" `here <https://github.com/wireapp/wire-server-deploy/blob/a4a35b65b2312995729b0fc2a04461508cb12de7/values/wire-server/prod-values.example.yaml#L134>`_).
 
 Setting up your IdP
 -------------------
