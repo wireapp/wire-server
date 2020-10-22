@@ -98,9 +98,9 @@ extra-deps:
 # Therefore we pin an unreleased commit directly.
 #
 # Once the fix has been merged (and released on hackage), we can pin that instead.
-- archive: https://github.com/wireapp/amazonka/archive/9de5e0e4b2511ec555fb0975581b3087a94c1b4a.tar.gz
-  sha256: b9277a51b60d639fbd91b630f353bf9db305f5759f8e1ee48f0ab026e6b43d00
-  size: 11138812
+- archive: https://github.com/wireapp/amazonka/archive/412172d8c28906591f01576a78792de7c34cc3eb.tar.gz
+  sha256: c5eb2007e0eef0daaa70f5c622ec0cc75227be1bc8d32bc9446754f01595ad21
+  size: 11158334
   subdirs:
   - amazonka
   - amazonka-cloudfront
