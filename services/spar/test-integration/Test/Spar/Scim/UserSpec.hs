@@ -633,7 +633,7 @@ testCreateUserTimeout = do
   registerInvitation email userName inviteeCode False
   searchUser tok scimUser email False
 
-  threadDelay $ 1 * 1_000_000 -- wait for async user deletion to complete
+  threadDelay $ 5 * 1_000_000 -- wait for async user deletion to complete
   (scimStoredUser2, _inv, inviteeCode2) <- createUser'step tok tid scimUser email
 
   let id1 = (Scim.id . Scim.thing) scimStoredUser1
@@ -668,7 +668,7 @@ testCreateUserTimeout = do
       -- negatives, and importing brig options into spar integration tests is just too awkward.
       let setTeamInvitationTimeout = 5
       Control.Exception.assert (setTeamInvitationTimeout < 30) $ do
-        threadDelay $ (setTeamInvitationTimeout + 1) * 1_000_000
+        threadDelay $ (setTeamInvitationTimeout + 5) * 1_000_000
 
 ----------------------------------------------------------------------------
 -- Listing users
