@@ -278,7 +278,8 @@ pending = liftIO Test.Hspec.pending
 pendingWith :: (HasCallStack, MonadIO m) => String -> m ()
 pendingWith = liftIO . Test.Hspec.pendingWith
 
--- | Run a probe several times, until a "good" value materializes or until patience runs out.
+-- | Run a probe several times, until a "good" value materializes or until patience runs out
+-- (after ~2secs).
 -- If all retries were unsuccessful, 'aFewTimes' will return the last obtained value, even
 -- if it does not satisfy the predicate.
 aFewTimes :: TestSpar a -> (a -> Bool) -> TestSpar a
@@ -286,7 +287,7 @@ aFewTimes action good = do
   env <- ask
   liftIO $
     retrying
-      (exponentialBackoff 1000 <> limitRetries 10)
+      (exponentialBackoff 1000 <> limitRetries 11)
       (\_ -> pure . not . good)
       (\_ -> action `runReaderT` env)
 

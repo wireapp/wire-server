@@ -676,7 +676,7 @@ testCreateUserTimeout = do
       -- negatives, and importing brig options into spar integration tests is just too awkward.
       let setTeamInvitationTimeout = 5
       Control.Exception.assert (setTeamInvitationTimeout < 30) $ do
-        threadDelay $ (setTeamInvitationTimeout + 5) * 1_000_000
+        threadDelay $ (setTeamInvitationTimeout + 1) * 1_000_000
 
 ----------------------------------------------------------------------------
 -- Listing users
