@@ -156,20 +156,12 @@ routesPublic = do
     Doc.response 404 "No pending invitations exists." Doc.end
     Doc.response 409 "Multiple conflicting invitations to different teams exists." Doc.end
 
-  get "/teams/invitations/by-email" (continue getInvitationByEmailH) $
+routesInternal :: Routes a Handler ()
+routesInternal = do
+  get "/i/teams/invitations/by-email" (continue getInvitationByEmailH) $
     accept "application" "json"
       .&. query "email"
 
-  document "GET" "getInvitationByEmail" $ do
-    Doc.summary "Get a pending invitation for a given an email address."
-    Doc.parameter Doc.Query "email" Doc.bytes' $
-      Doc.description "Email address"
-    Doc.returns (Doc.ref Public.modelTeamInvitation)
-    Doc.response 200 "Pending invitation exists." Doc.end
-    Doc.response 404 "No pending invitations exists." Doc.end
-
-routesInternal :: Routes a Handler ()
-routesInternal = do
   get "/i/teams/invitation-code" (continue getInvitationCodeH) $
     accept "application" "json"
       .&. param "team"

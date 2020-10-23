@@ -45,7 +45,7 @@ getInvitation :: BrigReq -> Email -> Http Invitation
 getInvitation brig email =
   responseJsonUnsafe
     <$> Bilge.get
-      ( brig . path "/teams/invitations/by-email" . contentJson
+      ( brig . path "/i/teams/invitations/by-email" . contentJson
           . queryItem "email" (toByteString' email)
           . expect2xx
       )
