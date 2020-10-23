@@ -287,13 +287,13 @@ testCreateUserNoIdP = do
     liftIO $ Scim.User.active usr `shouldNotBe` Just False
 
   -- searching user in brig should succeed
-  refreshIndex brig
   searchUser brig owner userName True
   where
     -- cloned from brig's integration tests
 
     searchUser :: HasCallStack => BrigReq -> UserId -> Name -> Bool -> TestSpar ()
-    searchUser brig searcherId searchTarget shouldSucceed =
+    searchUser brig searcherId searchTarget shouldSucceed = do
+      refreshIndex brig
       aFewTimesAssert
         ( do
             let searchQuery = fromName searchTarget
