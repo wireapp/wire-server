@@ -629,11 +629,11 @@ testCreateUserTimeout = do
 
   (scimStoredUser1, _inv, inviteeCode) <- createUser'step tok tid scimUser email
   waitUserExpiration
+
   searchUser tok scimUser email False
   registerInvitation email userName inviteeCode False
   searchUser tok scimUser email False
 
-  threadDelay $ 5 * 1_000_000 -- wait for async user deletion to complete
   (scimStoredUser2, _inv, inviteeCode2) <- createUser'step tok tid scimUser email
 
   let id1 = (Scim.id . Scim.thing) scimStoredUser1
@@ -649,7 +649,7 @@ testCreateUserTimeout = do
       env <- ask
       let brig = env ^. teBrig
 
-      scimStoredUser <- createUser tok scimUser
+      scimStoredUser <- aFewTimesRecover (createUser tok scimUser)
       inv <- call $ getInvitation brig email
       Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
       pure (scimStoredUser, inv, inviteeCode)
@@ -657,14 +657,18 @@ testCreateUserTimeout = do
     searchUser :: HasCallStack => Spar.Types.ScimToken -> Scim.User.User tag -> Email -> Bool -> TestSpar ()
     searchUser tok scimUser email shouldSucceed = do
       let handle = Handle . Scim.User.userName $ scimUser
-      listUsers tok (Just (filterBy "userName" $ fromHandle handle)) >>= \users ->
-        liftIO $ length users `shouldSatisfy` if shouldSucceed then (> 0) else (== 0)
-      listUsers tok (Just (filterBy "externalId" $ fromEmail email)) >>= \users ->
-        liftIO $ length users `shouldSatisfy` if shouldSucceed then (> 0) else (== 0)
+
+      aFewTimesAssert
+        (length <$> listUsers tok (Just (filterBy "userName" $ fromHandle handle)))
+        (if shouldSucceed then (> 0) else (== 0))
+
+      aFewTimesAssert
+        (length <$> listUsers tok (Just (filterBy "externalId" $ fromEmail email)))
+        (if shouldSucceed then (> 0) else (== 0))
 
     waitUserExpiration = do
-      -- this should be something like @round . Brig.Options.setTeamInvitationTimeout . Brig.Options.optSettings . 
-      -- view teBrigOpts $ env@, but if this goes out of sync with the brig config, we will only get benign false 
+      -- this should be something like @round . Brig.Options.setTeamInvitationTimeout . Brig.Options.optSettings .
+      -- view teBrigOpts $ env@, but if this goes out of sync with the brig config, we will only get benign false
       -- negatives, and importing brig options into spar integration tests is just too awkward.
       let setTeamInvitationTimeout = 5
       Control.Exception.assert (setTeamInvitationTimeout < 30) $ do

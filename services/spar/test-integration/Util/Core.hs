@@ -39,6 +39,8 @@ module Util.Core
     shouldRespondWith,
     module Test.Hspec,
     aFewTimes,
+    aFewTimesAssert,
+    aFewTimesRecover,
 
     -- * HTTP
     call,
@@ -286,6 +288,19 @@ aFewTimes action good = do
     retrying
       (exponentialBackoff 1000 <> limitRetries 10)
       (\_ -> pure . not . good)
+      (\_ -> action `runReaderT` env)
+
+aFewTimesAssert :: HasCallStack => TestSpar a -> (a -> Bool) -> TestSpar ()
+aFewTimesAssert action good = do
+  result <- aFewTimes action good
+  good result `assert` pure ()
+
+aFewTimesRecover :: TestSpar a -> TestSpar a
+aFewTimesRecover action = do
+  env <- ask
+  liftIO $
+    recoverAll
+      (exponentialBackoff 1000 <> limitRetries 10)
       (\_ -> action `runReaderT` env)
 
 -- | Duplicate of 'Spar.Intra.Brig.getBrigUser'.
