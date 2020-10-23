@@ -632,8 +632,8 @@ testCreateUserTimeout = do
   let userName = Name . fromJust . Scim.User.displayName $ scimUser
 
   (scimStoredUser1, _inv, inviteeCode) <- createUser'step tok tid scimUser email
-  waitUserExpiration
 
+  waitUserExpiration
   searchUser tok scimUser email False
   registerInvitation email userName inviteeCode False
   searchUser tok scimUser email False
@@ -661,14 +661,13 @@ testCreateUserTimeout = do
     searchUser :: HasCallStack => Spar.Types.ScimToken -> Scim.User.User tag -> Email -> Bool -> TestSpar ()
     searchUser tok scimUser email shouldSucceed = do
       let handle = Handle . Scim.User.userName $ scimUser
+          tryquery qry =
+            aFewTimesAssert
+              (length <$> listUsers tok (Just qry))
+              (if shouldSucceed then (> 0) else (== 0))
 
-      aFewTimesAssert
-        (length <$> listUsers tok (Just (filterBy "userName" $ fromHandle handle)))
-        (if shouldSucceed then (> 0) else (== 0))
-
-      aFewTimesAssert
-        (length <$> listUsers tok (Just (filterBy "externalId" $ fromEmail email)))
-        (if shouldSucceed then (> 0) else (== 0))
+      tryquery (filterBy "userName" $ fromHandle handle)
+      tryquery (filterBy "externalId" $ fromEmail email)
 
     waitUserExpiration = do
       -- this should be something like @round . Brig.Options.setTeamInvitationTimeout . Brig.Options.optSettings .
