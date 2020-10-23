@@ -118,7 +118,7 @@ login (PasswordLogin li pw label) typ = do
     AuthInvalidCredentials -> loginFailed uid
     AuthSuspended -> throwE LoginSuspended
     AuthEphemeral -> throwE LoginEphemeral
-    AuthPendingInvitation -> loginFailed uid
+    AuthPendingInvitation -> throwE LoginPendingActivation
   newAccess @ZAuth.User @ZAuth.Access uid typ label
 login (SmsLogin phone code label) typ = do
   uid <- resolveLoginId (LoginByPhone phone)
