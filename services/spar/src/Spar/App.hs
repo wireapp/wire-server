@@ -41,6 +41,7 @@ import Cassandra
 import qualified Cassandra as Cas
 import Control.Exception (assert)
 import Control.Lens hiding ((.=))
+import qualified Control.Monad.Catch as C
 import qualified Control.Monad.Catch as Catch
 import Control.Monad.Except
 import Data.Aeson as Aeson (encode, object, (.=))
@@ -49,10 +50,16 @@ import qualified Data.ByteString.Lazy.Char8 as LBS
 import Data.Id
 import Data.String.Conversions
 import Data.Text.Ascii (encodeBase64, toText)
+import Data.Time.Clock (getCurrentTime)
 import qualified Data.UUID.V4 as UUID
 import Imports hiding (log)
 import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
+import Polysemy
+import qualified Polysemy.ConstraintAbsorber as PS
+import Polysemy.ConstraintAbsorber.MonadCatch as PS
+import qualified Polysemy.Error as PS
+import qualified Polysemy.Reader as PS
 import SAML2.Util (renderURI)
 import SAML2.WebSSO
   ( Assertion (..),
@@ -66,6 +73,7 @@ import SAML2.WebSSO
     SPHandler (..),
     SPStoreID (..),
     SPStoreIdP (..),
+    Time (..),
     UnqualifiedNameID (..),
     explainDeniedReason,
     fromTime,
@@ -158,6 +166,13 @@ wrapMonadClientWithEnv action = do
   denv <- Data.mkEnv <$> (sparCtxOpts <$> ask) <*> (fromTime <$> getNow)
   either (throwSpar . SparCassandraTTLError) pure =<< wrapMonadClient (runExceptT $ action `runReaderT` denv)
 
+wrapMonadClientWithEnv'ps :: forall a r. Members '[Embed IO, PS.Reader Env] r => ReaderT Data.Env (ExceptT TTLError Cas.Client) a -> Sem r a
+wrapMonadClientWithEnv'ps action = do
+  denv <- Data.mkEnv <$> (sparCtxOpts <$> PS.ask) <*> (fromTime <$> getNow)
+  pure undefined
+
+-- either (throwSpar . SparCassandraTTLError) pure =<< wrapMonadClient (runExceptT $ action `runReaderT` denv)
+
 -- | Call a cassandra command in the 'Spar' monad.  Catch all exceptions and re-throw them as 500 in
 -- Handler.
 wrapMonadClient :: Cas.Client a -> Spar a
@@ -166,6 +181,19 @@ wrapMonadClient action = do
     ctx <- asks sparCtxCas
     runClient ctx action
       `Catch.catch` (throwSpar . SparCassandraError . cs . show @SomeException)
+
+-- throwSpar :: MonadError SparError m => SparCustomError -> m a
+
+wrapMonadClient'ps :: forall a r. Members '[Embed IO, PS.Reader Env, PS.Error SparCustomError] r => Cas.Client a -> Sem r a
+wrapMonadClient'ps action = do
+  ctx <- PS.asks sparCtxCas
+  eith <- PS.runError (PS.absorbMonadCatch (runClient ctx action))
+  case eith of
+    Left exception -> do
+      PS.throw . SparCassandraError . cs . show @SomeException $ exception
+    Right x -> pure x
+
+-- `Catch.catch` (throwSpar . SparCassandraError . cs . show @SomeException)
 
 insertUser :: SAML.UserRef -> UserId -> Spar ()
 insertUser uref uid = wrapMonadClient $ Data.insertSAMLUser uref uid

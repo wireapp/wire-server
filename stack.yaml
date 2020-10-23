@@ -111,6 +111,12 @@ extra-deps:
   - amazonka-sqs
   - core
 
+- polysemy-zoo-0.7.0.0@sha256:e98ba9620128df8f8aea6adec5a0e324103324a2d2368930a2e214a2c334551b,3900
+- compact-0.2.0.0@sha256:9c5785bdc178ea6cf8f514ad35a78c64220e3cdb22216534e4cf496765551c7e,2345
+- polysemy-plugin-0.2.5.1@sha256:61c6c0aad2852377aa5d5a8f9639a437905e3a6f0e2a99a41e96fb231dc86836,2952
+
+
+
 
 ############################################################
 # Wire packages

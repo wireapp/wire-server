@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8a7b77bbc7e9d990ac78dd068fccb94f15521732eac4d3a2cc9bc44aa38c7e7f
+-- hash: c96b9015b4302807ea3304b201ccd356b85c11c58db983c76345bd302f0405e3
 
 name:           spar
 version:        0.1
@@ -59,6 +59,7 @@ library
     , bytestring-conversion
     , case-insensitive
     , cassandra-util
+    , compact >=0.2
     , containers
     , cookie
     , cryptonite
@@ -85,6 +86,8 @@ library
     , mtl
     , network-uri
     , optparse-applicative
+    , polysemy >=0.2
+    , polysemy-zoo
     , prometheus-client
     , raw-strings-qq
     , retry
@@ -137,6 +140,7 @@ executable spar
     , bytestring-conversion
     , case-insensitive
     , cassandra-util
+    , compact >=0.2
     , containers
     , cookie
     , cryptonite
@@ -163,6 +167,8 @@ executable spar
     , mtl
     , network-uri
     , optparse-applicative
+    , polysemy >=0.2
+    , polysemy-zoo
     , prometheus-client
     , raw-strings-qq
     , retry
@@ -232,6 +238,7 @@ executable spar-integration
     , bytestring-conversion
     , case-insensitive
     , cassandra-util
+    , compact >=0.2
     , containers
     , cookie
     , cryptonite
@@ -262,6 +269,8 @@ executable spar-integration
     , mtl
     , network-uri
     , optparse-applicative
+    , polysemy >=0.2
+    , polysemy-zoo
     , prometheus-client
     , random
     , raw-strings-qq
@@ -337,6 +346,7 @@ executable spar-schema
     , bytestring-conversion
     , case-insensitive
     , cassandra-util
+    , compact >=0.2
     , containers
     , cookie
     , cryptonite
@@ -363,6 +373,8 @@ executable spar-schema
     , mtl
     , network-uri
     , optparse-applicative
+    , polysemy >=0.2
+    , polysemy-zoo
     , prometheus-client
     , raw-strings-qq
     , retry
@@ -424,6 +436,7 @@ test-suite spec
     , bytestring-conversion
     , case-insensitive
     , cassandra-util
+    , compact >=0.2
     , containers
     , cookie
     , cryptonite
@@ -453,6 +466,8 @@ test-suite spec
     , mtl
     , network-uri
     , optparse-applicative
+    , polysemy >=0.2
+    , polysemy-zoo
     , prometheus-client
     , raw-strings-qq
     , retry

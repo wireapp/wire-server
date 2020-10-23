@@ -30,6 +30,7 @@ dependencies:
   - case-insensitive
   - cassandra-util
   - containers
+  - compact >= 0.2
   - cookie
   - cryptonite
   - data-default
@@ -56,6 +57,8 @@ dependencies:
   - mtl
   - network-uri
   - optparse-applicative
+  - polysemy >= 0.2
+  - polysemy-zoo
   - prometheus-client
   - raw-strings-qq
   - retry

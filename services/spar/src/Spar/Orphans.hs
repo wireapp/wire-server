@@ -26,7 +26,14 @@ module Spar.Orphans
 where
 
 import Data.Id
+import Data.Time.Clock (getCurrentTime)
 import Imports
+import Polysemy
+import qualified Polysemy.Reader as PS
+import SAML2.WebSSO
+  ( HasNow (..),
+    Time (..),
+  )
 import Servant (FromHttpApiData (..), MimeRender (..), PlainText, ToHttpApiData (..))
 
 instance FromHttpApiData (Id a) where
@@ -37,3 +44,7 @@ instance ToHttpApiData (Id a) where
 
 instance MimeRender PlainText Void where
   mimeRender _ = error "instance MimeRender HTML Void: impossible"
+
+instance Member (Embed IO) r => HasNow (Sem r) where
+  getNow =
+    liftIO $ (Time <$> getCurrentTime)
