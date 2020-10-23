@@ -666,11 +666,8 @@ synthesizeScimUser info =
 
 scimFindUserByHandle :: Maybe IdP -> TeamId -> Text -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser ST.SparTag)
 scimFindUserByHandle mIdpConfig stiTeam hndl = do
-  lift . lift $ Log.debug (Log.msg $ "scimFindUserByHandle 1: " <> show (stiTeam, hndl))
   handle <- MaybeT . pure . parseHandle . Text.toLower $ hndl
-  lift . lift $ Log.debug (Log.msg $ "scimFindUserByHandle 2: " <> show handle)
   brigUser <- MaybeT . lift . Brig.getBrigUserByHandle $ handle
-  lift . lift $ Log.debug (Log.msg $ "scimFindUserByHandle 3: " <> show brigUser)
   guard $ userTeam (accountUser brigUser) == Just stiTeam
   case Brig.veidFromBrigUser (accountUser brigUser) ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) of
     Right veid -> lift $ synthesizeStoredUser brigUser veid
@@ -684,13 +681,9 @@ scimFindUserByHandle mIdpConfig stiTeam hndl = do
 -- successful authentication with their SAML credentials.
 scimFindUserByEmail :: Maybe IdP -> TeamId -> Text -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser ST.SparTag)
 scimFindUserByEmail mIdpConfig stiTeam email = do
-  lift $ lift $ Log.debug (Log.msg $ "scimFindUserByEmail 1: " <> (show (stiTeam, email)))
   veid <- mkValidExternalId mIdpConfig (pure email)
-  lift $ lift $ Log.debug (Log.msg $ "scimFindUserByEmail 2: " <> (show veid))
   uid <- MaybeT . lift $ ST.runValidExternalId withUref withEmailOnly veid
-  lift $ lift $ Log.debug (Log.msg $ "scimFindUserByEmail 3: " <> (show uid))
   brigUser <- MaybeT . lift . Brig.getBrigUserAccount Brig.WithPendingInvitations $ uid
-  lift $ lift $ Log.debug (Log.msg $ "scimFindUserByEmail 4: " <> (show brigUser))
   guard $ userTeam (accountUser brigUser) == Just stiTeam
   lift $ synthesizeStoredUser brigUser veid
   where
