@@ -287,22 +287,26 @@ testCreateUserNoIdP = do
     liftIO $ Scim.User.active usr `shouldNotBe` Just False
 
   -- searching user in brig should succeed
+  refreshIndex brig
   searchUser brig owner userName True
   where
     -- cloned from brig's integration tests
 
     searchUser :: HasCallStack => BrigReq -> UserId -> Name -> Bool -> TestSpar ()
-    searchUser brig searcherId searchTarget shouldSucceed = do
-      refreshIndex brig
-      let searchQuery = fromName searchTarget
-      resp <- call $ executeSearch brig searcherId searchQuery
-      liftIO $ (searchFound resp) `shouldSatisfy` if shouldSucceed then (> 0) else (== 0)
+    searchUser brig searcherId searchTarget shouldSucceed =
+      aFewTimesAssert
+        ( do
+            let searchQuery = fromName searchTarget
+            resp <- call $ executeSearch brig searcherId searchQuery
+            pure $ searchFound resp
+        )
+        (if shouldSucceed then (> 0) else (== 0))
 
     refreshIndex :: BrigReq -> TestSpar ()
     refreshIndex brig = do
       call $ void $ post (brig . path "/i/index/reindex" . expect2xx)
       -- wait for async reindexing to complete (hopefully)
-      lift $ threadDelay 1_000_000
+      lift $ threadDelay 3_000_000
 
     executeSearch :: BrigReq -> UserId -> Text -> Http (Search.SearchResult Search.Contact)
     executeSearch brig self q = do
