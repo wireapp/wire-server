@@ -64,7 +64,7 @@ spec = do
       let probe :: (MonadIO m, MonadReader TestEnv m) => m Bool
           probe = runSparCass $ isAliveAReqID (req ^. SAML.rqID)
           maxttl :: Int -- musec
-          maxttl = (fromIntegral . fromTTL $ env ^. teSparOpts . to maxttlAuthreq) * 1000 * 1000
+          maxttl = (fromIntegral . fromTTL $ env ^. teOpts . to maxttlAuthreq) * 1000 * 1000
       liftIO $ maxttl `shouldSatisfy` (< 60 * 1000 * 1000) -- otherwise the test will be really slow.
       p1 <- probe
       liftIO $ p1 `shouldBe` True

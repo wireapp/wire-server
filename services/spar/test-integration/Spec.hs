@@ -63,7 +63,6 @@ partitionArgs = go [] []
   where
     go wireArgs hspecArgs ("-s" : x : xs) = go (wireArgs <> ["-s", x]) hspecArgs xs
     go wireArgs hspecArgs ("-i" : x : xs) = go (wireArgs <> ["-i", x]) hspecArgs xs
-    go wireArgs hspecArgs ("-b" : x : xs) = go (wireArgs <> ["-b", x]) hspecArgs xs
     go wireArgs hspecArgs (x : xs) = go wireArgs (hspecArgs <> [x]) xs
     go wireArgs hspecArgs [] = (wireArgs, hspecArgs)
 
@@ -84,7 +83,7 @@ mkspec' env = do
     microsoftAzure @SparTag AcceptanceConfig {..}
   where
     scimAppAndConfig = do
-      (app, _) <- mkApp (env ^. teSparOpts)
+      (app, _) <- mkApp (env ^. teOpts)
       scimAuthToken <- toHeader . fst <$> registerIdPAndScimToken `runReaderT` env
       let queryConfig = AcceptanceQueryConfig {..}
           scimPathPrefix = "/scim/v2"

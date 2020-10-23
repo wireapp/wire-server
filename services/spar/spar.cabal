@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f67a8e0ca4f319f47903e34c42355769fe0105b275f353d2d3209fa807c9caaf
+-- hash: 54710b4d4da7f1d6f621e0c28ded0702090f208db2f230715c129480502db771
 
 name:           spar
 version:        0.1
@@ -228,7 +228,6 @@ executable spar-integration
     , base64-bytestring
     , bilge
     , binary
-    , brig
     , brig-types
     , bytestring
     , bytestring-conversion

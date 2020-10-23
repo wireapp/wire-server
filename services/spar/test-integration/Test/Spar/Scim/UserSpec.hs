@@ -30,7 +30,6 @@ where
 
 import Bilge
 import Bilge.Assert
-import qualified Brig.Options
 import Brig.Types.Intra (AccountStatus (Active, PendingInvitation, Suspended), accountStatus, accountUser)
 import Brig.Types.User as Brig
 import qualified Control.Exception
@@ -664,8 +663,7 @@ testCreateUserTimeout = do
         liftIO $ length users `shouldSatisfy` if shouldSucceed then (> 0) else (== 0)
 
     waitUserExpiration = do
-      env <- ask
-      let setTeamInvitationTimeout = round . Brig.Options.setTeamInvitationTimeout . Brig.Options.optSettings . view teBrigOpts $ env
+      let setTeamInvitationTimeout = 5 -- TODO(stefan): clarify if we should add this to spar's config
       Control.Exception.assert (setTeamInvitationTimeout < 30) $ do
         threadDelay $ (setTeamInvitationTimeout + 1) * 1_000_000
 
@@ -1093,7 +1091,7 @@ testScimSideIsUpdated = do
   liftIO $ updatedUser `shouldBe` storedUser'
   -- Check that the updated user also matches the data that we sent with
   -- 'updateUser'
-  richInfoLimit <- asks (Spar.Types.richInfoLimit . view teSparOpts)
+  richInfoLimit <- asks (Spar.Types.richInfoLimit . view teOpts)
   liftIO $ do
     Right (Scim.value (Scim.thing storedUser')) `shouldBe` whatSparReturnsFor idp richInfoLimit user'
     Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)
@@ -1148,7 +1146,7 @@ testUpdateSameHandle = do
   storedUser' <- getUser tok userid
   liftIO $ updatedUser `shouldBe` storedUser'
   -- Check that the updated user also matches the data that we sent with 'updateUser'
-  richInfoLimit <- asks (Spar.Types.richInfoLimit . view teSparOpts)
+  richInfoLimit <- asks (Spar.Types.richInfoLimit . view teOpts)
   liftIO $ do
     Right (Scim.value (Scim.thing storedUser')) `shouldBe` whatSparReturnsFor idp richInfoLimit user'
     Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)

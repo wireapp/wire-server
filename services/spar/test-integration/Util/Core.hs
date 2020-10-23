@@ -125,7 +125,6 @@ where
 
 import Bilge hiding (getCookie) -- we use Web.Cookie instead of the http-client type
 import Bilge.Assert (Assertions, (!!!), (<!!), (===))
-import qualified Brig.Options
 import qualified Brig.Types.Activation as Brig
 import Brig.Types.Common (UserIdentity (..), UserSSOId (..))
 import Brig.Types.User (User (..), selfUser, userIdentity)
@@ -196,16 +195,15 @@ import qualified Wire.API.User as User
 mkEnvFromOptions :: IO TestEnv
 mkEnvFromOptions = do
   let desc = "Spar - SSO Service Integration Test Suite"
-  (integrationCfgFilePath, sparCfgFilePath, brigCfgFilePath) <- OPA.execParser (OPA.info (OPA.helper <*> cliOptsParser) (OPA.header desc <> OPA.fullDesc))
+  (integrationCfgFilePath, cfgFilePath) <- OPA.execParser (OPA.info (OPA.helper <*> cliOptsParser) (OPA.header desc <> OPA.fullDesc))
   integrationOpts :: IntegrationConfig <- Yaml.decodeFileEither integrationCfgFilePath >>= either (error . show) pure
-  sparOpts :: Opts <- Yaml.decodeFileEither sparCfgFilePath >>= either (throwIO . ErrorCall . show) Spar.Options.deriveOpts
-  brigOpts :: Brig.Options.Opts <- Yaml.decodeFileEither brigCfgFilePath >>= either (throwIO . ErrorCall . show) pure
-  mkEnv integrationOpts sparOpts brigOpts
+  serviceOpts :: Opts <- Yaml.decodeFileEither cfgFilePath >>= either (throwIO . ErrorCall . show) Spar.Options.deriveOpts
+  mkEnv integrationOpts serviceOpts
 
 -- | Accept config file locations as cli options.
-cliOptsParser :: OPA.Parser (FilePath, FilePath, FilePath)
+cliOptsParser :: OPA.Parser (String, String)
 cliOptsParser =
-  (,,)
+  (,)
     <$> ( OPA.strOption $
             OPA.long "integration-config"
               <> OPA.short 'i'
@@ -220,17 +218,9 @@ cliOptsParser =
               <> OPA.showDefault
               <> OPA.value defaultSparPath
         )
-    <*> ( OPA.strOption $
-            OPA.long "brig-service-config"
-              <> OPA.short 'b'
-              <> OPA.help "Brig application config to load"
-              <> OPA.showDefault
-              <> OPA.value defaultBrigPath
-        )
   where
     defaultIntPath = "/etc/wire/integration/integration.yaml"
     defaultSparPath = "/etc/wire/spar/conf/spar.yaml"
-    defaultBrigPath = "/etc/wire/brig/conf/brig.yaml"
 
 -- | Create an environment for integration tests from integration and spar config files.
 --
@@ -242,16 +232,16 @@ cliOptsParser =
 -- removed the mock idp functionality.  if you want to re-introduce it,
 -- <https://github.com/wireapp/wire-server/pull/466/commits/9c93f1e278500522a0565639140ac55dc21ee2d2>
 -- would be a good place to look for code to steal.
-mkEnv :: HasCallStack => IntegrationConfig -> Opts -> Brig.Options.Opts -> IO TestEnv
-mkEnv _teTstOpts _teSparOpts _teBrigOpts = do
+mkEnv :: HasCallStack => IntegrationConfig -> Opts -> IO TestEnv
+mkEnv _teTstOpts _teOpts = do
   _teMgr :: Manager <- newManager defaultManagerSettings
-  sparCtxLogger <- Log.mkLogger (toLevel $ saml _teSparOpts ^. SAML.cfgLogLevel) (logNetStrings _teSparOpts) (logFormat _teSparOpts)
-  _teCql :: ClientState <- initCassandra _teSparOpts sparCtxLogger
+  sparCtxLogger <- Log.mkLogger (toLevel $ saml _teOpts ^. SAML.cfgLogLevel) (logNetStrings _teOpts) (logFormat _teOpts)
+  _teCql :: ClientState <- initCassandra _teOpts sparCtxLogger
   let _teBrig = endpointToReq (cfgBrig _teTstOpts)
       _teGalley = endpointToReq (cfgGalley _teTstOpts)
       _teSpar = endpointToReq (cfgSpar _teTstOpts)
       _teSparEnv = Spar.Env {..}
-      sparCtxOpts = _teSparOpts
+      sparCtxOpts = _teOpts
       sparCtxCas = _teCql
       sparCtxHttpManager = _teMgr
       sparCtxHttpBrig = _teBrig empty
@@ -1139,7 +1129,7 @@ runSparCassWithEnv ::
   m' a
 runSparCassWithEnv action = do
   env <- ask
-  denv <- Data.mkEnv <$> (pure $ env ^. teSparOpts) <*> liftIO getCurrentTime
+  denv <- Data.mkEnv <$> (pure $ env ^. teOpts) <*> liftIO getCurrentTime
   val <- runSparCass (runExceptT (action `runReaderT` denv))
   either (liftIO . throwIO . ErrorCall . show) pure val
 
@@ -1147,7 +1137,7 @@ runSimpleSP :: (MonadReader TestEnv m, MonadIO m) => SAML.SimpleSP a -> m a
 runSimpleSP action = do
   env <- ask
   liftIO $ do
-    ctx <- SAML.mkSimpleSPCtx (env ^. teSparOpts . to saml) []
+    ctx <- SAML.mkSimpleSPCtx (env ^. teOpts . to saml) []
     result <- SAML.runSimpleSP ctx action
     either (throwIO . ErrorCall . show) pure result
 
