@@ -100,6 +100,8 @@ import Web.Cookie (SetCookie, renderSetCookie)
 newtype Spar a = Spar {fromSpar :: ReaderT Env (ExceptT SparError IO) a}
   deriving (Functor, Applicative, Monad, MonadIO, MonadReader Env, MonadError SparError)
 
+type SparPS r = Members '[Embed IO, PS.Reader Env, PS.Error SparCustomError] r
+
 data Env = Env
   { sparCtxOpts :: Opts,
     sparCtxLogger :: Log.Logger,
@@ -166,7 +168,7 @@ wrapMonadClientWithEnv action = do
   denv <- Data.mkEnv <$> (sparCtxOpts <$> ask) <*> (fromTime <$> getNow)
   either (throwSpar . SparCassandraTTLError) pure =<< wrapMonadClient (runExceptT $ action `runReaderT` denv)
 
-wrapMonadClientWithEnv'ps :: forall a r. Members '[Embed IO, PS.Reader Env] r => ReaderT Data.Env (ExceptT TTLError Cas.Client) a -> Sem r a
+wrapMonadClientWithEnv'ps :: SparPS r => ReaderT Data.Env (ExceptT TTLError Cas.Client) a -> Sem r a
 wrapMonadClientWithEnv'ps action = do
   denv <- Data.mkEnv <$> (sparCtxOpts <$> PS.ask) <*> (fromTime <$> getNow)
   pure undefined
@@ -184,7 +186,7 @@ wrapMonadClient action = do
 
 -- throwSpar :: MonadError SparError m => SparCustomError -> m a
 
-wrapMonadClient'ps :: forall a r. Members '[Embed IO, PS.Reader Env, PS.Error SparCustomError] r => Cas.Client a -> Sem r a
+wrapMonadClient'ps :: SparPS r => Cas.Client a -> Sem r a
 wrapMonadClient'ps action = do
   ctx <- PS.asks sparCtxCas
   eith <- PS.runError (PS.absorbMonadCatch (runClient ctx action))
