@@ -663,7 +663,10 @@ testCreateUserTimeout = do
         liftIO $ length users `shouldSatisfy` if shouldSucceed then (> 0) else (== 0)
 
     waitUserExpiration = do
-      let setTeamInvitationTimeout = 5 -- TODO(stefan): clarify if we should add this to spar's config
+      -- this should be something like @round . Brig.Options.setTeamInvitationTimeout . Brig.Options.optSettings . 
+      -- view teBrigOpts $ env@, but if this goes out of sync with the brig config, we will only get benign false 
+      -- negatives, and importing brig options into spar integration tests is just too awkward.
+      let setTeamInvitationTimeout = 5
       Control.Exception.assert (setTeamInvitationTimeout < 30) $ do
         threadDelay $ (setTeamInvitationTimeout + 1) * 1_000_000
 
