@@ -250,7 +250,9 @@ testCreateUserNoIdP = do
     liftIO $ userManagedBy brigUser `shouldBe` ManagedByScim
 
   -- searching user in brig should fail
-  searchUser brig owner userName False
+  -- >>> searchUser brig owner userName False
+  -- Note: Cannot run this test here, because its delay would cause the invitation to
+  -- time out.
 
   -- scim-get should produce same stored user; stored user should be inactive and have an
   -- email.
@@ -281,6 +283,7 @@ testCreateUserNoIdP = do
       aFewTimes (runSpar $ Intra.getBrigUserAccount Intra.NoPendingInvitations userid) isJust
         >>= maybe (error "could not find user in brig") pure
     liftIO $ accountStatus brigUser `shouldBe` Active
+    liftIO $ userManagedBy (accountUser brigUser) `shouldBe` ManagedByScim
 
     susr <- getUser tok userid
     let usr = Scim.value . Scim.thing $ susr
