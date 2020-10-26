@@ -133,7 +133,7 @@ instance FromJSON Host where
 data Geo = Geo
   { geoCountry :: Maybe Text,
     geoCity :: Maybe Text,
-    geoLocation :: !Coordinate
+    geoLocation :: !(Maybe Coordinate)
   }
   deriving (Eq, Show, Generic)
 

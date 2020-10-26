@@ -30,25 +30,26 @@ import Control.Lens
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.Attoparsec.ByteString.Char8 (parseOnly)
-import qualified Data.ByteString as B
-import Data.Geolocation.GeoIP
+import Data.GeoIP2
 import qualified Data.HashMap.Strict as HashMap
-import Data.Text.Encoding (decodeLatin1, encodeUtf8)
+import qualified Data.Text as Text
+import Data.Text.Encoding (encodeUtf8)
 import Imports
 
 mkGeo :: FilePath -> IO GeoDB
 mkGeo path = do
   -- exit orderly if file doesn't exist (c api segfaults)
   withBinaryFile path ReadMode (const $ pure ())
-  openGeoDB mmap_cache path
+  openGeoDB path
 
-geolocate :: GeoDB -> Text -> LogEvent -> IO LogEvent
+geolocate :: GeoDB -> Text -> LogEvent -> LogEvent
 geolocate db t evt =
   maybe
-    (pure evt)
-    (fmap update . geoLocateByIPNum db . toInteger)
+    evt
+    (update . preview _Right . findGeoData db "en" . read . Text.unpack . showIPv4Text)
     $ ip t evt
   where
+    update :: Maybe GeoResult -> LogEvent
     update x =
       evt & logTags
         %~ _Wrapped'
@@ -66,14 +67,13 @@ ip t = join . fmap parse . view (logTags . _Wrapped' . at t)
         . fmap (preview _Right . parseOnly ipv4 . encodeUtf8)
         . preview _String
 
-toGeo :: GeoIPRecord -> Geo
-toGeo GeoIPRecord {..} =
+toGeo :: GeoResult -> Geo
+toGeo GeoResult {..} =
   Geo
-    { geoCountry = ne geoCountryCode,
-      geoCity = ne geoCity,
-      geoLocation = Coordinate {lat = geoLatitude, lon = geoLongitude}
+    { geoCountry = geoCountryISO,
+      geoCity = geoCity,
+      geoLocation = toCoordinate (fmap locationLatitude geoLocation) (fmap locationLongitude geoLocation)
     }
   where
-    ne s
-      | B.length s > 0 = Just $ decodeLatin1 s
-      | otherwise = Nothing
+    toCoordinate (Just lat) (Just lon) = Just $ Coordinate lat lon
+    toCoordinate _          _          = Nothing

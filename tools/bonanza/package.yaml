@@ -33,9 +33,11 @@ library:
   - containers
   - ekg-core
   - exceptions
+  - geoip2
   - hs-GeoIP ==0.3.*
   - http-client
   - http-types
+  - iproute
   - lens
   - lens-aeson
   - mtl
