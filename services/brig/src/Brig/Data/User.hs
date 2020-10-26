@@ -367,6 +367,9 @@ lookupRichInfo u =
   fmap runIdentity
     <$> retry x1 (query1 richInfoSelect (params Quorum (Identity u)))
 
+-- | Lookup user (no matter what status) and return 'TeamId'.  Safe to use for authorization:
+-- suspended / deleted / ... users can't login, so no harm done if we authorize them *after*
+-- successful login.
 lookupUserTeam :: UserId -> AppIO (Maybe TeamId)
 lookupUserTeam u =
   join . fmap runIdentity
