@@ -185,7 +185,7 @@ createUser new@NewUser {..} = do
   (account, pw) <- lift $ do
     new' <-
       case Team.inInvitation . fst <$> teamInvitation of
-        Just (toUUID -> uuid) -> do
+        Just (Id uuid) -> do
           mAcc <- Data.lookupAccount (Id uuid)
           case mAcc of
             Just existingAccount ->
