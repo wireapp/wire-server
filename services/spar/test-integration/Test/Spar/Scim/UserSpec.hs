@@ -283,6 +283,7 @@ testCreateUserNoIdP = do
       aFewTimes (runSpar $ Intra.getBrigUserAccount Intra.NoPendingInvitations userid) isJust
         >>= maybe (error "could not find user in brig") pure
     liftIO $ accountStatus brigUser `shouldBe` Active
+    liftIO $ userManagedBy (accountUser brigUser) `shouldBe` ManagedByScim
 
     susr <- getUser tok userid
     let usr = Scim.value . Scim.thing $ susr

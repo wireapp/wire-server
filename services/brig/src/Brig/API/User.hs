@@ -180,8 +180,20 @@ createUser new@NewUser {..} = do
   for_ (catMaybes [emKey, phKey]) $ verifyUniquenessAndCheckBlacklist
   -- team user registration
   (newTeam, teamInvitation, tid) <- handleTeam (newUserTeam new) emKey
+
   -- Create account
-  (account, pw) <- lift $ newAccount new {newUserIdentity = ident} (Team.inInvitation . fst <$> teamInvitation) tid
+  (account, pw) <- lift $ do
+    new' <-
+      case Team.inInvitation . fst <$> teamInvitation of
+        Just (toUUID -> uuid) -> do
+          mAcc <- Data.lookupAccount (Id uuid)
+          case mAcc of
+            Just existingAccount ->
+              pure (new {newUserManagedBy = Just . userManagedBy . accountUser $ existingAccount})
+            Nothing -> pure new
+        Nothing -> pure new
+    newAccount new' {newUserIdentity = ident} (Team.inInvitation . fst <$> teamInvitation) tid
+
   let uid = userId (accountUser account)
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.createUser")
   Log.info $ field "user" (toByteString uid) . msg (val "Creating user")
