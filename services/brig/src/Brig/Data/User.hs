@@ -43,7 +43,6 @@ module Brig.Data.User
     lookupStatus,
     lookupRichInfo,
     lookupUserTeam,
-    lookupUsersTeam,
     lookupServiceUsers,
     lookupServiceUsersForTeam,
 
@@ -372,10 +371,6 @@ lookupUserTeam :: UserId -> AppIO (Maybe TeamId)
 lookupUserTeam u =
   join . fmap runIdentity
     <$> retry x1 (query1 teamSelect (params Quorum (Identity u)))
-
-lookupUsersTeam :: [UserId] -> AppIO [(UserId, Maybe TeamId)]
-lookupUsersTeam us =
-  retry x1 (query usersTeamSelect (params Quorum (Identity us)))
 
 lookupAuth :: (MonadClient m) => UserId -> m (Maybe (Maybe Password, AccountStatus))
 lookupAuth u = fmap f <$> retry x1 (query1 authSelect (params Quorum (Identity u)))
