@@ -536,9 +536,6 @@ richInfoSelect = "SELECT json FROM rich_info WHERE user = ?"
 teamSelect :: PrepQuery R (Identity UserId) (Identity (Maybe TeamId))
 teamSelect = "SELECT team FROM user WHERE id = ?"
 
-usersTeamSelect :: PrepQuery R (Identity [UserId]) (UserId, Maybe TeamId)
-usersTeamSelect = "SELECT id, team FROM user WHERE id IN ?"
-
 accountsSelect :: PrepQuery R (Identity [UserId]) AccountRow
 accountsSelect =
   "SELECT id, name, picture, email, phone, sso_id, accent_id, assets, \
