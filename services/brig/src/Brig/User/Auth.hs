@@ -246,9 +246,14 @@ isPendingActivation ident = case ident of
         Nothing -> return False
         Just u -> maybe False (checkAccount k) <$> Data.lookupAccount u
     checkAccount k a =
-      let s = accountStatus a
-          i = userIdentity (accountUser a)
-       in s == Active && case i of
+      let i = userIdentity (accountUser a)
+          statusAdmitsPending = case accountStatus a of
+            Active -> True
+            Suspended -> False
+            Deleted -> False
+            Ephemeral -> False
+            PendingInvitation -> True
+       in statusAdmitsPending && case i of
             Just (EmailIdentity e) -> userEmailKey e /= k
             Just (PhoneIdentity p) -> userPhoneKey p /= k
             Just (FullIdentity e p) -> userEmailKey e /= k && userPhoneKey p /= k
