@@ -1101,12 +1101,15 @@ getEmailForProfile _ EmailVisibleToSelf' = Nothing
 
 -- | Find user accounts for a given identity, both activated and those
 -- currently pending activation.
-lookupAccountsByIdentity :: Either Email Phone -> AppIO [UserAccount]
-lookupAccountsByIdentity emailOrPhone = do
+lookupAccountsByIdentity :: Either Email Phone -> Bool -> AppIO [UserAccount]
+lookupAccountsByIdentity emailOrPhone includePendingInvitations = do
   let uk = either userEmailKey userPhoneKey emailOrPhone
   activeUid <- Data.lookupKey uk
   uidFromKey <- (>>= fst) <$> Data.lookupActivationCode uk
-  Data.lookupAccounts (nub $ catMaybes [activeUid, uidFromKey])
+  result <- Data.lookupAccounts (nub $ catMaybes [activeUid, uidFromKey])
+  if includePendingInvitations
+    then pure result
+    else pure $ filter ((/= PendingInvitation) . accountStatus) result
 
 isBlacklisted :: Either Email Phone -> AppIO Bool
 isBlacklisted emailOrPhone = do

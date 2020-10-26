@@ -321,6 +321,7 @@ getBrigUserByEmail email = do
       method GET
         . path "/i/users"
         . queryItem "email" (toByteString' email)
+        . queryItem "includePendingInvitations" "true"
   case statusCode resp of
     200 -> do
       macc <- listToMaybe <$> parseResponse @[UserAccount] resp

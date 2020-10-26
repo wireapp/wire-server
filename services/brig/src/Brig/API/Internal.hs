@@ -124,6 +124,7 @@ sitemap = do
   get "/i/users" (continue listAccountsByIdentityH) $
     accept "application" "json"
       .&. (param "email" ||| param "phone")
+      .&. def False (query "includePendingInvitations")
 
   put "/i/users/:uid/status" (continue changeAccountStatusH) $
     capture "uid"
@@ -372,11 +373,11 @@ listActivatedAccounts elh includePendingInvitations = do
           (Deleted, _, _) -> pure True
           (Ephemeral, _, _) -> pure True
 
-listAccountsByIdentityH :: JSON ::: Either Email Phone -> Handler Response
-listAccountsByIdentityH (_ ::: emailOrPhone) =
+listAccountsByIdentityH :: JSON ::: Either Email Phone ::: Bool -> Handler Response
+listAccountsByIdentityH (_ ::: emailOrPhone ::: includePendingInvitations) =
   lift $
     json
-      <$> API.lookupAccountsByIdentity emailOrPhone
+      <$> API.lookupAccountsByIdentity emailOrPhone includePendingInvitations
 
 getActivationCodeH :: JSON ::: Either Email Phone -> Handler Response
 getActivationCodeH (_ ::: emailOrPhone) = do
