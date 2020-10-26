@@ -535,7 +535,7 @@ updateUserName uid (NameUpdate nameUpd) = do
             uupAssets = Nothing,
             uupAccentId = Nothing
           }
-  lift (Data.lookupUser uid) >>= \case
+  lift (Data.lookupUser WithPendingInvitations uid) >>= \case
     Just _ -> lift $ API.updateUser uid Nothing uu
     Nothing -> throwStd invalidUser
 

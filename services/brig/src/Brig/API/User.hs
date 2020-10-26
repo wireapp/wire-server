@@ -410,7 +410,7 @@ changeHandle :: UserId -> Maybe ConnId -> Handle -> ExceptT ChangeHandleError Ap
 changeHandle uid mconn hdl = do
   when (isBlacklistedHandle hdl) $
     throwE ChangeHandleInvalid
-  usr <- lift $ Data.lookupUser uid
+  usr <- lift $ Data.lookupUser WithPendingInvitations uid
   case usr of
     Nothing -> throwE ChangeHandleNoIdentity
     Just u -> claim u
@@ -505,7 +505,7 @@ changeEmail u email = do
   unless available $
     throwE $
       EmailExists email
-  usr <- maybe (throwM $ UserProfileNotFound u) return =<< lift (Data.lookupUser u)
+  usr <- maybe (throwM $ UserProfileNotFound u) return =<< lift (Data.lookupUser WithPendingInvitations u)
   case join (emailIdentity <$> userIdentity usr) of
     -- The user already has an email address and the new one is exactly the same
     Just current | current == em -> return ChangeEmailIdempotent
@@ -743,7 +743,9 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
         lift $
           sendVerificationMail em p loc
     sendActivationEmail ek uc uid = do
-      u <- maybe (notFound uid) return =<< lift (Data.lookupUser uid)
+      -- FUTUREWORK(fisx): we allow for 'PendingInvitations' here, but I'm not sure this
+      -- top-level function isn't another piece of a deprecated onboarding flow?
+      u <- maybe (notFound uid) return =<< lift (Data.lookupUser WithPendingInvitations uid)
       p <- mkPair ek (Just uc) (Just uid)
       let ident = userIdentity u
           name = userDisplayName u
@@ -1044,7 +1046,7 @@ lookupProfilesOfLocalUsers ::
   [UserId] ->
   AppIO [UserProfile]
 lookupProfilesOfLocalUsers self others = do
-  users <- Data.lookupUsers others >>= mapM userGC
+  users <- Data.lookupUsers NoPendingInvitations others >>= mapM userGC
   css <- toMap <$> Data.lookupConnectionStatus (map userId users) [self]
   emailVisibility' <- view (settings . emailVisibility)
   emailVisibility'' <- case emailVisibility' of
@@ -1061,7 +1063,7 @@ lookupProfilesOfLocalUsers self others = do
       -- FUTUREWORK: it is an internal error for the two lookups (for 'User' and 'TeamMember')
       -- to return 'Nothing'.  we could throw errors here if that happens, rather than just
       -- returning an empty profile list from 'lookupProfiles'.
-      mUser <- Data.lookupUser self
+      mUser <- Data.lookupUser NoPendingInvitations self
       case userTeam =<< mUser of
         Nothing -> pure Nothing
         Just tid -> (tid,) <$$> Intra.getTeamMember self tid

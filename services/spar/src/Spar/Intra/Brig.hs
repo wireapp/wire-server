@@ -262,10 +262,6 @@ updateEmail buid email = do
     -- Wai.Error, it's ok to crash with a 500 here, so we use the unsafe parser.
     _ -> throwError . SAML.CustomServant . waiToServant . responseJsonUnsafe $ resp
 
-data HavePendingInvitations
-  = WithPendingInvitations
-  | NoPendingInvitations
-
 getBrigUser :: (HasCallStack, MonadSparToBrig m) => HavePendingInvitations -> UserId -> m (Maybe User)
 getBrigUser ifpend = (accountUser <$$>) . getBrigUserAccount ifpend
 

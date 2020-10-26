@@ -329,8 +329,8 @@ filterActive us =
     isActiveUser (_, True, Just Active) = True
     isActiveUser _ = False
 
-lookupUser :: UserId -> AppIO (Maybe User)
-lookupUser u = listToMaybe <$> lookupUsers [u]
+lookupUser :: HavePendingInvitations -> UserId -> AppIO (Maybe User)
+lookupUser hpi u = listToMaybe <$> lookupUsers hpi [u]
 
 activateUser :: UserId -> UserIdentity -> AppIO ()
 activateUser u ident = do
@@ -383,10 +383,10 @@ lookupAuth u = fmap f <$> retry x1 (query1 authSelect (params Quorum (Identity u
 -- | Return users with given IDs.
 --
 -- Skips nonexistent users. /Does not/ skip users who have been deleted.
-lookupUsers :: [UserId] -> AppIO [User]
-lookupUsers usrs = do
+lookupUsers :: HavePendingInvitations -> [UserId] -> AppIO [User]
+lookupUsers hpi usrs = do
   loc <- setDefaultLocale <$> view settings
-  toUsers loc <$> retry x1 (query usersSelect (params Quorum (Identity usrs)))
+  toUsers loc hpi <$> retry x1 (query usersSelect (params Quorum (Identity usrs)))
 
 lookupAccount :: UserId -> AppIO (Maybe UserAccount)
 lookupAccount u = listToMaybe <$> lookupAccounts [u]
@@ -650,9 +650,36 @@ toUserAccount
           )
           (fromMaybe Active status)
 
-toUsers :: Locale -> [UserRow] -> [User]
-toUsers defaultLocale = fmap mk
+toUsers :: Locale -> HavePendingInvitations -> [UserRow] -> [User]
+toUsers defaultLocale havePendingInvitations = fmap mk . filter fp
   where
+    fp :: UserRow -> Bool
+    fp =
+      case havePendingInvitations of
+        WithPendingInvitations -> const True
+        NoPendingInvitations ->
+          ( \( _uid,
+               _name,
+               _pict,
+               _email,
+               _phone,
+               _ssoid,
+               _accent,
+               _assets,
+               _activated,
+               status,
+               _expires,
+               _lan,
+               _con,
+               _pid,
+               _sid,
+               _handle,
+               _tid,
+               _managed_by
+               ) -> status /= Just PendingInvitation
+          )
+
+    mk :: UserRow -> User
     mk
       ( uid,
         name,

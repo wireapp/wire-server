@@ -21,6 +21,7 @@ module Brig.Types.User
   ( ManagedByUpdate (..),
     RichInfoUpdate (..),
     PasswordResetPair,
+    HavePendingInvitations (..),
 
     -- * re-exports
     Pict (..),
@@ -79,6 +80,11 @@ import Wire.API.User.Password
 import Wire.API.User.RichInfo
 
 newtype ManagedByUpdate = ManagedByUpdate {mbuManagedBy :: ManagedBy} deriving (Eq, Show, Generic)
+
+data HavePendingInvitations
+  = WithPendingInvitations
+  | NoPendingInvitations
+  deriving (Eq, Show, Generic)
 
 newtype RichInfoUpdate = RichInfoUpdate {riuRichInfo :: RichInfoAssocList} deriving (Eq, Show, Generic)
 

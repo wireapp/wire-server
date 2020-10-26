@@ -41,6 +41,7 @@ import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra (AccountStatus (Ephemeral), UserAccount (UserAccount, accountUser))
+import Brig.Types.User (HavePendingInvitations (..))
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
 import qualified Brig.User.Auth.Cookie as Auth
@@ -957,8 +958,8 @@ getRichInfo :: UserId -> UserId -> Handler Public.RichInfoAssocList
 getRichInfo self user = do
   -- Check that both users exist and the requesting user is allowed to see rich info of the
   -- other user
-  selfUser <- ifNothing userNotFound =<< lift (Data.lookupUser self)
-  otherUser <- ifNothing userNotFound =<< lift (Data.lookupUser user)
+  selfUser <- ifNothing userNotFound =<< lift (Data.lookupUser NoPendingInvitations self)
+  otherUser <- ifNothing userNotFound =<< lift (Data.lookupUser NoPendingInvitations user)
   case (Public.userTeam selfUser, Public.userTeam otherUser) of
     (Just t1, Just t2) | t1 == t2 -> pure ()
     _ -> throwStd insufficientTeamPermissions
