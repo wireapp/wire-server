@@ -29,11 +29,11 @@ import Control.Lens
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.GeoIP2
-import qualified Data.IP as IP
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.IP as IP
 import qualified Data.Text as Text
-import qualified Safe
 import Imports
+import qualified Safe
 
 mkGeo :: FilePath -> IO GeoDB
 mkGeo path = do
@@ -75,4 +75,4 @@ toGeo GeoResult {..} =
     }
   where
     toCoordinate (Just lat) (Just lon) = Just $ Coordinate lat lon
-    toCoordinate _          _          = Nothing
+    toCoordinate _ _ = Nothing
