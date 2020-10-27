@@ -38,6 +38,7 @@ settings:
     sso: disabled-by-default
     legalhold: disabled-by-default
     teamSearchVisibility: disabled-by-default
+    setEmailVisibility: visible_to_self
 ```
 
 The `featureFlags` field in the galley settings is mandatory, and all
@@ -79,3 +80,7 @@ This sets the default setting for all teams, and can be overridden for
 individual teams by customer support / backoffice. [Allowed
 values](https://github.com/wireapp/wire-server/blob/custom-search-visibility-limit-name-search/libs/galley-types/src/Galley/Types/Teams.hs#L382-L385):
 `disabled-by-default`, `enabled-by-default`.
+
+### Email Visibility
+
+[Allowd values](https://github.com/wireapp/wire-server/blob/0126651a25aabc0c5589edc2b1988bb06550a03a/services/brig/src/Brig/Options.hs#L304-L306) and their [description](https://github.com/wireapp/wire-server/blob/0126651a25aabc0c5589edc2b1988bb06550a03a/services/brig/src/Brig/Options.hs#L290-L299).
