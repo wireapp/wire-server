@@ -24,16 +24,15 @@ module Bonanza.Geo
   )
 where
 
-import Bonanza.Parser.IP
 import Bonanza.Types
 import Control.Lens
 import Data.Aeson
 import Data.Aeson.Lens
-import Data.Attoparsec.ByteString.Char8 (parseOnly)
 import Data.GeoIP2
+import qualified Data.IP as IP
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
-import Data.Text.Encoding (encodeUtf8)
+import qualified Safe
 import Imports
 
 mkGeo :: FilePath -> IO GeoDB
@@ -46,7 +45,7 @@ geolocate :: GeoDB -> Text -> LogEvent -> LogEvent
 geolocate db t evt =
   maybe
     evt
-    (update . preview _Right . findGeoData db "en" . read . Text.unpack . showIPv4Text)
+    (update . preview _Right . findGeoData db "en")
     $ ip t evt
   where
     update :: Maybe GeoResult -> LogEvent
@@ -59,12 +58,12 @@ geolocate db t evt =
           . at t
           .~ fmap (toJSON . toGeo) x
 
-ip :: Text -> LogEvent -> Maybe IPv4
+ip :: Text -> LogEvent -> Maybe IP.IP
 ip t = join . fmap parse . view (logTags . _Wrapped' . at t)
   where
     parse =
       join
-        . fmap (preview _Right . parseOnly ipv4 . encodeUtf8)
+        . fmap (preview _Right . Safe.readEitherSafe . Text.unpack)
         . preview _String
 
 toGeo :: GeoResult -> Geo
