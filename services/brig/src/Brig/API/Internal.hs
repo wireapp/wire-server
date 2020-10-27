@@ -35,6 +35,7 @@ import qualified Brig.Data.User as Data
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
 import qualified Brig.Team.API as Team
+import Brig.Team.DB (lookupInvitationByEmail)
 import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
@@ -57,6 +58,7 @@ import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
+import qualified System.Logger.Class as Log
 import Wire.API.User
 import Wire.API.User.RichInfo
 
@@ -117,10 +119,12 @@ sitemap = do
   get "/i/users" (continue listActivatedAccountsH) $
     accept "application" "json"
       .&. (param "ids" ||| param "handles")
+      .&. def False (query "includePendingInvitations")
 
   get "/i/users" (continue listAccountsByIdentityH) $
     accept "application" "json"
       .&. (param "email" ||| param "phone")
+      .&. def False (query "includePendingInvitations")
 
   put "/i/users/:uid/status" (continue changeAccountStatusH) $
     capture "uid"
@@ -334,26 +338,46 @@ changeSelfEmailMaybeSend u DoNotSendEmail email = do
     ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
     ChangeEmailNeedsActivation _ -> pure ChangeEmailResponseNeedsActivation
 
-listActivatedAccountsH :: JSON ::: Either (List UserId) (List Handle) -> Handler Response
-listActivatedAccountsH (_ ::: qry) = do
-  json <$> lift (listActivatedAccounts qry)
+listActivatedAccountsH :: JSON ::: Either (List UserId) (List Handle) ::: Bool -> Handler Response
+listActivatedAccountsH (_ ::: qry ::: includePendingInvitations) = do
+  json <$> lift (listActivatedAccounts qry includePendingInvitations)
 
-listActivatedAccounts :: Either (List UserId) (List Handle) -> AppIO [UserAccount]
-listActivatedAccounts = \case
-  Left us -> byIds (fromList us)
-  Right hs -> do
-    us <- mapM (API.lookupHandle) (fromList hs)
-    byIds (catMaybes us)
+listActivatedAccounts :: Either (List UserId) (List Handle) -> Bool -> AppIO [UserAccount]
+listActivatedAccounts elh includePendingInvitations = do
+  Log.debug (Log.msg $ "listActivatedAccounts: " <> show (elh, includePendingInvitations))
+  case elh of
+    Left us -> byIds (fromList us)
+    Right hs -> do
+      us <- mapM (API.lookupHandle) (fromList hs)
+      byIds (catMaybes us)
   where
-    byIds uids =
-      filter (isJust . userIdentity . accountUser)
-        <$> API.lookupAccounts uids
+    byIds :: [UserId] -> AppIO [UserAccount]
+    byIds uids = API.lookupAccounts uids >>= filterM accountValid
 
-listAccountsByIdentityH :: JSON ::: Either Email Phone -> Handler Response
-listAccountsByIdentityH (_ ::: emailOrPhone) =
+    accountValid :: UserAccount -> AppIO Bool
+    accountValid account = case userIdentity . accountUser $ account of
+      Nothing -> pure False
+      Just ident ->
+        case (accountStatus account, includePendingInvitations, emailIdentity ident) of
+          (PendingInvitation, False, _) -> pure False
+          (PendingInvitation, True, Just email) -> do
+            hasInvitation <- isJust <$> lookupInvitationByEmail email
+            unless hasInvitation $ do
+              -- user invited via scim should expire together with its invitation
+              API.deleteUserNoVerify (userId . accountUser $ account)
+            pure hasInvitation
+          (PendingInvitation, True, Nothing) ->
+            pure True -- cannot happen, user invited via scim always has an email
+          (Active, _, _) -> pure True
+          (Suspended, _, _) -> pure True
+          (Deleted, _, _) -> pure True
+          (Ephemeral, _, _) -> pure True
+
+listAccountsByIdentityH :: JSON ::: Either Email Phone ::: Bool -> Handler Response
+listAccountsByIdentityH (_ ::: emailOrPhone ::: includePendingInvitations) =
   lift $
     json
-      <$> API.lookupAccountsByIdentity emailOrPhone
+      <$> API.lookupAccountsByIdentity emailOrPhone includePendingInvitations
 
 getActivationCodeH :: JSON ::: Either Email Phone -> Handler Response
 getActivationCodeH (_ ::: emailOrPhone) = do
@@ -511,7 +535,7 @@ updateUserName uid (NameUpdate nameUpd) = do
             uupAssets = Nothing,
             uupAccentId = Nothing
           }
-  lift (Data.lookupUser uid) >>= \case
+  lift (Data.lookupUser WithPendingInvitations uid) >>= \case
     Just _ -> lift $ API.updateUser uid Nothing uu
     Nothing -> throwStd invalidUser
 

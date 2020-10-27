@@ -39,6 +39,8 @@ module Util.Core
     shouldRespondWith,
     module Test.Hspec,
     aFewTimes,
+    aFewTimesAssert,
+    aFewTimesRecover,
 
     -- * HTTP
     call,
@@ -276,7 +278,8 @@ pending = liftIO Test.Hspec.pending
 pendingWith :: (HasCallStack, MonadIO m) => String -> m ()
 pendingWith = liftIO . Test.Hspec.pendingWith
 
--- | Run a probe several times, until a "good" value materializes or until patience runs out.
+-- | Run a probe several times, until a "good" value materializes or until patience runs out
+-- (after ~2secs).
 -- If all retries were unsuccessful, 'aFewTimes' will return the last obtained value, even
 -- if it does not satisfy the predicate.
 aFewTimes :: TestSpar a -> (a -> Bool) -> TestSpar a
@@ -284,8 +287,21 @@ aFewTimes action good = do
   env <- ask
   liftIO $
     retrying
-      (exponentialBackoff 1000 <> limitRetries 10)
+      (exponentialBackoff 1000 <> limitRetries 11)
       (\_ -> pure . not . good)
+      (\_ -> action `runReaderT` env)
+
+aFewTimesAssert :: HasCallStack => TestSpar a -> (a -> Bool) -> TestSpar ()
+aFewTimesAssert action good = do
+  result <- aFewTimes action good
+  good result `assert` pure ()
+
+aFewTimesRecover :: TestSpar a -> TestSpar a
+aFewTimesRecover action = do
+  env <- ask
+  liftIO $
+    recoverAll
+      (exponentialBackoff 1000 <> limitRetries 10)
       (\_ -> action `runReaderT` env)
 
 -- | Duplicate of 'Spar.Intra.Brig.getBrigUser'.
@@ -1153,7 +1169,7 @@ getSsoidViaSelf uid = maybe (error "not found") pure =<< getSsoidViaSelf' uid
 
 getSsoidViaSelf' :: HasCallStack => UserId -> TestSpar (Maybe UserSSOId)
 getSsoidViaSelf' uid = do
-  musr <- aFewTimes (runSpar $ Intra.getBrigUser uid) isJust
+  musr <- aFewTimes (runSpar $ Intra.getBrigUser Intra.NoPendingInvitations uid) isJust
   pure $ case userIdentity =<< musr of
     Just (SSOIdentity ssoid _ _) -> Just ssoid
     Just (FullIdentity _ _) -> Nothing

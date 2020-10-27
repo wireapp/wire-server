@@ -53,6 +53,7 @@ module Brig.App
     turnEnvV2,
     sftEnv,
     internalEvents,
+    emailSender,
 
     -- * App Monad
     AppT,
@@ -126,6 +127,7 @@ import System.Logger.Class hiding (Settings, settings)
 import qualified System.Logger.Class as LC
 import qualified System.Logger.Extended as Log
 import Util.Options
+import Wire.API.User.Identity (Email)
 
 schemaVersion :: Int32
 schemaVersion = 61
@@ -139,6 +141,7 @@ data Env = Env
     _gundeck :: RPC.Request,
     _casClient :: Cas.ClientState,
     _smtpEnv :: Maybe SMTP.SMTP,
+    _emailSender :: Email,
     _awsEnv :: AWS.Env,
     _stompEnv :: Maybe Stomp.Env,
     _metrics :: Metrics,
@@ -212,6 +215,7 @@ newEnv o = do
         _gundeck = mkEndpoint $ Opt.gundeck o,
         _casClient = cas,
         _smtpEnv = emailSMTP,
+        _emailSender = Opt.emailSender . Opt.general . Opt.emailSMS $ o,
         _awsEnv = aws,
         _stompEnv = stomp,
         _metrics = mtr,

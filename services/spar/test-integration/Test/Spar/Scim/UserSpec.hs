@@ -1,3 +1,4 @@
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -29,8 +30,9 @@ where
 
 import Bilge
 import Bilge.Assert
-import Brig.Types.Intra (AccountStatus (Active, Suspended))
+import Brig.Types.Intra (AccountStatus (Active, PendingInvitation, Suspended), accountStatus, accountUser)
 import Brig.Types.User as Brig
+import qualified Control.Exception
 import Control.Lens
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
@@ -43,6 +45,7 @@ import Data.Handle (Handle (Handle), fromHandle)
 import Data.Id (TeamId, UserId, randomId)
 import Data.Ix (inRange)
 import Data.String.Conversions (cs)
+import Data.Text.Encoding (encodeUtf8)
 import Imports
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified SAML2.WebSSO.Types as SAML
@@ -54,6 +57,7 @@ import Spar.Types (IdP)
 import qualified Spar.Types
 import qualified Text.XML.DSig as SAML
 import Util
+import Util.Invitation (getInvitation, getInvitationCode, headInvitation404, registerInvitation)
 import qualified Web.Scim.Class.User as Scim.UserC
 import qualified Web.Scim.Filter as Filter
 import qualified Web.Scim.Schema.Common as Scim
@@ -61,7 +65,10 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.PatchOp as PatchOp
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Wire.API.Team.Feature as Feature
+import Wire.API.Team.Invitation (Invitation (..))
 import Wire.API.User.RichInfo
+import Wire.API.User.Search (SearchResult (..))
+import qualified Wire.API.User.Search as Search
 
 -- | Tests for @\/scim\/v2\/Users@.
 spec :: SpecWith TestEnv
@@ -178,10 +185,12 @@ specCreateUser = describe "POST /Users" $ do
   it "rejects attempts at setting a password" $ do
     testCreateUserWithPass
   context "team has no SAML IdP" $ do
-    it "creates an active user without an email, and triggers email validation" $ do
+    it "creates a user with PendingInvitation, and user can follow usual invitation process" $ do
       testCreateUserNoIdP
     it "fails if no email can be extraced from externalId" $ do
       testCreateUserNoIdPNoEmail
+    it "doesn't list users that exceed their invivtation period, and allows recreating them" $ do
+      testCreateUserTimeout
   context "team has one SAML IdP" $ do
     it "creates a user in an existing team" $ do
       testCreateUserWithSamlIdP
@@ -216,44 +225,103 @@ testCreateUserWithPass = do
 testCreateUserNoIdP :: TestSpar ()
 testCreateUserNoIdP = do
   env <- ask
+  let brig = env ^. teBrig
   email <- randomEmail
   scimUser <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
-  (_, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  (owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
   tok <- registerScimToken tid Nothing
   scimStoredUser <- createUser tok scimUser
+  liftIO $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just False
   let userid = scimUserId scimStoredUser
-      handle = Handle . Scim.User.userName . Scim.value . Scim.thing $ scimStoredUser
-  brigUser <-
-    aFewTimes (runSpar $ Intra.getBrigUser userid) isJust
-      >>= maybe (error "could not find user in brig") pure
-  brigUser `userShouldMatch` WrappedScimStoredUser scimStoredUser
-  liftIO $ userEmail brigUser `shouldBe` Nothing
-  accStatus <- runSpar $ Intra.getStatusMaybe userid
-  liftIO $ accStatus `shouldBe` Just Active
-  liftIO $ userManagedBy brigUser `shouldBe` ManagedByScim
+      handle = Handle $ Scim.User.userName scimUser
+      userName = Name . fromJust . Scim.User.displayName $ scimUser
 
-  let checkGet :: TestSpar ()
-      checkGet = do
-        susr <- getUser tok userid
-        WrappedScimStoredUser susr `userShouldMatch` WrappedScimStoredUser scimStoredUser
-        let usr = Scim.value . Scim.thing $ susr
-        liftIO $ Scim.User.active usr `shouldBe` Just True
-        liftIO $ Scim.User.externalId usr `shouldBe` Just (fromEmail email)
+  -- get account from brig, status should be PendingInvitation
+  do
+    aFewTimes (runSpar $ Intra.getBrigUserAccount Intra.NoPendingInvitations userid) isJust
+      >>= maybe (pure ()) (error "pending user in brig is visible, even though it should not be")
+    brigUserAccount <-
+      aFewTimes (runSpar $ Intra.getBrigUserAccount Intra.WithPendingInvitations userid) isJust
+        >>= maybe (error "could not find user in brig") pure
+    let brigUser = accountUser brigUserAccount
+    brigUser `userShouldMatch` WrappedScimStoredUser scimStoredUser
+    liftIO $ accountStatus brigUserAccount `shouldBe` PendingInvitation
+    liftIO $ userEmail brigUser `shouldBe` Just email
+    liftIO $ userManagedBy brigUser `shouldBe` ManagedByScim
 
-      checkSearch :: TestSpar ()
-      checkSearch = do
-        listUsers tok (Just (filterBy "userName" $ fromHandle handle)) >>= \users ->
-          liftIO $ users `shouldBe` [scimStoredUser]
-        listUsers tok (Just (filterBy "externalId" $ fromEmail email)) >>= \users ->
-          liftIO $ users `shouldBe` [scimStoredUser]
+  -- searching user in brig should fail
+  -- >>> searchUser brig owner userName False
+  -- Note: Cannot run this test here, because its delay would cause the invitation to
+  -- time out.
 
-  checkGet
-  checkSearch
-  call $ do
-    activateEmail (env ^. teBrig) email
-    checkEmail (env ^. teBrig) userid email
-  checkGet
-  checkSearch
+  -- scim-get should produce same stored user; stored user should be inactive and have an
+  -- email.
+  do
+    susr <- getUser tok userid
+    liftIO $ susr `shouldBe` scimStoredUser
+    let usr = Scim.value . Scim.thing $ susr
+    liftIO $ Scim.User.active usr `shouldBe` Just False
+    liftIO $ Scim.User.externalId usr `shouldBe` Just (fromEmail email)
+
+  -- scim search should succeed
+  do
+    listUsers tok (Just (filterBy "userName" $ fromHandle handle)) >>= \users ->
+      liftIO $ users `shouldBe` [scimStoredUser]
+    listUsers tok (Just (filterBy "externalId" $ fromEmail email)) >>= \users ->
+      liftIO $ users `shouldBe` [scimStoredUser]
+
+  -- user should be able to follow old team invitation flow
+  do
+    inv <- call $ getInvitation brig email
+    Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
+    registerInvitation email userName inviteeCode True
+    call $ headInvitation404 brig email
+
+  -- user should now be active
+  do
+    brigUser <-
+      aFewTimes (runSpar $ Intra.getBrigUserAccount Intra.NoPendingInvitations userid) isJust
+        >>= maybe (error "could not find user in brig") pure
+    liftIO $ accountStatus brigUser `shouldBe` Active
+    liftIO $ userManagedBy (accountUser brigUser) `shouldBe` ManagedByScim
+
+    susr <- getUser tok userid
+    let usr = Scim.value . Scim.thing $ susr
+    liftIO $ Scim.User.active usr `shouldNotBe` Just False
+
+  -- searching user in brig should succeed
+  searchUser brig owner userName True
+  where
+    -- cloned from brig's integration tests
+
+    searchUser :: HasCallStack => BrigReq -> UserId -> Name -> Bool -> TestSpar ()
+    searchUser brig searcherId searchTarget shouldSucceed = do
+      refreshIndex brig
+      aFewTimesAssert
+        ( do
+            let searchQuery = fromName searchTarget
+            resp <- call $ executeSearch brig searcherId searchQuery
+            pure $ searchFound resp
+        )
+        (if shouldSucceed then (> 0) else (== 0))
+
+    refreshIndex :: BrigReq -> TestSpar ()
+    refreshIndex brig = do
+      call $ void $ post (brig . path "/i/index/reindex" . expect2xx)
+      -- wait for async reindexing to complete (hopefully)
+      lift $ threadDelay 3_000_000
+
+    executeSearch :: BrigReq -> UserId -> Text -> Http (Search.SearchResult Search.Contact)
+    executeSearch brig self q = do
+      r <-
+        get
+          ( brig
+              . path "/search/contacts"
+              . zUser self
+              . queryItem "q" (encodeUtf8 q)
+              . expect2xx
+          )
+      responseJsonError r
 
 testCreateUserNoIdPNoEmail :: TestSpar ()
 testCreateUserNoIdPNoEmail = do
@@ -555,6 +623,63 @@ testScimCreateVsUserRef = do
       (call . delete $ brig . paths ["i", "users", toByteString' uid])
         !!! const 202 === statusCode
 
+testCreateUserTimeout :: TestSpar ()
+testCreateUserTimeout = do
+  env <- ask
+
+  (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  tok <- registerScimToken tid Nothing
+
+  email <- randomEmail
+  scimUser <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
+  let userName = Name . fromJust . Scim.User.displayName $ scimUser
+
+  (scimStoredUser1, _inv, inviteeCode) <- createUser'step tok tid scimUser email
+
+  waitUserExpiration
+  searchUser tok scimUser email False
+  registerInvitation email userName inviteeCode False
+  searchUser tok scimUser email False
+
+  (scimStoredUser2, _inv, inviteeCode2) <- createUser'step tok tid scimUser email
+
+  let id1 = (Scim.id . Scim.thing) scimStoredUser1
+  let id2 = (Scim.id . Scim.thing) scimStoredUser2
+  liftIO $ id1 `shouldNotBe` id2
+
+  registerInvitation email userName inviteeCode2 True
+  searchUser tok scimUser email True
+  waitUserExpiration
+  searchUser tok scimUser email True
+  where
+    createUser'step tok tid scimUser email = do
+      env <- ask
+      let brig = env ^. teBrig
+
+      scimStoredUser <- aFewTimesRecover (createUser tok scimUser)
+      inv <- call $ getInvitation brig email
+      Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
+      pure (scimStoredUser, inv, inviteeCode)
+
+    searchUser :: HasCallStack => Spar.Types.ScimToken -> Scim.User.User tag -> Email -> Bool -> TestSpar ()
+    searchUser tok scimUser email shouldSucceed = do
+      let handle = Handle . Scim.User.userName $ scimUser
+          tryquery qry =
+            aFewTimesAssert
+              (length <$> listUsers tok (Just qry))
+              (if shouldSucceed then (> 0) else (== 0))
+
+      tryquery (filterBy "userName" $ fromHandle handle)
+      tryquery (filterBy "externalId" $ fromEmail email)
+
+    waitUserExpiration = do
+      -- this should be something like @round . Brig.Options.setTeamInvitationTimeout . Brig.Options.optSettings .
+      -- view teBrigOpts $ env@, but if this goes out of sync with the brig config, we will only get benign false
+      -- negatives, and importing brig options into spar integration tests is just too awkward.
+      let setTeamInvitationTimeout = 5
+      Control.Exception.assert (setTeamInvitationTimeout < 30) $ do
+        threadDelay $ (setTeamInvitationTimeout + 1) * 1_000_000
+
 ----------------------------------------------------------------------------
 -- Listing users
 
@@ -606,7 +731,7 @@ testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO = do
   -- auto-provision user via saml
   memberWithSSO <- do
     uid <- loginSsoUserFirstTime idp privCreds
-    Just usr <- runSpar $ Intra.getBrigUser uid
+    Just usr <- runSpar $ Intra.getBrigUser Intra.NoPendingInvitations uid
     handle <- nextHandle
     runSpar $ Intra.setBrigUserHandle uid handle
     pure usr
@@ -619,7 +744,7 @@ testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO = do
   liftIO $ userManagedBy memberWithSSO `shouldBe` ManagedByWire
   users <- listUsers tok (Just (filterBy "externalId" externalId))
   liftIO $ (scimUserId <$> users) `shouldContain` [memberIdWithSSO]
-  Just brigUser' <- runSpar $ Intra.getBrigUser memberIdWithSSO
+  Just brigUser' <- runSpar $ Intra.getBrigUser Intra.NoPendingInvitations memberIdWithSSO
   liftIO $ userManagedBy brigUser' `shouldBe` ManagedByScim
 
 testFindTeamSettingsInvitedUserMigratedWithEmailInTeamWithSSO :: TestSpar ()
@@ -633,7 +758,7 @@ testFindTeamSettingsInvitedUserMigratedWithEmailInTeamWithSSO = do
 
   users' <- listUsers tok (Just (filterBy "externalId" emailInvited))
   liftIO $ (scimUserId <$> users') `shouldContain` [memberIdInvited]
-  Just brigUserInvited' <- runSpar $ Intra.getBrigUser (memberIdInvited)
+  Just brigUserInvited' <- runSpar $ Intra.getBrigUser Intra.NoPendingInvitations memberIdInvited
   liftIO $ userManagedBy brigUserInvited' `shouldBe` ManagedByScim
 
 testFindTeamSettingsInvitedUserMigratedWithEmailInTeamWithSSOViaUserId :: TestSpar ()
@@ -645,7 +770,7 @@ testFindTeamSettingsInvitedUserMigratedWithEmailInTeamWithSSOViaUserId = do
   let memberIdInvited = userId memberInvited
 
   _ <- getUser tok memberIdInvited
-  Just brigUserInvited' <- runSpar $ Intra.getBrigUser (memberIdInvited)
+  Just brigUserInvited' <- runSpar $ Intra.getBrigUser Intra.NoPendingInvitations (memberIdInvited)
   liftIO $ userManagedBy brigUserInvited' `shouldBe` ManagedByScim
 
 testFindProvisionedUserNoIdP :: TestSpar ()
@@ -665,7 +790,7 @@ testFindNonProvisionedUserNoIdP findBy = do
   uid <- userId <$> call (inviteAndRegisterUser (env ^. teBrig) owner teamid)
   handle <- nextHandle
   runSpar $ Intra.setBrigUserHandle uid handle
-  Just brigUser <- runSpar $ Intra.getBrigUser uid
+  Just brigUser <- runSpar $ Intra.getBrigUser Intra.NoPendingInvitations uid
   let Just email = userEmail brigUser
 
   do
@@ -680,7 +805,7 @@ testFindNonProvisionedUserNoIdP findBy = do
 
   do
     liftIO $ users `shouldBe` [uid]
-    Just brigUser' <- runSpar $ Intra.getBrigUser uid
+    Just brigUser' <- runSpar $ Intra.getBrigUser Intra.NoPendingInvitations uid
     liftIO $ userManagedBy brigUser' `shouldBe` ManagedByScim
     liftIO $ brigUser' `shouldBe` brigUser {userManagedBy = ManagedByScim}
 
@@ -765,7 +890,7 @@ testGetUser = do
 
 shouldBeManagedBy :: HasCallStack => UserId -> ManagedBy -> TestSpar ()
 shouldBeManagedBy uid flag = do
-  managedBy <- maybe (error "user not found") userManagedBy <$> runSpar (Intra.getBrigUser uid)
+  managedBy <- maybe (error "user not found") userManagedBy <$> runSpar (Intra.getBrigUser Intra.WithPendingInvitations uid)
   liftIO $ managedBy `shouldBe` flag
 
 -- | This is (roughly) the behavior on develop as well as on the branch where this test was
@@ -818,12 +943,12 @@ testGetUserWithNoHandle = do
   uid <- loginSsoUserFirstTime idp privcreds
   tok <- registerScimToken tid (Just (idp ^. SAML.idpId))
 
-  mhandle :: Maybe Handle <- maybe (error "user not found") userHandle <$> runSpar (Intra.getBrigUser uid)
+  mhandle :: Maybe Handle <- maybe (error "user not found") userHandle <$> runSpar (Intra.getBrigUser Intra.WithPendingInvitations uid)
   liftIO $ mhandle `shouldSatisfy` isNothing
 
   storedUser <- getUser tok uid
   liftIO $ (Scim.User.displayName . Scim.value . Scim.thing) storedUser `shouldSatisfy` isJust
-  mhandle' :: Maybe Handle <- aFewTimes (maybe (error "user not found") userHandle <$> runSpar (Intra.getBrigUser uid)) isJust
+  mhandle' :: Maybe Handle <- aFewTimes (maybe (error "user not found") userHandle <$> runSpar (Intra.getBrigUser Intra.WithPendingInvitations uid)) isJust
   liftIO $ mhandle' `shouldSatisfy` isJust
   liftIO $ (fromHandle <$> mhandle') `shouldBe` (Just . Scim.User.userName . Scim.value . Scim.thing $ storedUser)
 
@@ -1121,7 +1246,7 @@ testBrigSideIsUpdated = do
   validScimUser <-
     either (error . show) pure $
       validateScimUser' (Just idp) 999999 user'
-  brigUser <- maybe (error "no brig user") pure =<< runSpar (Intra.getBrigUser userid)
+  brigUser <- maybe (error "no brig user") pure =<< runSpar (Intra.getBrigUser Intra.WithPendingInvitations userid)
   brigUser `userShouldMatch` validScimUser
 
 ----------------------------------------------------------------------------
@@ -1303,7 +1428,7 @@ specDeleteUser = do
       storedUser <- createUser tok user
       let uid :: UserId = scimUserId storedUser
       uref :: SAML.UserRef <- do
-        usr <- runSpar $ Intra.getBrigUser uid
+        usr <- runSpar $ Intra.getBrigUser Intra.WithPendingInvitations uid
         let err = error . ("brig user without UserRef: " <>) . show
         case (`Intra.veidFromBrigUser` Nothing) <$> usr of
           bad@(Just (Right veid)) -> runValidExternalId pure (const $ err bad) veid
@@ -1312,7 +1437,7 @@ specDeleteUser = do
       deleteUser_ (Just tok) (Just uid) spar
         !!! const 204 === statusCode
       brigUser :: Maybe User <-
-        aFewTimes (runSpar $ Intra.getBrigUser uid) isNothing
+        aFewTimes (runSpar $ Intra.getBrigUser Intra.WithPendingInvitations uid) isNothing
       samlUser :: Maybe UserId <-
         aFewTimes (getUserIdViaRef' uref) isNothing
       scimUser <-

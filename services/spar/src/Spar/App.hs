@@ -36,7 +36,8 @@ module Spar.App
 where
 
 import Bilge
-import Brig.Types (ManagedBy (..))
+import Brig.Types (ManagedBy (..), userTeam)
+import Brig.Types.Intra (AccountStatus (..), accountStatus, accountUser)
 import Cassandra
 import qualified Cassandra as Cas
 import Control.Exception (assert)
@@ -170,27 +171,36 @@ wrapMonadClient action = do
 insertUser :: SAML.UserRef -> UserId -> Spar ()
 insertUser uref uid = wrapMonadClient $ Data.insertSAMLUser uref uid
 
--- | Look up user locally in table @spar.user@, then in brig, then return the 'UserId'.  If
--- either lookup fails, or user is not in a team, return 'Nothing'.  See also:
--- 'Spar.App.createUser'.
+-- | Look up user locally in table @spar.user@ or @spar.scim_user@ (depending on the
+-- argument), then in brig, then return the 'UserId'.  If either lookup fails, or user is not
+-- in a team, return 'Nothing'.
 --
--- It makes sense to require that users are required to be team members: the idp is created in
--- the context of a team, and the only way for users to be created is as team members.  If a
--- user is not a team member, it cannot have been created using SAML.
+-- It makes sense to require that users are required to be team members: both IdPs and SCIM
+-- tokens are created in the context of teams, and the only way for users to be created is as
+-- team members.  If a user is not a team member, it cannot have been created using SAML or
+-- SCIM.
+--
+-- If a user has been created via scim invite (ie., no IdP present), and has status
+-- 'PendingInvitation', its 'UserId' will be returned here, since for SCIM purposes it is an
+-- existing (if inactive) user.  If 'getUser' is called during SAML authentication, this may
+-- cause an inactive user to log in, but that's ok: `PendingActivation` means that email and
+-- password handshake have not been completed; it's still ok for the user to gain access to
+-- the team with valid SAML credentials.
 --
 -- ASSUMPTIONS: User creation on brig/galley is idempotent.  Any incomplete creation (because of
--- brig or galley crashing) will cause the lookup here to yield invalid user.
+-- brig or galley crashing) will cause the lookup here to yield 'Nothing'.
 getUser :: ValidExternalId -> Spar (Maybe UserId)
 getUser veid = do
   muid <- wrapMonadClient $ runValidExternalId Data.getSAMLUser Data.lookupScimExternalId veid
   case muid of
     Nothing -> pure Nothing
     Just uid -> do
-      itis <- isJust <$> Intra.getBrigUserTeam uid
+      let withpending = Intra.WithPendingInvitations -- see haddocks above
+      itis <- isJust <$> Intra.getBrigUserTeam withpending uid
       pure $ if itis then Just uid else Nothing
 
--- | Create a fresh 'Data.Id.UserId', store it on C* locally together with 'SAML.UserRef', then
--- create user on brig.  See also: 'Spar.App.getUser'.
+-- | Create a fresh 'UserId', store it on C* locally together with 'SAML.UserRef', then
+-- create user on brig.
 --
 -- The manual for the team admin should say this: when deleting a user, delete it on the IdP first,
 -- then delete it on the team admin page in wire.  If a user is deleted in wire but not in the IdP,
@@ -209,7 +219,7 @@ createSamlUserWithId :: UserId -> SAML.UserRef -> ManagedBy -> Spar ()
 createSamlUserWithId buid suid managedBy = do
   teamid <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (suid ^. uidTenant)
   uname <- either (throwSpar . SparBadUserName . cs) pure $ Intra.mkUserName Nothing (UrefOnly suid)
-  buid' <- Intra.createBrigUser (UrefOnly suid) buid teamid uname managedBy
+  buid' <- Intra.createBrigUserSAML suid buid teamid uname managedBy
   assert (buid == buid') $ pure ()
   insertUser suid buid
 
@@ -232,44 +242,53 @@ autoprovisionSamlUserWithId buid suid managedBy = do
   if null scimtoks
     then do
       createSamlUserWithId buid suid managedBy
-      validateEmailIfExists buid (UrefOnly suid)
+      validateEmailIfExists buid suid
     else
       throwError . SAML.Forbidden $
         "bad credentials (note that your team uses SCIM, "
           <> "which disables saml auto-provisioning)"
 
--- | If (a) user's 'NameID' is an email address and the team has email validation for SSO
--- enabled, or (b) user's SCIM externalId is an email address and there is no SAML involved:
+-- | If user's 'NameID' is an email address and the team has email validation for SSO enabled,
 -- make brig initiate the email validate procedure.
-validateEmailIfExists :: UserId -> ValidExternalId -> Spar ()
-validateEmailIfExists uid =
-  runValidExternalId
-    ( \case
-        (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email)) -> doValidate False email
-        _ -> pure ()
-    )
-    (doValidate True . Intra.emailToSAML)
+validateEmailIfExists :: UserId -> SAML.UserRef -> Spar ()
+validateEmailIfExists uid = \case
+  (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email)) -> doValidate email
+  _ -> pure ()
   where
-    doValidate :: Bool -> SAML.Email -> Spar ()
-    doValidate always email = do
+    doValidate :: SAML.Email -> Spar ()
+    doValidate email = do
       enabled <- do
-        tid <- Intra.getBrigUserTeam uid
+        tid <- Intra.getBrigUserTeam Intra.NoPendingInvitations uid
         maybe (pure False) Intra.isEmailValidationEnabledTeam tid
-      case enabled || always of
-        True -> Intra.updateEmail uid (Intra.emailFromSAML email)
-        False -> pure ()
+      when enabled $ do
+        Intra.updateEmail uid (Intra.emailFromSAML email)
 
--- | Check if 'UserId' is in the team that hosts the idp that owns the 'UserRef'.  If so, write the
--- 'UserRef' into the 'UserIdentity'.  Otherwise, throw an error.
+-- | Check if 'UserId' is in the team that hosts the idp that owns the 'UserRef'.  If so,
+-- register a the user under its SAML credentials and write the 'UserRef' into the
+-- 'UserIdentity'.  Otherwise, throw an error.
+--
+-- Before returning, change account status or fail if account is nto active or pending an
+-- invitation.
 bindUser :: UserId -> SAML.UserRef -> Spar UserId
 bindUser buid userref = do
-  do
-    teamid <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (userref ^. uidTenant)
-    mteamid' <- Intra.getBrigUserTeam buid
-    unless (mteamid' == Just teamid) $ do
-      throwSpar . SparBindFromWrongOrNoTeam . cs . show $ buid
+  oldStatus <- do
+    let err :: Spar a
+        err = throwSpar . SparBindFromWrongOrNoTeam . cs . show $ buid
+    teamid :: TeamId <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (userref ^. uidTenant)
+    acc <- Intra.getBrigUserAccount Intra.WithPendingInvitations buid >>= maybe err pure
+    teamid' :: TeamId <- userTeam (accountUser acc) & maybe err pure
+    unless (teamid' == teamid) err
+    pure (accountStatus acc)
   insertUser userref buid
-  buid <$ Intra.setBrigUserVeid buid (UrefOnly userref)
+  buid <$ do
+    Intra.setBrigUserVeid buid (UrefOnly userref)
+    let err = throwSpar . SparBindFromBadAccountStatus . cs . show
+    case oldStatus of
+      Active -> pure ()
+      Suspended -> err oldStatus
+      Deleted -> err oldStatus
+      Ephemeral -> err oldStatus
+      PendingInvitation -> Intra.setStatus buid Active
 
 instance SPHandler SparError Spar where
   type NTCTX Spar = Env
