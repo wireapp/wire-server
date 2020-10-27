@@ -233,9 +233,11 @@ createBrigUserNoSAML ::
   TeamId ->
   -- | User name
   Name ->
+  Handle ->
+  RichInfo ->
   m UserId
-createBrigUserNoSAML email teamid uname = do
-  let newUser = NewUserScimInvitation teamid Nothing uname email
+createBrigUserNoSAML email teamid uname uhandle richinfo = do
+  let newUser = NewUserScimInvitation teamid Nothing uname uhandle email richinfo
   resp :: Response (Maybe LBS) <-
     call $
       method POST

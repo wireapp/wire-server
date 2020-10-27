@@ -27,6 +27,7 @@ module Brig.Data.User
     newAccount,
     newAccountInviteViaScim,
     insertAccount,
+    insertAccountWithTTL,
     authenticate,
     reauthenticate,
     filterActive,
@@ -58,7 +59,9 @@ module Brig.Data.User
     updatePassword,
     updateStatus,
     updateHandle,
+    updateHandleWithTTL,
     updateRichInfo,
+    updateRichInfoWithTTL,
 
     -- * Deletions
     deleteEmail,
@@ -201,7 +204,19 @@ insertAccount ::
   -- | Whether the user is activated
   Bool ->
   AppIO ()
-insertAccount (UserAccount u status) mbConv password activated = retry x5 . batch $ do
+insertAccount = insertAccountWithTTL 0
+
+insertAccountWithTTL ::
+  Int32 ->
+  UserAccount ->
+  -- | If a bot: conversation and team
+  --   (if a team conversation)
+  Maybe (ConvId, Maybe TeamId) ->
+  Maybe Password ->
+  -- | Whether the user is activated
+  Bool ->
+  AppIO ()
+insertAccountWithTTL ttl (UserAccount u status) mbConv password activated = retry x5 . batch $ do
   setType BatchLogged
   setConsistency Quorum
   let Locale l c = userLocale u
@@ -225,7 +240,8 @@ insertAccount (UserAccount u status) mbConv password activated = retry x5 . batc
       view serviceRefId <$> userService u,
       userHandle u,
       userTeam u,
-      userManagedBy u
+      userManagedBy u,
+      ttl
     )
   for_ ((,) <$> userService u <*> mbConv) $ \(sref, (cid, mbTid)) -> do
     let pid = sref ^. serviceRefProvider
@@ -274,7 +290,10 @@ updateManagedBy :: UserId -> ManagedBy -> AppIO ()
 updateManagedBy u h = retry x5 $ write userManagedByUpdate (params Quorum (h, u))
 
 updateHandle :: UserId -> Handle -> AppIO ()
-updateHandle u h = retry x5 $ write userHandleUpdate (params Quorum (h, u))
+updateHandle = updateHandleWithTTL 0
+
+updateHandleWithTTL :: Int32 -> UserId -> Handle -> AppIO ()
+updateHandleWithTTL ttl u h = retry x5 $ write userHandleUpdate (params Quorum (ttl, h, u))
 
 updatePassword :: UserId -> PlainTextPassword -> AppIO ()
 updatePassword u t = do
@@ -282,7 +301,10 @@ updatePassword u t = do
   retry x5 $ write userPasswordUpdate (params Quorum (p, u))
 
 updateRichInfo :: UserId -> RichInfoAssocList -> AppIO ()
-updateRichInfo u ri = retry x5 $ write userRichInfoUpdate (params Quorum (ri, u))
+updateRichInfo = updateRichInfoWithTTL 0
+
+updateRichInfoWithTTL :: Int32 -> UserId -> RichInfoAssocList -> AppIO ()
+updateRichInfoWithTTL ttl u ri = retry x5 $ write userRichInfoUpdate (params Quorum (ttl, ri, u))
 
 deleteEmail :: UserId -> AppIO ()
 deleteEmail u = retry x5 $ write userEmailDelete (params Quorum (Identity u))
@@ -475,7 +497,8 @@ type UserRowInsert =
     Maybe ServiceId,
     Maybe Handle,
     Maybe TeamId,
-    ManagedBy
+    ManagedBy,
+    Int32
   )
 
 deriving instance Show UserRowInsert
@@ -548,7 +571,7 @@ userInsert =
   "INSERT INTO user (id, name, picture, assets, email, phone, sso_id, \
   \accent_id, password, activated, status, expires, language, \
   \country, provider, service, handle, team, managed_by) \
-  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) USING TTL ?"
 
 userDisplayNameUpdate :: PrepQuery W (Name, UserId) ()
 userDisplayNameUpdate = "UPDATE user SET name = ? WHERE id = ?"
@@ -574,8 +597,8 @@ userSSOIdUpdate = "UPDATE user SET sso_id = ? WHERE id = ?"
 userManagedByUpdate :: PrepQuery W (ManagedBy, UserId) ()
 userManagedByUpdate = "UPDATE user SET managed_by = ? WHERE id = ?"
 
-userHandleUpdate :: PrepQuery W (Handle, UserId) ()
-userHandleUpdate = "UPDATE user SET handle = ? WHERE id = ?"
+userHandleUpdate :: PrepQuery W (Int32, Handle, UserId) ()
+userHandleUpdate = "UPDATE user USING TTL ? SET handle = ? WHERE id = ?"
 
 userPasswordUpdate :: PrepQuery W (Password, UserId) ()
 userPasswordUpdate = "UPDATE user SET password = ? WHERE id = ?"
@@ -598,8 +621,8 @@ userEmailDelete = "UPDATE user SET email = null WHERE id = ?"
 userPhoneDelete :: PrepQuery W (Identity UserId) ()
 userPhoneDelete = "UPDATE user SET phone = null WHERE id = ?"
 
-userRichInfoUpdate :: PrepQuery W (RichInfoAssocList, UserId) ()
-userRichInfoUpdate = "UPDATE rich_info SET json = ? WHERE user = ?"
+userRichInfoUpdate :: PrepQuery W (Int32, RichInfoAssocList, UserId) ()
+userRichInfoUpdate = "UPDATE rich_info USING TTL ? SET json = ? WHERE user = ?"
 
 -------------------------------------------------------------------------------
 -- Conversions

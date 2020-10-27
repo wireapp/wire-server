@@ -35,11 +35,13 @@ where
 import Brig.Types.Connection
 import Brig.Types.User
 import Data.Aeson
+import Data.Handle (Handle)
 import qualified Data.HashMap.Strict as M
 import Data.Id (TeamId, UserId)
 import Data.Misc (PlainTextPassword (..))
 import qualified Data.Text as Text
 import Imports
+import Wire.API.User.RichInfo (RichInfo)
 
 -------------------------------------------------------------------------------
 -- AccountStatus
@@ -149,7 +151,9 @@ data NewUserScimInvitation = NewUserScimInvitation
   { newUserScimInvTeamId :: TeamId,
     newUserScimInvLocale :: Maybe Locale,
     newUserScimInvName :: Name,
-    newUserScimInvEmail :: Email
+    newUserScimInvHandle :: Handle,
+    newUserScimInvEmail :: Email,
+    newUserScimInvRichInfo :: RichInfo
   }
   deriving (Eq, Show, Generic)
 
@@ -159,15 +163,19 @@ instance FromJSON NewUserScimInvitation where
       <$> o .: "team_id"
       <*> o .:? "locale"
       <*> o .: "name"
+      <*> o .: "handle"
       <*> o .: "email"
+      <*> o .: "richinfo"
 
 instance ToJSON NewUserScimInvitation where
-  toJSON (NewUserScimInvitation tid loc name email) =
+  toJSON (NewUserScimInvitation tid loc name handle email richinfo) =
     object
       [ "team_id" .= tid,
         "locale" .= loc,
         "name" .= name,
-        "email" .= email
+        "handle" .= handle,
+        "email" .= email,
+        "richinfo" .= richinfo
       ]
 
 -------------------------------------------------------------------------------

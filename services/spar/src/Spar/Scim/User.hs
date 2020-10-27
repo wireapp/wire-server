@@ -317,22 +317,22 @@ createValidScimUser ScimTokenInfo {stiTeam} (ST.ValidScimUser veid handl name ri
           ( \uref ->
               do
                 uid <- liftIO $ Id <$> UUID.nextRandom
-                Brig.createBrigUserSAML uref uid stiTeam name ManagedByScim
+                void $ Brig.createBrigUserSAML uref uid stiTeam name ManagedByScim
+                -- {If we crash now, we have an active user that cannot login. And can not
+                -- be bound this will be a zombie user that needs to be manually cleaned
+                -- up.  We should consider making setUserHandle part of createUser and
+                -- making it transactional.  If the user redoes the POST A new standalone
+                -- user will be created.}
+                Brig.setBrigUserHandle uid handl
+                Brig.setBrigUserRichInfo uid richInfo
+                pure uid
           )
           ( \email -> do
-              Brig.createBrigUserNoSAML email stiTeam name
+              Brig.createBrigUserNoSAML email stiTeam name handl richInfo
           )
           veid
 
       Log.debug (Log.msg $ "createValidScimUser: brig says " <> show buid)
-
-      -- {If we crash now, we have an active user that cannot login. And can not
-      -- be bound this will be a zombie user that needs to be manually cleaned
-      -- up.  We should consider making setUserHandle part of createUser and
-      -- making it transactional.  If the user redoes the POST A new standalone
-      -- user will be created.}
-      Brig.setBrigUserHandle buid handl
-      Brig.setBrigUserRichInfo buid richInfo
       pure buid
 
   -- {If we crash now,  a POST retry will fail with 409 user already exists.

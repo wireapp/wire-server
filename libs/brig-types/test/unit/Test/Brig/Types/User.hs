@@ -55,4 +55,4 @@ instance Arbitrary ReAuthUser where
   arbitrary = ReAuthUser <$> arbitrary
 
 instance Arbitrary NewUserScimInvitation where
-  arbitrary = NewUserScimInvitation <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = NewUserScimInvitation <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary

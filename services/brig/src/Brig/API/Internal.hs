@@ -35,7 +35,6 @@ import qualified Brig.Data.User as Data
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
 import qualified Brig.Team.API as Team
-import Brig.Team.DB (lookupInvitationByEmail)
 import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
@@ -352,26 +351,13 @@ listActivatedAccounts elh includePendingInvitations = do
       byIds (catMaybes us)
   where
     byIds :: [UserId] -> AppIO [UserAccount]
-    byIds uids = API.lookupAccounts uids >>= filterM accountValid
+    byIds uids = API.lookupAccounts uids <&> filter accountValid
 
-    accountValid :: UserAccount -> AppIO Bool
-    accountValid account = case userIdentity . accountUser $ account of
-      Nothing -> pure False
-      Just ident ->
-        case (accountStatus account, includePendingInvitations, emailIdentity ident) of
-          (PendingInvitation, False, _) -> pure False
-          (PendingInvitation, True, Just email) -> do
-            hasInvitation <- isJust <$> lookupInvitationByEmail email
-            unless hasInvitation $ do
-              -- user invited via scim should expire together with its invitation
-              API.deleteUserNoVerify (userId . accountUser $ account)
-            pure hasInvitation
-          (PendingInvitation, True, Nothing) ->
-            pure True -- cannot happen, user invited via scim always has an email
-          (Active, _, _) -> pure True
-          (Suspended, _, _) -> pure True
-          (Deleted, _, _) -> pure True
-          (Ephemeral, _, _) -> pure True
+    accountValid :: UserAccount -> Bool
+    accountValid account = hasIdentity && (notPendingInvitation || includePendingInvitations)
+      where
+        hasIdentity = isJust . userIdentity . accountUser $ account
+        notPendingInvitation = accountStatus account /= PendingInvitation
 
 listAccountsByIdentityH :: JSON ::: Either Email Phone ::: Bool -> Handler Response
 listAccountsByIdentityH (_ ::: emailOrPhone ::: includePendingInvitations) =

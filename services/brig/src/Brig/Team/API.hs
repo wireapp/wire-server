@@ -238,7 +238,7 @@ createInvitationViaScimH (_ ::: req) = do
   setStatus status201 . json <$> createInvitationViaScim body
 
 createInvitationViaScim :: NewUserScimInvitation -> Handler UserAccount
-createInvitationViaScim newUser@(NewUserScimInvitation tid loc name email) = do
+createInvitationViaScim newUser@(NewUserScimInvitation tid loc name _ email _) = do
   env <- ask
   let inviteeRole = Team.defaultRole
       fromEmail = env ^. emailSender

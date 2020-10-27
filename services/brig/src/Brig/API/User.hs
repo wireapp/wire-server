@@ -135,6 +135,7 @@ import Data.List1 (List1)
 import qualified Data.Map.Strict as Map
 import Data.Misc (PlainTextPassword (..))
 import Data.Time.Clock (diffUTCTime)
+import Data.UUID (UUID)
 import Data.UUID.V4 (nextRandom)
 import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
@@ -142,6 +143,7 @@ import Imports
 import Network.Wai.Utilities
 import qualified System.Logger.Class as Log
 import System.Logger.Message
+import qualified Wire.API.User.RichInfo as RI
 
 -------------------------------------------------------------------------------
 -- Create User
@@ -180,6 +182,7 @@ createUser new@NewUser {..} = do
   for_ (catMaybes [emKey, phKey]) $ verifyUniquenessAndCheckBlacklist
   -- team user registration
   (newTeam, teamInvitation, tid) <- handleTeam (newUserTeam new) emKey
+  lift $ makeUserPermanent newUserUUID teamInvitation
 
   -- Create account
   (account, pw) <- lift $ do
@@ -346,11 +349,21 @@ createUser new@NewUser {..} = do
       Team.TeamName nm <- lift $ Intra.getTeamName tid
       pure $ CreateUserTeam tid nm
 
+makeUserPermanent :: Maybe UUID -> Maybe (Team.Invitation, Team.InvitationInfo) -> AppIO ()
+makeUserPermanent muid teamInvitation = do
+  case (muid, teamInvitation) of
+    (Just (Id -> uid), Just _) -> do
+      mbAccount <- Data.lookupAccount uid
+      (\account -> Data.insertAccount account Nothing Nothing True) `mapM_` mbAccount
+      mbRichInfo <- Data.lookupRichInfo uid
+      Data.updateRichInfo uid `mapM_` mbRichInfo
+    _ -> pure ()
+
 -- | 'createUser' is becoming hard to maintian, and instead of adding more case distinctions
 -- all over the place there, we add a new function that handles just the one new flow where
 -- users are invited to the team via scim.
 createUserInviteViaScim :: UserId -> NewUserScimInvitation -> ExceptT Error.Error AppIO UserAccount
-createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = (`catchE` (throwE . Error.newUserError)) $ do
+createUserInviteViaScim uid (NewUserScimInvitation tid loc name handle rawEmail richinfo) = (`catchE` (throwE . Error.newUserError)) $ do
   email <- either (throwE . InvalidEmail rawEmail) pure (validateEmail rawEmail)
   let emKey = userEmailKey email
   verifyUniquenessAndCheckBlacklist emKey
@@ -362,7 +375,11 @@ createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = (`ca
         -- would not produce an identity, and so we won't have the email address to construct
         -- the SCIM user.
         True
-  lift $ Data.insertAccount account Nothing Nothing activated
+  ttl <- round . setTeamInvitationTimeout <$> view settings
+  lift $ do
+    Data.insertAccountWithTTL ttl account Nothing Nothing activated
+    Data.updateHandleWithTTL ttl uid handl
+    Data.updateRichInfoWithTTL ttl uid (RI.unRichInfo richinfo)
   return account
 
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.
