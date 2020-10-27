@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 54710b4d4da7f1d6f621e0c28ded0702090f208db2f230715c129480502db771
+-- hash: f5759b67f405a520b79f87b6f477e9e7ff7f2837ff7bb47c92d6d49eecf78c40
 
 name:           spar
 version:        0.1
@@ -50,6 +50,7 @@ library
     , aeson
     , aeson-pretty
     , aeson-qq
+    , attoparsec
     , base
     , base64-bytestring
     , bilge
@@ -80,6 +81,7 @@ library
     , insert-ordered-containers
     , interpolate
     , lens
+    , memory
     , metrics-core
     , metrics-wai
     , mtl
@@ -128,6 +130,7 @@ executable spar
     , aeson
     , aeson-pretty
     , aeson-qq
+    , attoparsec
     , base
     , base64-bytestring
     , bilge
@@ -158,6 +161,7 @@ executable spar
     , insert-ordered-containers
     , interpolate
     , lens
+    , memory
     , metrics-core
     , metrics-wai
     , mtl
@@ -224,6 +228,7 @@ executable spar-integration
     , aeson-pretty
     , aeson-qq
     , async
+    , attoparsec
     , base
     , base64-bytestring
     , bilge
@@ -258,6 +263,7 @@ executable spar-integration
     , interpolate
     , lens
     , lens-aeson
+    , memory
     , metrics-core
     , metrics-wai
     , mtl
@@ -329,6 +335,7 @@ executable spar-schema
     , aeson
     , aeson-pretty
     , aeson-qq
+    , attoparsec
     , base
     , base64-bytestring
     , bilge
@@ -359,6 +366,7 @@ executable spar-schema
     , insert-ordered-containers
     , interpolate
     , lens
+    , memory
     , metrics-core
     , metrics-wai
     , mtl
@@ -416,6 +424,7 @@ test-suite spec
     , aeson
     , aeson-pretty
     , aeson-qq
+    , attoparsec
     , base
     , base64-bytestring
     , bilge
@@ -449,6 +458,7 @@ test-suite spec
     , interpolate
     , lens
     , lens-aeson
+    , memory
     , metrics-core
     , metrics-wai
     , mtl

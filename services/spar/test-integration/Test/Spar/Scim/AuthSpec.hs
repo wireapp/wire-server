@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -27,13 +28,22 @@ where
 
 import Bilge
 import Bilge.Assert
+import Cassandra as Cas
 import Control.Lens
+import qualified Data.ByteString.Base64 as ES
+import Data.Id (ScimTokenId, TeamId, randomId)
 import Data.Misc (PlainTextPassword (..))
+import Data.String.Conversions (cs)
+import Data.Time (UTCTime)
+import Data.Time.Clock (getCurrentTime)
 import qualified Galley.Types.Teams as Galley
 import Imports
+import OpenSSL.Random (randBytes)
+import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Test.Util as SAML
 import Spar.Scim
-import Spar.Types (ScimTokenInfo (..))
+import Spar.Types (ScimToken (..), ScimTokenInfo (..), ScimTokenLookupKey (..), hashScimToken)
+import Text.RawString.QQ (r)
 import Util
 
 -- | Tests for authentication and operations with provisioning tokens ('ScimToken's).
@@ -193,6 +203,7 @@ testCreateTokenRequiresPassword = do
 specListTokens :: SpecWith TestEnv
 specListTokens = describe "GET /auth-tokens" $ do
   it "works" $ testListTokens
+  it "converts legacy plaintext tokens" $ testPlaintextTokensAreConverted
 
 -- | Test that existing tokens can be listed.
 testListTokens :: TestSpar ()
@@ -218,6 +229,75 @@ testListTokens = do
   liftIO $
     map stiDescr list
       `shouldBe` ["testListTokens / #1", "testListTokens / #2"]
+
+testPlaintextTokensAreConverted :: TestSpar ()
+testPlaintextTokensAreConverted = do
+  (_, teamId, _) <- registerTestIdP
+
+  -- create a legacy plaintext token in the DB
+  token <- createLegacyPlaintextToken teamId
+  countTokensInDB (ScimTokenLookupKeyPlaintext token) >>= liftIO . (`shouldBe` 1)
+
+  -- scim token can be used.
+  -- This use causes the plaintext token to be converted to a hashed version
+  void $ listUsers token (Just (filterBy "userName" $ "foo"))
+
+  -- The previous use of the token causes its DB entry to be hashed
+  -- The plaintext entry is gone
+  countTokensInDB (ScimTokenLookupKeyPlaintext token) >>= liftIO . (`shouldBe` 0)
+
+  -- The hashed entry can be found
+  let hashedToken = hashScimToken token
+  countTokensInDB (ScimTokenLookupKeyHashed hashedToken) >>= liftIO . (`shouldBe` 1)
+
+  -- token can still be used
+  void $ listUsers token (Just (filterBy "userName" $ "foo"))
+  where
+    wrapMonadClient :: Cas.Client a -> TestSpar a
+    wrapMonadClient action = do
+      env <- ask
+      let clientState = env ^. teCql
+      runClient clientState action
+
+    createLegacyPlaintextToken :: TeamId -> TestSpar ScimToken
+    createLegacyPlaintextToken teamId = do
+      token <- ScimToken . cs . ES.encode <$> liftIO (randBytes 32)
+      tokenId <- randomId
+      now <- liftIO $ getCurrentTime
+      let descr = "legacy test token"
+      wrapMonadClient $ do
+        retry x5 . batch $ do
+          setType BatchLogged
+          setConsistency Quorum
+          addPrepQuery insByToken (ScimTokenLookupKeyPlaintext token, teamId, tokenId, now, Nothing, descr)
+          addPrepQuery insByTeam (ScimTokenLookupKeyPlaintext token, teamId, tokenId, now, Nothing, descr)
+      pure token
+
+    insByToken, insByTeam :: PrepQuery W (ScimTokenLookupKey, TeamId, ScimTokenId, UTCTime, Maybe SAML.IdPId, Text) ()
+    insByToken =
+      [r|
+      INSERT INTO team_provisioning_by_token
+        (token_, team, id, created_at, idp, descr)
+        VALUES (?, ?, ?, ?, ?, ?)
+      |]
+    insByTeam =
+      [r|
+      INSERT INTO team_provisioning_by_team
+        (token_, team, id, created_at, idp, descr)
+        VALUES (?, ?, ?, ?, ?, ?)
+      |]
+
+    countTokensInDB :: ScimTokenLookupKey -> TestSpar Int64
+    countTokensInDB key =
+      wrapMonadClient $ do
+        count <- runIdentity <$$> (retry x1 . query1 selByKey $ params Quorum (Identity key))
+        pure $ fromMaybe 0 count
+
+    selByKey :: PrepQuery R (Identity ScimTokenLookupKey) (Identity Int64)
+    selByKey =
+      [r|
+      SELECT COUNT(*) FROM team_provisioning_by_token WHERE token_ = ?
+      |]
 
 ----------------------------------------------------------------------------
 -- Token deletion
