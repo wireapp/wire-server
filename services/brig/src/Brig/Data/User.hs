@@ -58,7 +58,6 @@ module Brig.Data.User
     updateLocale,
     updatePassword,
     updateStatus,
-    updateHandle,
     updateHandleWithTTL,
     updateRichInfo,
     updateRichInfoWithTTL,
@@ -288,9 +287,6 @@ updateSSOId u ssoid = do
 
 updateManagedBy :: UserId -> ManagedBy -> AppIO ()
 updateManagedBy u h = retry x5 $ write userManagedByUpdate (params Quorum (h, u))
-
-updateHandle :: UserId -> Handle -> AppIO ()
-updateHandle = updateHandleWithTTL 0
 
 updateHandleWithTTL :: Int32 -> UserId -> Handle -> AppIO ()
 updateHandleWithTTL ttl u h = retry x5 $ write userHandleUpdate (params Quorum (ttl, h, u))

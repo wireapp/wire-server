@@ -423,10 +423,13 @@ changeManagedBy uid conn (ManagedByUpdate mb) = do
 -- Change Handle
 
 changeHandle :: UserId -> Maybe ConnId -> Handle -> ExceptT ChangeHandleError AppIO ()
-changeHandle = changeHandleWithTTL 0
+changeHandle = changeHandleWith Nothing
 
 changeHandleWithTTL :: Int32 -> UserId -> Maybe ConnId -> Handle -> ExceptT ChangeHandleError AppIO ()
-changeHandleWithTTL ttl uid mconn hdl = do
+changeHandleWithTTL = changeHandleWith . Just
+
+changeHandleWith :: Maybe Int32 -> UserId -> Maybe ConnId -> Handle -> ExceptT ChangeHandleError AppIO ()
+changeHandleWith mbTTL uid mconn hdl = do
   when (isBlacklistedHandle hdl) $
     throwE ChangeHandleInvalid
   usr <- lift $ Data.lookupUser WithPendingInvitations uid
@@ -437,7 +440,7 @@ changeHandleWithTTL ttl uid mconn hdl = do
     claim u = do
       unless (isJust (userIdentity u)) $
         throwE ChangeHandleNoIdentity
-      claimed <- lift $ claimHandleWithTTL ttl (userId u) (userHandle u) hdl
+      claimed <- lift $ claimHandleWithTTL mbTTL (userId u) (userHandle u) hdl
       unless claimed $
         throwE ChangeHandleExists
       lift $ Intra.onUserEvent uid mconn (handleUpdated uid hdl)

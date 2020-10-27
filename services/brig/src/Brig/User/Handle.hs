@@ -17,8 +17,7 @@
 
 -- | Ownership of unique user handles.
 module Brig.User.Handle
-  ( claimHandle,
-    claimHandleWithTTL,
+  ( claimHandleWithTTL,
     freeHandle,
     lookupHandle,
     glimpseHandle,
@@ -35,16 +34,8 @@ import Data.Id
 import Imports
 
 -- | Claim a new handle for an existing 'User'.
-claimHandle :: UserId -> Maybe Handle -> Handle -> AppIO Bool
-claimHandle uid oldHandle newHandle = isJust <$> claimHandleWith Nothing (User.updateHandle) uid oldHandle newHandle
-
-claimHandleWithTTL :: Int32 -> UserId -> Maybe Handle -> Handle -> AppIO Bool
-claimHandleWithTTL ttl uid oldHandle newHandle = isJust <$> claimHandleWith (Just ttl) (User.updateHandleWithTTL ttl) uid oldHandle newHandle
-
--- | Claim a handle for an invitation or a user.  Invitations can be referenced by the coerced
--- 'UserId'.
-claimHandleWith :: Maybe Int32 -> (UserId -> Handle -> AppIO a) -> UserId -> Maybe Handle -> Handle -> AppIO (Maybe a)
-claimHandleWith mbTTL updOperation uid oldHandle h = do
+claimHandleWithTTL :: Maybe Int32 -> UserId -> Maybe Handle -> Handle -> AppIO Bool
+claimHandleWithTTL mbTTL uid oldHandle h = fmap isJust $ do
   owner <- lookupHandle h
   case owner of
     Just uid' | uid /= uid' -> return Nothing
@@ -58,9 +49,9 @@ claimHandleWith mbTTL updOperation uid oldHandle h = do
         runAppT env $
           do
             -- Record ownership
-            retry x5 $ write handleInsert (params Quorum (h, uid))
+            retry x5 $ write handleInsert (params Quorum (h, uid, fromMaybe 0 mbTTL))
             -- Update profile
-            result <- updOperation uid h
+            result <- User.updateHandleWithTTL (fromMaybe 0 mbTTL) uid h
             -- Free old handle (if it changed)
             for_ (mfilter (/= h) oldHandle) $
               freeHandle uid
@@ -91,8 +82,8 @@ lookupHandleWithPolicy policy h = do
 --------------------------------------------------------------------------------
 -- Queries
 
-handleInsert :: PrepQuery W (Handle, UserId) ()
-handleInsert = "INSERT INTO user_handle (handle, user) VALUES (?, ?)"
+handleInsert :: PrepQuery W (Handle, UserId, Int32) ()
+handleInsert = "INSERT INTO user_handle (handle, user) VALUES (?, ?) USING TTL ?"
 
 handleSelect :: PrepQuery R (Identity Handle) (Identity (Maybe UserId))
 handleSelect = "SELECT user FROM user_handle WHERE handle = ?"
