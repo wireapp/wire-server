@@ -126,7 +126,7 @@ import Control.Lens (view, (^.))
 import Control.Monad.Catch
 import Data.ByteString.Conversion
 import qualified Data.Currency as Currency
-import Data.Handle (Handle)
+import Data.Handle (Handle, fromHandle)
 import Data.Id as Id
 import Data.IdMapping (MappedOrLocalId, partitionMappedOrLocalIds)
 import Data.Json.Util
@@ -362,10 +362,11 @@ makeUserPermanent muid teamInvitation = do
 -- all over the place there, we add a new function that handles just the one new flow where
 -- users are invited to the team via scim.
 createUserInviteViaScim :: UserId -> NewUserScimInvitation -> ExceptT Error.Error AppIO UserAccount
-createUserInviteViaScim uid (NewUserScimInvitation tid loc name handl rawEmail richinfo) = (`catchE` (throwE . Error.newUserError)) $ do
-  email <- either (throwE . InvalidEmail rawEmail) pure (validateEmail rawEmail)
+createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawHandl rawEmail richinfo) = do
+  email <- either (throwE . Error.newUserError . InvalidEmail rawEmail) pure (validateEmail rawEmail)
+  handl <- validateHandle (fromHandle rawHandl)
   let emKey = userEmailKey email
-  verifyUniquenessAndCheckBlacklist emKey
+  verifyUniquenessAndCheckBlacklist emKey `catchE` (throwE . Error.newUserError)
   account <- lift $ Data.newAccountInviteViaScim uid tid loc name email
   Log.debug $ field "user" (toByteString . userId . accountUser $ account) . field "action" (Log.val "User.createUserInviteViaScim")
   let activated =
@@ -375,10 +376,9 @@ createUserInviteViaScim uid (NewUserScimInvitation tid loc name handl rawEmail r
         -- the SCIM user.
         True
   ttl <- round . setTeamInvitationTimeout <$> view settings
-  lift $ do
-    Data.insertAccountWithTTL ttl account Nothing Nothing activated
-    Data.updateHandleWithTTL ttl uid handl
-    Data.updateRichInfoWithTTL ttl uid (RI.unRichInfo richinfo)
+  lift $ Data.insertAccountWithTTL ttl account Nothing Nothing activated
+  changeHandleWithTTL ttl uid Nothing handl `catchE` (throwE . Error.changeHandleError)
+  lift $ Data.updateRichInfoWithTTL ttl uid (RI.unRichInfo richinfo)
   return account
 
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.
@@ -423,7 +423,10 @@ changeManagedBy uid conn (ManagedByUpdate mb) = do
 -- Change Handle
 
 changeHandle :: UserId -> Maybe ConnId -> Handle -> ExceptT ChangeHandleError AppIO ()
-changeHandle uid mconn hdl = do
+changeHandle = changeHandleWithTTL 0
+
+changeHandleWithTTL :: Int32 -> UserId -> Maybe ConnId -> Handle -> ExceptT ChangeHandleError AppIO ()
+changeHandleWithTTL ttl uid mconn hdl = do
   when (isBlacklistedHandle hdl) $
     throwE ChangeHandleInvalid
   usr <- lift $ Data.lookupUser WithPendingInvitations uid
@@ -434,7 +437,7 @@ changeHandle uid mconn hdl = do
     claim u = do
       unless (isJust (userIdentity u)) $
         throwE ChangeHandleNoIdentity
-      claimed <- lift $ claimHandle (userId u) (userHandle u) hdl
+      claimed <- lift $ claimHandleWithTTL ttl (userId u) (userHandle u) hdl
       unless claimed $
         throwE ChangeHandleExists
       lift $ Intra.onUserEvent uid mconn (handleUpdated uid hdl)

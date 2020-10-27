@@ -18,6 +18,7 @@
 -- | Ownership of unique user handles.
 module Brig.User.Handle
   ( claimHandle,
+    claimHandleWithTTL,
     freeHandle,
     lookupHandle,
     glimpseHandle,
@@ -35,19 +36,25 @@ import Imports
 
 -- | Claim a new handle for an existing 'User'.
 claimHandle :: UserId -> Maybe Handle -> Handle -> AppIO Bool
-claimHandle uid oldHandle newHandle = isJust <$> claimHandleWith (User.updateHandle) uid oldHandle newHandle
+claimHandle uid oldHandle newHandle = isJust <$> claimHandleWith Nothing (User.updateHandle) uid oldHandle newHandle
+
+claimHandleWithTTL :: Int32 -> UserId -> Maybe Handle -> Handle -> AppIO Bool
+claimHandleWithTTL ttl uid oldHandle newHandle = isJust <$> claimHandleWith (Just ttl) (User.updateHandleWithTTL ttl) uid oldHandle newHandle
 
 -- | Claim a handle for an invitation or a user.  Invitations can be referenced by the coerced
 -- 'UserId'.
-claimHandleWith :: (UserId -> Handle -> AppIO a) -> UserId -> Maybe Handle -> Handle -> AppIO (Maybe a)
-claimHandleWith updOperation uid oldHandle h = do
+claimHandleWith :: Maybe Int32 -> (UserId -> Handle -> AppIO a) -> UserId -> Maybe Handle -> Handle -> AppIO (Maybe a)
+claimHandleWith mbTTL updOperation uid oldHandle h = do
   owner <- lookupHandle h
   case owner of
     Just uid' | uid /= uid' -> return Nothing
     _ -> do
       env <- ask
       let key = "@" <> fromHandle h
-      withClaim uid key (30 # Minute) $
+          claimTTL = case mbTTL of
+            Nothing -> (30 # Minute)
+            Just ttl -> min (30 # Minute) (fromIntegral ttl # Second)
+      withClaim uid key claimTTL $
         runAppT env $
           do
             -- Record ownership
