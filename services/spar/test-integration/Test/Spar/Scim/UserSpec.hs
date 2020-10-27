@@ -246,6 +246,8 @@ testCreateUserNoIdP = do
     let brigUser = accountUser brigUserAccount
     brigUser `userShouldMatch` WrappedScimStoredUser scimStoredUser
     liftIO $ accountStatus brigUserAccount `shouldBe` PendingInvitation
+    liftIO $ userDisplayName brigUser `shouldBe` userName
+    liftIO $ userHandle brigUser `shouldBe` (Just handle)
     liftIO $ userEmail brigUser `shouldBe` Just email
     liftIO $ userManagedBy brigUser `shouldBe` ManagedByScim
 
