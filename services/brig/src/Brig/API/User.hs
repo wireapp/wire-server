@@ -98,7 +98,6 @@ import qualified Brig.Data.Client as Data
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.PasswordReset as Data
 import qualified Brig.Data.Properties as Data
-import Brig.Data.User
 import qualified Brig.Data.User as Data
 import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
@@ -195,7 +194,7 @@ createUser new@NewUser {..} = do
               pure (new {newUserManagedBy = Just . userManagedBy . accountUser $ existingAccount})
             Nothing -> pure new
         Nothing -> pure new
-    newAccount new' {newUserIdentity = ident} (Team.inInvitation . fst <$> teamInvitation) tid
+    Data.newAccount new' {newUserIdentity = ident} (Team.inInvitation . fst <$> teamInvitation) tid
 
   let uid = userId (accountUser account)
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.createUser")
@@ -325,7 +324,7 @@ createUser new@NewUser {..} = do
       unless added $
         throwE TooManyTeamMembers
       lift $ do
-        activateUser uid ident -- ('insertAccount' sets column activated to False; here it is set to True.)
+        Data.activateUser uid ident -- ('insertAccount' sets column activated to False; here it is set to True.)
         void $ onActivated (AccountActivated account)
         Log.info $
           field "user" (toByteString uid)
@@ -340,7 +339,7 @@ createUser new@NewUser {..} = do
       unless added $
         throwE TooManyTeamMembers
       lift $ do
-        activateUser uid ident
+        Data.activateUser uid ident
         void $ onActivated (AccountActivated account)
         Log.info $
           field "user" (toByteString uid)
@@ -363,11 +362,11 @@ makeUserPermanent muid teamInvitation = do
 -- all over the place there, we add a new function that handles just the one new flow where
 -- users are invited to the team via scim.
 createUserInviteViaScim :: UserId -> NewUserScimInvitation -> ExceptT Error.Error AppIO UserAccount
-createUserInviteViaScim uid (NewUserScimInvitation tid loc name handle rawEmail richinfo) = (`catchE` (throwE . Error.newUserError)) $ do
+createUserInviteViaScim uid (NewUserScimInvitation tid loc name handl rawEmail richinfo) = (`catchE` (throwE . Error.newUserError)) $ do
   email <- either (throwE . InvalidEmail rawEmail) pure (validateEmail rawEmail)
   let emKey = userEmailKey email
   verifyUniquenessAndCheckBlacklist emKey
-  account <- lift $ newAccountInviteViaScim uid tid loc name email
+  account <- lift $ Data.newAccountInviteViaScim uid tid loc name email
   Log.debug $ field "user" (toByteString . userId . accountUser $ account) . field "action" (Log.val "User.createUserInviteViaScim")
   let activated =
         -- It would be nice to set this to 'False' to make sure we're not accidentally
