@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: fcfbd52b153b1454a0bfcb5ed0a914a74cd3a53155171dba5aef047caf76b3e9
+-- hash: 5b23add6d90e5fa38e933ba872f9d6d79319ac2b03289e67fdc119982f5313a6
 
 name:           bonanza
 version:        3.6.0
@@ -64,7 +64,6 @@ library
     , ekg-core
     , exceptions
     , geoip2
-    , hs-GeoIP ==0.3.*
     , http-client
     , http-types
     , imports
