@@ -39,7 +39,9 @@ import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
 import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
+import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra (AccountStatus (Ephemeral), UserAccount (UserAccount, accountUser))
+import Brig.Types.User (HavePendingInvitations (..))
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
 import qualified Brig.User.Auth.Cookie as Auth
@@ -74,6 +76,7 @@ import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
+import qualified System.Logger.Class as Log
 import qualified Wire.API.Connection as Public
 import qualified Wire.API.Properties as Public
 import qualified Wire.API.Swagger as Public.Swagger (models)
@@ -334,7 +337,7 @@ sitemap o = do
       Doc.description "JSON body"
     Doc.response 200 "Password changed." Doc.end
     Doc.errorResponse badCredentials
-    Doc.errorResponse noIdentity
+    Doc.errorResponse (noIdentity 4)
 
   put "/self/locale" (continue changeLocaleH) $
     zauthUserId
@@ -451,7 +454,7 @@ sitemap o = do
     Doc.response 201 "The connection was created." Doc.end
     Doc.errorResponse connectionLimitReached
     Doc.errorResponse invalidUser
-    Doc.errorResponse noIdentity
+    Doc.errorResponse (noIdentity 5)
 
   get "/connections" (continue listConnectionsH) $
     accept "application" "json"
@@ -955,8 +958,8 @@ getRichInfo :: UserId -> UserId -> Handler Public.RichInfoAssocList
 getRichInfo self user = do
   -- Check that both users exist and the requesting user is allowed to see rich info of the
   -- other user
-  selfUser <- ifNothing userNotFound =<< lift (Data.lookupUser self)
-  otherUser <- ifNothing userNotFound =<< lift (Data.lookupUser user)
+  selfUser <- ifNothing userNotFound =<< lift (Data.lookupUser NoPendingInvitations self)
+  otherUser <- ifNothing userNotFound =<< lift (Data.lookupUser NoPendingInvitations user)
   case (Public.userTeam selfUser, Public.userTeam otherUser) of
     (Just t1, Just t2) | t1 == t2 -> pure ()
     _ -> throwStd insufficientTeamPermissions
@@ -987,6 +990,7 @@ createUser (Public.NewUserPublic new) = do
   for_ (Public.newUserPhone new) $ checkWhitelist . Right
   result <- API.createUser new !>> newUserError
   let acc = createdAccount result
+  lift $ Log.debug (Log.msg $ "createUser: acc: " <> show acc)
   let eac = createdEmailActivation result
   let pac = createdPhoneActivation result
   let epair = (,) <$> (activationKey <$> eac) <*> (activationCode <$> eac)
@@ -1009,6 +1013,7 @@ createUser (Public.NewUserPublic new) = do
     UserAccount _ _ -> lift $ Auth.newCookie @ZAuth.User userId Public.PersistentCookie newUserLabel
   pure $ CreateUserResponse cok userId (Public.SelfProfile usr)
   where
+    sendActivationEmail :: Public.Email -> Public.Name -> ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> AppIO ()
     sendActivationEmail e u p l mTeamUser
       | Just teamUser <- mTeamUser,
         Public.NewTeamCreator creator <- teamUser,
@@ -1016,6 +1021,7 @@ createUser (Public.NewUserPublic new) = do
         sendTeamActivationMail e u p l (fromRange $ team ^. Public.newTeamName)
       | otherwise =
         sendActivationMail e u p l Nothing
+
     sendWelcomeEmail :: Public.Email -> CreateUserTeam -> Public.NewTeamUser -> Maybe Public.Locale -> AppIO ()
     -- NOTE: Welcome e-mails for the team creator are not dealt by brig anymore
     sendWelcomeEmail e (CreateUserTeam t n) newUser l = case newUser of

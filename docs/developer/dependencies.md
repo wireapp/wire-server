@@ -20,7 +20,7 @@ sudo dnf install -y pkgconfig haskell-platform libstdc++-devel libstdc++-static 
 _Note_: Debian is not recommended due to this issue when running local integration tests: [#327](https://github.com/wireapp/wire-server/issues/327). This issue does not occur with Ubuntu.
 
 ```bash
-sudo apt install pkg-config libsodium-dev openssl-dev libtool automake build-essential libicu-dev libsnappy-dev libgeoip-dev protobuf-compiler libxml2-dev zlib1g-dev -y
+sudo apt install pkg-config libsodium-dev openssl-dev libtool automake build-essential libicu-dev libsnappy-dev libgeoip-dev protobuf-compiler libxml2-dev zlib1g-dev libtinfo-dev -y
 ```
 
 If `openssl-dev` does not work for you, try `libssl-dev`.
@@ -30,7 +30,7 @@ If `openssl-dev` does not work for you, try `libssl-dev`.
 ```
 # You might also need 'sudo pacman -S base-devel' if you haven't
 # installed the base-devel group already.
-sudo pacman -S geoip snappy icu openssl
+sudo pacman -S geoip snappy icu openssl ncurses-compat-libs
 ```
 
 ### macOS:
@@ -175,11 +175,6 @@ docker login --username=<MY_DOCKER_USERNAME>
 ## Nix
 
 Using Stack's [Nix integration](https://docs.haskellstack.org/en/stable/nix_integration/), Stack will take care of installing any system
-dependencies automatically - including `cryptobox-c`. If new system dependencies are needed, add them to the `shell.nix` file in the project root.
+dependencies automatically - including `cryptobox-c`. If new system dependencies are needed, add them to the `stack-deps.nix` file in the project root.
 Just type `$ nix-shell` and you will automatically have `make`, `docker-compose` and `stack` in `PATH`.
 You can then run all the builds, and the native dependencies will be automatically present.
-
-We are currently on a snapshot that uses `ghc863` but Nix only ships `ghc864` as `ghc863` is officially deprecated. The releases should be totally compatible, but we need to convince stack that this is true. Hence, we can add the following to our global stack config in `~/.stack/config.yaml`
-```bash
-skip-ghc-check: true
-```

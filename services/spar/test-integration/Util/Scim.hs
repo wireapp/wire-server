@@ -134,7 +134,7 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
       _ -> error "randomScimUserWithSubject: impossible"
   pure
     ( (Scim.User.empty userSchemas ("scimuser_" <> suffix) (ScimUserExtra richInfo))
-        { Scim.User.displayName = Just ("Scim User #" <> suffix),
+        { Scim.User.displayName = Just ("ScimUser" <> suffix),
           Scim.User.externalId = Just externalId,
           Scim.User.emails = emails,
           Scim.User.phoneNumbers = phones
@@ -149,7 +149,7 @@ randomScimUserWithEmail = do
       externalId = fromEmail email
   pure
     ( (Scim.User.empty userSchemas ("scimuser_" <> suffix) (ScimUserExtra mempty))
-        { Scim.User.displayName = Just ("Scim User #" <> suffix),
+        { Scim.User.displayName = Just ("ScimUser" <> suffix),
           Scim.User.externalId = Just externalId
         },
       email

@@ -26,6 +26,7 @@ module Brig.Types.Intra
     AccountStatusResp (..),
     ConnectionStatus (..),
     UserAccount (..),
+    NewUserScimInvitation (..),
     UserSet (..),
     ReAuthUser (..),
   )
@@ -35,7 +36,7 @@ import Brig.Types.Connection
 import Brig.Types.User
 import Data.Aeson
 import qualified Data.HashMap.Strict as M
-import Data.Id (UserId)
+import Data.Id (TeamId, UserId)
 import Data.Misc (PlainTextPassword (..))
 import qualified Data.Text as Text
 import Imports
@@ -48,6 +49,10 @@ data AccountStatus
   | Suspended
   | Deleted
   | Ephemeral
+  | -- | for most intents & purposes, this is another form of inactive.  it is used for
+    -- allowing scim to find users that have not accepted their invitation yet after
+    -- creating via scim.
+    PendingInvitation
   deriving (Eq, Show, Generic)
 
 instance FromJSON AccountStatus where
@@ -56,6 +61,7 @@ instance FromJSON AccountStatus where
     "suspended" -> pure Suspended
     "deleted" -> pure Deleted
     "ephemeral" -> pure Ephemeral
+    "pending-invitation" -> pure PendingInvitation
     _ -> fail $ "Invalid account status: " ++ Text.unpack s
 
 instance ToJSON AccountStatus where
@@ -63,6 +69,7 @@ instance ToJSON AccountStatus where
   toJSON Suspended = String "suspended"
   toJSON Deleted = String "deleted"
   toJSON Ephemeral = String "ephemeral"
+  toJSON PendingInvitation = String "pending-invitation"
 
 data AccountStatusResp = AccountStatusResp {fromAccountStatusResp :: AccountStatus}
 
@@ -134,6 +141,34 @@ instance ToJSON UserAccount where
         Object $ M.insert "status" (toJSON s) o
       other ->
         error $ "toJSON UserAccount: not an object: " <> show (encode other)
+
+-------------------------------------------------------------------------------
+-- NewUserScimInvitation
+
+data NewUserScimInvitation = NewUserScimInvitation
+  { newUserScimInvTeamId :: TeamId,
+    newUserScimInvLocale :: Maybe Locale,
+    newUserScimInvName :: Name,
+    newUserScimInvEmail :: Email
+  }
+  deriving (Eq, Show, Generic)
+
+instance FromJSON NewUserScimInvitation where
+  parseJSON = withObject "NewUserScimInvitation" $ \o ->
+    NewUserScimInvitation
+      <$> o .: "team_id"
+      <*> o .:? "locale"
+      <*> o .: "name"
+      <*> o .: "email"
+
+instance ToJSON NewUserScimInvitation where
+  toJSON (NewUserScimInvitation tid loc name email) =
+    object
+      [ "team_id" .= tid,
+        "locale" .= loc,
+        "name" .= name,
+        "email" .= email
+      ]
 
 -------------------------------------------------------------------------------
 -- UserList

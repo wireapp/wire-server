@@ -21,10 +21,10 @@ module Gundeck.Push.Native.Serialise
   )
 where
 
-import Control.Lens ((^.))
 import Data.Aeson (Value, object, (.=))
 import Data.Aeson.Text (encodeToTextBuilder)
 import qualified Data.ByteString as BS
+import Data.Id
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Lazy as LT
 import qualified Data.Text.Lazy.Builder as LTB
@@ -32,25 +32,25 @@ import Gundeck.Push.Native.Types
 import Gundeck.Types
 import Imports
 
-serialise :: NativePush -> Address -> IO (Either Failure LT.Text)
-serialise m a = do
-  rs <- prepare m a
+serialise :: HasCallStack => NativePush -> UserId -> Transport -> IO (Either Failure LT.Text)
+serialise m uid transport = do
+  let rs = prepare m uid
   case rs of
     Left failure -> return $! Left $! failure
-    Right (v, prio) -> case renderText (a ^. addrTransport) prio v of
+    Right (v, prio) -> case renderText transport prio v of
       Nothing -> return $ Left PayloadTooLarge
       Just txt -> return $ Right txt
 
-prepare :: NativePush -> Address -> IO (Either Failure (Value, Priority))
-prepare m a = case m of
+prepare :: NativePush -> UserId -> Either Failure (Value, Priority)
+prepare m uid = case m of
   NativePush nid prio _aps ->
     let o =
           object
             [ "type" .= ("notice" :: Text),
               "data" .= object ["id" .= nid],
-              "user" .= (a ^. addrUser)
+              "user" .= uid
             ]
-     in return $ Right (o, prio)
+     in Right (o, prio)
 
 -- | Assemble a final SNS JSON string for transmission.
 renderText :: Transport -> Priority -> Value -> Maybe LT.Text

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7c00515f661d51b626cf4501b3ce58e96ba8c0c8404e68b12410deb9ee5fcd27
+-- hash: 017d9854bb337db8ab32c14708260d4fa06619182d9c163dc3e295e9c81da428
 
 name:           gundeck
 version:        1.45.0
@@ -319,6 +319,7 @@ benchmark gundeck-bench
     , gundeck
     , gundeck-types
     , imports
+    , lens
     , random
     , text
     , time

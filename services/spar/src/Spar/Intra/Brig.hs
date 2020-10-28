@@ -31,8 +31,9 @@ module Spar.Intra.Brig
     emailToSAML,
     emailToSAMLNameID,
     emailFromSAMLNameID,
-    getBrigUser,
     getBrigUserAccount,
+    HavePendingInvitations (..),
+    getBrigUser,
     getBrigUserTeam,
     getBrigUserByHandle,
     getBrigUserByEmail,
@@ -44,7 +45,8 @@ module Spar.Intra.Brig
     setBrigUserRichInfo,
     checkHandleAvailable,
     deleteBrigUser,
-    createBrigUser,
+    createBrigUserSAML,
+    createBrigUserNoSAML,
     updateEmail,
     getZUsrOwnedTeam,
     ensureReAuthorised,
@@ -86,10 +88,10 @@ import Wire.API.User.RichInfo as RichInfo
 ----------------------------------------------------------------------
 
 veidToUserSSOId :: ValidExternalId -> UserSSOId
-veidToUserSSOId =
-  runValidExternalId
-    (\(SAML.UserRef t s) -> UserSSOId (cs $ SAML.encodeElem t) (cs $ SAML.encodeElem s))
-    (UserScimExternalId . fromEmail)
+veidToUserSSOId = runValidExternalId urefToUserSSOId (UserScimExternalId . fromEmail)
+
+urefToUserSSOId :: SAML.UserRef -> UserSSOId
+urefToUserSSOId (SAML.UserRef t s) = UserSSOId (cs $ SAML.encodeElem t) (cs $ SAML.encodeElem s)
 
 veidFromUserSSOId :: MonadError String m => UserSSOId -> m ValidExternalId
 veidFromUserSSOId = \case
@@ -197,11 +199,9 @@ class MonadError SparError m => MonadSparToBrig m where
 instance MonadSparToBrig m => MonadSparToBrig (ReaderT r m) where
   call = lift . call
 
--- | Create a user on brig.
-createBrigUser ::
+createBrigUserSAML ::
   (HasCallStack, MonadSparToBrig m) =>
-  -- | SSO identity
-  ValidExternalId ->
+  SAML.UserRef ->
   UserId ->
   TeamId ->
   -- | User name
@@ -209,13 +209,13 @@ createBrigUser ::
   -- | Who should have control over the user
   ManagedBy ->
   m UserId
-createBrigUser veid (Id buid) teamid uname managedBy = do
+createBrigUserSAML uref (Id buid) teamid uname managedBy = do
   let newUser :: NewUser
       newUser =
         (emptyNewUser uname)
           { newUserUUID = Just buid,
-            newUserIdentity = Just $ SSOIdentity (veidToUserSSOId veid) Nothing Nothing,
-            newUserOrigin = Just . NewUserOriginTeamUser . NewTeamMemberSSO $ teamid,
+            newUserIdentity = Just (SSOIdentity (urefToUserSSOId uref) Nothing Nothing),
+            newUserOrigin = Just (NewUserOriginTeamUser . NewTeamMemberSSO $ teamid),
             newUserManagedBy = Just managedBy
           }
   resp :: Response (Maybe LBS) <-
@@ -225,6 +225,25 @@ createBrigUser veid (Id buid) teamid uname managedBy = do
         . json newUser
   if statusCode resp `elem` [200, 201]
     then userId . selfUser <$> parseResponse @SelfProfile resp
+    else rethrow resp
+
+createBrigUserNoSAML ::
+  (HasCallStack, MonadSparToBrig m) =>
+  Email ->
+  TeamId ->
+  -- | User name
+  Name ->
+  m UserId
+createBrigUserNoSAML email teamid uname = do
+  let newUser = NewUserScimInvitation teamid Nothing uname email
+  resp :: Response (Maybe LBS) <-
+    call $
+      method POST
+        . paths ["/i/teams", toByteString' teamid, "invitations"]
+        . json newUser
+
+  if statusCode resp `elem` [200, 201]
+    then userId . accountUser <$> parseResponse @UserAccount resp
     else rethrow resp
 
 updateEmail :: (HasCallStack, MonadSparToBrig m) => UserId -> Email -> m ()
@@ -243,17 +262,26 @@ updateEmail buid email = do
     -- Wai.Error, it's ok to crash with a 500 here, so we use the unsafe parser.
     _ -> throwError . SAML.CustomServant . waiToServant . responseJsonUnsafe $ resp
 
-getBrigUser :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe User)
-getBrigUser = (accountUser <$$>) . getBrigUserAccount
+getBrigUser :: (HasCallStack, MonadSparToBrig m) => HavePendingInvitations -> UserId -> m (Maybe User)
+getBrigUser ifpend = (accountUser <$$>) . getBrigUserAccount ifpend
 
 -- | Get a user; returns 'Nothing' if the user was not found or has been deleted.
-getBrigUserAccount :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe UserAccount)
-getBrigUserAccount buid = do
+getBrigUserAccount :: (HasCallStack, MonadSparToBrig m) => HavePendingInvitations -> UserId -> m (Maybe UserAccount)
+getBrigUserAccount havePending buid = do
   resp :: ResponseLBS <-
     call $
       method GET
         . paths ["/i/users"]
-        . query [("ids", Just $ toByteString' buid)]
+        . query
+          [ ("ids", Just $ toByteString' buid),
+            ( "includePendingInvitations",
+              Just . toByteString' $
+                case havePending of
+                  WithPendingInvitations -> True
+                  NoPendingInvitations -> False
+            )
+          ]
+
   case statusCode resp of
     200 -> do
       parseResponse @[UserAccount] resp >>= \case
@@ -277,6 +305,7 @@ getBrigUserByHandle handle = do
       method GET
         . path "/i/users"
         . queryItem "handles" (toByteString' handle)
+        . queryItem "includePendingInvitations" "true"
   case statusCode resp of
     200 -> listToMaybe <$> parseResponse @[UserAccount] resp
     _ -> rethrow resp
@@ -288,6 +317,7 @@ getBrigUserByEmail email = do
       method GET
         . path "/i/users"
         . queryItem "email" (toByteString' email)
+        . queryItem "includePendingInvitations" "true"
   case statusCode resp of
     200 -> do
       macc <- listToMaybe <$> parseResponse @[UserAccount] resp
@@ -424,20 +454,20 @@ deleteBrigUser buid = do
       | otherwise ->
         throwSpar $ SparBrigError ("delete user failed with status " <> cs (show sCode))
 
--- | Check that a user id exists on brig and has a team id.
-getBrigUserTeam :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe TeamId)
-getBrigUserTeam = fmap (userTeam =<<) . getBrigUser
+-- | Check that an id maps to an user on brig that is 'Active' (or optionally
+-- 'PendingInvitation') and has a team id.
+getBrigUserTeam :: (HasCallStack, MonadSparToBrig m) => HavePendingInvitations -> UserId -> m (Maybe TeamId)
+getBrigUserTeam ifpend = fmap (userTeam =<<) . getBrigUser ifpend
 
--- | Get the team that the user is an owner of.
---
--- Called by post handler, and by 'authorizeIdP'.
+-- | Get the team that the user is an owner of.  This is used for authorization.  It will fail
+-- if the user is not in status 'Active'.
 getZUsrOwnedTeam ::
   (HasCallStack, SAML.SP m, MonadSparToBrig m, MonadSparToGalley m) =>
   Maybe UserId ->
   m TeamId
 getZUsrOwnedTeam Nothing = throwSpar SparMissingZUsr
 getZUsrOwnedTeam (Just uid) = do
-  getBrigUserTeam uid
+  getBrigUserTeam NoPendingInvitations uid
     >>= maybe
       (throwSpar SparNotInTeam)
       (\teamid -> teamid <$ Galley.assertIsTeamOwner teamid uid)

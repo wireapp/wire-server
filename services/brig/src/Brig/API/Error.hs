@@ -67,7 +67,7 @@ connError TooManyConnections {} = StdError connectionLimitReached
 connError InvalidTransition {} = StdError invalidTransition
 connError NotConnected {} = StdError notConnected
 connError InvalidUser {} = StdError invalidUser
-connError ConnectNoIdentity {} = StdError noIdentity
+connError ConnectNoIdentity {} = StdError (noIdentity 0)
 connError (ConnectBlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const blacklistedPhone) k
 connError (ConnectInvalidEmail _ _) = StdError invalidEmail
 connError ConnectInvalidPhone {} = StdError invalidPhone
@@ -123,11 +123,11 @@ changePhoneError (PhoneExists _) = StdError userKeyExists
 
 changePwError :: ChangePasswordError -> Error
 changePwError InvalidCurrentPassword = StdError badCredentials
-changePwError ChangePasswordNoIdentity = StdError noIdentity
+changePwError ChangePasswordNoIdentity = StdError (noIdentity 1)
 changePwError ChangePasswordMustDiffer = StdError changePasswordMustDiffer
 
 changeHandleError :: ChangeHandleError -> Error
-changeHandleError ChangeHandleNoIdentity = StdError noIdentity
+changeHandleError ChangeHandleNoIdentity = StdError (noIdentity 2)
 changeHandleError ChangeHandleExists = StdError handleExists
 changeHandleError ChangeHandleInvalid = StdError invalidHandle
 
@@ -158,6 +158,7 @@ authError AuthInvalidUser = StdError badCredentials
 authError AuthInvalidCredentials = StdError badCredentials
 authError AuthSuspended = StdError accountSuspended
 authError AuthEphemeral = StdError accountEphemeral
+authError AuthPendingInvitation = StdError accountPending
 
 reauthError :: ReAuthError -> Error
 reauthError ReAuthMissingPassword = StdError missingAuthError
@@ -179,7 +180,7 @@ clientError ClientLegalHoldCannotBeAdded = StdError can'tAddLegalHoldClient
 idtError :: RemoveIdentityError -> Error
 idtError LastIdentity = StdError lastIdentity
 idtError NoPassword = StdError noPassword
-idtError NoIdentity = StdError noIdentity
+idtError NoIdentity = StdError (noIdentity 3)
 
 propDataError :: PropertiesDataError -> Error
 propDataError TooManyProperties = StdError tooManyProperties
@@ -241,8 +242,8 @@ invalidTransition = Wai.Error status403 "bad-conn-update" "Invalid status transi
 notConnected :: Wai.Error
 notConnected = Wai.Error status403 "no-connection" "No connection exists between users."
 
-noIdentity :: Wai.Error
-noIdentity = Wai.Error status403 "no-identity" "The user has no verified identity (email or phone number)."
+noIdentity :: Int -> Wai.Error
+noIdentity i = Wai.Error status403 "no-identity" ("The user has no verified identity (email or phone number). [code: " <> cs (show i) <> "]")
 
 noEmail :: Wai.Error
 noEmail = Wai.Error status403 "no-email" "This operation requires the user to have a verified email address."

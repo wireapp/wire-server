@@ -1,3 +1,31 @@
+# 2020-10-28
+
+## Features
+
+* Onboard password-auth'ed users via SCIM, via existing invitation flow (#1213)
+
+## Bug fixes and other updates
+
+* cargohold: add compatibility mode for Scality RING S3 implementation (#1217, reverted in 4ce798e8d9db, then #1234)
+* update email translations to latest (#1231)
+
+## Documentation
+
+* [brig:docs] Add a note on feature flag: setEmailVisibility (#1235)
+
+## Internal changes
+
+* Upgrade bonanza to geoip2 (#1236)
+* Migrate rex to this repository (#1218)
+* Fix stack warning about bloodhound. (#1237)
+* Distinguish different places that throw the same error. (#1229)
+* make fetch.py compatible with python 3 (#1230)
+* add missing license headers (#1221)
+* More debug logging for native push notifications. (#1220, #1226)
+* add libtinfo/ncurses to docs and nix deps (#1215)
+* Double memory available to cassandra in demo mode (#1216)
+
+
 # 2020-10-05
 
 ## Release Notes

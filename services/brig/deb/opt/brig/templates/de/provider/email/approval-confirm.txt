@@ -2,15 +2,15 @@
 
 ${brand_label_url} [${brand_url}]
 
-Hallo,
+Guten Tag,
 
-Wir freuen uns dir mitzuteilen, dass du jetzt ein genehmigter ${brand_service}
-bist.
+Wir freuen uns, Ihnen mitteilen zu können, dass Sie jetzt ein anerkannter
+${brand_service} sind.
 
 Bitte antworte nicht auf diese E-Mail.
 
-Wenn du dich nicht für ein ${brand_service}-Konto mit dieser E-Mail-Adresse
-registriert hast, bitte kontaktiere uns [${support}].
+Wenn Sie sich nicht mit dieser E-Mail-Adresse für ein ${brand_service}-Konto
+registriert haben, kontaktieren Sie uns [${support}] bitte.
 
 
 --------------------------------------------------------------------------------

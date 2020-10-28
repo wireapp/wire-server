@@ -42,7 +42,7 @@
 module Spar.Scim.Types where
 
 import Brig.Types.Common (Email)
-import Brig.Types.Intra (AccountStatus (Active, Deleted, Ephemeral, Suspended))
+import Brig.Types.Intra (AccountStatus (..))
 import qualified Brig.Types.User as BT
 import Control.Lens (Prism', makeLenses, prism')
 import Control.Monad.Except (throwError)
@@ -244,6 +244,7 @@ scimActiveFlagFromAccountStatus = \case
   Suspended -> False
   Deleted -> False
   Ephemeral -> True -- do not treat ephemeral users any different from active ones.
+  PendingInvitation -> False
 
 -- | The second argument is constructed from a (potentially missing) json object field, hence
 -- @Nothing@ has the same meaning as @Just True@.  This way, we stay consistent between the
@@ -254,9 +255,23 @@ scimActiveFlagFromAccountStatus = \case
 -- should change the types so that the 'Ephemeral' case can be ruled out by the compiler.
 scimActiveFlagToAccountStatus :: AccountStatus -> Maybe Bool -> AccountStatus
 scimActiveFlagToAccountStatus oldstatus = \case
-  Nothing -> if oldstatus == Ephemeral then Ephemeral else Active
-  Just True -> if oldstatus == Ephemeral then Ephemeral else Active
-  Just False -> Suspended
+  Nothing -> activate
+  Just True -> activate
+  Just False -> deactivate
+  where
+    deactivate = case oldstatus of
+      Active -> Suspended
+      Suspended -> Suspended
+      Deleted -> Deleted -- this shouldn't happen, but it's harmless if it does.
+      Ephemeral -> Ephemeral -- never suspend ephemeral users via scim.  doesn't really make sense anyway.
+      PendingInvitation -> PendingInvitation
+
+    activate = case oldstatus of
+      Active -> Active
+      Suspended -> Active
+      Deleted -> Deleted -- this shouldn't happen, but it's harmless if it does.
+      Ephemeral -> Ephemeral
+      PendingInvitation -> PendingInvitation -- (do not activate: see 'scimActiveFlagFromAccountStatus')
 
 ----------------------------------------------------------------------------
 -- Request and response types

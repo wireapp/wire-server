@@ -103,6 +103,8 @@ tests _ at opts p b c ch g aws =
       test' aws p "post /i/users/phone-prefix" $ testInternalPhonePrefixes b,
       test' aws p "put /i/users/:uid/status (suspend)" $ testSuspendUser b,
       test' aws p "get /i/users?:(email|phone) - 200" $ testGetByIdentity b,
+      -- "get /i/users?:ids=...&includePendingInvitations=..." is tested in 'testCreateUserNoIdP', 'testCreateUserTimeout'
+      -- in spar's integration tests, module "Test.Spar.Scim.UserSpec"
       test' aws p "delete/phone-email" $ testEmailPhoneDelete b c,
       test' aws p "delete/by-password" $ testDeleteUserByPassword b c aws,
       test' aws p "delete/with-legalhold" $ testDeleteUserWithLegalHold b c aws,

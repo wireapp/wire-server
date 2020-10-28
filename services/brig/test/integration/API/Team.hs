@@ -89,6 +89,8 @@ tests conf m n b c g aws = do
             test m "get /teams/:tid/invitations/info - 200" $ testInvitationInfo b,
             test m "get /teams/:tid/invitations/info - 400" $ testInvitationInfoBadCode b,
             test m "get /teams/:tid/invitations/info - 400 expired" $ testInvitationInfoExpired b it,
+            -- "get /i/teams/invitations/by-email?email=..." is tested in 'testCreateUserNoIdP', 'testCreateUserTimeout'
+            -- in spar's integration tests, module "Test.Spar.Scim.UserSpec"
             test m "post /i/teams/:tid/suspend - 200" $ testSuspendTeam b,
             test m "put /self - 200 update events" $ testUpdateEvents b c,
             test m "delete /self - 200 (ensure no orphan teams)" $ testDeleteTeamUser b g,

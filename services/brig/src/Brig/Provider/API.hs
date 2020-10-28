@@ -49,7 +49,7 @@ import Brig.Types.Client (Client (..), ClientType (..), newClient, newClientPrek
 import Brig.Types.Intra (AccountStatus (..), UserAccount (..))
 import Brig.Types.Provider (AddBot (..), DeleteProvider (..), DeleteService (..), NewService (..), PasswordChange (..), Provider (..), ProviderLogin (..), Service (..), ServiceProfile (..), ServiceToken (..), UpdateBotPrekeys (..), UpdateProvider (..), UpdateService (..), UpdateServiceConn (..), UpdateServiceWhitelist (..))
 import qualified Brig.Types.Provider.External as Ext
-import Brig.Types.User (ManagedBy (..), Name (..), Pict (..), User (..), defaultAccentId)
+import Brig.Types.User (HavePendingInvitations (..), ManagedBy (..), Name (..), Pict (..), User (..), defaultAccentId)
 import qualified Brig.ZAuth as ZAuth
 import Control.Error (throwE)
 import Control.Exception.Enclosed (handleAny)
@@ -799,7 +799,7 @@ addBotH (zuid ::: zcon ::: cid ::: req) = do
 
 addBot :: UserId -> ConnId -> ConvId -> Public.AddBot -> Handler Public.AddBotResponse
 addBot zuid zcon cid add = do
-  zusr <- lift (User.lookupUser zuid) >>= maybeInvalidUser
+  zusr <- lift (User.lookupUser NoPendingInvitations zuid) >>= maybeInvalidUser
   let pid = addBotProvider add
   let sid = addBotService add
   -- Get the conversation and check preconditions
@@ -896,7 +896,7 @@ botGetSelfH bot = json <$> botGetSelf bot
 
 botGetSelf :: BotId -> Handler Public.UserProfile
 botGetSelf bot = do
-  p <- lift $ User.lookupUser (botUserId bot)
+  p <- lift $ User.lookupUser NoPendingInvitations (botUserId bot)
   maybe (throwStd userNotFound) (return . Public.publicProfile) p
 
 botGetClientH :: BotId -> Handler Response
@@ -948,7 +948,7 @@ botListUserProfilesH uids = do
 
 botListUserProfiles :: List UserId -> Handler [Public.BotUserView]
 botListUserProfiles uids = do
-  us <- lift $ User.lookupUsers (fromList uids)
+  us <- lift $ User.lookupUsers NoPendingInvitations (fromList uids)
   return (map mkBotUserView us)
 
 botGetUserClientsH :: UserId -> Handler Response
@@ -967,7 +967,7 @@ botDeleteSelfH (bid ::: cid) = do
 
 botDeleteSelf :: BotId -> ConvId -> Handler ()
 botDeleteSelf bid cid = do
-  bot <- lift $ User.lookupUser (botUserId bid)
+  bot <- lift $ User.lookupUser NoPendingInvitations (botUserId bid)
   _ <- maybeInvalidBot (userService =<< bot)
   _ <- lift $ deleteBot (botUserId bid) Nothing bid cid
   return ()
@@ -992,7 +992,7 @@ deleteBot zusr zcon bid cid = do
   ev <- RPC.removeBotMember zusr zcon cid bid
   -- Delete the bot user and client
   let buid = botUserId bid
-  mbUser <- User.lookupUser buid
+  mbUser <- User.lookupUser NoPendingInvitations buid
   User.lookupClients buid >>= mapM_ (User.rmClient buid . clientId)
   for_ (userService =<< mbUser) $ \sref -> do
     let pid = sref ^. serviceRefProvider

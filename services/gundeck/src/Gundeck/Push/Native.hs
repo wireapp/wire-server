@@ -24,6 +24,7 @@ where
 
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch
+import Data.Aeson (encode)
 import Data.ByteString.Conversion.To
 import Data.Id
 import Data.List1
@@ -67,7 +68,7 @@ push1 m a = do
     Success _ -> do
       Log.debug $
         field "user" (toByteString (a ^. addrUser))
-          ~~ field "arn" (toText (a ^. addrEndpoint))
+          ~~ field "notificationId" (toText (npNotificationid m))
           ~~ Log.msg (val "Native push success")
       view monitor >>= counterIncr (path "push.native.success")
     Failure EndpointDisabled _ -> onDisabled
@@ -116,7 +117,17 @@ push1 m a = do
 publish :: NativePush -> Address -> Aws.Amazon Result
 publish m a = flip catches pushException $ do
   let ept = a ^. addrEndpoint
-  txt <- liftIO $ serialise m a
+      uid = a ^. addrUser
+      transp = a ^. addrTransport
+  txt <- liftIO $ serialise m uid transp
+  Log.debug $
+    field "user" (toByteString (a ^. addrUser))
+      ~~ field "arn" (toText (a ^. addrEndpoint))
+      ~~ field "notificationId" (toText (npNotificationid m))
+      ~~ field "prio" (show (npPriority m))
+      ~~ field "apsData" (encode (npApsData m))
+      ~~ field "payload" (show txt)
+      ~~ Log.msg (val "Native push")
   case txt of
     Left f -> return $! Failure f a
     Right v -> toResult <$> Aws.publish ept v mempty

@@ -89,7 +89,7 @@ class MonadThrow m => MonadPushAll m where
   mpaListAllPresences :: [UserId] -> m [[Presence]]
   mpaBulkPush :: [(Notification, [Presence])] -> m [(NotificationId, [Presence])]
   mpaStreamAdd :: NotificationId -> List1 NotificationTarget -> List1 Aeson.Object -> NotificationTTL -> m ()
-  mpaPushNative :: Notification -> Push -> [Address] -> m ()
+  mpaPushNative :: Notification -> Priority -> [Address] -> m ()
   mpaForkIO :: m () -> m ()
   mpaRunWithBudget :: Int -> a -> m a -> m a
 
@@ -176,7 +176,7 @@ pushAny' p = do
   mpaForkIO $ do
     alreadySent <- mpyPush notif tgts (p ^. pushOrigin) (p ^. pushOriginConnection) (p ^. pushConnections)
     unless (p ^. pushTransient) $
-      mpaPushNative notif p =<< nativeTargets p (nativeTargetsRecipients p) alreadySent
+      mpaPushNative notif (p ^. pushNativePriority) =<< nativeTargets p (nativeTargetsRecipients p) alreadySent
   where
     mkTarget :: Recipient -> NotificationTarget
     mkTarget r =
@@ -222,7 +222,7 @@ pushAll pushes = do
       -- to cassandra and SNS are limited to 'perNativePushConcurrency' in parallel.
       unless (psh ^. pushTransient) $
         mpaRunWithBudget cost () $
-          mpaPushNative notif psh =<< nativeTargets psh rcps' alreadySent
+          mpaPushNative notif (psh ^. pushNativePriority) =<< nativeTargets psh rcps' alreadySent
 
 -- REFACTOR: @[Presence]@ here should be @newtype WebSockedDelivered = WebSockedDelivered [Presence]@
 compilePushReq :: (Push, (Notification, List1 (Recipient, [Presence]))) -> (Notification, [Presence])
@@ -287,10 +287,9 @@ shouldActuallyPush psh rcp pres = not isOrigin && okByPushWhitelist && okByRecip
 
 -- | Failures to push natively can be ignored.  Logging already happens in
 -- 'Gundeck.Push.Native.push1', and we cannot recover from any of the error cases.
-pushNative :: Notification -> Push -> [Address] -> Gundeck ()
+pushNative :: Notification -> Priority -> [Address] -> Gundeck ()
 pushNative _ _ [] = return ()
-pushNative notif p rcps = do
-  let prio = p ^. pushNativePriority
+pushNative notif prio rcps = do
   Native.push (Native.NativePush (ntfId notif) prio Nothing) rcps
 
 -- | Compute list of 'Recipient's from a 'Push' that may be interested in a native push.  More

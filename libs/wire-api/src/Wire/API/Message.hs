@@ -122,9 +122,8 @@ instance FromJSON NewOtrMessage where
 --------------------------------------------------------------------------------
 -- Priority
 
--- | REFACTOR: do we ever use LowPriority?  to test, (a) remove the constructor and see what goes
--- wrong; (b) log use of 'LowPriority' by clients in production and watch it a few days.  if it is
--- not used anywhere, consider removing the entire type, or just the unused constructor.
+-- | Native push notification priority flag.  'LowPriority' is never used, but might be in the
+-- future.
 --
 -- @neongreen writes: [...] nobody seems to ever set `native_priority` in the client code. Exhibits
 -- A1 and A2:

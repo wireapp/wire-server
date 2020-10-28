@@ -224,6 +224,7 @@ benchmarks:
     - gundeck
     - gundeck-types
     - HsOpenSSL
+    - lens
     - random
     - text
     - types-common

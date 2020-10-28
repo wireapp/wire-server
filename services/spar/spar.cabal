@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8a7b77bbc7e9d990ac78dd068fccb94f15521732eac4d3a2cc9bc44aa38c7e7f
+-- hash: 54710b4d4da7f1d6f621e0c28ded0702090f208db2f230715c129480502db771
 
 name:           spar
 version:        0.1
@@ -208,6 +208,7 @@ executable spar-integration
       Util
       Util.Core
       Util.Email
+      Util.Invitation
       Util.Scim
       Util.Types
       Paths_spar

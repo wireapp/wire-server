@@ -25,6 +25,7 @@ module Brig.Data.User
   ( AuthError (..),
     ReAuthError (..),
     newAccount,
+    newAccountInviteViaScim,
     insertAccount,
     authenticate,
     reauthenticate,
@@ -42,7 +43,6 @@ module Brig.Data.User
     lookupStatus,
     lookupRichInfo,
     lookupUserTeam,
-    lookupUsersTeam,
     lookupServiceUsers,
     lookupServiceUsersForTeam,
 
@@ -95,6 +95,7 @@ data AuthError
   | AuthInvalidCredentials
   | AuthSuspended
   | AuthEphemeral
+  | AuthPendingInvitation
 
 -- | Re-authentication errors.
 data ReAuthError
@@ -136,6 +137,27 @@ newAccount u inv tid = do
     managedBy = fromMaybe defaultManagedBy (newUserManagedBy u)
     user uid l e = User uid ident name pict assets colour False l Nothing Nothing e tid managedBy
 
+newAccountInviteViaScim :: UserId -> TeamId -> Maybe Locale -> Name -> Email -> AppIO UserAccount
+newAccountInviteViaScim uid tid locale name email = do
+  defLoc <- setDefaultLocale <$> view settings
+  return (UserAccount (user (fromMaybe defLoc locale)) PendingInvitation)
+  where
+    user loc =
+      User
+        uid
+        (Just $ EmailIdentity email)
+        name
+        (Pict [])
+        []
+        defaultAccentId
+        False
+        loc
+        Nothing
+        Nothing
+        Nothing
+        (Just tid)
+        ManagedByScim
+
 -- | Mandatory password authentication.
 authenticate :: UserId -> PlainTextPassword -> ExceptT AuthError AppIO ()
 authenticate u pw =
@@ -144,6 +166,7 @@ authenticate u pw =
     Just (_, Deleted) -> throwE AuthInvalidUser
     Just (_, Suspended) -> throwE AuthSuspended
     Just (_, Ephemeral) -> throwE AuthEphemeral
+    Just (_, PendingInvitation) -> throwE AuthPendingInvitation
     Just (Nothing, _) -> throwE AuthInvalidCredentials
     Just (Just pw', Active) ->
       unless (verifyPassword pw pw') $
@@ -158,6 +181,7 @@ reauthenticate u pw =
     Nothing -> throwE (ReAuthError AuthInvalidUser)
     Just (_, Deleted) -> throwE (ReAuthError AuthInvalidUser)
     Just (_, Suspended) -> throwE (ReAuthError AuthSuspended)
+    Just (_, PendingInvitation) -> throwE (ReAuthError AuthPendingInvitation)
     Just (Nothing, _) -> for_ pw $ const (throwE $ ReAuthError AuthInvalidCredentials)
     Just (Just pw', Active) -> maybeReAuth pw'
     Just (Just pw', Ephemeral) -> maybeReAuth pw'
@@ -305,8 +329,8 @@ filterActive us =
     isActiveUser (_, True, Just Active) = True
     isActiveUser _ = False
 
-lookupUser :: UserId -> AppIO (Maybe User)
-lookupUser u = listToMaybe <$> lookupUsers [u]
+lookupUser :: HavePendingInvitations -> UserId -> AppIO (Maybe User)
+lookupUser hpi u = listToMaybe <$> lookupUsers hpi [u]
 
 activateUser :: UserId -> UserIdentity -> AppIO ()
 activateUser u ident = do
@@ -343,14 +367,13 @@ lookupRichInfo u =
   fmap runIdentity
     <$> retry x1 (query1 richInfoSelect (params Quorum (Identity u)))
 
+-- | Lookup user (no matter what status) and return 'TeamId'.  Safe to use for authorization:
+-- suspended / deleted / ... users can't login, so no harm done if we authorize them *after*
+-- successful login.
 lookupUserTeam :: UserId -> AppIO (Maybe TeamId)
 lookupUserTeam u =
   join . fmap runIdentity
     <$> retry x1 (query1 teamSelect (params Quorum (Identity u)))
-
-lookupUsersTeam :: [UserId] -> AppIO [(UserId, Maybe TeamId)]
-lookupUsersTeam us =
-  retry x1 (query usersTeamSelect (params Quorum (Identity us)))
 
 lookupAuth :: (MonadClient m) => UserId -> m (Maybe (Maybe Password, AccountStatus))
 lookupAuth u = fmap f <$> retry x1 (query1 authSelect (params Quorum (Identity u)))
@@ -360,10 +383,10 @@ lookupAuth u = fmap f <$> retry x1 (query1 authSelect (params Quorum (Identity u
 -- | Return users with given IDs.
 --
 -- Skips nonexistent users. /Does not/ skip users who have been deleted.
-lookupUsers :: [UserId] -> AppIO [User]
-lookupUsers usrs = do
+lookupUsers :: HavePendingInvitations -> [UserId] -> AppIO [User]
+lookupUsers hpi usrs = do
   loc <- setDefaultLocale <$> view settings
-  toUsers loc <$> retry x1 (query usersSelect (params Quorum (Identity usrs)))
+  toUsers loc hpi <$> retry x1 (query usersSelect (params Quorum (Identity usrs)))
 
 lookupAccount :: UserId -> AppIO (Maybe UserAccount)
 lookupAccount u = listToMaybe <$> lookupAccounts [u]
@@ -513,9 +536,6 @@ richInfoSelect = "SELECT json FROM rich_info WHERE user = ?"
 teamSelect :: PrepQuery R (Identity UserId) (Identity (Maybe TeamId))
 teamSelect = "SELECT team FROM user WHERE id = ?"
 
-usersTeamSelect :: PrepQuery R (Identity [UserId]) (UserId, Maybe TeamId)
-usersTeamSelect = "SELECT id, team FROM user WHERE id IN ?"
-
 accountsSelect :: PrepQuery R (Identity [UserId]) AccountRow
 accountsSelect =
   "SELECT id, name, picture, email, phone, sso_id, accent_id, assets, \
@@ -630,9 +650,36 @@ toUserAccount
           )
           (fromMaybe Active status)
 
-toUsers :: Locale -> [UserRow] -> [User]
-toUsers defaultLocale = fmap mk
+toUsers :: Locale -> HavePendingInvitations -> [UserRow] -> [User]
+toUsers defaultLocale havePendingInvitations = fmap mk . filter fp
   where
+    fp :: UserRow -> Bool
+    fp =
+      case havePendingInvitations of
+        WithPendingInvitations -> const True
+        NoPendingInvitations ->
+          ( \( _uid,
+               _name,
+               _pict,
+               _email,
+               _phone,
+               _ssoid,
+               _accent,
+               _assets,
+               _activated,
+               status,
+               _expires,
+               _lan,
+               _con,
+               _pid,
+               _sid,
+               _handle,
+               _tid,
+               _managed_by
+               ) -> status /= Just PendingInvitation
+          )
+
+    mk :: UserRow -> User
     mk
       ( uid,
         name,

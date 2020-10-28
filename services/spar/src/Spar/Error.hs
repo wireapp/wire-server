@@ -75,6 +75,7 @@ data SparCustomError
   | SparCouldNotSubstituteFailureURI LT
   | SparBadInitiateLoginQueryParams LT
   | SparBindFromWrongOrNoTeam LT
+  | SparBindFromBadAccountStatus LT
   | SparBindUserRefTaken
   | SparBadUserName LT
   | SparCannotCreateUsersOnReplacedIdP LT
@@ -136,6 +137,7 @@ renderSparError (SAML.CustomError (SparCouldNotSubstituteSuccessURI msg)) = Righ
 renderSparError (SAML.CustomError (SparCouldNotSubstituteFailureURI msg)) = Right $ Wai.Error status400 "bad-failure-redirect" ("re-parsing the substituted URI failed: " <> msg)
 renderSparError (SAML.CustomError (SparBadInitiateLoginQueryParams label)) = Right $ Wai.Error status400 label label
 renderSparError (SAML.CustomError (SparBindFromWrongOrNoTeam msg)) = Right $ Wai.Error status403 "bad-team" ("Forbidden: wrong user team " <> msg)
+renderSparError (SAML.CustomError (SparBindFromBadAccountStatus msg)) = Right $ Wai.Error status403 "bad-account-status" ("Forbidden: user has account status " <> msg <> "; only Active, PendingInvitation are supported")
 renderSparError (SAML.CustomError SparBindUserRefTaken) = Right $ Wai.Error status403 "subject-id-taken" "Forbidden: SubjectID is used by another wire user.  If you have an old user bound to this IdP, unbind or delete that user."
 renderSparError (SAML.CustomError (SparBadUserName msg)) = Right $ Wai.Error status400 "bad-username" ("Bad UserName in SAML response, except len [1, 128]: " <> msg)
 renderSparError (SAML.CustomError (SparCannotCreateUsersOnReplacedIdP replacingIdPId)) = Right $ Wai.Error status400 "cannont-provision-on-replaced-idp" ("This IdP has been replaced, users can only be auto-provisioned on the replacing IdP " <> replacingIdPId)

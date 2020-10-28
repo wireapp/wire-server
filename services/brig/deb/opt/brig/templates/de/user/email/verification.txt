@@ -2,7 +2,7 @@
 
 ${brand_label_url} [${brand_url}]
 
-BESTÄTIGE DEINE E-MAIL-ADRESSE
+BESTÄTIGEN SIE IHRE E-MAIL-ADRESSE
 ${email} wurde verwendet um ein Benutzerkonto auf ${brand} zu erstellen. Gib
 diesen Code ein, um deine E-Mail-Adresse zu verifizieren und dein Konto zu
 erstellen.

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c65bea2c25598cbdee588334b4a36a838abbe0612536a104ef9be32b01c3078b
+-- hash: 5b23add6d90e5fa38e933ba872f9d6d79319ac2b03289e67fdc119982f5313a6
 
 name:           bonanza
 version:        3.6.0
@@ -63,10 +63,11 @@ library
     , containers
     , ekg-core
     , exceptions
-    , hs-GeoIP ==0.3.*
+    , geoip2
     , http-client
     , http-types
     , imports
+    , iproute
     , lens
     , lens-aeson
     , mtl
@@ -75,6 +76,7 @@ library
     , optparse-applicative >=0.11
     , protobuf >=0.2.1.1
     , resourcet
+    , safe
     , scientific
     , snappy
     , snappy-framing

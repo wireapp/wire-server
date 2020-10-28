@@ -114,10 +114,11 @@ login (PasswordLogin li pw label) typ = do
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
   checkRetryLimit uid
   Data.authenticate uid pw `catchE` \case
+    AuthInvalidUser -> loginFailed uid
+    AuthInvalidCredentials -> loginFailed uid
     AuthSuspended -> throwE LoginSuspended
     AuthEphemeral -> throwE LoginEphemeral
-    AuthInvalidCredentials -> loginFailed uid
-    AuthInvalidUser -> loginFailed uid
+    AuthPendingInvitation -> throwE LoginPendingActivation
   newAccess @ZAuth.User @ZAuth.Access uid typ label
 login (SmsLogin phone code label) typ = do
   uid <- resolveLoginId (LoginByPhone phone)
@@ -245,9 +246,14 @@ isPendingActivation ident = case ident of
         Nothing -> return False
         Just u -> maybe False (checkAccount k) <$> Data.lookupAccount u
     checkAccount k a =
-      let s = accountStatus a
-          i = userIdentity (accountUser a)
-       in s == Active && case i of
+      let i = userIdentity (accountUser a)
+          statusAdmitsPending = case accountStatus a of
+            Active -> True
+            Suspended -> False
+            Deleted -> False
+            Ephemeral -> False
+            PendingInvitation -> True
+       in statusAdmitsPending && case i of
             Just (EmailIdentity e) -> userEmailKey e /= k
             Just (PhoneIdentity p) -> userPhoneKey p /= k
             Just (FullIdentity e p) -> userEmailKey e /= k && userPhoneKey p /= k
@@ -296,10 +302,11 @@ ssoLogin (SsoLogin uid label) typ = do
   Data.reauthenticate uid Nothing `catchE` \case
     ReAuthMissingPassword -> pure ()
     ReAuthError e -> case e of
+      AuthInvalidUser -> throwE LoginFailed
       AuthInvalidCredentials -> pure ()
       AuthSuspended -> throwE LoginSuspended
       AuthEphemeral -> throwE LoginEphemeral
-      AuthInvalidUser -> throwE LoginFailed
+      AuthPendingInvitation -> throwE LoginPendingActivation
   newAccess @ZAuth.User @ZAuth.Access uid typ label
 
 -- | Log in as a LegalHold service, getting LegalHoldUser/Access Tokens.
