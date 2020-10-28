@@ -654,6 +654,13 @@ testCreateUserTimeout = do
   waitUserExpiration
   searchUser tok scimUser email True
   where
+    createUser'step ::
+      HasCallStack =>
+      Spar.Types.ScimToken ->
+      TeamId ->
+      Scim.User.User SparTag ->
+      Email ->
+      TestSpar (Scim.UserC.StoredUser SparTag, Invitation, InvitationCode)
     createUser'step tok tid scimUser email = do
       env <- ask
       let brig = env ^. teBrig

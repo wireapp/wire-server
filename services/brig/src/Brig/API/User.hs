@@ -437,6 +437,7 @@ changeHandleWith mbTTL uid mconn hdl = do
     Nothing -> throwE ChangeHandleNoIdentity
     Just u -> claim u
   where
+    claim :: User -> ExceptT ChangeHandleError AppIO ()
     claim u = do
       unless (isJust (userIdentity u)) $
         throwE ChangeHandleNoIdentity

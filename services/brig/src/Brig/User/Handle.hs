@@ -33,28 +33,28 @@ import Data.Handle (Handle, fromHandle)
 import Data.Id
 import Imports
 
--- | Claim a new handle for an existing 'User'.
+-- | Claim a new handle for an existing 'User'.  Returns 'True' if the handle is available.
 claimHandleWithTTL :: Maybe Int32 -> UserId -> Maybe Handle -> Handle -> AppIO Bool
-claimHandleWithTTL mbTTL uid oldHandle h = fmap isJust $ do
-  owner <- lookupHandle h
-  case owner of
-    Just uid' | uid /= uid' -> return Nothing
+claimHandleWithTTL mbTTL claimer oldHandle h = do
+  mbOwner <- lookupHandle h
+  case mbOwner of
+    Just owner | owner /= claimer -> return False
     _ -> do
       env <- ask
       let key = "@" <> fromHandle h
           claimTTL = case mbTTL of
             Nothing -> (30 # Minute)
             Just ttl -> min (30 # Minute) (fromIntegral ttl # Second)
-      withClaim uid key claimTTL $
+      fmap isJust . withClaim claimer key claimTTL $
         runAppT env $
           do
             -- Record ownership
-            retry x5 $ write handleInsert (params Quorum (h, uid, fromMaybe 0 mbTTL))
+            retry x5 $ write handleInsert (params Quorum (h, claimer, fromMaybe 0 mbTTL))
             -- Update profile
-            result <- User.updateHandleWithTTL (fromMaybe 0 mbTTL) uid h
+            result <- User.updateHandleWithTTL (fromMaybe 0 mbTTL) claimer h
             -- Free old handle (if it changed)
             for_ (mfilter (/= h) oldHandle) $
-              freeHandle uid
+              freeHandle claimer
             return result
 
 -- | Free a 'Handle', making it available to be claimed again.
