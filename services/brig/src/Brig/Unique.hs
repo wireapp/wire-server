@@ -51,7 +51,7 @@ withClaim ::
   Text ->
   -- | The minimum timeout (i.e. duration) of the claim.
   Timeout ->
-  -- | The computation to run with a successful claim.
+  -- | The computation to run with a successful claim.  Must finish within the timeout given above!
   IO b ->
   -- | 'Just b' if the claim was successful and the 'IO'
   --   computation completed within the given timeout.
@@ -65,7 +65,7 @@ withClaim u v t io = do
   where
     -- [Note: Guarantees]
     claim = do
-      let ttl = max minTtl (fromIntegral (t #> Second))
+      let ttl = fromIntegral (t #> Second)
       retry x5 $ write cql $ params Quorum (ttl * 2, C.Set [u], v)
       claimed <- (== [u]) <$> lookupClaims v
       if claimed
@@ -87,7 +87,7 @@ deleteClaim ::
   Timeout ->
   m ()
 deleteClaim u v t = do
-  let ttl = max minTtl (fromIntegral (t #> Second))
+  let ttl = fromIntegral (t #> Second)
   retry x5 $ write cql $ params Quorum (ttl * 2, C.Set [u], v)
   where
     cql :: PrepQuery W (Int32, C.Set (Id a), Text) ()
@@ -103,9 +103,6 @@ lookupClaims v =
   where
     cql :: PrepQuery R (Identity Text) (Identity (C.Set (Id a)))
     cql = "SELECT claims FROM unique_claims WHERE value = ?"
-
-minTtl :: Int32
-minTtl = 60 -- Seconds
 
 -- [Note: Guarantees]
 -- ~~~~~~~~~~~~~~~~~~
