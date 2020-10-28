@@ -35,6 +35,7 @@ import Imports
 
 -- | Claim a new handle for an existing 'User'.  Returns 'True' if the handle is available.
 claimHandleWithTTL :: Maybe Int32 -> UserId -> Maybe Handle -> Handle -> AppIO Bool
+claimHandleWithTTL (Just 0) uid oldHandle h = claimHandleWithTTL Nothing uid oldHandle h -- otherwise, ttl computations below will misbehave.
 claimHandleWithTTL mbTTL claimer oldHandle h = do
   mbOwner <- lookupHandle h
   case mbOwner of
