@@ -106,9 +106,9 @@ Next, we want to redirect port 443 to the port the nginx https ingress nodeport 
 * Option 2: Use ansible to do that, run the `iptables playbook <https://github.com/wireapp/wire-server-deploy/blob/master/ansible/iptables.yml>`__
 
 Trying things out
----------------------------
+-----------------
 
-At this point, with a bit of luck, everything should be working (if not, see :ref:`helm_prod_troubleshooting`)
+At this point, with a bit of luck, everything should be working (if not, see the 'troubleshooting' section below)
 
 Can you reach the nginz server?
 
@@ -127,8 +127,6 @@ You should get a 200 return code
     Content-Length: 0
 
 Can you access the webapp? Open https://webapp.<your-domain> in your browser (Firefox/Chrome/Safari only)
-
-.. _helm_prod_troubleshooting:
 
 Troubleshooting
 --------------------

@@ -145,4 +145,4 @@ Great, now try the installation:
 
    helm upgrade --install wire-server wire/wire-server -f values.yaml -f secrets.yaml --wait
 
-.. include:: ./includes/helm_dns-ingress-troubleshooting.inc.rst
+.. include:: includes/helm_dns-ingress-troubleshooting.inc.rst

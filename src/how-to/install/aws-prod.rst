@@ -35,6 +35,6 @@ Using S3 services:
 There are three values in the ``cargohold.config.aws`` section of your 'values.yaml' that you need to provide while deploying wire-server:
 
 * s3Bucket: the name of the S3 bucket you have created.
-* s3Endpoint: the S3 service endpoint cargohold should talk to, to place files in the S3 bucket. On AWS, this takes the form of: ``<bucket_name>.s3-<region_name>.amazonaws.com``.
+* s3Endpoint: the S3 service endpoint cargohold should talk to, to place files in the S3 bucket. On AWS, this takes the form of: ``https://<bucket_name>.s3-<region_name>.amazonaws.com``.
 * s3DownloadEndpoint: The URL base that clients should use to get contents from the S3 bucket. On AWS, this takes the form of: ``https://s3.<region_name>.amazonaws.com``.
 
