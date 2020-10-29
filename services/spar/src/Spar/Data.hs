@@ -630,7 +630,7 @@ lookupScimToken token = do
     case scimTokenLookupKey row of
       ScimTokenLookupKeyHashed _ -> pure ()
       ScimTokenLookupKeyPlaintext token' ->
-        hashPlaintextToken token' tokenInfo
+        connvertPlaintextToken token' tokenInfo
     pure tokenInfo
   where
     sel :: PrepQuery R (ScimTokenHash, ScimToken) ScimTokenRow
@@ -640,12 +640,12 @@ lookupScimToken token = do
         FROM team_provisioning_by_token WHERE token_ in (?, ?)
       |]
 
-hashPlaintextToken ::
+connvertPlaintextToken ::
   (HasCallStack, MonadClient m) =>
   ScimToken ->
   ScimTokenInfo ->
   m ()
-hashPlaintextToken token ScimTokenInfo {..} = retry x5 . batch $ do
+connvertPlaintextToken token ScimTokenInfo {..} = retry x5 . batch $ do
   setType BatchLogged
   setConsistency Quorum
   addPrepQuery delById (stiTeam, stiId)
