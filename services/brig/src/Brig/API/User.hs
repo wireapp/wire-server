@@ -353,7 +353,9 @@ makeUserPermanent muid teamInvitation = do
   case (muid, teamInvitation) of
     (Just (Id -> uid), Just _) -> do
       mbAccount <- Data.lookupAccount uid
-      (\account -> Data.insertAccount account Nothing Nothing True) `mapM_` mbAccount
+      for_ mbAccount $ \account -> do
+        Data.insertAccount account Nothing Nothing True
+        makeHandlePermanent `mapM_` userHandle (accountUser account)
       mbRichInfo <- Data.lookupRichInfo uid
       Data.updateRichInfo uid `mapM_` mbRichInfo
     _ -> pure ()

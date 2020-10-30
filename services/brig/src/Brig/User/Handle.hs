@@ -21,6 +21,7 @@ module Brig.User.Handle
     freeHandle,
     lookupHandle,
     glimpseHandle,
+    makeHandlePermanent,
   )
 where
 
@@ -79,6 +80,12 @@ lookupHandleWithPolicy :: Consistency -> Handle -> AppIO (Maybe UserId)
 lookupHandleWithPolicy policy h = do
   join . fmap runIdentity
     <$> retry x1 (query1 handleSelect (params policy (Identity h)))
+
+makeHandlePermanent :: Handle -> AppIO ()
+makeHandlePermanent handl = do
+  mbUid <- lookupHandle handl
+  forM_ mbUid $ \uid -> do
+    retry x5 $ write handleInsert (params Quorum (handl, uid, 0))
 
 --------------------------------------------------------------------------------
 -- Queries
