@@ -686,8 +686,9 @@ testCreateUserTimeout = do
       -- view teBrigOpts $ env@, but if this goes out of sync with the brig config, we will only get benign false
       -- negatives, and importing brig options into spar integration tests is just too awkward.
       let setTeamInvitationTimeout = 5
+          safetyFactor = 2 -- Brig.Unique errs on the side of caution, so waiting 5 secs is not enough.
       Control.Exception.assert (setTeamInvitationTimeout < 30) $ do
-        threadDelay $ (setTeamInvitationTimeout + 1) * 1_000_000
+        threadDelay $ (setTeamInvitationTimeout * safetyFactor + 1) * 1_000_000
 
 ----------------------------------------------------------------------------
 -- Listing users
