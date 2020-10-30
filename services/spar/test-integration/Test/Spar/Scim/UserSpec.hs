@@ -673,6 +673,8 @@ testCreateUserTimeout = do
     searchUser :: HasCallStack => Spar.Types.ScimToken -> Scim.User.User tag -> Email -> Bool -> TestSpar ()
     searchUser tok scimUser email shouldSucceed = do
       let handle = Handle . Scim.User.userName $ scimUser
+
+          tryquery :: HasCallStack => Filter.Filter -> TestSpar ()
           tryquery qry =
             aFewTimesAssert
               (length <$> listUsers tok (Just qry))
