@@ -125,6 +125,7 @@ import Control.Error
 import Control.Lens (view, (^.))
 import Control.Monad.Catch
 import Data.ByteString.Conversion
+import Data.Coerce (coerce)
 import qualified Data.Currency as Currency
 import Data.Handle (Handle, fromHandle)
 import Data.Id as Id
@@ -134,7 +135,6 @@ import Data.List1 (List1)
 import qualified Data.Map.Strict as Map
 import Data.Misc (PlainTextPassword (..))
 import Data.Time.Clock (diffUTCTime)
-import Data.UUID (UUID)
 import Data.UUID.V4 (nextRandom)
 import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
@@ -181,7 +181,7 @@ createUser new@NewUser {..} = do
   for_ (catMaybes [emKey, phKey]) $ verifyUniquenessAndCheckBlacklist
   -- team user registration
   (newTeam, teamInvitation, tid) <- handleTeam (newUserTeam new) emKey
-  lift $ makeUserPermanent newUserUUID teamInvitation
+  lift $ makeUserPermanent `mapM_` teamInvitation
 
   -- Create account
   (account, pw) <- lift $ do
@@ -348,17 +348,15 @@ createUser new@NewUser {..} = do
       Team.TeamName nm <- lift $ Intra.getTeamName tid
       pure $ CreateUserTeam tid nm
 
-makeUserPermanent :: Maybe UUID -> Maybe (Team.Invitation, Team.InvitationInfo) -> AppIO ()
-makeUserPermanent muid teamInvitation = do
-  case (muid, teamInvitation) of
-    (Just (Id -> uid), Just _) -> do
-      mbAccount <- Data.lookupAccount uid
-      for_ mbAccount $ \account -> do
-        Data.insertAccount account Nothing Nothing True
-        makeHandlePermanent `mapM_` userHandle (accountUser account)
-      mbRichInfo <- Data.lookupRichInfo uid
-      Data.updateRichInfo uid `mapM_` mbRichInfo
-    _ -> pure ()
+makeUserPermanent :: (Team.Invitation, invInfo) -> AppIO ()
+makeUserPermanent (coerce . Team.inInvitation . fst -> uid) = do
+  mbAccount <- Data.lookupAccount uid
+  for_ mbAccount $ \account -> do
+    Data.insertAccount account Nothing Nothing True
+    makeHandlePermanent `mapM_` userHandle (accountUser account)
+
+  mbRichInfo <- Data.lookupRichInfo uid
+  for_ mbRichInfo $ Data.updateRichInfo uid
 
 -- | 'createUser' is becoming hard to maintian, and instead of adding more case distinctions
 -- all over the place there, we add a new function that handles just the one new flow where
