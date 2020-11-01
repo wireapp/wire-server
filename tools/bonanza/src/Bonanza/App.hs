@@ -230,8 +230,8 @@ runBonanza =
   where
     runGeo [] _ = Conduit.map id
     runGeo tags db =
-      Conduit.mapM
-        (\e -> foldM (\e' t -> geolocate db (T.pack t) e') e tags)
+      Conduit.map
+        (\e -> foldl' (\e' t -> geolocate db (T.pack t) e') e tags)
     runAnonymise = Conduit.map . anonymise . map T.pack
     runCmd (Kibana KibanaOpts {..}) =
       Conduit.mapM Kibana.fromLogEvent
