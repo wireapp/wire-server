@@ -87,6 +87,7 @@ where
 
 import Brig.Types.Common (Email, fromEmail)
 import Cassandra as Cas
+import Control.Arrow (Arrow ((&&&)))
 import Control.Lens
 import Control.Monad.Except
 import Data.Id
@@ -105,6 +106,7 @@ import URI.ByteString
 import qualified Web.Cookie as Cky
 import Web.Scim.Schema.Common (WithId (..))
 import Web.Scim.Schema.Meta (Meta (..), WithMeta (..))
+import qualified Prelude
 
 -- | A lower bound: @schemaVersion <= whatWeFoundOnCassandra@, not @==@.
 schemaVersion :: Int32
@@ -624,14 +626,17 @@ lookupScimToken ::
   m (Maybe ScimTokenInfo)
 lookupScimToken token = do
   let tokenHash = hashScimToken token
-  mbRow <- retry x1 . query1 sel $ params Quorum (tokenHash, token)
-  for mbRow $ \row -> do
-    let tokenInfo = fromScimTokenRow row
-    case scimTokenLookupKey row of
-      ScimTokenLookupKeyHashed _ -> pure ()
-      ScimTokenLookupKeyPlaintext token' ->
-        connvertPlaintextToken token' tokenInfo
-    pure tokenInfo
+  rows <- retry x1 . query sel $ params Quorum (tokenHash, token)
+  case fmap (scimTokenLookupKey &&& Prelude.id) rows of
+    [(ScimTokenLookupKeyHashed _, row)] ->
+      pure (Just (fromScimTokenRow row))
+    [(ScimTokenLookupKeyPlaintext plain, row)] ->
+      convert plain row
+    [(ScimTokenLookupKeyHashed _, _), (ScimTokenLookupKeyPlaintext plain, row)] ->
+      convert plain row
+    [(ScimTokenLookupKeyPlaintext plain, row), (ScimTokenLookupKeyHashed _', _)] ->
+      convert plain row
+    _ -> pure Nothing
   where
     sel :: PrepQuery R (ScimTokenHash, ScimToken) ScimTokenRow
     sel =
@@ -639,6 +644,12 @@ lookupScimToken token = do
       SELECT token_, team, id, created_at, idp, descr
         FROM team_provisioning_by_token WHERE token_ in (?, ?)
       |]
+
+    convert :: MonadClient m => ScimToken -> ScimTokenRow -> m (Maybe ScimTokenInfo)
+    convert plain row = do
+      let tokenInfo = fromScimTokenRow row
+      connvertPlaintextToken plain tokenInfo
+      pure (Just tokenInfo)
 
 connvertPlaintextToken ::
   (HasCallStack, MonadClient m) =>
