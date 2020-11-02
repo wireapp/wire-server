@@ -648,11 +648,14 @@ connvertPlaintextToken ::
 connvertPlaintextToken token ScimTokenInfo {..} = retry x5 . batch $ do
   setType BatchLogged
   setConsistency Quorum
-  addPrepQuery delById (stiTeam, stiId)
   addPrepQuery delByTokenLookup (Identity (ScimTokenLookupKeyPlaintext token))
   let tokenHash = hashScimToken token
+  -- enter by new lookup key
   addPrepQuery insByToken (ScimTokenLookupKeyHashed tokenHash, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr)
+  -- update info table
   addPrepQuery insByTeam (ScimTokenLookupKeyHashed tokenHash, stiTeam, stiId, stiCreatedAt, stiIdP, stiDescr)
+  -- remove old lookup key
+  addPrepQuery delByTokenLookup (Identity (ScimTokenLookupKeyPlaintext token))
 
 -- | List all tokens associated with a team, in the order of their creation.
 getScimTokens ::
