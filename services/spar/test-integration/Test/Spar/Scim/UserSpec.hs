@@ -690,7 +690,7 @@ testCreateUserTimeout = do
       let setTeamInvitationTimeout = 5
           safetyFactor = 2 -- Brig.Unique errs on the side of caution, so waiting 5 secs is not enough.
       Control.Exception.assert (setTeamInvitationTimeout < 30) $ do
-        threadDelay $ (setTeamInvitationTimeout * safetyFactor + 1) * 1_000_000
+        threadDelay $ (setTeamInvitationTimeout * safetyFactor + 2) * 1_000_000
 
 ----------------------------------------------------------------------------
 -- Listing users
