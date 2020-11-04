@@ -465,7 +465,9 @@ verdictHandlerWeb =
                 <> ", receiverOrigin);"
                 <> "   </script>"
                 <> "</head>",
-          errHeaders = [("Content-Type", "text/html")]
+          errHeaders =
+            [ ("Content-Type", "text/html;charset=utf-8")
+            ]
         }
       where
         errval =
@@ -491,7 +493,10 @@ verdictHandlerWeb =
                 <> "       window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin);"
                 <> "   </script>"
                 <> "</head>",
-          errHeaders = [("Set-Cookie", cs . Builder.toLazyByteString . renderSetCookie $ cky)]
+          errHeaders =
+            [ ("Content-Type", "text/html;charset=utf-8"),
+              ("Set-Cookie", cs . Builder.toLazyByteString . renderSetCookie $ cky)
+            ]
         }
 
 easyHtml :: LBS -> LBS
