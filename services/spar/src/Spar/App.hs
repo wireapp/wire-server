@@ -50,7 +50,7 @@ import qualified Data.ByteString.Builder as Builder
 import Data.Id
 import Data.String.Conversions
 import Data.Text.Ascii (encodeBase64, toText)
-import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy as LT
 import qualified Data.UUID.V4 as UUID
 import Imports hiding (log)
 import qualified Network.HTTP.Types.Status as Http
@@ -557,7 +557,7 @@ errorPage err inputs mcky =
   ServerError
     { errHTTPCode = Http.statusCode $ Wai.code werr,
       errReasonPhrase = cs $ Wai.label werr,
-      errBody = easyHtml $ TL.intercalate "\n" errbody,
+      errBody = easyHtml $ LT.intercalate "\n" errbody,
       errHeaders = [("Content-Type", "text/html")]
     }
   where
