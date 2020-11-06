@@ -50,9 +50,29 @@ data TeamFeatureName
   | TeamFeatureSearchVisibility
   | TeamFeatureValidateSAMLEmails
   | TeamFeatureDigitalSignatures
-  | TeamFeatureAppLock
   deriving stock (Eq, Show, Ord, Generic, Enum, Bounded)
   deriving (Arbitrary) via (GenericUniform TeamFeatureName)
+
+-- | TeamFeatureAppLock
+
+-- -- if this doesnt work use typeclass
+-- type family FeatureConfigType (a :: TeamFeatureName) :: * where
+--   FeatureConfigType 'TeamFeatureLegalHold = ()
+--   FeatureConfigType 'TeamFeatureSearchVisibility = Void
+
+-- TODO: in galley features in eigenes Modul
+
+-- class FeatureConfig2 (a :: TeamFeatureName) where
+--   type ConfigType a :: *
+--   getFeatureConfig :: Proxy a -> TeamId -> Galley (ConfigType a)
+
+-- handler ::
+
+-- instance FeatureConfig2 'TeamFeatureDigitalSignatures where
+--   type ConfigType 'TeamFeatureDigitalSignatures = ()
+--   getFeatureConfig = undefined
+
+-- getConfig :: TeamFeatureName ->
 
 instance FromByteString TeamFeatureName where
   parser =
@@ -64,7 +84,7 @@ instance FromByteString TeamFeatureName where
         Right "search-visibility" -> pure TeamFeatureSearchVisibility
         Right "validate-saml-emails" -> pure TeamFeatureValidateSAMLEmails
         Right "digital-signatures" -> pure TeamFeatureDigitalSignatures
-        Right "applock" -> pure TeamFeatureAppLock
+        -- Right "applock" -> pure TeamFeatureAppLock
         Right t -> fail $ "Invalid TeamFeatureName: " <> T.unpack t
 
 instance ToByteString TeamFeatureName where
@@ -73,12 +93,13 @@ instance ToByteString TeamFeatureName where
   builder TeamFeatureSearchVisibility = "search-visibility"
   builder TeamFeatureValidateSAMLEmails = "validate-saml-emails"
   builder TeamFeatureDigitalSignatures = "digital-signatures"
-  builder TeamFeatureAppLock = "applock"
+
+-- builder TeamFeatureAppLock = "applock"
 
 typeTeamFeatureName :: Doc.DataType
 typeTeamFeatureName = Doc.string . Doc.enum $ cs . toByteString' <$> [(minBound :: TeamFeatureName) ..]
 
--- TODO: rename to 'TeamFeatureBooleanStatus'
+-- TODO: refactor to (TeamFeatureStatusConfig a)
 newtype TeamFeatureStatus = TeamFeatureStatus
   {teamFeatureStatusValue :: TeamFeatureStatusValue}
   deriving stock (Eq, Show)

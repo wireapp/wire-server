@@ -496,11 +496,11 @@ sitemap = do
   mkSimpleFeatureGetRoute TeamFeatureValidateSAMLEmails
   mkSimpleFeatureGetRoute TeamFeatureDigitalSignatures
 
-  mkFeatureGetRoute
-    TeamFeatureAppLock
-    (const Teams.getFeatureAppLockStatusH)
-    "Shows the app-lock feature config for a team"
-    Public.modelTeamFeatureAppLockStatus
+  -- mkFeatureGetRoute
+  --   TeamFeatureAppLock
+  --   (const Teams.getFeatureAppLockStatusH)
+  --   "Shows the app-lock feature config for a team"
+  --   Public.modelTeamFeatureAppLockStatus
 
   -- Custom Backend API -------------------------------------------------
 
