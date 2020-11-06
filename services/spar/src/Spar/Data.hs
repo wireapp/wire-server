@@ -634,7 +634,7 @@ lookupScimToken token = do
       convert plain row
     [(ScimTokenLookupKeyHashed _, _), (ScimTokenLookupKeyPlaintext plain, row)] ->
       convert plain row
-    [(ScimTokenLookupKeyPlaintext plain, row), (ScimTokenLookupKeyHashed _', _)] ->
+    [(ScimTokenLookupKeyPlaintext plain, row), (ScimTokenLookupKeyHashed _, _)] ->
       convert plain row
     _ -> pure Nothing
   where
