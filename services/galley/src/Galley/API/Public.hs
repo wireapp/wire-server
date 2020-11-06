@@ -452,8 +452,7 @@ sitemap = do
 
   -- Team Feature Flag API ----------------------------------------------
 
-  mkFeatureRoute
-
+  mkFeatureRoute -- does this work both in wai-route and in servant?  that'd be neat!
   get "/teams/:tid/features/app-lock" (continue Teams.getFeatureAppLockStatusH) $
     zauthUserId
       .&. capture "tid"
