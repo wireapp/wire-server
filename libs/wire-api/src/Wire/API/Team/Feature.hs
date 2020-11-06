@@ -64,7 +64,7 @@ instance FromByteString TeamFeatureName where
         Right "search-visibility" -> pure TeamFeatureSearchVisibility
         Right "validate-saml-emails" -> pure TeamFeatureValidateSAMLEmails
         Right "digital-signatures" -> pure TeamFeatureDigitalSignatures
-        Right "app-lock" -> pure TeamFeatureAppLock
+        Right "applock" -> pure TeamFeatureAppLock
         Right t -> fail $ "Invalid TeamFeatureName: " <> T.unpack t
 
 instance ToByteString TeamFeatureName where
@@ -73,7 +73,7 @@ instance ToByteString TeamFeatureName where
   builder TeamFeatureSearchVisibility = "search-visibility"
   builder TeamFeatureValidateSAMLEmails = "validate-saml-emails"
   builder TeamFeatureDigitalSignatures = "digital-signatures"
-  builder TeamFeatureAppLock = "app-lock"
+  builder TeamFeatureAppLock = "applock"
 
 typeTeamFeatureName :: Doc.DataType
 typeTeamFeatureName = Doc.string . Doc.enum $ cs . toByteString' <$> [(minBound :: TeamFeatureName) ..]

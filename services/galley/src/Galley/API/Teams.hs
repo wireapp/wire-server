@@ -866,8 +866,8 @@ getFeatureAppLockStatusH = undefined
 putFeatureAppLockStatusH :: UserId ::: TeamId ::: Public.TeamFeatureAppLockStatus ::: JSON -> Galley Response
 putFeatureAppLockStatusH = undefined
 
-getFeatureStatusH :: UserId ::: TeamId ::: Public.TeamFeatureName ::: JSON -> Galley Response
-getFeatureStatusH (uid ::: tid ::: featureName ::: _) =
+getFeatureStatusH :: Public.TeamFeatureName -> UserId ::: TeamId ::: JSON -> Galley Response
+getFeatureStatusH featureName (uid ::: tid ::: _) =
   json <$> getFeatureStatus uid tid featureName
 
 getFeatureStatus :: UserId -> TeamId -> Public.TeamFeatureName -> Galley Public.TeamFeatureStatus

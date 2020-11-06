@@ -24,8 +24,8 @@ module Galley.API.Public
 where
 
 import Data.Aeson (encode)
-import Data.ByteString.Conversion (fromByteString, fromList)
-import Data.Id (OpaqueUserId)
+import Data.ByteString.Conversion (fromByteString, fromList, toByteString')
+import Data.Id (OpaqueUserId, TeamId, UserId)
 import qualified Data.Predicate as P
 import Data.Range
 import qualified Data.Set as Set
@@ -38,6 +38,7 @@ import qualified Galley.API.Error as Error
 import qualified Galley.API.LegalHold as LegalHold
 import qualified Galley.API.Query as Query
 import Galley.API.Swagger (swagger)
+import Galley.API.Teams (getFeatureStatusH)
 import qualified Galley.API.Teams as Teams
 import qualified Galley.API.Update as Update
 import Galley.App
@@ -62,6 +63,7 @@ import qualified Wire.API.Notification as Public
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
 import qualified Wire.API.Team.Conversation as Public
+import Wire.API.Team.Feature (TeamFeatureName (..))
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.LegalHold as Public
 import qualified Wire.API.Team.Member as Public
@@ -450,50 +452,55 @@ sitemap = do
     response 204 "Search visibility set" end
     errorResponse Error.teamSearchVisibilityNotEnabled
 
-  -- Team Feature Flag API ----------------------------------------------
-
-  mkFeatureRoute -- does this work both in wai-route and in servant?  that'd be neat!
-  get "/teams/:tid/features/app-lock" (continue Teams.getFeatureAppLockStatusH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. accept "application" "json"
-  document "GET" "getTeamFeatureAppLock" $ do
-    summary "Shows the app-lock feature config for a team"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    returns (ref Public.modelTeamFeatureAppLockStatus)
-    response 200 "Team feature status" end
-
-  put "/teams/:tid/features/app-lock" (continue Teams.putFeatureAppLockStatusH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. jsonRequest @Public.TeamFeatureAppLockStatus
-      .&. accept "application" "json"
-  document "PUT" "getTeamFeatureAppLock" $ do
-    summary "Updates the app-lock feature config for a team"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    body (ref Public.modelTeamFeatureApLockStatus)
-    returns (ref Public.modelTeamFeatureApLockStatus)
-    response 200 "Team feature status" end
+  -- put "/teams/:tid/features/app-lock" (continue Teams.putFeatureAppLockStatusH) $
+  --   zauthUserId
+  --     .&. capture "tid"
+  --     .&. jsonRequest @Public.TeamFeatureAppLockStatus
+  --     .&. accept "application" "json"
+  -- document "PUT" "getTeamFeatureAppLock" $ do
+  --   summary "Updates the app-lock feature config for a team"
+  --   parameter Path "tid" bytes' $
+  --     description "Team ID"
+  --   body (ref Public.modelTeamFeatureApLockStatus)
+  --   returns (ref Public.modelTeamFeatureApLockStatus)
+  --   response 200 "Team feature status" end
 
   -- catch-all for boolean flags (TODO: do we want to unfold this into a list of literal
   -- paths, one for each flag name?  would that be easier with servant?  NB: catch-all for all
   -- config types is bad because it's hard to have swagger docs for the config schemas then,
   -- at least in servant.)
-  get "/teams/:tid/features/:feature" (continue Teams.getFeatureStatusH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. capture "feature"
-      .&. accept "application" "json"
-  document "GET" "getTeamFeature" $ do
-    summary "Shows whether a feature is enabled for a team"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    parameter Path "feature" Public.typeTeamFeatureName $
-      description "Feature name"
-    returns (ref Public.modelTeamFeatureStatus)
-    response 200 "Team feature status" end
+  -- get "/teams/:tid/features/:feature" (continue Teams.getFeatureStatusH) $
+  --   zauthUserId
+  --     .&. capture "tid"
+  --     .&. capture "feature"
+  --     .&. accept "application" "json"
+  -- document "GET" "getTeamFeature" $ do
+  --   summary "Shows whether a feature is enabled for a team"
+  --   parameter Path "tid" bytes' $
+  --     description "Team ID"
+  --   parameter Path "feature" Public.typeTeamFeatureName $
+  --     description "Feature name"
+  --   returns (ref Public.modelTeamFeatureStatus)
+  --   response 200 "Team feature status" end
+
+  let mkSimpleFeatureGetRoute featureName =
+        mkFeatureGetRoute
+          featureName
+          getFeatureStatusH
+          "Shows whether a feature is enabled for a team"
+          Public.modelTeamFeatureStatus
+
+  mkSimpleFeatureGetRoute TeamFeatureLegalHold
+  mkSimpleFeatureGetRoute TeamFeatureSSO
+  mkSimpleFeatureGetRoute TeamFeatureSearchVisibility
+  mkSimpleFeatureGetRoute TeamFeatureValidateSAMLEmails
+  mkSimpleFeatureGetRoute TeamFeatureDigitalSignatures
+
+  mkFeatureGetRoute
+    TeamFeatureAppLock
+    (const Teams.getFeatureAppLockStatusH)
+    "Shows the app-lock feature config for a team"
+    Public.modelTeamFeatureAppLockStatus
 
   -- Custom Backend API -------------------------------------------------
 
@@ -1109,3 +1116,21 @@ filterMissing = (>>= go) <$> (query "ignore_missing" ||| query "report_missing")
       -- user IDs, and then 'fromList' unwraps it; took me a while to
       -- understand this
       Just l -> P.Okay 0 (Set.fromList (fromList l))
+
+mkFeatureGetRoute ::
+  Public.TeamFeatureName ->
+  (Public.TeamFeatureName -> UserId ::: TeamId ::: JSON -> Galley Response) ->
+  Text ->
+  Model ->
+  Routes ApiBuilder Galley ()
+mkFeatureGetRoute name handler summaryText model' = do
+  get ("/teams/:tid/features/" <> toByteString' name) (continue (handler name)) $
+    zauthUserId
+      .&. capture "tid"
+      .&. accept "application" "json"
+  document "GET" "getTeamFeature" $ do
+    summary summaryText
+    parameter Path "tid" bytes' $
+      description "Team ID"
+    returns (ref model')
+    response 200 "Team feature status" end
