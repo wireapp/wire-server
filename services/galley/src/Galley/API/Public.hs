@@ -452,6 +452,36 @@ sitemap = do
 
   -- Team Feature Flag API ----------------------------------------------
 
+  mkFeatureRoute
+
+  get "/teams/:tid/features/app-lock" (continue Teams.getFeatureAppLockStatusH) $
+    zauthUserId
+      .&. capture "tid"
+      .&. accept "application" "json"
+  document "GET" "getTeamFeatureAppLock" $ do
+    summary "Shows the app-lock feature config for a team"
+    parameter Path "tid" bytes' $
+      description "Team ID"
+    returns (ref Public.modelTeamFeatureAppLockStatus)
+    response 200 "Team feature status" end
+
+  put "/teams/:tid/features/app-lock" (continue Teams.putFeatureAppLockStatusH) $
+    zauthUserId
+      .&. capture "tid"
+      .&. jsonRequest @Public.TeamFeatureAppLockStatus
+      .&. accept "application" "json"
+  document "PUT" "getTeamFeatureAppLock" $ do
+    summary "Updates the app-lock feature config for a team"
+    parameter Path "tid" bytes' $
+      description "Team ID"
+    body (ref Public.modelTeamFeatureApLockStatus)
+    returns (ref Public.modelTeamFeatureApLockStatus)
+    response 200 "Team feature status" end
+
+  -- catch-all for boolean flags (TODO: do we want to unfold this into a list of literal
+  -- paths, one for each flag name?  would that be easier with servant?  NB: catch-all for all
+  -- config types is bad because it's hard to have swagger docs for the config schemas then,
+  -- at least in servant.)
   get "/teams/:tid/features/:feature" (continue Teams.getFeatureStatusH) $
     zauthUserId
       .&. capture "tid"

@@ -40,6 +40,8 @@ module Galley.API.Teams
     getTeamConversationRolesH,
     deleteTeamConversationH,
     getFeatureStatusH,
+    getFeatureAppLockStatusH,
+    putFeatureAppLockStatusH,
     getFeatureStatusInternalH,
     setFeatureStatusInternalH,
     getSearchVisibilityH,
@@ -857,6 +859,12 @@ canUserJoinTeam tid = do
         throwM tooManyTeamMembersOnTeamWithLegalhold
 
 -- Public endpoints for feature checks
+
+getFeatureAppLockStatusH :: UserId ::: TeamId ::: JSON -> Galley Response
+getFeatureAppLockStatusH = undefined
+
+putFeatureAppLockStatusH :: UserId ::: TeamId ::: Public.TeamFeatureAppLockStatus ::: JSON -> Galley Response
+putFeatureAppLockStatusH = undefined
 
 getFeatureStatusH :: UserId ::: TeamId ::: Public.TeamFeatureName ::: JSON -> Galley Response
 getFeatureStatusH (uid ::: tid ::: featureName ::: _) =
