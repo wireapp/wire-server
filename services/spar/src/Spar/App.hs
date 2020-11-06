@@ -45,11 +45,12 @@ import Control.Lens hiding ((.=))
 import qualified Control.Monad.Catch as Catch
 import Control.Monad.Except
 import Data.Aeson as Aeson (encode, object, (.=))
+import Data.Aeson.Text as Aeson (encodeToLazyText)
 import qualified Data.ByteString.Builder as Builder
-import qualified Data.ByteString.Lazy.Char8 as LBS
 import Data.Id
 import Data.String.Conversions
 import Data.Text.Ascii (encodeBase64, toText)
+import qualified Data.Text.Lazy as LT
 import qualified Data.UUID.V4 as UUID
 import Imports hiding (log)
 import qualified Network.HTTP.Types.Status as Http
@@ -461,11 +462,13 @@ verdictHandlerWeb =
                 <> "   <script type=\"text/javascript\">"
                 <> "       const receiverOrigin = '*';"
                 <> "       window.opener.postMessage("
-                <> Aeson.encode errval
+                <> Aeson.encodeToLazyText errval
                 <> ", receiverOrigin);"
                 <> "   </script>"
                 <> "</head>",
-          errHeaders = [("Content-Type", "text/html")]
+          errHeaders =
+            [ ("Content-Type", "text/html;charset=utf-8")
+            ]
         }
       where
         errval =
@@ -491,16 +494,20 @@ verdictHandlerWeb =
                 <> "       window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin);"
                 <> "   </script>"
                 <> "</head>",
-          errHeaders = [("Set-Cookie", cs . Builder.toLazyByteString . renderSetCookie $ cky)]
+          errHeaders =
+            [ ("Content-Type", "text/html;charset=utf-8"),
+              ("Set-Cookie", cs . Builder.toLazyByteString . renderSetCookie $ cky)
+            ]
         }
 
-easyHtml :: LBS -> LBS
+easyHtml :: LT -> LBS
 easyHtml doc =
-  "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-    <> "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
-    <> "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
-    <> doc
-    <> "</html>"
+  cs $
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+      <> "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
+      <> "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
+      <> doc
+      <> "</html>"
 
 -- | If the client is mobile, it has picked error and success redirect urls (see
 -- 'mkVerdictGrantedFormatMobile', 'mkVerdictDeniedFormatMobile'); variables in these URLs are here
@@ -550,13 +557,13 @@ errorPage err inputs mcky =
   ServerError
     { errHTTPCode = Http.statusCode $ Wai.code werr,
       errReasonPhrase = cs $ Wai.label werr,
-      errBody = easyHtml $ LBS.intercalate "\n" errbody,
+      errBody = easyHtml $ LT.intercalate "\n" errbody,
       errHeaders = [("Content-Type", "text/html")]
     }
   where
     werr = either forceWai id $ renderSparError err
     forceWai ServerError {..} = Wai.Error (Http.Status errHTTPCode "") (cs errReasonPhrase) (cs errBody)
-    errbody :: [LByteString]
+    errbody :: [LT]
     errbody =
       [ "<head>",
         "  <title>wire:sso:error:" <> cs (Wai.label werr) <> "</title>",
