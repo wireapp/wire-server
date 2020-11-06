@@ -22,11 +22,13 @@
 module Wire.API.Team.Feature
   ( TeamFeatureName (..),
     TeamFeatureStatus (..),
+    TeamFeatureAppLockStatus (..),
     TeamFeatureStatusValue (..),
 
     -- * Swagger
     typeTeamFeatureName,
     modelTeamFeatureStatus,
+    modelTeamFeatureAppLockStatus,
     typeTeamFeatureStatusValue,
   )
 where
@@ -34,12 +36,13 @@ where
 import Data.Aeson
 import qualified Data.Attoparsec.ByteString as Parser
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..), toByteString')
+import Data.Misc (PlainTextPassword)
 import Data.String.Conversions (cs)
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Imports
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 data TeamFeatureName
   = TeamFeatureLegalHold
@@ -47,6 +50,7 @@ data TeamFeatureName
   | TeamFeatureSearchVisibility
   | TeamFeatureValidateSAMLEmails
   | TeamFeatureDigitalSignatures
+  | TeamFeatureAppLock
   deriving stock (Eq, Show, Ord, Generic, Enum, Bounded)
   deriving (Arbitrary) via (GenericUniform TeamFeatureName)
 
@@ -60,6 +64,7 @@ instance FromByteString TeamFeatureName where
         Right "search-visibility" -> pure TeamFeatureSearchVisibility
         Right "validate-saml-emails" -> pure TeamFeatureValidateSAMLEmails
         Right "digital-signatures" -> pure TeamFeatureDigitalSignatures
+        Right "app-lock" -> pure TeamFeatureAppLock
         Right t -> fail $ "Invalid TeamFeatureName: " <> T.unpack t
 
 instance ToByteString TeamFeatureName where
@@ -68,10 +73,12 @@ instance ToByteString TeamFeatureName where
   builder TeamFeatureSearchVisibility = "search-visibility"
   builder TeamFeatureValidateSAMLEmails = "validate-saml-emails"
   builder TeamFeatureDigitalSignatures = "digital-signatures"
+  builder TeamFeatureAppLock = "app-lock"
 
 typeTeamFeatureName :: Doc.DataType
 typeTeamFeatureName = Doc.string . Doc.enum $ cs . toByteString' <$> [(minBound :: TeamFeatureName) ..]
 
+-- TODO: rename to 'TeamFeatureBooleanStatus'
 newtype TeamFeatureStatus = TeamFeatureStatus
   {teamFeatureStatusValue :: TeamFeatureStatusValue}
   deriving stock (Eq, Show)
@@ -129,3 +136,22 @@ instance FromByteString TeamFeatureStatusValue where
         Right "disabled" -> pure TeamFeatureDisabled
         Right t -> fail $ "Invalid TeamFeatureStatusValue: " <> T.unpack t
         Left e -> fail $ "Invalid TeamFeatureStatusValue: " <> show e
+
+data TeamFeatureAppLockStatus = TeamFeatureAppLockStatus
+  { teamFeatureAppLockStatus :: TeamFeatureStatusValue,
+    teamFeatureAppLockInactivityTimeoutSecs :: Int,
+    teamFeatureAppLockPassphrase :: PlainTextPassword
+  }
+  deriving stock (Eq, Show)
+
+instance Arbitrary TeamFeatureAppLockStatus where
+  arbitrary = undefined -- can we derive this?
+
+instance ToJSON TeamFeatureAppLockStatus where
+  toJSON = undefined -- can we derive these somehow?
+
+instance FromJSON TeamFeatureAppLockStatus where
+  parseJSON = undefined
+
+modelTeamFeatureAppLockStatus :: Doc.Model
+modelTeamFeatureAppLockStatus = Doc.defineModel "TeamFeatureStatus" undefined
