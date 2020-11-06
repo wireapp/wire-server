@@ -23,9 +23,9 @@ module Galley.API.Public
   )
 where
 
-import Data.Aeson (encode)
-import Data.ByteString.Conversion (fromByteString, fromList)
-import Data.Id (OpaqueUserId)
+import Data.Aeson (FromJSON, ToJSON, encode)
+import Data.ByteString.Conversion (fromByteString, fromList, toByteString')
+import Data.Id (OpaqueUserId, TeamId, UserId)
 import qualified Data.Predicate as P
 import Data.Range
 import qualified Data.Set as Set
@@ -38,6 +38,7 @@ import qualified Galley.API.Error as Error
 import qualified Galley.API.LegalHold as LegalHold
 import qualified Galley.API.Query as Query
 import Galley.API.Swagger (swagger)
+import Galley.API.Teams (DoAuth (..))
 import qualified Galley.API.Teams as Teams
 import qualified Galley.API.Update as Update
 import Galley.App
@@ -450,21 +451,12 @@ sitemap = do
     response 204 "Search visibility set" end
     errorResponse Error.teamSearchVisibilityNotEnabled
 
-  -- Team Feature Flag API ----------------------------------------------
-
-  get "/teams/:tid/features/:feature" (continue Teams.getFeatureStatusH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. capture "feature"
-      .&. accept "application" "json"
-  document "GET" "getTeamFeature" $ do
-    summary "Shows whether a feature is enabled for a team"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    parameter Path "feature" Public.typeTeamFeatureName $
-      description "Feature name"
-    returns (ref Public.modelTeamFeatureStatus)
-    response 200 "Team feature status" end
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureSSO Teams.getSSOStatusInternal Teams.setSSOStatusInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureLegalHold Teams.getLegalholdStatusInternal Teams.setLegalholdStatusInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureSearchVisibility Teams.getTeamSearchVisibilityAvailableInternal Teams.setTeamSearchVisibilityAvailableInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureValidateSAMLEmails Teams.getValidateSAMLEmailsInternal Teams.setValidateSAMLEmailsInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureDigitalSignatures Teams.getDigitalSignaturesInternal Teams.setDigitalSignaturesInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureAppLock Teams.getAppLockInternal Teams.setAppLockInternal
 
   -- Custom Backend API -------------------------------------------------
 
@@ -1080,3 +1072,47 @@ filterMissing = (>>= go) <$> (query "ignore_missing" ||| query "report_missing")
       -- user IDs, and then 'fromList' unwraps it; took me a while to
       -- understand this
       Just l -> P.Okay 0 (Set.fromList (fromList l))
+
+mkFeatureGetAndPutRoute ::
+  forall (a :: Public.TeamFeatureName).
+  ( Public.KnownTeamFeatureName a,
+    ToJSON (Public.TeamFeatureStatus a),
+    FromJSON (Public.TeamFeatureStatus a)
+  ) =>
+  (TeamId -> Galley (Public.TeamFeatureStatus a)) ->
+  (TeamId -> Public.TeamFeatureStatus a -> Galley (Public.TeamFeatureStatus a)) ->
+  Routes ApiBuilder Galley ()
+mkFeatureGetAndPutRoute getter setter = do
+  let featureName = Public.knownTeamFeatureName @a
+
+  let getHandler :: UserId ::: TeamId ::: JSON -> Galley Response
+      getHandler (uid ::: tid ::: _) =
+        json <$> Teams.getFeatureStatus @a getter (DoAuth uid) tid
+
+  get ("/teams/:tid/features/" <> toByteString' featureName) (continue getHandler) $
+    zauthUserId
+      .&. capture "tid"
+      .&. accept "application" "json"
+  document "GET" "getTeamFeature" $ do
+    parameter Path "tid" bytes' $
+      description "Team ID"
+    returns (ref (Public.modelForTeamFeature featureName))
+    response 200 "Team feature status" end
+
+  let putHandler :: UserId ::: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON -> Galley Response
+      putHandler (uid ::: tid ::: req ::: _) = do
+        status <- fromJsonBody req
+        res <- Teams.setFeatureStatus @a setter (DoAuth uid) tid status
+        pure $ (json res) & Network.Wai.Utilities.setStatus status200
+
+  put ("/teams/:tid/features/" <> toByteString' featureName) (continue putHandler) $
+    zauthUserId
+      .&. capture "tid"
+      .&. jsonRequest @(Public.TeamFeatureStatus a)
+      .&. accept "application" "json"
+  document "PUT" "putTeamFeature" $ do
+    parameter Path "tid" bytes' $
+      description "Team ID"
+    body (ref (Public.modelForTeamFeature featureName)) $
+      description "JSON body"
+    response 204 "Team feature status" end

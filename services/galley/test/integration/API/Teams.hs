@@ -288,10 +288,9 @@ testEnableSSOPerTeam = do
   assertQueue "create team" tActivate
   let check :: HasCallStack => String -> Public.TeamFeatureStatusValue -> TestM ()
       check msg enabledness = do
-        status <-
-          Public.teamFeatureStatusValue . responseJsonUnsafe
-            <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
-        liftIO $ assertEqual msg enabledness status
+        status :: Public.TeamFeatureStatus 'Public.TeamFeatureSSO <- responseJsonUnsafe <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
+        let statusValue = Public.tfwoStatus status
+        liftIO $ assertEqual msg enabledness statusValue
   let putSSOEnabledInternalCheckNotImplemented :: HasCallStack => TestM ()
       putSSOEnabledInternalCheckNotImplemented = do
         g <- view tsGalley
@@ -300,7 +299,7 @@ testEnableSSOPerTeam = do
             <$> put
               ( g
                   . paths ["i", "teams", toByteString' tid, "features", "sso"]
-                  . json (Public.TeamFeatureStatus Public.TeamFeatureDisabled)
+                  . json (Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled)
               )
         liftIO $ do
           assertEqual "bad status" status403 status
@@ -319,10 +318,10 @@ testEnableTeamSearchVisibilityPerTeam = do
   (tid, owner, (member : _)) <- Util.createBindingTeamWithMembers 2
   let check :: (HasCallStack, MonadCatch m, MonadIO m, Monad m, MonadHttp m) => String -> Public.TeamFeatureStatusValue -> m ()
       check msg enabledness = do
-        status <-
-          Public.teamFeatureStatusValue . responseJsonUnsafe
-            <$> (Util.getTeamSearchVisibilityAvailableInternal g tid <!! testResponse 200 Nothing)
-        liftIO $ assertEqual msg enabledness status
+        status :: Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility <- responseJsonUnsafe <$> (Util.getTeamSearchVisibilityAvailableInternal g tid <!! testResponse 200 Nothing)
+        let statusValue = Public.tfwoStatus status
+
+        liftIO $ assertEqual msg enabledness statusValue
   let putSearchVisibilityCheckNotAllowed :: (HasCallStack, Monad m, MonadIO m, MonadHttp m) => m ()
       putSearchVisibilityCheckNotAllowed = do
         Wai.Error status label _ <- responseJsonUnsafe <$> putSearchVisibility g owner tid SearchVisibilityNoNameOutsideTeam
@@ -1893,7 +1892,7 @@ getSSOEnabledInternal :: HasCallStack => TeamId -> TestM ResponseLBS
 getSSOEnabledInternal = Util.getTeamFeatureFlagInternal Public.TeamFeatureSSO
 
 putSSOEnabledInternal :: HasCallStack => TeamId -> Public.TeamFeatureStatusValue -> TestM ()
-putSSOEnabledInternal = Util.putTeamFeatureFlagInternal' Public.TeamFeatureSSO expect2xx
+putSSOEnabledInternal tid statusValue = Util.putTeamFeatureFlagInternal @'Public.TeamFeatureSSO expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
 
 getSearchVisibility :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 getSearchVisibility g uid tid = do

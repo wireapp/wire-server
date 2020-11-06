@@ -828,7 +828,7 @@ getTeamName tid = do
         . expect2xx
 
 -- | Calls 'Galley.API.getTeamFeatureStatusH'.
-getTeamLegalHoldStatus :: TeamId -> AppIO TeamFeatureStatus
+getTeamLegalHoldStatus :: TeamId -> AppIO (TeamFeatureStatus 'TeamFeatureLegalHold)
 getTeamLegalHoldStatus tid = do
   debug $ remote "galley" . msg (val "Get legalhold settings")
   galleyRequest GET req >>= decodeBody "galley"

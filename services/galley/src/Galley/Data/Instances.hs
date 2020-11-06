@@ -154,3 +154,13 @@ instance Cql Domain where
   toCql = CqlText . domainText
   fromCql (CqlText txt) = mkDomain txt
   fromCql _ = Left "Domain: Text expected"
+
+instance Cql Public.EnforceAppLock where
+  ctype = Tagged IntColumn
+  toCql (Public.EnforceAppLock False) = CqlInt 0
+  toCql (Public.EnforceAppLock True) = CqlInt 1
+  fromCql (CqlInt n) = case n of
+    0 -> pure (Public.EnforceAppLock False)
+    1 -> pure (Public.EnforceAppLock True)
+    _ -> Left "fromCql EnforceAppLock: int out of range"
+  fromCql _ = Left "fromCql EnforceAppLock: int expected"
