@@ -67,7 +67,7 @@ POST /scim/auth-tokens
 }
 ```
 
-Note that SCIM can only be used with teams that use single sign-on. If a team does not have an identity provider associated with it, `POST /scim/auth-tokens` will return status code 400 with error label `"no-single-idp"`.
+Note that SCIM can only be used with teams that have either no or exactly one SAML IdP ([internal issue](https://github.com/zinfra/backend-issues/issues/1377)).
 
 ### Listing existing tokens {#RefScimTokenList}
 
