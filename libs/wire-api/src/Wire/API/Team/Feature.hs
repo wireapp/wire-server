@@ -22,13 +22,15 @@
 module Wire.API.Team.Feature
   ( TeamFeatureName (..),
     TeamFeatureStatus (..),
-    TeamFeatureAppLockStatus (..),
+    TeamFeatureAppLockConfig (..),
     TeamFeatureStatusValue (..),
+    mkTeamFeatureStatusNoConfig,
+    TeamFeatureConfig,
 
     -- * Swagger
     typeTeamFeatureName,
     modelTeamFeatureStatus,
-    modelTeamFeatureAppLockStatus,
+    modelTeamFeatureAppLockConfig,
     typeTeamFeatureStatusValue,
   )
 where
@@ -36,11 +38,11 @@ where
 import Data.Aeson
 import qualified Data.Attoparsec.ByteString as Parser
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..), toByteString')
-import Data.Misc (PlainTextPassword)
 import Data.String.Conversions (cs)
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import Deriving.Aeson.Stock
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
@@ -50,29 +52,17 @@ data TeamFeatureName
   | TeamFeatureSearchVisibility
   | TeamFeatureValidateSAMLEmails
   | TeamFeatureDigitalSignatures
+  | TeamFeatureAppLock
   deriving stock (Eq, Show, Ord, Generic, Enum, Bounded)
   deriving (Arbitrary) via (GenericUniform TeamFeatureName)
 
--- | TeamFeatureAppLock
-
--- -- if this doesnt work use typeclass
--- type family FeatureConfigType (a :: TeamFeatureName) :: * where
---   FeatureConfigType 'TeamFeatureLegalHold = ()
---   FeatureConfigType 'TeamFeatureSearchVisibility = Void
-
--- TODO: in galley features in eigenes Modul
-
--- class FeatureConfig2 (a :: TeamFeatureName) where
---   type ConfigType a :: *
---   getFeatureConfig :: Proxy a -> TeamId -> Galley (ConfigType a)
-
--- handler ::
-
--- instance FeatureConfig2 'TeamFeatureDigitalSignatures where
---   type ConfigType 'TeamFeatureDigitalSignatures = ()
---   getFeatureConfig = undefined
-
--- getConfig :: TeamFeatureName ->
+type family TeamFeatureConfig (a :: TeamFeatureName) :: * where
+  TeamFeatureConfig 'TeamFeatureLegalHold = ()
+  TeamFeatureConfig 'TeamFeatureSSO = ()
+  TeamFeatureConfig 'TeamFeatureSearchVisibility = ()
+  TeamFeatureConfig 'TeamFeatureValidateSAMLEmails = ()
+  TeamFeatureConfig 'TeamFeatureDigitalSignatures = ()
+  TeamFeatureConfig 'TeamFeatureAppLock = TeamFeatureAppLockConfig
 
 instance FromByteString TeamFeatureName where
   parser =
@@ -84,7 +74,7 @@ instance FromByteString TeamFeatureName where
         Right "search-visibility" -> pure TeamFeatureSearchVisibility
         Right "validate-saml-emails" -> pure TeamFeatureValidateSAMLEmails
         Right "digital-signatures" -> pure TeamFeatureDigitalSignatures
-        -- Right "applock" -> pure TeamFeatureAppLock
+        Right "app-lock" -> pure TeamFeatureAppLock
         Right t -> fail $ "Invalid TeamFeatureName: " <> T.unpack t
 
 instance ToByteString TeamFeatureName where
@@ -93,32 +83,52 @@ instance ToByteString TeamFeatureName where
   builder TeamFeatureSearchVisibility = "search-visibility"
   builder TeamFeatureValidateSAMLEmails = "validate-saml-emails"
   builder TeamFeatureDigitalSignatures = "digital-signatures"
-
--- builder TeamFeatureAppLock = "applock"
+  builder TeamFeatureAppLock = "app-lock"
 
 typeTeamFeatureName :: Doc.DataType
 typeTeamFeatureName = Doc.string . Doc.enum $ cs . toByteString' <$> [(minBound :: TeamFeatureName) ..]
 
--- TODO: refactor to (TeamFeatureStatusConfig a)
-newtype TeamFeatureStatus = TeamFeatureStatus
-  {teamFeatureStatusValue :: TeamFeatureStatusValue}
-  deriving stock (Eq, Show)
-  deriving newtype (Arbitrary)
+data TeamFeatureStatus a = TeamFeatureStatus
+  { teamFeatureStatusValue :: TeamFeatureStatusValue,
+    config :: a
+  }
+
+deriving stock instance Eq a => Eq (TeamFeatureStatus a)
+
+deriving stock instance Show a => Show (TeamFeatureStatus a)
+
+instance Arbitrary a => Arbitrary (TeamFeatureStatus a) where
+  arbitrary = TeamFeatureStatus <$> arbitrary <*> arbitrary
+
+mkTeamFeatureStatusNoConfig :: TeamFeatureStatusValue -> TeamFeatureStatus ()
+mkTeamFeatureStatusNoConfig val = TeamFeatureStatus val ()
 
 modelTeamFeatureStatus :: Doc.Model
 modelTeamFeatureStatus = Doc.defineModel "TeamFeatureStatus" $ do
   Doc.description "Configuration of a feature for a team"
   Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
+  -- TODO(stefan)
+  Doc.property "config" undefined $ Doc.description "config"
 
-instance ToJSON TeamFeatureStatus where
-  toJSON (TeamFeatureStatus status) =
+instance {-# OVERLAPPABLE #-} ToJSON a => ToJSON (TeamFeatureStatus a) where
+  toJSON (TeamFeatureStatus status config) =
     object
-      [ "status" .= status
+      [ "status" .= status,
+        "config" .= config
       ]
 
-instance FromJSON TeamFeatureStatus where
+instance {-# OVERLAPPING #-} ToJSON (TeamFeatureStatus ()) where
+  toJSON (TeamFeatureStatus status _) =
+    object
+      ["status" .= status]
+
+instance {-# OVERLAPPABLE #-} FromJSON a => FromJSON (TeamFeatureStatus a) where
   parseJSON = withObject "TeamFeatureStatus" $ \o ->
-    TeamFeatureStatus <$> o .: "status"
+    TeamFeatureStatus <$> o .: "status" <*> o .: "config"
+
+instance {-# OVERLAPPING #-} FromJSON (TeamFeatureStatus ()) where
+  parseJSON = withObject "TeamFeatureStatus" $ \o ->
+    TeamFeatureStatus <$> o .: "status" <*> pure ()
 
 data TeamFeatureStatusValue
   = TeamFeatureEnabled
@@ -158,21 +168,18 @@ instance FromByteString TeamFeatureStatusValue where
         Right t -> fail $ "Invalid TeamFeatureStatusValue: " <> T.unpack t
         Left e -> fail $ "Invalid TeamFeatureStatusValue: " <> show e
 
-data TeamFeatureAppLockStatus = TeamFeatureAppLockStatus
-  { teamFeatureAppLockStatus :: TeamFeatureStatusValue,
-    teamFeatureAppLockInactivityTimeoutSecs :: Int,
-    teamFeatureAppLockPassphrase :: PlainTextPassword
+data TeamFeatureAppLockConfig = TeamFeatureAppLockConfig
+  { teamFeatureAppLockConfigEnforceAppLock :: Bool,
+    teamFeatureAppLockConfigInactivityTimeoutSecs :: Int
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
 
-instance Arbitrary TeamFeatureAppLockStatus where
-  arbitrary = undefined -- can we derive this?
+deriving via (GenericUniform TeamFeatureAppLockConfig) instance Arbitrary TeamFeatureAppLockConfig
 
-instance ToJSON TeamFeatureAppLockStatus where
-  toJSON = undefined -- can we derive these somehow?
+deriving via (PrefixedSnake "teamFeatureAppLockConfig" TeamFeatureAppLockConfig) instance ToJSON TeamFeatureAppLockConfig
 
-instance FromJSON TeamFeatureAppLockStatus where
-  parseJSON = undefined
+deriving via (PrefixedSnake "teamFeatureAppLockConfig" TeamFeatureAppLockConfig) instance FromJSON TeamFeatureAppLockConfig
 
-modelTeamFeatureAppLockStatus :: Doc.Model
-modelTeamFeatureAppLockStatus = Doc.defineModel "TeamFeatureStatus" undefined
+-- TODO(stefan)
+modelTeamFeatureAppLockConfig :: Doc.Model
+modelTeamFeatureAppLockConfig = Doc.defineModel "TeamFeatureAppLockConfig" undefined
