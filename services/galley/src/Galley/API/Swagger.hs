@@ -98,9 +98,10 @@ type GalleyRoutesPublic =
 
 type GalleyRoutesInternal =
   "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
-    :> Get '[JSON] TeamFeatureStatus
+    :> Get '[JSON] (TeamFeatureStatus ())
     :<|> "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
-      :> ReqBody '[JSON] TeamFeatureStatus
+      -- TODO(stefan)
+      :> ReqBody '[JSON] (TeamFeatureStatus ())
       :> Put '[] NoContent
 
 -- FUTUREWORK: move Swagger instances next to the types they describe
@@ -225,7 +226,8 @@ instance ToSchema ViewLegalHoldServiceInfo where
         ViewLegalHoldService
           (ViewLegalHoldServiceInfo arbitraryExample arbitraryExample arbitraryExample (ServiceToken "sometoken") arbitraryExample)
 
-instance ToSchema TeamFeatureStatus where
+-- TODO(stefan)
+instance ToSchema (TeamFeatureStatus ()) where
   declareNamedSchema _ =
     pure $
       NamedSchema (Just "TeamFeatureStatus") $

@@ -124,7 +124,7 @@ testSearchVisibility = do
       getTeamSearchVisibility teamid expected =
         Util.getTeamSearchVisibilityAvailable g owner teamid !!! do
           statusCode === const 200
-          responseJsonEither === const (Right (Public.TeamFeatureStatus expected))
+          responseJsonEither === const (Right (Public.mkTeamFeatureStatusNoConfig expected))
 
   let getTeamSearchVisibilityInternal ::
         (Monad m, MonadHttp m, MonadIO m, MonadCatch m, HasCallStack) =>
@@ -134,7 +134,7 @@ testSearchVisibility = do
       getTeamSearchVisibilityInternal teamid expected =
         Util.getTeamSearchVisibilityAvailableInternal g teamid !!! do
           statusCode === const 200
-          responseJsonEither === const (Right (Public.TeamFeatureStatus expected))
+          responseJsonEither === const (Right (Public.mkTeamFeatureStatusNoConfig expected))
 
   let setTeamSearchVisibilityInternal ::
         (Monad m, MonadHttp m, MonadIO m, HasCallStack) =>
@@ -192,4 +192,4 @@ assertFlag :: HasCallStack => TestM ResponseLBS -> Public.TeamFeatureStatusValue
 assertFlag res expected =
   res !!! do
     statusCode === const 200
-    responseJsonEither === const (Right (Public.TeamFeatureStatus expected))
+    responseJsonEither === const (Right (Public.mkTeamFeatureStatusNoConfig expected))

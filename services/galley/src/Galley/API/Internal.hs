@@ -176,12 +176,19 @@ sitemap = do
       .&. capture "feature"
       .&. accept "application" "json"
 
-  put "/i/teams/:tid/features/:feature" (continue Teams.setFeatureStatusInternalH) $
+  -- TODO(stefan): write for every feature
+  -- put "/i/teams/:tid/features/:feature" (continue Teams.setFeatureStatusInternalH) $
+  --   capture "tid"
+  --     .&. capture "feature"
+  --     .&. jsonRequest @Public.TeamFeatureStatus
+  --     .&. accept "application" "json"
+
+  -- TODO(stefan)
+  put "/i/teams/:tid/features/legalhold" (continue (Teams.setFeatureStatusInternalH @'Public.TeamFeatureLegalHold)) $
     capture "tid"
       .&. capture "feature"
-      .&. jsonRequest @Public.TeamFeatureStatus
+      .&. jsonRequest @(Public.TeamFeatureStatus (Public.TeamFeatureConfig 'Public.TeamFeatureLegalHold))
       .&. accept "application" "json"
-
   -- Misc API (internal) ------------------------------------------------
 
   get "/i/users/:uid/team/members" (continue Teams.getBindingTeamMembersH) $
