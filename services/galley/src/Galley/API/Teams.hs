@@ -59,6 +59,7 @@ module Galley.API.Teams
 where
 
 import Brig.Types.Team (TeamSize (..))
+import Control.Error (ExceptT)
 import Control.Lens
 import Control.Monad.Catch
 import Data.Aeson hiding (json)
@@ -915,16 +916,38 @@ getFeatureStatusInternalH (tid ::: featureName ::: _) = do
 
 -- | Enable or disable feature flag for a team.  To be called only from authorized personnel
 -- (e.g., from a backoffice tool)
-setFeatureStatusInternalH ::
-  forall (a :: Public.TeamFeatureName).
-  (HasFeatureStatus a, FromJSON (Public.TeamFeatureConfig a)) =>
-  TeamId
-    ::: Public.TeamFeatureName
-    ::: JsonRequest (Public.TeamFeatureStatus (Public.TeamFeatureConfig a))
-    ::: JSON ->
-  Galley Response
-setFeatureStatusInternalH (tid ::: featureName ::: req ::: _) =
-  undefined
+-- setFeatureStatusInternalH ::
+--   forall (a :: Public.TeamFeatureName).
+--   (HasFeatureStatus a, FromJSON (Public.TeamFeatureConfig a)) =>
+--   TeamId
+--     ::: Public.TeamFeatureName
+--     ::: JsonRequest (Public.TeamFeatureStatus (Public.TeamFeatureConfig a))
+--     ::: JSON ->
+--   Galley Response
+-- setFeatureStatusInternalH (tid ::: featureName ::: req ::: _) = do
+--   status <- fromJsonBody req
+--   setFeatureStatusInternal (Proxy :: Proxy a) tid status
+--   pure (empty & setStatus status204)
+-- foo :: FromJSON a => JsonRequest (Public.TeamFeatureStatus a) -> Galley (Public.TeamFeatureStatus a)
+-- foo = fromJsonBody
+bar ::
+  FromJSON a =>
+  JsonRequest (Public.TeamFeatureStatus a) ->
+  ExceptT LText IO (Public.TeamFeatureStatus a)
+bar = parseBody
+
+-- setFeatureStatusInternalH ::
+--   forall (a :: Public.TeamFeatureName) b.
+--   (HasFeatureStatus a, FromJSON b) =>
+--   TeamId
+--     ::: Public.TeamFeatureName
+--     ::: JsonRequest (Public.TeamFeatureStatus b)
+--     ::: JSON ->
+--   Galley Response
+-- setFeatureStatusInternalH (tid ::: featureName ::: req ::: _) = do
+--   status <- fromJsonBody req
+--   -- setFeatureStatusInternal (Proxy :: Proxy a) tid status
+--   pure (empty & setStatus status204)
 
 -- res <- (setFeatureStatusInternal tid featureName =<< fromJsonBody req)
 -- (empty & setStatus status204) res
