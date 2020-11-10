@@ -392,7 +392,8 @@ instance Arbitrary (ParseInput (NginzLogRecord)) where
               ("user", genStringField),
               ("zconn", genStringField),
               ("request", genStringField),
-              ("proxy_protocol_addr", genIPv4Field)
+              ("proxy_protocol_addr", genIPv4Field),
+              ("tracestate", genStringField)
             ]
       genIntField :: Gen CommonLogField
       genIntField =
