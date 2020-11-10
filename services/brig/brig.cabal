@@ -17,6 +17,10 @@ license:        AGPL-3
 license-file:   LICENSE
 build-type:     Simple
 
+flag static
+    Description: Enable static linking
+    Default:     False
+
 library
   exposed-modules:
       Brig.API
@@ -246,6 +250,9 @@ executable brig
     , optparse-applicative >=0.10
     , types-common
   default-language: Haskell2010
+
+  if flag(static)
+    ld-options: -static
 
 executable brig-index
   main-is: index/src/Main.hs

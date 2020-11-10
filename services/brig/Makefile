@@ -143,3 +143,39 @@ time: clean
 	stack build . --pedantic --no-run-benchmarks --no-copy-bins --ghc-options="-j +RTS -s -RTS"
 	@echo -e "\nTotal wall-clock times taken to compile each module (see logs for more detail):"
 	@grep Total .stack-work/logs/* | tr -s ' ' | awk -F' ' '{gsub(/s$$/, "", $$6); a[$$1] += $$6}END{for (i in a) {m=gensub(/^.*\/logs\//,"",1,i); m=gensub(/-[0-9].*\.log/,"",1,m); print m, a[i] ++ "s"}}' | sort -grk2
+
+# build a statically linked binary by compiling on alpine. Will result in a '...-static' binary in dist.
+#
+# Requires some additional libraries to link to in a static fashion. FUTUREWORK: incorporate those into the base docker image
+# TODO: Fix the following errors:
+#
+# Linking .stack-work/dist/x86_64-linux/Cabal-3.0.1.0/build/brig/brig ...
+# FIXED - ld: cannot find -licuuc, -licui18n, -licudata
+# FIXED - ld: cannot find -lsodium
+# FIXED - ld: cannot find -lssl
+# FIXED - ld: cannot find -lcrypto
+# TODO: ld: cannot find -lcryptobox
+# TODO:Linking .stack-work/dist/x86_64-linux/Cabal-3.0.1.0/build/brig/brig ...
+# /usr/lib/gcc/x86_64-alpine-linux-musl/9.3.0/../../../../x86_64-alpine-linux-musl/bin/ld: /usr/lib/gcc/x86_64-alpine-linux-musl/9.3.0/../../../../lib/libcrypto.a(sha256.o): in function `memset':
+
+# /usr/include/fortify/string.h:72:0: error:
+#      multiple definition of `SHA256_Init'; /root/.stack/snapshots/x86_64-linux/a944605f5431d68d950667df542d996e3aaca124566f56ff0aad5215ec982cef/8.8.4/lib/x86_64-linux-ghc-8.8.4/scrypt-0.5.0-LYeIXKFt5cxLnsY2LJE5Az/libHSscrypt-0.5.0-LYeIXKFt5cxLnsY2LJE5Az.a(sha256.o):(.text+0x1c40): first defined here
+#    |
+# 72 |         return __builtin_memset(__d, __c, __n);
+#    | ^
+# /usr/lib/gcc/x86_64-alpine-linux-musl/9.3.0/../../../../x86_64-alpine-linux-musl/bin/ld: /usr/lib/gcc/x86_64-alpine-linux-musl/9.3.0/../../../../lib/libcrypto.a(sha256.o): in function `SHA256_Update':
+
+# /home/buildozer/aports/main/openssl/src/openssl-1.1.1g/include/crypto/md32_common.h:135:0: error:
+#      multiple definition of `SHA256_Update'; /root/.stack/snapshots/x86_64-linux/a944605f5431d68d950667df542d996e3aaca124566f56ff0aad5215ec982cef/8.8.4/lib/x86_64-linux-ghc-8.8.4/scrypt-0.5.0-LYeIXKFt5cxLnsY2LJE5Az/libHSscrypt-0.5.0-LYeIXKFt5cxLnsY2LJE5Az.a(sha256.o):(.text+0x1c80): first defined here
+# /usr/lib/gcc/x86_64-alpine-linux-musl/9.3.0/../../../../x86_64-alpine-linux-musl/bin/ld: /usr/lib/gcc/x86_64-alpine-linux-musl/9.3.0/../../../../lib/libcrypto.a(sha256.o): in function `SHA256_Final':
+
+# /home/buildozer/aports/main/openssl/src/openssl-1.1.1g/include/crypto/md32_common.h:192:0: error:
+#      multiple definition of `SHA256_Final'; /root/.stack/snapshots/x86_64-linux/a944605f5431d68d950667df542d996e3aaca124566f56ff0aad5215ec982cef/8.8.4/lib/x86_64-linux-ghc-8.8.4/scrypt-0.5.0-LYeIXKFt5cxLnsY2LJE5Az/libHSscrypt-0.5.0-LYeIXKFt5cxLnsY2LJE5Az.a(sha256.o):(.text+0x1f00): first defined here
+# collect2: error: ld returned 1 exit status
+# `gcc' failed in phase `Linker'. (Exit code: 1)
+.PHONY: static
+static:
+	docker run --rm \
+		-v $(CURDIR)/../..:/wire-server \
+		quay.io/wire/alpine-builder:develop \
+		sh -c 'apk add --no-cache zlib-static openssl-libs-static icu-static libgcrypt-static libsodium-static && cd /wire-server/services/brig && stack --system-ghc --local-bin-path . --allow-different-user install --flag brig:static . && mv brig dist/brig-static'
