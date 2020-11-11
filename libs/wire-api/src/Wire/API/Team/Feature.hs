@@ -30,9 +30,15 @@ module Wire.API.Team.Feature
 
     -- * Swagger
     typeTeamFeatureName,
-    modelTeamFeatureStatus,
-    modelTeamFeatureAppLockConfig,
     typeTeamFeatureStatusValue,
+    modelTeamFeatureStatusLegalHold,
+    modelTeamFeatureStatusSSO,
+    modelTeamFeatureStatusSearchVisibility,
+    modelTeamFeatureStatusValidateSAMLEmails,
+    modelTeamFeatureStatusDigitalSignatures,
+    modelTeamFeatureStatusAppLock,
+    modelTeamFeatureAppLockConfig,
+    modelForTeamFeature,
   )
 where
 
@@ -163,12 +169,41 @@ instance
   where
   arbitrary = TeamFeatureStatus <$> arbitrary <*> arbitrary
 
-modelTeamFeatureStatus :: Doc.Model
-modelTeamFeatureStatus = Doc.defineModel "TeamFeatureStatus" $ do
-  Doc.description "Configuration of a feature for a team"
-  Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
-  -- TODO(stefan)
-  Doc.property "config" undefined $ Doc.description "config"
+modelTeamFeatureStatusLegalHold :: Doc.Model
+modelTeamFeatureStatusLegalHold = modelTeamFeatureWithoutConfig "TeamFeatureLegalHold"
+
+modelTeamFeatureStatusSSO :: Doc.Model
+modelTeamFeatureStatusSSO = modelTeamFeatureWithoutConfig "TeamFeatureSSO"
+
+modelTeamFeatureStatusSearchVisibility :: Doc.Model
+modelTeamFeatureStatusSearchVisibility = modelTeamFeatureWithoutConfig "TeamFeatureSearchVisibility"
+
+modelTeamFeatureStatusValidateSAMLEmails :: Doc.Model
+modelTeamFeatureStatusValidateSAMLEmails = modelTeamFeatureWithoutConfig "TeamFeatureValidateSAMLEmails"
+
+modelTeamFeatureStatusDigitalSignatures :: Doc.Model
+modelTeamFeatureStatusDigitalSignatures = modelTeamFeatureWithoutConfig "TeamFeatureDigitalSignatures"
+
+modelTeamFeatureStatusAppLock :: Doc.Model
+modelTeamFeatureStatusAppLock =
+  Doc.defineModel "TeamFeatureAppLockStatus" $ do
+    Doc.description "Configuration of a the AppLock team feature"
+    Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
+    Doc.property "config" (Doc.ref modelTeamFeatureAppLockConfig) $ Doc.description "config"
+
+modelTeamFeatureWithoutConfig :: Text -> Doc.Model
+modelTeamFeatureWithoutConfig name =
+  Doc.defineModel (name <> "Status") $ do
+    Doc.description $ "Configuration for the " <> name <> " team feature"
+    Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
+
+modelForTeamFeature :: TeamFeatureName -> Doc.Model
+modelForTeamFeature TeamFeatureLegalHold = modelTeamFeatureStatusLegalHold
+modelForTeamFeature TeamFeatureSSO = modelTeamFeatureStatusSSO
+modelForTeamFeature TeamFeatureSearchVisibility = modelTeamFeatureStatusSearchVisibility
+modelForTeamFeature TeamFeatureValidateSAMLEmails = modelTeamFeatureStatusValidateSAMLEmails
+modelForTeamFeature TeamFeatureDigitalSignatures = modelTeamFeatureStatusDigitalSignatures
+modelForTeamFeature TeamFeatureAppLock = modelTeamFeatureStatusAppLock
 
 toJSONStatusOnly :: TeamFeatureStatus a -> Value
 toJSONStatusOnly (TeamFeatureStatus status _) = object ["status" .= status]
