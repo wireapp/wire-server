@@ -26,6 +26,7 @@ import qualified Cassandra as Cql
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch (MonadCatch, throwM)
+import Data.ByteString.Conversion (toByteString')
 import Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local), partitionMappedOrLocalIds)
 import Data.List.NonEmpty (nonEmpty)
@@ -171,24 +172,12 @@ sitemap = do
   -- Enabling this should only be possible internally.
   -- Viewing the status should be allowed for any admin.
 
-  -- get "/i/teams/:tid/features/:feature" (continue Teams.getFeatureStatusInternalH) $
-  --   capture "tid"
-  --     .&. capture "feature"
-  --     .&. accept "application" "json"
+  mkFeatureGetAndPutRoute Teams.ssoFeatureStatusHandlers
+  mkFeatureGetAndPutRoute Teams.legalholdFeatureStatusHandlers
+  mkFeatureGetAndPutRoute Teams.teamSearchVisibilityAvailableHandlers
+  mkFeatureGetAndPutRoute Teams.validateSAMLEmailsHandlers
+  mkFeatureGetAndPutRoute Teams.digitalSignaturesHandlers
 
-  -- TODO(stefan): write for every feature
-  -- put "/i/teams/:tid/features/:feature" (continue Teams.setFeatureStatusInternalH) $
-  --   capture "tid"
-  --     .&. capture "feature"
-  --     .&. jsonRequest @Public.TeamFeatureStatus
-  --     .&. accept "application" "json"
-
-  -- TODO(stefan)
-  -- put "/i/teams/:tid/features/legalhold" (continue (Teams.setFeatureStatusInternalH @'Public.TeamFeatureLegalHold)) $
-  --   capture "tid"
-  --     .&. capture "feature"
-  --     .&. jsonRequest @(Public.TeamFeatureStatus (Public.TeamFeatureConfig 'Public.TeamFeatureLegalHold))
-  --     .&. accept "application" "json"
   -- Misc API (internal) ------------------------------------------------
 
   get "/i/users/:uid/team/members" (continue Teams.getBindingTeamMembersH) $
@@ -327,3 +316,21 @@ safeForever funName action =
     action `catchAny` \exc -> do
       err $ "error" .= show exc ~~ msg (val $ cs funName <> " failed")
       threadDelay 60000000 -- pause to keep worst-case noise in logs manageable
+
+mkFeatureGetAndPutRoute ::
+  forall (a :: Public.TeamFeatureName) r.
+  (Public.KnownTeamFeatureName a) =>
+  Teams.FeatureStatusHandlers (a :: Public.TeamFeatureName) ->
+  Routes r Galley ()
+mkFeatureGetAndPutRoute handlers = do
+  let featureName = Public.knownTeamFeatureName @a
+
+  get ("/teams/:tid/features/" <> toByteString' featureName) (continue (Teams.fshGet handlers)) $
+    zauthUserId
+      .&. capture "tid"
+      .&. accept "application" "json"
+
+  put ("/i/teams/:tid/features/" <> toByteString' featureName) (continue (Teams.fshSetInternal handlers)) $
+    capture "tid"
+      .&. jsonRequest @(Public.TeamFeatureStatus a)
+      .&. accept "application" "json"

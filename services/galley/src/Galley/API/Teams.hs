@@ -866,13 +866,16 @@ canUserJoinTeam tid = do
 data FeatureStatusHandlers (a :: Public.TeamFeatureName) = FeatureStatusHandlers
   { fshGet :: UserId ::: TeamId ::: JSON -> Galley Response,
     fshGetInternal :: TeamId ::: JSON -> Galley Response,
-    fshSet :: UserId ::: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) -> Galley Response,
-    fshSetInternal :: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) -> Galley Response
+    fshSet :: UserId ::: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON -> Galley Response,
+    fshSetInternal :: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON -> Galley Response
   }
 
 mkFeatureStatusHandlers ::
   forall (a :: Public.TeamFeatureName).
-  (Public.KnownTeamFeatureName a, ToJSON (Public.TeamFeatureStatus a), FromJSON (Public.TeamFeatureStatus a)) =>
+  ( Public.KnownTeamFeatureName a,
+    ToJSON (Public.TeamFeatureStatus a),
+    FromJSON (Public.TeamFeatureStatus a)
+  ) =>
   (TeamId -> Galley (Public.TeamFeatureStatus a)) ->
   (TeamId -> Public.TeamFeatureStatus a -> Galley ()) ->
   FeatureStatusHandlers (a :: Public.TeamFeatureName)
@@ -901,9 +904,9 @@ mkFeatureStatusHandlers getter' setter' =
 
     mkSetFeatureStatusH ::
       (TeamId -> Public.TeamFeatureStatus a -> Galley ()) ->
-      UserId ::: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ->
+      UserId ::: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON ->
       Galley Response
-    mkSetFeatureStatusH setter (uid ::: tid ::: req) = do
+    mkSetFeatureStatusH setter (uid ::: tid ::: req ::: _) = do
       zusrMembership <- Data.teamMember tid uid
       -- TODO(stefan): implement a SetTeamFeaure permission check
       void $ permissionCheck (ViewTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
@@ -913,9 +916,9 @@ mkFeatureStatusHandlers getter' setter' =
 
     mkSetFeatureStatusInternalH ::
       (TeamId -> Public.TeamFeatureStatus a -> Galley ()) ->
-      TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ->
+      TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON ->
       Galley Response
-    mkSetFeatureStatusInternalH setter (tid ::: req) = do
+    mkSetFeatureStatusInternalH setter (tid ::: req ::: _) = do
       status <- fromJsonBody req
       setter tid status
       pure (empty & setStatus status204)
