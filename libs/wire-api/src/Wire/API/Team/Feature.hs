@@ -57,14 +57,6 @@ data TeamFeatureName
   deriving stock (Eq, Show, Ord, Generic, Enum, Bounded)
   deriving (Arbitrary) via (GenericUniform TeamFeatureName)
 
-type family TeamFeatureConfig (a :: TeamFeatureName) :: * where
-  TeamFeatureConfig 'TeamFeatureLegalHold = ()
-  TeamFeatureConfig 'TeamFeatureSSO = ()
-  TeamFeatureConfig 'TeamFeatureSearchVisibility = ()
-  TeamFeatureConfig 'TeamFeatureValidateSAMLEmails = ()
-  TeamFeatureConfig 'TeamFeatureDigitalSignatures = ()
-  TeamFeatureConfig 'TeamFeatureAppLock = TeamFeatureAppLockConfig
-
 instance FromByteString TeamFeatureName where
   parser =
     Parser.takeByteString >>= \b ->
@@ -88,32 +80,6 @@ instance ToByteString TeamFeatureName where
 
 typeTeamFeatureName :: Doc.DataType
 typeTeamFeatureName = Doc.string . Doc.enum $ cs . toByteString' <$> [(minBound :: TeamFeatureName) ..]
-
-data TeamFeatureStatus (a :: TeamFeatureName) = TeamFeatureStatus
-  { teamFeatureStatusValue :: TeamFeatureStatusValue,
-    config :: TeamFeatureConfig a
-  }
-
-deriving stock instance
-  Eq (TeamFeatureConfig a) =>
-  Eq (TeamFeatureStatus (a :: TeamFeatureName))
-
-deriving stock instance
-  Show (TeamFeatureConfig a) =>
-  Show (TeamFeatureStatus (a :: TeamFeatureName))
-
-instance
-  Arbitrary (TeamFeatureConfig a) =>
-  Arbitrary (TeamFeatureStatus (a :: TeamFeatureName))
-  where
-  arbitrary = TeamFeatureStatus <$> arbitrary <*> arbitrary
-
-modelTeamFeatureStatus :: Doc.Model
-modelTeamFeatureStatus = Doc.defineModel "TeamFeatureStatus" $ do
-  Doc.description "Configuration of a feature for a team"
-  Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
-  -- TODO(stefan)
-  Doc.property "config" undefined $ Doc.description "config"
 
 data TeamFeatureStatusValue
   = TeamFeatureEnabled
@@ -152,6 +118,40 @@ instance FromByteString TeamFeatureStatusValue where
         Right "disabled" -> pure TeamFeatureDisabled
         Right t -> fail $ "Invalid TeamFeatureStatusValue: " <> T.unpack t
         Left e -> fail $ "Invalid TeamFeatureStatusValue: " <> show e
+
+type family TeamFeatureConfig (a :: TeamFeatureName) :: * where
+  TeamFeatureConfig 'TeamFeatureLegalHold = ()
+  TeamFeatureConfig 'TeamFeatureSSO = ()
+  TeamFeatureConfig 'TeamFeatureSearchVisibility = ()
+  TeamFeatureConfig 'TeamFeatureValidateSAMLEmails = ()
+  TeamFeatureConfig 'TeamFeatureDigitalSignatures = ()
+  TeamFeatureConfig 'TeamFeatureAppLock = TeamFeatureAppLockConfig
+
+data TeamFeatureStatus (a :: TeamFeatureName) = TeamFeatureStatus
+  { teamFeatureStatusValue :: TeamFeatureStatusValue,
+    config :: TeamFeatureConfig a
+  }
+
+deriving stock instance
+  Eq (TeamFeatureConfig a) =>
+  Eq (TeamFeatureStatus (a :: TeamFeatureName))
+
+deriving stock instance
+  Show (TeamFeatureConfig a) =>
+  Show (TeamFeatureStatus (a :: TeamFeatureName))
+
+instance
+  Arbitrary (TeamFeatureConfig a) =>
+  Arbitrary (TeamFeatureStatus (a :: TeamFeatureName))
+  where
+  arbitrary = TeamFeatureStatus <$> arbitrary <*> arbitrary
+
+modelTeamFeatureStatus :: Doc.Model
+modelTeamFeatureStatus = Doc.defineModel "TeamFeatureStatus" $ do
+  Doc.description "Configuration of a feature for a team"
+  Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
+  -- TODO(stefan)
+  Doc.property "config" undefined $ Doc.description "config"
 
 toJSONStatusOnly :: TeamFeatureStatus a -> Value
 toJSONStatusOnly (TeamFeatureStatus status _) = object ["status" .= status]
