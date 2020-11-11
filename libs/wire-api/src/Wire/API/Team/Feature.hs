@@ -26,6 +26,7 @@ module Wire.API.Team.Feature
     TeamFeatureStatusValue (..),
     FeatureHasNoConfig (..),
     TeamFeatureConfig,
+    KnownTeamFeatureName (..),
 
     -- * Swagger
     typeTeamFeatureName,
@@ -56,6 +57,21 @@ data TeamFeatureName
   | TeamFeatureAppLock
   deriving stock (Eq, Show, Ord, Generic, Enum, Bounded)
   deriving (Arbitrary) via (GenericUniform TeamFeatureName)
+
+class KnownTeamFeatureName (a :: TeamFeatureName) where
+  knownTeamFeatureName :: TeamFeatureName
+
+instance KnownTeamFeatureName 'TeamFeatureLegalHold where knownTeamFeatureName = TeamFeatureLegalHold
+
+instance KnownTeamFeatureName 'TeamFeatureSSO where knownTeamFeatureName = TeamFeatureSSO
+
+instance KnownTeamFeatureName 'TeamFeatureSearchVisibility where knownTeamFeatureName = TeamFeatureSearchVisibility
+
+instance KnownTeamFeatureName 'TeamFeatureValidateSAMLEmails where knownTeamFeatureName = TeamFeatureValidateSAMLEmails
+
+instance KnownTeamFeatureName 'TeamFeatureDigitalSignatures where knownTeamFeatureName = TeamFeatureDigitalSignatures
+
+instance KnownTeamFeatureName 'TeamFeatureAppLock where knownTeamFeatureName = TeamFeatureAppLock
 
 instance FromByteString TeamFeatureName where
   parser =
