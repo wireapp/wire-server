@@ -171,10 +171,10 @@ sitemap = do
   -- Enabling this should only be possible internally.
   -- Viewing the status should be allowed for any admin.
 
-  get "/i/teams/:tid/features/:feature" (continue Teams.getFeatureStatusInternalH) $
-    capture "tid"
-      .&. capture "feature"
-      .&. accept "application" "json"
+  -- get "/i/teams/:tid/features/:feature" (continue Teams.getFeatureStatusInternalH) $
+  --   capture "tid"
+  --     .&. capture "feature"
+  --     .&. accept "application" "json"
 
   -- TODO(stefan): write for every feature
   -- put "/i/teams/:tid/features/:feature" (continue Teams.setFeatureStatusInternalH) $
@@ -184,11 +184,11 @@ sitemap = do
   --     .&. accept "application" "json"
 
   -- TODO(stefan)
-  put "/i/teams/:tid/features/legalhold" (continue (Teams.setFeatureStatusInternalH @'Public.TeamFeatureLegalHold)) $
-    capture "tid"
-      .&. capture "feature"
-      .&. jsonRequest @(Public.TeamFeatureStatus (Public.TeamFeatureConfig 'Public.TeamFeatureLegalHold))
-      .&. accept "application" "json"
+  -- put "/i/teams/:tid/features/legalhold" (continue (Teams.setFeatureStatusInternalH @'Public.TeamFeatureLegalHold)) $
+  --   capture "tid"
+  --     .&. capture "feature"
+  --     .&. jsonRequest @(Public.TeamFeatureStatus (Public.TeamFeatureConfig 'Public.TeamFeatureLegalHold))
+  --     .&. accept "application" "json"
   -- Misc API (internal) ------------------------------------------------
 
   get "/i/users/:uid/team/members" (continue Teams.getBindingTeamMembersH) $

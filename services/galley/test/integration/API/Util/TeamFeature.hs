@@ -55,7 +55,9 @@ putTeamFeatureFlagInternal' feature reqmod tid status = do
   g <- view tsGalley
   putTeamFeatureFlagInternalWithGalleyAndMod feature g reqmod tid status
 
--- TODO(stefan): this needs to be generalized
+-- TODO(stefan): use FeatureHasNoConfig class
+-- to write a function for this class of features
+-- for the other features: one function per feature
 putTeamFeatureFlagInternalWithGalleyAndMod ::
   (MonadIO m, MonadHttp m, HasCallStack) =>
   Public.TeamFeatureName ->
@@ -64,12 +66,8 @@ putTeamFeatureFlagInternalWithGalleyAndMod ::
   TeamId ->
   Public.TeamFeatureStatusValue ->
   m ()
-putTeamFeatureFlagInternalWithGalleyAndMod feature galley reqmod tid status =
-  void . put $
-    galley
-      . paths ["i", "teams", toByteString' tid, "features", toByteString' feature]
-      . json (Public.mkTeamFeatureStatusNoConfig status)
-      . reqmod
+putTeamFeatureFlagInternalWithGalleyAndMod _feature _galley _reqmod _tid _status =
+  undefined
 
 getTeamFeatureFlagInternal :: HasCallStack => Public.TeamFeatureName -> TeamId -> TestM ResponseLBS
 getTeamFeatureFlagInternal feature tid = do

@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -98,10 +99,10 @@ type GalleyRoutesPublic =
 
 type GalleyRoutesInternal =
   "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
-    :> Get '[JSON] (TeamFeatureStatus ())
+    :> Get '[JSON] (TeamFeatureStatus 'TeamFeatureLegalHold)
     :<|> "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
       -- TODO(stefan)
-      :> ReqBody '[JSON] (TeamFeatureStatus ())
+      :> ReqBody '[JSON] (TeamFeatureStatus 'TeamFeatureLegalHold)
       :> Put '[] NoContent
 
 -- FUTUREWORK: move Swagger instances next to the types they describe
@@ -226,8 +227,10 @@ instance ToSchema ViewLegalHoldServiceInfo where
         ViewLegalHoldService
           (ViewLegalHoldServiceInfo arbitraryExample arbitraryExample arbitraryExample (ServiceToken "sometoken") arbitraryExample)
 
--- TODO(stefan)
-instance ToSchema (TeamFeatureStatus ()) where
+newtype TeamFeatureWithoutConfigSchema
+  = TeamFeatureWithoutConfigSchema ()
+
+instance ToSchema TeamFeatureWithoutConfigSchema where
   declareNamedSchema _ =
     pure $
       NamedSchema (Just "TeamFeatureStatus") $
@@ -240,6 +243,20 @@ instance ToSchema (TeamFeatureStatus ()) where
       statusValue =
         mempty
           & enum_ ?~ [String "enabled", String "disabled"]
+
+deriving via TeamFeatureWithoutConfigSchema instance ToSchema (TeamFeatureStatus 'TeamFeatureLegalHold)
+
+deriving via TeamFeatureWithoutConfigSchema instance ToSchema (TeamFeatureStatus 'TeamFeatureSSO)
+
+deriving via TeamFeatureWithoutConfigSchema instance ToSchema (TeamFeatureStatus 'TeamFeatureSearchVisibility)
+
+deriving via TeamFeatureWithoutConfigSchema instance ToSchema (TeamFeatureStatus 'TeamFeatureValidateSAMLEmails)
+
+deriving via TeamFeatureWithoutConfigSchema instance ToSchema (TeamFeatureStatus 'TeamFeatureDigitalSignatures)
+
+-- TODO(stefan)
+instance ToSchema (TeamFeatureStatus 'TeamFeatureAppLock) where
+  declareNamedSchema _ = undefined
 
 instance ToSchema RequestNewLegalHoldClient where
   declareNamedSchema = genericDeclareNamedSchema opts

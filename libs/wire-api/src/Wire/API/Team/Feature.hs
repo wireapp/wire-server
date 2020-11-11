@@ -67,6 +67,7 @@ instance FromByteString TeamFeatureName where
         Right "search-visibility" -> pure TeamFeatureSearchVisibility
         Right "validate-saml-emails" -> pure TeamFeatureValidateSAMLEmails
         Right "digital-signatures" -> pure TeamFeatureDigitalSignatures
+        -- TODO: rename to applock
         Right "app-lock" -> pure TeamFeatureAppLock
         Right t -> fail $ "Invalid TeamFeatureName: " <> T.unpack t
 

@@ -38,7 +38,8 @@ import qualified Galley.API.Error as Error
 import qualified Galley.API.LegalHold as LegalHold
 import qualified Galley.API.Query as Query
 import Galley.API.Swagger (swagger)
-import Galley.API.Teams (getFeatureStatusH)
+-- TODO: maybe for every feature a separate handler?
+-- import Galley.API.Teams (getFeatureStatusH)
 import qualified Galley.API.Teams as Teams
 import qualified Galley.API.Update as Update
 import Galley.App
@@ -483,18 +484,18 @@ sitemap = do
   --   returns (ref Public.modelTeamFeatureStatus)
   --   response 200 "Team feature status" end
 
-  let mkSimpleFeatureGetRoute featureName =
-        mkFeatureGetRoute
-          featureName
-          getFeatureStatusH
-          "Shows whether a feature is enabled for a team"
-          Public.modelTeamFeatureStatus
+  -- let mkSimpleFeatureGetRoute featureName =
+  --       mkFeatureGetRoute
+  --         featureName
+  --         getFeatureStatusH
+  --         "Shows whether a feature is enabled for a team"
+  --         Public.modelTeamFeatureStatus
 
-  mkSimpleFeatureGetRoute TeamFeatureLegalHold
-  mkSimpleFeatureGetRoute TeamFeatureSSO
-  mkSimpleFeatureGetRoute TeamFeatureSearchVisibility
-  mkSimpleFeatureGetRoute TeamFeatureValidateSAMLEmails
-  mkSimpleFeatureGetRoute TeamFeatureDigitalSignatures
+  -- mkSimpleFeatureGetRoute TeamFeatureLegalHold
+  -- mkSimpleFeatureGetRoute TeamFeatureSSO
+  -- mkSimpleFeatureGetRoute TeamFeatureSearchVisibility
+  -- mkSimpleFeatureGetRoute TeamFeatureValidateSAMLEmails
+  -- mkSimpleFeatureGetRoute TeamFeatureDigitalSignatures
 
   -- mkFeatureGetRoute
   --   TeamFeatureAppLock

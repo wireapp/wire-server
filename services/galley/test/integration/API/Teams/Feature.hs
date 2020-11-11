@@ -53,9 +53,9 @@ testSSO = do
   Util.addTeamMember owner tid (Public.newTeamMember member (rolePermissions RoleMember) Nothing)
 
   let getSSO :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-      getSSO = assertFlag $ Util.getTeamFeatureFlag Public.TeamFeatureSSO member tid
+      getSSO = assertFlagTeamFeatureSSO $ Util.getTeamFeatureFlag Public.TeamFeatureSSO member tid
       getSSOInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-      getSSOInternal = assertFlag $ Util.getTeamFeatureFlagInternal Public.TeamFeatureSSO tid
+      getSSOInternal = assertFlagTeamFeatureSSO $ Util.getTeamFeatureFlagInternal Public.TeamFeatureSSO tid
       setSSOInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
       setSSOInternal = Util.putTeamFeatureFlagInternal' Public.TeamFeatureSSO expect2xx tid
   featureSSO <- view (tsGConf . optSettings . setFeatureFlags . flagSSO)
@@ -84,9 +84,9 @@ testLegalHold = do
   Util.addTeamMember owner tid (Public.newTeamMember member (rolePermissions RoleMember) Nothing)
 
   let getLegalHold :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-      getLegalHold = assertFlag $ Util.getTeamFeatureFlag Public.TeamFeatureLegalHold member tid
+      getLegalHold = assertFlagTeamFeatureLegalHold $ Util.getTeamFeatureFlag Public.TeamFeatureLegalHold member tid
       getLegalHoldInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-      getLegalHoldInternal = assertFlag $ Util.getTeamFeatureFlagInternal Public.TeamFeatureLegalHold tid
+      getLegalHoldInternal = assertFlagTeamFeatureLegalHold $ Util.getTeamFeatureFlagInternal Public.TeamFeatureLegalHold tid
       setLegalHoldInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
       setLegalHoldInternal = Util.putTeamFeatureFlagInternal' Public.TeamFeatureLegalHold expect2xx tid
   getLegalHold Public.TeamFeatureDisabled
@@ -124,7 +124,7 @@ testSearchVisibility = do
       getTeamSearchVisibility teamid expected =
         Util.getTeamSearchVisibilityAvailable g owner teamid !!! do
           statusCode === const 200
-          responseJsonEither === const (Right (Public.mkTeamFeatureStatusNoConfig expected))
+          responseJsonEither === const (Right (Public.mkFeatureStatus @'Public.TeamFeatureSearchVisibility expected))
 
   let getTeamSearchVisibilityInternal ::
         (Monad m, MonadHttp m, MonadIO m, MonadCatch m, HasCallStack) =>
@@ -134,7 +134,7 @@ testSearchVisibility = do
       getTeamSearchVisibilityInternal teamid expected =
         Util.getTeamSearchVisibilityAvailableInternal g teamid !!! do
           statusCode === const 200
-          responseJsonEither === const (Right (Public.mkTeamFeatureStatusNoConfig expected))
+          responseJsonEither === const (Right (Public.mkFeatureStatus @'Public.TeamFeatureSearchVisibility expected))
 
   let setTeamSearchVisibilityInternal ::
         (Monad m, MonadHttp m, MonadIO m, HasCallStack) =>
@@ -172,6 +172,12 @@ testSimpleFlag feature = do
   Util.connectUsers owner (list1 member [])
   Util.addTeamMember owner tid (Public.newTeamMember member (rolePermissions RoleMember) Nothing)
 
+  let assertFlag =
+        case feature of
+          Public.TeamFeatureDigitalSignatures -> assertFlagTeamFeatureDigitalSignatures
+          Public.TeamFeatureValidateSAMLEmails -> assertFlagTeamFeatureValidateSAMLEmails
+          _ -> error "not impelemented. refactor this"
+
   let getFlag :: HasCallStack => Public.TeamFeatureName -> Public.TeamFeatureStatusValue -> TestM ()
       getFlag f expected = flip assertFlag expected $ Util.getTeamFeatureFlag f member tid
       getFlagInternal :: HasCallStack => Public.TeamFeatureName -> Public.TeamFeatureStatusValue -> TestM ()
@@ -188,8 +194,42 @@ testSimpleFlag feature = do
   getFlag feature Public.TeamFeatureEnabled
   getFlagInternal feature Public.TeamFeatureEnabled
 
-assertFlag :: HasCallStack => TestM ResponseLBS -> Public.TeamFeatureStatusValue -> TestM ()
-assertFlag res expected =
+-- assertFlag :: HasCallStack => TestM ResponseLBS -> Public.TeamFeatureStatusValue -> TestM ()
+
+-- = TeamFeatureLegalHold
+
+-- | TeamFeatureSSO
+-- | TeamFeatureSearchVisibility
+-- | TeamFeatureValidateSAMLEmails
+-- | TeamFeatureDigitalSignatures
+
+-- TODO(stefan): refactor these function into a general one.
+assertFlagTeamFeatureLegalHold :: HasCallStack => TestM ResponseLBS -> Public.TeamFeatureStatusValue -> TestM ()
+assertFlagTeamFeatureLegalHold res expected =
   res !!! do
     statusCode === const 200
-    responseJsonEither === const (Right (Public.mkTeamFeatureStatusNoConfig expected))
+    responseJsonEither === const (Right (Public.mkFeatureStatus @'Public.TeamFeatureLegalHold expected))
+
+assertFlagTeamFeatureSSO :: HasCallStack => TestM ResponseLBS -> Public.TeamFeatureStatusValue -> TestM ()
+assertFlagTeamFeatureSSO res expected =
+  res !!! do
+    statusCode === const 200
+    responseJsonEither === const (Right (Public.mkFeatureStatus @'Public.TeamFeatureSSO expected))
+
+assertFlagTeamFeatureValidateSAMLEmails :: HasCallStack => TestM ResponseLBS -> Public.TeamFeatureStatusValue -> TestM ()
+assertFlagTeamFeatureValidateSAMLEmails res expected =
+  res !!! do
+    statusCode === const 200
+    responseJsonEither === const (Right (Public.mkFeatureStatus @'Public.TeamFeatureValidateSAMLEmails expected))
+
+assertFlagTeamFeatureDigitalSignatures :: HasCallStack => TestM ResponseLBS -> Public.TeamFeatureStatusValue -> TestM ()
+assertFlagTeamFeatureDigitalSignatures res expected =
+  res !!! do
+    statusCode === const 200
+    responseJsonEither === const (Right (Public.mkFeatureStatus @'Public.TeamFeatureDigitalSignatures expected))
+
+-- assertFlag :: HasCallStack => TestM ResponseLBS -> Public.TeamFeatureStatusValue -> TestM ()
+-- assertFlag res expected =
+--   res !!! do
+--     statusCode === const 200
+--     responseJsonEither === const (Right (Public.mkFeatureStatus expected))
