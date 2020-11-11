@@ -27,6 +27,9 @@
 module Galley.API.Swagger
   ( GalleyRoutes,
     swagger,
+    -- TODO(stefan): find another way to stop compiler complain of "unused" constructor
+    --               than to export it
+    TeamFeatureWithoutConfigSchema (..),
   )
 where
 

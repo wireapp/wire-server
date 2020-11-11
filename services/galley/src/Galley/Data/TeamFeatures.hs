@@ -50,5 +50,6 @@ toCol TeamFeatureSSO = "sso_status"
 toCol TeamFeatureSearchVisibility = "search_visibility_status"
 toCol TeamFeatureValidateSAMLEmails = "validate_saml_emails"
 toCol TeamFeatureDigitalSignatures = "digital_signatures"
+toCol TeamFeatureAppLock = error "TODO(stefan)"
 
 -- toCol TeamFeatureAppLock = undefined -- here we need to have 3 cols now.  hehe.
