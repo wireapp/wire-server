@@ -864,8 +864,8 @@ canUserJoinTeam tid = do
         throwM tooManyTeamMembersOnTeamWithLegalhold
 
 data FeatureStatusHandlers (a :: Public.TeamFeatureName) = FeatureStatusHandlers
-  { fshGet :: UserId ::: TeamId -> Galley Response,
-    fshGetInternal :: TeamId -> Galley Response,
+  { fshGet :: UserId ::: TeamId ::: JSON -> Galley Response,
+    fshGetInternal :: TeamId ::: JSON -> Galley Response,
     fshSet :: UserId ::: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) -> Galley Response,
     fshSetInternal :: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) -> Galley Response
   }
@@ -884,28 +884,22 @@ mkFeatureStatusHandlers getter' setter' =
     (mkSetFeatureStatusInternalH setter')
   where
     mkGetFeatureStatusH ::
-      -- forall (a :: Public.TeamFeatureName).
-      -- (Public.KnownTeamFeatureName a, ToJSON (Public.TeamFeatureStatus a)) =>
       (TeamId -> Galley (Public.TeamFeatureStatus a)) ->
-      UserId ::: TeamId ->
+      UserId ::: TeamId ::: JSON ->
       Galley Response
-    mkGetFeatureStatusH getter (uid ::: tid) = do
+    mkGetFeatureStatusH getter (uid ::: tid ::: _) = do
       zusrMembership <- Data.teamMember tid uid
       void $ permissionCheck (ViewTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
       json <$> getter tid
 
     mkGetFeatureStatusInternalH ::
-      -- forall (a :: Public.TeamFeatureName).
-      -- (Public.KnownTeamFeatureName a, ToJSON (Public.TeamFeatureStatus a)) =>
       (TeamId -> Galley (Public.TeamFeatureStatus a)) ->
-      TeamId ->
+      TeamId ::: JSON ->
       Galley Response
-    mkGetFeatureStatusInternalH getter (tid) = do
+    mkGetFeatureStatusInternalH getter (tid ::: _) = do
       json <$> getter tid
 
     mkSetFeatureStatusH ::
-      -- forall (a :: Public.TeamFeatureName).
-      -- (Public.KnownTeamFeatureName a, FromJSON (Public.TeamFeatureStatus a)) =>
       (TeamId -> Public.TeamFeatureStatus a -> Galley ()) ->
       UserId ::: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ->
       Galley Response
@@ -918,8 +912,6 @@ mkFeatureStatusHandlers getter' setter' =
       pure (empty & setStatus status204)
 
     mkSetFeatureStatusInternalH ::
-      -- forall (a :: Public.TeamFeatureName).
-      -- (Public.KnownTeamFeatureName a, FromJSON (Public.TeamFeatureStatus a)) =>
       (TeamId -> Public.TeamFeatureStatus a -> Galley ()) ->
       TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ->
       Galley Response

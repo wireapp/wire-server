@@ -337,6 +337,7 @@ routes = do
     Doc.returns (Doc.ref Public.modelTeamFeatureStatus)
     Doc.response 200 "Team feature flag status" Doc.end
 
+  -- TODO(stefan)
   put "/teams/:tid/features/:feature" (continue setTeamFeatureFlagH) $
     capture "tid"
       .&. capture "feature"

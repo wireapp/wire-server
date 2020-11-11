@@ -25,7 +25,7 @@ where
 
 import Data.Aeson (encode)
 import Data.ByteString.Conversion (fromByteString, fromList, toByteString')
-import Data.Id (OpaqueUserId, TeamId, UserId)
+import Data.Id (OpaqueUserId)
 import qualified Data.Predicate as P
 import Data.Range
 import qualified Data.Set as Set
@@ -64,7 +64,6 @@ import qualified Wire.API.Notification as Public
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
 import qualified Wire.API.Team.Conversation as Public
-import Wire.API.Team.Feature (TeamFeatureName (..))
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.LegalHold as Public
 import qualified Wire.API.Team.Member as Public
@@ -466,10 +465,6 @@ sitemap = do
   --   returns (ref Public.modelTeamFeatureApLockStatus)
   --   response 200 "Team feature status" end
 
-  -- catch-all for boolean flags (TODO: do we want to unfold this into a list of literal
-  -- paths, one for each flag name?  would that be easier with servant?  NB: catch-all for all
-  -- config types is bad because it's hard to have swagger docs for the config schemas then,
-  -- at least in servant.)
   -- get "/teams/:tid/features/:feature" (continue Teams.getFeatureStatusH) $
   --   zauthUserId
   --     .&. capture "tid"
@@ -484,24 +479,11 @@ sitemap = do
   --   returns (ref Public.modelTeamFeatureStatus)
   --   response 200 "Team feature status" end
 
-  -- let mkSimpleFeatureGetRoute featureName =
-  --       mkFeatureGetRoute
-  --         featureName
-  --         getFeatureStatusH
-  --         "Shows whether a feature is enabled for a team"
-  --         Public.modelTeamFeatureStatus
-
-  -- mkSimpleFeatureGetRoute TeamFeatureLegalHold
-  -- mkSimpleFeatureGetRoute TeamFeatureSSO
-  -- mkSimpleFeatureGetRoute TeamFeatureSearchVisibility
-  -- mkSimpleFeatureGetRoute TeamFeatureValidateSAMLEmails
-  -- mkSimpleFeatureGetRoute TeamFeatureDigitalSignatures
-
-  -- mkFeatureGetRoute
-  --   TeamFeatureAppLock
-  --   (const Teams.getFeatureAppLockStatusH)
-  --   "Shows the app-lock feature config for a team"
-  --   Public.modelTeamFeatureAppLockStatus
+  mkFeatureGetRoute Teams.ssoFeatureStatusHandlers
+  mkFeatureGetRoute Teams.legalholdFeatureStatusHandlers
+  mkFeatureGetRoute Teams.teamSearchVisibilityAvailableHandlers
+  mkFeatureGetRoute Teams.validateSAMLEmailsHandlers
+  mkFeatureGetRoute Teams.digitalSignaturesHandlers
 
   -- Custom Backend API -------------------------------------------------
 
@@ -1119,19 +1101,20 @@ filterMissing = (>>= go) <$> (query "ignore_missing" ||| query "report_missing")
       Just l -> P.Okay 0 (Set.fromList (fromList l))
 
 mkFeatureGetRoute ::
-  Public.TeamFeatureName ->
-  (Public.TeamFeatureName -> UserId ::: TeamId ::: JSON -> Galley Response) ->
-  Text ->
-  Model ->
+  forall (a :: Public.TeamFeatureName).
+  (Public.KnownTeamFeatureName a) =>
+  Teams.FeatureStatusHandlers (a :: Public.TeamFeatureName) ->
   Routes ApiBuilder Galley ()
-mkFeatureGetRoute name handler summaryText model' = do
-  get ("/teams/:tid/features/" <> toByteString' name) (continue (handler name)) $
+mkFeatureGetRoute handlers = do
+  let featureName = Public.knownTeamFeatureName @a
+  get ("/teams/:tid/features/" <> toByteString' featureName) (continue (Teams.fshGet handlers)) $
     zauthUserId
       .&. capture "tid"
       .&. accept "application" "json"
   document "GET" "getTeamFeature" $ do
-    summary summaryText
+    -- TODO(stefan): summary?
+    -- summary summaryText
     parameter Path "tid" bytes' $
       description "Team ID"
-    returns (ref model')
+    returns (ref (Public.modelForTeamFeature featureName))
     response 200 "Team feature status" end
