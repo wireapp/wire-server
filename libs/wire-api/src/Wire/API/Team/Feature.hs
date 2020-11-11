@@ -24,7 +24,7 @@ module Wire.API.Team.Feature
     TeamFeatureStatus (..),
     TeamFeatureAppLockConfig (..),
     TeamFeatureStatusValue (..),
-    mkTeamFeatureStatusNoConfig,
+    FeatureHasNoConfig (..),
     TeamFeatureConfig,
 
     -- * Swagger
@@ -36,6 +36,7 @@ module Wire.API.Team.Feature
 where
 
 import Data.Aeson
+import Data.Aeson.Types (Parser)
 import qualified Data.Attoparsec.ByteString as Parser
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..), toByteString')
 import Data.String.Conversions (cs)
@@ -88,20 +89,24 @@ instance ToByteString TeamFeatureName where
 typeTeamFeatureName :: Doc.DataType
 typeTeamFeatureName = Doc.string . Doc.enum $ cs . toByteString' <$> [(minBound :: TeamFeatureName) ..]
 
-data TeamFeatureStatus a = TeamFeatureStatus
+data TeamFeatureStatus (a :: TeamFeatureName) = TeamFeatureStatus
   { teamFeatureStatusValue :: TeamFeatureStatusValue,
-    config :: a
+    config :: TeamFeatureConfig a
   }
 
-deriving stock instance Eq a => Eq (TeamFeatureStatus a)
+deriving stock instance
+  Eq (TeamFeatureConfig a) =>
+  Eq (TeamFeatureStatus (a :: TeamFeatureName))
 
-deriving stock instance Show a => Show (TeamFeatureStatus a)
+deriving stock instance
+  Show (TeamFeatureConfig a) =>
+  Show (TeamFeatureStatus (a :: TeamFeatureName))
 
-instance Arbitrary a => Arbitrary (TeamFeatureStatus a) where
+instance
+  Arbitrary (TeamFeatureConfig a) =>
+  Arbitrary (TeamFeatureStatus (a :: TeamFeatureName))
+  where
   arbitrary = TeamFeatureStatus <$> arbitrary <*> arbitrary
-
-mkTeamFeatureStatusNoConfig :: TeamFeatureStatusValue -> TeamFeatureStatus ()
-mkTeamFeatureStatusNoConfig val = TeamFeatureStatus val ()
 
 modelTeamFeatureStatus :: Doc.Model
 modelTeamFeatureStatus = Doc.defineModel "TeamFeatureStatus" $ do
@@ -109,26 +114,6 @@ modelTeamFeatureStatus = Doc.defineModel "TeamFeatureStatus" $ do
   Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
   -- TODO(stefan)
   Doc.property "config" undefined $ Doc.description "config"
-
-instance {-# OVERLAPPABLE #-} ToJSON a => ToJSON (TeamFeatureStatus a) where
-  toJSON (TeamFeatureStatus status config) =
-    object
-      [ "status" .= status,
-        "config" .= config
-      ]
-
-instance {-# OVERLAPPING #-} ToJSON (TeamFeatureStatus ()) where
-  toJSON (TeamFeatureStatus status _) =
-    object
-      ["status" .= status]
-
-instance {-# OVERLAPPABLE #-} FromJSON a => FromJSON (TeamFeatureStatus a) where
-  parseJSON = withObject "TeamFeatureStatus" $ \o ->
-    TeamFeatureStatus <$> o .: "status" <*> o .: "config"
-
-instance {-# OVERLAPPING #-} FromJSON (TeamFeatureStatus ()) where
-  parseJSON = withObject "TeamFeatureStatus" $ \o ->
-    TeamFeatureStatus <$> o .: "status" <*> pure ()
 
 data TeamFeatureStatusValue
   = TeamFeatureEnabled
@@ -168,17 +153,78 @@ instance FromByteString TeamFeatureStatusValue where
         Right t -> fail $ "Invalid TeamFeatureStatusValue: " <> T.unpack t
         Left e -> fail $ "Invalid TeamFeatureStatusValue: " <> show e
 
+toJSONStatusOnly :: TeamFeatureStatus a -> Value
+toJSONStatusOnly (TeamFeatureStatus status _) = object ["status" .= status]
+
+instance ToJSON (TeamFeatureStatus 'TeamFeatureLegalHold) where
+  toJSON = toJSONStatusOnly
+
+instance ToJSON (TeamFeatureStatus 'TeamFeatureSSO) where
+  toJSON = toJSONStatusOnly
+
+instance ToJSON (TeamFeatureStatus 'TeamFeatureSearchVisibility) where
+  toJSON = toJSONStatusOnly
+
+instance ToJSON (TeamFeatureStatus 'TeamFeatureValidateSAMLEmails) where
+  toJSON = toJSONStatusOnly
+
+instance ToJSON (TeamFeatureStatus 'TeamFeatureDigitalSignatures) where
+  toJSON = toJSONStatusOnly
+
+instance ToJSON (TeamFeatureStatus 'TeamFeatureAppLock) where
+  toJSON (TeamFeatureStatus status config) = object ["status" .= status, "config" .= config]
+
+parseStatus :: Value -> Parser TeamFeatureStatusValue
+parseStatus = withObject "TeamFeatureStatus" $ \o ->
+  o .: "status"
+
+instance FromJSON (TeamFeatureStatus 'TeamFeatureLegalHold) where
+  parseJSON val = TeamFeatureStatus <$> parseStatus val <*> pure ()
+
+instance FromJSON (TeamFeatureStatus 'TeamFeatureSSO) where
+  parseJSON val = TeamFeatureStatus <$> parseStatus val <*> pure ()
+
+instance FromJSON (TeamFeatureStatus 'TeamFeatureSearchVisibility) where
+  parseJSON val = TeamFeatureStatus <$> parseStatus val <*> pure ()
+
+instance FromJSON (TeamFeatureStatus 'TeamFeatureValidateSAMLEmails) where
+  parseJSON val = TeamFeatureStatus <$> parseStatus val <*> pure ()
+
+instance FromJSON (TeamFeatureStatus 'TeamFeatureDigitalSignatures) where
+  parseJSON val = TeamFeatureStatus <$> parseStatus val <*> pure ()
+
+instance FromJSON (TeamFeatureStatus 'TeamFeatureAppLock) where
+  parseJSON val = TeamFeatureStatus <$> parseStatus val <*> parseJSON val
+
+class FeatureHasNoConfig (a :: TeamFeatureName) where
+  mkFeatureStatus :: TeamFeatureStatusValue -> TeamFeatureStatus a
+
+instance FeatureHasNoConfig 'TeamFeatureLegalHold where
+  mkFeatureStatus statusVal = TeamFeatureStatus statusVal ()
+
+instance FeatureHasNoConfig 'TeamFeatureSSO where
+  mkFeatureStatus statusVal = TeamFeatureStatus statusVal ()
+
+instance FeatureHasNoConfig 'TeamFeatureSearchVisibility where
+  mkFeatureStatus statusVal = TeamFeatureStatus statusVal ()
+
+instance FeatureHasNoConfig 'TeamFeatureValidateSAMLEmails where
+  mkFeatureStatus statusVal = TeamFeatureStatus statusVal ()
+
+instance FeatureHasNoConfig 'TeamFeatureDigitalSignatures where
+  mkFeatureStatus statusVal = TeamFeatureStatus statusVal ()
+
 data TeamFeatureAppLockConfig = TeamFeatureAppLockConfig
-  { teamFeatureAppLockConfigEnforceAppLock :: Bool,
-    teamFeatureAppLockConfigInactivityTimeoutSecs :: Int
+  { applockEnforceAppLock :: Bool,
+    applockInactivityTimeoutSecs :: Int
   }
   deriving stock (Eq, Show, Generic)
 
 deriving via (GenericUniform TeamFeatureAppLockConfig) instance Arbitrary TeamFeatureAppLockConfig
 
-deriving via (PrefixedSnake "teamFeatureAppLockConfig" TeamFeatureAppLockConfig) instance ToJSON TeamFeatureAppLockConfig
+deriving via (PrefixedSnake "applock" TeamFeatureAppLockConfig) instance ToJSON TeamFeatureAppLockConfig
 
-deriving via (PrefixedSnake "teamFeatureAppLockConfig" TeamFeatureAppLockConfig) instance FromJSON TeamFeatureAppLockConfig
+deriving via (PrefixedSnake "applock" TeamFeatureAppLockConfig) instance FromJSON TeamFeatureAppLockConfig
 
 -- TODO(stefan)
 modelTeamFeatureAppLockConfig :: Doc.Model
