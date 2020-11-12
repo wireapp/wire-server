@@ -102,9 +102,10 @@ sitemap o = do
   -- This leads to the following events being sent:
   -- - UserDeleted event to contacts of the user
   -- - MemberLeave event to members for all conversations the user was in (via galley)
-  head "/users/:qualified_or_unqualified_uid" (continue checkUserExistsH) $
+  head "/users/:domain/:uid" (continue checkUserExistsH) $
     zauthUserId
-      .&. (capture "qualified_or_unqualified_uid" ||| capture "qualified_or_unqualified_uid")
+      .&. opt (capture "domain")
+      .&. capture "uid"
   document "HEAD" "userExists" $ do
     Doc.summary "Check if a user ID exists"
     Doc.parameter Doc.Path "uid" Doc.bytes' $
@@ -1035,15 +1036,15 @@ createUser (Public.NewUserPublic new) = do
       Public.NewTeamMemberSSO _ ->
         Team.sendMemberWelcomeMail e t n l
 
-qualifyThing :: Domain -> Either a (Qualified a) -> Qualified a
-qualifyThing domain = \case
-  Left unqualified -> Qualified unqualified domain
-  Right qualified -> qualified
+-- qualifyThing :: Domain -> Either a (Qualified a) -> Qualified a
+-- qualifyThing domain = \case
+--   Left unqualified -> Qualified unqualified domain
+--   Right qualified -> qualified
 
-checkUserExistsH :: UserId ::: Either UserId (Qualified UserId) -> Handler Response
-checkUserExistsH (self ::: uid) = do
-  let domain = ourDomain -- config lookup
-  exists <- checkUserExists self (qualifyThing domain uid)
+checkUserExistsH :: UserId ::: Maybe Text ::: UserId -> Handler Response
+checkUserExistsH (self ::: maybeDomain ::: uid) = do
+  let domain = maybe ourDomain Domain maybeDomain -- config lookup
+  exists <- checkUserExists self (Qualified uid domain)
   if exists then return empty else throwStd userNotFound
 
 checkUserExists :: UserId -> Qualified UserId -> Handler Bool
