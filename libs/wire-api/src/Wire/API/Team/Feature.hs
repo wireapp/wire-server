@@ -61,7 +61,7 @@ data TeamFeatureName
   | TeamFeatureValidateSAMLEmails
   | TeamFeatureDigitalSignatures
   | TeamFeatureAppLock
-  deriving stock (Eq, Show, Ord, Generic, Enum, Bounded)
+  deriving stock (Eq, Show, Ord, Generic, Enum, Bounded, Typeable)
   deriving (Arbitrary) via (GenericUniform TeamFeatureName)
 
 class KnownTeamFeatureName (a :: TeamFeatureName) where
@@ -154,6 +154,7 @@ data TeamFeatureStatus (a :: TeamFeatureName) = TeamFeatureStatus
   { teamFeatureStatusValue :: TeamFeatureStatusValue,
     config :: TeamFeatureConfig a
   }
+  deriving stock (Typeable)
 
 deriving stock instance
   Eq (TeamFeatureConfig a) =>
