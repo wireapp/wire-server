@@ -189,7 +189,8 @@ import URI.ByteString
 import Util.Options
 import Util.Types
 import qualified Web.Cookie as Web
-import Wire.API.Team.Feature (TeamFeatureStatus (..), TeamFeatureStatusValue (..))
+import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
+import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Invitation as TeamInvitation
 import qualified Wire.API.User as User
 
@@ -363,7 +364,7 @@ putSSOEnabledInternal gly tid enabled = do
   void . put $
     gly
       . paths ["i", "teams", toByteString' tid, "features", "sso"]
-      . json (TeamFeatureStatus enabled)
+      . json (Public.mkFeatureStatus @'Public.TeamFeatureSSO enabled)
       . expect2xx
 
 -- | cloned from `/services/brig/test/integration/API/Team/Util.hs`.
