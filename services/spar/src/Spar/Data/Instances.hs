@@ -32,6 +32,7 @@ module Spar.Data.Instances
 where
 
 import Cassandra as Cas
+import Data.ByteString.Conversion (fromByteString, toByteString)
 import Data.String.Conversions
 import Data.X509 (SignedCertificate)
 import Imports
@@ -101,3 +102,18 @@ toVerdictFormat (VerdictFormatConMobile, Just succredir, Just errredir) = Just $
 toVerdictFormat _ = Nothing
 
 deriving instance Cql ScimToken
+
+instance Cql ScimTokenHash where
+  ctype = Tagged TextColumn
+  toCql = CqlText . cs . toByteString
+  fromCql (CqlText t) = maybe (Left "ScimTokenHash: parse error") Right (fromByteString . cs $ t)
+  fromCql _ = Left "ScimTokenHash: expected CqlText"
+
+instance Cql ScimTokenLookupKey where
+  ctype = Tagged TextColumn
+  toCql = \case
+    ScimTokenLookupKeyHashed h -> toCql h
+    ScimTokenLookupKeyPlaintext t -> toCql t
+  fromCql s@(CqlText _) =
+    ScimTokenLookupKeyHashed <$> fromCql s <|> ScimTokenLookupKeyPlaintext <$> fromCql s
+  fromCql _ = Left "ScimTokenLookupKey: expected CqlText"
