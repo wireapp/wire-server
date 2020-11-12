@@ -30,6 +30,7 @@ module Data.Qualified
     mkQualifiedId,
     renderQualifiedHandle,
     mkQualifiedHandle,
+    partitionRemoteOrLocalIds,
   )
 where
 
@@ -96,11 +97,20 @@ data Qualified a = Qualified
 
 renderQualified :: (a -> Text) -> Qualified a -> Text
 renderQualified renderLocal (Qualified localPart domain) =
-  renderLocal localPart <> "@" <> domainText domain
+  domainText domain <> "/" <> renderLocal localPart
 
 qualifiedParser :: Atto.Parser a -> Atto.Parser (Qualified a)
-qualifiedParser localParser =
-  Qualified <$> localParser <*> (Atto.char '@' *> parser @Domain)
+qualifiedParser localParser = do
+  domain <- parser @Domain
+  _ <- Atto.char '/'
+  local <- localParser
+  pure $ Qualified local domain
+
+partitionRemoteOrLocalIds :: Foldable f => Domain -> f (Qualified a) -> ([Qualified a], [a])
+partitionRemoteOrLocalIds localDomain = foldMap $ \qualifiedId ->
+  if (_qDomain qualifiedId == localDomain)
+    then (mempty, [_qLocalPart qualifiedId])
+    else ([qualifiedId], mempty)
 
 ----------------------------------------------------------------------
 

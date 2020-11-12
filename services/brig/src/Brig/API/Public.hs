@@ -51,15 +51,16 @@ import Control.Error hiding (bool)
 import Control.Lens (view, (^.))
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
+import qualified Data.Bifunctor as Bifunctor
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
-import Data.Domain (mkDomain)
+import Data.Domain
 import Data.Handle (Handle, parseHandle)
 import Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local))
 import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
-import Data.Qualified (OptionallyQualified, eitherQualifiedOrNot)
+import Data.Qualified (OptionallyQualified, Qualified (..), eitherQualifiedOrNot)
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
@@ -101,9 +102,9 @@ sitemap o = do
   -- This leads to the following events being sent:
   -- - UserDeleted event to contacts of the user
   -- - MemberLeave event to members for all conversations the user was in (via galley)
-  head "/users/:uid" (continue checkUserExistsH) $
+  head "/users/:qualified_or_unqualified_uid" (continue checkUserExistsH) $
     zauthUserId
-      .&. capture "uid"
+      .&. (capture "qualified_or_unqualified_uid" ||| capture "qualified_or_unqualified_uid")
   document "HEAD" "userExists" $ do
     Doc.summary "Check if a user ID exists"
     Doc.parameter Doc.Path "uid" Doc.bytes' $
@@ -172,7 +173,8 @@ sitemap o = do
   get "/users" (continue listUsersH) $
     accept "application" "json"
       .&. zauthUserId
-      .&. (param "ids" ||| param "handles")
+      .&. ((param "ids" ||| param "qualified_ids") ||| param "handles")
+  -- /users?ids=asb,wire.com/fasd, -- TODO: review whether a '/' works and is desired/according to standards
   document "GET" "users" $ do
     Doc.summary "List users"
     Doc.notes "The 'ids' and 'handles' parameters are mutually exclusive."
@@ -1032,14 +1034,25 @@ createUser (Public.NewUserPublic new) = do
       Public.NewTeamMemberSSO _ ->
         Team.sendMemberWelcomeMail e t n l
 
-checkUserExistsH :: UserId ::: OpaqueUserId -> Handler Response
+qualifyThing :: Domain -> Either a (Qualified a) -> Qualified a
+qualifyThing domain = \case
+  Left unqualified -> Qualified unqualified domain
+  Right qualified -> qualified
+
+checkUserExistsH :: UserId ::: Either UserId (Qualified UserId) -> Handler Response
 checkUserExistsH (self ::: uid) = do
-  exists <- checkUserExists self uid
+  let domain = ourDomain -- config lookup
+  exists <- checkUserExists self (qualifyThing domain uid)
   if exists then return empty else throwStd userNotFound
 
-checkUserExists :: UserId -> OpaqueUserId -> Handler Bool
-checkUserExists self opaqueUserId =
-  isJust <$> getUser self opaqueUserId
+checkUserExists :: UserId -> Qualified UserId -> Handler Bool
+checkUserExists self qualifiedUserId =
+  isJust <$> getUser self qualifiedUserId
+
+-- let domain = ourDomain -- config lookup
+-- if _qDomain qualifiedUserId == domain
+--   then isJust <$> getUser self (_qLocalPart qualifiedUserId)
+--   else error "Not implemented" -- make a call to federator
 
 getSelfH :: JSON ::: UserId -> Handler Response
 getSelfH (_ ::: self) = do
@@ -1049,14 +1062,13 @@ getSelf :: UserId -> Handler Public.SelfProfile
 getSelf self = do
   lift (API.lookupSelfProfile self) >>= ifNothing userNotFound
 
-getUserH :: JSON ::: UserId ::: OpaqueUserId -> Handler Response
+getUserH :: JSON ::: UserId ::: Qualified UserId -> Handler Response
 getUserH (_ ::: self ::: uid) = do
   fmap json . ifNothing userNotFound =<< getUser self uid
 
-getUser :: UserId -> OpaqueUserId -> Handler (Maybe Public.UserProfile)
-getUser self opaqueUserId = lift $ do
-  resolvedUserId <- resolveOpaqueUserId opaqueUserId
-  API.lookupProfile self resolvedUserId
+getUser :: UserId -> Qualified UserId -> Handler (Maybe Public.UserProfile)
+getUser self qualifiedUserId = do
+  lift $ API.lookupProfile self qualifiedUserId
 
 getUserDisplayNameH :: JSON ::: UserId -> Handler Response
 getUserDisplayNameH (_ ::: self) = do
@@ -1065,31 +1077,36 @@ getUserDisplayNameH (_ ::: self) = do
     Just n -> json $ object ["name" .= n]
     Nothing -> setStatus status404 empty
 
-listUsersH :: JSON ::: UserId ::: Either (List OpaqueUserId) (Range 1 4 (List (OptionallyQualified Handle))) -> Handler Response
+listUsersH :: JSON ::: UserId ::: Either (Either (List UserId) (List (Qualified UserId))) (Range 1 4 (List (OptionallyQualified Handle))) -> Handler Response
 listUsersH (_ ::: self ::: qry) =
-  toResponse <$> listUsers self qry
+  toResponse <$> listUsers self (Bifunctor.first (foo ourDomain) qry)
   where
     toResponse = \case
       [] -> setStatus status404 empty
       ps -> json ps
 
-listUsers :: UserId -> Either (List OpaqueUserId) (Range 1 4 (List (OptionallyQualified Handle))) -> Handler [Public.UserProfile]
+-- TODO: rename
+foo :: Domain -> Either (List UserId) (List (Qualified UserId)) -> List (Qualified UserId)
+foo domain = \case
+  Left us -> fmap (flip Qualified domain) us
+  Right qs -> qs
+
+listUsers :: UserId -> Either (List (Qualified UserId)) (Range 1 4 (List (OptionallyQualified Handle))) -> Handler [Public.UserProfile]
 listUsers self = \case
   Left us -> do
-    resolvedUserIds <- lift $ traverse resolveOpaqueUserId (fromList us)
-    byIds resolvedUserIds
+    byIds (fromList us)
   Right hs -> do
     us <- getIds (fromList $ fromRange hs)
     filterHandleResults self =<< byIds us
   where
-    getIds :: [OptionallyQualified Handle] -> Handler [MappedOrLocalId Id.U]
+    getIds :: [OptionallyQualified Handle] -> Handler [Qualified UserId]
     getIds hs = do
       -- we might be able to do something smarter if the domain is our own
       let (localHandles, _qualifiedHandles) = partitionEithers (map eitherQualifiedOrNot hs)
       localUsers <- catMaybes <$> traverse (lift . API.lookupHandle) localHandles
       -- FUTUREWORK(federation, #1268): resolve qualified handles, too
-      pure (Local <$> localUsers)
-    byIds :: [MappedOrLocalId Id.U] -> Handler [Public.UserProfile]
+      pure (flip Qualified ourDomain <$> localUsers)
+    byIds :: [Qualified UserId] -> Handler [Public.UserProfile]
     byIds uids = lift $ API.lookupProfiles self uids
 
 newtype GetActivationCodeResp
@@ -1168,7 +1185,7 @@ getHandleInfo :: UserId -> Handle -> Handler (Maybe Public.UserHandleInfo)
 getHandleInfo self handle = do
   ownerProfile <- do
     -- FUTUREWORK(federation, #1268): resolve qualified handles, too
-    maybeOwnerId <- fmap Local <$> (lift $ API.lookupHandle handle)
+    maybeOwnerId <- fmap (flip Qualified ourDomain) <$> (lift $ API.lookupHandle handle)
     case maybeOwnerId of
       Just ownerId -> lift $ API.lookupProfile self ownerId
       Nothing -> return Nothing

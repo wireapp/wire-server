@@ -31,7 +31,7 @@ import Data.Aeson (withText)
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (typeMismatch)
 import qualified Data.Char as Char
-import Data.Domain (Domain)
+import Data.Domain (Domain (..))
 import Data.Id
 import Data.Range
 import Data.Scientific (toBoundedInteger)
@@ -567,6 +567,10 @@ defSftDiscoveryIntervalSeconds = secondsToDiffTime 10
 
 defSftListLength :: Range 1 100 Int
 defSftListLength = unsafeRange 5
+
+-- TODO: make configurable
+ourDomain :: Domain
+ourDomain = Domain "staging.zinfra.io"
 
 instance FromJSON Timeout where
   parseJSON (Y.Number n) =
