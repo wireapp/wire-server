@@ -46,7 +46,8 @@ import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty.HUnit
 import Util
 import Web.Cookie (parseSetCookie, setCookieName)
-import Wire.API.Team.Feature (TeamFeatureStatus (..), TeamFeatureStatusValue (..))
+import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
+import qualified Wire.API.Team.Feature as Public
 
 -- | FUTUREWORK: Remove 'createPopulatedBindingTeam', 'createPopulatedBindingTeamWithNames',
 -- and rename 'createPopulatedBindingTeamWithNamesAndHandles' to 'createPopulatedBindingTeam'.
@@ -289,7 +290,7 @@ putLegalHoldEnabled tid enabled g = do
     g
       . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
       . contentJson
-      . lbytes (encode (TeamFeatureStatus enabled))
+      . lbytes (encode (Public.mkFeatureStatus @'Public.TeamFeatureLegalHold enabled))
       . expect2xx
 
 accept :: Email -> InvitationCode -> RequestBody
@@ -449,7 +450,7 @@ setTeamTeamSearchVisibilityAvailable galley tid status =
     ( galley
         . paths ["i/teams", toByteString' tid, "features/search-visibility"]
         . contentJson
-        . body (RequestBodyLBS . encode $ TeamFeatureStatus status)
+        . body (RequestBodyLBS . encode $ Public.mkFeatureStatus @'Public.TeamFeatureSearchVisibility status)
     )
     !!! do
       const 204 === statusCode
