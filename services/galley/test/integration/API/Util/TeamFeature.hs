@@ -21,6 +21,7 @@ import API.Util (zUser)
 import qualified API.Util as Util
 import Bilge
 import Control.Lens (view, (.~))
+import Data.Aeson (ToJSON)
 import Data.ByteString.Conversion (toByteString')
 import Data.Id (TeamId, UserId)
 import Galley.Options (optSettings, setFeatureFlags)
@@ -45,31 +46,57 @@ getTeamSearchVisibilityAvailableInternal =
 
 putTeamSearchVisibilityAvailableInternal :: HasCallStack => (Request -> Request) -> TeamId -> Public.TeamFeatureStatusValue -> (MonadIO m, MonadHttp m) => m ()
 putTeamSearchVisibilityAvailableInternal g =
-  putTeamFeatureFlagInternalWithGalleyAndMod Public.TeamFeatureSearchVisibility g expect2xx
+  putTeamFeatureFlagInternalWithGalleyAndMod @'Public.TeamFeatureSearchVisibility g expect2xx
 
-putLegalHoldEnabledInternal' :: HasCallStack => (Request -> Request) -> TeamId -> Public.TeamFeatureStatusValue -> TestM ()
-putLegalHoldEnabledInternal' = putTeamFeatureFlagInternal' Public.TeamFeatureLegalHold
+putLegalHoldEnabledInternal' ::
+  HasCallStack =>
+  (Request -> Request) ->
+  TeamId ->
+  Public.TeamFeatureStatusValue ->
+  TestM ()
+putLegalHoldEnabledInternal' = putTeamFeatureFlagInternal' @'Public.TeamFeatureLegalHold
 
-putTeamFeatureFlagInternal' :: HasCallStack => Public.TeamFeatureName -> (Request -> Request) -> TeamId -> Public.TeamFeatureStatusValue -> TestM ()
-putTeamFeatureFlagInternal' feature reqmod tid status = do
+putTeamFeatureFlagInternal' ::
+  forall (a :: Public.TeamFeatureName).
+  ( HasCallStack,
+    Public.FeatureHasNoConfig a,
+    Public.KnownTeamFeatureName a,
+    ToJSON (Public.TeamFeatureStatus a)
+  ) =>
+  (Request -> Request) ->
+  TeamId ->
+  Public.TeamFeatureStatusValue ->
+  TestM ()
+putTeamFeatureFlagInternal' reqmod tid status = do
   g <- view tsGalley
-  putTeamFeatureFlagInternalWithGalleyAndMod feature g reqmod tid status
+  putTeamFeatureFlagInternalWithGalleyAndMod @a g reqmod tid status
 
--- TODO(stefan): use FeatureHasNoConfig class
--- to write a function for this class of features
--- for the other features: one function per feature
 putTeamFeatureFlagInternalWithGalleyAndMod ::
-  (MonadIO m, MonadHttp m, HasCallStack) =>
-  Public.TeamFeatureName ->
+  forall (a :: Public.TeamFeatureName) m.
+  ( MonadIO m,
+    MonadHttp m,
+    HasCallStack,
+    Public.FeatureHasNoConfig a,
+    Public.KnownTeamFeatureName a,
+    ToJSON (Public.TeamFeatureStatus a)
+  ) =>
   (Request -> Request) ->
   (Request -> Request) ->
   TeamId ->
   Public.TeamFeatureStatusValue ->
   m ()
-putTeamFeatureFlagInternalWithGalleyAndMod _feature _galley _reqmod _tid _status =
-  undefined
+putTeamFeatureFlagInternalWithGalleyAndMod galley reqmod tid status =
+  void . put $
+    galley
+      . paths ["i", "teams", toByteString' tid, "features", toByteString' (Public.knownTeamFeatureName @a)]
+      . json (Public.mkFeatureStatus @a status)
+      . reqmod
 
-getTeamFeatureFlagInternal :: HasCallStack => Public.TeamFeatureName -> TeamId -> TestM ResponseLBS
+getTeamFeatureFlagInternal ::
+  (HasCallStack) =>
+  Public.TeamFeatureName ->
+  TeamId ->
+  TestM ResponseLBS
 getTeamFeatureFlagInternal feature tid = do
   g <- view tsGalley
   getTeamFeatureFlagInternalWithGalley feature g tid
