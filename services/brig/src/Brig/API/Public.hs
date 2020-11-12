@@ -174,6 +174,7 @@ sitemap o = do
     accept "application" "json"
       .&. zauthUserId
       .&. ((param "ids" ||| param "qualified_ids") ||| param "handles")
+  -- TODO review this endpoint and change it to allow perhaps multiple params, or something
   -- /users?ids=asb,wire.com/fasd, -- TODO: review whether a '/' works and is desired/according to standards
   document "GET" "users" $ do
     Doc.summary "List users"
