@@ -325,7 +325,7 @@ mkFeatureGetAndPutRoute ::
 mkFeatureGetAndPutRoute handlers = do
   let featureName = Public.knownTeamFeatureName @a
 
-  get ("/teams/:tid/features/" <> toByteString' featureName) (continue (Teams.fshGet handlers)) $
+  get ("/i/teams/:tid/features/" <> toByteString' featureName) (continue (Teams.fshGet handlers)) $
     zauthUserId
       .&. capture "tid"
       .&. accept "application" "json"
