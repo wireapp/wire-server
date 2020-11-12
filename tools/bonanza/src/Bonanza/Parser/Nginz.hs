@@ -52,7 +52,8 @@ fieldParsers =
     ("user", stringField),
     ("zconn", stringField),
     ("request", stringField),
-    ("proxy_protocol_addr", ipv4Field)
+    ("proxy_protocol_addr", ipv4Field),
+    ("tracestate", stringField)
   ]
 
 nginzLogRecord :: Parser NginzLogRecord
