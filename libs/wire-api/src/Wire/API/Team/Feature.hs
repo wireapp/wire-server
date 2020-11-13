@@ -44,7 +44,6 @@ module Wire.API.Team.Feature
 where
 
 import Data.Aeson
-import Data.Aeson.Types (Parser)
 import qualified Data.Attoparsec.ByteString as Parser
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..), toByteString')
 import Data.String.Conversions (cs)
@@ -214,50 +213,6 @@ modelForTeamFeature TeamFeatureValidateSAMLEmails = modelTeamFeatureStatusValida
 modelForTeamFeature TeamFeatureDigitalSignatures = modelTeamFeatureStatusDigitalSignatures
 modelForTeamFeature TeamFeatureAppLock = modelTeamFeatureStatusAppLock
 
-toJSONStatusOnly :: TeamFeatureStatus a -> Value
-toJSONStatusOnly (TeamFeatureStatus status _) = object ["status" .= status]
-
-instance ToJSON (TeamFeatureStatus 'TeamFeatureLegalHold) where
-  toJSON = toJSONStatusOnly
-
-instance ToJSON (TeamFeatureStatus 'TeamFeatureSSO) where
-  toJSON = toJSONStatusOnly
-
-instance ToJSON (TeamFeatureStatus 'TeamFeatureSearchVisibility) where
-  toJSON = toJSONStatusOnly
-
-instance ToJSON (TeamFeatureStatus 'TeamFeatureValidateSAMLEmails) where
-  toJSON = toJSONStatusOnly
-
-instance ToJSON (TeamFeatureStatus 'TeamFeatureDigitalSignatures) where
-  toJSON = toJSONStatusOnly
-
-instance ToJSON (TeamFeatureStatus 'TeamFeatureAppLock) where
-  toJSON (TeamFeatureStatus status config) = object ["status" .= status, "config" .= config]
-
-parseStatus :: Value -> Parser TeamFeatureStatusValue
-parseStatus = withObject "TeamFeatureStatus" $ \o ->
-  o .: "status"
-
-instance FromJSON (TeamFeatureStatus 'TeamFeatureLegalHold) where
-  parseJSON val = TeamFeatureStatus <$> parseStatus val <*> pure ()
-
-instance FromJSON (TeamFeatureStatus 'TeamFeatureSSO) where
-  parseJSON val = TeamFeatureStatus <$> parseStatus val <*> pure ()
-
-instance FromJSON (TeamFeatureStatus 'TeamFeatureSearchVisibility) where
-  parseJSON val = TeamFeatureStatus <$> parseStatus val <*> pure ()
-
-instance FromJSON (TeamFeatureStatus 'TeamFeatureValidateSAMLEmails) where
-  parseJSON val = TeamFeatureStatus <$> parseStatus val <*> pure ()
-
-instance FromJSON (TeamFeatureStatus 'TeamFeatureDigitalSignatures) where
-  parseJSON val = TeamFeatureStatus <$> parseStatus val <*> pure ()
-
-instance FromJSON (TeamFeatureStatus 'TeamFeatureAppLock) where
-  parseJSON = withObject "TeamFeatureStatus" $ \v ->
-    TeamFeatureStatus <$> v .: "status" <*> v .: "config"
-
 class FeatureHasNoConfig (a :: TeamFeatureName) where
   mkFeatureStatus :: TeamFeatureStatusValue -> TeamFeatureStatus a
 
@@ -275,6 +230,42 @@ instance FeatureHasNoConfig 'TeamFeatureValidateSAMLEmails where
 
 instance FeatureHasNoConfig 'TeamFeatureDigitalSignatures where
   mkFeatureStatus statusVal = TeamFeatureStatus statusVal ()
+
+newtype JSONNoConfig a = JSONNoConfig a
+
+instance FeatureHasNoConfig a => FromJSON (JSONNoConfig (TeamFeatureStatus a)) where
+  parseJSON = withObject "TeamFeatureStatus" $ \ob ->
+    JSONNoConfig . mkFeatureStatus @a <$> ob .: "status"
+
+instance FeatureHasNoConfig a => ToJSON (JSONNoConfig (TeamFeatureStatus a)) where
+  toJSON (JSONNoConfig (TeamFeatureStatus status _)) = object ["status" .= status]
+
+deriving via (JSONNoConfig (TeamFeatureStatus 'TeamFeatureLegalHold)) instance ToJSON (TeamFeatureStatus 'TeamFeatureLegalHold)
+
+deriving via (JSONNoConfig (TeamFeatureStatus 'TeamFeatureLegalHold)) instance FromJSON (TeamFeatureStatus 'TeamFeatureLegalHold)
+
+deriving via (JSONNoConfig (TeamFeatureStatus 'TeamFeatureSSO)) instance ToJSON (TeamFeatureStatus 'TeamFeatureSSO)
+
+deriving via (JSONNoConfig (TeamFeatureStatus 'TeamFeatureSSO)) instance FromJSON (TeamFeatureStatus 'TeamFeatureSSO)
+
+deriving via (JSONNoConfig (TeamFeatureStatus 'TeamFeatureSearchVisibility)) instance ToJSON (TeamFeatureStatus 'TeamFeatureSearchVisibility)
+
+deriving via (JSONNoConfig (TeamFeatureStatus 'TeamFeatureSearchVisibility)) instance FromJSON (TeamFeatureStatus 'TeamFeatureSearchVisibility)
+
+deriving via (JSONNoConfig (TeamFeatureStatus 'TeamFeatureValidateSAMLEmails)) instance ToJSON (TeamFeatureStatus 'TeamFeatureValidateSAMLEmails)
+
+deriving via (JSONNoConfig (TeamFeatureStatus 'TeamFeatureValidateSAMLEmails)) instance FromJSON (TeamFeatureStatus 'TeamFeatureValidateSAMLEmails)
+
+deriving via (JSONNoConfig (TeamFeatureStatus 'TeamFeatureDigitalSignatures)) instance ToJSON (TeamFeatureStatus 'TeamFeatureDigitalSignatures)
+
+deriving via (JSONNoConfig (TeamFeatureStatus 'TeamFeatureDigitalSignatures)) instance FromJSON (TeamFeatureStatus 'TeamFeatureDigitalSignatures)
+
+instance ToJSON (TeamFeatureStatus 'TeamFeatureAppLock) where
+  toJSON (TeamFeatureStatus status config) = object ["status" .= status, "config" .= config]
+
+instance FromJSON (TeamFeatureStatus 'TeamFeatureAppLock) where
+  parseJSON = withObject "TeamFeatureStatus" $ \ob ->
+    TeamFeatureStatus <$> ob .: "status" <*> ob .: "config"
 
 newtype EnforceAppLock = EnforceAppLock Bool
   deriving stock (Eq, Show, Ord, Generic)
