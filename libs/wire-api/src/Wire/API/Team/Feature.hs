@@ -27,6 +27,7 @@ module Wire.API.Team.Feature
     FeatureHasNoConfig (..),
     TeamFeatureConfig,
     KnownTeamFeatureName (..),
+    EnforceAppLock (..),
 
     -- * Swagger
     typeTeamFeatureName,
@@ -49,7 +50,7 @@ import Data.String.Conversions (cs)
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import Deriving.Aeson.Stock
+import Deriving.Aeson
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
@@ -151,7 +152,7 @@ type family TeamFeatureConfig (a :: TeamFeatureName) :: * where
 
 data TeamFeatureStatus (a :: TeamFeatureName) = TeamFeatureStatus
   { teamFeatureStatusValue :: TeamFeatureStatusValue,
-    config :: TeamFeatureConfig a
+    teamFeatureConfig :: TeamFeatureConfig a
   }
   deriving stock (Typeable)
 
@@ -273,14 +274,34 @@ instance FeatureHasNoConfig 'TeamFeatureValidateSAMLEmails where
 instance FeatureHasNoConfig 'TeamFeatureDigitalSignatures where
   mkFeatureStatus statusVal = TeamFeatureStatus statusVal ()
 
+newtype EnforceAppLock = EnforceAppLock Bool
+  deriving stock (Eq, Show, Ord, Generic)
+  deriving newtype (FromJSON, ToJSON, Arbitrary)
+
 data TeamFeatureAppLockConfig = TeamFeatureAppLockConfig
-  { applockEnforceAppLock :: Bool,
-    applockInactivityTimeoutSecs :: Int
+  { applockEnforceAppLock :: EnforceAppLock,
+    applockInactivityTimeoutSecs :: Int32
   }
   deriving stock (Eq, Show, Generic)
 
 deriving via (GenericUniform TeamFeatureAppLockConfig) instance Arbitrary TeamFeatureAppLockConfig
 
-deriving via (PrefixedSnake "applock" TeamFeatureAppLockConfig) instance ToJSON TeamFeatureAppLockConfig
+data LowerCaseFirst
 
-deriving via (PrefixedSnake "applock" TeamFeatureAppLockConfig) instance FromJSON TeamFeatureAppLockConfig
+instance StringModifier LowerCaseFirst where
+  getStringModifier (x : xs) = toLower x : xs
+  getStringModifier [] = []
+
+type StripCamel str =
+  CustomJSON
+    '[FieldLabelModifier (StripPrefix str, LowerCaseFirst)]
+
+deriving via
+  (StripCamel "applock" TeamFeatureAppLockConfig)
+  instance
+    ToJSON TeamFeatureAppLockConfig
+
+deriving via
+  (StripCamel "applock" TeamFeatureAppLockConfig)
+  instance
+    FromJSON TeamFeatureAppLockConfig
