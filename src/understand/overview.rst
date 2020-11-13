@@ -14,7 +14,19 @@ The Wire clients (such as the Wire app on your phone) connect either directly (o
 Architecture and networking
 ----------------------------
 
-If you would like to see more details, the following diagram shows a usual setup with multiple VMs (Virtual Machines):
+Note that the webapp, account pages, and team-settings, while in a way not part of backend,
+are installed with the rest and therefor included.
+
+Focus on internet protocols
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+|arch-proto|
+
+
+Focus on high-availability
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The following diagram shows a usual setup with multiple VMs (Virtual Machines):
 
 |arch-ha|
 
@@ -30,4 +42,5 @@ All the server components on one physical machine can connect to all the databas
 
 
 .. |arch-simplified| image:: img/architecture-server-simplified.png
+.. |arch-proto| image:: ./img/architecture-tls-on-prem-2020-09.png
 .. |arch-ha| image:: ../how-to/install/img/architecture-server-ha.png
