@@ -329,6 +329,7 @@ routes = do
   mkFeaturePutGetRoute @'Public.TeamFeatureSearchVisibility
   mkFeaturePutGetRoute @'Public.TeamFeatureValidateSAMLEmails
   mkFeaturePutGetRoute @'Public.TeamFeatureDigitalSignatures
+  mkFeaturePutGetRoute @'Public.TeamFeatureAppLock
 
   -- These endpoints should be part of team settings. Until then, we access them from here
   -- for authorized personnel to enable/disable this on the team's behalf
