@@ -37,7 +37,6 @@ module Wire.API.Team.Feature
     modelTeamFeatureStatusValidateSAMLEmails,
     modelTeamFeatureStatusDigitalSignatures,
     modelTeamFeatureStatusAppLock,
-    modelTeamFeatureAppLockConfig,
     modelForTeamFeature,
   )
 where
@@ -185,6 +184,12 @@ modelTeamFeatureStatusValidateSAMLEmails = modelTeamFeatureWithoutConfig "TeamFe
 modelTeamFeatureStatusDigitalSignatures :: Doc.Model
 modelTeamFeatureStatusDigitalSignatures = modelTeamFeatureWithoutConfig "TeamFeatureDigitalSignatures"
 
+modelTeamFeatureWithoutConfig :: Text -> Doc.Model
+modelTeamFeatureWithoutConfig name =
+  Doc.defineModel (name <> "Status") $ do
+    Doc.description $ "Configuration for the " <> name <> " team feature"
+    Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
+
 modelTeamFeatureStatusAppLock :: Doc.Model
 modelTeamFeatureStatusAppLock =
   Doc.defineModel "TeamFeatureAppLockStatus" $ do
@@ -192,11 +197,12 @@ modelTeamFeatureStatusAppLock =
     Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
     Doc.property "config" (Doc.ref modelTeamFeatureAppLockConfig) $ Doc.description "config"
 
-modelTeamFeatureWithoutConfig :: Text -> Doc.Model
-modelTeamFeatureWithoutConfig name =
-  Doc.defineModel (name <> "Status") $ do
-    Doc.description $ "Configuration for the " <> name <> " team feature"
+modelTeamFeatureAppLockConfig :: Doc.Model
+modelTeamFeatureAppLockConfig =
+  Doc.defineModel "TeamFeatureAppLockConfig" $ do
+    Doc.description "TODO(Stefan)"
     Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
+    Doc.property "config" (Doc.ref modelTeamFeatureAppLockConfig) $ Doc.description "config"
 
 modelForTeamFeature :: TeamFeatureName -> Doc.Model
 modelForTeamFeature TeamFeatureLegalHold = modelTeamFeatureStatusLegalHold
@@ -278,7 +284,3 @@ deriving via (GenericUniform TeamFeatureAppLockConfig) instance Arbitrary TeamFe
 deriving via (PrefixedSnake "applock" TeamFeatureAppLockConfig) instance ToJSON TeamFeatureAppLockConfig
 
 deriving via (PrefixedSnake "applock" TeamFeatureAppLockConfig) instance FromJSON TeamFeatureAppLockConfig
-
--- TODO(stefan)
-modelTeamFeatureAppLockConfig :: Doc.Model
-modelTeamFeatureAppLockConfig = Doc.defineModel "TeamFeatureAppLockConfig" undefined
