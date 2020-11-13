@@ -177,6 +177,7 @@ sitemap = do
   mkFeatureGetAndPutRoute Teams.teamSearchVisibilityAvailableHandlers
   mkFeatureGetAndPutRoute Teams.validateSAMLEmailsHandlers
   mkFeatureGetAndPutRoute Teams.digitalSignaturesHandlers
+  mkFeatureGetAndPutRoute Teams.appLockHandlers
 
   -- Misc API (internal) ------------------------------------------------
 

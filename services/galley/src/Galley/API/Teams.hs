@@ -39,9 +39,6 @@ module Galley.API.Teams
     getTeamConversationH,
     getTeamConversationRolesH,
     deleteTeamConversationH,
-    -- getFeatureStatusH,
-    -- getFeatureStatusInternalH,
-    -- setFeatureStatusInternalH,
     getSearchVisibilityH,
     setSearchVisibilityH,
     getSearchVisibilityInternalH,
@@ -61,6 +58,7 @@ module Galley.API.Teams
     teamSearchVisibilityAvailableHandlers,
     validateSAMLEmailsHandlers,
     digitalSignaturesHandlers,
+    appLockHandlers,
   )
 where
 
@@ -1046,6 +1044,24 @@ digitalSignaturesHandlers =
 getSearchVisibilityInternalH :: TeamId ::: JSON -> Galley Response
 getSearchVisibilityInternalH (tid ::: _) =
   json <$> getSearchVisibilityInternal tid
+
+getAppLockInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock)
+getAppLockInternal tid = do
+  let defaultStatus =
+        Public.TeamFeatureStatus
+          Public.TeamFeatureDisabled
+          (Public.TeamFeatureAppLockConfig (Public.EnforceAppLock False) (2 * 60))
+  status <- TeamFeatures.getApplockFeatureStatus tid
+  pure $ fromMaybe defaultStatus status
+
+setAppLockInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock) -> Galley ()
+setAppLockInternal = TeamFeatures.setApplockFeatureStatus
+
+appLockHandlers :: FeatureStatusHandlers 'Public.TeamFeatureAppLock
+appLockHandlers =
+  mkFeatureStatusHandlers
+    getAppLockInternal
+    setAppLockInternal
 
 getSearchVisibilityInternal :: TeamId -> Galley TeamSearchVisibilityView
 getSearchVisibilityInternal = fmap TeamSearchVisibilityView . SearchVisibilityData.getSearchVisibility

@@ -104,7 +104,6 @@ type GalleyRoutesInternal =
   "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
     :> Get '[JSON] (TeamFeatureStatus 'TeamFeatureLegalHold)
     :<|> "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
-      -- TODO(stefan)
       :> ReqBody '[JSON] (TeamFeatureStatus 'TeamFeatureLegalHold)
       :> Put '[] NoContent
 

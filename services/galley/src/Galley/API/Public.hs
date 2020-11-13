@@ -452,38 +452,12 @@ sitemap = do
     response 204 "Search visibility set" end
     errorResponse Error.teamSearchVisibilityNotEnabled
 
-  -- put "/teams/:tid/features/app-lock" (continue Teams.putFeatureAppLockStatusH) $
-  --   zauthUserId
-  --     .&. capture "tid"
-  --     .&. jsonRequest @Public.TeamFeatureAppLockStatus
-  --     .&. accept "application" "json"
-  -- document "PUT" "getTeamFeatureAppLock" $ do
-  --   summary "Updates the app-lock feature config for a team"
-  --   parameter Path "tid" bytes' $
-  --     description "Team ID"
-  --   body (ref Public.modelTeamFeatureApLockStatus)
-  --   returns (ref Public.modelTeamFeatureApLockStatus)
-  --   response 200 "Team feature status" end
-
-  -- get "/teams/:tid/features/:feature" (continue Teams.getFeatureStatusH) $
-  --   zauthUserId
-  --     .&. capture "tid"
-  --     .&. capture "feature"
-  --     .&. accept "application" "json"
-  -- document "GET" "getTeamFeature" $ do
-  --   summary "Shows whether a feature is enabled for a team"
-  --   parameter Path "tid" bytes' $
-  --     description "Team ID"
-  --   parameter Path "feature" Public.typeTeamFeatureName $
-  --     description "Feature name"
-  --   returns (ref Public.modelTeamFeatureStatus)
-  --   response 200 "Team feature status" end
-
-  mkFeatureGetRoute Teams.ssoFeatureStatusHandlers
-  mkFeatureGetRoute Teams.legalholdFeatureStatusHandlers
-  mkFeatureGetRoute Teams.teamSearchVisibilityAvailableHandlers
-  mkFeatureGetRoute Teams.validateSAMLEmailsHandlers
-  mkFeatureGetRoute Teams.digitalSignaturesHandlers
+  mkFeatureGetRoute [GET] Teams.ssoFeatureStatusHandlers
+  mkFeatureGetRoute [GET] Teams.legalholdFeatureStatusHandlers
+  mkFeatureGetRoute [GET] Teams.teamSearchVisibilityAvailableHandlers
+  mkFeatureGetRoute [GET] Teams.validateSAMLEmailsHandlers
+  mkFeatureGetRoute [GET] Teams.digitalSignaturesHandlers
+  mkFeatureGetRoute [GET, PUT] Teams.appLockHandlers
 
   -- Custom Backend API -------------------------------------------------
 
@@ -1103,18 +1077,31 @@ filterMissing = (>>= go) <$> (query "ignore_missing" ||| query "report_missing")
 mkFeatureGetRoute ::
   forall (a :: Public.TeamFeatureName).
   (Public.KnownTeamFeatureName a) =>
+  [StdMethod] ->
   Teams.FeatureStatusHandlers (a :: Public.TeamFeatureName) ->
   Routes ApiBuilder Galley ()
-mkFeatureGetRoute handlers = do
+mkFeatureGetRoute methods handlers = do
   let featureName = Public.knownTeamFeatureName @a
-  get ("/teams/:tid/features/" <> toByteString' featureName) (continue (Teams.fshGet handlers)) $
-    zauthUserId
-      .&. capture "tid"
-      .&. accept "application" "json"
-  document "GET" "getTeamFeature" $ do
-    -- TODO(stefan): summary?
-    -- summary summaryText
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    returns (ref (Public.modelForTeamFeature featureName))
-    response 200 "Team feature status" end
+
+  when (GET `elem` methods) $ do
+    get ("/teams/:tid/features/" <> toByteString' featureName) (continue (Teams.fshGet handlers)) $
+      zauthUserId
+        .&. capture "tid"
+        .&. accept "application" "json"
+    document "GET" "getTeamFeature" $ do
+      parameter Path "tid" bytes' $
+        description "Team ID"
+      returns (ref (Public.modelForTeamFeature featureName))
+      response 200 "Team feature status" end
+
+  when (PUT `elem` methods) $ do
+    put ("/teams/:tid/features/" <> toByteString' featureName) (continue (Teams.fshSet handlers)) $
+      zauthUserId
+        .&. capture "tid"
+        .&. jsonRequest @(Public.TeamFeatureStatus a)
+        .&. accept "application" "json"
+    document "PUT" "putTeamFeature" $ do
+      parameter Path "tid" bytes' $
+        description "Team ID"
+      returns (ref (Public.modelForTeamFeature featureName))
+      response 200 "Team feature status" end
