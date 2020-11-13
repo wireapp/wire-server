@@ -1103,5 +1103,6 @@ mkFeatureGetRoute methods handlers = do
     document "PUT" "putTeamFeature" $ do
       parameter Path "tid" bytes' $
         description "Team ID"
-      returns (ref (Public.modelForTeamFeature featureName))
-      response 200 "Team feature status" end
+      body (ref (Public.modelForTeamFeature featureName)) $
+        description "JSON body"
+      response 204 "Team feature status" end
