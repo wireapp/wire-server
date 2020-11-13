@@ -126,6 +126,7 @@ models =
     Team.Feature.modelTeamFeatureStatusValidateSAMLEmails,
     Team.Feature.modelTeamFeatureStatusDigitalSignatures,
     Team.Feature.modelTeamFeatureStatusAppLock,
+    Team.Feature.modelTeamFeatureAppLockConfig,
     Team.Invitation.modelTeamInvitation,
     Team.Invitation.modelTeamInvitationList,
     Team.Invitation.modelTeamInvitationRequest,

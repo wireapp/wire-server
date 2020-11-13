@@ -38,6 +38,7 @@ module Wire.API.Team.Feature
     modelTeamFeatureStatusValidateSAMLEmails,
     modelTeamFeatureStatusDigitalSignatures,
     modelTeamFeatureStatusAppLock,
+    modelTeamFeatureAppLockConfig,
     modelForTeamFeature,
   )
 where
