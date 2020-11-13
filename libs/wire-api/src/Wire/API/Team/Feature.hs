@@ -255,7 +255,8 @@ instance FromJSON (TeamFeatureStatus 'TeamFeatureDigitalSignatures) where
   parseJSON val = TeamFeatureStatus <$> parseStatus val <*> pure ()
 
 instance FromJSON (TeamFeatureStatus 'TeamFeatureAppLock) where
-  parseJSON val = TeamFeatureStatus <$> parseStatus val <*> parseJSON val
+  parseJSON = withObject "TeamFeatureStatus" $ \v ->
+    TeamFeatureStatus <$> v .: "status" <*> v .: "config"
 
 class FeatureHasNoConfig (a :: TeamFeatureName) where
   mkFeatureStatus :: TeamFeatureStatusValue -> TeamFeatureStatus a
