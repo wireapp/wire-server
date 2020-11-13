@@ -48,6 +48,7 @@ import Data.Aeson.Types (Parser)
 import qualified Data.Attoparsec.ByteString as Parser
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..), toByteString')
 import Data.String.Conversions (cs)
+import Data.Swagger.Build.Api
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -202,9 +203,8 @@ modelTeamFeatureStatusAppLock =
 modelTeamFeatureAppLockConfig :: Doc.Model
 modelTeamFeatureAppLockConfig =
   Doc.defineModel "TeamFeatureAppLockConfig" $ do
-    Doc.description "TODO(Stefan)"
-    Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
-    Doc.property "config" (Doc.ref modelTeamFeatureAppLockConfig) $ Doc.description "config"
+    Doc.property "enforceAppLock" bool' $ Doc.description "enforceAppLock"
+    Doc.property "inactivityTimeoutSecs" int32' $ Doc.description ""
 
 modelForTeamFeature :: TeamFeatureName -> Doc.Model
 modelForTeamFeature TeamFeatureLegalHold = modelTeamFeatureStatusLegalHold
