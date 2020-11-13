@@ -164,7 +164,7 @@ testSearchVisibility = do
     getTeamSearchVisibility tid3 Public.TeamFeatureEnabled
     getTeamSearchVisibilityInternal tid3 Public.TeamFeatureEnabled
 
--- TODO(stefan): no
+-- TODO(stefan): fix this when you got more patience
 -- testSimpleFlag :: Public.TeamFeatureName -> TestM ()
 -- testSimpleFlag feature = do
 --   owner <- Util.randomUser
@@ -213,8 +213,6 @@ testSearchVisibility = do
 -- | TeamFeatureSearchVisibility
 -- | TeamFeatureValidateSAMLEmails
 -- | TeamFeatureDigitalSignatures
-
--- TODO(stefan): refactor these function into a general one.
 assertFlagTeamFeatureLegalHold :: HasCallStack => TestM ResponseLBS -> Public.TeamFeatureStatusValue -> TestM ()
 assertFlagTeamFeatureLegalHold res expected =
   res !!! do
