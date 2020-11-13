@@ -336,6 +336,7 @@ roleHiddenPermissions role = HiddenPermissions p p
           ViewTeamFeature TeamFeatureSearchVisibility,
           ViewTeamFeature TeamFeatureValidateSAMLEmails,
           ViewTeamFeature TeamFeatureDigitalSignatures,
+          ViewTeamFeature TeamFeatureAppLock,
           ViewLegalHoldUserSettings,
           ViewTeamSearchVisibility
         ]
