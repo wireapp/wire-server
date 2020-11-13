@@ -24,10 +24,10 @@ packages:
     pantry-tree:
       size: 4657
       sha256: 1e2e75b602379f564f1feb170a338109d7c19dae89b98d414d83eabda1f6fdb7
-    commit: 73fa88c13f96db8ede150b518624c7ee51a49190
+    commit: dcbadb18f8ba6ca0e6245bf804405685d3e1cfce
   original:
     git: https://github.com/wireapp/saml2-web-sso
-    commit: 73fa88c13f96db8ede150b518624c7ee51a49190
+    commit: dcbadb18f8ba6ca0e6245bf804405685d3e1cfce
 - completed:
     name: collectd
     version: 0.0.0.2
