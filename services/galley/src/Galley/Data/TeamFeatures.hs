@@ -18,8 +18,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.Data.TeamFeatures
-  ( setFlag,
-    getFlag,
+  ( getFeatureStatus,
+    setFeatureStatus,
   )
 where
 
@@ -27,22 +27,41 @@ import Cassandra
 import Data.Id
 import Galley.Data.Instances ()
 import Imports
-import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatusValue (..))
+import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatus (..), TeamFeatureStatusValue (..))
+import qualified Wire.API.Team.Feature as Public
 
--- | Is a given feature enabled or disabled?  Returns 'Nothing' if team does not exist or the
--- feature flag in Cassandra is null.
-getFlag :: MonadClient m => TeamId -> TeamFeatureName -> m (Maybe TeamFeatureStatusValue)
-getFlag tid feature = (>>= runIdentity) <$> retry x1 (query1 (select feature) (params Quorum (Identity tid)))
+getFeatureStatus ::
+  forall (a :: Public.TeamFeatureName) m.
+  ( MonadClient m,
+    Public.KnownTeamFeatureName a,
+    Public.FeatureHasNoConfig a
+  ) =>
+  TeamId ->
+  m (Maybe (TeamFeatureStatus a))
+getFeatureStatus tid = do
+  let q = query1 (select' (Public.knownTeamFeatureName @a)) (params Quorum (Identity tid))
+  mStatusValue <- (>>= runIdentity) <$> retry x1 q
+  pure $ (Public.mkFeatureStatus <$> mStatusValue)
+  where
+    select' :: TeamFeatureName -> PrepQuery R (Identity TeamId) (Identity (Maybe TeamFeatureStatusValue))
+    select' feature = fromString $ "select " <> toCol feature <> " from team_features where team_id = ?"
 
--- | Enable or disable feature flag.
-setFlag :: MonadClient m => TeamId -> TeamFeatureName -> TeamFeatureStatusValue -> m ()
-setFlag tid feature flag = do retry x5 $ write (update feature) (params Quorum (flag, tid))
-
-select :: TeamFeatureName -> PrepQuery R (Identity TeamId) (Identity (Maybe TeamFeatureStatusValue))
-select feature = fromString $ "select " <> toCol feature <> " from team_features where team_id = ?"
-
-update :: TeamFeatureName -> PrepQuery W (TeamFeatureStatusValue, TeamId) ()
-update feature = fromString $ "update team_features set " <> toCol feature <> " = ? where team_id = ?"
+setFeatureStatus ::
+  forall (a :: Public.TeamFeatureName) m.
+  ( MonadClient m,
+    Public.KnownTeamFeatureName a,
+    Public.FeatureHasNoConfig a
+  ) =>
+  MonadClient m =>
+  TeamId ->
+  (TeamFeatureStatus a) ->
+  m ()
+setFeatureStatus tid status = do
+  let flag = Public.teamFeatureStatusValue status
+  retry x5 $ write (update' (Public.knownTeamFeatureName @a)) (params Quorum (flag, tid))
+  where
+    update' :: TeamFeatureName -> PrepQuery W (TeamFeatureStatusValue, TeamId) ()
+    update' feature = fromString $ "update team_features set " <> toCol feature <> " = ? where team_id = ?"
 
 toCol :: TeamFeatureName -> String
 toCol TeamFeatureLegalHold = "legalhold_status"
@@ -51,5 +70,3 @@ toCol TeamFeatureSearchVisibility = "search_visibility_status"
 toCol TeamFeatureValidateSAMLEmails = "validate_saml_emails"
 toCol TeamFeatureDigitalSignatures = "digital_signatures"
 toCol TeamFeatureAppLock = error "TODO(stefan)"
-
--- toCol TeamFeatureAppLock = undefined -- here we need to have 3 cols now.  hehe.

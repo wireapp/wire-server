@@ -61,8 +61,8 @@ assertLegalHoldEnabled tid = unlessM (isLegalHoldEnabled tid) $ throwM legalHold
 
 isLegalHoldEnabled :: TeamId -> Galley Bool
 isLegalHoldEnabled tid = do
-  lhConfig <- TeamFeatures.getFlag tid Public.TeamFeatureLegalHold
-  return $ case lhConfig of
+  statusValue <- (fmap Public.teamFeatureStatusValue) <$> TeamFeatures.getFeatureStatus @'Public.TeamFeatureLegalHold tid
+  return $ case statusValue of
     Just Public.TeamFeatureEnabled -> True
     Just Public.TeamFeatureDisabled -> False
     Nothing -> False
