@@ -80,7 +80,6 @@ import qualified Data.UUID as UUID
 import Imports
 import Network.AWS hiding (Error)
 import Network.AWS.Data.Body
-import Network.AWS.Data.Crypto
 import Network.AWS.S3
 import Network.Wai.Utilities.Error (Error (..))
 import Safe (readMay)
@@ -106,7 +105,7 @@ uploadV3 ::
   Maybe V3.AssetToken ->
   Conduit.ConduitM () ByteString (ResourceT IO) () ->
   ExceptT Error App ()
-uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders ct cl md5) tok src = do
+uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders ct cl) tok src = do
   Log.info $
     "remote" .= val "S3"
       ~~ "asset.owner" .= toByteString prc
@@ -124,11 +123,9 @@ uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders ct cl md5) tok src = do
         -- Ignore any 'junk' after the content; take only 'cl' bytes.
         .| Conduit.isolate (fromIntegral cl)
     reqBdy = ChunkedBody defaultChunkSize (fromIntegral cl) stream
-    md5Res = Text.decodeLatin1 $ digestToBase Base64 md5
     req b =
       putObject (BucketName b) (ObjectKey key) (toBody reqBdy)
         & poContentType ?~ MIME.showType ct
-        & poContentMD5 ?~ md5Res
         & poMetadata .~ metaHeaders tok prc
 
 getMetadataV3 :: V3.AssetKey -> ExceptT Error App (Maybe S3AssetMeta)

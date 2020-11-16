@@ -40,11 +40,9 @@ import Control.Applicative (optional)
 import Control.Error
 import Control.Lens (set, view, (^.))
 import Control.Monad.Trans.Resource
-import Crypto.Hash
 import Crypto.Random (getRandomBytes)
 import Data.Aeson (eitherDecodeStrict')
 import Data.Attoparsec.ByteString.Char8
-import qualified Data.ByteString.Base64 as B64
 import qualified Data.CaseInsensitive as CI
 import Data.Conduit
 import qualified Data.Conduit.Attoparsec as Conduit
@@ -171,13 +169,13 @@ assetHeaders :: Parser AssetHeaders
 assetHeaders =
   eol
     *> boundary
-    *> (headers [hContentType, hContentLength, hContentMD5] >>= go)
+    *> (headers [hContentType, hContentLength] >>= go)
     <* eol
   where
     go hdrs =
-      AssetHeaders <$> contentType hdrs
+      AssetHeaders
+        <$> contentType hdrs
         <*> contentLength hdrs
-        <*> contentMD5 hdrs
 
 contentType :: [(HeaderName, ByteString)] -> Parser MIME.Type
 contentType hdrs =
@@ -192,13 +190,6 @@ contentLength hdrs =
     (fail "Missing Content-Type")
     (either fail return . parseOnly decimal)
     (lookup (CI.mk "Content-Length") hdrs)
-
-contentMD5 :: [(HeaderName, ByteString)] -> Parser (Digest MD5)
-contentMD5 hdrs =
-  maybe
-    (fail "Missing Content-MD5")
-    (maybe (fail "Invalid Content-MD5") return . digestFromByteString . B64.decodeLenient)
-    (lookup (CI.mk "Content-MD5") hdrs)
 
 boundary :: Parser ()
 boundary =
