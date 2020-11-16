@@ -299,6 +299,7 @@ data HiddenPerm
   | ChangeLegalHoldUserSettings
   | ViewLegalHoldUserSettings
   | ViewTeamFeature TeamFeatureName
+  | ChangeTeamFeature TeamFeatureName
   | ChangeTeamSearchVisibility
   | ViewTeamSearchVisibility
   | ViewSameTeamEmails
@@ -337,6 +338,7 @@ roleHiddenPermissions role = HiddenPermissions p p
           ViewTeamFeature TeamFeatureValidateSAMLEmails,
           ViewTeamFeature TeamFeatureDigitalSignatures,
           ViewTeamFeature TeamFeatureAppLock,
+          ChangeTeamFeature TeamFeatureAppLock,
           ViewLegalHoldUserSettings,
           ViewTeamSearchVisibility
         ]

@@ -156,6 +156,12 @@ data TeamFeatureStatus (a :: TeamFeatureName) = TeamFeatureStatus
   }
   deriving stock (Typeable)
 
+
+data TeamFeatureStatus (a :: TeamFeatureName)
+  | TeamFeatureStatusEnabled (TeamFeatureConfig a)
+  | TeamFeatureStatusDisabled
+  deriving stock (Typeable)
+
 deriving stock instance
   Eq (TeamFeatureConfig a) =>
   Eq (TeamFeatureStatus (a :: TeamFeatureName))

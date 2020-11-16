@@ -906,8 +906,7 @@ mkFeatureStatusHandlers getter' setter' =
       Galley Response
     mkSetFeatureStatusH setter (uid ::: tid ::: req ::: _) = do
       zusrMembership <- Data.teamMember tid uid
-      -- TODO(stefan): implement a separate SetTeamFeaure permission check?
-      void $ permissionCheck (ViewTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
+      void $ permissionCheck (ChangeTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
       status <- fromJsonBody req
       setter tid status
       pure (empty & setStatus status204)

@@ -452,12 +452,12 @@ sitemap = do
     response 204 "Search visibility set" end
     errorResponse Error.teamSearchVisibilityNotEnabled
 
-  mkFeatureGetRoute [GET] Teams.ssoFeatureStatusHandlers
-  mkFeatureGetRoute [GET] Teams.legalholdFeatureStatusHandlers
-  mkFeatureGetRoute [GET] Teams.teamSearchVisibilityAvailableHandlers
-  mkFeatureGetRoute [GET] Teams.validateSAMLEmailsHandlers
-  mkFeatureGetRoute [GET] Teams.digitalSignaturesHandlers
-  mkFeatureGetRoute [GET, PUT] Teams.appLockHandlers
+  mkFeatureGetRoute Teams.ssoFeatureStatusHandlers
+  mkFeatureGetRoute Teams.legalholdFeatureStatusHandlers
+  mkFeatureGetRoute Teams.teamSearchVisibilityAvailableHandlers
+  mkFeatureGetRoute Teams.validateSAMLEmailsHandlers
+  mkFeatureGetRoute Teams.digitalSignaturesHandlers
+  mkFeatureGetRoute Teams.appLockHandlers
 
   -- Custom Backend API -------------------------------------------------
 
@@ -1077,32 +1077,29 @@ filterMissing = (>>= go) <$> (query "ignore_missing" ||| query "report_missing")
 mkFeatureGetRoute ::
   forall (a :: Public.TeamFeatureName).
   (Public.KnownTeamFeatureName a) =>
-  [StdMethod] ->
   Teams.FeatureStatusHandlers (a :: Public.TeamFeatureName) ->
   Routes ApiBuilder Galley ()
-mkFeatureGetRoute methods handlers = do
+mkFeatureGetRoute handlers = do
   let featureName = Public.knownTeamFeatureName @a
 
-  when (GET `elem` methods) $ do
-    get ("/teams/:tid/features/" <> toByteString' featureName) (continue (Teams.fshGet handlers)) $
-      zauthUserId
-        .&. capture "tid"
-        .&. accept "application" "json"
-    document "GET" "getTeamFeature" $ do
-      parameter Path "tid" bytes' $
-        description "Team ID"
-      returns (ref (Public.modelForTeamFeature featureName))
-      response 200 "Team feature status" end
+  get ("/teams/:tid/features/" <> toByteString' featureName) (continue (Teams.fshGet handlers)) $
+    zauthUserId
+      .&. capture "tid"
+      .&. accept "application" "json"
+  document "GET" "getTeamFeature" $ do
+    parameter Path "tid" bytes' $
+      description "Team ID"
+    returns (ref (Public.modelForTeamFeature featureName))
+    response 200 "Team feature status" end
 
-  when (PUT `elem` methods) $ do
-    put ("/teams/:tid/features/" <> toByteString' featureName) (continue (Teams.fshSet handlers)) $
-      zauthUserId
-        .&. capture "tid"
-        .&. jsonRequest @(Public.TeamFeatureStatus a)
-        .&. accept "application" "json"
-    document "PUT" "putTeamFeature" $ do
-      parameter Path "tid" bytes' $
-        description "Team ID"
-      body (ref (Public.modelForTeamFeature featureName)) $
-        description "JSON body"
-      response 204 "Team feature status" end
+  put ("/teams/:tid/features/" <> toByteString' featureName) (continue (Teams.fshSet handlers)) $
+    zauthUserId
+      .&. capture "tid"
+      .&. jsonRequest @(Public.TeamFeatureStatus a)
+      .&. accept "application" "json"
+  document "PUT" "putTeamFeature" $ do
+    parameter Path "tid" bytes' $
+      description "Team ID"
+    body (ref (Public.modelForTeamFeature featureName)) $
+      description "JSON body"
+    response 204 "Team feature status" end
