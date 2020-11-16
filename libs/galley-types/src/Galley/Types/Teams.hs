@@ -301,7 +301,7 @@ data HiddenPerm
   | ViewTeamFeature TeamFeatureName
   | ChangeTeamFeature TeamFeatureName
   | ChangeTeamSearchVisibility
-  | ViewTeamSearchVisibility
+  | ViewTeamSearchVisibility -- TODO(stefan) arefactor as ViewTeamFeature?
   | ViewSameTeamEmails
   deriving (Eq, Ord, Show)
 
@@ -325,7 +325,8 @@ roleHiddenPermissions role = HiddenPermissions p p
         Set.fromList
           [ ChangeLegalHoldTeamSettings,
             ChangeLegalHoldUserSettings,
-            ChangeTeamSearchVisibility
+            ChangeTeamSearchVisibility,
+            ChangeTeamFeature TeamFeatureAppLock
           ]
     roleHiddenPerms RoleMember =
       (roleHiddenPerms RoleExternalPartner <>) $
@@ -338,7 +339,6 @@ roleHiddenPermissions role = HiddenPermissions p p
           ViewTeamFeature TeamFeatureValidateSAMLEmails,
           ViewTeamFeature TeamFeatureDigitalSignatures,
           ViewTeamFeature TeamFeatureAppLock,
-          ChangeTeamFeature TeamFeatureAppLock,
           ViewLegalHoldUserSettings,
           ViewTeamSearchVisibility
         ]
