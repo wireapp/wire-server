@@ -109,13 +109,12 @@ mkApp o = do
         (Proxy @(ServantAPI :<|> Servant.Raw))
         (Servant.hoistServer (Proxy @ServantAPI) (handlerToHandler e) servantSitemap :<|> Servant.Tagged (app e))
 
--- TODO: Implement this
 handlerToHandler :: Env -> Brig.Handler a -> Servant.Handler a
 handlerToHandler env action = do
   a <- liftIO $ runAppT env (runExceptT action) `catches` errors
   case a of
-    Left (StdError (Wai.Error code label msg)) -> throwM $ ServerError (statusCode code) (LText.unpack label) (LText.encodeUtf8 msg) []
-    Left (RichError (Wai.Error code label _) json headers) -> throwM $ ServerError (statusCode code) (LText.unpack label) (Aeson.encode json) headers
+    Left (StdError (Wai.Error code label msg)) -> Servant.throwError $ ServerError (statusCode code) (LText.unpack label) (LText.encodeUtf8 msg) []
+    Left (RichError (Wai.Error code label _) json headers) -> Servant.throwError $ ServerError (statusCode code) (LText.unpack label) (Aeson.encode json) headers
     Right x -> pure x
   where
     errors =
@@ -126,5 +125,5 @@ handlerToHandler env action = do
         Catch.Handler $ \(ex :: AWS.Error) ->
           case ex of
             AWS.SESInvalidDomain -> pure (Left (StdError invalidEmail))
-            _ -> throwM ex
+            _ -> throwM ex -- TODO Servant.throwError ?
       ]
