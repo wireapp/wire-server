@@ -97,14 +97,23 @@ data Qualified a = Qualified
 
 renderQualified :: (a -> Text) -> Qualified a -> Text
 renderQualified renderLocal (Qualified localPart domain) =
-  domainText domain <> "/" <> renderLocal localPart
+  renderLocal localPart <> "@" <> domainText domain
+
+-- FUTUREWORK: do we want a different way to serialize these than with an '@' ? A '/' was talked about also.
+--
+-- renderQualified :: (a -> Text) -> Qualified a -> Text
+-- renderQualified renderLocal (Qualified localPart domain) =
+-- domainText domain <> "/" <> renderLocal localPart
+--
+-- qualifiedParser :: Atto.Parser a -> Atto.Parser (Qualified a)
+--   domain <- parser @Domain
+--   _ <- Atto.char '/'
+--   local <- localParser
+--   pure $ Qualified local domain
 
 qualifiedParser :: Atto.Parser a -> Atto.Parser (Qualified a)
 qualifiedParser localParser = do
-  domain <- parser @Domain
-  _ <- Atto.char '/'
-  local <- localParser
-  pure $ Qualified local domain
+  Qualified <$> localParser <*> (Atto.char '@' *> parser @Domain)
 
 partitionRemoteOrLocalIds :: Foldable f => Domain -> f (Qualified a) -> ([Qualified a], [a])
 partitionRemoteOrLocalIds localDomain = foldMap $ \qualifiedId ->
