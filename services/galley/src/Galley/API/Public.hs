@@ -38,8 +38,6 @@ import qualified Galley.API.Error as Error
 import qualified Galley.API.LegalHold as LegalHold
 import qualified Galley.API.Query as Query
 import Galley.API.Swagger (swagger)
--- TODO: maybe for every feature a separate handler?
--- import Galley.API.Teams (getFeatureStatusH)
 import qualified Galley.API.Teams as Teams
 import qualified Galley.API.Update as Update
 import Galley.App

@@ -301,7 +301,7 @@ data HiddenPerm
   | ViewTeamFeature TeamFeatureName
   | ChangeTeamFeature TeamFeatureName
   | ChangeTeamSearchVisibility
-  | ViewTeamSearchVisibility -- TODO(stefan) arefactor as ViewTeamFeature?
+  | ViewTeamSearchVisibility
   | ViewSameTeamEmails
   deriving (Eq, Ord, Show)
 
