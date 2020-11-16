@@ -256,7 +256,7 @@ deriving via TeamFeatureWithoutConfigSchema instance ToSchema (TeamFeatureStatus
 
 deriving via TeamFeatureWithoutConfigSchema instance ToSchema (TeamFeatureStatus 'TeamFeatureDigitalSignatures)
 
--- TODO(stefan)
+-- TODO(stefan): ask @fisx if use models from Wire.API.Team.Feature instead?
 instance ToSchema (TeamFeatureStatus 'TeamFeatureAppLock) where
   declareNamedSchema _ = undefined
 

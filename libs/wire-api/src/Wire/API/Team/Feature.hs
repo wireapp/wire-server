@@ -32,11 +32,7 @@ module Wire.API.Team.Feature
     -- * Swagger
     typeTeamFeatureName,
     typeTeamFeatureStatusValue,
-    modelTeamFeatureStatusLegalHold,
-    modelTeamFeatureStatusSSO,
-    modelTeamFeatureStatusSearchVisibility,
-    modelTeamFeatureStatusValidateSAMLEmails,
-    modelTeamFeatureStatusDigitalSignatures,
+    modelTeamFeatureStatusNoConfig,
     modelTeamFeatureStatusAppLock,
     modelTeamFeatureAppLockConfig,
     modelForTeamFeature,
@@ -170,25 +166,10 @@ instance
   where
   arbitrary = TeamFeatureStatus <$> arbitrary <*> arbitrary
 
-modelTeamFeatureStatusLegalHold :: Doc.Model
-modelTeamFeatureStatusLegalHold = modelTeamFeatureWithoutConfig "TeamFeatureLegalHold"
-
-modelTeamFeatureStatusSSO :: Doc.Model
-modelTeamFeatureStatusSSO = modelTeamFeatureWithoutConfig "TeamFeatureSSO"
-
-modelTeamFeatureStatusSearchVisibility :: Doc.Model
-modelTeamFeatureStatusSearchVisibility = modelTeamFeatureWithoutConfig "TeamFeatureSearchVisibility"
-
-modelTeamFeatureStatusValidateSAMLEmails :: Doc.Model
-modelTeamFeatureStatusValidateSAMLEmails = modelTeamFeatureWithoutConfig "TeamFeatureValidateSAMLEmails"
-
-modelTeamFeatureStatusDigitalSignatures :: Doc.Model
-modelTeamFeatureStatusDigitalSignatures = modelTeamFeatureWithoutConfig "TeamFeatureDigitalSignatures"
-
-modelTeamFeatureWithoutConfig :: Text -> Doc.Model
-modelTeamFeatureWithoutConfig name =
-  Doc.defineModel (name <> "Status") $ do
-    Doc.description $ "Configuration for the " <> name <> " team feature"
+modelTeamFeatureStatusNoConfig :: Doc.Model
+modelTeamFeatureStatusNoConfig =
+  Doc.defineModel "FeatureStatusNoConfig" $ do
+    Doc.description $ "Configuration for a team feature that has no configuration"
     Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
 
 modelTeamFeatureStatusAppLock :: Doc.Model
@@ -205,11 +186,11 @@ modelTeamFeatureAppLockConfig =
     Doc.property "inactivityTimeoutSecs" int32' $ Doc.description ""
 
 modelForTeamFeature :: TeamFeatureName -> Doc.Model
-modelForTeamFeature TeamFeatureLegalHold = modelTeamFeatureStatusLegalHold
-modelForTeamFeature TeamFeatureSSO = modelTeamFeatureStatusSSO
-modelForTeamFeature TeamFeatureSearchVisibility = modelTeamFeatureStatusSearchVisibility
-modelForTeamFeature TeamFeatureValidateSAMLEmails = modelTeamFeatureStatusValidateSAMLEmails
-modelForTeamFeature TeamFeatureDigitalSignatures = modelTeamFeatureStatusDigitalSignatures
+modelForTeamFeature TeamFeatureLegalHold = modelTeamFeatureStatusNoConfig
+modelForTeamFeature TeamFeatureSSO = modelTeamFeatureStatusNoConfig
+modelForTeamFeature TeamFeatureSearchVisibility = modelTeamFeatureStatusNoConfig
+modelForTeamFeature TeamFeatureValidateSAMLEmails = modelTeamFeatureStatusNoConfig
+modelForTeamFeature TeamFeatureDigitalSignatures = modelTeamFeatureStatusNoConfig
 modelForTeamFeature TeamFeatureAppLock = modelTeamFeatureStatusAppLock
 
 class FeatureHasNoConfig (a :: TeamFeatureName) where
