@@ -41,7 +41,7 @@ services:
 #    image: namshi/smtp
     image: julialongtin/smtp:0.0.9
     ports:
-        - 127.0.0.1:2500:25
+        - 127.0.0.1:2500:2500
     networks:
       - demo_wire
 
