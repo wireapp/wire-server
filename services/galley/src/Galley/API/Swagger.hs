@@ -27,9 +27,6 @@
 module Galley.API.Swagger
   ( GalleyRoutes,
     swagger,
-    -- TODO(stefan): find another way to stop compiler complain of "unused" constructor
-    --               than to export it
-    TeamFeatureWithoutConfigSchema (..),
   )
 where
 
@@ -44,6 +41,7 @@ import Data.LegalHold
 import Data.Misc
 import Data.Proxy
 import Data.Swagger hiding (Header (..))
+import Data.Swagger.Declare (Declare)
 import Data.Text as Text (unlines)
 import Data.UUID (UUID)
 import Imports
@@ -229,36 +227,68 @@ instance ToSchema ViewLegalHoldServiceInfo where
         ViewLegalHoldService
           (ViewLegalHoldServiceInfo arbitraryExample arbitraryExample arbitraryExample (ServiceToken "sometoken") arbitraryExample)
 
-newtype TeamFeatureWithoutConfigSchema
-  = TeamFeatureWithoutConfigSchema ()
+declareNamedSchemaFeatureNoConfig :: f -> Declare (Definitions Schema) NamedSchema
+declareNamedSchemaFeatureNoConfig _ =
+  pure $
+    NamedSchema (Just "TeamFeatureStatus") $
+      mempty
+        & properties .~ (fromList [("status", Inline statusValue)])
+        & required .~ ["status"]
+        & type_ ?~ SwaggerObject
+        & description ?~ "whether a given team feature is enabled"
+  where
+    statusValue =
+      mempty
+        & enum_ ?~ [String "enabled", String "disabled"]
 
-instance ToSchema TeamFeatureWithoutConfigSchema where
+instance ToSchema (TeamFeatureStatus 'TeamFeatureLegalHold) where
+  declareNamedSchema = declareNamedSchemaFeatureNoConfig
+
+instance ToSchema (TeamFeatureStatus 'TeamFeatureSSO) where
+  declareNamedSchema = declareNamedSchemaFeatureNoConfig
+
+instance ToSchema (TeamFeatureStatus 'TeamFeatureSearchVisibility) where
+  declareNamedSchema = declareNamedSchemaFeatureNoConfig
+
+instance ToSchema (TeamFeatureStatus 'TeamFeatureValidateSAMLEmails) where
+  declareNamedSchema = declareNamedSchemaFeatureNoConfig
+
+instance ToSchema (TeamFeatureStatus 'TeamFeatureDigitalSignatures) where
+  declareNamedSchema = declareNamedSchemaFeatureNoConfig
+
+instance ToSchema (TeamFeatureStatus 'TeamFeatureAppLock) where
   declareNamedSchema _ =
     pure $
-      NamedSchema (Just "TeamFeatureStatus") $
+      NamedSchema (Just "TeamFeatureAppLockStatus") $
         mempty
-          & properties .~ (fromList [("status", Inline statusValue)])
-          & required .~ ["status"]
+          & properties .~ properties_
+          & required .~ ["status", "config"]
           & type_ ?~ SwaggerObject
           & description ?~ "whether a given team feature is enabled"
     where
+      properties_ :: InsOrdHashMap Text (Referenced Schema)
+      properties_ =
+        fromList
+          [ ("status", Inline statusValue),
+            ("config", Inline config)
+          ]
+
       statusValue =
         mempty
           & enum_ ?~ [String "enabled", String "disabled"]
 
-deriving via TeamFeatureWithoutConfigSchema instance ToSchema (TeamFeatureStatus 'TeamFeatureLegalHold)
+      config =
+        mempty
+          & type_ .~ Just SwaggerObject
+          & properties .~ configProperties
+          & required .~ ["enforceAppLock", "inactivityTimeoutSecs"]
 
-deriving via TeamFeatureWithoutConfigSchema instance ToSchema (TeamFeatureStatus 'TeamFeatureSSO)
-
-deriving via TeamFeatureWithoutConfigSchema instance ToSchema (TeamFeatureStatus 'TeamFeatureSearchVisibility)
-
-deriving via TeamFeatureWithoutConfigSchema instance ToSchema (TeamFeatureStatus 'TeamFeatureValidateSAMLEmails)
-
-deriving via TeamFeatureWithoutConfigSchema instance ToSchema (TeamFeatureStatus 'TeamFeatureDigitalSignatures)
-
--- TODO(stefan): ask @fisx if use models from Wire.API.Team.Feature instead?
-instance ToSchema (TeamFeatureStatus 'TeamFeatureAppLock) where
-  declareNamedSchema _ = undefined
+      configProperties :: InsOrdHashMap Text (Referenced Schema)
+      configProperties =
+        fromList
+          [ ("enforceAppLock", Inline (toSchema (Proxy @Bool))),
+            ("inactivityTimeoutSecs", Inline (toSchema (Proxy @Int)))
+          ]
 
 instance ToSchema RequestNewLegalHoldClient where
   declareNamedSchema = genericDeclareNamedSchema opts
