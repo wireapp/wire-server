@@ -21,12 +21,14 @@ import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
 import qualified Data.Aeson as Aeson
 import Data.Attoparsec.ByteString ((<?>))
 import qualified Data.Attoparsec.ByteString.Char8 as Atto
+import Data.Bifunctor (Bifunctor (first))
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS.Char8
 import Data.ByteString.Conversion
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.E
 import Imports hiding (isAlphaNum)
+import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck (Arbitrary (arbitrary))
 import qualified Test.QuickCheck as QC
 import Util.Attoparsec (takeUpToWhile)
@@ -62,6 +64,12 @@ mkDomain = Atto.parseOnly (domainParser <* Atto.endOfInput) . Text.E.encodeUtf8
 
 instance FromByteString Domain where
   parser = domainParser
+
+instance FromHttpApiData Domain where
+  parseUrlPiece = first Text.pack . mkDomain
+
+instance ToHttpApiData Domain where
+  toUrlPiece = toUrlPiece . _domainText
 
 domainParser :: Atto.Parser Domain
 domainParser = do

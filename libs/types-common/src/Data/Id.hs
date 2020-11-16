@@ -47,6 +47,7 @@ import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import Data.UUID.V4
 import Imports
+import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 
@@ -164,6 +165,12 @@ instance FromByteString (Id a) where
 
 instance ToByteString (Id a) where
   builder = byteString . UUID.toASCIIBytes . toUUID
+
+instance FromHttpApiData (Id a) where
+  parseUrlPiece = fmap Id . parseUrlPiece
+
+instance ToHttpApiData (Id a) where
+  toUrlPiece = toUrlPiece . show
 
 randomId :: (Functor m, MonadIO m) => m (Id a)
 randomId = Id <$> liftIO nextRandom

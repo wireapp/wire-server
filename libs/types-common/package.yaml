@@ -44,6 +44,7 @@ library:
   - scientific >=0.3.4
   - semigroups >=0.12
   - servant >=0.16
+  - servant-server
   - singletons >=2.0
   - string-conversions
   - swagger >=0.3

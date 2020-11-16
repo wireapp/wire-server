@@ -20,6 +20,8 @@
 module Brig.API.Public
   ( sitemap,
     apiDocs,
+    servantSitemap,
+    ServantAPI,
   )
 where
 
@@ -27,6 +29,7 @@ import qualified Brig.API.Client as API
 import qualified Brig.API.Connection as API
 import Brig.API.Error
 import Brig.API.Handler
+import qualified Brig.API.Handler as Brig
 import Brig.API.IdMapping (resolveOpaqueUserId)
 import qualified Brig.API.Properties as API
 import Brig.API.Types
@@ -77,6 +80,9 @@ import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
+import Servant (Capture, Header', NoContent, ServerT, StdMethod (HEAD), Verb, (:<|>) (..), (:>))
+import qualified Servant
+import Servant.API (NoContent (NoContent))
 import qualified System.Logger.Class as Log
 import qualified Wire.API.Connection as Public
 import qualified Wire.API.Properties as Public
@@ -93,6 +99,14 @@ import qualified Wire.API.User.RichInfo as Public
 
 ---------------------------------------------------------------------------
 -- Sitemap
+type ZAuthServant = Header' '[Servant.Required, Servant.Strict] "Z-User" UserId
+
+type ServantAPI =
+  ZAuthServant :> "users" :> Capture "domain" Domain :> Capture "uid" UserId :> Verb 'HEAD 200 '[Servant.JSON] NoContent
+    :<|> ZAuthServant :> "users" :> Capture "uid" UserId :> Verb 'HEAD 200 '[Servant.JSON] NoContent
+
+servantSitemap :: ServerT ServantAPI Handler
+servantSitemap = checkQualifiedUserExistsH :<|> checkUnqualifiedUserExistsH
 
 sitemap :: Opts -> Routes Doc.ApiBuilder Handler ()
 sitemap o = do
@@ -102,16 +116,16 @@ sitemap o = do
   -- This leads to the following events being sent:
   -- - UserDeleted event to contacts of the user
   -- - MemberLeave event to members for all conversations the user was in (via galley)
-  head "/users/:domain/:uid" (continue checkUserExistsH) $
-    zauthUserId
-      .&. opt (capture "domain")
-      .&. capture "uid"
-  document "HEAD" "userExists" $ do
-    Doc.summary "Check if a user ID exists"
-    Doc.parameter Doc.Path "uid" Doc.bytes' $
-      Doc.description "User ID"
-    Doc.response 200 "User exists" Doc.end
-    Doc.errorResponse userNotFound
+  -- head "/users/:domain/:uid" (continue checkUserExistsH) $
+  --   zauthUserId
+  --     .&. opt (capture "domain")
+  --     .&. capture "uid"
+  -- document "HEAD" "userExists" $ do
+  --   Doc.summary "Check if a user ID exists"
+  --   Doc.parameter Doc.Path "uid" Doc.bytes' $
+  --     Doc.description "User ID"
+  --   Doc.response 200 "User exists" Doc.end
+  --   Doc.errorResponse userNotFound
 
   -- If the user is ephemeral and expired, it will be removed, see 'Brig.API.User.userGC'.
   -- This leads to the following events being sent:
@@ -1041,11 +1055,13 @@ createUser (Public.NewUserPublic new) = do
 --   Left unqualified -> Qualified unqualified domain
 --   Right qualified -> qualified
 
-checkUserExistsH :: UserId ::: Maybe Text ::: UserId -> Handler Response
-checkUserExistsH (self ::: maybeDomain ::: uid) = do
-  let domain = maybe ourDomain Domain maybeDomain -- config lookup
+checkQualifiedUserExistsH :: UserId -> Domain -> UserId -> Handler NoContent
+checkQualifiedUserExistsH self domain uid = do
   exists <- checkUserExists self (Qualified uid domain)
-  if exists then return empty else throwStd userNotFound
+  if exists then return NoContent else throwStd userNotFound
+
+checkUnqualifiedUserExistsH :: UserId -> UserId -> Handler NoContent
+checkUnqualifiedUserExistsH self uid = checkQualifiedUserExistsH self ourDomain uid
 
 checkUserExists :: UserId -> Qualified UserId -> Handler Bool
 checkUserExists self qualifiedUserId =
