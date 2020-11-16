@@ -44,9 +44,19 @@ getTeamSearchVisibilityAvailableInternal :: HasCallStack => (Request -> Request)
 getTeamSearchVisibilityAvailableInternal =
   getTeamFeatureFlagInternalWithGalley Public.TeamFeatureSearchVisibility
 
-putTeamSearchVisibilityAvailableInternal :: HasCallStack => (Request -> Request) -> TeamId -> Public.TeamFeatureStatusValue -> (MonadIO m, MonadHttp m) => m ()
-putTeamSearchVisibilityAvailableInternal g =
-  putTeamFeatureFlagInternalWithGalleyAndMod @'Public.TeamFeatureSearchVisibility g expect2xx
+putTeamSearchVisibilityAvailableInternal ::
+  HasCallStack =>
+  (Request -> Request) ->
+  TeamId ->
+  Public.TeamFeatureStatusValue ->
+  (MonadIO m, MonadHttp m) => m ()
+putTeamSearchVisibilityAvailableInternal g tid statusValue =
+  putTeamFeatureFlagInternalWithGalleyAndMod
+    @'Public.TeamFeatureSearchVisibility
+    g
+    expect2xx
+    tid
+    (Public.mkFeatureStatus @'Public.TeamFeatureSearchVisibility statusValue)
 
 putLegalHoldEnabledInternal' ::
   HasCallStack =>
@@ -54,43 +64,10 @@ putLegalHoldEnabledInternal' ::
   TeamId ->
   Public.TeamFeatureStatusValue ->
   TestM ()
-putLegalHoldEnabledInternal' = putTeamFeatureFlagInternal' @'Public.TeamFeatureLegalHold
+putLegalHoldEnabledInternal' g tid statusValue =
+  putTeamFeatureFlagInternal g tid (Public.mkFeatureStatus @'Public.TeamFeatureLegalHold statusValue)
 
-putTeamFeatureFlagInternal' ::
-  forall (a :: Public.TeamFeatureName).
-  ( HasCallStack,
-    Public.FeatureHasNoConfig a,
-    Public.KnownTeamFeatureName a,
-    ToJSON (Public.TeamFeatureStatus a)
-  ) =>
-  (Request -> Request) ->
-  TeamId ->
-  Public.TeamFeatureStatusValue ->
-  TestM ()
-putTeamFeatureFlagInternal' reqmod tid status = do
-  g <- view tsGalley
-  putTeamFeatureFlagInternalWithGalleyAndMod @a g reqmod tid status
-
-putTeamFeatureFlagInternalWithGalleyAndMod ::
-  forall (a :: Public.TeamFeatureName) m.
-  ( MonadIO m,
-    MonadHttp m,
-    HasCallStack,
-    Public.FeatureHasNoConfig a,
-    Public.KnownTeamFeatureName a,
-    ToJSON (Public.TeamFeatureStatus a)
-  ) =>
-  (Request -> Request) ->
-  (Request -> Request) ->
-  TeamId ->
-  Public.TeamFeatureStatusValue ->
-  m ()
-putTeamFeatureFlagInternalWithGalleyAndMod galley reqmod tid status =
-  void . put $
-    galley
-      . paths ["i", "teams", toByteString' tid, "features", toByteString' (Public.knownTeamFeatureName @a)]
-      . json (Public.mkFeatureStatus @a status)
-      . reqmod
+--------------------------------------------------------------------------------
 
 getTeamFeatureFlagInternal ::
   (HasCallStack) =>
@@ -118,3 +95,37 @@ getTeamFeatureFlagWithGalley feature galley uid tid = do
     galley
       . paths ["teams", toByteString' tid, "features", toByteString' feature]
       . zUser uid
+
+putTeamFeatureFlagInternal ::
+  forall (a :: Public.TeamFeatureName).
+  ( HasCallStack,
+    Public.KnownTeamFeatureName a,
+    ToJSON (Public.TeamFeatureStatus a)
+  ) =>
+  (Request -> Request) ->
+  TeamId ->
+  (Public.TeamFeatureStatus a) ->
+  TestM ()
+putTeamFeatureFlagInternal reqmod tid status = do
+  g <- view tsGalley
+  putTeamFeatureFlagInternalWithGalleyAndMod @a g reqmod tid status
+
+putTeamFeatureFlagInternalWithGalleyAndMod ::
+  forall (a :: Public.TeamFeatureName) m.
+  ( MonadIO m,
+    MonadHttp m,
+    HasCallStack,
+    Public.KnownTeamFeatureName a,
+    ToJSON (Public.TeamFeatureStatus a)
+  ) =>
+  (Request -> Request) ->
+  (Request -> Request) ->
+  TeamId ->
+  (Public.TeamFeatureStatus a) ->
+  m ()
+putTeamFeatureFlagInternalWithGalleyAndMod galley reqmod tid status =
+  void . put $
+    galley
+      . paths ["i", "teams", toByteString' tid, "features", toByteString' (Public.knownTeamFeatureName @a)]
+      . json status
+      . reqmod
