@@ -42,7 +42,7 @@ settings:
     legalhold: disabled-by-default
     teamSearchVisibility: disabled-by-default
 
-logLevel: Debug
+logLevel: Info
 logNetStrings: false
 
 journal: # if set, journals; if not set, disables journaling

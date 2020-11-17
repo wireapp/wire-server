@@ -4,12 +4,12 @@ brig:
 
 cassandra:
   endpoint:
-    host: 127.0.0.1
+    host: cassandra-ephemeral
     port: 9042
   keyspace: brig_test
 
 elasticsearch:
-  url: http://127.0.0.1:9200
+  url: http://elasticsearch-ephemeral:9200
   index: directory_test
 
 cargohold:
@@ -30,11 +30,11 @@ gundeck:
 
 # You can set up local SQS/Dynamo running e.g. `../../deploy/dockerephemeral/run.sh`
 aws:
-  userJournalQueue: integration-user-events.fifo
+  # userJournalQueue: integration-user-events.fifo
   # ^ Comment this out if you don't want to journal user events
   prekeyTable: integration-brig-prekeys
-  sqsEndpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
-  dynamoDBEndpoint: http://localhost:4567 # https://dynamodb.eu-west-1.amazonaws.com
+  sqsEndpoint: http://fake-aws-sqs:4568 # https://sqs.eu-west-1.amazonaws.com
+  dynamoDBEndpoint: http://fake-aws-dynamodb:4567 # https://dynamodb.eu-west-1.amazonaws.com
 
 # Uncomment this if you want STOMP.
 #
@@ -56,7 +56,7 @@ emailSMS:
   # the operator).
   email:
     sesQueue: integration-brig-events
-    sesEndpoint: http://localhost:4569 # https://email.eu-west-1.amazonaws.com
+    sesEndpoint: http://fake-aws-ses:4569 # https://email.eu-west-1.amazonaws.com
     # If you prefer to use SMTP directly, uncomment the following lines
     # and set the correct credentials.
     # NOTE: In case a user tries to supply config values for both SES and SMTP,
