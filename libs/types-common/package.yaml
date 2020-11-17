@@ -48,6 +48,7 @@ library:
   - singletons >=2.0
   - string-conversions
   - swagger >=0.3
+  - swagger2
   - tagged >=0.8
   - tasty >=0.11
   - text >=0.11

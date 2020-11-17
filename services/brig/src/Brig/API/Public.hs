@@ -62,8 +62,10 @@ import Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local))
 import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
+import Data.Proxy (Proxy (..))
 import Data.Qualified (OptionallyQualified, Qualified (..), eitherQualifiedOrNot)
 import Data.Range
+import Data.Swagger (Swagger)
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
@@ -79,9 +81,10 @@ import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
-import Servant (Capture, Header', NoContent, ServerT, StdMethod (HEAD), Verb, (:<|>) (..), (:>))
+import Servant (Capture, Get, Header', NoContent, ServerT, StdMethod (HEAD), Verb, (:<|>) (..), (:>))
 import qualified Servant
 import Servant.API (NoContent (NoContent))
+import Servant.Swagger (HasSwagger (toSwagger))
 import qualified System.Logger.Class as Log
 import qualified Wire.API.Connection as Public
 import qualified Wire.API.Properties as Public
@@ -100,12 +103,15 @@ import qualified Wire.API.User.RichInfo as Public
 -- Sitemap
 type ZAuthServant = Header' '[Servant.Required, Servant.Strict] "Z-User" UserId
 
-type ServantAPI =
+type OutsideWorldAPI =
   ZAuthServant :> "users" :> Capture "domain" Domain :> Capture "uid" UserId :> Verb 'HEAD 200 '[Servant.JSON] NoContent
     :<|> ZAuthServant :> "users" :> Capture "uid" UserId :> Verb 'HEAD 200 '[Servant.JSON] NoContent
 
+type ServantAPI =
+  "brig" :> "api-docs" :> Get '[Servant.JSON] Swagger :<|> OutsideWorldAPI
+
 servantSitemap :: ServerT ServantAPI Handler
-servantSitemap = checkQualifiedUserExistsH :<|> checkUnqualifiedUserExistsH
+servantSitemap = pure (toSwagger (Proxy @OutsideWorldAPI)) :<|> checkQualifiedUserExistsH :<|> checkUnqualifiedUserExistsH
 
 sitemap :: Opts -> Routes Doc.ApiBuilder Handler ()
 sitemap o = do
@@ -1049,18 +1055,13 @@ createUser (Public.NewUserPublic new) = do
       Public.NewTeamMemberSSO _ ->
         Team.sendMemberWelcomeMail e t n l
 
--- qualifyThing :: Domain -> Either a (Qualified a) -> Qualified a
--- qualifyThing domain = \case
---   Left unqualified -> Qualified unqualified domain
---   Right qualified -> qualified
-
 checkQualifiedUserExistsH :: UserId -> Domain -> UserId -> Handler NoContent
 checkQualifiedUserExistsH self domain uid = do
   exists <- checkUserExists self (Qualified uid domain)
   if exists then return NoContent else throwStd userNotFound
 
 checkUnqualifiedUserExistsH :: UserId -> UserId -> Handler NoContent
-checkUnqualifiedUserExistsH self uid = checkQualifiedUserExistsH self ourDomain uid
+checkUnqualifiedUserExistsH self = checkQualifiedUserExistsH self ourDomain
 
 checkUserExists :: UserId -> Qualified UserId -> Handler Bool
 checkUserExists self qualifiedUserId =
@@ -1079,9 +1080,9 @@ getSelf :: UserId -> Handler Public.SelfProfile
 getSelf self = do
   lift (API.lookupSelfProfile self) >>= ifNothing userNotFound
 
-getUserH :: JSON ::: UserId ::: Qualified UserId -> Handler Response
+getUserH :: JSON ::: UserId ::: UserId -> Handler Response
 getUserH (_ ::: self ::: uid) = do
-  fmap json . ifNothing userNotFound =<< getUser self uid
+  fmap json . ifNothing userNotFound =<< getUser self (Qualified uid ourDomain)
 
 getUser :: UserId -> Qualified UserId -> Handler (Maybe Public.UserProfile)
 getUser self qualifiedUserId = do

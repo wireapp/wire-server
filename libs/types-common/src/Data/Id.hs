@@ -38,6 +38,8 @@ import Data.Default (Default (..))
 import Data.Hashable (Hashable)
 import Data.ProtocolBuffers.Internal
 import Data.String.Conversions (cs)
+import Data.Swagger (ToSchema (..))
+import Data.Swagger.Internal.ParamSchema (ToParamSchema (..))
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.Lazy (toStrict)
@@ -134,7 +136,8 @@ instance NFData NoId where rnf a = seq a ()
 newtype Id a = Id
   { toUUID :: UUID
   }
-  deriving (Eq, Ord, NFData, Hashable, Generic)
+  deriving stock (Eq, Ord, Generic)
+  deriving newtype (Hashable, NFData, ToParamSchema, ToSchema)
 
 -- REFACTOR: non-derived, custom show instances break pretty-show and violate the law
 -- that @show . read == id@.  can we derive Show here?
@@ -172,9 +175,6 @@ instance FromHttpApiData (Id a) where
 instance ToHttpApiData (Id a) where
   toUrlPiece = toUrlPiece . show
 
-randomId :: (Functor m, MonadIO m) => m (Id a)
-randomId = Id <$> liftIO nextRandom
-
 instance ToJSON (Id a) where
   toJSON (Id uuid) = toJSON $ UUID.toText uuid
 
@@ -186,6 +186,9 @@ instance ToJSONKey (Id a) where
 
 instance FromJSONKey (Id a) where
   fromJSONKey = FromJSONKeyTextParser idFromText
+
+randomId :: (Functor m, MonadIO m) => m (Id a)
+randomId = Id <$> liftIO nextRandom
 
 idFromText :: Text -> Parser (Id a)
 idFromText = maybe (fail "UUID.fromText failed") (pure . Id) . UUID.fromText

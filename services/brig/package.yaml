@@ -105,6 +105,7 @@ library:
   - sodium-crypto-sign >=0.1
   - statistics >=0.13
   - swagger >=0.1
+  - swagger2
   - tagged >=0.7
   - template >=0.2
   - text >=0.11

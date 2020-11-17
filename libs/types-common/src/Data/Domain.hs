@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -25,6 +27,8 @@ import Data.Bifunctor (Bifunctor (first))
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS.Char8
 import Data.ByteString.Conversion
+import Data.Swagger (ToSchema (..))
+import Data.Swagger.Internal.ParamSchema (ToParamSchema (..))
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.E
 import Imports hiding (isAlphaNum)
@@ -55,6 +59,7 @@ import Util.Attoparsec (takeUpToWhile)
 -- The domain will be normalized to lowercase when parsed.
 newtype Domain = Domain {_domainText :: Text}
   deriving stock (Eq, Ord, Generic, Show)
+  deriving newtype (ToParamSchema, ToSchema)
 
 domainText :: Domain -> Text
 domainText = _domainText

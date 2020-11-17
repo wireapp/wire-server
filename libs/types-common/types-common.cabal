@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ac669f07c9742b1d364cbf705f9a7530bcfedc34d2e1ed56072e1cd8bec03dfe
+-- hash: 2f5a186135570c9214149d64bf331f1512c069ce0b4d100166f0a7fa6174f464
 
 name:           types-common
 version:        0.16.0
@@ -82,6 +82,7 @@ library
     , singletons >=2.0
     , string-conversions
     , swagger >=0.3
+    , swagger2
     , tagged >=0.8
     , tasty >=0.11
     , text >=0.11

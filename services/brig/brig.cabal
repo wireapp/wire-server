@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e135b6c1b13c4d0d2e6d13861e56375a81be568269b1f35d5cb7096172065ba1
+-- hash: 13a18562ef30df0ba9def08f3dfd3c63183c5785fce7ef1683f59b59ef763aa0
 
 name:           brig
 version:        1.35.0
@@ -204,6 +204,7 @@ library
     , stomp-queue >=0.3
     , string-conversions
     , swagger >=0.1
+    , swagger2
     , tagged >=0.7
     , template >=0.2
     , text >=0.11
