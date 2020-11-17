@@ -27,7 +27,7 @@ function change_config_files() {
     #   host: <something>
     cassandra="/^ *endpoint:/,/^ *[^:]*:/s/host: .*/host: cassandra-ephemeral/"
 
-    # multi-line sed: replace <something> in the following block with 'cassandra-ephemeral'
+    # multi-line sed: replace <something> in the following block with 'redis-ephemeral'
     # redis:
     #   host: <something>
     redis="/^ *redis:/,/^ *[^:]*:/s/host: .*/host: redis-ephemeral/"
