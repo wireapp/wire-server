@@ -266,6 +266,8 @@ data Opts' a = Opts
     discoUrl :: !(Maybe Text),
     logNetStrings :: !(Maybe (Last Bool)),
     logFormat :: !(Maybe (Last LogFormat)),
+    -- | Keep this in sync with optSettings.setTeamInvitationTimeout from brig
+    brigSettingsTeamInvitationTimeout :: !(Maybe Int),
     -- , optSettings   :: !Settings  -- (nothing yet; see other services for what belongs in here.)
     derivedOpts :: !a
   }
