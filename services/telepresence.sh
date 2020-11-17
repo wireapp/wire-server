@@ -45,3 +45,8 @@ sed -i "$cassandra" "$brig"
 sed -i "$cassandra" "$galley"
 sed -i "$cassandra" "$gundeck"
 sed -i "$cassandra" "$spar"
+
+make -C "$DIR/gundeck" db-migrate
+make -C "$DIR/galley" db-migrate
+make -C "$DIR/spar" db-migrate
+make -C "$DIR/brig" db-migrate

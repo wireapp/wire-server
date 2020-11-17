@@ -37,7 +37,11 @@ function check_prerequisites() {
     if ! ( nc -z 127.0.0.1 9042 \
         && nc -z 127.0.0.1 9200 \
         && nc -z 127.0.0.1 6379 ); then
-        echo "Databases not up. Maybe run 'deploy/dockerephemeral/run.sh' in a separate terminal first?";  exit 1;
+        if ! ( nc -z cassandra-ephemeral 9042 \
+            && nc -z elasticsearch-ephemeral 9200 \
+            && nc -z redis-ephemeral 6379 ); then
+        echo "Databases not up. Maybe run 'deploy/dockerephemeral/run.sh' or follow docs/developer/dependencies.md section 'telepresence' in a separate terminal first?";  exit 1;
+        fi
     fi
     if   [ ! -f "${TOP_LEVEL}/dist/brig" ] \
       && [ ! -f "${TOP_LEVEL}/dist/galley" ] \
