@@ -58,6 +58,14 @@ add-license:
 	@echo ""
 	@echo "you might want to run 'make formatf' now to make sure ormolu is happy"
 
+.PHONY: db-migrate
+db-migrate:
+	make -C "services/gundeck" db-migrate
+	make -C "services/galley" db-migrate
+	make -C "services/spar" db-migrate
+	make -C "services/brig" db-migrate
+	make -C "services/brig" index
+
 # Clean
 .PHONY: clean
 clean:

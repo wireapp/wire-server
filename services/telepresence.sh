@@ -51,13 +51,6 @@ function change_config_files() {
     sed -i "$cassandra" "$spar"
 }
 
-function migrate_dbs() {
-    make -C "$DIR/gundeck" db-migrate
-    make -C "$DIR/galley" db-migrate
-    make -C "$DIR/spar" db-migrate
-    make -C "$DIR/brig" db-migrate
-}
-
 function setup_dev_environment() {
     echo TODO setup dev environment
     # integration-setup.sh for fake-aws and databases-ephemeral only
@@ -65,4 +58,5 @@ function setup_dev_environment() {
 
 setup_dev_environment
 change_config_files
-migrate_dbs
+
+telepresence --namespace "$NAMESPACE" --also-proxy cassandra-ephemeral --run bash -c "cd $TOP_LEVEL; make db-migrate; echo ''; echo 'telepresence proxy up (curl http://elasticsearch-ephemeeral:9200 should work) - you can now run integration tests.'; echo 'Press Control+C to stop the telepresence'; sleep 100000000"

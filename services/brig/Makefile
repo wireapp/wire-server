@@ -123,8 +123,8 @@ db-migrate:
 index: index-reset
 
 .PHONY: index-reset
-index-reset: install
-	$(EXE_INDEX) reset
+index-reset:
+	$(EXE_INDEX) reset --elasticsearch-server http://elasticsearch-ephemeral:9200
 
 .PHONY: docker
 docker:
