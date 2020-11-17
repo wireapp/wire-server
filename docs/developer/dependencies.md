@@ -183,8 +183,9 @@ You can then run all the builds, and the native dependencies will be automatical
 
 Instead of using docker-compose to run support services (cassandra, elasticsearch, fake-aws, ...) locally, you can instead use [telepresence](https://www.telepresence.io) to allow you to talk to those services on a remote kubernetes cluster.
 
+* install telepresence (e.g. `nix-env -iA nixpkgs.telepresence`)
 * you need access to a kubernetes cluster (v1.14.2 currently)
-* you need a namespace in which you have installed the `fake-aws` and `databases-ephemeral` helm charts (TODO detail the setup for this), say `yourname-dev`
-* Now you can run `telepresence --namespace yourname-dev --also-proxy cassandra-ephemeral --run-shell` in a separate terminal and keep that shell open.
+* you need a namespace in which you have installed the `fake-aws` and `databases-ephemeral` helm charts (TODO detail or automate the setup for this), say `yourname-dev`
+* Now you can run `services/telepresence.sh` in a separate terminal and keep that shell open.
 * Try it out: `curl http://elasticsearch-ephemeral:9200` from a separate shell should show the telepresence port forwarding works.
 * Run `cd services/brig && make integration` or `make -C services/brig integration` as you're used to.
