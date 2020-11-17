@@ -4,7 +4,7 @@ galley:
 
 cassandra:
   endpoint:
-    host: 127.0.0.1
+    host: cassandra-ephemeral
     port: 9042
   keyspace: galley_test
 
@@ -42,10 +42,10 @@ settings:
     legalhold: disabled-by-default
     teamSearchVisibility: disabled-by-default
 
-logLevel: Info
+logLevel: Debug
 logNetStrings: false
 
 journal: # if set, journals; if not set, disables journaling
   queueName: integration-team-events.fifo
-  endpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
+  endpoint: http://fake-aws-sqs:4568 # https://sqs.eu-west-1.amazonaws.com
   region: eu-west-1
