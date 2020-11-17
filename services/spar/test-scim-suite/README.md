@@ -1,5 +1,6 @@
-The scripts in this directory allow to run the SCIM Test Suite (a [Postman](https://www.postman.com/) collection) provided here
-https://github.com/AzureAD/SCIMReferenceCode/wiki/Test-Your-SCIM-Endpoint
+## Scim Test Suite
+
+The scripts in this directory allow to run the [SCIM Test Suite](https://github.com/AzureAD/SCIMReferenceCode/wiki/Test-Your-SCIM-Endpoint) provided by Microsoft (a [Postman](https://www.postman.com/) collection) provided here
 against the SCIM implementation in spar.
 
 How to run:
@@ -10,13 +11,13 @@ nix-shell
 make
 ```
 
-This will download the Postman collection, patch it and use `newman` to run.
+This will download the Postman collection, patch it and then call `newman` (the cli tool from Postman) to run the tests.
 
-It's also possible to run the tests from the suite manually in Postman:
+It is also possible to run the tests from the test suite manually:
 
 1. Run `make collection`.
 2. In Postman "Import" the collection `/tmp/scim_test_suite.json`
-3. Create an environment with these varibles
+3. Create an environment in Postman with these variables
 
 ```
 Server: "localhost"
@@ -30,4 +31,4 @@ When running tests multiple times you have to manually reset the variable `wire_
 
 Note:
 When running test manually be aware of timeout settings in the services config, which are typically set to only a few seconds.
-If you are not fast enough manully you might get different results than running the suite with `newman`.
+If you are not fast enough you might get different results than running the suite with `newman`.
