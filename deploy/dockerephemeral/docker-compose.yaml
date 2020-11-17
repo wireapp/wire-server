@@ -17,6 +17,16 @@ services:
     container_name: demo_wire_sqs
 #    image: airdock/fake-sqs:0.3.1
     image: julialongtin/airdock_fakesqs:0.0.9
+    command:
+      - "tini"
+      -  "-g"
+      -  "--"
+      -  "rvm"
+      -  "ruby-2.3"
+      -  "do"
+      -  "fake_sqs"
+      -  "--database"
+      -  "/srv/ruby/fake-sqs/database.yml"
     ports:
       - 127.0.0.1:4568:4568
     networks:
@@ -36,14 +46,14 @@ services:
     networks:
       - demo_wire
 
-  basic_smtp: # needed for demo setup
-    container_name: demo_wire_smtp
-#    image: namshi/smtp
-    image: julialongtin/smtp:0.0.9
-    ports:
-        - 127.0.0.1:2500:2500
-    networks:
-      - demo_wire
+  # basic_smtp: # needed for demo setup
+  #   container_name: demo_wire_smtp
+# #    image: namshi/smtp
+  #   image: julialongtin/smtp:0.0.9
+  #   ports:
+  #       - 127.0.0.1:2500:2500
+  #   networks:
+  #     - demo_wire
 
   fake_s3:
     container_name: demo_wire_s3

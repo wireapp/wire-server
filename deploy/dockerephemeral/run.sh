@@ -17,4 +17,11 @@ docker pull quay.io/wire/gundeck-schema
 docker pull quay.io/wire/spar-schema
 docker pull quay.io/wire/brig-index
 
-docker-compose --file "$DOCKER_FILE" up
+
+# This only checks whether some podman process is running. If you use docker with wire-server but podman elsewhere, this will not work.
+IN_PODMAN=$(pgrep -f podman)
+if [ -n "$IN_PODMAN" ]; then
+    podman-compose -t hostnet --file "$DOCKER_FILE" up
+else
+    docker-compose --file "$DOCKER_FILE" up
+fi
