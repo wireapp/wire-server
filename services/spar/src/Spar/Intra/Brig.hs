@@ -260,9 +260,7 @@ updateEmail buid email = do
   case statusCode resp of
     204 -> pure ()
     202 -> pure ()
-    -- everything else is an error; if the response body still cannot be parsed as a
-    -- Wai.Error, it's ok to crash with a 500 here, so we use the unsafe parser.
-    _ -> throwError . SAML.CustomServant . waiToServant . responseJsonUnsafe $ resp
+    _ -> rethrow "brig" resp
 
 getBrigUser :: (HasCallStack, MonadSparToBrig m) => HavePendingInvitations -> UserId -> m (Maybe User)
 getBrigUser ifpend = (accountUser <$$>) . getBrigUserAccount ifpend
