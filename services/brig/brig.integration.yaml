@@ -75,7 +75,7 @@ emailSMS:
 
   general:
     templateDir: deb/opt/brig/templates
-    emailSender: backend-integration@wire.com
+    emailSender: backend-integrationk8s@wire.com
     smsSender: "+123456789" # or MG123456789... (twilio alphanumeric sender id)
     templateBranding:
       brand: Wire
