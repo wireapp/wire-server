@@ -56,7 +56,7 @@ getFeatureStatus tid = do
     select :: TeamFeatureName -> PrepQuery R (Identity TeamId) (Identity (Maybe TeamFeatureStatusValue))
     select feature = fromString $ "select " <> toCol feature <> " from team_features where team_id = ?"
 
-setFeatureStatus ::
+setFeatureStatusNoConfig ::
   forall (a :: Public.TeamFeatureName) m.
   ( MonadClient m,
     Public.KnownTeamFeatureName a,
