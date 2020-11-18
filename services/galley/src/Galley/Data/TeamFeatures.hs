@@ -40,7 +40,7 @@ toCol TeamFeatureValidateSAMLEmails = "validate_saml_emails"
 toCol TeamFeatureDigitalSignatures = "digital_signatures"
 toCol TeamFeatureAppLock = "app_lock_status"
 
-getFeatureStatus ::
+getFeatureStatusNoConfig ::
   forall (a :: Public.TeamFeatureName) m.
   ( MonadClient m,
     Public.KnownTeamFeatureName a,
