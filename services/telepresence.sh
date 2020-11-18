@@ -1,10 +1,12 @@
+#!/usr/bin/env bash
+
 USAGE="$0 <your name>"
 export NAMESPACE=${1:?$USAGE}-dev
 
 TOP_LEVEL="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
 DIR="${TOP_LEVEL}/services"
 
-function change_config_files() {
+change_config_files() {
     galley="$DIR/galley/galley.integration.yaml"
     brig="$DIR/brig/brig.integration.yaml"
     gundeck="$DIR/gundeck/gundeck.integration.yaml"
@@ -51,7 +53,7 @@ function change_config_files() {
     sed -i "$cassandra" "$spar"
 }
 
-function setup_dev_environment() {
+setup_dev_environment() {
     echo TODO setup dev environment
     # integration-setup.sh for fake-aws and databases-ephemeral only
 }
