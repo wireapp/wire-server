@@ -69,7 +69,6 @@ import Control.Monad.Except
 import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle, fromHandle))
 import Data.Id (Id (Id), TeamId, UserId)
-import Data.Ix
 import Data.Misc (PlainTextPassword)
 import Data.String.Conversions
 import Imports
@@ -78,7 +77,7 @@ import qualified Network.Wai.Utilities.Error as Wai
 import qualified SAML2.WebSSO as SAML
 import Spar.Error
 import Spar.Intra.Galley (parseResponse)
-import Spar.Intra.Galley as Galley (MonadSparToGalley, assertIsTeamOwner, isEmailValidationEnabledTeam)
+import Spar.Intra.Galley as Galley (MonadSparToGalley, assertIsTeamOwner)
 import Spar.Scim.Types (ValidExternalId (..), runValidExternalId)
 import qualified System.Logger.Class as Log
 import qualified Text.Email.Parser
@@ -158,10 +157,10 @@ mkUserName Nothing =
 renderValidExternalId :: ValidExternalId -> Maybe Text
 renderValidExternalId = runValidExternalId urefToExternalId (Just . fromEmail)
 
-parseResponse :: (FromJSON a, MonadError SparError m) => ResponseLBS -> m a
-parseResponse resp = do
-  bdy <- maybe (throwSpar $ SparCouldNotParseRfcResponse "brig" "no body") pure $ responseBody resp
-  either (throwSpar . SparCouldNotParseRfcResponse "brig" . cs) pure $ eitherDecode' bdy
+-- parseResponse :: (FromJSON a, MonadError SparError m) => ResponseLBS -> m a
+-- parseResponse resp = do
+--   bdy <- maybe (throwSpar $ SparCouldNotParseRfcResponse "brig" "no body") pure $ responseBody resp
+--   either (throwSpar . SparCouldNotParseRfcResponse "brig" . cs) pure $ eitherDecode' bdy
 
 -- | Similar to 'Network.Wire.Client.API.Auth.tokenResponse', but easier: we just need to set the
 -- cookie in the response, and the redirect will make the client negotiate a fresh auth token.
@@ -247,7 +246,7 @@ createBrigUserNoSAML email teamid uname = do
 
   if statusCode resp `elem` [200, 201]
     then userId . accountUser <$> parseResponse @UserAccount resp
-    else rethrow resp
+    else rethrow "brig" resp
 
 -- createBrigUserInvite email teamid uname uhandle managedBy = do
 --   let invreq = Inv.InvitationRequest Nothing Nothing (Just uname) (Just uhandle) email Nothing managedBy
@@ -366,10 +365,8 @@ setBrigUserName buid (Name name) = do
   if
       | sCode < 300 ->
         pure ()
-      | inRange (400, 499) sCode ->
-        rethrow "brig" resp
       | otherwise ->
-        throwSpar . SparBrigError . cs $ "set name failed with status " <> show sCode
+        rethrow "brig" resp
 
 -- | Set user's handle.  Fails with status <500 if brig fails with <500, and with 500 if brig fails
 -- with >= 500.
@@ -448,10 +445,8 @@ checkHandleAvailable hnd = do
         pure False
       | sCode == 404 -> -- handle not found
         pure True
-      | sCode < 500 ->
-        rethrow "brig" resp
       | otherwise ->
-        throwSpar . SparBrigError . cs $ "check handle failed with status " <> show sCode
+        rethrow "brig" resp
 
 -- | Call brig to delete a user
 deleteBrigUser :: (HasCallStack, MonadSparToBrig m, MonadIO m) => UserId -> m ()
