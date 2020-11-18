@@ -244,7 +244,7 @@ declareNamedSchemaFeatureNoConfig _ =
 -- instance (TeamFeatureStatusValue ~ TeamFeatureStatus a) => ToSchema (TeamFeatureStatus a) where
 --   declareNamedSchema = declareNamedSchemaFeatureNoConfig
 
-instance ToSchema TeamFeatureStatus where
+instance ToSchema TeamFeatureStatusNoConfig where
   declareNamedSchema = declareNamedSchemaFeatureNoConfig
 
 -- instance ToSchema (TeamFeatureStatus 'TeamFeatureSSO) where

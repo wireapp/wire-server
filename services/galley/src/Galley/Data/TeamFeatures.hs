@@ -48,10 +48,10 @@ getFeatureStatusNoConfig ::
   ) =>
   TeamId ->
   m (Maybe (TeamFeatureStatus a))
-getFeatureStatus tid = do
+getFeatureStatusNoConfig tid = do
   let q = query1 (select (Public.knownTeamFeatureName @a)) (params Quorum (Identity tid))
   mStatusValue <- (>>= runIdentity) <$> retry x1 q
-  pure $ (Public.mkFeatureStatus <$> mStatusValue)
+  pure $ TeamFeatureStatusNoConfig <$> mStatusValue
   where
     select :: TeamFeatureName -> PrepQuery R (Identity TeamId) (Identity (Maybe TeamFeatureStatusValue))
     select feature = fromString $ "select " <> toCol feature <> " from team_features where team_id = ?"
@@ -65,7 +65,7 @@ setFeatureStatusNoConfig ::
   TeamId ->
   (TeamFeatureStatus a) ->
   m ()
-setFeatureStatus tid status = do
+setFeatureStatusNoConfig tid status = do
   let flag = Public.teamFeatureStatusValue status
   retry x5 $ write (update (Public.knownTeamFeatureName @a)) (params Quorum (flag, tid))
   where
