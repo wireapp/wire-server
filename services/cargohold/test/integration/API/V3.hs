@@ -55,7 +55,8 @@ tests s =
         "simple"
         [ test s "roundtrip" testSimpleRoundtrip,
           test s "tokens" testSimpleTokens,
-          test s "s3-upstream-closed" testSimpleS3ClosedConnectionReuse
+          test s "s3-upstream-closed" testSimpleS3ClosedConnectionReuse,
+          test s "client-compatibility" testUploadCompatibility
         ],
       testGroup
         "RealAWS"
@@ -196,6 +197,51 @@ testSimpleS3ClosedConnectionReuse c = go >> wait >> go
         !!! const 201 === statusCode
 
 --------------------------------------------------------------------------------
+-- Client compatibility tests
+
+-- Since the other tests use functions from the server code, it can happen that
+-- an API change also changes the requests made here in the tests.
+-- This test tries to prevent us from breaking the API without noticing.
+--
+-- The body is taken directly from a request made by the web app
+-- (just replaced the content with a shorter one and updated the MD5 header).
+testUploadCompatibility :: TestSignature ()
+testUploadCompatibility c = do
+  uid <- liftIO $ Id <$> nextRandom
+  -- Initial upload
+  r1 <-
+    uploadRaw (c . path "/assets/v3") uid exampleMultipart
+      <!! const 201 === statusCode
+  let loc = decodeHeader "Location" r1 :: ByteString
+  -- Lookup and download via redirect.
+  r2 <-
+    get (c . path loc . zUser uid . noRedirect) <!! do
+      const 302 === statusCode
+      const Nothing === responseBody
+  r3 <- flip get' id =<< parseUrlThrow (C8.unpack (getHeader' "Location" r2))
+  liftIO $ do
+    assertEqual "status" status200 (responseStatus r3)
+    assertEqual "content-type mismatch" (Just applicationOctetStream) (getContentType r3)
+    assertEqual "user mismatch" uid (decodeHeader "x-amz-meta-user" r3)
+    assertEqual "data mismatch" (Just "test") (responseBody r3)
+  where
+    exampleMultipart :: LByteString
+    exampleMultipart =
+      "--FrontierIyj6RcVrqMcxNtMEWPsNpuPm325QsvWQ\r\n\
+      \Content-Type: application/json;charset=utf-8\r\n\
+      \Content-length: 37\r\n\
+      \\r\n\
+      \{\"public\":true,\"retention\":\"eternal\"}\r\n\
+      \--FrontierIyj6RcVrqMcxNtMEWPsNpuPm325QsvWQ\r\n\
+      \Content-Type: application/octet-stream\r\n\
+      \Content-length: 4\r\n\
+      \Content-MD5: CY9rzUYh03PK3k6DJie09g==\r\n\
+      \\r\n\
+      \test\r\n\
+      \--FrontierIyj6RcVrqMcxNtMEWPsNpuPm325QsvWQ--\r\n\
+      \\r\n"
+
+--------------------------------------------------------------------------------
 -- Resumable (multi-step) uploads
 
 testResumableSmall :: TestSignature ()
@@ -267,13 +313,21 @@ uploadSimple ::
   Http (Response (Maybe Lazy.ByteString))
 uploadSimple c usr sets (ct, bs) =
   let mp = V3.buildMultipartBody sets ct (Lazy.fromStrict bs)
-   in post $
-        c
-          . method POST
-          . zUser usr
-          . zConn "conn"
-          . content "multipart/mixed"
-          . lbytes (toLazyByteString mp)
+   in uploadRaw c usr (toLazyByteString mp)
+
+uploadRaw ::
+  CargoHold ->
+  UserId ->
+  Lazy.ByteString ->
+  Http (Response (Maybe Lazy.ByteString))
+uploadRaw c usr bs =
+  post $
+    c
+      . method POST
+      . zUser usr
+      . zConn "conn"
+      . content "multipart/mixed"
+      . lbytes bs
 
 createResumable ::
   HasCallStack =>
@@ -377,6 +431,9 @@ getContentType = MIME.parseContentType . decodeLatin1 . getHeader' "Content-Type
 
 applicationText :: MIME.Type
 applicationText = MIME.Type (MIME.Application "text") []
+
+applicationOctetStream :: MIME.Type
+applicationOctetStream = MIME.Type (MIME.Application "octet-stream") []
 
 textPlain :: MIME.Type
 textPlain = MIME.Type (MIME.Text "plain") []
