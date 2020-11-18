@@ -248,17 +248,6 @@ createBrigUserNoSAML email teamid uname = do
     then userId . accountUser <$> parseResponse @UserAccount resp
     else rethrow "brig" resp
 
--- createBrigUserInvite email teamid uname uhandle managedBy = do
---   let invreq = Inv.InvitationRequest Nothing Nothing (Just uname) (Just uhandle) email Nothing managedBy
---   invresp <- call $ method POST . paths ["/i/teams", toByteString' teamid, "invitations"] . json invreq
---   if statusCode invresp `notElem` [200, 201]
---     then rethrow "brig" invresp
---     else
---       responseJsonEither invresp
---         & either
---           (throwSpar . SparCouldNotParseRfcResponse "brig" . ("not an invitation: " <>) . cs . show)
---           (pure . coerce @InvitationId @UserId . Inv.inInvitation)
-
 updateEmail :: (HasCallStack, MonadSparToBrig m) => UserId -> Email -> m ()
 updateEmail buid email = do
   resp <-
@@ -306,17 +295,6 @@ getBrigUserAccount havePending buid = do
         _ -> pure Nothing
     404 -> pure Nothing
     _ -> rethrow "brig" resp
-
--- getBrigInvitation :: (HasCallStack, MonadSparToBrig m) => TeamId -> InvitationId -> m (Maybe Inv.Invitation)
--- getBrigInvitation tid invid = do
---   resp :: ResponseLBS <-
---     call $
---       method GET
---         . paths ["/i/teams/", toByteString' tid, "/invitations/", toByteString' invid]
---   case (statusCode resp, responseJsonMaybe resp) of
---     (200, Just inv) -> pure inv
---     (404, _) -> pure Nothing
---     _ -> rethrow "brig" resp
 
 -- | Get a user; returns 'Nothing' if the user was not found.
 --
