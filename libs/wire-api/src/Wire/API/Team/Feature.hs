@@ -27,6 +27,7 @@ module Wire.API.Team.Feature
     FeatureHasNoConfig (..),
     EnforceAppLock (..),
     KnownTeamFeatureName (..),
+    TeamFeatureStatusWithConfig (..),
 
     -- * Swagger
     typeTeamFeatureName,
@@ -137,13 +138,25 @@ instance FromByteString TeamFeatureStatusValue where
         Right t -> fail $ "Invalid TeamFeatureStatusValue: " <> T.unpack t
         Left e -> fail $ "Invalid TeamFeatureStatusValue: " <> show e
 
+-- TODO TeamFeatureStatus -> TeamFeatureConfig
 type family TeamFeatureStatus (a :: TeamFeatureName) :: * where
+-- TODO rename TeamFeatureStatusValue -> TeamFeatureStatus
   TeamFeatureStatus 'TeamFeatureLegalHold = TeamFeatureStatusValue
   TeamFeatureStatus 'TeamFeatureSSO = TeamFeatureStatusValue
   TeamFeatureStatus 'TeamFeatureSearchVisibility = TeamFeatureStatusValue
   TeamFeatureStatus 'TeamFeatureValidateSAMLEmails = TeamFeatureStatusValue
   TeamFeatureStatus 'TeamFeatureDigitalSignatures = TeamFeatureStatusValue
-  TeamFeatureStatus 'TeamFeatureAppLock = TeamFeatureAppLockStatus
+  TeamFeatureStatus 'TeamFeatureAppLock = TeamFeatureStatusWithConfig TeamFeatureAppLockConfig
+
+data TeamFeatureStatusWithConfig (cfg :: *) = TeamFeatureStatusWithConfig
+  { tfwcStatus :: TeamFeatureStatusValue,
+    tfwcConfig :: cfg
+  }
+  deriving stock (Eq, Show, Generic, Typeable)
+
+instance FromJSON cfg => FromJSON (TeamFeatureStatusWithConfig cfg) where
+  parseJSON = withObject "TeamFeatureStatus" $ \ob ->
+    TeamFeatureStatus <$> ob .: "status" <*> ob .: "config"
 
 modelTeamFeatureStatusNoConfig :: Doc.Model
 modelTeamFeatureStatusNoConfig =

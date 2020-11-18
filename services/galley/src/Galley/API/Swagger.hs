@@ -241,22 +241,25 @@ declareNamedSchemaFeatureNoConfig _ =
       mempty
         & enum_ ?~ [String "enabled", String "disabled"]
 
-instance ToSchema (TeamFeatureStatus 'TeamFeatureLegalHold) where
+-- instance (TeamFeatureStatusValue ~ TeamFeatureStatus a) => ToSchema (TeamFeatureStatus a) where
+--   declareNamedSchema = declareNamedSchemaFeatureNoConfig
+
+instance ToSchema TeamFeatureStatus where
   declareNamedSchema = declareNamedSchemaFeatureNoConfig
 
-instance ToSchema (TeamFeatureStatus 'TeamFeatureSSO) where
-  declareNamedSchema = declareNamedSchemaFeatureNoConfig
+-- instance ToSchema (TeamFeatureStatus 'TeamFeatureSSO) where
+--   declareNamedSchema = declareNamedSchemaFeatureNoConfig
 
-instance ToSchema (TeamFeatureStatus 'TeamFeatureSearchVisibility) where
-  declareNamedSchema = declareNamedSchemaFeatureNoConfig
+-- instance ToSchema (TeamFeatureStatus 'TeamFeatureSearchVisibility) where
+--   declareNamedSchema = declareNamedSchemaFeatureNoConfig
 
-instance ToSchema (TeamFeatureStatus 'TeamFeatureValidateSAMLEmails) where
-  declareNamedSchema = declareNamedSchemaFeatureNoConfig
+-- instance ToSchema (TeamFeatureStatus 'TeamFeatureValidateSAMLEmails) where
+--   declareNamedSchema = declareNamedSchemaFeatureNoConfig
 
-instance ToSchema (TeamFeatureStatus 'TeamFeatureDigitalSignatures) where
-  declareNamedSchema = declareNamedSchemaFeatureNoConfig
+-- instance ToSchema (TeamFeatureStatus 'TeamFeatureDigitalSignatures) where
+--   declareNamedSchema = declareNamedSchemaFeatureNoConfig
 
-instance ToSchema (TeamFeatureStatus 'TeamFeatureAppLock) where
+instance ToSchema TeamFeatureAppLockStatus where
   declareNamedSchema _ =
     pure $
       NamedSchema (Just "TeamFeatureAppLockStatus") $
