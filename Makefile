@@ -167,6 +167,7 @@ docker-services:
 	$(MAKE) -C services/gundeck docker
 	$(MAKE) -C services/galley docker
 	$(MAKE) -C services/cannon docker
+	$(MAKE) -C services/cargohold docker
 	$(MAKE) -C services/proxy docker
 	$(MAKE) -C services/spar docker
 	$(MAKE) -C tools/stern docker
