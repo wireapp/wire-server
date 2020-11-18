@@ -1072,7 +1072,7 @@ filterMissing = (>>= go) <$> (query "ignore_missing" ||| query "report_missing")
       -- understand this
       Just l -> P.Okay 0 (Set.fromList (fromList l))
 
-mkFeatureGetRoute ::
+mkFeatureGetAndPutRoute ::
   forall (a :: Public.TeamFeatureName).
   (Public.KnownTeamFeatureName a) =>
   Teams.FeatureStatusHandlers (a :: Public.TeamFeatureName) ->
