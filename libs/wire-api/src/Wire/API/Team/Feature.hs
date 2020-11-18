@@ -24,16 +24,17 @@ module Wire.API.Team.Feature
     TeamFeatureStatus,
     TeamFeatureAppLockConfig (..),
     TeamFeatureStatusValue (..),
-    FeatureHasNoConfig (..),
+    FeatureHasNoConfig,
     EnforceAppLock (..),
     KnownTeamFeatureName (..),
+    TeamFeatureStatusNoConfig (..),
     TeamFeatureStatusWithConfig (..),
 
     -- * Swagger
     typeTeamFeatureName,
     typeTeamFeatureStatusValue,
     modelTeamFeatureStatusNoConfig,
-    modelTeamFeatureStatusAppLock,
+    modelTeamFeatureStatusWithConfig,
     modelTeamFeatureAppLockConfig,
     modelForTeamFeature,
   )
@@ -42,6 +43,7 @@ where
 import Data.Aeson
 import qualified Data.Attoparsec.ByteString as Parser
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..), toByteString')
+import Data.Kind (Constraint)
 import Data.String.Conversions (cs)
 import Data.Swagger.Build.Api
 import qualified Data.Swagger.Build.Api as Doc
@@ -50,6 +52,9 @@ import qualified Data.Text.Encoding as T
 import Deriving.Aeson
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+
+----------------------------------------------------------------------
+-- TeamFeatureName
 
 data TeamFeatureName
   = TeamFeatureLegalHold
@@ -100,6 +105,9 @@ instance ToByteString TeamFeatureName where
 typeTeamFeatureName :: Doc.DataType
 typeTeamFeatureName = Doc.string . Doc.enum $ cs . toByteString' <$> [(minBound :: TeamFeatureName) ..]
 
+----------------------------------------------------------------------
+-- TeamFeatureStatusValue
+
 data TeamFeatureStatusValue
   = TeamFeatureEnabled
   | TeamFeatureDisabled
@@ -138,15 +146,52 @@ instance FromByteString TeamFeatureStatusValue where
         Right t -> fail $ "Invalid TeamFeatureStatusValue: " <> T.unpack t
         Left e -> fail $ "Invalid TeamFeatureStatusValue: " <> show e
 
+----------------------------------------------------------------------
+-- TeamFeatureStatus
+
 -- TODO TeamFeatureStatus -> TeamFeatureConfig
+-- TODO TeamFeatureStatusValue -> TeamFeatureStatus
+-- TODO TeamFeatureAppLockStatus -> TeamFeatureAppLockConfig
+
 type family TeamFeatureStatus (a :: TeamFeatureName) :: * where
--- TODO rename TeamFeatureStatusValue -> TeamFeatureStatus
-  TeamFeatureStatus 'TeamFeatureLegalHold = TeamFeatureStatusValue
-  TeamFeatureStatus 'TeamFeatureSSO = TeamFeatureStatusValue
-  TeamFeatureStatus 'TeamFeatureSearchVisibility = TeamFeatureStatusValue
-  TeamFeatureStatus 'TeamFeatureValidateSAMLEmails = TeamFeatureStatusValue
-  TeamFeatureStatus 'TeamFeatureDigitalSignatures = TeamFeatureStatusValue
+  TeamFeatureStatus 'TeamFeatureLegalHold = TeamFeatureStatusNoConfig
+  TeamFeatureStatus 'TeamFeatureSSO = TeamFeatureStatusNoConfig
+  TeamFeatureStatus 'TeamFeatureSearchVisibility = TeamFeatureStatusNoConfig
+  TeamFeatureStatus 'TeamFeatureValidateSAMLEmails = TeamFeatureStatusNoConfig
+  TeamFeatureStatus 'TeamFeatureDigitalSignatures = TeamFeatureStatusNoConfig
   TeamFeatureStatus 'TeamFeatureAppLock = TeamFeatureStatusWithConfig TeamFeatureAppLockConfig
+
+type FeatureHasNoConfig (a :: TeamFeatureName) = (TeamFeatureStatus a ~ TeamFeatureStatusNoConfig) :: Constraint
+
+modelForTeamFeature :: TeamFeatureName -> Doc.Model
+modelForTeamFeature name@TeamFeatureLegalHold = modelTeamFeatureStatusNoConfig name
+modelForTeamFeature name@TeamFeatureSSO = modelTeamFeatureStatusNoConfig name
+modelForTeamFeature name@TeamFeatureSearchVisibility = modelTeamFeatureStatusNoConfig name
+modelForTeamFeature name@TeamFeatureValidateSAMLEmails = modelTeamFeatureStatusNoConfig name
+modelForTeamFeature name@TeamFeatureDigitalSignatures = modelTeamFeatureStatusNoConfig name
+modelForTeamFeature name@TeamFeatureAppLock = modelTeamFeatureStatusWithConfig name modelTeamFeatureAppLockConfig
+
+----------------------------------------------------------------------
+-- TeamFeatureStatusNoConfig
+
+newtype TeamFeatureStatusNoConfig = TeamFeatureStatusNoConfig
+  { tfwoStatus :: TeamFeatureStatusValue
+  }
+  deriving newtype (Eq, Show, Generic, Typeable)
+
+modelTeamFeatureStatusNoConfig :: TeamFeatureName -> Doc.Model
+modelTeamFeatureStatusNoConfig name = Doc.defineModel (cs $ show name) $ do
+  Doc.description $ "Configuration for a team feature that has no configuration"
+  Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
+
+instance FromJSON TeamFeatureStatusNoConfig where
+  parseJSON = undefined -- derive?
+
+instance ToJSON TeamFeatureStatusNoConfig where
+  toJSON = undefined -- derive?
+
+----------------------------------------------------------------------
+-- TeamFeatureStatusWithConfig
 
 data TeamFeatureStatusWithConfig (cfg :: *) = TeamFeatureStatusWithConfig
   { tfwcStatus :: TeamFeatureStatusValue,
@@ -154,95 +199,21 @@ data TeamFeatureStatusWithConfig (cfg :: *) = TeamFeatureStatusWithConfig
   }
   deriving stock (Eq, Show, Generic, Typeable)
 
+modelTeamFeatureStatusWithConfig :: TeamFeatureName -> Doc.Model -> Doc.Model
+modelTeamFeatureStatusWithConfig name cfgModel = Doc.defineModel (cs $ show name) $ do
+  Doc.description $ "Status and config of " <> (cs $ show name)
+  Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
+  Doc.property "config" (Doc.ref cfgModel) $ Doc.description "config"
+
 instance FromJSON cfg => FromJSON (TeamFeatureStatusWithConfig cfg) where
   parseJSON = withObject "TeamFeatureStatus" $ \ob ->
-    TeamFeatureStatus <$> ob .: "status" <*> ob .: "config"
+    TeamFeatureStatusWithConfig <$> ob .: "status" <*> ob .: "config"
 
-modelTeamFeatureStatusNoConfig :: Doc.Model
-modelTeamFeatureStatusNoConfig =
-  Doc.defineModel "FeatureStatusNoConfig" $ do
-    Doc.description $ "Configuration for a team feature that has no configuration"
-    Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
+instance ToJSON cfg => ToJSON (TeamFeatureStatusWithConfig cfg) where
+  toJSON (TeamFeatureStatusWithConfig status config) = object ["status" .= status, "config" .= config]
 
-modelForTeamFeature :: TeamFeatureName -> Doc.Model
-modelForTeamFeature TeamFeatureLegalHold = modelTeamFeatureStatusNoConfig
-modelForTeamFeature TeamFeatureSSO = modelTeamFeatureStatusNoConfig
-modelForTeamFeature TeamFeatureSearchVisibility = modelTeamFeatureStatusNoConfig
-modelForTeamFeature TeamFeatureValidateSAMLEmails = modelTeamFeatureStatusNoConfig
-modelForTeamFeature TeamFeatureDigitalSignatures = modelTeamFeatureStatusNoConfig
-modelForTeamFeature TeamFeatureAppLock = modelTeamFeatureStatusAppLock
-
-class FeatureHasNoConfig (a :: TeamFeatureName) where
-  mkFeatureStatusNoConfig :: TeamFeatureStatusValue -> TeamFeatureStatus a
-
-instance FeatureHasNoConfig 'TeamFeatureLegalHold where
-  mkFeatureStatusNoConfig = id
-
-instance FeatureHasNoConfig 'TeamFeatureSSO where
-  mkFeatureStatusNoConfig = id
-
-instance FeatureHasNoConfig 'TeamFeatureSearchVisibility where
-  mkFeatureStatusNoConfig = id
-
-instance FeatureHasNoConfig 'TeamFeatureValidateSAMLEmails where
-  mkFeatureStatusNoConfig = id
-
-instance FeatureHasNoConfig 'TeamFeatureDigitalSignatures where
-  mkFeatureStatusNoConfig = id
-
--- instance FeatureHasNoConfig a => FromJSON (JSONNoConfig (TeamFeatureStatus a)) where
---   parseJSON = withObject "TeamFeatureStatus" $ \ob ->
---     JSONNoConfig . mkFeatureStatus @a <$> ob .: "status"
-
--- instance FeatureHasNoConfig a => ToJSON (JSONNoConfig (TeamFeatureStatus a)) where
---   toJSON (JSONNoConfig status) = object ["status" .= status]
-
--- deriving via (JSONNoConfig (TeamFeatureStatus 'TeamFeatureLegalHold)) instance ToJSON (TeamFeatureStatus 'TeamFeatureLegalHold)
-
--- deriving via (JSONNoConfig (TeamFeatureStatus 'TeamFeatureLegalHold)) instance FromJSON (TeamFeatureStatus 'TeamFeatureLegalHold)
-
--- deriving via (JSONNoConfig (TeamFeatureStatus 'TeamFeatureSSO)) instance ToJSON (TeamFeatureStatus 'TeamFeatureSSO)
-
--- deriving via (JSONNoConfig (TeamFeatureStatus 'TeamFeatureSSO)) instance FromJSON (TeamFeatureStatus 'TeamFeatureSSO)
-
--- deriving via (JSONNoConfig (TeamFeatureStatus 'TeamFeatureSearchVisibility)) instance ToJSON (TeamFeatureStatus 'TeamFeatureSearchVisibility)
-
--- deriving via (JSONNoConfig (TeamFeatureStatus 'TeamFeatureSearchVisibility)) instance FromJSON (TeamFeatureStatus 'TeamFeatureSearchVisibility)
-
--- deriving via (JSONNoConfig (TeamFeatureStatus 'TeamFeatureValidateSAMLEmails)) instance ToJSON (TeamFeatureStatus 'TeamFeatureValidateSAMLEmails)
-
--- deriving via (JSONNoConfig (TeamFeatureStatus 'TeamFeatureValidateSAMLEmails)) instance FromJSON (TeamFeatureStatus 'TeamFeatureValidateSAMLEmails)
-
--- deriving via (JSONNoConfig (TeamFeatureStatus 'TeamFeatureDigitalSignatures)) instance ToJSON (TeamFeatureStatus 'TeamFeatureDigitalSignatures)
-
--- deriving via (JSONNoConfig (TeamFeatureStatus 'TeamFeatureDigitalSignatures)) instance FromJSON (TeamFeatureStatus 'TeamFeatureDigitalSignatures)
-
-modelTeamFeatureStatusAppLock :: Doc.Model
-modelTeamFeatureStatusAppLock =
-  Doc.defineModel "TeamFeatureAppLockStatus" $ do
-    Doc.description "Configuration of a the AppLock team feature"
-    Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
-    Doc.property "config" (Doc.ref modelTeamFeatureAppLockConfig) $ Doc.description "config"
-
-modelTeamFeatureAppLockConfig :: Doc.Model
-modelTeamFeatureAppLockConfig =
-  Doc.defineModel "TeamFeatureAppLockConfig" $ do
-    Doc.property "enforceAppLock" bool' $ Doc.description "enforceAppLock"
-    Doc.property "inactivityTimeoutSecs" int32' $ Doc.description ""
-
--- instance FromJSON (TeamFeatureStatus 'TeamFeatureAppLock) where
---   parseJSON = withObject "TeamFeatureStatus" $ \ob ->
---     TeamFeatureStatus <$> ob .: "status" <*> ob .: "config"
-
-newtype EnforceAppLock = EnforceAppLock Bool
-  deriving stock (Eq, Show, Ord, Generic)
-  deriving newtype (FromJSON, ToJSON, Arbitrary)
-
-data TeamFeatureAppLockStatus = TeamFeatureAppLockStatus
-  { appLockStatus :: TeamFeatureStatusValue,
-    appLockConfig :: TeamFeatureAppLockConfig
-  }
-  deriving stock (Eq, Show, Generic)
+----------------------------------------------------------------------
+-- TeamFeatureAppLockConfig
 
 data TeamFeatureAppLockConfig = TeamFeatureAppLockConfig
   { applockEnforceAppLock :: EnforceAppLock,
@@ -252,18 +223,15 @@ data TeamFeatureAppLockConfig = TeamFeatureAppLockConfig
 
 deriving via (GenericUniform TeamFeatureAppLockConfig) instance Arbitrary TeamFeatureAppLockConfig
 
-instance ToJSON TeamFeatureAppLockStatus where
-  toJSON (TeamFeatureAppLockStatus status config) = object ["status" .= status, "config" .= config]
+newtype EnforceAppLock = EnforceAppLock Bool
+  deriving stock (Eq, Show, Ord, Generic)
+  deriving newtype (FromJSON, ToJSON, Arbitrary)
 
-data LowerCaseFirst
-
-instance StringModifier LowerCaseFirst where
-  getStringModifier (x : xs) = toLower x : xs
-  getStringModifier [] = []
-
-type StripCamel str =
-  CustomJSON
-    '[FieldLabelModifier (StripPrefix str, LowerCaseFirst)]
+modelTeamFeatureAppLockConfig :: Doc.Model
+modelTeamFeatureAppLockConfig =
+  Doc.defineModel "TeamFeatureAppLockConfig" $ do
+    Doc.property "enforceAppLock" bool' $ Doc.description "enforceAppLock"
+    Doc.property "inactivityTimeoutSecs" int32' $ Doc.description ""
 
 deriving via
   (StripCamel "applock" TeamFeatureAppLockConfig)
@@ -274,3 +242,16 @@ deriving via
   (StripCamel "applock" TeamFeatureAppLockConfig)
   instance
     FromJSON TeamFeatureAppLockConfig
+
+----------------------------------------------------------------------
+-- internal
+
+data LowerCaseFirst
+
+instance StringModifier LowerCaseFirst where
+  getStringModifier (x : xs) = toLower x : xs
+  getStringModifier [] = []
+
+type StripCamel str =
+  CustomJSON
+    '[FieldLabelModifier (StripPrefix str, LowerCaseFirst)]
