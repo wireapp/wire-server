@@ -66,6 +66,7 @@ import Brig.Types.User
 import Brig.Types.User.Auth (SsoLogin (..))
 import Control.Lens
 import Control.Monad.Except
+import Data.Aeson (FromJSON, eitherDecode')
 import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle, fromHandle))
 import Data.Id (Id (Id), TeamId, UserId)
@@ -76,7 +77,6 @@ import Network.HTTP.Types.Method
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified SAML2.WebSSO as SAML
 import Spar.Error
-import Spar.Intra.Galley (parseResponse)
 import Spar.Intra.Galley as Galley (MonadSparToGalley, assertIsTeamOwner)
 import Spar.Scim.Types (ValidExternalId (..), runValidExternalId)
 import qualified System.Logger.Class as Log
@@ -86,6 +86,11 @@ import Wire.API.User
 import Wire.API.User.RichInfo as RichInfo
 
 ----------------------------------------------------------------------
+
+parseResponse :: (FromJSON a, MonadError SparError m) => ResponseLBS -> m a
+parseResponse resp = do
+  bdy <- maybe (throwSpar $ SparCouldNotParseRfcResponse "brig" "no body") pure $ responseBody resp
+  either (throwSpar . SparCouldNotParseRfcResponse "brig" . cs) pure $ eitherDecode' bdy
 
 veidToUserSSOId :: ValidExternalId -> UserSSOId
 veidToUserSSOId = runValidExternalId urefToUserSSOId (UserScimExternalId . fromEmail)
@@ -156,11 +161,6 @@ mkUserName Nothing =
 
 renderValidExternalId :: ValidExternalId -> Maybe Text
 renderValidExternalId = runValidExternalId urefToExternalId (Just . fromEmail)
-
--- parseResponse :: (FromJSON a, MonadError SparError m) => ResponseLBS -> m a
--- parseResponse resp = do
---   bdy <- maybe (throwSpar $ SparCouldNotParseRfcResponse "brig" "no body") pure $ responseBody resp
---   either (throwSpar . SparCouldNotParseRfcResponse "brig" . cs) pure $ eitherDecode' bdy
 
 -- | Similar to 'Network.Wire.Client.API.Auth.tokenResponse', but easier: we just need to set the
 -- cookie in the response, and the redirect will make the client negotiate a fresh auth token.
