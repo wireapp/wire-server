@@ -239,6 +239,9 @@ customBackendNotFound domain =
 invalidTeamNotificationId :: Error
 invalidTeamNotificationId = Error status400 "invalid-notification-id" "Could not parse notification id (must be UUIDv1)."
 
+inactivityTimeoutTooLow :: Error
+inactivityTimeoutTooLow = Error status400 "inactivity-timeout-too-low" "applock inactivity timeout must be at least 30 seconds"
+
 --------------------------------------------------------------------------------
 -- Federation
 

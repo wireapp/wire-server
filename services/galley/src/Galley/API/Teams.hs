@@ -1018,7 +1018,10 @@ getAppLockInternal tid = do
   pure $ fromMaybe defaultStatus status
 
 setAppLockInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock)
-setAppLockInternal = TeamFeatures.setApplockFeatureStatus
+setAppLockInternal tid status = do
+  when (Public.applockInactivityTimeoutSecs (Public.tfwcConfig status) < 30) $
+    throwM inactivityTimeoutTooLow
+  TeamFeatures.setApplockFeatureStatus tid status
 
 getSearchVisibilityInternal :: TeamId -> Galley TeamSearchVisibilityView
 getSearchVisibilityInternal = fmap TeamSearchVisibilityView . SearchVisibilityData.getSearchVisibility
