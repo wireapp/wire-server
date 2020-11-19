@@ -448,7 +448,7 @@ setTeamFeatureFlag ::
     ToJSON (Public.TeamFeatureStatus a)
   ) =>
   TeamId ->
-  (Public.TeamFeatureStatus a) ->
+  Public.TeamFeatureStatus a ->
   Handler ()
 setTeamFeatureFlag tid status = do
   info $ msg "Setting team feature status"

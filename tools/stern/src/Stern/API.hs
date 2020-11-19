@@ -577,8 +577,8 @@ setTeamFeatureFlagH ::
   TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON ->
   Handler Response
 setTeamFeatureFlagH (tid ::: req ::: _) = do
-  status :: (Public.TeamFeatureStatus a) <- parseBody req !>> Error status400 "client-error"
-  empty <$ Intra.setTeamFeatureFlag tid status
+  status :: Public.TeamFeatureStatus a <- parseBody req !>> Error status400 "client-error"
+  empty <$ Intra.setTeamFeatureFlag @a tid status
 
 setSearchVisibility :: JSON ::: TeamId ::: JsonRequest Team.TeamSearchVisibility -> Handler Response
 setSearchVisibility (_ ::: tid ::: req) = do

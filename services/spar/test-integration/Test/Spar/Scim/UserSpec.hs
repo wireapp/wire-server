@@ -1527,7 +1527,7 @@ specEmailValidation = do
     let enableSamlEmailValidation :: HasCallStack => TeamId -> TestSpar ()
         enableSamlEmailValidation tid = do
           galley <- asks (^. teGalley)
-          let req = put $ galley . paths p . json (Feature.mkFeatureStatus @'Feature.TeamFeatureValidateSAMLEmails Feature.TeamFeatureEnabled)
+          let req = put $ galley . paths p . json (Feature.TeamFeatureStatusNoConfig Feature.TeamFeatureEnabled)
               p = ["/i/teams", toByteString' tid, "features", "validate-saml-emails"]
           call req !!! const 204 === statusCode
 

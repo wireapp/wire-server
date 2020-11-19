@@ -290,7 +290,7 @@ putLegalHoldEnabled tid enabled g = do
     g
       . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
       . contentJson
-      . lbytes (encode (Public.mkFeatureStatus @'Public.TeamFeatureLegalHold enabled))
+      . lbytes (encode (Public.TeamFeatureStatusNoConfig enabled))
       . expect2xx
 
 accept :: Email -> InvitationCode -> RequestBody
@@ -450,7 +450,7 @@ setTeamTeamSearchVisibilityAvailable galley tid status =
     ( galley
         . paths ["i/teams", toByteString' tid, "features/search-visibility"]
         . contentJson
-        . body (RequestBodyLBS . encode $ Public.mkFeatureStatus @'Public.TeamFeatureSearchVisibility status)
+        . body (RequestBodyLBS . encode $ Public.TeamFeatureStatusNoConfig status)
     )
     !!! do
       const 204 === statusCode
