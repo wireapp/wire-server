@@ -52,20 +52,27 @@ module Galley.API.Teams
     canUserJoinTeamH,
     internalDeleteBindingTeamWithOneMemberH,
     internalDeleteBindingTeamWithOneMember,
-    FeatureStatusHandlers (..),
-    ssoFeatureStatusHandlers,
-    legalholdFeatureStatusHandlers,
-    teamSearchVisibilityAvailableHandlers,
-    validateSAMLEmailsHandlers,
-    digitalSignaturesHandlers,
-    appLockHandlers,
+    getFeatureStatus,
+    setFeatureStatus,
+    getSSOStatusInternal,
+    setSSOStatusInternal,
+    getLegalholdStatusInternal,
+    setLegalholdStatusInternal,
+    getTeamSearchVisibilityAvailableInternal,
+    setTeamSearchVisibilityAvailableInternal,
+    getValidateSAMLEmailsInternal,
+    setValidateSAMLEmailsInternal,
+    getDigitalSignaturesInternal,
+    setDigitalSignaturesInternal,
+    getAppLockInternal,
+    setAppLockInternal,
+    DoAuth (..),
   )
 where
 
 import Brig.Types.Team (TeamSize (..))
 import Control.Lens
 import Control.Monad.Catch
-import Data.Aeson hiding (json)
 import Data.ByteString.Conversion hiding (fromList)
 import Data.Id
 import qualified Data.Id as Id
@@ -861,64 +868,45 @@ canUserJoinTeam tid = do
       when (size >= limit) $ do
         throwM tooManyTeamMembersOnTeamWithLegalhold
 
-data FeatureStatusHandlers (a :: Public.TeamFeatureName) = FeatureStatusHandlers
-  { fshGet :: UserId ::: TeamId ::: JSON -> Galley Response,
-    fshGetInternal :: TeamId ::: JSON -> Galley Response,
-    fshSet :: UserId ::: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON -> Galley Response,
-    fshSetInternal :: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON -> Galley Response
-  }
+data DoAuth = DoAuth UserId | DontDoAuth
 
-mkFeatureStatusHandlers ::
+getFeatureStatus ::
   forall (a :: Public.TeamFeatureName).
-  ( Public.KnownTeamFeatureName a,
-    ToJSON (Public.TeamFeatureStatus a),
-    FromJSON (Public.TeamFeatureStatus a)
-  ) =>
-  (TeamId -> Galley (Public.TeamFeatureStatus a)) ->
-  (TeamId -> Public.TeamFeatureStatus a -> Galley ()) ->
-  FeatureStatusHandlers (a :: Public.TeamFeatureName)
-mkFeatureStatusHandlers getter' setter' =
-  FeatureStatusHandlers
-    (mkGetFeatureStatusH getter')
-    (mkGetFeatureStatusInternalH getter')
-    (mkSetFeatureStatusH setter')
-    (mkSetFeatureStatusInternalH setter')
-  where
-    mkGetFeatureStatusH ::
-      (TeamId -> Galley (Public.TeamFeatureStatus a)) ->
-      UserId ::: TeamId ::: JSON ->
-      Galley Response
-    mkGetFeatureStatusH getter (uid ::: tid ::: _) = do
+  Public.KnownTeamFeatureName a =>
+  ( TeamId ->
+    Galley (Public.TeamFeatureStatus a)
+  ) ->
+  DoAuth ->
+  TeamId ->
+  Galley (Public.TeamFeatureStatus a)
+getFeatureStatus getter doauth tid = do
+  case doauth of
+    DoAuth uid -> do
       zusrMembership <- Data.teamMember tid uid
       void $ permissionCheck (ViewTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
-      json <$> getter tid
+    DontDoAuth ->
+      pure ()
+  getter tid
 
-    mkGetFeatureStatusInternalH ::
-      (TeamId -> Galley (Public.TeamFeatureStatus a)) ->
-      TeamId ::: JSON ->
-      Galley Response
-    mkGetFeatureStatusInternalH getter (tid ::: _) = do
-      json <$> getter tid
-
-    mkSetFeatureStatusH ::
-      (TeamId -> Public.TeamFeatureStatus a -> Galley ()) ->
-      UserId ::: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON ->
-      Galley Response
-    mkSetFeatureStatusH setter (uid ::: tid ::: req ::: _) = do
+setFeatureStatus ::
+  forall (a :: Public.TeamFeatureName).
+  Public.KnownTeamFeatureName a =>
+  ( TeamId ->
+    Public.TeamFeatureStatus a ->
+    Galley (Public.TeamFeatureStatus a)
+  ) ->
+  DoAuth ->
+  TeamId ->
+  Public.TeamFeatureStatus a ->
+  Galley (Public.TeamFeatureStatus a)
+setFeatureStatus setter doauth tid status = do
+  case doauth of
+    DoAuth uid -> do
       zusrMembership <- Data.teamMember tid uid
       void $ permissionCheck (ChangeTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
-      status <- fromJsonBody req
-      setter tid status
-      pure (empty & setStatus status204)
-
-    mkSetFeatureStatusInternalH ::
-      (TeamId -> Public.TeamFeatureStatus a -> Galley ()) ->
-      TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON ->
-      Galley Response
-    mkSetFeatureStatusInternalH setter (tid ::: req ::: _) = do
-      status <- fromJsonBody req
-      setter tid status
-      pure (empty & setStatus status204)
+    DontDoAuth ->
+      pure ()
+  setter tid status
 
 getSSOStatusInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureSSO)
 getSSOStatusInternal tid = do
@@ -930,16 +918,13 @@ getSSOStatusInternal tid = do
   status <- TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureSSO tid
   pure . fromMaybe defStatus $ status
 
-setSSOStatusInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureSSO) -> Galley ()
+setSSOStatusInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureSSO) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureSSO)
 setSSOStatusInternal tid status = do
   let statusValue = Public.tfwoStatus status
   case statusValue of
     Public.TeamFeatureDisabled -> throwM disableSsoNotImplemented
     Public.TeamFeatureEnabled -> pure () -- this one is easy to implement :)
   TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureSSO tid status
-
-ssoFeatureStatusHandlers :: FeatureStatusHandlers 'Public.TeamFeatureSSO
-ssoFeatureStatusHandlers = mkFeatureStatusHandlers getSSOStatusInternal setSSOStatusInternal
 
 getLegalholdStatusInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold)
 getLegalholdStatusInternal tid = do
@@ -952,7 +937,7 @@ getLegalholdStatusInternal tid = do
     FeatureLegalHoldDisabledPermanently -> do
       pure (Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled)
 
-setLegalholdStatusInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold) -> Galley ()
+setLegalholdStatusInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold)
 setLegalholdStatusInternal tid status = do
   let statusValue = Public.tfwoStatus status
   do
@@ -974,9 +959,6 @@ setLegalholdStatusInternal tid status = do
       when (size > limit) $ do
         throwM cannotEnableLegalHoldServiceLargeTeam
 
-legalholdFeatureStatusHandlers :: FeatureStatusHandlers 'Public.TeamFeatureLegalHold
-legalholdFeatureStatusHandlers = mkFeatureStatusHandlers getLegalholdStatusInternal setLegalholdStatusInternal
-
 getTeamSearchVisibilityAvailableInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility)
 getTeamSearchVisibilityAvailableInternal tid = do
   -- TODO: This is just redundant given there is a decent default
@@ -989,19 +971,13 @@ getTeamSearchVisibilityAvailableInternal tid = do
   fromMaybe defConfig
     <$> TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibility tid
 
-setTeamSearchVisibilityAvailableInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility) -> Galley ()
+setTeamSearchVisibilityAvailableInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility)
 setTeamSearchVisibilityAvailableInternal tid status = do
   let statusValue = Public.tfwoStatus status
   case statusValue of
     Public.TeamFeatureDisabled -> SearchVisibilityData.resetSearchVisibility tid
     Public.TeamFeatureEnabled -> pure () -- This allows the option to be set at the team level
   TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibility tid status
-
-teamSearchVisibilityAvailableHandlers :: FeatureStatusHandlers 'Public.TeamFeatureSearchVisibility
-teamSearchVisibilityAvailableHandlers =
-  mkFeatureStatusHandlers
-    getTeamSearchVisibilityAvailableInternal
-    setTeamSearchVisibilityAvailableInternal
 
 getValidateSAMLEmailsInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails)
 getValidateSAMLEmailsInternal tid = do
@@ -1011,15 +987,9 @@ getValidateSAMLEmailsInternal tid = do
   fromMaybe defaultStatus
     <$> TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureValidateSAMLEmails tid
 
-setValidateSAMLEmailsInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails) -> Galley ()
+setValidateSAMLEmailsInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails)
 setValidateSAMLEmailsInternal tid =
   TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureValidateSAMLEmails tid
-
-validateSAMLEmailsHandlers :: FeatureStatusHandlers 'Public.TeamFeatureValidateSAMLEmails
-validateSAMLEmailsHandlers =
-  mkFeatureStatusHandlers
-    getValidateSAMLEmailsInternal
-    setValidateSAMLEmailsInternal
 
 getDigitalSignaturesInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures)
 getDigitalSignaturesInternal tid = do
@@ -1029,15 +999,9 @@ getDigitalSignaturesInternal tid = do
   fromMaybe defaultStatus
     <$> TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureDigitalSignatures tid
 
-setDigitalSignaturesInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures) -> Galley ()
+setDigitalSignaturesInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures)
 setDigitalSignaturesInternal tid =
   TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureDigitalSignatures tid
-
-digitalSignaturesHandlers :: FeatureStatusHandlers 'Public.TeamFeatureDigitalSignatures
-digitalSignaturesHandlers =
-  mkFeatureStatusHandlers
-    getDigitalSignaturesInternal
-    setDigitalSignaturesInternal
 
 -- | Modify and get visibility type for a team (internal, no user permission checks)
 getSearchVisibilityInternalH :: TeamId ::: JSON -> Galley Response
@@ -1053,14 +1017,8 @@ getAppLockInternal tid = do
   status <- TeamFeatures.getApplockFeatureStatus tid
   pure $ fromMaybe defaultStatus status
 
-setAppLockInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock) -> Galley ()
+setAppLockInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock)
 setAppLockInternal = TeamFeatures.setApplockFeatureStatus
-
-appLockHandlers :: FeatureStatusHandlers 'Public.TeamFeatureAppLock
-appLockHandlers =
-  mkFeatureStatusHandlers
-    getAppLockInternal
-    setAppLockInternal
 
 getSearchVisibilityInternal :: TeamId -> Galley TeamSearchVisibilityView
 getSearchVisibilityInternal = fmap TeamSearchVisibilityView . SearchVisibilityData.getSearchVisibility

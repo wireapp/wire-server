@@ -70,10 +70,11 @@ setFeatureStatusNoConfig ::
   ) =>
   TeamId ->
   (TeamFeatureStatus a) ->
-  m ()
+  m (TeamFeatureStatus a)
 setFeatureStatusNoConfig tid status = do
   let flag = Public.tfwoStatus status
   retry x5 $ write (update (Public.knownTeamFeatureName @a)) (params Quorum (flag, tid))
+  pure status
   where
     update :: TeamFeatureName -> PrepQuery W (TeamFeatureStatusValue, TeamId) ()
     update feature = fromString $ "update team_features set " <> toCol feature <> " = ? where team_id = ?"
@@ -99,12 +100,13 @@ setApplockFeatureStatus ::
   (MonadClient m) =>
   TeamId ->
   (TeamFeatureStatus 'Public.TeamFeatureAppLock) ->
-  m ()
+  m (TeamFeatureStatus 'Public.TeamFeatureAppLock)
 setApplockFeatureStatus tid status = do
   let statusValue = Public.tfwcStatus status
       enforce = Public.applockEnforceAppLock . Public.tfwcConfig $ status
       timeout = Public.applockInactivityTimeoutSecs . Public.tfwcConfig $ status
   retry x5 $ write update (params Quorum (statusValue, enforce, timeout, tid))
+  pure status
   where
     update :: PrepQuery W (TeamFeatureStatusValue, Public.EnforceAppLock, Int32, TeamId) ()
     update =
