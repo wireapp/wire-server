@@ -51,6 +51,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Deriving.Aeson
 import Imports
+import Test.QuickCheck.Arbitrary (arbitrary)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 
 ----------------------------------------------------------------------
@@ -177,7 +178,7 @@ modelForTeamFeature name@TeamFeatureAppLock = modelTeamFeatureStatusWithConfig n
 newtype TeamFeatureStatusNoConfig = TeamFeatureStatusNoConfig
   { tfwoStatus :: TeamFeatureStatusValue
   }
-  deriving newtype (Eq, Show, Generic, Typeable)
+  deriving newtype (Eq, Show, Generic, Typeable, Arbitrary)
 
 modelTeamFeatureStatusNoConfig :: TeamFeatureName -> Doc.Model
 modelTeamFeatureStatusNoConfig name = Doc.defineModel (cs $ show name) $ do
@@ -185,10 +186,11 @@ modelTeamFeatureStatusNoConfig name = Doc.defineModel (cs $ show name) $ do
   Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
 
 instance FromJSON TeamFeatureStatusNoConfig where
-  parseJSON = undefined -- derive?
+  parseJSON = withObject "TeamFeatureStatus" $ \ob ->
+    TeamFeatureStatusNoConfig <$> ob .: "status"
 
 instance ToJSON TeamFeatureStatusNoConfig where
-  toJSON = undefined -- derive?
+  toJSON (TeamFeatureStatusNoConfig status) = object ["status" .= status]
 
 ----------------------------------------------------------------------
 -- TeamFeatureStatusWithConfig
@@ -198,6 +200,9 @@ data TeamFeatureStatusWithConfig (cfg :: *) = TeamFeatureStatusWithConfig
     tfwcConfig :: cfg
   }
   deriving stock (Eq, Show, Generic, Typeable)
+
+instance Arbitrary cfg => Arbitrary (TeamFeatureStatusWithConfig cfg) where
+  arbitrary = TeamFeatureStatusWithConfig <$> arbitrary <*> arbitrary
 
 modelTeamFeatureStatusWithConfig :: TeamFeatureName -> Doc.Model -> Doc.Model
 modelTeamFeatureStatusWithConfig name cfgModel = Doc.defineModel (cs $ show name) $ do

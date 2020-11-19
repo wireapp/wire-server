@@ -241,51 +241,19 @@ declareNamedSchemaFeatureNoConfig _ =
       mempty
         & enum_ ?~ [String "enabled", String "disabled"]
 
--- instance (TeamFeatureStatusValue ~ TeamFeatureStatus a) => ToSchema (TeamFeatureStatus a) where
---   declareNamedSchema = declareNamedSchemaFeatureNoConfig
-
 instance ToSchema TeamFeatureStatusNoConfig where
   declareNamedSchema = declareNamedSchemaFeatureNoConfig
 
--- instance ToSchema (TeamFeatureStatus 'TeamFeatureSSO) where
---   declareNamedSchema = declareNamedSchemaFeatureNoConfig
-
--- instance ToSchema (TeamFeatureStatus 'TeamFeatureSearchVisibility) where
---   declareNamedSchema = declareNamedSchemaFeatureNoConfig
-
--- instance ToSchema (TeamFeatureStatus 'TeamFeatureValidateSAMLEmails) where
---   declareNamedSchema = declareNamedSchemaFeatureNoConfig
-
--- instance ToSchema (TeamFeatureStatus 'TeamFeatureDigitalSignatures) where
---   declareNamedSchema = declareNamedSchemaFeatureNoConfig
-
-instance ToSchema TeamFeatureAppLockStatus where
+-- (we're still using the swagger1.2 swagger for this, but let's just keep it around, we may use it later.)
+instance ToSchema TeamFeatureAppLockConfig where
   declareNamedSchema _ =
     pure $
-      NamedSchema (Just "TeamFeatureAppLockStatus") $
-        mempty
-          & properties .~ properties_
-          & required .~ ["status", "config"]
-          & type_ ?~ SwaggerObject
-          & description ?~ "whether a given team feature is enabled"
-    where
-      properties_ :: InsOrdHashMap Text (Referenced Schema)
-      properties_ =
-        fromList
-          [ ("status", Inline statusValue),
-            ("config", Inline config)
-          ]
-
-      statusValue =
-        mempty
-          & enum_ ?~ [String "enabled", String "disabled"]
-
-      config =
+      NamedSchema (Just "TeamFeatureAppLockConfig") $
         mempty
           & type_ .~ Just SwaggerObject
           & properties .~ configProperties
           & required .~ ["enforceAppLock", "inactivityTimeoutSecs"]
-
+    where
       configProperties :: InsOrdHashMap Text (Referenced Schema)
       configProperties =
         fromList
