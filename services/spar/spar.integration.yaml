@@ -40,3 +40,7 @@ richInfoLimit: 5000  # should be in sync with Brig
 logNetStrings: False # log using netstrings encoding (see http://cr.yp.to/proto/netstrings.txt)
 
 brigSettingsTeamInvitationTimeout: 5 # Keep this in sync with optSettings.setTeamInvitationTimeout from brig
+
+workarounds:
+  sendSamlUsersTraditionalInvitesInTeams:
+    - d9bc273a-2a78-11eb-bddc-ff49f2dd9f3d
