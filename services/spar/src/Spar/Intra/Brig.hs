@@ -465,8 +465,14 @@ ensureReAuthorised (Just uid) secret = do
       method GET
         . paths ["/i/users", toByteString' uid, "reauthenticate"]
         . json (ReAuthUser secret)
-  unless (statusCode resp == 200) $
-    rethrow "brig" resp
+  let sCode = statusCode resp
+  if
+      | sCode == 200 ->
+        pure ()
+      | sCode == 403 ->
+        throwSpar SparReAuthRequired
+      | otherwise ->
+        rethrow "brig" resp
 
 -- | Get persistent cookie from brig and redirect user past login process.
 --
