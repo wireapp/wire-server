@@ -22,9 +22,7 @@ module Brig.Run
 where
 
 import Brig.API (sitemap)
-import Brig.API.Error (Error (RichError, StdError), invalidEmail, phoneError, zauthError)
 import Brig.API.Handler
-import qualified Brig.API.Handler as Brig
 import Brig.API.Public (ServantAPI, servantSitemap)
 import Brig.AWS (sesQueue)
 import qualified Brig.AWS as AWS
@@ -33,31 +31,24 @@ import Brig.App
 import qualified Brig.Calling as Calling
 import qualified Brig.InternalEvent.Process as Internal
 import Brig.Options hiding (internalEvents, sesQueue)
-import Brig.Phone (PhoneException)
 import qualified Brig.Queue as Queue
 import qualified Control.Concurrent.Async as Async
-import Control.Error (runExceptT)
-import Control.Lens ((^.))
-import Control.Monad.Catch (catches, finally, throwM)
-import qualified Control.Monad.Catch as Catch
-import qualified Data.Aeson as Aeson
+import Control.Lens ((.~), (^.))
+import Control.Monad.Catch (finally)
+import Data.Default (Default (def))
+import Data.Id (RequestId (..))
 import qualified Data.Metrics.Middleware.Prometheus as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
-import qualified Data.Text.Lazy as LText
-import qualified Data.Text.Lazy.Encoding as LText
-import qualified Data.ZAuth.Validation as ZV
 import Imports hiding (head)
-import Network.HTTP.Types (Status (statusCode))
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Middleware.Gunzip as GZip
 import qualified Network.Wai.Middleware.Gzip as GZip
-import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai.Utilities (lookupRequestId)
 import Network.Wai.Utilities.Server
 import qualified Network.Wai.Utilities.Server as Server
 import Servant ((:<|>) (..))
 import qualified Servant
-import Servant.Server (ServerError (ServerError))
 import Util.Options
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it
@@ -90,15 +81,16 @@ run o = do
 mkApp :: Opts -> IO (Wai.Application, Env)
 mkApp o = do
   e <- newEnv o
-  return (middleware e $ servantApp e, e)
+  return (middleware e $ \reqId -> servantApp (e & requestId .~ reqId), e)
   where
     rtree = compile (sitemap o)
-    middleware :: Env -> Wai.Middleware
+    middleware :: Env -> (RequestId -> Wai.Application) -> Wai.Application
     middleware e =
       Metrics.waiPrometheusMiddleware (sitemap o)
         . catchErrors (e ^. applog) [Right $ e ^. metrics]
         . GZip.gunzip
         . GZip.gzip GZip.def
+        . lookupRequestIdMiddleware
     app e r k = runHandler e r (Server.route rtree r k) k
     -- the servant API wraps the one defined using wai-routing
     servantApp :: Env -> Wai.Application
@@ -107,23 +99,9 @@ mkApp o = do
         -- (Proxy @ServantAPI)
         -- (Servant.hoistServer (Proxy @ServantAPI) handlerToHandler servantSitemap)
         (Proxy @(ServantAPI :<|> Servant.Raw))
-        (Servant.hoistServer (Proxy @ServantAPI) (handlerToHandler e) servantSitemap :<|> Servant.Tagged (app e))
+        (Servant.hoistServer (Proxy @ServantAPI) (toServantHandler e) servantSitemap :<|> Servant.Tagged (app e))
 
-handlerToHandler :: Env -> Brig.Handler a -> Servant.Handler a
-handlerToHandler env action = do
-  a <- liftIO $ runAppT env (runExceptT action) `catches` errors
-  case a of
-    Left (StdError (Wai.Error code label msg)) -> Servant.throwError $ ServerError (statusCode code) (LText.unpack label) (LText.encodeUtf8 msg) []
-    Left (RichError (Wai.Error code label _) json headers) -> Servant.throwError $ ServerError (statusCode code) (LText.unpack label) (Aeson.encode json) headers
-    Right x -> pure x
-  where
-    errors =
-      [ Catch.Handler $ \(ex :: PhoneException) ->
-          pure (Left (phoneError ex)),
-        Catch.Handler $ \(ex :: ZV.Failure) ->
-          pure (Left (zauthError ex)),
-        Catch.Handler $ \(ex :: AWS.Error) ->
-          case ex of
-            AWS.SESInvalidDomain -> pure (Left (StdError invalidEmail))
-            _ -> throwM ex -- TODO Servant.throwError ?
-      ]
+lookupRequestIdMiddleware :: (RequestId -> Wai.Application) -> Wai.Application
+lookupRequestIdMiddleware mkapp req cont = do
+  let reqid = maybe def RequestId $ lookupRequestId req
+  mkapp reqid req cont

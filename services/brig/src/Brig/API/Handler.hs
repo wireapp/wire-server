@@ -19,6 +19,7 @@ module Brig.API.Handler
   ( -- * Handler Monad
     Handler,
     runHandler,
+    toServantHandler,
 
     -- * Utilities
     JSON,
@@ -40,9 +41,13 @@ import Control.Lens (set, view)
 import Control.Monad.Catch (catches, throwM)
 import qualified Control.Monad.Catch as Catch
 import Data.Aeson (FromJSON)
+import qualified Data.Aeson as Aeson
 import Data.Default (def)
+import qualified Data.Text.Lazy as LText
+import qualified Data.Text.Lazy.Encoding as LText
 import qualified Data.ZAuth.Validation as ZV
 import Imports
+import Network.HTTP.Types (Status (statusCode))
 import Network.Wai (Request, ResponseReceived)
 import Network.Wai.Predicate (Media)
 import Network.Wai.Routing (Continue)
@@ -51,6 +56,7 @@ import qualified Network.Wai.Utilities.Error as WaiError
 import Network.Wai.Utilities.Request (JsonRequest, lookupRequestId, parseBody)
 import Network.Wai.Utilities.Response (addHeader, json, setStatus)
 import qualified Network.Wai.Utilities.Server as Server
+import qualified Servant
 import System.Logger.Class (Logger)
 
 -------------------------------------------------------------------------------
@@ -61,19 +67,35 @@ type Handler = ExceptT Error AppIO
 runHandler :: Env -> Request -> Handler ResponseReceived -> Continue IO -> IO ResponseReceived
 runHandler e r h k = do
   let e' = set requestId (maybe def RequestId (lookupRequestId r)) e
-  a <- runAppT e' (runExceptT h) `catches` errors
+  a <- runAppT e' (runExceptT h) `catches` brigErrorHandlers
   either (onError (view applog e') r k) return a
+
+toServantHandler :: Env -> Handler a -> Servant.Handler a
+toServantHandler env action = do
+  a <- liftIO $ runAppT env (runExceptT action) `catches` brigErrorHandlers
+  case a of
+    Left (StdError werr) ->
+      Servant.throwError $
+        Servant.ServerError (mkCode werr) (mkPhrase werr) (LText.encodeUtf8 $ WaiError.message werr) []
+    Left (RichError werr body headers) ->
+      Servant.throwError $
+        Servant.ServerError (mkCode werr) (mkPhrase werr) (Aeson.encode body) headers
+    Right x -> pure x
   where
-    errors =
-      [ Catch.Handler $ \(ex :: PhoneException) ->
-          pure (Left (phoneError ex)),
-        Catch.Handler $ \(ex :: ZV.Failure) ->
-          pure (Left (zauthError ex)),
-        Catch.Handler $ \(ex :: AWS.Error) ->
-          case ex of
-            AWS.SESInvalidDomain -> pure (Left (StdError invalidEmail))
-            _ -> throwM ex
-      ]
+    mkCode = statusCode . WaiError.code
+    mkPhrase = LText.unpack . WaiError.label
+
+brigErrorHandlers :: [Catch.Handler IO (Either Error a)]
+brigErrorHandlers =
+  [ Catch.Handler $ \(ex :: PhoneException) ->
+      pure (Left (phoneError ex)),
+    Catch.Handler $ \(ex :: ZV.Failure) ->
+      pure (Left (zauthError ex)),
+    Catch.Handler $ \(ex :: AWS.Error) ->
+      case ex of
+        AWS.SESInvalidDomain -> pure (Left (StdError invalidEmail))
+        _ -> throwM ex -- TODO Servant.throwError ?
+  ]
 
 onError :: Logger -> Request -> Continue IO -> Error -> IO ResponseReceived
 onError g r k e = do
