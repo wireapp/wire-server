@@ -24,8 +24,12 @@ module Spar.Types where
 
 import Control.Lens (makeLenses)
 import Control.Monad.Except
+import Crypto.Hash (SHA512 (..), hash)
 import Data.Aeson
 import Data.Aeson.TH
+import Data.Attoparsec.ByteString (string)
+import qualified Data.Binary.Builder as BB (fromByteString)
+import Data.ByteArray.Encoding (Base (..), convertToBase)
 import qualified Data.ByteString.Builder as Builder
 import Data.ByteString.Conversion
 import Data.Id (ScimTokenId, TeamId, UserId)
@@ -143,6 +147,25 @@ instance ToJSON IdPMetadataInfo where
 newtype ScimToken = ScimToken {fromScimToken :: Text}
   deriving (Eq, Show, FromJSON, ToJSON, FromByteString, ToByteString)
 
+newtype ScimTokenHash = ScimTokenHash {fromScimTokenHash :: Text}
+  deriving (Eq, Show)
+
+instance FromByteString ScimTokenHash where
+  parser = string "sha512:" *> (ScimTokenHash <$> parser)
+
+instance ToByteString ScimTokenHash where
+  builder (ScimTokenHash t) = BB.fromByteString "sha512:" <> builder t
+
+data ScimTokenLookupKey
+  = ScimTokenLookupKeyHashed ScimTokenHash
+  | ScimTokenLookupKeyPlaintext ScimToken
+  deriving (Eq, Show)
+
+hashScimToken :: ScimToken -> ScimTokenHash
+hashScimToken token =
+  let digest = hash @ByteString @SHA512 (encodeUtf8 (fromScimToken token))
+   in ScimTokenHash (cs @ByteString @Text (convertToBase Base64 digest))
+
 -- | Metadata that we store about each token.
 data ScimTokenInfo = ScimTokenInfo
   { -- | Which team can be managed with the token
@@ -243,6 +266,8 @@ data Opts' a = Opts
     discoUrl :: !(Maybe Text),
     logNetStrings :: !(Maybe (Last Bool)),
     logFormat :: !(Maybe (Last LogFormat)),
+    -- | Keep this in sync with optSettings.setTeamInvitationTimeout from brig
+    brigSettingsTeamInvitationTimeout :: !(Maybe Int),
     -- , optSettings   :: !Settings  -- (nothing yet; see other services for what belongs in here.)
     derivedOpts :: !a
   }

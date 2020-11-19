@@ -53,7 +53,7 @@ import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import Spar.Scim
 import qualified Spar.Scim.User as SU
-import Spar.Types (IdP)
+import Spar.Types (IdP, Opts' (..))
 import qualified Spar.Types
 import qualified Text.XML.DSig as SAML
 import Util
@@ -673,12 +673,9 @@ testCreateUserTimeout = do
       tryquery (filterBy "externalId" $ fromEmail email)
 
     waitUserExpiration = do
-      -- this should be something like @round . Brig.Options.setTeamInvitationTimeout . Brig.Options.optSettings .
-      -- view teBrigOpts $ env@, but if this goes out of sync with the brig config, we will only get benign false
-      -- negatives, and importing brig options into spar integration tests is just too awkward.
-      let setTeamInvitationTimeout = 5
-      Control.Exception.assert (setTeamInvitationTimeout < 30) $ do
-        threadDelay $ (setTeamInvitationTimeout + 1) * 1_000_000
+      timeoutSecs <- asks $ fromMaybe 5 . brigSettingsTeamInvitationTimeout . _teOpts
+      Control.Exception.assert (timeoutSecs < 30) $ do
+        threadDelay $ (timeoutSecs + 1) * 1_000_000
 
 ----------------------------------------------------------------------------
 -- Listing users

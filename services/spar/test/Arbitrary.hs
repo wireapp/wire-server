@@ -44,6 +44,9 @@ instance Arbitrary WireIdP where
 
 deriving instance Arbitrary ScimToken
 
+instance Arbitrary ScimTokenHash where
+  arbitrary = hashScimToken <$> arbitrary
+
 instance Arbitrary ScimTokenInfo where
   arbitrary =
     ScimTokenInfo

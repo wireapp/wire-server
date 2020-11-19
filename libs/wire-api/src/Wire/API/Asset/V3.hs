@@ -59,11 +59,8 @@ where
 
 import qualified Codec.MIME.Type as MIME
 import Control.Lens (makeLenses)
-import Crypto.Hash (Digest, MD5, hashlazy)
 import Data.Aeson
 import Data.Attoparsec.ByteString.Char8
-import qualified Data.ByteArray as B
-import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LBS
@@ -185,7 +182,7 @@ buildMultipartBody sets typ bs =
 -- | Begin building a @multipart/mixed@ request body for a non-resumable upload.
 -- The returned 'Builder' can be immediately followed by the actual asset bytes.
 beginMultipartBody :: AssetSettings -> AssetHeaders -> Builder
-beginMultipartBody sets (AssetHeaders t l d) =
+beginMultipartBody sets (AssetHeaders t l) =
   byteString
     "--frontier\r\n\
     \Content-Type: application/json\r\n\
@@ -205,11 +202,7 @@ beginMultipartBody sets (AssetHeaders t l d) =
       \Content-Length: "
     <> wordDec l
     <> "\r\n\
-       \Content-MD5: "
-    <> byteString (B64.encode (B.convert d))
-    <> byteString
-      "\r\n\
-      \\r\n"
+       \\r\n"
   where
     settingsJson = encode sets
 
@@ -224,12 +217,11 @@ endMultipartBody = byteString "\r\n--frontier--\r\n"
 -- | Headers provided during upload.
 data AssetHeaders = AssetHeaders
   { hdrType :: MIME.Type,
-    hdrLength :: Word,
-    hdrMD5 :: Digest MD5
+    hdrLength :: Word
   }
 
 mkHeaders :: MIME.Type -> LByteString -> AssetHeaders
-mkHeaders t b = AssetHeaders t (fromIntegral (LBS.length b)) (hashlazy b)
+mkHeaders t b = AssetHeaders t (fromIntegral (LBS.length b))
 
 --------------------------------------------------------------------------------
 -- AssetSettings
