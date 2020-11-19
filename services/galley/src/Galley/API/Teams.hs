@@ -861,85 +861,44 @@ canUserJoinTeam tid = do
       when (size >= limit) $ do
         throwM tooManyTeamMembersOnTeamWithLegalhold
 
-data FeatureStatusHandlers (a :: Public.TeamFeatureName) = FeatureStatusHandlers
-  { fshGet :: UserId ::: TeamId ::: JSON -> Galley Response,
-    fshGetInternal :: TeamId ::: JSON -> Galley Response,
-    fshSet :: UserId ::: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON -> Galley Response,
-    fshSetInternal :: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON -> Galley Response
-  }
+data DoAuth = DoAuth | DontDoAuth
 
-mkFeatureStatusHandlers ::
+perhapsDoAuth :: _
+perhapsDoAuth DonDoAuth _ = pure ()
+perhapsDoAuth DoAuth Nothing = throwM (operationDenied p)
+perhapsDoAuth DoAuth (Just uid) = do
+  zusrMembership <- Data.teamMember tid uid
+  void $ permissionCheck (ChangeTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
+
+getTeamFeatureNoConfig ::
   forall (a :: Public.TeamFeatureName).
-  ( Public.KnownTeamFeatureName a,
-    ToJSON (Public.TeamFeatureStatus a),
-    FromJSON (Public.TeamFeatureStatus a)
-  ) =>
-  (TeamId -> Galley (Public.TeamFeatureStatus a)) ->
-  (TeamId -> Public.TeamFeatureStatus a -> Galley ()) ->
-  FeatureStatusHandlers (a :: Public.TeamFeatureName)
-mkFeatureStatusHandlers getter' setter' =
-  FeatureStatusHandlers
-    (mkGetFeatureStatusH getter')
-    (mkGetFeatureStatusInternalH getter')
-    (mkSetFeatureStatusH setter')
-    (mkSetFeatureStatusInternalH setter')
-  where
-    mkGetFeatureStatusH ::
-      (TeamId -> Galley (Public.TeamFeatureStatus a)) ->
-      UserId ::: TeamId ::: JSON ->
-      Galley Response
-    mkGetFeatureStatusH getter (uid ::: tid ::: _) = do
-      zusrMembership <- Data.teamMember tid uid
-      void $ permissionCheck (ViewTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
-      json <$> getter tid
+  Public.TeamFeatureStatusNoConfig a =>
+  DoAuth ->
+  Maybe UserId ->
+  TeamId ->
+  Gally (Public.TeamFeatureStatus a)
+getTeamFeatureNoConfig doAuth mbUid tid = do
+  perhapsDoAuth doAuth mbUid
+  defaultCfg :: Public.TeamFeatureStatus a <- view (options . optSettings . setFeatureFlags . error "flag @a")
+  teamCfg :: Maybe (Public.TeamFeatureStatus a) <- TeamFeatures.getFeatureStatusNoConfig @a tid
+  pure $ fromMaybe defaultCfg teamCfg
 
-    mkGetFeatureStatusInternalH ::
-      (TeamId -> Galley (Public.TeamFeatureStatus a)) ->
-      TeamId ::: JSON ->
-      Galley Response
-    mkGetFeatureStatusInternalH getter (tid ::: _) = do
-      json <$> getter tid
+setTeamFeatureNoConfig ::
+  forall (a :: Public.TeamFeatureName).
+  Public.TeamFeatureStatusNoConfig a =>
+  DoAuth ->
+  Maybe UserId ->
+  TeamId ->
+  Public.TeamFeatureStatus a ->
+  Gally (Public.TeamFeatureStatus a)
+setTeamFeatureNoConfig doAuth mbUid tid cfg = do
+  perhapsDoAuth doAuth mbUid
 
-    mkSetFeatureStatusH ::
-      (TeamId -> Public.TeamFeatureStatus a -> Galley ()) ->
-      UserId ::: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON ->
-      Galley Response
-    mkSetFeatureStatusH setter (uid ::: tid ::: req ::: _) = do
-      zusrMembership <- Data.teamMember tid uid
-      void $ permissionCheck (ChangeTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
-      status <- fromJsonBody req
-      setter tid status
-      pure (empty & setStatus status204)
+  -- if special case sso Public.TeamFeatureDisabled -> throwM disableSsoNotImplemented
 
-    mkSetFeatureStatusInternalH ::
-      (TeamId -> Public.TeamFeatureStatus a -> Galley ()) ->
-      TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON ->
-      Galley Response
-    mkSetFeatureStatusInternalH setter (tid ::: req ::: _) = do
-      status <- fromJsonBody req
-      setter tid status
-      pure (empty & setStatus status204)
-
-getSSOStatusInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureSSO)
-getSSOStatusInternal tid = do
-  defStatus <- do
-    featureSSO <- view (options . optSettings . setFeatureFlags . flagSSO)
-    pure $ case featureSSO of
-      FeatureSSOEnabledByDefault -> Public.TeamFeatureStatusNoConfig Public.TeamFeatureEnabled
-      FeatureSSODisabledByDefault -> Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
-  status <- TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureSSO tid
-  pure . fromMaybe defStatus $ status
-
-setSSOStatusInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureSSO) -> Galley ()
-setSSOStatusInternal tid status = do
-  let statusValue = Public.tfwoStatus status
-  case statusValue of
-    Public.TeamFeatureDisabled -> throwM disableSsoNotImplemented
-    Public.TeamFeatureEnabled -> pure () -- this one is easy to implement :)
-  TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureSSO tid status
-
-ssoFeatureStatusHandlers :: FeatureStatusHandlers 'Public.TeamFeatureSSO
-ssoFeatureStatusHandlers = mkFeatureStatusHandlers getSSOStatusInternal setSSOStatusInternal
+  defaultCfg :: Public.TeamFeatureStatus a <- view (options . optSettings . setFeatureFlags . error "flag @a")
+  teamCfg :: Maybe (Public.TeamFeatureStatus a) <- TeamFeatures.getFeatureStatusNoConfig @a tid
+  pure $ fromMaybe defaultCfg teamCfg
 
 getLegalholdStatusInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold)
 getLegalholdStatusInternal tid = do
