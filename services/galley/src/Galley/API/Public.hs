@@ -450,12 +450,12 @@ sitemap = do
     response 204 "Search visibility set" end
     errorResponse Error.teamSearchVisibilityNotEnabled
 
-  mkFeatureGetRoute Teams.ssoFeatureStatusHandlers
-  mkFeatureGetRoute Teams.legalholdFeatureStatusHandlers
-  mkFeatureGetRoute Teams.teamSearchVisibilityAvailableHandlers
-  mkFeatureGetRoute Teams.validateSAMLEmailsHandlers
-  mkFeatureGetRoute Teams.digitalSignaturesHandlers
-  mkFeatureGetRoute Teams.appLockHandlers
+  mkFeatureGetAndPutRoute Teams.ssoFeatureStatusHandlers
+  mkFeatureGetAndPutRoute Teams.legalholdFeatureStatusHandlers
+  mkFeatureGetAndPutRoute Teams.teamSearchVisibilityAvailableHandlers
+  mkFeatureGetAndPutRoute Teams.validateSAMLEmailsHandlers
+  mkFeatureGetAndPutRoute Teams.digitalSignaturesHandlers
+  mkFeatureGetAndPutRoute Teams.appLockHandlers
 
   -- Custom Backend API -------------------------------------------------
 
@@ -1077,7 +1077,7 @@ mkFeatureGetAndPutRoute ::
   (Public.KnownTeamFeatureName a) =>
   Teams.FeatureStatusHandlers (a :: Public.TeamFeatureName) ->
   Routes ApiBuilder Galley ()
-mkFeatureGetRoute handlers = do
+mkFeatureGetAndPutRoute handlers = do
   let featureName = Public.knownTeamFeatureName @a
 
   get ("/teams/:tid/features/" <> toByteString' featureName) (continue (Teams.fshGet handlers)) $

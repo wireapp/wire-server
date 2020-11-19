@@ -18,8 +18,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.Data.TeamFeatures
-  ( getFeatureStatus,
-    setFeatureStatus,
+  ( getFeatureStatusNoConfig,
+    setFeatureStatusNoConfig,
     getApplockFeatureStatus,
     setApplockFeatureStatus,
   )
@@ -29,7 +29,13 @@ import Cassandra
 import Data.Id
 import Galley.Data.Instances ()
 import Imports
-import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatus (..), TeamFeatureStatusValue (..))
+import Wire.API.Team.Feature
+  ( TeamFeatureName (..),
+    TeamFeatureStatus,
+    TeamFeatureStatusNoConfig (..),
+    TeamFeatureStatusValue (..),
+    TeamFeatureStatusWithConfig (..),
+  )
 import qualified Wire.API.Team.Feature as Public
 
 toCol :: TeamFeatureName -> String
@@ -66,7 +72,7 @@ setFeatureStatusNoConfig ::
   (TeamFeatureStatus a) ->
   m ()
 setFeatureStatusNoConfig tid status = do
-  let flag = Public.teamFeatureStatusValue status
+  let flag = Public.tfwoStatus status
   retry x5 $ write (update (Public.knownTeamFeatureName @a)) (params Quorum (flag, tid))
   where
     update :: TeamFeatureName -> PrepQuery W (TeamFeatureStatusValue, TeamId) ()
@@ -81,7 +87,7 @@ getApplockFeatureStatus tid = do
   mTuple <- retry x1 q
   pure $
     mTuple <&> \(statusValue, enforce, timeout) ->
-      TeamFeatureStatus statusValue (Public.TeamFeatureAppLockConfig enforce timeout)
+      TeamFeatureStatusWithConfig statusValue (Public.TeamFeatureAppLockConfig enforce timeout)
   where
     select :: PrepQuery R (Identity TeamId) (TeamFeatureStatusValue, Public.EnforceAppLock, Int32)
     select =
@@ -95,9 +101,9 @@ setApplockFeatureStatus ::
   (TeamFeatureStatus 'Public.TeamFeatureAppLock) ->
   m ()
 setApplockFeatureStatus tid status = do
-  let statusValue = Public.teamFeatureStatusValue status
-      enforce = Public.applockEnforceAppLock . Public.teamFeatureConfig $ status
-      timeout = Public.applockInactivityTimeoutSecs . Public.teamFeatureConfig $ status
+  let statusValue = Public.tfwcStatus status
+      enforce = Public.applockEnforceAppLock . Public.tfwcConfig $ status
+      timeout = Public.applockInactivityTimeoutSecs . Public.tfwcConfig $ status
   retry x5 $ write update (params Quorum (statusValue, enforce, timeout, tid))
   where
     update :: PrepQuery W (TeamFeatureStatusValue, Public.EnforceAppLock, Int32, TeamId) ()

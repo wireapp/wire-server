@@ -56,7 +56,7 @@ putTeamSearchVisibilityAvailableInternal g tid statusValue =
     g
     expect2xx
     tid
-    (Public.mkFeatureStatus @'Public.TeamFeatureSearchVisibility statusValue)
+    (Public.TeamFeatureStatusNoConfig statusValue)
 
 putLegalHoldEnabledInternal' ::
   HasCallStack =>
@@ -65,7 +65,7 @@ putLegalHoldEnabledInternal' ::
   Public.TeamFeatureStatusValue ->
   TestM ()
 putLegalHoldEnabledInternal' g tid statusValue =
-  putTeamFeatureFlagInternal g tid (Public.mkFeatureStatus @'Public.TeamFeatureLegalHold statusValue)
+  putTeamFeatureFlagInternal @'Public.TeamFeatureLegalHold g tid (Public.TeamFeatureStatusNoConfig statusValue)
 
 --------------------------------------------------------------------------------
 

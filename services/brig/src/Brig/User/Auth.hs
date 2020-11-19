@@ -69,7 +69,7 @@ import Imports
 import Network.Wai.Utilities.Error ((!>>))
 import System.Logger (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
-import Wire.API.Team.Feature (TeamFeatureStatus (..), TeamFeatureStatusValue (..))
+import Wire.API.Team.Feature (TeamFeatureStatusNoConfig (..), TeamFeatureStatusValue (..))
 
 data Access u = Access
   { accessToken :: !AccessToken,
@@ -327,6 +327,6 @@ legalHoldLogin (LegalHoldLogin uid plainTextPassword label) typ = do
 assertLegalHoldEnabled :: TeamId -> ExceptT LegalHoldLoginError AppIO ()
 assertLegalHoldEnabled tid = do
   stat <- lift $ Intra.getTeamLegalHoldStatus tid
-  case teamFeatureStatusValue stat of
+  case tfwoStatus stat of
     TeamFeatureDisabled -> throwE LegalHoldLoginLegalHoldNotEnabled
     TeamFeatureEnabled -> pure ()

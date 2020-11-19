@@ -58,7 +58,7 @@ testSSO = do
       getSSOInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
       getSSOInternal = assertFlagNoConfig @'Public.TeamFeatureSSO $ Util.getTeamFeatureFlagInternal Public.TeamFeatureSSO tid
       setSSOInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-      setSSOInternal = Util.putTeamFeatureFlagInternal @'Public.TeamFeatureSSO expect2xx tid . Public.mkFeatureStatus
+      setSSOInternal = Util.putTeamFeatureFlagInternal @'Public.TeamFeatureSSO expect2xx tid . Public.TeamFeatureStatusNoConfig
   featureSSO <- view (tsGConf . optSettings . setFeatureFlags . flagSSO)
   case featureSSO of
     FeatureSSODisabledByDefault -> do
@@ -90,7 +90,7 @@ testLegalHold = do
       getLegalHoldInternal = assertFlagNoConfig @'Public.TeamFeatureLegalHold $ Util.getTeamFeatureFlagInternal Public.TeamFeatureLegalHold tid
 
       setLegalHoldInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-      setLegalHoldInternal = Util.putTeamFeatureFlagInternal @'Public.TeamFeatureLegalHold expect2xx tid . Public.mkFeatureStatus
+      setLegalHoldInternal = Util.putTeamFeatureFlagInternal @'Public.TeamFeatureLegalHold expect2xx tid . Public.TeamFeatureStatusNoConfig
   getLegalHold Public.TeamFeatureDisabled
   getLegalHoldInternal Public.TeamFeatureDisabled
 
@@ -126,7 +126,7 @@ testSearchVisibility = do
       getTeamSearchVisibility teamid expected =
         Util.getTeamSearchVisibilityAvailable g owner teamid !!! do
           statusCode === const 200
-          responseJsonEither === const (Right (Public.mkFeatureStatus @'Public.TeamFeatureSearchVisibility expected))
+          responseJsonEither === const (Right (Public.TeamFeatureStatusNoConfig expected))
 
   let getTeamSearchVisibilityInternal ::
         (Monad m, MonadHttp m, MonadIO m, MonadCatch m, HasCallStack) =>
@@ -136,7 +136,7 @@ testSearchVisibility = do
       getTeamSearchVisibilityInternal teamid expected =
         Util.getTeamSearchVisibilityAvailableInternal g teamid !!! do
           statusCode === const 200
-          responseJsonEither === const (Right (Public.mkFeatureStatus @'Public.TeamFeatureSearchVisibility expected))
+          responseJsonEither === const (Right (Public.TeamFeatureStatusNoConfig expected))
 
   let setTeamSearchVisibilityInternal ::
         (Monad m, MonadHttp m, MonadIO m, HasCallStack) =>
@@ -194,7 +194,7 @@ testSimpleFlag = do
 
       setFlagInternal :: Public.TeamFeatureStatusValue -> TestM ()
       setFlagInternal statusValue =
-        Util.putTeamFeatureFlagInternal @a expect2xx tid (Public.mkFeatureStatus statusValue)
+        Util.putTeamFeatureFlagInternal @a expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
 
   -- Disabled by default
   getFlag Public.TeamFeatureDisabled
@@ -219,7 +219,7 @@ assertFlagNoConfig ::
 assertFlagNoConfig res expected = do
   res !!! do
     statusCode === const 200
-    ( fmap Public.teamFeatureStatusValue
+    ( fmap Public.tfwoStatus
         . responseJsonEither @(Public.TeamFeatureStatus a)
       )
       === const (Right expected)
