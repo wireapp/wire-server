@@ -160,6 +160,7 @@ type family TeamFeatureStatus (a :: TeamFeatureName) :: * where
 
 type FeatureHasNoConfig (a :: TeamFeatureName) = (TeamFeatureStatus a ~ TeamFeatureStatusNoConfig) :: Constraint
 
+-- if you add a new constructor here, don't forget to add it to the swagger (1.2) docs in "Wire.API.Swagger"!
 modelForTeamFeature :: TeamFeatureName -> Doc.Model
 modelForTeamFeature name@TeamFeatureLegalHold = modelTeamFeatureStatusNoConfig name
 modelForTeamFeature name@TeamFeatureSSO = modelTeamFeatureStatusNoConfig name
