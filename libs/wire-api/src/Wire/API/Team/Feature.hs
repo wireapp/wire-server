@@ -150,10 +150,6 @@ instance FromByteString TeamFeatureStatusValue where
 ----------------------------------------------------------------------
 -- TeamFeatureStatus
 
--- TODO TeamFeatureStatus -> TeamFeatureConfig
--- TODO TeamFeatureStatusValue -> TeamFeatureStatus
--- TODO TeamFeatureAppLockStatus -> TeamFeatureAppLockConfig
-
 type family TeamFeatureStatus (a :: TeamFeatureName) :: * where
   TeamFeatureStatus 'TeamFeatureLegalHold = TeamFeatureStatusNoConfig
   TeamFeatureStatus 'TeamFeatureSSO = TeamFeatureStatusNoConfig
