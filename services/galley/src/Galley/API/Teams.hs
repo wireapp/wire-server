@@ -963,9 +963,9 @@ getTeamSearchVisibilityAvailableInternal tid = do
   -- TODO: This is just redundant given there is a decent default
   defConfig <- do
     featureTeamSearchVisibility <- view (options . optSettings . setFeatureFlags . flagTeamSearchVisibility)
-    pure $ case featureTeamSearchVisibility of
-      FeatureTeamSearchVisibilityEnabledByDefault -> Public.TeamFeatureStatusNoConfig Public.TeamFeatureEnabled
-      FeatureTeamSearchVisibilityDisabledByDefault -> Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
+    pure . Public.TeamFeatureStatusNoConfig $ case featureTeamSearchVisibility of
+      FeatureTeamSearchVisibilityEnabledByDefault -> Public.TeamFeatureEnabled
+      FeatureTeamSearchVisibilityDisabledByDefault -> Public.TeamFeatureDisabled
 
   fromMaybe defConfig
     <$> TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibility tid
