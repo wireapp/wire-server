@@ -1013,7 +1013,7 @@ getAppLockInternal tid = do
   let defaultStatus =
         Public.TeamFeatureStatusWithConfig
           Public.TeamFeatureDisabled
-          (Public.TeamFeatureAppLockConfig (Public.EnforceAppLock False) (2 * 60))
+          (Public.TeamFeatureAppLockConfig (Public.EnforceAppLock False) (1 * 60))
   status <- TeamFeatures.getApplockFeatureStatus tid
   pure $ fromMaybe defaultStatus status
 
