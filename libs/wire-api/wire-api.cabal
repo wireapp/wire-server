@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 806e7ef5feb03ce2ead26b199aff52dd62cdd2126aa4930b74ae089c40b15d84
+-- hash: 6e69fab14f1d237ddf7fcfd62e1480fa64a2ece784432e730525309a8453540e
 
 name:           wire-api
 version:        0.1.0
@@ -86,6 +86,7 @@ library
     , containers >=0.5
     , cryptonite >=0.11
     , currency-codes >=2.0
+    , deriving-aeson >=0.2
     , email-validate >=2.0
     , errors
     , exceptions >=0.10.0

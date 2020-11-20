@@ -26,6 +26,8 @@ import qualified Cassandra as Cql
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch (MonadCatch, throwM)
+import Data.Aeson (FromJSON, ToJSON)
+import Data.ByteString.Conversion (toByteString')
 import Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local), partitionMappedOrLocalIds)
 import Data.List.NonEmpty (nonEmpty)
@@ -38,10 +40,10 @@ import qualified Galley.API.CustomBackend as CustomBackend
 import qualified Galley.API.Error as Error
 import qualified Galley.API.IdMapping as IdMapping
 import qualified Galley.API.Query as Query
-import Galley.API.Teams (uncheckedDeleteTeamMember)
+import Galley.API.Teams (DoAuth (..), uncheckedDeleteTeamMember)
 import qualified Galley.API.Teams as Teams
 import qualified Galley.API.Update as Update
-import Galley.API.Util (isMember)
+import Galley.API.Util (JSON, isMember)
 import Galley.App
 import qualified Galley.Data as Data
 import qualified Galley.Intra.Push as Intra
@@ -54,6 +56,7 @@ import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SearchVisibility
 import Imports hiding (head)
+import Network.HTTP.Types (status200)
 import Network.Wai
 import Network.Wai.Predicate hiding (err)
 import qualified Network.Wai.Predicate as P
@@ -171,16 +174,12 @@ sitemap = do
   -- Enabling this should only be possible internally.
   -- Viewing the status should be allowed for any admin.
 
-  get "/i/teams/:tid/features/:feature" (continue Teams.getFeatureStatusInternalH) $
-    capture "tid"
-      .&. capture "feature"
-      .&. accept "application" "json"
-
-  put "/i/teams/:tid/features/:feature" (continue Teams.setFeatureStatusInternalH) $
-    capture "tid"
-      .&. capture "feature"
-      .&. jsonRequest @Public.TeamFeatureStatus
-      .&. accept "application" "json"
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureSSO Teams.getSSOStatusInternal Teams.setSSOStatusInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureLegalHold Teams.getLegalholdStatusInternal Teams.setLegalholdStatusInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureSearchVisibility Teams.getTeamSearchVisibilityAvailableInternal Teams.setTeamSearchVisibilityAvailableInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureValidateSAMLEmails Teams.getValidateSAMLEmailsInternal Teams.setValidateSAMLEmailsInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureDigitalSignatures Teams.getDigitalSignaturesInternal Teams.setDigitalSignaturesInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureAppLock Teams.getAppLockInternal Teams.setAppLockInternal
 
   -- Misc API (internal) ------------------------------------------------
 
@@ -320,3 +319,34 @@ safeForever funName action =
     action `catchAny` \exc -> do
       err $ "error" .= show exc ~~ msg (val $ cs funName <> " failed")
       threadDelay 60000000 -- pause to keep worst-case noise in logs manageable
+
+mkFeatureGetAndPutRoute ::
+  forall (a :: Public.TeamFeatureName) r.
+  ( Public.KnownTeamFeatureName a,
+    ToJSON (Public.TeamFeatureStatus a),
+    FromJSON (Public.TeamFeatureStatus a)
+  ) =>
+  (TeamId -> Galley (Public.TeamFeatureStatus a)) ->
+  (TeamId -> Public.TeamFeatureStatus a -> Galley (Public.TeamFeatureStatus a)) ->
+  Routes r Galley ()
+mkFeatureGetAndPutRoute getter setter = do
+  let featureName = Public.knownTeamFeatureName @a
+
+  let getHandler :: TeamId ::: JSON -> Galley Response
+      getHandler (tid ::: _) =
+        json <$> Teams.getFeatureStatus @a getter DontDoAuth tid
+
+  get ("/i/teams/:tid/features/" <> toByteString' featureName) (continue getHandler) $
+    capture "tid"
+      .&. accept "application" "json"
+
+  let putHandler :: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON -> Galley Response
+      putHandler (tid ::: req ::: _) = do
+        status <- fromJsonBody req
+        res <- Teams.setFeatureStatus @a setter DontDoAuth tid status
+        pure $ (json res) & Network.Wai.Utilities.setStatus status200
+
+  put ("/i/teams/:tid/features/" <> toByteString' featureName) (continue putHandler) $
+    capture "tid"
+      .&. jsonRequest @(Public.TeamFeatureStatus a)
+      .&. accept "application" "json"

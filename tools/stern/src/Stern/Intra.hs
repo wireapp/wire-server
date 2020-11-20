@@ -425,24 +425,38 @@ setBlacklistStatus status emailOrPhone = do
     statusToMethod False = DELETE
     statusToMethod True = POST
 
-getTeamFeatureFlag :: TeamId -> Public.TeamFeatureName -> Handler Public.TeamFeatureStatus
-getTeamFeatureFlag tid feature = do
+getTeamFeatureFlag ::
+  forall (a :: Public.TeamFeatureName).
+  ( Public.KnownTeamFeatureName a,
+    Typeable (Public.TeamFeatureStatus a),
+    FromJSON (Public.TeamFeatureStatus a)
+  ) =>
+  TeamId ->
+  Handler (Public.TeamFeatureStatus a)
+getTeamFeatureFlag tid = do
   info $ msg "Getting team feature status"
   gly <- view galley
   let req =
         method GET
-          . paths ["/i/teams", toByteString' tid, "features", toByteString' feature]
+          . paths ["/i/teams", toByteString' tid, "features", toByteString' (Public.knownTeamFeatureName @a)]
           . expect2xx
-  responseJsonUnsafe <$> catchRpcErrors (rpc' "galley" gly req)
+  responseJsonUnsafe @(Public.TeamFeatureStatus a) <$> catchRpcErrors (rpc' "galley" gly req)
 
-setTeamFeatureFlag :: TeamId -> Public.TeamFeatureName -> Public.TeamFeatureStatusValue -> Handler ()
-setTeamFeatureFlag tid feature status = do
+setTeamFeatureFlag ::
+  forall (a :: Public.TeamFeatureName).
+  ( Public.KnownTeamFeatureName a,
+    ToJSON (Public.TeamFeatureStatus a)
+  ) =>
+  TeamId ->
+  Public.TeamFeatureStatus a ->
+  Handler ()
+setTeamFeatureFlag tid status = do
   info $ msg "Setting team feature status"
   gly <- view galley
   let req =
         method PUT
-          . paths ["/i/teams", toByteString' tid, "features", toByteString' feature]
-          . Bilge.json (Public.TeamFeatureStatus status)
+          . paths ["/i/teams", toByteString' tid, "features", toByteString' (Public.knownTeamFeatureName @a)]
+          . Bilge.json status
           . contentJson
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case statusCode resp of

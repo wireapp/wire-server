@@ -21,6 +21,7 @@ module Stern.Swagger where
 
 import Data.Swagger.Build.Api
 import Imports
+import qualified Wire.API.Team.Feature as Feature
 import Wire.API.Team.SearchVisibility (modelTeamSearchVisibility)
 
 sternModels :: [Model]
@@ -31,6 +32,7 @@ sternModels =
     teamBillingInfo,
     teamBillingInfoUpdate
   ]
+    <> (Feature.modelForTeamFeature <$> [minBound ..])
 
 emailUpdate :: Model
 emailUpdate = defineModel "EmailUpdate" $ do

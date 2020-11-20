@@ -299,6 +299,7 @@ data HiddenPerm
   | ChangeLegalHoldUserSettings
   | ViewLegalHoldUserSettings
   | ViewTeamFeature TeamFeatureName
+  | ChangeTeamFeature TeamFeatureName
   | ChangeTeamSearchVisibility
   | ViewTeamSearchVisibility
   | ViewSameTeamEmails
@@ -324,7 +325,8 @@ roleHiddenPermissions role = HiddenPermissions p p
         Set.fromList
           [ ChangeLegalHoldTeamSettings,
             ChangeLegalHoldUserSettings,
-            ChangeTeamSearchVisibility
+            ChangeTeamSearchVisibility,
+            ChangeTeamFeature TeamFeatureAppLock
           ]
     roleHiddenPerms RoleMember =
       (roleHiddenPerms RoleExternalPartner <>) $
@@ -336,6 +338,7 @@ roleHiddenPermissions role = HiddenPermissions p p
           ViewTeamFeature TeamFeatureSearchVisibility,
           ViewTeamFeature TeamFeatureValidateSAMLEmails,
           ViewTeamFeature TeamFeatureDigitalSignatures,
+          ViewTeamFeature TeamFeatureAppLock,
           ViewLegalHoldUserSettings,
           ViewTeamSearchVisibility
         ]

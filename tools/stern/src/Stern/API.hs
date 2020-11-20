@@ -324,34 +324,12 @@ routes = do
     Doc.response 200 "Team Information about Owners and Admins" Doc.end
 
   -- feature flags
-
-  get "/teams/:tid/features/:feature" (continue getTeamFeatureFlagH) $
-    capture "tid"
-      .&. capture "feature"
-  document "GET" "getTeamFeatureFlag" $ do
-    summary "Shows whether a feature flag is enabled or not for a given team."
-    Doc.parameter Doc.Path "tid" Doc.bytes' $
-      description "Team ID"
-    Doc.parameter Doc.Path "feature" Public.typeTeamFeatureName $
-      description "Feature name"
-    Doc.returns (Doc.ref Public.modelTeamFeatureStatus)
-    Doc.response 200 "Team feature flag status" Doc.end
-
-  put "/teams/:tid/features/:feature" (continue setTeamFeatureFlagH) $
-    capture "tid"
-      .&. capture "feature"
-      -- We use a query parameter "status" here instead of a JSON body.
-      -- This improves usability, since swagger-ui displays is as a dropdown, not a text box.
-      .&. param "status"
-  document "PUT" "setTeamFeatureFlag" $ do
-    summary "Disable / enable feature flag for a given team"
-    Doc.parameter Doc.Path "tid" Doc.bytes' $
-      description "Team ID"
-    Doc.parameter Doc.Path "feature" Public.typeTeamFeatureName $
-      description "Feature name"
-    Doc.parameter Doc.Query "status" Public.typeTeamFeatureStatusValue $ do
-      Doc.description "team feature status (enabled or disabled)"
-    Doc.response 200 "Team feature flag status" Doc.end
+  mkFeaturePutGetRoute @'Public.TeamFeatureLegalHold
+  mkFeaturePutGetRoute @'Public.TeamFeatureSSO
+  mkFeaturePutGetRoute @'Public.TeamFeatureSearchVisibility
+  mkFeaturePutGetRoute @'Public.TeamFeatureValidateSAMLEmails
+  mkFeaturePutGetRoute @'Public.TeamFeatureDigitalSignatures
+  mkFeaturePutGetRoute @'Public.TeamFeatureAppLock
 
   -- These endpoints should be part of team settings. Until then, we access them from here
   -- for authorized personnel to enable/disable this on the team's behalf
@@ -578,13 +556,29 @@ getTeamInfo = liftM json . Intra.getTeamInfo
 getTeamAdminInfo :: TeamId -> Handler Response
 getTeamAdminInfo = liftM (json . toAdminInfo) . Intra.getTeamInfo
 
-getTeamFeatureFlagH :: TeamId ::: Public.TeamFeatureName -> Handler Response
-getTeamFeatureFlagH (tid ::: feature) =
-  json <$> Intra.getTeamFeatureFlag tid feature
+getTeamFeatureFlagH ::
+  forall (a :: Public.TeamFeatureName).
+  ( Public.KnownTeamFeatureName a,
+    FromJSON (Public.TeamFeatureStatus a),
+    ToJSON (Public.TeamFeatureStatus a),
+    Typeable (Public.TeamFeatureStatus a)
+  ) =>
+  TeamId ->
+  Handler Response
+getTeamFeatureFlagH tid =
+  json <$> Intra.getTeamFeatureFlag @a tid
 
-setTeamFeatureFlagH :: TeamId ::: Public.TeamFeatureName ::: Public.TeamFeatureStatusValue -> Handler Response
-setTeamFeatureFlagH (tid ::: feature ::: status) = do
-  empty <$ Intra.setTeamFeatureFlag tid feature status
+setTeamFeatureFlagH ::
+  forall (a :: Public.TeamFeatureName).
+  ( Public.KnownTeamFeatureName a,
+    FromJSON (Public.TeamFeatureStatus a),
+    ToJSON (Public.TeamFeatureStatus a)
+  ) =>
+  TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON ->
+  Handler Response
+setTeamFeatureFlagH (tid ::: req ::: _) = do
+  status :: Public.TeamFeatureStatus a <- parseBody req !>> Error status400 "client-error"
+  empty <$ Intra.setTeamFeatureFlag @a tid status
 
 setSearchVisibility :: JSON ::: TeamId ::: JsonRequest Team.TeamSearchVisibility -> Handler Response
 setSearchVisibility (_ ::: tid ::: req) = do
@@ -709,3 +703,35 @@ ifNothing e = maybe (throwE e) return
 
 noSuchUser :: Maybe a -> Handler a
 noSuchUser = ifNothing (Error status404 "no-user" "No such user")
+
+mkFeaturePutGetRoute ::
+  forall (a :: Public.TeamFeatureName).
+  ( Public.KnownTeamFeatureName a,
+    FromJSON (Public.TeamFeatureStatus a),
+    ToJSON (Public.TeamFeatureStatus a),
+    Typeable (Public.TeamFeatureStatus a)
+  ) =>
+  Routes Doc.ApiBuilder Handler ()
+mkFeaturePutGetRoute = do
+  let featureName = Public.knownTeamFeatureName @a
+
+  get ("/teams/:tid/features/" <> toByteString' featureName) (continue (getTeamFeatureFlagH @a)) $
+    capture "tid"
+  document "GET" "getTeamFeatureFlag" $ do
+    summary "Shows whether a feature flag is enabled or not for a given team."
+    Doc.parameter Doc.Path "tid" Doc.bytes' $
+      description "Team ID"
+    Doc.returns (Doc.ref (Public.modelForTeamFeature featureName))
+    Doc.response 200 "Team feature flag status" Doc.end
+
+  put ("/teams/:tid/features/" <> toByteString' featureName) (continue (setTeamFeatureFlagH @a)) $
+    capture "tid"
+      .&. jsonRequest @(Public.TeamFeatureStatus a)
+      .&. accept "application" "json"
+  document "PUT" "setTeamFeatureFlag" $ do
+    summary "Disable / enable feature flag for a given team"
+    Doc.parameter Doc.Path "tid" Doc.bytes' $
+      description "Team ID"
+    Doc.body (Doc.ref (Public.modelForTeamFeature featureName)) $
+      Doc.description "JSON body"
+    Doc.response 200 "Team feature flag status" Doc.end

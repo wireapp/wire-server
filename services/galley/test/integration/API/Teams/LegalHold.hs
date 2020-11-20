@@ -497,12 +497,14 @@ testEnablePerTeam = do
   addTeamMemberInternal tid $ newTeamMember member (rolePermissions RoleMember) Nothing
   ensureQueueEmpty
   do
-    Public.TeamFeatureStatus status <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
-    liftIO $ assertEqual "Teams should start with LegalHold disabled" status Public.TeamFeatureDisabled
+    status :: Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+    let statusValue = Public.tfwoStatus status
+    liftIO $ assertEqual "Teams should start with LegalHold disabled" statusValue Public.TeamFeatureDisabled
   putEnabled tid Public.TeamFeatureEnabled -- enable it for this team
   do
-    Public.TeamFeatureStatus status <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
-    liftIO $ assertEqual "Calling 'putEnabled True' should enable LegalHold" status Public.TeamFeatureEnabled
+    status :: Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+    let statusValue = Public.tfwoStatus status
+    liftIO $ assertEqual "Calling 'putEnabled True' should enable LegalHold" statusValue Public.TeamFeatureEnabled
   withDummyTestServiceForTeam owner tid $ \_chan -> do
     requestLegalHoldDevice owner member tid !!! const 201 === statusCode
     approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
@@ -511,8 +513,9 @@ testEnablePerTeam = do
       liftIO $ assertEqual "User legal hold status should be enabled" UserLegalHoldEnabled status
     do
       putEnabled tid Public.TeamFeatureDisabled -- disable again
-      Public.TeamFeatureStatus status <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
-      liftIO $ assertEqual "Calling 'putEnabled False' should disable LegalHold" status Public.TeamFeatureDisabled
+      status :: Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+      let statusValue = Public.tfwoStatus status
+      liftIO $ assertEqual "Calling 'putEnabled False' should disable LegalHold" statusValue Public.TeamFeatureDisabled
     do
       UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
       liftIO $ assertEqual "User legal hold status should be disabled after disabling for team" UserLegalHoldDisabled status
@@ -529,8 +532,9 @@ testEnablePerTeamTooLarge = do
   let fanoutLimit = fromIntegral . fromRange $ Galley.currentFanoutLimit o
   (tid, _owner, _others) <- createBindingTeamWithMembers (fanoutLimit + 1)
 
-  Public.TeamFeatureStatus status <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
-  liftIO $ assertEqual "Teams should start with LegalHold disabled" status Public.TeamFeatureDisabled
+  status :: Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+  let statusValue = Public.tfwoStatus status
+  liftIO $ assertEqual "Teams should start with LegalHold disabled" statusValue Public.TeamFeatureDisabled
   -- You cannot enable legal hold on a team that is too large
   putEnabled' id tid Public.TeamFeatureEnabled !!! do
     const 403 === statusCode
@@ -541,8 +545,9 @@ testAddTeamUserTooLargeWithLegalhold = do
   o <- view tsGConf
   let fanoutLimit = fromIntegral . fromRange $ Galley.currentFanoutLimit o
   (tid, owner, _others) <- createBindingTeamWithMembers fanoutLimit
-  Public.TeamFeatureStatus status <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
-  liftIO $ assertEqual "Teams should start with LegalHold disabled" status Public.TeamFeatureDisabled
+  status :: Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+  let statusValue = Public.tfwoStatus status
+  liftIO $ assertEqual "Teams should start with LegalHold disabled" statusValue Public.TeamFeatureDisabled
   -- You can still enable for this team
   putEnabled tid Public.TeamFeatureEnabled
   -- But now Adding a user should now fail since the team is too large
@@ -632,7 +637,7 @@ putEnabled' extra tid enabled = do
   put $
     g
       . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
-      . json (Public.TeamFeatureStatus enabled)
+      . json (Public.TeamFeatureStatusNoConfig enabled)
       . extra
 
 postSettings :: HasCallStack => UserId -> TeamId -> NewLegalHoldService -> TestM ResponseLBS
