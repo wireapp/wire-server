@@ -938,8 +938,7 @@ getLegalholdStatusInternal tid = do
       pure (Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled)
 
 setLegalholdStatusInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold)
-setLegalholdStatusInternal tid status = do
-  let statusValue = Public.tfwoStatus status
+setLegalholdStatusInternal tid status@(Public.tfwoStatus -> statusValue) = do
   do
     featureLegalHold <- view (options . optSettings . setFeatureFlags . flagLegalHold)
     case featureLegalHold of
@@ -972,8 +971,7 @@ getTeamSearchVisibilityAvailableInternal tid = do
     <$> TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibility tid
 
 setTeamSearchVisibilityAvailableInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility)
-setTeamSearchVisibilityAvailableInternal tid status = do
-  let statusValue = Public.tfwoStatus status
+setTeamSearchVisibilityAvailableInternal tid status@(Public.tfwoStatus -> statusValue) = do
   case statusValue of
     Public.TeamFeatureDisabled -> SearchVisibilityData.resetSearchVisibility tid
     Public.TeamFeatureEnabled -> pure () -- This allows the option to be set at the team level
