@@ -453,7 +453,7 @@ setTeamTeamSearchVisibilityAvailable galley tid status =
         . body (RequestBodyLBS . encode $ Public.TeamFeatureStatusNoConfig status)
     )
     !!! do
-      const 204 === statusCode
+      const 200 === statusCode
 
 setTeamSearchVisibility :: HasCallStack => Galley -> TeamId -> Team.TeamSearchVisibility -> Http ()
 setTeamSearchVisibility galley tid typ =
