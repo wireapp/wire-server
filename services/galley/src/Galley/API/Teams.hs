@@ -1010,8 +1010,8 @@ getAppLockInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFea
 getAppLockInternal tid = do
   let defaultStatus =
         Public.TeamFeatureStatusWithConfig
-          Public.TeamFeatureDisabled
-          (Public.TeamFeatureAppLockConfig (Public.EnforceAppLock False) (2 * 60))
+          Public.TeamFeatureEnabled
+          (Public.TeamFeatureAppLockConfig (Public.EnforceAppLock False) 60)
   status <- TeamFeatures.getApplockFeatureStatus tid
   pure $ fromMaybe defaultStatus status
 
