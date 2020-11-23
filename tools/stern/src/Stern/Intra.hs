@@ -460,7 +460,7 @@ setTeamFeatureFlag tid status = do
           . contentJson
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case statusCode resp of
-    204 -> pure ()
+    200 -> pure ()
     _ -> throwE $ responseJsonUnsafe resp
 
 getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
@@ -494,7 +494,7 @@ setSearchVisibility tid typ = do
             . contentJson
         )
   case statusCode resp of
-    204 -> pure ()
+    200 -> pure ()
     403 ->
       throwE $
         Error

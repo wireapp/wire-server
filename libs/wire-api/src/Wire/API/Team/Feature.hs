@@ -29,6 +29,7 @@ module Wire.API.Team.Feature
     KnownTeamFeatureName (..),
     TeamFeatureStatusNoConfig (..),
     TeamFeatureStatusWithConfig (..),
+    deprecatedFeatureName,
 
     -- * Swagger
     typeTeamFeatureName,
@@ -89,19 +90,28 @@ instance FromByteString TeamFeatureName where
         Left e -> fail $ "Invalid TeamFeatureName: " <> show e
         Right "legalhold" -> pure TeamFeatureLegalHold
         Right "sso" -> pure TeamFeatureSSO
+        Right "searchVisibility" -> pure TeamFeatureSearchVisibility
         Right "search-visibility" -> pure TeamFeatureSearchVisibility
+        Right "validateSAMLemails" -> pure TeamFeatureValidateSAMLEmails
         Right "validate-saml-emails" -> pure TeamFeatureValidateSAMLEmails
+        Right "digitalSignatures" -> pure TeamFeatureDigitalSignatures
         Right "digital-signatures" -> pure TeamFeatureDigitalSignatures
-        Right "app-lock" -> pure TeamFeatureAppLock
+        Right "appLock" -> pure TeamFeatureAppLock
         Right t -> fail $ "Invalid TeamFeatureName: " <> T.unpack t
 
 instance ToByteString TeamFeatureName where
   builder TeamFeatureLegalHold = "legalhold"
   builder TeamFeatureSSO = "sso"
-  builder TeamFeatureSearchVisibility = "search-visibility"
-  builder TeamFeatureValidateSAMLEmails = "validate-saml-emails"
-  builder TeamFeatureDigitalSignatures = "digital-signatures"
-  builder TeamFeatureAppLock = "app-lock"
+  builder TeamFeatureSearchVisibility = "searchVisibility"
+  builder TeamFeatureValidateSAMLEmails = "validateSAMLemails"
+  builder TeamFeatureDigitalSignatures = "digitalSignatures"
+  builder TeamFeatureAppLock = "appLock"
+
+deprecatedFeatureName :: TeamFeatureName -> Maybe ByteString
+deprecatedFeatureName TeamFeatureSearchVisibility = Just "search-visibility"
+deprecatedFeatureName TeamFeatureValidateSAMLEmails = Just "validate-saml-emails"
+deprecatedFeatureName TeamFeatureDigitalSignatures = Just "digital-signatures"
+deprecatedFeatureName _ = Nothing
 
 typeTeamFeatureName :: Doc.DataType
 typeTeamFeatureName = Doc.string . Doc.enum $ cs . toByteString' <$> [(minBound :: TeamFeatureName) ..]

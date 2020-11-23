@@ -94,7 +94,7 @@ assertSSOEnabled tid = do
 
 isEmailValidationEnabledTeam :: (HasCallStack, MonadSparToGalley m) => TeamId -> m Bool
 isEmailValidationEnabledTeam tid = do
-  resp <- call $ method GET . paths ["i", "teams", toByteString' tid, "features", "validate-saml-emails"]
+  resp <- call $ method GET . paths ["i", "teams", toByteString' tid, "features", "validateSAMLemails"]
   pure
     ( (statusCode resp == 200)
         && ( responseJsonMaybe @(TeamFeatureStatus 'TeamFeatureValidateSAMLEmails) resp

@@ -54,6 +54,7 @@ module Galley.API.Teams
     internalDeleteBindingTeamWithOneMember,
     getFeatureStatus,
     setFeatureStatus,
+    getAllFeaturesH,
     getSSOStatusInternal,
     setSSOStatusInternal,
     getLegalholdStatusInternal,
@@ -73,6 +74,7 @@ where
 import Brig.Types.Team (TeamSize (..))
 import Control.Lens
 import Control.Monad.Catch
+import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion hiding (fromList)
 import Data.Id
 import qualified Data.Id as Id
@@ -82,6 +84,7 @@ import Data.List1 (list1)
 import Data.Range as Range
 import Data.Set (fromList)
 import qualified Data.Set as Set
+import Data.String.Conversions (cs)
 import Data.Time.Clock (UTCTime (..), getCurrentTime)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
@@ -885,7 +888,7 @@ getFeatureStatus getter doauth tid = do
       zusrMembership <- Data.teamMember tid uid
       void $ permissionCheck (ViewTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
     DontDoAuth ->
-      pure ()
+      assertTeamExists tid
   getter tid
 
 setFeatureStatus ::
@@ -905,8 +908,34 @@ setFeatureStatus setter doauth tid status = do
       zusrMembership <- Data.teamMember tid uid
       void $ permissionCheck (ChangeTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
     DontDoAuth ->
-      pure ()
+      assertTeamExists tid
   setter tid status
+
+getAllFeaturesH :: UserId ::: TeamId ::: JSON -> Galley Response
+getAllFeaturesH (uid ::: tid ::: _) =
+  json <$> getAllFeatures uid tid
+
+getAllFeatures :: UserId -> TeamId -> Galley Aeson.Value
+getAllFeatures uid tid = do
+  Aeson.object
+    <$> sequence
+      [ getStatus @'Public.TeamFeatureSSO getSSOStatusInternal,
+        getStatus @'Public.TeamFeatureLegalHold getLegalholdStatusInternal,
+        getStatus @'Public.TeamFeatureSearchVisibility getTeamSearchVisibilityAvailableInternal,
+        getStatus @'Public.TeamFeatureValidateSAMLEmails getValidateSAMLEmailsInternal,
+        getStatus @'Public.TeamFeatureDigitalSignatures getDigitalSignaturesInternal,
+        getStatus @'Public.TeamFeatureAppLock getAppLockInternal
+      ]
+  where
+    getStatus ::
+      forall (a :: Public.TeamFeatureName).
+      (Public.KnownTeamFeatureName a, Aeson.ToJSON (Public.TeamFeatureStatus a)) =>
+      (TeamId -> Galley (Public.TeamFeatureStatus a)) ->
+      Galley (Text, Aeson.Value)
+    getStatus getter = do
+      status <- getFeatureStatus @a getter (DoAuth uid) tid
+      let feature = Public.knownTeamFeatureName @a
+      pure $ (cs (toByteString' feature) Aeson..= status)
 
 getSSOStatusInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureSSO)
 getSSOStatusInternal tid = do

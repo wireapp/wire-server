@@ -458,6 +458,16 @@ sitemap = do
   mkFeatureGetAndPutRoute @'Public.TeamFeatureDigitalSignatures Teams.getDigitalSignaturesInternal Teams.setDigitalSignaturesInternal
   mkFeatureGetAndPutRoute @'Public.TeamFeatureAppLock Teams.getAppLockInternal Teams.setAppLockInternal
 
+  get "/teams/:tid/features/" (continue Teams.getAllFeaturesH) $
+    zauthUserId
+      .&. capture "tid"
+      .&. accept "application" "json"
+  document "GET" "getAllFeatures" $ do
+    summary "Shows the configuration status of every team feature"
+    parameter Path "tid" bytes' $
+      description "Team ID"
+    response 200 "All feature statuses" end
+
   -- Custom Backend API -------------------------------------------------
 
   get "/custom-backend/by-domain/:domain" (continue CustomBackend.getCustomBackendByDomainH) $
@@ -1089,15 +1099,20 @@ mkFeatureGetAndPutRoute getter setter = do
       getHandler (uid ::: tid ::: _) =
         json <$> Teams.getFeatureStatus @a getter (DoAuth uid) tid
 
-  get ("/teams/:tid/features/" <> toByteString' featureName) (continue getHandler) $
-    zauthUserId
-      .&. capture "tid"
-      .&. accept "application" "json"
-  document "GET" "getTeamFeature" $ do
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    returns (ref (Public.modelForTeamFeature featureName))
-    response 200 "Team feature status" end
+  let mkGetRoute makeDocumentation name = do
+        get ("/teams/:tid/features/" <> name) (continue getHandler) $
+          zauthUserId
+            .&. capture "tid"
+            .&. accept "application" "json"
+        when makeDocumentation $
+          document "GET" "getTeamFeature" $ do
+            parameter Path "tid" bytes' $
+              description "Team ID"
+            returns (ref (Public.modelForTeamFeature featureName))
+            response 200 "Team feature status" end
+
+  mkGetRoute True (toByteString' featureName)
+  mkGetRoute False `mapM_` Public.deprecatedFeatureName featureName
 
   let putHandler :: UserId ::: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON -> Galley Response
       putHandler (uid ::: tid ::: req ::: _) = do
@@ -1105,14 +1120,19 @@ mkFeatureGetAndPutRoute getter setter = do
         res <- Teams.setFeatureStatus @a setter (DoAuth uid) tid status
         pure $ (json res) & Network.Wai.Utilities.setStatus status200
 
-  put ("/teams/:tid/features/" <> toByteString' featureName) (continue putHandler) $
-    zauthUserId
-      .&. capture "tid"
-      .&. jsonRequest @(Public.TeamFeatureStatus a)
-      .&. accept "application" "json"
-  document "PUT" "putTeamFeature" $ do
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    body (ref (Public.modelForTeamFeature featureName)) $
-      description "JSON body"
-    response 204 "Team feature status" end
+  let mkPutRoute makeDocumentation name = do
+        put ("/teams/:tid/features/" <> name) (continue putHandler) $
+          zauthUserId
+            .&. capture "tid"
+            .&. jsonRequest @(Public.TeamFeatureStatus a)
+            .&. accept "application" "json"
+        when makeDocumentation $
+          document "PUT" "putTeamFeature" $ do
+            parameter Path "tid" bytes' $
+              description "Team ID"
+            body (ref (Public.modelForTeamFeature featureName)) $
+              description "JSON body"
+            response 204 "Team feature status" end
+
+  mkPutRoute True (toByteString' featureName)
+  mkGetRoute False `mapM_` Public.deprecatedFeatureName featureName

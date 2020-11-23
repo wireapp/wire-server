@@ -1525,7 +1525,7 @@ specEmailValidation = do
         enableSamlEmailValidation tid = do
           galley <- asks (^. teGalley)
           let req = put $ galley . paths p . json (Feature.TeamFeatureStatusNoConfig Feature.TeamFeatureEnabled)
-              p = ["/i/teams", toByteString' tid, "features", "validate-saml-emails"]
+              p = ["/i/teams", toByteString' tid, "features", "validateSAMLemails"]
           call req !!! const 200 === statusCode
 
         -- (This may be the same as 'Util.Email.checkEmail'.)

@@ -63,7 +63,7 @@ import qualified Network.Wai.Predicate as P
 import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities
 import Network.Wai.Utilities.ZAuth
-import System.Logger.Class hiding (Path)
+import System.Logger.Class hiding (Path, name)
 import qualified Wire.API.Team.Feature as Public
 
 sitemap :: Routes a Galley ()
@@ -336,9 +336,13 @@ mkFeatureGetAndPutRoute getter setter = do
       getHandler (tid ::: _) =
         json <$> Teams.getFeatureStatus @a getter DontDoAuth tid
 
-  get ("/i/teams/:tid/features/" <> toByteString' featureName) (continue getHandler) $
-    capture "tid"
-      .&. accept "application" "json"
+  let mkGetRoute name =
+        get ("/i/teams/:tid/features/" <> name) (continue getHandler) $
+          capture "tid"
+            .&. accept "application" "json"
+
+  mkGetRoute (toByteString' featureName)
+  mkGetRoute `mapM_` Public.deprecatedFeatureName featureName
 
   let putHandler :: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON -> Galley Response
       putHandler (tid ::: req ::: _) = do
@@ -346,7 +350,11 @@ mkFeatureGetAndPutRoute getter setter = do
         res <- Teams.setFeatureStatus @a setter DontDoAuth tid status
         pure $ (json res) & Network.Wai.Utilities.setStatus status200
 
-  put ("/i/teams/:tid/features/" <> toByteString' featureName) (continue putHandler) $
-    capture "tid"
-      .&. jsonRequest @(Public.TeamFeatureStatus a)
-      .&. accept "application" "json"
+  let mkPutRoute name =
+        put ("/i/teams/:tid/features/" <> name) (continue putHandler) $
+          capture "tid"
+            .&. jsonRequest @(Public.TeamFeatureStatus a)
+            .&. accept "application" "json"
+
+  mkPutRoute (toByteString' featureName)
+  mkPutRoute `mapM_` Public.deprecatedFeatureName featureName
