@@ -1033,7 +1033,8 @@ lookupProfiles ::
   [Qualified UserId] ->
   AppIO [UserProfile]
 lookupProfiles self others = do
-  let (_remoteUsers, localUsers) = partitionRemoteOrLocalIds ourDomain others
+  domain <- liftIO ourDomain
+  let (_remoteUsers, localUsers) = partitionRemoteOrLocalIds domain others
   localProfiles <- lookupProfilesOfLocalUsers self localUsers
   -- FUTUREWORK(federation, #1267): fetch remote profiles
   remoteProfiles <- pure []
