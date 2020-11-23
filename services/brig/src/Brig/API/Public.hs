@@ -81,7 +81,7 @@ import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
-import Servant (Capture, Get, HasServer, Header', NoContent, ServerT, StdMethod (HEAD), Verb, (:<|>) (..), (:>))
+import Servant (Capture, Capture', Description, Get, HasServer, Header', NoContent, ServerT, StdMethod (HEAD), Summary, Verb, (:<|>) (..), (:>))
 import qualified Servant
 import Servant.API (NoContent (NoContent))
 import Servant.Swagger (HasSwagger (toSwagger))
@@ -102,11 +102,15 @@ import qualified Wire.API.User.RichInfo as Public
 ---------------------------------------------------------------------------
 -- Sitemap
 
+-- | This type exists for the special 'HasSwagger' and 'HasServer' instances. It
+-- shows the "Authorization" header in the swagger docs, but expects the
+-- "Z-Auth" header in the server. This helps keep the swagger docs usable
+-- through nginz.
 data ZAuthServant
 
 type InternalAuth = Header' '[Servant.Required, Servant.Strict] "Z-User" UserId
 
-type OutsideWorldAuth = Header' [Servant.Required, Servant.Strict] "Authorization" String
+type OutsideWorldAuth = Header' [Servant.Required, Servant.Strict, Description "Bearer: token"] "Authorization" String
 
 instance HasSwagger api => HasSwagger (ZAuthServant :> api) where
   toSwagger _ = toSwagger (Proxy @(OutsideWorldAuth :> api))
@@ -118,12 +122,34 @@ instance HasServer api ctx => HasServer (ZAuthServant :> api) ctx where
   hoistServerWithContext _ pc nt s =
     Servant.hoistServerWithContext (Proxy @(InternalAuth :> api)) pc nt s
 
+type CaptureUserId name = Capture' '[Description "User Id"] name UserId
+
+-- TODO: Try to list responses with UVerb
+-- They looked like this:
+--   Doc.response 200 "User exists" Doc.end
+--   Doc.errorResponse userNotFound
+type CheckUserExistsQualified =
+  Summary "Check if a user ID exists"
+    :> ZAuthServant
+    :> "users"
+    :> Capture "domain" Domain
+    :> CaptureUserId "uid"
+    :> Verb 'HEAD 200 '[Servant.JSON] NoContent
+
+type CheckUserExistsUnqualified =
+  Summary "Check if a user ID exists (deprecated)"
+    :> ZAuthServant
+    :> "users"
+    :> CaptureUserId "uid"
+    :> Verb 'HEAD 200 '[Servant.JSON] NoContent
+
 type OutsideWorldAPI =
-  ZAuthServant :> "users" :> Capture "domain" Domain :> Capture "uid" UserId :> Verb 'HEAD 200 '[Servant.JSON] NoContent
-    :<|> ZAuthServant :> "users" :> Capture "uid" UserId :> Verb 'HEAD 200 '[Servant.JSON] NoContent
+  CheckUserExistsQualified
+    :<|> CheckUserExistsUnqualified
 
 type ServantAPI =
-  "brig" :> "api-docs" :> Get '[Servant.JSON] Swagger :<|> OutsideWorldAPI
+  "brig" :> "api-docs" :> Get '[Servant.JSON] Swagger
+    :<|> OutsideWorldAPI
 
 servantSitemap :: ServerT ServantAPI Handler
 servantSitemap =
@@ -134,21 +160,6 @@ servantSitemap =
 sitemap :: Opts -> Routes Doc.ApiBuilder Handler ()
 sitemap o = do
   -- User API -----------------------------------------------------------
-
-  -- If the user is ephemeral and expired, it will be removed, see 'Brig.API.User.userGC'.
-  -- This leads to the following events being sent:
-  -- - UserDeleted event to contacts of the user
-  -- - MemberLeave event to members for all conversations the user was in (via galley)
-  -- head "/users/:domain/:uid" (continue checkUserExistsH) $
-  --   zauthUserId
-  --     .&. opt (capture "domain")
-  --     .&. capture "uid"
-  -- document "HEAD" "userExists" $ do
-  --   Doc.summary "Check if a user ID exists"
-  --   Doc.parameter Doc.Path "uid" Doc.bytes' $
-  --     Doc.description "User ID"
-  --   Doc.response 200 "User exists" Doc.end
-  --   Doc.errorResponse userNotFound
 
   -- If the user is ephemeral and expired, it will be removed, see 'Brig.API.User.userGC'.
   -- This leads to the following events being sent:
@@ -1086,11 +1097,6 @@ checkUnqualifiedUserExistsH self uid = do
 checkUserExists :: UserId -> Qualified UserId -> Handler Bool
 checkUserExists self qualifiedUserId =
   isJust <$> getUser self qualifiedUserId
-
--- let domain = ourDomain -- config lookup
--- if _qDomain qualifiedUserId == domain
---   then isJust <$> getUser self (_qLocalPart qualifiedUserId)
---   else error "Not implemented" -- make a call to federator
 
 getSelfH :: JSON ::: UserId -> Handler Response
 getSelfH (_ ::: self) = do
