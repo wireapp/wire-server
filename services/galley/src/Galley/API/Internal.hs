@@ -342,7 +342,7 @@ mkFeatureGetAndPutRoute getter setter = do
             .&. accept "application" "json"
 
   mkGetRoute (toByteString' featureName)
-  mkGetRoute `mapM_` (Public.deprecatedFeatureName featureName)
+  mkGetRoute `mapM_` Public.deprecatedFeatureName featureName
 
   let putHandler :: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON -> Galley Response
       putHandler (tid ::: req ::: _) = do
