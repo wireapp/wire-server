@@ -47,6 +47,7 @@ library:
   - safe >=0.3
   - string-conversions
   - swagger >=0.1
+  - swagger2
   - text >=0.11
   - time >=1.4
   - transformers >=0.3

@@ -52,6 +52,7 @@ import Data.Bifunctor (first)
 import Data.ByteString.Conversion
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8', encodeUtf8)
+import Data.Swagger (ToSchema (..))
 import Data.Time.Clock
 import Imports
 import qualified Test.QuickCheck as QC
@@ -125,6 +126,8 @@ data Email = Email
     emailDomain :: Text
   }
   deriving stock (Eq, Ord, Generic)
+
+instance ToSchema Email
 
 instance Show Email where
   show = Text.unpack . fromEmail

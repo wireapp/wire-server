@@ -66,10 +66,12 @@ import Data.ISO3166_CountryCodes
 import Data.Json.Util ((#))
 import Data.LanguageCodes
 import Data.Range
+import Data.Swagger (ToSchema (..))
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.API.User.Orphans ()
 
 --------------------------------------------------------------------------------
 -- Name
@@ -80,7 +82,7 @@ import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 newtype Name = Name
   {fromName :: Text}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (ToJSON, FromByteString, ToByteString)
+  deriving newtype (ToJSON, FromByteString, ToByteString, ToSchema)
   deriving (Arbitrary) via (Ranged 1 128 Text)
 
 mkName :: Text -> Either String Name
@@ -105,6 +107,8 @@ newtype ColourId = ColourId {fromColourId :: Int32}
   deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (Num, FromJSON, ToJSON, Arbitrary)
 
+instance ToSchema ColourId
+
 defaultAccentId :: ColourId
 defaultAccentId = ColourId 0
 
@@ -118,6 +122,8 @@ data Asset = ImageAsset
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Asset)
+
+instance ToSchema Asset
 
 modelAsset :: Doc.Model
 modelAsset = Doc.defineModel "UserAsset" $ do
@@ -157,6 +163,8 @@ data AssetSize = AssetComplete | AssetPreview
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform AssetSize)
 
+instance ToSchema AssetSize
+
 typeAssetSize :: Doc.DataType
 typeAssetSize =
   Doc.string $
@@ -186,6 +194,8 @@ data Locale = Locale
   deriving stock (Eq, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform Locale)
 
+instance ToSchema Locale
+
 instance FromJSON Locale where
   parseJSON =
     withText "locale" $
@@ -214,7 +224,7 @@ parseLocale = hush . parseOnly localeParser
 
 newtype Language = Language {fromLanguage :: ISO639_1}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (Arbitrary)
+  deriving newtype (Arbitrary, ToSchema)
 
 languageParser :: Parser Language
 languageParser = codeParser "language" $ fmap Language . checkAndConvert isLower
@@ -230,7 +240,7 @@ parseLanguage = hush . parseOnly languageParser
 
 newtype Country = Country {fromCountry :: CountryCode}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (Arbitrary)
+  deriving newtype (Arbitrary, ToSchema)
 
 countryParser :: Parser Country
 countryParser = codeParser "country" $ fmap Country . checkAndConvert isUpper
@@ -307,7 +317,7 @@ defaultManagedBy = ManagedByWire
 -- | DEPRECATED
 newtype Pict = Pict {fromPict :: [Object]}
   deriving stock (Eq, Show, Generic)
-  deriving newtype (ToJSON)
+  deriving newtype (ToJSON, ToSchema)
 
 instance FromJSON Pict where
   parseJSON x = Pict . fromRange @0 @10 <$> parseJSON x

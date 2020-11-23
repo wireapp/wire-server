@@ -103,6 +103,7 @@ import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
+import Data.Swagger (ToSchema (..))
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import Data.UUID (UUID, nil)
@@ -167,6 +168,8 @@ data UserProfile = UserProfile
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserProfile)
+
+instance ToSchema UserProfile
 
 modelUser :: Doc.Model
 modelUser = Doc.defineModel "User" $ do

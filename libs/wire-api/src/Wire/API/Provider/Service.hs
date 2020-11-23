@@ -67,6 +67,7 @@ import Data.Misc (HttpsUrl (..), PlainTextPassword (..))
 import Data.PEM (PEM, pemParseBS, pemWriteLBS)
 import Data.Range (Range)
 import qualified Data.Swagger.Build.Api as Doc
+import Data.Swagger (ToSchema (..))
 import Data.Text.Ascii
 import qualified Data.Text.Encoding as Text
 import Imports
@@ -84,6 +85,8 @@ data ServiceRef = ServiceRef
   }
   deriving stock (Ord, Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ServiceRef)
+
+instance ToSchema ServiceRef
 
 makeLenses ''ServiceRef
 
