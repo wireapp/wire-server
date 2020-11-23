@@ -27,8 +27,6 @@ module Galley.Types.Teams
     flagSSO,
     flagLegalHold,
     flagTeamSearchVisibility,
-    flagAppLockDefaults,
-    Defaults (..),
     FeatureSSO (..),
     FeatureLegalHold (..),
     FeatureTeamSearchVisibility (..),
@@ -198,21 +196,9 @@ newtype TeamCreationTime = TeamCreationTime
 data FeatureFlags = FeatureFlags
   { _flagSSO :: !FeatureSSO,
     _flagLegalHold :: !FeatureLegalHold,
-    _flagTeamSearchVisibility :: !FeatureTeamSearchVisibility,
-    _flagAppLockDefaults :: !(Defaults (TeamFeatureStatus 'TeamFeatureAppLock))
+    _flagTeamSearchVisibility :: !FeatureTeamSearchVisibility
   }
   deriving (Eq, Show, Generic)
-
-newtype Defaults a = Defaults {_unDefaults :: a}
-  deriving (Eq, Ord, Show, Enum, Bounded, Generic)
-
-instance FromJSON a => FromJSON (Defaults a) where
-  parseJSON = withObject "default object" $ \ob ->
-    Defaults <$> (ob .: "defaults")
-
-instance ToJSON a => ToJSON (Defaults a) where
-  toJSON (Defaults x) =
-    object ["defaults" .= toJSON x]
 
 data FeatureSSO
   = FeatureSSOEnabledByDefault
@@ -239,15 +225,13 @@ instance FromJSON FeatureFlags where
       <$> obj .: "sso"
       <*> obj .: "legalhold"
       <*> obj .: "teamSearchVisibility"
-      <*> obj .: "appLock"
 
 instance ToJSON FeatureFlags where
-  toJSON (FeatureFlags sso legalhold searchVisibility appLock) =
+  toJSON (FeatureFlags sso legalhold searchVisibility) =
     object $
       [ "sso" .= sso,
         "legalhold" .= legalhold,
-        "teamSearchVisibility" .= searchVisibility,
-        "appLock" .= appLock
+        "teamSearchVisibility" .= searchVisibility
       ]
 
 instance FromJSON FeatureSSO where
