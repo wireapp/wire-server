@@ -569,8 +569,8 @@ defSftListLength :: Range 1 100 Int
 defSftListLength = unsafeRange 5
 
 -- TODO: make configurable
-ourDomain :: Domain
-ourDomain = Domain "staging.zinfra.io"
+ourDomain :: IO Domain
+ourDomain = pure $ Domain "staging.zinfra.io"
 
 instance FromJSON Timeout where
   parseJSON (Y.Number n) =

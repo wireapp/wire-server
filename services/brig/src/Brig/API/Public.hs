@@ -1061,7 +1061,9 @@ checkQualifiedUserExistsH self domain uid = do
   if exists then return NoContent else throwStd userNotFound
 
 checkUnqualifiedUserExistsH :: UserId -> UserId -> Handler NoContent
-checkUnqualifiedUserExistsH self = checkQualifiedUserExistsH self ourDomain
+checkUnqualifiedUserExistsH self uid = do
+  domain <- liftIO ourDomain
+  checkQualifiedUserExistsH self domain uid
 
 checkUserExists :: UserId -> Qualified UserId -> Handler Bool
 checkUserExists self qualifiedUserId =
@@ -1082,7 +1084,8 @@ getSelf self = do
 
 getUserH :: JSON ::: UserId ::: UserId -> Handler Response
 getUserH (_ ::: self ::: uid) = do
-  fmap json . ifNothing userNotFound =<< getUser self (Qualified uid ourDomain)
+  domain <- liftIO ourDomain
+  fmap json . ifNothing userNotFound =<< getUser self (Qualified uid domain)
 
 getUser :: UserId -> Qualified UserId -> Handler (Maybe Public.UserProfile)
 getUser self qualifiedUserId = do
@@ -1096,8 +1099,9 @@ getUserDisplayNameH (_ ::: self) = do
     Nothing -> setStatus status404 empty
 
 listUsersH :: JSON ::: UserId ::: Either (Either (List UserId) (List (Qualified UserId))) (Range 1 4 (List (OptionallyQualified Handle))) -> Handler Response
-listUsersH (_ ::: self ::: qry) =
-  toResponse <$> listUsers self (Bifunctor.first (foo ourDomain) qry)
+listUsersH (_ ::: self ::: qry) = do
+  domain <- liftIO ourDomain
+  toResponse <$> listUsers self (Bifunctor.first (foo domain) qry)
   where
     toResponse = \case
       [] -> setStatus status404 empty
@@ -1123,7 +1127,8 @@ listUsers self = \case
       let (localHandles, _qualifiedHandles) = partitionEithers (map eitherQualifiedOrNot hs)
       localUsers <- catMaybes <$> traverse (lift . API.lookupHandle) localHandles
       -- FUTUREWORK(federation, #1268): resolve qualified handles, too
-      pure (flip Qualified ourDomain <$> localUsers)
+      domain <- liftIO ourDomain
+      pure (flip Qualified domain <$> localUsers)
     byIds :: [Qualified UserId] -> Handler [Public.UserProfile]
     byIds uids = lift $ API.lookupProfiles self uids
 
@@ -1203,7 +1208,8 @@ getHandleInfo :: UserId -> Handle -> Handler (Maybe Public.UserHandleInfo)
 getHandleInfo self handle = do
   ownerProfile <- do
     -- FUTUREWORK(federation, #1268): resolve qualified handles, too
-    maybeOwnerId <- fmap (flip Qualified ourDomain) <$> (lift $ API.lookupHandle handle)
+    domain <- liftIO ourDomain
+    maybeOwnerId <- fmap (flip Qualified domain) <$> (lift $ API.lookupHandle handle)
     case maybeOwnerId of
       Just ownerId -> lift $ API.lookupProfile self ownerId
       Nothing -> return Nothing
