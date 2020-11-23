@@ -111,7 +111,10 @@ type ServantAPI =
   "brig" :> "api-docs" :> Get '[Servant.JSON] Swagger :<|> OutsideWorldAPI
 
 servantSitemap :: ServerT ServantAPI Handler
-servantSitemap = pure (toSwagger (Proxy @OutsideWorldAPI)) :<|> checkQualifiedUserExistsH :<|> checkUnqualifiedUserExistsH
+servantSitemap =
+  pure (toSwagger (Proxy @OutsideWorldAPI))
+    :<|> checkQualifiedUserExistsH
+    :<|> checkUnqualifiedUserExistsH
 
 sitemap :: Opts -> Routes Doc.ApiBuilder Handler ()
 sitemap o = do
