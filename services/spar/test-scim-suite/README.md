@@ -1,7 +1,6 @@
 ## Scim Test Suite
 
-The scripts in this directory allow to run the [SCIM Test Suite](https://github.com/AzureAD/SCIMReferenceCode/wiki/Test-Your-SCIM-Endpoint) provided by Microsoft (a [Postman](https://www.postman.com/) collection) provided here
-against the SCIM implementation in spar.
+The scripts in this directory allow to run the [SCIM Test Suite](https://github.com/AzureAD/SCIMReferenceCode/wiki/Test-Your-SCIM-Endpoint) provided by Microsoft (a [Postman](https://www.postman.com/) collection) against the SCIM implementation in spar.
 
 How to run:
 ```sh
