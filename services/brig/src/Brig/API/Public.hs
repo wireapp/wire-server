@@ -127,6 +127,8 @@ type CaptureUserId name = Capture' '[Description "User Id"] name UserId
 -- They looked like this:
 --   Doc.response 200 "User exists" Doc.end
 --   Doc.errorResponse userNotFound
+
+-- See Note [ephemeral user sideeffect]
 type CheckUserExistsQualified =
   Summary "Check if a user ID exists"
     :> ZAuthServant
@@ -135,6 +137,7 @@ type CheckUserExistsQualified =
     :> CaptureUserId "uid"
     :> Verb 'HEAD 200 '[Servant.JSON] NoContent
 
+-- See Note [ephemeral user sideeffect]
 type CheckUserExistsUnqualified =
   Summary "Check if a user ID exists (deprecated)"
     :> ZAuthServant
@@ -155,6 +158,13 @@ servantSitemap =
   pure (toSwagger (Proxy @OutsideWorldAPI))
     :<|> checkQualifiedUserExistsH
     :<|> checkUnqualifiedUserExistsH
+
+-- Note [ephemeral user sideeffect]
+-- If the user is ephemeral and expired, it will be removed upon calling
+-- CheckUserExists[Un]Qualified, see 'Brig.API.User.userGC'.
+-- This leads to the following events being sent:
+-- - UserDeleted event to contacts of the user
+-- - MemberLeave event to members for all conversations the user was in (via galley)
 
 sitemap :: Opts -> Routes Doc.ApiBuilder Handler ()
 sitemap o = do
