@@ -357,4 +357,4 @@ mkFeatureGetAndPutRoute getter setter = do
             .&. accept "application" "json"
 
   mkPutRoute (toByteString' featureName)
-  mkPutRoute `mapM_` (Public.deprecatedFeatureName featureName)
+  mkPutRoute `mapM_` Public.deprecatedFeatureName featureName
