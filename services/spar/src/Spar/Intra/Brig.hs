@@ -233,7 +233,7 @@ createBrigUserNoSAML ::
   m UserId
 createBrigUserNoSAML email teamid uname = do
   let newUser = NewUserScimInvitation teamid Nothing uname email
-  resp :: Response (Maybe LBS) <-
+  resp :: ResponseLBS <-
     call $
       method POST
         . paths ["/i/teams", toByteString' teamid, "invitations"]
