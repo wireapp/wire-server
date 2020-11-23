@@ -212,13 +212,13 @@ rethrow serviceName resp = do
           )
           (SAML.CustomServant . waiToServant)
 
-parseResponse :: forall a m. (FromJSON a, MonadError SparError m, Typeable a) => ResponseLBS -> m a
-parseResponse resp = do
+parseResponse :: forall a m. (FromJSON a, MonadError SparError m, Typeable a) => LT -> ResponseLBS -> m a
+parseResponse serviceName resp = do
   let typeinfo :: LT
       typeinfo = cs $ show (typeRep ([] @a)) <> ": "
 
       err :: forall a'. LT -> m a'
-      err = throwSpar . SparCouldNotParseRfcResponse "brig" . (typeinfo <>)
+      err = throwSpar . SparCouldNotParseRfcResponse serviceName . (typeinfo <>)
 
   bdy <- maybe (err "no body") pure $ responseBody resp
   either (err . cs) pure $ eitherDecode' bdy

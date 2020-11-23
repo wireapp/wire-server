@@ -49,7 +49,7 @@ getTeamMembers tid = do
       method GET
         . paths ["i", "teams", toByteString' tid, "members"]
   if (statusCode resp == 200)
-    then (^. teamMembers) <$> parseResponse @TeamMemberList resp
+    then (^. teamMembers) <$> parseResponse @TeamMemberList "galley" resp
     else rethrow "galley" resp
 
 -- | If user is not owner, throw 'SparNotTeamOwner'.
@@ -73,7 +73,7 @@ assertSSOEnabled tid = do
         . paths ["i", "teams", toByteString' tid, "features", "sso"]
   unless (statusCode resp == 200) $
     rethrow "galley" resp
-  TeamFeatureStatusNoConfig status <- parseResponse resp
+  TeamFeatureStatusNoConfig status <- parseResponse "galley" resp
   unless (status == TeamFeatureEnabled) $
     throwSpar SparSSODisabled
 

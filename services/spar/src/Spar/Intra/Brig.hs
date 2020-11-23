@@ -220,7 +220,7 @@ createBrigUserSAML uref (Id buid) teamid uname managedBy = do
         . path "/i/users"
         . json newUser
   if statusCode resp `elem` [200, 201]
-    then userId . selfUser <$> parseResponse @SelfProfile resp
+    then userId . selfUser <$> parseResponse @SelfProfile "brig" resp
     else rethrow "brig" resp
 
 createBrigUserNoSAML ::
@@ -239,7 +239,7 @@ createBrigUserNoSAML email teamid uname = do
         . json newUser
 
   if statusCode resp `elem` [200, 201]
-    then userId . accountUser <$> parseResponse @UserAccount resp
+    then userId . accountUser <$> parseResponse @UserAccount "brig" resp
     else rethrow "brig" resp
 
 updateEmail :: (HasCallStack, MonadSparToBrig m) => UserId -> Email -> m ()
@@ -278,7 +278,7 @@ getBrigUserAccount havePending buid = do
 
   case statusCode resp of
     200 -> do
-      parseResponse @[UserAccount] resp >>= \case
+      parseResponse @[UserAccount] "brig" resp >>= \case
         [account] ->
           pure $
             if userDeleted $ accountUser account
@@ -301,7 +301,7 @@ getBrigUserByHandle handle = do
         . queryItem "handles" (toByteString' handle)
         . queryItem "includePendingInvitations" "true"
   case statusCode resp of
-    200 -> listToMaybe <$> parseResponse @[UserAccount] resp
+    200 -> listToMaybe <$> parseResponse @[UserAccount] "brig" resp
     404 -> pure Nothing
     _ -> rethrow "brig" resp
 
@@ -315,7 +315,7 @@ getBrigUserByEmail email = do
         . queryItem "includePendingInvitations" "true"
   case statusCode resp of
     200 -> do
-      macc <- listToMaybe <$> parseResponse @[UserAccount] resp
+      macc <- listToMaybe <$> parseResponse @[UserAccount] "brig" resp
       case userEmail . accountUser =<< macc of
         Just email' | email' == email -> pure macc
         _ -> pure Nothing
@@ -400,7 +400,7 @@ getBrigUserRichInfo buid = do
       method GET
         . paths ["/i/users", toByteString' buid, "rich-info"]
   case statusCode resp of
-    200 -> parseResponse resp
+    200 -> parseResponse "brig" resp
     _ -> rethrow "brig" resp
 
 checkHandleAvailable :: (HasCallStack, MonadSparToBrig m) => Handle -> m Bool
@@ -494,7 +494,7 @@ getStatus :: (HasCallStack, MonadSparToBrig m) => UserId -> m AccountStatus
 getStatus uid = do
   resp <- getStatus' uid
   case statusCode resp of
-    200 -> fromAccountStatusResp <$> parseResponse @AccountStatusResp resp
+    200 -> fromAccountStatusResp <$> parseResponse @AccountStatusResp "brig" resp
     _ -> rethrow "brig" resp
 
 -- | FUTUREWORK: this is probably unnecessary, and we can get the status info from 'UserAccount'.
@@ -502,7 +502,7 @@ getStatusMaybe :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe Accoun
 getStatusMaybe uid = do
   resp <- getStatus' uid
   case statusCode resp of
-    200 -> Just . fromAccountStatusResp <$> parseResponse @AccountStatusResp resp
+    200 -> Just . fromAccountStatusResp <$> parseResponse @AccountStatusResp "brig" resp
     404 -> pure Nothing
     _ -> rethrow "brig" resp
 
