@@ -53,7 +53,6 @@ import Control.Error hiding (bool)
 import Control.Lens (view, (^.))
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
-import qualified Data.Bifunctor as Bifunctor
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Domain
@@ -63,7 +62,7 @@ import Data.IdMapping (MappedOrLocalId (Local))
 import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
 import Data.Proxy (Proxy (..))
-import Data.Qualified (OptionallyQualified, Qualified (..), eitherQualifiedOrNot)
+import Data.Qualified (Qualified (..))
 import Data.Range
 import Data.Swagger (Swagger)
 import qualified Data.Swagger.Build.Api as Doc
