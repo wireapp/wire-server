@@ -919,27 +919,23 @@ getAllFeatures :: UserId -> TeamId -> Galley Aeson.Value
 getAllFeatures uid tid = do
   Aeson.object
     <$> sequence
-      [ w @'Public.TeamFeatureSSO getSSOStatusInternal,
-        w @'Public.TeamFeatureLegalHold getLegalholdStatusInternal,
-        w @'Public.TeamFeatureSearchVisibility getTeamSearchVisibilityAvailableInternal,
-        w @'Public.TeamFeatureValidateSAMLEmails getValidateSAMLEmailsInternal,
-        w @'Public.TeamFeatureDigitalSignatures getDigitalSignaturesInternal,
-        w @'Public.TeamFeatureAppLock getAppLockInternal
+      [ getStatus @'Public.TeamFeatureSSO getSSOStatusInternal,
+        getStatus @'Public.TeamFeatureLegalHold getLegalholdStatusInternal,
+        getStatus @'Public.TeamFeatureSearchVisibility getTeamSearchVisibilityAvailableInternal,
+        getStatus @'Public.TeamFeatureValidateSAMLEmails getValidateSAMLEmailsInternal,
+        getStatus @'Public.TeamFeatureDigitalSignatures getDigitalSignaturesInternal,
+        getStatus @'Public.TeamFeatureAppLock getAppLockInternal
       ]
   where
-    w ::
+    getStatus ::
       forall (a :: Public.TeamFeatureName).
-      ( Public.KnownTeamFeatureName a,
-        Aeson.ToJSON (Public.TeamFeatureStatus a)
-      ) =>
-      ( TeamId ->
-        Galley (Public.TeamFeatureStatus a)
-      ) ->
+      (Public.KnownTeamFeatureName a, Aeson.ToJSON (Public.TeamFeatureStatus a)) =>
+      (TeamId -> Galley (Public.TeamFeatureStatus a)) ->
       Galley (Text, Aeson.Value)
-    w getter = do
+    getStatus getter = do
       status <- getFeatureStatus @a getter (DoAuth uid) tid
       let feature = Public.knownTeamFeatureName @a
-      pure $ (cs . toByteString' $ feature, Aeson.toJSON status)
+      pure $ (cs (toByteString' feature) Aeson..= status)
 
 getSSOStatusInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureSSO)
 getSSOStatusInternal tid = do
