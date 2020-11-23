@@ -103,7 +103,7 @@ brigErrorHandlers =
     Catch.Handler $ \(ex :: AWS.Error) ->
       case ex of
         AWS.SESInvalidDomain -> pure (Left (StdError invalidEmail))
-        _ -> throwM ex -- TODO Servant.throwError ?
+        _ -> throwM ex
   ]
 
 onError :: Logger -> Request -> Continue IO -> Error -> IO ResponseReceived
