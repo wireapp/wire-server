@@ -96,8 +96,6 @@ mkApp o = do
     servantApp :: Env -> Wai.Application
     servantApp e =
       Servant.serve
-        -- (Proxy @ServantAPI)
-        -- (Servant.hoistServer (Proxy @ServantAPI) handlerToHandler servantSitemap)
         (Proxy @(ServantAPI :<|> Servant.Raw))
         (Servant.hoistServer (Proxy @ServantAPI) (toServantHandler e) servantSitemap :<|> Servant.Tagged (app e))
 
