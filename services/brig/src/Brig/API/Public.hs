@@ -222,7 +222,7 @@ sitemap o = do
   get "/users" (continue listUsersH) $
     accept "application" "json"
       .&. zauthUserId
-      .&. ((param "ids" ||| param "qualified_ids") ||| param "handles")
+      .&. (param "ids" ||| param "handles")
   -- TODO review this endpoint and change it to allow perhaps multiple params, or something
   -- /users?ids=asb,wire.com/fasd, -- TODO: review whether a '/' works and is desired/according to standards
   document "GET" "users" $ do
@@ -1122,39 +1122,36 @@ getUserDisplayNameH (_ ::: self) = do
     Just n -> json $ object ["name" .= n]
     Nothing -> setStatus status404 empty
 
-listUsersH :: JSON ::: UserId ::: Either (Either (List UserId) (List (Qualified UserId))) (Range 1 4 (List (OptionallyQualified Handle))) -> Handler Response
-listUsersH (_ ::: self ::: qry) = do
-  domain <- liftIO ourDomain
-  toResponse <$> listUsers self (Bifunctor.first (foo domain) qry)
+listUsersH :: JSON ::: UserId ::: Either (List UserId) (Range 1 4 (List Handle)) -> Handler Response
+listUsersH (_ ::: self ::: qry) =
+  toResponse <$> listUsers self qry
   where
     toResponse = \case
       [] -> setStatus status404 empty
       ps -> json ps
 
--- TODO: rename
-foo :: Domain -> Either (List UserId) (List (Qualified UserId)) -> List (Qualified UserId)
-foo domain = \case
-  Left us -> fmap (flip Qualified domain) us
-  Right qs -> qs
-
-listUsers :: UserId -> Either (List (Qualified UserId)) (Range 1 4 (List (OptionallyQualified Handle))) -> Handler [Public.UserProfile]
+-- | 'listUsers' only handles listing local users by ID or handle. We decided to
+-- create a new federation aware endpoint which accepts federation aware Ids or
+-- handles in the request body using a 'POST' request to avoid specifying
+-- complex objects in the query parameters.
+listUsers :: UserId -> Either (List UserId) (Range 1 4 (List Handle)) -> Handler [Public.UserProfile]
 listUsers self = \case
   Left us -> do
-    byIds (fromList us)
+    domain <- liftIO ourDomain
+    byIds $ map (`Qualified` domain) (fromList us)
   Right hs -> do
     us <- getIds (fromList $ fromRange hs)
     filterHandleResults self =<< byIds us
   where
-    getIds :: [OptionallyQualified Handle] -> Handler [Qualified UserId]
-    getIds hs = do
-      -- we might be able to do something smarter if the domain is our own
-      let (localHandles, _qualifiedHandles) = partitionEithers (map eitherQualifiedOrNot hs)
+    getIds :: [Handle] -> Handler [Qualified UserId]
+    getIds localHandles = do
       localUsers <- catMaybes <$> traverse (lift . API.lookupHandle) localHandles
       -- FUTUREWORK(federation, #1268): resolve qualified handles, too
       domain <- liftIO ourDomain
-      pure (flip Qualified domain <$> localUsers)
+      pure $ map (`Qualified` domain) localUsers
     byIds :: [Qualified UserId] -> Handler [Public.UserProfile]
-    byIds uids = lift $ API.lookupProfiles self uids
+    byIds uids =
+      lift $ API.lookupProfiles self uids
 
 newtype GetActivationCodeResp
   = GetActivationCodeResp (Public.ActivationKey, Public.ActivationCode)
