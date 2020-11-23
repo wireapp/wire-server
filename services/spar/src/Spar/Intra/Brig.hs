@@ -66,7 +66,6 @@ import Brig.Types.User
 import Brig.Types.User.Auth (SsoLogin (..))
 import Control.Lens
 import Control.Monad.Except
-import Data.Aeson (FromJSON, eitherDecode')
 import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle, fromHandle))
 import Data.Id (Id (Id), TeamId, UserId)

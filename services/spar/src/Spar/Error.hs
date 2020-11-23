@@ -204,6 +204,8 @@ rethrow serviceName resp = do
               . SparCouldNotParseRfcResponse serviceName
               . ("internal error: " <>)
               . cs
+              . show
+              . (Bilge.statusCode resp,)
               . fromMaybe "<empty body>"
               . responseBody
               $ resp
