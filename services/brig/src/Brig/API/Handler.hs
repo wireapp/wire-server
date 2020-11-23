@@ -74,16 +74,25 @@ toServantHandler :: Env -> Handler a -> Servant.Handler a
 toServantHandler env action = do
   a <- liftIO $ runAppT env (runExceptT action) `catches` brigErrorHandlers
   case a of
-    Left (StdError werr) ->
-      Servant.throwError $
-        Servant.ServerError (mkCode werr) (mkPhrase werr) (LText.encodeUtf8 $ WaiError.message werr) []
-    Left (RichError werr body headers) ->
-      Servant.throwError $
-        Servant.ServerError (mkCode werr) (mkPhrase werr) (Aeson.encode body) headers
+    Left werr ->
+      let reqId = unRequestId $ view requestId env
+          logger = view applog env
+       in handleWaiErrors logger reqId werr
     Right x -> pure x
   where
     mkCode = statusCode . WaiError.code
     mkPhrase = LText.unpack . WaiError.label
+
+    handleWaiErrors logger reqId =
+      \case
+        StdError werr -> do
+          Server.logError' logger (Just reqId) werr
+          Servant.throwError $
+            Servant.ServerError (mkCode werr) (mkPhrase werr) (LText.encodeUtf8 $ WaiError.message werr) []
+        RichError werr body headers -> do
+          Server.logError' logger (Just reqId) werr
+          Servant.throwError $
+            Servant.ServerError (mkCode werr) (mkPhrase werr) (Aeson.encode body) headers
 
 brigErrorHandlers :: [Catch.Handler IO (Either Error a)]
 brigErrorHandlers =
@@ -100,6 +109,11 @@ brigErrorHandlers =
 onError :: Logger -> Request -> Continue IO -> Error -> IO ResponseReceived
 onError g r k e = do
   Server.logError g (Just r) we
+  -- This function exists to workaround a problem that existed in nginx 5 years
+  -- ago. Context here:
+  -- https://github.com/zinfra/wai-utilities/commit/3d7e8349d3463e5ee2c3ebe89c717baeef1a8241
+  -- So, this can probably be deleted and is not part of the new servant
+  -- handler.
   Server.flushRequestBody r
   k $
     setStatus (WaiError.code we)
