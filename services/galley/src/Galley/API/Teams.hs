@@ -885,7 +885,7 @@ getFeatureStatus getter doauth tid = do
       zusrMembership <- Data.teamMember tid uid
       void $ permissionCheck (ViewTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
     DontDoAuth ->
-      pure ()
+      assertTeamExists tid
   getter tid
 
 setFeatureStatus ::
@@ -905,7 +905,7 @@ setFeatureStatus setter doauth tid status = do
       zusrMembership <- Data.teamMember tid uid
       void $ permissionCheck (ChangeTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
     DontDoAuth ->
-      pure ()
+      assertTeamExists tid
   setter tid status
 
 getSSOStatusInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureSSO)
