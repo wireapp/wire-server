@@ -448,7 +448,7 @@ setTeamTeamSearchVisibilityAvailable :: HasCallStack => Galley -> TeamId -> Team
 setTeamTeamSearchVisibilityAvailable galley tid status =
   put
     ( galley
-        . paths ["i/teams", toByteString' tid, "features/search-visibility"]
+        . paths ["i/teams", toByteString' tid, "features/searchVisibility"]
         . contentJson
         . body (RequestBodyLBS . encode $ Public.TeamFeatureStatusNoConfig status)
     )
