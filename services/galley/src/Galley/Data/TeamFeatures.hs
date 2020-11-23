@@ -87,9 +87,8 @@ getApplockFeatureStatus tid = do
   let q = query1 (select) (params Quorum (Identity tid))
   mTuple <- retry x1 q
   pure $
-    join $
-      mTuple <&> \(mbStatusValue, mbEnforce, mbTimeout) ->
-        TeamFeatureStatusWithConfig <$> mbStatusValue <*> (Public.TeamFeatureAppLockConfig <$> mbEnforce <*> mbTimeout)
+    mTuple >>= \(mbStatusValue, mbEnforce, mbTimeout) ->
+      TeamFeatureStatusWithConfig <$> mbStatusValue <*> (Public.TeamFeatureAppLockConfig <$> mbEnforce <*> mbTimeout)
   where
     select :: PrepQuery R (Identity TeamId) (Maybe TeamFeatureStatusValue, Maybe Public.EnforceAppLock, Maybe Int32)
     select =
