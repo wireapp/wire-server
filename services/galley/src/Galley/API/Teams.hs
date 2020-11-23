@@ -1037,10 +1037,7 @@ getSearchVisibilityInternalH (tid ::: _) =
 
 getAppLockInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock)
 getAppLockInternal tid = do
-  let defaultStatus =
-        Public.TeamFeatureStatusWithConfig
-          Public.TeamFeatureEnabled
-          (Public.TeamFeatureAppLockConfig (Public.EnforceAppLock False) 60)
+  Defaults defaultStatus <- view (options . optSettings . setFeatureFlags . flagAppLockDefaults)
   status <- TeamFeatures.getApplockFeatureStatus tid
   pure $ fromMaybe defaultStatus status
 
