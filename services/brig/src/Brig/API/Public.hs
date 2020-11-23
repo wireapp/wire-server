@@ -81,7 +81,7 @@ import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
-import Servant (Capture, Get, Header', NoContent, ServerT, StdMethod (HEAD), Verb, (:<|>) (..), (:>))
+import Servant (Capture, Get, HasServer, Header', NoContent, ServerT, StdMethod (HEAD), Verb, (:<|>) (..), (:>))
 import qualified Servant
 import Servant.API (NoContent (NoContent))
 import Servant.Swagger (HasSwagger (toSwagger))
@@ -101,7 +101,22 @@ import qualified Wire.API.User.RichInfo as Public
 
 ---------------------------------------------------------------------------
 -- Sitemap
-type ZAuthServant = Header' '[Servant.Required, Servant.Strict] "Z-User" UserId
+
+data ZAuthServant
+
+type InternalAuth = Header' '[Servant.Required, Servant.Strict] "Z-User" UserId
+
+type OutsideWorldAuth = Header' [Servant.Required, Servant.Strict] "Authorization" String
+
+instance HasSwagger api => HasSwagger (ZAuthServant :> api) where
+  toSwagger _ = toSwagger (Proxy @(OutsideWorldAuth :> api))
+
+instance HasServer api ctx => HasServer (ZAuthServant :> api) ctx where
+  type ServerT (ZAuthServant :> api) m = ServerT (InternalAuth :> api) m
+
+  route _ = Servant.route (Proxy @(InternalAuth :> api))
+  hoistServerWithContext _ pc nt s =
+    Servant.hoistServerWithContext (Proxy @(InternalAuth :> api)) pc nt s
 
 type OutsideWorldAPI =
   ZAuthServant :> "users" :> Capture "domain" Domain :> Capture "uid" UserId :> Verb 'HEAD 200 '[Servant.JSON] NoContent
