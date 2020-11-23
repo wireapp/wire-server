@@ -31,6 +31,7 @@ module Spar.Error
     sparToServerErrorWithLogging,
     renderSparErrorWithLogging,
     rethrow,
+    parseResponse,
     -- FUTUREWORK: we really shouldn't export this, but that requires that we can use our
     -- custom servant monad in the 'MakeCustomError' instances.
     servantToWaiError,
@@ -45,6 +46,7 @@ import qualified Bilge
 import Control.Monad.Except
 import Data.Aeson
 import Data.String.Conversions
+import Data.Typeable (typeRep)
 import GHC.Stack (callStack, prettyCallStack)
 import Imports
 import Network.HTTP.Types.Status
@@ -207,3 +209,14 @@ rethrow serviceName resp = do
               $ resp
           )
           (SAML.CustomServant . waiToServant)
+
+parseResponse :: forall a m. (FromJSON a, MonadError SparError m, Typeable a) => ResponseLBS -> m a
+parseResponse resp = do
+  let typeinfo :: LT
+      typeinfo = cs $ show (typeRep ([] @a)) <> ": "
+
+      err :: forall a'. LT -> m a'
+      err = throwSpar . SparCouldNotParseRfcResponse "brig" . (typeinfo <>)
+
+  bdy <- maybe (err "no body") pure $ responseBody resp
+  either (err . cs) pure $ eitherDecode' bdy

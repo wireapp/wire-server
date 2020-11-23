@@ -87,11 +87,6 @@ import Wire.API.User.RichInfo as RichInfo
 
 ----------------------------------------------------------------------
 
-parseResponse :: (FromJSON a, MonadError SparError m) => ResponseLBS -> m a
-parseResponse resp = do
-  bdy <- maybe (throwSpar $ SparCouldNotParseRfcResponse "brig" "no body") pure $ responseBody resp
-  either (throwSpar . SparCouldNotParseRfcResponse "brig" . cs) pure $ eitherDecode' bdy
-
 veidToUserSSOId :: ValidExternalId -> UserSSOId
 veidToUserSSOId = runValidExternalId urefToUserSSOId (UserScimExternalId . fromEmail)
 

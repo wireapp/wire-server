@@ -23,10 +23,8 @@ module Spar.Intra.Galley where
 import Bilge
 import Control.Lens
 import Control.Monad.Except
-import Data.Aeson (FromJSON, eitherDecode')
 import Data.ByteString.Conversion
 import Data.Id (TeamId, UserId)
-import Data.String.Conversions
 import Galley.Types.Teams
 import Imports
 import Network.HTTP.Types (status403)
@@ -34,13 +32,6 @@ import Network.HTTP.Types.Method
 import Spar.Error
 import qualified System.Logger.Class as Log
 import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatus, TeamFeatureStatusNoConfig (..), TeamFeatureStatusValue (..))
-
-----------------------------------------------------------------------
-
-parseResponse :: (FromJSON a, MonadError SparError m) => ResponseLBS -> m a
-parseResponse resp = do
-  bdy <- maybe (throwSpar $ SparCouldNotParseRfcResponse "galley" "no body") pure $ responseBody resp
-  either (throwSpar . SparCouldNotParseRfcResponse "galley" . cs) pure $ eitherDecode' bdy
 
 ----------------------------------------------------------------------
 
