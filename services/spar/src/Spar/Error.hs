@@ -141,7 +141,7 @@ renderSparError (SAML.CustomError (SparBindFromBadAccountStatus msg)) = Right $ 
 renderSparError (SAML.CustomError SparBindUserRefTaken) = Right $ Wai.Error status403 "subject-id-taken" "Forbidden: SubjectID is used by another wire user.  If you have an old user bound to this IdP, unbind or delete that user."
 renderSparError (SAML.CustomError (SparBadUserName msg)) = Right $ Wai.Error status400 "bad-username" ("Bad UserName in SAML response, except len [1, 128]: " <> msg)
 renderSparError (SAML.CustomError (SparCannotCreateUsersOnReplacedIdP replacingIdPId)) = Right $ Wai.Error status400 "cannont-provision-on-replaced-idp" ("This IdP has been replaced, users can only be auto-provisioned on the replacing IdP " <> replacingIdPId)
--- Brig-specific errors
+-- RFC-specific errors
 renderSparError (SAML.CustomError (SparCouldNotParseRfcResponse service msg)) = Right $ Wai.Error status502 "bad-upstream" ("Could not parse " <> service <> " response body: " <> msg)
 renderSparError (SAML.CustomError SparReAuthRequired) = Right $ Wai.Error status403 "access-denied" "This operation requires reauthentication."
 renderSparError (SAML.CustomError SparCouldNotRetrieveCookie) = Right $ Wai.Error status502 "bad-upstream" "Unable to get a cookie from an upstream server."
