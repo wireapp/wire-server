@@ -458,6 +458,16 @@ sitemap = do
   mkFeatureGetAndPutRoute @'Public.TeamFeatureDigitalSignatures Teams.getDigitalSignaturesInternal Teams.setDigitalSignaturesInternal
   mkFeatureGetAndPutRoute @'Public.TeamFeatureAppLock Teams.getAppLockInternal Teams.setAppLockInternal
 
+  get "/teams/:tid/features/" (continue Teams.getAllFeaturesH) $
+    zauthUserId
+      .&. capture "tid"
+      .&. accept "application" "json"
+  document "GET" "getAllFeatures" $ do
+    summary "Shows the configuration status of every team feature"
+    parameter Path "tid" bytes' $
+      description "Team ID"
+    response 200 "All feature statuses" end
+
   -- Custom Backend API -------------------------------------------------
 
   get "/custom-backend/by-domain/:domain" (continue CustomBackend.getCustomBackendByDomainH) $
