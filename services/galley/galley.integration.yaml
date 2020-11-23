@@ -41,6 +41,12 @@ settings:
     sso: disabled-by-default
     legalhold: disabled-by-default
     teamSearchVisibility: disabled-by-default
+    appLock:
+      defaults:
+        status: enabled
+        config:
+          enforceAppLock: false
+          inactivityTimeoutSecs: 60
 
 logLevel: Info
 logNetStrings: false
