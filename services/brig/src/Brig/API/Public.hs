@@ -123,6 +123,8 @@ instance HasServer api ctx => HasServer (ZAuthServant :> api) ctx where
 
 type CaptureUserId name = Capture' '[Description "User Id"] name UserId
 
+-- User API -----------------------------------------------------------
+
 -- TODO: Try to list responses with UVerb
 -- They looked like this:
 --   Doc.response 200 "User exists" Doc.end
@@ -145,9 +147,32 @@ type CheckUserExistsUnqualified =
     :> CaptureUserId "uid"
     :> Verb 'HEAD 200 '[Servant.JSON] NoContent
 
+-- TODO: Try to list responses with UVerb
+-- They looked like this:
+--   Doc.errorResponse userNotFound
+--
+-- See Note [ephemeral user sideeffect]
+type GetUserUnQualified =
+  Summary "Get a user by UserId (deprecated)"
+    :> ZAuthServant
+    :> "users"
+    :> CaptureUserId "uid"
+    :> Get '[Servant.JSON] Public.UserProfile
+
+-- See Note [ephemeral user sideeffect]
+type GetUserQualified =
+  Summary "Get a user by Domain and UserId"
+    :> ZAuthServant
+    :> "users"
+    :> Capture "domain" Domain
+    :> CaptureUserId "uid"
+    :> Get '[Servant.JSON] Public.UserProfile
+
 type OutsideWorldAPI =
   CheckUserExistsQualified
     :<|> CheckUserExistsUnqualified
+    :<|> GetUserUnQualified
+    :<|> GetUserQualified
 
 type ServantAPI =
   "brig" :> "api-docs" :> Get '[Servant.JSON] Swagger
@@ -158,6 +183,8 @@ servantSitemap =
   pure (toSwagger (Proxy @OutsideWorldAPI))
     :<|> checkQualifiedUserExistsH
     :<|> checkUnqualifiedUserExistsH
+    :<|> getUserUnqualifiedH
+    :<|> getUserH
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
@@ -168,24 +195,6 @@ servantSitemap =
 
 sitemap :: Opts -> Routes Doc.ApiBuilder Handler ()
 sitemap o = do
-  -- User API -----------------------------------------------------------
-
-  -- If the user is ephemeral and expired, it will be removed, see 'Brig.API.User.userGC'.
-  -- This leads to the following events being sent:
-  -- - UserDeleted event to contacts of the user
-  -- - MemberLeave event to members for all conversations the user was in (via galley)
-  get "/users/:uid" (continue getUserH) $
-    accept "application" "json"
-      .&. zauthUserId
-      .&. capture "uid"
-  document "GET" "user" $ do
-    Doc.summary "Get a user by ID"
-    Doc.parameter Doc.Path "uid" Doc.bytes' $
-      Doc.description "User ID"
-    Doc.returns (Doc.ref Public.modelUser)
-    Doc.response 200 "User" Doc.end
-    Doc.errorResponse userNotFound
-
   -- User Handle API ----------------------------------------------------
 
   post "/users/handles" (continue checkHandlesH) $
@@ -1113,10 +1122,14 @@ getSelf :: UserId -> Handler Public.SelfProfile
 getSelf self = do
   lift (API.lookupSelfProfile self) >>= ifNothing userNotFound
 
-getUserH :: JSON ::: UserId ::: UserId -> Handler Response
-getUserH (_ ::: self ::: uid) = do
+getUserUnqualifiedH :: UserId -> UserId -> Handler Public.UserProfile
+getUserUnqualifiedH self uid = do
   domain <- liftIO ourDomain
-  fmap json . ifNothing userNotFound =<< getUser self (Qualified uid domain)
+  ifNothing userNotFound =<< getUser self (Qualified uid domain)
+
+getUserH :: UserId -> Domain -> UserId -> Handler Public.UserProfile
+getUserH self domain uid =
+  ifNothing userNotFound =<< getUser self (Qualified uid domain)
 
 getUser :: UserId -> Qualified UserId -> Handler (Maybe Public.UserProfile)
 getUser self qualifiedUserId = do
