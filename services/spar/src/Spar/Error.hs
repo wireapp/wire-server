@@ -188,7 +188,7 @@ renderSparError (SAML.CustomServant err) = Left err
 -- handle all exceptions that brig can legally throw!
 rethrow :: LText -> ResponseLBS -> (HasCallStack, Log.MonadLogger m, MonadError SparError m) => m a
 rethrow serviceName resp = do
-  Log.err
+  Log.info
     ( Log.msg ("rfc error" :: Text)
         . Log.field "status" (Bilge.statusCode resp)
         . Log.field "error" (show err)
