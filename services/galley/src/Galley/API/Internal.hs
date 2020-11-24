@@ -40,8 +40,10 @@ import qualified Galley.API.CustomBackend as CustomBackend
 import qualified Galley.API.Error as Error
 import qualified Galley.API.IdMapping as IdMapping
 import qualified Galley.API.Query as Query
-import Galley.API.Teams (DoAuth (..), uncheckedDeleteTeamMember)
+import Galley.API.Teams (uncheckedDeleteTeamMember)
 import qualified Galley.API.Teams as Teams
+import Galley.API.Teams.Features (DoAuth (..))
+import qualified Galley.API.Teams.Features as Features
 import qualified Galley.API.Update as Update
 import Galley.API.Util (JSON, isMember)
 import Galley.App
@@ -174,12 +176,12 @@ sitemap = do
   -- Enabling this should only be possible internally.
   -- Viewing the status should be allowed for any admin.
 
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureSSO Teams.getSSOStatusInternal Teams.setSSOStatusInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureLegalHold Teams.getLegalholdStatusInternal Teams.setLegalholdStatusInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureSearchVisibility Teams.getTeamSearchVisibilityAvailableInternal Teams.setTeamSearchVisibilityAvailableInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureValidateSAMLEmails Teams.getValidateSAMLEmailsInternal Teams.setValidateSAMLEmailsInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureDigitalSignatures Teams.getDigitalSignaturesInternal Teams.setDigitalSignaturesInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureAppLock Teams.getAppLockInternal Teams.setAppLockInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureSSO Features.getSSOStatusInternal Features.setSSOStatusInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal Features.setLegalholdStatusInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal Features.setTeamSearchVisibilityAvailableInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal Features.setValidateSAMLEmailsInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal Features.setDigitalSignaturesInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureAppLock Features.getAppLockInternal Features.setAppLockInternal
 
   -- Misc API (internal) ------------------------------------------------
 
@@ -334,7 +336,7 @@ mkFeatureGetAndPutRoute getter setter = do
 
   let getHandler :: TeamId ::: JSON -> Galley Response
       getHandler (tid ::: _) =
-        json <$> Teams.getFeatureStatus @a getter DontDoAuth tid
+        json <$> Features.getFeatureStatus @a getter DontDoAuth tid
 
   let mkGetRoute name =
         get ("/i/teams/:tid/features/" <> name) (continue getHandler) $
@@ -347,7 +349,7 @@ mkFeatureGetAndPutRoute getter setter = do
   let putHandler :: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON -> Galley Response
       putHandler (tid ::: req ::: _) = do
         status <- fromJsonBody req
-        res <- Teams.setFeatureStatus @a setter DontDoAuth tid status
+        res <- Features.setFeatureStatus @a setter DontDoAuth tid status
         pure $ (json res) & Network.Wai.Utilities.setStatus status200
 
   let mkPutRoute name =

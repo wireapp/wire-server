@@ -38,8 +38,9 @@ import qualified Galley.API.Error as Error
 import qualified Galley.API.LegalHold as LegalHold
 import qualified Galley.API.Query as Query
 import Galley.API.Swagger (swagger)
-import Galley.API.Teams (DoAuth (..))
 import qualified Galley.API.Teams as Teams
+import Galley.API.Teams.Features (DoAuth (..))
+import qualified Galley.API.Teams.Features as Features
 import qualified Galley.API.Update as Update
 import Galley.App
 import Imports hiding (head)
@@ -1097,7 +1098,7 @@ mkFeatureGetAndPutRoute getter setter = do
 
   let getHandler :: UserId ::: TeamId ::: JSON -> Galley Response
       getHandler (uid ::: tid ::: _) =
-        json <$> Teams.getFeatureStatus @a getter (DoAuth uid) tid
+        json <$> Features.getFeatureStatus @a getter (DoAuth uid) tid
 
   let mkGetRoute makeDocumentation name = do
         get ("/teams/:tid/features/" <> name) (continue getHandler) $
@@ -1117,7 +1118,7 @@ mkFeatureGetAndPutRoute getter setter = do
   let putHandler :: UserId ::: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON -> Galley Response
       putHandler (uid ::: tid ::: req ::: _) = do
         status <- fromJsonBody req
-        res <- Teams.setFeatureStatus @a setter (DoAuth uid) tid status
+        res <- Features.setFeatureStatus @a setter (DoAuth uid) tid status
         pure $ (json res) & Network.Wai.Utilities.setStatus status200
 
   let mkPutRoute makeDocumentation name = do
