@@ -50,9 +50,9 @@ import Data.Aeson hiding ((<?>))
 import Data.Attoparsec.Text
 import Data.Bifunctor (first)
 import Data.ByteString.Conversion
+import Data.Swagger (ToSchema (..))
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8', encodeUtf8)
-import Data.Swagger (ToSchema (..))
 import Data.Time.Clock
 import Imports
 import qualified Test.QuickCheck as QC
