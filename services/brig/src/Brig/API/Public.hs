@@ -1,5 +1,5 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -51,7 +51,7 @@ import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
 import Brig.User.Phone
 import Control.Error hiding (bool)
-import Control.Lens (view, (^.))
+import Control.Lens (view, (?~), (^.))
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
@@ -65,8 +65,9 @@ import Data.Misc (IpAddr (..))
 import Data.Proxy (Proxy (..))
 import Data.Qualified (Qualified (..))
 import Data.Range
-import Data.Swagger (Swagger, ToSchema (..))
+import Data.Swagger (Swagger, ToSchema (..), description, _namedSchemaName)
 import qualified Data.Swagger.Build.Api as Doc
+import Data.Swagger.Lens (HasSchema (..))
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (decodeLatin1)
@@ -81,9 +82,8 @@ import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
-import Servant (Capture, Capture', DefaultErrorFormatters, Description, ErrorFormatters, Get, HasContextEntry, HasServer, HasStatus, Header', NoContent, ServerT, StdMethod (HEAD), Summary, UVerb, Union, Verb, WithStatus (WithStatus), (:<|>) (..), (:>), type (.++))
+import Servant (Capture, Capture', DefaultErrorFormatters, Description, ErrorFormatters, Get, HasContextEntry, HasServer, HasStatus, Header', ServerT, StdMethod (HEAD), Summary, UVerb, Union, WithStatus, (:<|>) (..), (:>), type (.++))
 import qualified Servant
-import Servant.API (StdMethod (GET))
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import qualified System.Logger.Class as Log
@@ -132,54 +132,28 @@ type CaptureUserId name = Capture' '[Description "User Id"] name UserId
 
 -- User API -----------------------------------------------------------
 
-type Example =
-  "fisx" :> Capture "bool" Bool
-    :> UVerb 'GET '[Servant.JSON] '[FisxUser, WithStatus 303 String]
-    :<|> "arian"
-      :> UVerb 'GET '[Servant.JSON] '[WithStatus 201 ArianUser]
-
-newtype FisxUser = FisxUser {name :: String}
-  deriving (Eq, Show, Generic)
-
-instance ToJSON FisxUser
-
-instance FromJSON FisxUser
-
-instance ToSchema FisxUser
-
--- | 'HasStatus' allows us to can get around 'WithStatus' if we want
--- to, and associate the status code with our resource types directly.
---
--- (To avoid orphan instances and make it more explicit what's in the
--- API and what isn't, we could even introduce a newtype 'Resource'
--- that wraps all the types we're using in our routing table, and then
--- define lots of 'HasStatus' instances for @Resource This@ and
--- @Resource That@.)
-instance HasStatus FisxUser where
-  type StatusOf FisxUser = 203
-
-data ArianUser = ArianUser
-  deriving (Eq, Show, Generic)
-
-instance ToJSON ArianUser
-
-instance FromJSON ArianUser
-
-instance ToSchema ArianUser
-
-fisx :: Bool -> Handler (Union '[FisxUser, WithStatus 303 String])
-fisx True = Servant.respond (FisxUser "fisx")
-fisx False = Servant.respond (WithStatus @303 ("still fisx" :: String))
-
-arian :: Handler (Union '[WithStatus 201 ArianUser])
-arian = Servant.respond (WithStatus @201 ArianUser)
-
-data Empty = Empty
+data Empty200 = Empty200
   deriving (Generic)
+  deriving (HasStatus) via (WithStatus 200 Empty200)
 
-instance ToSchema Empty
+instance ToSchema Empty200 where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
-type CheckUserExistsResponse = [NoContent, WithStatus 404 Empty]
+instance ToJSON Empty200 where
+  toJSON _ = toJSON ("" :: Text)
+
+data Empty404 = Empty404
+  deriving (Generic)
+  deriving (HasStatus) via (WithStatus 405 Empty404)
+
+instance ToJSON Empty404 where
+  toJSON _ = toJSON ("" :: Text)
+
+instance ToSchema Empty404 where
+  declareNamedSchema _ =
+    declareNamedSchema (Proxy @Text) <&> (schema . description ?~ "user not found")
+
+type CheckUserExistsResponse = [Empty200, Empty404]
 
 -- TODO: Try to list responses with UVerb
 -- They looked like this:
@@ -189,12 +163,12 @@ type CheckUserExistsResponse = [NoContent, WithStatus 404 Empty]
 -- See Note [ephemeral user sideeffect]
 type CheckUserExistsQualified =
   Summary "Check if a user ID exists"
+    :> Description "blah"
     :> ZAuthServant
     :> "users"
     :> Capture "domain" Domain
     :> CaptureUserId "uid"
-    -- :> UVerb 'HEAD '[Servant.JSON] CheckUserExistsResponse
-    :> Verb 'HEAD 200 '[Servant.JSON] NoContent
+    :> UVerb 'HEAD '[Servant.JSON] CheckUserExistsResponse
 
 -- See Note [ephemeral user sideeffect]
 type CheckUserExistsUnqualified =
@@ -202,8 +176,7 @@ type CheckUserExistsUnqualified =
     :> ZAuthServant
     :> "users"
     :> CaptureUserId "uid"
-    -- :> UVerb 'HEAD '[Servant.JSON] CheckUserExistsResponse
-    :> Verb 'HEAD 200 '[Servant.JSON] NoContent
+    :> UVerb 'HEAD '[Servant.JSON] CheckUserExistsResponse
 
 -- TODO: Try to list responses with UVerb
 -- They looked like this:
@@ -235,21 +208,14 @@ type OutsideWorldAPI =
 type ServantAPI =
   "brig" :> "api-docs" :> Get '[Servant.JSON] Swagger
     :<|> OutsideWorldAPI
-    :<|> Example
-
-instance ToSchema NoContent
 
 servantSitemap :: ServerT ServantAPI Handler
 servantSitemap =
   pure (toSwagger (Proxy @OutsideWorldAPI))
-    :<|> ( checkQualifiedUserExistsH
-             :<|> checkUnqualifiedUserExistsH
-             :<|> getUserUnqualifiedH
-             :<|> getUserH
-         )
-    :<|> ( fisx
-             :<|> arian
-         )
+    :<|> checkQualifiedUserExistsH
+    :<|> checkUnqualifiedUserExistsH
+    :<|> getUserUnqualifiedH
+    :<|> getUserH
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
@@ -1165,14 +1131,14 @@ createUser (Public.NewUserPublic new) = do
       Public.NewTeamMemberSSO _ ->
         Team.sendMemberWelcomeMail e t n l
 
-checkQualifiedUserExistsH :: UserId -> Domain -> UserId -> Handler NoContent
+checkQualifiedUserExistsH :: UserId -> Domain -> UserId -> Handler (Union CheckUserExistsResponse)
 checkQualifiedUserExistsH self domain uid = do
   exists <- checkUserExists self (Qualified uid domain)
   if exists
-    then pure Servant.NoContent
-    else throwStd userNotFound -- Servant.respond (WithStatus @404 Empty)
+    then Servant.respond Empty200
+    else Servant.respond Empty404
 
-checkUnqualifiedUserExistsH :: UserId -> UserId -> Handler NoContent
+checkUnqualifiedUserExistsH :: UserId -> UserId -> Handler (Union CheckUserExistsResponse)
 checkUnqualifiedUserExistsH self uid = do
   domain <- liftIO ourDomain
   checkQualifiedUserExistsH self domain uid
