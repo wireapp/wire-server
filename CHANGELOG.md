@@ -1,3 +1,37 @@
+<!--
+
+# [2020-next]
+
+## Release Notes
+
+## Features
+
+## Bug fixes and other updates
+
+## Documentation
+
+## Internal changes
+
+-->
+
+# 2020-11-24
+
+## Release Notes
+
+## Features
+
+* Make Content-MD5 header optional for asset upload (#1252)
+* Add applock team feature (#1242, #1253)
+
+## Bug fixes
+
+* Fix content-type headers in saml responses (#1241)
+
+## Internal changes
+
+* parse exposed 'tracestate' header in nginz logs if present (#1244)
+* Store SCIM tokens in hashed form (#1240)
+
 # 2020-10-28
 
 ## Features
