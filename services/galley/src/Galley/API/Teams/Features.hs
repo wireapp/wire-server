@@ -64,9 +64,7 @@ data DoAuth = DoAuth UserId | DontDoAuth
 getFeatureStatus ::
   forall (a :: Public.TeamFeatureName).
   Public.KnownTeamFeatureName a =>
-  ( TeamId ->
-    Galley (Public.TeamFeatureStatus a)
-  ) ->
+  (TeamId -> Galley (Public.TeamFeatureStatus a)) ->
   DoAuth ->
   TeamId ->
   Galley (Public.TeamFeatureStatus a)
@@ -82,10 +80,7 @@ getFeatureStatus getter doauth tid = do
 setFeatureStatus ::
   forall (a :: Public.TeamFeatureName).
   Public.KnownTeamFeatureName a =>
-  ( TeamId ->
-    Public.TeamFeatureStatus a ->
-    Galley (Public.TeamFeatureStatus a)
-  ) ->
+  (TeamId -> Public.TeamFeatureStatus a -> Galley (Public.TeamFeatureStatus a)) ->
   DoAuth ->
   TeamId ->
   Public.TeamFeatureStatus a ->
@@ -117,7 +112,9 @@ getAllFeatures uid tid = do
   where
     getStatus ::
       forall (a :: Public.TeamFeatureName).
-      (Public.KnownTeamFeatureName a, Aeson.ToJSON (Public.TeamFeatureStatus a)) =>
+      ( Public.KnownTeamFeatureName a,
+        Aeson.ToJSON (Public.TeamFeatureStatus a)
+      ) =>
       (TeamId -> Galley (Public.TeamFeatureStatus a)) ->
       Galley (Text, Aeson.Value)
     getStatus getter = do
@@ -125,23 +122,37 @@ getAllFeatures uid tid = do
       let feature = Public.knownTeamFeatureName @a
       pure $ (cs (toByteString' feature) Aeson..= status)
 
+getFeatureStatusNoConfig ::
+  forall (a :: Public.TeamFeatureName).
+  (Public.KnownTeamFeatureName a, Public.FeatureHasNoConfig a) =>
+  Galley Public.TeamFeatureStatusValue ->
+  TeamId ->
+  Galley (Public.TeamFeatureStatus a)
+getFeatureStatusNoConfig getDefault tid = do
+  defaultStatus <- Public.TeamFeatureStatusNoConfig <$> getDefault
+  fromMaybe defaultStatus <$> TeamFeatures.getFeatureStatusNoConfig @a tid
+
+setFeatureStatusNoConfig ::
+  forall (a :: Public.TeamFeatureName).
+  (Public.KnownTeamFeatureName a, Public.FeatureHasNoConfig a) =>
+  (Public.TeamFeatureStatusValue -> TeamId -> Galley ()) ->
+  TeamId ->
+  Public.TeamFeatureStatus a ->
+  Galley (Public.TeamFeatureStatus a)
+setFeatureStatusNoConfig applyState tid status = do
+  applyState (Public.tfwoStatus status) tid
+  TeamFeatures.setFeatureStatusNoConfig @a tid status
+
 getSSOStatusInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureSSO)
-getSSOStatusInternal tid = do
-  defStatus <- do
-    featureSSO <- view (options . optSettings . setFeatureFlags . flagSSO)
-    pure $ case featureSSO of
-      FeatureSSOEnabledByDefault -> Public.TeamFeatureStatusNoConfig Public.TeamFeatureEnabled
-      FeatureSSODisabledByDefault -> Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
-  status <- TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureSSO tid
-  pure . fromMaybe defStatus $ status
+getSSOStatusInternal = getFeatureStatusNoConfig @'Public.TeamFeatureSSO $ do
+  view (options . optSettings . setFeatureFlags . flagSSO) <&> \case
+    FeatureSSOEnabledByDefault -> Public.TeamFeatureEnabled
+    FeatureSSODisabledByDefault -> Public.TeamFeatureDisabled
 
 setSSOStatusInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureSSO) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureSSO)
-setSSOStatusInternal tid status = do
-  let statusValue = Public.tfwoStatus status
-  case statusValue of
-    Public.TeamFeatureDisabled -> throwM disableSsoNotImplemented
-    Public.TeamFeatureEnabled -> pure () -- this one is easy to implement :)
-  TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureSSO tid status
+setSSOStatusInternal = setFeatureStatusNoConfig @'Public.TeamFeatureSSO $ \case
+  Public.TeamFeatureDisabled -> const (throwM disableSsoNotImplemented)
+  Public.TeamFeatureEnabled -> const (pure ())
 
 getLegalholdStatusInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold)
 getLegalholdStatusInternal tid = do
@@ -176,47 +187,35 @@ setLegalholdStatusInternal tid status@(Public.tfwoStatus -> statusValue) = do
         throwM cannotEnableLegalHoldServiceLargeTeam
 
 getTeamSearchVisibilityAvailableInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility)
-getTeamSearchVisibilityAvailableInternal tid = do
-  -- TODO: This is just redundant given there is a decent default
-  defConfig <- do
-    featureTeamSearchVisibility <- view (options . optSettings . setFeatureFlags . flagTeamSearchVisibility)
-    pure . Public.TeamFeatureStatusNoConfig $ case featureTeamSearchVisibility of
-      FeatureTeamSearchVisibilityEnabledByDefault -> Public.TeamFeatureEnabled
-      FeatureTeamSearchVisibilityDisabledByDefault -> Public.TeamFeatureDisabled
-
-  fromMaybe defConfig
-    <$> TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibility tid
+getTeamSearchVisibilityAvailableInternal = getFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibility $ do
+  view (options . optSettings . setFeatureFlags . flagTeamSearchVisibility) <&> \case
+    FeatureTeamSearchVisibilityEnabledByDefault -> Public.TeamFeatureEnabled
+    FeatureTeamSearchVisibilityDisabledByDefault -> Public.TeamFeatureDisabled
 
 setTeamSearchVisibilityAvailableInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility)
-setTeamSearchVisibilityAvailableInternal tid status@(Public.tfwoStatus -> statusValue) = do
-  case statusValue of
-    Public.TeamFeatureDisabled -> SearchVisibilityData.resetSearchVisibility tid
-    Public.TeamFeatureEnabled -> pure () -- This allows the option to be set at the team level
-  TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibility tid status
+setTeamSearchVisibilityAvailableInternal = setFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibility $ \case
+  Public.TeamFeatureDisabled -> SearchVisibilityData.resetSearchVisibility
+  Public.TeamFeatureEnabled -> const (pure ())
 
 getValidateSAMLEmailsInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails)
-getValidateSAMLEmailsInternal tid = do
+getValidateSAMLEmailsInternal =
   -- FUTUREWORK: we may also want to get a default from the server config file here, like for
   -- sso, and team search visibility.
-  let defaultStatus = Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
-  fromMaybe defaultStatus
-    <$> TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureValidateSAMLEmails tid
+  getFeatureStatusNoConfig @'Public.TeamFeatureValidateSAMLEmails $
+    pure Public.TeamFeatureDisabled
 
 setValidateSAMLEmailsInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails)
-setValidateSAMLEmailsInternal tid =
-  TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureValidateSAMLEmails tid
+setValidateSAMLEmailsInternal = setFeatureStatusNoConfig @'Public.TeamFeatureValidateSAMLEmails $ \_ _ -> pure ()
 
 getDigitalSignaturesInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures)
-getDigitalSignaturesInternal tid = do
+getDigitalSignaturesInternal =
   -- FUTUREWORK: we may also want to get a default from the server config file here, like for
   -- sso, and team search visibility.
-  let defaultStatus = Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
-  fromMaybe defaultStatus
-    <$> TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureDigitalSignatures tid
+  getFeatureStatusNoConfig @'Public.TeamFeatureDigitalSignatures $ do
+    pure Public.TeamFeatureDisabled
 
 setDigitalSignaturesInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures)
-setDigitalSignaturesInternal tid =
-  TeamFeatures.setFeatureStatusNoConfig @'Public.TeamFeatureDigitalSignatures tid
+setDigitalSignaturesInternal = setFeatureStatusNoConfig @'Public.TeamFeatureDigitalSignatures $ \_ _ -> pure ()
 
 getAppLockInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock)
 getAppLockInternal tid = do
