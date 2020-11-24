@@ -154,6 +154,37 @@ setSSOStatusInternal = setFeatureStatusNoConfig @'Public.TeamFeatureSSO $ \case
   Public.TeamFeatureDisabled -> const (throwM disableSsoNotImplemented)
   Public.TeamFeatureEnabled -> const (pure ())
 
+getTeamSearchVisibilityAvailableInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility)
+getTeamSearchVisibilityAvailableInternal = getFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibility $ do
+  view (options . optSettings . setFeatureFlags . flagTeamSearchVisibility) <&> \case
+    FeatureTeamSearchVisibilityEnabledByDefault -> Public.TeamFeatureEnabled
+    FeatureTeamSearchVisibilityDisabledByDefault -> Public.TeamFeatureDisabled
+
+setTeamSearchVisibilityAvailableInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility)
+setTeamSearchVisibilityAvailableInternal = setFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibility $ \case
+  Public.TeamFeatureDisabled -> SearchVisibilityData.resetSearchVisibility
+  Public.TeamFeatureEnabled -> const (pure ())
+
+getValidateSAMLEmailsInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails)
+getValidateSAMLEmailsInternal =
+  -- FUTUREWORK: we may also want to get a default from the server config file here, like for
+  -- sso, and team search visibility.
+  getFeatureStatusNoConfig @'Public.TeamFeatureValidateSAMLEmails $
+    pure Public.TeamFeatureDisabled
+
+setValidateSAMLEmailsInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails)
+setValidateSAMLEmailsInternal = setFeatureStatusNoConfig @'Public.TeamFeatureValidateSAMLEmails $ \_ _ -> pure ()
+
+getDigitalSignaturesInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures)
+getDigitalSignaturesInternal =
+  -- FUTUREWORK: we may also want to get a default from the server config file here, like for
+  -- sso, and team search visibility.
+  getFeatureStatusNoConfig @'Public.TeamFeatureDigitalSignatures $ do
+    pure Public.TeamFeatureDisabled
+
+setDigitalSignaturesInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures)
+setDigitalSignaturesInternal = setFeatureStatusNoConfig @'Public.TeamFeatureDigitalSignatures $ \_ _ -> pure ()
+
 getLegalholdStatusInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold)
 getLegalholdStatusInternal tid = do
   featureLegalHold <- view (options . optSettings . setFeatureFlags . flagLegalHold)
@@ -185,37 +216,6 @@ setLegalholdStatusInternal tid status@(Public.tfwoStatus -> statusValue) = do
       limit <- fromIntegral . fromRange <$> fanoutLimit
       when (size > limit) $ do
         throwM cannotEnableLegalHoldServiceLargeTeam
-
-getTeamSearchVisibilityAvailableInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility)
-getTeamSearchVisibilityAvailableInternal = getFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibility $ do
-  view (options . optSettings . setFeatureFlags . flagTeamSearchVisibility) <&> \case
-    FeatureTeamSearchVisibilityEnabledByDefault -> Public.TeamFeatureEnabled
-    FeatureTeamSearchVisibilityDisabledByDefault -> Public.TeamFeatureDisabled
-
-setTeamSearchVisibilityAvailableInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility)
-setTeamSearchVisibilityAvailableInternal = setFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibility $ \case
-  Public.TeamFeatureDisabled -> SearchVisibilityData.resetSearchVisibility
-  Public.TeamFeatureEnabled -> const (pure ())
-
-getValidateSAMLEmailsInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails)
-getValidateSAMLEmailsInternal =
-  -- FUTUREWORK: we may also want to get a default from the server config file here, like for
-  -- sso, and team search visibility.
-  getFeatureStatusNoConfig @'Public.TeamFeatureValidateSAMLEmails $
-    pure Public.TeamFeatureDisabled
-
-setValidateSAMLEmailsInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureValidateSAMLEmails)
-setValidateSAMLEmailsInternal = setFeatureStatusNoConfig @'Public.TeamFeatureValidateSAMLEmails $ \_ _ -> pure ()
-
-getDigitalSignaturesInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures)
-getDigitalSignaturesInternal =
-  -- FUTUREWORK: we may also want to get a default from the server config file here, like for
-  -- sso, and team search visibility.
-  getFeatureStatusNoConfig @'Public.TeamFeatureDigitalSignatures $ do
-    pure Public.TeamFeatureDisabled
-
-setDigitalSignaturesInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureDigitalSignatures)
-setDigitalSignaturesInternal = setFeatureStatusNoConfig @'Public.TeamFeatureDigitalSignatures $ \_ _ -> pure ()
 
 getAppLockInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock)
 getAppLockInternal tid = do
