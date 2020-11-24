@@ -65,7 +65,7 @@ import Data.Misc (IpAddr (..))
 import Data.Proxy (Proxy (..))
 import Data.Qualified (Qualified (..))
 import Data.Range
-import Data.Swagger (Swagger, ToSchema (..), description, _namedSchemaName)
+import Data.Swagger (Swagger, ToSchema (..), description)
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Swagger.Lens (HasSchema (..))
 import qualified Data.Text as Text
