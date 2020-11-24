@@ -458,7 +458,7 @@ sitemap = do
   mkFeatureGetAndPutRoute @'Public.TeamFeatureDigitalSignatures Teams.getDigitalSignaturesInternal Teams.setDigitalSignaturesInternal
   mkFeatureGetAndPutRoute @'Public.TeamFeatureAppLock Teams.getAppLockInternal Teams.setAppLockInternal
 
-  get "/teams/:tid/features/" (continue Teams.getAllFeaturesH) $
+  get "/teams/:tid/features" (continue Teams.getAllFeaturesH) $
     zauthUserId
       .&. capture "tid"
       .&. accept "application" "json"
