@@ -199,7 +199,7 @@ data FeatureFlags = FeatureFlags
   { _flagSSO :: !FeatureSSO,
     _flagLegalHold :: !FeatureLegalHold,
     _flagTeamSearchVisibility :: !FeatureTeamSearchVisibility,
-    _flagAppLockDefaults :: !(Defaults (TeamFeatureStatus 'TeamFeatureAppLock))
+    _flagAppLockDefaults :: !(Maybe (Defaults (TeamFeatureStatus 'TeamFeatureAppLock)))
   }
   deriving (Eq, Show, Generic)
 
@@ -239,16 +239,16 @@ instance FromJSON FeatureFlags where
       <$> obj .: "sso"
       <*> obj .: "legalhold"
       <*> obj .: "teamSearchVisibility"
-      <*> obj .: "appLock"
+      <*> obj .:? "appLock"
 
 instance ToJSON FeatureFlags where
   toJSON (FeatureFlags sso legalhold searchVisibility appLock) =
     object $
       [ "sso" .= sso,
         "legalhold" .= legalhold,
-        "teamSearchVisibility" .= searchVisibility,
-        "appLock" .= appLock
+        "teamSearchVisibility" .= searchVisibility
       ]
+        <> ["appLock" .= appLock | isJust appLock]
 
 instance FromJSON FeatureSSO where
   parseJSON (String "enabled-by-default") = pure FeatureSSOEnabledByDefault
