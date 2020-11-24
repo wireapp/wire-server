@@ -21,7 +21,7 @@ module Util.Email where
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Types
-import Control.Lens ((^?))
+import Control.Lens ((^.), (^?))
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
@@ -31,6 +31,7 @@ import Imports
 import Test.Tasty.HUnit
 import Util.Core
 import Util.Types
+import qualified Wire.API.Team.Feature as Feature
 
 activateEmail ::
   (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
@@ -55,16 +56,17 @@ failActivatingEmail brig email = do
   act <- getActivationCode brig (Left email)
   liftIO $ assertEqual "there should be no pending activation" act Nothing
 
-checkEmail ::
-  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
-  BrigReq ->
+checkEmail' ::
+  HasCallStack =>
   UserId ->
-  Email ->
-  m ()
-checkEmail brig uid expectedEmail =
-  get (brig . path "/self" . zUser uid) !!! do
-    const 200 === statusCode
-    const (Just expectedEmail) === (userEmail <=< responseJsonMaybe)
+  Maybe Email ->
+  TestSpar ()
+checkEmail' uid expectedEmail = do
+  brig <- asks (^. teBrig)
+  call $
+    get (brig . path "/self" . zUser uid) !!! do
+      const 200 === statusCode
+      const expectedEmail === (userEmail <=< responseJsonMaybe)
 
 activate ::
   (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
@@ -90,3 +92,10 @@ getActivationCode brig ep = do
   let akey = ActivationKey . Ascii.unsafeFromText <$> (lbs ^? key "key" . _String)
   let acode = ActivationCode . Ascii.unsafeFromText <$> (lbs ^? key "code" . _String)
   return $ (,) <$> akey <*> acode
+
+enableSamlEmailValidation :: HasCallStack => TeamId -> TestSpar ()
+enableSamlEmailValidation tid = do
+  galley <- asks (^. teGalley)
+  let req = put $ galley . paths p . json (Feature.TeamFeatureStatusNoConfig Feature.TeamFeatureEnabled)
+      p = ["/i/teams", toByteString' tid, "features", "validate-saml-emails"]
+  call req !!! const 200 === statusCode
