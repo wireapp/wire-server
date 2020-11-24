@@ -145,6 +145,13 @@ permissionCheck p = \case
       else throwM (operationDenied p)
   Nothing -> throwM notATeamMember
 
+assertTeamExists :: TeamId -> Galley ()
+assertTeamExists tid = do
+  teamExists <- isJust <$> Data.team tid
+  if teamExists
+    then pure ()
+    else throwM teamNotFound
+
 assertOnTeam :: UserId -> TeamId -> Galley ()
 assertOnTeam uid tid = do
   Data.teamMember tid uid >>= \case

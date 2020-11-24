@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 85f04ae9c723a855be519c59f49ed58d99684c46e4541c67b15592f702fa26ea
+-- hash: f6deeba4679ebd1588720a94dbc73f7fb8520a76afe45fbe1169d75f4b0ae729
 
 name:           galley
 version:        0.83.0
@@ -344,6 +344,7 @@ executable galley-schema
       V43_TeamFeatureDigitalSignatures
       V44_AddRemoteIdentifiers
       V45_AddFederationIdMapping
+      V46_TeamFeatureAppLock
       Paths_galley
   hs-source-dirs:
       schema/src

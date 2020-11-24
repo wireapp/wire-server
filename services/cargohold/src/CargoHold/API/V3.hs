@@ -47,6 +47,7 @@ import qualified Data.CaseInsensitive as CI
 import Data.Conduit
 import qualified Data.Conduit.Attoparsec as Conduit
 import Data.Id
+import qualified Data.List as List
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (decodeLatin1)
 import qualified Data.Text.Lazy as LT
@@ -169,7 +170,7 @@ assetHeaders :: Parser AssetHeaders
 assetHeaders =
   eol
     *> boundary
-    *> (headers [hContentType, hContentLength] >>= go)
+    *> (headers [hContentType, hContentLength, hContentMD5] >>= go)
     <* eol
   where
     go hdrs =
@@ -199,20 +200,27 @@ boundary =
     *> eol
     <?> "MIME boundary"
 
+-- | Always parses until the end of headers is reached
+-- (a line not starting with a char that's valid in header names, usually an empty line),
+-- or fails.
+-- Not all listed headers must be found, but other headers (or duplicates) raise an error.
 headers :: [HeaderName] -> Parser [(HeaderName, ByteString)]
-headers names = count (length names) (header names)
-
-header :: [HeaderName] -> Parser (HeaderName, ByteString)
-header names = do
-  name <- CI.mk <$> takeTill (== ':') <?> "header name"
-  unless (name `elem` names) $
-    fail $
-      "Unexpected header: " ++ show (CI.original name)
-  _ <- char ':'
-  skipSpace
-  value <- takeTill isEOL <?> "header value"
-  eol
-  return (name, value)
+headers allowed = do
+  -- optional in case there is no header left to parse
+  optional (CI.mk <$> takeWhile1 (\c -> isAlphaNum c || c == '-') <?> "header name") >>= \case
+    Nothing ->
+      pure []
+    Just name
+      | name `notElem` allowed ->
+        -- might also be a duplicate
+        fail $ "Unexpected header: " ++ show (CI.original name)
+      | otherwise -> do
+        _ <- char ':'
+        skipSpace
+        value <- takeTill isEOL <?> "header value"
+        eol
+        -- we don't want to parse it again (this also ensures quick termination)
+        ((name, value) :) <$> headers (List.delete name allowed)
 
 eol :: Parser ()
 eol = endOfLine <?> "\r\n"

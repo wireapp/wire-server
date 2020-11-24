@@ -26,6 +26,7 @@ library:
   - cassandra-util
   - cryptonite >=0.11
   - currency-codes >=2.0
+  - deriving-aeson >=0.2
   - email-validate >=2.0
   - errors
   - exceptions >=0.10.0

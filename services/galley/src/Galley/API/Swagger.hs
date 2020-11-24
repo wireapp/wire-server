@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -40,6 +41,7 @@ import Data.LegalHold
 import Data.Misc
 import Data.Proxy
 import Data.Swagger hiding (Header (..))
+import Data.Swagger.Declare (Declare)
 import Data.Text as Text (unlines)
 import Data.UUID (UUID)
 import Imports
@@ -98,9 +100,9 @@ type GalleyRoutesPublic =
 
 type GalleyRoutesInternal =
   "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
-    :> Get '[JSON] TeamFeatureStatus
+    :> Get '[JSON] (TeamFeatureStatus 'TeamFeatureLegalHold)
     :<|> "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
-      :> ReqBody '[JSON] TeamFeatureStatus
+      :> ReqBody '[JSON] (TeamFeatureStatus 'TeamFeatureLegalHold)
       :> Put '[] NoContent
 
 -- FUTUREWORK: move Swagger instances next to the types they describe
@@ -219,19 +221,39 @@ instance ToSchema ViewLegalHoldServiceInfo where
         ViewLegalHoldService
           (ViewLegalHoldServiceInfo arbitraryExample arbitraryExample arbitraryExample (ServiceToken "sometoken") arbitraryExample)
 
-instance ToSchema TeamFeatureStatus where
+declareNamedSchemaFeatureNoConfig :: f -> Declare (Definitions Schema) NamedSchema
+declareNamedSchemaFeatureNoConfig _ =
+  pure $
+    NamedSchema (Just "TeamFeatureStatus") $
+      mempty
+        & properties .~ (fromList [("status", Inline statusValue)])
+        & required .~ ["status"]
+        & type_ ?~ SwaggerObject
+        & description ?~ "whether a given team feature is enabled"
+  where
+    statusValue =
+      mempty
+        & enum_ ?~ [String "enabled", String "disabled"]
+
+instance ToSchema TeamFeatureStatusNoConfig where
+  declareNamedSchema = declareNamedSchemaFeatureNoConfig
+
+-- (we're still using the swagger1.2 swagger for this, but let's just keep it around, we may use it later.)
+instance ToSchema TeamFeatureAppLockConfig where
   declareNamedSchema _ =
     pure $
-      NamedSchema (Just "TeamFeatureStatus") $
+      NamedSchema (Just "TeamFeatureAppLockConfig") $
         mempty
-          & properties .~ (fromList [("status", Inline statusValue)])
-          & required .~ ["status"]
-          & type_ ?~ SwaggerObject
-          & description ?~ "whether a given team feature is enabled"
+          & type_ .~ Just SwaggerObject
+          & properties .~ configProperties
+          & required .~ ["enforceAppLock", "inactivityTimeoutSecs"]
     where
-      statusValue =
-        mempty
-          & enum_ ?~ [String "enabled", String "disabled"]
+      configProperties :: InsOrdHashMap Text (Referenced Schema)
+      configProperties =
+        fromList
+          [ ("enforceAppLock", Inline (toSchema (Proxy @Bool))),
+            ("inactivityTimeoutSecs", Inline (toSchema (Proxy @Int)))
+          ]
 
 instance ToSchema RequestNewLegalHoldClient where
   declareNamedSchema = genericDeclareNamedSchema opts
