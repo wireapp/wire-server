@@ -436,11 +436,18 @@ getTeamFeatureFlag ::
 getTeamFeatureFlag tid = do
   info $ msg "Getting team feature status"
   gly <- view galley
-  let req =
-        method GET
-          . paths ["/i/teams", toByteString' tid, "features", toByteString' (Public.knownTeamFeatureName @a)]
-          . expect2xx
-  responseJsonUnsafe @(Public.TeamFeatureStatus a) <$> catchRpcErrors (rpc' "galley" gly req)
+  r <-
+    catchRpcErrors $
+      rpc'
+        "galley"
+        gly
+        ( method GET
+            . paths ["/i/teams", toByteString' tid, "features", toByteString' (Public.knownTeamFeatureName @a)]
+        )
+  case Bilge.statusCode r of
+    200 -> pure $ responseJsonUnsafe @(Public.TeamFeatureStatus a) r
+    404 -> throwE (Error status404 "bad-upstream" "team doesnt exist")
+    _ -> throwE (Error status502 "bad-upstream" "bad response")
 
 setTeamFeatureFlag ::
   forall (a :: Public.TeamFeatureName).
@@ -461,6 +468,7 @@ setTeamFeatureFlag tid status = do
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case statusCode resp of
     200 -> pure ()
+    404 -> throwE (Error status404 "bad-upstream" "team doesnt exist")
     _ -> throwE $ responseJsonUnsafe resp
 
 getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
