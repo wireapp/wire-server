@@ -41,6 +41,8 @@ module Stern.Intra
     isBlacklisted,
     setBlacklistStatus,
     getTeamFeatureFlag,
+    getTeamFeatureFlagNoConfig,
+    setTeamFeatureFlagNoConfig,
     setTeamFeatureFlag,
     getSearchVisibility,
     setSearchVisibility,
@@ -436,18 +438,11 @@ getTeamFeatureFlag ::
 getTeamFeatureFlag tid = do
   info $ msg "Getting team feature status"
   gly <- view galley
-  r <-
-    catchRpcErrors $
-      rpc'
-        "galley"
-        gly
-        ( method GET
-            . paths ["/i/teams", toByteString' tid, "features", toByteString' (Public.knownTeamFeatureName @a)]
-        )
-  case Bilge.statusCode r of
-    200 -> pure $ responseJsonUnsafe @(Public.TeamFeatureStatus a) r
-    404 -> throwE (Error status404 "bad-upstream" "team doesnt exist")
-    _ -> throwE (Error status502 "bad-upstream" "bad response")
+  let req =
+        method GET
+          . paths ["/i/teams", toByteString' tid, "features", toByteString' (Public.knownTeamFeatureName @a)]
+          . expect2xx
+  responseJsonUnsafe @(Public.TeamFeatureStatus a) <$> catchRpcErrors (rpc' "galley" gly req)
 
 setTeamFeatureFlag ::
   forall (a :: Public.TeamFeatureName).
@@ -468,7 +463,37 @@ setTeamFeatureFlag tid status = do
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case statusCode resp of
     200 -> pure ()
-    404 -> throwE (Error status404 "bad-upstream" "team doesnt exist")
+    _ -> throwE $ responseJsonUnsafe resp
+
+getTeamFeatureFlagNoConfig ::
+  TeamId ->
+  Public.TeamFeatureName ->
+  Handler Public.TeamFeatureStatusNoConfig
+getTeamFeatureFlagNoConfig tid featureName = do
+  info $ msg "Getting team feature status"
+  gly <- view galley
+  let req =
+        method GET
+          . paths ["/i/teams", toByteString' tid, "features", toByteString' featureName]
+          . expect2xx
+  responseJsonUnsafe @Public.TeamFeatureStatusNoConfig <$> catchRpcErrors (rpc' "galley" gly req)
+
+setTeamFeatureFlagNoConfig ::
+  TeamId ->
+  Public.TeamFeatureName ->
+  Public.TeamFeatureStatusValue ->
+  Handler ()
+setTeamFeatureFlagNoConfig tid featureName statusValue = do
+  info $ msg "Setting team feature status for feature without config"
+  gly <- view galley
+  let req =
+        method PUT
+          . paths ["/i/teams", toByteString' tid, "features", toByteString' featureName]
+          . Bilge.json (Public.TeamFeatureStatusNoConfig statusValue)
+          . contentJson
+  resp <- catchRpcErrors $ rpc' "galley" gly req
+  case statusCode resp of
+    200 -> pure ()
     _ -> throwE $ responseJsonUnsafe resp
 
 getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView

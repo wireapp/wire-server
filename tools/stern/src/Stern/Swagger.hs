@@ -19,9 +19,13 @@
 
 module Stern.Swagger where
 
+import Data.ByteString.Conversion (toByteString')
+import Data.String.Conversions
 import Data.Swagger.Build.Api
+import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import qualified Wire.API.Team.Feature as Feature
+import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.SearchVisibility (modelTeamSearchVisibility)
 
 sternModels :: [Model]
@@ -33,6 +37,17 @@ sternModels =
     teamBillingInfoUpdate
   ]
     <> (Feature.modelForTeamFeature <$> [minBound ..])
+
+typeTeamFeatureNameNoConfig :: Doc.DataType
+typeTeamFeatureNameNoConfig =
+  Doc.string . Doc.enum $
+    cs . toByteString'
+      <$> [ Public.TeamFeatureLegalHold,
+            Public.TeamFeatureSSO,
+            Public.TeamFeatureSearchVisibility,
+            Public.TeamFeatureValidateSAMLEmails,
+            Public.TeamFeatureDigitalSignatures
+          ]
 
 emailUpdate :: Model
 emailUpdate = defineModel "EmailUpdate" $ do

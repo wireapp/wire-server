@@ -172,11 +172,11 @@ type FeatureHasNoConfig (a :: TeamFeatureName) = (TeamFeatureStatus a ~ TeamFeat
 
 -- if you add a new constructor here, don't forget to add it to the swagger (1.2) docs in "Wire.API.Swagger"!
 modelForTeamFeature :: TeamFeatureName -> Doc.Model
-modelForTeamFeature name@TeamFeatureLegalHold = modelTeamFeatureStatusNoConfig name
-modelForTeamFeature name@TeamFeatureSSO = modelTeamFeatureStatusNoConfig name
-modelForTeamFeature name@TeamFeatureSearchVisibility = modelTeamFeatureStatusNoConfig name
-modelForTeamFeature name@TeamFeatureValidateSAMLEmails = modelTeamFeatureStatusNoConfig name
-modelForTeamFeature name@TeamFeatureDigitalSignatures = modelTeamFeatureStatusNoConfig name
+modelForTeamFeature TeamFeatureLegalHold = modelTeamFeatureStatusNoConfig
+modelForTeamFeature TeamFeatureSSO = modelTeamFeatureStatusNoConfig
+modelForTeamFeature TeamFeatureSearchVisibility = modelTeamFeatureStatusNoConfig
+modelForTeamFeature TeamFeatureValidateSAMLEmails = modelTeamFeatureStatusNoConfig
+modelForTeamFeature TeamFeatureDigitalSignatures = modelTeamFeatureStatusNoConfig
 modelForTeamFeature name@TeamFeatureAppLock = modelTeamFeatureStatusWithConfig name modelTeamFeatureAppLockConfig
 
 ----------------------------------------------------------------------
@@ -187,8 +187,8 @@ newtype TeamFeatureStatusNoConfig = TeamFeatureStatusNoConfig
   }
   deriving newtype (Eq, Show, Generic, Typeable, Arbitrary)
 
-modelTeamFeatureStatusNoConfig :: TeamFeatureName -> Doc.Model
-modelTeamFeatureStatusNoConfig name = Doc.defineModel (cs $ show name) $ do
+modelTeamFeatureStatusNoConfig :: Doc.Model
+modelTeamFeatureStatusNoConfig = Doc.defineModel "TeamFeatureStatusNoConfig" $ do
   Doc.description $ "Configuration for a team feature that has no configuration"
   Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
 
