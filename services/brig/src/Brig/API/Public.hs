@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -64,7 +65,7 @@ import Data.Misc (IpAddr (..))
 import Data.Proxy (Proxy (..))
 import Data.Qualified (Qualified (..))
 import Data.Range
-import Data.Swagger (Swagger)
+import Data.Swagger (Swagger, ToSchema (..))
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
@@ -80,10 +81,11 @@ import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
-import Servant (Capture, Capture', Description, Get, HasServer, Header', NoContent, ServerT, StdMethod (HEAD), Summary, Verb, (:<|>) (..), (:>))
+import Servant (Capture, Capture', DefaultErrorFormatters, Description, ErrorFormatters, Get, HasContextEntry, HasServer, HasStatus, Header', NoContent, ServerT, StdMethod (HEAD), Summary, UVerb, Union, Verb, WithStatus (WithStatus), (:<|>) (..), (:>), type (.++))
 import qualified Servant
-import Servant.API (NoContent (NoContent))
+import Servant.API (StdMethod (GET))
 import Servant.Swagger (HasSwagger (toSwagger))
+import Servant.Swagger.Internal.Orphans ()
 import qualified System.Logger.Class as Log
 import qualified Wire.API.Connection as Public
 import qualified Wire.API.Properties as Public
@@ -114,7 +116,12 @@ type OutsideWorldAuth = Header' [Servant.Required, Servant.Strict, Description "
 instance HasSwagger api => HasSwagger (ZAuthServant :> api) where
   toSwagger _ = toSwagger (Proxy @(OutsideWorldAuth :> api))
 
-instance HasServer api ctx => HasServer (ZAuthServant :> api) ctx where
+instance
+  ( HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
+    HasServer api ctx
+  ) =>
+  HasServer (ZAuthServant :> api) ctx
+  where
   type ServerT (ZAuthServant :> api) m = ServerT (InternalAuth :> api) m
 
   route _ = Servant.route (Proxy @(InternalAuth :> api))
@@ -124,6 +131,55 @@ instance HasServer api ctx => HasServer (ZAuthServant :> api) ctx where
 type CaptureUserId name = Capture' '[Description "User Id"] name UserId
 
 -- User API -----------------------------------------------------------
+
+type Example =
+  "fisx" :> Capture "bool" Bool
+    :> UVerb 'GET '[Servant.JSON] '[FisxUser, WithStatus 303 String]
+    :<|> "arian"
+      :> UVerb 'GET '[Servant.JSON] '[WithStatus 201 ArianUser]
+
+newtype FisxUser = FisxUser {name :: String}
+  deriving (Eq, Show, Generic)
+
+instance ToJSON FisxUser
+
+instance FromJSON FisxUser
+
+instance ToSchema FisxUser
+
+-- | 'HasStatus' allows us to can get around 'WithStatus' if we want
+-- to, and associate the status code with our resource types directly.
+--
+-- (To avoid orphan instances and make it more explicit what's in the
+-- API and what isn't, we could even introduce a newtype 'Resource'
+-- that wraps all the types we're using in our routing table, and then
+-- define lots of 'HasStatus' instances for @Resource This@ and
+-- @Resource That@.)
+instance HasStatus FisxUser where
+  type StatusOf FisxUser = 203
+
+data ArianUser = ArianUser
+  deriving (Eq, Show, Generic)
+
+instance ToJSON ArianUser
+
+instance FromJSON ArianUser
+
+instance ToSchema ArianUser
+
+fisx :: Bool -> Handler (Union '[FisxUser, WithStatus 303 String])
+fisx True = Servant.respond (FisxUser "fisx")
+fisx False = Servant.respond (WithStatus @303 ("still fisx" :: String))
+
+arian :: Handler (Union '[WithStatus 201 ArianUser])
+arian = Servant.respond (WithStatus @201 ArianUser)
+
+data Empty = Empty
+  deriving (Generic)
+
+instance ToSchema Empty
+
+type CheckUserExistsResponse = [NoContent, WithStatus 404 Empty]
 
 -- TODO: Try to list responses with UVerb
 -- They looked like this:
@@ -137,6 +193,7 @@ type CheckUserExistsQualified =
     :> "users"
     :> Capture "domain" Domain
     :> CaptureUserId "uid"
+    -- :> UVerb 'HEAD '[Servant.JSON] CheckUserExistsResponse
     :> Verb 'HEAD 200 '[Servant.JSON] NoContent
 
 -- See Note [ephemeral user sideeffect]
@@ -145,6 +202,7 @@ type CheckUserExistsUnqualified =
     :> ZAuthServant
     :> "users"
     :> CaptureUserId "uid"
+    -- :> UVerb 'HEAD '[Servant.JSON] CheckUserExistsResponse
     :> Verb 'HEAD 200 '[Servant.JSON] NoContent
 
 -- TODO: Try to list responses with UVerb
@@ -177,14 +235,21 @@ type OutsideWorldAPI =
 type ServantAPI =
   "brig" :> "api-docs" :> Get '[Servant.JSON] Swagger
     :<|> OutsideWorldAPI
+    :<|> Example
+
+instance ToSchema NoContent
 
 servantSitemap :: ServerT ServantAPI Handler
 servantSitemap =
   pure (toSwagger (Proxy @OutsideWorldAPI))
-    :<|> checkQualifiedUserExistsH
-    :<|> checkUnqualifiedUserExistsH
-    :<|> getUserUnqualifiedH
-    :<|> getUserH
+    :<|> ( checkQualifiedUserExistsH
+             :<|> checkUnqualifiedUserExistsH
+             :<|> getUserUnqualifiedH
+             :<|> getUserH
+         )
+    :<|> ( fisx
+             :<|> arian
+         )
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
@@ -1103,7 +1168,9 @@ createUser (Public.NewUserPublic new) = do
 checkQualifiedUserExistsH :: UserId -> Domain -> UserId -> Handler NoContent
 checkQualifiedUserExistsH self domain uid = do
   exists <- checkUserExists self (Qualified uid domain)
-  if exists then return NoContent else throwStd userNotFound
+  if exists
+    then pure Servant.NoContent
+    else throwStd userNotFound -- Servant.respond (WithStatus @404 Empty)
 
 checkUnqualifiedUserExistsH :: UserId -> UserId -> Handler NoContent
 checkUnqualifiedUserExistsH self uid = do
