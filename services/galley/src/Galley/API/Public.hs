@@ -451,14 +451,7 @@ sitemap = do
     response 204 "Search visibility set" end
     errorResponse Error.teamSearchVisibilityNotEnabled
 
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureSSO Teams.getSSOStatusInternal Teams.setSSOStatusInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureLegalHold Teams.getLegalholdStatusInternal Teams.setLegalholdStatusInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureSearchVisibility Teams.getTeamSearchVisibilityAvailableInternal Teams.setTeamSearchVisibilityAvailableInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureValidateSAMLEmails Teams.getValidateSAMLEmailsInternal Teams.setValidateSAMLEmailsInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureDigitalSignatures Teams.getDigitalSignaturesInternal Teams.setDigitalSignaturesInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureAppLock Teams.getAppLockInternal Teams.setAppLockInternal
-
-  get "/teams/:tid/features/" (continue Teams.getAllFeaturesH) $
+  get "/teams/:tid/features" (continue Teams.getAllFeaturesH) $
     zauthUserId
       .&. capture "tid"
       .&. accept "application" "json"
@@ -467,6 +460,13 @@ sitemap = do
     parameter Path "tid" bytes' $
       description "Team ID"
     response 200 "All feature statuses" end
+
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureSSO Teams.getSSOStatusInternal Teams.setSSOStatusInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureLegalHold Teams.getLegalholdStatusInternal Teams.setLegalholdStatusInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureSearchVisibility Teams.getTeamSearchVisibilityAvailableInternal Teams.setTeamSearchVisibilityAvailableInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureValidateSAMLEmails Teams.getValidateSAMLEmailsInternal Teams.setValidateSAMLEmailsInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureDigitalSignatures Teams.getDigitalSignaturesInternal Teams.setDigitalSignaturesInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureAppLock Teams.getAppLockInternal Teams.setAppLockInternal
 
   -- Custom Backend API -------------------------------------------------
 
