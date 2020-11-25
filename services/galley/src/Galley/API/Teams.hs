@@ -105,6 +105,7 @@ import qualified Wire.API.Conversation.Role as Public
 import qualified Wire.API.Notification as Public
 import qualified Wire.API.Team as Public
 import qualified Wire.API.Team.Conversation as Public
+import Wire.API.Team.Feature (featureStatus)
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Member as Public
 import qualified Wire.API.Team.SearchVisibility as Public
@@ -881,7 +882,7 @@ setSearchVisibilityInternalH (tid ::: req ::: _) = do
 setSearchVisibilityInternal :: TeamId -> TeamSearchVisibilityView -> Galley ()
 setSearchVisibilityInternal tid (TeamSearchVisibilityView searchVisibility) = do
   status <- getTeamSearchVisibilityAvailableInternal tid
-  unless (Public.tfwoStatus status == Public.TeamFeatureEnabled) $
+  unless (featureStatus status == Public.TeamFeatureEnabled) $
     throwM teamSearchVisibilityNotEnabled
   SearchVisibilityData.setSearchVisibility tid searchVisibility
 
