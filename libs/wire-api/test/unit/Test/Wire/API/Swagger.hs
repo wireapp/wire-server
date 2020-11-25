@@ -1,6 +1,6 @@
 module Test.Wire.API.Swagger (tests) where
 
-import Data.Aeson (ToJSON, toJSON)
+import Data.Aeson (ToJSON)
 import Data.Swagger (ToSchema, validatePrettyToJSON)
 import Imports
 import qualified Test.Tasty as T
@@ -19,7 +19,7 @@ testToJSON = testProperty msg trip
     msg = show (typeRep @a)
     trip (v :: a) =
       counterexample
-        ( fromMaybe ("Schema validation failed, but there were no errors. This looks like a bug in swagger2!") $
+        ( fromMaybe "Schema validation failed, but there were no errors. This looks like a bug in swagger2!" $
             validatePrettyToJSON v
         )
-        $ validatePrettyToJSON v == Nothing
+        $ isNothing (validatePrettyToJSON v)

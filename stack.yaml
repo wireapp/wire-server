@@ -9,6 +9,7 @@ packages:
 - libs/cassandra-util
 - libs/extended
 - libs/dns-util
+- libs/deriving-swagger2
 - libs/galley-types
 - libs/gundeck-types
 - libs/hscim

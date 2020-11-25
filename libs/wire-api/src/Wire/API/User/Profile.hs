@@ -66,13 +66,12 @@ import Data.ByteString.Conversion
 import Data.ISO3166_CountryCodes
 import Data.Json.Util ((#))
 import Data.LanguageCodes
-import Data.List.Extra (dropPrefix)
 import Data.Proxy (Proxy (..))
 import Data.Range
-import Data.Swagger (NamedSchema (..), Referenced (Inline), ToSchema (..), enum_, genericDeclareNamedSchema, properties, schema)
-import qualified Data.Swagger as Swagger
+import Data.Swagger (Referenced (Inline), ToSchema (..), enum_, genericDeclareNamedSchema, properties, schema)
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
+import Deriving.Swagger (CamelToSnake, ConstructorTagModifier, CustomSwagger, FieldLabelModifier, StripPrefix, SwaggerOptions (..))
 import qualified GHC.Exts as IsList
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
@@ -126,18 +125,13 @@ data Asset = ImageAsset
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Asset)
 
+-- Cannot use deriving (ToSchema) via (CustomSwagger ...) because we need to add
+-- 'type'
 instance ToSchema Asset where
   declareNamedSchema _ = do
-    let transformFn = \case
-          "Key" -> "key"
-          "Size" -> "size"
-          x -> x
     namedSchema <-
       genericDeclareNamedSchema
-        ( Swagger.defaultSchemaOptions
-            { Swagger.fieldLabelModifier = transformFn . dropPrefix "asset"
-            }
-        )
+        (swaggerOptions @'[FieldLabelModifier (StripPrefix "asset", CamelToSnake)])
         (Proxy @Asset)
     let typeSchema = Inline $ mempty & enum_ ?~ [Json.String "image"]
     pure $
@@ -181,17 +175,7 @@ instance FromJSON Asset where
 data AssetSize = AssetComplete | AssetPreview
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform AssetSize)
-
-instance ToSchema AssetSize where
-  declareNamedSchema _ =
-    pure $
-      NamedSchema
-        (Just "AssetSize")
-        ( mempty & enum_
-            ?~ [ Json.String "complete",
-                 Json.String "preview"
-               ]
-        )
+  deriving (ToSchema) via (CustomSwagger '[ConstructorTagModifier (StripPrefix "Asset", CamelToSnake)] AssetSize)
 
 typeAssetSize :: Doc.DataType
 typeAssetSize =

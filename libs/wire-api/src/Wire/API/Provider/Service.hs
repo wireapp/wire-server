@@ -62,17 +62,15 @@ import qualified Data.ByteString.Char8 as BS
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util ((#))
-import Data.List.Extra (dropPrefix)
 import Data.List1 (List1)
 import Data.Misc (HttpsUrl (..), PlainTextPassword (..))
 import Data.PEM (PEM, pemParseBS, pemWriteLBS)
-import Data.Proxy (Proxy (Proxy))
 import Data.Range (Range)
-import Data.Swagger (ToSchema (..), genericDeclareNamedSchema)
-import qualified Data.Swagger as Swagger
+import Data.Swagger (ToSchema (..))
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import qualified Data.Text.Encoding as Text
+import Deriving.Swagger (CamelToSnake, CustomSwagger, FieldLabelModifier, StripPrefix)
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Provider.Service.Tag (ServiceTag (..))
@@ -88,6 +86,7 @@ data ServiceRef = ServiceRef
   }
   deriving stock (Ord, Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ServiceRef)
+  deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "_serviceRef", CamelToSnake)] ServiceRef)
 
 makeLenses ''ServiceRef
 
@@ -112,19 +111,6 @@ instance ToJSON ServiceRef where
       [ "id" .= _serviceRefId r,
         "provider" .= _serviceRefProvider r
       ]
-
-instance ToSchema ServiceRef where
-  declareNamedSchema _ = do
-    let transformFn = \case
-          "Id" -> "id"
-          "Provider" -> "provider"
-          x -> x
-    genericDeclareNamedSchema
-      ( Swagger.defaultSchemaOptions
-          { Swagger.fieldLabelModifier = transformFn . dropPrefix "_serviceRef"
-          }
-      )
-      (Proxy @ServiceRef)
 
 --------------------------------------------------------------------------------
 -- ServiceKey
