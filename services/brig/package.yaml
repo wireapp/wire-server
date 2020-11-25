@@ -10,7 +10,6 @@ copyright: (c) 2017 Wire Swiss GmbH
 license: AGPL-3
 ghc-options:
 - -funbox-strict-fields
-- -fprint-potential-instances
 library:
   source-dirs: src
   dependencies:
