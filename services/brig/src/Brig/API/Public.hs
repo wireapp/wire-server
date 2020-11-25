@@ -144,7 +144,7 @@ instance ToJSON Empty200 where
 
 data Empty404 = Empty404
   deriving (Generic)
-  deriving (HasStatus) via (WithStatus 405 Empty404)
+  deriving (HasStatus) via (WithStatus 404 Empty404)
 
 instance ToJSON Empty404 where
   toJSON _ = toJSON ("" :: Text)
