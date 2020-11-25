@@ -155,12 +155,18 @@ instance ToSchema Empty404 where
 
 type CheckUserExistsResponse = [Empty200, Empty404]
 
--- TODO: Try to list responses with UVerb
--- They looked like this:
---   Doc.response 200 "User exists" Doc.end
---   Doc.errorResponse userNotFound
+-- Note [document responses]
+--
+-- Ideally we want to document responses with UVerb and swagger, but this is not
+-- currently not possible due to this issue:
+-- https://github.com/haskell-servant/servant/issues/1369
 
 -- See Note [ephemeral user sideeffect]
+--
+-- See Note [document responses]
+-- The responses looked like this:
+--   Doc.response 200 "User exists" Doc.end
+--   Doc.errorResponse userNotFound
 type CheckUserExistsQualified =
   Summary "Check if a user ID exists"
     :> ZAuthServant
@@ -170,6 +176,11 @@ type CheckUserExistsQualified =
     :> UVerb 'HEAD '[Servant.JSON] CheckUserExistsResponse
 
 -- See Note [ephemeral user sideeffect]
+--
+-- See Note [document responses]
+-- The responses looked like this:
+--   Doc.response 200 "User exists" Doc.end
+--   Doc.errorResponse userNotFound
 type CheckUserExistsUnqualified =
   Summary "Check if a user ID exists (deprecated)"
     :> ZAuthServant
@@ -177,11 +188,12 @@ type CheckUserExistsUnqualified =
     :> CaptureUserId "uid"
     :> UVerb 'HEAD '[Servant.JSON] CheckUserExistsResponse
 
--- TODO: Try to list responses with UVerb
--- They looked like this:
---   Doc.errorResponse userNotFound
---
 -- See Note [ephemeral user sideeffect]
+--
+-- See Note [document responses]
+-- The responses looked like this:
+--   Doc.response 200 "User" Doc.end
+--   Doc.errorResponse userNotFound
 type GetUserUnQualified =
   Summary "Get a user by UserId (deprecated)"
     :> ZAuthServant
@@ -190,6 +202,11 @@ type GetUserUnQualified =
     :> Get '[Servant.JSON] Public.UserProfile
 
 -- See Note [ephemeral user sideeffect]
+--
+-- See Note [document responses]
+-- The responses looked like:
+--   Doc.response 200 "User" Doc.end
+--   Doc.errorResponse userNotFound
 type GetUserQualified =
   Summary "Get a user by Domain and UserId"
     :> ZAuthServant
