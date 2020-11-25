@@ -1,10 +1,8 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.2.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 6f50966a204628956d641ded5887d6d680439edc24085d2d5a39ffaa42bb9f48
 
 name:           hscim
 version:        0.3.4
@@ -92,8 +90,8 @@ library
     , network-uri >=2.6.2 && <2.7
     , retry >=0.8.1.0 && <0.9
     , scientific >=0.3.6 && <0.4
-    , servant >=0.18.2 && <0.19
-    , servant-server >=0.18.2 && <0.19
+    , servant >=0.16.2 && <0.17
+    , servant-server >=0.16.2 && <0.17
     , stm >=2.5.0 && <2.6
     , stm-containers >=1.1.0 && <1.2
     , string-conversions >=0.4.0 && <0.5
