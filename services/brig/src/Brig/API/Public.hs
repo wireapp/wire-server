@@ -163,7 +163,6 @@ type CheckUserExistsResponse = [Empty200, Empty404]
 -- See Note [ephemeral user sideeffect]
 type CheckUserExistsQualified =
   Summary "Check if a user ID exists"
-    :> Description "blah"
     :> ZAuthServant
     :> "users"
     :> Capture "domain" Domain
