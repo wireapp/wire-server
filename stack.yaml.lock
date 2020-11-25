@@ -492,6 +492,13 @@ packages:
   original:
     hackage: servant-server-0.18.2
 - completed:
+    hackage: servant-mock-0.8.7@sha256:64cb3e52bbd51ab6cb25e3f412a99ea712c6c26f1efd117f01a8d1664df49c67,2306
+    pantry-tree:
+      size: 555
+      sha256: b263e932ec6b151e52987054ec0a4cd692fa787f856c79e51498302eb0d6c388
+  original:
+    hackage: servant-mock-0.8.7
+- completed:
     name: servant-swagger
     version: 1.1.11
     git: https://github.com/wireapp/servant-swagger.git

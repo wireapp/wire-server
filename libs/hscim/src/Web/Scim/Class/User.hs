@@ -71,7 +71,7 @@ data UserSite tag route = UserSite
     usDeleteUser ::
       route
         :- Capture "id" (UserId tag)
-        :> DeleteNoContent '[SCIM] NoContent
+        :> DeleteNoContent
   }
   deriving (Generic)
 

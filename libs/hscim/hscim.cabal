@@ -92,8 +92,8 @@ library
     , network-uri >=2.6.2 && <2.7
     , retry >=0.8.1.0 && <0.9
     , scientific >=0.3.6 && <0.4
-    , servant >=0.16.2 && <0.17
-    , servant-server >=0.16.2 && <0.17
+    , servant >=0.18.2 && <0.19
+    , servant-server >=0.18.2 && <0.19
     , stm >=2.5.0 && <2.6
     , stm-containers >=1.1.0 && <1.2
     , string-conversions >=0.4.0 && <0.5

@@ -164,6 +164,7 @@ extra-deps:
 - splitmix-0.0.4 # needed for QuickCheck
 - servant-0.18.2
 - servant-server-0.18.2
+- servant-mock-0.8.7
 - git: https://github.com/wireapp/servant-swagger.git
   commit: 23e9afafadaade29d21181b935286087457171e3
 
