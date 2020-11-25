@@ -64,6 +64,7 @@ instance Arbitrary FeatureFlags where
       <$> QC.elements [minBound ..]
       <*> QC.elements [minBound ..]
       <*> QC.elements [minBound ..]
+      <*> arbitrary
 
 deriving newtype instance Arbitrary PostIdMappingRequest
 

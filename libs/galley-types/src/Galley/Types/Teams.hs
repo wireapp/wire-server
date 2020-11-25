@@ -138,6 +138,7 @@ import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import Imports
+import Test.QuickCheck (Arbitrary)
 import Wire.API.Event.Team
 import Wire.API.Team
 import Wire.API.Team.Conversation
@@ -205,6 +206,7 @@ data FeatureFlags = FeatureFlags
 
 newtype Defaults a = Defaults {_unDefaults :: a}
   deriving (Eq, Ord, Show, Enum, Bounded, Generic)
+  deriving newtype (Arbitrary)
 
 instance FromJSON a => FromJSON (Defaults a) where
   parseJSON = withObject "default object" $ \ob ->
