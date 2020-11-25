@@ -30,6 +30,8 @@ module Spar.Error
     throwSpar,
     sparToServerErrorWithLogging,
     renderSparErrorWithLogging,
+    rethrow,
+    parseResponse,
     -- FUTUREWORK: we really shouldn't export this, but that requires that we can use our
     -- custom servant monad in the 'MakeCustomError' instances.
     servantToWaiError,
@@ -39,9 +41,13 @@ module Spar.Error
   )
 where
 
+import Bilge (ResponseLBS, responseBody, responseJsonMaybe)
+import qualified Bilge
 import Control.Monad.Except
 import Data.Aeson
 import Data.String.Conversions
+import Data.Typeable (typeRep)
+import GHC.Stack (callStack, prettyCallStack)
 import Imports
 import Network.HTTP.Types.Status
 import qualified Network.Wai as Wai
@@ -79,14 +85,8 @@ data SparCustomError
   | SparBindUserRefTaken
   | SparBadUserName LT
   | SparCannotCreateUsersOnReplacedIdP LT
-  | SparNoBodyInBrigResponse
-  | SparCouldNotParseBrigResponse LT
+  | SparCouldNotParseRfcResponse LT LT
   | SparReAuthRequired
-  | SparBrigError LT
-  | SparBrigErrorWith Status LT
-  | SparNoBodyInGalleyResponse
-  | SparCouldNotParseGalleyResponse LT
-  | SparGalleyError LT
   | SparCouldNotRetrieveCookie
   | SparCassandraError LT
   | SparCassandraTTLError TTLError
@@ -141,16 +141,9 @@ renderSparError (SAML.CustomError (SparBindFromBadAccountStatus msg)) = Right $ 
 renderSparError (SAML.CustomError SparBindUserRefTaken) = Right $ Wai.Error status403 "subject-id-taken" "Forbidden: SubjectID is used by another wire user.  If you have an old user bound to this IdP, unbind or delete that user."
 renderSparError (SAML.CustomError (SparBadUserName msg)) = Right $ Wai.Error status400 "bad-username" ("Bad UserName in SAML response, except len [1, 128]: " <> msg)
 renderSparError (SAML.CustomError (SparCannotCreateUsersOnReplacedIdP replacingIdPId)) = Right $ Wai.Error status400 "cannont-provision-on-replaced-idp" ("This IdP has been replaced, users can only be auto-provisioned on the replacing IdP " <> replacingIdPId)
--- Brig-specific errors
-renderSparError (SAML.CustomError SparNoBodyInBrigResponse) = Right $ Wai.Error status502 "bad-upstream" "Failed to get a response from an upstream server."
-renderSparError (SAML.CustomError (SparCouldNotParseBrigResponse msg)) = Right $ Wai.Error status502 "bad-upstream" ("Could not parse response body: " <> msg)
+-- RFC-specific errors
+renderSparError (SAML.CustomError (SparCouldNotParseRfcResponse service msg)) = Right $ Wai.Error status502 "bad-upstream" ("Could not parse " <> service <> " response body: " <> msg)
 renderSparError (SAML.CustomError SparReAuthRequired) = Right $ Wai.Error status403 "access-denied" "This operation requires reauthentication."
-renderSparError (SAML.CustomError (SparBrigError msg)) = Right $ Wai.Error status500 "bad-upstream" msg
-renderSparError (SAML.CustomError (SparBrigErrorWith status msg)) = Right $ Wai.Error status "bad-upstream" msg
--- Galley-specific errors
-renderSparError (SAML.CustomError SparNoBodyInGalleyResponse) = Right $ Wai.Error status502 "bad-upstream" "Failed to get a response from an upstream server."
-renderSparError (SAML.CustomError (SparCouldNotParseGalleyResponse msg)) = Right $ Wai.Error status502 "bad-upstream" ("Could not parse response body: " <> msg)
-renderSparError (SAML.CustomError (SparGalleyError msg)) = Right $ Wai.Error status500 "bad-upstream" msg
 renderSparError (SAML.CustomError SparCouldNotRetrieveCookie) = Right $ Wai.Error status502 "bad-upstream" "Unable to get a cookie from an upstream server."
 renderSparError (SAML.CustomError (SparCassandraError msg)) = Right $ Wai.Error status500 "server-error" msg -- TODO: should we be more specific here and make it 'db-error'?
 renderSparError (SAML.CustomError (SparCassandraTTLError ttlerr)) = Right $ Wai.Error status400 "ttl-error" (cs $ show ttlerr)
@@ -188,3 +181,44 @@ renderSparError (SAML.CustomError SparProvisioningTokenLimitReached) = Right $ W
 renderSparError (SAML.CustomError (SparScimError err)) = Left $ Scim.scimToServerError err
 -- Other
 renderSparError (SAML.CustomServant err) = Left err
+
+-- | If a call to another backend service fails, just respond with whatever it said.
+--
+-- FUTUREWORK: with servant, there will be a way for the type checker to confirm that we
+-- handle all exceptions that brig can legally throw!
+rethrow :: LText -> ResponseLBS -> (HasCallStack, Log.MonadLogger m, MonadError SparError m) => m a
+rethrow serviceName resp = do
+  Log.info
+    ( Log.msg ("rfc error" :: Text)
+        . Log.field "status" (Bilge.statusCode resp)
+        . Log.field "error" (show err)
+        . Log.field "callstack" (prettyCallStack callStack)
+    )
+  throwError err
+  where
+    err :: SparError
+    err =
+      responseJsonMaybe resp
+        & maybe
+          ( SAML.CustomError
+              . SparCouldNotParseRfcResponse serviceName
+              . ("internal error: " <>)
+              . cs
+              . show
+              . (Bilge.statusCode resp,)
+              . fromMaybe "<empty body>"
+              . responseBody
+              $ resp
+          )
+          (SAML.CustomServant . waiToServant)
+
+parseResponse :: forall a m. (FromJSON a, MonadError SparError m, Typeable a) => LT -> ResponseLBS -> m a
+parseResponse serviceName resp = do
+  let typeinfo :: LT
+      typeinfo = cs $ show (typeRep ([] @a)) <> ": "
+
+      err :: forall a'. LT -> m a'
+      err = throwSpar . SparCouldNotParseRfcResponse serviceName . (typeinfo <>)
+
+  bdy <- maybe (err "no body") pure $ responseBody resp
+  either (err . cs) pure $ eitherDecode' bdy
