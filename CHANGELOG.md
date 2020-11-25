@@ -22,6 +22,8 @@
 
 * Make Content-MD5 header optional for asset upload (#1252)
 * Add applock team feature (#1242, #1253)
+* Allow an empty SAML contact list, which is configed at `saml.contacts` in spar's config.
+  The contact list is exposed at the `/sso/metadata` endpoint.
 
 ## Bug fixes
 
