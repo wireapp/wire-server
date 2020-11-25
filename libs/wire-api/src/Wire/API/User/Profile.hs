@@ -57,6 +57,7 @@ where
 
 import Control.Applicative (optional)
 import Control.Error (hush)
+import Control.Lens ((<>~), (?~))
 import Data.Aeson hiding ((<?>))
 import qualified Data.Aeson.Types as Json
 import Data.Attoparsec.ByteString.Char8 (takeByteString)
@@ -65,10 +66,14 @@ import Data.ByteString.Conversion
 import Data.ISO3166_CountryCodes
 import Data.Json.Util ((#))
 import Data.LanguageCodes
+import Data.List.Extra (dropPrefix)
+import Data.Proxy (Proxy (..))
 import Data.Range
-import Data.Swagger (ToSchema (..))
+import Data.Swagger (NamedSchema (..), Referenced (Inline), ToSchema (..), enum_, genericDeclareNamedSchema, properties, schema)
+import qualified Data.Swagger as Swagger
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
+import qualified GHC.Exts as IsList
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.User.Orphans ()
@@ -105,9 +110,7 @@ instance FromJSON Name where
 
 newtype ColourId = ColourId {fromColourId :: Int32}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (Num, FromJSON, ToJSON, Arbitrary)
-
-instance ToSchema ColourId
+  deriving newtype (Num, FromJSON, ToJSON, ToSchema, Arbitrary)
 
 defaultAccentId :: ColourId
 defaultAccentId = ColourId 0
@@ -123,7 +126,23 @@ data Asset = ImageAsset
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Asset)
 
-instance ToSchema Asset
+instance ToSchema Asset where
+  declareNamedSchema _ = do
+    let transformFn = \case
+          "Key" -> "key"
+          "Size" -> "size"
+          x -> x
+    namedSchema <-
+      genericDeclareNamedSchema
+        ( Swagger.defaultSchemaOptions
+            { Swagger.fieldLabelModifier = transformFn . dropPrefix "asset"
+            }
+        )
+        (Proxy @Asset)
+    let typeSchema = Inline $ mempty & enum_ ?~ [Json.String "image"]
+    pure $
+      namedSchema
+        & schema . properties <>~ IsList.fromList [("type", typeSchema)]
 
 modelAsset :: Doc.Model
 modelAsset = Doc.defineModel "UserAsset" $ do
@@ -163,7 +182,16 @@ data AssetSize = AssetComplete | AssetPreview
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform AssetSize)
 
-instance ToSchema AssetSize
+instance ToSchema AssetSize where
+  declareNamedSchema _ =
+    pure $
+      NamedSchema
+        (Just "AssetSize")
+        ( mempty & enum_
+            ?~ [ Json.String "complete",
+                 Json.String "preview"
+               ]
+        )
 
 typeAssetSize :: Doc.DataType
 typeAssetSize =
@@ -194,7 +222,8 @@ data Locale = Locale
   deriving stock (Eq, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform Locale)
 
-instance ToSchema Locale
+instance ToSchema Locale where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
 instance FromJSON Locale where
   parseJSON =

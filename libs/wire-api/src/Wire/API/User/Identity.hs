@@ -50,6 +50,7 @@ import Data.Aeson hiding ((<?>))
 import Data.Attoparsec.Text
 import Data.Bifunctor (first)
 import Data.ByteString.Conversion
+import Data.Proxy (Proxy (..))
 import Data.Swagger (ToSchema (..))
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8', encodeUtf8)
@@ -127,7 +128,8 @@ data Email = Email
   }
   deriving stock (Eq, Ord, Generic)
 
-instance ToSchema Email
+instance ToSchema Email where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
 instance Show Email where
   show = Text.unpack . fromEmail

@@ -92,7 +92,19 @@ module Wire.API.User
 where
 
 import Control.Error.Safe (rightMay)
+import Control.Lens (over)
 import Data.Aeson
+  ( FromJSON (parseJSON),
+    KeyValue ((.=)),
+    Object,
+    ToJSON (toJSON),
+    Value (Object),
+    object,
+    withObject,
+    (.!=),
+    (.:),
+    (.:?),
+  )
 import qualified Data.Aeson.Types as Aeson
 import Data.ByteString.Conversion
 import qualified Data.Code as Code
@@ -101,9 +113,12 @@ import Data.Handle (Handle)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
+import qualified Data.List as List
+import Data.List.Extra (dropPrefix)
 import Data.Misc (PlainTextPassword (..))
+import Data.Proxy (Proxy (..))
 import Data.Range
-import Data.Swagger (ToSchema (..))
+import Data.Swagger (SchemaOptions (fieldLabelModifier), ToSchema (..), defaultSchemaOptions, genericDeclareNamedSchema, required, schema)
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import Data.UUID (UUID, nil)
@@ -169,7 +184,30 @@ data UserProfile = UserProfile
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserProfile)
 
-instance ToSchema UserProfile
+instance ToSchema UserProfile where
+  declareNamedSchema _ = do
+    let transformFn = \case
+          "Id" -> "id"
+          "Name" -> "name"
+          "Pict" -> "picture"
+          "Assets" -> "assets"
+          "AccentId" -> "accent_id"
+          "Deleted" -> "deleted"
+          "Service" -> "service"
+          "Handle" -> "handle"
+          "Locale" -> "locale"
+          "Expire" -> "expires_at"
+          "Team" -> "team"
+          "Email" -> "email"
+          x -> x
+    genericSchema <-
+      genericDeclareNamedSchema
+        ( defaultSchemaOptions
+            { fieldLabelModifier = transformFn . dropPrefix "profile"
+            }
+        )
+        (Proxy @UserProfile)
+    pure $ genericSchema & over (schema . required) (List.delete "deleted")
 
 modelUser :: Doc.Model
 modelUser = Doc.defineModel "User" $ do
