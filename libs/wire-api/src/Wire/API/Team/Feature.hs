@@ -21,25 +21,42 @@
 
 module Wire.API.Team.Feature
   ( TeamFeatureName (..),
-    TeamFeatureStatus (..),
+    TeamFeatureStatus,
+    TeamFeatureAppLockConfig (..),
     TeamFeatureStatusValue (..),
+    FeatureHasNoConfig,
+    EnforceAppLock (..),
+    KnownTeamFeatureName (..),
+    TeamFeatureStatusNoConfig (..),
+    TeamFeatureStatusWithConfig (..),
+    deprecatedFeatureName,
 
     -- * Swagger
     typeTeamFeatureName,
-    modelTeamFeatureStatus,
     typeTeamFeatureStatusValue,
+    modelTeamFeatureStatusNoConfig,
+    modelTeamFeatureStatusWithConfig,
+    modelTeamFeatureAppLockConfig,
+    modelForTeamFeature,
   )
 where
 
 import Data.Aeson
 import qualified Data.Attoparsec.ByteString as Parser
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..), toByteString')
+import Data.Kind (Constraint)
 import Data.String.Conversions (cs)
+import Data.Swagger.Build.Api
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import Deriving.Aeson
 import Imports
+import Test.QuickCheck.Arbitrary (arbitrary)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+
+----------------------------------------------------------------------
+-- TeamFeatureName
 
 data TeamFeatureName
   = TeamFeatureLegalHold
@@ -47,8 +64,24 @@ data TeamFeatureName
   | TeamFeatureSearchVisibility
   | TeamFeatureValidateSAMLEmails
   | TeamFeatureDigitalSignatures
-  deriving stock (Eq, Show, Ord, Generic, Enum, Bounded)
+  | TeamFeatureAppLock
+  deriving stock (Eq, Show, Ord, Generic, Enum, Bounded, Typeable)
   deriving (Arbitrary) via (GenericUniform TeamFeatureName)
+
+class KnownTeamFeatureName (a :: TeamFeatureName) where
+  knownTeamFeatureName :: TeamFeatureName
+
+instance KnownTeamFeatureName 'TeamFeatureLegalHold where knownTeamFeatureName = TeamFeatureLegalHold
+
+instance KnownTeamFeatureName 'TeamFeatureSSO where knownTeamFeatureName = TeamFeatureSSO
+
+instance KnownTeamFeatureName 'TeamFeatureSearchVisibility where knownTeamFeatureName = TeamFeatureSearchVisibility
+
+instance KnownTeamFeatureName 'TeamFeatureValidateSAMLEmails where knownTeamFeatureName = TeamFeatureValidateSAMLEmails
+
+instance KnownTeamFeatureName 'TeamFeatureDigitalSignatures where knownTeamFeatureName = TeamFeatureDigitalSignatures
+
+instance KnownTeamFeatureName 'TeamFeatureAppLock where knownTeamFeatureName = TeamFeatureAppLock
 
 instance FromByteString TeamFeatureName where
   parser =
@@ -57,40 +90,34 @@ instance FromByteString TeamFeatureName where
         Left e -> fail $ "Invalid TeamFeatureName: " <> show e
         Right "legalhold" -> pure TeamFeatureLegalHold
         Right "sso" -> pure TeamFeatureSSO
+        Right "searchVisibility" -> pure TeamFeatureSearchVisibility
         Right "search-visibility" -> pure TeamFeatureSearchVisibility
+        Right "validateSAMLemails" -> pure TeamFeatureValidateSAMLEmails
         Right "validate-saml-emails" -> pure TeamFeatureValidateSAMLEmails
+        Right "digitalSignatures" -> pure TeamFeatureDigitalSignatures
         Right "digital-signatures" -> pure TeamFeatureDigitalSignatures
+        Right "appLock" -> pure TeamFeatureAppLock
         Right t -> fail $ "Invalid TeamFeatureName: " <> T.unpack t
 
 instance ToByteString TeamFeatureName where
   builder TeamFeatureLegalHold = "legalhold"
   builder TeamFeatureSSO = "sso"
-  builder TeamFeatureSearchVisibility = "search-visibility"
-  builder TeamFeatureValidateSAMLEmails = "validate-saml-emails"
-  builder TeamFeatureDigitalSignatures = "digital-signatures"
+  builder TeamFeatureSearchVisibility = "searchVisibility"
+  builder TeamFeatureValidateSAMLEmails = "validateSAMLemails"
+  builder TeamFeatureDigitalSignatures = "digitalSignatures"
+  builder TeamFeatureAppLock = "appLock"
+
+deprecatedFeatureName :: TeamFeatureName -> Maybe ByteString
+deprecatedFeatureName TeamFeatureSearchVisibility = Just "search-visibility"
+deprecatedFeatureName TeamFeatureValidateSAMLEmails = Just "validate-saml-emails"
+deprecatedFeatureName TeamFeatureDigitalSignatures = Just "digital-signatures"
+deprecatedFeatureName _ = Nothing
 
 typeTeamFeatureName :: Doc.DataType
 typeTeamFeatureName = Doc.string . Doc.enum $ cs . toByteString' <$> [(minBound :: TeamFeatureName) ..]
 
-newtype TeamFeatureStatus = TeamFeatureStatus
-  {teamFeatureStatusValue :: TeamFeatureStatusValue}
-  deriving stock (Eq, Show)
-  deriving newtype (Arbitrary)
-
-modelTeamFeatureStatus :: Doc.Model
-modelTeamFeatureStatus = Doc.defineModel "TeamFeatureStatus" $ do
-  Doc.description "Configuration of a feature for a team"
-  Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
-
-instance ToJSON TeamFeatureStatus where
-  toJSON (TeamFeatureStatus status) =
-    object
-      [ "status" .= status
-      ]
-
-instance FromJSON TeamFeatureStatus where
-  parseJSON = withObject "TeamFeatureStatus" $ \o ->
-    TeamFeatureStatus <$> o .: "status"
+----------------------------------------------------------------------
+-- TeamFeatureStatusValue
 
 data TeamFeatureStatusValue
   = TeamFeatureEnabled
@@ -129,3 +156,114 @@ instance FromByteString TeamFeatureStatusValue where
         Right "disabled" -> pure TeamFeatureDisabled
         Right t -> fail $ "Invalid TeamFeatureStatusValue: " <> T.unpack t
         Left e -> fail $ "Invalid TeamFeatureStatusValue: " <> show e
+
+----------------------------------------------------------------------
+-- TeamFeatureStatus
+
+type family TeamFeatureStatus (a :: TeamFeatureName) :: * where
+  TeamFeatureStatus 'TeamFeatureLegalHold = TeamFeatureStatusNoConfig
+  TeamFeatureStatus 'TeamFeatureSSO = TeamFeatureStatusNoConfig
+  TeamFeatureStatus 'TeamFeatureSearchVisibility = TeamFeatureStatusNoConfig
+  TeamFeatureStatus 'TeamFeatureValidateSAMLEmails = TeamFeatureStatusNoConfig
+  TeamFeatureStatus 'TeamFeatureDigitalSignatures = TeamFeatureStatusNoConfig
+  TeamFeatureStatus 'TeamFeatureAppLock = TeamFeatureStatusWithConfig TeamFeatureAppLockConfig
+
+type FeatureHasNoConfig (a :: TeamFeatureName) = (TeamFeatureStatus a ~ TeamFeatureStatusNoConfig) :: Constraint
+
+-- if you add a new constructor here, don't forget to add it to the swagger (1.2) docs in "Wire.API.Swagger"!
+modelForTeamFeature :: TeamFeatureName -> Doc.Model
+modelForTeamFeature name@TeamFeatureLegalHold = modelTeamFeatureStatusNoConfig name
+modelForTeamFeature name@TeamFeatureSSO = modelTeamFeatureStatusNoConfig name
+modelForTeamFeature name@TeamFeatureSearchVisibility = modelTeamFeatureStatusNoConfig name
+modelForTeamFeature name@TeamFeatureValidateSAMLEmails = modelTeamFeatureStatusNoConfig name
+modelForTeamFeature name@TeamFeatureDigitalSignatures = modelTeamFeatureStatusNoConfig name
+modelForTeamFeature name@TeamFeatureAppLock = modelTeamFeatureStatusWithConfig name modelTeamFeatureAppLockConfig
+
+----------------------------------------------------------------------
+-- TeamFeatureStatusNoConfig
+
+newtype TeamFeatureStatusNoConfig = TeamFeatureStatusNoConfig
+  { tfwoStatus :: TeamFeatureStatusValue
+  }
+  deriving newtype (Eq, Show, Generic, Typeable, Arbitrary)
+
+modelTeamFeatureStatusNoConfig :: TeamFeatureName -> Doc.Model
+modelTeamFeatureStatusNoConfig name = Doc.defineModel (cs $ show name) $ do
+  Doc.description $ "Configuration for a team feature that has no configuration"
+  Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
+
+instance FromJSON TeamFeatureStatusNoConfig where
+  parseJSON = withObject "TeamFeatureStatus" $ \ob ->
+    TeamFeatureStatusNoConfig <$> ob .: "status"
+
+instance ToJSON TeamFeatureStatusNoConfig where
+  toJSON (TeamFeatureStatusNoConfig status) = object ["status" .= status]
+
+----------------------------------------------------------------------
+-- TeamFeatureStatusWithConfig
+
+data TeamFeatureStatusWithConfig (cfg :: *) = TeamFeatureStatusWithConfig
+  { tfwcStatus :: TeamFeatureStatusValue,
+    tfwcConfig :: cfg
+  }
+  deriving stock (Eq, Show, Generic, Typeable)
+
+instance Arbitrary cfg => Arbitrary (TeamFeatureStatusWithConfig cfg) where
+  arbitrary = TeamFeatureStatusWithConfig <$> arbitrary <*> arbitrary
+
+modelTeamFeatureStatusWithConfig :: TeamFeatureName -> Doc.Model -> Doc.Model
+modelTeamFeatureStatusWithConfig name cfgModel = Doc.defineModel (cs $ show name) $ do
+  Doc.description $ "Status and config of " <> (cs $ show name)
+  Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
+  Doc.property "config" (Doc.ref cfgModel) $ Doc.description "config"
+
+instance FromJSON cfg => FromJSON (TeamFeatureStatusWithConfig cfg) where
+  parseJSON = withObject "TeamFeatureStatus" $ \ob ->
+    TeamFeatureStatusWithConfig <$> ob .: "status" <*> ob .: "config"
+
+instance ToJSON cfg => ToJSON (TeamFeatureStatusWithConfig cfg) where
+  toJSON (TeamFeatureStatusWithConfig status config) = object ["status" .= status, "config" .= config]
+
+----------------------------------------------------------------------
+-- TeamFeatureAppLockConfig
+
+data TeamFeatureAppLockConfig = TeamFeatureAppLockConfig
+  { applockEnforceAppLock :: EnforceAppLock,
+    applockInactivityTimeoutSecs :: Int32
+  }
+  deriving stock (Eq, Show, Generic)
+
+deriving via (GenericUniform TeamFeatureAppLockConfig) instance Arbitrary TeamFeatureAppLockConfig
+
+newtype EnforceAppLock = EnforceAppLock Bool
+  deriving stock (Eq, Show, Ord, Generic)
+  deriving newtype (FromJSON, ToJSON, Arbitrary)
+
+modelTeamFeatureAppLockConfig :: Doc.Model
+modelTeamFeatureAppLockConfig =
+  Doc.defineModel "TeamFeatureAppLockConfig" $ do
+    Doc.property "enforceAppLock" bool' $ Doc.description "enforceAppLock"
+    Doc.property "inactivityTimeoutSecs" int32' $ Doc.description ""
+
+deriving via
+  (StripCamel "applock" TeamFeatureAppLockConfig)
+  instance
+    ToJSON TeamFeatureAppLockConfig
+
+deriving via
+  (StripCamel "applock" TeamFeatureAppLockConfig)
+  instance
+    FromJSON TeamFeatureAppLockConfig
+
+----------------------------------------------------------------------
+-- internal
+
+data LowerCaseFirst
+
+instance StringModifier LowerCaseFirst where
+  getStringModifier (x : xs) = toLower x : xs
+  getStringModifier [] = []
+
+type StripCamel str =
+  CustomJSON
+    '[FieldLabelModifier (StripPrefix str, LowerCaseFirst)]

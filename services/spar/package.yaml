@@ -20,6 +20,7 @@ dependencies:
   - aeson
   - aeson-pretty
   - aeson-qq
+  - attoparsec
   - base
   - base64-bytestring
   - bilge
@@ -51,6 +52,7 @@ dependencies:
   - insert-ordered-containers
   - interpolate
   - lens
+  - memory
   - metrics-core
   - metrics-wai
   - mtl

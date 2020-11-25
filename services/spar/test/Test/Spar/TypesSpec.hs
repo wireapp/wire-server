@@ -24,6 +24,7 @@ import Data.UUID
 import Imports
 import Spar.Types
 import Test.Hspec
+import Test.Spar.Roundtrip.ByteString (testRoundTrip)
 import URI.ByteString
 import URI.ByteString.QQ
 import Web.Cookie
@@ -44,3 +45,5 @@ spec = do
     it "2" $ do
       mkVerdictDeniedFormatMobile [uri|http://bad/?label=$label|] "forbidden"
         `shouldBe` Right [uri|http://bad/?label=forbidden|]
+  describe "(To/From)Bytestring Roundtrips" $ do
+    testRoundTrip @ScimTokenHash
