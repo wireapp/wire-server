@@ -71,7 +71,7 @@
 # Remove this step, because it fails with 400:  Error in $.active: expected Bool, but encountered String  -- TODO: fix
 | del(.requests[] | select (.name == "Post emp1 with string \"True\""))
 # Step: Get all users
-# Remove this step because had to remove  'Post user "OMalley"' and 'Post emp1 with string "True"'
+# Remove this step because had to remove  'Post user "OMalley"' and 'Post emp1 with string "True"'  -- TODO: fix?
 | del(.requests[] | select (.id == "4feb34db-d881-4b65-962b-82becad93cff"))
 # Step: Post emp2
 | (.requests[] | select (.name == "Post emp2") | .rawModeData) |= sub("22fbc523-6032-4c5f-939d-5d4850cf3e52"; "{{garbage1_postemp2_externalId}}")
