@@ -125,7 +125,7 @@
 # Remove this step, because fails with 400: Please specify a filter when getting users."
 | del(.requests[] | select (.name == "get user attributes"))
 # Step: filter eq and (val or val)
-# Remove this step, because fails with 400: Error parsing query parameter filter failed: Failed reading: empty
+# Remove this step, because fails with 400: Error parsing query parameter filter failed: Failed reading: empty  -- TODO: fix at least the error message?
 | del(.requests[] | select (.name == "filter eq and (val or val)"))
 # Step: filter starts with
 # Remove this step, because fails with 400: Error parsing query parameter filter failed: Failed reading: empty
