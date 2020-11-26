@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.2.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7c9aee98315a9a56aa48fcb0af9a9e82954d9913fc94cafa512a0811f40b2ad3
+-- hash: 13a18562ef30df0ba9def08f3dfd3c63183c5785fce7ef1683f59b59ef763aa0
 
 name:           brig
 version:        1.35.0
@@ -192,6 +192,9 @@ library
     , scientific >=0.3.4
     , scrypt >=0.5
     , semigroups >=0.15
+    , servant
+    , servant-server
+    , servant-swagger
     , singletons >=2.0
     , smtp-mail >=0.1
     , sodium-crypto-sign >=0.1
@@ -201,6 +204,7 @@ library
     , stomp-queue >=0.3
     , string-conversions
     , swagger >=0.1
+    , swagger2
     , tagged >=0.7
     , template >=0.2
     , text >=0.11

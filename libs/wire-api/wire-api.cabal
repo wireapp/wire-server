@@ -1,10 +1,8 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.2.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 6e69fab14f1d237ddf7fcfd62e1480fa64a2ece784432e730525309a8453540e
 
 name:           wire-api
 version:        0.1.0
@@ -63,6 +61,7 @@ library
       Wire.API.User.Client.Prekey
       Wire.API.User.Handle
       Wire.API.User.Identity
+      Wire.API.User.Orphans
       Wire.API.User.Password
       Wire.API.User.Profile
       Wire.API.User.RichInfo
@@ -87,6 +86,7 @@ library
     , cryptonite >=0.11
     , currency-codes >=2.0
     , deriving-aeson >=0.2
+    , deriving-swagger2
     , email-validate >=2.0
     , errors
     , exceptions >=0.10.0
@@ -109,6 +109,7 @@ library
     , safe >=0.3
     , string-conversions
     , swagger >=0.1
+    , swagger2
     , text >=0.11
     , time >=1.4
     , transformers >=0.3
@@ -125,6 +126,7 @@ test-suite wire-api-tests
       Test.Wire.API.Call.Config
       Test.Wire.API.Roundtrip.Aeson
       Test.Wire.API.Roundtrip.ByteString
+      Test.Wire.API.Swagger
       Test.Wire.API.Team.Member
       Test.Wire.API.User
       Test.Wire.API.User.RichInfo
@@ -141,6 +143,7 @@ test-suite wire-api-tests
     , containers >=0.5
     , imports
     , lens
+    , swagger2
     , tasty
     , tasty-expected-failure
     , tasty-hunit

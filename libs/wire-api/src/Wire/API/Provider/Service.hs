@@ -66,9 +66,11 @@ import Data.List1 (List1)
 import Data.Misc (HttpsUrl (..), PlainTextPassword (..))
 import Data.PEM (PEM, pemParseBS, pemWriteLBS)
 import Data.Range (Range)
+import Data.Swagger (ToSchema (..))
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import qualified Data.Text.Encoding as Text
+import Deriving.Swagger (CamelToSnake, CustomSwagger, FieldLabelModifier, StripPrefix)
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Provider.Service.Tag (ServiceTag (..))
@@ -84,6 +86,7 @@ data ServiceRef = ServiceRef
   }
   deriving stock (Ord, Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ServiceRef)
+  deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "_serviceRef", CamelToSnake)] ServiceRef)
 
 makeLenses ''ServiceRef
 

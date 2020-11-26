@@ -1,5 +1,7 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE StrictData #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -18,20 +20,15 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Federator.Impl
-  ( app,
-  )
-where
+module Wire.API.User.Orphans where
 
-import Data.Proxy
-import qualified Federator.API as API
-import Federator.Types
-import Network.Wai
-import Servant.API.Generic
-import Servant.Mock
-import Servant.Server
+import Data.ISO3166_CountryCodes
+import Data.LanguageCodes
+import Data.Swagger (ToSchema (..))
+import Imports
 
-app :: Env -> Application
-app _ = serve api (mock api (Proxy @'[]))
-  where
-    api = Proxy @(ToServantApi API.Api)
+deriving instance Generic ISO639_1
+
+instance ToSchema ISO639_1
+
+instance ToSchema CountryCode

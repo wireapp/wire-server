@@ -107,12 +107,6 @@ type GalleyRoutesInternal =
 
 -- FUTUREWORK: move Swagger instances next to the types they describe
 
-instance ToParamSchema (Id a) where
-  toParamSchema _ = toParamSchema (Proxy @UUID)
-
-instance ToSchema (Id a) where
-  declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
-
 instance ToSchema HttpsUrl where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
