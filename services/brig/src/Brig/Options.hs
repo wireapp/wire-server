@@ -331,6 +331,22 @@ instance ToJSON EmailVisibility where
   toJSON EmailVisibleIfOnSameTeam = "visible_if_on_same_team"
   toJSON EmailVisibleToSelf = "visible_to_self"
 
+newtype FederationAllowList = FederationAllowList {allowedDomains :: [Domain]}
+  deriving (Eq, Show, Generic)
+
+instance FromJSON FederationAllowList
+
+-- FUTUREWORK: Support a DenyList
+data FederationStrategy
+  = -- | This backend allows federating with any other Wire backend
+    WithEveryone
+  | -- | Any backend explicitly configured in an AllowList
+    WithAllowList FederationAllowList
+  deriving (Eq, Show, Generic)
+
+-- TODO: custom JSON?
+instance FromJSON FederationStrategy
+
 -- | Options that are consumed on startup
 data Opts = Opts
   -- services
@@ -455,10 +471,10 @@ data Settings = Settings
     -- | When true, search only
     -- returns users from the same team
     setSearchSameTeamOnly :: !(Maybe Bool),
-    -- | When @Nothing@, assume there are no other backends and IDs are always local.
-    -- This means we don't run any queries on federation-related tables and don't
-    -- make any calls to the federator service.
-    setEnableFederationWithDomain :: !(Maybe Domain),
+    -- | FederationDomain is required, even when not wanting to federate with other backends
+    -- (in that case the FederationAllowList can be set to empty)
+    setFederationDomain :: !(Domain),
+    setFederationStrategy :: !(FederationStrategy),
     -- | The amount of time in milliseconds to wait after reading from an SQS queue
     -- returns no message, before asking for messages from SQS again.
     -- defaults to 'defSqsThrottleMillis'.
@@ -600,7 +616,8 @@ Lens.makeLensesFor
     ("setPropertyMaxValueLen", "propertyMaxValueLen"),
     ("setSearchSameTeamOnly", "searchSameTeamOnly"),
     ("setUserMaxPermClients", "userMaxPermClients"),
-    ("setEnableFederationWithDomain", "enableFederationWithDomain"),
+    ("setFederationDomain", "federationDomain"),
+    ("setFederationStrategy", "federationStrategy"),
     ("setSqsThrottleMillis", "sqsThrottleMillis")
   ]
   ''Settings

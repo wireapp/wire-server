@@ -30,7 +30,7 @@ import Brig.API.Handler
 import Brig.API.Types
 import Brig.App (AppIO, Env, settings)
 import qualified Brig.Data.User as Data
-import Brig.Options (enableFederationWithDomain)
+import Brig.Options (FederationAllowList (..), FederationStrategy (..), federationDomain, federationStrategy)
 import Brig.Types
 import Brig.Types.Intra (accountUser)
 import Control.Lens (view)
@@ -68,8 +68,15 @@ validateHandle = maybe (throwE (Error.StdError Error.invalidHandle)) return . pa
 --------------------------------------------------------------------------------
 -- Federation
 
-viewFederationDomain :: MonadReader Env m => m (Maybe Domain)
-viewFederationDomain = view (settings . enableFederationWithDomain)
+viewFederationDomain :: MonadReader Env m => m (Domain)
+viewFederationDomain = view (settings . federationDomain)
 
-isFederationEnabled :: MonadReader Env m => m Bool
-isFederationEnabled = isJust <$> viewFederationDomain
+isFederationEnabled :: MonadReader Env m => Domain -> m Bool
+isFederationEnabled targetDomain = do
+  ourDomain <- viewFederationDomain
+  strategy <- view (settings . federationStrategy)
+  pure $ case strategy of
+    WithEveryone -> True
+    WithAllowList (FederationAllowList _) | targetDomain == ourDomain -> True
+    WithAllowList (FederationAllowList domains) | targetDomain `elem` domains -> True
+    WithAllowList _ -> False
