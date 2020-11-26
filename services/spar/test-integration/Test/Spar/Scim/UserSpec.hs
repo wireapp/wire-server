@@ -1550,7 +1550,18 @@ specDeleteUser = do
 
     context "user not touched via scim before" $ do
       it "works" $ do
-        () <- undefined
+        env <- ask
+        let brig = env ^. teBrig
+            spar = env ^. teSpar
+            galley = env ^. teGalley
+
+        (_, tid) <- call $ createUserWithTeam brig galley
+        tok <- registerScimToken tid Nothing
+
+        email <- randomEmail
+        scimUser <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
+        let name = undefined
+        uid <- call $ Intra.createBrigUserNoSAML email tid
         pure ()
 
 -- | Azure sends a request for an unknown user to test out whether your API is online However;
