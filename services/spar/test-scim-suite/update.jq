@@ -113,7 +113,7 @@
 | (.requests[] | select (.name == "Put a user OMalley") | .url) |= sub("http://{{Server}}{{Port}}/{{Api}}/Users/{{1stuserid}}";"http://{{Server}}{{Port}}/{{Api}}/Users/{{3rduserid}}")
 | (.requests[] | select (.name == "Put a user OMalley") | .rawModeData) |= sub("{{1stuserid}}";"{{3rduserid}}")
 | (.requests[] | select (.name == "Put a user OMalley") | .rawModeData) |= sub("22fbc523-6032-4c5f-939d-5d4850cf3e52"; "{{garbage1_putomalley_externalId}}")
-# without this backend responds with 400: UserName has to match UserId
+# without this backend responds with 400: UserName has to match UserId -- TODO: fix?
 | (.requests[] | select (.name == "Put a user OMalley") | .rawModeData) |= sub("OMalley";"{{3rduserid}}")
 | (.requests[] | select (.name == "Put a user OMalley") | .events[].script.exec[] ) |= sub("\"OMalley\"";"pm.environment.get(\"3rduserid\")")
 # Remove this step, because can't reproduce the problems manually. FUTUREWORK: explore this. Might have some interaction with step "Patch user omalley new username"
@@ -128,8 +128,8 @@
 # Remove this step, because fails with 400: Error parsing query parameter filter failed: Failed reading: empty  -- TODO: fix at least the error message?
 | del(.requests[] | select (.name == "filter eq and (val or val)"))
 # Step: filter starts with
-# Remove this step, because fails with 400: Error parsing query parameter filter failed: Failed reading: empty
+# Remove this step, because fails with 400: Error parsing query parameter filter failed: Failed reading: empty -- TODO: fix at least error message
 | del(.requests[] | select (.name == "filter starts with"))
 # Step: filter greater than
-# Remove this step, because fails with 400: Error parsing query parameter filter failed: endOfInput
+# Remove this step, because fails with 400: Error parsing query parameter filter failed: endOfInput -- TODO: fix error message
 | del(.requests[] | select (.name == "filter greater than"))
