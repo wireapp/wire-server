@@ -2,16 +2,16 @@
 
 ${brand_label_url} [${brand_url}]
 
-DEIN NEUES ${brand}-BENUTZERKONTO
-Ein neues ${brand} Team wurde mit ${email} erstellt. Bitte verifiziere deine
+IHR NEUES ${brand}-BENUTZERKONTO
+Ein neues ${brand} Team wurde mit ${email} erstellt. Bitte bestätigen Sie Ihre
 E-Mail-Adresse.
 
-Bestätigen [${url}]Falls du nicht auf den Button klicken kannst, kopiere den
-Link und füge ihn in deinem Browser ein:
+Bestätigen [${url}]Falls Sie nicht auf den Button klicken können, kopieren Sie
+diesen Link und fügen Sie ihn in Ihren Browser ein:
 
 ${url}
 
-Wenn du Fragen hast, dann kontaktiere uns [${support}] bitte.
+Wenn Sie Fragen haben, dann kontaktieren Sie uns [${support}] bitte.
 
 
 --------------------------------------------------------------------------------

@@ -7,7 +7,7 @@ Guten Tag,
 Wir freuen uns, Ihnen mitteilen zu können, dass Sie jetzt ein anerkannter
 ${brand_service} sind.
 
-Bitte antworte nicht auf diese E-Mail.
+Bitte antworten Sie nicht auf diese Nachricht.
 
 Wenn Sie sich nicht mit dieser E-Mail-Adresse für ein ${brand_service}-Konto
 registriert haben, kontaktieren Sie uns [${support}] bitte.

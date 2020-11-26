@@ -1,2 +1,2 @@
-Klicke den Link, dein ${brand}-Benutzerkonto zu löschen.
+Tippen Sie hier, um Ihr ${brand}-Benutzerkonto zu löschen.
 ${url}

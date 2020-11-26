@@ -3,18 +3,18 @@
 ${brand_label_url} [${brand_url}]
 
 NEUES GERÄT
-Ein neues Gerät wurde zu deinem ${brand}-Benutzerkonto hinzugefügt:
+Ein neues Gerät wurde zu Ihrem ${brand}-Benutzerkonto hinzugefügt:
 
 ${date}
 
 ${model}
 
-Du hast ${brand} vermutlich auf einem neuen Gerät installiert oder dich auf
-einem bestehenden Gerät erneut eingeloggt. Falls dies nicht der Fall ist, gehe
-in deine ${brand} Einstellungen, entferne das Gerät und setze dein Passwort
-zurück [${forgot}].
+Sie haben ${brand} vermutlich auf einem neuen Gerät installiert oder sich auf
+einem bestehenden Gerät erneut eingeloggt. Falls dies nicht der Fall ist, gehen
+Sie in Ihre ${brand} Einstellungen, entfernen Sie das Gerät und setzen Sie Ihr
+Passwort zurück [${forgot}].
 
-Wenn du Fragen hast, dann kontaktiere uns [${support}] bitte.
+Wenn Sie Fragen haben, dann kontaktieren Sie uns [${support}] bitte.
 
 
 --------------------------------------------------------------------------------
