@@ -103,7 +103,7 @@
 # Step: patch user omalley active with boolean
 | (.requests[] | select (.name == "patch user omalley active with boolean") | .url) |= sub("http://{{Server}}{{Port}}/{{Api}}/Users/{{1stuserid}}";"http://{{Server}}{{Port}}/{{Api}}/Users/{{3rduserid}}")
 | (.requests[] | select (.name == "patch user omalley active with boolean") | .rawModeData) |= sub("{{1stuserid}}";"{{3rduserid}}")
-# Remove this step because it return 204 while 200 is expected
+# Remove this step because it return 204 while 200 is expected  -- TODO: fix
 | del(.requests[] | select (.name == "patch user omalley active with boolean"))
 # Step: get user1
 # Remove this step because we had to remove the previous steps
