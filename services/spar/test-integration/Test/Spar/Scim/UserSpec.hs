@@ -1506,13 +1506,13 @@ specDeleteUser = do
         spar <- view teSpar
         (tok, (_, tid, _)) <- registerIdPAndScimToken
         enableSamlEmailValidation tid
-        user <- randomScimUser
+        email <- randomEmail
+        user <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
         uid <- scimUserId <$> createUser tok user
 
         brig <- asks (^. teBrig)
-        call $ do
-          activateEmail brig email
-          checkEmail brig tid (Just email)
+        call $ activateEmail brig email
+        checkEmail' uid (Just email)
 
         deleteUser_ (Just tok) (Just uid) spar
           !!! const 204 === statusCode
@@ -1572,8 +1572,8 @@ specEmailValidation = do
 
     context "enabled in team" . it "gives user email" $ do
       (uid, email) <- setup True
-      eventually $ checkEmail' brig uid (Just email)
+      eventually $ checkEmail' uid (Just email)
 
     context "not enabled in team" . it "does not give user email" $ do
       (uid, _) <- setup False
-      eventually $ checkEmail' brig uid Nothing
+      eventually $ checkEmail' uid Nothing
