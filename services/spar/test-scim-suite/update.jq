@@ -64,7 +64,7 @@
 # Step: Post user "OMalley"
 # Use email instead of uuid
 | (.requests[] | select (.name == "Post user \"OMalley\"") | .rawModeData) |= sub("22fbc523-6032-4c5f-939d-5d4850cf3e52"; "{{garbage1_externalId}}")
-# Remove this step because the assertion fails: expected 'omalley' to deeply equal 'OMalley'
+# Remove this step because the assertion fails: expected 'omalley' to deeply equal 'OMalley' -- TODO: fix this?
 | del(.requests[] | select (.name == "Post user \"OMalley\""))
 # Step: Post emp1 with string "True"
 | (.requests[] | select (.name == "Post emp1 with string \"True\"") | .rawModeData) |= sub("22fbc523-6032-4c5f-939d-5d4850cf3e52"; "{{garbage1_externalId2}}")
