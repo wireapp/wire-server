@@ -56,12 +56,12 @@ failActivatingEmail brig email = do
   act <- getActivationCode brig (Left email)
   liftIO $ assertEqual "there should be no pending activation" act Nothing
 
-checkEmail' ::
+checkEmail ::
   HasCallStack =>
   UserId ->
   Maybe Email ->
   TestSpar ()
-checkEmail' uid expectedEmail = do
+checkEmail uid expectedEmail = do
   brig <- asks (^. teBrig)
   call $
     get (brig . path "/self" . zUser uid) !!! do

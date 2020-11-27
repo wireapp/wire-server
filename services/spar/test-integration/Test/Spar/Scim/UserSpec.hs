@@ -1537,8 +1537,7 @@ specDeleteUser = do
         (owner, tid) <- call $ createUserWithTeam brig galley
         tok <- registerScimToken tid Nothing
 
-        memberInvited <- call (inviteAndRegisterUser brig owner tid)
-        let uid = userId memberInvited
+        uid <- userId <$> call (inviteAndRegisterUser brig owner tid)
 
         aFewTimes (getUser_ (Just tok) uid spar) ((== 200) . statusCode)
           !!! const 200 === statusCode
@@ -1590,8 +1589,8 @@ specEmailValidation = do
 
     context "enabled in team" . it "gives user email" $ do
       (uid, email) <- setup True
-      eventually $ checkEmail' uid (Just email)
+      eventually $ checkEmail uid (Just email)
 
     context "not enabled in team" . it "does not give user email" $ do
       (uid, _) <- setup False
-      eventually $ checkEmail' uid Nothing
+      eventually $ checkEmail uid Nothing
