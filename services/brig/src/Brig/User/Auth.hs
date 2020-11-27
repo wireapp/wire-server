@@ -69,7 +69,7 @@ import Imports
 import Network.Wai.Utilities.Error ((!>>))
 import System.Logger (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
-import Wire.API.Team.Feature (TeamFeatureStatusValue (..), featureStatus)
+import Wire.API.Team.Feature (TeamFeatureStatusNoConfig (..), TeamFeatureStatusValue (..))
 
 data Access u = Access
   { accessToken :: !AccessToken,
