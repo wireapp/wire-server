@@ -441,8 +441,11 @@ getTeamFeatureFlag tid = do
   let req =
         method GET
           . paths ["/i/teams", toByteString' tid, "features", toByteString' (Public.knownTeamFeatureName @a)]
-          . expect2xx
-  responseJsonUnsafe @(Public.TeamFeatureStatus a) <$> catchRpcErrors (rpc' "galley" gly req)
+  resp <- catchRpcErrors $ rpc' "galley" gly req
+  case Bilge.statusCode resp of
+    200 -> pure $ responseJsonUnsafe @(Public.TeamFeatureStatus a) resp
+    404 -> throwE (Error status404 "bad-upstream" "team doesnt exist")
+    _ -> throwE (Error status502 "bad-upstream" "bad response")
 
 setTeamFeatureFlag ::
   forall (a :: Public.TeamFeatureName).
@@ -463,7 +466,8 @@ setTeamFeatureFlag tid status = do
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case statusCode resp of
     200 -> pure ()
-    _ -> throwE $ responseJsonUnsafe resp
+    404 -> throwE (Error status404 "bad-upstream" "team doesnt exist")
+    _ -> throwE (Error status502 "bad-upstream" "bad response")
 
 getTeamFeatureFlagNoConfig ::
   TeamId ->
@@ -476,7 +480,12 @@ getTeamFeatureFlagNoConfig tid featureName = do
         method GET
           . paths ["/i/teams", toByteString' tid, "features", toByteString' featureName]
           . expect2xx
-  responseJsonUnsafe @Public.TeamFeatureStatusNoConfig <$> catchRpcErrors (rpc' "galley" gly req)
+
+  resp <- catchRpcErrors (rpc' "galley" gly req)
+  case statusCode resp of
+    200 -> pure $ responseJsonUnsafe @Public.TeamFeatureStatusNoConfig resp
+    404 -> throwE (Error status404 "bad-upstream" "team doesnt exist")
+    _ -> throwE (Error status502 "bad-upstream" "bad response")
 
 setTeamFeatureFlagNoConfig ::
   TeamId ->
@@ -494,6 +503,7 @@ setTeamFeatureFlagNoConfig tid featureName statusValue = do
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case statusCode resp of
     200 -> pure ()
+    404 -> throwE (Error status404 "bad-upstream" "team doesnt exist")
     _ -> throwE $ responseJsonUnsafe resp
 
 getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
