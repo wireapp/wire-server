@@ -5,18 +5,17 @@ The scripts in this directory allow to run the [SCIM Test Suite](https://github.
 How to run:
 ```sh
 ./services/start-services-only.sh
-cd services/spar/test-scim-suite/
-nix-shell
-make
+./services/spar/test-scim-suite/runsuite.sh
 ```
 
 This will download the Postman collection, patch it and then call `newman` (the cli tool from Postman) to run the tests.
 
 It is also possible to run the tests from the test suite manually:
 
-1. Run `make collection`.
-2. In Postman "Import" the collection `/tmp/scim_test_suite.json`
-3. Create an environment in Postman with these variables
+1. Run `nix-shell`.
+2. Run `make collection`.
+3. In Postman "Import" the collection `/tmp/scim_test_suite.json`
+4. Create an environment in Postman with these variables
 
 ```
 Server: "localhost"

@@ -163,10 +163,6 @@ while [ "$all_services_are_up" == "" ]; do
 done
 echo "all services are up!"
 
-if [[ ! $INTEGRATION_SKIP_SCIM_SUITE -eq 1 ]]; then
-    make local -C "$TOP_LEVEL/ervices/spar/test-scim-suite" || (kill_gracefully && wait && exit 1)
-fi
-
 ( ${EXE} "${@:2}" && echo 0 > "${EXIT_STATUS_LOCATION}" && kill_gracefully ) || kill_gracefully &
 
 wait

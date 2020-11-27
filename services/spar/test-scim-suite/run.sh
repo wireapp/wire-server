@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
-
+ 
 set -eu
+
+SCIM_TEST_SUITE_SPAR_HOST=localhost
+SCIM_TEST_SUITE_SPAR_PORT=8088
+SCIM_TEST_SUITE_BRIG_HOST=localhost
+SCIM_TEST_SUITE_BRIG_PORT=8082
 
 function create_team_and_scim_token {
     TOP_LEVEL="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../../.." && pwd )"
@@ -67,4 +72,8 @@ EOF
 }
 
 create_env_file
-newman run --environment /tmp/scim_test_suite_env.json "$@"
+newman run \
+       --environment /tmp/scim_test_suite_env.json \
+        /tmp/scim_test_suite.json \
+        --folder "User tests" \
+        --folder "User tests with garbage"
