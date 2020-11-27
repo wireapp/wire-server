@@ -1501,26 +1501,6 @@ specDeleteUser = do
       deleteUser_ (Just tok) (Just $ scimUserId storedUser) (env ^. teSpar)
         !!! assertTrue_ (inRange (200, 499) . statusCode)
 
-    context "user with scim, saml, after email validation" $ do
-      it "works" $ do
-        env <- ask
-        let brig = env ^. teBrig
-            spar = env ^. teSpar
-
-        (tok, (_, tid, _)) <- registerIdPAndScimToken
-        enableSamlEmailValidation tid
-
-        email <- randomEmail
-        user <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
-        uid <- scimUserId <$> createUser tok user
-        call $ activateEmail brig email
-        checkEmail' uid (Just email)
-
-        deleteUser_ (Just tok) (Just uid) spar
-          !!! const 204 === statusCode
-        aFewTimes (getUser_ (Just tok) uid spar) ((== 404) . statusCode)
-          !!! const 404 === statusCode
-
     context "user with scim, no saml, validated email, password" $ do
       it "works" $ do
         env <- ask
