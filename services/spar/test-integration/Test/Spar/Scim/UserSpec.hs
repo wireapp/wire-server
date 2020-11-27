@@ -1537,10 +1537,9 @@ specDeleteUser = do
         let uid = scimUserId scimStoredUser
 
         do
-          let userName = Name . fromJust . Scim.User.displayName $ scimUser
           inv <- call $ getInvitation brig email
           Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
-          registerInvitation email userName inviteeCode True
+          registerInvitation email (Name "Alice") inviteeCode True
           call $ headInvitation404 brig email
 
         deleteUser_ (Just tok) (Just uid) spar
@@ -1559,10 +1558,18 @@ specDeleteUser = do
         tok <- registerScimToken tid Nothing
 
         email <- randomEmail
-        scimUser <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
-        let name = undefined
-        uid <- call $ Intra.createBrigUserNoSAML email tid
-        pure ()
+        uid <- runSpar $ Intra.createBrigUserNoSAML email tid (Name "Alice")
+
+        do
+          inv <- call $ getInvitation brig email
+          Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
+          registerInvitation email (Name "Alice") inviteeCode True
+          call $ headInvitation404 brig email
+
+        deleteUser_ (Just tok) (Just uid) spar
+          !!! const 204 === statusCode
+        aFewTimes (getUser_ (Just tok) uid spar) ((== 404) . statusCode)
+          !!! const 404 === statusCode
 
 -- | Azure sends a request for an unknown user to test out whether your API is online However;
 -- it sends a userName that is not a valid wire handle. So we should treat 'invalid' as 'not
