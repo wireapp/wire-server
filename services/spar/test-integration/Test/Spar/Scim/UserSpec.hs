@@ -1534,18 +1534,14 @@ specDeleteUser = do
             spar = env ^. teSpar
             galley = env ^. teGalley
 
-        (_, tid) <- call $ createUserWithTeam brig galley
+        (owner, tid) <- call $ createUserWithTeam brig galley
         tok <- registerScimToken tid Nothing
 
-        email <- randomEmail
-        uid <- runSpar $ Intra.createBrigUserNoSAML email tid (Name "Alice")
+        memberInvited <- call (inviteAndRegisterUser brig owner tid)
+        let uid = userId memberInvited
 
-        do
-          inv <- call $ getInvitation brig email
-          Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
-          registerInvitation email (Name "Alice") inviteeCode True
-          call $ headInvitation404 brig email
-
+        aFewTimes (getUser_ (Just tok) uid spar) ((== 200) . statusCode)
+          !!! const 200 === statusCode
         deleteUser_ (Just tok) (Just uid) spar
           !!! const 204 === statusCode
         aFewTimes (getUser_ (Just tok) uid spar) ((== 404) . statusCode)
