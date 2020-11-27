@@ -64,14 +64,14 @@
 # Step: Post user "OMalley"
 # Use email instead of uuid
 | (.requests[] | select (.name == "Post user \"OMalley\"") | .rawModeData) |= sub("22fbc523-6032-4c5f-939d-5d4850cf3e52"; "{{garbage1_externalId}}")
-# Remove this step because the assertion fails: expected 'omalley' to deeply equal 'OMalley' -- TODO: fix this?
+# Remove this step because the assertion fails: expected 'omalley' to deeply equal 'OMalley' -- FUTUREWORK: fix this?
 | del(.requests[] | select (.name == "Post user \"OMalley\""))
 # Step: Post emp1 with string "True"
 | (.requests[] | select (.name == "Post emp1 with string \"True\"") | .rawModeData) |= sub("22fbc523-6032-4c5f-939d-5d4850cf3e52"; "{{garbage1_externalId2}}")
-# Remove this step, because it fails with 400:  Error in $.active: expected Bool, but encountered String  -- TODO: fix
+# Remove this step, because it fails with 400:  Error in $.active: expected Bool, but encountered String  -- FUTUREWORK: fix
 | del(.requests[] | select (.name == "Post emp1 with string \"True\""))
 # Step: Get all users
-# Remove this step because had to remove  'Post user "OMalley"' and 'Post emp1 with string "True"'  -- TODO: fix?
+# Remove this step because had to remove  'Post user "OMalley"' and 'Post emp1 with string "True"'  -- FUTUREWORK: fix?
 | del(.requests[] | select (.id == "4feb34db-d881-4b65-962b-82becad93cff"))
 # Step: Post emp2
 | (.requests[] | select (.name == "Post emp2") | .rawModeData) |= sub("22fbc523-6032-4c5f-939d-5d4850cf3e52"; "{{garbage1_postemp2_externalId}}")
@@ -103,7 +103,7 @@
 # Step: patch user omalley active with boolean
 | (.requests[] | select (.name == "patch user omalley active with boolean") | .url) |= sub("http://{{Server}}{{Port}}/{{Api}}/Users/{{1stuserid}}";"http://{{Server}}{{Port}}/{{Api}}/Users/{{3rduserid}}")
 | (.requests[] | select (.name == "patch user omalley active with boolean") | .rawModeData) |= sub("{{1stuserid}}";"{{3rduserid}}")
-# Remove this step because it return 204 while 200 is expected  -- TODO: fix
+# Remove this step because it return 204 while 200 is expected  -- FUTUREWORK: fix
 | del(.requests[] | select (.name == "patch user omalley active with boolean"))
 # Step: get user1
 # Remove this step because we had to remove the previous steps
@@ -113,7 +113,7 @@
 | (.requests[] | select (.name == "Put a user OMalley") | .url) |= sub("http://{{Server}}{{Port}}/{{Api}}/Users/{{1stuserid}}";"http://{{Server}}{{Port}}/{{Api}}/Users/{{3rduserid}}")
 | (.requests[] | select (.name == "Put a user OMalley") | .rawModeData) |= sub("{{1stuserid}}";"{{3rduserid}}")
 | (.requests[] | select (.name == "Put a user OMalley") | .rawModeData) |= sub("22fbc523-6032-4c5f-939d-5d4850cf3e52"; "{{garbage1_putomalley_externalId}}")
-# without this backend responds with 400: UserName has to match UserId -- TODO: fix?
+# without this backend responds with 400: UserName has to match UserId -- FUTUREWORK: fix?
 | (.requests[] | select (.name == "Put a user OMalley") | .rawModeData) |= sub("OMalley";"{{3rduserid}}")
 | (.requests[] | select (.name == "Put a user OMalley") | .events[].script.exec[] ) |= sub("\"OMalley\"";"pm.environment.get(\"3rduserid\")")
 # Remove this step, because can't reproduce the problems manually. FUTUREWORK: explore this. Might have some interaction with step "Patch user omalley new username"
@@ -125,11 +125,11 @@
 # Remove this step, because fails with 400: Please specify a filter when getting users."
 | del(.requests[] | select (.name == "get user attributes"))
 # Step: filter eq and (val or val)
-# Remove this step, because fails with 400: Error parsing query parameter filter failed: Failed reading: empty  -- TODO: fix at least the error message?
+# Remove this step, because fails with 400: Error parsing query parameter filter failed: Failed reading: empty  -- FUTUREWORK: fix at least the error message?
 | del(.requests[] | select (.name == "filter eq and (val or val)"))
 # Step: filter starts with
-# Remove this step, because fails with 400: Error parsing query parameter filter failed: Failed reading: empty -- TODO: fix at least error message
+# Remove this step, because fails with 400: Error parsing query parameter filter failed: Failed reading: empty -- FUTUREWORK: fix at least error message
 | del(.requests[] | select (.name == "filter starts with"))
 # Step: filter greater than
-# Remove this step, because fails with 400: Error parsing query parameter filter failed: endOfInput -- TODO: fix error message
+# Remove this step, because fails with 400: Error parsing query parameter filter failed: endOfInput -- FUTUREWORK: fix error message
 | del(.requests[] | select (.name == "filter greater than"))
