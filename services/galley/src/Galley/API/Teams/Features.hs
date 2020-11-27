@@ -220,15 +220,7 @@ setLegalholdStatusInternal tid status = do
 
 getAppLockInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureAppLock)
 getAppLockInternal tid = do
-  mbDefaults <- view (options . optSettings . setFeatureFlags . flagAppLockDefaults)
-  let defaultStatus =
-        maybe
-          ( Public.TeamFeatureStatusWithConfig
-              Public.TeamFeatureEnabled
-              (Public.TeamFeatureAppLockConfig (Public.EnforceAppLock False) 60)
-          )
-          _unDefaults
-          mbDefaults
+  Defaults defaultStatus <- view (options . optSettings . setFeatureFlags . flagAppLockDefaults)
   status <- TeamFeatures.getApplockFeatureStatus tid
   pure $ fromMaybe defaultStatus status
 

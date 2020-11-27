@@ -31,6 +31,7 @@ module Wire.API.Team.Feature
     TeamFeatureStatusWithConfig (..),
     deprecatedFeatureName,
     FeatureHasStatus (..),
+    defaultAppLockStatus,
 
     -- * Swagger
     typeTeamFeatureName,
@@ -285,6 +286,12 @@ deriving via
   (StripCamel "applock" TeamFeatureAppLockConfig)
   instance
     FromJSON TeamFeatureAppLockConfig
+
+defaultAppLockStatus :: TeamFeatureStatusWithConfig TeamFeatureAppLockConfig
+defaultAppLockStatus =
+  TeamFeatureStatusWithConfig
+    TeamFeatureEnabled
+    (TeamFeatureAppLockConfig (EnforceAppLock False) 60)
 
 ----------------------------------------------------------------------
 -- internal
