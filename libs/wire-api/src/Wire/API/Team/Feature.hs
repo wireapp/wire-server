@@ -1,4 +1,5 @@
 {-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -30,7 +31,6 @@ module Wire.API.Team.Feature
     TeamFeatureStatusNoConfig (..),
     TeamFeatureStatusWithConfig (..),
     deprecatedFeatureName,
-    FeatureHasStatus (..),
 
     -- * Swagger
     typeTeamFeatureName,
@@ -171,15 +171,6 @@ type family TeamFeatureStatus (a :: TeamFeatureName) :: * where
 
 type FeatureHasNoConfig (a :: TeamFeatureName) = (TeamFeatureStatus a ~ TeamFeatureStatusNoConfig) :: Constraint
 
-class FeatureHasStatus a where
-  featureStatus :: a -> TeamFeatureStatusValue
-
-instance FeatureHasStatus (TeamFeatureStatusWithConfig a) where
-  featureStatus = tfwcStatus
-
-instance FeatureHasStatus TeamFeatureStatusNoConfig where
-  featureStatus = tfwoStatus
-
 -- if you add a new constructor here, don't forget to add it to the swagger (1.2) docs in "Wire.API.Swagger"!
 modelForTeamFeature :: TeamFeatureName -> Doc.Model
 modelForTeamFeature TeamFeatureLegalHold = modelTeamFeatureStatusNoConfig
@@ -193,7 +184,8 @@ modelForTeamFeature name@TeamFeatureAppLock = modelTeamFeatureStatusWithConfig n
 -- TeamFeatureStatusNoConfig
 
 newtype TeamFeatureStatusNoConfig = TeamFeatureStatusNoConfig
-  {tfwoStatus :: TeamFeatureStatusValue}
+  { featureStatus :: TeamFeatureStatusValue
+  }
   deriving newtype (Eq, Show, Generic, Typeable, Arbitrary)
 
 modelTeamFeatureStatusNoConfig :: Doc.Model
@@ -212,7 +204,7 @@ instance ToJSON TeamFeatureStatusNoConfig where
 -- TeamFeatureStatusWithConfig
 
 data TeamFeatureStatusWithConfig (cfg :: *) = TeamFeatureStatusWithConfig
-  { tfwcStatus :: TeamFeatureStatusValue,
+  { featureStatus :: TeamFeatureStatusValue,
     tfwcConfig :: cfg
   }
   deriving stock (Eq, Show, Generic, Typeable)
