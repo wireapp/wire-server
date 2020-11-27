@@ -29,7 +29,13 @@ import Cassandra
 import Data.Id
 import Galley.Data.Instances ()
 import Imports
-import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatus, TeamFeatureStatusNoConfig (..), TeamFeatureStatusValue (..), TeamFeatureStatusWithConfig (..), featureStatus)
+import Wire.API.Team.Feature
+  ( TeamFeatureName (..),
+    TeamFeatureStatus,
+    TeamFeatureStatusNoConfig (..),
+    TeamFeatureStatusValue (..),
+    TeamFeatureStatusWithConfig (..),
+  )
 import qualified Wire.API.Team.Feature as Public
 
 toCol :: TeamFeatureName -> String
@@ -66,7 +72,8 @@ setFeatureStatusNoConfig ::
   (TeamFeatureStatus a) ->
   m (TeamFeatureStatus a)
 setFeatureStatusNoConfig tid status = do
-  retry x5 $ write (update (Public.knownTeamFeatureName @a)) (params Quorum (featureStatus status, tid))
+  let flag = Public.tfwoStatus status
+  retry x5 $ write (update (Public.knownTeamFeatureName @a)) (params Quorum (flag, tid))
   pure status
   where
     update :: TeamFeatureName -> PrepQuery W (TeamFeatureStatusValue, TeamId) ()
@@ -95,7 +102,7 @@ setApplockFeatureStatus ::
   (TeamFeatureStatus 'Public.TeamFeatureAppLock) ->
   m (TeamFeatureStatus 'Public.TeamFeatureAppLock)
 setApplockFeatureStatus tid status = do
-  let statusValue = featureStatus status
+  let statusValue = Public.tfwcStatus status
       enforce = Public.applockEnforceAppLock . Public.tfwcConfig $ status
       timeout = Public.applockInactivityTimeoutSecs . Public.tfwcConfig $ status
   retry x5 $ write update (params Quorum (statusValue, enforce, timeout, tid))

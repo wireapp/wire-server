@@ -326,7 +326,7 @@ legalHoldLogin (LegalHoldLogin uid plainTextPassword label) typ = do
 
 assertLegalHoldEnabled :: TeamId -> ExceptT LegalHoldLoginError AppIO ()
 assertLegalHoldEnabled tid = do
-  status <- lift $ Intra.getTeamLegalHoldStatus tid
-  case featureStatus status of
+  stat <- lift $ Intra.getTeamLegalHoldStatus tid
+  case tfwoStatus stat of
     TeamFeatureDisabled -> throwE LegalHoldLoginLegalHoldNotEnabled
     TeamFeatureEnabled -> pure ()

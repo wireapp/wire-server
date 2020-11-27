@@ -69,7 +69,6 @@ import Test.Tasty.HUnit
 import TestHelpers (test)
 import TestSetup (TestM, TestSetup, tsBrig, tsCannon, tsGConf, tsGalley)
 import UnliftIO (mapConcurrently, mapConcurrently_)
-import Wire.API.Team.Feature (featureStatus)
 import qualified Wire.API.Team.Feature as Public
 
 tests :: IO TestSetup -> TestTree
@@ -290,7 +289,8 @@ testEnableSSOPerTeam = do
   let check :: HasCallStack => String -> Public.TeamFeatureStatusValue -> TestM ()
       check msg enabledness = do
         status :: Public.TeamFeatureStatus 'Public.TeamFeatureSSO <- responseJsonUnsafe <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
-        liftIO $ assertEqual msg enabledness (featureStatus status)
+        let statusValue = Public.tfwoStatus status
+        liftIO $ assertEqual msg enabledness statusValue
   let putSSOEnabledInternalCheckNotImplemented :: HasCallStack => TestM ()
       putSSOEnabledInternalCheckNotImplemented = do
         g <- view tsGalley
@@ -319,7 +319,9 @@ testEnableTeamSearchVisibilityPerTeam = do
   let check :: (HasCallStack, MonadCatch m, MonadIO m, Monad m, MonadHttp m) => String -> Public.TeamFeatureStatusValue -> m ()
       check msg enabledness = do
         status :: Public.TeamFeatureStatus 'Public.TeamFeatureSearchVisibility <- responseJsonUnsafe <$> (Util.getTeamSearchVisibilityAvailableInternal g tid <!! testResponse 200 Nothing)
-        liftIO $ assertEqual msg enabledness (featureStatus status)
+        let statusValue = Public.tfwoStatus status
+
+        liftIO $ assertEqual msg enabledness statusValue
   let putSearchVisibilityCheckNotAllowed :: (HasCallStack, Monad m, MonadIO m, MonadHttp m) => m ()
       putSearchVisibilityCheckNotAllowed = do
         Wai.Error status label _ <- responseJsonUnsafe <$> putSearchVisibility g owner tid SearchVisibilityNoNameOutsideTeam

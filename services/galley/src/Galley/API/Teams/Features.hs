@@ -57,7 +57,6 @@ import Imports
 import Network.Wai
 import Network.Wai.Predicate hiding (or, result, setStatus)
 import Network.Wai.Utilities
-import Wire.API.Team.Feature (featureStatus)
 import qualified Wire.API.Team.Feature as Public
 
 data DoAuth = DoAuth UserId | DontDoAuth
@@ -141,7 +140,7 @@ setFeatureStatusNoConfig ::
   Public.TeamFeatureStatus a ->
   Galley (Public.TeamFeatureStatus a)
 setFeatureStatusNoConfig applyState tid status = do
-  applyState (featureStatus status) tid
+  applyState (Public.tfwoStatus status) tid
   TeamFeatures.setFeatureStatusNoConfig @a tid status
 
 getSSOStatusInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureSSO)
@@ -198,7 +197,7 @@ getLegalholdStatusInternal tid = do
       pure (Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled)
 
 setLegalholdStatusInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold)
-setLegalholdStatusInternal tid status = do
+setLegalholdStatusInternal tid status@(Public.tfwoStatus -> statusValue) = do
   do
     featureLegalHold <- view (options . optSettings . setFeatureFlags . flagLegalHold)
     case featureLegalHold of
@@ -206,7 +205,7 @@ setLegalholdStatusInternal tid status = do
         pure ()
       FeatureLegalHoldDisabledPermanently -> do
         throwM legalHoldFeatureFlagNotEnabled
-  case featureStatus status of
+  case statusValue of
     Public.TeamFeatureDisabled -> removeSettings' tid
     -- FUTUREWORK: We cannot enable legalhold on large teams right now
     Public.TeamFeatureEnabled -> checkTeamSize

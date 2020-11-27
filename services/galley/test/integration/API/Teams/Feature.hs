@@ -32,7 +32,6 @@ import Imports
 import Test.Tasty
 import TestHelpers (test)
 import TestSetup
-import Wire.API.Team.Feature (FeatureHasStatus (..))
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Member as Public
 
@@ -211,7 +210,6 @@ assertFlagNoConfig ::
   ( HasCallStack,
     Typeable a,
     Public.FeatureHasNoConfig a,
-    FeatureHasStatus (Public.TeamFeatureStatus a),
     FromJSON (Public.TeamFeatureStatus a),
     Public.KnownTeamFeatureName a
   ) =>
@@ -221,7 +219,7 @@ assertFlagNoConfig ::
 assertFlagNoConfig res expected = do
   res !!! do
     statusCode === const 200
-    ( fmap featureStatus
+    ( fmap Public.tfwoStatus
         . responseJsonEither @(Public.TeamFeatureStatus a)
       )
       === const (Right expected)
