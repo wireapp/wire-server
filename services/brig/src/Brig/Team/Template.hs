@@ -24,8 +24,6 @@ module Brig.Team.Template
 
     -- * Re-exports
     Template,
-    renderText,
-    renderHtml,
   )
 where
 

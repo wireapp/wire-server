@@ -33,8 +33,6 @@ module Brig.User.Template
 
     -- * Re-exports
     Template,
-    renderText,
-    renderHtml,
   )
 where
 

@@ -28,7 +28,6 @@ module Brig.Template
 
     -- * Rendering templates
     renderText,
-    renderHtml,
     renderTextWithBranding,
     renderHtmlWithBranding,
     genTemplateBranding,
@@ -157,7 +156,6 @@ renderHtmlWithBranding tpl replace branding = renderHtml tpl (replace . branding
 renderText :: Template -> (Text -> Text) -> Lazy.Text
 renderText = Template.render
 
--- TODO: Do not export this function
 renderHtml :: Template -> (Text -> Text) -> Lazy.Text
 renderHtml tpl replace = renderText tpl (HTML.text . replace)
 
