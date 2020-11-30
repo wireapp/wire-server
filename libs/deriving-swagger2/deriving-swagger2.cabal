@@ -1,8 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
+--
+-- hash: 0acfb0bb754c0bfaa85ff0aba2a6fce2b3e3d257bf176dd9db6d1496d35795b5
 
 name:           deriving-swagger2
 version:        0.1.0
