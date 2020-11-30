@@ -56,16 +56,19 @@ data UserTemplates = UserTemplates
     deletionEmail :: !DeletionEmailTemplate,
     newClientEmail :: !NewClientEmailTemplate
   }
+  deriving (Show)
 
 data ActivationSmsTemplate = ActivationSmsTemplate
   { activationSmslUrl :: !Template,
     activationSmsText :: !Template,
     activationSmsSender :: !Text
   }
+  deriving (Show)
 
 data ActivationCallTemplate = ActivationCallTemplate
   { activationCallText :: !Template
   }
+  deriving (Show)
 
 data VerificationEmailTemplate = VerificationEmailTemplate
   { verificationEmailUrl :: !Template,
@@ -75,6 +78,7 @@ data VerificationEmailTemplate = VerificationEmailTemplate
     verificationEmailSender :: !Email,
     verificationEmailSenderName :: !Text
   }
+  deriving (Show)
 
 data ActivationEmailTemplate = ActivationEmailTemplate
   { activationEmailUrl :: !Template,
@@ -84,6 +88,7 @@ data ActivationEmailTemplate = ActivationEmailTemplate
     activationEmailSender :: !Email,
     activationEmailSenderName :: !Text
   }
+  deriving (Show)
 
 data TeamActivationEmailTemplate = TeamActivationEmailTemplate
   { teamActivationEmailUrl :: !Template,
@@ -93,6 +98,7 @@ data TeamActivationEmailTemplate = TeamActivationEmailTemplate
     teamActivationEmailSender :: !Email,
     teamActivationEmailSenderName :: !Text
   }
+  deriving (Show)
 
 data DeletionEmailTemplate = DeletionEmailTemplate
   { deletionEmailUrl :: !Template,
@@ -102,6 +108,7 @@ data DeletionEmailTemplate = DeletionEmailTemplate
     deletionEmailSender :: !Email,
     deletionEmailSenderName :: !Text
   }
+  deriving (Show)
 
 data PasswordResetEmailTemplate = PasswordResetEmailTemplate
   { passwordResetEmailUrl :: !Template,
@@ -111,27 +118,32 @@ data PasswordResetEmailTemplate = PasswordResetEmailTemplate
     passwordResetEmailSender :: !Email,
     passwordResetEmailSenderName :: !Text
   }
+  deriving (Show)
 
 data PasswordResetSmsTemplate = PasswordResetSmsTemplate
   { passwordResetSmsText :: !Template,
     passwordResetSmsSender :: !Text
   }
+  deriving (Show)
 
 data LoginSmsTemplate = LoginSmsTemplate
   { loginSmsUrl :: !Template,
     loginSmsText :: !Template,
     loginSmsSender :: !Text
   }
+  deriving (Show)
 
 data LoginCallTemplate = LoginCallTemplate
   { loginCallText :: !Template
   }
+  deriving (Show)
 
 data DeletionSmsTemplate = DeletionSmsTemplate
   { deletionSmsUrl :: !Template,
     deletionSmsText :: !Template,
     deletionSmsSender :: !Text
   }
+  deriving (Show)
 
 data NewClientEmailTemplate = NewClientEmailTemplate
   { newClientEmailSubject :: !Template,
@@ -140,6 +152,7 @@ data NewClientEmailTemplate = NewClientEmailTemplate
     newClientEmailSender :: !Email,
     newClientEmailSenderName :: !Text
   }
+  deriving (Show)
 
 loadUserTemplates :: Opt.Opts -> IO (Localised UserTemplates)
 loadUserTemplates o = readLocalesDir defLocale templateDir "user" $ \fp ->

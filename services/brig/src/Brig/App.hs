@@ -77,7 +77,7 @@ import qualified Brig.Queue.Stomp as Stomp
 import Brig.Queue.Types (Queue (..))
 import qualified Brig.SMTP as SMTP
 import Brig.Team.Template
-import Brig.Template (Localised, TemplateBranding, forLocale, genTemplateBranding)
+import Brig.Template (Localised, TemplateBranding, forLocale, genTemplateBranding, slowForceTemplates)
 import Brig.Types (Locale (..), TurnURI)
 import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
 import Brig.User.Template
@@ -181,7 +181,7 @@ newEnv o = do
   cas <- initCassandra o lgr
   mgr <- initHttpManager
   ext <- initExtGetManager
-  utp <- loadUserTemplates o
+  utp <- slowForceTemplates <$> loadUserTemplates o
   ptp <- loadProviderTemplates o
   ttp <- loadTeamTemplates o
   let branding = genTemplateBranding . Opt.templateBranding . Opt.general . Opt.emailSMS $ o
