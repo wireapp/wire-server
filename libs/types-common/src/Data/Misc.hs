@@ -44,12 +44,15 @@ module Data.Misc
     mkHttpsUrl,
     ensureHttpsUrl,
 
+    -- * PlainTextPassword
+    PlainTextPassword (..),
+
     -- * Fingerprint
     Fingerprint (..),
     Rsa,
 
-    -- * PlainTextPassword
-    PlainTextPassword (..),
+    -- * ModJulianDay
+    ModJulianDay (..),
 
     -- * Swagger
     modelLocation,
@@ -71,6 +74,7 @@ import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import Data.Time.Calendar (Day (..))
 import Imports
 import Test.QuickCheck (Arbitrary (arbitrary))
 import qualified Test.QuickCheck as QC
@@ -322,3 +326,15 @@ instance FromJSON PlainTextPassword where
 instance Arbitrary PlainTextPassword where
   -- TODO: why 6..1024? For tests we might want invalid passwords as well, e.g. 3 chars
   arbitrary = PlainTextPassword . fromRange <$> genRangeText @6 @1024 arbitrary
+
+--------------------------------------------------------------------------------
+-- ModJulianDay
+
+newtype ModJulianDay = ModJulianDay {fromUTCDay :: Day}
+  deriving stock (Eq, Show)
+
+instance Cql ModJulianDay where
+  ctype = Tagged IntColumn
+  toCql (ModJulianDay (ModifiedJulianDay n)) = CqlInt (fromIntegral n)
+  fromCql (CqlInt n) = return . ModJulianDay . ModifiedJulianDay . fromIntegral $ n
+  fromCql _ = Left "ModJulianDay: expected CqlInt"

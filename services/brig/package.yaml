@@ -93,6 +93,7 @@ library:
   - scrypt >=0.5
   - smtp-mail >=0.1
   - split >=0.2
+  - safe-exceptions >=0.1
   - semigroups >=0.15
   - servant
   - servant-server

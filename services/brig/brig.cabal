@@ -48,6 +48,7 @@ library
       Brig.Data.Instances
       Brig.Data.LoginCode
       Brig.Data.PasswordReset
+      Brig.Data.PendingActivation
       Brig.Data.Properties
       Brig.Data.Types
       Brig.Data.User
@@ -189,6 +190,7 @@ library
     , retry >=0.7
     , ropes >=0.4.20
     , safe >=0.3
+    , safe-exceptions >=0.1
     , scientific >=0.3.4
     , scrypt >=0.5
     , semigroups >=0.15
@@ -416,6 +418,7 @@ executable brig-schema
       V59
       V60_AddFederationIdMapping
       V61_team_invitation_email
+      V62_users_pending_activation
       V9
       Paths_brig
   hs-source-dirs:
