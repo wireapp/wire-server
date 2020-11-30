@@ -609,10 +609,6 @@ defSftListLength = unsafeRange 5
 defFederationAllowedDomains :: FederationAllowedDomains
 defFederationAllowedDomains = FederationAllowedDomains []
 
--- TODO: make configurable
-ourDomain :: IO Domain
-ourDomain = pure $ Domain "staging.zinfra.io"
-
 instance FromJSON Timeout where
   parseJSON (Y.Number n) =
     let defaultV = 3600
