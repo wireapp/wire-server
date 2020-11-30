@@ -1,8 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
+--
+-- hash: cb5d5f266e2fdd724d4f01f6136992c85aff49fa7ad01f06f8373a1f3c99abbe
 
 name:           wire-api
 version:        0.1.0
