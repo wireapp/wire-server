@@ -331,21 +331,31 @@ instance ToJSON EmailVisibility where
   toJSON EmailVisibleIfOnSameTeam = "visible_if_on_same_team"
   toJSON EmailVisibleToSelf = "visible_to_self"
 
-newtype FederationAllowList = FederationAllowList {allowedDomains :: [Domain]}
+newtype FederationAllowedDomains = FederationAllowedDomains {allowedDomains :: [Domain]}
   deriving (Eq, Show, Generic)
-
-instance FromJSON FederationAllowList
+  deriving newtype (FromJSON, ToJSON)
 
 -- FUTUREWORK: Support a DenyList
 data FederationStrategy
-  = -- | This backend allows federating with any other Wire backend
+  = -- | This backend allows federating with any other Wire-Server backend
     WithEveryone
-  | -- | Any backend explicitly configured in an AllowList
-    WithAllowList FederationAllowList
-  deriving (Eq, Show, Generic)
+  | -- | Any backend explicitly configured in a FederationAllowList
+    WithAllowList
+  deriving (Eq, Show, Generic, Bounded, Enum)
 
--- TODO: custom JSON?
-instance FromJSON FederationStrategy
+instance ToJSON FederationStrategy where
+  toJSON WithEveryone = "with_everyone"
+  toJSON WithAllowList = "with_allow_list"
+
+instance FromJSON FederationStrategy where
+  parseJSON = withText "FederationStrategy" $ \case
+    "with_everyone" -> pure WithEveryone
+    "with_allow_list" -> pure $ WithAllowList
+    _ ->
+      fail $
+        "unexpected value for FederationStrategy settings: "
+          <> "expected one of "
+          <> show (Aeson.encode <$> [(minBound :: FederationStrategy) ..])
 
 -- | Options that are consumed on startup
 data Opts = Opts
@@ -472,9 +482,21 @@ data Settings = Settings
     -- returns users from the same team
     setSearchSameTeamOnly :: !(Maybe Bool),
     -- | FederationDomain is required, even when not wanting to federate with other backends
-    -- (in that case the FederationAllowList can be set to empty)
+    -- (in that case the 'setFederationAllowedDomains' can be set to empty)
+    -- Federation domain is used to qualify local IDs and handles,
+    -- e.g. 0c4d8944-70fa-480e-a8b7-9d929862d18c@wire.com and somehandle@wire.com.
+    -- Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
+    -- Remember to keep it the same in Galley.
+    -- Example:
+    --   setFederationAllowedDomains:
+    --     - wire.com
+    --     - example.com
     setFederationDomain :: !(Domain),
+    -- | Would you like to federate with everyone or only with a select set of other wire-server installations?
     setFederationStrategy :: !(FederationStrategy),
+    -- | setFederationAllowedDomains only has an effect if 'setFederationStrategy' is with_allow_list
+    -- (defaults to empty list if unset)
+    setFederationAllowedDomains :: !(Maybe FederationAllowedDomains),
     -- | The amount of time in milliseconds to wait after reading from an SQS queue
     -- returns no message, before asking for messages from SQS again.
     -- defaults to 'defSqsThrottleMillis'.
@@ -584,6 +606,9 @@ defSftDiscoveryIntervalSeconds = secondsToDiffTime 10
 defSftListLength :: Range 1 100 Int
 defSftListLength = unsafeRange 5
 
+defFederationAllowedDomains :: FederationAllowedDomains
+defFederationAllowedDomains = FederationAllowedDomains []
+
 -- TODO: make configurable
 ourDomain :: IO Domain
 ourDomain = pure $ Domain "staging.zinfra.io"
@@ -618,6 +643,7 @@ Lens.makeLensesFor
     ("setUserMaxPermClients", "userMaxPermClients"),
     ("setFederationDomain", "federationDomain"),
     ("setFederationStrategy", "federationStrategy"),
+    ("setFederationAllowedDomains", "federationAllowedDomains"),
     ("setSqsThrottleMillis", "sqsThrottleMillis")
   ]
   ''Settings

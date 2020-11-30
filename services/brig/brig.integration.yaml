@@ -164,12 +164,19 @@ optSettings:
   # setUserMaxPermClients: 7
   # ^ You can limit the max number of permanent clients that a user is allowed
   #   to register, per account. The default value is '7' if the option is unset.
-  setFederationDomain: example.com
-  # ^ This is used to qualify local IDs and handles, e.g. somehandle@wire.com.
-  #   Do not change it, if you do, existing users may get a broken experience
+
+  #   Federation domain is used to qualify local IDs and handles,
+  #   e.g. 0c4d8944-70fa-480e-a8b7-9d929862d18c@wire.com and somehandle@wire.com.
+  #   Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
   #   Remember to keep it the same in Galley.
-  setFederationStrategy: allow-list
-  # setFederationAllowList:
+  setFederationDomain: example.com
+  #   Would you like to federate with everyone or only with a select set of other wire-server installations?
+  setFederationStrategy: with_everyone # with_everyone | with_allow_list
+  #   setFederationAllowedDomains only has an effect if strategy is with_allow_list
+  #   defaults to empty list if unset
+  # setFederationAllowedDomains:
+  #   - wire.com
+  #   - example.com
 
 logLevel: Warn
 # ^ NOTE: We log too much in brig, if we set this to Info like other services, running tests

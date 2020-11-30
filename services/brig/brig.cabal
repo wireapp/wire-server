@@ -3,6 +3,8 @@ cabal-version: 1.12
 -- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
+--
+-- hash: 9f982304b3e4de02c3a782a8053c4d3d2e0ab19d3e6bd497684f37ceaaf7215a
 
 name:           brig
 version:        1.35.0
