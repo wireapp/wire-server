@@ -619,6 +619,13 @@ packages:
       sha256: 11d2ac77cee54cc1f222e574e4126189fe5b60a47a1aedbafc2ab0de709b29c6
   original:
     hackage: headroom-0.2.1.0
+- completed:
+    hackage: implicit-hie-0.1.2.5@sha256:517a98ef72f92f0a1617495222774fed3a751a64b0c06fbfc7b858d7aa5de279,2998
+    pantry-tree:
+      size: 844
+      sha256: 9bf2645187637b647dfaebf37a45a57e221b3527592ce3b1cfd9faf90339dac3
+  original:
+    hackage: implicit-hie-0.1.2.5
 snapshots:
 - completed:
     size: 532382
