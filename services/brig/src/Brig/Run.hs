@@ -33,10 +33,12 @@ import qualified Brig.AWS.SesNotification as SesNotification
 import Brig.App
 import qualified Brig.Calling as Calling
 import Brig.Data.PendingActivation (PendingActivationExpiration (..), removeTrackedExpirations, searchTrackedExpirations)
+import Brig.Data.User (lookupStatus)
 import qualified Brig.InternalEvent.Process as Internal
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Queue as Queue
 import qualified Brig.Team.DB as Data
+import Brig.Types.Intra (AccountStatus (..))
 import qualified Control.Concurrent.Async as Async
 import Control.Exception.Safe (catchAny)
 import Control.Lens (view, (.~), (^.))
@@ -49,7 +51,7 @@ import qualified Data.Metrics.Middleware.Prometheus as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.String.Conversions (cs)
 import Data.Text (unpack)
-import Data.Time.Calendar (Day (..))
+import Data.Time.Calendar (Day (..), addDays)
 import Data.Time.Clock (UTCTime (..))
 import Imports hiding (head)
 import qualified Network.Wai as Wai
@@ -82,7 +84,7 @@ run o = do
       AWS.execute (e ^. awsEnv) $
         AWS.listen throttleMillis q (runAppT e . SesNotification.onEvent)
   sftDiscovery <- forM (e ^. sftEnv) $ Async.async . Calling.startSFTServiceDiscovery (e ^. applog)
-  expiryCleanup <- Async.async $ (runAppT e cleanUpExpired)
+  expiryCleanup <- Async.async (runAppT e cleanUpExpired)
 
   runSettingsWithShutdown s app 5 `finally` do
     mapM_ Async.cancel emailListener
@@ -120,34 +122,39 @@ lookupRequestIdMiddleware mkapp req cont = do
   let reqid = maybe def RequestId $ lookupRequestId req
   mkapp reqid req cont
 
-forTrackedExpirations :: Day -> (NonEmpty PendingActivationExpiration -> AppIO ()) -> AppIO ()
-forTrackedExpirations day f = do
-  exps <- searchTrackedExpirations day Nothing
-  go exps
-  where
-    go (e : es) = do
-      let exps = e :| es
-      f exps
-      go =<< searchTrackedExpirations day (Just (maximum exps))
-    go [] = pure ()
-
 cleanUpExpired :: AppIO ()
 cleanUpExpired = do
-  -- err $ msg ("############## Started clean up thread" :: Text)
+  let nDays = 7
   safeForever "cleanUpExpired" $ do
     today <- utctDay <$> (liftIO =<< view currentTime)
-    forTrackedExpirations today $ \exps -> do
-      for_ exps $ \(PendingActivationExpiration uid _ tid) -> do
-        invExpired <- isNothing <$> Data.lookupInvitation tid (coerce uid)
-        -- TODO: check is pending invitation
-        when invExpired $ do
-          API.deleteUserNoVerify uid
-        removeTrackedExpirations today (maximum exps)
+    for_ [0 .. (nDays -1)] $ \i ->
+      cleanUpDay (addDays (- i) today)
     liftIO $ threadDelay 1_000_000
+  where
+    cleanUpDay :: Day -> AppIO ()
+    cleanUpDay day =
+      forTrackedExpirations day $ \exps -> do
+        for_ exps $ \(PendingActivationExpiration uid _ tid) -> do
+          isPendingInvitation <- (Just PendingInvitation ==) <$> lookupStatus uid
+          invExpired <- isNothing <$> Data.lookupInvitation tid (coerce uid)
+          when (isPendingInvitation && invExpired) $
+            API.deleteUserNoVerify uid
+          removeTrackedExpirations day (maximum exps)
 
-safeForever :: (MonadIO m, MonadLogger m, MonadCatch m) => String -> m () -> m ()
-safeForever funName action =
-  forever $
-    action `catchAny` \exc -> do
-      err $ "error" .= show exc ~~ msg (val $ cs funName <> " failed")
-      threadDelay 60_000_000 -- pause to keep worst-case noise in logs manageable
+    forTrackedExpirations :: Day -> (NonEmpty PendingActivationExpiration -> AppIO ()) -> AppIO ()
+    forTrackedExpirations day f = do
+      exps <- searchTrackedExpirations day Nothing
+      go exps
+      where
+        go (e : es) = do
+          let exps = e :| es
+          f exps
+          go =<< searchTrackedExpirations day (Just (maximum exps))
+        go [] = pure ()
+
+    safeForever :: (MonadIO m, MonadLogger m, MonadCatch m) => String -> m () -> m ()
+    safeForever funName action =
+      forever $
+        action `catchAny` \exc -> do
+          err $ "error" .= show exc ~~ msg (val $ cs funName <> " failed")
+          threadDelay 60_000_000 -- pause to keep worst-case noise in logs manageable
