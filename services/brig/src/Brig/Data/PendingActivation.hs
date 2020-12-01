@@ -39,11 +39,6 @@ data PendingActivationExpiration
       !TeamId
   deriving stock (Eq)
 
--- | Same as clustering order
-instance Ord PendingActivationExpiration where
-  (PendingActivationExpiration uid t _) <= (PendingActivationExpiration uid2 t2 _) =
-    (t, uid) <= (t2, uid2)
-
 -- | Note: Call this function only after an invitation for the user has been created
 trackExpiration :: PendingActivationExpiration -> AppIO ()
 trackExpiration (PendingActivationExpiration uid expiresAt tid) = do

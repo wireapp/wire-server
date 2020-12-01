@@ -33,12 +33,10 @@ import qualified Brig.AWS.SesNotification as SesNotification
 import Brig.App
 import qualified Brig.Calling as Calling
 import Brig.Data.PendingActivation (PendingActivationExpiration (..), removeTrackedExpiration, searchTrackedExpirations)
-import Brig.Data.User (lookupStatus)
 import qualified Brig.InternalEvent.Process as Internal
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Queue as Queue
 import qualified Brig.Team.DB as Data
-import Brig.Types.Intra (AccountStatus (..))
 import Cassandra.Exec (Page (Page), liftClient)
 import qualified Control.Concurrent.Async as Async
 import Control.Exception.Safe (catchAny)
@@ -129,27 +127,20 @@ cleanExpiredPendingInvitations :: AppIO ()
 cleanExpiredPendingInvitations = do
   safeForever "cleanExpiredPendingInvitations" $ do
     today <- utctDay <$> (liftIO =<< view currentTime)
-    for_ [0 .. 9] $ \i ->
+    for_ [1 .. 9] $ \i ->
       cleanUpDay (addDays (- i) today)
     let d :: Int = 24 * 60 * 60
     randomSecs <- liftIO (round <$> randomRIO @Double (0.5 * fromIntegral d, fromIntegral d))
     threadDelay (randomSecs * 1_000_000)
   where
-    cleanUpDay :: Day -> AppIO ()
+    cleanUpDay :: Day -> AppIO () -- Call this function only with dates from the past
     cleanUpDay day = do
       expiredEntries <- forTrackedExpirations day $ \exps ->
-        catMaybes
-          <$> ( for exps $ \(PendingActivationExpiration uid expiresAt tid) -> do
-                  isExpired <- (expiresAt <=) <$> (liftIO =<< view currentTime)
-                  if isExpired
-                    then do
-                      isPendingInvitation <- (Just PendingInvitation ==) <$> lookupStatus uid
-                      invExpired <- isNothing <$> Data.lookupInvitation tid (coerce uid)
-                      when (isPendingInvitation && invExpired) $ do
-                        API.deleteUserNoVerify uid
-                      pure (Just uid)
-                    else pure Nothing
-              )
+        for exps $ \(PendingActivationExpiration uid _ tid) -> do
+          invExpired <- isNothing <$> Data.lookupInvitation tid (coerce uid)
+          when invExpired $
+            API.deleteUserNoVerify uid
+          pure uid
       unless (null expiredEntries) $
         removeTrackedExpiration day expiredEntries
 
