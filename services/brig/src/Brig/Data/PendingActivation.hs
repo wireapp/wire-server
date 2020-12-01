@@ -62,10 +62,10 @@ searchTrackedExpirations dayExpired = do
       "SELECT user, expires_at, team FROM users_pending_activation \
       \WHERE expires_at_day = ?"
 
-removeTrackedExpiration :: Day -> UserId -> AppIO ()
-removeTrackedExpiration day uid =
-  retry x5 . write deleteExpired . params Quorum $ (ModJulianDay day, uid)
+removeTrackedExpiration :: Day -> [UserId] -> AppIO ()
+removeTrackedExpiration day uids =
+  retry x5 . write deleteExpired . params Quorum $ (ModJulianDay day, uids)
   where
-    deleteExpired :: PrepQuery W (ModJulianDay, UserId) ()
+    deleteExpired :: PrepQuery W (ModJulianDay, [UserId]) ()
     deleteExpired =
-      "DELETE FROM users_pending_activation WHERE expires_at_day = ? and user = ?"
+      "DELETE FROM users_pending_activation WHERE expires_at_day = ? and user in ?"

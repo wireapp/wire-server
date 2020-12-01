@@ -44,11 +44,12 @@ import qualified Control.Concurrent.Async as Async
 import Control.Exception.Safe (catchAny)
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch (MonadCatch, finally)
+-- import Control.Monad.Random (Random (randomRIO))
+
 import Control.Monad.Random (Random (randomRIO))
 import Data.Coerce (coerce)
 import Data.Default (Default (def))
 import Data.Id (RequestId (..))
-import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Metrics.Middleware.Prometheus as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.String.Conversions (cs)
@@ -86,7 +87,7 @@ run o = do
       AWS.execute (e ^. awsEnv) $
         AWS.listen throttleMillis q (runAppT e . SesNotification.onEvent)
   sftDiscovery <- forM (e ^. sftEnv) $ Async.async . Calling.startSFTServiceDiscovery (e ^. applog)
-  expiryCleanup <- Async.async (runAppT e cleanUpExpired)
+  expiryCleanup <- Async.async (runAppT e cleanExpiredPendingInvitations)
 
   runSettingsWithShutdown s app 5 `finally` do
     mapM_ Async.cancel emailListener
@@ -124,51 +125,43 @@ lookupRequestIdMiddleware mkapp req cont = do
   let reqid = maybe def RequestId $ lookupRequestId req
   mkapp reqid req cont
 
-cleanUpExpired :: AppIO ()
-cleanUpExpired = do
-  safeForever "cleanUpExpired" $ do
-    err $ msg ("!!!Checking..." :: Text)
+cleanExpiredPendingInvitations :: AppIO ()
+cleanExpiredPendingInvitations = do
+  safeForever "cleanExpiredPendingInvitations" $ do
     today <- utctDay <$> (liftIO =<< view currentTime)
     for_ [0 .. 9] $ \i ->
       cleanUpDay (addDays (- i) today)
-
-    -- let delay = secondsToNominalDiffTime 3
-    -- threadDelayNominalDiffTime =<< randomDiffTime (realToFrac (0.5 :: Double) * delay, delay)
-    let d :: Int = 2
-    randomSecs <- liftIO $ round <$> randomRIO @Double (0.5 * fromIntegral d, fromIntegral d)
+    let d :: Int = 24 * 60 * 60
+    randomSecs <- liftIO (round <$> randomRIO @Double (0.5 * fromIntegral d, fromIntegral d))
     threadDelay (randomSecs * 1_000_000)
   where
-    -- liftIO $ threadDelay 1_000_000
-
     cleanUpDay :: Day -> AppIO ()
     cleanUpDay day =
       forTrackedExpirations day $ \exps -> do
-        let d t = err $ msg (t :: Text)
-        for_ exps $ \(PendingActivationExpiration uid expiresAt tid) -> do
-          d "found a candidate"
-          isExpired <- (expiresAt <=) <$> (liftIO =<< view currentTime)
-          when (not isExpired) $
-            d "not yet"
-          when isExpired $ do
-            d "it is expired"
-            isPendingInvitation <- (Just PendingInvitation ==) <$> lookupStatus uid
-            invExpired <- isNothing <$> Data.lookupInvitation tid (coerce uid)
-            when (isPendingInvitation && invExpired) $ do
-              d ("delete it!" :: Text)
-              API.deleteUserNoVerify uid
-            d "removing it"
-            removeTrackedExpiration day uid
+        expiredEntries <-
+          catMaybes
+            <$> ( for exps $ \(PendingActivationExpiration uid expiresAt tid) -> do
+                    isExpired <- (expiresAt <=) <$> (liftIO =<< view currentTime)
+                    if isExpired
+                      then do
+                        isPendingInvitation <- (Just PendingInvitation ==) <$> lookupStatus uid
+                        invExpired <- isNothing <$> Data.lookupInvitation tid (coerce uid)
+                        when (isPendingInvitation && invExpired) $ do
+                          API.deleteUserNoVerify uid
+                        pure (Just uid)
+                      else pure Nothing
+                )
+        unless (null expiredEntries) $
+          removeTrackedExpiration day expiredEntries
 
-    forTrackedExpirations :: Day -> (NonEmpty PendingActivationExpiration -> AppIO ()) -> AppIO ()
+    forTrackedExpirations :: Day -> ([PendingActivationExpiration] -> AppIO ()) -> AppIO ()
     forTrackedExpirations day f = do
       page <- searchTrackedExpirations day
       go page
       where
         go :: Page PendingActivationExpiration -> AppIO ()
         go (Page hasMore result nextPage) = do
-          case result of
-            (e : es) -> f (e :| es)
-            [] -> pure ()
+          f result
           when hasMore $
             go =<< liftClient nextPage
 
