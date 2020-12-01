@@ -75,14 +75,11 @@ for chart in "${charts[@]}"; do
     else
         option=""
     fi
-    helm upgrade --install --namespace "${NAMESPACE}" "${NAMESPACE}-${chart}" "${REPOSITORY}/${chart}" \
+    helm upgrade --atomic --install --namespace "${NAMESPACE}" "${NAMESPACE}-${chart}" "${REPOSITORY}/${chart}" \
         $option \
         $imageVersionOverrideOptions \
         --wait
 done
-
-kubectl -n ${NAMESPACE} get pods
-printLogs
 
 # wait for fakeSNS to create resources. TODO, cleaner: make initiate-fake-aws-sns a post hook. See cassandra-migrations chart for an example.
 resourcesReady() {
