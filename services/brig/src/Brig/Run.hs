@@ -49,7 +49,7 @@ import Control.Monad.Catch (MonadCatch, finally)
 import Control.Monad.Random (Random (randomRIO))
 import Data.Coerce (coerce)
 import Data.Default (Default (def))
-import Data.Id (RequestId (..))
+import Data.Id (RequestId (..), UserId)
 import qualified Data.Metrics.Middleware.Prometheus as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.String.Conversions (cs)
@@ -136,34 +136,34 @@ cleanExpiredPendingInvitations = do
     threadDelay (randomSecs * 1_000_000)
   where
     cleanUpDay :: Day -> AppIO ()
-    cleanUpDay day =
-      forTrackedExpirations day $ \exps -> do
-        expiredEntries <-
-          catMaybes
-            <$> ( for exps $ \(PendingActivationExpiration uid expiresAt tid) -> do
-                    isExpired <- (expiresAt <=) <$> (liftIO =<< view currentTime)
-                    if isExpired
-                      then do
-                        isPendingInvitation <- (Just PendingInvitation ==) <$> lookupStatus uid
-                        invExpired <- isNothing <$> Data.lookupInvitation tid (coerce uid)
-                        when (isPendingInvitation && invExpired) $ do
-                          API.deleteUserNoVerify uid
-                        pure (Just uid)
-                      else pure Nothing
-                )
-        unless (null expiredEntries) $
-          removeTrackedExpiration day expiredEntries
+    cleanUpDay day = do
+      expiredEntries <- forTrackedExpirations day $ \exps ->
+        catMaybes
+          <$> ( for exps $ \(PendingActivationExpiration uid expiresAt tid) -> do
+                  isExpired <- (expiresAt <=) <$> (liftIO =<< view currentTime)
+                  if isExpired
+                    then do
+                      isPendingInvitation <- (Just PendingInvitation ==) <$> lookupStatus uid
+                      invExpired <- isNothing <$> Data.lookupInvitation tid (coerce uid)
+                      when (isPendingInvitation && invExpired) $ do
+                        API.deleteUserNoVerify uid
+                      pure (Just uid)
+                    else pure Nothing
+              )
+      unless (null expiredEntries) $
+        removeTrackedExpiration day expiredEntries
 
-    forTrackedExpirations :: Day -> ([PendingActivationExpiration] -> AppIO ()) -> AppIO ()
+    forTrackedExpirations :: Day -> ([PendingActivationExpiration] -> AppIO [UserId]) -> AppIO [UserId]
     forTrackedExpirations day f = do
       page <- searchTrackedExpirations day
-      go page
+      go [] page
       where
-        go :: Page PendingActivationExpiration -> AppIO ()
-        go (Page hasMore result nextPage) = do
-          f result
-          when hasMore $
-            go =<< liftClient nextPage
+        go :: [UserId] -> Page PendingActivationExpiration -> AppIO [UserId]
+        go users (Page hasMore result nextPage) = do
+          users' <- (<> users) <$> f result
+          if hasMore
+            then go users' =<< liftClient nextPage
+            else pure users'
 
     safeForever :: (MonadIO m, MonadLogger m, MonadCatch m) => String -> m () -> m ()
     safeForever funName action =
