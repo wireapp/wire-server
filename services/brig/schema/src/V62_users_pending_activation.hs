@@ -32,7 +32,7 @@ migration =
         , expires_at      timestamp
         , user            uuid
         , team            uuid
-        , primary key (expires_at_day, expires_at, user)
+        , primary key (expires_at_day, user)
         )
-        with clustering order by (expires_at ASC, user ASC)
+        with clustering order by (user ASC)
       |]

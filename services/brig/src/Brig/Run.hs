@@ -32,17 +32,19 @@ import qualified Brig.AWS as AWS
 import qualified Brig.AWS.SesNotification as SesNotification
 import Brig.App
 import qualified Brig.Calling as Calling
-import Brig.Data.PendingActivation (PendingActivationExpiration (..), removeTrackedExpirations, searchTrackedExpirations)
+import Brig.Data.PendingActivation (PendingActivationExpiration (..), removeTrackedExpiration, searchTrackedExpirations)
 import Brig.Data.User (lookupStatus)
 import qualified Brig.InternalEvent.Process as Internal
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Queue as Queue
 import qualified Brig.Team.DB as Data
 import Brig.Types.Intra (AccountStatus (..))
+import Cassandra.Exec (Page (Page), liftClient)
 import qualified Control.Concurrent.Async as Async
 import Control.Exception.Safe (catchAny)
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch (MonadCatch, finally)
+import Control.Monad.Random (Random (randomRIO))
 import Data.Coerce (coerce)
 import Data.Default (Default (def))
 import Data.Id (RequestId (..))
@@ -124,37 +126,56 @@ lookupRequestIdMiddleware mkapp req cont = do
 
 cleanUpExpired :: AppIO ()
 cleanUpExpired = do
-  let nDays = 7
   safeForever "cleanUpExpired" $ do
+    err $ msg ("!!!Checking..." :: Text)
     today <- utctDay <$> (liftIO =<< view currentTime)
-    for_ [0 .. (nDays -1)] $ \i ->
+    for_ [0 .. 9] $ \i ->
       cleanUpDay (addDays (- i) today)
-    liftIO $ threadDelay 1_000_000
+
+    -- let delay = secondsToNominalDiffTime 3
+    -- threadDelayNominalDiffTime =<< randomDiffTime (realToFrac (0.5 :: Double) * delay, delay)
+    let d :: Int = 2
+    randomSecs <- liftIO $ round <$> randomRIO @Double (0.5 * fromIntegral d, fromIntegral d)
+    threadDelay (randomSecs * 1_000_000)
   where
+    -- liftIO $ threadDelay 1_000_000
+
     cleanUpDay :: Day -> AppIO ()
     cleanUpDay day =
       forTrackedExpirations day $ \exps -> do
-        for_ exps $ \(PendingActivationExpiration uid _ tid) -> do
-          isPendingInvitation <- (Just PendingInvitation ==) <$> lookupStatus uid
-          invExpired <- isNothing <$> Data.lookupInvitation tid (coerce uid)
-          when (isPendingInvitation && invExpired) $
-            API.deleteUserNoVerify uid
-          removeTrackedExpirations day (maximum exps)
+        let d t = err $ msg (t :: Text)
+        for_ exps $ \(PendingActivationExpiration uid expiresAt tid) -> do
+          d "found a candidate"
+          isExpired <- (expiresAt <=) <$> (liftIO =<< view currentTime)
+          when (not isExpired) $
+            d "not yet"
+          when isExpired $ do
+            d "it is expired"
+            isPendingInvitation <- (Just PendingInvitation ==) <$> lookupStatus uid
+            invExpired <- isNothing <$> Data.lookupInvitation tid (coerce uid)
+            when (isPendingInvitation && invExpired) $ do
+              d ("delete it!" :: Text)
+              API.deleteUserNoVerify uid
+            d "removing it"
+            removeTrackedExpiration day uid
 
     forTrackedExpirations :: Day -> (NonEmpty PendingActivationExpiration -> AppIO ()) -> AppIO ()
     forTrackedExpirations day f = do
-      exps <- searchTrackedExpirations day Nothing
-      go exps
+      page <- searchTrackedExpirations day
+      go page
       where
-        go (e : es) = do
-          let exps = e :| es
-          f exps
-          go =<< searchTrackedExpirations day (Just (maximum exps))
-        go [] = pure ()
+        go :: Page PendingActivationExpiration -> AppIO ()
+        go (Page hasMore result nextPage) = do
+          case result of
+            (e : es) -> f (e :| es)
+            [] -> pure ()
+          when hasMore $
+            go =<< liftClient nextPage
 
     safeForever :: (MonadIO m, MonadLogger m, MonadCatch m) => String -> m () -> m ()
     safeForever funName action =
       forever $
         action `catchAny` \exc -> do
           err $ "error" .= show exc ~~ msg (val $ cs funName <> " failed")
-          threadDelay 60_000_000 -- pause to keep worst-case noise in logs manageable
+          -- pause to keep worst-case noise in logs manageable
+          threadDelay 60_000_000
