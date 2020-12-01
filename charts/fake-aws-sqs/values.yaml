@@ -1,0 +1,21 @@
+image:
+  repository: airdock/fake-sqs
+  tag: 0.3.1
+
+# TODO: in a wire-server chart, these queue names should match the ones defined in galley/brig/gundeck (i.e. only be defined once)
+queueNames:
+  - "integration-team-events.fifo"
+  - "integration-brig-events"
+  - "integration-brig-events-internal"
+  - "integration-gundeck-events"
+
+service:
+  httpPort: 4568
+
+resources:
+  limits:
+    cpu: "1000m"
+    memory: "1000Mi"
+  requests:
+    memory: "256Mi"
+    cpu: "100m"

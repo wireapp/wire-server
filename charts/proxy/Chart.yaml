@@ -1,0 +1,4 @@
+apiVersion: v1
+description: Proxy (part of Wire Server) - 3rd party proxy service
+name: proxy
+version: 0.128.0

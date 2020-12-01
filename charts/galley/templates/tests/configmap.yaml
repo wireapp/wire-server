@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "galley-integration"
+data:
+  integration.yaml: |
+    galley:
+      host: galley
+      port: {{ .Values.service.internalPort }}
+
+    brig:
+      host: brig
+      port: 8080
+
+    cannon:
+      host: cannon
+      port: 8080
+
+    provider:
+      privateKey: /etc/wire/integration-secrets/provider-privatekey.pem
+      publicKey: /etc/wire/integration-secrets/provider-publickey.pem
+      cert: /etc/wire/integration-secrets/provider-publiccert.pem
+      botHost: https://galley-integration
+      botPort: 9000

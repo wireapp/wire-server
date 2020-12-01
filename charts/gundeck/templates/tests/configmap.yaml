@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "gundeck-integration"
+data:
+  integration.yaml: |
+    gundeck:
+      host: gundeck
+      port: {{ .Values.service.internalPort }}
+
+    cannon:
+      host: cannon
+      port: 8080
+
+    cannon2:
+      # some gundeck integration tests make use of two different
+      # cannon instances to test the distributed case.  when running
+      # the integration tests locally, the two instances will be spun
+      # up separately (see `wire-server/services/integration.sh`).
+      #
+      # here, we spin up two replicas, provide the integration tests
+      # with the same service coordinates, and rely on the k8s load
+      # balancer to give us both replicas in at least some cases.
+      # this would be enough to make the test meaningful.
+      #
+      # alternatively (eg. if we have more involved integration tests
+      # that expect ca and ca2 to deterministically refer to specific
+      # replicas), we could enter the IP addresses of the replicas
+      # here.  those are available from `kubectl get endpoints`, but
+      # how do we inject that info into the config file on time for
+      # the gundeck integration tests to find them there?
+      host: cannon
+      port: 8080
+
+    brig:
+      host: brig
+      port: 8080

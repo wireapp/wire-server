@@ -1,0 +1,89 @@
+replicaCount: 3
+image:
+  repository: quay.io/wire/brig
+  tag: 2.93.0
+service:
+  externalPort: 8080
+  internalPort: 8080
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+config:
+  logLevel: Info
+  logFormat: JSON
+  cassandra:
+    host: aws-cassandra
+  elasticsearch:
+    host: elasticsearch-client
+    port: 9200
+    index: directory
+  aws:
+    region: "eu-west-1"
+    sesEndpoint: https://email.eu-west-1.amazonaws.com
+    sqsEndpoint: https://sqs.eu-west-1.amazonaws.com
+    dynamoDBEndpoint: https://dynamodb.eu-west-1.amazonaws.com
+  useSES: true
+  emailSMS:
+    general:
+      templateBranding:
+        brand: Wire
+        brandUrl: https://wire.com
+        brandLabel: wire.com
+        brandLabelUrl: https://wire.com
+        brandLogoUrl: https://wire.com/p/img/email/logo-email-black.png
+        brandService: Wire Service Provider
+        copyright: © WIRE SWISS GmbH
+        misuse: misuse@wire.com
+        legal: https://wire.com/legal/
+        forgot: https://wire.com/forgot/
+        support: https://support.wire.com/
+  authSettings:
+    keyIndex: 1
+    userTokenTimeout: 4838400
+    sessionTokenTimeout: 86400
+    accessTokenTimeout: 900
+    providerTokenTimeout: 900
+    legalholdUserTokenTimeout: 4838400
+    legalholdAccessTokenTimeout: 900
+  optSettings:
+    setActivationTimeout: 1209600
+    setTeamInvitationTimeout: 1814400
+    setUserMaxConnections: 1000
+    setCookieInsecure: false
+    setUserCookieRenewAge: 1209600
+    setUserCookieLimit: 32
+    setUserCookieThrottle:
+      stdDev: 3000
+      retryAfter: 86400
+    setRichInfoLimit: 5000
+    setDefaultLocale: en
+    setMaxTeamSize: 500
+    setMaxConvSize: 500
+    # Allowed values: https://github.com/wireapp/wire-server/blob/0126651a25aabc0c5589edc2b1988bb06550a03a/services/brig/src/Brig/Options.hs#L304-L306
+    # Description: https://github.com/wireapp/wire-server/blob/0126651a25aabc0c5589edc2b1988bb06550a03a/services/brig/src/Brig/Options.hs#L290-L299
+    setEmailVisibility: visible_to_self
+    setPropertyMaxKeyLen: 1024
+    setPropertyMaxValueLen: 524288
+    setDeleteThrottleMillis: 100
+    # Allow search within same team only. Default: false
+    # setSearchSameTeamOnly: false|true
+    # Set max number of user clients. Default: 7
+    # setUserMaxPermClients: <int>
+    # Customer extensions.  If this is not part of your contract with wire, use at your own risk!
+    # Details: https://github.com/wireapp/wire-server/blob/3d5684023c54fe580ab27c11d7dae8f19a29ddbc/services/brig/src/Brig/Options.hs#L465-L503
+    # setCustomerExtensions:
+    #   domainsBlockedForRegistration:
+    #   - example.com
+  smtp:
+    passwordFile: /etc/wire/brig/secrets/smtp-password.txt
+  proxy: {}
+turnStatic:
+  v1:
+  - turn:localhost:3478
+  v2:
+  - turn:localhost:3478
+  - turn:localhost:3478?transport=tcp

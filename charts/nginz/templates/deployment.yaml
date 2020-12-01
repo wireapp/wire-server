@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginz
+  labels:
+    wireService: nginz
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: {{ .Values.replicaCount | mul 2 }}
+  selector:
+    matchLabels:
+      wireService: nginz
+      app: nginz
+  template:
+    metadata:
+      labels:
+        wireService: nginz
+        app: nginz
+        release: {{ .Release.Name }}
+      annotations:
+        # An annotation of the configmap checksum ensures changes to the configmap cause a redeployment upon `helm upgrade`
+        checksum/configmap: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print .Template.BasePath "/secret.yaml") . | sha256sum }}
+        fluentbit.io/parser-nginz: nginz
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }} # should be higher than the drainTimeout (sleep duration of preStop)
+      containers:
+      - name: nginz-disco
+        image: "{{ .Values.images.nginzDisco.repository }}:{{ .Values.images.nginzDisco.tag }}"
+        volumeMounts:
+        - name: config
+          mountPath: /etc/wire/nginz/conf
+          readOnly: true
+        - name: upstreams
+          mountPath: /etc/wire/nginz/upstreams
+          readOnly: false
+      - name: nginz
+        image: "{{ .Values.images.nginz.repository }}:{{ .Values.images.nginz.tag }}"
+        lifecycle:
+          preStop:
+            exec:
+              # kubernetes by default sends a SIGTERM to the container,
+              # which would cause nginz to exit, breaking existing websocket connections.
+              # Instead we sleep for a day, then terminate gracefully.
+              # (SIGTERM is still sent, but afterwards)
+              command: ["sh", "-c", "sleep {{ .Values.drainTimeout }} && nginx -c /etc/wire/nginz/conf/nginx.conf -s quit"]
+        volumeMounts:
+        - name: secrets
+          mountPath: /etc/wire/nginz/secrets
+          readOnly: true
+        - name: config
+          mountPath: /etc/wire/nginz/conf
+          readOnly: true
+        - name: upstreams
+          mountPath: /etc/wire/nginz/upstreams
+          readOnly: true
+        ports:
+        - name: http
+          containerPort: {{ .Values.config.http.httpPort }}
+        - name: tcp
+          containerPort: {{ .Values.config.ws.wsPort }}
+        readinessProbe:
+          httpGet:
+            path: /status
+            port: {{ .Values.config.http.httpPort }}
+            scheme: HTTP
+        livenessProbe:
+          initialDelaySeconds: 30
+          timeoutSeconds: 1
+          httpGet:
+            path: /status
+            port: {{ .Values.config.http.httpPort }}
+            scheme: HTTP
+        resources:
+{{ toYaml .Values.resources | indent 12 }}
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      volumes:
+      - name: config
+        configMap:
+          name: nginz
+      - name: secrets
+        secret:
+          secretName: nginz
+      - name: upstreams
+        emptyDir: {}

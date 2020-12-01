@@ -1,0 +1,19 @@
+image:
+  repository: localstack/localstack
+  tag: 0.8.7
+
+service:
+  internalPort: 4579
+  externalPort: 4569
+
+resources:
+  limits:
+    cpu: "200m"
+    memory: 500Mi
+  requests:
+    cpu: "100m"
+    memory: 100Mi
+
+## The following needs to be provided (and consistent with the config in brig)
+#TODO: It would actually be useful if the deployment _fails_ if this is undefined
+#sesSender: "sender@example.com"

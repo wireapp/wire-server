@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "spar"
+data:
+  spar.yaml: |
+    logNetStrings: True # log using netstrings encoding (see http://cr.yp.to/proto/netstrings.txt)
+    logLevel: {{ .Values.config.logLevel }}
+
+    brig:
+      host: brig
+      port: 8080
+
+    galley:
+      host: galley
+      port: 8080
+
+    cassandra:
+      endpoint:
+        host: {{ .Values.config.cassandra.host }}
+        port: 9042
+      keyspace: spar
+
+    maxttlAuthreq: {{ .Values.config.maxttlAuthreq }}
+    maxttlAuthresp: {{ .Values.config.maxttlAuthresp }}
+
+    richInfoLimit: {{ .Values.config.richInfoLimit }}
+
+    maxScimTokens: {{ .Values.config.maxScimTokens }}
+
+    saml:
+      version:     SAML2.0
+      logLevel:    {{ .Values.config.logLevel }}
+
+      spHost: 0.0.0.0
+      spPort: {{ .Values.service.externalPort }}
+      spAppUri: {{ .Values.config.appUri }}
+      spSsoUri: {{ .Values.config.ssoUri }}
+
+      contacts:
+{{ toYaml .Values.config.contacts | indent 12 }}

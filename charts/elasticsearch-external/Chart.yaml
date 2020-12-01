@@ -1,0 +1,4 @@
+apiVersion: v1
+description: Refer to elasticsearch IPs located outside kubernetes by specifying IPs manually
+name: elasticsearch-external
+version: 0.128.0

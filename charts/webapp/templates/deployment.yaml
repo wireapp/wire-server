@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webapp
+  labels:
+    wireService: webapp
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: {{ .Values.replicaCount | mul 2 }}
+  selector:
+    matchLabels:
+      wireService: webapp
+      app: webapp
+  template:
+    metadata:
+      labels:
+        wireService: webapp
+        app: webapp
+        release: {{ .Release.Name }}
+    spec:
+      containers:
+      - name: webapp
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        # Check variables here: https://github.com/wireapp/wire-webapp/wiki/Self-hosting
+        env:
+          # it is vital that you don't add trailing '/' in this section!
+          - name: NODE_PORT
+            value: "{{ .Values.service.http.internalPort }}"
+          - name: APP_BASE
+            value: "https://{{ .Values.config.externalUrls.appHost }}"
+          - name: BACKEND_REST
+            value: "https://{{ .Values.config.externalUrls.backendRest }}"
+          - name: BACKEND_WS
+            value: "wss://{{ .Values.config.externalUrls.backendWebsocket }}"
+      {{- range $key, $val := .Values.envVars }}
+          - name: {{ $key }}
+            value: {{ $val | quote }}
+      {{- end }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.service.http.internalPort }}
+        # NOTE: /test/ returns an HTML document a 200 response code
+        readinessProbe:
+          httpGet:
+            path: /_health/
+            port: {{ .Values.service.http.internalPort }}
+            scheme: HTTP
+        livenessProbe:
+          initialDelaySeconds: 30
+          timeoutSeconds: 3
+          httpGet:
+            path: /_health/
+            port: {{ .Values.service.http.internalPort }}
+            scheme: HTTP
+        resources:
+{{ toYaml .Values.resources | indent 12 }}
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always

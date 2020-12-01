@@ -1,0 +1,44 @@
+dependencies:
+#######################################
+## dependent (demo, non-HA) AWS mocks
+#######################################
+- name: fake-aws-sns
+  version: "0.128.0"
+  repository: "file://../fake-aws-sns"
+  condition: fake-aws-sns.enabled,global.fake-aws-sns.enabled
+  tags:
+    - fake-aws-sns
+    - aws-mocks
+    - demo
+- name: fake-aws-sqs
+  version: "0.128.0"
+  repository: "file://../fake-aws-sqs"
+  condition: fake-aws-sqs.enabled,global.fake-aws-sqs.enabled
+  tags:
+    - fake-aws-sqs
+    - aws-mocks
+    - demo
+- name: fake-aws-s3
+  version: "0.128.0"
+  repository: "file://../fake-aws-s3"
+  condition: fake-aws-s3.enabled,global.fake-aws-s3.enabled
+  tags:
+    - fake-aws-s3
+    - aws-mocks
+    - demo
+- name: fake-aws-dynamodb
+  version: "0.128.0"
+  repository: "file://../fake-aws-dynamodb"
+  condition: fake-aws-dynamodb.enabled,global.fake-aws-dynamodb.enabled
+  tags:
+    - fake-aws-dynamodb
+    - aws-mocks
+    - demo
+- name: fake-aws-ses
+  version: "0.128.0"
+  repository: "file://../fake-aws-ses"
+  condition: fake-aws-ses.enabled,global.fake-aws-ses.enabled
+  tags:
+    - fake-aws-ses
+    - aws-mocks
+    - demo

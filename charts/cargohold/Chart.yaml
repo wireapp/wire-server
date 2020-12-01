@@ -1,0 +1,4 @@
+apiVersion: v1
+description: Cargohold (part of Wire Server) - Asset storage
+name: cargohold
+version: 0.128.0

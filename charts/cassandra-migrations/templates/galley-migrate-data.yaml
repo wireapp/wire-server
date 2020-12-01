@@ -1,0 +1,37 @@
+# This jobs runs migrations on the galley DB using the galley-migrate-data tool.
+# The source for the tool can be found at services/galley in the wire-server
+# repository.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: galley-migrate-data
+  labels:
+    wireService: "cassandra-migrations"
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+spec:
+  template:
+    metadata:
+      name: "{{.Release.Name}}"
+      labels:
+        wireService: galley-migrate-data
+        app: galley-migrate-data
+        heritage: {{.Release.Service | quote }}
+        release: {{.Release.Name | quote }}
+        chart: "{{.Chart.Name}}-{{.Chart.Version}}"
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: galley-migrate-data
+          image: "{{ .Values.images.galleyMigrateData }}:{{ .Values.images.tag }}"
+          args:
+           - --cassandra-host
+           - "{{ .Values.cassandra.host }}"
+           - --cassandra-port
+           - "9042"
+           - --cassandra-keyspace
+           - galley

@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: "{{ .Release.Name }}-hold"
+spec:
+  type: ClusterIP
+  selector:
+    name: "{{ .Release.Name }}-hold"
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP

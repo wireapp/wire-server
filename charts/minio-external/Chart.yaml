@@ -1,0 +1,4 @@
+apiVersion: v1
+description: Refer to minio IPs located outside kubernetes by specifying IPs manually
+name: minio-external
+version: 0.128.0

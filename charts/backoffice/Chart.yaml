@@ -1,0 +1,4 @@
+apiVersion: v1
+description: Backoffice tool
+name: backoffice
+version: 0.128.0

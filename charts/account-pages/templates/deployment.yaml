@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: account-pages
+  labels:
+    wireService: account-pages
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: {{ .Values.replicaCount | mul 2 }}
+  selector:
+    matchLabels:
+      wireService: account-pages
+      app: account-pages
+  template:
+    metadata:
+      labels:
+        wireService: account-pages
+        app: account-pages
+        release: {{ .Release.Name }}
+    spec:
+      containers:
+      - name: account-pages
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        env:
+          - name: BACKEND_REST
+            value: https://{{ .Values.config.externalUrls.backendRest }}
+          - name: APP_BASE
+            value: https://{{ .Values.config.externalUrls.appHost }}
+      {{- range $key, $val := .Values.envVars }}
+          - name: {{ $key }}
+            value: {{ $val | quote }}
+      {{- end }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.service.http.internalPort }}
+        readinessProbe:
+          httpGet:
+            path: /_health/
+            port: {{ .Values.service.http.internalPort }}
+            scheme: HTTP
+        livenessProbe:
+          initialDelaySeconds: 30
+          timeoutSeconds: 3
+          httpGet:
+            path: /_health/
+            port: {{ .Values.service.http.internalPort }}
+            scheme: HTTP
+        resources:
+{{ toYaml .Values.resources | indent 12 }}
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always

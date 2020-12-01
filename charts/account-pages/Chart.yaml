@@ -1,0 +1,4 @@
+apiVersion: v1
+description: A Helm chart for the Wire account pages in Kubernetes
+name: account-pages
+version: 0.128.0

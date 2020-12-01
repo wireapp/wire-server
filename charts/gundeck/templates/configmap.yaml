@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "gundeck"
+data:
+  {{- with .Values.config }}
+  gundeck.yaml: |
+    logNetStrings: True # log using netstrings encoding: http://cr.yp.to/proto/netstrings.txt
+    logLevel: {{ .logLevel }}
+
+    gundeck:
+      host: 0.0.0.0
+      port: {{ $.Values.service.internalPort }}
+
+    cassandra:
+      endpoint:
+        host: {{ .cassandra.host }}
+        port: 9042
+      keyspace: gundeck
+
+    redis:
+      host: {{ .redis.host }}
+      port: {{ .redis.port }}
+
+    # Gundeck uses discovery for AWS access key / secrets
+    # For more details, check amazonka's documentation at:
+    # https://hackage.haskell.org/package/amazonka-1.4.5/docs/Network-AWS.html#t:Credentials
+    # later we should have a look at https://github.com/jtblin/kube2iam
+    {{- with .aws }}
+    aws:
+      queueName: {{ .queueName }}
+      region: {{ .region }}
+      account: {{ .account | quote }}
+      arnEnv: {{ .arnEnv }}
+      sqsEndpoint: {{ .sqsEndpoint | quote }}
+      snsEndpoint: {{ .snsEndpoint | quote }}
+      connectionLimit: 256
+    {{- end }}
+
+    settings:
+      httpPoolSize: 1024
+      notificationTTL: 2419200
+      bulkPush: {{ .bulkPush }}
+      maxConcurrentNativePushes:
+        soft: 1000
+        # hard: 30  # more than this number of threads will not be allowed
+  {{- end }}

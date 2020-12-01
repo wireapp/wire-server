@@ -1,0 +1,14 @@
+---
+# this service is needed for brig integration tests and allows brig to talk directly to nginz over http
+# (this is not how you should normally configure nginz - use an ingress instead)
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginz-integration-http
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+  selector:
+    wireService: nginz

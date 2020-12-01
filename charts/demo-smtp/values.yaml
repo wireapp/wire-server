@@ -1,0 +1,26 @@
+fullnameOverride: demo-smtp
+replicaCount: 1
+image: "namshi/smtp@sha256:aa63b8de68ce63dfcf848c56f3c1a16d81354f4accd4242a0086c57dd5a91d77"
+
+service:
+  port: 25
+
+resources:
+  limits:
+   cpu: 500m
+   memory: 500Mi
+  requests:
+   cpu: 100m
+   memory: 128Mi
+
+# Some relevant environment options can be
+# passed to the SMTP docker image, check
+# https://hub.docker.com/r/namshi/smtp/
+# for more details
+# NOTE: Without an empty dictionary, you will
+# see warnings when overriding envVars
+envVars: {}
+# E.g.
+# envVars:
+#   RELAY_NETWORKS: ":x.y.z.w/16"
+#
