@@ -36,7 +36,6 @@ import Brig.Data.PendingActivation (PendingActivationExpiration (..), removeTrac
 import qualified Brig.InternalEvent.Process as Internal
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Queue as Queue
-import qualified Brig.Team.DB as Data
 import Cassandra.Exec (Page (Page), liftClient)
 import qualified Control.Concurrent.Async as Async
 import Control.Exception.Safe (catchAny)
@@ -45,7 +44,6 @@ import Control.Monad.Catch (MonadCatch, finally)
 -- import Control.Monad.Random (Random (randomRIO))
 
 import Control.Monad.Random (Random (randomRIO))
-import Data.Coerce (coerce)
 import Data.Default (Default (def))
 import Data.Id (RequestId (..), UserId)
 import qualified Data.Metrics.Middleware.Prometheus as Metrics
@@ -136,10 +134,8 @@ cleanExpiredPendingInvitations = do
     cleanUpDay :: Day -> AppIO () -- Call this function only with dates from the past
     cleanUpDay day = do
       expiredEntries <- forTrackedExpirations day $ \exps ->
-        for exps $ \(PendingActivationExpiration uid _ tid) -> do
-          invExpired <- isNothing <$> Data.lookupInvitation tid (coerce uid)
-          when invExpired $
-            API.deleteUserNoVerify uid
+        for exps $ \(PendingActivationExpiration uid _ _) -> do
+          API.deleteUserNoVerify uid
           pure uid
       unless (null expiredEntries) $
         removeTrackedExpiration day expiredEntries
