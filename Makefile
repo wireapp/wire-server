@@ -198,6 +198,7 @@ db-reset:
 libzauth:
 	$(MAKE) -C libs/libzauth install
 
+#################################
 # Useful when using Haskell IDE Engine
 # https://github.com/haskell/haskell-ide-engine
 #
@@ -205,3 +206,25 @@ libzauth:
 .PHONY: hie.yaml
 hie.yaml:
 	stack exec gen-hie > hie.yaml
+
+#####################################
+# Today we pretend to be CI and run integration tests on kubernetes
+#
+# NOTE/WARNING: This uses local helm charts BUT it uses docker images versions
+# from your local helm charts, i.e. some version compiled on develop or master.
+# If testing helm charts, this is fine; if testing changes to wire-server source
+# code, this will not work. In this case upload docker images and use the '-i
+# <imageVersion>' parameter to integration-setup.sh
+#
+# This task requires:
+#   - helm (version 3.1.1)
+#   - kubectl
+#   - a valid kubectl context configured (i.e. access to a kubernetes cluster)
+.PHONY: kube-integration
+kube-integration:
+	export NAMESPACE=test-$(USER); ./ci/bin/integration-setup.sh
+	export NAMESPACE=test-$(USER); ./ci/bin/integration-test.sh
+
+.PHONY: kube-integration-teardown
+kube-integration-teardown:
+	export NAMESPACE=test-$(USER); ./ci/bin/integration-teardown.sh
