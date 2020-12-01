@@ -1,0 +1,4 @@
+apiVersion: v1
+description: Brig (part of Wire Server) - User management
+name: brig
+version: 0.128.0

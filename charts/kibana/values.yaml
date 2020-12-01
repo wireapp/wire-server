@@ -1,0 +1,11 @@
+# See defaults in https://github.com/helm/charts/tree/master/stable/kibana
+kibana:
+  env:
+    # All Kibana configuration options are adjustable via env vars.
+    # To adjust a config option to an env var uppercase + replace `.` with `_`
+    # Ref: https://www.elastic.co/guide/en/kibana/current/settings.html
+    #
+    ELASTICSEARCH_URL: http://elasticsearch-ephemeral:9200
+  files:
+    kibana.yml:
+      elasticsearch.url: http://elasticsearch-ephemeral:9200

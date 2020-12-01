@@ -1,0 +1,6 @@
+You have successfully deployed the backoffice tool! Given the default config, you can now access the frontend in 2 steps:
+
+  * kubectl --namespace {{ .Release.Namespace }} port-forward svc/backoffice 8080:8080
+  * Open your local browser at http://localhost:8080
+
+Warning: **DO NOT expose this chart to the public internet** with an ingress without a means of authentication - doing so would give anyone the ability to read part of the user database, delete users, etc.

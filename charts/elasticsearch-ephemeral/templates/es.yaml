@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "fullname" . }}
+  labels:
+    wireService: {{ template "fullname" . }}
+    app: {{ template "fullname" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+    component: {{ template "fullname" . }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      component: {{ template "fullname" . }}
+  template:
+    metadata:
+      labels:
+        component: {{ template "fullname" . }}
+    spec:
+      containers:
+      - name: es
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        env:
+        - name: MAX_HEAP_SIZE
+          value: "2048"
+        - name: HEAP_NEWSIZE
+          value: "800M"
+        - name: "bootstrap.system_call_filter"
+          value: "false"
+        - name: "discovery.type"
+          value: "single-node"
+        ports:
+        - containerPort: 9200
+          name: http
+          protocol: TCP
+        - containerPort: 9300
+          name: transport
+          protocol: TCP
+        volumeMounts:
+        - name: storage
+          mountPath: /data
+        resources:
+{{ toYaml .Values.resources | indent 12 }}
+      volumes:
+        - emptyDir:
+            medium: ""
+          name: "storage"

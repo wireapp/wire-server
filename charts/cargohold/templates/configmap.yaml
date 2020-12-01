@@ -1,0 +1,34 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "cargohold"
+data:
+  cargohold.yaml: |
+    logNetStrings: True # log using netstrings encoding: http://cr.yp.to/proto/netstrings.txt
+    logLevel: {{ .Values.config.logLevel }}
+
+    cargohold:
+      host: 0.0.0.0
+      port: {{ .Values.service.internalPort }}
+
+    aws:
+      {{- with .Values.config.aws }}
+      s3Bucket: {{ .s3Bucket }}
+      s3Endpoint: {{ .s3Endpoint }}
+      {{- if .s3DownloadEndpoint }}
+      s3DownloadEndpoint: {{ .s3DownloadEndpoint }}
+      {{- end }}
+      {{- if .s3Compatibility }}
+      s3Compatibility: {{ .s3Compatibility }}
+      {{- end }}
+      {{ if .cloudFront }}
+      cloudFront:
+        domain: {{ .cloudFront.domain }}
+        keyPairId: {{ .cloudFront.keyPairId }}
+        privateKey: {{ .cloudFront.privateKeyPath }}
+      {{ end }}
+      {{- end }}
+
+    settings:
+      maxTotalBytes: 5368709120
+      downloadLinkTTL: 300      # Seconds

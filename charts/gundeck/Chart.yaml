@@ -1,0 +1,4 @@
+apiVersion: v1
+description: Gundeck (part of Wire Server) - Push Notification Hub Service
+name: gundeck
+version: 0.128.0

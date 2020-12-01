@@ -1,0 +1,4 @@
+apiVersion: v1
+description: A Helm chart for fake-aws services (replacing real AWS services for demo and test)
+name: fake-aws
+version: 0.128.0

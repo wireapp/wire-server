@@ -1,0 +1,17 @@
+replicaCount: 3
+image:
+  repository: quay.io/wire/proxy
+  tag: 2.93.0
+service:
+  externalPort: 8080
+  internalPort: 8080
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+config:
+  logLevel: Debug
+  proxy: {}

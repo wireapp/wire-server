@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "fullname" . }}
+  labels:
+    app: {{ template "fullname" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ template "fullname" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "fullname" . }}
+    spec:
+      containers:
+      - name: fake-aws-ses
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        env:
+          - name: DEBUG
+            value: "1"
+          - name: DEFAULT_REGION
+            value: "eu-west-1"
+          - name: SERVICES
+            value: "ses"
+        ports:
+        - containerPort: {{ .Values.service.internalPort }}
+          name: http
+          protocol: TCP
+        volumeMounts:
+        - name: storage
+          mountPath: /data
+        resources:
+{{ toYaml .Values.resources | indent 12 }}
+      - name: initiate-fake-aws-ses
+        image: mesosphere/aws-cli:1.14.5
+        command: [/bin/sh]
+        args:
+        - -c
+        - |
+          exec_until_ready() {
+              until $1; do echo 'service not ready yet'; sleep 1; done
+          }
+          ses_identity_exists() {
+              OUTPUT=$(aws --endpoint-url=http://localhost:{{ $.Values.service.internalPort }} ses list-identities | grep $1 | wc -l)
+              echo $OUTPUT
+          }
+          echo 'Creating AWS resources'
+          aws configure set aws_access_key_id dummy
+          aws configure set aws_secret_access_key dummy
+          aws configure set region eu-west-1
+
+          while true
+          do
+              SES_SENDER=$(ses_identity_exists "{{ $.Values.sesSender }}")
+              if [ "$SES_SENDER" == "1" ]
+                # Set our sender address as verified
+                then echo "Resources already created, sleeping for 10, to keep this container (and thus the pod) alive"
+                else exec_until_ready "aws --endpoint-url=http://localhost:{{ $.Values.service.internalPort }} ses verify-email-identity --email-address {{ $.Values.sesSender }}" && echo 'Resource successfully created'
+              fi
+              sleep 10
+          done
+      volumes:
+        - emptyDir: {}
+          name: "storage"

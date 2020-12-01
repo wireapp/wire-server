@@ -1,0 +1,4 @@
+apiVersion: v1
+description: Spar (part of Wire Server) - SSO Service
+name: spar
+version: 0.128.0

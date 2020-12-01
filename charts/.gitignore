@@ -1,0 +1,3 @@
+# helm generated files
+*.tgz
+requirements.lock

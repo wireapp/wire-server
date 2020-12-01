@@ -1,0 +1,19 @@
+replicaCount: 3
+image:
+  repository: quay.io/wire/cannon
+  tag: 2.93.0
+  pullPolicy: IfNotPresent
+config:
+  logLevel: Info
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+service:
+  name: cannon
+  internalPort: 8080
+  externalPort: 8080
+drainTimeout: 0
