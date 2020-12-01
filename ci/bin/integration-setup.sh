@@ -22,7 +22,7 @@ if [ "$#" -ne 0 ]; then
   exit 1
 fi;
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/.."
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 NAMESPACE=${NAMESPACE:-test-integration}
 
@@ -30,11 +30,11 @@ kubectl create namespace "${NAMESPACE}" > /dev/null 2>&1 || true
 
 set -e
 
-${DIR}/bin/integration-cleanup.sh
+${DIR}/integration-cleanup.sh
 
 
 REPOSITORY="${DIR}/../../deploy/charts"
-charts=( fake-aws databases-ephemeral wire-server-integration )
+charts=( fake-aws databases-ephemeral wire-server )
 
 echo "updating recursive dependencies ..."
 for chart in "${charts[@]}"; do
@@ -72,11 +72,12 @@ for chart in "${charts[@]}"; do
     valuesfile="${DIR}/../helm_vars/${chart}/values.yaml"
     if [ -f "$valuesfile" ]; then
         option="-f $valuesfile"
+    else
+        option=""
     fi
     helm upgrade --install --namespace "${NAMESPACE}" "${NAMESPACE}-${chart}" "${REPOSITORY}/${chart}" \
         $option \
         $imageVersionOverrideOptions \
-        --timeout 1h \
         --wait
 done
 
