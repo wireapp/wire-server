@@ -17,7 +17,6 @@
 
 module Brig.API.Util
   ( fetchUserIdentity,
-    federateWith,
     lookupProfilesMaybeFilterSameTeamOnly,
     lookupSelfProfile,
     validateHandle,
@@ -30,7 +29,7 @@ import Brig.API.Handler
 import Brig.API.Types
 import Brig.App (AppIO, Env, settings)
 import qualified Brig.Data.User as Data
-import Brig.Options (FederationAllowedDomains (..), FederationStrategy (..), defFederationAllowedDomains, federationAllowedDomains, federationDomain, federationStrategy)
+import Brig.Options (federationDomain)
 import Brig.Types
 import Brig.Types.Intra (accountUser)
 import Control.Lens (view)
@@ -70,15 +69,3 @@ validateHandle = maybe (throwE (Error.StdError Error.invalidHandle)) return . pa
 
 viewFederationDomain :: MonadReader Env m => m (Domain)
 viewFederationDomain = view (settings . federationDomain)
-
-federateWith :: MonadReader Env m => Domain -> m Bool
-federateWith targetDomain = do
-  ourDomain <- viewFederationDomain
-  if ourDomain == targetDomain
-    then pure True
-    else do
-      strategy <- view (settings . federationStrategy)
-      allowList <- fromMaybe defFederationAllowedDomains <$> view (settings . federationAllowedDomains)
-      pure $ case (strategy, allowList) of
-        (WithEveryone, _) -> True
-        (WithAllowList, (FederationAllowedDomains domains)) -> targetDomain `elem` domains

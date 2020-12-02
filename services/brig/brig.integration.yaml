@@ -170,13 +170,6 @@ optSettings:
   #   Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
   #   Remember to keep it the same in Galley.
   setFederationDomain: example.com
-  #   Would you like to federate with everyone or only with a select set of other wire-server installations?
-  setFederationStrategy: with_everyone # with_everyone | with_allow_list
-  #   setFederationAllowedDomains only has an effect if strategy is with_allow_list
-  #   defaults to empty list if unset
-  # setFederationAllowedDomains:
-  #   - wire.com
-  #   - example.com
 
 logLevel: Warn
 # ^ NOTE: We log too much in brig, if we set this to Info like other services, running tests

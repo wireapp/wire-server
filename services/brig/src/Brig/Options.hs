@@ -331,32 +331,6 @@ instance ToJSON EmailVisibility where
   toJSON EmailVisibleIfOnSameTeam = "visible_if_on_same_team"
   toJSON EmailVisibleToSelf = "visible_to_self"
 
-newtype FederationAllowedDomains = FederationAllowedDomains {allowedDomains :: [Domain]}
-  deriving (Eq, Show, Generic)
-  deriving newtype (FromJSON, ToJSON)
-
--- FUTUREWORK: Support a DenyList
-data FederationStrategy
-  = -- | This backend allows federating with any other Wire-Server backend
-    WithEveryone
-  | -- | Any backend explicitly configured in a FederationAllowList
-    WithAllowList
-  deriving (Eq, Show, Generic, Bounded, Enum)
-
-instance ToJSON FederationStrategy where
-  toJSON WithEveryone = "with_everyone"
-  toJSON WithAllowList = "with_allow_list"
-
-instance FromJSON FederationStrategy where
-  parseJSON = withText "FederationStrategy" $ \case
-    "with_everyone" -> pure WithEveryone
-    "with_allow_list" -> pure $ WithAllowList
-    _ ->
-      fail $
-        "unexpected value for FederationStrategy settings: "
-          <> "expected one of "
-          <> show (Aeson.encode <$> [(minBound :: FederationStrategy) ..])
-
 -- | Options that are consumed on startup
 data Opts = Opts
   -- services
@@ -492,11 +466,6 @@ data Settings = Settings
     --     - wire.com
     --     - example.com
     setFederationDomain :: !(Domain),
-    -- | Would you like to federate with everyone or only with a select set of other wire-server installations?
-    setFederationStrategy :: !(FederationStrategy),
-    -- | setFederationAllowedDomains only has an effect if 'setFederationStrategy' is with_allow_list
-    -- (defaults to empty list if unset)
-    setFederationAllowedDomains :: !(Maybe FederationAllowedDomains),
     -- | The amount of time in milliseconds to wait after reading from an SQS queue
     -- returns no message, before asking for messages from SQS again.
     -- defaults to 'defSqsThrottleMillis'.
@@ -606,9 +575,6 @@ defSftDiscoveryIntervalSeconds = secondsToDiffTime 10
 defSftListLength :: Range 1 100 Int
 defSftListLength = unsafeRange 5
 
-defFederationAllowedDomains :: FederationAllowedDomains
-defFederationAllowedDomains = FederationAllowedDomains []
-
 instance FromJSON Timeout where
   parseJSON (Y.Number n) =
     let defaultV = 3600
@@ -638,8 +604,6 @@ Lens.makeLensesFor
     ("setSearchSameTeamOnly", "searchSameTeamOnly"),
     ("setUserMaxPermClients", "userMaxPermClients"),
     ("setFederationDomain", "federationDomain"),
-    ("setFederationStrategy", "federationStrategy"),
-    ("setFederationAllowedDomains", "federationAllowedDomains"),
     ("setSqsThrottleMillis", "sqsThrottleMillis")
   ]
   ''Settings
