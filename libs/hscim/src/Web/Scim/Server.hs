@@ -93,7 +93,6 @@ siteServer conf =
       users = \authData -> toServant (userServer @tag authData),
       groups = \authData -> toServant (groupServer @tag authData)
     }
-  where
 
 ----------------------------------------------------------------------------
 -- Server-starting utilities
