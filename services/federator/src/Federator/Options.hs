@@ -28,24 +28,24 @@ import Imports
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 
-newtype FederationAllowedDomains = FederationAllowedDomains {allowedDomains :: [Domain]}
+newtype AllowedDomains = AllowedDomains {allowedDomains :: [Domain]}
   deriving (Eq, Show, Generic)
   deriving newtype (FromJSON, ToJSON)
 
 -- FUTUREWORK: Support a DenyList
 data FederationStrategy
   = -- | This backend allows federating with any other Wire-Server backend
-    WithEveryone
+    AllowAll
   | -- | Any backend explicitly configured in a FederationAllowList
-    WithAllowList FederationAllowedDomains
+    AllowList AllowedDomains
   deriving (Eq, Show, Generic)
 
 instance ToJSON FederationStrategy where
-  toJSON WithEveryone =
+  toJSON AllowAll =
     object
       [ "allowAll" .= object []
       ]
-  toJSON (WithAllowList domains) =
+  toJSON (AllowList domains) =
     object
       [ "allowedDomains" .= domains
       ]
@@ -56,8 +56,8 @@ instance FromJSON FederationStrategy where
     allowAll :: Maybe Value <- o .:! "allowAll"
     allowList :: Maybe Value <- o .:! "allowedDomains"
     case (allowAll, allowList) of
-      (Just _, Nothing) -> pure WithEveryone -- accept any content
-      (Nothing, Just l) -> WithAllowList <$> parseJSON l
+      (Just _, Nothing) -> pure AllowAll -- accept any content
+      (Nothing, Just l) -> AllowList <$> parseJSON l
       _ -> fail "invalid FederationStrategy: expected either allowAll or allowedDomains"
 
 -- | Options that persist as runtime settings.

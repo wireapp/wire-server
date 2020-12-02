@@ -30,5 +30,5 @@ federateWith :: MonadReader Env m => Domain -> m Bool
 federateWith targetDomain = do
   strategy <- view (runSettings . federationStrategy)
   pure $ case strategy of
-    WithEveryone -> True
-    WithAllowList (FederationAllowedDomains domains) -> targetDomain `elem` domains
+    AllowAll -> True
+    AllowList (AllowedDomains domains) -> targetDomain `elem` domains
