@@ -459,6 +459,8 @@ data Settings = Settings
     -- (in that case the 'setFederationAllowedDomains' can be set to empty)
     -- Federation domain is used to qualify local IDs and handles,
     -- e.g. 0c4d8944-70fa-480e-a8b7-9d929862d18c@wire.com and somehandle@wire.com.
+    -- It should also match the SRV DNS records under which other wire-server installations can find this backend:
+    --    _wire-server._tcp.<federationDomain>
     -- Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
     -- Remember to keep it the same in Galley.
     -- Example:
