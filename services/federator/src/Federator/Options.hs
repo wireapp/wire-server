@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -22,48 +23,47 @@ module Federator.Options where
 
 import qualified Control.Lens as Lens
 import Data.Aeson
-import qualified Data.Aeson as Aeson
 import Data.Domain (Domain ())
 import Imports
-import System.Logger.Extended
+import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 
 newtype FederationAllowedDomains = FederationAllowedDomains {allowedDomains :: [Domain]}
   deriving (Eq, Show, Generic)
   deriving newtype (FromJSON, ToJSON)
 
-defFederationAllowedDomains :: FederationAllowedDomains
-defFederationAllowedDomains = FederationAllowedDomains []
-
 -- FUTUREWORK: Support a DenyList
 data FederationStrategy
   = -- | This backend allows federating with any other Wire-Server backend
     WithEveryone
   | -- | Any backend explicitly configured in a FederationAllowList
-    WithAllowList
-  deriving (Eq, Show, Generic, Bounded, Enum)
+    WithAllowList FederationAllowedDomains
+  deriving (Eq, Show, Generic)
 
 instance ToJSON FederationStrategy where
-  toJSON WithEveryone = "with_everyone"
-  toJSON WithAllowList = "with_allow_list"
+  toJSON WithEveryone =
+    object
+      [ "allowAll" .= object []
+      ]
+  toJSON (WithAllowList domains) =
+    object
+      [ "allowedDomains" .= domains
+      ]
 
 instance FromJSON FederationStrategy where
-  parseJSON = withText "FederationStrategy" $ \case
-    "with_everyone" -> pure WithEveryone
-    "with_allow_list" -> pure $ WithAllowList
-    _ ->
-      fail $
-        "unexpected value for FederationStrategy settings: "
-          <> "expected one of "
-          <> show (Aeson.encode <$> [(minBound :: FederationStrategy) ..])
+  parseJSON = withObject "FederationStrategy" $ \o -> do
+    -- Only inspect field content once we committed to one, for better error messages.
+    allowAll :: Maybe Value <- o .:! "allowAll"
+    allowList :: Maybe Value <- o .:! "allowedDomains"
+    case (allowAll, allowList) of
+      (Just _, Nothing) -> pure WithEveryone -- accept any content
+      (Nothing, Just l) -> WithAllowList <$> parseJSON l
+      _ -> fail "invalid FederationStrategy: expected either allowAll or allowedDomains"
 
 -- | Options that persist as runtime settings.
 data RunSettings = RunSettings
   { -- | Would you like to federate with everyone or only with a select set of other wire-server installations?
-    setFederationStrategy :: !(FederationStrategy),
-    -- | setFederationAllowedDomains only has an effect if 'setFederationStrategy' is with_allow_list
-    -- (defaults to empty list if unset)
-    setFederationAllowedDomains :: !(Maybe FederationAllowedDomains)
+    setFederationStrategy :: !(FederationStrategy)
   }
   deriving (Show, Generic)
 
@@ -86,7 +86,6 @@ data Opts = Opts
 instance FromJSON Opts
 
 Lens.makeLensesFor
-  [ ("setFederationStrategy", "federationStrategy"),
-    ("setFederationAllowedDomains", "federationAllowedDomains")
+  [ ("setFederationStrategy", "federationStrategy")
   ]
   ''RunSettings

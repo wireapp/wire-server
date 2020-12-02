@@ -22,7 +22,6 @@ where
 
 import Control.Lens (view)
 import Data.Domain (Domain)
-import Data.Maybe
 import Federator.Options
 import Federator.Types (Env, runSettings)
 import Imports
@@ -30,7 +29,6 @@ import Imports
 federateWith :: MonadReader Env m => Domain -> m Bool
 federateWith targetDomain = do
   strategy <- view (runSettings . federationStrategy)
-  allowList <- fromMaybe defFederationAllowedDomains <$> view (runSettings . federationAllowedDomains)
-  pure $ case (strategy, allowList) of
-    (WithEveryone, _) -> True
-    (WithAllowList, (FederationAllowedDomains domains)) -> targetDomain `elem` domains
+  pure $ case strategy of
+    WithEveryone -> True
+    WithAllowList (FederationAllowedDomains domains) -> targetDomain `elem` domains

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 78843ea612b8e828f6d27c03cdb3f99ac0ea87b508c3bcf8e12b3a09d21d8e91
+-- hash: 05aafbb0800daa1746f25bc61dee28665179ddf9e92454a68d7421dfec570015
 
 name:           federator
 version:        1.0.0
@@ -102,4 +102,50 @@ executable federator
     , warp
     , wire-api
     , wire-api-federation
+  default-language: Haskell2010
+
+test-suite federator-tests
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      Test.Federator.Options
+      Paths_federator
+  hs-source-dirs:
+      test/unit
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
+  build-depends:
+      QuickCheck
+    , aeson
+    , base
+    , bilge
+    , bytestring-conversion
+    , data-default
+    , email-validate
+    , errors
+    , exceptions
+    , extended
+    , federator
+    , imports
+    , lens
+    , metrics-core
+    , metrics-wai
+    , resourcet
+    , servant
+    , servant-mock
+    , servant-server
+    , servant-swagger
+    , string-conversions
+    , tasty
+    , tasty-hunit
+    , text
+    , tinylog
+    , types-common
+    , uuid
+    , wai
+    , wai-utilities
+    , warp
+    , wire-api
+    , wire-api-federation
+    , yaml
   default-language: Haskell2010

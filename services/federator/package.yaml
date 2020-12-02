@@ -38,6 +38,7 @@ dependencies:
 - warp
 - wire-api
 - wire-api-federation
+
 library:
   source-dirs: src
 executables:
@@ -52,3 +53,16 @@ executables:
     dependencies:
     - base
     - federator
+
+tests:
+  federator-tests:
+    main: Main.hs
+    source-dirs: test/unit
+    ghc-options:
+    - -threaded
+    - -with-rtsopts=-N
+    dependencies:
+    - federator
+    - tasty
+    - tasty-hunit
+    - yaml
