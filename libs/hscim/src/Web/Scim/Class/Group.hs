@@ -105,7 +105,7 @@ data GroupSite tag route = GroupSite
     gsDeleteGroup ::
       route
         :- Capture "id" (GroupId tag)
-        :> DeleteNoContent '[SCIM] NoContent
+        :> DeleteNoContent
   }
   deriving (Generic)
 

@@ -42,7 +42,7 @@ import Data.Aeson.QQ (aesonQQ)
 import Data.Aeson.Types (fromJSON, toJSON)
 import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle), fromHandle)
-import Data.Id (TeamId, UserId, randomId)
+import Data.Id (UserId, randomId)
 import Data.Ix (inRange)
 import Data.String.Conversions (cs)
 import Data.Text.Encoding (encodeUtf8)
@@ -64,7 +64,6 @@ import qualified Web.Scim.Schema.Common as Scim
 import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.PatchOp as PatchOp
 import qualified Web.Scim.Schema.User as Scim.User
-import qualified Wire.API.Team.Feature as Feature
 import Wire.API.Team.Invitation (Invitation (..))
 import Wire.API.User.RichInfo
 import Wire.API.User.Search (SearchResult (..))
@@ -1502,6 +1501,51 @@ specDeleteUser = do
       deleteUser_ (Just tok) (Just $ scimUserId storedUser) (env ^. teSpar)
         !!! assertTrue_ (inRange (200, 499) . statusCode)
 
+    context "user with scim, no saml, validated email, password" $ do
+      it "works" $ do
+        env <- ask
+        let brig = env ^. teBrig
+            spar = env ^. teSpar
+            galley = env ^. teGalley
+
+        (_, tid) <- call $ createUserWithTeam brig galley
+        tok <- registerScimToken tid Nothing
+
+        email <- randomEmail
+        scimUser <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
+        scimStoredUser <- createUser tok scimUser
+        let uid = scimUserId scimStoredUser
+
+        do
+          inv <- call $ getInvitation brig email
+          Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
+          registerInvitation email (Name "Alice") inviteeCode True
+          call $ headInvitation404 brig email
+
+        deleteUser_ (Just tok) (Just uid) spar
+          !!! const 204 === statusCode
+        aFewTimes (getUser_ (Just tok) uid spar) ((== 404) . statusCode)
+          !!! const 404 === statusCode
+
+    context "user not touched via scim before" $ do
+      it "works" $ do
+        env <- ask
+        let brig = env ^. teBrig
+            spar = env ^. teSpar
+            galley = env ^. teGalley
+
+        (owner, tid) <- call $ createUserWithTeam brig galley
+        tok <- registerScimToken tid Nothing
+
+        uid <- userId <$> call (inviteAndRegisterUser brig owner tid)
+
+        aFewTimes (getUser_ (Just tok) uid spar) ((== 200) . statusCode)
+          !!! const 200 === statusCode
+        deleteUser_ (Just tok) (Just uid) spar
+          !!! const 204 === statusCode
+        aFewTimes (getUser_ (Just tok) uid spar) ((== 404) . statusCode)
+          !!! const 404 === statusCode
+
 -- | Azure sends a request for an unknown user to test out whether your API is online However;
 -- it sends a userName that is not a valid wire handle. So we should treat 'invalid' as 'not
 -- found'.
@@ -1521,23 +1565,7 @@ specAzureQuirks = do
 specEmailValidation :: SpecWith TestEnv
 specEmailValidation = do
   describe "email validation" $ do
-    let enableSamlEmailValidation :: HasCallStack => TeamId -> TestSpar ()
-        enableSamlEmailValidation tid = do
-          galley <- asks (^. teGalley)
-          let req = put $ galley . paths p . json (Feature.TeamFeatureStatusNoConfig Feature.TeamFeatureEnabled)
-              p = ["/i/teams", toByteString' tid, "features", "validateSAMLemails"]
-          call req !!! const 200 === statusCode
-
-        -- (This may be the same as 'Util.Email.checkEmail'.)
-        assertEmail :: HasCallStack => UserId -> Maybe Email -> TestSpar ()
-        assertEmail uid expectedEmail = do
-          brig <- asks (^. teBrig)
-          let req = get (brig . path "/self" . zUser uid)
-          call req !!! do
-            const 200 === statusCode
-            const expectedEmail === (userEmail <=< responseJsonMaybe)
-
-        eventually :: HasCallStack => TestSpar a -> TestSpar a
+    let eventually :: HasCallStack => TestSpar a -> TestSpar a
         eventually = recovering (limitRetries 3 <> exponentialBackoff 100000) [] . const
 
         setup :: HasCallStack => Bool -> TestSpar (UserId, Email)
@@ -1561,8 +1589,8 @@ specEmailValidation = do
 
     context "enabled in team" . it "gives user email" $ do
       (uid, email) <- setup True
-      eventually $ assertEmail uid (Just email)
+      eventually $ checkEmail uid (Just email)
 
     context "not enabled in team" . it "does not give user email" $ do
       (uid, _) <- setup False
-      eventually $ assertEmail uid Nothing
+      eventually $ checkEmail uid Nothing

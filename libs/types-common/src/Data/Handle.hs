@@ -31,6 +31,7 @@ import qualified Data.Attoparsec.ByteString.Char8 as Atto
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion (FromByteString (parser), ToByteString)
 import Data.Hashable (Hashable)
+import Data.Swagger (ToSchema (..))
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.E
 import Imports
@@ -44,7 +45,7 @@ import Util.Attoparsec (takeUpToWhile)
 newtype Handle = Handle
   {fromHandle :: Text}
   deriving stock (Eq, Show, Generic)
-  deriving newtype (ToJSON, ToByteString, Hashable)
+  deriving newtype (ToJSON, ToByteString, Hashable, ToSchema)
 
 instance FromByteString Handle where
   parser = handleParser

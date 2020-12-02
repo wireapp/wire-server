@@ -164,9 +164,14 @@ optSettings:
   # setUserMaxPermClients: 7
   # ^ You can limit the max number of permanent clients that a user is allowed
   #   to register, per account. The default value is '7' if the option is unset.
-  # enableFederationWithDomain: wire.com
-  # ^ This is used to qualify local IDs and handles, e.g. somehandle@wire.com.
-  #   If you change it, remember to also update it for Galley.
+
+  #   Federation domain is used to qualify local IDs and handles,
+  #   e.g. 0c4d8944-70fa-480e-a8b7-9d929862d18c@wire.com and somehandle@wire.com.
+  #   It should also match the SRV DNS records under which other wire-server installations can find this backend:
+  #      _wire-server._tcp.<federationDomain>
+  #   Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
+  #   Remember to keep it the same in Galley.
+  setFederationDomain: example.com
 
 logLevel: Warn
 # ^ NOTE: We log too much in brig, if we set this to Info like other services, running tests

@@ -170,7 +170,7 @@ type IdpUpdate =
 type IdpDelete =
   Capture "id" SAML.IdPId
     :> QueryParam' '[Optional, Strict] "purge" Bool
-    :> DeleteNoContent '[JSON] NoContent
+    :> DeleteNoContent
 
 instance MakeCustomError "wai-error" IdPMetadataInfo where
   makeCustomError = sparToServerError . SAML.CustomError . SparNewIdPBadMetadata . cs
@@ -180,7 +180,7 @@ type SsoSettingsGet =
 
 type APIINTERNAL =
   "status" :> Get '[JSON] NoContent
-    :<|> "teams" :> Capture "team" TeamId :> DeleteNoContent '[JSON] NoContent
+    :<|> "teams" :> Capture "team" TeamId :> DeleteNoContent
     :<|> "sso" :> "settings" :> ReqBody '[JSON] SsoSettings :> Put '[JSON] NoContent
 
 sparSPIssuer :: SAML.HasConfig m => m SAML.Issuer

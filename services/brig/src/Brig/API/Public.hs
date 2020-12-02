@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
@@ -20,6 +21,8 @@
 module Brig.API.Public
   ( sitemap,
     apiDocs,
+    servantSitemap,
+    ServantAPI,
   )
 where
 
@@ -48,20 +51,23 @@ import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
 import Brig.User.Phone
 import Control.Error hiding (bool)
-import Control.Lens (view, (^.))
+import Control.Lens (view, (?~), (^.))
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
-import Data.Domain (mkDomain)
+import Data.Domain
 import Data.Handle (Handle, parseHandle)
 import Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local))
 import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
-import Data.Qualified (OptionallyQualified, eitherQualifiedOrNot)
+import Data.Proxy (Proxy (..))
+import Data.Qualified (Qualified (..))
 import Data.Range
+import Data.Swagger (Swagger, ToSchema (..), description)
 import qualified Data.Swagger.Build.Api as Doc
+import Data.Swagger.Lens (HasSchema (..))
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (decodeLatin1)
@@ -76,6 +82,10 @@ import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
+import Servant (Capture, Capture', DefaultErrorFormatters, Description, ErrorFormatters, Get, HasContextEntry, HasServer, HasStatus, Header', ServerT, StdMethod (HEAD), Summary, UVerb, Union, WithStatus, (:<|>) (..), (:>), type (.++))
+import qualified Servant
+import Servant.Swagger (HasSwagger (toSwagger))
+import Servant.Swagger.Internal.Orphans ()
 import qualified System.Logger.Class as Log
 import qualified Wire.API.Connection as Public
 import qualified Wire.API.Properties as Public
@@ -93,40 +103,145 @@ import qualified Wire.API.User.RichInfo as Public
 ---------------------------------------------------------------------------
 -- Sitemap
 
+-- | This type exists for the special 'HasSwagger' and 'HasServer' instances. It
+-- shows the "Authorization" header in the swagger docs, but expects the
+-- "Z-Auth" header in the server. This helps keep the swagger docs usable
+-- through nginz.
+data ZAuthServant
+
+type InternalAuth = Header' '[Servant.Required, Servant.Strict] "Z-User" UserId
+
+type OutsideWorldAuth = Header' [Servant.Required, Servant.Strict, Description "Bearer: token"] "Authorization" String
+
+instance HasSwagger api => HasSwagger (ZAuthServant :> api) where
+  toSwagger _ = toSwagger (Proxy @(OutsideWorldAuth :> api))
+
+instance
+  ( HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
+    HasServer api ctx
+  ) =>
+  HasServer (ZAuthServant :> api) ctx
+  where
+  type ServerT (ZAuthServant :> api) m = ServerT (InternalAuth :> api) m
+
+  route _ = Servant.route (Proxy @(InternalAuth :> api))
+  hoistServerWithContext _ pc nt s =
+    Servant.hoistServerWithContext (Proxy @(InternalAuth :> api)) pc nt s
+
+type CaptureUserId name = Capture' '[Description "User Id"] name UserId
+
+-- User API -----------------------------------------------------------
+
+data Empty200 = Empty200
+  deriving (Generic)
+  deriving (HasStatus) via (WithStatus 200 Empty200)
+
+instance ToSchema Empty200 where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
+instance ToJSON Empty200 where
+  toJSON _ = toJSON ("" :: Text)
+
+data Empty404 = Empty404
+  deriving (Generic)
+  deriving (HasStatus) via (WithStatus 404 Empty404)
+
+instance ToJSON Empty404 where
+  toJSON _ = toJSON ("" :: Text)
+
+instance ToSchema Empty404 where
+  declareNamedSchema _ =
+    declareNamedSchema (Proxy @Text) <&> (schema . description ?~ "user not found")
+
+type CheckUserExistsResponse = [Empty200, Empty404]
+
+-- Note [document responses]
+--
+-- Ideally we want to document responses with UVerb and swagger, but this is not
+-- currently not possible due to this issue:
+-- https://github.com/haskell-servant/servant/issues/1369
+
+-- See Note [ephemeral user sideeffect]
+--
+-- See Note [document responses]
+-- The responses looked like this:
+--   Doc.response 200 "User exists" Doc.end
+--   Doc.errorResponse userNotFound
+type CheckUserExistsQualified =
+  Summary "Check if a user ID exists"
+    :> ZAuthServant
+    :> "users"
+    :> Capture "domain" Domain
+    :> CaptureUserId "uid"
+    :> UVerb 'HEAD '[Servant.JSON] CheckUserExistsResponse
+
+-- See Note [ephemeral user sideeffect]
+--
+-- See Note [document responses]
+-- The responses looked like this:
+--   Doc.response 200 "User exists" Doc.end
+--   Doc.errorResponse userNotFound
+type CheckUserExistsUnqualified =
+  Summary "Check if a user ID exists (deprecated)"
+    :> ZAuthServant
+    :> "users"
+    :> CaptureUserId "uid"
+    :> UVerb 'HEAD '[Servant.JSON] CheckUserExistsResponse
+
+-- See Note [ephemeral user sideeffect]
+--
+-- See Note [document responses]
+-- The responses looked like this:
+--   Doc.response 200 "User" Doc.end
+--   Doc.errorResponse userNotFound
+type GetUserUnQualified =
+  Summary "Get a user by UserId (deprecated)"
+    :> ZAuthServant
+    :> "users"
+    :> CaptureUserId "uid"
+    :> Get '[Servant.JSON] Public.UserProfile
+
+-- See Note [ephemeral user sideeffect]
+--
+-- See Note [document responses]
+-- The responses looked like:
+--   Doc.response 200 "User" Doc.end
+--   Doc.errorResponse userNotFound
+type GetUserQualified =
+  Summary "Get a user by Domain and UserId"
+    :> ZAuthServant
+    :> "users"
+    :> Capture "domain" Domain
+    :> CaptureUserId "uid"
+    :> Get '[Servant.JSON] Public.UserProfile
+
+type OutsideWorldAPI =
+  CheckUserExistsQualified
+    :<|> CheckUserExistsUnqualified
+    :<|> GetUserUnQualified
+    :<|> GetUserQualified
+
+type ServantAPI =
+  "brig" :> "api-docs" :> Get '[Servant.JSON] Swagger
+    :<|> OutsideWorldAPI
+
+servantSitemap :: ServerT ServantAPI Handler
+servantSitemap =
+  pure (toSwagger (Proxy @OutsideWorldAPI))
+    :<|> checkQualifiedUserExistsH
+    :<|> checkUnqualifiedUserExistsH
+    :<|> getUserUnqualifiedH
+    :<|> getUserH
+
+-- Note [ephemeral user sideeffect]
+-- If the user is ephemeral and expired, it will be removed upon calling
+-- CheckUserExists[Un]Qualified, see 'Brig.API.User.userGC'.
+-- This leads to the following events being sent:
+-- - UserDeleted event to contacts of the user
+-- - MemberLeave event to members for all conversations the user was in (via galley)
+
 sitemap :: Opts -> Routes Doc.ApiBuilder Handler ()
 sitemap o = do
-  -- User API -----------------------------------------------------------
-
-  -- If the user is ephemeral and expired, it will be removed, see 'Brig.API.User.userGC'.
-  -- This leads to the following events being sent:
-  -- - UserDeleted event to contacts of the user
-  -- - MemberLeave event to members for all conversations the user was in (via galley)
-  head "/users/:uid" (continue checkUserExistsH) $
-    zauthUserId
-      .&. capture "uid"
-  document "HEAD" "userExists" $ do
-    Doc.summary "Check if a user ID exists"
-    Doc.parameter Doc.Path "uid" Doc.bytes' $
-      Doc.description "User ID"
-    Doc.response 200 "User exists" Doc.end
-    Doc.errorResponse userNotFound
-
-  -- If the user is ephemeral and expired, it will be removed, see 'Brig.API.User.userGC'.
-  -- This leads to the following events being sent:
-  -- - UserDeleted event to contacts of the user
-  -- - MemberLeave event to members for all conversations the user was in (via galley)
-  get "/users/:uid" (continue getUserH) $
-    accept "application" "json"
-      .&. zauthUserId
-      .&. capture "uid"
-  document "GET" "user" $ do
-    Doc.summary "Get a user by ID"
-    Doc.parameter Doc.Path "uid" Doc.bytes' $
-      Doc.description "User ID"
-    Doc.returns (Doc.ref Public.modelUser)
-    Doc.response 200 "User" Doc.end
-    Doc.errorResponse userNotFound
-
   -- User Handle API ----------------------------------------------------
 
   post "/users/handles" (continue checkHandlesH) $
@@ -1032,14 +1147,21 @@ createUser (Public.NewUserPublic new) = do
       Public.NewTeamMemberSSO _ ->
         Team.sendMemberWelcomeMail e t n l
 
-checkUserExistsH :: UserId ::: OpaqueUserId -> Handler Response
-checkUserExistsH (self ::: uid) = do
-  exists <- checkUserExists self uid
-  if exists then return empty else throwStd userNotFound
+checkQualifiedUserExistsH :: UserId -> Domain -> UserId -> Handler (Union CheckUserExistsResponse)
+checkQualifiedUserExistsH self domain uid = do
+  exists <- checkUserExists self (Qualified uid domain)
+  if exists
+    then Servant.respond Empty200
+    else Servant.respond Empty404
 
-checkUserExists :: UserId -> OpaqueUserId -> Handler Bool
-checkUserExists self opaqueUserId =
-  isJust <$> getUser self opaqueUserId
+checkUnqualifiedUserExistsH :: UserId -> UserId -> Handler (Union CheckUserExistsResponse)
+checkUnqualifiedUserExistsH self uid = do
+  domain <- API.viewFederationDomain
+  checkQualifiedUserExistsH self domain uid
+
+checkUserExists :: UserId -> Qualified UserId -> Handler Bool
+checkUserExists self qualifiedUserId =
+  isJust <$> getUser self qualifiedUserId
 
 getSelfH :: JSON ::: UserId -> Handler Response
 getSelfH (_ ::: self) = do
@@ -1049,14 +1171,18 @@ getSelf :: UserId -> Handler Public.SelfProfile
 getSelf self = do
   lift (API.lookupSelfProfile self) >>= ifNothing userNotFound
 
-getUserH :: JSON ::: UserId ::: OpaqueUserId -> Handler Response
-getUserH (_ ::: self ::: uid) = do
-  fmap json . ifNothing userNotFound =<< getUser self uid
+getUserUnqualifiedH :: UserId -> UserId -> Handler Public.UserProfile
+getUserUnqualifiedH self uid = do
+  domain <- API.viewFederationDomain
+  ifNothing userNotFound =<< getUser self (Qualified uid domain)
 
-getUser :: UserId -> OpaqueUserId -> Handler (Maybe Public.UserProfile)
-getUser self opaqueUserId = lift $ do
-  resolvedUserId <- resolveOpaqueUserId opaqueUserId
-  API.lookupProfile self resolvedUserId
+getUserH :: UserId -> Domain -> UserId -> Handler Public.UserProfile
+getUserH self domain uid =
+  ifNothing userNotFound =<< getUser self (Qualified uid domain)
+
+getUser :: UserId -> Qualified UserId -> Handler (Maybe Public.UserProfile)
+getUser self qualifiedUserId = do
+  lift $ API.lookupProfile self qualifiedUserId
 
 getUserDisplayNameH :: JSON ::: UserId -> Handler Response
 getUserDisplayNameH (_ ::: self) = do
@@ -1065,7 +1191,7 @@ getUserDisplayNameH (_ ::: self) = do
     Just n -> json $ object ["name" .= n]
     Nothing -> setStatus status404 empty
 
-listUsersH :: JSON ::: UserId ::: Either (List OpaqueUserId) (Range 1 4 (List (OptionallyQualified Handle))) -> Handler Response
+listUsersH :: JSON ::: UserId ::: Either (List UserId) (Range 1 4 (List Handle)) -> Handler Response
 listUsersH (_ ::: self ::: qry) =
   toResponse <$> listUsers self qry
   where
@@ -1073,24 +1199,28 @@ listUsersH (_ ::: self ::: qry) =
       [] -> setStatus status404 empty
       ps -> json ps
 
-listUsers :: UserId -> Either (List OpaqueUserId) (Range 1 4 (List (OptionallyQualified Handle))) -> Handler [Public.UserProfile]
+-- | 'listUsers' only handles listing local users by ID or handle. We decided to
+-- create a new federation aware endpoint which accepts federation aware Ids or
+-- handles in the request body using a 'POST' request to avoid specifying
+-- complex objects in the query parameters.
+listUsers :: UserId -> Either (List UserId) (Range 1 4 (List Handle)) -> Handler [Public.UserProfile]
 listUsers self = \case
   Left us -> do
-    resolvedUserIds <- lift $ traverse resolveOpaqueUserId (fromList us)
-    byIds resolvedUserIds
+    domain <- API.viewFederationDomain
+    byIds $ map (`Qualified` domain) (fromList us)
   Right hs -> do
     us <- getIds (fromList $ fromRange hs)
     filterHandleResults self =<< byIds us
   where
-    getIds :: [OptionallyQualified Handle] -> Handler [MappedOrLocalId Id.U]
-    getIds hs = do
-      -- we might be able to do something smarter if the domain is our own
-      let (localHandles, _qualifiedHandles) = partitionEithers (map eitherQualifiedOrNot hs)
+    getIds :: [Handle] -> Handler [Qualified UserId]
+    getIds localHandles = do
       localUsers <- catMaybes <$> traverse (lift . API.lookupHandle) localHandles
       -- FUTUREWORK(federation, #1268): resolve qualified handles, too
-      pure (Local <$> localUsers)
-    byIds :: [MappedOrLocalId Id.U] -> Handler [Public.UserProfile]
-    byIds uids = lift $ API.lookupProfiles self uids
+      domain <- API.viewFederationDomain
+      pure $ map (`Qualified` domain) localUsers
+    byIds :: [Qualified UserId] -> Handler [Public.UserProfile]
+    byIds uids =
+      lift $ API.lookupProfiles self uids
 
 newtype GetActivationCodeResp
   = GetActivationCodeResp (Public.ActivationKey, Public.ActivationCode)
@@ -1168,7 +1298,8 @@ getHandleInfo :: UserId -> Handle -> Handler (Maybe Public.UserHandleInfo)
 getHandleInfo self handle = do
   ownerProfile <- do
     -- FUTUREWORK(federation, #1268): resolve qualified handles, too
-    maybeOwnerId <- fmap Local <$> (lift $ API.lookupHandle handle)
+    domain <- API.viewFederationDomain
+    maybeOwnerId <- fmap (flip Qualified domain) <$> (lift $ API.lookupHandle handle)
     case maybeOwnerId of
       Just ownerId -> lift $ API.lookupProfile self ownerId
       Nothing -> return Nothing

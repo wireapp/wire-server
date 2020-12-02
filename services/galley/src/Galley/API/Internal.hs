@@ -38,7 +38,6 @@ import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
 import qualified Galley.API.Error as Error
-import qualified Galley.API.IdMapping as IdMapping
 import qualified Galley.API.Query as Query
 import Galley.API.Teams (uncheckedDeleteTeamMember)
 import qualified Galley.API.Teams as Teams
@@ -53,7 +52,6 @@ import qualified Galley.Queue as Q
 import Galley.Types
 import Galley.Types.Bot (AddBot, RemoveBot)
 import Galley.Types.Bot.Service
-import Galley.Types.IdMapping (PostIdMappingRequest)
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SearchVisibility
@@ -243,16 +241,6 @@ sitemap = do
   put "/i/teams/:tid/search-visibility" (continue Teams.setSearchVisibilityInternalH) $
     capture "tid"
       .&. jsonRequest @TeamSearchVisibilityView
-      .&. accept "application" "json"
-
-  -- Id Mapping ---------------------------------------------------------
-
-  get "/i/id-mapping/:uid" (continue IdMapping.getIdMappingH) $
-    capture "uid"
-      .&. accept "application" "json"
-
-  post "/i/id-mapping" (continue IdMapping.postIdMappingH) $
-    jsonRequest @PostIdMappingRequest
       .&. accept "application" "json"
 
 rmUserH :: UserId ::: Maybe ConnId -> Galley Response

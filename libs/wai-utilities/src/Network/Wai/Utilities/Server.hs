@@ -38,6 +38,7 @@ module Network.Wai.Utilities.Server
     -- * Utilities
     onError,
     logError,
+    logError',
     logIO,
     runHandlers,
     restrict,
@@ -338,12 +339,15 @@ onError g m r k e = liftIO $ do
 -- It would be nice to have access to the request body here, but that's already streamed away
 -- by the handler in all likelyhood.  See 'heavyDebugLogging'.
 logError :: (MonadIO m, HasRequest r) => Logger -> Maybe r -> Wai.Error -> m ()
-logError g mr (Wai.Error c l m) = liftIO $ Log.debug g logMsg
+logError g mr = logError' g (lookupRequestId =<< mr)
+
+logError' :: (MonadIO m) => Logger -> Maybe ByteString -> Wai.Error -> m ()
+logError' g mr (Wai.Error c l m) = liftIO $ Log.debug g logMsg
   where
     logMsg =
       field "code" (statusCode c)
         . field "label" l
-        . field "request" (fromMaybe "N/A" (lookupRequestId =<< mr))
+        . field "request" (fromMaybe "N/A" mr)
         . msg (val "\"" +++ m +++ val "\"")
 
 logIO :: (ToBytes msg, HasRequest r) => Logger -> Level -> Maybe r -> msg -> IO ()

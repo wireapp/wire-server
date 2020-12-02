@@ -26,7 +26,6 @@ import qualified Brig.API.Client as API
 import qualified Brig.API.Connection as API
 import Brig.API.Error
 import Brig.API.Handler
-import qualified Brig.API.IdMapping as IdMapping
 import Brig.API.Types
 import qualified Brig.API.User as API
 import Brig.API.Util (validateHandle)
@@ -239,7 +238,6 @@ sitemap = do
   Auth.routesInternal
   Search.routesInternal
   Team.routesInternal
-  IdMapping.routesInternal
 
 ---------------------------------------------------------------------------
 -- Handlers

@@ -17,7 +17,6 @@
 
 module Brig.API.Util
   ( fetchUserIdentity,
-    isFederationEnabled,
     lookupProfilesMaybeFilterSameTeamOnly,
     lookupSelfProfile,
     validateHandle,
@@ -30,7 +29,7 @@ import Brig.API.Handler
 import Brig.API.Types
 import Brig.App (AppIO, Env, settings)
 import qualified Brig.Data.User as Data
-import Brig.Options (enableFederationWithDomain)
+import Brig.Options (federationDomain)
 import Brig.Types
 import Brig.Types.Intra (accountUser)
 import Control.Lens (view)
@@ -68,8 +67,5 @@ validateHandle = maybe (throwE (Error.StdError Error.invalidHandle)) return . pa
 --------------------------------------------------------------------------------
 -- Federation
 
-viewFederationDomain :: MonadReader Env m => m (Maybe Domain)
-viewFederationDomain = view (settings . enableFederationWithDomain)
-
-isFederationEnabled :: MonadReader Env m => m Bool
-isFederationEnabled = isJust <$> viewFederationDomain
+viewFederationDomain :: MonadReader Env m => m (Domain)
+viewFederationDomain = view (settings . federationDomain)

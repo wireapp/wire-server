@@ -29,7 +29,6 @@ where
 
 import Control.Lens
 import Data.HashMap.Strict.InsOrd
-import Data.Id
 import Data.Proxy
 import Data.String.Conversions (cs)
 import Data.String.Interpolate as QQ
@@ -97,14 +96,8 @@ samlSchemaOptions = Swagger.fromAesonOptions SAML.deriveJSONOptions
 instance ToSchema SAML.XmlText where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
-instance ToParamSchema (Id a) where
-  toParamSchema _ = toParamSchema (Proxy @UUID)
-
 instance ToParamSchema SAML.IdPId where
   toParamSchema _ = toParamSchema (Proxy @UUID)
-
-instance ToSchema (Id a) where
-  declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
 
 instance ToSchema SAML.IdPId where
   declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
