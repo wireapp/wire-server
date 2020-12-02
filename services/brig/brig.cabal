@@ -48,11 +48,11 @@ library
       Brig.Data.Instances
       Brig.Data.LoginCode
       Brig.Data.PasswordReset
-      Brig.Data.PendingActivation
       Brig.Data.Properties
       Brig.Data.Types
       Brig.Data.User
       Brig.Data.UserKey
+      Brig.Data.UserPendingActivation
       Brig.Email
       Brig.Index.Eval
       Brig.Index.Migrations
@@ -314,6 +314,7 @@ executable brig-integration
     , cassandra-util
     , containers
     , cookie
+    , cql-io
     , data-timeout
     , exceptions
     , extra

@@ -24,12 +24,15 @@ import Text.RawString.QQ
 migration :: Migration
 migration =
   Migration 62 "Add users_pending_activation" $
+    -- | Column expires_at_day is the date of column expires_at
+    -- We use int for the encoding instead of date,
+    -- because the cql-io lib doesn't seem to implement date literals
+    -- TODO(stefan) try 'date'
     schema'
       [r|
         CREATE TABLE users_pending_activation
         (
-          expires_at_day  int
-        , expires_at      timestamp
+          expires_at_day  date
         , user            uuid
         , team            uuid
         , primary key (expires_at_day, user)

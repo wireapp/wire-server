@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -15,11 +17,11 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Data.PendingActivation
+module Brig.Data.UserPendingActivation
   ( trackExpiration,
     searchTrackedExpirations,
-    removeTrackedExpiration,
-    PendingActivationExpiration (..),
+    removeTrackedExpirations,
+    UserPendingActivation (..),
   )
 where
 
@@ -27,38 +29,36 @@ import Brig.App (AppIO)
 import Cassandra
 import Data.Id (TeamId, UserId)
 import Data.Misc (ModJulianDay (..))
-import Data.Time (UTCTime (utctDay))
 import Data.Time.Calendar (Day)
-import Data.Tuple.Extra (uncurry3)
 import Imports
 
-data PendingActivationExpiration
-  = PendingActivationExpiration
+data UserPendingActivation
+  = UserPendingActivation
+      !Day
       !UserId
-      !UTCTime
       !TeamId
   deriving stock (Eq)
 
 -- | Note: Call this function only after an invitation for the user has been created
-trackExpiration :: PendingActivationExpiration -> AppIO ()
-trackExpiration (PendingActivationExpiration uid expiresAt tid) = do
-  retry x5 . write insertExpiration . params Quorum $ (ModJulianDay (utctDay expiresAt), expiresAt, uid, tid)
+trackExpiration :: UserPendingActivation -> AppIO ()
+trackExpiration (UserPendingActivation expiresAtDay uid tid) = do
+  retry x5 . write insertExpiration . params Quorum $ (ModJulianDay expiresAtDay, uid, tid)
   where
-    insertExpiration :: PrepQuery W (ModJulianDay, UTCTime, UserId, TeamId) ()
-    insertExpiration = "INSERT INTO users_pending_activation (expires_at_day, expires_at, user, team) VALUES (?, ?, ?, ?)"
+    insertExpiration :: PrepQuery W (ModJulianDay, UserId, TeamId) ()
+    insertExpiration = "INSERT INTO users_pending_activation (expires_at_day, user, team) VALUES (?, ?, ?)"
 
-searchTrackedExpirations :: MonadClient f => Day -> f (Page PendingActivationExpiration)
-searchTrackedExpirations dayExpired = do
-  uncurry3 PendingActivationExpiration
-    <$$> retry x1 (paginate selectExpired (params Quorum (Identity (ModJulianDay dayExpired))))
+searchTrackedExpirations :: MonadClient f => Day -> Int -> f [UserPendingActivation]
+searchTrackedExpirations dayExpired pageSize = do
+  (\(ModJulianDay d, uid, tid) -> UserPendingActivation d uid tid)
+    <$$> retry x1 (query selectExpired (params Quorum (ModJulianDay dayExpired, fromIntegral pageSize)))
   where
-    selectExpired :: PrepQuery R (Identity ModJulianDay) (UserId, UTCTime, TeamId)
+    selectExpired :: PrepQuery R (ModJulianDay, Int32) (ModJulianDay, UserId, TeamId)
     selectExpired =
-      "SELECT user, expires_at, team FROM users_pending_activation \
-      \WHERE expires_at_day = ?"
+      "SELECT expires_at, user, team FROM users_pending_activation \
+      \WHERE expires_at_day = ? LIMIT ?"
 
-removeTrackedExpiration :: Day -> [UserId] -> AppIO ()
-removeTrackedExpiration day uids =
+removeTrackedExpirations :: Day -> [UserId] -> AppIO ()
+removeTrackedExpirations day uids =
   retry x5 . write deleteExpired . params Quorum $ (ModJulianDay day, uids)
   where
     deleteExpired :: PrepQuery W (ModJulianDay, [UserId]) ()

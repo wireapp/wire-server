@@ -97,13 +97,13 @@ import qualified Brig.Data.Blacklist as Blacklist
 import qualified Brig.Data.Client as Data
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.PasswordReset as Data
-import Brig.Data.PendingActivation (PendingActivationExpiration (..))
-import qualified Brig.Data.PendingActivation as Data
 import qualified Brig.Data.Properties as Data
 import Brig.Data.User
 import qualified Brig.Data.User as Data
 import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
+import Brig.Data.UserPendingActivation (UserPendingActivation (..))
+import qualified Brig.Data.UserPendingActivation as Data
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.InternalEvent.Types as Internal
 import Brig.Options hiding (Timeout, internalEvents)
@@ -136,7 +136,7 @@ import Data.List1 (List1)
 import qualified Data.Map.Strict as Map
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified
-import Data.Time.Clock (addUTCTime, diffUTCTime)
+import Data.Time.Clock (addUTCTime, diffUTCTime, utctDay)
 import Data.UUID.V4 (nextRandom)
 import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
@@ -368,8 +368,8 @@ createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = (`ca
 
   ttl <- setTeamInvitationTimeout <$> view settings
   now <- liftIO =<< view currentTime
-  let expiresAt = addUTCTime (realToFrac ttl) now
-  lift $ Data.trackExpiration (PendingActivationExpiration uid expiresAt tid)
+  let expiresAtDay = utctDay . addUTCTime (realToFrac ttl) $ now
+  lift $ Data.trackExpiration (UserPendingActivation expiresAtDay uid tid)
 
   return account
 

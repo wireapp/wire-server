@@ -32,20 +32,19 @@ import qualified Brig.AWS as AWS
 import qualified Brig.AWS.SesNotification as SesNotification
 import Brig.App
 import qualified Brig.Calling as Calling
-import Brig.Data.PendingActivation (PendingActivationExpiration (..), removeTrackedExpiration, searchTrackedExpirations)
+import Brig.Data.UserPendingActivation (UserPendingActivation (..), removeTrackedExpirations, searchTrackedExpirations)
 import qualified Brig.InternalEvent.Process as Internal
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Queue as Queue
-import Cassandra.Exec (Page (Page), liftClient)
+import Brig.Team.DB as Data
 import qualified Control.Concurrent.Async as Async
 import Control.Exception.Safe (catchAny)
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch (MonadCatch, finally)
--- import Control.Monad.Random (Random (randomRIO))
-
 import Control.Monad.Random (Random (randomRIO))
+import Data.Coerce (coerce)
 import Data.Default (Default (def))
-import Data.Id (RequestId (..), UserId)
+import Data.Id (RequestId (..))
 import qualified Data.Metrics.Middleware.Prometheus as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.String.Conversions (cs)
@@ -128,29 +127,34 @@ cleanExpiredPendingInvitations = do
     for_ [1 .. 9] $ \i ->
       cleanUpDay (addDays (- i) today)
     let d :: Int = 24 * 60 * 60
-    randomSecs <- liftIO (round <$> randomRIO @Double (0.5 * fromIntegral d, fromIntegral d))
-    threadDelay (randomSecs * 1_000_000)
+    _randomSecs :: Int <- liftIO (round <$> randomRIO @Double (0.5 * fromIntegral d, fromIntegral d))
+    threadDelay (10 * 1_000_000)
   where
-    cleanUpDay :: Day -> AppIO () -- Call this function only with dates from the past
-    cleanUpDay day = do
-      expiredEntries <- forTrackedExpirations day $ \exps ->
-        for exps $ \(PendingActivationExpiration uid _ _) -> do
-          API.deleteUserNoVerify uid
-          pure uid
-      unless (null expiredEntries) $
-        removeTrackedExpiration day expiredEntries
+    throttleDelay :: MonadIO m => Double -> m ()
+    throttleDelay itemsPerSecond =
+      let secs = 1.0 / itemsPerSecond
+       in liftIO $ threadDelay (round (1_000_000 * secs))
 
-    forTrackedExpirations :: Day -> ([PendingActivationExpiration] -> AppIO [UserId]) -> AppIO [UserId]
-    forTrackedExpirations day f = do
-      page <- searchTrackedExpirations day
-      go [] page
+    cleanUpDay :: Day -> AppIO () -- Call this function only with dates from the past
+    cleanUpDay day =
+      forExpirationsBatched day 1000 $ \exps -> do
+        userIds <- for exps $ \(UserPendingActivation _ uid tid) -> do
+          invExpired <- isNothing <$> Data.lookupInvitation tid (coerce uid)
+          when invExpired $
+            API.deleteUserNoVerify uid
+          throttleDelay 2.0
+          pure uid
+        removeTrackedExpirations day userIds
+
+    forExpirationsBatched :: Day -> Int -> ([UserPendingActivation] -> AppIO ()) -> AppIO ()
+    forExpirationsBatched day pageSize f = do
+      go =<< searchTrackedExpirations day pageSize
       where
-        go :: [UserId] -> Page PendingActivationExpiration -> AppIO [UserId]
-        go users (Page hasMore result nextPage) = do
-          users' <- (<> users) <$> f result
-          if hasMore
-            then go users' =<< liftClient nextPage
-            else pure users'
+        go :: [UserPendingActivation] -> AppIO ()
+        go [] = pure ()
+        go entries = do
+          f entries
+          go =<< searchTrackedExpirations day pageSize
 
     safeForever :: (MonadIO m, MonadLogger m, MonadCatch m) => String -> m () -> m ()
     safeForever funName action =
