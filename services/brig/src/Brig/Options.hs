@@ -456,7 +456,7 @@ data Settings = Settings
     -- returns users from the same team
     setSearchSameTeamOnly :: !(Maybe Bool),
     -- | FederationDomain is required, even when not wanting to federate with other backends
-    -- (in that case the 'setFederationAllowedDomains' can be set to empty)
+    -- (in that case the 'setFederationAllowedDomains' can be set to empty in Federator)
     -- Federation domain is used to qualify local IDs and handles,
     -- e.g. 0c4d8944-70fa-480e-a8b7-9d929862d18c@wire.com and somehandle@wire.com.
     -- It should also match the SRV DNS records under which other wire-server installations can find this backend:

@@ -48,10 +48,19 @@ data Settings = Settings
     _setConcurrentDeletionEvents :: !(Maybe Int),
     -- | Throttling: delay between sending events upon team deletion
     _setDeleteConvThrottleMillis :: !(Maybe Int),
-    -- | When @Nothing@, assume there are no other backends and IDs are always local.
-    -- This means we don't run any queries on federation-related tables and don't
-    -- make any calls to the federator service.
-    _setEnableFederationWithDomain :: !(Maybe Domain),
+    -- | FederationDomain is required, even when not wanting to federate with other backends
+    -- (in that case the 'setFederationAllowedDomains' can be set to empty in Federator)
+    -- Federation domain is used to qualify local IDs and handles,
+    -- e.g. 0c4d8944-70fa-480e-a8b7-9d929862d18c@wire.com and somehandle@wire.com.
+    -- It should also match the SRV DNS records under which other wire-server installations can find this backend:
+    --    _wire-server._tcp.<federationDomain>
+    -- Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
+    -- Remember to keep it the same in Galley.
+    -- Example:
+    --   setFederationAllowedDomains:
+    --     - wire.com
+    --     - example.com
+    _setFederationDomain :: !(Domain),
     -- | When true, galley will assume data in `billing_team_member` table is
     -- consistent and use it for billing.
     -- When false, billing information for large teams is not guaranteed to have all
