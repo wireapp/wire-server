@@ -314,7 +314,6 @@ executable brig-integration
     , cassandra-util
     , containers
     , cookie
-    , cql-io
     , data-timeout
     , exceptions
     , extra

@@ -24,9 +24,12 @@ import Text.RawString.QQ
 migration :: Migration
 migration =
   Migration 62 "Add users_pending_activation" $
-    -- | Column expires_at_day is the date of column expires_at
-    -- We use int for the encoding instead of date,
-    -- because the cql-io lib doesn't seem to implement date literals
+    -- | This table keeps track of users that were invited via SCIM.
+    --   When their invitation expires this table is used
+    --   to clean any data of these expired users.
+
+    -- The column expires_at_day is the date of expiry.
+    -- It is encoded as 'int' because cql-io doesn't seem to work with 'date' types.
     schema'
       [r|
         CREATE TABLE users_pending_activation
