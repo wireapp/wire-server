@@ -23,6 +23,7 @@ module Web.Scim.Schema.Error
     Status (..),
 
     -- * Constructors
+    NotFound (..),
     notFound,
     badRequest,
     conflict,
@@ -39,7 +40,7 @@ import Control.Exception
 import Data.Aeson hiding (Error)
 import Data.Text (Text, pack)
 import GHC.Generics (Generic)
-import Servant (ServerError (..))
+import Servant (HasStatus (..), ServerError (..))
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.Schema
 
@@ -94,10 +95,11 @@ data ScimError = ScimError
 instance ToJSON ScimError where
   toJSON = genericToJSON serializeOptions
 
+-- DEPRECATE "use uverb instead" ScimError
 instance Exception ScimError
 
 ----------------------------------------------------------------------------
--- Constructors
+-- Exception constructors [deprecated]
 
 badRequest ::
   -- | Error type
@@ -137,13 +139,29 @@ forbidden details =
       detail = pure $ "forbidden: " <> details
     }
 
+data NotFound = NotFound
+  { notFoundResourceType :: Text,
+    notFoundResourceId :: Text
+  }
+
+instance HasStatus NotFound where
+  type StatusOf NotFound = 404
+
+instance ToJSON NotFound where
+  toJSON = toJSON . notFound'
+
+-- deprecated.  if this is not needed any more, we can inline notFound' into the ToJSON
+-- instance above.  then we may not need to export any types from this any more.
 notFound ::
   -- | Resource type
   Text ->
   -- | Resource ID
   Text ->
   ScimError
-notFound resourceType resourceId =
+notFound t i = notFound' $ NotFound t i
+
+notFound' :: NotFound -> ScimError
+notFound' (NotFound resourceType resourceId) =
   ScimError
     { schemas = [Error20],
       status = Status 404,

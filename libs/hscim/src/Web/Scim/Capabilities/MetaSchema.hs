@@ -128,8 +128,8 @@ configServer config =
               resourceSchema
             ],
       schema = \uri -> case getSchema (fromSchemaUri uri) of
-        Nothing -> throwScim (notFound "Schema" uri)
-        Just s -> pure s,
+        Nothing -> respond (NotFound "Schema" uri)
+        Just s -> respond (WithStatus @200 s),
       resourceTypes =
         pure $
           ListResponse.fromList
@@ -141,7 +141,7 @@ configServer config =
 data ConfigSite route = ConfigSite
   { spConfig :: route :- "ServiceProviderConfig" :> Get '[SCIM] Configuration,
     getSchemas :: route :- "Schemas" :> Get '[SCIM] (ListResponse Value),
-    schema :: route :- "Schemas" :> Capture "id" Text :> Get '[SCIM] Value,
+    schema :: route :- "Schemas" :> Capture "id" Text :> UVerb 'GET '[SCIM] [WithStatus 200 Value, NotFound],
     resourceTypes :: route :- "ResourceTypes" :> Get '[SCIM] (ListResponse Resource)
   }
   deriving (Generic)
