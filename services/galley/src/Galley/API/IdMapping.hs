@@ -22,7 +22,7 @@ module Galley.API.IdMapping
   )
 where
 
-import Data.Id (Id (Id, toUUID), OpaqueUserId, OpaqueConvId)
+import Data.Id (Id (Id, toUUID), OpaqueConvId, OpaqueUserId)
 import qualified Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local))
 import Galley.App (Galley)
