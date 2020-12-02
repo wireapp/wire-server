@@ -37,7 +37,7 @@ import Galley.Data.Services (BotMember, newBotMember)
 import qualified Galley.Data.Types as DataTypes
 import Galley.Intra.Push
 import Galley.Intra.User
-import Galley.Options (optSettings, setEnableFederationWithDomain)
+import Galley.Options (optSettings, setFederationDomain)
 import Galley.Types
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
@@ -305,8 +305,5 @@ canDeleteMember deleter deletee
 --------------------------------------------------------------------------------
 -- Federation
 
-viewFederationDomain :: Galley (Maybe Domain)
-viewFederationDomain = view (options . optSettings . setEnableFederationWithDomain)
-
-isFederationEnabled :: Galley Bool
-isFederationEnabled = isJust <$> viewFederationDomain
+viewFederationDomain :: Galley Domain
+viewFederationDomain = view (options . optSettings . setFederationDomain)

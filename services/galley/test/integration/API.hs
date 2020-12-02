@@ -23,7 +23,6 @@ module API
 where
 
 import qualified API.CustomBackend as CustomBackend
-import qualified API.IdMapping as IdMapping
 import qualified API.MessageTimer as MessageTimer
 import qualified API.Roles as Roles
 import API.SQS
@@ -71,8 +70,7 @@ tests s =
       MessageTimer.tests s,
       Roles.tests s,
       CustomBackend.tests s,
-      TeamFeature.tests s,
-      IdMapping.tests s
+      TeamFeature.tests s
     ]
   where
     mainTests =

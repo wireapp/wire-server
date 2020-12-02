@@ -455,10 +455,19 @@ data Settings = Settings
     -- | When true, search only
     -- returns users from the same team
     setSearchSameTeamOnly :: !(Maybe Bool),
-    -- | When @Nothing@, assume there are no other backends and IDs are always local.
-    -- This means we don't run any queries on federation-related tables and don't
-    -- make any calls to the federator service.
-    setEnableFederationWithDomain :: !(Maybe Domain),
+    -- | FederationDomain is required, even when not wanting to federate with other backends
+    -- (in that case the 'setFederationAllowedDomains' can be set to empty in Federator)
+    -- Federation domain is used to qualify local IDs and handles,
+    -- e.g. 0c4d8944-70fa-480e-a8b7-9d929862d18c@wire.com and somehandle@wire.com.
+    -- It should also match the SRV DNS records under which other wire-server installations can find this backend:
+    --    _wire-server._tcp.<federationDomain>
+    -- Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
+    -- Remember to keep it the same in Galley.
+    -- Example:
+    --   setFederationAllowedDomains:
+    --     - wire.com
+    --     - example.com
+    setFederationDomain :: !(Domain),
     -- | The amount of time in milliseconds to wait after reading from an SQS queue
     -- returns no message, before asking for messages from SQS again.
     -- defaults to 'defSqsThrottleMillis'.
@@ -568,10 +577,6 @@ defSftDiscoveryIntervalSeconds = secondsToDiffTime 10
 defSftListLength :: Range 1 100 Int
 defSftListLength = unsafeRange 5
 
--- TODO: make configurable
-ourDomain :: IO Domain
-ourDomain = pure $ Domain "staging.zinfra.io"
-
 instance FromJSON Timeout where
   parseJSON (Y.Number n) =
     let defaultV = 3600
@@ -600,7 +605,7 @@ Lens.makeLensesFor
     ("setPropertyMaxValueLen", "propertyMaxValueLen"),
     ("setSearchSameTeamOnly", "searchSameTeamOnly"),
     ("setUserMaxPermClients", "userMaxPermClients"),
-    ("setEnableFederationWithDomain", "enableFederationWithDomain"),
+    ("setFederationDomain", "federationDomain"),
     ("setSqsThrottleMillis", "sqsThrottleMillis")
   ]
   ''Settings

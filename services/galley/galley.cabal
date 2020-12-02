@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f6deeba4679ebd1588720a94dbc73f7fb8520a76afe45fbe1169d75f4b0ae729
+-- hash: 8d1732701d27a292c8f93089f1ee1974b6503965f983b1f43c3a5fdda3c1cdbf
 
 name:           galley
 version:        0.83.0
@@ -188,7 +188,6 @@ executable galley-integration
   other-modules:
       API
       API.CustomBackend
-      API.IdMapping
       API.MessageTimer
       API.Roles
       API.SQS

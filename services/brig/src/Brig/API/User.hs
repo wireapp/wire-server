@@ -88,7 +88,7 @@ where
 import qualified Brig.API.Error as Error
 import qualified Brig.API.Handler as API (Handler)
 import Brig.API.Types
-import Brig.API.Util (fetchUserIdentity, validateHandle)
+import Brig.API.Util (fetchUserIdentity, validateHandle, viewFederationDomain)
 import Brig.App
 import qualified Brig.Code as Code
 import Brig.Data.Activation (ActivationEvent (..))
@@ -1033,7 +1033,7 @@ lookupProfiles ::
   [Qualified UserId] ->
   AppIO [UserProfile]
 lookupProfiles self others = do
-  domain <- liftIO ourDomain
+  domain <- viewFederationDomain
   let (_remoteUsers, localUsers) = partitionRemoteOrLocalIds domain others
   localProfiles <- lookupProfilesOfLocalUsers self localUsers
   -- FUTUREWORK(federation, #1267): fetch remote profiles
