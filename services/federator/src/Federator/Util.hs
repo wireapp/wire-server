@@ -1,6 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -18,19 +15,22 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Federator.Types where
+module Federator.Util
+  ( federateWith,
+  )
+where
 
-import Bilge (RequestId)
-import Control.Lens (makeLenses)
-import Data.Metrics (Metrics)
-import Federator.Options (RunSettings)
-import qualified System.Logger.Class as LC
+import Control.Lens (view)
+import Data.Domain (Domain)
+import Data.Maybe
+import Federator.Options
+import Federator.Types (Env, runSettings)
+import Imports
 
-data Env = Env
-  { _metrics :: Metrics,
-    _applog :: LC.Logger,
-    _requestId :: RequestId,
-    _runSettings :: RunSettings
-  }
-
-makeLenses ''Env
+federateWith :: MonadReader Env m => Domain -> m Bool
+federateWith targetDomain = do
+  strategy <- view (runSettings . federationStrategy)
+  allowList <- fromMaybe defFederationAllowedDomains <$> view (runSettings . federationAllowedDomains)
+  pure $ case (strategy, allowList) of
+    (WithEveryone, _) -> True
+    (WithAllowList, (FederationAllowedDomains domains)) -> targetDomain `elem` domains

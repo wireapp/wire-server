@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 72597caf8878551b0609bfdc790852575f38db429ea5c83935a399c676ee3c2c
+-- hash: 78843ea612b8e828f6d27c03cdb3f99ac0ea87b508c3bcf8e12b3a09d21d8e91
 
 name:           federator
 version:        1.0.0
@@ -24,6 +24,7 @@ library
       Federator.Options
       Federator.Run
       Federator.Types
+      Federator.Util
   other-modules:
       Paths_federator
   hs-source-dirs:

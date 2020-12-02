@@ -64,6 +64,7 @@ newEnv o = do
   _metrics <- Metrics.metrics
   _applog <- Log.mkLogger (Opt.logLevel o) (Opt.logNetStrings o) (Opt.logFormat o)
   let _requestId = def
+  let _runSettings = (Opt.optSettings o)
   return Env {..}
 
 closeEnv :: Env -> IO ()

@@ -4,3 +4,12 @@ federator:
 
 logLevel: Debug
 logNetStrings: false
+
+optSettings:
+  #   Would you like to federate with everyone or only with a select set of other wire-server installations?
+  setFederationStrategy: with_everyone # with_everyone | with_allow_list
+  #   setFederationAllowedDomains only has an effect if strategy is with_allow_list
+  #   defaults to empty list if unset
+  # setFederationAllowedDomains:
+  #   - wire.com
+  #   - example.com
