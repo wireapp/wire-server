@@ -40,7 +40,7 @@ settings:
   #      _wire-server._tcp.<federationDomain>
   #   Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
   #   Remember to keep it the same in Brig
-  setFederationDomain: example.com
+  federationDomain: example.com
 
   featureFlags:  # see #RefConfigOptions in `/docs/reference`
     sso: disabled-by-default
