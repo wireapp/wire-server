@@ -27,12 +27,11 @@ migration =
     -- | Column expires_at_day is the date of column expires_at
     -- We use int for the encoding instead of date,
     -- because the cql-io lib doesn't seem to implement date literals
-    -- TODO(stefan) try 'date'
     schema'
       [r|
         CREATE TABLE users_pending_activation
         (
-          expires_at_day  date
+          expires_at_day  int
         , user            uuid
         , team            uuid
         , primary key (expires_at_day, user)
