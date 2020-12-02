@@ -4,6 +4,8 @@
 
 ## Release Notes
 
+As a preparation for federation, this release introduces a mandatory 'federationDomain' configuration setting for brig and galley (#1261)
+
 ## Features
 
 ## Bug fixes and other updates
