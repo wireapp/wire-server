@@ -66,3 +66,4 @@ tests:
     - tasty
     - tasty-hunit
     - yaml
+    - bytestring

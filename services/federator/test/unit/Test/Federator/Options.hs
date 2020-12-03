@@ -22,6 +22,8 @@
 module Test.Federator.Options where
 
 import Data.Aeson (FromJSON)
+import qualified Data.Aeson as Aeson
+import Data.ByteString.Lazy (toStrict)
 import Data.Domain (mkDomain)
 import qualified Data.Yaml as Yaml
 import Federator.Options
@@ -50,6 +52,13 @@ parseFederationStrategy =
       "allowedDomains:\n\
       \  - example.com\n\
       \  - wire.com"
+    -- manual roundtrip example AllowAll
+    let allowA = toStrict $ Aeson.encode AllowAll
+    assertParsesAs AllowAll $ allowA
+    -- manual roundtrip example AllowList
+    let allowWire = (withAllowList ["wire.com"])
+    let allowedDom = toStrict $ Aeson.encode allowWire
+    assertParsesAs allowWire $ allowedDom
   where
     withAllowList =
       AllowList . AllowedDomains . map (either error id . mkDomain)

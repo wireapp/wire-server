@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 05aafbb0800daa1746f25bc61dee28665179ddf9e92454a68d7421dfec570015
+-- hash: b19ddba1ae9d6ebd950cd798547f41036e8979169c8339bc61892725b4c85b1d
 
 name:           federator
 version:        1.0.0
@@ -119,6 +119,7 @@ test-suite federator-tests
     , aeson
     , base
     , bilge
+    , bytestring
     , bytestring-conversion
     , data-default
     , email-validate
