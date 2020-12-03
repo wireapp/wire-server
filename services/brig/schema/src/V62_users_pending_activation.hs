@@ -24,9 +24,9 @@ import Text.RawString.QQ
 migration :: Migration
 migration =
   Migration 62 "Add users_pending_activation" $
-    -- | This table keeps track of users that were invited via SCIM.
-    --   When their invitation expires this table is used
-    --   to clean any data of these expired users.
+    -- This table keeps track of users that were invited via SCIM.
+    -- When their invitation expires this table is used
+    -- to clean any data of these expired users.
     schema'
       [r|
         CREATE TABLE users_pending_activation
