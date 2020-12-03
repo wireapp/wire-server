@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2e82f5f7f6cf024bb520eb8156a28087fdf69825282b80d009b761cc4dd6a86b
+-- hash: 05aafbb0800daa1746f25bc61dee28665179ddf9e92454a68d7421dfec570015
 
 name:           federator
 version:        1.0.0
@@ -108,6 +108,7 @@ test-suite federator-tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
+      Test.Federator.Options
       Paths_federator
   hs-source-dirs:
       test/unit
