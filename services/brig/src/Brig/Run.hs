@@ -32,25 +32,23 @@ import qualified Brig.AWS as AWS
 import qualified Brig.AWS.SesNotification as SesNotification
 import Brig.App
 import qualified Brig.Calling as Calling
-import Brig.Data.UserPendingActivation (UserPendingActivation (..), removeTrackedExpirations, searchTrackedExpirations)
+import Brig.Data.UserPendingActivation (UserPendingActivation (..), getAllTrackedExpirations, removeTrackedExpirations)
 import qualified Brig.InternalEvent.Process as Internal
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Queue as Queue
-import Brig.Team.DB as Data
+import Brig.Types.Intra (AccountStatus (PendingInvitation))
+import Cassandra (Page (Page), liftClient)
 import qualified Control.Concurrent.Async as Async
 import Control.Exception.Safe (catchAny)
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch (MonadCatch, finally)
 import Control.Monad.Random (Random (randomRIO))
-import Data.Coerce (coerce)
 import Data.Default (Default (def))
 import Data.Id (RequestId (..))
 import qualified Data.Metrics.Middleware.Prometheus as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.String.Conversions (cs)
 import Data.Text (unpack)
-import Data.Time.Calendar (Day (..), addDays)
-import Data.Time.Clock (UTCTime (..))
 import Imports hiding (head)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Middleware.Gunzip as GZip
@@ -123,34 +121,41 @@ lookupRequestIdMiddleware mkapp req cont = do
 cleanExpiredPendingInvitations :: AppIO ()
 cleanExpiredPendingInvitations = do
   safeForever "cleanExpiredPendingInvitations" $ do
-    today <- utctDay <$> (liftIO =<< view currentTime)
-    for_ [1 .. 9] $ \i ->
-      cleanUpDay (addDays (- i) today)
+    now <- liftIO =<< view currentTime
+
+    forExpirationsPaged $ \exps -> do
+      expiredUsers <-
+        catMaybes
+          <$> ( for exps $ \(UserPendingActivation uid expiresAt) -> do
+                  isPendingInvitation <- (Just PendingInvitation ==) <$> API.lookupStatus uid
+                  pure $
+                    if (expiresAt < now) && isPendingInvitation
+                      then Just uid
+                      else Nothing
+              )
+      API.deleteUsersNoVerify expiredUsers
+      removeTrackedExpirations (upaUserId <$> exps)
+
+    -- TODO(add to settings)
     let d :: Int = 24 * 60 * 60
     randomSecs :: Int <- liftIO (round <$> randomRIO @Double (0.5 * fromIntegral d, fromIntegral d))
     threadDelay (randomSecs * 1_000_000)
   where
-    cleanUpDay :: Day -> AppIO () -- Call this function only with dates from the past
-    cleanUpDay day =
-      forExpirationsBatched day 100 $ \exps -> do
-        expiredUsers <-
-          catMaybes
-            <$> ( for exps $ \(UserPendingActivation _ uid tid) -> do
-                    invExpired <- isNothing <$> Data.lookupInvitation tid (coerce uid)
-                    pure $ if invExpired then Just uid else Nothing
-                )
-        API.deleteUsersNoVerify expiredUsers
-        removeTrackedExpirations day (upaUserId <$> exps)
-
-    forExpirationsBatched :: Day -> Int -> ([UserPendingActivation] -> AppIO ()) -> AppIO ()
-    forExpirationsBatched day pageSize f = do
-      go =<< searchTrackedExpirations day pageSize
+    forExpirationsPaged :: ([UserPendingActivation] -> AppIO ()) -> AppIO ()
+    forExpirationsPaged f = do
+      go =<< getAllTrackedExpirations
       where
-        go :: [UserPendingActivation] -> AppIO ()
-        go [] = pure ()
-        go entries = do
-          f entries
-          go =<< searchTrackedExpirations day pageSize
+        go :: (Page UserPendingActivation) -> AppIO ()
+        go (Page hasMore result nextPage) = do
+          f result
+          when hasMore $
+            go =<< liftClient nextPage
+
+    -- go :: [UserPendingActivation] -> AppIO ()
+    -- go [] = pure ()
+    -- go entries = do
+    --   f entries
+    --   go =<< searchTrackedExpirations day pageSize
 
     safeForever :: (MonadIO m, MonadLogger m, MonadCatch m) => String -> m () -> m ()
     safeForever funName action =

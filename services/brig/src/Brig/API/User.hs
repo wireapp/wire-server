@@ -103,7 +103,7 @@ import Brig.Data.User
 import qualified Brig.Data.User as Data
 import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
-import Brig.Data.UserPendingActivation (UserPendingActivation (..))
+import Brig.Data.UserPendingActivation
 import qualified Brig.Data.UserPendingActivation as Data
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.InternalEvent.Types as Internal
@@ -138,7 +138,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Metrics as Metrics
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified
-import Data.Time.Clock (addUTCTime, diffUTCTime, utctDay)
+import Data.Time.Clock (addUTCTime, diffUTCTime)
 import Data.UUID.V4 (nextRandom)
 import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
@@ -332,6 +332,7 @@ createUser new@NewUser {..} = do
           field "user" (toByteString uid)
             . field "team" (toByteString $ Team.iiTeam ii)
             . msg (val "Accepting invitation")
+        Data.removeTrackedExpiration uid
         Team.deleteInvitation (Team.inTeam inv) (Team.inInvitation inv)
 
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT CreateUserError AppIO CreateUserTeam
@@ -370,8 +371,8 @@ createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = (`ca
 
   ttl <- setTeamInvitationTimeout <$> view settings
   now <- liftIO =<< view currentTime
-  let expiresAtDay = utctDay . addUTCTime (realToFrac ttl) $ now
-  lift $ Data.trackExpiration (UserPendingActivation expiresAtDay uid tid)
+  let expiresAt = addUTCTime (realToFrac ttl) $ now
+  lift $ Data.trackExpiration (UserPendingActivation uid expiresAt)
 
   return account
 

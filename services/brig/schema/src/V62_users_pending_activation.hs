@@ -27,17 +27,13 @@ migration =
     -- | This table keeps track of users that were invited via SCIM.
     --   When their invitation expires this table is used
     --   to clean any data of these expired users.
-
-    -- The column expires_at_day is the date of expiry.
-    -- It is encoded as 'int' because cql-io doesn't seem to work with 'date' types.
     schema'
       [r|
         CREATE TABLE users_pending_activation
         (
-          expires_at_day  int
-        , user            uuid
-        , team            uuid
-        , primary key (expires_at_day, user)
+          user            uuid
+        , expires_at      timestamp
+        , primary key (user)
         )
-        with clustering order by (user ASC)
+        with clustering order by (expires_at ASC)
       |]
