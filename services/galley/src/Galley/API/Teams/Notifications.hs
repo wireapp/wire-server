@@ -33,7 +33,7 @@
 --
 -- FUTUREWORK: this is a work-around because it only solves *some* problems with team events.
 -- We should really use a scalable message queue instead.
-module Galley.API.TeamNotifications
+module Galley.API.Teams.Notifications
   ( getTeamNotifications,
     pushTeamEvent,
   )
