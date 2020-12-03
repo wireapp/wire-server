@@ -52,8 +52,7 @@ getAllTrackedExpirations = do
   where
     selectExpired :: PrepQuery R () (UserId, UTCTime)
     selectExpired =
-      "SELECT expires_at_day, user, team FROM users_pending_activation \
-      \WHERE expires_at_day = ?"
+      "SELECT expires_at, user FROM users_pending_activation"
 
 removeTrackedExpiration :: UserId -> AppIO ()
 removeTrackedExpiration uid = removeTrackedExpirations [uid]

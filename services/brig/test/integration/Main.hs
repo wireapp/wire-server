@@ -27,6 +27,7 @@ import qualified API.Search as Search
 import qualified API.Settings as Settings
 import qualified API.Team as Team
 import qualified API.User as User
+import qualified API.UserPendingActivation as UserPendingActivation
 import Bilge hiding (header)
 import Brig.API (sitemap)
 import qualified Brig.AWS as AWS
@@ -100,6 +101,7 @@ runTests iConf bConf otherArgs = do
   metricsApi <- Metrics.tests mg b
   settingsApi <- Settings.tests brigOpts mg b g
   createIndex <- Index.Create.spec brigOpts
+  userPendingActivation <- UserPendingActivation.tests db b g
   withArgs otherArgs . defaultMain $
     testGroup
       "Brig API Integration"
@@ -115,7 +117,8 @@ runTests iConf bConf otherArgs = do
         turnApi,
         metricsApi,
         settingsApi,
-        createIndex
+        createIndex,
+        userPendingActivation
       ]
   where
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
