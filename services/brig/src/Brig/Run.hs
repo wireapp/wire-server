@@ -82,13 +82,13 @@ run o = do
       AWS.execute (e ^. awsEnv) $
         AWS.listen throttleMillis q (runAppT e . SesNotification.onEvent)
   sftDiscovery <- forM (e ^. sftEnv) $ Async.async . Calling.startSFTServiceDiscovery (e ^. applog)
-  expiryCleanup <- Async.async (runAppT e cleanExpiredPendingInvitations)
+  scimInvitationCleanup <- Async.async (runAppT e cleanExpiredPendingInvitations)
 
   runSettingsWithShutdown s app 5 `finally` do
     mapM_ Async.cancel emailListener
     Async.cancel internalEventListener
     mapM_ Async.cancel sftDiscovery
-    Async.cancel expiryCleanup
+    Async.cancel scimInvitationCleanup
     closeEnv e
   where
     endpoint = brig o
