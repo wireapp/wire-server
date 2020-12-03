@@ -49,6 +49,7 @@ module Brig.API.User
     removePhone,
     revokeIdentity,
     deleteUserNoVerify,
+    deleteUsersNoVerify,
     Brig.API.User.deleteUser,
     verifyDeleteUser,
     deleteAccount,
@@ -134,6 +135,7 @@ import Data.Id as Id
 import Data.Json.Util
 import Data.List1 (List1)
 import qualified Data.Map.Strict as Map
+import qualified Data.Metrics as Metrics
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified
 import Data.Time.Clock (addUTCTime, diffUTCTime, utctDay)
@@ -1013,6 +1015,13 @@ deleteUserNoVerify :: UserId -> AppIO ()
 deleteUserNoVerify uid = do
   queue <- view internalEvents
   Queue.enqueue queue (Internal.DeleteUser uid)
+
+deleteUsersNoVerify :: [UserId] -> AppIO ()
+deleteUsersNoVerify uids = do
+  Log.info $ msg (val "Deleting users")
+  for_ uids deleteUserNoVerify
+  m <- view metrics
+  Metrics.counterAdd (fromIntegral . length $ uids) (Metrics.path "user.multideleted") m
 
 -- | Garbage collect users if they're ephemeral and they have expired.
 -- Always returns the user (deletion itself is delayed)

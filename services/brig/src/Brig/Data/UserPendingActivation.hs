@@ -32,11 +32,11 @@ import Data.Misc (ModJulianDay (..))
 import Data.Time.Calendar (Day)
 import Imports
 
-data UserPendingActivation
-  = UserPendingActivation
-      !Day
-      !UserId
-      !TeamId
+data UserPendingActivation = UserPendingActivation
+  { upaDay :: !Day,
+    upaUserId :: !UserId,
+    upaTeamId :: !TeamId
+  }
   deriving stock (Eq)
 
 -- | Note: Call this function only after an invitation for the user has been created

@@ -127,24 +127,20 @@ cleanExpiredPendingInvitations = do
     for_ [1 .. 9] $ \i ->
       cleanUpDay (addDays (- i) today)
     let d :: Int = 24 * 60 * 60
-    _randomSecs :: Int <- liftIO (round <$> randomRIO @Double (0.5 * fromIntegral d, fromIntegral d))
-    threadDelay (10 * 1_000_000)
+    randomSecs :: Int <- liftIO (round <$> randomRIO @Double (0.5 * fromIntegral d, fromIntegral d))
+    threadDelay (randomSecs * 1_000_000)
   where
-    throttleDelay :: MonadIO m => Double -> m ()
-    throttleDelay itemsPerSecond =
-      let secs = 1.0 / itemsPerSecond
-       in liftIO $ threadDelay (round (1_000_000 * secs))
-
     cleanUpDay :: Day -> AppIO () -- Call this function only with dates from the past
     cleanUpDay day =
-      forExpirationsBatched day 1000 $ \exps -> do
-        userIds <- for exps $ \(UserPendingActivation _ uid tid) -> do
-          invExpired <- isNothing <$> Data.lookupInvitation tid (coerce uid)
-          when invExpired $
-            API.deleteUserNoVerify uid
-          throttleDelay 2.0
-          pure uid
-        removeTrackedExpirations day userIds
+      forExpirationsBatched day 100 $ \exps -> do
+        expiredUsers <-
+          catMaybes
+            <$> ( for exps $ \(UserPendingActivation _ uid tid) -> do
+                    invExpired <- isNothing <$> Data.lookupInvitation tid (coerce uid)
+                    pure $ if invExpired then Just uid else Nothing
+                )
+        API.deleteUsersNoVerify expiredUsers
+        removeTrackedExpirations day (upaUserId <$> exps)
 
     forExpirationsBatched :: Day -> Int -> ([UserPendingActivation] -> AppIO ()) -> AppIO ()
     forExpirationsBatched day pageSize f = do
