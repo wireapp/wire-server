@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2a946b006de5d7699402b61eb57cad8d94535feba655e40f6375a2c0c7749b70
+-- hash: 4f8ad3720f55015133207eff6aca1d7ac75f5543707178bce8634d670cb68124
 
 name:           brig
 version:        1.35.0
@@ -300,6 +300,8 @@ executable brig-integration
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
   build-depends:
       HsOpenSSL
+    , MonadRandom >=0.5
+    , QuickCheck
     , aeson
     , async
     , attoparsec
@@ -316,11 +318,13 @@ executable brig-integration
     , containers
     , cookie
     , data-timeout
+    , email-validate
     , exceptions
     , extra
     , filepath >=1.4
     , galley-types
     , gundeck-types
+    , hscim
     , http-client
     , http-client-tls >=0.2
     , http-types
@@ -337,7 +341,9 @@ executable brig-integration
     , random >=1.0
     , retry >=0.6
     , safe
+    , saml2-web-sso
     , semigroups
+    , spar
     , string-conversions
     , tasty >=1.0
     , tasty-cannon >=0.3.4

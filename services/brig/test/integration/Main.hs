@@ -101,7 +101,7 @@ runTests iConf bConf otherArgs = do
   metricsApi <- Metrics.tests mg b
   settingsApi <- Settings.tests brigOpts mg b g
   createIndex <- Index.Create.spec brigOpts
-  userPendingActivation <- UserPendingActivation.tests db b g
+  userPendingActivation <- UserPendingActivation.tests mg db b g
   withArgs otherArgs . defaultMain $
     testGroup
       "Brig API Integration"
