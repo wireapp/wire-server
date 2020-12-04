@@ -30,18 +30,13 @@ import qualified Control.Lens as Lens
 import Data.Aeson (withText)
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (typeMismatch)
-import qualified Data.Char as Char
 import Data.Domain (Domain (..))
 import Data.Id
-import Data.Range
 import Data.Scientific (toBoundedInteger)
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
-import Data.Time.Clock (DiffTime, NominalDiffTime, secondsToDiffTime)
-import Data.Yaml (FromJSON (..), ToJSON (..), (.:), (.:?))
+import Data.Time.Clock (NominalDiffTime)
+import Data.Yaml (FromJSON (..), ToJSON (..))
 import qualified Data.Yaml as Y
 import Imports
-import qualified Network.DNS as DNS
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 
@@ -384,8 +379,6 @@ data Opts = Opts
     logFormat :: !(Maybe (Last LogFormat)),
     -- | TURN server settings
     turn :: !TurnOpts,
-    -- | SFT Settings
-    sft :: !(Maybe SFTOptions),
     -- | Runtime settings
     optSettings :: !Settings
   }
@@ -483,7 +476,12 @@ data Settings = Settings
     -- Customer extensions
 
     -- | Customer extensions.  Read 'CustomerExtensions' docs carefully!
-    setCustomerExtensions :: !(Maybe CustomerExtensions)
+    setCustomerExtensions :: !(Maybe CustomerExtensions),
+    -- | A DNS record on which to perform an SRV lookup to discover SFT servers
+    -- e.g. '_sft._tcp.example.com'
+    setSftDomain :: !(Maybe Domain),
+    -- | The maximum amount of SFT URLs sent to clients
+    setSftListLength :: !(Maybe Int)
   }
   deriving (Show, Generic)
 
@@ -531,28 +529,6 @@ data CustomerExtensions = CustomerExtensions
 newtype DomainsBlockedForRegistration = DomainsBlockedForRegistration [Domain]
   deriving newtype (Show, FromJSON, Generic)
 
-data SFTOptions = SFTOptions
-  { sftBaseDomain :: !DNS.Domain,
-    sftSRVServiceName :: !(Maybe ByteString), -- defaults to defSftServiceName if unset
-    sftDiscoveryIntervalSeconds :: !(Maybe DiffTime), -- defaults to defSftDiscoveryIntervalSeconds
-    sftListLength :: !(Maybe (Range 1 100 Int)) -- defaults to defSftListLength
-  }
-  deriving (Show, Generic)
-
-instance FromJSON SFTOptions where
-  parseJSON = Y.withObject "SFTOptions" $ \o ->
-    SFTOptions
-      <$> (asciiOnly =<< o .: "sftBaseDomain")
-      <*> (mapM asciiOnly =<< o .:? "sftSRVServiceName")
-      <*> (secondsToDiffTime <$$> o .:? "sftDiscoveryIntervalSeconds")
-      <*> (o .:? "sftListLength")
-    where
-      asciiOnly :: Text -> Y.Parser ByteString
-      asciiOnly t =
-        if Text.all Char.isAscii t
-          then pure $ Text.encodeUtf8 t
-          else fail $ "Expected ascii string only, found: " <> Text.unpack t
-
 defMaxKeyLen :: Int64
 defMaxKeyLen = 1024
 
@@ -568,14 +544,8 @@ defSqsThrottleMillis = 500
 defUserMaxPermClients :: Int
 defUserMaxPermClients = 7
 
-defSftServiceName :: ByteString
-defSftServiceName = "_sft"
-
-defSftDiscoveryIntervalSeconds :: DiffTime
-defSftDiscoveryIntervalSeconds = secondsToDiffTime 10
-
-defSftListLength :: Range 1 100 Int
-defSftListLength = unsafeRange 5
+defSftListLength :: Int
+defSftListLength = 5
 
 instance FromJSON Timeout where
   parseJSON (Y.Number n) =
@@ -594,8 +564,7 @@ instance FromJSON Opts
 -- TODO: Does it make sense to generate lens'es for all?
 Lens.makeLensesFor
   [ ("optSettings", "optionSettings"),
-    ("elasticsearch", "elasticsearchL"),
-    ("sft", "sftL")
+    ("elasticsearch", "elasticsearchL")
   ]
   ''Opts
 
@@ -606,6 +575,8 @@ Lens.makeLensesFor
     ("setSearchSameTeamOnly", "searchSameTeamOnly"),
     ("setUserMaxPermClients", "userMaxPermClients"),
     ("setFederationDomain", "federationDomain"),
+    ("setSftDomain", "sftDomain"),
+    ("setSftListLength", "sftListLength"),
     ("setSqsThrottleMillis", "sqsThrottleMillis")
   ]
   ''Settings
@@ -616,5 +587,3 @@ Lens.makeLensesFor
     ("additionalWriteIndex", "additionalWriteIndexL")
   ]
   ''ElasticSearchOpts
-
-Lens.makeLensesFor [("sftBaseDomain", "sftBaseDomainL")] ''SFTOptions

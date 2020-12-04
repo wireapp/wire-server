@@ -26,10 +26,14 @@ import Brig.API.Handler
 import Brig.App
 import Brig.Calling
 import qualified Brig.Calling as Calling
-import Brig.Calling.Internal
+import Brig.Calling.Internal (sftServerFromSrvTarget)
+import qualified Brig.Options as Opt
 import Control.Lens
+import Control.Monad.Trans.Maybe (MaybeT (..))
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Lens
+import Data.Domain (Domain, domainText)
+import Data.Either.Combinators (rightToMaybe)
 import Data.Id
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
@@ -37,9 +41,12 @@ import qualified Data.List1 as List1
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii (AsciiBase64, encodeBase64)
+import Data.Text.Encoding (encodeUtf8)
 import Data.Text.Strict.Lens
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Imports hiding (head)
+import qualified Network.DNS.Lookup as Lookup
+import Network.DNS.Resolver (Resolver)
 import Network.Wai (Response)
 import Network.Wai.Predicate hiding (and, result, setStatus, (#))
 import Network.Wai.Routing hiding (toList)
@@ -47,8 +54,8 @@ import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
 import OpenSSL.EVP.Digest (Digest, hmacBS)
 import qualified System.Random.MWC as MWC
+import System.Random.Shuffle (shuffleM)
 import qualified Wire.API.Call.Config as Public
-import Wire.Network.DNS.SRV (srvTarget)
 
 routesPublic :: Routes Doc.ApiBuilder Handler ()
 routesPublic = do
@@ -90,8 +97,13 @@ getCallsConfigV2H (_ ::: uid ::: connid ::: limit) =
 getCallsConfigV2 :: UserId -> ConnId -> Maybe (Range 1 10 Int) -> Handler Public.RTCConfiguration
 getCallsConfigV2 _ _ limit = do
   env <- liftIO =<< readIORef <$> view turnEnvV2
-  sftEnv' <- view sftEnv
-  newConfig env sftEnv' limit
+  resolver' <- view resolver
+  sftDomain <- view (settings . Opt.sftDomain)
+  -- TODO not hardcode this default?
+  sftLimit <- (fromMaybe 5) <$> view (settings . Opt.sftListLength)
+  -- If no domain is set, consider sft disabled don't resolve (sft will be Nothing)
+  let sft = (,,) <$> pure resolver' <*> sftDomain <*> pure sftLimit
+  newConfig env sft limit
 
 getCallsConfigH :: JSON ::: UserId ::: ConnId -> Handler Response
 getCallsConfigH (_ ::: uid ::: connid) =
@@ -109,8 +121,8 @@ getCallsConfig _ _ = do
         (Public.rtcConfIceServers . traverse . Public.iceURLs . traverse . Public.turiTransport)
         Nothing
 
-newConfig :: MonadIO m => Calling.Env -> Maybe SFTEnv -> Maybe (Range 1 10 Int) -> m Public.RTCConfiguration
-newConfig env mSftEnv limit = do
+newConfig :: MonadIO m => Calling.Env -> Maybe (Resolver, Domain, Int) -> Maybe (Range 1 10 Int) -> m Public.RTCConfiguration
+newConfig env sft limit = do
   let (sha, secret, tTTL, cTTL, prng) = (env ^. turnSHA512, env ^. turnSecret, env ^. turnTokenTTL, env ^. turnConfigTTL, env ^. turnPrng)
   -- randomize list of servers (before limiting the list, to ensure not always the same servers are chosen if limit is set)
   randomizedUris <- liftIO $ randomize (List1.toNonEmpty $ env ^. turnServers)
@@ -122,15 +134,21 @@ newConfig env mSftEnv limit = do
   srvs <- for finalUris $ \uri -> do
     u <- liftIO $ genUsername tTTL prng
     pure $ Public.rtcIceServer (uri :| []) u (computeCred sha secret u)
-  sftEntries <- case mSftEnv of
-    Nothing -> pure Nothing
-    Just actualSftEnv -> do
-      sftSrvEntries <- fmap discoveryToMaybe . readIORef . sftServers $ actualSftEnv
 
-      let subsetLength = Calling.sftListLength actualSftEnv
-      liftIO $ mapM (getRandomSFTServers subsetLength) sftSrvEntries
-
-  pure $ Public.rtcConfiguration srvs (sftServerFromSrvTarget . srvTarget <$$> sftEntries) cTTL
+  sftEntries <- runMaybeT $ do
+    (resolver', domain', limit') <- MaybeT (pure sft)
+    -- NOTE: This is safe to do as domainText is ASCII
+    let domain = encodeUtf8 . domainText $ domain'
+    entries <- MaybeT $ do
+      resultsOrError <- liftIO $ Lookup.lookupSRV resolver' domain
+      -- NOTE: we silently discard DNS errors and serve no sft entries.
+      -- TODO(arianvp): Log this at least?
+      pure $ rightToMaybe resultsOrError
+    shuffled <- MaybeT $ do
+      shuffled' <- liftIO $ take limit' <$> shuffleM entries
+      pure $ NonEmpty.nonEmpty shuffled'
+    pure $ sftServerFromSrvTarget <$> shuffled
+  pure $ Public.rtcConfiguration srvs sftEntries cTTL
   where
     limitedList :: NonEmpty Public.TurnURI -> Range 1 10 Int -> NonEmpty Public.TurnURI
     limitedList uris lim =

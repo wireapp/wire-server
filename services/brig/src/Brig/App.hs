@@ -51,7 +51,7 @@ module Brig.App
     applog,
     turnEnv,
     turnEnvV2,
-    sftEnv,
+    resolver,
     internalEvents,
     emailSender,
 
@@ -112,6 +112,8 @@ import Data.Time.Clock
 import Data.Yaml (FromJSON)
 import qualified Database.Bloodhound as ES
 import Imports
+import Network.DNS.Resolver (Resolver)
+import qualified Network.DNS.Resolver as Resolver
 import Network.HTTP.Client (ManagerSettings (..), responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (Digest, getDigestByName)
@@ -161,7 +163,7 @@ data Env = Env
     _fsWatcher :: FS.WatchManager,
     _turnEnv :: IORef Calling.Env,
     _turnEnvV2 :: IORef Calling.Env,
-    _sftEnv :: Maybe Calling.SFTEnv,
+    _resolver :: Resolver,
     _currentTime :: IO UTCTime,
     _zauthEnv :: ZAuth.Env,
     _digestSHA256 :: Digest,
@@ -207,41 +209,46 @@ newEnv o = do
   eventsQueue <- case Opt.internalEventsQueue (Opt.internalEvents o) of
     StompQueue q -> pure (StompQueue q)
     SqsQueue q -> SqsQueue <$> AWS.getQueueUrl (aws ^. AWS.amazonkaEnv) q
-  mSFTEnv <- mapM Calling.mkSFTEnv $ Opt.sft o
-  return
-    $! Env
-      { _cargohold = mkEndpoint $ Opt.cargohold o,
-        _galley = mkEndpoint $ Opt.galley o,
-        _gundeck = mkEndpoint $ Opt.gundeck o,
-        _casClient = cas,
-        _smtpEnv = emailSMTP,
-        _emailSender = Opt.emailSender . Opt.general . Opt.emailSMS $ o,
-        _awsEnv = aws,
-        _stompEnv = stomp,
-        _metrics = mtr,
-        _applog = lgr,
-        _internalEvents = eventsQueue,
-        _requestId = def,
-        _usrTemplates = utp,
-        _provTemplates = ptp,
-        _tmTemplates = ttp,
-        _templateBranding = branding,
-        _httpManager = mgr,
-        _extGetManager = ext,
-        _settings = sett,
-        _nexmoCreds = nxm,
-        _twilioCreds = twl,
-        _geoDb = g,
-        _turnEnv = turn,
-        _turnEnvV2 = turnV2,
-        _sftEnv = mSFTEnv,
-        _fsWatcher = w,
-        _currentTime = clock,
-        _zauthEnv = zau,
-        _digestMD5 = md5,
-        _digestSHA256 = sha256,
-        _indexEnv = mkIndexEnv o lgr mgr mtr
-      }
+
+  -- Set up a thread-safe resolver with a global cache. This means that SRV
+  -- records will only be re-resolved after their TTLs expire
+  let resolvConf = Resolver.defaultResolvConf {Resolver.resolvCache = Just Resolver.defaultCacheConf}
+  resolvSeed <- Resolver.makeResolvSeed resolvConf
+  Resolver.withResolver resolvSeed $ \resolv ->
+    return
+      $! Env
+        { _cargohold = mkEndpoint $ Opt.cargohold o,
+          _galley = mkEndpoint $ Opt.galley o,
+          _gundeck = mkEndpoint $ Opt.gundeck o,
+          _casClient = cas,
+          _smtpEnv = emailSMTP,
+          _emailSender = Opt.emailSender . Opt.general . Opt.emailSMS $ o,
+          _awsEnv = aws,
+          _stompEnv = stomp,
+          _metrics = mtr,
+          _applog = lgr,
+          _internalEvents = eventsQueue,
+          _requestId = def,
+          _usrTemplates = utp,
+          _provTemplates = ptp,
+          _tmTemplates = ttp,
+          _templateBranding = branding,
+          _httpManager = mgr,
+          _extGetManager = ext,
+          _settings = sett,
+          _nexmoCreds = nxm,
+          _twilioCreds = twl,
+          _geoDb = g,
+          _turnEnv = turn,
+          _turnEnvV2 = turnV2,
+          _fsWatcher = w,
+          _currentTime = clock,
+          _zauthEnv = zau,
+          _resolver = resolv,
+          _digestMD5 = md5,
+          _digestSHA256 = sha256,
+          _indexEnv = mkIndexEnv o lgr mgr mtr
+        }
   where
     emailConn _ (Opt.EmailAWS aws) = return (Just aws, Nothing)
     emailConn lgr (Opt.EmailSMTP s) = do

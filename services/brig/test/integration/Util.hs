@@ -25,8 +25,6 @@ import Bilge
 import Bilge.Assert
 import qualified Brig.AWS as AWS
 import Brig.AWS.Types
-import Brig.App (applog, sftEnv)
-import Brig.Calling as Calling
 import qualified Brig.Options as Opts
 import qualified Brig.Run as Run
 import Brig.Types.Activation
@@ -36,7 +34,7 @@ import Brig.Types.Intra
 import Brig.Types.User
 import Brig.Types.User.Auth
 import qualified Brig.ZAuth as ZAuth
-import Control.Lens ((^.), (^?), (^?!))
+import Control.Lens ((^?), (^?!))
 import Control.Monad.Catch (MonadCatch)
 import Control.Retry
 import Data.Aeson
@@ -65,7 +63,6 @@ import Test.Tasty (TestName, TestTree)
 import Test.Tasty.Cannon
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
-import qualified UnliftIO.Async as Async
 import Util.AWS
 import Wire.API.Conversation.Member (Member (..))
 
@@ -728,12 +725,8 @@ retryWhileN n f m =
 --   Beware: Not all async parts of brig are running in this.
 withSettingsOverrides :: MonadIO m => Opts.Opts -> WaiTest.Session a -> m a
 withSettingsOverrides opts action = liftIO $ do
-  (brigApp, env) <- Run.mkApp opts
-  sftDiscovery <-
-    forM (env ^. sftEnv) $ \sftEnv' ->
-      Async.async $ Calling.startSFTServiceDiscovery (env ^. applog) sftEnv'
+  (brigApp, _env) <- Run.mkApp opts
   res <- WaiTest.runSession action brigApp
-  mapM_ Async.cancel sftDiscovery
   pure res
 
 -- | When we remove the customer-specific extension of domain blocking, this test will fail to

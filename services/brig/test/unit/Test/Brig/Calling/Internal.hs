@@ -26,7 +26,6 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import URI.ByteString.QQ as URI
 import Wire.API.Call.Config (sftServer)
-import Wire.Network.DNS.SRV (SrvTarget (SrvTarget))
 
 tests :: TestTree
 tests =
@@ -37,12 +36,12 @@ tests =
             assertEqual
               "the dot should be stripped from sft server"
               expectedServer
-              (sftServerFromSrvTarget $ SrvTarget "sft1.env.example.com." 9364),
+              (sftServerFromSrvTarget (1, 1, 9364, "sft1.env.example.com.")),
           testCase "when srvTarget doesn't end with a dot" $ do
             let Right expectedServer = sftServer <$> mkHttpsUrl [URI.uri|https://sft2.env.example.com:443|]
             assertEqual
-              "the dot should be stripped from sft server"
+              "there should still be no dot"
               expectedServer
-              (sftServerFromSrvTarget $ SrvTarget "sft2.env.example.com" 443)
+              (sftServerFromSrvTarget (1, 1, 443, "sft2.env.example.com"))
         ]
     ]
