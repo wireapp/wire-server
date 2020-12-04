@@ -11,14 +11,11 @@ module API.UserPendingActivation where
 import API.Team.Util (getTeams)
 -- import Web.HttpApiData (toHeader)
 
-import Bilge (Http, MonadHttp, Response (responseBody), post, responseJsonUnsafe)
+import Bilge hiding (query)
 import Bilge.Assert ((<!!), (===))
-import Bilge.IO (Manager)
-import qualified Bilge.IO as Bilge
-import Bilge.Request
-import Bilge.Response (ResponseLBS, statusCode)
 import Brig.Types
 import qualified Brig.Types as Brig
+import Brig.Types.Intra (AccountStatus (Deleted))
 import Brig.Types.Team.Invitation (Invitation (inInvitation))
 import Cassandra
 import qualified Control.Exception
@@ -44,18 +41,17 @@ import Spar.Types
 import Test.QuickCheck (generate)
 import Test.QuickCheck.Arbitrary (Arbitrary (arbitrary))
 import Test.Tasty
+import Test.Tasty.HUnit (assertEqual)
 import qualified Text.Email.Parser as Email
 import Util hiding (createUser)
 import Web.HttpApiData (toHeader)
 import qualified Web.Scim.Class.User as Scim
+import qualified Web.Scim.Schema.Common as Scim
+import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Web.Scim.Schema.User.Email as Email
 import qualified Web.Scim.Schema.User.Phone as Phone
 import Wire.API.User.RichInfo (RichInfo)
-
--- import SAML2.WebSSO.Types
-
--- import qualified Web.Scim.Schema.User as Scim.User
 
 tests :: Manager -> ClientState -> Brig -> Galley -> Spar -> IO TestTree
 tests m db brig galley spar = do
@@ -65,8 +61,7 @@ tests m db brig galley spar = do
       [test m "works" (testCleanExpiredPendingInvitations db brig galley spar)]
 
 testCleanExpiredPendingInvitations :: ClientState -> Brig -> Galley -> Spar -> Http ()
-testCleanExpiredPendingInvitations _db brig galley spar = do
-  email <- randomEmail
+testCleanExpiredPendingInvitations db brig galley spar = do
   (owner, tid) <- createUserWithTeamDisableSSO brig galley
   CreateScimTokenResponse tok _ <-
     createToken spar owner $
@@ -74,17 +69,36 @@ testCleanExpiredPendingInvitations _db brig galley spar = do
         { createScimTokenDescr = "testCreateToken",
           createScimTokenPassword = Just defPassword
         }
-  scimUser <- lift (randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email})
-  (scimStoredUser1, _inv, inviteeCode) <- createUser'step spar brig tok tid scimUser email
-  print scimStoredUser1
-  print inviteeCode
+
+  uid <- do
+    email <- randomEmail
+    scimUser <- lift (randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email})
+    (scimStoredUser, _inv, _inviteeCode) <- createUser'step spar brig tok tid scimUser email
+    pure $ (Scim.id . Scim.thing) scimStoredUser
+
+  assertUserExist "user should exist" db uid True
   where
     createUser'step spar' brig' tok tid scimUser email = do
-      -- scimStoredUser <- aFewTimesRecover (createUser tok scimUser)
       scimStoredUser <- (createUser spar' tok scimUser)
       inv <- getInvitationByEmail brig' email
       Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
       pure (scimStoredUser, inv, inviteeCode)
+
+    assertUserExist msg db' uid shouldExist = do
+      exists <- runClient db' (userExists uid)
+      liftIO $ assertEqual msg exists shouldExist
+
+userExists :: MonadClient m => UserId -> m Bool
+userExists uid = do
+  x <- retry x1 (query1 usersSelect (params Quorum (Identity uid)))
+  pure $
+    case x of
+      Nothing -> False
+      Just (_, mbStatus) ->
+        maybe True (/= Deleted) mbStatus
+  where
+    usersSelect :: PrepQuery R (Identity UserId) (UserId, Maybe AccountStatus)
+    usersSelect = "SELECT id, status FROM user where id = ?"
 
 getInvitationByEmail :: Brig -> Email -> Http Invitation
 getInvitationByEmail brig email =
@@ -235,10 +249,6 @@ contentScim = content "application/scim+json"
 -- | Signal that the response type is expected to be an SCIM payload.
 acceptScim :: Request -> Request
 acceptScim = accept "application/scim+json"
-
--- -- | Get ID of a user returned from SCIM.
--- scimUserId :: Scim.StoredUser SparTag -> UserId
--- scimUserId = Scim.id . Scim.thing
 
 getInvitationCode ::
   (MonadIO m, MonadHttp m, HasCallStack) =>
