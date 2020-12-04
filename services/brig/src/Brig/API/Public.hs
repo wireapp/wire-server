@@ -157,9 +157,22 @@ type CheckUserExistsResponse = [Empty200, Empty404]
 
 -- Note [document responses]
 --
--- Ideally we want to document responses with UVerb and swagger, but this is not
+-- Ideally we want to document responses with UVerb and swagger, but this is
 -- currently not possible due to this issue:
 -- https://github.com/haskell-servant/servant/issues/1369
+
+-- See Note [ephemeral user sideeffect]
+--
+-- See Note [document responses]
+-- The responses looked like this:
+--   Doc.response 200 "User exists" Doc.end
+--   Doc.errorResponse userNotFound
+type CheckUserExistsUnqualified =
+  Summary "Check if a user ID exists (deprecated)"
+    :> ZAuthServant
+    :> "users"
+    :> CaptureUserId "uid"
+    :> UVerb 'HEAD '[Servant.JSON] CheckUserExistsResponse
 
 -- See Note [ephemeral user sideeffect]
 --
@@ -179,22 +192,9 @@ type CheckUserExistsQualified =
 --
 -- See Note [document responses]
 -- The responses looked like this:
---   Doc.response 200 "User exists" Doc.end
---   Doc.errorResponse userNotFound
-type CheckUserExistsUnqualified =
-  Summary "Check if a user ID exists (deprecated)"
-    :> ZAuthServant
-    :> "users"
-    :> CaptureUserId "uid"
-    :> UVerb 'HEAD '[Servant.JSON] CheckUserExistsResponse
-
--- See Note [ephemeral user sideeffect]
---
--- See Note [document responses]
--- The responses looked like this:
 --   Doc.response 200 "User" Doc.end
 --   Doc.errorResponse userNotFound
-type GetUserUnQualified =
+type GetUserUnqualified =
   Summary "Get a user by UserId (deprecated)"
     :> ZAuthServant
     :> "users"
@@ -204,7 +204,7 @@ type GetUserUnQualified =
 -- See Note [ephemeral user sideeffect]
 --
 -- See Note [document responses]
--- The responses looked like:
+-- The responses looked like this:
 --   Doc.response 200 "User" Doc.end
 --   Doc.errorResponse userNotFound
 type GetUserQualified =
@@ -216,9 +216,9 @@ type GetUserQualified =
     :> Get '[Servant.JSON] Public.UserProfile
 
 type OutsideWorldAPI =
-  CheckUserExistsQualified
-    :<|> CheckUserExistsUnqualified
-    :<|> GetUserUnQualified
+  CheckUserExistsUnqualified
+    :<|> CheckUserExistsQualified
+    :<|> GetUserUnqualified
     :<|> GetUserQualified
 
 type ServantAPI =
@@ -228,8 +228,8 @@ type ServantAPI =
 servantSitemap :: ServerT ServantAPI Handler
 servantSitemap =
   pure (toSwagger (Proxy @OutsideWorldAPI))
-    :<|> checkQualifiedUserExistsH
-    :<|> checkUnqualifiedUserExistsH
+    :<|> checkUserExistsUnqualifiedH
+    :<|> checkUserExistsH
     :<|> getUserUnqualifiedH
     :<|> getUserH
 
@@ -1147,17 +1147,17 @@ createUser (Public.NewUserPublic new) = do
       Public.NewTeamMemberSSO _ ->
         Team.sendMemberWelcomeMail e t n l
 
-checkQualifiedUserExistsH :: UserId -> Domain -> UserId -> Handler (Union CheckUserExistsResponse)
-checkQualifiedUserExistsH self domain uid = do
+checkUserExistsUnqualifiedH :: UserId -> UserId -> Handler (Union CheckUserExistsResponse)
+checkUserExistsUnqualifiedH self uid = do
+  domain <- API.viewFederationDomain
+  checkUserExistsH self domain uid
+
+checkUserExistsH :: UserId -> Domain -> UserId -> Handler (Union CheckUserExistsResponse)
+checkUserExistsH self domain uid = do
   exists <- checkUserExists self (Qualified uid domain)
   if exists
     then Servant.respond Empty200
     else Servant.respond Empty404
-
-checkUnqualifiedUserExistsH :: UserId -> UserId -> Handler (Union CheckUserExistsResponse)
-checkUnqualifiedUserExistsH self uid = do
-  domain <- API.viewFederationDomain
-  checkQualifiedUserExistsH self domain uid
 
 checkUserExists :: UserId -> Qualified UserId -> Handler Bool
 checkUserExists self qualifiedUserId =
@@ -1174,7 +1174,7 @@ getSelf self = do
 getUserUnqualifiedH :: UserId -> UserId -> Handler Public.UserProfile
 getUserUnqualifiedH self uid = do
   domain <- API.viewFederationDomain
-  ifNothing userNotFound =<< getUser self (Qualified uid domain)
+  getUserH self domain uid
 
 getUserH :: UserId -> Domain -> UserId -> Handler Public.UserProfile
 getUserH self domain uid =
