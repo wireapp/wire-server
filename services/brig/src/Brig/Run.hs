@@ -60,6 +60,7 @@ import Servant ((:<|>) (..))
 import qualified Servant
 import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Class (MonadLogger, err)
+import qualified System.Logger.Class as Log
 import Util.Options
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it
@@ -120,8 +121,11 @@ lookupRequestIdMiddleware mkapp req cont = do
 
 cleanExpiredPendingInvitations :: AppIO ()
 cleanExpiredPendingInvitations = do
+  Log.info $ Log.msg $ Log.val "clean loop start"
+
   safeForever "cleanExpiredPendingInvitations" $ do
     now <- liftIO =<< view currentTime
+    Log.info $ Log.msg $ Log.val "clean loop iteration"
 
     forExpirationsPaged $ \exps -> do
       expiredUsers <-
@@ -135,9 +139,11 @@ cleanExpiredPendingInvitations = do
               )
       API.deleteUsersNoVerify expiredUsers
       removeTrackedExpirations (upaUserId <$> exps)
+      Log.info $ Log.msg $ Log.val (cs . show $ (expiredUsers, exps))
 
     -- TODO(add to settings)
-    let d :: Int = 24 * 60 * 60
+    -- let d :: Int = 24 * 60 * 60
+    let d :: Int = 1
     randomSecs :: Int <- liftIO (round <$> randomRIO @Double (0.5 * fromIntegral d, fromIntegral d))
     threadDelay (randomSecs * 1_000_000)
   where
@@ -150,12 +156,6 @@ cleanExpiredPendingInvitations = do
           f result
           when hasMore $
             go =<< liftClient nextPage
-
-    -- go :: [UserPendingActivation] -> AppIO ()
-    -- go [] = pure ()
-    -- go entries = do
-    --   f entries
-    --   go =<< searchTrackedExpirations day pageSize
 
     safeForever :: (MonadIO m, MonadLogger m, MonadCatch m) => String -> m () -> m ()
     safeForever funName action =

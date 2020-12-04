@@ -36,7 +36,7 @@ data UserPendingActivation = UserPendingActivation
   { upaUserId :: !UserId,
     upaDay :: !UTCTime
   }
-  deriving stock (Eq)
+  deriving stock (Eq, Show, Ord)
 
 -- | Note: Call this function only after an invitation for the user has been created
 trackExpiration :: UserPendingActivation -> AppIO ()
@@ -52,7 +52,7 @@ getAllTrackedExpirations = do
   where
     selectExpired :: PrepQuery R () (UserId, UTCTime)
     selectExpired =
-      "SELECT expires_at, user FROM users_pending_activation"
+      "SELECT user, expires_at FROM users_pending_activation"
 
 removeTrackedExpiration :: UserId -> AppIO ()
 removeTrackedExpiration uid = removeTrackedExpirations [uid]

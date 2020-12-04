@@ -1,3 +1,5 @@
+{-# LANGUAGE NumericUnderscores #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
@@ -9,10 +11,9 @@
 module API.UserPendingActivation where
 
 import API.Team.Util (getTeams)
--- import Web.HttpApiData (toHeader)
-
 import Bilge hiding (query)
 import Bilge.Assert ((<!!), (===))
+import Brig.Options (Opts (..), setTeamInvitationTimeout)
 import Brig.Types
 import qualified Brig.Types as Brig
 import Brig.Types.Intra (AccountStatus (Deleted))
@@ -37,7 +38,7 @@ import Imports
 import qualified SAML2.WebSSO as SAML
 import Spar.Scim (CreateScimTokenResponse (..), SparTag, userSchemas)
 import Spar.Scim.Types (CreateScimToken (..), ScimUserExtra (ScimUserExtra))
-import Spar.Types
+import Spar.Types hiding (Opts)
 import Test.QuickCheck (generate)
 import Test.QuickCheck.Arbitrary (Arbitrary (arbitrary))
 import Test.Tasty
@@ -53,15 +54,15 @@ import qualified Web.Scim.Schema.User.Email as Email
 import qualified Web.Scim.Schema.User.Phone as Phone
 import Wire.API.User.RichInfo (RichInfo)
 
-tests :: Manager -> ClientState -> Brig -> Galley -> Spar -> IO TestTree
-tests m db brig galley spar = do
+tests :: Opts -> Manager -> ClientState -> Brig -> Galley -> Spar -> IO TestTree
+tests opts m db brig galley spar = do
   return $
     testGroup
       "cleanExpiredPendingInvitations"
-      [test m "works" (testCleanExpiredPendingInvitations db brig galley spar)]
+      [test m "works" (testCleanExpiredPendingInvitations opts db brig galley spar)]
 
-testCleanExpiredPendingInvitations :: ClientState -> Brig -> Galley -> Spar -> Http ()
-testCleanExpiredPendingInvitations db brig galley spar = do
+testCleanExpiredPendingInvitations :: Opts -> ClientState -> Brig -> Galley -> Spar -> Http ()
+testCleanExpiredPendingInvitations opts db brig galley spar = do
   (owner, tid) <- createUserWithTeamDisableSSO brig galley
   CreateScimTokenResponse tok _ <-
     createToken spar owner $
@@ -77,16 +78,26 @@ testCleanExpiredPendingInvitations db brig galley spar = do
     pure $ (Scim.id . Scim.thing) scimStoredUser
 
   assertUserExist "user should exist" db uid True
+  waitUserExpiration opts
   where
+    -- assertUserExist "user should be deleted" db uid False
+
     createUser'step spar' brig' tok tid scimUser email = do
       scimStoredUser <- (createUser spar' tok scimUser)
       inv <- getInvitationByEmail brig' email
       Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
       pure (scimStoredUser, inv, inviteeCode)
 
+    assertUserExist :: HasCallStack => String -> ClientState -> UserId -> Bool -> HttpT IO ()
     assertUserExist msg db' uid shouldExist = do
       exists <- runClient db' (userExists uid)
-      liftIO $ assertEqual msg exists shouldExist
+      liftIO $ assertEqual msg shouldExist exists
+
+    waitUserExpiration :: (MonadIO m, MonadUnliftIO m) => Opts -> m ()
+    waitUserExpiration opts' = do
+      let timeoutSecs = round @Double . realToFrac . setTeamInvitationTimeout . optSettings $ opts'
+      Control.Exception.assert (timeoutSecs < 30) $ do
+        threadDelay $ (timeoutSecs + 3) * 1_000_000
 
 userExists :: MonadClient m => UserId -> m Bool
 userExists uid = do
