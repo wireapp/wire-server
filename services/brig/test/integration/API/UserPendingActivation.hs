@@ -46,6 +46,7 @@ import Test.QuickCheck.Arbitrary (Arbitrary (arbitrary))
 import Test.Tasty
 import qualified Text.Email.Parser as Email
 import Util hiding (createUser)
+import Web.HttpApiData (toHeader)
 import qualified Web.Scim.Class.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Web.Scim.Schema.User.Email as Email
@@ -88,7 +89,7 @@ testCleanExpiredPendingInvitations _db brig galley spar = do
 getInvitationByEmail :: Brig -> Email -> Http Invitation
 getInvitationByEmail brig email =
   responseJsonUnsafe
-    <$> ( Bilge.get (brig . path "/teams/invitations/by-email" . contentJson . queryItem "email" (toByteString' email))
+    <$> ( Bilge.get (brig . path "/i/teams/invitations/by-email" . contentJson . queryItem "email" (toByteString' email))
             <!! const 200 === statusCode
         )
 
@@ -225,8 +226,7 @@ createUser_ spar auth user = do
 -- | Add SCIM authentication to a request.
 scimAuth :: Maybe ScimToken -> Request -> Request
 scimAuth Nothing = id
--- scimAuth (Just auth) = header "Authorization" (toHeader auth)
-scimAuth (Just _auth) = undefined -- TODO
+scimAuth (Just auth) = header "Authorization" (toHeader auth)
 
 -- | Signal that the body is an SCIM payload.
 contentScim :: Request -> Request
