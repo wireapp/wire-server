@@ -79,6 +79,8 @@ type Galley = Request -> Request
 
 type Nginz = Request -> Request
 
+type Spar = Request -> Request
+
 instance ToJSON SESBounceType where
   toJSON BounceUndetermined = String "Undetermined"
   toJSON BouncePermanent = String "Permanent"

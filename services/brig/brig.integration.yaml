@@ -24,6 +24,10 @@ gundeck:
   host: 127.0.0.1
   port: 8086
 
+spar:
+  host: 127.0.0.1
+  port: 8088
+
 # federator:
 #   host: 127.0.0.1
 #   port: 8097

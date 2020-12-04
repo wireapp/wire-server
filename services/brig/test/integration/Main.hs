@@ -63,6 +63,7 @@ data Config = Config
     cargohold :: Endpoint,
     galley :: Endpoint,
     nginz :: Endpoint,
+    spar :: Endpoint,
     -- external provider
     provider :: Provider.Config
   }
@@ -82,6 +83,7 @@ runTests iConf bConf otherArgs = do
   ch <- mkRequest <$> optOrEnv cargohold iConf (local . read) "CARGOHOLD_WEB_PORT"
   g <- mkRequest <$> optOrEnv galley iConf (local . read) "GALLEY_WEB_PORT"
   n <- mkRequest <$> optOrEnv nginz iConf (local . read) "NGINZ_WEB_PORT"
+  s <- mkRequest <$> optOrEnv spar iConf (local . read) "SPAR_WEB_PORT"
   turnFile <- optOrEnv (Opts.servers . Opts.turn) bConf id "TURN_SERVERS"
   turnFileV2 <- optOrEnv (Opts.serversV2 . Opts.turn) bConf id "TURN_SERVERS_V2"
   casHost <- optOrEnv (\v -> (Opts.cassandra v) ^. casEndpoint . epHost) bConf pack "BRIG_CASSANDRA_HOST"
@@ -101,7 +103,7 @@ runTests iConf bConf otherArgs = do
   metricsApi <- Metrics.tests mg b
   settingsApi <- Settings.tests brigOpts mg b g
   createIndex <- Index.Create.spec brigOpts
-  userPendingActivation <- UserPendingActivation.tests mg db b g
+  userPendingActivation <- UserPendingActivation.tests mg db b g s
   withArgs otherArgs . defaultMain $
     testGroup
       "Brig API Integration"

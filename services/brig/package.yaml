@@ -183,6 +183,7 @@ executables:
     source-dirs: test/integration
     dependencies:
     - aeson
+    - lens-aeson
     - async
     - attoparsec
     - bilge
@@ -206,6 +207,7 @@ executables:
     - gundeck-types
     - HsOpenSSL
     - hscim
+    - http-api-data
     - http-client
     - http-client-tls >=0.2
     - http-types
