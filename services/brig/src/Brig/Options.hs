@@ -32,6 +32,7 @@ import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (typeMismatch)
 import Data.Domain (Domain (..))
 import Data.Id
+import Data.Misc (HttpsUrl)
 import Data.Scientific (toBoundedInteger)
 import Data.Time.Clock (NominalDiffTime)
 import Data.Yaml (FromJSON (..), ToJSON (..))
@@ -481,7 +482,12 @@ data Settings = Settings
     -- e.g. '_sft._tcp.example.com'
     setSftDomain :: !(Maybe Domain),
     -- | The maximum amount of SFT URLs sent to clients
-    setSftListLength :: !(Maybe Int)
+    setSftListLength :: !(Maybe Int),
+    -- | When set; instead of using SRV lookups to discover SFTs the calls
+    -- config will always return this entry. This is useful in Kubernetes
+    -- where SFTs are deployed behind a load-balancer.  In the long-run the SRV
+    -- fetching logic can go away completely
+    setSftStaticUrl :: !(Maybe HttpsUrl)
   }
   deriving (Show, Generic)
 
@@ -577,6 +583,7 @@ Lens.makeLensesFor
     ("setFederationDomain", "federationDomain"),
     ("setSftDomain", "sftDomain"),
     ("setSftListLength", "sftListLength"),
+    ("setSftStaticUrl", "sftStaticUrl"),
     ("setSqsThrottleMillis", "sqsThrottleMillis")
   ]
   ''Settings

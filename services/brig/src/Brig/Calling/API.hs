@@ -38,6 +38,7 @@ import Data.Id
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.List1 as List1
+import Data.Misc (HttpsUrl)
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii (AsciiBase64, encodeBase64)
@@ -98,12 +99,14 @@ getCallsConfigV2 :: UserId -> ConnId -> Maybe (Range 1 10 Int) -> Handler Public
 getCallsConfigV2 _ _ limit = do
   env <- liftIO =<< readIORef <$> view turnEnvV2
   resolver' <- view resolver
+  sftStaticUrl <- view (settings . Opt.sftStaticUrl)
   sftDomain <- view (settings . Opt.sftDomain)
   -- TODO not hardcode this default?
   sftLimit <- (fromMaybe 5) <$> view (settings . Opt.sftListLength)
   -- If no domain is set, consider sft disabled don't resolve (sft will be Nothing)
+  -- if a static url is set; always return that
   let sft = (,,) <$> pure resolver' <*> sftDomain <*> pure sftLimit
-  newConfig env sft limit
+  newConfig env sftStaticUrl sft limit
 
 getCallsConfigH :: JSON ::: UserId ::: ConnId -> Handler Response
 getCallsConfigH (_ ::: uid ::: connid) =
@@ -112,7 +115,7 @@ getCallsConfigH (_ ::: uid ::: connid) =
 getCallsConfig :: UserId -> ConnId -> Handler Public.RTCConfiguration
 getCallsConfig _ _ = do
   env <- liftIO =<< readIORef <$> view turnEnv
-  dropTransport <$> newConfig env Nothing Nothing
+  dropTransport <$> newConfig env Nothing Nothing Nothing
   where
     -- In order to avoid being backwards incompatible, remove the `transport` query param from the URIs
     dropTransport :: Public.RTCConfiguration -> Public.RTCConfiguration
@@ -121,8 +124,8 @@ getCallsConfig _ _ = do
         (Public.rtcConfIceServers . traverse . Public.iceURLs . traverse . Public.turiTransport)
         Nothing
 
-newConfig :: MonadIO m => Calling.Env -> Maybe (Resolver, Domain, Int) -> Maybe (Range 1 10 Int) -> m Public.RTCConfiguration
-newConfig env sft limit = do
+newConfig :: MonadIO m => Calling.Env -> Maybe HttpsUrl -> Maybe (Resolver, Domain, Int) -> Maybe (Range 1 10 Int) -> m Public.RTCConfiguration
+newConfig env sftStaticUrl sft limit = do
   let (sha, secret, tTTL, cTTL, prng) = (env ^. turnSHA512, env ^. turnSecret, env ^. turnTokenTTL, env ^. turnConfigTTL, env ^. turnPrng)
   -- randomize list of servers (before limiting the list, to ensure not always the same servers are chosen if limit is set)
   randomizedUris <- liftIO $ randomize (List1.toNonEmpty $ env ^. turnServers)
@@ -135,6 +138,7 @@ newConfig env sft limit = do
     u <- liftIO $ genUsername tTTL prng
     pure $ Public.rtcIceServer (uri :| []) u (computeCred sha secret u)
 
+  let staticSft = (\url -> Public.sftServer url :| []) <$> sftStaticUrl
   sftEntries <- runMaybeT $ do
     (resolver', domain', limit') <- MaybeT (pure sft)
     -- NOTE: This is safe to do as domainText is ASCII
@@ -148,7 +152,7 @@ newConfig env sft limit = do
       shuffled' <- liftIO $ take limit' <$> shuffleM entries
       pure $ NonEmpty.nonEmpty shuffled'
     pure $ sftServerFromSrvTarget <$> shuffled
-  pure $ Public.rtcConfiguration srvs sftEntries cTTL
+  pure $ Public.rtcConfiguration srvs (staticSft <|> sftEntries) cTTL
   where
     limitedList :: NonEmpty Public.TurnURI -> Range 1 10 Int -> NonEmpty Public.TurnURI
     limitedList uris lim =
