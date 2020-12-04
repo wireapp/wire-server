@@ -1,9 +1,10 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-{-# OPTIONS_GHC -Wno-name-shadowing #-}
-{-# OPTIONS_GHC -Wno-unused-imports #-}
-{-# OPTIONS_GHC -Wno-unused-local-binds #-}
-{-# OPTIONS_GHC -Wno-unused-matches #-}
+
+-- {-# OPTIONS_GHC -Wno-name-shadowing #-}
+-- {-# OPTIONS_GHC -Wno-unused-imports #-}
+-- {-# OPTIONS_GHC -Wno-unused-local-binds #-}
+-- {-# OPTIONS_GHC -Wno-unused-matches #-}
 
 module API.UserPendingActivation where
 
@@ -11,7 +12,7 @@ import API.Team.Util (getTeams)
 -- import Web.HttpApiData (toHeader)
 
 import Bilge (Http, MonadHttp, Response (responseBody), post, responseJsonUnsafe)
-import Bilge.Assert ((!!!), (<!!), (===))
+import Bilge.Assert ((<!!), (===))
 import Bilge.IO (Manager)
 import qualified Bilge.IO as Bilge
 import Bilge.Request
@@ -24,7 +25,6 @@ import qualified Control.Exception
 import Control.Lens ((^.), (^?))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Random
-import Control.Monad.Random.Class (MonadRandom)
 import Data.Aeson hiding (json)
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Lens (key, _String)
@@ -38,8 +38,8 @@ import qualified Data.UUID.V4 as UUID
 import qualified Galley.Types.Teams as Galley
 import Imports
 import qualified SAML2.WebSSO as SAML
-import Spar.Scim (ScimUserExtra, SparTag, userSchemas)
-import Spar.Scim.Types (ScimUserExtra (ScimUserExtra))
+import Spar.Scim (CreateScimTokenResponse (..), SparTag, userSchemas)
+import Spar.Scim.Types (CreateScimToken (..), ScimUserExtra (ScimUserExtra))
 import Spar.Types
 import Test.QuickCheck (generate)
 import Test.QuickCheck.Arbitrary (Arbitrary (arbitrary))
@@ -50,7 +50,7 @@ import qualified Web.Scim.Class.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Web.Scim.Schema.User.Email as Email
 import qualified Web.Scim.Schema.User.Phone as Phone
-import Wire.API.User.RichInfo (RichInfo (RichInfo))
+import Wire.API.User.RichInfo (RichInfo)
 
 -- import SAML2.WebSSO.Types
 
@@ -66,15 +66,22 @@ tests m db brig galley spar = do
 testCleanExpiredPendingInvitations :: ClientState -> Brig -> Galley -> Spar -> Http ()
 testCleanExpiredPendingInvitations _db brig galley spar = do
   email <- randomEmail
-  (_uid, _tid) <- createUserWithTeamDisableSSO brig galley
-  _scimUser <- lift (randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email})
+  (owner, tid) <- createUserWithTeamDisableSSO brig galley
+  CreateScimTokenResponse tok _ <-
+    createToken spar owner $
+      CreateScimToken
+        { createScimTokenDescr = "testCreateToken",
+          createScimTokenPassword = Just defPassword
+        }
+  scimUser <- lift (randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email})
   (scimStoredUser1, _inv, inviteeCode) <- createUser'step spar brig tok tid scimUser email
-  pure ()
+  print scimStoredUser1
+  print inviteeCode
   where
-    createUser'step spar brig tok tid scimUser email = do
+    createUser'step spar' brig' tok tid scimUser email = do
       -- scimStoredUser <- aFewTimesRecover (createUser tok scimUser)
-      scimStoredUser <- (createUser spar tok scimUser)
-      inv <- getInvitationByEmail brig email
+      scimStoredUser <- (createUser spar' tok scimUser)
+      inv <- getInvitationByEmail brig' email
       Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
       pure (scimStoredUser, inv, inviteeCode)
 
@@ -84,8 +91,6 @@ getInvitationByEmail brig email =
     <$> ( Bilge.get (brig . path "/teams/invitations/by-email" . contentJson . queryItem "email" (toByteString' email))
             <!! const 200 === statusCode
         )
-
--- (owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
 
 newTeam :: Galley.BindingNewTeam
 newTeam = Galley.BindingNewTeam $ Galley.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")
@@ -251,3 +256,37 @@ getInvitationCode brig t ref = do
       )
   let lbs = fromMaybe "" $ responseBody r
   return $ fromByteString . fromMaybe (error "No code?") $ encodeUtf8 <$> (lbs ^? key "code" . _String)
+
+-- | Create a SCIM token.
+createToken_ ::
+  Spar ->
+  -- | User
+  UserId ->
+  CreateScimToken ->
+  -- | Spar endpoint
+  Http ResponseLBS
+createToken_ spar userid payload = do
+  post $
+    ( spar
+        . paths ["scim", "auth-tokens"]
+        . zUser userid
+        . contentJson
+        . json payload
+        . acceptJson
+    )
+
+-- | Create a SCIM token.
+createToken ::
+  HasCallStack =>
+  Spar ->
+  UserId ->
+  CreateScimToken ->
+  Http CreateScimTokenResponse
+createToken spar zusr payload = do
+  r <-
+    createToken_
+      spar
+      zusr
+      payload
+      <!! const 200 === statusCode
+  pure (responseJsonUnsafe r)
