@@ -14,7 +14,7 @@ import API.Team.Util (getTeams)
 import Bilge hiding (query)
 import Bilge.Assert ((<!!), (===))
 import Brig.Options (Opts (..), setTeamInvitationTimeout)
-import Brig.Types
+import Brig.Types hiding (User)
 import qualified Brig.Types as Brig
 import Brig.Types.Intra (AccountStatus (Deleted))
 import Brig.Types.Team.Invitation (Invitation (inInvitation))
@@ -47,7 +47,9 @@ import qualified Text.Email.Parser as Email
 import Util hiding (createUser)
 import Web.HttpApiData (toHeader)
 import qualified Web.Scim.Class.User as Scim
+import Web.Scim.Schema.Common (WithId)
 import qualified Web.Scim.Schema.Common as Scim
+import Web.Scim.Schema.Meta (WithMeta)
 import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Web.Scim.Schema.User.Email as Email
@@ -59,45 +61,63 @@ tests opts m db brig galley spar = do
   return $
     testGroup
       "cleanExpiredPendingInvitations"
-      [test m "works" (testCleanExpiredPendingInvitations opts db brig galley spar)]
+      [ test m "expired users get cleaned" (testCleanExpiredPendingInvitations opts db brig galley spar),
+        test m "users that register dont get cleaned" (testRegisteredUsersNotCleaned opts db brig galley spar)
+      ]
 
 testCleanExpiredPendingInvitations :: Opts -> ClientState -> Brig -> Galley -> Spar -> Http ()
 testCleanExpiredPendingInvitations opts db brig galley spar = do
   (owner, tid) <- createUserWithTeamDisableSSO brig galley
-  CreateScimTokenResponse tok _ <-
-    createToken spar owner $
-      CreateScimToken
-        { createScimTokenDescr = "testCreateToken",
-          createScimTokenPassword = Just defPassword
-        }
-
+  tok <- createScimToken spar owner
   uid <- do
     email <- randomEmail
     scimUser <- lift (randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email})
     (scimStoredUser, _inv, _inviteeCode) <- createUser'step spar brig tok tid scimUser email
     pure $ (Scim.id . Scim.thing) scimStoredUser
-
   assertUserExist "user should exist" db uid True
   waitUserExpiration opts
-  where
-    -- assertUserExist "user should be deleted" db uid False
+  assertUserExist "user should be removed" db uid False
 
-    createUser'step spar' brig' tok tid scimUser email = do
-      scimStoredUser <- (createUser spar' tok scimUser)
-      inv <- getInvitationByEmail brig' email
-      Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
-      pure (scimStoredUser, inv, inviteeCode)
+testRegisteredUsersNotCleaned :: Opts -> ClientState -> Brig -> Galley -> Spar -> Http ()
+testRegisteredUsersNotCleaned opts db brig galley spar = do
+  (owner, tid) <- createUserWithTeamDisableSSO brig galley
+  tok <- createScimToken spar owner
+  email <- randomEmail
+  scimUser <- lift (randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email})
+  (scimStoredUser, _inv, inviteeCode) <- createUser'step spar brig tok tid scimUser email
+  let uid = (Scim.id . Scim.thing) scimStoredUser
+  assertUserExist "user should exist" db uid True
+  registerInvitation brig email (Name "Alice") inviteeCode True
+  waitUserExpiration opts
+  assertUserExist "user should still exist" db uid True
 
-    assertUserExist :: HasCallStack => String -> ClientState -> UserId -> Bool -> HttpT IO ()
-    assertUserExist msg db' uid shouldExist = do
-      exists <- runClient db' (userExists uid)
-      liftIO $ assertEqual msg shouldExist exists
+createScimToken :: Spar -> UserId -> HttpT IO ScimToken
+createScimToken spar' owner = do
+  CreateScimTokenResponse tok _ <-
+    createToken spar' owner $
+      CreateScimToken
+        { createScimTokenDescr = "testCreateToken",
+          createScimTokenPassword = Just defPassword
+        }
+  pure tok
 
-    waitUserExpiration :: (MonadIO m, MonadUnliftIO m) => Opts -> m ()
-    waitUserExpiration opts' = do
-      let timeoutSecs = round @Double . realToFrac . setTeamInvitationTimeout . optSettings $ opts'
-      Control.Exception.assert (timeoutSecs < 30) $ do
-        threadDelay $ (timeoutSecs + 3) * 1_000_000
+createUser'step :: Spar -> Brig -> ScimToken -> TeamId -> Scim.User.User SparTag -> Email -> HttpT IO (WithMeta (WithId UserId (Scim.User.User SparTag)), Invitation, InvitationCode)
+createUser'step spar' brig' tok tid scimUser email = do
+  scimStoredUser <- (createUser spar' tok scimUser)
+  inv <- getInvitationByEmail brig' email
+  Just inviteeCode <- getInvitationCode brig' tid (inInvitation inv)
+  pure (scimStoredUser, inv, inviteeCode)
+
+assertUserExist :: HasCallStack => String -> ClientState -> UserId -> Bool -> HttpT IO ()
+assertUserExist msg db' uid shouldExist = do
+  exists <- runClient db' (userExists uid)
+  liftIO $ assertEqual msg shouldExist exists
+
+waitUserExpiration :: (MonadIO m, MonadUnliftIO m) => Opts -> m ()
+waitUserExpiration opts' = do
+  let timeoutSecs = round @Double . realToFrac . setTeamInvitationTimeout . optSettings $ opts'
+  Control.Exception.assert (timeoutSecs < 30) $ do
+    threadDelay $ (timeoutSecs + 3) * 1_000_000
 
 userExists :: MonadClient m => UserId -> m Bool
 userExists uid = do
@@ -311,3 +331,22 @@ createToken spar zusr payload = do
       payload
       <!! const 200 === statusCode
   pure (responseJsonUnsafe r)
+
+registerInvitation :: Brig -> Email -> Name -> InvitationCode -> Bool -> Http ()
+registerInvitation brig email name inviteeCode shouldSucceed = do
+  void $
+    post
+      ( brig . path "/register"
+          . contentJson
+          . json (acceptWithName name email inviteeCode)
+      )
+      <!! const (if shouldSucceed then 201 else 400) === statusCode
+
+acceptWithName :: Name -> Email -> InvitationCode -> Aeson.Value
+acceptWithName name email code =
+  Aeson.object
+    [ "name" Aeson..= fromName name,
+      "email" Aeson..= fromEmail email,
+      "password" Aeson..= defPassword,
+      "team_code" Aeson..= code
+    ]
