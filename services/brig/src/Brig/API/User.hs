@@ -1021,7 +1021,8 @@ deleteUsersNoVerify :: [UserId] -> AppIO ()
 deleteUsersNoVerify uids = do
   for_ uids deleteUserNoVerify
   m <- view metrics
-  Metrics.counterAdd (fromIntegral . length $ uids) (Metrics.path "user.multideleted") m
+  Metrics.counterAdd (fromIntegral . length $ uids) (Metrics.path "user.enqueue_multi_delete_total") m
+  Metrics.counterIncr (Metrics.path "user.enqueue_multi_delete_calls_total") m
 
 -- | Garbage collect users if they're ephemeral and they have expired.
 -- Always returns the user (deletion itself is delayed)
