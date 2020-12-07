@@ -29,6 +29,7 @@ library:
   - hashable
   - lens >=4.12
   - protobuf >=0.2
+  - QuickCheck
   - string-conversions
   - swagger >=0.1
   - text >=0.11

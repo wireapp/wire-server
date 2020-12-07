@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b41772acd74181a186da3c81fa43def5f82ca80b35c55f158ae40376fa8097ff
+-- hash: ca2f734c53caa46ec936e61bd48f4e3222441845a672faf97c130c4b5476dc15
 
 name:           galley-types
 version:        0.81.0
