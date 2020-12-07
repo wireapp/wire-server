@@ -98,7 +98,6 @@ library:
   - servant-server
   - servant-swagger
   - servant-swagger-ui
-  - servant-swagger-ui-core
   - singletons >=2.0
   - stomp-queue >=0.3
   - string-conversions

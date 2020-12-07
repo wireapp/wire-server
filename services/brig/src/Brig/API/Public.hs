@@ -89,7 +89,6 @@ import qualified Servant
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
--- import qualified Servant.Swagger.UI.Core as SwaggerUI
 import qualified System.Logger.Class as Log
 import qualified Wire.API.Connection as Public
 import qualified Wire.API.Properties as Public
@@ -241,17 +240,15 @@ swaggerDoc = toSwagger (Proxy @OutsideWorldAPI)
 --
 
 servantHandlerSitemap :: Servant.Server ServantHandlerAPI
-servantHandlerSitemap =
-  (swaggerSchemaUIServer swaggerDoc)
+servantHandlerSitemap = swaggerSchemaUIServer swaggerDoc
 
 servantSitemap :: ServerT ServantAPI Handler
 servantSitemap =
   pure (toSwagger (Proxy @OutsideWorldAPI))
-    :<|> ( checkUserExistsUnqualifiedH
-             :<|> checkUserExistsH
-             :<|> getUserUnqualifiedH
-             :<|> getUserH
-         )
+    :<|> checkUserExistsUnqualifiedH
+    :<|> checkUserExistsH
+    :<|> getUserUnqualifiedH
+    :<|> getUserH
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
