@@ -21,22 +21,17 @@ import Control.Lens ((?~))
 import qualified Data.ByteString.Char8 as BS
 import Data.Misc (ensureHttpsUrl)
 import Imports
+import Network.DNS.Types (Domain)
+import Network.DNS.Utils (normalize)
 import qualified URI.ByteString as URI
 import qualified URI.ByteString.QQ as URI
 import qualified Wire.API.Call.Config as Public
-import Wire.Network.DNS.SRV (SrvTarget (..))
 
 -- FUTUREWORK: Extract function to translate SrvTarget to HttpsUrl and use it
 -- wherever we use DNS for service discovery
-sftServerFromSrvTarget :: SrvTarget -> Public.SFTServer
-sftServerFromSrvTarget (SrvTarget host port) =
+sftServerFromSrvTarget :: (Word16, Word16, Word16, Domain) -> Public.SFTServer
+sftServerFromSrvTarget (_priority, _weight, port, target) =
   let uriPort = URI.Port (fromIntegral port)
-      uriHost = URI.Host (dropTrailingDot host)
+      uriHost = URI.Host . BS.init . normalize $ target
       uri = [URI.uri|https://|] & URI.authorityL ?~ URI.Authority Nothing uriHost (Just uriPort)
    in Public.sftServer (ensureHttpsUrl uri)
-  where
-    dropTrailingDot :: ByteString -> ByteString
-    dropTrailingDot bs =
-      if BS.last bs == '.'
-        then BS.init bs
-        else bs

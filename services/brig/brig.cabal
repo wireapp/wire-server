@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.2.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9f982304b3e4de02c3a782a8053c4d3d2e0ab19d3e6bd497684f37ceaaf7215a
+-- hash: d2928513db14f4f34a8ac81fd20d831353fdf33314abb80c404cfa8da938c416
 
 name:           brig
 version:        1.35.0
@@ -439,7 +439,6 @@ test-suite brig-tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
-      Test.Brig.Calling
       Test.Brig.Calling.Internal
       Test.Brig.User.Search.Index.Types
       Paths_brig
