@@ -60,7 +60,6 @@ import Servant ((:<|>) (..))
 import qualified Servant
 import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Class (MonadLogger, err)
-import qualified System.Logger.Class as Log
 import Util.Options
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it
@@ -121,12 +120,8 @@ lookupRequestIdMiddleware mkapp req cont = do
 
 cleanExpiredPendingInvitations :: AppIO ()
 cleanExpiredPendingInvitations = do
-  Log.info $ Log.msg $ Log.val "clean loop start"
-
   safeForever "cleanExpiredPendingInvitations" $ do
     now <- liftIO =<< view currentTime
-    Log.info $ Log.msg $ Log.val "clean loop iteration"
-
     forExpirationsPaged $ \exps -> do
       uids <-
         ( for exps $ \(UserPendingActivation uid expiresAt) -> do
@@ -138,26 +133,28 @@ cleanExpiredPendingInvitations = do
               )
           )
 
-      API.deleteUsersNoVerify
-        ( catMaybes
-            ( uids <&> \(isExpired, isPendingInvitation, uid) ->
-                if isExpired && isPendingInvitation then Just uid else Nothing
-            )
-        )
+      API.deleteUsersNoVerify $
+        catMaybes
+          ( uids <&> \(isExpired, isPendingInvitation, uid) ->
+              if isExpired && isPendingInvitation then Just uid else Nothing
+          )
 
-      removeTrackedExpirations
-        ( catMaybes
-            ( uids <&> \(isExpired, _isPendingInvitation, uid) ->
-                if isExpired then Just uid else Nothing
-            )
-        )
+      removeTrackedExpirations $
+        catMaybes
+          ( uids <&> \(isExpired, _isPendingInvitation, uid) ->
+              if isExpired then Just uid else Nothing
+          )
 
-    -- TODO(add to settings)
-    -- let d :: Int = 24 * 60 * 60
-    let d :: Int = 1
-    randomSecs :: Int <- liftIO (round <$> randomRIO @Double (0.5 * fromIntegral d, fromIntegral d))
-    threadDelay (randomSecs * 1_000_000)
+    threadDelayRandom
   where
+    safeForever :: (MonadIO m, MonadLogger m, MonadCatch m) => String -> m () -> m ()
+    safeForever funName action =
+      forever $
+        action `catchAny` \exc -> do
+          err $ "error" .= show exc ~~ msg (val $ cs funName <> " failed")
+          -- pause to keep worst-case noise in logs manageable
+          threadDelay 60_000_000
+
     forExpirationsPaged :: ([UserPendingActivation] -> AppIO ()) -> AppIO ()
     forExpirationsPaged f = do
       go =<< getAllTrackedExpirations
@@ -168,10 +165,12 @@ cleanExpiredPendingInvitations = do
           when hasMore $
             go =<< liftClient nextPage
 
-    safeForever :: (MonadIO m, MonadLogger m, MonadCatch m) => String -> m () -> m ()
-    safeForever funName action =
-      forever $
-        action `catchAny` \exc -> do
-          err $ "error" .= show exc ~~ msg (val $ cs funName <> " failed")
-          -- pause to keep worst-case noise in logs manageable
-          threadDelay 60_000_000
+    threadDelayRandom :: AppIO ()
+    threadDelayRandom = do
+      cleanupTimeout <- fromMaybe (hours 24) . setExpiredUserCleanupTimeout <$> view settings
+      let d = realToFrac cleanupTimeout
+      randomSecs :: Int <- liftIO (round <$> randomRIO @Double (0.5 * d, d))
+      threadDelay (randomSecs * 1_000_000)
+
+    hours :: Double -> Timeout
+    hours n = realToFrac (n * 60 * 60)

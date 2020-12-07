@@ -1019,7 +1019,6 @@ deleteUserNoVerify uid = do
 
 deleteUsersNoVerify :: [UserId] -> AppIO ()
 deleteUsersNoVerify uids = do
-  Log.info $ msg (val "Deleting users")
   for_ uids deleteUserNoVerify
   m <- view metrics
   Metrics.counterAdd (fromIntegral . length $ uids) (Metrics.path "user.multideleted") m
