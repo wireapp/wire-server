@@ -27,4 +27,5 @@ RUN apk add --no-cache \
             llvm-libunwind \
             ca-certificates \
             dumb-init \
+            xz \
             libxml2

@@ -34,7 +34,7 @@ RUN apk add --no-cache \
         snappy-dev \
         llvm-libunwind-dev \
         bash \
-        xz \
+        xz-dev \
         libxml2-dev \
         git \
         ncurses \
