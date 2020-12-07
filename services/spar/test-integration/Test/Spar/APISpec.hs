@@ -632,6 +632,20 @@ specCRUDIdentityProvider = do
         (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
         callIdpDelete' (env ^. teSpar) (Just uid) idpid
           `shouldRespondWith` checkErrHspec 403 "no-team-member"
+    context "zuser is admin resp. member" $ do
+      it "responds 204 resp. 403" $ do
+        env <- ask
+        (_, tid, (^. idpId) -> idpid) <- registerTestIdP
+        let mkUser :: Galley.Role -> TestSpar UserId
+            mkUser role = do
+              let perms = Galley.rolePermissions role
+              call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
+        admin <- mkUser Galley.RoleAdmin
+        member <- mkUser Galley.RoleMember
+        callIdpDelete' (env ^. teSpar) (Just member) idpid
+          `shouldRespondWith` checkErrHspec 403 "no-team-member"
+        callIdpDelete' (env ^. teSpar) (Just admin) idpid
+          `shouldRespondWith` checkErrHspec 204 "no-team-member"
     context "known IdP, IdP empty, client is team owner, without email" $ do
       it "responds with 2xx and removes IdP" $ do
         env <- ask
