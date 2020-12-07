@@ -1,6 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -18,19 +15,19 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Federator.Types where
+module Main
+  ( main,
+  )
+where
 
-import Bilge (RequestId)
-import Control.Lens (makeLenses)
-import Data.Metrics (Metrics)
-import Federator.Options (RunSettings)
-import qualified System.Logger.Class as LC
+import Imports
+import qualified Test.Federator.Options
+import Test.Tasty
 
-data Env = Env
-  { _metrics :: Metrics,
-    _applog :: LC.Logger,
-    _requestId :: RequestId,
-    _runSettings :: RunSettings
-  }
-
-makeLenses ''Env
+main :: IO ()
+main =
+  defaultMain $
+    testGroup
+      "Tests"
+      [ Test.Federator.Options.tests
+      ]
