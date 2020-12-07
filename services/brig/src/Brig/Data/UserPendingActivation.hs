@@ -46,7 +46,7 @@ trackExpiration (UserPendingActivation uid expiresAt) = do
     insertExpiration :: PrepQuery W (UserId, UTCTime) ()
     insertExpiration = "INSERT INTO users_pending_activation (user, expires_at) VALUES (?, ?)"
 
-getAllTrackedExpirations :: MonadClient f => f (Page UserPendingActivation)
+getAllTrackedExpirations :: AppIO (Page UserPendingActivation)
 getAllTrackedExpirations = do
   uncurry UserPendingActivation <$$> retry x1 (paginate selectExpired (params Quorum ()))
   where
