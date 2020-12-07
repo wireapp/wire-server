@@ -40,6 +40,7 @@ library:
   - optparse-applicative      >= 0.8
   - semigroups                >= 0.16
   - split                     >= 0.2
+  - string-conversions
   - swagger                   >= 0.3
   - text                      >= 1.1
   - text-format               >= 0.3

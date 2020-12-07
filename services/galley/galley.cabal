@@ -36,8 +36,9 @@ library
       Galley.API.Public
       Galley.API.Query
       Galley.API.Swagger
-      Galley.API.TeamNotifications
       Galley.API.Teams
+      Galley.API.Teams.Features
+      Galley.API.Teams.Notifications
       Galley.API.Update
       Galley.API.Util
       Galley.App
