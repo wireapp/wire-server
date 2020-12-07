@@ -479,7 +479,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
         (uid, teamid, idp, (_, privcreds)) <- registerTestIdPWithMeta
         (subj, _, _) <- initialBind uid idp privcreds
         uid' <-
-          let Just perms = Galley.newPermissions mempty mempty
+          let perms = Galley.noPermissions
            in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
         (_, sparresp) <- reBindSame uid' idp privcreds subj
         checkDenyingAuthnResp sparresp "subject-id-taken"
@@ -547,7 +547,7 @@ testGetPutDelete whichone = do
       env <- ask
       (_, teamid, (^. idpId) -> idpid, (idpmeta, _)) <- registerTestIdPWithMeta
       newmember <-
-        let Just perms = Galley.newPermissions mempty mempty
+        let perms = Galley.noPermissions
          in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
       whichone (env ^. teSpar) (Just newmember) idpid idpmeta
         `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
@@ -595,7 +595,7 @@ specCRUDIdentityProvider = do
         (_owner :: UserId, teamid :: TeamId) <-
           call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
         member :: UserId <-
-          let Just perms = Galley.newPermissions mempty mempty
+          let perms = Galley.noPermissions
            in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
         callIdpGetAll' (env ^. teSpar) (Just member)
           `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
@@ -838,7 +838,7 @@ specCRUDIdentityProvider = do
         env <- ask
         (_owner, tid, idp) <- registerTestIdP
         newmember <-
-          let Just perms = Galley.newPermissions mempty mempty
+          let perms = Galley.noPermissions
            in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
         callIdpCreate' (env ^. teSpar) (Just newmember) (idp ^. idpMetadata)
           `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
@@ -1144,10 +1144,9 @@ specAux = do
               liftIO $ userTeam parsedResp `shouldSatisfy` isJust
           permses :: [Galley.Permissions]
           permses =
-            fromJust
-              <$> [ Just Galley.fullPermissions,
-                    Galley.newPermissions mempty mempty
-                  ]
+            [ Galley.fullPermissions,
+              Galley.noPermissions
+            ]
       sequence_ [check tryowner perms | tryowner <- [minBound ..], perms <- [0 .. (length permses - 1)]]
 
 specSsoSettings :: SpecWith TestEnv
