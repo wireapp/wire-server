@@ -530,18 +530,19 @@ testGetPutDelete whichone = do
       whichone (env ^. teSpar) Nothing (IdPId UUID.nil) idpmeta
         `shouldRespondWith` checkErrHspec 404 "not-found"
   context "no zuser" $ do
-    it "responds with 'client error'" $ do
+    it "responds with 'insufficient permissions'" $ do
       env <- ask
       (_, _, (^. idpId) -> idpid, (idpmeta, _)) <- registerTestIdPWithMeta
       whichone (env ^. teSpar) Nothing idpid idpmeta
-        `shouldRespondWith` checkErrHspec 400 "client-error"
+        `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
+
   context "zuser has no team" $ do
-    it "responds with 'no team member'" $ do
+    it "responds with 'insufficient permissions'" $ do
       env <- ask
       (_, _, (^. idpId) -> idpid, (idpmeta, _)) <- registerTestIdPWithMeta
       (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
       whichone (env ^. teSpar) (Just uid) idpid idpmeta
-        `shouldRespondWith` checkErrHspec 403 "no-team-member"
+        `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
   context "zuser is a team member, but not a team owner" $ do
     it "responds with 'insufficient-permissions' and a helpful message" $ do
       env <- ask
@@ -571,12 +572,12 @@ specCRUDIdentityProvider = do
   describe "GET /identity-providers/:idp" $ do
     testGetPutDelete (\o t i _ -> callIdpGet' o t i)
     context "zuser has wrong team" $ do
-      it "responds with 'no team member'" $ do
+      it "responds with 'insufficient permissions'" $ do
         env <- ask
         (_, _, (^. idpId) -> idpid) <- registerTestIdP
         (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
         callIdpGet' (env ^. teSpar) (Just uid) idpid
-          `shouldRespondWith` checkErrHspec 403 "no-team-member"
+          `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
     context "known IdP, client is team owner" $ do
       it "responds with 2xx and IdP" $ do
         env <- ask
@@ -631,7 +632,7 @@ specCRUDIdentityProvider = do
         (_, _, (^. idpId) -> idpid) <- registerTestIdP
         (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
         callIdpDelete' (env ^. teSpar) (Just uid) idpid
-          `shouldRespondWith` checkErrHspec 403 "no-team-member"
+          `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
     context "zuser is admin resp. member" $ do
       it "responds 204 resp. 403" $ do
         env <- ask
@@ -643,9 +644,9 @@ specCRUDIdentityProvider = do
         admin <- mkUser Galley.RoleAdmin
         member <- mkUser Galley.RoleMember
         callIdpDelete' (env ^. teSpar) (Just member) idpid
-          `shouldRespondWith` checkErrHspec 403 "no-team-member"
+          `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
         callIdpDelete' (env ^. teSpar) (Just admin) idpid
-          `shouldRespondWith` checkErrHspec 204 "no-team-member"
+          `shouldRespondWith` ((== 204) . statusCode)
     context "known IdP, IdP empty, client is team owner, without email" $ do
       it "responds with 2xx and removes IdP" $ do
         env <- ask
