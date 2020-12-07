@@ -128,18 +128,29 @@ cleanExpiredPendingInvitations = do
     Log.info $ Log.msg $ Log.val "clean loop iteration"
 
     forExpirationsPaged $ \exps -> do
-      expiredUsers <-
-        catMaybes
-          <$> ( for exps $ \(UserPendingActivation uid expiresAt) -> do
-                  isPendingInvitation <- (Just PendingInvitation ==) <$> API.lookupStatus uid
-                  pure $
-                    if (expiresAt < now) && isPendingInvitation
-                      then Just uid
-                      else Nothing
+      uids <-
+        ( for exps $ \(UserPendingActivation uid expiresAt) -> do
+            isPendingInvitation <- (Just PendingInvitation ==) <$> API.lookupStatus uid
+            pure $
+              ( expiresAt < now,
+                isPendingInvitation,
+                uid
               )
-      API.deleteUsersNoVerify expiredUsers
-      removeTrackedExpirations (upaUserId <$> exps)
-      Log.info $ Log.msg $ Log.val (cs . show $ (expiredUsers, exps))
+          )
+
+      API.deleteUsersNoVerify
+        ( catMaybes
+            ( uids <&> \(isExpired, isPendingInvitation, uid) ->
+                if isExpired && isPendingInvitation then Just uid else Nothing
+            )
+        )
+
+      removeTrackedExpirations
+        ( catMaybes
+            ( uids <&> \(isExpired, _isPendingInvitation, uid) ->
+                if isExpired then Just uid else Nothing
+            )
+        )
 
     -- TODO(add to settings)
     -- let d :: Int = 24 * 60 * 60
