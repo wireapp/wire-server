@@ -53,7 +53,7 @@ import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
 import Brig.User.Phone
 import Control.Error hiding (bool)
-import Control.Lens (view, (?~), (^.))
+import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
@@ -67,7 +67,7 @@ import Data.Misc (IpAddr (..))
 import Data.Proxy (Proxy (..))
 import Data.Qualified (Qualified (..))
 import Data.Range
-import Data.Swagger (Swagger, ToSchema (..), description)
+import Data.Swagger (HasInfo (info), HasTitle (title), Swagger, ToSchema (..), description)
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Swagger.Lens (HasSchema (..))
 import qualified Data.Text as Text
@@ -231,13 +231,13 @@ type ServantAPI =
   "brig" :> "api-docs" :> Get '[Servant.JSON] Swagger
     :<|> OutsideWorldAPI
 
+-- FUTUREWORK: At the moment this only shows endpoints from brig, but we should
+-- combine the swagger 2.0 endpoints here as well from other services (e.g. spar)
 swaggerDoc :: Swagger
-swaggerDoc = toSwagger (Proxy @OutsideWorldAPI)
-
--- & info.title       .~ "Cats API"
--- & info.version     .~ "2016.8.7"
--- & info.description ?~ "This is an API that tests servant-swagger support"
---
+swaggerDoc =
+  toSwagger (Proxy @OutsideWorldAPI)
+    & info . title .~ "Wire-Server API as Swagger 2.0 "
+    & info . description ?~ "NOTE: only a few endpoints are visible here at the moment, more will come as we migrate them to Swagger 2.0. In the meantime please also look at the old swagger docs link for the not-yet-migrated endpoints. See https://docs.wire.com/understand/api-client-perspective/swagger.html for the old endpoints."
 
 servantHandlerSitemap :: Servant.Server ServantHandlerAPI
 servantHandlerSitemap = swaggerSchemaUIServer swaggerDoc
