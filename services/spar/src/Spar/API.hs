@@ -51,6 +51,7 @@ import Data.Id
 import Data.Proxy
 import Data.String.Conversions
 import Data.Time
+import Galley.Types.Teams (HiddenPerm (CreateUpdateDeleteIdp))
 import Imports
 import OpenSSL.Random (randBytes)
 import qualified SAML2.WebSSO as SAML
@@ -395,9 +396,10 @@ authorizeIdP ::
   Maybe UserId ->
   IdP ->
   m TeamId
-authorizeIdP zusr idp = do
-  teamid <- Brig.getZUsrOwnedTeam zusr
-  when (teamid /= idp ^. SAML.idpExtraInfo . wiTeam) $ throwSpar SparNotInTeam
+authorizeIdP Nothing _ = throwSpar (SparNoPermission (cs $ show CreateUpdateDeleteIdp))
+authorizeIdP (Just zusr) idp = do
+  let teamid = idp ^. SAML.idpExtraInfo . wiTeam
+  Galley.assertHasPermission teamid CreateUpdateDeleteIdp zusr
   pure teamid
 
 enforceHttps :: URI.URI -> Spar ()

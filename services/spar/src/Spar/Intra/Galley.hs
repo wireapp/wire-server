@@ -25,6 +25,7 @@ import Control.Lens
 import Control.Monad.Except
 import Data.ByteString.Conversion
 import Data.Id (TeamId, UserId)
+import Data.String.Conversions (cs)
 import Galley.Types.Teams
 import Imports
 import Network.HTTP.Types (status403)
@@ -61,6 +62,22 @@ assertIsTeamOwner tid uid = do
         . (paths ["i", "teams", toByteString' tid, "is-team-owner", toByteString' uid])
   when (responseStatus r == status403) $ do
     throwSpar SparNotTeamOwner
+
+-- | user is member of a given team and has a given permission there.
+assertHasPermission ::
+  (HasCallStack, MonadSparToGalley m, MonadError SparError m, IsPerm perm, Show perm) =>
+  TeamId ->
+  perm ->
+  UserId ->
+  m ()
+assertHasPermission tid perm uid = do
+  resp <-
+    call $
+      method GET
+        . (paths ["i", "teams", toByteString' tid, "members", toByteString' uid])
+  case (statusCode resp, parseResponse @TeamMember "galley" resp) of
+    (200, Right member) | hasPermission member perm -> pure ()
+    _ -> throwSpar (SparNoPermission (cs $ show perm))
 
 assertSSOEnabled ::
   (HasCallStack, MonadError SparError m, MonadSparToGalley m) =>
