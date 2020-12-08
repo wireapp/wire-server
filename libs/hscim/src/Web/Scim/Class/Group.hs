@@ -36,7 +36,6 @@ import Servant.API.Generic
 import Servant.Server.Generic
 import Web.Scim.Class.Auth
 import Web.Scim.ContentType
-import Web.Scim.Handler
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.ListResponse
 import Web.Scim.Schema.Meta
@@ -116,7 +115,7 @@ class (Monad m, GroupTypes tag, AuthDB tag m) => GroupDB tag m where
   -- | Get all groups.
   getGroups ::
     AuthInfo tag ->
-    ScimHandler m (ListResponse (StoredGroup tag))
+    m (ListResponse (StoredGroup tag))
 
   -- | Get a single group by ID.
   --
@@ -124,7 +123,7 @@ class (Monad m, GroupTypes tag, AuthDB tag m) => GroupDB tag m where
   getGroup ::
     AuthInfo tag ->
     GroupId tag ->
-    ScimHandler m (StoredGroup tag)
+    m (StoredGroup tag)
 
   -- | Create a new group.
   --
@@ -132,7 +131,7 @@ class (Monad m, GroupTypes tag, AuthDB tag m) => GroupDB tag m where
   postGroup ::
     AuthInfo tag ->
     Group ->
-    ScimHandler m (StoredGroup tag)
+    m (StoredGroup tag)
 
   -- | Overwrite an existing group.
   --
@@ -142,7 +141,7 @@ class (Monad m, GroupTypes tag, AuthDB tag m) => GroupDB tag m where
     AuthInfo tag ->
     GroupId tag ->
     Group ->
-    ScimHandler m (StoredGroup tag)
+    m (StoredGroup tag)
 
   -- | Modify an existing group.
   --
@@ -156,7 +155,7 @@ class (Monad m, GroupTypes tag, AuthDB tag m) => GroupDB tag m where
     GroupId tag ->
     -- | PATCH payload
     Aeson.Value ->
-    ScimHandler m (StoredGroup tag)
+    m (StoredGroup tag)
 
   -- | Delete a group.
   --
@@ -164,7 +163,7 @@ class (Monad m, GroupTypes tag, AuthDB tag m) => GroupDB tag m where
   deleteGroup ::
     AuthInfo tag ->
     GroupId tag ->
-    ScimHandler m ()
+    m ()
 
 ----------------------------------------------------------------------------
 -- API handlers
@@ -173,7 +172,7 @@ groupServer ::
   forall tag m.
   (Show (GroupId tag), GroupDB tag m) =>
   Maybe (AuthData tag) ->
-  GroupSite tag (AsServerT (ScimHandler m))
+  GroupSite tag (AsServerT m)
 groupServer authData =
   GroupSite
     { gsGetGroups = do

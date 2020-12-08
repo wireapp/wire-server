@@ -80,6 +80,8 @@ import Data.Text (Text, pack, toLower)
 import qualified Data.Text as Text
 import GHC.Generics (Generic)
 import Lens.Micro
+import Servant.API (Union)
+import Servant.Server (respond)
 import Web.Scim.AttrName
 import Web.Scim.Filter (AttrPath (..))
 import Web.Scim.Schema.Common
@@ -262,7 +264,7 @@ instance ToJSON NoUserExtra where
   toJSON _ = object []
 
 instance Patchable NoUserExtra where
-  applyOperation _ _ = throwError $ badRequest InvalidValue (Just "there are no user extra attributes to patch")
+  applyOperation _ _ = throwError $ BadRequest InvalidValue (Just "there are no user extra attributes to patch")
 
 ----------------------------------------------------------------------------
 -- Applying
@@ -273,6 +275,7 @@ instance Patchable NoUserExtra where
 -- We'll have to think how patch is going to work in the presence of extensions.
 -- Also, we can probably make  PatchOp type-safe to some extent (Read arianvp's thesis :))
 applyPatch ::
+  forall tag m.
   ( Patchable (UserExtra tag),
     FromJSON (UserExtra tag),
     MonadError ScimError m,
@@ -280,11 +283,11 @@ applyPatch ::
   ) =>
   User tag ->
   PatchOp tag ->
-  m (User tag)
-applyPatch = (. getOperations) . foldM applyOperation
+  m (Union '[User tag, BadRequest])
+applyPatch user (PatchOp ops) = either respond _ $ (foldM applyOperation user ops :: Either BadRequest (User tag))
 
 resultToScimError :: (MonadError ScimError m) => Result a -> m a
-resultToScimError (Error reason) = throwError $ badRequest InvalidValue (Just (pack reason))
+resultToScimError (Error reason) = throwError $ BadRequest InvalidValue (Just (pack reason))
 resultToScimError (Success a) = pure a
 
 -- TODO(arianvp): support multi-valued and complex attributes.

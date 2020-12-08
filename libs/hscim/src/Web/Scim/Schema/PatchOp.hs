@@ -137,11 +137,11 @@ instance ToJSON Path where
 -- | A very coarse description of what it means to be 'Patchable'
 -- I do not like it. We should handhold people using this library more
 class Patchable a where
-  applyOperation :: (MonadError ScimError m) => a -> Operation -> m a
+  applyOperation :: (MonadError BadRequest m) => a -> Operation -> m a
 
 instance Patchable (HM.HashMap Text Text) where
   applyOperation theMap (Operation Remove (Just (NormalPath (AttrPath _schema (AttrName attrName) _subAttr))) _) =
     pure $ HM.delete attrName theMap
   applyOperation theMap (Operation _AddOrReplace (Just (NormalPath (AttrPath _schema (AttrName attrName) _subAttr))) (Just (String val))) =
     pure $ HM.insert attrName val theMap
-  applyOperation _ _ = throwError $ badRequest InvalidValue $ Just "Unsupported operation"
+  applyOperation _ _ = throwError $ BadRequest InvalidValue $ Just "Unsupported operation"

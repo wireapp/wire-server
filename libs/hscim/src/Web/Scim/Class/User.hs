@@ -143,7 +143,7 @@ class (Monad m, AuthTypes tag, UserTypes tag) => UserDB tag m where
     UserId tag ->
     -- | PATCH payload
     PatchOp tag ->
-    ScimHandler m (StoredUser tag)
+    m (Union '[WithStatus 200 (StoredUser tag), BadRequest])
   patchUser info uid op' = do
     (WithMeta _ (WithId _ (user :: User tag))) <- getUser info uid
     (newUser :: User tag) <- applyPatch user op'
@@ -155,7 +155,7 @@ class (Monad m, AuthTypes tag, UserTypes tag) => UserDB tag m where
   deleteUser ::
     AuthInfo tag ->
     UserId tag ->
-    ScimHandler m ()
+    m ()
 
 ----------------------------------------------------------------------------
 -- API handlers

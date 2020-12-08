@@ -27,7 +27,6 @@ module Web.Scim.Class.Auth
 where
 
 import Servant
-import Web.Scim.Handler
 
 -- | Types used in authentication routines.
 class AuthTypes tag where
@@ -51,4 +50,4 @@ class (AuthTypes tag, FromHttpApiData (AuthData tag)) => AuthDB tag m where
   -- invalid or don't correspond to any user.
   authCheck ::
     Maybe (AuthData tag) ->
-    ScimHandler m (AuthInfo tag)
+    m (AuthInfo tag)

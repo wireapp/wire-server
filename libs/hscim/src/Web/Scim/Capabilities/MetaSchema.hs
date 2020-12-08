@@ -38,7 +38,6 @@ import Web.Scim.Capabilities.MetaSchema.SPConfig
 import Web.Scim.Capabilities.MetaSchema.Schema
 import Web.Scim.Capabilities.MetaSchema.User
 import Web.Scim.ContentType
-import Web.Scim.Handler
 import Web.Scim.Schema.AuthenticationScheme
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.Error hiding (schemas)
@@ -114,7 +113,7 @@ empty =
 configServer ::
   Monad m =>
   Configuration ->
-  ConfigSite (AsServerT (ScimHandler m))
+  ConfigSite (AsServerT m)
 configServer config =
   ConfigSite
     { spConfig = pure config,
