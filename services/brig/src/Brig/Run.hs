@@ -23,7 +23,7 @@ where
 
 import Brig.API (sitemap)
 import Brig.API.Handler
-import Brig.API.Public (ServantHandlerAPI, servantHandlerSitemap, ServantAPI, servantSitemap)
+import Brig.API.Public (ServantAPI, ServantHandlerAPI, servantHandlerSitemap, servantSitemap)
 import Brig.AWS (sesQueue)
 import qualified Brig.AWS as AWS
 import qualified Brig.AWS.SesNotification as SesNotification
