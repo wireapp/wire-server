@@ -35,6 +35,7 @@ import Web.Scim.ContentType
 import Web.Scim.Filter
 import Web.Scim.Handler
 import Web.Scim.Schema.Common
+import Web.Scim.Schema.Error
 import Web.Scim.Schema.ListResponse hiding (schemas)
 import Web.Scim.Schema.Meta
 import Web.Scim.Schema.PatchOp
@@ -49,11 +50,21 @@ data UserSite tag route = UserSite
   { usGetUsers ::
       route
         :- QueryParam "filter" Filter
-        :> Get '[SCIM] (ListResponse (StoredUser tag)),
+        :> UVerb
+             'GET
+             '[SCIM]
+             [ WithStatus 200 (ListResponse (StoredUser tag)),
+               BadRequest
+             ],
     usGetUser ::
       route
         :- Capture "id" (UserId tag)
-        :> Get '[SCIM] (StoredUser tag),
+        :> UVerb
+             'GET
+             '[SCIM]
+             [ WithStatus 200 (StoredUser tag),
+               NotFound
+             ],
     usPostUser ::
       route
         :- ReqBody '[SCIM] (User tag)
@@ -78,12 +89,18 @@ data UserSite tag route = UserSite
 ----------------------------------------------------------------------------
 -- Methods used by the API
 
-class (Monad m, AuthTypes tag, UserTypes tag) => UserDB tag m where
+class (Monad m, AuthTypes tag, UserTypes tag) => UserDB tag (protoM :: * -> * -> *) where
   -- | Get all users, optionally filtered by a 'Filter'.
   getUsers ::
     AuthInfo tag ->
     Maybe Filter ->
-    ScimHandler m (ListResponse (StoredUser tag))
+    ScimHandler
+      m
+      ( Union
+          '[ WithStatus 200 (ListResponse (StoredUser tag)),
+             BadRequest
+           ]
+      )
 
   -- | Get a single user by ID.
   --
@@ -91,7 +108,13 @@ class (Monad m, AuthTypes tag, UserTypes tag) => UserDB tag m where
   getUser ::
     AuthInfo tag ->
     UserId tag ->
-    ScimHandler m (StoredUser tag)
+    ScimHandler
+      m
+      ( Union
+          '[ WithStatus 200 (StoredUser tag),
+             NotFound
+           ]
+      )
 
   -- | Create a new user.
   --
@@ -137,17 +160,19 @@ class (Monad m, AuthTypes tag, UserTypes tag) => UserDB tag m where
     -- | PATCH payload
     PatchOp tag ->
     ScimHandler m (StoredUser tag)
-  default patchUser ::
-    (Patchable (UserExtra tag), FromJSON (UserExtra tag)) =>
-    AuthInfo tag ->
-    UserId tag ->
-    -- | PATCH payload
-    PatchOp tag ->
-    ScimHandler m (StoredUser tag)
-  patchUser info uid op' = do
-    (WithMeta _ (WithId _ (user :: User tag))) <- getUser info uid
-    (newUser :: User tag) <- applyPatch user op'
-    putUser info uid newUser
+
+  -- default patchUser ::
+  --   (Patchable (UserExtra tag), FromJSON (UserExtra tag)) =>
+  --   AuthInfo tag ->
+  --   UserId tag ->
+  --   -- | PATCH payload
+  --   PatchOp tag ->
+  --   ScimHandler m (StoredUser tag)
+  -- patchUser info uid op' = do
+  --   -- https://hackage.haskell.org/package/servant-0.18.2/docs/Servant-API-UVerb-Union.html#v:matchUnion
+  --   (WithMeta _ (WithId _ (user :: User tag))) <- getUser info uid
+  --   (newUser :: User tag) <- applyPatch user op'
+  --   putUser info uid newUser
 
   -- | Delete a user.
   --
