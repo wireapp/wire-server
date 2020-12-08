@@ -4,7 +4,7 @@ SHELL := /usr/bin/env bash
 
 default: all
 
-all: install
+all: fast
 
 .PHONY: init
 init:
@@ -16,12 +16,12 @@ clean:
 
 .PHONY: compile
 compile:
-	stack build
+	stack build .
 
 .PHONY: install
 install: init
-	stack install --pedantic --local-bin-path=dist
+	stack install --pedantic --local-bin-path=dist .
 
 .PHONY: fast
 fast: init
-	stack install --fast --local-bin-path=dist
+	stack install --fast --local-bin-path=dist .

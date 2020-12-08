@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c20dc26352858dfe40b69342ef10465cefc9ba9649471b14107cffb012e35946
+-- hash: f07b4dfaee651743a5349633f31ca99b0625c9d2ee7ae5438ead4325b44c54c2
 
 name:           move-team
 version:        1.0.0
@@ -16,7 +16,7 @@ copyright:      (c) 2018 Wire Swiss GmbH
 license:        AGPL-3
 build-type:     Simple
 
-executable migrate-sso-feature-flag
+executable move-team
   main-is: Main.hs
   other-modules:
       Options

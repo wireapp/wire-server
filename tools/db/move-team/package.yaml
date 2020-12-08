@@ -39,6 +39,6 @@ dependencies:
 - uuid
 - wire-api
 executables:
-  migrate-sso-feature-flag:
+  move-team:
     main: Main.hs
     source-dirs: src
