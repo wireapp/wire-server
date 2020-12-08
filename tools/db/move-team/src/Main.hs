@@ -32,15 +32,15 @@ import Options.Applicative
 import qualified System.Logger as Log
 import Work
 
--- ./dist/move-team  1595e6e0-11eb-48bb-afa2-c10207a78889
+-- ./dist/move-team --sink=/tmp/x.json --teamid=1595e6e0-11eb-48bb-afa2-c10207a78889
 
 main :: IO ()
 main = do
   s <- execParser (info (helper <*> settingsParser) desc)
   lgr <- initLogger
-  bc <- initCas (s ^. setCasBrig) lgr -- Spar's Cassandra
-  gc <- initCas (s ^. setCasGalley) lgr -- Galley's Cassandra
-  sc <- initCas (s ^. setCasSpar) lgr -- Spar's Cassandra
+  bc <- initCas (s ^. setCasBrig) lgr
+  gc <- initCas (s ^. setCasGalley) lgr
+  sc <- initCas (s ^. setCasSpar) lgr
   runCommand lgr bc sc gc (s ^. setOutputFile) (Id $ s ^. setTeamId)
   where
     desc =
