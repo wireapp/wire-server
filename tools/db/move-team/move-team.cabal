@@ -1,0 +1,51 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 8cca69b8bf085715e0e0bfe9f93d512574521445ed5183d69a5000dfda5eefb0
+
+name:           move-team
+version:        1.0.0
+synopsis:       Export a team from one backend, or import it into another
+category:       Network
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+copyright:      (c) 2018 Wire Swiss GmbH
+license:        AGPL-3
+build-type:     Simple
+
+executable migrate-sso-feature-flag
+  main-is: Main.hs
+  other-modules:
+      Options
+      Work
+      Paths_move_team
+  hs-source-dirs:
+      src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
+  build-depends:
+      attoparsec
+    , base
+    , brig-types
+    , bytestring
+    , bytestring-conversion
+    , cassandra-util
+    , conduit
+    , extended
+    , galley
+    , galley-types
+    , imports
+    , lens
+    , mtl
+    , optparse-applicative
+    , text
+    , time
+    , tinylog
+    , types-common
+    , unliftio
+    , uuid
+    , wire-api
+  default-language: Haskell2010

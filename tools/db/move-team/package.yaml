@@ -1,0 +1,43 @@
+defaults:
+  local: ../../../package-defaults.yaml
+name: move-team
+version: '1.0.0'
+synopsis: Export a team from one backend, or import it into another
+category: Network
+author: Wire Swiss GmbH
+maintainer: Wire Swiss GmbH <backend@wire.com>
+copyright: (c) 2018 Wire Swiss GmbH
+license: AGPL-3
+ghc-options:
+- -funbox-strict-fields
+- -threaded
+- -with-rtsopts=-N
+- -with-rtsopts=-T
+- -rtsopts
+dependencies:
+- base
+- attoparsec
+- brig-types
+- bytestring
+- bytestring
+- bytestring-conversion
+- cassandra-util
+- conduit
+- extended
+- galley
+- galley-types
+- imports
+- lens
+- mtl
+- optparse-applicative
+- text
+- time
+- tinylog
+- types-common
+- unliftio
+- uuid
+- wire-api
+executables:
+  migrate-sso-feature-flag:
+    main: Main.hs
+    source-dirs: src
