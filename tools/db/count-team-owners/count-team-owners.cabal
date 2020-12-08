@@ -1,0 +1,50 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: b42d46018e892c480ea7b3a01f9068b173bd8d1de264e1c4c737afe4a2ed8c8b
+
+name:           count-team-owners
+version:        1.0.0
+synopsis:       Count team owners
+category:       Network
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+copyright:      (c) 2020 Wire Swiss GmbH
+license:        AGPL-3
+build-type:     Simple
+
+executable count-team-owners
+  main-is: Main.hs
+  other-modules:
+      Options
+      Work
+      Paths_count_team_owners
+  hs-source-dirs:
+      src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
+  build-depends:
+      base
+    , bytestring
+    , bytestring-conversion
+    , cassandra-util
+    , conduit
+    , containers
+    , galley-types
+    , imports
+    , lens
+    , metrics-core
+    , optparse-applicative
+    , prometheus-client
+    , text
+    , time
+    , time-compat
+    , tinylog
+    , types-common
+    , unliftio
+    , uuid
+    , wai-middleware-prometheus
+  default-language: Haskell2010
