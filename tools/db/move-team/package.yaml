@@ -16,6 +16,7 @@ ghc-options:
 - -rtsopts
 dependencies:
 - base
+- aeson
 - attoparsec
 - brig-types
 - bytestring

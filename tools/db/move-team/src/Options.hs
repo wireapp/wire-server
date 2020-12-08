@@ -19,8 +19,11 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Options
-  ( setCasSpar,
+  ( setCasBrig,
     setCasGalley,
+    setCasSpar,
+    setOutputFile,
+    setTeamId,
     cHosts,
     cPort,
     cKeyspace,
@@ -31,12 +34,16 @@ where
 import qualified Cassandra as C
 import Control.Lens
 import Data.Text.Strict.Lens
+import Data.UUID
 import Imports
 import Options.Applicative
 
 data MigratorSettings = MigratorSettings
-  { _setCasSpar :: !CassandraSettings,
-    _setCasGalley :: !CassandraSettings
+  { _setCasBrig :: !CassandraSettings,
+    _setCasGalley :: !CassandraSettings,
+    _setCasSpar :: !CassandraSettings,
+    _setOutputFile :: !String,
+    _setTeamId :: !UUID
   }
   deriving (Show)
 
@@ -54,8 +61,23 @@ makeLenses ''CassandraSettings
 settingsParser :: Parser MigratorSettings
 settingsParser =
   MigratorSettings
-    <$> cassandraSettingsParser "spar"
+    <$> cassandraSettingsParser "brig"
     <*> cassandraSettingsParser "galley"
+    <*> cassandraSettingsParser "spar"
+    <*> strOption
+      ( long "sink"
+          <> metavar "SINK"
+          <> help "Sink file"
+          <> value "/tmp/out.json"
+          <> showDefault
+      )
+    <*> ( parseUUID
+            <$> strOption
+              ( long "teamid"
+                  <> metavar "TEAMID"
+                  <> help "team id"
+              )
+        )
 
 cassandraSettingsParser :: String -> Parser CassandraSettings
 cassandraSettingsParser ks =
@@ -84,3 +106,6 @@ cassandraSettingsParser ks =
                   <> showDefault
               )
         )
+
+parseUUID :: HasCallStack => String -> UUID
+parseUUID = fromJust . Data.UUID.fromString
