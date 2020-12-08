@@ -89,7 +89,7 @@ data UserSite tag route = UserSite
 ----------------------------------------------------------------------------
 -- Methods used by the API
 
-class (Monad m, AuthTypes tag, UserTypes tag) => UserDB tag (protoM :: * -> * -> *) where
+class (Monad m, AuthTypes tag, UserTypes tag) => UserDB tag m where
   -- | Get all users, optionally filtered by a 'Filter'.
   getUsers ::
     AuthInfo tag ->

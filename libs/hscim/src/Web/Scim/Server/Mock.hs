@@ -127,17 +127,19 @@ instance UserTypes Mock where
   type UserExtra Mock = NoUserExtra
   supportedSchemas = [User20]
 
-  getUsers () mbFilter = do
-    m <- userDB <$> ask
-    users <- liftSTM $ ListT.toList $ STMMap.listT m
-    let check user = case mbFilter of
-          Nothing -> pure True
-          Just filter_ -> do
-            let user' = value (thing user) -- unwrap
-            case filterUser filter_ user' of
-              Right res -> pure res
-              Left err -> throwScim (badRequest InvalidFilter (Just err))
-    fromList . sortWith (Common.id . thing) <$> filterM check (snd <$> users)
+instance UserDB Mock TestServer where
+  -- getUsers () mbFilter = do
+  --   m <- userDB <$> ask
+  --   users <- liftSTM $ ListT.toList $ STMMap.listT m
+  --   let check user = case mbFilter of
+  --         Nothing -> pure True
+  --         Just filter_ -> do
+  --           let user' = value (thing user) -- unwrap
+  --           case filterUser filter_ user' of
+  --             Right res -> pure res
+  --             Left err -> throwScim (badRequest InvalidFilter (Just err))
+  --   fromList . sortWith (Common.id . thing) <$> filterM check (snd <$> users)
+
   getUsers () mbFilter = runUVerbT $
     do
       m <- userDB <$> lift ask
@@ -161,7 +163,7 @@ instance UserTypes Mock where
     m <- userDB <$> lift ask
     lift (liftSTM (STMMap.lookup uid m)) >>= \case
       Nothing -> throwUVerb (NotFound "User" (pack (show uid)))
-      Just (x :: (StoredUser Mock)) -> respond (WithStatus @200 x)
+      Just (x :: StoredUser Mock) -> pure (WithStatus @200 x)
 
   postUser () user = do
     m <- userDB <$> ask
