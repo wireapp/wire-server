@@ -34,7 +34,6 @@ module Web.Scim.Schema.Error
   )
 where
 
-import Control.Exception
 import Data.Aeson hiding (Error)
 import Data.Text (Text, pack)
 import GHC.Generics (Generic)
@@ -92,9 +91,6 @@ data ScimError = ScimError
 
 instance ToJSON ScimError where
   toJSON = genericToJSON serializeOptions
-
--- DEPRECATE "use uverb instead" ScimError
-instance Exception ScimError
 
 ----------------------------------------------------------------------------
 -- Exception constructors [deprecated]

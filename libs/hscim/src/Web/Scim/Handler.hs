@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -18,31 +20,31 @@
 module Web.Scim.Handler
   ( ScimHandler,
     throwScim,
-    fromScimHandler,
+    runScimHandler,
   )
 where
 
 import Control.Monad.Except
-import Web.Scim.Schema.Error
+import Servant.API (HasStatus, IsMember, Union)
+import Servant.Server (respond)
 
--- | Handler type for SCIM. All errors will be thrown via 'ExceptT'.
-type ScimHandler m = ExceptT ScimError m
+newtype ScimHandler xs m a = ScimHandler {unScimHandler :: ExceptT (Union xs) m a}
+  deriving newtype (Functor, Applicative, Monad, MonadTrans)
 
--- | Throw a 'ScimError'.
-throwScim :: Monad m => ScimError -> ScimHandler m a
-throwScim = throwError
+-- | Deliberately hide 'ExceptT's 'MonadError' instance to be able to use
+-- underlying monad's instance.
+instance MonadError e m => MonadError e (ScimHandler xs m) where
+  throwError = lift . throwError
+  catchError (ScimHandler act) h =
+    ScimHandler $
+      ExceptT $
+        runExceptT act `catchError` (runExceptT . unScimHandler . h)
 
--- | A natural transformation for Servant handlers. To use it, you need to
--- provide a way to throw errors in the underlying @m@ monad.
---
--- We can't use something like 'MonadError' to throw errors in @m@ because
--- 'MonadError' allows only one type of errors per monad and @m@ might have
--- one already.
---
--- You can either do something custom for 'ScimError', or use
--- 'scimToServantErr'.
-fromScimHandler ::
-  Monad m =>
-  (forall a. ScimError -> m a) ->
-  (forall a. ScimHandler m a -> m a)
-fromScimHandler fromError = either fromError pure <=< runExceptT
+-- | This combinator runs 'UVerbT'. It applies 'respond' internally, so the handler
+-- may use the usual 'return'.
+runScimHandler :: (Monad m, HasStatus x, IsMember x xs) => ScimHandler xs m x -> m (Union xs)
+runScimHandler (ScimHandler act) = either id id <$> runExceptT (act >>= respond)
+
+-- | Short-circuit 'UVerbT' computation returning one of the response types.
+throwScim :: (Monad m, HasStatus x, IsMember x xs) => x -> ScimHandler xs m a
+throwScim = ScimHandler . ExceptT . fmap Left . respond

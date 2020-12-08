@@ -83,7 +83,7 @@ class (Monad m, AuthTypes tag, UserTypes tag) => UserDB tag m where
   getUsers ::
     AuthInfo tag ->
     Maybe Filter ->
-    ScimHandler m (ListResponse (StoredUser tag))
+    m (Union '[WithStatus 200 ListResponse (StoredUser tag), BadRequest])
 
   -- | Get a single user by ID.
   --
@@ -91,7 +91,7 @@ class (Monad m, AuthTypes tag, UserTypes tag) => UserDB tag m where
   getUser ::
     AuthInfo tag ->
     UserId tag ->
-    ScimHandler m (StoredUser tag)
+    m (Union '[WithStatus 200 (StoredUser tag), NotFound])
 
   -- | Create a new user.
   --
@@ -99,7 +99,7 @@ class (Monad m, AuthTypes tag, UserTypes tag) => UserDB tag m where
   postUser ::
     AuthInfo tag ->
     User tag ->
-    ScimHandler m (StoredUser tag)
+    m (Union '[WithStatus 201 (StoredUser tag), BadRequest])
 
   -- | Overwrite an existing user.
   --
@@ -109,7 +109,7 @@ class (Monad m, AuthTypes tag, UserTypes tag) => UserDB tag m where
     AuthInfo tag ->
     UserId tag ->
     User tag ->
-    ScimHandler m (StoredUser tag)
+    m (Union '[WithStatus 200 (StoredUser tag), BadRequest])
 
   -- | Modify an existing user.
   --
@@ -136,7 +136,7 @@ class (Monad m, AuthTypes tag, UserTypes tag) => UserDB tag m where
     UserId tag ->
     -- | PATCH payload
     PatchOp tag ->
-    ScimHandler m (StoredUser tag)
+    m (Union '[WithStatus 200 (StoredUser tag), BadRequest])
   default patchUser ::
     (Patchable (UserExtra tag), FromJSON (UserExtra tag)) =>
     AuthInfo tag ->
