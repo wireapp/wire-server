@@ -1,6 +1,4 @@
-{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE UndecidableInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- This file is part of the Wire Server implementation.
@@ -25,7 +23,6 @@
 -- <https://developer.okta.com/standards/SCIM/#step-2-test-your-scim-server>).
 module Web.Scim.Server.Mock where
 
-import Control.Monad.Except (ExceptT (ExceptT), MonadError (..), runExceptT)
 import Control.Monad.Morph
 import Control.Monad.Reader
 import Control.Monad.STM (STM, atomically)
@@ -97,29 +94,6 @@ hoistSTM :: (MFunctor t, MonadIO m) => t STM a -> t m a
 hoistSTM = hoist liftSTM
 
 ----------------------------------------------------------------------------
-
-newtype UVerbT xs m a = UVerbT {unUVerbT :: ExceptT (Union xs) m a}
-  deriving newtype (Functor, Applicative, Monad, MonadTrans)
-
--- | Deliberately hide 'ExceptT's 'MonadError' instance to be able to use
--- underlying monad's instance.
-instance MonadError e m => MonadError e (UVerbT xs m) where
-  throwError = lift . throwError
-  catchError (UVerbT act) h =
-    UVerbT $
-      ExceptT $
-        runExceptT act `catchError` (runExceptT . unUVerbT . h)
-
--- | This combinator runs 'UVerbT'. It applies 'respond' internally, so the handler
--- may use the usual 'return'.
-runUVerbT :: (Monad m, HasStatus x, IsMember x xs) => UVerbT xs m x -> m (Union xs)
-runUVerbT (UVerbT act) = either id id <$> runExceptT (act >>= respond)
-
--- | Short-circuit 'UVerbT' computation returning one of the response types.
-throwUVerb :: (Monad m, HasStatus x, IsMember x xs) => x -> UVerbT xs m a
-throwUVerb = UVerbT . ExceptT . fmap Left . respond
-
-----------------------------------------------------------------------------
 -- UserDB
 
 instance UserTypes Mock where
@@ -127,6 +101,7 @@ instance UserTypes Mock where
   type UserExtra Mock = NoUserExtra
   supportedSchemas = [User20]
 
+instance UserDB Mock TestServer where
   getUsers () mbFilter = do
     m <- userDB <$> ask
     users <- liftSTM $ ListT.toList $ STMMap.listT m
@@ -138,30 +113,12 @@ instance UserTypes Mock where
               Right res -> pure res
               Left err -> throwScim (badRequest InvalidFilter (Just err))
     fromList . sortWith (Common.id . thing) <$> filterM check (snd <$> users)
-  getUsers () mbFilter = runUVerbT $
-    do
-      m <- userDB <$> lift ask
-      users <- lift $ liftSTM $ ListT.toList $ STMMap.listT m
-      let check user = case mbFilter of
-            Nothing -> pure True
-            Just filter_ -> do
-              let user' = value (thing user) -- unwrap
-              case filterUser filter_ user' of
-                Right res -> pure res
-                Left err -> throwUVerb (BadRequest InvalidFilter (Just err))
-      WithStatus @200 . fromList . sortWith (Common.id . thing) <$> filterM check (snd <$> users)
 
-  -- getUser () uid = do
-  --   m <- userDB <$> ask
-  --   liftSTM (STMMap.lookup uid m) >>= \case
-  --     Nothing -> throwScim (notFound "User" (pack (show uid)))
-  --     Just x -> pure x
-
-  getUser () uid = runUVerbT $ do
-    m <- userDB <$> lift ask
-    lift (liftSTM (STMMap.lookup uid m)) >>= \case
-      Nothing -> throwUVerb (NotFound "User" (pack (show uid)))
-      Just (x :: (StoredUser Mock)) -> respond (WithStatus @200 x)
+  getUser () uid = do
+    m <- userDB <$> ask
+    liftSTM (STMMap.lookup uid m) >>= \case
+      Nothing -> throwScim (notFound "User" (pack (show uid)))
+      Just x -> pure x
 
   postUser () user = do
     m <- userDB <$> ask

@@ -163,16 +163,11 @@ extra-deps:
 # Not updated on Stackage yet
 - QuickCheck-2.14
 - splitmix-0.0.4 # needed for QuickCheck
-# - servant-0.18.2
-- git: https://github.com/haskell-servant/servant.git
-  commit: 716175b72ad64fa859769587faedd782cba33819
-  subdirs:
-    - servant
+- servant-0.18.2
 - servant-server-0.18.2
 - servant-mock-0.8.7
 - git: https://github.com/wireapp/servant-swagger.git
   commit: 23e9afafadaade29d21181b935286087457171e3
-
 
 - HsOpenSSL-x509-system-0.1.0.3@sha256:f4958ee0eec555c5c213662eff6764bddefe5665e2afcfd32733ce3801a9b687,1774 # Latest: lts-14.27
 - cql-4.0.2@sha256:a0006a5ac13d6f86d5eff28c11be80928246309f217ea6d5f5c8a76a5d16b48b,3157 # Latest: lts-14.27

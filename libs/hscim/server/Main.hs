@@ -1,6 +1,4 @@
-{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -22,14 +20,12 @@
 module Main where
 
 import Control.Monad.STM (atomically)
--- import Data.Aeson (ToJSON (..))
 import Data.Time
 import Network.URI.Static
--- import Network.Wai.Handler.Warp
--- import Servant.API (WithStatus (..))
+import Network.Wai.Handler.Warp
 import qualified StmContainers.Map as STMMap
 import Text.Email.Validate
--- import Web.Scim.Capabilities.MetaSchema as MetaSchema
+import Web.Scim.Capabilities.MetaSchema as MetaSchema
 import Web.Scim.Schema.Common as Common
 import Web.Scim.Schema.Meta hiding (meta)
 import Web.Scim.Schema.ResourceType hiding (name)
@@ -37,20 +33,13 @@ import Web.Scim.Schema.Schema (Schema (User20))
 import Web.Scim.Schema.User as User
 import Web.Scim.Schema.User.Email as E
 import Web.Scim.Schema.User.Name
--- import Web.Scim.Server
+import Web.Scim.Server
 import Web.Scim.Server.Mock
 
--- make compiler happy and haskell-language-server work
--- instance ToJSON a => ToJSON (WithStatus x a) where
---   toJSON = undefined
-
 main :: IO ()
-main = undefined
-
--- main :: IO ()
--- main = do
---   storage <- TestStorage <$> mkUserDB <*> STMMap.newIO
---   run 9000 (app @Mock MetaSchema.empty (nt storage))
+main = do
+  storage <- TestStorage <$> mkUserDB <*> STMMap.newIO
+  run 9000 (app @Mock MetaSchema.empty (nt storage))
 
 -- | Create a UserDB with a single user:
 --

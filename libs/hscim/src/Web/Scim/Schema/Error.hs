@@ -24,10 +24,6 @@ module Web.Scim.Schema.Error
 
     -- * Constructors
     NotFound (..),
-    BadRequest (..),
-    UnAuthorized (..),
-    Forbidden (..),
-    Conflict (..),
     notFound,
     badRequest,
     conflict,
@@ -105,49 +101,25 @@ instance Exception ScimError
 ----------------------------------------------------------------------------
 -- Exception constructors [deprecated]
 
-data BadRequest = BadRequest
-  { badRequestErrorType :: ScimErrorType,
-    badRequestDetails :: Maybe Text
-  }
-
-instance HasStatus BadRequest where
-  type StatusOf BadRequest = 400
-
-instance ToJSON BadRequest where
-  toJSON = toJSON . badRequest'
-
-badRequest' ::
-  BadRequest ->
-  ScimError
-badRequest' (BadRequest t d) =
-  ScimError
-    { schemas = [Error20],
-      status = Status 400,
-      scimType = pure t,
-      detail = d
-    }
-
 badRequest ::
   -- | Error type
   ScimErrorType ->
   -- | Error details
   Maybe Text ->
   ScimError
-badRequest t d =
-  badRequest' $ BadRequest t d
+badRequest typ mbDetail =
+  ScimError
+    { schemas = [Error20],
+      status = Status 400,
+      scimType = pure typ,
+      detail = mbDetail
+    }
 
-data UnAuthorized = UnAuthorized
-  { unAuthorizedDetails :: Text
-  }
-
-instance HasStatus UnAuthorized where
-  type StatusOf UnAuthorized = 401
-
-instance ToJSON UnAuthorized where
-  toJSON = toJSON . unauthorized'
-
-unauthorized' :: UnAuthorized -> ScimError
-unauthorized' (UnAuthorized details) =
+unauthorized ::
+  -- | Error details
+  Text ->
+  ScimError
+unauthorized details =
   ScimError
     { schemas = [Error20],
       status = Status 401,
@@ -155,35 +127,17 @@ unauthorized' (UnAuthorized details) =
       detail = pure $ "authorization failed: " <> details
     }
 
-unauthorized ::
+forbidden ::
   -- | Error details
   Text ->
   ScimError
-unauthorized details = unauthorized' (UnAuthorized details)
-
-data Forbidden = Forbidden
-  {forbiddenDetails :: Text}
-
-instance HasStatus Forbidden where
-  type StatusOf Forbidden = 403
-
-instance ToJSON Forbidden where
-  toJSON = toJSON . forbidden'
-
-forbidden' :: Forbidden -> ScimError
-forbidden' (Forbidden details) =
+forbidden details =
   ScimError
     { schemas = [Error20],
       status = Status 403,
       scimType = Nothing,
       detail = pure $ "forbidden: " <> details
     }
-
-forbidden ::
-  -- | Error details
-  Text ->
-  ScimError
-forbidden details = forbidden' $ Forbidden details
 
 data NotFound = NotFound
   { notFoundResourceType :: Text,
@@ -214,14 +168,6 @@ notFound' (NotFound resourceType resourceId) =
       scimType = Nothing,
       detail = pure $ resourceType <> " " <> resourceId <> " not found"
     }
-
-data Conflict = Conflict
-
-instance HasStatus Conflict where
-  type StatusOf Conflict = 409
-
-instance ToJSON Conflict where
-  toJSON = toJSON . const conflict
 
 conflict :: ScimError
 conflict =
