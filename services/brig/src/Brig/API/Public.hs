@@ -227,9 +227,7 @@ type OutsideWorldAPI =
 type ServantHandlerAPI =
   SwaggerSchemaUI "swagger-ui" "swagger.json"
 
-type ServantAPI =
-  "brig" :> "api-docs" :> Get '[Servant.JSON] Swagger
-    :<|> OutsideWorldAPI
+type ServantAPI = OutsideWorldAPI
 
 -- FUTUREWORK: At the moment this only shows endpoints from brig, but we should
 -- combine the swagger 2.0 endpoints here as well from other services (e.g. spar)
@@ -244,8 +242,7 @@ servantHandlerSitemap = swaggerSchemaUIServer swaggerDoc
 
 servantSitemap :: ServerT ServantAPI Handler
 servantSitemap =
-  pure (toSwagger (Proxy @OutsideWorldAPI))
-    :<|> checkUserExistsUnqualifiedH
+  checkUserExistsUnqualifiedH
     :<|> checkUserExistsH
     :<|> getUserUnqualifiedH
     :<|> getUserH
