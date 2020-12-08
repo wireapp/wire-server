@@ -225,7 +225,7 @@ type OutsideWorldAPI =
     :<|> GetUserQualified
 
 type ServantHandlerAPI =
-  SwaggerSchemaUI "swagger-ui" "swagger.json"
+  SwaggerSchemaUI "api/swagger-ui" "api/swagger.json"
 
 type ServantAPI = OutsideWorldAPI
 
