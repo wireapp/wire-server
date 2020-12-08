@@ -180,7 +180,7 @@ instance GroupDB Mock TestServer where
         liftSTM $ STMMap.insert newGroup gid m
         pure newGroup
 
-  patchGroup _ _ _ = throwScim (serverError "PATCH /Users not implemented")
+  patchGroup _ _ _ = error "PATCH /Users not implemented"
 
   deleteGroup () gid = do
     m <- groupDB <$> ask

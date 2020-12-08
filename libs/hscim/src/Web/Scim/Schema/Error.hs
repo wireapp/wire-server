@@ -24,12 +24,10 @@ module Web.Scim.Schema.Error
 
     -- * Constructors
     NotFound (..),
-    notFound,
-    badRequest,
-    conflict,
-    unauthorized,
-    forbidden,
-    serverError,
+    BadRequest (..),
+    UnAuthorized (..),
+    Forbidden (..),
+    Conflict (..),
 
     -- * Servant interoperability
     scimToServerError,
@@ -101,43 +99,56 @@ instance Exception ScimError
 ----------------------------------------------------------------------------
 -- Exception constructors [deprecated]
 
-badRequest ::
-  -- | Error type
-  ScimErrorType ->
-  -- | Error details
-  Maybe Text ->
-  ScimError
-badRequest typ mbDetail =
-  ScimError
-    { schemas = [Error20],
-      status = Status 400,
-      scimType = pure typ,
-      detail = mbDetail
-    }
+data BadRequest = BadRequest
+  { badRequestErrorType :: ScimErrorType,
+    badRequestDetails :: Maybe Text
+  }
 
-unauthorized ::
-  -- | Error details
-  Text ->
-  ScimError
-unauthorized details =
-  ScimError
-    { schemas = [Error20],
-      status = Status 401,
-      scimType = Nothing,
-      detail = pure $ "authorization failed: " <> details
-    }
+instance HasStatus BadRequest where
+  type StatusOf BadRequest = 400
 
-forbidden ::
-  -- | Error details
-  Text ->
-  ScimError
-forbidden details =
-  ScimError
-    { schemas = [Error20],
-      status = Status 403,
-      scimType = Nothing,
-      detail = pure $ "forbidden: " <> details
-    }
+instance ToJSON BadRequest where
+  toJSON (BadRequest t d) =
+    toJSON $
+      ScimError
+        { schemas = [Error20],
+          status = Status 400,
+          scimType = pure t,
+          detail = d
+        }
+
+data UnAuthorized = UnAuthorized
+  { unAuthorizedDetails :: Text
+  }
+
+instance HasStatus UnAuthorized where
+  type StatusOf UnAuthorized = 401
+
+instance ToJSON UnAuthorized where
+  toJSON (UnAuthorized details) =
+    toJSON $
+      ScimError
+        { schemas = [Error20],
+          status = Status 401,
+          scimType = Nothing,
+          detail = pure $ "authorization failed: " <> details
+        }
+
+data Forbidden = Forbidden
+  {forbiddenDetails :: Text}
+
+instance HasStatus Forbidden where
+  type StatusOf Forbidden = 403
+
+instance ToJSON Forbidden where
+  toJSON (Forbidden details) =
+    toJSON $
+      ScimError
+        { schemas = [Error20],
+          status = Status 403,
+          scimType = Nothing,
+          detail = pure $ "forbidden: " <> details
+        }
 
 data NotFound = NotFound
   { notFoundResourceType :: Text,
@@ -148,47 +159,29 @@ instance HasStatus NotFound where
   type StatusOf NotFound = 404
 
 instance ToJSON NotFound where
-  toJSON = toJSON . notFound'
+  toJSON (NotFound resourceType resourceId) =
+    toJSON $
+      ScimError
+        { schemas = [Error20],
+          status = Status 404,
+          scimType = Nothing,
+          detail = pure $ resourceType <> " " <> resourceId <> " not found"
+        }
 
--- deprecated.  if this is not needed any more, we can inline notFound' into the ToJSON
--- instance above.  then we may not need to export any types from this any more.
-notFound ::
-  -- | Resource type
-  Text ->
-  -- | Resource ID
-  Text ->
-  ScimError
-notFound t i = notFound' $ NotFound t i
+data Conflict = Conflict
 
-notFound' :: NotFound -> ScimError
-notFound' (NotFound resourceType resourceId) =
-  ScimError
-    { schemas = [Error20],
-      status = Status 404,
-      scimType = Nothing,
-      detail = pure $ resourceType <> " " <> resourceId <> " not found"
-    }
+instance HasStatus Conflict where
+  type StatusOf Conflict = 409
 
-conflict :: ScimError
-conflict =
-  ScimError
-    { schemas = [Error20],
-      status = Status 409,
-      scimType = Just Uniqueness,
-      detail = Nothing
-    }
-
-serverError ::
-  -- | Error details
-  Text ->
-  ScimError
-serverError details =
-  ScimError
-    { schemas = [Error20],
-      status = Status 500,
-      scimType = Nothing,
-      detail = pure details
-    }
+instance ToJSON Conflict where
+  toJSON Conflict =
+    toJSON $
+      ScimError
+        { schemas = [Error20],
+          status = Status 409,
+          scimType = Just Uniqueness,
+          detail = Nothing
+        }
 
 ----------------------------------------------------------------------------
 -- Servant
