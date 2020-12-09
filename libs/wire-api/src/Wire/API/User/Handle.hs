@@ -32,7 +32,9 @@ where
 import Data.Aeson
 import Data.Id (UserId)
 import Data.Range
+import Data.Swagger (ToSchema)
 import qualified Data.Swagger.Build.Api as Doc
+import Deriving.Swagger (CustomSwagger, FieldLabelModifier, LabelMapping ((:->)), LabelMappings)
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -42,6 +44,7 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 newtype UserHandleInfo = UserHandleInfo {userHandleId :: UserId}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
+  deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (LabelMappings '["userHandleId" ':-> "user"])] UserHandleInfo)
 
 modelUserHandleInfo :: Doc.Model
 modelUserHandleInfo = Doc.defineModel "UserHandleInfo" $ do
