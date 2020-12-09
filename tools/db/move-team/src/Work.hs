@@ -63,13 +63,15 @@ runCommand lg _brig galley _spar sinkPath tid = IO.withBinaryFile sinkPath IO.Wr
 sinkLines :: IO.Handle -> ConduitT LByteString Void IO ()
 sinkLines hd = C.mapM_ (LBS.hPutStr hd)
 
-getTeamMembers :: TeamId -> ConduitM () [TeamMemberExport] Client ()
-getTeamMembers tid = paginateC cql (paramsP Quorum (pure tid) pageSize) x5 .| C.mapM (pure . fmap mkTeamMemberExport)
+type TeamMemberRow = (UUID, UUID, Maybe UTCTime, Maybe UUID, Maybe Int32, Permissions)
+
+getTeamMembers :: TeamId -> ConduitM () [TeamMemberRow] Client ()
+getTeamMembers tid = paginateC cql (paramsP Quorum (pure tid) pageSize) x5
   where
-    cql :: PrepQuery R (Identity TeamId) (UUID, UUID, UTCTime, UUID, Int32, Permissions)
+    cql :: PrepQuery R (Identity TeamId) (UUID, UUID, Maybe UTCTime, Maybe UUID, Maybe Int32, Permissions)
     cql = "select team, user, invited_at, invited_by, legalhold_status, perms from team_member where team=?"
 
-handleTeamMembers :: Logger -> (Int32, [TeamMemberExport]) -> IO [LByteString]
+handleTeamMembers :: Logger -> (Int32, [TeamMemberRow]) -> IO [LByteString]
 handleTeamMembers lg (i, members) = do
   Log.info lg (Log.field "number of team members loaded: " (show (i * pageSize)))
   pure $ (encode <$> members)
