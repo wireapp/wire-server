@@ -25,6 +25,7 @@ dependencies:
 - cassandra-util
 - conduit
 - extended
+- filepath
 - galley
 - galley-types
 - imports
