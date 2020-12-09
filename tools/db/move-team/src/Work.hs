@@ -1,8 +1,10 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-orphans -Wno-unused-imports #-}
 
 -- This file is part of the Wire Server implementation.
@@ -26,6 +28,7 @@ module Work where
 
 import Brig.Types hiding (Client)
 import Cassandra
+import Control.Lens (view, _2)
 import Data.Aeson
 import qualified Data.ByteString.Lazy as LBS
 import Data.Conduit
@@ -53,48 +56,88 @@ deriving instance Cql Name
 pageSize :: Int32
 pageSize = 100
 
-runCommand :: Logger -> ClientState -> ClientState -> ClientState -> FilePath -> TeamId -> IO ()
-runCommand lg _brig galley _spar sinkPath tid = do
-  ExitSuccess <- system $ "mkdir -p " <> show sinkPath
-  IO.withBinaryFile (sinkPath </> "galley.team_member") IO.WriteMode $ \outH ->
+data Env = Env
+  { envLogger :: Logger,
+    envBrig :: ClientState,
+    envGalley :: ClientState,
+    envSpar :: ClientState,
+    envTargetPath :: FilePath,
+    envTeamId :: TeamId
+  }
+
+runCommand :: Env -> IO ()
+runCommand env@Env {..} = do
+  ExitSuccess <- system $ "mkdir -p " <> show envTargetPath
+  runGalleyTeamMembers env
+  runGalleyTeamConv env
+
+----------------------------------------------------------------------
+
+runGalleyTeamMembers :: Env -> IO ()
+runGalleyTeamMembers env@Env {..} = do
+  IO.withBinaryFile (envTargetPath </> "galley.team_member") IO.WriteMode $ \outH ->
     runConduit $
       zipSources
         (CL.sourceList [(1 :: Int32) ..])
-        (transPipe (runClient galley) (getTeamMembers tid))
-        .| C.mapM (handleTeamMembers lg)
+        (transPipe (runClient envGalley) (readGalleyTeamMember envTeamId))
+        .| C.mapM (handleTeamMembers env)
         .| C.mapM (pure . mconcat)
         .| sinkLines outH
 
-sinkLines :: IO.Handle -> ConduitT LByteString Void IO ()
-sinkLines hd = C.mapM_ (LBS.hPutStr hd)
-
+-- TODO: this should somehow get generated.
 type TeamMemberRow = (UUID, UUID, Maybe UTCTime, Maybe UUID, Maybe Int32, Permissions)
 
-getTeamMembers :: TeamId -> ConduitM () [TeamMemberRow] Client ()
-getTeamMembers tid = paginateC cql (paramsP Quorum (pure tid) pageSize) x5
+-- TODO: this should somehow get generated.
+readGalleyTeamMember :: TeamId -> ConduitM () [TeamMemberRow] Client ()
+readGalleyTeamMember tid = paginateC cql (paramsP Quorum (pure tid) pageSize) x5
   where
     cql :: PrepQuery R (Identity TeamId) TeamMemberRow
     cql = "select team, user, invited_at, invited_by, legalhold_status, perms from team_member where team=?"
 
-handleTeamMembers :: Logger -> (Int32, [TeamMemberRow]) -> IO [LByteString]
-handleTeamMembers lg (i, members) = do
-  Log.info lg (Log.field "number of team members loaded: " (show (i * pageSize)))
+handleTeamMembers :: Env -> (Int32, [TeamMemberRow]) -> IO [LByteString]
+handleTeamMembers env@Env {..} (i, members) = do
+  Log.info envLogger (Log.field "number of team members loaded: " (show (i * pageSize)))
+  writeToFile env "galley.clients" (readGalleyClients (view _2 <$> members))
 
-  pure $ (encode <$> members)
+  -- ...
 
---
---
---
---
+  pure $ (encode <$> members) -- (nit-pick TODO: this could be implicit, done in the pipeline somehow.)
 
--- one file per table, only use tuples.
+-- TODO: this should somehow get generated.
 
--- dump-selected-query.
+type ClientsRow = (UUID, ())
 
--- one big problem: needs re-login (cookies won't need to get moved).
+-- TODO: this should somehow get generated.
+readGalleyClients :: [UUID] -> Client [ClientsRow]
+readGalleyClients = undefined
 
--- old assets may be available from the new backend since they're global.  so clients can fetch both.  possibly.
+----------------------------------------------------------------------
 
--- instead of writing putTeamMembers, perhaps we can write cql code to the file instead of
--- tuples?  and have getTeamMembers return [Text] rather than [TeamMemberExport]?  yes, that
--- seems like a good idea.
+runTeamConv :: Env -> IO ()
+runTeamConv env@Env {..} = do
+  IO.withBinaryFile (envTargetPath </> "galley.team_conv") IO.WriteMode $ \outH ->
+    runConduit $
+      zipSources
+        (CL.sourceList [(1 :: Int32) ..])
+        (transPipe (runClient envGalley) (readGalleyTeamConv envTeamId))
+        .| C.mapM (handleTeamConv env)
+        .| C.mapM (pure . mconcat)
+        .| sinkLines outH
+
+-- TODO: this should somehow get generated.
+readGalleyTeamConv :: a
+readGalleyTeamConv = undefined
+
+handleTeamConv :: a
+handleTeamConv = undefined
+
+-- ...
+
+----------------------------------------------------------------------
+-- helpers (TODO: move to separate module)
+
+sinkLines :: IO.Handle -> ConduitT LByteString Void IO ()
+sinkLines hd = C.mapM_ (LBS.hPutStr hd)
+
+writeToFile :: ToJSON a => Env -> FilePath -> Client a -> IO ()
+writeToFile = undefined
