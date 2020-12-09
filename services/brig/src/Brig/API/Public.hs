@@ -218,11 +218,18 @@ type GetUserQualified =
     :> CaptureUserId "uid"
     :> Get '[Servant.JSON] Public.UserProfile
 
+type GetSelf =
+  Summary "Get your own profile"
+    :> ZAuthServant
+    :> "self"
+    :> Get '[Servant.JSON] Public.SelfProfile
+
 type OutsideWorldAPI =
   CheckUserExistsUnqualified
     :<|> CheckUserExistsQualified
     :<|> GetUserUnqualified
     :<|> GetUserQualified
+    :<|> GetSelf
 
 type SwaggerDocsAPI = "api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
@@ -245,6 +252,7 @@ servantSitemap =
     :<|> checkUserExistsH
     :<|> getUserUnqualifiedH
     :<|> getUserH
+    :<|> getSelf
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
@@ -394,14 +402,6 @@ sitemap o = do
     Doc.errorResponse insufficientTeamPermissions
 
   -- User Self API ------------------------------------------------------
-
-  get "/self" (continue getSelfH) $
-    accept "application" "json"
-      .&. zauthUserId
-  document "GET" "self" $ do
-    Doc.summary "Get your profile"
-    Doc.returns (Doc.ref Public.modelSelf)
-    Doc.response 200 "Self profile" Doc.end
 
   -- This endpoint can lead to the following events being sent:
   -- - UserUpdated event to contacts of self
@@ -1175,10 +1175,6 @@ checkUserExistsH self domain uid = do
 checkUserExists :: UserId -> Qualified UserId -> Handler Bool
 checkUserExists self qualifiedUserId =
   isJust <$> getUser self qualifiedUserId
-
-getSelfH :: JSON ::: UserId -> Handler Response
-getSelfH (_ ::: self) = do
-  json <$> getSelf self
 
 getSelf :: UserId -> Handler Public.SelfProfile
 getSelf self = do
