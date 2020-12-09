@@ -38,10 +38,12 @@ import Data.Time
 import Data.UUID
 import Galley.Data.Instances ()
 import Imports
+import System.Exit (ExitCode (ExitSuccess))
 import System.FilePath ((</>))
 import qualified System.IO as IO
 import System.Logger (Logger)
 import qualified System.Logger as Log
+import System.Process (system)
 import UnliftIO.Async (pooledMapConcurrentlyN)
 import Wire.API.Team.Feature
 import Wire.API.Team.Permission
@@ -53,6 +55,7 @@ pageSize = 100
 
 runCommand :: Logger -> ClientState -> ClientState -> ClientState -> FilePath -> TeamId -> IO ()
 runCommand lg _brig galley _spar sinkPath tid = do
+  ExitSuccess <- system $ "mkdir -p " <> show sinkPath
   IO.withBinaryFile (sinkPath </> "galley.team_member") IO.WriteMode $ \outH ->
     runConduit $
       zipSources
