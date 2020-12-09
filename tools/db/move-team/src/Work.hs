@@ -69,7 +69,7 @@ runCommand :: Env -> IO ()
 runCommand env@Env {..} = do
   ExitSuccess <- system $ "mkdir -p " <> show envTargetPath
   runGalleyTeamMembers env
-  runGalleyTeamConv env
+  -- runGalleyTeamConv env
 
 ----------------------------------------------------------------------
 

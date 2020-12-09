@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f3bf5b4aa13b106f0b249d445da3e80131171f2b176e9c615d92bc0cd4354fa6
+-- hash: 8ad66e7df3899d1af8e8c394bbbcd7a65b3ca6b73d24fa446eb9f36b16ef9051
 
 name:           move-team
 version:        1.0.0
@@ -15,6 +15,89 @@ maintainer:     Wire Swiss GmbH <backend@wire.com>
 copyright:      (c) 2018 Wire Swiss GmbH
 license:        AGPL-3
 build-type:     Simple
+
+library
+  exposed-modules:
+      Main
+      Options
+      ParseSchema
+      Work
+  other-modules:
+      Paths_move_team
+  hs-source-dirs:
+      src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
+  build-depends:
+      aeson
+    , attoparsec
+    , base
+    , brig-types
+    , bytestring
+    , bytestring-conversion
+    , cassandra-util
+    , conduit
+    , extended
+    , filepath
+    , galley
+    , galley-types
+    , imports
+    , lens
+    , megaparsec
+    , mtl
+    , optparse-applicative
+    , parser-combinators
+    , process
+    , raw-strings-qq
+    , stache
+    , text
+    , time
+    , tinylog
+    , types-common
+    , unliftio
+    , uuid
+    , wire-api
+  default-language: Haskell2010
+
+executable gen-table-types
+  main-is: Run.hs
+  other-modules:
+      Paths_move_team
+  hs-source-dirs:
+      gen-table-types/src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
+  build-depends:
+      aeson
+    , attoparsec
+    , base
+    , brig-types
+    , bytestring
+    , bytestring-conversion
+    , cassandra-util
+    , conduit
+    , extended
+    , filepath
+    , galley
+    , galley-types
+    , imports
+    , lens
+    , megaparsec
+    , move-team
+    , mtl
+    , optparse-applicative
+    , parser-combinators
+    , process
+    , raw-strings-qq
+    , stache
+    , text
+    , time
+    , tinylog
+    , types-common
+    , unliftio
+    , uuid
+    , wire-api
+  default-language: Haskell2010
 
 executable move-team
   main-is: Main.hs
@@ -37,6 +120,7 @@ executable move-team
     , cassandra-util
     , conduit
     , extended
+    , filepath
     , galley
     , galley-types
     , imports
@@ -45,6 +129,9 @@ executable move-team
     , mtl
     , optparse-applicative
     , parser-combinators
+    , process
+    , raw-strings-qq
+    , stache
     , text
     , time
     , tinylog

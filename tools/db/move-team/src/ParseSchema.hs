@@ -1,13 +1,22 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# OPTIONS_GHC -fno-warn-type-defaults #-}
 
 module ParseSchema where
 
+import Data.Aeson (ToJSON, object, (.=))
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+import qualified Data.Text.Lazy.IO as TIO
 import Imports
+import qualified Options.Applicative as OA
+import System.Environment (withArgs)
+import System.Exit (exitFailure)
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
+import Text.Mustache
+import Text.RawString.QQ
 
 type Parser = Parsec Void Text
 
@@ -89,7 +98,134 @@ parser = catMaybes <$> (stmt `sepEndBy` lexeme (string ";"))
 
 -------------------------------------------------------------------------------
 
+toHaskellType :: Text -> Text
+toHaskellType "ascii" = "TODO"
+toHaskellType "bigint" = "TODO"
+toHaskellType "blob" = "TODO"
+toHaskellType "boolean" = "Bool"
+toHaskellType "double" = "Double"
+toHaskellType "frozen<permissions>" = "TODO"
+toHaskellType "inet" = "TODO"
+toHaskellType "int" = "Int32"
+toHaskellType "list<ascii>" = "TODO"
+toHaskellType "list<blob>" = "TODO"
+toHaskellType "list<float>" = "TODO"
+toHaskellType "list<frozen<asset>>" = "TODO"
+toHaskellType "list<frozen<pubkey>>" = "TODO"
+toHaskellType "list<text>" = "TODO"
+toHaskellType "pubkey" = "TODO"
+toHaskellType "set<bigint>" = "TODO"
+toHaskellType "set<blob>" = "TODO"
+toHaskellType "set<int>" = "TODO"
+toHaskellType "set<text>" = "TODO"
+toHaskellType "set<uuid>" = "TODO"
+toHaskellType "text" = "Text"
+toHaskellType "timestamp" = "TODO"
+toHaskellType "timeuuid" = "TODO"
+toHaskellType "uuid" = "UUID"
+toHaskellType st = error (T.unpack ("toHaskellType not implemented for " <> st))
+
+data TemplateValues = TemplateValues
+  { tableName :: Text,
+    tableId :: Text,
+    columns :: Text,
+    columnsQuoted :: Text,
+    typeOfRow :: Text
+  }
+  deriving (Generic)
+
+instance ToJSON TemplateValues
+
+toTemplateValues :: CreateTable -> TemplateValues
+toTemplateValues (CreateTable ks tn cols) =
+  TemplateValues
+    (ks' <> "." <> tn)
+    (ks' <> "_" <> tn)
+    (T.intercalate ", " (fmap colName cols))
+    (T.intercalate ", " (fmap (quote . colName) cols))
+    (T.intercalate ", " (fmap (("Maybe " <>) . toHaskellType . colType) cols))
+  where
+    ks' = fromMaybe ks (T.stripSuffix "_test" ks)
+    quote :: Text -> Text
+    quote str = "\"" <> str <> "\""
+
+tableTemplate :: Text
+tableTemplate =
+  [r|
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
+module {{moduleName}} where
+
+type TODO = Void  -- TODO: remove me
+
+{{#table}}
+
+-- {{tableName}}
+
+type Row_{{tableId}} = ({{{typeOfRow}}})
+
+columns_{{tableId}} :: [Text]
+columns_{{tableId}} = [{{{columnsQuoted}}}]
+
+selectByTeam_{{tableId}} :: PrepQuery R (Identity TeamId) Row_{{tableId}}
+selectByTeam_{{tableId}} = "select {{{columns}}} where team=?"
+{{/table}}
+|]
+
+debug :: IO ()
+debug =
+  withArgs ["TableTypes", "../../../docs/reference/cassandra-schema.cql"] $
+    main
+
+data Arguments = Arguments
+  { argsModuleName :: Text,
+    argsCqlSchemaFile :: FilePath
+  }
+
+argParser :: OA.Parser Arguments
+argParser =
+  Arguments
+    <$> OA.argument OA.str (OA.metavar "MODULE_NAME")
+      <*> OA.argument OA.str (OA.metavar "SCHEMA_FILE")
+
 main :: IO ()
-main =
-  T.readFile "/home/stefan/repos/wire-server/docs/reference/cassandra-schema.cql"
-    >>= parseTest parser
+main = do
+  Arguments moduleName schemaFile <-
+    OA.execParser
+      ( OA.info
+          (OA.helper <*> argParser)
+          ( OA.header "gen-table-types"
+              <> OA.progDesc "Generate Haskell types from Cassandra schema dump"
+              <> OA.fullDesc
+          )
+      )
+  contents <- T.readFile schemaFile
+  createTables <- case parse parser "" contents of
+    Left e -> putStr (errorBundlePretty e) >> exitFailure
+    Right x -> pure x
+
+  let res = compileMustacheText "" tableTemplate
+  case res of
+    Left bundle -> putStrLn (errorBundlePretty bundle)
+    Right template ->
+      TIO.putStr $
+        renderMustache template $
+          object
+            [ "table" .= fmap toTemplateValues createTables,
+              "moduleName" .= moduleName
+            ]

@@ -35,6 +35,8 @@ dependencies:
 - optparse-applicative
 - process
 - parser-combinators
+- raw-strings-qq
+- stache
 - text
 - time
 - tinylog
@@ -42,7 +44,16 @@ dependencies:
 - unliftio
 - uuid
 - wire-api
+library:
+  source-dirs: src
+
 executables:
   move-team:
     main: Main.hs
     source-dirs: src
+
+  gen-table-types:
+    main: Run.hs
+    source-dirs: gen-table-types/src
+    dependencies:
+      - move-team
