@@ -1,10 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
 
 module ParseSchema where
 
-import Data.Aeson (ToJSON, object, (.=))
+import Data.Aeson (ToJSON, object, toJSON, (.=))
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.Text.Lazy.IO as TIO
@@ -35,6 +36,13 @@ data CreateTable = CreateTable
     ctColumns :: [Column]
   }
   deriving (Eq, Show, Ord)
+
+findCreateTable :: Text -> Text -> [CreateTable] -> CreateTable
+findCreateTable ks tn [] = error $ "bad CreateTable name, keyspace: " <> show (ks, tn)
+findCreateTable ks tn (ct@(CreateTable ks' tn' _) : cts) =
+  if ks == ks' && tn == tn'
+    then ct
+    else findCreateTable ks tn cts
 
 name' :: Parser Text
 name' = T.pack <$> some (satisfy (\c -> isLower c || c == '_'))
@@ -127,8 +135,10 @@ toHaskellType "uuid" = "UUID"
 toHaskellType st = error (T.unpack ("toHaskellType not implemented for " <> st))
 
 data TemplateValues = TemplateValues
-  { tableName :: Text,
-    tableId :: Text,
+  { keySpace :: Text,
+    tableName :: Text,
+    keySpaceCaml :: Text,
+    tableNameCaml :: Text,
     columns :: Text,
     columnsQuoted :: Text,
     typeOfRow :: Text
@@ -140,17 +150,28 @@ instance ToJSON TemplateValues
 toTemplateValues :: CreateTable -> TemplateValues
 toTemplateValues (CreateTable ks tn cols) =
   TemplateValues
-    (ks <> "." <> tn)
-    (ks <> "_" <> tn)
-    (T.intercalate ", " (fmap colName cols))
-    (T.intercalate ", " (fmap (quote . colName) cols))
-    (T.intercalate ", " (fmap (("Maybe " <>) . toHaskellType . colType) cols))
+    { keySpace = ks,
+      tableName = tn,
+      keySpaceCaml = caml ks,
+      tableNameCaml = caml tn,
+      columns = T.intercalate ", " (fmap colName cols),
+      columnsQuoted = T.intercalate ", " (fmap (quote . colName) cols),
+      typeOfRow = T.intercalate ", " (fmap (("Maybe " <>) . toHaskellType . colType) cols)
+    }
   where
     quote :: Text -> Text
     quote str = "\"" <> str <> "\""
 
-tableTemplate :: Text
-tableTemplate =
+    caml :: Text -> Text
+    caml = T.pack . go 0 . T.unpack
+      where
+        go _ ('_' : c : cs) = toUpper c : go 1 cs
+        go 0 (c : cs) = toUpper c : go 1 cs
+        go _ (c : cs) = c : go 1 cs
+        go _ "" = ""
+
+moduleTemplate :: Text
+moduleTemplate =
   [r|
 -- This file is part of the Wire Server implementation.
 --
@@ -175,16 +196,33 @@ type TODO = Void  -- TODO: remove me
 
 {{#table}}
 
--- {{tableName}}
+-- {{keySpace}}.{{tableName}}
 
-type Row_{{tableId}} = ({{{typeOfRow}}})
+type Row_{{keySpace}}_{{tableName}} = ({{{typeOfRow}}})
 
-columns_{{tableId}} :: [Text]
-columns_{{tableId}} = [{{{columnsQuoted}}}]
+columns_{{keySpace}}_{{tableName}} :: [Text]
+columns_{{keySpace}}_{{tableName}} = [{{{columnsQuoted}}}]
 
-selectByTeam_{{tableId}} :: PrepQuery R (Identity TeamId) Row_{{tableId}}
-selectByTeam_{{tableId}} = "select {{{columns}}} where team=?"
+selectByTeam_{{keySpace}}_{{tableName}} :: PrepQuery R (Identity TeamId) Row_{{tableId}}
+selectByTeam_{{keySpace}}_{{tableName}} = "select {{{columns}}} where team=?"
 {{/table}}
+|]
+
+tableTemplate :: Text
+tableTemplate =
+  [r|
+{{#chunkTable}}
+-- {{keySpace}}.{{tableName}}
+
+type Row{{keySpaceCaml}}{{tableNameCaml}} = ({{{typeOfRow}}})
+
+read{{keySpaceCaml}}{{tableNameCaml}} :: {{lookupKeyType}} -> ConduitM () [Row{{keySpaceCaml}}{{tableNameCaml}}] Client ()
+read{{keySpaceCaml}}{{tableNameCaml}} {{lookupKeyType}} = paginateC cql (paramsP Quorum (pure {{lookupKeyType}}) pageSize) x5
+  where
+    cql :: PrepQuery R (Identity {{lookupKeyType}}) Row{{keySpaceCaml}}{{tableNameCaml}}
+    cql = "select {{columns}} from {{tableNameCaml}} where {{lookupKeyCol}} = ?"
+
+{{/chunkTable}}
 |]
 
 debug :: IO ()
@@ -219,8 +257,7 @@ main = do
     Left e -> putStr (errorBundlePretty e) >> exitFailure
     Right x -> pure x
 
-  let res = compileMustacheText "" tableTemplate
-  case res of
+  case compileMustacheText "" moduleTemplate of
     Left bundle -> putStrLn (errorBundlePretty bundle)
     Right template ->
       TIO.putStr $
@@ -229,3 +266,26 @@ main = do
             [ "table" .= fmap toTemplateValues createTables,
               "moduleName" .= moduleName
             ]
+
+  case compileMustacheText "" tableTemplate of
+    Left bundle -> putStrLn (errorBundlePretty bundle)
+    Right template -> do
+      (TIO.putStr . renderMustache template . toJSON)
+        `mapM_` [ mkChunk createTables "galley" "team_member" "TeamId" "tid" "team",
+                  mkChunk createTables "galley" "team_conv" "TeamId" "tid" "team"
+                ]
+
+data Chunk = Chunk
+  { chunkTable :: [TemplateValues],
+    lookupKeyType :: Text,
+    lookupKeyVar :: Text,
+    lookupKeyCol :: Text
+  }
+  deriving (Generic)
+
+instance ToJSON Chunk
+
+mkChunk :: [CreateTable] -> Text -> Text -> Text -> Text -> Text -> Chunk
+mkChunk createTables ks tn lookupKeyType lookupKeyVar lookupKeyCol = Chunk {..}
+  where
+    chunkTable = [toTemplateValues $ findCreateTable ks tn createTables]
