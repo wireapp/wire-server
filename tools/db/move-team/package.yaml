@@ -30,9 +30,11 @@ dependencies:
 - galley-types
 - imports
 - lens
+- megaparsec
 - mtl
 - optparse-applicative
 - process
+- parser-combinators
 - text
 - time
 - tinylog

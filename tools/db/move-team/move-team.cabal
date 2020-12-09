@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f07b4dfaee651743a5349633f31ca99b0625c9d2ee7ae5438ead4325b44c54c2
+-- hash: f3bf5b4aa13b106f0b249d445da3e80131171f2b176e9c615d92bc0cd4354fa6
 
 name:           move-team
 version:        1.0.0
@@ -20,6 +20,7 @@ executable move-team
   main-is: Main.hs
   other-modules:
       Options
+      ParseSchema
       Work
       Paths_move_team
   hs-source-dirs:
@@ -40,8 +41,10 @@ executable move-team
     , galley-types
     , imports
     , lens
+    , megaparsec
     , mtl
     , optparse-applicative
+    , parser-combinators
     , text
     , time
     , tinylog
