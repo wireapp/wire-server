@@ -40,10 +40,14 @@ name' :: Parser Text
 name' = T.pack <$> some (satisfy (\c -> isLower c || c == '_'))
 
 keyspace :: Parser Text
-keyspace = name'
+keyspace = do
+  n <- name'
+  pure $ case T.splitOn "_test" n of
+    [n', ""] -> n'
+    _ -> n
 
 tablename :: Parser Text
-tablename = keyspace
+tablename = name'
 
 columnName :: Parser Text
 columnName = name'
@@ -136,13 +140,12 @@ instance ToJSON TemplateValues
 toTemplateValues :: CreateTable -> TemplateValues
 toTemplateValues (CreateTable ks tn cols) =
   TemplateValues
-    (ks' <> "." <> tn)
-    (ks' <> "_" <> tn)
+    (ks <> "." <> tn)
+    (ks <> "_" <> tn)
     (T.intercalate ", " (fmap colName cols))
     (T.intercalate ", " (fmap (quote . colName) cols))
     (T.intercalate ", " (fmap (("Maybe " <>) . toHaskellType . colType) cols))
   where
-    ks' = fromMaybe ks (T.stripSuffix "_test" ks)
     quote :: Text -> Text
     quote str = "\"" <> str <> "\""
 
