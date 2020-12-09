@@ -28,7 +28,10 @@ import qualified Wire.API.User as User
 tests :: T.TestTree
 tests =
   T.localOption (T.Timeout (60 * 1000000) "60s") . T.testGroup "JSON roundtrip tests" $
-    [testToJSON @User.UserProfile]
+    [ testToJSON @User.UserProfile,
+      testToJSON @User.User,
+      testToJSON @User.SelfProfile
+    ]
 
 testToJSON :: forall a. (Arbitrary a, Typeable a, ToJSON a, ToSchema a, Show a) => T.TestTree
 testToJSON = testProperty msg trip

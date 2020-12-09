@@ -289,6 +289,7 @@ data ManagedBy
     ManagedByScim
   deriving stock (Eq, Bounded, Enum, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ManagedBy)
+  deriving (ToSchema) via (CustomSwagger '[ConstructorTagModifier (StripPrefix "ManagedBy", CamelToSnake)] ManagedBy)
 
 typeManagedBy :: Doc.DataType
 typeManagedBy =

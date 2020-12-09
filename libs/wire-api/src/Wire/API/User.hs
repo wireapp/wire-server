@@ -92,7 +92,7 @@ module Wire.API.User
 where
 
 import Control.Error.Safe (rightMay)
-import Control.Lens (over)
+import Control.Lens (over, view)
 import Data.Aeson
   ( FromJSON (parseJSON),
     KeyValue ((.=)),
@@ -111,13 +111,14 @@ import qualified Data.Code as Code
 import qualified Data.Currency as Currency
 import Data.Handle (Handle)
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashMap.Strict.InsOrd as InsHashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
 import qualified Data.List as List
 import Data.Misc (PlainTextPassword (..))
 import Data.Proxy (Proxy (..))
 import Data.Range
-import Data.Swagger (ToSchema (..), genericDeclareNamedSchema, required, schema)
+import Data.Swagger (ToSchema (..), genericDeclareNamedSchema, properties, required, schema)
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import Data.UUID (UUID, nil)
@@ -271,11 +272,12 @@ instance FromJSON UserProfile where
 -- SelfProfile
 
 -- | A self profile.
-data SelfProfile = SelfProfile
+newtype SelfProfile = SelfProfile
   { selfUser :: User
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SelfProfile)
+  deriving newtype (ToSchema)
 
 modelSelf :: Doc.Model
 modelSelf = Doc.defineModel "Self" $ do
@@ -351,6 +353,35 @@ data User = User
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform User)
+
+-- Cannot use deriving (ToSchema) via (CustomSwagger ...) because we need to
+-- mark 'deleted' as optional, but it is not a 'Maybe'
+-- and we need to manually add the identity schema fields at the top level
+-- instead of nesting them under the 'identity' field.
+instance ToSchema User where
+  declareNamedSchema _ = do
+    identityProperties <- view (schema . properties) <$> declareNamedSchema (Proxy @UserIdentity)
+    genericSchema <-
+      genericDeclareNamedSchema
+        ( swaggerOptions
+            @'[ FieldLabelModifier
+                  ( StripPrefix "user",
+                    CamelToSnake,
+                    LabelMappings
+                      '[ "pict" ':-> "picture",
+                         "expire" ':-> "expires_at",
+                         "display_name" ':-> "name"
+                       ]
+                  )
+              ]
+        )
+        (Proxy @User)
+    pure $
+      genericSchema
+        & over (schema . required) (List.delete "deleted")
+        -- The UserIdentity fields need to be flat-included, not be in a sub-object
+        & over (schema . properties) (InsHashMap.delete "identity")
+        & over (schema . properties) (InsHashMap.union identityProperties)
 
 -- FUTUREWORK:
 -- disentangle json serializations for 'User', 'NewUser', 'UserIdentity', 'NewUserOrigin'.
