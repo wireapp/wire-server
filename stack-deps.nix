@@ -17,6 +17,7 @@ pkgs.haskell.lib.buildStackProject {
     pcre
     snappy
     zlib
+    lzma
   ];
   ghc = pkgs.haskell.compiler.ghc884;
 }
