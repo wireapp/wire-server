@@ -23,7 +23,7 @@ where
 
 import Brig.API (sitemap)
 import Brig.API.Handler
-import Brig.API.Public (ServantAPI, ServantHandlerAPI, servantHandlerSitemap, servantSitemap)
+import Brig.API.Public (ServantAPI, SwaggerDocsAPI, servantSitemap, swaggerDocsAPI)
 import Brig.AWS (sesQueue)
 import qualified Brig.AWS as AWS
 import qualified Brig.AWS.SesNotification as SesNotification
@@ -96,8 +96,16 @@ mkApp o = do
     servantApp :: Env -> Wai.Application
     servantApp e =
       Servant.serve
-        (Proxy @(ServantHandlerAPI :<|> ServantAPI :<|> Servant.Raw))
-        (servantHandlerSitemap :<|> Servant.hoistServer (Proxy @ServantAPI) (toServantHandler e) servantSitemap :<|> Servant.Tagged (app e))
+        ( Proxy
+            @( SwaggerDocsAPI
+                 :<|> ServantAPI
+                 :<|> Servant.Raw
+             )
+        )
+        ( swaggerDocsAPI
+            :<|> Servant.hoistServer (Proxy @ServantAPI) (toServantHandler e) servantSitemap
+            :<|> Servant.Tagged (app e)
+        )
 
 lookupRequestIdMiddleware :: (RequestId -> Wai.Application) -> Wai.Application
 lookupRequestIdMiddleware mkapp req cont = do
