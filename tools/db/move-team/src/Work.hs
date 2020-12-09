@@ -38,6 +38,7 @@ import Data.Time
 import Data.UUID
 import Galley.Data.Instances ()
 import Imports
+import System.FilePath ((</>))
 import qualified System.IO as IO
 import System.Logger (Logger)
 import qualified System.Logger as Log
@@ -51,14 +52,15 @@ pageSize :: Int32
 pageSize = 100
 
 runCommand :: Logger -> ClientState -> ClientState -> ClientState -> FilePath -> TeamId -> IO ()
-runCommand lg _brig galley _spar sinkPath tid = IO.withBinaryFile sinkPath IO.WriteMode $ \outH -> do
-  runConduit $
-    zipSources
-      (CL.sourceList [(1 :: Int32) ..])
-      (transPipe (runClient galley) (getTeamMembers tid))
-      .| C.mapM (handleTeamMembers lg)
-      .| C.mapM (pure . mconcat)
-      .| sinkLines outH
+runCommand lg _brig galley _spar sinkPath tid = do
+  IO.withBinaryFile (sinkPath </> "galley.team_member") IO.WriteMode $ \outH ->
+    runConduit $
+      zipSources
+        (CL.sourceList [(1 :: Int32) ..])
+        (transPipe (runClient galley) (getTeamMembers tid))
+        .| C.mapM (handleTeamMembers lg)
+        .| C.mapM (pure . mconcat)
+        .| sinkLines outH
 
 sinkLines :: IO.Handle -> ConduitT LByteString Void IO ()
 sinkLines hd = C.mapM_ (LBS.hPutStr hd)
@@ -68,12 +70,13 @@ type TeamMemberRow = (UUID, UUID, Maybe UTCTime, Maybe UUID, Maybe Int32, Permis
 getTeamMembers :: TeamId -> ConduitM () [TeamMemberRow] Client ()
 getTeamMembers tid = paginateC cql (paramsP Quorum (pure tid) pageSize) x5
   where
-    cql :: PrepQuery R (Identity TeamId) (UUID, UUID, Maybe UTCTime, Maybe UUID, Maybe Int32, Permissions)
+    cql :: PrepQuery R (Identity TeamId) TeamMemberRow
     cql = "select team, user, invited_at, invited_by, legalhold_status, perms from team_member where team=?"
 
 handleTeamMembers :: Logger -> (Int32, [TeamMemberRow]) -> IO [LByteString]
 handleTeamMembers lg (i, members) = do
   Log.info lg (Log.field "number of team members loaded: " (show (i * pageSize)))
+
   pure $ (encode <$> members)
 
 --

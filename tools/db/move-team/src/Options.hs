@@ -22,7 +22,7 @@ module Options
   ( setCasBrig,
     setCasGalley,
     setCasSpar,
-    setOutputFile,
+    setTargetDirectory,
     setTeamId,
     cHosts,
     cPort,
@@ -42,7 +42,7 @@ data MigratorSettings = MigratorSettings
   { _setCasBrig :: !CassandraSettings,
     _setCasGalley :: !CassandraSettings,
     _setCasSpar :: !CassandraSettings,
-    _setOutputFile :: !String,
+    _setTargetDirectory :: !String,
     _setTeamId :: !UUID
   }
   deriving (Show)
@@ -65,10 +65,10 @@ settingsParser =
     <*> cassandraSettingsParser "galley"
     <*> cassandraSettingsParser "spar"
     <*> strOption
-      ( long "sink"
+      ( long "target-directory"
           <> metavar "SINK"
           <> help "Sink file"
-          <> value "/tmp/out.json"
+          <> value "/tmp/export-team/"
           <> showDefault
       )
     <*> ( parseUUID
