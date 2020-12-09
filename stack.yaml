@@ -163,7 +163,11 @@ extra-deps:
 # Not updated on Stackage yet
 - QuickCheck-2.14
 - splitmix-0.0.4 # needed for QuickCheck
-- servant-0.18.2
+# - servant-0.18.2
+- git: https://github.com/smatting/servant.git
+  commit: 2d2c43d444b31484877a30160a60fb5f46c0a59f
+  subdirs:
+    - servant
 - servant-server-0.18.2
 - servant-mock-0.8.7
 - git: https://github.com/wireapp/servant-swagger.git
