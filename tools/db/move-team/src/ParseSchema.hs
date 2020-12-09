@@ -99,29 +99,26 @@ parser = catMaybes <$> (stmt `sepEndBy` lexeme (string ";"))
 -------------------------------------------------------------------------------
 
 toHaskellType :: Text -> Text
-toHaskellType "ascii" = "TODO"
-toHaskellType "bigint" = "TODO"
-toHaskellType "blob" = "TODO"
+toHaskellType (T.split (`elem` ['<', '>']) -> ("frozen" : key')) = toHaskellType (mconcat key')
+toHaskellType (T.split (`elem` ['<', '>']) -> ("list" : key')) = "[" <> toHaskellType (mconcat key') <> "]"
+toHaskellType (T.split (`elem` ['<', '>']) -> ("set" : key')) = "[" <> toHaskellType (mconcat key') <> "]"
+toHaskellType (T.splitOn "frozen" -> ["", key']) = toHaskellType key'
+toHaskellType (T.splitOn "list" -> ["", key']) = "[" <> toHaskellType key' <> "]"
+toHaskellType (T.splitOn "set" -> ["", key']) = "[" <> toHaskellType key' <> "]"
+toHaskellType "ascii" = "Text"
+toHaskellType "asset" = "TODO" -- this a cql data type consisting of two cols.  not sure we even need this.  hum.
+toHaskellType "bigint" = "Integer"
+toHaskellType "blob" = "LByteString"
 toHaskellType "boolean" = "Bool"
 toHaskellType "double" = "Double"
-toHaskellType "frozen<permissions>" = "TODO"
-toHaskellType "inet" = "TODO"
-toHaskellType "int" = "Int32"
-toHaskellType "list<ascii>" = "TODO"
-toHaskellType "list<blob>" = "TODO"
-toHaskellType "list<float>" = "TODO"
-toHaskellType "list<frozen<asset>>" = "TODO"
-toHaskellType "list<frozen<pubkey>>" = "TODO"
-toHaskellType "list<text>" = "TODO"
-toHaskellType "pubkey" = "TODO"
-toHaskellType "set<bigint>" = "TODO"
-toHaskellType "set<blob>" = "TODO"
-toHaskellType "set<int>" = "TODO"
-toHaskellType "set<text>" = "TODO"
-toHaskellType "set<uuid>" = "TODO"
+toHaskellType "float" = "Double"
+toHaskellType "permissions" = "Integer"
+toHaskellType "inet" = ""
+toHaskellType "int" = "Integer"
+toHaskellType "pubkey" = "Blob"
 toHaskellType "text" = "Text"
-toHaskellType "timestamp" = "TODO"
-toHaskellType "timeuuid" = "TODO"
+toHaskellType "timestamp" = "UTCTime"
+toHaskellType "timeuuid" = "UUID"
 toHaskellType "uuid" = "UUID"
 toHaskellType st = error (T.unpack ("toHaskellType not implemented for " <> st))
 
