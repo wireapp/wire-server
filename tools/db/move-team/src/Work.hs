@@ -51,7 +51,7 @@ pageSize :: Int32
 pageSize = 100
 
 runCommand :: Logger -> ClientState -> ClientState -> ClientState -> FilePath -> TeamId -> IO ()
-runCommand lg galley _brig _spar sinkPath tid = IO.withBinaryFile sinkPath IO.WriteMode $ \outH ->
+runCommand lg _brig galley _spar sinkPath tid = IO.withBinaryFile sinkPath IO.WriteMode $ \outH ->
   runConduit $
     zipSources
       (CL.sourceList [(1 :: Int32) ..])
