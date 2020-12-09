@@ -77,15 +77,15 @@ instance ToJSON TeamMemberExport
 
 instance FromJSON TeamMemberExport
 
-mkTeamMemberExport :: (UUID, UUID, UTCTime, UUID, Int32) -> TeamMemberExport
-mkTeamMemberExport (team, user, invitedAt, invitedBy, legalhold) =
-  TeamMemberExport team user invitedAt invitedBy (fromIntegral legalhold) (error "perms")
+mkTeamMemberExport :: (UUID, UUID, UTCTime, UUID, Int32, Permissions) -> TeamMemberExport
+mkTeamMemberExport (team, user, invitedAt, invitedBy, legalhold, perms) =
+  TeamMemberExport team user invitedAt invitedBy (fromIntegral legalhold) perms
 
 getTeamMembers :: TeamId -> ConduitM () [TeamMemberExport] Client ()
 getTeamMembers tid = paginateC cql (paramsP Quorum (pure tid) pageSize) x5 .| C.mapM (pure . fmap mkTeamMemberExport)
   where
-    cql :: PrepQuery R (Identity TeamId) (UUID, UUID, UTCTime, UUID, Int32)
-    cql = "select team, user, invited_at, invited_by, legalhold_status from team_member where team=?"
+    cql :: PrepQuery R (Identity TeamId) (UUID, UUID, UTCTime, UUID, Int32, Permissions)
+    cql = "select team, user, invited_at, invited_by, legalhold_status, perms from team_member where team=?"
 
 handleTeamMembers :: Logger -> (Int32, [TeamMemberExport]) -> IO [LByteString]
 handleTeamMembers lg (i, members) = do
