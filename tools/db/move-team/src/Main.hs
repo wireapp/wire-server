@@ -41,7 +41,7 @@ main = do
   bc <- initCas (s ^. setCasBrig) lgr
   gc <- initCas (s ^. setCasGalley) lgr
   sc <- initCas (s ^. setCasSpar) lgr
-  runCommand lgr bc sc gc (s ^. setOutputFile) (Id $ s ^. setTeamId)
+  runCommand lgr bc gc sc (s ^. setOutputFile) (Id $ s ^. setTeamId)
   where
     desc =
       header "service-backfill"

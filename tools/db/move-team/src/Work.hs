@@ -52,7 +52,6 @@ pageSize = 100
 
 runCommand :: Logger -> ClientState -> ClientState -> ClientState -> FilePath -> TeamId -> IO ()
 runCommand lg _brig galley _spar sinkPath tid = IO.withBinaryFile sinkPath IO.WriteMode $ \outH -> do
-  () <- error "wef"
   runConduit $
     zipSources
       (CL.sourceList [(1 :: Int32) ..])
