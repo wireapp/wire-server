@@ -8,7 +8,7 @@ spec:
   # TODO: Make configurable in follow-up PR
   # This is 1 on purpose as we need more machinery to make multiple SFTs work.
   # Work for that is tracked in: https://github.com/wireapp/wire-server-deploy/pull/383
-  replicas: 1
+  replicas: {{ .Values.replicaCount }}
   serviceName: {{ include "sftd.fullname" . }}
   selector:
     matchLabels:
@@ -65,6 +65,10 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: status.podIP
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
           volumeMounts:
             - name: external-ip
               mountPath: /external-ip
@@ -79,7 +83,7 @@ spec:
               else
                 ACCESS_ARGS="-A ${EXTERNAL_IP}"
               fi
-              exec sftd  -I "${POD_IP}" -M "${POD_IP}" ${ACCESS_ARGS} -u "https://{{ required "must specify host" .Values.host }}"
+              exec sftd  -I "${POD_IP}" -M "${POD_IP}" ${ACCESS_ARGS} -u "https://{{ required "must specify host" .Values.host }}/sfts/${POD_NAME}"
           ports:
             - name: sft
               containerPort: 8585

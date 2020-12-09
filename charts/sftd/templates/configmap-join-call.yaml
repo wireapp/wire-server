@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sftd.fullname" . }}-join-call
+  labels:
+    {{- include "sftd.join-call.labels" . | nindent 4 }}
+
+data:
+  default.conf.template: |
+    server {
+      listen 8080;
+      resolver kube-dns.kube-system.svc.cluster.local;
+
+      location /healthz { return 204; }
+
+      location ~ ^/sfts/([a-z0-9\-]+)/(.*) {
+        proxy_pass http://$1.sftd.${POD_NAMESPACE}.svc.cluster.local:8585/$2;
+      }
+
+    }
