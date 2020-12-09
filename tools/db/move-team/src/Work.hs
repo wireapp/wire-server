@@ -63,24 +63,6 @@ runCommand lg _brig galley _spar sinkPath tid = IO.withBinaryFile sinkPath IO.Wr
 sinkLines :: IO.Handle -> ConduitT LByteString Void IO ()
 sinkLines hd = C.mapM_ (LBS.hPutStr hd)
 
-data TeamMemberExport = TeamMemberExport
-  { teamMemberExportTeam :: UUID,
-    teamMemberExportUser :: UUID,
-    teamMemberExportInvitedAt :: UTCTime,
-    teamMemberExportInvitedBy :: UUID,
-    teamMemberExportLegalhold :: Int,
-    teamMemberExportPerms :: Permissions
-  }
-  deriving (Generic)
-
-instance ToJSON TeamMemberExport
-
-instance FromJSON TeamMemberExport
-
-mkTeamMemberExport :: (UUID, UUID, UTCTime, UUID, Int32, Permissions) -> TeamMemberExport
-mkTeamMemberExport (team, user, invitedAt, invitedBy, legalhold, perms) =
-  TeamMemberExport team user invitedAt invitedBy (fromIntegral legalhold) perms
-
 getTeamMembers :: TeamId -> ConduitM () [TeamMemberExport] Client ()
 getTeamMembers tid = paginateC cql (paramsP Quorum (pure tid) pageSize) x5 .| C.mapM (pure . fmap mkTeamMemberExport)
   where
@@ -91,3 +73,20 @@ handleTeamMembers :: Logger -> (Int32, [TeamMemberExport]) -> IO [LByteString]
 handleTeamMembers lg (i, members) = do
   Log.info lg (Log.field "number of team members loaded: " (show (i * pageSize)))
   pure $ (encode <$> members)
+
+--
+--
+--
+--
+
+-- one file per table, only use tuples.
+
+-- dump-selected-query.
+
+-- one big problem: needs re-login (cookies won't need to get moved).
+
+-- old assets may be available from the new backend since they're global.  so clients can fetch both.  possibly.
+
+-- instead of writing putTeamMembers, perhaps we can write cql code to the file instead of
+-- tuples?  and have getTeamMembers return [Text] rather than [TeamMemberExport]?  yes, that
+-- seems like a good idea.
