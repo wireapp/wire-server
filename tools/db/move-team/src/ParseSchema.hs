@@ -216,11 +216,16 @@ tableTemplate =
 
 type Row{{keySpaceCaml}}{{tableNameCaml}} = ({{{typeOfRow}}})
 
-read{{keySpaceCaml}}{{tableNameCaml}} :: {{lookupKeyType}} -> ConduitM () [Row{{keySpaceCaml}}{{tableNameCaml}}] Client ()
-read{{keySpaceCaml}}{{tableNameCaml}} {{lookupKeyType}} = paginateC cql (paramsP Quorum (pure {{lookupKeyType}}) pageSize) x5
-  where
-    cql :: PrepQuery R (Identity {{lookupKeyType}}) Row{{keySpaceCaml}}{{tableNameCaml}}
-    cql = "select {{columns}} from {{tableNameCaml}} where {{lookupKeyCol}} = ?"
+select{{keySpaceCaml}}{{tableNameCaml}} :: PrepQuery R (Identity {{lookupKeyType}}) Row{{keySpaceCaml}}{{tableNameCaml}}
+select{{keySpaceCaml}}{{tableNameCaml}} = "select {{columns}} from {{tableNameCaml}} where {{lookupKeyCol}} = ?"
+
+read{{keySpaceCaml}}{{tableNameCaml}} :: {{lookupKeyType}} -> Client [Row{{keySpaceCaml}}{{tableNameCaml}}]
+read{{keySpaceCaml}}{{tableNameCaml}} {{lookupKeyType}} =
+  retry x1 (query1 select{{keySpaceCaml}}{{tableNameCaml}} (params Quorum (pure {{lookupKeyType}})))
+
+read{{keySpaceCaml}}{{tableNameCaml}}Conduit :: {{lookupKeyType}} -> ConduitM () [Row{{keySpaceCaml}}{{tableNameCaml}}] Client ()
+read{{keySpaceCaml}}{{tableNameCaml}}Conduit {{lookupKeyType}} =
+  paginateC select{{keySpaceCaml}}{{tableNameCaml}} (paramsP Quorum (pure {{lookupKeyType}}) pageSize) x5
 
 {{/chunkTable}}
 |]
