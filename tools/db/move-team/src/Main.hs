@@ -30,6 +30,7 @@ import Imports
 import Options as O
 import Options.Applicative
 import qualified System.Logger as Log
+import Types
 import Work
 
 -- ./dist/move-team --sink=/tmp/x.json --teamid=1595e6e0-11eb-48bb-afa2-c10207a78889
@@ -41,7 +42,7 @@ main = do
   bc <- initCas (s ^. setCasBrig) lgr
   gc <- initCas (s ^. setCasGalley) lgr
   sc <- initCas (s ^. setCasSpar) lgr
-  runCommand $ Env lgr bc gc sc (s ^. setTargetPath) (Id $ s ^. setTeamId)
+  runCommand $ Env lgr bc gc sc (s ^. setTargetPath) (Id $ s ^. setTeamId) 100
   where
     desc =
       header "service-backfill"

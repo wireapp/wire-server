@@ -41,35 +41,25 @@ import Data.Time
 import Data.UUID
 import Galley.Data.Instances ()
 import Imports
+import Schema
 import System.Exit (ExitCode (ExitSuccess))
 import System.FilePath ((</>))
 import qualified System.IO as IO
 import System.Logger (Logger)
 import qualified System.Logger as Log
 import System.Process (system)
+import Types
 import UnliftIO.Async (pooledMapConcurrentlyN)
 import Wire.API.Team.Feature
 import Wire.API.Team.Permission
 
-deriving instance Cql Name
-
-pageSize :: Int32
-pageSize = 100
-
-data Env = Env
-  { envLogger :: Logger,
-    envBrig :: ClientState,
-    envGalley :: ClientState,
-    envSpar :: ClientState,
-    envTargetPath :: FilePath,
-    envTeamId :: TeamId
-  }
+deriving instance Cql Name -- TODO
 
 runCommand :: Env -> IO ()
 runCommand env@Env {..} = do
   ExitSuccess <- system $ "mkdir -p " <> show envTargetPath
   runGalleyTeamMembers env
-  -- runGalleyTeamConv env
+  runGalleyTeamConv env
 
 ----------------------------------------------------------------------
 
@@ -79,57 +69,37 @@ runGalleyTeamMembers env@Env {..} = do
     runConduit $
       zipSources
         (CL.sourceList [(1 :: Int32) ..])
-        (transPipe (runClient envGalley) (readGalleyTeamMember envTeamId))
+        (readGalleyTeamMemberConduit env envTeamId)
         .| C.mapM (handleTeamMembers env)
         .| C.mapM (pure . mconcat)
         .| sinkLines outH
 
--- TODO: this should somehow get generated.
-type TeamMemberRow = (UUID, UUID, Maybe UTCTime, Maybe UUID, Maybe Int32, Permissions)
-
--- TODO: this should somehow get generated.
-readGalleyTeamMember :: TeamId -> ConduitM () [TeamMemberRow] Client ()
-readGalleyTeamMember tid = paginateC cql (paramsP Quorum (pure tid) pageSize) x5
-  where
-    cql :: PrepQuery R (Identity TeamId) TeamMemberRow
-    cql = "select team, user, invited_at, invited_by, legalhold_status, perms from team_member where team=?"
-
-handleTeamMembers :: Env -> (Int32, [TeamMemberRow]) -> IO [LByteString]
+handleTeamMembers :: Env -> (Int32, [RowGalleyTeamMember]) -> IO [LByteString]
 handleTeamMembers env@Env {..} (i, members) = do
-  Log.info envLogger (Log.field "number of team members loaded: " (show (i * pageSize)))
-  writeToFile env "galley.clients" (readGalleyClients (view _2 <$> members))
+  Log.info envLogger (Log.field "number of team members loaded: " (show (i * envPageSize)))
+  writeToFile env "galley.clients" (readGalleyClients env (catMaybes $ (fmap Id . view _2) <$> members))
 
   -- ...
 
-  pure $ (encode <$> members) -- (nit-pick TODO: this could be implicit, done in the pipeline somehow.)
-
--- TODO: this should somehow get generated.
-
-type ClientsRow = (UUID, ())
-
--- TODO: this should somehow get generated.
-readGalleyClients :: [UUID] -> Client [ClientsRow]
-readGalleyClients = undefined
+  pure (encode <$> members) -- (nit-pick TODO: this could be implicit, done in the pipeline somehow.)
 
 ----------------------------------------------------------------------
 
-runTeamConv :: Env -> IO ()
-runTeamConv env@Env {..} = do
+runGalleyTeamConv :: Env -> IO ()
+runGalleyTeamConv env@Env {..} = do
   IO.withBinaryFile (envTargetPath </> "galley.team_conv") IO.WriteMode $ \outH ->
     runConduit $
       zipSources
         (CL.sourceList [(1 :: Int32) ..])
-        (transPipe (runClient envGalley) (readGalleyTeamConv envTeamId))
+        (readGalleyTeamConvConduit env envTeamId)
         .| C.mapM (handleTeamConv env)
         .| C.mapM (pure . mconcat)
         .| sinkLines outH
 
--- TODO: this should somehow get generated.
-readGalleyTeamConv :: a
-readGalleyTeamConv = undefined
-
-handleTeamConv :: a
-handleTeamConv = undefined
+handleTeamConv :: Env -> (Int32, [RowGalleyTeamConv]) -> IO [LByteString]
+handleTeamConv Env {..} (i, convs) = do
+  Log.info envLogger (Log.field "number of team convs loaded: " (show (i * envPageSize)))
+  pure (encode <$> convs)
 
 -- ...
 
@@ -139,5 +109,5 @@ handleTeamConv = undefined
 sinkLines :: IO.Handle -> ConduitT LByteString Void IO ()
 sinkLines hd = C.mapM_ (LBS.hPutStr hd)
 
-writeToFile :: ToJSON a => Env -> FilePath -> Client a -> IO ()
+writeToFile :: ToJSON a => Env -> FilePath -> IO a -> IO ()
 writeToFile = undefined
