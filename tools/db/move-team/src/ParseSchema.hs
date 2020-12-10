@@ -229,6 +229,11 @@ insertAllTables env = do
 {{/chunkTable}}
 |]
 
+_printAllTables :: [CreateTable] -> IO ()
+_printAllTables createTables =
+  for_ createTables $ \(CreateTable {..}) ->
+    putStrLn $ T.unpack (ctKeyspace <> "." <> ctTablename)
+
 main :: IO ()
 main = do
   Arguments schemaFile mbOutFile <-
@@ -252,9 +257,81 @@ main = do
         (TIO.hPutStr out . renderMustache template)
           ( object
               [ "chunkTable"
-                  .= [ mkChunk createTables "galley" "team_member" "TeamId" "tid" "team =",
+                  .= [ mkChunk createTables "brig" "activation_keys" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "blacklist" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "budget" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "clients" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "codes" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "connection" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "excluded_phones" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "id_mapping" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "invitation" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "invitation_info" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "invitee_info" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "login_codes" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "meta" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "password_reset" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "prekeys" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "properties" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "provider" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "provider_keys" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "rich_info" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "service" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "service_prefix" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "service_tag" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "service_team" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "service_user" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "service_whitelist" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "service_whitelist_rev" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "team_invitation" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "team_invitation_email" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "team_invitation_info" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "unique_claims" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "user" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "user_cookies" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "user_handle" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "user_keys" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "user_keys_hash" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "brig" "vcodes" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "galley" "billing_team_member" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "galley" "clients" "[UserId]" "uids" "user in",
+                       mkChunk createTables "galley" "conversation" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "galley" "conversation_codes" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "galley" "custom_backend" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "galley" "data_migration" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "galley" "id_mapping" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "galley" "legalhold_pending_prekeys" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "galley" "legalhold_service" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "galley" "member" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "galley" "meta" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "galley" "service" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "galley" "team" undefined undefined undefined undefined undefined,
                        mkChunk createTables "galley" "team_conv" "TeamId" "tid" "team =",
-                       mkChunk createTables "galley" "clients" "[UserId]" "uids" "user in"
+                       mkChunk createTables "galley" "team_conv" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "galley" "team_features" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "galley" "team_member" "TeamId" "tid" "team =",
+                       mkChunk createTables "galley" "team_notifications" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "galley" "user" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "galley" "user_team" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "gundeck" "meta" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "gundeck" "notifications" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "gundeck" "push" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "gundeck" "user_push" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "spar" "authreq" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "spar" "authresp" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "spar" "bind_cookie" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "spar" "default_idp" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "spar" "idp" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "spar" "idp_raw_metadata" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "spar" "issuer_idp" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "spar" "meta" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "spar" "scim_external_ids" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "spar" "scim_user_times" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "spar" "team_idp" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "spar" "team_provisioning_by_team" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "spar" "team_provisioning_by_token" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "spar" "user" undefined undefined undefined undefined undefined,
+                       mkChunk createTables "spar" "verdict" undefined undefined undefined undefined undefined
                      ]
               ]
           )
