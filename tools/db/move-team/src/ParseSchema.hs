@@ -134,44 +134,8 @@ toHaskellType "timeuuid" = "UUID"
 toHaskellType "uuid" = "UUID"
 toHaskellType st = error (T.unpack ("toHaskellType not implemented for " <> st))
 
-data TemplateValues = TemplateValues
-  { keySpace :: Text,
-    tableName :: Text,
-    keySpaceCaml :: Text,
-    tableNameCaml :: Text,
-    columns :: Text,
-    columnsQuoted :: Text,
-    typeOfRow :: Text
-  }
-  deriving (Generic)
-
-instance ToJSON TemplateValues
-
-toTemplateValues :: CreateTable -> TemplateValues
-toTemplateValues (CreateTable ks tn cols) =
-  TemplateValues
-    { keySpace = ks,
-      tableName = tn,
-      keySpaceCaml = caml ks,
-      tableNameCaml = caml tn,
-      columns = T.intercalate ", " (fmap colName cols),
-      columnsQuoted = T.intercalate ", " (fmap (quote . colName) cols),
-      typeOfRow = T.intercalate ", " (fmap (("Maybe " <>) . toHaskellType . colType) cols)
-    }
-  where
-    quote :: Text -> Text
-    quote str = "\"" <> str <> "\""
-
-    caml :: Text -> Text
-    caml = T.pack . go 0 . T.unpack
-      where
-        go _ ('_' : c : cs) = toUpper c : go 1 cs
-        go 0 (c : cs) = toUpper c : go 1 cs
-        go _ (c : cs) = c : go 1 cs
-        go _ "" = ""
-
-moduleTemplate :: Text
-moduleTemplate =
+tableTemplate :: Text
+tableTemplate =
   [r|
 -- This file is part of the Wire Server implementation.
 --
@@ -190,27 +154,8 @@ moduleTemplate =
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module {{moduleName}} where
+module Schema where
 
-type TODO = Void  -- TODO: remove me
-
-{{#table}}
-
--- {{keySpace}}.{{tableName}}
-
-type Row_{{keySpace}}_{{tableName}} = ({{{typeOfRow}}})
-
-columns_{{keySpace}}_{{tableName}} :: [Text]
-columns_{{keySpace}}_{{tableName}} = [{{{columnsQuoted}}}]
-
-selectByTeam_{{keySpace}}_{{tableName}} :: PrepQuery R (Identity TeamId) Row_{{tableId}}
-selectByTeam_{{keySpace}}_{{tableName}} = "select {{{columns}}} where team=?"
-{{/table}}
-|]
-
-tableTemplate :: Text
-tableTemplate =
-  [r|
 {{#chunkTable}}
 -- {{keySpace}}.{{tableName}}
 
@@ -262,35 +207,53 @@ main = do
     Left e -> putStr (errorBundlePretty e) >> exitFailure
     Right x -> pure x
 
-  case compileMustacheText "" moduleTemplate of
-    Left bundle -> putStrLn (errorBundlePretty bundle)
-    Right template ->
-      TIO.putStr $
-        renderMustache template $
-          object
-            [ "table" .= fmap toTemplateValues createTables,
-              "moduleName" .= moduleName
-            ]
-
   case compileMustacheText "" tableTemplate of
     Left bundle -> putStrLn (errorBundlePretty bundle)
     Right template -> do
-      (TIO.putStr . renderMustache template . toJSON)
-        `mapM_` [ mkChunk createTables "galley" "team_member" "TeamId" "tid" "team",
-                  mkChunk createTables "galley" "team_conv" "TeamId" "tid" "team"
-                ]
+      (TIO.putStr . renderMustache template)
+        ( object
+            [ "chunkTable"
+                .= [ mkChunk createTables "galley" "team_member" "TeamId" "tid" "team",
+                     mkChunk createTables "galley" "team_conv" "TeamId" "tid" "team"
+                   ]
+            ]
+        )
 
 data Chunk = Chunk
-  { chunkTable :: [TemplateValues],
-    lookupKeyType :: Text,
+  { lookupKeyType :: Text,
     lookupKeyVar :: Text,
-    lookupKeyCol :: Text
+    lookupKeyCol :: Text,
+    keySpace :: Text,
+    tableName :: Text,
+    keySpaceCaml :: Text,
+    tableNameCaml :: Text,
+    columns :: Text,
+    columnsQuoted :: Text,
+    typeOfRow :: Text
   }
   deriving (Generic)
 
 instance ToJSON Chunk
 
 mkChunk :: [CreateTable] -> Text -> Text -> Text -> Text -> Text -> Chunk
-mkChunk createTables ks tn lookupKeyType lookupKeyVar lookupKeyCol = Chunk {..}
+mkChunk createTables ks tn lookupKeyType lookupKeyVar lookupKeyCol =
+  let (CreateTable _ks _tn cols) = findCreateTable ks tn createTables
+      keySpace = ks
+      tableName = tn
+      keySpaceCaml = caml ks
+      tableNameCaml = caml tn
+      columns = T.intercalate ", " (fmap colName cols)
+      columnsQuoted = T.intercalate ", " (fmap (quote . colName) cols)
+      typeOfRow = T.intercalate ", " (fmap (("Maybe " <>) . toHaskellType . colType) cols)
+   in Chunk {..}
   where
-    chunkTable = [toTemplateValues $ findCreateTable ks tn createTables]
+    caml :: Text -> Text
+    caml = T.pack . go 0 . T.unpack
+      where
+        go _ ('_' : c : cs) = toUpper c : go 1 cs
+        go 0 (c : cs) = toUpper c : go 1 cs
+        go _ (c : cs) = c : go 1 cs
+        go _ "" = ""
+
+    quote :: Text -> Text
+    quote str = "\"" <> str <> "\""
