@@ -13,6 +13,8 @@ import Imports
 import qualified Options.Applicative as OA
 import System.Environment (withArgs)
 import System.Exit (exitFailure)
+import System.FilePath ((</>))
+import System.FilePath.Posix (takeDirectory)
 import System.IO (Handle)
 import Text.Megaparsec
 import Text.Megaparsec.Char
@@ -261,15 +263,34 @@ main = do
       Nothing -> fn stdout
       Just filename -> withFile filename WriteMode fn
 
+findFileUpwards :: FilePath -> FilePath -> IO (Maybe FilePath)
+findFileUpwards startDir =
+  findFile (fmap (nthParent startDir) [0 .. 10])
+  where
+    nthParent :: FilePath -> Int -> FilePath
+    nthParent dir i =
+      foldl' (</>) dir (replicate i "..")
+
+findProjectRoot :: IO FilePath
+findProjectRoot = do
+  curDir <- getCurrentDirectory
+  Just p <- findFileUpwards curDir "stack-deps.nix"
+  pure $ takeDirectory p
+
+projectFile :: FilePath -> IO FilePath
+projectFile relativeFilename =
+  (</> relativeFilename) <$> findProjectRoot
+
 debug :: IO ()
-debug =
-  withArgs ["../../../docs/reference/cassandra-schema.cql"] $
-    main
+debug = do
+  cassandraSchema <- projectFile "docs/reference/cassandra-schema.cql"
+  withArgs [cassandraSchema] main
 
 debugwrite :: IO ()
-debugwrite =
-  withArgs ["../../../docs/reference/cassandra-schema.cql", "--output=src/Schema.hs"] $
-    main
+debugwrite = do
+  cassandraSchema <- projectFile "docs/reference/cassandra-schema.cql"
+  outputFile <- projectFile "tools/db/move-team/src/Schema.hs"
+  withArgs [cassandraSchema, "--output=" <> outputFile] main
 
 data Chunk = Chunk
   { lookupKeyType :: Text,
