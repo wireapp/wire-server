@@ -37,6 +37,7 @@ data Env = Env
     envBrig :: ClientState,
     envGalley :: ClientState,
     envSpar :: ClientState,
+    envGundeck :: ClientState,
     envTargetPath :: FilePath,
     envTeamId :: TeamId,
     envPageSize :: Int32

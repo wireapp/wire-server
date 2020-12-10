@@ -42,7 +42,8 @@ main = do
   bc <- initCas (s ^. setCasBrig) lgr
   gc <- initCas (s ^. setCasGalley) lgr
   sc <- initCas (s ^. setCasSpar) lgr
-  runCommand $ Env lgr bc gc sc (s ^. setTargetPath) (Id $ s ^. setTeamId) 100
+  gunC <- initCas (s ^. setCasGundeck) lgr
+  runCommand $ Env lgr bc gc sc gunC (s ^. setTargetPath) (Id $ s ^. setTeamId) 100
   where
     desc =
       header "service-backfill"

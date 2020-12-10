@@ -22,6 +22,7 @@ module Options
   ( setCasBrig,
     setCasGalley,
     setCasSpar,
+    setCasGundeck,
     setTargetPath,
     setTeamId,
     cHosts,
@@ -42,6 +43,7 @@ data MigratorSettings = MigratorSettings
   { _setCasBrig :: !CassandraSettings,
     _setCasGalley :: !CassandraSettings,
     _setCasSpar :: !CassandraSettings,
+    _setCasGundeck :: !CassandraSettings,
     _setTargetPath :: !String,
     _setTeamId :: !UUID
   }
@@ -64,6 +66,7 @@ settingsParser =
     <$> cassandraSettingsParser "brig"
     <*> cassandraSettingsParser "galley"
     <*> cassandraSettingsParser "spar"
+    <*> cassandraSettingsParser "gundeck"
     <*> strOption
       ( long "target-path"
           <> metavar "SINK"
