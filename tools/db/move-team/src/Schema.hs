@@ -319,7 +319,7 @@ insertBrigPrekeys _ _ = do
 
 -- brig.properties
 
-type RowBrigProperties = (Maybe UUID, Maybe Text, Maybe Int32)
+type RowBrigProperties = (Maybe UUID, Maybe Text, Maybe Blob')
 
 selectBrigProperties :: PrepQuery R (Identity ([UserId])) RowBrigProperties
 selectBrigProperties = "SELECT user, key, value FROM properties WHERE user in ? ALLOW FILTERING"
@@ -345,7 +345,7 @@ insertBrigProperties _ _ = do
 
 -- brig.rich_info
 
-type RowBrigRichInfo = (Maybe UUID, Maybe Int32)
+type RowBrigRichInfo = (Maybe UUID, Maybe Blob')
 
 selectBrigRichInfo :: PrepQuery R (Identity ([UserId])) RowBrigRichInfo
 selectBrigRichInfo = "SELECT user, json FROM rich_info WHERE user in ? ALLOW FILTERING"
@@ -449,7 +449,7 @@ insertBrigTeamInvitationInfo _ _ = do
 
 -- brig.user
 
-type RowBrigUser = (Maybe UUID, Maybe [Double], Maybe Int32, Maybe Bool, Maybe [AssetIgnoreData], Maybe Text, Maybe Text, Maybe UTCTime, Maybe Text, Maybe Text, Maybe Int32, Maybe Text, Maybe Int32, Maybe Text, Maybe [Int32], Maybe UUID, Maybe Bool, Maybe UUID, Maybe Text, Maybe Int32, Maybe UUID)
+type RowBrigUser = (Maybe UUID, Maybe [Double], Maybe Int32, Maybe Bool, Maybe [AssetIgnoreData], Maybe Text, Maybe Text, Maybe UTCTime, Maybe Text, Maybe Text, Maybe Int32, Maybe Text, Maybe Blob', Maybe Text, Maybe [Blob'], Maybe UUID, Maybe Bool, Maybe UUID, Maybe Text, Maybe Int32, Maybe UUID)
 
 selectBrigUser :: PrepQuery R (Identity [UserId]) RowBrigUser
 selectBrigUser = "SELECT id, accent, accent_id, activated, assets, country, email, expires, handle, language, managed_by, name, password, phone, picture, provider, searchable, service, sso_id, status, team FROM user WHERE id in ? ALLOW FILTERING"
@@ -553,7 +553,7 @@ insertBrigUserKeys _ _ = do
 
 -- brig.user_keys_hash
 
-type RowBrigUserKeysHash = (Maybe Int32, Maybe Int32, Maybe UUID)
+type RowBrigUserKeysHash = (Maybe Blob', Maybe Int32, Maybe UUID)
 
 selectBrigUserKeysHash :: PrepQuery R (Identity ([UserId])) RowBrigUserKeysHash
 selectBrigUserKeysHash = "SELECT key, key_type, user FROM user_keys_hash WHERE user in ? ALLOW FILTERING"
@@ -683,7 +683,7 @@ insertGalleyLegalholdPendingPrekeys _ _ = do
 
 -- galley.legalhold_service
 
-type RowGalleyLegalholdService = (Maybe UUID, Maybe Text, Maybe Int32, Maybe Int32, Maybe Blob)
+type RowGalleyLegalholdService = (Maybe UUID, Maybe Text, Maybe Blob', Maybe Blob', Maybe Blob)
 
 selectGalleyLegalholdService :: PrepQuery R (Identity TeamId) RowGalleyLegalholdService
 selectGalleyLegalholdService = "SELECT team_id, auth_token, base_url, fingerprint, pubkey FROM legalhold_service WHERE team = ? ALLOW FILTERING"
@@ -839,7 +839,7 @@ insertGalleyTeamMember _ _ = do
 
 -- galley.team_notifications
 
-type RowGalleyTeamNotifications = (Maybe UUID, Maybe UUID, Maybe Int32)
+type RowGalleyTeamNotifications = (Maybe UUID, Maybe UUID, Maybe Blob')
 
 selectGalleyTeamNotifications :: PrepQuery R (Identity TeamId) RowGalleyTeamNotifications
 selectGalleyTeamNotifications = "SELECT team, id, payload FROM team_notifications WHERE team = ? ALLOW FILTERING"
@@ -917,7 +917,7 @@ insertGalleyUserTeam _ _ = do
 
 -- gundeck.notifications
 
-type RowGundeckNotifications = (Maybe UUID, Maybe UUID, Maybe (Cassandra.Set Text), Maybe Int32)
+type RowGundeckNotifications = (Maybe UUID, Maybe UUID, Maybe (Cassandra.Set Text), Maybe Blob')
 
 selectGundeckNotifications :: PrepQuery R (Identity ([UserId])) RowGundeckNotifications
 selectGundeckNotifications = "SELECT user, id, clients, payload FROM notifications WHERE user in ? ALLOW FILTERING"
@@ -943,7 +943,7 @@ insertGundeckNotifications _ _ = do
 
 -- gundeck.push
 
-type RowGundeckPush = (Maybe Text, Maybe Text, Maybe Int32, Maybe Text, Maybe Int32, Maybe UUID)
+type RowGundeckPush = (Maybe Text, Maybe Text, Maybe Int32, Maybe Text, Maybe Blob', Maybe UUID)
 
 selectGundeckPush :: PrepQuery R (Identity [UserId]) RowGundeckPush
 selectGundeckPush = "SELECT ptoken, app, transport, client, connection, usr FROM push WHERE usr in ? ALLOW FILTERING"
@@ -969,7 +969,7 @@ insertGundeckPush _ _ = do
 
 -- gundeck.user_push
 
-type RowGundeckUserPush = (Maybe UUID, Maybe Text, Maybe Text, Maybe Int32, Maybe Text, Maybe Text, Maybe Int32)
+type RowGundeckUserPush = (Maybe UUID, Maybe Text, Maybe Text, Maybe Int32, Maybe Text, Maybe Text, Maybe Blob')
 
 selectGundeckUserPush :: PrepQuery R (Identity [UserId]) RowGundeckUserPush
 selectGundeckUserPush = "SELECT usr, ptoken, app, transport, arn, client, connection FROM user_push WHERE usr in ? ALLOW FILTERING"
@@ -1021,7 +1021,7 @@ insertSparBindCookie _ _ = do
 
 -- spar.idp
 
-type RowSparIdp = (Maybe UUID, Maybe [Int32], Maybe Text, Maybe [Text], Maybe Int32, Maybe UUID, Maybe Text, Maybe UUID)
+type RowSparIdp = (Maybe UUID, Maybe [Blob'], Maybe Text, Maybe [Text], Maybe Blob', Maybe UUID, Maybe Text, Maybe UUID)
 
 selectSparIdp :: PrepQuery R (Identity TeamId) RowSparIdp
 selectSparIdp = "SELECT idp, extra_public_keys, issuer, old_issuers, public_key, replaced_by, request_uri, team FROM idp WHERE team = ? ALLOW FILTERING"

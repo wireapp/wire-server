@@ -29,7 +29,9 @@ module Types where
 import Cassandra
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Aeson.Types (Value (Null))
+import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Id
+import Data.Text.Ascii (AsciiText, Base64, decodeBase64, encodeBase64)
 import Galley.Data.Instances ()
 import Imports
 import System.Logger (Logger)
@@ -65,3 +67,16 @@ instance Cql AssetIgnoreData where
       )
   toCql _ = error "AssetIgnoreData: you should only have nulls of this"
   fromCql _ = pure AssetIgnoreData
+
+newtype Blob' = Blob' Blob
+  deriving newtype (Cql)
+
+instance ToJSON Blob' where
+  toJSON (Blob' (Blob bstr)) = toJSON (encodeBase64 (toStrict bstr))
+
+instance FromJSON Blob' where
+  parseJSON x = do
+    y <- parseJSON @(AsciiText Base64) x
+    case decodeBase64 y of
+      Nothing -> fail "Blob': not a valid base64 string"
+      Just bs -> pure $ Blob' . Blob . fromStrict $ bs
