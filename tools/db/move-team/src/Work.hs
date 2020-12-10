@@ -110,9 +110,8 @@ sinkLines hd = C.mapM_ (mapM_ (LBS.hPutStr hd . (<> "\n") . encode))
 
 writeToFile :: ToJSON a => Env -> FilePath -> IO [a] -> IO ()
 writeToFile Env {..} tableFile getter = do
-  hd <- openFile (envTargetPath </> tableFile) AppendMode
-  mapM_ (LBS.hPutStr hd . (<> "\n") . encode) =<< getter
-  Imports.hClose hd
+  Imports.withFile (envTargetPath </> tableFile) AppendMode $ \hd ->
+    mapM_ (LBS.hPutStr hd . (<> "\n") . encode) =<< getter
 
 instance ToJSON a => ToJSON (Cassandra.Set a) where
   toJSON = toJSON . Cassandra.fromSet
