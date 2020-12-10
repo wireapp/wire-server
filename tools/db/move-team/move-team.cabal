@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8ad66e7df3899d1af8e8c394bbbcd7a65b3ca6b73d24fa446eb9f36b16ef9051
+-- hash: e0a71f74d788eb5ff6e7a2f4dd599edd66c66cb76b21e89599ecd827fc524c1d
 
 name:           move-team
 version:        1.0.0
@@ -21,6 +21,7 @@ library
       Main
       Options
       ParseSchema
+      Schema
       Work
   other-modules:
       Paths_move_team
@@ -104,6 +105,7 @@ executable move-team
   other-modules:
       Options
       ParseSchema
+      Schema
       Work
       Paths_move_team
   hs-source-dirs:
