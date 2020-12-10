@@ -27,6 +27,8 @@
 module Types where
 
 import Cassandra
+import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Aeson.Types (Value (Null))
 import Data.Id
 import Galley.Data.Instances ()
 import Imports
@@ -42,3 +44,24 @@ data Env = Env
     envTeamId :: TeamId,
     envPageSize :: Int32
   }
+
+data AssetIgnoreData = AssetIgnoreData
+
+instance FromJSON AssetIgnoreData where
+  parseJSON _ = pure AssetIgnoreData
+
+instance ToJSON AssetIgnoreData where
+  toJSON _ = Null
+
+instance Cql AssetIgnoreData where
+  ctype =
+    Tagged
+      ( UdtColumn
+          "asset"
+          [ ("typ", IntColumn),
+            ("key", TextColumn),
+            ("size", IntColumn) -- TODO check if this works
+          ]
+      )
+  toCql _ = error "AssetIgnoreData: you should only have nulls of this"
+  fromCql _ = pure AssetIgnoreData
