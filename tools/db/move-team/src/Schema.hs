@@ -1,4 +1,3 @@
-
 {-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
@@ -82,4 +81,3 @@ readGalleyClientsConduit :: Env -> [UserId] -> ConduitM () [RowGalleyClients] IO
 readGalleyClientsConduit Env {..} uids =
   transPipe (runClient envGalley) $
     paginateC selectGalleyClients (paramsP Quorum (pure uids) envPageSize) x5
-
