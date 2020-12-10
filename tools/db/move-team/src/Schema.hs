@@ -28,13 +28,14 @@ import Data.Time
 import Data.UUID
 import Imports
 import Types
+import Wire.API.Team.Permission
 
 -- galley.team_member
 
-type RowGalleyTeamMember = (Maybe UUID, Maybe UUID, Maybe UTCTime, Maybe UUID, Maybe Integer, Maybe Integer)
+type RowGalleyTeamMember = (Maybe UUID, Maybe UUID, Maybe UTCTime, Maybe UUID, Maybe Int32, Maybe Permissions)
 
 selectGalleyTeamMember :: PrepQuery R (Identity TeamId) RowGalleyTeamMember
-selectGalleyTeamMember = "select team, user, invited_at, invited_by, legalhold_status, perms from TeamMember where team =  ?"
+selectGalleyTeamMember = "select team, user, invited_at, invited_by, legalhold_status, perms from team_member where team =  ?"
 
 readGalleyTeamMember :: Env -> TeamId -> IO [RowGalleyTeamMember]
 readGalleyTeamMember Env {..} tid =
@@ -51,7 +52,7 @@ readGalleyTeamMemberConduit Env {..} tid =
 type RowGalleyTeamConv = (Maybe UUID, Maybe UUID, Maybe Bool)
 
 selectGalleyTeamConv :: PrepQuery R (Identity TeamId) RowGalleyTeamConv
-selectGalleyTeamConv = "select team, conv, managed from TeamConv where team =  ?"
+selectGalleyTeamConv = "select team, conv, managed from team_conv where team =  ?"
 
 readGalleyTeamConv :: Env -> TeamId -> IO [RowGalleyTeamConv]
 readGalleyTeamConv Env {..} tid =
@@ -65,10 +66,10 @@ readGalleyTeamConvConduit Env {..} tid =
 
 -- galley.clients
 
-type RowGalleyClients = (Maybe UUID, Maybe [Text])
+type RowGalleyClients = (Maybe UUID, Maybe (Cassandra.Set Text))
 
 selectGalleyClients :: PrepQuery R (Identity [UserId]) RowGalleyClients
-selectGalleyClients = "select user, clients from Clients where user in  ?"
+selectGalleyClients = "select user, clients from clients where user in  ?"
 
 readGalleyClients :: Env -> [UserId] -> IO [RowGalleyClients]
 readGalleyClients Env {..} uids =

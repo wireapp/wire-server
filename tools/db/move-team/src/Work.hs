@@ -44,6 +44,7 @@ import Imports
 import Schema
 import System.Exit (ExitCode (ExitSuccess))
 import System.FilePath ((</>))
+import System.IO
 import qualified System.IO as IO
 import System.Logger (Logger)
 import qualified System.Logger as Log
@@ -71,17 +72,16 @@ runGalleyTeamMembers env@Env {..} = do
         (CL.sourceList [(1 :: Int32) ..])
         (readGalleyTeamMemberConduit env envTeamId)
         .| C.mapM (handleTeamMembers env)
-        .| C.mapM (pure . mconcat)
         .| sinkLines outH
 
-handleTeamMembers :: Env -> (Int32, [RowGalleyTeamMember]) -> IO [LByteString]
+handleTeamMembers :: Env -> (Int32, [RowGalleyTeamMember]) -> IO [RowGalleyTeamMember]
 handleTeamMembers env@Env {..} (i, members) = do
   Log.info envLogger (Log.field "number of team members loaded: " (show (i * envPageSize)))
   writeToFile env "galley.clients" (readGalleyClients env (catMaybes $ (fmap Id . view _2) <$> members))
 
   -- ...
 
-  pure (encode <$> members) -- (nit-pick TODO: this could be implicit, done in the pipeline somehow.)
+  pure members -- (nit-pick TODO: this could be implicit, done in the pipeline somehow.)
 
 ----------------------------------------------------------------------
 
@@ -93,21 +93,25 @@ runGalleyTeamConv env@Env {..} = do
         (CL.sourceList [(1 :: Int32) ..])
         (readGalleyTeamConvConduit env envTeamId)
         .| C.mapM (handleTeamConv env)
-        .| C.mapM (pure . mconcat)
         .| sinkLines outH
 
-handleTeamConv :: Env -> (Int32, [RowGalleyTeamConv]) -> IO [LByteString]
+handleTeamConv :: Env -> (Int32, [RowGalleyTeamConv]) -> IO [RowGalleyTeamConv]
 handleTeamConv Env {..} (i, convs) = do
   Log.info envLogger (Log.field "number of team convs loaded: " (show (i * envPageSize)))
-  pure (encode <$> convs)
+  pure convs
 
 -- ...
 
 ----------------------------------------------------------------------
 -- helpers (TODO: move to separate module)
 
-sinkLines :: IO.Handle -> ConduitT LByteString Void IO ()
-sinkLines hd = C.mapM_ (LBS.hPutStr hd)
+sinkLines :: ToJSON a => IO.Handle -> ConduitT [a] Void IO ()
+sinkLines hd = C.mapM_ (mapM_ (LBS.hPutStr hd . encode))
 
-writeToFile :: ToJSON a => Env -> FilePath -> IO a -> IO ()
-writeToFile = undefined
+writeToFile :: ToJSON a => Env -> FilePath -> IO [a] -> IO ()
+writeToFile Env {..} tableFile getter = do
+  hd <- openFile (envTargetPath </> tableFile) AppendMode
+  getter >>= mapM_ (LBS.hPutStr hd . encode)
+
+instance ToJSON a => ToJSON (Cassandra.Set a) where
+  toJSON = toJSON . Cassandra.fromSet
