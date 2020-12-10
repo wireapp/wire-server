@@ -16,6 +16,7 @@ import System.Exit (exitFailure)
 import System.FilePath ((</>))
 import System.FilePath.Posix (takeDirectory)
 import System.IO (Handle)
+import System.Process (system)
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
@@ -257,6 +258,9 @@ main = do
                      ]
               ]
           )
+
+  for_ mbOutFile $ \filename ->
+    system $ "ormolu --mode inplace " <> filename
   where
     withOutputHandle :: Maybe FilePath -> (Handle -> IO ()) -> IO ()
     withOutputHandle mbOutFile fn = case mbOutFile of
