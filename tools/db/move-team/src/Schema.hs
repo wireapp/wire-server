@@ -48,6 +48,15 @@ readGalleyTeamMemberConduit Env {..} tid =
   transPipe (runClient envGalley) $
     paginateC selectGalleyTeamMember (paramsP Quorum (pure tid) envPageSize) x5
 
+insertGalleyTeamMember :: Env -> FilePath -> IO ()
+insertGalleyTeamMember _ _ = do
+  -- TODO:
+  -- if file does not exist, do nothing.
+  -- otherwise, read lines from file;
+  -- parse each as 'RowGalleyTeamMember';
+  -- run Client action on each.
+  pure ()
+
 -- galley.team_conv
 
 type RowGalleyTeamConv = (Maybe UUID, Maybe UUID, Maybe Bool)
@@ -65,6 +74,15 @@ readGalleyTeamConvConduit Env {..} tid =
   transPipe (runClient envGalley) $
     paginateC selectGalleyTeamConv (paramsP Quorum (pure tid) envPageSize) x5
 
+insertGalleyTeamConv :: Env -> FilePath -> IO ()
+insertGalleyTeamConv _ _ = do
+  -- TODO:
+  -- if file does not exist, do nothing.
+  -- otherwise, read lines from file;
+  -- parse each as 'RowGalleyTeamConv';
+  -- run Client action on each.
+  pure ()
+
 -- galley.clients
 
 type RowGalleyClients = (Maybe UUID, Maybe (Cassandra.Set Text))
@@ -81,3 +99,18 @@ readGalleyClientsConduit :: Env -> [UserId] -> ConduitM () [RowGalleyClients] IO
 readGalleyClientsConduit Env {..} uids =
   transPipe (runClient envGalley) $
     paginateC selectGalleyClients (paramsP Quorum (pure uids) envPageSize) x5
+
+insertGalleyClients :: Env -> FilePath -> IO ()
+insertGalleyClients _ _ = do
+  -- TODO:
+  -- if file does not exist, do nothing.
+  -- otherwise, read lines from file;
+  -- parse each as 'RowGalleyClients';
+  -- run Client action on each.
+  pure ()
+
+insertAllTables :: Env -> IO ()
+insertAllTables env = do
+  insertGalleyTeamMember env "galley.team_member"
+  insertGalleyTeamConv env "galley.team_conv"
+  insertGalleyClients env "galley.clients"

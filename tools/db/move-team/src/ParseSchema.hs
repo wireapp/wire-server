@@ -208,6 +208,21 @@ read{{keySpaceCaml}}{{tableNameCaml}}Conduit :: Env -> {{lookupKeyType}} -> Cond
 read{{keySpaceCaml}}{{tableNameCaml}}Conduit Env {..} {{lookupKeyVar}} =
   transPipe (runClient env{{keySpaceCaml}}) $
     paginateC select{{keySpaceCaml}}{{tableNameCaml}} (paramsP Quorum (pure {{lookupKeyVar}}) envPageSize) x5
+
+insert{{keySpaceCaml}}{{tableNameCaml}} :: Env -> FilePath -> IO ()
+insert{{keySpaceCaml}}{{tableNameCaml}} _ _ = do
+  -- TODO:
+  -- if file does not exist, do nothing.
+  -- otherwise, read lines from file;
+  -- parse each as 'Row{{keySpaceCaml}}{{tableNameCaml}}';
+  -- run Client action on each.
+  pure ()
+{{/chunkTable}}
+
+insertAllTables :: Env -> IO ()
+insertAllTables env = do
+{{#chunkTable}}
+  insert{{keySpaceCaml}}{{tableNameCaml}} env "{{keySpace}}.{{tableName}}"
 {{/chunkTable}}
 |]
 
