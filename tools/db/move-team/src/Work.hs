@@ -106,12 +106,13 @@ handleTeamConv Env {..} (i, convs) = do
 -- helpers (TODO: move to separate module)
 
 sinkLines :: ToJSON a => IO.Handle -> ConduitT [a] Void IO ()
-sinkLines hd = C.mapM_ (mapM_ (LBS.hPutStr hd . encode))
+sinkLines hd = C.mapM_ (mapM_ (LBS.hPutStr hd . (<> "\n") . encode))
 
 writeToFile :: ToJSON a => Env -> FilePath -> IO [a] -> IO ()
 writeToFile Env {..} tableFile getter = do
   hd <- openFile (envTargetPath </> tableFile) AppendMode
-  getter >>= mapM_ (LBS.hPutStr hd . encode)
+  mapM_ (LBS.hPutStr hd . (<> "\n") . encode) =<< getter
+  Imports.hClose hd
 
 instance ToJSON a => ToJSON (Cassandra.Set a) where
   toJSON = toJSON . Cassandra.fromSet
