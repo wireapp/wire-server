@@ -132,6 +132,7 @@ import Wire.API.User.Activation (ActivationCode)
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Identity
 import Wire.API.User.Profile
+import Data.Qualified
 
 --------------------------------------------------------------------------------
 -- UserIdList
@@ -326,6 +327,7 @@ instance FromJSON SelfProfile where
 -- | The data of an existing user.
 data User = User
   { userId :: UserId,
+    userQualifiedUser :: Qualified UserId,
     -- | User identity. For endpoints like @/self@, it will be present in the response iff
     -- the user is activated, and the email/phone contained in it will be guaranteedly
     -- verified. {#RefActivation}
@@ -389,6 +391,7 @@ instance ToJSON User where
   toJSON u =
     object $
       "id" .= userId u
+        # "qualified_user" .= userQualifiedUser u
         # "name" .= userDisplayName u
         # "picture" .= userPict u
         # "assets" .= userAssets u
@@ -410,6 +413,7 @@ instance FromJSON User where
     ssoid <- o .:? "sso_id"
     User
       <$> o .: "id"
+      <*> o .: "qualified_user"
       <*> parseIdentity ssoid o
       <*> o .: "name"
       <*> o .:? "picture" .!= noPict

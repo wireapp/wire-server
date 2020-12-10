@@ -62,6 +62,8 @@ module Brig.App
     runAppResourceT,
     forkAppIO,
     locationOf,
+
+    viewFederationDomain
   )
 where
 
@@ -128,6 +130,7 @@ import qualified System.Logger.Class as LC
 import qualified System.Logger.Extended as Log
 import Util.Options
 import Wire.API.User.Identity (Email)
+import Data.Domain
 
 schemaVersion :: Int32
 schemaVersion = 61
@@ -519,3 +522,9 @@ readTurnList = Text.readFile >=> return . fn . mapMaybe fromByteString . fmap Te
   where
     fn [] = Nothing
     fn (x : xs) = Just (list1 x xs)
+
+--------------------------------------------------------------------------------
+-- Federation
+
+viewFederationDomain :: MonadReader Env m => m (Domain)
+viewFederationDomain = view (settings . Opt.federationDomain)
