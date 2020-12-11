@@ -308,7 +308,7 @@ insertBrigRichInfo _ _ = do
 
 -- brig.user
 
-type RowBrigUser = (Maybe UUID, Maybe [Double], Maybe Int32, Maybe Bool, Maybe [AssetIgnoreData], Maybe Ascii, Maybe Text, Maybe UTCTime, Maybe Text, Maybe Ascii, Maybe Int32, Maybe Text, Maybe Blob, Maybe Text, Maybe [Blob], Maybe UUID, Maybe Bool, Maybe UUID, Maybe Text, Maybe Int32, Maybe UUID)
+type RowBrigUser = (Maybe UUID, Maybe [Float], Maybe Int32, Maybe Bool, Maybe [AssetIgnoreData], Maybe Ascii, Maybe Text, Maybe UTCTime, Maybe Text, Maybe Ascii, Maybe Int32, Maybe Text, Maybe Blob, Maybe Text, Maybe [Blob], Maybe UUID, Maybe Bool, Maybe UUID, Maybe Text, Maybe Int32, Maybe UUID)
 
 selectBrigUser :: PrepQuery R (Identity ([UserId])) RowBrigUser
 selectBrigUser = "SELECT id, accent, accent_id, activated, assets, country, email, expires, handle, language, managed_by, name, password, phone, picture, provider, searchable, service, sso_id, status, team FROM user WHERE id in ?"
