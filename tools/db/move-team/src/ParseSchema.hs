@@ -137,7 +137,7 @@ toHaskellType "int" = "Int32"
 toHaskellType "pubkey" = "Blob"
 toHaskellType "text" = "Text"
 toHaskellType "timestamp" = "UTCTime"
-toHaskellType "timeuuid" = "UUID"
+toHaskellType "timeuuid" = "TimeUuid"
 toHaskellType "uuid" = "UUID"
 toHaskellType st = error (T.unpack ("toHaskellType not implemented for " <> st))
 

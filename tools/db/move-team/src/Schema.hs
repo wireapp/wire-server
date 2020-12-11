@@ -648,7 +648,7 @@ insertGalleyTeamMember _ _ = do
 
 -- galley.team_notifications
 
-type RowGalleyTeamNotifications = (Maybe UUID, Maybe UUID, Maybe Blob)
+type RowGalleyTeamNotifications = (Maybe UUID, Maybe TimeUuid, Maybe Blob)
 
 selectGalleyTeamNotifications :: PrepQuery R (Identity (TeamId)) RowGalleyTeamNotifications
 selectGalleyTeamNotifications = "SELECT team, id, payload FROM team_notifications WHERE team = ?"
@@ -750,7 +750,7 @@ insertGalleyUserTeam _ _ = do
 
 -- gundeck.notifications
 
-type RowGundeckNotifications = (Maybe UUID, Maybe UUID, Maybe (Cassandra.Set Text), Maybe Blob)
+type RowGundeckNotifications = (Maybe UUID, Maybe TimeUuid, Maybe (Cassandra.Set Text), Maybe Blob)
 
 selectGundeckNotifications :: PrepQuery R (Identity ([UserId])) RowGundeckNotifications
 selectGundeckNotifications = "SELECT user, id, clients, payload FROM notifications WHERE user in ?"

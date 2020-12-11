@@ -108,6 +108,10 @@ deriving instance ToJSON Ascii
 
 deriving instance FromJSON Ascii
 
+deriving instance ToJSON TimeUuid
+
+deriving instance FromJSON TimeUuid
+
 instance (ToJSON a, ToJSON b, ToJSON c, ToJSON d, ToJSON e, ToJSON f, ToJSON g, ToJSON h, ToJSON i, ToJSON j, ToJSON k, ToJSON l, ToJSON m, ToJSON n, ToJSON o, ToJSON p, ToJSON q, ToJSON r, ToJSON s, ToJSON t, ToJSON u) => ToJSON ((,,,,,,,,,,,,,,,,,,,,) a b c d e f g h i j k l m n o p q r s t u) where
   toJSON (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u) =
     Array $
