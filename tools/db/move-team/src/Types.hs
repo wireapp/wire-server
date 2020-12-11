@@ -47,6 +47,7 @@ data Env = Env
     envPageSize :: Int32
   }
 
+-- | (ideally, we shouldn't need this, since we shouldn't even touch tables that have this in them.)
 data AssetIgnoreData = AssetIgnoreData
 
 instance FromJSON AssetIgnoreData where
@@ -68,15 +69,18 @@ instance Cql AssetIgnoreData where
   toCql _ = error "AssetIgnoreData: you should only have nulls of this"
   fromCql _ = pure AssetIgnoreData
 
-newtype Blob' = Blob' Blob
-  deriving newtype (Cql)
+instance ToJSON a => ToJSON (Cassandra.Set a) where
+  toJSON = toJSON . Cassandra.fromSet
 
-instance ToJSON Blob' where
-  toJSON (Blob' (Blob bstr)) = toJSON (encodeBase64 (toStrict bstr))
+instance FromJSON a => FromJSON (Cassandra.Set a) where
+  parseJSON = fmap Cassandra.Set . parseJSON
 
-instance FromJSON Blob' where
+instance ToJSON Blob where
+  toJSON (Blob bstr) = toJSON (encodeBase64 (toStrict bstr))
+
+instance FromJSON Blob where
   parseJSON x = do
     y <- parseJSON @(AsciiText Base64) x
     case decodeBase64 y of
       Nothing -> fail "Blob': not a valid base64 string"
-      Just bs -> pure $ Blob' . Blob . fromStrict $ bs
+      Just bs -> pure . Blob . fromStrict $ bs

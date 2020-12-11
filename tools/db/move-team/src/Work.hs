@@ -112,6 +112,3 @@ writeToFile :: ToJSON a => Env -> FilePath -> IO [a] -> IO ()
 writeToFile Env {..} tableFile getter = do
   Imports.withFile (envTargetPath </> tableFile) AppendMode $ \hd ->
     mapM_ (LBS.hPutStr hd . (<> "\n") . encode) =<< getter
-
-instance ToJSON a => ToJSON (Cassandra.Set a) where
-  toJSON = toJSON . Cassandra.fromSet
