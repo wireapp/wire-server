@@ -70,7 +70,6 @@ main = do
 debugMain :: IO ()
 debugMain = do
   let dir = "/tmp/full-backup"
-  void $ system $ "rm -rf " <> dir
   withArgs
     [ "--teamid",
       "e8cd3353-3c4c-4ced-807b-3a7a571cb6cf",

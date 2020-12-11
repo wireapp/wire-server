@@ -28,10 +28,13 @@ module Work where
 
 import Brig.Types hiding (Client)
 import Cassandra
+import Conduit (mapC, takeWhileCE)
 import Control.Lens (view, _2)
 import Data.Aeson
+import Data.ByteString.Internal (c2w)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Conduit
+import Data.Conduit.Combinators (linesUnbounded, linesUnboundedAscii)
 import qualified Data.Conduit.Combinators as C
 import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as CL
@@ -61,9 +64,11 @@ deriving instance Cql Name -- TODO
 runCommand :: Env -> IO ()
 runCommand env@Env {..} = do
   ExitSuccess <- system $ "mkdir -p " <> show envTargetPath
-  -- runGalleyTeamMembers env
-  -- runGalleyTeamConv env
-  runFullBackup env
+  runGalleyTeamMembers env
+  runGalleyTeamConv env
+
+-- runFullBackup env
+-- runImport env
 
 ----------------------------------------------------------------------
 
@@ -116,6 +121,7 @@ writeToFile Env {..} tableFile getter = do
   Imports.withFile (envTargetPath </> tableFile) AppendMode $ \hd ->
     mapM_ (LBS.hPutStr hd . (<> "\n") . encode) =<< getter
 
+-- TODO(stefan): refactor into into template
 runFullBackup :: Env -> IO ()
 runFullBackup env@Env {..} = do
   exportConduit env readBrigClientsConduitAll "brig.clients"
@@ -140,11 +146,25 @@ runFullBackup env@Env {..} = do
   exportConduit env readGalleyUserConduitAll "galley.user"
   exportConduit env readGalleyUserTeamConduitAll "galley.user_team"
   exportConduit env readGundeckNotificationsConduitAll "gundeck.notifications"
+  where
+    exportConduit :: ToJSON a => Env -> (Env -> ConduitM () [a] IO ()) -> String -> IO ()
+    exportConduit env' loader tablename = do
+      IO.putStrLn tablename
+      IO.withBinaryFile (envTargetPath </> tablename) IO.WriteMode $ \handle -> do
+        runConduit $
+          loader env'
+            .| sinkLines handle
 
-exportConduit :: ToJSON a => Env -> (Env -> ConduitM () [a] IO ()) -> String -> IO ()
-exportConduit env loader tablename = do
-  IO.putStrLn tablename
-  IO.withBinaryFile (envTargetPath env </> tablename) IO.WriteMode $ \handle -> do
+-- TODO: connect to sinks in Schema.hs & refactor into template
+runImport :: Env -> IO ()
+runImport env = do
+  IO.withBinaryFile (envTargetPath env </> "galley.user_team") IO.ReadMode $ \handle -> do
     runConduit $
-      (loader env)
-        .| sinkLines handle
+      sourceJsonLines @_ @RowGalleyUserTeam handle
+        .| C.mapM_ IO.print
+
+sourceJsonLines :: (MonadIO m, FromJSON c) => Handle -> ConduitM a c m ()
+sourceJsonLines handle =
+  C.sourceHandle handle
+    .| linesUnboundedAscii
+    .| mapC (either error id . eitherDecodeStrict)
