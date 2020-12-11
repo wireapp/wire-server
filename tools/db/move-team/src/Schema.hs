@@ -444,7 +444,7 @@ insertGalleyClients _ _ = do
 
 -- galley.conversation
 
-type RowGalleyConversation = (Maybe UUID, Maybe (Cassandra.Set Int32), Maybe Int32, Maybe UUID, Maybe Bool, Maybe Integer, Maybe Text, Maybe Int32, Maybe UUID, Maybe Int32)
+type RowGalleyConversation = (Maybe UUID, Maybe (Cassandra.Set Int32), Maybe Int32, Maybe UUID, Maybe Bool, Maybe Int64, Maybe Text, Maybe Int32, Maybe UUID, Maybe Int32)
 
 selectGalleyConversation :: PrepQuery R (Identity ([ConvId])) RowGalleyConversation
 selectGalleyConversation = "SELECT conv, access, access_role, creator, deleted, message_timer, name, receipt_mode, team, type FROM conversation WHERE conv in ?"
