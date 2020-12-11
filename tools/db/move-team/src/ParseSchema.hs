@@ -216,6 +216,14 @@ read{{keySpaceCaml}}{{tableNameCaml}}Conduit Env {..} {{lookupKeyVar}} =
   transPipe (runClient env{{keySpaceCaml}}) $
     paginateC select{{keySpaceCaml}}{{tableNameCaml}} (paramsP Quorum (pure {{lookupKeyVar}}) envPageSize) x5
 
+select{{keySpaceCaml}}{{tableNameCaml}}All :: PrepQuery R () Row{{keySpaceCaml}}{{tableNameCaml}}
+select{{keySpaceCaml}}{{tableNameCaml}}All = "SELECT {{columns}} FROM {{tableName}}"
+
+read{{keySpaceCaml}}{{tableNameCaml}}All :: Env -> IO [Row{{keySpaceCaml}}{{tableNameCaml}}]
+read{{keySpaceCaml}}{{tableNameCaml}}All Env {..} =
+  runClient env{{keySpaceCaml}} $
+    retry x1 (query select{{keySpaceCaml}}{{tableNameCaml}}All (params Quorum ()))
+
 insert{{keySpaceCaml}}{{tableNameCaml}} :: Env -> FilePath -> IO ()
 insert{{keySpaceCaml}}{{tableNameCaml}} _ _ = do
   -- TODO:

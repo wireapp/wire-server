@@ -61,8 +61,9 @@ deriving instance Cql Name -- TODO
 runCommand :: Env -> IO ()
 runCommand env@Env {..} = do
   ExitSuccess <- system $ "mkdir -p " <> show envTargetPath
-  runGalleyTeamMembers env
-  runGalleyTeamConv env
+  -- runGalleyTeamMembers env
+  -- runGalleyTeamConv env
+  runFullBackup env
 
 ----------------------------------------------------------------------
 
@@ -114,3 +115,34 @@ writeToFile :: ToJSON a => Env -> FilePath -> IO [a] -> IO ()
 writeToFile Env {..} tableFile getter = do
   Imports.withFile (envTargetPath </> tableFile) AppendMode $ \hd ->
     mapM_ (LBS.hPutStr hd . (<> "\n") . encode) =<< getter
+
+runFullBackup :: Env -> IO ()
+runFullBackup env@Env {..} = do
+  export env readBrigClientsAll "brig.clients"
+  export env readBrigConnectionAll "brig.connection"
+  export env readBrigIdMappingAll "brig.id_mapping"
+  export env readBrigLoginCodesAll "brig.login_codes"
+  export env readBrigPasswordResetAll "brig.password_reset"
+  export env readBrigPrekeysAll "brig.prekeys"
+  export env readBrigPropertiesAll "brig.properties"
+  export env readBrigRichInfoAll "brig.rich_info"
+  export env readBrigUserAll "brig.user"
+  export env readBrigUserHandleAll "brig.user_handle"
+  export env readGalleyBillingTeamMemberAll "galley.billing_team_member"
+  export env readGalleyClientsAll "galley.clients"
+  export env readGalleyConversationAll "galley.conversation"
+  export env readGalleyMemberAll "galley.member"
+  export env readGalleyTeamAll "galley.team"
+  export env readGalleyTeamConvAll "galley.team_conv"
+  export env readGalleyTeamFeaturesAll "galley.team_features"
+  export env readGalleyTeamMemberAll "galley.team_member"
+  export env readGalleyTeamNotificationsAll "galley.team_notifications"
+  export env readGalleyUserAll "galley.user"
+  export env readGalleyUserTeamAll "galley.user_team"
+  export env readGundeckNotificationsAll "gundeck.notifications"
+  export env readSparScimUserTimesAll "spar.scim_user_times"
+
+export :: (Foldable t, ToJSON a) => Env -> (Env -> IO (t a)) -> FilePath -> IO ()
+export env loader tablename =
+  IO.withBinaryFile (envTargetPath env </> tablename) IO.WriteMode $ \handle -> do
+    loader env >>= mapM_ (LBS.hPutStr handle . (<> "\n") . encode)

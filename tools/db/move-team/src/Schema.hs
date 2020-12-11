@@ -51,6 +51,14 @@ readBrigClientsConduit Env {..} uids =
   transPipe (runClient envBrig) $
     paginateC selectBrigClients (paramsP Quorum (pure uids) envPageSize) x5
 
+selectBrigClientsAll :: PrepQuery R () RowBrigClients
+selectBrigClientsAll = "SELECT user, client, class, cookie, ip, label, lat, lon, model, tstamp, type FROM clients"
+
+readBrigClientsAll :: Env -> IO [RowBrigClients]
+readBrigClientsAll Env {..} =
+  runClient envBrig $
+    retry x1 (query selectBrigClientsAll (params Quorum ()))
+
 insertBrigClients :: Env -> FilePath -> IO ()
 insertBrigClients _ _ = do
   -- TODO:
@@ -76,6 +84,14 @@ readBrigConnectionConduit :: Env -> [UserId] -> ConduitM () [RowBrigConnection] 
 readBrigConnectionConduit Env {..} uids =
   transPipe (runClient envBrig) $
     paginateC selectBrigConnection (paramsP Quorum (pure uids) envPageSize) x5
+
+selectBrigConnectionAll :: PrepQuery R () RowBrigConnection
+selectBrigConnectionAll = "SELECT left, right, conv, last_update, message, status FROM connection"
+
+readBrigConnectionAll :: Env -> IO [RowBrigConnection]
+readBrigConnectionAll Env {..} =
+  runClient envBrig $
+    retry x1 (query selectBrigConnectionAll (params Quorum ()))
 
 insertBrigConnection :: Env -> FilePath -> IO ()
 insertBrigConnection _ _ = do
@@ -103,6 +119,14 @@ readBrigIdMappingConduit Env {..} uids =
   transPipe (runClient envBrig) $
     paginateC selectBrigIdMapping (paramsP Quorum (pure uids) envPageSize) x5
 
+selectBrigIdMappingAll :: PrepQuery R () RowBrigIdMapping
+selectBrigIdMappingAll = "SELECT mapped_id, remote_domain, remote_id FROM id_mapping"
+
+readBrigIdMappingAll :: Env -> IO [RowBrigIdMapping]
+readBrigIdMappingAll Env {..} =
+  runClient envBrig $
+    retry x1 (query selectBrigIdMappingAll (params Quorum ()))
+
 insertBrigIdMapping :: Env -> FilePath -> IO ()
 insertBrigIdMapping _ _ = do
   -- TODO:
@@ -128,6 +152,14 @@ readBrigLoginCodesConduit :: Env -> [UserId] -> ConduitM () [RowBrigLoginCodes] 
 readBrigLoginCodesConduit Env {..} uids =
   transPipe (runClient envBrig) $
     paginateC selectBrigLoginCodes (paramsP Quorum (pure uids) envPageSize) x5
+
+selectBrigLoginCodesAll :: PrepQuery R () RowBrigLoginCodes
+selectBrigLoginCodesAll = "SELECT user, code, retries, timeout FROM login_codes"
+
+readBrigLoginCodesAll :: Env -> IO [RowBrigLoginCodes]
+readBrigLoginCodesAll Env {..} =
+  runClient envBrig $
+    retry x1 (query selectBrigLoginCodesAll (params Quorum ()))
 
 insertBrigLoginCodes :: Env -> FilePath -> IO ()
 insertBrigLoginCodes _ _ = do
@@ -155,6 +187,14 @@ readBrigPasswordResetConduit Env {..} reset_keys =
   transPipe (runClient envBrig) $
     paginateC selectBrigPasswordReset (paramsP Quorum (pure reset_keys) envPageSize) x5
 
+selectBrigPasswordResetAll :: PrepQuery R () RowBrigPasswordReset
+selectBrigPasswordResetAll = "SELECT key, code, retries, timeout, user FROM password_reset"
+
+readBrigPasswordResetAll :: Env -> IO [RowBrigPasswordReset]
+readBrigPasswordResetAll Env {..} =
+  runClient envBrig $
+    retry x1 (query selectBrigPasswordResetAll (params Quorum ()))
+
 insertBrigPasswordReset :: Env -> FilePath -> IO ()
 insertBrigPasswordReset _ _ = do
   -- TODO:
@@ -180,6 +220,14 @@ readBrigPrekeysConduit :: Env -> [UserId] -> ConduitM () [RowBrigPrekeys] IO ()
 readBrigPrekeysConduit Env {..} uids =
   transPipe (runClient envBrig) $
     paginateC selectBrigPrekeys (paramsP Quorum (pure uids) envPageSize) x5
+
+selectBrigPrekeysAll :: PrepQuery R () RowBrigPrekeys
+selectBrigPrekeysAll = "SELECT user, client, key, data FROM prekeys"
+
+readBrigPrekeysAll :: Env -> IO [RowBrigPrekeys]
+readBrigPrekeysAll Env {..} =
+  runClient envBrig $
+    retry x1 (query selectBrigPrekeysAll (params Quorum ()))
 
 insertBrigPrekeys :: Env -> FilePath -> IO ()
 insertBrigPrekeys _ _ = do
@@ -207,6 +255,14 @@ readBrigPropertiesConduit Env {..} uids =
   transPipe (runClient envBrig) $
     paginateC selectBrigProperties (paramsP Quorum (pure uids) envPageSize) x5
 
+selectBrigPropertiesAll :: PrepQuery R () RowBrigProperties
+selectBrigPropertiesAll = "SELECT user, key, value FROM properties"
+
+readBrigPropertiesAll :: Env -> IO [RowBrigProperties]
+readBrigPropertiesAll Env {..} =
+  runClient envBrig $
+    retry x1 (query selectBrigPropertiesAll (params Quorum ()))
+
 insertBrigProperties :: Env -> FilePath -> IO ()
 insertBrigProperties _ _ = do
   -- TODO:
@@ -232,6 +288,14 @@ readBrigRichInfoConduit :: Env -> [UserId] -> ConduitM () [RowBrigRichInfo] IO (
 readBrigRichInfoConduit Env {..} uids =
   transPipe (runClient envBrig) $
     paginateC selectBrigRichInfo (paramsP Quorum (pure uids) envPageSize) x5
+
+selectBrigRichInfoAll :: PrepQuery R () RowBrigRichInfo
+selectBrigRichInfoAll = "SELECT user, json FROM rich_info"
+
+readBrigRichInfoAll :: Env -> IO [RowBrigRichInfo]
+readBrigRichInfoAll Env {..} =
+  runClient envBrig $
+    retry x1 (query selectBrigRichInfoAll (params Quorum ()))
 
 insertBrigRichInfo :: Env -> FilePath -> IO ()
 insertBrigRichInfo _ _ = do
@@ -259,6 +323,14 @@ readBrigUserConduit Env {..} uids =
   transPipe (runClient envBrig) $
     paginateC selectBrigUser (paramsP Quorum (pure uids) envPageSize) x5
 
+selectBrigUserAll :: PrepQuery R () RowBrigUser
+selectBrigUserAll = "SELECT id, accent, accent_id, activated, assets, country, email, expires, handle, language, managed_by, name, password, phone, picture, provider, searchable, service, sso_id, status, team FROM user"
+
+readBrigUserAll :: Env -> IO [RowBrigUser]
+readBrigUserAll Env {..} =
+  runClient envBrig $
+    retry x1 (query selectBrigUserAll (params Quorum ()))
+
 insertBrigUser :: Env -> FilePath -> IO ()
 insertBrigUser _ _ = do
   -- TODO:
@@ -284,6 +356,14 @@ readBrigUserHandleConduit :: Env -> [Handle] -> ConduitM () [RowBrigUserHandle] 
 readBrigUserHandleConduit Env {..} handles =
   transPipe (runClient envBrig) $
     paginateC selectBrigUserHandle (paramsP Quorum (pure handles) envPageSize) x5
+
+selectBrigUserHandleAll :: PrepQuery R () RowBrigUserHandle
+selectBrigUserHandleAll = "SELECT handle, user FROM user_handle"
+
+readBrigUserHandleAll :: Env -> IO [RowBrigUserHandle]
+readBrigUserHandleAll Env {..} =
+  runClient envBrig $
+    retry x1 (query selectBrigUserHandleAll (params Quorum ()))
 
 insertBrigUserHandle :: Env -> FilePath -> IO ()
 insertBrigUserHandle _ _ = do
@@ -311,6 +391,14 @@ readGalleyBillingTeamMemberConduit Env {..} tid =
   transPipe (runClient envGalley) $
     paginateC selectGalleyBillingTeamMember (paramsP Quorum (pure tid) envPageSize) x5
 
+selectGalleyBillingTeamMemberAll :: PrepQuery R () RowGalleyBillingTeamMember
+selectGalleyBillingTeamMemberAll = "SELECT team, user FROM billing_team_member"
+
+readGalleyBillingTeamMemberAll :: Env -> IO [RowGalleyBillingTeamMember]
+readGalleyBillingTeamMemberAll Env {..} =
+  runClient envGalley $
+    retry x1 (query selectGalleyBillingTeamMemberAll (params Quorum ()))
+
 insertGalleyBillingTeamMember :: Env -> FilePath -> IO ()
 insertGalleyBillingTeamMember _ _ = do
   -- TODO:
@@ -336,6 +424,14 @@ readGalleyClientsConduit :: Env -> [UserId] -> ConduitM () [RowGalleyClients] IO
 readGalleyClientsConduit Env {..} uids =
   transPipe (runClient envGalley) $
     paginateC selectGalleyClients (paramsP Quorum (pure uids) envPageSize) x5
+
+selectGalleyClientsAll :: PrepQuery R () RowGalleyClients
+selectGalleyClientsAll = "SELECT user, clients FROM clients"
+
+readGalleyClientsAll :: Env -> IO [RowGalleyClients]
+readGalleyClientsAll Env {..} =
+  runClient envGalley $
+    retry x1 (query selectGalleyClientsAll (params Quorum ()))
 
 insertGalleyClients :: Env -> FilePath -> IO ()
 insertGalleyClients _ _ = do
@@ -363,6 +459,14 @@ readGalleyConversationConduit Env {..} cids =
   transPipe (runClient envGalley) $
     paginateC selectGalleyConversation (paramsP Quorum (pure cids) envPageSize) x5
 
+selectGalleyConversationAll :: PrepQuery R () RowGalleyConversation
+selectGalleyConversationAll = "SELECT conv, access, access_role, creator, deleted, message_timer, name, receipt_mode, team, type FROM conversation"
+
+readGalleyConversationAll :: Env -> IO [RowGalleyConversation]
+readGalleyConversationAll Env {..} =
+  runClient envGalley $
+    retry x1 (query selectGalleyConversationAll (params Quorum ()))
+
 insertGalleyConversation :: Env -> FilePath -> IO ()
 insertGalleyConversation _ _ = do
   -- TODO:
@@ -388,6 +492,14 @@ readGalleyMemberConduit :: Env -> [ConvId] -> ConduitM () [RowGalleyMember] IO (
 readGalleyMemberConduit Env {..} cids =
   transPipe (runClient envGalley) $
     paginateC selectGalleyMember (paramsP Quorum (pure cids) envPageSize) x5
+
+selectGalleyMemberAll :: PrepQuery R () RowGalleyMember
+selectGalleyMemberAll = "SELECT conv, user, conversation_role, hidden, hidden_ref, otr_archived, otr_archived_ref, otr_muted, otr_muted_ref, otr_muted_status, provider, service, status, user_remote_domain, user_remote_id FROM member"
+
+readGalleyMemberAll :: Env -> IO [RowGalleyMember]
+readGalleyMemberAll Env {..} =
+  runClient envGalley $
+    retry x1 (query selectGalleyMemberAll (params Quorum ()))
 
 insertGalleyMember :: Env -> FilePath -> IO ()
 insertGalleyMember _ _ = do
@@ -415,6 +527,14 @@ readGalleyTeamConduit Env {..} tid =
   transPipe (runClient envGalley) $
     paginateC selectGalleyTeam (paramsP Quorum (pure tid) envPageSize) x5
 
+selectGalleyTeamAll :: PrepQuery R () RowGalleyTeam
+selectGalleyTeamAll = "SELECT team, binding, creator, deleted, icon, icon_key, name, search_visibility, status FROM team"
+
+readGalleyTeamAll :: Env -> IO [RowGalleyTeam]
+readGalleyTeamAll Env {..} =
+  runClient envGalley $
+    retry x1 (query selectGalleyTeamAll (params Quorum ()))
+
 insertGalleyTeam :: Env -> FilePath -> IO ()
 insertGalleyTeam _ _ = do
   -- TODO:
@@ -440,6 +560,14 @@ readGalleyTeamConvConduit :: Env -> TeamId -> ConduitM () [RowGalleyTeamConv] IO
 readGalleyTeamConvConduit Env {..} tid =
   transPipe (runClient envGalley) $
     paginateC selectGalleyTeamConv (paramsP Quorum (pure tid) envPageSize) x5
+
+selectGalleyTeamConvAll :: PrepQuery R () RowGalleyTeamConv
+selectGalleyTeamConvAll = "SELECT team, conv, managed FROM team_conv"
+
+readGalleyTeamConvAll :: Env -> IO [RowGalleyTeamConv]
+readGalleyTeamConvAll Env {..} =
+  runClient envGalley $
+    retry x1 (query selectGalleyTeamConvAll (params Quorum ()))
 
 insertGalleyTeamConv :: Env -> FilePath -> IO ()
 insertGalleyTeamConv _ _ = do
@@ -467,6 +595,14 @@ readGalleyTeamFeaturesConduit Env {..} tid =
   transPipe (runClient envGalley) $
     paginateC selectGalleyTeamFeatures (paramsP Quorum (pure tid) envPageSize) x5
 
+selectGalleyTeamFeaturesAll :: PrepQuery R () RowGalleyTeamFeatures
+selectGalleyTeamFeaturesAll = "SELECT team_id, digital_signatures, legalhold_status, search_visibility_status, sso_status, validate_saml_emails FROM team_features"
+
+readGalleyTeamFeaturesAll :: Env -> IO [RowGalleyTeamFeatures]
+readGalleyTeamFeaturesAll Env {..} =
+  runClient envGalley $
+    retry x1 (query selectGalleyTeamFeaturesAll (params Quorum ()))
+
 insertGalleyTeamFeatures :: Env -> FilePath -> IO ()
 insertGalleyTeamFeatures _ _ = do
   -- TODO:
@@ -492,6 +628,14 @@ readGalleyTeamMemberConduit :: Env -> TeamId -> ConduitM () [RowGalleyTeamMember
 readGalleyTeamMemberConduit Env {..} tid =
   transPipe (runClient envGalley) $
     paginateC selectGalleyTeamMember (paramsP Quorum (pure tid) envPageSize) x5
+
+selectGalleyTeamMemberAll :: PrepQuery R () RowGalleyTeamMember
+selectGalleyTeamMemberAll = "SELECT team, user, invited_at, invited_by, legalhold_status, perms FROM team_member"
+
+readGalleyTeamMemberAll :: Env -> IO [RowGalleyTeamMember]
+readGalleyTeamMemberAll Env {..} =
+  runClient envGalley $
+    retry x1 (query selectGalleyTeamMemberAll (params Quorum ()))
 
 insertGalleyTeamMember :: Env -> FilePath -> IO ()
 insertGalleyTeamMember _ _ = do
@@ -519,6 +663,14 @@ readGalleyTeamNotificationsConduit Env {..} tid =
   transPipe (runClient envGalley) $
     paginateC selectGalleyTeamNotifications (paramsP Quorum (pure tid) envPageSize) x5
 
+selectGalleyTeamNotificationsAll :: PrepQuery R () RowGalleyTeamNotifications
+selectGalleyTeamNotificationsAll = "SELECT team, id, payload FROM team_notifications"
+
+readGalleyTeamNotificationsAll :: Env -> IO [RowGalleyTeamNotifications]
+readGalleyTeamNotificationsAll Env {..} =
+  runClient envGalley $
+    retry x1 (query selectGalleyTeamNotificationsAll (params Quorum ()))
+
 insertGalleyTeamNotifications :: Env -> FilePath -> IO ()
 insertGalleyTeamNotifications _ _ = do
   -- TODO:
@@ -544,6 +696,14 @@ readGalleyUserConduit :: Env -> [UserId] -> ConduitM () [RowGalleyUser] IO ()
 readGalleyUserConduit Env {..} uids =
   transPipe (runClient envGalley) $
     paginateC selectGalleyUser (paramsP Quorum (pure uids) envPageSize) x5
+
+selectGalleyUserAll :: PrepQuery R () RowGalleyUser
+selectGalleyUserAll = "SELECT user, conv, conv_remote_domain, conv_remote_id FROM user"
+
+readGalleyUserAll :: Env -> IO [RowGalleyUser]
+readGalleyUserAll Env {..} =
+  runClient envGalley $
+    retry x1 (query selectGalleyUserAll (params Quorum ()))
 
 insertGalleyUser :: Env -> FilePath -> IO ()
 insertGalleyUser _ _ = do
@@ -571,6 +731,14 @@ readGalleyUserTeamConduit Env {..} uids =
   transPipe (runClient envGalley) $
     paginateC selectGalleyUserTeam (paramsP Quorum (pure uids) envPageSize) x5
 
+selectGalleyUserTeamAll :: PrepQuery R () RowGalleyUserTeam
+selectGalleyUserTeamAll = "SELECT user, team FROM user_team"
+
+readGalleyUserTeamAll :: Env -> IO [RowGalleyUserTeam]
+readGalleyUserTeamAll Env {..} =
+  runClient envGalley $
+    retry x1 (query selectGalleyUserTeamAll (params Quorum ()))
+
 insertGalleyUserTeam :: Env -> FilePath -> IO ()
 insertGalleyUserTeam _ _ = do
   -- TODO:
@@ -597,6 +765,14 @@ readGundeckNotificationsConduit Env {..} uids =
   transPipe (runClient envGundeck) $
     paginateC selectGundeckNotifications (paramsP Quorum (pure uids) envPageSize) x5
 
+selectGundeckNotificationsAll :: PrepQuery R () RowGundeckNotifications
+selectGundeckNotificationsAll = "SELECT user, id, clients, payload FROM notifications"
+
+readGundeckNotificationsAll :: Env -> IO [RowGundeckNotifications]
+readGundeckNotificationsAll Env {..} =
+  runClient envGundeck $
+    retry x1 (query selectGundeckNotificationsAll (params Quorum ()))
+
 insertGundeckNotifications :: Env -> FilePath -> IO ()
 insertGundeckNotifications _ _ = do
   -- TODO:
@@ -622,6 +798,14 @@ readSparScimUserTimesConduit :: Env -> [UserId] -> ConduitM () [RowSparScimUserT
 readSparScimUserTimesConduit Env {..} uids =
   transPipe (runClient envSpar) $
     paginateC selectSparScimUserTimes (paramsP Quorum (pure uids) envPageSize) x5
+
+selectSparScimUserTimesAll :: PrepQuery R () RowSparScimUserTimes
+selectSparScimUserTimesAll = "SELECT uid, created_at, last_updated_at FROM scim_user_times"
+
+readSparScimUserTimesAll :: Env -> IO [RowSparScimUserTimes]
+readSparScimUserTimesAll Env {..} =
+  runClient envSpar $
+    retry x1 (query selectSparScimUserTimesAll (params Quorum ()))
 
 insertSparScimUserTimes :: Env -> FilePath -> IO ()
 insertSparScimUserTimes _ _ = do
