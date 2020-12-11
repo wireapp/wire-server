@@ -268,21 +268,21 @@ main = do
         (TIO.hPutStr out . renderMustache template)
           ( object
               [ "chunkTable"
-                  .= [ mkChunkUsers "brig" "activation_keys",
+                  .= [ -- mkChunkUsers "brig" "activation_keys",
                        -- "brig" "blacklist"
                        -- "brig" "budget"
                        mkChunkUsers "brig" "clients",
-                       mkChunkUsers "brig" "codes",
+                       -- mkChunkUsers "brig" "codes",
                        mkChunk createTables "brig" "connection" "[UserId]" "uids" "left in ? OR right in ?" "([UserId], [UserId])" "(uids, uids)",
                        -- "brig" "excluded_phones",
                        mkChunk' "brig" "id_mapping" "[UserId]" "uids" "mapped_id in ?",
-                       mkChunk' "brig" "invitation" "[UserId]" "uids" "inviter in ?",
-                       mkChunk' "brig" "invitation_info" "[UserId]" "uids" "inviter in ?",
-                       mkChunk createTables "brig" "invitee_info" "[UserId]" "uids" "invitee in ? OR inviter in ?" "([UserId], [UserId])" "(uids, uids)",
-                       mkChunkUsers "brig" "login_codes",
+                       -- mkChunk' "brig" "invitation" "[UserId]" "uids" "inviter in ?",
+                       -- mkChunk' "brig" "invitation_info" "[UserId]" "uids" "inviter in ?",
+                       -- mkChunk createTables "brig" "invitee_info" "[UserId]" "uids" "invitee in ? OR inviter in ?" "([UserId], [UserId])" "(uids, uids)",
+                       mkChunkUsers "brig" "login_codes",  -- ?
                        -- "brig" "meta",
-                       mkChunkUsers "brig" "password_reset",
-                       mkChunkUsers "brig" "prekeys",
+                       mkChunkUsers "brig" "password_reset",  -- ? probably not.
+                       mkChunkUsers "brig" "prekeys",  -- ?
                        mkChunkUsers "brig" "properties",
                        -- "brig" "provider",
                        -- "brig" "provider_keys",
@@ -294,15 +294,15 @@ main = do
                        -- "brig" "service_user"
                        -- "brig" "service_whitelist"
                        -- "brig" "service_whitelist_rev"
-                       mkChunkTeam "brig" "team_invitation",
-                       mkChunkTeam "brig" "team_invitation_email",
-                       mkChunk' "brig" "team_invitation_info" "[UserId]" "uids" "inviter in ?",
+                       -- mkChunkTeam "brig" "team_invitation",
+                       -- mkChunkTeam "brig" "team_invitation_email",
+                       -- mkChunk' "brig" "team_invitation_info" "[UserId]" "uids" "inviter in ?",
                        -- "brig" "unique_claims"
                        mkChunk' "brig" "user" "[UserId]" "uids" "id in ?",
-                       mkChunkUsers "brig" "user_cookies",
+                       -- mkChunkUsers "brig" "user_cookies",
                        mkChunkUsers "brig" "user_handle",
-                       mkChunkUsers "brig" "user_keys",
-                       mkChunkUsers "brig" "user_keys_hash",
+                       mkChunkUsers "brig" "user_keys",  -- ?
+                       mkChunkUsers "brig" "user_keys_hash",  -- ?
                        -- "brig" "vcodes"
                        mkChunkTeam "galley" "billing_team_member",
                        mkChunkUsers "galley" "clients",
@@ -311,8 +311,8 @@ main = do
                        -- "galley" "custom_backend",
                        -- "galley" "data_migration",
                        -- "galley" "id_mapping",
-                       mkChunkUsers "galley" "legalhold_pending_prekeys",
-                       mkChunkTeam "galley" "legalhold_service",
+                       -- mkChunkUsers "galley" "legalhold_pending_prekeys",
+                       -- mkChunkTeam "galley" "legalhold_service",
                        mkChunkUsers "galley" "member",
                        -- "galley" "meta"
                        -- "galley" "service"
@@ -325,22 +325,22 @@ main = do
                        mkChunkTeam "galley" "user_team",
                        -- "gundeck" "meta",
                        mkChunkUsers "gundeck" "notifications",
-                       mkChunk' "gundeck" "push" "[UserId]" "uids" "usr in ?",
-                       mkChunk' "gundeck" "user_push" "[UserId]" "uids" "usr in ?",
+                       -- mkChunk' "gundeck" "push" "[UserId]" "uids" "usr in ?",
+                       -- mkChunk' "gundeck" "user_push" "[UserId]" "uids" "usr in ?",
                        -- "spar" "authreq",
                        -- "spar" "authresp",
-                       mkChunk' "spar" "bind_cookie" "[UserId]" "uids" "session_owner in ?",
+                       -- mkChunk' "spar" "bind_cookie" "[UserId]" "uids" "session_owner in ?",
                        -- "spar" "default_idp"
-                       mkChunkTeam "spar" "idp",
+                       -- mkChunkTeam "spar" "idp",
                        -- "spar" "idp_raw_metadata",
                        -- "spar" "issuer_idp",
                        -- "spar" "meta",
                        mkChunkUsers "spar" "scim_external_ids",
                        mkChunk' "spar" "scim_user_times" "[UserId]" "uids" "uid in ?",
-                       mkChunkTeam "spar" "team_idp",
-                       mkChunkTeam "spar" "team_provisioning_by_team",
-                       mkChunkTeam "spar" "team_provisioning_by_token",
-                       mkChunkUsers "spar" "user"
+                       -- mkChunkTeam "spar" "team_idp",
+                       -- mkChunkTeam "spar" "team_provisioning_by_team",
+                       -- mkChunkTeam "spar" "team_provisioning_by_token",
+                       -- mkChunkUsers "spar" "user"
                        -- "spar" "verdict"
                      ]
               ]
