@@ -162,14 +162,14 @@ searchIndex ::
   -- | The search query
   Text ->
   -- | The maximum number of results.
-  Range 1 100 Int32 ->
+  Range 1 500 Int32 ->
   m (SearchResult Contact)
 searchIndex u teamSearchInfo q = queryIndex (defaultUserQuery u teamSearchInfo q)
 
 queryIndex ::
   (MonadIndexIO m, FromJSON r) =>
   IndexQuery r ->
-  Range 1 100 Int32 ->
+  Range 1 500 Int32 ->
   m (SearchResult r)
 queryIndex (IndexQuery q f) (fromRange -> s) = liftIndexIO $ do
   idx <- asks idxName

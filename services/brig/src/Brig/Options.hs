@@ -33,6 +33,7 @@ import Data.Aeson.Types (typeMismatch)
 import qualified Data.Char as Char
 import Data.Domain (Domain (..))
 import Data.Id
+import Data.Misc (HttpsUrl)
 import Data.Range
 import Data.Scientific (toBoundedInteger)
 import qualified Data.Text as Text
@@ -485,7 +486,12 @@ data Settings = Settings
     -- Customer extensions
 
     -- | Customer extensions.  Read 'CustomerExtensions' docs carefully!
-    setCustomerExtensions :: !(Maybe CustomerExtensions)
+    setCustomerExtensions :: !(Maybe CustomerExtensions),
+    -- | When set; instead of using SRV lookups to discover SFTs the calls
+    -- config will always return this entry. This is useful in Kubernetes
+    -- where SFTs are deployed behind a load-balancer.  In the long-run the SRV
+    -- fetching logic can go away completely
+    setSftStaticUrl :: !(Maybe HttpsUrl)
   }
   deriving (Show, Generic)
 
@@ -608,7 +614,8 @@ Lens.makeLensesFor
     ("setSearchSameTeamOnly", "searchSameTeamOnly"),
     ("setUserMaxPermClients", "userMaxPermClients"),
     ("setFederationDomain", "federationDomain"),
-    ("setSqsThrottleMillis", "sqsThrottleMillis")
+    ("setSqsThrottleMillis", "sqsThrottleMillis"),
+    ("setSftStaticUrl", "sftStaticUrl")
   ]
   ''Settings
 

@@ -22,7 +22,9 @@ module Brig.API.Public
   ( sitemap,
     apiDocs,
     servantSitemap,
+    swaggerDocsAPI,
     ServantAPI,
+    SwaggerDocsAPI,
   )
 where
 
@@ -51,7 +53,7 @@ import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
 import Brig.User.Phone
 import Control.Error hiding (bool)
-import Control.Lens (view, (?~), (^.))
+import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
@@ -65,7 +67,7 @@ import Data.Misc (IpAddr (..))
 import Data.Proxy (Proxy (..))
 import Data.Qualified (Qualified (..))
 import Data.Range
-import Data.Swagger (Swagger, ToSchema (..), description)
+import Data.Swagger (HasInfo (info), HasTitle (title), Swagger, ToSchema (..), description)
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Swagger.Lens (HasSchema (..))
 import qualified Data.Text as Text
@@ -86,6 +88,7 @@ import Servant (Capture, Capture', DefaultErrorFormatters, Description, ErrorFor
 import qualified Servant
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
+import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import qualified Wire.API.Connection as Public
 import qualified Wire.API.Properties as Public
@@ -157,9 +160,22 @@ type CheckUserExistsResponse = [Empty200, Empty404]
 
 -- Note [document responses]
 --
--- Ideally we want to document responses with UVerb and swagger, but this is not
+-- Ideally we want to document responses with UVerb and swagger, but this is
 -- currently not possible due to this issue:
 -- https://github.com/haskell-servant/servant/issues/1369
+
+-- See Note [ephemeral user sideeffect]
+--
+-- See Note [document responses]
+-- The responses looked like this:
+--   Doc.response 200 "User exists" Doc.end
+--   Doc.errorResponse userNotFound
+type CheckUserExistsUnqualified =
+  Summary "Check if a user ID exists (deprecated)"
+    :> ZAuthServant
+    :> "users"
+    :> CaptureUserId "uid"
+    :> UVerb 'HEAD '[Servant.JSON] CheckUserExistsResponse
 
 -- See Note [ephemeral user sideeffect]
 --
@@ -179,22 +195,9 @@ type CheckUserExistsQualified =
 --
 -- See Note [document responses]
 -- The responses looked like this:
---   Doc.response 200 "User exists" Doc.end
---   Doc.errorResponse userNotFound
-type CheckUserExistsUnqualified =
-  Summary "Check if a user ID exists (deprecated)"
-    :> ZAuthServant
-    :> "users"
-    :> CaptureUserId "uid"
-    :> UVerb 'HEAD '[Servant.JSON] CheckUserExistsResponse
-
--- See Note [ephemeral user sideeffect]
---
--- See Note [document responses]
--- The responses looked like this:
 --   Doc.response 200 "User" Doc.end
 --   Doc.errorResponse userNotFound
-type GetUserUnQualified =
+type GetUserUnqualified =
   Summary "Get a user by UserId (deprecated)"
     :> ZAuthServant
     :> "users"
@@ -204,7 +207,7 @@ type GetUserUnQualified =
 -- See Note [ephemeral user sideeffect]
 --
 -- See Note [document responses]
--- The responses looked like:
+-- The responses looked like this:
 --   Doc.response 200 "User" Doc.end
 --   Doc.errorResponse userNotFound
 type GetUserQualified =
@@ -216,20 +219,30 @@ type GetUserQualified =
     :> Get '[Servant.JSON] Public.UserProfile
 
 type OutsideWorldAPI =
-  CheckUserExistsQualified
-    :<|> CheckUserExistsUnqualified
-    :<|> GetUserUnQualified
+  CheckUserExistsUnqualified
+    :<|> CheckUserExistsQualified
+    :<|> GetUserUnqualified
     :<|> GetUserQualified
 
-type ServantAPI =
-  "brig" :> "api-docs" :> Get '[Servant.JSON] Swagger
-    :<|> OutsideWorldAPI
+type SwaggerDocsAPI = "api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
+
+type ServantAPI = OutsideWorldAPI
+
+-- FUTUREWORK: At the moment this only shows endpoints from brig, but we should
+-- combine the swagger 2.0 endpoints here as well from other services (e.g. spar)
+swaggerDoc :: Swagger
+swaggerDoc =
+  toSwagger (Proxy @OutsideWorldAPI)
+    & info . title .~ "Wire-Server API as Swagger 2.0 "
+    & info . description ?~ "NOTE: only a few endpoints are visible here at the moment, more will come as we migrate them to Swagger 2.0. In the meantime please also look at the old swagger docs link for the not-yet-migrated endpoints. See https://docs.wire.com/understand/api-client-perspective/swagger.html for the old endpoints."
+
+swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
+swaggerDocsAPI = swaggerSchemaUIServer swaggerDoc
 
 servantSitemap :: ServerT ServantAPI Handler
 servantSitemap =
-  pure (toSwagger (Proxy @OutsideWorldAPI))
-    :<|> checkQualifiedUserExistsH
-    :<|> checkUnqualifiedUserExistsH
+  checkUserExistsUnqualifiedH
+    :<|> checkUserExistsH
     :<|> getUserUnqualifiedH
     :<|> getUserH
 
@@ -1147,17 +1160,17 @@ createUser (Public.NewUserPublic new) = do
       Public.NewTeamMemberSSO _ ->
         Team.sendMemberWelcomeMail e t n l
 
-checkQualifiedUserExistsH :: UserId -> Domain -> UserId -> Handler (Union CheckUserExistsResponse)
-checkQualifiedUserExistsH self domain uid = do
+checkUserExistsUnqualifiedH :: UserId -> UserId -> Handler (Union CheckUserExistsResponse)
+checkUserExistsUnqualifiedH self uid = do
+  domain <- API.viewFederationDomain
+  checkUserExistsH self domain uid
+
+checkUserExistsH :: UserId -> Domain -> UserId -> Handler (Union CheckUserExistsResponse)
+checkUserExistsH self domain uid = do
   exists <- checkUserExists self (Qualified uid domain)
   if exists
     then Servant.respond Empty200
     else Servant.respond Empty404
-
-checkUnqualifiedUserExistsH :: UserId -> UserId -> Handler (Union CheckUserExistsResponse)
-checkUnqualifiedUserExistsH self uid = do
-  domain <- API.viewFederationDomain
-  checkQualifiedUserExistsH self domain uid
 
 checkUserExists :: UserId -> Qualified UserId -> Handler Bool
 checkUserExists self qualifiedUserId =
@@ -1174,7 +1187,7 @@ getSelf self = do
 getUserUnqualifiedH :: UserId -> UserId -> Handler Public.UserProfile
 getUserUnqualifiedH self uid = do
   domain <- API.viewFederationDomain
-  ifNothing userNotFound =<< getUser self (Qualified uid domain)
+  getUserH self domain uid
 
 getUserH :: UserId -> Domain -> UserId -> Handler Public.UserProfile
 getUserH self domain uid =
