@@ -36,7 +36,7 @@ import Wire.API.Team.Permission
 type RowBrigActivationKeys = (Maybe Text, Maybe Text, Maybe Text, Maybe Text, Maybe Text, Maybe Int32, Maybe UUID)
 
 selectBrigActivationKeys :: PrepQuery R (Identity ([UserId])) RowBrigActivationKeys
-selectBrigActivationKeys = "SELECT key, challenge, code, key_text, key_type, retries, user FROM activation_keys WHERE user in ? ALLOW FILTERING"
+selectBrigActivationKeys = "SELECT key, challenge, code, key_text, key_type, retries, user FROM activation_keys WHERE user in ?"
 
 readBrigActivationKeys :: Env -> [UserId] -> IO [RowBrigActivationKeys]
 readBrigActivationKeys Env {..} uids =
@@ -62,7 +62,7 @@ insertBrigActivationKeys _ _ = do
 type RowBrigClients = (Maybe UUID, Maybe Text, Maybe Int32, Maybe Text, Maybe Int32, Maybe Text, Maybe Double, Maybe Double, Maybe Text, Maybe UTCTime, Maybe Int32)
 
 selectBrigClients :: PrepQuery R (Identity ([UserId])) RowBrigClients
-selectBrigClients = "SELECT user, client, class, cookie, ip, label, lat, lon, model, tstamp, type FROM clients WHERE user in ? ALLOW FILTERING"
+selectBrigClients = "SELECT user, client, class, cookie, ip, label, lat, lon, model, tstamp, type FROM clients WHERE user in ?"
 
 readBrigClients :: Env -> [UserId] -> IO [RowBrigClients]
 readBrigClients Env {..} uids =
@@ -88,7 +88,7 @@ insertBrigClients _ _ = do
 type RowBrigCodes = (Maybe UUID, Maybe Int32, Maybe Text, Maybe Int32)
 
 selectBrigCodes :: PrepQuery R (Identity ([UserId])) RowBrigCodes
-selectBrigCodes = "SELECT user, scope, code, retries FROM codes WHERE user in ? ALLOW FILTERING"
+selectBrigCodes = "SELECT user, scope, code, retries FROM codes WHERE user in ?"
 
 readBrigCodes :: Env -> [UserId] -> IO [RowBrigCodes]
 readBrigCodes Env {..} uids =
@@ -114,7 +114,7 @@ insertBrigCodes _ _ = do
 type RowBrigConnection = (Maybe UUID, Maybe UUID, Maybe UUID, Maybe UTCTime, Maybe Text, Maybe Int32)
 
 selectBrigConnection :: PrepQuery R (([UserId], [UserId])) RowBrigConnection
-selectBrigConnection = "SELECT left, right, conv, last_update, message, status FROM connection WHERE left in ? OR right in ? ALLOW FILTERING"
+selectBrigConnection = "SELECT left, right, conv, last_update, message, status FROM connection WHERE left in ? OR right in ?"
 
 readBrigConnection :: Env -> [UserId] -> IO [RowBrigConnection]
 readBrigConnection Env {..} uids =
@@ -140,7 +140,7 @@ insertBrigConnection _ _ = do
 type RowBrigIdMapping = (Maybe UUID, Maybe Text, Maybe UUID)
 
 selectBrigIdMapping :: PrepQuery R (Identity [UserId]) RowBrigIdMapping
-selectBrigIdMapping = "SELECT mapped_id, remote_domain, remote_id FROM id_mapping WHERE mapped_id in ? ALLOW FILTERING"
+selectBrigIdMapping = "SELECT mapped_id, remote_domain, remote_id FROM id_mapping WHERE mapped_id in ?"
 
 readBrigIdMapping :: Env -> [UserId] -> IO [RowBrigIdMapping]
 readBrigIdMapping Env {..} uids =
@@ -166,7 +166,7 @@ insertBrigIdMapping _ _ = do
 type RowBrigInvitation = (Maybe UUID, Maybe UUID, Maybe Text, Maybe UTCTime, Maybe Text, Maybe Text, Maybe Text)
 
 selectBrigInvitation :: PrepQuery R (Identity [UserId]) RowBrigInvitation
-selectBrigInvitation = "SELECT inviter, id, code, created_at, email, name, phone FROM invitation WHERE inviter in ? ALLOW FILTERING"
+selectBrigInvitation = "SELECT inviter, id, code, created_at, email, name, phone FROM invitation WHERE inviter in ?"
 
 readBrigInvitation :: Env -> [UserId] -> IO [RowBrigInvitation]
 readBrigInvitation Env {..} uids =
@@ -192,7 +192,7 @@ insertBrigInvitation _ _ = do
 type RowBrigInvitationInfo = (Maybe Text, Maybe UUID, Maybe UUID)
 
 selectBrigInvitationInfo :: PrepQuery R (Identity [UserId]) RowBrigInvitationInfo
-selectBrigInvitationInfo = "SELECT code, id, inviter FROM invitation_info WHERE inviter in ? ALLOW FILTERING"
+selectBrigInvitationInfo = "SELECT code, id, inviter FROM invitation_info WHERE inviter in ?"
 
 readBrigInvitationInfo :: Env -> [UserId] -> IO [RowBrigInvitationInfo]
 readBrigInvitationInfo Env {..} uids =
@@ -218,7 +218,7 @@ insertBrigInvitationInfo _ _ = do
 type RowBrigInviteeInfo = (Maybe UUID, Maybe UUID, Maybe UUID)
 
 selectBrigInviteeInfo :: PrepQuery R (([UserId], [UserId])) RowBrigInviteeInfo
-selectBrigInviteeInfo = "SELECT invitee, conv, inviter FROM invitee_info WHERE invitee in ? OR inviter in ? ALLOW FILTERING"
+selectBrigInviteeInfo = "SELECT invitee, conv, inviter FROM invitee_info WHERE invitee in ? OR inviter in ?"
 
 readBrigInviteeInfo :: Env -> [UserId] -> IO [RowBrigInviteeInfo]
 readBrigInviteeInfo Env {..} uids =
@@ -244,7 +244,7 @@ insertBrigInviteeInfo _ _ = do
 type RowBrigLoginCodes = (Maybe UUID, Maybe Text, Maybe Int32, Maybe UTCTime)
 
 selectBrigLoginCodes :: PrepQuery R (Identity ([UserId])) RowBrigLoginCodes
-selectBrigLoginCodes = "SELECT user, code, retries, timeout FROM login_codes WHERE user in ? ALLOW FILTERING"
+selectBrigLoginCodes = "SELECT user, code, retries, timeout FROM login_codes WHERE user in ?"
 
 readBrigLoginCodes :: Env -> [UserId] -> IO [RowBrigLoginCodes]
 readBrigLoginCodes Env {..} uids =
@@ -270,7 +270,7 @@ insertBrigLoginCodes _ _ = do
 type RowBrigPasswordReset = (Maybe Text, Maybe Text, Maybe Int32, Maybe UTCTime, Maybe UUID)
 
 selectBrigPasswordReset :: PrepQuery R (Identity ([UserId])) RowBrigPasswordReset
-selectBrigPasswordReset = "SELECT key, code, retries, timeout, user FROM password_reset WHERE user in ? ALLOW FILTERING"
+selectBrigPasswordReset = "SELECT key, code, retries, timeout, user FROM password_reset WHERE user in ?"
 
 readBrigPasswordReset :: Env -> [UserId] -> IO [RowBrigPasswordReset]
 readBrigPasswordReset Env {..} uids =
@@ -296,7 +296,7 @@ insertBrigPasswordReset _ _ = do
 type RowBrigPrekeys = (Maybe UUID, Maybe Text, Maybe Int32, Maybe Text)
 
 selectBrigPrekeys :: PrepQuery R (Identity ([UserId])) RowBrigPrekeys
-selectBrigPrekeys = "SELECT user, client, key, data FROM prekeys WHERE user in ? ALLOW FILTERING"
+selectBrigPrekeys = "SELECT user, client, key, data FROM prekeys WHERE user in ?"
 
 readBrigPrekeys :: Env -> [UserId] -> IO [RowBrigPrekeys]
 readBrigPrekeys Env {..} uids =
@@ -319,10 +319,10 @@ insertBrigPrekeys _ _ = do
 
 -- brig.properties
 
-type RowBrigProperties = (Maybe UUID, Maybe Text, Maybe Blob')
+type RowBrigProperties = (Maybe UUID, Maybe Text, Maybe Blob)
 
 selectBrigProperties :: PrepQuery R (Identity ([UserId])) RowBrigProperties
-selectBrigProperties = "SELECT user, key, value FROM properties WHERE user in ? ALLOW FILTERING"
+selectBrigProperties = "SELECT user, key, value FROM properties WHERE user in ?"
 
 readBrigProperties :: Env -> [UserId] -> IO [RowBrigProperties]
 readBrigProperties Env {..} uids =
@@ -345,10 +345,10 @@ insertBrigProperties _ _ = do
 
 -- brig.rich_info
 
-type RowBrigRichInfo = (Maybe UUID, Maybe Blob')
+type RowBrigRichInfo = (Maybe UUID, Maybe Blob)
 
 selectBrigRichInfo :: PrepQuery R (Identity ([UserId])) RowBrigRichInfo
-selectBrigRichInfo = "SELECT user, json FROM rich_info WHERE user in ? ALLOW FILTERING"
+selectBrigRichInfo = "SELECT user, json FROM rich_info WHERE user in ?"
 
 readBrigRichInfo :: Env -> [UserId] -> IO [RowBrigRichInfo]
 readBrigRichInfo Env {..} uids =
@@ -374,7 +374,7 @@ insertBrigRichInfo _ _ = do
 type RowBrigTeamInvitation = (Maybe UUID, Maybe UUID, Maybe Text, Maybe UTCTime, Maybe UUID, Maybe Text, Maybe Text, Maybe Text, Maybe Int32)
 
 selectBrigTeamInvitation :: PrepQuery R (Identity TeamId) RowBrigTeamInvitation
-selectBrigTeamInvitation = "SELECT team, id, code, created_at, created_by, email, name, phone, role FROM team_invitation WHERE team = ? ALLOW FILTERING"
+selectBrigTeamInvitation = "SELECT team, id, code, created_at, created_by, email, name, phone, role FROM team_invitation WHERE team = ?"
 
 readBrigTeamInvitation :: Env -> TeamId -> IO [RowBrigTeamInvitation]
 readBrigTeamInvitation Env {..} tid =
@@ -400,7 +400,7 @@ insertBrigTeamInvitation _ _ = do
 type RowBrigTeamInvitationEmail = (Maybe Text, Maybe UUID, Maybe Text, Maybe UUID)
 
 selectBrigTeamInvitationEmail :: PrepQuery R (Identity TeamId) RowBrigTeamInvitationEmail
-selectBrigTeamInvitationEmail = "SELECT email, team, code, invitation FROM team_invitation_email WHERE team = ? ALLOW FILTERING"
+selectBrigTeamInvitationEmail = "SELECT email, team, code, invitation FROM team_invitation_email WHERE team = ?"
 
 readBrigTeamInvitationEmail :: Env -> TeamId -> IO [RowBrigTeamInvitationEmail]
 readBrigTeamInvitationEmail Env {..} tid =
@@ -426,7 +426,7 @@ insertBrigTeamInvitationEmail _ _ = do
 type RowBrigTeamInvitationInfo = (Maybe Text, Maybe UUID, Maybe UUID)
 
 selectBrigTeamInvitationInfo :: PrepQuery R (Identity [UserId]) RowBrigTeamInvitationInfo
-selectBrigTeamInvitationInfo = "SELECT code, id, team FROM team_invitation_info WHERE inviter in ? ALLOW FILTERING"
+selectBrigTeamInvitationInfo = "SELECT code, id, team FROM team_invitation_info WHERE inviter in ?"
 
 readBrigTeamInvitationInfo :: Env -> [UserId] -> IO [RowBrigTeamInvitationInfo]
 readBrigTeamInvitationInfo Env {..} uids =
@@ -449,10 +449,10 @@ insertBrigTeamInvitationInfo _ _ = do
 
 -- brig.user
 
-type RowBrigUser = (Maybe UUID, Maybe [Double], Maybe Int32, Maybe Bool, Maybe [AssetIgnoreData], Maybe Text, Maybe Text, Maybe UTCTime, Maybe Text, Maybe Text, Maybe Int32, Maybe Text, Maybe Blob', Maybe Text, Maybe [Blob'], Maybe UUID, Maybe Bool, Maybe UUID, Maybe Text, Maybe Int32, Maybe UUID)
+type RowBrigUser = (Maybe UUID, Maybe [Double], Maybe Int32, Maybe Bool, Maybe [AssetIgnoreData], Maybe Text, Maybe Text, Maybe UTCTime, Maybe Text, Maybe Text, Maybe Int32, Maybe Text, Maybe Blob, Maybe Text, Maybe [Blob], Maybe UUID, Maybe Bool, Maybe UUID, Maybe Text, Maybe Int32, Maybe UUID)
 
 selectBrigUser :: PrepQuery R (Identity [UserId]) RowBrigUser
-selectBrigUser = "SELECT id, accent, accent_id, activated, assets, country, email, expires, handle, language, managed_by, name, password, phone, picture, provider, searchable, service, sso_id, status, team FROM user WHERE id in ? ALLOW FILTERING"
+selectBrigUser = "SELECT id, accent, accent_id, activated, assets, country, email, expires, handle, language, managed_by, name, password, phone, picture, provider, searchable, service, sso_id, status, team FROM user WHERE id in ?"
 
 readBrigUser :: Env -> [UserId] -> IO [RowBrigUser]
 readBrigUser Env {..} uids =
@@ -478,7 +478,7 @@ insertBrigUser _ _ = do
 type RowBrigUserCookies = (Maybe UUID, Maybe UTCTime, Maybe Integer, Maybe UTCTime, Maybe Text, Maybe Integer, Maybe Int32)
 
 selectBrigUserCookies :: PrepQuery R (Identity ([UserId])) RowBrigUserCookies
-selectBrigUserCookies = "SELECT user, expires, id, created, label, succ_id, type FROM user_cookies WHERE user in ? ALLOW FILTERING"
+selectBrigUserCookies = "SELECT user, expires, id, created, label, succ_id, type FROM user_cookies WHERE user in ?"
 
 readBrigUserCookies :: Env -> [UserId] -> IO [RowBrigUserCookies]
 readBrigUserCookies Env {..} uids =
@@ -504,7 +504,7 @@ insertBrigUserCookies _ _ = do
 type RowBrigUserHandle = (Maybe Text, Maybe UUID)
 
 selectBrigUserHandle :: PrepQuery R (Identity ([UserId])) RowBrigUserHandle
-selectBrigUserHandle = "SELECT handle, user FROM user_handle WHERE user in ? ALLOW FILTERING"
+selectBrigUserHandle = "SELECT handle, user FROM user_handle WHERE user in ?"
 
 readBrigUserHandle :: Env -> [UserId] -> IO [RowBrigUserHandle]
 readBrigUserHandle Env {..} uids =
@@ -530,7 +530,7 @@ insertBrigUserHandle _ _ = do
 type RowBrigUserKeys = (Maybe Text, Maybe UUID)
 
 selectBrigUserKeys :: PrepQuery R (Identity ([UserId])) RowBrigUserKeys
-selectBrigUserKeys = "SELECT key, user FROM user_keys WHERE user in ? ALLOW FILTERING"
+selectBrigUserKeys = "SELECT key, user FROM user_keys WHERE user in ?"
 
 readBrigUserKeys :: Env -> [UserId] -> IO [RowBrigUserKeys]
 readBrigUserKeys Env {..} uids =
@@ -553,10 +553,10 @@ insertBrigUserKeys _ _ = do
 
 -- brig.user_keys_hash
 
-type RowBrigUserKeysHash = (Maybe Blob', Maybe Int32, Maybe UUID)
+type RowBrigUserKeysHash = (Maybe Blob, Maybe Int32, Maybe UUID)
 
 selectBrigUserKeysHash :: PrepQuery R (Identity ([UserId])) RowBrigUserKeysHash
-selectBrigUserKeysHash = "SELECT key, key_type, user FROM user_keys_hash WHERE user in ? ALLOW FILTERING"
+selectBrigUserKeysHash = "SELECT key, key_type, user FROM user_keys_hash WHERE user in ?"
 
 readBrigUserKeysHash :: Env -> [UserId] -> IO [RowBrigUserKeysHash]
 readBrigUserKeysHash Env {..} uids =
@@ -582,7 +582,7 @@ insertBrigUserKeysHash _ _ = do
 type RowGalleyBillingTeamMember = (Maybe UUID, Maybe UUID)
 
 selectGalleyBillingTeamMember :: PrepQuery R (Identity TeamId) RowGalleyBillingTeamMember
-selectGalleyBillingTeamMember = "SELECT team, user FROM billing_team_member WHERE team = ? ALLOW FILTERING"
+selectGalleyBillingTeamMember = "SELECT team, user FROM billing_team_member WHERE team = ?"
 
 readGalleyBillingTeamMember :: Env -> TeamId -> IO [RowGalleyBillingTeamMember]
 readGalleyBillingTeamMember Env {..} tid =
@@ -608,7 +608,7 @@ insertGalleyBillingTeamMember _ _ = do
 type RowGalleyClients = (Maybe UUID, Maybe (Cassandra.Set Text))
 
 selectGalleyClients :: PrepQuery R (Identity ([UserId])) RowGalleyClients
-selectGalleyClients = "SELECT user, clients FROM clients WHERE user in ? ALLOW FILTERING"
+selectGalleyClients = "SELECT user, clients FROM clients WHERE user in ?"
 
 readGalleyClients :: Env -> [UserId] -> IO [RowGalleyClients]
 readGalleyClients Env {..} uids =
@@ -634,7 +634,7 @@ insertGalleyClients _ _ = do
 type RowGalleyConversation = (Maybe UUID, Maybe (Cassandra.Set Int32), Maybe Int32, Maybe UUID, Maybe Bool, Maybe Integer, Maybe Text, Maybe Int32, Maybe UUID, Maybe Int32)
 
 selectGalleyConversation :: PrepQuery R (Identity TeamId) RowGalleyConversation
-selectGalleyConversation = "SELECT conv, access, access_role, creator, deleted, message_timer, name, receipt_mode, team, type FROM conversation WHERE team = ? ALLOW FILTERING"
+selectGalleyConversation = "SELECT conv, access, access_role, creator, deleted, message_timer, name, receipt_mode, team, type FROM conversation WHERE team = ?"
 
 readGalleyConversation :: Env -> TeamId -> IO [RowGalleyConversation]
 readGalleyConversation Env {..} tid =
@@ -660,7 +660,7 @@ insertGalleyConversation _ _ = do
 type RowGalleyLegalholdPendingPrekeys = (Maybe UUID, Maybe Int32, Maybe Text)
 
 selectGalleyLegalholdPendingPrekeys :: PrepQuery R (Identity ([UserId])) RowGalleyLegalholdPendingPrekeys
-selectGalleyLegalholdPendingPrekeys = "SELECT user, key, data FROM legalhold_pending_prekeys WHERE user in ? ALLOW FILTERING"
+selectGalleyLegalholdPendingPrekeys = "SELECT user, key, data FROM legalhold_pending_prekeys WHERE user in ?"
 
 readGalleyLegalholdPendingPrekeys :: Env -> [UserId] -> IO [RowGalleyLegalholdPendingPrekeys]
 readGalleyLegalholdPendingPrekeys Env {..} uids =
@@ -683,10 +683,10 @@ insertGalleyLegalholdPendingPrekeys _ _ = do
 
 -- galley.legalhold_service
 
-type RowGalleyLegalholdService = (Maybe UUID, Maybe Text, Maybe Blob', Maybe Blob', Maybe Blob)
+type RowGalleyLegalholdService = (Maybe UUID, Maybe Text, Maybe Blob, Maybe Blob, Maybe Blob)
 
 selectGalleyLegalholdService :: PrepQuery R (Identity TeamId) RowGalleyLegalholdService
-selectGalleyLegalholdService = "SELECT team_id, auth_token, base_url, fingerprint, pubkey FROM legalhold_service WHERE team = ? ALLOW FILTERING"
+selectGalleyLegalholdService = "SELECT team_id, auth_token, base_url, fingerprint, pubkey FROM legalhold_service WHERE team = ?"
 
 readGalleyLegalholdService :: Env -> TeamId -> IO [RowGalleyLegalholdService]
 readGalleyLegalholdService Env {..} tid =
@@ -712,7 +712,7 @@ insertGalleyLegalholdService _ _ = do
 type RowGalleyMember = (Maybe UUID, Maybe UUID, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe Int32, Maybe UUID, Maybe UUID, Maybe Int32, Maybe Text, Maybe UUID)
 
 selectGalleyMember :: PrepQuery R (Identity ([UserId])) RowGalleyMember
-selectGalleyMember = "SELECT conv, user, conversation_role, hidden, hidden_ref, otr_archived, otr_archived_ref, otr_muted, otr_muted_ref, otr_muted_status, provider, service, status, user_remote_domain, user_remote_id FROM member WHERE user in ? ALLOW FILTERING"
+selectGalleyMember = "SELECT conv, user, conversation_role, hidden, hidden_ref, otr_archived, otr_archived_ref, otr_muted, otr_muted_ref, otr_muted_status, provider, service, status, user_remote_domain, user_remote_id FROM member WHERE user in ?"
 
 readGalleyMember :: Env -> [UserId] -> IO [RowGalleyMember]
 readGalleyMember Env {..} uids =
@@ -738,7 +738,7 @@ insertGalleyMember _ _ = do
 type RowGalleyTeam = (Maybe UUID, Maybe Bool, Maybe UUID, Maybe Bool, Maybe Text, Maybe Text, Maybe Text, Maybe Int32, Maybe Int32)
 
 selectGalleyTeam :: PrepQuery R (Identity TeamId) RowGalleyTeam
-selectGalleyTeam = "SELECT team, binding, creator, deleted, icon, icon_key, name, search_visibility, status FROM team WHERE team = ? ALLOW FILTERING"
+selectGalleyTeam = "SELECT team, binding, creator, deleted, icon, icon_key, name, search_visibility, status FROM team WHERE team = ?"
 
 readGalleyTeam :: Env -> TeamId -> IO [RowGalleyTeam]
 readGalleyTeam Env {..} tid =
@@ -764,7 +764,7 @@ insertGalleyTeam _ _ = do
 type RowGalleyTeamConv = (Maybe UUID, Maybe UUID, Maybe Bool)
 
 selectGalleyTeamConv :: PrepQuery R (Identity TeamId) RowGalleyTeamConv
-selectGalleyTeamConv = "SELECT team, conv, managed FROM team_conv WHERE team = ? ALLOW FILTERING"
+selectGalleyTeamConv = "SELECT team, conv, managed FROM team_conv WHERE team = ?"
 
 readGalleyTeamConv :: Env -> TeamId -> IO [RowGalleyTeamConv]
 readGalleyTeamConv Env {..} tid =
@@ -790,7 +790,7 @@ insertGalleyTeamConv _ _ = do
 type RowGalleyTeamFeatures = (Maybe UUID, Maybe Int32, Maybe Int32, Maybe Int32, Maybe Int32, Maybe Int32)
 
 selectGalleyTeamFeatures :: PrepQuery R (Identity TeamId) RowGalleyTeamFeatures
-selectGalleyTeamFeatures = "SELECT team_id, digital_signatures, legalhold_status, search_visibility_status, sso_status, validate_saml_emails FROM team_features WHERE team = ? ALLOW FILTERING"
+selectGalleyTeamFeatures = "SELECT team_id, digital_signatures, legalhold_status, search_visibility_status, sso_status, validate_saml_emails FROM team_features WHERE team = ?"
 
 readGalleyTeamFeatures :: Env -> TeamId -> IO [RowGalleyTeamFeatures]
 readGalleyTeamFeatures Env {..} tid =
@@ -816,7 +816,7 @@ insertGalleyTeamFeatures _ _ = do
 type RowGalleyTeamMember = (Maybe UUID, Maybe UUID, Maybe UTCTime, Maybe UUID, Maybe Int32, Maybe Permissions)
 
 selectGalleyTeamMember :: PrepQuery R (Identity TeamId) RowGalleyTeamMember
-selectGalleyTeamMember = "SELECT team, user, invited_at, invited_by, legalhold_status, perms FROM team_member WHERE team = ? ALLOW FILTERING"
+selectGalleyTeamMember = "SELECT team, user, invited_at, invited_by, legalhold_status, perms FROM team_member WHERE team = ?"
 
 readGalleyTeamMember :: Env -> TeamId -> IO [RowGalleyTeamMember]
 readGalleyTeamMember Env {..} tid =
@@ -839,10 +839,10 @@ insertGalleyTeamMember _ _ = do
 
 -- galley.team_notifications
 
-type RowGalleyTeamNotifications = (Maybe UUID, Maybe UUID, Maybe Blob')
+type RowGalleyTeamNotifications = (Maybe UUID, Maybe UUID, Maybe Blob)
 
 selectGalleyTeamNotifications :: PrepQuery R (Identity TeamId) RowGalleyTeamNotifications
-selectGalleyTeamNotifications = "SELECT team, id, payload FROM team_notifications WHERE team = ? ALLOW FILTERING"
+selectGalleyTeamNotifications = "SELECT team, id, payload FROM team_notifications WHERE team = ?"
 
 readGalleyTeamNotifications :: Env -> TeamId -> IO [RowGalleyTeamNotifications]
 readGalleyTeamNotifications Env {..} tid =
@@ -868,7 +868,7 @@ insertGalleyTeamNotifications _ _ = do
 type RowGalleyUser = (Maybe UUID, Maybe UUID, Maybe Text, Maybe UUID)
 
 selectGalleyUser :: PrepQuery R (Identity ([UserId])) RowGalleyUser
-selectGalleyUser = "SELECT user, conv, conv_remote_domain, conv_remote_id FROM user WHERE user in ? ALLOW FILTERING"
+selectGalleyUser = "SELECT user, conv, conv_remote_domain, conv_remote_id FROM user WHERE user in ?"
 
 readGalleyUser :: Env -> [UserId] -> IO [RowGalleyUser]
 readGalleyUser Env {..} uids =
@@ -894,7 +894,7 @@ insertGalleyUser _ _ = do
 type RowGalleyUserTeam = (Maybe UUID, Maybe UUID)
 
 selectGalleyUserTeam :: PrepQuery R (Identity TeamId) RowGalleyUserTeam
-selectGalleyUserTeam = "SELECT user, team FROM user_team WHERE team = ? ALLOW FILTERING"
+selectGalleyUserTeam = "SELECT user, team FROM user_team WHERE team = ?"
 
 readGalleyUserTeam :: Env -> TeamId -> IO [RowGalleyUserTeam]
 readGalleyUserTeam Env {..} tid =
@@ -917,10 +917,10 @@ insertGalleyUserTeam _ _ = do
 
 -- gundeck.notifications
 
-type RowGundeckNotifications = (Maybe UUID, Maybe UUID, Maybe (Cassandra.Set Text), Maybe Blob')
+type RowGundeckNotifications = (Maybe UUID, Maybe UUID, Maybe (Cassandra.Set Text), Maybe Blob)
 
 selectGundeckNotifications :: PrepQuery R (Identity ([UserId])) RowGundeckNotifications
-selectGundeckNotifications = "SELECT user, id, clients, payload FROM notifications WHERE user in ? ALLOW FILTERING"
+selectGundeckNotifications = "SELECT user, id, clients, payload FROM notifications WHERE user in ?"
 
 readGundeckNotifications :: Env -> [UserId] -> IO [RowGundeckNotifications]
 readGundeckNotifications Env {..} uids =
@@ -943,10 +943,10 @@ insertGundeckNotifications _ _ = do
 
 -- gundeck.push
 
-type RowGundeckPush = (Maybe Text, Maybe Text, Maybe Int32, Maybe Text, Maybe Blob', Maybe UUID)
+type RowGundeckPush = (Maybe Text, Maybe Text, Maybe Int32, Maybe Text, Maybe Blob, Maybe UUID)
 
 selectGundeckPush :: PrepQuery R (Identity [UserId]) RowGundeckPush
-selectGundeckPush = "SELECT ptoken, app, transport, client, connection, usr FROM push WHERE usr in ? ALLOW FILTERING"
+selectGundeckPush = "SELECT ptoken, app, transport, client, connection, usr FROM push WHERE usr in ?"
 
 readGundeckPush :: Env -> [UserId] -> IO [RowGundeckPush]
 readGundeckPush Env {..} uids =
@@ -969,10 +969,10 @@ insertGundeckPush _ _ = do
 
 -- gundeck.user_push
 
-type RowGundeckUserPush = (Maybe UUID, Maybe Text, Maybe Text, Maybe Int32, Maybe Text, Maybe Text, Maybe Blob')
+type RowGundeckUserPush = (Maybe UUID, Maybe Text, Maybe Text, Maybe Int32, Maybe Text, Maybe Text, Maybe Blob)
 
 selectGundeckUserPush :: PrepQuery R (Identity [UserId]) RowGundeckUserPush
-selectGundeckUserPush = "SELECT usr, ptoken, app, transport, arn, client, connection FROM user_push WHERE usr in ? ALLOW FILTERING"
+selectGundeckUserPush = "SELECT usr, ptoken, app, transport, arn, client, connection FROM user_push WHERE usr in ?"
 
 readGundeckUserPush :: Env -> [UserId] -> IO [RowGundeckUserPush]
 readGundeckUserPush Env {..} uids =
@@ -998,7 +998,7 @@ insertGundeckUserPush _ _ = do
 type RowSparBindCookie = (Maybe Text, Maybe UUID)
 
 selectSparBindCookie :: PrepQuery R (Identity [UserId]) RowSparBindCookie
-selectSparBindCookie = "SELECT cookie, session_owner FROM bind_cookie WHERE session_owner in ? ALLOW FILTERING"
+selectSparBindCookie = "SELECT cookie, session_owner FROM bind_cookie WHERE session_owner in ?"
 
 readSparBindCookie :: Env -> [UserId] -> IO [RowSparBindCookie]
 readSparBindCookie Env {..} uids =
@@ -1021,10 +1021,10 @@ insertSparBindCookie _ _ = do
 
 -- spar.idp
 
-type RowSparIdp = (Maybe UUID, Maybe [Blob'], Maybe Text, Maybe [Text], Maybe Blob', Maybe UUID, Maybe Text, Maybe UUID)
+type RowSparIdp = (Maybe UUID, Maybe [Blob], Maybe Text, Maybe [Text], Maybe Blob, Maybe UUID, Maybe Text, Maybe UUID)
 
 selectSparIdp :: PrepQuery R (Identity TeamId) RowSparIdp
-selectSparIdp = "SELECT idp, extra_public_keys, issuer, old_issuers, public_key, replaced_by, request_uri, team FROM idp WHERE team = ? ALLOW FILTERING"
+selectSparIdp = "SELECT idp, extra_public_keys, issuer, old_issuers, public_key, replaced_by, request_uri, team FROM idp WHERE team = ?"
 
 readSparIdp :: Env -> TeamId -> IO [RowSparIdp]
 readSparIdp Env {..} tid =
@@ -1050,7 +1050,7 @@ insertSparIdp _ _ = do
 type RowSparScimExternalIds = (Maybe Text, Maybe UUID)
 
 selectSparScimExternalIds :: PrepQuery R (Identity ([UserId])) RowSparScimExternalIds
-selectSparScimExternalIds = "SELECT external, user FROM scim_external_ids WHERE user in ? ALLOW FILTERING"
+selectSparScimExternalIds = "SELECT external, user FROM scim_external_ids WHERE user in ?"
 
 readSparScimExternalIds :: Env -> [UserId] -> IO [RowSparScimExternalIds]
 readSparScimExternalIds Env {..} uids =
@@ -1076,7 +1076,7 @@ insertSparScimExternalIds _ _ = do
 type RowSparScimUserTimes = (Maybe UUID, Maybe UTCTime, Maybe UTCTime)
 
 selectSparScimUserTimes :: PrepQuery R (Identity [UserId]) RowSparScimUserTimes
-selectSparScimUserTimes = "SELECT uid, created_at, last_updated_at FROM scim_user_times WHERE uid in ? ALLOW FILTERING"
+selectSparScimUserTimes = "SELECT uid, created_at, last_updated_at FROM scim_user_times WHERE uid in ?"
 
 readSparScimUserTimes :: Env -> [UserId] -> IO [RowSparScimUserTimes]
 readSparScimUserTimes Env {..} uids =
@@ -1102,7 +1102,7 @@ insertSparScimUserTimes _ _ = do
 type RowSparTeamIdp = (Maybe UUID, Maybe UUID)
 
 selectSparTeamIdp :: PrepQuery R (Identity TeamId) RowSparTeamIdp
-selectSparTeamIdp = "SELECT team, idp FROM team_idp WHERE team = ? ALLOW FILTERING"
+selectSparTeamIdp = "SELECT team, idp FROM team_idp WHERE team = ?"
 
 readSparTeamIdp :: Env -> TeamId -> IO [RowSparTeamIdp]
 readSparTeamIdp Env {..} tid =
@@ -1128,7 +1128,7 @@ insertSparTeamIdp _ _ = do
 type RowSparTeamProvisioningByTeam = (Maybe UUID, Maybe UUID, Maybe UTCTime, Maybe Text, Maybe UUID, Maybe Text)
 
 selectSparTeamProvisioningByTeam :: PrepQuery R (Identity TeamId) RowSparTeamProvisioningByTeam
-selectSparTeamProvisioningByTeam = "SELECT team, id, created_at, descr, idp, token_ FROM team_provisioning_by_team WHERE team = ? ALLOW FILTERING"
+selectSparTeamProvisioningByTeam = "SELECT team, id, created_at, descr, idp, token_ FROM team_provisioning_by_team WHERE team = ?"
 
 readSparTeamProvisioningByTeam :: Env -> TeamId -> IO [RowSparTeamProvisioningByTeam]
 readSparTeamProvisioningByTeam Env {..} tid =
@@ -1154,7 +1154,7 @@ insertSparTeamProvisioningByTeam _ _ = do
 type RowSparTeamProvisioningByToken = (Maybe Text, Maybe UTCTime, Maybe Text, Maybe UUID, Maybe UUID, Maybe UUID)
 
 selectSparTeamProvisioningByToken :: PrepQuery R (Identity TeamId) RowSparTeamProvisioningByToken
-selectSparTeamProvisioningByToken = "SELECT token_, created_at, descr, id, idp, team FROM team_provisioning_by_token WHERE team = ? ALLOW FILTERING"
+selectSparTeamProvisioningByToken = "SELECT token_, created_at, descr, id, idp, team FROM team_provisioning_by_token WHERE team = ?"
 
 readSparTeamProvisioningByToken :: Env -> TeamId -> IO [RowSparTeamProvisioningByToken]
 readSparTeamProvisioningByToken Env {..} tid =
@@ -1180,7 +1180,7 @@ insertSparTeamProvisioningByToken _ _ = do
 type RowSparUser = (Maybe Text, Maybe Text, Maybe UUID)
 
 selectSparUser :: PrepQuery R (Identity ([UserId])) RowSparUser
-selectSparUser = "SELECT issuer, sso_id, uid FROM user WHERE user in ? ALLOW FILTERING"
+selectSparUser = "SELECT issuer, sso_id, uid FROM user WHERE user in ?"
 
 readSparUser :: Env -> [UserId] -> IO [RowSparUser]
 readSparUser Env {..} uids =
