@@ -28,13 +28,14 @@ module Types where
 
 import Cassandra
 import Data.Aeson (FromJSON (..), ToJSON (..), Value (String), withText)
-import Data.Aeson.Types (Value (Null))
+import Data.Aeson.Types (Value (Array, Null))
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Handle
 import Data.IP (IP (..))
 import Data.Id
 import qualified Data.Text as T
 import Data.Text.Ascii (AsciiText, Base64, decodeBase64, encodeBase64)
+import qualified Data.Vector as V
 import Galley.Data.Instances ()
 import Imports
 import System.Logger (Logger)
@@ -101,3 +102,30 @@ instance FromJSON IP where
 deriving instance Cql Handle
 
 deriving instance Cql PasswordResetKey
+
+instance (ToJSON a, ToJSON b, ToJSON c, ToJSON d, ToJSON e, ToJSON f, ToJSON g, ToJSON h, ToJSON i, ToJSON j, ToJSON k, ToJSON l, ToJSON m, ToJSON n, ToJSON o, ToJSON p, ToJSON q, ToJSON r, ToJSON s, ToJSON t, ToJSON u) => ToJSON ((,,,,,,,,,,,,,,,,,,,,) a b c d e f g h i j k l m n o p q r s t u) where
+  toJSON (a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u) =
+    Array $
+      V.fromList
+        [ toJSON a,
+          toJSON b,
+          toJSON c,
+          toJSON d,
+          toJSON e,
+          toJSON f,
+          toJSON g,
+          toJSON h,
+          toJSON i,
+          toJSON j,
+          toJSON k,
+          toJSON l,
+          toJSON m,
+          toJSON n,
+          toJSON o,
+          toJSON p,
+          toJSON q,
+          toJSON r,
+          toJSON s,
+          toJSON t,
+          toJSON u
+        ]
