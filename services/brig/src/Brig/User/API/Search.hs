@@ -54,7 +54,7 @@ routesPublic = do
     Doc.parameter Doc.Query "q" Doc.string' $
       Doc.description "Search query"
     Doc.parameter Doc.Query "size" Doc.int32' $ do
-      Doc.description "Number of results to return"
+      Doc.description "Number of results to return (min: 1, max: 500, default: 15)"
       Doc.optional
     Doc.returns (Doc.ref Public.modelSearchResult)
     Doc.response 200 "The search result." Doc.end
@@ -84,10 +84,10 @@ routesInternal = do
 
 -- Handlers
 
-searchH :: JSON ::: UserId ::: Text ::: Range 1 100 Int32 -> Handler Response
+searchH :: JSON ::: UserId ::: Text ::: Range 1 500 Int32 -> Handler Response
 searchH (_ ::: u ::: q ::: s) = json <$> lift (search u q s)
 
-search :: UserId -> Text -> Range 1 100 Int32 -> AppIO (Public.SearchResult Public.Contact)
+search :: UserId -> Text -> Range 1 500 Int32 -> AppIO (Public.SearchResult Public.Contact)
 search searcherId searchTerm maxResults = do
   -- FUTUREWORK(federation, #1269):
   -- If the query contains a qualified handle, forward the search to the remote
