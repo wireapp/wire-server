@@ -206,6 +206,7 @@ type Row{{keySpaceCaml}}{{tableNameCaml}} = ({{{typeOfRow}}})
 select{{keySpaceCaml}}{{tableNameCaml}} :: PrepQuery R (Identity ({{lookupKeyType}})) Row{{keySpaceCaml}}{{tableNameCaml}}
 select{{keySpaceCaml}}{{tableNameCaml}} = "SELECT {{columns}} FROM {{tableName}} WHERE {{lookupKeyWhere}}"
 
+-- TODO: remove and only use conduit version. even with test data (100MB) fetching without pagination fails
 read{{keySpaceCaml}}{{tableNameCaml}} :: Env -> {{lookupKeyType}} -> IO [Row{{keySpaceCaml}}{{tableNameCaml}}]
 read{{keySpaceCaml}}{{tableNameCaml}} Env {..} {{lookupKeyVar}} =
   runClient env{{keySpaceCaml}} $
@@ -218,11 +219,6 @@ read{{keySpaceCaml}}{{tableNameCaml}}Conduit Env {..} {{lookupKeyVar}} =
 
 select{{keySpaceCaml}}{{tableNameCaml}}All :: PrepQuery R () Row{{keySpaceCaml}}{{tableNameCaml}}
 select{{keySpaceCaml}}{{tableNameCaml}}All = "SELECT {{columns}} FROM {{tableName}}"
-
-read{{keySpaceCaml}}{{tableNameCaml}}All :: Env -> IO [Row{{keySpaceCaml}}{{tableNameCaml}}]
-read{{keySpaceCaml}}{{tableNameCaml}}All Env {..} =
-  runClient env{{keySpaceCaml}} $
-    retry x1 (query select{{keySpaceCaml}}{{tableNameCaml}}All (params Quorum ()))
 
 read{{keySpaceCaml}}{{tableNameCaml}}ConduitAll :: Env -> ConduitM () [Row{{keySpaceCaml}}{{tableNameCaml}}] IO ()
 read{{keySpaceCaml}}{{tableNameCaml}}ConduitAll Env {..} =
