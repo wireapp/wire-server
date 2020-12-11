@@ -203,13 +203,13 @@ import Wire.API.User.Password (PasswordResetKey)
 
 type Row{{keySpaceCaml}}{{tableNameCaml}} = ({{{typeOfRow}}})
 
-select{{keySpaceCaml}}{{tableNameCaml}} :: PrepQuery R ({{lookupParamsType}}) Row{{keySpaceCaml}}{{tableNameCaml}}
+select{{keySpaceCaml}}{{tableNameCaml}} :: PrepQuery R (Identity ({{lookupKeyType}})) Row{{keySpaceCaml}}{{tableNameCaml}}
 select{{keySpaceCaml}}{{tableNameCaml}} = "SELECT {{columns}} FROM {{tableName}} WHERE {{lookupKeyWhere}}"
 
 read{{keySpaceCaml}}{{tableNameCaml}} :: Env -> {{lookupKeyType}} -> IO [Row{{keySpaceCaml}}{{tableNameCaml}}]
 read{{keySpaceCaml}}{{tableNameCaml}} Env {..} {{lookupKeyVar}} =
   runClient env{{keySpaceCaml}} $
-    retry x1 (query select{{keySpaceCaml}}{{tableNameCaml}} (params Quorum ({{lookupParamsTerm}})))
+    retry x1 (query select{{keySpaceCaml}}{{tableNameCaml}} (params Quorum (pure ({{lookupKeyVar}}))))
 
 read{{keySpaceCaml}}{{tableNameCaml}}Conduit :: Env -> {{lookupKeyType}} -> ConduitM () [Row{{keySpaceCaml}}{{tableNameCaml}}] IO ()
 read{{keySpaceCaml}}{{tableNameCaml}}Conduit Env {..} {{lookupKeyVar}} =
@@ -235,7 +235,7 @@ insertAllTables env = do
 
 _printAllTables :: [CreateTable] -> IO ()
 _printAllTables createTables =
-  for_ createTables $ \(CreateTable {..}) ->
+  for_ createTables $ \CreateTable {..} ->
     putStrLn $ T.unpack (ctKeyspace <> "." <> ctTablename)
 
 main :: IO ()
@@ -254,14 +254,13 @@ main = do
     Left e -> putStr (errorBundlePretty e) >> exitFailure
     Right x -> pure x
 
-  let mkChunk' ks tn lookupKeyType lookupKeyVar lookupKeyWhere =
-        mkChunk createTables ks tn lookupKeyType lookupKeyVar lookupKeyWhere ("Identity " <> lookupKeyType) ("pure " <> lookupKeyVar)
+  let mkChunk' = mkChunk createTables
 
       mkChunkUsers ks tn =
-        mkChunk createTables ks tn "[UserId]" "uids" "user in ?" "Identity ([UserId])" "pure uids"
+        mkChunk createTables ks tn "[UserId]" "uids" "user in ?"
 
       mkChunkTeam ks tn =
-        mkChunk createTables ks tn "TeamId" "tid" "team = ?" "Identity TeamId" "pure tid"
+        mkChunk createTables ks tn "TeamId" "tid" "team = ?"
 
   withOutputHandle mbOutFile $ \out ->
     case compileMustacheText "" moduleTemplate of
@@ -420,8 +419,6 @@ data Chunk = Chunk
   { lookupKeyType :: Text,
     lookupKeyVar :: Text,
     lookupKeyWhere :: Text,
-    lookupParamsType :: Text,
-    lookupParamsTerm :: Text,
     keySpace :: Text,
     tableName :: Text,
     keySpaceCaml :: Text,
@@ -434,8 +431,8 @@ data Chunk = Chunk
 
 instance ToJSON Chunk
 
-mkChunk :: [CreateTable] -> Text -> Text -> Text -> Text -> Text -> Text -> Text -> Chunk
-mkChunk createTables ks tn lookupKeyType lookupKeyVar lookupKeyWhere lookupParamsType lookupParamsTerm =
+mkChunk :: [CreateTable] -> Text -> Text -> Text -> Text -> Text -> Chunk
+mkChunk createTables ks tn lookupKeyType lookupKeyVar lookupKeyWhere =
   let (CreateTable _ks _tn cols) = findCreateTable ks tn createTables
       keySpace = ks
       tableName = tn
