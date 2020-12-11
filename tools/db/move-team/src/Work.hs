@@ -41,6 +41,7 @@ import Data.Misc
 import qualified Data.Text as T
 import Data.Time
 import Data.UUID
+import qualified Data.Vector as V
 import Galley.Data.Instances ()
 import Imports
 import Schema
@@ -117,6 +118,14 @@ writeToFile Env {..} tableFile getter = do
 
 instance ToJSON a => ToJSON (Cassandra.Set a) where
   toJSON = toJSON . Cassandra.fromSet
+
+instance FromJSON a => FromJSON (Cassandra.Set a) where
+  parseJSON v =
+    Cassandra.Set . V.toList
+      <$> ( withArray "Cassandra.Set" $
+              traverse parseJSON
+          )
+        v
 
 instance ToJSON IP where
   toJSON ip = String (T.pack . show $ ip)

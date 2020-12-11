@@ -45,6 +45,7 @@ dependencies:
 - types-common
 - unliftio
 - uuid
+- vector
 - wire-api
 library:
   source-dirs: src

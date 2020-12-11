@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 38440c0f6cc3e112ecf92db06910f3d5a2a3afaa5d8c8649370a55f3b556d213
+-- hash: 65d5747cb1a6c65293ffe7aed49ddff6f0248bb4da8034bf06e1c1a76b99a7e6
 
 name:           move-team
 version:        1.0.0
@@ -60,6 +60,7 @@ library
     , types-common
     , unliftio
     , uuid
+    , vector
     , wire-api
   default-language: Haskell2010
 
@@ -102,6 +103,7 @@ executable gen-table-types
     , types-common
     , unliftio
     , uuid
+    , vector
     , wire-api
   default-language: Haskell2010
 
@@ -148,5 +150,6 @@ executable move-team
     , types-common
     , unliftio
     , uuid
+    , vector
     , wire-api
   default-language: Haskell2010
