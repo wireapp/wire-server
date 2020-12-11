@@ -21,6 +21,7 @@ module Schema where
 
 import Cassandra
 import Data.Conduit
+import Data.IP (IP)
 import Data.Id
 import Data.Time
 import Data.UUID
@@ -59,7 +60,7 @@ insertBrigActivationKeys _ _ = do
 
 -- brig.clients
 
-type RowBrigClients = (Maybe UUID, Maybe Text, Maybe Int32, Maybe Text, Maybe Int32, Maybe Text, Maybe Double, Maybe Double, Maybe Text, Maybe UTCTime, Maybe Int32)
+type RowBrigClients = (Maybe UUID, Maybe Text, Maybe Int32, Maybe Text, Maybe IP, Maybe Text, Maybe Double, Maybe Double, Maybe Text, Maybe UTCTime, Maybe Int32)
 
 selectBrigClients :: PrepQuery R (Identity ([UserId])) RowBrigClients
 selectBrigClients = "SELECT user, client, class, cookie, ip, label, lat, lon, model, tstamp, type FROM clients WHERE user in ?"
