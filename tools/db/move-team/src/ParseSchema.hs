@@ -271,21 +271,29 @@ main = do
                   .= [ -- mkChunkUsers "brig" "activation_keys",
                        -- "brig" "blacklist"
                        -- "brig" "budget"
+                       -- PRIMARY KEY (user, client)
                        mkChunkUsers "brig" "clients",
                        -- mkChunkUsers "brig" "codes",
-                       mkChunk createTables "brig" "connection" "[UserId]" "uids" "left in ? OR right in ?" "([UserId], [UserId])" "(uids, uids)",
+                       -- PRIMARY KEY (left, right) -- TODO: is this symmetric? At first glance it looks like yes
+                       mkChunk' "brig" "connection" "[UserId]" "uids" "left in ?"
                        -- "brig" "excluded_phones",
+                       -- PRIMARY KEY (mapped_id) -- TODO: is mapped_id a user id?
                        mkChunk' "brig" "id_mapping" "[UserId]" "uids" "mapped_id in ?",
                        -- mkChunk' "brig" "invitation" "[UserId]" "uids" "inviter in ?",
                        -- mkChunk' "brig" "invitation_info" "[UserId]" "uids" "inviter in ?",
                        -- mkChunk createTables "brig" "invitee_info" "[UserId]" "uids" "invitee in ? OR inviter in ?" "([UserId], [UserId])" "(uids, uids)",
+                       -- PRIMARY KEY (user)
                        mkChunkUsers "brig" "login_codes",  -- ?
                        -- "brig" "meta",
+                       -- PRIMARY KEY(key) -- TODO: find connection
                        mkChunkUsers "brig" "password_reset",  -- ? probably not.
+                       -- PRIMARY KEY (user, client, key)
                        mkChunkUsers "brig" "prekeys",  -- ?
+                       -- PRIMARY KEY (user, key)
                        mkChunkUsers "brig" "properties",
                        -- "brig" "provider",
                        -- "brig" "provider_keys",
+                       -- PRIMARY KEY (user)
                        mkChunkUsers "brig" "rich_info",
                        -- "brig" "service"
                        -- "brig" "service_prefix"
@@ -298,14 +306,21 @@ main = do
                        -- mkChunkTeam "brig" "team_invitation_email",
                        -- mkChunk' "brig" "team_invitation_info" "[UserId]" "uids" "inviter in ?",
                        -- "brig" "unique_claims"
+                       -- PRIMARY KEY (id)
                        mkChunk' "brig" "user" "[UserId]" "uids" "id in ?",
                        -- mkChunkUsers "brig" "user_cookies",
+                       -- PRIMARY KEY (handle :: text) -- TODO: get from brig.user.handle
                        mkChunkUsers "brig" "user_handle",
+                       -- PRIMARY KEY (key :: text) -- TODO: find connection
                        mkChunkUsers "brig" "user_keys",  -- ?
+                       -- PRIMARY KEY (key :: blob) -- TODO: find connection
                        mkChunkUsers "brig" "user_keys_hash",  -- ?
                        -- "brig" "vcodes"
+                       -- PRIMARY KEY (team, user)
                        mkChunkTeam "galley" "billing_team_member",
+                       -- PRIMARY KEY (user)
                        mkChunkUsers "galley" "clients",
+                       -- PRIMARY KEY (conv) -- TODO: check how connection to galley.team_conv
                        mkChunkTeam "galley" "conversation",
                        -- "galley" "conversation_codes",
                        -- "galley" "custom_backend",
@@ -313,17 +328,26 @@ main = do
                        -- "galley" "id_mapping",
                        -- mkChunkUsers "galley" "legalhold_pending_prekeys",
                        -- mkChunkTeam "galley" "legalhold_service",
+                       -- PRIMARY KEY (conv, user) -- TODO: check how connect via galley.team_conv
                        mkChunkUsers "galley" "member",
                        -- "galley" "meta"
                        -- "galley" "service"
+                       -- PRIMARY KEY (team)
                        mkChunkTeam "galley" "team",
+                       -- PRIMARY KEY (team, conv)
                        mkChunkTeam "galley" "team_conv",
-                       mkChunkTeam "galley" "team_features",
+                       -- PRIMARY KEY (team_id)
+                       mkChunk'  "galley" "team_features" "TeamId" "tid" "team_id = ?"
+                       -- PRIMARY KEY (team, user)
                        mkChunkTeam "galley" "team_member",
+                       -- PRIMARY KEY (team, id)
                        mkChunkTeam "galley" "team_notifications",
+                       -- PRIMARY KEY (user, conv)
                        mkChunkUsers "galley" "user",
-                       mkChunkTeam "galley" "user_team",
+                       -- PRIMARY KEY (user, team)
+                       mkChunkUsers "galley" "user_team",
                        -- "gundeck" "meta",
+                       -- PRIMARY KEY (user, id)
                        mkChunkUsers "gundeck" "notifications",
                        -- mkChunk' "gundeck" "push" "[UserId]" "uids" "usr in ?",
                        -- mkChunk' "gundeck" "user_push" "[UserId]" "uids" "usr in ?",
@@ -335,7 +359,9 @@ main = do
                        -- "spar" "idp_raw_metadata",
                        -- "spar" "issuer_idp",
                        -- "spar" "meta",
+                       -- PRIMARY KEY (external :: text) -- TODO: find connection
                        mkChunkUsers "spar" "scim_external_ids",
+                       -- PRIMARY KEY (uid)
                        mkChunk' "spar" "scim_user_times" "[UserId]" "uids" "uid in ?",
                        -- mkChunkTeam "spar" "team_idp",
                        -- mkChunkTeam "spar" "team_provisioning_by_team",
