@@ -27,10 +27,12 @@
 module Types where
 
 import Cassandra
-import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Aeson (FromJSON (..), ToJSON (..), Value (String), withText)
 import Data.Aeson.Types (Value (Null))
 import Data.ByteString.Lazy (fromStrict, toStrict)
+import Data.IP (IP (..))
 import Data.Id
+import qualified Data.Text as T
 import Data.Text.Ascii (AsciiText, Base64, decodeBase64, encodeBase64)
 import Galley.Data.Instances ()
 import Imports
@@ -84,3 +86,12 @@ instance FromJSON Blob where
     case decodeBase64 y of
       Nothing -> fail "Blob': not a valid base64 string"
       Just bs -> pure . Blob . fromStrict $ bs
+
+instance ToJSON IP where
+  toJSON ip = String (T.pack . show $ ip)
+
+instance FromJSON IP where
+  parseJSON = withText "IP" $ \str ->
+    case (read . T.unpack) str of
+      Nothing -> fail "not a formatted IP address"
+      Just ip -> pure ip

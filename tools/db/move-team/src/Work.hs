@@ -35,7 +35,6 @@ import Data.Conduit
 import qualified Data.Conduit.Combinators as C
 import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as CL
-import Data.IP (IP (..))
 import Data.Id
 import Data.Misc
 import qualified Data.Text as T
@@ -115,12 +114,3 @@ writeToFile :: ToJSON a => Env -> FilePath -> IO [a] -> IO ()
 writeToFile Env {..} tableFile getter = do
   Imports.withFile (envTargetPath </> tableFile) AppendMode $ \hd ->
     mapM_ (LBS.hPutStr hd . (<> "\n") . encode) =<< getter
-
-instance ToJSON IP where
-  toJSON ip = String (T.pack . show $ ip)
-
-instance FromJSON IP where
-  parseJSON = withText "IP" $ \str ->
-    case (read . T.unpack) str of
-      Nothing -> fail "not a formatted IP address"
-      Just ip -> pure ip
