@@ -118,31 +118,33 @@ writeToFile Env {..} tableFile getter = do
 
 runFullBackup :: Env -> IO ()
 runFullBackup env@Env {..} = do
-  export env readBrigClientsAll "brig.clients"
-  export env readBrigConnectionAll "brig.connection"
-  export env readBrigIdMappingAll "brig.id_mapping"
-  export env readBrigLoginCodesAll "brig.login_codes"
-  export env readBrigPasswordResetAll "brig.password_reset"
-  export env readBrigPrekeysAll "brig.prekeys"
-  export env readBrigPropertiesAll "brig.properties"
-  export env readBrigRichInfoAll "brig.rich_info"
-  export env readBrigUserAll "brig.user"
-  export env readBrigUserHandleAll "brig.user_handle"
-  export env readGalleyBillingTeamMemberAll "galley.billing_team_member"
-  export env readGalleyClientsAll "galley.clients"
-  export env readGalleyConversationAll "galley.conversation"
-  export env readGalleyMemberAll "galley.member"
-  export env readGalleyTeamAll "galley.team"
-  export env readGalleyTeamConvAll "galley.team_conv"
-  export env readGalleyTeamFeaturesAll "galley.team_features"
-  export env readGalleyTeamMemberAll "galley.team_member"
-  export env readGalleyTeamNotificationsAll "galley.team_notifications"
-  export env readGalleyUserAll "galley.user"
-  export env readGalleyUserTeamAll "galley.user_team"
-  export env readGundeckNotificationsAll "gundeck.notifications"
-  export env readSparScimUserTimesAll "spar.scim_user_times"
+  exportConduit env readBrigClientsConduitAll "brig.clients"
+  exportConduit env readBrigConnectionConduitAll "brig.connection"
+  exportConduit env readBrigIdMappingConduitAll "brig.id_mapping"
+  exportConduit env readBrigLoginCodesConduitAll "brig.login_codes"
+  exportConduit env readBrigPasswordResetConduitAll "brig.password_reset"
+  exportConduit env readBrigPrekeysConduitAll "brig.prekeys"
+  exportConduit env readBrigPropertiesConduitAll "brig.properties"
+  exportConduit env readBrigRichInfoConduitAll "brig.rich_info"
+  exportConduit env readBrigUserConduitAll "brig.user"
+  exportConduit env readBrigUserHandleConduitAll "brig.user_handle"
+  exportConduit env readGalleyBillingTeamMemberConduitAll "galley.billing_team_member"
+  exportConduit env readGalleyClientsConduitAll "galley.clients"
+  exportConduit env readGalleyConversationConduitAll "galley.conversation"
+  exportConduit env readGalleyMemberConduitAll "galley.member"
+  exportConduit env readGalleyTeamConduitAll "galley.team"
+  exportConduit env readGalleyTeamConvConduitAll "galley.team_conv"
+  exportConduit env readGalleyTeamFeaturesConduitAll "galley.team_features"
+  exportConduit env readGalleyTeamMemberConduitAll "galley.team_member"
+  exportConduit env readGalleyTeamNotificationsConduitAll "galley.team_notifications"
+  exportConduit env readGalleyUserConduitAll "galley.user"
+  exportConduit env readGalleyUserTeamConduitAll "galley.user_team"
+  exportConduit env readGundeckNotificationsConduitAll "gundeck.notifications"
 
-export :: (Foldable t, ToJSON a) => Env -> (Env -> IO (t a)) -> FilePath -> IO ()
-export env loader tablename =
+exportConduit :: ToJSON a => Env -> (Env -> ConduitM () [a] IO ()) -> String -> IO ()
+exportConduit env loader tablename = do
+  IO.putStrLn tablename
   IO.withBinaryFile (envTargetPath env </> tablename) IO.WriteMode $ \handle -> do
-    loader env >>= mapM_ (LBS.hPutStr handle . (<> "\n") . encode)
+    runConduit $
+      (loader env)
+        .| sinkLines handle

@@ -59,6 +59,11 @@ readBrigClientsAll Env {..} =
   runClient envBrig $
     retry x1 (query selectBrigClientsAll (params Quorum ()))
 
+readBrigClientsConduitAll :: Env -> ConduitM () [RowBrigClients] IO ()
+readBrigClientsConduitAll Env {..} =
+  transPipe (runClient envBrig) $
+    paginateC selectBrigClientsAll (paramsP Quorum () envPageSize) x5
+
 insertBrigClients :: Env -> FilePath -> IO ()
 insertBrigClients _ _ = do
   -- TODO:
@@ -92,6 +97,11 @@ readBrigConnectionAll :: Env -> IO [RowBrigConnection]
 readBrigConnectionAll Env {..} =
   runClient envBrig $
     retry x1 (query selectBrigConnectionAll (params Quorum ()))
+
+readBrigConnectionConduitAll :: Env -> ConduitM () [RowBrigConnection] IO ()
+readBrigConnectionConduitAll Env {..} =
+  transPipe (runClient envBrig) $
+    paginateC selectBrigConnectionAll (paramsP Quorum () envPageSize) x5
 
 insertBrigConnection :: Env -> FilePath -> IO ()
 insertBrigConnection _ _ = do
@@ -127,6 +137,11 @@ readBrigIdMappingAll Env {..} =
   runClient envBrig $
     retry x1 (query selectBrigIdMappingAll (params Quorum ()))
 
+readBrigIdMappingConduitAll :: Env -> ConduitM () [RowBrigIdMapping] IO ()
+readBrigIdMappingConduitAll Env {..} =
+  transPipe (runClient envBrig) $
+    paginateC selectBrigIdMappingAll (paramsP Quorum () envPageSize) x5
+
 insertBrigIdMapping :: Env -> FilePath -> IO ()
 insertBrigIdMapping _ _ = do
   -- TODO:
@@ -160,6 +175,11 @@ readBrigLoginCodesAll :: Env -> IO [RowBrigLoginCodes]
 readBrigLoginCodesAll Env {..} =
   runClient envBrig $
     retry x1 (query selectBrigLoginCodesAll (params Quorum ()))
+
+readBrigLoginCodesConduitAll :: Env -> ConduitM () [RowBrigLoginCodes] IO ()
+readBrigLoginCodesConduitAll Env {..} =
+  transPipe (runClient envBrig) $
+    paginateC selectBrigLoginCodesAll (paramsP Quorum () envPageSize) x5
 
 insertBrigLoginCodes :: Env -> FilePath -> IO ()
 insertBrigLoginCodes _ _ = do
@@ -195,6 +215,11 @@ readBrigPasswordResetAll Env {..} =
   runClient envBrig $
     retry x1 (query selectBrigPasswordResetAll (params Quorum ()))
 
+readBrigPasswordResetConduitAll :: Env -> ConduitM () [RowBrigPasswordReset] IO ()
+readBrigPasswordResetConduitAll Env {..} =
+  transPipe (runClient envBrig) $
+    paginateC selectBrigPasswordResetAll (paramsP Quorum () envPageSize) x5
+
 insertBrigPasswordReset :: Env -> FilePath -> IO ()
 insertBrigPasswordReset _ _ = do
   -- TODO:
@@ -228,6 +253,11 @@ readBrigPrekeysAll :: Env -> IO [RowBrigPrekeys]
 readBrigPrekeysAll Env {..} =
   runClient envBrig $
     retry x1 (query selectBrigPrekeysAll (params Quorum ()))
+
+readBrigPrekeysConduitAll :: Env -> ConduitM () [RowBrigPrekeys] IO ()
+readBrigPrekeysConduitAll Env {..} =
+  transPipe (runClient envBrig) $
+    paginateC selectBrigPrekeysAll (paramsP Quorum () envPageSize) x5
 
 insertBrigPrekeys :: Env -> FilePath -> IO ()
 insertBrigPrekeys _ _ = do
@@ -263,6 +293,11 @@ readBrigPropertiesAll Env {..} =
   runClient envBrig $
     retry x1 (query selectBrigPropertiesAll (params Quorum ()))
 
+readBrigPropertiesConduitAll :: Env -> ConduitM () [RowBrigProperties] IO ()
+readBrigPropertiesConduitAll Env {..} =
+  transPipe (runClient envBrig) $
+    paginateC selectBrigPropertiesAll (paramsP Quorum () envPageSize) x5
+
 insertBrigProperties :: Env -> FilePath -> IO ()
 insertBrigProperties _ _ = do
   -- TODO:
@@ -296,6 +331,11 @@ readBrigRichInfoAll :: Env -> IO [RowBrigRichInfo]
 readBrigRichInfoAll Env {..} =
   runClient envBrig $
     retry x1 (query selectBrigRichInfoAll (params Quorum ()))
+
+readBrigRichInfoConduitAll :: Env -> ConduitM () [RowBrigRichInfo] IO ()
+readBrigRichInfoConduitAll Env {..} =
+  transPipe (runClient envBrig) $
+    paginateC selectBrigRichInfoAll (paramsP Quorum () envPageSize) x5
 
 insertBrigRichInfo :: Env -> FilePath -> IO ()
 insertBrigRichInfo _ _ = do
@@ -331,6 +371,11 @@ readBrigUserAll Env {..} =
   runClient envBrig $
     retry x1 (query selectBrigUserAll (params Quorum ()))
 
+readBrigUserConduitAll :: Env -> ConduitM () [RowBrigUser] IO ()
+readBrigUserConduitAll Env {..} =
+  transPipe (runClient envBrig) $
+    paginateC selectBrigUserAll (paramsP Quorum () envPageSize) x5
+
 insertBrigUser :: Env -> FilePath -> IO ()
 insertBrigUser _ _ = do
   -- TODO:
@@ -364,6 +409,11 @@ readBrigUserHandleAll :: Env -> IO [RowBrigUserHandle]
 readBrigUserHandleAll Env {..} =
   runClient envBrig $
     retry x1 (query selectBrigUserHandleAll (params Quorum ()))
+
+readBrigUserHandleConduitAll :: Env -> ConduitM () [RowBrigUserHandle] IO ()
+readBrigUserHandleConduitAll Env {..} =
+  transPipe (runClient envBrig) $
+    paginateC selectBrigUserHandleAll (paramsP Quorum () envPageSize) x5
 
 insertBrigUserHandle :: Env -> FilePath -> IO ()
 insertBrigUserHandle _ _ = do
@@ -399,6 +449,11 @@ readGalleyBillingTeamMemberAll Env {..} =
   runClient envGalley $
     retry x1 (query selectGalleyBillingTeamMemberAll (params Quorum ()))
 
+readGalleyBillingTeamMemberConduitAll :: Env -> ConduitM () [RowGalleyBillingTeamMember] IO ()
+readGalleyBillingTeamMemberConduitAll Env {..} =
+  transPipe (runClient envGalley) $
+    paginateC selectGalleyBillingTeamMemberAll (paramsP Quorum () envPageSize) x5
+
 insertGalleyBillingTeamMember :: Env -> FilePath -> IO ()
 insertGalleyBillingTeamMember _ _ = do
   -- TODO:
@@ -432,6 +487,11 @@ readGalleyClientsAll :: Env -> IO [RowGalleyClients]
 readGalleyClientsAll Env {..} =
   runClient envGalley $
     retry x1 (query selectGalleyClientsAll (params Quorum ()))
+
+readGalleyClientsConduitAll :: Env -> ConduitM () [RowGalleyClients] IO ()
+readGalleyClientsConduitAll Env {..} =
+  transPipe (runClient envGalley) $
+    paginateC selectGalleyClientsAll (paramsP Quorum () envPageSize) x5
 
 insertGalleyClients :: Env -> FilePath -> IO ()
 insertGalleyClients _ _ = do
@@ -467,6 +527,11 @@ readGalleyConversationAll Env {..} =
   runClient envGalley $
     retry x1 (query selectGalleyConversationAll (params Quorum ()))
 
+readGalleyConversationConduitAll :: Env -> ConduitM () [RowGalleyConversation] IO ()
+readGalleyConversationConduitAll Env {..} =
+  transPipe (runClient envGalley) $
+    paginateC selectGalleyConversationAll (paramsP Quorum () envPageSize) x5
+
 insertGalleyConversation :: Env -> FilePath -> IO ()
 insertGalleyConversation _ _ = do
   -- TODO:
@@ -500,6 +565,11 @@ readGalleyMemberAll :: Env -> IO [RowGalleyMember]
 readGalleyMemberAll Env {..} =
   runClient envGalley $
     retry x1 (query selectGalleyMemberAll (params Quorum ()))
+
+readGalleyMemberConduitAll :: Env -> ConduitM () [RowGalleyMember] IO ()
+readGalleyMemberConduitAll Env {..} =
+  transPipe (runClient envGalley) $
+    paginateC selectGalleyMemberAll (paramsP Quorum () envPageSize) x5
 
 insertGalleyMember :: Env -> FilePath -> IO ()
 insertGalleyMember _ _ = do
@@ -535,6 +605,11 @@ readGalleyTeamAll Env {..} =
   runClient envGalley $
     retry x1 (query selectGalleyTeamAll (params Quorum ()))
 
+readGalleyTeamConduitAll :: Env -> ConduitM () [RowGalleyTeam] IO ()
+readGalleyTeamConduitAll Env {..} =
+  transPipe (runClient envGalley) $
+    paginateC selectGalleyTeamAll (paramsP Quorum () envPageSize) x5
+
 insertGalleyTeam :: Env -> FilePath -> IO ()
 insertGalleyTeam _ _ = do
   -- TODO:
@@ -568,6 +643,11 @@ readGalleyTeamConvAll :: Env -> IO [RowGalleyTeamConv]
 readGalleyTeamConvAll Env {..} =
   runClient envGalley $
     retry x1 (query selectGalleyTeamConvAll (params Quorum ()))
+
+readGalleyTeamConvConduitAll :: Env -> ConduitM () [RowGalleyTeamConv] IO ()
+readGalleyTeamConvConduitAll Env {..} =
+  transPipe (runClient envGalley) $
+    paginateC selectGalleyTeamConvAll (paramsP Quorum () envPageSize) x5
 
 insertGalleyTeamConv :: Env -> FilePath -> IO ()
 insertGalleyTeamConv _ _ = do
@@ -603,6 +683,11 @@ readGalleyTeamFeaturesAll Env {..} =
   runClient envGalley $
     retry x1 (query selectGalleyTeamFeaturesAll (params Quorum ()))
 
+readGalleyTeamFeaturesConduitAll :: Env -> ConduitM () [RowGalleyTeamFeatures] IO ()
+readGalleyTeamFeaturesConduitAll Env {..} =
+  transPipe (runClient envGalley) $
+    paginateC selectGalleyTeamFeaturesAll (paramsP Quorum () envPageSize) x5
+
 insertGalleyTeamFeatures :: Env -> FilePath -> IO ()
 insertGalleyTeamFeatures _ _ = do
   -- TODO:
@@ -636,6 +721,11 @@ readGalleyTeamMemberAll :: Env -> IO [RowGalleyTeamMember]
 readGalleyTeamMemberAll Env {..} =
   runClient envGalley $
     retry x1 (query selectGalleyTeamMemberAll (params Quorum ()))
+
+readGalleyTeamMemberConduitAll :: Env -> ConduitM () [RowGalleyTeamMember] IO ()
+readGalleyTeamMemberConduitAll Env {..} =
+  transPipe (runClient envGalley) $
+    paginateC selectGalleyTeamMemberAll (paramsP Quorum () envPageSize) x5
 
 insertGalleyTeamMember :: Env -> FilePath -> IO ()
 insertGalleyTeamMember _ _ = do
@@ -671,6 +761,11 @@ readGalleyTeamNotificationsAll Env {..} =
   runClient envGalley $
     retry x1 (query selectGalleyTeamNotificationsAll (params Quorum ()))
 
+readGalleyTeamNotificationsConduitAll :: Env -> ConduitM () [RowGalleyTeamNotifications] IO ()
+readGalleyTeamNotificationsConduitAll Env {..} =
+  transPipe (runClient envGalley) $
+    paginateC selectGalleyTeamNotificationsAll (paramsP Quorum () envPageSize) x5
+
 insertGalleyTeamNotifications :: Env -> FilePath -> IO ()
 insertGalleyTeamNotifications _ _ = do
   -- TODO:
@@ -704,6 +799,11 @@ readGalleyUserAll :: Env -> IO [RowGalleyUser]
 readGalleyUserAll Env {..} =
   runClient envGalley $
     retry x1 (query selectGalleyUserAll (params Quorum ()))
+
+readGalleyUserConduitAll :: Env -> ConduitM () [RowGalleyUser] IO ()
+readGalleyUserConduitAll Env {..} =
+  transPipe (runClient envGalley) $
+    paginateC selectGalleyUserAll (paramsP Quorum () envPageSize) x5
 
 insertGalleyUser :: Env -> FilePath -> IO ()
 insertGalleyUser _ _ = do
@@ -739,6 +839,11 @@ readGalleyUserTeamAll Env {..} =
   runClient envGalley $
     retry x1 (query selectGalleyUserTeamAll (params Quorum ()))
 
+readGalleyUserTeamConduitAll :: Env -> ConduitM () [RowGalleyUserTeam] IO ()
+readGalleyUserTeamConduitAll Env {..} =
+  transPipe (runClient envGalley) $
+    paginateC selectGalleyUserTeamAll (paramsP Quorum () envPageSize) x5
+
 insertGalleyUserTeam :: Env -> FilePath -> IO ()
 insertGalleyUserTeam _ _ = do
   -- TODO:
@@ -773,6 +878,11 @@ readGundeckNotificationsAll Env {..} =
   runClient envGundeck $
     retry x1 (query selectGundeckNotificationsAll (params Quorum ()))
 
+readGundeckNotificationsConduitAll :: Env -> ConduitM () [RowGundeckNotifications] IO ()
+readGundeckNotificationsConduitAll Env {..} =
+  transPipe (runClient envGundeck) $
+    paginateC selectGundeckNotificationsAll (paramsP Quorum () envPageSize) x5
+
 insertGundeckNotifications :: Env -> FilePath -> IO ()
 insertGundeckNotifications _ _ = do
   -- TODO:
@@ -806,6 +916,11 @@ readSparScimUserTimesAll :: Env -> IO [RowSparScimUserTimes]
 readSparScimUserTimesAll Env {..} =
   runClient envSpar $
     retry x1 (query selectSparScimUserTimesAll (params Quorum ()))
+
+readSparScimUserTimesConduitAll :: Env -> ConduitM () [RowSparScimUserTimes] IO ()
+readSparScimUserTimesConduitAll Env {..} =
+  transPipe (runClient envSpar) $
+    paginateC selectSparScimUserTimesAll (paramsP Quorum () envPageSize) x5
 
 insertSparScimUserTimes :: Env -> FilePath -> IO ()
 insertSparScimUserTimes _ _ = do

@@ -224,6 +224,11 @@ read{{keySpaceCaml}}{{tableNameCaml}}All Env {..} =
   runClient env{{keySpaceCaml}} $
     retry x1 (query select{{keySpaceCaml}}{{tableNameCaml}}All (params Quorum ()))
 
+read{{keySpaceCaml}}{{tableNameCaml}}ConduitAll :: Env -> ConduitM () [Row{{keySpaceCaml}}{{tableNameCaml}}] IO ()
+read{{keySpaceCaml}}{{tableNameCaml}}ConduitAll Env {..} =
+  transPipe (runClient env{{keySpaceCaml}}) $
+    paginateC select{{keySpaceCaml}}{{tableNameCaml}}All (paramsP Quorum () envPageSize) x5
+
 insert{{keySpaceCaml}}{{tableNameCaml}} :: Env -> FilePath -> IO ()
 insert{{keySpaceCaml}}{{tableNameCaml}} _ _ = do
   -- TODO:
