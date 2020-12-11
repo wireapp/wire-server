@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3ca26773e5d775ba18a7f7dee70679b4ead22b299373a683267b939db1a75988
+-- hash: 38440c0f6cc3e112ecf92db06910f3d5a2a3afaa5d8c8649370a55f3b556d213
 
 name:           move-team
 version:        1.0.0
@@ -45,6 +45,7 @@ library
     , galley
     , galley-types
     , imports
+    , iproute
     , lens
     , megaparsec
     , mtl
@@ -85,6 +86,7 @@ executable gen-table-types
     , galley
     , galley-types
     , imports
+    , iproute
     , lens
     , megaparsec
     , move-team
@@ -131,6 +133,7 @@ executable move-team
     , galley
     , galley-types
     , imports
+    , iproute
     , lens
     , megaparsec
     , mtl

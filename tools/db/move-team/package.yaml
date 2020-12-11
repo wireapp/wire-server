@@ -30,6 +30,7 @@ dependencies:
 - galley
 - galley-types
 - imports
+- iproute
 - lens
 - megaparsec
 - mtl
