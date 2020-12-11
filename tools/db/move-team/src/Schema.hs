@@ -172,7 +172,7 @@ insertBrigLoginCodes _ _ = do
 
 -- brig.password_reset
 
-type RowBrigPasswordReset = (Maybe Text, Maybe Text, Maybe Int32, Maybe UTCTime, Maybe UUID)
+type RowBrigPasswordReset = (Maybe Ascii, Maybe Ascii, Maybe Int32, Maybe UTCTime, Maybe UUID)
 
 selectBrigPasswordReset :: PrepQuery R (Identity ([PasswordResetKey])) RowBrigPasswordReset
 selectBrigPasswordReset = "SELECT key, code, retries, timeout, user FROM password_reset WHERE key in ?"
@@ -240,7 +240,7 @@ insertBrigPrekeys _ _ = do
 
 -- brig.properties
 
-type RowBrigProperties = (Maybe UUID, Maybe Text, Maybe Blob)
+type RowBrigProperties = (Maybe UUID, Maybe Ascii, Maybe Blob)
 
 selectBrigProperties :: PrepQuery R (Identity ([UserId])) RowBrigProperties
 selectBrigProperties = "SELECT user, key, value FROM properties WHERE user in ?"
@@ -308,7 +308,7 @@ insertBrigRichInfo _ _ = do
 
 -- brig.user
 
-type RowBrigUser = (Maybe UUID, Maybe [Double], Maybe Int32, Maybe Bool, Maybe [AssetIgnoreData], Maybe Text, Maybe Text, Maybe UTCTime, Maybe Text, Maybe Text, Maybe Int32, Maybe Text, Maybe Blob, Maybe Text, Maybe [Blob], Maybe UUID, Maybe Bool, Maybe UUID, Maybe Text, Maybe Int32, Maybe UUID)
+type RowBrigUser = (Maybe UUID, Maybe [Double], Maybe Int32, Maybe Bool, Maybe [AssetIgnoreData], Maybe Ascii, Maybe Text, Maybe UTCTime, Maybe Text, Maybe Ascii, Maybe Int32, Maybe Text, Maybe Blob, Maybe Text, Maybe [Blob], Maybe UUID, Maybe Bool, Maybe UUID, Maybe Text, Maybe Int32, Maybe UUID)
 
 selectBrigUser :: PrepQuery R (Identity ([UserId])) RowBrigUser
 selectBrigUser = "SELECT id, accent, accent_id, activated, assets, country, email, expires, handle, language, managed_by, name, password, phone, picture, provider, searchable, service, sso_id, status, team FROM user WHERE id in ?"
