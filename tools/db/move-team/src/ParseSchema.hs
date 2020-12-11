@@ -353,23 +353,24 @@ main = do
       Nothing -> fn stdout
       Just filename -> withFile filename WriteMode fn
 
-findFileUpwards :: FilePath -> FilePath -> IO (Maybe FilePath)
-findFileUpwards startDir =
-  findFile (fmap (nthParent startDir) [0 .. 10])
-  where
-    nthParent :: FilePath -> Int -> FilePath
-    nthParent dir i =
-      foldl' (</>) dir (replicate i "..")
-
-findProjectRoot :: IO FilePath
-findProjectRoot = do
-  curDir <- getCurrentDirectory
-  Just p <- findFileUpwards curDir "stack-deps.nix"
-  pure $ takeDirectory p
-
+-- | FUTUREWORK: can be implemented more easily with `stack path --project-root`
 projectFile :: FilePath -> IO FilePath
 projectFile relativeFilename =
   (</> relativeFilename) <$> findProjectRoot
+  where
+    findFileUpwards :: FilePath -> FilePath -> IO (Maybe FilePath)
+    findFileUpwards startDir =
+      findFile (fmap (nthParent startDir) [0 .. 10])
+      where
+        nthParent :: FilePath -> Int -> FilePath
+        nthParent dir i =
+          foldl' (</>) dir (replicate i "..")
+
+    findProjectRoot :: IO FilePath
+    findProjectRoot = do
+      curDir <- getCurrentDirectory
+      Just p <- findFileUpwards curDir "stack-deps.nix"
+      pure $ takeDirectory p
 
 debug :: IO ()
 debug = do
