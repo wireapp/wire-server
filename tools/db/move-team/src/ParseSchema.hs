@@ -201,7 +201,7 @@ import Wire.API.Team.Permission
 type Row{{keySpaceCaml}}{{tableNameCaml}} = ({{{typeOfRow}}})
 
 select{{keySpaceCaml}}{{tableNameCaml}} :: PrepQuery R ({{lookupParamsType}}) Row{{keySpaceCaml}}{{tableNameCaml}}
-select{{keySpaceCaml}}{{tableNameCaml}} = "SELECT {{columns}} FROM {{tableName}} WHERE {{lookupKeyWhere}} ALLOW FILTERING"
+select{{keySpaceCaml}}{{tableNameCaml}} = "SELECT {{columns}} FROM {{tableName}} WHERE {{lookupKeyWhere}}"
 
 read{{keySpaceCaml}}{{tableNameCaml}} :: Env -> {{lookupKeyType}} -> IO [Row{{keySpaceCaml}}{{tableNameCaml}}]
 read{{keySpaceCaml}}{{tableNameCaml}} Env {..} {{lookupKeyVar}} =
