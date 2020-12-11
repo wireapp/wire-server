@@ -116,17 +116,6 @@ writeToFile Env {..} tableFile getter = do
   Imports.withFile (envTargetPath </> tableFile) AppendMode $ \hd ->
     mapM_ (LBS.hPutStr hd . (<> "\n") . encode) =<< getter
 
-instance ToJSON a => ToJSON (Cassandra.Set a) where
-  toJSON = toJSON . Cassandra.fromSet
-
-instance FromJSON a => FromJSON (Cassandra.Set a) where
-  parseJSON v =
-    Cassandra.Set . V.toList
-      <$> ( withArray "Cassandra.Set" $
-              traverse parseJSON
-          )
-        v
-
 instance ToJSON IP where
   toJSON ip = String (T.pack . show $ ip)
 
