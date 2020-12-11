@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 65d5747cb1a6c65293ffe7aed49ddff6f0248bb4da8034bf06e1c1a76b99a7e6
+-- hash: ad0ed84139257ab8fd442652d156b0c744512bb28cef6961957a77d113f74f52
 
 name:           move-team
 version:        1.0.0
@@ -39,6 +39,7 @@ library
     , bytestring-conversion
     , cassandra-util
     , conduit
+    , cql
     , directory
     , extended
     , filepath
@@ -81,6 +82,7 @@ executable gen-table-types
     , bytestring-conversion
     , cassandra-util
     , conduit
+    , cql
     , directory
     , extended
     , filepath
@@ -129,6 +131,7 @@ executable move-team
     , bytestring-conversion
     , cassandra-util
     , conduit
+    , cql
     , directory
     , extended
     , filepath

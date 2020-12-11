@@ -24,6 +24,7 @@ dependencies:
 - bytestring-conversion
 - cassandra-util
 - conduit
+- cql
 - directory
 - extended
 - filepath
