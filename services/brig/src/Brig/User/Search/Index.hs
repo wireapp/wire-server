@@ -41,9 +41,6 @@ module Brig.User.Search.Index
     refreshIndex,
     updateMapping,
 
-    -- * exported for testing only
-    userDoc,
-
     -- * Re-exports
     module Types,
     ES.IndexSettings (..),
@@ -71,7 +68,6 @@ import Data.Id
 import qualified Data.Map as Map
 import Data.Metrics
 import Data.Range
-import Data.Text.ICU.Translit (trans, transliterate)
 import Data.Text.Lazy.Builder.Int (decimal)
 import Data.Text.Lens hiding (text)
 import qualified Data.UUID as UUID
@@ -328,7 +324,7 @@ updateIndex (IndexUpdateUser updateType iu) = liftIndexIO $ do
     indexDoc :: MonadIndexIO m => ES.IndexName -> m ()
     indexDoc idx = liftIndexIO $ do
       m <- asks idxMetrics
-      r <- ES.indexDocument idx mappingName versioning (userDoc iu) docId
+      r <- ES.indexDocument idx mappingName versioning (indexToDoc iu) docId
       unless (ES.isSuccess r || ES.isVersionConflict r) $ do
         counterIncr (path "user.index.update.err") m
         ES.parseEsResponse r >>= throwM . IndexUpdateError . either id id
@@ -375,7 +371,7 @@ updateIndex (IndexUpdateUsers updateType ius) = liftIndexIO $ do
     bulkEncode iu =
       bulkMeta (view (iuUserId . re _TextId) iu) (docVersion (_iuVersion iu))
         <> "\n"
-        <> encodeJSONToString (userDoc iu)
+        <> encodeJSONToString (indexToDoc iu)
         <> "\n"
     bulkMeta :: Text -> ES.DocVersion -> Builder
     bulkMeta docId v =
@@ -535,18 +531,6 @@ traceES descr act = liftIndexIO $ do
   info . msg $ (r & statusCode . responseStatus) +++ val " - " +++ responseBody r
   return r
 
-userDoc :: IndexUser -> UserDoc
-userDoc iu =
-  UserDoc
-    { udId = _iuUserId iu,
-      udTeam = _iuTeam iu,
-      udName = _iuName iu,
-      udAccountStatus = _iuAccountStatus iu,
-      udNormalized = normalized . fromName <$> _iuName iu,
-      udHandle = _iuHandle iu,
-      udColourId = _iuColourId iu
-    }
-
 -- | This mapping defines how elasticsearch will treat each field in a document. Here
 -- is how it treats each field:
 -- name: Not indexed, as it is only meant to be shown to user, for querying we use
@@ -686,11 +670,6 @@ instance ToJSON MappingField where
         "analyzer" .= mfAnalyzer mf,
         "search_analyzer" .= mfSearchAnalyzer mf
       ]
-
--- TODO: Transliteration should be left to ElasticSearch (ICU plugin),
---       yet this will require a data migration.
-normalized :: Text -> Text
-normalized = transliterate (trans "Any-Latin; Latin-ASCII; Lower")
 
 boolQuery :: ES.BoolQuery
 boolQuery = ES.mkBoolQuery [] [] [] []

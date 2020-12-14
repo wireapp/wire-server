@@ -26,7 +26,9 @@ import Control.Monad.Catch
 import Data.Aeson
 import Data.Handle (Handle)
 import Data.Id
+import Data.Text.ICU.Translit (trans, transliterate)
 import Database.Bloodhound hiding (key)
+import Database.Bloodhound.Internal.Client (DocVersion (DocVersion))
 import Imports
 
 data IndexDocUpdateType
@@ -119,4 +121,35 @@ mkIndexUser u v =
       _iuHandle = Nothing,
       _iuColourId = Nothing,
       _iuAccountStatus = Nothing
+    }
+
+indexToDoc :: IndexUser -> UserDoc
+indexToDoc iu =
+  UserDoc
+    { udId = _iuUserId iu,
+      udTeam = _iuTeam iu,
+      udName = _iuName iu,
+      udAccountStatus = _iuAccountStatus iu,
+      udNormalized = normalized . fromName <$> _iuName iu,
+      udHandle = _iuHandle iu,
+      udColourId = _iuColourId iu
+    }
+
+-- | FUTUREWORK: Transliteration should be left to ElasticSearch (ICU plugin), but this will
+-- require a data migration.
+normalized :: Text -> Text
+normalized = transliterate (trans "Any-Latin; Latin-ASCII; Lower")
+
+docToIndex :: UserDoc -> IndexUser
+docToIndex ud =
+  -- (Don't use 'mkIndexUser' here!  With 'IndexUser', you get compiler warnings if you
+  -- forget to add new fields here.)
+  IndexUser
+    { _iuUserId = udId ud,
+      _iuVersion = IndexVersion (DocVersion 1),
+      _iuTeam = udTeam ud,
+      _iuName = udName ud,
+      _iuHandle = udHandle ud,
+      _iuColourId = udColourId ud,
+      _iuAccountStatus = udAccountStatus ud
     }
