@@ -43,14 +43,8 @@ type RowBrigClients = (Maybe UUID, Maybe Text, Maybe Int32, Maybe Text, Maybe IP
 selectBrigClients :: PrepQuery R (Identity ([UserId])) RowBrigClients
 selectBrigClients = "SELECT user, client, class, cookie, ip, label, lat, lon, model, tstamp, type FROM clients WHERE user in ?"
 
--- TODO: remove and only use conduit version. even with test data (100MB) fetching without pagination fails
-readBrigClients :: Env -> [UserId] -> IO [RowBrigClients]
+readBrigClients :: Env -> [UserId] -> ConduitM () [RowBrigClients] IO ()
 readBrigClients Env {..} uids =
-  runClient envBrig $
-    retry x1 (query selectBrigClients (params Quorum (pure (uids))))
-
-readBrigClientsConduit :: Env -> [UserId] -> ConduitM () [RowBrigClients] IO ()
-readBrigClientsConduit Env {..} uids =
   transPipe (runClient envBrig) $
     paginateC selectBrigClients (paramsP Quorum (pure uids) envPageSize) x5
 
@@ -95,14 +89,8 @@ type RowBrigConnection = (Maybe UUID, Maybe UUID, Maybe UUID, Maybe UTCTime, May
 selectBrigConnection :: PrepQuery R (Identity ([UserId])) RowBrigConnection
 selectBrigConnection = "SELECT left, right, conv, last_update, message, status FROM connection WHERE left in ?"
 
--- TODO: remove and only use conduit version. even with test data (100MB) fetching without pagination fails
-readBrigConnection :: Env -> [UserId] -> IO [RowBrigConnection]
+readBrigConnection :: Env -> [UserId] -> ConduitM () [RowBrigConnection] IO ()
 readBrigConnection Env {..} uids =
-  runClient envBrig $
-    retry x1 (query selectBrigConnection (params Quorum (pure (uids))))
-
-readBrigConnectionConduit :: Env -> [UserId] -> ConduitM () [RowBrigConnection] IO ()
-readBrigConnectionConduit Env {..} uids =
   transPipe (runClient envBrig) $
     paginateC selectBrigConnection (paramsP Quorum (pure uids) envPageSize) x5
 
@@ -147,14 +135,8 @@ type RowBrigIdMapping = (Maybe UUID, Maybe Text, Maybe UUID)
 selectBrigIdMapping :: PrepQuery R (Identity ([UserId])) RowBrigIdMapping
 selectBrigIdMapping = "SELECT mapped_id, remote_domain, remote_id FROM id_mapping WHERE mapped_id in ?"
 
--- TODO: remove and only use conduit version. even with test data (100MB) fetching without pagination fails
-readBrigIdMapping :: Env -> [UserId] -> IO [RowBrigIdMapping]
+readBrigIdMapping :: Env -> [UserId] -> ConduitM () [RowBrigIdMapping] IO ()
 readBrigIdMapping Env {..} uids =
-  runClient envBrig $
-    retry x1 (query selectBrigIdMapping (params Quorum (pure (uids))))
-
-readBrigIdMappingConduit :: Env -> [UserId] -> ConduitM () [RowBrigIdMapping] IO ()
-readBrigIdMappingConduit Env {..} uids =
   transPipe (runClient envBrig) $
     paginateC selectBrigIdMapping (paramsP Quorum (pure uids) envPageSize) x5
 
@@ -199,14 +181,8 @@ type RowBrigLoginCodes = (Maybe UUID, Maybe Text, Maybe Int32, Maybe UTCTime)
 selectBrigLoginCodes :: PrepQuery R (Identity ([UserId])) RowBrigLoginCodes
 selectBrigLoginCodes = "SELECT user, code, retries, timeout FROM login_codes WHERE user in ?"
 
--- TODO: remove and only use conduit version. even with test data (100MB) fetching without pagination fails
-readBrigLoginCodes :: Env -> [UserId] -> IO [RowBrigLoginCodes]
+readBrigLoginCodes :: Env -> [UserId] -> ConduitM () [RowBrigLoginCodes] IO ()
 readBrigLoginCodes Env {..} uids =
-  runClient envBrig $
-    retry x1 (query selectBrigLoginCodes (params Quorum (pure (uids))))
-
-readBrigLoginCodesConduit :: Env -> [UserId] -> ConduitM () [RowBrigLoginCodes] IO ()
-readBrigLoginCodesConduit Env {..} uids =
   transPipe (runClient envBrig) $
     paginateC selectBrigLoginCodes (paramsP Quorum (pure uids) envPageSize) x5
 
@@ -251,14 +227,8 @@ type RowBrigPasswordReset = (Maybe Ascii, Maybe Ascii, Maybe Int32, Maybe UTCTim
 selectBrigPasswordReset :: PrepQuery R (Identity ([PasswordResetKey])) RowBrigPasswordReset
 selectBrigPasswordReset = "SELECT key, code, retries, timeout, user FROM password_reset WHERE key in ?"
 
--- TODO: remove and only use conduit version. even with test data (100MB) fetching without pagination fails
-readBrigPasswordReset :: Env -> [PasswordResetKey] -> IO [RowBrigPasswordReset]
+readBrigPasswordReset :: Env -> [PasswordResetKey] -> ConduitM () [RowBrigPasswordReset] IO ()
 readBrigPasswordReset Env {..} reset_keys =
-  runClient envBrig $
-    retry x1 (query selectBrigPasswordReset (params Quorum (pure (reset_keys))))
-
-readBrigPasswordResetConduit :: Env -> [PasswordResetKey] -> ConduitM () [RowBrigPasswordReset] IO ()
-readBrigPasswordResetConduit Env {..} reset_keys =
   transPipe (runClient envBrig) $
     paginateC selectBrigPasswordReset (paramsP Quorum (pure reset_keys) envPageSize) x5
 
@@ -303,14 +273,8 @@ type RowBrigPrekeys = (Maybe UUID, Maybe Text, Maybe Int32, Maybe Text)
 selectBrigPrekeys :: PrepQuery R (Identity ([UserId])) RowBrigPrekeys
 selectBrigPrekeys = "SELECT user, client, key, data FROM prekeys WHERE user in ?"
 
--- TODO: remove and only use conduit version. even with test data (100MB) fetching without pagination fails
-readBrigPrekeys :: Env -> [UserId] -> IO [RowBrigPrekeys]
+readBrigPrekeys :: Env -> [UserId] -> ConduitM () [RowBrigPrekeys] IO ()
 readBrigPrekeys Env {..} uids =
-  runClient envBrig $
-    retry x1 (query selectBrigPrekeys (params Quorum (pure (uids))))
-
-readBrigPrekeysConduit :: Env -> [UserId] -> ConduitM () [RowBrigPrekeys] IO ()
-readBrigPrekeysConduit Env {..} uids =
   transPipe (runClient envBrig) $
     paginateC selectBrigPrekeys (paramsP Quorum (pure uids) envPageSize) x5
 
@@ -355,14 +319,8 @@ type RowBrigProperties = (Maybe UUID, Maybe Ascii, Maybe Blob)
 selectBrigProperties :: PrepQuery R (Identity ([UserId])) RowBrigProperties
 selectBrigProperties = "SELECT user, key, value FROM properties WHERE user in ?"
 
--- TODO: remove and only use conduit version. even with test data (100MB) fetching without pagination fails
-readBrigProperties :: Env -> [UserId] -> IO [RowBrigProperties]
+readBrigProperties :: Env -> [UserId] -> ConduitM () [RowBrigProperties] IO ()
 readBrigProperties Env {..} uids =
-  runClient envBrig $
-    retry x1 (query selectBrigProperties (params Quorum (pure (uids))))
-
-readBrigPropertiesConduit :: Env -> [UserId] -> ConduitM () [RowBrigProperties] IO ()
-readBrigPropertiesConduit Env {..} uids =
   transPipe (runClient envBrig) $
     paginateC selectBrigProperties (paramsP Quorum (pure uids) envPageSize) x5
 
@@ -407,14 +365,8 @@ type RowBrigRichInfo = (Maybe UUID, Maybe Blob)
 selectBrigRichInfo :: PrepQuery R (Identity ([UserId])) RowBrigRichInfo
 selectBrigRichInfo = "SELECT user, json FROM rich_info WHERE user in ?"
 
--- TODO: remove and only use conduit version. even with test data (100MB) fetching without pagination fails
-readBrigRichInfo :: Env -> [UserId] -> IO [RowBrigRichInfo]
+readBrigRichInfo :: Env -> [UserId] -> ConduitM () [RowBrigRichInfo] IO ()
 readBrigRichInfo Env {..} uids =
-  runClient envBrig $
-    retry x1 (query selectBrigRichInfo (params Quorum (pure (uids))))
-
-readBrigRichInfoConduit :: Env -> [UserId] -> ConduitM () [RowBrigRichInfo] IO ()
-readBrigRichInfoConduit Env {..} uids =
   transPipe (runClient envBrig) $
     paginateC selectBrigRichInfo (paramsP Quorum (pure uids) envPageSize) x5
 
@@ -459,14 +411,8 @@ type RowBrigUser = (Maybe UUID, Maybe [Float], Maybe Int32, Maybe Bool, Maybe [A
 selectBrigUser :: PrepQuery R (Identity ([UserId])) RowBrigUser
 selectBrigUser = "SELECT id, accent, accent_id, activated, assets, country, email, expires, handle, language, managed_by, name, password, phone, picture, provider, searchable, service, sso_id, status, team FROM user WHERE id in ?"
 
--- TODO: remove and only use conduit version. even with test data (100MB) fetching without pagination fails
-readBrigUser :: Env -> [UserId] -> IO [RowBrigUser]
+readBrigUser :: Env -> [UserId] -> ConduitM () [RowBrigUser] IO ()
 readBrigUser Env {..} uids =
-  runClient envBrig $
-    retry x1 (query selectBrigUser (params Quorum (pure (uids))))
-
-readBrigUserConduit :: Env -> [UserId] -> ConduitM () [RowBrigUser] IO ()
-readBrigUserConduit Env {..} uids =
   transPipe (runClient envBrig) $
     paginateC selectBrigUser (paramsP Quorum (pure uids) envPageSize) x5
 
@@ -511,14 +457,8 @@ type RowBrigUserHandle = (Maybe Text, Maybe UUID)
 selectBrigUserHandle :: PrepQuery R (Identity ([Handle])) RowBrigUserHandle
 selectBrigUserHandle = "SELECT handle, user FROM user_handle WHERE handle in ?"
 
--- TODO: remove and only use conduit version. even with test data (100MB) fetching without pagination fails
-readBrigUserHandle :: Env -> [Handle] -> IO [RowBrigUserHandle]
+readBrigUserHandle :: Env -> [Handle] -> ConduitM () [RowBrigUserHandle] IO ()
 readBrigUserHandle Env {..} handles =
-  runClient envBrig $
-    retry x1 (query selectBrigUserHandle (params Quorum (pure (handles))))
-
-readBrigUserHandleConduit :: Env -> [Handle] -> ConduitM () [RowBrigUserHandle] IO ()
-readBrigUserHandleConduit Env {..} handles =
   transPipe (runClient envBrig) $
     paginateC selectBrigUserHandle (paramsP Quorum (pure handles) envPageSize) x5
 
@@ -563,14 +503,8 @@ type RowGalleyBillingTeamMember = (Maybe UUID, Maybe UUID)
 selectGalleyBillingTeamMember :: PrepQuery R (Identity (TeamId)) RowGalleyBillingTeamMember
 selectGalleyBillingTeamMember = "SELECT team, user FROM billing_team_member WHERE team = ?"
 
--- TODO: remove and only use conduit version. even with test data (100MB) fetching without pagination fails
-readGalleyBillingTeamMember :: Env -> TeamId -> IO [RowGalleyBillingTeamMember]
+readGalleyBillingTeamMember :: Env -> TeamId -> ConduitM () [RowGalleyBillingTeamMember] IO ()
 readGalleyBillingTeamMember Env {..} tid =
-  runClient envGalley $
-    retry x1 (query selectGalleyBillingTeamMember (params Quorum (pure (tid))))
-
-readGalleyBillingTeamMemberConduit :: Env -> TeamId -> ConduitM () [RowGalleyBillingTeamMember] IO ()
-readGalleyBillingTeamMemberConduit Env {..} tid =
   transPipe (runClient envGalley) $
     paginateC selectGalleyBillingTeamMember (paramsP Quorum (pure tid) envPageSize) x5
 
@@ -615,14 +549,8 @@ type RowGalleyClients = (Maybe UUID, Maybe (Cassandra.Set Text))
 selectGalleyClients :: PrepQuery R (Identity ([UserId])) RowGalleyClients
 selectGalleyClients = "SELECT user, clients FROM clients WHERE user in ?"
 
--- TODO: remove and only use conduit version. even with test data (100MB) fetching without pagination fails
-readGalleyClients :: Env -> [UserId] -> IO [RowGalleyClients]
+readGalleyClients :: Env -> [UserId] -> ConduitM () [RowGalleyClients] IO ()
 readGalleyClients Env {..} uids =
-  runClient envGalley $
-    retry x1 (query selectGalleyClients (params Quorum (pure (uids))))
-
-readGalleyClientsConduit :: Env -> [UserId] -> ConduitM () [RowGalleyClients] IO ()
-readGalleyClientsConduit Env {..} uids =
   transPipe (runClient envGalley) $
     paginateC selectGalleyClients (paramsP Quorum (pure uids) envPageSize) x5
 
@@ -667,14 +595,8 @@ type RowGalleyConversation = (Maybe UUID, Maybe (Cassandra.Set Int32), Maybe Int
 selectGalleyConversation :: PrepQuery R (Identity ([ConvId])) RowGalleyConversation
 selectGalleyConversation = "SELECT conv, access, access_role, creator, deleted, message_timer, name, receipt_mode, team, type FROM conversation WHERE conv in ?"
 
--- TODO: remove and only use conduit version. even with test data (100MB) fetching without pagination fails
-readGalleyConversation :: Env -> [ConvId] -> IO [RowGalleyConversation]
+readGalleyConversation :: Env -> [ConvId] -> ConduitM () [RowGalleyConversation] IO ()
 readGalleyConversation Env {..} cids =
-  runClient envGalley $
-    retry x1 (query selectGalleyConversation (params Quorum (pure (cids))))
-
-readGalleyConversationConduit :: Env -> [ConvId] -> ConduitM () [RowGalleyConversation] IO ()
-readGalleyConversationConduit Env {..} cids =
   transPipe (runClient envGalley) $
     paginateC selectGalleyConversation (paramsP Quorum (pure cids) envPageSize) x5
 
@@ -719,14 +641,8 @@ type RowGalleyMember = (Maybe UUID, Maybe UUID, Maybe Text, Maybe Bool, Maybe Te
 selectGalleyMember :: PrepQuery R (Identity ([ConvId])) RowGalleyMember
 selectGalleyMember = "SELECT conv, user, conversation_role, hidden, hidden_ref, otr_archived, otr_archived_ref, otr_muted, otr_muted_ref, otr_muted_status, provider, service, status, user_remote_domain, user_remote_id FROM member WHERE conv in ?"
 
--- TODO: remove and only use conduit version. even with test data (100MB) fetching without pagination fails
-readGalleyMember :: Env -> [ConvId] -> IO [RowGalleyMember]
+readGalleyMember :: Env -> [ConvId] -> ConduitM () [RowGalleyMember] IO ()
 readGalleyMember Env {..} cids =
-  runClient envGalley $
-    retry x1 (query selectGalleyMember (params Quorum (pure (cids))))
-
-readGalleyMemberConduit :: Env -> [ConvId] -> ConduitM () [RowGalleyMember] IO ()
-readGalleyMemberConduit Env {..} cids =
   transPipe (runClient envGalley) $
     paginateC selectGalleyMember (paramsP Quorum (pure cids) envPageSize) x5
 
@@ -771,14 +687,8 @@ type RowGalleyTeam = (Maybe UUID, Maybe Bool, Maybe UUID, Maybe Bool, Maybe Text
 selectGalleyTeam :: PrepQuery R (Identity (TeamId)) RowGalleyTeam
 selectGalleyTeam = "SELECT team, binding, creator, deleted, icon, icon_key, name, search_visibility, status FROM team WHERE team = ?"
 
--- TODO: remove and only use conduit version. even with test data (100MB) fetching without pagination fails
-readGalleyTeam :: Env -> TeamId -> IO [RowGalleyTeam]
+readGalleyTeam :: Env -> TeamId -> ConduitM () [RowGalleyTeam] IO ()
 readGalleyTeam Env {..} tid =
-  runClient envGalley $
-    retry x1 (query selectGalleyTeam (params Quorum (pure (tid))))
-
-readGalleyTeamConduit :: Env -> TeamId -> ConduitM () [RowGalleyTeam] IO ()
-readGalleyTeamConduit Env {..} tid =
   transPipe (runClient envGalley) $
     paginateC selectGalleyTeam (paramsP Quorum (pure tid) envPageSize) x5
 
@@ -823,14 +733,8 @@ type RowGalleyTeamConv = (Maybe UUID, Maybe UUID, Maybe Bool)
 selectGalleyTeamConv :: PrepQuery R (Identity (TeamId)) RowGalleyTeamConv
 selectGalleyTeamConv = "SELECT team, conv, managed FROM team_conv WHERE team = ?"
 
--- TODO: remove and only use conduit version. even with test data (100MB) fetching without pagination fails
-readGalleyTeamConv :: Env -> TeamId -> IO [RowGalleyTeamConv]
+readGalleyTeamConv :: Env -> TeamId -> ConduitM () [RowGalleyTeamConv] IO ()
 readGalleyTeamConv Env {..} tid =
-  runClient envGalley $
-    retry x1 (query selectGalleyTeamConv (params Quorum (pure (tid))))
-
-readGalleyTeamConvConduit :: Env -> TeamId -> ConduitM () [RowGalleyTeamConv] IO ()
-readGalleyTeamConvConduit Env {..} tid =
   transPipe (runClient envGalley) $
     paginateC selectGalleyTeamConv (paramsP Quorum (pure tid) envPageSize) x5
 
@@ -875,14 +779,8 @@ type RowGalleyTeamFeatures = (Maybe UUID, Maybe Int32, Maybe Int32, Maybe Int32,
 selectGalleyTeamFeatures :: PrepQuery R (Identity (TeamId)) RowGalleyTeamFeatures
 selectGalleyTeamFeatures = "SELECT team_id, digital_signatures, legalhold_status, search_visibility_status, sso_status, validate_saml_emails FROM team_features WHERE team_id = ?"
 
--- TODO: remove and only use conduit version. even with test data (100MB) fetching without pagination fails
-readGalleyTeamFeatures :: Env -> TeamId -> IO [RowGalleyTeamFeatures]
+readGalleyTeamFeatures :: Env -> TeamId -> ConduitM () [RowGalleyTeamFeatures] IO ()
 readGalleyTeamFeatures Env {..} tid =
-  runClient envGalley $
-    retry x1 (query selectGalleyTeamFeatures (params Quorum (pure (tid))))
-
-readGalleyTeamFeaturesConduit :: Env -> TeamId -> ConduitM () [RowGalleyTeamFeatures] IO ()
-readGalleyTeamFeaturesConduit Env {..} tid =
   transPipe (runClient envGalley) $
     paginateC selectGalleyTeamFeatures (paramsP Quorum (pure tid) envPageSize) x5
 
@@ -927,14 +825,8 @@ type RowGalleyTeamMember = (Maybe UUID, Maybe UUID, Maybe UTCTime, Maybe UUID, M
 selectGalleyTeamMember :: PrepQuery R (Identity (TeamId)) RowGalleyTeamMember
 selectGalleyTeamMember = "SELECT team, user, invited_at, invited_by, legalhold_status, perms FROM team_member WHERE team = ?"
 
--- TODO: remove and only use conduit version. even with test data (100MB) fetching without pagination fails
-readGalleyTeamMember :: Env -> TeamId -> IO [RowGalleyTeamMember]
+readGalleyTeamMember :: Env -> TeamId -> ConduitM () [RowGalleyTeamMember] IO ()
 readGalleyTeamMember Env {..} tid =
-  runClient envGalley $
-    retry x1 (query selectGalleyTeamMember (params Quorum (pure (tid))))
-
-readGalleyTeamMemberConduit :: Env -> TeamId -> ConduitM () [RowGalleyTeamMember] IO ()
-readGalleyTeamMemberConduit Env {..} tid =
   transPipe (runClient envGalley) $
     paginateC selectGalleyTeamMember (paramsP Quorum (pure tid) envPageSize) x5
 
@@ -979,14 +871,8 @@ type RowGalleyTeamNotifications = (Maybe UUID, Maybe TimeUuid, Maybe Blob)
 selectGalleyTeamNotifications :: PrepQuery R (Identity (TeamId)) RowGalleyTeamNotifications
 selectGalleyTeamNotifications = "SELECT team, id, payload FROM team_notifications WHERE team = ?"
 
--- TODO: remove and only use conduit version. even with test data (100MB) fetching without pagination fails
-readGalleyTeamNotifications :: Env -> TeamId -> IO [RowGalleyTeamNotifications]
+readGalleyTeamNotifications :: Env -> TeamId -> ConduitM () [RowGalleyTeamNotifications] IO ()
 readGalleyTeamNotifications Env {..} tid =
-  runClient envGalley $
-    retry x1 (query selectGalleyTeamNotifications (params Quorum (pure (tid))))
-
-readGalleyTeamNotificationsConduit :: Env -> TeamId -> ConduitM () [RowGalleyTeamNotifications] IO ()
-readGalleyTeamNotificationsConduit Env {..} tid =
   transPipe (runClient envGalley) $
     paginateC selectGalleyTeamNotifications (paramsP Quorum (pure tid) envPageSize) x5
 
@@ -1031,14 +917,8 @@ type RowGalleyUser = (Maybe UUID, Maybe UUID, Maybe Text, Maybe UUID)
 selectGalleyUser :: PrepQuery R (Identity ([UserId])) RowGalleyUser
 selectGalleyUser = "SELECT user, conv, conv_remote_domain, conv_remote_id FROM user WHERE user in ?"
 
--- TODO: remove and only use conduit version. even with test data (100MB) fetching without pagination fails
-readGalleyUser :: Env -> [UserId] -> IO [RowGalleyUser]
+readGalleyUser :: Env -> [UserId] -> ConduitM () [RowGalleyUser] IO ()
 readGalleyUser Env {..} uids =
-  runClient envGalley $
-    retry x1 (query selectGalleyUser (params Quorum (pure (uids))))
-
-readGalleyUserConduit :: Env -> [UserId] -> ConduitM () [RowGalleyUser] IO ()
-readGalleyUserConduit Env {..} uids =
   transPipe (runClient envGalley) $
     paginateC selectGalleyUser (paramsP Quorum (pure uids) envPageSize) x5
 
@@ -1083,14 +963,8 @@ type RowGalleyUserTeam = (Maybe UUID, Maybe UUID)
 selectGalleyUserTeam :: PrepQuery R (Identity ([UserId])) RowGalleyUserTeam
 selectGalleyUserTeam = "SELECT user, team FROM user_team WHERE user in ?"
 
--- TODO: remove and only use conduit version. even with test data (100MB) fetching without pagination fails
-readGalleyUserTeam :: Env -> [UserId] -> IO [RowGalleyUserTeam]
+readGalleyUserTeam :: Env -> [UserId] -> ConduitM () [RowGalleyUserTeam] IO ()
 readGalleyUserTeam Env {..} uids =
-  runClient envGalley $
-    retry x1 (query selectGalleyUserTeam (params Quorum (pure (uids))))
-
-readGalleyUserTeamConduit :: Env -> [UserId] -> ConduitM () [RowGalleyUserTeam] IO ()
-readGalleyUserTeamConduit Env {..} uids =
   transPipe (runClient envGalley) $
     paginateC selectGalleyUserTeam (paramsP Quorum (pure uids) envPageSize) x5
 
@@ -1135,14 +1009,8 @@ type RowGundeckNotifications = (Maybe UUID, Maybe TimeUuid, Maybe (Cassandra.Set
 selectGundeckNotifications :: PrepQuery R (Identity ([UserId])) RowGundeckNotifications
 selectGundeckNotifications = "SELECT user, id, clients, payload FROM notifications WHERE user in ?"
 
--- TODO: remove and only use conduit version. even with test data (100MB) fetching without pagination fails
-readGundeckNotifications :: Env -> [UserId] -> IO [RowGundeckNotifications]
+readGundeckNotifications :: Env -> [UserId] -> ConduitM () [RowGundeckNotifications] IO ()
 readGundeckNotifications Env {..} uids =
-  runClient envGundeck $
-    retry x1 (query selectGundeckNotifications (params Quorum (pure (uids))))
-
-readGundeckNotificationsConduit :: Env -> [UserId] -> ConduitM () [RowGundeckNotifications] IO ()
-readGundeckNotificationsConduit Env {..} uids =
   transPipe (runClient envGundeck) $
     paginateC selectGundeckNotifications (paramsP Quorum (pure uids) envPageSize) x5
 
@@ -1187,14 +1055,8 @@ type RowSparScimUserTimes = (Maybe UUID, Maybe UTCTime, Maybe UTCTime)
 selectSparScimUserTimes :: PrepQuery R (Identity ([UserId])) RowSparScimUserTimes
 selectSparScimUserTimes = "SELECT uid, created_at, last_updated_at FROM scim_user_times WHERE uid in ?"
 
--- TODO: remove and only use conduit version. even with test data (100MB) fetching without pagination fails
-readSparScimUserTimes :: Env -> [UserId] -> IO [RowSparScimUserTimes]
+readSparScimUserTimes :: Env -> [UserId] -> ConduitM () [RowSparScimUserTimes] IO ()
 readSparScimUserTimes Env {..} uids =
-  runClient envSpar $
-    retry x1 (query selectSparScimUserTimes (params Quorum (pure (uids))))
-
-readSparScimUserTimesConduit :: Env -> [UserId] -> ConduitM () [RowSparScimUserTimes] IO ()
-readSparScimUserTimesConduit Env {..} uids =
   transPipe (runClient envSpar) $
     paginateC selectSparScimUserTimes (paramsP Quorum (pure uids) envPageSize) x5
 

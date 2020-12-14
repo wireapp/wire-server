@@ -91,16 +91,16 @@ runGalleyTeamMembers env@Env {..} =
     runConduit $
       zipSources
         (CL.sourceList [(1 :: Int32) ..])
-        (readGalleyTeamMemberConduit env envTeamId)
+        (readGalleyTeamMember env envTeamId)
         .| C.mapM (handleTeamMembers env)
         .| sinkJsonLines outH
 
 handleTeamMembers :: Env -> (Int32, [RowGalleyTeamMember]) -> IO [RowGalleyTeamMember]
 handleTeamMembers env@Env {..} (i, members) = do
   Log.info envLogger (Log.field "number of team members loaded: " (show (i * envPageSize)))
-  writeToFile env "galley.clients" (readGalleyClients env (catMaybes $ fmap Id . view _2 <$> members))
+  let uids = catMaybes $ fmap Id . view _2 <$> members
 
-  -- ...
+  appendJsonLines (envTargetPath </> "brig.clients") (readBrigClients env uids)
 
   pure members -- (nit-pick TODO: this could be implicit, done in the pipeline somehow.)
 
@@ -112,7 +112,7 @@ runGalleyTeamConv env@Env {..} =
     runConduit $
       zipSources
         (CL.sourceList [(1 :: Int32) ..])
-        (readGalleyTeamConvConduit env envTeamId)
+        (readGalleyTeamConv env envTeamId)
         .| C.mapM (handleTeamConv env)
         .| sinkJsonLines outH
 
@@ -121,12 +121,17 @@ handleTeamConv Env {..} (i, convs) = do
   Log.info envLogger (Log.field "number of team convs loaded: " (show (i * envPageSize)))
   pure convs
 
--- ...
+appendJsonLines :: ToJSON a => FilePath -> ConduitM () [a] IO () -> IO ()
+appendJsonLines path conduit =
+  IO.withBinaryFile path IO.AppendMode $ \outH ->
+    runConduit $ conduit .| sinkJsonLines outH
 
 ----------------------------------------------------------------------
 -- helpers (TODO: move to separate module)
 
-writeToFile :: ToJSON a => Env -> FilePath -> IO [a] -> IO ()
-writeToFile Env {..} tableFile getter =
-  Imports.withFile (envTargetPath </> tableFile) AppendMode $ \hd ->
-    mapM_ (LBS.hPutStr hd . (<> "\n") . encode) =<< getter
+--   writeToFile env "galley.clients" (readGalleyClients env uids)
+
+-- writeToFile :: ToJSON a => Env -> FilePath -> IO [a] -> IO ()
+-- writeToFile Env {..} tableFile getter =
+--   Imports.withFile (envTargetPath </> tableFile) AppendMode $ \hd ->
+--     mapM_ (LBS.hPutStr hd . (<> "\n") . encode) =<< getter
