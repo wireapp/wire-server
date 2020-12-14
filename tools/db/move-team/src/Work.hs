@@ -1,5 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -28,6 +27,7 @@ module Work where
 
 import Brig.Types hiding (Client)
 import Cassandra
+import Common
 import Conduit (mapC, takeWhileCE)
 import Control.Lens (view, _2)
 import Data.Aeson
@@ -44,6 +44,7 @@ import qualified Data.Text as T
 import Data.Time
 import Data.UUID
 import qualified Data.Vector as V
+import Database.CQL.Protocol (Query (Query), Tuple)
 import Galley.Data.Instances ()
 import Imports
 import Schema
@@ -61,19 +62,17 @@ import Wire.API.Team.Permission
 
 deriving instance Cql Name -- TODO
 
-runCommand :: Env -> IO ()
-runCommand env@Env {..} = do
+runExport :: Env -> IO ()
+runExport env@Env {..} = do
   ExitSuccess <- system $ "mkdir -p " <> show envTargetPath
-  runGalleyTeamMembers env
-  runGalleyTeamConv env
-
--- runFullBackup env
--- runImport env
+  -- runGalleyTeamMembers env
+  -- runGalleyTeamConv env
+  runFullBackup env
 
 ----------------------------------------------------------------------
 
 runGalleyTeamMembers :: Env -> IO ()
-runGalleyTeamMembers env@Env {..} = do
+runGalleyTeamMembers env@Env {..} =
   IO.withBinaryFile (envTargetPath </> "galley.team_member") IO.WriteMode $ \outH ->
     runConduit $
       zipSources
@@ -85,7 +84,7 @@ runGalleyTeamMembers env@Env {..} = do
 handleTeamMembers :: Env -> (Int32, [RowGalleyTeamMember]) -> IO [RowGalleyTeamMember]
 handleTeamMembers env@Env {..} (i, members) = do
   Log.info envLogger (Log.field "number of team members loaded: " (show (i * envPageSize)))
-  writeToFile env "galley.clients" (readGalleyClients env (catMaybes $ (fmap Id . view _2) <$> members))
+  writeToFile env "galley.clients" (readGalleyClients env (catMaybes $ fmap Id . view _2 <$> members))
 
   -- ...
 
@@ -94,7 +93,7 @@ handleTeamMembers env@Env {..} (i, members) = do
 ----------------------------------------------------------------------
 
 runGalleyTeamConv :: Env -> IO ()
-runGalleyTeamConv env@Env {..} = do
+runGalleyTeamConv env@Env {..} =
   IO.withBinaryFile (envTargetPath </> "galley.team_conv") IO.WriteMode $ \outH ->
     runConduit $
       zipSources
@@ -117,7 +116,7 @@ sinkLines :: ToJSON a => IO.Handle -> ConduitT [a] Void IO ()
 sinkLines hd = C.mapM_ (mapM_ (LBS.hPutStr hd . (<> "\n") . encode))
 
 writeToFile :: ToJSON a => Env -> FilePath -> IO [a] -> IO ()
-writeToFile Env {..} tableFile getter = do
+writeToFile Env {..} tableFile getter =
   Imports.withFile (envTargetPath </> tableFile) AppendMode $ \hd ->
     mapM_ (LBS.hPutStr hd . (<> "\n") . encode) =<< getter
 
@@ -150,21 +149,16 @@ runFullBackup env@Env {..} = do
     exportConduit :: ToJSON a => Env -> (Env -> ConduitM () [a] IO ()) -> String -> IO ()
     exportConduit env' loader tablename = do
       IO.putStrLn tablename
-      IO.withBinaryFile (envTargetPath </> tablename) IO.WriteMode $ \handle -> do
+      IO.withBinaryFile (envTargetPath </> tablename) IO.WriteMode $ \handle ->
         runConduit $
           loader env'
             .| sinkLines handle
 
+insert :: PrepQuery W RowGalleyUserTeam ()
+insert = "INSERT INTO user_team (user, team) VALUES (?, ?)"
+
 -- TODO: connect to sinks in Schema.hs & refactor into template
 runImport :: Env -> IO ()
 runImport env = do
-  IO.withBinaryFile (envTargetPath env </> "galley.user_team") IO.ReadMode $ \handle -> do
-    runConduit $
-      sourceJsonLines @_ @RowGalleyUserTeam handle
-        .| C.mapM_ IO.print
-
-sourceJsonLines :: (MonadIO m, FromJSON c) => Handle -> ConduitM a c m ()
-sourceJsonLines handle =
-  C.sourceHandle handle
-    .| linesUnboundedAscii
-    .| mapC (either error id . eitherDecodeStrict)
+  IO.putStrLn "runImport"
+  importAllTables env

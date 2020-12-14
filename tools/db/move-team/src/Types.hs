@@ -27,7 +27,7 @@
 module Types where
 
 import Cassandra
-import Data.Aeson (FromJSON (..), ToJSON (..), Value (String), withText)
+import Data.Aeson (FromJSON (..), ToJSON (..), Value (String), withArray, withText)
 import Data.Aeson.Types (Value (Array, Null))
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Handle
@@ -36,7 +36,7 @@ import Data.Id
 import qualified Data.Text as T
 import Data.Text.Ascii (AsciiText, Base64, decodeBase64, encodeBase64)
 import qualified Data.Vector as V
-import Database.CQL.Protocol (ColumnType (VarCharColumn))
+import Database.CQL.Protocol (ColumnType (VarCharColumn), Value (CqlMaybe))
 import Galley.Data.Instances ()
 import Imports
 import System.Logger (Logger)
@@ -56,8 +56,8 @@ data Env = Env
 -- | (ideally, we shouldn't need this, since we shouldn't even touch tables that have this in them.)
 data AssetIgnoreData = AssetIgnoreData
 
-instance FromJSON AssetIgnoreData where
-  parseJSON _ = pure AssetIgnoreData
+instance {-# OVERLAPPING #-} FromJSON [AssetIgnoreData] where
+  parseJSON _ = pure []
 
 instance ToJSON AssetIgnoreData where
   toJSON _ = Null
@@ -72,7 +72,7 @@ instance Cql AssetIgnoreData where
             ("size", IntColumn) -- TODO check if this works
           ]
       )
-  toCql _ = error "AssetIgnoreData: you should only have nulls of this"
+  toCql _ = CqlMaybe Nothing
   fromCql _ = pure AssetIgnoreData
 
 instance ToJSON a => ToJSON (Cassandra.Set a) where
@@ -138,3 +138,30 @@ instance (ToJSON a, ToJSON b, ToJSON c, ToJSON d, ToJSON e, ToJSON f, ToJSON g, 
           toJSON t,
           toJSON u
         ]
+
+instance (FromJSON a, FromJSON b, FromJSON c, FromJSON d, FromJSON e, FromJSON f, FromJSON g, FromJSON h, FromJSON i, FromJSON j, FromJSON k, FromJSON l, FromJSON m, FromJSON n, FromJSON o, FromJSON p, FromJSON q, FromJSON r, FromJSON s, FromJSON t, FromJSON u) => FromJSON ((,,,,,,,,,,,,,,,,,,,,) a b c d e f g h i j k l m n o p q r s t u) where
+  parseJSON = withArray "Tuple" $ \case
+    (toList -> [a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u]) ->
+      (,,,,,,,,,,,,,,,,,,,,)
+        <$> parseJSON a
+        <*> parseJSON b
+        <*> parseJSON c
+        <*> parseJSON d
+        <*> parseJSON e
+        <*> parseJSON f
+        <*> parseJSON g
+        <*> parseJSON h
+        <*> parseJSON i
+        <*> parseJSON j
+        <*> parseJSON k
+        <*> parseJSON l
+        <*> parseJSON m
+        <*> parseJSON n
+        <*> parseJSON o
+        <*> parseJSON p
+        <*> parseJSON q
+        <*> parseJSON r
+        <*> parseJSON s
+        <*> parseJSON t
+        <*> parseJSON u
+    _ -> fail "Expected array of length 21"

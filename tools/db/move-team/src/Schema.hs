@@ -20,6 +20,7 @@
 module Schema where
 
 import Cassandra
+import Common
 import Data.Conduit
 import Data.Handle (Handle)
 import Data.IP (IP)
@@ -28,6 +29,7 @@ import Data.Time
 import Data.UUID
 import Galley.Data.Instances ()
 import Imports
+import System.FilePath.Posix ((</>))
 import Types
 import Wire.API.Team.Permission
 import Wire.API.User.Password (PasswordResetKey)
@@ -60,14 +62,23 @@ readBrigClientsConduitAll Env {..} =
   transPipe (runClient envBrig) $
     paginateC selectBrigClientsAll (paramsP Quorum () envPageSize) x5
 
-insertBrigClients :: Env -> FilePath -> IO ()
-insertBrigClients _ _ = do
-  -- TODO:
-  -- if file does not exist, do nothing.
-  -- otherwise, read lines from file;
-  -- parse each as 'RowBrigClients';
-  -- run Client action on each.
-  pure ()
+insertBrigClients :: PrepQuery W RowBrigClients ()
+insertBrigClients =
+  "INSERT INTO clients (user, client, class, cookie, ip, label, lat, lon, model, tstamp, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+
+importBrigClients :: Env -> FilePath -> IO ()
+importBrigClients Env {..} path = do
+  exists <- doesFileExist path
+  if exists
+    then do
+      putStrLn $ "Importing " <> path <> " to " <> "brig.clients"
+      withBinaryFile path ReadMode $ \handle -> do
+        runConduit $
+          sourceJsonLines handle
+            .| transPipe (runClient envBrig) (sinkRows insertBrigClients)
+    else do
+      putStrLn $ "Skipping because not found: " <> path
+      pure ()
 
 -- brig.connection
 
@@ -95,14 +106,23 @@ readBrigConnectionConduitAll Env {..} =
   transPipe (runClient envBrig) $
     paginateC selectBrigConnectionAll (paramsP Quorum () envPageSize) x5
 
-insertBrigConnection :: Env -> FilePath -> IO ()
-insertBrigConnection _ _ = do
-  -- TODO:
-  -- if file does not exist, do nothing.
-  -- otherwise, read lines from file;
-  -- parse each as 'RowBrigConnection';
-  -- run Client action on each.
-  pure ()
+insertBrigConnection :: PrepQuery W RowBrigConnection ()
+insertBrigConnection =
+  "INSERT INTO connection (left, right, conv, last_update, message, status) VALUES (?, ?, ?, ?, ?, ?)"
+
+importBrigConnection :: Env -> FilePath -> IO ()
+importBrigConnection Env {..} path = do
+  exists <- doesFileExist path
+  if exists
+    then do
+      putStrLn $ "Importing " <> path <> " to " <> "brig.connection"
+      withBinaryFile path ReadMode $ \handle -> do
+        runConduit $
+          sourceJsonLines handle
+            .| transPipe (runClient envBrig) (sinkRows insertBrigConnection)
+    else do
+      putStrLn $ "Skipping because not found: " <> path
+      pure ()
 
 -- brig.id_mapping
 
@@ -130,14 +150,23 @@ readBrigIdMappingConduitAll Env {..} =
   transPipe (runClient envBrig) $
     paginateC selectBrigIdMappingAll (paramsP Quorum () envPageSize) x5
 
-insertBrigIdMapping :: Env -> FilePath -> IO ()
-insertBrigIdMapping _ _ = do
-  -- TODO:
-  -- if file does not exist, do nothing.
-  -- otherwise, read lines from file;
-  -- parse each as 'RowBrigIdMapping';
-  -- run Client action on each.
-  pure ()
+insertBrigIdMapping :: PrepQuery W RowBrigIdMapping ()
+insertBrigIdMapping =
+  "INSERT INTO id_mapping (mapped_id, remote_domain, remote_id) VALUES (?, ?, ?)"
+
+importBrigIdMapping :: Env -> FilePath -> IO ()
+importBrigIdMapping Env {..} path = do
+  exists <- doesFileExist path
+  if exists
+    then do
+      putStrLn $ "Importing " <> path <> " to " <> "brig.id_mapping"
+      withBinaryFile path ReadMode $ \handle -> do
+        runConduit $
+          sourceJsonLines handle
+            .| transPipe (runClient envBrig) (sinkRows insertBrigIdMapping)
+    else do
+      putStrLn $ "Skipping because not found: " <> path
+      pure ()
 
 -- brig.login_codes
 
@@ -165,14 +194,23 @@ readBrigLoginCodesConduitAll Env {..} =
   transPipe (runClient envBrig) $
     paginateC selectBrigLoginCodesAll (paramsP Quorum () envPageSize) x5
 
-insertBrigLoginCodes :: Env -> FilePath -> IO ()
-insertBrigLoginCodes _ _ = do
-  -- TODO:
-  -- if file does not exist, do nothing.
-  -- otherwise, read lines from file;
-  -- parse each as 'RowBrigLoginCodes';
-  -- run Client action on each.
-  pure ()
+insertBrigLoginCodes :: PrepQuery W RowBrigLoginCodes ()
+insertBrigLoginCodes =
+  "INSERT INTO login_codes (user, code, retries, timeout) VALUES (?, ?, ?, ?)"
+
+importBrigLoginCodes :: Env -> FilePath -> IO ()
+importBrigLoginCodes Env {..} path = do
+  exists <- doesFileExist path
+  if exists
+    then do
+      putStrLn $ "Importing " <> path <> " to " <> "brig.login_codes"
+      withBinaryFile path ReadMode $ \handle -> do
+        runConduit $
+          sourceJsonLines handle
+            .| transPipe (runClient envBrig) (sinkRows insertBrigLoginCodes)
+    else do
+      putStrLn $ "Skipping because not found: " <> path
+      pure ()
 
 -- brig.password_reset
 
@@ -200,14 +238,23 @@ readBrigPasswordResetConduitAll Env {..} =
   transPipe (runClient envBrig) $
     paginateC selectBrigPasswordResetAll (paramsP Quorum () envPageSize) x5
 
-insertBrigPasswordReset :: Env -> FilePath -> IO ()
-insertBrigPasswordReset _ _ = do
-  -- TODO:
-  -- if file does not exist, do nothing.
-  -- otherwise, read lines from file;
-  -- parse each as 'RowBrigPasswordReset';
-  -- run Client action on each.
-  pure ()
+insertBrigPasswordReset :: PrepQuery W RowBrigPasswordReset ()
+insertBrigPasswordReset =
+  "INSERT INTO password_reset (key, code, retries, timeout, user) VALUES (?, ?, ?, ?, ?)"
+
+importBrigPasswordReset :: Env -> FilePath -> IO ()
+importBrigPasswordReset Env {..} path = do
+  exists <- doesFileExist path
+  if exists
+    then do
+      putStrLn $ "Importing " <> path <> " to " <> "brig.password_reset"
+      withBinaryFile path ReadMode $ \handle -> do
+        runConduit $
+          sourceJsonLines handle
+            .| transPipe (runClient envBrig) (sinkRows insertBrigPasswordReset)
+    else do
+      putStrLn $ "Skipping because not found: " <> path
+      pure ()
 
 -- brig.prekeys
 
@@ -235,14 +282,23 @@ readBrigPrekeysConduitAll Env {..} =
   transPipe (runClient envBrig) $
     paginateC selectBrigPrekeysAll (paramsP Quorum () envPageSize) x5
 
-insertBrigPrekeys :: Env -> FilePath -> IO ()
-insertBrigPrekeys _ _ = do
-  -- TODO:
-  -- if file does not exist, do nothing.
-  -- otherwise, read lines from file;
-  -- parse each as 'RowBrigPrekeys';
-  -- run Client action on each.
-  pure ()
+insertBrigPrekeys :: PrepQuery W RowBrigPrekeys ()
+insertBrigPrekeys =
+  "INSERT INTO prekeys (user, client, key, data) VALUES (?, ?, ?, ?)"
+
+importBrigPrekeys :: Env -> FilePath -> IO ()
+importBrigPrekeys Env {..} path = do
+  exists <- doesFileExist path
+  if exists
+    then do
+      putStrLn $ "Importing " <> path <> " to " <> "brig.prekeys"
+      withBinaryFile path ReadMode $ \handle -> do
+        runConduit $
+          sourceJsonLines handle
+            .| transPipe (runClient envBrig) (sinkRows insertBrigPrekeys)
+    else do
+      putStrLn $ "Skipping because not found: " <> path
+      pure ()
 
 -- brig.properties
 
@@ -270,14 +326,23 @@ readBrigPropertiesConduitAll Env {..} =
   transPipe (runClient envBrig) $
     paginateC selectBrigPropertiesAll (paramsP Quorum () envPageSize) x5
 
-insertBrigProperties :: Env -> FilePath -> IO ()
-insertBrigProperties _ _ = do
-  -- TODO:
-  -- if file does not exist, do nothing.
-  -- otherwise, read lines from file;
-  -- parse each as 'RowBrigProperties';
-  -- run Client action on each.
-  pure ()
+insertBrigProperties :: PrepQuery W RowBrigProperties ()
+insertBrigProperties =
+  "INSERT INTO properties (user, key, value) VALUES (?, ?, ?)"
+
+importBrigProperties :: Env -> FilePath -> IO ()
+importBrigProperties Env {..} path = do
+  exists <- doesFileExist path
+  if exists
+    then do
+      putStrLn $ "Importing " <> path <> " to " <> "brig.properties"
+      withBinaryFile path ReadMode $ \handle -> do
+        runConduit $
+          sourceJsonLines handle
+            .| transPipe (runClient envBrig) (sinkRows insertBrigProperties)
+    else do
+      putStrLn $ "Skipping because not found: " <> path
+      pure ()
 
 -- brig.rich_info
 
@@ -305,14 +370,23 @@ readBrigRichInfoConduitAll Env {..} =
   transPipe (runClient envBrig) $
     paginateC selectBrigRichInfoAll (paramsP Quorum () envPageSize) x5
 
-insertBrigRichInfo :: Env -> FilePath -> IO ()
-insertBrigRichInfo _ _ = do
-  -- TODO:
-  -- if file does not exist, do nothing.
-  -- otherwise, read lines from file;
-  -- parse each as 'RowBrigRichInfo';
-  -- run Client action on each.
-  pure ()
+insertBrigRichInfo :: PrepQuery W RowBrigRichInfo ()
+insertBrigRichInfo =
+  "INSERT INTO rich_info (user, json) VALUES (?, ?)"
+
+importBrigRichInfo :: Env -> FilePath -> IO ()
+importBrigRichInfo Env {..} path = do
+  exists <- doesFileExist path
+  if exists
+    then do
+      putStrLn $ "Importing " <> path <> " to " <> "brig.rich_info"
+      withBinaryFile path ReadMode $ \handle -> do
+        runConduit $
+          sourceJsonLines handle
+            .| transPipe (runClient envBrig) (sinkRows insertBrigRichInfo)
+    else do
+      putStrLn $ "Skipping because not found: " <> path
+      pure ()
 
 -- brig.user
 
@@ -340,14 +414,23 @@ readBrigUserConduitAll Env {..} =
   transPipe (runClient envBrig) $
     paginateC selectBrigUserAll (paramsP Quorum () envPageSize) x5
 
-insertBrigUser :: Env -> FilePath -> IO ()
-insertBrigUser _ _ = do
-  -- TODO:
-  -- if file does not exist, do nothing.
-  -- otherwise, read lines from file;
-  -- parse each as 'RowBrigUser';
-  -- run Client action on each.
-  pure ()
+insertBrigUser :: PrepQuery W RowBrigUser ()
+insertBrigUser =
+  "INSERT INTO user (id, accent, accent_id, activated, assets, country, email, expires, handle, language, managed_by, name, password, phone, picture, provider, searchable, service, sso_id, status, team) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+
+importBrigUser :: Env -> FilePath -> IO ()
+importBrigUser Env {..} path = do
+  exists <- doesFileExist path
+  if exists
+    then do
+      putStrLn $ "Importing " <> path <> " to " <> "brig.user"
+      withBinaryFile path ReadMode $ \handle -> do
+        runConduit $
+          sourceJsonLines handle
+            .| transPipe (runClient envBrig) (sinkRows insertBrigUser)
+    else do
+      putStrLn $ "Skipping because not found: " <> path
+      pure ()
 
 -- brig.user_handle
 
@@ -375,14 +458,23 @@ readBrigUserHandleConduitAll Env {..} =
   transPipe (runClient envBrig) $
     paginateC selectBrigUserHandleAll (paramsP Quorum () envPageSize) x5
 
-insertBrigUserHandle :: Env -> FilePath -> IO ()
-insertBrigUserHandle _ _ = do
-  -- TODO:
-  -- if file does not exist, do nothing.
-  -- otherwise, read lines from file;
-  -- parse each as 'RowBrigUserHandle';
-  -- run Client action on each.
-  pure ()
+insertBrigUserHandle :: PrepQuery W RowBrigUserHandle ()
+insertBrigUserHandle =
+  "INSERT INTO user_handle (handle, user) VALUES (?, ?)"
+
+importBrigUserHandle :: Env -> FilePath -> IO ()
+importBrigUserHandle Env {..} path = do
+  exists <- doesFileExist path
+  if exists
+    then do
+      putStrLn $ "Importing " <> path <> " to " <> "brig.user_handle"
+      withBinaryFile path ReadMode $ \handle -> do
+        runConduit $
+          sourceJsonLines handle
+            .| transPipe (runClient envBrig) (sinkRows insertBrigUserHandle)
+    else do
+      putStrLn $ "Skipping because not found: " <> path
+      pure ()
 
 -- galley.billing_team_member
 
@@ -410,14 +502,23 @@ readGalleyBillingTeamMemberConduitAll Env {..} =
   transPipe (runClient envGalley) $
     paginateC selectGalleyBillingTeamMemberAll (paramsP Quorum () envPageSize) x5
 
-insertGalleyBillingTeamMember :: Env -> FilePath -> IO ()
-insertGalleyBillingTeamMember _ _ = do
-  -- TODO:
-  -- if file does not exist, do nothing.
-  -- otherwise, read lines from file;
-  -- parse each as 'RowGalleyBillingTeamMember';
-  -- run Client action on each.
-  pure ()
+insertGalleyBillingTeamMember :: PrepQuery W RowGalleyBillingTeamMember ()
+insertGalleyBillingTeamMember =
+  "INSERT INTO billing_team_member (team, user) VALUES (?, ?)"
+
+importGalleyBillingTeamMember :: Env -> FilePath -> IO ()
+importGalleyBillingTeamMember Env {..} path = do
+  exists <- doesFileExist path
+  if exists
+    then do
+      putStrLn $ "Importing " <> path <> " to " <> "galley.billing_team_member"
+      withBinaryFile path ReadMode $ \handle -> do
+        runConduit $
+          sourceJsonLines handle
+            .| transPipe (runClient envGalley) (sinkRows insertGalleyBillingTeamMember)
+    else do
+      putStrLn $ "Skipping because not found: " <> path
+      pure ()
 
 -- galley.clients
 
@@ -445,14 +546,23 @@ readGalleyClientsConduitAll Env {..} =
   transPipe (runClient envGalley) $
     paginateC selectGalleyClientsAll (paramsP Quorum () envPageSize) x5
 
-insertGalleyClients :: Env -> FilePath -> IO ()
-insertGalleyClients _ _ = do
-  -- TODO:
-  -- if file does not exist, do nothing.
-  -- otherwise, read lines from file;
-  -- parse each as 'RowGalleyClients';
-  -- run Client action on each.
-  pure ()
+insertGalleyClients :: PrepQuery W RowGalleyClients ()
+insertGalleyClients =
+  "INSERT INTO clients (user, clients) VALUES (?, ?)"
+
+importGalleyClients :: Env -> FilePath -> IO ()
+importGalleyClients Env {..} path = do
+  exists <- doesFileExist path
+  if exists
+    then do
+      putStrLn $ "Importing " <> path <> " to " <> "galley.clients"
+      withBinaryFile path ReadMode $ \handle -> do
+        runConduit $
+          sourceJsonLines handle
+            .| transPipe (runClient envGalley) (sinkRows insertGalleyClients)
+    else do
+      putStrLn $ "Skipping because not found: " <> path
+      pure ()
 
 -- galley.conversation
 
@@ -480,14 +590,23 @@ readGalleyConversationConduitAll Env {..} =
   transPipe (runClient envGalley) $
     paginateC selectGalleyConversationAll (paramsP Quorum () envPageSize) x5
 
-insertGalleyConversation :: Env -> FilePath -> IO ()
-insertGalleyConversation _ _ = do
-  -- TODO:
-  -- if file does not exist, do nothing.
-  -- otherwise, read lines from file;
-  -- parse each as 'RowGalleyConversation';
-  -- run Client action on each.
-  pure ()
+insertGalleyConversation :: PrepQuery W RowGalleyConversation ()
+insertGalleyConversation =
+  "INSERT INTO conversation (conv, access, access_role, creator, deleted, message_timer, name, receipt_mode, team, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+
+importGalleyConversation :: Env -> FilePath -> IO ()
+importGalleyConversation Env {..} path = do
+  exists <- doesFileExist path
+  if exists
+    then do
+      putStrLn $ "Importing " <> path <> " to " <> "galley.conversation"
+      withBinaryFile path ReadMode $ \handle -> do
+        runConduit $
+          sourceJsonLines handle
+            .| transPipe (runClient envGalley) (sinkRows insertGalleyConversation)
+    else do
+      putStrLn $ "Skipping because not found: " <> path
+      pure ()
 
 -- galley.member
 
@@ -515,14 +634,23 @@ readGalleyMemberConduitAll Env {..} =
   transPipe (runClient envGalley) $
     paginateC selectGalleyMemberAll (paramsP Quorum () envPageSize) x5
 
-insertGalleyMember :: Env -> FilePath -> IO ()
-insertGalleyMember _ _ = do
-  -- TODO:
-  -- if file does not exist, do nothing.
-  -- otherwise, read lines from file;
-  -- parse each as 'RowGalleyMember';
-  -- run Client action on each.
-  pure ()
+insertGalleyMember :: PrepQuery W RowGalleyMember ()
+insertGalleyMember =
+  "INSERT INTO member (conv, user, conversation_role, hidden, hidden_ref, otr_archived, otr_archived_ref, otr_muted, otr_muted_ref, otr_muted_status, provider, service, status, user_remote_domain, user_remote_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+
+importGalleyMember :: Env -> FilePath -> IO ()
+importGalleyMember Env {..} path = do
+  exists <- doesFileExist path
+  if exists
+    then do
+      putStrLn $ "Importing " <> path <> " to " <> "galley.member"
+      withBinaryFile path ReadMode $ \handle -> do
+        runConduit $
+          sourceJsonLines handle
+            .| transPipe (runClient envGalley) (sinkRows insertGalleyMember)
+    else do
+      putStrLn $ "Skipping because not found: " <> path
+      pure ()
 
 -- galley.team
 
@@ -550,14 +678,23 @@ readGalleyTeamConduitAll Env {..} =
   transPipe (runClient envGalley) $
     paginateC selectGalleyTeamAll (paramsP Quorum () envPageSize) x5
 
-insertGalleyTeam :: Env -> FilePath -> IO ()
-insertGalleyTeam _ _ = do
-  -- TODO:
-  -- if file does not exist, do nothing.
-  -- otherwise, read lines from file;
-  -- parse each as 'RowGalleyTeam';
-  -- run Client action on each.
-  pure ()
+insertGalleyTeam :: PrepQuery W RowGalleyTeam ()
+insertGalleyTeam =
+  "INSERT INTO team (team, binding, creator, deleted, icon, icon_key, name, search_visibility, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+
+importGalleyTeam :: Env -> FilePath -> IO ()
+importGalleyTeam Env {..} path = do
+  exists <- doesFileExist path
+  if exists
+    then do
+      putStrLn $ "Importing " <> path <> " to " <> "galley.team"
+      withBinaryFile path ReadMode $ \handle -> do
+        runConduit $
+          sourceJsonLines handle
+            .| transPipe (runClient envGalley) (sinkRows insertGalleyTeam)
+    else do
+      putStrLn $ "Skipping because not found: " <> path
+      pure ()
 
 -- galley.team_conv
 
@@ -585,14 +722,23 @@ readGalleyTeamConvConduitAll Env {..} =
   transPipe (runClient envGalley) $
     paginateC selectGalleyTeamConvAll (paramsP Quorum () envPageSize) x5
 
-insertGalleyTeamConv :: Env -> FilePath -> IO ()
-insertGalleyTeamConv _ _ = do
-  -- TODO:
-  -- if file does not exist, do nothing.
-  -- otherwise, read lines from file;
-  -- parse each as 'RowGalleyTeamConv';
-  -- run Client action on each.
-  pure ()
+insertGalleyTeamConv :: PrepQuery W RowGalleyTeamConv ()
+insertGalleyTeamConv =
+  "INSERT INTO team_conv (team, conv, managed) VALUES (?, ?, ?)"
+
+importGalleyTeamConv :: Env -> FilePath -> IO ()
+importGalleyTeamConv Env {..} path = do
+  exists <- doesFileExist path
+  if exists
+    then do
+      putStrLn $ "Importing " <> path <> " to " <> "galley.team_conv"
+      withBinaryFile path ReadMode $ \handle -> do
+        runConduit $
+          sourceJsonLines handle
+            .| transPipe (runClient envGalley) (sinkRows insertGalleyTeamConv)
+    else do
+      putStrLn $ "Skipping because not found: " <> path
+      pure ()
 
 -- galley.team_features
 
@@ -620,14 +766,23 @@ readGalleyTeamFeaturesConduitAll Env {..} =
   transPipe (runClient envGalley) $
     paginateC selectGalleyTeamFeaturesAll (paramsP Quorum () envPageSize) x5
 
-insertGalleyTeamFeatures :: Env -> FilePath -> IO ()
-insertGalleyTeamFeatures _ _ = do
-  -- TODO:
-  -- if file does not exist, do nothing.
-  -- otherwise, read lines from file;
-  -- parse each as 'RowGalleyTeamFeatures';
-  -- run Client action on each.
-  pure ()
+insertGalleyTeamFeatures :: PrepQuery W RowGalleyTeamFeatures ()
+insertGalleyTeamFeatures =
+  "INSERT INTO team_features (team_id, digital_signatures, legalhold_status, search_visibility_status, sso_status, validate_saml_emails) VALUES (?, ?, ?, ?, ?, ?)"
+
+importGalleyTeamFeatures :: Env -> FilePath -> IO ()
+importGalleyTeamFeatures Env {..} path = do
+  exists <- doesFileExist path
+  if exists
+    then do
+      putStrLn $ "Importing " <> path <> " to " <> "galley.team_features"
+      withBinaryFile path ReadMode $ \handle -> do
+        runConduit $
+          sourceJsonLines handle
+            .| transPipe (runClient envGalley) (sinkRows insertGalleyTeamFeatures)
+    else do
+      putStrLn $ "Skipping because not found: " <> path
+      pure ()
 
 -- galley.team_member
 
@@ -655,14 +810,23 @@ readGalleyTeamMemberConduitAll Env {..} =
   transPipe (runClient envGalley) $
     paginateC selectGalleyTeamMemberAll (paramsP Quorum () envPageSize) x5
 
-insertGalleyTeamMember :: Env -> FilePath -> IO ()
-insertGalleyTeamMember _ _ = do
-  -- TODO:
-  -- if file does not exist, do nothing.
-  -- otherwise, read lines from file;
-  -- parse each as 'RowGalleyTeamMember';
-  -- run Client action on each.
-  pure ()
+insertGalleyTeamMember :: PrepQuery W RowGalleyTeamMember ()
+insertGalleyTeamMember =
+  "INSERT INTO team_member (team, user, invited_at, invited_by, legalhold_status, perms) VALUES (?, ?, ?, ?, ?, ?)"
+
+importGalleyTeamMember :: Env -> FilePath -> IO ()
+importGalleyTeamMember Env {..} path = do
+  exists <- doesFileExist path
+  if exists
+    then do
+      putStrLn $ "Importing " <> path <> " to " <> "galley.team_member"
+      withBinaryFile path ReadMode $ \handle -> do
+        runConduit $
+          sourceJsonLines handle
+            .| transPipe (runClient envGalley) (sinkRows insertGalleyTeamMember)
+    else do
+      putStrLn $ "Skipping because not found: " <> path
+      pure ()
 
 -- galley.team_notifications
 
@@ -690,14 +854,23 @@ readGalleyTeamNotificationsConduitAll Env {..} =
   transPipe (runClient envGalley) $
     paginateC selectGalleyTeamNotificationsAll (paramsP Quorum () envPageSize) x5
 
-insertGalleyTeamNotifications :: Env -> FilePath -> IO ()
-insertGalleyTeamNotifications _ _ = do
-  -- TODO:
-  -- if file does not exist, do nothing.
-  -- otherwise, read lines from file;
-  -- parse each as 'RowGalleyTeamNotifications';
-  -- run Client action on each.
-  pure ()
+insertGalleyTeamNotifications :: PrepQuery W RowGalleyTeamNotifications ()
+insertGalleyTeamNotifications =
+  "INSERT INTO team_notifications (team, id, payload) VALUES (?, ?, ?)"
+
+importGalleyTeamNotifications :: Env -> FilePath -> IO ()
+importGalleyTeamNotifications Env {..} path = do
+  exists <- doesFileExist path
+  if exists
+    then do
+      putStrLn $ "Importing " <> path <> " to " <> "galley.team_notifications"
+      withBinaryFile path ReadMode $ \handle -> do
+        runConduit $
+          sourceJsonLines handle
+            .| transPipe (runClient envGalley) (sinkRows insertGalleyTeamNotifications)
+    else do
+      putStrLn $ "Skipping because not found: " <> path
+      pure ()
 
 -- galley.user
 
@@ -725,14 +898,23 @@ readGalleyUserConduitAll Env {..} =
   transPipe (runClient envGalley) $
     paginateC selectGalleyUserAll (paramsP Quorum () envPageSize) x5
 
-insertGalleyUser :: Env -> FilePath -> IO ()
-insertGalleyUser _ _ = do
-  -- TODO:
-  -- if file does not exist, do nothing.
-  -- otherwise, read lines from file;
-  -- parse each as 'RowGalleyUser';
-  -- run Client action on each.
-  pure ()
+insertGalleyUser :: PrepQuery W RowGalleyUser ()
+insertGalleyUser =
+  "INSERT INTO user (user, conv, conv_remote_domain, conv_remote_id) VALUES (?, ?, ?, ?)"
+
+importGalleyUser :: Env -> FilePath -> IO ()
+importGalleyUser Env {..} path = do
+  exists <- doesFileExist path
+  if exists
+    then do
+      putStrLn $ "Importing " <> path <> " to " <> "galley.user"
+      withBinaryFile path ReadMode $ \handle -> do
+        runConduit $
+          sourceJsonLines handle
+            .| transPipe (runClient envGalley) (sinkRows insertGalleyUser)
+    else do
+      putStrLn $ "Skipping because not found: " <> path
+      pure ()
 
 -- galley.user_team
 
@@ -760,14 +942,23 @@ readGalleyUserTeamConduitAll Env {..} =
   transPipe (runClient envGalley) $
     paginateC selectGalleyUserTeamAll (paramsP Quorum () envPageSize) x5
 
-insertGalleyUserTeam :: Env -> FilePath -> IO ()
-insertGalleyUserTeam _ _ = do
-  -- TODO:
-  -- if file does not exist, do nothing.
-  -- otherwise, read lines from file;
-  -- parse each as 'RowGalleyUserTeam';
-  -- run Client action on each.
-  pure ()
+insertGalleyUserTeam :: PrepQuery W RowGalleyUserTeam ()
+insertGalleyUserTeam =
+  "INSERT INTO user_team (user, team) VALUES (?, ?)"
+
+importGalleyUserTeam :: Env -> FilePath -> IO ()
+importGalleyUserTeam Env {..} path = do
+  exists <- doesFileExist path
+  if exists
+    then do
+      putStrLn $ "Importing " <> path <> " to " <> "galley.user_team"
+      withBinaryFile path ReadMode $ \handle -> do
+        runConduit $
+          sourceJsonLines handle
+            .| transPipe (runClient envGalley) (sinkRows insertGalleyUserTeam)
+    else do
+      putStrLn $ "Skipping because not found: " <> path
+      pure ()
 
 -- gundeck.notifications
 
@@ -795,14 +986,23 @@ readGundeckNotificationsConduitAll Env {..} =
   transPipe (runClient envGundeck) $
     paginateC selectGundeckNotificationsAll (paramsP Quorum () envPageSize) x5
 
-insertGundeckNotifications :: Env -> FilePath -> IO ()
-insertGundeckNotifications _ _ = do
-  -- TODO:
-  -- if file does not exist, do nothing.
-  -- otherwise, read lines from file;
-  -- parse each as 'RowGundeckNotifications';
-  -- run Client action on each.
-  pure ()
+insertGundeckNotifications :: PrepQuery W RowGundeckNotifications ()
+insertGundeckNotifications =
+  "INSERT INTO notifications (user, id, clients, payload) VALUES (?, ?, ?, ?)"
+
+importGundeckNotifications :: Env -> FilePath -> IO ()
+importGundeckNotifications Env {..} path = do
+  exists <- doesFileExist path
+  if exists
+    then do
+      putStrLn $ "Importing " <> path <> " to " <> "gundeck.notifications"
+      withBinaryFile path ReadMode $ \handle -> do
+        runConduit $
+          sourceJsonLines handle
+            .| transPipe (runClient envGundeck) (sinkRows insertGundeckNotifications)
+    else do
+      putStrLn $ "Skipping because not found: " <> path
+      pure ()
 
 -- spar.scim_user_times
 
@@ -830,37 +1030,46 @@ readSparScimUserTimesConduitAll Env {..} =
   transPipe (runClient envSpar) $
     paginateC selectSparScimUserTimesAll (paramsP Quorum () envPageSize) x5
 
-insertSparScimUserTimes :: Env -> FilePath -> IO ()
-insertSparScimUserTimes _ _ = do
-  -- TODO:
-  -- if file does not exist, do nothing.
-  -- otherwise, read lines from file;
-  -- parse each as 'RowSparScimUserTimes';
-  -- run Client action on each.
-  pure ()
+insertSparScimUserTimes :: PrepQuery W RowSparScimUserTimes ()
+insertSparScimUserTimes =
+  "INSERT INTO scim_user_times (uid, created_at, last_updated_at) VALUES (?, ?, ?)"
 
-insertAllTables :: Env -> IO ()
-insertAllTables env = do
-  insertBrigClients env "brig.clients"
-  insertBrigConnection env "brig.connection"
-  insertBrigIdMapping env "brig.id_mapping"
-  insertBrigLoginCodes env "brig.login_codes"
-  insertBrigPasswordReset env "brig.password_reset"
-  insertBrigPrekeys env "brig.prekeys"
-  insertBrigProperties env "brig.properties"
-  insertBrigRichInfo env "brig.rich_info"
-  insertBrigUser env "brig.user"
-  insertBrigUserHandle env "brig.user_handle"
-  insertGalleyBillingTeamMember env "galley.billing_team_member"
-  insertGalleyClients env "galley.clients"
-  insertGalleyConversation env "galley.conversation"
-  insertGalleyMember env "galley.member"
-  insertGalleyTeam env "galley.team"
-  insertGalleyTeamConv env "galley.team_conv"
-  insertGalleyTeamFeatures env "galley.team_features"
-  insertGalleyTeamMember env "galley.team_member"
-  insertGalleyTeamNotifications env "galley.team_notifications"
-  insertGalleyUser env "galley.user"
-  insertGalleyUserTeam env "galley.user_team"
-  insertGundeckNotifications env "gundeck.notifications"
-  insertSparScimUserTimes env "spar.scim_user_times"
+importSparScimUserTimes :: Env -> FilePath -> IO ()
+importSparScimUserTimes Env {..} path = do
+  exists <- doesFileExist path
+  if exists
+    then do
+      putStrLn $ "Importing " <> path <> " to " <> "spar.scim_user_times"
+      withBinaryFile path ReadMode $ \handle -> do
+        runConduit $
+          sourceJsonLines handle
+            .| transPipe (runClient envSpar) (sinkRows insertSparScimUserTimes)
+    else do
+      putStrLn $ "Skipping because not found: " <> path
+      pure ()
+
+importAllTables :: Env -> IO ()
+importAllTables env@Env {..} = do
+  importBrigClients env (envTargetPath </> "brig.clients")
+  importBrigConnection env (envTargetPath </> "brig.connection")
+  importBrigIdMapping env (envTargetPath </> "brig.id_mapping")
+  importBrigLoginCodes env (envTargetPath </> "brig.login_codes")
+  importBrigPasswordReset env (envTargetPath </> "brig.password_reset")
+  importBrigPrekeys env (envTargetPath </> "brig.prekeys")
+  importBrigProperties env (envTargetPath </> "brig.properties")
+  importBrigRichInfo env (envTargetPath </> "brig.rich_info")
+  importBrigUser env (envTargetPath </> "brig.user")
+  importBrigUserHandle env (envTargetPath </> "brig.user_handle")
+  importGalleyBillingTeamMember env (envTargetPath </> "galley.billing_team_member")
+  importGalleyClients env (envTargetPath </> "galley.clients")
+  importGalleyConversation env (envTargetPath </> "galley.conversation")
+  importGalleyMember env (envTargetPath </> "galley.member")
+  importGalleyTeam env (envTargetPath </> "galley.team")
+  importGalleyTeamConv env (envTargetPath </> "galley.team_conv")
+  importGalleyTeamFeatures env (envTargetPath </> "galley.team_features")
+  importGalleyTeamMember env (envTargetPath </> "galley.team_member")
+  importGalleyTeamNotifications env (envTargetPath </> "galley.team_notifications")
+  importGalleyUser env (envTargetPath </> "galley.user")
+  importGalleyUserTeam env (envTargetPath </> "galley.user_team")
+  importGundeckNotifications env (envTargetPath </> "gundeck.notifications")
+  importSparScimUserTimes env (envTargetPath </> "spar.scim_user_times")

@@ -19,7 +19,8 @@
 
 module Main
   ( main,
-    debugMain,
+    debugMainExport,
+    debugMainImport,
   )
 where
 
@@ -27,6 +28,7 @@ import Cassandra as C
 import Cassandra.Settings as C
 import Control.Lens hiding ((.=))
 import Data.Id (Id (Id))
+import Data.UUID
 import Imports
 import Options as O
 import Options.Applicative
@@ -42,11 +44,20 @@ main :: IO ()
 main = do
   s <- execParser (info (helper <*> settingsParser) desc)
   lgr <- initLogger
-  bc <- initCas (s ^. setCasBrig) lgr
-  gc <- initCas (s ^. setCasGalley) lgr
-  sc <- initCas (s ^. setCasSpar) lgr
-  gunC <- initCas (s ^. setCasGundeck) lgr
-  runCommand $ Env lgr bc gc sc gunC (s ^. setTargetPath) (Id $ s ^. setTeamId) 100
+  case s of
+    Export teamid targetPath connSettings -> do
+      bc <- initCas (connSettings ^. setCasBrig) lgr
+      gc <- initCas (connSettings ^. setCasGalley) lgr
+      sc <- initCas (connSettings ^. setCasSpar) lgr
+      gunC <- initCas (connSettings ^. setCasGundeck) lgr
+      runExport $ Env lgr bc gc sc gunC targetPath (Id teamid) 100
+    Import sourcePath connSettings -> do
+      bc <- initCas (connSettings ^. setCasBrig) lgr
+      gc <- initCas (connSettings ^. setCasGalley) lgr
+      sc <- initCas (connSettings ^. setCasSpar) lgr
+      gunC <- initCas (connSettings ^. setCasGundeck) lgr
+      let dummyTeamId :: UUID = fromJust $ Data.UUID.fromString "c2cc10e1-57d6-4b6f-9899-38d972112d8c"
+      runImport $ Env lgr bc gc sc gunC sourcePath (Id dummyTeamId) 100
   where
     desc =
       header "service-backfill"
@@ -67,13 +78,25 @@ main = do
         . C.setProtocolVersion C.V4
         $ C.defSettings
 
-debugMain :: IO ()
-debugMain = do
+debugMainExport :: IO ()
+debugMainExport = do
   let dir = "/tmp/full-backup"
+  void $ system $ "rm -rf " <> dir
   withArgs
-    [ "--teamid",
+    [ "export",
+      "--teamid",
       "e8cd3353-3c4c-4ced-807b-3a7a571cb6cf",
       "--target-path",
+      dir
+    ]
+    main
+
+debugMainImport :: IO ()
+debugMainImport = do
+  let dir = "/home/stefan/full-backup"
+  withArgs
+    [ "import",
+      "--source-path",
       dir
     ]
     main

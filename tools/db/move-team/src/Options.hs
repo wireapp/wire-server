@@ -23,12 +23,11 @@ module Options
     setCasGalley,
     setCasSpar,
     setCasGundeck,
-    setTargetPath,
-    setTeamId,
     cHosts,
     cPort,
     cKeyspace,
     settingsParser,
+    CommandSettings (..),
   )
 where
 
@@ -39,16 +38,6 @@ import Data.UUID
 import Imports
 import Options.Applicative
 
-data MigratorSettings = MigratorSettings
-  { _setCasBrig :: !CassandraSettings,
-    _setCasGalley :: !CassandraSettings,
-    _setCasSpar :: !CassandraSettings,
-    _setCasGundeck :: !CassandraSettings,
-    _setTargetPath :: !String,
-    _setTeamId :: !UUID
-  }
-  deriving (Show)
-
 data CassandraSettings = CassandraSettings
   { _cHosts :: !String,
     _cPort :: !Word16,
@@ -56,31 +45,67 @@ data CassandraSettings = CassandraSettings
   }
   deriving (Show)
 
-makeLenses ''MigratorSettings
+data ConnectionSettings = ConnectionSettings
+  { _setCasBrig :: !CassandraSettings,
+    _setCasGalley :: !CassandraSettings,
+    _setCasSpar :: !CassandraSettings,
+    _setCasGundeck :: !CassandraSettings
+  }
+  deriving (Show)
+
+data CommandSettings
+  = Export !UUID !FilePath !ConnectionSettings
+  | Import !FilePath !ConnectionSettings
+
+makeLenses ''ConnectionSettings
 
 makeLenses ''CassandraSettings
 
-settingsParser :: Parser MigratorSettings
-settingsParser =
-  MigratorSettings
+connectionParser :: Parser ConnectionSettings
+connectionParser =
+  ConnectionSettings
     <$> cassandraSettingsParser "brig"
     <*> cassandraSettingsParser "galley"
     <*> cassandraSettingsParser "spar"
     <*> cassandraSettingsParser "gundeck"
-    <*> strOption
-      ( long "target-path"
-          <> metavar "SINK"
-          <> help "Sink file"
-          <> value "/tmp/export-team/"
-          <> showDefault
-      )
-    <*> ( parseUUID
-            <$> strOption
-              ( long "teamid"
-                  <> metavar "TEAMID"
-                  <> help "team id"
-              )
-        )
+
+settingsParser :: Parser CommandSettings
+settingsParser =
+  subparser
+    ( command "export" (info (helper <*> exportParser) fullDesc)
+        <> command "import" (info (helper <*> importParser) fullDesc)
+    )
+  where
+    exportParser :: Parser CommandSettings
+    exportParser =
+      Export
+        <$> ( parseUUID
+                <$> strOption
+                  ( long "teamid"
+                      <> metavar "TEAMID"
+                      <> help "team id"
+                  )
+            )
+        <*> strOption
+          ( long "target-path"
+              <> metavar "PATH"
+              <> help "Directory for export files"
+              <> value "/tmp/export-team/"
+              <> showDefault
+          )
+        <*> connectionParser
+
+    importParser :: Parser CommandSettings
+    importParser =
+      Import
+        <$> strOption
+          ( long "source-path"
+              <> metavar "PATH"
+              <> help "Directory with exported files"
+              <> value "/tmp/export-team/"
+              <> showDefault
+          )
+        <*> connectionParser
 
 cassandraSettingsParser :: String -> Parser CassandraSettings
 cassandraSettingsParser ks =
