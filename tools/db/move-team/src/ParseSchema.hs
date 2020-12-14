@@ -297,112 +297,142 @@ main = do
         (TIO.hPutStr out . renderMustache template)
           ( object
               [ "chunkTable"
-                  .= [ -- mkChunkUsers "brig" "activation_keys",
-                       -- "brig" "blacklist"
-                       -- "brig" "budget"
-                       -- PRIMARY KEY (user, client)
+                  .= [ -- brig.activation_keys,
+                       -- brig.blacklist
+                       -- brig.budget
+                       -- brig.clients
+                       --   PRIMARY KEY (user, client)
                        mkChunkUsers "brig" "clients",
-                       -- mkChunkUsers "brig" "codes",
-                       -- PRIMARY KEY (left, right) -- TODO: is this symmetric? At first glance it looks like yes
+                       -- brig.codes
+                       -- brig.connection
+                       --   PRIMARY KEY (left, right)
+                       --   TODO: is this symmetric? At first glance it looks like yes
                        mkChunk' "brig" "connection" "[UserId]" "uids" "left in ?",
-                       -- "brig" "excluded_phones",
-                       -- PRIMARY KEY (mapped_id) -- TODO: is mapped_id a user id?
+                       -- brig.excluded_phones
+                       --   PRIMARY KEY (mapped_id)
+                       --   TODO: is mapped_id a user id?
                        mkChunk' "brig" "id_mapping" "[UserId]" "uids" "mapped_id in ?",
-                       -- mkChunk' "brig" "invitation" "[UserId]" "uids" "inviter in ?",
-                       -- mkChunk' "brig" "invitation_info" "[UserId]" "uids" "inviter in ?",
-                       -- mkChunk createTables "brig" "invitee_info" "[UserId]" "uids" "invitee in ? OR inviter in ?" "([UserId], [UserId])" "(uids, uids)",
-                       -- PRIMARY KEY (user)
-                       mkChunkUsers "brig" "login_codes", -- TODO: do we need this?
-                       -- "brig" "meta",
-                       -- PRIMARY KEY(key) -- TODO: do we need this? can we do better than a full table scan?
+                       -- brig.invitation
+                       --   mkChunk' "brig" "invitation" "[UserId]" "uids" "inviter in ?",
+                       -- brig.invitation_info
+                       --   mkChunk' "brig" "invitation_info" "[UserId]" "uids" "inviter in ?",
+                       --   mkChunk createTables "brig" "invitee_info" "[UserId]" "uids" "invitee in ? OR inviter in ?" "([UserId], [UserId])" "(uids, uids)",
+                       -- brig.login_codes
+                       --   PRIMARY KEY (user)
+                       --   TODO: do we need this?
+                       mkChunkUsers "brig" "login_codes",
+                       -- brig.meta
+                       -- brig.password_reset
+                       --   PRIMARY KEY(key)
+                       --   TODO: do we need this? can we do better than a full table scan?
                        mkChunk' "brig" "password_reset" "[PasswordResetKey]" "reset_keys" "key in ?",
-                       -- PRIMARY KEY (user, client, key)
-                       mkChunkUsers "brig" "prekeys", -- TODO: do new need this ?
-                       -- PRIMARY KEY (user, key)
+                       -- brig.prekeys
+                       --   PRIMARY KEY (user, client, key)
+                       --   TODO: do new need this ?
+                       mkChunkUsers "brig" "prekeys",
+                       -- brig.properties
+                       --   PRIMARY KEY (user, key)
                        mkChunkUsers "brig" "properties",
-                       -- "brig" "provider",
-                       -- "brig" "provider_keys",
-                       -- PRIMARY KEY (user)
+                       -- brig.provider
+                       -- brig.provider_keys,
+                       -- brig.rich_info
+                       --   PRIMARY KEY (user)
                        mkChunkUsers "brig" "rich_info",
-                       -- "brig" "service"
-                       -- "brig" "service_prefix"
-                       -- "brig" "service_tag"
-                       -- "brig" "service_team"
-                       -- "brig" "service_user"
-                       -- "brig" "service_whitelist"
-                       -- "brig" "service_whitelist_rev"
-                       -- mkChunkTeam "brig" "team_invitation",
-                       -- mkChunkTeam "brig" "team_invitation_email",
-                       -- mkChunk' "brig" "team_invitation_info" "[UserId]" "uids" "inviter in ?",
-                       -- "brig" "unique_claims"
-                       -- PRIMARY KEY (id)
+                       -- brig.service
+                       -- brig.service_prefix
+                       -- brig.service_tag
+                       -- brig.service_team
+                       -- brig.service_user
+                       -- brig.service_whitelist
+                       -- brig.service_whitelist_rev
+                       -- brig.team_invitation
+                       -- brig.team_invitation_email
+                       -- brig.team_invitation_info
+                       -- brig.unique_claims
+                       -- brig.user
+                       --   PRIMARY KEY (id)
                        mkChunk' "brig" "user" "[UserId]" "uids" "id in ?",
-                       -- mkChunkUsers "brig" "user_cookies",
-                       -- PRIMARY KEY (handle :: text) -- TODO: can we do better than a full table scan?
+                       -- brig.user_cookies
+                       -- brig.user_handle
+                       --   PRIMARY KEY (handle :: text)
+                       --   TODO: can we do better than a full table scan?
                        mkChunk' "brig" "user_handle" "[Handle]" "handles" "handle in ?",
-                       -- brig.user_keys: TODO: do we need it?  can we do better than a full table scan?
-                       -- PRIMARY KEY (key :: text)
-                       -- See Brig.Data.UserKey
+                       -- brig.user_keys:
+                       --   PRIMARY KEY (key :: text) (Brig.Data.UserKey)
+                       --   TODO: do we need it?  can we do better than a full table scan?
                        mkChunk' "brig" "user_keys" "[Int32]" "keys" "key in ?",
-                       --
-                       -- brig.user_keys_hash -- TODO: do we need it? can we do better than a full table scan?
-                       -- mkChunk' "brig" "user_keys_hash" "[UserKeyHash]" "keys" "key in ?"
+                       -- brig.user_keys_hash
+                       --   TODO: do we need it?
+                       --   can we do better than a full table scan?
+                       --   mkChunk' "brig" "user_keys_hash" "[UserKeyHash]" "keys" "key in ?"
                        mkChunk' "brig" "user_keys_hash" "[Int32]" "keys" "key in ?",
-                       -- "brig" "vcodes"
-                       -- PRIMARY KEY (team, user)
+                       -- brig.vcodes
+                       -- galley.billing_team_member
+                       --   PRIMARY KEY (team, user)
                        mkChunkTeam "galley" "billing_team_member",
-                       -- PRIMARY KEY (user)
+                       -- galley.clients
+                       --   PRIMARY KEY (user)
                        mkChunkUsers "galley" "clients",
-                       -- PRIMARY KEY (conv)
+                       -- galley.conversation
+                       --   PRIMARY KEY (conv)
                        mkChunk' "galley" "conversation" "[ConvId]" "cids" "conv in ?",
-                       -- "galley" "conversation_codes",
-                       -- "galley" "custom_backend",
-                       -- "galley" "data_migration",
-                       -- "galley" "id_mapping",
-                       -- mkChunkUsers "galley" "legalhold_pending_prekeys",
-                       -- mkChunkTeam "galley" "legalhold_service",
-                       -- PRIMARY KEY (conv, user)
+                       -- galley.conversation_codes
+                       -- galley.custom_backend
+                       -- galley.data_migration
+                       -- galley.id_mapping
+                       -- galley.legalhold_pending_prekeys
+                       -- galley.legalhold_pending_prekeys,
+                       -- galley.legalhold_service,
+                       -- galley.member
+                       --   PRIMARY KEY (conv, user)
                        mkChunk' "galley" "member" "[ConvId]" "cids" "conv in ?",
-                       -- "galley" "meta"
-                       -- "galley" "service"
-                       -- PRIMARY KEY (team)
+                       -- galley.meta
+                       -- galley.service
+                       -- galley.team
+                       --   PRIMARY KEY (team)
                        mkChunkTeam "galley" "team",
-                       -- PRIMARY KEY (team, conv)
+                       -- galley.team_conv
+                       --   PRIMARY KEY (team, conv)
                        mkChunkTeam "galley" "team_conv",
-                       -- PRIMARY KEY (team_id)
+                       -- galley.team_features
+                       --   PRIMARY KEY (team_id)
                        mkChunk' "galley" "team_features" "TeamId" "tid" "team_id = ?",
-                       -- PRIMARY KEY (team, user)
+                       -- galley.team_member
+                       --   PRIMARY KEY (team, user)
                        mkChunkTeam "galley" "team_member",
-                       -- PRIMARY KEY (team, id)
+                       -- galley.team_notifications
+                       --   PRIMARY KEY (team, id)
                        mkChunkTeam "galley" "team_notifications",
-                       -- PRIMARY KEY (user, conv)
+                       -- galley.user
+                       --   PRIMARY KEY (user, conv)
                        mkChunkUsers "galley" "user",
-                       -- PRIMARY KEY (user, team)
+                       -- galley.user_team
+                       --   PRIMARY KEY (user, team)
                        mkChunkUsers "galley" "user_team",
-                       -- "gundeck" "meta",
-                       -- PRIMARY KEY (user, id)
+                       -- gundeck.met
+                       --   PRIMARY KEY (user, id)
                        mkChunkUsers "gundeck" "notifications",
-                       -- mkChunk' "gundeck" "push" "[UserId]" "uids" "usr in ?",
-                       -- mkChunk' "gundeck" "user_push" "[UserId]" "uids" "usr in ?",
-                       -- "spar" "authreq",
-                       -- "spar" "authresp",
-                       -- mkChunk' "spar" "bind_cookie" "[UserId]" "uids" "session_owner in ?",
-                       -- "spar" "default_idp"
-                       -- mkChunkTeam "spar" "idp",
-                       -- "spar" "idp_raw_metadata",
-                       -- "spar" "issuer_idp",
-                       -- "spar" "meta",
-                       -- "spar" "scim_external_ids"
-                       -- mkChunk' "spar" "scim_external_ids" "[Text]" "external" "external in ?",
-                       -- PRIMARY KEY (external :: text) -- TODO: can we do better than full table scan?
+                       -- gundeck.push
+                       -- gundeck.user_push
+                       -- spar.authreq
+                       -- spar.authresp
+                       -- spar.bind_cookie
+                       -- spar.default_idp
+                       -- spar.idp
+                       -- spar.idp_raw_metadata
+                       -- spar.issuer_idp
+                       -- spar.meta
+                       -- spar.scim_external_ids
+                       --   PRIMARY KEY (external :: text) -- TODO: can we do better than full table scan?
                        mkChunk' "spar" "scim_external_ids" "[Int32]" "external" "external in ?",
-                       -- PRIMARY KEY (uid)
+                       -- spar.scim_user_times
+                       --   PRIMARY KEY (uid)
                        mkChunk' "spar" "scim_user_times" "[UserId]" "uids" "uid in ?"
-                       -- mkChunkTeam "spar" "team_idp",
-                       -- mkChunkTeam "spar" "team_provisioning_by_team",
-                       -- mkChunkTeam "spar" "team_provisioning_by_token",
-                       -- mkChunkUsers "spar" "user"
-                       -- "spar" "verdict"
+                       -- spar.team_idp
+                       -- spar.team_provisioning_by_team
+                       -- spar.team_provisioning_by_token
+                       -- spar.user
+                       -- spar.verdict
                      ]
               ]
           )
