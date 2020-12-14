@@ -62,8 +62,7 @@ module Brig.App
     runAppResourceT,
     forkAppIO,
     locationOf,
-
-    viewFederationDomain
+    viewFederationDomain,
   )
 where
 
@@ -97,6 +96,7 @@ import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
 import Data.Default (def)
+import Data.Domain
 import qualified Data.GeoIP2 as GeoIp
 import Data.IP
 import Data.Id (UserId)
@@ -130,7 +130,6 @@ import qualified System.Logger.Class as LC
 import qualified System.Logger.Extended as Log
 import Util.Options
 import Wire.API.User.Identity (Email)
-import Data.Domain
 
 schemaVersion :: Int32
 schemaVersion = 61
