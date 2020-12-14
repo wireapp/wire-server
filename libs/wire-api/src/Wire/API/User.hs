@@ -76,17 +76,16 @@ module Wire.API.User
     module Wire.API.User.Profile,
 
     -- * Swagger
-    modelUserIdList,
-    modelSelf,
-    modelUser,
-    modelNewUser,
-    modelUserUpdate,
-    modelChangePassword,
-    modelChangeLocale,
-    modelEmailUpdate,
-    modelPhoneUpdate,
     modelChangeHandle,
+    modelChangeLocale,
+    modelChangePassword,
     modelDelete,
+    modelEmailUpdate,
+    modelNewUser,
+    modelPhoneUpdate,
+    modelUser,
+    modelUserIdList,
+    modelUserUpdate,
     modelVerifyDelete,
   )
 where
@@ -279,38 +278,6 @@ newtype SelfProfile = SelfProfile
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SelfProfile)
   deriving newtype (ToSchema)
-
-modelSelf :: Doc.Model
-modelSelf = Doc.defineModel "Self" $ do
-  Doc.description "Self Profile"
-  Doc.property "id" Doc.bytes' $
-    Doc.description "User ID"
-  Doc.property "name" Doc.string' $
-    Doc.description "Name"
-  Doc.property "assets" (Doc.array (Doc.ref modelAsset)) $
-    Doc.description "Profile assets"
-  Doc.property "email" Doc.string' $ do
-    Doc.description "Email address"
-    Doc.optional
-  Doc.property "phone" Doc.string' $ do
-    Doc.description "E.164 Phone number"
-    Doc.optional
-  Doc.property "accent_id" Doc.int32' $ do
-    Doc.description "Accent colour ID"
-    Doc.optional
-  Doc.property "locale" Doc.string' $
-    Doc.description "Locale in <ln-cc> format."
-  Doc.property "handle" Doc.string' $ do
-    Doc.description "Unique handle."
-    Doc.optional
-  Doc.property "deleted" Doc.bool' $ do
-    Doc.description "Whether the account has been deleted."
-    Doc.optional
-  Doc.property "managed_by" typeManagedBy $ do
-    Doc.description
-      "What is the source of truth for this user; if it's SCIM \
-      \then the profile can't be edited via normal means"
-    Doc.optional
 
 instance ToJSON SelfProfile where
   toJSON (SelfProfile u) = toJSON u

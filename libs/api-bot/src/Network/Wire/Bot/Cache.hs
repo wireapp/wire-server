@@ -87,7 +87,7 @@ toUser _ domain acc [i, e, p] = do
       pw
       User
         { userId = ui,
-          userQualifiedUser = Qualified ui domain,
+          userQualifiedId = Qualified ui domain,
           userDisplayName = Name $ "Fakebot-" <> Text.toStrict (Text.strip i),
           userPict = Pict [],
           userAssets = [],
