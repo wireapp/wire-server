@@ -28,7 +28,7 @@ module Types where
 
 import Cassandra
 import Data.Aeson (FromJSON (..), ToJSON (..), Value (String), withArray, withText)
-import Data.Aeson.Types (Value (Array, Null))
+import Data.Aeson.Types (Value (Array))
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Handle
 import Data.IP (IP (..))
@@ -59,8 +59,8 @@ data AssetIgnoreData = AssetIgnoreData
 instance {-# OVERLAPPING #-} FromJSON [AssetIgnoreData] where
   parseJSON _ = pure []
 
-instance ToJSON AssetIgnoreData where
-  toJSON _ = Null
+instance {-# OVERLAPPING #-} ToJSON [AssetIgnoreData] where
+  toJSON _ = Array $ V.fromList []
 
 instance Cql AssetIgnoreData where
   ctype =
