@@ -54,6 +54,11 @@ tests opts mgr galley brig = do
     testGroup "search" $
       [ testWithBothIndices opts mgr "by-name" $ testSearchByName brig,
         testWithBothIndices opts mgr "by-handle" $ testSearchByHandle brig,
+        testGroup "search by email" $
+          [ testWithBothIndices opts mgr "private account" $ testSearchByEmailPrivate brig,
+            testWithBothIndices opts mgr "different team" $ testSearchByEmailDifferentTeam brig,
+            testWithBothIndices opts mgr "same team" $ testSearchByEmailSameTeam brig
+          ],
         test mgr "reindex" $ testReindex brig,
         testWithBothIndices opts mgr "no match" $ testSearchNoMatch brig,
         testWithBothIndices opts mgr "no extra results" $ testSearchNoExtraResults brig,
@@ -143,6 +148,47 @@ testSearchByHandle brig = do
       uid2 = userId u2
       Just h = fromHandle <$> userHandle u1
   assertCanFind brig uid2 uid1 h
+
+testSearchByEmail :: TestConstraints m => Brig -> m (UserId, UserId) -> Bool -> m ()
+testSearchByEmail brig mkSearcherAndSearchee canFind = do
+  (searcher, searchee) <- mkSearcherAndSearchee
+  eml <- randomEmail
+  _ <- initiateEmailUpdate brig eml searchee
+  activateEmail brig eml
+  refreshIndex brig
+  let check = if canFind then assertCanFind else assertCan'tFind
+  check brig searcher searchee (emailLocal eml)
+  check brig searcher searchee (emailDomain eml <> emailLocal eml) -- (domain is always the same.)
+
+testSearchByEmailPrivate :: TestConstraints m => Brig -> m ()
+testSearchByEmailPrivate brig = do
+  let mkSearcherAndSearchee1 = do
+        u1 <- userId <$> randomUser brig
+        u2 <- userId <$> randomUser brig
+        pure (u1, u2)
+
+  let mkSearcherAndSearchee2 = do
+        u1 <- userId <$> randomUser brig
+        (_, _, [userId -> u2]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+        pure (u1, u2)
+
+  testSearchByEmail brig mkSearcherAndSearchee1 False
+  testSearchByEmail brig mkSearcherAndSearchee2 False
+
+testSearchByEmailDifferentTeam :: TestConstraints m => Brig -> m ()
+testSearchByEmailDifferentTeam brig = do
+  let mkSearcherAndSearchee = do
+        (_, _, [userId -> u1]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+        (_, _, [userId -> u2]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+        pure (u1, u2)
+  testSearchByEmail brig mkSearcherAndSearchee False
+
+testSearchByEmailSameTeam :: TestConstraints m => Brig -> m ()
+testSearchByEmailSameTeam brig = do
+  let mkSearcherAndSearchee = do
+        (_, _, fmap userId -> [u1, u2]) <- createPopulatedBindingTeamWithNamesAndHandles brig 2
+        pure (u1, u2)
+  testSearchByEmail brig mkSearcherAndSearchee True
 
 testSearchNoMatch :: TestConstraints m => Brig -> m ()
 testSearchNoMatch brig = do
