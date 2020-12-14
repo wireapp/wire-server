@@ -62,6 +62,14 @@ readBrigClientsConduitAll Env {..} =
   transPipe (runClient envBrig) $
     paginateC selectBrigClientsAll (paramsP Quorum () envPageSize) x5
 
+exportBrigClientsFull :: Env -> FilePath -> IO ()
+exportBrigClientsFull env@Env {..} path = do
+  putStrLn $ "Exporting " <> "brig.clients" <> " to " <> path
+  withBinaryFile path WriteMode $ \handle ->
+    runConduit $
+      readBrigClientsConduitAll env
+        .| sinkLines handle
+
 insertBrigClients :: PrepQuery W RowBrigClients ()
 insertBrigClients =
   "INSERT INTO clients (user, client, class, cookie, ip, label, lat, lon, model, tstamp, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -105,6 +113,14 @@ readBrigConnectionConduitAll :: Env -> ConduitM () [RowBrigConnection] IO ()
 readBrigConnectionConduitAll Env {..} =
   transPipe (runClient envBrig) $
     paginateC selectBrigConnectionAll (paramsP Quorum () envPageSize) x5
+
+exportBrigConnectionFull :: Env -> FilePath -> IO ()
+exportBrigConnectionFull env@Env {..} path = do
+  putStrLn $ "Exporting " <> "brig.connection" <> " to " <> path
+  withBinaryFile path WriteMode $ \handle ->
+    runConduit $
+      readBrigConnectionConduitAll env
+        .| sinkLines handle
 
 insertBrigConnection :: PrepQuery W RowBrigConnection ()
 insertBrigConnection =
@@ -150,6 +166,14 @@ readBrigIdMappingConduitAll Env {..} =
   transPipe (runClient envBrig) $
     paginateC selectBrigIdMappingAll (paramsP Quorum () envPageSize) x5
 
+exportBrigIdMappingFull :: Env -> FilePath -> IO ()
+exportBrigIdMappingFull env@Env {..} path = do
+  putStrLn $ "Exporting " <> "brig.id_mapping" <> " to " <> path
+  withBinaryFile path WriteMode $ \handle ->
+    runConduit $
+      readBrigIdMappingConduitAll env
+        .| sinkLines handle
+
 insertBrigIdMapping :: PrepQuery W RowBrigIdMapping ()
 insertBrigIdMapping =
   "INSERT INTO id_mapping (mapped_id, remote_domain, remote_id) VALUES (?, ?, ?)"
@@ -193,6 +217,14 @@ readBrigLoginCodesConduitAll :: Env -> ConduitM () [RowBrigLoginCodes] IO ()
 readBrigLoginCodesConduitAll Env {..} =
   transPipe (runClient envBrig) $
     paginateC selectBrigLoginCodesAll (paramsP Quorum () envPageSize) x5
+
+exportBrigLoginCodesFull :: Env -> FilePath -> IO ()
+exportBrigLoginCodesFull env@Env {..} path = do
+  putStrLn $ "Exporting " <> "brig.login_codes" <> " to " <> path
+  withBinaryFile path WriteMode $ \handle ->
+    runConduit $
+      readBrigLoginCodesConduitAll env
+        .| sinkLines handle
 
 insertBrigLoginCodes :: PrepQuery W RowBrigLoginCodes ()
 insertBrigLoginCodes =
@@ -238,6 +270,14 @@ readBrigPasswordResetConduitAll Env {..} =
   transPipe (runClient envBrig) $
     paginateC selectBrigPasswordResetAll (paramsP Quorum () envPageSize) x5
 
+exportBrigPasswordResetFull :: Env -> FilePath -> IO ()
+exportBrigPasswordResetFull env@Env {..} path = do
+  putStrLn $ "Exporting " <> "brig.password_reset" <> " to " <> path
+  withBinaryFile path WriteMode $ \handle ->
+    runConduit $
+      readBrigPasswordResetConduitAll env
+        .| sinkLines handle
+
 insertBrigPasswordReset :: PrepQuery W RowBrigPasswordReset ()
 insertBrigPasswordReset =
   "INSERT INTO password_reset (key, code, retries, timeout, user) VALUES (?, ?, ?, ?, ?)"
@@ -281,6 +321,14 @@ readBrigPrekeysConduitAll :: Env -> ConduitM () [RowBrigPrekeys] IO ()
 readBrigPrekeysConduitAll Env {..} =
   transPipe (runClient envBrig) $
     paginateC selectBrigPrekeysAll (paramsP Quorum () envPageSize) x5
+
+exportBrigPrekeysFull :: Env -> FilePath -> IO ()
+exportBrigPrekeysFull env@Env {..} path = do
+  putStrLn $ "Exporting " <> "brig.prekeys" <> " to " <> path
+  withBinaryFile path WriteMode $ \handle ->
+    runConduit $
+      readBrigPrekeysConduitAll env
+        .| sinkLines handle
 
 insertBrigPrekeys :: PrepQuery W RowBrigPrekeys ()
 insertBrigPrekeys =
@@ -326,6 +374,14 @@ readBrigPropertiesConduitAll Env {..} =
   transPipe (runClient envBrig) $
     paginateC selectBrigPropertiesAll (paramsP Quorum () envPageSize) x5
 
+exportBrigPropertiesFull :: Env -> FilePath -> IO ()
+exportBrigPropertiesFull env@Env {..} path = do
+  putStrLn $ "Exporting " <> "brig.properties" <> " to " <> path
+  withBinaryFile path WriteMode $ \handle ->
+    runConduit $
+      readBrigPropertiesConduitAll env
+        .| sinkLines handle
+
 insertBrigProperties :: PrepQuery W RowBrigProperties ()
 insertBrigProperties =
   "INSERT INTO properties (user, key, value) VALUES (?, ?, ?)"
@@ -369,6 +425,14 @@ readBrigRichInfoConduitAll :: Env -> ConduitM () [RowBrigRichInfo] IO ()
 readBrigRichInfoConduitAll Env {..} =
   transPipe (runClient envBrig) $
     paginateC selectBrigRichInfoAll (paramsP Quorum () envPageSize) x5
+
+exportBrigRichInfoFull :: Env -> FilePath -> IO ()
+exportBrigRichInfoFull env@Env {..} path = do
+  putStrLn $ "Exporting " <> "brig.rich_info" <> " to " <> path
+  withBinaryFile path WriteMode $ \handle ->
+    runConduit $
+      readBrigRichInfoConduitAll env
+        .| sinkLines handle
 
 insertBrigRichInfo :: PrepQuery W RowBrigRichInfo ()
 insertBrigRichInfo =
@@ -414,6 +478,14 @@ readBrigUserConduitAll Env {..} =
   transPipe (runClient envBrig) $
     paginateC selectBrigUserAll (paramsP Quorum () envPageSize) x5
 
+exportBrigUserFull :: Env -> FilePath -> IO ()
+exportBrigUserFull env@Env {..} path = do
+  putStrLn $ "Exporting " <> "brig.user" <> " to " <> path
+  withBinaryFile path WriteMode $ \handle ->
+    runConduit $
+      readBrigUserConduitAll env
+        .| sinkLines handle
+
 insertBrigUser :: PrepQuery W RowBrigUser ()
 insertBrigUser =
   "INSERT INTO user (id, accent, accent_id, activated, assets, country, email, expires, handle, language, managed_by, name, password, phone, picture, provider, searchable, service, sso_id, status, team) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -457,6 +529,14 @@ readBrigUserHandleConduitAll :: Env -> ConduitM () [RowBrigUserHandle] IO ()
 readBrigUserHandleConduitAll Env {..} =
   transPipe (runClient envBrig) $
     paginateC selectBrigUserHandleAll (paramsP Quorum () envPageSize) x5
+
+exportBrigUserHandleFull :: Env -> FilePath -> IO ()
+exportBrigUserHandleFull env@Env {..} path = do
+  putStrLn $ "Exporting " <> "brig.user_handle" <> " to " <> path
+  withBinaryFile path WriteMode $ \handle ->
+    runConduit $
+      readBrigUserHandleConduitAll env
+        .| sinkLines handle
 
 insertBrigUserHandle :: PrepQuery W RowBrigUserHandle ()
 insertBrigUserHandle =
@@ -502,6 +582,14 @@ readGalleyBillingTeamMemberConduitAll Env {..} =
   transPipe (runClient envGalley) $
     paginateC selectGalleyBillingTeamMemberAll (paramsP Quorum () envPageSize) x5
 
+exportGalleyBillingTeamMemberFull :: Env -> FilePath -> IO ()
+exportGalleyBillingTeamMemberFull env@Env {..} path = do
+  putStrLn $ "Exporting " <> "galley.billing_team_member" <> " to " <> path
+  withBinaryFile path WriteMode $ \handle ->
+    runConduit $
+      readGalleyBillingTeamMemberConduitAll env
+        .| sinkLines handle
+
 insertGalleyBillingTeamMember :: PrepQuery W RowGalleyBillingTeamMember ()
 insertGalleyBillingTeamMember =
   "INSERT INTO billing_team_member (team, user) VALUES (?, ?)"
@@ -545,6 +633,14 @@ readGalleyClientsConduitAll :: Env -> ConduitM () [RowGalleyClients] IO ()
 readGalleyClientsConduitAll Env {..} =
   transPipe (runClient envGalley) $
     paginateC selectGalleyClientsAll (paramsP Quorum () envPageSize) x5
+
+exportGalleyClientsFull :: Env -> FilePath -> IO ()
+exportGalleyClientsFull env@Env {..} path = do
+  putStrLn $ "Exporting " <> "galley.clients" <> " to " <> path
+  withBinaryFile path WriteMode $ \handle ->
+    runConduit $
+      readGalleyClientsConduitAll env
+        .| sinkLines handle
 
 insertGalleyClients :: PrepQuery W RowGalleyClients ()
 insertGalleyClients =
@@ -590,6 +686,14 @@ readGalleyConversationConduitAll Env {..} =
   transPipe (runClient envGalley) $
     paginateC selectGalleyConversationAll (paramsP Quorum () envPageSize) x5
 
+exportGalleyConversationFull :: Env -> FilePath -> IO ()
+exportGalleyConversationFull env@Env {..} path = do
+  putStrLn $ "Exporting " <> "galley.conversation" <> " to " <> path
+  withBinaryFile path WriteMode $ \handle ->
+    runConduit $
+      readGalleyConversationConduitAll env
+        .| sinkLines handle
+
 insertGalleyConversation :: PrepQuery W RowGalleyConversation ()
 insertGalleyConversation =
   "INSERT INTO conversation (conv, access, access_role, creator, deleted, message_timer, name, receipt_mode, team, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -633,6 +737,14 @@ readGalleyMemberConduitAll :: Env -> ConduitM () [RowGalleyMember] IO ()
 readGalleyMemberConduitAll Env {..} =
   transPipe (runClient envGalley) $
     paginateC selectGalleyMemberAll (paramsP Quorum () envPageSize) x5
+
+exportGalleyMemberFull :: Env -> FilePath -> IO ()
+exportGalleyMemberFull env@Env {..} path = do
+  putStrLn $ "Exporting " <> "galley.member" <> " to " <> path
+  withBinaryFile path WriteMode $ \handle ->
+    runConduit $
+      readGalleyMemberConduitAll env
+        .| sinkLines handle
 
 insertGalleyMember :: PrepQuery W RowGalleyMember ()
 insertGalleyMember =
@@ -678,6 +790,14 @@ readGalleyTeamConduitAll Env {..} =
   transPipe (runClient envGalley) $
     paginateC selectGalleyTeamAll (paramsP Quorum () envPageSize) x5
 
+exportGalleyTeamFull :: Env -> FilePath -> IO ()
+exportGalleyTeamFull env@Env {..} path = do
+  putStrLn $ "Exporting " <> "galley.team" <> " to " <> path
+  withBinaryFile path WriteMode $ \handle ->
+    runConduit $
+      readGalleyTeamConduitAll env
+        .| sinkLines handle
+
 insertGalleyTeam :: PrepQuery W RowGalleyTeam ()
 insertGalleyTeam =
   "INSERT INTO team (team, binding, creator, deleted, icon, icon_key, name, search_visibility, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -721,6 +841,14 @@ readGalleyTeamConvConduitAll :: Env -> ConduitM () [RowGalleyTeamConv] IO ()
 readGalleyTeamConvConduitAll Env {..} =
   transPipe (runClient envGalley) $
     paginateC selectGalleyTeamConvAll (paramsP Quorum () envPageSize) x5
+
+exportGalleyTeamConvFull :: Env -> FilePath -> IO ()
+exportGalleyTeamConvFull env@Env {..} path = do
+  putStrLn $ "Exporting " <> "galley.team_conv" <> " to " <> path
+  withBinaryFile path WriteMode $ \handle ->
+    runConduit $
+      readGalleyTeamConvConduitAll env
+        .| sinkLines handle
 
 insertGalleyTeamConv :: PrepQuery W RowGalleyTeamConv ()
 insertGalleyTeamConv =
@@ -766,6 +894,14 @@ readGalleyTeamFeaturesConduitAll Env {..} =
   transPipe (runClient envGalley) $
     paginateC selectGalleyTeamFeaturesAll (paramsP Quorum () envPageSize) x5
 
+exportGalleyTeamFeaturesFull :: Env -> FilePath -> IO ()
+exportGalleyTeamFeaturesFull env@Env {..} path = do
+  putStrLn $ "Exporting " <> "galley.team_features" <> " to " <> path
+  withBinaryFile path WriteMode $ \handle ->
+    runConduit $
+      readGalleyTeamFeaturesConduitAll env
+        .| sinkLines handle
+
 insertGalleyTeamFeatures :: PrepQuery W RowGalleyTeamFeatures ()
 insertGalleyTeamFeatures =
   "INSERT INTO team_features (team_id, digital_signatures, legalhold_status, search_visibility_status, sso_status, validate_saml_emails) VALUES (?, ?, ?, ?, ?, ?)"
@@ -809,6 +945,14 @@ readGalleyTeamMemberConduitAll :: Env -> ConduitM () [RowGalleyTeamMember] IO ()
 readGalleyTeamMemberConduitAll Env {..} =
   transPipe (runClient envGalley) $
     paginateC selectGalleyTeamMemberAll (paramsP Quorum () envPageSize) x5
+
+exportGalleyTeamMemberFull :: Env -> FilePath -> IO ()
+exportGalleyTeamMemberFull env@Env {..} path = do
+  putStrLn $ "Exporting " <> "galley.team_member" <> " to " <> path
+  withBinaryFile path WriteMode $ \handle ->
+    runConduit $
+      readGalleyTeamMemberConduitAll env
+        .| sinkLines handle
 
 insertGalleyTeamMember :: PrepQuery W RowGalleyTeamMember ()
 insertGalleyTeamMember =
@@ -854,6 +998,14 @@ readGalleyTeamNotificationsConduitAll Env {..} =
   transPipe (runClient envGalley) $
     paginateC selectGalleyTeamNotificationsAll (paramsP Quorum () envPageSize) x5
 
+exportGalleyTeamNotificationsFull :: Env -> FilePath -> IO ()
+exportGalleyTeamNotificationsFull env@Env {..} path = do
+  putStrLn $ "Exporting " <> "galley.team_notifications" <> " to " <> path
+  withBinaryFile path WriteMode $ \handle ->
+    runConduit $
+      readGalleyTeamNotificationsConduitAll env
+        .| sinkLines handle
+
 insertGalleyTeamNotifications :: PrepQuery W RowGalleyTeamNotifications ()
 insertGalleyTeamNotifications =
   "INSERT INTO team_notifications (team, id, payload) VALUES (?, ?, ?)"
@@ -897,6 +1049,14 @@ readGalleyUserConduitAll :: Env -> ConduitM () [RowGalleyUser] IO ()
 readGalleyUserConduitAll Env {..} =
   transPipe (runClient envGalley) $
     paginateC selectGalleyUserAll (paramsP Quorum () envPageSize) x5
+
+exportGalleyUserFull :: Env -> FilePath -> IO ()
+exportGalleyUserFull env@Env {..} path = do
+  putStrLn $ "Exporting " <> "galley.user" <> " to " <> path
+  withBinaryFile path WriteMode $ \handle ->
+    runConduit $
+      readGalleyUserConduitAll env
+        .| sinkLines handle
 
 insertGalleyUser :: PrepQuery W RowGalleyUser ()
 insertGalleyUser =
@@ -942,6 +1102,14 @@ readGalleyUserTeamConduitAll Env {..} =
   transPipe (runClient envGalley) $
     paginateC selectGalleyUserTeamAll (paramsP Quorum () envPageSize) x5
 
+exportGalleyUserTeamFull :: Env -> FilePath -> IO ()
+exportGalleyUserTeamFull env@Env {..} path = do
+  putStrLn $ "Exporting " <> "galley.user_team" <> " to " <> path
+  withBinaryFile path WriteMode $ \handle ->
+    runConduit $
+      readGalleyUserTeamConduitAll env
+        .| sinkLines handle
+
 insertGalleyUserTeam :: PrepQuery W RowGalleyUserTeam ()
 insertGalleyUserTeam =
   "INSERT INTO user_team (user, team) VALUES (?, ?)"
@@ -985,6 +1153,14 @@ readGundeckNotificationsConduitAll :: Env -> ConduitM () [RowGundeckNotification
 readGundeckNotificationsConduitAll Env {..} =
   transPipe (runClient envGundeck) $
     paginateC selectGundeckNotificationsAll (paramsP Quorum () envPageSize) x5
+
+exportGundeckNotificationsFull :: Env -> FilePath -> IO ()
+exportGundeckNotificationsFull env@Env {..} path = do
+  putStrLn $ "Exporting " <> "gundeck.notifications" <> " to " <> path
+  withBinaryFile path WriteMode $ \handle ->
+    runConduit $
+      readGundeckNotificationsConduitAll env
+        .| sinkLines handle
 
 insertGundeckNotifications :: PrepQuery W RowGundeckNotifications ()
 insertGundeckNotifications =
@@ -1030,6 +1206,14 @@ readSparScimUserTimesConduitAll Env {..} =
   transPipe (runClient envSpar) $
     paginateC selectSparScimUserTimesAll (paramsP Quorum () envPageSize) x5
 
+exportSparScimUserTimesFull :: Env -> FilePath -> IO ()
+exportSparScimUserTimesFull env@Env {..} path = do
+  putStrLn $ "Exporting " <> "spar.scim_user_times" <> " to " <> path
+  withBinaryFile path WriteMode $ \handle ->
+    runConduit $
+      readSparScimUserTimesConduitAll env
+        .| sinkLines handle
+
 insertSparScimUserTimes :: PrepQuery W RowSparScimUserTimes ()
 insertSparScimUserTimes =
   "INSERT INTO scim_user_times (uid, created_at, last_updated_at) VALUES (?, ?, ?)"
@@ -1073,3 +1257,29 @@ importAllTables env@Env {..} = do
   importGalleyUserTeam env (envTargetPath </> "galley.user_team")
   importGundeckNotifications env (envTargetPath </> "gundeck.notifications")
   importSparScimUserTimes env (envTargetPath </> "spar.scim_user_times")
+
+exportAllTables :: Env -> IO ()
+exportAllTables env@Env {..} = do
+  exportBrigClientsFull env (envTargetPath </> "brig.clients")
+  exportBrigConnectionFull env (envTargetPath </> "brig.connection")
+  exportBrigIdMappingFull env (envTargetPath </> "brig.id_mapping")
+  exportBrigLoginCodesFull env (envTargetPath </> "brig.login_codes")
+  exportBrigPasswordResetFull env (envTargetPath </> "brig.password_reset")
+  exportBrigPrekeysFull env (envTargetPath </> "brig.prekeys")
+  exportBrigPropertiesFull env (envTargetPath </> "brig.properties")
+  exportBrigRichInfoFull env (envTargetPath </> "brig.rich_info")
+  exportBrigUserFull env (envTargetPath </> "brig.user")
+  exportBrigUserHandleFull env (envTargetPath </> "brig.user_handle")
+  exportGalleyBillingTeamMemberFull env (envTargetPath </> "galley.billing_team_member")
+  exportGalleyClientsFull env (envTargetPath </> "galley.clients")
+  exportGalleyConversationFull env (envTargetPath </> "galley.conversation")
+  exportGalleyMemberFull env (envTargetPath </> "galley.member")
+  exportGalleyTeamFull env (envTargetPath </> "galley.team")
+  exportGalleyTeamConvFull env (envTargetPath </> "galley.team_conv")
+  exportGalleyTeamFeaturesFull env (envTargetPath </> "galley.team_features")
+  exportGalleyTeamMemberFull env (envTargetPath </> "galley.team_member")
+  exportGalleyTeamNotificationsFull env (envTargetPath </> "galley.team_notifications")
+  exportGalleyUserFull env (envTargetPath </> "galley.user")
+  exportGalleyUserTeamFull env (envTargetPath </> "galley.user_team")
+  exportGundeckNotificationsFull env (envTargetPath </> "gundeck.notifications")
+  exportSparScimUserTimesFull env (envTargetPath </> "spar.scim_user_times")

@@ -20,6 +20,7 @@ module Common where
 import Cassandra
 import Conduit
 import Data.Aeson
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Conduit.Combinators as C
 import Database.CQL.Protocol (Tuple)
 import Imports
@@ -41,3 +42,6 @@ sinkRows insertQuery = go
         Just tpl -> do
           lift $ write insertQuery (params Quorum tpl)
           go
+
+sinkLines :: ToJSON a => Handle -> ConduitT [a] Void IO ()
+sinkLines hd = C.mapM_ (mapM_ (LBS.hPutStr hd . (<> "\n") . encode))

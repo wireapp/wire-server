@@ -228,6 +228,14 @@ read{{keySpaceCaml}}{{tableNameCaml}}ConduitAll Env {..} =
   transPipe (runClient env{{keySpaceCaml}}) $
     paginateC select{{keySpaceCaml}}{{tableNameCaml}}All (paramsP Quorum () envPageSize) x5
 
+export{{keySpaceCaml}}{{tableNameCaml}}Full :: Env -> FilePath -> IO ()
+export{{keySpaceCaml}}{{tableNameCaml}}Full env@Env {..} path = do
+  putStrLn $ "Exporting " <> "{{keySpace}}.{{tableName}}"  <> " to " <> path
+  withBinaryFile path WriteMode $ \handle ->
+    runConduit $
+      read{{keySpaceCaml}}{{tableNameCaml}}ConduitAll env
+        .| sinkLines handle
+
 insert{{keySpaceCaml}}{{tableNameCaml}} :: PrepQuery W Row{{keySpaceCaml}}{{tableNameCaml}} ()
 insert{{keySpaceCaml}}{{tableNameCaml}} =
     "INSERT INTO {{tableName}} ({{columns}}) VALUES {{placeHolders}}"
@@ -250,6 +258,12 @@ importAllTables :: Env -> IO ()
 importAllTables env@Env {..} = do
 {{#chunkTable}}
   import{{keySpaceCaml}}{{tableNameCaml}} env (envTargetPath </> "{{keySpace}}.{{tableName}}")
+{{/chunkTable}}
+
+exportAllTables :: Env -> IO ()
+exportAllTables env@Env {..} = do
+{{#chunkTable}}
+  export{{keySpaceCaml}}{{tableNameCaml}}Full env (envTargetPath </> "{{keySpace}}.{{tableName}}")
 {{/chunkTable}}
 |]
 

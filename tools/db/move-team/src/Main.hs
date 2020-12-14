@@ -19,7 +19,7 @@
 
 module Main
   ( main,
-    debugMainExport,
+    debugMainDebugExportFull,
     debugMainImport,
   )
 where
@@ -37,8 +37,6 @@ import qualified System.Logger as Log
 import System.Process (system)
 import Types
 import Work
-
--- ./dist/move-team --sink=/tmp/x.json --teamid=1595e6e0-11eb-48bb-afa2-c10207a78889
 
 main :: IO ()
 main = do
@@ -58,6 +56,13 @@ main = do
       gunC <- initCas (connSettings ^. setCasGundeck) lgr
       let dummyTeamId :: UUID = fromJust $ Data.UUID.fromString "c2cc10e1-57d6-4b6f-9899-38d972112d8c"
       runImport $ Env lgr bc gc sc gunC sourcePath (Id dummyTeamId) 100
+    DebugExportFull targetPath connSettings -> do
+      bc <- initCas (connSettings ^. setCasBrig) lgr
+      gc <- initCas (connSettings ^. setCasGalley) lgr
+      sc <- initCas (connSettings ^. setCasSpar) lgr
+      gunC <- initCas (connSettings ^. setCasGundeck) lgr
+      let dummyTeamId :: UUID = fromJust $ Data.UUID.fromString "c2cc10e1-57d6-4b6f-9899-38d972112d8c"
+      runDebugExportFull $ Env lgr bc gc sc gunC targetPath (Id dummyTeamId) 100
   where
     desc =
       header "service-backfill"
@@ -78,14 +83,13 @@ main = do
         . C.setProtocolVersion C.V4
         $ C.defSettings
 
-debugMainExport :: IO ()
-debugMainExport = do
+debugMainDebugExportFull :: IO ()
+debugMainDebugExportFull = do
   let dir = "/tmp/full-backup"
   void $ system $ "rm -rf " <> dir
+  void $ system $ "mkdir -p " <> dir
   withArgs
-    [ "export",
-      "--teamid",
-      "e8cd3353-3c4c-4ced-807b-3a7a571cb6cf",
+    [ "debug-export-full",
       "--target-path",
       dir
     ]

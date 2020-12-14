@@ -56,6 +56,7 @@ data ConnectionSettings = ConnectionSettings
 data CommandSettings
   = Export !UUID !FilePath !ConnectionSettings
   | Import !FilePath !ConnectionSettings
+  | DebugExportFull !FilePath !ConnectionSettings
 
 makeLenses ''ConnectionSettings
 
@@ -74,6 +75,7 @@ settingsParser =
   subparser
     ( command "export" (info (helper <*> exportParser) fullDesc)
         <> command "import" (info (helper <*> importParser) fullDesc)
+        <> command "debug-export-full" (info (helper <*> debugExportFullParser) fullDesc)
     )
   where
     exportParser :: Parser CommandSettings
@@ -102,6 +104,18 @@ settingsParser =
           ( long "source-path"
               <> metavar "PATH"
               <> help "Directory with exported files"
+              <> value "/tmp/export-team/"
+              <> showDefault
+          )
+        <*> connectionParser
+
+    debugExportFullParser :: Parser CommandSettings
+    debugExportFullParser =
+      DebugExportFull
+        <$> strOption
+          ( long "target-path"
+              <> metavar "PATH"
+              <> help "Directory for export files"
               <> value "/tmp/export-team/"
               <> showDefault
           )

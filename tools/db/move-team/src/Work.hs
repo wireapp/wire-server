@@ -65,9 +65,16 @@ deriving instance Cql Name -- TODO
 runExport :: Env -> IO ()
 runExport env@Env {..} = do
   ExitSuccess <- system $ "mkdir -p " <> show envTargetPath
-  -- runGalleyTeamMembers env
-  -- runGalleyTeamConv env
-  runFullBackup env
+  runGalleyTeamMembers env
+  runGalleyTeamConv env
+
+runImport :: Env -> IO ()
+runImport env = do
+  IO.putStrLn "runImport"
+  importAllTables env
+
+runDebugExportFull :: Env -> IO ()
+runDebugExportFull = exportAllTables
 
 ----------------------------------------------------------------------
 
@@ -112,53 +119,10 @@ handleTeamConv Env {..} (i, convs) = do
 ----------------------------------------------------------------------
 -- helpers (TODO: move to separate module)
 
-sinkLines :: ToJSON a => IO.Handle -> ConduitT [a] Void IO ()
-sinkLines hd = C.mapM_ (mapM_ (LBS.hPutStr hd . (<> "\n") . encode))
-
 writeToFile :: ToJSON a => Env -> FilePath -> IO [a] -> IO ()
 writeToFile Env {..} tableFile getter =
   Imports.withFile (envTargetPath </> tableFile) AppendMode $ \hd ->
     mapM_ (LBS.hPutStr hd . (<> "\n") . encode) =<< getter
 
--- TODO(stefan): refactor into into template
-runFullBackup :: Env -> IO ()
-runFullBackup env@Env {..} = do
-  exportConduit env readBrigClientsConduitAll "brig.clients"
-  exportConduit env readBrigConnectionConduitAll "brig.connection"
-  exportConduit env readBrigIdMappingConduitAll "brig.id_mapping"
-  exportConduit env readBrigLoginCodesConduitAll "brig.login_codes"
-  exportConduit env readBrigPasswordResetConduitAll "brig.password_reset"
-  exportConduit env readBrigPrekeysConduitAll "brig.prekeys"
-  exportConduit env readBrigPropertiesConduitAll "brig.properties"
-  exportConduit env readBrigRichInfoConduitAll "brig.rich_info"
-  exportConduit env readBrigUserConduitAll "brig.user"
-  exportConduit env readBrigUserHandleConduitAll "brig.user_handle"
-  exportConduit env readGalleyBillingTeamMemberConduitAll "galley.billing_team_member"
-  exportConduit env readGalleyClientsConduitAll "galley.clients"
-  exportConduit env readGalleyConversationConduitAll "galley.conversation"
-  exportConduit env readGalleyMemberConduitAll "galley.member"
-  exportConduit env readGalleyTeamConduitAll "galley.team"
-  exportConduit env readGalleyTeamConvConduitAll "galley.team_conv"
-  exportConduit env readGalleyTeamFeaturesConduitAll "galley.team_features"
-  exportConduit env readGalleyTeamMemberConduitAll "galley.team_member"
-  exportConduit env readGalleyTeamNotificationsConduitAll "galley.team_notifications"
-  exportConduit env readGalleyUserConduitAll "galley.user"
-  exportConduit env readGalleyUserTeamConduitAll "galley.user_team"
-  exportConduit env readGundeckNotificationsConduitAll "gundeck.notifications"
-  where
-    exportConduit :: ToJSON a => Env -> (Env -> ConduitM () [a] IO ()) -> String -> IO ()
-    exportConduit env' loader tablename = do
-      IO.putStrLn tablename
-      IO.withBinaryFile (envTargetPath </> tablename) IO.WriteMode $ \handle ->
-        runConduit $
-          loader env'
-            .| sinkLines handle
-
 insert :: PrepQuery W RowGalleyUserTeam ()
 insert = "INSERT INTO user_team (user, team) VALUES (?, ?)"
-
--- TODO: connect to sinks in Schema.hs & refactor into template
-runImport :: Env -> IO ()
-runImport env = do
-  IO.putStrLn "runImport"
-  importAllTables env
