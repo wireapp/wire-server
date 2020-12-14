@@ -42,8 +42,8 @@ tests =
       testCase "backwards comptibility test: UserDoc" $
         assertEqual
           "failed"
-          (toJSON userDoc1)
-          userDoc1Value,
+          userDoc1Value
+          (toJSON userDoc1),
       testCase "IndexUser to UserDoc" $
         assertEqual
           "failed"
@@ -59,6 +59,7 @@ userDoc1 =
       udName = Just . Name $ "Carl Phoomp",
       udNormalized = Just $ "carl phoomp",
       udHandle = Just . fromJust . parseHandle $ "phoompy",
+      udEmail = Just $ Email "phoompy" "example.com",
       udColourId = Just . ColourId $ 32,
       udAccountStatus = Just Active
     }
@@ -67,7 +68,7 @@ userDoc1Value :: Value
 userDoc1Value = fromJust (decode userDoc1ByteString)
 
 userDoc1ByteString :: LByteString
-userDoc1ByteString = "{\"team\":\"17c59b18-57d6-11ea-9220-8bbf5eee961a\",\"handle\":\"phoompy\",\"accent_id\":32,\"name\":\"Carl Phoomp\",\"id\":\"0a96b396-57d6-11ea-a04b-7b93d1a5c19c\",\"normalized\":\"carl phoomp\",\"account_status\":\"active\"}"
+userDoc1ByteString = "{\"team\":\"17c59b18-57d6-11ea-9220-8bbf5eee961a\",\"handle\":\"phoompy\",\"accent_id\":32,\"name\":\"Carl Phoomp\",\"id\":\"0a96b396-57d6-11ea-a04b-7b93d1a5c19c\",\"normalized\":\"carl phoomp\",\"account_status\":\"active\",\"email\":\"phoompy@example.com\"}"
 
 indexUser1 :: IndexUser
 indexUser1 = docToIndex userDoc1

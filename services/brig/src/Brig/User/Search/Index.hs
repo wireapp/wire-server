@@ -604,6 +604,15 @@ indexMapping =
                   mpFields =
                     Map.fromList [("prefix", MappingField MPText "prefix_index" "prefix_search")]
                 },
+            "email"
+              .= MappingProperty
+                { mpType = MPText,
+                  mpStore = False,
+                  mpIndex = True,
+                  mpAnalyzer = Nothing,
+                  mpFields =
+                    Map.fromList [("prefix", MappingField MPText "prefix_index" "prefix_search")]
+                },
             "team"
               .= MappingProperty
                 { mpType = MPKeyword,
@@ -696,6 +705,8 @@ lookupForIndex u = do
       \writetime(status), \
       \handle, \
       \writetime(handle), \
+      \email, \
+      \writetime(email), \
       \accent_id, \
       \writetime(accent_id), \
       \activated, \
@@ -726,6 +737,8 @@ scanForIndex num = do
       \writetime(status), \
       \handle, \
       \writetime(handle), \
+      \email, \
+      \writetime(email), \
       \accent_id, \
       \writetime(accent_id), \
       \activated, \
@@ -747,6 +760,8 @@ type ReindexRow =
     Maybe (Writetime AccountStatus),
     Maybe Handle,
     Maybe (Writetime Handle),
+    Maybe Email,
+    Maybe (Writetime Email),
     ColourId,
     Writetime ColourId,
     Activated,
@@ -756,9 +771,9 @@ type ReindexRow =
   )
 
 reindexRowToIndexUser :: forall m. MonadThrow m => ReindexRow -> m IndexUser
-reindexRowToIndexUser (u, mteam, name, t0, status, t1, handle, t2, colour, t4, activated, t5, service, t6) =
+reindexRowToIndexUser (u, mteam, name, t0, status, t1, handle, t2, email, t3, colour, t4, activated, t5, service, t6) =
   do
-    iu <- mkIndexUser u <$> version [Just t0, t1, t2, Just t4, Just t5, t6]
+    iu <- mkIndexUser u <$> version [Just t0, t1, t2, t3, Just t4, Just t5, t6]
     pure $
       if shouldIndex
         then
@@ -766,6 +781,10 @@ reindexRowToIndexUser (u, mteam, name, t0, status, t1, handle, t2, colour, t4, a
             & set iuTeam mteam
               . set iuName (Just name)
               . set iuHandle handle
+              . set iuEmail email
+              -- TODO: adding email here may not be the right appraoch; how do we control that
+              -- only team members must be able to affect search results based on email
+              -- addresses?
               . set iuColourId (Just colour)
               . set iuAccountStatus status
         else

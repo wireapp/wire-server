@@ -48,6 +48,7 @@ data IndexUser = IndexUser
     _iuTeam :: Maybe TeamId,
     _iuName :: Maybe Name,
     _iuHandle :: Maybe Handle,
+    _iuEmail :: Maybe Email,
     _iuColourId :: Maybe ColourId,
     _iuAccountStatus :: Maybe AccountStatus
   }
@@ -76,6 +77,7 @@ data UserDoc = UserDoc
     udName :: Maybe Name,
     udNormalized :: Maybe Text,
     udHandle :: Maybe Handle,
+    udEmail :: Maybe Email,
     udColourId :: Maybe ColourId,
     udAccountStatus :: Maybe AccountStatus
   }
@@ -89,6 +91,7 @@ instance ToJSON UserDoc where
         "name" .= udName ud,
         "normalized" .= udNormalized ud,
         "handle" .= udHandle ud,
+        "email" .= udEmail ud,
         "accent_id" .= udColourId ud,
         "account_status" .= udAccountStatus ud
       ]
@@ -100,6 +103,7 @@ instance FromJSON UserDoc where
       <*> o .:? "name"
       <*> o .:? "normalized"
       <*> o .:? "handle"
+      <*> o .:? "email"
       <*> o .:? "accent_id"
       <*> o .:? "account_status"
 
@@ -119,6 +123,7 @@ mkIndexUser u v =
       _iuTeam = Nothing,
       _iuName = Nothing,
       _iuHandle = Nothing,
+      _iuEmail = Nothing,
       _iuColourId = Nothing,
       _iuAccountStatus = Nothing
     }
@@ -132,6 +137,7 @@ indexToDoc iu =
       udAccountStatus = _iuAccountStatus iu,
       udNormalized = normalized . fromName <$> _iuName iu,
       udHandle = _iuHandle iu,
+      udEmail = _iuEmail iu,
       udColourId = _iuColourId iu
     }
 
@@ -150,6 +156,7 @@ docToIndex ud =
       _iuTeam = udTeam ud,
       _iuName = udName ud,
       _iuHandle = udHandle ud,
+      _iuEmail = udEmail ud,
       _iuColourId = udColourId ud,
       _iuAccountStatus = udAccountStatus ud
     }
