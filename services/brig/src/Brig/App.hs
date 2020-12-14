@@ -130,7 +130,7 @@ import Util.Options
 import Wire.API.User.Identity (Email)
 
 schemaVersion :: Int32
-schemaVersion = 61
+schemaVersion = 62
 
 -------------------------------------------------------------------------------
 -- Environment
