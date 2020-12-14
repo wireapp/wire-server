@@ -361,7 +361,7 @@ main = do
                        -- "galley" "id_mapping",
                        -- mkChunkUsers "galley" "legalhold_pending_prekeys",
                        -- mkChunkTeam "galley" "legalhold_service",
-                       -- PRIMARY KEY (conv, user) -- TODO: check how connect via galley.team_conv
+                       -- PRIMARY KEY (conv, user)
                        mkChunk' "galley" "member" "[ConvId]" "cids" "conv in ?",
                        -- "galley" "meta"
                        -- "galley" "service"

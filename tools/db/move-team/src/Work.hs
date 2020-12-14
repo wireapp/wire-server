@@ -70,6 +70,7 @@ runExport :: Env -> IO ()
 runExport env@Env {..} = do
   ExitSuccess <- system $ "mkdir -p " <> show envTargetPath
   assertTargetDirEmpty env
+  runTeam env
   runGalleyTeamMembers env
   runGalleyTeamConv env
 
@@ -84,6 +85,14 @@ runDebugExportFull env = do
   exportAllTablesFull env
 
 ----------------------------------------------------------------------
+
+runTeam :: Env -> IO ()
+runTeam env@Env {..} = do
+  appendJsonLines (envTargetPath </> "galley.billing_team_member") (readGalleyBillingTeamMember env envTeamId)
+  appendJsonLines (envTargetPath </> "galley.team") (readGalleyTeam env envTeamId)
+  appendJsonLines (envTargetPath </> "galley.team_features") (readGalleyTeamFeatures env envTeamId)
+  appendJsonLines (envTargetPath </> "galley.team_member") (readGalleyTeamMember env envTeamId)
+  appendJsonLines (envTargetPath </> "galley.team_notifications") (readGalleyTeamNotifications env envTeamId)
 
 runGalleyTeamMembers :: Env -> IO ()
 runGalleyTeamMembers env@Env {..} =
@@ -101,10 +110,20 @@ handleTeamMembers env@Env {..} (i, members) = do
   let uids = catMaybes $ fmap Id . view _2 <$> members
 
   appendJsonLines (envTargetPath </> "brig.clients") (readBrigClients env uids)
+  appendJsonLines (envTargetPath </> "brig.connection") (readBrigConnection env uids)
+  appendJsonLines (envTargetPath </> "brig.connection") (readBrigIdMapping env uids)
+  appendJsonLines (envTargetPath </> "brig.login_codes") (readBrigLoginCodes env uids)
+  appendJsonLines (envTargetPath </> "brig.prekeys") (readBrigPrekeys env uids)
+  appendJsonLines (envTargetPath </> "brig.properties") (readBrigProperties env uids)
+  appendJsonLines (envTargetPath </> "brig.rich_info") (readBrigRichInfo env uids)
+  appendJsonLines (envTargetPath </> "brig.user") (readBrigUser env uids)
+  appendJsonLines (envTargetPath </> "galley.clients") (readGalleyClients env uids)
+  appendJsonLines (envTargetPath </> "galley.user") (readGalleyUser env uids)
+  appendJsonLines (envTargetPath </> "galley.user_team") (readGalleyUserTeam env uids)
+  appendJsonLines (envTargetPath </> "gundeck.notifications") (readGalleyUserTeam env uids)
+  appendJsonLines (envTargetPath </> "spar.scim_user_times") (readSparScimUserTimes env uids)
 
   pure members -- (nit-pick TODO: this could be implicit, done in the pipeline somehow.)
-
-----------------------------------------------------------------------
 
 runGalleyTeamConv :: Env -> IO ()
 runGalleyTeamConv env@Env {..} =
@@ -117,21 +136,14 @@ runGalleyTeamConv env@Env {..} =
         .| sinkJsonLines outH
 
 handleTeamConv :: Env -> (Int32, [RowGalleyTeamConv]) -> IO [RowGalleyTeamConv]
-handleTeamConv Env {..} (i, convs) = do
+handleTeamConv env@Env {..} (i, convs) = do
   Log.info envLogger (Log.field "number of team convs loaded: " (show (i * envPageSize)))
+  let cids = catMaybes $ fmap Id . view _2 <$> convs
+  appendJsonLines (envTargetPath </> "galley.conversation") (readGalleyConversation env cids)
+  appendJsonLines (envTargetPath </> "galley.member") (readGalleyMember env cids)
   pure convs
 
 appendJsonLines :: ToJSON a => FilePath -> ConduitM () [a] IO () -> IO ()
 appendJsonLines path conduit =
   IO.withBinaryFile path IO.AppendMode $ \outH ->
     runConduit $ conduit .| sinkJsonLines outH
-
-----------------------------------------------------------------------
--- helpers (TODO: move to separate module)
-
---   writeToFile env "galley.clients" (readGalleyClients env uids)
-
--- writeToFile :: ToJSON a => Env -> FilePath -> IO [a] -> IO ()
--- writeToFile Env {..} tableFile getter =
---   Imports.withFile (envTargetPath </> tableFile) AppendMode $ \hd ->
---     mapM_ (LBS.hPutStr hd . (<> "\n") . encode) =<< getter
