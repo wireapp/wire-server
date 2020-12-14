@@ -98,7 +98,7 @@ debugMainDebugExportFull = do
 
 debugMainImport :: IO ()
 debugMainImport = do
-  let dir = "/home/stefan/full-backup"
+  let dir = "/tmp/full-backup"
   withArgs
     [ "import",
       "--source-path",
@@ -108,13 +108,13 @@ debugMainImport = do
 
 debugMainExport :: IO ()
 debugMainExport = do
-  let dir = "/tmp/full-backup"
+  let dir = "/tmp/move-team-export"
   void $ system $ "rm -rf " <> dir
   void $ system $ "mkdir -p " <> dir
   withArgs
     [ "export",
       "--teamid",
-      "af5c8a70-65fa-425d-bbfd-b7294f5918d8",
+      "e09f7a63-b5d4-4db4-a3c1-18bddf3df7fc",
       "--target-path",
       dir
     ]
