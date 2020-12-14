@@ -234,7 +234,7 @@ export{{keySpaceCaml}}{{tableNameCaml}}Full env@Env {..} path = do
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
       read{{keySpaceCaml}}{{tableNameCaml}}ConduitAll env
-        .| sinkLines handle
+        .| sinkJsonLines handle
 
 insert{{keySpaceCaml}}{{tableNameCaml}} :: PrepQuery W Row{{keySpaceCaml}}{{tableNameCaml}} ()
 insert{{keySpaceCaml}}{{tableNameCaml}} =
@@ -248,7 +248,7 @@ import{{keySpaceCaml}}{{tableNameCaml}} Env{..} path = do
     withBinaryFile path ReadMode $ \handle -> do
       runConduit $
         sourceJsonLines handle
-          .| transPipe (runClient env{{keySpaceCaml}}) (sinkRows insert{{keySpaceCaml}}{{tableNameCaml}})
+          .| transPipe (runClient env{{keySpaceCaml}}) (sinkTableRows insert{{keySpaceCaml}}{{tableNameCaml}})
   else do
      putStrLn $ "Skipping because not found: " <> path
      pure ()
@@ -260,8 +260,8 @@ importAllTables env@Env {..} = do
   import{{keySpaceCaml}}{{tableNameCaml}} env (envTargetPath </> "{{keySpace}}.{{tableName}}")
 {{/chunkTable}}
 
-exportAllTables :: Env -> IO ()
-exportAllTables env@Env {..} = do
+exportAllTablesFull :: Env -> IO ()
+exportAllTablesFull env@Env {..} = do
 {{#chunkTable}}
   export{{keySpaceCaml}}{{tableNameCaml}}Full env (envTargetPath </> "{{keySpace}}.{{tableName}}")
 {{/chunkTable}}

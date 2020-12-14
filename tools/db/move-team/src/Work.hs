@@ -3,7 +3,6 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-orphans -Wno-unused-imports #-}
 
 -- This file is part of the Wire Server implementation.
@@ -28,10 +27,8 @@ module Work where
 import Brig.Types hiding (Client)
 import Cassandra
 import Common
-import Conduit (mapC, takeWhileCE)
 import Control.Lens (view, _2)
 import Data.Aeson
-import Data.ByteString.Internal (c2w)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Conduit
 import Data.Conduit.Combinators (linesUnbounded, linesUnboundedAscii)
@@ -74,7 +71,7 @@ runImport env = do
   importAllTables env
 
 runDebugExportFull :: Env -> IO ()
-runDebugExportFull = exportAllTables
+runDebugExportFull = exportAllTablesFull
 
 ----------------------------------------------------------------------
 
@@ -86,7 +83,7 @@ runGalleyTeamMembers env@Env {..} =
         (CL.sourceList [(1 :: Int32) ..])
         (readGalleyTeamMemberConduit env envTeamId)
         .| C.mapM (handleTeamMembers env)
-        .| sinkLines outH
+        .| sinkJsonLines outH
 
 handleTeamMembers :: Env -> (Int32, [RowGalleyTeamMember]) -> IO [RowGalleyTeamMember]
 handleTeamMembers env@Env {..} (i, members) = do
@@ -107,7 +104,7 @@ runGalleyTeamConv env@Env {..} =
         (CL.sourceList [(1 :: Int32) ..])
         (readGalleyTeamConvConduit env envTeamId)
         .| C.mapM (handleTeamConv env)
-        .| sinkLines outH
+        .| sinkJsonLines outH
 
 handleTeamConv :: Env -> (Int32, [RowGalleyTeamConv]) -> IO [RowGalleyTeamConv]
 handleTeamConv Env {..} (i, convs) = do
@@ -123,6 +120,3 @@ writeToFile :: ToJSON a => Env -> FilePath -> IO [a] -> IO ()
 writeToFile Env {..} tableFile getter =
   Imports.withFile (envTargetPath </> tableFile) AppendMode $ \hd ->
     mapM_ (LBS.hPutStr hd . (<> "\n") . encode) =<< getter
-
-insert :: PrepQuery W RowGalleyUserTeam ()
-insert = "INSERT INTO user_team (user, team) VALUES (?, ?)"

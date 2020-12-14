@@ -68,7 +68,7 @@ exportBrigClientsFull env@Env {..} path = do
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
       readBrigClientsConduitAll env
-        .| sinkLines handle
+        .| sinkJsonLines handle
 
 insertBrigClients :: PrepQuery W RowBrigClients ()
 insertBrigClients =
@@ -83,7 +83,7 @@ importBrigClients Env {..} path = do
       withBinaryFile path ReadMode $ \handle -> do
         runConduit $
           sourceJsonLines handle
-            .| transPipe (runClient envBrig) (sinkRows insertBrigClients)
+            .| transPipe (runClient envBrig) (sinkTableRows insertBrigClients)
     else do
       putStrLn $ "Skipping because not found: " <> path
       pure ()
@@ -120,7 +120,7 @@ exportBrigConnectionFull env@Env {..} path = do
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
       readBrigConnectionConduitAll env
-        .| sinkLines handle
+        .| sinkJsonLines handle
 
 insertBrigConnection :: PrepQuery W RowBrigConnection ()
 insertBrigConnection =
@@ -135,7 +135,7 @@ importBrigConnection Env {..} path = do
       withBinaryFile path ReadMode $ \handle -> do
         runConduit $
           sourceJsonLines handle
-            .| transPipe (runClient envBrig) (sinkRows insertBrigConnection)
+            .| transPipe (runClient envBrig) (sinkTableRows insertBrigConnection)
     else do
       putStrLn $ "Skipping because not found: " <> path
       pure ()
@@ -172,7 +172,7 @@ exportBrigIdMappingFull env@Env {..} path = do
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
       readBrigIdMappingConduitAll env
-        .| sinkLines handle
+        .| sinkJsonLines handle
 
 insertBrigIdMapping :: PrepQuery W RowBrigIdMapping ()
 insertBrigIdMapping =
@@ -187,7 +187,7 @@ importBrigIdMapping Env {..} path = do
       withBinaryFile path ReadMode $ \handle -> do
         runConduit $
           sourceJsonLines handle
-            .| transPipe (runClient envBrig) (sinkRows insertBrigIdMapping)
+            .| transPipe (runClient envBrig) (sinkTableRows insertBrigIdMapping)
     else do
       putStrLn $ "Skipping because not found: " <> path
       pure ()
@@ -224,7 +224,7 @@ exportBrigLoginCodesFull env@Env {..} path = do
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
       readBrigLoginCodesConduitAll env
-        .| sinkLines handle
+        .| sinkJsonLines handle
 
 insertBrigLoginCodes :: PrepQuery W RowBrigLoginCodes ()
 insertBrigLoginCodes =
@@ -239,7 +239,7 @@ importBrigLoginCodes Env {..} path = do
       withBinaryFile path ReadMode $ \handle -> do
         runConduit $
           sourceJsonLines handle
-            .| transPipe (runClient envBrig) (sinkRows insertBrigLoginCodes)
+            .| transPipe (runClient envBrig) (sinkTableRows insertBrigLoginCodes)
     else do
       putStrLn $ "Skipping because not found: " <> path
       pure ()
@@ -276,7 +276,7 @@ exportBrigPasswordResetFull env@Env {..} path = do
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
       readBrigPasswordResetConduitAll env
-        .| sinkLines handle
+        .| sinkJsonLines handle
 
 insertBrigPasswordReset :: PrepQuery W RowBrigPasswordReset ()
 insertBrigPasswordReset =
@@ -291,7 +291,7 @@ importBrigPasswordReset Env {..} path = do
       withBinaryFile path ReadMode $ \handle -> do
         runConduit $
           sourceJsonLines handle
-            .| transPipe (runClient envBrig) (sinkRows insertBrigPasswordReset)
+            .| transPipe (runClient envBrig) (sinkTableRows insertBrigPasswordReset)
     else do
       putStrLn $ "Skipping because not found: " <> path
       pure ()
@@ -328,7 +328,7 @@ exportBrigPrekeysFull env@Env {..} path = do
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
       readBrigPrekeysConduitAll env
-        .| sinkLines handle
+        .| sinkJsonLines handle
 
 insertBrigPrekeys :: PrepQuery W RowBrigPrekeys ()
 insertBrigPrekeys =
@@ -343,7 +343,7 @@ importBrigPrekeys Env {..} path = do
       withBinaryFile path ReadMode $ \handle -> do
         runConduit $
           sourceJsonLines handle
-            .| transPipe (runClient envBrig) (sinkRows insertBrigPrekeys)
+            .| transPipe (runClient envBrig) (sinkTableRows insertBrigPrekeys)
     else do
       putStrLn $ "Skipping because not found: " <> path
       pure ()
@@ -380,7 +380,7 @@ exportBrigPropertiesFull env@Env {..} path = do
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
       readBrigPropertiesConduitAll env
-        .| sinkLines handle
+        .| sinkJsonLines handle
 
 insertBrigProperties :: PrepQuery W RowBrigProperties ()
 insertBrigProperties =
@@ -395,7 +395,7 @@ importBrigProperties Env {..} path = do
       withBinaryFile path ReadMode $ \handle -> do
         runConduit $
           sourceJsonLines handle
-            .| transPipe (runClient envBrig) (sinkRows insertBrigProperties)
+            .| transPipe (runClient envBrig) (sinkTableRows insertBrigProperties)
     else do
       putStrLn $ "Skipping because not found: " <> path
       pure ()
@@ -432,7 +432,7 @@ exportBrigRichInfoFull env@Env {..} path = do
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
       readBrigRichInfoConduitAll env
-        .| sinkLines handle
+        .| sinkJsonLines handle
 
 insertBrigRichInfo :: PrepQuery W RowBrigRichInfo ()
 insertBrigRichInfo =
@@ -447,7 +447,7 @@ importBrigRichInfo Env {..} path = do
       withBinaryFile path ReadMode $ \handle -> do
         runConduit $
           sourceJsonLines handle
-            .| transPipe (runClient envBrig) (sinkRows insertBrigRichInfo)
+            .| transPipe (runClient envBrig) (sinkTableRows insertBrigRichInfo)
     else do
       putStrLn $ "Skipping because not found: " <> path
       pure ()
@@ -484,7 +484,7 @@ exportBrigUserFull env@Env {..} path = do
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
       readBrigUserConduitAll env
-        .| sinkLines handle
+        .| sinkJsonLines handle
 
 insertBrigUser :: PrepQuery W RowBrigUser ()
 insertBrigUser =
@@ -499,7 +499,7 @@ importBrigUser Env {..} path = do
       withBinaryFile path ReadMode $ \handle -> do
         runConduit $
           sourceJsonLines handle
-            .| transPipe (runClient envBrig) (sinkRows insertBrigUser)
+            .| transPipe (runClient envBrig) (sinkTableRows insertBrigUser)
     else do
       putStrLn $ "Skipping because not found: " <> path
       pure ()
@@ -536,7 +536,7 @@ exportBrigUserHandleFull env@Env {..} path = do
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
       readBrigUserHandleConduitAll env
-        .| sinkLines handle
+        .| sinkJsonLines handle
 
 insertBrigUserHandle :: PrepQuery W RowBrigUserHandle ()
 insertBrigUserHandle =
@@ -551,7 +551,7 @@ importBrigUserHandle Env {..} path = do
       withBinaryFile path ReadMode $ \handle -> do
         runConduit $
           sourceJsonLines handle
-            .| transPipe (runClient envBrig) (sinkRows insertBrigUserHandle)
+            .| transPipe (runClient envBrig) (sinkTableRows insertBrigUserHandle)
     else do
       putStrLn $ "Skipping because not found: " <> path
       pure ()
@@ -588,7 +588,7 @@ exportGalleyBillingTeamMemberFull env@Env {..} path = do
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
       readGalleyBillingTeamMemberConduitAll env
-        .| sinkLines handle
+        .| sinkJsonLines handle
 
 insertGalleyBillingTeamMember :: PrepQuery W RowGalleyBillingTeamMember ()
 insertGalleyBillingTeamMember =
@@ -603,7 +603,7 @@ importGalleyBillingTeamMember Env {..} path = do
       withBinaryFile path ReadMode $ \handle -> do
         runConduit $
           sourceJsonLines handle
-            .| transPipe (runClient envGalley) (sinkRows insertGalleyBillingTeamMember)
+            .| transPipe (runClient envGalley) (sinkTableRows insertGalleyBillingTeamMember)
     else do
       putStrLn $ "Skipping because not found: " <> path
       pure ()
@@ -640,7 +640,7 @@ exportGalleyClientsFull env@Env {..} path = do
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
       readGalleyClientsConduitAll env
-        .| sinkLines handle
+        .| sinkJsonLines handle
 
 insertGalleyClients :: PrepQuery W RowGalleyClients ()
 insertGalleyClients =
@@ -655,7 +655,7 @@ importGalleyClients Env {..} path = do
       withBinaryFile path ReadMode $ \handle -> do
         runConduit $
           sourceJsonLines handle
-            .| transPipe (runClient envGalley) (sinkRows insertGalleyClients)
+            .| transPipe (runClient envGalley) (sinkTableRows insertGalleyClients)
     else do
       putStrLn $ "Skipping because not found: " <> path
       pure ()
@@ -692,7 +692,7 @@ exportGalleyConversationFull env@Env {..} path = do
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
       readGalleyConversationConduitAll env
-        .| sinkLines handle
+        .| sinkJsonLines handle
 
 insertGalleyConversation :: PrepQuery W RowGalleyConversation ()
 insertGalleyConversation =
@@ -707,7 +707,7 @@ importGalleyConversation Env {..} path = do
       withBinaryFile path ReadMode $ \handle -> do
         runConduit $
           sourceJsonLines handle
-            .| transPipe (runClient envGalley) (sinkRows insertGalleyConversation)
+            .| transPipe (runClient envGalley) (sinkTableRows insertGalleyConversation)
     else do
       putStrLn $ "Skipping because not found: " <> path
       pure ()
@@ -744,7 +744,7 @@ exportGalleyMemberFull env@Env {..} path = do
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
       readGalleyMemberConduitAll env
-        .| sinkLines handle
+        .| sinkJsonLines handle
 
 insertGalleyMember :: PrepQuery W RowGalleyMember ()
 insertGalleyMember =
@@ -759,7 +759,7 @@ importGalleyMember Env {..} path = do
       withBinaryFile path ReadMode $ \handle -> do
         runConduit $
           sourceJsonLines handle
-            .| transPipe (runClient envGalley) (sinkRows insertGalleyMember)
+            .| transPipe (runClient envGalley) (sinkTableRows insertGalleyMember)
     else do
       putStrLn $ "Skipping because not found: " <> path
       pure ()
@@ -796,7 +796,7 @@ exportGalleyTeamFull env@Env {..} path = do
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
       readGalleyTeamConduitAll env
-        .| sinkLines handle
+        .| sinkJsonLines handle
 
 insertGalleyTeam :: PrepQuery W RowGalleyTeam ()
 insertGalleyTeam =
@@ -811,7 +811,7 @@ importGalleyTeam Env {..} path = do
       withBinaryFile path ReadMode $ \handle -> do
         runConduit $
           sourceJsonLines handle
-            .| transPipe (runClient envGalley) (sinkRows insertGalleyTeam)
+            .| transPipe (runClient envGalley) (sinkTableRows insertGalleyTeam)
     else do
       putStrLn $ "Skipping because not found: " <> path
       pure ()
@@ -848,7 +848,7 @@ exportGalleyTeamConvFull env@Env {..} path = do
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
       readGalleyTeamConvConduitAll env
-        .| sinkLines handle
+        .| sinkJsonLines handle
 
 insertGalleyTeamConv :: PrepQuery W RowGalleyTeamConv ()
 insertGalleyTeamConv =
@@ -863,7 +863,7 @@ importGalleyTeamConv Env {..} path = do
       withBinaryFile path ReadMode $ \handle -> do
         runConduit $
           sourceJsonLines handle
-            .| transPipe (runClient envGalley) (sinkRows insertGalleyTeamConv)
+            .| transPipe (runClient envGalley) (sinkTableRows insertGalleyTeamConv)
     else do
       putStrLn $ "Skipping because not found: " <> path
       pure ()
@@ -900,7 +900,7 @@ exportGalleyTeamFeaturesFull env@Env {..} path = do
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
       readGalleyTeamFeaturesConduitAll env
-        .| sinkLines handle
+        .| sinkJsonLines handle
 
 insertGalleyTeamFeatures :: PrepQuery W RowGalleyTeamFeatures ()
 insertGalleyTeamFeatures =
@@ -915,7 +915,7 @@ importGalleyTeamFeatures Env {..} path = do
       withBinaryFile path ReadMode $ \handle -> do
         runConduit $
           sourceJsonLines handle
-            .| transPipe (runClient envGalley) (sinkRows insertGalleyTeamFeatures)
+            .| transPipe (runClient envGalley) (sinkTableRows insertGalleyTeamFeatures)
     else do
       putStrLn $ "Skipping because not found: " <> path
       pure ()
@@ -952,7 +952,7 @@ exportGalleyTeamMemberFull env@Env {..} path = do
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
       readGalleyTeamMemberConduitAll env
-        .| sinkLines handle
+        .| sinkJsonLines handle
 
 insertGalleyTeamMember :: PrepQuery W RowGalleyTeamMember ()
 insertGalleyTeamMember =
@@ -967,7 +967,7 @@ importGalleyTeamMember Env {..} path = do
       withBinaryFile path ReadMode $ \handle -> do
         runConduit $
           sourceJsonLines handle
-            .| transPipe (runClient envGalley) (sinkRows insertGalleyTeamMember)
+            .| transPipe (runClient envGalley) (sinkTableRows insertGalleyTeamMember)
     else do
       putStrLn $ "Skipping because not found: " <> path
       pure ()
@@ -1004,7 +1004,7 @@ exportGalleyTeamNotificationsFull env@Env {..} path = do
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
       readGalleyTeamNotificationsConduitAll env
-        .| sinkLines handle
+        .| sinkJsonLines handle
 
 insertGalleyTeamNotifications :: PrepQuery W RowGalleyTeamNotifications ()
 insertGalleyTeamNotifications =
@@ -1019,7 +1019,7 @@ importGalleyTeamNotifications Env {..} path = do
       withBinaryFile path ReadMode $ \handle -> do
         runConduit $
           sourceJsonLines handle
-            .| transPipe (runClient envGalley) (sinkRows insertGalleyTeamNotifications)
+            .| transPipe (runClient envGalley) (sinkTableRows insertGalleyTeamNotifications)
     else do
       putStrLn $ "Skipping because not found: " <> path
       pure ()
@@ -1056,7 +1056,7 @@ exportGalleyUserFull env@Env {..} path = do
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
       readGalleyUserConduitAll env
-        .| sinkLines handle
+        .| sinkJsonLines handle
 
 insertGalleyUser :: PrepQuery W RowGalleyUser ()
 insertGalleyUser =
@@ -1071,7 +1071,7 @@ importGalleyUser Env {..} path = do
       withBinaryFile path ReadMode $ \handle -> do
         runConduit $
           sourceJsonLines handle
-            .| transPipe (runClient envGalley) (sinkRows insertGalleyUser)
+            .| transPipe (runClient envGalley) (sinkTableRows insertGalleyUser)
     else do
       putStrLn $ "Skipping because not found: " <> path
       pure ()
@@ -1108,7 +1108,7 @@ exportGalleyUserTeamFull env@Env {..} path = do
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
       readGalleyUserTeamConduitAll env
-        .| sinkLines handle
+        .| sinkJsonLines handle
 
 insertGalleyUserTeam :: PrepQuery W RowGalleyUserTeam ()
 insertGalleyUserTeam =
@@ -1123,7 +1123,7 @@ importGalleyUserTeam Env {..} path = do
       withBinaryFile path ReadMode $ \handle -> do
         runConduit $
           sourceJsonLines handle
-            .| transPipe (runClient envGalley) (sinkRows insertGalleyUserTeam)
+            .| transPipe (runClient envGalley) (sinkTableRows insertGalleyUserTeam)
     else do
       putStrLn $ "Skipping because not found: " <> path
       pure ()
@@ -1160,7 +1160,7 @@ exportGundeckNotificationsFull env@Env {..} path = do
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
       readGundeckNotificationsConduitAll env
-        .| sinkLines handle
+        .| sinkJsonLines handle
 
 insertGundeckNotifications :: PrepQuery W RowGundeckNotifications ()
 insertGundeckNotifications =
@@ -1175,7 +1175,7 @@ importGundeckNotifications Env {..} path = do
       withBinaryFile path ReadMode $ \handle -> do
         runConduit $
           sourceJsonLines handle
-            .| transPipe (runClient envGundeck) (sinkRows insertGundeckNotifications)
+            .| transPipe (runClient envGundeck) (sinkTableRows insertGundeckNotifications)
     else do
       putStrLn $ "Skipping because not found: " <> path
       pure ()
@@ -1212,7 +1212,7 @@ exportSparScimUserTimesFull env@Env {..} path = do
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
       readSparScimUserTimesConduitAll env
-        .| sinkLines handle
+        .| sinkJsonLines handle
 
 insertSparScimUserTimes :: PrepQuery W RowSparScimUserTimes ()
 insertSparScimUserTimes =
@@ -1227,7 +1227,7 @@ importSparScimUserTimes Env {..} path = do
       withBinaryFile path ReadMode $ \handle -> do
         runConduit $
           sourceJsonLines handle
-            .| transPipe (runClient envSpar) (sinkRows insertSparScimUserTimes)
+            .| transPipe (runClient envSpar) (sinkTableRows insertSparScimUserTimes)
     else do
       putStrLn $ "Skipping because not found: " <> path
       pure ()
@@ -1258,8 +1258,8 @@ importAllTables env@Env {..} = do
   importGundeckNotifications env (envTargetPath </> "gundeck.notifications")
   importSparScimUserTimes env (envTargetPath </> "spar.scim_user_times")
 
-exportAllTables :: Env -> IO ()
-exportAllTables env@Env {..} = do
+exportAllTablesFull :: Env -> IO ()
+exportAllTablesFull env@Env {..} = do
   exportBrigClientsFull env (envTargetPath </> "brig.clients")
   exportBrigConnectionFull env (envTargetPath </> "brig.connection")
   exportBrigIdMappingFull env (envTargetPath </> "brig.id_mapping")

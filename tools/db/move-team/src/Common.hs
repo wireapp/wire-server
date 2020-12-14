@@ -32,8 +32,11 @@ sourceJsonLines handle =
     .| C.linesUnboundedAscii
     .| mapC (either error id . eitherDecodeStrict)
 
-sinkRows :: Tuple a => PrepQuery W a () -> ConduitM a Void Client ()
-sinkRows insertQuery = go
+sinkJsonLines :: ToJSON a => Handle -> ConduitT [a] Void IO ()
+sinkJsonLines hd = C.mapM_ (mapM_ (LBS.hPutStr hd . (<> "\n") . encode))
+
+sinkTableRows :: Tuple a => PrepQuery W a () -> ConduitM a Void Client ()
+sinkTableRows insertQuery = go
   where
     go = do
       mbTpl <- await
@@ -42,6 +45,3 @@ sinkRows insertQuery = go
         Just tpl -> do
           lift $ write insertQuery (params Quorum tpl)
           go
-
-sinkLines :: ToJSON a => Handle -> ConduitT [a] Void IO ()
-sinkLines hd = C.mapM_ (mapM_ (LBS.hPutStr hd . (<> "\n") . encode))

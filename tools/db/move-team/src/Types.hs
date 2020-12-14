@@ -36,7 +36,7 @@ import Data.Id
 import qualified Data.Text as T
 import Data.Text.Ascii (AsciiText, Base64, decodeBase64, encodeBase64)
 import qualified Data.Vector as V
-import Database.CQL.Protocol (ColumnType (VarCharColumn), Value (CqlMaybe))
+import Database.CQL.Protocol (ColumnType (VarCharColumn))
 import Galley.Data.Instances ()
 import Imports
 import System.Logger (Logger)
@@ -72,7 +72,7 @@ instance Cql AssetIgnoreData where
             ("size", IntColumn) -- TODO check if this works
           ]
       )
-  toCql _ = CqlMaybe Nothing
+  toCql _ = error "AssetIgnoreData: you should not have any data of this"
   fromCql _ = pure AssetIgnoreData
 
 instance ToJSON a => ToJSON (Cassandra.Set a) where
