@@ -44,7 +44,7 @@ import Data.Bifunctor (first)
 import Data.ByteString.Conversion (FromByteString (parser))
 import Data.Domain (Domain, domainText)
 import Data.Handle (Handle (..))
-import Data.Id (Id (toUUID), UserId)
+import Data.Id (Id (toUUID))
 import Data.Proxy (Proxy (..))
 import Data.String.Conversions (cs)
 import Data.Swagger
@@ -133,9 +133,9 @@ renderQualifiedId = renderQualified (cs . UUID.toString . toUUID)
 mkQualifiedId :: Text -> Either String (Qualified (Id a))
 mkQualifiedId = Atto.parseOnly (parser <* Atto.endOfInput) . Text.E.encodeUtf8
 
-instance ToSchema (Qualified UserId) where
+instance ToSchema (Qualified (Id a)) where
   declareNamedSchema _ = do
-    idSchema <- declareSchemaRef (Proxy @UserId)
+    idSchema <- declareSchemaRef (Proxy @(Id a))
     domainSchema <- declareSchemaRef (Proxy @Domain)
     return $
       NamedSchema (Just "QualifiedUserId") $
