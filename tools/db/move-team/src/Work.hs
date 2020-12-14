@@ -45,7 +45,7 @@ import Database.CQL.Protocol (Query (Query), Tuple)
 import Galley.Data.Instances ()
 import Imports
 import Schema
-import System.Exit (ExitCode (ExitSuccess))
+import System.Exit (ExitCode (ExitFailure, ExitSuccess), exitWith)
 import System.FilePath ((</>))
 import System.IO
 import qualified System.IO as IO
@@ -59,9 +59,17 @@ import Wire.API.Team.Permission
 
 deriving instance Cql Name -- TODO
 
+assertTargetDirEmpty :: Env -> IO ()
+assertTargetDirEmpty Env {..} = do
+  files <- listDirectory envTargetPath
+  unless (Imports.null files) $ do
+    IO.putStrLn $ "Target directory " <> envTargetPath <> " is not empty."
+    exitWith (ExitFailure 1)
+
 runExport :: Env -> IO ()
 runExport env@Env {..} = do
   ExitSuccess <- system $ "mkdir -p " <> show envTargetPath
+  assertTargetDirEmpty env
   runGalleyTeamMembers env
   runGalleyTeamConv env
 
@@ -71,7 +79,9 @@ runImport env = do
   importAllTables env
 
 runDebugExportFull :: Env -> IO ()
-runDebugExportFull = exportAllTablesFull
+runDebugExportFull env = do
+  assertTargetDirEmpty env
+  exportAllTablesFull env
 
 ----------------------------------------------------------------------
 
