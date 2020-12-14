@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
@@ -25,9 +26,10 @@
 module Work where
 
 import Brig.Types hiding (Client)
-import Cassandra
+import Cassandra hiding (Set)
 import Common
-import Control.Lens (view, _2)
+import Conduit (mapC)
+import Control.Lens (view, _2, _3, _5)
 import Data.Aeson
 import qualified Data.ByteString.Lazy as LBS
 import Data.Conduit
@@ -37,6 +39,7 @@ import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as CL
 import Data.Id
 import Data.Misc
+import qualified Data.Set as Set
 import qualified Data.Text as T
 import Data.Time
 import Data.UUID
@@ -73,6 +76,7 @@ runExport env@Env {..} = do
   runTeam env
   runGalleyTeamMembers env
   runGalleyTeamConv env
+  readAllTeamUserIds env >>= runFullScans env
 
 runImport :: Env -> IO ()
 runImport env = do
@@ -143,7 +147,44 @@ handleTeamConv env@Env {..} (i, convs) = do
   appendJsonLines (envTargetPath </> "galley.member") (readGalleyMember env cids)
   pure convs
 
+runFullScans :: Env -> Set UUID -> IO ()
+runFullScans env@Env {..} users = do
+  let haveId Nothing = False
+      haveId (Just uuid) = uuid `Set.member` users
+
+  appendJsonLines (envTargetPath </> "brig.password_reset") $
+    readBrigPasswordResetAll env
+      .| mapC (filter (haveId . view _5))
+
+  appendJsonLines (envTargetPath </> "brig.user_handle") $
+    readBrigUserHandleAll env
+      .| mapC (filter (haveId . view _2))
+
+  appendJsonLines (envTargetPath </> "brig.user_keys") $
+    readBrigUserKeysAll env
+      .| mapC (filter (haveId . view _2))
+
+  appendJsonLines (envTargetPath </> "brig.user_keys_hash") $
+    readBrigUserKeysHashAll env
+      .| mapC (filter (haveId . view _3))
+
+  appendJsonLines (envTargetPath </> "spar.scim_external_ids") $
+    readSparScimExternalIdsAll env
+      .| mapC (filter (haveId . view _2))
+
 appendJsonLines :: ToJSON a => FilePath -> ConduitM () [a] IO () -> IO ()
 appendJsonLines path conduit =
   IO.withBinaryFile path IO.AppendMode $ \outH ->
     runConduit $ conduit .| sinkJsonLines outH
+
+readAllTeamUserIds :: Env -> IO (Set UUID)
+readAllTeamUserIds env@Env {..} =
+  runConduit $
+    readGalleyTeamMember env envTeamId
+      .| foldSetUserIds
+  where
+    foldSetUserIds :: ConduitM [RowGalleyTeamMember] Void IO (Set UUID)
+    foldSetUserIds = C.foldl (foldl' insertUserId) Set.empty
+
+    insertUserId :: Set UUID -> RowGalleyTeamMember -> Set UUID
+    insertUserId m row = maybe m (`Set.insert` m) (view _2 row)

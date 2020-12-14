@@ -21,6 +21,7 @@ module Main
   ( main,
     debugMainDebugExportFull,
     debugMainImport,
+    debugMainExport,
   )
 where
 
@@ -101,6 +102,20 @@ debugMainImport = do
   withArgs
     [ "import",
       "--source-path",
+      dir
+    ]
+    main
+
+debugMainExport :: IO ()
+debugMainExport = do
+  let dir = "/tmp/full-backup"
+  void $ system $ "rm -rf " <> dir
+  void $ system $ "mkdir -p " <> dir
+  withArgs
+    [ "export",
+      "--teamid",
+      "af5c8a70-65fa-425d-bbfd-b7294f5918d8",
+      "--target-path",
       dir
     ]
     main

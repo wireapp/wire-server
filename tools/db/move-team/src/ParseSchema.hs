@@ -217,8 +217,8 @@ read{{keySpaceCaml}}{{tableNameCaml}} Env {..} {{lookupKeyVar}} =
 select{{keySpaceCaml}}{{tableNameCaml}}All :: PrepQuery R () Row{{keySpaceCaml}}{{tableNameCaml}}
 select{{keySpaceCaml}}{{tableNameCaml}}All = "SELECT {{columns}} FROM {{tableName}}"
 
-read{{keySpaceCaml}}{{tableNameCaml}}ConduitAll :: Env -> ConduitM () [Row{{keySpaceCaml}}{{tableNameCaml}}] IO ()
-read{{keySpaceCaml}}{{tableNameCaml}}ConduitAll Env {..} =
+read{{keySpaceCaml}}{{tableNameCaml}}All :: Env -> ConduitM () [Row{{keySpaceCaml}}{{tableNameCaml}}] IO ()
+read{{keySpaceCaml}}{{tableNameCaml}}All Env {..} =
   transPipe (runClient env{{keySpaceCaml}}) $
     paginateC select{{keySpaceCaml}}{{tableNameCaml}}All (paramsP Quorum () envPageSize) x5
 
@@ -227,7 +227,7 @@ export{{keySpaceCaml}}{{tableNameCaml}}Full env@Env {..} path = do
   putStrLn $ "Exporting " <> "{{keySpace}}.{{tableName}}"  <> " to " <> path
   withBinaryFile path WriteMode $ \handle ->
     runConduit $
-      read{{keySpaceCaml}}{{tableNameCaml}}ConduitAll env
+      read{{keySpaceCaml}}{{tableNameCaml}}All env
         .| sinkJsonLines handle
 
 insert{{keySpaceCaml}}{{tableNameCaml}} :: PrepQuery W Row{{keySpaceCaml}}{{tableNameCaml}} ()
@@ -314,8 +314,8 @@ main = do
                        -- PRIMARY KEY (user)
                        mkChunkUsers "brig" "login_codes", -- TODO: do we need this?
                        -- "brig" "meta",
-                       -- PRIMARY KEY(key) -- TODO: find connection
-                       mkChunk' "brig" "password_reset" "[PasswordResetKey]" "reset_keys" "key in ?", -- ? probably not.
+                       -- PRIMARY KEY(key) -- TODO: do we need this? can we do better than a full table scan?
+                       mkChunk' "brig" "password_reset" "[PasswordResetKey]" "reset_keys" "key in ?",
                        -- PRIMARY KEY (user, client, key)
                        mkChunkUsers "brig" "prekeys", -- TODO: do new need this ?
                        -- PRIMARY KEY (user, key)
@@ -338,16 +338,16 @@ main = do
                        -- PRIMARY KEY (id)
                        mkChunk' "brig" "user" "[UserId]" "uids" "id in ?",
                        -- mkChunkUsers "brig" "user_cookies",
-                       -- PRIMARY KEY (handle :: text) -- TODO: get from brig.user.handle
+                       -- PRIMARY KEY (handle :: text) -- TODO: can we do better than a full table scan?
                        mkChunk' "brig" "user_handle" "[Handle]" "handles" "handle in ?",
-                       -- brig.user_keys: TODO: do we need it? find connection
+                       -- brig.user_keys: TODO: do we need it?  can we do better than a full table scan?
                        -- PRIMARY KEY (key :: text)
                        -- See Brig.Data.UserKey
-                       -- mkChunkUsers "brig" "user_keys" "[Text]" "keys" "key in ?",  -- ?
+                       mkChunk' "brig" "user_keys" "[Int32]" "keys" "key in ?",
                        --
-                       -- brig.user_keys_hash -- TODO: do we need it? find connection
-                       -- PRIMARY KEY (key :: blob)
+                       -- brig.user_keys_hash -- TODO: do we need it? can we do better than a full table scan?
                        -- mkChunk' "brig" "user_keys_hash" "[UserKeyHash]" "keys" "key in ?"
+                       mkChunk' "brig" "user_keys_hash" "[Int32]" "keys" "key in ?",
                        -- "brig" "vcodes"
                        -- PRIMARY KEY (team, user)
                        mkChunkTeam "galley" "billing_team_member",
@@ -392,8 +392,10 @@ main = do
                        -- "spar" "idp_raw_metadata",
                        -- "spar" "issuer_idp",
                        -- "spar" "meta",
-                       -- PRIMARY KEY (external :: text) -- TODO: find connection OR maybe full table scan?
-                       -- mkChunkUsers "spar" "scim_external_ids",
+                       -- "spar" "scim_external_ids"
+                       -- mkChunk' "spar" "scim_external_ids" "[Text]" "external" "external in ?",
+                       -- PRIMARY KEY (external :: text) -- TODO: can we do better than full table scan?
+                       mkChunk' "spar" "scim_external_ids" "[Int32]" "external" "external in ?",
                        -- PRIMARY KEY (uid)
                        mkChunk' "spar" "scim_user_times" "[UserId]" "uids" "uid in ?"
                        -- mkChunkTeam "spar" "team_idp",
