@@ -28,8 +28,10 @@ module Network.Wire.Bot.Cache
 where
 
 import Data.ByteString.Conversion
+import Data.Domain
 import Data.LanguageCodes
 import Data.Misc
+import Data.Qualified
 import Data.Text.Encoding
 import qualified Data.Text.Lazy as Text
 import qualified Data.Text.Lazy.IO as Text
@@ -51,11 +53,11 @@ data CachedUser = CachedUser !PlainTextPassword !User
 -- user2's UUID,email2,password2
 -- ...
 -- @
-fromFile :: Logger -> GenIO -> FilePath -> IO Cache
-fromFile logger gen path = do
+fromFile :: Logger -> GenIO -> Domain -> FilePath -> IO Cache
+fromFile logger gen domain path = do
   triples <- map (Text.splitOn ",") . Text.lines <$> Text.readFile path
   shuffled <- V.toList <$> uniformShuffle (V.fromList triples) gen
-  c <- newIORef =<< foldM (toUser logger) [] shuffled
+  c <- newIORef =<< foldM (toUser logger domain) [] shuffled
   return (Cache c)
 
 empty :: IO Cache
@@ -73,8 +75,8 @@ get c = liftIO . atomicModifyIORef (cache c) $ \u ->
 put :: MonadIO m => Cache -> CachedUser -> m ()
 put c a = liftIO . atomicModifyIORef (cache c) $ \u -> (a : u, ())
 
-toUser :: HasCallStack => Logger -> [CachedUser] -> [LText] -> IO [CachedUser]
-toUser _ acc [i, e, p] = do
+toUser :: HasCallStack => Logger -> Domain -> [CachedUser] -> [LText] -> IO [CachedUser]
+toUser _ domain acc [i, e, p] = do
   let pw = PlainTextPassword . Text.toStrict $ Text.strip p
   let iu = error "Cache.toUser: invalid user"
   let ie = error "Cache.toUser: invalid email"
@@ -85,6 +87,7 @@ toUser _ acc [i, e, p] = do
       pw
       User
         { userId = ui,
+          userQualifiedUser = Qualified ui domain,
           userDisplayName = Name $ "Fakebot-" <> Text.toStrict (Text.strip i),
           userPict = Pict [],
           userAssets = [],
@@ -98,6 +101,6 @@ toUser _ acc [i, e, p] = do
           userTeam = Nothing,
           userManagedBy = ManagedByWire
         }
-toUser g acc entry = do
+toUser g _ acc entry = do
   warn g $ msg (val "invalid entry: " +++ show entry)
   return acc
