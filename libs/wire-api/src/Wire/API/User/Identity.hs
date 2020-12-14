@@ -283,6 +283,9 @@ data UserSSOId
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserSSOId)
 
+-- FUTUREWORK: This schema should ideally be a choice of either tenant+subject, or scim_external_id
+-- but this is currently not possible to derive in swagger2
+-- Maybe this becomes possible with swagger 3?
 instance ToSchema UserSSOId where
   declareNamedSchema _ = do
     tenantSchema <- declareSchemaRef (Proxy @Text)
