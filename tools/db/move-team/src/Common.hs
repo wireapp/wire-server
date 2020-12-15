@@ -35,6 +35,7 @@ sourceJsonLines handle =
 sinkJsonLines :: ToJSON a => Handle -> ConduitT [a] Void IO ()
 sinkJsonLines hd = C.mapM_ (mapM_ (LBS.hPutStr hd . (<> "\n") . encode))
 
+-- FUTUREWORK: this is very slow. Look for alterantives. Maybe `batch` queries are faster.
 sinkTableRows :: Tuple a => PrepQuery W a () -> ConduitM a Void Client ()
 sinkTableRows insertQuery = go
   where

@@ -48,7 +48,7 @@ import qualified System.Logger as Log
 import System.Process (system)
 import Types
 
-deriving instance Cql Name -- TODO
+deriving instance Cql Name
 
 assertTargetDirEmpty :: Env -> IO ()
 assertTargetDirEmpty Env {..} = do
@@ -115,7 +115,7 @@ handleTeamMembers env@Env {..} (i, members) = do
   appendJsonLines (envTargetPath </> "gundeck.notifications") (readGalleyUserTeam env uids)
   appendJsonLines (envTargetPath </> "spar.scim_user_times") (readSparScimUserTimes env uids)
 
-  pure members -- (nit-pick TODO: this could be implicit, done in the pipeline somehow.)
+  pure members -- (nit-pick FUTUREWORK: this could be implicit, done in the pipeline somehow.)
 
 runGalleyTeamConv :: Env -> IO ()
 runGalleyTeamConv env@Env {..} =
@@ -140,22 +140,27 @@ runFullScans env@Env {..} users = do
   let haveId Nothing = False
       haveId (Just uuid) = uuid `Set.member` users
 
+  -- FUTUREWORK: do we need to export this table?
   appendJsonLines (envTargetPath </> "brig.password_reset") $
     readBrigPasswordResetAll env
       .| mapC (filter (haveId . view _5))
 
+  -- FUTUREWORK: Fetch this for each page in `brig.user`
   appendJsonLines (envTargetPath </> "brig.user_handle") $
     readBrigUserHandleAll env
       .| mapC (filter (haveId . view _2))
 
+  -- FUTUREWORK: do we need to export this table?
   appendJsonLines (envTargetPath </> "brig.user_keys") $
     readBrigUserKeysAll env
       .| mapC (filter (haveId . view _2))
 
+  -- FUTUREWORK: do we need to export this table?
   appendJsonLines (envTargetPath </> "brig.user_keys_hash") $
     readBrigUserKeysHashAll env
       .| mapC (filter (haveId . view _3))
 
+  -- FUTUREWORK: can this table be re-recreated from other data?
   appendJsonLines (envTargetPath </> "spar.scim_external_ids") $
     readSparScimExternalIdsAll env
       .| mapC (filter (haveId . view _2))

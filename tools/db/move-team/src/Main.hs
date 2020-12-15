@@ -55,6 +55,7 @@ main = do
       gc <- initCas (connSettings ^. setCasGalley) lgr
       sc <- initCas (connSettings ^. setCasSpar) lgr
       gunC <- initCas (connSettings ^. setCasGundeck) lgr
+      -- FUTUREWORK: "make illegal states irrepresentable"
       let dummyTeamId :: UUID = fromJust $ Data.UUID.fromString "c2cc10e1-57d6-4b6f-9899-38d972112d8c"
       runImport $ Env lgr bc gc sc gunC sourcePath (Id dummyTeamId) 100
     DebugExportFull targetPath connSettings -> do
@@ -62,6 +63,7 @@ main = do
       gc <- initCas (connSettings ^. setCasGalley) lgr
       sc <- initCas (connSettings ^. setCasSpar) lgr
       gunC <- initCas (connSettings ^. setCasGundeck) lgr
+      -- FUTUREWORK: "make illegal states irrepresentable"
       let dummyTeamId :: UUID = fromJust $ Data.UUID.fromString "c2cc10e1-57d6-4b6f-9899-38d972112d8c"
       runDebugExportFull $ Env lgr bc gc sc gunC targetPath (Id dummyTeamId) 100
   where

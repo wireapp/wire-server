@@ -3,6 +3,23 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
 
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module ParseSchema where
 
 import Data.Aeson (ToJSON, object, (.=))
@@ -114,7 +131,7 @@ parser = catMaybes <$> (stmt `sepEndBy` lexeme (string ";"))
 
 -------------------------------------------------------------------------------
 
--- TODO: the special cases in the first 6 lines should be handled by the parser, and this
+-- FUTUREWORK: the special cases in the first 6 lines should be handled by the parser, and this
 -- function should get at least a [Text] with all the qualifiers and the base type. Or
 -- something slightly more sophisticated.
 toHaskellType :: Text -> Text
@@ -125,7 +142,7 @@ toHaskellType (T.splitOn "frozen" -> ["", key']) = toHaskellType key'
 toHaskellType (T.splitOn "list" -> ["", key']) = "[" <> toHaskellType key' <> "]"
 toHaskellType (T.splitOn "set" -> ["", key']) = "(Cassandra.Set " <> toHaskellType key' <> ")"
 toHaskellType "ascii" = "Ascii"
-toHaskellType "asset" = "AssetIgnoreData" -- TODO: check if we really dont need data of this type
+toHaskellType "asset" = "AssetIgnoreData" -- FUTUREWORK: check if we really dont need data of this type
 toHaskellType "bigint" = "Int64"
 toHaskellType "blob" = "Blob"
 toHaskellType "boolean" = "Bool"
@@ -306,11 +323,11 @@ main = do
                        -- brig.codes
                        -- brig.connection
                        --   PRIMARY KEY (left, right)
-                       --   TODO: is this symmetric? At first glance it looks like yes
+                       --   FUTUREWORK: is this symmetric? At first glance it looks like yes
                        mkChunk' "brig" "connection" "[UserId]" "uids" "left in ?",
                        -- brig.excluded_phones
                        --   PRIMARY KEY (mapped_id)
-                       --   TODO: is mapped_id a user id?
+                       --   FUTUREWORK: is mapped_id a user id?
                        mkChunk' "brig" "id_mapping" "[UserId]" "uids" "mapped_id in ?",
                        -- brig.invitation
                        --   mkChunk' "brig" "invitation" "[UserId]" "uids" "inviter in ?",
@@ -319,16 +336,16 @@ main = do
                        --   mkChunk createTables "brig" "invitee_info" "[UserId]" "uids" "invitee in ? OR inviter in ?" "([UserId], [UserId])" "(uids, uids)",
                        -- brig.login_codes
                        --   PRIMARY KEY (user)
-                       --   TODO: do we need this?
+                       --   FUTUREWORK: do we need this?
                        mkChunkUsers "brig" "login_codes",
                        -- brig.meta
                        -- brig.password_reset
                        --   PRIMARY KEY(key)
-                       --   TODO: do we need this? can we do better than a full table scan?
+                       --   FUTUREWORK: do we need this? can we do better than a full table scan?
                        mkChunk' "brig" "password_reset" "[PasswordResetKey]" "reset_keys" "key in ?",
                        -- brig.prekeys
                        --   PRIMARY KEY (user, client, key)
-                       --   TODO: do new need this ?
+                       --   FUTUREWORK: do new need this ?
                        mkChunkUsers "brig" "prekeys",
                        -- brig.properties
                        --   PRIMARY KEY (user, key)
@@ -355,14 +372,14 @@ main = do
                        -- brig.user_cookies
                        -- brig.user_handle
                        --   PRIMARY KEY (handle :: text)
-                       --   TODO: can we do better than a full table scan?
+                       --   FUTUREWORK: can we do better than a full table scan?
                        mkChunk' "brig" "user_handle" "[Handle]" "handles" "handle in ?",
                        -- brig.user_keys:
                        --   PRIMARY KEY (key :: text) (Brig.Data.UserKey)
-                       --   TODO: do we need it?  can we do better than a full table scan?
+                       --   FUTUREWORK: do we need it?  can we do better than a full table scan?
                        mkChunk' "brig" "user_keys" "[Int32]" "keys" "key in ?",
                        -- brig.user_keys_hash
-                       --   TODO: do we need it?
+                       --   FUTUREWORK: do we need it?
                        --   can we do better than a full table scan?
                        --   mkChunk' "brig" "user_keys_hash" "[UserKeyHash]" "keys" "key in ?"
                        mkChunk' "brig" "user_keys_hash" "[Int32]" "keys" "key in ?",
@@ -423,7 +440,7 @@ main = do
                        -- spar.issuer_idp
                        -- spar.meta
                        -- spar.scim_external_ids
-                       --   PRIMARY KEY (external :: text) -- TODO: can we do better than full table scan?
+                       --   PRIMARY KEY (external :: text) -- FUTUREWORK: can we do better than full table scan?
                        mkChunk' "spar" "scim_external_ids" "[Int32]" "external" "external in ?",
                        -- spar.scim_user_times
                        --   PRIMARY KEY (uid)

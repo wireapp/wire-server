@@ -69,7 +69,7 @@ instance Cql AssetIgnoreData where
           "asset"
           [ ("typ", IntColumn),
             ("key", VarCharColumn),
-            ("size", IntColumn) -- TODO check if this works
+            ("size", IntColumn) -- FUTUREWORK check if this works
           ]
       )
   toCql _ = error "AssetIgnoreData: you should not have any data of this"
