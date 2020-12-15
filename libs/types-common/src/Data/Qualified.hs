@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -35,7 +36,8 @@ module Data.Qualified
 where
 
 import Control.Applicative (optional)
-import Data.Aeson (FromJSON, ToJSON, withText)
+import Control.Lens ((.~), (?~))
+import Data.Aeson (FromJSON, ToJSON, withObject, withText, (.:), (.=))
 import qualified Data.Aeson as Aeson
 import qualified Data.Attoparsec.ByteString.Char8 as Atto
 import Data.Bifunctor (first)
@@ -43,7 +45,9 @@ import Data.ByteString.Conversion (FromByteString (parser))
 import Data.Domain (Domain, domainText)
 import Data.Handle (Handle (..))
 import Data.Id (Id (toUUID))
+import Data.Proxy (Proxy (..))
 import Data.String.Conversions (cs)
+import Data.Swagger
 import qualified Data.Text.Encoding as Text.E
 import qualified Data.UUID as UUID
 import Imports hiding (local)
@@ -129,11 +133,25 @@ renderQualifiedId = renderQualified (cs . UUID.toString . toUUID)
 mkQualifiedId :: Text -> Either String (Qualified (Id a))
 mkQualifiedId = Atto.parseOnly (parser <* Atto.endOfInput) . Text.E.encodeUtf8
 
+instance ToSchema (Qualified (Id a)) where
+  declareNamedSchema _ = do
+    idSchema <- declareSchemaRef (Proxy @(Id a))
+    domainSchema <- declareSchemaRef (Proxy @Domain)
+    return $
+      NamedSchema (Just "QualifiedUserId") $
+        mempty
+          & type_ ?~ SwaggerObject
+          & properties
+            .~ [ ("id", idSchema),
+                 ("domain", domainSchema)
+               ]
+
 instance ToJSON (Qualified (Id a)) where
-  toJSON = Aeson.String . renderQualifiedId
+  toJSON qu = Aeson.object ["id" .= _qLocalPart qu, "domain" .= _qDomain qu]
 
 instance FromJSON (Qualified (Id a)) where
-  parseJSON = withText "QualifiedUserId" $ either fail pure . mkQualifiedId
+  parseJSON = withObject "QualifiedUserId" $ \o ->
+    Qualified <$> o .: "id" <*> o .: "domain"
 
 instance FromHttpApiData (Qualified (Id a)) where
   parseUrlPiece = first cs . mkQualifiedId

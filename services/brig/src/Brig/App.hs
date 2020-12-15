@@ -62,6 +62,7 @@ module Brig.App
     runAppResourceT,
     forkAppIO,
     locationOf,
+    viewFederationDomain,
   )
 where
 
@@ -95,6 +96,7 @@ import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
 import Data.Default (def)
+import Data.Domain
 import qualified Data.GeoIP2 as GeoIp
 import Data.IP
 import Data.Id (UserId)
@@ -519,3 +521,9 @@ readTurnList = Text.readFile >=> return . fn . mapMaybe fromByteString . fmap Te
   where
     fn [] = Nothing
     fn (x : xs) = Just (list1 x xs)
+
+--------------------------------------------------------------------------------
+-- Federation
+
+viewFederationDomain :: MonadReader Env m => m (Domain)
+viewFederationDomain = view (settings . Opt.federationDomain)

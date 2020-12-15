@@ -88,7 +88,7 @@ where
 import qualified Brig.API.Error as Error
 import qualified Brig.API.Handler as API (Handler)
 import Brig.API.Types
-import Brig.API.Util (fetchUserIdentity, validateHandle, viewFederationDomain)
+import Brig.API.Util (fetchUserIdentity, validateHandle)
 import Brig.App
 import qualified Brig.Code as Code
 import Brig.Data.Activation (ActivationEvent (..))

@@ -218,11 +218,18 @@ type GetUserQualified =
     :> CaptureUserId "uid"
     :> Get '[Servant.JSON] Public.UserProfile
 
+type GetSelf =
+  Summary "Get your own profile"
+    :> ZAuthServant
+    :> "self"
+    :> Get '[Servant.JSON] Public.SelfProfile
+
 type OutsideWorldAPI =
   CheckUserExistsUnqualified
     :<|> CheckUserExistsQualified
     :<|> GetUserUnqualified
     :<|> GetUserQualified
+    :<|> GetSelf
 
 type SwaggerDocsAPI = "api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
@@ -245,6 +252,7 @@ servantSitemap =
     :<|> checkUserExistsH
     :<|> getUserUnqualifiedH
     :<|> getUserH
+    :<|> getSelf
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
@@ -394,14 +402,6 @@ sitemap o = do
     Doc.errorResponse insufficientTeamPermissions
 
   -- User Self API ------------------------------------------------------
-
-  get "/self" (continue getSelfH) $
-    accept "application" "json"
-      .&. zauthUserId
-  document "GET" "self" $ do
-    Doc.summary "Get your profile"
-    Doc.returns (Doc.ref Public.modelSelf)
-    Doc.response 200 "Self profile" Doc.end
 
   -- This endpoint can lead to the following events being sent:
   -- - UserUpdated event to contacts of self
@@ -1162,7 +1162,7 @@ createUser (Public.NewUserPublic new) = do
 
 checkUserExistsUnqualifiedH :: UserId -> UserId -> Handler (Union CheckUserExistsResponse)
 checkUserExistsUnqualifiedH self uid = do
-  domain <- API.viewFederationDomain
+  domain <- viewFederationDomain
   checkUserExistsH self domain uid
 
 checkUserExistsH :: UserId -> Domain -> UserId -> Handler (Union CheckUserExistsResponse)
@@ -1176,17 +1176,13 @@ checkUserExists :: UserId -> Qualified UserId -> Handler Bool
 checkUserExists self qualifiedUserId =
   isJust <$> getUser self qualifiedUserId
 
-getSelfH :: JSON ::: UserId -> Handler Response
-getSelfH (_ ::: self) = do
-  json <$> getSelf self
-
 getSelf :: UserId -> Handler Public.SelfProfile
 getSelf self = do
   lift (API.lookupSelfProfile self) >>= ifNothing userNotFound
 
 getUserUnqualifiedH :: UserId -> UserId -> Handler Public.UserProfile
 getUserUnqualifiedH self uid = do
-  domain <- API.viewFederationDomain
+  domain <- viewFederationDomain
   getUserH self domain uid
 
 getUserH :: UserId -> Domain -> UserId -> Handler Public.UserProfile
@@ -1219,7 +1215,7 @@ listUsersH (_ ::: self ::: qry) =
 listUsers :: UserId -> Either (List UserId) (Range 1 4 (List Handle)) -> Handler [Public.UserProfile]
 listUsers self = \case
   Left us -> do
-    domain <- API.viewFederationDomain
+    domain <- viewFederationDomain
     byIds $ map (`Qualified` domain) (fromList us)
   Right hs -> do
     us <- getIds (fromList $ fromRange hs)
@@ -1229,7 +1225,7 @@ listUsers self = \case
     getIds localHandles = do
       localUsers <- catMaybes <$> traverse (lift . API.lookupHandle) localHandles
       -- FUTUREWORK(federation, #1268): resolve qualified handles, too
-      domain <- API.viewFederationDomain
+      domain <- viewFederationDomain
       pure $ map (`Qualified` domain) localUsers
     byIds :: [Qualified UserId] -> Handler [Public.UserProfile]
     byIds uids =
@@ -1311,7 +1307,7 @@ getHandleInfo :: UserId -> Handle -> Handler (Maybe Public.UserHandleInfo)
 getHandleInfo self handle = do
   ownerProfile <- do
     -- FUTUREWORK(federation, #1268): resolve qualified handles, too
-    domain <- API.viewFederationDomain
+    domain <- viewFederationDomain
     maybeOwnerId <- fmap (flip Qualified domain) <$> (lift $ API.lookupHandle handle)
     case maybeOwnerId of
       Just ownerId -> lift $ API.lookupProfile self ownerId
