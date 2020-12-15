@@ -67,7 +67,7 @@ testCleanExpiredPendingInvitations opts db brig galley spar = do
   uid <- do
     email <- randomEmail
     scimUser <- lift (randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email})
-    (scimStoredUser, _inv, _inviteeCode) <- createUser'step spar brig tok tid scimUser email
+    (scimStoredUser, _inv, _inviteeCode) <- createUserStep spar brig tok tid scimUser email
     pure $ (Scim.id . Scim.thing) scimStoredUser
   assertUserExist "user should exist" db uid True
   waitUserExpiration opts
@@ -79,7 +79,7 @@ testRegisteredUsersNotCleaned opts db brig galley spar = do
   tok <- createScimToken spar owner
   email <- randomEmail
   scimUser <- lift (randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email})
-  (scimStoredUser, _inv, inviteeCode) <- createUser'step spar brig tok tid scimUser email
+  (scimStoredUser, _inv, inviteeCode) <- createUserStep spar brig tok tid scimUser email
   let uid = (Scim.id . Scim.thing) scimStoredUser
   assertUserExist "user should exist" db uid True
   registerInvitation brig email (Name "Alice") inviteeCode True
@@ -96,8 +96,8 @@ createScimToken spar' owner = do
         }
   pure tok
 
-createUser'step :: Spar -> Brig -> ScimToken -> TeamId -> Scim.User.User SparTag -> Email -> HttpT IO (WithMeta (WithId UserId (Scim.User.User SparTag)), Invitation, InvitationCode)
-createUser'step spar' brig' tok tid scimUser email = do
+createUserStep :: Spar -> Brig -> ScimToken -> TeamId -> Scim.User.User SparTag -> Email -> HttpT IO (WithMeta (WithId UserId (Scim.User.User SparTag)), Invitation, InvitationCode)
+createUserStep spar' brig' tok tid scimUser email = do
   scimStoredUser <- (createUser spar' tok scimUser)
   inv <- getInvitationByEmail brig' email
   Just inviteeCode <- getInvitationCode brig' tid (inInvitation inv)
