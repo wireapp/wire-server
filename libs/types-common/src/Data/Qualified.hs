@@ -138,7 +138,7 @@ instance ToSchema (Qualified (Id a)) where
     idSchema <- declareSchemaRef (Proxy @(Id a))
     domainSchema <- declareSchemaRef (Proxy @Domain)
     return $
-      NamedSchema (Just "QualifiedUserId") $
+      NamedSchema (Just "QualifiedId") $
         mempty
           & type_ ?~ SwaggerObject
           & properties
