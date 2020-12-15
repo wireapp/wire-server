@@ -188,7 +188,6 @@ data UserProfile = UserProfile
 
 -- Cannot use deriving (ToSchema) via (CustomSwagger ...) because we need to
 -- mark 'deleted' as optional, but it is not a 'Maybe'
--- TODO: Deal with profileId being backwards compatible
 instance ToSchema UserProfile where
   declareNamedSchema _ = do
     idSchema <- deprecatedUnqualifiedSchemaRef (Proxy @UserId) "qualified_id"
@@ -257,7 +256,6 @@ instance ToJSON UserProfile where
         "email" .= profileEmail u
       ]
 
--- TODO: Do we ever expect clients to send this? If yes, we will have to make qualified_id optional somehow
 instance FromJSON UserProfile where
   parseJSON = withObject "UserProfile" $ \o ->
     UserProfile
