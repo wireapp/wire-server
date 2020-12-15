@@ -1319,7 +1319,7 @@ checkHandlesH (_ ::: _ ::: req) = do
 
 getHandleInfoUnqualifiedH :: UserId -> Handle -> Handler Public.UserHandleInfo
 getHandleInfoUnqualifiedH self handle = do
-  domain <- API.viewFederationDomain
+  domain <- viewFederationDomain
   getHandleInfoH self domain handle
 
 getHandleInfoH :: UserId -> Domain -> Handle -> Handler Public.UserHandleInfo
@@ -1330,7 +1330,7 @@ getHandleInfoH self domain handle =
 -- FUTUREWORK: use 'runMaybeT' to simplify this.
 getHandleInfo :: UserId -> Qualified Handle -> Handler (Maybe Public.UserHandleInfo)
 getHandleInfo self handle = do
-  domain <- API.viewFederationDomain
+  domain <- viewFederationDomain
   if _qDomain handle == domain
     then getLocalHandleInfo domain
     else getRemoteHandleInfo
