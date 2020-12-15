@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NumDecimals #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeSynonymInstances #-}
@@ -43,6 +44,7 @@ import qualified Data.ByteString.Base64.Lazy as EL
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as L8
 import Data.Fixed
+import Data.Swagger (ToSchema (..))
 import Data.Text (pack)
 import qualified Data.Text.Encoding
 import qualified Data.Text.Encoding.Error
@@ -77,6 +79,7 @@ infixr 5 #
 -- Unlike with 'UTCTime', 'Show' renders ISO string.
 newtype UTCTimeMillis = UTCTimeMillis {fromUTCTimeMillis :: UTCTime}
   deriving (Eq, Ord, Generic)
+  deriving newtype (ToSchema)
 
 {-# INLINE toUTCTimeMillis #-}
 toUTCTimeMillis :: HasCallStack => UTCTime -> UTCTimeMillis

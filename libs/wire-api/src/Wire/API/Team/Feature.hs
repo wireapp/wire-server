@@ -30,6 +30,7 @@ module Wire.API.Team.Feature
     TeamFeatureStatusNoConfig (..),
     TeamFeatureStatusWithConfig (..),
     deprecatedFeatureName,
+    defaultAppLockStatus,
 
     -- * Swagger
     typeTeamFeatureName,
@@ -58,6 +59,28 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 ----------------------------------------------------------------------
 -- TeamFeatureName
 
+-- | If you add a constructor here, you need to visit (at least) 4 places that are not caught
+-- by ghc errors:
+--
+-- * libs/wire-api/test/unit/Test/Wire/API/Roundtrip/Aeson.hs:198 (calls to 'testRoundTrip')
+-- * services/galley/src/Galley/API/Internal.hs:179: (calls to 'mkFeatureGetAndPutRoute')
+-- * services/galley/src/Galley/API/Public.hs:465: (calls to 'mkFeatureGetAndPutRoute')
+-- * services/galley/src/Galley/API/Teams/Features.hs:106: (calls ot 'getStatus')
+--
+-- Using something like '[minBound..]' on those expressions would require dependent types.  We
+-- could generate exhaustive lists of those calls using TH, along the lines of:
+--
+-- @
+-- forAllTeamFeatureNames ::
+--   ExpQ {- [forall (a :: TeamFeatureName). b] -} ->
+--   ExpQ {- [b] -}
+-- forAllTeamFeatureNames =
+--   error
+--     "...  and then somehow turn the values from '[minBound..]' into \
+--     \type applications in the syntax tree"
+-- @
+--
+-- But that seems excessive.  Let's wait for dependent types to be ready in ghc!
 data TeamFeatureName
   = TeamFeatureLegalHold
   | TeamFeatureSSO
@@ -172,11 +195,11 @@ type FeatureHasNoConfig (a :: TeamFeatureName) = (TeamFeatureStatus a ~ TeamFeat
 
 -- if you add a new constructor here, don't forget to add it to the swagger (1.2) docs in "Wire.API.Swagger"!
 modelForTeamFeature :: TeamFeatureName -> Doc.Model
-modelForTeamFeature name@TeamFeatureLegalHold = modelTeamFeatureStatusNoConfig name
-modelForTeamFeature name@TeamFeatureSSO = modelTeamFeatureStatusNoConfig name
-modelForTeamFeature name@TeamFeatureSearchVisibility = modelTeamFeatureStatusNoConfig name
-modelForTeamFeature name@TeamFeatureValidateSAMLEmails = modelTeamFeatureStatusNoConfig name
-modelForTeamFeature name@TeamFeatureDigitalSignatures = modelTeamFeatureStatusNoConfig name
+modelForTeamFeature TeamFeatureLegalHold = modelTeamFeatureStatusNoConfig
+modelForTeamFeature TeamFeatureSSO = modelTeamFeatureStatusNoConfig
+modelForTeamFeature TeamFeatureSearchVisibility = modelTeamFeatureStatusNoConfig
+modelForTeamFeature TeamFeatureValidateSAMLEmails = modelTeamFeatureStatusNoConfig
+modelForTeamFeature TeamFeatureDigitalSignatures = modelTeamFeatureStatusNoConfig
 modelForTeamFeature name@TeamFeatureAppLock = modelTeamFeatureStatusWithConfig name modelTeamFeatureAppLockConfig
 
 ----------------------------------------------------------------------
@@ -187,8 +210,8 @@ newtype TeamFeatureStatusNoConfig = TeamFeatureStatusNoConfig
   }
   deriving newtype (Eq, Show, Generic, Typeable, Arbitrary)
 
-modelTeamFeatureStatusNoConfig :: TeamFeatureName -> Doc.Model
-modelTeamFeatureStatusNoConfig name = Doc.defineModel (cs $ show name) $ do
+modelTeamFeatureStatusNoConfig :: Doc.Model
+modelTeamFeatureStatusNoConfig = Doc.defineModel "TeamFeatureStatusNoConfig" $ do
   Doc.description $ "Configuration for a team feature that has no configuration"
   Doc.property "status" typeTeamFeatureStatusValue $ Doc.description "status"
 
@@ -254,6 +277,12 @@ deriving via
   (StripCamel "applock" TeamFeatureAppLockConfig)
   instance
     FromJSON TeamFeatureAppLockConfig
+
+defaultAppLockStatus :: TeamFeatureStatusWithConfig TeamFeatureAppLockConfig
+defaultAppLockStatus =
+  TeamFeatureStatusWithConfig
+    TeamFeatureEnabled
+    (TeamFeatureAppLockConfig (EnforceAppLock False) 60)
 
 ----------------------------------------------------------------------
 -- internal

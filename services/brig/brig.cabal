@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7c9aee98315a9a56aa48fcb0af9a9e82954d9913fc94cafa512a0811f40b2ad3
+-- hash: 9f982304b3e4de02c3a782a8053c4d3d2e0ab19d3e6bd497684f37ceaaf7215a
 
 name:           brig
 version:        1.35.0
@@ -192,6 +192,9 @@ library
     , scientific >=0.3.4
     , scrypt >=0.5
     , semigroups >=0.15
+    , servant
+    , servant-server
+    , servant-swagger
     , singletons >=2.0
     , smtp-mail >=0.1
     , sodium-crypto-sign >=0.1
@@ -201,6 +204,7 @@ library
     , stomp-queue >=0.3
     , string-conversions
     , swagger >=0.1
+    , swagger2
     , tagged >=0.7
     , template >=0.2
     , text >=0.11
@@ -265,7 +269,6 @@ executable brig-integration
   main-is: Main.hs
   other-modules:
       API.Calling
-      API.IdMapping
       API.Metrics
       API.Provider
       API.RichInfo.Util

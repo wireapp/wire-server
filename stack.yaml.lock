@@ -478,6 +478,38 @@ packages:
   original:
     hackage: splitmix-0.0.4
 - completed:
+    hackage: servant-0.18.2@sha256:f8c9f0e9891a3ada1337a3c0b369333a3b5a2d0909dd3cd09d79bc26adeaca44,5298
+    pantry-tree:
+      size: 2662
+      sha256: e930e814de1aa4d24274bdf18341a50b7ed38604ae4734f730e09238ac5bf7e2
+  original:
+    hackage: servant-0.18.2
+- completed:
+    hackage: servant-server-0.18.2@sha256:56679af62ab8820a2108da6153d9ae9dde37199e62172365bdaea1458c3f7c2d,5482
+    pantry-tree:
+      size: 2614
+      sha256: 3ac7430134439e4b67f0f5333f63b89d0cb7de5e2e07f0af7801c8e223942b9c
+  original:
+    hackage: servant-server-0.18.2
+- completed:
+    hackage: servant-mock-0.8.7@sha256:64cb3e52bbd51ab6cb25e3f412a99ea712c6c26f1efd117f01a8d1664df49c67,2306
+    pantry-tree:
+      size: 555
+      sha256: b263e932ec6b151e52987054ec0a4cd692fa787f856c79e51498302eb0d6c388
+  original:
+    hackage: servant-mock-0.8.7
+- completed:
+    name: servant-swagger
+    version: 1.1.11
+    git: https://github.com/wireapp/servant-swagger.git
+    pantry-tree:
+      size: 1896
+      sha256: 73fb52248eec3d91d6b26daf526bf099d6ef1a3bc57954528387993d2cf481d6
+    commit: 23e9afafadaade29d21181b935286087457171e3
+  original:
+    git: https://github.com/wireapp/servant-swagger.git
+    commit: 23e9afafadaade29d21181b935286087457171e3
+- completed:
     hackage: HsOpenSSL-x509-system-0.1.0.3@sha256:f4958ee0eec555c5c213662eff6764bddefe5665e2afcfd32733ce3801a9b687,1774
     pantry-tree:
       size: 503
@@ -587,6 +619,13 @@ packages:
       sha256: 11d2ac77cee54cc1f222e574e4126189fe5b60a47a1aedbafc2ab0de709b29c6
   original:
     hackage: headroom-0.2.1.0
+- completed:
+    hackage: implicit-hie-0.1.2.5@sha256:517a98ef72f92f0a1617495222774fed3a751a64b0c06fbfc7b858d7aa5de279,2998
+    pantry-tree:
+      size: 844
+      sha256: 9bf2645187637b647dfaebf37a45a57e221b3527592ce3b1cfd9faf90339dac3
+  original:
+    hackage: implicit-hie-0.1.2.5
 snapshots:
 - completed:
     size: 532382

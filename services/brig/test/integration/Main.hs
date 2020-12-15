@@ -21,7 +21,6 @@ module Main
 where
 
 import qualified API.Calling as Calling
-import qualified API.IdMapping as IdMapping
 import qualified API.Metrics as Metrics
 import qualified API.Provider as Provider
 import qualified API.Search as Search
@@ -98,7 +97,6 @@ runTests iConf bConf otherArgs = do
   searchApis <- Search.tests brigOpts mg g b
   teamApis <- Team.tests brigOpts mg n b c g awsEnv
   turnApi <- Calling.tests mg b brigOpts turnFile turnFileV2
-  idMappingApi <- pure $ IdMapping.tests brigOpts mg b
   metricsApi <- Metrics.tests mg b
   settingsApi <- Settings.tests brigOpts mg b g
   createIndex <- Index.Create.spec brigOpts
@@ -115,7 +113,6 @@ runTests iConf bConf otherArgs = do
         searchApis,
         teamApis,
         turnApi,
-        idMappingApi,
         metricsApi,
         settingsApi,
         createIndex

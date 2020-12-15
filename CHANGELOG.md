@@ -14,6 +14,26 @@
 
 -->
 
+# 2020-12-15
+
+## Release Notes
+
+As a preparation for federation, this release introduces a mandatory 'federationDomain' configuration setting for brig and galley (#1261)
+
+## Features
+
+* brig: Allow setting a static SFT Server (#1277)
+
+## Bug fixes and other updates
+
+## Documentation
+
+## Internal changes
+
+* Add federation aware endpoint for getting user (#1254)
+* refactor brig Servant API for consistency (#1276)
+* Feature flags cleanup (#1256)
+
 # 2020-11-24
 
 ## Release Notes

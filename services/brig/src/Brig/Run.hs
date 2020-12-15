@@ -23,6 +23,7 @@ where
 
 import Brig.API (sitemap)
 import Brig.API.Handler
+import Brig.API.Public (ServantAPI, servantSitemap)
 import Brig.AWS (sesQueue)
 import qualified Brig.AWS as AWS
 import qualified Brig.AWS.SesNotification as SesNotification
@@ -32,16 +33,22 @@ import qualified Brig.InternalEvent.Process as Internal
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Queue as Queue
 import qualified Control.Concurrent.Async as Async
-import Control.Lens ((^.))
+import Control.Lens ((.~), (^.))
 import Control.Monad.Catch (finally)
+import Data.Default (Default (def))
+import Data.Id (RequestId (..))
 import qualified Data.Metrics.Middleware.Prometheus as Metrics
+import Data.Proxy (Proxy (Proxy))
 import Data.Text (unpack)
 import Imports hiding (head)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Middleware.Gunzip as GZip
 import qualified Network.Wai.Middleware.Gzip as GZip
+import Network.Wai.Utilities (lookupRequestId)
 import Network.Wai.Utilities.Server
 import qualified Network.Wai.Utilities.Server as Server
+import Servant ((:<|>) (..))
+import qualified Servant
 import Util.Options
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it
@@ -74,13 +81,25 @@ run o = do
 mkApp :: Opts -> IO (Wai.Application, Env)
 mkApp o = do
   e <- newEnv o
-  return (middleware e $ serve e, e)
+  return (middleware e $ \reqId -> servantApp (e & requestId .~ reqId), e)
   where
     rtree = compile (sitemap o)
-    middleware :: Env -> Wai.Middleware
+    middleware :: Env -> (RequestId -> Wai.Application) -> Wai.Application
     middleware e =
       Metrics.waiPrometheusMiddleware (sitemap o)
         . catchErrors (e ^. applog) [Right $ e ^. metrics]
         . GZip.gunzip
         . GZip.gzip GZip.def
-    serve e r k = runHandler e r (Server.route rtree r k) k
+        . lookupRequestIdMiddleware
+    app e r k = runHandler e r (Server.route rtree r k) k
+    -- the servant API wraps the one defined using wai-routing
+    servantApp :: Env -> Wai.Application
+    servantApp e =
+      Servant.serve
+        (Proxy @(ServantAPI :<|> Servant.Raw))
+        (Servant.hoistServer (Proxy @ServantAPI) (toServantHandler e) servantSitemap :<|> Servant.Tagged (app e))
+
+lookupRequestIdMiddleware :: (RequestId -> Wai.Application) -> Wai.Application
+lookupRequestIdMiddleware mkapp req cont = do
+  let reqid = maybe def RequestId $ lookupRequestId req
+  mkapp reqid req cont

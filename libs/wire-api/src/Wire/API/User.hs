@@ -92,7 +92,19 @@ module Wire.API.User
 where
 
 import Control.Error.Safe (rightMay)
+import Control.Lens (over)
 import Data.Aeson
+  ( FromJSON (parseJSON),
+    KeyValue ((.=)),
+    Object,
+    ToJSON (toJSON),
+    Value (Object),
+    object,
+    withObject,
+    (.!=),
+    (.:),
+    (.:?),
+  )
 import qualified Data.Aeson.Types as Aeson
 import Data.ByteString.Conversion
 import qualified Data.Code as Code
@@ -101,11 +113,15 @@ import Data.Handle (Handle)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
+import qualified Data.List as List
 import Data.Misc (PlainTextPassword (..))
+import Data.Proxy (Proxy (..))
 import Data.Range
+import Data.Swagger (ToSchema (..), genericDeclareNamedSchema, required, schema)
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import Data.UUID (UUID, nil)
+import Deriving.Swagger
 import Imports
 import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
@@ -167,6 +183,28 @@ data UserProfile = UserProfile
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserProfile)
+
+-- Cannot use deriving (ToSchema) via (CustomSwagger ...) because we need to
+-- mark 'deleted' as optional, but it is not a 'Maybe'
+instance ToSchema UserProfile where
+  declareNamedSchema _ = do
+    genericSchema <-
+      genericDeclareNamedSchema
+        ( swaggerOptions
+            @'[ FieldLabelModifier
+                  ( StripPrefix "profile",
+                    CamelToSnake,
+                    LabelMappings
+                      '[ "pict" ':-> "picture",
+                         "expire" ':-> "expires_at"
+                       ]
+                  )
+              ]
+        )
+        (Proxy @UserProfile)
+    pure $
+      genericSchema
+        & over (schema . required) (List.delete "deleted")
 
 modelUser :: Doc.Model
 modelUser = Doc.defineModel "User" $ do

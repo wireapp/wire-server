@@ -200,9 +200,8 @@ libzauth:
 
 # Useful when using Haskell IDE Engine
 # https://github.com/haskell/haskell-ide-engine
-# requires 'yq' executable on your path.
 #
 # Run this again after changes to libraries or dependencies.
 .PHONY: hie.yaml
 hie.yaml:
-	./tools/gen-hie-yaml.sh > hie.yaml
+	stack exec gen-hie > hie.yaml

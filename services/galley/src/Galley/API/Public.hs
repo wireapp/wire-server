@@ -38,8 +38,9 @@ import qualified Galley.API.Error as Error
 import qualified Galley.API.LegalHold as LegalHold
 import qualified Galley.API.Query as Query
 import Galley.API.Swagger (swagger)
-import Galley.API.Teams (DoAuth (..))
 import qualified Galley.API.Teams as Teams
+import Galley.API.Teams.Features (DoAuth (..))
+import qualified Galley.API.Teams.Features as Features
 import qualified Galley.API.Update as Update
 import Galley.App
 import Imports hiding (head)
@@ -451,7 +452,7 @@ sitemap = do
     response 204 "Search visibility set" end
     errorResponse Error.teamSearchVisibilityNotEnabled
 
-  get "/teams/:tid/features" (continue Teams.getAllFeaturesH) $
+  get "/teams/:tid/features" (continue Features.getAllFeaturesH) $
     zauthUserId
       .&. capture "tid"
       .&. accept "application" "json"
@@ -461,12 +462,12 @@ sitemap = do
       description "Team ID"
     response 200 "All feature statuses" end
 
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureSSO Teams.getSSOStatusInternal Teams.setSSOStatusInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureLegalHold Teams.getLegalholdStatusInternal Teams.setLegalholdStatusInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureSearchVisibility Teams.getTeamSearchVisibilityAvailableInternal Teams.setTeamSearchVisibilityAvailableInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureValidateSAMLEmails Teams.getValidateSAMLEmailsInternal Teams.setValidateSAMLEmailsInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureDigitalSignatures Teams.getDigitalSignaturesInternal Teams.setDigitalSignaturesInternal
-  mkFeatureGetAndPutRoute @'Public.TeamFeatureAppLock Teams.getAppLockInternal Teams.setAppLockInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureSSO Features.getSSOStatusInternal Features.setSSOStatusInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureLegalHold Features.getLegalholdStatusInternal Features.setLegalholdStatusInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureSearchVisibility Features.getTeamSearchVisibilityAvailableInternal Features.setTeamSearchVisibilityAvailableInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureValidateSAMLEmails Features.getValidateSAMLEmailsInternal Features.setValidateSAMLEmailsInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureDigitalSignatures Features.getDigitalSignaturesInternal Features.setDigitalSignaturesInternal
+  mkFeatureGetAndPutRoute @'Public.TeamFeatureAppLock Features.getAppLockInternal Features.setAppLockInternal
 
   -- Custom Backend API -------------------------------------------------
 
@@ -1097,7 +1098,7 @@ mkFeatureGetAndPutRoute getter setter = do
 
   let getHandler :: UserId ::: TeamId ::: JSON -> Galley Response
       getHandler (uid ::: tid ::: _) =
-        json <$> Teams.getFeatureStatus @a getter (DoAuth uid) tid
+        json <$> Features.getFeatureStatus @a getter (DoAuth uid) tid
 
   let mkGetRoute makeDocumentation name = do
         get ("/teams/:tid/features/" <> name) (continue getHandler) $
@@ -1117,7 +1118,7 @@ mkFeatureGetAndPutRoute getter setter = do
   let putHandler :: UserId ::: TeamId ::: JsonRequest (Public.TeamFeatureStatus a) ::: JSON -> Galley Response
       putHandler (uid ::: tid ::: req ::: _) = do
         status <- fromJsonBody req
-        res <- Teams.setFeatureStatus @a setter (DoAuth uid) tid status
+        res <- Features.setFeatureStatus @a setter (DoAuth uid) tid status
         pure $ (json res) & Network.Wai.Utilities.setStatus status200
 
   let mkPutRoute makeDocumentation name = do
