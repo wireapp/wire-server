@@ -5,7 +5,7 @@ chart=${1:?$USAGE}
 version=${2:?$USAGE}
 
 TOP_LEVEL="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../.." && pwd )"
-CHARTS_DIR="$TOP_LEVEL/deploy/charts"
+CHARTS_DIR="$TOP_LEVEL/charts"
 tempfile=$(mktemp)
 
 # (sed usage should be portable for both GNU sed and BSD (Mac OS) sed)
