@@ -74,7 +74,6 @@ instance ToJSON UserHandleInfo where
         "qualified_user" .= u
       ]
 
--- TODO: Deal with backwards compatibility
 instance FromJSON UserHandleInfo where
   parseJSON = withObject "UserHandleInfo" $ \o ->
     UserHandleInfo <$> o .: "qualified_user"
