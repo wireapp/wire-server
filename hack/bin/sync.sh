@@ -36,7 +36,7 @@ fi
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 TOP_LEVEL_DIR=$SCRIPT_DIR/../..
-CHART_DIR=$TOP_LEVEL_DIR/charts
+CHART_DIR=$TOP_LEVEL_DIR/.local/charts
 cd "$TOP_LEVEL_DIR"
 
 chart_dir=$1
