@@ -1342,7 +1342,7 @@ getHandleInfo self handle = do
         Just ownerId -> do
           ownerProfile <- lift $ API.lookupProfile self (Qualified ownerId domain)
           owner <- filterHandleResults self (maybeToList ownerProfile)
-          return $ Public.UserHandleInfo . Public.profileId <$> listToMaybe owner
+          return $ Public.UserHandleInfo . Public.profileQualifiedId <$> listToMaybe owner
     -- FUTUREWORK: Federate with remote backends
     getRemoteHandleInfo = return Nothing
 

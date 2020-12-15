@@ -111,6 +111,7 @@ import qualified Data.Currency as Currency
 import Data.Handle (Handle)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashMap.Strict.InsOrd as InsHashMap
+import qualified Data.HashMap.Strict.InsOrd as InsOrdMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
 import qualified Data.List as List
@@ -118,7 +119,7 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Proxy (Proxy (..))
 import Data.Qualified
 import Data.Range
-import Data.Swagger (ToSchema (..), genericDeclareNamedSchema, properties, required, schema)
+import Data.Swagger (Referenced (Inline), ToSchema (..), genericDeclareNamedSchema, properties, required, schema)
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import Data.UUID (UUID, nil)
@@ -166,7 +167,7 @@ instance ToJSON UserIdList where
 -- other users. Each user also has access to their own profile in a richer format --
 -- 'SelfProfile'.
 data UserProfile = UserProfile
-  { profileId :: UserId,
+  { profileQualifiedId :: Qualified UserId,
     profileName :: Name,
     -- | DEPRECATED
     profilePict :: Pict,
@@ -187,8 +188,10 @@ data UserProfile = UserProfile
 
 -- Cannot use deriving (ToSchema) via (CustomSwagger ...) because we need to
 -- mark 'deleted' as optional, but it is not a 'Maybe'
+-- TODO: Deal with profileId being backwards compatible
 instance ToSchema UserProfile where
   declareNamedSchema _ = do
+    uuidSchema <- declareNamedSchema (Proxy @UUID)
     genericSchema <-
       genericDeclareNamedSchema
         ( swaggerOptions
@@ -206,6 +209,7 @@ instance ToSchema UserProfile where
     pure $
       genericSchema
         & over (schema . required) (List.delete "deleted")
+        & over (schema . properties) (InsOrdMap.insert "id" (Inline (view schema uuidSchema)))
 
 modelUser :: Doc.Model
 modelUser = Doc.defineModel "User" $ do
@@ -237,25 +241,27 @@ modelUser = Doc.defineModel "User" $ do
 
 instance ToJSON UserProfile where
   toJSON u =
-    object $
-      "id" .= profileId u
-        # "name" .= profileName u
-        # "picture" .= profilePict u
-        # "assets" .= profileAssets u
-        # "accent_id" .= profileAccentId u
-        # "deleted" .= (if profileDeleted u then Just True else Nothing)
-        # "service" .= profileService u
-        # "handle" .= profileHandle u
-        # "locale" .= profileLocale u
-        # "expires_at" .= profileExpire u
-        # "team" .= profileTeam u
-        # "email" .= profileEmail u
-        # []
+    object
+      [ "id" .= _qLocalPart (profileQualifiedId u),
+        "qualified_id" .= profileQualifiedId u,
+        "name" .= profileName u,
+        "picture" .= profilePict u,
+        "assets" .= profileAssets u,
+        "accent_id" .= profileAccentId u,
+        "deleted" .= (if profileDeleted u then Just True else Nothing),
+        "service" .= profileService u,
+        "handle" .= profileHandle u,
+        "locale" .= profileLocale u,
+        "expires_at" .= profileExpire u,
+        "team" .= profileTeam u,
+        "email" .= profileEmail u
+      ]
 
+-- TODO: Do we ever expect clients to send this? If yes, we will have to make qualified_id optional somehow
 instance FromJSON UserProfile where
   parseJSON = withObject "UserProfile" $ \o ->
     UserProfile
-      <$> o .: "id"
+      <$> o .: "qualified_id"
       <*> o .: "name"
       <*> o .:? "picture" .!= noPict
       <*> o .:? "assets" .!= []
@@ -406,7 +412,7 @@ userSSOId = ssoIdentity <=< userIdentity
 connectedProfile :: User -> UserProfile
 connectedProfile u =
   UserProfile
-    { profileId = userId u,
+    { profileQualifiedId = userQualifiedId u,
       profileHandle = userHandle u,
       profileName = userDisplayName u,
       profilePict = userPict u,
@@ -429,7 +435,7 @@ publicProfile u =
   -- RecordWildCards or something similar because we want changes to the public profile
   -- to be EXPLICIT and INTENTIONAL so we don't accidentally leak sensitive data.
   let UserProfile
-        { profileId,
+        { profileQualifiedId,
           profileHandle,
           profileName,
           profilePict,
@@ -443,7 +449,7 @@ publicProfile u =
    in UserProfile
         { profileLocale = Nothing,
           profileEmail = Nothing,
-          profileId,
+          profileQualifiedId,
           profileHandle,
           profileName,
           profilePict,

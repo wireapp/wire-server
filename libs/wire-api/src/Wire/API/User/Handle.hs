@@ -1,6 +1,6 @@
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedLists #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -29,22 +29,23 @@ module Wire.API.User.Handle
   )
 where
 
+import Control.Lens (view, (.~), (?~))
 import Data.Aeson
 import Data.Id (UserId)
+import Data.Proxy (Proxy (..))
+import Data.Qualified (Qualified (..))
 import Data.Range
-import Data.Swagger (ToSchema)
+import Data.Swagger (NamedSchema (..), Referenced (..), SwaggerType (..), ToSchema (..), declareSchemaRef, properties, schema, type_)
 import qualified Data.Swagger.Build.Api as Doc
-import Deriving.Swagger (CustomSwagger, FieldLabelModifier, LabelMapping ((:->)), LabelMappings)
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- UserHandleInfo
 
-newtype UserHandleInfo = UserHandleInfo {userHandleId :: UserId}
+newtype UserHandleInfo = UserHandleInfo {userHandleId :: Qualified UserId}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
-  deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (LabelMappings '["userHandleId" ':-> "user"])] UserHandleInfo)
 
 modelUserHandleInfo :: Doc.Model
 modelUserHandleInfo = Doc.defineModel "UserHandleInfo" $ do
@@ -52,11 +53,28 @@ modelUserHandleInfo = Doc.defineModel "UserHandleInfo" $ do
   Doc.property "user" Doc.string' $
     Doc.description "ID of the user owning the handle"
 
+instance ToSchema UserHandleInfo where
+  declareNamedSchema _ = do
+    qualifiedIdSchema <- declareSchemaRef (Proxy @(Qualified UserId))
+    unqualifiedIdSchema <- Inline . view schema <$> declareNamedSchema (Proxy @UserId)
+    pure $
+      NamedSchema
+        (Just "UserHandleInfo")
+        $ mempty
+          & type_ ?~ SwaggerObject
+          & properties
+            .~ [ ("user", unqualifiedIdSchema),
+                 ("qualified_user", qualifiedIdSchema)
+               ]
+
 instance ToJSON UserHandleInfo where
   toJSON (UserHandleInfo u) =
     object
-      ["user" .= u]
+      [ "user" .= _qLocalPart u, -- For backwards comptaibility
+        "qualified_user" .= u
+      ]
 
+-- TODO: Deal with backwards compatibility
 instance FromJSON UserHandleInfo where
   parseJSON = withObject "UserHandleInfo" $ \o ->
     UserHandleInfo <$> o .: "user"
