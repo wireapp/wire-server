@@ -35,7 +35,7 @@ import Data.Id (UserId)
 import Data.Proxy (Proxy (..))
 import Data.Qualified (Qualified (..))
 import Data.Range
-import Data.Swagger (NamedSchema (..), Referenced (..), SwaggerType (..), ToSchema (..), declareSchemaRef, properties, schema, type_)
+import Data.Swagger (NamedSchema (..), Referenced (..), SwaggerType (..), ToSchema (..), declareSchemaRef, description, properties, schema, type_)
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
@@ -56,7 +56,11 @@ modelUserHandleInfo = Doc.defineModel "UserHandleInfo" $ do
 instance ToSchema UserHandleInfo where
   declareNamedSchema _ = do
     qualifiedIdSchema <- declareSchemaRef (Proxy @(Qualified UserId))
-    unqualifiedIdSchema <- Inline . view schema <$> declareNamedSchema (Proxy @UserId)
+    unqualifiedIdSchema <-
+      Inline
+        . (description ?~ "Deprecated, use qualified_user")
+        . view schema
+        <$> declareNamedSchema (Proxy @UserId)
     pure $
       NamedSchema
         (Just "UserHandleInfo")
