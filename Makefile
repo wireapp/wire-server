@@ -212,11 +212,13 @@ hie.yaml:
 #####################################
 # Today we pretend to be CI and run integration tests on kubernetes
 #
-# NOTE/WARNING: This uses local helm charts BUT it uses docker images versions
-# from your local helm charts, i.e. some version compiled on develop or master.
-# If testing helm charts, this is fine; if testing changes to wire-server source
-# code, this will not work. In this case upload docker images and use the '-i
-# <imageVersion>' parameter to integration-setup.sh
+# NOTE/WARNING: This uses local helm charts from .local/charts.
+# By default, it uses local docker image tags,
+# so you must have built docker images locally for this to work out of the box.
+#
+# If you wish to use docker images that are uploaded to quay.io, you must first run
+#
+#   DOCKER_TAG=<desired-wire-server-docker-tag> make charts
 #
 # This task requires:
 #   - helm (version 3.1.1)
@@ -232,12 +234,7 @@ kube-integration-teardown:
 	export NAMESPACE=test-$(USER); ./ci/bin/integration-teardown.sh
 
 
-# TODO: document chart makefile targets and usage
-# TODO: inline subcharts
-#
 
-# usecases for this make target:
-# 1. before releasing helm charts to S3 mirror (assummption: CI sets DOCKER_TAG and HELM_SEMVER)
 .PHONY: release-chart-%
 release-chart-%:
 	if [ "${HELM_SEMVER}" = "0.0.42" ]; then \
@@ -260,17 +257,27 @@ chart-%:
 
 	./hack/bin/set-helm-chart-version.sh "$*" $(HELM_SEMVER)
 
+# Usecases for this make target:
+# To release helm charts to S3 mirror (assummption: CI sets DOCKER_TAG and HELM_SEMVER)
 .PHONY: upload-chart-%
 upload-chart-%: release-chart-%
 	./hack/bin/sync.sh $(*)
 
+# The list of published helm charts on S3
 CHARTS := wire-server databases-ephemeral fake-aws
 
-# two usecases for this make target:
+# Usecases for this make target:
 # 1. for releases of helm charts
-# 2. for local integration testing of wire-server inside helm charts
+# 2. for local integration testing of wire-server inside kubernetes
+# 3. for testing helm charts more generally
 .PHONY: charts
 charts: $(foreach chartName,$(CHARTS),chart-$(chartName))
 
+# This target should ideally only run on CI, it runs the sync.sh script to mirror version-pinned helm charts on S3.
 .PHONY: upload-charts
 upload-charts: $(foreach chartName,$(CHARTS),upload-chart-$(chartName))
+
+
+
+# TODO: document chart makefile targets and usage
+# TODO: inline subcharts
