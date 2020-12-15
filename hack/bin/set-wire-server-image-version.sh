@@ -4,7 +4,7 @@ USAGE="$0 <target-backend-version>"
 target_version=${1?$USAGE}
 
 TOP_LEVEL="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../.." && pwd )"
-CHARTS_DIR="$TOP_LEVEL/charts"
+CHARTS_DIR="$TOP_LEVEL/.local/charts"
 
 charts=(brig cannon galley gundeck spar cargohold proxy cassandra-migrations elasticsearch-index)
 
