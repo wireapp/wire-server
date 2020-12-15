@@ -98,7 +98,7 @@ createScimToken spar' owner = do
 
 createUserStep :: Spar -> Brig -> ScimToken -> TeamId -> Scim.User.User SparTag -> Email -> HttpT IO (WithMeta (WithId UserId (Scim.User.User SparTag)), Invitation, InvitationCode)
 createUserStep spar' brig' tok tid scimUser email = do
-  scimStoredUser <- (createUser spar' tok scimUser)
+  scimStoredUser <- createUser spar' tok scimUser
   inv <- getInvitationByEmail brig' email
   Just inviteeCode <- getInvitationCode brig' tid (inInvitation inv)
   pure (scimStoredUser, inv, inviteeCode)
