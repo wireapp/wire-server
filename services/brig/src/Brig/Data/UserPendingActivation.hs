@@ -38,7 +38,6 @@ data UserPendingActivation = UserPendingActivation
   }
   deriving stock (Eq, Show, Ord)
 
--- | Note: Call this function only after an invitation for the user has been created
 usersPendingActivationAdd :: UserPendingActivation -> AppIO ()
 usersPendingActivationAdd (UserPendingActivation uid expiresAt) = do
   retry x5 . write insertExpiration . params Quorum $ (uid, expiresAt)
