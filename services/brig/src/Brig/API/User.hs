@@ -371,7 +371,7 @@ createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = (`ca
 
   ttl <- setTeamInvitationTimeout <$> view settings
   now <- liftIO =<< view currentTime
-  let expiresAt = addUTCTime (realToFrac ttl) $ now
+  let expiresAt = addUTCTime (realToFrac ttl) now
   lift $ Data.usersPendingActivationAdd (UserPendingActivation uid expiresAt)
 
   return account
