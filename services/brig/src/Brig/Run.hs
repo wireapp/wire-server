@@ -80,13 +80,13 @@ run o = do
       AWS.execute (e ^. awsEnv) $
         AWS.listen throttleMillis q (runAppT e . SesNotification.onEvent)
   sftDiscovery <- forM (e ^. sftEnv) $ Async.async . Calling.startSFTServiceDiscovery (e ^. applog)
-  scimInvitationCleanup <- Async.async (runAppT e cleanExpiredPendingInvitations)
+  pendingActivationCleanupAsync <- Async.async (runAppT e pendingActivationCleanup)
 
   runSettingsWithShutdown s app 5 `finally` do
     mapM_ Async.cancel emailListener
     Async.cancel internalEventListener
     mapM_ Async.cancel sftDiscovery
-    Async.cancel scimInvitationCleanup
+    Async.cancel pendingActivationCleanupAsync
     closeEnv e
   where
     endpoint = brig o
@@ -126,9 +126,9 @@ lookupRequestIdMiddleware mkapp req cont = do
   let reqid = maybe def RequestId $ lookupRequestId req
   mkapp reqid req cont
 
-cleanExpiredPendingInvitations :: AppIO ()
-cleanExpiredPendingInvitations = do
-  safeForever "cleanExpiredPendingInvitations" $ do
+pendingActivationCleanup :: AppIO ()
+pendingActivationCleanup = do
+  safeForever "pendingActivationCleanup" $ do
     now <- liftIO =<< view currentTime
     forExpirationsPaged $ \exps -> do
       uids <-
