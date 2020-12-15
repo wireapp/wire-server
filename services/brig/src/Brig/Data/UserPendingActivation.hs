@@ -18,10 +18,10 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.Data.UserPendingActivation
-  ( trackExpiration,
-    getAllTrackedExpirations,
-    removeTrackedExpiration,
-    removeTrackedExpirations,
+  ( usersPendingActivationAdd,
+    usersPendingActivationList,
+    usersPendingActivationRemove,
+    usersPendingActivationRemoveMultiple,
     UserPendingActivation (..),
   )
 where
@@ -39,26 +39,26 @@ data UserPendingActivation = UserPendingActivation
   deriving stock (Eq, Show, Ord)
 
 -- | Note: Call this function only after an invitation for the user has been created
-trackExpiration :: UserPendingActivation -> AppIO ()
-trackExpiration (UserPendingActivation uid expiresAt) = do
+usersPendingActivationAdd :: UserPendingActivation -> AppIO ()
+usersPendingActivationAdd (UserPendingActivation uid expiresAt) = do
   retry x5 . write insertExpiration . params Quorum $ (uid, expiresAt)
   where
     insertExpiration :: PrepQuery W (UserId, UTCTime) ()
     insertExpiration = "INSERT INTO users_pending_activation (user, expires_at) VALUES (?, ?)"
 
-getAllTrackedExpirations :: AppIO (Page UserPendingActivation)
-getAllTrackedExpirations = do
+usersPendingActivationList :: AppIO (Page UserPendingActivation)
+usersPendingActivationList = do
   uncurry UserPendingActivation <$$> retry x1 (paginate selectExpired (params Quorum ()))
   where
     selectExpired :: PrepQuery R () (UserId, UTCTime)
     selectExpired =
       "SELECT user, expires_at FROM users_pending_activation"
 
-removeTrackedExpiration :: UserId -> AppIO ()
-removeTrackedExpiration uid = removeTrackedExpirations [uid]
+usersPendingActivationRemove :: UserId -> AppIO ()
+usersPendingActivationRemove uid = usersPendingActivationRemoveMultiple [uid]
 
-removeTrackedExpirations :: [UserId] -> AppIO ()
-removeTrackedExpirations uids =
+usersPendingActivationRemoveMultiple :: [UserId] -> AppIO ()
+usersPendingActivationRemoveMultiple uids =
   retry x5 . write deleteExpired . params Quorum $ (Identity uids)
   where
     deleteExpired :: PrepQuery W (Identity [UserId]) ()

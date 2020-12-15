@@ -332,7 +332,7 @@ createUser new@NewUser {..} = do
           field "user" (toByteString uid)
             . field "team" (toByteString $ Team.iiTeam ii)
             . msg (val "Accepting invitation")
-        Data.removeTrackedExpiration uid
+        Data.usersPendingActivationRemove uid
         Team.deleteInvitation (Team.inTeam inv) (Team.inInvitation inv)
 
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT CreateUserError AppIO CreateUserTeam
@@ -372,7 +372,7 @@ createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = (`ca
   ttl <- setTeamInvitationTimeout <$> view settings
   now <- liftIO =<< view currentTime
   let expiresAt = addUTCTime (realToFrac ttl) $ now
-  lift $ Data.trackExpiration (UserPendingActivation uid expiresAt)
+  lift $ Data.usersPendingActivationAdd (UserPendingActivation uid expiresAt)
 
   return account
 

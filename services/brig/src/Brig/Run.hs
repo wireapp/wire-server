@@ -32,7 +32,7 @@ import qualified Brig.AWS as AWS
 import qualified Brig.AWS.SesNotification as SesNotification
 import Brig.App
 import qualified Brig.Calling as Calling
-import Brig.Data.UserPendingActivation (UserPendingActivation (..), getAllTrackedExpirations, removeTrackedExpirations)
+import Brig.Data.UserPendingActivation (UserPendingActivation (..), usersPendingActivationList, usersPendingActivationRemoveMultiple)
 import qualified Brig.InternalEvent.Process as Internal
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Queue as Queue
@@ -147,7 +147,7 @@ cleanExpiredPendingInvitations = do
               if isExpired && isPendingInvitation then Just uid else Nothing
           )
 
-      removeTrackedExpirations $
+      usersPendingActivationRemoveMultiple $
         catMaybes
           ( uids <&> \(isExpired, _isPendingInvitation, uid) ->
               if isExpired then Just uid else Nothing
@@ -165,7 +165,7 @@ cleanExpiredPendingInvitations = do
 
     forExpirationsPaged :: ([UserPendingActivation] -> AppIO ()) -> AppIO ()
     forExpirationsPaged f = do
-      go =<< getAllTrackedExpirations
+      go =<< usersPendingActivationList
       where
         go :: (Page UserPendingActivation) -> AppIO ()
         go (Page hasMore result nextPage) = do
