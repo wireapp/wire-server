@@ -2,7 +2,8 @@ SHELL          := /usr/bin/env bash
 LANG           := en_US.UTF-8
 DOCKER_USER    ?= quay.io/wire
 DOCKER_TAG     ?= local
-HELM_SEMVER    ?= 0.0.42 # default for local development
+# default helm chart version must be 0.0.42 for local development
+HELM_SEMVER    ?= 0.0.42
 
 default: fast
 
@@ -235,36 +236,41 @@ kube-integration-teardown:
 # TODO: inline subcharts
 #
 
-# Two usecases for this make target:
+# usecases for this make target:
 # 1. before releasing helm charts to S3 mirror (assummption: CI sets DOCKER_TAG and HELM_SEMVER)
-# 2. for local integration testing of wire-server inside helm charts
-.PHONY: charts-release
-charts-release:
-	@ if [ "${HELM_SEMVER}" = "0.0.42" ]; then \
+.PHONY: release-chart-%
+release-chart-%:
+	if [ "${HELM_SEMVER}" = "0.0.42" ]; then \
 	      echo "Environment variable HELM_SEMVER not set"; \
 	    exit 1; \
 	fi
-	@ if [ "${DOCKER_TAG}" = "local" ]; then \
+	if [ "${DOCKER_TAG}" = "local" ]; then \
 	      echo "Environment variable DOCKER_TAG not set"; \
 	    exit 1; \
 	fi
-	make charts
+	make chart-$(*)
 
-.PHONY: charts
-charts:
-
-	# copy charts to new directory (in .gitignore)
-	rm -rf .local/charts
+.PHONY: chart-%
+chart-%:
+	rm -rf .local/charts/$*
 	mkdir -p .local/charts
-	cp -r charts/* .local/charts/
+	cp -r charts/$* .local/charts/
 
 	./hack/bin/set-wire-server-image-version.sh $(DOCKER_TAG)
-	./hack/bin/set-helm-chart-version.sh wire-server $(HELM_SEMVER)
 
-.PHONY: charts-upload
-charts-upload: charts-release
-	./hack/bin/sync.sh
-	
+	./hack/bin/set-helm-chart-version.sh "$*" $(HELM_SEMVER)
 
+.PHONY: upload-chart-%
+upload-chart-%: release-chart-%
+	./hack/bin/sync.sh $(*)
 
+CHARTS := wire-server databases-ephemeral fake-aws
 
+# two usecases for this make target:
+# 1. for releases of helm charts
+# 2. for local integration testing of wire-server inside helm charts
+.PHONY: charts
+charts: $(foreach chartName,$(CHARTS),chart-$(chartName))
+
+.PHONY: upload-charts
+upload-charts: $(foreach chartName,$(CHARTS),upload-chart-$(chartName))
