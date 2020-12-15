@@ -29,13 +29,13 @@ module Wire.API.User.Handle
   )
 where
 
-import Control.Lens (view, (.~), (?~))
+import Control.Lens ((.~), (?~))
 import Data.Aeson
 import Data.Id (UserId)
 import Data.Proxy (Proxy (..))
-import Data.Qualified (Qualified (..))
+import Data.Qualified (Qualified (..), deprecatedUnqualifiedSchemaRef)
 import Data.Range
-import Data.Swagger (NamedSchema (..), Referenced (..), SwaggerType (..), ToSchema (..), declareSchemaRef, description, properties, schema, type_)
+import Data.Swagger (NamedSchema (..), SwaggerType (..), ToSchema (..), declareSchemaRef, properties, type_)
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
@@ -56,11 +56,7 @@ modelUserHandleInfo = Doc.defineModel "UserHandleInfo" $ do
 instance ToSchema UserHandleInfo where
   declareNamedSchema _ = do
     qualifiedIdSchema <- declareSchemaRef (Proxy @(Qualified UserId))
-    unqualifiedIdSchema <-
-      Inline
-        . (description ?~ "Deprecated, use qualified_user")
-        . view schema
-        <$> declareNamedSchema (Proxy @UserId)
+    unqualifiedIdSchema <- deprecatedUnqualifiedSchemaRef (Proxy @UserId) "qualified_user"
     pure $
       NamedSchema
         (Just "UserHandleInfo")

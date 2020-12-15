@@ -119,7 +119,7 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Proxy (Proxy (..))
 import Data.Qualified
 import Data.Range
-import Data.Swagger (Referenced (Inline), ToSchema (..), genericDeclareNamedSchema, properties, required, schema)
+import Data.Swagger (ToSchema (..), genericDeclareNamedSchema, properties, required, schema)
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import Data.UUID (UUID, nil)
@@ -191,7 +191,7 @@ data UserProfile = UserProfile
 -- TODO: Deal with profileId being backwards compatible
 instance ToSchema UserProfile where
   declareNamedSchema _ = do
-    uuidSchema <- declareNamedSchema (Proxy @UUID)
+    idSchema <- deprecatedUnqualifiedSchemaRef (Proxy @UserId) "qualified_id"
     genericSchema <-
       genericDeclareNamedSchema
         ( swaggerOptions
@@ -209,7 +209,7 @@ instance ToSchema UserProfile where
     pure $
       genericSchema
         & over (schema . required) (List.delete "deleted")
-        & over (schema . properties) (InsOrdMap.insert "id" (Inline (view schema uuidSchema)))
+        & over (schema . properties) (InsOrdMap.insert "id" idSchema)
 
 modelUser :: Doc.Model
 modelUser = Doc.defineModel "User" $ do

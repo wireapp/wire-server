@@ -32,11 +32,12 @@ module Data.Qualified
     renderQualifiedHandle,
     mkQualifiedHandle,
     partitionRemoteOrLocalIds,
+    deprecatedUnqualifiedSchemaRef,
   )
 where
 
 import Control.Applicative (optional)
-import Control.Lens ((.~), (?~))
+import Control.Lens (view, (.~), (?~))
 import Data.Aeson (FromJSON, ToJSON, withObject, withText, (.:), (.=))
 import qualified Data.Aeson as Aeson
 import qualified Data.Attoparsec.ByteString.Char8 as Atto
@@ -48,6 +49,7 @@ import Data.Id (Id (toUUID))
 import Data.Proxy (Proxy (..))
 import Data.String.Conversions (cs)
 import Data.Swagger
+import Data.Swagger.Declare (Declare)
 import qualified Data.Text.Encoding as Text.E
 import qualified Data.UUID as UUID
 import Imports hiding (local)
@@ -132,6 +134,13 @@ renderQualifiedId = renderQualified (cs . UUID.toString . toUUID)
 
 mkQualifiedId :: Text -> Either String (Qualified (Id a))
 mkQualifiedId = Atto.parseOnly (parser <* Atto.endOfInput) . Text.E.encodeUtf8
+
+deprecatedUnqualifiedSchemaRef :: ToSchema a => Proxy a -> Text -> Declare (Definitions Schema) (Referenced Schema)
+deprecatedUnqualifiedSchemaRef p newField =
+  Inline
+    . (description ?~ ("Deprecated, use " <> newField))
+    . view schema
+    <$> declareNamedSchema p
 
 instance ToSchema (Qualified (Id a)) where
   declareNamedSchema _ = do
