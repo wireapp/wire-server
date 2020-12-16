@@ -26,7 +26,6 @@ import Data.Aeson.Types as Aeson
 import Data.Domain
 import Data.Id
 import Data.Qualified
-import qualified Data.Text as Text
 import qualified Data.UUID.V4 as UUID
 import Imports
 import Test.Tasty
@@ -48,9 +47,9 @@ testUserProfile = do
   let domain = Domain "example.com"
   let colour = ColourId 0
   let userProfile = UserProfile (Qualified uid domain) (Name "name") (Pict []) [] colour False Nothing Nothing Nothing Nothing Nothing Nothing
-  let profileJSONAsText = Text.pack $ show $ Aeson.encode userProfile
-  let msg = Text.unpack $ "toJSON encoding must not convert Nothing to null, but instead omit those json fields for backwards compatibility. UserProfileJSON:" <> profileJSONAsText
-  assertBool msg (not $ "null" `Text.isInfixOf` profileJSONAsText)
+  let profileJSONAsText = show $ Aeson.encode userProfile
+  let msg = "toJSON encoding must not convert Nothing to null, but instead omit those json fields for backwards compatibility. UserProfileJSON:" <> profileJSONAsText
+  assertBool msg (not $ "null" `isInfixOf` profileJSONAsText)
 
 parseIdentityTests :: [TestTree]
 parseIdentityTests =

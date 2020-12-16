@@ -69,7 +69,6 @@ tests:
     - bytestring-conversion
     - wire-api
     - uuid
-    - text
     - aeson-qq
     - lens
     - swagger2

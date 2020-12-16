@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 68fccd06d4ecadf4d0580f3aa528d1ad832002a42e73ae395948ff2f8eb38420
+-- hash: 46c27a7dd27a8d410e856a84b3d86983e03db46567976decb2856d18e0d2068f
 
 name:           wire-api
 version:        0.1.0
@@ -151,7 +151,6 @@ test-suite wire-api-tests
     , tasty-expected-failure
     , tasty-hunit
     , tasty-quickcheck
-    , text
     , types-common >=0.16
     , unordered-containers
     , uuid
