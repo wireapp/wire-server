@@ -322,7 +322,7 @@ data HiddenPerm
   | ViewTeamSearchVisibility
   | ViewSameTeamEmails
   | CreateUpdateDeleteIdp
-  | CreateDeleteListScimToken
+  | CreateReadDeleteScimToken
   deriving (Eq, Ord, Show)
 
 -- | See Note [hidden team roles]
@@ -348,7 +348,7 @@ roleHiddenPermissions role = HiddenPermissions p p
             ChangeTeamSearchVisibility,
             ChangeTeamFeature TeamFeatureAppLock {- the other features can only be changed in stern -},
             CreateUpdateDeleteIdp,
-            CreateDeleteListScimToken
+            CreateReadDeleteScimToken
           ]
     roleHiddenPerms RoleMember =
       (roleHiddenPerms RoleExternalPartner <>) $

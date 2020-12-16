@@ -72,7 +72,7 @@ import Data.Handle (Handle (Handle, fromHandle))
 import Data.Id (Id (Id), TeamId, UserId)
 import Data.Misc (PlainTextPassword)
 import Data.String.Conversions
-import Galley.Types.Teams (HiddenPerm (CreateDeleteListScimToken))
+import Galley.Types.Teams (HiddenPerm (CreateReadDeleteScimToken))
 import Imports
 import Network.HTTP.Types.Method
 import qualified Network.Wai.Utilities.Error as Wai
@@ -454,7 +454,7 @@ authorizeScimTokenManagement (Just uid) = do
   getBrigUserTeam NoPendingInvitations uid
     >>= maybe
       (throwSpar SparNotInTeam)
-      (\teamid -> teamid <$ Galley.assertHasPermission teamid CreateDeleteListScimToken uid)
+      (\teamid -> teamid <$ Galley.assertHasPermission teamid CreateReadDeleteScimToken uid)
 
 -- | Verify user's password (needed for certain powerful operations).
 ensureReAuthorised ::
