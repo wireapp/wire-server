@@ -211,21 +211,27 @@ hie.yaml:
 
 #####################################
 # Today we pretend to be CI and run integration tests on kubernetes
+
+# NOTE: This uses local helm charts from .local/charts (which it builds before running this)
 #
-# NOTE/WARNING: This uses local helm charts from .local/charts.
-# By default, it uses local docker image tags,
-# so you must have built docker images locally for this to work out of the box.
+# NOTE/WARNING: By default, it uses local docker image tags,
+# which will not work at this time on your remote kubernetes cluster. [FUTUREWORK: local kubernetes cluster]
 #
 # If you wish to use docker images that are uploaded to quay.io, you must first run
 #
 #   DOCKER_TAG=<desired-wire-server-docker-tag> make charts
 #
-# This task requires:
+# and if you don't know what a good DOCKER_TAG might be, you can run
+#
+#   make latest-brig-tag
+#
+# This task requires: [FUTUREWORK: add tooling setup to wire-server]
 #   - helm (version 3.1.1)
 #   - kubectl
 #   - a valid kubectl context configured (i.e. access to a kubernetes cluster)
 .PHONY: kube-integration
 kube-integration: charts
+	# by default "test-<your computer username> is used as namespace
 	export NAMESPACE=test-$(USER); ./hack/bin/integration-setup.sh
 	export NAMESPACE=test-$(USER); ./hack/bin/integration-test.sh
 
@@ -233,16 +239,18 @@ kube-integration: charts
 kube-integration-teardown:
 	export NAMESPACE=test-$(USER); ./hack/bin/integration-teardown.sh
 
-
+.PHONY: latest-brig-tag
+latest-brig-tag:
+	./hack/bin/find-latest-docker-tag.sh
 
 .PHONY: release-chart-%
 release-chart-%:
 	if [ "${HELM_SEMVER}" = "0.0.42" ]; then \
-	      echo "Environment variable HELM_SEMVER not set"; \
+	      echo "Environment variable HELM_SEMVER not set to non-default value"; \
 	    exit 1; \
 	fi
 	if [ "${DOCKER_TAG}" = "local" ]; then \
-	      echo "Environment variable DOCKER_TAG not set"; \
+	      echo "Environment variable DOCKER_TAG not set to non-default value"; \
 	    exit 1; \
 	fi
 	make chart-$(*)
@@ -253,7 +261,7 @@ chart-%:
 	./hack/bin/set-wire-server-image-version.sh $(DOCKER_TAG)
 	./hack/bin/set-helm-chart-version.sh "$*" $(HELM_SEMVER)
 
-# The list of published helm charts on S3
+# The list of helm charts to publish on S3
 CHARTS := wire-server databases-ephemeral fake-aws
 
 # Usecases for this make target:
@@ -266,7 +274,7 @@ charts: $(foreach chartName,$(CHARTS),chart-$(chartName))
 
 ##########################################
 # Helm chart releasing (mirroring to S3)
-
+# Only CI should run these targets ideally
 
 # Usecases for this make target:
 # To release helm charts to S3 mirror (assummption: CI sets DOCKER_TAG and HELM_SEMVER)
@@ -274,25 +282,6 @@ charts: $(foreach chartName,$(CHARTS),chart-$(chartName))
 upload-chart-%: release-chart-%
 	./hack/bin/sync.sh $(*)
 
-# This target should ideally only run on CI, it runs the sync.sh script to mirror version-pinned helm charts on S3.
 .PHONY: upload-charts
 upload-charts: $(foreach chartName,$(CHARTS),upload-chart-$(chartName))
 
-
-
-# TODO: document chart makefile targets and usage
-# TODO: inline subcharts
-#
-# hack: download docker images instead of building them with local tag.
-# are there not images missing for "local" ? cassandra-migrations for instance.
-#
-# dockertags executable
-# dockertags quay.io/wire/brig | sort | uniq | grep -v "pr\." | grep -v latest | tail -1
-#
-#
-# curl 'https://quay.io/api/v1/repository/wire/brig/tag/?limit=100&page=1&onlyActiveTags=true'
-#
-
-.PHONY: latest-brig-tag
-latest-brig-tag:
-	curl -sSL 'https://quay.io/api/v1/repository/wire/brig/tag/?limit=50&page=1&onlyActiveTags=true' | jq -r '.tags[].name' | sort | uniq | grep -v latest | grep -v 'pr\.' | tail -1
