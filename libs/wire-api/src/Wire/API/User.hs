@@ -110,8 +110,7 @@ import qualified Data.Code as Code
 import qualified Data.Currency as Currency
 import Data.Handle (Handle)
 import qualified Data.HashMap.Strict as HashMap
-import qualified Data.HashMap.Strict.InsOrd as InsHashMap
-import qualified Data.HashMap.Strict.InsOrd as InsOrdMap
+import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
 import qualified Data.List as List
@@ -208,7 +207,7 @@ instance ToSchema UserProfile where
     pure $
       genericSchema
         & over (schema . required) (List.delete "deleted")
-        & over (schema . properties) (InsOrdMap.insert "id" idSchema)
+        & over (schema . properties) (InsOrdHashMap.insert "id" idSchema)
 
 modelUser :: Doc.Model
 modelUser = Doc.defineModel "User" $ do
@@ -353,8 +352,8 @@ instance ToSchema User where
       genericSchema
         & over (schema . required) (List.delete "deleted")
         -- The UserIdentity fields need to be flat-included, not be in a sub-object
-        & over (schema . properties) (InsHashMap.delete "identity")
-        & over (schema . properties) (InsHashMap.union identityProperties)
+        & over (schema . properties) (InsOrdHashMap.delete "identity")
+        & over (schema . properties) (InsOrdHashMap.union identityProperties)
 
 -- FUTUREWORK:
 -- disentangle json serializations for 'User', 'NewUser', 'UserIdentity', 'NewUserOrigin'.
