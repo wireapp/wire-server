@@ -1,0 +1,20 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sftd.fullname" . }}
+  labels:
+    {{- include "sftd.labels" . | nindent 4 }}
+spec:
+  # Needs to be headless
+  # See: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/
+  clusterIP: None
+  ports:
+    - port: 8585
+      targetPort: sft
+      name: sft
+    - port: 49090
+      targetPort: metrics
+      name: metrics
+  selector:
+    {{- include "sftd.selectorLabels" . | nindent 4 }}

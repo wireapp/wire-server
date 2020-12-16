@@ -207,5 +207,8 @@ data:
       setCustomerExtensions:
         domainsBlockedForRegistration: {{ .setCustomerExtensions.domainsBlockedForRegistration }}
       {{- end }}
+      {{- if .setSftStaticUrl }}
+      setSftStaticUrl: {{ .setSftStaticUrl }}
+      {{- end }}
     {{- end }}
   {{- end }}
