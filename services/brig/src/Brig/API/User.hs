@@ -361,6 +361,15 @@ createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = (`ca
   verifyUniquenessAndCheckBlacklist emKey
   account <- lift $ newAccountInviteViaScim uid tid loc name email
   Log.debug $ field "user" (toByteString . userId . accountUser $ account) . field "action" (Log.val "User.createUserInviteViaScim")
+
+  -- add the expiry table entry first!  (if brig creates an account, and then crashes before
+  -- creating the expiry table entry, gc will miss user data.)
+  expiresAt <- do
+    ttl <- setTeamInvitationTimeout <$> view settings
+    now <- liftIO =<< view currentTime
+    pure $ addUTCTime (realToFrac ttl) now
+  lift $ Data.usersPendingActivationAdd (UserPendingActivation uid expiresAt)
+
   let activated =
         -- It would be nice to set this to 'False' to make sure we're not accidentally
         -- treating 'PendingActivation' as 'Active', but then 'Brig.Data.User.toIdentity'
@@ -368,12 +377,6 @@ createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = (`ca
         -- the SCIM user.
         True
   lift $ Data.insertAccount account Nothing Nothing activated
-
-  expiresAt <- do
-    ttl <- setTeamInvitationTimeout <$> view settings
-    now <- liftIO =<< view currentTime
-    pure $ addUTCTime (realToFrac ttl) now
-  lift $ Data.usersPendingActivationAdd (UserPendingActivation uid expiresAt)
 
   return account
 
