@@ -1,5 +1,6 @@
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -56,6 +57,7 @@ import Control.Error hiding (bool)
 import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
+import qualified Data.Bifunctor as Bifunctor
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Domain
@@ -67,12 +69,12 @@ import Data.Misc (IpAddr (..))
 import Data.Proxy (Proxy (..))
 import Data.Qualified (Qualified (..))
 import Data.Range
-import Data.Swagger (HasInfo (info), HasTitle (title), Swagger, ToSchema (..), description)
+import Data.Swagger (HasInfo (info), HasTitle (title), HasType (type_), Swagger, SwaggerType (..), ToParamSchema (..), ToSchema (..), description)
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Swagger.Lens (HasSchema (..))
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
-import Data.Text.Encoding (decodeLatin1)
+import Data.Text.Encoding (decodeLatin1, encodeUtf8)
 import Data.Text.Lazy (pack)
 import qualified Data.ZAuth.Token as ZAuth
 import Imports hiding (head)
@@ -84,7 +86,7 @@ import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
-import Servant (Capture, Capture', DefaultErrorFormatters, Description, ErrorFormatters, Get, HasContextEntry, HasServer, HasStatus, Header', ServerT, StdMethod (HEAD), Summary, UVerb, Union, WithStatus, (:<|>) (..), (:>), type (.++))
+import Servant (Capture, Capture', DefaultErrorFormatters, Description, ErrorFormatters, FromHttpApiData, Get, HasContextEntry, HasServer, HasStatus, Header', QueryParam, ServerT, StdMethod (HEAD), Summary, UVerb, Union, WithStatus, parseUrlPiece, (:<|>) (..), (:>), type (.++))
 import qualified Servant
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
@@ -251,6 +253,40 @@ type GetHandleInfoQualified =
     :> Capture' '[Description "The user handle"] "handle" Handle
     :> Get '[Servant.JSON] Public.UserHandleInfo
 
+-- -- If the user is ephemeral and expired, it will be removed, see 'Brig.API.User.userGC'.
+-- -- This leads to the following events being sent:
+-- -- - UserDeleted event to contacts of the user
+-- -- - MemberLeave event to members for all conversations the user was in (via galley)
+-- get "/users" (continue listUsersH) $
+--   accept "application" "json"
+--     .&. zauthUserId
+--     .&. (param "ids" ||| param "handles")
+-- document "GET" "users" $ do
+--   Doc.summary "List users"
+--   Doc.notes "The 'ids' and 'handles' parameters are mutually exclusive."
+--   Doc.parameter Doc.Query "ids" Doc.string' $ do
+--     Doc.description "User IDs of users to fetch"
+--     Doc.optional
+--   Doc.parameter Doc.Query "handles" Doc.string' $ do
+--     Doc.description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"
+--     Doc.optional
+--   Doc.returns (Doc.array (Doc.ref Public.modelUser))
+--   Doc.response 200 "List of users" Doc.end
+-- type ListUsersUnqualified =
+--   Summary "List users"
+--     :> ZAuthServant
+--     :> "users"
+--     :> QueryParam "handles" (List Handle) -- TODO: Make this into an Either (List UserId) (List Handle)
+--     :> QueryParam "ids" (List UserId)
+--     :> Get '[Servant.JSON] [Public.User]
+type ListUsersByUnqualifiedIdsOrHandles =
+  Summary "List users"
+    :> ZAuthServant
+    :> "users"
+    :> QueryParam "ids" (List UserId)
+    :> QueryParam "handles" (Range 1 4 (List Handle))
+    :> Get '[Servant.JSON] [Public.UserProfile]
+
 type OutsideWorldAPI =
   CheckUserExistsUnqualified
     :<|> CheckUserExistsQualified
@@ -259,10 +295,30 @@ type OutsideWorldAPI =
     :<|> GetSelf
     :<|> GetHandleInfoUnqualified
     :<|> GetHandleInfoQualified
+    :<|> ListUsersByUnqualifiedIdsOrHandles
 
 type SwaggerDocsAPI = "api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
 type ServantAPI = OutsideWorldAPI
+
+-- TODO: Move this out of here, maybe not use the 'List' type anymore
+instance ToParamSchema (List a) where
+  toParamSchema _ = mempty & type_ ?~ SwaggerString
+
+-- TODO: Move this out of here, maybe not use the 'List' type anymore
+instance FromByteString a => FromHttpApiData (List a) where
+  parseUrlPiece t =
+    Bifunctor.first Text.pack $ runParser parser $ encodeUtf8 t
+
+-- TODO: Put this in Data.Range
+instance ToParamSchema a => ToParamSchema (Range n m a) where
+  toParamSchema _ = toParamSchema (Proxy @a)
+
+-- TODO: Put this in Data.Range
+instance (Within a n m, FromHttpApiData a) => FromHttpApiData (Range n m a) where
+  parseUrlPiece t = do
+    unchecked <- parseUrlPiece t
+    Bifunctor.first Text.pack $ checkedEither @_ @n @m unchecked
 
 -- FUTUREWORK: At the moment this only shows endpoints from brig, but we should
 -- combine the swagger 2.0 endpoints here as well from other services (e.g. spar)
@@ -284,6 +340,7 @@ servantSitemap =
     :<|> getSelf
     :<|> getHandleInfoUnqualifiedH
     :<|> getHandleInfoH
+    :<|> listUsersByUnqualifiedIdsOrHandles
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
@@ -320,26 +377,6 @@ sitemap o = do
 
   -- some APIs moved to servant
   -- end User Handle API
-
-  -- If the user is ephemeral and expired, it will be removed, see 'Brig.API.User.userGC'.
-  -- This leads to the following events being sent:
-  -- - UserDeleted event to contacts of the user
-  -- - MemberLeave event to members for all conversations the user was in (via galley)
-  get "/users" (continue listUsersH) $
-    accept "application" "json"
-      .&. zauthUserId
-      .&. (param "ids" ||| param "handles")
-  document "GET" "users" $ do
-    Doc.summary "List users"
-    Doc.notes "The 'ids' and 'handles' parameters are mutually exclusive."
-    Doc.parameter Doc.Query "ids" Doc.string' $ do
-      Doc.description "User IDs of users to fetch"
-      Doc.optional
-    Doc.parameter Doc.Query "handles" Doc.string' $ do
-      Doc.description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"
-      Doc.optional
-    Doc.returns (Doc.array (Doc.ref Public.modelUser))
-    Doc.response 200 "List of users" Doc.end
 
   -- User Prekey API ----------------------------------------------------
 
@@ -1227,6 +1264,13 @@ listUsersH (_ ::: self ::: qry) =
     toResponse = \case
       [] -> setStatus status404 empty
       ps -> json ps
+
+listUsersByUnqualifiedIdsOrHandles :: UserId -> Maybe (List UserId) -> Maybe (Range 1 4 (List Handle)) -> Handler [Public.UserProfile]
+listUsersByUnqualifiedIdsOrHandles self mUids mHandles =
+  case (mUids, mHandles) of
+    (Just uids, _) -> listUsers self (Left uids)
+    (_, Just handles) -> listUsers self (Right handles)
+    (Nothing, Nothing) -> throwStd $ badRequest "at least one ids or handles must be provided"
 
 -- | 'listUsers' only handles listing local users by ID or handle. We decided to
 -- create a new federation aware endpoint which accepts federation aware Ids or
