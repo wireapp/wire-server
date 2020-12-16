@@ -60,8 +60,8 @@ import Test.QuickCheck (Arbitrary (arbitrary))
 -- OPTIONALLY QUALIFIED
 
 data OptionallyQualified a = OptionallyQualified
-  { _oqLocalPart :: a,
-    _oqDomain :: Maybe Domain
+  { oqUnqualified :: a,
+    oqDomain :: Maybe Domain
   }
   deriving (Eq, Show)
 
