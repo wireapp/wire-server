@@ -1331,12 +1331,12 @@ getHandleInfoH self domain handle =
 getHandleInfo :: UserId -> Qualified Handle -> Handler (Maybe Public.UserHandleInfo)
 getHandleInfo self handle = do
   domain <- viewFederationDomain
-  if _qDomain handle == domain
+  if qDomain handle == domain
     then getLocalHandleInfo domain
     else getRemoteHandleInfo
   where
     getLocalHandleInfo domain = do
-      maybeOwnerId <- lift $ API.lookupHandle (_qLocalPart handle)
+      maybeOwnerId <- lift $ API.lookupHandle (qUnqualified handle)
       case maybeOwnerId of
         Nothing -> return Nothing
         Just ownerId -> do

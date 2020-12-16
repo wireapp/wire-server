@@ -240,7 +240,7 @@ modelUser = Doc.defineModel "User" $ do
 instance ToJSON UserProfile where
   toJSON u =
     object
-      [ "id" .= _qLocalPart (profileQualifiedId u),
+      [ "id" .= qUnqualified (profileQualifiedId u),
         "qualified_id" .= profileQualifiedId u,
         "name" .= profileName u,
         "picture" .= profilePict u,
