@@ -70,7 +70,7 @@ instance ToSchema UserHandleInfo where
 instance ToJSON UserHandleInfo where
   toJSON (UserHandleInfo u) =
     object
-      [ "user" .= _qLocalPart u, -- For backwards comptaibility
+      [ "user" .= _qLocalPart u, -- For backwards compatibility
         "qualified_user" .= u
       ]
 
