@@ -211,15 +211,16 @@ hie.yaml:
 
 #####################################
 # Today we pretend to be CI and run integration tests on kubernetes
-
+# (see also docs/developer/processes.md)
+#
 # NOTE: This uses local helm charts from .local/charts (which it builds before running this)
 #
 # NOTE/WARNING: By default, it uses local docker image tags,
 # which will not work at this time on your remote kubernetes cluster. [FUTUREWORK: local kubernetes cluster]
 #
-# If you wish to use docker images that are uploaded to quay.io, you must first run
+# If you wish to use docker images that are uploaded to quay.io, you must set DOCKER_TAG
 #
-#   DOCKER_TAG=<desired-wire-server-docker-tag> make charts
+#   DOCKER_TAG=<desired-wire-server-docker-tag> make kube-integration
 #
 # and if you don't know what a good DOCKER_TAG might be, you can run
 #
