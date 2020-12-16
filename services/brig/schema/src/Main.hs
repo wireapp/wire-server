@@ -134,6 +134,9 @@ main = do
       V60_AddFederationIdMapping.migration,
       V61_team_invitation_email.migration,
       V62_users_pending_activation.migration
+      -- When adding migrations here, don't forget to update
+      -- 'schemaVersion' in Brig.App
+
       -- FUTUREWORK: undo V41 (searchable flag); we stopped using it in
       -- https://github.com/wireapp/wire-server/pull/964
     ]

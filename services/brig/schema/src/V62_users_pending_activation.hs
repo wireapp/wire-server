@@ -33,7 +33,6 @@ migration =
         (
           user            uuid
         , expires_at      timestamp
-        , primary key (user, expires_at)
+        , primary key (user)
         )
-        with clustering order by (expires_at ASC)
       |]
