@@ -226,12 +226,12 @@ hie.yaml:
 #   - a valid kubectl context configured (i.e. access to a kubernetes cluster)
 .PHONY: kube-integration
 kube-integration:
-	export NAMESPACE=test-$(USER); ./ci/bin/integration-setup.sh
-	export NAMESPACE=test-$(USER); ./ci/bin/integration-test.sh
+	export NAMESPACE=test-$(USER); ./hack/bin/integration-setup.sh
+	export NAMESPACE=test-$(USER); ./hack/bin/integration-test.sh
 
 .PHONY: kube-integration-teardown
 kube-integration-teardown:
-	export NAMESPACE=test-$(USER); ./ci/bin/integration-teardown.sh
+	export NAMESPACE=test-$(USER); ./hack/bin/integration-teardown.sh
 
 
 
