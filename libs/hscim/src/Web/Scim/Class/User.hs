@@ -35,6 +35,7 @@ import Web.Scim.ContentType
 import Web.Scim.Filter
 import Web.Scim.Handler
 import Web.Scim.Schema.Common
+import Web.Scim.Schema.Error (BadRequest, NotFound)
 import Web.Scim.Schema.ListResponse hiding (schemas)
 import Web.Scim.Schema.Meta
 import Web.Scim.Schema.PatchOp
@@ -83,7 +84,7 @@ class (Monad m, AuthTypes tag, UserTypes tag) => UserDB tag m where
   getUsers ::
     AuthInfo tag ->
     Maybe Filter ->
-    m (Union '[WithStatus 200 ListResponse (StoredUser tag), BadRequest])
+    m (Union '[WithStatus 200 (ListResponse (StoredUser tag)), BadRequest])
 
   -- | Get a single user by ID.
   --
@@ -164,7 +165,7 @@ userServer ::
   forall tag m.
   (AuthDB tag m, UserDB tag m) =>
   Maybe (AuthData tag) ->
-  UserSite tag (AsServerT (ScimHandler m))
+  UserSite tag (AsServerT m)
 userServer authData =
   UserSite
     { usGetUsers = \mbFilter -> do

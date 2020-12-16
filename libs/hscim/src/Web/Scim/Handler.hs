@@ -23,24 +23,39 @@ module Web.Scim.Handler
   ( ScimHandler,
     throwScim,
     runScimHandler,
+    relaxErrors,
   )
 where
 
 import Control.Monad.Except
-import Servant.API (HasStatus, IsMember, Union)
+import Data.Functor ((<&>))
+import Servant (Elem)
+import Servant.API (Contains, HasStatus, IsMember, Union, inject, relaxUnion)
 import Servant.Server (respond)
 
-newtype ScimHandler xs m a = ScimHandler {unScimHandler :: ExceptT (Union xs) m a}
-  deriving newtype (Functor, Applicative, Monad, MonadTrans)
+newtype ScimHandler es m a = ScimHandler {unScimHandler :: ExceptT (Union es) m a}
+  deriving newtype (Functor, Applicative, Monad, MonadTrans, MonadError (Union es))
 
--- | Deliberately hide 'ExceptT's 'MonadError' instance to be able to use
--- underlying monad's instance.
-instance MonadError e m => MonadError e (ScimHandler xs m) where
-  throwError = lift . throwError
-  catchError (ScimHandler act) h =
-    ScimHandler $
-      ExceptT $
-        runExceptT act `catchError` (runExceptT . unScimHandler . h)
+relaxErrors :: (Contains es es', Monad m) => ScimHandler es m a -> ScimHandler es' m a
+relaxErrors handler =
+  ScimHandler . ExceptT $
+    (runExceptT . unScimHandler $ handler) <&> either (Left . relaxUnion) Right
+
+-- N.B. we tried writing an MonadError like this, but ghc complained about
+-- "functional dependency"
+throwInject ::
+  forall (e :: *) (es :: [*]) m a.
+  UElem e es =>
+  e ->
+  ScimHandler es m a
+throwInject = throwError . inject
+
+-- instance MonadError e m => MonadError e (ScimHandler xs m) where
+--   throwError = lift . throwError
+--   catchError (ScimHandler act) h =
+--     ScimHandler $
+--       ExceptT $
+--         runExceptT act `catchError` (runExceptT . unScimHandler . h)
 
 -- | This combinator runs 'UVerbT'. It applies 'respond' internally, so the handler
 -- may use the usual 'return'.
