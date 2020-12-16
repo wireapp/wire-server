@@ -239,21 +239,21 @@ modelUser = Doc.defineModel "User" $ do
 
 instance ToJSON UserProfile where
   toJSON u =
-    object
-      [ "id" .= qUnqualified (profileQualifiedId u),
-        "qualified_id" .= profileQualifiedId u,
-        "name" .= profileName u,
-        "picture" .= profilePict u,
-        "assets" .= profileAssets u,
-        "accent_id" .= profileAccentId u,
-        "deleted" .= (if profileDeleted u then Just True else Nothing),
-        "service" .= profileService u,
-        "handle" .= profileHandle u,
-        "locale" .= profileLocale u,
-        "expires_at" .= profileExpire u,
-        "team" .= profileTeam u,
-        "email" .= profileEmail u
-      ]
+    object $
+      "id" .= qUnqualified (profileQualifiedId u)
+        # "qualified_id" .= profileQualifiedId u
+        # "name" .= profileName u
+        # "picture" .= profilePict u
+        # "assets" .= profileAssets u
+        # "accent_id" .= profileAccentId u
+        # "deleted" .= (if profileDeleted u then Just True else Nothing)
+        # "service" .= profileService u
+        # "handle" .= profileHandle u
+        # "locale" .= profileLocale u
+        # "expires_at" .= profileExpire u
+        # "team" .= profileTeam u
+        # "email" .= profileEmail u
+        # []
 
 instance FromJSON UserProfile where
   parseJSON = withObject "UserProfile" $ \o ->
