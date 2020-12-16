@@ -1,12 +1,17 @@
 tags:
   nginz: true
-  proxy: false
   brig: true
   galley: true
   gundeck: true
   cannon: true
   cargohold: true
   spar: true
+  proxy: false
+  webapp: false
+  team-settings: false
+  account-pages: false
+  legalhold: false
+
 cassandra-migrations:
   cassandra:
     host: cassandra-ephemeral
