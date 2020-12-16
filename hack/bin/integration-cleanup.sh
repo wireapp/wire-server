@@ -25,9 +25,8 @@ for release in $(helm list -A | grep test-); do
   date_str=$(echo "$release" | awk '{print $4" "$5" "$6}')
   date_s=$(date_seconds "$date_str")
   diff=$(( $date_now - $date_s ))
-  echo "debug, this should hold: $name at $date_str = $date_s = $date_now + $diff"
-  if [ $diff -ge 1200 ]; then
-    echo "test release '$name' older than 20 min; deleting..."
+  if [ $diff -ge 7200 ]; then
+    echo "test release '$name' older than 2 hours; deleting..."
     helm delete -n "$namespace" "$name"
   fi
 

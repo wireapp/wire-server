@@ -225,7 +225,7 @@ hie.yaml:
 #   - kubectl
 #   - a valid kubectl context configured (i.e. access to a kubernetes cluster)
 .PHONY: kube-integration
-kube-integration:
+kube-integration: charts
 	export NAMESPACE=test-$(USER); ./hack/bin/integration-setup.sh
 	export NAMESPACE=test-$(USER); ./hack/bin/integration-test.sh
 
@@ -285,3 +285,14 @@ upload-charts: $(foreach chartName,$(CHARTS),upload-chart-$(chartName))
 #
 # hack: download docker images instead of building them with local tag.
 # are there not images missing for "local" ? cassandra-migrations for instance.
+#
+# dockertags executable
+# dockertags quay.io/wire/brig | sort | uniq | grep -v "pr\." | grep -v latest | tail -1
+#
+#
+# curl 'https://quay.io/api/v1/repository/wire/brig/tag/?limit=100&page=1&onlyActiveTags=true'
+#
+
+.PHONY: latest-brig-tag
+latest-brig-tag:
+	curl -sSL 'https://quay.io/api/v1/repository/wire/brig/tag/?limit=50&page=1&onlyActiveTags=true' | jq -r '.tags[].name' | sort | uniq | grep -v latest | grep -v 'pr\.' | tail -1

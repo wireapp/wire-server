@@ -39,7 +39,8 @@ for chart in "${charts[@]}"; do
     set -x
     helm upgrade --atomic --install --namespace "${NAMESPACE}" "${NAMESPACE}-${chart}" "${CHARTS_DIR}/${chart}" \
         $option \
-        --wait
+        --wait \
+        --timeout 10m # default is 5m but may not be enough on a fresh install including cassandra migrations
     set +x
 done
 

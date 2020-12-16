@@ -51,6 +51,7 @@ brig:
     optSettings:
       setActivationTimeout: 5
       setTeamInvitationTimeout: 10
+      setExpiredUserCleanupTimeout: 1
       setUserMaxConnections: 16
       setCookieInsecure: true
       setUserCookieRenewAge: 2
@@ -67,6 +68,7 @@ brig:
       setMaxConvAndTeamSize: 16
       setMaxTeamSize: 32
       setMaxConvSize: 16
+      setFederationDomain: integration.example.com
     aws:
       sesEndpoint: http://fake-aws-ses:4569
       sqsEndpoint: http://fake-aws-sqs:4568
@@ -134,6 +136,7 @@ galley:
       maxConvSize: 16
       conversationCodeURI: https://kube-staging-nginz-https.zinfra.io/join/
       enableIndexedBillingTeamMembers: true
+      federationDomain: integration.example.com
       featureFlags:
         sso: disabled-by-default  # this needs to be the default; tests can enable it when needed.
         legalhold: disabled-by-default
