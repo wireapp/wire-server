@@ -64,7 +64,7 @@ specCreateToken = describe "POST /auth-tokens" $ do
   it "works" $ testCreateToken
   it "respects the token limit" $ testTokenLimit
   it "requires the team to have no more than one IdP" $ testNumIdPs
-  it "authorizes only admins" $ testCreateTokenAuthorizesOnlyAdmins
+  it "authorizes only admins and owners" $ testCreateTokenAuthorizesOnlyAdmins
   it "requires a password" $ testCreateTokenRequiresPassword
 
 -- FUTUREWORK: we should also test that for a password-less user, e.g. for an SSO user,
