@@ -60,8 +60,8 @@ import Test.QuickCheck (Arbitrary (arbitrary))
 -- OPTIONALLY QUALIFIED
 
 data OptionallyQualified a = OptionallyQualified
-  { _oqLocalPart :: a,
-    _oqDomain :: Maybe Domain
+  { oqUnqualified :: a,
+    oqDomain :: Maybe Domain
   }
   deriving (Eq, Show)
 
@@ -96,8 +96,8 @@ instance FromByteString (OptionallyQualified Handle) where
 -- QUALIFIED
 
 data Qualified a = Qualified
-  { _qLocalPart :: a,
-    _qDomain :: Domain
+  { qUnqualified :: a,
+    qDomain :: Domain
   }
   deriving stock (Eq, Ord, Show, Generic)
 
@@ -123,8 +123,8 @@ qualifiedParser localParser = do
 
 partitionRemoteOrLocalIds :: Foldable f => Domain -> f (Qualified a) -> ([Qualified a], [a])
 partitionRemoteOrLocalIds localDomain = foldMap $ \qualifiedId ->
-  if (_qDomain qualifiedId == localDomain)
-    then (mempty, [_qLocalPart qualifiedId])
+  if qDomain qualifiedId == localDomain
+    then (mempty, [qUnqualified qualifiedId])
     else ([qualifiedId], mempty)
 
 ----------------------------------------------------------------------
@@ -156,7 +156,11 @@ instance ToSchema (Qualified (Id a)) where
                ]
 
 instance ToJSON (Qualified (Id a)) where
-  toJSON qu = Aeson.object ["id" .= _qLocalPart qu, "domain" .= _qDomain qu]
+  toJSON qu =
+    Aeson.object
+      [ "id" .= qUnqualified qu,
+        "domain" .= qDomain qu
+      ]
 
 instance FromJSON (Qualified (Id a)) where
   parseJSON = withObject "QualifiedUserId" $ \o ->

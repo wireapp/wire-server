@@ -78,11 +78,11 @@ instance ToJSON (IdMapping a) where
 -- FUTUREWORK: This uses V5 UUID namespaces (SHA-1 under the hood). To provide better
 -- protection against collisions, we should use something else, e.g. based on SHA-256.
 hashQualifiedId :: Qualified (Id (Remote a)) -> UUID
-hashQualifiedId Qualified {_qLocalPart, _qDomain} = UUID.V5.generateNamed namespace object
+hashQualifiedId Qualified {qUnqualified, qDomain} = UUID.V5.generateNamed namespace object
   where
     -- using the ID as the namespace sounds backwards, but it works
-    namespace = toUUID _qLocalPart
-    object = BS.unpack . Text.E.encodeUtf8 . domainText $ _qDomain
+    namespace = toUUID qUnqualified
+    object = BS.unpack . Text.E.encodeUtf8 . domainText $ qDomain
 
 ----------------------------------------------------------------------
 -- ARBITRARY
