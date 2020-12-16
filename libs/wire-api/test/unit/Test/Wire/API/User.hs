@@ -21,18 +21,39 @@
 module Test.Wire.API.User where
 
 import Data.Aeson
+import qualified Data.Aeson as Aeson
 import Data.Aeson.Types as Aeson
+import Data.Domain
+import Data.Id
+import Data.Qualified
+import qualified Data.Text as Text
+import qualified Data.UUID.V4 as UUID
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
-import Wire.API.User (parseIdentity)
-import Wire.API.User.Identity
+import Wire.API.User
 
 tests :: TestTree
 tests = testGroup "User (types vs. aeson)" $ unitTests
 
 unitTests :: [TestTree]
-unitTests =
+unitTests = parseIdentityTests ++ jsonNullTests
+
+jsonNullTests :: [TestTree]
+jsonNullTests = [testGroup "JSON null" [testCase "userProfile" $ testUserProfile]]
+
+testUserProfile :: Assertion
+testUserProfile = do
+  uid <- Id <$> UUID.nextRandom
+  let domain = Domain "example.com"
+  let colour = ColourId 0
+  let userProfile = UserProfile (Qualified uid domain) (Name "name") (Pict []) [] colour False Nothing Nothing Nothing Nothing Nothing Nothing
+  let profileJSONAsText = Text.pack $ show $ Aeson.encode userProfile
+  let msg = Text.unpack $ "toJSON encoding must not convert Nothing to null, but instead omit those json fields for backwards compatibility. UserProfileJSON:" <> profileJSONAsText
+  assertBool msg (not $ "null" `Text.isInfixOf` profileJSONAsText)
+
+parseIdentityTests :: [TestTree]
+parseIdentityTests =
   [ let (=#=) :: Either String (Maybe UserIdentity) -> (Maybe UserSSOId, [Pair]) -> Assertion
         (=#=) uid (mssoid, object -> Object obj) = assertEqual "=#=" uid (parseEither (parseIdentity mssoid) obj)
         (=#=) _ bad = error $ "=#=: impossible: " <> show bad
