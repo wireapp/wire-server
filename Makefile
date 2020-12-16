@@ -249,19 +249,9 @@ release-chart-%:
 
 .PHONY: chart-%
 chart-%:
-	rm -rf .local/charts/$*
-	mkdir -p .local/charts
-	cp -r charts/$* .local/charts/
-
+	./hack/bin/copy-charts.sh $(*)
 	./hack/bin/set-wire-server-image-version.sh $(DOCKER_TAG)
-
 	./hack/bin/set-helm-chart-version.sh "$*" $(HELM_SEMVER)
-
-# Usecases for this make target:
-# To release helm charts to S3 mirror (assummption: CI sets DOCKER_TAG and HELM_SEMVER)
-.PHONY: upload-chart-%
-upload-chart-%: release-chart-%
-	./hack/bin/sync.sh $(*)
 
 # The list of published helm charts on S3
 CHARTS := wire-server databases-ephemeral fake-aws
@@ -273,6 +263,17 @@ CHARTS := wire-server databases-ephemeral fake-aws
 .PHONY: charts
 charts: $(foreach chartName,$(CHARTS),chart-$(chartName))
 
+
+##########################################
+# Helm chart releasing (mirroring to S3)
+
+
+# Usecases for this make target:
+# To release helm charts to S3 mirror (assummption: CI sets DOCKER_TAG and HELM_SEMVER)
+.PHONY: upload-chart-%
+upload-chart-%: release-chart-%
+	./hack/bin/sync.sh $(*)
+
 # This target should ideally only run on CI, it runs the sync.sh script to mirror version-pinned helm charts on S3.
 .PHONY: upload-charts
 upload-charts: $(foreach chartName,$(CHARTS),upload-chart-$(chartName))
@@ -281,3 +282,6 @@ upload-charts: $(foreach chartName,$(CHARTS),upload-chart-$(chartName))
 
 # TODO: document chart makefile targets and usage
 # TODO: inline subcharts
+#
+# hack: download docker images instead of building them with local tag.
+# are there not images missing for "local" ? cassandra-migrations for instance.
