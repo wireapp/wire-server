@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d11e2fb67ee46e7cd56d371ea7d3436fdf03be68748247979bd2f2c1359733b6
+-- hash: bb4a3b9b5b4305ddf1e6c3bb031fa8784a988c45b2754e5be43c1db94a057502
 
 name:           brig
 version:        1.35.0
@@ -44,7 +44,6 @@ library
       Brig.Data.Blacklist
       Brig.Data.Client
       Brig.Data.Connection
-      Brig.Data.IdMapping
       Brig.Data.Instances
       Brig.Data.LoginCode
       Brig.Data.PasswordReset
@@ -61,7 +60,6 @@ library
       Brig.InternalEvent.Process
       Brig.InternalEvent.Types
       Brig.IO.Intra
-      Brig.IO.Intra.IdMapping
       Brig.IO.Journal
       Brig.Locale
       Brig.Options
@@ -427,7 +425,8 @@ executable brig-schema
       V59
       V60_AddFederationIdMapping
       V61_team_invitation_email
-      V62_users_pending_activation
+      V62_RemoveFederationIdMapping
+      V63_AddUsersPendingActivation
       V9
       Paths_brig
   hs-source-dirs:

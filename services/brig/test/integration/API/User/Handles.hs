@@ -156,7 +156,7 @@ testHandleQuery opts brig = do
   -- Query user profiles by handles
   get (brig . path "/users" . queryItem "handles" (toByteString' hdl) . zUser uid) !!! do
     const 200 === statusCode
-    const (Just (Handle hdl)) === (userHandle <=< listToMaybe <=< responseJsonMaybe)
+    const (Just (Handle hdl)) === (profileHandle <=< listToMaybe <=< responseJsonMaybe)
   -- Bulk availability check
   hdl2 <- randomHandle
   hdl3 <- randomHandle
@@ -221,7 +221,7 @@ assertCanFind brig from target = do
     const (userHandle target) === (>>= (listToMaybe >=> profileHandle)) . responseJsonMaybe
   get (brig . paths ["users", "handles", toByteString' targetHandle] . zUser (userId from)) !!! do
     const 200 === statusCode
-    const (Just (UserHandleInfo $ userId target)) === responseJsonMaybe
+    const (Just (UserHandleInfo $ userQualifiedId target)) === responseJsonMaybe
 
 assertCannotFind :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> m ()
 assertCannotFind brig from target = do

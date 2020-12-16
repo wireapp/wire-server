@@ -181,7 +181,7 @@ mkResultSet page = ResultSet (result page) typ
       | otherwise = ResultSetComplete
 
 schemaVersion :: Int32
-schemaVersion = 46
+schemaVersion = 47
 
 -- | Insert a conversation code
 insertCode :: MonadClient m => Code -> m ()

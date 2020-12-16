@@ -149,7 +149,8 @@ data BotNetEnv = BotNetEnv
 newBotNetEnv :: Manager -> Logger -> BotNetSettings -> IO BotNetEnv
 newBotNetEnv manager logger o = do
   gen <- MWC.createSystemRandom
-  usr <- maybe Cache.empty (Cache.fromFile logger gen) (setBotNetUsersFile o)
+  let domain = setBotNetFederationDomain o
+  usr <- maybe Cache.empty (Cache.fromFile logger gen domain) (setBotNetUsersFile o)
   mbx <- maybe (return []) loadMailboxConfig (setBotNetMailboxConfig o)
   met <- initMetrics
   let srv =

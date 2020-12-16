@@ -394,13 +394,3 @@ updateCustomBackend =
 deleteCustomBackend :: PrepQuery W (Identity Domain) ()
 deleteCustomBackend =
   "delete from custom_backend where domain = ?"
-
--- ID Mapping ---------------------------------------------------------------
-
-selectIdMapping :: PrepQuery R (Identity (Id (Mapped a))) (Id (Remote a), Domain)
-selectIdMapping =
-  "select remote_id, remote_domain from id_mapping where mapped_id = ?"
-
-insertIdMapping :: PrepQuery W (Id (Mapped a), Id (Remote a), Domain) ()
-insertIdMapping =
-  "insert into id_mapping (mapped_id, remote_id, remote_domain) values (?, ?, ?)"
