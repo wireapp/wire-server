@@ -8,12 +8,14 @@ author: Wire Swiss GmbH
 maintainer: Wire Swiss GmbH <backend@wire.com>
 copyright: (c) 2018 Wire Swiss GmbH
 license: AGPL-3
+
 ghc-options:
 - -funbox-strict-fields
 - -threaded
 - -with-rtsopts=-N
 - -with-rtsopts=-T
 - -rtsopts
+
 dependencies:
 - base
 - aeson
@@ -48,18 +50,19 @@ dependencies:
 - uuid
 - vector
 - wire-api
+
 library:
   source-dirs: src
 
 executables:
   move-team:
     main: Main.hs
-    source-dirs: src
+    source-dirs: move-team
     dependencies:
       - move-team
 
   move-team-generate:
-    main: Run.hs
-    source-dirs: move-team-generate/src
+    main: Main.hs
+    source-dirs: move-team-generate
     dependencies:
       - move-team

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 898b7bdb54803e2744c5462aee1a528d79a3f970d2fdb971f5e1e6f9f28be61f
+-- hash: 82c6a6e2694906c186292fa5b4981303dc94603cc3c023eb9390623c073dc062
 
 name:           move-team
 version:        1.0.0
@@ -19,7 +19,6 @@ build-type:     Simple
 library
   exposed-modules:
       Common
-      Main
       Options
       ParseSchema
       Schema
@@ -70,15 +69,9 @@ library
 executable move-team
   main-is: Main.hs
   other-modules:
-      Common
-      Options
-      ParseSchema
-      Schema
-      Types
-      Work
       Paths_move_team
   hs-source-dirs:
-      src
+      move-team
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
   build-depends:
@@ -119,11 +112,11 @@ executable move-team
   default-language: Haskell2010
 
 executable move-team-generate
-  main-is: Run.hs
+  main-is: Main.hs
   other-modules:
       Paths_move_team
   hs-source-dirs:
-      move-team-generate/src
+      move-team-generate
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
   build-depends:
