@@ -2,6 +2,14 @@
 
 The following processes only apply to Wire employees working on this code base.
 
+## Inspect helm charts before releasing them
+
+`make charts` will create a partial copy of the `./charts` folder under `./.local/charts/` and set helm chart versions as well as docker tags.
+
+`make chart-<chart-name>` can be used to copy & version-pin a single chart before its release.
+
+*See the `CHARTS` variable in the top-level Makefile for the current default list of charts.*
+
 ## Run wire-server integration tests inside kubernetes using helm
 
 You need kubectl, helm, and a configured kubernetes cluster

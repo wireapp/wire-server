@@ -4,6 +4,8 @@ DOCKER_USER    ?= quay.io/wire
 DOCKER_TAG     ?= local
 # default helm chart version must be 0.0.42 for local development
 HELM_SEMVER    ?= 0.0.42
+# The list of helm charts to publish on S3
+CHARTS         := wire-server databases-ephemeral fake-aws
 
 default: fast
 
@@ -261,9 +263,6 @@ chart-%:
 	./hack/bin/copy-charts.sh $(*)
 	./hack/bin/set-wire-server-image-version.sh $(DOCKER_TAG)
 	./hack/bin/set-helm-chart-version.sh "$*" $(HELM_SEMVER)
-
-# The list of helm charts to publish on S3
-CHARTS := wire-server databases-ephemeral fake-aws
 
 # Usecases for this make target:
 # 1. for releases of helm charts
