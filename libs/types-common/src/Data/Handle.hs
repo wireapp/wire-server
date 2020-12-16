@@ -28,13 +28,15 @@ where
 
 import Data.Aeson hiding ((<?>))
 import qualified Data.Attoparsec.ByteString.Char8 as Atto
+import Data.Bifunctor (Bifunctor (first))
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion (FromByteString (parser), ToByteString)
 import Data.Hashable (Hashable)
-import Data.Swagger (ToSchema (..))
+import Data.Swagger (ToParamSchema, ToSchema (..))
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.E
 import Imports
+import Servant (FromHttpApiData (..))
 import Test.QuickCheck (Arbitrary (arbitrary), choose, elements, oneof)
 import Util.Attoparsec (takeUpToWhile)
 
@@ -45,7 +47,11 @@ import Util.Attoparsec (takeUpToWhile)
 newtype Handle = Handle
   {fromHandle :: Text}
   deriving stock (Eq, Show, Generic)
-  deriving newtype (ToJSON, ToByteString, Hashable, ToSchema)
+  deriving newtype (ToJSON, ToByteString, Hashable, ToSchema, ToParamSchema)
+
+instance FromHttpApiData Handle where
+  parseUrlPiece =
+    first Text.pack . parseHandleEither
 
 instance FromByteString Handle where
   parser = handleParser

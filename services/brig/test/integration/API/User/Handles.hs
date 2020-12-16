@@ -221,7 +221,7 @@ assertCanFind brig from target = do
     const (userHandle target) === (>>= (listToMaybe >=> profileHandle)) . responseJsonMaybe
   get (brig . paths ["users", "handles", toByteString' targetHandle] . zUser (userId from)) !!! do
     const 200 === statusCode
-    const (Just (UserHandleInfo $ userId target)) === responseJsonMaybe
+    const (Just (UserHandleInfo $ userQualifiedId target)) === responseJsonMaybe
 
 assertCannotFind :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> m ()
 assertCannotFind brig from target = do

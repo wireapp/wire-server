@@ -224,12 +224,41 @@ type GetSelf =
     :> "self"
     :> Get '[Servant.JSON] Public.SelfProfile
 
+-- See Note [document responses]
+-- The responses looked like this:
+--   Doc.returns (Doc.ref Public.modelUserHandleInfo)
+--   Doc.response 200 "Handle info" Doc.end
+--   Doc.errorResponse handleNotFound
+type GetHandleInfoUnqualified =
+  Summary "Get information on a user handle"
+    :> ZAuthServant
+    :> "users"
+    :> "handles"
+    :> Capture' '[Description "The user handle"] "handle" Handle
+    :> Get '[Servant.JSON] Public.UserHandleInfo
+
+-- See Note [document responses]
+-- The responses looked like this:
+--   Doc.returns (Doc.ref Public.modelUserHandleInfo)
+--   Doc.response 200 "Handle info" Doc.end
+--   Doc.errorResponse handleNotFound
+type GetHandleInfoQualified =
+  Summary "Get information on a user handle"
+    :> ZAuthServant
+    :> "users"
+    :> "handles"
+    :> Capture "domain" Domain
+    :> Capture' '[Description "The user handle"] "handle" Handle
+    :> Get '[Servant.JSON] Public.UserHandleInfo
+
 type OutsideWorldAPI =
   CheckUserExistsUnqualified
     :<|> CheckUserExistsQualified
     :<|> GetUserUnqualified
     :<|> GetUserQualified
     :<|> GetSelf
+    :<|> GetHandleInfoUnqualified
+    :<|> GetHandleInfoQualified
 
 type SwaggerDocsAPI = "api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
@@ -253,6 +282,8 @@ servantSitemap =
     :<|> getUserUnqualifiedH
     :<|> getUserH
     :<|> getSelf
+    :<|> getHandleInfoUnqualifiedH
+    :<|> getHandleInfoH
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
@@ -287,18 +318,7 @@ sitemap o = do
     Doc.errorResponse invalidHandle
     Doc.errorResponse handleNotFound
 
-  get "/users/handles/:handle" (continue getHandleInfoH) $
-    accept "application" "json"
-      .&. zauthUserId
-      .&. capture "handle"
-  document "GET" "getUserHandleInfo" $ do
-    Doc.summary "Get information on a user handle"
-    Doc.parameter Doc.Path "handle" Doc.bytes' $
-      Doc.description "The user handle"
-    Doc.returns (Doc.ref Public.modelUserHandleInfo)
-    Doc.response 200 "Handle info" Doc.end
-    Doc.errorResponse handleNotFound
-
+  -- some APIs moved to servant
   -- end User Handle API
 
   -- If the user is ephemeral and expired, it will be removed, see 'Brig.API.User.userGC'.
@@ -1297,23 +1317,34 @@ checkHandlesH (_ ::: _ ::: req) = do
   free <- lift $ API.checkHandles handles (fromRange num)
   return $ json (free :: [Handle])
 
-getHandleInfoH :: JSON ::: UserId ::: Handle -> Handler Response
-getHandleInfoH (_ ::: self ::: handle) =
-  maybe (setStatus status404 empty) json
-    <$> getHandleInfo self handle
+getHandleInfoUnqualifiedH :: UserId -> Handle -> Handler Public.UserHandleInfo
+getHandleInfoUnqualifiedH self handle = do
+  domain <- viewFederationDomain
+  getHandleInfoH self domain handle
+
+getHandleInfoH :: UserId -> Domain -> Handle -> Handler Public.UserHandleInfo
+getHandleInfoH self domain handle =
+  ifNothing (notFound "handle not found")
+    =<< getHandleInfo self (Qualified handle domain)
 
 -- FUTUREWORK: use 'runMaybeT' to simplify this.
-getHandleInfo :: UserId -> Handle -> Handler (Maybe Public.UserHandleInfo)
+getHandleInfo :: UserId -> Qualified Handle -> Handler (Maybe Public.UserHandleInfo)
 getHandleInfo self handle = do
-  ownerProfile <- do
-    -- FUTUREWORK(federation, #1268): resolve qualified handles, too
-    domain <- viewFederationDomain
-    maybeOwnerId <- fmap (flip Qualified domain) <$> (lift $ API.lookupHandle handle)
-    case maybeOwnerId of
-      Just ownerId -> lift $ API.lookupProfile self ownerId
-      Nothing -> return Nothing
-  owner <- filterHandleResults self (maybeToList ownerProfile)
-  return $ Public.UserHandleInfo . Public.profileId <$> listToMaybe owner
+  domain <- viewFederationDomain
+  if _qDomain handle == domain
+    then getLocalHandleInfo domain
+    else getRemoteHandleInfo
+  where
+    getLocalHandleInfo domain = do
+      maybeOwnerId <- lift $ API.lookupHandle (_qLocalPart handle)
+      case maybeOwnerId of
+        Nothing -> return Nothing
+        Just ownerId -> do
+          ownerProfile <- lift $ API.lookupProfile self (Qualified ownerId domain)
+          owner <- filterHandleResults self (maybeToList ownerProfile)
+          return $ Public.UserHandleInfo . Public.profileQualifiedId <$> listToMaybe owner
+    -- FUTUREWORK: Federate with remote backends
+    getRemoteHandleInfo = return Nothing
 
 changeHandleH :: UserId ::: ConnId ::: JsonRequest Public.HandleUpdate -> Handler Response
 changeHandleH (u ::: conn ::: req) = do

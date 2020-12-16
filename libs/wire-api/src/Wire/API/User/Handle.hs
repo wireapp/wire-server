@@ -1,6 +1,6 @@
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedLists #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -29,9 +29,13 @@ module Wire.API.User.Handle
   )
 where
 
+import Control.Lens ((.~), (?~))
 import Data.Aeson
 import Data.Id (UserId)
+import Data.Proxy (Proxy (..))
+import Data.Qualified (Qualified (..), deprecatedUnqualifiedSchemaRef)
 import Data.Range
+import Data.Swagger (NamedSchema (..), SwaggerType (..), ToSchema (..), declareSchemaRef, properties, type_)
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
@@ -39,7 +43,7 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 --------------------------------------------------------------------------------
 -- UserHandleInfo
 
-newtype UserHandleInfo = UserHandleInfo {userHandleId :: UserId}
+newtype UserHandleInfo = UserHandleInfo {userHandleId :: Qualified UserId}
   deriving stock (Eq, Show, Generic)
   deriving newtype (Arbitrary)
 
@@ -49,14 +53,30 @@ modelUserHandleInfo = Doc.defineModel "UserHandleInfo" $ do
   Doc.property "user" Doc.string' $
     Doc.description "ID of the user owning the handle"
 
+instance ToSchema UserHandleInfo where
+  declareNamedSchema _ = do
+    qualifiedIdSchema <- declareSchemaRef (Proxy @(Qualified UserId))
+    unqualifiedIdSchema <- deprecatedUnqualifiedSchemaRef (Proxy @UserId) "qualified_user"
+    pure $
+      NamedSchema
+        (Just "UserHandleInfo")
+        $ mempty
+          & type_ ?~ SwaggerObject
+          & properties
+            .~ [ ("user", unqualifiedIdSchema),
+                 ("qualified_user", qualifiedIdSchema)
+               ]
+
 instance ToJSON UserHandleInfo where
   toJSON (UserHandleInfo u) =
     object
-      ["user" .= u]
+      [ "user" .= _qLocalPart u, -- For backwards compatibility
+        "qualified_user" .= u
+      ]
 
 instance FromJSON UserHandleInfo where
   parseJSON = withObject "UserHandleInfo" $ \o ->
-    UserHandleInfo <$> o .: "user"
+    UserHandleInfo <$> o .: "qualified_user"
 
 --------------------------------------------------------------------------------
 -- CheckHandles
