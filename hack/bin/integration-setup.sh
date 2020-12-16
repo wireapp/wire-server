@@ -36,11 +36,13 @@ for chart in "${charts[@]}"; do
     else
         option=""
     fi
+    # default is 5m but may not be enough on a fresh install including cassandra migrations
+    TIMEOUT=10m
     set -x
     helm upgrade --atomic --install --namespace "${NAMESPACE}" "${NAMESPACE}-${chart}" "${CHARTS_DIR}/${chart}" \
         $option \
         --wait \
-        --timeout 10m # default is 5m but may not be enough on a fresh install including cassandra migrations
+        --timeout "$TIMEOUT" || printLogs
     set +x
 done
 
@@ -52,6 +54,5 @@ resourcesReady() {
 until resourcesReady; do echo 'waiting for SNS resources'; sleep 1; done
 
 kubectl -n ${NAMESPACE} get pods
-printLogs
 
 echo "done"
