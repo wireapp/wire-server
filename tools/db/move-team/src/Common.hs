@@ -41,8 +41,8 @@ sinkTableRows insertQuery = go
   where
     go = do
       mbTuple <- await
-      case mbTpl of
+      case mbTuple of
         Nothing -> pure ()
-        Just tpl -> do
-          lift $ write insertQuery (params Quorum tpl)
+        Just tuple -> do
+          lift $ write insertQuery (params Quorum tuple)
           go
