@@ -71,6 +71,7 @@ runImport env = do
   IO.putStrLn "runImport"
   importAllTables env
 
+-- FUTUREWORK: all this debug stuff should go into a separate module.
 runDebugExportFull :: Env -> IO ()
 runDebugExportFull env = do
   assertTargetDirEmpty env
