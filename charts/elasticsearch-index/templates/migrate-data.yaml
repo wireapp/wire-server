@@ -1,0 +1,42 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: brig-index-migrate-data
+  labels:
+    wireService: elasticsearch-index-migrate-data
+    app: elasticsearch-index-migrate-data
+    heritage: {{.Release.Service | quote }}
+    release: {{.Release.Name | quote }}
+    chart: "{{.Chart.Name}}-{{.Chart.Version}}"
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+spec:
+  template:
+    metadata:
+      name: "{{.Release.Name}}"
+      labels:
+        wireService: elasticsearch-index-migrate-data
+        app: elasticsearch-index-migrate-data
+        heritage: {{.Release.Service | quote }}
+        release: {{.Release.Name | quote }}
+        chart: "{{.Chart.Name}}-{{.Chart.Version}}"
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        # Creates index in elasticsearch only when it doesn't exist.
+        # Does nothing if the index exists.
+        - name: brig-index
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          args:
+            - migrate-data
+            - --elasticsearch-server
+            - "http://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
+            - --elasticsearch-index
+            - "{{ .Values.elasticsearch.index }}"
+            - --cassandra-host
+            - "{{ required "missing elasticsearch-index.cassandra.host!" .Values.cassandra.host }}"
+            - --cassandra-port
+            - "{{ required "missing elasticsearch-index.cassandra.port!" .Values.cassandra.port }}"
+            - --cassandra-keyspace
+            - "{{ required "missing elasticsearch-index.cassandra.keyspace!" .Values.cassandra.keyspace }}"

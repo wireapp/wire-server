@@ -1,0 +1,20 @@
+replicaCount: 3
+image:
+  repository: quay.io/wire/cargohold
+  tag: do-not-use
+service:
+  externalPort: 8080
+  internalPort: 8080
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+config:
+  logLevel: Info
+  aws:
+    region: "eu-west-1"
+    s3Bucket: assets
+  proxy: {}

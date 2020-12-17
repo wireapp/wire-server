@@ -1,0 +1,84 @@
+prometheus-operator:
+  prometheus:
+    additionalServiceMonitors:
+      - name: wire-services
+        # We copy these labels from the pod onto the collected metrics from that pod
+        targetLabels:
+          - wireService
+        endpoints:
+          - path: '/i/metrics'
+            port: http
+            interval: 10s
+            metricRelabelings:
+              # Rename 'service' to 'role' to allow sharing of grafana dashboards
+              # between k8s and AWS services.
+              - sourceLabels: [service]
+                targetLabel: role
+        # This monitors _all_ namespaces and selects all
+        # pods that with a wireServices selector
+        namespaceSelector:
+          any: true
+        selector:
+          matchExpressions:
+            # select any pod with a 'wireService' label
+            - key: wireService
+              operator: Exists
+
+  prometheusOperator:
+    # Don't try to create custom resource types; we prefer to do it manually
+    # Otherwise we run into race conditions when installing helm charts
+    createCustomResource: false
+
+  grafana:
+    adminPassword: "admin"
+    ingress:
+      enabled: false
+    persistence:
+      storageClassName: "aws-ebs-retained"
+      enabled: true
+      accessModes: ["ReadWriteOnce"]
+      size: 10Gi
+
+    dashboardProviders:
+      dashboardproviders.yaml:
+        apiVersion: 1
+        providers:
+          - name: 'default'
+            orgId: 1
+            folder: ''
+            type: file
+            disableDeletion: false
+            editable: true
+            options:
+              path: /var/lib/grafana/dashboards/default
+
+    dashboards:
+      default:
+        # grafana can only access files from within its own chart directory
+        # which we don't have access to here; we can either dump the json
+        # directly into the values file, or load from a url
+        messages:
+          url: https://raw.githubusercontent.com/wireapp/wire-server-deploy/master/charts/wire-server-metrics/dashboards/message-stats.json
+        services:
+          url: https://raw.githubusercontent.com/wireapp/wire-server-deploy/master/charts/wire-server-metrics/dashboards/services.json
+
+  prometheusSpec:
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: "aws-ebs-retained"
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+
+  alertmanager:
+    alertmanagerSpec:
+      storage:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: "aws-ebs-retained"
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 10Gi

@@ -1,0 +1,39 @@
+{{- if and .Values.tls.enabled .Values.tls.useCertManager -}}
+apiVersion: cert-manager.io/v1alpha2
+kind: Certificate
+metadata:
+  name: "{{ include "nginx-ingress-services.zone" . | replace "." "-" }}-csr"
+  namespace: {{ .Release.Namespace }}
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  issuerRef:
+    name: letsencrypt-http01
+    kind: Issuer
+  usages:
+    - server auth
+  duration: 2160h     # 90d, Letsencrypt default; NOTE: changes are ignored by Letsencrypt
+  renewBefore: 360h   # 15d
+  isCA: false
+  keyAlgorithm: ecdsa
+  keySize: 384        # 521 is not supported by Letsencrypt
+  keyEncoding: pkcs1
+  secretName: {{ include "nginx-ingress-services.getCertificateSecretName" . | quote }}
+  # NOTE: disabled due to https://github.com/jetstack/cert-manager/issues/2978
+  # TODO: enable when fixed (probably when cert-manager:v0.16 released)
+  #privateKey:
+  #  rotationPolicy: Always
+  dnsNames:
+    - {{ .Values.config.dns.https }}
+    - {{ .Values.config.dns.ssl }}
+    - {{ .Values.config.dns.webapp }}
+    - {{ .Values.config.dns.fakeS3 }}
+    {{- if .Values.teamSettings.enabled }}
+    - {{ .Values.config.dns.teamSettings }}
+    {{- end }}
+    {{- if .Values.accountPages.enabled }}
+    - {{ .Values.config.dns.accountPages }}
+    {{- end }}
+{{- end -}}

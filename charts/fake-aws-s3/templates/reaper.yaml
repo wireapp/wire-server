@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "fullname" . }}-reaper
+  labels:
+    app: {{ template "fullname" . }}-reaper
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ template "fullname" . }}-reaper
+  template:
+    metadata:
+      labels:
+        app: {{ template "fullname" . }}-reaper
+    spec:
+      containers:
+      - name: initiate-fake-aws-s3
+        image: mesosphere/aws-cli:1.14.5
+        command: [/bin/sh]
+        args:
+        - -c
+        - |
+          echo 'Creating AWS resources'
+          while true
+          do
+              AWS_SECRET_ACCESS_KEY={{ .Values.minio.secretKey }} AWS_ACCESS_KEY_ID={{ .Values.minio.accessKey }} aws s3 --endpoint http://{{ .Values.minio.fullnameOverride }}:9000 mb s3://{{ .Values.minio.defaultBucket.name }} | grep -ev "BucketAlreadyOwnedByYou"
+              sleep 10
+          done
+

@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ .Release.Name }}-cargohold-integration"
+  annotations:
+    "helm.sh/hook": test-success
+spec:
+  volumes:
+    - name: "cargohold-integration"
+      configMap:
+        name: "cargohold-integration"
+  containers:
+    # NOTE: the bucket for these tests must be created.
+    # If using the wire-server/fake-aws-s3 chart, `dummy-bucket` will already be created.
+  - name: integration
+    image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
+    volumeMounts:
+    - name: "cargohold-integration"
+      mountPath: "/etc/wire/integration"
+    env:
+    # these dummy values are necessary for Amazonka's "Discover"
+    - name: AWS_ACCESS_KEY_ID
+      value: "dummy"
+    - name: AWS_SECRET_ACCESS_KEY
+      value: "dummy"
+    - name: AWS_REGION
+      value: "eu-west-1"
+  restartPolicy: Never

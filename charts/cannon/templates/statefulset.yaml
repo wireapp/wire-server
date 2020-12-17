@@ -1,0 +1,85 @@
+# Spins up pods with stable names; e.g. cannon-0 ... cannon-<replicaCount>
+# Specific pods can be accessed within the cluster at cannon-<n>.cannon.<namespace>
+# (the second 'cannon' is the name of the headless service)
+# Note: In fact, cannon-<n>.cannon can also be used to access the service but assuming
+# that we can have multiple namespaces accessing the same redis cluster, appending `.<namespace>`
+# makes the service unambiguous
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cannon
+  labels:
+    wireService: cannon
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  serviceName: {{ .Values.service.name }}
+  selector:
+    matchLabels:
+      wireService: cannon
+  replicas: {{ .Values.replicaCount }}
+  updateStrategy:
+    type: RollingUpdate
+  podManagementPolicy: Parallel
+  template:
+    metadata:
+      labels:
+        wireService: cannon
+        release: {{ .Release.Name }}
+      annotations:
+        checksum/configmap: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.drainTimeout }} # should be higher than the sleep duration of preStop
+      containers:
+      - name: cannon
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        lifecycle:
+          preStop:
+            # kubernetes by default immediately sends a SIGTERM to the container,
+            # which would cause cannon to exit, breaking existing websocket connections.
+            # Instead we sleep for a day. (SIGTERM is still sent, but after the preStop completes)
+            exec:
+              command: ["sleep", {{ .Values.drainTimeout | quote }} ]
+        volumeMounts:
+        - name: empty
+          mountPath: /etc/wire/cannon/externalHost
+        - name: cannon-config
+          mountPath: /etc/wire/cannon/conf
+        ports:
+        - name: http
+          containerPort: {{ .Values.service.internalPort }}
+        readinessProbe:
+          httpGet:
+            path: /i/status
+            port: {{ .Values.service.internalPort }}
+            scheme: HTTP
+        livenessProbe:
+          initialDelaySeconds: 30
+          timeoutSeconds: 1
+          httpGet:
+            path: /i/status
+            port: {{ .Values.service.internalPort }}
+            scheme: HTTP
+        resources:
+{{ toYaml .Values.resources | indent 12 }}
+      initContainers:
+      - name: cannon-configurator
+        image: alpine
+        command:
+        - /bin/sh
+        args:
+        - -c
+        # e.g. cannon-0.cannon.production
+        - echo "${HOSTNAME}.{{ .Values.service.name }}.{{ .Release.Namespace }}" > /etc/wire/cannon/externalHost/host.txt
+        volumeMounts:
+        - name: empty
+          mountPath: /etc/wire/cannon/externalHost
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      volumes:
+      - name: cannon-config
+        configMap:
+          name: cannon
+      - name: empty
+        emptyDir: {}

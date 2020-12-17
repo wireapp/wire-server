@@ -1,0 +1,15 @@
+image:
+  repository: elasticsearch
+  tag: 6.7.1
+
+service:
+  httpPort: 9200
+  transportPort: 9300
+
+resources:
+  limits:
+    cpu: "2000m"
+    memory: "4Gi"
+  requests:
+    cpu: "250m"
+    memory: "500Mi"

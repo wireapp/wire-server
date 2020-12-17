@@ -1,0 +1,7 @@
+# Adjust here the IP addresses that the LB can manage
+# Note that there is no "validation" of these addresses
+# so if you can bind to such addresses your services
+# will be allocated bogus external IP addresses
+
+# cidrAddresses:
+#   - 10.0.0.0/32
