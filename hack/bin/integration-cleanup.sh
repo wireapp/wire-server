@@ -8,7 +8,7 @@ date_seconds() {
   d=$1
   if [[ $OSTYPE =~ darwin* ]]; then
     date -j -f "%b %d %H:%M:%S %Y" "$date_str" +"%s"
-  else 
+  else
     date -d "$d" +"%s"
   fi
 }
