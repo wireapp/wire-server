@@ -150,7 +150,7 @@ runFullScans env@Env {..} users = do
     readBrigUserHandleAll env
       .| mapC (filter (haveId . view _2))
 
-  -- FUTUREWORK: do we need to export this table?
+  -- FUTUREWORK: no need to read this table, it can be populated from `brig.user`
   appendJsonLines (envTargetPath </> "brig.user_keys") $
     readBrigUserKeysAll env
       .| mapC (filter (haveId . view _2))
