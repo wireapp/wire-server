@@ -5,8 +5,11 @@ set -e
 USAGE="download and bundle dependent helm charts: $0 <chart-directory>"
 dir=${1:?$USAGE}
 
+# FUTUREWORK:
+# The following commented-out helm repo removal greatly speeds up updating helm charts with dependencies; however it interferes with the ./upload-helm-charts-s3.sh which requires global helm repositories to be set for uploading.
+#
 # remove any global helm repositories to avoid re-querying them for all charts again and again
-helm repo list | grep -v NAME | awk '{print $1}' | xargs -n 1 helm repo remove > /dev/null 2>&1 || true
+# helm repo list | grep -v NAME | awk '{print $1}' | xargs -n 1 helm repo remove > /dev/null 2>&1 || true
 
 # hacky workaround for helm's lack of recursive dependency update
 # See https://github.com/helm/helm/issues/2247

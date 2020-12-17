@@ -9,8 +9,7 @@ HELM_SEMVER           ?= 0.0.42
 CHARTS_INTEGRATION    := wire-server databases-ephemeral fake-aws
 # The list of helm charts to publish on S3
 # FUTUREWORK: after we "inline local subcharts", i.e. move charts/brig to charts/wire-server/brig this list could be generated from the folder names under ./charts/
-CHARTS_RELEASE        := wire-server databases-ephemeral fake-aws aws-ingress backoffice calling-test demo-smtp elasticsearch-curator elasticsearch-external fluent-bit minio-external cassandra-external nginx-ingress-controller nginx-ingress-services reaper wire-server-metrics
-# TODO: add sftd
+CHARTS_RELEASE        := wire-server databases-ephemeral fake-aws aws-ingress backoffice calling-test demo-smtp elasticsearch-curator elasticsearch-external fluent-bit minio-external cassandra-external nginx-ingress-controller nginx-ingress-services reaper wire-server-metrics sftd
 
 default: fast
 
@@ -295,11 +294,11 @@ charts-release: $(foreach chartName,$(CHARTS_RELEASE),release-chart-$(chartName)
 # Only CI should run these targets ideally
 
 # Usecases for this make target:
-# To release one single helm chart to S3 mirror 
+# To release one single helm chart to S3 mirror
 # (assummption: CI sets DOCKER_TAG and HELM_SEMVER)
 .PHONY: upload-chart-%
 upload-chart-%: release-chart-%
-	./hack/bin/upload-helm-charts-s3.sh $(*)
+	./hack/bin/upload-helm-charts-s3.sh .local/charts/$(*)
 
 # Usecases for this make target:
 # To uplaod all helm charts in the CHARTS_RELEASE list (see top of the time)

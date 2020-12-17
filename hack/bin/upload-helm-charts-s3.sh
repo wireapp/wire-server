@@ -69,7 +69,7 @@ PUBLIC_URL="https://s3-eu-west-1.amazonaws.com/public.wire.com/$PUBLIC_DIR"
 # initialize index file only if file doesn't yet exist
 if ! aws s3api head-object --bucket public.wire.com --key "$PUBLIC_DIR/index.yaml" &> /dev/null ; then
     echo "initializing fresh index.yaml"
-    helm s3 init "$S3_URL" --publish "$PUBLIC_URL"
+    helm s3 init "$S3_URL"
 fi
 
 helm repo add "$PUBLIC_DIR" "$S3_URL"
