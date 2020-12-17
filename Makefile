@@ -1,12 +1,16 @@
-SHELL          := /usr/bin/env bash
-LANG           := en_US.UTF-8
-DOCKER_USER    ?= quay.io/wire
+SHELL                 := /usr/bin/env bash
+LANG                  := en_US.UTF-8
+DOCKER_USER           ?= quay.io/wire
 # default docker image tag is your system username, you can override it via environment variable.
-DOCKER_TAG     ?= $(USER)
+DOCKER_TAG            ?= $(USER)
 # default helm chart version must be 0.0.42 for local development (because 42 is the answer to the universe and everything)
-HELM_SEMVER    ?= 0.0.42
+HELM_SEMVER           ?= 0.0.42
+# The list of helm charts needed for integration tests on kubernetes
+CHARTS_INTEGRATION    := wire-server databases-ephemeral fake-aws
 # The list of helm charts to publish on S3
-CHARTS         := wire-server databases-ephemeral fake-aws
+# FUTUREWORK: after we "inline local subcharts", i.e. move charts/brig to charts/wire-server/brig this list could be generated from the folder names under ./charts/
+CHARTS_RELEASE        := wire-server databases-ephemeral fake-aws aws-ingress backoffice calling-test demo-smtp elasticsearch-curator elasticsearch-external fluent-bit minio-external cassandra-external nginx-ingress-controller nginx-ingress-services reaper wire-server-metrics
+# TODO: add sftd
 
 default: fast
 
@@ -274,12 +278,16 @@ chart-%:
 	./hack/bin/set-wire-server-image-version.sh $(DOCKER_TAG)
 	./hack/bin/set-helm-chart-version.sh "$*" $(HELM_SEMVER)
 
-# Usecases for this make target:
+# Usecase for this make target:
+#  * for local integration testing of wire-server inside kubernetes
+.PHONY: charts-integration
+charts-integration: $(foreach chartName,$(CHARTS_INTEGRATION),chart-$(chartName))
+
+# Usecase for this make target:
 # 1. for releases of helm charts
-# 2. for local integration testing of wire-server inside kubernetes
-# 3. for testing helm charts more generally
-.PHONY: charts
-charts: $(foreach chartName,$(CHARTS),chart-$(chartName))
+# 2. for testing helm charts more generally
+.PHONY: charts-release
+charts-release: $(foreach chartName,$(CHARTS_RELEASE),release-chart-$(chartName))
 
 
 ##########################################
@@ -287,10 +295,14 @@ charts: $(foreach chartName,$(CHARTS),chart-$(chartName))
 # Only CI should run these targets ideally
 
 # Usecases for this make target:
-# To release helm charts to S3 mirror (assummption: CI sets DOCKER_TAG and HELM_SEMVER)
+# To release one single helm chart to S3 mirror 
+# (assummption: CI sets DOCKER_TAG and HELM_SEMVER)
 .PHONY: upload-chart-%
 upload-chart-%: release-chart-%
 	./hack/bin/upload-helm-charts-s3.sh $(*)
 
+# Usecases for this make target:
+# To uplaod all helm charts in the CHARTS_RELEASE list (see top of the time)
+# (assummption: CI sets DOCKER_TAG and HELM_SEMVER)
 .PHONY: upload-charts
-upload-charts: $(foreach chartName,$(CHARTS),upload-chart-$(chartName))
+upload-charts: $(foreach chartName,$(CHARTS_RELEASE),upload-chart-$(chartName))
