@@ -84,3 +84,6 @@ deploy/dockerephemeral/build/smtp/
 
 # Generated hie.yaml
 hie.yaml
+
+# generated files under .local
+.local
