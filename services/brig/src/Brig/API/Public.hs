@@ -66,7 +66,7 @@ import Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local))
 import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
-import Data.Qualified (Qualified (..))
+import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
 import Data.Range
 import Data.Swagger (HasInfo (info), HasTitle (title), HasType (type_), Swagger, SwaggerType (..), ToParamSchema (..), ToSchema (..), description)
 import qualified Data.Swagger.Build.Api as Doc
@@ -254,13 +254,22 @@ type GetHandleInfoQualified =
 
 -- See Note [ephemeral user sideeffect]
 type ListUsersByUnqualifiedIdsOrHandles =
-  Summary "List users"
+  Summary "List users (deprecated)"
     :> Description "The 'ids' and 'handles' parameters are mutually exclusive."
     :> ZAuthServant
     :> "users"
     :> QueryParam' [Optional, Strict, Description "User IDs of users to fetch"] "ids" (List UserId)
     :> QueryParam' [Optional, Strict, Description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"] "handles" (Range 1 4 (List Handle))
     :> Get '[Servant.JSON] [Public.UserProfile]
+
+-- See Note [ephemeral user sideeffect]
+type ListUsersByIdsOrHandles =
+  Summary "List users"
+    :> Description "The 'ids' and 'handles' parameters are mutually exclusive."
+    :> ZAuthServant
+    :> "list-users"
+    :> Servant.ReqBody '[Servant.JSON] Public.ListUsersQuery
+    :> Post '[Servant.JSON] [Public.UserProfile]
 
 type OutsideWorldAPI =
   CheckUserExistsUnqualified
@@ -271,6 +280,7 @@ type OutsideWorldAPI =
     :<|> GetHandleInfoUnqualified
     :<|> GetHandleInfoQualified
     :<|> ListUsersByUnqualifiedIdsOrHandles
+    :<|> ListUsersByIdsOrHandles
 
 type SwaggerDocsAPI = "api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
@@ -316,6 +326,7 @@ servantSitemap =
     :<|> getHandleInfoUnqualifiedH
     :<|> getHandleInfoH
     :<|> listUsersByUnqualifiedIdsOrHandles
+    :<|> listUsersByIdsOrHandles
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
@@ -1234,23 +1245,25 @@ getUserDisplayNameH (_ ::: self) = do
 
 -- FUTUREWORK: Make servant understand that at least one of these is required
 listUsersByUnqualifiedIdsOrHandles :: UserId -> Maybe (List UserId) -> Maybe (Range 1 4 (List Handle)) -> Handler [Public.UserProfile]
-listUsersByUnqualifiedIdsOrHandles self mUids mHandles =
+listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
+  domain <- viewFederationDomain
   case (mUids, mHandles) of
-    (Just uids, _) -> listUsers self (Left uids)
-    (_, Just handles) -> listUsers self (Right handles)
+    (Just uids, _) -> listUsersByIdsOrHandles self (Public.ListUsersByIds ((`Qualified` domain) <$> fromList uids))
+    (_, Just handles) ->
+      let normalRangedList = fromList $ fromRange handles
+          qualifiedList = (`Qualified` domain) <$> normalRangedList
+          qualifiedRangedList = unsafeRange qualifiedList -- TODO: Write nice comment here
+       in listUsersByIdsOrHandles self (Public.ListUsersByHandles qualifiedRangedList)
     (Nothing, Nothing) -> throwStd $ badRequest "at least one ids or handles must be provided"
 
--- | 'listUsers' only handles listing local users by ID or handle. We decided to
--- create a new federation aware endpoint which accepts federation aware Ids or
--- handles in the request body using a 'POST' request to avoid specifying
--- complex objects in the query parameters.
-listUsers :: UserId -> Either (List UserId) (Range 1 4 (List Handle)) -> Handler [Public.UserProfile]
-listUsers self = \case
-  Left us -> do
+listUsersByIdsOrHandles :: UserId -> Public.ListUsersQuery -> Handler [Public.UserProfile]
+listUsersByIdsOrHandles self = \case
+  Public.ListUsersByIds us ->
+    byIds us
+  Public.ListUsersByHandles hs -> do
     domain <- viewFederationDomain
-    byIds $ map (`Qualified` domain) (fromList us)
-  Right hs -> do
-    us <- getIds (fromList $ fromRange hs)
+    let (_remoteHandles, localHandles) = partitionRemoteOrLocalIds domain (fromRange hs)
+    us <- getIds localHandles
     filterHandleResults self =<< byIds us
   where
     getIds :: [Handle] -> Handler [Qualified UserId]

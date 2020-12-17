@@ -68,6 +68,9 @@ module Wire.API.User
     mkVerifyDeleteUser,
     DeletionCodeTimeout (..),
 
+    -- * List Users
+    ListUsersQuery (..),
+
     -- * helpers
     parseIdentity,
 
@@ -91,7 +94,7 @@ module Wire.API.User
 where
 
 import Control.Error.Safe (rightMay)
-import Control.Lens (over, view)
+import Control.Lens (over, view, (.~), (?~))
 import Data.Aeson
   ( FromJSON (parseJSON),
     KeyValue ((.=)),
@@ -118,7 +121,7 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Proxy (Proxy (..))
 import Data.Qualified
 import Data.Range
-import Data.Swagger (ToSchema (..), genericDeclareNamedSchema, properties, required, schema)
+import Data.Swagger (NamedSchema (..), SwaggerType (..), ToSchema (..), declareSchemaRef, genericDeclareNamedSchema, properties, required, schema, type_)
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import Data.UUID (UUID, nil)
@@ -1025,3 +1028,28 @@ instance ToJSON DeletionCodeTimeout where
 instance FromJSON DeletionCodeTimeout where
   parseJSON = withObject "DeletionCodeTimeout" $ \o ->
     DeletionCodeTimeout <$> o .: "expires_in"
+
+data ListUsersQuery
+  = ListUsersByIds [Qualified UserId]
+  | ListUsersByHandles (Range 1 4 [Qualified Handle])
+  deriving (Show, Eq)
+
+instance FromJSON ListUsersQuery where
+  parseJSON =
+    withObject "ListUsersQuery" $ \o -> do
+      (ListUsersByIds <$> o .: "qualified_ids")
+        <|> (ListUsersByHandles <$> o .: "qualified_handles")
+
+instance ToJSON ListUsersQuery where
+  toJSON (ListUsersByIds uids) = object ["qualified_ids" .= uids]
+  toJSON (ListUsersByHandles handles) = object ["qualified_handles" .= handles]
+
+instance ToSchema ListUsersQuery where
+  declareNamedSchema _ = do
+    uids <- declareSchemaRef (Proxy @[Qualified UserId])
+    handles <- declareSchemaRef (Proxy @(Range 1 4 [Qualified Handle]))
+    return $
+      NamedSchema (Just "ListUsersQuery") $
+        mempty
+          & type_ ?~ SwaggerObject
+          & properties .~ InsOrdHashMap.fromList [("qualified_ids", uids), ("qualified_handles", handles)]

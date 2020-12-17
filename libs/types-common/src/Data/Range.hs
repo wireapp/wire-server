@@ -51,12 +51,17 @@ module Data.Range
   )
 where
 
-import Cassandra hiding (Set)
-import Data.Aeson
-import Data.Aeson.Types as Aeson
+import Cassandra (ColumnType, Cql (..), Tagged, retag)
+import Control.Lens ((?~))
+import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
+import Data.Aeson.Types as Aeson (Parser)
 import qualified Data.Attoparsec.ByteString as Atto
 import qualified Data.ByteString as B
 import Data.ByteString.Conversion
+  ( FromByteString (..),
+    List (fromList),
+    ToByteString (..),
+  )
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
@@ -72,12 +77,13 @@ import Data.Singletons
 import Data.Singletons.Prelude.Num
 import Data.Singletons.Prelude.Ord
 import Data.Singletons.TypeLits
+import Data.Swagger (ParamSchema, ToParamSchema (..), ToSchema (..), maxItems, maxLength, maximum_, minItems, minLength, minimum_)
 import qualified Data.Text as T
 import Data.Text.Ascii (AsciiChar, AsciiChars, AsciiText, fromAsciiChars)
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Text.Lazy as TL
 import Imports
-import Numeric.Natural
+import Numeric.Natural (Natural)
 import System.Random (Random)
 import Test.QuickCheck (Arbitrary (arbitrary, shrink), Gen)
 import qualified Test.QuickCheck as QC
@@ -90,8 +96,8 @@ newtype Range (n :: Nat) (m :: Nat) a = Range
   deriving (Eq, Ord, Show)
 
 instance (Show a, Num a, Within a n m, KnownNat n, KnownNat m) => Bounded (Range n m a) where
-  minBound = unsafeRange $ (fromKnownNat (Proxy @n) :: a)
-  maxBound = unsafeRange $ (fromKnownNat (Proxy @m) :: a)
+  minBound = unsafeRange (fromKnownNat (Proxy @n) :: a)
+  maxBound = unsafeRange (fromKnownNat (Proxy @m) :: a)
 
 instance NFData (Range n m a) where rnf (Range a) = seq a ()
 
@@ -111,6 +117,58 @@ instance (Within a n m, Cql a) => Cql (Range n m a) where
     where
       msg :: Bounds a => SNat n -> SNat m -> Either String (Range n m a)
       msg sn sm = Left (errorMsg (fromSing sn) (fromSing sm) "")
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m Integer) where toParamSchema = rangedNumToParamSchema
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m Int) where toParamSchema = rangedNumToParamSchema
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m Int8) where toParamSchema = rangedNumToParamSchema
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m Int16) where toParamSchema = rangedNumToParamSchema
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m Int32) where toParamSchema = rangedNumToParamSchema
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m Int64) where toParamSchema = rangedNumToParamSchema
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m Natural) where toParamSchema = rangedNumToParamSchema
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m Word) where toParamSchema = rangedNumToParamSchema
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m Word8) where toParamSchema = rangedNumToParamSchema
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m Word16) where toParamSchema = rangedNumToParamSchema
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m Word32) where toParamSchema = rangedNumToParamSchema
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m Word64) where toParamSchema = rangedNumToParamSchema
+
+instance (ToParamSchema a, KnownNat n, KnownNat m) => ToParamSchema (Range n m [a]) where
+  toParamSchema _ =
+    toParamSchema (Proxy @[a])
+      & minItems ?~ fromKnownNat (Proxy @n)
+      & maxItems ?~ fromKnownNat (Proxy @m)
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m String) where
+  toParamSchema _ =
+    toParamSchema (Proxy @String)
+      & maxLength ?~ fromKnownNat (Proxy @n)
+      & minLength ?~ fromKnownNat (Proxy @m)
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m T.Text) where
+  toParamSchema _ =
+    toParamSchema (Proxy @T.Text)
+      & maxLength ?~ fromKnownNat (Proxy @n)
+      & minLength ?~ fromKnownNat (Proxy @m)
+
+instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m TL.Text) where
+  toParamSchema _ =
+    toParamSchema (Proxy @TL.Text)
+      & maxLength ?~ fromKnownNat (Proxy @n)
+      & minLength ?~ fromKnownNat (Proxy @m)
+
+instance ToSchema a => ToSchema (Range n m a) where
+  declareNamedSchema _ =
+    declareNamedSchema (Proxy @a)
 
 type LTE (n :: Nat) (m :: Nat) = (SingI n, SingI m, (n <= m) ~ 'True)
 
@@ -183,6 +241,12 @@ rappend (Range a) (Range b) = Range (a <> b)
 
 rsingleton :: a -> Range 1 1 [a]
 rsingleton = Range . pure
+
+rangedNumToParamSchema :: forall a n m t. (ToParamSchema a, Num a, KnownNat n, KnownNat m) => Proxy (Range n m a) -> ParamSchema t
+rangedNumToParamSchema _ =
+  toParamSchema (Proxy @a)
+    & minimum_ ?~ fromKnownNat (Proxy @n)
+    & maximum_ ?~ fromKnownNat (Proxy @m)
 
 -----------------------------------------------------------------------------
 

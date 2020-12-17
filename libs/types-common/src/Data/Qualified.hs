@@ -38,7 +38,7 @@ where
 
 import Control.Applicative (optional)
 import Control.Lens (view, (.~), (?~))
-import Data.Aeson (FromJSON, ToJSON, withObject, withText, (.:), (.=))
+import Data.Aeson (FromJSON, ToJSON, withObject, (.:), (.=))
 import qualified Data.Aeson as Aeson
 import qualified Data.Attoparsec.ByteString.Char8 as Atto
 import Data.Bifunctor (first)
@@ -49,7 +49,7 @@ import Data.Id (Id (toUUID))
 import Data.Proxy (Proxy (..))
 import Data.String.Conversions (cs)
 import Data.Swagger
-import Data.Swagger.Declare (Declare)
+import Data.Swagger.Declare (Declare, DeclareT)
 import qualified Data.Text.Encoding as Text.E
 import qualified Data.UUID as UUID
 import Imports hiding (local)
@@ -143,17 +143,8 @@ deprecatedUnqualifiedSchemaRef p newField =
     <$> declareNamedSchema p
 
 instance ToSchema (Qualified (Id a)) where
-  declareNamedSchema _ = do
-    idSchema <- declareSchemaRef (Proxy @(Id a))
-    domainSchema <- declareSchemaRef (Proxy @Domain)
-    return $
-      NamedSchema (Just "QualifiedId") $
-        mempty
-          & type_ ?~ SwaggerObject
-          & properties
-            .~ [ ("id", idSchema),
-                 ("domain", domainSchema)
-               ]
+  declareNamedSchema _ =
+    declareQualifiedSchema "Qualified Id" "qualified_id" =<< declareSchemaRef (Proxy @(Id a))
 
 instance ToJSON (Qualified (Id a)) where
   toJSON qu =
@@ -172,6 +163,18 @@ instance FromHttpApiData (Qualified (Id a)) where
 instance FromByteString (Qualified (Id a)) where
   parser = qualifiedParser parser
 
+declareQualifiedSchema :: Text -> Text -> Referenced Schema -> DeclareT (Definitions Schema) Identity NamedSchema
+declareQualifiedSchema qualifiedSchemaName unqualifiedFieldName unqualifiedSchemaRef = do
+  domainSchema <- declareSchemaRef (Proxy @Domain)
+  return $
+    NamedSchema (Just qualifiedSchemaName) $
+      mempty
+        & type_ ?~ SwaggerObject
+        & properties
+          .~ [ (unqualifiedFieldName, unqualifiedSchemaRef),
+               ("domain", domainSchema)
+             ]
+
 ----------------------------------------------------------------------
 
 renderQualifiedHandle :: Qualified Handle -> Text
@@ -180,17 +183,27 @@ renderQualifiedHandle = renderQualified fromHandle
 mkQualifiedHandle :: Text -> Either String (Qualified Handle)
 mkQualifiedHandle = Atto.parseOnly (parser <* Atto.endOfInput) . Text.E.encodeUtf8
 
-instance ToJSON (Qualified Handle) where
-  toJSON = Aeson.String . renderQualifiedHandle
-
-instance FromJSON (Qualified Handle) where
-  parseJSON = withText "QualifiedHandle" $ either fail pure . mkQualifiedHandle
-
 instance FromHttpApiData (Qualified Handle) where
   parseUrlPiece = first cs . mkQualifiedHandle
 
+-- TODO: Delete this?
 instance FromByteString (Qualified Handle) where
   parser = qualifiedParser parser
+
+instance ToSchema (Qualified Handle) where
+  declareNamedSchema _ =
+    declareQualifiedSchema "Qualified Handle" "handle" =<< declareSchemaRef (Proxy @Handle)
+
+instance ToJSON (Qualified Handle) where
+  toJSON qh =
+    Aeson.object
+      [ "handle" .= qUnqualified qh,
+        "domain" .= qDomain qh
+      ]
+
+instance FromJSON (Qualified Handle) where
+  parseJSON = withObject "Qualified Handle" $ \o ->
+    Qualified <$> o .: "handle" <*> o .: "domain"
 
 ----------------------------------------------------------------------
 -- ARBITRARY
