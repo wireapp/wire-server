@@ -113,7 +113,7 @@ handleTeamMembers env@Env {..} (i, members) = do
   appendJsonLines (envTargetPath </> "galley.clients") (readGalleyClients env uids)
   appendJsonLines (envTargetPath </> "galley.user") (readGalleyUser env uids)
   appendJsonLines (envTargetPath </> "galley.user_team") (readGalleyUserTeam env uids)
-  appendJsonLines (envTargetPath </> "gundeck.notifications") (readGalleyNotifications env uids)
+  appendJsonLines (envTargetPath </> "gundeck.notifications") (readGundeckNotifications env uids)
   appendJsonLines (envTargetPath </> "spar.scim_user_times") (readSparScimUserTimes env uids)
 
   pure members -- (nit-pick FUTUREWORK: this could be implicit, done in the pipeline somehow.)
