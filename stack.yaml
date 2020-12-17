@@ -165,7 +165,7 @@ extra-deps:
 - splitmix-0.0.4 # needed for QuickCheck
 # - servant-0.18.2
 - git: https://github.com/smatting/servant.git
-  commit: 2d2c43d444b31484877a30160a60fb5f46c0a59f
+  commit: 4c85368395733dc21d461cb1a4e15521385978b8
   subdirs:
     - servant
 - servant-server-0.18.2

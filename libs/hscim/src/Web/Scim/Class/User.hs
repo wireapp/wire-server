@@ -50,25 +50,25 @@ data UserSite tag route = UserSite
   { usGetUsers ::
       route
         :- QueryParam "filter" Filter
-        :> Get '[SCIM] (ListResponse (StoredUser tag)),
+        :> UVerb 'GET '[SCIM] [WithStatus 200 (ListResponse (StoredUser tag)), BadRequest],
     usGetUser ::
       route
         :- Capture "id" (UserId tag)
-        :> Get '[SCIM] (StoredUser tag),
+        :> UVerb 'GET '[SCIM] [WithStatus 200 (StoredUser tag), NotFound],
     usPostUser ::
       route
         :- ReqBody '[SCIM] (User tag)
-        :> PostCreated '[SCIM] (StoredUser tag),
+        :> UVerb 'POST '[SCIM] [WithStatus 201 (StoredUser tag), BadRequest],
     usPutUser ::
       route
         :- Capture "id" (UserId tag)
         :> ReqBody '[SCIM] (User tag)
-        :> Put '[SCIM] (StoredUser tag),
+        :> UVerb 'PUT '[SCIM] [WithStatus 200 (StoredUser tag), BadRequest],
     usPatchUser ::
       route
         :- Capture "id" (UserId tag)
         :> ReqBody '[SCIM] (PatchOp tag)
-        :> Patch '[SCIM] (StoredUser tag),
+        :> UVerb 'PATCH '[SCIM] '[WithStatus 200 (StoredUser tag), BadRequest],
     usDeleteUser ::
       route
         :- Capture "id" (UserId tag)
@@ -138,17 +138,19 @@ class (Monad m, AuthTypes tag, UserTypes tag) => UserDB tag m where
     -- | PATCH payload
     PatchOp tag ->
     m (Union '[WithStatus 200 (StoredUser tag), BadRequest])
-  default patchUser ::
-    (Patchable (UserExtra tag), FromJSON (UserExtra tag)) =>
-    AuthInfo tag ->
-    UserId tag ->
-    -- | PATCH payload
-    PatchOp tag ->
-    m (Union '[WithStatus 200 (StoredUser tag), BadRequest])
-  patchUser info uid op' = do
-    (WithMeta _ (WithId _ (user :: User tag))) <- getUser info uid
-    (newUser :: User tag) <- applyPatch user op'
-    putUser info uid newUser
+
+  -- NB. With Union this is hard
+  -- default patchUser ::
+  --   (Patchable (UserExtra tag), FromJSON (UserExtra tag)) =>
+  --   AuthInfo tag ->
+  --   UserId tag ->
+  --   -- | PATCH payload
+  --   PatchOp tag ->
+  --   m (Union '[WithStatus 200 (StoredUser tag), BadRequest])
+  -- patchUser info uid op' = do
+  --   (WithMeta _ (WithId _ (user :: User tag))) <- getUser info uid
+  --   (newUser :: User tag) <- applyPatch user op'
+  --   putUser info uid newUser
 
   -- | Delete a user.
   --

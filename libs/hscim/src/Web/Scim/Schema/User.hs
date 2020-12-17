@@ -85,7 +85,7 @@ import Servant.API.UVerb (IsMember)
 import Servant.Server (respond)
 import Web.Scim.AttrName
 import Web.Scim.Filter (AttrPath (..))
-import Web.Scim.Handler (ScimHandler)
+import Web.Scim.Handler (ScimHandler, throwInject)
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.Error
 import Web.Scim.Schema.PatchOp
@@ -266,7 +266,7 @@ instance ToJSON NoUserExtra where
   toJSON _ = object []
 
 instance Patchable NoUserExtra where
-  applyOperation _ _ = throwError $ BadRequest InvalidValue (Just "there are no user extra attributes to patch")
+  applyOperation _ _ = throwInject $ BadRequest InvalidValue (Just "there are no user extra attributes to patch")
 
 ----------------------------------------------------------------------------
 -- Applying
@@ -280,22 +280,33 @@ applyPatch ::
   forall tag m.
   ( Patchable (UserExtra tag),
     FromJSON (UserExtra tag),
-    MonadError ScimError m,
-    UserTypes tag,
-    IsMember (User tag) '[(User tag), BadRequest]
+    MonadError (Union '[BadRequest]) m,
+    UserTypes tag
+    -- TODO: check if we need this. See
+    -- IsMember (User tag) '[(User tag), BadRequest]
   ) =>
   User tag ->
   PatchOp tag ->
-  m (Union '[User tag, BadRequest])
-applyPatch user (PatchOp ops) = either respond respond $ (foldM applyOperation user ops :: Either BadRequest (User tag))
+  m (User tag)
+applyPatch user (PatchOp ops) =
+  foldM applyOperation user ops
+
+-- either respond respond $ (foldM applyOperation user ops :: Either BadRequest (User tag))
 
 -- resultToScimError :: (MonadError ScimError m) => Result a -> m a
 -- resultToScimError (Error reason) = throwError $ BadRequest InvalidValue (Just (pack reason))
 -- resultToScimError (Success a) = pure a
 
-resultToBadRequest :: Monad m => Result a -> ScimHandler '[BadRequest] m a
-resultToBadRequest (Error reason) = throwError $ BadRequest InvalidValue (Just (pack reason))
+resultToBadRequest ::
+  MonadError (Union '[BadRequest]) m =>
+  Result a ->
+  m a
+resultToBadRequest (Error reason) = throwInject $ BadRequest InvalidValue (Just (pack reason))
 resultToBadRequest (Success a) = pure a
+
+-- resultToBadRequest :: Monad m => Result a -> ScimHandler '[BadRequest] m a
+-- resultToBadRequest (Error reason) = throwError $ BadRequest InvalidValue (Just (pack reason))
+-- resultToBadRequest (Success a) = pure a
 
 -- TODO(arianvp): support multi-valued and complex attributes.
 -- TODO(arianvp): Actually do this in some kind of type-safe way. e.g.
@@ -308,11 +319,12 @@ applyUserOperation ::
   forall m tag.
   ( UserTypes tag,
     FromJSON (User tag),
-    Patchable (UserExtra tag)
+    Patchable (UserExtra tag),
+    MonadError (Union '[BadRequest]) m
   ) =>
   User tag ->
   Operation ->
-  ScimHandler '[BadRequest] m (User tag)
+  m (User tag)
 applyUserOperation user (Operation Add path value) = applyUserOperation user (Operation Replace path value)
 applyUserOperation user (Operation Replace (Just (NormalPath (AttrPath _schema attr _subAttr))) (Just value)) =
   case attr of
@@ -324,9 +336,9 @@ applyUserOperation user (Operation Replace (Just (NormalPath (AttrPath _schema a
       (\x -> user {externalId = x}) <$> resultToBadRequest (fromJSON value)
     "active" ->
       (\x -> user {active = x}) <$> resultToBadRequest (fromJSON value)
-    _ -> throwError (BadRequest InvalidPath (Just "we only support attributes username, displayname, externalid, active"))
+    _ -> throwInject (BadRequest InvalidPath (Just "we only support attributes username, displayname, externalid, active"))
 applyUserOperation _ (Operation Replace (Just (IntoValuePath _ _)) _) = do
-  throwError (BadRequest InvalidPath (Just "can not lens into multi-valued attributes yet"))
+  throwInject (BadRequest InvalidPath (Just "can not lens into multi-valued attributes yet"))
 applyUserOperation user (Operation Replace Nothing (Just value)) = do
   case value of
     Object hm | null ((AttrName <$> HM.keys hm) \\ ["username", "displayname", "externalid", "active"]) -> do
@@ -338,19 +350,19 @@ applyUserOperation user (Operation Replace Nothing (Just value)) = do
             externalId = externalId u,
             active = active u
           }
-    _ -> throwError (BadRequest InvalidPath (Just "we only support attributes username, displayname, externalid, active"))
+    _ -> throwInject (BadRequest InvalidPath (Just "we only support attributes username, displayname, externalid, active"))
 applyUserOperation _ (Operation Replace _ Nothing) =
-  throwError (BadRequest InvalidValue (Just "No value was provided"))
-applyUserOperation _ (Operation Remove Nothing _) = throwError (BadRequest NoTarget Nothing)
+  throwInject (BadRequest InvalidValue (Just "No value was provided"))
+applyUserOperation _ (Operation Remove Nothing _) = throwInject (BadRequest NoTarget Nothing)
 applyUserOperation user (Operation Remove (Just (NormalPath (AttrPath _schema attr _subAttr))) _value) =
   case attr of
-    "username" -> throwError (BadRequest Mutability Nothing)
+    "username" -> throwInject (BadRequest Mutability Nothing)
     "displayname" -> pure $ user {displayName = Nothing}
     "externalid" -> pure $ user {externalId = Nothing}
     "active" -> pure $ user {active = Nothing}
     _ -> pure user
 applyUserOperation _ (Operation Remove (Just (IntoValuePath _ _)) _) = do
-  throwError (BadRequest InvalidPath (Just "can not lens into multi-valued attributes yet"))
+  throwInject (BadRequest InvalidPath (Just "can not lens into multi-valued attributes yet"))
 
 instance
   (UserTypes tag, FromJSON (User tag), Patchable (UserExtra tag)) =>
@@ -360,7 +372,7 @@ instance
     | isUserSchema schema = applyUserOperation user op
     | isSupportedCustomSchema schema = (\x -> user {extra = x}) <$> applyOperation (extra user) op
     | otherwise =
-      throwError $ BadRequest InvalidPath $ Just $ "we only support these schemas: " <> (Text.intercalate ", " $ map getSchemaUri (supportedSchemas @tag))
+      throwInject $ BadRequest InvalidPath $ Just $ "we only support these schemas: " <> (Text.intercalate ", " $ map getSchemaUri (supportedSchemas @tag))
     where
       isSupportedCustomSchema = maybe False (`elem` supportedSchemas @tag)
   applyOperation user op = applyUserOperation user op

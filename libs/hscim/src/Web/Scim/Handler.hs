@@ -22,6 +22,7 @@
 module Web.Scim.Handler
   ( ScimHandler,
     throwScim,
+    throwInject,
     runScimHandler,
     relaxErrors,
   )
@@ -30,13 +31,13 @@ where
 import Control.Monad.Except
 import Data.Functor ((<&>))
 import Servant (Elem)
-import Servant.API (Contains, HasStatus, IsMember, Union, inject, relaxUnion)
+import Servant.API (HasStatus, IsMember, SubsetOf, Union, injectUnion, relaxUnion)
 import Servant.Server (respond)
 
 newtype ScimHandler es m a = ScimHandler {unScimHandler :: ExceptT (Union es) m a}
   deriving newtype (Functor, Applicative, Monad, MonadTrans, MonadError (Union es))
 
-relaxErrors :: (Contains es es', Monad m) => ScimHandler es m a -> ScimHandler es' m a
+relaxErrors :: (SubsetOf es es', Monad m) => ScimHandler es m a -> ScimHandler es' m a
 relaxErrors handler =
   ScimHandler . ExceptT $
     (runExceptT . unScimHandler $ handler) <&> either (Left . relaxUnion) Right
@@ -45,10 +46,15 @@ relaxErrors handler =
 -- "functional dependency"
 throwInject ::
   forall (e :: *) (es :: [*]) m a.
-  UElem e es =>
+  (IsMember e es, MonadError (Union es) m) =>
   e ->
-  ScimHandler es m a
-throwInject = throwError . inject
+  m a
+throwInject = throwError . injectUnion
+
+-- -- NG: this would be nice...
+-- instance SubsetOf es es' => MonadError (Union es) (ScimHandler es' m) where
+--   throwError = undefined
+--   catchError = undefined
 
 -- instance MonadError e m => MonadError e (ScimHandler xs m) where
 --   throwError = lift . throwError

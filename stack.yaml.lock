@@ -484,12 +484,12 @@ packages:
     git: https://github.com/smatting/servant.git
     pantry-tree:
       size: 2809
-      sha256: 832499136c70214d2e22ab16875381698bbd98e959888316ee8eea8bd5f07c87
-    commit: 2d2c43d444b31484877a30160a60fb5f46c0a59f
+      sha256: 53484c69e9f9f5b5d093c776445f499e0a92b037725fe53c0826546a715d8d7d
+    commit: 4c85368395733dc21d461cb1a4e15521385978b8
   original:
     subdir: servant
     git: https://github.com/smatting/servant.git
-    commit: 2d2c43d444b31484877a30160a60fb5f46c0a59f
+    commit: 4c85368395733dc21d461cb1a4e15521385978b8
 - completed:
     hackage: servant-server-0.18.2@sha256:56679af62ab8820a2108da6153d9ae9dde37199e62172365bdaea1458c3f7c2d,5482
     pantry-tree:

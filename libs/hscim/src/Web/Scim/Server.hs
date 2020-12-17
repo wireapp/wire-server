@@ -86,7 +86,7 @@ siteServer ::
   forall tag m.
   (DB tag m, Show (GroupId tag)) =>
   Configuration ->
-  Site tag (AsServerT (ScimHandler m))
+  Site tag (AsServerT m)
 siteServer conf =
   Site
     { config = toServant $ configServer conf,
@@ -103,22 +103,33 @@ type App tag m api =
     HasServer api '[]
   )
 
+-- mkapp ::
+--   forall tag m api.
+--   (App tag m api) =>
+--   Proxy api ->
+--   ServerT api (ScimHandler m) ->
+--   (forall a. ScimHandler m a -> Handler a) ->
+--   Application
+-- mkapp proxy api nt =
+--   serve proxy $
+--     hoistServer proxy nt api
+
 mkapp ::
-  forall tag m api.
+  forall tag m api es.
   (App tag m api) =>
   Proxy api ->
-  ServerT api (ScimHandler m) ->
-  (forall a. ScimHandler m a -> Handler a) ->
+  ServerT api (ScimHandler es m) ->
+  (forall a. ScimHandler es m a -> Handler a) ->
   Application
 mkapp proxy api nt =
   serve proxy $
     hoistServer proxy nt api
 
 app ::
-  forall tag m.
+  forall tag m es.
   App tag m (SiteAPI tag) =>
   Configuration ->
-  (forall a. ScimHandler m a -> Handler a) ->
+  (forall a. ScimHandler es m a -> Handler a) ->
   Application
 app c =
   mkapp @tag
