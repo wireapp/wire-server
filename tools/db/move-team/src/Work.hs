@@ -160,7 +160,7 @@ runFullScans env@Env {..} users = do
     readBrigUserKeysHashAll env
       .| mapC (filter (haveId . view _3))
 
-  -- FUTUREWORK: can this table be re-recreated from other data?
+  -- FUTUREWORK: no need to read this table, it can be populated from what we have elsewhere (i think)
   appendJsonLines (envTargetPath </> "spar.scim_external_ids") $
     readSparScimExternalIdsAll env
       .| mapC (filter (haveId . view _2))
