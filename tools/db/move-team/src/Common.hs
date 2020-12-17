@@ -40,7 +40,7 @@ sinkTableRows :: Tuple a => PrepQuery W a () -> ConduitM a Void Client ()
 sinkTableRows insertQuery = go
   where
     go = do
-      mbTpl <- await
+      mbTuple <- await
       case mbTpl of
         Nothing -> pure ()
         Just tpl -> do
