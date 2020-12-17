@@ -288,6 +288,9 @@ charts-integration: $(foreach chartName,$(CHARTS_INTEGRATION),chart-$(chartName)
 .PHONY: charts-release
 charts-release: $(foreach chartName,$(CHARTS_RELEASE),release-chart-$(chartName))
 
+.PHONY: clean-charts
+clean-charts:
+	rm -rf .local/charts
 
 ##########################################
 # Helm chart releasing (mirroring to S3)
