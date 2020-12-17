@@ -42,6 +42,7 @@ packages:
 - tools/db/service-backfill
 - tools/db/billing-team-member-backfill
 - tools/db/find-undead
+- tools/db/move-team
 - tools/makedeb
 - tools/rex
 - tools/stern
