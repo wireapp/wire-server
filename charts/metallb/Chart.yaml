@@ -1,4 +1,4 @@
 apiVersion: v1
 description: A Helm chart for metallb on Kubernetes
 name: metallb
-version: 0.128.0
+version: 0.0.42

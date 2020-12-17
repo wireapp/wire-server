@@ -1,4 +1,4 @@
 apiVersion: v1
 description: Galley (part of Wire Server) - Conversations
 name: galley
-version: 0.128.0
+version: 0.0.42

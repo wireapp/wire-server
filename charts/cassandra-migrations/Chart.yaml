@@ -1,4 +1,4 @@
 apiVersion: v1
 description: cassandra database schema migration for gundeck,brig,galley,spar
 name: cassandra-migrations
-version: 0.128.0
+version: 0.0.42

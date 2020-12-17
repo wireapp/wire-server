@@ -1,7 +1,7 @@
 replicaCount: 3
 image:
   repository: quay.io/wire/galley
-  tag: 2.93.0
+  tag: do-not-use
   schemaRepository: quay.io/wire/galley-schema
 service:
   externalPort: 8080

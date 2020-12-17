@@ -1,4 +1,4 @@
 apiVersion: v1
 description: Elasticsearch index for brig
 name: elasticsearch-index
-version: 0.128.0
+version: 0.0.42

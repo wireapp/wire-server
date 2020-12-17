@@ -1,7 +1,7 @@
 replicaCount: 3
 image:
   repository: quay.io/wire/brig
-  tag: 2.93.0
+  tag: do-not-use
 service:
   externalPort: 8080
   internalPort: 8080

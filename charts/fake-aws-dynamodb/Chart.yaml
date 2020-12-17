@@ -1,4 +1,4 @@
 apiVersion: v1
 description: Dummy ephemeral DynamoDB service
 name: fake-aws-dynamodb
-version: 0.128.0
+version: 0.0.42

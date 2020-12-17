@@ -9,4 +9,4 @@ cassandra:
   keyspace: brig
 image:
   repository: quay.io/wire/brig-index
-  tag: 2.93.0
+  tag: do-not-use

@@ -1,4 +1,4 @@
 apiVersion: v1
 description: A Helm chart for cannon in Kubernetes
 name: cannon
-version: 0.128.0
+version: 0.0.42
