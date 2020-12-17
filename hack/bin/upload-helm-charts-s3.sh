@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
-# Synchronize helm charts in git with the hosted version on S3.
+# Upload helm charts from .local/charts/ to mirror on S3.
+
 # The contents of /charts are thus made available under
 # https://s3-eu-west-1.amazonaws.com/public.wire.com/charts
 # To use the charts:
@@ -13,7 +14,7 @@
 set -eo pipefail
 set -x
 
-USAGE="Sync helm charts to S3. Usage: $0 to sync all charts or $0 <chart-directory> to sync only a single one. --force-push can be used to override S3 artifacts. --reindex can be used to force a complete reindexing in case the index is malformed."
+USAGE="Upload helm charts to S3. Usage: $0 to upload all charts or $0 <chart-directory> to sync only a single one. --force-push can be used to override S3 artifacts. --reindex can be used to force a complete reindexing in case the index is malformed."
 
 branch=$(git rev-parse --abbrev-ref HEAD)
 if [ $branch == "master" ]; then
@@ -41,7 +42,7 @@ cd "$TOP_LEVEL_DIR"
 
 chart_dir=$1
 
-# If ./sync.sh is run with a parameter, only synchronize one chart
+# If ./upload-helm-charts-s3.sh is run with a parameter, only synchronize one chart
 if [ -n "$chart_dir" ] && [ -d "$chart_dir" ]; then
     chart_name=$(basename $chart_dir)
     echo "only syncing $chart_name"

@@ -248,12 +248,12 @@ latest-brig-tag:
 
 .PHONY: release-chart-%
 release-chart-%:
-	if [ "${HELM_SEMVER}" = "0.0.42" ]; then \
-	      echo "Environment variable HELM_SEMVER not set to non-default value"; \
+	@if [ "${HELM_SEMVER}" = "0.0.42" ]; then \
+	      echo "Environment variable HELM_SEMVER not set to non-default value. Re-run with HELM_SEMVER=<something>"; \
 	    exit 1; \
 	fi
-	if [ "${DOCKER_TAG}" = "local" ]; then \
-	      echo "Environment variable DOCKER_TAG not set to non-default value"; \
+	@if [ "${DOCKER_TAG}" = "local" ]; then \
+	      echo "Environment variable DOCKER_TAG not set to non-default value. Re-run with DOCKER_TAG=<something>"; \
 	    exit 1; \
 	fi
 	make chart-$(*)
@@ -280,7 +280,7 @@ charts: $(foreach chartName,$(CHARTS),chart-$(chartName))
 # To release helm charts to S3 mirror (assummption: CI sets DOCKER_TAG and HELM_SEMVER)
 .PHONY: upload-chart-%
 upload-chart-%: release-chart-%
-	./hack/bin/sync.sh $(*)
+	./hack/bin/upload-helm-charts-s3.sh $(*)
 
 .PHONY: upload-charts
 upload-charts: $(foreach chartName,$(CHARTS),upload-chart-$(chartName))
