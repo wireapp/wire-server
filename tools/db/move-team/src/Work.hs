@@ -145,7 +145,7 @@ runFullScans env@Env {..} users = do
     readBrigPasswordResetAll env
       .| mapC (filter (haveId . view _5))
 
-  -- FUTUREWORK: Fetch this for each page in `brig.user`
+  -- FUTUREWORK: no need to read this table, it can be populated from `brig.user`
   appendJsonLines (envTargetPath </> "brig.user_handle") $
     readBrigUserHandleAll env
       .| mapC (filter (haveId . view _2))
