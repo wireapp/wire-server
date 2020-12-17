@@ -2,7 +2,9 @@
 
 set -e
 
-USAGE="download and bundle dependent helm charts: $0 <chart-name>"
+# Used in 'make charts' to create a copy of charts before modifying tags and helm versions.
+
+USAGE="Copy charts from top-level chart folder source to ./.local/charts $0 <chart-name>"
 CHART=${1:?$USAGE}
 
 TOP_LEVEL="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../.." && pwd )"

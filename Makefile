@@ -1,8 +1,9 @@
 SHELL          := /usr/bin/env bash
 LANG           := en_US.UTF-8
 DOCKER_USER    ?= quay.io/wire
-DOCKER_TAG     ?= local
-# default helm chart version must be 0.0.42 for local development
+# default docker image tag is your system username, you can override it via environment variable.
+DOCKER_TAG     ?= $(USER)
+# default helm chart version must be 0.0.42 for local development (because 42 is the answer to the universe and everything)
 HELM_SEMVER    ?= 0.0.42
 # The list of helm charts to publish on S3
 CHARTS         := wire-server databases-ephemeral fake-aws
@@ -252,12 +253,21 @@ release-chart-%:
 	      echo "Environment variable HELM_SEMVER not set to non-default value. Re-run with HELM_SEMVER=<something>"; \
 	    exit 1; \
 	fi
-	@if [ "${DOCKER_TAG}" = "local" ]; then \
+	@if [ "${DOCKER_TAG}" = "${USER}" ]; then \
 	      echo "Environment variable DOCKER_TAG not set to non-default value. Re-run with DOCKER_TAG=<something>"; \
 	    exit 1; \
 	fi
 	make chart-$(*)
 
+
+# Rationale for copying charts to a gitignored folder before modifying helm versions and docker image tags:
+#
+# * we want to keep git history clean and not clutter it with version bump commits
+#   * synchronizing version bumps with multiple PRs, releases to master and merges back to develop is hard to do in git
+#   * we don't want to spend time modifying version tags manually all the time
+# * we want version pinning for helm charts and docker images for reproducible results during deployments
+#   * CI will keep track of versioning and upload charts to an S3 mirror
+#   * if you need to do this locally, also use this make target and set desired versions accordingly.
 .PHONY: chart-%
 chart-%:
 	./hack/bin/copy-charts.sh $(*)
@@ -284,4 +294,3 @@ upload-chart-%: release-chart-%
 
 .PHONY: upload-charts
 upload-charts: $(foreach chartName,$(CHARTS),upload-chart-$(chartName))
-
