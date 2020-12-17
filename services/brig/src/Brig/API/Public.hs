@@ -66,7 +66,6 @@ import Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local))
 import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
-import Data.Proxy (Proxy (..))
 import Data.Qualified (Qualified (..))
 import Data.Range
 import Data.Swagger (HasInfo (info), HasTitle (title), HasType (type_), Swagger, SwaggerType (..), ToParamSchema (..), ToSchema (..), description)
@@ -86,7 +85,7 @@ import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
-import Servant (Capture, Capture', DefaultErrorFormatters, Description, ErrorFormatters, FromHttpApiData, Get, HasContextEntry, HasServer, HasStatus, Header', QueryParam, ServerT, StdMethod (HEAD), Summary, UVerb, Union, WithStatus, parseUrlPiece, (:<|>) (..), (:>), type (.++))
+import Servant hiding (Handler, JSON, addHeader, respond)
 import qualified Servant
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
@@ -253,38 +252,14 @@ type GetHandleInfoQualified =
     :> Capture' '[Description "The user handle"] "handle" Handle
     :> Get '[Servant.JSON] Public.UserHandleInfo
 
--- -- If the user is ephemeral and expired, it will be removed, see 'Brig.API.User.userGC'.
--- -- This leads to the following events being sent:
--- -- - UserDeleted event to contacts of the user
--- -- - MemberLeave event to members for all conversations the user was in (via galley)
--- get "/users" (continue listUsersH) $
---   accept "application" "json"
---     .&. zauthUserId
---     .&. (param "ids" ||| param "handles")
--- document "GET" "users" $ do
---   Doc.summary "List users"
---   Doc.notes "The 'ids' and 'handles' parameters are mutually exclusive."
---   Doc.parameter Doc.Query "ids" Doc.string' $ do
---     Doc.description "User IDs of users to fetch"
---     Doc.optional
---   Doc.parameter Doc.Query "handles" Doc.string' $ do
---     Doc.description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"
---     Doc.optional
---   Doc.returns (Doc.array (Doc.ref Public.modelUser))
---   Doc.response 200 "List of users" Doc.end
--- type ListUsersUnqualified =
---   Summary "List users"
---     :> ZAuthServant
---     :> "users"
---     :> QueryParam "handles" (List Handle) -- TODO: Make this into an Either (List UserId) (List Handle)
---     :> QueryParam "ids" (List UserId)
---     :> Get '[Servant.JSON] [Public.User]
+-- See Note [ephemeral user sideeffect]
 type ListUsersByUnqualifiedIdsOrHandles =
   Summary "List users"
+    :> Description "The 'ids' and 'handles' parameters are mutually exclusive."
     :> ZAuthServant
     :> "users"
-    :> QueryParam "ids" (List UserId)
-    :> QueryParam "handles" (Range 1 4 (List Handle))
+    :> QueryParam' [Optional, Strict, Description "User IDs of users to fetch"] "ids" (List UserId)
+    :> QueryParam' [Optional, Strict, Description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"] "handles" (Range 1 4 (List Handle))
     :> Get '[Servant.JSON] [Public.UserProfile]
 
 type OutsideWorldAPI =
@@ -1257,14 +1232,7 @@ getUserDisplayNameH (_ ::: self) = do
     Just n -> json $ object ["name" .= n]
     Nothing -> setStatus status404 empty
 
-listUsersH :: JSON ::: UserId ::: Either (List UserId) (Range 1 4 (List Handle)) -> Handler Response
-listUsersH (_ ::: self ::: qry) =
-  toResponse <$> listUsers self qry
-  where
-    toResponse = \case
-      [] -> setStatus status404 empty
-      ps -> json ps
-
+-- FUTUREWORK: Make servant understand that at least one of these is required
 listUsersByUnqualifiedIdsOrHandles :: UserId -> Maybe (List UserId) -> Maybe (Range 1 4 (List Handle)) -> Handler [Public.UserProfile]
 listUsersByUnqualifiedIdsOrHandles self mUids mHandles =
   case (mUids, mHandles) of
