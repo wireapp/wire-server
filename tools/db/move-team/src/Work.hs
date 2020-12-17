@@ -140,7 +140,7 @@ runFullScans env@Env {..} users = do
   let haveId Nothing = False
       haveId (Just uuid) = uuid `Set.member` users
 
-  -- FUTUREWORK: do we need to export this table?
+  -- FUTUREWORK: this data likely won't work after the import on the new instance, and it's not needed.
   appendJsonLines (envTargetPath </> "brig.password_reset") $
     readBrigPasswordResetAll env
       .| mapC (filter (haveId . view _5))
