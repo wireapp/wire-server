@@ -35,9 +35,11 @@ module Web.Scim.Schema.Error
 where
 
 import Data.Aeson hiding (Error)
+import Data.Kind (Constraint)
 import Data.Text (Text, pack)
 import GHC.Generics (Generic)
 import Servant (HasStatus (..), ServerError (..))
+import Servant.API.UVerb (All, Union, foldMapUnion)
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.Schema
 
@@ -181,6 +183,11 @@ instance ToJSON Conflict where
 
 ----------------------------------------------------------------------------
 -- Servant
+
+type HasStatusJSON a = (HasStatus a, ToJSON a) :: Constraint
+
+toServerError :: forall (as :: [*]). All HasStatusJSON as => Union as -> Maybe ServerError
+toServerError = undefined
 
 -- | Convert a SCIM 'Error' to a Servant one by encoding it with the
 -- appropriate headers.
