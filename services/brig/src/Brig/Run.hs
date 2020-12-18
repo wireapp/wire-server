@@ -59,7 +59,7 @@ import qualified Network.Wai.Utilities.Server as Server
 import Servant ((:<|>) (..))
 import qualified Servant
 import System.Logger (msg, val, (.=), (~~))
-import System.Logger.Class (MonadLogger, err, info)
+import System.Logger.Class (MonadLogger, err)
 import Util.Options
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it
@@ -176,8 +176,6 @@ pendingActivationCleanup = do
     threadDelayRandom :: AppIO ()
     threadDelayRandom = do
       cleanupTimeout <- fromMaybe (hours 24) . setExpiredUserCleanupTimeout <$> view settings
-      -- TODO(stefan): remove this
-      info $ msg (val $ "cleanupTimeout is " <> cs (show cleanupTimeout))
       let d = realToFrac cleanupTimeout
       randomSecs :: Int <- liftIO (round <$> randomRIO @Double (0.5 * d, d))
       threadDelay (randomSecs * 1_000_000)
