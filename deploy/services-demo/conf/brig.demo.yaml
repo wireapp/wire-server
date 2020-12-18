@@ -113,6 +113,7 @@ optSettings:
   setMaxTeamSize: 128
   setMaxConvSize: 128
   setEmailVisibility: visible_to_self
+  setFederationDomain: example.com
 
 logLevel: Debug
 logNetStrings: false
