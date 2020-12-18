@@ -49,6 +49,7 @@ module Spar.Intra.Brig
     createBrigUserNoSAML,
     updateEmail,
     getZUsrOwnedTeam,
+    authorizeScimTokenManagement,
     ensureReAuthorised,
     ssoLogin,
     parseResponse,
@@ -71,12 +72,13 @@ import Data.Handle (Handle (Handle, fromHandle))
 import Data.Id (Id (Id), TeamId, UserId)
 import Data.Misc (PlainTextPassword)
 import Data.String.Conversions
+import Galley.Types.Teams (HiddenPerm (CreateReadDeleteScimToken))
 import Imports
 import Network.HTTP.Types.Method
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified SAML2.WebSSO as SAML
 import Spar.Error
-import Spar.Intra.Galley as Galley (MonadSparToGalley, assertIsTeamOwner)
+import Spar.Intra.Galley as Galley (MonadSparToGalley, assertHasPermission, assertIsTeamOwner)
 import Spar.Scim.Types (ValidExternalId (..), runValidExternalId)
 import qualified System.Logger.Class as Log
 import qualified Text.Email.Parser
@@ -445,6 +447,14 @@ getZUsrOwnedTeam (Just uid) = do
     >>= maybe
       (throwSpar SparNotInTeam)
       (\teamid -> teamid <$ Galley.assertIsTeamOwner teamid uid)
+
+authorizeScimTokenManagement :: (HasCallStack, SAML.SP m, MonadSparToBrig m, MonadSparToGalley m) => Maybe UserId -> m TeamId
+authorizeScimTokenManagement Nothing = throwSpar SparMissingZUsr
+authorizeScimTokenManagement (Just uid) = do
+  getBrigUserTeam NoPendingInvitations uid
+    >>= maybe
+      (throwSpar SparNotInTeam)
+      (\teamid -> teamid <$ Galley.assertHasPermission teamid CreateReadDeleteScimToken uid)
 
 -- | Verify user's password (needed for certain powerful operations).
 ensureReAuthorised ::

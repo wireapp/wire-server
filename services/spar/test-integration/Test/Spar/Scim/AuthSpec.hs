@@ -31,7 +31,7 @@ import Bilge.Assert
 import Cassandra as Cas
 import Control.Lens
 import qualified Data.ByteString.Base64 as ES
-import Data.Id (ScimTokenId, TeamId, randomId)
+import Data.Id (ScimTokenId, TeamId, UserId, randomId)
 import Data.Misc (PlainTextPassword (..))
 import Data.String.Conversions (cs)
 import Data.Time (UTCTime)
@@ -64,7 +64,7 @@ specCreateToken = describe "POST /auth-tokens" $ do
   it "works" $ testCreateToken
   it "respects the token limit" $ testTokenLimit
   it "requires the team to have no more than one IdP" $ testNumIdPs
-  it "authorizes only team owner" $ testCreateTokenAuthorizesOnlyTeamOwner
+  it "authorizes only admins and owners" $ testCreateTokenAuthorizesOnlyAdmins
   it "requires a password" $ testCreateTokenRequiresPassword
 
 -- FUTUREWORK: we should also test that for a password-less user, e.g. for an SSO user,
@@ -148,25 +148,34 @@ testNumIdPs = do
     !!! checkErr 400 (Just "more-than-one-idp")
 
 -- | Test that a token can only be created as a team owner
-testCreateTokenAuthorizesOnlyTeamOwner :: TestSpar ()
-testCreateTokenAuthorizesOnlyTeamOwner = do
+testCreateTokenAuthorizesOnlyAdmins :: TestSpar ()
+testCreateTokenAuthorizesOnlyAdmins = do
   env <- ask
   (_, teamId, _) <- registerTestIdP
-  teamMemberId <-
-    runHttpT (env ^. teMgr) $
-      createTeamMember
-        (env ^. teBrig)
-        (env ^. teGalley)
-        teamId
-        (Galley.rolePermissions Galley.RoleMember)
-  createToken_
-    teamMemberId
-    CreateScimToken
-      { createScimTokenDescr = "testCreateToken",
-        createScimTokenPassword = Just defPassword
-      }
-    (env ^. teSpar)
+
+  let mkUser :: Galley.Role -> TestSpar UserId
+      mkUser role = do
+        runHttpT (env ^. teMgr) $
+          createTeamMember
+            (env ^. teBrig)
+            (env ^. teGalley)
+            teamId
+            (Galley.rolePermissions role)
+
+  let createToken' uid =
+        createToken_
+          uid
+          CreateScimToken
+            { createScimTokenDescr = "testCreateToken",
+              createScimTokenPassword = Just defPassword
+            }
+          (env ^. teSpar)
+
+  (mkUser Galley.RoleMember >>= createToken')
     !!! checkErr 403 (Just "insufficient-permissions")
+
+  (mkUser Galley.RoleAdmin >>= createToken')
+    !!! const 200 === statusCode
 
 -- | Test that for a user with a password, token creation requires reauthentication (i.e. the
 -- field @"password"@ should be provided).
