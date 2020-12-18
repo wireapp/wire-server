@@ -35,11 +35,14 @@ module Web.Scim.Schema.Error
 where
 
 import Data.Aeson hiding (Error)
+import Data.Data (Proxy (Proxy))
 import Data.Kind (Constraint)
+import Data.SOP.BasicFunctors (unI)
+import Data.SOP.NS (cfoldMap_NS)
 import Data.Text (Text, pack)
 import GHC.Generics (Generic)
 import Servant (HasStatus (..), ServerError (..))
-import Servant.API.UVerb (All, Union, foldMapUnion)
+import Servant.API.UVerb (All, Union)
 import Web.Scim.Schema.Common
 import Web.Scim.Schema.Schema
 
@@ -184,10 +187,23 @@ instance ToJSON Conflict where
 ----------------------------------------------------------------------------
 -- Servant
 
-type HasStatusJSON a = (HasStatus a, ToJSON a) :: Constraint
+foldMapUnion ::
+  forall (c :: * -> Constraint) (a :: *) (as :: [*]).
+  All c as =>
+  Proxy c ->
+  (forall x. c x => x -> a) ->
+  Union as ->
+  a
+foldMapUnion proxy go = cfoldMap_NS proxy (go . unI)
 
-toServerError :: forall (as :: [*]). All HasStatusJSON as => Union as -> Maybe ServerError
-toServerError = undefined
+-- type HasStatusJSON a = (HasStatus a, ToJSON a) :: * -> Constraint
+type HasStatusJSON = ToJSON
+
+-- -- toServerError :: forall (as :: [*]). All HasStatusJSON as => Union as -> Maybe ServerError
+-- toServerError xs = foldMapUnion (Proxy :: ToJSON) f xs
+--   where
+--     f :: HasStatusJSON a => a -> Maybe ServerError
+--     f x = undefined
 
 -- | Convert a SCIM 'Error' to a Servant one by encoding it with the
 -- appropriate headers.

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6f50966a204628956d641ded5887d6d680439edc24085d2d5a39ffaa42bb9f48
+-- hash: db4c3041f06d17914305813fa09759e0df5a2c3143b143b31768cfe818f0223a
 
 name:           hscim
 version:        0.3.4
@@ -94,6 +94,7 @@ library
     , scientific >=0.3.6 && <0.4
     , servant >=0.16.2 && <0.17
     , servant-server >=0.16.2 && <0.17
+    , sop-core >=0.5.0.1 && <0.6
     , stm >=2.5.0 && <2.6
     , stm-containers >=1.1.0 && <1.2
     , string-conversions >=0.4.0 && <0.5
@@ -144,6 +145,7 @@ executable hscim-server
     , scientific >=0.3.6 && <0.4
     , servant >=0.16.2 && <0.17
     , servant-server >=0.16.2 && <0.17
+    , sop-core >=0.5.0.1 && <0.6
     , stm >=2.5.0 && <2.6
     , stm-containers >=1.1.0 && <1.2
     , string-conversions >=0.4.0 && <0.5
@@ -206,6 +208,7 @@ test-suite spec
     , scientific >=0.3.6 && <0.4
     , servant >=0.16.2 && <0.17
     , servant-server >=0.16.2 && <0.17
+    , sop-core >=0.5.0.1 && <0.6
     , stm >=2.5.0 && <2.6
     , stm-containers >=1.1.0 && <1.2
     , string-conversions >=0.4.0 && <0.5
