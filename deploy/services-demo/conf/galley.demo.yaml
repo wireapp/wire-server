@@ -40,5 +40,7 @@ settings:
           enforceAppLock: false
           inactivityTimeoutSecs: 60
 
+  federationDomain: example.com
+
 logLevel: Info
 logNetStrings: false
