@@ -188,6 +188,7 @@ queryIndex (IndexQuery q f) (fromRange -> s) = liftIndexIO $ do
 --
 -- The intention behind parameterising 'queryIndex' over the 'IndexQuery' is that
 -- it allows to experiment with different queries (perhaps in an A/B context).
+--
 -- FUTUREWORK: Drop legacyPrefixMatch
 defaultUserQuery :: UserId -> TeamSearchInfo -> Text -> IndexQuery Contact
 defaultUserQuery u teamSearchInfo (normalized -> term') =
