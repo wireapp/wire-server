@@ -14,10 +14,11 @@ import qualified Brig.Types as Brig
 import Brig.Types.Intra (AccountStatus (Deleted))
 import Brig.Types.Team.Invitation (Invitation (inInvitation))
 import Cassandra
-import qualified Control.Exception
+import Control.Exception (assert)
 import Control.Lens ((^.), (^?))
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Random
+import Control.Retry (exponentialBackoff, limitRetries, retrying)
 import Data.Aeson hiding (json)
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Lens (key, _String)
@@ -104,9 +105,9 @@ createUserStep spar' brig' tok tid scimUser email = do
   pure (scimStoredUser, inv, inviteeCode)
 
 assertUserExist :: HasCallStack => String -> ClientState -> UserId -> Bool -> HttpT IO ()
-assertUserExist msg db' uid shouldExist = do
-  exists <- runClient db' (userExists uid)
-  liftIO $ assertEqual msg shouldExist exists
+assertUserExist msg db' uid shouldExist = liftIO $ do
+  exists <- aFewTimes 12 (runClient db' (userExists uid)) (== shouldExist)
+  assertEqual msg shouldExist exists
 
 waitUserExpiration :: (MonadIO m, MonadUnliftIO m) => Opts -> m ()
 waitUserExpiration opts' = do
@@ -345,3 +346,20 @@ acceptWithName name email code =
       "password" Aeson..= defPassword,
       "team_code" Aeson..= code
     ]
+
+-- | Run a probe several times, until a "good" value materializes or until patience runs out
+aFewTimes ::
+  (HasCallStack, MonadIO m) =>
+  -- | Number of retries. Exponentially: 11 ~ total of 2 secs delay, 12 ~ 4 secs delay, ...
+  Int ->
+  m a ->
+  (a -> Bool) ->
+  m a
+aFewTimes
+  retries
+  action
+  good = do
+    retrying
+      (exponentialBackoff 1000 <> limitRetries retries)
+      (\_ -> pure . not . good)
+      (\_ -> action)
