@@ -192,8 +192,8 @@ pCompValue :: Parser CompValue
 pCompValue =
   choice
     [ ValNull <$ string "null",
-      ValBool True <$ string "true",
-      ValBool False <$ string "false",
+      ValBool True <$ (string "true" <|> string "True"),
+      ValBool False <$ (string "false" <|> string "False"),
       ValNumber <$> Aeson.scientific,
       ValString <$> Aeson.jstring
     ]

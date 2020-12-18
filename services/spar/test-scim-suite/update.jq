@@ -68,7 +68,8 @@
 | del(.requests[] | select (.name == "Post user \"OMalley\""))
 # Step: Post emp1 with string "True"
 | (.requests[] | select (.name == "Post emp1 with string \"True\"") | .rawModeData) |= sub("22fbc523-6032-4c5f-939d-5d4850cf3e52"; "{{garbage1_externalId2}}")
-# Remove this step, because it fails with 400:  Error in $.active: expected Bool, but encountered String  -- FUTUREWORK: fix
+# Remove this step, because in the response "active: false" (which fails the test condition)
+# However this also fails when the request uses a boolean instead of a string
 | del(.requests[] | select (.name == "Post emp1 with string \"True\""))
 # Step: Get all users
 # Remove this step because had to remove  'Post user "OMalley"' and 'Post emp1 with string "True"'  -- FUTUREWORK: fix?

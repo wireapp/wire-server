@@ -1,3 +1,6 @@
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -22,6 +25,7 @@ import qualified Data.Char as Char
 import qualified Data.HashMap.Lazy as HML
 import qualified Data.HashMap.Strict as HM
 import Data.String (IsString)
+import Data.String.Conversions (cs)
 import Data.Text hiding (dropWhile)
 import qualified Network.URI as Network
 
@@ -50,6 +54,21 @@ instance FromJSON URI where
 
 instance ToJSON URI where
   toJSON (URI uri) = String $ pack $ show uri
+
+newtype ScimBool = ScimBool {unScimBool :: Bool}
+  deriving stock (Eq, Show, Ord)
+  deriving newtype (ToJSON)
+
+instance FromJSON ScimBool where
+  parseJSON (Bool bl) = pure (ScimBool bl)
+  parseJSON (String str) =
+    case str of
+      "true" -> pure (ScimBool True)
+      "True" -> pure (ScimBool True)
+      "false" -> pure (ScimBool False)
+      "False" -> pure (ScimBool False)
+      _ -> fail $ "Expected one of \"true\", \"True\", \"false\", \"False\", but got " <> cs str
+  parseJSON _ = fail "Expected bool or string"
 
 toKeyword :: (IsString p, Eq p) => p -> p
 toKeyword "typ" = "type"

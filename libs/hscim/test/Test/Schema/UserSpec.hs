@@ -38,7 +38,7 @@ import Network.URI.Static (uri)
 import Test.Hspec
 import Text.Email.Validate (emailAddress)
 import Web.Scim.Filter (AttrPath (..))
-import Web.Scim.Schema.Common (URI (..))
+import Web.Scim.Schema.Common (ScimBool (ScimBool), URI (..))
 import Web.Scim.Schema.PatchOp (Op (..), Operation (..), PatchOp (..), Patchable (..), Path (..))
 import qualified Web.Scim.Schema.PatchOp as PatchOp
 import Web.Scim.Schema.Schema (Schema (..))
@@ -177,7 +177,7 @@ genUser = do
   userType' <- Gen.maybe $ Gen.text (Range.constant 0 20) Gen.unicode
   preferredLanguage' <- Gen.maybe $ Gen.text (Range.constant 0 20) Gen.unicode
   locale' <- Gen.maybe $ Gen.text (Range.constant 0 20) Gen.unicode
-  active' <- Gen.maybe $ Gen.bool
+  active' <- Gen.maybe $ (ScimBool <$> Gen.bool)
   password' <- Gen.maybe $ Gen.text (Range.constant 0 20) Gen.unicode
   emails' <- pure [] -- Gen.list (Range.constant 0 20) genEmail
   phoneNumbers' <- pure [] -- Gen.list (Range.constant 0 20) genPhone
@@ -237,7 +237,7 @@ completeUser =
       userType = Just "sample userType",
       preferredLanguage = Just "da, en-gb;q=0.8, en;q=0.7",
       locale = Just "en-US",
-      active = Just True,
+      active = Just (ScimBool True),
       password = Just "sample password",
       emails =
         [ Email
@@ -277,7 +277,7 @@ completeUser =
               Address.postalCode = Nothing,
               Address.country = Nothing,
               Address.typ = Just "home",
-              Address.primary = Just True
+              Address.primary = Just (ScimBool True)
             }
         ],
       entitlements = ["sample entitlement"],
