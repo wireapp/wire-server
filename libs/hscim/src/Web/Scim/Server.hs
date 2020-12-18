@@ -115,21 +115,21 @@ type App tag m api =
 --     hoistServer proxy nt api
 
 mkapp ::
-  forall tag m api es.
+  forall tag m api.
   (App tag m api) =>
   Proxy api ->
-  ServerT api (ScimHandler es m) ->
-  (forall a. ScimHandler es m a -> Handler a) ->
+  ServerT api m ->
+  (forall a. m a -> Handler a) ->
   Application
 mkapp proxy api nt =
   serve proxy $
     hoistServer proxy nt api
 
 app ::
-  forall tag m es.
+  forall tag m.
   App tag m (SiteAPI tag) =>
   Configuration ->
-  (forall a. ScimHandler es m a -> Handler a) ->
+  (forall a. m a -> Handler a) ->
   Application
 app c =
   mkapp @tag

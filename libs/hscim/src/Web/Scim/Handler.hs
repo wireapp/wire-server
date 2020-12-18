@@ -30,7 +30,6 @@ where
 
 import Control.Monad.Except
 import Data.Functor ((<&>))
-import Servant (Elem)
 import Servant.API (HasStatus, IsMember, SubsetOf, Union, injectUnion, relaxUnion)
 import Servant.Server (respond)
 
