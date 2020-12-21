@@ -21,6 +21,7 @@
 module Web.Scim.Schema.Common where
 
 import Data.Aeson
+import qualified Data.CaseInsensitive as CI
 import qualified Data.Char as Char
 import qualified Data.HashMap.Lazy as HML
 import qualified Data.HashMap.Strict as HM
@@ -62,11 +63,9 @@ newtype ScimBool = ScimBool {unScimBool :: Bool}
 instance FromJSON ScimBool where
   parseJSON (Bool bl) = pure (ScimBool bl)
   parseJSON (String str) =
-    case str of
+    case CI.mk str of
       "true" -> pure (ScimBool True)
-      "True" -> pure (ScimBool True)
       "false" -> pure (ScimBool False)
-      "False" -> pure (ScimBool False)
       _ -> fail $ "Expected one of \"true\", \"True\", \"false\", \"False\", but got " <> cs str
   parseJSON _ = fail "Expected bool or string"
 
