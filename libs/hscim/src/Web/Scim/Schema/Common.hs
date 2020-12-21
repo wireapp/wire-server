@@ -66,8 +66,8 @@ instance FromJSON ScimBool where
     case CI.mk str of
       "true" -> pure (ScimBool True)
       "false" -> pure (ScimBool False)
-      _ -> fail $ "Expected one of \"true\", \"True\", \"false\", \"False\", but got " <> cs str
-  parseJSON _ = fail "Expected bool or string"
+      _ -> fail $ "Expected true, false, \"true\", or \"false\" (case insensitive), but got " <> cs str
+  parseJSON bad = fail $ "Expected true, false, \"true\", or \"false\" (case insensitive), but got " <> show bad
 
 toKeyword :: (IsString p, Eq p) => p -> p
 toKeyword "typ" = "type"
