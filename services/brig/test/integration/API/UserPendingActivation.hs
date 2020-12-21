@@ -207,8 +207,9 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
 randomScimEmail :: MonadRandom m => m Email.Email
 randomScimEmail = do
   let typ :: Maybe Text = Nothing
-      primary :: Maybe Bool = Nothing -- TODO: where should we catch users with more than one
+      -- TODO: where should we catch users with more than one
       -- primary email?
+      primary :: Maybe Scim.ScimBool = Nothing
   value :: Email.EmailAddress2 <- do
     localpart <- cs <$> replicateM 15 (getRandomR ('a', 'z'))
     domainpart <- (<> ".com") . cs <$> replicateM 15 (getRandomR ('a', 'z'))
