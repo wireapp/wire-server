@@ -39,7 +39,7 @@ instance ToJSON EmailAddress2 where
 data Email = Email
   { typ :: Maybe Text,
     value :: EmailAddress2,
-    primary :: Maybe Bool
+    primary :: Maybe ScimBool
   }
   deriving (Show, Eq, Generic)
 
