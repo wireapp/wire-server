@@ -36,12 +36,12 @@ import Imports
 import Util
 import Wire.API.Team.Invitation (Invitation (..))
 
-headInvitation404 :: BrigReq -> Email -> Http ()
+headInvitation404 :: HasCallStack => BrigReq -> Email -> Http ()
 headInvitation404 brig email = do
   Bilge.head (brig . path "/teams/invitations/by-email" . contentJson . queryItem "email" (toByteString' email))
     !!! const 404 === statusCode
 
-getInvitation :: BrigReq -> Email -> Http Invitation
+getInvitation :: HasCallStack => BrigReq -> Email -> Http Invitation
 getInvitation brig email =
   responseJsonUnsafe
     <$> Bilge.get
@@ -67,7 +67,7 @@ getInvitationCode brig t ref = do
   let lbs = fromMaybe "" $ responseBody r
   return $ fromByteString . fromMaybe (error "No code?") $ encodeUtf8 <$> (lbs ^? key "code" . _String)
 
-registerInvitation :: Email -> Name -> InvitationCode -> Bool -> TestSpar ()
+registerInvitation :: HasCallStack => Email -> Name -> InvitationCode -> Bool -> TestSpar ()
 registerInvitation email name inviteeCode shouldSucceed = do
   env <- ask
   let brig = env ^. teBrig
