@@ -398,6 +398,8 @@ data Settings = Settings
     setActivationTimeout :: !Timeout,
     -- | Team invitation timeout, in seconds
     setTeamInvitationTimeout :: !Timeout,
+    -- | Check for expired users every so often, in seconds
+    setExpiredUserCleanupTimeout :: !(Maybe Timeout),
     -- | Twilio credentials
     setTwilio :: !FilePathSecrets,
     -- | Nexmo credentials

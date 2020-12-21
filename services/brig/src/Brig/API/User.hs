@@ -49,6 +49,7 @@ module Brig.API.User
     removePhone,
     revokeIdentity,
     deleteUserNoVerify,
+    deleteUsersNoVerify,
     Brig.API.User.deleteUser,
     verifyDeleteUser,
     deleteAccount,
@@ -102,6 +103,8 @@ import Brig.Data.User
 import qualified Brig.Data.User as Data
 import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
+import Brig.Data.UserPendingActivation
+import qualified Brig.Data.UserPendingActivation as Data
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.InternalEvent.Types as Internal
 import Brig.Options hiding (Timeout, internalEvents)
@@ -132,9 +135,10 @@ import Data.Id as Id
 import Data.Json.Util
 import Data.List1 (List1)
 import qualified Data.Map.Strict as Map
+import qualified Data.Metrics as Metrics
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified
-import Data.Time.Clock (diffUTCTime)
+import Data.Time.Clock (addUTCTime, diffUTCTime)
 import Data.UUID.V4 (nextRandom)
 import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
@@ -328,6 +332,7 @@ createUser new@NewUser {..} = do
           field "user" (toByteString uid)
             . field "team" (toByteString $ Team.iiTeam ii)
             . msg (val "Accepting invitation")
+        Data.usersPendingActivationRemove uid
         Team.deleteInvitation (Team.inTeam inv) (Team.inInvitation inv)
 
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT CreateUserError AppIO CreateUserTeam
@@ -356,6 +361,15 @@ createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = (`ca
   verifyUniquenessAndCheckBlacklist emKey
   account <- lift $ newAccountInviteViaScim uid tid loc name email
   Log.debug $ field "user" (toByteString . userId . accountUser $ account) . field "action" (Log.val "User.createUserInviteViaScim")
+
+  -- add the expiry table entry first!  (if brig creates an account, and then crashes before
+  -- creating the expiry table entry, gc will miss user data.)
+  expiresAt <- do
+    ttl <- setTeamInvitationTimeout <$> view settings
+    now <- liftIO =<< view currentTime
+    pure $ addUTCTime (realToFrac ttl) now
+  lift $ Data.usersPendingActivationAdd (UserPendingActivation uid expiresAt)
+
   let activated =
         -- It would be nice to set this to 'False' to make sure we're not accidentally
         -- treating 'PendingActivation' as 'Active', but then 'Brig.Data.User.toIdentity'
@@ -363,6 +377,7 @@ createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = (`ca
         -- the SCIM user.
         True
   lift $ Data.insertAccount account Nothing Nothing activated
+
   return account
 
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.
@@ -1005,6 +1020,13 @@ deleteUserNoVerify :: UserId -> AppIO ()
 deleteUserNoVerify uid = do
   queue <- view internalEvents
   Queue.enqueue queue (Internal.DeleteUser uid)
+
+deleteUsersNoVerify :: [UserId] -> AppIO ()
+deleteUsersNoVerify uids = do
+  for_ uids deleteUserNoVerify
+  m <- view metrics
+  Metrics.counterAdd (fromIntegral . length $ uids) (Metrics.path "user.enqueue_multi_delete_total") m
+  Metrics.counterIncr (Metrics.path "user.enqueue_multi_delete_calls_total") m
 
 -- | Garbage collect users if they're ephemeral and they have expired.
 -- Always returns the user (deletion itself is delayed)

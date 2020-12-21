@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9ad577393611ee91f6a62115d4f12241752f808fc982eddbdffc91149d1d122d
+-- hash: bb4a3b9b5b4305ddf1e6c3bb031fa8784a988c45b2754e5be43c1db94a057502
 
 name:           brig
 version:        1.35.0
@@ -51,6 +51,7 @@ library
       Brig.Data.Types
       Brig.Data.User
       Brig.Data.UserKey
+      Brig.Data.UserPendingActivation
       Brig.Email
       Brig.Index.Eval
       Brig.Index.Migrations
@@ -187,6 +188,7 @@ library
     , retry >=0.7
     , ropes >=0.4.20
     , safe >=0.3
+    , safe-exceptions >=0.1
     , scientific >=0.3.4
     , scrypt >=0.5
     , semigroups >=0.15
@@ -286,6 +288,7 @@ executable brig-integration
       API.User.Property
       API.User.RichInfo
       API.User.Util
+      API.UserPendingActivation
       Index.Create
       Util
       Util.AWS
@@ -296,6 +299,8 @@ executable brig-integration
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
   build-depends:
       HsOpenSSL
+    , MonadRandom >=0.5
+    , QuickCheck
     , aeson
     , async
     , attoparsec
@@ -312,11 +317,14 @@ executable brig-integration
     , containers
     , cookie
     , data-timeout
+    , email-validate
     , exceptions
     , extra
     , filepath >=1.4
     , galley-types
     , gundeck-types
+    , hscim
+    , http-api-data
     , http-client
     , http-client-tls >=0.2
     , http-types
@@ -333,7 +341,9 @@ executable brig-integration
     , random >=1.0
     , retry >=0.6
     , safe
+    , saml2-web-sso
     , semigroups
+    , spar
     , string-conversions
     , tasty >=1.0
     , tasty-cannon >=0.3.4
@@ -416,6 +426,7 @@ executable brig-schema
       V60_AddFederationIdMapping
       V61_team_invitation_email
       V62_RemoveFederationIdMapping
+      V63_AddUsersPendingActivation
       V9
       Paths_brig
   hs-source-dirs:

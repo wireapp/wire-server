@@ -188,7 +188,7 @@ specCreateUser = describe "POST /Users" $ do
       testCreateUserNoIdP
     it "fails if no email can be extraced from externalId" $ do
       testCreateUserNoIdPNoEmail
-    it "doesn't list users that exceed their invivtation period, and allows recreating them" $ do
+    it "doesn't list users that exceed their invitation period, and allows recreating them" $ do
       testCreateUserTimeout
   context "team has one SAML IdP" $ do
     it "creates a user in an existing team" $ do
@@ -637,7 +637,7 @@ testCreateUserTimeout = do
 
   waitUserExpiration
   searchUser tok scimUser email False
-  registerInvitation email userName inviteeCode False
+  aFewTimesRecover $ registerInvitation email userName inviteeCode False
   searchUser tok scimUser email False
 
   (scimStoredUser2, _inv, inviteeCode2) <- createUser'step tok tid scimUser email
@@ -646,7 +646,7 @@ testCreateUserTimeout = do
   let id2 = (Scim.id . Scim.thing) scimStoredUser2
   liftIO $ id1 `shouldNotBe` id2
 
-  registerInvitation email userName inviteeCode2 True
+  aFewTimesRecover $ registerInvitation email userName inviteeCode2 True
   searchUser tok scimUser email True
   waitUserExpiration
   searchUser tok scimUser email True
