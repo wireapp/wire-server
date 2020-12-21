@@ -1,0 +1,19 @@
+# See defaults in https://github.com/helm/charts/tree/master/stable/minio
+minio:
+  fullnameOverride: fake-aws-s3
+  accessKey: dummykey
+  secretKey: dummysecret
+  persistence:
+    enabled: false
+  environment:
+    MINIO_BROWSER: "off"
+  buckets:
+    - name: dummy-bucket
+      purge: true
+      policy: none
+    - name: assets
+      purge: false
+      policy: none
+    - name: public
+      purge: false
+      policy: public

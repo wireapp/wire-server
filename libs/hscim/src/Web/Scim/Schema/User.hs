@@ -110,7 +110,7 @@ data User tag = User
     userType :: Maybe Text,
     preferredLanguage :: Maybe Text,
     locale :: Maybe Text,
-    active :: Maybe Bool,
+    active :: Maybe ScimBool,
     password :: Maybe Text,
     -- Multi-valued fields
     emails :: [Email],

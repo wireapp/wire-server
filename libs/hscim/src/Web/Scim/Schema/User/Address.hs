@@ -31,7 +31,7 @@ data Address = Address
     -- TODO: country is specified as ISO3166, but example uses "USA"
     country :: Maybe Text,
     typ :: Maybe Text,
-    primary :: Maybe Bool
+    primary :: Maybe ScimBool
   }
   deriving (Show, Eq, Generic)
 

@@ -1,0 +1,22 @@
+{{- if and .Values.tls.enabled .Values.tls.useCertManager -}}
+apiVersion: cert-manager.io/v1alpha2
+kind: Issuer
+metadata:
+  name: letsencrypt-http01
+  namespace: {{ .Release.Namespace }}
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  acme:
+    server: {{ include "certificate-manager.apiServerURL" . | quote }}
+    email: {{ required "Missing value: certmasterEmail" .Values.certManager.certmasterEmail | quote }}
+    # NOTE: this secret doesnt need to be created, it only gets a name with this
+    privateKeySecretRef:
+      name: letsencrypt-http01-account-key
+    solvers:
+      - http01:
+          ingress:
+            class: nginx
+{{- end -}}

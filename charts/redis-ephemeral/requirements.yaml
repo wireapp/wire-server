@@ -1,0 +1,5 @@
+dependencies:
+- name: redis
+  version: 11.3.4
+  repository: https://charts.bitnami.com/bitnami
+  alias: redis-ephemeral

@@ -178,3 +178,7 @@ Using Stack's [Nix integration](https://docs.haskellstack.org/en/stable/nix_inte
 dependencies automatically - including `cryptobox-c`. If new system dependencies are needed, add them to the `stack-deps.nix` file in the project root.
 Just type `$ nix-shell` and you will automatically have `make`, `docker-compose` and `stack` in `PATH`.
 You can then run all the builds, and the native dependencies will be automatically present.
+
+## Helm chart development, integration tests in kubernetes
+
+You need `kubectl`, `helm`, and a valid kubernetes context. Refer to https://docs.wire.com for details.

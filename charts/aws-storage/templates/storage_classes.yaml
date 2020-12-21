@@ -1,0 +1,18 @@
+---
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: aws-ebs
+provisioner: kubernetes.io/aws-ebs
+parameters:
+  type: gp2
+  zones: eu-central-1a, eu-central-1b, eu-central-1c
+---
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: aws-ebs-retained
+provisioner: kubernetes.io/aws-ebs
+parameters:
+  type: gp2
+reclaimPolicy: Retain

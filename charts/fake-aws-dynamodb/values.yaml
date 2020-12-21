@@ -1,0 +1,18 @@
+image:
+  repository: cnadiminti/dynamodb-local
+  tag: 2018-04-11
+
+service:
+  internalPort: 8000
+  externalPort: 4567
+
+tables:
+  brigPrekeys: integration-brig-prekeys
+
+resources:
+  limits:
+    cpu: "300m"
+    memory: "3000Mi"
+  requests:
+    cpu: "100m"
+    memory: "100Mi"

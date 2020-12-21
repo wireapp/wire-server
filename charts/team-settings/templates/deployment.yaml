@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: team-settings
+  labels:
+    wireService: team-settings
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: {{ .Values.replicaCount | mul 2 }}
+  selector:
+    matchLabels:
+      wireService: team-settings
+      app: team-settings
+  template:
+    metadata:
+      labels:
+        wireService: team-settings
+        app: team-settings
+        release: {{ .Release.Name }}
+    spec:
+      # Check the README to find out more about this secret
+      imagePullSecrets:
+      - name: wire-teamsettings-readonly-pull-secret
+      containers:
+      - name: team-settings
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        env:
+          - name: NODE_PORT
+            value: "{{ .Values.service.http.internalPort }}"
+          - name: APP_BASE
+            value: https://{{ .Values.config.externalUrls.appHost }}/
+          - name: BACKEND_REST
+            value: https://{{ .Values.config.externalUrls.backendRest }}
+          - name: BACKEND_WS
+            value: wss://{{ .Values.config.externalUrls.backendWebsocket }}
+            # NOTE defaults to 'true', but since we assume on-prem here, we default to 'false'
+            # SRC https://github.com/wireapp/wire-web-config-default/blob/master/wire-team-settings/.env.defaults#L48
+          - name: FEATURE_ENABLE_PAYMENT
+            value: {{ .Values.config.enablePayment | default false | quote }}
+      {{- range $key, $val := .Values.envVars }}
+          - name: {{ $key }}
+            value: {{ $val | quote }}
+      {{- end }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.service.http.internalPort }}
+        readinessProbe:
+          httpGet:
+            path: /_health/
+            port: {{ .Values.service.http.internalPort }}
+            scheme: HTTP
+        livenessProbe:
+          initialDelaySeconds: 30
+          timeoutSeconds: 3
+          httpGet:
+            path: /_health/
+            port: {{ .Values.service.http.internalPort }}
+            scheme: HTTP
+        resources:
+{{ toYaml .Values.resources | indent 12 }}
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always

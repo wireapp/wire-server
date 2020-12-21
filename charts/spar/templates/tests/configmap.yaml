@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "spar-integration"
+data:
+  integration.yaml: |
+    brig:
+      host: brig
+      port: 8080
+
+    galley:
+      host: galley
+      port: 8080
+
+    spar:
+      host: spar
+      port: 8080

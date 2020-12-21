@@ -1,0 +1,4 @@
+apiVersion: v1
+description: A Helm chart for legalhold
+name: legalhold
+version: 0.0.42

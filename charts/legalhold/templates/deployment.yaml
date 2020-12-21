@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "{{ .Release.Name }}-hold"
+  labels:
+    name: "{{ .Release.Name }}-hold"
+  annotations:
+    checksum/secret-token: {{ include (print .Template.BasePath "/secret-token.yaml") . | sha256sum }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: "{{ .Release.Name }}-hold"
+  template:
+    metadata:
+      name: "{{ .Release.Name }}-hold"
+      labels:
+        name: "{{ .Release.Name }}-hold"
+    spec:
+      restartPolicy: Always
+      containers:
+        - name: hold
+          image: quay.io/wire/legalhold:1.0.2
+          imagePullPolicy: IfNotPresent
+
+          resources:
+            requests:
+              memory: "1500Mi"
+              cpu: 50m
+            limits:
+              memory: "1500Mi"
+
+          env:
+            - name: LD_LIBRARY_PATH
+              value: /opt/wire/lib
+
+            - name: WIRE_API_HOST
+              value: "{{ required "Must specify wireApiHost" .Values.wireApiHost }}"
+
+            - name: DELAY
+              value: 15s
+
+            - name: SERVICE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: "{{ .Release.Name }}-hold-token"
+                  key: token
+
+            - name: DB_URL
+              value: "jdbc:postgresql://{{ .Release.Name }}-postgresql/postgres"
+
+            - name: DB_USER
+              value: postgres
+
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: "{{ .Release.Name }}-postgresql"
+                  key: postgresql-password
+
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+            - containerPort: 8081
+              protocol: TCP
+            - containerPort: 8082
+              protocol: TCP
+
+          livenessProbe:
+            httpGet:
+              path: /status
+              port: 8080
+            initialDelaySeconds: 10
+            timeoutSeconds: 5
+            periodSeconds: 10
+
+          # for L7 LB
+          readinessProbe:
+            httpGet:
+              path: /status
+              port: 8080
+            initialDelaySeconds: 10
+            timeoutSeconds: 5
+            periodSeconds: 10

@@ -1,0 +1,4 @@
+apiVersion: v1
+description: Dummy ephemeral SNS service (based on localstack)
+name: fake-aws-sns
+version: 0.0.42

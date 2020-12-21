@@ -1,0 +1,49 @@
+# Default values for the account-pages.
+replicaCount: 1
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "1"
+image:
+  repository: quay.io/wire/account
+  tag: 2.1.4-5f9c54-v0.26.5-production
+service:
+  https:
+    externalPort: 443
+  http:
+    internalPort: 8080
+
+## The following has to be provided to deploy this chart
+
+#config:
+#  externalUrls:
+#   backendRest: nginz-https.example.com
+#   backendWebsocket: nginz-ssl.example.com
+#   appHost: account.example.com
+#
+# Some relevant environment options, have a look at
+# https://github.com/wireapp/wire-account/wiki/Self-hosting
+# NOTE: Without an empty dictionary, you will see warnings
+#       when overriding envVars
+envVars: {}
+# E.g.
+# envVars:
+#   FEATURE_ENABLE_DEBUG: "true"
+#   You are likely to need at least following CSP headers
+#   due to the fact that you are likely to do cross sub-domain requests
+#   i.e., from account.example.com to nginz-https.example.com
+#   CSP_EXTRA_CONNECT_SRC: "https://*.example.com, wss://*.example.com"
+#   CSP_EXTRA_IMG_SRC: "https://*.example.com"
+#   CSP_EXTRA_SCRIPT_SRC: "https://*.example.com"
+#   CSP_EXTRA_DEFAULT_SRC: "https://*.example.com"
+#   CSP_EXTRA_FONT_SRC: "https://*.example.com"
+#   CSP_EXTRA_FRAME_SRC: "https://*.example.com"
+#   CSP_EXTRA_MANIFEST_SRC: "https://*.example.com"
+#   CSP_EXTRA_OBJECT_SRC: "https://*.example.com"
+#   CSP_EXTRA_MEDIA_SRC: "https://*.example.com"
+#   CSP_EXTRA_PREFETCH_SRC: "https://*.example.com"
+#   CSP_EXTRA_STYLE_SRC: "https://*.example.com"
+#   CSP_EXTRA_WORKER_SRC: "https://*.example.com"

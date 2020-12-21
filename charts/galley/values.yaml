@@ -1,0 +1,34 @@
+replicaCount: 3
+image:
+  repository: quay.io/wire/galley
+  tag: do-not-use
+  schemaRepository: quay.io/wire/galley-schema
+service:
+  externalPort: 8080
+  internalPort: 8080
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+config:
+  logLevel: Info
+  logFormat: JSON
+  cassandra:
+    host: aws-cassandra
+    replicaCount: 3
+  settings:
+    maxTeamSize: 500
+    maxConvSize: 500
+    # Before making indexedBillingTeamMember true while upgrading, please
+    # refer to notes here: https://github.com/wireapp/wire-server-deploy/releases/tag/v2020-05-15
+    indexedBillingTeamMember: false
+    featureFlags:  # see #RefConfigOptions in `/docs/reference` (https://github.com/wireapp/wire-server/)
+      sso: disabled-by-default
+      legalhold: disabled-by-default
+      teamSearchVisibility: disabled-by-default
+  aws:
+    region: "eu-west-1"
+  proxy: {}

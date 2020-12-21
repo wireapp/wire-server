@@ -102,7 +102,7 @@ specSuspend = do
           unless isActive $ do
             runSpar $ Intra.setStatus member Suspended
           [user] <- listUsers tok (Just (filterBy "userName" handle))
-          lift $ (Scim.User.active . Scim.value . Scim.thing $ user) `shouldBe` Just isActive
+          lift $ (fmap Scim.unScimBool . Scim.User.active . Scim.value . Scim.thing $ user) `shouldBe` Just isActive
     it "pre-existing suspended users are inactive" $ do
       checkPreExistingUser False
     it "pre-existing unsuspended users are active" $ do
@@ -118,24 +118,24 @@ specSuspend = do
             -- SCIM records don't have the active field. absence of active should be interpreted as Active.
             -- Once we get rid of the `scim` table and make scim serve brig records directly, this is
             -- not an issue anymore.
-            lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUserBlah) `shouldBe` Just True
+            lift $ (fmap Scim.unScimBool . Scim.User.active . Scim.value . Scim.thing $ scimStoredUserBlah) `shouldBe` Just True
             void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active)
           do
             scimStoredUser <- putOrPatch tok uid user True
-            lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just True
+            lift $ (fmap Scim.unScimBool . Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just True
             void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active)
           do
             scimStoredUser <- putOrPatch tok uid user False
-            lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just False
+            lift $ (fmap Scim.unScimBool . Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just False
             void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Suspended)
           do
             scimStoredUser <- putOrPatch tok uid user True
-            lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just True
+            lift $ (fmap Scim.unScimBool . Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just True
             void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active)
 
     it "PUT will change state from active to inactive and back" $ do
       void . activeInactiveAndBack $ \tok uid user active ->
-        updateUser tok uid user {Scim.User.active = Just active}
+        updateUser tok uid user {Scim.User.active = Just (Scim.ScimBool active)}
 
     it "PATCH will change state from active to inactive and back" $ do
       let replaceAttrib name value =
@@ -230,7 +230,7 @@ testCreateUserNoIdP = do
   (owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
   tok <- registerScimToken tid Nothing
   scimStoredUser <- createUser tok scimUser
-  liftIO $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just False
+  liftIO $ (fmap Scim.unScimBool . Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just False
   let userid = scimUserId scimStoredUser
       handle = Handle $ Scim.User.userName scimUser
       userName = Name . fromJust . Scim.User.displayName $ scimUser
@@ -259,7 +259,7 @@ testCreateUserNoIdP = do
     susr <- getUser tok userid
     liftIO $ susr `shouldBe` scimStoredUser
     let usr = Scim.value . Scim.thing $ susr
-    liftIO $ Scim.User.active usr `shouldBe` Just False
+    liftIO $ Scim.User.active usr `shouldBe` Just (Scim.ScimBool False)
     liftIO $ Scim.User.externalId usr `shouldBe` Just (fromEmail email)
 
   -- scim search should succeed
@@ -286,7 +286,7 @@ testCreateUserNoIdP = do
 
     susr <- getUser tok userid
     let usr = Scim.value . Scim.thing $ susr
-    liftIO $ Scim.User.active usr `shouldNotBe` Just False
+    liftIO $ Scim.User.active usr `shouldNotBe` Just (Scim.ScimBool False)
 
   -- searching user in brig should succeed
   searchUser brig owner userName True

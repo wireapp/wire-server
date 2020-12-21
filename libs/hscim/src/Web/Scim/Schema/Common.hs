@@ -1,3 +1,6 @@
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -18,10 +21,12 @@
 module Web.Scim.Schema.Common where
 
 import Data.Aeson
+import qualified Data.CaseInsensitive as CI
 import qualified Data.Char as Char
 import qualified Data.HashMap.Lazy as HML
 import qualified Data.HashMap.Strict as HM
 import Data.String (IsString)
+import Data.String.Conversions (cs)
 import Data.Text hiding (dropWhile)
 import qualified Network.URI as Network
 
@@ -50,6 +55,19 @@ instance FromJSON URI where
 
 instance ToJSON URI where
   toJSON (URI uri) = String $ pack $ show uri
+
+newtype ScimBool = ScimBool {unScimBool :: Bool}
+  deriving stock (Eq, Show, Ord)
+  deriving newtype (ToJSON)
+
+instance FromJSON ScimBool where
+  parseJSON (Bool bl) = pure (ScimBool bl)
+  parseJSON (String str) =
+    case CI.mk str of
+      "true" -> pure (ScimBool True)
+      "false" -> pure (ScimBool False)
+      _ -> fail $ "Expected true, false, \"true\", or \"false\" (case insensitive), but got " <> cs str
+  parseJSON bad = fail $ "Expected true, false, \"true\", or \"false\" (case insensitive), but got " <> show bad
 
 toKeyword :: (IsString p, Eq p) => p -> p
 toKeyword "typ" = "type"

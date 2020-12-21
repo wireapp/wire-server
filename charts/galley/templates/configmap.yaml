@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: galley
+data:
+  {{- with .Values.config }}
+  galley.yaml: |
+    logNetStrings: True # log using netstrings encoding:
+                        # http://cr.yp.to/proto/netstrings.txt
+    logLevel: {{ .logLevel }}
+    logFormat: {{ .logFormat }}
+
+    galley:
+      host: 0.0.0.0
+      port: 8080
+
+    cassandra:
+      endpoint:
+        host: {{ .cassandra.host }}
+        port: 9042
+      keyspace: galley
+
+    brig:
+      host: brig
+      port: 8080
+
+    gundeck:
+      host: gundeck
+      port: 8080
+
+    spar:
+      host: spar
+      port: 8080
+
+    {{- if (.journal) }}
+    journal:
+      queueName: {{ .journal.queue }}
+      endpoint: {{ .journal.endpoint }}
+    {{- end }}
+
+    settings:
+      httpPoolSize: 128
+      intraListing: false
+      maxTeamSize: {{ .settings.maxTeamSize }}
+      maxConvSize: {{ .settings.maxConvSize }}
+      {{- if .settings.maxFanoutSize }}
+      maxFanoutSize: {{ .settings.maxFanoutSize }}
+      {{- end }}
+      conversationCodeURI: {{ .settings.conversationCodeURI | quote }}
+      {{- if .settings.enableIndexedBillingTeamMembers }}
+      enableIndexedBillingTeamMembers: {{ .settings.enableIndexedBillingTeamMembers }}
+      {{- end }}
+      federationDomain: {{ .settings.federationDomain }}
+      {{- if .settings.featureFlags }}
+      featureFlags:
+        sso: {{ .settings.featureFlags.sso }}
+        legalhold: {{ .settings.featureFlags.legalhold }}
+        teamSearchVisibility: {{ .settings.featureFlags.teamSearchVisibility }}
+      {{- end }}
+  {{- end }}

@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ .Release.Name }}-spar-integration"
+  annotations:
+    "helm.sh/hook": test-success
+  labels:
+    wireService: spar-integration
+    release: {{ .Release.Name }}
+spec:
+  volumes:
+    - name: "spar-integration"
+      configMap:
+        name: "spar-integration"
+    # Used to read some values from the spar service
+    - name: "spar-config"
+      configMap:
+        name: "spar"
+  containers:
+  - name: integration
+    image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
+    volumeMounts:
+    - name: "spar-integration"
+      mountPath: "/etc/wire/integration"
+    - name: "spar-config"
+      mountPath: "/etc/wire/spar/conf"
+
+  restartPolicy: Never

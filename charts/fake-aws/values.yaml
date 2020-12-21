@@ -1,0 +1,14 @@
+# Default values for fake-aws
+
+# Set enabled: false to not install that subchart.
+
+fake-aws-sqs:
+  enabled: true
+fake-aws-sns:
+  enabled: true
+fake-aws-s3:
+  enabled: true
+fake-aws-dynamodb:
+  enabled: true
+fake-aws-ses:
+  enabled: false

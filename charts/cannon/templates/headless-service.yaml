@@ -1,0 +1,27 @@
+# Note, this is a Headless service https://kubernetes.io/docs/concepts/services-networking/service/#headless-services
+# We use it this way so we can handle routing requests to specific cannons directly rather than distributing requests
+# between pods.
+#
+# Read more about this technique in the StatefulSet guide: 
+# https://kubernetes.io/docs/tutorials/stateful-application/basic-stateful-set/
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.service.name }}
+  labels:
+    wireService: cannon
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  type: ClusterIP
+  # This is what makes it a Headless Service
+  clusterIP: None
+  ports:
+    - name: http
+      port: {{ .Values.service.externalPort }}
+      targetPort: {{ .Values.service.internalPort }}
+      protocol: TCP
+  selector:
+    wireService: cannon
+    release: {{ .Release.Name }}
