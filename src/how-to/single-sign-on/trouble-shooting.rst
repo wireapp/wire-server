@@ -172,3 +172,40 @@ machine-in-the-middle attacks for stealing sessions and making users
 impersonate rogue accounts) hard that were otherwise quite feasible.
 
 Wire therefore only supports SP-initiated login.
+
+
+How should I map user data to SCIM attributes when provisioning users via SCIM?
+-------------------------------------------------------------------------------
+
+If you are provisioning users via SCIM, the following mapping is used
+in your wire team:
+
+1. SCIM's `userName` is mapped to wire's handle.  It must be unique
+   accross the entire wire cloud or instance, and consist of the
+   characters `a-z0-9_.-` (no capital letters).
+
+2. SCIM's `displayName` is mapped to wire's user display name.  It
+   must consist of 1-128 unicode characters, and does not need to be
+   unique.
+
+3. SCIM's `externalId`:
+
+   a. If SAML SSO is used, it is mapped on the SAML `NameID`.  If it
+      parses as an email, it will have format `email`, and you can
+      choose to validate it during provisioning (by enabeling the
+      feature flag for your team).  Otherwise, the format will be
+      `unspecified`.
+
+   b. If email/password authentication is used, SCIM's `externalId` is
+      mapped on wire's email address, and provisioning works like in
+      team settings with invitation emails.
+
+This means that if you use email/password authentication, you **must**
+map an email address to `externalId` on your side.  With `userName`
+and `displayName`, you are more flexible.
+
+All three fields are mandatory.
+
+Also note that the account will be set to `"active": false` until the
+user has accepted the invitation and activated the account.  Please
+contact customer support if this causes any issues.
