@@ -28,6 +28,7 @@ import qualified Brig.IO.Intra as Intra
 import qualified Brig.Options as Opts
 import Brig.Types.Search as Search
 import Brig.User.Search.Index
+import Brig.User.Search.SearchIndex
 import Control.Lens (view)
 import Data.Id
 import Data.Predicate

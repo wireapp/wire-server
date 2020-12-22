@@ -122,7 +122,7 @@ import Brig.User.Event
 import Brig.User.Handle
 import Brig.User.Handle.Blacklist
 import Brig.User.Phone
-import qualified Brig.User.Search.Index as Index
+import qualified Brig.User.Search.TeamSize as TeamSize
 import Control.Arrow ((&&&))
 import Control.Concurrent.Async (mapConcurrently, mapConcurrently_)
 import Control.Error
@@ -297,7 +297,7 @@ createUser new@NewUser {..} = do
     ensureMemberCanJoin :: TeamId -> ExceptT CreateUserError AppIO ()
     ensureMemberCanJoin tid = do
       maxSize <- fromIntegral . setMaxTeamSize <$> view settings
-      (TeamSize teamSize) <- Index.teamSize tid
+      (TeamSize teamSize) <- TeamSize.teamSize tid
       when (teamSize >= maxSize) $
         throwE TooManyTeamMembers
       -- FUTUREWORK: The above can easily be done/tested in the intra call.

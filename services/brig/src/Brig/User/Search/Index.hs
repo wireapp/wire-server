@@ -19,15 +19,15 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.User.Search.Index
-  ( -- * Monad
+  ( mappingName,
+    boolQuery,
+    _TextId,
+
+    -- * Monad
     IndexEnv (..),
     IndexIO,
     runIndexIO,
     MonadIndexIO (..),
-
-    -- * Queries
-    searchIndex,
-    teamSize,
 
     -- * Updates
     reindex,
@@ -50,8 +50,6 @@ where
 
 import Brig.Data.Instances ()
 import Brig.Types.Intra
-import Brig.Types.Search
-import Brig.Types.Team (TeamSize (..))
 import Brig.Types.User
 import Brig.User.Search.Index.Types as Types
 import qualified Cassandra as C
@@ -67,7 +65,6 @@ import Data.Handle (Handle)
 import Data.Id
 import qualified Data.Map as Map
 import Data.Metrics
-import Data.Range
 import Data.Text.Lazy.Builder.Int (decimal)
 import Data.Text.Lens hiding (text)
 import qualified Data.UUID as UUID
@@ -131,177 +128,6 @@ instance MonadLogger (ExceptT e IndexIO) where
 
 instance ES.MonadBH IndexIO where
   getBHEnv = asks idxElastic
-
---------------------------------------------------------------------------------
--- Queries
-
-teamSize :: MonadIndexIO m => TeamId -> m TeamSize
-teamSize t = liftIndexIO $ do
-  indexName <- asks idxName
-  countResEither <- ES.countByIndex indexName (ES.CountQuery query)
-  countRes <- either (throwM . IndexLookupError) pure countResEither
-  pure . TeamSize $ ES.crCount countRes
-  where
-    query =
-      ES.TermQuery
-        ES.Term
-          { ES.termField = "team",
-            ES.termValue = idToText t
-          }
-        Nothing
-
-searchIndex ::
-  MonadIndexIO m =>
-  -- | The user performing the search.
-  UserId ->
-  TeamSearchInfo ->
-  -- | The search query
-  Text ->
-  -- | The maximum number of results.
-  Range 1 500 Int32 ->
-  m (SearchResult Contact)
-searchIndex u teamSearchInfo q = queryIndex (defaultUserQuery u teamSearchInfo q)
-
-queryIndex ::
-  (MonadIndexIO m, FromJSON r) =>
-  IndexQuery r ->
-  Range 1 500 Int32 ->
-  m (SearchResult r)
-queryIndex (IndexQuery q f) (fromRange -> s) = liftIndexIO $ do
-  idx <- asks idxName
-  let search = (ES.mkSearch (Just q) (Just f)) {ES.size = ES.Size (fromIntegral s)}
-  r <-
-    ES.searchByType idx mappingName search
-      >>= ES.parseEsResponse
-  either (throwM . IndexLookupError) (pure . mkResult) r
-  where
-    mkResult es =
-      let results = mapMaybe ES.hitSource . ES.hits . ES.searchHits $ es
-       in SearchResult
-            { searchFound = ES.hitsTotal . ES.searchHits $ es,
-              searchReturned = length results,
-              searchTook = ES.took es,
-              searchResults = results
-            }
-
--- | The default or canonical 'IndexQuery'.
---
--- The intention behind parameterising 'queryIndex' over the 'IndexQuery' is that
--- it allows to experiment with different queries (perhaps in an A/B context).
---
--- FUTUREWORK: Drop legacyPrefixMatch
-defaultUserQuery :: UserId -> TeamSearchInfo -> Text -> IndexQuery Contact
-defaultUserQuery u teamSearchInfo (normalized -> term') =
-  let matchPhraseOrPrefix =
-        ES.QueryMultiMatchQuery $
-          ( ES.mkMultiMatchQuery
-              [ ES.FieldName "handle.prefix^2",
-                ES.FieldName "normalized.prefix",
-                ES.FieldName "handle^4",
-                ES.FieldName "normalized^3"
-              ]
-              (ES.QueryString term')
-          )
-            { ES.multiMatchQueryType = Just ES.MultiMatchMostFields,
-              ES.multiMatchQueryOperator = ES.And
-            }
-      -- This is required, so we can support prefix match until migration is done
-      legacyPrefixMatch =
-        ES.QueryMultiMatchQuery $
-          ( ES.mkMultiMatchQuery
-              [ ES.FieldName "handle",
-                ES.FieldName "normalized"
-              ]
-              (ES.QueryString term')
-          )
-            { ES.multiMatchQueryType = Just ES.MultiMatchPhrasePrefix,
-              ES.multiMatchQueryOperator = ES.And
-            }
-      query =
-        ES.QueryBoolQuery
-          boolQuery
-            { ES.boolQueryMustMatch =
-                [ ES.QueryBoolQuery
-                    boolQuery {ES.boolQueryShouldMatch = [matchPhraseOrPrefix, legacyPrefixMatch]}
-                ],
-              ES.boolQueryShouldMatch = [ES.QueryExistsQuery (ES.FieldName "handle")]
-            }
-      -- This reduces relevance on non-team users by 90%, there was no science
-      -- put behind the negative boost value.
-      -- It is applied regardless of a teamId being present as users without a
-      -- team anyways don't see any users with team and hence it won't affect
-      -- results if a non team user does the search.
-      queryWithBoost =
-        ES.QueryBoostingQuery
-          ES.BoostingQuery
-            { ES.positiveQuery = query,
-              ES.negativeQuery = matchNonTeamMemberUsers,
-              ES.negativeBoost = ES.Boost 0.1
-            }
-   in mkUserQuery u teamSearchInfo queryWithBoost
-
-mkUserQuery :: UserId -> TeamSearchInfo -> ES.Query -> IndexQuery Contact
-mkUserQuery (review _TextId -> self) teamSearchInfo q =
-  IndexQuery q $
-    ES.Filter . ES.QueryBoolQuery $
-      boolQuery
-        { ES.boolQueryMustNotMatch = [termQ "_id" self],
-          ES.boolQueryMustMatch =
-            [ optionallySearchWithinTeam teamSearchInfo,
-              ES.QueryBoolQuery
-                boolQuery
-                  { ES.boolQueryShouldMatch =
-                      [ termQ "account_status" "active",
-                        -- Also match entries where the account_status field is not present.
-                        -- These must have been inserted before we added the account_status
-                        -- and at that time we only inserted active users in the first place.
-                        -- This should be unnecessary after re-indexing, but let's be lenient
-                        -- here for a while.
-                        ES.QueryBoolQuery
-                          boolQuery
-                            { ES.boolQueryMustNotMatch =
-                                [ES.QueryExistsQuery (ES.FieldName "account_status")]
-                            }
-                      ]
-                  }
-            ]
-        }
-  where
-    termQ f v =
-      ES.TermQuery
-        ES.Term
-          { ES.termField = f,
-            ES.termValue = v
-          }
-        Nothing
-
--- | This query will make sure that: if teamId is absent, only users without a teamId are
--- returned.  if teamId is present, only users with the *same* teamId or users without a
--- teamId are returned.
-optionallySearchWithinTeam :: TeamSearchInfo -> ES.Query
-optionallySearchWithinTeam =
-  \case
-    NoTeam ->
-      matchNonTeamMemberUsers
-    TeamOnly teamId ->
-      matchTeamMembersOf teamId
-    TeamAndNonMembers teamId ->
-      ES.QueryBoolQuery
-        boolQuery
-          { ES.boolQueryShouldMatch =
-              [ matchTeamMembersOf teamId,
-                matchNonTeamMemberUsers
-              ]
-          }
-  where
-    matchTeamMembersOf team = ES.TermQuery (ES.Term "team" $ idToText team) Nothing
-
-matchNonTeamMemberUsers :: ES.Query
-matchNonTeamMemberUsers =
-  ES.QueryBoolQuery
-    boolQuery
-      { ES.boolQueryMustNotMatch = [ES.QueryExistsQuery $ ES.FieldName "team"]
-      }
 
 --------------------------------------------------------------------------------
 -- Updates

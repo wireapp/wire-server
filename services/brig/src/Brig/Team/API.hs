@@ -40,7 +40,7 @@ import Brig.Types.Intra (AccountStatus (..), NewUserScimInvitation (..), UserAcc
 import Brig.Types.Team (TeamSize)
 import Brig.Types.Team.Invitation
 import Brig.Types.User (Email, InvitationCode, emailIdentity)
-import qualified Brig.User.Search.Index as ESIndex
+import qualified Brig.User.Search.TeamSize as TeamSize
 import Control.Lens (view, (^.))
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
@@ -187,7 +187,7 @@ teamSizeH :: JSON ::: TeamId -> Handler Response
 teamSizeH (_ ::: t) = json <$> teamSize t
 
 teamSize :: TeamId -> Handler TeamSize
-teamSize t = lift $ ESIndex.teamSize t
+teamSize t = lift $ TeamSize.teamSize t
 
 getInvitationCodeH :: JSON ::: TeamId ::: InvitationId -> Handler Response
 getInvitationCodeH (_ ::: t ::: r) = do
