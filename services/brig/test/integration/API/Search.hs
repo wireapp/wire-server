@@ -54,7 +54,7 @@ tests opts mgr galley brig = do
     testGroup "search" $
       [ testWithBothIndices opts mgr "by-name" $ testSearchByName brig,
         testWithBothIndices opts mgr "by-handle" $ testSearchByHandle brig,
-        testGroup "search by email" $
+        testGroup "ASDFASDF search by email" $
           [ testWithBothIndices opts mgr "private account" $ testSearchByEmailPrivate brig,
             testWithBothIndices opts mgr "different team" $ testSearchByEmailDifferentTeam brig,
             testWithBothIndices opts mgr "same team" $ testSearchByEmailSameTeam brig
