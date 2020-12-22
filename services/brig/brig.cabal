@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9f982304b3e4de02c3a782a8053c4d3d2e0ab19d3e6bd497684f37ceaaf7215a
+-- hash: bb4a3b9b5b4305ddf1e6c3bb031fa8784a988c45b2754e5be43c1db94a057502
 
 name:           brig
 version:        1.35.0
@@ -44,7 +44,6 @@ library
       Brig.Data.Blacklist
       Brig.Data.Client
       Brig.Data.Connection
-      Brig.Data.IdMapping
       Brig.Data.Instances
       Brig.Data.LoginCode
       Brig.Data.PasswordReset
@@ -52,6 +51,7 @@ library
       Brig.Data.Types
       Brig.Data.User
       Brig.Data.UserKey
+      Brig.Data.UserPendingActivation
       Brig.Email
       Brig.Index.Eval
       Brig.Index.Migrations
@@ -60,7 +60,6 @@ library
       Brig.InternalEvent.Process
       Brig.InternalEvent.Types
       Brig.IO.Intra
-      Brig.IO.Intra.IdMapping
       Brig.IO.Journal
       Brig.Locale
       Brig.Options
@@ -189,12 +188,14 @@ library
     , retry >=0.7
     , ropes >=0.4.20
     , safe >=0.3
+    , safe-exceptions >=0.1
     , scientific >=0.3.4
     , scrypt >=0.5
     , semigroups >=0.15
     , servant
     , servant-server
     , servant-swagger
+    , servant-swagger-ui
     , singletons >=2.0
     , smtp-mail >=0.1
     , sodium-crypto-sign >=0.1
@@ -287,6 +288,7 @@ executable brig-integration
       API.User.Property
       API.User.RichInfo
       API.User.Util
+      API.UserPendingActivation
       Index.Create
       Util
       Util.AWS
@@ -297,6 +299,8 @@ executable brig-integration
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
   build-depends:
       HsOpenSSL
+    , MonadRandom >=0.5
+    , QuickCheck
     , aeson
     , async
     , attoparsec
@@ -313,11 +317,14 @@ executable brig-integration
     , containers
     , cookie
     , data-timeout
+    , email-validate
     , exceptions
     , extra
     , filepath >=1.4
     , galley-types
     , gundeck-types
+    , hscim
+    , http-api-data
     , http-client
     , http-client-tls >=0.2
     , http-types
@@ -334,7 +341,9 @@ executable brig-integration
     , random >=1.0
     , retry >=0.6
     , safe
+    , saml2-web-sso
     , semigroups
+    , spar
     , string-conversions
     , tasty >=1.0
     , tasty-cannon >=0.3.4
@@ -416,6 +425,8 @@ executable brig-schema
       V59
       V60_AddFederationIdMapping
       V61_team_invitation_email
+      V62_RemoveFederationIdMapping
+      V63_AddUsersPendingActivation
       V9
       Paths_brig
   hs-source-dirs:

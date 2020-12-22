@@ -48,13 +48,13 @@ import Web.Scim.Schema.Schema
 import Prelude hiding (filter)
 
 data Supported a = Supported
-  { supported :: Bool,
+  { supported :: ScimBool,
     subConfig :: a
   }
   deriving (Show, Eq, Generic)
 
 instance ToJSON a => ToJSON (Supported a) where
-  toJSON (Supported b v) = case toJSON v of
+  toJSON (Supported (ScimBool b) v) = case toJSON v of
     (Object o) -> Object $ HML.insert "supported" (Bool b) o
     _ -> Object $ HML.fromList [("supported", Bool b)]
 
@@ -102,12 +102,12 @@ empty =
           Schema20,
           ResourceType20
         ],
-      patch = Supported True (),
-      bulk = Supported False $ BulkConfig 0 0,
-      filter = Supported False $ FilterConfig 0,
-      changePassword = Supported False (),
-      sort = Supported False (),
-      etag = Supported False (),
+      patch = Supported (ScimBool True) (),
+      bulk = Supported (ScimBool False) $ BulkConfig 0 0,
+      filter = Supported (ScimBool False) $ FilterConfig 0,
+      changePassword = Supported (ScimBool False) (),
+      sort = Supported (ScimBool False) (),
+      etag = Supported (ScimBool False) (),
       authenticationSchemes = [authHttpBasicEncoding]
     }
 

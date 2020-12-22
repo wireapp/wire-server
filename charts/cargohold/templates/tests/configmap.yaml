@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "cargohold-integration"
+data:
+  integration.yaml: |
+    cargohold:
+      host: cargohold
+      port: {{ .Values.service.internalPort }}

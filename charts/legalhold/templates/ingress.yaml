@@ -1,0 +1,21 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: hold
+  annotations:
+    kubernetes.io/ingress.class: nginx
+spec:
+  # This assumes you have created the given cert
+  # https://github.com/kubernetes/ingress-nginx/blob/master/docs/examples/PREREQUISITES.md#tls-certificates
+  tls:
+  - hosts:
+      - "{{ required  "Must specify host" .Values.host }}"
+    secretName: "{{ .Release.Name }}-hold-tls"
+  rules:
+    - host: "{{ .Values.host }}"
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: "{{ .Release.Name }}-hold"
+              servicePort: 8080

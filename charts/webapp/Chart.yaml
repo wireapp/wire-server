@@ -1,0 +1,4 @@
+apiVersion: v1
+description: A Helm chart for the Wire webapp in Kubernetes
+name: webapp
+version: 0.0.42

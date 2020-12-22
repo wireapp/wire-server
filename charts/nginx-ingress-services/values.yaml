@@ -1,0 +1,83 @@
+# Default values for nginx-ingress-services
+
+# Team settings is disabled by default since it requires access to a private repo.
+teamSettings:
+  enabled: false
+# Account pages may be useful to enable password reset or email validation done after the initial registration
+accountPages:
+  enabled: false
+
+# If you want to use TLS termination on the ingress,
+# then set this variable to true and ensure that there
+# is a valid wildcard TLS certificate
+# When TLS is enable, ensure that you have the certificate
+# and secret in a file under helm_vars/bare/secret.yaml (or
+# another location) since enabling TLS requires you to supply
+# a `tlsWildcardCert` and `tlsWildcardKey` (these will then be
+# 64 encoded as part of the secret creation) so those values
+# should simply contain the certificate and key (you can also
+# encrypt them with sops and use helm-wrapper, check README.md
+# for an example)
+tls:
+  enabled: true
+  # NOTE:
+  #  (1) enables automated certificate renewal provided by https://github.com/jetstack/cert-manager
+  #  (2) supersedes wildcard certificate configuration mentioned above
+  # IMPORTANT: requires cert-manager to be installed on the cluster beforehand, e.g.
+  #            `helm upgrade --install -n cert-manager-ns --set 'installCRDs=true' cert-manager jetstack/cert-manager`
+  #
+  useCertManager: false
+
+certManager:
+  # Indicates whether Letsencrypt's staging API server is used and therefore certificates are NOT trusted
+  # default: production API server is used and certificates are trusted
+  inTestMode: false
+  # NOTE:
+  #  (1) required to be set in values.yaml
+  #  (2) used by Letsencrypt to send expiration notices and alike
+  certmasterEmail:
+
+service:
+  nginz:
+    externalHttpPort: 8080
+    externalTcpPort: 8081
+  webapp:
+    externalPort: 8080
+  s3:
+    externalPort: 9000
+    serviceName: fake-aws-s3
+    externallyCreated: false # See note below
+  teamSettings:
+    externalPort: 8080
+  accountPages:
+    externalPort: 8080
+
+# You will need to supply some DNS names, namely
+# config:
+#   dns:
+#     https: nginz-https.<domain>
+#     ssl: nginz-ssl.<domain>
+#     webapp: webapp.<domain>
+#     fakeS3: assets.<domain>
+#     teamSettings: teams.<domain>
+#     ^ teamSettings is ignored unless teamSettings.enabled == true
+#     accountPages: account.<domain>
+#     ^ accountPages is ignored unless accountPages.enabled == true
+# For TLS
+# secrets:
+#     tlsWildcardCert: |
+#         -----BEGIN CERTIFICATE-----
+#         -----END CERTIFICATE-----
+#     tlsWildcardKey: |
+#         -----BEGIN PRIVATE KEY-----
+#         -----END PRIVATE KEY-----
+#
+# For Services:
+# service:
+#   s3:
+#     externallyCreated: true
+#     ^ externallyCreated might be useful if S3 access is provided by
+#       an external service such as `minio-external`: in such cases
+#       we do not want to create yet another service here but rather
+#       use that service instead in the ingress
+#     serviceName: minio-external

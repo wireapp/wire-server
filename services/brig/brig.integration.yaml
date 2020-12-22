@@ -131,6 +131,7 @@ turn:
 optSettings:
   setActivationTimeout: 5
   setTeamInvitationTimeout: 5
+  setExpiredUserCleanupTimeout: 1
   setTwilio: test/resources/twilio-credentials.yaml
   setNexmo: test/resources/nexmo-credentials.yaml
   # setStomp: test/resources/stomp-credentials.yaml

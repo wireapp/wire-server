@@ -8,8 +8,8 @@ logNetStrings: false
 optSettings:
   # Would you like to federate with every wire-server installation ?
   #
-  # setFederationStrategy:
-  #   allowAll:
+  setFederationStrategy:
+    allowAll:
   #
   # or only with a select set of other wire-server installations?
   #

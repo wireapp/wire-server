@@ -1,0 +1,23 @@
+replicaCount: 3
+image:
+  repository: quay.io/wire/spar
+  tag: do-not-use
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+service:
+  externalPort: 8080
+  internalPort: 8080
+config:
+  cassandra:
+    host: aws-cassandra
+  richInfoLimit: 5000
+  maxScimTokens: 0
+  logLevel: Info
+  maxttlAuthreq: 7200
+  maxttlAuthresp: 7200
+  proxy: {}

@@ -1,0 +1,98 @@
+dependencies:
+########################
+## wire-servers/database cassandra-migrations
+########################
+- name: cassandra-migrations
+  version: "0.0.42"
+  repository: "file://../cassandra-migrations"
+  tags:
+    - cassandra-migrations
+- name: elasticsearch-index
+  version: "0.0.42"
+  repository: "file://../elasticsearch-index"
+  tags:
+    - elasticsearch-index
+########################
+## wire-servers/services
+########################
+- name: cannon
+  version: "0.0.42"
+  repository: "file://../cannon"
+  tags:
+    - cannon
+    - haskellServices
+    - services
+- name: proxy
+  version: "0.0.42"
+  repository: "file://../proxy"
+  tags:
+    - proxy
+    - haskellServices
+    - services
+- name: cargohold
+  version: "0.0.42"
+  repository: "file://../cargohold"
+  tags:
+    - cargohold
+    - haskellServices
+    - services
+- name: gundeck
+  version: "0.0.42"
+  repository: "file://../gundeck"
+  tags:
+    - gundeck
+    - haskellServices
+    - services
+- name: spar
+  version: "0.0.42"
+  repository: "file://../spar"
+  tags:
+    - spar
+    - haskellServices
+    - services
+- name: galley
+  version: "0.0.42"
+  repository: "file://../galley"
+  tags:
+    - galley
+    - haskellServices
+    - services
+- name: brig
+  version: "0.0.42"
+  repository: "file://../brig"
+  tags:
+    - brig
+    - haskellServices
+    - services
+- name: nginz
+  version: "0.0.42"
+  repository: "file://../nginz"
+  tags:
+    - nginz
+    - services
+- name: webapp
+  version: "0.0.42"
+  repository: "file://../webapp"
+  tags:
+    - web
+    - webapp
+- name: team-settings
+  version: "0.0.42"
+  repository: "file://../team-settings"
+  tags:
+    - web
+    - team-settings
+    - private
+- name: account-pages
+  version: "0.0.42"
+  repository: "file://../account-pages"
+  tags:
+    - web
+    - account-pages
+    - private
+- name: legalhold
+  version: "0.0.42"
+  repository: "file://../legalhold"
+  tags:
+    - legalhold
+    - private

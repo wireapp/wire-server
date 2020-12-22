@@ -93,10 +93,12 @@ library:
   - scrypt >=0.5
   - smtp-mail >=0.1
   - split >=0.2
+  - safe-exceptions >=0.1
   - semigroups >=0.15
   - servant
   - servant-server
   - servant-swagger
+  - servant-swagger-ui
   - singletons >=2.0
   - stomp-queue >=0.3
   - string-conversions
@@ -182,6 +184,7 @@ executables:
     source-dirs: test/integration
     dependencies:
     - aeson
+    - lens-aeson
     - async
     - attoparsec
     - bilge
@@ -197,12 +200,15 @@ executables:
     - containers
     - cookie
     - data-timeout
+    - email-validate
     - extra
     - exceptions
     - filepath >=1.4
     - galley-types
     - gundeck-types
     - HsOpenSSL
+    - hscim
+    - http-api-data
     - http-client
     - http-client-tls >=0.2
     - http-types
@@ -211,15 +217,19 @@ executables:
     - lens-aeson
     - metrics-wai
     - mime >=0.4
+    - MonadRandom >= 0.5
     - network
     - options >=0.1
     - optparse-applicative
     - pem
     - proto-lens
+    - QuickCheck
     - random >=1.0
     - retry >=0.6
     - safe
+    - saml2-web-sso
     - semigroups
+    - spar
     - string-conversions
     - tasty >=1.0
     - tasty-cannon >=0.3.4

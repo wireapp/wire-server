@@ -1,0 +1,30 @@
+You can reach the fake AWS services at:
+
+{{- /*
+
+'index' is used to avoid
+
+[ERROR] templates/: parse error in "fake-aws/templates/NOTES.txt": template: fake-aws/templates/NOTES.txt:4: bad character U+002D '-'
+
+One needs to love helm chart inconsistencies like this one: https://github.com/helm/helm/issues/2192
+
+*/ -}}
+
+{{- if index .Values "fake-aws-sns" "enabled" }}
+SNS      : http://fake-aws-sns:{{ index .Values "fake-aws-sns" "service" "externalPort" }}
+{{- end }}
+{{- if index .Values "fake-aws-sqs" "enabled" }}
+SQS      : http://fake-aws-sqs:{{ index .Values "fake-aws-sqs" "service" "httpPort" }}
+  queues:
+{{ toYaml (index .Values "fake-aws-sqs" "queueNames") | indent 4 }}
+{{- end }}
+{{- if index .Values "fake-aws-s3" "enabled" }}
+S3       : http://fake-aws-s3:9000
+  bucket: {{ index .Values "fake-aws-s3" "minio" "defaultBucket" "name" }}
+{{- end }}
+{{- if index .Values "fake-aws-dynamodb" "enabled" }}
+DYNAMODB : http://fake-aws-dynamodb:{{ index .Values "fake-aws-dynamodb" "service" "externalPort" }}
+{{- end }}
+{{- if index .Values "fake-aws-ses" "enabled" }}
+SES      : http://fake-aws-ses:{{ index .Values "fake-aws-ses" "service" "externalPort" }}
+{{- end }}

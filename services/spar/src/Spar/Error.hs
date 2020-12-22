@@ -72,6 +72,7 @@ data SparCustomError
   | SparMissingZUsr
   | SparNotInTeam
   | SparNotTeamOwner
+  | SparNoPermission LT
   | SparSSODisabled
   | SparInitLoginWithAuth
   | SparInitBindWithoutAuth
@@ -161,6 +162,7 @@ renderSparError (SAML.CustomError SparIdPNotFound) = Right $ Wai.Error status404
 renderSparError (SAML.CustomError SparMissingZUsr) = Right $ Wai.Error status400 "client-error" "[header] 'Z-User' required"
 renderSparError (SAML.CustomError SparNotInTeam) = Right $ Wai.Error status403 "no-team-member" "Requesting user is not a team member or not a member of this team."
 renderSparError (SAML.CustomError SparNotTeamOwner) = Right $ Wai.Error status403 "insufficient-permissions" "You need to be a team owner."
+renderSparError (SAML.CustomError (SparNoPermission perm)) = Right $ Wai.Error status403 "insufficient-permissions" ("You need permission " <> cs perm <> ".")
 renderSparError (SAML.CustomError SparSSODisabled) = Right $ Wai.Error status403 "sso-disabled" "Please ask customer support to enable this feature for your team."
 renderSparError (SAML.CustomError SparInitLoginWithAuth) = Right $ Wai.Error status403 "login-with-auth" "This end-point is only for login, not binding."
 renderSparError (SAML.CustomError SparInitBindWithoutAuth) = Right $ Wai.Error status403 "bind-without-auth" "This end-point is only for binding, not login."

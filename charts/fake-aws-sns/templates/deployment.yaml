@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "fullname" . }}
+  labels:
+    app: {{ template "fullname" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ template "fullname" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "fullname" . }}
+    spec:
+      containers:
+      - name: fake-aws-sns
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        env:
+          - name: DEBUG
+            value: "1"
+          - name: DEFAULT_REGION
+            value: "eu-west-1"
+          - name: SERVICES
+            value: "sns"
+        ports:
+        - containerPort: {{ .Values.service.internalPort }}
+          name: http
+          protocol: TCP
+        volumeMounts:
+        - name: storage
+          mountPath: /data
+        resources:
+{{ toYaml .Values.resources | indent 12 }}
+      - name: initiate-fake-aws-sns
+        image: mesosphere/aws-cli:1.14.5
+        command: [/bin/sh]
+        args:
+        - -c
+        - |
+          exec_until_ready() {
+              until $1; do echo 'service not ready yet'; sleep 1; done
+          }
+          application_exists() {
+              OUTPUT=$(aws --endpoint-url=http://localhost:{{ $.Values.service.internalPort }} sns list-platform-applications | grep $1 | wc -l)
+              echo $OUTPUT
+          }
+          echo 'Creating AWS resources'
+          aws configure set aws_access_key_id dummy
+          aws configure set aws_secret_access_key dummy
+          aws configure set region eu-west-1
+
+          while true
+          do
+              {{ range $i, $app := .Values.applications }}
+                  APPLICATION=$(application_exists "{{ $app.platform }}/{{ $app.name }}")
+                  if [ "$APPLICATION" == "1" ]
+                    then echo "Application {{ $app.name }} exists, no need to re-create"
+                    else exec_until_ready "aws --endpoint-url=http://localhost:{{ $.Values.service.internalPort }} sns create-platform-application --name {{ $app.name }} --platform {{ $app.platform }} --attributes PlatformCredential={{ $app.credential }}"
+                  fi
+              {{ end }}
+              echo "Resources created, sleeping for 10, to keep this container (and thus the pod) alive"
+              sleep 10
+          done
+      volumes:
+        - emptyDir: {}
+          name: "storage"

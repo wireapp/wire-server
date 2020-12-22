@@ -1,0 +1,15 @@
+# The public domain name on which legalhold is hosted
+# host: ""
+
+# The TLS private key
+# tlsKey: ""
+
+# The certificate and for the legalhold service. Must be a valid
+# certificate  or .Values.host
+# tlsCrt: ""
+
+# The public URI on which Wire is reachable
+# wireApiHost: ""
+
+# The shared secret that the backend uses to authenticate to legalhold
+# serviceToken: ""

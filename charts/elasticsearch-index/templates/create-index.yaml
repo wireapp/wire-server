@@ -1,0 +1,48 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: elasticsearch-index-create
+  labels:
+    wireService: elasticsearch-index-create
+    app: elasticsearch-index-create
+    heritage: {{.Release.Service | quote }}
+    release: {{.Release.Name | quote }}
+    chart: "{{.Chart.Name}}-{{.Chart.Version}}"
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+spec:
+  template:
+    metadata:
+      name: "{{.Release.Name}}"
+      labels:
+        wireService: elasticsearch-index-create
+        app: elasticsearch-index-create
+        heritage: {{.Release.Service | quote }}
+        release: {{.Release.Name | quote }}
+        chart: "{{.Chart.Name}}-{{.Chart.Version}}"
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+        # Creates index in elasticsearch only when it doesn't exist.
+        # Does nothing if the index exists.
+        - name: brig-index-create
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          args:
+            - create
+            - --elasticsearch-server
+            - "http://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
+            - --elasticsearch-index
+            - "{{ .Values.elasticsearch.index }}"
+            - --elasticsearch-shards=5
+            - --elasticsearch-replicas=2
+            - --elasticsearch-refresh-interval=5
+      containers:
+        - name: brig-index-update-mapping
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          args:
+            - update-mapping
+            - --elasticsearch-server
+            - "http://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
+            - --elasticsearch-index
+            - "{{ .Values.elasticsearch.index }}"

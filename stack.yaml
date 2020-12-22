@@ -42,6 +42,7 @@ packages:
 - tools/db/service-backfill
 - tools/db/billing-team-member-backfill
 - tools/db/find-undead
+- tools/db/move-team
 - tools/makedeb
 - tools/rex
 - tools/stern
@@ -166,6 +167,7 @@ extra-deps:
 - servant-0.18.2
 - servant-server-0.18.2
 - servant-mock-0.8.7
+- servant-swagger-ui-0.3.4.3.36.1
 - git: https://github.com/wireapp/servant-swagger.git
   commit: 23e9afafadaade29d21181b935286087457171e3
 

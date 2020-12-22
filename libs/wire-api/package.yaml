@@ -35,6 +35,7 @@ library:
   - generic-random >=1.2
   - hashable
   - hostname-validate
+  - insert-ordered-containers
   - iproute >=1.5
   - iso3166-country-codes >=0.2
   - iso639 >=0.1
@@ -67,6 +68,7 @@ tests:
     - base
     - bytestring-conversion
     - wire-api
+    - uuid
     - aeson-qq
     - lens
     - swagger2

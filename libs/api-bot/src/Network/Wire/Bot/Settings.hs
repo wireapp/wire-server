@@ -34,8 +34,11 @@ module Network.Wire.Bot.Settings
   )
 where
 
+import qualified Data.Attoparsec.ByteString as A
 import Data.ByteString.Char8 (pack)
+import Data.Domain
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import Data.Time.Clock (NominalDiffTime)
 import Imports
 import Network.Wire.Client.API.User (Email (..), parseEmail)
@@ -54,6 +57,7 @@ data BotNetSettings = BotNetSettings
     setBotNetMailboxConfig :: !(Maybe FilePath),
     setBotNetSender :: !Email,
     setBotNetUsersFile :: !(Maybe FilePath),
+    setBotNetFederationDomain :: !Domain,
     setBotNetReportDir :: !(Maybe FilePath),
     setBotNetBotSettings :: !BotSettings,
     setBotNetMailboxFolders :: ![String]
@@ -72,6 +76,7 @@ botNetSettingsParser =
     <*> mailboxConfigOption
     <*> mailSenderOption
     <*> usersFileOption
+    <*> usersFederationDomain
     <*> reportDirOption
     <*> botSettingsParser
     <*> mailboxFoldersOption
@@ -141,6 +146,14 @@ usersFileOption =
         "Path to users file; which is a headerless csv \
         \ containing a list of ALREADY EXISTING users with the columns: \
         \ User-Id,Email,Password"
+
+usersFederationDomain :: Parser (Domain)
+usersFederationDomain =
+  domainOption $
+    long "users-federation-domain"
+      <> metavar "DOMAIN"
+      <> help
+        "federationDomain of all users from the usersFile CSV"
 
 reportDirOption :: Parser (Maybe FilePath)
 reportDirOption =
@@ -276,3 +289,9 @@ emailOption =
     maybe (Left "Invalid email") Right
       . parseEmail
       . Text.pack
+
+attoReadM :: A.Parser a -> ReadM a
+attoReadM p = eitherReader (A.parseOnly p . Text.encodeUtf8 . Text.pack)
+
+domainOption :: Mod OptionFields Domain -> Parser Domain
+domainOption = option $ attoReadM domainParser

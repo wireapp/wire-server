@@ -479,7 +479,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
         (uid, teamid, idp, (_, privcreds)) <- registerTestIdPWithMeta
         (subj, _, _) <- initialBind uid idp privcreds
         uid' <-
-          let Just perms = Galley.newPermissions mempty mempty
+          let perms = Galley.noPermissions
            in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
         (_, sparresp) <- reBindSame uid' idp privcreds subj
         checkDenyingAuthnResp sparresp "subject-id-taken"
@@ -530,24 +530,25 @@ testGetPutDelete whichone = do
       whichone (env ^. teSpar) Nothing (IdPId UUID.nil) idpmeta
         `shouldRespondWith` checkErrHspec 404 "not-found"
   context "no zuser" $ do
-    it "responds with 'client error'" $ do
+    it "responds with 'insufficient permissions'" $ do
       env <- ask
       (_, _, (^. idpId) -> idpid, (idpmeta, _)) <- registerTestIdPWithMeta
       whichone (env ^. teSpar) Nothing idpid idpmeta
-        `shouldRespondWith` checkErrHspec 400 "client-error"
+        `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
+
   context "zuser has no team" $ do
-    it "responds with 'no team member'" $ do
+    it "responds with 'insufficient permissions'" $ do
       env <- ask
       (_, _, (^. idpId) -> idpid, (idpmeta, _)) <- registerTestIdPWithMeta
       (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
       whichone (env ^. teSpar) (Just uid) idpid idpmeta
-        `shouldRespondWith` checkErrHspec 403 "no-team-member"
+        `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
   context "zuser is a team member, but not a team owner" $ do
     it "responds with 'insufficient-permissions' and a helpful message" $ do
       env <- ask
       (_, teamid, (^. idpId) -> idpid, (idpmeta, _)) <- registerTestIdPWithMeta
       newmember <-
-        let Just perms = Galley.newPermissions mempty mempty
+        let perms = Galley.noPermissions
          in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
       whichone (env ^. teSpar) (Just newmember) idpid idpmeta
         `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
@@ -571,12 +572,12 @@ specCRUDIdentityProvider = do
   describe "GET /identity-providers/:idp" $ do
     testGetPutDelete (\o t i _ -> callIdpGet' o t i)
     context "zuser has wrong team" $ do
-      it "responds with 'no team member'" $ do
+      it "responds with 'insufficient permissions'" $ do
         env <- ask
         (_, _, (^. idpId) -> idpid) <- registerTestIdP
         (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
         callIdpGet' (env ^. teSpar) (Just uid) idpid
-          `shouldRespondWith` checkErrHspec 403 "no-team-member"
+          `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
     context "known IdP, client is team owner" $ do
       it "responds with 2xx and IdP" $ do
         env <- ask
@@ -595,7 +596,7 @@ specCRUDIdentityProvider = do
         (_owner :: UserId, teamid :: TeamId) <-
           call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
         member :: UserId <-
-          let Just perms = Galley.newPermissions mempty mempty
+          let perms = Galley.noPermissions
            in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
         callIdpGetAll' (env ^. teSpar) (Just member)
           `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
@@ -631,7 +632,21 @@ specCRUDIdentityProvider = do
         (_, _, (^. idpId) -> idpid) <- registerTestIdP
         (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
         callIdpDelete' (env ^. teSpar) (Just uid) idpid
-          `shouldRespondWith` checkErrHspec 403 "no-team-member"
+          `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
+    context "zuser is admin resp. member" $ do
+      it "responds 204 resp. 403" $ do
+        env <- ask
+        (_, tid, (^. idpId) -> idpid) <- registerTestIdP
+        let mkUser :: Galley.Role -> TestSpar UserId
+            mkUser role = do
+              let perms = Galley.rolePermissions role
+              call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
+        admin <- mkUser Galley.RoleAdmin
+        member <- mkUser Galley.RoleMember
+        callIdpDelete' (env ^. teSpar) (Just member) idpid
+          `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
+        callIdpDelete' (env ^. teSpar) (Just admin) idpid
+          `shouldRespondWith` ((== 204) . statusCode)
     context "known IdP, IdP empty, client is team owner, without email" $ do
       it "responds with 2xx and removes IdP" $ do
         env <- ask
@@ -838,7 +853,7 @@ specCRUDIdentityProvider = do
         env <- ask
         (_owner, tid, idp) <- registerTestIdP
         newmember <-
-          let Just perms = Galley.newPermissions mempty mempty
+          let perms = Galley.noPermissions
            in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
         callIdpCreate' (env ^. teSpar) (Just newmember) (idp ^. idpMetadata)
           `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
@@ -1144,10 +1159,9 @@ specAux = do
               liftIO $ userTeam parsedResp `shouldSatisfy` isJust
           permses :: [Galley.Permissions]
           permses =
-            fromJust
-              <$> [ Just Galley.fullPermissions,
-                    Galley.newPermissions mempty mempty
-                  ]
+            [ Galley.fullPermissions,
+              Galley.noPermissions
+            ]
       sequence_ [check tryowner perms | tryowner <- [minBound ..], perms <- [0 .. (length permses - 1)]]
 
 specSsoSettings :: SpecWith TestEnv

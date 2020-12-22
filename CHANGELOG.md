@@ -14,6 +14,42 @@
 
 -->
 
+# [2020-12-21]
+
+## Release Notes
+
+* upgrade spar before brig
+* upgrade nginz
+
+## Features
+
+* Increase the max allowed search results from 100 to 500. (#1282)
+
+## Bug fixes and other updates
+
+* SCIM: Allow strings for boolean values (#1296)
+* Extend SAML IdP/SCIM permissions to admins (not just owners) (#1274, #1280)
+* Clean up SCIM-invited users with expired invitation (#1264)
+* move-team: CLI to export/import team data (proof of concept, needs testing) (#1288)
+* Change some error labels for status 403 responses under `/identity-providers` (used by team-settings only) (#1274)
+* [federation] Data.Qualified: Better field names (#1290)
+* [federation] Add endpoint to get User Id by qualified handle (#1281, #1297)
+* [federation] Remove DB tables for ID mapping (#1287)
+* [federation] servantify /self endpoint, add `qualified_id` field (#1283)
+
+## Documentation
+
+* Integrate servant-swagger-ui to brig (#1270)
+
+## Internal changes
+
+* import all charts from wire-server-deploy/develop as of 2012-12-17 (#1293)
+* Migrate code for easier CI (#1294)
+* unit test and fix for null values in rendered JSON in UserProfile (#1292)
+* hscim: Bump upper bound for servant packages (#1285)
+* drive-by fix: allow federator to locally start up by specifying config (#1283)
+
+
 # 2020-12-15
 
 ## Release Notes

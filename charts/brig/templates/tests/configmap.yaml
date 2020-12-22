@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "brig-integration"
+data:
+  integration.yaml: |
+    brig:
+      # Full URL is set so that there can be a common cookiedomain between nginz and brig
+      # needed by some integration tests
+      host: brig.{{ .Release.Namespace }}.svc.cluster.local
+      port: {{ .Values.service.internalPort }}
+
+    cannon:
+      host: cannon
+      port: 8080
+
+    galley:
+      host: galley
+      port: 8080
+
+    cargohold:
+      host: cargohold
+      port: 8080
+
+    spar:
+      host: spar
+      port: 8080
+
+    nginz:
+      # Full URL is set so that there can be a common cookiedomain between nginz and brig
+      # needed by some integration tests
+      host: nginz-integration-http.{{ .Release.Namespace }}.svc.cluster.local
+      port: 8080
+
+    provider:
+      privateKey: /etc/wire/integration-secrets/provider-privatekey.pem
+      publicKey: /etc/wire/integration-secrets/provider-publickey.pem
+      cert: /etc/wire/integration-secrets/provider-publiccert.pem
+      botHost: https://brig-integration
+      botPort: 9000

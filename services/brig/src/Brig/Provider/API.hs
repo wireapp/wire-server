@@ -29,7 +29,7 @@ import qualified Brig.API.Client as Client
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types (PasswordResetError (..))
-import Brig.App (AppIO, internalEvents, settings)
+import Brig.App (AppIO, internalEvents, settings, viewFederationDomain)
 import qualified Brig.Code as Code
 import qualified Brig.Data.Client as User
 import qualified Brig.Data.User as User
@@ -66,6 +66,7 @@ import Data.List1 (maybeList1)
 import qualified Data.Map.Strict as Map
 import Data.Misc (Fingerprint (..), Rsa)
 import Data.Predicate
+import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Swagger.Build.Api as Doc
@@ -829,6 +830,7 @@ addBot zuid zcon cid add = do
       throwStd serviceNotWhitelisted
   -- Prepare a user ID, client ID and token for the bot.
   bid <- BotId <$> randomId
+  domain <- viewFederationDomain
   btk <- Text.decodeLatin1 . toByteString' <$> ZAuth.newBotToken pid bid cid
   let bcl = newClientId (fromIntegral (hash bid))
   -- Ask the external service to create a bot
@@ -846,7 +848,7 @@ addBot zuid zcon cid add = do
   let colour = fromMaybe defaultAccentId (Ext.rsNewBotColour rs)
   let pict = Pict [] -- Legacy
   let sref = newServiceRef sid pid
-  let usr = User (botUserId bid) Nothing name pict assets colour False locale (Just sref) Nothing Nothing Nothing ManagedByWire
+  let usr = User (botUserId bid) (Qualified (botUserId bid) domain) Nothing name pict assets colour False locale (Just sref) Nothing Nothing Nothing ManagedByWire
   let newClt =
         (newClient PermanentClientType (Ext.rsNewBotLastPrekey rs))
           { newClientPrekeys = Ext.rsNewBotPrekeys rs

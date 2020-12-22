@@ -158,7 +158,7 @@ randomScimUserWithEmail = do
 randomScimEmail :: MonadRandom m => m Email.Email
 randomScimEmail = do
   let typ :: Maybe Text = Nothing
-      primary :: Maybe Bool = Nothing -- TODO: where should we catch users with more than one
+      primary :: Maybe Scim.ScimBool = Nothing -- TODO: where should we catch users with more than one
       -- primary email?
   value :: Email.EmailAddress2 <- do
     localpart <- cs <$> replicateM 15 (getRandomR ('a', 'z'))

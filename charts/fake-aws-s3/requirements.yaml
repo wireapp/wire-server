@@ -1,0 +1,4 @@
+dependencies:
+- name: minio
+  version: 8.0.3
+  repository: https://helm.min.io/

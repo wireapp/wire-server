@@ -1,0 +1,7 @@
+Upon error, check the init container logs with e.g.
+
+MIGRATIONS=$(kubectl --namespace {{ .Release.Namespace }} get pods | grep cassandra-migrations- | awk '{print $1}')
+kubectl --namespace {{ .Release.Namespace }} logs "$MIGRATIONS" -c gundeck-schema -f
+kubectl --namespace {{ .Release.Namespace }} logs "$MIGRATIONS" -c brig-schema -f
+kubectl --namespace {{ .Release.Namespace }} logs "$MIGRATIONS" -c galley-schema -f
+kubectl --namespace {{ .Release.Namespace }} logs "$MIGRATIONS" -c spar-schema -f

@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -31,11 +32,13 @@ module Data.Qualified
     renderQualifiedHandle,
     mkQualifiedHandle,
     partitionRemoteOrLocalIds,
+    deprecatedUnqualifiedSchemaRef,
   )
 where
 
 import Control.Applicative (optional)
-import Data.Aeson (FromJSON, ToJSON, withText)
+import Control.Lens (view, (.~), (?~))
+import Data.Aeson (FromJSON, ToJSON, withObject, withText, (.:), (.=))
 import qualified Data.Aeson as Aeson
 import qualified Data.Attoparsec.ByteString.Char8 as Atto
 import Data.Bifunctor (first)
@@ -43,7 +46,10 @@ import Data.ByteString.Conversion (FromByteString (parser))
 import Data.Domain (Domain, domainText)
 import Data.Handle (Handle (..))
 import Data.Id (Id (toUUID))
+import Data.Proxy (Proxy (..))
 import Data.String.Conversions (cs)
+import Data.Swagger
+import Data.Swagger.Declare (Declare)
 import qualified Data.Text.Encoding as Text.E
 import qualified Data.UUID as UUID
 import Imports hiding (local)
@@ -54,8 +60,8 @@ import Test.QuickCheck (Arbitrary (arbitrary))
 -- OPTIONALLY QUALIFIED
 
 data OptionallyQualified a = OptionallyQualified
-  { _oqLocalPart :: a,
-    _oqDomain :: Maybe Domain
+  { oqUnqualified :: a,
+    oqDomain :: Maybe Domain
   }
   deriving (Eq, Show)
 
@@ -90,8 +96,8 @@ instance FromByteString (OptionallyQualified Handle) where
 -- QUALIFIED
 
 data Qualified a = Qualified
-  { _qLocalPart :: a,
-    _qDomain :: Domain
+  { qUnqualified :: a,
+    qDomain :: Domain
   }
   deriving stock (Eq, Ord, Show, Generic)
 
@@ -117,8 +123,8 @@ qualifiedParser localParser = do
 
 partitionRemoteOrLocalIds :: Foldable f => Domain -> f (Qualified a) -> ([Qualified a], [a])
 partitionRemoteOrLocalIds localDomain = foldMap $ \qualifiedId ->
-  if (_qDomain qualifiedId == localDomain)
-    then (mempty, [_qLocalPart qualifiedId])
+  if qDomain qualifiedId == localDomain
+    then (mempty, [qUnqualified qualifiedId])
     else ([qualifiedId], mempty)
 
 ----------------------------------------------------------------------
@@ -129,11 +135,36 @@ renderQualifiedId = renderQualified (cs . UUID.toString . toUUID)
 mkQualifiedId :: Text -> Either String (Qualified (Id a))
 mkQualifiedId = Atto.parseOnly (parser <* Atto.endOfInput) . Text.E.encodeUtf8
 
+deprecatedUnqualifiedSchemaRef :: ToSchema a => Proxy a -> Text -> Declare (Definitions Schema) (Referenced Schema)
+deprecatedUnqualifiedSchemaRef p newField =
+  Inline
+    . (description ?~ ("Deprecated, use " <> newField))
+    . view schema
+    <$> declareNamedSchema p
+
+instance ToSchema (Qualified (Id a)) where
+  declareNamedSchema _ = do
+    idSchema <- declareSchemaRef (Proxy @(Id a))
+    domainSchema <- declareSchemaRef (Proxy @Domain)
+    return $
+      NamedSchema (Just "QualifiedId") $
+        mempty
+          & type_ ?~ SwaggerObject
+          & properties
+            .~ [ ("id", idSchema),
+                 ("domain", domainSchema)
+               ]
+
 instance ToJSON (Qualified (Id a)) where
-  toJSON = Aeson.String . renderQualifiedId
+  toJSON qu =
+    Aeson.object
+      [ "id" .= qUnqualified qu,
+        "domain" .= qDomain qu
+      ]
 
 instance FromJSON (Qualified (Id a)) where
-  parseJSON = withText "QualifiedUserId" $ either fail pure . mkQualifiedId
+  parseJSON = withObject "QualifiedUserId" $ \o ->
+    Qualified <$> o .: "id" <*> o .: "domain"
 
 instance FromHttpApiData (Qualified (Id a)) where
   parseUrlPiece = first cs . mkQualifiedId
