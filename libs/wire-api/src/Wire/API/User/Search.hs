@@ -21,10 +21,12 @@
 module Wire.API.User.Search
   ( SearchResult (..),
     Contact (..),
+    TeamContact (..),
 
     -- * Swagger
     modelSearchResult,
     modelSearchContact,
+    modelTeamContact,
   )
 where
 
@@ -33,6 +35,7 @@ import Data.Id (TeamId, UserId)
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.API.User.Identity (Email (..))
 
 --------------------------------------------------------------------------------
 -- SearchResult
@@ -46,8 +49,8 @@ data SearchResult a = SearchResult
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform (SearchResult a))
 
-modelSearchResult :: Doc.Model
-modelSearchResult = Doc.defineModel "SearchResult" $ do
+modelSearchResult :: Doc.Model -> Doc.Model
+modelSearchResult modelContact = Doc.defineModel "SearchResult" $ do
   Doc.description "Search Result"
   Doc.property "found" Doc.int32' $
     Doc.description "Total number of hits"
@@ -55,7 +58,7 @@ modelSearchResult = Doc.defineModel "SearchResult" $ do
     Doc.description "Number of hits returned"
   Doc.property "took" Doc.int32' $
     Doc.description "Search time in ms"
-  Doc.property "documents" (Doc.array (Doc.ref modelSearchContact)) $
+  Doc.property "documents" (Doc.array (Doc.ref modelContact)) $
     Doc.description "List of contacts found"
 
 instance ToJSON a => ToJSON (SearchResult a) where
@@ -78,7 +81,8 @@ instance FromJSON a => FromJSON (SearchResult a) where
 --------------------------------------------------------------------------------
 -- Contact
 
--- | This is a subset of 'User' and json instances should reflect that.
+-- | Returned by 'searchIndex' under @/contacts/search@.
+-- This is a subset of 'User' and json instances should reflect that.
 data Contact = Contact
   { contactUserId :: UserId,
     contactName :: Text,
@@ -124,3 +128,59 @@ instance FromJSON Contact where
         <*> o .:? "accent_id"
         <*> o .:? "handle"
         <*> o .:? "team"
+
+--------------------------------------------------------------------------------
+-- TeamContact
+
+-- | Returned by 'browseTeam' under @/contacts/browse-team/:tid@.
+data TeamContact = TeamContact
+  { teamContactUserId :: UserId,
+    teamContactName :: Text,
+    teamContactColorId :: Maybe Int,
+    teamContactHandle :: Maybe Text,
+    teamContactTeam :: Maybe TeamId,
+    teamContactEmail :: Maybe Email
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform TeamContact)
+
+modelTeamContact :: Doc.Model
+modelTeamContact = Doc.defineModel "TeamContact" $ do
+  Doc.description "Contact discovered through search"
+  Doc.property "id" Doc.string' $
+    Doc.description "User ID"
+  Doc.property "name" Doc.string' $
+    Doc.description "Name"
+  Doc.property "handle" Doc.string' $
+    Doc.description "Handle"
+  Doc.property "accent_id" Doc.int32' $ do
+    Doc.description "Accent color"
+    Doc.optional
+  Doc.property "team" Doc.string' $ do
+    Doc.description "Team ID"
+    Doc.optional
+  Doc.property "email" Doc.string' $ do
+    Doc.description "Email address"
+    Doc.optional
+
+instance ToJSON TeamContact where
+  toJSON c =
+    object
+      [ "id" .= teamContactUserId c,
+        "name" .= teamContactName c,
+        "accent_id" .= teamContactColorId c,
+        "handle" .= teamContactHandle c,
+        "team" .= teamContactTeam c,
+        "email" .= teamContactEmail c
+      ]
+
+instance FromJSON TeamContact where
+  parseJSON =
+    withObject "Contact" $ \o ->
+      TeamContact
+        <$> o .: "id"
+        <*> o .: "name"
+        <*> o .:? "accent_id"
+        <*> o .:? "handle"
+        <*> o .:? "team"
+        <*> o .:? "email"

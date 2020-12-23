@@ -177,6 +177,8 @@ models =
     User.Profile.modelAsset,
     User.RichInfo.modelRichInfo,
     User.RichInfo.modelRichField,
-    User.Search.modelSearchResult,
-    User.Search.modelSearchContact
+    User.Search.modelSearchResult User.Search.modelSearchContact,
+    User.Search.modelSearchResult User.Search.modelTeamContact,
+    User.Search.modelSearchContact,
+    User.Search.modelTeamContact
   ]
