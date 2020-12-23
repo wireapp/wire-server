@@ -35,24 +35,25 @@ import Imports
 
 -- | Claim a new handle for an existing 'User'.
 claimHandle :: UserId -> Maybe Handle -> Handle -> AppIO Bool
-claimHandle uid oldHandle newHandle = isJust <$> do
-  owner <- lookupHandle newHandle
-  case owner of
-    Just uid' | uid /= uid' -> return Nothing
-    _ -> do
-      env <- ask
-      let key = "@" <> fromHandle newHandle
-      withClaim uid key (30 # Minute) $
-        runAppT env $
-          do
-            -- Record ownership
-            retry x5 $ write handleInsert (params Quorum (newHandle, uid))
-            -- Update profile
-            result <- User.updateHandle uid newHandle
-            -- Free old handle (if it changed)
-            for_ (mfilter (/= newHandle) oldHandle) $
-              freeHandle uid
-            return result
+claimHandle uid oldHandle newHandle =
+  isJust <$> do
+    owner <- lookupHandle newHandle
+    case owner of
+      Just uid' | uid /= uid' -> return Nothing
+      _ -> do
+        env <- ask
+        let key = "@" <> fromHandle newHandle
+        withClaim uid key (30 # Minute) $
+          runAppT env $
+            do
+              -- Record ownership
+              retry x5 $ write handleInsert (params Quorum (newHandle, uid))
+              -- Update profile
+              result <- User.updateHandle uid newHandle
+              -- Free old handle (if it changed)
+              for_ (mfilter (/= newHandle) oldHandle) $
+                freeHandle uid
+              return result
 
 -- | Free a 'Handle', making it available to be claimed again.
 freeHandle :: UserId -> Handle -> AppIO ()
