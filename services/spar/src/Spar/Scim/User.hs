@@ -581,7 +581,7 @@ assertHandleNotUsedElsewhere :: UserId -> Handle -> Scim.ScimHandler Spar ()
 assertHandleNotUsedElsewhere uid hndl = do
   musr <- lift $ Brig.getBrigUser Brig.WithPendingInvitations uid
   unless ((userHandle =<< musr) == Just hndl) $
-    assertHandleUnused' "userName does not match UserId" hndl
+    assertHandleUnused' "userName already in use by another wire user" hndl
 
 -- | Helper function that translates a given brig user into a 'Scim.StoredUser', with some
 -- effects like updating the 'ManagedBy' field in brig and storing creation and update time
