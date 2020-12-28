@@ -119,9 +119,7 @@ CURL_OUT=$(curl -i -s --show-error \
 REGULAR_TEAM_MEMBER_UUID=$(echo "$CURL_OUT" | tail -1 | sed 's/.*\"id\":\"\([a-z0-9-]*\)\".*/\1/')
 
 
-################################################################################
 # Create user via SCIM invitation
-################################################################################
 
 
 scimUserName=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)
