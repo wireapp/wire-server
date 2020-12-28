@@ -13,8 +13,8 @@ This bash script craates
 4) a regular user via team invitation
 5) a scim-managed user (without IDP)
 
-Note that this uses internal brig endpoints. It is not exposed over
-nginz and can only be used if you have direct access to brig.
+Note that this uses internal brig and spar endpoints. It is not exposed over
+nginz and can only be used if you have direct access to brig and spar simultaneously.
 
 USAGE: $0
     -h <host>: Base URI of brig. default: ${BRIG_HOST}
