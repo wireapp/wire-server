@@ -104,8 +104,8 @@ data ReAuthError
   = ReAuthError !AuthError
   | ReAuthMissingPassword
 
-newAccount :: NewUser -> Maybe InvitationId -> Maybe TeamId -> AppIO (UserAccount, Maybe Password)
-newAccount u inv tid = do
+newAccount :: NewUser -> Maybe InvitationId -> Maybe TeamId -> Maybe Handle -> AppIO (UserAccount, Maybe Password)
+newAccount u inv tid mbHandle = do
   defLoc <- setDefaultLocale <$> view settings
   domain <- viewFederationDomain
   uid <-
@@ -138,7 +138,7 @@ newAccount u inv tid = do
     colour = fromMaybe defaultAccentId (newUserAccentId u)
     locale defLoc = fromMaybe defLoc (newUserLocale u)
     managedBy = fromMaybe defaultManagedBy (newUserManagedBy u)
-    user uid domain l e = User uid (Qualified uid domain) ident name pict assets colour False l Nothing Nothing e tid managedBy
+    user uid domain l e = User uid (Qualified uid domain) ident name pict assets colour False l Nothing mbHandle e tid managedBy
 
 newAccountInviteViaScim :: UserId -> TeamId -> Maybe Locale -> Name -> Email -> AppIO UserAccount
 newAccountInviteViaScim uid tid locale name email = do
