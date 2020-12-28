@@ -10,7 +10,7 @@ This bash script craates
 1) team
 2) team admin
 3) scim token
-4) a regular via team invitation
+4) a regular user via team invitation
 5) a scim-managed user (without IDP)
 
 Note that this uses internal brig endpoints. It is not exposed over
