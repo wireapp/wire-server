@@ -74,7 +74,6 @@ SCIM_TOKEN=$(echo $SCIM_TOKEN_FULL | jq -r .token)
 SCIM_TOKEN_ID=$(echo $SCIM_TOKEN_FULL | jq -r .info.id)
 
 
-
 # Create regular user via team invitation
 
 REGULAR_USER_EMAIL=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)"@example.com"
