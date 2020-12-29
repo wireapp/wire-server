@@ -12,7 +12,6 @@
 # for more info see https://github.com/hypnoglow/helm-s3
 
 set -eo pipefail
-set -x
 
 USAGE="Upload helm charts to S3. Usage: $0 to upload all charts or $0 <chart-directory> to sync only a single one. --force-push can be used to override S3 artifacts. --reindex can be used to force a complete reindexing in case the index is malformed."
 
@@ -48,7 +47,9 @@ if [ -n "$chart_dir" ] && [ -d "$chart_dir" ]; then
     echo "only syncing $chart_name"
     charts=( "$chart_name" )
 else
-    charts=( $(find $CHART_DIR/ -maxdepth 1 -type d | sed -n "s=$CHART_DIR/\(.\+\)=\1 =p") )
+    charts=$(make -s -C "$TOP_LEVEL_DIR" echo-release-charts)
+    # See Makefile/ CHARTS_RELEASE FUTUREWORK
+    #charts=( $(find $CHART_DIR/ -maxdepth 1 -type d | sed -n "s=$CHART_DIR/\(.\+\)=\1 =p") )
 fi
 
 # install s3 plugin if not present
@@ -108,7 +109,7 @@ if [[ $1 == *--reindex* || $2 == *--reindex* || $3 == *--reindex* ]]; then
 else
     # update local cache with newly pushed charts
     helm repo update
-    printf "\n--> Not reindexing by default. Pass the --reindex flag in case the index.yaml is incomplete. See all wire charts using \n helm search $REPO_NAME/ -l\n\n"
+    printf "\n--> Not reindexing by default. Pass the --reindex flag in case the index.yaml is incomplete. See all wire charts using \n helm search repo $REPO_NAME/ -l\n\n"
 fi
 
 
