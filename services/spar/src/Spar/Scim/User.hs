@@ -566,7 +566,7 @@ assertExternalIdNotUsedElsewhere :: ST.ValidExternalId -> UserId -> Scim.ScimHan
 assertExternalIdNotUsedElsewhere veid wireUserId = do
   mExistingUserId <- lift $ getUser veid
   unless (mExistingUserId `elem` [Nothing, Just wireUserId]) $ do
-    throwError Scim.conflict {Scim.detail = Just "externalId does not match UserId"}
+    throwError Scim.conflict {Scim.detail = Just "externalId already in use by another Wire user"}
 
 assertHandleUnused :: Handle -> Scim.ScimHandler Spar ()
 assertHandleUnused = assertHandleUnused' "userName is already taken"
