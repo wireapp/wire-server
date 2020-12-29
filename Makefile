@@ -1,6 +1,8 @@
 SHELL                 := /usr/bin/env bash
 LANG                  := en_US.UTF-8
 DOCKER_USER           ?= quay.io/wire
+# kubernetes namespace for running integration tests
+NAMESPACE             ?= test-$(USER)
 # default docker image tag is your system username, you can override it via environment variable.
 DOCKER_TAG            ?= $(USER)
 # default helm chart version must be 0.0.42 for local development (because 42 is the answer to the universe and everything)
@@ -8,7 +10,10 @@ HELM_SEMVER           ?= 0.0.42
 # The list of helm charts needed for integration tests on kubernetes
 CHARTS_INTEGRATION    := wire-server databases-ephemeral fake-aws
 # The list of helm charts to publish on S3
-# FUTUREWORK: after we "inline local subcharts", i.e. move charts/brig to charts/wire-server/brig this list could be generated from the folder names under ./charts/
+# FUTUREWORK: after we "inline local subcharts",
+# (e.g. move charts/brig to charts/wire-server/brig)
+# this list could be generated from the folder names under ./charts/ like so:
+# CHARTS_RELEASE := $(shell find charts/ -maxdepth 1 -type d | xargs -n 1 basename | grep -v charts)
 CHARTS_RELEASE        := wire-server databases-ephemeral fake-aws aws-ingress backoffice calling-test demo-smtp elasticsearch-curator elasticsearch-external fluent-bit minio-external cassandra-external nginx-ingress-controller nginx-ingress-services reaper wire-server-metrics sftd
 
 default: fast
@@ -237,14 +242,15 @@ hie.yaml:
 #   - kubectl
 #   - a valid kubectl context configured (i.e. access to a kubernetes cluster)
 .PHONY: kube-integration
-kube-integration: charts
+kube-integration: charts-integration
 	# by default "test-<your computer username> is used as namespace
-	export NAMESPACE=test-$(USER); ./hack/bin/integration-setup.sh
-	export NAMESPACE=test-$(USER); ./hack/bin/integration-test.sh
+	# you can override the default by setting the NAMESPACE environment variable
+	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-setup.sh
+	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-test.sh
 
 .PHONY: kube-integration-teardown
 kube-integration-teardown:
-	export NAMESPACE=test-$(USER); ./hack/bin/integration-teardown.sh
+	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-teardown.sh
 
 .PHONY: latest-brig-tag
 latest-brig-tag:
