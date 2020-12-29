@@ -64,7 +64,7 @@ It also contains
 - **deploy**: (Work-in-progress) - how to run wire-server in an ephemeral, in-memory demo mode
 - **doc**: Documentation
 - **hack**: scripts and configuration for kuberentes helm chart development/releases mainly used by CI
-- **charts**: kubernetes helm charts
+- **charts**: Kubernetes Helm charts. The charts are mirroed to S3 and can be used with `helm repo add wire https://s3-eu-west-1.amazonaws.com/public.wire.com/charts`. See the [Administrator's Guide](https://docs.wire.com) for more info.
 
 ## Architecture Overview
 
