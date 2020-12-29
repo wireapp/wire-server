@@ -1301,7 +1301,7 @@ changeLocaleH (u ::: conn ::: req) = do
   lift $ API.changeLocale u conn l
   return empty
 
--- | (zusr are is ignored by this handler, ie. checking handles is allowed as long as you have
+-- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
 -- *any* account.)
 checkHandleH :: UserId ::: Text -> Handler Response
 checkHandleH (_uid ::: hndl) = do
