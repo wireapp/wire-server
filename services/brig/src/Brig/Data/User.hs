@@ -104,6 +104,14 @@ data ReAuthError
   = ReAuthError !AuthError
   | ReAuthMissingPassword
 
+-- | Preconditions:
+--
+-- 1. @newUserUUID u == Just inv || isNothing (newUserUUID u)@.
+-- 2. If @isJust@, @mbHandle@ must be claimed by user with id @inv@.
+--
+-- Condition (2.) is essential for maintaining handle uniqueness.  It is guaranteed by the
+-- fact that we're setting getting @mbHandle@ from table @"user"@, and when/if it was added
+-- there, it was claimed properly.
 newAccount :: NewUser -> Maybe InvitationId -> Maybe TeamId -> Maybe Handle -> AppIO (UserAccount, Maybe Password)
 newAccount u inv tid mbHandle = do
   defLoc <- setDefaultLocale <$> view settings
