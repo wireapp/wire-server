@@ -1,6 +1,6 @@
 `repair-handles` is CLI that fixes inconsistencies between the tables `brig.user` and `brig.user_handle`.
 
-It fixes two kind of inconsistencies:
+This must be run to repair cassandra_brig after a bug fixed in https://github.com/wireapp/wire-server/pull/1303.  It fixes two kinds of inconsistencies:
 
 1. A user for which `brig.user.handle` is `null` and there is exactly one row `<row>` in `brig.user_handle` matching the user.
    The tool fixes this by setting `brig.user.handle` to `<row>.handle`.
