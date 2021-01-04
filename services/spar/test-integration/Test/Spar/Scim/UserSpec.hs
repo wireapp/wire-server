@@ -33,10 +33,12 @@ import Bilge.Assert
 import Brig.Types.Intra (AccountStatus (Active, PendingInvitation, Suspended), accountStatus, accountUser)
 import Brig.Types.User as Brig
 import qualified Control.Exception
-import Control.Lens
+import Control.Lens hiding ((.=))
+import Control.Monad.Random.Class
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Control.Retry (exponentialBackoff, limitRetries, recovering)
+import Data.Aeson (encode, object)
 import qualified Data.Aeson as Aeson
 import Data.Aeson.QQ (aesonQQ)
 import Data.Aeson.Types (fromJSON, toJSON)
@@ -201,6 +203,7 @@ specCreateUser = describe "POST /Users" $ do
   it "rejects occupied externalId (email)" $ testCreateRejectsTakenExternalId False
   it "allows an occupied externalId when the IdP is different" $
     testCreateSameExternalIds
+  it "appropriates existing user" testAppropriateExistingUser
   it "provides a correct location in the 'meta' field" $ testLocation
   it "handles rich info correctly (this also tests put, get)" $ testRichInfo
   it "gives created user a valid 'SAML.UserRef' for SSO" $ testScimCreateVsUserRef
@@ -1594,3 +1597,66 @@ specEmailValidation = do
     context "not enabled in team" . it "does not give user email" $ do
       (uid, _) <- setup False
       eventually $ checkEmail uid Nothing
+
+testAppropriateExistingUser :: TestSpar ()
+testAppropriateExistingUser = do
+  env <- ask
+  let brig = (env ^. teBrig)
+
+  (owner, tid) <- call $ createUserWithTeam brig (env ^. teGalley)
+
+  user <- call $ inviteAndRegisterUser brig owner tid
+  let Just (EmailIdentity email) = userIdentity user
+
+  userName <- randomHandle
+  void $ call $ putHandle brig (userId user) userName !!! const 200 === statusCode
+  -- let Just handle = userHandle user
+
+  tok <- registerScimToken tid Nothing
+
+  scimUser <-
+    randomScimUser <&> \u ->
+      u
+        { Scim.User.externalId = Just $ fromEmail email
+        -- Scim.User.userName = userName
+        }
+  _scimStoredUser <- createUser tok scimUser
+  let newUserId = Scim.id . Scim.thing $ _scimStoredUser
+  liftIO $ newUserId `shouldBe` userId user
+
+  do
+    inv <- call $ getInvitation brig email
+    Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
+    registerInvitation email (Name "Alice") inviteeCode True
+    call $ headInvitation404 brig email
+
+  Just _brigUser <- aFewTimes (runSpar $ Intra.getBrigUser Intra.WithPendingInvitations (userId user)) isNothing
+
+  -- liftIO $ userHandle brigUser `shouldBe` Just handle
+
+  pure ()
+  where
+    putHandle ::
+      (MonadIO m, MonadHttp m, HasCallStack) =>
+      BrigReq ->
+      UserId ->
+      Text ->
+      m ResponseLBS
+    putHandle brig usr h =
+      put $
+        brig
+          . path "/self/handle"
+          . contentJson
+          . body payload
+          . zUser usr
+          . zConn "conn"
+      where
+        payload = RequestBodyLBS . encode $ object ["handle" Aeson..= h]
+
+    randomHandle :: MonadIO m => m Text
+    randomHandle = do
+      uid :: Int32 <- liftIO $ getRandomR (1, 10000)
+      return $ "handle" <> (cs . show $ uid)
+
+    zConn :: ByteString -> Request -> Request
+    zConn = header "Z-Connection"
