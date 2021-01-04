@@ -54,8 +54,10 @@ run :: Opts -> IO ()
 run opts = do
   (app, env) <- mkApp opts
   settings <- Server.newSettings (restServer env)
+  -- TODO: combine the two WAI Applications
   -- Warp.runSettings settings app
-  runGRpcApp msgProtoBuf 8080 grpcServer
+  let grpcApplication = gRpcApp msgProtoBuf grpcServer
+  runGRpcApp msgProtoBuf (fromIntegral $ endpoint ^. epPort) grpcServer
   where
     endpoint = federator opts
     restServer env = defaultServer (unpack $ endpoint ^. epHost) (endpoint ^. epPort) (env ^. applog) (env ^. metrics)
