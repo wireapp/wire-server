@@ -22,8 +22,9 @@ where
 
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
 import qualified Data.Aeson.Types as Aeson
+import Data.Domain (Domain (..))
 import Data.Handle (Handle)
-import Data.Id (UserId)
+import Data.Id (Id (..), UserId)
 import Data.Qualified (Qualified (..), renderQualifiedId)
 import qualified Data.UUID as UUID
 import Imports
