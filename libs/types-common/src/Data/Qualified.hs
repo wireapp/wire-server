@@ -144,7 +144,7 @@ deprecatedUnqualifiedSchemaRef p newField =
 
 instance ToSchema (Qualified (Id a)) where
   declareNamedSchema _ =
-    declareQualifiedSchema "Qualified Id" "qualified_id" =<< declareSchemaRef (Proxy @(Id a))
+    declareQualifiedSchema "Qualified Id" "id" =<< declareSchemaRef (Proxy @(Id a))
 
 instance ToJSON (Qualified (Id a)) where
   toJSON qu =
