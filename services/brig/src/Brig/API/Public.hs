@@ -1233,7 +1233,11 @@ listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
     (_, Just handles) ->
       let normalRangedList = fromCommaSeparatedList $ fromRange handles
           qualifiedList = (`Qualified` domain) <$> normalRangedList
-          qualifiedRangedList = unsafeRange qualifiedList -- TODO: Write nice comment here
+          -- Use of unsafeRange here is ok only because we know that 'handles'
+          -- is valid for 'Range 1 4'. However, we must not forget to keep this
+          -- annotation here otherwise a change in 'Public.ListUsersByHandles'
+          -- could cause this code to break.
+          qualifiedRangedList :: Range 1 4 [Qualified Handle] = unsafeRange qualifiedList
        in listUsersByIdsOrHandles self (Public.ListUsersByHandles qualifiedRangedList)
     (Nothing, Nothing) -> throwStd $ badRequest "at least one ids or handles must be provided"
 
