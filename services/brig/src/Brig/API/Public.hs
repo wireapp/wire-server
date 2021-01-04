@@ -57,9 +57,9 @@ import Control.Error hiding (bool)
 import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
-import qualified Data.Bifunctor as Bifunctor
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
+import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
 import Data.Domain
 import Data.Handle (Handle, parseHandle)
 import Data.Id as Id
@@ -68,12 +68,12 @@ import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
 import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
 import Data.Range
-import Data.Swagger (HasInfo (info), HasTitle (title), HasType (type_), Swagger, SwaggerType (..), ToParamSchema (..), ToSchema (..), description)
+import Data.Swagger (HasInfo (info), HasTitle (title), Swagger, ToSchema (..), description)
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Swagger.Lens (HasSchema (..))
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
-import Data.Text.Encoding (decodeLatin1, encodeUtf8)
+import Data.Text.Encoding (decodeLatin1)
 import Data.Text.Lazy (pack)
 import qualified Data.ZAuth.Token as ZAuth
 import Imports hiding (head)
@@ -258,8 +258,8 @@ type ListUsersByUnqualifiedIdsOrHandles =
     :> Description "The 'ids' and 'handles' parameters are mutually exclusive."
     :> ZAuthServant
     :> "users"
-    :> QueryParam' [Optional, Strict, Description "User IDs of users to fetch"] "ids" (List UserId)
-    :> QueryParam' [Optional, Strict, Description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"] "handles" (Range 1 4 (List Handle))
+    :> QueryParam' [Optional, Strict, Description "User IDs of users to fetch"] "ids" (CommaSeparatedList UserId)
+    :> QueryParam' [Optional, Strict, Description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"] "handles" (Range 1 4 (CommaSeparatedList Handle))
     :> Get '[Servant.JSON] [Public.UserProfile]
 
 -- See Note [ephemeral user sideeffect]
@@ -285,25 +285,6 @@ type OutsideWorldAPI =
 type SwaggerDocsAPI = "api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
 type ServantAPI = OutsideWorldAPI
-
--- TODO: Move this out of here, maybe not use the 'List' type anymore
-instance ToParamSchema (List a) where
-  toParamSchema _ = mempty & type_ ?~ SwaggerString
-
--- TODO: Move this out of here, maybe not use the 'List' type anymore
-instance FromByteString a => FromHttpApiData (List a) where
-  parseUrlPiece t =
-    Bifunctor.first Text.pack $ runParser parser $ encodeUtf8 t
-
--- TODO: Put this in Data.Range
-instance ToParamSchema a => ToParamSchema (Range n m a) where
-  toParamSchema _ = toParamSchema (Proxy @a)
-
--- TODO: Put this in Data.Range
-instance (Within a n m, FromHttpApiData a) => FromHttpApiData (Range n m a) where
-  parseUrlPiece t = do
-    unchecked <- parseUrlPiece t
-    Bifunctor.first Text.pack $ checkedEither @_ @n @m unchecked
 
 -- FUTUREWORK: At the moment this only shows endpoints from brig, but we should
 -- combine the swagger 2.0 endpoints here as well from other services (e.g. spar)
@@ -1244,13 +1225,13 @@ getUserDisplayNameH (_ ::: self) = do
     Nothing -> setStatus status404 empty
 
 -- FUTUREWORK: Make servant understand that at least one of these is required
-listUsersByUnqualifiedIdsOrHandles :: UserId -> Maybe (List UserId) -> Maybe (Range 1 4 (List Handle)) -> Handler [Public.UserProfile]
+listUsersByUnqualifiedIdsOrHandles :: UserId -> Maybe (CommaSeparatedList UserId) -> Maybe (Range 1 4 (CommaSeparatedList Handle)) -> Handler [Public.UserProfile]
 listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
   domain <- viewFederationDomain
   case (mUids, mHandles) of
-    (Just uids, _) -> listUsersByIdsOrHandles self (Public.ListUsersByIds ((`Qualified` domain) <$> fromList uids))
+    (Just uids, _) -> listUsersByIdsOrHandles self (Public.ListUsersByIds ((`Qualified` domain) <$> fromCommaSeparatedList uids))
     (_, Just handles) ->
-      let normalRangedList = fromList $ fromRange handles
+      let normalRangedList = fromCommaSeparatedList $ fromRange handles
           qualifiedList = (`Qualified` domain) <$> normalRangedList
           qualifiedRangedList = unsafeRange qualifiedList -- TODO: Write nice comment here
        in listUsersByIdsOrHandles self (Public.ListUsersByHandles qualifiedRangedList)

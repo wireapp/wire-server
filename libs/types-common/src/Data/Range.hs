@@ -56,6 +56,7 @@ import Control.Lens ((?~))
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
 import Data.Aeson.Types as Aeson (Parser)
 import qualified Data.Attoparsec.ByteString as Atto
+import qualified Data.Bifunctor as Bifunctor
 import qualified Data.ByteString as B
 import Data.ByteString.Conversion
   ( FromByteString (..),
@@ -84,6 +85,7 @@ import qualified Data.Text.Ascii as Ascii
 import qualified Data.Text.Lazy as TL
 import Imports
 import Numeric.Natural (Natural)
+import Servant (FromHttpApiData (..))
 import System.Random (Random)
 import Test.QuickCheck (Arbitrary (arbitrary, shrink), Gen)
 import qualified Test.QuickCheck as QC
@@ -169,6 +171,11 @@ instance (KnownNat n, KnownNat m) => ToParamSchema (Range n m TL.Text) where
 instance ToSchema a => ToSchema (Range n m a) where
   declareNamedSchema _ =
     declareNamedSchema (Proxy @a)
+
+instance (Within a n m, FromHttpApiData a) => FromHttpApiData (Range n m a) where
+  parseUrlPiece t = do
+    unchecked <- parseUrlPiece t
+    Bifunctor.first T.pack $ checkedEither @_ @n @m unchecked
 
 type LTE (n :: Nat) (m :: Nat) = (SingI n, SingI m, (n <= m) ~ 'True)
 
