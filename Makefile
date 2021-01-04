@@ -313,4 +313,9 @@ upload-chart-%: release-chart-%
 # To uplaod all helm charts in the CHARTS_RELEASE list (see top of the time)
 # (assummption: CI sets DOCKER_TAG and HELM_SEMVER)
 .PHONY: upload-charts
-upload-charts: $(foreach chartName,$(CHARTS_RELEASE),upload-chart-$(chartName))
+upload-charts: charts-release
+	./hack/bin/upload-helm-charts-s3.sh
+
+.PHONY: echo-release-charts
+echo-release-charts:
+	@echo ${CHARTS_RELEASE}
