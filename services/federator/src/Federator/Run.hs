@@ -1,5 +1,10 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -32,10 +37,13 @@ import Control.Lens ((^.))
 import Data.Default (def)
 import qualified Data.Metrics.Middleware as Metrics
 import Data.Text (unpack)
+import Federator.GRPC.Proto
 import qualified Federator.Impl as Impl
 import Federator.Options as Opt
 import Federator.Types
 import Imports
+import Mu.GRpc.Server
+import Mu.Server
 import Network.Wai (Application)
 import qualified Network.Wai.Handler.Warp as Warp
 import Network.Wai.Utilities.Server as Server
@@ -45,16 +53,24 @@ import Util.Options
 run :: Opts -> IO ()
 run opts = do
   (app, env) <- mkApp opts
-  settings <- Server.newSettings (server env)
-  Warp.runSettings settings app
+  settings <- Server.newSettings (restServer env)
+  -- Warp.runSettings settings app
+  runGRpcApp msgProtoBuf 8080 grpcServer
   where
     endpoint = federator opts
-    server env = defaultServer (unpack $ endpoint ^. epHost) (endpoint ^. epPort) (env ^. applog) (env ^. metrics)
+    restServer env = defaultServer (unpack $ endpoint ^. epHost) (endpoint ^. epPort) (env ^. applog) (env ^. metrics)
 
 mkApp :: Opts -> IO (Application, Env)
 mkApp opts = do
   env <- newEnv opts
   pure (Impl.app env, env)
+
+sayHello :: (MonadServer m) => HelloRequestMessage -> m HelloReplyMessage
+sayHello (HelloRequestMessage nm) =
+  pure $ HelloReplyMessage ("hi, " <> nm)
+
+grpcServer :: (MonadServer m) => SingleServerT Service m _
+grpcServer = singleService (method @"SayHello" sayHello)
 
 -------------------------------------------------------------------------------
 -- Environment

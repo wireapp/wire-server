@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8eb9f66c2c30c88a6a48cb27fd6981daaf70fbf8a49b040dd75e9282112f5f64
+-- hash: 429f0247c9da46aa8a0069b69ce593cbb07ec4afafb20a5909f8c8535799165a
 
 name:           federator
 version:        1.0.0
@@ -20,6 +20,7 @@ library
   exposed-modules:
       Federator.API
       Federator.App
+      Federator.GRPC.Proto
       Federator.Impl
       Federator.Options
       Federator.Run
