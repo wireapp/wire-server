@@ -69,7 +69,7 @@ sayHello :: (MonadServer m) => HelloRequestMessage -> m HelloReplyMessage
 sayHello (HelloRequestMessage nm) =
   pure $ HelloReplyMessage ("hi, " <> nm)
 
-grpcServer :: (MonadServer m) => SingleServerT Service m _
+grpcServer :: (MonadServer m) => SingleServerT i Service m _
 grpcServer = singleService (method @"SayHello" sayHello)
 
 -------------------------------------------------------------------------------
