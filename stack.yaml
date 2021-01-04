@@ -193,6 +193,23 @@ extra-deps:
 - git: https://github.com/dpwright/HaskellNet-SSL
   commit: ca84ef29a93eaef7673fa58056cdd8dae1568d2d # master (Sep 14, 2020)
 
+# mu
+- mu-schema-0.3.1.1
+- mu-rpc-0.4.0.1
+- mu-optics-0.3.0.1
+- mu-avro-0.4.0.2
+- mu-protobuf-0.4.0.3
+- mu-grpc-server-0.4.0.0
+- mu-grpc-common-0.4.0.0
+- compendium-client-0.2.1.1
+# dependencies of mu
+- http2-client-0.9.0.0
+- http2-grpc-types-0.5.0.0
+- http2-grpc-proto3-wire-0.1.0.0
+- warp-grpc-0.4.0.1
+- proto3-wire-1.2.0
+- parameterized-0.5.0.0
+
 ############################################################
 # Development tools
 ############################################################

@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+
+package myproject;
+
+service Service {
+
+}
+

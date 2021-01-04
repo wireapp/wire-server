@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b19ddba1ae9d6ebd950cd798547f41036e8979169c8339bc61892725b4c85b1d
+-- hash: 8eb9f66c2c30c88a6a48cb27fd6981daaf70fbf8a49b040dd75e9282112f5f64
 
 name:           federator
 version:        1.0.0
@@ -46,6 +46,10 @@ library
     , lens
     , metrics-core
     , metrics-wai
+    , mu-grpc-server
+    , mu-protobuf
+    , mu-rpc
+    , mu-schema
     , resourcet
     , servant
     , servant-mock
@@ -87,6 +91,10 @@ executable federator
     , lens
     , metrics-core
     , metrics-wai
+    , mu-grpc-server
+    , mu-protobuf
+    , mu-rpc
+    , mu-schema
     , resourcet
     , servant
     , servant-mock
@@ -131,6 +139,10 @@ test-suite federator-tests
     , lens
     , metrics-core
     , metrics-wai
+    , mu-grpc-server
+    , mu-protobuf
+    , mu-rpc
+    , mu-schema
     , resourcet
     , servant
     , servant-mock

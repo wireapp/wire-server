@@ -29,6 +29,10 @@ dependencies:
 - servant-server
 - servant-swagger
 - string-conversions
+- mu-grpc-server
+- mu-protobuf
+- mu-rpc
+- mu-schema
 - text
 - tinylog
 - types-common
