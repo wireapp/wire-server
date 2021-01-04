@@ -1242,14 +1242,18 @@ listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
     (Nothing, Nothing) -> throwStd $ badRequest "at least one ids or handles must be provided"
 
 listUsersByIdsOrHandles :: UserId -> Public.ListUsersQuery -> Handler [Public.UserProfile]
-listUsersByIdsOrHandles self = \case
-  Public.ListUsersByIds us ->
-    byIds us
-  Public.ListUsersByHandles hs -> do
-    domain <- viewFederationDomain
-    let (_remoteHandles, localHandles) = partitionRemoteOrLocalIds domain (fromRange hs)
-    us <- getIds localHandles
-    filterHandleResults self =<< byIds us
+listUsersByIdsOrHandles self q = do
+  foundUsers <- case q of
+    Public.ListUsersByIds us ->
+      byIds us
+    Public.ListUsersByHandles hs -> do
+      domain <- viewFederationDomain
+      let (_remoteHandles, localHandles) = partitionRemoteOrLocalIds domain (fromRange hs)
+      us <- getIds localHandles
+      filterHandleResults self =<< byIds us
+  case foundUsers of
+    [] -> throwStd $ notFound "None of the specified ids or handles match any users"
+    _ -> pure foundUsers
   where
     getIds :: [Handle] -> Handler [Qualified UserId]
     getIds localHandles = do
