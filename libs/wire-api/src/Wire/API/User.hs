@@ -111,6 +111,7 @@ import qualified Data.Aeson.Types as Aeson
 import Data.ByteString.Conversion
 import qualified Data.Code as Code
 import qualified Data.Currency as Currency
+import Data.Domain (Domain (Domain))
 import Data.Handle (Handle)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
@@ -121,10 +122,11 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Proxy (Proxy (..))
 import Data.Qualified
 import Data.Range
-import Data.Swagger (NamedSchema (..), SwaggerType (..), ToSchema (..), declareSchemaRef, genericDeclareNamedSchema, properties, required, schema, type_)
+import Data.Swagger (HasExample (example), NamedSchema (..), SwaggerType (..), ToSchema (..), declareSchemaRef, description, genericDeclareNamedSchema, properties, required, schema, type_)
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import Data.UUID (UUID, nil)
+import qualified Data.UUID as UUID
 import Deriving.Swagger
 import Imports
 import qualified Test.QuickCheck as QC
@@ -1037,13 +1039,20 @@ data ListUsersQuery
 instance FromJSON ListUsersQuery where
   parseJSON =
     withObject "ListUsersQuery" $ \o -> do
-      (ListUsersByIds <$> o .: "qualified_ids")
-        <|> (ListUsersByHandles <$> o .: "qualified_handles")
+      mUids <- ListUsersByIds <$$> o .: "qualified_ids"
+      mHandles <- ListUsersByHandles <$$> o .: "qualified_handles"
+      case (mUids, mHandles) of
+        (Just uids, Nothing) -> pure uids
+        (Nothing, Just handles) -> pure handles
+        (_, _) -> fail "exactly one of qualifie_ids or qualified_handles must be provided."
 
 instance ToJSON ListUsersQuery where
   toJSON (ListUsersByIds uids) = object ["qualified_ids" .= uids]
   toJSON (ListUsersByHandles handles) = object ["qualified_handles" .= handles]
 
+-- NB: It is not possible to specific mutually exclusive fields in swagger2, so
+-- here we write it in description and modify the example to have the correct
+-- JSON.
 instance ToSchema ListUsersQuery where
   declareNamedSchema _ = do
     uids <- declareSchemaRef (Proxy @[Qualified UserId])
@@ -1052,4 +1061,6 @@ instance ToSchema ListUsersQuery where
       NamedSchema (Just "ListUsersQuery") $
         mempty
           & type_ ?~ SwaggerObject
+          & description ?~ "exactly one of qualifie_ids or qualified_handles must be provided."
           & properties .~ InsOrdHashMap.fromList [("qualified_ids", uids), ("qualified_handles", handles)]
+          & example ?~ toJSON (ListUsersByIds [Qualified (Id UUID.nil) (Domain "example.com")])
