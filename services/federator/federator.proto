@@ -40,6 +40,7 @@ message QualifiedHandle {
 message UserProfile {
     QualifiedId qualifiedId = 1;
     string displayName = 2;
+    /* QualifiedHandle qualifiedHandle = 3; */
 }
 
 message QualifiedId {

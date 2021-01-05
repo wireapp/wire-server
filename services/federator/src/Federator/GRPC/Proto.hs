@@ -9,7 +9,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
-{-# OPTIONS_GHC -fforce-recomp #-}
+
+-- {-# OPTIONS_GHC -fforce-recomp #-}
 
 module Federator.GRPC.Proto where
 
