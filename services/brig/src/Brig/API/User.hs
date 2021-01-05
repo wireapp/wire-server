@@ -358,9 +358,7 @@ createUserInviteViaScim :: UserId -> NewUserScimInvitation -> ExceptT Error.Erro
 createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = (`catchE` (throwE . Error.newUserError)) $ do
   email <- either (throwE . InvalidEmail rawEmail) pure (validateEmail rawEmail)
   let emKey = userEmailKey email
-  blacklisted <- lift $ Blacklist.exists uk
-  when blacklisted $
-    throwE (BlacklistedUserKey uk)
+  verifyUniquenessAndCheckBlacklist emKey
   account <- lift $ newAccountInviteViaScim uid tid loc name email
   Log.debug $ field "user" (toByteString . userId . accountUser $ account) . field "action" (Log.val "User.createUserInviteViaScim")
 

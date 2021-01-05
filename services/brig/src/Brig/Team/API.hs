@@ -58,7 +58,6 @@ import Network.Wai.Routing
 import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
-import qualified System.Logger.Class as Log
 import qualified Wire.API.Team.Invitation as Public
 import qualified Wire.API.Team.Role as Public
 import qualified Wire.API.User as Public
@@ -231,7 +230,7 @@ createInvitationPublic uid tid body = do
     ensurePermissionToAddUser uid tid inviteePerms
     pure $ CreateInvitationInviter uid from
 
-  createInvitation' tid inviteeRole (Just (inviterUid inviter)) (inviterEmail inviter) body DisallowExistingEmail
+  createInvitation' tid inviteeRole (Just (inviterUid inviter)) (inviterEmail inviter) body
 
 createInvitationViaScimH :: JSON ::: JsonRequest NewUserScimInvitation -> Handler Response
 createInvitationViaScimH (_ ::: req) = do
@@ -251,23 +250,12 @@ createInvitationViaScim newUser@(NewUserScimInvitation tid loc name email) = do
             irInviteeEmail = email,
             irInviteePhone = Nothing
           }
-  inv <- createInvitation' tid inviteeRole Nothing fromEmail invreq AllowExistingEmail
+  inv <- createInvitation' tid inviteeRole Nothing fromEmail invreq
   let uid = Id (toUUID (inInvitation inv))
   createUserInviteViaScim uid newUser
 
-data AllowExistingEmail = AllowExistingEmail | DisallowExistingEmail
-  deriving (Show, Eq)
-
--- TODO: add flag if allow stealing
-createInvitation' ::
-  TeamId ->
-  Public.Role ->
-  Maybe UserId ->
-  Email ->
-  Public.InvitationRequest ->
-  AllowExistingEmail ->
-  Handler Public.Invitation
-createInvitation' tid inviteeRole mbInviterUid fromEmail body allowExisting = do
+createInvitation' :: TeamId -> Public.Role -> Maybe UserId -> Email -> Public.InvitationRequest -> Handler Public.Invitation
+createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
   -- FUTUREWORK: These validations are nearly copy+paste from accountCreation and
   --             sendActivationCode. Refactor this to a single place
 
@@ -277,10 +265,8 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body allowExisting = do
   blacklistedEm <- lift $ Blacklist.exists uke
   when blacklistedEm $
     throwStd blacklistedEmail
-
-  mbExistingUser <- lift $ Data.lookupKey uke
-  let emailTaken = isJust mbExistingUser
-  when (emailTaken && allowExisting == DisallowExistingEmail) $
+  emailTaken <- lift $ isJust <$> Data.lookupKey uke
+  when emailTaken $
     throwStd emailExists
 
   -- Validate phone
@@ -302,11 +288,8 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body allowExisting = do
   let locale = irLocale body
   let inviteeName = irInviteeName body
 
-  iid <- case mbExistingUser of
-    Just (Id uid) -> pure (Id uid)
-    Nothing -> liftIO DB.mkInvitationId
-
   lift $ do
+    iid <- liftIO DB.mkInvitationId
     now <- liftIO =<< view currentTime
     timeout <- setTeamInvitationTimeout <$> view settings
     (newInv, code) <-
