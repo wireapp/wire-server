@@ -304,8 +304,11 @@ createValidScimUser ::
 createValidScimUser ScimTokenInfo {stiTeam} (ST.ValidScimUser veid handl name richInfo _) = do
   -- ensure uniqueness constraints of all affected identifiers.
   -- {if we crash now, retry POST will just work}
+  lift $ Log.info $ Log.msg @String "createValidScimUser"
   assertExternalIdUnused veid
+  lift $ Log.info $ Log.msg @String "external id is unused"
   assertHandleUnused handl
+  lift $ Log.info $ Log.msg @String "handle is unused"
   -- {if we crash now, retry POST will just work, or user gets told the handle
   -- is already in use and stops POSTing}
 

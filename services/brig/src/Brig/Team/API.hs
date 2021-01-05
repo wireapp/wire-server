@@ -58,6 +58,7 @@ import Network.Wai.Routing
 import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
+import qualified System.Logger.Class as Log
 import qualified Wire.API.Team.Invitation as Public
 import qualified Wire.API.Team.Role as Public
 import qualified Wire.API.User as Public
@@ -266,8 +267,10 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
   when blacklistedEm $
     throwStd blacklistedEmail
   emailTaken <- lift $ isJust <$> Data.lookupKey uke
+  Log.info $ Log.msg @String "createInvitation' before email check"
   when emailTaken $
     throwStd emailExists
+  Log.info $ Log.msg @String "createInvitation' after email check"
 
   -- Validate phone
   inviteePhone <- for (irInviteePhone body) $ \p -> do
