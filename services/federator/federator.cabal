@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e81a4559a2b4815bc2e8986ca250779837ee054e3625d65a10d1fa23ab4a2c80
+-- hash: 50a26da682b7ca7297dea7920500b0554186cd13bbc73d91be62cab52a3fe43e
 
 name:           federator
 version:        1.0.0
@@ -15,6 +15,8 @@ maintainer:     Wire Swiss GmbH <backend@wire.com>
 copyright:      (c) 2020 Wire Swiss GmbH
 license:        AGPL-3
 build-type:     Simple
+extra-source-files:
+    federator.proto
 
 library
   exposed-modules:

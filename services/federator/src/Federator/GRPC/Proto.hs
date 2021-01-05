@@ -9,6 +9,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
+{-# OPTIONS_GHC -fforce-recomp #-}
 
 module Federator.GRPC.Proto where
 
@@ -36,4 +37,34 @@ data HelloReplyMessage = HelloReplyMessage {message :: T.Text}
       Generic,
       ToSchema TheSchema "HelloReply",
       FromSchema TheSchema "HelloReply"
+    )
+
+data QualifiedHandle = QualifiedHandle {domain :: T.Text, handle :: T.Text}
+  deriving
+    ( Eq,
+      Show,
+      Generic,
+      ToSchema TheSchema "QualifiedHandle",
+      FromSchema TheSchema "QualifiedHandle"
+    )
+
+data QualifiedId = QualifiedId {domain :: T.Text, id :: T.Text}
+  deriving
+    ( Eq,
+      Show,
+      Generic,
+      ToSchema TheSchema "QualifiedId",
+      FromSchema TheSchema "QualifiedId"
+    )
+
+data UserProfile = UserProfile
+  { qualifiedId :: Maybe QualifiedId,
+    displayName :: T.Text
+  }
+  deriving
+    ( Eq,
+      Show,
+      Generic,
+      ToSchema TheSchema "UserProfile",
+      FromSchema TheSchema "UserProfile"
     )

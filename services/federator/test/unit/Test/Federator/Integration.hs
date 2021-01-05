@@ -54,3 +54,15 @@ sayHello' host port req = do
 
 sayHello :: GrpcClient -> HelloRequestMessage -> IO (GRpcReply HelloReplyMessage)
 sayHello = gRpcCall @'MsgProtoBuf @Service @"Service" @"SayHello"
+
+-- brig -> grpc call to federator
+-- federator -> grpc call to ... nginz?
+-- nginz -> option 1: TCP proxy to federator? (TODO unclear)
+--       -> option 2: strip TLS layer of the request, forward some added header to federator
+-- federator receive call from outside;
+-- federator to brig would be
+--    - restful?
+--    - also grpc?
+--
+--
+--

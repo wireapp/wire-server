@@ -35,8 +35,10 @@ where
 
 import Control.Lens ((^.))
 import Data.Default (def)
+import Data.Domain
 import qualified Data.Metrics.Middleware as Metrics
 import Data.Text (unpack)
+import Federator.App (AppIO)
 import Federator.GRPC.Proto
 import qualified Federator.Impl as Impl
 import Federator.Options as Opt
@@ -44,6 +46,7 @@ import Federator.Types
 import Imports
 import Mu.GRpc.Server
 import Mu.Server
+import Network.HTTP2.Client
 import Network.Wai (Application)
 import qualified Network.Wai.Handler.Warp as Warp
 import Network.Wai.Utilities.Server as Server
@@ -56,7 +59,7 @@ run opts = do
   settings <- Server.newSettings (restServer env)
   -- TODO: Remove the RESTful things.
   -- Warp.runSettings settings app
-  let grpcApplication = gRpcApp msgProtoBuf grpcServer
+  let grpcApplication = gRpcApp msgProtoBuf grpcServerDummy
   runGRpcApp msgProtoBuf (fromIntegral $ endpoint ^. epPort) grpcServer
   where
     endpoint = federator opts
@@ -70,6 +73,27 @@ mkApp opts = do
 sayHello :: (MonadServer m) => HelloRequestMessage -> m HelloReplyMessage
 sayHello (HelloRequestMessage nm) =
   pure $ HelloReplyMessage ("hi, " <> nm)
+
+grpcServerDummy :: (MonadServer m) => SingleServerT i Service m _
+grpcServerDummy = singleService (method @"SayHello" sayHello)
+
+getUserByHandle :: (MonadServer m) => QualifiedHandle -> m UserProfile
+getUserByHandle (QualifiedHandle domain handle) = do
+  undefined
+
+-- otherBackend <- lookupBackend domain
+-- client <- constructClient otherBackend
+
+-- lookupBackend :: Domain -> AppIO Backend
+-- lookupBackend = undefined
+
+-- constructClient :: Backend -> AppIO GRpcClient
+-- constructClient = undefined
+
+data Backend = Backend {host :: HostName, port :: PortNumber} -- TODO don't we already have a definition of something like this?
+
+-- FUTUREWORK: abstract the concrete things away as federator doesn't need to know all of it, all it needs is to know where the end request goes to (brig, in this case)
+-- talkToBrig :: (MonadServer m) => Domain -> ByteString -> m ByteString
 
 grpcServer :: (MonadServer m) => SingleServerT i Service m _
 grpcServer = singleService (method @"SayHello" sayHello)

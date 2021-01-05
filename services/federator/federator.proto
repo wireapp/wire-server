@@ -11,3 +11,47 @@ service Service {
 message HelloRequest { string name = 1; }
 message HelloReply { string message = 1; }
 
+// Used by brig and other wire-services to talk to other backends
+// TODO bikeshed on the naming
+service Internal {
+    rpc GetUserByHandle (QualifiedHandle) returns (UserProfile) {}
+}
+
+message QualifiedHandle {
+    string domain = 1;
+    string handle = 2;
+}
+
+  /* { profileQualifiedId :: Qualified UserId, */
+  /*   profileName :: Name, */
+  /*   -- | DEPRECATED */
+  /*   profilePict :: Pict, */
+  /*   profileAssets :: [Asset], */
+  /*   profileAccentId :: ColourId, */
+  /*   profileDeleted :: Bool, */
+  /*   -- | Set if the user represents an external service, */
+  /*   -- i.e. it is a "bot". */
+  /*   profileService :: Maybe ServiceRef, */
+  /*   profileHandle :: Maybe Handle, */
+  /*   profileLocale :: Maybe Locale, */
+  /*   profileExpire :: Maybe UTCTimeMillis, */
+  /*   profileTeam :: Maybe TeamId, */
+  /*   profileEmail :: Maybe Email */
+message UserProfile {
+    QualifiedId qualifiedId = 1;
+    string displayName = 2;
+}
+
+message QualifiedId {
+    string domain = 1;
+    string id = 2; // UUID? bytestring?
+}
+
+
+// Used by other backends hosted on another domain
+// Naming:
+// Gateway
+// Inbound
+// Strangers
+// service Public {
+//}
