@@ -1044,7 +1044,7 @@ instance FromJSON ListUsersQuery where
       case (mUids, mHandles) of
         (Just uids, Nothing) -> pure uids
         (Nothing, Just handles) -> pure handles
-        (_, _) -> fail "exactly one of qualifie_ids or qualified_handles must be provided."
+        (_, _) -> fail "exactly one of qualified_ids or qualified_handles must be provided."
 
 instance ToJSON ListUsersQuery where
   toJSON (ListUsersByIds uids) = object ["qualified_ids" .= uids]
