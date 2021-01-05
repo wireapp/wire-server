@@ -49,6 +49,7 @@ import Data.Json.Util (fromUTCTimeMillis)
 import Data.List1 (singleton)
 import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
+import Data.Qualified
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -141,9 +142,12 @@ testCreateUserWithPreverified opts brig aws = do
         else do
           usr <- postUserRegister reg brig
           let uid = userId usr
+          let domain = Opt.setFederationDomain $ Opt.optSettings opts
           get (brig . path "/self" . zUser uid) !!! do
             const 200 === statusCode
             const (Just p) === (userPhone <=< responseJsonMaybe)
+            -- check /self returns the qualified_id field in the response
+            const (Just (Qualified uid domain)) === (fmap userQualifiedId . responseJsonMaybe)
           liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled usr)
   -- Register (pre verified) user with email
   e <- randomEmail

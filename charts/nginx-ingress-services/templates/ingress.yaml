@@ -1,0 +1,71 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: nginx-ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+spec:
+  # This assumes you have created the given cert
+  # https://github.com/kubernetes/ingress-nginx/blob/master/docs/examples/PREREQUISITES.md#tls-certificates
+{{- if .Values.tls.enabled }}
+  tls:
+  - hosts:
+      - {{ .Values.config.dns.https }}
+      - {{ .Values.config.dns.ssl }}
+      - {{ .Values.config.dns.webapp }}
+      - {{ .Values.config.dns.fakeS3 }}
+{{- if .Values.teamSettings.enabled }}
+      - {{ .Values.config.dns.teamSettings }}
+{{- end }}
+{{- if .Values.accountPages.enabled }}
+      - {{ .Values.config.dns.accountPages }}
+{{- end }}
+    secretName: {{ include "nginx-ingress-services.getCertificateSecretName" . | quote }}
+{{- end }}
+  rules:
+    - host: {{ .Values.config.dns.https }}
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: nginz-http
+              servicePort: {{ .Values.service.nginz.externalHttpPort }}
+    - host: {{ .Values.config.dns.ssl }}
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: nginz-tcp
+              servicePort: {{ .Values.service.nginz.externalTcpPort }}
+    - host: {{ .Values.config.dns.webapp }}
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: webapp-http
+              servicePort: {{ .Values.service.webapp.externalPort }}
+    - host: {{ .Values.config.dns.fakeS3 }}
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: {{ .Values.service.s3.serviceName }}
+              servicePort: {{ .Values.service.s3.externalPort }}
+{{- if .Values.teamSettings.enabled }}
+    - host: {{ .Values.config.dns.teamSettings }}
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: team-settings-http
+              servicePort: {{ .Values.service.teamSettings.externalPort }}
+{{- end }}
+{{- if .Values.accountPages.enabled }}
+    - host: {{ .Values.config.dns.accountPages }}
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: account-pages-http
+              servicePort: {{ .Values.service.accountPages.externalPort }}
+{{- end }}

@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c17e83566b787517579fe409778cca9f88b3c23e9819dfc11b8ae84572aa1c6d
+-- hash: ee2619b6133e11f5de7ace09995fa308d2c5c6ecc46e81b8e10283594a7aef26
 
 name:           types-common
 version:        0.16.0
@@ -21,6 +21,7 @@ build-type:     Simple
 library
   exposed-modules:
       Data.Code
+      Data.CommaSeparatedList
       Data.Domain
       Data.ETag
       Data.Handle
@@ -78,9 +79,11 @@ library
     , scientific >=0.3.4
     , semigroups >=0.12
     , servant >=0.16
+    , servant-server
     , singletons >=2.0
     , string-conversions
     , swagger >=0.3
+    , swagger2
     , tagged >=0.8
     , tasty >=0.11
     , text >=0.11

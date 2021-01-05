@@ -104,6 +104,9 @@ instance {-# OVERLAPPING #-} RoutesToPaths (Verb 'PUT status ctypes content) whe
 instance {-# OVERLAPPING #-} RoutesToPaths (Verb 'DELETE status ctypes content) where
   getRoutes = []
 
+instance RoutesToPaths (NoContentVerb 'DELETE) where
+  getRoutes = []
+
 instance {-# OVERLAPPING #-} RoutesToPaths (Verb 'PATCH status ctypes content) where
   getRoutes = []
 

@@ -63,6 +63,8 @@ It also contains
 - **build**: Build scripts and Dockerfiles for some platforms
 - **deploy**: (Work-in-progress) - how to run wire-server in an ephemeral, in-memory demo mode
 - **doc**: Documentation
+- **hack**: scripts and configuration for kuberentes helm chart development/releases mainly used by CI
+- **charts**: kubernetes helm charts
 
 ## Architecture Overview
 

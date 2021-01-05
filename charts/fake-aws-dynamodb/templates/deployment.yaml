@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "fullname" . }}
+  labels:
+    app: {{ template "fullname" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ template "fullname" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "fullname" . }}
+    spec:
+      containers:
+      - name: dynamodb
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        ports:
+        - containerPort: {{ .Values.service.internalPort }}
+          name: http
+          protocol: TCP
+        volumeMounts:
+        - name: storage
+          mountPath: /data
+        resources:
+{{ toYaml .Values.resources | indent 12 }}
+      - name: create-tables
+        image: mesosphere/aws-cli:1.14.5
+        command: [/bin/sh]
+        args:
+        - -c
+        - |
+          exec_until_ready() {
+              until $1; do echo 'service not ready yet'; sleep 1; done
+          }
+          table_exists() {
+              OUTPUT=$(aws --endpoint-url=http://localhost:{{ $.Values.service.internalPort }} dynamodb list-tables | grep $1 | wc -l)
+              echo $OUTPUT
+          }
+          echo 'Creating AWS resources'
+          aws configure set aws_access_key_id dummy
+          aws configure set aws_secret_access_key dummy
+          aws configure set region eu-west-1
+
+          while true
+          do
+              # Recreate resources if needed
+              TABLE=$(table_exists "{{ $.Values.tables.brigPrekeys }}")
+              if [ "$TABLE" == "1" ]
+                then echo "Table {{ $.Values.tables.brigPrekeys }} exists, no need to re-create"
+                else exec_until_ready "aws --endpoint-url=http://localhost:{{ $.Values.service.internalPort }} dynamodb create-table --table-name {{ $.Values.tables.brigPrekeys }} --attribute-definitions AttributeName=client,AttributeType=S --key-schema AttributeName=client,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5"
+              fi
+              echo 'Sleeping 10'
+              sleep 10
+          done
+      volumes:
+        - emptyDir: {}
+          name: "storage"

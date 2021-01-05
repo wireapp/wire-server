@@ -1,0 +1,217 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "brig"
+  labels:
+    wireService: brig
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+data:
+  {{- with .Values.config }}
+  brig.yaml: |
+    logNetStrings: True # log using netstrings encoding:
+                        # http://cr.yp.to/proto/netstrings.txt
+    logFormat: {{ .logFormat }}
+    logLevel: {{ .logLevel }}
+
+    brig:
+      host: 0.0.0.0
+      port: 8080
+
+    cassandra:
+      endpoint:
+        host: {{ .cassandra.host }}
+        port: 9042
+      keyspace: brig
+
+    elasticsearch:
+      url: http://{{ .elasticsearch.host }}:{{ .elasticsearch.port }}
+      index: {{ .elasticsearch.index }}
+      {{- if .elasticsearch.additionalWriteIndex }}
+      additionalWriteIndex: {{ .elasticsearch.additionalWriteIndex }}
+      {{- end }}
+
+    cargohold:
+      host: cargohold
+      port: 8080
+
+    galley:
+      host: galley
+      port: 8080
+
+    gundeck:
+      host: gundeck
+      port: 8080
+
+    {{- with .aws }}
+    aws:
+      prekeyTable: {{ .prekeyTable }}
+      sqsEndpoint: {{ .sqsEndpoint | quote }}
+      dynamoDBEndpoint: {{ .dynamoDBEndpoint | quote }}
+    {{- end }}
+
+    internalEvents:
+      queueType: sqs
+      queueName: {{ .aws.internalQueue }}
+
+    emailSMS:
+      email:
+      {{- if .useSES }}
+        sesQueue: {{ required "Missing value: brig.aws.sesQueue" .aws.sesQueue }}
+        sesEndpoint: {{ .aws.sesEndpoint | quote }}
+      {{- else }}
+        smtpEndpoint:
+          host: {{ .smtp.host }}
+          port: {{ .smtp.port }}
+        smtpConnType: {{ .smtp.connType }}
+        {{- if .smtp.username }}
+        smtpCredentials:
+          smtpUsername: {{ .smtp.username }}
+          smtpPassword: {{ .smtp.passwordFile }}
+        {{- end }}
+      {{- end }}
+      general:
+        templateDir: /usr/share/wire/templates
+        emailSender: {{ .emailSMS.general.emailSender }}
+        smsSender: {{ .emailSMS.general.smsSender | quote }}
+        templateBranding:
+          {{- with .emailSMS.general.templateBranding }}
+          brand: {{ .brand }}
+          brandUrl: {{ .brandUrl }}
+          brandLabelUrl: {{ .brandLabelUrl }}
+          brandLogoUrl: {{ .brandLogoUrl }}
+          brandService: {{ .brandService }}
+          copyright: {{ .copyright }}
+          misuse: {{ .misuse }}
+          legal: {{ .legal }}
+          forgot: {{ .forgot }}
+          support: {{ .support }}
+          {{- end }}
+
+      user:
+      {{- if .emailSMS.user }}
+        activationUrl: {{ .emailSMS.user.activationUrl }}
+        smsActivationUrl: {{ .emailSMS.user.smsActivationUrl }}
+        passwordResetUrl: {{ .emailSMS.user.passwordResetUrl }}
+        invitationUrl: {{ .emailSMS.user.invitationUrl }}
+        deletionUrl: {{ .emailSMS.user.deletionUrl }}
+      {{- else }}
+        activationUrl: {{ .externalUrls.nginz }}/activate?key=${key}&code=${code}
+        smsActivationUrl: {{ .externalUrls.nginz }}/v/${code}
+        passwordResetUrl: {{ .externalUrls.nginz }}/password-reset/${key}?code=${code}
+        invitationUrl: {{ .externalUrls.nginz }}/register?invitation_code=${code}
+        deletionUrl: {{ .externalUrls.nginz }}/users/delete?key=${key}&code=${code}
+      {{- end }}
+
+      provider:
+      {{- if .emailSMS.provider }}
+        homeUrl: {{ .emailSMS.provider.homeUrl }}
+        providerActivationUrl: {{ .emailSMS.provider.providerActivationUrl }}
+        approvalUrl: {{ .emailSMS.provider.approvalUrl }}
+        approvalTo: {{ .emailSMS.provider.approvalTo }}
+        providerPwResetUrl: {{ .emailSMS.provider.providerPwResetUrl }}
+      {{- else }}
+        homeUrl: https://provider.localhost/
+        providerActivationUrl: {{ .externalUrls.nginz }}/provider/activate?key=${key}&code=${code}
+        approvalUrl: {{ .externalUrls.nginz }}/provider/approve?key=${key}&code=${code}
+        approvalTo: success@simulator.amazonses.com
+        providerPwResetUrl: {{ .externalUrls.nginz }}/provider/password-reset?key=\${key}\&code=\${code}
+      {{- end }}
+
+      team:
+      {{- if .externalUrls.teamSettings }}
+        tInvitationUrl: {{ .externalUrls.teamSettings }}/join/?team-code=${code}
+      {{- else }}
+        tInvitationUrl: {{ .externalUrls.nginz }}/register?team=${team}&team_code=${code}
+      {{- end }}
+        tActivationUrl: {{ .externalUrls.nginz }}/register?team=${team}&team_code=${code}
+        tCreatorWelcomeUrl: {{ .externalUrls.teamCreatorWelcome }}
+        tMemberWelcomeUrl: {{ .externalUrls.teamMemberWelcome }}
+
+    zauth:
+      privateKeys: /etc/wire/brig/secrets/secretkey.txt
+      publicKeys: /etc/wire/brig/secrets/publickey.txt
+      {{- with .authSettings }}
+      authSettings:
+        keyIndex: {{ .keyIndex }}
+        userTokenTimeout: {{ .userTokenTimeout }}
+        sessionTokenTimeout: {{ .sessionTokenTimeout }}
+        accessTokenTimeout: {{ .accessTokenTimeout }}
+        providerTokenTimeout: {{ .providerTokenTimeout }}
+        legalHoldUserTokenTimeout: {{ .legalholdUserTokenTimeout }}
+        legalHoldAccessTokenTimeout: {{ .legalholdAccessTokenTimeout }}
+      {{- end }}
+
+    turn:
+      servers: /etc/wire/brig/turn/turn-servers.txt
+      serversV2: /etc/wire/brig/turn/turn-servers-v2.txt
+      secret: /etc/wire/brig/secrets/turn-secret.txt
+      configTTL: 3600 # 1 hour
+      tokenTTL: 43200 # 12 hours
+
+    {{- if .sft }}
+    {{- with .sft }}
+    sft:
+      sftBaseDomain: {{ required "Missing value: .sft.sftBaseDomain" .sftBaseDomain }}
+      {{- if .sftSRVServiceName }}
+      sftSRVServiceName: {{ .sftSRVServiceName }}
+      {{- end }}
+      {{- if .sftDiscoveryIntervalSeconds }}
+      sftDiscoveryIntervalSeconds: {{ .sftDiscoveryIntervalSeconds }}
+      {{- end }}
+    {{- end }}
+    {{- end }}
+
+    {{- with .optSettings }}
+    optSettings:
+      setActivationTimeout: {{ .setActivationTimeout }}
+      setTeamInvitationTimeout: {{ .setTeamInvitationTimeout }}
+      {{- if .setExpiredUserCleanupTimeout }}
+      setExpiredUserCleanupTimeout: {{ .setExpiredUserCleanupTimeout }}
+      {{- end }}
+      setTwilio: /etc/wire/brig/secrets/twilio-credentials.yaml
+      setNexmo: /etc/wire/brig/secrets/nexmo-credentials.yaml
+      setUserMaxConnections: {{ .setUserMaxConnections }}
+      setCookieInsecure: {{ .setCookieInsecure }}
+      setUserCookieRenewAge: {{ .setUserCookieRenewAge }}
+      setUserCookieLimit: {{ .setUserCookieLimit }}
+      setUserCookieThrottle:
+        stdDev: {{ .setUserCookieThrottle.stdDev }}
+        retryAfter: {{ .setUserCookieThrottle.retryAfter }}
+      {{- if .setLimitFailedLogins }}
+      setLimitFailedLogins:
+        timeout: {{ .setLimitFailedLogins.timeout }} # seconds.  if you reach the limit, how long do you have to wait to try again.
+        retryLimit: {{ .setLimitFailedLogins.retryLimit }}  # how many times can you have a failed login in that timeframe.
+      {{- end }}
+      {{- if .setSuspendInactiveUsers }}
+      setSuspendInactiveUsers:
+        suspendTimeout: {{ .setSuspendInactiveUsers.suspendTimeout }}
+      {{- end }}
+      setRichInfoLimit: {{ .setRichInfoLimit }}
+      setDefaultLocale: en
+      setMaxTeamSize: {{ .setMaxTeamSize }}
+      setMaxConvSize: {{ .setMaxConvSize }}
+      setEmailVisibility: {{ .setEmailVisibility }}
+      setPropertyMaxKeyLen: {{ .setPropertyMaxKeyLen }}
+      setPropertyMaxValueLen: {{ .setPropertyMaxValueLen }}
+      setDeleteThrottleMillis: {{ .setDeleteThrottleMillis }}
+      setFederationDomain: {{ .setFederationDomain }}
+      {{- if .setSearchSameTeamOnly }}
+      setSearchSameTeamOnly: {{ .setSearchSameTeamOnly }}
+      {{- end }}
+      {{- if .setUserMaxPermClients }}
+      setUserMaxPermClients: {{ .setUserMaxPermClients }}
+      {{- end }}
+      {{- if .setRestrictUserCreation }}
+      setRestrictUserCreation: {{ .setRestrictUserCreation }}
+      {{- end }}
+      {{- if .setCustomerExtensions }}
+      setCustomerExtensions:
+        domainsBlockedForRegistration: {{ .setCustomerExtensions.domainsBlockedForRegistration }}
+      {{- end }}
+      {{- if .setSftStaticUrl }}
+      setSftStaticUrl: {{ .setSftStaticUrl }}
+      {{- end }}
+    {{- end }}
+  {{- end }}

@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d47906946bda6a0b6f632f1e110faf587549509d2a81d5216e445ff7651434f8
+-- hash: de30a5da6bb71df9ddef112a1c79fb5224df174c4f23cf0654f27183abdc88ca
 
 name:           stern
 version:        1.7.2
@@ -62,6 +62,7 @@ library
     , optparse-applicative >=0.8
     , semigroups >=0.16
     , split >=0.2
+    , string-conversions
     , swagger >=0.3
     , text >=1.1
     , text-format >=0.3

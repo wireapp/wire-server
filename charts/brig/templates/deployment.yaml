@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: brig
+  labels:
+    wireService: brig
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      wireService: brig
+  template:
+    metadata:
+      labels:
+        wireService: brig
+        release: {{ .Release.Name }}
+      annotations:
+        # An annotation of the configmap checksum ensures changes to the configmap cause a redeployment upon `helm upgrade`
+        checksum/configmap: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/turnconfigmap: {{ include (print .Template.BasePath "/turnconfigmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print .Template.BasePath "/secret.yaml") . | sha256sum }}
+        fluentbit.io/parser: json
+    spec:
+      volumes:
+        - name: "brig-config"
+          configMap:
+            name: "brig"
+        - name: "turn-servers"
+          configMap:
+            name: "turn"
+        - name: "brig-secrets"
+          secret:
+            secretName: "brig"
+      containers:
+        - name: brig
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
+          volumeMounts:
+          - name: "brig-secrets"
+            mountPath: "/etc/wire/brig/secrets"
+          - name: "brig-config"
+            mountPath: "/etc/wire/brig/conf"
+          - name: "turn-servers"
+            mountPath: "/etc/wire/brig/turn"
+          env:
+          - name: LOG_LEVEL
+            value: {{ .Values.config.logLevel }}
+          - name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: brig
+                key: awsKeyId
+          - name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: brig
+                key: awsSecretKey
+          # TODO: Is this the best way to do this?
+          - name: AWS_REGION
+            value: "{{ .Values.config.aws.region }}"
+          {{- with .Values.config.proxy }}
+          {{- if .httpProxy }}
+          - name: http_proxy
+            value: {{ .httpProxy | quote }}
+          - name: HTTP_PROXY
+            value: {{ .httpProxy | quote }}
+          {{- end }}
+          {{- if .httpsProxy }}
+          - name: https_proxy
+            value: {{ .httpsProxy | quote }}
+          - name: HTTPS_PROXY
+            value: {{ .httpsProxy | quote }}
+          {{- end }}
+          {{- if .noProxyList }}
+          - name: no_proxy
+            value: {{ join "," .noProxyList | quote }}
+          - name: NO_PROXY
+            value: {{ join "," .noProxyList | quote }}
+          {{- end }}
+          {{- end }} 
+          ports:
+            - containerPort: {{ .Values.service.internalPort }}
+          livenessProbe:
+            httpGet:
+              scheme: HTTP
+              path: /i/status
+              port: {{ .Values.service.internalPort }}
+          readinessProbe:
+            httpGet:
+              scheme: HTTP
+              path: /i/status
+              port: {{ .Values.service.internalPort }}
+          resources:
+{{ toYaml .Values.resources | indent 12 }}

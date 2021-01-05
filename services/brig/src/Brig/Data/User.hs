@@ -67,7 +67,7 @@ module Brig.Data.User
   )
 where
 
-import Brig.App (AppIO, currentTime, settings, zauthEnv)
+import Brig.App (AppIO, currentTime, settings, viewFederationDomain, zauthEnv)
 import Brig.Data.Instances ()
 import Brig.Options
 import Brig.Password
@@ -78,10 +78,12 @@ import Cassandra
 import Control.Error
 import Control.Lens hiding (from)
 import Data.Conduit (ConduitM)
+import Data.Domain
 import Data.Handle (Handle)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Misc (PlainTextPassword (..))
+import Data.Qualified
 import Data.Range (fromRange)
 import Data.Time (addUTCTime)
 import Data.UUID.V4
@@ -102,9 +104,18 @@ data ReAuthError
   = ReAuthError !AuthError
   | ReAuthMissingPassword
 
-newAccount :: NewUser -> Maybe InvitationId -> Maybe TeamId -> AppIO (UserAccount, Maybe Password)
-newAccount u inv tid = do
+-- | Preconditions:
+--
+-- 1. @newUserUUID u == Just inv || isNothing (newUserUUID u)@.
+-- 2. If @isJust@, @mbHandle@ must be claimed by user with id @inv@.
+--
+-- Condition (2.) is essential for maintaining handle uniqueness.  It is guaranteed by the
+-- fact that we're setting getting @mbHandle@ from table @"user"@, and when/if it was added
+-- there, it was claimed properly.
+newAccount :: NewUser -> Maybe InvitationId -> Maybe TeamId -> Maybe Handle -> AppIO (UserAccount, Maybe Password)
+newAccount u inv tid mbHandle = do
   defLoc <- setDefaultLocale <$> view settings
+  domain <- viewFederationDomain
   uid <-
     Id <$> do
       case (inv, newUserUUID u) of
@@ -121,7 +132,7 @@ newAccount u inv tid = do
       now <- liftIO =<< view currentTime
       return . Just . toUTCTimeMillis $ addUTCTime (fromIntegral ttl) now
     _ -> return Nothing
-  return (UserAccount (user uid (locale defLoc) expiry) status, passwd)
+  return (UserAccount (user uid domain (locale defLoc) expiry) status, passwd)
   where
     ident = newUserIdentity u
     pass = newUserPassword u
@@ -135,16 +146,18 @@ newAccount u inv tid = do
     colour = fromMaybe defaultAccentId (newUserAccentId u)
     locale defLoc = fromMaybe defLoc (newUserLocale u)
     managedBy = fromMaybe defaultManagedBy (newUserManagedBy u)
-    user uid l e = User uid ident name pict assets colour False l Nothing Nothing e tid managedBy
+    user uid domain l e = User uid (Qualified uid domain) ident name pict assets colour False l Nothing mbHandle e tid managedBy
 
 newAccountInviteViaScim :: UserId -> TeamId -> Maybe Locale -> Name -> Email -> AppIO UserAccount
 newAccountInviteViaScim uid tid locale name email = do
   defLoc <- setDefaultLocale <$> view settings
-  return (UserAccount (user (fromMaybe defLoc locale)) PendingInvitation)
+  domain <- viewFederationDomain
+  return (UserAccount (user domain (fromMaybe defLoc locale)) PendingInvitation)
   where
-    user loc =
+    user domain loc =
       User
         uid
+        (Qualified uid domain)
         (Just $ EmailIdentity email)
         name
         (Pict [])
@@ -386,7 +399,8 @@ lookupAuth u = fmap f <$> retry x1 (query1 authSelect (params Quorum (Identity u
 lookupUsers :: HavePendingInvitations -> [UserId] -> AppIO [User]
 lookupUsers hpi usrs = do
   loc <- setDefaultLocale <$> view settings
-  toUsers loc hpi <$> retry x1 (query usersSelect (params Quorum (Identity usrs)))
+  domain <- viewFederationDomain
+  toUsers domain loc hpi <$> retry x1 (query usersSelect (params Quorum (Identity usrs)))
 
 lookupAccount :: UserId -> AppIO (Maybe UserAccount)
 lookupAccount u = listToMaybe <$> lookupAccounts [u]
@@ -394,7 +408,8 @@ lookupAccount u = listToMaybe <$> lookupAccounts [u]
 lookupAccounts :: [UserId] -> AppIO [UserAccount]
 lookupAccounts usrs = do
   loc <- setDefaultLocale <$> view settings
-  fmap (toUserAccount loc) <$> retry x1 (query accountsSelect (params Quorum (Identity usrs)))
+  domain <- viewFederationDomain
+  fmap (toUserAccount domain loc) <$> retry x1 (query accountsSelect (params Quorum (Identity usrs)))
 
 lookupServiceUser :: ProviderId -> ServiceId -> BotId -> AppIO (Maybe (ConvId, Maybe TeamId))
 lookupServiceUser pid sid bid = retry x1 (query1 cql (params Quorum (pid, sid, bid)))
@@ -605,8 +620,9 @@ userRichInfoUpdate = "UPDATE rich_info SET json = ? WHERE user = ?"
 -- Conversions
 
 -- | Construct a 'UserAccount' from a raw user record in the database.
-toUserAccount :: Locale -> AccountRow -> UserAccount
+toUserAccount :: Domain -> Locale -> AccountRow -> UserAccount
 toUserAccount
+  domain
   defaultLocale
   ( uid,
     name,
@@ -635,6 +651,7 @@ toUserAccount
      in UserAccount
           ( User
               uid
+              (Qualified uid domain)
               ident
               name
               (fromMaybe noPict pict)
@@ -650,8 +667,8 @@ toUserAccount
           )
           (fromMaybe Active status)
 
-toUsers :: Locale -> HavePendingInvitations -> [UserRow] -> [User]
-toUsers defaultLocale havePendingInvitations = fmap mk . filter fp
+toUsers :: Domain -> Locale -> HavePendingInvitations -> [UserRow] -> [User]
+toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
   where
     fp :: UserRow -> Bool
     fp =
@@ -707,6 +724,7 @@ toUsers defaultLocale havePendingInvitations = fmap mk . filter fp
             svc = newServiceRef <$> sid <*> pid
          in User
               uid
+              (Qualified uid domain)
               ident
               name
               (fromMaybe noPict pict)

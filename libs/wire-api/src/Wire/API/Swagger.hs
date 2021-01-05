@@ -137,7 +137,6 @@ models =
     Team.Permission.modelPermissions,
     Team.SearchVisibility.modelTeamSearchVisibility,
     User.modelUserIdList,
-    User.modelSelf,
     User.modelUser,
     User.modelNewUser,
     User.modelUserUpdate,

@@ -1,0 +1,17 @@
+defaults:
+  local: ../../package-defaults.yaml
+name: deriving-swagger2
+version: '0.1.0'
+description: Strategies to derive swagger2 type classes
+category: Web
+author: Wire Swiss GmbH
+maintainer: Wire Swiss GmbH <backend@wire.com>
+copyright: (c) 2020 Wire Swiss GmbH
+license: AGPL-3
+
+library:
+  source-dirs: src
+  dependencies:
+    - base >=4 && <5
+    - swagger2 >=0.6
+    - imports

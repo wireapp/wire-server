@@ -71,6 +71,8 @@ import qualified V58
 import qualified V59
 import qualified V60_AddFederationIdMapping
 import qualified V61_team_invitation_email
+import qualified V62_RemoveFederationIdMapping
+import qualified V63_AddUsersPendingActivation
 import qualified V9
 
 main :: IO ()
@@ -131,7 +133,12 @@ main = do
       V58.migration,
       V59.migration,
       V60_AddFederationIdMapping.migration,
-      V61_team_invitation_email.migration
+      V61_team_invitation_email.migration,
+      V62_RemoveFederationIdMapping.migration,
+      V63_AddUsersPendingActivation.migration
+      -- When adding migrations here, don't forget to update
+      -- 'schemaVersion' in Brig.App
+
       -- FUTUREWORK: undo V41 (searchable flag); we stopped using it in
       -- https://github.com/wireapp/wire-server/pull/964
     ]

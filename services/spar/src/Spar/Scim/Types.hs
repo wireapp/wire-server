@@ -55,7 +55,7 @@ import Data.Misc (PlainTextPassword)
 import Imports
 import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.Arbitrary ()
-import Servant (DeleteNoContent, Get, Header, JSON, NoContent, Post, QueryParam', ReqBody, Required, Strict, (:<|>), (:>))
+import Servant (DeleteNoContent, Get, Header, JSON, Post, QueryParam', ReqBody, Required, Strict, (:<|>), (:>))
 import Servant.API.Generic (ToServantApi, (:-))
 import Spar.API.Util (OmitDocs)
 import Spar.Types (ScimToken, ScimTokenInfo)
@@ -374,7 +374,7 @@ type APIScimTokenCreate =
 
 type APIScimTokenDelete =
   QueryParam' '[Required, Strict] "id" ScimTokenId
-    :> DeleteNoContent '[JSON] NoContent
+    :> DeleteNoContent
 
 type APIScimTokenList =
   Get '[JSON] ScimTokenList

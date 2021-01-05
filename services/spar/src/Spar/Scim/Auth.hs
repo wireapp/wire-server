@@ -97,7 +97,7 @@ createScimToken ::
   Spar CreateScimTokenResponse
 createScimToken zusr CreateScimToken {..} = do
   let descr = createScimTokenDescr
-  teamid <- Intra.Brig.getZUsrOwnedTeam zusr
+  teamid <- Intra.Brig.authorizeScimTokenManagement zusr
   Intra.Brig.ensureReAuthorised zusr createScimTokenPassword
   tokenNumber <- fmap length $ wrapMonadClient $ Data.getScimTokens teamid
   maxTokens <- asks (maxScimTokens . sparCtxOpts)
@@ -141,7 +141,7 @@ deleteScimToken ::
   ScimTokenId ->
   Spar NoContent
 deleteScimToken zusr tokenid = do
-  teamid <- Intra.Brig.getZUsrOwnedTeam zusr
+  teamid <- Intra.Brig.authorizeScimTokenManagement zusr
   wrapMonadClient $ Data.deleteScimToken teamid tokenid
   pure NoContent
 
@@ -154,5 +154,5 @@ listScimTokens ::
   Maybe UserId ->
   Spar ScimTokenList
 listScimTokens zusr = do
-  teamid <- Intra.Brig.getZUsrOwnedTeam zusr
+  teamid <- Intra.Brig.authorizeScimTokenManagement zusr
   ScimTokenList <$> wrapMonadClient (Data.getScimTokens teamid)

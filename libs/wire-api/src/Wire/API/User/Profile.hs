@@ -57,6 +57,7 @@ where
 
 import Control.Applicative (optional)
 import Control.Error (hush)
+import Control.Lens ((<>~), (?~))
 import Data.Aeson hiding ((<?>))
 import qualified Data.Aeson.Types as Json
 import Data.Attoparsec.ByteString.Char8 (takeByteString)
@@ -65,11 +66,16 @@ import Data.ByteString.Conversion
 import Data.ISO3166_CountryCodes
 import Data.Json.Util ((#))
 import Data.LanguageCodes
+import Data.Proxy (Proxy (..))
 import Data.Range
+import Data.Swagger (Referenced (Inline), ToSchema (..), enum_, genericDeclareNamedSchema, properties, schema)
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
+import Deriving.Swagger (CamelToSnake, ConstructorTagModifier, CustomSwagger, FieldLabelModifier, StripPrefix, SwaggerOptions (..))
+import qualified GHC.Exts as IsList
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.API.User.Orphans ()
 
 --------------------------------------------------------------------------------
 -- Name
@@ -80,7 +86,7 @@ import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 newtype Name = Name
   {fromName :: Text}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (ToJSON, FromByteString, ToByteString)
+  deriving newtype (ToJSON, FromByteString, ToByteString, ToSchema)
   deriving (Arbitrary) via (Ranged 1 128 Text)
 
 mkName :: Text -> Either String Name
@@ -103,7 +109,7 @@ instance FromJSON Name where
 
 newtype ColourId = ColourId {fromColourId :: Int32}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (Num, FromJSON, ToJSON, Arbitrary)
+  deriving newtype (Num, FromJSON, ToJSON, ToSchema, Arbitrary)
 
 defaultAccentId :: ColourId
 defaultAccentId = ColourId 0
@@ -118,6 +124,19 @@ data Asset = ImageAsset
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Asset)
+
+-- Cannot use deriving (ToSchema) via (CustomSwagger ...) because we need to add
+-- 'type'
+instance ToSchema Asset where
+  declareNamedSchema _ = do
+    namedSchema <-
+      genericDeclareNamedSchema
+        (swaggerOptions @'[FieldLabelModifier (StripPrefix "asset", CamelToSnake)])
+        (Proxy @Asset)
+    let typeSchema = Inline $ mempty & enum_ ?~ [Json.String "image"]
+    pure $
+      namedSchema
+        & schema . properties <>~ IsList.fromList [("type", typeSchema)]
 
 modelAsset :: Doc.Model
 modelAsset = Doc.defineModel "UserAsset" $ do
@@ -156,6 +175,7 @@ instance FromJSON Asset where
 data AssetSize = AssetComplete | AssetPreview
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform AssetSize)
+  deriving (ToSchema) via (CustomSwagger '[ConstructorTagModifier (StripPrefix "Asset", CamelToSnake)] AssetSize)
 
 typeAssetSize :: Doc.DataType
 typeAssetSize =
@@ -186,6 +206,9 @@ data Locale = Locale
   deriving stock (Eq, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform Locale)
 
+instance ToSchema Locale where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+
 instance FromJSON Locale where
   parseJSON =
     withText "locale" $
@@ -214,7 +237,7 @@ parseLocale = hush . parseOnly localeParser
 
 newtype Language = Language {fromLanguage :: ISO639_1}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (Arbitrary)
+  deriving newtype (Arbitrary, ToSchema)
 
 languageParser :: Parser Language
 languageParser = codeParser "language" $ fmap Language . checkAndConvert isLower
@@ -230,7 +253,7 @@ parseLanguage = hush . parseOnly languageParser
 
 newtype Country = Country {fromCountry :: CountryCode}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (Arbitrary)
+  deriving newtype (Arbitrary, ToSchema)
 
 countryParser :: Parser Country
 countryParser = codeParser "country" $ fmap Country . checkAndConvert isUpper
@@ -266,6 +289,7 @@ data ManagedBy
     ManagedByScim
   deriving stock (Eq, Bounded, Enum, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ManagedBy)
+  deriving (ToSchema) via (CustomSwagger '[ConstructorTagModifier (StripPrefix "ManagedBy", CamelToSnake)] ManagedBy)
 
 typeManagedBy :: Doc.DataType
 typeManagedBy =
@@ -307,7 +331,7 @@ defaultManagedBy = ManagedByWire
 -- | DEPRECATED
 newtype Pict = Pict {fromPict :: [Object]}
   deriving stock (Eq, Show, Generic)
-  deriving newtype (ToJSON)
+  deriving newtype (ToJSON, ToSchema)
 
 instance FromJSON Pict where
   parseJSON x = Pict . fromRange @0 @10 <$> parseJSON x

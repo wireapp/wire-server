@@ -17,26 +17,21 @@
 
 module Brig.API.Util
   ( fetchUserIdentity,
-    isFederationEnabled,
     lookupProfilesMaybeFilterSameTeamOnly,
     lookupSelfProfile,
     validateHandle,
-    viewFederationDomain,
   )
 where
 
 import qualified Brig.API.Error as Error
 import Brig.API.Handler
 import Brig.API.Types
-import Brig.App (AppIO, Env, settings)
+import Brig.App (AppIO)
 import qualified Brig.Data.User as Data
-import Brig.Options (enableFederationWithDomain)
 import Brig.Types
 import Brig.Types.Intra (accountUser)
-import Control.Lens (view)
 import Control.Monad.Catch (throwM)
 import Control.Monad.Trans.Except (throwE)
-import Data.Domain (Domain)
 import Data.Handle (Handle, parseHandle)
 import Data.Id
 import Data.Maybe
@@ -64,12 +59,3 @@ lookupSelfProfile = fmap (fmap mk) . Data.lookupAccount
 
 validateHandle :: Text -> Handler Handle
 validateHandle = maybe (throwE (Error.StdError Error.invalidHandle)) return . parseHandle
-
---------------------------------------------------------------------------------
--- Federation
-
-viewFederationDomain :: MonadReader Env m => m (Maybe Domain)
-viewFederationDomain = view (settings . enableFederationWithDomain)
-
-isFederationEnabled :: MonadReader Env m => m Bool
-isFederationEnabled = isJust <$> viewFederationDomain

@@ -1,0 +1,119 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "sftd.fullname" . }}
+  labels:
+    {{- include "sftd.labels" . | nindent 4 }}
+spec:
+  # TODO: Make configurable in follow-up PR
+  # This is 1 on purpose as we need more machinery to make multiple SFTs work.
+  # Work for that is tracked in: https://github.com/wireapp/wire-server-deploy/pull/383
+  replicas: 1
+  serviceName: {{ include "sftd.fullname" . }}
+  selector:
+    matchLabels:
+      {{- include "sftd.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+    {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      labels:
+        {{- include "sftd.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      hostNetwork: true
+      serviceAccountName: {{ include "sftd.fullname" . }}
+      volumes:
+        - name: external-ip
+          emptyDir: {}
+      initContainers:
+        - name: get-external-ip
+          image: bitnami/kubectl
+          volumeMounts:
+            - name: external-ip
+              mountPath: /external-ip
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+
+              # In the cloud, this setting is available to indicate the true IP address
+              addr=$(kubectl get node $HOSTNAME -ojsonpath='{.status.addresses[?(@.type=="ExternalIP")].address}')
+
+              # On on-prem we allow people to set  "wire.com/external-ip" to override this
+              if [ -z "$addr" ]; then
+                addr=$(kubectl get node $HOSTNAME -ojsonpath='{.metadata.annotations.wire\.com/external-ip}')
+              fi
+              echo -n "$addr" | tee /dev/stderr > /external-ip/ip
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          volumeMounts:
+            - name: external-ip
+              mountPath: /external-ip
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              EXTERNAL_IP=$(cat /external-ip/ip)
+              if [ -z "${EXTERNAL_IP}" ]; then
+                ACCESS_ARGS=
+              else
+                ACCESS_ARGS="-A ${EXTERNAL_IP}"
+              fi
+              exec sftd  -I "${POD_IP}" -M "${POD_IP}" ${ACCESS_ARGS} -u "https://{{ required "must specify host" .Values.host }}"
+          ports:
+            - name: sft
+              containerPort: 8585
+              protocol: TCP
+            - name: metrics
+              containerPort: 49090
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+          lifecycle:
+            preStop:
+              exec:
+                # TODO: Workaround because sftd does not support graceful draining natively.
+                # tracked in https://github.com/zinfra/backend-issues/issues/1451
+                command:
+                  - /bin/sleep
+                  - "{{ .Values.terminationGracePeriodSeconds }}"
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

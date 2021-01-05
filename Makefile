@@ -1,7 +1,20 @@
-SHELL            := /usr/bin/env bash
-LANG             := en_US.UTF-8
-DOCKER_USER      ?= quay.io/wire
-DOCKER_TAG       ?= local
+SHELL                 := /usr/bin/env bash
+LANG                  := en_US.UTF-8
+DOCKER_USER           ?= quay.io/wire
+# kubernetes namespace for running integration tests
+NAMESPACE             ?= test-$(USER)
+# default docker image tag is your system username, you can override it via environment variable.
+DOCKER_TAG            ?= $(USER)
+# default helm chart version must be 0.0.42 for local development (because 42 is the answer to the universe and everything)
+HELM_SEMVER           ?= 0.0.42
+# The list of helm charts needed for integration tests on kubernetes
+CHARTS_INTEGRATION    := wire-server databases-ephemeral fake-aws
+# The list of helm charts to publish on S3
+# FUTUREWORK: after we "inline local subcharts",
+# (e.g. move charts/brig to charts/wire-server/brig)
+# this list could be generated from the folder names under ./charts/ like so:
+# CHARTS_RELEASE := $(shell find charts/ -maxdepth 1 -type d | xargs -n 1 basename | grep -v charts)
+CHARTS_RELEASE        := wire-server databases-ephemeral fake-aws aws-ingress backoffice calling-test demo-smtp elasticsearch-curator elasticsearch-external fluent-bit minio-external cassandra-external nginx-ingress-controller nginx-ingress-services reaper wire-server-metrics sftd
 
 default: fast
 
@@ -207,11 +220,111 @@ db-reset:
 libzauth:
 	$(MAKE) -C libs/libzauth install
 
+#################################
 # Useful when using Haskell IDE Engine
 # https://github.com/haskell/haskell-ide-engine
-# requires 'yq' executable on your path.
 #
 # Run this again after changes to libraries or dependencies.
 .PHONY: hie.yaml
 hie.yaml:
-	./tools/gen-hie-yaml.sh > hie.yaml
+	stack exec gen-hie > hie.yaml
+
+#####################################
+# Today we pretend to be CI and run integration tests on kubernetes
+# (see also docs/developer/processes.md)
+#
+# NOTE: This uses local helm charts from .local/charts (which it builds before running this)
+#
+# NOTE/WARNING: By default, it uses local docker image tags,
+# which will not work at this time on your remote kubernetes cluster. [FUTUREWORK: local kubernetes cluster]
+#
+# If you wish to use docker images that are uploaded to quay.io, you must set DOCKER_TAG
+#
+#   DOCKER_TAG=<desired-wire-server-docker-tag> make kube-integration
+#
+# and if you don't know what a good DOCKER_TAG might be, you can run
+#
+#   make latest-brig-tag
+#
+# This task requires: [FUTUREWORK: add tooling setup to wire-server]
+#   - helm (version 3.1.1)
+#   - kubectl
+#   - a valid kubectl context configured (i.e. access to a kubernetes cluster)
+.PHONY: kube-integration
+kube-integration: charts-integration
+	# by default "test-<your computer username> is used as namespace
+	# you can override the default by setting the NAMESPACE environment variable
+	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-setup.sh
+	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-test.sh
+
+.PHONY: kube-integration-teardown
+kube-integration-teardown:
+	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-teardown.sh
+
+.PHONY: latest-brig-tag
+latest-brig-tag:
+	./hack/bin/find-latest-docker-tag.sh
+
+.PHONY: release-chart-%
+release-chart-%:
+	@if [ "${HELM_SEMVER}" = "0.0.42" ]; then \
+	      echo "Environment variable HELM_SEMVER not set to non-default value. Re-run with HELM_SEMVER=<something>"; \
+	    exit 1; \
+	fi
+	@if [ "${DOCKER_TAG}" = "${USER}" ]; then \
+	      echo "Environment variable DOCKER_TAG not set to non-default value. Re-run with DOCKER_TAG=<something>"; \
+	    exit 1; \
+	fi
+	make chart-$(*)
+
+
+# Rationale for copying charts to a gitignored folder before modifying helm versions and docker image tags:
+#
+# * we want to keep git history clean and not clutter it with version bump commits
+#   * synchronizing version bumps with multiple PRs, releases to master and merges back to develop is hard to do in git
+#   * we don't want to spend time modifying version tags manually all the time
+# * we want version pinning for helm charts and docker images for reproducible results during deployments
+#   * CI will keep track of versioning and upload charts to an S3 mirror
+#   * if you need to do this locally, also use this make target and set desired versions accordingly.
+.PHONY: chart-%
+chart-%:
+	./hack/bin/copy-charts.sh $(*)
+	./hack/bin/set-wire-server-image-version.sh $(DOCKER_TAG)
+	./hack/bin/set-helm-chart-version.sh "$*" $(HELM_SEMVER)
+
+# Usecase for this make target:
+#  * for local integration testing of wire-server inside kubernetes
+.PHONY: charts-integration
+charts-integration: $(foreach chartName,$(CHARTS_INTEGRATION),chart-$(chartName))
+
+# Usecase for this make target:
+# 1. for releases of helm charts
+# 2. for testing helm charts more generally
+.PHONY: charts-release
+charts-release: $(foreach chartName,$(CHARTS_RELEASE),release-chart-$(chartName))
+
+.PHONY: clean-charts
+clean-charts:
+	rm -rf .local/charts
+
+##########################################
+# Helm chart releasing (mirroring to S3)
+# Only CI should run these targets ideally
+
+# Usecases for this make target:
+# To release one single helm chart to S3 mirror
+# (assummption: CI sets DOCKER_TAG and HELM_SEMVER)
+.PHONY: upload-chart-%
+upload-chart-%: release-chart-%
+	./hack/bin/upload-helm-charts-s3.sh .local/charts/$(*)
+
+# Usecases for this make target:
+# To uplaod all helm charts in the CHARTS_RELEASE list (see top of the time)
+# (assummption: CI sets DOCKER_TAG and HELM_SEMVER)
+.PHONY: upload-charts
+upload-charts: charts-release
+	./hack/bin/upload-helm-charts-s3.sh
+
+.PHONY: echo-release-charts
+echo-release-charts:
+	@echo ${CHARTS_RELEASE}

@@ -1,3 +1,98 @@
+<!--
+
+# [2020-next]
+
+## Release Notes
+
+## Features
+
+## Bug fixes and other updates
+
+## Documentation
+
+## Internal changes
+
+-->
+
+# [2020-12-21]
+
+## Release Notes
+
+* upgrade spar before brig
+* upgrade nginz
+
+## Features
+
+* Increase the max allowed search results from 100 to 500. (#1282)
+
+## Bug fixes and other updates
+
+* SCIM: Allow strings for boolean values (#1296)
+* Extend SAML IdP/SCIM permissions to admins (not just owners) (#1274, #1280)
+* Clean up SCIM-invited users with expired invitation (#1264)
+* move-team: CLI to export/import team data (proof of concept, needs testing) (#1288)
+* Change some error labels for status 403 responses under `/identity-providers` (used by team-settings only) (#1274)
+* [federation] Data.Qualified: Better field names (#1290)
+* [federation] Add endpoint to get User Id by qualified handle (#1281, #1297)
+* [federation] Remove DB tables for ID mapping (#1287)
+* [federation] servantify /self endpoint, add `qualified_id` field (#1283)
+
+## Documentation
+
+* Integrate servant-swagger-ui to brig (#1270)
+
+## Internal changes
+
+* import all charts from wire-server-deploy/develop as of 2012-12-17 (#1293)
+* Migrate code for easier CI (#1294)
+* unit test and fix for null values in rendered JSON in UserProfile (#1292)
+* hscim: Bump upper bound for servant packages (#1285)
+* drive-by fix: allow federator to locally start up by specifying config (#1283)
+
+
+# 2020-12-15
+
+## Release Notes
+
+As a preparation for federation, this release introduces a mandatory 'federationDomain' configuration setting for brig and galley (#1261)
+
+## Features
+
+* brig: Allow setting a static SFT Server (#1277)
+
+## Bug fixes and other updates
+
+## Documentation
+
+## Internal changes
+
+* Add federation aware endpoint for getting user (#1254)
+* refactor brig Servant API for consistency (#1276)
+* Feature flags cleanup (#1256)
+
+# 2020-11-24
+
+## Release Notes
+
+* Allow an empty SAML contact list, which is configured at `saml.contacts` in spar's config.
+  The contact list is exposed at the `/sso/metadata` endpoint.
+
+## Features
+
+* Make Content-MD5 header optional for asset upload (#1252)
+* Add applock team feature (#1242, #1253)
+* /teams/[tid]/features endpoint
+
+## Bug fixes
+
+* Fix content-type headers in saml responses (#1241)
+
+## Internal changes
+
+* parse exposed 'tracestate' header in nginz logs if present (#1244)
+* Store SCIM tokens in hashed form (#1240)
+* better error handling (#1251)
+
 # 2020-10-28
 
 ## Features

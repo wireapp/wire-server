@@ -213,7 +213,7 @@ validateScimUser' midp richInfoLimit user = do
     either err pure $ Brig.mkUserName (Scim.displayName user) veid
   richInfo <- validateRichInfo (Scim.extra user ^. ST.sueRichInfo)
   let active = Scim.active user
-  pure $ ST.ValidScimUser veid handl uname richInfo (fromMaybe True active)
+  pure $ ST.ValidScimUser veid handl uname richInfo (maybe True Scim.unScimBool active)
   where
     -- Validate rich info (@richInfo@). It must not exceed the rich info limit.
     validateRichInfo :: RI.RichInfo -> m RI.RichInfo
@@ -365,7 +365,7 @@ createValidScimUser ScimTokenInfo {stiTeam} (ST.ValidScimUser veid handl name ri
   -- {suspension via scim: if we don't reach the following line, the user will be active.}
   lift $ do
     old <- Brig.getStatus buid
-    let new = ST.scimActiveFlagToAccountStatus old active
+    let new = ST.scimActiveFlagToAccountStatus old (Scim.unScimBool <$> active)
         active = Scim.active . Scim.value . Scim.thing $ storedUser
     when (new /= old) $ Brig.setStatus buid new
   pure storedUser
@@ -566,7 +566,7 @@ assertExternalIdNotUsedElsewhere :: ST.ValidExternalId -> UserId -> Scim.ScimHan
 assertExternalIdNotUsedElsewhere veid wireUserId = do
   mExistingUserId <- lift $ getUser veid
   unless (mExistingUserId `elem` [Nothing, Just wireUserId]) $ do
-    throwError Scim.conflict {Scim.detail = Just "externalId does not match UserId"}
+    throwError Scim.conflict {Scim.detail = Just "externalId already in use by another Wire user"}
 
 assertHandleUnused :: Handle -> Scim.ScimHandler Spar ()
 assertHandleUnused = assertHandleUnused' "userName is already taken"
@@ -581,7 +581,7 @@ assertHandleNotUsedElsewhere :: UserId -> Handle -> Scim.ScimHandler Spar ()
 assertHandleNotUsedElsewhere uid hndl = do
   musr <- lift $ Brig.getBrigUser Brig.WithPendingInvitations uid
   unless ((userHandle =<< musr) == Just hndl) $
-    assertHandleUnused' "userName does not match UserId" hndl
+    assertHandleUnused' "userName already in use by another wire user" hndl
 
 -- | Helper function that translates a given brig user into a 'Scim.StoredUser', with some
 -- effects like updating the 'ManagedBy' field in brig and storing creation and update time
@@ -661,7 +661,7 @@ synthesizeScimUser info =
    in (Scim.empty ST.userSchemas userName (ST.ScimUserExtra (info ^. ST.vsuRichInfo)))
         { Scim.externalId = Brig.renderValidExternalId $ info ^. ST.vsuExternalId,
           Scim.displayName = Just $ fromName (info ^. ST.vsuName),
-          Scim.active = Just $ info ^. ST.vsuActive
+          Scim.active = Just . Scim.ScimBool $ info ^. ST.vsuActive
         }
 
 scimFindUserByHandle :: Maybe IdP -> TeamId -> Text -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser ST.SparTag)

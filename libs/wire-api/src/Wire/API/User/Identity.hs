@@ -1,5 +1,6 @@
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -46,10 +47,13 @@ module Wire.API.User.Identity
 where
 
 import Control.Applicative (optional)
+import Control.Lens ((.~), (?~))
 import Data.Aeson hiding ((<?>))
 import Data.Attoparsec.Text
 import Data.Bifunctor (first)
 import Data.ByteString.Conversion
+import Data.Proxy (Proxy (..))
+import Data.Swagger (NamedSchema (..), SwaggerType (..), ToSchema (..), declareSchemaRef, properties, type_)
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8', encodeUtf8)
 import Data.Time.Clock
@@ -70,6 +74,21 @@ data UserIdentity
   | SSOIdentity UserSSOId (Maybe Email) (Maybe Phone)
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserIdentity)
+
+instance ToSchema UserIdentity where
+  declareNamedSchema _ = do
+    emailSchema <- declareSchemaRef (Proxy @Email)
+    phoneSchema <- declareSchemaRef (Proxy @Phone)
+    ssoSchema <- declareSchemaRef (Proxy @UserSSOId)
+    return $
+      NamedSchema (Just "userIdentity") $
+        mempty
+          & type_ ?~ SwaggerObject
+          & properties
+            .~ [ ("email", emailSchema),
+                 ("phone", phoneSchema),
+                 ("sso_id", ssoSchema)
+               ]
 
 instance ToJSON UserIdentity where
   toJSON = \case
@@ -125,6 +144,9 @@ data Email = Email
     emailDomain :: Text
   }
   deriving stock (Eq, Ord, Generic)
+
+instance ToSchema Email where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
 
 instance Show Email where
   show = Text.unpack . fromEmail
@@ -204,7 +226,7 @@ validateEmail =
 
 newtype Phone = Phone {fromPhone :: Text}
   deriving stock (Eq, Show, Generic)
-  deriving newtype (ToJSON)
+  deriving newtype (ToJSON, ToSchema)
 
 instance FromJSON Phone where
   parseJSON (String s) = case parsePhone s of
@@ -260,6 +282,24 @@ data UserSSOId
       Text
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserSSOId)
+
+-- FUTUREWORK: This schema should ideally be a choice of either tenant+subject, or scim_external_id
+-- but this is currently not possible to derive in swagger2
+-- Maybe this becomes possible with swagger 3?
+instance ToSchema UserSSOId where
+  declareNamedSchema _ = do
+    tenantSchema <- declareSchemaRef (Proxy @Text)
+    subjectSchema <- declareSchemaRef (Proxy @Text)
+    scimSchema <- declareSchemaRef (Proxy @Text)
+    return $
+      NamedSchema (Just "UserSSOId") $
+        mempty
+          & type_ ?~ SwaggerObject
+          & properties
+            .~ [ ("tenant", tenantSchema),
+                 ("subject", subjectSchema),
+                 ("scim_external_id", scimSchema)
+               ]
 
 instance ToJSON UserSSOId where
   toJSON = \case

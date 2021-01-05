@@ -35,29 +35,25 @@ import Imports
 
 -- | Claim a new handle for an existing 'User'.
 claimHandle :: UserId -> Maybe Handle -> Handle -> AppIO Bool
-claimHandle uid oldHandle newHandle = isJust <$> claimHandleWith (User.updateHandle) uid oldHandle newHandle
-
--- | Claim a handle for an invitation or a user.  Invitations can be referenced by the coerced
--- 'UserId'.
-claimHandleWith :: (UserId -> Handle -> AppIO a) -> UserId -> Maybe Handle -> Handle -> AppIO (Maybe a)
-claimHandleWith updOperation uid oldHandle h = do
-  owner <- lookupHandle h
-  case owner of
-    Just uid' | uid /= uid' -> return Nothing
-    _ -> do
-      env <- ask
-      let key = "@" <> fromHandle h
-      withClaim uid key (30 # Minute) $
-        runAppT env $
-          do
-            -- Record ownership
-            retry x5 $ write handleInsert (params Quorum (h, uid))
-            -- Update profile
-            result <- updOperation uid h
-            -- Free old handle (if it changed)
-            for_ (mfilter (/= h) oldHandle) $
-              freeHandle uid
-            return result
+claimHandle uid oldHandle newHandle =
+  isJust <$> do
+    owner <- lookupHandle newHandle
+    case owner of
+      Just uid' | uid /= uid' -> return Nothing
+      _ -> do
+        env <- ask
+        let key = "@" <> fromHandle newHandle
+        withClaim uid key (30 # Minute) $
+          runAppT env $
+            do
+              -- Record ownership
+              retry x5 $ write handleInsert (params Quorum (newHandle, uid))
+              -- Update profile
+              result <- User.updateHandle uid newHandle
+              -- Free old handle (if it changed)
+              for_ (mfilter (/= newHandle) oldHandle) $
+                freeHandle uid
+              return result
 
 -- | Free a 'Handle', making it available to be claimed again.
 freeHandle :: UserId -> Handle -> AppIO ()

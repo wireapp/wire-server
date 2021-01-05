@@ -1,0 +1,11 @@
+# Default values for wire-server.
+
+# Tags allow to enable/disable certain components of wire-server as defined in requirements.yaml
+# https://docs.helm.sh/developing_charts/#tags-and-condition-fields-in-requirements-yaml
+# tags:
+#   services: true
+
+tags:
+  team-settings: false
+  account-pages: false
+  legalhold: false

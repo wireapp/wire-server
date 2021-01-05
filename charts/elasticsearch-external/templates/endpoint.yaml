@@ -1,0 +1,38 @@
+# create a headless clusterIP service to create dns name "elasticsearch-external"
+# and a custom endpoint, thus forwarding traffic when resolving DNS to custom IPs
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ .Chart.Name }}
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ template "elasticsearch-external.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  type: ClusterIP
+  clusterIP: None # headless service
+  ports:
+  - name: http
+    port: {{ .Values.portHttp }}
+    targetPort: {{ .Values.portHttp }}
+---
+kind: Endpoints
+apiVersion: v1
+metadata:
+  name: {{ .Chart.Name }}
+  labels:
+    app: {{ .Chart.Name }}
+    chart: {{ template "elasticsearch-external.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+subsets:
+  - addresses:
+      {{- range .Values.IPs }}
+      - ip: {{ . }}
+      {{- end }}
+    ports:
+      # port and name in the endpoint must match port and name in the service
+      # see also https://docs.openshift.com/enterprise/3.0/dev_guide/integrating_external_services.html
+      - name: http
+        port: {{ .Values.portHttp }}

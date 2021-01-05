@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b41772acd74181a186da3c81fa43def5f82ca80b35c55f158ae40376fa8097ff
+-- hash: 804b9abf6d87971b5b2429e532938a0a1db8cfd034378fc494255dd454eff8d2
 
 name:           galley-types
 version:        0.81.0
@@ -24,7 +24,6 @@ library
       Galley.Types.Bot.Service
       Galley.Types.Conversations.Members
       Galley.Types.Conversations.Roles
-      Galley.Types.IdMapping
       Galley.Types.Teams
       Galley.Types.Teams.Intra
       Galley.Types.Teams.SearchVisibility
@@ -35,7 +34,8 @@ library
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
-      aeson >=0.6
+      QuickCheck
+    , aeson >=0.6
     , attoparsec >=0.10
     , base >=4 && <5
     , base64-bytestring >=1.0

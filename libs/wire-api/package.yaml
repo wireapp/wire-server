@@ -27,6 +27,7 @@ library:
   - cryptonite >=0.11
   - currency-codes >=2.0
   - deriving-aeson >=0.2
+  - deriving-swagger2
   - email-validate >=2.0
   - errors
   - exceptions >=0.10.0
@@ -34,6 +35,7 @@ library:
   - generic-random >=1.2
   - hashable
   - hostname-validate
+  - insert-ordered-containers
   - iproute >=1.5
   - iso3166-country-codes >=0.2
   - iso639 >=0.1
@@ -48,6 +50,7 @@ library:
   - safe >=0.3
   - string-conversions
   - swagger >=0.1
+  - swagger2
   - text >=0.11
   - time >=1.4
   - transformers >=0.3
@@ -65,8 +68,10 @@ tests:
     - base
     - bytestring-conversion
     - wire-api
+    - uuid
     - aeson-qq
     - lens
+    - swagger2
     - tasty
     - tasty-expected-failure
     - tasty-hunit

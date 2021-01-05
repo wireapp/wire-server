@@ -23,35 +23,21 @@ module Spar.Intra.Galley where
 import Bilge
 import Control.Lens
 import Control.Monad.Except
-import Data.Aeson (FromJSON, eitherDecode')
 import Data.ByteString.Conversion
 import Data.Id (TeamId, UserId)
-import Data.String.Conversions
-import Data.Typeable (typeRep)
+import Data.String.Conversions (cs)
 import Galley.Types.Teams
 import Imports
 import Network.HTTP.Types (status403)
 import Network.HTTP.Types.Method
 import Spar.Error
+import qualified System.Logger.Class as Log
 import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatus, TeamFeatureStatusNoConfig (..), TeamFeatureStatusValue (..))
 
 ----------------------------------------------------------------------
 
-parseResponse :: forall a m. (FromJSON a, MonadError SparError m, Typeable a) => ResponseLBS -> m a
-parseResponse resp = do
-  bdy <- maybe (throwSpar SparNoBodyInBrigResponse) pure $ responseBody resp
-  either err pure $ eitherDecode' bdy
-  where
-    err = throwSpar . SparCouldNotParseBrigResponse . (typeinfo <>) . cs
-    typeinfo = cs $ show (typeRep ([] @a)) <> ": "
-
-----------------------------------------------------------------------
-
-class Monad m => MonadSparToGalley m where
-  call :: (Request -> Request) -> m (Response (Maybe LBS))
-
-instance MonadSparToGalley m => MonadSparToGalley (ReaderT r m) where
-  call = lift . call
+class (Monad m, Log.MonadLogger m) => MonadSparToGalley m where
+  call :: (Request -> Request) -> m ResponseLBS
 
 -- | Get all members of a team.
 getTeamMembers ::
@@ -59,13 +45,13 @@ getTeamMembers ::
   TeamId ->
   m [TeamMember]
 getTeamMembers tid = do
-  resp :: Response (Maybe LBS) <-
+  resp :: ResponseLBS <-
     call $
       method GET
         . paths ["i", "teams", toByteString' tid, "members"]
-  unless (statusCode resp == 200) $
-    throwSpar (SparGalleyError "Could not retrieve team members")
-  (^. teamMembers) <$> parseResponse @TeamMemberList resp
+  if (statusCode resp == 200)
+    then (^. teamMembers) <$> parseResponse @TeamMemberList "galley" resp
+    else rethrow "galley" resp
 
 -- | If user is not owner, throw 'SparNotTeamOwner'.
 assertIsTeamOwner :: (HasCallStack, MonadError SparError m, MonadSparToGalley m) => TeamId -> UserId -> m ()
@@ -77,18 +63,34 @@ assertIsTeamOwner tid uid = do
   when (responseStatus r == status403) $ do
     throwSpar SparNotTeamOwner
 
+-- | user is member of a given team and has a given permission there.
+assertHasPermission ::
+  (HasCallStack, MonadSparToGalley m, MonadError SparError m, IsPerm perm, Show perm) =>
+  TeamId ->
+  perm ->
+  UserId ->
+  m ()
+assertHasPermission tid perm uid = do
+  resp <-
+    call $
+      method GET
+        . (paths ["i", "teams", toByteString' tid, "members", toByteString' uid])
+  case (statusCode resp, parseResponse @TeamMember "galley" resp) of
+    (200, Right member) | hasPermission member perm -> pure ()
+    _ -> throwSpar (SparNoPermission (cs $ show perm))
+
 assertSSOEnabled ::
   (HasCallStack, MonadError SparError m, MonadSparToGalley m) =>
   TeamId ->
   m ()
 assertSSOEnabled tid = do
-  resp :: Response (Maybe LBS) <-
+  resp :: ResponseLBS <-
     call $
       method GET
         . paths ["i", "teams", toByteString' tid, "features", "sso"]
   unless (statusCode resp == 200) $
-    throwSpar (SparGalleyError "Could not retrieve SSO config")
-  TeamFeatureStatusNoConfig status <- parseResponse resp
+    rethrow "galley" resp
+  TeamFeatureStatusNoConfig status <- parseResponse "galley" resp
   unless (status == TeamFeatureEnabled) $
     throwSpar SparSSODisabled
 

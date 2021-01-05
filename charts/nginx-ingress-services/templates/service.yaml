@@ -1,0 +1,77 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginz-http
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.service.nginz.externalHttpPort }}
+      targetPort: 8080
+  selector:
+    wireService: nginz
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginz-tcp
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.service.nginz.externalTcpPort }}
+      targetPort: 8081
+  selector:
+    wireService: nginz
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: webapp-http
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.service.webapp.externalPort }}
+      targetPort: 8080
+  selector:
+    wireService: webapp
+{{- if not .Values.service.s3.externallyCreated }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: s3-http
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.service.s3.externalPort }}
+      targetPort: 9000
+  selector:
+    wireService: {{ .Values.service.s3.serviceName }}
+{{- end }}
+{{- if .Values.teamSettings.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: team-settings-http
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.service.teamSettings.externalPort }}
+      targetPort: 8080
+  selector:
+    wireService: team-settings
+{{- end }}
+{{- if .Values.accountPages.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: account-pages-http
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.service.accountPages.externalPort }}
+      targetPort: 8080
+  selector:
+    wireService: account-pages
+{{- end }}

@@ -49,6 +49,7 @@ module Brig.API.User
     removePhone,
     revokeIdentity,
     deleteUserNoVerify,
+    deleteUsersNoVerify,
     Brig.API.User.deleteUser,
     verifyDeleteUser,
     deleteAccount,
@@ -102,6 +103,8 @@ import Brig.Data.User
 import qualified Brig.Data.User as Data
 import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
+import Brig.Data.UserPendingActivation
+import qualified Brig.Data.UserPendingActivation as Data
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.InternalEvent.Types as Internal
 import Brig.Options hiding (Timeout, internalEvents)
@@ -129,12 +132,13 @@ import Data.ByteString.Conversion
 import qualified Data.Currency as Currency
 import Data.Handle (Handle)
 import Data.Id as Id
-import Data.IdMapping (MappedOrLocalId, partitionMappedOrLocalIds)
 import Data.Json.Util
 import Data.List1 (List1)
 import qualified Data.Map.Strict as Map
+import qualified Data.Metrics as Metrics
 import Data.Misc (PlainTextPassword (..))
-import Data.Time.Clock (diffUTCTime)
+import Data.Qualified
+import Data.Time.Clock (addUTCTime, diffUTCTime)
 import Data.UUID.V4 (nextRandom)
 import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
@@ -183,16 +187,16 @@ createUser new@NewUser {..} = do
 
   -- Create account
   (account, pw) <- lift $ do
-    new' <-
-      case Team.inInvitation . fst <$> teamInvitation of
-        Just (Id uuid) -> do
-          mAcc <- Data.lookupAccount (Id uuid)
-          case mAcc of
-            Just existingAccount ->
-              pure (new {newUserManagedBy = Just . userManagedBy . accountUser $ existingAccount})
-            Nothing -> pure new
-        Nothing -> pure new
-    newAccount new' {newUserIdentity = ident} (Team.inInvitation . fst <$> teamInvitation) tid
+    let mbInv = Team.inInvitation . fst <$> teamInvitation
+    mbExistingAccount <- join <$> for mbInv (\(Id uuid) -> Data.lookupAccount (Id uuid))
+    let new' =
+          new
+            { newUserManagedBy = case mbExistingAccount of
+                Nothing -> newUserManagedBy
+                Just acc -> Just . userManagedBy . accountUser $ acc,
+              newUserIdentity = ident
+            }
+    newAccount new' mbInv tid (userHandle . accountUser =<< mbExistingAccount)
 
   let uid = userId (accountUser account)
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.createUser")
@@ -328,6 +332,7 @@ createUser new@NewUser {..} = do
           field "user" (toByteString uid)
             . field "team" (toByteString $ Team.iiTeam ii)
             . msg (val "Accepting invitation")
+        Data.usersPendingActivationRemove uid
         Team.deleteInvitation (Team.inTeam inv) (Team.inInvitation inv)
 
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT CreateUserError AppIO CreateUserTeam
@@ -356,6 +361,15 @@ createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = (`ca
   verifyUniquenessAndCheckBlacklist emKey
   account <- lift $ newAccountInviteViaScim uid tid loc name email
   Log.debug $ field "user" (toByteString . userId . accountUser $ account) . field "action" (Log.val "User.createUserInviteViaScim")
+
+  -- add the expiry table entry first!  (if brig creates an account, and then crashes before
+  -- creating the expiry table entry, gc will miss user data.)
+  expiresAt <- do
+    ttl <- setTeamInvitationTimeout <$> view settings
+    now <- liftIO =<< view currentTime
+    pure $ addUTCTime (realToFrac ttl) now
+  lift $ Data.usersPendingActivationAdd (UserPendingActivation uid expiresAt)
+
   let activated =
         -- It would be nice to set this to 'False' to make sure we're not accidentally
         -- treating 'PendingActivation' as 'Active', but then 'Brig.Data.User.toIdentity'
@@ -363,6 +377,7 @@ createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = (`ca
         -- the SCIM user.
         True
   lift $ Data.insertAccount account Nothing Nothing activated
+
   return account
 
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.
@@ -1006,6 +1021,13 @@ deleteUserNoVerify uid = do
   queue <- view internalEvents
   Queue.enqueue queue (Internal.DeleteUser uid)
 
+deleteUsersNoVerify :: [UserId] -> AppIO ()
+deleteUsersNoVerify uids = do
+  for_ uids deleteUserNoVerify
+  m <- view metrics
+  Metrics.counterAdd (fromIntegral . length $ uids) (Metrics.path "user.enqueue_multi_delete_total") m
+  Metrics.counterIncr (Metrics.path "user.enqueue_multi_delete_calls_total") m
+
 -- | Garbage collect users if they're ephemeral and they have expired.
 -- Always returns the user (deletion itself is delayed)
 userGC :: User -> AppIO User
@@ -1018,7 +1040,7 @@ userGC u = case (userExpire u) of
       deleteUserNoVerify (userId u)
     return u
 
-lookupProfile :: UserId -> MappedOrLocalId Id.U -> AppIO (Maybe UserProfile)
+lookupProfile :: UserId -> Qualified UserId -> AppIO (Maybe UserProfile)
 lookupProfile self other = listToMaybe <$> lookupProfiles self [other]
 
 -- | Obtain user profiles for a list of users as they can be seen by
@@ -1030,10 +1052,11 @@ lookupProfiles ::
   -- | User 'self' on whose behalf the profiles are requested.
   UserId ->
   -- | The users ('others') for which to obtain the profiles.
-  [MappedOrLocalId Id.U] ->
+  [Qualified UserId] ->
   AppIO [UserProfile]
 lookupProfiles self others = do
-  let (localUsers, _remoteUsers) = partitionMappedOrLocalIds others
+  domain <- viewFederationDomain
+  let (_remoteUsers, localUsers) = partitionRemoteOrLocalIds domain others
   localProfiles <- lookupProfilesOfLocalUsers self localUsers
   -- FUTUREWORK(federation, #1267): fetch remote profiles
   remoteProfiles <- pure []

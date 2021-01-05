@@ -66,7 +66,10 @@ $(DEB_SCHEMA): install
 
 .PHONY: i
 i:
-	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml $(WIRE_INTEGRATION_TEST_OPTIONS)
+	../integration.sh bash -c "\
+	./test-scim-suite/runsuite.sh && \
+	$(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml $(WIRE_INTEGRATION_TEST_OPTIONS) \
+	"
 
 .PHONY: i-aws
 i-aws:
@@ -77,7 +80,7 @@ i-list:
 	$(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -l
 
 i-%:
-	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml --match="$*" $(WIRE_INTEGRATION_TEST_OPTIONS)
+	INTEGRATION_SKIP_SCIM_SUITE=1 ../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml --match="$*" $(WIRE_INTEGRATION_TEST_OPTIONS)
 
 .PHONY: integration
 integration: fast i

@@ -323,12 +323,32 @@ routes = do
       description "Team ID"
     Doc.response 200 "Team Information about Owners and Admins" Doc.end
 
-  -- feature flags
-  mkFeaturePutGetRoute @'Public.TeamFeatureLegalHold
-  mkFeaturePutGetRoute @'Public.TeamFeatureSSO
-  mkFeaturePutGetRoute @'Public.TeamFeatureSearchVisibility
-  mkFeaturePutGetRoute @'Public.TeamFeatureValidateSAMLEmails
-  mkFeaturePutGetRoute @'Public.TeamFeatureDigitalSignatures
+  get "/teams/:tid/features/:feature" (continue getTeamFeatureFlagNoConfigH) $
+    capture "tid"
+      .&. capture "feature"
+  document "GET" "getTeamFeatureFlag" $ do
+    summary "Shows whether a feature flag is enabled or not for a given team."
+    Doc.parameter Doc.Path "tid" Doc.bytes' $
+      description "Team ID"
+    Doc.parameter Doc.Path "feature" Doc.typeTeamFeatureNameNoConfig $
+      description "Feature name"
+    Doc.returns (Doc.ref Public.modelTeamFeatureStatusNoConfig)
+    Doc.response 200 "Team feature flag status" Doc.end
+
+  put "/teams/:tid/features/:feature" (continue setTeamFeatureNoConfigFlagH) $
+    capture "tid"
+      .&. capture "feature"
+      .&. param "status"
+  document "PUT" "setTeamFeatureFlag" $ do
+    summary "Disable / enable feature flag for a given team"
+    Doc.parameter Doc.Path "tid" Doc.bytes' $
+      description "Team ID"
+    Doc.parameter Doc.Path "feature" Doc.typeTeamFeatureNameNoConfig $
+      description "Feature name"
+    Doc.parameter Doc.Query "status" Public.typeTeamFeatureStatusValue $ do
+      Doc.description "team feature status (enabled or disabled)"
+    Doc.response 200 "Team feature flag status" Doc.end
+
   mkFeaturePutGetRoute @'Public.TeamFeatureAppLock
 
   -- These endpoints should be part of team settings. Until then, we access them from here
@@ -579,6 +599,18 @@ setTeamFeatureFlagH ::
 setTeamFeatureFlagH (tid ::: req ::: _) = do
   status :: Public.TeamFeatureStatus a <- parseBody req !>> Error status400 "client-error"
   empty <$ Intra.setTeamFeatureFlag @a tid status
+
+getTeamFeatureFlagNoConfigH ::
+  TeamId ::: Public.TeamFeatureName ->
+  Handler Response
+getTeamFeatureFlagNoConfigH (tid ::: featureName) =
+  json <$> Intra.getTeamFeatureFlagNoConfig tid featureName
+
+setTeamFeatureNoConfigFlagH ::
+  TeamId ::: Public.TeamFeatureName ::: Public.TeamFeatureStatusValue ->
+  Handler Response
+setTeamFeatureNoConfigFlagH (tid ::: featureName ::: statusValue) =
+  json <$> Intra.setTeamFeatureFlagNoConfig tid featureName statusValue
 
 setSearchVisibility :: JSON ::: TeamId ::: JsonRequest Team.TeamSearchVisibility -> Handler Response
 setSearchVisibility (_ ::: tid ::: req) = do

@@ -42,7 +42,7 @@ import Data.Aeson.QQ (aesonQQ)
 import Data.Aeson.Types (fromJSON, toJSON)
 import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle), fromHandle)
-import Data.Id (TeamId, UserId, randomId)
+import Data.Id (UserId, randomId)
 import Data.Ix (inRange)
 import Data.String.Conversions (cs)
 import Data.Text.Encoding (encodeUtf8)
@@ -64,7 +64,6 @@ import qualified Web.Scim.Schema.Common as Scim
 import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.PatchOp as PatchOp
 import qualified Web.Scim.Schema.User as Scim.User
-import qualified Wire.API.Team.Feature as Feature
 import Wire.API.Team.Invitation (Invitation (..))
 import Wire.API.User.RichInfo
 import Wire.API.User.Search (SearchResult (..))
@@ -103,7 +102,7 @@ specSuspend = do
           unless isActive $ do
             runSpar $ Intra.setStatus member Suspended
           [user] <- listUsers tok (Just (filterBy "userName" handle))
-          lift $ (Scim.User.active . Scim.value . Scim.thing $ user) `shouldBe` Just isActive
+          lift $ (fmap Scim.unScimBool . Scim.User.active . Scim.value . Scim.thing $ user) `shouldBe` Just isActive
     it "pre-existing suspended users are inactive" $ do
       checkPreExistingUser False
     it "pre-existing unsuspended users are active" $ do
@@ -119,24 +118,24 @@ specSuspend = do
             -- SCIM records don't have the active field. absence of active should be interpreted as Active.
             -- Once we get rid of the `scim` table and make scim serve brig records directly, this is
             -- not an issue anymore.
-            lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUserBlah) `shouldBe` Just True
+            lift $ (fmap Scim.unScimBool . Scim.User.active . Scim.value . Scim.thing $ scimStoredUserBlah) `shouldBe` Just True
             void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active)
           do
             scimStoredUser <- putOrPatch tok uid user True
-            lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just True
+            lift $ (fmap Scim.unScimBool . Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just True
             void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active)
           do
             scimStoredUser <- putOrPatch tok uid user False
-            lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just False
+            lift $ (fmap Scim.unScimBool . Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just False
             void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Suspended)
           do
             scimStoredUser <- putOrPatch tok uid user True
-            lift $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just True
+            lift $ (fmap Scim.unScimBool . Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just True
             void $ aFewTimes (runSpar $ Intra.getStatus uid) (== Active)
 
     it "PUT will change state from active to inactive and back" $ do
       void . activeInactiveAndBack $ \tok uid user active ->
-        updateUser tok uid user {Scim.User.active = Just active}
+        updateUser tok uid user {Scim.User.active = Just (Scim.ScimBool active)}
 
     it "PATCH will change state from active to inactive and back" $ do
       let replaceAttrib name value =
@@ -189,7 +188,7 @@ specCreateUser = describe "POST /Users" $ do
       testCreateUserNoIdP
     it "fails if no email can be extraced from externalId" $ do
       testCreateUserNoIdPNoEmail
-    it "doesn't list users that exceed their invivtation period, and allows recreating them" $ do
+    it "doesn't list users that exceed their invitation period, and allows recreating them" $ do
       testCreateUserTimeout
   context "team has one SAML IdP" $ do
     it "creates a user in an existing team" $ do
@@ -231,7 +230,7 @@ testCreateUserNoIdP = do
   (owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
   tok <- registerScimToken tid Nothing
   scimStoredUser <- createUser tok scimUser
-  liftIO $ (Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just False
+  liftIO $ (fmap Scim.unScimBool . Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just False
   let userid = scimUserId scimStoredUser
       handle = Handle $ Scim.User.userName scimUser
       userName = Name . fromJust . Scim.User.displayName $ scimUser
@@ -260,7 +259,7 @@ testCreateUserNoIdP = do
     susr <- getUser tok userid
     liftIO $ susr `shouldBe` scimStoredUser
     let usr = Scim.value . Scim.thing $ susr
-    liftIO $ Scim.User.active usr `shouldBe` Just False
+    liftIO $ Scim.User.active usr `shouldBe` Just (Scim.ScimBool False)
     liftIO $ Scim.User.externalId usr `shouldBe` Just (fromEmail email)
 
   -- scim search should succeed
@@ -284,10 +283,10 @@ testCreateUserNoIdP = do
         >>= maybe (error "could not find user in brig") pure
     liftIO $ accountStatus brigUser `shouldBe` Active
     liftIO $ userManagedBy (accountUser brigUser) `shouldBe` ManagedByScim
-
+    liftIO $ userHandle (accountUser brigUser) `shouldBe` Just handle
     susr <- getUser tok userid
     let usr = Scim.value . Scim.thing $ susr
-    liftIO $ Scim.User.active usr `shouldNotBe` Just False
+    liftIO $ Scim.User.active usr `shouldNotBe` Just (Scim.ScimBool False)
 
   -- searching user in brig should succeed
   searchUser brig owner userName True
@@ -638,7 +637,7 @@ testCreateUserTimeout = do
 
   waitUserExpiration
   searchUser tok scimUser email False
-  registerInvitation email userName inviteeCode False
+  aFewTimesRecover $ registerInvitation email userName inviteeCode False
   searchUser tok scimUser email False
 
   (scimStoredUser2, _inv, inviteeCode2) <- createUser'step tok tid scimUser email
@@ -647,7 +646,7 @@ testCreateUserTimeout = do
   let id2 = (Scim.id . Scim.thing) scimStoredUser2
   liftIO $ id1 `shouldNotBe` id2
 
-  registerInvitation email userName inviteeCode2 True
+  aFewTimesRecover $ registerInvitation email userName inviteeCode2 True
   searchUser tok scimUser email True
   waitUserExpiration
   searchUser tok scimUser email True
@@ -1502,6 +1501,51 @@ specDeleteUser = do
       deleteUser_ (Just tok) (Just $ scimUserId storedUser) (env ^. teSpar)
         !!! assertTrue_ (inRange (200, 499) . statusCode)
 
+    context "user with scim, no saml, validated email, password" $ do
+      it "works" $ do
+        env <- ask
+        let brig = env ^. teBrig
+            spar = env ^. teSpar
+            galley = env ^. teGalley
+
+        (_, tid) <- call $ createUserWithTeam brig galley
+        tok <- registerScimToken tid Nothing
+
+        email <- randomEmail
+        scimUser <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
+        scimStoredUser <- createUser tok scimUser
+        let uid = scimUserId scimStoredUser
+
+        do
+          inv <- call $ getInvitation brig email
+          Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
+          registerInvitation email (Name "Alice") inviteeCode True
+          call $ headInvitation404 brig email
+
+        deleteUser_ (Just tok) (Just uid) spar
+          !!! const 204 === statusCode
+        aFewTimes (getUser_ (Just tok) uid spar) ((== 404) . statusCode)
+          !!! const 404 === statusCode
+
+    context "user not touched via scim before" $ do
+      it "works" $ do
+        env <- ask
+        let brig = env ^. teBrig
+            spar = env ^. teSpar
+            galley = env ^. teGalley
+
+        (owner, tid) <- call $ createUserWithTeam brig galley
+        tok <- registerScimToken tid Nothing
+
+        uid <- userId <$> call (inviteAndRegisterUser brig owner tid)
+
+        aFewTimes (getUser_ (Just tok) uid spar) ((== 200) . statusCode)
+          !!! const 200 === statusCode
+        deleteUser_ (Just tok) (Just uid) spar
+          !!! const 204 === statusCode
+        aFewTimes (getUser_ (Just tok) uid spar) ((== 404) . statusCode)
+          !!! const 404 === statusCode
+
 -- | Azure sends a request for an unknown user to test out whether your API is online However;
 -- it sends a userName that is not a valid wire handle. So we should treat 'invalid' as 'not
 -- found'.
@@ -1521,23 +1565,7 @@ specAzureQuirks = do
 specEmailValidation :: SpecWith TestEnv
 specEmailValidation = do
   describe "email validation" $ do
-    let enableSamlEmailValidation :: HasCallStack => TeamId -> TestSpar ()
-        enableSamlEmailValidation tid = do
-          galley <- asks (^. teGalley)
-          let req = put $ galley . paths p . json (Feature.TeamFeatureStatusNoConfig Feature.TeamFeatureEnabled)
-              p = ["/i/teams", toByteString' tid, "features", "validateSAMLemails"]
-          call req !!! const 200 === statusCode
-
-        -- (This may be the same as 'Util.Email.checkEmail'.)
-        assertEmail :: HasCallStack => UserId -> Maybe Email -> TestSpar ()
-        assertEmail uid expectedEmail = do
-          brig <- asks (^. teBrig)
-          let req = get (brig . path "/self" . zUser uid)
-          call req !!! do
-            const 200 === statusCode
-            const expectedEmail === (userEmail <=< responseJsonMaybe)
-
-        eventually :: HasCallStack => TestSpar a -> TestSpar a
+    let eventually :: HasCallStack => TestSpar a -> TestSpar a
         eventually = recovering (limitRetries 3 <> exponentialBackoff 100000) [] . const
 
         setup :: HasCallStack => Bool -> TestSpar (UserId, Email)
@@ -1561,8 +1589,8 @@ specEmailValidation = do
 
     context "enabled in team" . it "gives user email" $ do
       (uid, email) <- setup True
-      eventually $ assertEmail uid (Just email)
+      eventually $ checkEmail uid (Just email)
 
     context "not enabled in team" . it "does not give user email" $ do
       (uid, _) <- setup False
-      eventually $ assertEmail uid Nothing
+      eventually $ checkEmail uid Nothing

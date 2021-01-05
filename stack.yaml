@@ -9,6 +9,7 @@ packages:
 - libs/cassandra-util
 - libs/extended
 - libs/dns-util
+- libs/deriving-swagger2
 - libs/galley-types
 - libs/gundeck-types
 - libs/hscim
@@ -41,6 +42,8 @@ packages:
 - tools/db/service-backfill
 - tools/db/billing-team-member-backfill
 - tools/db/find-undead
+- tools/db/move-team
+- tools/db/repair-handles
 - tools/makedeb
 - tools/rex
 - tools/stern
@@ -162,6 +165,12 @@ extra-deps:
 # Not updated on Stackage yet
 - QuickCheck-2.14
 - splitmix-0.0.4 # needed for QuickCheck
+- servant-0.18.2
+- servant-server-0.18.2
+- servant-mock-0.8.7
+- servant-swagger-ui-0.3.4.3.36.1
+- git: https://github.com/wireapp/servant-swagger.git
+  commit: 23e9afafadaade29d21181b935286087457171e3
 
 - HsOpenSSL-x509-system-0.1.0.3@sha256:f4958ee0eec555c5c213662eff6764bddefe5665e2afcfd32733ce3801a9b687,1774 # Latest: lts-14.27
 - cql-4.0.2@sha256:a0006a5ac13d6f86d5eff28c11be80928246309f217ea6d5f5c8a76a5d16b48b,3157 # Latest: lts-14.27
@@ -195,3 +204,4 @@ extra-deps:
 - ghc-lib-parser-8.10.1.20200412@sha256:b0517bb150a02957d7180f131f5b94abd2a7f58a7d1532a012e71618282339c2,8751  # for ormolu-0.1.2.0
 
 - headroom-0.2.1.0
+- implicit-hie-0.1.2.5

@@ -68,6 +68,9 @@ module Wire.API.User
     mkVerifyDeleteUser,
     DeletionCodeTimeout (..),
 
+    -- * List Users
+    ListUsersQuery (..),
+
     -- * helpers
     parseIdentity,
 
@@ -76,36 +79,55 @@ module Wire.API.User
     module Wire.API.User.Profile,
 
     -- * Swagger
-    modelUserIdList,
-    modelSelf,
-    modelUser,
-    modelNewUser,
-    modelUserUpdate,
-    modelChangePassword,
-    modelChangeLocale,
-    modelEmailUpdate,
-    modelPhoneUpdate,
     modelChangeHandle,
+    modelChangeLocale,
+    modelChangePassword,
     modelDelete,
+    modelEmailUpdate,
+    modelNewUser,
+    modelPhoneUpdate,
+    modelUser,
+    modelUserIdList,
+    modelUserUpdate,
     modelVerifyDelete,
   )
 where
 
 import Control.Error.Safe (rightMay)
+import Control.Lens (over, view, (.~), (?~))
 import Data.Aeson
+  ( FromJSON (parseJSON),
+    KeyValue ((.=)),
+    Object,
+    ToJSON (toJSON),
+    Value (Object),
+    object,
+    withObject,
+    (.!=),
+    (.:),
+    (.:?),
+  )
 import qualified Data.Aeson.Types as Aeson
 import Data.ByteString.Conversion
 import qualified Data.Code as Code
 import qualified Data.Currency as Currency
+import Data.Domain (Domain (Domain))
 import Data.Handle (Handle)
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
+import qualified Data.List as List
 import Data.Misc (PlainTextPassword (..))
+import Data.Proxy (Proxy (..))
+import Data.Qualified
 import Data.Range
+import Data.Swagger (HasExample (example), NamedSchema (..), SwaggerType (..), ToSchema (..), declareSchemaRef, description, genericDeclareNamedSchema, properties, required, schema, type_)
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import Data.UUID (UUID, nil)
+import qualified Data.UUID as UUID
+import Deriving.Swagger
 import Imports
 import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
@@ -149,7 +171,7 @@ instance ToJSON UserIdList where
 -- other users. Each user also has access to their own profile in a richer format --
 -- 'SelfProfile'.
 data UserProfile = UserProfile
-  { profileId :: UserId,
+  { profileQualifiedId :: Qualified UserId,
     profileName :: Name,
     -- | DEPRECATED
     profilePict :: Pict,
@@ -167,6 +189,30 @@ data UserProfile = UserProfile
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserProfile)
+
+-- Cannot use deriving (ToSchema) via (CustomSwagger ...) because we need to
+-- mark 'deleted' as optional, but it is not a 'Maybe'
+instance ToSchema UserProfile where
+  declareNamedSchema _ = do
+    idSchema <- deprecatedUnqualifiedSchemaRef (Proxy @UserId) "qualified_id"
+    genericSchema <-
+      genericDeclareNamedSchema
+        ( swaggerOptions
+            @'[ FieldLabelModifier
+                  ( StripPrefix "profile",
+                    CamelToSnake,
+                    LabelMappings
+                      '[ "pict" ':-> "picture",
+                         "expire" ':-> "expires_at"
+                       ]
+                  )
+              ]
+        )
+        (Proxy @UserProfile)
+    pure $
+      genericSchema
+        & over (schema . required) (List.delete "deleted")
+        & over (schema . properties) (InsOrdHashMap.insert "id" idSchema)
 
 modelUser :: Doc.Model
 modelUser = Doc.defineModel "User" $ do
@@ -199,7 +245,8 @@ modelUser = Doc.defineModel "User" $ do
 instance ToJSON UserProfile where
   toJSON u =
     object $
-      "id" .= profileId u
+      "id" .= qUnqualified (profileQualifiedId u)
+        # "qualified_id" .= profileQualifiedId u
         # "name" .= profileName u
         # "picture" .= profilePict u
         # "assets" .= profileAssets u
@@ -216,7 +263,7 @@ instance ToJSON UserProfile where
 instance FromJSON UserProfile where
   parseJSON = withObject "UserProfile" $ \o ->
     UserProfile
-      <$> o .: "id"
+      <$> o .: "qualified_id"
       <*> o .: "name"
       <*> o .:? "picture" .!= noPict
       <*> o .:? "assets" .!= []
@@ -233,43 +280,12 @@ instance FromJSON UserProfile where
 -- SelfProfile
 
 -- | A self profile.
-data SelfProfile = SelfProfile
+newtype SelfProfile = SelfProfile
   { selfUser :: User
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform SelfProfile)
-
-modelSelf :: Doc.Model
-modelSelf = Doc.defineModel "Self" $ do
-  Doc.description "Self Profile"
-  Doc.property "id" Doc.bytes' $
-    Doc.description "User ID"
-  Doc.property "name" Doc.string' $
-    Doc.description "Name"
-  Doc.property "assets" (Doc.array (Doc.ref modelAsset)) $
-    Doc.description "Profile assets"
-  Doc.property "email" Doc.string' $ do
-    Doc.description "Email address"
-    Doc.optional
-  Doc.property "phone" Doc.string' $ do
-    Doc.description "E.164 Phone number"
-    Doc.optional
-  Doc.property "accent_id" Doc.int32' $ do
-    Doc.description "Accent colour ID"
-    Doc.optional
-  Doc.property "locale" Doc.string' $
-    Doc.description "Locale in <ln-cc> format."
-  Doc.property "handle" Doc.string' $ do
-    Doc.description "Unique handle."
-    Doc.optional
-  Doc.property "deleted" Doc.bool' $ do
-    Doc.description "Whether the account has been deleted."
-    Doc.optional
-  Doc.property "managed_by" typeManagedBy $ do
-    Doc.description
-      "What is the source of truth for this user; if it's SCIM \
-      \then the profile can't be edited via normal means"
-    Doc.optional
+  deriving newtype (ToSchema)
 
 instance ToJSON SelfProfile where
   toJSON (SelfProfile u) = toJSON u
@@ -286,6 +302,7 @@ instance FromJSON SelfProfile where
 -- | The data of an existing user.
 data User = User
   { userId :: UserId,
+    userQualifiedId :: Qualified UserId,
     -- | User identity. For endpoints like @/self@, it will be present in the response iff
     -- the user is activated, and the email/phone contained in it will be guaranteedly
     -- verified. {#RefActivation}
@@ -314,12 +331,42 @@ data User = User
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform User)
 
+-- Cannot use deriving (ToSchema) via (CustomSwagger ...) because we need to
+-- mark 'deleted' as optional, but it is not a 'Maybe'
+-- and we need to manually add the identity schema fields at the top level
+-- instead of nesting them under the 'identity' field.
+instance ToSchema User where
+  declareNamedSchema _ = do
+    identityProperties <- view (schema . properties) <$> declareNamedSchema (Proxy @UserIdentity)
+    genericSchema <-
+      genericDeclareNamedSchema
+        ( swaggerOptions
+            @'[ FieldLabelModifier
+                  ( StripPrefix "user",
+                    CamelToSnake,
+                    LabelMappings
+                      '[ "pict" ':-> "picture",
+                         "expire" ':-> "expires_at",
+                         "display_name" ':-> "name"
+                       ]
+                  )
+              ]
+        )
+        (Proxy @User)
+    pure $
+      genericSchema
+        & over (schema . required) (List.delete "deleted")
+        -- The UserIdentity fields need to be flat-included, not be in a sub-object
+        & over (schema . properties) (InsOrdHashMap.delete "identity")
+        & over (schema . properties) (InsOrdHashMap.union identityProperties)
+
 -- FUTUREWORK:
 -- disentangle json serializations for 'User', 'NewUser', 'UserIdentity', 'NewUserOrigin'.
 instance ToJSON User where
   toJSON u =
     object $
       "id" .= userId u
+        # "qualified_id" .= userQualifiedId u
         # "name" .= userDisplayName u
         # "picture" .= userPict u
         # "assets" .= userAssets u
@@ -341,6 +388,7 @@ instance FromJSON User where
     ssoid <- o .:? "sso_id"
     User
       <$> o .: "id"
+      <*> o .: "qualified_id"
       <*> parseIdentity ssoid o
       <*> o .: "name"
       <*> o .:? "picture" .!= noPict
@@ -366,7 +414,7 @@ userSSOId = ssoIdentity <=< userIdentity
 connectedProfile :: User -> UserProfile
 connectedProfile u =
   UserProfile
-    { profileId = userId u,
+    { profileQualifiedId = userQualifiedId u,
       profileHandle = userHandle u,
       profileName = userDisplayName u,
       profilePict = userPict u,
@@ -389,7 +437,7 @@ publicProfile u =
   -- RecordWildCards or something similar because we want changes to the public profile
   -- to be EXPLICIT and INTENTIONAL so we don't accidentally leak sensitive data.
   let UserProfile
-        { profileId,
+        { profileQualifiedId,
           profileHandle,
           profileName,
           profilePict,
@@ -403,7 +451,7 @@ publicProfile u =
    in UserProfile
         { profileLocale = Nothing,
           profileEmail = Nothing,
-          profileId,
+          profileQualifiedId,
           profileHandle,
           profileName,
           profilePict,
@@ -982,3 +1030,37 @@ instance ToJSON DeletionCodeTimeout where
 instance FromJSON DeletionCodeTimeout where
   parseJSON = withObject "DeletionCodeTimeout" $ \o ->
     DeletionCodeTimeout <$> o .: "expires_in"
+
+data ListUsersQuery
+  = ListUsersByIds [Qualified UserId]
+  | ListUsersByHandles (Range 1 4 [Qualified Handle])
+  deriving (Show, Eq)
+
+instance FromJSON ListUsersQuery where
+  parseJSON =
+    withObject "ListUsersQuery" $ \o -> do
+      mUids <- ListUsersByIds <$$> o .: "qualified_ids"
+      mHandles <- ListUsersByHandles <$$> o .: "qualified_handles"
+      case (mUids, mHandles) of
+        (Just uids, Nothing) -> pure uids
+        (Nothing, Just handles) -> pure handles
+        (_, _) -> fail "exactly one of qualified_ids or qualified_handles must be provided."
+
+instance ToJSON ListUsersQuery where
+  toJSON (ListUsersByIds uids) = object ["qualified_ids" .= uids]
+  toJSON (ListUsersByHandles handles) = object ["qualified_handles" .= handles]
+
+-- NB: It is not possible to specific mutually exclusive fields in swagger2, so
+-- here we write it in description and modify the example to have the correct
+-- JSON.
+instance ToSchema ListUsersQuery where
+  declareNamedSchema _ = do
+    uids <- declareSchemaRef (Proxy @[Qualified UserId])
+    handles <- declareSchemaRef (Proxy @(Range 1 4 [Qualified Handle]))
+    return $
+      NamedSchema (Just "ListUsersQuery") $
+        mempty
+          & type_ ?~ SwaggerObject
+          & description ?~ "exactly one of qualifie_ids or qualified_handles must be provided."
+          & properties .~ InsOrdHashMap.fromList [("qualified_ids", uids), ("qualified_handles", handles)]
+          & example ?~ toJSON (ListUsersByIds [Qualified (Id UUID.nil) (Domain "example.com")])

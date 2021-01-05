@@ -23,12 +23,14 @@ module Federator.Types where
 import Bilge (RequestId)
 import Control.Lens (makeLenses)
 import Data.Metrics (Metrics)
+import Federator.Options (RunSettings)
 import qualified System.Logger.Class as LC
 
 data Env = Env
   { _metrics :: Metrics,
     _applog :: LC.Logger,
-    _requestId :: RequestId
+    _requestId :: RequestId,
+    _runSettings :: RunSettings
   }
 
 makeLenses ''Env
