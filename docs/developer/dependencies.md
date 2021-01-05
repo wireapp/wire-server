@@ -174,8 +174,14 @@ docker login --username=<MY_DOCKER_USERNAME>
 
 ## Nix
 
-Using Stack's [Nix integration](https://docs.haskellstack.org/en/stable/nix_integration/), Stack will take care of installing any system
-dependencies automatically - including `cryptobox-c`. If new system dependencies are needed, add them to the `stack-deps.nix` file in the project root.
+Using Stack's [Nix integration](https://docs.haskellstack.org/en/stable/nix_integration/), Stack will take care of installing any system dependencies automatically - including `cryptobox-c`. If new system dependencies are needed, add them to the `stack-deps.nix` file in the project root. You can enable the nix integration by adding the following snippet in your `$HOME/.stack/config.yaml` file:
+```
+nix:
+  enable: true
+```
+
+Running `stack build` will then use the `stack-deps.nix` file configured in the `stack.yaml`.
+
 Just type `$ nix-shell` and you will automatically have `make`, `docker-compose` and `stack` in `PATH`.
 You can then run all the builds, and the native dependencies will be automatically present.
 
