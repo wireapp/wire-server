@@ -20,6 +20,7 @@ dependencies:
 - extended
 - imports
 - lens
+- http2-client
 - metrics-core
 - metrics-wai
 - QuickCheck
@@ -30,6 +31,7 @@ dependencies:
 - servant-swagger
 - string-conversions
 - mu-grpc-server
+- mu-grpc-client
 - mu-protobuf
 - mu-rpc
 - mu-schema

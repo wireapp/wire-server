@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 429f0247c9da46aa8a0069b69ce593cbb07ec4afafb20a5909f8c8535799165a
+-- hash: e81a4559a2b4815bc2e8986ca250779837ee054e3625d65a10d1fa23ab4a2c80
 
 name:           federator
 version:        1.0.0
@@ -43,10 +43,12 @@ library
     , errors
     , exceptions
     , extended
+    , http2-client
     , imports
     , lens
     , metrics-core
     , metrics-wai
+    , mu-grpc-client
     , mu-grpc-server
     , mu-protobuf
     , mu-rpc
@@ -88,10 +90,12 @@ executable federator
     , exceptions
     , extended
     , federator
+    , http2-client
     , imports
     , lens
     , metrics-core
     , metrics-wai
+    , mu-grpc-client
     , mu-grpc-server
     , mu-protobuf
     , mu-rpc
@@ -117,6 +121,7 @@ test-suite federator-tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
+      Test.Federator.Integration
       Test.Federator.Options
       Paths_federator
   hs-source-dirs:
@@ -136,10 +141,12 @@ test-suite federator-tests
     , exceptions
     , extended
     , federator
+    , http2-client
     , imports
     , lens
     , metrics-core
     , metrics-wai
+    , mu-grpc-client
     , mu-grpc-server
     , mu-protobuf
     , mu-rpc

@@ -54,7 +54,7 @@ run :: Opts -> IO ()
 run opts = do
   (app, env) <- mkApp opts
   settings <- Server.newSettings (restServer env)
-  -- TODO: combine the two WAI Applications
+  -- TODO: Remove the RESTful things.
   -- Warp.runSettings settings app
   let grpcApplication = gRpcApp msgProtoBuf grpcServer
   runGRpcApp msgProtoBuf (fromIntegral $ endpoint ^. epPort) grpcServer
