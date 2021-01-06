@@ -457,6 +457,20 @@ packages:
   original:
     hackage: markov-chain-usage-model-0.0.0
 - completed:
+    hackage: wai-predicates-1.0.0@sha256:46ec4b4afcecac28810e6a13613fedc0c995419cb7c5e18d3dd62eed258b434f,2848
+    pantry-tree:
+      size: 1378
+      sha256: 58c340a179ad44850ace6f5d7d14df2f2e8cc7fd95f8a83b1c0c19e8b777760b
+  original:
+    hackage: wai-predicates-1.0.0
+- completed:
+    hackage: redis-io-1.1.0@sha256:16ff8142557658df2c8ad569a1108042bab4cc4aec73fbc9dfd910477222c2e8,2732
+    pantry-tree:
+      size: 809
+      sha256: db61f70aa7387090c26ccca0545ffdeea0adfcf93b76d5eaf6a954c0e5a34064
+  original:
+    hackage: redis-io-1.1.0
+- completed:
     hackage: wai-route-0.4.0@sha256:ee52f13d2945e4a56147e91e515e184f840654f2e3d9071c73bec3d8aa1f4444,2119
     pantry-tree:
       size: 566
@@ -583,28 +597,6 @@ packages:
   original:
     git: https://github.com/dpwright/HaskellNet-SSL
     commit: ca84ef29a93eaef7673fa58056cdd8dae1568d2d
-- completed:
-    name: wai-predicates
-    version: 0.10.0
-    git: https://gitlab.com/axeman/wai-predicates.git
-    pantry-tree:
-      size: 1585
-      sha256: 8675a538bbbfb171b9d565831f333e443118ea5a70b1be8bffa635cb847d04fa
-    commit: 999d195b27104b9b39174f5ce18f5214b018a177
-  original:
-    git: https://gitlab.com/axeman/wai-predicates.git
-    commit: 999d195b27104b9b39174f5ce18f5214b018a177
-- completed:
-    name: redis-io
-    version: 1.0.0
-    git: https://gitlab.com/axeman/redis-io.git
-    pantry-tree:
-      size: 912
-      sha256: 3e8093b581c621df7ecbf2f6f79686afdea8bfeb56f0e546fff1e9d86de3bf80
-    commit: a0f39b1c517df21ad284ff91ecb062cbe41a4ad1
-  original:
-    git: https://gitlab.com/axeman/redis-io.git
-    commit: a0f39b1c517df21ad284ff91ecb062cbe41a4ad1
 - completed:
     hackage: ormolu-0.1.2.0@sha256:24e6512750576978b6f045c1e53a7aad28ab61960f738a3c74fb0bc2beaf4030,6237
     pantry-tree:
