@@ -158,6 +158,8 @@ extra-deps:
 - stompl-0.5.0
 - pattern-trie-0.1.0
 - markov-chain-usage-model-0.0.0
+- wai-predicates-1.0.0
+- redis-io-1.1.0
 
 # Not latest as latst one breaks wai-routing
 - wai-route-0.4.0
@@ -189,12 +191,6 @@ extra-deps:
 # Required for GHC 8.8, but not released to hackage yet
 - git: https://github.com/dpwright/HaskellNet-SSL
   commit: ca84ef29a93eaef7673fa58056cdd8dae1568d2d # master (Sep 14, 2020)
-
-# Forks with pending PRs
-- git: https://gitlab.com/axeman/wai-predicates.git
-  commit: 999d195b27104b9b39174f5ce18f5214b018a177 # ghc-8.8 (Sep 14, 2020, PR: https://gitlab.com/twittner/wai-predicates/-/merge_requests/1)
-- git: https://gitlab.com/axeman/redis-io.git
-  commit: a0f39b1c517df21ad284ff91ecb062cbe41a4ad1 # ghc-8.8 (Sep 21 , 2020, https://gitlab.com/twittner/redis-io/-/merge_requests/5)
 
 ############################################################
 # Development tools
