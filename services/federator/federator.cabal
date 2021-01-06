@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b397d9e636fcd4e0e88c2e71fb25434fa8bedb1bac7ab25b264269c3f8829d5d
+-- hash: 88f906c03c083d9873e22568fd4e504a5872c13a363995a1c568d480668c55c0
 
 name:           federator
 version:        1.0.0
@@ -127,6 +127,7 @@ executable federator-integration
   other-modules:
       Test.Federator.API
       Test.Federator.Util
+      Test.Federator.Utilly
       Paths_federator
   hs-source-dirs:
       test/integration
@@ -152,13 +153,16 @@ executable federator-integration
     , lens
     , metrics-core
     , metrics-wai
+    , mtl
     , mu-grpc-client
     , mu-grpc-server
     , mu-protobuf
     , mu-rpc
     , mu-schema
+    , optparse-applicative
     , random
     , resourcet
+    , retry
     , servant
     , servant-mock
     , servant-server

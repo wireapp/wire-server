@@ -57,8 +57,6 @@ partitionArgs = go [] []
     go wireArgs hspecArgs (x : xs) = go wireArgs (hspecArgs <> [x]) xs
     go wireArgs hspecArgs [] = (wireArgs, hspecArgs)
 
-type TestEnv = String
-
 mkspec :: SpecWith TestEnv
 mkspec = do
   -- describe "Logging" Test.LoggingSpec.spec

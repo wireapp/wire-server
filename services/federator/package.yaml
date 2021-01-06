@@ -73,6 +73,10 @@ executables:
     - hspec
     - random
     - cryptonite
+    - mtl
+    - retry
+    - optparse-applicative
+    - types-common
     - yaml
     - bytestring
 

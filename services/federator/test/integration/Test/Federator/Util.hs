@@ -21,81 +21,61 @@
 -- FUTUREWORK: this is all copied from galley and spar. Maybe at some point reduce duplication?
 module Test.Federator.Util where
 
--- import Bilge hiding (getCookie) -- we use Web.Cookie instead of the http-client type
+import Bilge
 -- import Bilge.Assert (Assertions, (!!!), (<!!), (===))
--- import qualified Brig.Types.Activation as Brig
--- import Brig.Types.Common (UserIdentity (..), UserSSOId (..))
--- import Brig.Types.User (User (..), selfUser, userIdentity)
--- import qualified Brig.Types.User as Brig
--- import qualified Brig.Types.User.Auth as Brig
--- import Control.Exception
--- import Control.Lens hiding ((.=))
--- import Control.Monad.Catch
--- import Control.Monad.Except
--- import Control.Retry
-import Crypto.Random.Types (MonadRandom)
--- import Data.Aeson as Aeson hiding (json)
+import Control.Exception
+import Control.Lens hiding ((.=))
+import Control.Monad.Catch
+import Control.Monad.Except
+import Control.Retry
+import Crypto.Random.Types (MonadRandom, getRandomBytes)
+import Data.Aeson as Aeson hiding (json)
+import Data.Aeson.TH
 -- import Data.Aeson.Lens as Aeson
 -- import qualified Data.ByteString as SBS
 -- import qualified Data.ByteString.Base64.Lazy as EL
 -- import Data.ByteString.Conversion
 -- import Data.Handle (Handle (Handle))
--- import Data.Id
+import Data.Id
 -- import Data.Misc (PlainTextPassword (..))
 -- import Data.Proxy
 -- import Data.Range
--- import Data.String.Conversions
+import Data.String.Conversions
 -- import qualified Data.Text.Ascii as Ascii
 -- import Data.Text.Encoding (encodeUtf8)
 -- import Data.Time
 -- import Data.UUID as UUID hiding (fromByteString, null)
 -- import Data.UUID.V4 as UUID (nextRandom)
--- import qualified Data.Yaml as Yaml
+import qualified Data.Yaml as Yaml
 -- import GHC.TypeLits
--- import qualified Galley.Types.Teams as Galley
-import Imports hiding (head)
--- import Network.HTTP.Client.MultipartFormData
+
 -- import qualified Network.Wai.Handler.Warp as Warp
 -- import qualified Network.Wai.Handler.Warp.Internal as Warp
--- import qualified Options.Applicative as OPA
--- import qualified System.Logger.Extended as Log
--- import System.Random (randomRIO)
-import Test.Hspec hiding (it, pending, pendingWith, xit)
 
--- import qualified Test.Hspec
--- import qualified Text.XML as XML
--- import qualified Text.XML.Cursor as XML
--- import Text.XML.DSig (SignPrivCreds)
--- import qualified Text.XML.DSig as SAML
--- import URI.ByteString
--- import Util.Options
+import Federator.Options
+import Imports hiding (head)
+import qualified Options.Applicative as OPA
+import qualified System.Logger.Extended as Log
+import System.Random (randomRIO)
+import Test.Federator.Utilly
+import Test.Hspec hiding (it, pending, pendingWith, xit)
+import Util.Options
+
 -- import Util.Types
--- import qualified Web.Cookie as Web
--- import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
--- import qualified Wire.API.Team.Feature as Public
--- import qualified Wire.API.Team.Invitation as TeamInvitation
 -- import qualified Wire.API.User as User
 
 type BrigReq = Request -> Request
 
-type GalleyReq = Request -> Request
+type TestFederator = ReaderT TestEnv IO
 
-type SparReq = Request -> Request
-
-type TestSpar = ReaderT TestEnv IO
-
-instance MonadRandom TestSpar where
+instance MonadRandom TestFederator where
   getRandomBytes = lift . getRandomBytes
 
 -- | See 'mkEnv' about what's in here.
 data TestEnv = TestEnv
   { _teMgr :: Manager,
-    _teCql :: Cas.ClientState,
     _teBrig :: BrigReq,
-    _teGalley :: GalleyReq,
-    _teSpar :: SparReq,
-    _teSparEnv :: Spar.Env,
-    -- | spar config
+    -- | federator config
     _teOpts :: Opts,
     -- | integration test config
     _teTstOpts :: IntegrationConfig
@@ -104,9 +84,7 @@ data TestEnv = TestEnv
 type Select = TestEnv -> (Request -> Request)
 
 data IntegrationConfig = IntegrationConfig
-  { cfgBrig :: Endpoint,
-    cfgGalley :: Endpoint,
-    cfgSpar :: Endpoint
+  { cfgBrig :: Endpoint
   }
   deriving (Show, Generic)
 
@@ -117,10 +95,10 @@ makeLenses ''TestEnv
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv
 mkEnvFromOptions = do
-  let desc = "Spar - SSO Service Integration Test Suite"
+  let desc = "Federator - SSO Service Integration Test Suite"
   (integrationCfgFilePath, cfgFilePath) <- OPA.execParser (OPA.info (OPA.helper <*> cliOptsParser) (OPA.header desc <> OPA.fullDesc))
   integrationOpts :: IntegrationConfig <- Yaml.decodeFileEither integrationCfgFilePath >>= either (error . show) pure
-  serviceOpts :: Opts <- Yaml.decodeFileEither cfgFilePath >>= either (throwIO . ErrorCall . show) Spar.Options.deriveOpts
+  serviceOpts :: Opts <- Yaml.decodeFileEither cfgFilePath >>= either (throwIO . ErrorCall . show) pure
   mkEnv integrationOpts serviceOpts
 
 -- | Accept config file locations as cli options.
@@ -137,38 +115,30 @@ cliOptsParser =
     <*> ( OPA.strOption $
             OPA.long "service-config"
               <> OPA.short 's'
-              <> OPA.help "Spar application config to load"
+              <> OPA.help "Federator application config to load"
               <> OPA.showDefault
-              <> OPA.value defaultSparPath
+              <> OPA.value defaultFederatorPath
         )
   where
     defaultIntPath = "/etc/wire/integration/integration.yaml"
-    defaultSparPath = "/etc/wire/spar/conf/spar.yaml"
+    defaultFederatorPath = "/etc/wire/federator/conf/federator.yaml"
 
--- | Create an environment for integration tests from integration and spar config files.
---
--- NB: We used to have a mock IdP server here that allowed spar to resolve metadata URLs and pull
--- metadata.  (It *could* have been used by the test suite to get 'AuthnRequest' values as well, but
--- that's no more interesting than simulating the idp end-point from inside the spar-integration
--- executable as a monadic function, only more complicated.)  Since spar does not accept metadata
--- URLs any more <https://github.com/wireapp/wire-server/pull/466#issuecomment-419396359>, we
--- removed the mock idp functionality.  if you want to re-introduce it,
--- <https://github.com/wireapp/wire-server/pull/466/commits/9c93f1e278500522a0565639140ac55dc21ee2d2>
--- would be a good place to look for code to steal.
+-- | Create an environment for integration tests from integration and federator config files.
 mkEnv :: HasCallStack => IntegrationConfig -> Opts -> IO TestEnv
 mkEnv _teTstOpts _teOpts = do
   _teMgr :: Manager <- newManager defaultManagerSettings
-  -- sparCtxLogger <- Log.mkLogger (toLevel $ saml _teOpts ^. SAML.cfgLogLevel) (logNetStrings _teOpts) (logFormat _teOpts)
+  -- federatorCtxLogger <- Log.mkLogger (toLevel $ saml _teOpts ^. SAML.cfgLogLevel) (logNetStrings _teOpts) (logFormat _teOpts)
   let _teBrig = endpointToReq (cfgBrig _teTstOpts)
-      _teGalley = endpointToReq (cfgGalley _teTstOpts)
-      _teSpar = endpointToReq (cfgSpar _teTstOpts)
-      _teSparEnv = Spar.Env {..}
-      sparCtxOpts = _teOpts
-      sparCtxCas = _teCql
-      sparCtxHttpManager = _teMgr
-      sparCtxHttpBrig = _teBrig empty
-      sparCtxHttpGalley = _teGalley empty
-      sparCtxRequestId = RequestId "<fake request id>"
+      -- _teFederator = endpointToReq (federator _teTstOpts)
+      -- _teFederatorEnv = Federator.Env {..}
+      federatorCtxOpts = _teOpts
+      federatorCtxHttpManager = _teMgr
+      federatorCtxHttpBrig = _teBrig empty
+      federatorCtxRequestId = RequestId "<fake request id>"
   pure TestEnv {..}
 
 destroyEnv :: HasCallStack => TestEnv -> IO ()
+destroyEnv _ = pure ()
+
+endpointToReq :: Endpoint -> (Bilge.Request -> Bilge.Request)
+endpointToReq ep = Bilge.host (ep ^. epHost . to cs) . Bilge.port (ep ^. epPort)
