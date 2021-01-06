@@ -2,4 +2,5 @@
 **/dist
 **/target
 **/*.aci
+**/*.tgz
 services/nginz/src/objs

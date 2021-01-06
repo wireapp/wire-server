@@ -187,16 +187,16 @@ createUser new@NewUser {..} = do
 
   -- Create account
   (account, pw) <- lift $ do
-    new' <-
-      case Team.inInvitation . fst <$> teamInvitation of
-        Just (Id uuid) -> do
-          mAcc <- Data.lookupAccount (Id uuid)
-          case mAcc of
-            Just existingAccount ->
-              pure (new {newUserManagedBy = Just . userManagedBy . accountUser $ existingAccount})
-            Nothing -> pure new
-        Nothing -> pure new
-    newAccount new' {newUserIdentity = ident} (Team.inInvitation . fst <$> teamInvitation) tid
+    let mbInv = Team.inInvitation . fst <$> teamInvitation
+    mbExistingAccount <- join <$> for mbInv (\(Id uuid) -> Data.lookupAccount (Id uuid))
+    let new' =
+          new
+            { newUserManagedBy = case mbExistingAccount of
+                Nothing -> newUserManagedBy
+                Just acc -> Just . userManagedBy . accountUser $ acc,
+              newUserIdentity = ident
+            }
+    newAccount new' mbInv tid (userHandle . accountUser =<< mbExistingAccount)
 
   let uid = userId (accountUser account)
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.createUser")

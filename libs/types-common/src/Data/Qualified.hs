@@ -28,9 +28,6 @@ module Data.Qualified
     -- * Qualified
     Qualified (..),
     renderQualifiedId,
-    mkQualifiedId,
-    renderQualifiedHandle,
-    mkQualifiedHandle,
     partitionRemoteOrLocalIds,
     deprecatedUnqualifiedSchemaRef,
   )
@@ -38,10 +35,9 @@ where
 
 import Control.Applicative (optional)
 import Control.Lens (view, (.~), (?~))
-import Data.Aeson (FromJSON, ToJSON, withObject, withText, (.:), (.=))
+import Data.Aeson (FromJSON, ToJSON, withObject, (.:), (.=))
 import qualified Data.Aeson as Aeson
 import qualified Data.Attoparsec.ByteString.Char8 as Atto
-import Data.Bifunctor (first)
 import Data.ByteString.Conversion (FromByteString (parser))
 import Data.Domain (Domain, domainText)
 import Data.Handle (Handle (..))
@@ -49,11 +45,9 @@ import Data.Id (Id (toUUID))
 import Data.Proxy (Proxy (..))
 import Data.String.Conversions (cs)
 import Data.Swagger
-import Data.Swagger.Declare (Declare)
-import qualified Data.Text.Encoding as Text.E
+import Data.Swagger.Declare (Declare, DeclareT)
 import qualified Data.UUID as UUID
 import Imports hiding (local)
-import Servant.API (FromHttpApiData (parseUrlPiece))
 import Test.QuickCheck (Arbitrary (arbitrary))
 
 ----------------------------------------------------------------------
@@ -101,25 +95,11 @@ data Qualified a = Qualified
   }
   deriving stock (Eq, Ord, Show, Generic)
 
+-- | FUTUREWORK: Maybe delete this, it is only used in printing federation not
+-- implemented errors
 renderQualified :: (a -> Text) -> Qualified a -> Text
 renderQualified renderLocal (Qualified localPart domain) =
   renderLocal localPart <> "@" <> domainText domain
-
--- FUTUREWORK: do we want a different way to serialize these than with an '@' ? A '/' was talked about also.
---
--- renderQualified :: (a -> Text) -> Qualified a -> Text
--- renderQualified renderLocal (Qualified localPart domain) =
--- domainText domain <> "/" <> renderLocal localPart
---
--- qualifiedParser :: Atto.Parser a -> Atto.Parser (Qualified a)
---   domain <- parser @Domain
---   _ <- Atto.char '/'
---   local <- localParser
---   pure $ Qualified local domain
-
-qualifiedParser :: Atto.Parser a -> Atto.Parser (Qualified a)
-qualifiedParser localParser = do
-  Qualified <$> localParser <*> (Atto.char '@' *> parser @Domain)
 
 partitionRemoteOrLocalIds :: Foldable f => Domain -> f (Qualified a) -> ([Qualified a], [a])
 partitionRemoteOrLocalIds localDomain = foldMap $ \qualifiedId ->
@@ -132,9 +112,6 @@ partitionRemoteOrLocalIds localDomain = foldMap $ \qualifiedId ->
 renderQualifiedId :: Qualified (Id a) -> Text
 renderQualifiedId = renderQualified (cs . UUID.toString . toUUID)
 
-mkQualifiedId :: Text -> Either String (Qualified (Id a))
-mkQualifiedId = Atto.parseOnly (parser <* Atto.endOfInput) . Text.E.encodeUtf8
-
 deprecatedUnqualifiedSchemaRef :: ToSchema a => Proxy a -> Text -> Declare (Definitions Schema) (Referenced Schema)
 deprecatedUnqualifiedSchemaRef p newField =
   Inline
@@ -143,17 +120,8 @@ deprecatedUnqualifiedSchemaRef p newField =
     <$> declareNamedSchema p
 
 instance ToSchema (Qualified (Id a)) where
-  declareNamedSchema _ = do
-    idSchema <- declareSchemaRef (Proxy @(Id a))
-    domainSchema <- declareSchemaRef (Proxy @Domain)
-    return $
-      NamedSchema (Just "QualifiedId") $
-        mempty
-          & type_ ?~ SwaggerObject
-          & properties
-            .~ [ ("id", idSchema),
-                 ("domain", domainSchema)
-               ]
+  declareNamedSchema _ =
+    declareQualifiedSchema "Qualified Id" "id" =<< declareSchemaRef (Proxy @(Id a))
 
 instance ToJSON (Qualified (Id a)) where
   toJSON qu =
@@ -166,31 +134,34 @@ instance FromJSON (Qualified (Id a)) where
   parseJSON = withObject "QualifiedUserId" $ \o ->
     Qualified <$> o .: "id" <*> o .: "domain"
 
-instance FromHttpApiData (Qualified (Id a)) where
-  parseUrlPiece = first cs . mkQualifiedId
-
-instance FromByteString (Qualified (Id a)) where
-  parser = qualifiedParser parser
+declareQualifiedSchema :: Text -> Text -> Referenced Schema -> DeclareT (Definitions Schema) Identity NamedSchema
+declareQualifiedSchema qualifiedSchemaName unqualifiedFieldName unqualifiedSchemaRef = do
+  domainSchema <- declareSchemaRef (Proxy @Domain)
+  return $
+    NamedSchema (Just qualifiedSchemaName) $
+      mempty
+        & type_ ?~ SwaggerObject
+        & properties
+          .~ [ (unqualifiedFieldName, unqualifiedSchemaRef),
+               ("domain", domainSchema)
+             ]
 
 ----------------------------------------------------------------------
 
-renderQualifiedHandle :: Qualified Handle -> Text
-renderQualifiedHandle = renderQualified fromHandle
-
-mkQualifiedHandle :: Text -> Either String (Qualified Handle)
-mkQualifiedHandle = Atto.parseOnly (parser <* Atto.endOfInput) . Text.E.encodeUtf8
+instance ToSchema (Qualified Handle) where
+  declareNamedSchema _ =
+    declareQualifiedSchema "Qualified Handle" "handle" =<< declareSchemaRef (Proxy @Handle)
 
 instance ToJSON (Qualified Handle) where
-  toJSON = Aeson.String . renderQualifiedHandle
+  toJSON qh =
+    Aeson.object
+      [ "handle" .= qUnqualified qh,
+        "domain" .= qDomain qh
+      ]
 
 instance FromJSON (Qualified Handle) where
-  parseJSON = withText "QualifiedHandle" $ either fail pure . mkQualifiedHandle
-
-instance FromHttpApiData (Qualified Handle) where
-  parseUrlPiece = first cs . mkQualifiedHandle
-
-instance FromByteString (Qualified Handle) where
-  parser = qualifiedParser parser
+  parseJSON = withObject "Qualified Handle" $ \o ->
+    Qualified <$> o .: "handle" <*> o .: "domain"
 
 ----------------------------------------------------------------------
 -- ARBITRARY

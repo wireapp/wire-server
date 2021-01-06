@@ -222,19 +222,12 @@ work fine.
 
 #### an email address can be one of two things
 
-the email used for saml auth is only a name, and never used for
-sending out emails, and does not show as the email address of the user
-in the team settings.
-
-RATIONALE: emails that are passed in from an external identity
-provider must be trusted, so the user cannot have them as an actual
-email address that wire is sending emails to.
-
-POSSIBLE FEATURE: we could authenticate the emails sent in from the
-identity provider in the same way we are doing that for
-password-authenticated non-team users: email receives a link
-containing a crypto token, user clicks on link if the email is
-authentic, email gets authenticated.
+When users are SAML-authenticated with an email address under NameID,
+that email address is used by wire as an opaque identifier, not to
+send actual emails.  In order to *also* assign the user that email
+address, you can enable the feature flag `validateSAMLemails`.  This
+will trigger the regular email validation flow that is also triggered
+when the user changes their email themselves.
 
 
 #### scim, provisioning, metadata
