@@ -20,25 +20,10 @@ module Main
   )
 where
 
--- import Imports
-
--- import Test.Tasty
-
--- main :: IO ()
--- main =
---   defaultMain $
---     testGroup
---       "Tests"
---       [ Test.API.tests
---       ]
-
-import Control.Lens ((^.))
 import Data.String.Conversions
-import Data.Text (pack)
 import Imports
 import System.Environment (withArgs)
-import System.Random (randomRIO)
-import qualified Test.Federator.API
+import Test.Federator.APISpec
 import Test.Federator.Util
 import Test.Hspec
 
@@ -61,5 +46,4 @@ mkspec :: SpecWith TestEnv
 mkspec = do
   -- describe "Logging" Test.LoggingSpec.spec
   -- describe "Metrics" Test.MetricsSpec.spec
-  -- describe "Federator.API" Test.Federator.APISpec.spec
-  undefined
+  describe "Federator.API" Test.Federator.APISpec.tests
