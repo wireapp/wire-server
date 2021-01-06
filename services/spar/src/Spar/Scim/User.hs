@@ -47,15 +47,16 @@ import Brig.Types.User (ManagedBy (..), Name (..), User (..))
 import qualified Brig.Types.User as BT
 import qualified Control.Applicative as Applicative (empty)
 import Control.Lens (view, (^.))
-import Control.Monad.Except (MonadError, throwError)
+import Control.Monad.Except (MonadError, catchError, throwError)
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
-import Crypto.Hash (Digest, SHA256, hashlazy)
+import Crypto.Hash (Digest, SHA256, hash, hashlazy)
 import qualified Data.Aeson as Aeson
-import Data.Handle (Handle (Handle), parseHandle)
+import Data.Handle (Handle (Handle), fromHandle, parseHandle)
 import Data.Id (Id (..), TeamId, UserId, idToText)
 import Data.Json.Util (UTCTimeMillis, fromUTCTimeMillis, toUTCTimeMillis)
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
+import Data.Text.Encoding (encodeUtf8)
 import qualified Data.UUID.V4 as UUID
 import Imports
 import Network.URI (URI, parseURI)
@@ -279,6 +280,35 @@ mkValidExternalId (Just idp) (Just extid) = do
               Scim.InvalidValue
               (Just $ "Can't construct a subject ID from externalId: " <> Text.pack err)
 
+logScimErrors :: forall m a. (m ~ Scim.ScimHandler Spar) => Text -> m a -> m a
+logScimErrors context action =
+  catchError action $
+    ( \e -> do
+        lift $ Log.err $ Log.msg ("SCIM Error for context: " <> context <> " error: " <> cs (Aeson.encode e))
+        throwError e
+    )
+
+vsuDebug :: ST.ValidScimUser -> Text
+vsuDebug (ST.ValidScimUser veid handl _name _richInfo active) =
+  Text.intercalate "," $
+    catMaybes
+      [ ("email: " <>) <$> getEmail veid,
+        Just $ ("handle: " <> (sha256 . fromHandle $ handl)),
+        Just $ ("active:" <> (cs . show $ active))
+      ]
+  where
+    getEmail :: ST.ValidExternalId -> Maybe Text
+    getEmail (ST.EmailAndUref email _) = Just (sha256 . cs . show $ email)
+    getEmail (ST.UrefOnly _) = Nothing
+    getEmail (ST.EmailOnly email) = Just (sha256 . cs . show $ email)
+
+    sha256 :: Text -> Text
+    sha256 t =
+      let digest = hash @ByteString @SHA256 (encodeUtf8 t)
+       in cs . show $ digest
+
+-- in ScimTokenHash (cs @ByteString @Text (convertToBase Base64 digest))
+
 -- | Creates a SCIM User.
 --
 -- User is created in Brig first, and then in SCIM and SAML.
@@ -301,7 +331,7 @@ createValidScimUser ::
   ScimTokenInfo ->
   ST.ValidScimUser ->
   m (Scim.StoredUser ST.SparTag)
-createValidScimUser ScimTokenInfo {stiTeam} (ST.ValidScimUser veid handl name richInfo _) = do
+createValidScimUser ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid handl name richInfo _) = logScimErrors ("in createValidScimUser: " <> (vsuDebug vsu)) $ do
   -- ensure uniqueness constraints of all affected identifiers.
   -- {if we crash now, retry POST will just work}
   assertExternalIdUnused veid
@@ -378,7 +408,7 @@ updateValidScimUser ::
   UserId ->
   ST.ValidScimUser ->
   m (Scim.StoredUser ST.SparTag)
-updateValidScimUser tokinfo uid newValidScimUser = do
+updateValidScimUser tokinfo uid newValidScimUser = logScimErrors ("in updateValidScimUser: userId: " <> (cs . show $ uid) <> vsuDebug newValidScimUser) $ do
   -- lookup updatee
   oldScimStoredUser :: Scim.StoredUser ST.SparTag <-
     Scim.getUser tokinfo uid
@@ -493,7 +523,7 @@ updScimStoredUser' now usr (Scim.WithMeta meta (Scim.WithId scimuid _)) =
 
 deleteScimUser ::
   ScimTokenInfo -> UserId -> Scim.ScimHandler Spar ()
-deleteScimUser ScimTokenInfo {stiTeam} uid = do
+deleteScimUser ScimTokenInfo {stiTeam} uid = logScimErrors ("in deleteScimUser: userId: " <> (cs . show $ uid)) $ do
   mbBrigUser <- lift (Brig.getBrigUser Brig.WithPendingInvitations uid)
   case mbBrigUser of
     Nothing -> do
