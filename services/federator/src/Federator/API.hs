@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -52,7 +50,8 @@ data Api route = Api
         :> Capture "cnv" ConvId
         :> "join"
         :> ReqBody '[JSON] Fed.JoinConversationByIdRequest
-        :> Post '[JSON] (Fed.ConversationUpdateResult Fed.MemberJoin)
+        :> Post '[JSON] (Fed.ConversationUpdateResult Fed.MemberJoin),
+    _gapiStatus :: route :- "i" :> "status" :> Get '[JSON] NoContent
   }
   deriving (Generic)
 
