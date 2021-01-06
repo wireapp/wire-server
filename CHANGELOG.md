@@ -32,6 +32,7 @@ This release contains bugfixes and internal changes.
 ## Internal changes
 
 * [federation] Servantify get users by unqualified ids or handles (#1291)
+* [federation] Add endpoint to get users by qualified ids or handles (#1291)
 * Allow overriding NAMESPACE for kube-integration target (#1305)
 * Add script create_test_team_scim.sh for development (#1302)
 * Update brig helm chart: Add `setExpiredUserCleanupTimeout` (#1304)
