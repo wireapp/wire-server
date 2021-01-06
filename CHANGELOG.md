@@ -39,7 +39,7 @@ This release contains bugfixes and internal changes.
 * nginz_disco: docker building consistency (#1311)
 * Add tools/db/repair-handles (#1310)
 * small speedup for 'make upload-charts' by inlining loop (#1308)
-* Cleanup stack.yaml. (#1312)
+* Cleanup stack.yaml. (#1312) (#1316)
 
 
 # [2020-12-21]
