@@ -96,3 +96,10 @@ dependencies:
   tags:
     - legalhold
     - private
+- name: federator
+  version: "0.0.42"
+  repository: "file://../federator"
+  tags:
+    - federator
+    - haskellServices
+    - services
