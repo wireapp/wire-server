@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4fd82f132d6535f0e93e1949f81a626592833ad8f4252e7454583254469e04d0
+-- hash: fbb5bcde1eaa531ec1641e1b00f8aaf138f9782da710d004a32fd69d9893d19a
 
 name:           federator
 version:        1.0.0
@@ -122,11 +122,63 @@ executable federator
     , wire-api-federation
   default-language: Haskell2010
 
+executable federator-integration
+  main-is: Main.hs
+  other-modules:
+      Test.API
+      Paths_federator
+  hs-source-dirs:
+      test/integration
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  build-depends:
+      QuickCheck
+    , aeson
+    , base
+    , bilge
+    , bytestring
+    , bytestring-conversion
+    , data-default
+    , email-validate
+    , errors
+    , exceptions
+    , extended
+    , federator
+    , http2-client
+    , imports
+    , lens
+    , metrics-core
+    , metrics-wai
+    , mu-grpc-client
+    , mu-grpc-server
+    , mu-protobuf
+    , mu-rpc
+    , mu-schema
+    , resourcet
+    , servant
+    , servant-mock
+    , servant-server
+    , servant-swagger
+    , string-conversions
+    , tasty
+    , tasty-hunit
+    , template-haskell
+    , text
+    , tinylog
+    , types-common
+    , uuid
+    , wai
+    , wai-utilities
+    , warp
+    , wire-api
+    , wire-api-federation
+    , yaml
+  default-language: Haskell2010
+
 test-suite federator-tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
-      Test.Federator.Integration
       Test.Federator.Options
       Paths_federator
   hs-source-dirs:

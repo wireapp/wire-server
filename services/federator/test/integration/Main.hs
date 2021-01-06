@@ -21,7 +21,7 @@ module Main
 where
 
 import Imports
-import qualified Test.Federator.Options
+import qualified Test.API
 import Test.Tasty
 
 main :: IO ()
@@ -29,5 +29,5 @@ main =
   defaultMain $
     testGroup
       "Tests"
-      [ Test.Federator.Options.tests
+      [ Test.API.tests
       ]

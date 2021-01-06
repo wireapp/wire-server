@@ -63,6 +63,16 @@ executables:
     - base
     - federator
 
+  federator-integration:
+    main: Main.hs
+    source-dirs: test/integration
+    dependencies:
+    - federator
+    - tasty
+    - tasty-hunit
+    - yaml
+    - bytestring
+
 tests:
   federator-tests:
     main: Main.hs
