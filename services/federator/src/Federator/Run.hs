@@ -57,9 +57,9 @@ run :: Opts -> IO ()
 run opts = do
   (app, env) <- mkApp opts
   settings <- Server.newSettings (restServer env)
-  -- TODO: Remove the RESTful things.
+  -- TODO: Combine the restful things and the grpc things
   -- Warp.runSettings settings app
-  let grpcApplication = gRpcApp msgProtoBuf grpcServerDummy
+  let grpcApplication = gRpcApp msgProtoBuf grpcServer
   runGRpcApp msgProtoBuf (fromIntegral $ endpoint ^. epPort) grpcServer
   where
     endpoint = federator opts
@@ -74,11 +74,12 @@ sayHello :: (MonadServer m) => HelloRequestMessage -> m HelloReplyMessage
 sayHello (HelloRequestMessage nm) =
   pure $ HelloReplyMessage ("hi, " <> nm)
 
-grpcServerDummy :: (MonadServer m) => SingleServerT i Service m _
-grpcServerDummy = singleService (method @"SayHello" sayHello)
-
 getUserByHandle :: (MonadServer m) => QualifiedHandle -> m UserProfile
 getUserByHandle (QualifiedHandle domain handle) = do
+  undefined
+
+getUserIdByHandle :: (MonadServer m) => QualifiedHandle -> m QualifiedId
+getUserIdByHandle (QualifiedHandle domain handle) = do
   undefined
 
 -- otherBackend <- lookupBackend domain
@@ -96,7 +97,7 @@ data Backend = Backend {host :: HostName, port :: PortNumber} -- TODO don't we a
 -- talkToBrig :: (MonadServer m) => Domain -> ByteString -> m ByteString
 
 grpcServer :: (MonadServer m) => SingleServerT i Service m _
-grpcServer = singleService (method @"SayHello" sayHello)
+grpcServer = singleService (method @"SayHello" sayHello, method @"GetUserIdByHandle" getUserIdByHandle)
 
 -------------------------------------------------------------------------------
 -- Environment

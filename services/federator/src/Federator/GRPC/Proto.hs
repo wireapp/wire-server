@@ -10,15 +10,16 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
--- {-# OPTIONS_GHC -fforce-recomp #-}
-
 module Federator.GRPC.Proto where
 
 import Data.Text as T
+import Federator.GRPC.Helper
 import GHC.Generics
 import Imports
 import Mu.Quasi.GRpc
 import Mu.Schema
+
+recompileUponProtoChanges
 
 grpc "TheSchema" id "federator.proto"
 

@@ -4,17 +4,33 @@ import "google/protobuf/empty.proto";
 
 package federator;
 
-service Service {
-    rpc SayHello (HelloRequest) returns (HelloReply) {}
-}
-
 message HelloRequest { string name = 1; }
 message HelloReply { string message = 1; }
 
-// Used by brig and other wire-services to talk to other backends
-// TODO bikeshed on the naming
-service Internal {
-    rpc GetUserByHandle (QualifiedHandle) returns (UserProfile) {}
+// FUTUREWORK: When this file changes, the GRPC/Proto.hs needs to be recompiled. This currently doesn't happen automatically. Perhaps some template haskell 'addDependentFile'
+
+// FUTUREWORK: bikeshed on the naming of services
+
+// FUTUREWORK: split the "internal" and "public" protobuf services
+// (exposed maybe on different ports)
+service Service {
+    // ----------- Dummy -----------------------------------------
+    rpc SayHello (HelloRequest) returns (HelloReply) {}
+
+
+    // ----------- Internal -----------------------------------------
+    // Used by brig and other wire-services to talk to other backends
+    // --------------------------------------------------------------
+
+    // FUTUREWORK: replace with (or add) getUserByHandle returning a full profile (see https://wearezeta.atlassian.net/browse/SQCORE-365)
+    rpc GetUserIdByHandle (QualifiedHandle) returns (QualifiedId) {}
+
+
+    // ----------- Public -----------------------------------------
+    // Used by other backends hosted on another domain
+    // Service Naming possibilities: Gateway Inbound Strangers Public ...
+    // --------------------------------------------------------------
+
 }
 
 message QualifiedHandle {
@@ -47,12 +63,3 @@ message QualifiedId {
     string domain = 1;
     string id = 2; // UUID? bytestring?
 }
-
-
-// Used by other backends hosted on another domain
-// Naming:
-// Gateway
-// Inbound
-// Strangers
-// service Public {
-//}
