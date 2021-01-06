@@ -20,14 +20,48 @@ module Main
   )
 where
 
+-- import Imports
+
+-- import Test.Tasty
+
+-- main :: IO ()
+-- main =
+--   defaultMain $
+--     testGroup
+--       "Tests"
+--       [ Test.API.tests
+--       ]
+
+import Control.Lens ((^.))
+import Data.String.Conversions
+import Data.Text (pack)
 import Imports
-import qualified Test.API
-import Test.Tasty
+import System.Environment (withArgs)
+import System.Random (randomRIO)
+import qualified Test.Federator.API
+import Test.Federator.Util
+import Test.Hspec
 
 main :: IO ()
-main =
-  defaultMain $
-    testGroup
-      "Tests"
-      [ Test.API.tests
-      ]
+main = do
+  (wireArgs, hspecArgs) <- partitionArgs <$> getArgs
+  env <- withArgs wireArgs mkEnvFromOptions
+  withArgs hspecArgs . hspec $ do
+    beforeAll (pure env) . afterAll destroyEnv $ mkspec
+
+partitionArgs :: [String] -> ([String], [String])
+partitionArgs = go [] []
+  where
+    go wireArgs hspecArgs ("-s" : x : xs) = go (wireArgs <> ["-s", x]) hspecArgs xs
+    go wireArgs hspecArgs ("-i" : x : xs) = go (wireArgs <> ["-i", x]) hspecArgs xs
+    go wireArgs hspecArgs (x : xs) = go wireArgs (hspecArgs <> [x]) xs
+    go wireArgs hspecArgs [] = (wireArgs, hspecArgs)
+
+type TestEnv = String
+
+mkspec :: SpecWith TestEnv
+mkspec = do
+  -- describe "Logging" Test.LoggingSpec.spec
+  -- describe "Metrics" Test.MetricsSpec.spec
+  -- describe "Federator.API" Test.Federator.APISpec.spec
+  undefined

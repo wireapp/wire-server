@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: fbb5bcde1eaa531ec1641e1b00f8aaf138f9782da710d004a32fd69d9893d19a
+-- hash: b397d9e636fcd4e0e88c2e71fb25434fa8bedb1bac7ab25b264269c3f8829d5d
 
 name:           federator
 version:        1.0.0
@@ -125,7 +125,8 @@ executable federator
 executable federator-integration
   main-is: Main.hs
   other-modules:
-      Test.API
+      Test.Federator.API
+      Test.Federator.Util
       Paths_federator
   hs-source-dirs:
       test/integration
@@ -138,12 +139,14 @@ executable federator-integration
     , bilge
     , bytestring
     , bytestring-conversion
+    , cryptonite
     , data-default
     , email-validate
     , errors
     , exceptions
     , extended
     , federator
+    , hspec
     , http2-client
     , imports
     , lens
@@ -154,6 +157,7 @@ executable federator-integration
     , mu-protobuf
     , mu-rpc
     , mu-schema
+    , random
     , resourcet
     , servant
     , servant-mock
