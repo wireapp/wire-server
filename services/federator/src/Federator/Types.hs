@@ -24,12 +24,14 @@ import Bilge (RequestId)
 import Control.Lens (makeLenses)
 import Data.Metrics (Metrics)
 import Federator.Options (RunSettings)
+import Network.DNS.Resolver (Resolver)
 import qualified System.Logger.Class as LC
 
 data Env = Env
   { _metrics :: Metrics,
     _applog :: LC.Logger,
     _requestId :: RequestId,
+    _dnsResolver :: Resolver,
     _runSettings :: RunSettings
   }
 

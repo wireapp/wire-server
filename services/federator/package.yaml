@@ -17,10 +17,13 @@ dependencies:
 - bytestring-conversion
 - data-default
 - email-validate
+- mtl
 - errors
 - exceptions
 - extended
 - imports
+- dns-util
+- dns
 - lens
 - http2-client
 - metrics-core

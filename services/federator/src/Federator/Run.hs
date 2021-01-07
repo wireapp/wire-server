@@ -33,53 +33,70 @@ module Federator.Run
   )
 where
 
-import Control.Lens ((^.))
+-- import Data.Domain
+
+import Control.Lens (view, (^.))
 import Data.Default (def)
-import Data.Domain
 import qualified Data.Metrics.Middleware as Metrics
-import Data.Text (unpack)
-import Federator.App (AppIO)
+-- import Data.Text (unpack)
+-- import Federator.App (AppIO)
+
+-- import qualified Network.Wai.Handler.Warp as Warp
+-- import Network.Wai.Utilities.Server as Server
+
+import Federator.App (AppIO, runAppT)
 import Federator.GRPC.Proto
 import qualified Federator.Impl as Impl
 import Federator.Options as Opt
 import Federator.Types
 import Imports
 import Mu.GRpc.Server
-import Mu.Server
+import Mu.Server hiding (resolver)
+import Network.DNS.Resolver (Resolver)
+import qualified Network.DNS.Resolver as Resolver
 import Network.HTTP2.Client
 import Network.Wai (Application)
-import qualified Network.Wai.Handler.Warp as Warp
-import Network.Wai.Utilities.Server as Server
+import qualified Servant.Server as Servant
 import qualified System.Logger.Extended as Log
 import Util.Options
+import Wire.Network.DNS.SRV
 
 run :: Opts -> IO ()
 run opts = do
-  (app, env) <- mkApp opts
-  settings <- Server.newSettings (restServer env)
+  (_app, env) <- mkApp opts
+  -- settings <- Server.newSettings (restServer env)
   -- TODO: Combine the restful things and the grpc things
   -- Warp.runSettings settings app
-  let grpcApplication = gRpcApp msgProtoBuf grpcServer
-  runGRpcApp msgProtoBuf (fromIntegral $ endpoint ^. epPort) grpcServer
+  -- let grpcApplication = gRpcAppTrans msgProtoBuf (transformer env) grpcServer
+  runGRpcAppTrans msgProtoBuf port (transformer env) grpcServer
+  undefined
   where
     endpoint = federator opts
-    restServer env = defaultServer (unpack $ endpoint ^. epHost) (endpoint ^. epPort) (env ^. applog) (env ^. metrics)
+    port = fromIntegral $ endpoint ^. epPort
+
+    -- These Monad stack conversions confuse me greatly. Help?
+    transformer :: Env -> AppIO a -> ServerErrorIO a
+    transformer _env _action = undefined -- runAppT env
+
+-- restServer env = defaultServer (unpack $ endpoint ^. epHost) (endpoint ^. epPort) (env ^. applog) (env ^. metrics)
 
 mkApp :: Opts -> IO (Application, Env)
 mkApp opts = do
   env <- newEnv opts
   pure (Impl.app env, env)
 
-sayHello :: (MonadServer m) => HelloRequestMessage -> m HelloReplyMessage
+sayHello :: HelloRequestMessage -> AppIO HelloReplyMessage
 sayHello (HelloRequestMessage nm) =
   pure $ HelloReplyMessage ("hi, " <> nm)
 
-getUserByHandle :: (MonadServer m) => QualifiedHandle -> m UserProfile
-getUserByHandle (QualifiedHandle domain handle) = do
-  undefined
+-- FUTUREWORK: getUserByHandle should return a full profile (see https://wearezeta.atlassian.net/browse/SQCORE-365)
+-- getUserByHandle :: (MonadServer m) => QualifiedHandle -> m UserProfile
+-- getUserByHandle (QualifiedHandle domain handle) = do
+--   undefined
 
-getUserIdByHandle :: (MonadServer m) => QualifiedHandle -> m QualifiedId
+getUserIdByHandle :: QualifiedHandle -> AppIO QualifiedId
 getUserIdByHandle (QualifiedHandle domain handle) = do
+  resolver <- view dnsResolver
   undefined
 
 -- otherBackend <- lookupBackend domain
@@ -96,7 +113,7 @@ data Backend = Backend {host :: HostName, port :: PortNumber} -- TODO don't we a
 -- FUTUREWORK: abstract the concrete things away as federator doesn't need to know all of it, all it needs is to know where the end request goes to (brig, in this case)
 -- talkToBrig :: (MonadServer m) => Domain -> ByteString -> m ByteString
 
-grpcServer :: (MonadServer m) => SingleServerT i Service m _
+grpcServer :: SingleServerT i Service AppIO _
 grpcServer = singleService (method @"SayHello" sayHello, method @"GetUserIdByHandle" getUserIdByHandle)
 
 -------------------------------------------------------------------------------
@@ -108,7 +125,13 @@ newEnv o = do
   _applog <- Log.mkLogger (Opt.logLevel o) (Opt.logNetStrings o) (Opt.logFormat o)
   let _requestId = def
   let _runSettings = (Opt.optSettings o)
-  return Env {..}
+
+  -- Set up a thread-safe resolver with a global cache. This means that SRV
+  -- records will only be re-resolved after their TTLs expire
+  let resolvConf = Resolver.defaultResolvConf {Resolver.resolvCache = Just Resolver.defaultCacheConf}
+  resolvSeed <- Resolver.makeResolvSeed resolvConf
+  Resolver.withResolver resolvSeed $ \_dnsResolver ->
+    return Env {..}
 
 closeEnv :: Env -> IO ()
 closeEnv e = do

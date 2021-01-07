@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b08ce1861833e52d62a84e9d72975423dc9d15d85de531d0295c3315dc72dc20
+-- hash: 1717930eca2925adaa1a70c0a872caa03e7cc6a95b2e53a310fc01a6a8b631b3
 
 name:           federator
 version:        1.0.0
@@ -42,6 +42,8 @@ library
     , bilge
     , bytestring-conversion
     , data-default
+    , dns
+    , dns-util
     , email-validate
     , errors
     , exceptions
@@ -51,6 +53,7 @@ library
     , lens
     , metrics-core
     , metrics-wai
+    , mtl
     , mu-grpc-client
     , mu-grpc-server
     , mu-protobuf
@@ -89,6 +92,8 @@ executable federator
     , bilge
     , bytestring-conversion
     , data-default
+    , dns
+    , dns-util
     , email-validate
     , errors
     , exceptions
@@ -99,6 +104,7 @@ executable federator
     , lens
     , metrics-core
     , metrics-wai
+    , mtl
     , mu-grpc-client
     , mu-grpc-server
     , mu-protobuf
@@ -142,6 +148,8 @@ executable federator-integration
     , bytestring-conversion
     , cryptonite
     , data-default
+    , dns
+    , dns-util
     , email-validate
     , errors
     , exceptions
@@ -201,6 +209,8 @@ test-suite federator-tests
     , bytestring
     , bytestring-conversion
     , data-default
+    , dns
+    , dns-util
     , email-validate
     , errors
     , exceptions
@@ -211,6 +221,7 @@ test-suite federator-tests
     , lens
     , metrics-core
     , metrics-wai
+    , mtl
     , mu-grpc-client
     , mu-grpc-server
     , mu-protobuf
