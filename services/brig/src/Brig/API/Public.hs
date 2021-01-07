@@ -1274,7 +1274,7 @@ instance ToJSON GetActivationCodeResp where
 updateUserH :: UserId ::: ConnId ::: JsonRequest Public.UserUpdate -> Handler Response
 updateUserH (uid ::: conn ::: req) = do
   uu <- parseJsonBody req
-  lift $ API.updateUser uid (Just conn) uu
+  API.updateUser uid (Just conn) uu API.ForbidSCIMUpdates !>> updateProfileError
   return empty
 
 changePhoneH :: UserId ::: ConnId ::: JsonRequest Public.PhoneUpdate -> Handler Response
@@ -1367,7 +1367,8 @@ changeHandleH (u ::: conn ::: req) = do
 changeHandle :: UserId -> ConnId -> Public.HandleUpdate -> Handler ()
 changeHandle u conn (Public.HandleUpdate h) = do
   handle <- API.validateHandle h
-  API.changeHandle u (Just conn) handle !>> changeHandleError
+  -- TODO check here
+  API.changeHandle u (Just conn) handle API.ForbidSCIMUpdates !>> changeHandleError
 
 beginPasswordResetH :: JSON ::: JsonRequest Public.NewPasswordReset -> Handler Response
 beginPasswordResetH (_ ::: req) = do
@@ -1418,7 +1419,7 @@ customerExtensionCheckBlockedDomains email = do
 changeSelfEmailH :: UserId ::: ConnId ::: JsonRequest Public.EmailUpdate -> Handler Response
 changeSelfEmailH (u ::: _ ::: req) = do
   email <- Public.euEmail <$> parseJsonBody req
-  API.changeSelfEmail u email >>= \case
+  API.changeSelfEmail u email API.ForbidSCIMUpdates >>= \case
     ChangeEmailResponseIdempotent -> pure (setStatus status204 empty)
     ChangeEmailResponseNeedsActivation -> pure (setStatus status202 empty)
 

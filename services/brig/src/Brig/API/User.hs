@@ -56,6 +56,7 @@ module Brig.API.User
     checkHandles,
     isBlacklistedHandle,
     Data.reauthenticate,
+    AllowSCIMUpdates (..),
 
     -- * Activation
     sendActivationCode,
@@ -146,6 +147,11 @@ import Imports
 import Network.Wai.Utilities
 import qualified System.Logger.Class as Log
 import System.Logger.Message
+
+data AllowSCIMUpdates
+  = AllowSCIMUpdates
+  | ForbidSCIMUpdates
+  deriving (Show, Eq, Ord)
 
 -------------------------------------------------------------------------------
 -- Create User
@@ -394,13 +400,20 @@ checkRestrictedUserCreation new = do
 -------------------------------------------------------------------------------
 -- Update Profile
 
--- FUTUREWORK: this and other functions should refuse to modify a ManagedByScim user. See
--- {#SparBrainDump}  https://github.com/zinfra/backend-issues/issues/1632
-
-updateUser :: UserId -> Maybe ConnId -> UserUpdate -> AppIO ()
-updateUser uid mconn uu = do
-  Data.updateUser uid uu
-  Intra.onUserEvent uid mconn (profileUpdated uid uu)
+updateUser :: UserId -> Maybe ConnId -> UserUpdate -> AllowSCIMUpdates -> ExceptT UpdateProfileError AppIO ()
+updateUser uid mconn uu allowScim = do
+  for_ (uupName uu) $ \newName -> do
+    mbUser <- lift $ Data.lookupUser WithPendingInvitations uid
+    user <- maybe (throwE (ProfileNotFound uid)) pure mbUser
+    when
+      ( userManagedBy user == ManagedByScim
+          && userDisplayName user /= newName
+          && allowScim == ForbidSCIMUpdates
+      )
+      $ throwE DisplayNameManagedByScim
+  lift $ do
+    Data.updateUser uid uu
+    Intra.onUserEvent uid mconn (profileUpdated uid uu)
 
 -------------------------------------------------------------------------------
 -- Update Locale
@@ -421,14 +434,20 @@ changeManagedBy uid conn (ManagedByUpdate mb) = do
 --------------------------------------------------------------------------------
 -- Change Handle
 
-changeHandle :: UserId -> Maybe ConnId -> Handle -> ExceptT ChangeHandleError AppIO ()
-changeHandle uid mconn hdl = do
+changeHandle :: UserId -> Maybe ConnId -> Handle -> AllowSCIMUpdates -> ExceptT ChangeHandleError AppIO ()
+changeHandle uid mconn hdl allowScim = do
   when (isBlacklistedHandle hdl) $
     throwE ChangeHandleInvalid
   usr <- lift $ Data.lookupUser WithPendingInvitations uid
   case usr of
     Nothing -> throwE ChangeHandleNoIdentity
-    Just u -> claim u
+    Just u -> do
+      when
+        ( userManagedBy u == ManagedByScim
+            && allowScim == ForbidSCIMUpdates
+        )
+        $ throwE ChangeHandleManagedByScim
+      claim u
   where
     claim u = do
       unless (isJust (userIdentity u)) $
@@ -487,9 +506,9 @@ checkHandles check num = reverse <$> collectFree [] check num
 
 -- | Call 'changeEmail' and process result: if email changes to itself, succeed, if not, send
 -- validation email.
-changeSelfEmail :: UserId -> Email -> ExceptT Error.Error AppIO ChangeEmailResponse
-changeSelfEmail u email = do
-  changeEmail u email !>> Error.changeEmailError >>= \case
+changeSelfEmail :: UserId -> Email -> AllowSCIMUpdates -> ExceptT Error.Error AppIO ChangeEmailResponse
+changeSelfEmail u email allowScim = do
+  changeEmail u email allowScim !>> Error.changeEmailError >>= \case
     ChangeEmailIdempotent ->
       pure ChangeEmailResponseIdempotent
     ChangeEmailNeedsActivation (usr, adata, en) -> do
@@ -505,8 +524,8 @@ changeSelfEmail u email = do
         (userIdentity usr)
 
 -- | Prepare changing the email (checking a number of invariants).
-changeEmail :: UserId -> Email -> ExceptT ChangeEmailError AppIO ChangeEmailResult
-changeEmail u email = do
+changeEmail :: UserId -> Email -> AllowSCIMUpdates -> ExceptT ChangeEmailError AppIO ChangeEmailResult
+changeEmail u email allowScim = do
   em <-
     either
       (throwE . InvalidNewEmail email)
@@ -525,6 +544,8 @@ changeEmail u email = do
     -- The user already has an email address and the new one is exactly the same
     Just current | current == em -> return ChangeEmailIdempotent
     _ -> do
+      when (userManagedBy usr == ManagedByScim && allowScim == ForbidSCIMUpdates) $
+        throwE EmailManagedByScim
       timeout <- setActivationTimeout <$> view settings
       act <- lift $ Data.newActivation ek timeout (Just u)
       return $ ChangeEmailNeedsActivation (usr, act, em)

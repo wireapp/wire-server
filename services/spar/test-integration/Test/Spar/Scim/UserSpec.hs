@@ -34,6 +34,7 @@ import Brig.Types.Intra (AccountStatus (Active, PendingInvitation, Suspended), a
 import Brig.Types.User as Brig
 import qualified Control.Exception
 import Control.Lens
+import Control.Monad.Random (Random (randomRIO))
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Control.Retry (exponentialBackoff, limitRetries, recovering)
@@ -47,6 +48,7 @@ import Data.Ix (inRange)
 import Data.String.Conversions (cs)
 import Data.Text.Encoding (encodeUtf8)
 import Imports
+import qualified Network.Wai.Utilities.Error as Wai
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified SAML2.WebSSO.Types as SAML
 import qualified Spar.Data as Data
@@ -81,6 +83,7 @@ spec = do
   specAzureQuirks
   specEmailValidation
   specSuspend
+  specSCIMManaged
   describe "CRUD operations maintain invariants in mapScimToBrig, mapBrigToScim." $ do
     it "..." $ do
       pendingWith "this is a job for quickcheck-state-machine"
@@ -193,7 +196,7 @@ specCreateUser = describe "POST /Users" $ do
   context "team has one SAML IdP" $ do
     it "creates a user in an existing team" $ do
       testCreateUserWithSamlIdP
-  it "adds a Wire scheme to the user record" $ testSchemaIsAdded
+    it "adds a Wire scheme to the user record" $ testSchemaIsAdded
   it "requires externalId to be present" $ testExternalIdIsRequired
   it "rejects invalid handle" $ testCreateRejectsInvalidHandle
   it "rejects occupied handle" $ testCreateRejectsTakenHandle
@@ -1594,3 +1597,42 @@ specEmailValidation = do
     context "not enabled in team" . it "does not give user email" $ do
       (uid, _) <- setup False
       eventually $ checkEmail uid Nothing
+
+specSCIMManaged :: SpecWith TestEnv
+specSCIMManaged = do
+  describe "SCIM-manged users" $ do
+    it "cannot manually update their email, handle or name" $ do
+      env <- ask
+      let brig = env ^. teBrig
+
+      (tok, _) <- registerIdPAndScimToken
+      user <- randomScimUser
+      storedUser <- createUser tok user
+      let uid = Scim.id . Scim.thing $ storedUser
+
+      do
+        email <- randomEmail
+        call $
+          changeEmailBrig brig uid email !!! do
+            (fmap Wai.label . responseJsonEither @Wai.Error) === const (Right "property-managed-by-scim")
+            statusCode === const 403
+
+      do
+        handleTxt <- randomAlphaNum
+        call $
+          changeHandleBrig brig uid handleTxt !!! do
+            (fmap Wai.label . responseJsonEither @Wai.Error) === const (Right "property-managed-by-scim")
+            statusCode === const 403
+
+      do
+        displayName <- Name <$> randomAlphaNum
+        let uupd = UserUpdate (Just displayName) Nothing Nothing Nothing
+        call $
+          updateProfileBrig brig uid uupd !!! do
+            (fmap Wai.label . responseJsonEither @Wai.Error) === const (Right "property-managed-by-scim")
+            statusCode === const 403
+  where
+    randomAlphaNum :: MonadIO m => m Text
+    randomAlphaNum = liftIO $ do
+      nrs <- replicateM 21 (randomRIO (97, 122)) -- a-z
+      return (cs (map chr nrs))

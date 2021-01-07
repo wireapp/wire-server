@@ -52,6 +52,8 @@ module Util.Core
     randomEmail,
     defPassword,
     getUserBrig,
+    changeHandleBrig,
+    updateProfileBrig,
     createUserWithTeam,
     createUserWithTeamDisableSSO,
     getSSOEnabledInternal,
@@ -71,6 +73,7 @@ module Util.Core
     nextUserRef,
     createRandomPhoneUser,
     zUser,
+    zConn,
     ping,
     makeTestIdP,
     getTestSPMetadata,
@@ -192,6 +195,7 @@ import qualified Web.Cookie as Web
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Invitation as TeamInvitation
+import Wire.API.User (HandleUpdate (HandleUpdate), UserUpdate)
 import qualified Wire.API.User as User
 
 -- | Call 'mkEnv' with options from config files.
@@ -1203,3 +1207,35 @@ stdInvitationRequest = stdInvitationRequest' Nothing Nothing
 stdInvitationRequest' :: Maybe User.Locale -> Maybe Galley.Role -> User.Email -> TeamInvitation.InvitationRequest
 stdInvitationRequest' loc role email =
   TeamInvitation.InvitationRequest loc role Nothing email Nothing
+
+changeHandleBrig ::
+  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  BrigReq ->
+  UserId ->
+  Text ->
+  m ResponseLBS
+changeHandleBrig brig uid handlTxt = do
+  put
+    ( brig
+        . path "/self/handle"
+        . zUser uid
+        . zConn "user"
+        . contentJson
+        . json (HandleUpdate handlTxt)
+    )
+
+updateProfileBrig ::
+  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  BrigReq ->
+  UserId ->
+  UserUpdate ->
+  m ResponseLBS
+updateProfileBrig brig uid uupd =
+  put
+    ( brig
+        . path "/self"
+        . zUser uid
+        . zConn "user"
+        . contentJson
+        . json uupd
+    )
