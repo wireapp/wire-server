@@ -47,15 +47,16 @@ import Brig.Types.User (ManagedBy (..), Name (..), User (..))
 import qualified Brig.Types.User as BT
 import qualified Control.Applicative as Applicative (empty)
 import Control.Lens (view, (^.))
-import Control.Monad.Except (MonadError, throwError)
+import Control.Monad.Except (MonadError, catchError, throwError)
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
-import Crypto.Hash (Digest, SHA256, hashlazy)
+import Crypto.Hash (Digest, SHA256, hash, hashlazy)
 import qualified Data.Aeson as Aeson
-import Data.Handle (Handle (Handle), parseHandle)
+import Data.Handle (Handle (Handle), fromHandle, parseHandle)
 import Data.Id (Id (..), TeamId, UserId, idToText)
 import Data.Json.Util (UTCTimeMillis, fromUTCTimeMillis, toUTCTimeMillis)
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
+import Data.Text.Encoding (encodeUtf8)
 import qualified Data.UUID.V4 as UUID
 import Imports
 import Network.URI (URI, parseURI)
@@ -67,8 +68,10 @@ import Spar.Scim.Auth ()
 import qualified Spar.Scim.Types as ST
 import Spar.Types (IdP, ScimTokenInfo (..), derivedOpts, derivedOptsScimBaseURI, richInfoLimit)
 import qualified System.Logger.Class as Log
+import System.Logger.Message (Msg)
 import qualified URI.ByteString as URIBS
 import qualified Web.Scim.Class.User as Scim
+import Web.Scim.Filter (renderFilter)
 import qualified Web.Scim.Filter as Scim
 import qualified Web.Scim.Handler as Scim
 import qualified Web.Scim.Schema.Common as Scim
@@ -90,7 +93,7 @@ instance Scim.UserDB ST.SparTag Spar where
     Scim.ScimHandler Spar (Scim.ListResponse (Scim.StoredUser ST.SparTag))
   getUsers _ Nothing = do
     throwError $ Scim.badRequest Scim.TooMany (Just "Please specify a filter when getting users.")
-  getUsers ScimTokenInfo {stiTeam, stiIdP} (Just filter') = do
+  getUsers ScimTokenInfo {stiTeam, stiIdP} (Just filter') = logScimErrors (Log.msg ("in getUsers: filters: " <> renderFilter filter')) $ do
     lift $ Log.debug (Log.msg $ "getUsers" <> show (stiTeam, stiIdP, filter'))
     mIdpConfig <- maybe (pure Nothing) (lift . wrapMonadClient . Data.getIdPConfig) stiIdP
     case filter' of
@@ -108,7 +111,7 @@ instance Scim.UserDB ST.SparTag Spar where
     ScimTokenInfo ->
     UserId ->
     Scim.ScimHandler Spar (Scim.StoredUser ST.SparTag)
-  getUser ScimTokenInfo {stiTeam, stiIdP} uid = do
+  getUser ScimTokenInfo {stiTeam, stiIdP} uid = logScimErrors (Log.msg ("in getUser: userId: " <> (cs . show $ uid) :: Text)) $ do
     mIdpConfig <- maybe (pure Nothing) (lift . wrapMonadClient . Data.getIdPConfig) stiIdP
     let notfound = Scim.notFound "User" (idToText uid)
     brigUser <- lift (Brig.getBrigUserAccount Brig.WithPendingInvitations uid) >>= maybe (throwError notfound) pure
@@ -279,6 +282,40 @@ mkValidExternalId (Just idp) (Just extid) = do
               Scim.InvalidValue
               (Just $ "Can't construct a subject ID from externalId: " <> Text.pack err)
 
+logScimErrors :: forall m a. (m ~ Scim.ScimHandler Spar) => (Msg -> Msg) -> m a -> m a
+logScimErrors context action =
+  catchError action $
+    ( \e -> do
+        let errorMsg =
+              case (Scim.detail e) of
+                Just d -> d
+                Nothing -> cs (Aeson.encode e)
+        lift $ Log.err $ context . (Log.msg errorMsg)
+        throwError e
+    )
+
+vsuDebug :: ST.ValidScimUser -> Text
+vsuDebug (ST.ValidScimUser veid handl _name _richInfo active) =
+  Text.intercalate "," $
+    catMaybes
+      [ ("email_sha256: " <>) <$> veidEmailSHA256 veid,
+        Just $ ("handle_sha256: " <> (sha256text . fromHandle $ handl)),
+        Just $ ("active:" <> (cs . show $ active))
+      ]
+  where
+
+veidEmailSHA256 :: ST.ValidExternalId -> Maybe Text
+veidEmailSHA256 (ST.EmailAndUref email _) = Just (sha256text . cs . show $ email)
+veidEmailSHA256 (ST.UrefOnly _) = Nothing
+veidEmailSHA256 (ST.EmailOnly email) = Just (sha256text . cs . show $ email)
+
+sha256text :: Text -> Text
+sha256text t =
+  let digest = hash @ByteString @SHA256 (encodeUtf8 t)
+   in cs . show $ digest
+
+-- in ScimTokenHash (cs @ByteString @Text (convertToBase Base64 digest))
+
 -- | Creates a SCIM User.
 --
 -- User is created in Brig first, and then in SCIM and SAML.
@@ -301,74 +338,79 @@ createValidScimUser ::
   ScimTokenInfo ->
   ST.ValidScimUser ->
   m (Scim.StoredUser ST.SparTag)
-createValidScimUser ScimTokenInfo {stiTeam} (ST.ValidScimUser veid handl name richInfo _) = do
-  -- ensure uniqueness constraints of all affected identifiers.
-  -- {if we crash now, retry POST will just work}
-  assertExternalIdUnused veid
-  assertHandleUnused handl
-  -- {if we crash now, retry POST will just work, or user gets told the handle
-  -- is already in use and stops POSTing}
+createValidScimUser ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid handl name richInfo _) =
+  logScimErrors
+    ( maybe id (Log.field "email_sha256") (veidEmailSHA256 veid)
+        . (Log.msg ("in createValidScimUser: " <> (vsuDebug vsu)))
+    )
+    $ do
+      -- ensure uniqueness constraints of all affected identifiers.
+      -- {if we crash now, retry POST will just work}
+      assertExternalIdUnused veid
+      assertHandleUnused handl
+      -- {if we crash now, retry POST will just work, or user gets told the handle
+      -- is already in use and stops POSTing}
 
-  -- Generate a UserId will be used both for scim user in spar and for brig.
-  buid <-
-    lift $ do
+      -- Generate a UserId will be used both for scim user in spar and for brig.
       buid <-
+        lift $ do
+          buid <-
+            ST.runValidExternalId
+              ( \uref ->
+                  do
+                    uid <- liftIO $ Id <$> UUID.nextRandom
+                    Brig.createBrigUserSAML uref uid stiTeam name ManagedByScim
+              )
+              ( \email -> do
+                  Brig.createBrigUserNoSAML email stiTeam name
+              )
+              veid
+
+          Log.debug (Log.msg $ "createValidScimUser: brig says " <> show buid)
+
+          -- {If we crash now, we have an active user that cannot login. And can not
+          -- be bound this will be a zombie user that needs to be manually cleaned
+          -- up.  We should consider making setUserHandle part of createUser and
+          -- making it transactional.  If the user redoes the POST A new standalone
+          -- user will be created.}
+          Brig.setBrigUserHandle buid handl
+          Brig.setBrigUserRichInfo buid richInfo
+          pure buid
+
+      -- {If we crash now,  a POST retry will fail with 409 user already exists.
+      -- Azure at some point will retry with GET /Users?filter=userName eq handle
+      -- and then issue a PATCH containing the rich info and the externalId.}
+
+      -- By now, vsu that was passed to 'createValidScimUser' may be outdated.  Eg., if user is
+      -- invited via scim, we have @active == True@ above, but brig has stored the account in
+      -- @AccountStatus == PendingActivation@, which translates to @active == False@.  So we need
+      -- to reload the Account from brig.
+      storedUser <- do
+        acc <-
+          lift (Brig.getBrigUserAccount Brig.WithPendingInvitations buid)
+            >>= maybe (throwError $ Scim.serverError "Server error: user vanished") pure
+        synthesizeStoredUser acc veid
+      lift $ Log.debug (Log.msg $ "createValidScimUser: spar says " <> show storedUser)
+
+      -- {(arianvp): these two actions we probably want to make transactional.}
+      lift . wrapMonadClient $ do
+        -- Store scim timestamps, saml credentials, scim externalId locally in spar.
+        Data.writeScimUserTimes storedUser
         ST.runValidExternalId
-          ( \uref ->
-              do
-                uid <- liftIO $ Id <$> UUID.nextRandom
-                Brig.createBrigUserSAML uref uid stiTeam name ManagedByScim
-          )
-          ( \email -> do
-              Brig.createBrigUserNoSAML email stiTeam name
-          )
+          (`Data.insertSAMLUser` buid)
+          (`Data.insertScimExternalId` buid)
           veid
 
-      Log.debug (Log.msg $ "createValidScimUser: brig says " <> show buid)
+      -- If applicable, trigger email validation procedure on brig.
+      lift $ ST.runValidExternalId (validateEmailIfExists buid) (\_ -> pure ()) veid
 
-      -- {If we crash now, we have an active user that cannot login. And can not
-      -- be bound this will be a zombie user that needs to be manually cleaned
-      -- up.  We should consider making setUserHandle part of createUser and
-      -- making it transactional.  If the user redoes the POST A new standalone
-      -- user will be created.}
-      Brig.setBrigUserHandle buid handl
-      Brig.setBrigUserRichInfo buid richInfo
-      pure buid
-
-  -- {If we crash now,  a POST retry will fail with 409 user already exists.
-  -- Azure at some point will retry with GET /Users?filter=userName eq handle
-  -- and then issue a PATCH containing the rich info and the externalId.}
-
-  -- By now, vsu that was passed to 'createValidScimUser' may be outdated.  Eg., if user is
-  -- invited via scim, we have @active == True@ above, but brig has stored the account in
-  -- @AccountStatus == PendingActivation@, which translates to @active == False@.  So we need
-  -- to reload the Account from brig.
-  storedUser <- do
-    acc <-
-      lift (Brig.getBrigUserAccount Brig.WithPendingInvitations buid)
-        >>= maybe (throwError $ Scim.serverError "Server error: user vanished") pure
-    synthesizeStoredUser acc veid
-  lift $ Log.debug (Log.msg $ "createValidScimUser: spar says " <> show storedUser)
-
-  -- {(arianvp): these two actions we probably want to make transactional.}
-  lift . wrapMonadClient $ do
-    -- Store scim timestamps, saml credentials, scim externalId locally in spar.
-    Data.writeScimUserTimes storedUser
-    ST.runValidExternalId
-      (`Data.insertSAMLUser` buid)
-      (`Data.insertScimExternalId` buid)
-      veid
-
-  -- If applicable, trigger email validation procedure on brig.
-  lift $ ST.runValidExternalId (validateEmailIfExists buid) (\_ -> pure ()) veid
-
-  -- {suspension via scim: if we don't reach the following line, the user will be active.}
-  lift $ do
-    old <- Brig.getStatus buid
-    let new = ST.scimActiveFlagToAccountStatus old (Scim.unScimBool <$> active)
-        active = Scim.active . Scim.value . Scim.thing $ storedUser
-    when (new /= old) $ Brig.setStatus buid new
-  pure storedUser
+      -- {suspension via scim: if we don't reach the following line, the user will be active.}
+      lift $ do
+        old <- Brig.getStatus buid
+        let new = ST.scimActiveFlagToAccountStatus old (Scim.unScimBool <$> active)
+            active = Scim.active . Scim.value . Scim.thing $ storedUser
+        when (new /= old) $ Brig.setStatus buid new
+      pure storedUser
 
 -- TODO(arianvp): how do we get this safe w.r.t. race conditions / crashes?
 updateValidScimUser ::
@@ -378,7 +420,7 @@ updateValidScimUser ::
   UserId ->
   ST.ValidScimUser ->
   m (Scim.StoredUser ST.SparTag)
-updateValidScimUser tokinfo uid newValidScimUser = do
+updateValidScimUser tokinfo uid newValidScimUser = logScimErrors (Log.msg ("in updateValidScimUser: userId: " <> (cs . show $ uid) <> vsuDebug newValidScimUser)) $ do
   -- lookup updatee
   oldScimStoredUser :: Scim.StoredUser ST.SparTag <-
     Scim.getUser tokinfo uid
@@ -493,7 +535,7 @@ updScimStoredUser' now usr (Scim.WithMeta meta (Scim.WithId scimuid _)) =
 
 deleteScimUser ::
   ScimTokenInfo -> UserId -> Scim.ScimHandler Spar ()
-deleteScimUser ScimTokenInfo {stiTeam} uid = do
+deleteScimUser ScimTokenInfo {stiTeam} uid = logScimErrors (Log.msg ("in deleteScimUser: userId: " <> (cs . show $ uid) :: Text)) $ do
   mbBrigUser <- lift (Brig.getBrigUser Brig.WithPendingInvitations uid)
   case mbBrigUser of
     Nothing -> do
