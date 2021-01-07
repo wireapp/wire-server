@@ -34,29 +34,34 @@ module Federator.Run
 where
 
 -- import Data.Domain
-
-import Control.Lens (view, (^.))
-import Data.Default (def)
-import qualified Data.Metrics.Middleware as Metrics
 -- import Data.Text (unpack)
 -- import Federator.App (AppIO)
-
 -- import qualified Network.Wai.Handler.Warp as Warp
 -- import Network.Wai.Utilities.Server as Server
+-- import Network.DNS.Resolver (Resolver)
+-- import qualified Servant.Server as Servant
 
-import Federator.App (AppIO, runAppT)
+import Control.Exception
+import Control.Lens (view, (^.))
+import Control.Monad.Catch
+import Data.Default (def)
+import qualified Data.List.NonEmpty as NonEmpty
+import qualified Data.Metrics.Middleware as Metrics
+import Data.String.Conversions (cs)
+import qualified Data.Text as T
+import Federator.App
 import Federator.GRPC.Proto
 import qualified Federator.Impl as Impl
 import Federator.Options as Opt
 import Federator.Types
 import Imports
+import Mu.GRpc.Client.TyApps
 import Mu.GRpc.Server
 import Mu.Server hiding (resolver)
-import Network.DNS.Resolver (Resolver)
+import qualified Network.DNS.Lookup as Lookup
 import qualified Network.DNS.Resolver as Resolver
 import Network.HTTP2.Client
 import Network.Wai (Application)
-import qualified Servant.Server as Servant
 import qualified System.Logger.Extended as Log
 import Util.Options
 import Wire.Network.DNS.SRV
@@ -95,9 +100,39 @@ sayHello (HelloRequestMessage nm) =
 --   undefined
 
 getUserIdByHandle :: QualifiedHandle -> AppIO QualifiedId
-getUserIdByHandle (QualifiedHandle domain handle) = do
-  resolver <- view dnsResolver
+getUserIdByHandle (QualifiedHandle federationDomain _handle) = do
+  -- FUTUREWORK: we should parse federationDomain as Domain, not Text
+  SrvTarget domain port <- lookupDomainFake federationDomain
+  outboundSayHello' (cs domain) (fromIntegral port) "Alice"
   undefined
+
+lookupDomainFake :: Text -> AppIO SrvTarget
+lookupDomainFake _ = do
+  pure $ SrvTarget "127.0.0.1" 8097
+
+lookupDomainByDNS :: Text -> AppIO SrvTarget
+lookupDomainByDNS federationDomain = do
+  resolver <- view dnsResolver
+  let domainSrv = cs $ "_wire-server._tcp." <> federationDomain
+  res <- liftIO $ interpretResponse <$> Lookup.lookupSRV resolver domainSrv
+  case res of
+    SrvAvailable entries -> do
+      -- FUTUREWORK: orderSrvResult and try the list in order
+      pure $ srvTarget $ NonEmpty.head entries
+    SrvNotAvailable -> throwM $ ErrorCall $ "No SRV record for" <> (cs domainSrv) <> "available"
+    SrvResponseError _ -> throwM $ ErrorCall $ "error srv lookup" <> (cs domainSrv)
+
+outboundSayHello' :: HostName -> PortNumber -> T.Text -> AppIO ()
+outboundSayHello' host port req = do
+  attempt <- liftIO $ setupGrpcClient' (grpcClientConfigSimple host port False)
+  case attempt of
+    Right c -> do
+      x <- liftIO $ fmap (\(HelloReplyMessage r) -> r) <$> outBoundSayHello c (HelloRequestMessage req)
+      print x
+    _ -> undefined
+
+outBoundSayHello :: GrpcClient -> HelloRequestMessage -> IO (GRpcReply HelloReplyMessage)
+outBoundSayHello = gRpcCall @'MsgProtoBuf @Service @"Service" @"SayHello"
 
 -- otherBackend <- lookupBackend domain
 -- client <- constructClient otherBackend
@@ -107,8 +142,6 @@ getUserIdByHandle (QualifiedHandle domain handle) = do
 
 -- constructClient :: Backend -> AppIO GRpcClient
 -- constructClient = undefined
-
-data Backend = Backend {host :: HostName, port :: PortNumber} -- TODO don't we already have a definition of something like this?
 
 -- FUTUREWORK: abstract the concrete things away as federator doesn't need to know all of it, all it needs is to know where the end request goes to (brig, in this case)
 -- talkToBrig :: (MonadServer m) => Domain -> ByteString -> m ByteString
