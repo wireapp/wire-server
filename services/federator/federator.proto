@@ -30,6 +30,7 @@ service Service {
     // Used by other backends hosted on another domain
     // Service Naming possibilities: Gateway Inbound Strangers Public ...
     // --------------------------------------------------------------
+    rpc FederatedGetUserIdByHandle (QualifiedHandle) returns (QualifiedId) {}
 
 }
 

@@ -41,9 +41,9 @@ where
 -- import Network.DNS.Resolver (Resolver)
 -- import qualified Servant.Server as Servant
 
-import Control.Exception
+import Control.Exception hiding (handle)
 import Control.Lens (view, (^.))
-import Control.Monad.Catch
+import Control.Monad.Catch hiding (handle)
 import Data.Default (def)
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Metrics.Middleware as Metrics
@@ -122,6 +122,17 @@ lookupDomainByDNS federationDomain = do
     SrvNotAvailable -> throwM $ ErrorCall $ "No SRV record for" <> (cs domainSrv) <> "available"
     SrvResponseError _ -> throwM $ ErrorCall $ "error srv lookup" <> (cs domainSrv)
 
+federatedGetUserIdByHandle :: QualifiedHandle -> AppIO QualifiedId
+federatedGetUserIdByHandle handle = do
+  -- FUTUREWORK: validate the domain to be this installation's domain to avoid people misusing this server as a proxy to another federation backend
+  askBrigForHandle handle
+
+askBrigForHandle :: QualifiedHandle -> AppIO QualifiedId
+askBrigForHandle (QualifiedHandle domain _handle) = do
+  -- TODO internal http call to brig instead of mocking the request
+  randomId <- undefined
+  pure $ QualifiedId domain randomId
+
 outboundSayHello' :: HostName -> PortNumber -> T.Text -> AppIO ()
 outboundSayHello' host port req = do
   attempt <- liftIO $ setupGrpcClient' (grpcClientConfigSimple host port False)
@@ -134,20 +145,16 @@ outboundSayHello' host port req = do
 outBoundSayHello :: GrpcClient -> HelloRequestMessage -> IO (GRpcReply HelloReplyMessage)
 outBoundSayHello = gRpcCall @'MsgProtoBuf @Service @"Service" @"SayHello"
 
--- otherBackend <- lookupBackend domain
--- client <- constructClient otherBackend
-
--- lookupBackend :: Domain -> AppIO Backend
--- lookupBackend = undefined
-
--- constructClient :: Backend -> AppIO GRpcClient
--- constructClient = undefined
-
 -- FUTUREWORK: abstract the concrete things away as federator doesn't need to know all of it, all it needs is to know where the end request goes to (brig, in this case)
 -- talkToBrig :: (MonadServer m) => Domain -> ByteString -> m ByteString
 
 grpcServer :: SingleServerT i Service AppIO _
-grpcServer = singleService (method @"SayHello" sayHello, method @"GetUserIdByHandle" getUserIdByHandle)
+grpcServer =
+  singleService
+    ( method @"SayHello" sayHello,
+      method @"GetUserIdByHandle" getUserIdByHandle,
+      method @"FederatedGetUserIdByHandle" federatedGetUserIdByHandle
+    )
 
 -------------------------------------------------------------------------------
 -- Environment
