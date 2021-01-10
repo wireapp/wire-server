@@ -1,0 +1,3 @@
+fake-aws-ses:
+  enabled: true
+  sesSender: "backend-integrationk8s@wire.com"

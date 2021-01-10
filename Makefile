@@ -71,6 +71,14 @@ add-license:
 	@echo ""
 	@echo "you might want to run 'make formatf' now to make sure ormolu is happy"
 
+.PHONY: db-migrate
+db-migrate:
+	make -C "services/gundeck" db-migrate
+	make -C "services/galley" db-migrate
+	make -C "services/spar" db-migrate
+	make -C "services/brig" db-migrate
+	make -C "services/brig" index
+
 # Clean
 .PHONY: clean
 clean:
@@ -172,6 +180,7 @@ docker-services:
 	$(MAKE) -C services/gundeck docker
 	$(MAKE) -C services/galley docker
 	$(MAKE) -C services/cannon docker
+	$(MAKE) -C services/cargohold docker
 	$(MAKE) -C services/proxy docker
 	$(MAKE) -C services/spar docker
 	$(MAKE) -C tools/stern docker

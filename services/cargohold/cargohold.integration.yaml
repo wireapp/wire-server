@@ -4,7 +4,7 @@ cargohold:
 
 aws:
   s3Bucket: dummy-bucket # <-- insert-bucket-name-here
-  s3Endpoint: http://localhost:4570 # https://s3-eu-west-1.amazonaws.com:443
+  s3Endpoint: http://fake-aws-s3:9000 # https://s3-eu-west-1.amazonaws.com:443
   # s3DownloadEndpoint: http://fake-s3:4570
   # ^ When not using a real S3 service, we may need to use a different,
   #   publicly accessible endpoint for downloading assets.
