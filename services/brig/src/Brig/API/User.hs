@@ -442,9 +442,10 @@ changeHandle uid mconn hdl allowScim = do
   case usr of
     Nothing -> throwE ChangeHandleNoIdentity
     Just u -> do
-      when
-        ( userManagedBy u == ManagedByScim
-            && allowScim == ForbidSCIMUpdates
+      unless
+        ( userManagedBy u /= ManagedByScim
+            || Just hdl == userHandle u
+            || allowScim == AllowSCIMUpdates
         )
         $ throwE ChangeHandleManagedByScim
       claim u
