@@ -322,7 +322,7 @@ deleteUserNoVerify uid = do
 changeSelfEmailMaybeSendH :: UserId ::: Bool ::: JsonRequest EmailUpdate -> Handler Response
 changeSelfEmailMaybeSendH (u ::: validate ::: req) = do
   email <- euEmail <$> parseJsonBody req
-  changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email API.ForbidSCIMUpdates >>= \case
+  changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email API.AllowSCIMUpdates >>= \case
     ChangeEmailResponseIdempotent -> pure (setStatus status204 empty)
     ChangeEmailResponseNeedsActivation -> pure (setStatus status202 empty)
 
