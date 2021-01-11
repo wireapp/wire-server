@@ -22,47 +22,20 @@
 module Test.Federator.Util where
 
 import Bilge
--- import Bilge.Assert (Assertions, (!!!), (<!!), (===))
 import Control.Exception
 import Control.Lens hiding ((.=))
-import Control.Monad.Catch
 import Control.Monad.Except
-import Control.Retry
 import Crypto.Random.Types (MonadRandom, getRandomBytes)
-import Data.Aeson as Aeson hiding (json)
 import Data.Aeson.TH
--- import Data.Aeson.Lens as Aeson
--- import qualified Data.ByteString as SBS
--- import qualified Data.ByteString.Base64.Lazy as EL
--- import Data.ByteString.Conversion
--- import Data.Handle (Handle (Handle))
-import Data.Id
--- import Data.Misc (PlainTextPassword (..))
--- import Data.Proxy
--- import Data.Range
 import Data.String.Conversions
--- import qualified Data.Text.Ascii as Ascii
--- import Data.Text.Encoding (encodeUtf8)
--- import Data.Time
--- import Data.UUID as UUID hiding (fromByteString, null)
--- import Data.UUID.V4 as UUID (nextRandom)
 import qualified Data.Yaml as Yaml
--- import GHC.TypeLits
-
--- import qualified Network.Wai.Handler.Warp as Warp
--- import qualified Network.Wai.Handler.Warp.Internal as Warp
-
 import Federator.Options
 import Imports hiding (head)
 import qualified Options.Applicative as OPA
-import qualified System.Logger.Extended as Log
-import System.Random (randomRIO)
+-- import System.Random (randomRIO)
 import Test.Federator.Utilly
-import Test.Hspec hiding (it, pending, pendingWith, xit)
+-- import Test.Hspec hiding (it, pending, pendingWith, xit)
 import Util.Options
-
--- import Util.Types
--- import qualified Wire.API.User as User
 
 type BrigReq = Request -> Request
 
@@ -129,12 +102,12 @@ mkEnv _teTstOpts _teOpts = do
   _teMgr :: Manager <- newManager defaultManagerSettings
   -- federatorCtxLogger <- Log.mkLogger (toLevel $ saml _teOpts ^. SAML.cfgLogLevel) (logNetStrings _teOpts) (logFormat _teOpts)
   let _teBrig = endpointToReq (cfgBrig _teTstOpts)
-      -- _teFederator = endpointToReq (federator _teTstOpts)
-      -- _teFederatorEnv = Federator.Env {..}
-      federatorCtxOpts = _teOpts
-      federatorCtxHttpManager = _teMgr
-      federatorCtxHttpBrig = _teBrig empty
-      federatorCtxRequestId = RequestId "<fake request id>"
+  -- _teFederator = endpointToReq (federator _teTstOpts)
+  -- _teFederatorEnv = Federator.Env {..}
+  -- federatorCtxOpts = _teOpts
+  -- federatorCtxHttpManager = _teMgr
+  -- federatorCtxHttpBrig = _teBrig empty
+  -- federatorCtxRequestId = RequestId "<fake request id>"
   pure TestEnv {..}
 
 destroyEnv :: HasCallStack => TestEnv -> IO ()

@@ -30,6 +30,10 @@ module Federator.Run
     -- * App Environment
     newEnv,
     closeEnv,
+
+    -- * functions that FUTUREWORK should probably move to another module
+    lookupDomainFake,
+    lookupDomainByDNS,
   )
 where
 
