@@ -62,6 +62,7 @@ import Imports
 import Mu.GRpc.Client.TyApps
 import Mu.GRpc.Server
 import Mu.Server hiding (resolver)
+import Network.DNS (Resolver)
 import qualified Network.DNS.Lookup as Lookup
 import qualified Network.DNS.Resolver as Resolver
 import Network.HTTP2.Client
@@ -169,13 +170,17 @@ newEnv o = do
   _applog <- Log.mkLogger (Opt.logLevel o) (Opt.logNetStrings o) (Opt.logFormat o)
   let _requestId = def
   let _runSettings = (Opt.optSettings o)
+  _dnsResolver <- mkDnsResolver
+  return Env {..}
 
-  -- Set up a thread-safe resolver with a global cache. This means that SRV
-  -- records will only be re-resolved after their TTLs expire
+-- | Set up a thread-safe resolver with a global cache. This means that SRV
+-- records will only be re-resolved after their TTLs expire
+-- FUTUREWORK: move to dns-util lib?
+mkDnsResolver :: IO Resolver
+mkDnsResolver = do
   let resolvConf = Resolver.defaultResolvConf {Resolver.resolvCache = Just Resolver.defaultCacheConf}
   resolvSeed <- Resolver.makeResolvSeed resolvConf
-  Resolver.withResolver resolvSeed $ \_dnsResolver ->
-    return Env {..}
+  Resolver.withResolver resolvSeed $ \resolver -> return resolver
 
 closeEnv :: Env -> IO ()
 closeEnv e = do
