@@ -54,7 +54,7 @@ instance FromHttpApiData Handle where
     first Text.pack . parseHandleEither
 
 instance ToHttpApiData Handle where
-  toUrlPiece = toUrlPiece . show
+  toUrlPiece (Handle h) = toUrlPiece h
 
 instance FromByteString Handle where
   parser = handleParser
