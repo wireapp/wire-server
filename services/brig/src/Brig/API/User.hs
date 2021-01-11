@@ -405,10 +405,10 @@ updateUser uid mconn uu allowScim = do
   for_ (uupName uu) $ \newName -> do
     mbUser <- lift $ Data.lookupUser WithPendingInvitations uid
     user <- maybe (throwE (ProfileNotFound uid)) pure mbUser
-    when
-      ( userManagedBy user == ManagedByScim
-          && userDisplayName user /= newName
-          && allowScim == ForbidSCIMUpdates
+    unless
+      ( userManagedBy user /= ManagedByScim
+          || userDisplayName user == newName
+          || allowScim == AllowSCIMUpdates
       )
       $ throwE DisplayNameManagedByScim
   lift $ do
