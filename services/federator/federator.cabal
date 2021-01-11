@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1717930eca2925adaa1a70c0a872caa03e7cc6a95b2e53a310fc01a6a8b631b3
+-- hash: 09706ddf1d3ae18e4d26584a806a216c6da334531ecd2fa60bf304241c4e858c
 
 name:           federator
 version:        1.0.0
@@ -22,6 +22,7 @@ library
   exposed-modules:
       Federator.API
       Federator.App
+      Federator.Brig
       Federator.GRPC.Helper
       Federator.GRPC.Proto
       Federator.Impl
@@ -40,6 +41,7 @@ library
     , aeson
     , base
     , bilge
+    , brig
     , bytestring-conversion
     , data-default
     , dns
@@ -48,6 +50,7 @@ library
     , errors
     , exceptions
     , extended
+    , http-client
     , http2-client
     , imports
     , lens
@@ -61,6 +64,7 @@ library
     , mu-schema
     , resourcet
     , servant
+    , servant-client
     , servant-mock
     , servant-server
     , servant-swagger
@@ -90,6 +94,7 @@ executable federator
     , aeson
     , base
     , bilge
+    , brig
     , bytestring-conversion
     , data-default
     , dns
@@ -99,6 +104,7 @@ executable federator
     , exceptions
     , extended
     , federator
+    , http-client
     , http2-client
     , imports
     , lens
@@ -112,6 +118,7 @@ executable federator
     , mu-schema
     , resourcet
     , servant
+    , servant-client
     , servant-mock
     , servant-server
     , servant-swagger
@@ -144,6 +151,7 @@ executable federator-integration
     , aeson
     , base
     , bilge
+    , brig
     , bytestring
     , bytestring-conversion
     , cryptonite
@@ -156,6 +164,7 @@ executable federator-integration
     , extended
     , federator
     , hspec
+    , http-client
     , http2-client
     , imports
     , lens
@@ -172,6 +181,7 @@ executable federator-integration
     , resourcet
     , retry
     , servant
+    , servant-client
     , servant-mock
     , servant-server
     , servant-swagger
@@ -206,6 +216,7 @@ test-suite federator-tests
     , aeson
     , base
     , bilge
+    , brig
     , bytestring
     , bytestring-conversion
     , data-default
@@ -216,6 +227,7 @@ test-suite federator-tests
     , exceptions
     , extended
     , federator
+    , http-client
     , http2-client
     , imports
     , lens
@@ -229,6 +241,7 @@ test-suite federator-tests
     , mu-schema
     , resourcet
     , servant
+    , servant-client
     , servant-mock
     , servant-server
     , servant-swagger

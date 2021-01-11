@@ -45,11 +45,15 @@ import Control.Exception hiding (handle)
 import Control.Lens (view, (^.))
 import Control.Monad.Catch hiding (handle)
 import Data.Default (def)
+import Data.Domain (domainText)
+import Data.Id (idToText)
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Metrics.Middleware as Metrics
+import Data.Qualified
 import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import Federator.App
+import qualified Federator.Brig as Brig
 import Federator.GRPC.Proto
 import qualified Federator.Impl as Impl
 import Federator.Options as Opt
@@ -65,6 +69,7 @@ import Network.HTTP2.Client
 import Network.Wai (Application)
 import qualified System.Logger.Extended as Log
 import Util.Options
+import Wire.API.User.Handle
 import Wire.Network.DNS.SRV
 
 ------------------------------------------------------------------------------
@@ -93,7 +98,7 @@ mkApp opts = do
   pure (Impl.app env, env)
 
 ------------------------------------------------------------------------------
--- grpc api
+-- grpc server api
 
 grpcServer :: SingleServerT i Service AppIO _
 grpcServer =
@@ -126,16 +131,15 @@ federatedGetUserIdByHandle handle = do
   askBrigForHandle handle
 
 ------------------------------------------------------------------------------
--- internal calls, e.g. to brig
+-- internal client calls, e.g. to brig
 
 askBrigForHandle :: QualifiedHandle -> AppIO QualifiedId
-askBrigForHandle (QualifiedHandle domain _handle) = do
-  -- TODO internal http call to brig instead of mocking the request
-  randomId <- undefined
-  pure $ QualifiedId domain randomId
+askBrigForHandle handle = do
+  res <- userHandleId <$> Brig.run handle
+  pure $ QualifiedId (domainText $ qDomain res) (idToText $ qUnqualified res)
 
 ------------------------------------------------------------------------------
--- external calls, to other backends
+-- external client calls to other backends
 
 outboundSayHello' :: HostName -> PortNumber -> T.Text -> AppIO ()
 outboundSayHello' host port req = do

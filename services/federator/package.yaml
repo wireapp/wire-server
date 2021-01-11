@@ -11,39 +11,42 @@ license: AGPL-3
 extra-source-files:
 - federator.proto # TODO move this file to subfolder?
 dependencies:
+- QuickCheck
 - aeson
 - base
 - bilge
+- brig # TODO do not import brig! Move servant-client types elsewhere!
 - bytestring-conversion
 - data-default
+- dns
+- dns-util
 - email-validate
-- mtl
 - errors
 - exceptions
 - extended
-- imports
-- dns-util
-- dns
-- lens
+- http-client
 - http2-client
+- imports
+- lens
 - metrics-core
 - metrics-wai
-- QuickCheck
+- mtl
+- mu-grpc-client
+- mu-grpc-server
+- mu-protobuf
+- mu-rpc
+- mu-schema
 - resourcet
 - servant
+- servant-client
 - servant-mock
 - servant-server
 - servant-swagger
 - string-conversions
-- mu-grpc-server
-- mu-grpc-client
-- mu-protobuf
-- mu-rpc
-- mu-schema
+- template-haskell
 - text
 - tinylog
 - types-common
-- template-haskell
 - uuid
 - wai
 - wai-utilities

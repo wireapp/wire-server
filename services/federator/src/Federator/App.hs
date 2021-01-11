@@ -31,7 +31,7 @@ import Bilge.RPC (HasRequestId (..))
 import Control.Lens (view)
 import Control.Monad.Catch
 import Control.Monad.Except
-import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
+-- import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
 import Federator.Types (Env, applog, requestId)
 import Imports
 import Mu.Server (ServerError, ServerErrorIO)
@@ -76,17 +76,11 @@ instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
       withRunInIO $ \runner ->
         inner (runner . flip runReaderT r . unAppT)
 
--- TODO dear reviewer, I don't know what I'm doing here
--- but this instance made 'singleService' (which seems to need an instance of MonadError for ServerError) calls in Run.hs compile again
 instance MonadError ServerError (AppT ServerErrorIO) where
   throwError = lift . throwError @_ @ServerErrorIO
   catchError a f = do
     env <- ask
     lift $ catchError (runAppT env a) (\e -> runAppT env $ f e)
-
--- instance (MonadCatch m, MonadThrow m) => MonadError ServerError (AppT m) where
---   throwError = throwM
---   catchError =
 
 instance MonadTrans AppT where
   lift = AppT . lift

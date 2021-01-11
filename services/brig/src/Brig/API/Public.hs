@@ -26,6 +26,7 @@ module Brig.API.Public
     swaggerDocsAPI,
     ServantAPI,
     SwaggerDocsAPI,
+    GetHandleInfoQualified,
   )
 where
 
