@@ -17,6 +17,7 @@ import Network.HTTP.Client (defaultManagerSettings, newManager)
 import Servant.API
 import qualified Servant.API as Servant
 import Servant.Client
+import qualified System.Logger.Class as Log
 import Wire.API.User.Handle
 
 -- FUTUREWORK: can we avoid having to copy this over from Brig.API.Public ?
@@ -44,10 +45,13 @@ getUserInfoByHandle = client api
 -- FUTUREWORK: use a specific /i/something internal brig endpoint to avoid having to "fake" ZAuth user Ids
 run :: QualifiedHandle -> AppIO UserHandleInfo
 run (QualifiedHandle domain handle) = do
+  Log.warn $ Log.msg $ "%%-> Brig/run. Handle:" <> show handle
   manager' <- liftIO $ newManager defaultManagerSettings
   fakeZAuth <- randomId
   let query = getUserInfoByHandle fakeZAuth (Domain domain) (Handle handle) -- FUTUREWORK: validation needs to happen on domain/handle
   res <- liftIO $ runClientM query (mkClientEnv manager' (BaseUrl Http "localhost" 8082 ""))
   case res of
-    Left err -> throwError $ ServerError NotFound ("Error: " ++ show err)
+    Left err -> do
+      Log.warn $ Log.msg $ "%%-> Brig/run. err from brig: " <> show err
+      throwError $ ServerError NotFound ("Error: " ++ show err)
     Right result -> pure result

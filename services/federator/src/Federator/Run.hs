@@ -62,7 +62,8 @@ import qualified Network.DNS.Lookup as Lookup
 import qualified Network.DNS.Resolver as Resolver
 import Network.HTTP2.Client
 import Network.Wai (Application)
-import qualified System.Logger.Extended as Log
+import qualified System.Logger.Class as Log
+import qualified System.Logger.Extended as LogExt
 import Util.Options
 import Wire.API.User.Handle
 import Wire.Network.DNS.SRV
@@ -103,8 +104,13 @@ grpcServer =
       method @"FederatedGetUserIdByHandle" federatedGetUserIdByHandle
     )
 
+meh :: String -> AppIO ()
+meh msg = do
+  Log.warn $ Log.msg msg
+
 sayHello :: HelloRequestMessage -> AppIO HelloReplyMessage
 sayHello (HelloRequestMessage nm) = do
+  meh $ "%%-> Run/sayHello. Name:" <> show nm
   case nm of
     "Bob" -> throwError $ ServerError NotFound "Bob not allowed"
     _ -> pure $ HelloReplyMessage ("hi, " <> nm)
@@ -117,13 +123,13 @@ sayHello (HelloRequestMessage nm) = do
 getUserIdByHandle :: QualifiedHandle -> AppIO QualifiedId
 getUserIdByHandle handle@(QualifiedHandle federationDomain _) = do
   -- FUTUREWORK: we should parse federationDomain as Domain, not Text
-  putStr "%%-> Run/getUserIdByHandle. Handle:"
-  print handle
+  meh $ "%%-> Run/getUserIdByHandle. Handle:" <> show handle
   SrvTarget domain port <- lookupDomainFake federationDomain
   outBoundGetUserIdByHandle' (cs domain) (fromIntegral port) handle
 
 federatedGetUserIdByHandle :: QualifiedHandle -> AppIO QualifiedId
 federatedGetUserIdByHandle handle = do
+  meh $ "%%-> Run/federatedGetUserIdByHandle. Handle:" <> show handle
   -- FUTUREWORK: validate the domain to be this installation's domain to avoid people misusing this server as a proxy to another federation backend
   askBrigForHandle handle
 
@@ -169,7 +175,7 @@ lookupDomainByDNS federationDomain = do
 newEnv :: Opts -> IO Env
 newEnv o = do
   _metrics <- Metrics.metrics
-  _applog <- Log.mkLogger (Opt.logLevel o) (Opt.logNetStrings o) (Opt.logFormat o)
+  _applog <- LogExt.mkLogger (Opt.logLevel o) (Opt.logNetStrings o) (Opt.logFormat o)
   let _requestId = def
   let _runSettings = (Opt.optSettings o)
   _dnsResolver <- mkDnsResolver
