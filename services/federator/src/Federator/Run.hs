@@ -37,18 +37,9 @@ module Federator.Run
   )
 where
 
--- import Data.Domain
--- import Data.Text (unpack)
--- import Federator.App (AppIO)
--- import qualified Network.Wai.Handler.Warp as Warp
--- import Network.Wai.Utilities.Server as Server
--- import Network.DNS.Resolver (Resolver)
--- import qualified Servant.Server as Servant
-
 import Control.Exception hiding (handle)
 import Control.Lens (view, (^.))
 import Control.Monad.Catch hiding (handle)
-import Control.Monad.Error (MonadError (catchError))
 import Data.Default (def)
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Metrics.Middleware as Metrics
@@ -72,6 +63,9 @@ import qualified System.Logger.Extended as Log
 import Util.Options
 import Wire.Network.DNS.SRV
 
+------------------------------------------------------------------------------
+-- run/app
+
 run :: Opts -> IO ()
 run opts = do
   (_app, env) <- mkApp opts
@@ -94,6 +88,17 @@ mkApp opts = do
   env <- newEnv opts
   pure (Impl.app env, env)
 
+------------------------------------------------------------------------------
+-- grpc api
+
+grpcServer :: SingleServerT i Service AppIO _
+grpcServer =
+  singleService
+    ( method @"SayHello" sayHello,
+      method @"GetUserIdByHandle" getUserIdByHandle,
+      method @"FederatedGetUserIdByHandle" federatedGetUserIdByHandle
+    )
+
 sayHello :: HelloRequestMessage -> AppIO HelloReplyMessage
 sayHello (HelloRequestMessage nm) = do
   case nm of
@@ -112,6 +117,45 @@ getUserIdByHandle (QualifiedHandle federationDomain _handle) = do
   outboundSayHello' (cs domain) (fromIntegral port) "Alice"
   undefined
 
+federatedGetUserIdByHandle :: QualifiedHandle -> AppIO QualifiedId
+federatedGetUserIdByHandle handle = do
+  -- FUTUREWORK: validate the domain to be this installation's domain to avoid people misusing this server as a proxy to another federation backend
+  askBrigForHandle handle
+
+------------------------------------------------------------------------------
+-- internal calls, e.g. to brig
+
+askBrigForHandle :: QualifiedHandle -> AppIO QualifiedId
+askBrigForHandle (QualifiedHandle domain _handle) = do
+  -- TODO internal http call to brig instead of mocking the request
+  randomId <- undefined
+  pure $ QualifiedId domain randomId
+
+------------------------------------------------------------------------------
+-- external calls, to other backends
+
+outboundSayHello' :: HostName -> PortNumber -> T.Text -> AppIO ()
+outboundSayHello' host port req = do
+  attempt <- liftIO $ setupGrpcClient' (grpcClientConfigSimple host port False)
+  case attempt of
+    Right c -> do
+      x <- liftIO $ fmap (\(HelloReplyMessage r) -> r) <$> outBoundSayHello c (HelloRequestMessage req)
+      print x
+    _ -> undefined
+
+outBoundSayHello :: GrpcClient -> HelloRequestMessage -> IO (GRpcReply HelloReplyMessage)
+outBoundSayHello = gRpcCall @'MsgProtoBuf @Service @"Service" @"SayHello"
+
+outBoundGetUserIdByHandle :: GrpcClient -> QualifiedHandle -> IO (GRpcReply QualifiedId)
+outBoundGetUserIdByHandle = gRpcCall @'MsgProtoBuf @Service @"Service" @"FederatedGetUserIdByHandle"
+
+-- FUTUREWORK: abstract the concrete things away as federator doesn't need to know all of it, all it needs is to know where the end request goes to (brig, in this case)
+-- talkToBrig :: (MonadServer m) => Domain -> ByteString -> m ByteString
+--
+
+------------------------------------------------------------------------------
+-- helper functions
+
 lookupDomainFake :: Text -> AppIO SrvTarget
 lookupDomainFake _ = do
   pure $ SrvTarget "127.0.0.1" 8097
@@ -127,40 +171,6 @@ lookupDomainByDNS federationDomain = do
       pure $ srvTarget $ NonEmpty.head entries
     SrvNotAvailable -> throwM $ ErrorCall $ "No SRV record for" <> (cs domainSrv) <> "available"
     SrvResponseError _ -> throwM $ ErrorCall $ "error srv lookup" <> (cs domainSrv)
-
-federatedGetUserIdByHandle :: QualifiedHandle -> AppIO QualifiedId
-federatedGetUserIdByHandle handle = do
-  -- FUTUREWORK: validate the domain to be this installation's domain to avoid people misusing this server as a proxy to another federation backend
-  askBrigForHandle handle
-
-askBrigForHandle :: QualifiedHandle -> AppIO QualifiedId
-askBrigForHandle (QualifiedHandle domain _handle) = do
-  -- TODO internal http call to brig instead of mocking the request
-  randomId <- undefined
-  pure $ QualifiedId domain randomId
-
-outboundSayHello' :: HostName -> PortNumber -> T.Text -> AppIO ()
-outboundSayHello' host port req = do
-  attempt <- liftIO $ setupGrpcClient' (grpcClientConfigSimple host port False)
-  case attempt of
-    Right c -> do
-      x <- liftIO $ fmap (\(HelloReplyMessage r) -> r) <$> outBoundSayHello c (HelloRequestMessage req)
-      print x
-    _ -> undefined
-
-outBoundSayHello :: GrpcClient -> HelloRequestMessage -> IO (GRpcReply HelloReplyMessage)
-outBoundSayHello = gRpcCall @'MsgProtoBuf @Service @"Service" @"SayHello"
-
--- FUTUREWORK: abstract the concrete things away as federator doesn't need to know all of it, all it needs is to know where the end request goes to (brig, in this case)
--- talkToBrig :: (MonadServer m) => Domain -> ByteString -> m ByteString
-
-grpcServer :: SingleServerT i Service AppIO _
-grpcServer =
-  singleService
-    ( method @"SayHello" sayHello,
-      method @"GetUserIdByHandle" getUserIdByHandle,
-      method @"FederatedGetUserIdByHandle" federatedGetUserIdByHandle
-    )
 
 -------------------------------------------------------------------------------
 -- Environment
