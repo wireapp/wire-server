@@ -50,6 +50,7 @@ run (QualifiedHandle domain handle) = do
   fakeZAuth <- randomId
   let query = getUserInfoByHandle fakeZAuth (Domain domain) (Handle handle) -- FUTUREWORK: validation needs to happen on domain/handle
   res <- liftIO $ runClientM query (mkClientEnv manager' (BaseUrl Http "localhost" 8082 ""))
+  -- TODO deal with 404s!
   case res of
     Left err -> do
       Log.warn $ Log.msg $ "%%-> Brig/run. err from brig: " <> show err
