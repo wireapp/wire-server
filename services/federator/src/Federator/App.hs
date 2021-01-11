@@ -22,7 +22,7 @@ module Federator.App
   ( AppT,
     AppIO,
     runAppT,
-    runAppResourceT,
+    -- runAppResourceT,
   )
 where
 
@@ -34,7 +34,7 @@ import Control.Monad.Except
 import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
 import Federator.Types (Env, applog, requestId)
 import Imports
-import Mu.Server (ServerError)
+import Mu.Server (ServerError, ServerErrorIO)
 import Servant.API.Generic ()
 import Servant.Server ()
 import System.Logger.Class as LC
@@ -56,7 +56,7 @@ newtype AppT m a = AppT
       MonadReader Env
     )
 
-type AppIO = AppT IO
+type AppIO = AppT ServerErrorIO
 
 instance MonadIO m => LC.MonadLogger (AppT m) where
   log l m = do
@@ -78,14 +78,23 @@ instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
 
 -- TODO dear reviewer, I don't know what I'm doing here
 -- but this instance made 'singleService' (which seems to need an instance of MonadError for ServerError) calls in Run.hs compile again
-instance (MonadThrow m, MonadCatch m) => MonadError ServerError (AppT m) where
-  throwError = throwM
-  catchError = catch
+instance MonadError ServerError (AppT ServerErrorIO) where
+  throwError = lift . throwError @_ @ServerErrorIO
+  catchError a f = do
+    env <- ask
+    lift $ catchError (runAppT env a) (\e -> runAppT env $ f e)
+
+-- instance (MonadCatch m, MonadThrow m) => MonadError ServerError (AppT m) where
+--   throwError = throwM
+--   catchError =
+
+instance MonadTrans AppT where
+  lift = AppT . lift
 
 runAppT :: Env -> AppT m a -> m a
 runAppT e (AppT ma) = runReaderT ma e
 
-runAppResourceT :: ResourceT AppIO a -> AppIO a
-runAppResourceT ma = do
-  e <- ask
-  liftIO . runResourceT $ transResourceT (runAppT e) ma
+-- runAppResourceT :: ResourceT AppIO a -> AppIO a
+-- runAppResourceT ma = do
+--   e <- ask
+--   liftIO . runResourceT $ transResourceT (runAppT e) ma

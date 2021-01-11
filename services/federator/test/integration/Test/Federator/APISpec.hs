@@ -43,14 +43,25 @@ it msg bdy = Test.Hspec.it msg $ runReaderT bdy
 tests :: SpecWith TestEnv
 tests = do
   describe "sayHello" $ do
-    it "answers dummy hello grpc calls" $ do
+    it "answers dummy hello grpc calls for Alice" $ do
       liftIO $ do
-        reply <- sayHello' "127.0.0.1" 8097 "Bob"
+        reply <- sayHello' "127.0.0.1" 8097 "Alice"
         print reply
         -- FUTUREWORK: How to extract/compare things without cumbersome pattern matching?
         case reply of
-          GRpcOk contents -> contents `shouldBe` "hi, Bob"
+          GRpcOk contents -> contents `shouldBe` "hi, Alice"
           _ -> expectationFailure "reply ought to be a GRpcOk"
+
+    it "answers dummy hello grpc calls for Bob" $ do
+      liftIO $ do
+        reply2 <- sayHello' "127.0.0.1" 8097 "Bob"
+        print reply2
+        -- FUTUREWORK: How to extract/compare things without cumbersome pattern matching?
+        case reply2 of
+          GRpcOk contents -> contents `shouldBe` "hi, Bob"
+          stuff -> do
+            print stuff
+            expectationFailure "reply ought to be a GRpcOk"
 
 sayHello' :: HostName -> PortNumber -> T.Text -> IO (GRpcReply T.Text)
 sayHello' host port req = do
@@ -58,7 +69,14 @@ sayHello' host port req = do
   fmap (\(HelloReplyMessage r) -> r) <$> sayHello c (HelloRequestMessage req)
 
 sayHello :: GrpcClient -> HelloRequestMessage -> IO (GRpcReply HelloReplyMessage)
-sayHello = gRpcCall @'MsgProtoBuf @Service @"Service" @"SayHello"
+sayHello x msg = do
+  foo <- gRpcCall @'MsgProtoBuf @Service @"Service" @"SayHello" x msg
+  putStrLn "---------"
+  print foo
+  putStrLn "---------"
+  pure foo
+
+-- pure foo
 
 -- brig -> grpc call to federator
 -- federator -> grpc call to ... nginz?

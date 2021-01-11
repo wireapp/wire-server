@@ -48,6 +48,7 @@ where
 import Control.Exception hiding (handle)
 import Control.Lens (view, (^.))
 import Control.Monad.Catch hiding (handle)
+import Control.Monad.Error (MonadError (catchError))
 import Data.Default (def)
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Metrics.Middleware as Metrics
@@ -79,14 +80,12 @@ run opts = do
   -- Warp.runSettings settings app
   -- let grpcApplication = gRpcAppTrans msgProtoBuf (transformer env) grpcServer
   runGRpcAppTrans msgProtoBuf port (transformer env) grpcServer
-  undefined
   where
     endpoint = federator opts
     port = fromIntegral $ endpoint ^. epPort
 
-    -- These Monad stack conversions confuse me greatly. Help?
     transformer :: Env -> AppIO a -> ServerErrorIO a
-    transformer _env _action = undefined -- runAppT env
+    transformer env action = runAppT env action
 
 -- restServer env = defaultServer (unpack $ endpoint ^. epHost) (endpoint ^. epPort) (env ^. applog) (env ^. metrics)
 
@@ -96,8 +95,10 @@ mkApp opts = do
   pure (Impl.app env, env)
 
 sayHello :: HelloRequestMessage -> AppIO HelloReplyMessage
-sayHello (HelloRequestMessage nm) =
-  pure $ HelloReplyMessage ("hi, " <> nm)
+sayHello (HelloRequestMessage nm) = do
+  case nm of
+    "Bob" -> throwError $ ServerError NotFound "Bob not allowed"
+    _ -> pure $ HelloReplyMessage ("hi, " <> nm)
 
 -- FUTUREWORK: getUserByHandle should return a full profile (see https://wearezeta.atlassian.net/browse/SQCORE-365)
 -- getUserByHandle :: (MonadServer m) => QualifiedHandle -> m UserProfile
