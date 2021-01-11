@@ -434,7 +434,7 @@ noBindingTeam :: Wai.Error
 noBindingTeam = Wai.Error status403 "no-binding-team" "Operation allowed only on binding teams"
 
 propertyManagedByScim :: LText -> Wai.Error
-propertyManagedByScim prop = Wai.Error status403 "property-managed-by-scim" $ "Updating \"" <> prop <> "\" is not allowed, because it is managed by SCIM"
+propertyManagedByScim prop = Wai.Error status403 "managed-by-scim" $ "Updating \"" <> prop <> "\" is not allowed, because it is managed by SCIM"
 
 sameBindingTeamUsers :: Wai.Error
 sameBindingTeamUsers = Wai.Error status403 "same-binding-team-users" "Operation not allowed to binding team users."

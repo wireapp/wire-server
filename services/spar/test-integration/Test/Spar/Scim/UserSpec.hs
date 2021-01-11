@@ -1614,14 +1614,14 @@ specSCIMManaged = do
         email <- randomEmail
         call $
           changeEmailBrig brig uid email !!! do
-            (fmap Wai.label . responseJsonEither @Wai.Error) === const (Right "property-managed-by-scim")
+            (fmap Wai.label . responseJsonEither @Wai.Error) === const (Right "managed-by-scim")
             statusCode === const 403
 
       do
         handleTxt <- randomAlphaNum
         call $
           changeHandleBrig brig uid handleTxt !!! do
-            (fmap Wai.label . responseJsonEither @Wai.Error) === const (Right "property-managed-by-scim")
+            (fmap Wai.label . responseJsonEither @Wai.Error) === const (Right "managed-by-scim")
             statusCode === const 403
 
       do
@@ -1629,7 +1629,7 @@ specSCIMManaged = do
         let uupd = UserUpdate (Just displayName) Nothing Nothing Nothing
         call $
           updateProfileBrig brig uid uupd !!! do
-            (fmap Wai.label . responseJsonEither @Wai.Error) === const (Right "property-managed-by-scim")
+            (fmap Wai.label . responseJsonEither @Wai.Error) === const (Right "managed-by-scim")
             statusCode === const 403
   where
     randomAlphaNum :: MonadIO m => m Text
