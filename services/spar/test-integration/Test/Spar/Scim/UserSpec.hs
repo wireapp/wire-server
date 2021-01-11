@@ -1600,7 +1600,7 @@ specEmailValidation = do
 
 specSCIMManaged :: SpecWith TestEnv
 specSCIMManaged = do
-  describe "SCIM-manged users" $ do
+  describe "SCIM-managed users" $ do
     it "cannot manually update their email, handle or name" $ do
       env <- ask
       let brig = env ^. teBrig
