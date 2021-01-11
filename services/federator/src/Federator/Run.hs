@@ -34,6 +34,10 @@ module Federator.Run
     -- * functions that FUTUREWORK should probably move to another module
     lookupDomainFake,
     lookupDomainByDNS,
+
+    -- * dummy functions
+    outBoundSayHello,
+    outboundSayHello',
   )
 where
 
@@ -111,11 +115,10 @@ sayHello (HelloRequestMessage nm) = do
 --   undefined
 
 getUserIdByHandle :: QualifiedHandle -> AppIO QualifiedId
-getUserIdByHandle (QualifiedHandle federationDomain _handle) = do
+getUserIdByHandle handle@(QualifiedHandle federationDomain _) = do
   -- FUTUREWORK: we should parse federationDomain as Domain, not Text
   SrvTarget domain port <- lookupDomainFake federationDomain
-  outboundSayHello' (cs domain) (fromIntegral port) "Alice"
-  undefined
+  outBoundGetUserIdByHandle' (cs domain) (fromIntegral port) handle
 
 federatedGetUserIdByHandle :: QualifiedHandle -> AppIO QualifiedId
 federatedGetUserIdByHandle handle = do
@@ -148,6 +151,18 @@ outBoundSayHello = gRpcCall @'MsgProtoBuf @Service @"Service" @"SayHello"
 
 outBoundGetUserIdByHandle :: GrpcClient -> QualifiedHandle -> IO (GRpcReply QualifiedId)
 outBoundGetUserIdByHandle = gRpcCall @'MsgProtoBuf @Service @"Service" @"FederatedGetUserIdByHandle"
+
+outBoundGetUserIdByHandle' :: HostName -> PortNumber -> QualifiedHandle -> AppIO QualifiedId
+outBoundGetUserIdByHandle' host port handle = do
+  attempt <- liftIO $ setupGrpcClient' (grpcClientConfigSimple host port False)
+  case attempt of
+    Right c -> do
+      x <- liftIO $ outBoundGetUserIdByHandle c handle
+      print x
+      case x of
+        GRpcOk result -> pure result
+        err -> throwError $ ServerError NotFound ("some error on outBoundGetUserIdByHandle: " <> show err)
+    Left err -> throwError $ ServerError NotFound ("some error when creating a grpcClient: " <> show err)
 
 -- FUTUREWORK: abstract the concrete things away as federator doesn't need to know all of it, all it needs is to know where the end request goes to (brig, in this case)
 -- talkToBrig :: (MonadServer m) => Domain -> ByteString -> m ByteString
