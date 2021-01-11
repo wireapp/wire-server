@@ -23,6 +23,7 @@ module Test.Federator.APISpec where
 
 import qualified Data.Text as T
 import Federator.GRPC.Proto
+import Federator.GRPC.Service
 import Imports
 import Mu.GRpc.Client.TyApps
 import Network.HTTP2.Client
@@ -46,22 +47,27 @@ tests = do
     it "answers dummy hello grpc calls for Alice" $ do
       liftIO $ do
         reply <- sayHello' "127.0.0.1" 8097 "Alice"
-        print reply
         -- FUTUREWORK: How to extract/compare things without cumbersome pattern matching?
         case reply of
           GRpcOk contents -> contents `shouldBe` "hi, Alice"
           _ -> expectationFailure "reply ought to be a GRpcOk"
 
-    it "answers dummy hello grpc calls for Bob" $ do
+    -- it "answers dummy hello grpc calls for Bob" $ do
+    --   liftIO $ do
+    --     reply <- sayHello' "127.0.0.1" 8097 "Bob"
+    --     case reply of
+    --       GRpcOk contents -> contents `shouldBe` "hi, Bob"
+    --       stuff -> do
+    --         print stuff
+    --         expectationFailure "reply ought to be a GRpcOk"
+
+    it "getHandleInfo federator -> federator -> brig" $ do
       liftIO $ do
-        reply2 <- sayHello' "127.0.0.1" 8097 "Bob"
-        print reply2
-        -- FUTUREWORK: How to extract/compare things without cumbersome pattern matching?
-        case reply2 of
-          GRpcOk contents -> contents `shouldBe` "hi, Bob"
-          stuff -> do
-            print stuff
-            expectationFailure "reply ought to be a GRpcOk"
+        let handle = QualifiedHandle "invalid.com" "alice123"
+        reply <- iGetUserIdByHandle' "127.0.0.1" 8097 handle
+        print reply
+
+-------------------------------------------
 
 sayHello' :: HostName -> PortNumber -> T.Text -> IO (GRpcReply T.Text)
 sayHello' host port req = do
@@ -71,12 +77,7 @@ sayHello' host port req = do
 sayHello :: GrpcClient -> HelloRequestMessage -> IO (GRpcReply HelloReplyMessage)
 sayHello x msg = do
   foo <- gRpcCall @'MsgProtoBuf @Service @"Service" @"SayHello" x msg
-  putStrLn "---------"
-  print foo
-  putStrLn "---------"
   pure foo
-
--- pure foo
 
 -- brig -> grpc call to federator
 -- federator -> grpc call to ... nginz?

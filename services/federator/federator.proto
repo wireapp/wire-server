@@ -19,7 +19,8 @@ service Service {
 
 
     // ----------- Internal -----------------------------------------
-    // Used by brig and other wire-services to talk to other backends
+    // Used by brig and other wire-services to talk indirectly 
+    // via federator to other backends
     // --------------------------------------------------------------
 
     // FUTUREWORK: replace with (or add) getUserByHandle returning a full profile (see https://wearezeta.atlassian.net/browse/SQCORE-365)

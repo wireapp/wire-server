@@ -34,10 +34,6 @@ module Federator.Run
     -- * functions that FUTUREWORK should probably move to another module
     lookupDomainFake,
     lookupDomainByDNS,
-
-    -- * dummy functions
-    outBoundSayHello,
-    outboundSayHello',
   )
 where
 
@@ -51,15 +47,14 @@ import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Metrics.Middleware as Metrics
 import Data.Qualified
 import Data.String.Conversions (cs)
-import qualified Data.Text as T
 import Federator.App
 import qualified Federator.Brig as Brig
 import Federator.GRPC.Proto
+import Federator.GRPC.Service
 import qualified Federator.Impl as Impl
 import Federator.Options as Opt
 import Federator.Types
 import Imports
-import Mu.GRpc.Client.TyApps
 import Mu.GRpc.Server
 import Mu.Server hiding (resolver)
 import Network.DNS (Resolver)
@@ -122,6 +117,8 @@ sayHello (HelloRequestMessage nm) = do
 getUserIdByHandle :: QualifiedHandle -> AppIO QualifiedId
 getUserIdByHandle handle@(QualifiedHandle federationDomain _) = do
   -- FUTUREWORK: we should parse federationDomain as Domain, not Text
+  putStr "%%-> Run/getUserIdByHandle. Handle:"
+  print handle
   SrvTarget domain port <- lookupDomainFake federationDomain
   outBoundGetUserIdByHandle' (cs domain) (fromIntegral port) handle
 
@@ -140,33 +137,8 @@ askBrigForHandle handle = do
 
 ------------------------------------------------------------------------------
 -- external client calls to other backends
-
-outboundSayHello' :: HostName -> PortNumber -> T.Text -> AppIO ()
-outboundSayHello' host port req = do
-  attempt <- liftIO $ setupGrpcClient' (grpcClientConfigSimple host port False)
-  case attempt of
-    Right c -> do
-      x <- liftIO $ fmap (\(HelloReplyMessage r) -> r) <$> outBoundSayHello c (HelloRequestMessage req)
-      print x
-    _ -> undefined
-
-outBoundSayHello :: GrpcClient -> HelloRequestMessage -> IO (GRpcReply HelloReplyMessage)
-outBoundSayHello = gRpcCall @'MsgProtoBuf @Service @"Service" @"SayHello"
-
-outBoundGetUserIdByHandle :: GrpcClient -> QualifiedHandle -> IO (GRpcReply QualifiedId)
-outBoundGetUserIdByHandle = gRpcCall @'MsgProtoBuf @Service @"Service" @"FederatedGetUserIdByHandle"
-
-outBoundGetUserIdByHandle' :: HostName -> PortNumber -> QualifiedHandle -> AppIO QualifiedId
-outBoundGetUserIdByHandle' host port handle = do
-  attempt <- liftIO $ setupGrpcClient' (grpcClientConfigSimple host port False)
-  case attempt of
-    Right c -> do
-      x <- liftIO $ outBoundGetUserIdByHandle c handle
-      print x
-      case x of
-        GRpcOk result -> pure result
-        err -> throwError $ ServerError NotFound ("some error on outBoundGetUserIdByHandle: " <> show err)
-    Left err -> throwError $ ServerError NotFound ("some error when creating a grpcClient: " <> show err)
+--
+-- imported from GRPC.Service
 
 -- FUTUREWORK: abstract the concrete things away as federator doesn't need to know all of it, all it needs is to know where the end request goes to (brig, in this case)
 -- talkToBrig :: (MonadServer m) => Domain -> ByteString -> m ByteString
