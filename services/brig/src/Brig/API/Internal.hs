@@ -322,17 +322,17 @@ deleteUserNoVerify uid = do
 changeSelfEmailMaybeSendH :: UserId ::: Bool ::: JsonRequest EmailUpdate -> Handler Response
 changeSelfEmailMaybeSendH (u ::: validate ::: req) = do
   email <- euEmail <$> parseJsonBody req
-  changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email >>= \case
+  changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email API.AllowSCIMUpdates >>= \case
     ChangeEmailResponseIdempotent -> pure (setStatus status204 empty)
     ChangeEmailResponseNeedsActivation -> pure (setStatus status202 empty)
 
 data MaybeSendEmail = ActuallySendEmail | DoNotSendEmail
 
-changeSelfEmailMaybeSend :: UserId -> MaybeSendEmail -> Email -> Handler ChangeEmailResponse
-changeSelfEmailMaybeSend u ActuallySendEmail email = do
-  API.changeSelfEmail u email
-changeSelfEmailMaybeSend u DoNotSendEmail email = do
-  API.changeEmail u email !>> changeEmailError >>= \case
+changeSelfEmailMaybeSend :: UserId -> MaybeSendEmail -> Email -> API.AllowSCIMUpdates -> Handler ChangeEmailResponse
+changeSelfEmailMaybeSend u ActuallySendEmail email allowScim = do
+  API.changeSelfEmail u email allowScim
+changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
+  API.changeEmail u email allowScim !>> changeEmailError >>= \case
     ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
     ChangeEmailNeedsActivation _ -> pure ChangeEmailResponseNeedsActivation
 
@@ -518,7 +518,7 @@ updateHandleH (uid ::: _ ::: body) = empty <$ (updateHandle uid =<< parseJsonBod
 updateHandle :: UserId -> HandleUpdate -> Handler ()
 updateHandle uid (HandleUpdate handleUpd) = do
   handle <- validateHandle handleUpd
-  API.changeHandle uid Nothing handle !>> changeHandleError
+  API.changeHandle uid Nothing handle API.AllowSCIMUpdates !>> changeHandleError
 
 updateUserNameH :: UserId ::: JSON ::: JsonRequest NameUpdate -> Handler Response
 updateUserNameH (uid ::: _ ::: body) = empty <$ (updateUserName uid =<< parseJsonBody body)
@@ -534,7 +534,7 @@ updateUserName uid (NameUpdate nameUpd) = do
             uupAccentId = Nothing
           }
   lift (Data.lookupUser WithPendingInvitations uid) >>= \case
-    Just _ -> lift $ API.updateUser uid Nothing uu
+    Just _ -> API.updateUser uid Nothing uu API.AllowSCIMUpdates !>> updateProfileError
     Nothing -> throwStd invalidUser
 
 checkHandleInternalH :: Text -> Handler Response
@@ -547,7 +547,7 @@ checkHandleInternalH =
 getContactListH :: JSON ::: UserId -> Handler Response
 getContactListH (_ ::: uid) = do
   contacts <- lift $ API.lookupContactList uid
-  return $ json $ (UserIds contacts)
+  return $ json $ UserIds contacts
 
 -- Deprecated
 

@@ -37,6 +37,7 @@ import Brig.API.IdMapping (resolveOpaqueUserId)
 import qualified Brig.API.Properties as API
 import Brig.API.Types
 import qualified Brig.API.User as API
+import Brig.API.Util
 import qualified Brig.API.Util as API
 import Brig.App
 import qualified Brig.Calling.API as Calling
@@ -47,7 +48,7 @@ import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra (AccountStatus (Ephemeral), UserAccount (UserAccount, accountUser))
-import Brig.Types.User (HavePendingInvitations (..))
+import Brig.Types.User (HavePendingInvitations (..), User (userId))
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
 import qualified Brig.User.Auth.Cookie as Auth
@@ -91,6 +92,7 @@ import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
+import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
 import qualified Wire.API.Properties as Public
 import qualified Wire.API.Swagger as Public.Swagger (models)
@@ -1142,7 +1144,7 @@ createUser (Public.NewUserPublic new) = do
   for_ (Public.newUserPhone new) $ checkWhitelist . Right
   result <- API.createUser new !>> newUserError
   let acc = createdAccount result
-  lift $ Log.debug (Log.msg $ "createUser: acc: " <> show acc)
+
   let eac = createdEmailActivation result
   let pac = createdPhoneActivation result
   let epair = (,) <$> (activationKey <$> eac) <*> (activationCode <$> eac)
@@ -1150,6 +1152,20 @@ createUser (Public.NewUserPublic new) = do
   let newUserLabel = Public.newUserLabel new
   let newUserTeam = Public.newUserTeam new
   let usr = accountUser acc
+
+  let context =
+        let invitationCode = case Public.newUserTeam new of
+              (Just (Public.NewTeamMember code)) -> Just code
+              _ -> Nothing
+         in ( logFunction "Brig.API.Public.createUser"
+                . logUser (Public.userId usr)
+                . maybe id logHandle (Public.userHandle usr)
+                . maybe id logTeam (Public.userTeam usr)
+                . maybe id logEmail (Public.userEmail usr)
+                . maybe id logInvitationCode invitationCode
+            )
+  Log.info $ context . Log.msg @Text "Sucessfully created user"
+
   let Public.User {userLocale, userDisplayName, userId} = usr
   let userEmail = Public.userEmail usr
   let userPhone = Public.userPhone usr
@@ -1274,7 +1290,7 @@ instance ToJSON GetActivationCodeResp where
 updateUserH :: UserId ::: ConnId ::: JsonRequest Public.UserUpdate -> Handler Response
 updateUserH (uid ::: conn ::: req) = do
   uu <- parseJsonBody req
-  lift $ API.updateUser uid (Just conn) uu
+  API.updateUser uid (Just conn) uu API.ForbidSCIMUpdates !>> updateProfileError
   return empty
 
 changePhoneH :: UserId ::: ConnId ::: JsonRequest Public.PhoneUpdate -> Handler Response
@@ -1367,7 +1383,8 @@ changeHandleH (u ::: conn ::: req) = do
 changeHandle :: UserId -> ConnId -> Public.HandleUpdate -> Handler ()
 changeHandle u conn (Public.HandleUpdate h) = do
   handle <- API.validateHandle h
-  API.changeHandle u (Just conn) handle !>> changeHandleError
+  -- TODO check here
+  API.changeHandle u (Just conn) handle API.ForbidSCIMUpdates !>> changeHandleError
 
 beginPasswordResetH :: JSON ::: JsonRequest Public.NewPasswordReset -> Handler Response
 beginPasswordResetH (_ ::: req) = do
@@ -1418,7 +1435,7 @@ customerExtensionCheckBlockedDomains email = do
 changeSelfEmailH :: UserId ::: ConnId ::: JsonRequest Public.EmailUpdate -> Handler Response
 changeSelfEmailH (u ::: _ ::: req) = do
   email <- Public.euEmail <$> parseJsonBody req
-  API.changeSelfEmail u email >>= \case
+  API.changeSelfEmail u email API.ForbidSCIMUpdates >>= \case
     ChangeEmailResponseIdempotent -> pure (setStatus status204 empty)
     ChangeEmailResponseNeedsActivation -> pure (setStatus status202 empty)
 

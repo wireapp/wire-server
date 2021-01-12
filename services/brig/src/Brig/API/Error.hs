@@ -116,6 +116,7 @@ changeEmailError :: ChangeEmailError -> Error
 changeEmailError (InvalidNewEmail _ _) = StdError invalidEmail
 changeEmailError (EmailExists _) = StdError userKeyExists
 changeEmailError (ChangeBlacklistedEmail _) = StdError blacklistedEmail
+changeEmailError EmailManagedByScim = StdError $ propertyManagedByScim "email"
 
 changePhoneError :: ChangePhoneError -> Error
 changePhoneError (InvalidNewPhone _) = StdError invalidPhone
@@ -130,6 +131,7 @@ changeHandleError :: ChangeHandleError -> Error
 changeHandleError ChangeHandleNoIdentity = StdError (noIdentity 2)
 changeHandleError ChangeHandleExists = StdError handleExists
 changeHandleError ChangeHandleInvalid = StdError invalidHandle
+changeHandleError ChangeHandleManagedByScim = StdError $ propertyManagedByScim "handle"
 
 legalHoldLoginError :: LegalHoldLoginError -> Error
 legalHoldLoginError LegalHoldLoginNoBindingTeam = StdError noBindingTeam
@@ -206,6 +208,10 @@ phoneError :: PhoneException -> Error
 phoneError PhoneNumberUnreachable = StdError invalidPhone
 phoneError PhoneNumberBarred = StdError blacklistedPhone
 phoneError (PhoneBudgetExhausted t) = RichError phoneBudgetExhausted (PhoneBudgetTimeout t) []
+
+updateProfileError :: UpdateProfileError -> Error
+updateProfileError DisplayNameManagedByScim = StdError (propertyManagedByScim "name")
+updateProfileError (ProfileNotFound _) = StdError userNotFound
 
 -- WAI Errors -----------------------------------------------------------------
 
@@ -426,6 +432,9 @@ insufficientTeamPermissions = Wai.Error status403 "insufficient-permissions" "In
 
 noBindingTeam :: Wai.Error
 noBindingTeam = Wai.Error status403 "no-binding-team" "Operation allowed only on binding teams"
+
+propertyManagedByScim :: LText -> Wai.Error
+propertyManagedByScim prop = Wai.Error status403 "managed-by-scim" $ "Updating \"" <> prop <> "\" is not allowed, because it is managed by SCIM"
 
 sameBindingTeamUsers :: Wai.Error
 sameBindingTeamUsers = Wai.Error status403 "same-binding-team-users" "Operation not allowed to binding team users."

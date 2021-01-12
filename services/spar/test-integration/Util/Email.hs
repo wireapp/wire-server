@@ -33,6 +33,22 @@ import Util.Core
 import Util.Types
 import qualified Wire.API.Team.Feature as Feature
 
+changeEmailBrig ::
+  (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
+  BrigReq ->
+  UserId ->
+  Email ->
+  m ResponseLBS
+changeEmailBrig brig uid email = do
+  put
+    ( brig
+        . path "/self/email"
+        . zUser uid
+        . zConn "user"
+        . contentJson
+        . json (EmailUpdate email)
+    )
+
 activateEmail ::
   (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
   BrigReq ->
