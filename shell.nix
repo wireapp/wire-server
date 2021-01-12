@@ -5,5 +5,6 @@ with pkgs; mkShell {
     docker-compose
     gnumake
     stack
+    haskell-language-server
   ];
 }

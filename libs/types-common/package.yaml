@@ -26,6 +26,7 @@ library:
   - containers >=0.5
   - cryptohash-md5 >=0.11.7.2
   - cryptohash-sha1 >=0.11.7.2
+  - cryptonite >=0.26
   - data-default >=0.5
   - deepseq >=1.4
   - directory >=1.2
@@ -54,6 +55,7 @@ library:
   - text >=0.11
   - time >=1.6
   - time-locale-compat >=0.1
+  - tinylog >=0.14
   - transformers >=0.3
   - unix
   - unordered-containers >=0.2

@@ -14,6 +14,24 @@
 
 -->
 
+# [2021-01-12]
+
+## Release Notes
+
+This release contains bugfixes and internal changes.
+
+## Bug fixes and other updates
+
+* [SCIM] Fix bug: Deleting a user retains their externalId (#1323)
+* [SCIM] Fix bug: Provisioned users can update update to email, handle, name (#1320)
+
+## Internal changes
+
+* [SCIM] Add logging to SCIM ops, invitation ops, createUser (#1322) (#1318)
+* Upgrade nixpkgs and add HLS to shell.nix (#1314)
+* create_test_team_scim.sh script: fix arg parsing and invite (#1321)
+
+
 # [2021-01-06]
 
 ## Release Notes
