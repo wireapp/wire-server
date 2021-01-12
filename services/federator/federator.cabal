@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b27568f7767b714e6b3c6d6cf30b1a00428787df70b330816c3f96bebe94b089
+-- hash: 5837c05a7aec86d95d639377f5d7f9b1f88ccc030a6fdcbd21d9ce623f200c02
 
 name:           federator
 version:        1.0.0
@@ -52,6 +52,7 @@ library
     , exceptions
     , extended
     , http-client
+    , http-types
     , http2-client
     , imports
     , lens
@@ -106,6 +107,7 @@ executable federator
     , extended
     , federator
     , http-client
+    , http-types
     , http2-client
     , imports
     , lens
@@ -166,6 +168,7 @@ executable federator-integration
     , federator
     , hspec
     , http-client
+    , http-types
     , http2-client
     , imports
     , lens
@@ -229,6 +232,7 @@ test-suite federator-tests
     , extended
     , federator
     , http-client
+    , http-types
     , http2-client
     , imports
     , lens

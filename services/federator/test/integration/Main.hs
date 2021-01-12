@@ -31,8 +31,9 @@ main :: IO ()
 main = do
   (wireArgs, hspecArgs) <- partitionArgs <$> getArgs
   env <- withArgs wireArgs mkEnvFromOptions
-  withArgs hspecArgs . hspec $ do
-    beforeAll (pure env) . afterAll destroyEnv $ mkspec
+  -- withArgs hspecArgs . hspec $ do
+  --   beforeAll (pure env) . afterAll destroyEnv $ Hspec.mkspec
+  withArgs hspecArgs . hspec $ mkspec
 
 partitionArgs :: [String] -> ([String], [String])
 partitionArgs = go [] []
@@ -42,7 +43,7 @@ partitionArgs = go [] []
     go wireArgs hspecArgs (x : xs) = go wireArgs (hspecArgs <> [x]) xs
     go wireArgs hspecArgs [] = (wireArgs, hspecArgs)
 
-mkspec :: SpecWith TestEnv
+mkspec :: Spec -- With TestEnv
 mkspec = do
   -- describe "Logging" Test.LoggingSpec.spec
   -- describe "Metrics" Test.MetricsSpec.spec

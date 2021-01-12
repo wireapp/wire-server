@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
@@ -21,36 +22,64 @@
 
 module Test.Federator.APISpec where
 
+import Control.Monad.Error (MonadError (..))
 import qualified Data.Text as T
 import Federator.GRPC.Proto
 import Federator.GRPC.Service
 import Imports
 import Mu.GRpc.Client.TyApps
+import Mu.Server
 import Network.HTTP2.Client
+import qualified System.Logger as L
+import qualified System.Logger.Class as LC
 import Test.Federator.Util
-import Test.Hspec hiding (it)
+import Test.Hspec
 import qualified Test.Hspec
 
 -- Copied from Spar
-it ::
-  HasCallStack =>
-  -- or, more generally:
-  -- MonadIO m, Example (TestEnv -> m ()), Arg (TestEnv -> m ()) ~ TestEnv
-  String ->
-  TestFederator () ->
-  SpecWith TestEnv
-it msg bdy = Test.Hspec.it msg $ runReaderT bdy
+-- it ::
+--   HasCallStack =>
+--   -- or, more generally:
+--   -- MonadIO m, Example (TestEnv -> m ()), Arg (TestEnv -> m ()) ~ TestEnv
+--   String ->
+--   TestFederator () ->
+--   SpecWith TestEnv
+-- it msg bdy = Test.Hspec.it msg $ runReaderT bdy
 
-tests :: SpecWith TestEnv
+-- instance LC.MonadLogger IO where
+--   log = undefined
+
+-- instance LC.MonadLogger (ExceptT ServerError IO) where
+--   log = undefined
+
+newtype Foo m a = Foo {runFoo :: m a}
+  deriving (Functor, Applicative, Monad, MonadIO)
+
+instance MonadError ServerError m => MonadError ServerError (Foo m) where
+  throwError = Foo . throwError @_ @m
+  catchError a f =
+    Foo $ catchError (runFoo a) (runFoo . f)
+
+instance MonadIO m => LC.MonadLogger (Foo m) where
+  log level msg = do
+    logger <- LC.new LC.defSettings
+    L.log logger level msg
+
+-- instance MonadError ServerError m => MonadErrorServer Foo (m
+
+-- instance LC.MonadLogger (ExceptT ServerError (Foo IO)) where
+--   log level msg = do
+--     lift $ LC.log level msg
+
+tests :: Spec -- With TestEnv
 tests = do
   describe "sayHello" $ do
     it "answers dummy hello grpc calls for Alice" $ do
-      liftIO $ do
-        reply <- sayHello' "127.0.0.1" 8097 "Alice"
-        -- FUTUREWORK: How to extract/compare things without cumbersome pattern matching?
-        case reply of
-          GRpcOk contents -> contents `shouldBe` "hi, Alice"
-          _ -> expectationFailure "reply ought to be a GRpcOk"
+      reply <- sayHello' "127.0.0.1" 8097 "Alice"
+      -- FUTUREWORK: How to extract/compare things without cumbersome pattern matching?
+      case reply of
+        GRpcOk contents -> contents `shouldBe` "hi, Alice"
+        _ -> expectationFailure "reply ought to be a GRpcOk"
 
     -- it "answers dummy hello grpc calls for Bob" $ do
     --   liftIO $ do
@@ -62,10 +91,11 @@ tests = do
     --         expectationFailure "reply ought to be a GRpcOk"
 
     it "getHandleInfo federator -> federator -> brig" $ do
-      liftIO $ do
-        let handle = QualifiedHandle "invalid.com" "alice123"
-        reply <- iGetUserIdByHandle' "127.0.0.1" 8097 handle
-        print reply
+      let handle = QualifiedHandle "invalid.com" "alice123"
+      let x = iGetUserIdByHandle' "127.0.0.1" 8097 handle
+      reply <- runExceptT . runFoo $ x
+      True `shouldBe` True
+      print reply
 
 -------------------------------------------
 

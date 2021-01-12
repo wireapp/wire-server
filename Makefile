@@ -218,6 +218,7 @@ libzauth:
 # Run this again after changes to libraries or dependencies.
 .PHONY: hie.yaml
 hie.yaml:
+	stack build implicit-hie
 	stack exec gen-hie > hie.yaml
 
 #####################################

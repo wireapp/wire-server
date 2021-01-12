@@ -14,6 +14,7 @@ import Federator.GRPC.Proto (QualifiedHandle (..))
 import Imports
 import Mu.Server (ServerError (..), ServerErrorCode (..))
 import Network.HTTP.Client (defaultManagerSettings, newManager)
+import Network.HTTP.Types
 import Servant.API
 import qualified Servant.API as Servant
 import Servant.Client
@@ -50,10 +51,16 @@ run (QualifiedHandle domain handle) = do
   fakeZAuth <- randomId
   let query = getUserInfoByHandle fakeZAuth (Domain domain) (Handle handle) -- FUTUREWORK: validation needs to happen on domain/handle
   res <- liftIO $ runClientM query (mkClientEnv manager' (BaseUrl Http "localhost" 8082 ""))
-  -- TODO deal with 404s!
-  -- [federator] W, request=N/A, %%-> Brig/run. err from brig: FailureResponse (Request {requestPath = (BaseUrl {baseUrlScheme = Http, baseUrlHost = "localhost", baseUrlPort = 8082, baseUrlPath = ""},"/users/handles/invalid.com/alice123"), requestQueryString = fromList [], requestBody = Nothing, requestAccept = fromList [application/json;charset=utf-8,application/json], requestHeaders = fromList [("Z-User","211d582f-a13a-4085-9668-d12a822a0d2e")], requestHttpVersion = HTTP/1.1, requestMethod = "GET"}) (Response {responseStatusCode = Status {statusCode = 404, statusMessage = "not-found"}, responseHeaders = fromList [("Transfer-Encoding","chunked"),("Date","Mon, 11 Jan 2021 23:51:28 GMT"),("Server","Warp/3.3.13")], responseHttpVersion = HTTP/1.1, responseBody = "handle not found"})
   case res of
+    Left (FailureResponse _ resp) -> do
+      case responseStatusCode resp of
+        Status 404 _ -> do
+          Log.warn $ Log.msg $ "%%-> Brig/run. 404 from brig:" <> show resp
+          throwError $ ServerError NotFound ("404 Error: " ++ show resp)
+        _ -> undefined
     Left err -> do
       Log.warn $ Log.msg $ "%%-> Brig/run. err from brig: " <> show err
       throwError $ ServerError NotFound ("Error: " ++ show err)
-    Right result -> pure result
+    Right result -> pure $ result
+
+-- FUTUREWORK: round trip tests for
