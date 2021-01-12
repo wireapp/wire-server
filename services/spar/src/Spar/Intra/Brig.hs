@@ -20,11 +20,10 @@
 -- | Client functions for interacting with the Brig API.
 module Spar.Intra.Brig
   ( veidToUserSSOId,
-    veidFromUserSSOId,
     urefToExternalId,
     urefToEmail,
-    userToExternalId,
     veidFromBrigUser,
+    veidFromUserSSOId,
     mkUserName,
     renderValidExternalId,
     emailFromSAML,
@@ -118,17 +117,6 @@ urefToEmail :: SAML.UserRef -> Maybe Email
 urefToEmail uref = case uref ^. SAML.uidSubject . SAML.nameID of
   SAML.UNameIDEmail email -> Just $ emailFromSAML email
   _ -> Nothing
-
-userToExternalId :: MonadError String m => User -> m Text
-userToExternalId usr =
-  case veidFromUserSSOId <$> userSSOId usr of
-    Nothing -> throwError "brig user without sso_id"
-    Just (Left err) -> throwError err
-    Just (Right veid) ->
-      runValidExternalId
-        (\(SAML.UserRef _ subj) -> maybe (throwError "bad uref from brig") pure $ SAML.shortShowNameID subj)
-        (pure . fromEmail)
-        veid
 
 -- | If the brig user has a 'UserSSOId', transform that into a 'ValidExternalId' (this is a
 -- total function as long as brig obeys the api).  Otherwise, if the user has an email, we can

@@ -559,11 +559,11 @@ updScimStoredUser' now usr (Scim.WithMeta meta (Scim.WithId scimuid _)) =
           Scim.version = calculateVersion scimuid usr
         }
 
-deleteScimUser ::
-  ScimTokenInfo -> UserId -> Scim.ScimHandler Spar ()
-deleteScimUser tokeninfo@ScimTokenInfo {stiTeam} uid =
+deleteScimUser :: ScimTokenInfo -> UserId -> Scim.ScimHandler Spar ()
+deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
   logScim
-    ( logTokenInfo tokeninfo
+    ( logFunction "Spar.Scim.User.deleteScimUser"
+        . logTokenInfo tokeninfo
         . logUser uid
     )
     $ do
@@ -580,21 +580,21 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam} uid =
             -- users from other teams get you a 404.
             throwError $
               Scim.notFound "user" (idToText uid)
-          for_ (BT.userSSOId brigUser) $ \ssoId -> do
-            veid <- either logThenServerError pure $ Brig.veidFromUserSSOId ssoId
-            lift . wrapMonadClient $
-              ST.runValidExternalId
-                Data.deleteSAMLUser
-                Data.deleteScimExternalId
-                veid
+
+          mIdpConfig <- maybe (pure Nothing) (lift . wrapMonadClient . Data.getIdPConfig) stiIdP
+
+          case Brig.veidFromBrigUser brigUser ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) of
+            Left _ -> pure ()
+            Right veid ->
+              lift . wrapMonadClient $
+                ST.runValidExternalId
+                  Data.deleteSAMLUser
+                  Data.deleteScimExternalId
+                  veid
+
           lift . wrapMonadClient $ Data.deleteScimUserTimes uid
           lift $ Brig.deleteBrigUser uid
           return ()
-  where
-    logThenServerError :: String -> Scim.ScimHandler Spar b
-    logThenServerError err = do
-      lift $ Log.err (Log.msg $ "deleteScimUser: " <> err)
-      throwError $ Scim.serverError "Server Error"
 
 ----------------------------------------------------------------------------
 -- Utilities
