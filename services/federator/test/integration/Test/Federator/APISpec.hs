@@ -118,5 +118,18 @@ sayHello x msg = do
 --    - restful?
 --    - also grpc?
 --
+
+-- FUTUREWORK: lookup brig and federator from another namespace via DNS for integration testing:
 --
+-- We could make use of kubernetes-internal DNS records:
 --
+-- currently the federator chart, for a given namespace, can be SRV queried like so:
+--
+-- dig  _http._tcp.federator.<NAMESPACE>.svc.cluster.local SRV
+--
+-- returning ;; ANSWER SECTION:
+-- _http._tcp.federator.joe-dev1.svc.cluster.local. 5 IN SRV 0 100 8080 federator.joe-dev1.svc.cluster.local.
+-- ;; ADDITIONAL SECTION:
+-- federator.joe-dev1.svc.cluster.local. 5	IN A	10.233.37.171
+--
+-- if we really need to modify/create more DNS records, e.g. https://coredns.io/2017/05/08/custom-dns-entries-for-kubernetes/ could be a starting point.
