@@ -9,7 +9,7 @@ data:
   default.conf.template: |
     server {
       listen 8080;
-      resolver kube-dns.kube-system.svc.cluster.local;
+      resolver ${NAMESERVER};
 
       location /healthz { return 204; }
 
