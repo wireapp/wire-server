@@ -25,7 +25,7 @@
 
 module Federator.GRPC.Service where
 
-import Control.Monad.Error (MonadError)
+import Control.Monad.Except (MonadError)
 import qualified Data.Text as T
 import Federator.App
 import Federator.GRPC.Proto

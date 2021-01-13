@@ -14,6 +14,7 @@ dependencies:
 - QuickCheck
 - aeson
 - http-types
+- async
 - base
 - bilge
 - brig # TODO do not import brig! Move servant-client types elsewhere!

@@ -26,6 +26,7 @@ import Control.Monad.Error (MonadError (..))
 import qualified Data.Text as T
 import Federator.GRPC.Proto
 import Federator.GRPC.Service
+import qualified Federator.ParsingError as ParsingError
 import Imports
 import Mu.GRpc.Client.TyApps
 import Mu.Server
@@ -96,6 +97,10 @@ tests = do
       reply <- runExceptT . runFoo $ x
       True `shouldBe` True
       print reply
+
+    it "manual test" $ do
+      ParsingError.main
+      True `shouldBe` True
 
 -------------------------------------------
 

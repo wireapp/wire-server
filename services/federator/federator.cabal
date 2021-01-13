@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5837c05a7aec86d95d639377f5d7f9b1f88ccc030a6fdcbd21d9ce623f200c02
+-- hash: a5ae76ca1a14fe7a6379033dc7de1319798c7a2b761e4ee317eaa865011aa140
 
 name:           federator
 version:        1.0.0
@@ -25,9 +25,11 @@ library
       Federator.Brig
       Federator.GRPC.Helper
       Federator.GRPC.Proto
+      Federator.GRPC.ProtoExample
       Federator.GRPC.Service
       Federator.Impl
       Federator.Options
+      Federator.ParsingError
       Federator.Run
       Federator.Types
       Federator.Util
@@ -40,6 +42,7 @@ library
   build-depends:
       QuickCheck
     , aeson
+    , async
     , base
     , bilge
     , brig
@@ -94,6 +97,7 @@ executable federator
   build-depends:
       QuickCheck
     , aeson
+    , async
     , base
     , bilge
     , brig
@@ -152,6 +156,7 @@ executable federator-integration
   build-depends:
       QuickCheck
     , aeson
+    , async
     , base
     , bilge
     , brig
@@ -218,6 +223,7 @@ test-suite federator-tests
   build-depends:
       QuickCheck
     , aeson
+    , async
     , base
     , bilge
     , brig
