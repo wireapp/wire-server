@@ -56,13 +56,37 @@ release with minimal impact you can set the
 [`terminationGracePeriodSeconds`](./values.yaml#L18) option to the maximum
 length you want to wait before cutting off calls.
 
+For example to cordon SFTs for one hour before dropping calls:
+```
+helm upgrade sftd wire/sftd --set terminationGracePeriodSeconds=3600
+```
+
 Currently due to the fact we're using a `StatefulSet` to orchestrate update
 rollouts, and `StatefulSet`s will not replace all pods at once but instead
 one-for-one, a rollout of a release will take `oldReplicas * terminationGracePeriodSeconds`
 to complete.
 
-We might switch to using a `Deployment` for `sftd` in the future, to reduce this time to just `terminationGracePeriodSeconds`.
 
+## Scaling up or down
+
+You can scale up and down by specifying `replicas`:
+
+```
+helm upgrade wire/sftd --set replicas=4
+```
+
+By default we provision *3* replicas.
+
+Note that due to the usage of `hostNetwork` there can only be _one_ instance of `sftd` per kubernetes node.
+You will need as many nodes available as you have replicas.
+
+If you're using a Kubernetes cloud offering, we recommend setting up cluster
+autoscaling so that you automatically provision new kubernetes nodes when the
+amount of replicas increases.
+
+As a rule of thumb we support *50* concurrent connections per *1 vCPU*. You
+should adjust the amount of replicas based on your expected usage patterns and
+kubernetes node specifications.
 
 
 ## Multiple sftd deployments in a single cluster
