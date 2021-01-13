@@ -1,5 +1,6 @@
 # SFTD Chart
 
+
 ## Deploy
 
 Replace `example.com` with your own domain here.
@@ -37,6 +38,31 @@ server.
 
 You should configure `brig` to hand out the SFT server to clients by setting
 `brig.optSettings.setSftStaticUrl=https://sftd.example.com:443` on the `wire-server` chart
+
+## Parameters
+
+Please see [values.yaml](./values.yaml) for an overview of parameters that can be configured.
+
+
+## Rollout
+
+Kubernetes will shut down pods and start new ones when rolling out a release. Any calls
+that were in progress on said pod will be terminated and will cause the call to drop.
+
+Kubernetes can be configured to wait for a certain amount of seconds before
+stopping the pod. During this timeframe new calls wil not be initiated on the
+pod, but existing calls will also not be disrupted.  If you want to roll out a
+release with minimal impact you can set the
+[`terminationGracePeriodSeconds`](./values.yaml#L18) option to the maximum
+length you want to wait before cutting off calls.
+
+Currently due to the fact we're using a `StatefulSet` to orchestrate update
+rollouts, and `StatefulSet`s will not replace all pods at once but instead
+one-for-one, a rollout of a release will take `oldReplicas * terminationGracePeriodSeconds`
+to complete.
+
+We might switch to using a `Deployment` for `sftd` in the future, to reduce this time to just `terminationGracePeriodSeconds`.
+
 
 
 ## Multiple sftd deployments in a single cluster
