@@ -24,13 +24,13 @@ import Data.String.Conversions
 import Imports
 import System.Environment (withArgs)
 import Test.Federator.APISpec
-import Test.Federator.Util
+-- import Test.Federator.Util
 import Test.Hspec
 
 main :: IO ()
 main = do
-  (wireArgs, hspecArgs) <- partitionArgs <$> getArgs
-  env <- withArgs wireArgs mkEnvFromOptions
+  (_wireArgs, hspecArgs) <- partitionArgs <$> getArgs
+  -- env <- withArgs wireArgs mkEnvFromOptions
   -- withArgs hspecArgs . hspec $ do
   --   beforeAll (pure env) . afterAll destroyEnv $ Hspec.mkspec
   withArgs hspecArgs . hspec $ mkspec

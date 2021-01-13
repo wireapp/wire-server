@@ -57,15 +57,14 @@ import Federator.Types
 import Imports
 import Mu.GRpc.Server
 import Mu.Server hiding (resolver)
-import Network.DNS (Resolver)
 import qualified Network.DNS.Lookup as Lookup
-import qualified Network.DNS.Resolver as Resolver
 import Network.HTTP2.Client
 import Network.Wai (Application)
 import qualified System.Logger.Class as Log
 import qualified System.Logger.Extended as LogExt
 import Util.Options
 import Wire.API.User.Handle
+import qualified Wire.Network.DNS.Helper as DNS
 import Wire.Network.DNS.SRV
 
 ------------------------------------------------------------------------------
@@ -178,17 +177,8 @@ newEnv o = do
   _applog <- LogExt.mkLogger (Opt.logLevel o) (Opt.logNetStrings o) (Opt.logFormat o)
   let _requestId = def
   let _runSettings = (Opt.optSettings o)
-  _dnsResolver <- mkDnsResolver
+  _dnsResolver <- DNS.mkDnsResolver
   return Env {..}
-
--- | Set up a thread-safe resolver with a global cache. This means that SRV
--- records will only be re-resolved after their TTLs expire
--- FUTUREWORK: move to dns-util lib?
-mkDnsResolver :: IO Resolver
-mkDnsResolver = do
-  let resolvConf = Resolver.defaultResolvConf {Resolver.resolvCache = Just Resolver.defaultCacheConf}
-  resolvSeed <- Resolver.makeResolvSeed resolvConf
-  Resolver.withResolver resolvSeed $ \resolver -> return resolver
 
 closeEnv :: Env -> IO ()
 closeEnv e = do

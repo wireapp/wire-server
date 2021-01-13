@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 61be9cecad93b664d6c6fb6580864480d08511e08ed07e493c77a80809f75d3e
+-- hash: 8e697880be214b34989e5916079bf4352638b646c86c3cdb28a29976a60a4d22
 
 name:           federator
 version:        1.0.0
@@ -43,7 +43,6 @@ library
     , async
     , base
     , bilge
-    , brig
     , bytestring-conversion
     , data-default
     , dns
@@ -98,7 +97,6 @@ executable federator
     , async
     , base
     , bilge
-    , brig
     , bytestring-conversion
     , data-default
     , dns
@@ -157,7 +155,6 @@ executable federator-integration
     , async
     , base
     , bilge
-    , brig
     , bytestring
     , bytestring-conversion
     , cryptonite
@@ -224,7 +221,6 @@ test-suite federator-tests
     , async
     , base
     , bilge
-    , brig
     , bytestring
     , bytestring-conversion
     , data-default
