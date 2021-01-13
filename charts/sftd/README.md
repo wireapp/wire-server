@@ -44,6 +44,16 @@ You should configure `brig` to hand out the SFT server to clients by setting
 Please see [values.yaml](./values.yaml) for an overview of parameters that can be configured.
 
 
+## Routability
+
+We currently require network connectivity between clients and the SFT server
+and between the SFT server and the restund servers. In other words; the SFT
+server needs to be directly reachable on its public IP to clients and should be
+able to reach the restund servers on their public IPs.
+
+More exotic setups _are_ possible but are currently *not* officially supported. Please
+contact us if you have different constraints.
+
 ## Rollout
 
 Kubernetes will shut down pods and start new ones when rolling out a release. Any calls
