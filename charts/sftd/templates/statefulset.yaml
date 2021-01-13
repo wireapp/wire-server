@@ -5,9 +5,6 @@ metadata:
   labels:
     {{- include "sftd.labels" . | nindent 4 }}
 spec:
-  # TODO: Make configurable in follow-up PR
-  # This is 1 on purpose as we need more machinery to make multiple SFTs work.
-  # Work for that is tracked in: https://github.com/wireapp/wire-server-deploy/pull/383
   replicas: {{ .Values.replicaCount }}
   serviceName: {{ include "sftd.fullname" . }}
   selector:
