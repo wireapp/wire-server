@@ -6,6 +6,9 @@ metadata:
     {{- include "sftd.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
+  # Allows sfts to start up and shut down in parallel when scaling up and down.
+  # However this does not affect upgrades.
+  podManagementPolicy: Parallel
   serviceName: {{ include "sftd.fullname" . }}
   selector:
     matchLabels:
