@@ -18,7 +18,7 @@ helm install sftd wire/sftd  \
 Using Cert-manager:
 ```
 helm install sftd wire/sftd \
-  --set host=example.com \
+  --set host=sftd.example.com \
   --set allowOrigin=https://webapp.example.com \
   --set tls.issuerRef.name=letsencrypt-staging
 ```
