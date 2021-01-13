@@ -10,7 +10,6 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    # TODO: Do we name it something else to get the _correct_ SRV record?
     - name: http
       port: {{ .Values.service.externalPort }}
       targetPort: {{ .Values.service.internalPort }}
