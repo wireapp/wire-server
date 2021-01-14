@@ -43,6 +43,7 @@ import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
+import qualified Federation.User
 import Imports hiding (local)
 import qualified Index.Create
 import Network.HTTP.Client.TLS (tlsManagerSettings)
@@ -62,6 +63,7 @@ data Config = Config
   { brig :: Endpoint,
     cannon :: Endpoint,
     cargohold :: Endpoint,
+    federator :: Endpoint,
     galley :: Endpoint,
     nginz :: Endpoint,
     spar :: Endpoint,
@@ -85,6 +87,7 @@ runTests iConf bConf otherArgs = do
   g <- mkRequest <$> optOrEnv galley iConf (local . read) "GALLEY_WEB_PORT"
   n <- mkRequest <$> optOrEnv nginz iConf (local . read) "NGINZ_WEB_PORT"
   s <- mkRequest <$> optOrEnv spar iConf (local . read) "SPAR_WEB_PORT"
+  f <- optOrEnv federator iConf (local . read) "FEDERATOR_WEB_PORT"
   turnFile <- optOrEnv (Opts.servers . Opts.turn) bConf id "TURN_SERVERS"
   turnFileV2 <- optOrEnv (Opts.serversV2 . Opts.turn) bConf id "TURN_SERVERS_V2"
   casHost <- optOrEnv (\v -> (Opts.cassandra v) ^. casEndpoint . epHost) bConf pack "BRIG_CASSANDRA_HOST"
@@ -106,6 +109,7 @@ runTests iConf bConf otherArgs = do
   createIndex <- Index.Create.spec brigOpts
   browseTeam <- TeamUserSearch.tests brigOpts mg g b
   userPendingActivation <- UserPendingActivation.tests brigOpts mg db b g s
+  federationUser <- Federation.User.spec brigOpts mg b f
   withArgs otherArgs . defaultMain $
     testGroup
       "Brig API Integration"
@@ -123,7 +127,8 @@ runTests iConf bConf otherArgs = do
         settingsApi,
         createIndex,
         userPendingActivation,
-        browseTeam
+        browseTeam,
+        federationUser
       ]
   where
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p

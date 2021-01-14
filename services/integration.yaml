@@ -35,6 +35,10 @@ nginz:
   host: 127.0.0.1
   port: 8080
 
+federator:
+  host: 127.0.0.1
+  port: 8097
+
 # Used by brig-integration (bot providers), galley-integration (legal hold)
 provider:
   privateKey: test/resources/key.pem
