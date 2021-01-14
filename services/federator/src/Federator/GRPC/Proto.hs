@@ -21,6 +21,7 @@ import Mu.Schema
 
 recompileUponProtoChanges
 
+-- FUTUREWORK: Move this to a library which can be used by other components
 grpc "TheSchema" id "federator.proto"
 
 data HelloRequestMessage = HelloRequestMessage {name :: T.Text}
