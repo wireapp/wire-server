@@ -1569,8 +1569,21 @@ specDeleteUser = do
 specAzureQuirks :: SpecWith TestEnv
 specAzureQuirks = do
   describe "Assert that we implement all azure quirks" $ do
-    it "GET /Users?filter=randomField eq <invalid value> should return empty list; not error out" $ do
-      (tok, (_, _, _)) <- registerIdPAndScimToken
+    context "with SAML IDP" $
+      it "GET /Users?filter=randomField eq <invalid value> should return empty list; not error out" $ do
+        (tok, (_, _, _)) <- registerIdPAndScimToken
+        testUUIds tok
+
+    context "without SAML IdP" $
+      it "GET /Users?filter=randomField eq <invalid value> should return empty list; not error out" $ do
+        env <- ask
+        let brig = env ^. teBrig
+            galley = env ^. teGalley
+        (_owner, tid) <- call $ createUserWithTeam brig galley
+        tok <- registerScimToken tid Nothing
+        testUUIds tok
+  where
+    testUUIds tok = do
       users <- listUsers tok (Just (filterBy "userName" "f52dcb88-9fa1-4ec7-984f-7bc2d4046a9c"))
       liftIO $ users `shouldBe` []
       users' <- listUsers tok (Just (filterBy "externalId" "f52dcb88-9fa1-4ec7-984f-7bc2d4046a9c"))
