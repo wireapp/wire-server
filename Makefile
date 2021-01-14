@@ -249,6 +249,12 @@ kube-integration: charts-integration
 	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-setup.sh
 	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-test.sh
 
+.PHONY: kube-integration-setup
+kube-integration: charts-integration
+	# by default "test-<your computer username> is used as namespace
+	# you can override the default by setting the NAMESPACE environment variable
+	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-setup.sh
+
 .PHONY: kube-integration-teardown
 kube-integration-teardown:
 	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-teardown.sh
