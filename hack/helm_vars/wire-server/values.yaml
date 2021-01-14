@@ -224,3 +224,6 @@ spar:
       email: email:backend+spar@wire.com
     # Keep this in sync with setTeamInvitationTimeout in brig
     brigSettingsTeamInvitationTimeout: 10
+
+federator:
+  replicaCount: 1
