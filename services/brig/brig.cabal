@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: bb4a3b9b5b4305ddf1e6c3bb031fa8784a988c45b2754e5be43c1db94a057502
+-- hash: 7e6bada8622059c2b1e26bbe89e7ed25aa702ac5b7221503f86aad80e842b388
 
 name:           brig
 version:        1.35.0
@@ -65,7 +65,6 @@ library
       Brig.Options
       Brig.Password
       Brig.Phone
-      Brig.PolyLog
       Brig.Provider.API
       Brig.Provider.DB
       Brig.Provider.Email
@@ -180,6 +179,7 @@ library
     , optparse-applicative >=0.11
     , pem >=0.2
     , polysemy
+    , polysemy-wire-zoo
     , prometheus-client
     , proto-lens >=0.1
     , random-shuffle >=0.0.3
@@ -469,6 +469,7 @@ test-suite brig-tests
     , dns-util
     , imports
     , polysemy
+    , polysemy-wire-zoo
     , retry
     , tasty
     , tasty-hunit

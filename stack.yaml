@@ -16,6 +16,7 @@ packages:
 - libs/imports
 - libs/metrics-core
 - libs/metrics-wai
+- libs/polysemy-wire-zoo
 - libs/ropes
 - libs/sodium-crypto-sign
 - libs/ssl-util
