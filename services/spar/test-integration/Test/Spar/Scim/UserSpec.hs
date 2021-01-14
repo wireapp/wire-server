@@ -1565,7 +1565,8 @@ specDeleteUser = do
 
 -- | Azure sends a request for an unknown user to test out whether your API is online However;
 -- it sends a userName that is not a valid wire handle. So we should treat 'invalid' as 'not
--- found'.
+-- found'. If we treat it as invalid Azure will put the scim provisioning into quarantine mode,
+-- which requires manual intervention by the customer.
 specAzureQuirks :: SpecWith TestEnv
 specAzureQuirks = do
   describe "Assert that we implement all azure quirks" $ do
