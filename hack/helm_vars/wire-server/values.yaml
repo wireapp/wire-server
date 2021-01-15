@@ -6,6 +6,7 @@ tags:
   cannon: true
   cargohold: true
   spar: true
+  federator: true
   proxy: false
   webapp: false
   team-settings: false

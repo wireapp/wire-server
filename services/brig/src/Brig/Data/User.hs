@@ -104,8 +104,16 @@ data ReAuthError
   = ReAuthError !AuthError
   | ReAuthMissingPassword
 
-newAccount :: NewUser -> Maybe InvitationId -> Maybe TeamId -> AppIO (UserAccount, Maybe Password)
-newAccount u inv tid = do
+-- | Preconditions:
+--
+-- 1. @newUserUUID u == Just inv || isNothing (newUserUUID u)@.
+-- 2. If @isJust@, @mbHandle@ must be claimed by user with id @inv@.
+--
+-- Condition (2.) is essential for maintaining handle uniqueness.  It is guaranteed by the
+-- fact that we're setting getting @mbHandle@ from table @"user"@, and when/if it was added
+-- there, it was claimed properly.
+newAccount :: NewUser -> Maybe InvitationId -> Maybe TeamId -> Maybe Handle -> AppIO (UserAccount, Maybe Password)
+newAccount u inv tid mbHandle = do
   defLoc <- setDefaultLocale <$> view settings
   domain <- viewFederationDomain
   uid <-
@@ -138,7 +146,7 @@ newAccount u inv tid = do
     colour = fromMaybe defaultAccentId (newUserAccentId u)
     locale defLoc = fromMaybe defLoc (newUserLocale u)
     managedBy = fromMaybe defaultManagedBy (newUserManagedBy u)
-    user uid domain l e = User uid (Qualified uid domain) ident name pict assets colour False l Nothing Nothing e tid managedBy
+    user uid domain l e = User uid (Qualified uid domain) ident name pict assets colour False l Nothing mbHandle e tid managedBy
 
 newAccountInviteViaScim :: UserId -> TeamId -> Maybe Locale -> Name -> Email -> AppIO UserAccount
 newAccountInviteViaScim uid tid locale name email = do

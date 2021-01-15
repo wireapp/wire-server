@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2f5a186135570c9214149d64bf331f1512c069ce0b4d100166f0a7fa6174f464
+-- hash: 74a96e1b02e343b15dc21c298af9a133f9e26b7e36335a91473acc75f4dff648
 
 name:           types-common
 version:        0.16.0
@@ -21,6 +21,7 @@ build-type:     Simple
 library
   exposed-modules:
       Data.Code
+      Data.CommaSeparatedList
       Data.Domain
       Data.ETag
       Data.Handle
@@ -36,6 +37,7 @@ library
       Data.Text.Ascii
       Data.UUID.Tagged
       Util.Attoparsec
+      Util.Logging
       Util.Options
       Util.Options.Common
       Util.Test
@@ -60,6 +62,7 @@ library
     , containers >=0.5
     , cryptohash-md5 >=0.11.7.2
     , cryptohash-sha1 >=0.11.7.2
+    , cryptonite >=0.26
     , data-default >=0.5
     , deepseq >=1.4
     , directory >=1.2
@@ -88,6 +91,7 @@ library
     , text >=0.11
     , time >=1.6
     , time-locale-compat >=0.1
+    , tinylog >=0.14
     , transformers >=0.3
     , unix
     , unordered-containers >=0.2

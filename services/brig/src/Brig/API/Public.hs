@@ -1,5 +1,6 @@
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -36,6 +37,7 @@ import Brig.API.IdMapping (resolveOpaqueUserId)
 import qualified Brig.API.Properties as API
 import Brig.API.Types
 import qualified Brig.API.User as API
+import Brig.API.Util
 import qualified Brig.API.Util as API
 import Brig.App
 import qualified Brig.Calling.API as Calling
@@ -46,7 +48,7 @@ import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra (AccountStatus (Ephemeral), UserAccount (UserAccount, accountUser))
-import Brig.Types.User (HavePendingInvitations (..))
+import Brig.Types.User (HavePendingInvitations (..), User (userId))
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
 import qualified Brig.User.Auth.Cookie as Auth
@@ -58,14 +60,14 @@ import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
+import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
 import Data.Domain
 import Data.Handle (Handle, parseHandle)
 import Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local))
 import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
-import Data.Proxy (Proxy (..))
-import Data.Qualified (Qualified (..))
+import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
 import Data.Range
 import Data.Swagger (HasInfo (info), HasTitle (title), Swagger, ToSchema (..), description)
 import qualified Data.Swagger.Build.Api as Doc
@@ -84,12 +86,13 @@ import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
-import Servant (Capture, Capture', DefaultErrorFormatters, Description, ErrorFormatters, Get, HasContextEntry, HasServer, HasStatus, Header', ServerT, StdMethod (HEAD), Summary, UVerb, Union, WithStatus, (:<|>) (..), (:>), type (.++))
+import Servant hiding (Handler, JSON, addHeader, respond)
 import qualified Servant
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
+import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
 import qualified Wire.API.Properties as Public
 import qualified Wire.API.Swagger as Public.Swagger (models)
@@ -251,6 +254,25 @@ type GetHandleInfoQualified =
     :> Capture' '[Description "The user handle"] "handle" Handle
     :> Get '[Servant.JSON] Public.UserHandleInfo
 
+-- See Note [ephemeral user sideeffect]
+type ListUsersByUnqualifiedIdsOrHandles =
+  Summary "List users (deprecated)"
+    :> Description "The 'ids' and 'handles' parameters are mutually exclusive."
+    :> ZAuthServant
+    :> "users"
+    :> QueryParam' [Optional, Strict, Description "User IDs of users to fetch"] "ids" (CommaSeparatedList UserId)
+    :> QueryParam' [Optional, Strict, Description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"] "handles" (Range 1 4 (CommaSeparatedList Handle))
+    :> Get '[Servant.JSON] [Public.UserProfile]
+
+-- See Note [ephemeral user sideeffect]
+type ListUsersByIdsOrHandles =
+  Summary "List users"
+    :> Description "The 'ids' and 'handles' parameters are mutually exclusive."
+    :> ZAuthServant
+    :> "list-users"
+    :> Servant.ReqBody '[Servant.JSON] Public.ListUsersQuery
+    :> Post '[Servant.JSON] [Public.UserProfile]
+
 type OutsideWorldAPI =
   CheckUserExistsUnqualified
     :<|> CheckUserExistsQualified
@@ -259,6 +281,8 @@ type OutsideWorldAPI =
     :<|> GetSelf
     :<|> GetHandleInfoUnqualified
     :<|> GetHandleInfoQualified
+    :<|> ListUsersByUnqualifiedIdsOrHandles
+    :<|> ListUsersByIdsOrHandles
 
 type SwaggerDocsAPI = "api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
@@ -284,6 +308,8 @@ servantSitemap =
     :<|> getSelf
     :<|> getHandleInfoUnqualifiedH
     :<|> getHandleInfoH
+    :<|> listUsersByUnqualifiedIdsOrHandles
+    :<|> listUsersByIdsOrHandles
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
@@ -320,26 +346,6 @@ sitemap o = do
 
   -- some APIs moved to servant
   -- end User Handle API
-
-  -- If the user is ephemeral and expired, it will be removed, see 'Brig.API.User.userGC'.
-  -- This leads to the following events being sent:
-  -- - UserDeleted event to contacts of the user
-  -- - MemberLeave event to members for all conversations the user was in (via galley)
-  get "/users" (continue listUsersH) $
-    accept "application" "json"
-      .&. zauthUserId
-      .&. (param "ids" ||| param "handles")
-  document "GET" "users" $ do
-    Doc.summary "List users"
-    Doc.notes "The 'ids' and 'handles' parameters are mutually exclusive."
-    Doc.parameter Doc.Query "ids" Doc.string' $ do
-      Doc.description "User IDs of users to fetch"
-      Doc.optional
-    Doc.parameter Doc.Query "handles" Doc.string' $ do
-      Doc.description "Handles of users to fetch, min 1 and max 4 (the check for handles is rather expensive)"
-      Doc.optional
-    Doc.returns (Doc.array (Doc.ref Public.modelUser))
-    Doc.response 200 "List of users" Doc.end
 
   -- User Prekey API ----------------------------------------------------
 
@@ -1138,7 +1144,7 @@ createUser (Public.NewUserPublic new) = do
   for_ (Public.newUserPhone new) $ checkWhitelist . Right
   result <- API.createUser new !>> newUserError
   let acc = createdAccount result
-  lift $ Log.debug (Log.msg $ "createUser: acc: " <> show acc)
+
   let eac = createdEmailActivation result
   let pac = createdPhoneActivation result
   let epair = (,) <$> (activationKey <$> eac) <*> (activationCode <$> eac)
@@ -1146,6 +1152,20 @@ createUser (Public.NewUserPublic new) = do
   let newUserLabel = Public.newUserLabel new
   let newUserTeam = Public.newUserTeam new
   let usr = accountUser acc
+
+  let context =
+        let invitationCode = case Public.newUserTeam new of
+              (Just (Public.NewTeamMember code)) -> Just code
+              _ -> Nothing
+         in ( logFunction "Brig.API.Public.createUser"
+                . logUser (Public.userId usr)
+                . maybe id logHandle (Public.userHandle usr)
+                . maybe id logTeam (Public.userTeam usr)
+                . maybe id logEmail (Public.userEmail usr)
+                . maybe id logInvitationCode invitationCode
+            )
+  Log.info $ context . Log.msg @Text "Sucessfully created user"
+
   let Public.User {userLocale, userDisplayName, userId} = usr
   let userEmail = Public.userEmail usr
   let userPhone = Public.userPhone usr
@@ -1220,26 +1240,36 @@ getUserDisplayNameH (_ ::: self) = do
     Just n -> json $ object ["name" .= n]
     Nothing -> setStatus status404 empty
 
-listUsersH :: JSON ::: UserId ::: Either (List UserId) (Range 1 4 (List Handle)) -> Handler Response
-listUsersH (_ ::: self ::: qry) =
-  toResponse <$> listUsers self qry
-  where
-    toResponse = \case
-      [] -> setStatus status404 empty
-      ps -> json ps
+-- FUTUREWORK: Make servant understand that at least one of these is required
+listUsersByUnqualifiedIdsOrHandles :: UserId -> Maybe (CommaSeparatedList UserId) -> Maybe (Range 1 4 (CommaSeparatedList Handle)) -> Handler [Public.UserProfile]
+listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
+  domain <- viewFederationDomain
+  case (mUids, mHandles) of
+    (Just uids, _) -> listUsersByIdsOrHandles self (Public.ListUsersByIds ((`Qualified` domain) <$> fromCommaSeparatedList uids))
+    (_, Just handles) ->
+      let normalRangedList = fromCommaSeparatedList $ fromRange handles
+          qualifiedList = (`Qualified` domain) <$> normalRangedList
+          -- Use of unsafeRange here is ok only because we know that 'handles'
+          -- is valid for 'Range 1 4'. However, we must not forget to keep this
+          -- annotation here otherwise a change in 'Public.ListUsersByHandles'
+          -- could cause this code to break.
+          qualifiedRangedList :: Range 1 4 [Qualified Handle] = unsafeRange qualifiedList
+       in listUsersByIdsOrHandles self (Public.ListUsersByHandles qualifiedRangedList)
+    (Nothing, Nothing) -> throwStd $ badRequest "at least one ids or handles must be provided"
 
--- | 'listUsers' only handles listing local users by ID or handle. We decided to
--- create a new federation aware endpoint which accepts federation aware Ids or
--- handles in the request body using a 'POST' request to avoid specifying
--- complex objects in the query parameters.
-listUsers :: UserId -> Either (List UserId) (Range 1 4 (List Handle)) -> Handler [Public.UserProfile]
-listUsers self = \case
-  Left us -> do
-    domain <- viewFederationDomain
-    byIds $ map (`Qualified` domain) (fromList us)
-  Right hs -> do
-    us <- getIds (fromList $ fromRange hs)
-    filterHandleResults self =<< byIds us
+listUsersByIdsOrHandles :: UserId -> Public.ListUsersQuery -> Handler [Public.UserProfile]
+listUsersByIdsOrHandles self q = do
+  foundUsers <- case q of
+    Public.ListUsersByIds us ->
+      byIds us
+    Public.ListUsersByHandles hs -> do
+      domain <- viewFederationDomain
+      let (_remoteHandles, localHandles) = partitionRemoteOrLocalIds domain (fromRange hs)
+      us <- getIds localHandles
+      filterHandleResults self =<< byIds us
+  case foundUsers of
+    [] -> throwStd $ notFound "None of the specified ids or handles match any users"
+    _ -> pure foundUsers
   where
     getIds :: [Handle] -> Handler [Qualified UserId]
     getIds localHandles = do
@@ -1260,7 +1290,7 @@ instance ToJSON GetActivationCodeResp where
 updateUserH :: UserId ::: ConnId ::: JsonRequest Public.UserUpdate -> Handler Response
 updateUserH (uid ::: conn ::: req) = do
   uu <- parseJsonBody req
-  lift $ API.updateUser uid (Just conn) uu
+  API.updateUser uid (Just conn) uu API.ForbidSCIMUpdates !>> updateProfileError
   return empty
 
 changePhoneH :: UserId ::: ConnId ::: JsonRequest Public.PhoneUpdate -> Handler Response
@@ -1301,7 +1331,7 @@ changeLocaleH (u ::: conn ::: req) = do
   lift $ API.changeLocale u conn l
   return empty
 
--- | (zusr are is ignored by this handler, ie. checking handles is allowed as long as you have
+-- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
 -- *any* account.)
 checkHandleH :: UserId ::: Text -> Handler Response
 checkHandleH (_uid ::: hndl) = do
@@ -1353,7 +1383,8 @@ changeHandleH (u ::: conn ::: req) = do
 changeHandle :: UserId -> ConnId -> Public.HandleUpdate -> Handler ()
 changeHandle u conn (Public.HandleUpdate h) = do
   handle <- API.validateHandle h
-  API.changeHandle u (Just conn) handle !>> changeHandleError
+  -- TODO check here
+  API.changeHandle u (Just conn) handle API.ForbidSCIMUpdates !>> changeHandleError
 
 beginPasswordResetH :: JSON ::: JsonRequest Public.NewPasswordReset -> Handler Response
 beginPasswordResetH (_ ::: req) = do
@@ -1404,7 +1435,7 @@ customerExtensionCheckBlockedDomains email = do
 changeSelfEmailH :: UserId ::: ConnId ::: JsonRequest Public.EmailUpdate -> Handler Response
 changeSelfEmailH (u ::: _ ::: req) = do
   email <- Public.euEmail <$> parseJsonBody req
-  API.changeSelfEmail u email >>= \case
+  API.changeSelfEmail u email API.ForbidSCIMUpdates >>= \case
     ChangeEmailResponseIdempotent -> pure (setStatus status204 empty)
     ChangeEmailResponseNeedsActivation -> pure (setStatus status202 empty)
 

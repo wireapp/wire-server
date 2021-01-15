@@ -35,6 +35,7 @@ import Data.Aeson (FromJSON, Value, (.=))
 import qualified Data.Aeson as Aeson
 import Data.Handle (fromHandle)
 import Data.Id
+import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Database.Bloodhound as ES
 import qualified Galley.Types.Teams.SearchVisibility as Team
@@ -259,11 +260,13 @@ testOrderHandle brig = do
   handlePrefixMatch <- userId <$> createUser' True "handle prefix match" brig
   void $ putHandle brig handlePrefixMatch (searchedWord <> "suffix")
   refreshIndex brig
-  resultUIds <- map contactUserId . searchResults <$> executeSearch brig searcher searchedWord
+  results <- searchResults <$> executeSearch brig searcher searchedWord
+  let resultUIds = map contactUserId results
   let expectedOrder = [handleMatch, handlePrefixMatch]
+  let dbg = "results: " <> show results <> "\nsearchedWord: " <> cs searchedWord
   liftIO $
     assertEqual
-      "Expected order: handle match, handle prefix match"
+      ("Expected order: handle match, handle prefix match.\n\nSince this test fails sporadically for unknown reasons here here is some debug info:\n" <> dbg)
       expectedOrder
       resultUIds
 

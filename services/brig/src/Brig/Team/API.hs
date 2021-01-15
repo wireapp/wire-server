@@ -25,6 +25,7 @@ import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.User (createUserInviteViaScim, fetchUserIdentity)
 import qualified Brig.API.User as API
+import Brig.API.Util (logEmail, logInvitationCode)
 import Brig.App (currentTime, emailSender, settings)
 import qualified Brig.Data.Blacklist as Blacklist
 import Brig.Data.UserKey
@@ -42,11 +43,13 @@ import Brig.Types.Team.Invitation
 import Brig.Types.User (Email, InvitationCode, emailIdentity)
 import qualified Brig.User.Search.TeamSize as TeamSize
 import Control.Lens (view, (^.))
+import Control.Monad.Trans.Except (mapExceptT)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.Id
 import qualified Data.List1 as List1
 import Data.Range
+import Data.String.Conversions (cs)
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
@@ -58,6 +61,9 @@ import Network.Wai.Routing
 import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
+import System.Logger (Msg)
+import qualified System.Logger.Class as Log
+import Util.Logging (logFunction, logTeam)
 import qualified Wire.API.Team.Invitation as Public
 import qualified Wire.API.Team.Role as Public
 import qualified Wire.API.User as Public
@@ -230,7 +236,15 @@ createInvitationPublic uid tid body = do
     ensurePermissionToAddUser uid tid inviteePerms
     pure $ CreateInvitationInviter uid from
 
-  createInvitation' tid inviteeRole (Just (inviterUid inviter)) (inviterEmail inviter) body
+  let context =
+        logFunction "Brig.Team.API.createInvitationPublic"
+          . logTeam tid
+          . logEmail (irInviteeEmail body)
+
+  fst
+    <$> logInvitationRequest
+      context
+      (createInvitation' tid inviteeRole (Just (inviterUid inviter)) (inviterEmail inviter) body)
 
 createInvitationViaScimH :: JSON ::: JsonRequest NewUserScimInvitation -> Handler Response
 createInvitationViaScimH (_ ::: req) = do
@@ -250,11 +264,32 @@ createInvitationViaScim newUser@(NewUserScimInvitation tid loc name email) = do
             irInviteeEmail = email,
             irInviteePhone = Nothing
           }
-  inv <- createInvitation' tid inviteeRole Nothing fromEmail invreq
+
+  let context =
+        logFunction "Brig.Team.API.createInvitationViaScim"
+          . logTeam tid
+          . logEmail email
+
+  (inv, _) <-
+    logInvitationRequest context $
+      createInvitation' tid inviteeRole Nothing fromEmail invreq
   let uid = Id (toUUID (inInvitation inv))
+
   createUserInviteViaScim uid newUser
 
-createInvitation' :: TeamId -> Public.Role -> Maybe UserId -> Email -> Public.InvitationRequest -> Handler Public.Invitation
+logInvitationRequest :: (Msg -> Msg) -> Handler (Invitation, InvitationCode) -> Handler (Invitation, InvitationCode)
+logInvitationRequest context action =
+  flip mapExceptT action $ \action' -> do
+    eith <- action'
+    case eith of
+      Left err' -> do
+        Log.err $ context . Log.msg @Text ("Failed to create invitation, label: " <> (cs . label . waiError) err')
+        pure (Left err')
+      Right result@(_, code) -> do
+        Log.info $ (context . logInvitationCode code) . Log.msg @Text "Succesfully created invitation"
+        pure (Right result)
+
+createInvitation' :: TeamId -> Public.Role -> Maybe UserId -> Email -> Public.InvitationRequest -> Handler (Public.Invitation, Public.InvitationCode)
 createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
   -- FUTUREWORK: These validations are nearly copy+paste from accountCreation and
   --             sendActivationCode. Refactor this to a single place
@@ -303,7 +338,7 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
         inviteeName
         inviteePhone
         timeout
-    newInv <$ sendInvitationMail inviteeEmail tid fromEmail code locale
+    (newInv, code) <$ sendInvitationMail inviteeEmail tid fromEmail code locale
 
 deleteInvitationH :: JSON ::: UserId ::: TeamId ::: InvitationId -> Handler Response
 deleteInvitationH (_ ::: uid ::: tid ::: iid) = do

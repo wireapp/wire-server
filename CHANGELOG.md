@@ -14,6 +14,53 @@
 
 -->
 
+# [2021-01-12]
+
+## Release Notes
+
+This release contains bugfixes and internal changes.
+
+## Bug fixes and other updates
+
+* [SCIM] Fix bug: Deleting a user retains their externalId (#1323)
+* [SCIM] Fix bug: Provisioned users can update update to email, handle, name (#1320)
+
+## Internal changes
+
+* [SCIM] Add logging to SCIM ops, invitation ops, createUser (#1322) (#1318)
+* Upgrade nixpkgs and add HLS to shell.nix (#1314)
+* create_test_team_scim.sh script: fix arg parsing and invite (#1321)
+
+
+# [2021-01-06]
+
+## Release Notes
+
+This release contains bugfixes and internal changes.
+
+## Bug fixes and other updates
+
+* [SCIM] Bug fix: handle is lost after registration (#1303)
+* [SCIM] Better error message (#1306)
+
+## Documentation
+
+* [SCIM] Document `validateSAMLemails` feature in docs/reference/spar-braindump.md (#1299)
+
+## Internal changes
+
+* [federation] Servantify get users by unqualified ids or handles (#1291)
+* [federation] Add endpoint to get users by qualified ids or handles (#1291)
+* Allow overriding NAMESPACE for kube-integration target (#1305)
+* Add script create_test_team_scim.sh for development (#1302)
+* Update brig helm chart: Add `setExpiredUserCleanupTimeout` (#1304)
+* Nit-picks (#1300)
+* nginz_disco: docker building consistency (#1311)
+* Add tools/db/repair-handles (#1310)
+* small speedup for 'make upload-charts' by inlining loop (#1308)
+* Cleanup stack.yaml. (#1312) (#1316)
+
+
 # [2020-12-21]
 
 ## Release Notes

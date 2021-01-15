@@ -19,7 +19,9 @@ module Brig.API.Util
   ( fetchUserIdentity,
     lookupProfilesMaybeFilterSameTeamOnly,
     lookupSelfProfile,
+    logInvitationCode,
     validateHandle,
+    logEmail,
   )
 where
 
@@ -35,7 +37,12 @@ import Control.Monad.Trans.Except (throwE)
 import Data.Handle (Handle, parseHandle)
 import Data.Id
 import Data.Maybe
+import Data.String.Conversions (cs)
+import Data.Text.Ascii (AsciiText (toText))
 import Imports
+import System.Logger (Msg)
+import qualified System.Logger as Log
+import Util.Logging (sha256String)
 
 lookupProfilesMaybeFilterSameTeamOnly :: UserId -> [UserProfile] -> Handler [UserProfile]
 lookupProfilesMaybeFilterSameTeamOnly self us = do
@@ -59,3 +66,10 @@ lookupSelfProfile = fmap (fmap mk) . Data.lookupAccount
 
 validateHandle :: Text -> Handler Handle
 validateHandle = maybe (throwE (Error.StdError Error.invalidHandle)) return . parseHandle
+
+logEmail :: Email -> (Msg -> Msg)
+logEmail email =
+  Log.field "email_sha256" (sha256String . cs . show $ email)
+
+logInvitationCode :: InvitationCode -> (Msg -> Msg)
+logInvitationCode code = Log.field "invitation_code" (toText $ fromInvitationCode code)

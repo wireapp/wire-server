@@ -103,6 +103,10 @@ data CreateUserError
   | -- | Some precondition on another Wire service failed. We propagate this error.
     ExternalPreconditionFailed Wai.Error
 
+data UpdateProfileError
+  = DisplayNameManagedByScim
+  | ProfileNotFound UserId
+
 data InvitationError
   = InviteeEmailExists UserId
   | InviteInvalidEmail Email
@@ -163,11 +167,13 @@ data ChangeEmailError
   = InvalidNewEmail !Email !String
   | EmailExists !Email
   | ChangeBlacklistedEmail !Email
+  | EmailManagedByScim
 
 data ChangeHandleError
   = ChangeHandleNoIdentity
   | ChangeHandleExists
   | ChangeHandleInvalid
+  | ChangeHandleManagedByScim
 
 data SendActivationCodeError
   = InvalidRecipient UserKey

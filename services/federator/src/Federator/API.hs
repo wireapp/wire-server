@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -23,8 +21,8 @@ module Federator.API
   )
 where
 
+import Data.Domain (Domain)
 import Data.Id (ConvId, UserId)
-import Data.Qualified (Qualified)
 import Imports
 import Servant.API
 import Servant.API.Generic
@@ -37,7 +35,8 @@ data Api route = Api
       route
         :- "i"
         :> "users"
-        :> Capture "id" (Qualified UserId)
+        :> Capture "domain" Domain
+        :> Capture "id" UserId
         :> "prekeys"
         -- FUTUREWORK(federation):
         -- this should return a version of PrekeyBundle with qualified UserId,
@@ -47,10 +46,12 @@ data Api route = Api
       route
         :- "i"
         :> "conversations"
-        :> Capture "cnv" (Qualified ConvId)
+        :> Capture "domain" Domain
+        :> Capture "cnv" ConvId
         :> "join"
         :> ReqBody '[JSON] Fed.JoinConversationByIdRequest
-        :> Post '[JSON] (Fed.ConversationUpdateResult Fed.MemberJoin)
+        :> Post '[JSON] (Fed.ConversationUpdateResult Fed.MemberJoin),
+    _gapiStatus :: route :- "i" :> "status" :> Get '[JSON] NoContent
   }
   deriving (Generic)
 

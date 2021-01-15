@@ -126,7 +126,7 @@ createScimToken zusr CreateScimToken {..} = do
     [] -> caseOneOrNoIdP Nothing
     -- NB: if the following case does not result in errors, 'validateScimUser' needs to
     -- be changed.  currently, it relies on the fact that there is never more than one IdP.
-    -- https://github.com/zinfra/backend-issues/issues/1377
+    -- https://wearezeta.atlassian.net/browse/SQSERVICES-165
     _ ->
       E.throwSpar $
         E.SparProvisioningMoreThanOneIdP
