@@ -27,7 +27,8 @@ where
 import Brig.Data.Instances ()
 import Brig.Types.Search
 import Brig.User.Search.Index
-import Data.Id (TeamId)
+import Control.Monad.Catch (MonadThrow (throwM))
+import Data.Id (TeamId, idToText)
 import Data.Range (Range (..))
 import qualified Database.Bloodhound as ES
 import Imports hiding (log, searchable)
@@ -43,17 +44,56 @@ browseTeam ::
   Maybe Text ->
   Range 1 500 Int32 ->
   m (SearchResult TeamContact)
-browseTeam _tid _mQuery Nothing Nothing Nothing _mSize = do
-  undefined
-browseTeam _ _ _ _ _ _ = error "not implemented."
+browseTeam tid mbSearchText _mRoleFilter _mSortBy _mSortOrder (fromRange -> s) = liftIndexIO $ do
+  let (IndexQuery q f) = browseTeamQuery tid mbSearchText
+  idx <- asks idxName
+  let search = (ES.mkSearch (Just q) (Just f)) {ES.size = ES.Size (fromIntegral s)}
+  r <-
+    ES.searchByType idx mappingName search
+      >>= ES.parseEsResponse
+  either (throwM . IndexLookupError) (pure . mkResult) r
+  where
+    mkResult es =
+      let results = mapMaybe ES.hitSource . ES.hits . ES.searchHits $ es
+       in SearchResult
+            { searchFound = ES.hitsTotal . ES.searchHits $ es,
+              searchReturned = length results,
+              searchTook = ES.took es,
+              searchResults = results
+            }
 
--- | Pure query constructor.
---
 -- TODO: Maybe (sortby=<name|handle|email|saml_idp|managed_by|role|created_at>, Maybe ES.SortOrder)
 -- TODO: Maybe [Role]
+-- analogous to SearchIndex.hs
 browseTeamQuery ::
   TeamId ->
   Maybe Text ->
-  Range 1 500 Int32 ->
-  ES.Query
-browseTeamQuery _team _searchText _mSize = undefined
+  IndexQuery TeamContact
+browseTeamQuery tid mbSearchText =
+  IndexQuery query filterQuery
+  where
+    query = case mbSearchText of
+      Nothing -> ES.MatchAllQuery Nothing
+      Just (normalized -> term') -> matchPhraseOrPrefix term'
+
+    matchPhraseOrPrefix term' =
+      ES.QueryMultiMatchQuery $
+        ( ES.mkMultiMatchQuery
+            [ ES.FieldName "email^4",
+              ES.FieldName "handle^4",
+              ES.FieldName "normalized^3",
+              ES.FieldName "email.prefix^3",
+              ES.FieldName "handle.prefix^2",
+              ES.FieldName "normalized.prefix"
+            ]
+            (ES.QueryString term')
+        )
+          { ES.multiMatchQueryType = Just ES.MultiMatchMostFields,
+            ES.multiMatchQueryOperator = ES.And
+          }
+
+    filterQuery =
+      ES.Filter $
+        ES.QueryBoolQuery boolQuery {ES.boolQueryMustMatch = [matchTeamMembersOf]}
+
+    matchTeamMembersOf = ES.TermQuery (ES.Term "team" $ idToText tid) Nothing
