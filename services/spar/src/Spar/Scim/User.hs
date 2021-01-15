@@ -763,6 +763,12 @@ scimFindUserByHandle mIdpConfig stiTeam hndl = do
 -- successful authentication with their SAML credentials.
 scimFindUserByEmail :: Maybe IdP -> TeamId -> Text -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser ST.SparTag)
 scimFindUserByEmail mIdpConfig stiTeam email = do
+  -- Azure has been observed to search for externalIds that are not emails, even if the
+  -- mapping is set up like it should be.  This is a problem: if there is no SAML IdP, 'mkValidExternalId'
+  -- only supports external IDs that are emails.  This is a missing feature / bug in spar tracked in
+  -- https://wearezeta.atlassian.net/browse/SQSERVICES-157; once it is fixed, we should go back to
+  -- throwing errors returned by 'mkValidExternalId' here, but *not* throw an error if the externalId is
+  -- a UUID, or any other text that is valid according to SCIM.
   veid <- MaybeT (either (const Nothing) Just <$> runExceptT (mkValidExternalId mIdpConfig (pure email)))
   uid <- MaybeT . lift $ ST.runValidExternalId withUref withEmailOnly veid
   brigUser <- MaybeT . lift . Brig.getBrigUserAccount Brig.WithPendingInvitations $ uid
