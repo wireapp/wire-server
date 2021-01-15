@@ -643,7 +643,7 @@ testCreateUserTimeout = do
 
   waitUserExpiration
   searchUser tok scimUser email False
-  aFewTimesRecover $ registerInvitation email userName inviteeCode False
+  registerInvitation email userName inviteeCode False
   searchUser tok scimUser email False
 
   (scimStoredUser2, _inv, inviteeCode2) <- createUser'step tok tid scimUser email
@@ -680,7 +680,7 @@ testCreateUserTimeout = do
     waitUserExpiration = do
       timeoutSecs <- asks $ fromMaybe 5 . brigSettingsTeamInvitationTimeout . _teOpts
       Control.Exception.assert (timeoutSecs < 30) $ do
-        threadDelay $ (timeoutSecs + 1) * 1_000_000
+        threadDelay $ (timeoutSecs + 2) * 1_000_000
 
 ----------------------------------------------------------------------------
 -- Listing users
