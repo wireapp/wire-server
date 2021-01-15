@@ -283,12 +283,26 @@ idpCreateXML :: Maybe UserId -> Text -> SAML.IdPMetadata -> Maybe SAML.IdPId -> 
 idpCreateXML zusr raw idpmeta mReplaces = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Brig.getZUsrOwnedTeam zusr
   Galley.assertSSOEnabled teamid
+  assertNoScimOrNoIdP teamid
   idp <- validateNewIdP idpmeta teamid mReplaces
   wrapMonadClient $ Data.storeIdPRawMetadata (idp ^. SAML.idpId) raw
   SAML.storeIdPConfig idp
   forM_ mReplaces $ \replaces -> wrapMonadClient $ do
     Data.setReplacedBy (Data.Replaced replaces) (Data.Replacing (idp ^. SAML.idpId))
   pure idp
+
+-- | In teams with a scim access token, only one IdP is allowed.  The reason is that scim user
+-- data contains no information about the idp issuer, only the user name, so no valid saml
+-- credentials can be created.  To fix this, we need to implement a way to associate scim
+-- tokens with IdPs.  https://wearezeta.atlassian.net/browse/SQSERVICES-165
+assertNoScimOrNoIdP :: TeamId -> Spar ()
+assertNoScimOrNoIdP teamid = do
+  numTokens <- length <$> wrapMonadClient (Data.getScimTokens teamid)
+  numIdps <- length <$> wrapMonadClientWithEnv (Data.getIdPConfigsByTeam teamid)
+  when (numTokens > 0 && numIdps > 0) $ do
+    throwSpar $
+      SparProvisioningMoreThanOneIdP
+        "Teams with SCIM tokens can only have at most one IdP"
 
 -- | Check that issuer is not used for any team in the system (it is a database keys for
 -- finding IdPs), and request URI is https.
