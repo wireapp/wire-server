@@ -46,3 +46,12 @@ provider:
   cert: test/resources/cert.pem
   botHost: https://127.0.0.1
   botPort: 29631
+
+# Used by brig-integration (Federation subfolder)
+backendTwo:
+  brig:
+    host: 127.0.0.1 # in kubernetes, brig.<NAMESPACE>.svc.cluster.local
+    port: 9082
+  federator:
+    host: 127.0.0.1 # in kubernetes, federator.<NAMESPACE>.svc.cluster.local
+    port: 9097

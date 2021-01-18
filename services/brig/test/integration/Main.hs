@@ -54,6 +54,18 @@ import Test.Tasty.HUnit
 import Util.Options
 import Util.Test
 
+data BackendConf = BackendConf
+  { remoteBrig :: Endpoint,
+    remoteFederator :: Endpoint
+  }
+  deriving (Show, Generic)
+
+instance FromJSON BackendConf where
+  parseJSON = withObject "BackendConf" $ \o ->
+    BackendConf
+      <$> o .: "brig"
+      <*> o .: "federator"
+
 data Config = Config
   -- internal endpoints
   { brig :: Endpoint,
@@ -64,7 +76,9 @@ data Config = Config
     nginz :: Endpoint,
     spar :: Endpoint,
     -- external provider
-    provider :: Provider.Config
+    provider :: Provider.Config,
+    -- for federation
+    backendTwo :: BackendConf
   }
   deriving (Show, Generic)
 
@@ -79,6 +93,7 @@ runTests iConf brigOpts otherArgs = do
       n = mkRequest $ nginz iConf
       s = mkRequest $ spar iConf
       f = federator iConf
+      brigTwo = mkRequest $ remoteBrig (backendTwo iConf)
 
   let turnFile = Opts.servers . Opts.turn $ brigOpts
       turnFileV2 = (Opts.serversV2 . Opts.turn) brigOpts
@@ -101,7 +116,7 @@ runTests iConf brigOpts otherArgs = do
   createIndex <- Index.Create.spec brigOpts
   browseTeam <- TeamUserSearch.tests brigOpts mg g b
   userPendingActivation <- UserPendingActivation.tests brigOpts mg db b g s
-  federationUser <- Federation.User.spec brigOpts mg b f
+  federationUser <- Federation.User.spec brigOpts mg b f brigTwo
   withArgs otherArgs . defaultMain $
     testGroup
       "Brig API Integration"

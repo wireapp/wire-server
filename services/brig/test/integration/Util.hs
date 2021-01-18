@@ -46,7 +46,8 @@ import qualified Data.ByteString as BS
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
-import Data.Domain (mkDomain)
+import Data.Domain (Domain, domainText, mkDomain)
+import Data.Handle (Handle)
 import Data.Id
 import Data.List1 (List1)
 import qualified Data.List1 as List1
@@ -432,6 +433,22 @@ putHandle brig usr h =
       . zConn "conn"
   where
     payload = RequestBodyLBS . encode $ object ["handle" .= h]
+
+getUserInfoFromHandle ::
+  (MonadIO m, MonadCatch m, MonadFail m, MonadHttp m, HasCallStack) =>
+  Brig ->
+  Domain ->
+  Handle ->
+  m UserHandleInfo
+getUserInfoFromHandle brig domain handle = do
+  u <- randomId
+  responseJsonError
+    =<< get
+      ( brig
+          . paths ["users", "handles", toByteString' (domainText domain), toByteString' handle]
+          . zUser u
+          . expect2xx
+      )
 
 addClient ::
   (Monad m, MonadCatch m, MonadIO m, MonadHttp m, MonadFail m, HasCallStack) =>

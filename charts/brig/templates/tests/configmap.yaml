@@ -38,3 +38,11 @@ data:
       cert: /etc/wire/integration-secrets/provider-publiccert.pem
       botHost: https://brig-integration
       botPort: 9000
+
+    backendTwo:
+      brig:
+        host: brig.{{ .Release.Namespace }}-fed2.svc.cluster.local
+        port: 8080
+      federator:
+        host: federator.{{ .Release.Namespace }}-fed2.svc.cluster.local
+        port: 8080

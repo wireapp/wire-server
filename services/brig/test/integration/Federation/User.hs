@@ -17,37 +17,48 @@
 
 module Federation.User where
 
-import Bilge (Manager)
+import Bilge (Http, Manager)
 import qualified Brig.Options as BrigOpts
+import Brig.Types
+import Data.Handle
+import Data.Qualified
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
-import Util (Brig)
+import Util
 import Util.Options (Endpoint)
 
-spec :: BrigOpts.Opts -> Manager -> Brig -> Endpoint -> IO TestTree
-spec brigOpts mg brig federator =
+-- NOTE: These federation tests require deploying two sets of (some) services
+-- This might be best left to a kubernetes setup.
+--
+-- While individual functions can and should be tested in a more unit-testy way,
+-- these more end-to-end integration test serve as a way to test the overall
+-- network flow
+--
+spec :: BrigOpts.Opts -> Manager -> Brig -> Endpoint -> Brig -> IO TestTree
+spec _brigOpts mg brig _federator brigTwo =
   pure $
     testGroup
       "brig-federation-user"
-      [ testCase "lookup user by qualified handle on remote backend" $ testHandleLookup brigOpts mg brig federator
+      [ test mg "lookup user by qualified handle on remote backend" $ testHandleLookup brig brigTwo
       ]
 
-testHandleLookup :: BrigOpts.Opts -> Manager -> Brig -> Endpoint -> Assertion
-testHandleLookup _brigOpts _mg _brig _federator = do
-  undefined
-
--- TODO: we can make use of the 'NAMESPACE' environment variable to get our own namespace
--- next, we can either do a SRV lookup, or create a host+port combination based on a convention. Let's say if this particular kubernetes test namespace in which this executable is deployed is test-random123, then we expect a second installation for federation to be at test-random123-fed2, thus we can talk to the "second" brig on "http://brig." <> NAMESPACE <> "-fed2.svc.cluster.local:8080"
--- This allows us to do meaningful end2end tests:
---
--- 1. create a user on the "other side" using an internal brig endpoint in the other namespace
--- 2. query the local-namespace brig for a user sitting on the other backend
--- which should involve the following network traffic:
---
--- brig-integration -> brig -> federator -> fed2-federator -> fed2-brig
--- (and back)
---
--- While individual functions can and should be tested in a more unit-testy way, and end-to-end integration test will also be important.
---
--- TODO requires adding an option for "federation-integration-setup" (i.e. deploying two sets of all services - with their own config value overrides)
+testHandleLookup :: Brig -> Brig -> Http ()
+testHandleLookup brig brigTwo = do
+  -- Create a user on the "other
+  -- side" using an internal brig endpoint from a second brig instance in
+  -- backendTwo (in another namespace in kubernetes)
+  u <- randomUser brigTwo
+  h <- randomHandle
+  void $ putHandle brigTwo (userId u) h
+  self <- selfUser <$> getSelfProfile brigTwo (userId u)
+  let handle = fromJust (userHandle self)
+  liftIO $ assertEqual "creating user with handle should return handle" h (fromHandle handle)
+  let domain = qDomain $ userQualifiedId self
+  -- query the local-namespace brig for a user sitting on the other backend
+  -- which should involve the following network traffic:
+  --
+  -- brig-integration -> brig -> federator -> fed2-federator -> fed2-brig
+  -- (and back)
+  result <- userHandleId <$> getUserInfoFromHandle brig domain handle
+  liftIO $ assertEqual "remote handle lookup via federator should work in the happy case" result (Qualified (userId u) domain)
