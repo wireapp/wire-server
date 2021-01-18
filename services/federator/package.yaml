@@ -17,6 +17,7 @@ dependencies:
 - async
 - base
 - bilge
+- bytestring
 - bytestring-conversion
 - data-default
 - dns
@@ -54,6 +55,8 @@ dependencies:
 - warp
 - wire-api
 - wire-api-federation
+- polysemy
+- polysemy-wire-zoo
 
 library:
   source-dirs: src
@@ -85,7 +88,6 @@ executables:
     - optparse-applicative
     - types-common
     - yaml
-    - bytestring
 
 tests:
   federator-tests:
@@ -100,3 +102,4 @@ tests:
     - tasty-hunit
     - yaml
     - bytestring
+    - polysemy-mocks

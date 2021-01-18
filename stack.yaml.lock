@@ -366,6 +366,13 @@ packages:
   original:
     hackage: prometheus-2.2.2
 - completed:
+    hackage: polysemy-plugin-0.2.5.2@sha256:649cea55749c38af841e9f3750ccf65be351e597f3085234e28e3491e78d1f78,3155
+    pantry-tree:
+      size: 1162
+      sha256: 20b462f8095a8108ef4d920f0d494ba1299821403ad30169168f4b1968b06c2a
+  original:
+    hackage: polysemy-plugin-0.2.5.2
+- completed:
     hackage: currency-codes-3.0.0.1@sha256:a4b24669dd91e805b11d9eb267becd0ba6d726927e535e03d5f3f368f44c1cf4,2902
     pantry-tree:
       size: 548
@@ -572,6 +579,17 @@ packages:
       sha256: 1e5aba0165fb8ffa93d1516a87026a59c245750ca5f2ed42bd53b8328620f98e
   original:
     hackage: hex-0.2.0@sha256:197d2561d2e216c4ead035b4911dabc6e678ac6257cb71b64e324c822f6f9f5a,726
+- completed:
+    name: polysemy-mocks
+    version: 0.1.0.0
+    git: https://github.com/akshaymankar/polysemy-mocks.git
+    pantry-tree:
+      size: 950
+      sha256: c511703948de31e6ecccc45f485a26b72fdbd6c88222347ee5aba4add0882484
+    commit: 4139c208fec5d8f9b0a1c7881e84db484489decd
+  original:
+    git: https://github.com/akshaymankar/polysemy-mocks.git
+    commit: 4139c208fec5d8f9b0a1c7881e84db484489decd
 - completed:
     hackage: quickcheck-state-machine-0.6.0@sha256:3e4f8df0f6b5d415e3c8840dc75034a63e37f56f5f8cfa1035ded16345235ac4,3825
     pantry-tree:

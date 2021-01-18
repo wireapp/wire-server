@@ -1,0 +1,33 @@
+syntax = "proto3";
+package wire.federator;
+
+enum Component {
+  Brig = 0;
+}
+
+message Response {
+  oneof res {
+    bytes ok = 1;
+    string err = 2;
+  }
+}
+
+message RemoteCall {
+  string domain = 1;
+  LocalCall localCall = 2;
+}
+
+message LocalCall {
+  Component component = 1;
+  bytes method = 2;
+  string path = 3;
+  bytes body = 4;
+}
+
+service RouteToRemote {
+  rpc call (RemoteCall) returns (Response);
+}
+
+service RouteToInternal {
+  rpc call (LocalCall) returns (Response);
+}

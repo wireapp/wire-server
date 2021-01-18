@@ -80,7 +80,7 @@ instance MonadError ServerError (AppT ServerErrorIO) where
   throwError = lift . throwError @_ @ServerErrorIO
   catchError a f = do
     env <- ask
-    lift $ catchError (runAppT env a) (\e -> runAppT env $ f e)
+    lift $ catchError (runAppT env a) (runAppT env . f)
 
 instance MonadTrans AppT where
   lift = AppT . lift

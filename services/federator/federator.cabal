@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8e697880be214b34989e5916079bf4352638b646c86c3cdb28a29976a60a4d22
+-- hash: c6754cf4131ea2d5febefd81361718155f4819488f281b67ba53cc76911b0dd3
 
 name:           federator
 version:        1.0.0
@@ -23,6 +23,7 @@ library
       Federator.API
       Federator.App
       Federator.Brig
+      Federator.Federate
       Federator.GRPC.Helper
       Federator.GRPC.Proto
       Federator.GRPC.Service
@@ -43,6 +44,7 @@ library
     , async
     , base
     , bilge
+    , bytestring
     , bytestring-conversion
     , data-default
     , dns
@@ -64,6 +66,8 @@ library
     , mu-protobuf
     , mu-rpc
     , mu-schema
+    , polysemy
+    , polysemy-wire-zoo
     , resourcet
     , servant
     , servant-client
@@ -97,6 +101,7 @@ executable federator
     , async
     , base
     , bilge
+    , bytestring
     , bytestring-conversion
     , data-default
     , dns
@@ -119,6 +124,8 @@ executable federator
     , mu-protobuf
     , mu-rpc
     , mu-schema
+    , polysemy
+    , polysemy-wire-zoo
     , resourcet
     , servant
     , servant-client
@@ -181,6 +188,8 @@ executable federator-integration
     , mu-rpc
     , mu-schema
     , optparse-applicative
+    , polysemy
+    , polysemy-wire-zoo
     , random
     , resourcet
     , retry
@@ -209,6 +218,7 @@ test-suite federator-tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
+      Test.Federator.Federate
       Test.Federator.Options
       Paths_federator
   hs-source-dirs:
@@ -244,6 +254,9 @@ test-suite federator-tests
     , mu-protobuf
     , mu-rpc
     , mu-schema
+    , polysemy
+    , polysemy-mocks
+    , polysemy-wire-zoo
     , resourcet
     , servant
     , servant-client
