@@ -158,7 +158,8 @@ updateSearchIndex :: UserId -> UserEvent -> AppIO ()
 updateSearchIndex orig e = case e of
   -- no-ops
   UserCreated {} -> return ()
-  UserIdentityUpdated {} -> return ()
+  UserIdentityUpdated UserIdentityUpdatedData {..} -> do
+    when (isJust eiuEmail) $ Search.reindex orig
   UserIdentityRemoved {} -> return ()
   UserLegalHoldDisabled {} -> return ()
   UserLegalHoldEnabled {} -> return ()
@@ -174,7 +175,7 @@ updateSearchIndex orig e = case e of
               isJust eupAccentId,
               isJust eupHandle
             ]
-    when (interesting) $ Search.reindex orig
+    when interesting $ Search.reindex orig
 
 journalEvent :: UserId -> UserEvent -> AppIO ()
 journalEvent orig e = case e of
