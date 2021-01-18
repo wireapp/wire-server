@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "federator"
+  labels:
+    wireService: fedrator
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+data:
+  {{- with .Values.config }}
+  federator.yaml: |
+    logNetStrings: True # log using netstrings encoding:
+                        # http://cr.yp.to/proto/netstrings.txt
+    logFormat: {{ .logFormat }}
+    logLevel: {{ .logLevel }}
+
+    federator:
+      host: 0.0.0.0
+      port: 8080
+
+    {{- with .optSettings }}
+    optSettings:
+      setFederationStrategy:
+        {{- if .setFederationStrategy.allowAll }}
+        allowAll:
+        {{- else if .setFederationStrategy.allowedDomains }}
+        allowedDomains:
+          {{- with $domain := .setFederationStrategy.allowedDomains }}
+          - {{ $domain | quote }}
+          {{- end }}
+        {{- else }}
+        # In gotemplate there is no way to distinguish between empty list and no
+        # list, we assume empty list when there is no list
+        allowedDomains: []
+        {{- end}}
+    {{- end }}
+  {{- end }}

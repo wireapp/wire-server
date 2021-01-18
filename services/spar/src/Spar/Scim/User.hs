@@ -47,16 +47,19 @@ import Brig.Types.User (ManagedBy (..), Name (..), User (..))
 import qualified Brig.Types.User as BT
 import qualified Control.Applicative as Applicative (empty)
 import Control.Lens (view, (^.))
-import Control.Monad.Except (MonadError, throwError)
+import Control.Monad.Error.Class (MonadError)
+import Control.Monad.Except (runExceptT, throwError)
 import Control.Monad.Trans.Except (mapExceptT)
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT), runMaybeT)
 import Crypto.Hash (Digest, SHA256, hashlazy)
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Text as Aeson
 import Data.Handle (Handle (Handle), parseHandle)
 import Data.Id (Id (..), TeamId, UserId, idToText)
 import Data.Json.Util (UTCTimeMillis, fromUTCTimeMillis, toUTCTimeMillis)
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
+import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import Imports
 import Network.URI (URI, parseURI)
@@ -72,6 +75,7 @@ import System.Logger.Message (Msg)
 import qualified URI.ByteString as URIBS
 import Util.Logging (logFunction, logHandle, logTeam, logUser, sha256String)
 import qualified Web.Scim.Class.User as Scim
+import Web.Scim.Filter (Filter (..), rAttrPath, rCompareOp)
 import qualified Web.Scim.Filter as Scim
 import qualified Web.Scim.Handler as Scim
 import qualified Web.Scim.Schema.Common as Scim
@@ -98,7 +102,7 @@ instance Scim.UserDB ST.SparTag Spar where
     logScim
       ( logFunction "Spar.Scim.User.getUsers"
           . logTokenInfo tokeninfo
-          . Log.msg ("filters: " <> show filter')
+          . logFilter filter'
       )
       $ do
         mIdpConfig <- maybe (pure Nothing) (lift . wrapMonadClient . Data.getIdPConfig) stiIdP
@@ -310,7 +314,7 @@ logScim context action =
               case Scim.detail e of
                 Just d -> d
                 Nothing -> cs (Aeson.encode e)
-        Log.err $ context . Log.msg errorMsg
+        Log.warn $ context . Log.msg errorMsg
         pure (Left e)
       Right x -> do
         Log.info $ context . Log.msg @Text "call without exception"
@@ -762,7 +766,13 @@ scimFindUserByHandle mIdpConfig stiTeam hndl = do
 -- successful authentication with their SAML credentials.
 scimFindUserByEmail :: Maybe IdP -> TeamId -> Text -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser ST.SparTag)
 scimFindUserByEmail mIdpConfig stiTeam email = do
-  veid <- mkValidExternalId mIdpConfig (pure email)
+  -- Azure has been observed to search for externalIds that are not emails, even if the
+  -- mapping is set up like it should be.  This is a problem: if there is no SAML IdP, 'mkValidExternalId'
+  -- only supports external IDs that are emails.  This is a missing feature / bug in spar tracked in
+  -- https://wearezeta.atlassian.net/browse/SQSERVICES-157; once it is fixed, we should go back to
+  -- throwing errors returned by 'mkValidExternalId' here, but *not* throw an error if the externalId is
+  -- a UUID, or any other text that is valid according to SCIM.
+  veid <- MaybeT (either (const Nothing) Just <$> runExceptT (mkValidExternalId mIdpConfig (pure email)))
   uid <- MaybeT . lift $ ST.runValidExternalId withUref withEmailOnly veid
   brigUser <- MaybeT . lift . Brig.getBrigUserAccount Brig.WithPendingInvitations $ uid
   guard $ userTeam (accountUser brigUser) == Just stiTeam
@@ -782,6 +792,21 @@ scimFindUserByEmail mIdpConfig stiTeam email = do
         inspar, inbrig :: Spar (Maybe UserId)
         inspar = wrapMonadClient $ Data.lookupScimExternalId eml
         inbrig = userId . accountUser <$$> Brig.getBrigUserByEmail eml
+
+logFilter :: Filter -> (Msg -> Msg)
+logFilter (FilterAttrCompare attr op val) =
+  Log.msg $ "filter:" <> rAttrPath attr <> " " <> rCompareOp op <> " " <> rCompValue val
+  where
+    rCompValue :: Scim.CompValue -> Text
+    rCompValue = \case
+      Scim.ValNull -> "null"
+      Scim.ValBool True -> "true"
+      Scim.ValBool False -> "false"
+      Scim.ValNumber n -> cs $ Aeson.encodeToLazyText (Aeson.Number n)
+      Scim.ValString s ->
+        "sha256 "
+          <> sha256String s
+          <> (if isJust (UUID.fromText s) then " original is a UUID" else "")
 
 {- TODO: might be useful later.
 ~~~~~~~~~~~~~~~~~~~~~~~~~

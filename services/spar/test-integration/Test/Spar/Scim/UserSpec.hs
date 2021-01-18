@@ -643,7 +643,7 @@ testCreateUserTimeout = do
 
   waitUserExpiration
   searchUser tok scimUser email False
-  aFewTimesRecover $ registerInvitation email userName inviteeCode False
+  registerInvitation email userName inviteeCode False
   searchUser tok scimUser email False
 
   (scimStoredUser2, _inv, inviteeCode2) <- createUser'step tok tid scimUser email
@@ -680,7 +680,7 @@ testCreateUserTimeout = do
     waitUserExpiration = do
       timeoutSecs <- asks $ fromMaybe 5 . brigSettingsTeamInvitationTimeout . _teOpts
       Control.Exception.assert (timeoutSecs < 30) $ do
-        threadDelay $ (timeoutSecs + 1) * 1_000_000
+        threadDelay $ (timeoutSecs + 2) * 1_000_000
 
 ----------------------------------------------------------------------------
 -- Listing users
@@ -1565,12 +1565,26 @@ specDeleteUser = do
 
 -- | Azure sends a request for an unknown user to test out whether your API is online However;
 -- it sends a userName that is not a valid wire handle. So we should treat 'invalid' as 'not
--- found'.
+-- found'. If we treat it as invalid Azure will put the scim provisioning into quarantine mode,
+-- which requires manual intervention by the customer.
 specAzureQuirks :: SpecWith TestEnv
 specAzureQuirks = do
   describe "Assert that we implement all azure quirks" $ do
-    it "GET /Users?filter=randomField eq <invalid value> should return empty list; not error out" $ do
-      (tok, (_, _, _)) <- registerIdPAndScimToken
+    context "with SAML IDP" $
+      it "GET /Users?filter=randomField eq <invalid value> should return empty list; not error out" $ do
+        (tok, (_, _, _)) <- registerIdPAndScimToken
+        testUUIds tok
+
+    context "without SAML IdP" $
+      it "GET /Users?filter=randomField eq <invalid value> should return empty list; not error out" $ do
+        env <- ask
+        let brig = env ^. teBrig
+            galley = env ^. teGalley
+        (_owner, tid) <- call $ createUserWithTeam brig galley
+        tok <- registerScimToken tid Nothing
+        testUUIds tok
+  where
+    testUUIds tok = do
       users <- listUsers tok (Just (filterBy "userName" "f52dcb88-9fa1-4ec7-984f-7bc2d4046a9c"))
       liftIO $ users `shouldBe` []
       users' <- listUsers tok (Just (filterBy "externalId" "f52dcb88-9fa1-4ec7-984f-7bc2d4046a9c"))
