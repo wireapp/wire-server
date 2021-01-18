@@ -109,6 +109,7 @@ if [[ $INTEGRATION_CARGOHOLD_ONLY_COMPAT -eq 1 ]]; then
 else
     check_prerequisites
     run brig "" ${green}
+    run brig "2" ${green}
     run galley "" ${yellow}
     run gundeck "" ${blue}
     run cannon "" ${orange}

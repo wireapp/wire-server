@@ -1,0 +1,180 @@
+brig:
+  host: 0.0.0.0
+  port: 9082
+
+cassandra:
+  endpoint:
+    host: 127.0.0.1
+    port: 9042
+  keyspace: brig_test
+
+elasticsearch:
+  url: http://127.0.0.1:9200
+  index: directory_test
+
+cargohold:
+  host: 127.0.0.1
+  port: 8084
+
+galley:
+  host: 127.0.0.1
+  port: 8085
+
+gundeck:
+  host: 127.0.0.1
+  port: 8086
+
+# federator:
+#   host: 127.0.0.1
+#   port: 8097
+
+# You can set up local SQS/Dynamo running e.g. `../../deploy/dockerephemeral/run.sh`
+aws:
+  userJournalQueue: integration-user-events.fifo
+  # ^ Comment this out if you don't want to journal user events
+  prekeyTable: integration-brig-prekeys
+  sqsEndpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
+  dynamoDBEndpoint: http://localhost:4567 # https://dynamodb.eu-west-1.amazonaws.com
+
+# Uncomment this if you want STOMP.
+#
+# stomp:
+#   stompHost: localhost
+#   stompPort: 61613
+#   stompTls: false
+
+# TODO: possibly move 'userJournalQueue' to the top level as well
+internalEvents:
+  queueType: sqs
+  queueName: integration-brig-events-internal
+  # queueType: stomp
+  # queueName: /queue/integration-brig-events-internal
+
+emailSMS:
+  # You can either use SES directly (in which case, ensure a feedback queue is configured)
+  # or you can use SMTP directly (blacklisting of email/phone must be otherwise handled by
+  # the operator).
+  email:
+    sesQueue: integration-brig-events
+    sesEndpoint: http://localhost:4569 # https://email.eu-west-1.amazonaws.com
+    # If you prefer to use SMTP directly, uncomment the following lines
+    # and set the correct credentials.
+    # NOTE: In case a user tries to supply config values for both SES and SMTP,
+    #       SES takes precedence and gets used instead
+    # smtpEndpoint:
+    #   host: localhost
+    #   port: 2500
+    # smtpCredentials:
+    #   username: <username>
+    #   password: test/resources/smtp-secret.txt
+    # smtpConnType: plain
+    # ^ NOTE: blacklisting of emails (processing of bounces and complaints)  is only done
+    #         automatically IF sesQueue/sesEndpoint are used. If SMTP is used directly, the
+    #         operator must handle these notifications "manually" (there are internal endpoints)
+    #         that may be used for this
+
+  general:
+    templateDir: deb/opt/brig/templates
+    emailSender: backend-integration@wire.com
+    smsSender: "+123456789" # or MG123456789... (twilio alphanumeric sender id)
+    templateBranding:
+      brand: Wire
+      brandUrl: https://wire.com
+      brandLabelUrl: wire.com # This is the text in the label for the above URL
+      brandLogoUrl: https://wire.com/p/img/email/logo-email-black.png
+      brandService: Wire Service Provider
+      copyright: © WIRE SWISS GmbH
+      misuse: misuse@wire.com
+      legal: https://wire.com/legal/
+      forgot: https://wire.com/forgot/
+      support: https://support.wire.com/
+  user:
+    activationUrl: http://127.0.0.1:8080/activate?key=${key}&code=${code}
+    smsActivationUrl: http://127.0.0.1:8080/v/${code}
+    passwordResetUrl: http://127.0.0.1:8080/password-reset/${key}?code=${code}
+    invitationUrl: http://127.0.0.1:8080/register?invitation_code=${code}
+    deletionUrl: http://127.0.0.1:8080/users/delete?key=${key}&code=${code}
+
+  provider:
+    homeUrl: https://provider.localhost/
+    providerActivationUrl: http://127.0.0.1:8080/provider/activate?key=${key}&code=${code}
+    approvalUrl: http://127.0.0.1:8080/provider/approve?key=${key}&code=${code}
+    approvalTo: success@simulator.amazonses.com
+    providerPwResetUrl: http://127.0.0.1:8080/provider/password-reset?key=${key}&code=${code}
+
+  team:
+    tInvitationUrl: http://127.0.0.1:8080/register?team=${team}&team_code=${code}
+    tActivationUrl: http://127.0.0.1:8080/register?team=${team}&team_code=${code}
+    tCreatorWelcomeUrl: http://127.0.0.1:8080/creator-welcome-website
+    tMemberWelcomeUrl: http://127.0.0.1:8080/member-welcome-website
+
+zauth:
+  privateKeys: test/resources/zauth/privkeys.txt
+  publicKeys: test/resources/zauth/pubkeys.txt
+  authSettings:
+    keyIndex: 1
+    userTokenTimeout: 120
+    sessionTokenTimeout: 20
+    accessTokenTimeout: 30
+    providerTokenTimeout: 60
+    legalHoldUserTokenTimeout: 120
+    legalHoldAccessTokenTimeout: 30
+
+turn:
+  servers: test/resources/turn/servers.txt
+  serversV2: test/resources/turn/servers-v2.txt
+  # This should be the same secret as used by the TURN servers
+  secret: test/resources/turn/secret.txt
+  configTTL: 3600
+  tokenTTL: 21600
+
+optSettings:
+  setActivationTimeout: 5
+  setTeamInvitationTimeout: 5
+  setExpiredUserCleanupTimeout: 1
+  setTwilio: test/resources/twilio-credentials.yaml
+  setNexmo: test/resources/nexmo-credentials.yaml
+  # setStomp: test/resources/stomp-credentials.yaml
+  setUserMaxConnections: 16
+  setCookieInsecure: true
+  setUserCookieRenewAge: 2
+  setUserCookieLimit: 5
+  setUserCookieThrottle:
+    stdDev: 5
+    retryAfter: 1
+  setLimitFailedLogins:
+    timeout: 5  # seconds.  if you reach the limit, how long do you have to wait to try again.
+    retryLimit: 5  # how many times can you have a failed login in that timeframe.
+  setSuspendInactiveUsers:  # this this is omitted: never suspend inactive users.
+    suspendTimeout: 10
+  setRichInfoLimit: 5000  # should be in sync with Spar
+  setDefaultLocale: en
+  setMaxTeamSize: 32
+  setMaxConvSize: 16
+  setEmailVisibility: visible_to_self
+  setPropertyMaxKeyLen: 1024
+  setPropertyMaxValueLen: 4096
+  setDeleteThrottleMillis: 0
+  setSqsThrottleMillis: 1000
+  setRestrictUserCreation: false
+  # setSearchSameTeamOnly: false
+  # ^ NOTE: this filters out search results for team users,
+  #   i.e., if you are a team user the search endpoints will
+  #   return only users part of the same team. For name search,
+  #   this is slightly more inefficient as it requires 2 extra DB lookups
+  # setUserMaxPermClients: 7
+  # ^ You can limit the max number of permanent clients that a user is allowed
+  #   to register, per account. The default value is '7' if the option is unset.
+
+  #   Federation domain is used to qualify local IDs and handles,
+  #   e.g. 0c4d8944-70fa-480e-a8b7-9d929862d18c@wire.com and somehandle@wire.com.
+  #   It should also match the SRV DNS records under which other wire-server installations can find this backend:
+  #      _wire-server._tcp.<federationDomain>
+  #   Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
+  #   Remember to keep it the same in Galley.
+  setFederationDomain: federation2.example.com
+
+logLevel: Warn
+# ^ NOTE: We log too much in brig, if we set this to Info like other services, running tests
+#   produces too many logs, hence this is set to Warn.
+logNetStrings: false
