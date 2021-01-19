@@ -41,6 +41,7 @@ import Polysemy.IO (embedToMonadIO)
 
 grpc "Router" id "router.proto"
 
+-- TODO: The instances seem to be wrong, at least they don't work with grpcui
 data Component = Brig
   deriving (Show, Eq, Generic, ToSchema Router "Component", FromSchema Router "Component")
 
@@ -73,6 +74,7 @@ newtype HTTPMethod = HTTPMethod {unwrapMethod :: HTTP.StdMethod}
   deriving (Eq, Show)
 
 -- TODO: Write roundtrip tests
+-- TODO: The instances seem to be wrong, at least they don't work with grpcui
 instance ToSchema Router "Method" HTTPMethod where
   toSchema (HTTPMethod m) =
     let enumChoice = case m of
