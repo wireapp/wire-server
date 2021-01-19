@@ -57,9 +57,11 @@ dependencies:
 - wire-api-federation
 - polysemy
 - polysemy-wire-zoo
+- retry
 - HsOpenSSL
 - HsOpenSSL-x509-system
 - http-client-openssl
+- unliftio
 
 library:
   source-dirs: src

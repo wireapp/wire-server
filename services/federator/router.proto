@@ -19,9 +19,27 @@ message RemoteCall {
 
 message LocalCall {
   Component component = 1;
-  bytes method = 2;
-  string path = 3;
-  bytes body = 4;
+  Method method = 2;
+  bytes path = 3;
+  repeated QueryParam query = 4;
+  bytes body = 5;
+}
+
+message QueryParam {
+  bytes key = 1;
+  bytes value = 2;
+}
+
+enum Method {
+  GET	= 0;
+  POST = 1;
+  HEAD = 2;
+  PUT = 3;
+  DELETE = 4;
+  TRACE = 5;
+  CONNECT = 6;
+  OPTIONS = 7;
+  PATCH = 8;
 }
 
 service RouteToRemote {

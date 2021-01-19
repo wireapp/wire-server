@@ -1,22 +1,39 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 module Federator.Federate where
 
+import qualified Bilge as RPC
+import Bilge.RPC (rpc')
+import Bilge.Retry
+import Control.Lens (view)
+import Control.Monad.Catch (MonadMask, MonadThrow)
+import Control.Monad.Except (MonadError (throwError))
+import Control.Retry
+import qualified Data.ByteString.Lazy as LBS
 import Data.Domain (Domain)
+import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.Proxy (Proxy (Proxy))
 import qualified Data.Text as Text
-import Federator.Types (Env)
+import Federator.App (AppIO, AppT, runAppT)
+import Federator.PolysemyOrphans ()
+import Federator.Types (Env, brig)
+import Federator.UnliftExcept ()
 import Imports
 import Mu.GRpc.Client.Optics (GRpcReply (..))
+import Mu.GRpc.Server (msgProtoBuf, runGRpcAppTrans)
 import Mu.Quasi.GRpc (grpc)
-import Mu.Schema (Field (..), FieldValue (..), FromSchema (..), NP (..), NS (..), Term (TRecord), ToSchema (..))
-import Mu.Server (MonadServer, SingleServerT, singleService)
+import Mu.Schema (Field (..), FieldValue (..), FromSchema (..), NP (..), NS (..), Term (..), ToSchema (..))
+import Mu.Server (MonadServer, ServerError, ServerErrorIO, SingleServerT, singleService)
 import qualified Mu.Server as Mu
-import Network.HTTP.Types (Method)
 import qualified Network.HTTP.Types as HTTP
 import Polysemy
+import Polysemy.Error as Polysemy
+import Polysemy.IO (embedToMonadIO)
 
 -- * Types
 
@@ -51,15 +68,82 @@ instance FromSchema Router "Response" Response where
         -- https://github.com/well-typed/generics-sop/issues/116
         case x of
 
+-- This type exists to avoid orphan instances of ToSchema and FromSchema
+newtype HTTPMethod = HTTPMethod {unwrapMethod :: HTTP.StdMethod}
+  deriving (Eq, Show)
+
+-- TODO: Write roundtrip tests
+instance ToSchema Router "Method" HTTPMethod where
+  toSchema (HTTPMethod m) =
+    let enumChoice = case m of
+          HTTP.GET -> Z Proxy
+          HTTP.POST -> S (Z Proxy)
+          HTTP.HEAD -> S (S (Z Proxy))
+          HTTP.PUT -> S (S (S (Z Proxy)))
+          HTTP.DELETE -> S (S (S (S (Z Proxy))))
+          HTTP.TRACE -> S (S (S (S (S (Z Proxy)))))
+          HTTP.CONNECT -> S (S (S (S (S (S (Z Proxy))))))
+          HTTP.OPTIONS -> S (S (S (S (S (S (S (Z Proxy)))))))
+          HTTP.PATCH -> S (S (S (S (S (S (S (S (Z Proxy))))))))
+     in TEnum enumChoice
+
+instance FromSchema Router "Method" HTTPMethod where
+  fromSchema (TEnum enumChoice) =
+    let m = case enumChoice of
+          Z _ -> HTTP.GET
+          S (Z _) -> HTTP.POST
+          S (S (Z _)) -> HTTP.HEAD
+          S (S (S (Z _))) -> HTTP.PUT
+          S (S (S (S (Z _)))) -> HTTP.DELETE
+          S (S (S (S (S (Z _))))) -> HTTP.TRACE
+          S (S (S (S (S (S (Z _)))))) -> HTTP.CONNECT
+          S (S (S (S (S (S (S (Z _))))))) -> HTTP.OPTIONS
+          S (S (S (S (S (S (S (S (Z _)))))))) -> HTTP.PATCH
+          S (S (S (S (S (S (S (S (S x)))))))) -> case x of
+     in HTTPMethod m
+
+data QueryParam = QueryParam
+  { key :: ByteString,
+    value :: ByteString
+  }
+  deriving (Eq, Show, Generic, ToSchema Router "QueryParam", FromSchema Router "QueryParam")
+
 -- Does this make it hard to use in a type checked way?
 -- Does this need an HTTP method too? Or should this also be grpc?
 data LocalCall = LocalCall
   { component :: Maybe Component,
-    method :: Method,
-    path :: Text,
+    method :: Maybe HTTPMethod,
+    path :: ByteString,
+    query :: [QueryParam],
     body :: ByteString
   }
   deriving (Eq, Show, Generic, ToSchema Router "LocalCall", FromSchema Router "LocalCall")
+
+-- | This type exists because everything is optional in protobuf, maybe we
+-- should reconsider our choices here?
+data ValidatedLocalCall = ValidatedLocalCall
+  { vComponent :: Component,
+    vMethod :: HTTP.StdMethod,
+    vPath :: ByteString,
+    vQuery :: [QueryParam],
+    vBody :: ByteString
+  }
+
+data LocalCallValidationError
+  = ComponentMissing
+  | MethodMissing
+  deriving (Show, Eq)
+
+validateLocalCall :: LocalCall -> Either (NonEmpty LocalCallValidationError) ValidatedLocalCall
+validateLocalCall LocalCall {..} =
+  let vPath = path
+      vQuery = query
+      vBody = body
+   in case (component, method) of
+        (Just vComponent, Just (HTTPMethod vMethod)) -> Right (ValidatedLocalCall {..})
+        (Nothing, Just _) -> Left (ComponentMissing :| [])
+        (Just _, Nothing) -> Left (MethodMissing :| [])
+        (Nothing, Nothing) -> Left (ComponentMissing :| [MethodMissing])
 
 data RemoteCall = RemoteCall
   { domain :: Domain,
@@ -99,15 +183,30 @@ interpretRemote _ = interpretH $ \case
 -- to brig so brig can do some authorization as required.
 data Brig m a where
   -- | Returns status and body, 'HTTP.Response' is not nice to work with in tests
-  BrigCall :: Method -> Text -> ByteString -> Brig m (HTTP.Status, ByteString)
+  BrigCall :: HTTP.StdMethod -> ByteString -> [QueryParam] -> ByteString -> Brig m (HTTP.Status, Maybe LByteString)
 
 makeSem ''Brig
 
-interpretBrig :: Member (Embed IO) r => Env -> Sem (Brig ': r) a -> Sem r a
-interpretBrig _ = interpret $ \case
-  BrigCall {} -> do
-    -- embed $ putStrLn "Calling brig"
-    error "Not implemeneted"
+-- This can realistically only be tested in an integration test
+interpretBrig ::
+  forall m r a.
+  (Monad m, MonadUnliftIO m, MonadThrow m, MonadMask m, Member (Embed (AppT m)) r) =>
+  Sem (Brig ': r) a ->
+  Sem r a
+interpretBrig = interpret $ \case
+  BrigCall m p q b -> embed @(AppT m) $ do
+    brigReq <- view brig <$> ask
+    let theCall =
+          rpc' "brig" brigReq $
+            RPC.method m
+              . RPC.path p
+              . RPC.query (map (\(QueryParam k v) -> (k, Just v)) q)
+              . RPC.body (RPC.RequestBodyBS b)
+    res <- recovering x3 rpcHandlers $ const theCall
+    pure (RPC.responseStatus res, RPC.responseBody res)
+
+x3 :: RetryPolicy
+x3 = limitRetries 3 <> exponentialBackoff 100000
 
 -- * Routing logic
 
@@ -130,26 +229,45 @@ mkResponseFromGRPcReply errName reply =
 
 callLocal :: (Members '[Brig, Embed IO] r) => LocalCall -> Sem r Response
 callLocal req = do
-  case component req of
-    Just Brig -> do
-      (resStatus, resBody) <- brigCall (method req) (path req) (body req)
+  case validateLocalCall req of
+    Right ValidatedLocalCall {..} -> do
+      (resStatus, resBody) <- brigCall vMethod vPath vQuery vBody
       case HTTP.statusCode resStatus of
         200 -> do
-          pure $ ResponseOk resBody
+          pure $ ResponseOk $ maybe mempty LBS.toStrict resBody
+        -- FUTUREWORK: Maybe it is not good expect 200 only, but do we need to
+        -- be RESTful here?
         code -> pure $ ResponseErr ("federator -> brig: unexpected http response code: " <> Text.pack (show code))
-    _ -> pure $ ResponseErr "invalid request, missing component"
+    (Left errs) -> pure $ ResponseErr $ "invalid request: " <> Text.pack (show errs)
 
 -- * Server wiring
 
 routeToRemote :: (MonadServer (Sem r), Member Remote r) => SingleServerT info RouteToRemote (Sem r) _
 routeToRemote = singleService (Mu.method @"call" callRemote)
 
-routeToInternal :: (MonadServer (Sem r), Members '[Brig, Embed IO] r) => SingleServerT info RouteToInternal (Sem r) _
+routeToInternal :: (Members '[Brig, Embed IO, Polysemy.Error ServerError] r) => SingleServerT info RouteToInternal (Sem r) _
 routeToInternal = singleService (Mu.method @"call" callLocal)
 
--- Or should this be AppIO?
-serveRouteToRemote :: Env -> IO ()
+serveRouteToRemote :: Int -> AppIO ()
 serveRouteToRemote = undefined
 
-serveRouteToInternal :: Env -> IO ()
-serveRouteToInternal = undefined
+-- TODO: Check if adding polysemy-plugin removes the need for type applications here
+serveRouteToInternal :: Env -> Int -> IO ()
+serveRouteToInternal env port = do
+  runGRpcAppTrans msgProtoBuf port transformer routeToInternal
+  where
+    transformer :: Sem '[Embed IO, Polysemy.Error ServerError, Brig, Embed AppIO] a -> ServerErrorIO a
+    transformer action =
+      runAppT env
+        . runM @AppIO
+        . interpretBrig @ServerErrorIO
+        . absorbServerError
+        . embedToMonadIO @AppIO
+        $ action
+
+absorbServerError :: forall r a. (Member (Embed AppIO) r) => Sem (Polysemy.Error ServerError ': r) a -> Sem r a
+absorbServerError action = do
+  eitherResult <- runError action
+  case eitherResult of
+    Left err -> embed @AppIO $ throwError err
+    Right res -> pure res

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c6754cf4131ea2d5febefd81361718155f4819488f281b67ba53cc76911b0dd3
+-- hash: 76c47a0c7b67b7dbd1096c1297b54e8cee126078db34e455eee6670bf4aa953f
 
 name:           federator
 version:        1.0.0
@@ -29,8 +29,10 @@ library
       Federator.GRPC.Service
       Federator.Impl
       Federator.Options
+      Federator.PolysemyOrphans
       Federator.Run
       Federator.Types
+      Federator.UnliftExcept
       Federator.Util
   other-modules:
       Paths_federator
@@ -39,7 +41,9 @@ library
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
-      QuickCheck
+      HsOpenSSL
+    , HsOpenSSL-x509-system
+    , QuickCheck
     , aeson
     , async
     , base
@@ -54,6 +58,7 @@ library
     , exceptions
     , extended
     , http-client
+    , http-client-openssl
     , http-types
     , http2-client
     , imports
@@ -69,6 +74,7 @@ library
     , polysemy
     , polysemy-wire-zoo
     , resourcet
+    , retry
     , servant
     , servant-client
     , servant-mock
@@ -79,6 +85,7 @@ library
     , text
     , tinylog
     , types-common
+    , unliftio
     , uuid
     , wai
     , wai-utilities
@@ -96,7 +103,9 @@ executable federator
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N1 -with-rtsopts=-T -rtsopts
   build-depends:
-      QuickCheck
+      HsOpenSSL
+    , HsOpenSSL-x509-system
+    , QuickCheck
     , aeson
     , async
     , base
@@ -112,6 +121,7 @@ executable federator
     , extended
     , federator
     , http-client
+    , http-client-openssl
     , http-types
     , http2-client
     , imports
@@ -127,6 +137,7 @@ executable federator
     , polysemy
     , polysemy-wire-zoo
     , resourcet
+    , retry
     , servant
     , servant-client
     , servant-mock
@@ -137,6 +148,7 @@ executable federator
     , text
     , tinylog
     , types-common
+    , unliftio
     , uuid
     , wai
     , wai-utilities
@@ -157,7 +169,9 @@ executable federator-integration
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
-      QuickCheck
+      HsOpenSSL
+    , HsOpenSSL-x509-system
+    , QuickCheck
     , aeson
     , async
     , base
@@ -175,6 +189,7 @@ executable federator-integration
     , federator
     , hspec
     , http-client
+    , http-client-openssl
     , http-types
     , http2-client
     , imports
@@ -205,6 +220,7 @@ executable federator-integration
     , text
     , tinylog
     , types-common
+    , unliftio
     , uuid
     , wai
     , wai-utilities
@@ -226,7 +242,9 @@ test-suite federator-tests
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
   build-depends:
-      QuickCheck
+      HsOpenSSL
+    , HsOpenSSL-x509-system
+    , QuickCheck
     , aeson
     , async
     , base
@@ -242,6 +260,7 @@ test-suite federator-tests
     , extended
     , federator
     , http-client
+    , http-client-openssl
     , http-types
     , http2-client
     , imports
@@ -258,6 +277,7 @@ test-suite federator-tests
     , polysemy-mocks
     , polysemy-wire-zoo
     , resourcet
+    , retry
     , servant
     , servant-client
     , servant-mock
@@ -270,6 +290,7 @@ test-suite federator-tests
     , text
     , tinylog
     , types-common
+    , unliftio
     , uuid
     , wai
     , wai-utilities

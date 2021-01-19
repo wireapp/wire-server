@@ -38,7 +38,7 @@ remoteCallSuccess =
   testCase "should successfully return success response" $
     runM . evalMock @Remote @IO $ do
       mockDiscoverAndCallReturns @IO (const $ pure (GRpcOk (ResponseOk "success!")))
-      let remoteCall = RemoteCall (Domain "example.com") (LocalCall (Just Brig) "GET" "/users?handle=foo" mempty)
+      let remoteCall = RemoteCall (Domain "example.com") (LocalCall (Just Brig) (Just $ HTTPMethod HTTP.GET) "/users" [QueryParam "handle" "foo"] mempty)
       res <- mock @Remote @IO $ callRemote remoteCall
       actualCalls <- mockDiscoverAndCallCalls @IO
       embed $ assertEqual "one remote call should be made" [remoteCall] actualCalls
@@ -51,7 +51,7 @@ remoteCallFailureTMC =
   testCase "should respond with error when facing GRpcTooMuchConcurrency" $
     runM . evalMock @Remote @IO $ do
       mockDiscoverAndCallReturns @IO (const $ pure (GRpcTooMuchConcurrency (TooMuchConcurrency 2)))
-      let remoteCall = RemoteCall (Domain "example.com") (LocalCall (Just Brig) "GET" "/users?handle=foo" mempty)
+      let remoteCall = RemoteCall (Domain "example.com") (LocalCall (Just Brig) (Just $ HTTPMethod HTTP.GET) "/users" [QueryParam "handle" "foo"] mempty)
       res <- mock @Remote @IO $ callRemote remoteCall
       actualCalls <- mockDiscoverAndCallCalls @IO
       embed $ assertEqual "one remote call should be made" [remoteCall] actualCalls
@@ -62,7 +62,7 @@ remoteCallFailureErrCode =
   testCase "should respond with error when facing GRpcErrorCode" $
     runM . evalMock @Remote @IO $ do
       mockDiscoverAndCallReturns @IO (const $ pure (GRpcErrorCode 77)) -- TODO: Maybe use some legit HTTP2 error code?
-      let remoteCall = RemoteCall (Domain "example.com") (LocalCall (Just Brig) "GET" "/users?handle=foo" mempty)
+      let remoteCall = RemoteCall (Domain "example.com") (LocalCall (Just Brig) (Just $ HTTPMethod HTTP.GET) "/users" [QueryParam "handle" "foo"] mempty)
       res <- mock @Remote @IO $ callRemote remoteCall
       actualCalls <- mockDiscoverAndCallCalls @IO
       embed $ assertEqual "one remote call should be made" [remoteCall] actualCalls
@@ -73,21 +73,22 @@ remoteCallFailureErrStr =
   testCase "should respond with error when facing GRpcErrorString" $
     runM . evalMock @Remote @IO $ do
       mockDiscoverAndCallReturns @IO (const $ pure (GRpcErrorString "some grpc error")) -- Maybe use some legit HTTP2 error code?
-      let remoteCall = RemoteCall (Domain "example.com") (LocalCall (Just Brig) "GET" "/users?handle=foo" mempty)
+      let remoteCall = RemoteCall (Domain "example.com") (LocalCall (Just Brig) (Just $ HTTPMethod HTTP.GET) "/users" [QueryParam "handle" "foo"] mempty)
       res <- mock @Remote @IO $ callRemote remoteCall
       actualCalls <- mockDiscoverAndCallCalls @IO
       embed $ assertEqual "one remote call should be made" [remoteCall] actualCalls
       embed $ assertBool "the response should have error" (isResponseError res)
 
+-- TODO: Add more tests
 localCallBrigSuccess :: TestTree
 localCallBrigSuccess =
   testCase "should sucessfully return on HTTP 200" $
     runM . evalMock @Brig @IO $ do
-      mockBrigCallReturns @IO (\_ _ _ -> pure (HTTP.status200, "response body"))
-      let localCall = LocalCall (Just Brig) "GET" "/users?handle=foo" mempty
+      mockBrigCallReturns @IO (\_ _ _ _ -> pure (HTTP.status200, Just "response body"))
+      let localCall = LocalCall (Just Brig) (Just $ HTTPMethod HTTP.GET) "/users" [QueryParam "handle" "foo"] mempty
       res <- mock @Brig @IO $ callLocal localCall
       actualCalls <- mockBrigCallCalls @IO
-      embed $ assertEqual "one call to brig should be made" [("GET", "/users?handle=foo", mempty)] actualCalls
+      embed $ assertEqual "one call to brig should be made" [(HTTP.GET, "/users", [QueryParam "handle" "foo"], mempty)] actualCalls
       embed $ assertEqual "response should be success with correct body" (ResponseOk "response body") res
 
 isResponseError :: Response -> Bool
