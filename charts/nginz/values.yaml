@@ -190,12 +190,22 @@ nginx_conf:
       - staging
       disable_zauth: true
       basic_auth: true
+    - path: ~* ^/i/users/([^/]*)/rich-info
+      envs:
+      - staging
+      disable_zauth: true
+      basic_auth: true
     - path: ~* ^/i/teams/([^/]*)/suspend
       envs:
       - staging
       disable_zauth: true
       basic_auth: true
     - path: ~* ^/i/teams/([^/]*)/unsuspend
+      envs:
+      - staging
+      disable_zauth: true
+      basic_auth: true
+    - path: /i/provider/activation-code
       envs:
       - staging
       disable_zauth: true
@@ -314,6 +324,11 @@ nginx_conf:
     - path: ~* ^/teams/([^/]*)/features/([^/])*
       envs:
       - all
+    - path: ~* /i/teams/([^/]*)/features/([^/]*)
+      envs:
+      - staging
+      disable_zauth: true
+      basic_auth: true
     gundeck:
     - path: /push
       envs:
