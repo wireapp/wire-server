@@ -259,6 +259,10 @@ kube-integration-setup: charts-integration
 kube-integration-teardown:
 	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-teardown.sh
 
+.PHONY: kube-integration-setup-federation
+kube-integration-setup-federation: charts-integration
+	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-setup-federation.sh
+
 .PHONY: latest-brig-tag
 latest-brig-tag:
 	./hack/bin/find-latest-docker-tag.sh
