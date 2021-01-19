@@ -26,6 +26,10 @@ data:
       host: spar
       port: 8080
 
+    federator:
+      host: federator
+      port: 8080
+
     nginz:
       # Full URL is set so that there can be a common cookiedomain between nginz and brig
       # needed by some integration tests
