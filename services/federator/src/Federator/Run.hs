@@ -51,6 +51,7 @@ import Data.String.Conversions (cs)
 import Data.Text.Encoding (encodeUtf8)
 import Federator.App
 import qualified Federator.Brig as Brig
+import Federator.Federate (serveRouteToInternal)
 import Federator.GRPC.Proto
 import Federator.GRPC.Service
 import qualified Federator.Impl as Impl
@@ -69,6 +70,7 @@ import qualified OpenSSL.Session as SSL
 import qualified OpenSSL.X509.SystemStore as SSL
 import qualified System.Logger.Class as Log
 import qualified System.Logger.Extended as LogExt
+import UnliftIO (race_)
 import Util.Options
 import Wire.API.User.Handle
 import qualified Wire.Network.DNS.Helper as DNS
@@ -84,7 +86,10 @@ run opts = do
   -- TODO: Combine the restful things and the grpc things
   -- Warp.runSettings settings app
   -- let grpcApplication = gRpcAppTrans msgProtoBuf (transformer env) grpcServer
-  runGRpcAppTrans msgProtoBuf port (transformer env) grpcServer
+  let internalServer1 = runGRpcAppTrans msgProtoBuf port (transformer env) grpcServer
+      -- TODO:Remove the line above and un-hardcode the port
+      internalServer2 = serveRouteToInternal env 9999
+  race_ internalServer1 internalServer2
   where
     endpoint = federator opts
     port = fromIntegral $ endpoint ^. epPort
