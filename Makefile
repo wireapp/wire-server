@@ -243,14 +243,14 @@ hie.yaml:
 #   - kubectl
 #   - a valid kubectl context configured (i.e. access to a kubernetes cluster)
 .PHONY: kube-integration
-kube-integration: charts-integration
+kube-integration: guard-tag charts-integration
 	# by default "test-<your computer username> is used as namespace
 	# you can override the default by setting the NAMESPACE environment variable
 	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-setup.sh
 	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-test.sh
 
 .PHONY: kube-integration-setup
-kube-integration-setup: charts-integration
+kube-integration-setup: guard-tag charts-integration
 	# by default "test-<your computer username> is used as namespace
 	# you can override the default by setting the NAMESPACE environment variable
 	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-setup.sh
@@ -260,7 +260,7 @@ kube-integration-teardown:
 	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-teardown.sh
 
 .PHONY: kube-integration-setup-federation
-kube-integration-setup-federation: charts-integration
+kube-integration-setup-federation: guard-tag charts-integration
 	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-setup-federation.sh
 
 .PHONY: latest-brig-tag
@@ -279,6 +279,12 @@ release-chart-%:
 	fi
 	make chart-$(*)
 
+.PHONY: guard-tag
+guard-tag:
+	@if [ "${DOCKER_TAG}" = "${USER}" ]; then \
+	      echo "Environment variable DOCKER_TAG not set to non-default value. Re-run with DOCKER_TAG=<something>. Try using 'make latest-brig-tag' for latest develop docker image tag";\
+	    exit 1; \
+	fi
 
 # Rationale for copying charts to a gitignored folder before modifying helm versions and docker image tags:
 #
