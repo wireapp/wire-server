@@ -21,10 +21,12 @@
 module Federator.Types where
 
 import Bilge (RequestId)
+import qualified Bilge as RPC
 import Control.Lens (makeLenses)
 import Data.Metrics (Metrics)
 import Federator.Options (RunSettings)
 import Network.DNS.Resolver (Resolver)
+import qualified Network.HTTP.Client as HTTP
 import qualified System.Logger.Class as LC
 
 data Env = Env
@@ -32,7 +34,9 @@ data Env = Env
     _applog :: LC.Logger,
     _requestId :: RequestId,
     _dnsResolver :: Resolver,
-    _runSettings :: RunSettings
+    _runSettings :: RunSettings,
+    _brig :: RPC.Request,
+    _httpManager :: HTTP.Manager
   }
 
 makeLenses ''Env

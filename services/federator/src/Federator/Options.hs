@@ -72,6 +72,8 @@ instance FromJSON RunSettings
 data Opts = Opts
   { -- | Host and port
     federator :: Endpoint,
+    -- | Host and port of brig
+    brig :: Endpoint,
     -- | Log level (Debug, Info, etc)
     logLevel :: Level,
     -- | Use netstrings encoding (see <http://cr.yp.to/proto/netstrings.txt>)

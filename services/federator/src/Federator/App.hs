@@ -26,13 +26,13 @@ module Federator.App
   )
 where
 
-import Bilge (RequestId (unRequestId))
+import Bilge (MonadHttp (..), RequestId (unRequestId), withResponse)
 import Bilge.RPC (HasRequestId (..))
 import Control.Lens (view)
 import Control.Monad.Catch
 import Control.Monad.Except
 -- import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
-import Federator.Types (Env, applog, requestId)
+import Federator.Types (Env, applog, httpManager, requestId)
 import Imports
 import Mu.Server (ServerError, ServerErrorIO)
 import Servant.API.Generic ()
@@ -56,6 +56,7 @@ newtype AppT m a = AppT
       MonadReader Env
     )
 
+-- TODO: Rename this to something better like AppServerErrorIO
 type AppIO = AppT ServerErrorIO
 
 instance MonadIO m => LC.MonadLogger (AppT m) where
@@ -85,7 +86,12 @@ instance MonadError ServerError (AppT ServerErrorIO) where
 instance MonadTrans AppT where
   lift = AppT . lift
 
-runAppT :: Env -> AppT m a -> m a
+instance (Monad m, MonadIO m) => MonadHttp (AppT m) where
+  handleRequestWithCont req handler = do
+    manager <- view httpManager <$> ask
+    liftIO $ withResponse req manager handler
+
+runAppT :: forall m a. Env -> AppT m a -> m a
 runAppT e (AppT ma) = runReaderT ma e
 
 -- runAppResourceT :: ResourceT AppIO a -> AppIO a
