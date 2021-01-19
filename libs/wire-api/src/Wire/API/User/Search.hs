@@ -33,8 +33,10 @@ where
 import Data.Aeson
 import Data.Id (TeamId, UserId)
 import qualified Data.Swagger.Build.Api as Doc
+import Data.Time (UTCTime)
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.API.User (ManagedBy)
 import Wire.API.User.Identity (Email (..))
 
 --------------------------------------------------------------------------------
@@ -139,7 +141,10 @@ data TeamContact = TeamContact
     teamContactColorId :: Maybe Int,
     teamContactHandle :: Maybe Text,
     teamContactTeam :: Maybe TeamId,
-    teamContactEmail :: Maybe Email
+    teamContactEmail :: Maybe Email,
+    teamContactCreatedAt :: Maybe UTCTime,
+    teamContactManagedBy :: Maybe ManagedBy,
+    teamContactSAMLIdp :: Maybe Text
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TeamContact)
@@ -171,7 +176,10 @@ instance ToJSON TeamContact where
         "accent_id" .= teamContactColorId c,
         "handle" .= teamContactHandle c,
         "team" .= teamContactTeam c,
-        "email" .= teamContactEmail c
+        "email" .= teamContactEmail c,
+        "created_at" .= teamContactCreatedAt c,
+        "managed_by" .= teamContactManagedBy c,
+        "saml_idp" .= teamContactSAMLIdp c
       ]
 
 instance FromJSON TeamContact where
@@ -184,3 +192,6 @@ instance FromJSON TeamContact where
         <*> o .:? "handle"
         <*> o .:? "team"
         <*> o .:? "email"
+        <*> o .:? "created_at"
+        <*> o .:? "managed_by"
+        <*> o .:? "saml_idp"

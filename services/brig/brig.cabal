@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.3.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 740e115a6c50c70090b9f6e0474a08de92e5aebc607704d6b75e2bb4710d3e46
+-- hash: b2f14d849161d240832265f4f461e59723f534e41207bfe5850f8916419d5450
 
 name:           brig
 version:        1.35.0
@@ -192,6 +192,7 @@ library
     , ropes >=0.4.20
     , safe >=0.3
     , safe-exceptions >=0.1
+    , saml2-web-sso
     , scientific >=0.3.4
     , scrypt >=0.5
     , semigroups >=0.15

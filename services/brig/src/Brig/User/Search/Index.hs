@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -52,7 +53,9 @@ import Brig.Data.Instances ()
 import Brig.Types.Intra
 import Brig.Types.User
 import Brig.User.Search.Index.Types as Types
+import Cassandra (Cql (fromCql))
 import qualified Cassandra as C
+import qualified Cassandra.CQL (Value (CqlTimestamp))
 import Control.Lens hiding ((#), (.=))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow, throwM)
 import Control.Monad.Except
@@ -65,13 +68,17 @@ import Data.Handle (Handle)
 import Data.Id
 import qualified Data.Map as Map
 import Data.Metrics
+import Data.String.Conversions (cs)
 import Data.Text.Lazy.Builder.Int (decimal)
 import Data.Text.Lens hiding (text)
+import Data.Time (UTCTime)
 import qualified Data.UUID as UUID
 import qualified Database.Bloodhound as ES
 import Imports hiding (log, searchable)
 import Network.HTTP.Client hiding (path)
 import Network.HTTP.Types (hContentType, statusCode)
+import qualified SAML2.WebSSO.Types as SAML
+import qualified SAML2.WebSSO.XML as SAML
 import qualified System.Logger as Log
 import System.Logger.Class
   ( Logger,
@@ -83,6 +90,7 @@ import System.Logger.Class
     (+++),
     (~~),
   )
+import URI.ByteString (serializeURIRef)
 
 --------------------------------------------------------------------------------
 -- IndexIO Monad
@@ -134,7 +142,7 @@ instance ES.MonadBH IndexIO where
 
 reindex :: (MonadLogger m, MonadIndexIO m, C.MonadClient m) => UserId -> m ()
 reindex u = do
-  ixu <- C.liftClient (lookupForIndex u)
+  ixu <- lookupIndexUser u
   updateIndex (maybe (IndexDeleteUser u) (IndexUpdateUser IndexUpdateIfNewerVersion) ixu)
 
 updateIndex :: MonadIndexIO m => IndexUpdate -> m ()
@@ -369,6 +377,9 @@ traceES descr act = liftIndexIO $ do
 -- handle: Used for searching by handle
 -- normalized.prefix: Used for searching by name prefix
 -- handle.prefix: Used for searching by handle prefix
+-- saml_idp: URL of SAML issuer, not indexed, used for sorting
+-- managed_by: possible values "scim" or "wire", indexed as keyword
+-- created_at: date when "activated" state last chagned in epoch-millis, not indexed, used for sorting
 --
 -- The prefix fields use "prefix_index" analyzer for indexing and "prefix_search"
 -- analyzer for searching. The "prefix_search" analyzer uses "edge_ngram" filter, this
@@ -463,6 +474,30 @@ indexMapping =
                   mpIndex = True,
                   mpAnalyzer = Nothing,
                   mpFields = mempty
+                },
+            "saml_idp"
+              .= MappingProperty
+                { mpType = MPKeyword,
+                  mpStore = False,
+                  mpIndex = False,
+                  mpAnalyzer = Nothing,
+                  mpFields = mempty
+                },
+            "managed_by"
+              .= MappingProperty
+                { mpType = MPKeyword,
+                  mpStore = False,
+                  mpIndex = True,
+                  mpAnalyzer = Nothing,
+                  mpFields = mempty
+                },
+            "created_at"
+              .= MappingProperty
+                { mpType = MPDate,
+                  mpStore = False,
+                  mpIndex = False,
+                  mpAnalyzer = Nothing,
+                  mpFields = mempty
                 }
           ]
     ]
@@ -481,7 +516,8 @@ data MappingField = MappingField
     mfSearchAnalyzer :: Text
   }
 
-data MappingPropertyType = MPText | MPKeyword | MPByte
+data MappingPropertyType = MPText | MPKeyword | MPByte | MPDate
+  deriving (Eq)
 
 instance ToJSON MappingProperty where
   toJSON mp =
@@ -492,12 +528,14 @@ instance ToJSON MappingProperty where
         ]
           <> ["analyzer" .= mpAnalyzer mp | isJust $ mpAnalyzer mp]
           <> ["fields" .= mpFields mp | not . Map.null $ mpFields mp]
+          <> ["format" .= Aeson.String "epoch_millis" | mpType mp == MPDate]
       )
 
 instance ToJSON MappingPropertyType where
   toJSON MPText = Aeson.String "text"
   toJSON MPKeyword = Aeson.String "keyword"
   toJSON MPByte = Aeson.String "byte"
+  toJSON MPDate = Aeson.String "date"
 
 instance ToJSON MappingField where
   toJSON mf =
@@ -515,6 +553,14 @@ _TextId = prism' (UUID.toText . toUUID) (fmap Id . UUID.fromText)
 
 mappingName :: ES.MappingName
 mappingName = ES.MappingName "user"
+
+lookupIndexUser ::
+  (MonadLogger m, MonadIndexIO m, C.MonadClient m) =>
+  UserId ->
+  m (Maybe IndexUser)
+lookupIndexUser u =
+  -- TODO: fetch from galley team member for "role"
+  C.liftClient (lookupForIndex u)
 
 lookupForIndex :: (MonadThrow m, C.MonadClient m) => UserId -> m (Maybe IndexUser)
 lookupForIndex u = do
@@ -539,7 +585,11 @@ lookupForIndex u = do
       \activated, \
       \writetime(activated), \
       \service, \
-      \writetime(service) \
+      \writetime(service), \
+      \managed_by, \
+      \writetime(managed_by), \
+      \sso_id, \
+      \writetime(sso_id) \
       \FROM user \
       \WHERE id = ?"
 
@@ -571,12 +621,19 @@ scanForIndex num = do
       \activated, \
       \writetime(activated), \
       \service, \
-      \writetime(service) \
+      \writetime(service), \
+      \managed_by, \
+      \writetime(managed_by), \
+      \sso_id, \
+      \writetime(sso_id) \
       \FROM user"
 
 type Activated = Bool
 
 type Writetime a = Int64
+
+writeTimeToUTC :: Writetime a -> Maybe UTCTime
+writeTimeToUTC n = either (const Nothing) Just (fromCql (Cassandra.CQL.CqlTimestamp n))
 
 type ReindexRow =
   ( UserId,
@@ -594,43 +651,79 @@ type ReindexRow =
     Activated,
     Writetime Activated,
     Maybe ServiceId,
-    Maybe (Writetime ServiceId)
+    Maybe (Writetime ServiceId),
+    Maybe ManagedBy,
+    Maybe (Writetime ManagedBy),
+    Maybe UserSSOId,
+    Maybe (Writetime UserSSOId)
   )
 
 reindexRowToIndexUser :: forall m. MonadThrow m => ReindexRow -> m IndexUser
-reindexRowToIndexUser (u, mteam, name, t0, status, t1, handle, t2, email, t3, colour, t4, activated, t5, service, t6) =
-  do
-    iu <- mkIndexUser u <$> version [Just t0, t1, t2, t3, Just t4, Just t5, t6]
-    pure $
-      if shouldIndex
-        then
-          iu
-            & set iuTeam mteam
-              . set iuName (Just name)
-              . set iuHandle handle
-              . set iuEmail email
-              -- TODO: adding email here may not be the right appraoch; how do we control that
-              -- only team members must be able to affect search results based on email
-              -- addresses?
-              . set iuColourId (Just colour)
-              . set iuAccountStatus status
-        else
-          iu
-            -- We insert a tombstone-style user here, as it's easier than deleting the old one.
-            -- It's mostly empty, but having the status here might be useful in the future.
-            & set iuAccountStatus status
-  where
-    version :: [Maybe (Writetime Name)] -> m IndexVersion
-    version = mkIndexVersion . getMax . mconcat . fmap Max . catMaybes
-    shouldIndex =
-      and
-        [ case status of
-            Nothing -> True
-            Just Active -> True
-            Just Suspended -> True
-            Just Deleted -> False
-            Just Ephemeral -> False
-            Just PendingInvitation -> False,
-          activated, -- FUTUREWORK: how is this adding to the first case?
-          isNothing service
-        ]
+reindexRowToIndexUser
+  ( u,
+    mteam,
+    name,
+    tName,
+    status,
+    tStatus,
+    handle,
+    tHandle,
+    email,
+    tEmail,
+    colour,
+    tColour,
+    activated,
+    tActivated,
+    service,
+    tService,
+    managedBy,
+    tManagedBy,
+    ssoId,
+    tSsoId
+    ) =
+    do
+      iu <- mkIndexUser u <$> version [Just tName, tStatus, tHandle, tEmail, Just tColour, Just tActivated, tService, tManagedBy, tSsoId]
+      pure $
+        if shouldIndex
+          then
+            iu
+              & set iuTeam mteam
+                . set iuName (Just name)
+                . set iuHandle handle
+                . set iuEmail email
+                -- TODO: adding email here may not be the right appraoch; how do we control that
+                -- only team members must be able to affect search results based on email
+                -- addresses?
+                . set iuColourId (Just colour)
+                . set iuAccountStatus status
+                . set iuSAMLIdP (idpUrl =<< ssoId)
+                . set iuManagedBy managedBy
+                . set iuCreatedAt (writeTimeToUTC tActivated)
+          else
+            iu
+              -- We insert a tombstone-style user here, as it's easier than deleting the old one.
+              -- It's mostly empty, but having the status here might be useful in the future.
+              & set iuAccountStatus status
+    where
+      version :: [Maybe (Writetime Name)] -> m IndexVersion
+      version = mkIndexVersion . getMax . mconcat . fmap Max . catMaybes
+      shouldIndex =
+        and
+          [ case status of
+              Nothing -> True
+              Just Active -> True
+              Just Suspended -> True
+              Just Deleted -> False
+              Just Ephemeral -> False
+              Just PendingInvitation -> False,
+            activated, -- FUTUREWORK: how is this adding to the first case?
+            isNothing service
+          ]
+
+-- TODO: check if this works
+idpUrl :: UserSSOId -> Maybe Text
+idpUrl (UserSSOId tenant _subject) =
+  case SAML.decodeElem $ cs tenant of
+    Left _ -> Nothing
+    Right (SAML.Issuer uri) -> Just $ (cs . toLazyByteString . serializeURIRef) uri
+idpUrl (UserScimExternalId _) = Nothing

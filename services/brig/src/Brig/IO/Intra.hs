@@ -173,7 +173,8 @@ updateSearchIndex orig e = case e of
           or
             [ isJust eupName,
               isJust eupAccentId,
-              isJust eupHandle
+              isJust eupHandle,
+              isJust eupManagedBy
             ]
     when interesting $ Search.reindex orig
 

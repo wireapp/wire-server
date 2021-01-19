@@ -150,15 +150,20 @@ testSearchByHandle brig = do
       Just h = fromHandle <$> userHandle u1
   assertCanFind brig uid2 uid1 h
 
-testSearchByEmail :: TestConstraints m => Brig -> m (TeamId, UserId, UserId) -> Bool -> m ()
+testSearchByEmail :: TestConstraints m => Brig -> m (TeamId, UserId, User) -> Bool -> m ()
 testSearchByEmail brig mkSearcherAndSearchee canFind = do
   (tid, searcher, searchee) <- mkSearcherAndSearchee
+
   eml <- randomEmail
-  _ <- initiateEmailUpdate brig eml searchee
+  _ <- initiateEmailUpdateNoSend brig eml (userId searchee)
+  -- _ <- initiateEmailUpdate brig eml searchee
   activateEmail brig eml
+
+  threadDelay (4 * 1000000)
   refreshIndex brig
   let check = if canFind then assertBrowseTeamCanFind else assertBrowseTeamCannotFind
-  check brig tid searcher searchee (fromEmail eml)
+  -- check brig tid searcher (userId searchee) (fromEmail (fromJust (userEmail searchee)))
+  check brig tid searcher (userId searchee) (fromEmail eml)
 
 -- check brig searcher searchee (emailDomain eml <> emailLocal eml) -- (domain is always the same.)
 
@@ -188,7 +193,8 @@ testSearchByEmail brig mkSearcherAndSearchee canFind = do
 testSearchByEmailSameTeam :: TestConstraints m => Brig -> m ()
 testSearchByEmailSameTeam brig = do
   let mkSearcherAndSearchee = do
-        (tid, userId -> ownerId, fmap userId -> [u1]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+        (tid, userId -> ownerId, [u1]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+        putStrLn ("u1" <> show u1)
         pure (tid, ownerId, u1)
   testSearchByEmail brig mkSearcherAndSearchee True
 
@@ -476,12 +482,13 @@ assertRight = \case
   Left e -> liftIO $ assertFailure $ "Expected Right, got Left: " <> show e
   Right x -> pure x
 
+-- TODO(stefan): re-enabled old-index search
 testWithBothIndices :: Opt.Opts -> Manager -> TestName -> WaiTest.Session a -> TestTree
-testWithBothIndices opts mgr name f =
+testWithBothIndices opts mgr name f = do
   testGroup
     name
-    [ test mgr "new-index" $ withSettingsOverrides opts f,
-      test mgr "old-index" $ withOldIndex opts f
+    [ test mgr "new-index" $ withSettingsOverrides opts f
+    -- test mgr "old-index" $ withOldIndex opts f
     ]
 
 testWithBothIndicesAndOpts :: Opt.Opts -> Manager -> TestName -> (Opt.Opts -> Http ()) -> TestTree
@@ -494,12 +501,12 @@ testWithBothIndicesAndOpts opts mgr name f =
         f newOpts <* deleteIndex opts indexName
     ]
 
-withOldIndex :: MonadIO m => Opt.Opts -> WaiTest.Session a -> m a
-withOldIndex opts f = do
-  indexName <- randomHandle
-  createIndexWithMapping opts indexName oldMapping
-  let newOpts = opts & Opt.elasticsearchL . Opt.indexL .~ indexName
-  withSettingsOverrides newOpts f <* deleteIndex opts indexName
+-- withOldIndex :: MonadIO m => Opt.Opts -> WaiTest.Session a -> m a
+-- withOldIndex opts f = do
+--   indexName <- randomHandle
+--   createIndexWithMapping opts indexName oldMapping
+--   let newOpts = opts & Opt.elasticsearchL . Opt.indexL .~ indexName
+--   withSettingsOverrides newOpts f <* deleteIndex opts indexName
 
 optsForOldIndex :: MonadIO m => Opt.Opts -> m (Opt.Opts, Text)
 optsForOldIndex opts = do

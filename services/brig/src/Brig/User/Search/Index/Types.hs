@@ -26,7 +26,9 @@ import Control.Monad.Catch
 import Data.Aeson
 import Data.Handle (Handle)
 import Data.Id
+import Data.Json.Util (UTCTimeMillis (..), toUTCTimeMillis)
 import Data.Text.ICU.Translit (trans, transliterate)
+import Data.Time (UTCTime)
 import Database.Bloodhound hiding (key)
 import Database.Bloodhound.Internal.Client (DocVersion (DocVersion))
 import Imports
@@ -40,7 +42,7 @@ data IndexUpdate
   | IndexUpdateUsers IndexDocUpdateType [IndexUser]
   | IndexDeleteUser UserId
 
--- | Represents the ES *index*, ie. the attributes of a user searchable in ES.  See also:
+-- | Represents the ES *index*, ie. the attributes of a user that is searchable in ES.  See also:
 -- 'UserDoc'.
 data IndexUser = IndexUser
   { _iuUserId :: UserId,
@@ -50,7 +52,10 @@ data IndexUser = IndexUser
     _iuHandle :: Maybe Handle,
     _iuEmail :: Maybe Email,
     _iuColourId :: Maybe ColourId,
-    _iuAccountStatus :: Maybe AccountStatus
+    _iuAccountStatus :: Maybe AccountStatus,
+    _iuSAMLIdP :: Maybe Text,
+    _iuManagedBy :: Maybe ManagedBy,
+    _iuCreatedAt :: Maybe UTCTime
   }
 
 data IndexQuery r = IndexQuery Query Filter
@@ -79,7 +84,10 @@ data UserDoc = UserDoc
     udHandle :: Maybe Handle,
     udEmail :: Maybe Email,
     udColourId :: Maybe ColourId,
-    udAccountStatus :: Maybe AccountStatus
+    udAccountStatus :: Maybe AccountStatus,
+    udSAMLIdP :: Maybe Text,
+    udManagedBy :: Maybe ManagedBy,
+    udCreatedAt :: Maybe UTCTimeMillis
   }
   deriving (Eq, Show)
 
@@ -93,7 +101,9 @@ instance ToJSON UserDoc where
         "handle" .= udHandle ud,
         "email" .= udEmail ud,
         "accent_id" .= udColourId ud,
-        "account_status" .= udAccountStatus ud
+        "saml_idp" .= udSAMLIdP ud,
+        "managed_by" .= udManagedBy ud,
+        "created_at" .= udCreatedAt ud
       ]
 
 instance FromJSON UserDoc where
@@ -106,6 +116,9 @@ instance FromJSON UserDoc where
       <*> o .:? "email"
       <*> o .:? "accent_id"
       <*> o .:? "account_status"
+      <*> o .:? "saml_idp"
+      <*> o .:? "managed_by"
+      <*> o .:? "created_at"
 
 makeLenses ''IndexUser
 
@@ -125,7 +138,10 @@ mkIndexUser u v =
       _iuHandle = Nothing,
       _iuEmail = Nothing,
       _iuColourId = Nothing,
-      _iuAccountStatus = Nothing
+      _iuAccountStatus = Nothing,
+      _iuSAMLIdP = Nothing,
+      _iuManagedBy = Nothing,
+      _iuCreatedAt = Nothing
     }
 
 indexToDoc :: IndexUser -> UserDoc
@@ -138,7 +154,10 @@ indexToDoc iu =
       udNormalized = normalized . fromName <$> _iuName iu,
       udHandle = _iuHandle iu,
       udEmail = _iuEmail iu,
-      udColourId = _iuColourId iu
+      udColourId = _iuColourId iu,
+      udSAMLIdP = _iuSAMLIdP iu,
+      udManagedBy = _iuManagedBy iu,
+      udCreatedAt = toUTCTimeMillis <$> _iuCreatedAt iu
     }
 
 -- | FUTUREWORK: Transliteration should be left to ElasticSearch (ICU plugin), but this will
@@ -158,5 +177,8 @@ docToIndex ud =
       _iuHandle = udHandle ud,
       _iuEmail = udEmail ud,
       _iuColourId = udColourId ud,
-      _iuAccountStatus = udAccountStatus ud
+      _iuAccountStatus = udAccountStatus ud,
+      _iuSAMLIdP = udSAMLIdP ud,
+      _iuManagedBy = udManagedBy ud,
+      _iuCreatedAt = fromUTCTimeMillis <$> udCreatedAt ud
     }
