@@ -263,6 +263,10 @@ kube-integration-teardown:
 kube-integration-setup-federation: guard-tag charts-integration
 	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-setup-federation.sh
 
+.PHONY: kube-integration-federation
+kube-integration-federation:
+	cd services/brig && ./federation-tests.sh $(NAMESPACE)
+
 .PHONY: latest-brig-tag
 latest-brig-tag:
 	./hack/bin/find-latest-docker-tag.sh

@@ -28,6 +28,8 @@ function printLogs() {
     kubectl -n ${NAMESPACE} get pods | grep Pending | awk '{print $1}' | xargs -n 1 -I{} bash -c "printf '\n\n----DESCRIBE 'pending' {}:\n'; kubectl -n ${NAMESPACE} describe pod {}" || true
 }
 
+FEDERATION_DOMAIN="$NAMESPACE.svc.cluster.local"
+
 for chart in "${charts[@]}"; do
     kubectl -n ${NAMESPACE} get pods
     valuesfile="${DIR}/../helm_vars/${chart}/values.yaml"
@@ -41,6 +43,8 @@ for chart in "${charts[@]}"; do
     set -x
     helm upgrade --atomic --install --namespace "${NAMESPACE}" "${NAMESPACE}-${chart}" "${CHARTS_DIR}/${chart}" \
         $option \
+        --set brig.config.optSettings.setFederationDomain="$FEDERATION_DOMAIN" \
+        --set galley.config.settings.federationDomain="$FEDERATION_DOMAIN" \
         --wait \
         --timeout "$TIMEOUT" || printLogs
     set +x
