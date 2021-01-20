@@ -25,9 +25,13 @@ Prerequisites
 
 The SFT needs to be reachable by clients on its public IP and should be able to reach the TURN servers as well for it to function.
 
-Only one SFT instance can run per node so if you want to scale up your SFT instance you will need to increase the amount of kubernetes nodes in your cluster.
+The SFT needs to be able to receive and send traffic over UDP and TCP on a wide range of ports.
+Due to the fact that Kubernetes services do not support setting port ranges, and kubernetes pods not being publicly routable (at least in IPv4) we require the SFT pods to run in `hostNetwork` mode and the pod will bind directly to the default interface of the node.
 
-As a rule of thumb you will need 1vCPU of compute per 50 participants.
+
+Due to this `hostNetwork` limitation only one SFT instance can run per node so if you want to scale up your SFT deployment you will need to increase the amount of kubernetes nodes in your cluster.
+
+As a rule of thumb you will need 1vCPU of compute per 50 participants. SFT will utilise multiple cores. You can use this rule of thumb to decide how many kubernetes nodes you need to provision.
 
 For more information about capacity planning and networking please refer to the `technical documentation <https://github.com/wireapp/wire-server/blob/eab0ce1ff335889bc5a187c51872dfd0e78cc22b/charts/sftd/README.md>`_
 
