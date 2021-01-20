@@ -720,10 +720,9 @@ reindexRowToIndexUser
             isNothing service
           ]
 
--- TODO: check if this works
-idpUrl :: UserSSOId -> Maybe Text
-idpUrl (UserSSOId tenant _subject) =
-  case SAML.decodeElem $ cs tenant of
-    Left _ -> Nothing
-    Right (SAML.Issuer uri) -> Just $ (cs . toLazyByteString . serializeURIRef) uri
-idpUrl (UserScimExternalId _) = Nothing
+      idpUrl :: UserSSOId -> Maybe Text
+      idpUrl (UserSSOId tenant _subject) =
+        case SAML.decodeElem $ cs tenant of
+          Left _ -> Nothing
+          Right (SAML.Issuer uri) -> Just $ (cs . toLazyByteString . serializeURIRef) uri
+      idpUrl (UserScimExternalId _) = Nothing

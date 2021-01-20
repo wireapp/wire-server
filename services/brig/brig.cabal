@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.3.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ebac458fe9839c8acc023257bbb7a18037a72b51d7dcf5213bf7d730068c5f40
+-- hash: bcee25a8eb68b839cbd93466eacf451491907b2012f05ed5f8edd538455c9a11
 
 name:           brig
 version:        1.35.0
@@ -477,6 +477,7 @@ test-suite brig-tests
     , retry
     , tasty
     , tasty-hunit
+    , time
     , tinylog
     , types-common
     , unliftio
