@@ -103,6 +103,7 @@ instance ToJSON UserDoc where
         "handle" .= udHandle ud,
         "email" .= udEmail ud,
         "accent_id" .= udColourId ud,
+        "account_status" .= udAccountStatus ud,
         "saml_idp" .= udSAMLIdP ud,
         "managed_by" .= udManagedBy ud,
         "created_at" .= udCreatedAt ud

@@ -147,6 +147,7 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - aeson
+    - brig
     - base
     - bloodhound
     - brig
@@ -159,6 +160,7 @@ tests:
     - retry
     - tasty
     - tasty-hunit
+    - time
     - tinylog
     - types-common
     - unliftio
