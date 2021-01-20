@@ -49,10 +49,7 @@ data Component
   = Unspecified
   | Brig
   deriving (Show, Eq, Generic, ToSchema Router "Component", FromSchema Router "Component")
-
--- Never generates Unspecified as that will never be the case in reality
-instance Arbitrary Component where
-  arbitrary = pure Brig
+  deriving (Arbitrary) via (GenericUniform Component)
 
 -- | FUTUREWORK: Make this a better ADT for the errors
 data Response
@@ -173,6 +170,7 @@ validateLocalCall LocalCall {..} =
       vQuery = query
       vBody = body
    in case (component, method) of
+        (Just Unspecified, _) -> Left (ComponentMissing :| [])
         (Just vComponent, Just (HTTPMethod vMethod)) -> Right (ValidatedLocalCall {..})
         (Nothing, Just _) -> Left (ComponentMissing :| [])
         (Just _, Nothing) -> Left (MethodMissing :| [])
@@ -235,6 +233,7 @@ interpretBrig = interpret $ \case
               . RPC.path p
               . RPC.query (map (\(QueryParam k v) -> (k, Just v)) q)
               . RPC.body (RPC.RequestBodyBS b)
+    -- TODO: Don't retry everything
     res <- recovering x3 rpcHandlers $ const theCall
     pure (RPC.responseStatus res, RPC.responseBody res)
 

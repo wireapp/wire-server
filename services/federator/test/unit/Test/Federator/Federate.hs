@@ -32,7 +32,10 @@ tests =
         ],
       testGroup "with local" $
         [ localCallBrigSuccess,
-          testGroup "validateLocalCall" [testValidateLocalCallWhenValid]
+          testGroup "validateLocalCall" $
+            [ testValidateLocalCallWhenValid,
+              testValidateLocalCallWhenComponentIsMissing
+            ]
         ]
     ]
 
@@ -88,21 +91,29 @@ localCallBrigSuccess =
   testCase "should sucessfully return on HTTP 200" $
     runM . evalMock @Brig @IO $ do
       mockBrigCallReturns @IO (\_ _ _ _ -> pure (HTTP.status200, Just "response body"))
-      let localCall = LocalCall (Just Brig) (Just $ HTTPMethod HTTP.GET) "/users" [QueryParam "handle" "foo"] mempty
-      res <- mock @Brig @IO $ callLocal localCall
+      let request = LocalCall (Just Brig) (Just $ HTTPMethod HTTP.GET) "/users" [QueryParam "handle" "foo"] mempty
+      res <- mock @Brig @IO $ callLocal request
       actualCalls <- mockBrigCallCalls @IO
       embed $ assertEqual "one call to brig should be made" [(HTTP.GET, "/users", [QueryParam "handle" "foo"], mempty)] actualCalls
       embed $ assertEqual "response should be success with correct body" (ResponseOk "response body") res
 
 testValidateLocalCallWhenValid :: TestTree
 testValidateLocalCallWhenValid =
-  let validCallGen = arbitrary `suchThat` (\c -> isJust (component c) && isJust (method c))
+  let validCallGen =
+        arbitrary
+          `suchThat` ( \LocalCall {..} ->
+                         isJust component && component /= (Just Unspecified) && isJust method
+                     )
    in testProperty "valid calls" $ forAll validCallGen $ \c -> isRight (validateLocalCall c)
 
--- testValidateLocalCallWhenComponentIsMissing :: TestTree
--- testValidateLocalCallWhenComponentIsMissing =
---   let callGen = arbitrary `suchThat` (\LocalCall {..} -> component == Just Unspecified || isNothing component)
---    in testProperty "component missing" $ forAll callGen $ \c -> validateLocalCall c
+testValidateLocalCallWhenComponentIsMissing :: TestTree
+testValidateLocalCallWhenComponentIsMissing =
+  let callGen = arbitrary `suchThat` (\LocalCall {..} -> component == Just Unspecified || isNothing component)
+   in testProperty "component missing" $
+        forAll callGen $ \c ->
+          case validateLocalCall c of
+            Right _ -> False
+            Left errs -> ComponentMissing `elem` errs
 
 -- testCase "should return a ValidLocalCall when LocalCall is valid" $
 
