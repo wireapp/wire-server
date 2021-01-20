@@ -87,20 +87,3 @@ executeBrowseTeamSearch brig teamid self q = do
       <!! const 200
       === statusCode
   responseJsonError r
-
-assertBrowseTeamCanFind :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> TeamId -> UserId -> UserId -> Text -> m ()
-assertBrowseTeamCanFind brig teamid self expected q = do
-  r <- searchResults <$> executeBrowseTeamSearch brig teamid self q
-  liftIO $ do
-    assertBool ("No results for query: " <> show q) $
-      not (null r)
-    assertBool ("User not in results for query: " <> show q) $
-      expected `elem` map teamContactUserId r
-
-assertBrowseTeamCannotFind :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> TeamId -> UserId -> UserId -> Text -> m ()
-assertBrowseTeamCannotFind brig teamid self expected q = do
-  r <- searchResults <$> executeBrowseTeamSearch brig teamid self q
-  liftIO $ do
-    liftIO $ do
-      assertBool ("User shouldn't be present in results for query: " <> show q) $
-        expected `notElem` map teamContactUserId r

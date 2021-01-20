@@ -20,6 +20,7 @@ module Main
   )
 where
 
+import qualified API.BrowseTeam as BrowseTeam
 import qualified API.Calling as Calling
 import qualified API.Metrics as Metrics
 import qualified API.Provider as Provider
@@ -103,6 +104,7 @@ runTests iConf bConf otherArgs = do
   metricsApi <- Metrics.tests mg b
   settingsApi <- Settings.tests brigOpts mg b g
   createIndex <- Index.Create.spec brigOpts
+  browseTeam <- BrowseTeam.tests brigOpts mg g b
   userPendingActivation <- UserPendingActivation.tests brigOpts mg db b g s
   withArgs otherArgs . defaultMain $
     testGroup
@@ -120,7 +122,8 @@ runTests iConf bConf otherArgs = do
         metricsApi,
         settingsApi,
         createIndex,
-        userPendingActivation
+        userPendingActivation,
+        browseTeam
       ]
   where
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
