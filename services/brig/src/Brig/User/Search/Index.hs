@@ -53,9 +53,7 @@ import Brig.Data.Instances ()
 import Brig.Types.Intra
 import Brig.Types.User
 import Brig.User.Search.Index.Types as Types
-import Cassandra (Cql (fromCql))
 import qualified Cassandra as C
-import qualified Cassandra.CQL (Value (CqlTimestamp))
 import Control.Lens hiding ((#), (.=))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow, throwM)
 import Control.Monad.Except
@@ -64,6 +62,7 @@ import Data.Aeson.Encoding
 import Data.Aeson.Lens
 import Data.ByteString.Builder (Builder, toLazyByteString)
 import qualified Data.ByteString.Conversion as Bytes
+import Data.Fixed (Fixed (MkFixed))
 import Data.Handle (Handle)
 import Data.Id
 import qualified Data.Map as Map
@@ -71,7 +70,8 @@ import Data.Metrics
 import Data.String.Conversions (cs)
 import Data.Text.Lazy.Builder.Int (decimal)
 import Data.Text.Lens hiding (text)
-import Data.Time (UTCTime)
+import Data.Time (UTCTime, secondsToNominalDiffTime)
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import qualified Data.UUID as UUID
 import qualified Database.Bloodhound as ES
 import Imports hiding (log, searchable)
@@ -528,7 +528,6 @@ instance ToJSON MappingProperty where
         ]
           <> ["analyzer" .= mpAnalyzer mp | isJust $ mpAnalyzer mp]
           <> ["fields" .= mpFields mp | not . Map.null $ mpFields mp]
-          <> ["format" .= Aeson.String "epoch_millis" | mpType mp == MPDate]
       )
 
 instance ToJSON MappingPropertyType where
@@ -632,8 +631,9 @@ type Activated = Bool
 
 type Writetime a = Int64
 
-writeTimeToUTC :: Writetime a -> Maybe UTCTime
-writeTimeToUTC n = either (const Nothing) Just (fromCql (Cassandra.CQL.CqlTimestamp n))
+-- Note: Writetime is in microseconds (e-6) https://docs.datastax.com/en/dse/5.1/cql/cql/cql_using/useWritetime.html
+writeTimeToUTC :: Writetime a -> UTCTime
+writeTimeToUTC = posixSecondsToUTCTime . secondsToNominalDiffTime . MkFixed . (* 1_000_000) . fromIntegral @Int64 @Integer
 
 type ReindexRow =
   ( UserId,
@@ -698,7 +698,7 @@ reindexRowToIndexUser
                 . set iuAccountStatus status
                 . set iuSAMLIdP (idpUrl =<< ssoId)
                 . set iuManagedBy managedBy
-                . set iuCreatedAt (writeTimeToUTC tActivated)
+                . set iuCreatedAt (Just (writeTimeToUTC tActivated))
           else
             iu
               -- We insert a tombstone-style user here, as it's easier than deleting the old one.
