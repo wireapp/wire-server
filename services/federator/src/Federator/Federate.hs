@@ -1,3 +1,4 @@
+{-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -17,6 +18,7 @@ import Control.Monad.Except (MonadError (throwError))
 import Control.Retry
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain (Domain)
+import Data.Either.Validation
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Proxy (Proxy (Proxy))
 import qualified Data.Text as Text
@@ -44,9 +46,8 @@ import Wire.API.Arbitrary
 
 grpc "Router" id "router.proto"
 
--- TODO: The instances seem to be wrong, at least they don't work with grpcui
 data Component
-  = Unspecified
+  = UnspecifiedComponent
   | Brig
   deriving (Show, Eq, Generic, ToSchema Router "Component", FromSchema Router "Component")
   deriving (Arbitrary) via (GenericUniform Component)
@@ -164,17 +165,23 @@ data LocalCallValidationError
   | MethodMissing
   deriving (Show, Eq)
 
-validateLocalCall :: LocalCall -> Either (NonEmpty LocalCallValidationError) ValidatedLocalCall
-validateLocalCall LocalCall {..} =
+validateLocalCall :: LocalCall -> Validation (NonEmpty LocalCallValidationError) ValidatedLocalCall
+validateLocalCall LocalCall {..} = do
   let vPath = path
       vQuery = query
       vBody = body
-   in case (component, method) of
-        (Just Unspecified, _) -> Left (ComponentMissing :| [])
-        (Just vComponent, Just (HTTPMethod vMethod)) -> Right (ValidatedLocalCall {..})
-        (Nothing, Just _) -> Left (ComponentMissing :| [])
-        (Just _, Nothing) -> Left (MethodMissing :| [])
-        (Nothing, Nothing) -> Left (ComponentMissing :| [MethodMissing])
+  vComponent <- validateComponent component
+  vMethod <- validateMethod method
+  pure $ ValidatedLocalCall {..}
+  where
+    validateComponent :: Maybe Component -> Validation (NonEmpty LocalCallValidationError) Component
+    validateComponent Nothing = Failure $ ComponentMissing :| []
+    validateComponent (Just UnspecifiedComponent) = Failure $ ComponentMissing :| []
+    validateComponent (Just c) = Success c
+
+    validateMethod :: Maybe HTTPMethod -> Validation (NonEmpty LocalCallValidationError) HTTP.StdMethod
+    validateMethod Nothing = Failure $ MethodMissing :| []
+    validateMethod (Just (HTTPMethod m)) = Success m
 
 data RemoteCall = RemoteCall
   { domain :: Domain,
@@ -262,7 +269,7 @@ mkResponseFromGRPcReply errName reply =
 callLocal :: (Members '[Brig, Embed IO] r) => LocalCall -> Sem r Response
 callLocal req = do
   case validateLocalCall req of
-    Right ValidatedLocalCall {..} -> do
+    Success ValidatedLocalCall {..} -> do
       (resStatus, resBody) <- brigCall vMethod vPath vQuery vBody
       case HTTP.statusCode resStatus of
         200 -> do
@@ -270,7 +277,7 @@ callLocal req = do
         -- FUTUREWORK: Maybe it is not good expect 200 only, but do we need to
         -- be RESTful here?
         code -> pure $ ResponseErr ("federator -> brig: unexpected http response code: " <> Text.pack (show code))
-    (Left errs) -> pure $ ResponseErr $ "invalid request: " <> Text.pack (show errs)
+    (Failure errs) -> pure $ ResponseErr $ "invalid request: " <> Text.pack (show errs)
 
 -- * Server wiring
 

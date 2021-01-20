@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f2e4b62861dea538d600af4cad0f29667cf51bd1edc8b4e3de99727a1d9f5af0
+-- hash: 2e961f8a76671aa36a77c603a0a6b2f24c87d110cf5b3a66f2e91ec3a5177a8b
 
 name:           federator
 version:        1.0.0
@@ -53,6 +53,7 @@ library
     , data-default
     , dns
     , dns-util
+    , either
     , email-validate
     , errors
     , exceptions
@@ -115,6 +116,7 @@ executable federator
     , data-default
     , dns
     , dns-util
+    , either
     , email-validate
     , errors
     , exceptions
@@ -182,6 +184,7 @@ executable federator-integration
     , data-default
     , dns
     , dns-util
+    , either
     , email-validate
     , errors
     , exceptions
@@ -254,6 +257,7 @@ test-suite federator-tests
     , data-default
     , dns
     , dns-util
+    , either
     , email-validate
     , errors
     , exceptions

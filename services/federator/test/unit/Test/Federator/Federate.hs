@@ -6,6 +6,7 @@
 module Test.Federator.Federate where
 
 import Data.Domain (Domain (Domain))
+import Data.Either.Validation
 import Federator.Federate
 import Imports
 import Mu.GRpc.Client.Record
@@ -16,7 +17,7 @@ import Test.Polysemy.Mock (Mock (mock), evalMock)
 import Test.Polysemy.Mock.TH (genMock)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, assertEqual, testCase)
-import Test.Tasty.QuickCheck
+import Test.Tasty.QuickCheck hiding (Failure, Success)
 
 genMock ''Remote
 genMock ''Brig
@@ -34,7 +35,8 @@ tests =
         [ localCallBrigSuccess,
           testGroup "validateLocalCall" $
             [ testValidateLocalCallWhenValid,
-              testValidateLocalCallWhenComponentIsMissing
+              testValidateLocalCallWhenComponentIsMissing,
+              testValidateLocalCallWhenMethodIsMissing
             ]
         ]
     ]
@@ -102,18 +104,27 @@ testValidateLocalCallWhenValid =
   let validCallGen =
         arbitrary
           `suchThat` ( \LocalCall {..} ->
-                         isJust component && component /= (Just Unspecified) && isJust method
+                         isJust component && component /= (Just UnspecifiedComponent) && isJust method
                      )
-   in testProperty "valid calls" $ forAll validCallGen $ \c -> isRight (validateLocalCall c)
+   in testProperty "valid calls" $ forAll validCallGen $ \c -> isRight' (validateLocalCall c)
 
 testValidateLocalCallWhenComponentIsMissing :: TestTree
 testValidateLocalCallWhenComponentIsMissing =
-  let callGen = arbitrary `suchThat` (\LocalCall {..} -> component == Just Unspecified || isNothing component)
+  let callGen = arbitrary `suchThat` (\LocalCall {..} -> component == Just UnspecifiedComponent || isNothing component)
    in testProperty "component missing" $
         forAll callGen $ \c ->
           case validateLocalCall c of
-            Right _ -> False
-            Left errs -> ComponentMissing `elem` errs
+            Success _ -> False
+            Failure errs -> ComponentMissing `elem` errs
+
+testValidateLocalCallWhenMethodIsMissing :: TestTree
+testValidateLocalCallWhenMethodIsMissing =
+  let callGen = arbitrary `suchThat` (\LocalCall {..} -> isNothing method)
+   in testProperty "method missing" $
+        forAll callGen $ \c ->
+          case validateLocalCall c of
+            Success _ -> False
+            Failure errs -> MethodMissing `elem` errs
 
 -- testCase "should return a ValidLocalCall when LocalCall is valid" $
 
@@ -129,3 +140,6 @@ testValidateLocalCallWhenComponentIsNothing =
 isResponseError :: Response -> Bool
 isResponseError (ResponseErr _) = True
 isResponseError (ResponseOk _) = False
+
+isRight' :: Validation a b -> Bool
+isRight' = isRight . validationToEither

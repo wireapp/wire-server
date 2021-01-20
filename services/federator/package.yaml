@@ -15,6 +15,7 @@ dependencies:
 - aeson
 - http-types
 - async
+- either
 - base
 - bilge
 - bytestring

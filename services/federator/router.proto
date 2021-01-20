@@ -5,7 +5,7 @@ enum Component {
   // There really shouldn't be an option to not specify a component, but this
   // bug forces us to have this here:
   // https://github.com/higherkindness/mu-haskell/issues/282
-  Unspecified = 0;
+  UnspecifiedComponent = 0;
   Brig = 1;
 }
 
@@ -42,7 +42,7 @@ enum Method {
   // There really shouldn't be an option to not specify a method, but this
   // bug forces us to have this here:
   // https://github.com/higherkindness/mu-haskell/issues/282
-  UNSPECIFIED = 0;
+  UnspecifiedMethod = 0;
   GET = 1;
   POST = 2;
   HEAD = 3;
