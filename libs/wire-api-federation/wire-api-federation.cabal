@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 942d9870717b6c174641f5f84d1344154f017118bd6870e939fba4eedc747d34
+-- hash: abedd83b8c53a0c5f588d10241b6c99d1da8d526255e6c21ae26d62e6d65a5d0
 
 name:           wire-api-federation
 version:        0.1.0
@@ -17,12 +17,17 @@ copyright:      (c) 2020 Wire Swiss GmbH
 license:        AGPL-3
 license-file:   LICENSE
 build-type:     Simple
+extra-source-files:
+    proto/federator.proto
 
 library
   exposed-modules:
       Wire.API.Federation.API
       Wire.API.Federation.API.Conversation
       Wire.API.Federation.Event
+      Wire.API.Federation.GRPC.Helper
+      Wire.API.Federation.GRPC.Proto
+      Wire.API.Federation.GRPC.Service
       Wire.API.Federation.Util.Aeson
   other-modules:
       Paths_wire_api_federation
@@ -39,10 +44,18 @@ library
     , containers >=0.5
     , errors >=2.0
     , exceptions >=0.6
+    , http2-client
     , imports
+    , mtl
+    , mu-grpc-client
+    , mu-protobuf
+    , mu-rpc
+    , mu-schema
     , servant >=0.16
+    , template-haskell
     , text >=0.11
     , time >=1.8
+    , tinylog
     , transformers >=0.3
     , types-common
   default-language: Haskell2010
@@ -68,11 +81,19 @@ test-suite spec
     , exceptions >=0.6
     , hspec
     , hspec-discover
+    , http2-client
     , imports
     , metrics-wai
+    , mtl
+    , mu-grpc-client
+    , mu-protobuf
+    , mu-rpc
+    , mu-schema
     , servant >=0.16
+    , template-haskell
     , text >=0.11
     , time >=1.8
+    , tinylog
     , transformers >=0.3
     , types-common
     , wire-api-federation

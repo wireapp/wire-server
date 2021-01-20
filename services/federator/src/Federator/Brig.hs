@@ -10,7 +10,6 @@ import Data.Handle
 import Data.Id hiding (client)
 import Data.Proxy
 import Federator.App (AppIO)
-import Federator.GRPC.Proto (QualifiedHandle (..))
 import Imports
 import Mu.Server (ServerError (..), ServerErrorCode (..))
 import Network.HTTP.Client (defaultManagerSettings, newManager)
@@ -19,6 +18,7 @@ import Servant.API
 import qualified Servant.API as Servant
 import Servant.Client
 import qualified System.Logger.Class as Log
+import Wire.API.Federation.GRPC.Proto (QualifiedHandle (..))
 import Wire.API.User.Handle
 
 -- FUTUREWORK: can we avoid having to copy this over from Brig.API.Public ?

@@ -52,8 +52,7 @@ import Data.Text.Encoding (encodeUtf8)
 import Federator.App
 import qualified Federator.Brig as Brig
 import Federator.Federate (serveRouteToInternal)
-import Federator.GRPC.Proto
-import Federator.GRPC.Service
+-- import Federator.GRPC.Service
 import qualified Federator.Impl as Impl
 import Federator.Options as Opt
 import Federator.Types
@@ -72,6 +71,8 @@ import qualified System.Logger.Class as Log
 import qualified System.Logger.Extended as LogExt
 import UnliftIO (race_)
 import Util.Options
+import Wire.API.Federation.GRPC.Proto
+import Wire.API.Federation.GRPC.Service
 import Wire.API.User.Handle
 import qualified Wire.Network.DNS.Helper as DNS
 import Wire.Network.DNS.SRV

@@ -24,8 +24,6 @@ module Test.Federator.APISpec where
 
 import Control.Monad.Except (MonadError (..))
 import qualified Data.Text as T
-import Federator.GRPC.Proto
-import Federator.GRPC.Service
 import Imports
 import Mu.GRpc.Client.TyApps
 import Mu.Server
@@ -33,6 +31,8 @@ import Network.HTTP2.Client
 import qualified System.Logger as L
 import qualified System.Logger.Class as LC
 import Test.Hspec
+import Wire.API.Federation.GRPC.Proto
+import Wire.API.Federation.GRPC.Service
 
 -- Copied from Spar
 -- it ::

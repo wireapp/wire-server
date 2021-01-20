@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2e961f8a76671aa36a77c603a0a6b2f24c87d110cf5b3a66f2e91ec3a5177a8b
+-- hash: bcc7aabd52a598d52464ed4cc03fcf6bf3b218fe4ee0a7786fe3e47faa49ed90
 
 name:           federator
 version:        1.0.0
@@ -15,8 +15,6 @@ maintainer:     Wire Swiss GmbH <backend@wire.com>
 copyright:      (c) 2020 Wire Swiss GmbH
 license:        AGPL-3
 build-type:     Simple
-extra-source-files:
-    federator.proto
 
 library
   exposed-modules:
@@ -24,9 +22,6 @@ library
       Federator.App
       Federator.Brig
       Federator.Federate
-      Federator.GRPC.Helper
-      Federator.GRPC.Proto
-      Federator.GRPC.Service
       Federator.Impl
       Federator.Options
       Federator.PolysemyOrphans

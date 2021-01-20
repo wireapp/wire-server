@@ -23,23 +23,24 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Federator.GRPC.Service where
+module Wire.API.Federation.GRPC.Service where
 
 import Control.Monad.Except (MonadError)
 import qualified Data.Text as T
-import Federator.App
-import Federator.GRPC.Proto
 import Imports
 import Mu.GRpc.Client.TyApps
 import Mu.Server hiding (resolver)
 import Network.HTTP2.Client
 import System.Logger.Class (MonadLogger)
 import qualified System.Logger.Class as Log
+import Wire.API.Federation.GRPC.Proto
+
+type FederationServiceMonad m = (MonadIO m, MonadLogger m, MonadError ServerError m)
 
 ----------------------------------------------------------
 -- dummy
 
-outboundSayHello' :: HostName -> PortNumber -> T.Text -> AppIO ()
+outboundSayHello' :: HostName -> PortNumber -> T.Text -> IO ()
 outboundSayHello' host port req = do
   attempt <- liftIO $ setupGrpcClient' (grpcClientConfigSimple host port False)
   case attempt of
@@ -57,14 +58,13 @@ outBoundSayHello = gRpcCall @'MsgProtoBuf @Service @"Service" @"SayHello"
 outBoundGetUserIdByHandle :: GrpcClient -> QualifiedHandle -> IO (GRpcReply QualifiedId)
 outBoundGetUserIdByHandle = gRpcCall @'MsgProtoBuf @Service @"Service" @"FederatedGetUserIdByHandle"
 
-outBoundGetUserIdByHandle' :: HostName -> PortNumber -> QualifiedHandle -> AppIO QualifiedId
+outBoundGetUserIdByHandle' :: FederationServiceMonad m => HostName -> PortNumber -> QualifiedHandle -> m QualifiedId
 outBoundGetUserIdByHandle' host port handle = do
   attempt <- liftIO $ setupGrpcClient' (grpcClientConfigSimple host port False)
   case attempt of
     Right c -> do
       x <- liftIO $ outBoundGetUserIdByHandle c handle
-      putStr "%%-> outBoundGetUserIdByHandle. Result: "
-      print x
+      Log.warn $ Log.msg $ "%%-> outBoundGetUserIdByHandle. Result: " <> (show x)
       case x of
         GRpcOk result -> pure result
         err -> throwError $ ServerError NotFound ("some error on outBoundGetUserIdByHandle: " <> show err)
@@ -73,25 +73,17 @@ outBoundGetUserIdByHandle' host port handle = do
 ----------------------------------------------------------
 -- client calls needed A) for federator integration testing and B) by other services e.g. brig.
 -- FUTUREWORK: place these elsewhere and expose them so brig can make use of them
---
--- NOTE: these are in IO while the others above are in AppIO. Probably they should all be in a more generic monad to be consistent. FUTUREWORK.
 
 iGetUserIdByHandle :: MonadIO m => GrpcClient -> QualifiedHandle -> m (GRpcReply QualifiedId)
 iGetUserIdByHandle c handle = liftIO $ gRpcCall @'MsgProtoBuf @Service @"Service" @"GetUserIdByHandle" c handle
 
--- type FederatorServiceMonad m = (MonadIO m)
-
-type FederatorServiceMonad m = (MonadIO m, MonadLogger m, MonadError ServerError m)
-
-iGetUserIdByHandle' :: FederatorServiceMonad m => HostName -> PortNumber -> QualifiedHandle -> m QualifiedId
+iGetUserIdByHandle' :: FederationServiceMonad m => HostName -> PortNumber -> QualifiedHandle -> m QualifiedId
 iGetUserIdByHandle' host port handle = do
   attempt <- liftIO $ setupGrpcClient' (grpcClientConfigSimple host port False)
   case attempt of
     Right c -> do
       x <- iGetUserIdByHandle c handle
-      Log.warn $ Log.msg ("dude" :: String)
-      putStr "%%-> iGetUserIdByHandle. Result: "
-      print x
+      Log.warn $ Log.msg $ "%%-> iGetUserIdByHandle. Result: " <> (show x)
       case x of
         GRpcOk result -> pure result
         err -> throwError $ ServerError NotFound ("some error on iGetUserIdByHandle: " <> show err)

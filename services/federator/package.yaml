@@ -8,8 +8,6 @@ author: Wire Swiss GmbH
 maintainer: Wire Swiss GmbH <backend@wire.com>
 copyright: (c) 2020 Wire Swiss GmbH
 license: AGPL-3
-extra-source-files:
-- federator.proto # TODO move this file to subfolder?
 dependencies:
 - QuickCheck
 - aeson

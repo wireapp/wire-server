@@ -10,19 +10,19 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Federator.GRPC.Proto where
+module Wire.API.Federation.GRPC.Proto where
 
 import Data.Text as T
-import Federator.GRPC.Helper
 import GHC.Generics
 import Imports
 import Mu.Quasi.GRpc
 import Mu.Schema
+import Wire.API.Federation.GRPC.Helper
 
 recompileUponProtoChanges
 
 -- FUTUREWORK: Move this to a library which can be used by other components
-grpc "TheSchema" id "federator.proto"
+grpc "TheSchema" id protoFile
 
 data HelloRequestMessage = HelloRequestMessage {name :: T.Text}
   deriving
