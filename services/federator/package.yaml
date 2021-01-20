@@ -105,6 +105,7 @@ tests:
     - federator
     - tasty
     - tasty-hunit
+    - tasty-quickcheck
     - yaml
     - bytestring
     - polysemy-mocks

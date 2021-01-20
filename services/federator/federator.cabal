@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 76c47a0c7b67b7dbd1096c1297b54e8cee126078db34e455eee6670bf4aa953f
+-- hash: f2e4b62861dea538d600af4cad0f29667cf51bd1edc8b4e3de99727a1d9f5af0
 
 name:           federator
 version:        1.0.0
@@ -286,6 +286,7 @@ test-suite federator-tests
     , string-conversions
     , tasty
     , tasty-hunit
+    , tasty-quickcheck
     , template-haskell
     , text
     , tinylog

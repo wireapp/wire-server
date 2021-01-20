@@ -1,4 +1,5 @@
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -15,6 +16,7 @@ import Test.Polysemy.Mock (Mock (mock), evalMock)
 import Test.Polysemy.Mock.TH (genMock)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, assertEqual, testCase)
+import Test.Tasty.QuickCheck
 
 genMock ''Remote
 genMock ''Brig
@@ -29,7 +31,8 @@ tests =
           remoteCallFailureErrStr
         ],
       testGroup "with local" $
-        [ localCallBrigSuccess
+        [ localCallBrigSuccess,
+          testGroup "validateLocalCall" [testValidateLocalCallWhenValid]
         ]
     ]
 
@@ -90,6 +93,27 @@ localCallBrigSuccess =
       actualCalls <- mockBrigCallCalls @IO
       embed $ assertEqual "one call to brig should be made" [(HTTP.GET, "/users", [QueryParam "handle" "foo"], mempty)] actualCalls
       embed $ assertEqual "response should be success with correct body" (ResponseOk "response body") res
+
+testValidateLocalCallWhenValid :: TestTree
+testValidateLocalCallWhenValid =
+  let validCallGen = arbitrary `suchThat` (\c -> isJust (component c) && isJust (method c))
+   in testProperty "valid calls" $ forAll validCallGen $ \c -> isRight (validateLocalCall c)
+
+-- testValidateLocalCallWhenComponentIsMissing :: TestTree
+-- testValidateLocalCallWhenComponentIsMissing =
+--   let callGen = arbitrary `suchThat` (\LocalCall {..} -> component == Just Unspecified || isNothing component)
+--    in testProperty "component missing" $ forAll callGen $ \c -> validateLocalCall c
+
+-- testCase "should return a ValidLocalCall when LocalCall is valid" $
+
+-- let params = [QueryParam "handle" "foo"]
+--     call = LocalCall (Just Brig) (Just $ HTTPMethod HTTP.GET) "/users" params "body"
+--     validatedCall = validateLocalCall call
+-- assertEqual "the call should be valid" (Right (ValidatedLocalCall Brig HTTP.GET "/users" params "body")) validatedCall
+
+testValidateLocalCallWhenComponentIsNothing :: TestTree
+testValidateLocalCallWhenComponentIsNothing =
+  testCase "should return an error saying component is missing" $ undefined
 
 isResponseError :: Response -> Bool
 isResponseError (ResponseErr _) = True

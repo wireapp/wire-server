@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE PartialTypeSignatures #-}
@@ -34,6 +35,8 @@ import qualified Network.HTTP.Types as HTTP
 import Polysemy
 import Polysemy.Error as Polysemy
 import Polysemy.IO (embedToMonadIO)
+import Test.QuickCheck (elements)
+import Wire.API.Arbitrary
 
 -- * Types
 
@@ -46,6 +49,10 @@ data Component
   = Unspecified
   | Brig
   deriving (Show, Eq, Generic, ToSchema Router "Component", FromSchema Router "Component")
+
+-- Never generates Unspecified as that will never be the case in reality
+instance Arbitrary Component where
+  arbitrary = pure Brig
 
 -- | FUTUREWORK: Make this a better ADT for the errors
 data Response
@@ -71,9 +78,24 @@ instance FromSchema Router "Response" Response where
         -- https://github.com/well-typed/generics-sop/issues/116
         case x of
 
--- This type exists to avoid orphan instances of ToSchema and FromSchema
+-- | This type exists to avoid orphan instances of ToSchema and FromSchema
 newtype HTTPMethod = HTTPMethod {unwrapMethod :: HTTP.StdMethod}
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+
+instance Arbitrary HTTPMethod where
+  arbitrary =
+    HTTPMethod
+      <$> elements
+        [ HTTP.GET,
+          HTTP.POST,
+          HTTP.HEAD,
+          HTTP.PUT,
+          HTTP.DELETE,
+          HTTP.TRACE,
+          HTTP.CONNECT,
+          HTTP.OPTIONS,
+          HTTP.PATCH
+        ]
 
 -- TODO: Write roundtrip tests
 -- TODO: The instances seem to be wrong, at least they don't work with grpcui
@@ -115,6 +137,7 @@ data QueryParam = QueryParam
     value :: ByteString
   }
   deriving (Eq, Show, Generic, ToSchema Router "QueryParam", FromSchema Router "QueryParam")
+  deriving (Arbitrary) via (GenericUniform QueryParam)
 
 -- Does this make it hard to use in a type checked way?
 -- Does this need an HTTP method too? Or should this also be grpc?
@@ -126,6 +149,7 @@ data LocalCall = LocalCall
     body :: ByteString
   }
   deriving (Eq, Show, Generic, ToSchema Router "LocalCall", FromSchema Router "LocalCall")
+  deriving (Arbitrary) via (GenericUniform LocalCall)
 
 -- | This type exists because Enums are wrongly marked optional by mu-protobuf
 -- Bug: https://github.com/higherkindness/mu-haskell/issues/282
@@ -136,6 +160,7 @@ data ValidatedLocalCall = ValidatedLocalCall
     vQuery :: [QueryParam],
     vBody :: ByteString
   }
+  deriving (Show, Eq)
 
 data LocalCallValidationError
   = ComponentMissing
