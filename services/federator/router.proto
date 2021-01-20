@@ -2,7 +2,11 @@ syntax = "proto3";
 package wire.federator;
 
 enum Component {
-  Brig = 0;
+  // There really shouldn't be an option to not specify a component, but this
+  // bug forces us to have this here:
+  // https://github.com/higherkindness/mu-haskell/issues/282
+  Unspecified = 0;
+  Brig = 1;
 }
 
 message Response {
@@ -31,15 +35,19 @@ message QueryParam {
 }
 
 enum Method {
-  GET	= 0;
-  POST = 1;
-  HEAD = 2;
-  PUT = 3;
-  DELETE = 4;
-  TRACE = 5;
-  CONNECT = 6;
-  OPTIONS = 7;
-  PATCH = 8;
+  // There really shouldn't be an option to not specify a method, but this
+  // bug forces us to have this here:
+  // https://github.com/higherkindness/mu-haskell/issues/282
+  UNSPECIFIED = 0;
+  GET	= 1;
+  POST = 2;
+  HEAD = 3;
+  PUT = 4;
+  DELETE = 5;
+  TRACE = 6;
+  CONNECT = 7;
+  OPTIONS = 8;
+  PATCH = 9;
 }
 
 service RouteToRemote {

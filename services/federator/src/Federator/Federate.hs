@@ -42,7 +42,9 @@ import Polysemy.IO (embedToMonadIO)
 grpc "Router" id "router.proto"
 
 -- TODO: The instances seem to be wrong, at least they don't work with grpcui
-data Component = Brig
+data Component
+  = Unspecified
+  | Brig
   deriving (Show, Eq, Generic, ToSchema Router "Component", FromSchema Router "Component")
 
 -- | FUTUREWORK: Make this a better ADT for the errors
@@ -78,30 +80,34 @@ newtype HTTPMethod = HTTPMethod {unwrapMethod :: HTTP.StdMethod}
 instance ToSchema Router "Method" HTTPMethod where
   toSchema (HTTPMethod m) =
     let enumChoice = case m of
-          HTTP.GET -> Z Proxy
-          HTTP.POST -> S (Z Proxy)
-          HTTP.HEAD -> S (S (Z Proxy))
-          HTTP.PUT -> S (S (S (Z Proxy)))
-          HTTP.DELETE -> S (S (S (S (Z Proxy))))
-          HTTP.TRACE -> S (S (S (S (S (Z Proxy)))))
-          HTTP.CONNECT -> S (S (S (S (S (S (Z Proxy))))))
-          HTTP.OPTIONS -> S (S (S (S (S (S (S (Z Proxy)))))))
-          HTTP.PATCH -> S (S (S (S (S (S (S (S (Z Proxy))))))))
+          HTTP.GET -> S (Z Proxy)
+          HTTP.POST -> S (S (Z Proxy))
+          HTTP.HEAD -> S (S (S (Z Proxy)))
+          HTTP.PUT -> S (S (S (S (Z Proxy))))
+          HTTP.DELETE -> S (S (S (S (S (Z Proxy)))))
+          HTTP.TRACE -> S (S (S (S (S (S (Z Proxy))))))
+          HTTP.CONNECT -> S (S (S (S (S (S (S (Z Proxy)))))))
+          HTTP.OPTIONS -> S (S (S (S (S (S (S (S (Z Proxy))))))))
+          HTTP.PATCH -> S (S (S (S (S (S (S (S (S (Z Proxy)))))))))
      in TEnum enumChoice
 
 instance FromSchema Router "Method" HTTPMethod where
   fromSchema (TEnum enumChoice) =
     let m = case enumChoice of
-          Z _ -> HTTP.GET
-          S (Z _) -> HTTP.POST
-          S (S (Z _)) -> HTTP.HEAD
-          S (S (S (Z _))) -> HTTP.PUT
-          S (S (S (S (Z _)))) -> HTTP.DELETE
-          S (S (S (S (S (Z _))))) -> HTTP.TRACE
-          S (S (S (S (S (S (Z _)))))) -> HTTP.CONNECT
-          S (S (S (S (S (S (S (Z _))))))) -> HTTP.OPTIONS
-          S (S (S (S (S (S (S (S (Z _)))))))) -> HTTP.PATCH
-          S (S (S (S (S (S (S (S (S x)))))))) -> case x of
+          Z _ ->
+            -- This is due to this bug
+            -- https://github.com/higherkindness/mu-haskell/issues/282
+            error "router:method:unspecified is impossible"
+          S (Z _) -> HTTP.GET
+          S (S (Z _)) -> HTTP.POST
+          S (S (S (Z _))) -> HTTP.HEAD
+          S (S (S (S (Z _)))) -> HTTP.PUT
+          S (S (S (S (S (Z _))))) -> HTTP.DELETE
+          S (S (S (S (S (S (Z _)))))) -> HTTP.TRACE
+          S (S (S (S (S (S (S (Z _))))))) -> HTTP.CONNECT
+          S (S (S (S (S (S (S (S (Z _)))))))) -> HTTP.OPTIONS
+          S (S (S (S (S (S (S (S (S (Z _))))))))) -> HTTP.PATCH
+          S (S (S (S (S (S (S (S (S (S x))))))))) -> case x of
      in HTTPMethod m
 
 data QueryParam = QueryParam
