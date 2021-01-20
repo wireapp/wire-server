@@ -32,8 +32,8 @@ where
 
 import Data.Aeson
 import Data.Id (TeamId, UserId)
+import Data.Json.Util (UTCTimeMillis)
 import qualified Data.Swagger.Build.Api as Doc
-import Data.Time (UTCTime)
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.User (ManagedBy)
@@ -142,7 +142,7 @@ data TeamContact = TeamContact
     teamContactHandle :: Maybe Text,
     teamContactTeam :: Maybe TeamId,
     teamContactEmail :: Maybe Email,
-    teamContactCreatedAt :: Maybe UTCTime,
+    teamContactCreatedAt :: Maybe UTCTimeMillis,
     teamContactManagedBy :: Maybe ManagedBy,
     teamContactSAMLIdp :: Maybe Text
   }

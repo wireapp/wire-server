@@ -91,6 +91,8 @@ data UserDoc = UserDoc
   }
   deriving (Eq, Show)
 
+-- Note: Keep this compatible with the FromJSON instances
+-- of 'Contact' and 'TeamContact' from 'Wire.API.User.Search
 instance ToJSON UserDoc where
   toJSON ud =
     object
