@@ -65,7 +65,7 @@ routesPublic = do
     Doc.returns (Doc.ref $ Public.modelSearchResult Public.modelSearchContact)
     Doc.response 200 "The search result." Doc.end
 
-  get "/search/browse-team/:tid" (continue browseTeamH) $
+  get "/teams/:tid/search" (continue browseTeamH) $
     accept "application" "json"
       .&. header "Z-User"
       .&. capture "tid"

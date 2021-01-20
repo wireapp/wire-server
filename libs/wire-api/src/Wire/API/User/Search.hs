@@ -134,7 +134,7 @@ instance FromJSON Contact where
 --------------------------------------------------------------------------------
 -- TeamContact
 
--- | Returned by 'browseTeam' under @/contacts/browse-team/:tid@.
+-- | Returned by 'browseTeam' under @/teams/:tid/search@.
 data TeamContact = TeamContact
   { teamContactUserId :: UserId,
     teamContactName :: Text,

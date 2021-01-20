@@ -80,7 +80,7 @@ executeBrowseTeamSearch brig teamid self q = do
   r <-
     get
       ( brig
-          . paths ["/search/browse-team", toByteString' teamid]
+          . paths ["/teams", toByteString' teamid, "search"]
           . zUser self
           . queryItem "q" (encodeUtf8 q)
       )
