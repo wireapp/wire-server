@@ -14,7 +14,9 @@ of participants was limited by the upload bandwidth of the clients.
 Wire now has a signalling-forwarding unit called `SFT <https://github.com/wireapp/wire-avs-service>`_ which allows clients to upload once and
 then the SFT fans it out to the other clients. Because connections are not end-to-end anymore now, dTLS encryption offered by WebRTC is not enough anymore as the encryption is terminated at the server-side. To avoid Wire from seeing the contents of calls SFT utilises WebRTC InsertibleStreams to encrypt the packets a second time with a group key that is not known to the server.
 
-Using SFT large but secure audio and video calls are possible.
+
+With SFT it is thus possible to have conference calls with many participants
+without compromising end-to-end security.
 
 
 
