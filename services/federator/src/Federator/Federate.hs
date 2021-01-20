@@ -127,8 +127,8 @@ data LocalCall = LocalCall
   }
   deriving (Eq, Show, Generic, ToSchema Router "LocalCall", FromSchema Router "LocalCall")
 
--- | This type exists because everything is optional in protobuf, maybe we
--- should reconsider our choices here?
+-- | This type exists because Enums are wrongly marked optional by mu-protobuf
+-- Bug: https://github.com/higherkindness/mu-haskell/issues/282
 data ValidatedLocalCall = ValidatedLocalCall
   { vComponent :: Component,
     vMethod :: HTTP.StdMethod,
