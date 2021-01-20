@@ -45,7 +45,7 @@ browseTeam ::
   Range 1 500 Int32 ->
   m (SearchResult TeamContact)
 browseTeam tid mbSearchText _mRoleFilter _mSortBy _mSortOrder (fromRange -> s) = liftIndexIO $ do
-  let (IndexQuery q f) = browseTeamQuery tid mbSearchText
+  let (IndexQuery q f _) = browseTeamQuery tid mbSearchText
   idx <- asks idxName
   let search = (ES.mkSearch (Just q) (Just f)) {ES.size = ES.Size (fromIntegral s)}
   r <-
@@ -70,11 +70,19 @@ browseTeamQuery ::
   Maybe Text ->
   IndexQuery TeamContact
 browseTeamQuery tid mbSearchText =
-  IndexQuery query filterQuery
+  IndexQuery
+    query
+    ( ES.Filter $
+        ES.QueryBoolQuery boolQuery {ES.boolQueryMustMatch = [matchTeamMembersOf]}
+    )
+    []
   where
     query = case mbSearchText of
       Nothing -> ES.MatchAllQuery Nothing
-      Just (normalized -> term') -> matchPhraseOrPrefix term'
+      Just q ->
+        case normalized q of
+          "" -> ES.MatchAllQuery Nothing
+          term' -> matchPhraseOrPrefix term'
 
     matchPhraseOrPrefix term' =
       ES.QueryMultiMatchQuery $
@@ -91,9 +99,5 @@ browseTeamQuery tid mbSearchText =
           { ES.multiMatchQueryType = Just ES.MultiMatchMostFields,
             ES.multiMatchQueryOperator = ES.And
           }
-
-    filterQuery =
-      ES.Filter $
-        ES.QueryBoolQuery boolQuery {ES.boolQueryMustMatch = [matchTeamMembersOf]}
 
     matchTeamMembersOf = ES.TermQuery (ES.Term "team" $ idToText tid) Nothing

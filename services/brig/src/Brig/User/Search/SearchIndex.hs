@@ -52,7 +52,7 @@ queryIndex ::
   IndexQuery r ->
   Range 1 500 Int32 ->
   m (SearchResult r)
-queryIndex (IndexQuery q f) (fromRange -> s) = liftIndexIO $ do
+queryIndex (IndexQuery q f _) (fromRange -> s) = liftIndexIO $ do
   idx <- asks idxName
   let search = (ES.mkSearch (Just q) (Just f)) {ES.size = ES.Size (fromIntegral s)}
   r <-
@@ -127,30 +127,33 @@ defaultUserQuery u teamSearchInfo (normalized -> term') =
 
 mkUserQuery :: UserId -> TeamSearchInfo -> ES.Query -> IndexQuery Contact
 mkUserQuery (review _TextId -> self) teamSearchInfo q =
-  IndexQuery q $
-    ES.Filter . ES.QueryBoolQuery $
-      boolQuery
-        { ES.boolQueryMustNotMatch = [termQ "_id" self],
-          ES.boolQueryMustMatch =
-            [ optionallySearchWithinTeam teamSearchInfo,
-              ES.QueryBoolQuery
-                boolQuery
-                  { ES.boolQueryShouldMatch =
-                      [ termQ "account_status" "active",
-                        -- Also match entries where the account_status field is not present.
-                        -- These must have been inserted before we added the account_status
-                        -- and at that time we only inserted active users in the first place.
-                        -- This should be unnecessary after re-indexing, but let's be lenient
-                        -- here for a while.
-                        ES.QueryBoolQuery
-                          boolQuery
-                            { ES.boolQueryMustNotMatch =
-                                [ES.QueryExistsQuery (ES.FieldName "account_status")]
-                            }
-                      ]
-                  }
-            ]
-        }
+  IndexQuery
+    q
+    ( ES.Filter . ES.QueryBoolQuery $
+        boolQuery
+          { ES.boolQueryMustNotMatch = [termQ "_id" self],
+            ES.boolQueryMustMatch =
+              [ optionallySearchWithinTeam teamSearchInfo,
+                ES.QueryBoolQuery
+                  boolQuery
+                    { ES.boolQueryShouldMatch =
+                        [ termQ "account_status" "active",
+                          -- Also match entries where the account_status field is not present.
+                          -- These must have been inserted before we added the account_status
+                          -- and at that time we only inserted active users in the first place.
+                          -- This should be unnecessary after re-indexing, but let's be lenient
+                          -- here for a while.
+                          ES.QueryBoolQuery
+                            boolQuery
+                              { ES.boolQueryMustNotMatch =
+                                  [ES.QueryExistsQuery (ES.FieldName "account_status")]
+                              }
+                        ]
+                    }
+              ]
+          }
+    )
+    []
   where
     termQ f v =
       ES.TermQuery

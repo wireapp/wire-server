@@ -58,7 +58,7 @@ data IndexUser = IndexUser
     _iuCreatedAt :: Maybe UTCTime
   }
 
-data IndexQuery r = IndexQuery Query Filter
+data IndexQuery r = IndexQuery Query Filter [DefaultSort]
 
 data IndexError
   = IndexUpdateError EsError
