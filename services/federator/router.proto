@@ -16,11 +16,15 @@ message Response {
   }
 }
 
+// the envelope thing which is sent from brig to local federator
 message RemoteCall {
   string domain = 1;
   LocalCall localCall = 2;
 }
 
+// the federator will take out LocalCall from the RemoteCall Envelope, and
+// forward the LocalCall object to a federator on another backend (with the wish
+// that this remote federator forwards this to its own local brig)
 message LocalCall {
   Component component = 1;
   Method method = 2;
@@ -39,7 +43,7 @@ enum Method {
   // bug forces us to have this here:
   // https://github.com/higherkindness/mu-haskell/issues/282
   UNSPECIFIED = 0;
-  GET	= 1;
+  GET = 1;
   POST = 2;
   HEAD = 3;
   PUT = 4;
@@ -50,10 +54,17 @@ enum Method {
   PATCH = 9;
 }
 
+// The * part of the following network traffic:
+// Brig *-> federator -> federatpr -> brig
+// FUTUREWORK: better naming?
 service RouteToRemote {
   rpc call (RemoteCall) returns (Response);
 }
 
+// The * part of the following network traffic:
+// Brig -> federator *-> federator -> brig
+// FUTUREWORK: better naming?
 service RouteToInternal {
+    // callLocal in haskell
   rpc call (LocalCall) returns (Response);
 }
