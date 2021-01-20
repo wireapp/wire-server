@@ -45,9 +45,13 @@ browseTeam ::
   Range 1 500 Int32 ->
   m (SearchResult TeamContact)
 browseTeam tid mbSearchText _mRoleFilter _mSortBy _mSortOrder (fromRange -> s) = liftIndexIO $ do
-  let (IndexQuery q f _) = browseTeamQuery tid mbSearchText
+  let (IndexQuery q f sortSpecs) = browseTeamQuery tid mbSearchText
   idx <- asks idxName
-  let search = (ES.mkSearch (Just q) (Just f)) {ES.size = ES.Size (fromIntegral s)}
+  let search =
+        (ES.mkSearch (Just q) (Just f))
+          { ES.size = ES.Size (fromIntegral s),
+            ES.sortBody = Just (fmap ES.DefaultSortSpec sortSpecs)
+          }
   r <-
     ES.searchByType idx mappingName search
       >>= ES.parseEsResponse
@@ -70,19 +74,26 @@ browseTeamQuery ::
   Maybe Text ->
   IndexQuery TeamContact
 browseTeamQuery tid mbSearchText =
-  IndexQuery
-    query
-    ( ES.Filter $
-        ES.QueryBoolQuery boolQuery {ES.boolQueryMustMatch = [matchTeamMembersOf]}
-    )
-    []
+  case mbQStr of
+    Nothing ->
+      IndexQuery
+        (ES.MatchAllQuery Nothing)
+        teamFilter
+        [sortByCreatedAt]
+    Just qStr ->
+      IndexQuery
+        (matchPhraseOrPrefix qStr)
+        teamFilter
+        []
   where
-    query = case mbSearchText of
-      Nothing -> ES.MatchAllQuery Nothing
-      Just q ->
-        case normalized q of
-          "" -> ES.MatchAllQuery Nothing
-          term' -> matchPhraseOrPrefix term'
+    mbQStr :: Maybe Text
+    mbQStr =
+      case mbSearchText of
+        Nothing -> Nothing
+        Just q ->
+          case normalized q of
+            "" -> Nothing
+            term' -> Just term'
 
     matchPhraseOrPrefix term' =
       ES.QueryMultiMatchQuery $
@@ -100,4 +111,12 @@ browseTeamQuery tid mbSearchText =
             ES.multiMatchQueryOperator = ES.And
           }
 
-    matchTeamMembersOf = ES.TermQuery (ES.Term "team" $ idToText tid) Nothing
+    teamFilter =
+      ES.Filter $
+        ES.QueryBoolQuery
+          boolQuery
+            { ES.boolQueryMustMatch = [ES.TermQuery (ES.Term "team" $ idToText tid) Nothing]
+            }
+
+    sortByCreatedAt =
+      ES.DefaultSort (ES.FieldName "created_at") ES.Descending Nothing Nothing Nothing Nothing

@@ -74,9 +74,10 @@ testEmptyQuerySorted brig = do
   (tid, userId -> ownerId, users) <- createPopulatedBindingTeamWithNamesAndHandles brig 4
   refreshIndex brig
   r <- searchResults <$> executeBrowseTeamSearch brig tid ownerId ""
+  let creationDates = fmap teamContactCreatedAt r
   liftIO $
     assertEqual
       "user ids"
       (sort (fmap userId users <> [ownerId]))
       (sort (fmap teamContactUserId r))
-  liftIO $ assertEqual "sorted team contacts" r (sortOn (Down . teamContactCreatedAt) r)
+  liftIO $ assertEqual "sorted team contacts" (sortOn Down creationDates) creationDates
