@@ -14,6 +14,28 @@
 
 -->
 
+# [2020-01-15]
+
+## Release Notes
+
+This release contains bugfixes and internal changes.
+
+## Features
+
+* [federation] Add helm chart for the federator (#1317)
+
+## Bug fixes and other updates
+
+* [SCIM] Accept any query string for externalId (#1330)
+* [SCIM] Allow at most one identity provider (#1332)
+
+## Internal changes
+
+* [SCIM] Change log level to Warning & format filter logs (#1331)
+* Improve flaky integration tests (#1333)
+* Upgrade nixpkgs and niv (#1326)
+
+
 # [2021-01-12]
 
 ## Release Notes

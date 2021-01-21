@@ -1,0 +1,34 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 671397b8455cc631d2a21af6a13b2aef0bf2a00b15a1d6d6db5515575e4d98c8
+
+name:           polysemy-wire-zoo
+version:        0.1.0
+synopsis:       Polysemy interface for various libraries
+description:    Polysemy interface for various libraries
+category:       Logging
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+copyright:      (c) 2020 Wire Swiss GmbH
+license:        AGPL-3
+build-type:     Simple
+
+library
+  exposed-modules:
+      Polysemy.TinyLog
+  other-modules:
+      Paths_polysemy_wire_zoo
+  hs-source-dirs:
+      src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+  build-depends:
+      base >=4.6 && <5.0
+    , imports
+    , polysemy
+    , tinylog
+  default-language: Haskell2010

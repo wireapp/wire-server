@@ -83,6 +83,7 @@ library:
   - optparse-applicative >=0.11
   - pem >=0.2
   - polysemy
+  - polysemy-wire-zoo
   - proto-lens >=0.1
   - prometheus-client
   - resourcet >=1.1
@@ -157,6 +158,7 @@ tests:
     - dns-util
     - imports
     - polysemy
+    - polysemy-wire-zoo
     - raw-strings-qq
     - retry
     - tasty
