@@ -36,6 +36,7 @@ import Data.Json.Util (UTCTimeMillis)
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.API.Team.Role (Role)
 import Wire.API.User (ManagedBy)
 import Wire.API.User.Identity (Email (..))
 
@@ -144,7 +145,8 @@ data TeamContact = TeamContact
     teamContactEmail :: Maybe Email,
     teamContactCreatedAt :: Maybe UTCTimeMillis,
     teamContactManagedBy :: Maybe ManagedBy,
-    teamContactSAMLIdp :: Maybe Text
+    teamContactSAMLIdp :: Maybe Text,
+    teamContactRole :: Maybe Role
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TeamContact)
@@ -179,7 +181,8 @@ instance ToJSON TeamContact where
         "email" .= teamContactEmail c,
         "created_at" .= teamContactCreatedAt c,
         "managed_by" .= teamContactManagedBy c,
-        "saml_idp" .= teamContactSAMLIdp c
+        "saml_idp" .= teamContactSAMLIdp c,
+        "role" .= teamContactRole c
       ]
 
 instance FromJSON TeamContact where
@@ -195,3 +198,4 @@ instance FromJSON TeamContact where
         <*> o .:? "created_at"
         <*> o .:? "managed_by"
         <*> o .:? "saml_idp"
+        <*> o .:? "role"

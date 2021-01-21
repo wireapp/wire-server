@@ -32,6 +32,7 @@ import Data.Time (UTCTime)
 import Database.Bloodhound hiding (key)
 import Database.Bloodhound.Internal.Client (DocVersion (DocVersion))
 import Imports
+import Wire.API.Team.Role (Role)
 
 data IndexDocUpdateType
   = IndexUpdateIfNewerVersion
@@ -55,7 +56,8 @@ data IndexUser = IndexUser
     _iuAccountStatus :: Maybe AccountStatus,
     _iuSAMLIdP :: Maybe Text,
     _iuManagedBy :: Maybe ManagedBy,
-    _iuCreatedAt :: Maybe UTCTime
+    _iuCreatedAt :: Maybe UTCTime,
+    _iuRole :: Maybe Role
   }
 
 data IndexQuery r = IndexQuery Query Filter [DefaultSort]
@@ -87,7 +89,8 @@ data UserDoc = UserDoc
     udAccountStatus :: Maybe AccountStatus,
     udSAMLIdP :: Maybe Text,
     udManagedBy :: Maybe ManagedBy,
-    udCreatedAt :: Maybe UTCTimeMillis
+    udCreatedAt :: Maybe UTCTimeMillis,
+    udRole :: Maybe Role
   }
   deriving (Eq, Show)
 
@@ -106,7 +109,8 @@ instance ToJSON UserDoc where
         "account_status" .= udAccountStatus ud,
         "saml_idp" .= udSAMLIdP ud,
         "managed_by" .= udManagedBy ud,
-        "created_at" .= udCreatedAt ud
+        "created_at" .= udCreatedAt ud,
+        "role" .= udRole ud
       ]
 
 instance FromJSON UserDoc where
@@ -122,6 +126,7 @@ instance FromJSON UserDoc where
       <*> o .:? "saml_idp"
       <*> o .:? "managed_by"
       <*> o .:? "created_at"
+      <*> o .:? "role"
 
 makeLenses ''IndexUser
 
@@ -144,7 +149,8 @@ mkIndexUser u v =
       _iuAccountStatus = Nothing,
       _iuSAMLIdP = Nothing,
       _iuManagedBy = Nothing,
-      _iuCreatedAt = Nothing
+      _iuCreatedAt = Nothing,
+      _iuRole = Nothing
     }
 
 indexToDoc :: IndexUser -> UserDoc
@@ -160,7 +166,8 @@ indexToDoc iu =
       udColourId = _iuColourId iu,
       udSAMLIdP = _iuSAMLIdP iu,
       udManagedBy = _iuManagedBy iu,
-      udCreatedAt = toUTCTimeMillis <$> _iuCreatedAt iu
+      udCreatedAt = toUTCTimeMillis <$> _iuCreatedAt iu,
+      udRole = _iuRole iu
     }
 
 -- | FUTUREWORK: Transliteration should be left to ElasticSearch (ICU plugin), but this will
@@ -183,5 +190,6 @@ docToIndex ud =
       _iuAccountStatus = udAccountStatus ud,
       _iuSAMLIdP = udSAMLIdP ud,
       _iuManagedBy = udManagedBy ud,
-      _iuCreatedAt = fromUTCTimeMillis <$> udCreatedAt ud
+      _iuCreatedAt = fromUTCTimeMillis <$> udCreatedAt ud,
+      _iuRole = udRole ud
     }

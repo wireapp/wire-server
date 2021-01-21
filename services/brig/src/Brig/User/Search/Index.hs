@@ -91,6 +91,7 @@ import System.Logger.Class
     (~~),
   )
 import URI.ByteString (serializeURIRef)
+import Wire.API.Team.Role (Role (RoleAdmin))
 
 --------------------------------------------------------------------------------
 -- IndexIO Monad
@@ -496,6 +497,14 @@ indexMapping =
                 { mpType = MPDate,
                   mpStore = False,
                   mpIndex = False,
+                  mpAnalyzer = Nothing,
+                  mpFields = mempty
+                },
+            "role"
+              .= MappingProperty
+                { mpType = MPKeyword,
+                  mpStore = False,
+                  mpIndex = True,
                   mpAnalyzer = Nothing,
                   mpFields = mempty
                 }
