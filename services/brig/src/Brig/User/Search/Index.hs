@@ -91,7 +91,6 @@ import System.Logger.Class
     (~~),
   )
 import URI.ByteString (serializeURIRef)
-import Wire.API.Team.Role (Role (RoleAdmin))
 
 --------------------------------------------------------------------------------
 -- IndexIO Monad
