@@ -70,8 +70,10 @@ data RunSettings = RunSettings
 instance FromJSON RunSettings
 
 data Opts = Opts
-  { -- | Host and port
-    federator :: Endpoint,
+  { -- | Host and port for internal endpoint
+    federatorInternal :: Endpoint,
+    -- | Host and port for external endpoint
+    federatorExternal :: Endpoint,
     -- | Host and port of brig
     brig :: Endpoint,
     -- | Log level (Debug, Info, etc)

@@ -51,7 +51,7 @@ import Data.String.Conversions (cs)
 import Data.Text.Encoding (encodeUtf8)
 import Federator.App
 import qualified Federator.Brig as Brig
-import Federator.Federate (serveRouteToInternal)
+import Federator.Federate (serveRouteToInternal, serveRouteToRemote)
 -- import Federator.GRPC.Service
 import qualified Federator.Impl as Impl
 import Federator.Options as Opt
@@ -87,13 +87,18 @@ run opts = do
   -- TODO: Combine the restful things and the grpc things
   -- Warp.runSettings settings app
   -- let grpcApplication = gRpcAppTrans msgProtoBuf (transformer env) grpcServer
-  let internalServer1 = runGRpcAppTrans msgProtoBuf port (transformer env) grpcServer
-      -- TODO:Remove the line above and un-hardcode the port
+  let internalServer1 = runGRpcAppTrans msgProtoBuf portInternal (transformer env) grpcServer
+      -- TODO: Remove the line above and un-hardcode the port
       internalServer2 = serveRouteToInternal env 9999
-  race_ internalServer1 internalServer2
+      externalServer = serveRouteToRemote env portExternal
+  -- Ugh, I want to race many things!
+  race_ (race_ internalServer1 internalServer2) externalServer
   where
-    endpoint = federator opts
-    port = fromIntegral $ endpoint ^. epPort
+    endpointInternal = federatorInternal opts
+    portInternal = fromIntegral $ endpointInternal ^. epPort
+
+    endpointExternal = federatorExternal opts
+    portExternal = fromIntegral $ endpointExternal ^. epPort
 
     transformer :: Env -> AppIO a -> ServerErrorIO a
     transformer env action = runAppT env action

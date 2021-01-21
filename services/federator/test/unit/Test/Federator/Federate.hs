@@ -29,7 +29,8 @@ tests =
         [ remoteCallSuccess,
           remoteCallFailureTMC,
           remoteCallFailureErrCode,
-          remoteCallFailureErrStr
+          remoteCallFailureErrStr,
+          remoteCallFailureErrConn
         ],
       testGroup "with local" $
         [ localCallBrigSuccess,
@@ -45,7 +46,7 @@ remoteCallSuccess :: TestTree
 remoteCallSuccess =
   testCase "should successfully return success response" $
     runM . evalMock @Remote @IO $ do
-      mockDiscoverAndCallReturns @IO (const $ pure (GRpcOk (ResponseOk "success!")))
+      mockDiscoverAndCallReturns @IO (const $ pure (Right (GRpcOk (ResponseOk "success!"))))
       let remoteCall = RemoteCall (Domain "example.com") (LocalCall (Just Brig) (Just $ HTTPMethod HTTP.GET) "/users" [QueryParam "handle" "foo"] mempty)
       res <- mock @Remote @IO $ callRemote remoteCall
       actualCalls <- mockDiscoverAndCallCalls @IO
@@ -58,7 +59,7 @@ remoteCallFailureTMC :: TestTree
 remoteCallFailureTMC =
   testCase "should respond with error when facing GRpcTooMuchConcurrency" $
     runM . evalMock @Remote @IO $ do
-      mockDiscoverAndCallReturns @IO (const $ pure (GRpcTooMuchConcurrency (TooMuchConcurrency 2)))
+      mockDiscoverAndCallReturns @IO (const $ pure (Right (GRpcTooMuchConcurrency (TooMuchConcurrency 2))))
       let remoteCall = RemoteCall (Domain "example.com") (LocalCall (Just Brig) (Just $ HTTPMethod HTTP.GET) "/users" [QueryParam "handle" "foo"] mempty)
       res <- mock @Remote @IO $ callRemote remoteCall
       actualCalls <- mockDiscoverAndCallCalls @IO
@@ -69,7 +70,7 @@ remoteCallFailureErrCode :: TestTree
 remoteCallFailureErrCode =
   testCase "should respond with error when facing GRpcErrorCode" $
     runM . evalMock @Remote @IO $ do
-      mockDiscoverAndCallReturns @IO (const $ pure (GRpcErrorCode 77)) -- TODO: Maybe use some legit HTTP2 error code?
+      mockDiscoverAndCallReturns @IO (const $ pure (Right (GRpcErrorCode 77))) -- TODO: Maybe use some legit HTTP2 error code?
       let remoteCall = RemoteCall (Domain "example.com") (LocalCall (Just Brig) (Just $ HTTPMethod HTTP.GET) "/users" [QueryParam "handle" "foo"] mempty)
       res <- mock @Remote @IO $ callRemote remoteCall
       actualCalls <- mockDiscoverAndCallCalls @IO
@@ -80,7 +81,18 @@ remoteCallFailureErrStr :: TestTree
 remoteCallFailureErrStr =
   testCase "should respond with error when facing GRpcErrorString" $
     runM . evalMock @Remote @IO $ do
-      mockDiscoverAndCallReturns @IO (const $ pure (GRpcErrorString "some grpc error")) -- Maybe use some legit HTTP2 error code?
+      mockDiscoverAndCallReturns @IO (const $ pure (Right (GRpcErrorString "some grpc error")))
+      let remoteCall = RemoteCall (Domain "example.com") (LocalCall (Just Brig) (Just $ HTTPMethod HTTP.GET) "/users" [QueryParam "handle" "foo"] mempty)
+      res <- mock @Remote @IO $ callRemote remoteCall
+      actualCalls <- mockDiscoverAndCallCalls @IO
+      embed $ assertEqual "one remote call should be made" [remoteCall] actualCalls
+      embed $ assertBool "the response should have error" (isResponseError res)
+
+remoteCallFailureErrConn :: TestTree
+remoteCallFailureErrConn =
+  testCase "should respond with error when facing RemoteError" $
+    runM . evalMock @Remote @IO $ do
+      mockDiscoverAndCallReturns @IO (const $ pure (Left $ RemoteErrorDiscoveryFailure (LookupErrorSrvNotAvailable "_something._tcp.exmaple.com") (Domain "example.com")))
       let remoteCall = RemoteCall (Domain "example.com") (LocalCall (Just Brig) (Just $ HTTPMethod HTTP.GET) "/users" [QueryParam "handle" "foo"] mempty)
       res <- mock @Remote @IO $ callRemote remoteCall
       actualCalls <- mockDiscoverAndCallCalls @IO
@@ -104,7 +116,7 @@ testValidateLocalCallWhenValid =
   let validCallGen =
         arbitrary
           `suchThat` ( \LocalCall {..} ->
-                         isJust component && component /= (Just UnspecifiedComponent) && isJust method
+                         isJust component && component /= Just UnspecifiedComponent && isJust method
                      )
    in testProperty "valid calls" $ forAll validCallGen $ \c -> isRight' (validateLocalCall c)
 
@@ -125,17 +137,6 @@ testValidateLocalCallWhenMethodIsMissing =
           case validateLocalCall c of
             Success _ -> False
             Failure errs -> MethodMissing `elem` errs
-
--- testCase "should return a ValidLocalCall when LocalCall is valid" $
-
--- let params = [QueryParam "handle" "foo"]
---     call = LocalCall (Just Brig) (Just $ HTTPMethod HTTP.GET) "/users" params "body"
---     validatedCall = validateLocalCall call
--- assertEqual "the call should be valid" (Right (ValidatedLocalCall Brig HTTP.GET "/users" params "body")) validatedCall
-
-testValidateLocalCallWhenComponentIsNothing :: TestTree
-testValidateLocalCallWhenComponentIsNothing =
-  testCase "should return an error saying component is missing" $ undefined
 
 isResponseError :: Response -> Bool
 isResponseError (ResponseErr _) = True

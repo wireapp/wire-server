@@ -17,28 +17,38 @@ import Control.Monad.Catch (MonadMask, MonadThrow)
 import Control.Monad.Except (MonadError (throwError))
 import Control.Retry
 import qualified Data.ByteString.Lazy as LBS
-import Data.Domain (Domain)
+import Data.Domain (Domain, domainText)
 import Data.Either.Validation
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.Proxy (Proxy (Proxy))
+import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import Federator.App (AppIO, AppT, runAppT)
 import Federator.PolysemyOrphans ()
-import Federator.Types (Env, brig)
+import Federator.Types (Env, applog, brig, dnsResolver)
 import Federator.UnliftExcept ()
 import Imports
-import Mu.GRpc.Client.Optics (GRpcReply (..))
+import Mu.GRpc.Client.Optics (GRpcReply (..), grpcClientConfigSimple)
+import Mu.GRpc.Client.TyApps (GRpcMessageProtocol (MsgProtoBuf), gRpcCall, setupGrpcClient')
 import Mu.GRpc.Server (msgProtoBuf, runGRpcAppTrans)
 import Mu.Quasi.GRpc (grpc)
 import Mu.Schema (Field (..), FieldValue (..), FromSchema (..), NP (..), NS (..), Term (..), ToSchema (..))
-import Mu.Server (MonadServer, ServerError, ServerErrorIO, SingleServerT, singleService)
+import Mu.Server (ServerError, ServerErrorIO, SingleServerT, singleService)
 import qualified Mu.Server as Mu
 import qualified Network.HTTP.Types as HTTP
+import Network.HTTP2.Client (ClientError)
 import Polysemy
 import Polysemy.Error as Polysemy
 import Polysemy.IO (embedToMonadIO)
+import Polysemy.TinyLog (TinyLog)
+import qualified Polysemy.TinyLog as Log
+import qualified System.Logger.Message as Log
 import Test.QuickCheck (elements)
 import Wire.API.Arbitrary
+import Wire.Network.DNS.Effect (DNSLookup)
+import qualified Wire.Network.DNS.Effect as Lookup
+import Wire.Network.DNS.SRV (SrvEntry (srvTarget), SrvResponse (..), SrvTarget (..))
 
 -- * Types
 
@@ -197,23 +207,74 @@ instance FromSchema Router "RemoteCall" RemoteCall where
 
 -- * Effects
 
+data LookupError
+  = LookupErrorSrvNotAvailable ByteString
+  | LookupErrorDNSError ByteString
+  deriving (Show, Eq)
+
+data DiscoverFederator m a where
+  DiscoverFederator :: Domain -> DiscoverFederator m (Either LookupError SrvTarget)
+
+makeSem ''DiscoverFederator
+
+runFederatorDiscovery :: Members '[DNSLookup] r => Sem (DiscoverFederator ': r) a -> Sem r a
+runFederatorDiscovery = interpret $ \(DiscoverFederator d) ->
+  -- TODO: Maybe this name should sugggest that it is the federator?
+  --
+  -- TODO: This string conversation is probably wrong, we should encode this
+  -- using IDNA encoding or expect domain to be bytestring everywhere
+  let domainSrv = cs $ "_wire-server._tcp." <> domainText d
+   in lookupDomainByDNS domainSrv
+
+-- Can most of this function live in DNS-Util?
+lookupDomainByDNS :: Member DNSLookup r => ByteString -> Sem r (Either LookupError SrvTarget)
+lookupDomainByDNS domainSrv = do
+  res <- Lookup.lookupSRV domainSrv
+  case res of
+    SrvAvailable entries -> do
+      -- FUTUREWORK: orderSrvResult and try the list in order
+      pure $ Right $ srvTarget $ NonEmpty.head entries
+    SrvNotAvailable -> pure $ Left $ LookupErrorSrvNotAvailable domainSrv
+    SrvResponseError _ -> pure $ Left $ LookupErrorDNSError domainSrv
+
+data RemoteError
+  = RemoteErrorDiscoveryFailure LookupError Domain
+  | RemoteErrorClientFailure ClientError SrvTarget
+  deriving (Show, Eq)
+
 -- | Maybe we should support making a call to many remotes, but maybe we should
 -- wait for the requirements before implementing it.
 data Remote m a where
-  DiscoverAndCall :: RemoteCall -> Remote m (GRpcReply Response)
+  DiscoverAndCall :: RemoteCall -> Remote m (Either RemoteError (GRpcReply Response))
 
 makeSem ''Remote
 
--- | Basically this:
--- do
---   g :: GrpcClient <- grpcClient domain
---   liftIO $ gRpcCall @'MsgProtoBuf @RouteToInternal @"RouteToInternal" @"call" g args
---
--- grpcClient :: Monad m => Domain -> m GrpcClient
--- grpcClient = undefined
-interpretRemote :: Member (Embed IO) r => Env -> Sem (Remote ': r) a -> Sem r a
-interpretRemote _ = interpretH $ \case
-  DiscoverAndCall _ -> error "Not implemented"
+-- TODO: So complicated, extact and test!
+interpretRemote :: forall m r a. (MonadIO m, Members [Embed IO, DiscoverFederator, TinyLog] r) => Sem (Remote ': r) a -> Sem r a
+interpretRemote = interpret $ \case
+  DiscoverAndCall RemoteCall {..} -> do
+    eitherTarget <- discoverFederator domain
+    case eitherTarget of
+      Left err -> do
+        Log.warn $
+          Log.msg ("Failed to find remote federator" :: ByteString)
+            . Log.field "domain" (domainText domain)
+            . Log.field "error" (show err)
+        pure $ Left (RemoteErrorDiscoveryFailure err domain)
+      Right target@(SrvTarget host port) -> do
+        -- TODO: Make this use TLS, maybe make it configurable
+        let cfg = grpcClientConfigSimple (cs host) (fromInteger $ toInteger port) False
+        eitherClient <- setupGrpcClient' cfg
+        case eitherClient of
+          Left err -> do
+            Log.warn $
+              Log.msg ("Failed to connect to remote federator" :: ByteString)
+                . Log.field "host" host
+                . Log.field "port" port
+                . Log.field "error" (show err)
+            pure $ Left (RemoteErrorClientFailure err target)
+          Right client ->
+            Right <$> liftIO (gRpcCall @'MsgProtoBuf @RouteToInternal @"RouteToInternal" @"call" client localCall)
 
 -- Is there is a point in creating an effect for each service?
 --
@@ -249,22 +310,21 @@ x3 = limitRetries 3 <> exponentialBackoff 100000
 
 -- * Routing logic
 
--- This can be tested now :)
 -- TODO: How do we make sure that only legit endpoints can be reached
 callRemote :: Member Remote r => RemoteCall -> Sem r Response
 callRemote req = do
   reply <- discoverAndCall req
-  pure $ mkResponseFromGRPcReply "remote federator -> local federator" reply
+  pure $ mkRemoteResponse reply
 
--- Look ma, no monads! But we probably want to log things here, so we can add it and test it :)
-mkResponseFromGRPcReply :: Text -> GRpcReply Response -> Response
-mkResponseFromGRPcReply errName reply =
+mkRemoteResponse :: Either RemoteError (GRpcReply Response) -> Response
+mkRemoteResponse reply =
   case reply of
-    GRpcOk res -> res
-    GRpcTooMuchConcurrency _ -> ResponseErr (errName <> ": too much concurrency")
-    GRpcErrorCode grpcErr -> ResponseErr (errName <> ": " <> Text.pack (show grpcErr))
-    GRpcErrorString grpcErr -> ResponseErr (errName <> ": error string: " <> Text.pack grpcErr)
-    GRpcClientError clientErr -> ResponseErr (errName <> ": client error: " <> Text.pack (show clientErr))
+    Right (GRpcOk res) -> res
+    Right (GRpcTooMuchConcurrency _) -> ResponseErr "remote federator -> local federator: too much concurrency"
+    Right (GRpcErrorCode grpcErr) -> ResponseErr ("remote federator -> local federator: " <> Text.pack (show grpcErr))
+    Right (GRpcErrorString grpcErr) -> ResponseErr ("remote federator -> local federator: error string: " <> Text.pack grpcErr)
+    Right (GRpcClientError clientErr) -> ResponseErr ("remote federator -> local federator: client error: " <> Text.pack (show clientErr))
+    Left err -> ResponseErr ("remote federator -> local federator: " <> Text.pack (show err))
 
 callLocal :: (Members '[Brig, Embed IO] r) => LocalCall -> Sem r Response
 callLocal req = do
@@ -281,14 +341,27 @@ callLocal req = do
 
 -- * Server wiring
 
-routeToRemote :: (MonadServer (Sem r), Member Remote r) => SingleServerT info RouteToRemote (Sem r) _
+routeToRemote :: (Members '[Remote, Polysemy.Error ServerError] r) => SingleServerT info RouteToRemote (Sem r) _
 routeToRemote = singleService (Mu.method @"call" callRemote)
 
 routeToInternal :: (Members '[Brig, Embed IO, Polysemy.Error ServerError] r) => SingleServerT info RouteToInternal (Sem r) _
 routeToInternal = singleService (Mu.method @"call" callLocal)
 
-serveRouteToRemote :: Int -> AppIO ()
-serveRouteToRemote = undefined
+serveRouteToRemote :: Env -> Int -> IO ()
+serveRouteToRemote env port = do
+  runGRpcAppTrans msgProtoBuf port transformer routeToRemote
+  where
+    transformer :: Sem '[Remote, DiscoverFederator, TinyLog, DNSLookup, Polysemy.Error ServerError, Embed IO, Embed AppIO] a -> ServerErrorIO a
+    transformer action =
+      runAppT env
+        . runM @AppIO
+        . embedToMonadIO @AppIO
+        . absorbServerError
+        . Lookup.runDNSLookupWithResolver (view dnsResolver env)
+        . Log.runTinyLog (view applog env)
+        . runFederatorDiscovery
+        . interpretRemote @IO
+        $ action
 
 -- TODO: Check if adding polysemy-plugin removes the need for type applications here
 serveRouteToInternal :: Env -> Int -> IO ()

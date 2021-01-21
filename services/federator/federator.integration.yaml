@@ -1,6 +1,9 @@
-federator:
+federatorInternal:
   host: 0.0.0.0
   port: 8097
+federatorExternal:
+  host: 0.0.0.0
+  port: 8098
 brig:
   host: 0.0.0.0
   port: 8082
