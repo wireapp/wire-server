@@ -32,7 +32,8 @@ module Federator.Run
     closeEnv,
 
     -- * functions that FUTUREWORK should probably move to another module
-    lookupDomainFake,
+    lookupDomainLocal,
+    lookupDomainKubernetes,
     lookupDomainByDNS,
   )
 where
@@ -141,7 +142,7 @@ getUserIdByHandle :: QualifiedHandle -> AppIO QualifiedId
 getUserIdByHandle handle@(QualifiedHandle federationDomain _) = do
   -- FUTUREWORK: we should parse federationDomain as Domain, not Text
   meh $ "%%-> Run/getUserIdByHandle. Handle:" <> show handle
-  SrvTarget domain port <- lookupDomainFake federationDomain
+  SrvTarget domain port <- lookupDomainKubernetes federationDomain
   outBoundGetUserIdByHandle' (cs domain) (fromIntegral port) handle
 
 federatedGetUserIdByHandle :: QualifiedHandle -> AppIO QualifiedId
@@ -170,14 +171,24 @@ askBrigForHandle handle = do
 ------------------------------------------------------------------------------
 -- helper functions
 
-lookupDomainFake :: Text -> AppIO SrvTarget
-lookupDomainFake _ = do
+-- for local integration tests
+lookupDomainLocal :: Text -> AppIO SrvTarget
+lookupDomainLocal _ = do
   pure $ SrvTarget "127.0.0.1" 8097
+
+-- until we are ready, for integration tests inside kubernetes, we can make a plain TCP connection to another federator
+lookupDomainKubernetes :: Text -> AppIO SrvTarget
+lookupDomainKubernetes federationDomain = do
+  lookupDomainByDNS' "_http._tcp.federator." federationDomain
 
 lookupDomainByDNS :: Text -> AppIO SrvTarget
 lookupDomainByDNS federationDomain = do
+  lookupDomainByDNS' "_wire-server._tcp." federationDomain
+
+lookupDomainByDNS' :: Text -> Text -> AppIO SrvTarget
+lookupDomainByDNS' prefix federationDomain = do
   resolver <- view dnsResolver
-  let domainSrv = cs $ "_wire-server._tcp." <> federationDomain
+  let domainSrv = cs $ prefix <> federationDomain
   res <- liftIO $ interpretResponse <$> Lookup.lookupSRV resolver domainSrv
   case res of
     SrvAvailable entries -> do
