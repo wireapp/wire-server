@@ -42,7 +42,7 @@ data HelloReplyMessage = HelloReplyMessage {message :: T.Text}
       FromSchema TheSchema "HelloReply"
     )
 
-data QualifiedHandle = QualifiedHandle {domain :: T.Text, handle :: T.Text}
+data QualifiedHandle = QualifiedHandle {handleDomain :: T.Text, handle :: T.Text}
   deriving
     ( Eq,
       Show,
@@ -51,7 +51,7 @@ data QualifiedHandle = QualifiedHandle {domain :: T.Text, handle :: T.Text}
       FromSchema TheSchema "QualifiedHandle"
     )
 
-data QualifiedId = QualifiedId {domain :: T.Text, id :: T.Text}
+data QualifiedId = QualifiedId {idDomain :: T.Text, id :: T.Text}
   deriving
     ( Eq,
       Show,

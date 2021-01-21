@@ -32,6 +32,7 @@ module Brig.App
     cargohold,
     galley,
     gundeck,
+    federator,
     userTemplates,
     providerTemplates,
     teamTemplates,
@@ -141,6 +142,7 @@ data Env = Env
   { _cargohold :: RPC.Request,
     _galley :: RPC.Request,
     _gundeck :: RPC.Request,
+    _federator :: Maybe Endpoint, -- TODO use a better type so we don't re-create fresh connections all the time?
     _casClient :: Cas.ClientState,
     _smtpEnv :: Maybe SMTP.SMTP,
     _emailSender :: Email,
@@ -215,6 +217,7 @@ newEnv o = do
       { _cargohold = mkEndpoint $ Opt.cargohold o,
         _galley = mkEndpoint $ Opt.galley o,
         _gundeck = mkEndpoint $ Opt.gundeck o,
+        _federator = Opt.federator o,
         _casClient = cas,
         _smtpEnv = emailSMTP,
         _emailSender = Opt.emailSender . Opt.general . Opt.emailSMS $ o,

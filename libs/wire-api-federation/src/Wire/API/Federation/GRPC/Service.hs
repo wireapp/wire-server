@@ -31,11 +31,12 @@ import Imports
 import Mu.GRpc.Client.TyApps
 import Mu.Server hiding (resolver)
 import Network.HTTP2.Client
-import System.Logger.Class (MonadLogger)
-import qualified System.Logger.Class as Log
+-- import System.Logger.Class (MonadLogger)
+-- import qualified System.Logger.Class as Log
 import Wire.API.Federation.GRPC.Proto
 
-type FederationServiceMonad m = (MonadIO m, MonadLogger m, MonadError ServerError m)
+-- type FederationServiceMonad m = (MonadIO m, MonadLogger m, MonadError ServerError m)
+type FederationServiceMonad m = (MonadIO m, MonadError ServerError m)
 
 ----------------------------------------------------------
 -- dummy
@@ -64,7 +65,7 @@ outBoundGetUserIdByHandle' host port handle = do
   case attempt of
     Right c -> do
       x <- liftIO $ outBoundGetUserIdByHandle c handle
-      Log.warn $ Log.msg $ "%%-> outBoundGetUserIdByHandle. Result: " <> (show x)
+      -- Log.warn $ Log.msg $ "%%-> outBoundGetUserIdByHandle. Result: " <> (show x)
       case x of
         GRpcOk result -> pure result
         err -> throwError $ ServerError NotFound ("some error on outBoundGetUserIdByHandle: " <> show err)
@@ -83,7 +84,7 @@ iGetUserIdByHandle' host port handle = do
   case attempt of
     Right c -> do
       x <- iGetUserIdByHandle c handle
-      Log.warn $ Log.msg $ "%%-> iGetUserIdByHandle. Result: " <> (show x)
+      -- Log.warn $ Log.msg $ "%%-> iGetUserIdByHandle. Result: " <> (show x)
       case x of
         GRpcOk result -> pure result
         err -> throwError $ ServerError NotFound ("some error on iGetUserIdByHandle: " <> show err)

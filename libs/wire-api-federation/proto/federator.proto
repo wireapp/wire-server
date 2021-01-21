@@ -36,7 +36,7 @@ service Service {
 }
 
 message QualifiedHandle {
-    string domain = 1;
+    string handleDomain = 1;
     string handle = 2;
 }
 
@@ -62,6 +62,6 @@ message UserProfile {
 }
 
 message QualifiedId {
-    string domain = 1;
+    string idDomain = 1;
     string id = 2; // UUID? bytestring?
 }

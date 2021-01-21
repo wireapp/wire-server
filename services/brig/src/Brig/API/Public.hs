@@ -26,7 +26,6 @@ module Brig.API.Public
     swaggerDocsAPI,
     ServantAPI,
     SwaggerDocsAPI,
-    GetHandleInfoQualified,
   )
 where
 
@@ -43,6 +42,7 @@ import qualified Brig.API.Util as API
 import Brig.App
 import qualified Brig.Calling.API as Calling
 import qualified Brig.Data.User as Data
+import Brig.Federation.Client as Federation
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
 import qualified Brig.Team.API as Team
@@ -1374,8 +1374,8 @@ getHandleInfo self handle = do
           ownerProfile <- lift $ API.lookupProfile self (Qualified ownerId domain)
           owner <- filterHandleResults self (maybeToList ownerProfile)
           return $ Public.UserHandleInfo . Public.profileQualifiedId <$> listToMaybe owner
-    -- FUTUREWORK: Federate with remote backends
-    getRemoteHandleInfo = return Nothing
+    getRemoteHandleInfo = do
+      Federation.getUserHandleInfo handle
 
 changeHandleH :: UserId ::: ConnId ::: JsonRequest Public.HandleUpdate -> Handler Response
 changeHandleH (u ::: conn ::: req) = do

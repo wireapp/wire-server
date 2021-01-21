@@ -128,11 +128,12 @@ testHello = do
 testNetworkHops :: Spec
 testNetworkHops = do
   describe "multi-hop network tests" $ do
-    it "getHandleInfo federator -> federator -> brig" $ do
+    it "getHandleInfo federator -> federator -> brig (NotFound case)" $ do
       let handle = QualifiedHandle "invalid.com" "alice123"
       let x = iGetUserIdByHandle' "127.0.0.1" 8097 handle
       reply <- runExceptT . runFoo $ x
-      True `shouldBe` True
+      reply `shouldSatisfy` (either (\(ServerError code _) -> code == NotFound) (const False))
+      putStr "reply: "
       print reply
 
 -------------------------------------------
