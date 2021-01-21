@@ -61,7 +61,7 @@ that were in progress on said pod will be terminated and will cause the call to 
 
 Kubernetes can be configured to wait for a certain amount of seconds before
 stopping the pod. During this timeframe new calls wil not be initiated on the
-pod, but existing calls will also not be disrupted.  If you want to roll out a
+pod, but existing calls will also not be disrupted. If you want to roll out a
 release with minimal impact you can set the
 [`terminationGracePeriodSeconds`](./values.yaml#L18) option to the maximum
 length you want to wait before cutting off calls.
@@ -73,7 +73,7 @@ helm upgrade sftd wire/sftd --set terminationGracePeriodSeconds=3600
 
 Currently due to the fact we're using a `StatefulSet` to orchestrate update
 rollouts, and `StatefulSet`s will not replace all pods at once but instead
-one-for-one, a rollout of a release will take `oldReplicas * terminationGracePeriodSeconds`
+one-for-one (aka. *rolling update*), a rollout of a release will take `oldReplicas * terminationGracePeriodSeconds`
 to complete.
 
 
@@ -87,16 +87,16 @@ helm upgrade wire/sftd --set replicas=4
 
 By default we provision *3* replicas.
 
-Note that due to the usage of `hostNetwork` there can only be _one_ instance of `sftd` per kubernetes node.
+Note that due to the usage of `hostNetwork` there can only be _one_ instance of `sftd` per Kubernetes node.
 You will need as many nodes available as you have replicas.
 
 If you're using a Kubernetes cloud offering, we recommend setting up cluster
-autoscaling so that you automatically provision new kubernetes nodes when the
+auto-scaling so that you automatically provision new Kubernetes nodes when the
 amount of replicas increases.
 
 As a rule of thumb we support *50* concurrent connections per *1 vCPU*. You
 should adjust the amount of replicas based on your expected usage patterns and
-kubernetes node specifications.
+Kubernetes node specifications.
 
 
 ## Multiple sftd deployments in a single cluster
