@@ -18,7 +18,7 @@
 module Wire.Network.DNS.Effect where
 
 import Imports
-import Network.DNS (Domain)
+import Network.DNS (Domain, Resolver)
 import qualified Network.DNS as DNS
 import Polysemy
 import Wire.Network.DNS.SRV
@@ -34,3 +34,7 @@ runDNSLookupDefault =
     rs <- DNS.makeResolvSeed DNS.defaultResolvConf
     DNS.withResolver rs $ \resolver ->
       interpretResponse <$> DNS.lookupSRV resolver domain
+
+runDNSLookupWithResolver :: Member (Embed IO) r => Resolver -> Sem (DNSLookup ': r) a -> Sem r a
+runDNSLookupWithResolver resolver =
+  interpret $ \(LookupSRV domain) -> embed (interpretResponse <$> DNS.lookupSRV resolver domain)
