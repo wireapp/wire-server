@@ -33,6 +33,7 @@ import Data.UUID
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
+import Wire.API.Team.Role
 
 tests :: TestTree
 tests =
@@ -71,14 +72,15 @@ userDoc1 =
       udAccountStatus = Just Active,
       udSAMLIdP = Just "https://issuer.net/214234",
       udManagedBy = Just ManagedByScim,
-      udCreatedAt = Just (toUTCTimeMillis (mkTime 1598737800000))
+      udCreatedAt = Just (toUTCTimeMillis (mkTime 1598737800000)),
+      udRole = Just RoleAdmin
     }
 
 userDoc1Value :: Value
 userDoc1Value = fromJust (decode userDoc1ByteString)
 
 userDoc1ByteString :: LByteString
-userDoc1ByteString = "{\"email\":\"phoompy@example.com\",\"account_status\":\"active\",\"handle\":\"phoompy\",\"managed_by\":\"scim\",\"accent_id\":32,\"name\":\"Carl Phoomp\",\"created_at\":\"2020-08-29T21:50:00.000Z\",\"team\":\"17c59b18-57d6-11ea-9220-8bbf5eee961a\",\"id\":\"0a96b396-57d6-11ea-a04b-7b93d1a5c19c\",\"normalized\":\"carl phoomp\",\"saml_idp\":\"https://issuer.net/214234\"}"
+userDoc1ByteString = "{\"email\":\"phoompy@example.com\",\"account_status\":\"active\",\"handle\":\"phoompy\",\"managed_by\":\"scim\",\"role\":\"admin\",\"accent_id\":32,\"name\":\"Carl Phoomp\",\"created_at\":\"2020-08-29T21:50:00.000Z\",\"team\":\"17c59b18-57d6-11ea-9220-8bbf5eee961a\",\"id\":\"0a96b396-57d6-11ea-a04b-7b93d1a5c19c\",\"normalized\":\"carl phoomp\",\"saml_idp\":\"https://issuer.net/214234\"}"
 
 indexUser1 :: IndexUser
 indexUser1 = docToIndex userDoc1
