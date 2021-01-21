@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: bcee25a8eb68b839cbd93466eacf451491907b2012f05ed5f8edd538455c9a11
+-- hash: 9c2703f7f4e214c60a252e852559d39ba48a8972f2f4b62ebf4c82431020e6c0
 
 name:           brig
 version:        1.35.0
@@ -344,6 +344,7 @@ executable brig-integration
     , pem
     , proto-lens
     , random >=1.0
+    , raw-strings-qq
     , retry >=0.6
     , safe
     , saml2-web-sso
@@ -474,6 +475,7 @@ test-suite brig-tests
     , dns-util
     , imports
     , polysemy
+    , raw-strings-qq
     , retry
     , tasty
     , tasty-hunit

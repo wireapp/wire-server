@@ -157,6 +157,7 @@ tests:
     - dns-util
     - imports
     - polysemy
+    - raw-strings-qq
     - retry
     - tasty
     - tasty-hunit
@@ -227,6 +228,7 @@ executables:
     - pem
     - proto-lens
     - QuickCheck
+    - raw-strings-qq
     - random >=1.0
     - retry >=0.6
     - safe
