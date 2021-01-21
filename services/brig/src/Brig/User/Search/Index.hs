@@ -700,9 +700,6 @@ reindexRowToIndexUser
                 . set iuName (Just name)
                 . set iuHandle handle
                 . set iuEmail email
-                -- TODO: adding email here may not be the right appraoch; how do we control that
-                -- only team members must be able to affect search results based on email
-                -- addresses?
                 . set iuColourId (Just colour)
                 . set iuAccountStatus status
                 . set iuSAMLIdP (idpUrl =<< ssoId)
