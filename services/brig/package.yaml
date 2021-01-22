@@ -95,6 +95,7 @@ library:
   - smtp-mail >=0.1
   - split >=0.2
   - safe-exceptions >=0.1
+  - saml2-web-sso
   - semigroups >=0.15
   - servant
   - servant-server
@@ -147,6 +148,7 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - aeson
+    - brig
     - base
     - bloodhound
     - brig
@@ -157,9 +159,11 @@ tests:
     - imports
     - polysemy
     - polysemy-wire-zoo
+    - raw-strings-qq
     - retry
     - tasty
     - tasty-hunit
+    - time
     - tinylog
     - types-common
     - unliftio
@@ -226,6 +230,7 @@ executables:
     - pem
     - proto-lens
     - QuickCheck
+    - raw-strings-qq
     - random >=1.0
     - retry >=0.6
     - safe

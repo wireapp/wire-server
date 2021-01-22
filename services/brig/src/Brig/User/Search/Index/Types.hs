@@ -26,8 +26,13 @@ import Control.Monad.Catch
 import Data.Aeson
 import Data.Handle (Handle)
 import Data.Id
+import Data.Json.Util (UTCTimeMillis (..), toUTCTimeMillis)
+import Data.Text.ICU.Translit (trans, transliterate)
+import Data.Time (UTCTime)
 import Database.Bloodhound hiding (key)
+import Database.Bloodhound.Internal.Client (DocVersion (DocVersion))
 import Imports
+import Wire.API.Team.Role (Role)
 
 data IndexDocUpdateType
   = IndexUpdateIfNewerVersion
@@ -38,7 +43,7 @@ data IndexUpdate
   | IndexUpdateUsers IndexDocUpdateType [IndexUser]
   | IndexDeleteUser UserId
 
--- | Represents the ES *index*, ie. the attributes of a user searchable in ES.  See also:
+-- | Represents the ES *index*, ie. the attributes of a user that is searchable in ES.  See also:
 -- 'UserDoc'.
 data IndexUser = IndexUser
   { _iuUserId :: UserId,
@@ -46,11 +51,16 @@ data IndexUser = IndexUser
     _iuTeam :: Maybe TeamId,
     _iuName :: Maybe Name,
     _iuHandle :: Maybe Handle,
+    _iuEmail :: Maybe Email,
     _iuColourId :: Maybe ColourId,
-    _iuAccountStatus :: Maybe AccountStatus
+    _iuAccountStatus :: Maybe AccountStatus,
+    _iuSAMLIdP :: Maybe Text,
+    _iuManagedBy :: Maybe ManagedBy,
+    _iuCreatedAt :: Maybe UTCTime,
+    _iuRole :: Maybe Role
   }
 
-data IndexQuery r = IndexQuery Query Filter
+data IndexQuery r = IndexQuery Query Filter [DefaultSort]
 
 data IndexError
   = IndexUpdateError EsError
@@ -74,11 +84,18 @@ data UserDoc = UserDoc
     udName :: Maybe Name,
     udNormalized :: Maybe Text,
     udHandle :: Maybe Handle,
+    udEmail :: Maybe Email,
     udColourId :: Maybe ColourId,
-    udAccountStatus :: Maybe AccountStatus
+    udAccountStatus :: Maybe AccountStatus,
+    udSAMLIdP :: Maybe Text,
+    udManagedBy :: Maybe ManagedBy,
+    udCreatedAt :: Maybe UTCTimeMillis,
+    udRole :: Maybe Role
   }
   deriving (Eq, Show)
 
+-- Note: Keep this compatible with the FromJSON instances
+-- of 'Contact' and 'TeamContact' from 'Wire.API.User.Search
 instance ToJSON UserDoc where
   toJSON ud =
     object
@@ -87,8 +104,13 @@ instance ToJSON UserDoc where
         "name" .= udName ud,
         "normalized" .= udNormalized ud,
         "handle" .= udHandle ud,
+        "email" .= udEmail ud,
         "accent_id" .= udColourId ud,
-        "account_status" .= udAccountStatus ud
+        "account_status" .= udAccountStatus ud,
+        "saml_idp" .= udSAMLIdP ud,
+        "managed_by" .= udManagedBy ud,
+        "created_at" .= udCreatedAt ud,
+        "role" .= udRole ud
       ]
 
 instance FromJSON UserDoc where
@@ -98,8 +120,13 @@ instance FromJSON UserDoc where
       <*> o .:? "name"
       <*> o .:? "normalized"
       <*> o .:? "handle"
+      <*> o .:? "email"
       <*> o .:? "accent_id"
       <*> o .:? "account_status"
+      <*> o .:? "saml_idp"
+      <*> o .:? "managed_by"
+      <*> o .:? "created_at"
+      <*> o .:? "role"
 
 makeLenses ''IndexUser
 
@@ -117,6 +144,52 @@ mkIndexUser u v =
       _iuTeam = Nothing,
       _iuName = Nothing,
       _iuHandle = Nothing,
+      _iuEmail = Nothing,
       _iuColourId = Nothing,
-      _iuAccountStatus = Nothing
+      _iuAccountStatus = Nothing,
+      _iuSAMLIdP = Nothing,
+      _iuManagedBy = Nothing,
+      _iuCreatedAt = Nothing,
+      _iuRole = Nothing
+    }
+
+indexToDoc :: IndexUser -> UserDoc
+indexToDoc iu =
+  UserDoc
+    { udId = _iuUserId iu,
+      udTeam = _iuTeam iu,
+      udName = _iuName iu,
+      udAccountStatus = _iuAccountStatus iu,
+      udNormalized = normalized . fromName <$> _iuName iu,
+      udHandle = _iuHandle iu,
+      udEmail = _iuEmail iu,
+      udColourId = _iuColourId iu,
+      udSAMLIdP = _iuSAMLIdP iu,
+      udManagedBy = _iuManagedBy iu,
+      udCreatedAt = toUTCTimeMillis <$> _iuCreatedAt iu,
+      udRole = _iuRole iu
+    }
+
+-- | FUTUREWORK: Transliteration should be left to ElasticSearch (ICU plugin), but this will
+-- require a data migration.
+normalized :: Text -> Text
+normalized = transliterate (trans "Any-Latin; Latin-ASCII; Lower")
+
+docToIndex :: UserDoc -> IndexUser
+docToIndex ud =
+  -- (Don't use 'mkIndexUser' here!  With 'IndexUser', you get compiler warnings if you
+  -- forget to add new fields here.)
+  IndexUser
+    { _iuUserId = udId ud,
+      _iuVersion = IndexVersion (DocVersion 1),
+      _iuTeam = udTeam ud,
+      _iuName = udName ud,
+      _iuHandle = udHandle ud,
+      _iuEmail = udEmail ud,
+      _iuColourId = udColourId ud,
+      _iuAccountStatus = udAccountStatus ud,
+      _iuSAMLIdP = udSAMLIdP ud,
+      _iuManagedBy = udManagedBy ud,
+      _iuCreatedAt = fromUTCTimeMillis <$> udCreatedAt ud,
+      _iuRole = udRole ud
     }

@@ -21,11 +21,13 @@ import Bilge
 import Bilge.Assert
 import Brig.Types
 import Control.Monad.Catch (MonadCatch)
+import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Text.Encoding (encodeUtf8)
 import Imports
 import Test.Tasty.HUnit
 import Util
+import Wire.API.User.Search (TeamContact (..))
 
 executeSearch :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Text -> m (SearchResult Contact)
 executeSearch brig self q = do
@@ -72,3 +74,16 @@ assertCan'tFind brig self expected q = do
   liftIO $ do
     assertBool ("User shouldn't be present in results for query: " <> show q) $
       expected `notElem` map contactUserId r
+
+executeTeamUserSearch :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> TeamId -> UserId -> Text -> m (SearchResult TeamContact)
+executeTeamUserSearch brig teamid self q = do
+  r <-
+    get
+      ( brig
+          . paths ["/teams", toByteString' teamid, "search"]
+          . zUser self
+          . queryItem "q" (encodeUtf8 q)
+      )
+      <!! const 200
+      === statusCode
+  responseJsonError r

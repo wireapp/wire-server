@@ -23,13 +23,17 @@ import Brig.Types.Common
 import Brig.Types.Intra (AccountStatus (..))
 import Brig.User.Search.Index
 import Data.Aeson
+import Data.Fixed
 import Data.Handle
 import Data.Id
+import Data.Json.Util
+import Data.Time.Clock
+import Data.Time.Clock.POSIX
 import Data.UUID
-import Database.Bloodhound.Internal.Client
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
+import Wire.API.Team.Role
 
 tests :: TestTree
 tests =
@@ -43,14 +47,17 @@ tests =
       testCase "backwards comptibility test: UserDoc" $
         assertEqual
           "failed"
-          (toJSON userDoc1)
-          userDoc1Value,
+          userDoc1Value
+          (toJSON userDoc1),
       testCase "IndexUser to UserDoc" $
         assertEqual
           "failed"
-          (userDoc indexUser1)
+          (indexToDoc indexUser1)
           userDoc1
     ]
+
+mkTime :: Int -> UTCTime
+mkTime = posixSecondsToUTCTime . secondsToNominalDiffTime . MkFixed . (* 1000000000) . fromIntegral
 
 userDoc1 :: UserDoc
 userDoc1 =
@@ -60,24 +67,20 @@ userDoc1 =
       udName = Just . Name $ "Carl Phoomp",
       udNormalized = Just $ "carl phoomp",
       udHandle = Just . fromJust . parseHandle $ "phoompy",
+      udEmail = Just $ Email "phoompy" "example.com",
       udColourId = Just . ColourId $ 32,
-      udAccountStatus = Just Active
+      udAccountStatus = Just Active,
+      udSAMLIdP = Just "https://issuer.net/214234",
+      udManagedBy = Just ManagedByScim,
+      udCreatedAt = Just (toUTCTimeMillis (mkTime 1598737800000)),
+      udRole = Just RoleAdmin
     }
 
 userDoc1Value :: Value
 userDoc1Value = fromJust (decode userDoc1ByteString)
 
 userDoc1ByteString :: LByteString
-userDoc1ByteString = "{\"team\":\"17c59b18-57d6-11ea-9220-8bbf5eee961a\",\"handle\":\"phoompy\",\"accent_id\":32,\"name\":\"Carl Phoomp\",\"id\":\"0a96b396-57d6-11ea-a04b-7b93d1a5c19c\",\"normalized\":\"carl phoomp\",\"account_status\":\"active\"}"
+userDoc1ByteString = "{\"email\":\"phoompy@example.com\",\"account_status\":\"active\",\"handle\":\"phoompy\",\"managed_by\":\"scim\",\"role\":\"admin\",\"accent_id\":32,\"name\":\"Carl Phoomp\",\"created_at\":\"2020-08-29T21:50:00.000Z\",\"team\":\"17c59b18-57d6-11ea-9220-8bbf5eee961a\",\"id\":\"0a96b396-57d6-11ea-a04b-7b93d1a5c19c\",\"normalized\":\"carl phoomp\",\"saml_idp\":\"https://issuer.net/214234\"}"
 
 indexUser1 :: IndexUser
-indexUser1 =
-  IndexUser
-    { _iuUserId = udId userDoc1,
-      _iuVersion = IndexVersion (DocVersion 1),
-      _iuTeam = udTeam userDoc1,
-      _iuName = udName userDoc1,
-      _iuHandle = udHandle userDoc1,
-      _iuColourId = udColourId userDoc1,
-      _iuAccountStatus = udAccountStatus userDoc1
-    }
+indexUser1 = docToIndex userDoc1

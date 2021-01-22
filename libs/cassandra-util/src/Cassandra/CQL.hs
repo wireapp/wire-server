@@ -36,7 +36,7 @@ import Database.CQL.Protocol as C
     Set (Set),
     Tagged (Tagged),
     TimeUuid (TimeUuid),
-    Value (CqlAscii, CqlBigInt, CqlBlob, CqlBoolean, CqlDouble, CqlInt, CqlList, CqlText, CqlUdt),
+    Value (CqlAscii, CqlBigInt, CqlBlob, CqlBoolean, CqlDouble, CqlInt, CqlList, CqlText, CqlTimestamp, CqlUdt),
     Version (V4),
     W,
     ctype,

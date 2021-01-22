@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7e6bada8622059c2b1e26bbe89e7ed25aa702ac5b7221503f86aad80e842b388
+-- hash: c5312f061d226f10f6e7e3dd06dce7730af75b112fd4251c5c7455dc1ab25a4f
 
 name:           brig
 version:        1.35.0
@@ -98,6 +98,9 @@ library
       Brig.User.Phone
       Brig.User.Search.Index
       Brig.User.Search.Index.Types
+      Brig.User.Search.SearchIndex
+      Brig.User.Search.TeamSize
+      Brig.User.Search.TeamUserSearch
       Brig.User.Template
       Brig.Whitelist
       Brig.ZAuth
@@ -189,6 +192,7 @@ library
     , ropes >=0.4.20
     , safe >=0.3
     , safe-exceptions >=0.1
+    , saml2-web-sso
     , scientific >=0.3.4
     , scrypt >=0.5
     , semigroups >=0.15
@@ -278,6 +282,7 @@ executable brig-integration
       API.Settings
       API.Team
       API.Team.Util
+      API.TeamUserSearch
       API.User
       API.User.Account
       API.User.Auth
@@ -339,6 +344,7 @@ executable brig-integration
     , pem
     , proto-lens
     , random >=1.0
+    , raw-strings-qq
     , retry >=0.6
     , safe
     , saml2-web-sso
@@ -470,9 +476,11 @@ test-suite brig-tests
     , imports
     , polysemy
     , polysemy-wire-zoo
+    , raw-strings-qq
     , retry
     , tasty
     , tasty-hunit
+    , time
     , tinylog
     , types-common
     , unliftio
