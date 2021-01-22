@@ -456,7 +456,7 @@ withOldIndex opts f = do
   indexName <- randomHandle
   createIndexWithMapping opts indexName oldMapping
   let newOpts = opts & Opt.elasticsearchL . Opt.indexL .~ indexName
-  withSettingsOverrides newOpts f
+  withSettingsOverrides newOpts f <* deleteIndex opts indexName
 
 optsForOldIndex :: MonadIO m => Opt.Opts -> m (Opt.Opts, Text)
 optsForOldIndex opts = do
