@@ -18,7 +18,6 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- TODO: rename module
 module Brig.User.Search.TeamUserSearch
   ( teamUserSearch,
     teamUserSearchQuery,
@@ -67,8 +66,8 @@ teamUserSearch tid mbSearchText _mRoleFilter _mSortBy _mSortOrder (fromRange -> 
               searchResults = results
             }
 
--- TODO: Maybe (sortby=<name|handle|email|saml_idp|managed_by|role|created_at>, Maybe ES.SortOrder)
--- TODO: Maybe [Role]
+-- FUTUREWORK: Maybe (sortby=<name|handle|email|saml_idp|managed_by|role|created_at>, Maybe ES.SortOrder)
+-- FUTUREWORK: Maybe [Role]
 -- analogous to SearchIndex.hs
 teamUserSearchQuery ::
   TeamId ->

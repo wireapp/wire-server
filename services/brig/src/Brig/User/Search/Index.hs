@@ -566,7 +566,6 @@ lookupIndexUser ::
   UserId ->
   m (Maybe IndexUser)
 lookupIndexUser u =
-  -- TODO: fetch from galley team member for "role"
   C.liftClient (lookupForIndex u)
 
 lookupForIndex :: (MonadThrow m, C.MonadClient m) => UserId -> m (Maybe IndexUser)
