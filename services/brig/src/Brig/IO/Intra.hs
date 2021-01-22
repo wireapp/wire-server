@@ -174,7 +174,8 @@ updateSearchIndex orig e = case e of
             [ isJust eupName,
               isJust eupAccentId,
               isJust eupHandle,
-              isJust eupManagedBy
+              isJust eupManagedBy,
+              isJust eupSSOId || eupSSOIdRemoved
             ]
     when interesting $ Search.reindex orig
 
@@ -363,7 +364,7 @@ toPushFormat (UserEvent (UserActivated u)) =
       [ "type" .= ("user.activate" :: Text),
         "user" .= SelfProfile u
       ]
-toPushFormat (UserEvent (UserUpdated (UserUpdatedData i n pic acc ass hdl loc mb))) =
+toPushFormat (UserEvent (UserUpdated (UserUpdatedData i n pic acc ass hdl loc mb ssoId ssoIdDel))) =
   Just $
     M.fromList
       [ "type" .= ("user.update" :: Text),
@@ -377,6 +378,8 @@ toPushFormat (UserEvent (UserUpdated (UserUpdatedData i n pic acc ass hdl loc mb
                 # "handle" .= hdl
                 # "locale" .= loc
                 # "managed_by" .= mb
+                # "sso_id" .= ssoId
+                # "sso_id_deleted" .= ssoIdDel
                 # []
             )
       ]
