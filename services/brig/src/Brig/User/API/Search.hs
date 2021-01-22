@@ -171,5 +171,5 @@ browseTeam ::
   Range 1 500 Int32 ->
   Handler (Public.SearchResult Public.TeamContact)
 browseTeam uid tid mQuery mRoleFilter mSortBy mSortOrder size = do
-  ensurePermissions uid tid [Public.AddTeamMember] -- limit this to team admins to reduce risk of involuntary DOS attacks
+  ensurePermissions uid tid [Public.AddTeamMember] -- limit this to team admins to reduce risk of involuntary DOS attacks.  (also, this way we don't need to worry about revealing confidential user data to other team members.)
   Q.browseTeam tid mQuery mRoleFilter mSortBy mSortOrder size
