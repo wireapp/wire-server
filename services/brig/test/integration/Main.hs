@@ -20,13 +20,13 @@ module Main
   )
 where
 
-import qualified API.BrowseTeam as BrowseTeam
 import qualified API.Calling as Calling
 import qualified API.Metrics as Metrics
 import qualified API.Provider as Provider
 import qualified API.Search as Search
 import qualified API.Settings as Settings
 import qualified API.Team as Team
+import qualified API.TeamUserSearch as TeamUserSearch
 import qualified API.User as User
 import qualified API.UserPendingActivation as UserPendingActivation
 import Bilge hiding (header)
@@ -104,7 +104,7 @@ runTests iConf bConf otherArgs = do
   metricsApi <- Metrics.tests mg b
   settingsApi <- Settings.tests brigOpts mg b g
   createIndex <- Index.Create.spec brigOpts
-  browseTeam <- BrowseTeam.tests brigOpts mg g b
+  browseTeam <- TeamUserSearch.tests brigOpts mg g b
   userPendingActivation <- UserPendingActivation.tests brigOpts mg db b g s
   withArgs otherArgs . defaultMain $
     testGroup

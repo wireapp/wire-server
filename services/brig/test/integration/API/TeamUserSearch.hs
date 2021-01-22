@@ -1,6 +1,6 @@
 module API.TeamUserSearch (tests) where
 
-import API.Search.Util (executeBrowseTeamSearch, refreshIndex)
+import API.Search.Util (executeTeamUserSearch, refreshIndex)
 import API.Team.Util
   ( createPopulatedBindingTeamWithNamesAndHandles,
   )
@@ -42,7 +42,7 @@ testSearchByEmail brig mkSearcherAndSearchee canFind = do
   _ <- initiateEmailUpdateNoSend brig eml (userId searchee)
   activateEmail brig eml
   refreshIndex brig
-  let check = if canFind then assertBrowseTeamCanFind else assertBrowseTeamCannotFind
+  let check = if canFind then assertTeamUserSearchCanFind else assertTeamUserSearchCannotFind
   check brig tid searcher (userId searchee) (fromEmail eml)
 
 testSearchByEmailSameTeam :: TestConstraints m => Brig -> m ()
@@ -52,18 +52,18 @@ testSearchByEmailSameTeam brig = do
         pure (tid, ownerId, u1)
   testSearchByEmail brig mkSearcherAndSearchee True
 
-assertBrowseTeamCanFind :: TestConstraints m => Brig -> TeamId -> UserId -> UserId -> Text -> m ()
-assertBrowseTeamCanFind brig teamid self expected q = do
-  r <- searchResults <$> executeBrowseTeamSearch brig teamid self q
+assertTeamUserSearchCanFind :: TestConstraints m => Brig -> TeamId -> UserId -> UserId -> Text -> m ()
+assertTeamUserSearchCanFind brig teamid self expected q = do
+  r <- searchResults <$> executeTeamUserSearch brig teamid self q
   liftIO $ do
     assertBool ("No results for query: " <> show q) $
       not (null r)
     assertBool ("User not in results for query: " <> show q) $
       expected `elem` map teamContactUserId r
 
-assertBrowseTeamCannotFind :: TestConstraints m => Brig -> TeamId -> UserId -> UserId -> Text -> m ()
-assertBrowseTeamCannotFind brig teamid self expected q = do
-  r <- searchResults <$> executeBrowseTeamSearch brig teamid self q
+assertTeamUserSearchCannotFind :: TestConstraints m => Brig -> TeamId -> UserId -> UserId -> Text -> m ()
+assertTeamUserSearchCannotFind brig teamid self expected q = do
+  r <- searchResults <$> executeTeamUserSearch brig teamid self q
   liftIO $ do
     assertBool ("User shouldn't be present in results for query: " <> show q) $
       expected `notElem` map teamContactUserId r
@@ -72,7 +72,7 @@ testEmptyQuerySorted :: TestConstraints m => Brig -> m ()
 testEmptyQuerySorted brig = do
   (tid, userId -> ownerId, users) <- createPopulatedBindingTeamWithNamesAndHandles brig 4
   refreshIndex brig
-  r <- searchResults <$> executeBrowseTeamSearch brig tid ownerId ""
+  r <- searchResults <$> executeTeamUserSearch brig tid ownerId ""
   let creationDates = fmap teamContactCreatedAt r
   liftIO $
     assertEqual
