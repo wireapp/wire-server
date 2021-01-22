@@ -28,9 +28,9 @@ import qualified Brig.IO.Intra as Intra
 import qualified Brig.Options as Opts
 import Brig.Team.Util (ensurePermissions)
 import Brig.Types.Search as Search
-import qualified Brig.User.Search.BrowseTeam as Q
 import Brig.User.Search.Index
 import qualified Brig.User.Search.SearchIndex as Q
+import qualified Brig.User.Search.TeamUserSearch as Q
 import Control.Lens (view)
 import Data.Id
 import Data.Predicate
@@ -65,7 +65,7 @@ routesPublic = do
     Doc.returns (Doc.ref $ Public.modelSearchResult Public.modelSearchContact)
     Doc.response 200 "The search result." Doc.end
 
-  get "/teams/:tid/search" (continue browseTeamH) $
+  get "/teams/:tid/search" (continue teamUserSearchH) $
     accept "application" "json"
       .&. header "Z-User"
       .&. capture "tid"
@@ -147,7 +147,7 @@ search searcherId searchTerm maxResults = do
     handleTeamVisibility t Team.SearchVisibilityStandard = Search.TeamAndNonMembers t
     handleTeamVisibility t Team.SearchVisibilityNoNameOutsideTeam = Search.TeamOnly t
 
-browseTeamH ::
+teamUserSearchH ::
   ( JSON
       ::: UserId
       ::: TeamId
@@ -158,10 +158,10 @@ browseTeamH ::
       ::: Range 1 500 Int32
   ) ->
   Handler Response
-browseTeamH (_ ::: uid ::: tid ::: mQuery ::: mRoleFilter ::: mSortBy ::: mSortOrder ::: size) = do
-  json <$> browseTeam uid tid mQuery (undefined mRoleFilter) mSortBy mSortOrder size
+teamUserSearchH (_ ::: uid ::: tid ::: mQuery ::: mRoleFilter ::: mSortBy ::: mSortOrder ::: size) = do
+  json <$> teamUserSearch uid tid mQuery (undefined mRoleFilter) mSortBy mSortOrder size
 
-browseTeam ::
+teamUserSearch ::
   UserId ->
   TeamId ->
   Maybe Text ->
@@ -170,6 +170,6 @@ browseTeam ::
   Maybe Text ->
   Range 1 500 Int32 ->
   Handler (Public.SearchResult Public.TeamContact)
-browseTeam uid tid mQuery mRoleFilter mSortBy mSortOrder size = do
+teamUserSearch uid tid mQuery mRoleFilter mSortBy mSortOrder size = do
   ensurePermissions uid tid [Public.AddTeamMember] -- limit this to team admins to reduce risk of involuntary DOS attacks.  (also, this way we don't need to worry about revealing confidential user data to other team members.)
-  Q.browseTeam tid mQuery mRoleFilter mSortBy mSortOrder size
+  Q.teamUserSearch tid mQuery mRoleFilter mSortBy mSortOrder size

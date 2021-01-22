@@ -18,9 +18,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.User.Search.BrowseTeam
-  ( browseTeam,
-    browseTeamQuery,
+-- TODO: rename module
+module Brig.User.Search.TeamUserSearch
+  ( teamUserSearch,
+    teamUserSearchQuery,
   )
 where
 
@@ -35,7 +36,7 @@ import Imports hiding (log, searchable)
 import Wire.API.Team.Role
 import Wire.API.User.Search
 
-browseTeam ::
+teamUserSearch ::
   (HasCallStack, MonadIndexIO m) =>
   TeamId ->
   Maybe Text ->
@@ -44,8 +45,8 @@ browseTeam ::
   Maybe Text ->
   Range 1 500 Int32 ->
   m (SearchResult TeamContact)
-browseTeam tid mbSearchText _mRoleFilter _mSortBy _mSortOrder (fromRange -> s) = liftIndexIO $ do
-  let (IndexQuery q f sortSpecs) = browseTeamQuery tid mbSearchText
+teamUserSearch tid mbSearchText _mRoleFilter _mSortBy _mSortOrder (fromRange -> s) = liftIndexIO $ do
+  let (IndexQuery q f sortSpecs) = teamUserSearchQuery tid mbSearchText
   idx <- asks idxName
   let search =
         (ES.mkSearch (Just q) (Just f))
@@ -69,11 +70,11 @@ browseTeam tid mbSearchText _mRoleFilter _mSortBy _mSortOrder (fromRange -> s) =
 -- TODO: Maybe (sortby=<name|handle|email|saml_idp|managed_by|role|created_at>, Maybe ES.SortOrder)
 -- TODO: Maybe [Role]
 -- analogous to SearchIndex.hs
-browseTeamQuery ::
+teamUserSearchQuery ::
   TeamId ->
   Maybe Text ->
   IndexQuery TeamContact
-browseTeamQuery tid mbSearchText =
+teamUserSearchQuery tid mbSearchText =
   case mbQStr of
     Nothing ->
       IndexQuery

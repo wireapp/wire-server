@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9f6c01450b7d627f43454054241c554e81f4299b505fd50685e67c9e5903a7ec
+-- hash: c5312f061d226f10f6e7e3dd06dce7730af75b112fd4251c5c7455dc1ab25a4f
 
 name:           brig
 version:        1.35.0
@@ -96,11 +96,11 @@ library
       Brig.User.Handle
       Brig.User.Handle.Blacklist
       Brig.User.Phone
-      Brig.User.Search.BrowseTeam
       Brig.User.Search.Index
       Brig.User.Search.Index.Types
       Brig.User.Search.SearchIndex
       Brig.User.Search.TeamSize
+      Brig.User.Search.TeamUserSearch
       Brig.User.Template
       Brig.Whitelist
       Brig.ZAuth
@@ -273,7 +273,6 @@ executable brig-index
 executable brig-integration
   main-is: Main.hs
   other-modules:
-      API.BrowseTeam
       API.Calling
       API.Metrics
       API.Provider
@@ -283,6 +282,7 @@ executable brig-integration
       API.Settings
       API.Team
       API.Team.Util
+      API.TeamUserSearch
       API.User
       API.User.Account
       API.User.Auth
