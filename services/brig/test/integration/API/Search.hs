@@ -485,7 +485,7 @@ runBH opts =
   let esURL = opts ^. Opt.elasticsearchL . Opt.urlL
    in liftIO . ES.withBH HTTP.defaultManagerSettings (ES.Server esURL)
 
---- | This was copied from at Brig.User.Search.Index at commit 3242aa26
+-- | This was copied from at Brig.User.Search.Index at commit 3242aa26
 analysisSettings :: ES.Analysis
 analysisSettings =
   let analyzerDef =

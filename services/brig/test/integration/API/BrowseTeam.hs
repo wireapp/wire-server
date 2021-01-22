@@ -1,4 +1,4 @@
-module API.BrowseTeam where
+module API.BrowseTeam (tests) where
 
 import API.Search.Util (executeBrowseTeamSearch, refreshIndex)
 import API.Team.Util
@@ -64,7 +64,6 @@ assertBrowseTeamCanFind brig teamid self expected q = do
 assertBrowseTeamCannotFind :: TestConstraints m => Brig -> TeamId -> UserId -> UserId -> Text -> m ()
 assertBrowseTeamCannotFind brig teamid self expected q = do
   r <- searchResults <$> executeBrowseTeamSearch brig teamid self q
-  liftIO $ do
     liftIO $ do
       assertBool ("User shouldn't be present in results for query: " <> show q) $
         expected `notElem` map teamContactUserId r
