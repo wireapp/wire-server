@@ -73,6 +73,7 @@ import Data.Range
 import Data.Swagger (HasInfo (info), HasTitle (title), Swagger, ToSchema (..), description)
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Swagger.Lens (HasSchema (..))
+import qualified Data.Text as T
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (decodeLatin1)
@@ -1361,12 +1362,15 @@ getHandleInfoH self domain handle =
 -- FUTUREWORK: use 'runMaybeT' to simplify this.
 getHandleInfo :: UserId -> Qualified Handle -> Handler (Maybe Public.UserHandleInfo)
 getHandleInfo self handle = do
+  Log.warn $ Log.msg $ T.pack ("getHandleInfo with handle: " <> (show handle))
   domain <- viewFederationDomain
+  Log.warn $ Log.msg $ T.pack $ "getHandleInfo - own domain: " <> (show domain)
   if qDomain handle == domain
     then getLocalHandleInfo domain
     else getRemoteHandleInfo
   where
     getLocalHandleInfo domain = do
+      Log.warn $ Log.msg @Text "getHandleInfo - local lookup"
       maybeOwnerId <- lift $ API.lookupHandle (qUnqualified handle)
       case maybeOwnerId of
         Nothing -> return Nothing
@@ -1375,6 +1379,7 @@ getHandleInfo self handle = do
           owner <- filterHandleResults self (maybeToList ownerProfile)
           return $ Public.UserHandleInfo . Public.profileQualifiedId <$> listToMaybe owner
     getRemoteHandleInfo = do
+      Log.warn $ Log.msg @Text "getHandleInfo - remote lookup"
       Federation.getUserHandleInfo handle
 
 changeHandleH :: UserId ::: ConnId ::: JsonRequest Public.HandleUpdate -> Handler Response
