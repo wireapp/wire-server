@@ -10,9 +10,13 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - name: http
-      port: {{ .Values.service.externalPort }}
-      targetPort: {{ .Values.service.internalPort }}
+    - name: internal
+      port: {{ .Values.service.internalFederatorPort }}
+      targetPort: {{ .Values.service.internalFederatorPort }}
+
+    - name: external
+      port: {{ .Values.service.externalFederatorPort }}
+      targetPort: {{ .Values.service.externalFederatorPort }}
   selector:
     wireService: federator
     release: {{ .Release.Name }}
