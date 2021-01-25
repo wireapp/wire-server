@@ -148,7 +148,6 @@ data QueryParam = QueryParam
   deriving (Arbitrary) via (GenericUniform QueryParam)
 
 -- Does this make it hard to use in a type checked way?
--- Does this need an HTTP method too? Or should this also be grpc?
 data LocalCall = LocalCall
   { component :: Maybe Component,
     method :: Maybe HTTPMethod,
