@@ -141,8 +141,12 @@ interpretBrig = interpret $ \case
               . RPC.path p
               . RPC.query (map (\(QueryParam k v) -> (k, Just v)) q)
               . RPC.body (RPC.RequestBodyBS b)
-    -- TODO: Don't retry everything
-    res <- recovering x3 rpcHandlers $ const theCall
+    res <-
+      case m of
+        -- FUTUREWORK: Maybe other HTTP methods can also be retried, this is the
+        -- only usecase as of now and seems safe.
+        HTTP.GET -> recovering x3 rpcHandlers $ const theCall
+        _ -> theCall
     pure (RPC.responseStatus res, RPC.responseBody res)
 
 x3 :: RetryPolicy
