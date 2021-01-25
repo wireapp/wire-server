@@ -35,10 +35,13 @@ nginz:
   host: 127.0.0.1
   port: 8080
 
-federator:
+federatorInternal:
   host: 127.0.0.1
   port: 8097
 
+federatorExternal:
+  host: 127.0.0.1
+  port: 8098
 # Used by brig-integration (bot providers), galley-integration (legal hold)
 provider:
   privateKey: test/resources/key.pem
@@ -52,6 +55,6 @@ backendTwo:
   brig:
     host: 127.0.0.1 # in kubernetes, brig.<NAMESPACE>.svc.cluster.local
     port: 9082
-  federator:
+  federatorInternal:
     host: 127.0.0.1 # in kubernetes, federator.<NAMESPACE>.svc.cluster.local
     port: 9097

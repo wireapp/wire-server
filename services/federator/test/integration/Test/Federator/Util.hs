@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
@@ -24,6 +25,7 @@ module Test.Federator.Util where
 import Bilge
 import Control.Exception
 import Control.Lens hiding ((.=))
+import Control.Monad.Catch
 import Control.Monad.Except
 import Crypto.Random.Types (MonadRandom, getRandomBytes)
 import Data.Aeson.TH
@@ -32,17 +34,34 @@ import qualified Data.Yaml as Yaml
 import Federator.Options
 import Imports hiding (head)
 import qualified Options.Applicative as OPA
--- import System.Random (randomRIO)
 import Test.Federator.Utilly
--- import Test.Hspec hiding (it, pending, pendingWith, xit)
 import Util.Options
 
 type BrigReq = Request -> Request
 
-type TestFederator = ReaderT TestEnv IO
+newtype TestFederator m a = TestFederator {unwrapTestFederator :: ReaderT TestEnv m a}
+  deriving newtype
+    ( Functor,
+      Applicative,
+      Monad,
+      MonadIO,
+      MonadTrans,
+      MonadReader TestEnv,
+      MonadFail,
+      MonadThrow,
+      MonadCatch
+    )
 
-instance MonadRandom TestFederator where
+instance MonadRandom m => MonadRandom (TestFederator m) where
   getRandomBytes = lift . getRandomBytes
+
+instance MonadIO m => MonadHttp (TestFederator m) where
+  handleRequestWithCont req handler = do
+    manager <- _teMgr <$> ask
+    liftIO $ withResponse req manager handler
+
+runTestFederator :: TestEnv -> TestFederator IO a -> IO a
+runTestFederator env = flip runReaderT env . unwrapTestFederator
 
 -- | See 'mkEnv' about what's in here.
 data TestEnv = TestEnv

@@ -24,16 +24,17 @@ import Data.String.Conversions
 import Imports
 import System.Environment (withArgs)
 import Test.Federator.APISpec
--- import Test.Federator.Util
+import qualified Test.Federator.RouteToInternalSpec
+import Test.Federator.Util (TestEnv, mkEnvFromOptions)
 import Test.Hspec
 
 main :: IO ()
 main = do
-  (_wireArgs, hspecArgs) <- partitionArgs <$> getArgs
-  -- env <- withArgs wireArgs mkEnvFromOptions
+  (wireArgs, hspecArgs) <- partitionArgs <$> getArgs
+  env <- withArgs wireArgs mkEnvFromOptions
   -- withArgs hspecArgs . hspec $ do
   --   beforeAll (pure env) . afterAll destroyEnv $ Hspec.mkspec
-  withArgs hspecArgs . hspec $ mkspec
+  withArgs hspecArgs . hspec $ mkspec env
 
 partitionArgs :: [String] -> ([String], [String])
 partitionArgs = go [] []
@@ -43,8 +44,10 @@ partitionArgs = go [] []
     go wireArgs hspecArgs (x : xs) = go wireArgs (hspecArgs <> [x]) xs
     go wireArgs hspecArgs [] = (wireArgs, hspecArgs)
 
-mkspec :: Spec -- With TestEnv
-mkspec = do
+mkspec :: TestEnv -> Spec -- With TestEnv
+mkspec env = do
   -- describe "Logging" Test.LoggingSpec.spec
   -- describe "Metrics" Test.MetricsSpec.spec
-  describe "Federator.API" Test.Federator.APISpec.tests
+  describe "Federator.API" $ do
+    Test.Federator.APISpec.tests
+    Test.Federator.RouteToInternalSpec.spec env
