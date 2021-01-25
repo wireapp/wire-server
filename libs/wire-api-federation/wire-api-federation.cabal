@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: abedd83b8c53a0c5f588d10241b6c99d1da8d526255e6c21ae26d62e6d65a5d0
+-- hash: 75d20bbd2849b5cfb87a40ecdb205cf2b3a509f34bbdec7f953e38ac335ea48f
 
 name:           wire-api-federation
 version:        0.1.0
@@ -19,6 +19,7 @@ license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     proto/federator.proto
+    proto/router.proto
 
 library
   exposed-modules:
@@ -28,6 +29,7 @@ library
       Wire.API.Federation.GRPC.Helper
       Wire.API.Federation.GRPC.Proto
       Wire.API.Federation.GRPC.Service
+      Wire.API.Federation.GRPC.Types
       Wire.API.Federation.Util.Aeson
   other-modules:
       Paths_wire_api_federation
@@ -42,8 +44,10 @@ library
     , bytestring >=0.10
     , bytestring-conversion >=0.3
     , containers >=0.5
+    , either
     , errors >=2.0
     , exceptions >=0.6
+    , http-types
     , http2-client
     , imports
     , mtl
@@ -58,6 +62,7 @@ library
     , tinylog
     , transformers >=0.3
     , types-common
+    , wire-api
   default-language: Haskell2010
 
 test-suite spec
@@ -65,6 +70,7 @@ test-suite spec
   main-is: Spec.hs
   other-modules:
       Test.Wire.API.Federation.APISpec
+      Test.Wire.API.Federation.GRPC.TypesSpec
       Paths_wire_api_federation
   hs-source-dirs:
       test
@@ -77,10 +83,12 @@ test-suite spec
     , bytestring >=0.10
     , bytestring-conversion >=0.3
     , containers >=0.5
+    , either
     , errors >=2.0
     , exceptions >=0.6
     , hspec
     , hspec-discover
+    , http-types
     , http2-client
     , imports
     , metrics-wai
@@ -96,5 +104,6 @@ test-suite spec
     , tinylog
     , transformers >=0.3
     , types-common
+    , wire-api
     , wire-api-federation
   default-language: Haskell2010
