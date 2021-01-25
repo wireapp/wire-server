@@ -60,6 +60,7 @@ testHandleLookup brig brigTwo = do
   --
   -- brig-integration -> brig -> federator -> fed2-federator -> fed2-brig
   -- (and back)
+  putStrLn "----------"
   result <- userHandleId <$> getUserInfoFromHandle brig domain handle
-  liftIO $ assertEqual "remote handle lookup via federator should work in the happy case" result (Qualified (userId u) domain)
   print result
+  liftIO $ assertEqual "remote handle lookup via federator should work in the happy case" result (Qualified (userId u) domain)
