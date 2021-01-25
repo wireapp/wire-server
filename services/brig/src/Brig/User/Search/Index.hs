@@ -275,6 +275,12 @@ createIndex' failIfExists settings shardCount = liftIndexIO $ do
     throwM (IndexError "Index already exists.")
   unless ex $ do
     let fullSettings = settings ++ [ES.AnalysisSetting analysisSettings]
+    let templateName = (ES.TemplateName "directory")
+    tExists <- ES.templateExists templateName
+    when tExists $ do
+      dr <- ES.deleteTemplate templateName
+      unless (ES.isSuccess dr) $
+        throwM (IndexError "Deleting template failed.")
     cr <- traceES "Create index" $ ES.createIndexWith fullSettings shardCount idx
     unless (ES.isSuccess cr) $
       throwM (IndexError "Index creation failed.")
