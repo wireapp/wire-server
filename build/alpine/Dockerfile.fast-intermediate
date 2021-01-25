@@ -1,0 +1,26 @@
+# Produces intermediate docker image with all executables under /dist using fast option
+
+# Requires docker version >= 17.05 (requires support for multi-stage builds)
+# Requires to have created the wire-server-builder and wire-server-deps docker images (run `make` in this directory)
+# Usage example:
+#   (from wire-server root directory)
+#   docker build -f build/alpine/Dockerfile.fastintermediate .
+
+ARG builder=quay.io/wire/alpine-builder
+ARG deps=quay.io/wire/alpine-deps
+
+#--- Builder stage ---
+FROM ${builder} as builder
+
+WORKDIR /wire-server/
+
+COPY . /wire-server/
+
+RUN make clean fast
+
+#--- Minified stage ---
+FROM ${deps}
+
+COPY --from=builder /wire-server/dist/ /dist/
+# brig also needs some templates.
+COPY --from=builder /wire-server/services/brig/deb/opt/brig/templates/ /dist/templates/
