@@ -10,7 +10,7 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - name: internal
+    - name: http
       port: {{ .Values.service.internalFederatorPort }}
       targetPort: {{ .Values.service.internalFederatorPort }}
 
