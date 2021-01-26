@@ -208,6 +208,7 @@ newEnv o = do
   let _runSettings = Opt.optSettings o
   _dnsResolver <- DNS.mkDnsResolver
   let _brig = mkEndpoint (Opt.brig o)
+  let _brigEndpoint = Opt.brig o
   _httpManager <- initHttpManager
   return Env {..}
   where

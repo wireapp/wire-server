@@ -4,20 +4,23 @@
 
 module Federator.Brig where
 
+import Control.Lens (view, (^.))
 import Control.Monad.Except (MonadError (throwError))
 import Data.Domain
 import Data.Handle
 import Data.Id hiding (client)
 import Data.Proxy
+import Data.String.Conversions
 import Federator.App (AppIO)
+import Federator.Types
 import Imports
 import Mu.Server (ServerError (..), ServerErrorCode (..))
-import Network.HTTP.Client (defaultManagerSettings, newManager)
 import Network.HTTP.Types
 import Servant.API
 import qualified Servant.API as Servant
 import Servant.Client
 import qualified System.Logger.Class as Log
+import Util.Options
 import Wire.API.Federation.GRPC.Proto (QualifiedHandle (..))
 import Wire.API.User.Handle
 
@@ -40,17 +43,16 @@ api = Proxy
 getUserInfoByHandle :: UserId -> Domain -> Handle -> ClientM UserHandleInfo
 getUserInfoByHandle = client api
 
--- TODO: we don't want to spawn a new http manager per request...
--- TODO: where to find brig should come from configuration
 -- FUTUREWORK: better error handling
 -- FUTUREWORK: use a specific /i/something internal brig endpoint to avoid having to "fake" ZAuth user Ids
 run :: QualifiedHandle -> AppIO UserHandleInfo
 run (QualifiedHandle domain handle) = do
   Log.warn $ Log.msg $ "%%-> Brig/run. Handle:" <> show handle
-  manager' <- liftIO $ newManager defaultManagerSettings
+  manager' <- view httpManager
+  b <- view brigEndpoint
   fakeZAuth <- randomId
   let query = getUserInfoByHandle fakeZAuth (Domain domain) (Handle handle) -- FUTUREWORK: validation needs to happen on domain/handle
-  res <- liftIO $ runClientM query (mkClientEnv manager' (BaseUrl Http "localhost" 8082 ""))
+  res <- liftIO $ runClientM query (mkClientEnv manager' (BaseUrl Http (cs (b ^. epHost)) (fromIntegral (b ^. epPort)) ""))
   case res of
     Left (FailureResponse _ resp) -> do
       case responseStatusCode resp of
