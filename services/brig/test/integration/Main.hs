@@ -56,7 +56,8 @@ import Util.Test
 
 data BackendConf = BackendConf
   { remoteBrig :: Endpoint,
-    remoteFederator :: Endpoint
+    remoteFederatorInternal :: Endpoint,
+    remoteFederatorExternal :: Endpoint
   }
   deriving (Show, Generic)
 
@@ -64,14 +65,15 @@ instance FromJSON BackendConf where
   parseJSON = withObject "BackendConf" $ \o ->
     BackendConf
       <$> o .: "brig"
-      <*> o .: "federator"
+      <*> o .: "federatorInternal"
+      <*> o .: "federatorExternal"
 
 data Config = Config
   -- internal endpoints
   { brig :: Endpoint,
     cannon :: Endpoint,
     cargohold :: Endpoint,
-    federator :: Endpoint,
+    federatorInternal :: Endpoint,
     galley :: Endpoint,
     nginz :: Endpoint,
     spar :: Endpoint,
@@ -92,7 +94,7 @@ runTests iConf brigOpts otherArgs = do
       g = mkRequest $ galley iConf
       n = mkRequest $ nginz iConf
       s = mkRequest $ spar iConf
-      f = federator iConf
+      f = federatorInternal iConf
       brigTwo = mkRequest $ remoteBrig (backendTwo iConf)
 
   let turnFile = Opts.servers . Opts.turn $ brigOpts
