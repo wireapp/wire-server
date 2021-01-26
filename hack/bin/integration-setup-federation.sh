@@ -2,6 +2,7 @@
 
 USAGE="Usage: $0"
 
+set -e
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 TOP_LEVEL="$DIR/../.."

@@ -46,7 +46,7 @@ for chart in "${charts[@]}"; do
         --set brig.config.optSettings.setFederationDomain="$FEDERATION_DOMAIN" \
         --set galley.config.settings.federationDomain="$FEDERATION_DOMAIN" \
         --wait \
-        --timeout "$TIMEOUT" || printLogs
+        --timeout "$TIMEOUT"
     set +x
 done
 
