@@ -5,8 +5,8 @@ image:
   tag: do-not-use
 
 service:
-  externalPort: 8080
-  internalPort: 8080
+  internalFederatorPort: 8080
+  externalFederatorPort: 8081
 
 resources:
   # FUTUREWORK: come up with numbers which didn't appear out of thin air
