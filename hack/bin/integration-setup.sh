@@ -41,7 +41,7 @@ for chart in "${charts[@]}"; do
     # default is 5m but may not be enough on a fresh install including cassandra migrations
     TIMEOUT=10m
     set -x
-    helm upgrade --atomic --install --namespace "${NAMESPACE}" "${NAMESPACE}-${chart}" "${CHARTS_DIR}/${chart}" \
+    helm upgrade --install --namespace "${NAMESPACE}" "${NAMESPACE}-${chart}" "${CHARTS_DIR}/${chart}" \
         $option \
         --set brig.config.optSettings.setFederationDomain="$FEDERATION_DOMAIN" \
         --set galley.config.settings.federationDomain="$FEDERATION_DOMAIN" \
