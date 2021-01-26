@@ -17,6 +17,10 @@ data:
       host: 0.0.0.0
       port: {{ .Values.service.externalFederatorPort }}
 
+    brig:
+      host: brig
+      port: 8080
+
     {{- with .Values.config }}
 
     logNetStrings: True # log using netstrings encoding:
