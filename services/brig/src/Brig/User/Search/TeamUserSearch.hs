@@ -31,88 +31,11 @@ import Brig.Data.Instances ()
 import Brig.Types.Search
 import Brig.User.Search.Index
 import Control.Monad.Catch (MonadThrow (throwM))
-import Data.Attoparsec.ByteString (sepBy, takeLazyByteString)
-import Data.Attoparsec.ByteString.Char8 (char)
-import Data.ByteString.Conversion (ToByteString (..))
-import Data.ByteString.Conversion.From (FromByteString (..))
 import Data.Id (TeamId, idToText)
 import Data.Range (Range (..))
 import qualified Database.Bloodhound as ES
 import Imports hiding (log, searchable)
-import Wire.API.Team.Role
 import Wire.API.User.Search
-
--- TODO: move this to wire-api API.User.Search
-data TeamUserSearchSortBy
-  = SortByName
-  | SortByHandle
-  | SortByEmail
-  | SortBySAMLIdp
-  | SortByManagedBy
-  | SortByRole
-  | SortByCreatedAt
-  deriving (Show, Eq, Ord)
-
-instance ToByteString TeamUserSearchSortBy where
-  builder SortByName = "name"
-  builder SortByHandle = "handle"
-  builder SortByEmail = "email"
-  builder SortBySAMLIdp = "saml_idp"
-  builder SortByManagedBy = "managed_by"
-  builder SortByRole = "role"
-  builder SortByCreatedAt = "created_at"
-
-instance FromByteString TeamUserSearchSortBy where
-  parser =
-    takeLazyByteString >>= \case
-      "name" -> pure SortByName
-      "handle" -> pure SortByHandle
-      "email" -> pure SortByEmail
-      "saml_idp" -> pure SortBySAMLIdp
-      "managed_by" -> pure SortByManagedBy
-      "role" -> pure SortByRole
-      "created_at" -> pure SortByCreatedAt
-      bad -> fail ("Not a sort by field: " <> show bad)
-
-data TeamUserSearchSortOrder
-  = SortOrderAsc
-  | SortOrderDesc
-  deriving (Show, Eq, Ord)
-
-instance ToByteString TeamUserSearchSortOrder where
-  builder SortOrderAsc = "asc"
-  builder SortOrderDesc = "desc"
-
-instance FromByteString TeamUserSearchSortOrder where
-  parser =
-    takeLazyByteString >>= \case
-      "asc" -> pure SortOrderAsc
-      "desc" -> pure SortOrderDesc
-      bad -> fail ("not a sort order:  " <> show bad)
-
--- TODO: move to module
-instance ToByteString Role where
-  builder RoleOwner = "owner"
-  builder RoleAdmin = "admin"
-  builder RoleMember = "member"
-  builder RoleExternalPartner = "partner"
-
-instance FromByteString Role where
-  parser =
-    takeLazyByteString >>= \case
-      "owner" -> pure RoleOwner
-      "admin" -> pure RoleAdmin
-      "member" -> pure RoleMember
-      "partner" -> pure RoleExternalPartner
-      bad -> fail ("not a role:  " <> show bad)
-
-newtype RoleFilter = RoleFilter [Role]
-
-instance ToByteString RoleFilter where
-  builder (RoleFilter roles) = mconcat $ intersperse "," (fmap builder roles)
-
-instance FromByteString RoleFilter where
-  parser = RoleFilter <$> parser `sepBy` char ','
 
 teamUserSearch ::
   (HasCallStack, MonadIndexIO m) =>

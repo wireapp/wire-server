@@ -31,6 +31,8 @@ where
 
 import qualified Cassandra as Cql
 import Data.Aeson
+import Data.Attoparsec.ByteString (takeLazyByteString)
+import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
 import qualified Data.Swagger.Model.Api as Doc
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
@@ -105,6 +107,21 @@ instance FromJSON Role where
     -- wondering about this, it's probably safe to remove.
     -- ~fisx, Wed Jan 23 16:38:52 CET 2019
     bad -> fail $ "not a role: " <> show bad
+
+instance ToByteString Role where
+  builder RoleOwner = "owner"
+  builder RoleAdmin = "admin"
+  builder RoleMember = "member"
+  builder RoleExternalPartner = "partner"
+
+instance FromByteString Role where
+  parser =
+    takeLazyByteString >>= \case
+      "owner" -> pure RoleOwner
+      "admin" -> pure RoleAdmin
+      "member" -> pure RoleMember
+      "partner" -> pure RoleExternalPartner
+      bad -> fail ("not a role:  " <> show bad)
 
 defaultRole :: Role
 defaultRole = RoleMember

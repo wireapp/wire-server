@@ -22,6 +22,9 @@ module Wire.API.User.Search
   ( SearchResult (..),
     Contact (..),
     TeamContact (..),
+    RoleFilter (..),
+    TeamUserSearchSortOrder (..),
+    TeamUserSearchSortBy (..),
 
     -- * Swagger
     modelSearchResult,
@@ -31,6 +34,9 @@ module Wire.API.User.Search
 where
 
 import Data.Aeson
+import Data.Attoparsec.ByteString (sepBy, takeLazyByteString)
+import Data.Attoparsec.ByteString.Char8 (char)
+import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
 import Data.Id (TeamId, UserId)
 import Data.Json.Util (UTCTimeMillis)
 import qualified Data.Swagger.Build.Api as Doc
@@ -199,3 +205,58 @@ instance FromJSON TeamContact where
         <*> o .:? "managed_by"
         <*> o .:? "saml_idp"
         <*> o .:? "role"
+
+data TeamUserSearchSortBy
+  = SortByName
+  | SortByHandle
+  | SortByEmail
+  | SortBySAMLIdp
+  | SortByManagedBy
+  | SortByRole
+  | SortByCreatedAt
+  deriving (Show, Eq, Ord)
+
+instance ToByteString TeamUserSearchSortBy where
+  builder SortByName = "name"
+  builder SortByHandle = "handle"
+  builder SortByEmail = "email"
+  builder SortBySAMLIdp = "saml_idp"
+  builder SortByManagedBy = "managed_by"
+  builder SortByRole = "role"
+  builder SortByCreatedAt = "created_at"
+
+instance FromByteString TeamUserSearchSortBy where
+  parser =
+    takeLazyByteString >>= \case
+      "name" -> pure SortByName
+      "handle" -> pure SortByHandle
+      "email" -> pure SortByEmail
+      "saml_idp" -> pure SortBySAMLIdp
+      "managed_by" -> pure SortByManagedBy
+      "role" -> pure SortByRole
+      "created_at" -> pure SortByCreatedAt
+      bad -> fail ("Not a sort by field: " <> show bad)
+
+data TeamUserSearchSortOrder
+  = SortOrderAsc
+  | SortOrderDesc
+  deriving (Show, Eq, Ord)
+
+instance ToByteString TeamUserSearchSortOrder where
+  builder SortOrderAsc = "asc"
+  builder SortOrderDesc = "desc"
+
+instance FromByteString TeamUserSearchSortOrder where
+  parser =
+    takeLazyByteString >>= \case
+      "asc" -> pure SortOrderAsc
+      "desc" -> pure SortOrderDesc
+      bad -> fail ("not a sort order:  " <> show bad)
+
+newtype RoleFilter = RoleFilter [Role]
+
+instance ToByteString RoleFilter where
+  builder (RoleFilter roles) = mconcat $ intersperse "," (fmap builder roles)
+
+instance FromByteString RoleFilter where
+  parser = RoleFilter <$> parser `sepBy` char ','
