@@ -1,5 +1,5 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -21,6 +21,9 @@
 module Brig.User.Search.TeamUserSearch
   ( teamUserSearch,
     teamUserSearchQuery,
+    TeamUserSearchSortBy (..),
+    TeamUserSearchSortOrder (..),
+    RoleFilter (..),
   )
 where
 
@@ -28,6 +31,10 @@ import Brig.Data.Instances ()
 import Brig.Types.Search
 import Brig.User.Search.Index
 import Control.Monad.Catch (MonadThrow (throwM))
+import Data.Attoparsec.ByteString (sepBy, takeLazyByteString)
+import Data.Attoparsec.ByteString.Char8 (char)
+import Data.ByteString.Conversion (ToByteString (..))
+import Data.ByteString.Conversion.From (FromByteString (..))
 import Data.Id (TeamId, idToText)
 import Data.Range (Range (..))
 import qualified Database.Bloodhound as ES
@@ -35,17 +42,89 @@ import Imports hiding (log, searchable)
 import Wire.API.Team.Role
 import Wire.API.User.Search
 
+-- TODO: move this to wire-api API.User.Search
+data TeamUserSearchSortBy
+  = SortByName
+  | SortByHandle
+  | SortByEmail
+  | SortBySAMLIdp
+  | SortByManagedBy
+  | SortByRole
+  | SortByCreatedAt
+  deriving (Show, Eq, Ord)
+
+instance ToByteString TeamUserSearchSortBy where
+  builder SortByName = "name"
+  builder SortByHandle = "handle"
+  builder SortByEmail = "email"
+  builder SortBySAMLIdp = "saml_idp"
+  builder SortByManagedBy = "managed_by"
+  builder SortByRole = "role"
+  builder SortByCreatedAt = "created_at"
+
+instance FromByteString TeamUserSearchSortBy where
+  parser =
+    takeLazyByteString >>= \case
+      "name" -> pure SortByName
+      "handle" -> pure SortByHandle
+      "email" -> pure SortByEmail
+      "saml_idp" -> pure SortBySAMLIdp
+      "managed_by" -> pure SortByManagedBy
+      "role" -> pure SortByRole
+      "created_at" -> pure SortByCreatedAt
+      bad -> fail ("Not a sort by field: " <> show bad)
+
+data TeamUserSearchSortOrder
+  = SortOrderAsc
+  | SortOrderDesc
+  deriving (Show, Eq, Ord)
+
+instance ToByteString TeamUserSearchSortOrder where
+  builder SortOrderAsc = "asc"
+  builder SortOrderDesc = "desc"
+
+instance FromByteString TeamUserSearchSortOrder where
+  parser =
+    takeLazyByteString >>= \case
+      "asc" -> pure SortOrderAsc
+      "desc" -> pure SortOrderDesc
+      bad -> fail ("not a sort order:  " <> show bad)
+
+-- TODO: move to module
+instance ToByteString Role where
+  builder RoleOwner = "owner"
+  builder RoleAdmin = "admin"
+  builder RoleMember = "member"
+  builder RoleExternalPartner = "partner"
+
+instance FromByteString Role where
+  parser =
+    takeLazyByteString >>= \case
+      "owner" -> pure RoleOwner
+      "admin" -> pure RoleAdmin
+      "member" -> pure RoleMember
+      "partner" -> pure RoleExternalPartner
+      bad -> fail ("not a role:  " <> show bad)
+
+newtype RoleFilter = RoleFilter [Role]
+
+instance ToByteString RoleFilter where
+  builder (RoleFilter roles) = mconcat $ intersperse "," (fmap builder roles)
+
+instance FromByteString RoleFilter where
+  parser = RoleFilter <$> parser `sepBy` char ','
+
 teamUserSearch ::
   (HasCallStack, MonadIndexIO m) =>
   TeamId ->
   Maybe Text ->
-  Maybe [Role] ->
-  Maybe Text ->
-  Maybe Text ->
+  Maybe RoleFilter ->
+  Maybe TeamUserSearchSortBy ->
+  Maybe TeamUserSearchSortOrder ->
   Range 1 500 Int32 ->
   m (SearchResult TeamContact)
-teamUserSearch tid mbSearchText _mRoleFilter _mSortBy _mSortOrder (fromRange -> s) = liftIndexIO $ do
-  let (IndexQuery q f sortSpecs) = teamUserSearchQuery tid mbSearchText
+teamUserSearch tid mbSearchText mRoleFilter mSortBy mSortOrder (fromRange -> s) = liftIndexIO $ do
+  let (IndexQuery q f sortSpecs) = teamUserSearchQuery tid mbSearchText mRoleFilter mSortBy mSortOrder
   idx <- asks idxName
   let search =
         (ES.mkSearch (Just q) (Just f))
@@ -66,25 +145,27 @@ teamUserSearch tid mbSearchText _mRoleFilter _mSortBy _mSortOrder (fromRange -> 
               searchResults = results
             }
 
--- FUTUREWORK: Maybe (sortby=<name|handle|email|saml_idp|managed_by|role|created_at>, Maybe ES.SortOrder)
--- FUTUREWORK: Maybe [Role]
--- analogous to SearchIndex.hs
+-- FUTURWORK: Implement role filter (needs galley data)
 teamUserSearchQuery ::
   TeamId ->
   Maybe Text ->
+  Maybe RoleFilter ->
+  Maybe TeamUserSearchSortBy ->
+  Maybe TeamUserSearchSortOrder ->
   IndexQuery TeamContact
-teamUserSearchQuery tid mbSearchText =
-  case mbQStr of
-    Nothing ->
-      IndexQuery
+teamUserSearchQuery tid mbSearchText _mRoleFilter mSortBy mSortOrder =
+  IndexQuery
+    ( maybe
         (ES.MatchAllQuery Nothing)
-        teamFilter
-        [sortByCreatedAt]
-    Just qStr ->
-      IndexQuery
-        (matchPhraseOrPrefix qStr)
-        teamFilter
-        []
+        matchPhraseOrPrefix
+        mbQStr
+    )
+    teamFilter
+    [ maybe
+        (defaultSort SortByCreatedAt SortOrderDesc)
+        (\tuSortBy -> defaultSort tuSortBy (fromMaybe SortOrderAsc mSortOrder))
+        mSortBy
+    ]
   where
     mbQStr :: Maybe Text
     mbQStr =
@@ -118,5 +199,24 @@ teamUserSearchQuery tid mbSearchText =
             { ES.boolQueryMustMatch = [ES.TermQuery (ES.Term "team" $ idToText tid) Nothing]
             }
 
-    sortByCreatedAt =
-      ES.DefaultSort (ES.FieldName "created_at") ES.Descending Nothing Nothing Nothing Nothing
+    defaultSort :: TeamUserSearchSortBy -> TeamUserSearchSortOrder -> ES.DefaultSort
+    defaultSort tuSortBy sortOrder =
+      ES.DefaultSort
+        (sortLabel tuSortBy)
+        ( case sortOrder of
+            SortOrderAsc -> ES.Ascending
+            SortOrderDesc -> ES.Descending
+        )
+        Nothing
+        Nothing
+        Nothing
+        Nothing
+
+    sortLabel :: TeamUserSearchSortBy -> ES.FieldName
+    sortLabel SortByName = ES.FieldName "name"
+    sortLabel SortByHandle = ES.FieldName "handle"
+    sortLabel SortByEmail = ES.FieldName "email"
+    sortLabel SortBySAMLIdp = ES.FieldName "saml_idp"
+    sortLabel SortByManagedBy = ES.FieldName "managed_by"
+    sortLabel SortByRole = ES.FieldName "role"
+    sortLabel SortByCreatedAt = ES.FieldName "created_at"
