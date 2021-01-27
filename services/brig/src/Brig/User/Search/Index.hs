@@ -442,6 +442,7 @@ indexMapping =
                   mpFields =
                     Map.fromList [("prefix", MappingField MPText "prefix_index" "prefix_search")]
                 },
+            -- TODO: keyword for sorting
             "email"
               .= MappingProperty
                 { mpType = MPText,
@@ -450,6 +451,7 @@ indexMapping =
                   mpAnalyzer = Nothing,
                   mpFields =
                     Map.fromList [("prefix", MappingField MPText "prefix_index" "prefix_search")]
+                    -- TODO: keyword for sorting
                 },
             "team"
               .= MappingProperty
