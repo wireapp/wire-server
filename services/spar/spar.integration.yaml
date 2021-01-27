@@ -38,5 +38,3 @@ maxScimTokens: 2     # Token limit {#RefScimToken}
 richInfoLimit: 5000  # should be in sync with Brig
 
 logNetStrings: False # log using netstrings encoding (see http://cr.yp.to/proto/netstrings.txt)
-
-brigSettingsTeamInvitationTimeout: 5 # Keep this in sync with optSettings.setTeamInvitationTimeout from brig
