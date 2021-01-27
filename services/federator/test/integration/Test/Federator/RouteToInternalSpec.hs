@@ -22,16 +22,16 @@ import Test.Federator.Util
 import Test.Hspec
 import Test.Tasty.HUnit (assertFailure)
 import Util.Options (Endpoint (Endpoint))
-import Wire.API.Federation.GRPC.Types (Component (..), HTTPMethod (..), LocalCall (LocalCall), QueryParam (..), Response (..), RouteToInternal)
+import Wire.API.Federation.GRPC.Types (Component (..), HTTPMethod (..), HTTPResponse (..), LocalCall (LocalCall), QueryParam (..), Response (..), RouteToInternal)
 import qualified Wire.API.Federation.GRPC.Types as FederationAPI
 import Wire.API.User
 import Wire.API.User.Auth
 
 spec :: TestEnv -> Spec
 spec env =
-  fdescribe "RouteToInternal" $ do
+  describe "RouteToInternal" $ do
     -- This test is pending because I don't know which endpoint to call in brig!
-    xit "should be able to call brig" $
+    it "should be able to call brig" $
       runTestFederator env $ do
         brig <- view teBrig <$> ask
         user <- randomUser brig
@@ -40,17 +40,15 @@ spec env =
 
         Endpoint fedHost _fedPort <- federatorExternal . view teOpts <$> ask
         Right c <- setupGrpcClient' (grpcClientConfigSimple (Text.unpack fedHost) 9999 False)
-        let brigCall = LocalCall (Just Brig) (Just (HTTPMethod HTTP.GET)) "/users" [QueryParam "handle" (Text.encodeUtf8 hdl)] mempty
+        let brigCall = LocalCall (Just Brig) (Just (HTTPMethod HTTP.GET)) "/federation/users/by-handle" [QueryParam "handle" (Text.encodeUtf8 hdl)] mempty
         res :: GRpcReply FederationAPI.Response <- liftIO $ gRpcCall @'MsgProtoBuf @RouteToInternal @"RouteToInternal" @"call" c brigCall
 
         liftIO $ case res of
-          GRpcOk (ResponseOk bdy) -> do
+          GRpcOk (ResponseHTTPResponse (HTTPResponse _ bdy)) -> do
             print bdy
-            userId <$> eitherDecodeStrict bdy `shouldBe` Right (userId user)
+            eitherDecodeStrict bdy `shouldBe` Right (userQualifiedId user)
           GRpcOk (ResponseErr err) -> assertFailure $ "Unexpected error response: " <> show err
           x -> assertFailure $ "GRpc call failed unexpectedly: " <> show x
-
--- liftIO $ True `shouldBe` False
 
 -- * Copy Pasta
 

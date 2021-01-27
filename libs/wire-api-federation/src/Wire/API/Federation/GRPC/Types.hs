@@ -31,23 +31,29 @@ data Component
   deriving (Show, Eq, Generic, ToSchema Router "Component", FromSchema Router "Component")
   deriving (Arbitrary) via (GenericUniform Component)
 
+data HTTPResponse = HTTPResponse
+  { responseStatus :: Word32,
+    responseBody :: ByteString
+  }
+  deriving (Show, Eq, Generic, ToSchema Router "HTTPResponse", FromSchema Router "HTTPResponse")
+
 -- | FUTUREWORK: Make this a better ADT for the errors
 data Response
-  = ResponseOk ByteString
+  = ResponseHTTPResponse HTTPResponse
   | ResponseErr Text
   deriving (Show, Eq)
 
 instance ToSchema Router "Response" Response where
   toSchema r =
     let protoChoice = case r of
-          (ResponseOk res) -> Z (FPrimitive res)
+          (ResponseHTTPResponse res) -> Z (FSchematic (toSchema res))
           (ResponseErr e) -> S (Z (FPrimitive e))
      in TRecord (Field (FUnion protoChoice) :* Nil)
 
 instance FromSchema Router "Response" Response where
   fromSchema (TRecord (Field (FUnion protoChoice) :* Nil)) =
     case protoChoice of
-      Z (FPrimitive res) -> ResponseOk res
+      Z (FSchematic res) -> ResponseHTTPResponse $ fromSchema res
       S (Z (FPrimitive e)) -> ResponseErr e
       S (S x) ->
         -- I don't understand why this empty case is needed, but there is some

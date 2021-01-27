@@ -127,6 +127,7 @@ data Brig m a where
 makeSem ''Brig
 
 -- This can realistically only be tested in an integration test
+-- FUTUREWORK: Do we want to use servant client here? May make everything typed and safe
 interpretBrig ::
   forall m r a.
   (Monad m, MonadUnliftIO m, MonadThrow m, MonadMask m, Member (Embed (AppT m)) r) =>
@@ -178,12 +179,10 @@ callLocal req = do
   case validateLocalCall req of
     Success ValidatedLocalCall {..} -> do
       (resStatus, resBody) <- brigCall vMethod vPath vQuery vBody
-      case HTTP.statusCode resStatus of
-        200 -> do
-          pure $ ResponseOk $ maybe mempty LBS.toStrict resBody
-        -- FUTUREWORK: Maybe it is not good expect 200 only, but do we need to
-        -- be RESTful here?
-        code -> pure $ ResponseErr ("federator -> brig: unexpected http response code: " <> Text.pack (show code))
+      -- FUTUREWORK: Decide what to do with 5xx statuses
+      let statusW32 = fromIntegral $ HTTP.statusCode resStatus
+          bodyBS = maybe mempty LBS.toStrict resBody
+      pure $ ResponseHTTPResponse $ HTTPResponse statusW32 bodyBS
     (Failure errs) -> pure $ ResponseErr $ "invalid request: " <> Text.pack (show errs)
 
 -- * Server wiring

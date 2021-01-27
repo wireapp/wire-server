@@ -9,9 +9,14 @@ enum Component {
   Brig = 1;
 }
 
+message HTTPResponse {
+    uint32 responseStatus = 1;
+    bytes responseBody = 2;
+}
+
 message Response {
-  oneof res {
-    bytes ok = 1;
+  oneof response {
+    HTTPResponse httpResponse = 1;
     string err = 2;
   }
 }

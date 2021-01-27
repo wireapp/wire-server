@@ -41,7 +41,7 @@ remoteCallSuccess :: TestTree
 remoteCallSuccess =
   testCase "should successfully return success response" $
     runM . evalMock @Remote @IO $ do
-      mockDiscoverAndCallReturns @IO (const $ pure (Right (GRpcOk (ResponseOk "success!"))))
+      mockDiscoverAndCallReturns @IO (const $ pure (Right (GRpcOk (ResponseHTTPResponse (HTTPResponse 200 "success!")))))
       let remoteCall = RemoteCall validDomainText (Just $ validatedLocalCallToLocalCall validLocalPart)
 
       res <- mock @Remote @IO $ callRemote remoteCall
@@ -49,7 +49,7 @@ remoteCallSuccess =
       actualCalls <- mockDiscoverAndCallCalls @IO
       let expectedCall = ValidatedRemoteCall (Domain validDomainText) validLocalPart
       embed $ assertEqual "one remote call should be made" [expectedCall] actualCalls
-      embed $ assertEqual "successful response should be returned" (ResponseOk "success!") res
+      embed $ assertEqual "successful response should be returned" (ResponseHTTPResponse (HTTPResponse 200 "success!")) res
 
 -- FUTUREWORK: This is probably not ideal, we should figure out what this error
 -- means and act accordingly.
@@ -122,11 +122,11 @@ localCallBrigSuccess =
       actualCalls <- mockBrigCallCalls @IO
       let expectedCall = (HTTP.GET, "/users", [QueryParam "handle" "foo"], mempty)
       embed $ assertEqual "one call to brig should be made" [expectedCall] actualCalls
-      embed $ assertEqual "response should be success with correct body" (ResponseOk "response body") res
+      embed $ assertEqual "response should be success with correct body" (ResponseHTTPResponse (HTTPResponse 200 "response body")) res
 
 isResponseError :: Response -> Bool
 isResponseError (ResponseErr _) = True
-isResponseError (ResponseOk _) = False
+isResponseError (ResponseHTTPResponse _) = False
 
 isRight' :: Validation a b -> Bool
 isRight' = isRight . validationToEither
