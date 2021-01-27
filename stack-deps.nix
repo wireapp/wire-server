@@ -1,8 +1,15 @@
+with (import <nixpkgs> {});
 let
   pkgs = import ./nix;
+  native_libs = lib.optionals stdenv.isDarwin (with darwin.apple_sdk.frameworks; [
+    Cocoa
+    CoreServices
+  ]);
+
 in
 pkgs.haskell.lib.buildStackProject {
   name = "wire-server";
+  nativeBuildInputs = native_libs;
   buildInputs = with pkgs; [
     cryptobox
     geoip
