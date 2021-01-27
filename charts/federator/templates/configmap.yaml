@@ -8,16 +8,32 @@ metadata:
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 data:
-  {{- with .Values.config }}
   federator.yaml: |
+
+    # TODO: delete this
+    federator:
+      host: 0.0.0.0
+      port: {{ .Values.service.internalFederatorPort }}
+
+    federatorInternal:
+      host: 0.0.0.0
+      port: {{ .Values.service.internalFederatorPort }}
+
+    federatorExternal:
+      host: 0.0.0.0
+      port: {{ .Values.service.externalFederatorPort }}
+
+    brig:
+      host: brig
+      port: 8080
+
+    {{- with .Values.config }}
+
     logNetStrings: True # log using netstrings encoding:
                         # http://cr.yp.to/proto/netstrings.txt
     logFormat: {{ .logFormat }}
     logLevel: {{ .logLevel }}
 
-    federator:
-      host: 0.0.0.0
-      port: 8080
 
     {{- with .optSettings }}
     optSettings:

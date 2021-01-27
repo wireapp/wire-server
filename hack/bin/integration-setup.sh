@@ -24,9 +24,17 @@ done
 echo "Installing charts..."
 
 function printLogs() {
+    echo "---- a command failed, attempting to print useful debug information..."
+    echo "-------------------------------"
+    echo "-------------------------------"
+    echo "-------------------------------"
+    echo ""
+    kubectl -n ${NAMESPACE} get pods
     kubectl -n ${NAMESPACE} get pods | grep -v Running | grep -v Pending | grep -v Completed | grep -v STATUS | grep -v ContainerCreating | awk '{print $1}' | xargs -n 1 -I{} bash -c "printf '\n\n----LOGS FROM {}:\n'; kubectl -n ${NAMESPACE} logs --tail=30 {}" || true
     kubectl -n ${NAMESPACE} get pods | grep Pending | awk '{print $1}' | xargs -n 1 -I{} bash -c "printf '\n\n----DESCRIBE 'pending' {}:\n'; kubectl -n ${NAMESPACE} describe pod {}" || true
 }
+
+trap printLogs ERR
 
 FEDERATION_DOMAIN="$NAMESPACE.svc.cluster.local"
 

@@ -39,16 +39,20 @@ spec:
             - name: "federator-config"
               mountPath: "/etc/wire/federator/conf"
           ports:
-            - containerPort: {{ .Values.service.internalPort }}
-          livenessProbe:
-            httpGet:
-              scheme: HTTP
-              path: /i/status
-              port: {{ .Values.service.internalPort }}
-          readinessProbe:
-            httpGet:
-              scheme: HTTP
-              path: /i/status
-              port: {{ .Values.service.internalPort }}
+            - name: internal
+              containerPort: {{ .Values.service.internalFederatorPort }}
+            - name: external
+              containerPort: {{ .Values.service.externalFederatorPort }}
+          # TODO ensure to have a status endpoint!
+          # livenessProbe:
+          #   httpGet:
+          #     scheme: HTTP
+          #     path: /i/status
+          #     port: {{ .Values.service.internalFederatorPort }}
+          # readinessProbe:
+          #   httpGet:
+          #     scheme: HTTP
+          #     path: /i/status
+          #     port: {{ .Values.service.internalFederatorPort }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
