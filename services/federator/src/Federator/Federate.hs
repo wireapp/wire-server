@@ -155,7 +155,9 @@ x3 = limitRetries 3 <> exponentialBackoff 100000
 
 -- * Routing logic
 
--- TODO: How do we make sure that only legit endpoints can be reached
+-- FUTUREWORK: How do we make sure that only legit endpoints can be reached,
+-- some discussion here:
+-- https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/224166764/Limiting+access+to+federation+endpoints
 callRemote :: Member Remote r => RemoteCall -> Sem r Response
 callRemote req = do
   case validateRemoteCall req of
