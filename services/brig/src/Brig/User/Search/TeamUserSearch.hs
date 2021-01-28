@@ -140,8 +140,8 @@ teamUserSearchQuery tid mbSearchText _mRoleFilter mSortBy mSortOrder =
 
     sortLabel :: TeamUserSearchSortBy -> ES.FieldName
     sortLabel SortByName = ES.FieldName "name"
-    sortLabel SortByHandle = ES.FieldName "handle"
-    sortLabel SortByEmail = ES.FieldName "email"
+    sortLabel SortByHandle = ES.FieldName "handle.keyword"
+    sortLabel SortByEmail = ES.FieldName "email.keyword"
     sortLabel SortBySAMLIdp = ES.FieldName "saml_idp"
     sortLabel SortByManagedBy = ES.FieldName "managed_by"
     sortLabel SortByRole = ES.FieldName "role"

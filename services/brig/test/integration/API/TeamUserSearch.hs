@@ -3,9 +3,7 @@
 module API.TeamUserSearch (tests) where
 
 import API.Search.Util (executeTeamUserSearch, refreshIndex)
-import API.Team.Util
-  ( createPopulatedBindingTeamWithNamesAndHandles,
-  )
+import API.Team.Util (createPopulatedBindingTeamWithNamesAndHandles)
 import API.User.Util (activateEmail, initiateEmailUpdateNoSend)
 import Bilge (Manager, MonadHttp)
 import qualified Brig.Options as Opt
@@ -13,18 +11,15 @@ import Brig.Types (SearchResult (searchResults), User (userId), fromEmail)
 import Brig.User.Search.TeamUserSearch (TeamUserSearchSortBy (..), TeamUserSearchSortOrder (..))
 import Control.Monad.Catch (MonadCatch)
 import Control.Retry ()
+import Data.ByteString.Conversion (ToByteString (..), toByteString)
+import Data.Handle (fromHandle)
 import Data.Id (TeamId, UserId)
+import Data.String.Conversions (cs)
 import Imports
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, assertEqual)
-import Util
-  ( Brig,
-    Galley,
-    randomEmail,
-    test,
-    withSettingsOverrides,
-  )
-import Wire.API.User (User (userDisplayName), userEmail)
+import Util (Brig, Galley, randomEmail, test, withSettingsOverrides)
+import Wire.API.User (User (..), userEmail)
 import Wire.API.User.Search (TeamContact (teamContactCreatedAt, teamContactUserId))
 
 type TestConstraints m = (MonadFail m, MonadCatch m, MonadIO m, MonadHttp m)
@@ -90,17 +85,35 @@ testSort :: TestConstraints m => Brig -> m ()
 testSort brig = do
   (tid, userId -> ownerId, users) <- createPopulatedBindingTeamWithNamesAndHandles brig 4
   refreshIndex brig
-  let tuSortBy = SortByEmail
-  let orderProp = Down . userEmail
-  r <- searchResults <$> executeTeamUserSearch brig tid ownerId Nothing Nothing (Just tuSortBy) (Just SortOrderDesc)
-  let rUids = filter (/= ownerId) $ fmap teamContactUserId r
-  liftIO $ assertEqual "sorted users" (fmap userId (sortOn orderProp users)) rUids
-  pure ()
+  let sortByProperty' :: (TestConstraints m, Ord a) => TeamUserSearchSortBy -> (User -> a) -> TeamUserSearchSortOrder -> m ()
+      sortByProperty' = sortByProperty tid users ownerId
+  for_ [SortOrderAsc, SortOrderDesc] $ \sortOrder -> do
+    sortByProperty' SortByEmail userEmail sortOrder
+    sortByProperty' SortByName userDisplayName sortOrder
+    sortByProperty' SortByHandle (fmap fromHandle . userHandle) sortOrder
+  where
+    -- TODO
+    -- SortBySAMLIdp
+    -- SortByManagedBy
+    -- SortByRole
 
--- sortLabel SortByCreatedAt = ES.FieldName "created_at"
--- sortLabel SortByName = ES.FieldName "name"
--- sortLabel SortByHandle = ES.FieldName "handle"
--- sortLabel SortByEmail = ES.FieldName "email"
--- sortLabel SortBySAMLIdp = ES.FieldName "saml_idp"
--- sortLabel SortByManagedBy = ES.FieldName "managed_by"
--- sortLabel SortByRole = ES.FieldName "role"
+    sortByProperty ::
+      (TestConstraints m, Ord a) =>
+      TeamId ->
+      [User] ->
+      UserId ->
+      TeamUserSearchSortBy ->
+      (User -> a) ->
+      TeamUserSearchSortOrder ->
+      m ()
+    sortByProperty tid users ownerId tuSortBy orderProp sortOrder = do
+      let uids =
+            fmap
+              userId
+              ( case sortOrder of
+                  SortOrderAsc -> sortOn orderProp users
+                  SortOrderDesc -> sortOn (Down . orderProp) users
+              )
+      r <- searchResults <$> executeTeamUserSearch brig tid ownerId Nothing Nothing (Just tuSortBy) (Just sortOrder)
+      let rUids = filter (/= ownerId) $ fmap teamContactUserId r
+      liftIO $ assertEqual ("users sorted by " <> cs (toByteString tuSortBy)) uids rUids
