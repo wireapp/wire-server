@@ -9,7 +9,6 @@ module Wire.API.Federation.GRPC.Types where
 
 -- TODO: Replace Wire.API.Federation.GRPC.Proto with this
 
-import Data.Bifunctor (Bifunctor (first))
 import Data.Domain (Domain (..), mkDomain)
 import Data.Either.Validation
 import Data.List.NonEmpty (NonEmpty ((:|)))
@@ -26,8 +25,7 @@ recompileRouterUponProtoChanges
 grpc "Router" id routerProtoFile
 
 data Component
-  = UnspecifiedComponent
-  | Brig
+  = Brig
   deriving (Show, Eq, Generic, ToSchema Router "Component", FromSchema Router "Component")
   deriving (Arbitrary) via (GenericUniform Component)
 
@@ -85,34 +83,30 @@ instance Arbitrary HTTPMethod where
 instance ToSchema Router "Method" HTTPMethod where
   toSchema (HTTPMethod m) =
     let enumChoice = case m of
-          HTTP.GET -> S (Z Proxy)
-          HTTP.POST -> S (S (Z Proxy))
-          HTTP.HEAD -> S (S (S (Z Proxy)))
-          HTTP.PUT -> S (S (S (S (Z Proxy))))
-          HTTP.DELETE -> S (S (S (S (S (Z Proxy)))))
-          HTTP.TRACE -> S (S (S (S (S (S (Z Proxy))))))
-          HTTP.CONNECT -> S (S (S (S (S (S (S (Z Proxy)))))))
-          HTTP.OPTIONS -> S (S (S (S (S (S (S (S (Z Proxy))))))))
-          HTTP.PATCH -> S (S (S (S (S (S (S (S (S (Z Proxy)))))))))
+          HTTP.GET -> Z Proxy
+          HTTP.POST -> S (Z Proxy)
+          HTTP.HEAD -> S (S (Z Proxy))
+          HTTP.PUT -> S (S (S (Z Proxy)))
+          HTTP.DELETE -> S (S (S (S (Z Proxy))))
+          HTTP.TRACE -> S (S (S (S (S (Z Proxy)))))
+          HTTP.CONNECT -> S (S (S (S (S (S (Z Proxy))))))
+          HTTP.OPTIONS -> S (S (S (S (S (S (S (Z Proxy)))))))
+          HTTP.PATCH -> S (S (S (S (S (S (S (S (Z Proxy))))))))
      in TEnum enumChoice
 
 instance FromSchema Router "Method" HTTPMethod where
   fromSchema (TEnum enumChoice) =
     let m = case enumChoice of
-          Z _ ->
-            -- This is due to this bug
-            -- https://github.com/higherkindness/mu-haskell/issues/282
-            error "router:method:unspecified is impossible"
-          S (Z _) -> HTTP.GET
-          S (S (Z _)) -> HTTP.POST
-          S (S (S (Z _))) -> HTTP.HEAD
-          S (S (S (S (Z _)))) -> HTTP.PUT
-          S (S (S (S (S (Z _))))) -> HTTP.DELETE
-          S (S (S (S (S (S (Z _)))))) -> HTTP.TRACE
-          S (S (S (S (S (S (S (Z _))))))) -> HTTP.CONNECT
-          S (S (S (S (S (S (S (S (Z _)))))))) -> HTTP.OPTIONS
-          S (S (S (S (S (S (S (S (S (Z _))))))))) -> HTTP.PATCH
-          S (S (S (S (S (S (S (S (S (S x))))))))) -> case x of
+          Z _ -> HTTP.GET
+          S (Z _) -> HTTP.POST
+          S (S (Z _)) -> HTTP.HEAD
+          S (S (S (Z _))) -> HTTP.PUT
+          S (S (S (S (Z _)))) -> HTTP.DELETE
+          S (S (S (S (S (Z _))))) -> HTTP.TRACE
+          S (S (S (S (S (S (Z _)))))) -> HTTP.CONNECT
+          S (S (S (S (S (S (S (Z _))))))) -> HTTP.OPTIONS
+          S (S (S (S (S (S (S (S (Z _)))))))) -> HTTP.PATCH
+          S (S (S (S (S (S (S (S (S x)))))))) -> case x of
      in HTTPMethod m
 
 data QueryParam = QueryParam
@@ -124,8 +118,8 @@ data QueryParam = QueryParam
 
 -- Does this make it hard to use in a type checked way?
 data LocalCall = LocalCall
-  { component :: Maybe Component,
-    method :: Maybe HTTPMethod,
+  { component :: Component,
+    method :: HTTPMethod,
     path :: ByteString,
     query :: [QueryParam],
     body :: ByteString
@@ -133,42 +127,10 @@ data LocalCall = LocalCall
   deriving (Eq, Show, Generic, ToSchema Router "LocalCall", FromSchema Router "LocalCall")
   deriving (Arbitrary) via (GenericUniform LocalCall)
 
--- | This type exists because Enums are wrongly marked optional by mu-protobuf
--- Bug: https://github.com/higherkindness/mu-haskell/issues/282
-data ValidatedLocalCall = ValidatedLocalCall
-  { vComponent :: Component,
-    vMethod :: HTTP.StdMethod,
-    vPath :: ByteString,
-    vQuery :: [QueryParam],
-    vBody :: ByteString
-  }
-  deriving (Show, Eq)
-
-validatedLocalCallToLocalCall :: ValidatedLocalCall -> LocalCall
-validatedLocalCallToLocalCall ValidatedLocalCall {..} = LocalCall (Just vComponent) (Just (HTTPMethod vMethod)) vPath vQuery vBody
-
 data LocalCallValidationError
   = ComponentMissing
   | MethodMissing
   deriving (Show, Eq)
-
-validateLocalCall :: LocalCall -> Validation (NonEmpty LocalCallValidationError) ValidatedLocalCall
-validateLocalCall LocalCall {..} = do
-  let vPath = path
-      vQuery = query
-      vBody = body
-  vComponent <- validateComponent component
-  vMethod <- validateMethod method
-  pure $ ValidatedLocalCall {..}
-  where
-    validateComponent :: Maybe Component -> Validation (NonEmpty LocalCallValidationError) Component
-    validateComponent Nothing = Failure $ ComponentMissing :| []
-    validateComponent (Just UnspecifiedComponent) = Failure $ ComponentMissing :| []
-    validateComponent (Just c) = Success c
-
-    validateMethod :: Maybe HTTPMethod -> Validation (NonEmpty LocalCallValidationError) HTTP.StdMethod
-    validateMethod Nothing = Failure $ MethodMissing :| []
-    validateMethod (Just (HTTPMethod m)) = Success m
 
 data RemoteCall = RemoteCall
   { domain :: Text,
@@ -179,12 +141,11 @@ data RemoteCall = RemoteCall
 data RemoteCallValidationError
   = InvalidDomain String
   | LocalCallMissing
-  | InvalidLocalCall (NonEmpty LocalCallValidationError)
   deriving (Show, Eq)
 
 data ValidatedRemoteCall = ValidatedRemoteCall
   { vDomain :: Domain,
-    vLocalCall :: ValidatedLocalCall
+    vLocalCall :: LocalCall
   }
   deriving (Eq, Show)
 
@@ -199,4 +160,4 @@ validateRemoteCall RemoteCall {..} = do
       Right d -> Success d
     validateLocalPart = case localCall of
       Nothing -> Failure $ LocalCallMissing :| []
-      Just lc -> first (\x -> InvalidLocalCall x :| []) $ validateLocalCall lc
+      Just lc -> Success lc

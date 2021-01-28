@@ -199,11 +199,17 @@ extra-deps:
   commit: ca84ef29a93eaef7673fa58056cdd8dae1568d2d # master (Sep 14, 2020)
 
 # mu
-- mu-schema-0.3.1.1
 - mu-rpc-0.4.0.1
 - mu-optics-0.3.0.1
 - mu-avro-0.4.0.2
-- mu-protobuf-0.4.0.3
+# TODO: This commit refers to a commit on a PR branch, ensure this gets changed
+# to when this PR is merged:
+# https://github.com/higherkindness/mu-haskell/pull/285
+- git: https://github.com/higherkindness/mu-haskell.git
+  commit: c0a6f687b4907572664fdcdd60183e99190273ec
+  subdirs:
+  - adapter/protobuf
+  - core/schema
 - mu-grpc-server-0.4.0.0
 - mu-grpc-client-0.4.0.1
 - mu-grpc-common-0.4.0.0

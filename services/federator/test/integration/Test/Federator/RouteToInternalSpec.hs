@@ -40,7 +40,7 @@ spec env =
 
         Endpoint fedHost _fedPort <- federatorExternal . view teOpts <$> ask
         Right c <- setupGrpcClient' (grpcClientConfigSimple (Text.unpack fedHost) 9999 False)
-        let brigCall = LocalCall (Just Brig) (Just (HTTPMethod HTTP.GET)) "/federation/users/by-handle" [QueryParam "handle" (Text.encodeUtf8 hdl)] mempty
+        let brigCall = LocalCall Brig (HTTPMethod HTTP.GET) "/federation/users/by-handle" [QueryParam "handle" (Text.encodeUtf8 hdl)] mempty
         res :: GRpcReply FederationAPI.Response <- liftIO $ gRpcCall @'MsgProtoBuf @RouteToInternal @"RouteToInternal" @"call" c brigCall
 
         liftIO $ case res of

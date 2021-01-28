@@ -114,7 +114,7 @@ interpretRemote = interpret $ \case
                 . Log.field "error" (show err)
             pure $ Left (RemoteErrorClientFailure err target)
           Right client ->
-            Right <$> liftIO (gRpcCall @'MsgProtoBuf @RouteToInternal @"RouteToInternal" @"call" client (validatedLocalCallToLocalCall vLocalCall))
+            Right <$> liftIO (gRpcCall @'MsgProtoBuf @RouteToInternal @"RouteToInternal" @"call" client vLocalCall)
 
 -- Is there is a point in creating an effect for each service?
 --
@@ -177,15 +177,12 @@ mkRemoteResponse reply =
     Left err -> ResponseErr ("remote federator -> local federator: " <> Text.pack (show err))
 
 callLocal :: (Members '[Brig, Embed IO] r) => LocalCall -> Sem r Response
-callLocal req = do
-  case validateLocalCall req of
-    Success ValidatedLocalCall {..} -> do
-      (resStatus, resBody) <- brigCall vMethod vPath vQuery vBody
-      -- FUTUREWORK: Decide what to do with 5xx statuses
-      let statusW32 = fromIntegral $ HTTP.statusCode resStatus
-          bodyBS = maybe mempty LBS.toStrict resBody
-      pure $ ResponseHTTPResponse $ HTTPResponse statusW32 bodyBS
-    (Failure errs) -> pure $ ResponseErr $ "invalid request: " <> Text.pack (show errs)
+callLocal LocalCall {..} = do
+  (resStatus, resBody) <- brigCall (unwrapMethod method) path query body
+  -- FUTUREWORK: Decide what to do with 5xx statuses
+  let statusW32 = fromIntegral $ HTTP.statusCode resStatus
+      bodyBS = maybe mempty LBS.toStrict resBody
+  pure $ ResponseHTTPResponse $ HTTPResponse statusW32 bodyBS
 
 -- * Server wiring
 

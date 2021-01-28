@@ -42,7 +42,7 @@ remoteCallSuccess =
   testCase "should successfully return success response" $
     runM . evalMock @Remote @IO $ do
       mockDiscoverAndCallReturns @IO (const $ pure (Right (GRpcOk (ResponseHTTPResponse (HTTPResponse 200 "success!")))))
-      let remoteCall = RemoteCall validDomainText (Just $ validatedLocalCallToLocalCall validLocalPart)
+      let remoteCall = RemoteCall validDomainText (Just validLocalPart)
 
       res <- mock @Remote @IO $ callRemote remoteCall
 
@@ -58,7 +58,7 @@ remoteCallFailureTMC =
   testCase "should respond with error when facing GRpcTooMuchConcurrency" $
     runM . evalMock @Remote @IO $ do
       mockDiscoverAndCallReturns @IO (const $ pure (Right (GRpcTooMuchConcurrency (TooMuchConcurrency 2))))
-      let remoteCall = RemoteCall validDomainText (Just $ validatedLocalCallToLocalCall validLocalPart)
+      let remoteCall = RemoteCall validDomainText (Just validLocalPart)
 
       res <- mock @Remote @IO $ callRemote remoteCall
 
@@ -72,7 +72,7 @@ remoteCallFailureErrCode =
   testCase "should respond with error when facing GRpcErrorCode" $
     runM . evalMock @Remote @IO $ do
       mockDiscoverAndCallReturns @IO (const $ pure (Right (GRpcErrorCode 77))) -- TODO: Maybe use some legit HTTP2 error code?
-      let remoteCall = RemoteCall validDomainText (Just $ validatedLocalCallToLocalCall validLocalPart)
+      let remoteCall = RemoteCall validDomainText (Just validLocalPart)
 
       res <- mock @Remote @IO $ callRemote remoteCall
 
@@ -86,7 +86,7 @@ remoteCallFailureErrStr =
   testCase "should respond with error when facing GRpcErrorString" $
     runM . evalMock @Remote @IO $ do
       mockDiscoverAndCallReturns @IO (const $ pure (Right (GRpcErrorString "some grpc error")))
-      let remoteCall = RemoteCall validDomainText (Just $ validatedLocalCallToLocalCall validLocalPart)
+      let remoteCall = RemoteCall validDomainText (Just validLocalPart)
 
       res <- mock @Remote @IO $ callRemote remoteCall
 
@@ -100,7 +100,7 @@ remoteCallFailureErrConn =
   testCase "should respond with error when facing RemoteError" $
     runM . evalMock @Remote @IO $ do
       mockDiscoverAndCallReturns @IO (const $ pure (Left $ RemoteErrorDiscoveryFailure (LookupErrorSrvNotAvailable "_something._tcp.exmaple.com") (Domain "example.com")))
-      let remoteCall = RemoteCall validDomainText (Just $ validatedLocalCallToLocalCall validLocalPart)
+      let remoteCall = RemoteCall validDomainText (Just validLocalPart)
 
       res <- mock @Remote @IO $ callRemote remoteCall
 
@@ -115,7 +115,7 @@ localCallBrigSuccess =
   testCase "should sucessfully return on HTTP 200" $
     runM . evalMock @Brig @IO $ do
       mockBrigCallReturns @IO (\_ _ _ _ -> pure (HTTP.status200, Just "response body"))
-      let request = LocalCall (Just Brig) (Just $ HTTPMethod HTTP.GET) "/users" [QueryParam "handle" "foo"] mempty
+      let request = LocalCall Brig (HTTPMethod HTTP.GET) "/users" [QueryParam "handle" "foo"] mempty
 
       res <- mock @Brig @IO $ callLocal request
 
@@ -131,8 +131,8 @@ isResponseError (ResponseHTTPResponse _) = False
 isRight' :: Validation a b -> Bool
 isRight' = isRight . validationToEither
 
-validLocalPart :: ValidatedLocalCall
-validLocalPart = ValidatedLocalCall Brig HTTP.GET "/users" [QueryParam "handle" "foo"] mempty
+validLocalPart :: LocalCall
+validLocalPart = LocalCall Brig (HTTPMethod HTTP.GET) "/users" [QueryParam "handle" "foo"] mempty
 
 validDomainText :: Text
 validDomainText = "example.com"
