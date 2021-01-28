@@ -24,6 +24,7 @@ import qualified Test.Tasty as T
 import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty)
 import Type.Reflection (typeRep)
 import qualified Wire.API.User as User
+import qualified Wire.API.User.Client as Client
 import qualified Wire.API.User.Handle as Handle
 
 tests :: T.TestTree
@@ -32,7 +33,9 @@ tests =
     [ testToJSON @User.UserProfile,
       testToJSON @User.User,
       testToJSON @User.SelfProfile,
-      testToJSON @Handle.UserHandleInfo
+      testToJSON @Handle.UserHandleInfo,
+      testToJSON @Client.Client,
+      testToJSON @(Client.QualifiedUserClientMap Client.Client)
     ]
 
 testToJSON :: forall a. (Arbitrary a, Typeable a, ToJSON a, ToSchema a, Show a) => T.TestTree

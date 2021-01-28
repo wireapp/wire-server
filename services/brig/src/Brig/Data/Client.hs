@@ -25,6 +25,7 @@ module Brig.Data.Client
     hasClient,
     lookupClient,
     lookupClients,
+    lookupClientsBulk,
     lookupClientIds,
     lookupUsersClientIds,
     Brig.Data.Client.updateClientLabel,
@@ -54,10 +55,11 @@ import Control.Monad.Catch
 import Control.Retry
 import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Conversion (toByteString, toByteString')
-import qualified Data.HashMap.Strict as Map
+import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.List.Split (chunksOf)
+import qualified Data.Map as Map
 import qualified Data.Metrics as Metrics
 import Data.Misc
 import qualified Data.Set as Set
@@ -72,6 +74,7 @@ import qualified System.CryptoBox as CryptoBox
 import System.Logger.Class (field, msg, val)
 import qualified System.Logger.Class as Log
 import UnliftIO (mapConcurrently)
+import Wire.API.UserMap (UserMap (..))
 
 data ClientDataError
   = TooManyClients
@@ -123,6 +126,11 @@ lookupClient :: MonadClient m => UserId -> ClientId -> m (Maybe Client)
 lookupClient u c =
   fmap toClient
     <$> retry x1 (query1 selectClient (params Quorum (u, c)))
+
+lookupClientsBulk :: MonadClient m => [UserId] -> m (UserMap (Imports.Set Client))
+lookupClientsBulk uids =
+  UserMap . Map.fromListWith (<>) . map toUserClientTuple
+    <$> retry x1 (query selectClientsBulk (params Quorum (Identity uids)))
 
 lookupClients :: MonadClient m => UserId -> m [Client]
 lookupClients u =
@@ -202,6 +210,9 @@ updateClientLabelQuery = "UPDATE clients SET label = ? WHERE user = ? AND client
 selectClientIds :: PrepQuery R (Identity UserId) (Identity ClientId)
 selectClientIds = "SELECT client from clients where user = ?"
 
+selectClientsBulk :: PrepQuery R (Identity [UserId]) (UserId, ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text)
+selectClientsBulk = "SELECT user, client, type, tstamp, label, class, cookie, lat, lon, model from clients where user in ?"
+
 selectClients :: PrepQuery R (Identity UserId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text)
 selectClients = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model from clients where user = ?"
 
@@ -245,6 +256,9 @@ toClient (cid, cty, tme, lbl, cls, cok, lat, lon, mdl) =
       clientModel = mdl
     }
 
+toUserClientTuple :: (UserId, ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text) -> (UserId, Imports.Set Client)
+toUserClientTuple (uid, cid, cty, tme, lbl, cls, cok, lat, lon, mdl) = (uid, Set.singleton $ toClient (cid, cty, tme, lbl, cls, cok, lat, lon, mdl))
+
 -------------------------------------------------------------------------------
 -- Best-effort optimistic locking for prekeys via DynamoDB
 
@@ -257,8 +271,8 @@ ddbVersion = "version"
 ddbKey :: UserId -> ClientId -> AWS.AttributeValue
 ddbKey u c = AWS.attributeValue & AWS.avS ?~ UUID.toText (toUUID u) <> "." <> client c
 
-key :: UserId -> ClientId -> Map.HashMap Text AWS.AttributeValue
-key u c = Map.singleton ddbClient (ddbKey u c)
+key :: UserId -> ClientId -> HashMap Text AWS.AttributeValue
+key u c = HashMap.singleton ddbClient (ddbKey u c)
 
 deleteOptLock :: UserId -> ClientId -> AppIO ()
 deleteOptLock u c = do
@@ -278,7 +292,7 @@ withOptLock u c ma = go (10 :: Int)
         Nothing -> reportFailureAndLogError >> return a
         Just _ -> return a
     version :: AWS.GetItemResponse -> Maybe Word32
-    version v = conv =<< Map.lookup ddbVersion (view AWS.girsItem v)
+    version v = conv =<< HashMap.lookup ddbVersion (view AWS.girsItem v)
       where
         conv :: AWS.AttributeValue -> Maybe Word32
         conv = readMaybe . Text.unpack <=< view AWS.avN
@@ -290,15 +304,15 @@ withOptLock u c ma = go (10 :: Int)
     put v t =
       AWS.putItem t & AWS.piItem .~ item v
         & AWS.piExpected .~ check v
-    check :: Maybe Word32 -> Map.HashMap Text AWS.ExpectedAttributeValue
-    check Nothing = Map.singleton ddbVersion $ AWS.expectedAttributeValue & AWS.eavComparisonOperator ?~ AWS.Null
+    check :: Maybe Word32 -> HashMap Text AWS.ExpectedAttributeValue
+    check Nothing = HashMap.singleton ddbVersion $ AWS.expectedAttributeValue & AWS.eavComparisonOperator ?~ AWS.Null
     check (Just v) =
-      Map.singleton ddbVersion $
+      HashMap.singleton ddbVersion $
         AWS.expectedAttributeValue & AWS.eavComparisonOperator ?~ AWS.EQ'
           & AWS.eavAttributeValueList .~ [toAttributeValue v]
-    item :: Maybe Word32 -> Map.HashMap Text AWS.AttributeValue
+    item :: Maybe Word32 -> HashMap Text AWS.AttributeValue
     item v =
-      Map.insert ddbVersion (toAttributeValue (maybe (1 :: Word32) (+ 1) v)) $
+      HashMap.insert ddbVersion (toAttributeValue (maybe (1 :: Word32) (+ 1) v)) $
         key u c
     toAttributeValue :: Word32 -> AWS.AttributeValue
     toAttributeValue w = AWS.attributeValue & AWS.avN ?~ AWS.toText (fromIntegral w :: Int)

@@ -26,6 +26,7 @@ module Brig.API.Client
     removeLegalHoldClient,
     lookupClient,
     lookupClients,
+    lookupClientsBulk,
     Data.lookupPrekeyIds,
     Data.lookupUsersClientIds,
 
@@ -64,12 +65,14 @@ import Data.List.NonEmpty (nonEmpty)
 import Data.List.Split (chunksOf)
 import qualified Data.Map.Strict as Map
 import Data.Misc (PlainTextPassword (..))
+import Data.Qualified (Qualified, partitionRemoteOrLocalIds)
 import Galley.Types (UserClientMap (..), UserClients (..))
 import Imports
 import Network.Wai.Utilities
 import System.Logger.Class (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import UnliftIO.Async (Concurrently (Concurrently, runConcurrently))
+import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap))
 
 lookupClient :: MappedOrLocalId Id.U -> ClientId -> ExceptT ClientError AppIO (Maybe Client)
 lookupClient mappedOrLocalUserId clientId =
@@ -93,6 +96,13 @@ lookupClients = \case
 
 lookupLocalClients :: UserId -> AppIO [Client]
 lookupLocalClients = Data.lookupClients
+
+lookupClientsBulk :: [Qualified UserId] -> ExceptT ClientError AppIO (QualifiedUserMap (Set Client))
+lookupClientsBulk qualifiedUids = do
+  domain <- viewFederationDomain
+  let (_remoteUsers, localUsers) = partitionRemoteOrLocalIds domain qualifiedUids
+  -- FUTUREWORK: Implement federation
+  QualifiedUserMap . Map.singleton domain <$> Data.lookupClientsBulk localUsers
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
