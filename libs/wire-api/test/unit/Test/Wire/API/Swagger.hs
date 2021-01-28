@@ -26,6 +26,7 @@ import Type.Reflection (typeRep)
 import qualified Wire.API.User as User
 import qualified Wire.API.User.Client as Client
 import qualified Wire.API.User.Handle as Handle
+import qualified Wire.API.UserMap as UserMap
 
 tests :: T.TestTree
 tests =
@@ -35,7 +36,9 @@ tests =
       testToJSON @User.SelfProfile,
       testToJSON @Handle.UserHandleInfo,
       testToJSON @Client.Client,
-      testToJSON @(Client.QualifiedUserClientMap Client.Client)
+      testToJSON @(Client.UserClientMap Client.Client),
+      testToJSON @(UserMap.UserMap Client.Client),
+      testToJSON @(UserMap.QualifiedUserMap (Set Client.Client))
     ]
 
 testToJSON :: forall a. (Arbitrary a, Typeable a, ToJSON a, ToSchema a, Show a) => T.TestTree
