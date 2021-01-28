@@ -85,9 +85,8 @@ import Test.Tasty.HUnit
 import Util
 import Web.Cookie (SetCookie (..), parseSetCookie)
 
-tests :: Maybe Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> IO TestTree
-tests mbConf p db b c g = do
-  conf <- maybe getEnvConfig pure mbConf
+tests :: Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> IO TestTree
+tests conf p db b c g = do
   return $
     testGroup
       "provider"
@@ -156,16 +155,6 @@ data Config = Config
   deriving (Show, Generic)
 
 instance FromJSON Config
-
--- | Get the config from environment variables (and some defaults)
-getEnvConfig :: IO Config
-getEnvConfig = do
-  privateKey <- getEnv "TEST_KEY"
-  publicKey <- getEnv "TEST_PUBKEY"
-  cert <- getEnv "TEST_CERT"
-  let botHost = "https://localhost"
-  let botPort = 9000
-  pure Config {..}
 
 -------------------------------------------------------------------------------
 -- Provider Accounts

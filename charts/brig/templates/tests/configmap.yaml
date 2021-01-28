@@ -26,6 +26,19 @@ data:
       host: spar
       port: 8080
 
+    # TODO remove this
+    federator:
+      host: federator
+      port: 8080
+
+    federatorInternal:
+      host: federator
+      port: 8080
+
+    federatorExternal:
+      host: federator
+      port: 8081
+
     nginz:
       # Full URL is set so that there can be a common cookiedomain between nginz and brig
       # needed by some integration tests
@@ -38,3 +51,21 @@ data:
       cert: /etc/wire/integration-secrets/provider-publiccert.pem
       botHost: https://brig-integration
       botPort: 9000
+
+    backendTwo:
+      brig:
+        host: brig.{{ .Release.Namespace }}-fed2.svc.cluster.local
+        port: 8080
+
+      # TODO remove this
+      federator:
+        host: federator.{{ .Release.Namespace }}-fed2.svc.cluster.local
+        port: 8080
+
+      federatorInternal:
+        host: federator.{{ .Release.Namespace }}-fed2.svc.cluster.local
+        port: 8080
+
+      federatorExternal:
+        host: federator.{{ .Release.Namespace }}-fed2.svc.cluster.local
+        port: 8081

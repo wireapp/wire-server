@@ -344,7 +344,7 @@ data Opts = Opts
     -- | Gundeck address
     gundeck :: !Endpoint,
     -- | Federator address
-    federator :: !(Maybe Endpoint),
+    federatorInternal :: !(Maybe Endpoint),
     -- external
 
     -- | Cassandra settings

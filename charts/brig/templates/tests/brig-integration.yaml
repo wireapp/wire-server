@@ -53,7 +53,7 @@ spec:
     # same file-system.
     # The other test, "user.auth.cookies.limit", is skipped as it is flaky.
     # This is tracked in https://github.com/zinfra/backend-issues/issues/1150.
-    command: ["brig-integration", "--pattern", "!/turn/ && !/user.auth.cookies.limit/"]
+    command: ["brig-integration", "--pattern", "!/turn/ && !/user.auth.cookies.limit/ && !/brig-federation/"]
     volumeMounts:
     - name: "brig-integration"
       mountPath: "/etc/wire/integration"
