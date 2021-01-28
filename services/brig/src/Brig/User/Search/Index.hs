@@ -423,7 +423,7 @@ indexMapping =
                   mpIndex = True,
                   mpAnalyzer = Nothing,
                   mpFields =
-                    Map.fromList [("prefix", MappingField MPText "prefix_index" "prefix_search")]
+                    Map.fromList [("prefix", MappingField MPText (Just "prefix_index") (Just "prefix_search"))]
                 },
             "name"
               .= MappingProperty
@@ -440,9 +440,11 @@ indexMapping =
                   mpIndex = True,
                   mpAnalyzer = Nothing,
                   mpFields =
-                    Map.fromList [("prefix", MappingField MPText "prefix_index" "prefix_search")]
+                    Map.fromList
+                      [ ("prefix", MappingField MPText (Just "prefix_index") (Just "prefix_search")),
+                        ("keyword", MappingField MPKeyword Nothing Nothing)
+                      ]
                 },
-            -- TODO: keyword for sorting
             "email"
               .= MappingProperty
                 { mpType = MPText,
@@ -450,8 +452,10 @@ indexMapping =
                   mpIndex = True,
                   mpAnalyzer = Nothing,
                   mpFields =
-                    Map.fromList [("prefix", MappingField MPText "prefix_index" "prefix_search")]
-                    -- TODO: keyword for sorting
+                    Map.fromList
+                      [ ("prefix", MappingField MPText (Just "prefix_index") (Just "prefix_search")),
+                        ("keyword", MappingField MPKeyword Nothing Nothing)
+                      ]
                 },
             "team"
               .= MappingProperty
@@ -522,8 +526,8 @@ data MappingProperty = MappingProperty
 
 data MappingField = MappingField
   { mfType :: MappingPropertyType,
-    mfAnalyzer :: Text,
-    mfSearchAnalyzer :: Text
+    mfAnalyzer :: Maybe Text,
+    mfSearchAnalyzer :: Maybe Text
   }
 
 data MappingPropertyType = MPText | MPKeyword | MPByte | MPDate
@@ -548,11 +552,10 @@ instance ToJSON MappingPropertyType where
 
 instance ToJSON MappingField where
   toJSON mf =
-    object
-      [ "type" .= mfType mf,
-        "analyzer" .= mfAnalyzer mf,
-        "search_analyzer" .= mfSearchAnalyzer mf
-      ]
+    object $
+      ["type" .= mfType mf]
+        <> ["analyzer" .= mfAnalyzer mf | isJust (mfAnalyzer mf)]
+        <> ["search_analyzer" .= mfSearchAnalyzer mf | isJust (mfSearchAnalyzer mf)]
 
 boolQuery :: ES.BoolQuery
 boolQuery = ES.mkBoolQuery [] [] [] []
