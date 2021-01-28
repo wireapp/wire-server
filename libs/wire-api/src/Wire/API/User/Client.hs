@@ -76,10 +76,10 @@ import Wire.API.User.Client.Prekey as Prekey
 -- UserClientMap
 
 newtype UserClientMap a = UserClientMap
-  { userClientMap :: Map OpaqueUserId (Map ClientId a)
+  { userClientMap :: Map UserId (Map ClientId a)
   }
   deriving stock (Eq, Show, Functor, Foldable, Traversable)
-  deriving newtype (Semigroup, Monoid)
+  deriving newtype (Semigroup, Monoid, ToSchema)
 
 modelOtrClientMap :: Doc.Model
 modelOtrClientMap = Doc.defineModel "OtrClientMap" $ do

@@ -176,7 +176,7 @@ claimMultiPrekeyBundles (UserClients clientMap) = do
   for_ (nonEmpty remoteUsers) $
     throwStd . federationNotImplemented . fmap fst
   -- FUTUREWORK(federation, #1272): claim keys from other backends, merge maps
-  lift $ UserClientMap . Map.mapKeys makeIdOpaque <$> claimLocalPrekeyBundles localUsers
+  lift $ UserClientMap <$> claimLocalPrekeyBundles localUsers
   where
     localOrRemoteUser :: (MappedOrLocalId Id.U, a) -> Either (UserId, a) (IdMapping Id.U, a)
     localOrRemoteUser (mappedOrLocal, x) =

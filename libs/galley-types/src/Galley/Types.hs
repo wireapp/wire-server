@@ -73,7 +73,7 @@ module Galley.Types
 where
 
 import Data.Aeson
-import Data.Id (ClientId, ConvId, OpaqueUserId, TeamId, UserId)
+import Data.Id (ClientId, ConvId, TeamId, UserId)
 import Data.Json.Util ((#))
 import qualified Data.Map.Strict as Map
 import Data.Misc (Milliseconds)
@@ -151,7 +151,7 @@ instance FromJSON Accept where
 --------------------------------------------------------------------------------
 -- utility functions
 
-foldrOtrRecipients :: (OpaqueUserId -> ClientId -> Text -> a -> a) -> a -> OtrRecipients -> a
+foldrOtrRecipients :: (UserId -> ClientId -> Text -> a -> a) -> a -> OtrRecipients -> a
 foldrOtrRecipients f a =
   Map.foldrWithKey go a
     . userClientMap
