@@ -72,7 +72,7 @@ routesPublic = do
       .&. opt (query "q")
       .&. opt (query "frole")
       .&. opt (query "sortby")
-      .&. opt (query "sortoder")
+      .&. opt (query "sortorder")
       .&. def (unsafeRange 15) (query "size")
 
   document "GET" "browse team" $ do
