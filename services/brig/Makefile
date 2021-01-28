@@ -86,7 +86,7 @@ $(DEB_INDEX): install
 
 .PHONY: i
 i:
-	INTEGRATION_USE_NGINZ=$(INTEGRATION_USE_NGINZ) ../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "!/brig-federation/" $(WIRE_INTEGRATION_TEST_OPTIONS)
+	INTEGRATION_USE_NGINZ=$(INTEGRATION_USE_NGINZ) ../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml $(WIRE_INTEGRATION_TEST_OPTIONS)
 
 .PHONY: i-aws
 i-aws:
@@ -94,7 +94,7 @@ i-aws:
 
 .PHONY: i-federation
 i-federation:
-	INTEGRATION_USE_NGINZ=$(INTEGRATION_USE_NGINZ) ../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p brig-federation $(WIRE_INTEGRATION_TEST_OPTIONS)
+	INTEGRATION_FEDERATION_TESTS=1 INTEGRATION_USE_NGINZ=$(INTEGRATION_USE_NGINZ) ../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p brig-federation $(WIRE_INTEGRATION_TEST_OPTIONS)
 
 .PHONY: i-list
 i-list:

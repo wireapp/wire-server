@@ -48,6 +48,7 @@ import Network.Wai.Utilities.Server (compile)
 import OpenSSL (withOpenSSL)
 import Options.Applicative
 import System.Environment (withArgs)
+import qualified System.Environment.Blank as Blank
 import qualified System.Logger as Logger
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -119,26 +120,27 @@ runTests iConf brigOpts otherArgs = do
   browseTeam <- TeamUserSearch.tests brigOpts mg g b
   userPendingActivation <- UserPendingActivation.tests brigOpts mg db b g s
   federationUser <- Federation.User.spec brigOpts mg b f brigTwo
+  includeFederationTests <- (== Just "1") <$> Blank.getEnv "INTEGRATION_FEDERATION_TESTS"
   withArgs otherArgs . defaultMain $
     testGroup
       "Brig API Integration"
-      [ testCase "sitemap" $
-          assertEqual
-            "inconcistent sitemap"
-            mempty
-            (pathsConsistencyCheck . treeToPaths . compile $ Brig.API.sitemap brigOpts),
-        userApi,
-        providerApi,
-        searchApis,
-        teamApis,
-        turnApi,
-        metricsApi,
-        settingsApi,
-        createIndex,
-        userPendingActivation,
-        browseTeam,
-        federationUser
-      ]
+      $ [ testCase "sitemap" $
+            assertEqual
+              "inconcistent sitemap"
+              mempty
+              (pathsConsistencyCheck . treeToPaths . compile $ Brig.API.sitemap brigOpts),
+          userApi,
+          providerApi,
+          searchApis,
+          teamApis,
+          turnApi,
+          metricsApi,
+          settingsApi,
+          createIndex,
+          userPendingActivation,
+          browseTeam
+        ]
+        <> [federationUser | includeFederationTests]
   where
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
 
