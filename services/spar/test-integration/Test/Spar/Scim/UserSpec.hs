@@ -678,9 +678,9 @@ testCreateUserTimeout = do
       tryquery (filterBy "externalId" $ fromEmail email)
 
     waitUserExpiration = do
-      timeoutSecs <- asks $ fromMaybe 5 . brigSettingsTeamInvitationTimeout . _teOpts
+      timeoutSecs <- asks (cfgBrigSettingsTeamInvitationTimeout . view teTstOpts)
       Control.Exception.assert (timeoutSecs < 30) $ do
-        threadDelay $ (timeoutSecs + 2) * 1_000_000
+        threadDelay $ (timeoutSecs + 1) * 1_000_000
 
 ----------------------------------------------------------------------------
 -- Listing users

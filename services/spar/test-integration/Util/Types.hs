@@ -84,7 +84,8 @@ type Select = TestEnv -> (Request -> Request)
 data IntegrationConfig = IntegrationConfig
   { cfgBrig :: Endpoint,
     cfgGalley :: Endpoint,
-    cfgSpar :: Endpoint
+    cfgSpar :: Endpoint,
+    cfgBrigSettingsTeamInvitationTimeout :: Int
   }
   deriving (Show, Generic)
 
