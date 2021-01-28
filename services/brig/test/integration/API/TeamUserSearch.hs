@@ -14,8 +14,11 @@ import Control.Retry ()
 import Data.ByteString.Conversion (ToByteString (..), toByteString)
 import Data.Handle (fromHandle)
 import Data.Id (TeamId, UserId)
+import qualified Data.Map.Strict as M
 import Data.String.Conversions (cs)
 import Imports
+import System.Random
+import System.Random.Shuffle (shuffleM)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, assertEqual)
 import Util (Brig, Galley, randomEmail, test, withSettingsOverrides)
@@ -27,10 +30,11 @@ type TestConstraints m = (MonadFail m, MonadCatch m, MonadIO m, MonadHttp m)
 tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree
 tests opts mgr _galley brig = do
   return $
-    testGroup "browse team" $
-      [ testWithNewIndex "by email" (testSearchByEmailSameTeam brig),
-        testWithNewIndex "empty query lists the whole team sorted" (testEmptyQuerySorted brig),
-        testWithNewIndex "sorting by name works" (testSort brig)
+    testGroup "/teams/:tid/search" $
+      [ testWithNewIndex "can find user by email" (testSearchByEmailSameTeam brig),
+        testWithNewIndex "empty query returns the whole team sorted" (testEmptyQuerySorted brig),
+        testWithNewIndex "sorting by some properties works" (testSort brig),
+        testWithNewIndex "call to search with remaining properties succeeds" (testSortCallSucceeds brig)
       ]
   where
     testWithNewIndex name f = test mgr name $ withSettingsOverrides opts f
@@ -83,29 +87,18 @@ testEmptyQuerySorted brig = do
 
 testSort :: TestConstraints m => Brig -> m ()
 testSort brig = do
-  (tid, userId -> ownerId, users) <- createPopulatedBindingTeamWithNamesAndHandles brig 4
+  (tid, userId -> ownerId, usersImplicitOrder) <- createPopulatedBindingTeamWithNamesAndHandles brig 4
+  users <- liftIO $ shuffleM usersImplicitOrder
   refreshIndex brig
   let sortByProperty' :: (TestConstraints m, Ord a) => TeamUserSearchSortBy -> (User -> a) -> TeamUserSearchSortOrder -> m ()
       sortByProperty' = sortByProperty tid users ownerId
   for_ [SortOrderAsc, SortOrderDesc] $ \sortOrder -> do
+    -- FUTUREWORK: Test SortByRole when role is avaible in index
     sortByProperty' SortByEmail userEmail sortOrder
     sortByProperty' SortByName userDisplayName sortOrder
     sortByProperty' SortByHandle (fmap fromHandle . userHandle) sortOrder
   where
-    -- TODO
-    -- SortBySAMLIdp
-    -- SortByManagedBy
-    -- SortByRole
-
-    sortByProperty ::
-      (TestConstraints m, Ord a) =>
-      TeamId ->
-      [User] ->
-      UserId ->
-      TeamUserSearchSortBy ->
-      (User -> a) ->
-      TeamUserSearchSortOrder ->
-      m ()
+    sortByProperty :: (TestConstraints m, Ord a) => TeamId -> [User] -> UserId -> TeamUserSearchSortBy -> (User -> a) -> TeamUserSearchSortOrder -> m ()
     sortByProperty tid users ownerId tuSortBy orderProp sortOrder = do
       let uids =
             fmap
@@ -117,3 +110,15 @@ testSort brig = do
       r <- searchResults <$> executeTeamUserSearch brig tid ownerId Nothing Nothing (Just tuSortBy) (Just sortOrder)
       let rUids = filter (/= ownerId) $ fmap teamContactUserId r
       liftIO $ assertEqual ("users sorted by " <> cs (toByteString tuSortBy)) uids rUids
+
+-- Creating test users with different saml idps and managed_by values seemed overkill,
+-- since 'testSort' also tests that sorting works in general.
+-- But we can test at least that the query returns the users of the team and doesnt fail
+testSortCallSucceeds :: TestConstraints m => Brig -> m ()
+testSortCallSucceeds brig = do
+  (tid, userId -> ownerId, users) <- createPopulatedBindingTeamWithNamesAndHandles brig 4
+  refreshIndex brig
+  let n = length users + 1
+  for_ [SortByManagedBy, SortBySAMLIdp] $ \tuSortBy -> do
+    r <- searchResults <$> executeTeamUserSearch brig tid ownerId Nothing Nothing (Just tuSortBy) (Just SortOrderAsc)
+    liftIO $ assertEqual ("length of users sorted by " <> cs (toByteString tuSortBy)) n (length r)

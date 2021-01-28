@@ -31,10 +31,8 @@ import Brig.Data.Instances ()
 import Brig.Types.Search
 import Brig.User.Search.Index
 import Control.Monad.Catch (MonadThrow (throwM))
-import Data.Aeson
 import Data.Id (TeamId, idToText)
 import Data.Range (Range (..))
-import Data.String.Conversions (cs)
 import qualified Database.Bloodhound as ES
 import Imports hiding (log, searchable)
 import Wire.API.User.Search
@@ -56,7 +54,6 @@ teamUserSearch tid mbSearchText mRoleFilter mSortBy mSortOrder (fromRange -> s) 
           { ES.size = ES.Size (fromIntegral s),
             ES.sortBody = Just (fmap ES.DefaultSortSpec sortSpecs)
           }
-  putStrLn $ cs $ encode search
   r <-
     ES.searchByType idx mappingName search
       >>= ES.parseEsResponse
