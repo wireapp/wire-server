@@ -84,11 +84,11 @@ teamUserSearchQuery tid mbSearchText _mRoleFilter mSortBy mSortOrder =
         mbQStr
     )
     teamFilter
-    [ maybe
-        (defaultSort SortByCreatedAt SortOrderDesc)
-        (\tuSortBy -> defaultSort tuSortBy (fromMaybe SortOrderAsc mSortOrder))
+    ( maybe
+        [defaultSort SortByCreatedAt SortOrderDesc | isNothing mbQStr]
+        (\tuSortBy -> [defaultSort tuSortBy (fromMaybe SortOrderAsc mSortOrder)])
         mSortBy
-    ]
+    )
   where
     mbQStr :: Maybe Text
     mbQStr =
@@ -125,7 +125,15 @@ teamUserSearchQuery tid mbSearchText _mRoleFilter mSortBy mSortOrder =
     defaultSort :: TeamUserSearchSortBy -> TeamUserSearchSortOrder -> ES.DefaultSort
     defaultSort tuSortBy sortOrder =
       ES.DefaultSort
-        (sortLabel tuSortBy)
+        ( case tuSortBy of
+            SortByName -> ES.FieldName "name"
+            SortByHandle -> ES.FieldName "handle.keyword"
+            SortByEmail -> ES.FieldName "email.keyword"
+            SortBySAMLIdp -> ES.FieldName "saml_idp"
+            SortByManagedBy -> ES.FieldName "managed_by"
+            SortByRole -> ES.FieldName "role"
+            SortByCreatedAt -> ES.FieldName "created_at"
+        )
         ( case sortOrder of
             SortOrderAsc -> ES.Ascending
             SortOrderDesc -> ES.Descending
@@ -134,12 +142,3 @@ teamUserSearchQuery tid mbSearchText _mRoleFilter mSortBy mSortOrder =
         Nothing
         Nothing
         Nothing
-
-    sortLabel :: TeamUserSearchSortBy -> ES.FieldName
-    sortLabel SortByName = ES.FieldName "name"
-    sortLabel SortByHandle = ES.FieldName "handle.keyword"
-    sortLabel SortByEmail = ES.FieldName "email.keyword"
-    sortLabel SortBySAMLIdp = ES.FieldName "saml_idp"
-    sortLabel SortByManagedBy = ES.FieldName "managed_by"
-    sortLabel SortByRole = ES.FieldName "role"
-    sortLabel SortByCreatedAt = ES.FieldName "created_at"
