@@ -62,7 +62,7 @@ data NewOtrMessage = NewOtrMessage
     newOtrTransient :: Bool,
     newOtrNativePriority :: Maybe Priority,
     newOtrData :: Maybe Text,
-    newOtrReportMissing :: Maybe [UserId]
+    newOtrReportMissing :: Maybe [OpaqueUserId]
     -- FUTUREWORK: if (and only if) clients can promise this uid list will always exactly
     -- be the list of uids we could also extract from the messages' recipients field, we
     -- should do the latter, for two reasons: (1) no need for an artificial limit on the

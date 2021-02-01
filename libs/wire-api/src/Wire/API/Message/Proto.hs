@@ -69,7 +69,7 @@ import qualified Wire.API.User.Client as Client
 -- UserId
 
 newtype UserId = UserId
-  { _user :: Required 1 (Value Id.UserId)
+  { _user :: Required 1 (Value Id.OpaqueUserId)
   }
   deriving stock (Eq, Show, Generic)
 
@@ -77,10 +77,10 @@ instance Encode UserId
 
 instance Decode UserId
 
-fromUserId :: Id.UserId -> UserId
+fromUserId :: Id.OpaqueUserId -> UserId
 fromUserId u = UserId {_user = putField u}
 
-userId :: Functor f => (Id.UserId -> f Id.UserId) -> UserId -> f UserId
+userId :: Functor f => (Id.OpaqueUserId -> f Id.OpaqueUserId) -> UserId -> f UserId
 userId f c = (\x -> c {_user = x}) <$> field f (_user c)
 
 --------------------------------------------------------------------------------
@@ -285,7 +285,7 @@ toNewOtrMessage msg =
       Msg.newOtrReportMissing = toReportMissing $ view newOtrMessageReportMissing msg
     }
 
-toReportMissing :: [UserId] -> Maybe [Id.UserId]
+toReportMissing :: [UserId] -> Maybe [Id.OpaqueUserId]
 toReportMissing [] = Nothing
 toReportMissing us = Just $ view userId <$> us
 
