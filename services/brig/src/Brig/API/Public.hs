@@ -274,12 +274,14 @@ type ListUsersByIdsOrHandles =
     :> Servant.ReqBody '[Servant.JSON] Public.ListUsersQuery
     :> Post '[Servant.JSON] [Public.UserProfile]
 
+type MaxUsersForListClientsBulk = 500
+
 type ListClientsBulk =
   Summary "List all clients for a set of user ids"
     :> ZAuthServant
     :> "users"
     :> "get-clients-using-post"
-    :> Servant.ReqBody '[Servant.JSON] (Range 1 1000 [Qualified UserId])
+    :> Servant.ReqBody '[Servant.JSON] (Range 1 MaxUsersForListClientsBulk [Qualified UserId])
     :> Post '[Servant.JSON] (Public.QualifiedUserMap (Set Public.Client))
 
 type OutsideWorldAPI =
@@ -1093,7 +1095,7 @@ getClientH (zusr ::: clt ::: _) =
     Just c -> json c
     Nothing -> setStatus status404 empty
 
-listClientsBulk :: UserId -> Range 1 1000 [Qualified UserId] -> Handler (Public.QualifiedUserMap (Set Public.Client))
+listClientsBulk :: UserId -> Range 1 MaxUsersForListClientsBulk [Qualified UserId] -> Handler (Public.QualifiedUserMap (Set Public.Client))
 listClientsBulk _zusr limitedUids =
   API.lookupClientsBulk (fromRange limitedUids) !>> clientError
 
