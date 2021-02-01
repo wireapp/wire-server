@@ -45,9 +45,8 @@ spec _brigOpts mg brig _federator brigTwo =
 
 testHandleLookup :: Brig -> Brig -> Http ()
 testHandleLookup brig brigTwo = do
-  -- Create a user on the "other
-  -- side" using an internal brig endpoint from a second brig instance in
-  -- backendTwo (in another namespace in kubernetes)
+  -- Create a user on the "other side" using an internal brig endpoint from a
+  -- second brig instance in backendTwo (in another namespace in kubernetes)
   u <- randomUser brigTwo
   h <- randomHandle
   void $ putHandle brigTwo (userId u) h
@@ -56,14 +55,11 @@ testHandleLookup brig brigTwo = do
   liftIO $ assertEqual "creating user with handle should return handle" h (fromHandle handle)
   let domain = qDomain $ userQualifiedId self
   resultTwo <- userHandleId <$> getUserInfoFromHandle brigTwo domain handle
-  putStrLn "---------- result from Two:"
-  print resultTwo
   -- query the local-namespace brig for a user sitting on the other backend
   -- which should involve the following network traffic:
   --
   -- brig-integration -> brig -> federator -> fed2-federator -> fed2-brig
   -- (and back)
-  putStrLn "---------- result from One (end2end):"
   result <- userHandleId <$> getUserInfoFromHandle brig domain handle
-  print result
   liftIO $ assertEqual "remote handle lookup via federator should work in the happy case" result (Qualified (userId u) domain)
+  liftIO $ assertEqual "querying brig1 or brig2 about remote user should give same result" resultTwo result

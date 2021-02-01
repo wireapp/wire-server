@@ -17,7 +17,9 @@
 
 module Deriving.Swagger where
 
+import qualified Data.Char as Char
 import Data.Kind (Constraint)
+import Data.List.Extra (stripSuffix)
 import Data.Proxy (Proxy (..))
 import Data.Swagger (SchemaOptions, ToSchema (..), constructorTagModifier, defaultSchemaOptions, fieldLabelModifier, genericDeclareNamedSchema)
 import Data.Swagger.Internal.Schema (GToSchema)
@@ -30,6 +32,8 @@ newtype CustomSwagger t a = CustomSwagger {unCustomSwagger :: a}
 
 data StripPrefix t
 
+data StripSuffix t
+
 data ConstructorTagModifier t
 
 data FieldLabelModifier t
@@ -40,6 +44,8 @@ type CamelToSnake = CamelTo "_"
 
 type CamelToKebab = CamelTo "-"
 
+data LowerCase
+
 data LabelMapping a b = a :-> b
 
 data LabelMappings (lmap :: [LabelMapping Symbol Symbol])
@@ -49,6 +55,12 @@ class StringModifier t where
 
 instance KnownSymbol prefix => StringModifier (StripPrefix prefix) where
   getStringModifier = fromMaybe <*> stripPrefix (symbolVal (Proxy @prefix))
+
+instance KnownSymbol suffix => StringModifier (StripSuffix suffix) where
+  getStringModifier = fromMaybe <*> stripSuffix (symbolVal (Proxy @suffix))
+
+instance StringModifier LowerCase where
+  getStringModifier = map Char.toLower
 
 instance (StringModifier a, StringModifier b) => StringModifier (a, b) where
   getStringModifier = getStringModifier @b . getStringModifier @a

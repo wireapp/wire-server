@@ -107,6 +107,7 @@ import qualified Wire.API.User.Client.Prekey as Public
 import qualified Wire.API.User.Handle as Public
 import qualified Wire.API.User.Password as Public
 import qualified Wire.API.User.RichInfo as Public
+import qualified Wire.API.UserMap as Public
 
 ---------------------------------------------------------------------------
 -- Sitemap
@@ -275,6 +276,16 @@ type ListUsersByIdsOrHandles =
     :> Servant.ReqBody '[Servant.JSON] Public.ListUsersQuery
     :> Post '[Servant.JSON] [Public.UserProfile]
 
+type MaxUsersForListClientsBulk = 500
+
+type ListClientsBulk =
+  Summary "List all clients for a set of user ids"
+    :> ZAuthServant
+    :> "users"
+    :> "list-clients"
+    :> Servant.ReqBody '[Servant.JSON] (Range 1 MaxUsersForListClientsBulk [Qualified UserId])
+    :> Post '[Servant.JSON] (Public.QualifiedUserMap (Set Public.Client))
+
 type OutsideWorldAPI =
   CheckUserExistsUnqualified
     :<|> CheckUserExistsQualified
@@ -285,6 +296,7 @@ type OutsideWorldAPI =
     :<|> GetHandleInfoQualified
     :<|> ListUsersByUnqualifiedIdsOrHandles
     :<|> ListUsersByIdsOrHandles
+    :<|> ListClientsBulk
 
 type SwaggerDocsAPI = "api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
@@ -312,6 +324,7 @@ servantSitemap =
     :<|> getHandleInfoH
     :<|> listUsersByUnqualifiedIdsOrHandles
     :<|> listUsersByIdsOrHandles
+    :<|> listClientsBulk
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
@@ -1083,6 +1096,10 @@ getClientH (zusr ::: clt ::: _) =
   getClient zusr clt <&> \case
     Just c -> json c
     Nothing -> setStatus status404 empty
+
+listClientsBulk :: UserId -> Range 1 MaxUsersForListClientsBulk [Qualified UserId] -> Handler (Public.QualifiedUserMap (Set Public.Client))
+listClientsBulk _zusr limitedUids =
+  API.lookupClientsBulk (fromRange limitedUids) !>> clientError
 
 getClient :: UserId -> ClientId -> Handler (Maybe Public.Client)
 getClient zusr clientId = do

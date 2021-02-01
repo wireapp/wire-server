@@ -142,7 +142,7 @@ data Env = Env
   { _cargohold :: RPC.Request,
     _galley :: RPC.Request,
     _gundeck :: RPC.Request,
-    _federator :: Maybe Endpoint, -- TODO use a better type so we don't re-create fresh connections all the time?
+    _federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
     _casClient :: Cas.ClientState,
     _smtpEnv :: Maybe SMTP.SMTP,
     _emailSender :: Email,

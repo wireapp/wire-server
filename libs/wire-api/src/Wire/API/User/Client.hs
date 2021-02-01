@@ -64,9 +64,11 @@ import Data.Id
 import Data.Json.Util
 import qualified Data.Map.Strict as Map
 import Data.Misc (Latitude (..), Location, Longitude (..), PlainTextPassword (..), latitude, location, longitude, modelLocation)
+import Data.Swagger (ToSchema)
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text.Encoding as Text.E
 import Data.UUID (toASCIIBytes)
+import Deriving.Swagger (CamelToSnake, ConstructorTagModifier, CustomSwagger, FieldLabelModifier, LabelMapping ((:->)), LabelMappings, LowerCase, StripPrefix, StripSuffix)
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..), mapOf', setOf')
 import Wire.API.User.Auth (CookieLabel)
@@ -161,8 +163,9 @@ data Client = Client
     clientLocation :: Maybe Location,
     clientModel :: Maybe Text
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform Client)
+  deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "client", LowerCase)] Client)
 
 modelClient :: Doc.Model
 modelClient = Doc.defineModel "Client" $ do
@@ -269,12 +272,25 @@ instance FromJSON PubClient where
 --   interaction, and on an ongoing basis see a visual indication in all
 --   conversations where such a device is active.
 
+-- | Strategy to translate enums in this module to schema.
+type EnumToSchemaStrategy suffix ty =
+  ( CustomSwagger
+      '[ ConstructorTagModifier
+           ( StripSuffix suffix,
+             CamelToSnake,
+             LabelMappings '["legal_hold" ':-> "legalhold"]
+           )
+       ]
+      ty
+  )
+
 data ClientType
   = TemporaryClientType
   | PermanentClientType
   | LegalHoldClientType -- see Note [LegalHold]
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ClientType)
+  deriving (ToSchema) via EnumToSchemaStrategy "ClientType" ClientType
 
 typeClientType :: Doc.DataType
 typeClientType =
@@ -304,6 +320,7 @@ data ClientClass
   | LegalHoldClient -- see Note [LegalHold]
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ClientClass)
+  deriving (ToSchema) via EnumToSchemaStrategy "Client" ClientClass
 
 typeClientClass :: Doc.DataType
 typeClientClass =

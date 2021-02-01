@@ -94,11 +94,11 @@ i-aws:
 
 .PHONY: i-federation
 i-federation:
-	INTEGRATION_USE_NGINZ=$(INTEGRATION_USE_NGINZ) ../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p brig-federation $(WIRE_INTEGRATION_TEST_OPTIONS)
+	INTEGRATION_FEDERATION_TESTS=1 INTEGRATION_USE_NGINZ=$(INTEGRATION_USE_NGINZ) ../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p brig-federation $(WIRE_INTEGRATION_TEST_OPTIONS)
 
 .PHONY: i-list
 i-list:
-	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -h
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -l
 
 i-%:
 	INTEGRATION_USE_NGINZ=$(INTEGRATION_USE_NGINZ) ../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*" $(WIRE_INTEGRATION_TEST_OPTIONS)

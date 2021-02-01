@@ -3,6 +3,14 @@
 USAGE="$0 <NAMESPACE>"
 NAMESPACE=${1:?$USAGE}
 
+# This script assumes:
+# * two wire-server backends under NAMEPACE and NAMESPACE-fed2 have been deployed with helm.
+# * you have a locally compiled brig-integration executable
+#
+# It then downloads the configmaps, performs a hacky override for two configuration flags,
+# and then uses telepresence to run a locally-compiled brig-integration executable against
+# the brigs and federators inside kubernetes in the two NAMESPACES.
+
 kubectl -n "$NAMESPACE" get configmap brig-integration -o jsonpath='{.data.integration\.yaml}' > i.yaml
 kubectl -n "$NAMESPACE" get configmap brig -o jsonpath='{.data.brig\.yaml}' > b.yaml
 
