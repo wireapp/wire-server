@@ -249,6 +249,7 @@ newEnv o = do
       }
   where
     emailConn _ (Opt.EmailAWS aws) = return (Just aws, Nothing)
+    emailConn _ (Opt.NoEndpoint) = return (Nothing, Nothing)
     emailConn lgr (Opt.EmailSMTP s) = do
       let host = (Opt.smtpEndpoint s) ^. epHost
           port = Just $ fromInteger $ toInteger $ (Opt.smtpEndpoint s) ^. epPort

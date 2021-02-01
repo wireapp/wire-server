@@ -148,6 +148,7 @@ runTests iConf brigOpts otherArgs = do
     parseEmailAWSOpts = case Opts.email . Opts.emailSMS $ brigOpts of
       (Opts.EmailAWS aws) -> return (Just aws)
       (Opts.EmailSMTP _) -> return Nothing
+      (Opts.NoEndpoint) -> return Nothing
 
 main :: IO ()
 main = withOpenSSL $ do
