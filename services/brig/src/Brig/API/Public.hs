@@ -280,7 +280,7 @@ type ListClientsBulk =
   Summary "List all clients for a set of user ids"
     :> ZAuthServant
     :> "users"
-    :> "get-clients-using-post"
+    :> "list-clients"
     :> Servant.ReqBody '[Servant.JSON] (Range 1 MaxUsersForListClientsBulk [Qualified UserId])
     :> Post '[Servant.JSON] (Public.QualifiedUserMap (Set Public.Client))
 

@@ -59,7 +59,7 @@ tests _cl _at opts p b c g =
         testCan'tAddLegalHoldClient b,
       test p "get /users/:uid/prekeys - 200" $ testGetUserPrekeys b,
       test p "get /users/:uid/prekeys/:client - 200" $ testGetClientPrekey b,
-      test p "post /users/clients - 200" $ testListClientsBulk opts b,
+      test p "post /users/list-clients - 200" $ testListClientsBulk opts b,
       test p "post /clients - 201 (pwd)" $ testAddGetClient True b c,
       test p "post /clients - 201 (no pwd)" $ testAddGetClient False b c,
       test p "post /clients - 403" $ testClientReauthentication b,
@@ -182,7 +182,7 @@ testListClientsBulk opts brig = do
             )
   post
     ( brig
-        . paths ["users", "get-clients-using-post"]
+        . paths ["users", "list-clients"]
         . zUser uid3
         . contentJson
         . body (RequestBodyLBS $ encode [Qualified uid1 domain, Qualified uid2 domain])
