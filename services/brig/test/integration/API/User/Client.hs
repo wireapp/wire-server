@@ -34,6 +34,9 @@ import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
 import qualified Data.List1 as List1
+import qualified Data.Map as Map
+import Data.Qualified (Qualified (..))
+import qualified Data.Set as Set
 import qualified Data.Vector as Vec
 import Gundeck.Types.Notification
 import Imports
@@ -44,6 +47,7 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
+import Wire.API.UserMap (QualifiedUserMap (..), UserMap (..))
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at opts p b c g =
@@ -55,6 +59,7 @@ tests _cl _at opts p b c g =
         testCan'tAddLegalHoldClient b,
       test p "get /users/:uid/prekeys - 200" $ testGetUserPrekeys b,
       test p "get /users/:uid/prekeys/:client - 200" $ testGetClientPrekey b,
+      test p "post /users/list-clients - 200" $ testListClientsBulk opts b,
       test p "post /clients - 201 (pwd)" $ testAddGetClient True b c,
       test p "post /clients - 201 (no pwd)" $ testAddGetClient False b c,
       test p "post /clients - 403" $ testClientReauthentication b,
@@ -149,6 +154,42 @@ testListClients brig = do
     !!! do
       const 200 === statusCode
       const (Just cs) === responseJsonMaybe
+
+testListClientsBulk :: Opt.Opts -> Brig -> Http ()
+testListClientsBulk opts brig = do
+  uid1 <- userId <$> randomUser brig
+  let (pk11, lk11) = (somePrekeys !! 0, (someLastPrekeys !! 0))
+  let (pk12, lk12) = (somePrekeys !! 1, (someLastPrekeys !! 1))
+  let (pk13, lk13) = (somePrekeys !! 2, (someLastPrekeys !! 2))
+  c11 <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk11] lk11)
+  c12 <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk12] lk12)
+  c13 <- responseJsonError =<< addClient brig uid1 (defNewClient TemporaryClientType [pk13] lk13)
+
+  uid2 <- userId <$> randomUser brig
+  let (pk21, lk21) = (somePrekeys !! 3, (someLastPrekeys !! 3))
+  let (pk22, lk22) = (somePrekeys !! 4, (someLastPrekeys !! 4))
+  c21 <- responseJsonError =<< addClient brig uid2 (defNewClient PermanentClientType [pk21] lk21)
+  c22 <- responseJsonError =<< addClient brig uid2 (defNewClient PermanentClientType [pk22] lk22)
+
+  let domain = Opt.setFederationDomain $ Opt.optSettings opts
+  uid3 <- userId <$> randomUser brig
+  let expectedResponse :: QualifiedUserMap (Set Client) =
+        QualifiedUserMap $
+          Map.singleton
+            domain
+            ( UserMap $
+                Map.fromList [(uid1, Set.fromList [c11, c12, c13]), (uid2, Set.fromList [c21, c22])]
+            )
+  post
+    ( brig
+        . paths ["users", "list-clients"]
+        . zUser uid3
+        . contentJson
+        . body (RequestBodyLBS $ encode [Qualified uid1 domain, Qualified uid2 domain])
+    )
+    !!! do
+      const 200 === statusCode
+      const (Just expectedResponse) === responseJsonMaybe
 
 testListPrekeyIds :: Brig -> Http ()
 testListPrekeyIds brig = do

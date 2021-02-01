@@ -255,6 +255,7 @@ newtype ClientId = ClientId
   { client :: Text
   }
   deriving (Eq, Ord, Show, ToByteString, Hashable, NFData, ToJSON, ToJSONKey, Generic)
+  deriving newtype (ToSchema)
 
 newClientId :: Word64 -> ClientId
 newClientId = ClientId . toStrict . toLazyText . hexadecimal

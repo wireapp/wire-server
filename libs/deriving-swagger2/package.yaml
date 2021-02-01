@@ -13,5 +13,6 @@ library:
   source-dirs: src
   dependencies:
     - base >=4 && <5
-    - swagger2 >=0.6
+    - extra
     - imports
+    - swagger2 >=0.6
