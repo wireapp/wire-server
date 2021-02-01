@@ -13,7 +13,7 @@ spec =
   describe "Wire.API.Federation.GRPC.Types" $ do
     describe "validateRemoteCall" $ do
       prop "should succeed when RemoteCall is valid" $ do
-        let callGen = RemoteCall <$> validDomain <*> arbitrary
+        let callGen = RemoteCall <$> validDomain <*> (Just <$> arbitrary)
         forAll callGen $ \c -> isRight' (validateRemoteCall c)
       prop "should fail appropriately when domain is not valid" $ do
         let callGen = RemoteCall <$> invalidDomain <*> arbitrary
