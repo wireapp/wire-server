@@ -637,18 +637,12 @@ packages:
   original:
     hackage: mu-avro-0.4.0.2
 - completed:
-    subdir: adapter/protobuf
-    name: mu-protobuf
-    version: 0.4.1.0
-    git: https://github.com/higherkindness/mu-haskell.git
+    hackage: mu-protobuf-0.4.2.0@sha256:e2950a91d20695e71aad843e44eebae69d1a964cd8d3ce0146d1747aa6e8c450,2034
     pantry-tree:
-      size: 885
-      sha256: 08bf89e0df29b56a3b57d0e0fb42a0b22df3999f308232e2f369d3cb05d03bd4
-    commit: c0a6f687b4907572664fdcdd60183e99190273ec
+      size: 640
+      sha256: 84c8e64db62947b2b922f66a26e1e0bef87f0c34c80519d01f09e2c0e7274d81
   original:
-    subdir: adapter/protobuf
-    git: https://github.com/higherkindness/mu-haskell.git
-    commit: c0a6f687b4907572664fdcdd60183e99190273ec
+    hackage: mu-protobuf-0.4.2.0
 - completed:
     subdir: core/schema
     name: mu-schema
@@ -657,11 +651,11 @@ packages:
     pantry-tree:
       size: 1107
       sha256: 97f46f9743ee3880e0e59664e218dab4ab05a41c19463324d9895b7972be8d63
-    commit: c0a6f687b4907572664fdcdd60183e99190273ec
+    commit: 1d5e3eed749df12aa0d0f9964586c35e2fd7eb25
   original:
     subdir: core/schema
     git: https://github.com/higherkindness/mu-haskell.git
-    commit: c0a6f687b4907572664fdcdd60183e99190273ec
+    commit: 1d5e3eed749df12aa0d0f9964586c35e2fd7eb25
 - completed:
     hackage: mu-grpc-server-0.4.0.0@sha256:03963b39f5b0887d261106ec03bfabbd4ccd1489e4c59c6cc216b61a4ffdb52c,2682
     pantry-tree:
