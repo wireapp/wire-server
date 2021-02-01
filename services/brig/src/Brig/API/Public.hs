@@ -275,7 +275,7 @@ type ListUsersByIdsOrHandles =
     :> Post '[Servant.JSON] [Public.UserProfile]
 
 type ListClientsBulk =
-  Summary "Get clients for a list of users"
+  Summary "List all clients for a set of user ids"
     :> ZAuthServant
     :> "users"
     :> "get-clients-using-post"
