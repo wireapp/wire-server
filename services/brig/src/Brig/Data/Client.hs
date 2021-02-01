@@ -58,7 +58,6 @@ import Data.ByteString.Conversion (toByteString, toByteString')
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
-import Data.List.Split (chunksOf)
 import qualified Data.Map as Map
 import qualified Data.Metrics as Metrics
 import Data.Misc
@@ -73,7 +72,7 @@ import System.CryptoBox (Result (Success))
 import qualified System.CryptoBox as CryptoBox
 import System.Logger.Class (field, msg, val)
 import qualified System.Logger.Class as Log
-import UnliftIO (mapConcurrently)
+import UnliftIO (pooledMapConcurrentlyN)
 import Wire.API.UserMap (UserMap (..))
 
 data ClientDataError
@@ -127,10 +126,12 @@ lookupClient u c =
   fmap toClient
     <$> retry x1 (query1 selectClient (params Quorum (u, c)))
 
-lookupClientsBulk :: MonadClient m => [UserId] -> m (UserMap (Imports.Set Client))
-lookupClientsBulk uids =
-  UserMap . Map.fromListWith (<>) . map toUserClientTuple
-    <$> retry x1 (query selectClientsBulk (params Quorum (Identity uids)))
+lookupClientsBulk :: (MonadClient m) => [UserId] -> m (UserMap (Imports.Set Client))
+lookupClientsBulk uids = liftClient $ do
+  userClientTuples <- pooledMapConcurrentlyN 50 getClientSetWithUser uids
+  pure $ UserMap $ Map.fromList userClientTuples
+  where
+    getClientSetWithUser u = (u,) . Set.fromList <$> lookupClients u
 
 lookupClients :: MonadClient m => UserId -> m [Client]
 lookupClients u =
@@ -143,10 +144,8 @@ lookupClientIds u =
     <$> retry x1 (query selectClientIds (params Quorum (Identity u)))
 
 lookupUsersClientIds :: MonadClient m => [UserId] -> m [(UserId, Set.Set ClientId)]
-lookupUsersClientIds us = liftClient $ do
-  -- Limit concurrency to 16 parallel queries
-  clts <- mapM (mapConcurrently getClientIds) (chunksOf 16 us)
-  return (concat clts)
+lookupUsersClientIds us =
+  liftClient $ pooledMapConcurrentlyN 16 getClientIds us
   where
     getClientIds u = (u,) <$> fmap Set.fromList (lookupClientIds u)
 
@@ -210,9 +209,6 @@ updateClientLabelQuery = "UPDATE clients SET label = ? WHERE user = ? AND client
 selectClientIds :: PrepQuery R (Identity UserId) (Identity ClientId)
 selectClientIds = "SELECT client from clients where user = ?"
 
-selectClientsBulk :: PrepQuery R (Identity [UserId]) (UserId, ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text)
-selectClientsBulk = "SELECT user, client, type, tstamp, label, class, cookie, lat, lon, model from clients where user in ?"
-
 selectClients :: PrepQuery R (Identity UserId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text)
 selectClients = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model from clients where user = ?"
 
@@ -255,9 +251,6 @@ toClient (cid, cty, tme, lbl, cls, cok, lat, lon, mdl) =
       clientLocation = location <$> lat <*> lon,
       clientModel = mdl
     }
-
-toUserClientTuple :: (UserId, ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text) -> (UserId, Imports.Set Client)
-toUserClientTuple (uid, cid, cty, tme, lbl, cls, cok, lat, lon, mdl) = (uid, Set.singleton $ toClient (cid, cty, tme, lbl, cls, cok, lat, lon, mdl))
 
 -------------------------------------------------------------------------------
 -- Best-effort optimistic locking for prekeys via DynamoDB
