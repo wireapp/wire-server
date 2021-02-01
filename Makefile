@@ -340,3 +340,8 @@ upload-charts: charts-release
 .PHONY: echo-release-charts
 echo-release-charts:
 	@echo ${CHARTS_RELEASE}
+
+.PHONY: buildah-docker
+buildah-docker:
+	./hack/bin/buildah-compile.sh
+	BUILDAH_PUSH=1 ./hack/bin/buildah-make-images.sh
