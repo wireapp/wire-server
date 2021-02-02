@@ -268,7 +268,7 @@ type ListUsersByUnqualifiedIdsOrHandles =
 -- See Note [ephemeral user sideeffect]
 type ListUsersByIdsOrHandles =
   Summary "List users"
-    :> Description "The 'ids' and 'handles' parameters are mutually exclusive."
+    :> Description "The 'qualified_ids' and 'qualified_handles' parameters are mutually exclusive."
     :> ZAuthServant
     :> "list-users"
     :> Servant.ReqBody '[Servant.JSON] Public.ListUsersQuery
