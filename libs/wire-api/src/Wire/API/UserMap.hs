@@ -2,19 +2,20 @@
 
 module Wire.API.UserMap where
 
-import Control.Lens ((?~))
+import Control.Lens ((?~), (^.))
 import Data.Aeson (FromJSON, ToJSON (toJSON))
 import Data.Domain (Domain)
 import Data.Id (UserId)
+import qualified Data.Map as Map
 import Data.Proxy (Proxy (..))
-import Data.Swagger (HasDescription (description), HasExample (example), NamedSchema (..), ToSchema (..), declareSchema)
+import qualified Data.Set as Set
+import Data.Swagger (HasDescription (description), HasExample (example), NamedSchema (..), ToSchema (..), declareSchema, toSchema)
 import qualified Data.Text as Text
 import Data.Typeable (typeRep)
 import Imports
 import Test.QuickCheck (Arbitrary (..))
-import Test.QuickCheck.Gen (Gen (MkGen))
-import Test.QuickCheck.Random
 import Wire.API.Arbitrary (generateExample, mapOf')
+import Wire.API.User.Client (Client)
 
 newtype UserMap a = UserMap {userMap :: Map UserId a}
   deriving stock (Eq, Show)
@@ -32,22 +33,24 @@ newtype QualifiedUserMap a = QualifiedUserMap
 instance Arbitrary a => Arbitrary (QualifiedUserMap a) where
   arbitrary = QualifiedUserMap <$> mapOf' arbitrary arbitrary
 
-instance (ToSchema a, ToJSON a, Arbitrary a, Typeable a) => ToSchema (UserMap a) where
+instance ToSchema (UserMap (Set Client)) where
   declareNamedSchema _ = do
-    mapSch <- declareSchema (Proxy @(Map UserId a))
-    let valueTypeName = Text.pack $ show $ typeRep $ Proxy @a
+    mapSch <- declareSchema (Proxy @(Map UserId (Set Client)))
     return $
-      NamedSchema (Just $ "UserMap (" <> valueTypeName <> ")") $
+      NamedSchema (Just "UserMap (Set Client)") $
         mapSch
-          & description ?~ "Map of UserId to " <> valueTypeName
-          & example ?~ toJSON (generateExample @(UserMap a))
+          & description ?~ "Map of UserId to (Set Client)"
+          & example ?~ toJSON (Map.singleton (generateExample @UserId) (Set.singleton (generateExample @Client)))
 
-instance (ToSchema a, Typeable a, ToJSON a, Arbitrary a) => ToSchema (QualifiedUserMap a) where
+instance (Typeable a, ToSchema (UserMap a)) => ToSchema (QualifiedUserMap a) where
   declareNamedSchema _ = do
     mapSch <- declareSchema (Proxy @(Map Domain (UserMap a)))
+    let userMapSchema = toSchema (Proxy @(UserMap a))
     let valueTypeName = Text.pack $ show $ typeRep $ Proxy @a
     return $
-      NamedSchema (Just $ "QaulifiedUserMap (" <> valueTypeName <> ")") $
+      NamedSchema (Just $ "QualifiedUserMap (" <> valueTypeName <> ")") $
         mapSch
           & description ?~ "Map of Domain to (UserMap (" <> valueTypeName <> "))."
-          & example ?~ toJSON (generateExample @(QualifiedUserMap a))
+          & example
+            ?~ toJSON
+              (Map.singleton ("domain1.example.com" :: Text) (userMapSchema ^. example))

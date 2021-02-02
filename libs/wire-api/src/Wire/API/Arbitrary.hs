@@ -29,6 +29,7 @@ module Wire.API.Arbitrary
     list1Of',
     setOf',
     mapOf',
+    generateExample,
   )
 where
 
@@ -48,8 +49,9 @@ import qualified Generic.Random as Generic
 import Imports
 import Test.QuickCheck.Arbitrary (Arbitrary (arbitrary))
 import qualified Test.QuickCheck.Arbitrary as QC
-import Test.QuickCheck.Gen (Gen, oneof)
+import Test.QuickCheck.Gen (Gen (MkGen), oneof)
 import Test.QuickCheck.Instances ()
+import Test.QuickCheck.Random
 
 -- | This type can be used with @DerivingVia@ to generically derive an instance
 -- for the 'Arbitrary' typeclass.
