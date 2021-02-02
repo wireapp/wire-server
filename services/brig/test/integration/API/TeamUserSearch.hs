@@ -88,6 +88,10 @@ testEmptyQuerySorted brig = do
 testSort :: TestConstraints m => Brig -> m ()
 testSort brig = do
   (tid, userId -> ownerId, usersImplicitOrder) <- createPopulatedBindingTeamWithNamesAndHandles brig 4
+  -- Shuffle here to guard against false positives in this test.
+  -- This might happen due to buggy data generation, where all users share the same value in the sort property,
+  -- resulting in an implicit order, which might coincide in the DB and ES, resulting in false positive test
+  -- result.
   users <- liftIO $ shuffleM usersImplicitOrder
   refreshIndex brig
   let sortByProperty' :: (TestConstraints m, Ord a) => TeamUserSearchSortBy -> (User -> a) -> TeamUserSearchSortOrder -> m ()
