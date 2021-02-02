@@ -31,6 +31,7 @@ module Galley.API.Teams
     addTeamMemberH,
     getTeamNotificationsH,
     getTeamMembersH,
+    getTeamMembersCSVH,
     bulkGetTeamMembersH,
     getTeamMemberH,
     deleteTeamMemberH,
@@ -369,6 +370,14 @@ getTeamMembers zusr tid maxResults = do
       mems <- Data.teamMembersWithLimit tid maxResults
       let withPerms = (m `canSeePermsOf`)
       pure (mems, withPerms)
+
+getTeamMembersCSVH :: UserId ::: TeamId ::: JSON -> Galley Response
+getTeamMembersCSVH (_zusr ::: _tid ::: _) = do
+  -- TODO: metrics
+  -- TODO: integeration test with n users
+  pure $
+    responseStream status200 [] $ \write flush -> do
+      pure ()
 
 bulkGetTeamMembersH :: UserId ::: TeamId ::: Range 1 Public.HardTruncationLimit Int32 ::: JsonRequest Public.UserIdList ::: JSON -> Galley Response
 bulkGetTeamMembersH (zusr ::: tid ::: maxResults ::: body ::: _) = do
