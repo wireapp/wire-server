@@ -41,6 +41,7 @@ import qualified Wire.API.User.Auth as User.Auth
 import qualified Wire.API.User.Identity as User.Identity
 import qualified Wire.API.User.Password as User.Password
 import qualified Wire.API.User.Profile as User.Profile
+import qualified Wire.API.User.Search as User.Search
 
 tests :: T.TestTree
 tests =
@@ -78,7 +79,10 @@ tests =
       testRoundTrip @User.Password.PasswordResetKey,
       testRoundTrip @User.Profile.ManagedBy,
       testRoundTrip @User.Profile.Name,
-      testRoundTrip @Team.Role.Role
+      testRoundTrip @Team.Role.Role,
+      testRoundTrip @User.Search.TeamUserSearchSortBy,
+      testRoundTrip @User.Search.TeamUserSearchSortOrder,
+      testRoundTrip @User.Search.RoleFilter
       -- FUTUREWORK:
       -- testCase "Call.Config.TurnUsername (doesn't have FromByteString)" ...
       -- testCase "User.Activation.ActivationTarget (doesn't have FromByteString)" ...

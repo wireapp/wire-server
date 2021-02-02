@@ -29,7 +29,7 @@ where
 
 import qualified Cassandra as Cql
 import Data.Aeson
-import Data.Attoparsec.ByteString (takeLazyByteString)
+import Data.Attoparsec.ByteString.Char8 (string)
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
 import Data.ByteString.Conversion.From (runParser)
 import Data.ByteString.Lazy.Builder (toLazyByteString)
@@ -108,12 +108,10 @@ instance ToByteString Role where
 
 instance FromByteString Role where
   parser =
-    takeLazyByteString >>= \case
-      "owner" -> pure RoleOwner
-      "admin" -> pure RoleAdmin
-      "member" -> pure RoleMember
-      "partner" -> pure RoleExternalPartner
-      bad -> fail ("not a role:  " <> show bad)
+    RoleOwner <$ string "owner"
+      <|> RoleAdmin <$ string "admin"
+      <|> RoleMember <$ string "member"
+      <|> RoleExternalPartner <$ string "partner"
 
 defaultRole :: Role
 defaultRole = RoleMember

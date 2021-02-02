@@ -34,8 +34,8 @@ module Wire.API.User.Search
 where
 
 import Data.Aeson
-import Data.Attoparsec.ByteString (sepBy, takeLazyByteString)
-import Data.Attoparsec.ByteString.Char8 (char)
+import Data.Attoparsec.ByteString (sepBy)
+import Data.Attoparsec.ByteString.Char8 (char, string)
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
 import Data.Id (TeamId, UserId)
 import Data.Json.Util (UTCTimeMillis)
@@ -214,7 +214,8 @@ data TeamUserSearchSortBy
   | SortByManagedBy
   | SortByRole
   | SortByCreatedAt
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (Arbitrary) via (GenericUniform TeamUserSearchSortBy)
 
 instance ToByteString TeamUserSearchSortBy where
   builder SortByName = "name"
@@ -227,20 +228,19 @@ instance ToByteString TeamUserSearchSortBy where
 
 instance FromByteString TeamUserSearchSortBy where
   parser =
-    takeLazyByteString >>= \case
-      "name" -> pure SortByName
-      "handle" -> pure SortByHandle
-      "email" -> pure SortByEmail
-      "saml_idp" -> pure SortBySAMLIdp
-      "managed_by" -> pure SortByManagedBy
-      "role" -> pure SortByRole
-      "created_at" -> pure SortByCreatedAt
-      bad -> fail ("Not a sort by field: " <> show bad)
+    SortByName <$ string "name"
+      <|> SortByHandle <$ string "handle"
+      <|> SortByEmail <$ string "email"
+      <|> SortBySAMLIdp <$ string "saml_idp"
+      <|> SortByManagedBy <$ string "managed_by"
+      <|> SortByRole <$ string "role"
+      <|> SortByCreatedAt <$ string "created_at"
 
 data TeamUserSearchSortOrder
   = SortOrderAsc
   | SortOrderDesc
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic)
+  deriving (Arbitrary) via (GenericUniform TeamUserSearchSortOrder)
 
 instance ToByteString TeamUserSearchSortOrder where
   builder SortOrderAsc = "asc"
@@ -248,12 +248,12 @@ instance ToByteString TeamUserSearchSortOrder where
 
 instance FromByteString TeamUserSearchSortOrder where
   parser =
-    takeLazyByteString >>= \case
-      "asc" -> pure SortOrderAsc
-      "desc" -> pure SortOrderDesc
-      bad -> fail ("not a sort order:  " <> show bad)
+    SortOrderAsc <$ string "asc"
+      <|> SortOrderDesc <$ string "desc"
 
 newtype RoleFilter = RoleFilter [Role]
+  deriving (Show, Eq, Generic)
+  deriving (Arbitrary) via (GenericUniform RoleFilter)
 
 instance ToByteString RoleFilter where
   builder (RoleFilter roles) = mconcat $ intersperse "," (fmap builder roles)
