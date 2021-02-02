@@ -172,6 +172,11 @@ sitemap = do
     response 200 "Team members" end
     errorResponse Error.notATeamMember
 
+  get "/teams/:tid/members" (continue Teams.getTeamMembersCSVH) $
+    zauthUserId
+      .&. capture "tid"
+      .&. accept "text" "csv"
+
   post "/teams/:tid/get-members-by-ids-using-post" (continue Teams.bulkGetTeamMembersH) $
     zauthUserId
       .&. capture "tid"
