@@ -2,17 +2,21 @@
 
 module Wire.API.UserMap where
 
+import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Domain (Domain)
 import Data.Id (UserId)
-import Data.Swagger (ToSchema)
+import Data.Proxy (Proxy (..))
+import Data.Swagger (HasDescription (description), NamedSchema (..), ToSchema (..), declareSchema)
+import qualified Data.Text as Text
+import Data.Typeable (typeRep)
 import Imports
 import Test.QuickCheck (Arbitrary (..))
 import Wire.API.Arbitrary (mapOf')
 
 newtype UserMap a = UserMap {userMap :: Map UserId a}
   deriving stock (Eq, Show)
-  deriving newtype (Semigroup, Monoid, ToJSON, FromJSON, ToSchema)
+  deriving newtype (Semigroup, Monoid, ToJSON, FromJSON)
 
 instance Arbitrary a => Arbitrary (UserMap a) where
   arbitrary = UserMap <$> mapOf' arbitrary arbitrary
@@ -21,7 +25,25 @@ newtype QualifiedUserMap a = QualifiedUserMap
   { qualifiedUserMap :: Map Domain (UserMap a)
   }
   deriving stock (Eq, Show)
-  deriving newtype (Semigroup, Monoid, ToJSON, FromJSON, ToSchema)
+  deriving newtype (Semigroup, Monoid, ToJSON, FromJSON)
 
 instance Arbitrary a => Arbitrary (QualifiedUserMap a) where
   arbitrary = QualifiedUserMap <$> mapOf' arbitrary arbitrary
+
+instance (ToSchema a, Typeable a) => ToSchema (UserMap a) where
+  declareNamedSchema _ = do
+    mapSch <- declareSchema (Proxy @(Map UserId a))
+    let valueTypeName = Text.pack $ show $ typeRep $ Proxy @a
+    return $
+      NamedSchema (Just $ "UserMap (" <> valueTypeName <> ")") $
+        mapSch
+          & description ?~ "Map of UserId to " <> valueTypeName
+
+instance (ToSchema a, Typeable a) => ToSchema (QualifiedUserMap a) where
+  declareNamedSchema _ = do
+    mapSch <- declareSchema (Proxy @(Map Domain (UserMap a)))
+    let valueTypeName = Text.pack $ show $ typeRep $ Proxy @a
+    return $
+      NamedSchema (Just $ "QaulifiedUserMap (" <> valueTypeName <> ")") $
+        mapSch
+          & description ?~ "Map of Domain to (UserMap (" <> valueTypeName <> "))."
