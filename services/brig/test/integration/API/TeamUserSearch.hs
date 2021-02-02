@@ -115,8 +115,8 @@ testSort brig = do
       let rUids = filter (/= ownerId) $ fmap teamContactUserId r
       liftIO $ assertEqual ("users sorted by " <> cs (toByteString tuSortBy)) uids rUids
 
--- Creating test users for these cases seems overkill just to test sorting.
--- This tests that the search query succeeds and returns the users of the team (without testing correct order).
+-- Creating test users for these cases is hard, so we skip it.
+-- This test checks that the search query at least succeeds and returns the users of the team (without testing correct order).
 testSortCallSucceeds :: TestConstraints m => Brig -> m ()
 testSortCallSucceeds brig = do
   (tid, userId -> ownerId, users) <- createPopulatedBindingTeamWithNamesAndHandles brig 4
