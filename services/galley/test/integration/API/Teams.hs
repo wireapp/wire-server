@@ -36,6 +36,7 @@ import Data.Aeson hiding (json)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict)
+import qualified Data.ByteString.Lazy.Char8 as LBS (split)
 import qualified Data.Currency as Currency
 import Data.Id
 import Data.List1
@@ -80,6 +81,7 @@ tests s =
       test s "create team with members" testCreateTeamWithMembers,
       testGroup "List Team Members" $
         [ test s "a member should be able to list their team" testListTeamMembersDefaultLimit,
+          test s "admins should be able to get a csv stream with their team" testListTeamMembersCsv,
           test s "the list should be limited to the number requested (hard truncation is not tested here)" testListTeamMembersTruncated
         ],
       testGroup "List Team Members (by ids)" $
@@ -219,6 +221,30 @@ testListTeamMembersDefaultLimit = do
     assertBool
       "member list indicates that there are no more members"
       (listFromServer ^. teamMemberListType == ListComplete)
+
+testListTeamMembersCsv :: HasCallStack => TestM ()
+testListTeamMembersCsv = do
+  let numMembers = 5 -- for ad-hoc load-testing, set this is 10k or something and see what
+  -- happens.  but please don't give that number to our ci!  :)
+  (owner, tid, mbs) <- Util.createBindingTeamWithNMembers numMembers
+  resp <- Util.getTeamMembersCsv owner tid
+
+  let rawLines :: [LByteString]
+      rawLines = LBS.split '\n' . fromMaybe (error "no body") . responseBody $ resp
+
+      parseLine :: LByteString -> UserId
+      parseLine = undefined
+
+  liftIO $
+    assertEqual
+      "csv file size"
+      (length rawLines)
+      (length mbs + 1)
+  liftIO $
+    assertEqual
+      "csv user ids"
+      (Set.fromList (parseLine <$> rawLines))
+      (Set.fromList mbs)
 
 testListTeamMembersTruncated :: TestM ()
 testListTeamMembersTruncated = do
