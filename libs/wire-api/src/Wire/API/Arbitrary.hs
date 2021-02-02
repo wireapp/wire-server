@@ -130,3 +130,12 @@ instance Arbitrary Aeson.Value where
             Aeson.Number <$> arbitrary,
             Aeson.Bool <$> arbitrary
           ]
+
+-- | Use Arbitrary instance to generate an example to be used in swagger where
+-- we cannot rely on swagger-ui to generate nice examples. So far, this is only
+-- required for maps as swagger2 doesn't have a good way to specify the type of
+-- keys.
+generateExample :: Arbitrary a => a
+generateExample =
+  let (MkGen f) = arbitrary
+   in f (mkQCGen 42) 42
