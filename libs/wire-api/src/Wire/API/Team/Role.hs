@@ -1,7 +1,5 @@
 {-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -33,6 +31,9 @@ import qualified Cassandra as Cql
 import Data.Aeson
 import Data.Attoparsec.ByteString (takeLazyByteString)
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
+import Data.ByteString.Conversion.From (runParser)
+import Data.ByteString.Lazy.Builder (toLazyByteString)
+import Data.String.Conversions (cs)
 import qualified Data.Swagger.Model.Api as Doc
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
@@ -91,22 +92,13 @@ typeRole =
       }
 
 instance ToJSON Role where
-  toJSON RoleOwner = "owner"
-  toJSON RoleAdmin = "admin"
-  toJSON RoleMember = "member"
-  toJSON RoleExternalPartner = "partner"
+  toJSON = String . cs . toLazyByteString . builder
 
 instance FromJSON Role where
-  parseJSON = withText "Role" $ \case
-    "owner" -> pure RoleOwner
-    "admin" -> pure RoleAdmin
-    "member" -> pure RoleMember
-    "partner" -> pure RoleExternalPartner
-    "collaborator" -> pure RoleExternalPartner
-    -- 'collaborator' was used for a short period of time on staging.  if you are
-    -- wondering about this, it's probably safe to remove.
-    -- ~fisx, Wed Jan 23 16:38:52 CET 2019
-    bad -> fail $ "not a role: " <> show bad
+  parseJSON = withText "Role" $ \str ->
+    case runParser (parser @Role) (cs str) of
+      Left err -> fail err
+      Right result -> pure result
 
 instance ToByteString Role where
   builder RoleOwner = "owner"
