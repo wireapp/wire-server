@@ -59,6 +59,7 @@ where
 import Brig.Types.Team (TeamSize (..))
 import Control.Lens
 import Control.Monad.Catch
+import Data.ByteString.Builder (lazyByteString)
 import Data.ByteString.Conversion hiding (fromList)
 import Data.Id
 import qualified Data.Id as Id
@@ -68,6 +69,7 @@ import Data.List1 (list1)
 import Data.Range as Range
 import Data.Set (fromList)
 import qualified Data.Set as Set
+import Data.String.Conversions (cs)
 import Data.Time.Clock (UTCTime (..), getCurrentTime)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
@@ -372,12 +374,30 @@ getTeamMembers zusr tid maxResults = do
       pure (mems, withPerms)
 
 getTeamMembersCSVH :: UserId ::: TeamId ::: JSON -> Galley Response
-getTeamMembersCSVH (_zusr ::: _tid ::: _) = do
+getTeamMembersCSVH (zusr ::: tid ::: _) = do
+  -- TODO: only owners an admins
+  mbZusrMembership <- Data.teamMember tid zusr
+  case mbZusrMembership of
+    Just zusrMembership ->
+      unless (isTeamOwner zusrMembership) $
+        throwM accessDenied
+    Nothing -> throwM accessDenied
+
+  -- evalGalley :: Env -> Galley a -> IO a
+  env <- ask
+
   -- TODO: metrics
-  -- TODO: integeration test with n users
   pure $
     responseStream status200 [] $ \write flush -> do
-      pure ()
+      write "dummy header\n"
+      flush
+      evalGalley env $
+        Data.withTeamMembersWithChunks tid $ \members -> do
+          liftIO $ do
+            forM_ members $ \member -> do
+              write $ lazyByteString $ cs $ show $ view userId member
+              write "\n"
+            flush
 
 bulkGetTeamMembersH :: UserId ::: TeamId ::: Range 1 Public.HardTruncationLimit Int32 ::: JsonRequest Public.UserIdList ::: JSON -> Galley Response
 bulkGetTeamMembersH (zusr ::: tid ::: maxResults ::: body ::: _) = do
