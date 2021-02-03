@@ -344,4 +344,5 @@ echo-release-charts:
 .PHONY: buildah-docker
 buildah-docker:
 	./hack/bin/buildah-compile.sh
+	# FUTUREWORK: Allow overriding BUILDAH_PUSH
 	BUILDAH_PUSH=1 ./hack/bin/buildah-make-images.sh

@@ -5,9 +5,10 @@ set -ex
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 TOP_LEVEL="$(cd "$DIR/../.." && pwd)"
 
+# FUTUREWORK: Define this list in the makefile to allow overriding
 EXECUTABLES="cannon brig cargohold galley gundeck federator brig-index brig-schema galley-schema galley-migrate-data gundeck-schema proxy spar spar-schema"
 CONTAINER_NAME="output"
-DOCKER_TAG=$USER
+DOCKER_TAG=${DOCKER_TAG:-$USER}
 
 buildah containers | awk '{print $5}' | grep "$CONTAINER_NAME" \
     || buildah from --name "$CONTAINER_NAME" -v "${TOP_LEVEL}":/src --pull quay.io/wire/alpine-deps:develop

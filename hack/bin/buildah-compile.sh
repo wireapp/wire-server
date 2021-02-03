@@ -19,6 +19,7 @@ mkdir -p "$TOP_LEVEL"/dist-buildah
 CONTAINER_NAME=wire-server-dev
 
 # check for the existence of; or create a working container
+# FUTUREWORK: Allow cleaning up old working container using some env variable or explicit make task like `make buildah-clean`
 buildah containers | awk '{print $5}' | grep "$CONTAINER_NAME" \
     || buildah from --name "$CONTAINER_NAME" -v "${TOP_LEVEL}":/src --pull quay.io/wire/alpine-builder:develop
 
