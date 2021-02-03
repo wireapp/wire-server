@@ -1,6 +1,6 @@
-self: super: {
+final: prev: {
   # TODO: Do not use buildRustPackage. Ces't horrible
-  cryptobox = self.callPackage (
+  cryptobox = final.callPackage (
     { fetchFromGitHub, rustPlatform, pkg-config, libsodium }:
       rustPlatform.buildRustPackage rec {
         name = "cryptobox-c-${version}";
@@ -15,7 +15,7 @@ self: super: {
         };
         cargoSha256 = "0zs8ibv7rinrrzp9naxd7yak7kn1gp3pjb3g8i4wf7xw2hkkq81z";
 
-        patchLibs = super.lib.optionalString super.stdenv.isDarwin ''
+        patchLibs = prev.lib.optionalString prev.stdenv.isDarwin ''
             install_name_tool -id $out/lib/libcryptobox.dylib $out/lib/libcryptobox.dylib
           '';
 
@@ -27,19 +27,19 @@ self: super: {
       }
   ) {};
 
-  zauth = self.callPackage (
+  zauth = final.callPackage (
     { fetchFromGitHub, rustPlatform, pkg-config, libsodium }:
       rustPlatform.buildRustPackage rec {
         name = "libzauth-${version}";
         version = "3.0.0";
         nativeBuildInputs = [ pkg-config ];
         buildInputs = [ libsodium ];
-        src = self.nix-gitignore.gitignoreSourcePure [ ../../.gitignore ] ../../libs/libzauth;
+        src = final.nix-gitignore.gitignoreSourcePure [ ../../.gitignore ] ../../libs/libzauth;
         sourceRoot = "libzauth/libzauth-c";
 
-        cargoSha256 = "10ijvi3rnnqpy589hhhp8s4p7xfpsbb1c3mzqnf65ra96q4nd6bf"; # self.lib.fakeSha256;
+        cargoSha256 = "10ijvi3rnnqpy589hhhp8s4p7xfpsbb1c3mzqnf65ra96q4nd6bf"; # final.lib.fakeSha256;
 
-        patchLibs = super.lib.optionalString super.stdenv.isDarwin ''
+        patchLibs = prev.lib.optionalString prev.stdenv.isDarwin ''
             install_name_tool -id $out/lib/libzauth.dylib $out/lib/libzauth.dylib
           '';
 
@@ -56,18 +56,18 @@ self: super: {
       }
   ) {};
 
-  nginxModules = super.nginxModules // {
+  nginxModules = prev.nginxModules // {
     zauth = {
       src = ../../services/nginz/third_party/nginx-zauth-module;
-      inputs = [ self.pkg-config self.zauth ];
+      inputs = [ final.pkg-config final.zauth ];
     };
   };
 
-  nginz = super.nginx.override {
+  nginz = prev.nginx.override {
     modules = [
-      self.nginxModules.vts
-      self.nginxModules.moreheaders
-      self.nginxModules.zauth
+      final.nginxModules.vts
+      final.nginxModules.moreheaders
+      final.nginxModules.zauth
     ];
   };
 }
