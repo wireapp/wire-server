@@ -1,11 +1,11 @@
 self: super: {
   # TODO: Do not use buildRustPackage. Ces't horrible
   cryptobox = self.callPackage (
-    { fetchFromGitHub, rustPlatform, pkgconfig, libsodium }:
+    { fetchFromGitHub, rustPlatform, pkg-config, libsodium }:
       rustPlatform.buildRustPackage rec {
         name = "cryptobox-c-${version}";
         version = "2019-06-17";
-        nativeBuildInputs = [ pkgconfig ];
+        nativeBuildInputs = [ pkg-config ];
         buildInputs = [ libsodium ];
         src = fetchFromGitHub {
           owner = "wireapp";
@@ -18,7 +18,7 @@ self: super: {
         patchLibs = super.lib.optionalString super.stdenv.isDarwin ''
             install_name_tool -id $out/lib/libcryptobox.dylib $out/lib/libcryptobox.dylib
           '';
-      
+
         postInstall = ''
           ${patchLibs}
           mkdir -p $out/include
@@ -28,11 +28,11 @@ self: super: {
   ) {};
 
   zauth = self.callPackage (
-    { fetchFromGitHub, rustPlatform, pkgconfig, libsodium }:
+    { fetchFromGitHub, rustPlatform, pkg-config, libsodium }:
       rustPlatform.buildRustPackage rec {
         name = "libzauth-${version}";
         version = "3.0.0";
-        nativeBuildInputs = [ pkgconfig ];
+        nativeBuildInputs = [ pkg-config ];
         buildInputs = [ libsodium ];
         src = self.nix-gitignore.gitignoreSourcePure [ ../../.gitignore ] ../../libs/libzauth;
         sourceRoot = "libzauth/libzauth-c";
@@ -42,14 +42,14 @@ self: super: {
         patchLibs = super.lib.optionalString super.stdenv.isDarwin ''
             install_name_tool -id $out/lib/libzauth.dylib $out/lib/libzauth.dylib
           '';
-      
+
         postInstall = ''
-          mkdir -p $out/lib/pkgconfig
+          mkdir -p $out/lib/pkg-config
           mkdir -p $out/include
           cp src/zauth.h $out/include
           sed -e "s~<<VERSION>>~${version}~" \
             -e "s~<<PREFIX>>~$out~" \
-            src/libzauth.pc > $out/lib/pkgconfig/libzauth.pc
+            src/libzauth.pc > $out/lib/pkg-config/libzauth.pc
           cp target/release-tmp/libzauth.* $out/lib/
           ${patchLibs}
         '';
