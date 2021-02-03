@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 83620e2ed26c5349fbca70be3e5e3978d85924a7bfbcdb9db63eac26cf8693c4
+-- hash: 43ab5a599f01fc9e162b243ef44c8aa65981e8add3904a82c9fe3d722d17f0ba
 
 name:           brig
 version:        1.35.0
@@ -345,6 +345,7 @@ executable brig-integration
     , pem
     , proto-lens
     , random >=1.0
+    , random-shuffle
     , raw-strings-qq
     , retry >=0.6
     , safe

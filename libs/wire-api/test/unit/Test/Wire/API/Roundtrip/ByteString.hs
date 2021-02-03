@@ -34,16 +34,18 @@ import qualified Wire.API.Provider.Service as Provider.Service
 import qualified Wire.API.Provider.Service.Tag as Provider.Service.Tag
 import qualified Wire.API.Push.V2.Token as Push.V2.Token
 import qualified Wire.API.Team.Feature as Team.Feature
+import qualified Wire.API.Team.Role as Team.Role
 import qualified Wire.API.User as User
 import qualified Wire.API.User.Activation as User.Activation
 import qualified Wire.API.User.Auth as User.Auth
 import qualified Wire.API.User.Identity as User.Identity
 import qualified Wire.API.User.Password as User.Password
 import qualified Wire.API.User.Profile as User.Profile
+import qualified Wire.API.User.Search as User.Search
 
 tests :: T.TestTree
 tests =
-  T.localOption (T.Timeout (60 * 1000000) "60s") . T.testGroup "JSON roundtrip tests" $
+  T.localOption (T.Timeout (60 * 1000000) "60s") . T.testGroup "ByteString roundtrip tests" $
     [ testRoundTrip @Asset.V3.AssetKey,
       testRoundTrip @Asset.V3.AssetRetention,
       testRoundTrip @Asset.V3.AssetToken,
@@ -76,7 +78,11 @@ tests =
       testRoundTrip @User.Password.PasswordResetCode,
       testRoundTrip @User.Password.PasswordResetKey,
       testRoundTrip @User.Profile.ManagedBy,
-      testRoundTrip @User.Profile.Name
+      testRoundTrip @User.Profile.Name,
+      testRoundTrip @Team.Role.Role,
+      testRoundTrip @User.Search.TeamUserSearchSortBy,
+      testRoundTrip @User.Search.TeamUserSearchSortOrder,
+      testRoundTrip @User.Search.RoleFilter
       -- FUTUREWORK:
       -- testCase "Call.Config.TurnUsername (doesn't have FromByteString)" ...
       -- testCase "User.Activation.ActivationTarget (doesn't have FromByteString)" ...

@@ -30,6 +30,7 @@ import Brig.Team.Util (ensurePermissions)
 import Brig.Types.Search as Search
 import Brig.User.Search.Index
 import qualified Brig.User.Search.SearchIndex as Q
+import Brig.User.Search.TeamUserSearch (RoleFilter (..), TeamUserSearchSortBy (..), TeamUserSearchSortOrder (..))
 import qualified Brig.User.Search.TeamUserSearch as Q
 import Control.Lens (view)
 import Data.Id
@@ -44,7 +45,6 @@ import Network.Wai.Routing
 import Network.Wai.Utilities.Response (empty, json)
 import Network.Wai.Utilities.Swagger (document)
 import qualified Wire.API.Team.Permission as Public
-import qualified Wire.API.Team.Role as Public
 import qualified Wire.API.User.Search as Public
 
 routesPublic :: Routes Doc.ApiBuilder Handler ()
@@ -72,7 +72,7 @@ routesPublic = do
       .&. opt (query "q")
       .&. opt (query "frole")
       .&. opt (query "sortby")
-      .&. opt (query "sortoder")
+      .&. opt (query "sortorder")
       .&. def (unsafeRange 15) (query "size")
 
   document "GET" "browse team" $ do
@@ -152,22 +152,22 @@ teamUserSearchH ::
       ::: UserId
       ::: TeamId
       ::: Maybe Text
-      ::: Maybe Text
-      ::: Maybe Text
-      ::: Maybe Text
+      ::: Maybe RoleFilter
+      ::: Maybe TeamUserSearchSortBy
+      ::: Maybe TeamUserSearchSortOrder
       ::: Range 1 500 Int32
   ) ->
   Handler Response
 teamUserSearchH (_ ::: uid ::: tid ::: mQuery ::: mRoleFilter ::: mSortBy ::: mSortOrder ::: size) = do
-  json <$> teamUserSearch uid tid mQuery (undefined mRoleFilter) mSortBy mSortOrder size
+  json <$> teamUserSearch uid tid mQuery mRoleFilter mSortBy mSortOrder size
 
 teamUserSearch ::
   UserId ->
   TeamId ->
   Maybe Text ->
-  Maybe [Public.Role] ->
-  Maybe Text ->
-  Maybe Text ->
+  Maybe RoleFilter ->
+  Maybe TeamUserSearchSortBy ->
+  Maybe TeamUserSearchSortOrder ->
   Range 1 500 Int32 ->
   Handler (Public.SearchResult Public.TeamContact)
 teamUserSearch uid tid mQuery mRoleFilter mSortBy mSortOrder size = do
