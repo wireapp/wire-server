@@ -28,6 +28,7 @@ in mkShell {
     gnumake
     stack
     haskell-language-server
+    niv
   ];
 }
 
