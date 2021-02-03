@@ -4,18 +4,18 @@ Overview
 Introduction
 ------------
 
-In a simplified way, the server components for wire involve the following:
+In a simplified way, the server components for Wire involve the following:
 
 |arch-simplified|
 
-The Wire clients (such as the Wire app on your phone) connect either directly (or via a Load Balancer) to the "Wire Server". As "Wire Server" we mean multiple API server components that connect to each other, and which also connect to a few databases. Both the API components and the databases are each in a "cluster", which means copies of the same program code runs multiple times. This allows any one component to fail without users noticing that there is a problem (also called
+The Wire clients (such as the Wire app on your phone) connect either directly (or via a load balancer) to the "Wire Server". By "Wire Server" we mean multiple API server components that connect to each other, and which also connect to a few databases. Both the API components and the databases are each in a "cluster", which means copies of the same program code runs multiple times. This allows any one component to fail without users noticing that there is a problem (also called
 "high-availability").
 
 Architecture and networking
 ----------------------------
 
-Note that the webapp, account pages, and team-settings, while in a way not part of backend,
-are installed with the rest and therefor included.
+Note that the webapp, account pages, and team-settings, while in a way not part of the backend,
+are installed with the rest and therefore included.
 
 Focus on internet protocols
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -32,9 +32,9 @@ The following diagram shows a usual setup with multiple VMs (Virtual Machines):
 
 Wire clients (such as the Wire app on your phone) connect to a load balancer.
 
-The Load balancer forwards traffic to the ingress inside the kubernetes VMs. (Restund is special, see :ref:`understand-restund` for details how Restund works)
+The load balancer forwards traffic to the ingress inside the kubernetes VMs. (Restund is special, see :ref:`understand-restund` for details on how Restund works.)
 
-The nginx ingress pods inside kubernetes look at incoming traffic, and forward that traffic on to the right place, depending on what's inside the URL passed. For example, if a request comes in for ``https://example-https.example.com``, it is forwarded to a component called ``nginz``, which is the main entry point for the `wire-server API <https://github.com/wireapp/wire-server>`__. If, however, a request comes in to ``https://webapp.example.com``, it is forwarded to a component called `webapp <https://github.com/wireapp/wire-webapp>`__, which hosts the graphical browser Wire client (as found when you open `<https://app.wire.com>`__.
+The nginx ingress pods inside kubernetes look at incoming traffic, and forward that traffic on to the right place, depending on what's inside the URL passed. For example, if a request comes in for ``https://example-https.example.com``, it is forwarded to a component called ``nginz``, which is the main entry point for the `wire-server API <https://github.com/wireapp/wire-server>`__. If, however, a request comes in for ``https://webapp.example.com``, it is forwarded to a component called `webapp <https://github.com/wireapp/wire-webapp>`__, which hosts the graphical browser Wire client (as found when you open `<https://app.wire.com>`__).
 
 Wire-server needs a range of databases. Their names are: cassandra, elasticsearch, minio, redis, etcd.
 
