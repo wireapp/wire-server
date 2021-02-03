@@ -36,3 +36,5 @@ if [[ $BUILDAH_PUSH -eq 1 ]]; then
         buildah push "quay.io/wire/$EX:$DOCKER_TAG"
     done
 fi
+
+"$DIR/buildah-purge-untagged.sh"
