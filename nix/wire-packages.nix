@@ -1,3 +1,4 @@
+# Nix package definitions for all things wire-server
 final: prev: {
   # TODO: Do not use buildRustPackage. Ces't horrible
   cryptobox = final.callPackage (
@@ -70,4 +71,5 @@ final: prev: {
       final.nginxModules.zauth
     ];
   };
+
 }
