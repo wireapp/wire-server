@@ -59,17 +59,18 @@ where
 import Brig.Types.Team (TeamSize (..))
 import Control.Lens
 import Control.Monad.Catch
-import Data.ByteString.Builder (lazyByteString)
 import Data.ByteString.Conversion hiding (fromList)
+import Data.ByteString.Lazy.Builder (lazyByteString)
+import Data.Csv (EncodeOptions (..), Quoting (QuoteAll), encodeDefaultOrderedByNameWith)
 import Data.Id
 import qualified Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local))
 import qualified Data.List.Extra as List
 import Data.List1 (list1)
+import qualified Data.Map.Strict as M
 import Data.Range as Range
 import Data.Set (fromList)
 import qualified Data.Set as Set
-import Data.String.Conversions (cs)
 import Data.Time.Clock (UTCTime (..), getCurrentTime)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
@@ -108,10 +109,13 @@ import qualified Wire.API.Conversation.Role as Public
 import qualified Wire.API.Notification as Public
 import qualified Wire.API.Team as Public
 import qualified Wire.API.Team.Conversation as Public
+import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Member as Public
 import qualified Wire.API.Team.SearchVisibility as Public
+import Wire.API.User (User)
 import qualified Wire.API.User as Public (UserIdList)
+import qualified Wire.API.User as U
 
 getTeamH :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeamH (zusr ::: tid ::: _) =
@@ -374,30 +378,62 @@ getTeamMembers zusr tid maxResults = do
       pure (mems, withPerms)
 
 getTeamMembersCSVH :: UserId ::: TeamId ::: JSON -> Galley Response
-getTeamMembersCSVH (zusr ::: tid ::: _) = do
-  -- TODO: only owners an admins
-  mbZusrMembership <- Data.teamMember tid zusr
-  case mbZusrMembership of
-    Just zusrMembership ->
-      unless (isTeamOwner zusrMembership) $
-        throwM accessDenied
-    Nothing -> throwM accessDenied
+getTeamMembersCSVH (zusr ::: tid ::: _) =
+  do
+    -- TODO: test this
+    mbZusrMembership <- Data.teamMember tid zusr
+    case mbZusrMembership of
+      Just zusrMembership ->
+        unless (isTeamOwner zusrMembership) $
+          throwM accessDenied
+      Nothing -> throwM accessDenied
 
-  -- evalGalley :: Env -> Galley a -> IO a
-  env <- ask
+    -- TODO: add metrics
+    env <- ask
+    pure $
+      responseStream status200 [] $ \write flush -> do
+        let writeString = write . lazyByteString
+        writeString headerLine
+        flush
+        evalGalley env $
+          Data.withTeamMembersWithChunks tid $ \members -> do
+            users <- lookupActivatedUsers (fmap (view userId) members)
+            let pairs = pairMembersUsers members users
+            liftIO $ do
+              writeString
+                ( encodeDefaultOrderedByNameWith
+                    defaultEncodeOptions
+                    (fmap (uncurry teamExportUser) pairs)
+                )
+              flush
+  where
+    headerLine :: LByteString
+    headerLine = encodeDefaultOrderedByNameWith (defaultEncodeOptions {encIncludeHeader = True}) ([] :: [TeamExportUser])
 
-  -- TODO: metrics
-  pure $
-    responseStream status200 [] $ \write flush -> do
-      write "dummy header\n"
-      flush
-      evalGalley env $
-        Data.withTeamMembersWithChunks tid $ \members -> do
-          liftIO $ do
-            forM_ members $ \member -> do
-              write $ lazyByteString $ cs $ show $ view userId member
-              write "\n"
-            flush
+    defaultEncodeOptions :: EncodeOptions
+    defaultEncodeOptions =
+      EncodeOptions
+        { encDelimiter = 44, -- comma
+          encUseCrLf = True, -- to be compatible with Mac and Windows
+          encIncludeHeader = False,
+          encQuoting = QuoteAll
+        }
+
+    teamExportUser :: TeamMember -> User -> TeamExportUser
+    teamExportUser member user =
+      TeamExportUser
+        { tExportDisplayName = U.userDisplayName user,
+          tExportUserName = U.userHandle user,
+          tExportEmail = U.userIdentity user >>= U.emailIdentity,
+          tExportRole = permissionsRole . view permissions $ member
+        }
+
+    pairMembersUsers :: [TeamMember] -> [User] -> [(TeamMember, User)]
+    pairMembersUsers members users = do
+      let usersM = M.fromList (users <&> \user -> (U.userId user, user))
+      catMaybes $
+        members <&> \member ->
+          (member,) <$> M.lookup (view userId member) usersM
 
 bulkGetTeamMembersH :: UserId ::: TeamId ::: Range 1 Public.HardTruncationLimit Int32 ::: JsonRequest Public.UserIdList ::: JSON -> Galley Response
 bulkGetTeamMembersH (zusr ::: tid ::: maxResults ::: body ::: _) = do

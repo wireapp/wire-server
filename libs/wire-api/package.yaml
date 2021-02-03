@@ -69,6 +69,7 @@ tests:
     dependencies:
     - base
     - bytestring-conversion
+    - cassava
     - wire-api
     - uuid
     - aeson-qq
@@ -79,3 +80,4 @@ tests:
     - tasty-hunit
     - tasty-quickcheck
     - unordered-containers
+    - vector

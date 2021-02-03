@@ -1,3 +1,5 @@
+{-# LANGUAGE DerivingVia #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -17,11 +19,14 @@
 
 module Wire.API.Team.Export (TeamExportUser (..)) where
 
-import Data.ByteString.Conversion (toByteString')
-import Data.Csv (DefaultOrdered (..), ToNamedRecord (..), namedRecord)
+import Data.Attoparsec.ByteString.Lazy (parseOnly)
+import Data.ByteString.Conversion (FromByteString (..), toByteString')
+import Data.Csv (DefaultOrdered (..), FromNamedRecord (..), Parser, ToNamedRecord (..), namedRecord, (.:))
 import Data.Handle (Handle)
 import Data.Vector (fromList)
 import Imports
+import Test.QuickCheck (Arbitrary)
+import Wire.API.Arbitrary (GenericUniform (GenericUniform))
 import Wire.API.Team.Role (Role)
 import Wire.API.User (Name)
 import Wire.API.User.Identity (Email)
@@ -29,19 +34,38 @@ import Wire.API.User.Identity (Email)
 data TeamExportUser = TeamExportUser
   { tExportDisplayName :: Name,
     tExportUserName :: Maybe Handle,
-    tExportEmail :: Email,
-    tExportRole :: Role
+    tExportEmail :: Maybe Email,
+    tExportRole :: Maybe Role
   }
   deriving (Show, Eq, Generic)
+  deriving (Arbitrary) via (GenericUniform TeamExportUser)
 
 instance ToNamedRecord TeamExportUser where
   toNamedRecord row =
     namedRecord
       [ ("name", toByteString' (tExportDisplayName row)),
         ("username", maybe "" toByteString' (tExportUserName row)),
-        ("email", toByteString' (tExportEmail row)),
-        ("role", toByteString' (tExportRole row))
+        ("email", maybe "" toByteString' (tExportEmail row)),
+        ("role", maybe "" toByteString' (tExportRole row))
       ]
 
 instance DefaultOrdered TeamExportUser where
   headerOrder = const $ fromList ["name", "username", "email", "role"]
+
+maybeParser :: (ByteString -> Parser a) -> ByteString -> Parser (Maybe a)
+maybeParser _ "" = pure Nothing
+maybeParser p str = Just <$> p str
+
+parseByteString :: forall a. FromByteString a => ByteString -> Parser a
+parseByteString bstr =
+  case parseOnly (parser @a) bstr of
+    Left err -> fail err
+    Right thing -> pure thing
+
+instance FromNamedRecord TeamExportUser where
+  parseNamedRecord nrec =
+    TeamExportUser
+      <$> (nrec .: "name" >>= parseByteString)
+      <*> (nrec .: "username" >>= maybeParser parseByteString)
+      <*> (nrec .: "email" >>= maybeParser parseByteString)
+      <*> (nrec .: "role" >>= maybeParser parseByteString)

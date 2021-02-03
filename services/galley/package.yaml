@@ -33,6 +33,7 @@ library:
   - bytestring-conversion >=0.2
   - case-insensitive >=1.0
   - cassandra-util >=0.16.2
+  - cassava >= 0.5.2
   - cereal >=0.4
   - containers >=0.5
   - currency-codes >=2.0
