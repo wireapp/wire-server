@@ -630,12 +630,12 @@ packages:
   original:
     hackage: mu-optics-0.3.0.1
 - completed:
-    hackage: mu-avro-0.4.0.2@sha256:233d6891b4ac97603a8ebe55cab974e4500798bdfdb1bfa6ec32107ca61c8777,2053
+    hackage: mu-avro-0.4.0.3@sha256:72917186e92bda447a44987fb25cae4e00c296f9e21d0f8e2d424f20c71741b0,2096
     pantry-tree:
       size: 541
-      sha256: 1f36f641ca102ba0c171a9613bb8ab70bd9b80a0320d3eaf958808686b316f51
+      sha256: 902dff6bbba7a07b9bec4e470e453b81e8318b7261e70dd8d06ada39e324c522
   original:
-    hackage: mu-avro-0.4.0.2
+    hackage: mu-avro-0.4.0.3
 - completed:
     hackage: mu-protobuf-0.4.2.0@sha256:e2950a91d20695e71aad843e44eebae69d1a964cd8d3ce0146d1747aa6e8c450,2034
     pantry-tree:
@@ -644,18 +644,12 @@ packages:
   original:
     hackage: mu-protobuf-0.4.2.0
 - completed:
-    subdir: core/schema
-    name: mu-schema
-    version: 0.3.1.1
-    git: https://github.com/higherkindness/mu-haskell.git
+    hackage: mu-schema-0.3.1.2@sha256:c05e58de29d50376638d19dd3357cd3644d39f984664484f3568d5305b3034d9,1933
     pantry-tree:
-      size: 1107
-      sha256: 97f46f9743ee3880e0e59664e218dab4ab05a41c19463324d9895b7972be8d63
-    commit: 1d5e3eed749df12aa0d0f9964586c35e2fd7eb25
+      size: 1061
+      sha256: 07d5d0ab3fc6db8e7492311caacbd92f33a343fd173cb51d2915522b3aea8073
   original:
-    subdir: core/schema
-    git: https://github.com/higherkindness/mu-haskell.git
-    commit: 1d5e3eed749df12aa0d0f9964586c35e2fd7eb25
+    hackage: mu-schema-0.3.1.2
 - completed:
     hackage: mu-grpc-server-0.4.0.0@sha256:03963b39f5b0887d261106ec03bfabbd4ccd1489e4c59c6cc216b61a4ffdb52c,2682
     pantry-tree:

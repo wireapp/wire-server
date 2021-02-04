@@ -201,15 +201,9 @@ extra-deps:
 # mu
 - mu-rpc-0.4.0.1
 - mu-optics-0.3.0.1
-- mu-avro-0.4.0.2
+- mu-avro-0.4.0.3
 - mu-protobuf-0.4.2.0
-# FUTUREWORK: There is an unreleased change in mu-schema which is required for
-# mu-protobuf to compile successfully, use that when released
-# Comment: https://github.com/higherkindness/mu-haskell/pull/285#issuecomment-770867743
-- git: https://github.com/higherkindness/mu-haskell.git
-  commit: 1d5e3eed749df12aa0d0f9964586c35e2fd7eb25
-  subdirs:
-  - core/schema
+- mu-schema-0.3.1.2
 - mu-grpc-server-0.4.0.0
 - mu-grpc-client-0.4.0.1
 - mu-grpc-common-0.4.0.0
