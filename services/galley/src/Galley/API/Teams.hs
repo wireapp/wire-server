@@ -68,10 +68,11 @@ import Data.IdMapping (MappedOrLocalId (Local))
 import qualified Data.List.Extra as List
 import Data.List1 (list1)
 import qualified Data.Map.Strict as M
+import qualified Data.Metrics.Middleware as Metrics
 import Data.Range as Range
 import Data.Set (fromList)
 import qualified Data.Set as Set
-import Data.Time.Clock (UTCTime (..), getCurrentTime)
+import Data.Time.Clock (UTCTime (..), diffUTCTime, getCurrentTime)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
 import Galley.API.Error as Galley
@@ -378,34 +379,31 @@ getTeamMembers zusr tid maxResults = do
       pure (mems, withPerms)
 
 getTeamMembersCSVH :: UserId ::: TeamId ::: JSON -> Galley Response
-getTeamMembersCSVH (zusr ::: tid ::: _) =
-  do
-    -- TODO: test this
-    mbZusrMembership <- Data.teamMember tid zusr
-    case mbZusrMembership of
-      Just zusrMembership ->
-        unless (isTeamOwner zusrMembership) $
-          throwM accessDenied
-      Nothing -> throwM accessDenied
+getTeamMembersCSVH (zusr ::: tid ::: _) = do
+  mbZusrMembership <- Data.teamMember tid zusr
+  case mbZusrMembership of
+    Just zusrMembership ->
+      unless (isTeamOwner zusrMembership) $
+        throwM accessDenied
+    Nothing -> throwM accessDenied
 
-    -- TODO: add metrics
-    env <- ask
-    pure $
-      responseStream status200 [] $ \write flush -> do
-        let writeString = write . lazyByteString
-        writeString headerLine
-        flush
-        evalGalley env $
-          Data.withTeamMembersWithChunks tid $ \members -> do
-            users <- lookupActivatedUsers (fmap (view userId) members)
-            let pairs = pairMembersUsers members users
-            liftIO $ do
-              writeString
-                ( encodeDefaultOrderedByNameWith
-                    defaultEncodeOptions
-                    (fmap (uncurry teamExportUser) pairs)
-                )
-              flush
+  env <- ask
+  pure $
+    responseStream status200 [(hContentType, "text/csv")] $ \write flush -> do
+      let writeString = write . lazyByteString
+      writeString headerLine
+      flush
+      evalGalley env $ do
+        Data.withTeamMembersWithChunks tid $ \members -> do
+          users <- lookupActivatedUsers (fmap (view userId) members)
+          let pairs = pairMembersUsers members users
+          liftIO $ do
+            writeString
+              ( encodeDefaultOrderedByNameWith
+                  defaultEncodeOptions
+                  (fmap (uncurry teamExportUser) pairs)
+              )
+            flush
   where
     headerLine :: LByteString
     headerLine = encodeDefaultOrderedByNameWith (defaultEncodeOptions {encIncludeHeader = True}) ([] :: [TeamExportUser])
