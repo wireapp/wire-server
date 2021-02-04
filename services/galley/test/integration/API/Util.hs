@@ -23,6 +23,7 @@ import qualified API.SQS as SQS
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types
+import Brig.Types.Intra (UserAccount (..))
 import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth (CookieLabel (..))
 import Control.Lens hiding (from, to, (#), (.=))
@@ -30,6 +31,7 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Retry (constantDelay, limitRetries, retrying)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key, _String)
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as C
 import Data.ByteString.Conversion
@@ -1440,3 +1442,18 @@ deleteTeamMember g tid owner deletee =
     )
     !!! do
       const 202 === statusCode
+
+getUsers :: [UserId] -> TestM [User]
+getUsers uids = do
+  brig <- view tsBrig
+  res <-
+    get
+      ( brig
+          . path "/i/users"
+          . queryItem "ids" users
+          . expect2xx
+      )
+  let accounts = fromJust $ responseJsonMaybe @[UserAccount] res
+  return $ fmap accountUser accounts
+  where
+    users = BS.intercalate "," $ toByteString' <$> uids

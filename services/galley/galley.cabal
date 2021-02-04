@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9a4ee3362b7f8864eb89f4f5b9ab0cd93eea2fd0961992edab678bf52af955c0
+-- hash: f75b1fb69c6fca4419cbc7df1a7d45722b48173fda95c920075ca095dcea0427
 
 name:           galley
 version:        0.83.0
@@ -219,6 +219,7 @@ executable galley-integration
     , bytestring
     , bytestring-conversion
     , cassandra-util
+    , cassava
     , cereal
     , containers
     , cookie
@@ -269,6 +270,7 @@ executable galley-integration
     , unordered-containers
     , uri-bytestring
     , uuid
+    , vector
     , wai
     , wai-extra
     , wai-route

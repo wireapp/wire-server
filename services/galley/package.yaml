@@ -155,6 +155,7 @@ executables:
     - bytestring
     - bytestring-conversion
     - cassandra-util
+    - cassava
     - cereal
     - containers
     - cookie
@@ -203,6 +204,7 @@ executables:
     - unordered-containers
     - uri-bytestring
     - uuid
+    - vector
     - wai
     - wai-extra
     - wai-route

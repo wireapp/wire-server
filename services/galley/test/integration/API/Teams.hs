@@ -29,6 +29,7 @@ import qualified API.Util.TeamFeature as Util
 import Bilge hiding (timeout)
 import Bilge.Assert
 import qualified Brig.Types as Brig
+import Control.Arrow ((>>>))
 import Control.Lens hiding ((#), (.=))
 import Control.Monad.Catch
 import Control.Retry
@@ -36,6 +37,7 @@ import Data.Aeson hiding (json)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict)
+import Data.Csv (FromNamedRecord (..), decodeByName)
 import qualified Data.Currency as Currency
 import Data.Id
 import Data.List1
@@ -43,11 +45,11 @@ import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import qualified Data.Set as Set
-import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
 import qualified Data.UUID.V1 as UUID
+import qualified Data.Vector as V
 import qualified Galley.App as Galley
 import Galley.Options (optSettings, setEnableIndexedBillingTeamMembers, setFeatureFlags, setMaxConvSize, setMaxFanoutSize)
 import Galley.Types hiding (EventData (..), EventType (..), MemberUpdate (..))
@@ -70,7 +72,9 @@ import Test.Tasty.HUnit
 import TestHelpers (test)
 import TestSetup (TestM, TestSetup, tsBrig, tsCannon, tsGConf, tsGalley)
 import UnliftIO (mapConcurrently, mapConcurrently_)
+import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
+import qualified Wire.API.User as U
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -224,31 +228,39 @@ testListTeamMembersDefaultLimit = do
 
 testListTeamMembersCsv :: HasCallStack => TestM ()
 testListTeamMembersCsv = do
-  let numMembers = 5 -- for ad-hoc load-testing, set this is 10k or something and see what
+  -- for ad-hoc load-testing, set this is 10k or something and see what
   -- happens.  but please don't give that number to our ci!  :)
+  let numMembers = 5
+  let teamSize = numMembers + 1
+
   (owner, tid, mbs) <- Util.createBindingTeamWithNMembers numMembers
   resp <- Util.getTeamMembersCsv owner tid
-  let teamSize = length mbs + 1
   let rbody = fromMaybe (error "no body") . responseBody $ resp
-  let nLines = length . T.lines . cs $ rbody
-
-  -- let rawLines :: [LByteString]
-  --     rawLines = LBS.split '\n' body
-
-  -- parseLine :: LByteString -> UserId
-  -- parseLine = undefined
+  usersInCsv <- either (error "could not decode csv") pure (decodeCSV @TeamExportUser rbody)
 
   liftIO $
     assertEqual
-      "csv file size"
-      (teamSize + 1) -- +1 for header line
-      nLines
+      "total number of team members"
+      teamSize
+      (length usersInCsv)
 
--- liftIO $
---   assertEqual
---     "csv user ids"
---     (Set.fromList mbs)
---     (Set.fromList (parseLine <$> rawLines))
+  users <- Util.getUsers mbs
+  liftIO $ do
+    assertEqual "owners in team" 1 (countOn tExportRole (Just RoleOwner) usersInCsv)
+    assertEqual "members in team" numMembers (countOn tExportRole (Just RoleMember) usersInCsv)
+
+    forM_ users $ \user -> do
+      let displayName = U.userDisplayName user
+      assertEqual ("user with display name " <> show displayName) 1 (countOn tExportDisplayName displayName usersInCsv)
+
+      let Just email = U.userEmail user
+      assertEqual ("user with email " <> show email) 1 (countOn tExportEmail (Just email) usersInCsv)
+  where
+    decodeCSV :: FromNamedRecord a => LByteString -> Either String [a]
+    decodeCSV bstr = decodeByName bstr <&> (snd >>> V.toList)
+
+    countOn :: Eq b => (a -> b) -> b -> [a] -> Int
+    countOn prop val xs = sum $ fmap (bool 0 1 . (== val) . prop) xs
 
 testListTeamMembersTruncated :: TestM ()
 testListTeamMembersTruncated = do
