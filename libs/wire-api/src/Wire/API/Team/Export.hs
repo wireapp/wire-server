@@ -52,9 +52,9 @@ instance ToNamedRecord TeamExportUser where
 instance DefaultOrdered TeamExportUser where
   headerOrder = const $ fromList ["name", "username", "email", "role"]
 
-maybeParser :: (ByteString -> Parser a) -> ByteString -> Parser (Maybe a)
-maybeParser _ "" = pure Nothing
-maybeParser p str = Just <$> p str
+allowEmpty :: (ByteString -> Parser a) -> ByteString -> Parser (Maybe a)
+allowEmpty _ "" = pure Nothing
+allowEmpty p str = Just <$> p str
 
 parseByteString :: forall a. FromByteString a => ByteString -> Parser a
 parseByteString bstr =
@@ -66,6 +66,6 @@ instance FromNamedRecord TeamExportUser where
   parseNamedRecord nrec =
     TeamExportUser
       <$> (nrec .: "name" >>= parseByteString)
-      <*> (nrec .: "username" >>= maybeParser parseByteString)
-      <*> (nrec .: "email" >>= maybeParser parseByteString)
-      <*> (nrec .: "role" >>= maybeParser parseByteString)
+      <*> (nrec .: "username" >>= allowEmpty parseByteString)
+      <*> (nrec .: "email" >>= allowEmpty parseByteString)
+      <*> (nrec .: "role" >>= allowEmpty parseByteString)
