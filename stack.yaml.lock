@@ -630,12 +630,18 @@ packages:
   original:
     hackage: mu-optics-0.3.0.1
 - completed:
-    hackage: mu-avro-0.4.0.3@sha256:72917186e92bda447a44987fb25cae4e00c296f9e21d0f8e2d424f20c71741b0,2096
+    subdir: adapter/avro
+    name: mu-avro
+    version: 0.4.0.3
+    git: https://github.com/higherkindness/mu-haskell.git
     pantry-tree:
-      size: 541
-      sha256: 902dff6bbba7a07b9bec4e470e453b81e8318b7261e70dd8d06ada39e324c522
+      size: 709
+      sha256: 0ab2e9b15250cd58fc6906d07960cfe8a1b14c4dae05ed4eddf91bfa27ca405e
+    commit: 83c667c576a0a7c6dc829526bac123ac1a66341e
   original:
-    hackage: mu-avro-0.4.0.3
+    subdir: adapter/avro
+    git: https://github.com/higherkindness/mu-haskell.git
+    commit: 83c667c576a0a7c6dc829526bac123ac1a66341e
 - completed:
     hackage: mu-protobuf-0.4.2.0@sha256:e2950a91d20695e71aad843e44eebae69d1a964cd8d3ce0146d1747aa6e8c450,2034
     pantry-tree:
@@ -658,17 +664,17 @@ packages:
   original:
     hackage: mu-grpc-server-0.4.0.0
 - completed:
-    hackage: mu-grpc-client-0.4.0.1@sha256:dcd0079f6b03e782303144e4ec3930df3a025e20107bf545ae8691b7643a3282,1967
+    hackage: mu-grpc-client-0.4.0.1@sha256:b09dcf69f0650e0cfd86d6f67544a6350590574f4757f5ee459c57828c3a41ff,2079
     pantry-tree:
       size: 562
-      sha256: 9f35e8cffee6703b77dfecf0cbfa7ba191ea403a84649d232db1b5ab8f2647ac
+      sha256: 94e32cdfdee230f090684804fee5ef254c6063f985b913c8efaadbe1dfceafef
   original:
     hackage: mu-grpc-client-0.4.0.1
 - completed:
-    hackage: mu-grpc-common-0.4.0.0@sha256:0fe1e0c25034de4dcdf03ce8a002a8f4503cd4719727d0f315fe1ff97ae7722f,1306
+    hackage: mu-grpc-common-0.4.0.0@sha256:568b5879cd67c0bc0e956d53fb87552bb6d9a6287c5d1b09e2284ed5b04de418,1394
     pantry-tree:
       size: 281
-      sha256: 07fce64e048a0f9a6479b8ebe8604dc478432b3514a1ec70785788e8ac9732b4
+      sha256: 7e745ded1cb622178392ae2d5a6d5591af9743b58506de5ed2e17d7d698b0d18
   original:
     hackage: mu-grpc-common-0.4.0.0
 - completed:
