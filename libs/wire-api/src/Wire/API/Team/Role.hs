@@ -73,7 +73,7 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 -- Creating a new permission flag is thus very tricky, because if we decide
 -- that all team admins must have this new permission, we will have to
 -- identify all existing team admins. And if it turns out that some users
--- don't fit into one of those three team roleswe're screwed.
+-- don't fit into one of those three team roles, we're screwed.
 
 -- | Team-level role.  Analog to conversation-level 'ConversationRole'.
 data Role = RoleOwner | RoleAdmin | RoleMember | RoleExternalPartner
