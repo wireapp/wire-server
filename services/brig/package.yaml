@@ -234,6 +234,7 @@ executables:
     - QuickCheck
     - raw-strings-qq
     - random >=1.0
+    - random-shuffle
     - retry >=0.6
     - safe
     - saml2-web-sso
