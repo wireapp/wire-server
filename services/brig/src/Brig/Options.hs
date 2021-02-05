@@ -229,9 +229,9 @@ data EmailOpts
   deriving (Show, Generic)
 
 parseNoEndpoint :: Value -> Parser EmailOpts
-parseNoEndpoint = withObject "noEndpoint" $ \ o -> do 
-  noEndpoint <- o .: "noEndpoint" 
-  if noEndpoint then pure NoEndpoint else fail "Only use the noEndpoint option with true."
+parseNoEndpoint = withObject "endpoint" $ \ o -> do 
+  endpoint <- o .: "endpoint" 
+  if endpoint then fail "Only use the endpoint option with false." else pure NoEndpoint 
 
 instance FromJSON EmailOpts where
   parseJSON o =
