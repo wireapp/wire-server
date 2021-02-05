@@ -26,5 +26,5 @@ pkgs.haskell.lib.buildStackProject {
     zlib
     lzma
   ];
-  ghc = pkgs.haskell.compiler.ghc884;
+  ghc = pkgs.haskell.compiler.ghc8103;
 }
