@@ -74,10 +74,10 @@ newtype Gundeck a = Gundeck
     )
 
 instance MonadUnliftIO Gundeck where
-  askUnliftIO =
+  withRunInIO =
     Gundeck . ReaderT $ \r ->
-      withUnliftIO $ \u ->
-        return (UnliftIO (unliftIO u . flip runReaderT r . unGundeck))
+      withRunInIO $ \run ->
+        inner (run . flip runReaderT r . unGundeck)
 
 instance Redis.MonadClient Gundeck where
   liftClient m = view rstate >>= \p -> Redis.runRedis p m
