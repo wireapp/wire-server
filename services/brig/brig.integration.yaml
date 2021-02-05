@@ -55,6 +55,7 @@ emailSMS:
   # or you can use SMTP directly (blacklisting of email/phone must be otherwise handled by
   # the operator).
   email:
+    # endpoint: false # Use this to have no email endpoint.  
     sesQueue: integration-brig-events
     sesEndpoint: http://localhost:4569 # https://email.eu-west-1.amazonaws.com
     # If you prefer to use SMTP directly, uncomment the following lines
