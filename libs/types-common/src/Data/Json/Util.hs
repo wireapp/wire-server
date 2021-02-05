@@ -41,9 +41,12 @@ import Control.Lens (coerced, (%~))
 import Data.Aeson
 import Data.Aeson.Types
 import qualified Data.ByteString.Base64.Lazy as EL
+import qualified Data.ByteString.Builder as BB
+import qualified Data.ByteString.Conversion as BS
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as L8
 import Data.Fixed
+import Data.String.Conversions (cs)
 import Data.Swagger (ToSchema (..))
 import Data.Text (pack)
 import qualified Data.Text.Encoding
@@ -103,6 +106,12 @@ instance ToJSON UTCTimeMillis where
 
 instance FromJSON UTCTimeMillis where
   parseJSON = fmap UTCTimeMillis . parseJSON
+
+instance BS.ToByteString UTCTimeMillis where
+  builder = BB.byteString . cs . show
+
+instance BS.FromByteString UTCTimeMillis where
+  parser = maybe (fail "UTCTimeMillis") pure . readUTCTimeMillis =<< BS.parser
 
 instance CQL.Cql UTCTimeMillis where
   ctype = CQL.Tagged CQL.TimestampColumn
