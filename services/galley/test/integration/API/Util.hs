@@ -37,6 +37,7 @@ import qualified Data.ByteString.Char8 as C
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.Currency as Currency
+import qualified Data.Handle as Handle
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.List1 as List1
@@ -1443,17 +1444,17 @@ deleteTeamMember g tid owner deletee =
     !!! do
       const 202 === statusCode
 
-getUsers :: [UserId] -> TestM [User]
-getUsers uids = do
+getUsersByHandle :: [Handle.Handle] -> TestM [User]
+getUsersByHandle handles = do
   brig <- view tsBrig
   res <-
     get
       ( brig
           . path "/i/users"
-          . queryItem "ids" users
+          . queryItem "handles" users
           . expect2xx
       )
   let accounts = fromJust $ responseJsonMaybe @[UserAccount] res
   return $ fmap accountUser accounts
   where
-    users = BS.intercalate "," $ toByteString' <$> uids
+    users = BS.intercalate "," $ toByteString' <$> handles

@@ -236,7 +236,7 @@ testListTeamMembersCsv :: HasCallStack => Int -> TestM ()
 testListTeamMembersCsv numMembers = do
   let teamSize = numMembers + 1
 
-  (owner, tid, mbs) <- Util.createBindingTeamWithNMembers numMembers
+  (owner, tid, _mbs) <- Util.createBindingTeamWithNMembers numMembers
   resp <- Util.getTeamMembersCsv owner tid
   let rbody = fromMaybe (error "no body") . responseBody $ resp
   usersInCsv <- either (error "could not decode csv") pure (decodeCSV @TeamExportUser rbody)
@@ -245,14 +245,16 @@ testListTeamMembersCsv numMembers = do
     assertEqual "owners in team" 1 (countOn tExportRole (Just RoleOwner) usersInCsv)
     assertEqual "members in team" numMembers (countOn tExportRole (Just RoleMember) usersInCsv)
 
-  users <- Util.getUsers mbs
+  let someUsersInCsv = take 50 usersInCsv <> take 50 (reverse usersInCsv)
+      someHandles = tExportHandle <$> someUsersInCsv
+  users <- Util.getUsersByHandle (catMaybes someHandles)
   liftIO $ do
     forM_ users $ \user -> do
       let displayName = U.userDisplayName user
-      assertEqual ("user with display name " <> show displayName) 1 (countOn tExportDisplayName displayName usersInCsv)
+      assertEqual ("user with display name " <> show displayName) 1 (countOn tExportDisplayName displayName someUsersInCsv)
 
       let Just email = U.userEmail user
-      assertEqual ("user with email " <> show email) 1 (countOn tExportEmail (Just email) usersInCsv)
+      assertEqual ("user with email " <> show email) 1 (countOn tExportEmail (Just email) someUsersInCsv)
   where
     decodeCSV :: FromNamedRecord a => LByteString -> Either String [a]
     decodeCSV bstr = decodeByName bstr <&> (snd >>> V.toList)
