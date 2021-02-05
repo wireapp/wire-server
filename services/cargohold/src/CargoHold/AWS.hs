@@ -97,9 +97,9 @@ instance MonadLogger Amazon where
   log l m = view logger >>= \g -> Logger.log g l m
 
 instance MonadUnliftIO Amazon where
-  askUnliftIO = Amazon . ReaderT $ \r ->
-    withUnliftIO $ \u ->
-      return (UnliftIO (unliftIO u . flip runReaderT r . unAmazon))
+  withRunInIO inner = Amazon . ReaderT $ \r ->
+    withRunInIO $ \run ->
+      inner (run . flip runReaderT r . unAmazon)
 
 instance AWS.MonadAWS Amazon where
   liftAWS a = view amazonkaEnv >>= flip AWS.runAWS a
