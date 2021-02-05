@@ -379,12 +379,9 @@ getTeamMembers zusr tid maxResults = do
 
 getTeamMembersCSVH :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeamMembersCSVH (zusr ::: tid ::: _) = do
-  mbZusrMembership <- Data.teamMember tid zusr
-  case mbZusrMembership of
-    Just zusrMembership ->
-      unless (isTeamOwner zusrMembership) $
-        throwM accessDenied
+  Data.teamMember tid zusr >>= \case
     Nothing -> throwM accessDenied
+    Just member -> unless (member `hasPermission` DownloadTeamMembersCsv) $ throwM accessDenied
 
   env <- ask
   pure $
