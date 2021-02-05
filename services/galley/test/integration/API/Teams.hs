@@ -240,18 +240,13 @@ testListTeamMembersCsv numMembers = do
   resp <- Util.getTeamMembersCsv owner tid
   let rbody = fromMaybe (error "no body") . responseBody $ resp
   usersInCsv <- either (error "could not decode csv") pure (decodeCSV @TeamExportUser rbody)
-
-  liftIO $
-    assertEqual
-      "total number of team members"
-      teamSize
-      (length usersInCsv)
-
-  users <- Util.getUsers mbs
   liftIO $ do
+    assertEqual "total number of team members" teamSize (length usersInCsv)
     assertEqual "owners in team" 1 (countOn tExportRole (Just RoleOwner) usersInCsv)
     assertEqual "members in team" numMembers (countOn tExportRole (Just RoleMember) usersInCsv)
 
+  users <- Util.getUsers mbs
+  liftIO $ do
     forM_ users $ \user -> do
       let displayName = U.userDisplayName user
       assertEqual ("user with display name " <> show displayName) 1 (countOn tExportDisplayName displayName usersInCsv)
