@@ -417,7 +417,7 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
     teamExportUser member user =
       TeamExportUser
         { tExportDisplayName = U.userDisplayName user,
-          tExportUserName = U.userHandle user,
+          tExportHandle = U.userHandle user,
           tExportEmail = U.userIdentity user >>= U.emailIdentity,
           tExportRole = permissionsRole . view permissions $ member
         }

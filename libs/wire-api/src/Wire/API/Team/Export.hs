@@ -33,7 +33,7 @@ import Wire.API.User.Identity (Email)
 
 data TeamExportUser = TeamExportUser
   { tExportDisplayName :: Name,
-    tExportUserName :: Maybe Handle,
+    tExportHandle :: Maybe Handle,
     tExportEmail :: Maybe Email,
     tExportRole :: Maybe Role
   }
@@ -43,14 +43,14 @@ data TeamExportUser = TeamExportUser
 instance ToNamedRecord TeamExportUser where
   toNamedRecord row =
     namedRecord
-      [ ("name", toByteString' (tExportDisplayName row)),
-        ("username", maybe "" toByteString' (tExportUserName row)),
+      [ ("display name", toByteString' (tExportDisplayName row)),
+        ("handle", maybe "" toByteString' (tExportHandle row)),
         ("email", maybe "" toByteString' (tExportEmail row)),
         ("role", maybe "" toByteString' (tExportRole row))
       ]
 
 instance DefaultOrdered TeamExportUser where
-  headerOrder = const $ fromList ["name", "username", "email", "role"]
+  headerOrder = const $ fromList ["display name", "handle", "email", "role"]
 
 allowEmpty :: (ByteString -> Parser a) -> ByteString -> Parser (Maybe a)
 allowEmpty _ "" = pure Nothing
@@ -65,7 +65,7 @@ parseByteString bstr =
 instance FromNamedRecord TeamExportUser where
   parseNamedRecord nrec =
     TeamExportUser
-      <$> (nrec .: "name" >>= parseByteString)
-      <*> (nrec .: "username" >>= allowEmpty parseByteString)
+      <$> (nrec .: "display name" >>= parseByteString)
+      <*> (nrec .: "handle" >>= allowEmpty parseByteString)
       <*> (nrec .: "email" >>= allowEmpty parseByteString)
       <*> (nrec .: "role" >>= allowEmpty parseByteString)
