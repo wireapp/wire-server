@@ -22,6 +22,9 @@ module Wire.API.User.Search
   ( SearchResult (..),
     Contact (..),
     TeamContact (..),
+    RoleFilter (..),
+    TeamUserSearchSortOrder (..),
+    TeamUserSearchSortBy (..),
 
     -- * Swagger
     modelSearchResult,
@@ -31,6 +34,9 @@ module Wire.API.User.Search
 where
 
 import Data.Aeson
+import Data.Attoparsec.ByteString (sepBy)
+import Data.Attoparsec.ByteString.Char8 (char, string)
+import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
 import Data.Id (TeamId, UserId)
 import Data.Json.Util (UTCTimeMillis)
 import qualified Data.Swagger.Build.Api as Doc
@@ -199,3 +205,58 @@ instance FromJSON TeamContact where
         <*> o .:? "managed_by"
         <*> o .:? "saml_idp"
         <*> o .:? "role"
+
+data TeamUserSearchSortBy
+  = SortByName
+  | SortByHandle
+  | SortByEmail
+  | SortBySAMLIdp
+  | SortByManagedBy
+  | SortByRole
+  | SortByCreatedAt
+  deriving (Show, Eq, Ord, Generic)
+  deriving (Arbitrary) via (GenericUniform TeamUserSearchSortBy)
+
+instance ToByteString TeamUserSearchSortBy where
+  builder SortByName = "name"
+  builder SortByHandle = "handle"
+  builder SortByEmail = "email"
+  builder SortBySAMLIdp = "saml_idp"
+  builder SortByManagedBy = "managed_by"
+  builder SortByRole = "role"
+  builder SortByCreatedAt = "created_at"
+
+instance FromByteString TeamUserSearchSortBy where
+  parser =
+    SortByName <$ string "name"
+      <|> SortByHandle <$ string "handle"
+      <|> SortByEmail <$ string "email"
+      <|> SortBySAMLIdp <$ string "saml_idp"
+      <|> SortByManagedBy <$ string "managed_by"
+      <|> SortByRole <$ string "role"
+      <|> SortByCreatedAt <$ string "created_at"
+
+data TeamUserSearchSortOrder
+  = SortOrderAsc
+  | SortOrderDesc
+  deriving (Show, Eq, Ord, Generic)
+  deriving (Arbitrary) via (GenericUniform TeamUserSearchSortOrder)
+
+instance ToByteString TeamUserSearchSortOrder where
+  builder SortOrderAsc = "asc"
+  builder SortOrderDesc = "desc"
+
+instance FromByteString TeamUserSearchSortOrder where
+  parser =
+    SortOrderAsc <$ string "asc"
+      <|> SortOrderDesc <$ string "desc"
+
+newtype RoleFilter = RoleFilter [Role]
+  deriving (Show, Eq, Generic)
+  deriving (Arbitrary) via (GenericUniform RoleFilter)
+
+instance ToByteString RoleFilter where
+  builder (RoleFilter roles) = mconcat $ intersperse "," (fmap builder roles)
+
+instance FromByteString RoleFilter where
+  parser = RoleFilter <$> parser `sepBy` char ','

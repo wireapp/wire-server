@@ -19,8 +19,9 @@
 
 module Data.Domain where
 
-import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON))
+import Data.Aeson (FromJSON (parseJSON), FromJSONKey, FromJSONKeyFunction (FromJSONKeyTextParser), ToJSON (toJSON), ToJSONKey (toJSONKey))
 import qualified Data.Aeson as Aeson
+import Data.Aeson.Types (toJSONKeyText)
 import Data.Attoparsec.ByteString ((<?>))
 import qualified Data.Attoparsec.ByteString.Char8 as Atto
 import Data.Bifunctor (Bifunctor (first))
@@ -105,6 +106,12 @@ instance ToJSON Domain where
 
 instance FromJSON Domain where
   parseJSON = Aeson.withText "Domain" $ either fail pure . mkDomain
+
+instance ToJSONKey Domain where
+  toJSONKey = toJSONKeyText domainText
+
+instance FromJSONKey Domain where
+  fromJSONKey = FromJSONKeyTextParser $ either fail pure . mkDomain
 
 instance Arbitrary Domain where
   arbitrary =

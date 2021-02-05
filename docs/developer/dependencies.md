@@ -215,6 +215,12 @@ telepresence --namespace "$NAMESPACE" --also-proxy cassandra-ephemeral --run bas
 
 In both cases, you need to adjust the various integration configuration files and names so that this can work.
 
+## Buildah (optional)
+
+[Buildah](https://buildah.io/) is used for local docker image creation during development. See [buildah installation](https://github.com/containers/buildah/blob/master/install.md)
+
+See `make buildah-docker` for an entry point here.
+
 ## Helm chart development, integration tests in kubernetes
 
 You need `kubectl`, `helm`, and a valid kubernetes context. Refer to https://docs.wire.com for details.
