@@ -203,7 +203,7 @@ getTeamMembers usr tid = do
 getTeamMembersCsv :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
 getTeamMembersCsv usr tid = do
   g <- view tsGalley
-  get (g . accept "text/csv" . paths ["teams", toByteString' tid, "members"] . zUser usr) <!! do
+  get (g . accept "text/csv" . paths ["teams", toByteString' tid, "members/csv"] . zUser usr) <!! do
     const 200 === statusCode
     const (Just "chunked") === lookup "Transfer-Encoding" . responseHeaders
 
