@@ -42,9 +42,10 @@ import qualified Data.Currency as Currency
 import Data.Id
 import Data.List1
 import qualified Data.List1 as List1
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (HttpsUrl, PlainTextPassword (..))
 import Data.Range
 import qualified Data.Set as Set
+import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
@@ -74,6 +75,7 @@ import TestSetup (TestM, TestSetup, tsBrig, tsCannon, tsGConf, tsGalley)
 import UnliftIO (mapConcurrently, mapConcurrently_)
 import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
+import qualified Wire.API.Team.Member as TM
 import qualified Wire.API.User as U
 
 tests :: IO TestSetup -> TestTree
@@ -236,7 +238,7 @@ testListTeamMembersCsv :: HasCallStack => Int -> TestM ()
 testListTeamMembersCsv numMembers = do
   let teamSize = numMembers + 1
 
-  (owner, tid, _mbs) <- Util.createBindingTeamWithNMembers numMembers
+  (owner, tid, _mbs) <- Util.createBindingTeamWithNMembersWithHandles True numMembers
   resp <- Util.getTeamMembersCsv owner tid
   let rbody = fromMaybe (error "no body") . responseBody $ resp
   usersInCsv <- either (error "could not decode csv") pure (decodeCSV @TeamExportUser rbody)
@@ -245,17 +247,39 @@ testListTeamMembersCsv numMembers = do
     assertEqual "owners in team" 1 (countOn tExportRole (Just RoleOwner) usersInCsv)
     assertEqual "members in team" numMembers (countOn tExportRole (Just RoleMember) usersInCsv)
 
-  let someUsersInCsv = take 50 usersInCsv <> take 50 (reverse usersInCsv)
-      someHandles = tExportHandle <$> someUsersInCsv
-  users <- Util.getUsersByHandle (catMaybes someHandles)
-  liftIO $ do
-    forM_ users $ \user -> do
-      let displayName = U.userDisplayName user
-      assertEqual ("user with display name " <> show displayName) 1 (countOn tExportDisplayName displayName someUsersInCsv)
+  do
+    let someUsersInCsv = take 50 usersInCsv
+        someHandles = tExportHandle <$> someUsersInCsv
+    users <- Util.getUsersByHandle (catMaybes someHandles)
+    mbrs <- view teamMembers <$> Util.bulkGetTeamMembers owner tid (U.userId <$> users)
 
-      let Just email = U.userEmail user
-      assertEqual ("user with email " <> show email) 1 (countOn tExportEmail (Just email) someUsersInCsv)
+    let check :: (Show a, Eq a) => String -> (TeamExportUser -> Maybe a) -> UserId -> Maybe a -> IO ()
+        check msg getTeamExportUserAttr uid userAttr = do
+          assertBool msg (isJust userAttr)
+          assertEqual (msg <> ": " <> show uid) 1 (countOn getTeamExportUserAttr userAttr usersInCsv)
+
+    liftIO . forM_ (zip users mbrs) $ \(user, mbr) -> do
+      assertEqual "user/member id match" (U.userId user) (mbr ^. TM.userId)
+      check "tExportDisplayName" (Just . tExportDisplayName) (U.userId user) (Just $ U.userDisplayName user)
+      check "tExportEmail" tExportEmail (U.userId user) (U.userEmail user)
+
+    liftIO . forM_ (zip3 someUsersInCsv users mbrs) $ \(export, user, mbr) -> do
+      -- FUTUREWORK: there are a lot of cases we don't cover here (manual invitation, saml, other roles, ...).
+      assertEqual ("tExportDisplayName: " <> show (U.userId user)) (U.userDisplayName user) (tExportDisplayName export)
+      assertEqual ("tExportHandle: " <> show (U.userId user)) (U.userHandle user) (tExportHandle export)
+      assertEqual ("tExportEmail: " <> show (U.userId user)) (U.userEmail user) (tExportEmail export)
+      assertEqual ("tExportRole: " <> show (U.userId user)) (permissionsRole $ view permissions mbr) (tExportRole export)
+      assertEqual ("tExportCreatedOn: " <> show (U.userId user)) (snd <$> view invitation mbr) (tExportCreatedOn export)
+      assertEqual ("tExportInvitedBy: " <> show (U.userId user)) Nothing (tExportInvitedBy export)
+      assertEqual ("tExportIdpIssuer: " <> show (U.userId user)) (userToIdPIssuer user) (tExportIdpIssuer export)
+      assertEqual ("tExportManagedBy: " <> show (U.userId user)) (U.userManagedBy user) (tExportManagedBy export)
   where
+    userToIdPIssuer :: HasCallStack => U.User -> Maybe HttpsUrl
+    userToIdPIssuer usr = case (U.userIdentity >=> U.ssoIdentity) usr of
+      Just (U.UserSSOId issuer _) -> maybe (error "shouldn't happen") Just . fromByteString' . cs $ issuer
+      Just _ -> Nothing
+      Nothing -> Nothing
+
     decodeCSV :: FromNamedRecord a => LByteString -> Either String [a]
     decodeCSV bstr = decodeByName bstr <&> (snd >>> V.toList)
 

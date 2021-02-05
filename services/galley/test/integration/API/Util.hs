@@ -72,6 +72,7 @@ import Gundeck.Types.Notification
   )
 import Imports
 import qualified Network.Wai.Test as WaiTest
+import System.Random
 import qualified Test.QuickCheck as Q
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
@@ -125,14 +126,36 @@ getTeams u = do
   return $ responseJsonUnsafe r
 
 createBindingTeamWithNMembers :: Int -> TestM (UserId, TeamId, [UserId])
-createBindingTeamWithNMembers n = do
+createBindingTeamWithNMembers = createBindingTeamWithNMembersWithHandles False
+
+createBindingTeamWithNMembersWithHandles :: Bool -> Int -> TestM (UserId, TeamId, [UserId])
+createBindingTeamWithNMembersWithHandles withHandles n = do
   (owner, tid) <- createBindingTeam
+  setHandle owner
   mems <- replicateM n $ do
     member1 <- randomUser
     addTeamMemberInternal tid $ newTeamMember member1 (rolePermissions RoleMember) Nothing
+    setHandle member1
     pure member1
   SQS.ensureQueueEmpty
   pure (owner, tid, mems)
+  where
+    mkRandomHandle :: MonadIO m => m Text
+    mkRandomHandle = liftIO $ do
+      nrs <- replicateM 21 (randomRIO (97, 122)) -- a-z
+      return (cs (map chr nrs))
+
+    setHandle :: UserId -> TestM ()
+    setHandle uid = when withHandles $ do
+      b <- view tsBrig
+      randomHandle <- mkRandomHandle
+      put
+        ( b
+            . paths ["/i/users", toByteString' uid, "handle"]
+            . json (HandleUpdate randomHandle)
+        )
+        !!! do
+          const 200 === statusCode
 
 -- | FUTUREWORK: this is dead code (see 'NonBindingNewTeam').  remove!
 createNonBindingTeam :: HasCallStack => Text -> UserId -> [TeamMember] -> TestM TeamId
@@ -1444,17 +1467,23 @@ deleteTeamMember g tid owner deletee =
     !!! do
       const 202 === statusCode
 
+getUsersByUid :: [UserId] -> TestM [User]
+getUsersByUid = getUsersBy "ids"
+
 getUsersByHandle :: [Handle.Handle] -> TestM [User]
-getUsersByHandle handles = do
+getUsersByHandle = getUsersBy "handles"
+
+getUsersBy :: (ToByteString uidsOrHandles) => ByteString -> [uidsOrHandles] -> TestM [User]
+getUsersBy searchKey uidsOrHandles = do
   brig <- view tsBrig
   res <-
     get
       ( brig
           . path "/i/users"
-          . queryItem "handles" users
+          . queryItem searchKey users
           . expect2xx
       )
   let accounts = fromJust $ responseJsonMaybe @[UserAccount] res
   return $ fmap accountUser accounts
   where
-    users = BS.intercalate "," $ toByteString' <$> handles
+    users = BS.intercalate "," $ toByteString' <$> uidsOrHandles

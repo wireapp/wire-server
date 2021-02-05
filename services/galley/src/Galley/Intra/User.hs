@@ -21,6 +21,7 @@ module Galley.Intra.User
     reAuthUser,
     lookupActivatedUsers,
     getUser,
+    getUsers,
     deleteUser,
     getContactList,
   )
@@ -114,15 +115,19 @@ lookupActivatedUsers uids = do
 
 -- | Calls 'Brig.API.listActivatedAccountsH'.
 getUser :: UserId -> Galley (Maybe UserAccount)
-getUser uid = do
+getUser uid = listToMaybe <$> getUsers [uid]
+
+-- | Calls 'Brig.API.listActivatedAccountsH'.
+getUsers :: [UserId] -> Galley [UserAccount]
+getUsers uids = do
   (h, p) <- brigReq
   resp <-
     call "brig" $
       method GET . host h . port p
         . path "/i/users"
-        . queryItem "ids" (toByteString' uid)
+        . queryItem "ids" (BSC.intercalate "," (toByteString' <$> uids))
         . expect2xx
-  pure . maybe Nothing listToMaybe . responseJsonMaybe $ resp
+  pure . fromMaybe [] . responseJsonMaybe $ resp
 
 -- | Calls 'Brig.API.deleteUserNoVerifyH'.
 deleteUser :: UserId -> Galley ()

@@ -185,6 +185,7 @@ executables:
     - proto-lens
     - QuickCheck
     - quickcheck-instances
+    - random
     - retry
     - servant-swagger
     - string-conversions

@@ -56,21 +56,25 @@ module Galley.API.Teams
   )
 where
 
+import Brig.Types.Intra (accountUser)
 import Brig.Types.Team (TeamSize (..))
 import Control.Lens
 import Control.Monad.Catch
 import Data.ByteString.Conversion hiding (fromList)
 import Data.ByteString.Lazy.Builder (lazyByteString)
 import Data.Csv (EncodeOptions (..), Quoting (QuoteAll), encodeDefaultOrderedByNameWith)
+import qualified Data.Handle as Handle
 import Data.Id
 import qualified Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local))
 import qualified Data.List.Extra as List
 import Data.List1 (list1)
 import qualified Data.Map.Strict as M
+import Data.Misc (HttpsUrl)
 import Data.Range as Range
 import Data.Set (fromList)
 import qualified Data.Set as Set
+import Data.String.Conversions (cs)
 import Data.Time.Clock (UTCTime (..), getCurrentTime)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
@@ -391,13 +395,14 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
       flush
       evalGalley env $ do
         Data.withTeamMembersWithChunks tid $ \members -> do
+          inviters <- getInviters members
           users <- lookupActivatedUsers (fmap (view userId) members)
           let pairs = pairMembersUsers members users
           liftIO $ do
             writeString
               ( encodeDefaultOrderedByNameWith
                   defaultEncodeOptions
-                  (fmap (uncurry teamExportUser) pairs)
+                  (fmap (uncurry (teamExportUser inviters)) pairs)
               )
             flush
   where
@@ -413,14 +418,38 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
           encQuoting = QuoteAll
         }
 
-    teamExportUser :: TeamMember -> User -> TeamExportUser
-    teamExportUser member user =
+    teamExportUser :: (UserId -> Maybe Handle.Handle) -> TeamMember -> User -> TeamExportUser
+    teamExportUser mbInviterHandle member user =
       TeamExportUser
         { tExportDisplayName = U.userDisplayName user,
           tExportHandle = U.userHandle user,
           tExportEmail = U.userIdentity user >>= U.emailIdentity,
-          tExportRole = permissionsRole . view permissions $ member
+          tExportRole = permissionsRole . view permissions $ member,
+          tExportCreatedOn = fmap snd . view invitation $ member,
+          tExportInvitedBy = mbInviterHandle =<< (fmap fst . view invitation $ member),
+          tExportIdpIssuer = userToIdPIssuer user,
+          tExportManagedBy = U.userManagedBy user
         }
+
+    getInviters :: [TeamMember] -> Galley (UserId -> Maybe Handle.Handle)
+    getInviters members = do
+      let inviterIds :: [UserId]
+          inviterIds = catMaybes $ fmap fst . view invitation <$> members
+
+      userList :: [User] <- accountUser <$$> getUsers inviterIds
+
+      let userMap :: M.Map UserId Handle.Handle
+          userMap = M.fromList . catMaybes $ extract <$> userList
+            where
+              extract u = (U.userId u,) <$> (U.userHandle u)
+
+      pure $ (`M.lookup` userMap)
+
+    userToIdPIssuer :: U.User -> Maybe HttpsUrl
+    userToIdPIssuer usr = case (U.userIdentity >=> U.ssoIdentity) usr of
+      Just (U.UserSSOId issuer _) -> fromByteString' $ cs issuer
+      Just _ -> Nothing
+      Nothing -> Nothing
 
     pairMembersUsers :: [TeamMember] -> [User] -> [(TeamMember, User)]
     pairMembersUsers members users = do

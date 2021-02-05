@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f75b1fb69c6fca4419cbc7df1a7d45722b48173fda95c920075ca095dcea0427
+-- hash: de4aa0b8e28014de5878b77c3c11538cf9bcce27c362a900ec11ad6372600c55
 
 name:           galley
 version:        0.83.0
@@ -248,6 +248,7 @@ executable galley-integration
     , proto-lens
     , protobuf
     , quickcheck-instances
+    , random
     , raw-strings-qq >=1.0
     , retry
     , safe >=0.3

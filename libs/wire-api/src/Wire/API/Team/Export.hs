@@ -23,6 +23,8 @@ import Data.Attoparsec.ByteString.Lazy (parseOnly)
 import Data.ByteString.Conversion (FromByteString (..), toByteString')
 import Data.Csv (DefaultOrdered (..), FromNamedRecord (..), Parser, ToNamedRecord (..), namedRecord, (.:))
 import Data.Handle (Handle)
+import Data.Json.Util (UTCTimeMillis)
+import Data.Misc (HttpsUrl)
 import Data.Vector (fromList)
 import Imports
 import Test.QuickCheck (Arbitrary)
@@ -30,12 +32,18 @@ import Wire.API.Arbitrary (GenericUniform (GenericUniform))
 import Wire.API.Team.Role (Role)
 import Wire.API.User (Name)
 import Wire.API.User.Identity (Email)
+import Wire.API.User.Profile (ManagedBy)
 
 data TeamExportUser = TeamExportUser
   { tExportDisplayName :: Name,
     tExportHandle :: Maybe Handle,
     tExportEmail :: Maybe Email,
-    tExportRole :: Maybe Role
+    tExportRole :: Maybe Role,
+    tExportCreatedOn :: Maybe UTCTimeMillis,
+    tExportInvitedBy :: Maybe Handle,
+    tExportIdpIssuer :: Maybe HttpsUrl,
+    tExportManagedBy :: ManagedBy
+    -- FUTUREWORK: @tExportRichProfile :: Maybe RichInfo  -- (rendering: one key-value pair per csv column, sorted alphanumerically by key)@
   }
   deriving (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform TeamExportUser)
@@ -46,11 +54,26 @@ instance ToNamedRecord TeamExportUser where
       [ ("display name", toByteString' (tExportDisplayName row)),
         ("handle", maybe "" toByteString' (tExportHandle row)),
         ("email", maybe "" toByteString' (tExportEmail row)),
-        ("role", maybe "" toByteString' (tExportRole row))
+        ("role", maybe "" toByteString' (tExportRole row)),
+        ("created on", maybe "" toByteString' (tExportCreatedOn row)),
+        ("invited by", maybe "" toByteString' (tExportInvitedBy row)),
+        ("idp issuer", maybe "" toByteString' (tExportIdpIssuer row)),
+        ("managed by", toByteString' (tExportManagedBy row))
       ]
 
 instance DefaultOrdered TeamExportUser where
-  headerOrder = const $ fromList ["display name", "handle", "email", "role"]
+  headerOrder =
+    const $
+      fromList
+        [ "display name",
+          "handle",
+          "email",
+          "role",
+          "created on",
+          "invited by",
+          "idp issuer",
+          "managed by"
+        ]
 
 allowEmpty :: (ByteString -> Parser a) -> ByteString -> Parser (Maybe a)
 allowEmpty _ "" = pure Nothing
@@ -69,3 +92,7 @@ instance FromNamedRecord TeamExportUser where
       <*> (nrec .: "handle" >>= allowEmpty parseByteString)
       <*> (nrec .: "email" >>= allowEmpty parseByteString)
       <*> (nrec .: "role" >>= allowEmpty parseByteString)
+      <*> (nrec .: "created on" >>= allowEmpty parseByteString)
+      <*> (nrec .: "invited by" >>= allowEmpty parseByteString)
+      <*> (nrec .: "idp issuer" >>= allowEmpty parseByteString)
+      <*> (nrec .: "managed by" >>= parseByteString)
