@@ -27,7 +27,7 @@ module Brig.App
     newEnv,
     closeEnv,
     awsEnv,
-    smtpEnv,
+    emailEnv,
     stompEnv,
     cargohold,
     galley,
@@ -72,17 +72,18 @@ import qualified Bilge as RPC
 import Bilge.RPC (HasRequestId (..))
 import qualified Brig.AWS as AWS
 import qualified Brig.Calling as Calling
+import qualified Brig.Email.Env as Email
 import Brig.Options (Opts, Settings)
 import qualified Brig.Options as Opt
 import Brig.Provider.Template
 import qualified Brig.Queue.Stomp as Stomp
 import Brig.Queue.Types (Queue (..))
-import qualified Brig.SMTP as SMTP
 import Brig.Team.Template
 import Brig.Template (Localised, TemplateBranding, forLocale, genTemplateBranding)
 import Brig.Types (Locale (..), TurnURI)
 import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
 import Brig.User.Template
+import Brig.Utils
 import Brig.ZAuth (MonadZAuth (..), runZAuth)
 import qualified Brig.ZAuth as ZAuth
 import Cassandra (Keyspace (Keyspace), MonadClient, runClient)
@@ -112,7 +113,6 @@ import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.IO as Text
 import Data.Time.Clock
-import Data.Yaml (FromJSON)
 import qualified Database.Bloodhound as ES
 import Imports
 import Network.HTTP.Client (ManagerSettings (..), responseTimeoutMicro)
@@ -144,7 +144,7 @@ data Env = Env
     _gundeck :: RPC.Request,
     _federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
     _casClient :: Cas.ClientState,
-    _smtpEnv :: Maybe SMTP.SMTP,
+    _emailEnv :: Email.Env, -- Maybe SMTP.SMTP,
     _emailSender :: Email,
     _awsEnv :: AWS.Env,
     _stompEnv :: Maybe Stomp.Env,
@@ -189,8 +189,12 @@ newEnv o = do
   ptp <- loadProviderTemplates o
   ttp <- loadTeamTemplates o
   let branding = genTemplateBranding . Opt.templateBranding . Opt.general . Opt.emailSMS $ o
-  (emailAWSOpts, emailSMTP) <- emailConn lgr $ Opt.email (Opt.emailSMS o)
-  aws <- AWS.mkEnv lgr (Opt.aws o) emailAWSOpts mgr
+  emailConnEnv <- Email.mkEnv lgr $ Opt.email (Opt.emailSMS o)
+  let sesOptions :: Maybe Opt.EmailAWSOpts
+      sesOptions = case Opt.email (Opt.emailSMS o) of
+        Opt.EmailAWS aws -> Just aws
+        _ -> Nothing
+  aws <- AWS.mkEnv lgr (Opt.aws o) sesOptions mgr
   zau <- initZAuth o
   clock <- mkAutoUpdate defaultUpdateSettings {updateAction = getCurrentTime}
   w <-
@@ -219,7 +223,7 @@ newEnv o = do
         _gundeck = mkEndpoint $ Opt.gundeck o,
         _federator = Opt.federatorInternal o,
         _casClient = cas,
-        _smtpEnv = emailSMTP,
+        _emailEnv = emailConnEnv,
         _emailSender = Opt.emailSender . Opt.general . Opt.emailSMS $ o,
         _awsEnv = aws,
         _stompEnv = stomp,
@@ -248,18 +252,6 @@ newEnv o = do
         _indexEnv = mkIndexEnv o lgr mgr mtr
       }
   where
-    emailConn _ (Opt.EmailAWS aws) = return (Just aws, Nothing)
-    emailConn _ (Opt.NoEndpoint) = return (Nothing, Nothing)
-    emailConn lgr (Opt.EmailSMTP s) = do
-      let host = (Opt.smtpEndpoint s) ^. epHost
-          port = Just $ fromInteger $ toInteger $ (Opt.smtpEndpoint s) ^. epPort
-      smtpCredentials <- case Opt.smtpCredentials s of
-        Just (Opt.EmailSMTPCredentials u p) -> do
-          pass <- initCredentials p
-          return $ Just (SMTP.Username u, SMTP.Password pass)
-        _ -> return Nothing
-      smtp <- SMTP.initSMTP lgr host port smtpCredentials (Opt.smtpConnType s)
-      return (Nothing, Just smtp)
     mkEndpoint service = RPC.host (encodeUtf8 (service ^. epHost)) . RPC.port (service ^. epPort) $ RPC.empty
 
 mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> IndexEnv
@@ -405,12 +397,6 @@ initCassandra o g = do
         $ Cas.defSettings
   runClient p $ versionCheck schemaVersion
   return p
-
-initCredentials :: (FromJSON a) => FilePathSecrets -> IO a
-initCredentials secretFile = do
-  dat <- loadSecret secretFile
-  return $ either (\e -> error $ "Could not load secrets from " ++ show secretFile ++ ": " ++ e) id dat
-
 userTemplates :: Monad m => Maybe Locale -> AppT m (Locale, UserTemplates)
 userTemplates l = forLocale l <$> view usrTemplates
 

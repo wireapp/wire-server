@@ -54,10 +54,12 @@ emailSMS:
   # You can either use SES directly (in which case, ensure a feedback queue is configured)
   # or you can use SMTP directly (blacklisting of email/phone must be otherwise handled by
   # the operator).
-  email:
-    # endpoint: false # Use this to have no email endpoint.  
-    sesQueue: integration-brig-events
-    sesEndpoint: http://localhost:4569 # https://email.eu-west-1.amazonaws.com
+  
+  # Use this to have no email endpoint.  
+  email: noendpoint 
+  # email: 
+  #   sesQueue: integration-brig-events
+  #   sesEndpoint: http://localhost:4569 # https://email.eu-west-1.amazonaws.com
     # If you prefer to use SMTP directly, uncomment the following lines
     # and set the correct credentials.
     # NOTE: In case a user tries to supply config values for both SES and SMTP,
@@ -66,13 +68,13 @@ emailSMS:
     #   host: localhost
     #   port: 2500
     # smtpCredentials:
-    #   username: <username>
-    #   password: test/resources/smtp-secret.txt
+    #   smtpUsername: <username>
+    #   smtpPassword: test/resources/smtp-secret.txt
     # smtpConnType: plain
-    # ^ NOTE: blacklisting of emails (processing of bounces and complaints)  is only done
-    #         automatically IF sesQueue/sesEndpoint are used. If SMTP is used directly, the
-    #         operator must handle these notifications "manually" (there are internal endpoints)
-    #         that may be used for this
+    #   ^ NOTE: blacklisting of emails (processing of bounces and complaints)  is only done
+    #           automatically IF sesQueue/sesEndpoint are used. If SMTP is used directly, the
+    #           operator must handle these notifications "manually" (there are internal endpoints)
+    #           that may be used for this
 
   general:
     templateDir: deb/opt/brig/templates

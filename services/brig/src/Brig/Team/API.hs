@@ -212,6 +212,8 @@ instance ToJSON FoundInvitationCode where
 
 createInvitationPublicH :: JSON ::: UserId ::: TeamId ::: JsonRequest Public.InvitationRequest -> Handler Response
 createInvitationPublicH (_ ::: uid ::: tid ::: req) = do
+  Log.info $ Log.msg @Text "createInvitationPublicH"
+
   body <- parseJsonBody req
   newInv <- createInvitationPublic uid tid body
   pure . setStatus status201 . loc (inInvitation newInv) . json $ newInv
@@ -229,12 +231,16 @@ data CreateInvitationInviter = CreateInvitationInviter
 createInvitationPublic :: UserId -> TeamId -> Public.InvitationRequest -> Handler Public.Invitation
 createInvitationPublic uid tid body = do
   let inviteeRole = fromMaybe Team.defaultRole . irRole $ body
+  Log.info $ Log.msg @Text "createInvitationPublic"
+
   inviter <- do
     let inviteePerms = Team.rolePermissions inviteeRole
     idt <- maybe (throwStd (noIdentity 7)) return =<< lift (fetchUserIdentity uid)
     from <- maybe (throwStd noEmail) return (emailIdentity idt)
     ensurePermissionToAddUser uid tid inviteePerms
     pure $ CreateInvitationInviter uid from
+
+  Log.info $ Log.msg @Text "createInvitationPublicEnd"
 
   let context =
         logFunction "Brig.Team.API.createInvitationPublic"
@@ -293,6 +299,7 @@ createInvitation' :: TeamId -> Public.Role -> Maybe UserId -> Email -> Public.In
 createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
   -- FUTUREWORK: These validations are nearly copy+paste from accountCreation and
   --             sendActivationCode. Refactor this to a single place
+  Log.info $ Log.msg @Text "createInvitation'"
 
   -- Validate e-mail
   inviteeEmail <- either (const $ throwStd invalidEmail) return (Email.validateEmail (irInviteeEmail body))
@@ -322,6 +329,7 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
 
   let locale = irLocale body
   let inviteeName = irInviteeName body
+  Log.info $ Log.msg @Text "createInvitation' END"
 
   lift $ do
     iid <- liftIO DB.mkInvitationId
