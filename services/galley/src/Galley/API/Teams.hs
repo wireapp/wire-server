@@ -68,11 +68,10 @@ import Data.IdMapping (MappedOrLocalId (Local))
 import qualified Data.List.Extra as List
 import Data.List1 (list1)
 import qualified Data.Map.Strict as M
-import qualified Data.Metrics.Middleware as Metrics
 import Data.Range as Range
 import Data.Set (fromList)
 import qualified Data.Set as Set
-import Data.Time.Clock (UTCTime (..), diffUTCTime, getCurrentTime)
+import Data.Time.Clock (UTCTime (..), getCurrentTime)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
 import Galley.API.Error as Galley
