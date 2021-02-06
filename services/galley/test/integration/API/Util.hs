@@ -52,6 +52,7 @@ import Data.Text.Encoding (decodeUtf8)
 import qualified Data.Text.Encoding as Text
 import qualified Data.UUID as UUID
 import Data.UUID.V4
+import Galley.Intra.User (chunkify)
 import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
 import Galley.Types hiding (InternalMember (..), Member)
@@ -1467,23 +1468,23 @@ deleteTeamMember g tid owner deletee =
     !!! do
       const 202 === statusCode
 
+-- (Duplicate of 'Galley.Intra.User.getUsers'.)
 getUsersByUid :: [UserId] -> TestM [User]
 getUsersByUid = getUsersBy "ids"
 
 getUsersByHandle :: [Handle.Handle] -> TestM [User]
 getUsersByHandle = getUsersBy "handles"
 
-getUsersBy :: (ToByteString uidsOrHandles) => ByteString -> [uidsOrHandles] -> TestM [User]
-getUsersBy searchKey uidsOrHandles = do
+getUsersBy :: forall uidsOrHandles. (ToByteString uidsOrHandles) => ByteString -> [uidsOrHandles] -> TestM [User]
+getUsersBy keyName = chunkify $ \keys -> do
   brig <- view tsBrig
+  let users = BS.intercalate "," $ toByteString' <$> keys
   res <-
     get
       ( brig
           . path "/i/users"
-          . queryItem searchKey users
+          . queryItem keyName users
           . expect2xx
       )
   let accounts = fromJust $ responseJsonMaybe @[UserAccount] res
   return $ fmap accountUser accounts
-  where
-    users = BS.intercalate "," $ toByteString' <$> uidsOrHandles

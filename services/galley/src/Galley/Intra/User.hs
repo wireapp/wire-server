@@ -24,6 +24,7 @@ module Galley.Intra.User
     getUsers,
     deleteUser,
     getContactList,
+    chunkify,
   )
 where
 
@@ -101,8 +102,9 @@ check allowed r =
 
 -- | Calls 'Brig.API.listActivatedAccountsH'.
 lookupActivatedUsers :: [UserId] -> Galley [User]
-lookupActivatedUsers uids = do
+lookupActivatedUsers = chunkify $ \uids -> do
   (h, p) <- brigReq
+  let users = BSC.intercalate "," $ toByteString' <$> uids
   r <-
     call "brig" $
       method GET . host h . port p
@@ -110,8 +112,18 @@ lookupActivatedUsers uids = do
         . queryItem "ids" users
         . expect2xx
   parseResponse (Error status502 "server-error") r
+
+-- | urls with more than 1k uids produce 400 response (url too long).  the exact limit (or how
+-- stable it is) is unclear.  this is a conservative guess.
+chunkify :: forall m key a. (Monad m, ToByteString key, Monoid a) => ([key] -> m a) -> [key] -> m a
+chunkify doChunk keys = mconcat <$> (doChunk `mapM` chunks keys)
   where
-    users = BSC.intercalate "," $ toByteString' <$> uids
+    maxSize :: Int
+    maxSize = 300
+
+    chunks :: [any] -> [[any]]
+    chunks [] = []
+    chunks uids = case splitAt maxSize uids of (h, t) -> h : chunks t
 
 -- | Calls 'Brig.API.listActivatedAccountsH'.
 getUser :: UserId -> Galley (Maybe UserAccount)
@@ -119,7 +131,7 @@ getUser uid = listToMaybe <$> getUsers [uid]
 
 -- | Calls 'Brig.API.listActivatedAccountsH'.
 getUsers :: [UserId] -> Galley [UserAccount]
-getUsers uids = do
+getUsers = chunkify $ \uids -> do
   (h, p) <- brigReq
   resp <-
     call "brig" $
