@@ -23,16 +23,12 @@
 module Test.Federator.APISpec where
 
 import Control.Monad.Except (MonadError (..))
-import qualified Data.Text as T
 import Imports
-import Mu.GRpc.Client.TyApps
 import Mu.Server
 import Network.HTTP2.Client
 import qualified System.Logger as L
 import qualified System.Logger.Class as LC
 import Test.Hspec
-import Wire.API.Federation.GRPC.Proto
-import Wire.API.Federation.GRPC.Service
 
 -- Copied from Spar
 -- it ::
@@ -81,20 +77,13 @@ testHello :: Spec -- With TestEnv
 testHello = do
   describe "sayHello" $ do
     it "answers dummy hello grpc calls for Alice" $ do
-      reply <- sayHello' "127.0.0.1" 8097 "Alice"
-      -- FUTUREWORK: How to extract/compare things without cumbersome pattern matching?
-      case reply of
-        GRpcOk contents -> contents `shouldBe` "hi, Alice"
-        _ -> expectationFailure "reply ought to be a GRpcOk"
+      True `shouldBe` False
 
--- it "answers dummy hello grpc calls for Bob" $ do
---   liftIO $ do
---     reply <- sayHello' "127.0.0.1" 8097 "Bob"
---     case reply of
---       GRpcOk contents -> contents `shouldBe` "hi, Bob"
---       stuff -> do
---         print stuff
---         expectationFailure "reply ought to be a GRpcOk"
+-- reply <- sayHello' "127.0.0.1" 8097 "Alice"
+-- -- FUTUREWORK: How to extract/compare things without cumbersome pattern matching?
+-- case reply of
+--   GRpcOk contents -> contents `shouldBe` "hi, Alice"
+--   _ -> expectationFailure "reply ought to be a GRpcOk"
 
 -- | We kind of want this network flow (and back) for a user handle lookup:
 --
@@ -129,34 +118,16 @@ testNetworkHops :: Spec
 testNetworkHops = do
   describe "multi-hop network tests" $ do
     it "getHandleInfo federator -> federator -> brig (NotFound case)" $ do
-      let handle = QualifiedHandle "invalid.com" "alice123"
-      let x = iGetUserIdByHandle' "127.0.0.1" 8097 handle
-      reply <- runExceptT . runFoo $ x
-      reply `shouldSatisfy` (either (\(ServerError code _) -> code == NotFound) (const False))
-      putStr "reply: "
-      print reply
+      True `shouldBe` False
+
+-- let handle = QualifiedHandle "invalid.com" "alice123"
+-- let x = iGetUserIdByHandle' "127.0.0.1" 8097 handle
+-- reply <- runExceptT . runFoo $ x
+-- reply `shouldSatisfy` (either (\(ServerError code _) -> code == NotFound) (const False))
+-- putStr "reply: "
+-- print reply
 
 -------------------------------------------
-
-sayHello' :: HostName -> PortNumber -> T.Text -> IO (GRpcReply T.Text)
-sayHello' host port req = do
-  Right c <- setupGrpcClient' (grpcClientConfigSimple host port False)
-  fmap (\(HelloReplyMessage r) -> r) <$> sayHello c (HelloRequestMessage req)
-
-sayHello :: GrpcClient -> HelloRequestMessage -> IO (GRpcReply HelloReplyMessage)
-sayHello x msg = do
-  foo <- gRpcCall @'MsgProtoBuf @Service @"Service" @"SayHello" x msg
-  pure foo
-
--- brig -> grpc call to federator
--- federator -> grpc call to ... nginz?
--- nginz -> option 1: TCP proxy to federator? (TODO unclear)
---       -> option 2: strip TLS layer of the request, forward some added header to federator
--- federator receive call from outside;
--- federator to brig would be
---    - restful?
---    - also grpc?
---
 
 -- FUTUREWORK: lookup brig and federator from another namespace via DNS for integration testing:
 --
