@@ -14,7 +14,7 @@ buildah containers | awk '{print $5}' | grep "$CONTAINER_NAME" \
     || buildah from --name "$CONTAINER_NAME" -v "${TOP_LEVEL}":/src --pull quay.io/wire/alpine-deps:develop
 
 # Only brig needs these templates, but for simplicity we add them to all resulting images (optimization FUTUREWORK)
-buildah run "$CONTAINER_NAME" -- sh -c 'mkdir -p /usr/share/wire/templates && cp -r "/src/services/brig/deb/opt/brig/templates" "/usr/share/wire/templates"'
+buildah run "$CONTAINER_NAME" -- sh -c 'mkdir -p /usr/share/wire/ && cp -r "/src/services/brig/deb/opt/brig/templates/." "/usr/share/wire/templates"'
 
 for EX in $EXECUTABLES; do
     # Copy the main executable into the PATH on the container
