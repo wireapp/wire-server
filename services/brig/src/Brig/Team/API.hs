@@ -169,7 +169,10 @@ routesPublic = do
       .&. capture "tid"
 
   document "GET" "teamSize" $ do
-    Doc.summary "Returns the number of team members as an integer."
+    Doc.summary
+      "Returns the number of team members as an integer.  \
+      \Can be out of sync by roughly the `refresh_interval` \
+      \of the ES index."
     Doc.returns (Doc.ref Public.modelTeamSize)
     Doc.response 200 "Invitation successful." Doc.end
     Doc.response 403 "No permission (not admin or owner of this team)." Doc.end
