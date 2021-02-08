@@ -6,7 +6,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 TOP_LEVEL="$(cd "$DIR/../.." && pwd)"
 
 # FUTUREWORK: Define this list in the makefile to allow overriding
-EXECUTABLES="cannon brig cargohold galley gundeck federator brig-index brig-schema galley-schema galley-migrate-data gundeck-schema proxy spar spar-schema"
+EXECUTABLES=${EXECUTABLES:-"cannon brig cargohold galley gundeck federator brig-index brig-schema galley-schema galley-migrate-data gundeck-schema proxy spar spar-schema"}
 CONTAINER_NAME="output"
 DOCKER_TAG=${DOCKER_TAG:-$USER}
 
