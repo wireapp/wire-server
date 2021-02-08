@@ -24,10 +24,7 @@ import Brig.API.Error (notFound, throwStd)
 import Brig.API.Handler (Handler)
 import Brig.App (federator)
 import Brig.Types.User
-import Control.Error (runExceptT)
 import Control.Lens (view, (^.))
-import Data.ByteString.Conversion
-import Data.Domain
 import Data.Handle
 import Data.Qualified
 import Data.String.Conversions
@@ -36,8 +33,10 @@ import Imports
 import Network.Socket (HostName, PortNumber)
 import qualified System.Logger.Class as Log
 import Util.Options (epHost, epPort)
-import qualified Wire.API.Federation.GRPC.Proto as Proto
-import Wire.API.Federation.GRPC.Service
+
+-- TODO
+-- import qualified Wire.API.Federation.GRPC.Proto as Proto
+-- import Wire.API.Federation.GRPC.Service
 
 -- WARNING: this function is experimental to check basic networking for federation and must not make its way to develop in its current form!
 -- Problems:
@@ -47,28 +46,29 @@ import Wire.API.Federation.GRPC.Service
 --
 -- getUserHandleInfo :: (MonadLogger m, MonadIO m, MonadError ServerError m) => Qualified Handle -> m (Maybe UserHandleInfo)
 getUserHandleInfo :: Qualified Handle -> Handler (Maybe UserHandleInfo)
-getUserHandleInfo handle = do
+getUserHandleInfo _handle = do
   Log.warn $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
-  (federatorHost, federatorPort) <- federationCheck
-  let handle' = Proto.QualifiedHandle (domainText (qDomain handle)) (fromHandle (qUnqualified handle))
+  pure Nothing -- TODO
+  -- (federatorHost, federatorPort) <- federationCheck
+  -- let handle' = Proto.QualifiedHandle (domainText (qDomain handle)) (fromHandle (qUnqualified handle))
 
-  Log.warn $ Log.msg $ T.pack ("Brig-federation: handle: " <> show handle')
-  -- we should probably find a way to integrate MonadError (mu-)ServerError into a brig monad
-  response <- runExceptT $ iGetUserIdByHandle' federatorHost federatorPort handle'
-  case response of
-    Left err -> do
-      Log.warn $ Log.msg ("error on getUserHandleInfo in Brig/Federation/Client" <> show err)
-      throwStd (notFound (cs $ show err)) -- TODO better error handling
-    Right r -> do
-      let rDom = Domain (Proto.idDomain r) -- unsafe conversion from text here
-      let mrId = fromByteString' $ cs $ Proto.id r
-      case mrId of
-        Nothing -> do
-          Log.warn $ Log.msg $ T.pack ("error on converting to Qualified Id: " <> show r)
-          pure Nothing -- this should throw an error, not give a 404, as it's a type conversion problem
-        Just rId -> do
-          Log.warn $ Log.msg $ T.pack ("Brig-federation: result: " <> show rId)
-          pure $ Just (UserHandleInfo (Qualified rId rDom))
+-- Log.warn $ Log.msg $ T.pack ("Brig-federation: handle: " <> show handle')
+-- -- we should probably find a way to integrate MonadError (mu-)ServerError into a brig monad
+-- response <- runExceptT $ iGetUserIdByHandle' federatorHost federatorPort handle'
+-- case response of
+--   Left err -> do
+--     Log.warn $ Log.msg ("error on getUserHandleInfo in Brig/Federation/Client" <> show err)
+--     throwStd (notFound (cs $ show err)) -- TODO better error handling
+--   Right r -> do
+--     let rDom = Domain (Proto.idDomain r) -- unsafe conversion from text here
+--     let mrId = fromByteString' $ cs $ Proto.id r
+--     case mrId of
+--       Nothing -> do
+--         Log.warn $ Log.msg $ T.pack ("error on converting to Qualified Id: " <> show r)
+--         pure Nothing -- this should throw an error, not give a 404, as it's a type conversion problem
+--       Just rId -> do
+--         Log.warn $ Log.msg $ T.pack ("Brig-federation: result: " <> show rId)
+--         pure $ Just (UserHandleInfo (Qualified rId rDom))
 
 -- if the federator is not specified in brig's config, federation is assumed to be disabled
 -- TODO document or change this behaviour!
