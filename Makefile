@@ -355,6 +355,11 @@ buildah-docker:
 	./hack/bin/buildah-compile.sh
 	BUILDAH_PUSH=${BUILDAH_PUSH} ./hack/bin/buildah-make-images.sh
 
+.PHONY: buildah-docker-%
+buildah-docker-%:
+	./hack/bin/buildah-compile.sh $(*)
+	BUILDAH_PUSH=${BUILDAH_PUSH} EXECUTABLES=$(*) ./hack/bin/buildah-make-images.sh
+
 .PHONY: buildah-clean
 buildah-clean:
 	./hack/bin/buildah-clean.sh
