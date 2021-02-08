@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a0e64e8f401b78b1c623d251dca01c919fb372c67b8a7758087556c5b039628c
+-- hash: ded3eec9b64106982feca5f8e2647af3a3df94928506d00e80622ec7d7596c73
 
 name:           wire-api-federation
 version:        0.1.0
@@ -18,7 +18,6 @@ license:        AGPL-3
 license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
-    proto/federator.proto
     proto/router.proto
 
 library
@@ -28,8 +27,6 @@ library
       Wire.API.Federation.API.Conversation
       Wire.API.Federation.Event
       Wire.API.Federation.GRPC.Helper
-      Wire.API.Federation.GRPC.Proto
-      Wire.API.Federation.GRPC.Service
       Wire.API.Federation.GRPC.Types
       Wire.API.Federation.Util.Aeson
   other-modules:

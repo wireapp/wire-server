@@ -10,7 +10,6 @@ maintainer: Wire Swiss GmbH <backend@wire.com>
 copyright: (c) 2020 Wire Swiss GmbH
 license: AGPL-3
 extra-source-files:
-- proto/federator.proto
 - proto/router.proto
 dependencies:
 - QuickCheck >=2.13
