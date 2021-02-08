@@ -201,14 +201,7 @@ extra-deps:
 # mu
 - mu-rpc-0.4.0.1
 - mu-optics-0.3.0.1
-# - mu-avro-0.4.0.2
-# FUTUREWORK: There is an unreleased change in mu-avro which is required for
-# compilation successfully, use that when released
-# Comment: https://github.com/higherkindness/mu-haskell/issues/288
-- git: https://github.com/higherkindness/mu-haskell.git
-  commit: 83c667c576a0a7c6dc829526bac123ac1a66341e
-  subdirs:
-  - adapter/avro
+- mu-avro-0.4.0.4
 - mu-protobuf-0.4.2.0
 - mu-schema-0.3.1.2
 - mu-grpc-server-0.4.0.0

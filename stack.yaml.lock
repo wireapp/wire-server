@@ -630,18 +630,12 @@ packages:
   original:
     hackage: mu-optics-0.3.0.1
 - completed:
-    subdir: adapter/avro
-    name: mu-avro
-    version: 0.4.0.3
-    git: https://github.com/higherkindness/mu-haskell.git
+    hackage: mu-avro-0.4.0.4@sha256:10e317c633c5152a26e89becba749456b76f70eb640d1c0b2ccdc0e45a7ef5da,2096
     pantry-tree:
-      size: 709
-      sha256: 0ab2e9b15250cd58fc6906d07960cfe8a1b14c4dae05ed4eddf91bfa27ca405e
-    commit: 83c667c576a0a7c6dc829526bac123ac1a66341e
+      size: 541
+      sha256: 26fd2a714615b6c2c0459178fb5f350848ce64be5c33076c4ddaff9c74adb278
   original:
-    subdir: adapter/avro
-    git: https://github.com/higherkindness/mu-haskell.git
-    commit: 83c667c576a0a7c6dc829526bac123ac1a66341e
+    hackage: mu-avro-0.4.0.4
 - completed:
     hackage: mu-protobuf-0.4.2.0@sha256:e2950a91d20695e71aad843e44eebae69d1a964cd8d3ce0146d1747aa6e8c450,2034
     pantry-tree:
