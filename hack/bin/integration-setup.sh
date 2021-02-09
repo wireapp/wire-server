@@ -36,7 +36,7 @@ function printLogs() {
 
 trap printLogs ERR
 
-FEDERATION_DOMAIN="$NAMESPACE.svc.cluster.local"
+FEDERATION_DOMAIN="federator.$NAMESPACE.svc.cluster.local"
 
 for chart in "${charts[@]}"; do
     kubectl -n ${NAMESPACE} get pods

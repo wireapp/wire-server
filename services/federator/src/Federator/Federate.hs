@@ -80,7 +80,7 @@ runFederatorDiscovery = interpret $ \(DiscoverFederator d) ->
   --
   -- TODO: This string conversation is probably wrong, we should encode this
   -- using IDNA encoding or expect domain to be bytestring everywhere
-  let domainSrv = cs $ "_wire-server._tcp." <> domainText d
+  let domainSrv = cs $ "_wire-server-federator._tcp." <> domainText d
    in lookupDomainByDNS domainSrv
 
 -- Can most of this function live in DNS-Util?
