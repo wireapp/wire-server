@@ -942,7 +942,7 @@ botClaimUsersPrekeys body = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients body) > maxSize) $
     throwStd tooManyClients
-  Client.claimMultiPrekeyBundles body
+  lift $ Client.claimMultiPrekeyBundlesLocal body
 
 botListUserProfilesH :: List UserId -> Handler Response
 botListUserProfilesH uids = do

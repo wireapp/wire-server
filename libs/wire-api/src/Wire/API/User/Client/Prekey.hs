@@ -40,13 +40,15 @@ where
 import Data.Aeson
 import Data.Hashable (hash)
 import Data.Id
+import Data.Swagger (ToSchema (..))
 import qualified Data.Swagger.Build.Api as Doc
+import Deriving.Swagger (CustomSwagger (..), FieldLabelModifier, LabelMapping ((:->)), LabelMappings, LowerCase, StripPrefix)
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 newtype PrekeyId = PrekeyId {keyId :: Word16}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (ToJSON, FromJSON, Arbitrary)
+  deriving newtype (ToJSON, FromJSON, Arbitrary, ToSchema)
 
 --------------------------------------------------------------------------------
 -- Prekey
@@ -57,7 +59,9 @@ data Prekey = Prekey
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Prekey)
+  deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "prekey", LowerCase)] Prekey)
 
+-- TODO: remove
 modelPrekey :: Doc.Model
 modelPrekey = Doc.defineModel "Prekey" $ do
   Doc.description "Prekey"
@@ -113,12 +117,14 @@ lastPrekey = LastPrekey . Prekey lastPrekeyId
 -- PrekeyBundle
 
 data PrekeyBundle = PrekeyBundle
-  { prekeyUser :: OpaqueUserId,
+  { prekeyUser :: UserId,
     prekeyClients :: [ClientPrekey]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform PrekeyBundle)
+  deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "prekey", LowerCase)] PrekeyBundle)
 
+-- TODO: remove
 modelPrekeyBundle :: Doc.Model
 modelPrekeyBundle = Doc.defineModel "PrekeyBundle" $ do
   Doc.description "Prekeys of all clients of a single user"
@@ -147,7 +153,20 @@ data ClientPrekey = ClientPrekey
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ClientPrekey)
+  deriving
+    (ToSchema)
+    via ( CustomSwagger
+            '[ FieldLabelModifier
+                 ( LabelMappings
+                     '[ "prekeyClient" ':-> "client",
+                        "prekeyData" ':-> "prekey"
+                      ]
+                 )
+             ]
+            ClientPrekey
+        )
 
+-- TODO: remove
 modelClientPrekey :: Doc.Model
 modelClientPrekey = Doc.defineModel "ClientPrekey" $ do
   Doc.description "Prekey of a single client"

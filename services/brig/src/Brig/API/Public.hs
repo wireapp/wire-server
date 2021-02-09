@@ -158,6 +158,8 @@ instance
 
 type CaptureUserId name = Capture' '[Description "User Id"] name UserId
 
+type CaptureClientId name = Capture' '[Description "ClientId ID"] name ClientId
+
 -- User API -----------------------------------------------------------
 
 data Empty200 = Empty200
@@ -305,6 +307,76 @@ type ListClientsBulk =
     :> Servant.ReqBody '[Servant.JSON] (Range 1 MaxUsersForListClientsBulk [Qualified UserId])
     :> Post '[Servant.JSON] (Public.QualifiedUserMap (Set Public.Client))
 
+type GetUsersPrekeysClientUnqualified =
+  Summary "Get a prekey for a specific client of a user."
+    :> ZAuthServant
+    :> "users"
+    :> CaptureUserId "uid"
+    :> "prekeys"
+    :> CaptureClientId "client"
+    :> Get '[Servant.JSON] Public.ClientPrekey
+
+type GetUsersPrekeysClientQualified =
+  Summary "Get a prekey for a specific client of a user."
+    :> ZAuthServant
+    :> "users"
+    :> Capture "domain" Domain
+    :> CaptureUserId "uid"
+    :> "prekeys"
+    :> CaptureClientId "client"
+    :> Get '[Servant.JSON] Public.ClientPrekey
+
+type GetUsersPrekeyBundleUnqualified =
+  Summary "Get a prekey for each client of a user."
+    :> ZAuthServant
+    :> "users"
+    :> CaptureUserId "uid"
+    :> "prekeys"
+    :> Get '[Servant.JSON] Public.PrekeyBundle
+
+type GetUsersPrekeyBundle =
+  Summary "Get a prekey for each client of a user."
+    :> ZAuthServant
+    :> "users"
+    :> Capture "domain" Domain
+    :> CaptureUserId "uid"
+    :> "prekeys"
+    :> Get '[Servant.JSON] Public.PrekeyBundle
+
+type GetMultiUserPrekeyBundleUnqualified =
+  Summary
+    "Given a map of user IDs to client IDs return a \
+    \prekey for each one. You can't request information for more users than \
+    \maximum conversation size."
+    :> ZAuthServant
+    :> "users"
+    :> "prekeys"
+    :> Servant.ReqBody '[Servant.JSON] Public.UserClients
+    :> Post '[Servant.JSON] (Public.UserClientMap (Maybe Public.Prekey))
+
+type GetMultiUserPrekeyBundle =
+  Summary
+    "Given a map of user IDs to client IDs return a \
+    \prekey for each one. You can't request information for more users than \
+    \maximum conversation size."
+    :> ZAuthServant
+    :> "list-prekeys"
+    :> Servant.ReqBody '[Servant.JSON] Public.QualifiedUserClients
+    :> Post '[Servant.JSON] (Public.QualifiedUserClientMap (Maybe Public.Prekey))
+
+-- post "/users/prekeys" (continue getMultiPrekeyBundlesH) $
+--   jsonRequest @Public.UserClients
+--     .&. accept "application" "json"
+-- document "POST" "getMultiPrekeyBundles" $ do
+--   Doc.summary
+--   Doc.notes
+--     "Prekeys of all clients of a multiple users. \
+--     \The result is a map of maps, i.e. { UserId : { ClientId : Maybe Prekey } }"
+--   Doc.body (Doc.ref Public.modelUserClients) $
+--     Doc.description "JSON body"
+--   Doc.response 200 "Prekey Bundles" Doc.end
+--   Doc.errorResponse tooManyClients
+
 type OutsideWorldAPI =
   CheckUserExistsUnqualified
     :<|> CheckUserExistsQualified
@@ -316,6 +388,12 @@ type OutsideWorldAPI =
     :<|> ListUsersByUnqualifiedIdsOrHandles
     :<|> ListUsersByIdsOrHandles
     :<|> ListClientsBulk
+    :<|> GetUsersPrekeysClientUnqualified
+    :<|> GetUsersPrekeysClientQualified
+    :<|> GetUsersPrekeyBundleUnqualified
+    :<|> GetUsersPrekeyBundle
+    :<|> GetMultiUserPrekeyBundleUnqualified
+    :<|> GetMultiUserPrekeyBundle
 
 type SwaggerDocsAPI = "api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
@@ -344,6 +422,14 @@ servantSitemap =
     :<|> listUsersByUnqualifiedIdsOrHandles
     :<|> listUsersByIdsOrHandles
     :<|> listClientsBulk
+    :<|> getPrekeyUnqualifiedH
+    :<|> getPrekeyH
+    :<|> getPrekeyBundleUnqualifiedH
+    :<|> getPrekeyBundleH
+    :<|> getMultiUserPrekeyBundleUnqualifiedH
+    :<|> getMultiUserPrekeyBundleH
+
+-- getMultiPrekeyBundlesH
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
@@ -380,47 +466,6 @@ sitemap o = do
 
   -- some APIs moved to servant
   -- end User Handle API
-
-  -- User Prekey API ----------------------------------------------------
-
-  post "/users/prekeys" (continue getMultiPrekeyBundlesH) $
-    jsonRequest @Public.UserClients
-      .&. accept "application" "json"
-  document "POST" "getMultiPrekeyBundles" $ do
-    Doc.summary
-      "Given a map of user IDs to client IDs return a \
-      \prekey for each one. You can't request information for more users than \
-      \maximum conversation size."
-    Doc.notes
-      "Prekeys of all clients of a multiple users. \
-      \The result is a map of maps, i.e. { UserId : { ClientId : Maybe Prekey } }"
-    Doc.body (Doc.ref Public.modelUserClients) $
-      Doc.description "JSON body"
-    Doc.response 200 "Prekey Bundles" Doc.end
-    Doc.errorResponse tooManyClients
-
-  get "/users/:uid/prekeys" (continue getPrekeyBundleH) $
-    capture "uid"
-      .&. accept "application" "json"
-  document "GET" "getPrekeyBundle" $ do
-    Doc.summary "Get a prekey for each client of a user."
-    Doc.parameter Doc.Path "uid" Doc.bytes' $
-      Doc.description "User ID"
-    Doc.returns (Doc.ref Public.modelPrekeyBundle)
-    Doc.response 200 "Prekey Bundle" Doc.end
-
-  get "/users/:uid/prekeys/:client" (continue getPrekeyH) $
-    capture "uid"
-      .&. capture "client"
-      .&. accept "application" "json"
-  document "GET" "getPrekey" $ do
-    Doc.summary "Get a prekey for a specific client of a user."
-    Doc.parameter Doc.Path "uid" Doc.bytes' $
-      Doc.description "User ID"
-    Doc.parameter Doc.Path "client" Doc.bytes' $
-      Doc.description "Client ID"
-    Doc.returns (Doc.ref Public.modelClientPrekey)
-    Doc.response 200 "Client Prekey" Doc.end
 
   -- User Client API ----------------------------------------------------
 
@@ -1040,35 +1085,41 @@ listPropertyKeysAndValuesH (u ::: _) = do
   keysAndVals <- lift (API.lookupPropertyKeysAndValues u)
   pure $ json (keysAndVals :: Public.PropertyKeysAndValues)
 
-getPrekeyH :: OpaqueUserId ::: ClientId ::: JSON -> Handler Response
-getPrekeyH (u ::: c ::: _) = do
-  getPrekey u c <&> \case
-    Just pk -> json pk
-    Nothing -> setStatus status404 empty
+getPrekeyUnqualifiedH :: UserId -> UserId -> ClientId -> Handler Public.ClientPrekey
+getPrekeyUnqualifiedH _zUser user client = do
+  domain <- viewFederationDomain
+  ifNothing (notFound "prekey not found") =<< lift (API.claimPrekey user domain client)
 
-getPrekey :: OpaqueUserId -> ClientId -> Handler (Maybe Public.ClientPrekey)
-getPrekey u c = lift $ do
-  resolvedUserId <- resolveOpaqueUserId u
-  API.claimPrekey resolvedUserId c
+getPrekeyH :: UserId -> Domain -> UserId -> ClientId -> Handler Public.ClientPrekey
+getPrekeyH _zUser domain user client = do
+  ifNothing (notFound "prekey not found") =<< lift (API.claimPrekey user domain client)
 
-getPrekeyBundleH :: OpaqueUserId ::: JSON -> Handler Response
-getPrekeyBundleH (u ::: _) = json <$> getPrekeyBundle u
+getPrekeyBundleUnqualifiedH :: UserId -> UserId -> Handler Public.PrekeyBundle
+getPrekeyBundleUnqualifiedH _zUser uid = do
+  domain <- viewFederationDomain
+  lift $ API.claimPrekeyBundle domain uid
 
-getPrekeyBundle :: OpaqueUserId -> Handler Public.PrekeyBundle
-getPrekeyBundle u = lift $ do
-  resolvedUserId <- resolveOpaqueUserId u
-  API.claimPrekeyBundle resolvedUserId
+getPrekeyBundleH :: UserId -> Domain -> UserId -> Handler Public.PrekeyBundle
+getPrekeyBundleH _zUser domain uid =
+  lift $ API.claimPrekeyBundle domain uid
 
-getMultiPrekeyBundlesH :: JsonRequest Public.UserClients ::: JSON -> Handler Response
-getMultiPrekeyBundlesH (req ::: _) = do
-  json <$> (getMultiPrekeyBundles =<< parseJsonBody req)
-
-getMultiPrekeyBundles :: Public.UserClients -> Handler (Public.UserClientMap (Maybe Public.Prekey))
-getMultiPrekeyBundles body = do
+getMultiUserPrekeyBundleUnqualifiedH :: UserId -> Public.UserClients -> Handler (Public.UserClientMap (Maybe Public.Prekey))
+getMultiUserPrekeyBundleUnqualifiedH _zUserId userClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
-  when (Map.size (Public.userClients body) > maxSize) $
+  when (Map.size (Public.userClients userClients) > maxSize) $
     throwStd tooManyClients
-  API.claimMultiPrekeyBundles body
+  lift $ API.claimMultiPrekeyBundlesLocal userClients
+
+getMultiUserPrekeyBundleH :: UserId -> Public.QualifiedUserClients -> Handler (Public.QualifiedUserClientMap (Maybe Public.Prekey))
+getMultiUserPrekeyBundleH _zUserId qualUserClients = do
+  maxSize <- fromIntegral . setMaxConvSize <$> view settings
+  let Sum (size :: Int) =
+        Map.foldMapWithKey
+          (\_ v -> Sum . Map.size . Public.userClients $ v)
+          (Public.qualifiedUserClients qualUserClients)
+  when (size > maxSize) $
+    throwStd tooManyClients
+  lift $ API.claimMultiPrekeyBundles qualUserClients
 
 addClientH :: JsonRequest Public.NewClient ::: UserId ::: ConnId ::: Maybe IpAddr ::: JSON -> Handler Response
 addClientH (req ::: usr ::: con ::: ip ::: _) = do
