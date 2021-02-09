@@ -77,8 +77,8 @@ run opts = do
   -- TODO: Combine the restful things and the grpc things
   -- Warp.runSettings settings app
   -- let grpcApplication = gRpcAppTrans msgProtoBuf (transformer env) grpcServer
-  let internalServer = serveRouteToInternal env portInternal
-      externalServer = serveRouteToRemote env portExternal
+  let externalServer = serveRouteToInternal env portExternal
+      internalServer = serveRouteToRemote env portInternal
   race_ internalServer externalServer
   where
     endpointInternal = federatorInternal opts
