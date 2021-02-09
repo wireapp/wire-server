@@ -24,7 +24,7 @@ import Brig.API.Error (notFound, throwStd)
 import Brig.API.Handler (Handler)
 import Brig.App (federator)
 import Brig.Types.User
-import Control.Lens (view, (^.))
+import Control.Lens (view)
 import qualified Data.Aeson as Aeson
 import Data.Handle
 import Data.Qualified
@@ -34,7 +34,6 @@ import qualified Data.Text.Lazy as LT
 import Imports
 import Mu.GRpc.Client.TyApps
 import qualified System.Logger.Class as Log
-import Util.Options (epHost, epPort)
 import Wire.API.Federation.API.Brig
 import qualified Wire.API.Federation.GRPC.Types as Proto
 
@@ -51,18 +50,15 @@ getUserHandleInfo (Qualified handle domain) = do
       Right x -> pure $ Just x
     code -> throwStd $ notFound $ "Invalid response from remote: " <> LT.pack (show code)
 
--- FUTUREWORK: Maybe it makes sense to share the client and not this function on every invocation of federated requests.
 federatorClient :: Handler GrpcClient
 federatorClient = do
-  maybeFederatorEndpoint <- view federator
-  federatorEndpoint <- case maybeFederatorEndpoint of
-    Nothing -> throwStd $ notFound "no federator configured" -- TODO: Do we need a special HTTP status code for this?
+  mClient <- view federator
+  case mClient of
+    -- FUTUREWORK: what happens if federator is transiently unreachable
+    -- at the time the grpc client is first initialized? Can we recover?
+    -- TODO: Do we need a special HTTP status code for this?
+    Nothing -> throwStd $ notFound "no federator configured or federator unreachable"
     Just ep -> pure ep
-  -- TODO: Move this somewhere shared, maybe Env?
-  eitherClient <- setupGrpcClient' (grpcClientConfigSimple (T.unpack (federatorEndpoint ^. epHost)) (fromIntegral (federatorEndpoint ^. epPort)) False)
-  case eitherClient of
-    Left _ -> throwStd $ notFound "failed to connect to the federator" -- TODO: This is wrong
-    Right c -> pure c
 
 callRemote :: MonadIO m => GrpcClient -> Proto.ValidatedRemoteCall -> m (GRpcReply Proto.Response)
 callRemote fedClient call = liftIO $ gRpcCall @'MsgProtoBuf @Proto.RouteToRemote @"RouteToRemote" @"call" fedClient (Proto.validatedRemoteCallToRemoteCall call)
