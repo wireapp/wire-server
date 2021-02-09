@@ -109,20 +109,20 @@ closeEnv e = do
   Log.flush $ e ^. applog
   Log.close $ e ^. applog
 
--- | Copied from brig, do we want to put this somehwere common?
+-- | Copied (and adjusted) from brig, do we want to put this somehwere common?
+-- FUTUREWORK: review certificate and protocol security setting for this TLS
+-- manager
 initHttpManager :: IO HTTP.Manager
 initHttpManager = do
   -- See Note [SSL context]
   ctx <- SSL.context
   SSL.contextAddOption ctx SSL_OP_NO_SSLv2
-  SSL.contextAddOption ctx SSL_OP_NO_SSLv3
+  SSL.contextAddOption ctx SSL_OP_NO_SSLv2
+  SSL.contextAddOption ctx SSL_OP_NO_TLSv1
   SSL.contextSetCiphers ctx "HIGH"
   SSL.contextSetVerificationMode ctx $
     SSL.VerifyPeer True True Nothing
   SSL.contextLoadSystemCerts ctx
-  -- Unfortunately, there are quite some AWS services we talk to
-  -- (e.g. SES, Dynamo) that still only support TLSv1.
-  -- Ideally: SSL.contextAddOption ctx SSL_OP_NO_TLSv1
   HTTP.newManager
     (HTTP.opensslManagerSettings (pure ctx))
       { HTTP.managerConnCount = 1024,
