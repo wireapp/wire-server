@@ -24,8 +24,6 @@
 
 module Wire.API.Federation.GRPC.Types where
 
--- TODO: Replace Wire.API.Federation.GRPC.Proto with this
-
 import Data.Domain (Domain (..), domainText, mkDomain)
 import Data.Either.Validation
 import Data.List.NonEmpty (NonEmpty ((:|)))

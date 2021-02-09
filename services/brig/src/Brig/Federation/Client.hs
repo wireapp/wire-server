@@ -30,21 +30,19 @@ import Data.Handle
 import Data.Qualified
 import Data.String.Conversions
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy as LT
 import Imports
 import Mu.GRpc.Client.TyApps
-import qualified Network.HTTP.Types as HTTP
-import Network.Socket (HostName, PortNumber)
 import qualified System.Logger.Class as Log
 import Util.Options (epHost, epPort)
+import Wire.API.Federation.API.Brig
 import qualified Wire.API.Federation.GRPC.Types as Proto
 
 getUserHandleInfo :: Qualified Handle -> Handler (Maybe UserHandleInfo)
 getUserHandleInfo (Qualified handle domain) = do
-  Log.warn $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
+  Log.info $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
   fedClient <- federatorClient
-  let call = Proto.ValidatedRemoteCall domain (Proto.LocalCall Proto.Brig (Proto.HTTPMethod HTTP.GET) "users/by-handle" [Proto.QueryParam "handle" (T.encodeUtf8 (fromHandle handle))] mempty)
+  let call = Proto.ValidatedRemoteCall domain (mkGetUserInfoByHandle handle)
   res <- expectOk =<< callRemote fedClient call
   case Proto.responseStatus res of
     404 -> pure Nothing

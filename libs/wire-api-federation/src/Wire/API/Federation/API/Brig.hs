@@ -17,10 +17,13 @@
 
 module Wire.API.Federation.API.Brig where
 
-import Data.Handle (Handle)
+import Data.Handle (Handle, fromHandle)
+import qualified Data.Text.Encoding as T
 import Imports
+import qualified Network.HTTP.Types as HTTP
 import Servant.API
 import Servant.API.Generic
+import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.User.Handle (UserHandleInfo)
 
 -- Maybe this module should be called Brig
@@ -37,3 +40,18 @@ newtype Api routes = Api
         :> Get '[JSON] UserHandleInfo
   }
   deriving (Generic)
+
+-- FUTUREWORK: Idea: by keeping the functions to construct a LocalCall and the API definitions in the same place,
+-- we can:
+-- - more easily make sure their definitions match
+-- - probably add their path segments to a list for validation purposes to guard against path traversals.
+
+-- FUTUREWORK: I think we should make the federation/ prefix explicit here and not add it in services/federator/src/Federator/Federate.hs
+mkGetUserInfoByHandle :: Handle -> Proto.LocalCall
+mkGetUserInfoByHandle handle =
+  Proto.LocalCall
+    Proto.Brig
+    (Proto.HTTPMethod HTTP.GET)
+    "users/by-handle"
+    [Proto.QueryParam "handle" (T.encodeUtf8 (fromHandle handle))]
+    mempty
