@@ -30,7 +30,6 @@ import qualified Bilge as RPC
 import Bilge.RPC (rpc')
 import Bilge.Retry
 import Control.Lens (view)
-import Control.Monad.Catch (MonadMask, MonadThrow)
 import Control.Monad.Except (MonadError (throwError))
 import Control.Retry
 import qualified Data.ByteString.Lazy as LBS
@@ -39,7 +38,7 @@ import Data.Either.Validation
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
-import Federator.App (AppT, Federator, runAppT)
+import Federator.App (Federator, runAppT)
 import Federator.PolysemyOrphans ()
 import Federator.Types (Env, applog, brig, dnsResolver)
 import Federator.UnliftExcept ()
@@ -156,12 +155,11 @@ makeSem ''Brig
 -- This can realistically only be tested in an integration test
 -- FUTUREWORK: Do we want to use servant client here? May make everything typed and safe
 interpretBrig ::
-  forall m r a.
-  (Monad m, MonadUnliftIO m, MonadThrow m, MonadMask m, Member (Embed (AppT m)) r) =>
+  Member (Embed Federator) r =>
   Sem (Brig ': r) a ->
   Sem r a
 interpretBrig = interpret $ \case
-  BrigCall m p q b -> embed @(AppT m) $ do
+  BrigCall m p q b -> embed @Federator $ do
     brigReq <- view brig <$> ask
     let theCall =
           rpc' "brig" brigReq $
@@ -235,7 +233,6 @@ serveRouteToRemote env port = do
         . interpretRemote @IO
         $ action
 
--- TODO: Check if adding polysemy-plugin removes the need for type applications here
 serveRouteToInternal :: Env -> Int -> IO ()
 serveRouteToInternal env port = do
   runGRpcAppTrans msgProtoBuf port transformer routeToInternal
@@ -244,7 +241,7 @@ serveRouteToInternal env port = do
     transformer action =
       runAppT env
         . runM @Federator
-        . interpretBrig @ServerErrorIO
+        . interpretBrig
         . absorbServerError
         . embedToMonadIO @Federator
         $ action
