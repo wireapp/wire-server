@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 61540c1efb6e5d3607c723f3d7d8a9db425693ef362f9fe8cfd68683a4459b7a
+-- hash: de4aa0b8e28014de5878b77c3c11538cf9bcce27c362a900ec11ad6372600c55
 
 name:           galley
 version:        0.83.0
@@ -91,6 +91,7 @@ library
     , bytestring-conversion >=0.2
     , case-insensitive >=1.0
     , cassandra-util >=0.16.2
+    , cassava >=0.5.2
     , cereal >=0.4
     , containers >=0.5
     , currency-codes >=2.0
@@ -218,6 +219,7 @@ executable galley-integration
     , bytestring
     , bytestring-conversion
     , cassandra-util
+    , cassava
     , cereal
     , containers
     , cookie
@@ -246,6 +248,7 @@ executable galley-integration
     , proto-lens
     , protobuf
     , quickcheck-instances
+    , random
     , raw-strings-qq >=1.0
     , retry
     , safe >=0.3
@@ -268,6 +271,7 @@ executable galley-integration
     , unordered-containers
     , uri-bytestring
     , uuid
+    , vector
     , wai
     , wai-extra
     , wai-route

@@ -31,6 +31,7 @@ module Galley.API.Teams
     addTeamMemberH,
     getTeamNotificationsH,
     getTeamMembersH,
+    getTeamMembersCSVH,
     bulkGetTeamMembersH,
     getTeamMemberH,
     deleteTeamMemberH,
@@ -55,18 +56,25 @@ module Galley.API.Teams
   )
 where
 
+import Brig.Types.Intra (accountUser)
 import Brig.Types.Team (TeamSize (..))
 import Control.Lens
 import Control.Monad.Catch
 import Data.ByteString.Conversion hiding (fromList)
+import Data.ByteString.Lazy.Builder (lazyByteString)
+import Data.Csv (EncodeOptions (..), Quoting (QuoteAll), encodeDefaultOrderedByNameWith)
+import qualified Data.Handle as Handle
 import Data.Id
 import qualified Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local))
 import qualified Data.List.Extra as List
 import Data.List1 (list1)
+import qualified Data.Map.Strict as M
+import Data.Misc (HttpsUrl)
 import Data.Range as Range
 import Data.Set (fromList)
 import qualified Data.Set as Set
+import Data.String.Conversions (cs)
 import Data.Time.Clock (UTCTime (..), getCurrentTime)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
@@ -105,10 +113,13 @@ import qualified Wire.API.Conversation.Role as Public
 import qualified Wire.API.Notification as Public
 import qualified Wire.API.Team as Public
 import qualified Wire.API.Team.Conversation as Public
+import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Member as Public
 import qualified Wire.API.Team.SearchVisibility as Public
+import Wire.API.User (User)
 import qualified Wire.API.User as Public (UserIdList)
+import qualified Wire.API.User as U
 
 getTeamH :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeamH (zusr ::: tid ::: _) =
@@ -369,6 +380,83 @@ getTeamMembers zusr tid maxResults = do
       mems <- Data.teamMembersWithLimit tid maxResults
       let withPerms = (m `canSeePermsOf`)
       pure (mems, withPerms)
+
+getTeamMembersCSVH :: UserId ::: TeamId ::: JSON -> Galley Response
+getTeamMembersCSVH (zusr ::: tid ::: _) = do
+  Data.teamMember tid zusr >>= \case
+    Nothing -> throwM accessDenied
+    Just member -> unless (member `hasPermission` DownloadTeamMembersCsv) $ throwM accessDenied
+
+  env <- ask
+  pure $
+    responseStream status200 [(hContentType, "text/csv")] $ \write flush -> do
+      let writeString = write . lazyByteString
+      writeString headerLine
+      flush
+      evalGalley env $ do
+        Data.withTeamMembersWithChunks tid $ \members -> do
+          inviters <- getInviters members
+          users <- lookupActivatedUsers (fmap (view userId) members)
+          let pairs = pairMembersUsers members users
+          liftIO $ do
+            writeString
+              ( encodeDefaultOrderedByNameWith
+                  defaultEncodeOptions
+                  (fmap (uncurry (teamExportUser inviters)) pairs)
+              )
+            flush
+  where
+    headerLine :: LByteString
+    headerLine = encodeDefaultOrderedByNameWith (defaultEncodeOptions {encIncludeHeader = True}) ([] :: [TeamExportUser])
+
+    defaultEncodeOptions :: EncodeOptions
+    defaultEncodeOptions =
+      EncodeOptions
+        { encDelimiter = 44, -- comma
+          encUseCrLf = True, -- to be compatible with Mac and Windows
+          encIncludeHeader = False, -- (so we can flush when the header is on the wire)
+          encQuoting = QuoteAll
+        }
+
+    teamExportUser :: (UserId -> Maybe Handle.Handle) -> TeamMember -> User -> TeamExportUser
+    teamExportUser mbInviterHandle member user =
+      TeamExportUser
+        { tExportDisplayName = U.userDisplayName user,
+          tExportHandle = U.userHandle user,
+          tExportEmail = U.userIdentity user >>= U.emailIdentity,
+          tExportRole = permissionsRole . view permissions $ member,
+          tExportCreatedOn = fmap snd . view invitation $ member,
+          tExportInvitedBy = mbInviterHandle =<< (fmap fst . view invitation $ member),
+          tExportIdpIssuer = userToIdPIssuer user,
+          tExportManagedBy = U.userManagedBy user
+        }
+
+    getInviters :: [TeamMember] -> Galley (UserId -> Maybe Handle.Handle)
+    getInviters members = do
+      let inviterIds :: [UserId]
+          inviterIds = catMaybes $ fmap fst . view invitation <$> members
+
+      userList :: [User] <- accountUser <$$> getUsers inviterIds
+
+      let userMap :: M.Map UserId Handle.Handle
+          userMap = M.fromList . catMaybes $ extract <$> userList
+            where
+              extract u = (U.userId u,) <$> (U.userHandle u)
+
+      pure $ (`M.lookup` userMap)
+
+    userToIdPIssuer :: U.User -> Maybe HttpsUrl
+    userToIdPIssuer usr = case (U.userIdentity >=> U.ssoIdentity) usr of
+      Just (U.UserSSOId issuer _) -> fromByteString' $ cs issuer
+      Just _ -> Nothing
+      Nothing -> Nothing
+
+    pairMembersUsers :: [TeamMember] -> [User] -> [(TeamMember, User)]
+    pairMembersUsers members users = do
+      let usersM = M.fromList (users <&> \user -> (U.userId user, user))
+      catMaybes $
+        members <&> \member ->
+          (member,) <$> M.lookup (view userId member) usersM
 
 bulkGetTeamMembersH :: UserId ::: TeamId ::: Range 1 Public.HardTruncationLimit Int32 ::: JsonRequest Public.UserIdList ::: JSON -> Galley Response
 bulkGetTeamMembersH (zusr ::: tid ::: maxResults ::: body ::: _) = do

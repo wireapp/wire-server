@@ -323,6 +323,10 @@ data HiddenPerm
   | ViewSameTeamEmails
   | CreateUpdateDeleteIdp
   | CreateReadDeleteScimToken
+  | -- | this has its own permission because we're not sure how
+    -- efficient this end-point is.  better not let all team members
+    -- play with it unless we have to.
+    DownloadTeamMembersCsv
   deriving (Eq, Ord, Show)
 
 -- | See Note [hidden team roles]
@@ -348,7 +352,8 @@ roleHiddenPermissions role = HiddenPermissions p p
             ChangeTeamSearchVisibility,
             ChangeTeamFeature TeamFeatureAppLock {- the other features can only be changed in stern -},
             CreateUpdateDeleteIdp,
-            CreateReadDeleteScimToken
+            CreateReadDeleteScimToken,
+            DownloadTeamMembersCsv
           ]
     roleHiddenPerms RoleMember =
       (roleHiddenPerms RoleExternalPartner <>) $
