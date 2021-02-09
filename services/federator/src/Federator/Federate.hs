@@ -76,8 +76,6 @@ makeSem ''DiscoverFederator
 
 runFederatorDiscovery :: Members '[DNSLookup] r => Sem (DiscoverFederator ': r) a -> Sem r a
 runFederatorDiscovery = interpret $ \(DiscoverFederator d) ->
-  -- TODO: Maybe this name should sugggest that it is the federator?
-  --
   -- TODO: This string conversation is probably wrong, we should encode this
   -- using IDNA encoding or expect domain to be bytestring everywhere
   let domainSrv = cs $ "_wire-server-federator._tcp." <> domainText d
