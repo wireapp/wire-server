@@ -72,11 +72,12 @@ import Wire.Network.DNS.SRV
 
 run :: Opts -> IO ()
 run opts = do
-  (_app, env) <- mkApp opts
+  env <- newEnv opts
   -- settings <- Server.newSettings (restServer env)
   -- TODO: Combine the restful things and the grpc things
   -- Warp.runSettings settings app
   -- let grpcApplication = gRpcAppTrans msgProtoBuf (transformer env) grpcServer
+  -- FUTUREWORK: Expose health and metrics from here
   let externalServer = serveRouteToInternal env portExternal
       internalServer = serveRouteToRemote env portInternal
   race_ internalServer externalServer

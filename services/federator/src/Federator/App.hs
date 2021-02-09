@@ -20,9 +20,8 @@
 
 module Federator.App
   ( AppT,
-    AppIO,
+    Federator,
     runAppT,
-    -- runAppResourceT,
   )
 where
 
@@ -31,7 +30,6 @@ import Bilge.RPC (HasRequestId (..))
 import Control.Lens (view)
 import Control.Monad.Catch
 import Control.Monad.Except
--- import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
 import Federator.Types (Env, applog, httpManager, requestId)
 import Imports
 import Mu.Server (ServerError, ServerErrorIO)
@@ -56,8 +54,7 @@ newtype AppT m a = AppT
       MonadReader Env
     )
 
--- TODO: Rename this to something better like AppServerErrorIO
-type AppIO = AppT ServerErrorIO
+type Federator = AppT ServerErrorIO
 
 instance MonadIO m => LC.MonadLogger (AppT m) where
   log l m = do
@@ -93,8 +90,3 @@ instance (Monad m, MonadIO m) => MonadHttp (AppT m) where
 
 runAppT :: forall m a. Env -> AppT m a -> m a
 runAppT e (AppT ma) = runReaderT ma e
-
--- runAppResourceT :: ResourceT AppIO a -> AppIO a
--- runAppResourceT ma = do
---   e <- ask
---   liftIO . runResourceT $ transResourceT (runAppT e) ma

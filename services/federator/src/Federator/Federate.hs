@@ -39,7 +39,7 @@ import Data.Either.Validation
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
-import Federator.App (AppIO, AppT, runAppT)
+import Federator.App (AppT, Federator, runAppT)
 import Federator.PolysemyOrphans ()
 import Federator.Types (Env, applog, brig, dnsResolver)
 import Federator.UnliftExcept ()
@@ -211,11 +211,11 @@ serveRouteToRemote :: Env -> Int -> IO ()
 serveRouteToRemote env port = do
   runGRpcAppTrans msgProtoBuf port transformer routeToRemote
   where
-    transformer :: Sem '[Remote, DiscoverFederator, TinyLog, DNSLookup, Polysemy.Error ServerError, Embed IO, Embed AppIO] a -> ServerErrorIO a
+    transformer :: Sem '[Remote, DiscoverFederator, TinyLog, DNSLookup, Polysemy.Error ServerError, Embed IO, Embed Federator] a -> ServerErrorIO a
     transformer action =
       runAppT env
-        . runM @AppIO
-        . embedToMonadIO @AppIO
+        . runM @Federator
+        . embedToMonadIO @Federator
         . absorbServerError
         . Lookup.runDNSLookupWithResolver (view dnsResolver env)
         . Log.runTinyLog (view applog env)
@@ -228,18 +228,18 @@ serveRouteToInternal :: Env -> Int -> IO ()
 serveRouteToInternal env port = do
   runGRpcAppTrans msgProtoBuf port transformer routeToInternal
   where
-    transformer :: Sem '[Embed IO, Polysemy.Error ServerError, Brig, Embed AppIO] a -> ServerErrorIO a
+    transformer :: Sem '[Embed IO, Polysemy.Error ServerError, Brig, Embed Federator] a -> ServerErrorIO a
     transformer action =
       runAppT env
-        . runM @AppIO
+        . runM @Federator
         . interpretBrig @ServerErrorIO
         . absorbServerError
-        . embedToMonadIO @AppIO
+        . embedToMonadIO @Federator
         $ action
 
-absorbServerError :: forall r a. (Member (Embed AppIO) r) => Sem (Polysemy.Error ServerError ': r) a -> Sem r a
+absorbServerError :: forall r a. (Member (Embed Federator) r) => Sem (Polysemy.Error ServerError ': r) a -> Sem r a
 absorbServerError action = do
   eitherResult <- runError action
   case eitherResult of
-    Left err -> embed @AppIO $ throwError err
+    Left err -> embed @Federator $ throwError err
     Right res -> pure res
