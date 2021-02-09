@@ -37,5 +37,5 @@ getUserByHandle :: Handle -> Handler (Qualified UserId)
 getUserByHandle handle = do
   maybeOwnerId <- lift $ API.lookupHandle handle
   case maybeOwnerId of
-    Nothing -> undefined
+    Nothing -> undefined -- TODO: fail gracefully
     Just ownerId -> Qualified ownerId <$> viewFederationDomain

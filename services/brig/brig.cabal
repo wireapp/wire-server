@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f2fe276f945f85020c8b92a42a0c01b9cc6395b749b3b035caf839a4c9b602ba
+-- hash: 3becd94795a6875bd08c38357f7f1cdcc1702ca69b905cf8063f565cdb86d8f5
 
 name:           brig
 version:        1.35.0
@@ -176,6 +176,7 @@ library
     , mime-mail >=0.4
     , monad-control >=1.0
     , mtl >=2.1
+    , mu-grpc-client
     , mu-rpc
     , multihash >=0.1.3
     , mwc-random

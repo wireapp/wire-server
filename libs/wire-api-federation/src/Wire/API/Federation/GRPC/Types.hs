@@ -26,7 +26,7 @@ module Wire.API.Federation.GRPC.Types where
 
 -- TODO: Replace Wire.API.Federation.GRPC.Proto with this
 
-import Data.Domain (Domain (..), mkDomain)
+import Data.Domain (Domain (..), domainText, mkDomain)
 import Data.Either.Validation
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Imports
@@ -178,3 +178,6 @@ validateRemoteCall RemoteCall {..} = do
     validateLocalPart = case localCall of
       Nothing -> Failure $ LocalCallMissing :| []
       Just lc -> Success lc
+
+validatedRemoteCallToRemoteCall :: ValidatedRemoteCall -> RemoteCall
+validatedRemoteCallToRemoteCall ValidatedRemoteCall {..} = RemoteCall (domainText vDomain) (Just vLocalCall)
