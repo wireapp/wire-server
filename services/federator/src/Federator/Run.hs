@@ -1,6 +1,4 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -25,47 +23,32 @@
 
 module Federator.Run
   ( run,
-    mkApp,
 
     -- * App Environment
     newEnv,
     closeEnv,
-
-    -- * functions that FUTUREWORK should probably move to another module
-    lookupDomainLocal,
-    lookupDomainKubernetes,
-    lookupDomainByDNS,
   )
 where
 
 import qualified Bilge as RPC
-import Control.Exception hiding (handle)
-import Control.Lens (view, (^.))
-import Control.Monad.Catch hiding (handle)
+import Control.Lens ((^.))
 import Data.Default (def)
-import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Metrics.Middleware as Metrics
-import Data.String.Conversions (cs)
 import Data.Text.Encoding (encodeUtf8)
-import Federator.App
 import Federator.Federate (serveRouteToInternal, serveRouteToRemote)
-import qualified Federator.Impl as Impl
 import Federator.Options as Opt
 import Federator.Types
 import Imports
-import qualified Network.DNS.Lookup as Lookup
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.OpenSSL as HTTP
-import Network.Wai (Application)
 import OpenSSL.Session
 import qualified OpenSSL.Session as SSL
 import qualified OpenSSL.X509.SystemStore as SSL
 import qualified System.Logger.Class as Log
 import qualified System.Logger.Extended as LogExt
-import UnliftIO (race_)
+import UnliftIO.Async (async, waitAnyCancel)
 import Util.Options
 import qualified Wire.Network.DNS.Helper as DNS
-import Wire.Network.DNS.SRV
 
 ------------------------------------------------------------------------------
 -- run/app
@@ -73,14 +56,12 @@ import Wire.Network.DNS.SRV
 run :: Opts -> IO ()
 run opts = do
   env <- newEnv opts
-  -- settings <- Server.newSettings (restServer env)
-  -- TODO: Combine the restful things and the grpc things
-  -- Warp.runSettings settings app
-  -- let grpcApplication = gRpcAppTrans msgProtoBuf (transformer env) grpcServer
   -- FUTUREWORK: Expose health and metrics from here
   let externalServer = serveRouteToInternal env portExternal
       internalServer = serveRouteToRemote env portInternal
-  race_ internalServer externalServer
+  internalServerThread <- async internalServer
+  externalServerThread <- async externalServer
+  void $ waitAnyCancel [internalServerThread, externalServerThread]
   where
     endpointInternal = federatorInternal opts
     portInternal = fromIntegral $ endpointInternal ^. epPort
