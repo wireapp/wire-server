@@ -17,6 +17,7 @@
 
 module Brig.API.Federation where
 
+import Brig.API.Error (handleNotFound, throwStd)
 import Brig.API.Handler (Handler)
 import Brig.App (viewFederationDomain)
 import Brig.Types (UserHandleInfo (UserHandleInfo))
@@ -37,5 +38,5 @@ getUserByHandle :: Handle -> Handler UserHandleInfo
 getUserByHandle handle = do
   maybeOwnerId <- lift $ API.lookupHandle handle
   case maybeOwnerId of
-    Nothing -> undefined -- TODO: fail gracefully
+    Nothing -> throwStd handleNotFound
     Just ownerId -> UserHandleInfo . Qualified ownerId <$> viewFederationDomain
