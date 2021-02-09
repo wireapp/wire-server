@@ -87,45 +87,6 @@ run opts = do
     endpointExternal = federatorExternal opts
     portExternal = fromIntegral $ endpointExternal ^. epPort
 
--- transformer :: Env -> AppIO a -> ServerErrorIO a
--- transformer env action = runAppT env action
-
--- restServer env = defaultServer (unpack $ endpoint ^. epHost) (endpoint ^. epPort) (env ^. applog) (env ^. metrics)
-
-mkApp :: Opts -> IO (Application, Env)
-mkApp opts = do
-  env <- newEnv opts
-  pure (Impl.app env, env)
-
-------------------------------------------------------------------------------
--- helper functions
-
--- for local integration tests
-lookupDomainLocal :: Text -> AppIO SrvTarget
-lookupDomainLocal _ = do
-  pure $ SrvTarget "127.0.0.1" 8097
-
--- until we are ready, for integration tests inside kubernetes, we can make a plain TCP connection to another federator
-lookupDomainKubernetes :: Text -> AppIO SrvTarget
-lookupDomainKubernetes federationDomain = do
-  lookupDomainByDNS' "_http._tcp.federator." federationDomain
-
-lookupDomainByDNS :: Text -> AppIO SrvTarget
-lookupDomainByDNS federationDomain = do
-  lookupDomainByDNS' "_wire-server._tcp." federationDomain
-
-lookupDomainByDNS' :: Text -> Text -> AppIO SrvTarget
-lookupDomainByDNS' prefix federationDomain = do
-  resolver <- view dnsResolver
-  let domainSrv = cs $ prefix <> federationDomain
-  res <- liftIO $ interpretResponse <$> Lookup.lookupSRV resolver domainSrv
-  case res of
-    SrvAvailable entries -> do
-      -- FUTUREWORK: orderSrvResult and try the list in order
-      pure $ srvTarget $ NonEmpty.head entries
-    SrvNotAvailable -> throwM $ ErrorCall $ "No SRV record for" <> (cs domainSrv) <> "available"
-    SrvResponseError _ -> throwM $ ErrorCall $ "error srv lookup" <> (cs domainSrv)
-
 -------------------------------------------------------------------------------
 -- Environment
 
