@@ -19,9 +19,9 @@ module Brig.API.Federation where
 
 import Brig.API.Handler (Handler)
 import Brig.App (viewFederationDomain)
+import Brig.Types (UserHandleInfo (UserHandleInfo))
 import qualified Brig.User.Handle as API
 import Data.Handle (Handle)
-import Data.Id (UserId)
 import Data.Qualified (Qualified (Qualified))
 import Imports
 import Servant (ServerT)
@@ -33,9 +33,9 @@ federationSitemap :: ServerT (ToServantApi FederationAPIBrig.Api) Handler
 federationSitemap = genericServerT (FederationAPIBrig.Api getUserByHandle)
 
 -- TODO: Write tests
-getUserByHandle :: Handle -> Handler (Qualified UserId)
+getUserByHandle :: Handle -> Handler UserHandleInfo
 getUserByHandle handle = do
   maybeOwnerId <- lift $ API.lookupHandle handle
   case maybeOwnerId of
     Nothing -> undefined -- TODO: fail gracefully
-    Just ownerId -> Qualified ownerId <$> viewFederationDomain
+    Just ownerId -> UserHandleInfo . Qualified ownerId <$> viewFederationDomain
