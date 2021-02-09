@@ -23,6 +23,7 @@ import qualified API.SQS as SQS
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types
+import Brig.Types.Intra (UserAccount (..))
 import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth (CookieLabel (..))
 import Control.Lens hiding (from, to, (#), (.=))
@@ -30,11 +31,13 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Retry (constantDelay, limitRetries, retrying)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key, _String)
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as C
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.Currency as Currency
+import qualified Data.Handle as Handle
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.List1 as List1
@@ -49,6 +52,7 @@ import Data.Text.Encoding (decodeUtf8)
 import qualified Data.Text.Encoding as Text
 import qualified Data.UUID as UUID
 import Data.UUID.V4
+import Galley.Intra.User (chunkify)
 import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
 import Galley.Types hiding (InternalMember (..), Member)
@@ -69,6 +73,7 @@ import Gundeck.Types.Notification
   )
 import Imports
 import qualified Network.Wai.Test as WaiTest
+import System.Random
 import qualified Test.QuickCheck as Q
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
@@ -122,14 +127,36 @@ getTeams u = do
   return $ responseJsonUnsafe r
 
 createBindingTeamWithNMembers :: Int -> TestM (UserId, TeamId, [UserId])
-createBindingTeamWithNMembers n = do
+createBindingTeamWithNMembers = createBindingTeamWithNMembersWithHandles False
+
+createBindingTeamWithNMembersWithHandles :: Bool -> Int -> TestM (UserId, TeamId, [UserId])
+createBindingTeamWithNMembersWithHandles withHandles n = do
   (owner, tid) <- createBindingTeam
+  setHandle owner
   mems <- replicateM n $ do
     member1 <- randomUser
     addTeamMemberInternal tid $ newTeamMember member1 (rolePermissions RoleMember) Nothing
+    setHandle member1
     pure member1
   SQS.ensureQueueEmpty
   pure (owner, tid, mems)
+  where
+    mkRandomHandle :: MonadIO m => m Text
+    mkRandomHandle = liftIO $ do
+      nrs <- replicateM 21 (randomRIO (97, 122)) -- a-z
+      return (cs (map chr nrs))
+
+    setHandle :: UserId -> TestM ()
+    setHandle uid = when withHandles $ do
+      b <- view tsBrig
+      randomHandle <- mkRandomHandle
+      put
+        ( b
+            . paths ["/i/users", toByteString' uid, "handle"]
+            . json (HandleUpdate randomHandle)
+        )
+        !!! do
+          const 200 === statusCode
 
 -- | FUTUREWORK: this is dead code (see 'NonBindingNewTeam').  remove!
 createNonBindingTeam :: HasCallStack => Text -> UserId -> [TeamMember] -> TestM TeamId
@@ -196,6 +223,14 @@ getTeamMembers usr tid = do
   g <- view tsGalley
   r <- get (g . paths ["teams", toByteString' tid, "members"] . zUser usr) <!! const 200 === statusCode
   responseJsonError r
+
+-- alternative to 'ResponseLBS': [BodyReader](https://hoogle.zinfra.io/file/root/.stack/snapshots/x86_64-linux/82492d944a85db90f4cd7cec6f4d5215ef9ac1ac8aeffeed4a805fbd6b1232c5/8.8.4/doc/http-client-0.7.0/Network-HTTP-Client.html#t:BodyReader)
+getTeamMembersCsv :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
+getTeamMembersCsv usr tid = do
+  g <- view tsGalley
+  get (g . accept "text/csv" . paths ["teams", toByteString' tid, "members/csv"] . zUser usr) <!! do
+    const 200 === statusCode
+    const (Just "chunked") === lookup "Transfer-Encoding" . responseHeaders
 
 getTeamMembersTruncated :: HasCallStack => UserId -> TeamId -> Int -> TestM TeamMemberList
 getTeamMembersTruncated usr tid n = do
@@ -1432,3 +1467,24 @@ deleteTeamMember g tid owner deletee =
     )
     !!! do
       const 202 === statusCode
+
+-- (Duplicate of 'Galley.Intra.User.getUsers'.)
+getUsersByUid :: [UserId] -> TestM [User]
+getUsersByUid = getUsersBy "ids"
+
+getUsersByHandle :: [Handle.Handle] -> TestM [User]
+getUsersByHandle = getUsersBy "handles"
+
+getUsersBy :: forall uidsOrHandles. (ToByteString uidsOrHandles) => ByteString -> [uidsOrHandles] -> TestM [User]
+getUsersBy keyName = chunkify $ \keys -> do
+  brig <- view tsBrig
+  let users = BS.intercalate "," $ toByteString' <$> keys
+  res <-
+    get
+      ( brig
+          . path "/i/users"
+          . queryItem keyName users
+          . expect2xx
+      )
+  let accounts = fromJust $ responseJsonMaybe @[UserAccount] res
+  return $ fmap accountUser accounts

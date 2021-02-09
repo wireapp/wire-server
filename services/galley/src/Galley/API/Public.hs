@@ -172,6 +172,13 @@ sitemap = do
     response 200 "Team members" end
     errorResponse Error.notATeamMember
 
+  get "/teams/:tid/members/csv" (continue Teams.getTeamMembersCSVH) $
+    -- we could discriminate based on accept header only, but having two paths makes building
+    -- nginz metrics dashboards easier.
+    zauthUserId
+      .&. capture "tid"
+      .&. accept "text" "csv"
+
   post "/teams/:tid/get-members-by-ids-using-post" (continue Teams.bulkGetTeamMembersH) $
     zauthUserId
       .&. capture "tid"
