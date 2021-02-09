@@ -214,13 +214,13 @@ testGetUserPrekeys brig = do
   let cpk = ClientPrekey (clientId c) (somePrekeys !! 0)
   get (brig . paths ["users", toByteString' uid, "prekeys"]) !!! do
     const 200 === statusCode
-    const (Just $ PrekeyBundle (makeIdOpaque uid) [cpk]) === responseJsonMaybe
+    const (Just $ PrekeyBundle uid [cpk]) === responseJsonMaybe
   -- prekeys are deleted when retrieved, except the last one
   let lpk = ClientPrekey (clientId c) (unpackLastPrekey (someLastPrekeys !! 0))
   replicateM_ 2 $
     get (brig . paths ["users", toByteString' uid, "prekeys"]) !!! do
       const 200 === statusCode
-      const (Just $ PrekeyBundle (makeIdOpaque uid) [lpk]) === responseJsonMaybe
+      const (Just $ PrekeyBundle uid [lpk]) === responseJsonMaybe
 
 testGetClientPrekey :: Brig -> Http ()
 testGetClientPrekey brig = do

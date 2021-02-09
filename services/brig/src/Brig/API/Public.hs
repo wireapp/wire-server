@@ -364,19 +364,6 @@ type GetMultiUserPrekeyBundle =
     :> Servant.ReqBody '[Servant.JSON] Public.QualifiedUserClients
     :> Post '[Servant.JSON] (Public.QualifiedUserClientMap (Maybe Public.Prekey))
 
--- post "/users/prekeys" (continue getMultiPrekeyBundlesH) $
---   jsonRequest @Public.UserClients
---     .&. accept "application" "json"
--- document "POST" "getMultiPrekeyBundles" $ do
---   Doc.summary
---   Doc.notes
---     "Prekeys of all clients of a multiple users. \
---     \The result is a map of maps, i.e. { UserId : { ClientId : Maybe Prekey } }"
---   Doc.body (Doc.ref Public.modelUserClients) $
---     Doc.description "JSON body"
---   Doc.response 200 "Prekey Bundles" Doc.end
---   Doc.errorResponse tooManyClients
-
 type OutsideWorldAPI =
   CheckUserExistsUnqualified
     :<|> CheckUserExistsQualified

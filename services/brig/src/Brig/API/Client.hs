@@ -39,9 +39,6 @@ module Brig.API.Client
   )
 where
 
-import Brig.API.Error (federationNotImplemented, throwStd)
-import Brig.API.Handler (Handler)
-import Brig.API.IdMapping (resolveOpaqueUserId)
 import Brig.API.Types
 import Brig.App
 import qualified Brig.Data.Client as Data
@@ -56,14 +53,12 @@ import Brig.User.Email
 import Brig.User.Event
 import Control.Error
 import Control.Lens (view)
-import Data.Bitraversable (bitraverse)
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.IP (IP)
 import Data.Id (ClientId, ConnId, UserId, makeIdOpaque, makeMappedIdOpaque)
 import qualified Data.Id as Id
 import Data.IdMapping
-import Data.List.NonEmpty (nonEmpty)
 import Data.List.Split (chunksOf)
 import qualified Data.Map.Strict as Map
 import Data.Misc (PlainTextPassword (..))
