@@ -276,6 +276,11 @@ kube-integration-setup-federation: charts-integration
 kube-integration-federation:
 	cd services/brig && ./federation-tests.sh $(NAMESPACE)
 
+.PHONY: kube-restart-%
+kube-restart-%:
+	kubectl delete pod -n $(NAMESPACE) -l wireService=$(*)
+	kubectl delete pod -n $(NAMESPACE)-fed2 -l wireService=$(*)
+
 .PHONY: latest-brig-tag
 latest-brig-tag:
 	./hack/bin/find-latest-docker-tag.sh
