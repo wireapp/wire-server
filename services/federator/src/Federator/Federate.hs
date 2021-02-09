@@ -45,6 +45,7 @@ import Federator.Types (Env, applog, brig, dnsResolver)
 import Federator.UnliftExcept ()
 import Imports
 import Mu.GRpc.Client.Optics (GRpcReply (..), grpcClientConfigSimple)
+import Mu.GRpc.Client.Record (GrpcClient)
 import Mu.GRpc.Client.TyApps (GRpcMessageProtocol (MsgProtoBuf), gRpcCall, setupGrpcClient')
 import Mu.GRpc.Server (msgProtoBuf, runGRpcAppTrans)
 import Mu.Server (ServerError, ServerErrorIO, SingleServerT, singleService)
@@ -104,32 +105,43 @@ data Remote m a where
 
 makeSem ''Remote
 
--- TODO: So complicated, extact and test!
 interpretRemote :: forall m r a. (MonadIO m, Members [Embed IO, DiscoverFederator, TinyLog] r) => Sem (Remote ': r) a -> Sem r a
 interpretRemote = interpret $ \case
   DiscoverAndCall ValidatedRemoteCall {..} -> do
     eitherTarget <- discoverFederator vDomain
     case eitherTarget of
       Left err -> do
-        Log.warn $
+        Log.debug $
           Log.msg ("Failed to find remote federator" :: ByteString)
             . Log.field "domain" (domainText vDomain)
             . Log.field "error" (show err)
         pure $ Left (RemoteErrorDiscoveryFailure err vDomain)
-      Right target@(SrvTarget host port) -> do
-        -- TODO: Make this use TLS, maybe make it configurable
-        let cfg = grpcClientConfigSimple (cs host) (fromInteger $ toInteger port) False
-        eitherClient <- setupGrpcClient' cfg
+      Right target -> do
+        -- FUTUREWORK: Make this use TLS, maybe make it configurable
+        -- FUTUREWORK: Cache this client and use it for many requests
+        eitherClient <- mkGrpcClient target
         case eitherClient of
-          Left err -> do
-            Log.warn $
-              Log.msg ("Failed to connect to remote federator" :: ByteString)
-                . Log.field "host" host
-                . Log.field "port" port
-                . Log.field "error" (show err)
-            pure $ Left (RemoteErrorClientFailure err target)
           Right client ->
-            Right <$> liftIO (gRpcCall @'MsgProtoBuf @RouteToInternal @"RouteToInternal" @"call" client vLocalCall)
+            Right <$> callRemoteFederator client vLocalCall
+          Left err -> pure $ Left err
+
+callRemoteFederator :: MonadIO m => GrpcClient -> LocalCall -> m (GRpcReply Response)
+callRemoteFederator client localCall =
+  liftIO $ gRpcCall @'MsgProtoBuf @RouteToInternal @"RouteToInternal" @"call" client localCall
+
+mkGrpcClient :: Members '[Embed IO, TinyLog] r => SrvTarget -> Sem r (Either RemoteError GrpcClient)
+mkGrpcClient target@(SrvTarget host port) = do
+  let cfg = grpcClientConfigSimple (cs host) (fromInteger $ toInteger port) False
+  eitherClient <- setupGrpcClient' cfg
+  case eitherClient of
+    Left err -> do
+      Log.debug $
+        Log.msg ("Failed to connect to remote federator" :: ByteString)
+          . Log.field "host" host
+          . Log.field "port" port
+          . Log.field "error" (show err)
+      pure $ Left (RemoteErrorClientFailure err target)
+    Right client -> pure $ Right client
 
 -- Is there is a point in creating an effect for each service?
 --
