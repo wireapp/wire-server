@@ -27,4 +27,4 @@ buildah containers | awk '{print $5}' | grep "$CONTAINER_NAME" \
 ls "$TOP_LEVEL/.stack-root-buildah/config.yaml" 2> /dev/null \
     || buildah run "$CONTAINER_NAME" -- cp -a /root/.stack/. /src/.stack-root-buildah/
 
-buildah run "$CONTAINER_NAME" -- /src/hack/bin/buildah-inside.sh
+buildah run "$CONTAINER_NAME" -- /src/hack/bin/buildah-inside.sh "$@"

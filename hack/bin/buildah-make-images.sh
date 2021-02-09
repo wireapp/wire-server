@@ -5,8 +5,7 @@ set -ex
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 TOP_LEVEL="$(cd "$DIR/../.." && pwd)"
 
-# FUTUREWORK: Define this list in the makefile to allow overriding
-EXECUTABLES="cannon brig cargohold galley gundeck federator brig-index brig-schema galley-schema galley-migrate-data gundeck-schema proxy spar spar-schema"
+EXECUTABLES=${EXECUTABLES:-"cannon brig cargohold galley gundeck federator brig-index brig-schema galley-schema galley-migrate-data gundeck-schema proxy spar spar-schema"}
 CONTAINER_NAME="output"
 DOCKER_TAG=${DOCKER_TAG:-$USER}
 
@@ -14,7 +13,7 @@ buildah containers | awk '{print $5}' | grep "$CONTAINER_NAME" \
     || buildah from --name "$CONTAINER_NAME" -v "${TOP_LEVEL}":/src --pull quay.io/wire/alpine-deps:develop
 
 # Only brig needs these templates, but for simplicity we add them to all resulting images (optimization FUTUREWORK)
-buildah run "$CONTAINER_NAME" -- sh -c 'mkdir -p /usr/share/wire/templates && cp -r "/src/services/brig/deb/opt/brig/templates" "/usr/share/wire/templates"'
+buildah run "$CONTAINER_NAME" -- sh -c 'mkdir -p /usr/share/wire/ && cp -r "/src/services/brig/deb/opt/brig/templates/." "/usr/share/wire/templates"'
 
 for EX in $EXECUTABLES; do
     # Copy the main executable into the PATH on the container
