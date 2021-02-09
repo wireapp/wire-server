@@ -334,7 +334,7 @@ type GetUsersPrekeyBundleUnqualified =
     :> "prekeys"
     :> Get '[Servant.JSON] Public.PrekeyBundle
 
-type GetUsersPrekeyBundle =
+type GetUsersPrekeyBundleQualified =
   Summary "Get a prekey for each client of a user."
     :> ZAuthServant
     :> "users"
@@ -354,7 +354,7 @@ type GetMultiUserPrekeyBundleUnqualified =
     :> Servant.ReqBody '[Servant.JSON] Public.UserClients
     :> Post '[Servant.JSON] (Public.UserClientMap (Maybe Public.Prekey))
 
-type GetMultiUserPrekeyBundle =
+type GetMultiUserPrekeyBundleQualified =
   Summary
     "Given a map of user IDs to client IDs return a \
     \prekey for each one. You can't request information for more users than \
@@ -378,9 +378,9 @@ type OutsideWorldAPI =
     :<|> GetUsersPrekeysClientUnqualified
     :<|> GetUsersPrekeysClientQualified
     :<|> GetUsersPrekeyBundleUnqualified
-    :<|> GetUsersPrekeyBundle
+    :<|> GetUsersPrekeyBundleQualified
     :<|> GetMultiUserPrekeyBundleUnqualified
-    :<|> GetMultiUserPrekeyBundle
+    :<|> GetMultiUserPrekeyBundleQualified
 
 type SwaggerDocsAPI = "api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
