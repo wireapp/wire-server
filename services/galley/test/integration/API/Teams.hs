@@ -239,7 +239,6 @@ testListTeamMembersCsv numMembers = do
   let teamSize = numMembers + 1
 
   (owner, tid, _mbs) <- Util.createBindingTeamWithNMembersWithHandles True numMembers
-  liftIO $ writeFile "/tmp/csv-test" (show (owner, tid))
   resp <- Util.getTeamMembersCsv owner tid
   let rbody = fromMaybe (error "no body") . responseBody $ resp
   usersInCsv <- either (error "could not decode csv") pure (decodeCSV @TeamExportUser rbody)
@@ -247,21 +246,6 @@ testListTeamMembersCsv numMembers = do
     assertEqual "total number of team members" teamSize (length usersInCsv)
     assertEqual "owners in team" 1 (countOn tExportRole (Just RoleOwner) usersInCsv)
     assertEqual "members in team" numMembers (countOn tExportRole (Just RoleMember) usersInCsv)
-
-  {-
-   1000: OK (73.74s)
-   2000: OK (145.92s)
-   3000: _
-   3000 (only pull csv, not create members): _
-   10000:
-  -}
-
-  -- fuck it, we should really use the library.
-
-  -- then create a team with 10k members (100k?), and drop the team id.  then tweak this test
-  -- to pull all members for that team id and take the time (and ram) for just doing that.
-
-  -- https://stackoverflow.com/questions/8362428/stream-response-from-curl-request-without-waiting-for-it-to-finish#36368249
 
   do
     let someUsersInCsv = take 50 usersInCsv
