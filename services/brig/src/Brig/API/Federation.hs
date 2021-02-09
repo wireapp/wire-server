@@ -33,7 +33,6 @@ import qualified Wire.API.Federation.API.Brig as FederationAPIBrig
 federationSitemap :: ServerT (ToServantApi FederationAPIBrig.Api) Handler
 federationSitemap = genericServerT (FederationAPIBrig.Api getUserByHandle)
 
--- TODO: Write tests
 getUserByHandle :: Handle -> Handler UserHandleInfo
 getUserByHandle handle = do
   maybeOwnerId <- lift $ API.lookupHandle handle
