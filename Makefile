@@ -269,7 +269,7 @@ kube-integration-teardown:
 	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-teardown.sh
 
 .PHONY: kube-integration-setup-federation
-kube-integration-setup-federation: guard-tag charts-integration
+kube-integration-setup-federation: charts-integration
 	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-setup-federation.sh
 
 .PHONY: kube-integration-federation
