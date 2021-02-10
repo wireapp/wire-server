@@ -46,6 +46,7 @@ import qualified OpenSSL.Session as SSL
 import qualified OpenSSL.X509.SystemStore as SSL
 import qualified System.Logger.Class as Log
 import qualified System.Logger.Extended as LogExt
+import UnliftIO (bracket)
 import UnliftIO.Async (async, waitAnyCancel)
 import Util.Options
 import qualified Wire.Network.DNS.Helper as DNS
@@ -54,14 +55,13 @@ import qualified Wire.Network.DNS.Helper as DNS
 -- run/app
 
 run :: Opts -> IO ()
-run opts = do
-  env <- newEnv opts
-  -- FUTUREWORK: Expose health and metrics from here
-  let externalServer = serveRouteToInternal env portExternal
-      internalServer = serveRouteToRemote env portInternal
-  internalServerThread <- async internalServer
-  externalServerThread <- async externalServer
-  void $ waitAnyCancel [internalServerThread, externalServerThread]
+run opts =
+  bracket (newEnv opts) closeEnv $ \env -> do
+    let externalServer = serveRouteToInternal env portExternal
+        internalServer = serveRouteToRemote env portInternal
+    internalServerThread <- async internalServer
+    externalServerThread <- async externalServer
+    void $ waitAnyCancel [internalServerThread, externalServerThread]
   where
     endpointInternal = federatorInternal opts
     portInternal = fromIntegral $ endpointInternal ^. epPort
