@@ -38,10 +38,9 @@ tests =
     [ localCallBrigSuccess
     ]
 
--- TODO: Add more tests
 localCallBrigSuccess :: TestTree
 localCallBrigSuccess =
-  testCase "should sucessfully return on HTTP 200" $
+  testCase "should translate response from brig to 'Response'" $
     runM . evalMock @Brig @IO $ do
       mockBrigCallReturns @IO (\_ _ _ _ -> pure (HTTP.status200, Just "response body"))
       let request = LocalCall Brig (HTTPMethod HTTP.GET) "/users" [QueryParam "handle" "foo"] mempty
