@@ -32,7 +32,6 @@ newtype AllowedDomains = AllowedDomains {allowedDomains :: [Domain]}
   deriving (Eq, Show, Generic)
   deriving newtype (FromJSON, ToJSON)
 
--- FUTUREWORK: Support a DenyList
 data FederationStrategy
   = -- | This backend allows federating with any other Wire-Server backend
     AllowAll
@@ -70,9 +69,11 @@ newtype RunSettings = RunSettings
 instance FromJSON RunSettings
 
 data Opts = Opts
-  { -- | Host and port for internal endpoint
+  { -- | Host and port for endpoint reachable only by other wire-server
+    -- components in the same private network
     federatorInternal :: Endpoint,
-    -- | Host and port for external endpoint
+    -- | Host and port for endpoint exposed to the open internet via nginx, to
+    -- be contacted by other federators
     federatorExternal :: Endpoint,
     -- | Host and port of brig
     brig :: Endpoint,

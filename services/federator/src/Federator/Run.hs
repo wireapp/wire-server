@@ -35,10 +35,10 @@ import Control.Lens ((^.))
 import Data.Default (def)
 import qualified Data.Metrics.Middleware as Metrics
 import Data.Text.Encoding (encodeUtf8)
+import Federator.Env
 import Federator.ExternalServer (serveRouteToInternal)
 import Federator.InternalServer (serveRouteToRemote)
 import Federator.Options as Opt
-import Federator.Types
 import Imports
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.OpenSSL as HTTP

@@ -28,7 +28,7 @@ import Bilge.Retry (rpcHandlers)
 import Control.Lens (view)
 import Control.Retry (RetryPolicy, exponentialBackoff, limitRetries, recovering)
 import Federator.App (Federator)
-import Federator.Types (brig)
+import Federator.Env (brig)
 import Federator.UnliftExcept ()
 import Imports
 import qualified Network.HTTP.Types as HTTP
@@ -41,7 +41,6 @@ data Brig m a where
 
 makeSem ''Brig
 
--- This can realistically only be tested in an integration test
 -- FUTUREWORK: Do we want to use servant client here? May make everything typed and safe
 interpretBrig ::
   Member (Embed Federator) r =>

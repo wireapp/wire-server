@@ -22,8 +22,8 @@ where
 
 import Control.Lens (view)
 import Data.Domain (Domain)
+import Federator.Env (Env, runSettings)
 import Federator.Options
-import Federator.Types (Env, runSettings)
 import Imports
 
 federateWith :: MonadReader Env m => Domain -> m Bool

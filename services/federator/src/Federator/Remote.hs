@@ -39,8 +39,6 @@ data RemoteError
   | RemoteErrorClientFailure ClientError SrvTarget
   deriving (Show, Eq)
 
--- | Maybe we should support making a call to many remotes, but maybe we should
--- wait for the requirements before implementing it.
 data Remote m a where
   DiscoverAndCall :: ValidatedRemoteCall -> Remote m (Either RemoteError (GRpcReply Response))
 

@@ -43,13 +43,14 @@ runFederatorDiscovery = interpret $ \(DiscoverFederator d) ->
   let domainSrv = cs $ "_wire-server-federator._tcp." <> domainText d
    in lookupDomainByDNS domainSrv
 
--- Can most of this function live in DNS-Util?
 lookupDomainByDNS :: Member DNSLookup r => ByteString -> Sem r (Either LookupError SrvTarget)
 lookupDomainByDNS domainSrv = do
   res <- Lookup.lookupSRV domainSrv
   case res of
     SrvAvailable entries -> do
-      -- FUTUREWORK: orderSrvResult and try the list in order
+      -- FUTUREWORK: orderSrvResult and try the list in order this will make it
+      -- not federator specific and then we can move this whole function to
+      -- dns-util
       pure $ Right $ srvTarget $ NonEmpty.head entries
     SrvNotAvailable -> pure $ Left $ LookupErrorSrvNotAvailable domainSrv
     SrvResponseError _ -> pure $ Left $ LookupErrorDNSError domainSrv

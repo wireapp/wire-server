@@ -30,7 +30,7 @@ import Bilge.RPC (HasRequestId (..))
 import Control.Lens (view)
 import Control.Monad.Catch
 import Control.Monad.Except
-import Federator.Types (Env, applog, httpManager, requestId)
+import Federator.Env (Env, applog, httpManager, requestId)
 import Imports
 import Mu.Server (ServerError, ServerErrorIO)
 import Servant.API.Generic ()

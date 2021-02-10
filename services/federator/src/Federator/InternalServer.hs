@@ -25,8 +25,8 @@ import Data.Either.Validation (Validation (..))
 import qualified Data.Text as Text
 import Federator.App (Federator, runAppT)
 import Federator.Discovery (DiscoverFederator, runFederatorDiscovery)
+import Federator.Env (Env, applog, dnsResolver)
 import Federator.Remote (Remote, RemoteError, discoverAndCall, interpretRemote)
-import Federator.Types (Env, applog, dnsResolver)
 import Federator.Utils.PolysemyServerError (absorbServerError)
 import Imports
 import Mu.GRpc.Client.Record (GRpcReply (..))
@@ -50,6 +50,7 @@ callRemote req = do
       pure $ mkRemoteResponse reply
     Failure errs -> pure $ ResponseErr ("component -> local federator: invalid RemoteCall: " <> Text.pack (show errs))
 
+-- FUTUREWORK: Make these errors less stringly typed
 mkRemoteResponse :: Either RemoteError (GRpcReply Response) -> Response
 mkRemoteResponse reply =
   case reply of
