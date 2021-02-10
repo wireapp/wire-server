@@ -47,7 +47,6 @@ import Wire.API.User.Auth
 spec :: TestEnv -> Spec
 spec env =
   describe "RouteToInternal" $ do
-    -- This test is pending because I don't know which endpoint to call in brig!
     it "should be able to call brig" $
       runTestFederator env $ do
         brig <- view teBrig <$> ask
@@ -67,9 +66,8 @@ spec env =
           GRpcOk (ResponseErr err) -> assertFailure $ "Unexpected error response: " <> show err
           x -> assertFailure $ "GRpc call failed unexpectedly: " <> show x
 
--- * Copy Pasta
-
--- This should live in another package and shared by integration tests
+-- All the code below is copied from brig-integrration tests
+-- FUTUREWORK: This should live in another package and shared by all the integration tests
 
 randomUser ::
   (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
