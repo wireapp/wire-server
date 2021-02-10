@@ -40,10 +40,26 @@ import Test.Hspec
 import Test.Tasty.HUnit (assertFailure)
 import Util.Options (Endpoint (Endpoint))
 import Wire.API.Federation.GRPC.Types (Component (..), HTTPMethod (..), HTTPResponse (..), LocalCall (LocalCall), QueryParam (..), Response (..), RouteToInternal)
-import qualified Wire.API.Federation.GRPC.Types as FederationAPI
 import Wire.API.User
 import Wire.API.User.Auth
+import Wire.API.User.Handle (UserHandleInfo (UserHandleInfo))
 
+-- | Path covered by this test
+--
+--  +----------+
+--  |federator-|          +------+--+
+--  |integration  grpc    |federator|
+--  |          |--------->+         +
+--  |          |          +----+----+
+--  +----------+               |
+--                             | http
+--                             v
+--                         +---+--+
+--                         | brig |
+--                         |      |
+--                         +------+
+--
+--  (ascii diagrams from asciiflow.com)
 spec :: TestEnv -> Spec
 spec env =
   describe "RouteToInternal" $ do
@@ -54,15 +70,15 @@ spec env =
         hdl <- randomHandle
         _ <- putHandle brig (userId user) hdl
 
-        Endpoint fedHost _fedPort <- federatorExternal . view teOpts <$> ask
-        Right c <- setupGrpcClient' (grpcClientConfigSimple (Text.unpack fedHost) 9999 False)
-        let brigCall = LocalCall Brig (HTTPMethod HTTP.GET) "/federation/users/by-handle" [QueryParam "handle" (Text.encodeUtf8 hdl)] mempty
-        res :: GRpcReply FederationAPI.Response <- liftIO $ gRpcCall @'MsgProtoBuf @RouteToInternal @"RouteToInternal" @"call" c brigCall
+        Endpoint fedHost fedPort <- federatorExternal . view teOpts <$> ask
+        Right c <- setupGrpcClient' (grpcClientConfigSimple (Text.unpack fedHost) (fromIntegral fedPort) False)
+        let brigCall = LocalCall Brig (HTTPMethod HTTP.GET) "users/by-handle" [QueryParam "handle" (Text.encodeUtf8 hdl)] mempty
+        res <- liftIO $ gRpcCall @'MsgProtoBuf @RouteToInternal @"RouteToInternal" @"call" c brigCall
 
         liftIO $ case res of
-          GRpcOk (ResponseHTTPResponse (HTTPResponse _ bdy)) -> do
-            print bdy
-            eitherDecodeStrict bdy `shouldBe` Right (userQualifiedId user)
+          GRpcOk (ResponseHTTPResponse (HTTPResponse sts bdy)) -> do
+            sts `shouldBe` 200
+            eitherDecodeStrict bdy `shouldBe` Right (UserHandleInfo (userQualifiedId user))
           GRpcOk (ResponseErr err) -> assertFailure $ "Unexpected error response: " <> show err
           x -> assertFailure $ "GRpc call failed unexpectedly: " <> show x
 

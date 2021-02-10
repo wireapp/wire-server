@@ -23,7 +23,6 @@ where
 import Data.String.Conversions
 import Imports
 import System.Environment (withArgs)
-import Test.Federator.APISpec
 import qualified Test.Federator.RouteToInternalSpec
 import Test.Federator.Util (TestEnv, mkEnvFromOptions)
 import Test.Hspec
@@ -49,5 +48,4 @@ mkspec env = do
   -- describe "Logging" Test.LoggingSpec.spec
   -- describe "Metrics" Test.MetricsSpec.spec
   describe "Federator.API" $ do
-    Test.Federator.APISpec.tests
     Test.Federator.RouteToInternalSpec.spec env

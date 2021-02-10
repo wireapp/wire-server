@@ -43,6 +43,12 @@ spec _brigOpts mg brig _federator brigTwo =
       [ test mg "lookup user by qualified handle on remote backend" $ testHandleLookup brig brigTwo
       ]
 
+-- | Path covered by this test:
+--
+-- +------+         +---------+        +---------+          +------+
+-- | brig |   grpc  |federator| grpc   |federator|   http   | brig |
+-- |      +-------->+         +------->+         +--------->+      |
+-- +------+         +-+-------+        +---------+          +------+
 testHandleLookup :: Brig -> Brig -> Http ()
 testHandleLookup brig brigTwo = do
   -- Create a user on the "other side" using an internal brig endpoint from a
