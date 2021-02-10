@@ -41,20 +41,22 @@ grpc "Router" id routerProtoFile
 
 data Component
   = Brig
-  deriving (Show, Eq, Generic, ToSchema Router "Component", FromSchema Router "Component")
+  deriving (Typeable, Show, Eq, Generic, ToSchema Router "Component", FromSchema Router "Component")
   deriving (Arbitrary) via (GenericUniform Component)
 
 data HTTPResponse = HTTPResponse
   { responseStatus :: Word32,
     responseBody :: ByteString
   }
-  deriving (Show, Eq, Generic, ToSchema Router "HTTPResponse", FromSchema Router "HTTPResponse")
+  deriving (Typeable, Show, Eq, Generic, ToSchema Router "HTTPResponse", FromSchema Router "HTTPResponse")
+  deriving (Arbitrary) via (GenericUniform HTTPResponse)
 
 -- | FUTUREWORK: Make this a better ADT for the errors
 data Response
   = ResponseHTTPResponse HTTPResponse
   | ResponseErr Text
-  deriving (Show, Eq)
+  deriving (Typeable, Show, Eq, Generic)
+  deriving (Arbitrary) via (GenericUniform Response)
 
 instance ToSchema Router "Response" Response where
   toSchema r =
@@ -76,7 +78,7 @@ instance FromSchema Router "Response" Response where
 
 -- | This type exists to avoid orphan instances of ToSchema and FromSchema
 newtype HTTPMethod = HTTPMethod {unwrapMethod :: HTTP.StdMethod}
-  deriving (Eq, Show, Generic)
+  deriving (Typeable, Eq, Show, Generic)
 
 instance Arbitrary HTTPMethod where
   arbitrary =
@@ -93,7 +95,6 @@ instance Arbitrary HTTPMethod where
           HTTP.PATCH
         ]
 
--- TODO: Write roundtrip tests
 instance ToSchema Router "Method" HTTPMethod where
   toSchema (HTTPMethod m) =
     let enumChoice = case m of
@@ -127,7 +128,7 @@ data QueryParam = QueryParam
   { key :: ByteString,
     value :: ByteString
   }
-  deriving (Eq, Show, Generic, ToSchema Router "QueryParam", FromSchema Router "QueryParam")
+  deriving (Typeable, Eq, Show, Generic, ToSchema Router "QueryParam", FromSchema Router "QueryParam")
   deriving (Arbitrary) via (GenericUniform QueryParam)
 
 -- Does this make it hard to use in a type checked way?
@@ -138,30 +139,31 @@ data LocalCall = LocalCall
     query :: [QueryParam],
     body :: ByteString
   }
-  deriving (Eq, Show, Generic, ToSchema Router "LocalCall", FromSchema Router "LocalCall")
+  deriving (Typeable, Eq, Show, Generic, ToSchema Router "LocalCall", FromSchema Router "LocalCall")
   deriving (Arbitrary) via (GenericUniform LocalCall)
 
 data LocalCallValidationError
   = ComponentMissing
   | MethodMissing
-  deriving (Show, Eq)
+  deriving (Typeable, Show, Eq)
 
 data RemoteCall = RemoteCall
   { domain :: Text,
     localCall :: Maybe LocalCall
   }
-  deriving (Eq, Show, Generic, ToSchema Router "RemoteCall", FromSchema Router "RemoteCall")
+  deriving (Typeable, Eq, Show, Generic, ToSchema Router "RemoteCall", FromSchema Router "RemoteCall")
+  deriving (Arbitrary) via (GenericUniform RemoteCall)
 
 data RemoteCallValidationError
   = InvalidDomain String
   | LocalCallMissing
-  deriving (Show, Eq)
+  deriving (Typeable, Show, Eq)
 
 data ValidatedRemoteCall = ValidatedRemoteCall
   { vDomain :: Domain,
     vLocalCall :: LocalCall
   }
-  deriving (Eq, Show)
+  deriving (Typeable, Eq, Show)
 
 validateRemoteCall :: RemoteCall -> Validation (NonEmpty RemoteCallValidationError) ValidatedRemoteCall
 validateRemoteCall RemoteCall {..} = do

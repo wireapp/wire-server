@@ -20,14 +20,25 @@ module Test.Wire.API.Federation.GRPC.TypesSpec where
 import Data.Domain (domainText, mkDomain)
 import Data.Either.Validation
 import Imports
+import Mu.Schema (FromSchema (fromSchema), ToSchema (toSchema))
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck (Arbitrary (..), Gen, Property, counterexample, forAll, oneof, suchThat)
+import Type.Reflection (typeRep)
 import Wire.API.Federation.GRPC.Types
 
 spec :: Spec
 spec =
   describe "Wire.API.Federation.GRPC.Types" $ do
+    describe "Protobuf Serialization" $ do
+      muSchemaRoundtrip @Router @"Component" @Component
+      muSchemaRoundtrip @Router @"HTTPResponse" @HTTPResponse
+      muSchemaRoundtrip @Router @"Response" @Response
+      muSchemaRoundtrip @Router @"Method" @HTTPMethod
+      muSchemaRoundtrip @Router @"QueryParam" @QueryParam
+      muSchemaRoundtrip @Router @"LocalCall" @LocalCall
+      muSchemaRoundtrip @Router @"RemoteCall" @RemoteCall
+
     describe "validateRemoteCall" $ do
       prop "should succeed when RemoteCall is valid" $ do
         let callGen = RemoteCall <$> validDomain <*> (Just <$> arbitrary)
@@ -70,3 +81,8 @@ validDomain = domainText <$> arbitrary
 
 invalidDomain :: Gen Text
 invalidDomain = arbitrary `suchThat` (isLeft . mkDomain)
+
+muSchemaRoundtrip :: forall sch sty a. (ToSchema sch sty a, FromSchema sch sty a, Show a, Eq a, Arbitrary a, Typeable a) => Spec
+muSchemaRoundtrip =
+  prop ("Mu Schema Roundtrip: " <> show (typeRep @a)) $ \(x :: a) ->
+    fromSchema (toSchema @_ @_ @sch @sty x) == x
