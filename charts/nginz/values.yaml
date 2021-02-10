@@ -332,6 +332,9 @@ nginx_conf:
       - staging
       disable_zauth: true
       basic_auth: true
+    - path: ~* ^/teams/([^/]*)/size$
+      envs:
+      - all
     gundeck:
     - path: /push
       envs:
