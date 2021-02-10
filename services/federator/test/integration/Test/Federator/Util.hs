@@ -75,7 +75,7 @@ data TestEnv = TestEnv
 
 type Select = TestEnv -> (Request -> Request)
 
-data IntegrationConfig = IntegrationConfig
+newtype IntegrationConfig = IntegrationConfig
   { cfgBrig :: Endpoint
   }
   deriving (Show, Generic)
@@ -97,20 +97,20 @@ mkEnvFromOptions = do
 cliOptsParser :: OPA.Parser (String, String)
 cliOptsParser =
   (,)
-    <$> ( OPA.strOption $
-            OPA.long "integration-config"
-              <> OPA.short 'i'
-              <> OPA.help "Integration config to load"
-              <> OPA.showDefault
-              <> OPA.value defaultIntPath
-        )
-    <*> ( OPA.strOption $
-            OPA.long "service-config"
-              <> OPA.short 's'
-              <> OPA.help "Federator application config to load"
-              <> OPA.showDefault
-              <> OPA.value defaultFederatorPath
-        )
+    <$> OPA.strOption
+      ( OPA.long "integration-config"
+          <> OPA.short 'i'
+          <> OPA.help "Integration config to load"
+          <> OPA.showDefault
+          <> OPA.value defaultIntPath
+      )
+    <*> OPA.strOption
+      ( OPA.long "service-config"
+          <> OPA.short 's'
+          <> OPA.help "Federator application config to load"
+          <> OPA.showDefault
+          <> OPA.value defaultFederatorPath
+      )
   where
     defaultIntPath = "/etc/wire/integration/integration.yaml"
     defaultFederatorPath = "/etc/wire/federator/conf/federator.yaml"
