@@ -297,6 +297,9 @@ nginx_conf:
     - path: ~* ^/teams/([^/]*)/conversations(.*)
       envs:
       - all
+    - path: ~* ^/teams/([^/]*)/members/csv$
+      envs:
+      - all
     - path: ~* ^/teams/([^/]*)/legalhold(.*)
       envs:
       - all
