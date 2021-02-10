@@ -61,9 +61,9 @@ instance FromJSON FederationStrategy where
       _ -> fail "invalid FederationStrategy: expected either allowAll or allowedDomains"
 
 -- | Options that persist as runtime settings.
-data RunSettings = RunSettings
+newtype RunSettings = RunSettings
   { -- | Would you like to federate with everyone or only with a select set of other wire-server installations?
-    setFederationStrategy :: !(FederationStrategy)
+    setFederationStrategy :: FederationStrategy
   }
   deriving (Show, Generic)
 
