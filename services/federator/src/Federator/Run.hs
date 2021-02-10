@@ -55,6 +55,7 @@ import qualified Wire.Network.DNS.Helper as DNS
 ------------------------------------------------------------------------------
 -- run/app
 
+-- FUTUREWORK: Add metrics and status endpoints
 run :: Opts -> IO ()
 run opts =
   bracket (newEnv opts) closeEnv $ \env -> do
