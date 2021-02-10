@@ -389,22 +389,27 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
 
   env <- ask
   pure $
-    responseStream status200 [(hContentType, "text/csv")] $ \write flush -> do
-      let writeString = write . lazyByteString
-      writeString headerLine
-      flush
-      evalGalley env $ do
-        Data.withTeamMembersWithChunks tid $ \members -> do
-          inviters <- getInviters members
-          users <- lookupActivatedUsers (fmap (view userId) members)
-          let pairs = pairMembersUsers members users
-          liftIO $ do
-            writeString
-              ( encodeDefaultOrderedByNameWith
-                  defaultEncodeOptions
-                  (fmap (uncurry (teamExportUser inviters)) pairs)
-              )
-            flush
+    responseStream
+      status200
+      [ (hContentType, "text/csv"),
+        ("Content-Disposition", "attachment; filename=\"wire_team_members.csv\"")
+      ]
+      $ \write flush -> do
+        let writeString = write . lazyByteString
+        writeString headerLine
+        flush
+        evalGalley env $ do
+          Data.withTeamMembersWithChunks tid $ \members -> do
+            inviters <- getInviters members
+            users <- lookupActivatedUsers (fmap (view userId) members)
+            let pairs = pairMembersUsers members users
+            liftIO $ do
+              writeString
+                ( encodeDefaultOrderedByNameWith
+                    defaultEncodeOptions
+                    (fmap (uncurry (teamExportUser inviters)) pairs)
+                )
+              flush
   where
     headerLine :: LByteString
     headerLine = encodeDefaultOrderedByNameWith (defaultEncodeOptions {encIncludeHeader = True}) ([] :: [TeamExportUser])
