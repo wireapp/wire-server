@@ -94,7 +94,6 @@ instance Arbitrary HTTPMethod where
         ]
 
 -- TODO: Write roundtrip tests
--- TODO: The instances seem to be wrong, at least they don't work with grpcui
 instance ToSchema Router "Method" HTTPMethod where
   toSchema (HTTPMethod m) =
     let enumChoice = case m of
