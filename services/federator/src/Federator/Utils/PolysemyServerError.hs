@@ -17,9 +17,11 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Federator.PolysemyOrphans where
+module Federator.Utils.PolysemyServerError where
 
 import Control.Monad.Except (MonadError (..))
+import Federator.App (Federator)
+import Imports
 import Mu.Server (ServerError)
 import Polysemy
 import qualified Polysemy.Error as Polysemy
@@ -27,3 +29,10 @@ import qualified Polysemy.Error as Polysemy
 instance Member (Polysemy.Error ServerError) r => MonadError ServerError (Sem r) where
   throwError = Polysemy.throw
   catchError = Polysemy.catch
+
+absorbServerError :: forall r a. (Member (Embed Federator) r) => Sem (Polysemy.Error ServerError ': r) a -> Sem r a
+absorbServerError action = do
+  eitherResult <- Polysemy.runError action
+  case eitherResult of
+    Left err -> embed @Federator $ throwError err
+    Right res -> pure res

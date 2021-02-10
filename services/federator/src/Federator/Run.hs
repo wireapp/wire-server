@@ -35,7 +35,8 @@ import Control.Lens ((^.))
 import Data.Default (def)
 import qualified Data.Metrics.Middleware as Metrics
 import Data.Text.Encoding (encodeUtf8)
-import Federator.Federate (serveRouteToInternal, serveRouteToRemote)
+import Federator.ExternalServer (serveRouteToInternal)
+import Federator.InternalServer (serveRouteToRemote)
 import Federator.Options as Opt
 import Federator.Types
 import Imports
