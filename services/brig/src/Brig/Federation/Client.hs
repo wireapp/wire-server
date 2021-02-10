@@ -43,9 +43,9 @@ import qualified Wire.API.Federation.GRPC.Types as Proto
 getUserHandleInfo :: Qualified Handle -> Handler (Maybe UserHandleInfo)
 getUserHandleInfo (Qualified handle domain) = do
   Log.info $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
-  fedClient <- federatorClient
+  federatorClient <- viewFederatorClient
   let call = Proto.ValidatedRemoteCall domain (mkGetUserInfoByHandle handle)
-  res <- expectOk =<< callRemote fedClient call
+  res <- expectOk =<< callRemote federatorClient call
   case Proto.responseStatus res of
     404 -> pure Nothing
     200 -> case Aeson.eitherDecodeStrict (Proto.responseBody res) of
@@ -53,8 +53,8 @@ getUserHandleInfo (Qualified handle domain) = do
       Right x -> pure $ Just x
     code -> throwStd $ notFound $ "Invalid response from remote: " <> LT.pack (show code)
 
-federatorClient :: Handler GrpcClient
-federatorClient = do
+viewFederatorClient :: Handler GrpcClient
+viewFederatorClient = do
   mClient <- view federator
   case mClient of
     -- FUTUREWORK: what happens if federator is transiently unreachable
