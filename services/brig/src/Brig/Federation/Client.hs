@@ -37,6 +37,9 @@ import qualified System.Logger.Class as Log
 import Wire.API.Federation.API.Brig
 import qualified Wire.API.Federation.GRPC.Types as Proto
 
+-- FUTUREWORK: As of now, any failure in making a remote call results in 404.
+-- This is not correct, we should figure out how we communicate failure
+-- scenarios to the clients.
 getUserHandleInfo :: Qualified Handle -> Handler (Maybe UserHandleInfo)
 getUserHandleInfo (Qualified handle domain) = do
   Log.info $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
@@ -56,14 +59,12 @@ federatorClient = do
   case mClient of
     -- FUTUREWORK: what happens if federator is transiently unreachable
     -- at the time the grpc client is first initialized? Can we recover?
-    -- TODO: Do we need a special HTTP status code for this?
     Nothing -> throwStd $ notFound "no federator configured or federator unreachable"
     Just ep -> pure ep
 
 callRemote :: MonadIO m => GrpcClient -> Proto.ValidatedRemoteCall -> m (GRpcReply Proto.Response)
 callRemote fedClient call = liftIO $ gRpcCall @'MsgProtoBuf @Proto.RouteToRemote @"RouteToRemote" @"call" fedClient (Proto.validatedRemoteCallToRemoteCall call)
 
--- TODO:  Handle errors better
 expectOk :: GRpcReply Proto.Response -> Handler Proto.HTTPResponse
 expectOk = \case
   GRpcTooMuchConcurrency _tmc -> throwStd $ notFound "Too much concurrency"
