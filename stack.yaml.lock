@@ -478,6 +478,13 @@ packages:
   original:
     hackage: redis-io-1.1.0
 - completed:
+    hackage: polysemy-mocks-0.1.0.0@sha256:f2d7068e5cd74cfd1e34f23d15c2610f0a1608e0f0a02539f8d432a9971ad094,1426
+    pantry-tree:
+      size: 694
+      sha256: 094dd07046b545e3bb81508d5faefc545719f2560415f66b8e1703902348fa23
+  original:
+    hackage: polysemy-mocks-0.1.0.0
+- completed:
     hackage: wai-route-0.4.0@sha256:ee52f13d2945e4a56147e91e515e184f840654f2e3d9071c73bec3d8aa1f4444,2119
     pantry-tree:
       size: 566
@@ -579,17 +586,6 @@ packages:
       sha256: 1e5aba0165fb8ffa93d1516a87026a59c245750ca5f2ed42bd53b8328620f98e
   original:
     hackage: hex-0.2.0@sha256:197d2561d2e216c4ead035b4911dabc6e678ac6257cb71b64e324c822f6f9f5a,726
-- completed:
-    name: polysemy-mocks
-    version: 0.1.0.0
-    git: https://github.com/akshaymankar/polysemy-mocks.git
-    pantry-tree:
-      size: 950
-      sha256: c511703948de31e6ecccc45f485a26b72fdbd6c88222347ee5aba4add0882484
-    commit: 4139c208fec5d8f9b0a1c7881e84db484489decd
-  original:
-    git: https://github.com/akshaymankar/polysemy-mocks.git
-    commit: 4139c208fec5d8f9b0a1c7881e84db484489decd
 - completed:
     hackage: quickcheck-state-machine-0.6.0@sha256:3e4f8df0f6b5d415e3c8840dc75034a63e37f56f5f8cfa1035ded16345235ac4,3825
     pantry-tree:

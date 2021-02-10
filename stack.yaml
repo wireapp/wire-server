@@ -162,6 +162,7 @@ extra-deps:
 - markov-chain-usage-model-0.0.0
 - wai-predicates-1.0.0
 - redis-io-1.1.0
+- polysemy-mocks-0.1.0.0
 
 # Not latest as latst one breaks wai-routing
 - wai-route-0.4.0
@@ -183,9 +184,6 @@ extra-deps:
 - text-format-0.3.2@sha256:2a3fc17cf87120fcfdbca62a0da59759755549285841cdc1483081c35fb3d115,1814 # Latest: lts-14.27
 - hex-0.2.0@sha256:197d2561d2e216c4ead035b4911dabc6e678ac6257cb71b64e324c822f6f9f5a,726 # Latest: lts-14.27
 
-# Not on hackage
-- git: https://github.com/akshaymankar/polysemy-mocks.git # TODO(akshay): Don't be so shy, upload this to hackage
-  commit: 4139c208fec5d8f9b0a1c7881e84db484489decd
 
 # Not in the upstream snapshot and not using latest version on hackage due to
 # breaking change
