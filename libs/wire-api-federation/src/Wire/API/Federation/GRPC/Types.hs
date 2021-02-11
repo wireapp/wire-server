@@ -35,6 +35,13 @@ import Test.QuickCheck (Arbitrary (..), elements)
 import Wire.API.Arbitrary (GenericUniform (..))
 import Wire.API.Federation.GRPC.Helper
 
+-- Note: To understand the purpose of this file, please see the documentation of
+-- mu-haskell: https://higherkindness.io/mu-haskell/
+
+-- | Whenever proto/router.proto is changed, we want this file to recompile
+-- In the case of a change to one of the existing types, this will then lead to
+-- a compilation error (which we want to see at compilation time to keep the
+-- haskell code, the mu schema, and the protobuf file in sync)
 recompileRouterUponProtoChanges
 
 grpc "Router" id routerProtoFile

@@ -1,6 +1,13 @@
 syntax = "proto3";
 package wire.federator;
 
+// These definitions are part of the federation protocol.
+//
+// A component (e.g. 'brig') will send some data of type 'RemoteCall' to
+// the local 'federator' service. That federator will extract the domain from
+// the 'RemoteCall' to discover where to send some data of type 'LocalCall' to.
+// On the other end, the 'LocalCall' will be converted to a 'Response'.
+
 enum Component {
   Brig = 0;
 }
