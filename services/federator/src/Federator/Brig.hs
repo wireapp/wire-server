@@ -27,9 +27,8 @@ import Bilge.RPC (rpc')
 import Bilge.Retry (rpcHandlers)
 import Control.Lens (view)
 import Control.Retry (RetryPolicy, exponentialBackoff, limitRetries, recovering)
-import Federator.App (Federator)
+import Federator.App (Federator, liftAppIOToFederator)
 import Federator.Env (brig)
-import Federator.UnliftExcept ()
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import Polysemy
@@ -47,7 +46,7 @@ interpretBrig ::
   Sem (Brig ': r) a ->
   Sem r a
 interpretBrig = interpret $ \case
-  BrigCall m p q b -> embed @Federator $ do
+  BrigCall m p q b -> embed @Federator . liftAppIOToFederator $ do
     brigReq <- view brig <$> ask
     let theCall =
           rpc' "brig" brigReq $

@@ -22,6 +22,7 @@ module Federator.App
   ( AppT,
     Federator,
     runAppT,
+    liftAppIOToFederator,
   )
 where
 
@@ -90,3 +91,8 @@ instance (Monad m, MonadIO m) => MonadHttp (AppT m) where
 
 runAppT :: forall m a. Env -> AppT m a -> m a
 runAppT e (AppT ma) = runReaderT ma e
+
+liftAppIOToFederator :: AppT IO a -> Federator a
+liftAppIOToFederator (AppT action) = do
+  env <- ask
+  lift . lift $ runReaderT action env
