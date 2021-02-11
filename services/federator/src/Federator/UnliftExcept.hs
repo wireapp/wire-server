@@ -23,8 +23,39 @@ import Control.Monad.Except (ExceptT (..), runExceptT)
 import Imports
 import UnliftIO.Exception
 
--- TODO: Check if this is actually sane
--- TODO: See if we can rid RPC of MonadUnliftIO
+-- | This instance defines an instance of MonadUnliftIO for (ExceptT). This was
+-- copied from https://github.com/fpco/unliftio/issues/68.
+--
+-- This is required if we want to do any actions requiring MonadUnliftIO in the
+-- 'Federator' monad, which is defined as 'AppT ServerErrorIO'. Here
+-- 'ServerErrorIO' is an alias for 'ExceptT ServerError IO'.
+--
+-- This raises a few questions:
+--
+-- Q 1. Why is the Federator monad not defined as `AppT IO`?
+--
+-- Servers defined using mu-rpc must be defined in terms of an m which is bound
+-- by this constraint: (MonadError ServerError m, MonadIO m). To be able to
+-- define an instance of 'MonadError ServerError', we decided to defined the
+-- 'Federator' monad as 'AppT ServerErrorIO' and not 'AppT ServerError'.
+--
+-- Q 2. What actions requiring MonadUnliftIO do we have to perform and where?
+--
+-- We decided to use Bilge to make calls to components from the federator. All
+-- the ways to call components in Bilge require MonadUnliftIO. Maybe this can be
+-- circumvented by adding more functions to Bilge, but we didn't analyze this
+-- yet.
+--
+-- Q 3. This solution isn't accepted upstream, does it work?
+--
+-- We haven't gotten around to verifying this yet. It works in happy paths, but
+-- we don't know if it will work when async exceptions are raised.
+--
+-- FUTUREWORK: Verify whether we can make calls to components without needing
+-- MonadUnliftIO.
+--
+-- FUTUREWORK: Verify wheter this instance works when async exceptions are
+-- raised.
 instance (MonadUnliftIO m, Exception e) => MonadUnliftIO (ExceptT e m) where
   withRunInIO exceptToIO = ExceptT $
     try $ do
