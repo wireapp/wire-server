@@ -44,6 +44,8 @@ import qualified Wire.Network.DNS.Effect as Lookup
 
 callRemote :: Member Remote r => RemoteCall -> Sem r Response
 callRemote req = do
+  -- FUTUREWORK(federation): before doing an outgoing call,
+  -- first validate the target domain is in the the allowlist (see Util.federateWith)
   case validateRemoteCall req of
     Success vReq -> do
       reply <- discoverAndCall vReq

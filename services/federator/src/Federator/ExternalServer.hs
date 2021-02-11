@@ -46,6 +46,7 @@ import Wire.API.Federation.GRPC.Types
 -- Also, see comment in 'Federator.Brig.interpretBrig'
 callLocal :: (Members '[Brig, Embed IO] r) => LocalCall -> Sem r Response
 callLocal LocalCall {..} = do
+  -- FUTUREWORK(federation): before making a localCall, check the sender domain and only make the call if the allowlist (use Util.federateWith) allows it.
   (resStatus, resBody) <- brigCall (unwrapMethod method) path query body
   -- FUTUREWORK(federation): Decide what to do with 5xx statuses
   let statusW32 = fromIntegral $ HTTP.statusCode resStatus
