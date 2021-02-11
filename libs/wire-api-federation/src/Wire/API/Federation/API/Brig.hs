@@ -34,19 +34,19 @@ newtype Api routes = Api
         :> "users"
         :> "by-handle"
         :> QueryParam' '[Required, Strict] "handle" Handle
-        -- FUTUREWORK: Make this return UserProfile, at that point there would
+        -- FUTUREWORK(federation): Make this return UserProfile, at that point there would
         -- be interesting questions like whether to expose email or not and how
         -- we code that part. I want to avoid solving this until federator works
         :> Get '[JSON] UserHandleInfo
   }
   deriving (Generic)
 
--- FUTUREWORK: Idea: by keeping the functions to construct a LocalCall and the API definitions in the same place,
+-- FUTUREWORK(federation): Idea: by keeping the functions to construct a LocalCall and the API definitions in the same place,
 -- we can:
 -- - more easily make sure their definitions match
 -- - probably add their path segments to a list for validation purposes to guard against path traversals.
 
--- FUTUREWORK: I think we should make the federation/ prefix explicit here and not add it in services/federator/src/Federator/Federate.hs
+-- FUTUREWORK(federation): I think we should make the federation/ prefix explicit here and not add it in services/federator/src/Federator/Federate.hs
 mkGetUserInfoByHandle :: Handle -> Proto.LocalCall
 mkGetUserInfoByHandle handle =
   Proto.LocalCall

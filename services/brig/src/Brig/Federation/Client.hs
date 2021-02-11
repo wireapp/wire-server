@@ -37,7 +37,7 @@ import qualified System.Logger.Class as Log
 import Wire.API.Federation.API.Brig
 import qualified Wire.API.Federation.GRPC.Types as Proto
 
--- FUTUREWORK: As of now, any failure in making a remote call results in 404.
+-- FUTUREWORK(federation): As of now, any failure in making a remote call results in 404.
 -- This is not correct, we should figure out how we communicate failure
 -- scenarios to the clients.
 getUserHandleInfo :: Qualified Handle -> Handler (Maybe UserHandleInfo)
@@ -57,7 +57,7 @@ viewFederatorClient :: Handler GrpcClient
 viewFederatorClient = do
   mClient <- view federator
   case mClient of
-    -- FUTUREWORK: what happens if federator is transiently unreachable
+    -- FUTUREWORK(federation): what happens if federator is transiently unreachable
     -- at the time the grpc client is first initialized? Can we recover?
     Nothing -> throwStd $ notFound "no federator configured or federator unreachable"
     Just ep -> pure ep

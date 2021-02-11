@@ -56,8 +56,8 @@ interpretRemote = interpret $ \case
             . Log.field "error" (show err)
         pure $ Left (RemoteErrorDiscoveryFailure err vDomain)
       Right target -> do
-        -- FUTUREWORK: Make this use TLS, maybe make it configurable
-        -- FUTUREWORK: Cache this client and use it for many requests
+        -- FUTUREWORK(federation): Make this use TLS, maybe make it configurable
+        -- FUTUREWORK(federation): Cache this client and use it for many requests
         eitherClient <- mkGrpcClient target
         case eitherClient of
           Right client ->

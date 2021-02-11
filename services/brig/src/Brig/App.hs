@@ -286,7 +286,7 @@ initFederatorClient lgr mFederator = maybe (pure Nothing) createClient mFederato
             Log.msg (Log.val "failed to connect to federator using endpoint: ")
               Log.~~ Log.field "endpoint" (show endpoint)
 
-          -- FUTUREWORK: Do we want to distinguish a failure from federation
+          -- FUTUREWORK(federation): Do we want to distinguish a failure from federation
           -- being disabled? If so, Maybe could be changed to e.g. an Either.
           -- Once we run federator in production infrastructure, the federator
           -- Endpoint can be made mandatory which would simplify this function.

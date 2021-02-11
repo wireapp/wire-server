@@ -35,8 +35,7 @@ import Util.Options (Endpoint)
 -- these more end-to-end integration test serve as a way to test the overall
 -- network flow
 --
--- FUTUREWORK:
--- Add tests for these scenarios:
+-- FUTUREWORK(federation): Add tests for these scenarios:
 -- - Remote discovery fails
 -- - Remote discovery succeeds but server doesn't exist
 -- - Remote federator fails to respond in many ways (protocol error, timeout, etc.)

@@ -60,14 +60,14 @@ enum Method {
 
 // The * part of the following network traffic:
 // Brig *-> federator -> federatpr -> brig
-// FUTUREWORK: better naming?
+// FUTUREWORK(federation): better naming?
 service RouteToRemote {
   rpc call (RemoteCall) returns (Response);
 }
 
 // The * part of the following network traffic:
 // Brig -> federator *-> federator -> brig
-// FUTUREWORK: better naming?
+// FUTUREWORK(federation): better naming?
 service RouteToInternal {
     // callLocal in haskell
   rpc call (LocalCall) returns (Response);

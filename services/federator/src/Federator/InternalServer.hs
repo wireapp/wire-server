@@ -50,7 +50,7 @@ callRemote req = do
       pure $ mkRemoteResponse reply
     Failure errs -> pure $ ResponseErr ("component -> local federator: invalid RemoteCall: " <> Text.pack (show errs))
 
--- FUTUREWORK: Make these errors less stringly typed
+-- FUTUREWORK(federation): Make these errors less stringly typed
 mkRemoteResponse :: Either RemoteError (GRpcReply Response) -> Response
 mkRemoteResponse reply =
   case reply of

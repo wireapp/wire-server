@@ -38,7 +38,7 @@ makeSem ''DiscoverFederator
 
 runFederatorDiscovery :: Members '[DNSLookup] r => Sem (DiscoverFederator ': r) a -> Sem r a
 runFederatorDiscovery = interpret $ \(DiscoverFederator d) ->
-  -- FUTUREWORK: This string conversation is probably wrong, we should encode this
+  -- FUTUREWORK(federation): This string conversation is probably wrong, we should encode this
   -- using IDNA encoding or expect domain to be bytestring everywhere
   let domainSrv = cs $ "_wire-server-federator._tcp." <> domainText d
    in lookupDomainByDNS domainSrv
@@ -48,7 +48,7 @@ lookupDomainByDNS domainSrv = do
   res <- Lookup.lookupSRV domainSrv
   case res of
     SrvAvailable entries -> do
-      -- FUTUREWORK: orderSrvResult and try the list in order this will make it
+      -- FUTUREWORK(federation): orderSrvResult and try the list in order this will make it
       -- not federator specific and then we can move this whole function to
       -- dns-util
       pure $ Right $ srvTarget $ NonEmpty.head entries

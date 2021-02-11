@@ -55,7 +55,11 @@ import qualified Wire.Network.DNS.Helper as DNS
 ------------------------------------------------------------------------------
 -- run/app
 
--- FUTUREWORK: Add metrics and status endpoints
+-- FUTUREWORK(federation): Add metrics and status endpoints
+-- (this probably requires using HTTP. A Servant API could be used; and the
+-- internal grpc server converted to a WAI application, and the grpc application be
+-- "merged" using Servant's 'Raw' type (like in 'brig') with servant's http
+-- endpoints and exposed on the same port.
 run :: Opts -> IO ()
 run opts =
   bracket (newEnv opts) closeEnv $ \env -> do
@@ -94,7 +98,7 @@ closeEnv e = do
   Log.close $ e ^. applog
 
 -- | Copied (and adjusted) from brig, do we want to put this somehwere common?
--- FUTUREWORK: review certificate and protocol security setting for this TLS
+-- FUTUREWORK(federation): review certificate and protocol security setting for this TLS
 -- manager
 initHttpManager :: IO HTTP.Manager
 initHttpManager = do

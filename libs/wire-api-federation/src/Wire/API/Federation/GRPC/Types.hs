@@ -58,7 +58,7 @@ data HTTPResponse = HTTPResponse
   deriving (Typeable, Show, Eq, Generic, ToSchema Router "HTTPResponse", FromSchema Router "HTTPResponse")
   deriving (Arbitrary) via (GenericUniform HTTPResponse)
 
--- | FUTUREWORK: Make this a better ADT for the errors
+-- | FUTUREWORK(federation): Make this a better ADT for the errors
 data Response
   = ResponseHTTPResponse HTTPResponse
   | ResponseErr Text

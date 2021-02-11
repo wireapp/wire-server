@@ -19,7 +19,7 @@ module Federator.Brig where
 
 -- Is there is a point in creating an effect for each service?
 --
--- FUTUREWORK: Once we authenticate the call, we should send authentication data
+-- FUTUREWORK(federation): Once we authenticate the call, we should send authentication data
 -- to brig so brig can do some authorization as required.
 
 import qualified Bilge as RPC
@@ -40,7 +40,7 @@ data Brig m a where
 
 makeSem ''Brig
 
--- FUTUREWORK: Do we want to use servant client here? May make everything typed and safe
+-- FUTUREWORK(federation): Do we want to use servant client here? May make everything typed and safe
 interpretBrig ::
   Member (Embed Federator) r =>
   Sem (Brig ': r) a ->
@@ -51,12 +51,12 @@ interpretBrig = interpret $ \case
     let theCall =
           rpc' "brig" brigReq $
             RPC.method m
-              . RPC.path ("federation/" <> p) -- FUTUREWORK: Protect against path traversal
+              . RPC.path ("federation/" <> p) -- FUTUREWORK(federation): Protect against path traversal
               . RPC.query (map (\(QueryParam k v) -> (k, Just v)) q)
               . RPC.body (RPC.RequestBodyBS b)
     res <-
       case m of
-        -- FUTUREWORK: Maybe other HTTP methods can also be retried, this is the
+        -- FUTUREWORK(federation): Maybe other HTTP methods can also be retried, this is the
         -- only usecase as of now and seems safe.
         HTTP.GET -> recovering x3 rpcHandlers $ const theCall
         _ -> theCall

@@ -39,7 +39,7 @@ import Servant.Server ()
 import System.Logger.Class as LC
 import qualified System.Logger.Extended as Log
 
--- FUTUREWORK: this code re-occurs in every service.  introduce 'MkAppT' in types-common that
+-- FUTUREWORK(federation): this code re-occurs in every service.  introduce 'MkAppT' in types-common that
 -- takes 'Env' as one more argument.
 newtype AppT m a = AppT
   { unAppT :: ReaderT Env m a

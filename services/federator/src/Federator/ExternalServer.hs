@@ -36,18 +36,18 @@ import qualified Polysemy.Error as Polysemy
 import Polysemy.IO (embedToMonadIO)
 import Wire.API.Federation.GRPC.Types
 
--- FUTUREWORK: Versioning of the federation API. See
+-- FUTUREWORK(federation): Versioning of the federation API. See
 -- https://higherkindness.io/mu-haskell/registry/ for some mu-haskell support
 -- for versioning schemas here.
 
--- FUTUREWORK: How do we make sure that only legitimate endpoints can be
+-- FUTUREWORK(federation): How do we make sure that only legitimate endpoints can be
 -- reached, some discussion here:
 -- https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/224166764/Limiting+access+to+federation+endpoints
 -- Also, see comment in 'Federator.Brig.interpretBrig'
 callLocal :: (Members '[Brig, Embed IO] r) => LocalCall -> Sem r Response
 callLocal LocalCall {..} = do
   (resStatus, resBody) <- brigCall (unwrapMethod method) path query body
-  -- FUTUREWORK: Decide what to do with 5xx statuses
+  -- FUTUREWORK(federation): Decide what to do with 5xx statuses
   let statusW32 = fromIntegral $ HTTP.statusCode resStatus
       bodyBS = maybe mempty LBS.toStrict resBody
   pure $ ResponseHTTPResponse $ HTTPResponse statusW32 bodyBS

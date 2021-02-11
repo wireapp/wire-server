@@ -63,7 +63,7 @@ remoteCallSuccess =
       embed $ assertEqual "one remote call should be made" [expectedCall] actualCalls
       embed $ assertEqual "successful response should be returned" (ResponseHTTPResponse (HTTPResponse 200 "success!")) res
 
--- FUTUREWORK: This is probably not ideal, we should figure out what this error
+-- FUTUREWORK(federation): This is probably not ideal, we should figure out what this error
 -- means and act accordingly.
 remoteCallFailureTMC :: TestTree
 remoteCallFailureTMC =
