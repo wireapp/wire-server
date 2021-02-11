@@ -44,6 +44,8 @@ import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Handle (UserHandleInfo (UserHandleInfo))
 
+-- FUTUREWORK(federation): move these tests to brig-integration (benefit: avoid duplicating all of the brig helper code)
+
 -- | Path covered by this test
 --
 --  +----------+

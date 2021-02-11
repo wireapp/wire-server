@@ -34,7 +34,7 @@ import qualified Data.Yaml as Yaml
 import Federator.Options
 import Imports hiding (head)
 import qualified Options.Applicative as OPA
-import Test.Federator.Utilly
+import Test.Federator.JSON
 import Util.Options
 
 type BrigReq = Request -> Request
@@ -119,14 +119,7 @@ cliOptsParser =
 mkEnv :: HasCallStack => IntegrationConfig -> Opts -> IO TestEnv
 mkEnv _teTstOpts _teOpts = do
   _teMgr :: Manager <- newManager defaultManagerSettings
-  -- federatorCtxLogger <- Log.mkLogger (toLevel $ saml _teOpts ^. SAML.cfgLogLevel) (logNetStrings _teOpts) (logFormat _teOpts)
   let _teBrig = endpointToReq (cfgBrig _teTstOpts)
-  -- _teFederator = endpointToReq (federator _teTstOpts)
-  -- _teFederatorEnv = Federator.Env {..}
-  -- federatorCtxOpts = _teOpts
-  -- federatorCtxHttpManager = _teMgr
-  -- federatorCtxHttpBrig = _teBrig empty
-  -- federatorCtxRequestId = RequestId "<fake request id>"
   pure TestEnv {..}
 
 destroyEnv :: HasCallStack => TestEnv -> IO ()
