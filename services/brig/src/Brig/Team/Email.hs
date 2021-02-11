@@ -38,6 +38,7 @@ import Data.Id (TeamId, idToText)
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Lazy (toStrict)
 import Imports
+import qualified System.Logger.Class as Log
 
 -------------------------------------------------------------------------------
 -- Invitation Email
@@ -47,7 +48,11 @@ sendInvitationMail to tid from code loc = do
   tpl <- invitationEmail . snd <$> teamTemplates loc
   branding <- view templateBranding
   let mail = InvitationEmail to tid code from
-  Email.sendMail $ renderInvitationEmail mail tpl branding
+  Log.info $ Log.msg @Text "renderInvitationEmail before"
+  let r = renderInvitationEmail mail tpl branding
+  Log.info $ Log.msg @Text "renderInvitationEmail"
+  Email.sendMail $ r
+  Log.info $ Log.msg @Text "sendMail"
 
 sendCreatorWelcomeMail :: Email -> TeamId -> Text -> Maybe Locale -> AppIO ()
 sendCreatorWelcomeMail to tid teamName loc = do

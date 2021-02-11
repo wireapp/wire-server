@@ -40,7 +40,8 @@ module Brig.Email
 where
 
 import qualified Brig.AWS as AWS
-import Brig.App (AppIO, awsEnv, smtpEnv)
+import Brig.App (AppIO, awsEnv, emailEnv)
+import qualified Brig.Email.Env as Env
 import qualified Brig.SMTP as SMTP
 import Brig.Types
 import Control.Lens (view)
@@ -51,9 +52,10 @@ import Network.Mail.Mime
 -------------------------------------------------------------------------------
 sendMail :: Mail -> AppIO ()
 sendMail m =
-  view smtpEnv >>= \case
-    Just smtp -> SMTP.sendMail smtp m
-    Nothing -> view awsEnv >>= \e -> AWS.execute e $ AWS.sendMail m
+  view emailEnv >>= \case
+    Env.EmailSMTP smtp -> SMTP.sendMail smtp m
+    Env.EmailAWS -> view awsEnv >>= \e -> AWS.execute e $ AWS.sendMail m
+    Env.NoEmail -> pure ()
 
 -------------------------------------------------------------------------------
 -- Unique Keys

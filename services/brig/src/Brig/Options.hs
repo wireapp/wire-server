@@ -27,9 +27,9 @@ import Brig.User.Auth.Cookie.Limit
 import Brig.Whitelist (Whitelist (..))
 import qualified Brig.ZAuth as ZAuth
 import qualified Control.Lens as Lens
-import Data.Aeson (withText)
+import Data.Aeson (Value, withText)
 import qualified Data.Aeson as Aeson
-import Data.Aeson.Types (typeMismatch)
+import Data.Aeson.Types (Parser, typeMismatch)
 import qualified Data.Char as Char
 import Data.Domain (Domain (..))
 import Data.Id
@@ -225,12 +225,20 @@ instance FromJSON TeamOpts
 data EmailOpts
   = EmailAWS EmailAWSOpts
   | EmailSMTP EmailSMTPOpts
+  | NoEndpoint
   deriving (Show, Generic)
+
+parseNoEndpoint :: Value -> Parser EmailOpts
+parseNoEndpoint = withText "email" $ \case 
+  "noendpoint" -> pure NoEndpoint 
+  _ -> fail "Only use the endpoint option with false."
 
 instance FromJSON EmailOpts where
   parseJSON o =
     EmailAWS <$> parseJSON o
       <|> EmailSMTP <$> parseJSON o
+        <|> parseNoEndpoint o
+        <|> fail "EmailOpts parser fails"
 
 data EmailSMSOpts = EmailSMSOpts
   { email :: !EmailOpts,
