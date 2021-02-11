@@ -381,8 +381,8 @@ getTeamMembers zusr tid maxResults = do
       let withPerms = (m `canSeePermsOf`)
       pure (mems, withPerms)
 
-getTeamMembersCSVH :: UserId ::: TeamId ::: JSON -> Galley Response
-getTeamMembersCSVH (zusr ::: tid ::: _) = do
+getTeamMembersCSVH :: UserId ::: TeamId -> Galley Response
+getTeamMembersCSVH (zusr ::: tid) = do
   Data.teamMember tid zusr >>= \case
     Nothing -> throwM accessDenied
     Just member -> unless (member `hasPermission` DownloadTeamMembersCsv) $ throwM accessDenied

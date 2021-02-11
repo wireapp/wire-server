@@ -177,7 +177,6 @@ sitemap = do
     -- nginz metrics dashboards easier.
     zauthUserId
       .&. capture "tid"
-      .&. accept "text" "csv"
   document "GET" "getTeamMembersCSV" $ do
     summary "Get all members of the team as a CSV file"
     parameter Path "tid" bytes' $
