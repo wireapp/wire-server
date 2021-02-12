@@ -224,13 +224,40 @@ getTeamMembers usr tid = do
   r <- get (g . paths ["teams", toByteString' tid, "members"] . zUser usr) <!! const 200 === statusCode
   responseJsonError r
 
+data CsvCookieChoice = CsvWithCookie | CsvWithoutCookie
+  deriving (Eq, Show)
+
 -- alternative to 'ResponseLBS': [BodyReader](https://hoogle.zinfra.io/file/root/.stack/snapshots/x86_64-linux/82492d944a85db90f4cd7cec6f4d5215ef9ac1ac8aeffeed4a805fbd6b1232c5/8.8.4/doc/http-client-0.7.0/Network-HTTP-Client.html#t:BodyReader)
-getTeamMembersCsv :: HasCallStack => UserId -> TeamId -> TestM ResponseLBS
-getTeamMembersCsv usr tid = do
-  g <- view tsGalley
-  get (g . accept "text/csv" . paths ["teams", toByteString' tid, "members/csv"] . zUser usr) <!! do
-    const 200 === statusCode
-    const (Just "chunked") === lookup "Transfer-Encoding" . responseHeaders
+getTeamMembersCsv :: HasCallStack => CsvCookieChoice -> User -> TeamId -> TestM ResponseLBS
+getTeamMembersCsv withCookie usr tid = do
+  b <- view tsBrig
+  n <- view tsNginz
+  let email = fromJust (Brig.Types.userEmail usr)
+  cky <- case withCookie of
+    CsvWithCookie ->
+      Just <$> do
+        decodeCookie
+          <$> ( login b (emailLogin email defPassword (Just ("nexus1" :: String)) (error "PersistentCookie"))
+                  <!! const 200 === statusCode
+              )
+    CsvWithoutCookie -> pure Nothing
+
+  get
+    ( n . accept "text/csv"
+        . paths ["teams", toByteString' tid, "members/csv"]
+        . maybe id cookie cky
+    )
+  where
+    -- copy the following from /services/brig/test/integration/API/User/Auth.hs
+
+    -- login :: forall (m :: * -> *). Brig -> Login -> CookieType -> (MonadIO m, MonadHttp m) => m ResponseLBS -- Defined at Util.hs:328:1
+    login = undefined
+
+    -- emailLogin :: Email -> PlainTextPassword -> Maybe CookieLabel -> Login -- Defined at Util.hs:622:1
+    emailLogin = undefined
+
+    -- decodeCookie :: forall a. HasCallStack => Response a -> Http.Cookie -- Defined at Util.hs:358:1
+    decodeCookie = undefined
 
 getTeamMembersTruncated :: HasCallStack => UserId -> TeamId -> Int -> TestM TeamMemberList
 getTeamMembersTruncated usr tid n = do

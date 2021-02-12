@@ -27,6 +27,7 @@ module TestSetup
     tsGalley,
     tsBrig,
     tsCannon,
+    tsNginz,
     tsAwsEnv,
     tsMaxConvSize,
     tsCass,
@@ -51,11 +52,14 @@ type BrigR = Request -> Request
 
 type CannonR = Request -> Request
 
+type NginzR = Request -> Request
+
 data IntegrationConfig = IntegrationConfig
   -- internal endpoints
   { galley :: Endpoint,
     brig :: Endpoint,
     cannon :: Endpoint,
+    nginz :: Endpoint,
     provider :: LegalHoldConfig
   }
   deriving (Show, Generic)
@@ -81,6 +85,7 @@ data TestSetup = TestSetup
     _tsGalley :: GalleyR,
     _tsBrig :: BrigR,
     _tsCannon :: CannonR,
+    _tsNginz :: NginzR,
     _tsAwsEnv :: Maybe Aws.Env,
     _tsMaxConvSize :: Word16,
     _tsCass :: Cql.ClientState

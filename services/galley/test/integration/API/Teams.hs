@@ -238,8 +238,16 @@ testListTeamMembersCsv :: HasCallStack => Int -> TestM ()
 testListTeamMembersCsv numMembers = do
   let teamSize = numMembers + 1
 
-  (owner, tid, _mbs) <- Util.createBindingTeamWithNMembersWithHandles True numMembers
-  resp <- Util.getTeamMembersCsv owner tid
+  (ownerId, tid, _mbs) <- Util.createBindingTeamWithNMembersWithHandles True numMembers
+  [owner] <- getUsersByUid [ownerId]
+  resp <- do
+    Util.getTeamMembersCsv CsvWithoutCookie owner tid
+      !!! do
+        const 401 === statusCode
+    Util.getTeamMembersCsv CsvWithCookie owner tid
+      <!! do
+        const 200 === statusCode
+        const (Just "chunked") === lookup "Transfer-Encoding" . responseHeaders
   let rbody = fromMaybe (error "no body") . responseBody $ resp
   usersInCsv <- either (error "could not decode csv") pure (decodeCSV @TeamExportUser rbody)
   liftIO $ do
@@ -251,7 +259,7 @@ testListTeamMembersCsv numMembers = do
     let someUsersInCsv = take 50 usersInCsv
         someHandles = tExportHandle <$> someUsersInCsv
     users <- Util.getUsersByHandle (catMaybes someHandles)
-    mbrs <- view teamMembers <$> Util.bulkGetTeamMembers owner tid (U.userId <$> users)
+    mbrs <- view teamMembers <$> Util.bulkGetTeamMembers ownerId tid (U.userId <$> users)
 
     let check :: (Show a, Eq a) => String -> (TeamExportUser -> Maybe a) -> UserId -> Maybe a -> IO ()
         check msg getTeamExportUserAttr uid userAttr = do

@@ -105,6 +105,7 @@ main = withOpenSSL $ runTests go
       g <- mkRequest <$> optOrEnv galley iConf (local . read) "GALLEY_WEB_PORT"
       b <- mkRequest <$> optOrEnv brig iConf (local . read) "BRIG_WEB_PORT"
       c <- mkRequest <$> optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
+      n <- mkRequest <$> optOrEnv nginz iConf (local . read) "NGINZ_WEB_PORT"
       -- unset this env variable in galley's config to disable testing SQS team events
       q <- join <$> optOrEnvSafe queueName gConf (Just . pack) "GALLEY_SQS_TEAM_EVENTS"
       e <- join <$> optOrEnvSafe endpoint gConf (fromByteString . BS.pack) "GALLEY_SQS_ENDPOINT"
@@ -117,7 +118,7 @@ main = withOpenSSL $ runTests go
       let ck = fromJust gConf ^. optCassandra . casKeyspace
       lg <- Logger.new Logger.defSettings
       db <- defInitCassandra ck ch cp lg
-      return $ TestSetup (fromJust gConf) (fromJust iConf) m g b c awsEnv convMaxSize db
+      return $ TestSetup (fromJust gConf) (fromJust iConf) m g b c n awsEnv convMaxSize db
     queueName = fmap (view awsQueueName) . view optJournal
     endpoint = fmap (view awsEndpoint) . view optJournal
     maxSize = view (optSettings . setMaxConvSize)
