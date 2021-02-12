@@ -22,7 +22,6 @@ import Bilge.Assert
 import Control.Lens (view)
 import Control.Monad.Catch
 import Data.Aeson
-import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Char8 as C8
 import Data.Id
 import Data.Misc
@@ -41,6 +40,7 @@ import Test.Tasty.HUnit (assertFailure)
 import Util.Options (Endpoint (Endpoint))
 import Wire.API.Federation.GRPC.Types (Component (..), HTTPMethod (..), HTTPResponse (..), Inward, QueryParam (..), Request (Request), Response (..))
 import Wire.API.User
+import qualified Wire.API.User as User
 import Wire.API.User.Auth
 import Wire.API.User.Handle (UserHandleInfo (UserHandleInfo))
 
@@ -117,7 +117,7 @@ createUser' ::
   m User
 createUser' hasPwd name brig = do
   r <-
-    postUser' hasPwd True name True False Nothing Nothing brig
+    postUser' hasPwd name True False Nothing Nothing brig
       <!! const 201 === statusCode
   responseJsonError r
 
@@ -126,52 +126,46 @@ createUser' hasPwd name brig = do
 postUser' ::
   (MonadIO m, MonadHttp m, HasCallStack) =>
   Bool ->
-  Bool ->
   Text ->
   Bool ->
   Bool ->
-  Maybe UserSSOId ->
+  Maybe AuthId ->
   Maybe TeamId ->
   BrigReq ->
   m ResponseLBS
-postUser' hasPassword validateBody name haveEmail havePhone ssoid teamid brig = do
+postUser' hasPassword name haveEmail havePhone ssoid teamid brig = do
   email <-
     if haveEmail
       then Just <$> randomEmail
       else pure Nothing
-  postUserWithEmail hasPassword validateBody name email havePhone ssoid teamid brig
+  postUserWithEmail hasPassword name email havePhone ssoid teamid brig
 
 -- | More flexible variant of 'createUserUntrustedEmail' (see above).
 postUserWithEmail ::
   (MonadIO m, MonadHttp m, HasCallStack) =>
   Bool ->
-  Bool ->
   Text ->
   Maybe Email ->
   Bool ->
-  Maybe UserSSOId ->
+  Maybe AuthId ->
   Maybe TeamId ->
   BrigReq ->
   m ResponseLBS
-postUserWithEmail hasPassword validateBody name email havePhone ssoid teamid brig = do
+postUserWithEmail hasPassword name email havePhone authId teamid brig = do
   phone <-
     if havePhone
       then Just <$> randomPhone
       else pure Nothing
-  let o =
-        object $
-          [ "name" .= name,
-            "email" .= (fromEmail <$> email),
-            "phone" .= phone,
-            "cookie" .= defCookieLabel,
-            "sso_id" .= ssoid,
-            "team_id" .= teamid
-          ]
-            <> ["password" .= defPassword | hasPassword]
-      p = case Aeson.parse parseJSON o of
-        Aeson.Success (p_ :: NewUser) -> p_
-        bad -> error $ show (bad, o)
-      bdy = if validateBody then Bilge.json p else Bilge.json o
+  let ident = newIdentity email phone authId
+  let mbOrigin = User.NewUserOriginTeamUser . User.NewTeamMemberSSO <$> teamid
+  let newUser =
+        (User.emptyNewUser (User.Name name))
+          { User.newUserIdentity = ident,
+            User.newUserPassword = if hasPassword then Just defPassword else Nothing,
+            User.newUserLabel = Just defCookieLabel,
+            User.newUserOrigin = mbOrigin
+          }
+  let bdy = Bilge.json newUser
   post (brig . path "/i/users" . bdy)
 
 putHandle ::

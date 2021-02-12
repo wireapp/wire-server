@@ -84,12 +84,12 @@ import Spar.Error
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Intra.Galley as Intra
 import Spar.Orphans ()
-import Spar.Scim.Types (ValidExternalId (..), runValidExternalId)
 import Spar.Types
 import qualified System.Logger as Log
 import System.Logger.Class (MonadLogger (log))
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
+import Wire.API.User.Identity (AuthId (..), runAuthId)
 
 newtype Spar a = Spar {fromSpar :: ReaderT Env (ExceptT SparError IO) a}
   deriving (Functor, Applicative, Monad, MonadIO, MonadReader Env, MonadError SparError)
@@ -190,9 +190,9 @@ insertUser uref uid = wrapMonadClient $ Data.insertSAMLUser uref uid
 --
 -- ASSUMPTIONS: User creation on brig/galley is idempotent.  Any incomplete creation (because of
 -- brig or galley crashing) will cause the lookup here to yield 'Nothing'.
-getUser :: ValidExternalId -> Spar (Maybe UserId)
-getUser veid = do
-  muid <- wrapMonadClient $ runValidExternalId Data.getSAMLUser Data.lookupScimExternalId veid
+getUser :: AuthId -> Spar (Maybe UserId)
+getUser authId = do
+  muid <- wrapMonadClient $ runAuthId Data.getSAMLUser Data.lookupScimExternalId authId
   case muid of
     Nothing -> pure Nothing
     Just uid -> do
@@ -219,7 +219,7 @@ getUser veid = do
 createSamlUserWithId :: UserId -> SAML.UserRef -> ManagedBy -> Spar ()
 createSamlUserWithId buid suid managedBy = do
   teamid <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (suid ^. uidTenant)
-  uname <- either (throwSpar . SparBadUserName . cs) pure $ Intra.mkUserName Nothing (UrefOnly suid)
+  uname <- either (throwSpar . SparBadUserName . cs) pure $ Intra.mkUserName Nothing (AuthSAML suid)
   buid' <- Intra.createBrigUserSAML suid buid teamid uname managedBy
   assert (buid == buid') $ pure ()
   insertUser suid buid
@@ -282,7 +282,7 @@ bindUser buid userref = do
     pure (accountStatus acc)
   insertUser userref buid
   buid <$ do
-    Intra.setBrigUserVeid buid (UrefOnly userref)
+    Intra.setBrigUserAuthId buid (AuthSAML userref)
     let err = throwSpar . SparBindFromBadAccountStatus . cs . show
     case oldStatus of
       Active -> pure ()
@@ -376,7 +376,7 @@ findUserWithOldIssuer (SAML.UserRef issuer subject) = do
   idp <- getIdPConfigByIssuer issuer
   let tryFind :: Maybe (SAML.UserRef, UserId) -> Issuer -> Spar (Maybe (SAML.UserRef, UserId))
       tryFind found@(Just _) _ = pure found
-      tryFind Nothing oldIssuer = (uref,) <$$> getUser (UrefOnly uref)
+      tryFind Nothing oldIssuer = (uref,) <$$> getUser (AuthSAML uref)
         where
           uref = SAML.UserRef oldIssuer subject
   foldM tryFind Nothing (idp ^. idpExtraInfo . wiOldIssuers)
@@ -386,7 +386,7 @@ findUserWithOldIssuer (SAML.UserRef issuer subject) = do
 moveUserToNewIssuer :: SAML.UserRef -> SAML.UserRef -> UserId -> Spar ()
 moveUserToNewIssuer oldUserRef newUserRef uid = do
   wrapMonadClient $ Data.insertSAMLUser newUserRef uid
-  Intra.setBrigUserVeid uid (UrefOnly newUserRef)
+  Intra.setBrigUserAuthId uid (AuthSAML newUserRef)
   wrapMonadClient $ Data.deleteSAMLUser oldUserRef
 
 verdictHandlerResultCore :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
@@ -396,7 +396,7 @@ verdictHandlerResultCore bindCky = \case
   SAML.AccessGranted userref -> do
     uid :: UserId <- do
       viaBindCookie <- maybe (pure Nothing) (wrapMonadClient . Data.lookupBindCookie) bindCky
-      viaSparCassandra <- getUser (UrefOnly userref)
+      viaSparCassandra <- getUser (AuthSAML userref)
       -- race conditions: if the user has been created on spar, but not on brig, 'getUser'
       -- returns 'Nothing'.  this is ok assuming 'createUser', 'bindUser' (called below) are
       -- idempotent.

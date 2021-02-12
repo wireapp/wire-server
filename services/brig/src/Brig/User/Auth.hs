@@ -70,6 +70,7 @@ import Network.Wai.Utilities.Error ((!>>))
 import System.Logger (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import Wire.API.Team.Feature (TeamFeatureStatusNoConfig (..), TeamFeatureStatusValue (..))
+import Wire.API.User (AuthId (..))
 
 data Access u = Access
   { accessToken :: !AccessToken,
@@ -244,6 +245,8 @@ isPendingActivation ident = case ident of
       usr <- (>>= fst) <$> Data.lookupActivationCode k
       case usr of
         Nothing -> return False
+        -- TODO: does Data.lookupAccount ever return just here? see 'resolveLoginId'
+        --       Doesn't have to be necessarily fixed in this PR
         Just u -> maybe False (checkAccount k) <$> Data.lookupAccount u
     checkAccount k a =
       let i = userIdentity (accountUser a)
@@ -257,7 +260,9 @@ isPendingActivation ident = case ident of
             Just (EmailIdentity e) -> userEmailKey e /= k
             Just (PhoneIdentity p) -> userPhoneKey p /= k
             Just (FullIdentity e p) -> userEmailKey e /= k && userPhoneKey p /= k
-            Just SSOIdentity {} -> False -- sso-created users are activated immediately.
+            Just (SparAuthIdentity (AuthSAML _) _ _) -> False
+            Just (SparAuthIdentity (AuthSCIM _details) _ _) -> True
+            Just (SparAuthIdentity (AuthBoth _tid _uref _) _ _) -> False
             Nothing -> True
 
 -- | Validate a list of (User/LH) tokens potentially with an associated access token.

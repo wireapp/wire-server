@@ -147,6 +147,7 @@ import Imports
 import Network.Wai.Utilities
 import qualified System.Logger.Class as Log
 import System.Logger.Message
+import Wire.API.User.Identity (authIdUref)
 
 data AllowSCIMUpdates
   = AllowSCIMUpdates
@@ -184,7 +185,7 @@ createUser new@NewUser {..} = do
       (throwE (InvalidPhone p))
       return
       =<< lift (validatePhone p)
-  let ident = newIdentity email phone (newUserSSOId new)
+  let ident = newUserIdentity
   let emKey = userEmailKey <$> email
   let phKey = userPhoneKey <$> phone
   for_ (catMaybes [emKey, phKey]) $ verifyUniquenessAndCheckBlacklist
@@ -200,7 +201,9 @@ createUser new@NewUser {..} = do
             { newUserManagedBy = case mbExistingAccount of
                 Nothing -> newUserManagedBy
                 Just acc -> Just . userManagedBy . accountUser $ acc,
-              newUserIdentity = ident
+              newUserIdentity = case mbExistingAccount of
+                Nothing -> newUserIdentity
+                Just acc -> userIdentity . accountUser $ acc
             }
     newAccount new' mbInv tid (userHandle . accountUser =<< mbExistingAccount)
 
@@ -223,7 +226,7 @@ createUser new@NewUser {..} = do
       return (True, Just $ CreateUserTeam (Team.inTeam inv) nm)
     Nothing -> return (False, Nothing)
   joinedTeamSSO <- case (ident, tid) of
-    (Just ident'@SSOIdentity {}, Just tid') -> Just <$> addUserToTeamSSO account tid' ident'
+    (Just (ident'@(sparAuthIdentity >=> authIdUref -> Just _uref)), Just tid') -> Just <$> addUserToTeamSSO account tid' ident'
     _ -> pure Nothing
   let joinedTeam :: Maybe CreateUserTeam
       joinedTeam = joinedTeamInvite <|> joinedTeamSSO
@@ -916,13 +919,10 @@ deleteUser uid pwd = do
           isOwner <- lift $ Intra.memberIsTeamOwner tid uid
           when isOwner $ throwE DeleteUserOwnerDeletingSelf
     go a = maybe (byIdentity a) (byPassword a) pwd
+
     getEmailOrPhone :: UserIdentity -> Maybe (Either Email Phone)
-    getEmailOrPhone (FullIdentity e _) = Just $ Left e
-    getEmailOrPhone (EmailIdentity e) = Just $ Left e
-    getEmailOrPhone (SSOIdentity _ (Just e) _) = Just $ Left e
-    getEmailOrPhone (PhoneIdentity p) = Just $ Right p
-    getEmailOrPhone (SSOIdentity _ _ (Just p)) = Just $ Right p
-    getEmailOrPhone (SSOIdentity _ Nothing Nothing) = Nothing
+    getEmailOrPhone ui = (Left <$> emailIdentity ui) <|> (Right <$> phoneIdentity ui)
+
     byIdentity a = case getEmailOrPhone =<< userIdentity (accountUser a) of
       Just emailOrPhone -> sendCode a emailOrPhone
       Nothing -> case pwd of

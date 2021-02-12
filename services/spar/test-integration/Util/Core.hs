@@ -116,8 +116,8 @@ module Util.Core
     runSparCassWithEnv,
     runSimpleSP,
     runSpar,
-    getSsoidViaSelf,
-    getSsoidViaSelf',
+    getAuthIdViaSelf,
+    getAuthIdViaSelf',
     getUserIdViaRef,
     getUserIdViaRef',
     callGetDefaultSsoCode,
@@ -131,8 +131,7 @@ where
 import Bilge hiding (getCookie) -- we use Web.Cookie instead of the http-client type
 import Bilge.Assert (Assertions, (!!!), (<!!), (===))
 import qualified Brig.Types.Activation as Brig
-import Brig.Types.Common (UserIdentity (..), UserSSOId (..))
-import Brig.Types.User (User (..), selfUser, userIdentity)
+import Brig.Types.User (User (..), selfUser)
 import qualified Brig.Types.User as Brig
 import qualified Brig.Types.User.Auth as Brig
 import Cassandra as Cas
@@ -178,12 +177,13 @@ import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Options
 import Spar.Run
-import Spar.Scim.Types (runValidExternalId)
 import Spar.Types
 import qualified System.Logger.Extended as Log
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, pending, pendingWith, xit)
 import qualified Test.Hspec
+import Test.QuickCheck (Arbitrary (..))
+import Test.QuickCheck.Gen (generate)
 import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
 import Text.XML.DSig (SignPrivCreds)
@@ -197,6 +197,7 @@ import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Invitation as TeamInvitation
 import Wire.API.User (HandleUpdate (HandleUpdate), UserUpdate)
 import qualified Wire.API.User as User
+import Wire.API.User.Identity (AuthId (..), newIdentity, runAuthId)
 
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv
@@ -454,12 +455,10 @@ createTeamMember ::
   Galley.Permissions ->
   m UserId
 createTeamMember brigreq galleyreq teamid perms = do
-  let randomtxt = liftIO $ UUID.toText <$> UUID.nextRandom
-      randomssoid = Brig.UserSSOId <$> randomtxt <*> randomtxt
-  name <- randomtxt
-  ssoid <- randomssoid
+  name <- liftIO $ UUID.toText <$> UUID.nextRandom
+  uref <- liftIO $ generate arbitrary
   resp :: ResponseLBS <-
-    postUser name False (Just ssoid) (Just teamid) brigreq
+    postUser name False (Just uref) (Just teamid) brigreq
       <!! const 201 === statusCode
   let nobody :: UserId = Brig.userId (responseJsonUnsafe @Brig.User resp)
       tmem :: Galley.TeamMember = Galley.newTeamMember nobody perms Nothing
@@ -637,22 +636,22 @@ postUser ::
   (HasCallStack, MonadIO m, MonadHttp m) =>
   ST ->
   Bool ->
-  Maybe Brig.UserSSOId ->
+  Maybe UserRef ->
   Maybe TeamId ->
   BrigReq ->
   m ResponseLBS
-postUser name haveEmail ssoid teamid brig_ = do
+postUser name haveEmail mbUref teamid brig_ = do
   email <- if haveEmail then Just <$> randomEmail else pure Nothing
-  let p =
-        RequestBodyLBS . Aeson.encode $
-          object
-            [ "name" .= name,
-              "email" .= email,
-              "password" .= defPassword,
-              "cookie" .= defCookieLabel,
-              "sso_id" .= ssoid,
-              "team_id" .= teamid
-            ]
+  let ident = newIdentity email Nothing (AuthSAML <$> mbUref)
+  let mbOrigin = User.NewUserOriginTeamUser . User.NewTeamMemberSSO <$> teamid
+  let newUser =
+        (User.emptyNewUser (User.Name name))
+          { User.newUserIdentity = ident,
+            User.newUserPassword = Just defPassword,
+            User.newUserLabel = Just defCookieLabel,
+            User.newUserOrigin = mbOrigin
+          }
+  let p = RequestBodyLBS . Aeson.encode $ newUser
   post (brig_ . path "/i/users" . contentJson . body p)
 
 defPassword :: PlainTextPassword
@@ -1123,14 +1122,13 @@ callDeleteDefaultSsoCode sparreq_ = do
 -- helpers talking to spar's cassandra directly
 
 -- | Look up 'UserId' under 'UserSSOId' on spar's cassandra directly.
-ssoToUidSpar :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => Brig.UserSSOId -> m (Maybe UserId)
-ssoToUidSpar ssoid = do
-  veid <- either (error . ("could not parse brig sso_id: " <>)) pure $ Intra.veidFromUserSSOId ssoid
+ssoToUidSpar :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => AuthId -> m (Maybe UserId)
+ssoToUidSpar authId = do
   runSparCass @Client $
-    runValidExternalId
+    runAuthId
       Data.getSAMLUser
       Data.lookupScimExternalId
-      veid
+      authId
 
 runSparCass ::
   (HasCallStack, m ~ Client, MonadIO m', MonadReader TestEnv m') =>
@@ -1169,18 +1167,13 @@ runSpar (Spar.Spar action) = do
     result <- runExceptT $ action `runReaderT` env
     either (throwIO . ErrorCall . show) pure result
 
-getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId
-getSsoidViaSelf uid = maybe (error "not found") pure =<< getSsoidViaSelf' uid
+getAuthIdViaSelf :: HasCallStack => UserId -> TestSpar AuthId
+getAuthIdViaSelf uid = maybe (error "not found") pure =<< getAuthIdViaSelf' uid
 
-getSsoidViaSelf' :: HasCallStack => UserId -> TestSpar (Maybe UserSSOId)
-getSsoidViaSelf' uid = do
-  musr <- aFewTimes (runSpar $ Intra.getBrigUser Intra.NoPendingInvitations uid) isJust
-  pure $ case userIdentity =<< musr of
-    Just (SSOIdentity ssoid _ _) -> Just ssoid
-    Just (FullIdentity _ _) -> Nothing
-    Just (EmailIdentity _) -> Nothing
-    Just (PhoneIdentity _) -> Nothing
-    Nothing -> Nothing
+getAuthIdViaSelf' :: HasCallStack => UserId -> TestSpar (Maybe AuthId)
+getAuthIdViaSelf' uid = do
+  u :: Maybe User <- aFewTimes (runSpar $ Intra.getBrigUser Intra.NoPendingInvitations uid) isJust
+  pure $ join $ User.userAuthId <$> u
 
 getUserIdViaRef :: HasCallStack => UserRef -> TestSpar UserId
 getUserIdViaRef uref = maybe (error "not found") pure =<< getUserIdViaRef' uref
