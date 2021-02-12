@@ -227,13 +227,17 @@ legalHoldLogin l = do
   let typ = PersistentCookie -- Session cookie isn't a supported use case here
   Auth.legalHoldLogin l typ !>> legalHoldLoginError
 
-logoutH :: JSON ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> Handler Response
+logoutH ::
+  JSON
+    ::: Maybe (Either (List1 (ZAuth.Token ZAuth.User)) (List1 (ZAuth.Token ZAuth.LegalHoldUser)))
+    ::: Maybe (Either (ZAuth.Token ZAuth.Access) (ZAuth.Token ZAuth.LegalHoldAccess)) ->
+  Handler Response
 logoutH (_ ::: ut ::: at) = empty <$ logout ut at
 
 -- TODO: add legalhold test checking cookies are revoked (/access/logout is called) when legalhold device is deleted.
 logout ::
-  Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ->
-  Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) ->
+  Maybe (Either (List1 (ZAuth.Token ZAuth.User)) (List1 (ZAuth.Token ZAuth.LegalHoldUser))) ->
+  Maybe (Either (ZAuth.Token ZAuth.Access) (ZAuth.Token ZAuth.LegalHoldAccess)) ->
   Handler ()
 logout Nothing Nothing = throwStd authMissingCookieAndToken
 logout Nothing (Just _) = throwStd authMissingCookie
@@ -258,7 +262,11 @@ rmCookies :: UserId -> Public.RemoveCookies -> Handler ()
 rmCookies uid (Public.RemoveCookies pw lls ids) = do
   Auth.revokeAccess uid pw ids lls !>> authError
 
-renewH :: JSON ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> Handler Response
+renewH ::
+  JSON
+    ::: Maybe (Either (List1 (ZAuth.Token ZAuth.User)) (List1 (ZAuth.Token ZAuth.LegalHoldUser)))
+    ::: Maybe (Either (ZAuth.Token ZAuth.Access) (ZAuth.Token ZAuth.LegalHoldAccess)) ->
+  Handler Response
 renewH (_ ::: ut ::: at) = lift . either tokenResponse tokenResponse =<< renew ut at
 
 -- | renew access for either:
@@ -267,8 +275,8 @@ renewH (_ ::: ut ::: at) = lift . either tokenResponse tokenResponse =<< renew u
 --
 -- Other combinations of provided inputs will cause an error to be raised.
 renew ::
-  Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ->
-  Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) ->
+  Maybe (Either (List1 (ZAuth.Token ZAuth.User)) (List1 (ZAuth.Token ZAuth.LegalHoldUser))) ->
+  Maybe (Either (ZAuth.Token ZAuth.Access) (ZAuth.Token ZAuth.LegalHoldAccess)) ->
   Handler (Either (Auth.Access ZAuth.User) (Auth.Access ZAuth.LegalHoldUser))
 renew = \case
   Nothing ->
@@ -298,8 +306,8 @@ tokenRequest ::
   Predicate
     r
     P.Error
-    ( Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken))
-        ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken)
+    ( Maybe (Either (List1 (ZAuth.Token ZAuth.User)) (List1 (ZAuth.Token ZAuth.LegalHoldUser)))
+        ::: Maybe (Either (ZAuth.Token ZAuth.Access) (ZAuth.Token ZAuth.LegalHoldAccess))
     )
 tokenRequest = opt (userToken ||| legalHoldUserToken) .&. opt (accessToken ||| legalHoldAccessToken)
   where

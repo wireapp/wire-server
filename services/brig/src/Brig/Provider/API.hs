@@ -72,6 +72,7 @@ import qualified Data.Set as Set
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Text.Encoding as Text
+import qualified Data.ZAuth.Token as ZAuth (Provider)
 import Galley.Types (AccessRole (..), ConvMembers (..), ConvType (..), Conversation (..), OtherMember (..))
 import Galley.Types.Bot (newServiceRef, serviceRefId, serviceRefProvider)
 import Galley.Types.Conversations.Roles (roleNameWireAdmin)
@@ -414,7 +415,7 @@ loginH req = do
   tok <- login =<< parseJsonBody req
   setProviderCookie tok empty
 
-login :: Public.ProviderLogin -> Handler ZAuth.ProviderToken
+login :: Public.ProviderLogin -> Handler (ZAuth.Token ZAuth.Provider)
 login l = do
   pid <- DB.lookupKey (mkEmailKey (providerLoginEmail l)) >>= maybeBadCredentials
   pass <- DB.lookupPassword pid >>= maybeBadCredentials
@@ -1037,7 +1038,7 @@ mkBotUserView u =
       Ext.botUserViewTeam = userTeam u
     }
 
-setProviderCookie :: ZAuth.ProviderToken -> Response -> Handler Response
+setProviderCookie :: (ZAuth.Token ZAuth.Provider) -> Response -> Handler Response
 setProviderCookie t r = do
   s <- view settings
   let hdr = toByteString' (Cookie.renderSetCookie (cookie s))

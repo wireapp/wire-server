@@ -35,7 +35,7 @@ import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.Types.User
 import Brig.Types.User.Auth
-import qualified Brig.ZAuth as ZAuth
+import qualified Brig.ZAuth as ZAuth (AccessTokenLike)
 import Control.Lens ((^.), (^?), (^?!))
 import Control.Monad.Catch (MonadCatch)
 import Control.Retry
@@ -57,6 +57,7 @@ import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
+import qualified Data.ZAuth.Token as ZAuth
 import qualified Galley.Types.Teams as Team
 import Gundeck.Types.Notification
 import Imports
@@ -356,7 +357,7 @@ legalHoldLogin b l t =
 decodeCookie :: HasCallStack => Response a -> Bilge.Cookie
 decodeCookie = fromMaybe (error "missing zuid cookie") . getCookie "zuid"
 
-decodeToken :: HasCallStack => Response (Maybe LByteString) -> ZAuth.AccessToken
+decodeToken :: HasCallStack => Response (Maybe LByteString) -> ZAuth.Token ZAuth.Access
 decodeToken = decodeToken'
 
 decodeToken' :: (HasCallStack, ZAuth.AccessTokenLike a) => Response (Maybe LByteString) -> ZAuth.Token a

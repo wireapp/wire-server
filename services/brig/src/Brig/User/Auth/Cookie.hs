@@ -36,7 +36,6 @@ module Brig.User.Auth.Cookie
     -- * Re-exports
     Cookie (..),
     AccessToken (..),
-    ZAuth.UserToken,
   )
 where
 
