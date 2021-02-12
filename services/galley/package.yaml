@@ -173,6 +173,7 @@ executables:
     - quickcheck-instances
     - random
     - retry
+    - saml2-web-sso
     - servant-swagger
     - string-conversions
     - tagged

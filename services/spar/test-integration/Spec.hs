@@ -90,3 +90,5 @@ mkspec' env = do
       pure (app, queryConfig)
     genUserName = pack <$> replicateM 9 (randomRIO ('a', 'z'))
     responsesFullyKnown = False
+
+-- TODO: in all of wire-server, `grep -i ssoid`, `grep -i sso_id`, and see what else needs to be renamed!

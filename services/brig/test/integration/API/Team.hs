@@ -49,6 +49,8 @@ import Imports
 import qualified Network.Wai.Test as WaiTest
 import qualified Network.Wai.Utilities.Error as Error
 import Numeric.Natural (Natural)
+import Test.QuickCheck (generate)
+import Test.QuickCheck.Arbitrary (Arbitrary (arbitrary))
 import Test.Tasty hiding (Timeout)
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
@@ -56,6 +58,7 @@ import UnliftIO.Async (mapConcurrently_, pooledForConcurrentlyN_, replicateConcu
 import Util
 import Util.AWS as Util
 import Web.Cookie (parseSetCookie, setCookieName)
+import Wire.API.User.Identity (AuthId (..))
 
 newtype TeamSizeLimit = TeamSizeLimit Word32
 
@@ -757,25 +760,25 @@ testConnectionSameTeam brig = do
 testCreateUserInternalSSO :: Brig -> Galley -> Http ()
 testCreateUserInternalSSO brig galley = do
   teamid <- snd <$> createUserWithTeam brig
-  let ssoid = UserSSOId "nil" "nil"
+  authId <- liftIO $ AuthSAML <$> generate arbitrary
   -- creating users requires both sso_id and team_id
-  postUser' True False "dummy" True False (Just ssoid) Nothing brig
-    !!! const 400 === statusCode
-  postUser' True False "dummy" True False Nothing (Just teamid) brig
-    !!! const 400 === statusCode
+  -- postUser' True False "dummy" True False (Just ssoid) Nothing brig
+  --   !!! const 400 === statusCode
+  -- postUser' True False "dummy" True False Nothing (Just teamid) brig
+  --   !!! const 400 === statusCode
   -- creating user with sso_id, team_id is ok
   resp <-
-    postUser "dummy" True False (Just ssoid) (Just teamid) brig <!! do
+    postUser "dummy" True False (Just authId) (Just teamid) brig <!! do
       const 201 === statusCode
-      const (Just ssoid) === (userSSOId . selfUser <=< responseJsonMaybe)
+      const (Just authId) === (sparAuthIdentity <=< userIdentity <=< responseJsonMaybe)
   -- self profile contains sso id
   let Just uid = userId <$> responseJsonMaybe resp
   profile <- getSelfProfile brig uid
   liftIO $
     assertEqual
       "self profile user identity mismatch"
-      (Just ssoid)
-      (userSSOId $ selfUser profile)
+      (Just authId)
+      (sparAuthIdentity <=< userIdentity $ selfUser profile)
   -- sso-managed users must have team id.
   let Just teamid' = userTeam $ selfUser profile
   liftIO $ assertEqual "bad team_id" teamid teamid'
@@ -788,13 +791,15 @@ testCreateUserInternalSSO brig galley = do
 testDeleteUserSSO :: Brig -> Galley -> Http ()
 testDeleteUserSSO brig galley = do
   (creator, tid) <- createUserWithTeam brig
-  let ssoid = UserSSOId "nil" "nil"
-      mkuser :: Bool -> Http (Maybe User)
+  authId <- liftIO $ AuthSAML <$> generate arbitrary
+
+  let mkuser :: Bool -> Http (Maybe User)
       mkuser withemail =
         responseJsonMaybe
-          <$> ( postUser "dummy" withemail False (Just ssoid) (Just tid) brig
+          <$> ( postUser "dummy" withemail False (Just authId) (Just tid) brig
                   <!! const 201 === statusCode
               )
+
   -- create and delete sso user (with email)
   Just (userId -> user1) <- mkuser True
   deleteUser user1 (Just defPassword) brig !!! const 200 === statusCode

@@ -19,13 +19,10 @@
 
 -- | Client functions for interacting with the Brig API.
 module Spar.Intra.Brig
-  ( veidToUserSSOId,
-    urefToExternalId,
+  ( urefToExternalId,
     urefToEmail,
-    veidFromBrigUser,
-    veidFromUserSSOId,
     mkUserName,
-    renderValidExternalId,
+    renderAuthAsExternalId,
     emailFromSAML,
     emailToSAML,
     emailToSAMLNameID,
@@ -40,7 +37,7 @@ module Spar.Intra.Brig
     setBrigUserName,
     setBrigUserHandle,
     setBrigUserManagedBy,
-    setBrigUserVeid,
+    setBrigUserAuthId,
     setBrigUserRichInfo,
     checkHandleAvailable,
     deleteBrigUser,
@@ -78,73 +75,34 @@ import qualified Network.Wai.Utilities.Error as Wai
 import qualified SAML2.WebSSO as SAML
 import Spar.Error
 import Spar.Intra.Galley as Galley (MonadSparToGalley, assertHasPermission)
-import Spar.Scim.Types (ValidExternalId (..), runValidExternalId)
 import qualified System.Logger.Class as Log
 import qualified Text.Email.Parser
 import Web.Cookie
 import Wire.API.User
 import Wire.API.User.RichInfo as RichInfo
 
-----------------------------------------------------------------------
-
-veidToUserSSOId :: ValidExternalId -> UserSSOId
-veidToUserSSOId = runValidExternalId urefToUserSSOId (UserScimExternalId . fromEmail)
-
-urefToUserSSOId :: SAML.UserRef -> UserSSOId
-urefToUserSSOId (SAML.UserRef t s) = UserSSOId (cs $ SAML.encodeElem t) (cs $ SAML.encodeElem s)
-
-veidFromUserSSOId :: MonadError String m => UserSSOId -> m ValidExternalId
-veidFromUserSSOId = \case
-  UserSSOId tenant subject ->
-    case (SAML.decodeElem $ cs tenant, SAML.decodeElem $ cs subject) of
-      (Right t, Right s) -> do
-        let uref = SAML.UserRef t s
-        case urefToEmail uref of
-          Nothing -> pure $ UrefOnly uref
-          Just email -> pure $ EmailAndUref email uref
-      (Left msg, _) -> throwError msg
-      (_, Left msg) -> throwError msg
-  UserScimExternalId email ->
-    maybe
-      (throwError "externalId not an email and no issuer")
-      (pure . EmailOnly)
-      (parseEmail email)
-
-urefToExternalId :: SAML.UserRef -> Maybe Text
-urefToExternalId = SAML.shortShowNameID . view SAML.uidSubject
-
 urefToEmail :: SAML.UserRef -> Maybe Email
 urefToEmail uref = case uref ^. SAML.uidSubject . SAML.nameID of
   SAML.UNameIDEmail email -> Just $ emailFromSAML email
   _ -> Nothing
 
--- | If the brig user has a 'UserSSOId', transform that into a 'ValidExternalId' (this is a
--- total function as long as brig obeys the api).  Otherwise, if the user has an email, we can
--- construct a return value from that (and an optional saml issuer).  If a user only has a
--- phone number, or no identity at all, throw an error.
---
--- Note: the saml issuer is only needed in the case where a user has been invited via team
--- settings and is now onboarded to saml/scim.  If this case can safely be ruled out, it's ok
--- to just set it to 'Nothing'.
-veidFromBrigUser :: MonadError String m => User -> Maybe SAML.Issuer -> m ValidExternalId
-veidFromBrigUser usr mIssuer = case (userSSOId usr, userEmail usr, mIssuer) of
-  (Just ssoid, _, _) -> veidFromUserSSOId ssoid
-  (Nothing, Just email, Just issuer) -> pure $ EmailAndUref email (SAML.UserRef issuer (emailToSAMLNameID email))
-  (Nothing, Just email, Nothing) -> pure $ EmailOnly email
-  (Nothing, Nothing, _) -> throwError "user has neither ssoIdentity nor userEmail"
-
 -- | Take a maybe text, construct a 'Name' from what we have in a scim user.  If the text
 -- isn't present, use an email address or a saml subject (usually also an email address).  If
 -- both are 'Nothing', fail.
-mkUserName :: Maybe Text -> ValidExternalId -> Either String Name
+mkUserName :: Maybe Text -> AuthId -> Either String Name
 mkUserName (Just n) = const $ mkName n
 mkUserName Nothing =
-  runValidExternalId
+  runAuthId
     (\uref -> mkName (SAML.unsafeShowNameID $ uref ^. SAML.uidSubject))
     (\email -> mkName (fromEmail email))
 
-renderValidExternalId :: ValidExternalId -> Maybe Text
-renderValidExternalId = runValidExternalId urefToExternalId (Just . fromEmail)
+renderAuthAsExternalId :: AuthId -> Maybe Text
+renderAuthAsExternalId = \case
+  AuthSAML uref -> urefNameId uref
+  AuthSCIM (ScimDetails (ExternalId _ t) _) -> Just t
+  AuthBoth _ uref _ -> urefNameId uref
+  where
+    urefNameId uref = SAML.shortShowNameID (uref ^. SAML.uidSubject)
 
 -- | Similar to 'Network.Wire.Client.API.Auth.tokenResponse', but easier: we just need to set the
 -- cookie in the response, and the redirect will make the client negotiate a fresh auth token.
@@ -200,7 +158,7 @@ createBrigUserSAML uref (Id buid) teamid uname managedBy = do
       newUser =
         (emptyNewUser uname)
           { newUserUUID = Just buid,
-            newUserIdentity = Just (SSOIdentity (urefToUserSSOId uref) Nothing Nothing),
+            newUserIdentity = Just (SparAuthIdentity (AuthSAML uref) Nothing Nothing),
             newUserOrigin = Just (NewUserOriginTeamUser . NewTeamMemberSSO $ teamid),
             newUserManagedBy = Just managedBy
           }
@@ -360,13 +318,13 @@ setBrigUserManagedBy buid managedBy = do
     rethrow "brig" resp
 
 -- | Set user's UserSSOId.
-setBrigUserVeid :: (HasCallStack, MonadSparToBrig m) => UserId -> ValidExternalId -> m ()
-setBrigUserVeid buid veid = do
+setBrigUserAuthId :: (HasCallStack, MonadSparToBrig m) => UserId -> AuthId -> m ()
+setBrigUserAuthId buid authId = do
   resp <-
     call $
       method PUT
-        . paths ["i", "users", toByteString' buid, "sso-id"]
-        . json (veidToUserSSOId veid)
+        . paths ["i", "users", toByteString' buid, "auth-id"]
+        . json authId
   case statusCode resp of
     200 -> pure ()
     _ -> rethrow "brig" resp

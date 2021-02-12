@@ -10,8 +10,11 @@ copyright: (c) 2020 Wire Swiss GmbH
 license: AGPL-3
 dependencies:
 - aeson >=0.6
+- bytestring-conversion >=0.2
 - containers >=0.5
 - imports
+- saml2-web-sso >=0.18
+- string-conversions
 - types-common >=0.16
 library:
   source-dirs: src
@@ -41,6 +44,7 @@ library:
   - lens >=4.12
   - mime >=0.4
   - pem >=0.2
+  - parser-combinators >=1.2
   - protobuf >=0.2
   - quickcheck-instances >=0.3.16
   - string-conversions
@@ -73,4 +77,5 @@ tests:
     - tasty-hunit
     - tasty-quickcheck
     - unordered-containers
+    - uri-bytestring
     - vector

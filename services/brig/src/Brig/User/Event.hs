@@ -23,6 +23,7 @@ import Brig.Types
 import Data.Handle (Handle)
 import Data.Id
 import Imports
+import Wire.API.User (AuthId)
 
 data Event
   = UserEvent !UserEvent
@@ -74,8 +75,8 @@ data UserUpdatedData = UserUpdatedData
     eupHandle :: !(Maybe Handle),
     eupLocale :: !(Maybe Locale),
     eupManagedBy :: !(Maybe ManagedBy),
-    eupSSOId :: !(Maybe UserSSOId),
-    eupSSOIdRemoved :: Bool
+    eupAuthId :: !(Maybe AuthId),
+    eupAuthIdRemoved :: Bool
   }
   deriving stock (Show)
 
@@ -152,8 +153,8 @@ emptyUserUpdatedData u =
       eupHandle = Nothing,
       eupLocale = Nothing,
       eupManagedBy = Nothing,
-      eupSSOId = Nothing,
-      eupSSOIdRemoved = False
+      eupAuthId = Nothing,
+      eupAuthIdRemoved = False
     }
 
 connEventUserId :: ConnectionEvent -> UserId

@@ -15,10 +15,19 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Index.Types where
+module Brig.Index.Types
+  ( CreateIndexSettings (..),
+    SafeLegacyAuthId (..),
+  )
+where
 
+import Cassandra.CQL
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as Aeson
+import Data.String.Conversions (cs)
 import qualified Database.Bloodhound as ES
 import Imports
+import Wire.API.User (LegacyAuthId)
 
 data CreateIndexSettings = CreateIndexSettings
   { _cisIndexSettings :: [ES.UpdatableIndexSetting],
@@ -26,3 +35,23 @@ data CreateIndexSettings = CreateIndexSettings
     _cisDeleteTemplate :: Maybe ES.TemplateName
   }
   deriving (Show)
+
+-- | Without this type some UserSSOId value fail to be loaded from the DB
+-- namely those with 'tenant', 'subject' values that are invalid XML.
+-- While invalid values might be rare, bulk operations such as 'reindexAll' need to handle invalid values.
+newtype SafeLegacyAuthId = SafeLegacyAuthId {fromSafeLegacyAuthId :: Either Aeson.Value LegacyAuthId}
+
+instance Cql SafeLegacyAuthId where
+  ctype = Tagged TextColumn
+
+  fromCql (CqlText t) = case Aeson.eitherDecode $ cs t of
+    Right json ->
+      case Aeson.parseMaybe (Aeson.parseJSON @LegacyAuthId) json of
+        Nothing -> Right $ SafeLegacyAuthId (Left json)
+        Just legacyAuthId -> Right $ SafeLegacyAuthId (Right legacyAuthId)
+    Left msg -> Left $ "fromCql: SafeLegacyAuthId: expected a JSON value" ++ msg
+  fromCql _ = Left "fromCql: LegacyAuthId (was UserSSOId): CqlText expected"
+
+  toCql =
+    -- this is ok, same as in @instance Cql LegacyAuthId@.
+    error "LegacyAuthId should never be written. Convert to AuthId first."

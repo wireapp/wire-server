@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d226cd42f64696f109ecd24028399adba016e6ef413e11fdef8a720d0f895612
+-- hash: 92a202db921af249401183f9b730c7038befdd4265575e46e839ad04bff99901
 
 name:           wire-api
 version:        0.1.0
@@ -65,6 +65,8 @@ library
       Wire.API.User.Client.Prekey
       Wire.API.User.Handle
       Wire.API.User.Identity
+      Wire.API.User.Identity.AuthId
+      Wire.API.User.Identity.Email
       Wire.API.User.Orphans
       Wire.API.User.Password
       Wire.API.User.Profile
@@ -105,9 +107,11 @@ library
     , iso639 >=0.1
     , lens >=4.12
     , mime >=0.4
+    , parser-combinators >=1.2
     , pem >=0.2
     , protobuf >=0.2
     , quickcheck-instances >=0.3.16
+    , saml2-web-sso >=0.18
     , string-conversions
     , swagger >=0.1
     , swagger2
@@ -146,6 +150,8 @@ test-suite wire-api-tests
     , containers >=0.5
     , imports
     , lens
+    , saml2-web-sso >=0.18
+    , string-conversions
     , swagger2
     , tasty
     , tasty-expected-failure
@@ -153,6 +159,7 @@ test-suite wire-api-tests
     , tasty-quickcheck
     , types-common >=0.16
     , unordered-containers
+    , uri-bytestring
     , uuid
     , vector
     , wire-api

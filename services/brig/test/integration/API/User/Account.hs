@@ -51,6 +51,7 @@ import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified
 import qualified Data.Set as Set
+import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Data.Time (UTCTime, getCurrentTime)
@@ -63,14 +64,18 @@ import Galley.Types.Teams (noPermissions)
 import Gundeck.Types.Notification
 import Imports
 import qualified Network.Wai.Utilities.Error as Error
+import SAML2.WebSSO.Types (Issuer (..), UserRef (..), unspecifiedNameID)
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
+import URI.ByteString (parseURI, strictURIParserOptions)
 import UnliftIO (mapConcurrently_)
 import Util as Util
 import Util.AWS as Util
 import Web.Cookie (parseSetCookie)
+import qualified Wire.API.User as User
+import Wire.API.User.Identity (AuthId (..))
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> TestTree
 tests _ at opts p b c ch g aws =
@@ -372,20 +377,32 @@ testCreateUserBlacklist _ brig aws =
         liftIO $ threadDelay 1000000
         awaitBlacklist (n -1) e
 
+exampleUserRef :: Int -> Text -> UserRef
+exampleUserRef domainSuffix name =
+  let uri = either (error "exampleUserRef") id $ parseURI strictURIParserOptions (cs ("https://www.example" <> show domainSuffix <> ".com"))
+   in UserRef (Issuer uri) (unspecifiedNameID name)
+
 testCreateUserExternalSSO :: Brig -> Http ()
 testCreateUserExternalSSO brig = do
   teamid <- Id <$> liftIO UUID.nextRandom
-  let ssoid = UserSSOId "nil" "nil"
-      p withsso withteam =
-        RequestBodyLBS . encode . object $
-          ["name" .= ("foo" :: Text)]
-            <> ["sso_id" .= Just ssoid | withsso]
-            <> ["team_id" .= Just teamid | withteam]
-  post (brig . path "/register" . contentJson . body (p False True))
+  let authId = AuthSAML (exampleUserRef 1 "ssoid123")
+  let genCase withSSO withTeam =
+        ( User.emptyNewUser
+            (Name "ada")
+        )
+          { User.newUserIdentity = if withSSO then Just (SparAuthIdentity authId Nothing Nothing) else Nothing,
+            User.newUserOrigin = if withTeam then Just (User.NewUserOriginTeamUser . User.NewTeamMemberSSO $ teamid) else Nothing
+          }
+  let postRegister newUser =
+        post (brig . path "/register" . contentJson . body (RequestBodyLBS . encode $ newUser))
+
+  postRegister (genCase False True)
     !!! const 400 === statusCode
-  post (brig . path "/register" . contentJson . body (p True False))
+
+  postRegister (genCase True False)
     !!! const 400 === statusCode
-  post (brig . path "/register" . contentJson . body (p True True))
+
+  postRegister (genCase True True)
     !!! const 400 === statusCode
 
 testActivateWithExpiry :: Opt.Opts -> Brig -> Opt.Timeout -> Http ()
@@ -1015,23 +1032,24 @@ testDeleteWithProfilePic brig cargohold = do
 testUpdateSSOId :: Brig -> Galley -> Http ()
 testUpdateSSOId brig galley = do
   noSuchUserId <- Id <$> liftIO UUID.nextRandom
+  let auth domainSuffix nameId = AuthSAML (exampleUserRef domainSuffix nameId)
   put
     ( brig
-        . paths ["i", "users", toByteString' noSuchUserId, "sso-id"]
-        . Bilge.json (UserSSOId "1" "1")
+        . paths ["i", "users", toByteString' noSuchUserId, "auth-id"]
+        . Bilge.json (auth 1 "1")
     )
     !!! const 404 === statusCode
-  let go :: HasCallStack => User -> UserSSOId -> Http ()
+  let go :: HasCallStack => User -> AuthId -> Http ()
       go user ssoid = do
         let uid = userId user
         put
           ( brig
-              . paths ["i", "users", toByteString' uid, "sso-id"]
+              . paths ["i", "users", toByteString' uid, "auth-id"]
               . Bilge.json ssoid
           )
           !!! const 200 === statusCode
         profile :: SelfProfile <- responseJsonError =<< get (brig . path "/self" . zUser uid)
-        let Just (SSOIdentity ssoid' mEmail mPhone) = userIdentity . selfUser $ profile
+        let Just (SparAuthIdentity ssoid' mEmail mPhone) = userIdentity . selfUser $ profile
         liftIO $ do
           assertEqual "updateSSOId/ssoid" ssoid ssoid'
           assertEqual "updateSSOId/email" (userEmail user) mEmail
@@ -1045,8 +1063,9 @@ testUpdateSSOId brig galley = do
         when (not hasEmail) $ do
           error "not implemented"
         selfUser <$> (responseJsonError =<< get (brig . path "/self" . zUser (userId member)))
-  let ssoids1 = [UserSSOId "1" "1", UserSSOId "1" "2"]
-      ssoids2 = [UserSSOId "2" "1", UserSSOId "2" "2"]
+
+  let authIds1 = [AuthSAML (exampleUserRef 1 "1"), AuthSAML (exampleUserRef 1 "2")]
+      authIds2 = [AuthSAML (exampleUserRef 2 "1"), AuthSAML (exampleUserRef 2 "2")]
   users <-
     sequence
       [ mkMember True False,
@@ -1055,8 +1074,9 @@ testUpdateSSOId brig galley = do
         -- , mkMember False  False
         -- , mkMember False  True
       ]
-  sequence_ $ zipWith go users ssoids1
-  sequence_ $ zipWith go users ssoids2
+  sequence_ $ zipWith go users authIds1
+  -- this tests that setting again with different issuer succeeds
+  sequence_ $ zipWith go users authIds2
 
 testDomainsBlockedForRegistration :: Opt.Opts -> Brig -> Http ()
 testDomainsBlockedForRegistration opts brig = withDomainsBlockedForRegistration opts ["bad1.domain.com", "bad2.domain.com"] $ do
@@ -1137,17 +1157,6 @@ testRestrictedUserCreation opts brig = do
             [ "name" .= Name "Alice"
             ]
     postUserRegister' ephemeralUserWithoutExpires brig !!! const 201 === statusCode
-
-    -- NOTE: SSO users are anyway not allowed on the `/register` endpoint
-    teamid <- Id <$> liftIO UUID.nextRandom
-    let ssoid = UserSSOId "nil" "nil"
-    let Object ssoUser =
-          object
-            [ "name" .= Name "Alice",
-              "sso_id" .= Just ssoid,
-              "team_id" .= Just teamid
-            ]
-    postUserRegister' ssoUser brig !!! const 400 === statusCode
 
 -- helpers
 
