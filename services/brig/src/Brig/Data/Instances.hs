@@ -37,6 +37,7 @@ import Data.Range ()
 import Data.String.Conversions (LBS, ST, cs)
 import Data.Text.Ascii ()
 import Imports
+import Wire.API.User.Identity (AuthId (..), LegacyAuthId (..))
 import Wire.API.User.RichInfo
 
 deriving instance Cql Name
@@ -73,7 +74,20 @@ instance Cql Email where
 
   toCql = toCql . fromEmail
 
-instance Cql UserSSOId where
+instance Cql LegacyAuthId where
+  ctype = Tagged TextColumn
+
+  fromCql (CqlText t) = case eitherDecode $ cs t of
+    Right i -> return i
+    Left msg -> Left $ "fromCql: Invalid LegacyAuthId (was UserSSOId): " ++ msg
+  fromCql _ = Left "fromCql: LegacyAuthId (was UserSSOId): CqlText expected"
+
+  toCql =
+    -- (this is ok.  if anybody implements a change that runs into this and doesn't write a
+    -- test that triggers it, it's on them!)
+    error "LegacyAuthId should never be written. Convert to AuthId first."
+
+instance Cql AuthId where
   ctype = Tagged TextColumn
 
   fromCql (CqlText t) = case eitherDecode $ cs t of

@@ -500,7 +500,6 @@ test-suite spec
       Arbitrary
       Test.Spar.APISpec
       Test.Spar.DataSpec
-      Test.Spar.Intra.BrigSpec
       Test.Spar.Roundtrip.ByteString
       Test.Spar.ScimSpec
       Test.Spar.TypesSpec

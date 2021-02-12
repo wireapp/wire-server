@@ -65,6 +65,7 @@ library:
   - resourcet >=1.1
   - retry >=0.5
   - safe-exceptions >=0.1
+  - saml2-web-sso
   - semigroups >=0.12
   - servant
   - servant-server
@@ -187,6 +188,7 @@ executables:
     - quickcheck-instances
     - random
     - retry
+    - saml2-web-sso
     - servant-swagger
     - string-conversions
     - tagged

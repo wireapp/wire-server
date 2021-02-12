@@ -36,7 +36,7 @@ import Imports
 import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types (IdPId, idpId)
 import Spar.Data as Data
-import qualified Spar.Intra.Brig as Intra
+import Spar.Intra.Brig (renderAuthAsExternalId)
 import Spar.Scim.Types
 import Spar.Scim.User (synthesizeScimUser, validateScimUser')
 import Spar.Types (IdP, IdPMetadataInfo (..), ScimToken (..), ScimTokenInfo (..))
@@ -56,6 +56,8 @@ import qualified Web.Scim.Schema.PatchOp as Scim.PatchOp
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Web.Scim.Schema.User.Email as Email
 import qualified Web.Scim.Schema.User.Phone as Phone
+import Wire.API.User (userAuthId)
+import Wire.API.User.Identity (authIdUref)
 import Wire.API.User.RichInfo
 
 -- | Call 'registerTestIdP', then 'registerScimToken'.  The user returned is the owner of the team;
@@ -546,9 +548,9 @@ instance IsUser ValidScimUser where
   maybeUserId = Nothing
   maybeHandle = Just (Just . view vsuHandle)
   maybeName = Just (Just . view vsuName)
-  maybeTenant = Just (^? (vsuExternalId . veidUref . SAML.uidTenant))
-  maybeSubject = Just (^? (vsuExternalId . veidUref . SAML.uidSubject))
-  maybeScimExternalId = Just (runValidExternalId Intra.urefToExternalId (Just . fromEmail) . view vsuExternalId)
+  maybeTenant = Just (fmap (^. SAML.uidTenant) . (authIdUref . (^. vsuAuthId)))
+  maybeSubject = Just (fmap (^. SAML.uidSubject) . (authIdUref . (^. vsuAuthId)))
+  maybeScimExternalId = Just (renderAuthAsExternalId . view vsuAuthId)
 
 instance IsUser (WrappedScimStoredUser SparTag) where
   maybeUserId = Just $ scimUserId . fromWrappedScimStoredUser
@@ -574,20 +576,11 @@ instance IsUser User where
   maybeHandle = Just userHandle
   maybeName = Just (Just . userDisplayName)
   maybeTenant = Just $ \usr ->
-    Intra.veidFromBrigUser usr Nothing
-      & either
-        (const Nothing)
-        (preview (veidUref . SAML.uidTenant))
+    fmap (^. SAML.uidTenant) . authIdUref =<< userAuthId usr
   maybeSubject = Just $ \usr ->
-    Intra.veidFromBrigUser usr Nothing
-      & either
-        (const Nothing)
-        (preview (veidUref . SAML.uidSubject))
+    fmap (^. SAML.uidSubject) . authIdUref =<< userAuthId usr
   maybeScimExternalId = Just $ \usr ->
-    Intra.veidFromBrigUser usr Nothing
-      & either
-        (const Nothing)
-        (runValidExternalId Intra.urefToExternalId (Just . fromEmail))
+    renderAuthAsExternalId =<< userAuthId usr
 
 -- | For all properties that are present in both @u1@ and @u2@, check that they match.
 --
@@ -623,5 +616,7 @@ userShouldMatch u1 u2 = liftIO $ do
 -- floor.  This function calls the spar functions that do that.  This allows us to express
 -- what we expect a user that comes back from spar to look like in terms of what it looked
 -- like when we sent it there.
-whatSparReturnsFor :: HasCallStack => IdP -> Int -> Scim.User.User SparTag -> Either String (Scim.User.User SparTag)
-whatSparReturnsFor idp richInfoSizeLimit = either (Left . show) (Right . synthesizeScimUser) . validateScimUser' (Just idp) richInfoSizeLimit
+whatSparReturnsFor :: HasCallStack => TeamId -> IdP -> Int -> Scim.User.User SparTag -> Either String (Scim.User.User SparTag)
+whatSparReturnsFor tid idp richInfoSizeLimit =
+  either (Left . show) (Right . synthesizeScimUser)
+    . validateScimUser' tid (Just idp) richInfoSizeLimit

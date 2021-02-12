@@ -23,24 +23,20 @@
 module Wire.API.User.Identity
   ( -- * UserIdentity
     UserIdentity (..),
+    parseMaybeUserIdentity,
     newIdentity,
     emailIdentity,
     phoneIdentity,
-    ssoIdentity,
-
-    -- * Email
-    Email (..),
-    fromEmail,
-    parseEmail,
-    validateEmail,
+    sparAuthIdentity,
 
     -- * Phone
     Phone (..),
     parsePhone,
     isValidPhone,
 
-    -- * UserSSOId
-    UserSSOId (..),
+    -- * Re-exports
+    module Wire.API.User.Identity.AuthId,
+    module Wire.API.User.Identity.Email,
 
     -- * Swagger
   )
@@ -49,18 +45,20 @@ where
 import Control.Applicative (optional)
 import Control.Lens ((.~), (?~))
 import Data.Aeson hiding ((<?>))
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as Aeson
 import Data.Attoparsec.Text
-import Data.Bifunctor (first)
 import Data.ByteString.Conversion
+import qualified Data.HashMap.Strict as HashMap
 import Data.Proxy (Proxy (..))
 import Data.Swagger (NamedSchema (..), SwaggerType (..), ToSchema (..), declareSchemaRef, properties, type_)
 import qualified Data.Text as Text
-import Data.Text.Encoding (decodeUtf8', encodeUtf8)
 import Data.Time.Clock
 import Imports
 import qualified Test.QuickCheck as QC
-import qualified Text.Email.Validate as Email.V
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.API.User.Identity.AuthId
+import Wire.API.User.Identity.Email
 
 --------------------------------------------------------------------------------
 -- UserIdentity
@@ -71,7 +69,7 @@ data UserIdentity
   = FullIdentity Email Phone
   | EmailIdentity Email
   | PhoneIdentity Phone
-  | SSOIdentity UserSSOId (Maybe Email) (Maybe Phone)
+  | SparAuthIdentity AuthId (Maybe Email) (Maybe Phone)
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserIdentity)
 
@@ -80,6 +78,7 @@ instance ToSchema UserIdentity where
     emailSchema <- declareSchemaRef (Proxy @Email)
     phoneSchema <- declareSchemaRef (Proxy @Phone)
     ssoSchema <- declareSchemaRef (Proxy @UserSSOId)
+    authIdSchema <- declareSchemaRef (Proxy @AuthId)
     return $
       NamedSchema (Just "userIdentity") $
         mempty
@@ -87,31 +86,45 @@ instance ToSchema UserIdentity where
           & properties
             .~ [ ("email", emailSchema),
                  ("phone", phoneSchema),
-                 ("sso_id", ssoSchema)
+                 ("sso_id", ssoSchema),
+                 ("auth_id", authIdSchema)
                ]
 
+-- NB: there is an extra field "sso_id" that does not add information, but is expected by old
+-- clients.  See also: https://wearezeta.atlassian.net/browse/SQSERVICES-264,
+-- https://wearezeta.atlassian.net/browse/SQSERVICES-306
 instance ToJSON UserIdentity where
   toJSON = \case
     FullIdentity em ph -> go (Just em) (Just ph) Nothing
     EmailIdentity em -> go (Just em) Nothing Nothing
     PhoneIdentity ph -> go Nothing (Just ph) Nothing
-    SSOIdentity si em ph -> go em ph (Just si)
+    SparAuthIdentity si em ph -> go em ph (Just si)
     where
-      go :: Maybe Email -> Maybe Phone -> Maybe UserSSOId -> Value
-      go em ph si = object ["email" .= em, "phone" .= ph, "sso_id" .= si]
+      go :: Maybe Email -> Maybe Phone -> Maybe AuthId -> Value
+      go em ph si =
+        object $
+          ["email" .= em, "phone" .= ph, "auth_id" .= si]
+            <> maybe [] ((: []) . ("sso_id" .=)) (authIdToLegacyAuthId =<< si)
 
+-- TODO: Check if sso_id could be sent (e.g. by clients)
 instance FromJSON UserIdentity where
   parseJSON = withObject "UserIdentity" $ \o -> do
     email <- o .:? "email"
     phone <- o .:? "phone"
-    ssoid <- o .:? "sso_id"
+    authid <- o .:? "auth_id"
     maybe
-      (fail "Missing 'email' or 'phone' or 'sso_id'.")
+      (fail "Missing 'email' or 'phone' or 'auth_id'.")
       return
-      (newIdentity email phone ssoid)
+      (newIdentity email phone authid)
 
-newIdentity :: Maybe Email -> Maybe Phone -> Maybe UserSSOId -> Maybe UserIdentity
-newIdentity email phone (Just sso) = Just $! SSOIdentity sso email phone
+parseMaybeUserIdentity :: Aeson.Value -> Aeson.Parser (Maybe UserIdentity)
+parseMaybeUserIdentity v = flip (withObject "UserIdenity object") v $ \ob ->
+  if (any (flip HashMap.member ob) (["phone", "email", "auth_id"] :: [Text]))
+    then Just <$> parseJSON v
+    else pure Nothing
+
+newIdentity :: Maybe Email -> Maybe Phone -> Maybe AuthId -> Maybe UserIdentity
+newIdentity email phone (Just authid) = Just $! SparAuthIdentity authid email phone
 newIdentity Nothing Nothing Nothing = Nothing
 newIdentity (Just e) Nothing Nothing = Just $! EmailIdentity e
 newIdentity Nothing (Just p) Nothing = Just $! PhoneIdentity p
@@ -121,105 +134,19 @@ emailIdentity :: UserIdentity -> Maybe Email
 emailIdentity (FullIdentity email _) = Just email
 emailIdentity (EmailIdentity email) = Just email
 emailIdentity (PhoneIdentity _) = Nothing
-emailIdentity (SSOIdentity _ (Just email) _) = Just email
-emailIdentity (SSOIdentity _ Nothing _) = Nothing
+emailIdentity (SparAuthIdentity _ (Just email) _) = Just email
+emailIdentity (SparAuthIdentity _ Nothing _) = Nothing
 
 phoneIdentity :: UserIdentity -> Maybe Phone
 phoneIdentity (FullIdentity _ phone) = Just phone
 phoneIdentity (PhoneIdentity phone) = Just phone
 phoneIdentity (EmailIdentity _) = Nothing
-phoneIdentity (SSOIdentity _ _ (Just phone)) = Just phone
-phoneIdentity (SSOIdentity _ _ Nothing) = Nothing
+phoneIdentity (SparAuthIdentity _ _ (Just phone)) = Just phone
+phoneIdentity (SparAuthIdentity _ _ Nothing) = Nothing
 
-ssoIdentity :: UserIdentity -> Maybe UserSSOId
-ssoIdentity (SSOIdentity ssoid _ _) = Just ssoid
-ssoIdentity _ = Nothing
-
---------------------------------------------------------------------------------
--- Email
-
--- FUTUREWORK: replace this type with 'EmailAddress'
-data Email = Email
-  { emailLocal :: Text,
-    emailDomain :: Text
-  }
-  deriving stock (Eq, Ord, Generic)
-
-instance ToSchema Email where
-  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
-
-instance Show Email where
-  show = Text.unpack . fromEmail
-
-instance ToByteString Email where
-  builder = builder . fromEmail
-
-instance FromByteString Email where
-  parser = parser >>= maybe (fail "Invalid email") return . parseEmail
-
-instance ToJSON Email where
-  toJSON = String . fromEmail
-
-instance FromJSON Email where
-  parseJSON =
-    withText "email" $
-      maybe (fail "Invalid email. Expected '<local>@<domain>'.") return
-        . parseEmail
-
-instance Arbitrary Email where
-  arbitrary = do
-    localPart <- Text.filter (/= '@') <$> arbitrary
-    domain <- Text.filter (/= '@') <$> arbitrary
-    pure $ Email localPart domain
-
-fromEmail :: Email -> Text
-fromEmail (Email loc dom) = loc <> "@" <> dom
-
--- | Parses an email address of the form <local-part>@<domain>.
-parseEmail :: Text -> Maybe Email
-parseEmail t = case Text.split (== '@') t of
-  [localPart, domain] -> Just $! Email localPart domain
-  _ -> Nothing
-
--- |
--- FUTUREWORK:
---
--- * Enforce these constrains during parsing already or use a separate type, see
---   [Parse, don't validate](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate).
---
--- * Check for differences to validation of `Data.Domain.Domain` and decide whether to
---   align/de-duplicate the two.
---
--- * Drop dependency on email-validate? We do our own email domain validation anyways,
---   is the dependency worth it just for validating the local part?
-validateEmail :: Email -> Either String Email
-validateEmail =
-  pure . uncurry Email
-    <=< validateDomain
-    <=< validateExternalLib
-    <=< validateLength . fromEmail
-  where
-    validateLength e
-      | len <= 100 = Right e
-      | otherwise = Left $ "length " <> show len <> " exceeds 100"
-      where
-        len = Text.length e
-    validateExternalLib e = do
-      email <- Email.V.validate $ encodeUtf8 e
-      l <- first show . decodeUtf8' $ Email.V.localPart email
-      d <- first show . decodeUtf8' $ Email.V.domainPart email
-      pure (l, d)
-    -- cf. https://en.wikipedia.org/wiki/Email_address#Domain
-    -- n.b. We do not allow IP address literals, comments or non-ASCII
-    --      characters, mostly because SES (and probably many other mail
-    --      systems) don't support that (yet?) either.
-    validateDomain (l, d) = parseOnly domain d
-      where
-        domain = label *> many1 (char '.' *> label) *> endOfInput *> pure (l, d)
-        label =
-          satisfy (inClass "a-zA-Z0-9")
-            *> count 61 (optional (satisfy (inClass "-a-zA-Z0-9")))
-            *> optional (satisfy (inClass "a-zA-Z0-9"))
+sparAuthIdentity :: UserIdentity -> Maybe AuthId
+sparAuthIdentity (SparAuthIdentity authid _ _) = Just authid
+sparAuthIdentity _ = Nothing
 
 --------------------------------------------------------------------------------
 -- Phone
@@ -270,51 +197,39 @@ isValidPhone = either (const False) (const True) . parseOnly e164
 -- structure -- i.e. we just store XML-encoded SAML blobs. If the structure
 -- of those blobs changes, Brig won't have to deal with it, only Spar will.
 --
--- FUTUREWORK: rename the data type to @UserSparId@ (not the two constructors, those are ok).
+-- FUTUREWORK: Deprecated in https://wearezeta.atlassian.net/browse/SQSERVICES-264 and
+--             and used only for backwards compatibility. Use 'AuthId' instead.
+--
+-- how we can phase this out safely:
+--
+-- * Replace the 'UserSSOId' in 'UserIdentity' with 'AuthId'.  When reading old 'UserSSOId's
+--   from the database, parse them as 'LegacyAuthId', which can be turned into 'AuthId' during
+--   construction of the 'UserIdentity'.
+-- * Change 'UserIdentity' to contain the old `sso_id` field next to the new `auth_id` field,
+--   with the data expected by the client.  (For 'UserScimExternalId', render `"sso_id":
+--   null`, since this is expected by the clients; see
+--   https://wearezeta.atlassian.net/browse/SQSERVICES-306.)
+-- * Remove 'UserSSOId'.  Follow the type errors throughout brig, spar.
+--
+-- I think this will work, since after the first step we won't be able to consruct legacy
+-- identities any more, so the compiler will make sure we won't miss any changes.  On the
+-- client side, this is backwards compatible, since we don't touch any of the existing json
+-- tree and only add new nodes.
 data UserSSOId
-  = UserSSOId
-      -- An XML blob pointing to the identity provider that can confirm
-      -- user's identity.
-      Text
-      -- An XML blob specifying the user's ID on the identity provider's side.
-      Text
-  | UserScimExternalId
-      Text
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform UserSSOId)
+{-# DEPRECATED UserSSOId "use AuthId instead: https://wearezeta.atlassian.net/browse/SQSERVICES-264" #-}
 
--- FUTUREWORK: This schema should ideally be a choice of either tenant+subject, or scim_external_id
--- but this is currently not possible to derive in swagger2
--- Maybe this becomes possible with swagger 3?
 instance ToSchema UserSSOId where
   declareNamedSchema _ = do
     tenantSchema <- declareSchemaRef (Proxy @Text)
     subjectSchema <- declareSchemaRef (Proxy @Text)
-    scimSchema <- declareSchemaRef (Proxy @Text)
     return $
       NamedSchema (Just "UserSSOId") $
         mempty
           & type_ ?~ SwaggerObject
           & properties
             .~ [ ("tenant", tenantSchema),
-                 ("subject", subjectSchema),
-                 ("scim_external_id", scimSchema)
+                 ("subject", subjectSchema)
                ]
-
-instance ToJSON UserSSOId where
-  toJSON = \case
-    UserSSOId tenant subject -> object ["tenant" .= tenant, "subject" .= subject]
-    UserScimExternalId eid -> object ["scim_external_id" .= eid]
-
-instance FromJSON UserSSOId where
-  parseJSON = withObject "UserSSOId" $ \obj -> do
-    mtenant <- obj .:? "tenant"
-    msubject <- obj .:? "subject"
-    meid <- obj .:? "scim_external_id"
-    case (mtenant, msubject, meid) of
-      (Just tenant, Just subject, Nothing) -> pure $ UserSSOId tenant subject
-      (Nothing, Nothing, Just eid) -> pure $ UserScimExternalId eid
-      _ -> fail "either need tenant and subject, or scim_external_id, but not both"
 
 -- | If the budget for SMS and voice calls for a phone number
 -- has been exhausted within a certain time frame, this timeout

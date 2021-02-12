@@ -50,7 +50,7 @@ module Brig.User.Search.Index
 where
 
 import Brig.Data.Instances ()
-import Brig.Index.Types (CreateIndexSettings (..))
+import Brig.Index.Types (CreateIndexSettings (..), SafeLegacyAuthId (..))
 import Brig.Types.Intra
 import Brig.Types.User
 import Brig.User.Search.Index.Types as Types
@@ -63,6 +63,7 @@ import Data.Aeson.Encoding
 import Data.Aeson.Lens
 import Data.ByteString.Builder (Builder, toLazyByteString)
 import qualified Data.ByteString.Conversion as Bytes
+import qualified Data.ByteString.Lazy.Builder as BB
 import Data.Fixed (Fixed (MkFixed))
 import Data.Handle (Handle)
 import Data.Id
@@ -78,8 +79,8 @@ import qualified Database.Bloodhound as ES
 import Imports hiding (log, searchable)
 import Network.HTTP.Client hiding (path)
 import Network.HTTP.Types (hContentType, statusCode)
+import SAML2.WebSSO (uidTenant)
 import qualified SAML2.WebSSO.Types as SAML
-import qualified SAML2.WebSSO.XML as SAML
 import qualified System.Logger as Log
 import System.Logger.Class
   ( Logger,
@@ -92,6 +93,7 @@ import System.Logger.Class
     (~~),
   )
 import URI.ByteString (serializeURIRef)
+import Wire.API.User (LegacyAuthId (fromLegacyAuthId), authIdUref)
 
 --------------------------------------------------------------------------------
 -- IndexIO Monad
@@ -673,8 +675,8 @@ type ReindexRow =
     Maybe (Writetime ServiceId),
     Maybe ManagedBy,
     Maybe (Writetime ManagedBy),
-    Maybe UserSSOId,
-    Maybe (Writetime UserSSOId)
+    Maybe SafeLegacyAuthId,
+    Maybe (Writetime SafeLegacyAuthId)
   )
 
 reindexRowToIndexUser :: forall m. MonadThrow m => ReindexRow -> m IndexUser
@@ -697,11 +699,11 @@ reindexRowToIndexUser
     tService,
     managedBy,
     tManagedBy,
-    ssoId,
-    tSsoId
+    safeLegacyAuthId,
+    tSafeLegacyAuthId
     ) =
     do
-      iu <- mkIndexUser u <$> version [Just tName, tStatus, tHandle, tEmail, Just tColour, Just tActivated, tService, tManagedBy, tSsoId]
+      iu <- mkIndexUser u <$> version [Just tName, tStatus, tHandle, tEmail, Just tColour, Just tActivated, tService, tManagedBy, tSafeLegacyAuthId]
       pure $
         if shouldIndex
           then
@@ -712,7 +714,7 @@ reindexRowToIndexUser
                 . set iuEmail email
                 . set iuColourId (Just colour)
                 . set iuAccountStatus status
-                . set iuSAMLIdP (idpUrl =<< ssoId)
+                . set iuSAMLIdP (idpUrl safeLegacyAuthId mteam)
                 . set iuManagedBy managedBy
                 . set iuCreatedAt (Just (writeTimeToUTC tActivated))
           else
@@ -736,9 +738,10 @@ reindexRowToIndexUser
             isNothing service
           ]
 
-      idpUrl :: UserSSOId -> Maybe Text
-      idpUrl (UserSSOId tenant _subject) =
-        case SAML.decodeElem $ cs tenant of
-          Left _ -> Nothing
-          Right (SAML.Issuer uri) -> Just $ (cs . toLazyByteString . serializeURIRef) uri
-      idpUrl (UserScimExternalId _) = Nothing
+      idpUrl :: Maybe SafeLegacyAuthId -> Maybe TeamId -> Maybe Text
+      idpUrl (Just (SafeLegacyAuthId (Right legacyAuthId))) (Just tid) = do
+        let authId = fromLegacyAuthId legacyAuthId tid
+        uref <- authIdUref authId
+        let uri = uref ^. uidTenant . SAML.fromIssuer
+        pure (cs . BB.toLazyByteString . serializeURIRef $ uri)
+      idpUrl _ _ = Nothing

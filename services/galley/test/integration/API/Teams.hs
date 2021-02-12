@@ -45,7 +45,6 @@ import qualified Data.List1 as List1
 import Data.Misc (HttpsUrl, PlainTextPassword (..))
 import Data.Range
 import qualified Data.Set as Set
-import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
@@ -66,17 +65,20 @@ import qualified Network.Wai.Utilities.Error as Error
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified Proto.TeamEvents as E
 import qualified Proto.TeamEvents_Fields as E
+import SAML2.WebSSO.Types (fromIssuer, uidTenant)
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers (test)
 import TestSetup (TestM, TestSetup, tsBrig, tsCannon, tsGConf, tsGalley)
+import URI.ByteString (URI, serializeURIRef')
 import UnliftIO (mapConcurrently, mapConcurrently_)
 import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Member as TM
 import qualified Wire.API.User as U
+import Wire.API.User.Identity (authIdUref)
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -274,11 +276,13 @@ testListTeamMembersCsv numMembers = do
       assertEqual ("tExportIdpIssuer: " <> show (U.userId user)) (userToIdPIssuer user) (tExportIdpIssuer export)
       assertEqual ("tExportManagedBy: " <> show (U.userId user)) (U.userManagedBy user) (tExportManagedBy export)
   where
-    userToIdPIssuer :: HasCallStack => U.User -> Maybe HttpsUrl
-    userToIdPIssuer usr = case (U.userIdentity >=> U.ssoIdentity) usr of
-      Just (U.UserSSOId issuer _) -> maybe (error "shouldn't happen") Just . fromByteString' . cs $ issuer
-      Just _ -> Nothing
+    userToIdPIssuer :: U.User -> Maybe HttpsUrl
+    userToIdPIssuer usr = case (U.userIdentity >=> U.sparAuthIdentity >=> authIdUref) usr of
+      Just uref -> convertURI (uref ^. uidTenant . fromIssuer)
       Nothing -> Nothing
+
+    convertURI :: URI -> Maybe HttpsUrl
+    convertURI = fromByteString . serializeURIRef'
 
     decodeCSV :: FromNamedRecord a => LByteString -> Either String [a]
     decodeCSV bstr = decodeByName bstr <&> (snd >>> V.toList)

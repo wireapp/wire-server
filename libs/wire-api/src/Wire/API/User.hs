@@ -29,7 +29,7 @@ module Wire.API.User
     User (..),
     userEmail,
     userPhone,
-    userSSOId,
+    userAuthId,
     connectedProfile,
     publicProfile,
 
@@ -42,7 +42,7 @@ module Wire.API.User
     newUserTeam,
     newUserEmail,
     newUserPhone,
-    newUserSSOId,
+    newUserAuthId,
     isNewUserEphemeral,
     isNewUserTeamMember,
 
@@ -70,9 +70,6 @@ module Wire.API.User
 
     -- * List Users
     ListUsersQuery (..),
-
-    -- * helpers
-    parseIdentity,
 
     -- * re-exports
     module Wire.API.User.Identity,
@@ -113,7 +110,6 @@ import qualified Data.Code as Code
 import qualified Data.Currency as Currency
 import Data.Domain (Domain (Domain))
 import Data.Handle (Handle)
-import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
@@ -379,17 +375,17 @@ instance ToJSON User where
         # "handle" .= userHandle u
         # "expires_at" .= userExpire u
         # "team" .= userTeam u
-        # "sso_id" .= userSSOId u
+        # "auth_id" .= userAuthId u
+        # "sso_id" .= (authIdToLegacyAuthId =<< userAuthId u)
         # "managed_by" .= userManagedBy u
         # []
 
 instance FromJSON User where
   parseJSON = withObject "user" $ \o -> do
-    ssoid <- o .:? "sso_id"
     User
       <$> o .: "id"
       <*> o .: "qualified_id"
-      <*> parseIdentity ssoid o
+      <*> parseMaybeUserIdentity (Object o)
       <*> o .: "name"
       <*> o .:? "picture" .!= noPict
       <*> o .:? "assets" .!= []
@@ -408,8 +404,8 @@ userEmail = emailIdentity <=< userIdentity
 userPhone :: User -> Maybe Phone
 userPhone = phoneIdentity <=< userIdentity
 
-userSSOId :: User -> Maybe UserSSOId
-userSSOId = ssoIdentity <=< userIdentity
+userAuthId :: User -> Maybe AuthId
+userAuthId = sparAuthIdentity <=< userIdentity
 
 connectedProfile :: User -> UserProfile
 connectedProfile u =
@@ -534,7 +530,7 @@ instance FromJSON NewUserPublic where
 
 validateNewUserPublic :: NewUser -> Either String NewUserPublic
 validateNewUserPublic nu
-  | isJust (newUserSSOId nu) =
+  | isJust (newUserAuthId nu) =
     Left "SSO-managed users are not allowed here."
   | isJust (newUserUUID nu) =
     Left "it is not allowed to provide a UUID for the users here."
@@ -623,16 +619,15 @@ instance ToJSON NewUser where
         # "locale" .= newUserLocale u
         # "password" .= newUserPassword u
         # "expires_in" .= newUserExpiresIn u
-        # "sso_id" .= newUserSSOId u
+        # "auth_id" .= newUserAuthId u
         # "managed_by" .= newUserManagedBy u
         # maybe [] jsonNewUserOrigin (newUserOrigin u)
 
 instance FromJSON NewUser where
   parseJSON = withObject "new-user" $ \o -> do
-    ssoid <- o .:? "sso_id"
     newUserDisplayName <- o .: "name"
     newUserUUID <- o .:? "uuid"
-    newUserIdentity <- parseIdentity ssoid o
+    newUserIdentity <- parseMaybeUserIdentity (Object o)
     newUserPict <- o .:? "picture"
     newUserAssets <- o .:? "assets" .!= []
     newUserAccentId <- o .:? "accent_id"
@@ -641,7 +636,7 @@ instance FromJSON NewUser where
     newUserLabel <- o .:? "label"
     newUserLocale <- o .:? "locale"
     newUserPassword <- o .:? "password"
-    newUserOrigin <- parseNewUserOrigin newUserPassword newUserIdentity ssoid o
+    newUserOrigin <- parseNewUserOrigin newUserPassword newUserIdentity o
     newUserExpires <- o .:? "expires_in"
     newUserExpiresIn <- case (newUserExpires, newUserIdentity) of
       (Just _, Just _) -> fail "Only users without an identity can expire"
@@ -670,9 +665,7 @@ instance Arbitrary NewUser where
     where
       genUserOrigin newUserIdentity = do
         teamid <- arbitrary
-        let hasSSOId = case newUserIdentity of
-              Just SSOIdentity {} -> True
-              _ -> False
+        let hasSSOId = isJust $ sparAuthIdentity =<< newUserIdentity
             ssoOrigin = Just (NewUserOriginTeamUser (NewTeamMemberSSO teamid))
             isSsoOrigin (Just (NewUserOriginTeamUser (NewTeamMemberSSO _))) = True
             isSsoOrigin _ = False
@@ -680,9 +673,7 @@ instance Arbitrary NewUser where
           then pure ssoOrigin
           else arbitrary `QC.suchThat` (not . isSsoOrigin)
       genUserPassword newUserIdentity newUserOrigin = do
-        let hasSSOId = case newUserIdentity of
-              Just SSOIdentity {} -> True
-              _ -> False
+        let hasSSOId = isJust $ sparAuthIdentity =<< newUserIdentity
             isTeamUser = case newUserOrigin of
               Just (NewUserOriginTeamUser _) -> True
               _ -> False
@@ -706,8 +697,8 @@ newUserEmail = emailIdentity <=< newUserIdentity
 newUserPhone :: NewUser -> Maybe Phone
 newUserPhone = phoneIdentity <=< newUserIdentity
 
-newUserSSOId :: NewUser -> Maybe UserSSOId
-newUserSSOId = ssoIdentity <=< newUserIdentity
+newUserAuthId :: NewUser -> Maybe AuthId
+newUserAuthId = sparAuthIdentity <=< newUserIdentity
 
 --------------------------------------------------------------------------------
 -- NewUserOrigin
@@ -728,25 +719,25 @@ jsonNewUserOrigin = \case
 parseNewUserOrigin ::
   Maybe PlainTextPassword ->
   Maybe UserIdentity ->
-  Maybe UserSSOId ->
   Object ->
   Aeson.Parser (Maybe NewUserOrigin)
-parseNewUserOrigin pass uid ssoid o = do
+parseNewUserOrigin pass uid o = do
   invcode <- o .:? "invitation_code"
   teamcode <- o .:? "team_code"
   team <- o .:? "team"
   teamid <- o .:? "team_id"
-  result <- case (invcode, teamcode, team, ssoid, teamid) of
+  let mbAuthId = sparAuthIdentity =<< uid
+  result <- case (invcode, teamcode, team, mbAuthId, teamid) of
     (Just a, Nothing, Nothing, Nothing, Nothing) -> return . Just . NewUserOriginInvitationCode $ a
     (Nothing, Just a, Nothing, Nothing, Nothing) -> return . Just . NewUserOriginTeamUser $ NewTeamMember a
     (Nothing, Nothing, Just a, Nothing, Nothing) -> return . Just . NewUserOriginTeamUser $ NewTeamCreator a
     (Nothing, Nothing, Nothing, Just _, Just t) -> return . Just . NewUserOriginTeamUser $ NewTeamMemberSSO t
     (Nothing, Nothing, Nothing, Nothing, Nothing) -> return Nothing
-    (_, _, _, Just _, Nothing) -> fail "sso_id, team_id must be either both present or both absent."
-    (_, _, _, Nothing, Just _) -> fail "sso_id, team_id must be either both present or both absent."
-    _ -> fail "team_code, team, invitation_code, sso_id, and the pair (sso_id, team_id) are mutually exclusive"
-  case (result, pass, uid) of
-    (_, _, Just SSOIdentity {}) -> pure result
+    (_, _, _, Just _, Nothing) -> fail "auth_id, team_id must be either both present or both absent."
+    (_, _, _, Nothing, Just _) -> fail "auth_id, team_id must be either both present or both absent."
+    _ -> fail "team_code, team, invitation_code, auth_id, and the pair (auth_id, team_id) are mutually exclusive"
+  case (result, pass, isJust mbAuthId) of
+    (_, _, True) -> pure result
     (Just (NewUserOriginTeamUser _), Nothing, _) -> fail "all team users must set a password on creation"
     _ -> pure result
 
@@ -755,19 +746,6 @@ newtype InvitationCode = InvitationCode
   {fromInvitationCode :: AsciiBase64Url}
   deriving stock (Eq, Show, Generic)
   deriving newtype (FromJSON, ToJSON, ToByteString, FromByteString, Arbitrary)
-
---------------------------------------------------------------------------------
--- helpers
-
--- | Fails if email or phone or ssoid are present but invalid.
--- If neither are present, it will not fail, but return Nothing.
---
--- FUTUREWORK: Why is the SSO ID passed separately?
-parseIdentity :: Maybe UserSSOId -> Object -> Aeson.Parser (Maybe UserIdentity)
-parseIdentity ssoid o =
-  if isJust (HashMap.lookup "email" o <|> HashMap.lookup "phone" o) || isJust ssoid
-    then Just <$> parseJSON (Object o)
-    else pure Nothing
 
 --------------------------------------------------------------------------------
 -- NewTeamUser
