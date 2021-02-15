@@ -64,6 +64,7 @@ library:
   - HaskellNet-SSL >=0.3
   - HsOpenSSL >=0.10
   - HsOpenSSL-x509-system >=0.1
+  - insert-ordered-containers
   - iproute >=1.5
   - lens >=3.8
   - lens-aeson >=1.0
