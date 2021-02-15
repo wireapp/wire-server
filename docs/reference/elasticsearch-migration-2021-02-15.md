@@ -2,7 +2,7 @@
 
 Release `2021-02-15` of `wire-server` requires creating a new ElasticSearch index for `brig` _before_ deploying the release. Without this new index the user search in TeamSettings will be defunct.
 
-The index that brig is using, is defined at brig's config at `elasticsearch.index`. This config value is referred to as `<OLD_INDEX>` in the following.
+The index that brig is using, is defined at brig's config at `elasticsearch.index`. This config value of the previous deployment is referred to as `<OLD_INDEX>` in the following.
 
 These following instructions describe how to:
 
@@ -15,7 +15,7 @@ In the following we assume the following env vars are set.
 ```bash
 ES_HOST=<YOUR_HOST>
 ES_PORT=<YOUR_PORT> # default is 9200
-OLD_INDEX=<OLD_INDEX> # default is directory
+OLD_INDEX=<OLD_INDEX> # (Same as `elasticsearch.index` previous deployment)
 NEW_INDEX=<NEW_INDEX> # new index name, different from OLD 
 BRIG_CASSANDRA_HOST=<YOUR_C*_HOST>
 BRIG_CASSANDRA_PORT=<YOUR_C*_PORT>
@@ -32,7 +32,7 @@ Delete the `directory` index template if it exists:
 curl -XDELETE http://$ES_HOST:$ES_HOST/_template/directory
 ```
 
-The next steps require downtime of brig. If downtime is not acceptable please skip to section [Create the new index without downtime](#create-new-index-without-downtime)
+The next steps require downtime of brig. If downtime is not acceptable please skip to section [Create the new index without downtime](#create-the-new-index-without-downtime)
 
 1. Shut down the `brig` service.
 2. Create the new index by running
@@ -56,8 +56,7 @@ docker run "quay.io/wire/brig-index:$WIRE_VERSION" migrate-data \
 ```
 This may take sevaral minutes depending on number of users.
 
-4. Configure brig to use the new index, by setting `elasticsearch.index` to `<NEW_INDEX>`.
-   and deploy the new version of `brig`.
+4. Configure brig to use the new index, by setting `elasticsearch.index` to `<NEW_INDEX>` and deploy of `brig` with new version "$WIRE_VERSION".
 5. Check that team member search in TeamSettings and user search in the app works.
 6. Delete the old index
 ```
@@ -103,11 +102,11 @@ curl -XDELETE http://$ES_HOST:$ES_HOST/$OLD_INDEX
 
 ## Troubleshooting
 
-- Problem: Brig was deployed without creating the new index beforehand.
-  Solution: The index can be created after deployment with same instructions as above.
+### Problem: Brig was deployed without creating the new index beforehand.
+Solution: The index can be created after deployment with same instructions as above.
 
-- Problem: `brig-index migrate-data` failed and refuses to migrate again.
-  Solution: Delete the migration information from Elasticsearch:
+### Problem: `brig-index migrate-data` failed and refuses to migrate again.
+Solution: Delete the migration information from Elasticsearch:
 
   ```bash
   curl -XDELETE http://$ES_HOST:$ES_PORT/wire_brig_migrations
