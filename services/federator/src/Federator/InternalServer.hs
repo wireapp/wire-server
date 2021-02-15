@@ -21,12 +21,15 @@
 module Federator.InternalServer where
 
 import Control.Lens (view)
+import Data.Domain (domainText)
 import Data.Either.Validation (Validation (..))
 import qualified Data.Text as Text
 import Federator.App (Federator, runAppT)
 import Federator.Discovery (DiscoverFederator, runFederatorDiscovery)
-import Federator.Env (Env, applog, dnsResolver)
+import Federator.Env (Env, applog, dnsResolver, runSettings)
+import Federator.Options (RunSettings)
 import Federator.Remote (Remote, RemoteError, discoverAndCall, interpretRemote)
+import Federator.Util
 import Federator.Utils.PolysemyServerError (absorbServerError)
 import Imports
 import Mu.GRpc.Client.Record (GRpcReply (..))
@@ -36,20 +39,21 @@ import qualified Mu.Server as Mu
 import Polysemy
 import qualified Polysemy.Error as Polysemy
 import Polysemy.IO (embedToMonadIO)
+import qualified Polysemy.Reader as Polysemy
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
 import Wire.API.Federation.GRPC.Types
 import Wire.Network.DNS.Effect (DNSLookup)
 import qualified Wire.Network.DNS.Effect as Lookup
 
-callRemote :: Member Remote r => RemoteCall -> Sem r Response
+callRemote :: Members '[Remote, Polysemy.Reader RunSettings] r => RemoteCall -> Sem r Response
 callRemote req = do
-  -- FUTUREWORK(federation): before doing an outgoing call,
-  -- first validate the target domain is in the the allowlist (see Util.federateWith)
   case validateRemoteCall req of
     Success vReq -> do
-      reply <- discoverAndCall vReq
-      pure $ mkRemoteResponse reply
+      allowedRemote <- federateWith (vDomain vReq)
+      if allowedRemote
+        then mkRemoteResponse <$> discoverAndCall vReq
+        else pure $ ResponseErr ("federating with domain [" <> domainText (vDomain vReq) <> "] is not allowed (see federator configuration)")
     Failure errs -> pure $ ResponseErr ("component -> local federator: invalid RemoteCall: " <> Text.pack (show errs))
 
 -- FUTUREWORK(federation): Make these errors less stringly typed
@@ -63,18 +67,19 @@ mkRemoteResponse reply =
     Right (GRpcClientError clientErr) -> ResponseErr ("remote federator -> local federator: client error: " <> Text.pack (show clientErr))
     Left err -> ResponseErr ("remote federator -> local federator: " <> Text.pack (show err))
 
-routeToRemote :: (Members '[Remote, Polysemy.Error ServerError] r) => SingleServerT info RouteToRemote (Sem r) _
+routeToRemote :: (Members '[Remote, Polysemy.Error ServerError, Polysemy.Reader RunSettings] r) => SingleServerT info RouteToRemote (Sem r) _
 routeToRemote = singleService (Mu.method @"call" callRemote)
 
 serveRouteToRemote :: Env -> Int -> IO ()
 serveRouteToRemote env port = do
   runGRpcAppTrans msgProtoBuf port transformer routeToRemote
   where
-    transformer :: Sem '[Remote, DiscoverFederator, TinyLog, DNSLookup, Polysemy.Error ServerError, Embed IO, Embed Federator] a -> ServerErrorIO a
+    transformer :: Sem '[Remote, DiscoverFederator, TinyLog, DNSLookup, Polysemy.Error ServerError, Embed IO, Polysemy.Reader RunSettings, Embed Federator] a -> ServerErrorIO a
     transformer action =
       runAppT env
-        . runM
-        . embedToMonadIO @Federator
+        . runM -- Embed Federator
+        . Polysemy.runReader (view runSettings env) -- Reader RunSettings
+        . embedToMonadIO @Federator -- Embed IO
         . absorbServerError
         . Lookup.runDNSLookupWithResolver (view dnsResolver env)
         . Log.runTinyLog (view applog env)

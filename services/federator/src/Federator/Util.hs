@@ -22,13 +22,14 @@ where
 
 import Control.Lens (view)
 import Data.Domain (Domain)
-import Federator.Env (Env, runSettings)
 import Federator.Options
 import Imports
+import Polysemy (Members, Sem)
+import qualified Polysemy.Reader as Polysemy
 
-federateWith :: MonadReader Env m => Domain -> m Bool
+federateWith :: Members '[Polysemy.Reader RunSettings] r => Domain -> Sem r Bool
 federateWith targetDomain = do
-  strategy <- view (runSettings . federationStrategy)
+  strategy <- view federationStrategy <$> Polysemy.ask
   pure $ case strategy of
     AllowAll -> True
     AllowList (AllowedDomains domains) -> targetDomain `elem` domains

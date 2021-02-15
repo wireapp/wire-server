@@ -23,12 +23,15 @@ import Data.Domain (Domain (Domain))
 import Data.Either.Validation
 import Federator.Discovery (LookupError (LookupErrorSrvNotAvailable))
 import Federator.InternalServer (callRemote)
+import Federator.Options (AllowedDomains (..), FederationStrategy (..), RunSettings (..))
 import Federator.Remote (Remote, RemoteError (RemoteErrorDiscoveryFailure))
+import Federator.Util
 import Imports
 import Mu.GRpc.Client.Record
 import qualified Network.HTTP.Types as HTTP
 import Network.HTTP2.Client (TooMuchConcurrency (TooMuchConcurrency))
 import Polysemy (embed, runM)
+import qualified Polysemy.Reader as Polysemy
 import Test.Polysemy.Mock (Mock (mock), evalMock)
 import Test.Polysemy.Mock.TH (genMock)
 import Test.Tasty (TestTree, testGroup)
@@ -40,14 +43,22 @@ genMock ''Remote
 tests :: TestTree
 tests =
   testGroup "Fedderate" $
-    [ testGroup "with remote" $
+    [ testGroup "Util.federateWith" $
+        [ federateWithAllowListSuccess,
+          federateWithAllowListFail
+        ],
+      testGroup "with remote" $
         [ remoteCallSuccess,
           remoteCallFailureTMC,
           remoteCallFailureErrCode,
           remoteCallFailureErrStr,
-          remoteCallFailureErrConn
+          remoteCallFailureErrConn,
+          remoteCallFailureAllowList
         ]
     ]
+
+allowAllSettings :: RunSettings
+allowAllSettings = RunSettings AllowAll
 
 remoteCallSuccess :: TestTree
 remoteCallSuccess =
@@ -56,7 +67,7 @@ remoteCallSuccess =
       mockDiscoverAndCallReturns @IO (const $ pure (Right (GRpcOk (ResponseHTTPResponse (HTTPResponse 200 "success!")))))
       let remoteCall = RemoteCall validDomainText (Just validLocalPart)
 
-      res <- mock @Remote @IO $ callRemote remoteCall
+      res <- mock @Remote @IO . Polysemy.runReader allowAllSettings $ callRemote remoteCall
 
       actualCalls <- mockDiscoverAndCallCalls @IO
       let expectedCall = ValidatedRemoteCall (Domain validDomainText) validLocalPart
@@ -72,7 +83,7 @@ remoteCallFailureTMC =
       mockDiscoverAndCallReturns @IO (const $ pure (Right (GRpcTooMuchConcurrency (TooMuchConcurrency 2))))
       let remoteCall = RemoteCall validDomainText (Just validLocalPart)
 
-      res <- mock @Remote @IO $ callRemote remoteCall
+      res <- mock @Remote @IO . Polysemy.runReader allowAllSettings $ callRemote remoteCall
 
       actualCalls <- mockDiscoverAndCallCalls @IO
       let expectedCall = ValidatedRemoteCall (Domain validDomainText) validLocalPart
@@ -86,7 +97,7 @@ remoteCallFailureErrCode =
       mockDiscoverAndCallReturns @IO (const $ pure (Right (GRpcErrorCode 77))) -- TODO: Maybe use some legit HTTP2 error code?
       let remoteCall = RemoteCall validDomainText (Just validLocalPart)
 
-      res <- mock @Remote @IO $ callRemote remoteCall
+      res <- mock @Remote @IO . Polysemy.runReader allowAllSettings $ callRemote remoteCall
 
       actualCalls <- mockDiscoverAndCallCalls @IO
       let expectedCall = ValidatedRemoteCall (Domain validDomainText) validLocalPart
@@ -100,7 +111,7 @@ remoteCallFailureErrStr =
       mockDiscoverAndCallReturns @IO (const $ pure (Right (GRpcErrorString "some grpc error")))
       let remoteCall = RemoteCall validDomainText (Just validLocalPart)
 
-      res <- mock @Remote @IO $ callRemote remoteCall
+      res <- mock @Remote @IO . Polysemy.runReader allowAllSettings $ callRemote remoteCall
 
       actualCalls <- mockDiscoverAndCallCalls @IO
       let expectedCall = ValidatedRemoteCall (Domain validDomainText) validLocalPart
@@ -111,15 +122,46 @@ remoteCallFailureErrConn :: TestTree
 remoteCallFailureErrConn =
   testCase "should respond with error when facing RemoteError" $
     runM . evalMock @Remote @IO $ do
-      mockDiscoverAndCallReturns @IO (const $ pure (Left $ RemoteErrorDiscoveryFailure (LookupErrorSrvNotAvailable "_something._tcp.exmaple.com") (Domain "example.com")))
+      mockDiscoverAndCallReturns @IO (const $ pure (Left $ RemoteErrorDiscoveryFailure (LookupErrorSrvNotAvailable "_something._tcp.example.com") (Domain "example.com")))
       let remoteCall = RemoteCall validDomainText (Just validLocalPart)
 
-      res <- mock @Remote @IO $ callRemote remoteCall
+      res <- mock @Remote @IO . Polysemy.runReader allowAllSettings $ callRemote remoteCall
 
       actualCalls <- mockDiscoverAndCallCalls @IO
       let expectedCall = ValidatedRemoteCall (Domain validDomainText) validLocalPart
       embed $ assertEqual "one remote call should be made" [expectedCall] actualCalls
       embed $ assertBool "the response should have error" (isResponseError res)
+
+remoteCallFailureAllowList :: TestTree
+remoteCallFailureAllowList =
+  testCase "should not make a call when target domain not in the allowList" $
+    runM . evalMock @Remote @IO $ do
+      mockDiscoverAndCallReturns @IO (const $ pure (Left $ RemoteErrorDiscoveryFailure (LookupErrorSrvNotAvailable "_something._tcp.example.com") (Domain "example.com")))
+      let remoteCall = RemoteCall validDomainText (Just validLocalPart)
+
+      let allowList = RunSettings (AllowList (AllowedDomains [Domain "hello.world"]))
+
+      res <- mock @Remote @IO . Polysemy.runReader allowList $ callRemote remoteCall
+
+      actualCalls <- mockDiscoverAndCallCalls @IO
+      embed $ assertEqual "no remote calls should be made" [] actualCalls
+      embed $ assertBool "the response should have error" (isResponseError res)
+
+federateWithAllowListSuccess :: TestTree
+federateWithAllowListSuccess =
+  testCase "should give True when target domain is in the list" $
+    runM . evalMock @Remote @IO $ do
+      let allowList = RunSettings (AllowList (AllowedDomains [Domain "hello.world"]))
+      res <- Polysemy.runReader allowList $ federateWith (Domain "hello.world")
+      embed $ assertBool "federating should be allowed" res
+
+federateWithAllowListFail :: TestTree
+federateWithAllowListFail =
+  testCase "should give False when target domain is not in the list" $
+    runM . evalMock @Remote @IO $ do
+      let allowList = RunSettings (AllowList (AllowedDomains [Domain "only.other.domain"]))
+      res <- Polysemy.runReader allowList $ federateWith (Domain "hello.world")
+      embed $ assertBool "federating should not be allowed" (not res)
 
 isResponseError :: Response -> Bool
 isResponseError (ResponseErr _) = True
