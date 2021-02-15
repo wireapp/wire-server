@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 43ab5a599f01fc9e162b243ef44c8aa65981e8add3904a82c9fe3d722d17f0ba
+-- hash: de21f2962373c76053047fe9f30bdc6a7dbcec8cf02f3649472597650839075c
 
 name:           brig
 version:        1.35.0
@@ -163,6 +163,7 @@ library
     , http-client-openssl >=0.2
     , http-types >=0.8
     , imports
+    , insert-ordered-containers
     , iproute >=1.5
     , iso639 >=0.1
     , lens >=3.8
