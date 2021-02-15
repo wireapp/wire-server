@@ -3,6 +3,27 @@
 Trouble shooting & FAQ
 ======================
 
+Reporting a problem with user provisioning or SSO authentication
+----------------------------------------------------------------
+
+In order for us to analyse and understand your problem, we need at least the following information up-front:
+
+- Have you followed the following instructions?
+    - This document <trouble-shooting.rst>
+    - Howtos for supported vendors <index.rst>
+    - Documentation on the general setup flow <https://support.wire.com/hc/en-us/articles/360001285718-Set-up-SSO-externally>
+- Vendor information (octa, azure, centrica, other (which one)?)
+- Team ID (looks like eg. `2e9a9c9c-6f83-11eb-a118-3342c6f16f4e`, can be found in team settings)
+- What do you expect to happen?
+    - eg.: "I enter login code, authenticate successfully against IdP, get redirected, and see the wire landing page."
+- What does happen instead?
+    - Screenshots
+    - Copy the text into your report where applicable in addition to screenshots (for automatic processing).
+    - eg.: "instead of being logged into wire, I see the following error page: ..."
+- Screenshots of the Configuration (both SAML and SCIM, as applicable), including, but not limited to:
+    - If you are using SAML: SAML IdP metadata file
+    - If you are using SCIM for provisioning: Which attributes in the User schema are mapped?  How?
+
 
 Can I use the same SSO login code for multiple teams?
 -----------------------------------------------------
