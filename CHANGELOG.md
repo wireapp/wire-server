@@ -18,7 +18,7 @@
 
 ## Release Notes
 
-This release requires recreating brig's ES index with the the `brig-index` tool.
+This release requires recreating brig's ES index with the `brig-index` tool.
 
 ## Features
 
