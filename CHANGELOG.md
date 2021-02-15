@@ -18,7 +18,7 @@
 
 ## Release Notes
 
-This release requires recreating brig's ES index. See [documentation](https://github.com/wireapp/wire-server/blob/b9a84f9b654a69c9a296761b36c042dc993236d3/docs/reference/elastic-search.md#migrate-data).
+This release requires recreating brig's ES index *before* deployment. See [instructions](https://github.com/wireapp/wire-server/blob/e3064d101ef8e9074431049135d2319335de3117/docs/reference/elasticsearch-migration-2021-02-15.md).
 
 ## Features
 
