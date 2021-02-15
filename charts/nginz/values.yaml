@@ -258,6 +258,9 @@ nginx_conf:
     - path: ~* ^/teams/([^/]*)/size$
       envs:
       - all
+    - path: ~* ^/teams/([^/]*)/search$
+      envs:
+      - all
     galley:
     - path: /conversations/code-check
       disable_zauth: true
