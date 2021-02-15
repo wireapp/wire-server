@@ -1,5 +1,28 @@
 # SFTD Chart
 
+## Parameters
+
+### Required
+| Parameter       | Description                                                                                 |
+|-----------------|---------------------------------------------------------------------------------------------|
+| `host`          | The domain name on which the SFT will be reachable. Should point to your ingress controller |
+| `allowOrigin`   | Allows CORS requests on this domain. Set this to the domain of your wire webapp.            |
+
+
+### Bring your own certificate
+| Parameter       | Description                                                                                 |
+|-----------------|---------------------------------------------------------------------------------------------|
+| `tls.key`       | Private key of the TLS certificate for `host`                                               |
+| `tls.crt`       | TLS certificate for `host`                                                                  |
+
+### Cert-manager certificate
+
+| Parameter       | Description                                                                                                                                        |
+|-----------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `tls.issuerRef` | describes what [Issuer](https://cert-manager.io/docs/reference/api-docs/#meta.cert-manager.io/v1.ObjectReference)  to use to request a certificate |
+
+
+Please see [values.yaml](./values.yaml) for an overview of other parameters that can be configured.
 
 ## Deploy
 
@@ -38,11 +61,6 @@ server.
 
 You should configure `brig` to hand out the SFT server to clients by setting
 `brig.optSettings.setSftStaticUrl=https://sftd.example.com:443` on the `wire-server` chart
-
-## Parameters
-
-Please see [values.yaml](./values.yaml) for an overview of parameters that can be configured.
-
 
 ## Routability
 
@@ -170,3 +188,34 @@ kernel for free ports, which by default are in the `32768-61000` range
 On a default installation these ranges do not overlap and sftd should never have
 conflicts with kubernetes components. You should however check that on your OS
 these ranges aren't configured differently.
+
+
+
+# Future work
+
+We're (ab-)using a `StatefulSet` to give each pod a stable DNS name and use
+that to route call join requests to the right calling service.
+
+Downside of `StatefulSet` is that rollouts are slow, especially if you set
+`terminationGracePeriodSeconds`. We're only using it as a technicality for the
+DNS behaviour that it gives us.
+
+However, it seems that `coredns` supports to be configured to have the same DNS
+behaviour for any pods, not just pods in `StatefulSet`s.
+(https://github.com/kubernetes/kubernetes/issues/47992#issuecomment-499580692)
+
+This requires a deployer of wire to edit their cluster's CoreDNS config to set
+the
+[`endpoint_pod_names`](https://github.com/coredns/coredns/tree/master/plugin/kubernetes)
+option which they might not have the ability to do.
+
+However if you are able to set this setting, you could use a `Deployment`
+instead of a `StatefulSet`.  The benefit of a `Deployment` is that it replaces
+all pods at once; such that you do not have to wait `replicas * terminationGracePeriodSeconds`
+for a rollout to finish but just `terminationGracePeriodSeconds`. This drastically
+eases the painfulness of operations when you have `terminationGracePeriodSeconds` set to a high
+number.
+
+
+
+
