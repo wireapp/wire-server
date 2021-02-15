@@ -18,7 +18,7 @@
 
 ## Release Notes
 
-This release requires recreating brig's ES index with the `brig-index` tool.
+This release requires recreating brig's ES index. See [documentation](https://github.com/wireapp/wire-server/blob/b9a84f9b654a69c9a296761b36c042dc993236d3/docs/reference/elastic-search.md).
 
 ## Features
 
