@@ -422,7 +422,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
         Data.writeScimUserTimes storedUser
         ST.runValidExternalId
           (`Data.insertSAMLUser` buid)
-          (`Data.insertScimExternalId` buid)
+          (\email -> Data.insertScimExternalId stiTeam email buid)
           veid
 
       -- If applicable, trigger email validation procedure on brig.
@@ -471,7 +471,7 @@ updateValidScimUser tokinfo uid newValidScimUser =
           case ( oldValidScimUser ^. ST.vsuExternalId,
                  newValidScimUser ^. ST.vsuExternalId
                ) of
-            (old, new) | old /= new -> updateVsuUref uid old new
+            (old, new) | old /= new -> updateVsuUref (stiTeam tokinfo) uid old new
             _ -> pure ()
 
           when (newValidScimUser ^. ST.vsuName /= oldValidScimUser ^. ST.vsuName) $ do
@@ -493,19 +493,20 @@ updateValidScimUser tokinfo uid newValidScimUser =
           pure newScimStoredUser
 
 updateVsuUref ::
+  TeamId ->
   UserId ->
   ST.ValidExternalId ->
   ST.ValidExternalId ->
   Spar ()
-updateVsuUref uid old new = do
+updateVsuUref team uid old new = do
   let geturef = ST.runValidExternalId Just (const Nothing)
   case (geturef old, geturef new) of
     (mo, mn@(Just newuref)) | mo /= mn -> validateEmailIfExists uid newuref
     _ -> pure ()
 
   wrapMonadClient $ do
-    old & ST.runValidExternalId Data.deleteSAMLUser Data.deleteScimExternalId
-    new & ST.runValidExternalId (`Data.insertSAMLUser` uid) (`Data.insertScimExternalId` uid)
+    old & ST.runValidExternalId Data.deleteSAMLUser (Data.deleteScimExternalId team)
+    new & ST.runValidExternalId (`Data.insertSAMLUser` uid) (\email -> Data.insertScimExternalId team email uid)
 
   Brig.setBrigUserVeid uid new
 
@@ -593,7 +594,7 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
               lift . wrapMonadClient $
                 ST.runValidExternalId
                   Data.deleteSAMLUser
-                  Data.deleteScimExternalId
+                  (Data.deleteScimExternalId stiTeam)
                   veid
 
           lift . wrapMonadClient $ Data.deleteScimUserTimes uid
