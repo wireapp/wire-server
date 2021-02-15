@@ -15,22 +15,29 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.PolyLog where
+module Wire.API.Team.Size
+  ( TeamSize (TeamSize),
+    modelTeamSize,
+  )
+where
 
+import Data.Aeson
+import qualified Data.Swagger.Build.Api as Doc
 import Imports
-import Polysemy
-import qualified System.Logger as Log
+import Numeric.Natural
 
--- | This effect will help us write tests for log messages
---
--- FUTUREWORK: Move this to a separate module if it is required
---
--- FUTUREWORK: Either write an orphan instance for MonadLogger or provide
--- equivalent functions in System.Logger.Class
-data PolyLog m a where
-  PolyLog :: Log.Level -> (Log.Msg -> Log.Msg) -> PolyLog m ()
+newtype TeamSize = TeamSize Natural
+  deriving (Show, Eq)
 
-makeSem 'PolyLog
+instance ToJSON TeamSize where
+  toJSON (TeamSize s) = object ["teamSize" .= s]
 
-runPolyLog :: Member (Embed IO) r => Log.Logger -> Sem (PolyLog ': r) a -> Sem r a
-runPolyLog logger = interpret $ \(PolyLog lvl msg) -> Log.log logger lvl msg
+instance FromJSON TeamSize where
+  parseJSON =
+    withObject "TeamSize" $ \o -> TeamSize <$> o .: "teamSize"
+
+modelTeamSize :: Doc.Model
+modelTeamSize = Doc.defineModel "TeamSize" $ do
+  Doc.description "A simple object with a total number of team members."
+  Doc.property "teamSize" Doc.int32' $ do
+    Doc.description "Team size."

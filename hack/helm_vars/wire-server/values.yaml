@@ -51,6 +51,7 @@ brig:
       providerTokenTimeout: 60
     optSettings:
       setActivationTimeout: 5
+      # keep this in sync with brigSettingsTeamInvitationTimeout in spar/templates/tests/configmap.yaml
       setTeamInvitationTimeout: 10
       setExpiredUserCleanupTimeout: 1
       setUserMaxConnections: 16
@@ -222,5 +223,6 @@ spar:
     - type: ContactSupport
       company: Example Company
       email: email:backend+spar@wire.com
-    # Keep this in sync with setTeamInvitationTimeout in brig
-    brigSettingsTeamInvitationTimeout: 10
+
+federator:
+  replicaCount: 1

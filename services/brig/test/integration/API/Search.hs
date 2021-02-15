@@ -1,4 +1,6 @@
+{-# LANGUAGE QuasiQuotes #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -31,10 +33,11 @@ import Brig.Types
 import Control.Lens ((.~), (?~), (^.))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Retry
-import Data.Aeson (FromJSON, Value, (.=))
+import Data.Aeson (FromJSON, Value, decode, (.=))
 import qualified Data.Aeson as Aeson
 import Data.Handle (fromHandle)
 import Data.Id
+import qualified Data.Map.Strict as Map
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Database.Bloodhound as ES
@@ -44,6 +47,7 @@ import qualified Network.HTTP.Client as HTTP
 import qualified Network.Wai.Test as WaiTest
 import Test.Tasty
 import Test.Tasty.HUnit
+import Text.RawString.QQ (r)
 import UnliftIO (Concurrently (..), runConcurrently)
 import Util
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
@@ -430,7 +434,7 @@ assertRight = \case
   Right x -> pure x
 
 testWithBothIndices :: Opt.Opts -> Manager -> TestName -> WaiTest.Session a -> TestTree
-testWithBothIndices opts mgr name f =
+testWithBothIndices opts mgr name f = do
   testGroup
     name
     [ test mgr "new-index" $ withSettingsOverrides opts f,
@@ -463,7 +467,7 @@ optsForOldIndex opts = do
 createIndexWithMapping :: MonadIO m => Opt.Opts -> Text -> Value -> m ()
 createIndexWithMapping opts name val = do
   let indexName = (ES.IndexName name)
-  createReply <- runBH opts $ ES.createIndexWith [] 1 indexName
+  createReply <- runBH opts $ ES.createIndexWith [ES.AnalysisSetting analysisSettings] 1 indexName
   unless (ES.isCreated createReply || ES.isSuccess createReply) $ do
     liftIO $ assertFailure $ "failed to create index: " <> show name <> " with error: " <> show createReply
   mappingReply <- runBH opts $ ES.putMapping indexName (ES.MappingName "user") val
@@ -481,19 +485,76 @@ runBH opts =
   let esURL = opts ^. Opt.elasticsearchL . Opt.urlL
    in liftIO . ES.withBH HTTP.defaultManagerSettings (ES.Server esURL)
 
--- | This was copied from staging before the migration
+-- | This was copied from at Brig.User.Search.Index at commit 3242aa26
+analysisSettings :: ES.Analysis
+analysisSettings =
+  let analyzerDef =
+        Map.fromList
+          [ ("prefix_index", ES.AnalyzerDefinition (Just $ ES.Tokenizer "whitespace") [ES.TokenFilter "edge_ngram_1_30"] []),
+            ("prefix_search", ES.AnalyzerDefinition (Just $ ES.Tokenizer "whitespace") [ES.TokenFilter "truncate_30"] [])
+          ]
+      filterDef =
+        Map.fromList
+          [ ("edge_ngram_1_30", ES.TokenFilterDefinitionEdgeNgram (ES.NgramFilter 1 30) Nothing),
+            ("truncate_30", ES.TokenFilterTruncate 30)
+          ]
+   in ES.Analysis analyzerDef mempty filterDef mempty
+
+--- | This was copied from at Brig.User.Search.Index.indexMapping at commit 3242aa26
 oldMapping :: Value
 oldMapping =
-  Aeson.object
-    [ "user"
-        .= Aeson.object
-          [ "properties"
-              .= Aeson.object
-                [ "accent_id" .= Aeson.object ["type" .= ("byte" :: Text), "index" .= False],
-                  "handle" .= Aeson.object ["type" .= ("text" :: Text)],
-                  "name" .= Aeson.object ["type" .= ("keyword" :: Text), "index" .= False],
-                  "normalized" .= Aeson.object ["type" .= ("text" :: Text)],
-                  "team" .= Aeson.object ["type" .= ("keyword" :: Text)]
-                ]
-          ]
-    ]
+  fromJust $
+    decode
+      [r|
+{
+  "user": {
+    "dynamic": false,
+    "properties": {
+      "account_status": {
+        "store": false,
+        "type": "keyword",
+        "index": true
+      },
+      "handle": {
+        "store": false,
+        "type": "text",
+        "index": true,
+        "fields": {
+          "prefix": {
+            "search_analyzer": "prefix_search",
+            "type": "text",
+            "analyzer": "prefix_index"
+          }
+        }
+      },
+      "accent_id": {
+        "store": false,
+        "type": "byte",
+        "index": false
+      },
+      "name": {
+        "store": false,
+        "type": "keyword",
+        "index": false
+      },
+      "team": {
+        "store": false,
+        "type": "keyword",
+        "index": true
+      },
+      "normalized": {
+        "store": false,
+        "type": "text",
+        "index": true,
+        "fields": {
+          "prefix": {
+            "search_analyzer": "prefix_search",
+            "type": "text",
+            "analyzer": "prefix_index"
+          }
+        }
+      }
+    }
+  }
+}
+|]

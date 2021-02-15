@@ -190,12 +190,22 @@ nginx_conf:
       - staging
       disable_zauth: true
       basic_auth: true
+    - path: ~* ^/i/users/([^/]*)/rich-info
+      envs:
+      - staging
+      disable_zauth: true
+      basic_auth: true
     - path: ~* ^/i/teams/([^/]*)/suspend
       envs:
       - staging
       disable_zauth: true
       basic_auth: true
     - path: ~* ^/i/teams/([^/]*)/unsuspend
+      envs:
+      - staging
+      disable_zauth: true
+      basic_auth: true
+    - path: /i/provider/activation-code
       envs:
       - staging
       disable_zauth: true
@@ -245,6 +255,12 @@ nginx_conf:
     - path: /calls
       envs:
       - all
+    - path: ~* ^/teams/([^/]*)/size$
+      envs:
+      - all
+    - path: ~* ^/teams/([^/]*)/search$
+      envs:
+      - all
     galley:
     - path: /conversations/code-check
       disable_zauth: true
@@ -287,6 +303,9 @@ nginx_conf:
     - path: ~* ^/teams/([^/]*)/conversations(.*)
       envs:
       - all
+    - path: ~* ^/teams/([^/]*)/members/csv$
+      envs:
+      - all
     - path: ~* ^/teams/([^/]*)/legalhold(.*)
       envs:
       - all
@@ -314,6 +333,11 @@ nginx_conf:
     - path: ~* ^/teams/([^/]*)/features/([^/])*
       envs:
       - all
+    - path: ~* /i/teams/([^/]*)/features/([^/]*)
+      envs:
+      - staging
+      disable_zauth: true
+      basic_auth: true
     gundeck:
     - path: /push
       envs:

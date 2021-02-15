@@ -24,9 +24,19 @@ done
 echo "Installing charts..."
 
 function printLogs() {
+    echo "---- a command failed, attempting to print useful debug information..."
+    echo "-------------------------------"
+    echo "-------------------------------"
+    echo "-------------------------------"
+    echo ""
+    kubectl -n ${NAMESPACE} get pods
     kubectl -n ${NAMESPACE} get pods | grep -v Running | grep -v Pending | grep -v Completed | grep -v STATUS | grep -v ContainerCreating | awk '{print $1}' | xargs -n 1 -I{} bash -c "printf '\n\n----LOGS FROM {}:\n'; kubectl -n ${NAMESPACE} logs --tail=30 {}" || true
     kubectl -n ${NAMESPACE} get pods | grep Pending | awk '{print $1}' | xargs -n 1 -I{} bash -c "printf '\n\n----DESCRIBE 'pending' {}:\n'; kubectl -n ${NAMESPACE} describe pod {}" || true
 }
+
+trap printLogs ERR
+
+FEDERATION_DOMAIN="$NAMESPACE.svc.cluster.local"
 
 for chart in "${charts[@]}"; do
     kubectl -n ${NAMESPACE} get pods
@@ -39,10 +49,12 @@ for chart in "${charts[@]}"; do
     # default is 5m but may not be enough on a fresh install including cassandra migrations
     TIMEOUT=10m
     set -x
-    helm upgrade --atomic --install --namespace "${NAMESPACE}" "${NAMESPACE}-${chart}" "${CHARTS_DIR}/${chart}" \
+    helm upgrade --install --namespace "${NAMESPACE}" "${NAMESPACE}-${chart}" "${CHARTS_DIR}/${chart}" \
         $option \
+        --set brig.config.optSettings.setFederationDomain="$FEDERATION_DOMAIN" \
+        --set galley.config.settings.federationDomain="$FEDERATION_DOMAIN" \
         --wait \
-        --timeout "$TIMEOUT" || printLogs
+        --timeout "$TIMEOUT"
     set +x
 done
 

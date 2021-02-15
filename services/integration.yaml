@@ -35,6 +35,14 @@ nginz:
   host: 127.0.0.1
   port: 8080
 
+federatorInternal:
+  host: 127.0.0.1
+  port: 8097
+
+federatorExternal:
+  host: 127.0.0.1
+  port: 8098
+
 # Used by brig-integration (bot providers), galley-integration (legal hold)
 provider:
   privateKey: test/resources/key.pem
@@ -42,3 +50,19 @@ provider:
   cert: test/resources/cert.pem
   botHost: https://127.0.0.1
   botPort: 29631
+
+# Used by spar integration tests
+# Keep this in sync with setTeamInvitationTimeout from brig
+brigSettingsTeamInvitationTimeout: 5
+
+# Used by brig-integration (Federation subfolder)
+backendTwo:
+  brig:
+    host: 127.0.0.1 # in kubernetes, brig.<NAMESPACE>.svc.cluster.local
+    port: 9082
+  federatorInternal:
+    host: 127.0.0.1 # in kubernetes, federator.<NAMESPACE>.svc.cluster.local
+    port: 9097
+  federatorExternal:
+    host: 127.0.0.1 # in kubernetes, federator.<NAMESPACE>.svc.cluster.local
+    port: 9097

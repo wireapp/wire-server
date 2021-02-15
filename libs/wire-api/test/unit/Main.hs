@@ -25,6 +25,7 @@ import Test.Tasty
 import qualified Test.Wire.API.Call.Config as Call.Config
 import qualified Test.Wire.API.Roundtrip.Aeson as Roundtrip.Aeson
 import qualified Test.Wire.API.Roundtrip.ByteString as Roundtrip.ByteString
+import qualified Test.Wire.API.Roundtrip.CSV as Roundtrip.CSV
 import qualified Test.Wire.API.Swagger as Swagger
 import qualified Test.Wire.API.Team.Member as Team.Member
 import qualified Test.Wire.API.User as User
@@ -41,5 +42,6 @@ main =
         User.RichInfo.tests,
         Roundtrip.Aeson.tests,
         Roundtrip.ByteString.tests,
-        Swagger.tests
+        Swagger.tests,
+        Roundtrip.CSV.tests
       ]

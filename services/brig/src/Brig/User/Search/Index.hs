@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -19,15 +20,15 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.User.Search.Index
-  ( -- * Monad
+  ( mappingName,
+    boolQuery,
+    _TextId,
+
+    -- * Monad
     IndexEnv (..),
     IndexIO,
     runIndexIO,
     MonadIndexIO (..),
-
-    -- * Queries
-    searchIndex,
-    teamSize,
 
     -- * Updates
     reindex,
@@ -41,9 +42,6 @@ module Brig.User.Search.Index
     refreshIndex,
     updateMapping,
 
-    -- * exported for testing only
-    userDoc,
-
     -- * Re-exports
     module Types,
     ES.IndexSettings (..),
@@ -53,8 +51,6 @@ where
 
 import Brig.Data.Instances ()
 import Brig.Types.Intra
-import Brig.Types.Search
-import Brig.Types.Team (TeamSize (..))
 import Brig.Types.User
 import Brig.User.Search.Index.Types as Types
 import qualified Cassandra as C
@@ -66,19 +62,23 @@ import Data.Aeson.Encoding
 import Data.Aeson.Lens
 import Data.ByteString.Builder (Builder, toLazyByteString)
 import qualified Data.ByteString.Conversion as Bytes
+import Data.Fixed (Fixed (MkFixed))
 import Data.Handle (Handle)
 import Data.Id
 import qualified Data.Map as Map
 import Data.Metrics
-import Data.Range
-import Data.Text.ICU.Translit (trans, transliterate)
+import Data.String.Conversions (cs)
 import Data.Text.Lazy.Builder.Int (decimal)
 import Data.Text.Lens hiding (text)
+import Data.Time (UTCTime, secondsToNominalDiffTime)
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import qualified Data.UUID as UUID
 import qualified Database.Bloodhound as ES
 import Imports hiding (log, searchable)
 import Network.HTTP.Client hiding (path)
 import Network.HTTP.Types (hContentType, statusCode)
+import qualified SAML2.WebSSO.Types as SAML
+import qualified SAML2.WebSSO.XML as SAML
 import qualified System.Logger as Log
 import System.Logger.Class
   ( Logger,
@@ -90,6 +90,7 @@ import System.Logger.Class
     (+++),
     (~~),
   )
+import URI.ByteString (serializeURIRef)
 
 --------------------------------------------------------------------------------
 -- IndexIO Monad
@@ -137,181 +138,11 @@ instance ES.MonadBH IndexIO where
   getBHEnv = asks idxElastic
 
 --------------------------------------------------------------------------------
--- Queries
-
-teamSize :: MonadIndexIO m => TeamId -> m TeamSize
-teamSize t = liftIndexIO $ do
-  indexName <- asks idxName
-  countResEither <- ES.countByIndex indexName (ES.CountQuery query)
-  countRes <- either (throwM . IndexLookupError) pure countResEither
-  pure . TeamSize $ ES.crCount countRes
-  where
-    query =
-      ES.TermQuery
-        ES.Term
-          { ES.termField = "team",
-            ES.termValue = idToText t
-          }
-        Nothing
-
-searchIndex ::
-  MonadIndexIO m =>
-  -- | The user performing the search.
-  UserId ->
-  TeamSearchInfo ->
-  -- | The search query
-  Text ->
-  -- | The maximum number of results.
-  Range 1 500 Int32 ->
-  m (SearchResult Contact)
-searchIndex u teamSearchInfo q = queryIndex (defaultUserQuery u teamSearchInfo q)
-
-queryIndex ::
-  (MonadIndexIO m, FromJSON r) =>
-  IndexQuery r ->
-  Range 1 500 Int32 ->
-  m (SearchResult r)
-queryIndex (IndexQuery q f) (fromRange -> s) = liftIndexIO $ do
-  idx <- asks idxName
-  let search = (ES.mkSearch (Just q) (Just f)) {ES.size = ES.Size (fromIntegral s)}
-  r <-
-    ES.searchByType idx mappingName search
-      >>= ES.parseEsResponse
-  either (throwM . IndexLookupError) (pure . mkResult) r
-  where
-    mkResult es =
-      let results = mapMaybe ES.hitSource . ES.hits . ES.searchHits $ es
-       in SearchResult
-            { searchFound = ES.hitsTotal . ES.searchHits $ es,
-              searchReturned = length results,
-              searchTook = ES.took es,
-              searchResults = results
-            }
-
--- | The default or canonical 'IndexQuery'.
---
--- The intention behind parameterising 'queryIndex' over the 'IndexQuery' is that
--- it allows to experiment with different queries (perhaps in an A/B context).
--- FUTUREWORK: Drop legacyPrefixMatch
-defaultUserQuery :: UserId -> TeamSearchInfo -> Text -> IndexQuery Contact
-defaultUserQuery u teamSearchInfo (normalized -> term') =
-  let matchPhraseOrPrefix =
-        ES.QueryMultiMatchQuery $
-          ( ES.mkMultiMatchQuery
-              [ ES.FieldName "handle.prefix^2",
-                ES.FieldName "normalized.prefix",
-                ES.FieldName "handle^4",
-                ES.FieldName "normalized^3"
-              ]
-              (ES.QueryString term')
-          )
-            { ES.multiMatchQueryType = Just ES.MultiMatchMostFields,
-              ES.multiMatchQueryOperator = ES.And
-            }
-      -- This is required, so we can support prefix match until migration is done
-      legacyPrefixMatch =
-        ES.QueryMultiMatchQuery $
-          ( ES.mkMultiMatchQuery
-              [ ES.FieldName "handle",
-                ES.FieldName "normalized"
-              ]
-              (ES.QueryString term')
-          )
-            { ES.multiMatchQueryType = Just ES.MultiMatchPhrasePrefix,
-              ES.multiMatchQueryOperator = ES.And
-            }
-      query =
-        ES.QueryBoolQuery
-          boolQuery
-            { ES.boolQueryMustMatch =
-                [ ES.QueryBoolQuery
-                    boolQuery {ES.boolQueryShouldMatch = [matchPhraseOrPrefix, legacyPrefixMatch]}
-                ],
-              ES.boolQueryShouldMatch = [ES.QueryExistsQuery (ES.FieldName "handle")]
-            }
-      -- This reduces relevance on non-team users by 90%, there was no science
-      -- put behind the negative boost value.
-      -- It is applied regardless of a teamId being present as users without a
-      -- team anyways don't see any users with team and hence it won't affect
-      -- results if a non team user does the search.
-      queryWithBoost =
-        ES.QueryBoostingQuery
-          ES.BoostingQuery
-            { ES.positiveQuery = query,
-              ES.negativeQuery = matchNonTeamMemberUsers,
-              ES.negativeBoost = ES.Boost 0.1
-            }
-   in mkUserQuery u teamSearchInfo queryWithBoost
-
-mkUserQuery :: UserId -> TeamSearchInfo -> ES.Query -> IndexQuery Contact
-mkUserQuery (review _TextId -> self) teamSearchInfo q =
-  IndexQuery q $
-    ES.Filter . ES.QueryBoolQuery $
-      boolQuery
-        { ES.boolQueryMustNotMatch = [termQ "_id" self],
-          ES.boolQueryMustMatch =
-            [ optionallySearchWithinTeam teamSearchInfo,
-              ES.QueryBoolQuery
-                boolQuery
-                  { ES.boolQueryShouldMatch =
-                      [ termQ "account_status" "active",
-                        -- Also match entries where the account_status field is not present.
-                        -- These must have been inserted before we added the account_status
-                        -- and at that time we only inserted active users in the first place.
-                        -- This should be unnecessary after re-indexing, but let's be lenient
-                        -- here for a while.
-                        ES.QueryBoolQuery
-                          boolQuery
-                            { ES.boolQueryMustNotMatch =
-                                [ES.QueryExistsQuery (ES.FieldName "account_status")]
-                            }
-                      ]
-                  }
-            ]
-        }
-  where
-    termQ f v =
-      ES.TermQuery
-        ES.Term
-          { ES.termField = f,
-            ES.termValue = v
-          }
-        Nothing
-
--- | This query will make sure that: if teamId is absent, only users without a teamId are
--- returned.  if teamId is present, only users with the *same* teamId or users without a
--- teamId are returned.
-optionallySearchWithinTeam :: TeamSearchInfo -> ES.Query
-optionallySearchWithinTeam =
-  \case
-    NoTeam ->
-      matchNonTeamMemberUsers
-    TeamOnly teamId ->
-      matchTeamMembersOf teamId
-    TeamAndNonMembers teamId ->
-      ES.QueryBoolQuery
-        boolQuery
-          { ES.boolQueryShouldMatch =
-              [ matchTeamMembersOf teamId,
-                matchNonTeamMemberUsers
-              ]
-          }
-  where
-    matchTeamMembersOf team = ES.TermQuery (ES.Term "team" $ idToText team) Nothing
-
-matchNonTeamMemberUsers :: ES.Query
-matchNonTeamMemberUsers =
-  ES.QueryBoolQuery
-    boolQuery
-      { ES.boolQueryMustNotMatch = [ES.QueryExistsQuery $ ES.FieldName "team"]
-      }
-
---------------------------------------------------------------------------------
 -- Updates
 
 reindex :: (MonadLogger m, MonadIndexIO m, C.MonadClient m) => UserId -> m ()
 reindex u = do
-  ixu <- C.liftClient (lookupForIndex u)
+  ixu <- lookupIndexUser u
   updateIndex (maybe (IndexDeleteUser u) (IndexUpdateUser IndexUpdateIfNewerVersion) ixu)
 
 updateIndex :: MonadIndexIO m => IndexUpdate -> m ()
@@ -328,7 +159,7 @@ updateIndex (IndexUpdateUser updateType iu) = liftIndexIO $ do
     indexDoc :: MonadIndexIO m => ES.IndexName -> m ()
     indexDoc idx = liftIndexIO $ do
       m <- asks idxMetrics
-      r <- ES.indexDocument idx mappingName versioning (userDoc iu) docId
+      r <- ES.indexDocument idx mappingName versioning (indexToDoc iu) docId
       unless (ES.isSuccess r || ES.isVersionConflict r) $ do
         counterIncr (path "user.index.update.err") m
         ES.parseEsResponse r >>= throwM . IndexUpdateError . either id id
@@ -375,7 +206,7 @@ updateIndex (IndexUpdateUsers updateType ius) = liftIndexIO $ do
     bulkEncode iu =
       bulkMeta (view (iuUserId . re _TextId) iu) (docVersion (_iuVersion iu))
         <> "\n"
-        <> encodeJSONToString (userDoc iu)
+        <> encodeJSONToString (indexToDoc iu)
         <> "\n"
     bulkMeta :: Text -> ES.DocVersion -> Builder
     bulkMeta docId v =
@@ -535,18 +366,6 @@ traceES descr act = liftIndexIO $ do
   info . msg $ (r & statusCode . responseStatus) +++ val " - " +++ responseBody r
   return r
 
-userDoc :: IndexUser -> UserDoc
-userDoc iu =
-  UserDoc
-    { udId = _iuUserId iu,
-      udTeam = _iuTeam iu,
-      udName = _iuName iu,
-      udAccountStatus = _iuAccountStatus iu,
-      udNormalized = normalized . fromName <$> _iuName iu,
-      udHandle = _iuHandle iu,
-      udColourId = _iuColourId iu
-    }
-
 -- | This mapping defines how elasticsearch will treat each field in a document. Here
 -- is how it treats each field:
 -- name: Not indexed, as it is only meant to be shown to user, for querying we use
@@ -558,6 +377,9 @@ userDoc iu =
 -- handle: Used for searching by handle
 -- normalized.prefix: Used for searching by name prefix
 -- handle.prefix: Used for searching by handle prefix
+-- saml_idp: URL of SAML issuer, not indexed, used for sorting
+-- managed_by: possible values "scim" or "wire", indexed as keyword
+-- created_at: date when "activated" state last chagned in epoch-millis, not indexed, used for sorting
 --
 -- The prefix fields use "prefix_index" analyzer for indexing and "prefix_search"
 -- analyzer for searching. The "prefix_search" analyzer uses "edge_ngram" filter, this
@@ -601,7 +423,7 @@ indexMapping =
                   mpIndex = True,
                   mpAnalyzer = Nothing,
                   mpFields =
-                    Map.fromList [("prefix", MappingField MPText "prefix_index" "prefix_search")]
+                    Map.fromList [("prefix", MappingField MPText (Just "prefix_index") (Just "prefix_search"))]
                 },
             "name"
               .= MappingProperty
@@ -618,7 +440,22 @@ indexMapping =
                   mpIndex = True,
                   mpAnalyzer = Nothing,
                   mpFields =
-                    Map.fromList [("prefix", MappingField MPText "prefix_index" "prefix_search")]
+                    Map.fromList
+                      [ ("prefix", MappingField MPText (Just "prefix_index") (Just "prefix_search")),
+                        ("keyword", MappingField MPKeyword Nothing Nothing)
+                      ]
+                },
+            "email"
+              .= MappingProperty
+                { mpType = MPText,
+                  mpStore = False,
+                  mpIndex = True,
+                  mpAnalyzer = Nothing,
+                  mpFields =
+                    Map.fromList
+                      [ ("prefix", MappingField MPText (Just "prefix_index") (Just "prefix_search")),
+                        ("keyword", MappingField MPKeyword Nothing Nothing)
+                      ]
                 },
             "team"
               .= MappingProperty
@@ -643,6 +480,38 @@ indexMapping =
                   mpIndex = True,
                   mpAnalyzer = Nothing,
                   mpFields = mempty
+                },
+            "saml_idp"
+              .= MappingProperty
+                { mpType = MPKeyword,
+                  mpStore = False,
+                  mpIndex = False,
+                  mpAnalyzer = Nothing,
+                  mpFields = mempty
+                },
+            "managed_by"
+              .= MappingProperty
+                { mpType = MPKeyword,
+                  mpStore = False,
+                  mpIndex = True,
+                  mpAnalyzer = Nothing,
+                  mpFields = mempty
+                },
+            "created_at"
+              .= MappingProperty
+                { mpType = MPDate,
+                  mpStore = False,
+                  mpIndex = False,
+                  mpAnalyzer = Nothing,
+                  mpFields = mempty
+                },
+            "role"
+              .= MappingProperty
+                { mpType = MPKeyword,
+                  mpStore = False,
+                  mpIndex = True,
+                  mpAnalyzer = Nothing,
+                  mpFields = mempty
                 }
           ]
     ]
@@ -657,11 +526,12 @@ data MappingProperty = MappingProperty
 
 data MappingField = MappingField
   { mfType :: MappingPropertyType,
-    mfAnalyzer :: Text,
-    mfSearchAnalyzer :: Text
+    mfAnalyzer :: Maybe Text,
+    mfSearchAnalyzer :: Maybe Text
   }
 
-data MappingPropertyType = MPText | MPKeyword | MPByte
+data MappingPropertyType = MPText | MPKeyword | MPByte | MPDate
+  deriving (Eq)
 
 instance ToJSON MappingProperty where
   toJSON mp =
@@ -678,19 +548,14 @@ instance ToJSON MappingPropertyType where
   toJSON MPText = Aeson.String "text"
   toJSON MPKeyword = Aeson.String "keyword"
   toJSON MPByte = Aeson.String "byte"
+  toJSON MPDate = Aeson.String "date"
 
 instance ToJSON MappingField where
   toJSON mf =
-    object
-      [ "type" .= mfType mf,
-        "analyzer" .= mfAnalyzer mf,
-        "search_analyzer" .= mfSearchAnalyzer mf
-      ]
-
--- TODO: Transliteration should be left to ElasticSearch (ICU plugin),
---       yet this will require a data migration.
-normalized :: Text -> Text
-normalized = transliterate (trans "Any-Latin; Latin-ASCII; Lower")
+    object $
+      ["type" .= mfType mf]
+        <> ["analyzer" .= mfAnalyzer mf | isJust (mfAnalyzer mf)]
+        <> ["search_analyzer" .= mfSearchAnalyzer mf | isJust (mfSearchAnalyzer mf)]
 
 boolQuery :: ES.BoolQuery
 boolQuery = ES.mkBoolQuery [] [] [] []
@@ -700,6 +565,13 @@ _TextId = prism' (UUID.toText . toUUID) (fmap Id . UUID.fromText)
 
 mappingName :: ES.MappingName
 mappingName = ES.MappingName "user"
+
+lookupIndexUser ::
+  (MonadLogger m, MonadIndexIO m, C.MonadClient m) =>
+  UserId ->
+  m (Maybe IndexUser)
+lookupIndexUser u =
+  C.liftClient (lookupForIndex u)
 
 lookupForIndex :: (MonadThrow m, C.MonadClient m) => UserId -> m (Maybe IndexUser)
 lookupForIndex u = do
@@ -717,12 +589,18 @@ lookupForIndex u = do
       \writetime(status), \
       \handle, \
       \writetime(handle), \
+      \email, \
+      \writetime(email), \
       \accent_id, \
       \writetime(accent_id), \
       \activated, \
       \writetime(activated), \
       \service, \
-      \writetime(service) \
+      \writetime(service), \
+      \managed_by, \
+      \writetime(managed_by), \
+      \sso_id, \
+      \writetime(sso_id) \
       \FROM user \
       \WHERE id = ?"
 
@@ -747,17 +625,27 @@ scanForIndex num = do
       \writetime(status), \
       \handle, \
       \writetime(handle), \
+      \email, \
+      \writetime(email), \
       \accent_id, \
       \writetime(accent_id), \
       \activated, \
       \writetime(activated), \
       \service, \
-      \writetime(service) \
+      \writetime(service), \
+      \managed_by, \
+      \writetime(managed_by), \
+      \sso_id, \
+      \writetime(sso_id) \
       \FROM user"
 
 type Activated = Bool
 
 type Writetime a = Int64
+
+-- Note: Writetime is in microseconds (e-6) https://docs.datastax.com/en/dse/5.1/cql/cql/cql_using/useWritetime.html
+writeTimeToUTC :: Writetime a -> UTCTime
+writeTimeToUTC = posixSecondsToUTCTime . secondsToNominalDiffTime . MkFixed . (* 1_000_000) . fromIntegral @Int64 @Integer
 
 type ReindexRow =
   ( UserId,
@@ -768,44 +656,82 @@ type ReindexRow =
     Maybe (Writetime AccountStatus),
     Maybe Handle,
     Maybe (Writetime Handle),
+    Maybe Email,
+    Maybe (Writetime Email),
     ColourId,
     Writetime ColourId,
     Activated,
     Writetime Activated,
     Maybe ServiceId,
-    Maybe (Writetime ServiceId)
+    Maybe (Writetime ServiceId),
+    Maybe ManagedBy,
+    Maybe (Writetime ManagedBy),
+    Maybe UserSSOId,
+    Maybe (Writetime UserSSOId)
   )
 
 reindexRowToIndexUser :: forall m. MonadThrow m => ReindexRow -> m IndexUser
-reindexRowToIndexUser (u, mteam, name, t0, status, t1, handle, t2, colour, t4, activated, t5, service, t6) =
-  do
-    iu <- mkIndexUser u <$> version [Just t0, t1, t2, Just t4, Just t5, t6]
-    pure $
-      if shouldIndex
-        then
-          iu
-            & set iuTeam mteam
-              . set iuName (Just name)
-              . set iuHandle handle
-              . set iuColourId (Just colour)
-              . set iuAccountStatus status
-        else
-          iu
-            -- We insert a tombstone-style user here, as it's easier than deleting the old one.
-            -- It's mostly empty, but having the status here might be useful in the future.
-            & set iuAccountStatus status
-  where
-    version :: [Maybe (Writetime Name)] -> m IndexVersion
-    version = mkIndexVersion . getMax . mconcat . fmap Max . catMaybes
-    shouldIndex =
-      and
-        [ case status of
-            Nothing -> True
-            Just Active -> True
-            Just Suspended -> True
-            Just Deleted -> False
-            Just Ephemeral -> False
-            Just PendingInvitation -> False,
-          activated, -- FUTUREWORK: how is this adding to the first case?
-          isNothing service
-        ]
+reindexRowToIndexUser
+  ( u,
+    mteam,
+    name,
+    tName,
+    status,
+    tStatus,
+    handle,
+    tHandle,
+    email,
+    tEmail,
+    colour,
+    tColour,
+    activated,
+    tActivated,
+    service,
+    tService,
+    managedBy,
+    tManagedBy,
+    ssoId,
+    tSsoId
+    ) =
+    do
+      iu <- mkIndexUser u <$> version [Just tName, tStatus, tHandle, tEmail, Just tColour, Just tActivated, tService, tManagedBy, tSsoId]
+      pure $
+        if shouldIndex
+          then
+            iu
+              & set iuTeam mteam
+                . set iuName (Just name)
+                . set iuHandle handle
+                . set iuEmail email
+                . set iuColourId (Just colour)
+                . set iuAccountStatus status
+                . set iuSAMLIdP (idpUrl =<< ssoId)
+                . set iuManagedBy managedBy
+                . set iuCreatedAt (Just (writeTimeToUTC tActivated))
+          else
+            iu
+              -- We insert a tombstone-style user here, as it's easier than deleting the old one.
+              -- It's mostly empty, but having the status here might be useful in the future.
+              & set iuAccountStatus status
+    where
+      version :: [Maybe (Writetime Name)] -> m IndexVersion
+      version = mkIndexVersion . getMax . mconcat . fmap Max . catMaybes
+      shouldIndex =
+        and
+          [ case status of
+              Nothing -> True
+              Just Active -> True
+              Just Suspended -> True
+              Just Deleted -> False
+              Just Ephemeral -> False
+              Just PendingInvitation -> False,
+            activated, -- FUTUREWORK: how is this adding to the first case?
+            isNothing service
+          ]
+
+      idpUrl :: UserSSOId -> Maybe Text
+      idpUrl (UserSSOId tenant _subject) =
+        case SAML.decodeElem $ cs tenant of
+          Left _ -> Nothing
+          Right (SAML.Issuer uri) -> Just $ (cs . toLazyByteString . serializeURIRef) uri
+      idpUrl (UserScimExternalId _) = Nothing

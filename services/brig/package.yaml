@@ -64,6 +64,7 @@ library:
   - HaskellNet-SSL >=0.3
   - HsOpenSSL >=0.10
   - HsOpenSSL-x509-system >=0.1
+  - insert-ordered-containers
   - iproute >=1.5
   - lens >=3.8
   - lens-aeson >=1.0
@@ -83,6 +84,7 @@ library:
   - optparse-applicative >=0.11
   - pem >=0.2
   - polysemy
+  - polysemy-wire-zoo
   - proto-lens >=0.1
   - prometheus-client
   - resourcet >=1.1
@@ -94,6 +96,7 @@ library:
   - smtp-mail >=0.1
   - split >=0.2
   - safe-exceptions >=0.1
+  - saml2-web-sso
   - semigroups >=0.15
   - servant
   - servant-server
@@ -146,6 +149,7 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - aeson
+    - brig
     - base
     - bloodhound
     - brig
@@ -155,9 +159,12 @@ tests:
     - dns-util
     - imports
     - polysemy
+    - polysemy-wire-zoo
+    - raw-strings-qq
     - retry
     - tasty
     - tasty-hunit
+    - time
     - tinylog
     - types-common
     - unliftio
@@ -224,7 +231,9 @@ executables:
     - pem
     - proto-lens
     - QuickCheck
+    - raw-strings-qq
     - random >=1.0
+    - random-shuffle
     - retry >=0.6
     - safe
     - saml2-web-sso

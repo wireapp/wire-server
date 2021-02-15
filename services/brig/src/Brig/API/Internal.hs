@@ -31,6 +31,7 @@ import qualified Brig.API.User as API
 import Brig.API.Util (validateHandle)
 import Brig.App
 import qualified Brig.Data.User as Data
+import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
 import qualified Brig.Team.API as Team
@@ -40,6 +41,7 @@ import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
+import Brig.User.Event (UserEvent (UserUpdated), UserUpdatedData (eupSSOId, eupSSOIdRemoved), emptyUserUpdatedData)
 import Control.Error hiding (bool)
 import Control.Lens (view)
 import Data.Aeson hiding (json)
@@ -477,14 +479,18 @@ updateSSOIdH (uid ::: _ ::: req) = do
   ssoid :: UserSSOId <- parseJsonBody req
   success <- lift $ Data.updateSSOId uid (Just ssoid)
   if success
-    then return empty
+    then do
+      lift $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOId = Just ssoid}))
+      return empty
     else return . setStatus status404 $ plain "User does not exist or has no team."
 
 deleteSSOIdH :: UserId ::: JSON -> Handler Response
 deleteSSOIdH (uid ::: _) = do
   success <- lift $ Data.updateSSOId uid Nothing
   if success
-    then return empty
+    then do
+      lift $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOIdRemoved = True}))
+      return empty
     else return . setStatus status404 $ plain "User does not exist or has no team."
 
 updateManagedByH :: UserId ::: JSON ::: JsonRequest ManagedByUpdate -> Handler Response

@@ -179,6 +179,48 @@ dependencies automatically - including `cryptobox-c`. If new system dependencies
 Just type `$ nix-shell` and you will automatically have `make`, `docker-compose` and `stack` in `PATH`.
 You can then run all the builds, and the native dependencies will be automatically present.
 
+## Telepresence
+
+You can instead use [telepresence](https://www.telepresence.io) to allow you to talk to services installed in a given kubernetes namespace on a local or remote kubernetes cluster using easy DNS names like: `curl http://elasticsearch:9200`.
+
+Requirements:
+
+* install telepresence (e.g. `nix-env -iA nixpkgs.telepresence`)
+* you need access to a kubernetes cluster
+* you need a namespace in which you have installed something (e.g. `make kube-integration-setup` will do this)
+
+### Telepresence example usage:
+
+```
+# terminal 1
+telepresence --namespace "$NAMESPACE" --also-proxy cassandra-ephemeral
+```
+
+```
+# terminal 2
+curl http://elasticsearch-ephemeral:9200
+```
+
+### Telepresence example usage 2:
+
+```
+# just one terminal
+telepresence --namespace "$NAMESPACE" --also-proxy cassandra-ephemeral --run bash -c "curl http://elasticsearch-ephemeral:9200"
+```
+
+### Telepresence usage discussion:
+
+* If you have `fake-aws` and `databases-ephemeral` helm charts set up, you can run either `brig` and other services locally (they connect to cassandra-inside-kubernetes)
+* If you also have `brig` and other haskell services running in kubernetes (e.g. you ran `make kube-integration-setup`, you can use telepresence to only run test executables (like `brig-integration`) locally which connect to services inside kubernetes.
+
+In both cases, you need to adjust the various integration configuration files and names so that this can work.
+
+## Buildah (optional)
+
+[Buildah](https://buildah.io/) is used for local docker image creation during development. See [buildah installation](https://github.com/containers/buildah/blob/master/install.md)
+
+See `make buildah-docker` for an entry point here.
+
 ## Helm chart development, integration tests in kubernetes
 
 You need `kubectl`, `helm`, and a valid kubernetes context. Refer to https://docs.wire.com for details.

@@ -26,6 +26,7 @@ import qualified API.Provider as Provider
 import qualified API.Search as Search
 import qualified API.Settings as Settings
 import qualified API.Team as Team
+import qualified API.TeamUserSearch as TeamUserSearch
 import qualified API.User as User
 import qualified API.UserPendingActivation as UserPendingActivation
 import Bilge hiding (header)
@@ -35,13 +36,11 @@ import qualified Brig.Options as Opts
 import Cassandra.Util (defInitCassandra)
 import Control.Lens
 import Data.Aeson
-import qualified Data.ByteString.Char8 as BS
-import Data.ByteString.Conversion
 import Data.Metrics.Test (pathsConsistencyCheck)
 import Data.Metrics.WaiRoute (treeToPaths)
-import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
+import qualified Federation.User
 import Imports hiding (local)
 import qualified Index.Create
 import Network.HTTP.Client.TLS (tlsManagerSettings)
@@ -49,102 +48,106 @@ import Network.Wai.Utilities.Server (compile)
 import OpenSSL (withOpenSSL)
 import Options.Applicative
 import System.Environment (withArgs)
+import qualified System.Environment.Blank as Blank
 import qualified System.Logger as Logger
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util.Options
-import Util.Options.Common
 import Util.Test
+
+data BackendConf = BackendConf
+  { remoteBrig :: Endpoint,
+    remoteFederatorInternal :: Endpoint,
+    remoteFederatorExternal :: Endpoint
+  }
+  deriving (Show, Generic)
+
+instance FromJSON BackendConf where
+  parseJSON = withObject "BackendConf" $ \o ->
+    BackendConf
+      <$> o .: "brig"
+      <*> o .: "federatorInternal"
+      <*> o .: "federatorExternal"
 
 data Config = Config
   -- internal endpoints
   { brig :: Endpoint,
     cannon :: Endpoint,
     cargohold :: Endpoint,
+    federatorInternal :: Endpoint,
     galley :: Endpoint,
     nginz :: Endpoint,
     spar :: Endpoint,
     -- external provider
-    provider :: Provider.Config
+    provider :: Provider.Config,
+    -- for federation
+    backendTwo :: BackendConf
   }
   deriving (Show, Generic)
 
 instance FromJSON Config
 
-runTests :: Maybe Config -> Maybe Opts.Opts -> [String] -> IO ()
-runTests iConf bConf otherArgs = do
-  -- TODO: Pass Opts instead of Maybe Opts through tests now that we no longer use ENV vars
-  -- for config.
-  -- Involves removing a bunch of 'optOrEnv' calls
-  brigOpts <- maybe (fail "failed to parse options file") pure bConf
-  let local p = Endpoint {_epHost = "127.0.0.1", _epPort = p}
-  b <- mkRequest <$> optOrEnv brig iConf (local . read) "BRIG_WEB_PORT"
-  c <- mkRequest <$> optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
-  ch <- mkRequest <$> optOrEnv cargohold iConf (local . read) "CARGOHOLD_WEB_PORT"
-  g <- mkRequest <$> optOrEnv galley iConf (local . read) "GALLEY_WEB_PORT"
-  n <- mkRequest <$> optOrEnv nginz iConf (local . read) "NGINZ_WEB_PORT"
-  s <- mkRequest <$> optOrEnv spar iConf (local . read) "SPAR_WEB_PORT"
-  turnFile <- optOrEnv (Opts.servers . Opts.turn) bConf id "TURN_SERVERS"
-  turnFileV2 <- optOrEnv (Opts.serversV2 . Opts.turn) bConf id "TURN_SERVERS_V2"
-  casHost <- optOrEnv (\v -> (Opts.cassandra v) ^. casEndpoint . epHost) bConf pack "BRIG_CASSANDRA_HOST"
-  casPort <- optOrEnv (\v -> (Opts.cassandra v) ^. casEndpoint . epPort) bConf read "BRIG_CASSANDRA_PORT"
-  casKey <- optOrEnv (\v -> (Opts.cassandra v) ^. casKeyspace) bConf pack "BRIG_CASSANDRA_KEYSPACE"
-  awsOpts <- parseAWSEnv (Opts.aws <$> bConf)
+runTests :: Config -> Opts.Opts -> [String] -> IO ()
+runTests iConf brigOpts otherArgs = do
+  let b = mkRequest $ brig iConf
+      c = mkRequest $ cannon iConf
+      ch = mkRequest $ cargohold iConf
+      g = mkRequest $ galley iConf
+      n = mkRequest $ nginz iConf
+      s = mkRequest $ spar iConf
+      f = federatorInternal iConf
+      brigTwo = mkRequest $ remoteBrig (backendTwo iConf)
+
+  let turnFile = Opts.servers . Opts.turn $ brigOpts
+      turnFileV2 = (Opts.serversV2 . Opts.turn) brigOpts
+      casHost = (\v -> (Opts.cassandra v) ^. casEndpoint . epHost) brigOpts
+      casPort = (\v -> (Opts.cassandra v) ^. casEndpoint . epPort) brigOpts
+      casKey = (\v -> (Opts.cassandra v) ^. casKeyspace) brigOpts
+      awsOpts = Opts.aws brigOpts
   lg <- Logger.new Logger.defSettings -- TODO: use mkLogger'?
   db <- defInitCassandra casKey casHost casPort lg
   mg <- newManager tlsManagerSettings
   emailAWSOpts <- parseEmailAWSOpts
   awsEnv <- AWS.mkEnv lg awsOpts emailAWSOpts mg
   userApi <- User.tests brigOpts mg b c ch g n awsEnv
-  providerApi <- Provider.tests (provider <$> iConf) mg db b c g
+  providerApi <- Provider.tests (provider iConf) mg db b c g
   searchApis <- Search.tests brigOpts mg g b
   teamApis <- Team.tests brigOpts mg n b c g awsEnv
   turnApi <- Calling.tests mg b brigOpts turnFile turnFileV2
   metricsApi <- Metrics.tests mg b
   settingsApi <- Settings.tests brigOpts mg b g
   createIndex <- Index.Create.spec brigOpts
+  browseTeam <- TeamUserSearch.tests brigOpts mg g b
   userPendingActivation <- UserPendingActivation.tests brigOpts mg db b g s
+  federationUser <- Federation.User.spec brigOpts mg b f brigTwo
+  includeFederationTests <- (== Just "1") <$> Blank.getEnv "INTEGRATION_FEDERATION_TESTS"
   withArgs otherArgs . defaultMain $
     testGroup
       "Brig API Integration"
-      [ testCase "sitemap" $
-          assertEqual
-            "inconcistent sitemap"
-            mempty
-            (pathsConsistencyCheck . treeToPaths . compile $ Brig.API.sitemap brigOpts),
-        userApi,
-        providerApi,
-        searchApis,
-        teamApis,
-        turnApi,
-        metricsApi,
-        settingsApi,
-        createIndex,
-        userPendingActivation
-      ]
+      $ [ testCase "sitemap" $
+            assertEqual
+              "inconcistent sitemap"
+              mempty
+              (pathsConsistencyCheck . treeToPaths . compile $ Brig.API.sitemap brigOpts),
+          userApi,
+          providerApi,
+          searchApis,
+          teamApis,
+          turnApi,
+          metricsApi,
+          settingsApi,
+          createIndex,
+          userPendingActivation,
+          browseTeam
+        ]
+        <> [federationUser | includeFederationTests]
   where
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
-    -- Using config files only would certainly simplify this quite a bit
-    parseAWSEnv :: Maybe Opts.AWSOpts -> IO (Opts.AWSOpts)
-    parseAWSEnv (Just o) = return o
-    parseAWSEnv Nothing = do
-      sqsEnd <- optOrEnv (Opts.sqsEndpoint . Opts.aws) bConf parseEndpoint "AWS_SQS_ENDPOINT"
-      dynEnd <- optOrEnv (Opts.dynamoDBEndpoint . Opts.aws) bConf parseEndpoint "AWS_DYNAMODB_ENDPOINT"
-      sqsJrnlQ <- join <$> optOrEnvSafe (Opts.userJournalQueue . Opts.aws) bConf (Just . pack) "AWS_USER_JOURNAL_QUEUE"
-      dynPkTbl <- optOrEnv (Opts.prekeyTable . Opts.aws) bConf pack "AWS_USER_PREKEYS_TABLE"
-      return $ Opts.AWSOpts sqsJrnlQ dynPkTbl sqsEnd dynEnd
-    parseEndpoint :: String -> AWSEndpoint
-    parseEndpoint e =
-      fromMaybe (error ("Not a valid AWS endpoint: " ++ show e)) $
-        fromByteString (BS.pack e)
+
     parseEmailAWSOpts :: IO (Maybe Opts.EmailAWSOpts)
-    parseEmailAWSOpts = case Opts.email . Opts.emailSMS <$> bConf of
-      Just (Opts.EmailAWS aws) -> return (Just aws)
-      Just (Opts.EmailSMTP _) -> return Nothing
-      _ -> do
-        sesEnd <- parseEndpoint <$> getEnv "AWS_SES_ENDPOINT"
-        sesQueue <- pack <$> getEnv "AWS_USER_SES_QUEUE"
-        return . Just $ Opts.EmailAWSOpts sesQueue sesEnd
+    parseEmailAWSOpts = case Opts.email . Opts.emailSMS $ brigOpts of
+      (Opts.EmailAWS aws) -> return (Just aws)
+      (Opts.EmailSMTP _) -> return Nothing
 
 main :: IO ()
 main = withOpenSSL $ do
@@ -156,7 +159,9 @@ main = withOpenSSL $ do
   (iPath, bPath) <- withArgs configArgs parseConfigPaths
   iConf <- join $ handleParseError <$> decodeFileEither iPath
   bConf <- join $ handleParseError <$> decodeFileEither bPath
-  runTests iConf bConf otherArgs
+  brigOpts <- maybe (fail "failed to parse brig options file") pure bConf
+  integrationConfig <- maybe (fail "failed to parse integration.yaml file") pure iConf
+  runTests integrationConfig brigOpts otherArgs
   where
     getConfigArgs args = reverse $ snd $ foldl' filterConfig (False, []) args
     filterConfig :: (Bool, [String]) -> String -> (Bool, [String])

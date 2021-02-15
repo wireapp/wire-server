@@ -44,6 +44,15 @@ data:
       host: gundeck
       port: 8080
 
+    # TODO remove this
+    federator:
+      host: federator
+      port: 8080
+
+    federatorInternal:
+      host: federator
+      port: 8080
+
     {{- with .aws }}
     aws:
       prekeyTable: {{ .prekeyTable }}

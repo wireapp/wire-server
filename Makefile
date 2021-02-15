@@ -15,6 +15,7 @@ CHARTS_INTEGRATION    := wire-server databases-ephemeral fake-aws
 # this list could be generated from the folder names under ./charts/ like so:
 # CHARTS_RELEASE := $(shell find charts/ -maxdepth 1 -type d | xargs -n 1 basename | grep -v charts)
 CHARTS_RELEASE        := wire-server databases-ephemeral fake-aws aws-ingress backoffice calling-test demo-smtp elasticsearch-curator elasticsearch-external fluent-bit minio-external cassandra-external nginx-ingress-controller nginx-ingress-services reaper wire-server-metrics sftd
+BUILDAH_PUSH          ?= 1
 
 default: fast
 
@@ -218,6 +219,7 @@ libzauth:
 # Run this again after changes to libraries or dependencies.
 .PHONY: hie.yaml
 hie.yaml:
+	stack build implicit-hie
 	stack exec gen-hie > hie.yaml
 
 #####################################
@@ -242,15 +244,29 @@ hie.yaml:
 #   - kubectl
 #   - a valid kubectl context configured (i.e. access to a kubernetes cluster)
 .PHONY: kube-integration
-kube-integration: charts-integration
+kube-integration: guard-tag charts-integration
 	# by default "test-<your computer username> is used as namespace
 	# you can override the default by setting the NAMESPACE environment variable
 	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-setup.sh
 	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-test.sh
 
+.PHONY: kube-integration-setup
+kube-integration-setup: guard-tag charts-integration
+	# by default "test-<your computer username> is used as namespace
+	# you can override the default by setting the NAMESPACE environment variable
+	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-setup.sh
+
 .PHONY: kube-integration-teardown
 kube-integration-teardown:
 	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-teardown.sh
+
+.PHONY: kube-integration-setup-federation
+kube-integration-setup-federation: guard-tag charts-integration
+	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-setup-federation.sh
+
+.PHONY: kube-integration-federation
+kube-integration-federation:
+	cd services/brig && ./federation-tests.sh $(NAMESPACE)
 
 .PHONY: latest-brig-tag
 latest-brig-tag:
@@ -268,6 +284,12 @@ release-chart-%:
 	fi
 	make chart-$(*)
 
+.PHONY: guard-tag
+guard-tag:
+	@if [ "${DOCKER_TAG}" = "${USER}" ]; then \
+	      echo "Environment variable DOCKER_TAG not set to non-default value. Re-run with DOCKER_TAG=<something>. Try using 'make latest-brig-tag' for latest develop docker image tag";\
+	    exit 1; \
+	fi
 
 # Rationale for copying charts to a gitignored folder before modifying helm versions and docker image tags:
 #
@@ -319,3 +341,17 @@ upload-charts: charts-release
 .PHONY: echo-release-charts
 echo-release-charts:
 	@echo ${CHARTS_RELEASE}
+
+.PHONY: buildah-docker
+buildah-docker:
+	./hack/bin/buildah-compile.sh
+	BUILDAH_PUSH=${BUILDAH_PUSH} ./hack/bin/buildah-make-images.sh
+
+.PHONY: buildah-docker-%
+buildah-docker-%:
+	./hack/bin/buildah-compile.sh $(*)
+	BUILDAH_PUSH=${BUILDAH_PUSH} EXECUTABLES=$(*) ./hack/bin/buildah-make-images.sh
+
+.PHONY: buildah-clean
+buildah-clean:
+	./hack/bin/buildah-clean.sh

@@ -29,6 +29,7 @@ module Wire.API.Arbitrary
     list1Of',
     setOf',
     mapOf',
+    generateExample,
   )
 where
 
@@ -48,8 +49,9 @@ import qualified Generic.Random as Generic
 import Imports
 import Test.QuickCheck.Arbitrary (Arbitrary (arbitrary))
 import qualified Test.QuickCheck.Arbitrary as QC
-import Test.QuickCheck.Gen (Gen, oneof)
+import Test.QuickCheck.Gen (Gen (MkGen), oneof)
 import Test.QuickCheck.Instances ()
+import Test.QuickCheck.Random
 
 -- | This type can be used with @DerivingVia@ to generically derive an instance
 -- for the 'Arbitrary' typeclass.
@@ -130,3 +132,12 @@ instance Arbitrary Aeson.Value where
             Aeson.Number <$> arbitrary,
             Aeson.Bool <$> arbitrary
           ]
+
+-- | Use Arbitrary instance to generate an example to be used in swagger where
+-- we cannot rely on swagger-ui to generate nice examples. So far, this is only
+-- required for maps as swagger2 doesn't have a good way to specify the type of
+-- keys.
+generateExample :: Arbitrary a => a
+generateExample =
+  let (MkGen f) = arbitrary
+   in f (mkQCGen 42) 42

@@ -55,7 +55,7 @@ import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
 import Brig.User.Phone
 import Control.Error hiding (bool)
-import Control.Lens (view, (.~), (?~), (^.))
+import Control.Lens (view, (.~), (<>~), (?~), (^.))
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
@@ -63,15 +63,29 @@ import qualified Data.ByteString.Lazy as Lazy
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
 import Data.Domain
 import Data.Handle (Handle, parseHandle)
+import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local))
 import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
 import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
 import Data.Range
-import Data.Swagger (HasInfo (info), HasTitle (title), Swagger, ToSchema (..), description)
+import Data.Swagger
+  ( ApiKeyLocation (..),
+    ApiKeyParams (..),
+    HasInfo (info),
+    HasSchema (..),
+    HasSecurity (security),
+    HasSecurityDefinitions (securityDefinitions),
+    HasTitle (title),
+    SecurityRequirement (..),
+    SecurityScheme (..),
+    SecuritySchemeType (SecuritySchemeApiKey),
+    Swagger,
+    ToSchema (..),
+    description,
+  )
 import qualified Data.Swagger.Build.Api as Doc
-import Data.Swagger.Lens (HasSchema (..))
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (decodeLatin1)
@@ -105,6 +119,7 @@ import qualified Wire.API.User.Client.Prekey as Public
 import qualified Wire.API.User.Handle as Public
 import qualified Wire.API.User.Password as Public
 import qualified Wire.API.User.RichInfo as Public
+import qualified Wire.API.UserMap as Public
 
 ---------------------------------------------------------------------------
 -- Sitemap
@@ -117,10 +132,17 @@ data ZAuthServant
 
 type InternalAuth = Header' '[Servant.Required, Servant.Strict] "Z-User" UserId
 
-type OutsideWorldAuth = Header' [Servant.Required, Servant.Strict, Description "Bearer: token"] "Authorization" String
-
 instance HasSwagger api => HasSwagger (ZAuthServant :> api) where
-  toSwagger _ = toSwagger (Proxy @(OutsideWorldAuth :> api))
+  toSwagger _ =
+    toSwagger (Proxy @api)
+      & securityDefinitions <>~ InsOrdHashMap.singleton "ZAuth" secScheme
+      & security <>~ [SecurityRequirement $ InsOrdHashMap.singleton "ZAuth" []]
+    where
+      secScheme =
+        SecurityScheme
+          { _securitySchemeType = SecuritySchemeApiKey (ApiKeyParams "Authorization" ApiKeyHeader),
+            _securitySchemeDescription = Just "Must be a token retrieved by calling 'POST /login' or 'POST /access'. It must be presented in this format: 'Bearer \\<token\\>'."
+          }
 
 instance
   ( HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
@@ -267,11 +289,21 @@ type ListUsersByUnqualifiedIdsOrHandles =
 -- See Note [ephemeral user sideeffect]
 type ListUsersByIdsOrHandles =
   Summary "List users"
-    :> Description "The 'ids' and 'handles' parameters are mutually exclusive."
+    :> Description "The 'qualified_ids' and 'qualified_handles' parameters are mutually exclusive."
     :> ZAuthServant
     :> "list-users"
     :> Servant.ReqBody '[Servant.JSON] Public.ListUsersQuery
     :> Post '[Servant.JSON] [Public.UserProfile]
+
+type MaxUsersForListClientsBulk = 500
+
+type ListClientsBulk =
+  Summary "List all clients for a set of user ids"
+    :> ZAuthServant
+    :> "users"
+    :> "list-clients"
+    :> Servant.ReqBody '[Servant.JSON] (Range 1 MaxUsersForListClientsBulk [Qualified UserId])
+    :> Post '[Servant.JSON] (Public.QualifiedUserMap (Set Public.Client))
 
 type OutsideWorldAPI =
   CheckUserExistsUnqualified
@@ -283,6 +315,7 @@ type OutsideWorldAPI =
     :<|> GetHandleInfoQualified
     :<|> ListUsersByUnqualifiedIdsOrHandles
     :<|> ListUsersByIdsOrHandles
+    :<|> ListClientsBulk
 
 type SwaggerDocsAPI = "api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
@@ -310,6 +343,7 @@ servantSitemap =
     :<|> getHandleInfoH
     :<|> listUsersByUnqualifiedIdsOrHandles
     :<|> listUsersByIdsOrHandles
+    :<|> listClientsBulk
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
@@ -1081,6 +1115,10 @@ getClientH (zusr ::: clt ::: _) =
   getClient zusr clt <&> \case
     Just c -> json c
     Nothing -> setStatus status404 empty
+
+listClientsBulk :: UserId -> Range 1 MaxUsersForListClientsBulk [Qualified UserId] -> Handler (Public.QualifiedUserMap (Set Public.Client))
+listClientsBulk _zusr limitedUids =
+  API.lookupClientsBulk (fromRange limitedUids) !>> clientError
 
 getClient :: UserId -> ClientId -> Handler (Maybe Public.Client)
 getClient zusr clientId = do
