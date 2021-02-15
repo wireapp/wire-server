@@ -255,6 +255,12 @@ nginx_conf:
     - path: /calls
       envs:
       - all
+    - path: ~* ^/teams/([^/]*)/size$
+      envs:
+      - all
+    - path: ~* ^/teams/([^/]*)/search$
+      envs:
+      - all
     galley:
     - path: /conversations/code-check
       disable_zauth: true
@@ -332,9 +338,6 @@ nginx_conf:
       - staging
       disable_zauth: true
       basic_auth: true
-    - path: ~* ^/teams/([^/]*)/size$
-      envs:
-      - all
     gundeck:
     - path: /push
       envs:
