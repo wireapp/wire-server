@@ -1,5 +1,8 @@
 # SFTD Chart
 
+In theory the `sftd` chart can be installed on its own, but it's usually
+installed as part of the `wire-server` umbrella chart.
+
 ## Parameters
 
 ### Required
@@ -22,29 +25,40 @@
 | `tls.issuerRef` | describes what [Issuer](https://cert-manager.io/docs/reference/api-docs/#meta.cert-manager.io/v1.ObjectReference)  to use to request a certificate |
 
 
+### Other (optional) parameters
+
+| Parameter                       | Default | Description                                                                                                                                                                           |
+|---------------------------------|---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `terminationGracePeriodSeconds` | `10`    | The time to wait after terminating an sft node before shutting it down. Useful to wait for a pod to have less calls before shutting down. Pod won't take new calls whilst terminating |
+| `replicaCount`                  | `1`     | Amount of SFT servers to run. Only one SFT server can run per node. So  `replicaCount <= nodeCount`                                                                               |
+| `nodeSelector`, `affinity`      | `{}`    | Used to constraint SFT servers to only run on specific nodes                                                                                                                          |
+
 Please see [values.yaml](./values.yaml) for an overview of other parameters that can be configured.
 
 ## Deploy
 
-Replace `example.com` with your own domain here.
+The `sftd` is deployed as part of the `wire-server` umbrella chart. You can edit the `values.yaml` of your `wire-server` chart to configure sftd.
 
-Using your own certificates:
+```yaml
+sftd:
+  host: sftd.example.com
+  allowOrigin: https://webapp.example.com
+  tls:
+    # The https://cert-manager.io issuer to use to retrieve a certificate
+    issuerRef:
+      kind: ClusterIssuer
+      name: letsencrypt-prod
+```
 
+Or pass in the options on the command-line (useful if you need to pass in a certificate file)
 ```
-helm install sftd wire/sftd  \
-  --set host=sftd.example.com \
-  --set allowOrigin=https://webapp.example.com \
-  --set-file tls.crt=/path/to/tls.crt \
-  --set-file tls.key=/path/to/tls.key
+helm install wire wire/wire-server  \
+  --set sftd.host=sftd.example.com \
+  --set sftd.allowOrigin=https://webapp.example.com \
+  --set-file sftd.tls.crt=/path/to/tls.crt \
+  --set-file sftd.tls.key=/path/to/tls.key
 ```
 
-Using Cert-manager:
-```
-helm install sftd wire/sftd \
-  --set host=sftd.example.com \
-  --set allowOrigin=https://webapp.example.com \
-  --set tls.issuerRef.name=letsencrypt-staging
-```
 
 the `host` option will be used to set up an `Ingress` object.
 
@@ -55,12 +69,21 @@ You can switch between `cert-manager` and own-provided certificates at any
 time. Helm will delete the `sftd` secret automatically and then cert-manager
 will create it instead.
 
-It is important that `allowOrigin` is synced with the domain where the web app is hosted
+
+`allowOrigin` MUST be in sync the domain where the web app is hosted
 as configured in the `wire-server` chart or the webapp will not be able to contact the SFT
 server.
 
-You should configure `brig` to hand out the SFT server to clients by setting
-`brig.optSettings.setSftStaticUrl=https://sftd.example.com:443` on the `wire-server` chart
+You MUST configure `brig` to hand out the SFT server to clients, in order for clients to be
+able to use the new conference calling features:
+
+```yaml
+brig:
+  # ...
+  optSettings:
+    # ...
+    setSftStaticUrl: https://sftd.example.com:443
+```
 
 ## Routability
 
@@ -99,22 +122,25 @@ to complete.
 
 You can scale up and down by specifying `replicas`:
 
-```
-helm upgrade wire/sftd --set replicas=4
+```yaml
+sftd:
+  replicaCount: 3
 ```
 
-By default we provision *3* replicas.
+By default we provision *1* replica.
 
-Note that due to the usage of `hostNetwork` there can only be _one_ instance of `sftd` per Kubernetes node.
-You will need as many nodes available as you have replicas.
+Note that due to the usage of `hostNetwork` there can only be _one_ instance of
+`sftd` per Kubernetes node.  You will need as many nodes available as you have
+replicas.
+
+As a rule of thumb we support *50* concurrent connections per *1 vCPU*. These
+numbers might improve as we work on optimizing the SFTD code. You should adjust
+the amount of replicas based on your expected usage patterns and Kubernetes
+node specifications.
 
 If you're using a Kubernetes cloud offering, we recommend setting up cluster
 auto-scaling so that you automatically provision new Kubernetes nodes when the
-amount of replicas increases.
-
-As a rule of thumb we support *50* concurrent connections per *1 vCPU*. You
-should adjust the amount of replicas based on your expected usage patterns and
-Kubernetes node specifications.
+amount of replicas increases above the amount of nodes available.
 
 
 ## Multiple sftd deployments in a single cluster
@@ -147,8 +173,8 @@ node4
 Then we can make two `sftd` deployments and make sure Kubernetes schedules them on distinct set of nodes:
 
 ```
-helm install sftd-prod charts/sftd    --set 'nodeSelector.wire\.com/role=sftd-prod' ...other-flags
-helm install sftd-staging charts/sftd --set 'nodeSelector.wire\.com/role=sftd-staging' ...other-flags
+helm install wire-prod charts/wire-server --set 'nodeSelector.wire\.com/role=sftd-prod' ...other-flags
+helm install wire-staging charts/wire-server --set 'nodeSelector.wire\.com/role=sftd-staging' ...other-flags
 ```
 
 ## No public IP on default interface
@@ -196,9 +222,8 @@ these ranges aren't configured differently.
 We're (ab-)using a `StatefulSet` to give each pod a stable DNS name and use
 that to route call join requests to the right calling service.
 
-Downside of `StatefulSet` is that rollouts are slow, especially if you set
-`terminationGracePeriodSeconds`. We're only using it as a technicality for the
-DNS behaviour that it gives us.
+Downside of `StatefulSet` is that rollouts are slow -- propoerionally to how
+high you set  `terminationGracePeriodSeconds`.
 
 However, it seems that `coredns` supports to be configured to have the same DNS
 behaviour for any pods, not just pods in `StatefulSet`s.
@@ -209,13 +234,9 @@ the
 [`endpoint_pod_names`](https://github.com/coredns/coredns/tree/master/plugin/kubernetes)
 option which they might not have the ability to do.
 
-However if you are able to set this setting, you could use a `Deployment`
-instead of a `StatefulSet`.  The benefit of a `Deployment` is that it replaces
-all pods at once; such that you do not have to wait `replicas * terminationGracePeriodSeconds`
-for a rollout to finish but just `terminationGracePeriodSeconds`. This drastically
-eases the painfulness of operations when you have `terminationGracePeriodSeconds` set to a high
-number.
-
-
-
-
+If you are able to set this setting, you could use a `Deployment` instead of a
+`StatefulSet`.  The benefit of a `Deployment` is that it replaces all pods at
+once; such that you do not have to wait `replicaCount *
+terminationGracePeriodSeconds` for a rollout to finish but just
+`terminationGracePeriodSeconds`.  This drastically improves operations. We
+should expose this as an option for a future release.

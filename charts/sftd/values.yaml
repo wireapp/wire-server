@@ -6,7 +6,7 @@
 # to `hostNetwork`. If this number is higher than the amount of nodes that can
 # be used for scheduling (Also see `nodeSelector`) pods will remain in a
 # pending state untill you add more capacit.
-replicaCount: 3
+replicaCount: 1
 
 image:
   repository: quay.io/wire/sftd
@@ -19,8 +19,7 @@ nameOverride: ""
 fullnameOverride: ""
 
 # The time to wait after terminating an sft node before shutting it down. No
-# new calls will be initiated whilst a pod is terminated. This value will be
-# more useful once we support running multiple sfts behind a load-balancer
+# new calls will be initiated whilst a pod is being terminated.
 terminationGracePeriodSeconds: 10
 
 podAnnotations: {}
