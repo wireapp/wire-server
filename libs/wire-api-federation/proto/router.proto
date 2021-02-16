@@ -59,7 +59,7 @@ enum Method {
 }
 
 // The * part of the following network traffic:
-// Brig *-> federator -> federatpr -> brig
+// brig *-> federator -> federator -> brig
 // FUTUREWORK(federation): better naming?
 service RouteToRemote {
   rpc call (RemoteCall) returns (Response);
