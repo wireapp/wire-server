@@ -1,6 +1,6 @@
 # ElasticSearch migration instructions for release 2021-02-15
 
-Release `2021-02-15` of `wire-server` requires creating a new ElasticSearch index for `brig` _before_ deploying the release. Without this new index the user search in TeamSettings will be defunct.
+Release `2021-02-16` of `wire-server` requires creating a new ElasticSearch index for `brig` _before_ deploying the release. Without this new index the user search in TeamSettings will be defunct.
 
 The index that brig is using, is defined in the `brig` chart's config at `elasticsearch.index`. This config value of the previous deployment is referred to as `<OLD_INDEX>` in the following.
 
