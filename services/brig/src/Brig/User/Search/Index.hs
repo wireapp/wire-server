@@ -269,9 +269,10 @@ createIndex' ::
   [ES.UpdatableIndexSetting] ->
   -- | Number of shards
   Int ->
+  -- | Delete this index template before creation
   Maybe ES.TemplateName ->
   m ()
-createIndex' failIfExists settings shardCount mbTemplate = liftIndexIO $ do
+createIndex' failIfExists settings shardCount mbDeleteTemplate = liftIndexIO $ do
   idx <- asks idxName
   ex <- ES.indexExists idx
   when (failIfExists && ex) $
@@ -279,7 +280,13 @@ createIndex' failIfExists settings shardCount mbTemplate = liftIndexIO $ do
   unless ex $ do
     let fullSettings = settings ++ [ES.AnalysisSetting analysisSettings]
 
-    for_ mbTemplate $ \templateName@(ES.TemplateName tname) -> do
+    -- A previous release added an ES Index Template that matched all indices
+    -- named 'directory*'. This template is deprecated now, but it might still
+    -- be present in production instances. If present then it causes the update mapping
+    -- step to fail.
+    -- FUTUREWORK: remove this block and the --delete-template option,
+    -- after this has been released.
+    for_ mbDeleteTemplate $ \templateName@(ES.TemplateName tname) -> do
       tExists <- ES.templateExists templateName
       when tExists $ do
         dr <- traceES (cs ("Delete index template " <> "\"" <> tname <> "\"")) $ ES.deleteTemplate templateName
