@@ -633,10 +633,10 @@ packages:
   original:
     hackage: mu-avro-0.4.0.4
 - completed:
-    hackage: mu-protobuf-0.4.2.0@sha256:e2950a91d20695e71aad843e44eebae69d1a964cd8d3ce0146d1747aa6e8c450,2034
+    hackage: mu-protobuf-0.4.2.0@sha256:4787a2688abdda107e150736433b61448acdf0b71eb0c174232239b4c143f78b,2119
     pantry-tree:
       size: 640
-      sha256: 84c8e64db62947b2b922f66a26e1e0bef87f0c34c80519d01f09e2c0e7274d81
+      sha256: ad3ec2fa09fea08c1c7c5181db7ed4440c030cc6c9dbc708a9a58155c13ca8fa
   original:
     hackage: mu-protobuf-0.4.2.0
 - completed:
@@ -710,10 +710,10 @@ packages:
   original:
     hackage: warp-grpc-0.4.0.1
 - completed:
-    hackage: proto3-wire-1.2.0@sha256:aaf84f8111af3858d439925bd5695ab6170e45a67eccd3eaad112b0ddbeed7e0,2756
+    hackage: proto3-wire-1.2.0@sha256:898c88614ef328fe74d6abc153387a30855af7ccfcebf3b419681133e0fb9291,2837
     pantry-tree:
       size: 1009
-      sha256: a0e8bc32cf73c42a2b7564eaee2daf989053deba71e1e06886662c1ab4245dec
+      sha256: 43009bc2c01725358b40f590bc899f0edbece516090944b6015d40178781759c
   original:
     hackage: proto3-wire-1.2.0
 - completed:
@@ -724,12 +724,12 @@ packages:
   original:
     hackage: parameterized-0.5.0.0
 - completed:
-    hackage: ormolu-0.1.2.0@sha256:c94a62e515cd03f6610a88de5fe37927756ad793885243a2736289930419e71e,6237
+    hackage: ormolu-0.1.4.1@sha256:ed404eac6e4eb64da1ca5fb749e0f99907431a9633e6ba34e44d260e7d7728ba,6499
     pantry-tree:
-      size: 71915
-      sha256: 7a0cad8ba46f118c4c46e65280e363c73190e7f4e4a01534b33e62fd475847ea
+      size: 74141
+      sha256: 86dffe835089c8029e99046a75e7350fae8b80266a352a7295f13a279a8e5363
   original:
-    hackage: ormolu-0.1.2.0
+    hackage: ormolu-0.1.4.1
 - completed:
     hackage: ghc-lib-parser-8.10.1.20200412@sha256:b0517bb150a02957d7180f131f5b94abd2a7f58a7d1532a012e71618282339c2,8751
     pantry-tree:

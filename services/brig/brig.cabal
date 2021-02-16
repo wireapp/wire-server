@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 478fd6f0e9519aaff6ba616b33c2f44056afe87e17026804db64bf4e952a2b4f
+-- hash: ed5a26f3be12829ad529ee559312e31bc37ccd967c6af5733efe14e4916e215c
 
 name:           brig
 version:        1.35.0
@@ -59,6 +59,7 @@ library
       Brig.Index.Migrations
       Brig.Index.Migrations.Types
       Brig.Index.Options
+      Brig.Index.Types
       Brig.InternalEvent.Process
       Brig.InternalEvent.Types
       Brig.IO.Intra
