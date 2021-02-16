@@ -255,6 +255,12 @@ nginx_conf:
     - path: /calls
       envs:
       - all
+    - path: ~* ^/teams/([^/]*)/size$
+      envs:
+      - all
+    - path: ~* ^/teams/([^/]*)/search$
+      envs:
+      - all
     galley:
     - path: /conversations/code-check
       disable_zauth: true
@@ -295,6 +301,9 @@ nginx_conf:
       envs:
       - all
     - path: ~* ^/teams/([^/]*)/conversations(.*)
+      envs:
+      - all
+    - path: ~* ^/teams/([^/]*)/members/csv$
       envs:
       - all
     - path: ~* ^/teams/([^/]*)/legalhold(.*)
