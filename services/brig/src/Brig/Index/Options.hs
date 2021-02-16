@@ -26,6 +26,7 @@ module Brig.Index.Options
     esIndexShardCount,
     esIndexReplicas,
     esIndexRefreshInterval,
+    esDeleteTemplate,
     CassandraSettings,
     cHost,
     cPort,
@@ -43,6 +44,7 @@ module Brig.Index.Options
   )
 where
 
+import Brig.Index.Types (CreateIndexSettings (..))
 import qualified Cassandra as C
 import Control.Lens
 import Data.ByteString.Lens
@@ -70,7 +72,8 @@ data ElasticSettings = ElasticSettings
     _esIndex :: ES.IndexName,
     _esIndexShardCount :: Int,
     _esIndexReplicas :: ES.ReplicaCount,
-    _esIndexRefreshInterval :: NominalDiffTime
+    _esIndexRefreshInterval :: NominalDiffTime,
+    _esDeleteTemplate :: Maybe ES.TemplateName
   }
   deriving (Show)
 
@@ -95,13 +98,14 @@ makeLenses ''CassandraSettings
 
 makeLenses ''ReindexFromAnotherIndexSettings
 
-mkCreateIndexSettings :: ElasticSettings -> ([ES.UpdatableIndexSetting], Int)
+mkCreateIndexSettings :: ElasticSettings -> CreateIndexSettings
 mkCreateIndexSettings es =
-  ( [ ES.NumberOfReplicas $ _esIndexReplicas es,
+  CreateIndexSettings
+    [ ES.NumberOfReplicas $ _esIndexReplicas es,
       ES.RefreshInterval $ _esIndexRefreshInterval es
-    ],
-    _esIndexShardCount es
-  )
+    ]
+    (_esIndexShardCount es)
+    (_esDeleteTemplate es)
 
 localElasticSettings :: ElasticSettings
 localElasticSettings =
@@ -110,7 +114,8 @@ localElasticSettings =
       _esIndex = ES.IndexName "directory_test",
       _esIndexShardCount = 1,
       _esIndexReplicas = ES.ReplicaCount 1,
-      _esIndexRefreshInterval = 1 -- seconds
+      _esIndexRefreshInterval = 1,
+      _esDeleteTemplate = Nothing
     }
 
 localCassandraSettings :: CassandraSettings
@@ -160,6 +165,7 @@ elasticSettingsParser =
     <*> indexShardCountParser
     <*> indexReplicaCountParser
     <*> indexRefreshIntervalParser
+    <*> templateParser
   where
     indexShardCountParser =
       option
@@ -190,6 +196,17 @@ elasticSettingsParser =
               <> value 1
               <> showDefault
           )
+    templateParser :: Parser (Maybe ES.TemplateName) =
+      ES.TemplateName
+        <$$> ( optional
+                 ( option
+                     str
+                     ( long "delete-template"
+                         <> metavar "TEMPLATE_NAME"
+                         <> help "Delete this ES template before creating a new index"
+                     )
+                 )
+             )
 
 cassandraSettingsParser :: Parser CassandraSettings
 cassandraSettingsParser =
