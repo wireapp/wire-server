@@ -89,7 +89,7 @@ values](https://github.com/wireapp/wire-server/blob/custom-search-visibility-lim
 ### Federation Domain
 
 Regardless of whether a backend wants to enable federation or not, the operator
-must decide what it's domain is going to be. This helps in keeping things
+must decide what its domain is going to be. This helps in keeping things
 simpler across all components of Wire and also enables to turn on federation in
 future if required.
 
