@@ -2,7 +2,7 @@
 
 Release `2021-02-15` of `wire-server` requires creating a new ElasticSearch index for `brig` _before_ deploying the release. Without this new index the user search in TeamSettings will be defunct.
 
-The index that brig is using, is defined at brig's config at `elasticsearch.index`. This config value of the previous deployment is referred to as `<OLD_INDEX>` in the following.
+The index that brig is using, is defined in the `brig` chart's config at `elasticsearch.index`. This config value of the previous deployment is referred to as `<OLD_INDEX>` in the following.
 
 These following instructions describe how to:
 
@@ -13,7 +13,7 @@ These following instructions describe how to:
 Note: The following steps require downtime of brig. If downtime is not acceptable then please skip to section [Create the new index without downtime](#create-the-new-index-without-downtime)
 
 1. Update config for the `elasticsearch-index` chart:
-    - Set `elasticsearch-index` to `<NEW_INDEX>`
+    - Set `elasticsearch.index` to `<NEW_INDEX>`
 2. Update config for the `brig` chart:
     - Set `config.elasticsearch.directory` to `<NEW_INDEX>`
 3. Redeploy `wire-server`.
@@ -54,8 +54,9 @@ docker run "quay.io/wire/brig-index:$WIRE_VERSION" create \
 ```
 
 The `--delete-template` option will delete the index template named `directory` if it exists.
-This index template might have been created by previous releases and can cause creating
-new index to fail. If this template doesn't exist you can omit the `--delete-template` option.
+This index template might have been created by previous releases and can cause creating a
+new index to fail. If this template doesn't exist in your ES cluster you can omit the
+`--delete-template` option.
 
 2. Redeploy brig with `elasticsearch.additionalWriteIndex` set to `<NEW_INDEX>`.
 3. Make sure no old instances of brig are running.
