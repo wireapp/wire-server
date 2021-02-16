@@ -37,6 +37,9 @@ Please see [values.yaml](./values.yaml) for an overview of other parameters that
 
 ## Deploy
 
+
+#### As part of `wire-server` umbrella chart
+
 The `sftd` is deployed as part of the `wire-server` umbrella chart. You can edit the `values.yaml` of your `wire-server` chart to configure sftd.
 
 ```yaml
@@ -50,13 +53,18 @@ sftd:
       name: letsencrypt-prod
 ```
 
-Or pass in the options on the command-line (useful if you need to pass in a certificate file)
+#### Standalone
+
+You can also install `sftd` as stand-alone. This is useful if you want to be more careful with releases and
+want to decouple the release lifecycle of `sftd` and `wire-server`.  For example, if you set `terminationGracePeriodSeconds` to
+allow calls to drain to a large number (say a few hours), this would make the deployment of the `wire-server` umbrella-chart that usually is snappy to run very slow.
+
 ```
-helm install wire wire/wire-server  \
-  --set sftd.host=sftd.example.com \
-  --set sftd.allowOrigin=https://webapp.example.com \
-  --set-file sftd.tls.crt=/path/to/tls.crt \
-  --set-file sftd.tls.key=/path/to/tls.key
+helm install sftd wire/sftd \
+  --set host=sftd.example.com \
+  --set allowOrigin=https://webapp.example.com \
+  --set-file tls.crt=/path/to/tls.crt \
+  --set-file tls.key=/path/to/tls.key
 ```
 
 
