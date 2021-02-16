@@ -14,11 +14,11 @@
 
 -->
 
-# [2020-02-15]
+# [2020-02-16]
 
 ## Release Notes
 
-This release requires recreating brig's ES index *before* deployment. See [instructions](https://github.com/wireapp/wire-server/blob/e3064d101ef8e9074431049135d2319335de3117/docs/reference/elasticsearch-migration-2021-02-15.md).
+This release requires recreating brig's ES index *before* deployment. See [instructions](https://github.com/wireapp/wire-server/blob/4334c02a5b2a5b7ca329210ef6e6f13386c99767/docs/reference/elasticsearch-migration-2021-02-16.md).
 
 ## Features
 
@@ -48,7 +48,8 @@ This release requires recreating brig's ES index *before* deployment. See [instr
 * Add missing internal qa routes (#1336)
 * Extract and rename PolyLog to a library for reusability (#1329)
 * Fix: Spar integration tests misconfigured on CI (#1343)
-
+* Bump ormolu version (#1366, #1368) 
+* Update ES upgrade path (#1339) 
 
 # [2020-01-15]
 
