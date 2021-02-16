@@ -40,6 +40,7 @@ import Federator.ExternalServer (serveRouteToInternal)
 import Federator.InternalServer (serveRouteToRemote)
 import Federator.Options as Opt
 import Imports
+import qualified Network.DNS as DNS
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.HTTP.Client.OpenSSL as HTTP
 import OpenSSL.Session
@@ -62,12 +63,13 @@ import qualified Wire.Network.DNS.Helper as DNS
 -- endpoints and exposed on the same port.
 run :: Opts -> IO ()
 run opts =
-  bracket (newEnv opts) closeEnv $ \env -> do
-    let externalServer = serveRouteToInternal env portExternal
-        internalServer = serveRouteToRemote env portInternal
-    internalServerThread <- async internalServer
-    externalServerThread <- async externalServer
-    void $ waitAnyCancel [internalServerThread, externalServerThread]
+  DNS.withCachingResolver $ \res ->
+    bracket (newEnv opts res) closeEnv $ \env -> do
+      let externalServer = serveRouteToInternal env portExternal
+          internalServer = serveRouteToRemote env portInternal
+      internalServerThread <- async internalServer
+      externalServerThread <- async externalServer
+      void $ waitAnyCancel [internalServerThread, externalServerThread]
   where
     endpointInternal = federatorInternal opts
     portInternal = fromIntegral $ endpointInternal ^. epPort
@@ -78,13 +80,12 @@ run opts =
 -------------------------------------------------------------------------------
 -- Environment
 
-newEnv :: Opts -> IO Env
-newEnv o = do
+newEnv :: Opts -> DNS.Resolver -> IO Env
+newEnv o _dnsResolver = do
   _metrics <- Metrics.metrics
   _applog <- LogExt.mkLogger (Opt.logLevel o) (Opt.logNetStrings o) (Opt.logFormat o)
   let _requestId = def
   let _runSettings = Opt.optSettings o
-  _dnsResolver <- DNS.mkDnsResolver
   let _brig = mkEndpoint (Opt.brig o)
   let _brigEndpoint = Opt.brig o
   _httpManager <- initHttpManager

@@ -20,10 +20,10 @@ module Wire.Network.DNS.Helper where
 import Imports
 import Network.DNS
 
--- | Set up a thread-safe resolver with a global cache. This means that SRV
--- records will only be re-resolved after their TTLs expire
-mkDnsResolver :: IO Resolver
-mkDnsResolver = do
+-- | Set up a thread-safe resolver with a global cache. Records will only be
+-- re-resolved after their TTLs expire
+withCachingResolver :: (Resolver -> IO a) -> IO a
+withCachingResolver action = do
   let resolvConf = defaultResolvConf {resolvCache = Just defaultCacheConf}
   resolvSeed <- makeResolvSeed resolvConf
-  withResolver resolvSeed $ \resolver -> return resolver
+  withResolver resolvSeed action
