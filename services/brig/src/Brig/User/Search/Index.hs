@@ -249,6 +249,7 @@ createIndexIfNotPresent ::
   [ES.UpdatableIndexSetting] ->
   -- | Number of shards
   Int ->
+  Maybe ES.TemplateName ->
   m ()
 createIndexIfNotPresent = createIndex' False
 
@@ -257,6 +258,7 @@ createIndex ::
   [ES.UpdatableIndexSetting] ->
   -- | Number of shards
   Int ->
+  Maybe ES.TemplateName ->
   m ()
 createIndex = createIndex' True
 
@@ -267,20 +269,23 @@ createIndex' ::
   [ES.UpdatableIndexSetting] ->
   -- | Number of shards
   Int ->
+  Maybe ES.TemplateName ->
   m ()
-createIndex' failIfExists settings shardCount = liftIndexIO $ do
+createIndex' failIfExists settings shardCount mbTemplate = liftIndexIO $ do
   idx <- asks idxName
   ex <- ES.indexExists idx
   when (failIfExists && ex) $
     throwM (IndexError "Index already exists.")
   unless ex $ do
     let fullSettings = settings ++ [ES.AnalysisSetting analysisSettings]
-    let templateName = ES.TemplateName "directory"
-    tExists <- ES.templateExists templateName
-    when tExists $ do
-      dr <- ES.deleteTemplate templateName
-      unless (ES.isSuccess dr) $
-        throwM (IndexError "Deleting template failed.")
+
+    for_ mbTemplate $ \templateName@(ES.TemplateName tname) -> do
+      tExists <- ES.templateExists templateName
+      when tExists $ do
+        dr <- traceES (cs ("Delete index template " <> "\"" <> tname <> "\"")) $ ES.deleteTemplate templateName
+        unless (ES.isSuccess dr) $
+          throwM (IndexError $ "Deleting index template failed.")
+
     cr <- traceES "Create index" $ ES.createIndexWith fullSettings shardCount idx
     unless (ES.isSuccess cr) $
       throwM (IndexError "Index creation failed.")
@@ -322,15 +327,16 @@ resetIndex ::
   [ES.UpdatableIndexSetting] ->
   -- | Number of shards
   Int ->
+  Maybe ES.TemplateName ->
   m ()
-resetIndex settings shardCount = liftIndexIO $ do
+resetIndex settings shardCount mbTemplate = liftIndexIO $ do
   idx <- asks idxName
   gone <-
     ES.indexExists idx >>= \case
       True -> ES.isSuccess <$> traceES "Delete Index" (ES.deleteIndex idx)
       False -> return True
   if gone
-    then createIndex settings shardCount
+    then createIndex settings shardCount mbTemplate
     else throwM (IndexError "Index deletion failed.")
 
 reindexAllIfSameOrNewer :: (MonadLogger m, MonadIndexIO m, C.MonadClient m) => m ()

@@ -26,6 +26,7 @@ module Brig.Index.Options
     esIndexShardCount,
     esIndexReplicas,
     esIndexRefreshInterval,
+    esTemplateName,
     CassandraSettings,
     cHost,
     cPort,
@@ -70,7 +71,8 @@ data ElasticSettings = ElasticSettings
     _esIndex :: ES.IndexName,
     _esIndexShardCount :: Int,
     _esIndexReplicas :: ES.ReplicaCount,
-    _esIndexRefreshInterval :: NominalDiffTime
+    _esIndexRefreshInterval :: NominalDiffTime,
+    _esTemplateName :: Maybe ES.TemplateName
   }
   deriving (Show)
 
@@ -95,12 +97,13 @@ makeLenses ''CassandraSettings
 
 makeLenses ''ReindexFromAnotherIndexSettings
 
-mkCreateIndexSettings :: ElasticSettings -> ([ES.UpdatableIndexSetting], Int)
+mkCreateIndexSettings :: ElasticSettings -> ([ES.UpdatableIndexSetting], Int, Maybe ES.TemplateName)
 mkCreateIndexSettings es =
   ( [ ES.NumberOfReplicas $ _esIndexReplicas es,
       ES.RefreshInterval $ _esIndexRefreshInterval es
     ],
-    _esIndexShardCount es
+    _esIndexShardCount es,
+    _esTemplateName es
   )
 
 localElasticSettings :: ElasticSettings
@@ -110,7 +113,8 @@ localElasticSettings =
       _esIndex = ES.IndexName "directory_test",
       _esIndexShardCount = 1,
       _esIndexReplicas = ES.ReplicaCount 1,
-      _esIndexRefreshInterval = 1 -- seconds
+      _esIndexRefreshInterval = 1,
+      _esTemplateName = Nothing
     }
 
 localCassandraSettings :: CassandraSettings
@@ -160,6 +164,7 @@ elasticSettingsParser =
     <*> indexShardCountParser
     <*> indexReplicaCountParser
     <*> indexRefreshIntervalParser
+    <*> templateParser
   where
     indexShardCountParser =
       option
@@ -190,6 +195,17 @@ elasticSettingsParser =
               <> value 1
               <> showDefault
           )
+    templateParser :: Parser (Maybe ES.TemplateName) =
+      ES.TemplateName
+        <$$> ( optional
+                 ( option
+                     str
+                     ( long "delete-template"
+                         <> metavar "TEMPLATE_NAME"
+                         <> help "Delete this ES template before creating a new index"
+                     )
+                 )
+             )
 
 cassandraSettingsParser :: Parser CassandraSettings
 cassandraSettingsParser =
