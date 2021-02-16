@@ -37,6 +37,7 @@ spec:
             - --elasticsearch-shards=5
             - --elasticsearch-replicas=2
             - --elasticsearch-refresh-interval=5
+            - --delete-template directory
       containers:
         - name: brig-index-update-mapping
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
