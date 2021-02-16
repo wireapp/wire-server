@@ -50,6 +50,7 @@ module Brig.User.Search.Index
 where
 
 import Brig.Data.Instances ()
+import Brig.Index.Types (CreateIndexSettings (..))
 import Brig.Types.Intra
 import Brig.Types.User
 import Brig.User.Search.Index.Types as Types
@@ -246,19 +247,13 @@ refreshIndex = liftIndexIO $ do
 
 createIndexIfNotPresent ::
   MonadIndexIO m =>
-  [ES.UpdatableIndexSetting] ->
-  -- | Number of shards
-  Int ->
-  Maybe ES.TemplateName ->
+  CreateIndexSettings ->
   m ()
 createIndexIfNotPresent = createIndex' False
 
 createIndex ::
   MonadIndexIO m =>
-  [ES.UpdatableIndexSetting] ->
-  -- | Number of shards
-  Int ->
-  Maybe ES.TemplateName ->
+  CreateIndexSettings ->
   m ()
 createIndex = createIndex' True
 
@@ -266,13 +261,9 @@ createIndex' ::
   MonadIndexIO m =>
   -- | Fail if index alredy exists
   Bool ->
-  [ES.UpdatableIndexSetting] ->
-  -- | Number of shards
-  Int ->
-  -- | Delete this index template before creation
-  Maybe ES.TemplateName ->
+  CreateIndexSettings ->
   m ()
-createIndex' failIfExists settings shardCount mbDeleteTemplate = liftIndexIO $ do
+createIndex' failIfExists (CreateIndexSettings settings shardCount mbDeleteTemplate) = liftIndexIO $ do
   idx <- asks idxName
   ex <- ES.indexExists idx
   when (failIfExists && ex) $
@@ -291,7 +282,7 @@ createIndex' failIfExists settings shardCount mbDeleteTemplate = liftIndexIO $ d
       when tExists $ do
         dr <- traceES (cs ("Delete index template " <> "\"" <> tname <> "\"")) $ ES.deleteTemplate templateName
         unless (ES.isSuccess dr) $
-          throwM (IndexError $ "Deleting index template failed.")
+          throwM (IndexError "Deleting index template failed.")
 
     cr <- traceES "Create index" $ ES.createIndexWith fullSettings shardCount idx
     unless (ES.isSuccess cr) $
@@ -331,19 +322,16 @@ updateMapping = liftIndexIO $ do
 
 resetIndex ::
   MonadIndexIO m =>
-  [ES.UpdatableIndexSetting] ->
-  -- | Number of shards
-  Int ->
-  Maybe ES.TemplateName ->
+  CreateIndexSettings ->
   m ()
-resetIndex settings shardCount mbTemplate = liftIndexIO $ do
+resetIndex ciSettings = liftIndexIO $ do
   idx <- asks idxName
   gone <-
     ES.indexExists idx >>= \case
       True -> ES.isSuccess <$> traceES "Delete Index" (ES.deleteIndex idx)
       False -> return True
   if gone
-    then createIndex settings shardCount mbTemplate
+    then createIndex ciSettings
     else throwM (IndexError "Index deletion failed.")
 
 reindexAllIfSameOrNewer :: (MonadLogger m, MonadIndexIO m, C.MonadClient m) => m ()

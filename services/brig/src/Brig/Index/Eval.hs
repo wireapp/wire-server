@@ -44,12 +44,10 @@ runCommand :: Logger -> Command -> IO ()
 runCommand l = \case
   Create es -> do
     e <- initIndex es
-    let (settings, nShards, mbTemplate) = mkCreateIndexSettings es
-    runIndexIO e $ createIndexIfNotPresent settings nShards mbTemplate
+    runIndexIO e $ createIndexIfNotPresent (mkCreateIndexSettings es)
   Reset es -> do
     e <- initIndex es
-    let (settings, nShards, mbTemplate) = mkCreateIndexSettings es
-    runIndexIO e $ resetIndex settings nShards mbTemplate
+    runIndexIO e $ resetIndex (mkCreateIndexSettings es)
   Reindex es cas -> do
     e <- initIndex es
     c <- initDb cas

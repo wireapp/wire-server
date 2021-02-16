@@ -26,7 +26,7 @@ module Brig.Index.Options
     esIndexShardCount,
     esIndexReplicas,
     esIndexRefreshInterval,
-    esTemplateName,
+    esDeleteTemplate,
     CassandraSettings,
     cHost,
     cPort,
@@ -44,6 +44,7 @@ module Brig.Index.Options
   )
 where
 
+import Brig.Index.Types (CreateIndexSettings (..))
 import qualified Cassandra as C
 import Control.Lens
 import Data.ByteString.Lens
@@ -72,7 +73,7 @@ data ElasticSettings = ElasticSettings
     _esIndexShardCount :: Int,
     _esIndexReplicas :: ES.ReplicaCount,
     _esIndexRefreshInterval :: NominalDiffTime,
-    _esTemplateName :: Maybe ES.TemplateName
+    _esDeleteTemplate :: Maybe ES.TemplateName
   }
   deriving (Show)
 
@@ -97,14 +98,14 @@ makeLenses ''CassandraSettings
 
 makeLenses ''ReindexFromAnotherIndexSettings
 
-mkCreateIndexSettings :: ElasticSettings -> ([ES.UpdatableIndexSetting], Int, Maybe ES.TemplateName)
+mkCreateIndexSettings :: ElasticSettings -> CreateIndexSettings
 mkCreateIndexSettings es =
-  ( [ ES.NumberOfReplicas $ _esIndexReplicas es,
+  CreateIndexSettings
+    [ ES.NumberOfReplicas $ _esIndexReplicas es,
       ES.RefreshInterval $ _esIndexRefreshInterval es
-    ],
-    _esIndexShardCount es,
-    _esTemplateName es
-  )
+    ]
+    (_esIndexShardCount es)
+    (_esDeleteTemplate es)
 
 localElasticSettings :: ElasticSettings
 localElasticSettings =
@@ -114,7 +115,7 @@ localElasticSettings =
       _esIndexShardCount = 1,
       _esIndexReplicas = ES.ReplicaCount 1,
       _esIndexRefreshInterval = 1,
-      _esTemplateName = Nothing
+      _esDeleteTemplate = Nothing
     }
 
 localCassandraSettings :: CassandraSettings
