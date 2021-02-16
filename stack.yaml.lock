@@ -598,12 +598,12 @@ packages:
     git: https://github.com/dpwright/HaskellNet-SSL
     commit: ca84ef29a93eaef7673fa58056cdd8dae1568d2d
 - completed:
-    hackage: ormolu-0.1.2.0@sha256:24e6512750576978b6f045c1e53a7aad28ab61960f738a3c74fb0bc2beaf4030,6237
+    hackage: ormolu-0.1.4.1@sha256:2381482127734d1897cdb8a191033ef40e4d1bdc3c9af31bd6ef2b8d5ce5429a,6292
     pantry-tree:
-      size: 71915
-      sha256: 5a857d9bf0e9579ee4daacfb63b4665cdf9e0a0de31d8e0715a27836007e9c42
+      size: 74141
+      sha256: 30493b995b2652a9de3e7f080bd3745b0682c2f578ec8ad441df8fa5615b393f
   original:
-    hackage: ormolu-0.1.2.0
+    hackage: ormolu-0.1.4.1
 - completed:
     hackage: ghc-lib-parser-8.10.1.20200412@sha256:b0517bb150a02957d7180f131f5b94abd2a7f58a7d1532a012e71618282339c2,8751
     pantry-tree:
