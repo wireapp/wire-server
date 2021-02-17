@@ -66,6 +66,11 @@ viewFederatorClient = do
 callRemote :: MonadIO m => GrpcClient -> Proto.ValidatedFederatedRequest -> m (GRpcReply Proto.Response)
 callRemote fedClient call = liftIO $ gRpcCall @'MsgProtoBuf @Proto.Outward @"Outward" @"call" fedClient (Proto.validatedFederatedRequestToFederatedRequest call)
 
+-- FUTUREWORK(federation) All of this code is only exercised in the test which
+-- goes between two Backends. This is not ideal, we should figure out a way to
+-- test client side of federated code without needing another backend. We could
+-- do this either by mocking the second backend in integration tests or making
+-- all of this independent of the Handler monad and write unit tests.
 expectOk :: GRpcReply Proto.Response -> Handler Proto.HTTPResponse
 expectOk = \case
   GRpcTooMuchConcurrency _tmc -> throwStd $ notFound "Too much concurrency"
