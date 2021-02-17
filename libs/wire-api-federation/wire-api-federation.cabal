@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 942d9870717b6c174641f5f84d1344154f017118bd6870e939fba4eedc747d34
+-- hash: 62c8258a98341ef9bea1a7fda37c8ee9aebd9012a42d4bbbc89853f86f127ef4
 
 name:           wire-api-federation
 version:        0.1.0
@@ -57,6 +57,8 @@ test-suite spec
       test
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
+  build-tool-depends:
+      hspec-discover:hspec-discover
   build-depends:
       QuickCheck >=2.13
     , aeson >=1.4
@@ -67,7 +69,6 @@ test-suite spec
     , errors >=2.0
     , exceptions >=0.6
     , hspec
-    , hspec-discover
     , imports
     , metrics-wai
     , servant >=0.16
