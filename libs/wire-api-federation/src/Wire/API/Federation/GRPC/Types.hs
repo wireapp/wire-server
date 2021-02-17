@@ -139,51 +139,51 @@ data QueryParam = QueryParam
   deriving (Arbitrary) via (GenericUniform QueryParam)
 
 -- Does this make it hard to use in a type checked way?
-data LocalCall = LocalCall
+data Request = Request
   { component :: Component,
     method :: HTTPMethod,
     path :: ByteString,
     query :: [QueryParam],
     body :: ByteString
   }
-  deriving (Typeable, Eq, Show, Generic, ToSchema Router "LocalCall", FromSchema Router "LocalCall")
-  deriving (Arbitrary) via (GenericUniform LocalCall)
+  deriving (Typeable, Eq, Show, Generic, ToSchema Router "Request", FromSchema Router "Request")
+  deriving (Arbitrary) via (GenericUniform Request)
 
-data LocalCallValidationError
+data RequestValidationError
   = ComponentMissing
   | MethodMissing
   deriving (Typeable, Show, Eq)
 
-data RemoteCall = RemoteCall
+data FederatedRequest = FederatedRequest
   { domain :: Text,
-    localCall :: Maybe LocalCall
+    request :: Maybe Request
   }
-  deriving (Typeable, Eq, Show, Generic, ToSchema Router "RemoteCall", FromSchema Router "RemoteCall")
-  deriving (Arbitrary) via (GenericUniform RemoteCall)
+  deriving (Typeable, Eq, Show, Generic, ToSchema Router "FederatedRequest", FromSchema Router "FederatedRequest")
+  deriving (Arbitrary) via (GenericUniform FederatedRequest)
 
-data RemoteCallValidationError
+data FederatedRequestValidationError
   = InvalidDomain String
-  | LocalCallMissing
+  | RequestMissing
   deriving (Typeable, Show, Eq)
 
-data ValidatedRemoteCall = ValidatedRemoteCall
+data ValidatedFederatedRequest = ValidatedFederatedRequest
   { vDomain :: Domain,
-    vLocalCall :: LocalCall
+    vRequest :: Request
   }
   deriving (Typeable, Eq, Show)
 
-validateRemoteCall :: RemoteCall -> Validation (NonEmpty RemoteCallValidationError) ValidatedRemoteCall
-validateRemoteCall RemoteCall {..} = do
+validateFederatedRequest :: FederatedRequest -> Validation (NonEmpty FederatedRequestValidationError) ValidatedFederatedRequest
+validateFederatedRequest FederatedRequest {..} = do
   vDomain <- validateDomain
-  vLocalCall <- validateLocalPart
-  pure $ ValidatedRemoteCall {..}
+  vRequest <- validateLocalPart
+  pure $ ValidatedFederatedRequest {..}
   where
     validateDomain = case mkDomain domain of
       Left str -> Failure $ InvalidDomain str :| []
       Right d -> Success d
-    validateLocalPart = case localCall of
-      Nothing -> Failure $ LocalCallMissing :| []
+    validateLocalPart = case request of
+      Nothing -> Failure $ RequestMissing :| []
       Just lc -> Success lc
 
-validatedRemoteCallToRemoteCall :: ValidatedRemoteCall -> RemoteCall
-validatedRemoteCallToRemoteCall ValidatedRemoteCall {..} = RemoteCall (domainText vDomain) (Just vLocalCall)
+validatedFederatedRequestToFederatedRequest :: ValidatedFederatedRequest -> FederatedRequest
+validatedFederatedRequestToFederatedRequest ValidatedFederatedRequest {..} = FederatedRequest (domainText vDomain) (Just vRequest)

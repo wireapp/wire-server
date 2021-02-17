@@ -40,13 +40,13 @@ data RemoteError
   deriving (Show, Eq)
 
 data Remote m a where
-  DiscoverAndCall :: ValidatedRemoteCall -> Remote m (Either RemoteError (GRpcReply Response))
+  DiscoverAndCall :: ValidatedFederatedRequest -> Remote m (Either RemoteError (GRpcReply Response))
 
 makeSem ''Remote
 
 interpretRemote :: (Members [Embed IO, DiscoverFederator, TinyLog] r) => Sem (Remote ': r) a -> Sem r a
 interpretRemote = interpret $ \case
-  DiscoverAndCall ValidatedRemoteCall {..} -> do
+  DiscoverAndCall ValidatedFederatedRequest {..} -> do
     eitherTarget <- discoverFederator vDomain
     case eitherTarget of
       Left err -> do
@@ -61,12 +61,12 @@ interpretRemote = interpret $ \case
         eitherClient <- mkGrpcClient target
         case eitherClient of
           Right client ->
-            Right <$> callRemoteFederator client vLocalCall
+            Right <$> callInward client vRequest
           Left err -> pure $ Left err
 
-callRemoteFederator :: MonadIO m => GrpcClient -> LocalCall -> m (GRpcReply Response)
-callRemoteFederator client localCall =
-  liftIO $ gRpcCall @'MsgProtoBuf @RouteToInternal @"RouteToInternal" @"call" client localCall
+callInward :: MonadIO m => GrpcClient -> Request -> m (GRpcReply Response)
+callInward client request =
+  liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" client request
 
 mkGrpcClient :: Members '[Embed IO, TinyLog] r => SrvTarget -> Sem r (Either RemoteError GrpcClient)
 mkGrpcClient target@(SrvTarget host port) = do

@@ -45,7 +45,7 @@ getUserHandleInfo :: Qualified Handle -> Handler (Maybe UserHandleInfo)
 getUserHandleInfo (Qualified handle domain) = do
   Log.info $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
   federatorClient <- viewFederatorClient
-  let call = Proto.ValidatedRemoteCall domain (mkGetUserInfoByHandle handle)
+  let call = Proto.ValidatedFederatedRequest domain (mkGetUserInfoByHandle handle)
   res <- expectOk =<< callRemote federatorClient call
   case Proto.responseStatus res of
     404 -> pure Nothing
@@ -63,8 +63,8 @@ viewFederatorClient = do
     Nothing -> throwStd $ notFound "no federator configured or federator unreachable"
     Just ep -> pure ep
 
-callRemote :: MonadIO m => GrpcClient -> Proto.ValidatedRemoteCall -> m (GRpcReply Proto.Response)
-callRemote fedClient call = liftIO $ gRpcCall @'MsgProtoBuf @Proto.RouteToRemote @"RouteToRemote" @"call" fedClient (Proto.validatedRemoteCallToRemoteCall call)
+callRemote :: MonadIO m => GrpcClient -> Proto.ValidatedFederatedRequest -> m (GRpcReply Proto.Response)
+callRemote fedClient call = liftIO $ gRpcCall @'MsgProtoBuf @Proto.Outward @"Outward" @"call" fedClient (Proto.validatedFederatedRequestToFederatedRequest call)
 
 expectOk :: GRpcReply Proto.Response -> Handler Proto.HTTPResponse
 expectOk = \case

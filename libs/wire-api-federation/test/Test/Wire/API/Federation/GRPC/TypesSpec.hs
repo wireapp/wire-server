@@ -36,17 +36,17 @@ spec =
       muSchemaRoundtrip @Router @"Response" @Response
       muSchemaRoundtrip @Router @"Method" @HTTPMethod
       muSchemaRoundtrip @Router @"QueryParam" @QueryParam
-      muSchemaRoundtrip @Router @"LocalCall" @LocalCall
-      muSchemaRoundtrip @Router @"RemoteCall" @RemoteCall
+      muSchemaRoundtrip @Router @"Request" @Request
+      muSchemaRoundtrip @Router @"FederatedRequest" @FederatedRequest
 
-    describe "validateRemoteCall" $ do
-      prop "should succeed when RemoteCall is valid" $ do
-        let callGen = RemoteCall <$> validDomain <*> (Just <$> arbitrary)
-        forAll callGen $ \c -> isRight' (validateRemoteCall c)
+    describe "validateFederatedRequest" $ do
+      prop "should succeed when FederatedRequest is valid" $ do
+        let callGen = FederatedRequest <$> validDomain <*> (Just <$> arbitrary)
+        forAll callGen $ \c -> isRight' (validateFederatedRequest c)
       prop "should fail appropriately when domain is not valid" $ do
-        let callGen = RemoteCall <$> invalidDomain <*> arbitrary
-        forAll callGen $ \c -> counterexample ("validation result: " <> show (validateRemoteCall c)) $
-          case validateRemoteCall c of
+        let callGen = FederatedRequest <$> invalidDomain <*> arbitrary
+        forAll callGen $ \c -> counterexample ("validation result: " <> show (validateFederatedRequest c)) $
+          case validateFederatedRequest c of
             Success _ -> False
             Failure errs ->
               any
@@ -55,16 +55,16 @@ spec =
                     _ -> False
                 )
                 errs
-      prop "should fail appropriately when localCall is missing" $ do
+      prop "should fail appropriately when request is missing" $ do
         let -- Here using 'arbitrary' for generating domain will mostly generate invalid domains
-            callGen = RemoteCall <$> maybeValidDomainTextGen <*> pure Nothing
-        forAll callGen $ \c -> counterexample ("validation result: " <> show (validateRemoteCall c)) $
-          case validateRemoteCall c of
+            callGen = FederatedRequest <$> maybeValidDomainTextGen <*> pure Nothing
+        forAll callGen $ \c -> counterexample ("validation result: " <> show (validateFederatedRequest c)) $
+          case validateFederatedRequest c of
             Success _ -> False
             Failure errs ->
               any
                 ( \case
-                    LocalCallMissing -> True
+                    RequestMissing -> True
                     _ -> False
                 )
                 errs

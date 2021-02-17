@@ -46,15 +46,15 @@ import Wire.API.Federation.GRPC.Types
 import Wire.Network.DNS.Effect (DNSLookup)
 import qualified Wire.Network.DNS.Effect as Lookup
 
-callRemote :: Members '[Remote, Polysemy.Reader RunSettings] r => RemoteCall -> Sem r Response
-callRemote req = do
-  case validateRemoteCall req of
+callOutward :: Members '[Remote, Polysemy.Reader RunSettings] r => FederatedRequest -> Sem r Response
+callOutward req = do
+  case validateFederatedRequest req of
     Success vReq -> do
       allowedRemote <- federateWith (vDomain vReq)
       if allowedRemote
         then mkRemoteResponse <$> discoverAndCall vReq
         else pure $ ResponseErr ("federating with domain [" <> domainText (vDomain vReq) <> "] is not allowed (see federator configuration)")
-    Failure errs -> pure $ ResponseErr ("component -> local federator: invalid RemoteCall: " <> Text.pack (show errs))
+    Failure errs -> pure $ ResponseErr ("component -> local federator: invalid FederatedRequest: " <> Text.pack (show errs))
 
 -- FUTUREWORK(federation): Make these errors less stringly typed
 mkRemoteResponse :: Either RemoteError (GRpcReply Response) -> Response
@@ -67,12 +67,12 @@ mkRemoteResponse reply =
     Right (GRpcClientError clientErr) -> ResponseErr ("remote federator -> local federator: client error: " <> Text.pack (show clientErr))
     Left err -> ResponseErr ("remote federator -> local federator: " <> Text.pack (show err))
 
-routeToRemote :: (Members '[Remote, Polysemy.Error ServerError, Polysemy.Reader RunSettings] r) => SingleServerT info RouteToRemote (Sem r) _
-routeToRemote = singleService (Mu.method @"call" callRemote)
+outward :: (Members '[Remote, Polysemy.Error ServerError, Polysemy.Reader RunSettings] r) => SingleServerT info Outward (Sem r) _
+outward = singleService (Mu.method @"call" callOutward)
 
-serveRouteToRemote :: Env -> Int -> IO ()
-serveRouteToRemote env port = do
-  runGRpcAppTrans msgProtoBuf port transformer routeToRemote
+serveOutward :: Env -> Int -> IO ()
+serveOutward env port = do
+  runGRpcAppTrans msgProtoBuf port transformer outward
   where
     transformer :: Sem '[Remote, DiscoverFederator, TinyLog, DNSLookup, Polysemy.Error ServerError, Embed IO, Polysemy.Reader RunSettings, Embed Federator] a -> ServerErrorIO a
     transformer action =

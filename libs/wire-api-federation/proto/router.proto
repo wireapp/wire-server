@@ -3,10 +3,10 @@ package wire.federator;
 
 // These definitions are part of the federation protocol.
 //
-// A component (e.g. 'brig') will send some data of type 'RemoteCall' to
+// A component (e.g. 'brig') will send some data of type 'FederatedRequest' to
 // the local 'federator' service. That federator will extract the domain from
-// the 'RemoteCall' to discover where to send some data of type 'LocalCall' to.
-// On the other end, the 'LocalCall' will be converted to a 'Response'.
+// the 'FederatedRequest' to discover where to send some data of type 'Request' to.
+// On the other end, the 'Request' will be converted to a 'Response'.
 
 enum Component {
   Brig = 0;
@@ -25,15 +25,15 @@ message Response {
 }
 
 // the envelope thing which is sent from brig to local federator
-message RemoteCall {
+message FederatedRequest {
   string domain = 1;
-  LocalCall localCall = 2;
+  Request request = 2;
 }
 
-// the federator will take out LocalCall from the RemoteCall Envelope, and
-// forward the LocalCall object to a federator on another backend (with the wish
+// the federator will take out Request from the FederatedRequest Envelope, and
+// forward the Request object to a federator on another backend (with the wish
 // that this remote federator forwards this to its own local brig)
-message LocalCall {
+message Request {
   Component component = 1;
   Method method = 2;
   bytes path = 3;
@@ -61,14 +61,14 @@ enum Method {
 // The * part of the following network traffic:
 // brig *-> federator -> federator -> brig
 // FUTUREWORK(federation): better naming?
-service RouteToRemote {
-  rpc call (RemoteCall) returns (Response);
+service Outward {
+  rpc call (FederatedRequest) returns (Response);
 }
 
 // The * part of the following network traffic:
 // Brig -> federator *-> federator -> brig
 // FUTUREWORK(federation): better naming?
-service RouteToInternal {
+service Inward {
     // callLocal in haskell
-  rpc call (LocalCall) returns (Response);
+  rpc call (Request) returns (Response);
 }

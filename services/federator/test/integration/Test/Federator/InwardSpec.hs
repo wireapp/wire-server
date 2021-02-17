@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Federator.RouteToInternalSpec where
+module Test.Federator.InwardSpec where
 
 import Bilge
 import Bilge.Assert
@@ -39,7 +39,7 @@ import Test.Federator.Util
 import Test.Hspec
 import Test.Tasty.HUnit (assertFailure)
 import Util.Options (Endpoint (Endpoint))
-import Wire.API.Federation.GRPC.Types (Component (..), HTTPMethod (..), HTTPResponse (..), LocalCall (LocalCall), QueryParam (..), Response (..), RouteToInternal)
+import Wire.API.Federation.GRPC.Types (Component (..), HTTPMethod (..), HTTPResponse (..), Inward, QueryParam (..), Request (Request), Response (..))
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Handle (UserHandleInfo (UserHandleInfo))
@@ -64,7 +64,7 @@ import Wire.API.User.Handle (UserHandleInfo (UserHandleInfo))
 --  (ascii diagrams from asciiflow.com)
 spec :: TestEnv -> Spec
 spec env =
-  describe "RouteToInternal" $ do
+  describe "Inward" $ do
     it "should be able to call brig" $
       runTestFederator env $ do
         brig <- view teBrig <$> ask
@@ -74,8 +74,8 @@ spec env =
 
         Endpoint fedHost fedPort <- federatorExternal . view teOpts <$> ask
         Right c <- setupGrpcClient' (grpcClientConfigSimple (Text.unpack fedHost) (fromIntegral fedPort) False)
-        let brigCall = LocalCall Brig (HTTPMethod HTTP.GET) "users/by-handle" [QueryParam "handle" (Text.encodeUtf8 hdl)] mempty
-        res <- liftIO $ gRpcCall @'MsgProtoBuf @RouteToInternal @"RouteToInternal" @"call" c brigCall
+        let brigCall = Request Brig (HTTPMethod HTTP.GET) "users/by-handle" [QueryParam "handle" (Text.encodeUtf8 hdl)] mempty
+        res <- liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" c brigCall
 
         liftIO $ case res of
           GRpcOk (ResponseHTTPResponse (HTTPResponse sts bdy)) -> do
@@ -250,10 +250,10 @@ mkEmailRandomLocalSuffix e = do
     Just (Email loc dom) -> return $ Email (loc <> "+" <> UUID.toText uid) dom
     Nothing -> error $ "Invalid email address: " ++ Text.unpack e
 
-zUser :: UserId -> Request -> Request
+zUser :: UserId -> Bilge.Request -> Bilge.Request
 zUser = header "Z-User" . C8.pack . show
 
-zConn :: ByteString -> Request -> Request
+zConn :: ByteString -> Bilge.Request -> Bilge.Request
 zConn = header "Z-Connection"
 
 randomHandle :: MonadIO m => m Text

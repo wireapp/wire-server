@@ -41,15 +41,15 @@ newtype Api routes = Api
   }
   deriving (Generic)
 
--- FUTUREWORK(federation): Idea: by keeping the functions to construct a LocalCall and the API definitions in the same place,
+-- FUTUREWORK(federation): Idea: by keeping the functions to construct a Request and the API definitions in the same place,
 -- we can:
 -- - more easily make sure their definitions match
 -- - probably add their path segments to a list for validation purposes to guard against path traversals.
 
 -- FUTUREWORK(federation): I think we should make the federation/ prefix explicit here and not add it in services/federator/src/Federator/Federate.hs
-mkGetUserInfoByHandle :: Handle -> Proto.LocalCall
+mkGetUserInfoByHandle :: Handle -> Proto.Request
 mkGetUserInfoByHandle handle =
-  Proto.LocalCall
+  Proto.Request
     Proto.Brig
     (Proto.HTTPMethod HTTP.GET)
     "users/by-handle"

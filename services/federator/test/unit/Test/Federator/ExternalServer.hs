@@ -35,15 +35,15 @@ genMock ''Brig
 tests :: TestTree
 tests =
   testGroup "InternalServer" $
-    [ localCallBrigSuccess
+    [ requestBrigSuccess
     ]
 
-localCallBrigSuccess :: TestTree
-localCallBrigSuccess =
+requestBrigSuccess :: TestTree
+requestBrigSuccess =
   testCase "should translate response from brig to 'Response'" $
     runM . evalMock @Brig @IO $ do
       mockBrigCallReturns @IO (\_ _ _ _ -> pure (HTTP.status200, Just "response body"))
-      let request = LocalCall Brig (HTTPMethod HTTP.GET) "/users" [QueryParam "handle" "foo"] mempty
+      let request = Request Brig (HTTPMethod HTTP.GET) "/users" [QueryParam "handle" "foo"] mempty
 
       res <- mock @Brig @IO $ callLocal request
 

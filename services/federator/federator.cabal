@@ -158,7 +158,7 @@ executable federator-integration
   main-is: Main.hs
   other-modules:
       Test.Federator.JSON
-      Test.Federator.RouteToInternalSpec
+      Test.Federator.InwardSpec
       Test.Federator.Util
       Paths_federator
   hs-source-dirs:

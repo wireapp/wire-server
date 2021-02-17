@@ -36,8 +36,8 @@ import Data.Default (def)
 import qualified Data.Metrics.Middleware as Metrics
 import Data.Text.Encoding (encodeUtf8)
 import Federator.Env
-import Federator.ExternalServer (serveRouteToInternal)
-import Federator.InternalServer (serveRouteToRemote)
+import Federator.ExternalServer (serveInward)
+import Federator.InternalServer (serveOutward)
 import Federator.Options as Opt
 import Imports
 import qualified Network.DNS as DNS
@@ -65,8 +65,8 @@ run :: Opts -> IO ()
 run opts =
   DNS.withCachingResolver $ \res ->
     bracket (newEnv opts res) closeEnv $ \env -> do
-      let externalServer = serveRouteToInternal env portExternal
-          internalServer = serveRouteToRemote env portInternal
+      let externalServer = serveInward env portExternal
+          internalServer = serveOutward env portInternal
       internalServerThread <- async internalServer
       externalServerThread <- async externalServer
       void $ waitAnyCancel [internalServerThread, externalServerThread]
