@@ -102,9 +102,8 @@ extra-deps:
 # Therefore we pin an unreleased commit directly.
 #
 # Once the fix has been merged (and released on hackage), we can pin that instead.
-- archive: https://github.com/wireapp/amazonka/archive/412172d8c28906591f01576a78792de7c34cc3eb.tar.gz
-  sha256: c5eb2007e0eef0daaa70f5c622ec0cc75227be1bc8d32bc9446754f01595ad21
-  size: 11158334
+- git: https://github.com/wireapp/amazonka
+  commit: 412172d8c28906591f01576a78792de7c34cc3eb
   subdirs:
   - amazonka
   - amazonka-cloudfront
@@ -124,7 +123,7 @@ extra-deps:
   commit: 7546a1a25635ef65183e3d44c1052285e8401608    # master (Jul 21, 2016)
 
 - git: https://github.com/wireapp/hsaml2
-  commit: 2ff7b0c11a9d510f1ec411f436bc134b216ebd4a   # pull-upstream (Aug 20, 2020)
+  commit: 2ff7b0c11a9d510f1ec411f436bc134b216ebd4a   # akshaymankar/pull-upstream-2020-08-18 (Aug 20, 2020)
 
 - git: https://github.com/wireapp/http-client
   commit: 9100baeddbd15d93dc58a826ae812dafff29d5fd    # master (Jun 16, 2020)
@@ -172,6 +171,8 @@ extra-deps:
 - servant-server-0.18.2
 - servant-mock-0.8.7
 - servant-swagger-ui-0.3.4.3.36.1
+
+# akshaymankar/fix-ghc-version-check
 - git: https://github.com/wireapp/servant-swagger.git
   commit: 23e9afafadaade29d21181b935286087457171e3
 
