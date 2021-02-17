@@ -325,28 +325,6 @@ instance ToSchema UserLegalHoldStatus where
             "states whether a user is under legal hold, "
               <> "or whether legal hold is pending approval."
 
-instance ToSchema PrekeyId where
-  declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Int)
-    where
-      tweak = fmap $ schema . description ?~ descr
-        where
-          descr = "in the range [0..65535]."
-
--- FUTUREWORK: can this be also expressed in swagger, not just in the description?
-
-instance ToSchema Prekey where
-  declareNamedSchema = genericDeclareNamedSchema opts
-    where
-      opts =
-        defaultSchemaOptions
-          { fieldLabelModifier = \case
-              "prekeyId" -> "id"
-              "prekeyKey" -> "key"
-          }
-
-instance ToSchema LastPrekey where
-  declareNamedSchema _ = declareNamedSchema (Proxy @Prekey)
-
 ----------------------------------------------------------------------
 -- helpers
 

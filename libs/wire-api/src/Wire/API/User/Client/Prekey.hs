@@ -37,10 +37,12 @@ module Wire.API.User.Client.Prekey
   )
 where
 
+import Control.Lens ((?~))
 import Data.Aeson
+import Data.Data (Proxy (Proxy))
 import Data.Hashable (hash)
 import Data.Id
-import Data.Swagger (ToSchema (..))
+import Data.Swagger (HasDescription (description), HasSchema (schema), ToSchema (..))
 import qualified Data.Swagger.Build.Api as Doc
 import Deriving.Swagger (CustomSwagger (..), FieldLabelModifier, LabelMapping ((:->)), LabelMappings, LowerCase, StripPrefix)
 import Imports
@@ -48,7 +50,16 @@ import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 newtype PrekeyId = PrekeyId {keyId :: Word16}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (ToJSON, FromJSON, Arbitrary, ToSchema)
+  deriving newtype (ToJSON, FromJSON, Arbitrary)
+
+instance ToSchema PrekeyId where
+  declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Int)
+    where
+      tweak = fmap $ schema . description ?~ descr
+        where
+          descr = "in the range [0..65535]."
+
+-- FUTUREWORK: can this be also expressed in swagger, not just in the description?
 
 --------------------------------------------------------------------------------
 -- Prekey
@@ -91,6 +102,9 @@ clientIdFromPrekey prekey =
 newtype LastPrekey = LastPrekey
   {unpackLastPrekey :: Prekey}
   deriving stock (Eq, Show, Generic)
+
+instance ToSchema LastPrekey where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Prekey)
 
 instance ToJSON LastPrekey where
   toJSON = toJSON . unpackLastPrekey
