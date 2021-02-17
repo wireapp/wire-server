@@ -22,6 +22,8 @@ dependencies:
 - time
 - types-common
 - uuid
+build-tools:
+- proto-lens-protoc:protoc-lens-protoc
 library:
   source-dirs: src
   ghc-prof-options: -fprof-auto-exported
