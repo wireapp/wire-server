@@ -20,7 +20,7 @@ where to send some data of type 'Request' to.
 federator) will turn the received 'Request' into a 'Response' by making a call to a
 component (e.g. brig) on its private network.
 
-See also [libs/wire-api-federation/proto/router.proto]() for details of the grpc protocol.
+See also [wire-api-federation/proto/router.proto](../../../../libs/wire-api-federation/proto/router.proto) for details of the grpc protocol.
 
 Note: Server-server authentication is not yet implemented, so this code uses plain TCP between different backends at this point. This should be okay for the time being, since:
 - the federator component is disabled by default in the wire-server helm chart and won't be "accidentally" installed
