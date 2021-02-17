@@ -12,6 +12,7 @@ tags:
   team-settings: false
   account-pages: false
   legalhold: false
+  sftd: false
 
 cassandra-migrations:
   cassandra:
