@@ -14,10 +14,10 @@ The index that brig is using is defined at `brig.config.elasticsearch.index` of 
 1. Choose a new index name that is different from `<OLD_INDEX>`.
    We will refer to this name as `<NEW_INDEX>`.
 2. Upgrade the release with these config changes:
-    - Set `brig.config.elasticsearch.additionalIndex` to `<NEW_INDEX>`
-    - Set `elasticsearch-index.elasticsearch.additionalIndex` to `<NEW_INDEX>`
+    - Set `brig.config.elasticsearch.additionalWriteIndex` to `<NEW_INDEX>`
+    - Set `elasticsearch-index.elasticsearch.additionalWriteIndex` to `<NEW_INDEX>`
    and wait for completion.
 3. Upgrade the release again with these config changes:
-    - Unset `brig.config.elasticsearch.additionalIndex`
-    - Unset `elasticsearch-index.elasticsearch.additionalIndex`
+    - Unset `brig.config.elasticsearch.additionalWriteIndex`
+    - Unset `elasticsearch-index.elasticsearch.additionalWriteIndex`
     - Set `brig.config.elasticsearch.index` to `<NEW_INDEX>`

@@ -33,7 +33,7 @@ spec:
             - --elasticsearch-server
             - "http://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
             - --elasticsearch-index
-            - "{{ or (.Values.elasticsearch.additionalIndex) (.Values.elasticsearch.index) }}"
+            - "{{ or (.Values.elasticsearch.additionalWriteIndex) (.Values.elasticsearch.index) }}"
             - --elasticsearch-shards=5
             - --elasticsearch-replicas=2
             - --elasticsearch-refresh-interval=5
@@ -49,4 +49,4 @@ spec:
             - --elasticsearch-server
             - "http://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
             - --elasticsearch-index
-            - "{{ or (.Values.elasticsearch.additionalIndex) (.Values.elasticsearch.index) }}"
+            - "{{ or (.Values.elasticsearch.additionalWriteIndex) (.Values.elasticsearch.index) }}"
