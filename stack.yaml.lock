@@ -23,11 +23,11 @@ packages:
     git: https://github.com/wireapp/saml2-web-sso
     pantry-tree:
       size: 4815
-      sha256: 7b96a5b3027d32c268b1f3ee1133553831101eb6de63be934d2f35ae40e2e6a0
-    commit: b27cd4eea1b3dd8e716736f4b0b1f470e1ebbfe9
+      sha256: 04b922847a5e37d578bb9b43c4ea0694e0b731c710362957b12ac19f49b95264
+    commit: ac88b934bb4a91d4d4bb90c620277188e4087043
   original:
     git: https://github.com/wireapp/saml2-web-sso
-    commit: b27cd4eea1b3dd8e716736f4b0b1f470e1ebbfe9
+    commit: ac88b934bb4a91d4d4bb90c620277188e4087043
 - completed:
     name: collectd
     version: 0.0.0.2
@@ -245,11 +245,11 @@ packages:
     git: https://github.com/wireapp/hsaml2
     pantry-tree:
       size: 3918
-      sha256: c2f2849bc28cc7fb8a4ec843dbc7606df179915dc54c5cc2aa2e30b974ef3d61
-    commit: 2ff7b0c11a9d510f1ec411f436bc134b216ebd4a
+      sha256: 072d64ee1d974ed2170e4b0dacfeef2cb13ae62fe066211e93c0be0073f959a3
+    commit: b652ec6e69d1647e827cbee0fa290605ac09dc63
   original:
     git: https://github.com/wireapp/hsaml2
-    commit: 2ff7b0c11a9d510f1ec411f436bc134b216ebd4a
+    commit: b652ec6e69d1647e827cbee0fa290605ac09dc63
 - completed:
     subdir: http-client
     name: http-client
