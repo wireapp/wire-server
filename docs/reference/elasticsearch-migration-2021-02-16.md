@@ -21,3 +21,4 @@ The index that brig is using is defined at `brig.config.elasticsearch.index` of 
     - Unset `brig.config.elasticsearch.additionalWriteIndex`
     - Unset `elasticsearch-index.elasticsearch.additionalWriteIndex`
     - Set `brig.config.elasticsearch.index` to `<NEW_INDEX>`
+    - Set `elasticsearch-index.elasticsearch.index` to `<NEW_INDEX>`
