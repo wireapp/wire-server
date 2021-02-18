@@ -106,7 +106,7 @@ instance
 
 -- ** Specify __what__ to modify
 
--- | Modifies field labels only most likely 't' should be anything that
+-- | Modifies field labels only. Most likely 't' should be anything that
 -- implments 'StringModifier'
 data FieldLabelModifier t
 
