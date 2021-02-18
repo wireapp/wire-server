@@ -308,7 +308,7 @@ type ListClientsBulk =
     :> Post '[Servant.JSON] (Public.QualifiedUserMap (Set Public.Client))
 
 type GetUsersPrekeysClientUnqualified =
-  Summary "Get a prekey for a specific client of a user."
+  Summary "(deprecated) Get a prekey for a specific client of a user."
     :> ZAuthServant
     :> "users"
     :> CaptureUserId "uid"
@@ -327,7 +327,7 @@ type GetUsersPrekeysClientQualified =
     :> Get '[Servant.JSON] Public.ClientPrekey
 
 type GetUsersPrekeyBundleUnqualified =
-  Summary "Get a prekey for each client of a user."
+  Summary "(deprecated) Get a prekey for each client of a user."
     :> ZAuthServant
     :> "users"
     :> CaptureUserId "uid"
@@ -345,7 +345,7 @@ type GetUsersPrekeyBundleQualified =
 
 type GetMultiUserPrekeyBundleUnqualified =
   Summary
-    "Given a map of user IDs to client IDs return a \
+    "(deprecated)  Given a map of user IDs to client IDs return a \
     \prekey for each one. You can't request information for more users than \
     \maximum conversation size."
     :> ZAuthServant
