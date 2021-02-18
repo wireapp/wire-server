@@ -110,8 +110,8 @@ instance
 -- implments 'StringModifier'
 data FieldLabelModifier t
 
--- | Modifies constructor tags only, most likely 't' should be anything that
--- implments 'StringModifier'.
+-- | Modifies constructor tags only. Most likely 't' should be anything that
+-- implements 'StringModifier'.
 data ConstructorTagModifier t
 
 -- ** Specify __how__ to modify
