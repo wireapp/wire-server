@@ -165,26 +165,26 @@ claimPrekey u d c = do
         Nothing -> noPrekeys u' c' >> return Nothing
         pk@(Just _) -> return pk
 
-claimPrekeyBundle :: Domain -> UserId -> AppIO PrekeyBundle
+claimPrekeyBundle :: Domain -> UserId -> ExceptT ClientError AppIO PrekeyBundle
 claimPrekeyBundle domain uid = do
   isLocalDomain <- (domain ==) <$> viewFederationDomain
   if isLocalDomain
-    then claimLocalPrekeyBundle uid
+    then lift $ claimLocalPrekeyBundle uid
     else -- FUTUREWORK(federation, #1272): claim keys from other backend
-      error "TODO FUTUREWORK(federation, #1272)"
+      throwE ClientFederationNotImplemented
   where
     claimLocalPrekeyBundle :: UserId -> AppIO PrekeyBundle
     claimLocalPrekeyBundle u = do
       clients <- map clientId <$> Data.lookupClients u
       PrekeyBundle u . catMaybes <$> mapM (Data.claimPrekey u) clients
 
-claimMultiPrekeyBundles :: QualifiedUserClients -> AppIO (QualifiedUserClientMap (Maybe Prekey))
+claimMultiPrekeyBundles :: QualifiedUserClients -> ExceptT ClientError AppIO (QualifiedUserClientMap (Maybe Prekey))
 claimMultiPrekeyBundles quc = do
   localDomain <- viewFederationDomain
   res <- forM (Map.toList . qualifiedUserClients $ quc) $ \(domain, userClients) -> do
     if domain == localDomain
-      then (domain,) <$> getLocal userClients
-      else error "TODO FUTUREWORK(federation, #1272)"
+      then (domain,) <$> lift (getLocal userClients)
+      else throwE ClientFederationNotImplemented
   pure $ (QualifiedUserClientMap . Map.fromList) res
   where
     getLocal :: UserClients -> AppIO (UserClientMap (Maybe Prekey))
@@ -202,8 +202,7 @@ claimMultiPrekeyBundles quc = do
       when (isNothing key) $ noPrekeys u c
       return key
 
--- FUTUREWORK: delete this in favor of claimMultiPrekeyBundles
-claimMultiPrekeyBundlesLocal :: UserClients -> AppIO (UserClientMap (Maybe Prekey))
+claimMultiPrekeyBundlesLocal :: UserClients -> ExceptT ClientError AppIO (UserClientMap (Maybe Prekey))
 claimMultiPrekeyBundlesLocal userClients = do
   domain <- viewFederationDomain
   qUserClientM <- claimMultiPrekeyBundles (QualifiedUserClients (Map.singleton domain userClients))

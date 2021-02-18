@@ -178,6 +178,7 @@ clientError (ClientDataError e) = clientDataError e
 clientError (ClientUserNotFound _) = StdError invalidUser
 clientError ClientLegalHoldCannotBeRemoved = StdError can'tDeleteLegalHoldClient
 clientError ClientLegalHoldCannotBeAdded = StdError can'tAddLegalHoldClient
+clientError ClientFederationNotImplemented = StdError federationNotImplemented'
 
 idtError :: RemoveIdentityError -> Error
 idtError LastIdentity = StdError lastIdentity
@@ -524,3 +525,10 @@ federationNotImplemented qualified =
     rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderMapping) $ qualified
     renderMapping IdMapping {_imMappedId, _imQualifiedId} =
       idToText _imMappedId <> " -> " <> renderQualifiedId _imQualifiedId
+
+federationNotImplemented' :: Wai.Error
+federationNotImplemented' =
+  Wai.Error
+    status403
+    "federation-not-implemented"
+    "Federation is not implemented"

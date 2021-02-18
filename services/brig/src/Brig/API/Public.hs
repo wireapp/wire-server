@@ -1084,18 +1084,18 @@ getPrekeyH _zUser domain user client = do
 getPrekeyBundleUnqualifiedH :: UserId -> UserId -> Handler Public.PrekeyBundle
 getPrekeyBundleUnqualifiedH _zUser uid = do
   domain <- viewFederationDomain
-  lift $ API.claimPrekeyBundle domain uid
+  API.claimPrekeyBundle domain uid !>> clientError
 
 getPrekeyBundleH :: UserId -> Domain -> UserId -> Handler Public.PrekeyBundle
 getPrekeyBundleH _zUser domain uid =
-  lift $ API.claimPrekeyBundle domain uid
+  API.claimPrekeyBundle domain uid !>> clientError
 
 getMultiUserPrekeyBundleUnqualifiedH :: UserId -> Public.UserClients -> Handler (Public.UserClientMap (Maybe Public.Prekey))
 getMultiUserPrekeyBundleUnqualifiedH _zUserId userClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients userClients) > maxSize) $
     throwStd tooManyClients
-  lift $ API.claimMultiPrekeyBundlesLocal userClients
+  API.claimMultiPrekeyBundlesLocal userClients !>> clientError
 
 getMultiUserPrekeyBundleH :: UserId -> Public.QualifiedUserClients -> Handler (Public.QualifiedUserClientMap (Maybe Public.Prekey))
 getMultiUserPrekeyBundleH _zUserId qualUserClients = do
@@ -1106,7 +1106,7 @@ getMultiUserPrekeyBundleH _zUserId qualUserClients = do
           (Public.qualifiedUserClients qualUserClients)
   when (size > maxSize) $
     throwStd tooManyClients
-  lift $ API.claimMultiPrekeyBundles qualUserClients
+  API.claimMultiPrekeyBundles qualUserClients !>> clientError
 
 addClientH :: JsonRequest Public.NewClient ::: UserId ::: ConnId ::: Maybe IpAddr ::: JSON -> Handler Response
 addClientH (req ::: usr ::: con ::: ip ::: _) = do
