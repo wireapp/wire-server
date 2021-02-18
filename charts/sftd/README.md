@@ -40,10 +40,13 @@ Please see [values.yaml](./values.yaml) for an overview of other parameters that
 
 #### As part of `wire-server` umbrella chart
 
-The `sftd` is deployed as part of the `wire-server` umbrella chart. You can
+The `sftd` can be deployed as part of the `wire-server` umbrella chart. You can
 edit the `values.yaml` of your `wire-server` chart to configure sftd.
 
 ```yaml
+tags:
+  sftd: true
+
 sftd:
   host: sftd.example.com
   allowOrigin: https://webapp.example.com
@@ -63,12 +66,6 @@ allow calls to drain to a large number (say a few hours), this would make the
 deployment of the `wire-server` umbrella-chart that usually is snappy to run
 very slow.
 
-In `wire-server` chart's `values.yaml` you should set:
-```yaml
-tags:
-  sftd: false
-```
-To make sure that the umbrella chart does not deploy sftd too.
 
 ```
 helm install sftd wire/sftd \
