@@ -416,8 +416,6 @@ servantSitemap =
     :<|> getMultiUserPrekeyBundleUnqualifiedH
     :<|> getMultiUserPrekeyBundleH
 
--- getMultiPrekeyBundlesH
-
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
 -- CheckUserExists[Un]Qualified, see 'Brig.API.User.userGC'.
