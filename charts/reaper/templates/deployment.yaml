@@ -23,7 +23,7 @@ spec:
       containers:
       - name: reaper
         imagePullPolicy: Always
-        image: roffe/kubectl:v1.13.2
+        image: bitnami/kubectl:1.19.7
         command: ["bash"]
         args:
         - -c

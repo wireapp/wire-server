@@ -2,6 +2,12 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
+# The amount of SFT instances to run.  NOTE: Only one SFT can run per node due
+# to `hostNetwork`. If this number is higher than the amount of nodes that can
+# be used for scheduling (Also see `nodeSelector`) pods will remain in a
+# pending state untill you add more capacit.
+replicaCount: 1
+
 image:
   repository: quay.io/wire/sftd
   pullPolicy: IfNotPresent
@@ -13,8 +19,7 @@ nameOverride: ""
 fullnameOverride: ""
 
 # The time to wait after terminating an sft node before shutting it down. No
-# new calls will be initiated whilst a pod is terminated. This value will be
-# more useful once we support running multiple sfts behind a load-balancer
+# new calls will be initiated whilst a pod is being terminated.
 terminationGracePeriodSeconds: 10
 
 podAnnotations: {}
@@ -67,3 +72,12 @@ tls: {}
     # This is optional since cert-manager will default to this value however
     # if you are using an external issuer, change this to that issuer group.
     # group: cert-manager.io
+
+joinCall:
+  replicaCount: 3
+  image:
+    repository: nginxinc/nginx-unprivileged
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: "1.19.5"
+
