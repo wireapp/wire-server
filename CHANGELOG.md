@@ -25,7 +25,7 @@ This release might require manual migration steps, see [ElasticSearch migration 
 * Team search: Add search by email (#1344) (#1286)
 * Add endpoint to get client metadata for many users (#1345)
 * Public end-point for getting the team size. (#1295)
-* sftd: add support for multiple SFT servers (#1325)
+* sftd: add support for multiple SFT servers (#1325) (#1377)
 
 ## Bug fixes and other updates
 
