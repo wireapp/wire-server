@@ -51,7 +51,7 @@ import Imports
 -- @
 -- data AssetSize = AssetComplete | AssetPreview
 --   deriving (Generic)
---   deriving (ToSchema) via (CustomSwagger '[ConstructorTagModifier (StripPrefix \"Asset\", CamelToSnake)] LoginCodeType)
+--   deriving (ToSchema) via (CustomSwagger '[ConstructorTagModifier (StripPrefix \"Asset\", CamelToSnake)] AssetSize)
 -- @
 --
 -- This will produce a swagger schema with enums limited to @complete@ and
