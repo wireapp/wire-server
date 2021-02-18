@@ -103,3 +103,8 @@ dependencies:
     - federator
     - haskellServices
     - services
+- name: sftd
+  version: "0.0.42"
+  repository: "file://../sftd"
+  tags:
+    - sftd

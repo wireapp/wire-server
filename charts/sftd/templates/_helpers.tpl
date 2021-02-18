@@ -41,11 +41,20 @@ app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
+{{- define "sftd.join-call.labels" -}}
+helm.sh/chart: {{ include "sftd.chart" . }}
+{{ include "sftd.join-call.selectorLabels" . }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
 
 {{/*
 Selector labels
 */}}
 {{- define "sftd.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "sftd.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+{{- define "sftd.join-call.selectorLabels" -}}
+app.kubernetes.io/name: join-call
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
