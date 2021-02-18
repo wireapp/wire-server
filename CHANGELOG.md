@@ -18,13 +18,14 @@
 
 ## Release Notes
 
-This release requires recreating brig's ES index *before* deployment. See [instructions](https://github.com/wireapp/wire-server/blob/4334c02a5b2a5b7ca329210ef6e6f13386c99767/docs/reference/elasticsearch-migration-2021-02-16.md).
+This release might require manual migration steps, see [ElasticSearch migration instructions for release 2021-02-16 ](https://github.com/wireapp/wire-server/blob/c81a189d0dc8916b72ef20d9607888618cb22598/docs/reference/elasticsearch-migration-2021-02-16.md).
 
 ## Features
 
 * Team search: Add search by email (#1344) (#1286)
 * Add endpoint to get client metadata for many users (#1345)
 * Public end-point for getting the team size. (#1295)
+* sftd: add support for multiple SFT servers (#1325)
 
 ## Bug fixes and other updates
 
@@ -49,7 +50,9 @@ This release requires recreating brig's ES index *before* deployment. See [instr
 * Extract and rename PolyLog to a library for reusability (#1329)
 * Fix: Spar integration tests misconfigured on CI (#1343)
 * Bump ormolu version (#1366, #1368) 
-* Update ES upgrade path (#1339) 
+* Update ES upgrade path (#1339) (#1376)
+* Bump saml2-web-sso version to latest upstream (#1369)
+* Add docs for deriving-swagger2 (#1373)
 
 # [2020-01-15]
 
