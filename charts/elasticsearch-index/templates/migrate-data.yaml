@@ -33,7 +33,7 @@ spec:
             - --elasticsearch-server
             - "http://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
             - --elasticsearch-index
-            - "{{ .Values.elasticsearch.index }}"
+            - "{{ or (.Values.elasticsearch.additionalWriteIndex) (.Values.elasticsearch.index) }}"
             - --cassandra-host
             - "{{ required "missing elasticsearch-index.cassandra.host!" .Values.cassandra.host }}"
             - --cassandra-port

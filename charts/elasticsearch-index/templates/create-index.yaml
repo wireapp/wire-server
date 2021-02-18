@@ -33,12 +33,14 @@ spec:
             - --elasticsearch-server
             - "http://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
             - --elasticsearch-index
-            - "{{ .Values.elasticsearch.index }}"
+            - "{{ or (.Values.elasticsearch.additionalWriteIndex) (.Values.elasticsearch.index) }}"
             - --elasticsearch-shards=5
             - --elasticsearch-replicas=2
             - --elasticsearch-refresh-interval=5
+            {{- if .Values.elasticsearch.delete_template }}
             - --delete-template
             - "{{ .Values.elasticsearch.delete_template }}"
+            {{- end}}
       containers:
         - name: brig-index-update-mapping
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -47,4 +49,4 @@ spec:
             - --elasticsearch-server
             - "http://{{ required "missing elasticsearch-index.elasticsearch.host!" .Values.elasticsearch.host }}:{{ .Values.elasticsearch.port }}"
             - --elasticsearch-index
-            - "{{ .Values.elasticsearch.index }}"
+            - "{{ or (.Values.elasticsearch.additionalWriteIndex) (.Values.elasticsearch.index) }}"
