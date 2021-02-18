@@ -26,6 +26,7 @@ This release might require manual migration steps, see [ElasticSearch migration 
 * Add endpoint to get client metadata for many users (#1345)
 * Public end-point for getting the team size. (#1295)
 * sftd: add support for multiple SFT servers (#1325) (#1377)
+* SAML allow enveloped signatures (#1375)
 
 ## Bug fixes and other updates
 
