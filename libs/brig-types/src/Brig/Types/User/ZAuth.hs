@@ -76,6 +76,9 @@ module Brig.Types.User.ZAuth
     tokenKeyIndex,
     zauthType,
 
+    -- * cookies
+    cookies,
+
     -- * Re-exports
     SecretKey,
     PublicKey,
@@ -91,6 +94,8 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
+import Data.List1 (List1)
+import qualified Data.List1 as List1
 import Data.Proxy
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
@@ -98,6 +103,8 @@ import qualified Data.ZAuth.Creation as ZC
 import Data.ZAuth.Token
 import qualified Data.ZAuth.Validation as ZV
 import Imports
+import qualified Network.Wai.Predicate as P
+import qualified Network.Wai.Predicate.Request as R
 import OpenSSL.Random
 import Sodium.Crypto.Sign
 
@@ -404,3 +411,25 @@ randomValue :: IO Word32
 randomValue = BS.foldl' f 0 <$> randBytes 4
   where
     f r w = shiftL r 8 .|. fromIntegral w
+
+-- | Internal utilities: These functions are nearly copies verbatim from the original
+-- project: https://gitlab.com/twittner/wai-predicates/-/blob/develop/src/Network/Wai/Predicate.hs#L106-112
+-- Main difference: the original stops after finding the first valid cookie which
+-- is a problem if clients send more than 1 cookie and one of them happens to be invalid
+-- We should also be dropping this in favor of servant which will make this redundant.
+cookies :: (R.HasCookies r, FromByteString a) => ByteString -> P.Predicate r P.Error (List1 a)
+cookies k r =
+  case R.lookupCookie k r of
+    [] -> P.Fail . P.addLabel "cookie" $ notAvailable k
+    cc ->
+      case mapMaybe fromByteString cc of
+        [] -> (P.Fail . P.addLabel "cookie" . typeError k $ "Failed to get zuid cookies")
+        (x : xs) -> return $ List1.list1 x xs
+
+notAvailable :: ByteString -> P.Error
+notAvailable k = P.e400 & P.setReason P.NotAvailable . P.setSource k
+{-# INLINE notAvailable #-}
+
+typeError :: ByteString -> ByteString -> P.Error
+typeError k m = P.e400 & P.setReason P.TypeError . P.setSource k . P.setMessage m
+{-# INLINE typeError #-}

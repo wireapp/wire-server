@@ -36,7 +36,6 @@ import Data.ByteString.Conversion
 import Data.Either.Combinators (leftToMaybe, rightToMaybe)
 import Data.Id
 import Data.List1 (List1)
-import qualified Data.List1 as List1
 import Data.Predicate
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.ZAuth.Token as ZAuth
@@ -311,8 +310,8 @@ tokenRequest ::
     )
 tokenRequest = opt (userToken ||| legalHoldUserToken) .&. opt (accessToken ||| legalHoldAccessToken)
   where
-    userToken = cookieErr @ZAuth.User <$> cookies "zuid"
-    legalHoldUserToken = cookieErr @ZAuth.LegalHoldUser <$> cookies "zuid"
+    userToken = cookieErr @ZAuth.User <$> ZAuth.cookies "zuid"
+    legalHoldUserToken = cookieErr @ZAuth.LegalHoldUser <$> ZAuth.cookies "zuid"
     accessToken = parse @ZAuth.Access <$> (tokenHeader .|. tokenQuery)
     legalHoldAccessToken = parse @ZAuth.LegalHoldAccess <$> (tokenHeader .|. tokenQuery)
     --
@@ -355,26 +354,3 @@ tokenRequest = opt (userToken ||| legalHoldUserToken) .&. opt (accessToken ||| l
 tokenResponse :: ZAuth.UserTokenLike u => Auth.Access u -> AppIO Response
 tokenResponse (Auth.Access t Nothing) = pure $ json t
 tokenResponse (Auth.Access t (Just c)) = Auth.setResponseCookie c (json t)
-
--- | Internal utilities: These functions are nearly copies verbatim from the original
--- project: https://gitlab.com/twittner/wai-predicates/-/blob/develop/src/Network/Wai/Predicate.hs#L106-112
--- I will still make an upstream PR but would not like to block this PR because of
--- it. Main difference: the original stops after finding the first valid cookie which
--- is a problem if clients send more than 1 cookie and one of them happens to be invalid
--- We should also be dropping this in favor of servant which will make this redundant
-cookies :: (R.HasCookies r, FromByteString a) => ByteString -> Predicate r P.Error (List1 a)
-cookies k r =
-  case R.lookupCookie k r of
-    [] -> Fail . addLabel "cookie" $ notAvailable k
-    cc ->
-      case mapMaybe fromByteString cc of
-        [] -> (Fail . addLabel "cookie" . typeError k $ "Failed to get zuid cookies")
-        (x : xs) -> return $ List1.list1 x xs
-
-notAvailable :: ByteString -> P.Error
-notAvailable k = e400 & setReason NotAvailable . setSource k
-{-# INLINE notAvailable #-}
-
-typeError :: ByteString -> ByteString -> P.Error
-typeError k m = e400 & setReason TypeError . setSource k . setMessage m
-{-# INLINE typeError #-}
