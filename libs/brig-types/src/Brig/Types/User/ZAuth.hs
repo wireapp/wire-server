@@ -97,6 +97,7 @@ import qualified Data.List.NonEmpty as NonEmpty
 import Data.List1 (List1)
 import qualified Data.List1 as List1
 import Data.Proxy
+import Data.String.Conversions (cs)
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import qualified Data.ZAuth.Creation as ZC
@@ -379,6 +380,16 @@ validateToken ::
 validateToken t = liftZAuth $ do
   z <- ask
   void <$> ZV.runValidate (z ^. public) (ZV.check t)
+
+-- | for "/i/check-cookie"
+newtype ValidateTokenRequest = ValidateTokenRequest (Token User)
+  deriving (Eq, Show, Generic)
+
+instance ToJSON ValidateTokenRequest where
+  toJSON (ValidateTokenRequest cky) = object ["cookie" .= cs @ByteString @Text (toByteString' cky)]
+
+instance FromJSON ValidateTokenRequest where
+  parseJSON = undefined
 
 accessTokenOf' :: Token Access -> UserId
 accessTokenOf' t = Id (t ^. body . userId)
