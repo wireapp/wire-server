@@ -304,6 +304,7 @@ nginx_conf:
       envs:
       - all
     - path: ~* ^/teams/([^/]*)/members/csv$
+      disable_zauth: true
       envs:
       - all
     - path: ~* ^/teams/([^/]*)/legalhold(.*)
