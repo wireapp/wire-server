@@ -28,6 +28,7 @@ module Brig.User.Auth
     lookupLoginCode,
     ssoLogin,
     legalHoldLogin,
+    validateToken,
 
     -- * Re-exports
     listCookies,

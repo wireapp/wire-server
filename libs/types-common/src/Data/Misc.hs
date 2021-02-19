@@ -54,12 +54,17 @@ module Data.Misc
 
     -- * Swagger
     modelLocation,
+
+    -- * JSON encoding of singular values
+    simpleFromJSONWrapper,
+    simpleToJSONWrapper,
   )
 where
 
 import Cassandra
 import Control.Lens (makeLenses, (.~), (?~), (^.))
 import Data.Aeson
+import qualified Data.Aeson.Types as Aeson
 import qualified Data.Aeson.Types as Json
 import qualified Data.Attoparsec.ByteString.Char8 as Chars
 import Data.Bifunctor (Bifunctor (first))
@@ -71,6 +76,7 @@ import Data.ByteString.Lazy (toStrict)
 import Data.IP (IP (IPv4, IPv6), toIPv4, toIPv6b)
 import Data.Proxy (Proxy (Proxy))
 import Data.Range
+import Data.String.Conversions (cs)
 import Data.Swagger (HasProperties (properties), HasRequired (required), HasType (type_), NamedSchema (..), SwaggerType (SwaggerObject), ToSchema (..), declareSchemaRef)
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
@@ -339,3 +345,17 @@ instance FromJSON PlainTextPassword where
 instance Arbitrary PlainTextPassword where
   -- TODO: why 6..1024? For tests we might want invalid passwords as well, e.g. 3 chars
   arbitrary = PlainTextPassword . fromRange <$> genRangeText @6 @1024 arbitrary
+
+{-# INLINE simpleFromJSONWrapper #-}
+simpleFromJSONWrapper :: FromByteString a => Text -> Aeson.Value -> Aeson.Parser a
+simpleFromJSONWrapper key =
+  withObject "simpleFromJSONWrapper" $ \ob -> do
+    raw <- ob .: key
+    case fromByteString (cs @Text @ByteString raw) of
+      Nothing -> fail $ "Could not parse bytestring at key " <> cs key
+      Just value -> pure value
+
+{-# INLINE simpleToJSONWrapper #-}
+simpleToJSONWrapper :: ToByteString a => Text -> a -> Aeson.Value
+simpleToJSONWrapper key value =
+  object [key .= cs @ByteString @Text (toByteString' value)]

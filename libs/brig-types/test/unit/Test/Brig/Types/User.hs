@@ -28,7 +28,7 @@
 module Test.Brig.Types.User where
 
 import Brig.Types.Intra (NewUserScimInvitation (..), ReAuthUser (..))
-import Brig.Types.User (ManagedByUpdate (..), RichInfoUpdate (..))
+import Brig.Types.User (ManagedByUpdate (..), RichInfoUpdate (..), ValidateTokenResponse)
 import Imports
 import Test.Brig.Roundtrip (testRoundTrip)
 import Test.QuickCheck (Arbitrary (arbitrary))
@@ -42,7 +42,8 @@ roundtripTests =
   [ testRoundTrip @ManagedByUpdate,
     testRoundTrip @ReAuthUser,
     testRoundTrip @RichInfoUpdate,
-    testRoundTrip @NewUserScimInvitation
+    testRoundTrip @NewUserScimInvitation,
+    testRoundTrip @ValidateTokenResponse
   ]
 
 instance Arbitrary ManagedByUpdate where

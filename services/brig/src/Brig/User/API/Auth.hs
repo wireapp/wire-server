@@ -26,7 +26,7 @@ import Brig.API.Handler
 import qualified Brig.API.User as User
 import Brig.App (AppIO)
 import Brig.Phone
-import Brig.Types.Intra (ReAuthUser, UserAccount, reAuthPassword)
+import Brig.Types.Intra (ReAuthUser, reAuthPassword)
 import Brig.Types.User.Auth
 import qualified Brig.Types.User.ZAuth as ZAuth
 import qualified Brig.User.Auth as Auth
@@ -39,7 +39,6 @@ import Data.List1 (List1)
 import Data.Predicate
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.ZAuth.Token as ZAuth
-import Data.ZAuth.Validation (runValidate)
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
@@ -172,7 +171,7 @@ routesInternal = do
       .&. jsonRequest @ReAuthUser
 
   post "/i/check-cookie" (continue validateCookieH) $
-    jsonRequest @ValidateTokenRequest
+    jsonRequest @ZAuth.ValidateTokenRequest
       .&. accept "application" "json"
 
 -- Handlers
@@ -300,22 +299,15 @@ renew = \case
         Just m -> pure m
         Nothing -> throwStd authTokenMismatch
 
-validateCookieH :: JsonRequest ValidateTokenRequest ::: JSON -> Handler Response
-validateCookieH (ValidateTokenRequest vuc ::: _) =
-  json
-    <$> ( validateCookie
-            =<<
-            -- not like the following: we should pass it the same way the client does.
-            parseJsonBody vuc
-        )
+validateCookieH :: JsonRequest ZAuth.ValidateTokenRequest ::: JSON -> Handler Response
+validateCookieH (req ::: _) = do
+  ZAuth.ValidateTokenRequest vuc <- parseJsonBody req
+  (uid, cky) <- validateCookie vuc
+  Auth.setResponseCookie cky (json (ZAuth.ValidateTokenResponse uid))
 
-validateCookie :: ZAuth.Token ZAuth.User -> Handler UserAccount
-validateCookie vuc = do
-  zauthEnv <- pure _
-  runValidate zauthEnv (ZAuth.validateToken vuc) >>= \case
-    Left _ -> _
-    Right (Left _) -> _
-    Right (Right ()) -> pure _
+validateCookie :: ZAuth.Token ZAuth.User -> Handler (UserId, Cookie (ZAuth.Token ZAuth.User))
+validateCookie vuc =
+  Auth.validateToken @ZAuth.User @ZAuth.Access vuc Nothing !>> zauthError
 
 -- Utilities
 --

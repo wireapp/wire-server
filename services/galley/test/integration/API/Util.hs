@@ -239,6 +239,7 @@ getTeamMembersCsv withCookie usr tid = do
                   <!! const 200 === statusCode
               )
       invalidateCookie = do
+        -- TODO: logout
         undefined
   cky <- case withCookie of
     CsvWithCookie -> Just <$> getCookie

@@ -82,6 +82,9 @@ module Brig.Types.User.ZAuth
     -- * Re-exports
     SecretKey,
     PublicKey,
+    -- | For "/i/check-cookie"
+    ValidateTokenRequest (..),
+    ValidateTokenResponse (..),
   )
 where
 
@@ -96,8 +99,8 @@ import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.List1 (List1)
 import qualified Data.List1 as List1
+import Data.Misc (simpleFromJSONWrapper, simpleToJSONWrapper)
 import Data.Proxy
-import Data.String.Conversions (cs)
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import qualified Data.ZAuth.Creation as ZC
@@ -108,6 +111,7 @@ import qualified Network.Wai.Predicate as P
 import qualified Network.Wai.Predicate.Request as R
 import OpenSSL.Random
 import Sodium.Crypto.Sign
+import Wire.API.Arbitrary (Arbitrary)
 
 newtype ZAuth a = ZAuth {unZAuth :: ReaderT Env IO a}
   deriving (Functor, Applicative, Monad, MonadIO, MonadReader Env)
@@ -382,14 +386,23 @@ validateToken t = liftZAuth $ do
   void <$> ZV.runValidate (z ^. public) (ZV.check t)
 
 -- | for "/i/check-cookie"
-newtype ValidateTokenRequest = ValidateTokenRequest (Token User)
+newtype ValidateTokenRequest = ValidateTokenRequest {fromValidateTokenRequest :: Token User}
   deriving (Eq, Show, Generic)
 
 instance ToJSON ValidateTokenRequest where
-  toJSON (ValidateTokenRequest cky) = object ["cookie" .= cs @ByteString @Text (toByteString' cky)]
+  toJSON = simpleToJSONWrapper "cookie" . fromValidateTokenRequest
 
 instance FromJSON ValidateTokenRequest where
-  parseJSON = undefined
+  parseJSON = fmap ValidateTokenRequest . simpleFromJSONWrapper "cookie"
+
+newtype ValidateTokenResponse = ValidateTokenResponse {fromValidateTokenResponse :: UserId}
+  deriving (Eq, Show, Generic, Arbitrary)
+
+instance ToJSON ValidateTokenResponse where
+  toJSON = simpleToJSONWrapper "user" . fromValidateTokenResponse
+
+instance FromJSON ValidateTokenResponse where
+  parseJSON = fmap ValidateTokenResponse . simpleFromJSONWrapper "user"
 
 accessTokenOf' :: Token Access -> UserId
 accessTokenOf' t = Id (t ^. body . userId)
