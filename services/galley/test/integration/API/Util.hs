@@ -224,7 +224,7 @@ getTeamMembers usr tid = do
   r <- get (g . paths ["teams", toByteString' tid, "members"] . zUser usr) <!! const 200 === statusCode
   responseJsonError r
 
-data CsvCookieChoice = CsvWithCookie | CsvWithoutCookie
+data CsvCookieChoice = CsvWithCookie | CsvWithoutCookie | CsvWithBadCookie
   deriving (Eq, Show)
 
 -- alternative to 'ResponseLBS': [BodyReader](https://hoogle.zinfra.io/file/root/.stack/snapshots/x86_64-linux/82492d944a85db90f4cd7cec6f4d5215ef9ac1ac8aeffeed4a805fbd6b1232c5/8.8.4/doc/http-client-0.7.0/Network-HTTP-Client.html#t:BodyReader)
@@ -233,14 +233,17 @@ getTeamMembersCsv withCookie usr tid = do
   b <- view tsBrig
   n <- view tsNginz
   let email = fromJust (Brig.Types.userEmail usr)
-  cky <- case withCookie of
-    CsvWithCookie ->
-      Just <$> do
+      getCookie = do
         decodeCookie
           <$> ( login b (emailLogin email defPassword (Just ("nexus1" :: String)) (error "PersistentCookie"))
                   <!! const 200 === statusCode
               )
+      invalidateCookie = do
+        undefined
+  cky <- case withCookie of
+    CsvWithCookie -> Just <$> getCookie
     CsvWithoutCookie -> pure Nothing
+    CsvWithBadCookie -> Just <$> (getCookie <* invalidateCookie)
 
   get
     ( n . accept "text/csv"
