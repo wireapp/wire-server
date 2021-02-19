@@ -68,7 +68,7 @@ import Data.Id
 import qualified Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local))
 import qualified Data.List.Extra as List
-import Data.List1 (list1)
+import Data.List1 (List1, list1)
 import qualified Data.Map.Strict as M
 import Data.Misc (HttpsUrl)
 import Data.Range as Range
@@ -78,6 +78,7 @@ import Data.String.Conversions (cs)
 import Data.Time.Clock (UTCTime (..), getCurrentTime)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
+import qualified Data.ZAuth.Token as ZAuth
 import Galley.API.Error as Galley
 import Galley.API.LegalHold
 import qualified Galley.API.Teams.Notifications as APITeamQueue
@@ -381,8 +382,9 @@ getTeamMembers zusr tid maxResults = do
       let withPerms = (m `canSeePermsOf`)
       pure (mems, withPerms)
 
-getTeamMembersCSVH :: UserId ::: TeamId -> Galley Response
-getTeamMembersCSVH (zusr ::: tid) = do
+getTeamMembersCSVH :: (List1 (ZAuth.Token ZAuth.User) ::: TeamId) -> Galley Response
+getTeamMembersCSVH (_ ::: tid) = do
+  zusr <- error "get that from the cookie."
   Data.teamMember tid zusr >>= \case
     Nothing -> throwM accessDenied
     Just member -> unless (member `hasPermission` DownloadTeamMembersCsv) $ throwM accessDenied

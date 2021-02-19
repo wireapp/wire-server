@@ -23,6 +23,7 @@ module Galley.API.Public
   )
 where
 
+import Brig.Types.User.ZAuth (cookies)
 import Data.Aeson (FromJSON, ToJSON, encode)
 import Data.ByteString.Conversion (fromByteString, fromList, toByteString')
 import Data.Id (TeamId, UserId)
@@ -175,7 +176,9 @@ sitemap = do
   get "/teams/:tid/members/csv" (continue Teams.getTeamMembersCSVH) $
     -- we could discriminate based on accept header only, but having two paths makes building
     -- nginz metrics dashboards easier.
-    zauthUserId
+    -- this end-point needs to authenticate via cookie, since it is called directly by the
+    -- browser.
+    cookies "zuid"
       .&. capture "tid"
   document "GET" "getTeamMembersCSV" $ do
     summary "Get all members of the team as a CSV file"
