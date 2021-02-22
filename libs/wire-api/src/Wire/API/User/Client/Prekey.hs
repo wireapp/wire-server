@@ -31,17 +31,15 @@ module Wire.API.User.Client.Prekey
     ClientPrekey (..),
 
     -- * Swagger
-    modelClientPrekey,
     modelPrekey,
   )
 where
 
-import Control.Lens ((?~))
 import Data.Aeson
 import Data.Data (Proxy (Proxy))
 import Data.Hashable (hash)
 import Data.Id
-import Data.Swagger (HasDescription (description), HasSchema (schema), ToSchema (..))
+import Data.Swagger (ToSchema (..))
 import qualified Data.Swagger.Build.Api as Doc
 import Deriving.Swagger (CustomSwagger (..), FieldLabelModifier, LabelMapping ((:->)), LabelMappings, LowerCase, StripPrefix)
 import Imports
@@ -160,15 +158,6 @@ data ClientPrekey = ClientPrekey
              ]
             ClientPrekey
         )
-
--- TODO: remove
-modelClientPrekey :: Doc.Model
-modelClientPrekey = Doc.defineModel "ClientPrekey" $ do
-  Doc.description "Prekey of a single client"
-  Doc.property "client" Doc.bytes' $
-    Doc.description "Client Id"
-  Doc.property "prekey" (Doc.ref modelPrekey) $
-    Doc.description "Prekey"
 
 instance ToJSON ClientPrekey where
   toJSON k =
