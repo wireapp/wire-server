@@ -309,7 +309,6 @@ type ListClientsBulk =
 
 type GetUsersPrekeysClientUnqualified =
   Summary "(deprecated) Get a prekey for a specific client of a user."
-    :> ZAuthServant
     :> "users"
     :> CaptureUserId "uid"
     :> "prekeys"
@@ -318,7 +317,6 @@ type GetUsersPrekeysClientUnqualified =
 
 type GetUsersPrekeysClientQualified =
   Summary "Get a prekey for a specific client of a user."
-    :> ZAuthServant
     :> "users"
     :> Capture "domain" Domain
     :> CaptureUserId "uid"
@@ -328,7 +326,6 @@ type GetUsersPrekeysClientQualified =
 
 type GetUsersPrekeyBundleUnqualified =
   Summary "(deprecated) Get a prekey for each client of a user."
-    :> ZAuthServant
     :> "users"
     :> CaptureUserId "uid"
     :> "prekeys"
@@ -336,7 +333,6 @@ type GetUsersPrekeyBundleUnqualified =
 
 type GetUsersPrekeyBundleQualified =
   Summary "Get a prekey for each client of a user."
-    :> ZAuthServant
     :> "users"
     :> Capture "domain" Domain
     :> CaptureUserId "uid"
@@ -348,7 +344,6 @@ type GetMultiUserPrekeyBundleUnqualified =
     "(deprecated)  Given a map of user IDs to client IDs return a \
     \prekey for each one. You can't request information for more users than \
     \maximum conversation size."
-    :> ZAuthServant
     :> "users"
     :> "prekeys"
     :> Servant.ReqBody '[Servant.JSON] Public.UserClients
@@ -359,7 +354,6 @@ type GetMultiUserPrekeyBundleQualified =
     "Given a map of user IDs to client IDs return a \
     \prekey for each one. You can't request information for more users than \
     \maximum conversation size."
-    :> ZAuthServant
     :> "list-prekeys"
     :> Servant.ReqBody '[Servant.JSON] Public.QualifiedUserClients
     :> Post '[Servant.JSON] (Public.QualifiedUserClientMap (Maybe Public.Prekey))
@@ -1070,33 +1064,33 @@ listPropertyKeysAndValuesH (u ::: _) = do
   keysAndVals <- lift (API.lookupPropertyKeysAndValues u)
   pure $ json (keysAndVals :: Public.PropertyKeysAndValues)
 
-getPrekeyUnqualifiedH :: UserId -> UserId -> ClientId -> Handler Public.ClientPrekey
-getPrekeyUnqualifiedH _zUser user client = do
+getPrekeyUnqualifiedH :: UserId -> ClientId -> Handler Public.ClientPrekey
+getPrekeyUnqualifiedH user client = do
   domain <- viewFederationDomain
   ifNothing (notFound "prekey not found") =<< lift (API.claimPrekey user domain client)
 
-getPrekeyH :: UserId -> Domain -> UserId -> ClientId -> Handler Public.ClientPrekey
-getPrekeyH _zUser domain user client = do
+getPrekeyH :: Domain -> UserId -> ClientId -> Handler Public.ClientPrekey
+getPrekeyH domain user client = do
   ifNothing (notFound "prekey not found") =<< lift (API.claimPrekey user domain client)
 
-getPrekeyBundleUnqualifiedH :: UserId -> UserId -> Handler Public.PrekeyBundle
-getPrekeyBundleUnqualifiedH _zUser uid = do
+getPrekeyBundleUnqualifiedH :: UserId -> Handler Public.PrekeyBundle
+getPrekeyBundleUnqualifiedH uid = do
   domain <- viewFederationDomain
   API.claimPrekeyBundle domain uid !>> clientError
 
-getPrekeyBundleH :: UserId -> Domain -> UserId -> Handler Public.PrekeyBundle
-getPrekeyBundleH _zUser domain uid =
+getPrekeyBundleH :: Domain -> UserId -> Handler Public.PrekeyBundle
+getPrekeyBundleH domain uid =
   API.claimPrekeyBundle domain uid !>> clientError
 
-getMultiUserPrekeyBundleUnqualifiedH :: UserId -> Public.UserClients -> Handler (Public.UserClientMap (Maybe Public.Prekey))
-getMultiUserPrekeyBundleUnqualifiedH _zUserId userClients = do
+getMultiUserPrekeyBundleUnqualifiedH :: Public.UserClients -> Handler (Public.UserClientMap (Maybe Public.Prekey))
+getMultiUserPrekeyBundleUnqualifiedH userClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients userClients) > maxSize) $
     throwStd tooManyClients
   API.claimMultiPrekeyBundlesLocal userClients !>> clientError
 
-getMultiUserPrekeyBundleH :: UserId -> Public.QualifiedUserClients -> Handler (Public.QualifiedUserClientMap (Maybe Public.Prekey))
-getMultiUserPrekeyBundleH _zUserId qualUserClients = do
+getMultiUserPrekeyBundleH :: Public.QualifiedUserClients -> Handler (Public.QualifiedUserClientMap (Maybe Public.Prekey))
+getMultiUserPrekeyBundleH qualUserClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   let Sum (size :: Int) =
         Map.foldMapWithKey
