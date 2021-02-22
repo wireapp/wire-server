@@ -21,6 +21,8 @@ module Main
 where
 
 import Imports
+import qualified Test.Federator.ExternalServer
+import qualified Test.Federator.InternalServer
 import qualified Test.Federator.Options
 import Test.Tasty
 
@@ -29,5 +31,7 @@ main =
   defaultMain $
     testGroup
       "Tests"
-      [ Test.Federator.Options.tests
+      [ Test.Federator.Options.tests,
+        Test.Federator.InternalServer.tests,
+        Test.Federator.ExternalServer.tests
       ]

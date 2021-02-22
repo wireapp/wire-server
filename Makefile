@@ -261,12 +261,17 @@ kube-integration-teardown:
 	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-teardown.sh
 
 .PHONY: kube-integration-setup-federation
-kube-integration-setup-federation: guard-tag charts-integration
+kube-integration-setup-federation: charts-integration
 	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-setup-federation.sh
 
 .PHONY: kube-integration-federation
 kube-integration-federation:
 	cd services/brig && ./federation-tests.sh $(NAMESPACE)
+
+.PHONY: kube-restart-%
+kube-restart-%:
+	kubectl delete pod -n $(NAMESPACE) -l wireService=$(*)
+	kubectl delete pod -n $(NAMESPACE)-fed2 -l wireService=$(*)
 
 .PHONY: latest-brig-tag
 latest-brig-tag:

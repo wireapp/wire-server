@@ -94,6 +94,8 @@ library:
   - scientific >=0.3.4
   - scrypt >=0.5
   - smtp-mail >=0.1
+  - mu-grpc-client
+  - mu-rpc
   - split >=0.2
   - safe-exceptions >=0.1
   - saml2-web-sso
@@ -138,6 +140,7 @@ library:
   - wai-utilities >=0.16
   - warp >=3.0.12.1
   - wire-api
+  - wire-api-federation
   - yaml >=0.8.22
   - zauth >=0.10.3
 tests:

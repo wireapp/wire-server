@@ -14,7 +14,7 @@ spec:
       port: {{ .Values.service.internalFederatorPort }}
       targetPort: {{ .Values.service.internalFederatorPort }}
 
-    - name: external
+    - name: wire-server-federator
       port: {{ .Values.service.externalFederatorPort }}
       targetPort: {{ .Values.service.externalFederatorPort }}
   selector:

@@ -23,7 +23,7 @@ import qualified Wire.API.Federation.API.Conversation as Conversation (Api)
 
 type PlainApi = ToServant Api AsApi
 
--- FUTUREWORK: Add Swagger docs
+-- FUTUREWORK(federation): Add Swagger docs
 data Api routes = Api
   { conversation :: routes :- ToServant Conversation.Api AsApi
   }

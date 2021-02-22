@@ -1,5 +1,5 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -18,19 +18,19 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Federator.Types where
+module Wire.API.Federation.GRPC.Helper where
 
-import Bilge (RequestId)
-import Control.Lens (makeLenses)
-import Data.Metrics (Metrics)
-import Federator.Options (RunSettings)
-import qualified System.Logger.Class as LC
+import Imports
+import Language.Haskell.TH.Syntax (Dec, Q, addDependentFile)
 
-data Env = Env
-  { _metrics :: Metrics,
-    _applog :: LC.Logger,
-    _requestId :: RequestId,
-    _runSettings :: RunSettings
-  }
+routerProtoFile :: FilePath
+#if __GHCIDE__
+routerProtoFile = "libs/wire-api-federation/proto/router.proto"
+#else
+routerProtoFile = "proto/router.proto"
+#endif
 
-makeLenses ''Env
+recompileRouterUponProtoChanges :: Q [Dec]
+recompileRouterUponProtoChanges = do
+  addDependentFile routerProtoFile
+  pure []

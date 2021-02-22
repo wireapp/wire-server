@@ -84,3 +84,34 @@ values](https://github.com/wireapp/wire-server/blob/custom-search-visibility-lim
 ### Email Visibility
 
 [Allowd values](https://github.com/wireapp/wire-server/blob/0126651a25aabc0c5589edc2b1988bb06550a03a/services/brig/src/Brig/Options.hs#L304-L306) and their [description](https://github.com/wireapp/wire-server/blob/0126651a25aabc0c5589edc2b1988bb06550a03a/services/brig/src/Brig/Options.hs#L290-L299).
+
+
+### Federation Domain
+
+Regardless of whether a backend wants to enable federation or not, the operator
+must decide what its domain is going to be. This helps in keeping things
+simpler across all components of Wire and also enables to turn on federation in
+future if required.
+
+For production uses, it is highly recommended that this domain be configured as
+something that is controlled by the operator(s). The backend or frontend do not
+need to be available on this domain. As per our current federation design, you
+must be able to set an SRV record for `_wire-server-federator._tcp.<domain>`.
+This record should have entries which lead to the federator.
+
+**IMPORTANT** Once this option is set, it cannot be changed without breaking
+experience for all the users which are already using the backend.
+
+This configuration needs to be made in brig and galley.
+
+```
+# galley.yaml
+settings:
+  federationDomain: example.com
+```
+
+```
+# brig.yaml
+optSettings:
+  setFederationDomain: example.com
+```
