@@ -166,7 +166,6 @@ models =
     User.Client.modelSigkeys,
     User.Client.modelLocation, -- re-export from types-common
     User.Client.modelPubClient,
-    User.Client.Prekey.modelPrekeyBundle,
     User.Client.Prekey.modelClientPrekey,
     User.Client.Prekey.modelPrekey,
     User.Handle.modelUserHandleInfo,

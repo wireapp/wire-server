@@ -31,7 +31,6 @@ module Wire.API.User.Client.Prekey
     ClientPrekey (..),
 
     -- * Swagger
-    modelPrekeyBundle,
     modelClientPrekey,
     modelPrekey,
   )
@@ -128,15 +127,6 @@ data PrekeyBundle = PrekeyBundle
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform PrekeyBundle)
   deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "prekey", LowerCase)] PrekeyBundle)
-
--- TODO: remove
-modelPrekeyBundle :: Doc.Model
-modelPrekeyBundle = Doc.defineModel "PrekeyBundle" $ do
-  Doc.description "Prekeys of all clients of a single user"
-  Doc.property "user" Doc.bytes' $
-    Doc.description "User ID"
-  Doc.property "clients" (Doc.array (Doc.ref modelClientPrekey)) $
-    Doc.description "Prekeys of all clients"
 
 instance ToJSON PrekeyBundle where
   toJSON k =
