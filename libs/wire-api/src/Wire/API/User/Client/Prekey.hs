@@ -50,16 +50,7 @@ import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 newtype PrekeyId = PrekeyId {keyId :: Word16}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (ToJSON, FromJSON, Arbitrary)
-
-instance ToSchema PrekeyId where
-  declareNamedSchema _ = tweak $ declareNamedSchema (Proxy @Int)
-    where
-      tweak = fmap $ schema . description ?~ descr
-        where
-          descr = "in the range [0..65535]."
-
--- FUTUREWORK: can this be also expressed in swagger, not just in the description?
+  deriving newtype (ToJSON, FromJSON, Arbitrary, ToSchema)
 
 --------------------------------------------------------------------------------
 -- Prekey
