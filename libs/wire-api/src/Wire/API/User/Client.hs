@@ -174,7 +174,7 @@ newtype UserClients = UserClients
   deriving stock (Eq, Show, Generic)
   deriving newtype (Semigroup, Monoid, ToSchema)
 
--- TODO: remove
+-- FUTUREWORK: Remove when 'NewOtrMessage' has ToSchema
 modelUserClients :: Doc.Model
 modelUserClients =
   Doc.defineModel "UserClients" $
