@@ -63,7 +63,7 @@ data Prekey = Prekey
   deriving (Arbitrary) via (GenericUniform Prekey)
   deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "prekey", LowerCase)] Prekey)
 
--- TODO: remove
+-- FUTUREWORK: Remove when 'NewClient' has ToSchema
 modelPrekey :: Doc.Model
 modelPrekey = Doc.defineModel "Prekey" $ do
   Doc.description "Prekey"
