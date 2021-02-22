@@ -261,12 +261,6 @@ nginx_conf:
     - path: ~* ^/teams/([^/]*)/search$
       envs:
       - all
-    - path: ~* ^/users/([^/]+)/([^/]+)/prekeys/([^/]+)$
-      envs:
-      - all
-    - path: ~* ^/users/([^/]+)/([^/]+)/prekeys$
-      envs:
-      - all
     - path: /list-prekeys
       envs:
       - all
