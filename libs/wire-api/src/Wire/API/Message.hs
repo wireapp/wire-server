@@ -182,10 +182,10 @@ data OtrFilterMissing
     OtrReportAllMissing
   | -- | Complain only about missing
     --      recipients who are /not/ on this list
-    OtrIgnoreMissing (Set OpaqueUserId)
+    OtrIgnoreMissing (Set UserId)
   | -- | Complain only about missing
     --      recipients who /are/ on this list
-    OtrReportMissing (Set OpaqueUserId)
+    OtrReportMissing (Set UserId)
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform OtrFilterMissing)
 

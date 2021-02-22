@@ -1790,7 +1790,7 @@ postCryptoBroadcastMessageJsonFilteredTooLargeTeam = do
             const 400 === statusCode
             const "too-many-users-to-broadcast" === Error.label . responseJsonUnsafeWithMsg "error label"
           -- We target the message to the 4 users, that should be fine
-          let inbody = Just $ fmap makeIdOpaque [alice, bob, charlie, dan]
+          let inbody = Just [alice, bob, charlie, dan]
           Util.postOtrBroadcastMessage' g inbody id alice ac msg !!! do
             const 201 === statusCode
             assertTrue_ (eqMismatch [] [] [] . responseJsonUnsafe)
@@ -1814,7 +1814,7 @@ postCryptoBroadcastMessageJsonReportMissingBody = do
   assertQueue "add bob" $ tUpdate 2 [alice]
   refreshIndex
   ac <- Util.randomClient alice (someLastPrekeys !! 0)
-  let inbody = Just [makeIdOpaque bob] -- body triggers report
+  let inbody = Just [bob] -- body triggers report
       inquery = (queryItem "report_missing" (toByteString' alice)) -- query doesn't
       msg = [(alice, ac, "ciphertext0")]
   Util.postOtrBroadcastMessage' g inbody inquery alice ac msg
@@ -1902,7 +1902,7 @@ postCryptoBroadcastMessageProto = do
     void . liftIO $ WS.assertMatch t wsD (wsAssertOtr' (encodeCiphertext "data") (selfConv dan) alice ac dc ciphertext)
     -- Alice should not get her own broadcast
     WS.assertNoEvent timeout ws
-  let inbody = Just [makeIdOpaque bob] -- body triggers report
+  let inbody = Just [bob] -- body triggers report
       inquery = (queryItem "report_missing" (toByteString' alice)) -- query doesn't
       msg = otrRecipients [(alice, [(ac, ciphertext)])]
   Util.postProtoOtrBroadcast' inbody inquery alice ac msg

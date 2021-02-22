@@ -30,7 +30,7 @@ module Galley.API.Swagger
   )
 where
 
-import Brig.Types.Client.Prekey (LastPrekey, Prekey, PrekeyId)
+import Brig.Types.Client.Prekey (LastPrekey)
 import Brig.Types.Provider
 import Brig.Types.Team.LegalHold
 import Control.Lens
