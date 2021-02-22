@@ -92,7 +92,7 @@ newtype UserClientMap a = UserClientMap
   deriving stock (Eq, Show, Functor, Foldable, Traversable)
   deriving newtype (Semigroup, Monoid)
 
--- TODO: remove
+-- FUTUREWORK: Remove when 'NewOtrMessage' has ToSchema
 modelOtrClientMap :: Doc.Model
 modelOtrClientMap = Doc.defineModel "OtrClientMap" $ do
   Doc.description "Map of client IDs to OTR content."

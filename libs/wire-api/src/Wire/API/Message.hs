@@ -157,16 +157,17 @@ instance FromJSON Priority where
 --------------------------------------------------------------------------------
 -- Recipients
 
+-- FUTUREWORK: Add ToSchema when 'NewOtrMessage' has ToSchema
 newtype OtrRecipients = OtrRecipients
   { otrRecipientsMap :: UserClientMap Text
   }
   deriving stock (Eq, Show)
   deriving newtype (ToJSON, FromJSON, Semigroup, Monoid, Arbitrary)
 
+-- FUTUREWORK: Remove when 'NewOtrMessage' has ToSchema
 modelOtrRecipients :: Doc.Model
 modelOtrRecipients = Doc.defineModel "OtrRecipients" $ do
   Doc.description "Recipients of OTR content."
-  -- FUTUREWORK: is this right?
   Doc.property "" (Doc.ref modelOtrClientMap) $
     Doc.description "Mapping of user IDs to 'OtrClientMap's."
 
