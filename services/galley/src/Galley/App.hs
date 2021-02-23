@@ -163,7 +163,7 @@ validateOptions l o = do
     error "setMaxTeamSize cannot be < setTruncationLimit"
 
 instance MonadUnliftIO Galley where
-  withRunInIO =
+  withRunInIO inner =
     Galley . ReaderT $ \r ->
       withRunInIO $ \run ->
         inner (run . flip runReaderT r . unGalley)
