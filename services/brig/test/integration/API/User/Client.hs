@@ -208,17 +208,23 @@ testListPrekeyIds brig = do
       const 200 === statusCode
       const (Just pks) === fmap sort . responseJsonMaybe
 
+generateClients :: Int -> Brig -> Http [(UserId, Client, ClientPrekey, ClientPrekey)]
+generateClients n brig = do
+  for [1 .. n] $ \i -> do
+    uid <- userId <$> randomUser brig
+    let new = defNewClient TemporaryClientType [somePrekeys !! i] (someLastPrekeys !! i)
+    c <- responseJsonError =<< addClient brig uid new
+    let cpk = ClientPrekey (clientId c) (somePrekeys !! i)
+    let lpk = ClientPrekey (clientId c) (unpackLastPrekey (someLastPrekeys !! i))
+    pure (uid, c, lpk, cpk)
+
 testGetUserPrekeys :: Brig -> Http ()
 testGetUserPrekeys brig = do
-  uid <- userId <$> randomUser brig
-  let new = defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
-  c <- responseJsonError =<< addClient brig uid new
-  let cpk = ClientPrekey (clientId c) (somePrekeys !! 0)
+  [(uid, _c, lpk, cpk)] <- generateClients 1 brig
   get (brig . paths ["users", toByteString' uid, "prekeys"]) !!! do
     const 200 === statusCode
     const (Just $ PrekeyBundle uid [cpk]) === responseJsonMaybe
   -- prekeys are deleted when retrieved, except the last one
-  let lpk = ClientPrekey (clientId c) (unpackLastPrekey (someLastPrekeys !! 0))
   replicateM_ 2 $
     get (brig . paths ["users", toByteString' uid, "prekeys"]) !!! do
       const 200 === statusCode
@@ -227,32 +233,25 @@ testGetUserPrekeys brig = do
 testQualifiedGetUserPrekeys :: Brig -> Opt.Opts -> Http ()
 testQualifiedGetUserPrekeys brig opts = do
   let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
-  uid <- userId <$> randomUser brig
-  let new = defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
-  c <- responseJsonError =<< addClient brig uid new
-  let cpk = ClientPrekey (clientId c) (somePrekeys !! 0)
+  [(uid, _c, _lpk, cpk)] <- generateClients 1 brig
   get (brig . paths ["users", toByteString' domain, toByteString' uid, "prekeys"]) !!! do
     const 200 === statusCode
     const (Just $ PrekeyBundle uid [cpk]) === responseJsonMaybe
 
 testGetClientPrekey :: Brig -> Http ()
 testGetClientPrekey brig = do
-  uid <- userId <$> randomUser brig
-  let new = defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
-  c <- responseJsonError =<< addClient brig uid new
+  [(uid, c, _lpk, cpk)] <- generateClients 1 brig
   get (brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)]) !!! do
     const 200 === statusCode
-    const (Just $ ClientPrekey (clientId c) (somePrekeys !! 0)) === responseJsonMaybe
+    const (Just $ cpk) === responseJsonMaybe
 
 testQualifiedGetClientPrekey :: Brig -> Opt.Opts -> Http ()
 testQualifiedGetClientPrekey brig opts = do
   let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
-  uid <- userId <$> randomUser brig
-  let new = defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
-  c <- responseJsonError =<< addClient brig uid new
+  [(uid, c, _lpk, cpk)] <- generateClients 1 brig
   get (brig . paths ["users", toByteString' domain, toByteString' uid, "prekeys", toByteString' (clientId c)]) !!! do
     const 200 === statusCode
-    const (Just $ ClientPrekey (clientId c) (somePrekeys !! 0)) === responseJsonMaybe
+    const (Just $ cpk) === responseJsonMaybe
 
 testTooManyClients :: Opt.Opts -> Brig -> Http ()
 testTooManyClients opts brig = do
