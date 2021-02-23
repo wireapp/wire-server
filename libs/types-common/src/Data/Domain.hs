@@ -26,8 +26,10 @@ import Data.Attoparsec.ByteString ((<?>))
 import qualified Data.Attoparsec.ByteString.Char8 as Atto
 import Data.Bifunctor (Bifunctor (first))
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Char8 as BS.Char8
 import Data.ByteString.Conversion
+import Data.String.Conversions (cs)
 import Data.Swagger (ToSchema (..))
 import Data.Swagger.Internal.ParamSchema (ToParamSchema (..))
 import qualified Data.Text as Text
@@ -70,6 +72,9 @@ mkDomain = Atto.parseOnly (domainParser <* Atto.endOfInput) . Text.E.encodeUtf8
 
 instance FromByteString Domain where
   parser = domainParser
+
+instance ToByteString Domain where
+  builder = Builder.lazyByteString . cs @Text @LByteString . _domainText
 
 instance FromHttpApiData Domain where
   parseUrlPiece = first Text.pack . mkDomain

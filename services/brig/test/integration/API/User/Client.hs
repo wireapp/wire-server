@@ -58,6 +58,7 @@ tests _cl _at opts p b c g =
       test p "post /clients 400 - can't add legalhold clients manually" $
         testCan'tAddLegalHoldClient b,
       test p "get /users/:uid/prekeys - 200" $ testGetUserPrekeys b,
+      test p "get /users/<localdomain>/:uid/prekeys - 200" $ testQualifiedGetUserPrekeys b opts,
       test p "get /users/:uid/prekeys/:client - 200" $ testGetClientPrekey b,
       test p "post /users/list-clients - 200" $ testListClientsBulk opts b,
       test p "post /clients - 201 (pwd)" $ testAddGetClient True b c,
@@ -221,6 +222,17 @@ testGetUserPrekeys brig = do
     get (brig . paths ["users", toByteString' uid, "prekeys"]) !!! do
       const 200 === statusCode
       const (Just $ PrekeyBundle uid [lpk]) === responseJsonMaybe
+
+testQualifiedGetUserPrekeys :: Brig -> Opt.Opts -> Http ()
+testQualifiedGetUserPrekeys brig opts = do
+  let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+  uid <- userId <$> randomUser brig
+  let new = defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
+  c <- responseJsonError =<< addClient brig uid new
+  let cpk = ClientPrekey (clientId c) (somePrekeys !! 0)
+  get (brig . paths ["users", toByteString' domain, toByteString' uid, "prekeys"]) !!! do
+    const 200 === statusCode
+    const (Just $ PrekeyBundle uid [cpk]) === responseJsonMaybe
 
 testGetClientPrekey :: Brig -> Http ()
 testGetClientPrekey brig = do
