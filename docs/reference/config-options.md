@@ -91,7 +91,7 @@ values](https://github.com/wireapp/wire-server/blob/custom-search-visibility-lim
 Regardless of whether a backend wants to enable federation or not, the operator
 must decide what its domain is going to be. This helps in keeping things
 simpler across all components of Wire and also enables to turn on federation in
-future if required.
+the future if required.
 
 For production uses, it is highly recommended that this domain be configured as
 something that is controlled by the operator(s). The backend or frontend do not
@@ -102,16 +102,56 @@ This record should have entries which lead to the federator.
 **IMPORTANT** Once this option is set, it cannot be changed without breaking
 experience for all the users which are already using the backend.
 
-This configuration needs to be made in brig and galley.
+This configuration needs to be made in brig and in galley. (note the slighly different spelling of the config options)
 
-```
+```yaml
 # galley.yaml
 settings:
   federationDomain: example.com
 ```
 
-```
+```yaml
 # brig.yaml
 optSettings:
   setFederationDomain: example.com
+```
+
+### Federation allow list
+
+As of 2021-02, federation (whatever is implemented by the time you read this) is turned off by default by means of having an empty allow list:
+
+```yaml
+# federator.yaml
+optSettings:
+  setFederationStrategy:
+    allowedDomains: []
+```
+
+You can choose to federate with a specific list of allowed servers:
+
+
+```yaml
+# federator.yaml
+optSettings:
+  setFederationStrategy:
+    allowedDomains:
+      - server1.example.com
+      - server2.example.com
+```
+
+or, you can federate with everyone:
+
+```yaml
+# federator.yaml
+optSettings:
+  setFederationStrategy:
+    # note the 'empty' value after 'allowAll'
+    allowAll:
+
+# when configuring helm charts, this becomes (note 'true' after 'allowAll')
+# inside helm_vars/wire-server:
+federator:
+  optSettings:
+    setFederationStrategy:
+      allowAll: true
 ```
