@@ -179,7 +179,7 @@ extra-deps:
 
 - HsOpenSSL-x509-system-0.1.0.3@sha256:f4958ee0eec555c5c213662eff6764bddefe5665e2afcfd32733ce3801a9b687,1774 # Latest: lts-14.27
 
-- git: https://gitlab.com/wireapp/cql
+- git: https://gitlab.com/wireapp/cql.git
   commit: 6f870c7892b9d96707133bdbfa949ce6a4ceae3f  # https://github.com/wireapp/hsaml2/pull/9 (Feb 18, 2021)
 
 # - cql-4.0.2@sha256:a0006a5ac13d6f86d5eff28c11be80928246309f217ea6d5f5c8a76a5d16b48b,3157 # Latest: lts-14.27
