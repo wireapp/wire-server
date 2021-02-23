@@ -18,17 +18,6 @@ packages:
     git: https://github.com/fimad/prometheus-haskell
     commit: 2e3282e5fb27ba8d989c271a0a989823fad7ec43
 - completed:
-    name: saml2-web-sso
-    version: '0.18'
-    git: https://github.com/wireapp/saml2-web-sso
-    pantry-tree:
-      size: 4815
-      sha256: 04b922847a5e37d578bb9b43c4ea0694e0b731c710362957b12ac19f49b95264
-    commit: ac88b934bb4a91d4d4bb90c620277188e4087043
-  original:
-    git: https://github.com/wireapp/saml2-web-sso
-    commit: ac88b934bb4a91d4d4bb90c620277188e4087043
-- completed:
     name: collectd
     version: 0.0.0.2
     git: https://github.com/kim/hs-collectd
@@ -552,13 +541,6 @@ packages:
   original:
     hackage: HsOpenSSL-x509-system-0.1.0.3@sha256:f4958ee0eec555c5c213662eff6764bddefe5665e2afcfd32733ce3801a9b687,1774
 - completed:
-    hackage: cql-4.0.2@sha256:a0006a5ac13d6f86d5eff28c11be80928246309f217ea6d5f5c8a76a5d16b48b,3157
-    pantry-tree:
-      size: 1281
-      sha256: 8cc6e57c6a794188ae79415cee38bd29e1c07f7426cfa533c9a57523c0a2ed23
-  original:
-    hackage: cql-4.0.2@sha256:a0006a5ac13d6f86d5eff28c11be80928246309f217ea6d5f5c8a76a5d16b48b,3157
-- completed:
     hackage: cql-io-1.1.1@sha256:897ef0811b227c8b1a269b29b9c1ebfb09c46f00d66834e2e8c6f19ea7f90f7d,4611
     pantry-tree:
       size: 2067
@@ -611,6 +593,13 @@ packages:
   original:
     git: https://github.com/dpwright/HaskellNet-SSL
     commit: ca84ef29a93eaef7673fa58056cdd8dae1568d2d
+- completed:
+    hackage: polysemy-1.4.0.0@sha256:0245a046eaf936557d4208b5a355df1a20799c9e274f91fa889ab2644ecbabae,6541
+    pantry-tree:
+      size: 4379
+      sha256: babfd86f145bc6017f7b8c20e46266ab3a3bb5d5d415d8cf651036b11e57465a
+  original:
+    hackage: polysemy-1.4.0.0@sha256:0245a046eaf936557d4208b5a355df1a20799c9e274f91fa889ab2644ecbabae,6541
 - completed:
     hackage: mu-rpc-0.4.0.1@sha256:24f2516926a669f860b59d17ed8af6d0704361b5abed30f4e7eb80fb685ae8bc,1383
     pantry-tree:
@@ -753,7 +742,7 @@ packages:
     hackage: implicit-hie-0.1.2.5
 snapshots:
 - completed:
-    size: 532382
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/16/14.yaml
-    sha256: 1ef27e36f38824abafc43224ca612211b3828fa9ffd31ba0fc2867ae2e19ba90
-  original: lts-16.14
+    size: 563098
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/17/1.yaml
+    sha256: 395775c03e66a4286f134d50346b0b6f1432131cf542886252984b4cfa5fef69
+  original: lts-17.1

@@ -16,6 +16,9 @@ WORKDIR /wire-server/
 
 COPY . /wire-server/
 
+# Fix for missing GHC bindist for key 'linux64-ncurses6'
+RUN ln -s /usr/lib/libncursesw.so.6 /usr/lib/libtinfo.so.6
+
 RUN make clean fast
 
 #--- Minified stage ---
