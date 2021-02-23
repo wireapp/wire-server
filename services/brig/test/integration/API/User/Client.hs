@@ -60,6 +60,7 @@ tests _cl _at opts p b c g =
       test p "get /users/:uid/prekeys - 200" $ testGetUserPrekeys b,
       test p "get /users/<localdomain>/:uid/prekeys - 200" $ testQualifiedGetUserPrekeys b opts,
       test p "get /users/:uid/prekeys/:client - 200" $ testGetClientPrekey b,
+      test p "get /users/<localdomain>/:uid/prekeys/:client - 200" $ testQualifiedGetClientPrekey b opts,
       test p "post /users/list-clients - 200" $ testListClientsBulk opts b,
       test p "post /clients - 201 (pwd)" $ testAddGetClient True b c,
       test p "post /clients - 201 (no pwd)" $ testAddGetClient False b c,
@@ -240,6 +241,16 @@ testGetClientPrekey brig = do
   let new = defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
   c <- responseJsonError =<< addClient brig uid new
   get (brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)]) !!! do
+    const 200 === statusCode
+    const (Just $ ClientPrekey (clientId c) (somePrekeys !! 0)) === responseJsonMaybe
+
+testQualifiedGetClientPrekey :: Brig -> Opt.Opts -> Http ()
+testQualifiedGetClientPrekey brig opts = do
+  let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+  uid <- userId <$> randomUser brig
+  let new = defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
+  c <- responseJsonError =<< addClient brig uid new
+  get (brig . paths ["users", toByteString' domain, toByteString' uid, "prekeys", toByteString' (clientId c)]) !!! do
     const 200 === statusCode
     const (Just $ ClientPrekey (clientId c) (somePrekeys !! 0)) === responseJsonMaybe
 
