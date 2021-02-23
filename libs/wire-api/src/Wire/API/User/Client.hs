@@ -125,10 +125,10 @@ instance FromJSON a => FromJSON (UserClientMap a) where
 instance Arbitrary a => Arbitrary (UserClientMap a) where
   arbitrary = UserClientMap <$> mapOf' arbitrary (mapOf' arbitrary arbitrary)
 
-instance forall a. (Typeable a, ToSchema a, Arbitrary a, ToJSON a) => ToSchema (UserClientMap a) where
+instance ToSchema (UserClientMap (Maybe Prekey)) where
   declareNamedSchema _ = do
-    mapSch <- declareSchema (Proxy @(Map UserId (Map ClientId a)))
-    let valueTypeName = Text.pack $ show $ typeRep $ Proxy @a
+    mapSch <- declareSchema (Proxy @(Map UserId (Map ClientId (Maybe Prekey))))
+    let valueTypeName = Text.pack $ show $ typeRep $ Proxy @(Maybe Prekey)
     return $
       NamedSchema (Just $ "UserClientMap (" <> valueTypeName <> ")") $
         mapSch
@@ -138,7 +138,7 @@ instance forall a. (Typeable a, ToSchema a, Arbitrary a, ToJSON a) => ToSchema (
                   (generateExample @UserId)
                   ( Map.singleton
                       (newClientId 4940483633899001999)
-                      (generateExample @a)
+                      (Just (Prekey (PrekeyId 1) "pQABAQECoQBYIOjl7hw0D8YRNq..."))
                   )
               )
 
@@ -172,7 +172,22 @@ newtype UserClients = UserClients
   { userClients :: Map UserId (Set ClientId)
   }
   deriving stock (Eq, Show, Generic)
-  deriving newtype (Semigroup, Monoid, ToSchema)
+  deriving newtype (Semigroup, Monoid)
+
+instance ToSchema UserClients where
+  declareNamedSchema _ = do
+    mapSch <- declareSchema (Proxy @(Map UserId (Set ClientId)))
+    return $
+      NamedSchema (Just "UserClients") $
+        mapSch
+          & Swagger.description ?~ "Map of user id to list of client ids."
+          & example
+            ?~ toJSON
+              ( Map.fromList
+                  [ (generateExample @UserId, [newClientId 1684636986166846496, newClientId 4940483633899001999]),
+                    (generateExample @UserId, [newClientId 6987438498444556166, newClientId 7940473633839002939])
+                  ]
+              )
 
 -- FUTUREWORK: Remove when 'NewOtrMessage' has ToSchema
 modelUserClients :: Doc.Model
