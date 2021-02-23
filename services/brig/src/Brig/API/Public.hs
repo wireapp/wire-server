@@ -315,8 +315,6 @@ type GetUsersPrekeysClientUnqualified =
     :> CaptureClientId "client"
     :> Get '[Servant.JSON] Public.ClientPrekey
 
--- TODO: Should domain and user be included in response?
---       Argument for "no": then unqualified endpoint also didn't include user
 type GetUsersPrekeysClientQualified =
   Summary "Get a prekey for a specific client of a user."
     :> "users"
@@ -333,7 +331,6 @@ type GetUsersPrekeyBundleUnqualified =
     :> "prekeys"
     :> Get '[Servant.JSON] Public.PrekeyBundle
 
--- TODO: Should domain and user be included in response?
 type GetUsersPrekeyBundleQualified =
   Summary "Get a prekey for each client of a user."
     :> "users"
