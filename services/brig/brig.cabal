@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 83620e2ed26c5349fbca70be3e5e3978d85924a7bfbcdb9db63eac26cf8693c4
+-- hash: ed5a26f3be12829ad529ee559312e31bc37ccd967c6af5733efe14e4916e215c
 
 name:           brig
 version:        1.35.0
@@ -23,6 +23,7 @@ library
       Brig.API.Client
       Brig.API.Connection
       Brig.API.Error
+      Brig.API.Federation
       Brig.API.Handler
       Brig.API.IdMapping
       Brig.API.Internal
@@ -53,10 +54,12 @@ library
       Brig.Data.UserKey
       Brig.Data.UserPendingActivation
       Brig.Email
+      Brig.Federation.Client
       Brig.Index.Eval
       Brig.Index.Migrations
       Brig.Index.Migrations.Types
       Brig.Index.Options
+      Brig.Index.Types
       Brig.InternalEvent.Process
       Brig.InternalEvent.Types
       Brig.IO.Intra
@@ -163,6 +166,7 @@ library
     , http-client-openssl >=0.2
     , http-types >=0.8
     , imports
+    , insert-ordered-containers
     , iproute >=1.5
     , iso639 >=0.1
     , lens >=3.8
@@ -174,6 +178,8 @@ library
     , mime-mail >=0.4
     , monad-control >=1.0
     , mtl >=2.1
+    , mu-grpc-client
+    , mu-rpc
     , multihash >=0.1.3
     , mwc-random
     , network >=2.4
@@ -236,6 +242,7 @@ library
     , wai-utilities >=0.16
     , warp >=3.0.12.1
     , wire-api
+    , wire-api-federation
     , yaml >=0.8.22
     , zauth >=0.10.3
   default-language: Haskell2010
@@ -274,6 +281,7 @@ executable brig-integration
   main-is: Main.hs
   other-modules:
       API.Calling
+      API.Federation
       API.Metrics
       API.Provider
       API.RichInfo.Util
@@ -345,6 +353,7 @@ executable brig-integration
     , pem
     , proto-lens
     , random >=1.0
+    , random-shuffle
     , raw-strings-qq
     , retry >=0.6
     , safe

@@ -1,6 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -18,20 +15,29 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Federator.Impl
-  ( app,
+module Wire.API.Team.Size
+  ( TeamSize (TeamSize),
+    modelTeamSize,
   )
 where
 
-import Data.Proxy
-import qualified Federator.API as API
-import Federator.Types
-import Network.Wai
-import Servant.API.Generic
-import Servant.Mock
-import Servant.Server
+import Data.Aeson
+import qualified Data.Swagger.Build.Api as Doc
+import Imports
+import Numeric.Natural
 
-app :: Env -> Application
-app _ = serve api (mock api (Proxy @'[]))
-  where
-    api = Proxy @(ToServantApi API.Api)
+newtype TeamSize = TeamSize Natural
+  deriving (Show, Eq)
+
+instance ToJSON TeamSize where
+  toJSON (TeamSize s) = object ["teamSize" .= s]
+
+instance FromJSON TeamSize where
+  parseJSON =
+    withObject "TeamSize" $ \o -> TeamSize <$> o .: "teamSize"
+
+modelTeamSize :: Doc.Model
+modelTeamSize = Doc.defineModel "TeamSize" $ do
+  Doc.description "A simple object with a total number of team members."
+  Doc.property "teamSize" Doc.int32' $ do
+    Doc.description "Team size."

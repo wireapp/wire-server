@@ -87,3 +87,13 @@ hie.yaml
 
 # generated files under .local
 .local
+
+# buildah-based docker image building
+.stack-root-buildah/
+.stack-work-buildah/
+dist-buildah
+
+# federation tests
+i.yaml
+b.yaml
+telepresence.log

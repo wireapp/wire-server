@@ -18,19 +18,27 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Federator.Types where
+module Federator.Env where
 
 import Bilge (RequestId)
+import qualified Bilge as RPC
 import Control.Lens (makeLenses)
 import Data.Metrics (Metrics)
 import Federator.Options (RunSettings)
+import Network.DNS.Resolver (Resolver)
+import qualified Network.HTTP.Client as HTTP
 import qualified System.Logger.Class as LC
+import Util.Options
 
 data Env = Env
   { _metrics :: Metrics,
     _applog :: LC.Logger,
     _requestId :: RequestId,
-    _runSettings :: RunSettings
+    _dnsResolver :: Resolver,
+    _runSettings :: RunSettings,
+    _brig :: RPC.Request,
+    _brigEndpoint :: Endpoint,
+    _httpManager :: HTTP.Manager
   }
 
 makeLenses ''Env

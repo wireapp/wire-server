@@ -234,11 +234,11 @@ packages:
     git: https://github.com/wireapp/hsaml2
     pantry-tree:
       size: 3918
-      sha256: c2f2849bc28cc7fb8a4ec843dbc7606df179915dc54c5cc2aa2e30b974ef3d61
-    commit: 2ff7b0c11a9d510f1ec411f436bc134b216ebd4a
+      sha256: 072d64ee1d974ed2170e4b0dacfeef2cb13ae62fe066211e93c0be0073f959a3
+    commit: b652ec6e69d1647e827cbee0fa290605ac09dc63
   original:
     git: https://github.com/wireapp/hsaml2
-    commit: 2ff7b0c11a9d510f1ec411f436bc134b216ebd4a
+    commit: b652ec6e69d1647e827cbee0fa290605ac09dc63
 - completed:
     subdir: http-client
     name: http-client
@@ -355,6 +355,13 @@ packages:
   original:
     hackage: prometheus-2.2.2
 - completed:
+    hackage: polysemy-plugin-0.2.5.2@sha256:649cea55749c38af841e9f3750ccf65be351e597f3085234e28e3491e78d1f78,3155
+    pantry-tree:
+      size: 1162
+      sha256: 20b462f8095a8108ef4d920f0d494ba1299821403ad30169168f4b1968b06c2a
+  original:
+    hackage: polysemy-plugin-0.2.5.2
+- completed:
     hackage: currency-codes-3.0.0.1@sha256:a4b24669dd91e805b11d9eb267becd0ba6d726927e535e03d5f3f368f44c1cf4,2902
     pantry-tree:
       size: 548
@@ -459,6 +466,13 @@ packages:
       sha256: db61f70aa7387090c26ccca0545ffdeea0adfcf93b76d5eaf6a954c0e5a34064
   original:
     hackage: redis-io-1.1.0
+- completed:
+    hackage: polysemy-mocks-0.1.0.0@sha256:f2d7068e5cd74cfd1e34f23d15c2610f0a1608e0f0a02539f8d432a9971ad094,1426
+    pantry-tree:
+      size: 694
+      sha256: 094dd07046b545e3bb81508d5faefc545719f2560415f66b8e1703902348fa23
+  original:
+    hackage: polysemy-mocks-0.1.0.0
 - completed:
     hackage: wai-route-0.4.0@sha256:ee52f13d2945e4a56147e91e515e184f840654f2e3d9071c73bec3d8aa1f4444,2119
     pantry-tree:
@@ -587,12 +601,124 @@ packages:
   original:
     hackage: polysemy-1.4.0.0@sha256:0245a046eaf936557d4208b5a355df1a20799c9e274f91fa889ab2644ecbabae,6541
 - completed:
-    hackage: ormolu-0.1.2.0@sha256:c94a62e515cd03f6610a88de5fe37927756ad793885243a2736289930419e71e,6237
+    hackage: mu-rpc-0.4.0.1@sha256:24f2516926a669f860b59d17ed8af6d0704361b5abed30f4e7eb80fb685ae8bc,1383
     pantry-tree:
-      size: 71915
-      sha256: 7a0cad8ba46f118c4c46e65280e363c73190e7f4e4a01534b33e62fd475847ea
+      size: 445
+      sha256: 235597681d97b0789bc7437c752658f2585248d889a289c09532e3e535640cfa
   original:
-    hackage: ormolu-0.1.2.0
+    hackage: mu-rpc-0.4.0.1
+- completed:
+    hackage: mu-optics-0.3.0.1@sha256:c3494c71c6300e6a0dcb77c9782481150956e912c1b47fccd69cbb795e461d52,1068
+    pantry-tree:
+      size: 172
+      sha256: 6f8275b8db1dce6136ebd2eb831495af39774d9560d8d07e60d5da09a5f3ed99
+  original:
+    hackage: mu-optics-0.3.0.1
+- completed:
+    hackage: mu-avro-0.4.0.4@sha256:10e317c633c5152a26e89becba749456b76f70eb640d1c0b2ccdc0e45a7ef5da,2096
+    pantry-tree:
+      size: 541
+      sha256: 26fd2a714615b6c2c0459178fb5f350848ce64be5c33076c4ddaff9c74adb278
+  original:
+    hackage: mu-avro-0.4.0.4
+- completed:
+    hackage: mu-protobuf-0.4.2.0@sha256:4787a2688abdda107e150736433b61448acdf0b71eb0c174232239b4c143f78b,2119
+    pantry-tree:
+      size: 640
+      sha256: ad3ec2fa09fea08c1c7c5181db7ed4440c030cc6c9dbc708a9a58155c13ca8fa
+  original:
+    hackage: mu-protobuf-0.4.2.0
+- completed:
+    hackage: mu-schema-0.3.1.2@sha256:c05e58de29d50376638d19dd3357cd3644d39f984664484f3568d5305b3034d9,1933
+    pantry-tree:
+      size: 1061
+      sha256: 07d5d0ab3fc6db8e7492311caacbd92f33a343fd173cb51d2915522b3aea8073
+  original:
+    hackage: mu-schema-0.3.1.2
+- completed:
+    hackage: mu-grpc-server-0.4.0.0@sha256:03963b39f5b0887d261106ec03bfabbd4ccd1489e4c59c6cc216b61a4ffdb52c,2682
+    pantry-tree:
+      size: 334
+      sha256: e0d51b2551de2ecce35707b3dc3fabfe67cbd206522d363bf2316b08c2ccbfda
+  original:
+    hackage: mu-grpc-server-0.4.0.0
+- completed:
+    hackage: mu-grpc-client-0.4.0.1@sha256:b09dcf69f0650e0cfd86d6f67544a6350590574f4757f5ee459c57828c3a41ff,2079
+    pantry-tree:
+      size: 562
+      sha256: 94e32cdfdee230f090684804fee5ef254c6063f985b913c8efaadbe1dfceafef
+  original:
+    hackage: mu-grpc-client-0.4.0.1
+- completed:
+    hackage: mu-grpc-common-0.4.0.0@sha256:568b5879cd67c0bc0e956d53fb87552bb6d9a6287c5d1b09e2284ed5b04de418,1394
+    pantry-tree:
+      size: 281
+      sha256: 7e745ded1cb622178392ae2d5a6d5591af9743b58506de5ed2e17d7d698b0d18
+  original:
+    hackage: mu-grpc-common-0.4.0.0
+- completed:
+    hackage: compendium-client-0.2.1.1@sha256:cd477438d507273b34b82581ade333921ae997c1618b48af0c1da2a4968623e0,1203
+    pantry-tree:
+      size: 181
+      sha256: 18996ce535e40483ca2e29397e606aae551552608f96a6a8cc647ce24e24e937
+  original:
+    hackage: compendium-client-0.2.1.1
+- completed:
+    hackage: http2-client-0.10.0.0@sha256:85b8771e9e8d4fd0b4327373ebb4a7bc7f9a293e5d7a7dc581ca4153a841da67,2604
+    pantry-tree:
+      size: 853
+      sha256: 4731a8ea6bc88cd762a99370f71c4754bcb57806844ee57a45d59e114ab1b5cb
+  original:
+    hackage: http2-client-0.10.0.0
+- completed:
+    hackage: http2-grpc-types-0.5.0.0@sha256:4d34edc06a48496130f19245817a7cd7ea15c78ac8815570c3795ffc4503cf27,1445
+    pantry-tree:
+      size: 405
+      sha256: 3a1a94b87acd230b2f750f0077dc47177f37e46a2984b5764390207a83c4d5e4
+  original:
+    hackage: http2-grpc-types-0.5.0.0
+- completed:
+    hackage: http2-grpc-proto3-wire-0.1.0.0@sha256:4f6c0d27048756155b82ebf7385a20cc8241c7bd854e96d1dd6a1827e75fa410,1504
+    pantry-tree:
+      size: 341
+      sha256: d07d5bb883860e3bf928c00312df133a4c195c99bb397865bd67f433f75387b8
+  original:
+    hackage: http2-grpc-proto3-wire-0.1.0.0
+- completed:
+    hackage: http2-client-grpc-0.8.0.0@sha256:5bea1edf5fa3572155f55c5b38cfab7063cbde613702898986c26d70bc9f3f9e,1861
+    pantry-tree:
+      size: 454
+      sha256: 234f9a5e2c117c615b63b657af6b331df0533e173d09f0c91b279ac90c54d4de
+  original:
+    hackage: http2-client-grpc-0.8.0.0
+- completed:
+    hackage: warp-grpc-0.4.0.1@sha256:3859190e4fa23b944cf93ac691b3cec78c2adf4eaff6a4e8070c89fd17915add,1759
+    pantry-tree:
+      size: 709
+      sha256: f542ef3e7e03b9cd0b2c0e0c436ce4e68ab37f56195740639034cc3cd28a6b9f
+  original:
+    hackage: warp-grpc-0.4.0.1
+- completed:
+    hackage: proto3-wire-1.2.0@sha256:898c88614ef328fe74d6abc153387a30855af7ccfcebf3b419681133e0fb9291,2837
+    pantry-tree:
+      size: 1009
+      sha256: 43009bc2c01725358b40f590bc899f0edbece516090944b6015d40178781759c
+  original:
+    hackage: proto3-wire-1.2.0
+- completed:
+    hackage: parameterized-0.5.0.0@sha256:880717fbb958de1bac015f0a375ab6636f162a72483d987a11e305da6fac6c97,1969
+    pantry-tree:
+      size: 1019
+      sha256: 843aed822e03279edf00a2595dfb22038b306f4f0acd6984bd108024c5102f90
+  original:
+    hackage: parameterized-0.5.0.0
+- completed:
+    hackage: ormolu-0.1.4.1@sha256:ed404eac6e4eb64da1ca5fb749e0f99907431a9633e6ba34e44d260e7d7728ba,6499
+    pantry-tree:
+      size: 74141
+      sha256: 86dffe835089c8029e99046a75e7350fae8b80266a352a7295f13a279a8e5363
+  original:
+    hackage: ormolu-0.1.4.1
 - completed:
     hackage: ghc-lib-parser-8.10.1.20200412@sha256:b0517bb150a02957d7180f131f5b94abd2a7f58a7d1532a012e71618282339c2,8751
     pantry-tree:

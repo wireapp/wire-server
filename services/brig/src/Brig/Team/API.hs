@@ -66,6 +66,7 @@ import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logTeam)
 import qualified Wire.API.Team.Invitation as Public
 import qualified Wire.API.Team.Role as Public
+import qualified Wire.API.Team.Size as Public
 import qualified Wire.API.User as Public
 
 routesPublic :: Routes Doc.ApiBuilder Handler ()
@@ -162,6 +163,22 @@ routesPublic = do
     Doc.response 404 "No pending invitations exists." Doc.end
     Doc.response 409 "Multiple conflicting invitations to different teams exists." Doc.end
 
+  get "/teams/:tid/size" (continue teamSizePublicH) $
+    accept "application" "json"
+      .&. header "Z-User"
+      .&. capture "tid"
+
+  document "GET" "teamSize" $ do
+    Doc.summary
+      "Returns the number of team members as an integer.  \
+      \Can be out of sync by roughly the `refresh_interval` \
+      \of the ES index."
+    Doc.parameter Doc.Path "tid" Doc.bytes' $
+      Doc.description "Team ID"
+    Doc.returns (Doc.ref Public.modelTeamSize)
+    Doc.response 200 "Invitation successful." Doc.end
+    Doc.response 403 "No permission (not admin or owner of this team)." Doc.end
+
 routesInternal :: Routes a Handler ()
 routesInternal = do
   get "/i/teams/invitations/by-email" (continue getInvitationByEmailH) $
@@ -188,6 +205,14 @@ routesInternal = do
   post "/i/teams/:tid/invitations" (continue createInvitationViaScimH) $
     accept "application" "json"
       .&. jsonRequest @NewUserScimInvitation
+
+teamSizePublicH :: JSON ::: UserId ::: TeamId -> Handler Response
+teamSizePublicH (_ ::: uid ::: tid) = json <$> teamSizePublic uid tid
+
+teamSizePublic :: UserId -> TeamId -> Handler TeamSize
+teamSizePublic uid tid = do
+  ensurePermissions uid tid [Team.AddTeamMember] -- limit this to team admins to reduce risk of involuntary DOS attacks
+  teamSize tid
 
 teamSizeH :: JSON ::: TeamId -> Handler Response
 teamSizeH (_ ::: t) = json <$> teamSize t

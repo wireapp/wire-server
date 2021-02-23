@@ -34,7 +34,7 @@ spec:
       containers:
         - name: federator
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ default "" .Values.image.pullPolicy | quote }}
+          imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
           volumeMounts:
             - name: "federator-config"
               mountPath: "/etc/wire/federator/conf"

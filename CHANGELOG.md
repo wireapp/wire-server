@@ -14,6 +14,47 @@
 
 -->
 
+# [2020-02-16]
+
+## Release Notes
+
+This release might require manual migration steps, see [ElasticSearch migration instructions for release 2021-02-16 ](https://github.com/wireapp/wire-server/blob/c81a189d0dc8916b72ef20d9607888618cb22598/docs/reference/elasticsearch-migration-2021-02-16.md).
+
+## Features
+
+* Team search: Add search by email (#1344) (#1286)
+* Add endpoint to get client metadata for many users (#1345)
+* Public end-point for getting the team size. (#1295)
+* sftd: add support for multiple SFT servers (#1325) (#1377)
+* SAML allow enveloped signatures (#1375)
+
+## Bug fixes and other updates
+
+* Wire.API.UserMap & Brig.API.Public: Fix Swagger docs (#1350)
+* Fix nix build on OSX (#1340)
+
+## Internal changes
+
+* [federation] Federation end2end test scripts and Makefile targets (#1341)
+* [federation] Brig integration tests (#1342)
+* Add stack 2.3.1 to shell.nix (#1347)
+* buildah: Use correct dist directory while building docker-images (#1352)
+* Add spar.scim_external table and follow changes (#1359)
+* buildah: Allow building only a given exec and fix brig templates (#1353)
+* Galley: Add /teams/:tid/members csv download (#1351) (#1351)
+* Faster local docker image building using buildah (#1349)
+* Replace federation guard with env var (#1346)
+* Update cassandra schema after latest changes (#1337)
+* Add fast-intermediate Dockerfile for faster PR CI (#1328)
+* dns-util: Allow running lookup with a given resolver (#1338)
+* Add missing internal qa routes (#1336)
+* Extract and rename PolyLog to a library for reusability (#1329)
+* Fix: Spar integration tests misconfigured on CI (#1343)
+* Bump ormolu version (#1366, #1368) 
+* Update ES upgrade path (#1339) (#1376)
+* Bump saml2-web-sso version to latest upstream (#1369)
+* Add docs for deriving-swagger2 (#1373)
+
 # [2020-01-15]
 
 ## Release Notes

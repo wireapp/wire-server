@@ -29,6 +29,7 @@ import qualified API.Util.TeamFeature as Util
 import Bilge hiding (timeout)
 import Bilge.Assert
 import qualified Brig.Types as Brig
+import Control.Arrow ((>>>))
 import Control.Lens hiding ((#), (.=))
 import Control.Monad.Catch
 import Control.Retry
@@ -36,17 +37,20 @@ import Data.Aeson hiding (json)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict)
+import Data.Csv (FromNamedRecord (..), decodeByName)
 import qualified Data.Currency as Currency
 import Data.Id
 import Data.List1
 import qualified Data.List1 as List1
-import Data.Misc (PlainTextPassword (..))
+import Data.Misc (HttpsUrl, PlainTextPassword (..))
 import Data.Range
 import qualified Data.Set as Set
+import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
 import qualified Data.UUID.V1 as UUID
+import qualified Data.Vector as V
 import qualified Galley.App as Galley
 import Galley.Options (optSettings, setEnableIndexedBillingTeamMembers, setFeatureFlags, setMaxConvSize, setMaxFanoutSize)
 import Galley.Types hiding (EventData (..), EventType (..), MemberUpdate (..))
@@ -69,7 +73,10 @@ import Test.Tasty.HUnit
 import TestHelpers (test)
 import TestSetup (TestM, TestSetup, tsBrig, tsCannon, tsGConf, tsGalley)
 import UnliftIO (mapConcurrently, mapConcurrently_)
+import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
+import qualified Wire.API.Team.Member as TM
+import qualified Wire.API.User as U
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -80,6 +87,11 @@ tests s =
       test s "create team with members" testCreateTeamWithMembers,
       testGroup "List Team Members" $
         [ test s "a member should be able to list their team" testListTeamMembersDefaultLimit,
+          let numMembers = 5
+           in test
+                s
+                ("admins should be able to get a csv stream with their team (" <> show numMembers <> " members)")
+                (testListTeamMembersCsv numMembers),
           test s "the list should be limited to the number requested (hard truncation is not tested here)" testListTeamMembersTruncated
         ],
       testGroup "List Team Members (by ids)" $
@@ -219,6 +231,60 @@ testListTeamMembersDefaultLimit = do
     assertBool
       "member list indicates that there are no more members"
       (listFromServer ^. teamMemberListType == ListComplete)
+
+-- | for ad-hoc load-testing, set @numMembers@ to, say, 10k and see what
+-- happens.  but please don't give that number to our ci!  :)
+testListTeamMembersCsv :: HasCallStack => Int -> TestM ()
+testListTeamMembersCsv numMembers = do
+  let teamSize = numMembers + 1
+
+  (owner, tid, _mbs) <- Util.createBindingTeamWithNMembersWithHandles True numMembers
+  resp <- Util.getTeamMembersCsv owner tid
+  let rbody = fromMaybe (error "no body") . responseBody $ resp
+  usersInCsv <- either (error "could not decode csv") pure (decodeCSV @TeamExportUser rbody)
+  liftIO $ do
+    assertEqual "total number of team members" teamSize (length usersInCsv)
+    assertEqual "owners in team" 1 (countOn tExportRole (Just RoleOwner) usersInCsv)
+    assertEqual "members in team" numMembers (countOn tExportRole (Just RoleMember) usersInCsv)
+
+  do
+    let someUsersInCsv = take 50 usersInCsv
+        someHandles = tExportHandle <$> someUsersInCsv
+    users <- Util.getUsersByHandle (catMaybes someHandles)
+    mbrs <- view teamMembers <$> Util.bulkGetTeamMembers owner tid (U.userId <$> users)
+
+    let check :: (Show a, Eq a) => String -> (TeamExportUser -> Maybe a) -> UserId -> Maybe a -> IO ()
+        check msg getTeamExportUserAttr uid userAttr = do
+          assertBool msg (isJust userAttr)
+          assertEqual (msg <> ": " <> show uid) 1 (countOn getTeamExportUserAttr userAttr usersInCsv)
+
+    liftIO . forM_ (zip users mbrs) $ \(user, mbr) -> do
+      assertEqual "user/member id match" (U.userId user) (mbr ^. TM.userId)
+      check "tExportDisplayName" (Just . tExportDisplayName) (U.userId user) (Just $ U.userDisplayName user)
+      check "tExportEmail" tExportEmail (U.userId user) (U.userEmail user)
+
+    liftIO . forM_ (zip3 someUsersInCsv users mbrs) $ \(export, user, mbr) -> do
+      -- FUTUREWORK: there are a lot of cases we don't cover here (manual invitation, saml, other roles, ...).
+      assertEqual ("tExportDisplayName: " <> show (U.userId user)) (U.userDisplayName user) (tExportDisplayName export)
+      assertEqual ("tExportHandle: " <> show (U.userId user)) (U.userHandle user) (tExportHandle export)
+      assertEqual ("tExportEmail: " <> show (U.userId user)) (U.userEmail user) (tExportEmail export)
+      assertEqual ("tExportRole: " <> show (U.userId user)) (permissionsRole $ view permissions mbr) (tExportRole export)
+      assertEqual ("tExportCreatedOn: " <> show (U.userId user)) (snd <$> view invitation mbr) (tExportCreatedOn export)
+      assertEqual ("tExportInvitedBy: " <> show (U.userId user)) Nothing (tExportInvitedBy export)
+      assertEqual ("tExportIdpIssuer: " <> show (U.userId user)) (userToIdPIssuer user) (tExportIdpIssuer export)
+      assertEqual ("tExportManagedBy: " <> show (U.userId user)) (U.userManagedBy user) (tExportManagedBy export)
+  where
+    userToIdPIssuer :: HasCallStack => U.User -> Maybe HttpsUrl
+    userToIdPIssuer usr = case (U.userIdentity >=> U.ssoIdentity) usr of
+      Just (U.UserSSOId issuer _) -> maybe (error "shouldn't happen") Just . fromByteString' . cs $ issuer
+      Just _ -> Nothing
+      Nothing -> Nothing
+
+    decodeCSV :: FromNamedRecord a => LByteString -> Either String [a]
+    decodeCSV bstr = decodeByName bstr <&> (snd >>> V.toList)
+
+    countOn :: Eq b => (a -> b) -> b -> [a] -> Int
+    countOn prop val xs = sum $ fmap (bool 0 1 . (== val) . prop) xs
 
 testListTeamMembersTruncated :: TestM ()
 testListTeamMembersTruncated = do

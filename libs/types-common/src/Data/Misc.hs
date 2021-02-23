@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
@@ -57,17 +58,20 @@ module Data.Misc
 where
 
 import Cassandra
-import Control.Lens (makeLenses, (.~), (^.))
+import Control.Lens (makeLenses, (.~), (?~), (^.))
 import Data.Aeson
 import qualified Data.Aeson.Types as Json
 import qualified Data.Attoparsec.ByteString.Char8 as Chars
+import Data.Bifunctor (Bifunctor (first))
 import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Builder
 import Data.ByteString.Char8 (unpack)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import Data.IP (IP (IPv4, IPv6), toIPv4, toIPv6b)
+import Data.Proxy (Proxy (Proxy))
 import Data.Range
+import Data.Swagger (HasProperties (properties), HasRequired (required), HasType (type_), NamedSchema (..), SwaggerType (SwaggerObject), ToSchema (..), declareSchemaRef)
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
@@ -113,7 +117,7 @@ newtype Port = Port
   deriving newtype (Real, Enum, Num, Integral, NFData, Arbitrary)
 
 instance Read Port where
-  readsPrec n = map (\x -> (Port (fst x), snd x)) . readsPrec n
+  readsPrec n = map (first Port) . readsPrec n
 
 instance ToJSON IpAddr where
   toJSON (IpAddr ip) = String (Text.pack $ show ip)
@@ -176,6 +180,19 @@ instance FromJSON Location where
     location
       <$> (Latitude <$> o .: "lat")
       <*> (Longitude <$> o .: "lon")
+
+instance ToSchema Location where
+  declareNamedSchema _ = do
+    doubleSchema <- declareSchemaRef (Proxy @Double)
+    return $
+      NamedSchema (Just "Location") $
+        mempty
+          & type_ ?~ SwaggerObject
+          & properties
+            .~ [ ("lat", doubleSchema),
+                 ("lon", doubleSchema)
+               ]
+          & required .~ ["lat", "lon"]
 
 instance Arbitrary Location where
   arbitrary = Location <$> arbitrary <*> arbitrary

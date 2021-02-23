@@ -32,7 +32,6 @@ newtype AllowedDomains = AllowedDomains {allowedDomains :: [Domain]}
   deriving (Eq, Show, Generic)
   deriving newtype (FromJSON, ToJSON)
 
--- FUTUREWORK: Support a DenyList
 data FederationStrategy
   = -- | This backend allows federating with any other Wire-Server backend
     AllowAll
@@ -61,17 +60,23 @@ instance FromJSON FederationStrategy where
       _ -> fail "invalid FederationStrategy: expected either allowAll or allowedDomains"
 
 -- | Options that persist as runtime settings.
-data RunSettings = RunSettings
+newtype RunSettings = RunSettings
   { -- | Would you like to federate with everyone or only with a select set of other wire-server installations?
-    setFederationStrategy :: !(FederationStrategy)
+    setFederationStrategy :: FederationStrategy
   }
   deriving (Show, Generic)
 
 instance FromJSON RunSettings
 
 data Opts = Opts
-  { -- | Host and port
-    federator :: Endpoint,
+  { -- | Host and port for endpoint reachable only by other wire-server
+    -- components in the same private network
+    federatorInternal :: Endpoint,
+    -- | Host and port for endpoint exposed to the open internet via nginx, to
+    -- be contacted by other federators
+    federatorExternal :: Endpoint,
+    -- | Host and port of brig
+    brig :: Endpoint,
     -- | Log level (Debug, Info, etc)
     logLevel :: Level,
     -- | Use netstrings encoding (see <http://cr.yp.to/proto/netstrings.txt>)

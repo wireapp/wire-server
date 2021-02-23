@@ -15,6 +15,7 @@ CHARTS_INTEGRATION    := wire-server databases-ephemeral fake-aws
 # this list could be generated from the folder names under ./charts/ like so:
 # CHARTS_RELEASE := $(shell find charts/ -maxdepth 1 -type d | xargs -n 1 basename | grep -v charts)
 CHARTS_RELEASE        := wire-server databases-ephemeral fake-aws aws-ingress backoffice calling-test demo-smtp elasticsearch-curator elasticsearch-external fluent-bit minio-external cassandra-external nginx-ingress-controller nginx-ingress-services reaper wire-server-metrics sftd
+BUILDAH_PUSH          ?= 1
 
 default: fast
 
@@ -260,12 +261,17 @@ kube-integration-teardown:
 	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-teardown.sh
 
 .PHONY: kube-integration-setup-federation
-kube-integration-setup-federation: guard-tag charts-integration
+kube-integration-setup-federation: charts-integration
 	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-setup-federation.sh
 
 .PHONY: kube-integration-federation
 kube-integration-federation:
 	cd services/brig && ./federation-tests.sh $(NAMESPACE)
+
+.PHONY: kube-restart-%
+kube-restart-%:
+	kubectl delete pod -n $(NAMESPACE) -l wireService=$(*)
+	kubectl delete pod -n $(NAMESPACE)-fed2 -l wireService=$(*)
 
 .PHONY: latest-brig-tag
 latest-brig-tag:
@@ -340,3 +346,17 @@ upload-charts: charts-release
 .PHONY: echo-release-charts
 echo-release-charts:
 	@echo ${CHARTS_RELEASE}
+
+.PHONY: buildah-docker
+buildah-docker:
+	./hack/bin/buildah-compile.sh
+	BUILDAH_PUSH=${BUILDAH_PUSH} ./hack/bin/buildah-make-images.sh
+
+.PHONY: buildah-docker-%
+buildah-docker-%:
+	./hack/bin/buildah-compile.sh $(*)
+	BUILDAH_PUSH=${BUILDAH_PUSH} EXECUTABLES=$(*) ./hack/bin/buildah-make-images.sh
+
+.PHONY: buildah-clean
+buildah-clean:
+	./hack/bin/buildah-clean.sh

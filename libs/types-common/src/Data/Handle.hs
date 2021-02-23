@@ -36,7 +36,7 @@ import Data.Swagger (ToParamSchema, ToSchema (..))
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.E
 import Imports
-import Servant (FromHttpApiData (..))
+import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck (Arbitrary (arbitrary), choose, elements, oneof)
 import Util.Attoparsec (takeUpToWhile)
 
@@ -52,6 +52,9 @@ newtype Handle = Handle
 instance FromHttpApiData Handle where
   parseUrlPiece =
     first Text.pack . parseHandleEither
+
+instance ToHttpApiData Handle where
+  toUrlPiece (Handle h) = toUrlPiece h
 
 instance FromByteString Handle where
   parser = handleParser

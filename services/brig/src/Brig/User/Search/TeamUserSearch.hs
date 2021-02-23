@@ -1,5 +1,5 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -21,6 +21,9 @@
 module Brig.User.Search.TeamUserSearch
   ( teamUserSearch,
     teamUserSearchQuery,
+    TeamUserSearchSortBy (..),
+    TeamUserSearchSortOrder (..),
+    RoleFilter (..),
   )
 where
 
@@ -32,20 +35,19 @@ import Data.Id (TeamId, idToText)
 import Data.Range (Range (..))
 import qualified Database.Bloodhound as ES
 import Imports hiding (log, searchable)
-import Wire.API.Team.Role
 import Wire.API.User.Search
 
 teamUserSearch ::
   (HasCallStack, MonadIndexIO m) =>
   TeamId ->
   Maybe Text ->
-  Maybe [Role] ->
-  Maybe Text ->
-  Maybe Text ->
+  Maybe RoleFilter ->
+  Maybe TeamUserSearchSortBy ->
+  Maybe TeamUserSearchSortOrder ->
   Range 1 500 Int32 ->
   m (SearchResult TeamContact)
-teamUserSearch tid mbSearchText _mRoleFilter _mSortBy _mSortOrder (fromRange -> s) = liftIndexIO $ do
-  let (IndexQuery q f sortSpecs) = teamUserSearchQuery tid mbSearchText
+teamUserSearch tid mbSearchText mRoleFilter mSortBy mSortOrder (fromRange -> s) = liftIndexIO $ do
+  let (IndexQuery q f sortSpecs) = teamUserSearchQuery tid mbSearchText mRoleFilter mSortBy mSortOrder
   idx <- asks idxName
   let search =
         (ES.mkSearch (Just q) (Just f))
@@ -66,25 +68,27 @@ teamUserSearch tid mbSearchText _mRoleFilter _mSortBy _mSortOrder (fromRange -> 
               searchResults = results
             }
 
--- FUTUREWORK: Maybe (sortby=<name|handle|email|saml_idp|managed_by|role|created_at>, Maybe ES.SortOrder)
--- FUTUREWORK: Maybe [Role]
--- analogous to SearchIndex.hs
+-- FUTURWORK: Implement role filter (needs galley data)
 teamUserSearchQuery ::
   TeamId ->
   Maybe Text ->
+  Maybe RoleFilter ->
+  Maybe TeamUserSearchSortBy ->
+  Maybe TeamUserSearchSortOrder ->
   IndexQuery TeamContact
-teamUserSearchQuery tid mbSearchText =
-  case mbQStr of
-    Nothing ->
-      IndexQuery
+teamUserSearchQuery tid mbSearchText _mRoleFilter mSortBy mSortOrder =
+  IndexQuery
+    ( maybe
         (ES.MatchAllQuery Nothing)
-        teamFilter
-        [sortByCreatedAt]
-    Just qStr ->
-      IndexQuery
-        (matchPhraseOrPrefix qStr)
-        teamFilter
-        []
+        matchPhraseOrPrefix
+        mbQStr
+    )
+    teamFilter
+    ( maybe
+        [defaultSort SortByCreatedAt SortOrderDesc | isNothing mbQStr]
+        (\tuSortBy -> [defaultSort tuSortBy (fromMaybe SortOrderAsc mSortOrder)])
+        mSortBy
+    )
   where
     mbQStr :: Maybe Text
     mbQStr =
@@ -118,5 +122,23 @@ teamUserSearchQuery tid mbSearchText =
             { ES.boolQueryMustMatch = [ES.TermQuery (ES.Term "team" $ idToText tid) Nothing]
             }
 
-    sortByCreatedAt =
-      ES.DefaultSort (ES.FieldName "created_at") ES.Descending Nothing Nothing Nothing Nothing
+    defaultSort :: TeamUserSearchSortBy -> TeamUserSearchSortOrder -> ES.DefaultSort
+    defaultSort tuSortBy sortOrder =
+      ES.DefaultSort
+        ( case tuSortBy of
+            SortByName -> ES.FieldName "name"
+            SortByHandle -> ES.FieldName "handle.keyword"
+            SortByEmail -> ES.FieldName "email.keyword"
+            SortBySAMLIdp -> ES.FieldName "saml_idp"
+            SortByManagedBy -> ES.FieldName "managed_by"
+            SortByRole -> ES.FieldName "role"
+            SortByCreatedAt -> ES.FieldName "created_at"
+        )
+        ( case sortOrder of
+            SortOrderAsc -> ES.Ascending
+            SortOrderDesc -> ES.Descending
+        )
+        Nothing
+        Nothing
+        Nothing
+        Nothing

@@ -50,6 +50,7 @@ module Brig.User.Search.Index
 where
 
 import Brig.Data.Instances ()
+import Brig.Index.Types (CreateIndexSettings (..))
 import Brig.Types.Intra
 import Brig.Types.User
 import Brig.User.Search.Index.Types as Types
@@ -246,17 +247,13 @@ refreshIndex = liftIndexIO $ do
 
 createIndexIfNotPresent ::
   MonadIndexIO m =>
-  [ES.UpdatableIndexSetting] ->
-  -- | Number of shards
-  Int ->
+  CreateIndexSettings ->
   m ()
 createIndexIfNotPresent = createIndex' False
 
 createIndex ::
   MonadIndexIO m =>
-  [ES.UpdatableIndexSetting] ->
-  -- | Number of shards
-  Int ->
+  CreateIndexSettings ->
   m ()
 createIndex = createIndex' True
 
@@ -264,17 +261,29 @@ createIndex' ::
   MonadIndexIO m =>
   -- | Fail if index alredy exists
   Bool ->
-  [ES.UpdatableIndexSetting] ->
-  -- | Number of shards
-  Int ->
+  CreateIndexSettings ->
   m ()
-createIndex' failIfExists settings shardCount = liftIndexIO $ do
+createIndex' failIfExists (CreateIndexSettings settings shardCount mbDeleteTemplate) = liftIndexIO $ do
   idx <- asks idxName
   ex <- ES.indexExists idx
   when (failIfExists && ex) $
     throwM (IndexError "Index already exists.")
   unless ex $ do
     let fullSettings = settings ++ [ES.AnalysisSetting analysisSettings]
+
+    -- A previous release added an ES Index Template that matched all indices
+    -- named 'directory*'. This template is deprecated now, but it might still
+    -- be present in production instances. If present then it causes the update mapping
+    -- step to fail.
+    -- FUTUREWORK: remove this block and the --delete-template option,
+    -- after this has been released.
+    for_ mbDeleteTemplate $ \templateName@(ES.TemplateName tname) -> do
+      tExists <- ES.templateExists templateName
+      when tExists $ do
+        dr <- traceES (cs ("Delete index template " <> "\"" <> tname <> "\"")) $ ES.deleteTemplate templateName
+        unless (ES.isSuccess dr) $
+          throwM (IndexError "Deleting index template failed.")
+
     cr <- traceES "Create index" $ ES.createIndexWith fullSettings shardCount idx
     unless (ES.isSuccess cr) $
       throwM (IndexError "Index creation failed.")
@@ -313,18 +322,16 @@ updateMapping = liftIndexIO $ do
 
 resetIndex ::
   MonadIndexIO m =>
-  [ES.UpdatableIndexSetting] ->
-  -- | Number of shards
-  Int ->
+  CreateIndexSettings ->
   m ()
-resetIndex settings shardCount = liftIndexIO $ do
+resetIndex ciSettings = liftIndexIO $ do
   idx <- asks idxName
   gone <-
     ES.indexExists idx >>= \case
       True -> ES.isSuccess <$> traceES "Delete Index" (ES.deleteIndex idx)
       False -> return True
   if gone
-    then createIndex settings shardCount
+    then createIndex ciSettings
     else throwM (IndexError "Index deletion failed.")
 
 reindexAllIfSameOrNewer :: (MonadLogger m, MonadIndexIO m, C.MonadClient m) => m ()
@@ -423,7 +430,7 @@ indexMapping =
                   mpIndex = True,
                   mpAnalyzer = Nothing,
                   mpFields =
-                    Map.fromList [("prefix", MappingField MPText "prefix_index" "prefix_search")]
+                    Map.fromList [("prefix", MappingField MPText (Just "prefix_index") (Just "prefix_search"))]
                 },
             "name"
               .= MappingProperty
@@ -440,7 +447,10 @@ indexMapping =
                   mpIndex = True,
                   mpAnalyzer = Nothing,
                   mpFields =
-                    Map.fromList [("prefix", MappingField MPText "prefix_index" "prefix_search")]
+                    Map.fromList
+                      [ ("prefix", MappingField MPText (Just "prefix_index") (Just "prefix_search")),
+                        ("keyword", MappingField MPKeyword Nothing Nothing)
+                      ]
                 },
             "email"
               .= MappingProperty
@@ -449,7 +459,10 @@ indexMapping =
                   mpIndex = True,
                   mpAnalyzer = Nothing,
                   mpFields =
-                    Map.fromList [("prefix", MappingField MPText "prefix_index" "prefix_search")]
+                    Map.fromList
+                      [ ("prefix", MappingField MPText (Just "prefix_index") (Just "prefix_search")),
+                        ("keyword", MappingField MPKeyword Nothing Nothing)
+                      ]
                 },
             "team"
               .= MappingProperty
@@ -520,8 +533,8 @@ data MappingProperty = MappingProperty
 
 data MappingField = MappingField
   { mfType :: MappingPropertyType,
-    mfAnalyzer :: Text,
-    mfSearchAnalyzer :: Text
+    mfAnalyzer :: Maybe Text,
+    mfSearchAnalyzer :: Maybe Text
   }
 
 data MappingPropertyType = MPText | MPKeyword | MPByte | MPDate
@@ -546,11 +559,10 @@ instance ToJSON MappingPropertyType where
 
 instance ToJSON MappingField where
   toJSON mf =
-    object
-      [ "type" .= mfType mf,
-        "analyzer" .= mfAnalyzer mf,
-        "search_analyzer" .= mfSearchAnalyzer mf
-      ]
+    object $
+      ["type" .= mfType mf]
+        <> ["analyzer" .= mfAnalyzer mf | isJust (mfAnalyzer mf)]
+        <> ["search_analyzer" .= mfSearchAnalyzer mf | isJust (mfSearchAnalyzer mf)]
 
 boolQuery :: ES.BoolQuery
 boolQuery = ES.mkBoolQuery [] [] [] []

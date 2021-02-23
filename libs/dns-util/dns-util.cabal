@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 82f20a0525faea5f899c0a68fdc8a82623913d8b063f34a6cd4c6e32aa6acf54
+-- hash: ecf2089f33b4ea02d7866c9d088c6c2c8524a5d35eea986973e5f99ef97d1f11
 
 name:           dns-util
 version:        0.1.0
@@ -21,6 +21,7 @@ build-type:     Simple
 library
   exposed-modules:
       Wire.Network.DNS.Effect
+      Wire.Network.DNS.Helper
       Wire.Network.DNS.SRV
   other-modules:
       Paths_dns_util
