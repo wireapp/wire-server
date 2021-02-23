@@ -24,7 +24,7 @@ import qualified Network.HTTP.Types as HTTP
 import Servant.API
 import Servant.API.Generic
 import qualified Wire.API.Federation.GRPC.Types as Proto
-import Wire.API.User.Handle (UserHandleInfo)
+import Wire.API.User (UserProfile)
 
 -- Maybe this module should be called Brig
 newtype Api routes = Api
@@ -37,7 +37,7 @@ newtype Api routes = Api
         -- FUTUREWORK(federation): Make this return UserProfile, at that point there would
         -- be interesting questions like whether to expose email or not and how
         -- we code that part. I want to avoid solving this until federator works
-        :> Get '[JSON] UserHandleInfo
+        :> Get '[JSON] UserProfile
   }
   deriving (Generic)
 

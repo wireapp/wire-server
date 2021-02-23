@@ -41,6 +41,7 @@ module Brig.API.User
     lookupAccountsByIdentity,
     lookupProfile,
     lookupProfiles,
+    lookupProfilesOfLocalUsers,
     Data.lookupName,
     Data.lookupLocale,
     Data.lookupUser,
@@ -1082,46 +1083,53 @@ lookupProfiles ::
 lookupProfiles self others = do
   domain <- viewFederationDomain
   let (_remoteUsers, localUsers) = partitionRemoteOrLocalIds domain others
-  localProfiles <- lookupProfilesOfLocalUsers self localUsers
+  localProfiles <- lookupProfilesOfLocalUsers (Just self) localUsers
   -- FUTUREWORK(federation, #1267): fetch remote profiles
   remoteProfiles <- pure []
   pure (localProfiles <> remoteProfiles)
 
+-- TODO: This function encodes a few business rules about exposing email ids,
+-- but it is also very complex. Maybe this can be made easy by extracting a pure
+-- function and writing tests for that.
 lookupProfilesOfLocalUsers ::
-  -- | User 'self' on whose behalf the profiles are requested.
-  UserId ->
+  -- | This is present only when an authenticated user is requesting access.
+  Maybe UserId ->
   -- | The users ('others') for which to obtain the profiles.
   [UserId] ->
   AppIO [UserProfile]
-lookupProfilesOfLocalUsers self others = do
+lookupProfilesOfLocalUsers requestingUser others = do
   users <- Data.lookupUsers NoPendingInvitations others >>= mapM userGC
-  css <- toMap <$> Data.lookupConnectionStatus (map userId users) [self]
+  css <- case requestingUser of
+    Just localReqUser -> toMap <$> Data.lookupConnectionStatus (map userId users) [localReqUser]
+    Nothing -> mempty
   emailVisibility' <- view (settings . emailVisibility)
   emailVisibility'' <- case emailVisibility' of
     EmailVisibleIfOnTeam -> pure EmailVisibleIfOnTeam'
-    EmailVisibleIfOnSameTeam -> EmailVisibleIfOnSameTeam' <$> getSelfInfo
+    EmailVisibleIfOnSameTeam -> case requestingUser of
+      Just localReqUser -> EmailVisibleIfOnSameTeam' <$> getSelfInfo localReqUser
+      Nothing -> pure EmailVisibleToSelf'
     EmailVisibleToSelf -> pure EmailVisibleToSelf'
   return $ map (toProfile emailVisibility'' css) users
   where
     toMap :: [ConnectionStatus] -> Map UserId Relation
     toMap = Map.fromList . map (csFrom &&& csStatus)
 
-    getSelfInfo :: AppIO (Maybe (TeamId, Team.TeamMember))
-    getSelfInfo = do
+    getSelfInfo :: UserId -> AppIO (Maybe (TeamId, Team.TeamMember))
+    getSelfInfo selfId = do
       -- FUTUREWORK: it is an internal error for the two lookups (for 'User' and 'TeamMember')
       -- to return 'Nothing'.  we could throw errors here if that happens, rather than just
       -- returning an empty profile list from 'lookupProfiles'.
-      mUser <- Data.lookupUser NoPendingInvitations self
+      mUser <- Data.lookupUser NoPendingInvitations selfId
       case userTeam =<< mUser of
         Nothing -> pure Nothing
-        Just tid -> (tid,) <$$> Intra.getTeamMember self tid
+        Just tid -> (tid,) <$$> Intra.getTeamMember selfId tid
 
     toProfile :: EmailVisibility' -> Map UserId Relation -> User -> UserProfile
     toProfile emailVisibility'' css u =
       let cs = Map.lookup (userId u) css
           profileEmail' = getEmailForProfile u emailVisibility''
           baseProfile =
-            if userId u == self || cs == Just Accepted || cs == Just Sent
+            if Just (userId u) == requestingUser || cs == Just Accepted || cs == Just Sent
               then connectedProfile u
               else publicProfile u
        in baseProfile {profileEmail = profileEmail'}
