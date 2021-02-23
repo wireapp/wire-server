@@ -261,9 +261,6 @@ nginx_conf:
     - path: ~* ^/teams/([^/]*)/search$
       envs:
       - all
-    - path: /list-prekeys
-      envs:
-      - all
     galley:
     - path: /conversations/code-check
       disable_zauth: true

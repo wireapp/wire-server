@@ -354,6 +354,7 @@ type GetMultiUserPrekeyBundleQualified =
     "Given a map of user IDs to client IDs return a \
     \prekey for each one. You can't request information for more users than \
     \maximum conversation size."
+    :> "users"
     :> "list-prekeys"
     :> Servant.ReqBody '[Servant.JSON] Public.QualifiedUserClients
     :> Post '[Servant.JSON] (Public.QualifiedUserClientMap (Maybe Public.Prekey))

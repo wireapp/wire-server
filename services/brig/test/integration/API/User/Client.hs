@@ -63,7 +63,7 @@ tests _cl _at opts p b c g =
       test p "get /users/:uid/prekeys/:client - 200" $ testGetClientPrekey b,
       test p "get /users/<localdomain>/:uid/prekeys/:client - 200" $ testGetClientPrekeyQualified b opts,
       test p "post /users/prekeys" $ testMultiUserGetPrekeys b,
-      test p "post /list-prekeys" $ testMultiUserGetPrekeysQualified b opts,
+      test p "post /users/list-prekeys" $ testMultiUserGetPrekeysQualified b opts,
       test p "post /users/list-clients - 200" $ testListClientsBulk opts b,
       test p "post /clients - 201 (pwd)" $ testAddGetClient True b c,
       test p "post /clients - 201 (no pwd)" $ testAddGetClient False b c,
@@ -304,7 +304,7 @@ testMultiUserGetPrekeysQualified brig opts = do
 
   post
     ( brig
-        . paths ["list-prekeys"]
+        . paths ["users", "list-prekeys"]
         . contentJson
         . body (RequestBodyLBS $ encode userClients)
     )
