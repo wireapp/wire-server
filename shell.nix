@@ -30,5 +30,3 @@ in mkShell {
     haskell-language-server
   ];
 }
-
-
