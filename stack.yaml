@@ -1,8 +1,6 @@
 resolver: lts-17.1
 
 packages:
-- ../cql
-- ../saml2-web-sso
 - libs/api-bot
 - libs/api-client
 - libs/bilge
@@ -69,8 +67,8 @@ extra-deps:
   # wai-middleware-prometheus can be pulled from hackage once the
   # a version > 1.0.0 of wai-middleware-prometheus is available
   # (required: https://github.com/fimad/prometheus-haskell/pull/45)
-# - git: https://github.com/wireapp/saml2-web-sso
-#   commit: ac88b934bb4a91d4d4bb90c620277188e4087043  # https://github.com/wireapp/saml2-web-sso/pull/73  (Feb 18, 2021)
+- git: https://github.com/wireapp/saml2-web-sso
+  commit: 73b34ab20bd9de141b7200b016fcd146610bf859  # https://github.com/wireapp/saml2-web-sso/pull/73  (Feb 18, 2021)
 
 - git: https://github.com/kim/hs-collectd
   commit: 885da222be2375f78c7be36127620ed772b677c9
@@ -180,6 +178,10 @@ extra-deps:
   commit: 23e9afafadaade29d21181b935286087457171e3
 
 - HsOpenSSL-x509-system-0.1.0.3@sha256:f4958ee0eec555c5c213662eff6764bddefe5665e2afcfd32733ce3801a9b687,1774 # Latest: lts-14.27
+
+- git: https://gitlab.com/wireapp/cql
+  commit: 6f870c7892b9d96707133bdbfa949ce6a4ceae3f  # https://github.com/wireapp/hsaml2/pull/9 (Feb 18, 2021)
+
 # - cql-4.0.2@sha256:a0006a5ac13d6f86d5eff28c11be80928246309f217ea6d5f5c8a76a5d16b48b,3157 # Latest: lts-14.27
 - cql-io-1.1.1@sha256:897ef0811b227c8b1a269b29b9c1ebfb09c46f00d66834e2e8c6f19ea7f90f7d,4611 # Latest: lts-14.27
 - primitive-extras-0.8@sha256:fca0310150496867f5b9421fe1541ecda87fae17eae44885a29f9c52dd00c8ff,2963 # Latest: lts-15.16
