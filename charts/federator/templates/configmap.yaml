@@ -43,9 +43,9 @@ data:
         allowAll:
         {{- else if .setFederationStrategy.allowedDomains }}
         allowedDomains:
-          {{- with $domain := .setFederationStrategy.allowedDomains }}
+        {{- range $domain := .setFederationStrategy.allowedDomains }}
           - {{ $domain | quote }}
-          {{- end }}
+        {{- end }}
         {{- else }}
         # In gotemplate there is no way to distinguish between empty list and no
         # list, we assume empty list when there is no list
