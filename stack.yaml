@@ -45,6 +45,7 @@ packages:
 - tools/db/find-undead
 - tools/db/move-team
 - tools/db/repair-handles
+- tools/db/migrate-external-ids
 - tools/makedeb
 - tools/rex
 - tools/stern
