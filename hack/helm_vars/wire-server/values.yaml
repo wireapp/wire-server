@@ -237,3 +237,6 @@ spar:
 federator:
   replicaCount: 1
   imagePullPolicy: Always
+  optSettings:
+    setFederationStrategy:
+      allowAll: true
