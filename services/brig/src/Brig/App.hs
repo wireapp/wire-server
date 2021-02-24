@@ -107,7 +107,6 @@ import Data.Metrics (Metrics)
 import qualified Data.Metrics.Middleware as Metrics
 import Data.Misc
 import Data.Text (unpack)
-import qualified Data.Text as T
 import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Text.Encoding as Text
@@ -116,7 +115,6 @@ import Data.Time.Clock
 import Data.Yaml (FromJSON)
 import qualified Database.Bloodhound as ES
 import Imports
-import Mu.GRpc.Client.TyApps (GrpcClient, grpcClientConfigSimple, setupGrpcClient')
 import Network.HTTP.Client (ManagerSettings (..), responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (Digest, getDigestByName)
@@ -144,7 +142,7 @@ data Env = Env
   { _cargohold :: RPC.Request,
     _galley :: RPC.Request,
     _gundeck :: RPC.Request,
-    _federator :: Maybe GrpcClient,
+    _federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
     _casClient :: Cas.ClientState,
     _smtpEnv :: Maybe SMTP.SMTP,
     _emailSender :: Email,
@@ -214,13 +212,12 @@ newEnv o = do
     StompQueue q -> pure (StompQueue q)
     SqsQueue q -> SqsQueue <$> AWS.getQueueUrl (aws ^. AWS.amazonkaEnv) q
   mSFTEnv <- mapM Calling.mkSFTEnv $ Opt.sft o
-  federatorGrpcClient <- initFederatorClient lgr (Opt.federatorInternal o)
   return
     $! Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
         _galley = mkEndpoint $ Opt.galley o,
         _gundeck = mkEndpoint $ Opt.gundeck o,
-        _federator = federatorGrpcClient,
+        _federator = Opt.federatorInternal o,
         _casClient = cas,
         _smtpEnv = emailSMTP,
         _emailSender = Opt.emailSender . Opt.general . Opt.emailSMS $ o,
@@ -271,27 +268,6 @@ mkIndexEnv o lgr mgr mtr =
       mainIndex = ES.IndexName $ Opt.index (Opt.elasticsearch o)
       additionalIndex = ES.IndexName <$> Opt.additionalWriteIndex (Opt.elasticsearch o)
    in IndexEnv mtr lgr' bhe Nothing mainIndex additionalIndex
-
-initFederatorClient :: Logger -> Maybe Endpoint -> IO (Maybe GrpcClient)
-initFederatorClient lgr mFederator = maybe (pure Nothing) createClient mFederator
-  where
-    createClient endpoint = do
-      eitherClient <- setupGrpcClient' (grpcClientConfigSimple (T.unpack (endpoint ^. epHost)) (fromIntegral (endpoint ^. epPort)) False)
-      case eitherClient of
-        Left _err -> do
-          -- Note: We do not want to throw an exception here, as we don't want brig to
-          -- go down as a whole if only federation doesn't work.
-          -- But we do want to log this problem hinting at a misconfiguration.
-          Log.err lgr $
-            Log.msg (Log.val "failed to connect to federator using endpoint: ")
-              Log.~~ Log.field "endpoint" (show endpoint)
-
-          -- FUTUREWORK(federation): Do we want to distinguish a failure from federation
-          -- being disabled? If so, Maybe could be changed to e.g. an Either.
-          -- Once we run federator in production infrastructure, the federator
-          -- Endpoint can be made mandatory which would simplify this function.
-          pure Nothing
-        Right c -> pure (Just c)
 
 geoSetup :: Logger -> FS.WatchManager -> Maybe FilePath -> IO (Maybe (IORef GeoIp.GeoDB))
 geoSetup _ _ Nothing = return Nothing

@@ -24,7 +24,7 @@ import Brig.API.Error (notFound, throwStd)
 import Brig.API.Handler (Handler)
 import Brig.App (federator)
 import Brig.Types.User
-import Control.Lens (view)
+import Control.Lens (view, (^.))
 import qualified Data.Aeson as Aeson
 import Data.Handle
 import Data.Qualified
@@ -34,6 +34,7 @@ import qualified Data.Text.Lazy as LT
 import Imports
 import Mu.GRpc.Client.TyApps
 import qualified System.Logger.Class as Log
+import Util.Options (epHost, epPort)
 import Wire.API.Federation.API.Brig
 import qualified Wire.API.Federation.GRPC.Types as Proto
 
@@ -44,7 +45,7 @@ import qualified Wire.API.Federation.GRPC.Types as Proto
 getUserHandleInfo :: Qualified Handle -> Handler (Maybe UserHandleInfo)
 getUserHandleInfo (Qualified handle domain) = do
   Log.info $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
-  federatorClient <- viewFederatorClient
+  federatorClient <- mkFederatorClient
   let call = Proto.ValidatedFederatedRequest domain (mkGetUserInfoByHandle handle)
   res <- expectOk =<< callRemote federatorClient call
   case Proto.responseStatus res of
@@ -54,14 +55,23 @@ getUserHandleInfo (Qualified handle domain) = do
       Right x -> pure $ Just x
     code -> throwStd $ notFound $ "Invalid response from remote: " <> LT.pack (show code)
 
-viewFederatorClient :: Handler GrpcClient
-viewFederatorClient = do
-  mClient <- view federator
-  case mClient of
-    -- FUTUREWORK(federation): what happens if federator is transiently unreachable
-    -- at the time the grpc client is first initialized? Can we recover?
-    Nothing -> throwStd $ notFound "no federator configured or federator unreachable"
+-- FUTUREWORK: It would be nice to share the client across all calls to
+-- federator and not call this function on every invocation of federated
+-- requests, but there are some issues in http2-client which might need some
+-- fixing first. More context here:
+-- https://github.com/lucasdicioccio/http2-client/issues/37
+-- https://github.com/lucasdicioccio/http2-client/issues/49
+mkFederatorClient :: Handler GrpcClient
+mkFederatorClient = do
+  maybeFederatorEndpoint <- view federator
+  federatorEndpoint <- case maybeFederatorEndpoint of
+    Nothing -> throwStd $ notFound "no federator configured"
     Just ep -> pure ep
+
+  eitherClient <- setupGrpcClient' (grpcClientConfigSimple (T.unpack (federatorEndpoint ^. epHost)) (fromIntegral (federatorEndpoint ^. epPort)) False)
+  case eitherClient of
+    Left _ -> throwStd $ notFound "federator unreachable"
+    Right c -> pure c
 
 callRemote :: MonadIO m => GrpcClient -> Proto.ValidatedFederatedRequest -> m (GRpcReply Proto.Response)
 callRemote fedClient call = liftIO $ gRpcCall @'MsgProtoBuf @Proto.Outward @"Outward" @"call" fedClient (Proto.validatedFederatedRequestToFederatedRequest call)
