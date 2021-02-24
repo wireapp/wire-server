@@ -34,8 +34,9 @@ data:
     logFormat: {{ .logFormat }}
     logLevel: {{ .logLevel }}
 
+    {{- end }}
 
-    {{- with .optSettings }}
+    {{- with .Values.optSettings }}
     optSettings:
       setFederationStrategy:
         {{- if .setFederationStrategy.allowAll }}
@@ -51,4 +52,3 @@ data:
         allowedDomains: []
         {{- end}}
     {{- end }}
-  {{- end }}
