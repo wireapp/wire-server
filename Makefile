@@ -251,8 +251,8 @@ kube-integration-setup: charts-integration
 	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-setup-federation.sh
 
 .PHONY: kube-integration-test
-kube-integration-test: kube-integration-test-sans-federation
-	cd services/brig && ./federation-tests.sh $(NAMESPACE)
+kube-integration-test:
+	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-test.sh
 
 .PHONY: kube-integration-teardown
 kube-integration-teardown:
@@ -263,10 +263,6 @@ kube-integration-setup-sans-federation: guard-tag charts-integration
 	# by default "test-<your computer username> is used as namespace
 	# you can override the default by setting the NAMESPACE environment variable
 	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-setup.sh
-
-.PHONY: kube-integration-test-sans-federation
-kube-integration-test-sans-federation:
-	export NAMESPACE=$(NAMESPACE); ./hack/bin/integration-test.sh
 
 .PHONY: kube-integration-teardown-sans-federation
 kube-integration-teardown-sans-federation:

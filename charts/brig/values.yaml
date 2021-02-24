@@ -87,3 +87,5 @@ turnStatic:
   v2:
   - turn:localhost:3478
   - turn:localhost:3478?transport=tcp
+tests:
+  enableFederationTests: false

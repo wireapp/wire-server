@@ -80,3 +80,73 @@ spec:
     - name: AWS_REGION
       value: "eu-west-1"
   restartPolicy: Never
+
+{{- if .Values.tests.enableFederationTests }}
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ .Release.Name }}-brig-integration-federation"
+  annotations:
+    "helm.sh/hook": test-success
+  labels:
+    wireService: brig-integration
+    release: {{ .Release.Name }}
+spec:
+  volumes:
+    - name: "brig-integration"
+      configMap:
+        name: "brig-integration"
+    # Needed in order to read some values from the brig service
+    - name: "brig-config"
+      configMap:
+        name: "brig"
+    - name: "brig-secrets"
+      secret:
+        secretName: "brig"
+    - name: "turn-servers"
+      configMap:
+        name: "turn"
+    - name: "brig-integration-secrets"
+      configMap:
+        name: "brig-integration-secrets"
+  containers:
+  - name: integration
+    image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
+    # TODO: Add TURN tests once we have an actual way to test it
+    # The brig-integration tests mutate the turn settings files before tests
+    # to get certain behaviour. This doesn't work on kubernetes because brig
+    # is a different pod than brig-integration and they can't both mouht the
+    # same file-system.
+    # The other test, "user.auth.cookies.limit", is skipped as it is flaky.
+    # This is tracked in https://github.com/zinfra/backend-issues/issues/1150.
+    command: ["brig-integration", "--pattern", "brig-federation"]
+    volumeMounts:
+    - name: "brig-integration"
+      mountPath: "/etc/wire/integration"
+    - name: "brig-config"
+      mountPath: "/etc/wire/brig/conf"
+    - name: "brig-secrets"
+      mountPath: "/etc/wire/brig/secrets"
+    - name: "turn-servers"
+      mountPath: "/etc/wire/brig/turn"
+    - name: "brig-integration-secrets"
+      # TODO: Maybe we should put integration yaml also under
+      #       `/integration/conf` by default? Note that currently
+      #       brig-integration cannot read config files from
+      #       non-default locations
+      #       (see corresp. TODO in galley.)
+      mountPath: "/etc/wire/integration-secrets"
+
+    env:
+    # these dummy values are necessary for Amazonka's "Discover"
+    - name: AWS_ACCESS_KEY_ID
+      value: "dummy"
+    - name: AWS_SECRET_ACCESS_KEY
+      value: "dummy"
+    - name: AWS_REGION
+      value: "eu-west-1"
+    - name: INTEGRATION_FEDERATION_TESTS
+      value: "1"
+  restartPolicy: Never
+{{- end }}
