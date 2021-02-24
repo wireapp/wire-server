@@ -34,9 +34,7 @@ data:
     logFormat: {{ .logFormat }}
     logLevel: {{ .logLevel }}
 
-    {{- end }}
-
-    {{- with .Values.optSettings }}
+    {{- with .optSettings }}
     optSettings:
       setFederationStrategy:
         {{- if .setFederationStrategy.allowAll }}
@@ -51,4 +49,5 @@ data:
         # list, we assume empty list when there is no list
         allowedDomains: []
         {{- end}}
+    {{- end }}
     {{- end }}
