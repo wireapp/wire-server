@@ -101,6 +101,8 @@ brig:
       key: "dummy"
       secret: "dummy"
     smtpPassword: dummy-smtp-password
+  tests:
+    enableFederationTests: true
 cannon:
   replicaCount: 2
   imagePullPolicy: Always
@@ -235,3 +237,7 @@ spar:
 federator:
   replicaCount: 1
   imagePullPolicy: Always
+  config:
+    optSettings:
+      setFederationStrategy:
+        allowAll: true
