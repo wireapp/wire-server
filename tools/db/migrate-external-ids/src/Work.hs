@@ -95,7 +95,7 @@ runCommand env@Env {..} = do
 
   failCount <- readIORef envFailCount
   when (failCount > 0) $
-    Log.warn envLogger (Log.msg @String (show failCount <> " external ids have *NOT* been migrated.\nAn external id fails to me migrated if the mapped user doesn't exist or doesn't have a team."))
+    Log.warn envLogger (Log.msg @String (show failCount <> " external ids have *NOT* been migrated.\nAn external id fails to be migrated if the mapped user doesn't exist or doesn't have a team."))
 
 type LegacyExternalId = (Text, UserId)
 
