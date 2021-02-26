@@ -20,26 +20,26 @@
 
 module Federator.App
   ( AppT,
-    AppIO,
+    Federator,
     runAppT,
-    runAppResourceT,
+    liftAppIOToFederator,
   )
 where
 
-import Bilge (RequestId (unRequestId))
+import Bilge (MonadHttp (..), RequestId (unRequestId), withResponse)
 import Bilge.RPC (HasRequestId (..))
-import Control.Error (ExceptT)
 import Control.Lens (view)
-import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
-import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
-import Federator.Types (Env, applog, requestId)
+import Control.Monad.Catch
+import Control.Monad.Except
+import Federator.Env (Env, applog, httpManager, requestId)
 import Imports
+import Mu.Server (ServerError, ServerErrorIO)
 import Servant.API.Generic ()
 import Servant.Server ()
 import System.Logger.Class as LC
 import qualified System.Logger.Extended as Log
 
--- FUTUREWORK: this code re-occurs in every service.  introduce 'MkAppT' in types-common that
+-- FUTUREWORK(federation): this code re-occurs in every service.  introduce 'MkAppT' in types-common that
 -- takes 'Env' as one more argument.
 newtype AppT m a = AppT
   { unAppT :: ReaderT Env m a
@@ -55,7 +55,7 @@ newtype AppT m a = AppT
       MonadReader Env
     )
 
-type AppIO = AppT IO
+type Federator = AppT ServerErrorIO
 
 instance MonadIO m => LC.MonadLogger (AppT m) where
   log l m = do
@@ -75,10 +75,24 @@ instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
       withRunInIO $ \runner ->
         inner (runner . flip runReaderT r . unAppT)
 
-runAppT :: Env -> AppT m a -> m a
+instance MonadError ServerError (AppT ServerErrorIO) where
+  throwError = lift . throwError @_ @ServerErrorIO
+  catchError a f = do
+    env <- ask
+    lift $ catchError (runAppT env a) (runAppT env . f)
+
+instance MonadTrans AppT where
+  lift = AppT . lift
+
+instance (Monad m, MonadIO m) => MonadHttp (AppT m) where
+  handleRequestWithCont req handler = do
+    manager <- view httpManager <$> ask
+    liftIO $ withResponse req manager handler
+
+runAppT :: forall m a. Env -> AppT m a -> m a
 runAppT e (AppT ma) = runReaderT ma e
 
-runAppResourceT :: ResourceT AppIO a -> AppIO a
-runAppResourceT ma = do
-  e <- ask
-  liftIO . runResourceT $ transResourceT (runAppT e) ma
+liftAppIOToFederator :: AppT IO a -> Federator a
+liftAppIOToFederator (AppT action) = do
+  env <- ask
+  lift . lift $ runReaderT action env

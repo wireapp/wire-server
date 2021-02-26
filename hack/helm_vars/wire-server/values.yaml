@@ -27,6 +27,7 @@ elasticsearch-index:
 
 brig:
   replicaCount: 1
+  imagePullPolicy: Always
   resources:
     requests:
       memory: 128Mi
@@ -100,8 +101,11 @@ brig:
       key: "dummy"
       secret: "dummy"
     smtpPassword: dummy-smtp-password
+  tests:
+    enableFederationTests: true
 cannon:
   replicaCount: 2
+  imagePullPolicy: Always
   resources:
     requests:
       memory: 512Mi
@@ -112,6 +116,7 @@ cannon:
   drainTimeout: 0
 cargohold:
   replicaCount: 1
+  imagePullPolicy: Always
   resources:
     requests:
       memory: 128Mi
@@ -128,6 +133,7 @@ cargohold:
     awsSecretKey: dummysecret
 galley:
   replicaCount: 1
+  imagePullPolicy: Always
   config:
     cassandra:
       host: cassandra-ephemeral
@@ -152,6 +158,7 @@ galley:
     awsSecretKey: dummysecret
 gundeck:
   replicaCount: 1
+  imagePullPolicy: Always
   resources:
     requests:
       memory: 512Mi
@@ -181,6 +188,7 @@ gundeck:
     awsSecretKey: dummysecret
 nginz:
   replicaCount: 1
+  imagePullPolicy: Always
   nginx_conf:
     env: staging
     external_env_domain: zinfra.io
@@ -202,6 +210,7 @@ proxy:
        }
 spar:
   replicaCount: 1
+  imagePullPolicy: Always
   resources:
     requests:
       memory: 512Mi
@@ -227,3 +236,8 @@ spar:
 
 federator:
   replicaCount: 1
+  imagePullPolicy: Always
+  config:
+    optSettings:
+      setFederationStrategy:
+        allowAll: true

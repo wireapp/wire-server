@@ -35,6 +35,11 @@ import Util.Options (Endpoint)
 -- these more end-to-end integration test serve as a way to test the overall
 -- network flow
 --
+-- FUTUREWORK(federation): Add tests for these scenarios:
+-- - Remote discovery fails
+-- - Remote discovery succeeds but server doesn't exist
+-- - Remote federator fails to respond in many ways (protocol error, timeout, etc.)
+-- - SRV record has two servers but higher priority one always fails
 spec :: BrigOpts.Opts -> Manager -> Brig -> Endpoint -> Brig -> IO TestTree
 spec _brigOpts mg brig _federator brigTwo =
   pure $
@@ -43,6 +48,12 @@ spec _brigOpts mg brig _federator brigTwo =
       [ test mg "lookup user by qualified handle on remote backend" $ testHandleLookup brig brigTwo
       ]
 
+-- | Path covered by this test:
+--
+-- +------+         +---------+        +---------+          +------+
+-- | brig |   grpc  |federator| grpc   |federator|   http   | brig |
+-- |      +-------->+         +------->+         +--------->+      |
+-- +------+         +-+-------+        +---------+          +------+
 testHandleLookup :: Brig -> Brig -> Http ()
 testHandleLookup brig brigTwo = do
   -- Create a user on the "other side" using an internal brig endpoint from a

@@ -21,6 +21,7 @@ module Main
 where
 
 import qualified API.Calling as Calling
+import qualified API.Federation
 import qualified API.Metrics as Metrics
 import qualified API.Provider as Provider
 import qualified API.Search as Search
@@ -120,6 +121,7 @@ runTests iConf brigOpts otherArgs = do
   browseTeam <- TeamUserSearch.tests brigOpts mg g b
   userPendingActivation <- UserPendingActivation.tests brigOpts mg db b g s
   federationUser <- Federation.User.spec brigOpts mg b f brigTwo
+  federationEndpoints <- API.Federation.tests mg b
   includeFederationTests <- (== Just "1") <$> Blank.getEnv "INTEGRATION_FEDERATION_TESTS"
   withArgs otherArgs . defaultMain $
     testGroup
@@ -138,7 +140,8 @@ runTests iConf brigOpts otherArgs = do
           settingsApi,
           createIndex,
           userPendingActivation,
-          browseTeam
+          browseTeam,
+          federationEndpoints
         ]
         <> [federationUser | includeFederationTests]
   where

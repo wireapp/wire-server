@@ -13,6 +13,18 @@
 ## Internal changes
 
 -->
+# [2020-02-25]
+
+## Bug fixes and other updates
+
+* Pin kubectl image in sftd chart (#1383)
+* Remove imagePullPolicy: Always for reaper chart (#1387)
+
+
+## Internal changes
+
+* Use mu-haskell to implement one initial federation request across backends (#1319)
+* Add migrate-external-ids tool (#1384)
 
 # [2020-02-16]
 
@@ -50,7 +62,7 @@ This release might require manual migration steps, see [ElasticSearch migration 
 * Add missing internal qa routes (#1336)
 * Extract and rename PolyLog to a library for reusability (#1329)
 * Fix: Spar integration tests misconfigured on CI (#1343)
-* Bump ormolu version (#1366, #1368) 
+* Bump ormolu version (#1366, #1368)
 * Update ES upgrade path (#1339) (#1376)
 * Bump saml2-web-sso version to latest upstream (#1369)
 * Add docs for deriving-swagger2 (#1373)

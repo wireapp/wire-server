@@ -92,3 +92,8 @@ hie.yaml
 .stack-root-buildah/
 .stack-work-buildah/
 dist-buildah
+
+# federation tests
+i.yaml
+b.yaml
+telepresence.log

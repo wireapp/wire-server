@@ -9,22 +9,34 @@ author: Wire Swiss GmbH
 maintainer: Wire Swiss GmbH <backend@wire.com>
 copyright: (c) 2020 Wire Swiss GmbH
 license: AGPL-3
+extra-source-files:
+- proto/router.proto
 dependencies:
+- QuickCheck >=2.13
 - aeson >=1.4
 - base >=4.6 && <5.0
 - bytestring >=0.10
 - bytestring-conversion >=0.3
 - containers >=0.5
+- either
 - errors >=2.0
 - exceptions >=0.6
+- http-types
+- http2-client
 - imports
+- mtl
+- mu-grpc-client
+- mu-protobuf
+- mu-rpc
+- mu-schema
 - servant >=0.16
+- template-haskell
 - text >=0.11
 - time >=1.8
+- tinylog
 - transformers >=0.3
 - types-common
-- QuickCheck >=2.13
-
+- wire-api
 library:
   source-dirs: src
 

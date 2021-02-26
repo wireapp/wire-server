@@ -18,20 +18,27 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Federator.Impl
-  ( app,
-  )
-where
+module Federator.Env where
 
-import Data.Proxy
-import qualified Federator.API as API
-import Federator.Types
-import Network.Wai
-import Servant.API.Generic
-import Servant.Mock
-import Servant.Server
+import Bilge (RequestId)
+import qualified Bilge as RPC
+import Control.Lens (makeLenses)
+import Data.Metrics (Metrics)
+import Federator.Options (RunSettings)
+import Network.DNS.Resolver (Resolver)
+import qualified Network.HTTP.Client as HTTP
+import qualified System.Logger.Class as LC
+import Util.Options
 
-app :: Env -> Application
-app _ = serve api (mock api (Proxy @'[]))
-  where
-    api = Proxy @(ToServantApi API.Api)
+data Env = Env
+  { _metrics :: Metrics,
+    _applog :: LC.Logger,
+    _requestId :: RequestId,
+    _dnsResolver :: Resolver,
+    _runSettings :: RunSettings,
+    _brig :: RPC.Request,
+    _brigEndpoint :: Endpoint,
+    _httpManager :: HTTP.Manager
+  }
+
+makeLenses ''Env

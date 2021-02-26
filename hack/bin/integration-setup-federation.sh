@@ -11,7 +11,9 @@ export NAMESPACE=${NAMESPACE:-test-integration}
 
 $DIR/integration-setup.sh
 
-# The suffix '-fed2' must be kept in sync with configuration inside charts/brig/templates/tests/configmap.yaml
+# The suffix '-fed2' must be kept in sync with configuration inside
+# charts/brig/templates/tests/configmap.yaml and
+# hack/bin/integration-teardown-federation.sh
 export NAMESPACE=${NAMESPACE}-fed2
 
 $DIR/integration-setup.sh
