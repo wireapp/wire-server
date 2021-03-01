@@ -71,6 +71,7 @@ import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
 import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
 import Data.Range
+import qualified Data.Set as Set
 import Data.Swagger
   ( ApiKeyLocation (..),
     ApiKeyParams (..),
@@ -304,7 +305,7 @@ type ListClientsBulk =
     :> "users"
     :> "list-clients"
     :> Servant.ReqBody '[Servant.JSON] (Range 1 MaxUsersForListClientsBulk [Qualified UserId])
-    :> Post '[Servant.JSON] (Public.QualifiedUserMap (Set Public.Client))
+    :> Post '[Servant.JSON] (Public.QualifiedUserMap (Set Public.PubClient))
 
 type OutsideWorldAPI =
   CheckUserExistsUnqualified
@@ -1117,9 +1118,9 @@ getClientH (zusr ::: clt ::: _) =
     Just c -> json c
     Nothing -> setStatus status404 empty
 
-listClientsBulk :: UserId -> Range 1 MaxUsersForListClientsBulk [Qualified UserId] -> Handler (Public.QualifiedUserMap (Set Public.Client))
-listClientsBulk _zusr limitedUids =
-  API.lookupClientsBulk (fromRange limitedUids) !>> clientError
+listClientsBulk :: UserId -> Range 1 MaxUsersForListClientsBulk [Qualified UserId] -> Handler (Public.QualifiedUserMap (Set Public.PubClient))
+listClientsBulk _zusr limitedUids = do
+  Set.map API.pubClient <$$> API.lookupClientsBulk (fromRange limitedUids) !>> clientError
 
 getClient :: UserId -> ClientId -> Handler (Maybe Public.Client)
 getClient zusr clientId = do

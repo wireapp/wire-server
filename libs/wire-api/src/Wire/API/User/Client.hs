@@ -225,8 +225,9 @@ data PubClient = PubClient
   { pubClientId :: ClientId,
     pubClientClass :: Maybe ClientClass
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform PubClient)
+  deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "pubClient", LowerCase)] PubClient)
 
 modelPubClient :: Doc.Model
 modelPubClient = Doc.defineModel "PubClient" $ do
