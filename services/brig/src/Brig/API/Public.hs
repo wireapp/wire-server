@@ -158,7 +158,7 @@ instance
 
 type CaptureUserId name = Capture' '[Description "User Id"] name UserId
 
-type CaptureClientId name = Capture' '[Description "ClientId ID"] name ClientId
+type CaptureClientId name = Capture' '[Description "ClientId"] name ClientId
 
 -- User API -----------------------------------------------------------
 

@@ -168,7 +168,7 @@ toOtrRecipients =
   Msg.OtrRecipients . Client.UserClientMap
     . foldl' userEntries mempty
   where
-    -- userEntries :: Map UserId (Map ClientId Text) -> UserEntry -> Map UserId (Map ClientId Text)
+    userEntries :: Map Id.UserId (Map Id.ClientId Text) -> UserEntry -> Map Id.UserId (Map Id.ClientId Text)
     userEntries acc x =
       let u = view userEntryId x
           c = view userEntryClients x

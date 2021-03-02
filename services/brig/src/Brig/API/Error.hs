@@ -531,4 +531,4 @@ federationNotImplemented' =
   Wai.Error
     status403
     "federation-not-implemented"
-    "Federation is not implemented"
+    "Federation is not yet implemented for this endpoint"
