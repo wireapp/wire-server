@@ -1,6 +1,8 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
+{-# OPTIONS_GHC -Wno-deferred-type-errors #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -38,13 +40,10 @@ module Wire.API.User.RichInfo
 
     -- * RichField
     RichField (..),
-
-    -- * Swagger
-    modelRichInfo,
-    modelRichField,
   )
 where
 
+import Control.Lens ((.~), (?~))
 import Data.Aeson
 import qualified Data.Aeson.Types as Aeson
 import Data.CaseInsensitive (CI)
@@ -54,11 +53,15 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.Hashable (Hashable)
 import Data.List.Extra (nubOrdOn)
 import qualified Data.Map as Map
-import qualified Data.Swagger.Build.Api as Doc
+import Data.Proxy (Proxy (..))
+import Data.Swagger (NamedSchema (..), SwaggerType (SwaggerObject), ToSchema (..), declareSchemaRef, description, properties, type_)
+import Data.Swagger.Internal (SwaggerType (SwaggerInteger))
 import qualified Data.Text as Text
+import Deriving.Swagger (CustomSwagger, FieldLabelModifier, LowerCase, StripPrefix)
 import Imports
 import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary))
+import Wire.API.User.Orphans ()
 
 --------------------------------------------------------------------------------
 -- RichInfo
@@ -78,9 +81,6 @@ instance Arbitrary RichInfo where
 
 instance Monoid RichInfo where
   mempty = RichInfo mempty
-
-instance Semigroup RichInfo where
-  RichInfo a <> RichInfo b = RichInfo $ a <> b
 
 --------------------------------------------------------------------------------
 -- RichInfoMapAndList
@@ -106,14 +106,13 @@ data RichInfoMapAndList = RichInfoMapAndList
   deriving stock (Eq, Show, Generic)
 
 -- | TODO: this is model is wrong, it says nothing about the map part.
-modelRichInfo :: Doc.Model
-modelRichInfo = Doc.defineModel "RichInfo" $ do
-  Doc.description "Rich info about the user"
-  Doc.property "fields" (Doc.array (Doc.ref modelRichField)) $
-    Doc.description "List of fields"
-  Doc.property "version" Doc.int32' $
-    Doc.description "Format version (the current version is 0)"
-
+-- modelRichInfo :: Doc.Model
+-- modelRichInfo = Doc.defineModel "RichInfo" $ do
+--   Doc.description "Rich info about the user"
+--   Doc.property "fields" (Doc.array (Doc.ref modelRichField)) $
+--     Doc.description "List of fields"
+--   Doc.property "version" Doc.int32' $
+--     Doc.description "Format version (the current version is 0)"
 instance ToJSON RichInfoMapAndList where
   toJSON u =
     object
@@ -125,7 +124,7 @@ instance ToJSON RichInfoMapAndList where
                     "version" .= (0 :: Int)
                   ]
             ],
-        richInfoMapURN .= (Map.mapKeys CI.original $ richInfoMap u)
+        richInfoMapURN .= Map.mapKeys CI.original (richInfoMap u)
       ]
 
 instance FromJSON RichInfoMapAndList where
@@ -143,7 +142,7 @@ instance FromJSON RichInfoMapAndList where
       extractMap o =
         case HM.lookup (CI.mk richInfoMapURN) o of
           Nothing -> pure mempty
-          Just innerObj -> do
+          Just innerObj ->
             Map.mapKeys CI.mk <$> parseJSON innerObj
       extractAssocList :: HashMap (CI Text) Value -> Aeson.Parser [RichField]
       extractAssocList o =
@@ -153,13 +152,12 @@ instance FromJSON RichInfoMapAndList where
             richInfo <- lookupOrFail "richinfo" $ hmMapKeys CI.mk innerObj
             case richInfo of
               Object richinfoObj -> do
-                fields <- richInfoAssocListFromObject richinfoObj
-                pure fields
+                richInfoAssocListFromObject richinfoObj
               Array fields -> parseJSON (Array fields)
               v -> Aeson.typeMismatch "Object" v
           Just v -> Aeson.typeMismatch "Object" v
       hmMapKeys :: (Eq k2, Hashable k2) => (k1 -> k2) -> HashMap k1 v -> HashMap k2 v
-      hmMapKeys f = HashMap.fromList . (map (\(k, v) -> (f k, v))) . HashMap.toList
+      hmMapKeys f = HashMap.fromList . map (\(k, v) -> (f k, v)) . HashMap.toList
       lookupOrFail :: (MonadFail m, Show k, Eq k, Hashable k) => k -> HashMap k v -> m v
       lookupOrFail key theMap = case HM.lookup key theMap of
         Nothing -> fail $ "key '" ++ show key ++ "' not found"
@@ -182,7 +180,7 @@ toRichInfoAssocList (RichInfoMapAndList mp al) =
     go rfs (key, val) =
       case break (\(RichField rfKey _) -> rfKey == key) rfs of
         (xs, []) -> xs <> [RichField key val]
-        (xs, (_ : ys)) -> xs <> [RichField key val] <> ys
+        (xs, _ : ys) -> xs <> [RichField key val] <> ys
 
 -- | This is called by spar to recover the more type that also contains a map.  Since we don't
 -- know where the data came from when it was posted or where the SCIM peer expects the data to
@@ -221,6 +219,33 @@ instance FromJSON RichInfoAssocList where
   parseJSON v =
     RichInfoAssocList <$> withObject "RichInfoAssocList" richInfoAssocListFromObject v
 
+-- only used for ToSchema instance of RichInfo
+data RichInfoVersion
+
+instance Semigroup RichInfo where
+  RichInfo a <> RichInfo b = RichInfo $ a <> b
+
+instance ToSchema RichInfoVersion where
+  declareNamedSchema _ =
+    pure $
+      NamedSchema (Just "RichInfoVersion") $
+        mempty
+          & type_ ?~ SwaggerInteger
+          & description ?~ "the current version is 0"
+
+instance ToSchema RichInfoAssocList where
+  declareNamedSchema _ = do
+    fieldsSchema <- declareSchemaRef (Proxy @[RichField])
+    versionSchema <- declareSchemaRef (Proxy @RichInfoVersion)
+    pure $
+      NamedSchema (Just "RichInfo") $
+        mempty
+          & type_ ?~ SwaggerObject
+          & properties
+            .~ [ ("fields", fieldsSchema),
+                 ("version", versionSchema)
+               ]
+
 richInfoAssocListFromObject :: Object -> Aeson.Parser [RichField]
 richInfoAssocListFromObject richinfoObj = do
   version :: Int <- richinfoObj .: "version"
@@ -236,7 +261,7 @@ richInfoAssocListFromObject richinfoObj = do
         ds -> fail ("duplicate fields: " <> show (map head ds))
 
 instance Arbitrary RichInfoAssocList where
-  arbitrary = RichInfoAssocList <$> nubOrdOn richFieldType <$> arbitrary
+  arbitrary = RichInfoAssocList . nubOrdOn richFieldType <$> arbitrary
 
 emptyRichInfoAssocList :: RichInfoAssocList
 emptyRichInfoAssocList = RichInfoAssocList []
@@ -249,14 +274,16 @@ data RichField = RichField
     richFieldValue :: Text
   }
   deriving stock (Eq, Show, Generic)
+  deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "prekey", LowerCase)] RichField)
 
-modelRichField :: Doc.Model
-modelRichField = Doc.defineModel "RichField" $ do
-  Doc.description "RichInfo field"
-  Doc.property "type" Doc.string' $
-    Doc.description "Field name"
-  Doc.property "value" Doc.string' $
-    Doc.description "Field value"
+-- TODO: remove
+-- modelRichField :: Doc.Model
+-- modelRichField = Doc.defineModel "RichField" $ do
+--   Doc.description "RichInfo field"
+--   Doc.property "type" Doc.string' $
+--     Doc.description "Field name"
+--   Doc.property "value" Doc.string' $
+--     Doc.description "Field value"
 
 instance ToJSON RichField where
   -- NB: "name" would be a better name for 'richFieldType', but "type" is used because we
@@ -270,7 +297,7 @@ instance ToJSON RichField where
       ]
 
 instance FromJSON RichField where
-  parseJSON = withObject "RichField" $ \o -> do
+  parseJSON = withObject "RichField" $ \o ->
     RichField
       <$> (CI.mk <$> o .: "type")
       <*> o .: "value"

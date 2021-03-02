@@ -48,7 +48,6 @@ import qualified Wire.API.User.Client.Prekey as User.Client.Prekey
 import qualified Wire.API.User.Handle as User.Handle
 import qualified Wire.API.User.Password as User.Password
 import qualified Wire.API.User.Profile as User.Profile
-import qualified Wire.API.User.RichInfo as User.RichInfo
 import qualified Wire.API.User.Search as User.Search
 
 models :: [Model]
@@ -172,8 +171,6 @@ models =
     User.Password.modelCompletePasswordReset,
     User.Profile.modelUserDisplayName,
     User.Profile.modelAsset,
-    User.RichInfo.modelRichInfo,
-    User.RichInfo.modelRichField,
     User.Search.modelSearchResult User.Search.modelSearchContact,
     User.Search.modelSearchResult User.Search.modelTeamContact,
     User.Search.modelSearchContact,

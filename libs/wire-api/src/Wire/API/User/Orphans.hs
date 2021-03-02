@@ -22,9 +22,13 @@
 
 module Wire.API.User.Orphans where
 
-import Data.ISO3166_CountryCodes
+import Control.Lens ((.~))
+import Data.CaseInsensitive (CI)
+import Data.Data (Proxy (Proxy))
+import Data.ISO3166_CountryCodes hiding (CI)
 import Data.LanguageCodes
-import Data.Swagger (ToSchema (..))
+import Data.Swagger (ToSchema (..), description)
+import Data.Swagger.Internal.Schema (paramSchemaToSchema, unnamed)
 import Imports
 
 deriving instance Generic ISO639_1
@@ -32,3 +36,10 @@ deriving instance Generic ISO639_1
 instance ToSchema ISO639_1
 
 instance ToSchema CountryCode
+
+instance ToSchema (CI Text) where
+  declareNamedSchema _ =
+    pure $
+      unnamed $
+        paramSchemaToSchema (Proxy @Text)
+          & description .~ (Just "case insensitive string")
