@@ -897,7 +897,7 @@ withValidOtrBroadcastRecipients ::
 withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam usr $ \tid -> do
   limit <- fromIntegral . fromRange <$> fanoutLimit
   -- If we are going to fan this out to more than limit, we want to fail early
-  unless ((Map.size $ userClientMap (otrRecipientsMap rcps)) <= limit) $
+  unless (Map.size (userClientMap (otrRecipientsMap rcps)) <= limit) $
     throwM broadcastLimitExceeded
   -- In large teams, we may still use the broadcast endpoint but only if `report_missing`
   -- is used and length `report_missing` < limit since we cannot fetch larger teams than
@@ -918,10 +918,8 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam 
   where
     maybeFetchLimitedTeamMemberList limit tid uListInFilter = do
       -- Get the users in the filter (remote ids are not in a local team)
-      (localUserIdsInFilter, _remoteUserIdsInFilter) <- partitionMappedOrLocalIds <$> traverse IdMapping.resolveOpaqueUserId (toList uListInFilter)
-      -- Get the users in the recipient list (remote ids are not in a local team)
-      (localUserIdsInRcps, _remoteUserIdsInRcps) <- partitionMappedOrLocalIds <$> traverse IdMapping.resolveOpaqueUserId (Map.keys $ userClientMap (otrRecipientsMap rcps))
-      -- Put them in a single list, and ensure it's smaller than the max size
+      let localUserIdsInFilter = toList uListInFilter
+      let localUserIdsInRcps = Map.keys $ userClientMap (otrRecipientsMap rcps)
       let localUserIdsToLookup = Set.toList $ Set.union (Set.fromList localUserIdsInFilter) (Set.fromList localUserIdsInRcps)
       unless (length localUserIdsToLookup <= limit) $
         throwM broadcastLimitExceeded
@@ -1004,7 +1002,7 @@ checkOtrRecipients ::
   -- | The current timestamp.
   UTCTime ->
   CheckedOtrRecipients
-checkOtrRecipients (makeIdOpaque -> usr) sid prs vms vcs val now
+checkOtrRecipients usr sid prs vms vcs val now
   | not (Map.member usr vmembers) = InvalidOtrSenderUser
   | not (Clients.contains usr sid vcs) = InvalidOtrSenderClient
   | not (Clients.null missing) = MissingOtrRecipients mismatch
@@ -1014,14 +1012,14 @@ checkOtrRecipients (makeIdOpaque -> usr) sid prs vms vcs val now
     next u c t rs
       | Just m <- member u c = (m, c, t) : rs
       | otherwise = rs
-    member :: OpaqueUserId -> ClientId -> Maybe LocalMember
+    member :: UserId -> ClientId -> Maybe LocalMember
     member u c
       | Just m <- Map.lookup u vmembers,
         Clients.contains u c vclients =
         Just m
       | otherwise = Nothing
     -- Valid recipient members & clients
-    vmembers = Map.fromList $ map (\m -> (makeIdOpaque (memId m), m)) vms
+    vmembers = Map.fromList $ map (\m -> (memId m, m)) vms
     vclients = Clients.rmClient usr sid vcs
     -- Proposed (given) recipients
     recipients = userClientMap (otrRecipientsMap prs)

@@ -47,6 +47,7 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
+import Wire.API.User.Client (QualifiedUserClientMap (..), QualifiedUserClients (..), UserClientMap (..), UserClients (..))
 import Wire.API.UserMap (QualifiedUserMap (..), UserMap (..))
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
@@ -58,7 +59,11 @@ tests _cl _at opts p b c g =
       test p "post /clients 400 - can't add legalhold clients manually" $
         testCan'tAddLegalHoldClient b,
       test p "get /users/:uid/prekeys - 200" $ testGetUserPrekeys b,
+      test p "get /users/<localdomain>/:uid/prekeys - 200" $ testGetUserPrekeysQualified b opts,
       test p "get /users/:uid/prekeys/:client - 200" $ testGetClientPrekey b,
+      test p "get /users/<localdomain>/:uid/prekeys/:client - 200" $ testGetClientPrekeyQualified b opts,
+      test p "post /users/prekeys" $ testMultiUserGetPrekeys b,
+      test p "post /users/list-prekeys" $ testMultiUserGetPrekeysQualified b opts,
       test p "post /users/list-clients - 200" $ testListClientsBulk opts b,
       test p "post /clients - 201 (pwd)" $ testAddGetClient True b c,
       test p "post /clients - 201 (no pwd)" $ testAddGetClient False b c,
@@ -173,12 +178,16 @@ testListClientsBulk opts brig = do
 
   let domain = Opt.setFederationDomain $ Opt.optSettings opts
   uid3 <- userId <$> randomUser brig
-  let expectedResponse :: QualifiedUserMap (Set Client) =
+  let mkPubClient cl = PubClient (clientId cl) (clientClass cl)
+  let expectedResponse :: QualifiedUserMap (Set PubClient) =
         QualifiedUserMap $
           Map.singleton
             domain
             ( UserMap $
-                Map.fromList [(uid1, Set.fromList [c11, c12, c13]), (uid2, Set.fromList [c21, c22])]
+                Map.fromList
+                  [ (uid1, Set.fromList $ mkPubClient <$> [c11, c12, c13]),
+                    (uid2, Set.fromList $ mkPubClient <$> [c21, c22])
+                  ]
             )
   post
     ( brig
@@ -206,30 +215,106 @@ testListPrekeyIds brig = do
       const 200 === statusCode
       const (Just pks) === fmap sort . responseJsonMaybe
 
+generateClients :: Int -> Brig -> Http [(UserId, Client, ClientPrekey, ClientPrekey)]
+generateClients n brig = do
+  for [1 .. n] $ \i -> do
+    uid <- userId <$> randomUser brig
+    let new = defNewClient TemporaryClientType [somePrekeys !! i] (someLastPrekeys !! i)
+    c <- responseJsonError =<< addClient brig uid new
+    let cpk = ClientPrekey (clientId c) (somePrekeys !! i)
+    let lpk = ClientPrekey (clientId c) (unpackLastPrekey (someLastPrekeys !! i))
+    pure (uid, c, lpk, cpk)
+
 testGetUserPrekeys :: Brig -> Http ()
 testGetUserPrekeys brig = do
-  uid <- userId <$> randomUser brig
-  let new = defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
-  c <- responseJsonError =<< addClient brig uid new
-  let cpk = ClientPrekey (clientId c) (somePrekeys !! 0)
+  [(uid, _c, lpk, cpk)] <- generateClients 1 brig
   get (brig . paths ["users", toByteString' uid, "prekeys"]) !!! do
     const 200 === statusCode
-    const (Just $ PrekeyBundle (makeIdOpaque uid) [cpk]) === responseJsonMaybe
+    const (Just $ PrekeyBundle uid [cpk]) === responseJsonMaybe
   -- prekeys are deleted when retrieved, except the last one
-  let lpk = ClientPrekey (clientId c) (unpackLastPrekey (someLastPrekeys !! 0))
   replicateM_ 2 $
     get (brig . paths ["users", toByteString' uid, "prekeys"]) !!! do
       const 200 === statusCode
-      const (Just $ PrekeyBundle (makeIdOpaque uid) [lpk]) === responseJsonMaybe
+      const (Just $ PrekeyBundle uid [lpk]) === responseJsonMaybe
+
+testGetUserPrekeysQualified :: Brig -> Opt.Opts -> Http ()
+testGetUserPrekeysQualified brig opts = do
+  let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+  [(uid, _c, _lpk, cpk)] <- generateClients 1 brig
+  get (brig . paths ["users", toByteString' domain, toByteString' uid, "prekeys"]) !!! do
+    const 200 === statusCode
+    const (Just $ PrekeyBundle uid [cpk]) === responseJsonMaybe
 
 testGetClientPrekey :: Brig -> Http ()
 testGetClientPrekey brig = do
-  uid <- userId <$> randomUser brig
-  let new = defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
-  c <- responseJsonError =<< addClient brig uid new
+  [(uid, c, _lpk, cpk)] <- generateClients 1 brig
   get (brig . paths ["users", toByteString' uid, "prekeys", toByteString' (clientId c)]) !!! do
     const 200 === statusCode
-    const (Just $ ClientPrekey (clientId c) (somePrekeys !! 0)) === responseJsonMaybe
+    const (Just $ cpk) === responseJsonMaybe
+
+testGetClientPrekeyQualified :: Brig -> Opt.Opts -> Http ()
+testGetClientPrekeyQualified brig opts = do
+  let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+  [(uid, c, _lpk, cpk)] <- generateClients 1 brig
+  get (brig . paths ["users", toByteString' domain, toByteString' uid, "prekeys", toByteString' (clientId c)]) !!! do
+    const 200 === statusCode
+    const (Just $ cpk) === responseJsonMaybe
+
+testMultiUserGetPrekeys :: Brig -> Http ()
+testMultiUserGetPrekeys brig = do
+  xs <- generateClients 3 brig
+  let userClients =
+        UserClients $
+          Map.fromList $
+            xs <&> \(uid, c, _lpk, _cpk) ->
+              (uid, Set.fromList [clientId c])
+
+  let expectedUserClientMap =
+        UserClientMap $
+          Map.fromList $
+            xs <&> \(uid, c, _lpk, cpk) ->
+              (uid, Map.singleton (clientId c) (Just (prekeyData cpk)))
+
+  post
+    ( brig
+        . paths ["users", "prekeys"]
+        . contentJson
+        . body (RequestBodyLBS $ encode userClients)
+    )
+    !!! do
+      const 200 === statusCode
+      const (Right $ expectedUserClientMap) === responseJsonEither
+
+testMultiUserGetPrekeysQualified :: Brig -> Opt.Opts -> Http ()
+testMultiUserGetPrekeysQualified brig opts = do
+  let domain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+
+  xs <- generateClients 3 brig
+  let userClients =
+        QualifiedUserClients $
+          Map.singleton domain $
+            UserClients $
+              Map.fromList $
+                xs <&> \(uid, c, _lpk, _cpk) ->
+                  (uid, Set.fromList [clientId c])
+
+  let expectedUserClientMap =
+        QualifiedUserClientMap $
+          Map.singleton domain $
+            UserClientMap $
+              Map.fromList $
+                xs <&> \(uid, c, _lpk, cpk) ->
+                  (uid, Map.singleton (clientId c) (Just (prekeyData cpk)))
+
+  post
+    ( brig
+        . paths ["users", "list-prekeys"]
+        . contentJson
+        . body (RequestBodyLBS $ encode userClients)
+    )
+    !!! do
+      const 200 === statusCode
+      const (Right $ expectedUserClientMap) === responseJsonEither
 
 testTooManyClients :: Opt.Opts -> Brig -> Http ()
 testTooManyClients opts brig = do

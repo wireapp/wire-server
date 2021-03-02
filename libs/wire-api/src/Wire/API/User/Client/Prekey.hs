@@ -31,22 +31,23 @@ module Wire.API.User.Client.Prekey
     ClientPrekey (..),
 
     -- * Swagger
-    modelPrekeyBundle,
-    modelClientPrekey,
     modelPrekey,
   )
 where
 
 import Data.Aeson
+import Data.Data (Proxy (Proxy))
 import Data.Hashable (hash)
 import Data.Id
+import Data.Swagger (ToSchema (..))
 import qualified Data.Swagger.Build.Api as Doc
+import Deriving.Swagger (CustomSwagger (..), FieldLabelModifier, LabelMapping ((:->)), LabelMappings, LowerCase, StripPrefix)
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 newtype PrekeyId = PrekeyId {keyId :: Word16}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (ToJSON, FromJSON, Arbitrary)
+  deriving newtype (ToJSON, FromJSON, Arbitrary, ToSchema)
 
 --------------------------------------------------------------------------------
 -- Prekey
@@ -57,7 +58,9 @@ data Prekey = Prekey
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Prekey)
+  deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "prekey", LowerCase)] Prekey)
 
+-- FUTUREWORK: Remove when 'NewClient' has ToSchema
 modelPrekey :: Doc.Model
 modelPrekey = Doc.defineModel "Prekey" $ do
   Doc.description "Prekey"
@@ -88,6 +91,9 @@ newtype LastPrekey = LastPrekey
   {unpackLastPrekey :: Prekey}
   deriving stock (Eq, Show, Generic)
 
+instance ToSchema LastPrekey where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Prekey)
+
 instance ToJSON LastPrekey where
   toJSON = toJSON . unpackLastPrekey
 
@@ -113,19 +119,12 @@ lastPrekey = LastPrekey . Prekey lastPrekeyId
 -- PrekeyBundle
 
 data PrekeyBundle = PrekeyBundle
-  { prekeyUser :: OpaqueUserId,
+  { prekeyUser :: UserId,
     prekeyClients :: [ClientPrekey]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform PrekeyBundle)
-
-modelPrekeyBundle :: Doc.Model
-modelPrekeyBundle = Doc.defineModel "PrekeyBundle" $ do
-  Doc.description "Prekeys of all clients of a single user"
-  Doc.property "user" Doc.bytes' $
-    Doc.description "User ID"
-  Doc.property "clients" (Doc.array (Doc.ref modelClientPrekey)) $
-    Doc.description "Prekeys of all clients"
+  deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "prekey", LowerCase)] PrekeyBundle)
 
 instance ToJSON PrekeyBundle where
   toJSON k =
@@ -147,14 +146,18 @@ data ClientPrekey = ClientPrekey
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ClientPrekey)
-
-modelClientPrekey :: Doc.Model
-modelClientPrekey = Doc.defineModel "ClientPrekey" $ do
-  Doc.description "Prekey of a single client"
-  Doc.property "client" Doc.bytes' $
-    Doc.description "Client Id"
-  Doc.property "prekey" (Doc.ref modelPrekey) $
-    Doc.description "Prekey"
+  deriving
+    (ToSchema)
+    via ( CustomSwagger
+            '[ FieldLabelModifier
+                 ( LabelMappings
+                     '[ "prekeyClient" ':-> "client",
+                        "prekeyData" ':-> "prekey"
+                      ]
+                 )
+             ]
+            ClientPrekey
+        )
 
 instance ToJSON ClientPrekey where
   toJSON k =

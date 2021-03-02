@@ -958,7 +958,7 @@ lookupClients ::
   [UserId] ->
   m Clients
 lookupClients users =
-  Clients.fromList . fmap (first makeIdOpaque) . concat . concat
+  Clients.fromList . concat . concat
     <$> forM (chunksOf 2048 users) (mapConcurrently getClients . chunksOf 128)
   where
     getClients us =
