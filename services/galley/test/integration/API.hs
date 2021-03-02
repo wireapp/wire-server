@@ -281,8 +281,8 @@ postCryptoMessage2 = do
       <!! const 200 === statusCode
   let p = responseJsonUnsafeWithMsg "prekeys" r2 :: UserClientMap (Maybe Prekey)
   liftIO $ do
-    Map.keys (userClientMap p) @=? [makeIdOpaque eve]
-    Map.keys <$> Map.lookup (makeIdOpaque eve) (userClientMap p) @=? Just [ec]
+    Map.keys (userClientMap p) @=? [eve]
+    Map.keys <$> Map.lookup eve (userClientMap p) @=? Just [ec]
 
 postCryptoMessage3 :: TestM ()
 postCryptoMessage3 = do
@@ -306,8 +306,8 @@ postCryptoMessage3 = do
       <!! const 200 === statusCode
   let p = responseJsonUnsafeWithMsg "prekeys" r2 :: UserClientMap (Maybe Prekey)
   liftIO $ do
-    Map.keys (userClientMap p) @=? [makeIdOpaque eve]
-    Map.keys <$> Map.lookup (makeIdOpaque eve) (userClientMap p) @=? Just [ec]
+    Map.keys (userClientMap p) @=? [eve]
+    Map.keys <$> Map.lookup eve (userClientMap p) @=? Just [ec]
 
 postCryptoMessage4 :: TestM ()
 postCryptoMessage4 = do
@@ -351,13 +351,13 @@ postCryptoMessage5 = do
   postProtoOtrMessage' Nothing (queryItem "report_missing" (toByteString' bob)) alice ac conv m'
     !!! const 201 === statusCode
   -- Body takes precedence
-  postOtrMessage' (Just [makeIdOpaque bob]) (queryItem "report_missing" (toByteString' eve)) alice ac conv m
+  postOtrMessage' (Just [bob]) (queryItem "report_missing" (toByteString' eve)) alice ac conv m
     !!! const 201 === statusCode
   -- Set it only in the body of the message
-  postOtrMessage' (Just [makeIdOpaque bob]) id alice ac conv m
+  postOtrMessage' (Just [bob]) id alice ac conv m
     !!! const 201 === statusCode
   -- Let's make sure that protobuf works too, when specified in the body only
-  postProtoOtrMessage' (Just [makeIdOpaque bob]) id alice ac conv m'
+  postProtoOtrMessage' (Just [bob]) id alice ac conv m'
     !!! const 201 === statusCode
   _rs <-
     postOtrMessage (queryItem "report_missing" (toByteString' eve)) alice ac conv []

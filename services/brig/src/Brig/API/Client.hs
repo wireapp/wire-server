@@ -34,13 +34,11 @@ module Brig.API.Client
     claimPrekey,
     claimPrekeyBundle,
     claimMultiPrekeyBundles,
+    claimMultiPrekeyBundlesLocal,
     Data.lookupClientIds,
   )
 where
 
-import Brig.API.Error (federationNotImplemented, throwStd)
-import Brig.API.Handler (Handler)
-import Brig.API.IdMapping (resolveOpaqueUserId)
 import Brig.API.Types
 import Brig.App
 import qualified Brig.Data.Client as Data
@@ -55,13 +53,12 @@ import Brig.User.Email
 import Brig.User.Event
 import Control.Error
 import Control.Lens (view)
-import Data.Bitraversable (bitraverse)
 import Data.ByteString.Conversion
+import Data.Domain (Domain)
 import Data.IP (IP)
 import Data.Id (ClientId, ConnId, UserId, makeIdOpaque, makeMappedIdOpaque)
 import qualified Data.Id as Id
 import Data.IdMapping
-import Data.List.NonEmpty (nonEmpty)
 import Data.List.Split (chunksOf)
 import qualified Data.Map.Strict as Map
 import Data.Misc (PlainTextPassword (..))
@@ -72,6 +69,8 @@ import Network.Wai.Utilities
 import System.Logger.Class (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import UnliftIO.Async (Concurrently (Concurrently, runConcurrently))
+import qualified Wire.API.Message as Message
+import Wire.API.User.Client (QualifiedUserClientMap (..), QualifiedUserClients (..))
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap))
 
 lookupClient :: MappedOrLocalId Id.U -> ClientId -> ExceptT ClientError AppIO (Maybe Client)
@@ -151,52 +150,46 @@ rmClient u con clt pw =
         _ -> Data.reauthenticate u pw !>> ClientDataError . ClientReAuthError
       lift $ execDelete u (Just con) client
 
-claimPrekey :: MappedOrLocalId Id.U -> ClientId -> AppIO (Maybe ClientPrekey)
-claimPrekey u c = case u of
-  Local localUser ->
-    claimLocalPrekey localUser c
-  Mapped _ ->
-    -- FUTUREWORK(federation, #1272): claim key from other backend
-    pure Nothing
-
-claimLocalPrekey :: UserId -> ClientId -> AppIO (Maybe ClientPrekey)
-claimLocalPrekey u c = do
-  prekey <- Data.claimPrekey u c
-  case prekey of
-    Nothing -> noPrekeys u c >> return Nothing
-    pk@(Just _) -> return pk
-
-claimPrekeyBundle :: MappedOrLocalId Id.U -> AppIO PrekeyBundle
-claimPrekeyBundle = \case
-  Local localUser ->
-    claimLocalPrekeyBundle localUser
-  Mapped IdMapping {_imMappedId} ->
-    -- FUTUREWORK(federation, #1272): claim keys from other backend
-    pure $ PrekeyBundle (makeMappedIdOpaque _imMappedId) []
-
-claimLocalPrekeyBundle :: UserId -> AppIO PrekeyBundle
-claimLocalPrekeyBundle u = do
-  clients <- map clientId <$> Data.lookupClients u
-  PrekeyBundle (makeIdOpaque u) . catMaybes <$> mapM (Data.claimPrekey u) clients
-
-claimMultiPrekeyBundles :: UserClients -> Handler (UserClientMap (Maybe Prekey))
-claimMultiPrekeyBundles (UserClients clientMap) = do
-  resolved <- lift . traverse (bitraverse resolveOpaqueUserId pure) $ Map.toList clientMap
-  let (localUsers, remoteUsers) = partitionEithers $ map localOrRemoteUser resolved
-  for_ (nonEmpty remoteUsers) $
-    throwStd . federationNotImplemented . fmap fst
-  -- FUTUREWORK(federation, #1272): claim keys from other backends, merge maps
-  lift $ UserClientMap . Map.mapKeys makeIdOpaque <$> claimLocalPrekeyBundles localUsers
+claimPrekey :: UserId -> Domain -> ClientId -> AppIO (Maybe ClientPrekey)
+claimPrekey u d c = do
+  isLocalDomain <- (d ==) <$> viewFederationDomain
+  if isLocalDomain
+    then claimLocalPrekey u c
+    else -- FUTUREWORK(federation, #1272): claim key from other backend
+      pure Nothing
   where
-    localOrRemoteUser :: (MappedOrLocalId Id.U, a) -> Either (UserId, a) (IdMapping Id.U, a)
-    localOrRemoteUser (mappedOrLocal, x) =
-      case mappedOrLocal of
-        Local localId -> Left (localId, x)
-        Mapped mapping -> Right (mapping, x)
+    claimLocalPrekey :: UserId -> ClientId -> AppIO (Maybe ClientPrekey)
+    claimLocalPrekey u' c' = do
+      prekey <- Data.claimPrekey u' c'
+      case prekey of
+        Nothing -> noPrekeys u' c' >> return Nothing
+        pk@(Just _) -> return pk
 
-claimLocalPrekeyBundles :: [(UserId, Set ClientId)] -> AppIO (Map UserId (Map ClientId (Maybe Prekey)))
-claimLocalPrekeyBundles = foldMap getChunk . fmap Map.fromList . chunksOf 16
+claimPrekeyBundle :: Domain -> UserId -> ExceptT ClientError AppIO PrekeyBundle
+claimPrekeyBundle domain uid = do
+  isLocalDomain <- (domain ==) <$> viewFederationDomain
+  if isLocalDomain
+    then lift $ claimLocalPrekeyBundle uid
+    else -- FUTUREWORK(federation, #1272): claim keys from other backend
+      throwE ClientFederationNotImplemented
   where
+    claimLocalPrekeyBundle :: UserId -> AppIO PrekeyBundle
+    claimLocalPrekeyBundle u = do
+      clients <- map clientId <$> Data.lookupClients u
+      PrekeyBundle u . catMaybes <$> mapM (Data.claimPrekey u) clients
+
+claimMultiPrekeyBundles :: QualifiedUserClients -> ExceptT ClientError AppIO (QualifiedUserClientMap (Maybe Prekey))
+claimMultiPrekeyBundles quc = do
+  localDomain <- viewFederationDomain
+  res <- forM (Map.toList . qualifiedUserClients $ quc) $ \(domain, userClients) -> do
+    if domain == localDomain
+      then (domain,) <$> lift (getLocal userClients)
+      else throwE ClientFederationNotImplemented
+  pure $ (QualifiedUserClientMap . Map.fromList) res
+  where
+    getLocal :: UserClients -> AppIO (UserClientMap (Maybe Prekey))
+    getLocal = fmap UserClientMap . foldMap (getChunk . Map.fromList) . chunksOf 16 . Map.toList . Message.userClients
+
     getChunk :: Map UserId (Set ClientId) -> AppIO (Map UserId (Map ClientId (Maybe Prekey)))
     getChunk =
       runConcurrently . Map.traverseWithKey (\u -> Concurrently . getUserKeys u)
@@ -208,6 +201,12 @@ claimLocalPrekeyBundles = foldMap getChunk . fmap Map.fromList . chunksOf 16
       key <- fmap prekeyData <$> Data.claimPrekey u c
       when (isNothing key) $ noPrekeys u c
       return key
+
+claimMultiPrekeyBundlesLocal :: UserClients -> ExceptT ClientError AppIO (UserClientMap (Maybe Prekey))
+claimMultiPrekeyBundlesLocal userClients = do
+  domain <- viewFederationDomain
+  qUserClientM <- claimMultiPrekeyBundles (QualifiedUserClients (Map.singleton domain userClients))
+  pure $ fromJust (Map.lookup domain (qualifiedUserClientMap qUserClientM))
 
 -- Utilities
 

@@ -190,6 +190,7 @@ data ClientError
   | ClientUserNotFound !OpaqueUserId
   | ClientLegalHoldCannotBeRemoved
   | ClientLegalHoldCannotBeAdded
+  | ClientFederationNotImplemented
 
 data RemoveIdentityError
   = LastIdentity

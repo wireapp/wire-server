@@ -215,6 +215,6 @@ assertClientMissing ::
   BotSession ()
 assertClientMissing u d cm =
   assertEqual
-    (UserClients (Map.singleton (makeIdOpaque u) (Set.singleton $ botClientId d)))
+    (UserClients (Map.singleton u (Set.singleton $ botClientId d)))
     (missingClients cm)
     "Missing Clients"

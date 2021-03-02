@@ -25,6 +25,7 @@ import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty)
 import Type.Reflection (typeRep)
 import qualified Wire.API.User as User
 import qualified Wire.API.User.Client as Client
+import qualified Wire.API.User.Client.Prekey as Prekey
 import qualified Wire.API.User.Handle as Handle
 import qualified Wire.API.UserMap as UserMap
 
@@ -39,7 +40,14 @@ tests =
       testToJSON @Client.PubClient,
       testToJSON @(UserMap.UserMap (Set Client.Client)),
       testToJSON @(UserMap.UserMap (Set Client.PubClient)),
-      testToJSON @(UserMap.QualifiedUserMap (Set Client.Client))
+      testToJSON @(UserMap.QualifiedUserMap (Set Client.Client)),
+      testToJSON @(Client.UserClientMap (Maybe Prekey.Prekey)),
+      testToJSON @Client.UserClients,
+      testToJSON @Prekey.Prekey,
+      testToJSON @Prekey.PrekeyBundle,
+      testToJSON @Prekey.ClientPrekey,
+      testToJSON @(Client.QualifiedUserClientMap (Maybe Prekey.Prekey)),
+      testToJSON @Client.QualifiedUserClients
     ]
 
 testToJSON :: forall a. (Arbitrary a, Typeable a, ToJSON a, ToSchema a, Show a) => T.TestTree
