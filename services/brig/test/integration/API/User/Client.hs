@@ -178,12 +178,16 @@ testListClientsBulk opts brig = do
 
   let domain = Opt.setFederationDomain $ Opt.optSettings opts
   uid3 <- userId <$> randomUser brig
-  let expectedResponse :: QualifiedUserMap (Set Client) =
+  let mkPubClient cl = PubClient (clientId cl) (clientClass cl)
+  let expectedResponse :: QualifiedUserMap (Set PubClient) =
         QualifiedUserMap $
           Map.singleton
             domain
             ( UserMap $
-                Map.fromList [(uid1, Set.fromList [c11, c12, c13]), (uid2, Set.fromList [c21, c22])]
+                Map.fromList
+                  [ (uid1, Set.fromList $ mkPubClient <$> [c11, c12, c13]),
+                    (uid2, Set.fromList $ mkPubClient <$> [c21, c22])
+                  ]
             )
   post
     ( brig
