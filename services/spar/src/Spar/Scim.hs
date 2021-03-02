@@ -116,25 +116,25 @@ apiScim =
     wrapScimErrors = over _Spar $ \act -> \env -> do
       result :: Either SomeException (Either SparError a) <- try (act env)
       case result of
-        -- We caught an exception that's not a Spar exception at all. It is wrapped into
-        -- Scim.serverError.
-        Left someException ->
-          pure $
-            Left . SAML.CustomError . SparScimError $
-              Scim.serverError (cs (displayException someException))
-        -- We caught a 'SparScimError' exception. It is left as-is.
+        Left someException -> do
+          -- We caught an exception that's not a Spar exception at all. It is wrapped into
+          -- Scim.serverError.
+          pure . Left . SAML.CustomError . SparScimError $
+            Scim.serverError (cs (displayException someException))
         Right err@(Left (SAML.CustomError (SparScimError _))) ->
+          -- We caught a 'SparScimError' exception. It is left as-is.
           pure err
-        -- We caught some other Spar exception. It is wrapped into Scim.serverError.
-        --
-        -- TODO: does it have to be logged?
         Right (Left sparError) -> do
+          -- We caught some other Spar exception. It is wrapped into Scim.serverError.
+          --
+          -- TODO: does it have to be logged?
           err <- sparToServerErrorWithLogging (sparCtxLogger env) sparError
           pure $
             Left . SAML.CustomError . SparScimError $
               Scim.serverError (cs (errBody err))
-        -- No exceptions! Good.
-        Right (Right x) -> pure $ Right x
+        Right (Right x) -> do
+          -- No exceptions! Good.
+          pure $ Right x
 
 -- | This is similar to 'Scim.siteServer, but does not include the 'Scim.groupServer',
 -- as we don't support it (we don't implement 'Web.Scim.Class.Group.GroupDB').
