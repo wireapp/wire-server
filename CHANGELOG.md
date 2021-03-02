@@ -13,6 +13,17 @@
 ## Internal changes
 
 -->
+# [2020-03-02]
+
+## Bug fixes and other updates
+
+* Return PubClient instead of Client from /users/list-clients (#1391)
+
+## Internal changes
+
+* Federation: Add qualified endpoints for prekey management (#1372)
+
+
 # [2020-02-25]
 
 ## Bug fixes and other updates
