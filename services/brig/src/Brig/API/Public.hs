@@ -159,6 +159,8 @@ type CaptureUserId name = Capture' '[Description "User Id"] name UserId
 
 type CaptureClientId name = Capture' '[Description "ClientId"] name ClientId
 
+type CaptureDomain = Capture "domain" Domain
+
 -- User API -----------------------------------------------------------
 
 data Empty200 = Empty200
@@ -213,7 +215,7 @@ type CheckUserExistsQualified =
   Summary "Check if a user ID exists"
     :> ZAuthServant
     :> "users"
-    :> Capture "domain" Domain
+    :> CaptureDomain
     :> CaptureUserId "uid"
     :> UVerb 'HEAD '[Servant.JSON] CheckUserExistsResponse
 
@@ -240,7 +242,7 @@ type GetUserQualified =
   Summary "Get a user by Domain and UserId"
     :> ZAuthServant
     :> "users"
-    :> Capture "domain" Domain
+    :> CaptureDomain
     :> CaptureUserId "uid"
     :> Get '[Servant.JSON] Public.UserProfile
 
@@ -273,7 +275,7 @@ type GetHandleInfoQualified =
     :> ZAuthServant
     :> "users"
     :> "handles"
-    :> Capture "domain" Domain
+    :> CaptureDomain
     :> Capture' '[Description "The user handle"] "handle" Handle
     :> Get '[Servant.JSON] Public.UserHandleInfo
 
@@ -308,7 +310,7 @@ type GetUserClientsUnqualified =
 type GetUserClientsQualified =
   Summary "Get all of a user's clients."
     :> "users"
-    :> Capture "domain" Domain
+    :> CaptureDomain
     :> CaptureUserId "uid"
     :> "clients"
     :> Get '[Servant.JSON] [Public.PubClient]
@@ -324,11 +326,19 @@ type GetUserClientUnqualified =
 type GetUserClientQualified =
   Summary "Get a specific client of a user."
     :> "users"
-    :> Capture "domain" Domain
+    :> CaptureDomain
     :> CaptureUserId "uid"
     :> "clients"
     :> CaptureClientId "client"
     :> Get '[Servant.JSON] Public.PubClient
+
+type GetUserRichInfoUnqualified =
+  Summary "Get user's rich info"
+    :> ZAuthServant
+    :> "users"
+    :> CaptureUserId "uid"
+    :> "rich-info"
+    :> Get '[Servant.JSON] Public.RichInfoAssocList
 
 type ListClientsBulk =
   Summary "List all clients for a set of user ids"
@@ -349,7 +359,7 @@ type GetUsersPrekeysClientUnqualified =
 type GetUsersPrekeysClientQualified =
   Summary "Get a prekey for a specific client of a user."
     :> "users"
-    :> Capture "domain" Domain
+    :> CaptureDomain
     :> CaptureUserId "uid"
     :> "prekeys"
     :> CaptureClientId "client"
@@ -365,7 +375,7 @@ type GetUsersPrekeyBundleUnqualified =
 type GetUsersPrekeyBundleQualified =
   Summary "Get a prekey for each client of a user."
     :> "users"
-    :> Capture "domain" Domain
+    :> CaptureDomain
     :> CaptureUserId "uid"
     :> "prekeys"
     :> Get '[Servant.JSON] Public.PrekeyBundle
@@ -404,6 +414,7 @@ type OutsideWorldAPI =
     :<|> GetUserClientsQualified
     :<|> GetUserClientUnqualified
     :<|> GetUserClientQualified
+    :<|> GetUserRichInfoUnqualified
     :<|> ListClientsBulk
     :<|> GetUsersPrekeysClientUnqualified
     :<|> GetUsersPrekeysClientQualified
@@ -442,6 +453,7 @@ servantSitemap =
     :<|> getUserClientsQualified
     :<|> getUserClientUnqualified
     :<|> getUserClientQualified
+    :<|> getUserRichInfoUnqualified
     :<|> listClientsBulk
     :<|> getPrekeyUnqualifiedH
     :<|> getPrekeyH
@@ -486,19 +498,17 @@ sitemap o = do
   -- some APIs moved to servant
   -- end User Handle API
 
-  -- User Client API ----------------------------------------------------
-
-  get "/users/:uid/rich-info" (continue getRichInfoH) $
-    zauthUserId
-      .&. capture "uid"
-      .&. accept "application" "json"
-  document "GET" "getRichInfo" $ do
-    Doc.summary "Get user's rich info"
-    Doc.parameter Doc.Path "uid" Doc.bytes' $
-      Doc.description "User ID"
-    Doc.returns (Doc.ref Public.modelRichInfo)
-    Doc.response 200 "RichInfo" Doc.end
-    Doc.errorResponse insufficientTeamPermissions
+  -- get "/users/:uid/rich-info" (continue getRichInfoH) $
+  --   zauthUserId
+  --     .&. capture "uid"
+  --     .&. accept "application" "json"
+  -- document "GET" "getRichInfo" $ do
+  --   Doc.summary "Get user's rich info"
+  --   Doc.parameter Doc.Path "uid" Doc.bytes' $
+  --     Doc.description "User ID"
+  --   Doc.returns (Doc.ref Public.modelRichInfo)
+  --   Doc.response 200 "RichInfo" Doc.end
+  --   Doc.errorResponse insufficientTeamPermissions
 
   -- User Self API ------------------------------------------------------
 
@@ -1191,12 +1201,8 @@ getClient zusr clientId = do
   localdomain <- viewFederationDomain
   API.lookupClient (Qualified zusr localdomain) clientId !>> clientError
 
-getRichInfoH :: UserId ::: UserId ::: JSON -> Handler Response
-getRichInfoH (self ::: user ::: _) = do
-  json <$> getRichInfo self user
-
-getRichInfo :: UserId -> UserId -> Handler Public.RichInfoAssocList
-getRichInfo self user = do
+getUserRichInfoUnqualified :: UserId -> UserId -> Handler Public.RichInfoAssocList
+getUserRichInfoUnqualified self user = do
   -- Check that both users exist and the requesting user is allowed to see rich info of the
   -- other user
   selfUser <- ifNothing userNotFound =<< lift (Data.lookupUser NoPendingInvitations self)

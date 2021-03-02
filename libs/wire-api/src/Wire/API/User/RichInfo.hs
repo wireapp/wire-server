@@ -105,14 +105,6 @@ data RichInfoMapAndList = RichInfoMapAndList
   }
   deriving stock (Eq, Show, Generic)
 
--- | TODO: this is model is wrong, it says nothing about the map part.
--- modelRichInfo :: Doc.Model
--- modelRichInfo = Doc.defineModel "RichInfo" $ do
---   Doc.description "Rich info about the user"
---   Doc.property "fields" (Doc.array (Doc.ref modelRichField)) $
---     Doc.description "List of fields"
---   Doc.property "version" Doc.int32' $
---     Doc.description "Format version (the current version is 0)"
 instance ToJSON RichInfoMapAndList where
   toJSON u =
     object
@@ -275,15 +267,6 @@ data RichField = RichField
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "prekey", LowerCase)] RichField)
-
--- TODO: remove
--- modelRichField :: Doc.Model
--- modelRichField = Doc.defineModel "RichField" $ do
---   Doc.description "RichInfo field"
---   Doc.property "type" Doc.string' $
---     Doc.description "Field name"
---   Doc.property "value" Doc.string' $
---     Doc.description "Field value"
 
 instance ToJSON RichField where
   -- NB: "name" would be a better name for 'richFieldType', but "type" is used because we
