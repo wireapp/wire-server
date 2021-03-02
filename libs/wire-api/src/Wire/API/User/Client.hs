@@ -56,7 +56,6 @@ module Wire.API.User.Client
     modelClient,
     modelSigkeys,
     modelLocation, -- re-export from types-common
-    modelPubClient,
   )
 where
 
@@ -314,14 +313,7 @@ data PubClient = PubClient
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform PubClient)
-
-modelPubClient :: Doc.Model
-modelPubClient = Doc.defineModel "PubClient" $ do
-  Doc.description "A client as seen by other users."
-  Doc.property "id" Doc.string' $
-    Doc.description "The client ID."
-  Doc.property "class" typeClientClass $
-    Doc.description "The device class this client belongs to. Either 'phone', 'tablet', or 'desktop'."
+  deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "pubClient", LowerCase)] PubClient)
 
 instance ToJSON PubClient where
   toJSON c =

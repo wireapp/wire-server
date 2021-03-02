@@ -37,6 +37,7 @@ tests =
       testToJSON @User.SelfProfile,
       testToJSON @Handle.UserHandleInfo,
       testToJSON @Client.Client,
+      testToJSON @Client.PubClient,
       testToJSON @(Client.UserClientMap (Maybe Prekey.Prekey)),
       testToJSON @Client.UserClients,
       testToJSON @(UserMap.UserMap (Set Client.Client)),
