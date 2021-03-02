@@ -87,6 +87,7 @@ import qualified Web.Scim.Class.Auth as Scim.Auth
 import qualified Web.Scim.Class.User as Scim.User
 import qualified Web.Scim.Handler as Scim
 import qualified Web.Scim.Schema.Error as Scim
+import qualified Web.Scim.Schema.Schema as Scim.Schema
 import qualified Web.Scim.Server as Scim
 
 -- | SCIM config for our server.
@@ -125,13 +126,16 @@ apiScim =
           -- We caught a 'SparScimError' exception. It is left as-is.
           pure err
         Right (Left sparError) -> do
-          -- We caught some other Spar exception. It is wrapped into Scim.serverError.
-          --
-          -- TODO: does it have to be logged?
-          err <- sparToServerErrorWithLogging (sparCtxLogger env) sparError
-          pure $
-            Left . SAML.CustomError . SparScimError $
-              Scim.serverError (cs (errBody err))
+          -- We caught some other Spar exception. It is rendered and wrapped into a scim error
+          -- with the same status and message, and no scim error type.
+          err :: ServerError <- sparToServerErrorWithLogging (sparCtxLogger env) sparError
+          pure . Left . SAML.CustomError . SparScimError $
+            Scim.ScimError
+              { schemas = [Scim.Schema.Error20],
+                status = Scim.Status $ errHTTPCode err,
+                scimType = Nothing,
+                detail = Just . cs $ errBody err
+              }
         Right (Right x) -> do
           -- No exceptions! Good.
           pure $ Right x
