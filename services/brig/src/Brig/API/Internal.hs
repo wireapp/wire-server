@@ -271,8 +271,8 @@ internalListClientsH (_ ::: req) = do
 
 internalListClients :: UserSet -> AppIO UserClients
 internalListClients (UserSet usrs) = do
-  UserClients . Map.mapKeys makeIdOpaque . Map.fromList
-    <$> (API.lookupUsersClientIds $ Set.toList usrs)
+  UserClients . Map.fromList
+    <$> API.lookupUsersClientIds (Set.toList usrs)
 
 autoConnectH :: JSON ::: UserId ::: Maybe ConnId ::: JsonRequest UserSet -> Handler Response
 autoConnectH (_ ::: uid ::: conn ::: req) = do

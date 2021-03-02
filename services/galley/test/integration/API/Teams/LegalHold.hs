@@ -223,7 +223,7 @@ testApproveLegalHoldDevice = do
       liftIO $ do
         clients' <- Cql.runClient cassState $ Data.lookupClients [member]
         assertBool "Expect clientId to be saved on the user" $
-          Clients.contains (makeIdOpaque member) someClientId clients'
+          Clients.contains member someClientId clients'
       UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped member tid
       liftIO $
         assertEqual

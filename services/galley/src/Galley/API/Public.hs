@@ -25,7 +25,7 @@ where
 
 import Data.Aeson (FromJSON, ToJSON, encode)
 import Data.ByteString.Conversion (fromByteString, fromList, toByteString')
-import Data.Id (OpaqueUserId, TeamId, UserId)
+import Data.Id (TeamId, UserId)
 import qualified Data.Predicate as P
 import Data.Range
 import qualified Data.Set as Set
@@ -1084,7 +1084,7 @@ filterMissing = (>>= go) <$> (query "ignore_missing" ||| query "report_missing")
       Just True -> return Public.OtrReportAllMissing
       Just False -> return Public.OtrIgnoreAllMissing
       Nothing -> Public.OtrReportMissing <$> users "report_missing" rep
-    users :: ByteString -> ByteString -> P.Result P.Error (Set OpaqueUserId)
+    users :: ByteString -> ByteString -> P.Result P.Error (Set UserId)
     users src bs = case fromByteString bs of
       Nothing ->
         P.Fail $

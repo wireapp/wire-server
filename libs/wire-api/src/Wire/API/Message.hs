@@ -62,7 +62,7 @@ data NewOtrMessage = NewOtrMessage
     newOtrTransient :: Bool,
     newOtrNativePriority :: Maybe Priority,
     newOtrData :: Maybe Text,
-    newOtrReportMissing :: Maybe [OpaqueUserId]
+    newOtrReportMissing :: Maybe [UserId]
     -- FUTUREWORK: if (and only if) clients can promise this uid list will always exactly
     -- be the list of uids we could also extract from the messages' recipients field, we
     -- should do the latter, for two reasons: (1) no need for an artificial limit on the
@@ -157,16 +157,17 @@ instance FromJSON Priority where
 --------------------------------------------------------------------------------
 -- Recipients
 
+-- FUTUREWORK: Add ToSchema when 'NewOtrMessage' has ToSchema
 newtype OtrRecipients = OtrRecipients
   { otrRecipientsMap :: UserClientMap Text
   }
   deriving stock (Eq, Show)
   deriving newtype (ToJSON, FromJSON, Semigroup, Monoid, Arbitrary)
 
+-- FUTUREWORK: Remove when 'NewOtrMessage' has ToSchema
 modelOtrRecipients :: Doc.Model
 modelOtrRecipients = Doc.defineModel "OtrRecipients" $ do
   Doc.description "Recipients of OTR content."
-  -- FUTUREWORK: is this right?
   Doc.property "" (Doc.ref modelOtrClientMap) $
     Doc.description "Mapping of user IDs to 'OtrClientMap's."
 
@@ -182,10 +183,10 @@ data OtrFilterMissing
     OtrReportAllMissing
   | -- | Complain only about missing
     --      recipients who are /not/ on this list
-    OtrIgnoreMissing (Set OpaqueUserId)
+    OtrIgnoreMissing (Set UserId)
   | -- | Complain only about missing
     --      recipients who /are/ on this list
-    OtrReportMissing (Set OpaqueUserId)
+    OtrReportMissing (Set UserId)
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform OtrFilterMissing)
 

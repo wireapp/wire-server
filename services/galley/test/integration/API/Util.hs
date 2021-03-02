@@ -546,7 +546,7 @@ postOtrMessage ::
 postOtrMessage = postOtrMessage' Nothing
 
 postOtrMessage' ::
-  Maybe [OpaqueUserId] ->
+  Maybe [UserId] ->
   (Request -> Request) ->
   UserId ->
   ClientId ->
@@ -571,7 +571,7 @@ postOtrBroadcastMessage req usrs clt rcps = do
   postOtrBroadcastMessage' g Nothing req usrs clt rcps
 
 -- | 'postOtrBroadcastMessage' with @"report_missing"@ in body.
-postOtrBroadcastMessage' :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, MonadFail m, HasCallStack) => (Request -> Request) -> Maybe [OpaqueUserId] -> (Request -> Request) -> UserId -> ClientId -> [(UserId, ClientId, Text)] -> m ResponseLBS
+postOtrBroadcastMessage' :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, MonadFail m, HasCallStack) => (Request -> Request) -> Maybe [UserId] -> (Request -> Request) -> UserId -> ClientId -> [(UserId, ClientId, Text)] -> m ResponseLBS
 postOtrBroadcastMessage' g reportMissingBody f u d rec = do
   post $
     g
@@ -582,7 +582,7 @@ postOtrBroadcastMessage' g reportMissingBody f u d rec = do
       . zType "access"
       . json (mkOtrPayload d rec reportMissingBody)
 
-mkOtrPayload :: ClientId -> [(UserId, ClientId, Text)] -> Maybe [OpaqueUserId] -> Value
+mkOtrPayload :: ClientId -> [(UserId, ClientId, Text)] -> Maybe [UserId] -> Value
 mkOtrPayload sender rec reportMissingBody =
   object
     [ "sender" .= sender,
@@ -600,7 +600,7 @@ mkOtrMessage (usr, clt, m) = (fn usr, HashMap.singleton (fn clt) m)
 postProtoOtrMessage :: UserId -> ClientId -> ConvId -> OtrRecipients -> TestM ResponseLBS
 postProtoOtrMessage = postProtoOtrMessage' Nothing id
 
-postProtoOtrMessage' :: Maybe [OpaqueUserId] -> (Request -> Request) -> UserId -> ClientId -> ConvId -> OtrRecipients -> TestM ResponseLBS
+postProtoOtrMessage' :: Maybe [UserId] -> (Request -> Request) -> UserId -> ClientId -> ConvId -> OtrRecipients -> TestM ResponseLBS
 postProtoOtrMessage' reportMissing modif u d c rec = do
   g <- view tsGalley
   let m = runPut (encodeMessage $ mkOtrProtoMessage d rec reportMissing)
@@ -617,7 +617,7 @@ postProtoOtrMessage' reportMissing modif u d c rec = do
 postProtoOtrBroadcast :: UserId -> ClientId -> OtrRecipients -> TestM ResponseLBS
 postProtoOtrBroadcast = postProtoOtrBroadcast' Nothing id
 
-postProtoOtrBroadcast' :: Maybe [OpaqueUserId] -> (Request -> Request) -> UserId -> ClientId -> OtrRecipients -> TestM ResponseLBS
+postProtoOtrBroadcast' :: Maybe [UserId] -> (Request -> Request) -> UserId -> ClientId -> OtrRecipients -> TestM ResponseLBS
 postProtoOtrBroadcast' reportMissing modif u d rec = do
   g <- view tsGalley
   let m = runPut (encodeMessage $ mkOtrProtoMessage d rec reportMissing)
@@ -631,7 +631,7 @@ postProtoOtrBroadcast' reportMissing modif u d rec = do
           . contentProtobuf
           . bytes m
 
-mkOtrProtoMessage :: ClientId -> OtrRecipients -> Maybe [OpaqueUserId] -> Proto.NewOtrMessage
+mkOtrProtoMessage :: ClientId -> OtrRecipients -> Maybe [UserId] -> Proto.NewOtrMessage
 mkOtrProtoMessage sender rec reportMissing =
   let rcps = Proto.fromOtrRecipients rec
       sndr = Proto.fromClientId sender
@@ -1325,12 +1325,12 @@ eqMismatch mssd rdnt dltd (Just other) =
     && userClients dltd == deletedClients other
   where
     userClients :: [(UserId, Set ClientId)] -> UserClients
-    userClients = UserClients . Map.mapKeys makeIdOpaque . Map.fromList
+    userClients = UserClients . Map.fromList
 
 otrRecipients :: [(UserId, [(ClientId, Text)])] -> OtrRecipients
 otrRecipients = OtrRecipients . UserClientMap . buildMap
   where
-    buildMap = fmap Map.fromList . Map.mapKeys makeIdOpaque . Map.fromList
+    buildMap = fmap Map.fromList . Map.fromList
 
 encodeCiphertext :: ByteString -> Text
 encodeCiphertext = decodeUtf8 . B64.encode
