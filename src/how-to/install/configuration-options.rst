@@ -115,6 +115,24 @@ Then add them to your gundeck configuration overrides:
 
 After making this change and applying it to gundeck (ensure gundeck pods have restarted to make use of the updated configuration - that should happen automatically), make sure to reset the push token on any mobile devices that you may have in use.
 
+
+Blocking creation of personal users, new teams
+--------------------------------------------------------------------------
+
+There are some unauthenticated end-points that allow arbitrary users on the open internet to do things like create a new team.  This is desired in the cloud, and not an issue on many on-prem solutions (eg. all of those that are not exposed to the global IP address space).  However, if you run an on-prem setup that is open to the world, you may want to block this.
+
+Brig has a server option for this:
+
+.. code:: yaml
+
+    optSettings:
+      setRestrictUserCreation: true
+
+If `setRestrictUserCreation` is `true`, creating new personal users or new teams on your instance from outside your backend installation is impossible.  (If you want to be more technical: requests to `/register` that create a new personal account or a new team are answered with `403 forbidden`.)
+
+If you operate an instance with restricted user creation, you can still create new teams (and, if you really want to, personal users): see https://github.com/wireapp/wire-server/blob/b9a84f9b654a69c9a296761b36c042dc993236d3/deploy/services-demo/create_test_team_admins.sh for examples.
+
+
 You may want
 --------------
 
