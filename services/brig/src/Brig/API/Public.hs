@@ -71,7 +71,6 @@ import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
 import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
 import Data.Range
-import qualified Data.Set as Set
 import Data.Swagger
   ( ApiKeyLocation (..),
     ApiKeyParams (..),
