@@ -14,6 +14,10 @@ spec:
       - {{ .Values.config.dns.ssl }}
       - {{ .Values.config.dns.webapp }}
       - {{ .Values.config.dns.fakeS3 }}
+# FUTUREWORK(federation): support TLS connections to federator
+# {{- if .Values.federator.enabled }}
+#       - {{ .Values.config.dns.federator }}
+# {{- end }}
 {{- if .Values.teamSettings.enabled }}
       - {{ .Values.config.dns.teamSettings }}
 {{- end }}
@@ -51,6 +55,18 @@ spec:
             backend:
               serviceName: {{ .Values.service.s3.serviceName }}
               servicePort: {{ .Values.service.s3.externalPort }}
+{{- if .Values.federator.enabled }}
+    - host: {{ .Values.config.dns.federator }}
+      http:
+        paths:
+          - path: /
+            backend:
+              # FUTUREWORK(federation): nginz-grpc?
+              # should we forward to 'nginz-grpc' and have configuration in nginz for grpc on a separate port?
+              serviceName: federator
+              # servicePort: {{ .Values.service.federator.externalFederatorPort }}
+              servicePort: wire-server-federator
+{{- end }}
 {{- if .Values.teamSettings.enabled }}
     - host: {{ .Values.config.dns.teamSettings }}
       http:

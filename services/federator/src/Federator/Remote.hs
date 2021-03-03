@@ -58,6 +58,8 @@ interpretRemote = interpret $ \case
       Right target -> do
         -- FUTUREWORK(federation): Make this use TLS, maybe make it configurable
         -- FUTUREWORK(federation): Cache this client and use it for many requests
+        -- FUTUREWORK(federation): check what trust store this is using.
+        --   See also https://github.com/lucasdicioccio/http2-client/issues/76
         eitherClient <- mkGrpcClient target
         case eitherClient of
           Right client ->
