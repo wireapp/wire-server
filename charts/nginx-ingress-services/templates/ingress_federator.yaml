@@ -1,0 +1,35 @@
+{{- if .Values.federator.enabled }}
+# Note:
+# we need a separate ingress for federator/grpc since we can't forward
+# both normal http1 traffic and grpc traffic in the same kubernetes ingress it appears.
+# see also example https://github.com/kubernetes/ingress-nginx/blob/master/docs/examples/grpc/ingress.yaml
+# and docs https://kubernetes.github.io/ingress-nginx/examples/grpc/
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: federator-ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false" # FUTUREWORK(federation): support TLS!
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+spec:
+
+# FUTUREWORK(federation): support TLS connections to federator
+#
+# tls:
+# - hosts:
+# {{- if .Values.federator.enabled }}
+#       - {{ .Values.config.dns.federator }}
+# {{- end }}
+  rules:
+    - host: {{ .Values.config.dns.federator }}
+      http:
+        paths:
+          - path: /
+            backend:
+              # FUTUREWORK(federation): nginz-grpc?
+              # should we forward to 'nginz-grpc' and have configuration in nginz for grpc on a separate port?
+              serviceName: federator
+              # servicePort: {{ .Values.service.federator.externalFederatorPort }}
+              servicePort: wire-server-federator
+{{- end }}
