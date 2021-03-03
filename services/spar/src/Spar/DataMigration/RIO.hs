@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -17,13 +17,22 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main
-  ( main,
-  )
-where
+module Spar.DataMigration.RIO where
 
 import Imports
-import qualified Work
 
-main :: IO ()
-main = Work.main
+newtype RIO env a = RIO {unRIO :: ReaderT env IO a}
+  deriving newtype (Functor, Applicative, Monad, MonadIO, MonadReader env)
+
+runRIO :: env -> RIO env a -> IO a
+runRIO e f = runReaderT (unRIO f) e
+
+modifyRef :: (env -> IORef a) -> (a -> a) -> RIO env ()
+modifyRef get_ mod' = do
+  ref <- asks get_
+  liftIO (modifyIORef ref mod')
+
+readRef :: (env -> IORef b) -> RIO env b
+readRef g = do
+  ref <- asks g
+  liftIO $ readIORef ref

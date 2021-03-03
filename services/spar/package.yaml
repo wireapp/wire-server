@@ -30,8 +30,10 @@ dependencies:
   - bytestring-conversion
   - case-insensitive
   - cassandra-util
+  - conduit
   - containers
   - cookie
+  - cql
   - cryptonite
   - data-default
   - email-validate
@@ -121,6 +123,13 @@ executables:
   spar-schema:
     main: Main.hs
     source-dirs: schema/src
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    dependencies:
+      - spar
+
+  spar-migrate-data:
+    main: Main.hs
+    source-dirs: migrate-data/src
     ghc-options: -threaded -rtsopts -with-rtsopts=-N
     dependencies:
       - spar

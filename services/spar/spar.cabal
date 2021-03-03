@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d5476ea0ce8d09ebda5cea51897773fb0372e5cae747e17a5dc89f7460c75604
+-- hash: 3c81df1298b4c17e7c600b0ce3b168e1ed99b271f4dee5cc565e43485d08025c
 
 name:           spar
 version:        0.1
@@ -27,6 +27,11 @@ library
       Spar.App
       Spar.Data
       Spar.Data.Instances
+      Spar.DataMigration.Options
+      Spar.DataMigration.RIO
+      Spar.DataMigration.Run
+      Spar.DataMigration.Types
+      Spar.DataMigration.V1_ExternalIds
       Spar.Error
       Spar.Intra.Brig
       Spar.Intra.Galley
@@ -60,8 +65,10 @@ library
     , bytestring-conversion
     , case-insensitive
     , cassandra-util
+    , conduit
     , containers
     , cookie
+    , cql
     , cryptonite
     , data-default
     , email-validate
@@ -140,8 +147,10 @@ executable spar
     , bytestring-conversion
     , case-insensitive
     , cassandra-util
+    , conduit
     , containers
     , cookie
+    , cql
     , cryptonite
     , data-default
     , email-validate
@@ -238,8 +247,10 @@ executable spar-integration
     , bytestring-conversion
     , case-insensitive
     , cassandra-util
+    , conduit
     , containers
     , cookie
+    , cql
     , cryptonite
     , data-default
     , email-validate
@@ -310,6 +321,89 @@ executable spar-integration
     , zauth
   default-language: Haskell2010
 
+executable spar-migrate-data
+  main-is: Main.hs
+  other-modules:
+      Paths_spar
+  hs-source-dirs:
+      migrate-data/src
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -j -Wno-redundant-constraints -Werror -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      HsOpenSSL
+    , aeson
+    , aeson-pretty
+    , aeson-qq
+    , attoparsec
+    , base
+    , base64-bytestring
+    , bilge
+    , binary
+    , brig-types
+    , bytestring
+    , bytestring-conversion
+    , case-insensitive
+    , cassandra-util
+    , conduit
+    , containers
+    , cookie
+    , cql
+    , cryptonite
+    , data-default
+    , email-validate
+    , errors
+    , exceptions
+    , extended
+    , extra
+    , galley-types
+    , ghc-prim
+    , hscim
+    , http-api-data
+    , http-client
+    , http-client-tls
+    , http-media
+    , http-types
+    , imports
+    , insert-ordered-containers
+    , interpolate
+    , lens
+    , memory
+    , metrics-core
+    , metrics-wai
+    , mtl
+    , network-uri
+    , optparse-applicative
+    , prometheus-client
+    , raw-strings-qq
+    , retry
+    , saml2-web-sso >=0.18
+    , scientific
+    , servant
+    , servant-multipart
+    , servant-server
+    , servant-swagger
+    , spar
+    , string-conversions
+    , swagger2
+    , text
+    , text-latin1
+    , time
+    , tinylog
+    , transformers
+    , types-common
+    , unordered-containers
+    , uri-bytestring
+    , uuid
+    , wai
+    , wai-middleware-prometheus
+    , wai-utilities
+    , warp
+    , wire-api
+    , x509
+    , xml-conduit
+    , yaml
+  default-language: Haskell2010
+
 executable spar-schema
   main-is: Main.hs
   other-modules:
@@ -318,6 +412,7 @@ executable spar-schema
       V10
       V11
       V12
+      V13
       V2
       V3
       V4
@@ -346,8 +441,10 @@ executable spar-schema
     , bytestring-conversion
     , case-insensitive
     , cassandra-util
+    , conduit
     , containers
     , cookie
+    , cql
     , cryptonite
     , data-default
     , email-validate
@@ -436,8 +533,10 @@ test-suite spec
     , bytestring-conversion
     , case-insensitive
     , cassandra-util
+    , conduit
     , containers
     , cookie
+    , cql
     , cryptonite
     , data-default
     , email-validate
