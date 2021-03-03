@@ -273,8 +273,8 @@ kube-restart-%:
 	kubectl delete pod -n $(NAMESPACE) -l wireService=$(*)
 	kubectl delete pod -n $(NAMESPACE)-fed2 -l wireService=$(*)
 
-.PHONY: latest-brig-tag
-latest-brig-tag:
+.PHONY: latest-tag
+latest-tag:
 	./hack/bin/find-latest-docker-tag.sh
 
 .PHONY: release-chart-%
