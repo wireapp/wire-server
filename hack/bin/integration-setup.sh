@@ -14,7 +14,7 @@ kubectl create namespace "${NAMESPACE}" > /dev/null 2>&1 || true
 
 ${DIR}/integration-cleanup.sh
 
-charts=( fake-aws databases-ephemeral wire-server )
+charts=( fake-aws databases-ephemeral wire-server nginx-ingress-controller nginx-ingress-services )
 
 echo "updating recursive dependencies ..."
 for chart in "${charts[@]}"; do

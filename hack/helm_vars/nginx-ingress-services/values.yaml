@@ -1,0 +1,73 @@
+teamSettings:
+  enabled: true
+accountPages:
+  enabled: true
+federator:
+  enabled: true
+tls:
+  enabled: true
+  useCertManager: false
+  # self-signed certificates generated using selfsigned.sh
+  tlsWildCardCert: |
+    -----BEGIN CERTIFICATE-----
+    MIIDFDCCAfygAwIBAgIUaSFDTpHbxVsmWDkcLj3jqQevbBswDQYJKoZIhvcNAQEL
+    BQAwIjEgMB4GA1UEAxMXaW50ZWdyYXRpb24uZXhhbXBsZS5jb20wHhcNMjEwMzAz
+    MTUyOTAwWhcNMjYwMzAyMTUyOTAwWjAiMSAwHgYDVQQDExdpbnRlZ3JhdGlvbi5l
+    eGFtcGxlLmNvbTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAL0MPFET
+    VlPRAH22BxnWfqExFxFeBsB1IMJu2B0OALhSX+hUzNyTCVEXwQcwyh9T2e86D8Q3
+    hoh5V0PoCuBP36KMdq7duiJdq5nZOh1wtlB7xrEObiUAstrd+r0yhSpBHi1BMGFL
+    YZL4OrBiQ7JzU6haWx+7Wq1upuqYKaB6ZcceqMoUyunrtEX/a1KlzMimq8FE5zjs
+    XyVUPt759wJNetiEz02Jc17rOzXGRafwEzF14iAAkuJGlZ6BugDLBSULk4QScYwv
+    xP+RrUHPIfyDVRfIjlM+wTp7sCbIy7Gkf8qgVyQnCFl4Axcmf1N+NF1/AysVCK2T
+    Inq/XvqNEbIwDvsCAwEAAaNCMEAwDgYDVR0PAQH/BAQDAgEGMA8GA1UdEwEB/wQF
+    MAMBAf8wHQYDVR0OBBYEFLQmruxKfRnOVVXfqNFO9SvfrGY6MA0GCSqGSIb3DQEB
+    CwUAA4IBAQAaxADjN+EIlkWzA43EpTZU4OSwzmlWyMe84n5FHM+wHAqDYggfb5vP
+    os88BwM+0ljoz6hcADBd1JHBlF15XzkpNmdz+9q6Y8RRmuJxZKUkml+GGLvE6Lbg
+    RGiv/XhsMgvbs3NTyUUUuyxGazRMqlrdrKVxDMCCuIYOA9m0CooZ/S8u3E2noDzA
+    36bbcfKOlLcFtrnvVGpaSzb9/Ws1Trsj37HClsx3AybySRw8qb9IvVW7SLSKl/78
+    iV+xnuiLcRmeMSuzZt5XPPSg0oblKTihiOpHfu5UNinvo/fBXJ4vqvh9eENyM0Rj
+    dyZ/xC223/Q8bUkv23LmQ/UDR4ljcYPa
+    -----END CERTIFICATE-----
+  tlsWildCardKey: |
+    -----BEGIN RSA PRIVATE KEY-----
+    MIIEpAIBAAKCAQEAvQw8URNWU9EAfbYHGdZ+oTEXEV4GwHUgwm7YHQ4AuFJf6FTM
+    3JMJURfBBzDKH1PZ7zoPxDeGiHlXQ+gK4E/foox2rt26Il2rmdk6HXC2UHvGsQ5u
+    JQCy2t36vTKFKkEeLUEwYUthkvg6sGJDsnNTqFpbH7tarW6m6pgpoHplxx6oyhTK
+    6eu0Rf9rUqXMyKarwUTnOOxfJVQ+3vn3Ak162ITPTYlzXus7NcZFp/ATMXXiIACS
+    4kaVnoG6AMsFJQuThBJxjC/E/5GtQc8h/INVF8iOUz7BOnuwJsjLsaR/yqBXJCcI
+    WXgDFyZ/U340XX8DKxUIrZMier9e+o0RsjAO+wIDAQABAoIBAQCqgLKV3P7rMYFj
+    4ByfbRlggEnx2//y7LDTK+22pr53f7QIcxMhjWvFu8rYlWR2xMW2QYOe0QWBaQ8P
+    q+TDUsa8cDtKk6gg/qKaa5VCoDmOdVRKtF0a+npVdAeFRF9eMMTqw/TCi55BU6h7
+    FOVBuUomePfesreh3D6nLv28QygwYSTgbYClAdqGaNo6DhoD5jQ3ELWwOIjLgW+u
+    GPd4k+88Te6Vj8gD3OZqQFBcFXFvLNpy5L5gloD6gJfNqmz2Qw83+TfGe4uZnufN
+    k5HDgDde7UImFKLl7JQ0ZQ1nrQhwAeeqJizH7278pIs1qxDpgsPJ0ud8OoVtSLEL
+    er/eBt9BAoGBAOsJmStv9XlKIipoO+hhOQ3d0t+51QU7B8OvAT3XFNsWeSabYy52
+    YuOsXwMF3wk/d6ek/u+FEF86IMI102EBFPoinbfxRWwTfE5qege8JgRs9STanZZr
+    Ys6U0p10blftPS76vd8A/OpWbdHUi60vyEgUguKo+TjZEB9riYJR4heDAoGBAM3o
+    mHIgyIOJWpdwBEAt126+ZvkhcbXAMPTf7k3+mLjpZq9rfbcKtZU7YW2T/dHYxsQ+
+    aOb9+gnmLq7di+zUdlvd14sgJEDRtIWcVC/tlLAt7swDpPT9JbEcL6eTJX1EyROh
+    4B0+gssWh8E39c73tzFkiRl/DrSRfpvuPvwmz5kpAoGAZqT5dIPfk0mx5A1DZHfZ
+    H9opNrWEd1VRTb9G7ofYvtlwrVCdHvRquX1UvRA6WGKUUe13vIjDHqNXHRm+p5V+
+    YMLvWB6RL+LOnbxYcLpVbAddg+vJeKCLNSa/WC455kJgPv0YIKTgz0JRkZqeKVM9
+    x2TVyED9HjuFlAM1uWkjMRsCgYEAjPdXHpMpEzw+o/yRPGrl2TBLCPYHhflsyshf
+    uk+5uKY5oZDCgUS4qdD8U2uE0lxJP+LGKJXpz0sh3J9aAyo1WZFX1iyMBUBMCUjM
+    Lf/F0pOvr0YzcXG5kzYLvfq0KL2lt2YUK5E3M9hZ2kL4atgWN59vaOAebipJdnE1
+    96SObXkCgYAAw7VFQXsmvJaZNxbfFfVc8SPzT0JuYlfeB5XHZ0SzxD4oJfePpgYJ
+    ZosmZOqR2C0ZCQ290pnf4b6eW0qooNN4DhfrswUecYifxGO2JqJz3mBUD46lT2Q1
+    CvYZq7JCfRRW0AaoSmK5uFr4CGg9rMNew8B2EizrWRazghu4dC80cg==
+    -----END RSA PRIVATE KEY-----
+
+certManager:
+  inTestMode: true
+  certmasterEmail: "certificates+integration-tests@wire.com"
+
+config:
+  dns:
+    https: nginz-https.integration.example.com
+    ssl: nginz-ssl.integration.example.com
+    webapp: webapp.integration.example.com
+    fakeS3: assets.integration.example.com
+    teamSettings: teams.integration.example.com
+    accountPages: account.integration.example.com
+    federator: federator.integration.example.com
+
