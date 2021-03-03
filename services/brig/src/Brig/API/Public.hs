@@ -1151,7 +1151,7 @@ getClientH (zusr ::: clt ::: _) =
 
 listClientsBulk :: UserId -> Range 1 MaxUsersForListClientsBulk [Qualified UserId] -> Handler (Public.QualifiedUserMap (Set Public.PubClient))
 listClientsBulk _zusr limitedUids = do
-  Set.map API.pubClient <$$> API.lookupClientsBulk (fromRange limitedUids) !>> clientError
+  API.lookupPubClientsBulk (fromRange limitedUids) !>> clientError
 
 getClient :: UserId -> ClientId -> Handler (Maybe Public.Client)
 getClient zusr clientId = do

@@ -26,7 +26,7 @@ module Brig.API.Client
     removeLegalHoldClient,
     lookupClient,
     lookupClients,
-    lookupClientsBulk,
+    lookupPubClientsBulk,
     Data.lookupPrekeyIds,
     Data.lookupUsersClientIds,
 
@@ -96,12 +96,12 @@ lookupClients = \case
 lookupLocalClients :: UserId -> AppIO [Client]
 lookupLocalClients = Data.lookupClients
 
-lookupClientsBulk :: [Qualified UserId] -> ExceptT ClientError AppIO (QualifiedUserMap (Set Client))
-lookupClientsBulk qualifiedUids = do
+lookupPubClientsBulk :: [Qualified UserId] -> ExceptT ClientError AppIO (QualifiedUserMap (Set PubClient))
+lookupPubClientsBulk qualifiedUids = do
   domain <- viewFederationDomain
   let (_remoteUsers, localUsers) = partitionRemoteOrLocalIds domain qualifiedUids
   -- FUTUREWORK: Implement federation
-  QualifiedUserMap . Map.singleton domain <$> Data.lookupClientsBulk localUsers
+  QualifiedUserMap . Map.singleton domain <$> Data.lookupPubClientsBulk localUsers
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
