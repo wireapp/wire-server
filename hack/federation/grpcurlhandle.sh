@@ -25,21 +25,30 @@ path=$(echo -n users/by-handle | base64)
 queryK=$(echo -n handle | base64)
 queryV=$(echo -n alice | base64)
 
-DIRECT=8098 # federator external port
-NGINZ=8090
+# DIRECT=8098 # federator external port
+# NGINZ=8090
 
 function getHandle() {
-    grpcurl -d @ -format json -plaintext -proto ../../libs/wire-api-federation/proto/router.proto "localhost:$VIA" wire.federator.Inward/call <<EOM
+    set -x
+    grpcurl -d @ -format json -authority "$SERVERNAME" "$MODE" -proto ../../libs/wire-api-federation/proto/router.proto "$HOST:$VIA" wire.federator.Inward/call <<EOM
 {"method": "GET", "component": "Brig", "path": "$path", "query": [{"key":"$queryK", "value":"$queryV"}]}
 EOM
+    set +x
 }
 
-VIA=$DIRECT
-
-echo "requesting user lookup via directly calling federator..."
+HOST=88.99.188.44 # one 'anta' node
+VIA=31063 # tls port of currently-deployed ingress in 'test-user' namespace
+MODE="-insecure"
+SERVERNAME="federator.integration.example.com"
+# making an insecure/ignore-certificates connection over TLS works:
 getHandle
 
-VIA=$NGINZ
+# current certificate isn't trusted so this doesn't work
+MODE=""
+getHandle
 
-echo "requesting user lookup via nginz forwarding to federator..."
+# plaintext forwarding doesn't work as the controller only has one port for plain http and that is already taken and it's just an nginx, not magic, so it cannot distinguish between normal http traffic and grpc traffic on the same port so it strangely hangs and times out here:
+VIA=31403
+MODE="-plaintext"
+SERVERNAME="federator.integration.example.com"
 getHandle
