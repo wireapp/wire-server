@@ -439,7 +439,7 @@ getUserInfoFromHandle ::
   Brig ->
   Domain ->
   Handle ->
-  m UserHandleInfo
+  m UserProfile
 getUserInfoFromHandle brig domain handle = do
   u <- randomId
   responseJsonError

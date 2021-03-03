@@ -35,6 +35,7 @@ import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle))
 import Data.Id hiding (client)
 import qualified Data.List1 as List1
+import Data.Qualified (Qualified (qDomain))
 import qualified Data.UUID as UUID
 import qualified Galley.Types.Teams.SearchVisibility as Team
 import Gundeck.Types.Notification hiding (target)
@@ -56,7 +57,9 @@ tests _cl _at conf p b c g =
       test p "handles/race" $ testHandleRace b,
       test p "handles/query" $ testHandleQuery conf b,
       test p "handles/query - team-search-visibility SearchVisibilityStandard" $ testHandleQuerySearchVisibilityStandard conf b,
-      test p "handles/query - team-search-visibility SearchVisibilityNoNameOutsideTeam" $ testHandleQuerySearchVisibilityNoNameOutsideTeam conf b g
+      test p "handles/query - team-search-visibility SearchVisibilityNoNameOutsideTeam" $ testHandleQuerySearchVisibilityNoNameOutsideTeam conf b g,
+      test p "GET /users/handles/<handle>" $ testGetUserByUnqualifiedHandle b,
+      test p "GET /users/handles/<handle>" $ testGetUserByQualifiedHandle b
     ]
 
 testHandleUpdate :: Brig -> Cannon -> Http ()
@@ -211,6 +214,50 @@ testHandleQuerySearchVisibilityNoNameOutsideTeam _opts brig galley = do
   assertCanFind brig member1 owner1
   assertCanFind brig member2 owner1
   assertCanFind brig extern owner1
+
+testGetUserByUnqualifiedHandle :: Brig -> Http ()
+testGetUserByUnqualifiedHandle brig = do
+  user <- randomUser brig
+  handle <- randomHandle
+  _ <- putHandle brig (userId user) handle
+  requestingUser <- randomId
+  get
+    ( brig
+        . paths ["users", "handles", toByteString' handle]
+        . zUser requestingUser
+    )
+    !!! do
+      const 200 === statusCode
+      const (Right (UserHandleInfo (userQualifiedId user))) === responseJsonEither
+
+testGetUserByQualifiedHandle :: Brig -> Http ()
+testGetUserByQualifiedHandle brig = do
+  user <- randomUser brig
+  handle <- randomHandle
+  let domain = qDomain (userQualifiedId user)
+  _ <- putHandle brig (userId user) handle
+  unconnectedUser <- randomUser brig
+  profileForUnconnectedUser <-
+    responseJsonError
+      =<< get
+        ( brig
+            . paths ["users", "handles", toByteString' domain, toByteString' handle]
+            . zUser (userId unconnectedUser)
+            . expect2xx
+        )
+  liftIO $
+    assertEqual
+      "Id should match"
+      (userQualifiedId user)
+      (profileQualifiedId profileForUnconnectedUser)
+
+  -- N.B. Internally this endpoint uses same implementation as getting a user
+  -- profile by id. So, it is not necessary to test rest of the cases.
+  liftIO $
+    assertEqual
+      "Email shouldn't be shown to unconnected user"
+      Nothing
+      (profileEmail profileForUnconnectedUser)
 
 assertCanFind :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> m ()
 assertCanFind brig from target = do
