@@ -7,8 +7,20 @@ federator:
 tls:
   enabled: true
   useCertManager: false
+
+config:
+  dns:
+    https: nginz-https.integration.example.com
+    ssl: nginz-ssl.integration.example.com
+    webapp: webapp.integration.example.com
+    fakeS3: assets.integration.example.com
+    teamSettings: teams.integration.example.com
+    accountPages: account.integration.example.com
+    federator: federator.integration.example.com
+
+secrets:
   # self-signed certificates generated using selfsigned.sh
-  tlsWildCardCert: |
+  tlsWildcardCert: |
     -----BEGIN CERTIFICATE-----
     MIIDFDCCAfygAwIBAgIUaSFDTpHbxVsmWDkcLj3jqQevbBswDQYJKoZIhvcNAQEL
     BQAwIjEgMB4GA1UEAxMXaW50ZWdyYXRpb24uZXhhbXBsZS5jb20wHhcNMjEwMzAz
@@ -28,7 +40,7 @@ tls:
     iV+xnuiLcRmeMSuzZt5XPPSg0oblKTihiOpHfu5UNinvo/fBXJ4vqvh9eENyM0Rj
     dyZ/xC223/Q8bUkv23LmQ/UDR4ljcYPa
     -----END CERTIFICATE-----
-  tlsWildCardKey: |
+  tlsWildcardKey: |
     -----BEGIN RSA PRIVATE KEY-----
     MIIEpAIBAAKCAQEAvQw8URNWU9EAfbYHGdZ+oTEXEV4GwHUgwm7YHQ4AuFJf6FTM
     3JMJURfBBzDKH1PZ7zoPxDeGiHlXQ+gK4E/foox2rt26Il2rmdk6HXC2UHvGsQ5u
@@ -56,18 +68,3 @@ tls:
     ZosmZOqR2C0ZCQ290pnf4b6eW0qooNN4DhfrswUecYifxGO2JqJz3mBUD46lT2Q1
     CvYZq7JCfRRW0AaoSmK5uFr4CGg9rMNew8B2EizrWRazghu4dC80cg==
     -----END RSA PRIVATE KEY-----
-
-certManager:
-  inTestMode: true
-  certmasterEmail: "certificates+integration-tests@wire.com"
-
-config:
-  dns:
-    https: nginz-https.integration.example.com
-    ssl: nginz-ssl.integration.example.com
-    webapp: webapp.integration.example.com
-    fakeS3: assets.integration.example.com
-    teamSettings: teams.integration.example.com
-    accountPages: account.integration.example.com
-    federator: federator.integration.example.com
-

@@ -13,14 +13,15 @@ metadata:
     nginx.ingress.kubernetes.io/ssl-redirect: "false" # FUTUREWORK(federation): support TLS!
     nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
 spec:
-
 # FUTUREWORK(federation): support TLS connections to federator
-#
-# tls:
-# - hosts:
+{{- if .Values.tls.enabled }}
+  tls:
+  - hosts:
 # {{- if .Values.federator.enabled }}
 #       - {{ .Values.config.dns.federator }}
 # {{- end }}
+    secretName: {{ include "nginx-ingress-services.getCertificateSecretName" . | quote }}
+{{- end }}
   rules:
     - host: {{ .Values.config.dns.federator }}
       http:
