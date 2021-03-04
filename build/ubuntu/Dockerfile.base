@@ -38,5 +38,7 @@ COPY . src/
 RUN --mount=type=cache,id=1,target=/nix nix-env -iA cachix -f https://cachix.org/api/v1/install
 ENV USER="wire"
 RUN --mount=type=cache,id=1,target=/nix cachix use wire-server
+
+WORKDIR /home/wire/src
 RUN --mount=type=cache,id=1,target=/nix nix-build ./nix
 RUN --mount=type=cache,id=1,target=/nix nix-build ./nix -A wireContainers.brig
