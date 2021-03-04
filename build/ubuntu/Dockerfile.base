@@ -1,8 +1,6 @@
 # syntax = docker/dockerfile:1.2
 FROM ubuntu:20.04
 
-ENV PIP_CACHE_DIR=/var/cache/buildkit/pip
-RUN mkdir -p $PIP_CACHE_DIR
 RUN rm -f /etc/apt/apt.conf.d/docker-clean
 RUN --mount=type=cache,id=0,target=/var/cache/apt \
 	apt-get update && \
