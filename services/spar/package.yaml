@@ -97,10 +97,11 @@ tests:
     source-dirs:
       - test
     ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    build-tools:
+      - hspec-discover:hspec-discover
     dependencies:
       - lens-aeson
       - hspec
-      - hspec-discover
       - metrics-wai
       - QuickCheck
       - spar
@@ -130,12 +131,13 @@ executables:
     source-dirs:
       - test-integration
     ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    build-tools:
+      - hspec-discover:hspec-discover
     dependencies:
       - aeson-qq
       - async
       - galley-types
       - hspec
-      - hspec-discover
       - hspec-wai
       - lens-aeson
       - MonadRandom
