@@ -1,0 +1,40 @@
+# syntax = docker/dockerfile:1.2
+FROM ubuntu:20.04
+
+ENV PIP_CACHE_DIR=/var/cache/buildkit/pip
+RUN mkdir -p $PIP_CACHE_DIR
+RUN rm -f /etc/apt/apt.conf.d/docker-clean
+RUN --mount=type=cache,id=0,target=/var/cache/apt \
+	apt-get update && \
+	apt-get install -yqq --no-install-recommends \
+  ca-certificates gnupg2 curl xz-utils sudo && \ 
+  rm -rf /var/lib/apt/lists/*
+
+RUN useradd -m -s /bin/bash wire
+# RUN sh -c "echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers"
+RUN --mount=type=cache,id=1,target=/nix chown wire /nix
+RUN mkdir -p /etc/nix
+RUN echo 'sandbox = false' > /etc/nix/nix.conf
+
+USER wire
+WORKDIR /home/wire
+# disable sandboxing for nix in containers
+RUN echo "download and verify nix-2.3.10"
+RUN curl -o install-nix-2.3.10 https://releases.nixos.org/nix/nix-2.3.10/install
+# RUN curl -o install-nix-2.3.10.asc https://releases.nixos.org/nix/nix-2.3.10/install.asc
+# RUN gpg2 --recv-keys B541D55301270E0BCF15CA5D8170B4726D7198DE --keyserver hkps://keyserver.ubuntu.com
+# RUN gpg2 --verify ./install-nix-2.3.10.asc
+RUN --mount=type=cache,id=1,target=/nix sh ./install-nix-2.3.10
+
+ENV NIXPKGS_ALLOW_UNFREE=1
+ENV NIX_PATH=/home/wire/.nix-defexpr/channels
+ENV NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+ENV NIX_PROFILES="/nix/var/nix/profiles/default /home/wire/.nix-profile"
+
+ENV PATH="/home/wire/.nix-profile/bin:${PATH}"
+
+RUN mkdir src
+COPY . src/
+RUN --mount=type=cache,id=1,target=/nix nix-env -i $(nix-build src/default.nix -A stack)
+RUN --mount=type=cache,id=1,target=/nix bash -c "cd src/ && stack --nix build"
+
