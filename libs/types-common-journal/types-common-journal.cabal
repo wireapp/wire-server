@@ -4,7 +4,7 @@ cabal-version: 1.24
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: cfe6f71e966702549551f95a72cbfecb030cb40b6d383a4b69dd108c630e15ef
+-- hash: 5398824d36920a106d041348aa0022457a8afd73dc9d1b37869a4607e9633bfc
 
 name:           types-common-journal
 version:        0.1.0
@@ -43,7 +43,7 @@ library
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -fno-warn-redundant-constraints
   ghc-prof-options: -fprof-auto-exported
   build-tool-depends:
-      proto-lens-protoc:protoc-lens-protoc
+      proto-lens-protoc:proto-lens-protoc
   build-depends:
       base ==4.*
     , bytestring

@@ -22,7 +22,6 @@ spec:
       serviceAccountName: reaper-role
       containers:
       - name: reaper
-        imagePullPolicy: Always
         image: bitnami/kubectl:1.19.7
         command: ["bash"]
         args:

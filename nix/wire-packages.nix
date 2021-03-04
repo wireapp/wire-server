@@ -93,7 +93,6 @@ final: prev: {
     branchMap = {
       "https://github.com/wireapp/hspec-wai"."0a5142cd3ba48116ff059c041348b817fb7bdb25" = "body-contains";
       "https://github.com/wireapp/bloodhound"."92de9aa632d590f288a353d03591c38ba72b3cb3" = "wire-fork-ghc-8.8";
-      "https://github.com/wireapp/hsaml2"."2ff7b0c11a9d510f1ec411f436bc134b216ebd4a" = "akshaymankar/pull-upstream-2020-08-18";
       "https://github.com/wireapp/servant-swagger.git"."23e9afafadaade29d21181b935286087457171e3" = "akshaymankar/fix-ghc-version-check";
     };
 
