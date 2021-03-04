@@ -35,6 +35,7 @@ ENV PATH="/home/wire/.nix-profile/bin:${PATH}"
 
 RUN mkdir src
 COPY . src/
-RUN --mount=type=cache,id=1,target=/nix nix-env -i $(nix-build src/default.nix -A stack)
-RUN --mount=type=cache,id=1,target=/nix bash -c "cd src/ && stack --nix build"
+RUN --mount=type=cache,id=1,target=/nix nix-env -iA cachix -f https://cachix.org/api/v1/install
+RUN --mount=type=cache,id=1,target=/nix cachix use wire-server
+RUN --mount=type=cache,id=1,target=/nix nix-env -i $(nix-build ./nix)
 
