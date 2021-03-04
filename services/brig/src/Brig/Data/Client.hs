@@ -25,7 +25,7 @@ module Brig.Data.Client
     hasClient,
     lookupClient,
     lookupClients,
-    lookupClientsBulk,
+    lookupPubClientsBulk,
     lookupClientIds,
     lookupUsersClientIds,
     Brig.Data.Client.updateClientLabel,
@@ -126,12 +126,16 @@ lookupClient u c =
   fmap toClient
     <$> retry x1 (query1 selectClient (params Quorum (u, c)))
 
-lookupClientsBulk :: (MonadClient m) => [UserId] -> m (UserMap (Imports.Set Client))
-lookupClientsBulk uids = liftClient $ do
+lookupPubClientsBulk :: (MonadClient m) => [UserId] -> m (UserMap (Imports.Set PubClient))
+lookupPubClientsBulk uids = liftClient $ do
   userClientTuples <- pooledMapConcurrentlyN 50 getClientSetWithUser uids
   pure $ UserMap $ Map.fromList userClientTuples
   where
-    getClientSetWithUser u = (u,) . Set.fromList <$> lookupClients u
+    getClientSetWithUser :: MonadClient m => UserId -> m (UserId, Imports.Set PubClient)
+    getClientSetWithUser u = (u,) . Set.fromList . map toPubClient <$> executeQuery u
+
+    executeQuery :: MonadClient m => UserId -> m [(ClientId, Maybe ClientClass)]
+    executeQuery u = retry x1 (query selectPubClients (params Quorum (Identity u)))
 
 lookupClients :: MonadClient m => UserId -> m [Client]
 lookupClients u =
@@ -212,6 +216,9 @@ selectClientIds = "SELECT client from clients where user = ?"
 selectClients :: PrepQuery R (Identity UserId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text)
 selectClients = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model from clients where user = ?"
 
+selectPubClients :: PrepQuery R (Identity UserId) (ClientId, Maybe ClientClass)
+selectPubClients = "SELECT client, class from clients where user = ?"
+
 selectClient :: PrepQuery R (UserId, ClientId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text)
 selectClient = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model from clients where user = ? and client = ?"
 
@@ -251,6 +258,9 @@ toClient (cid, cty, tme, lbl, cls, cok, lat, lon, mdl) =
       clientLocation = location <$> lat <*> lon,
       clientModel = mdl
     }
+
+toPubClient :: (ClientId, Maybe ClientClass) -> PubClient
+toPubClient = uncurry PubClient
 
 -------------------------------------------------------------------------------
 -- Best-effort optimistic locking for prekeys via DynamoDB
