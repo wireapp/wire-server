@@ -56,10 +56,6 @@ interpretRemote = interpret $ \case
             . Log.field "error" (show err)
         pure $ Left (RemoteErrorDiscoveryFailure err vDomain)
       Right target -> do
-        -- FUTUREWORK(federation): Make this use TLS, maybe make it configurable
-        -- FUTUREWORK(federation): Cache this client and use it for many requests
-        -- FUTUREWORK(federation): check what trust store this is using.
-        --   See also https://github.com/lucasdicioccio/http2-client/issues/76
         eitherClient <- mkGrpcClient target
         case eitherClient of
           Right client ->
@@ -70,9 +66,20 @@ callInward :: MonadIO m => GrpcClient -> Request -> m (GRpcReply Response)
 callInward client request =
   liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" client request
 
+-- FUTUREWORK(federation): Make this use TLS with real certificate validation
+-- FUTUREWORK(federation): Allow a configurable trust store to be used in TLS certificate validation
+--   See also https://github.com/lucasdicioccio/http2-client/issues/76
+-- FUTUREWORK(federation): Cache this client and use it for many requests
 mkGrpcClient :: Members '[Embed IO, TinyLog] r => SrvTarget -> Sem r (Either RemoteError GrpcClient)
 mkGrpcClient target@(SrvTarget host port) = do
-  let cfg = grpcClientConfigSimple (cs host) (fromInteger $ toInteger port) False
+  -- FUTUREWORK(federation): grpcClientConfigSimple using TLS is INSECURE and IGNORES any certificates and there's no way
+  -- to change that (at least not when using the default functions from mu or http2-grpc-client)
+  -- See https://github.com/haskell-grpc-native/http2-grpc-haskell/issues/47
+  -- While early testing, this is "convenient" but needs to be fixed!
+  let cfg = grpcClientConfigSimple (cs host) (fromInteger $ toInteger port) True
+  -- Note: setupGrpcClient' is unsafe and throws exceptions in IO, e.g. when it can't connect. Don't be fooled by the Either,
+  -- errors appear to never happen in the left side so this is dead code.
+  -- FUTUREWORK(federation): report setupGrpcClient' buggy behaviour to upstream.
   eitherClient <- setupGrpcClient' cfg
   case eitherClient of
     Left err -> do
