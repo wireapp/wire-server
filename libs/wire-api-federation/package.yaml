@@ -46,8 +46,9 @@ tests:
     source-dirs:
       - test
     ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    build-tools:
+      - hspec-discover:hspec-discover
     dependencies:
       - wire-api-federation
       - hspec
-      - hspec-discover
       - metrics-wai
