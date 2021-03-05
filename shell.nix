@@ -62,7 +62,7 @@ in pkgs.mkShell {
     pkgs.docker-compose
     pkgs.gnumake
     pkgs.haskell-language-server
-    pkgs.telepresence
+    # pkgs.telepresence
     pkgs.niv
 
     pinned.stack
