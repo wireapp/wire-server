@@ -32,7 +32,7 @@ echo '{
 }' > "$CSR"
 
 # generate cert and key based on CA given comma-separated hostnames as SANs
-cfssl gencert -ca "$OUTPUTNAME_CA.pem" -ca-key "$OUTPUTNAME_CA-key.pem" -hostname=integration.example.com,localhost "$CSR" | cfssljson -bare "$OUTPUTNAME_LEAF_CERT"
+cfssl gencert -ca "$OUTPUTNAME_CA.pem" -ca-key "$OUTPUTNAME_CA-key.pem" -hostname=*.integration.example.com,localhost "$CSR" | cfssljson -bare "$OUTPUTNAME_LEAF_CERT"
 
 # cleanup unneeded files
 rm "$OUTPUTNAME_LEAF_CERT.csr"

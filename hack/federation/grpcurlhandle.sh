@@ -27,7 +27,7 @@ EOM
 HOST=localhost
 PORT=8443
 MODE="-cacert ../../services/nginz/integration-test/conf/nginz/integration-ca.pem"
-SERVERNAME="" # or "integration.example.com"
+SERVERNAME="federator.integration.example.com"
 getHandle "local nginz on port 8443 using self-signed cert"
 
 
