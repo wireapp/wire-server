@@ -1,24 +1,5 @@
 #!/usr/bin/env bash
 
-# Example request for handle lookup using grpcurl command line tool.
-# expected output:
-#
-# requesting user lookup via directly calling federator...
-# {
-#   "httpResponse": {
-#     "responseStatus": 404,
-#     "responseBody": "SGFuZGxlIG5vdCBmb3VuZC4="
-#   }
-# }
-# requesting user lookup via nginz forwarding to federator...
-# {
-#   "httpResponse": {
-#     "responseStatus": 404,
-#     "responseBody": "SGFuZGxlIG5vdCBmb3VuZC4="
-#   }
-# }
-#
-
 command -v grpcurl >/dev/null 2>&1 || { echo >&2 "grpcurl is not installed, aborting. Maybe try ' nix-env -iA nixpkgs.grpcurl '?"; exit 1; }
 
 path=$(echo -n users/by-handle | base64)
@@ -29,26 +10,43 @@ queryV=$(echo -n alice | base64)
 # NGINZ=8090
 
 function getHandle() {
+    echo ""
+    echo "===> getHandle: $1"
+    if [ -z "$SERVERNAME" ]; then
+        AUTHORITY=""
+    else
+        AUTHORITY="-authority $SERVERNAME"
+    fi
     set -x
-    grpcurl -d @ -format json -authority "$SERVERNAME" "$MODE" -proto ../../libs/wire-api-federation/proto/router.proto "$HOST:$VIA" wire.federator.Inward/call <<EOM
+    grpcurl -d @ -format json $AUTHORITY $MODE -proto ../../libs/wire-api-federation/proto/router.proto "$HOST:$VIA" wire.federator.Inward/call <<EOM
 {"method": "GET", "component": "Brig", "path": "$path", "query": [{"key":"$queryK", "value":"$queryV"}]}
 EOM
     set +x
+    echo "===|"
+    echo
 }
+
+
+HOST=localhost
+VIA=8443
+MODE="-cacert ../../services/nginz/integration-test/conf/nginz/integration-ca.pem"
+SERVERNAME="" # or "integration.example.com"
+getHandle "local nginz on port 8443 using self-signed cert"
+
 
 HOST=88.99.188.44 # one 'anta' node
 VIA=31063 # tls port of currently-deployed ingress in 'test-user' namespace
 MODE="-insecure"
 SERVERNAME="federator.integration.example.com"
 # making an insecure/ignore-certificates connection over TLS works:
-getHandle
+getHandle "anta ingress"
 
 # current certificate isn't trusted so this doesn't work
 MODE=""
-getHandle
+getHandle "validate cert"
 
 # plaintext forwarding doesn't work as the controller only has one port for plain http and that is already taken and it's just an nginx, not magic, so it cannot distinguish between normal http traffic and grpc traffic on the same port so it strangely hangs and times out here:
 VIA=31403
 MODE="-plaintext"
 SERVERNAME="federator.integration.example.com"
-getHandle
+getHandle "plaintext on kubernetes ingress"
