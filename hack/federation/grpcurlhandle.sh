@@ -6,9 +6,6 @@ path=$(echo -n users/by-handle | base64)
 queryK=$(echo -n handle | base64)
 queryV=$(echo -n alice | base64)
 
-# DIRECT=8098 # federator external port
-# NGINZ=8090
-
 function getHandle() {
     echo ""
     echo "===> getHandle: $1"
@@ -18,24 +15,24 @@ function getHandle() {
         AUTHORITY="-authority $SERVERNAME"
     fi
     set -x
-    grpcurl -d @ -format json $AUTHORITY $MODE -proto ../../libs/wire-api-federation/proto/router.proto "$HOST:$VIA" wire.federator.Inward/call <<EOM
+    grpcurl -d @ -format json $AUTHORITY $MODE -proto ../../libs/wire-api-federation/proto/router.proto "$HOST:$PORT" wire.federator.Inward/call <<EOM
 {"method": "GET", "component": "Brig", "path": "$path", "query": [{"key":"$queryK", "value":"$queryV"}]}
 EOM
-    set +x
+    { set +x; } 2>/dev/null # stop outputting commands and don't print the set +x line
     echo "===|"
     echo
 }
 
 
 HOST=localhost
-VIA=8443
+PORT=8443
 MODE="-cacert ../../services/nginz/integration-test/conf/nginz/integration-ca.pem"
 SERVERNAME="" # or "integration.example.com"
 getHandle "local nginz on port 8443 using self-signed cert"
 
 
 HOST=88.99.188.44 # one 'anta' node
-VIA=31063 # tls port of currently-deployed ingress in 'test-user' namespace
+PORT=31063 # tls port of currently-deployed ingress in 'test-user' namespace
 MODE="-insecure"
 SERVERNAME="federator.integration.example.com"
 # making an insecure/ignore-certificates connection over TLS works:
@@ -46,7 +43,7 @@ MODE=""
 getHandle "validate cert"
 
 # plaintext forwarding doesn't work as the controller only has one port for plain http and that is already taken and it's just an nginx, not magic, so it cannot distinguish between normal http traffic and grpc traffic on the same port so it strangely hangs and times out here:
-VIA=31403
+PORT=31403
 MODE="-plaintext"
 SERVERNAME="federator.integration.example.com"
-getHandle "plaintext on kubernetes ingress"
+# getHandle "plaintext on kubernetes ingress"
