@@ -59,7 +59,7 @@ tests _cl _at conf p b c g =
       test p "handles/query - team-search-visibility SearchVisibilityStandard" $ testHandleQuerySearchVisibilityStandard conf b,
       test p "handles/query - team-search-visibility SearchVisibilityNoNameOutsideTeam" $ testHandleQuerySearchVisibilityNoNameOutsideTeam conf b g,
       test p "GET /users/handles/<handle>" $ testGetUserByUnqualifiedHandle b,
-      test p "GET /users/handles/<handle>" $ testGetUserByQualifiedHandle b
+      test p "GET /users/handles/<domain>/<handle>" $ testGetUserByQualifiedHandle b
     ]
 
 testHandleUpdate :: Brig -> Cannon -> Http ()
