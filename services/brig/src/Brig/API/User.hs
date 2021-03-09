@@ -1088,9 +1088,9 @@ lookupProfiles self others = do
   remoteProfiles <- pure []
   pure (localProfiles <> remoteProfiles)
 
--- TODO: This function encodes a few business rules about exposing email ids,
--- but it is also very complex. Maybe this can be made easy by extracting a pure
--- function and writing tests for that.
+-- FUTUREWORK: This function encodes a few business rules about exposing email
+-- ids, but it is also very complex. Maybe this can be made easy by extracting a
+-- pure function and writing tests for that.
 lookupProfilesOfLocalUsers ::
   -- | This is present only when an authenticated user is requesting access.
   Maybe UserId ->
