@@ -28,22 +28,31 @@ HOST=localhost
 PORT=8443
 MODE="-cacert ../../services/nginz/integration-test/conf/nginz/integration-ca.pem"
 SERVERNAME="federator.integration.example.com"
-getHandle "local nginz on port 8443 using self-signed cert"
+# getHandle "local nginz on port 8443 using self-signed cert"
 
 
 HOST=88.99.188.44 # one 'anta' node
-PORT=31063 # tls port of currently-deployed ingress in 'test-user' namespace
+PORT=30086 # tls port of currently-deployed ingress in 'grpc' namespace
 MODE="-insecure"
 SERVERNAME="federator.integration.example.com"
 # making an insecure/ignore-certificates connection over TLS works:
-getHandle "anta ingress"
+getHandle "anta grpc namespace ingress"
 
-# current certificate isn't trusted so this doesn't work
-MODE=""
-getHandle "validate cert"
+## real anta:
+# HOST=nginz-https.anta.wire.link
+# HOST=federator.anta.wire.link
+# PORT=443
+# SERVERNAME=""
+# MODE="-insecure"
+# MODE=""
+# getHandle "anta 'official' LB"
 
-# plaintext forwarding doesn't work as the controller only has one port for plain http and that is already taken and it's just an nginx, not magic, so it cannot distinguish between normal http traffic and grpc traffic on the same port so it strangely hangs and times out here:
-PORT=31403
-MODE="-plaintext"
-SERVERNAME="federator.integration.example.com"
+## current certificate isn't trusted so this doesn't work
+# MODE=""
+# getHandle "validate cert"
+
+## plaintext forwarding doesn't work as the controller only has one port for plain http and that is already taken and it's just an nginx, not magic, so it cannot distinguish between normal http traffic and grpc traffic on the same port so it strangely hangs and times out here:
+# PORT=31403
+# MODE="-plaintext"
+# SERVERNAME="federator.integration.example.com"
 # getHandle "plaintext on kubernetes ingress"
