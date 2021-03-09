@@ -23,7 +23,7 @@ table must be backfilled.
 
 Even when the flag is `disabled`, galley will keep writing to the
 `biling_team_member` table, this flag only affects the reads and has
-been added in order to deploy new code and backfill data in 
+been added in order to deploy new code and backfill data in
 production.
 
 ## Feature flags
