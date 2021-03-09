@@ -1447,7 +1447,7 @@ getHandleInfo self handle = do
           return $ listToMaybe owner
     getRemoteHandleInfo = do
       Log.info $ Log.msg (Log.val "getHandleInfo - remote lookup") Log.~~ Log.field "domain" (show (qDomain handle))
-      undefined $ Federation.getUserHandleInfo handle
+      Federation.getUserHandleInfo handle
 
 changeHandleH :: UserId ::: ConnId ::: JsonRequest Public.HandleUpdate -> Handler Response
 changeHandleH (u ::: conn ::: req) = do
