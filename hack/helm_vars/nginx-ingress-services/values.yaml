@@ -19,7 +19,7 @@ config:
     federator: federator.integration.example.com
 
 secrets:
-  # self-signed certificates generated using selfsigned.sh
+  # self-signed certificates generated using wire-server/hack/bin/selfsigned.sh
   tlsWildcardCert: |
     -----BEGIN CERTIFICATE-----
     MIIDFDCCAfygAwIBAgIUaSFDTpHbxVsmWDkcLj3jqQevbBswDQYJKoZIhvcNAQEL
