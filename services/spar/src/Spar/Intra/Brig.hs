@@ -47,7 +47,7 @@ module Spar.Intra.Brig
     createBrigUserSAML,
     createBrigUserNoSAML,
     updateEmail,
-    getZUsrOwnedTeam,
+    getZUsrCheckPerm,
     authorizeScimTokenManagement,
     ensureReAuthorised,
     ssoLogin,
@@ -71,13 +71,13 @@ import Data.Handle (Handle (Handle, fromHandle))
 import Data.Id (Id (Id), TeamId, UserId)
 import Data.Misc (PlainTextPassword)
 import Data.String.Conversions
-import Galley.Types.Teams (HiddenPerm (CreateReadDeleteScimToken))
+import Galley.Types.Teams (HiddenPerm (CreateReadDeleteScimToken), IsPerm)
 import Imports
 import Network.HTTP.Types.Method
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified SAML2.WebSSO as SAML
 import Spar.Error
-import Spar.Intra.Galley as Galley (MonadSparToGalley, assertHasPermission, assertIsTeamOwner)
+import Spar.Intra.Galley as Galley (MonadSparToGalley, assertHasPermission)
 import Spar.Scim.Types (ValidExternalId (..), runValidExternalId)
 import qualified System.Logger.Class as Log
 import qualified Text.Email.Parser
@@ -423,18 +423,19 @@ deleteBrigUser buid = do
 getBrigUserTeam :: (HasCallStack, MonadSparToBrig m) => HavePendingInvitations -> UserId -> m (Maybe TeamId)
 getBrigUserTeam ifpend = fmap (userTeam =<<) . getBrigUser ifpend
 
--- | Get the team that the user is an owner of.  This is used for authorization.  It will fail
--- if the user is not in status 'Active'.
-getZUsrOwnedTeam ::
-  (HasCallStack, SAML.SP m, MonadSparToBrig m, MonadSparToGalley m) =>
+-- | Pull team id for z-user from brig.  Check permission in galley.  Return team id.  Fail if
+-- permission check fails or the user is not in status 'Active'.
+getZUsrCheckPerm ::
+  (HasCallStack, SAML.SP m, MonadSparToBrig m, MonadSparToGalley m, IsPerm perm, Show perm) =>
   Maybe UserId ->
+  perm ->
   m TeamId
-getZUsrOwnedTeam Nothing = throwSpar SparMissingZUsr
-getZUsrOwnedTeam (Just uid) = do
+getZUsrCheckPerm Nothing _ = throwSpar SparMissingZUsr
+getZUsrCheckPerm (Just uid) perm = do
   getBrigUserTeam NoPendingInvitations uid
     >>= maybe
       (throwSpar SparNotInTeam)
-      (\teamid -> teamid <$ Galley.assertIsTeamOwner teamid uid)
+      (\teamid -> teamid <$ Galley.assertHasPermission teamid perm uid)
 
 authorizeScimTokenManagement :: (HasCallStack, SAML.SP m, MonadSparToBrig m, MonadSparToGalley m) => Maybe UserId -> m TeamId
 authorizeScimTokenManagement Nothing = throwSpar SparMissingZUsr

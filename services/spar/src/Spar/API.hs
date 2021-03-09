@@ -51,7 +51,7 @@ import Data.Id
 import Data.Proxy
 import Data.String.Conversions
 import Data.Time
-import Galley.Types.Teams (HiddenPerm (CreateUpdateDeleteIdp))
+import Galley.Types.Teams (HiddenPerm (CreateUpdateDeleteIdp, ReadIdp))
 import Imports
 import OpenSSL.Random (randBytes)
 import qualified SAML2.WebSSO as SAML
@@ -213,7 +213,7 @@ idpGetRaw zusr idpid = do
 
 idpGetAll :: Maybe UserId -> Spar IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
-  teamid <- Brig.getZUsrOwnedTeam zusr
+  teamid <- Brig.getZUsrCheckPerm zusr ReadIdp
   _idplProviders <- wrapMonadClientWithEnv $ Data.getIdPConfigsByTeam teamid
   pure IdPList {..}
 
@@ -281,7 +281,7 @@ idpCreate zusr (IdPMetadataValue raw xml) midpid = idpCreateXML zusr raw xml mid
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
 idpCreateXML :: Maybe UserId -> Text -> SAML.IdPMetadata -> Maybe SAML.IdPId -> Spar IdP
 idpCreateXML zusr raw idpmeta mReplaces = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
-  teamid <- Brig.getZUsrOwnedTeam zusr
+  teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
   Galley.assertSSOEnabled teamid
   assertNoScimOrNoIdP teamid
   idp <- validateNewIdP idpmeta teamid mReplaces

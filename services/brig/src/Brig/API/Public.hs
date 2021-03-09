@@ -71,7 +71,6 @@ import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
 import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
 import Data.Range
-import qualified Data.Set as Set
 import Data.Swagger
   ( ApiKeyLocation (..),
     ApiKeyParams (..),
@@ -1151,7 +1150,7 @@ getClientH (zusr ::: clt ::: _) =
 
 listClientsBulk :: UserId -> Range 1 MaxUsersForListClientsBulk [Qualified UserId] -> Handler (Public.QualifiedUserMap (Set Public.PubClient))
 listClientsBulk _zusr limitedUids = do
-  Set.map API.pubClient <$$> API.lookupClientsBulk (fromRange limitedUids) !>> clientError
+  API.lookupPubClientsBulk (fromRange limitedUids) !>> clientError
 
 getClient :: UserId -> ClientId -> Handler (Maybe Public.Client)
 getClient zusr clientId = do
