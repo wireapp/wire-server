@@ -445,7 +445,7 @@ getUserInfoFromHandle brig domain handle = do
   responseJsonError
     =<< get
       ( brig
-          . paths ["users", "handles", toByteString' (domainText domain), toByteString' handle]
+          . paths ["users", "by-handle", toByteString' (domainText domain), toByteString' handle]
           . zUser u
           . expect2xx
       )

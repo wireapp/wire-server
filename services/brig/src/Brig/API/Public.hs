@@ -275,7 +275,7 @@ type GetUserByHandleQualfied =
   Summary "Get information on a user handle"
     :> ZAuthServant
     :> "users"
-    :> "handles"
+    :> "by-handle"
     :> Capture "domain" Domain
     :> Capture' '[Description "The user handle"] "handle" Handle
     :> Get '[Servant.JSON] Public.UserProfile

@@ -59,7 +59,7 @@ tests _cl _at conf p b c g =
       test p "handles/query - team-search-visibility SearchVisibilityStandard" $ testHandleQuerySearchVisibilityStandard conf b,
       test p "handles/query - team-search-visibility SearchVisibilityNoNameOutsideTeam" $ testHandleQuerySearchVisibilityNoNameOutsideTeam conf b g,
       test p "GET /users/handles/<handle>" $ testGetUserByUnqualifiedHandle b,
-      test p "GET /users/handles/<domain>/<handle>" $ testGetUserByQualifiedHandle b
+      test p "GET /users/by-handle/<domain>/<handle>" $ testGetUserByQualifiedHandle b
     ]
 
 testHandleUpdate :: Brig -> Cannon -> Http ()
@@ -241,7 +241,7 @@ testGetUserByQualifiedHandle brig = do
     responseJsonError
       =<< get
         ( brig
-            . paths ["users", "handles", toByteString' domain, toByteString' handle]
+            . paths ["users", "by-handle", toByteString' domain, toByteString' handle]
             . zUser (userId unconnectedUser)
             . expect2xx
         )
