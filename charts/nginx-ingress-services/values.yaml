@@ -8,6 +8,7 @@ accountPages:
   enabled: false
 federator:
   enabled: false
+  ingress2: false
 # If you want to use TLS termination on the ingress,
 # then set this variable to true and ensure that there
 # is a valid wildcard TLS certificate
@@ -42,8 +43,8 @@ service:
   nginz:
     externalHttpPort: 8080
     externalTcpPort: 8081
-  federator:
-    externalFederatorPort: 8081
+  # federator:
+  #   externalFederatorPort: 8081
   webapp:
     externalPort: 8080
   s3:
