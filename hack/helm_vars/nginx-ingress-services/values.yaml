@@ -4,6 +4,7 @@ accountPages:
   enabled: true
 federator:
   enabled: true
+  ingress2: false
 tls:
   enabled: true
   useCertManager: false
