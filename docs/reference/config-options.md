@@ -81,6 +81,20 @@ individual teams by customer support / backoffice. [Allowed
 values](https://github.com/wireapp/wire-server/blob/151afec7b1f5a7630a094cf000875fbf9035866d/libs/galley-types/src/Galley/Types/Teams.hs#L229-L235):
 `disabled-by-default`, `enabled-by-default`.
 
+[Backoffice hook](https://github.com/wireapp/wire-server/blob/151afec7b1f5a7630a094cf000875fbf9035866d/tools/stern/src/Stern/API.hs#L615-L618) looks like this:
+
+```
+GET /teams/{tid}/search-visibility
+  -- Shows the current TeamSearchVisibility value for the given team
+
+PUT /teams/{tid}/search-visibility
+  -- Set specific search visibility for the team
+
+pull-down-menu "body":
+  "standard"
+  "no-name-outside-team"
+```
+
 ### Email Visibility
 
 [Allowd values](https://github.com/wireapp/wire-server/blob/0126651a25aabc0c5589edc2b1988bb06550a03a/services/brig/src/Brig/Options.hs#L304-L306) and their [description](https://github.com/wireapp/wire-server/blob/0126651a25aabc0c5589edc2b1988bb06550a03a/services/brig/src/Brig/Options.hs#L290-L299).
