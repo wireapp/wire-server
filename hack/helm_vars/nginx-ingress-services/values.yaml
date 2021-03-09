@@ -20,6 +20,11 @@ config:
 
 secrets:
   # self-signed certificates generated using wire-server/hack/bin/selfsigned.sh
+  # Note: currently these certificates are untrustable and don't match the domain queried.
+  # FUTUREWORK(federation): generate certificates on-the-fly valid for the respective federation domain, i.e.
+  # federator.$NAMESPACE.svc.cluster.local or *.$NAMESPACE.svc.cluster.local
+  # and find a way to add the CA cert to the local trust store when making requests.
+  # This can probably be built on top of the certificates generated with wire-server/hack/bin/selfsigned.sh
   tlsWildcardCert: |
     -----BEGIN CERTIFICATE-----
     MIIDFDCCAfygAwIBAgIUaSFDTpHbxVsmWDkcLj3jqQevbBswDQYJKoZIhvcNAQEL
