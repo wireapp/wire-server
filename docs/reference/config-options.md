@@ -78,7 +78,7 @@ for the team, it can be configured so that non team users do not show up in sear
 
 This sets the default setting for all teams, and can be overridden for
 individual teams by customer support / backoffice. [Allowed
-values](https://github.com/wireapp/wire-server/blob/custom-search-visibility-limit-name-search/libs/galley-types/src/Galley/Types/Teams.hs#L382-L385):
+values](https://github.com/wireapp/wire-server/blob/151afec7b1f5a7630a094cf000875fbf9035866d/libs/galley-types/src/Galley/Types/Teams.hs#L229-L235):
 `disabled-by-default`, `enabled-by-default`.
 
 ### Email Visibility
