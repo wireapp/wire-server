@@ -34,9 +34,6 @@ newtype Api routes = Api
         :> "users"
         :> "by-handle"
         :> QueryParam' '[Required, Strict] "handle" Handle
-        -- FUTUREWORK(federation): Make this return UserProfile, at that point there would
-        -- be interesting questions like whether to expose email or not and how
-        -- we code that part. I want to avoid solving this until federator works
         :> Get '[JSON] UserProfile
   }
   deriving (Generic)
