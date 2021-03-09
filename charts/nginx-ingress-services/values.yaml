@@ -43,8 +43,8 @@ service:
   nginz:
     externalHttpPort: 8080
     externalTcpPort: 8081
-  # federator:
-  #   externalFederatorPort: 8081
+  federator:
+    externalFederatorPort: 8081
   webapp:
     externalPort: 8080
   s3:
