@@ -9,6 +9,7 @@ accountPages:
 federator:
   enabled: false
   ingress2: false
+  integrationTestHelper: false
 # If you want to use TLS termination on the ingress,
 # then set this variable to true and ensure that there
 # is a valid wildcard TLS certificate
