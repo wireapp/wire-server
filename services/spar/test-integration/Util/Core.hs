@@ -111,7 +111,7 @@ module Util.Core
     callIdpDelete',
     callIdpDeletePurge',
     initCassandra,
-    ssoToUidSpar,
+    authIdToUidSpar,
     runSparCass,
     runSparCassWithEnv,
     runSimpleSP,
@@ -171,7 +171,7 @@ import SAML2.WebSSO.Test.Lenses (userRefL)
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
 import Spar.API.Types
-import Spar.App (toLevel)
+import Spar.App (runAuthId, toLevel)
 import qualified Spar.App as Spar
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
@@ -197,7 +197,7 @@ import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Invitation as TeamInvitation
 import Wire.API.User (HandleUpdate (HandleUpdate), UserUpdate)
 import qualified Wire.API.User as User
-import Wire.API.User.Identity (AuthId (..), newIdentity, runAuthId)
+import Wire.API.User.Identity (AuthId (..), newIdentity)
 
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv
@@ -1121,13 +1121,13 @@ callDeleteDefaultSsoCode sparreq_ = do
 
 -- helpers talking to spar's cassandra directly
 
--- | Look up 'UserId' under 'UserSSOId' on spar's cassandra directly.
-ssoToUidSpar :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => AuthId -> m (Maybe UserId)
-ssoToUidSpar authId = do
+-- | Look up 'UserId' under 'AuthId' on spar's cassandra directly.
+authIdToUidSpar :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => AuthId -> m (Maybe UserId)
+authIdToUidSpar authId = do
   runSparCass @Client $
     runAuthId
       Data.getSAMLUser
-      Data.lookupScimExternalId
+      (\(User.ScimDetails extId _) -> Data.lookupScimExternalId extId)
       authId
 
 runSparCass ::

@@ -245,8 +245,7 @@ isPendingActivation ident = case ident of
       usr <- (>>= fst) <$> Data.lookupActivationCode k
       case usr of
         Nothing -> return False
-        -- TODO: does Data.lookupAccount ever return just here? see 'resolveLoginId'
-        --       Doesn't have to be necessarily fixed in this PR
+        -- FUTUREWORK: does Data.lookupAccount ever return just here? see 'resolveLoginId'
         Just u -> maybe False (checkAccount k) <$> Data.lookupAccount u
     checkAccount k a =
       let i = userIdentity (accountUser a)

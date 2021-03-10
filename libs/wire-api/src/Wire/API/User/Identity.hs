@@ -106,7 +106,6 @@ instance ToJSON UserIdentity where
           ["email" .= em, "phone" .= ph, "auth_id" .= si]
             <> maybe [] ((: []) . ("sso_id" .=)) (authIdToLegacyAuthId =<< si)
 
--- TODO: Check if sso_id could be sent (e.g. by clients)
 instance FromJSON UserIdentity where
   parseJSON = withObject "UserIdentity" $ \o -> do
     email <- o .:? "email"

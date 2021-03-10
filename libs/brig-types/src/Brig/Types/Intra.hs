@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -40,6 +41,9 @@ import Data.Id (TeamId, UserId)
 import Data.Misc (PlainTextPassword (..))
 import qualified Data.Text as Text
 import Imports
+import Test.QuickCheck (Arbitrary (..))
+import Wire.API.User (ScimDetails)
+import Wire.API.User.Identity (EmailSource (EmailFromExternalIdField), EmailWithSource (..), ExternalId (..), ScimDetails (..))
 
 -------------------------------------------------------------------------------
 -- AccountStatus
@@ -145,7 +149,8 @@ instance ToJSON UserAccount where
 -------------------------------------------------------------------------------
 -- NewUserScimInvitation
 
-data NewUserScimInvitation = NewUserScimInvitation
+-- FUTUREWORK: Remove this type when SQSERVICES-264 has been released
+data NewUserScimInvitationLegacy = NewUserScimInvitationLegacy
   { newUserScimInvTeamId :: TeamId,
     newUserScimInvLocale :: Maybe Locale,
     newUserScimInvName :: Name,
@@ -153,21 +158,56 @@ data NewUserScimInvitation = NewUserScimInvitation
   }
   deriving (Eq, Show, Generic)
 
-instance FromJSON NewUserScimInvitation where
+instance FromJSON NewUserScimInvitationLegacy where
   parseJSON = withObject "NewUserScimInvitation" $ \o ->
-    NewUserScimInvitation
+    NewUserScimInvitationLegacy
       <$> o .: "team_id"
       <*> o .:? "locale"
       <*> o .: "name"
       <*> o .: "email"
 
-instance ToJSON NewUserScimInvitation where
-  toJSON (NewUserScimInvitation tid loc name email) =
+instance ToJSON NewUserScimInvitationLegacy where
+  toJSON (NewUserScimInvitationLegacy tid loc name email) =
     object
       [ "team_id" .= tid,
         "locale" .= loc,
         "name" .= name,
         "email" .= email
+      ]
+
+data NewUserScimInvitation = NewUserScimInvitation
+  { nusiDetails :: ScimDetails,
+    nusiInvName :: Name,
+    nusiInvLocale :: Maybe Locale
+  }
+  deriving (Eq, Show, Generic)
+
+instance Arbitrary NewUserScimInvitation where
+  arbitrary = NewUserScimInvitation <$> arbitrary <*> arbitrary <*> arbitrary
+
+instance FromJSON NewUserScimInvitation where
+  parseJSON v =
+    (scimInviteFromLegacy <$> parseJSON v)
+      <|> ( flip (withObject "NewUserScimInvitation") v $ \o ->
+              NewUserScimInvitation
+                <$> o .: "scim_details"
+                <*> o .: "name"
+                <*> o .:? "locale"
+          )
+    where
+      -- In a NewUserScimInvitationLegacy the external id is an email
+      scimInviteFromLegacy :: NewUserScimInvitationLegacy -> NewUserScimInvitation
+      scimInviteFromLegacy NewUserScimInvitationLegacy {..} =
+        let extid = fromEmail newUserScimInvEmail
+            scimDetails = ScimDetails (ExternalId newUserScimInvTeamId extid) (EmailWithSource newUserScimInvEmail EmailFromExternalIdField)
+         in NewUserScimInvitation scimDetails newUserScimInvName newUserScimInvLocale
+
+instance ToJSON NewUserScimInvitation where
+  toJSON (NewUserScimInvitation scimDetails name locale) =
+    object
+      [ "scim_details" .= scimDetails,
+        "name" .= name,
+        "locale" .= locale
       ]
 
 -------------------------------------------------------------------------------

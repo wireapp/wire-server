@@ -25,6 +25,8 @@ module Wire.API.User.Identity.Email
     fromEmail,
     parseEmail,
     validateEmail,
+    toEmailAddress,
+    fromEmailAddress,
   )
 where
 
@@ -34,10 +36,12 @@ import Data.Attoparsec.Text
 import Data.Bifunctor (first)
 import Data.ByteString.Conversion
 import Data.Proxy (Proxy (..))
+import Data.String.Conversions (cs)
 import Data.Swagger (ToSchema (..))
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8', encodeUtf8)
 import Imports
+import qualified Text.Email.Parser as Email.P
 import qualified Text.Email.Validate as Email.V
 import Wire.API.Arbitrary (Arbitrary (arbitrary))
 
@@ -123,3 +127,11 @@ validateEmail =
           satisfy (inClass "a-zA-Z0-9")
             *> count 61 (optional (satisfy (inClass "-a-zA-Z0-9")))
             *> optional (satisfy (inClass "a-zA-Z0-9"))
+
+toEmailAddress :: Email -> Maybe Email.V.EmailAddress
+toEmailAddress =
+  either (const Nothing) pure . Email.V.validate . cs . fromEmail
+
+fromEmailAddress :: Email.V.EmailAddress -> Maybe Email
+fromEmailAddress =
+  parseEmail . cs . Email.P.toByteString

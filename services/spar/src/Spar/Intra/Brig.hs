@@ -19,10 +19,8 @@
 
 -- | Client functions for interacting with the Brig API.
 module Spar.Intra.Brig
-  ( urefToExternalId,
-    urefToEmail,
+  ( urefToEmail,
     mkUserName,
-    renderAuthAsExternalId,
     emailFromSAML,
     emailToSAML,
     emailToSAMLNameID,
@@ -94,15 +92,7 @@ mkUserName (Just n) = const $ mkName n
 mkUserName Nothing =
   runAuthId
     (\uref -> mkName (SAML.unsafeShowNameID $ uref ^. SAML.uidSubject))
-    (\email -> mkName (fromEmail email))
-
-renderAuthAsExternalId :: AuthId -> Maybe Text
-renderAuthAsExternalId = \case
-  AuthSAML uref -> urefNameId uref
-  AuthSCIM (ScimDetails (ExternalId _ t) _) -> Just t
-  AuthBoth _ uref _ -> urefNameId uref
-  where
-    urefNameId uref = SAML.shortShowNameID (uref ^. SAML.uidSubject)
+    (\(ScimDetails _ (EmailWithSource email _)) -> mkName (fromEmail email))
 
 -- | Similar to 'Network.Wire.Client.API.Auth.tokenResponse', but easier: we just need to set the
 -- cookie in the response, and the redirect will make the client negotiate a fresh auth token.
@@ -145,7 +135,7 @@ class (Log.MonadLogger m, MonadError SparError m) => MonadSparToBrig m where
 
 createBrigUserSAML ::
   (HasCallStack, MonadSparToBrig m) =>
-  SAML.UserRef ->
+  AuthId ->
   UserId ->
   TeamId ->
   -- | User name
@@ -153,12 +143,12 @@ createBrigUserSAML ::
   -- | Who should have control over the user
   ManagedBy ->
   m UserId
-createBrigUserSAML uref (Id buid) teamid uname managedBy = do
+createBrigUserSAML authId (Id buid) teamid uname managedBy = do
   let newUser :: NewUser
       newUser =
         (emptyNewUser uname)
           { newUserUUID = Just buid,
-            newUserIdentity = Just (SparAuthIdentity (AuthSAML uref) Nothing Nothing),
+            newUserIdentity = Just (SparAuthIdentity authId Nothing Nothing),
             newUserOrigin = Just (NewUserOriginTeamUser . NewTeamMemberSSO $ teamid),
             newUserManagedBy = Just managedBy
           }
@@ -173,17 +163,15 @@ createBrigUserSAML uref (Id buid) teamid uname managedBy = do
 
 createBrigUserNoSAML ::
   (HasCallStack, MonadSparToBrig m) =>
-  Email ->
-  TeamId ->
-  -- | User name
+  ScimDetails ->
   Name ->
   m UserId
-createBrigUserNoSAML email teamid uname = do
-  let newUser = NewUserScimInvitation teamid Nothing uname email
+createBrigUserNoSAML scimDetails@(ScimDetails (ExternalId tid _) (EmailWithSource _ _)) uname = do
+  let newUser = NewUserScimInvitation scimDetails uname Nothing
   resp :: ResponseLBS <-
     call $
       method POST
-        . paths ["/i/teams", toByteString' teamid, "invitations"]
+        . paths ["/i/teams", toByteString' tid, "invitations"]
         . json newUser
 
   if statusCode resp `elem` [200, 201]
@@ -317,7 +305,7 @@ setBrigUserManagedBy buid managedBy = do
   unless (statusCode resp == 200) $
     rethrow "brig" resp
 
--- | Set user's UserSSOId.
+-- | Set user's AuthId.
 setBrigUserAuthId :: (HasCallStack, MonadSparToBrig m) => UserId -> AuthId -> m ()
 setBrigUserAuthId buid authId = do
   resp <-
