@@ -148,7 +148,7 @@ import Imports
 import Network.Wai.Utilities
 import qualified System.Logger.Class as Log
 import System.Logger.Message
-import Wire.API.User.Identity (authIdUref)
+import Wire.API.User.Identity (EmailWithSource (..), ScimDetails (..), authIdUref)
 
 data AllowSCIMUpdates
   = AllowSCIMUpdates
@@ -365,11 +365,11 @@ createUser new@NewUser {..} = do
 -- all over the place there, we add a new function that handles just the one new flow where
 -- users are invited to the team via scim.
 createUserInviteViaScim :: UserId -> NewUserScimInvitation -> ExceptT Error.Error AppIO UserAccount
-createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = (`catchE` (throwE . Error.newUserError)) $ do
-  email <- either (throwE . InvalidEmail rawEmail) pure (validateEmail rawEmail)
+createUserInviteViaScim uid newUser@(NewUserScimInvitation (ScimDetails _ (EmailWithSource email _)) _ _) = (`catchE` (throwE . Error.newUserError)) $ do
+  _ <- either (throwE . InvalidEmail email) pure (validateEmail email)
   let emKey = userEmailKey email
   verifyUniquenessAndCheckBlacklist emKey
-  account <- lift $ newAccountInviteViaScim uid tid loc name email
+  account <- lift $ newAccountInviteViaScim uid newUser
   Log.debug $ field "user" (toByteString . userId . accountUser $ account) . field "action" (Log.val "User.createUserInviteViaScim")
 
   -- add the expiry table entry first!  (if brig creates an account, and then crashes before
@@ -893,7 +893,7 @@ mkPasswordResetKey ident = case ident of
 -- User Deletion
 
 -- | Initiate validation of a user's delete request.  Called via @delete /self@.  Users with an
--- 'UserSSOId' can still do this if they also have an 'Email', 'Phone', and/or password.  Otherwise,
+-- 'UserIdentity' can still do this if they also have an 'Email', 'Phone', and/or password.  Otherwise,
 -- the team admin has to delete them via the team console on galley.
 --
 -- Owners are not allowed to delete themselves.  Instead, they must ask a fellow owner to

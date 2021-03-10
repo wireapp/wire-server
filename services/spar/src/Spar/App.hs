@@ -26,6 +26,7 @@ module Spar.App
     wrapMonadClientWithEnv,
     wrapMonadClient,
     verdictHandler,
+    runAuthId,
     getUser,
     insertUser,
     autoprovisionSamlUser,
@@ -89,6 +90,7 @@ import qualified System.Logger as Log
 import System.Logger.Class (MonadLogger (log))
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
+import Wire.API.User (ScimDetails (ScimDetails))
 import Wire.API.User.Identity (AuthId (..), runAuthId)
 
 newtype Spar a = Spar {fromSpar :: ReaderT Env (ExceptT SparError IO) a}
@@ -192,7 +194,7 @@ insertUser uref uid = wrapMonadClient $ Data.insertSAMLUser uref uid
 -- brig or galley crashing) will cause the lookup here to yield 'Nothing'.
 getUser :: AuthId -> Spar (Maybe UserId)
 getUser authId = do
-  muid <- wrapMonadClient $ runAuthId Data.getSAMLUser Data.lookupScimExternalId authId
+  muid <- wrapMonadClient $ runAuthId Data.getSAMLUser (\(ScimDetails extId _) -> Data.lookupScimExternalId extId) authId
   case muid of
     Nothing -> pure Nothing
     Just uid -> do
@@ -220,7 +222,7 @@ createSamlUserWithId :: UserId -> SAML.UserRef -> ManagedBy -> Spar ()
 createSamlUserWithId buid suid managedBy = do
   teamid <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (suid ^. uidTenant)
   uname <- either (throwSpar . SparBadUserName . cs) pure $ Intra.mkUserName Nothing (AuthSAML suid)
-  buid' <- Intra.createBrigUserSAML suid buid teamid uname managedBy
+  buid' <- Intra.createBrigUserSAML (AuthSAML suid) buid teamid uname managedBy
   assert (buid == buid') $ pure ()
   insertUser suid buid
 
@@ -413,12 +415,12 @@ verdictHandlerResultCore bindCky = \case
         (Nothing, Nothing, Just (oldUserRef, uid)) -> moveUserToNewIssuer oldUserRef userref uid >> pure uid
         -- SSO re-authentication (the most common case).
         (Nothing, Just uid, _) -> pure uid
-        -- Bind existing user (non-SSO or SSO) to ssoid
+        -- Bind existing user (non-SSO or SSO) to SAML.UserRef
         (Just uid, Nothing, Nothing) -> bindUser uid userref
         (Just uid, Just uid', Nothing)
           -- Redundant binding (no change to Brig or Spar)
           | uid == uid' -> pure uid
-          -- Attempt to use ssoid for a second Wire user
+          -- Attempt to use SAML.UserRef for a second Wire user
           | otherwise -> throwSpar SparBindUserRefTaken
         -- same two cases as above, but between last login and bind there was an issuer update.
         (Just uid, Nothing, Just (oldUserRef, uid'))

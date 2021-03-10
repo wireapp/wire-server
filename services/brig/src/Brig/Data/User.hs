@@ -90,7 +90,7 @@ import Data.UUID.V4
 import Galley.Types.Bot
 import Imports
 import Wire.API.User (LegacyAuthId (fromLegacyAuthId), userAuthId)
-import Wire.API.User.Identity (AuthId)
+import Wire.API.User.Identity (AuthId, EmailWithSource (..), ExternalId (ExternalId), ScimDetails (..))
 import qualified Wire.API.User.Identity as UserId
 import Wire.API.User.RichInfo
 
@@ -151,11 +151,11 @@ newAccount u inv tid mbHandle = do
     managedBy = fromMaybe defaultManagedBy (newUserManagedBy u)
     user uid domain l e = User uid (Qualified uid domain) ident name pict assets colour False l Nothing mbHandle e tid managedBy
 
-newAccountInviteViaScim :: UserId -> TeamId -> Maybe Locale -> Name -> Email -> AppIO UserAccount
-newAccountInviteViaScim uid tid locale name email = do
+newAccountInviteViaScim :: UserId -> NewUserScimInvitation -> AppIO UserAccount
+newAccountInviteViaScim uid (NewUserScimInvitation scimDetails@(ScimDetails (ExternalId tid _) (EmailWithSource email _)) name mbLocale) = do
   defLoc <- setDefaultLocale <$> view settings
   domain <- viewFederationDomain
-  return (UserAccount (user domain (fromMaybe defLoc locale)) PendingInvitation)
+  return (UserAccount (user domain (fromMaybe defLoc mbLocale)) PendingInvitation)
   where
     user domain loc =
       User
@@ -163,12 +163,7 @@ newAccountInviteViaScim uid tid locale name email = do
         (Qualified uid domain)
         ( Just $
             SparAuthIdentity
-              ( UserId.AuthSCIM
-                  ( UserId.ScimDetails
-                      (UserId.ExternalId tid (fromEmail email))
-                      (UserId.EmailWithSource email UserId.EmailFromExternalIdField)
-                  )
-              )
+              (UserId.AuthSCIM scimDetails)
               (Just email)
               Nothing
         )

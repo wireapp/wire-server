@@ -728,7 +728,7 @@ testRemoveBindingTeamOwner = do
   refreshIndex
   ownerWithoutEmail <- do
     -- users must have a 'UserIdentity', or @get /i/users@ won't find it, so we use
-    -- 'UserSSOId'.
+    -- 'AuthId'.
     mem <- Util.addUserToTeamWithSSO False tid
     refreshIndex
     assertQueue "Add user with SSO" $ tUpdate 3 [ownerA, ownerB]

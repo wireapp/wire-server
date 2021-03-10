@@ -84,7 +84,7 @@ testCleanExpiredPendingInvitations opts db brig galley spar = do
   tok <- createScimToken spar owner
   uid <- do
     email <- randomEmail
-    scimUser <- lift (randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email})
+    scimUser <- lift (randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email, Scim.User.emails = []})
     (scimStoredUser, _inv, _inviteeCode) <- createUserStep spar brig tok tid scimUser email
     pure $ (Scim.id . Scim.thing) scimStoredUser
   assertUserExist "user should exist" db uid True
@@ -96,7 +96,7 @@ testRegisteredUsersNotCleaned opts db brig galley spar = do
   (owner, tid) <- createUserWithTeamDisableSSO brig galley
   tok <- createScimToken spar owner
   email <- randomEmail
-  scimUser <- lift (randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email})
+  scimUser <- lift (randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email, Scim.User.emails = []})
   (scimStoredUser, _inv, inviteeCode) <- createUserStep spar brig tok tid scimUser email
   let uid = (Scim.id . Scim.thing) scimStoredUser
   assertUserExist "user should exist" db uid True

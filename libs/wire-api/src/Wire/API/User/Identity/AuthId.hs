@@ -36,11 +36,8 @@ module Wire.API.User.Identity.AuthId
     authIdEmail,
     runAuthId,
     authIdToLegacyAuthId,
-    -- TODO: check which functions are not needed and remove
-    urefToExternalId,
-    externalIdToUref,
+    authIdEmailWithSource,
     authIdUref,
-    authIdExternalId,
   )
 where
 
@@ -83,10 +80,18 @@ data ScimDetails = ScimDetails ExternalId EmailWithSource
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ScimDetails)
 
+instance FromJSON ScimDetails
+
+instance ToJSON ScimDetails
+
 data ExternalId
   = ExternalId TeamId Text
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ExternalId)
+
+instance FromJSON ExternalId
+
+instance ToJSON ExternalId
 
 data EmailWithSource = EmailWithSource
   { ewsEmail :: Email,
@@ -94,6 +99,10 @@ data EmailWithSource = EmailWithSource
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform EmailWithSource)
+
+instance FromJSON EmailWithSource
+
+instance ToJSON EmailWithSource
 
 data EmailSource
   = EmailFromExternalIdField
@@ -114,21 +123,11 @@ data EmailSource
 -- data type and everyhing that's using it.
 newtype LegacyAuthId = LegacyAuthId {fromLegacyAuthId :: TeamId -> AuthId}
 
--- | 'SAML.UserRef' and 'externalId' are isomorphic.  (Both DB indices in spar are kept in
--- sync: if both exist and identify the same user, they do so via those `spar.user` and
--- `spar.scim_external`.)
---
--- The 'Nothing' case can occur if the 'NameID' has unsupported qualifiers.
---
--- (The 'TeamId' could be inferred from the saml issuer, but that would be a database lookup,
--- which would make the function even less total.)
-urefToExternalId :: TeamId -> SAML.UserRef -> Maybe ExternalId
-urefToExternalId tid uref = ExternalId tid <$> SAML.shortShowNameID (uref ^. SAML.uidSubject)
-
--- | See 'userRefToExternalId'.  'NameID' format is either email (if parseable) or unspecified
--- (if not).
-externalIdToUref :: SAML.Issuer -> ExternalId -> SAML.UserRef
-externalIdToUref = undefined
+authIdEmailWithSource :: AuthId -> Maybe EmailWithSource
+authIdEmailWithSource = \case
+  AuthSAML _ -> Nothing
+  AuthSCIM (ScimDetails _ ews) -> Just ews
+  AuthBoth _ _ mbEws -> mbEws
 
 -- | Internal; only needed for aeson instances.
 data AuthIdTyp = AuthIdTypSAML | AuthIdTypSCIM | AuthIdTypBoth
@@ -279,21 +278,16 @@ instance ToJSON AuthIdTyp where
   toJSON AuthIdTypSCIM = "scim"
   toJSON AuthIdTypBoth = "both"
 
--- | Take apart a 'AuthId', using 'SAML.UserRef' if available, otherwise 'Email'.
-runAuthId :: (SAML.UserRef -> a) -> (Email -> a) -> AuthId -> a
-runAuthId doUref doEmail = \case
+-- | Take apart a 'AuthId', using 'SAML.UserRef' if available, otherwise 'ScimDetails'.
+-- replace runAuthId in wire-api with this
+runAuthId :: (SAML.UserRef -> a) -> (ScimDetails -> a) -> AuthId -> a
+runAuthId doUref doScim = \case
   AuthSAML uref -> doUref uref
-  AuthSCIM (ScimDetails _ (EmailWithSource email _)) -> doEmail email
+  AuthSCIM scimDetails -> doScim scimDetails
   AuthBoth _ uref _ -> doUref uref
 
 authIdUref :: AuthId -> Maybe SAML.UserRef
 authIdUref = runAuthId (Just . id) (const Nothing)
-
-authIdExternalId :: AuthId -> Maybe ExternalId
-authIdExternalId = \case
-  AuthSAML _ -> Nothing
-  AuthSCIM (ScimDetails extId _) -> Just extId
-  AuthBoth tid uref _ -> urefToExternalId tid uref
 
 authIdEmail :: AuthId -> Maybe Email
 authIdEmail = \case

@@ -173,13 +173,13 @@ sitemap = do
     accept "application" "json"
       .&. jsonRequest @ExcludedPrefix
 
-  -- FUTUREWORK: Remove this after next release
+  -- FUTUREWORK: Remove this type when SQSERVICES-264 has been released
   put "/i/users/:uid/sso-id" (continue updateSSOIdLegacyH) $
     capture "uid"
       .&. accept "application" "json"
       .&. jsonRequest @LegacyAuthId
 
-  -- FUTUREWORK: Remove this after next release
+  -- FUTUREWORK: Remove this type when SQSERVICES-264 has been released
   delete "/i/users/:uid/sso-id" (continue deleteSSOIdLegacyH) $
     capture "uid"
       .&. accept "application" "json"

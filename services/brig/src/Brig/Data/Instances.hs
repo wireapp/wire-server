@@ -92,8 +92,8 @@ instance Cql AuthId where
 
   fromCql (CqlText t) = case eitherDecode $ cs t of
     Right i -> return i
-    Left msg -> Left $ "fromCql: Invalid UserSSOId: " ++ msg
-  fromCql _ = Left "fromCql: UserSSOId: CqlText expected"
+    Left msg -> Left $ "fromCql: Invalid AuthId: " ++ msg
+  fromCql _ = Left "fromCql: AuthId: CqlText expected"
 
   toCql = toCql . cs @LBS @ST . encode
 

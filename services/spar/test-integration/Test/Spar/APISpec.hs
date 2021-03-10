@@ -396,7 +396,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           authIdResponse <- getAuthIdViaAuthResp sparrq
           authIdSelf <- getAuthIdViaSelf uid
           liftIO $ ('s', authIdSelf) `shouldBe` ('s', authIdResponse)
-          Just uidViaSpar <- ssoToUidSpar authIdResponse
+          Just uidViaSpar <- authIdToUidSpar authIdResponse
           liftIO $ ('u', uidViaSpar) `shouldBe` ('u', uid)
         checkGrantingAuthnResp' :: HasCallStack => ResponseLBS -> TestSpar ()
         checkGrantingAuthnResp' sparresp = do
@@ -1122,7 +1122,7 @@ specScimAndSAML = do
         maybe (error "bad access token") pure . fromByteString . cs $ token
       pure $ Id (parsed ^. ZAuth.body . ZAuth.userId)
     liftIO $ userid'' `shouldBe` userid
-    -- /self should contain the expected UserSSOId
+    -- /self should contain the expected AuthId
     self :: ResponseLBS <-
       call . get $
         (env ^. teBrig)
