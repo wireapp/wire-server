@@ -61,16 +61,21 @@ testHandleLookup brig brigTwo = do
   u <- randomUser brigTwo
   h <- randomHandle
   void $ putHandle brigTwo (userId u) h
+
+  -- Verify if creating user and setting handle succeeded
   self <- selfUser <$> getSelfProfile brigTwo (userId u)
   let handle = fromJust (userHandle self)
   liftIO $ assertEqual "creating user with handle should return handle" h (fromHandle handle)
+
+  -- Get result from brig two for comparison
   let domain = qDomain $ userQualifiedId self
-  resultTwo <- userHandleId <$> getUserInfoFromHandle brigTwo domain handle
+  resultViaBrigTwo <- getUserInfoFromHandle brigTwo domain handle
+
   -- query the local-namespace brig for a user sitting on the other backend
   -- which should involve the following network traffic:
   --
   -- brig-integration -> brig -> federator -> fed2-federator -> fed2-brig
   -- (and back)
-  result <- userHandleId <$> getUserInfoFromHandle brig domain handle
-  liftIO $ assertEqual "remote handle lookup via federator should work in the happy case" result (Qualified (userId u) domain)
-  liftIO $ assertEqual "querying brig1 or brig2 about remote user should give same result" resultTwo result
+  resultViaBrigOne <- getUserInfoFromHandle brig domain handle
+  liftIO $ assertEqual "remote handle lookup via federator should work in the happy case" (profileQualifiedId resultViaBrigOne) (userQualifiedId u)
+  liftIO $ assertEqual "querying brig1 or brig2 about the same user should give same result" resultViaBrigTwo resultViaBrigOne

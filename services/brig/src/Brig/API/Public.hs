@@ -270,14 +270,14 @@ type GetHandleInfoUnqualified =
 --   Doc.returns (Doc.ref Public.modelUserHandleInfo)
 --   Doc.response 200 "Handle info" Doc.end
 --   Doc.errorResponse handleNotFound
-type GetHandleInfoQualified =
+type GetUserByHandleQualfied =
   Summary "Get information on a user handle"
     :> ZAuthServant
     :> "users"
-    :> "handles"
+    :> "by-handle"
     :> Capture "domain" Domain
     :> Capture' '[Description "The user handle"] "handle" Handle
-    :> Get '[Servant.JSON] Public.UserHandleInfo
+    :> Get '[Servant.JSON] Public.UserProfile
 
 -- See Note [ephemeral user sideeffect]
 type ListUsersByUnqualifiedIdsOrHandles =
@@ -367,7 +367,7 @@ type OutsideWorldAPI =
     :<|> GetUserQualified
     :<|> GetSelf
     :<|> GetHandleInfoUnqualified
-    :<|> GetHandleInfoQualified
+    :<|> GetUserByHandleQualfied
     :<|> ListUsersByUnqualifiedIdsOrHandles
     :<|> ListUsersByIdsOrHandles
     :<|> ListClientsBulk
@@ -401,7 +401,7 @@ servantSitemap =
     :<|> getUserH
     :<|> getSelf
     :<|> getHandleInfoUnqualifiedH
-    :<|> getHandleInfoH
+    :<|> getUserByHandleH
     :<|> listUsersByUnqualifiedIdsOrHandles
     :<|> listUsersByIdsOrHandles
     :<|> listClientsBulk
@@ -1420,15 +1420,15 @@ checkHandlesH (_ ::: _ ::: req) = do
 getHandleInfoUnqualifiedH :: UserId -> Handle -> Handler Public.UserHandleInfo
 getHandleInfoUnqualifiedH self handle = do
   domain <- viewFederationDomain
-  getHandleInfoH self domain handle
+  Public.UserHandleInfo . Public.profileQualifiedId <$> getUserByHandleH self domain handle
 
-getHandleInfoH :: UserId -> Domain -> Handle -> Handler Public.UserHandleInfo
-getHandleInfoH self domain handle =
+getUserByHandleH :: UserId -> Domain -> Handle -> Handler Public.UserProfile
+getUserByHandleH self domain handle =
   ifNothing (notFound "handle not found")
     =<< getHandleInfo self (Qualified handle domain)
 
 -- FUTUREWORK: use 'runMaybeT' to simplify this.
-getHandleInfo :: UserId -> Qualified Handle -> Handler (Maybe Public.UserHandleInfo)
+getHandleInfo :: UserId -> Qualified Handle -> Handler (Maybe Public.UserProfile)
 getHandleInfo self handle = do
   domain <- viewFederationDomain
   if qDomain handle == domain
@@ -1443,9 +1443,9 @@ getHandleInfo self handle = do
         Just ownerId -> do
           ownerProfile <- lift $ API.lookupProfile self (Qualified ownerId domain)
           owner <- filterHandleResults self (maybeToList ownerProfile)
-          return $ Public.UserHandleInfo . Public.profileQualifiedId <$> listToMaybe owner
+          return $ listToMaybe owner
     getRemoteHandleInfo = do
-      Log.info $ (Log.msg $ Log.val "getHandleInfo - remote lookup") Log.~~ Log.field "domain" (show (qDomain handle))
+      Log.info $ Log.msg (Log.val "getHandleInfo - remote lookup") Log.~~ Log.field "domain" (show (qDomain handle))
       Federation.getUserHandleInfo handle
 
 changeHandleH :: UserId ::: ConnId ::: JsonRequest Public.HandleUpdate -> Handler Response

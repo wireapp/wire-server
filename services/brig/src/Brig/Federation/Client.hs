@@ -42,7 +42,7 @@ import qualified Wire.API.Federation.GRPC.Types as Proto
 -- This is not correct, we should figure out how we communicate failure
 -- scenarios to the clients.
 -- See https://wearezeta.atlassian.net/browse/SQCORE-491 for the issue on error handling improvements.
-getUserHandleInfo :: Qualified Handle -> Handler (Maybe UserHandleInfo)
+getUserHandleInfo :: Qualified Handle -> Handler (Maybe UserProfile)
 getUserHandleInfo (Qualified handle domain) = do
   Log.info $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
   federatorClient <- mkFederatorClient
