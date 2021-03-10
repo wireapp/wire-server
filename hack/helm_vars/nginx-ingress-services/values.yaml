@@ -18,7 +18,7 @@ config:
     fakeS3: assets.integration.example.com
     teamSettings: teams.integration.example.com
     accountPages: account.integration.example.com
-    federator: federator.integration.example.com
+    # federator: dynaically set by hack/bin/integration-setup.sh
 
 secrets:
   # self-signed certificates generated using wire-server/hack/bin/selfsigned.sh
