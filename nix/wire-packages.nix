@@ -77,7 +77,7 @@ final: prev: {
     ];
   };
 
-  wireHaskellPkgs = final.haskell-nix.stackProject {
+  wireHaskellPkgs = final.haskell-nix.stackProject' {
     src = final.haskell-nix.haskellLib.cleanGit {
       name = "wire-server";
       src = ../.;
@@ -94,6 +94,8 @@ final: prev: {
       "https://github.com/wireapp/hspec-wai"."0a5142cd3ba48116ff059c041348b817fb7bdb25" = "body-contains";
       "https://github.com/wireapp/bloodhound"."92de9aa632d590f288a353d03591c38ba72b3cb3" = "wire-fork-ghc-8.8";
       "https://github.com/wireapp/servant-swagger.git"."23e9afafadaade29d21181b935286087457171e3" = "akshaymankar/fix-ghc-version-check";
+      "https://gitlab.com/twittner/wai-routing"."7e996a93fec5901767f845a50316b3c18e51a61d" = "develop";
+      "https://github.com/wireapp/amazonka"."412172d8c28906591f01576a78792de7c34cc3eb" = "develop";
     };
 
     modules = [

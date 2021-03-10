@@ -53,7 +53,6 @@ packages:
 nix:
   shell-file: stack-deps.nix
 
-
 # HaskellNet, HaskellNet-SSL, bloodhound, multihash and stm-hamt have bounds
 # issues. We didn't catch those before because in snapshot files, allow-newer:
 # true seems to be the default. We should fix these bound issues (we have a
