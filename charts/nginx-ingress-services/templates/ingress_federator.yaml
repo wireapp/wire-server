@@ -13,12 +13,10 @@ metadata:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
 spec:
-{{- if .Values.tls.enabled }}
   tls:
   - hosts:
       - {{ .Values.config.dns.federator }}
     secretName: {{ include "nginx-ingress-services.getCertificateSecretName" . | quote }}
-{{- end }}
   rules:
     - host: {{ .Values.config.dns.federator }}
       http:

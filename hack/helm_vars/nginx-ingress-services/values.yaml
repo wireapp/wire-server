@@ -6,7 +6,6 @@ federator:
   enabled: true
   integrationTestHelper: true
 tls:
-  enabled: true
   useCertManager: false
 
 config:
