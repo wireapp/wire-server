@@ -74,12 +74,14 @@ future.
 ### Team Search Visibility
 
 Is a team allowed to change its team search visibility settings? If enabled
-for the team, it can be configured so that non team users do not show up in search.
+for the team, it can be configured so that non-team users do not show up in search.
 
 This sets the default setting for all teams, and can be overridden for
 individual teams by customer support / backoffice. [Allowed
 values](https://github.com/wireapp/wire-server/blob/151afec7b1f5a7630a094cf000875fbf9035866d/libs/galley-types/src/Galley/Types/Teams.hs#L229-L235):
 `disabled-by-default`, `enabled-by-default`.
+
+Disabled by default in the wire cloud.
 
 [Backoffice hook](https://github.com/wireapp/wire-server/blob/151afec7b1f5a7630a094cf000875fbf9035866d/tools/stern/src/Stern/API.hs#L615-L618) looks like this:
 
