@@ -23,7 +23,7 @@ table must be backfilled.
 
 Even when the flag is `disabled`, galley will keep writing to the
 `biling_team_member` table, this flag only affects the reads and has
-been added in order to deploy new code and backfill data in 
+been added in order to deploy new code and backfill data in
 production.
 
 ## Feature flags
@@ -74,12 +74,28 @@ future.
 ### Team Search Visibility
 
 Is a team allowed to change its team search visibility settings? If enabled
-for the team, it can be configured so that non team users do not show up in search.
+for the team, it can be configured so that non-team users do not show up in search.
 
 This sets the default setting for all teams, and can be overridden for
 individual teams by customer support / backoffice. [Allowed
-values](https://github.com/wireapp/wire-server/blob/custom-search-visibility-limit-name-search/libs/galley-types/src/Galley/Types/Teams.hs#L382-L385):
+values](https://github.com/wireapp/wire-server/blob/151afec7b1f5a7630a094cf000875fbf9035866d/libs/galley-types/src/Galley/Types/Teams.hs#L229-L235):
 `disabled-by-default`, `enabled-by-default`.
+
+Disabled by default in the wire cloud.
+
+[Backoffice hook](https://github.com/wireapp/wire-server/blob/151afec7b1f5a7630a094cf000875fbf9035866d/tools/stern/src/Stern/API.hs#L615-L618) looks like this:
+
+```
+GET /teams/{tid}/search-visibility
+  -- Shows the current TeamSearchVisibility value for the given team
+
+PUT /teams/{tid}/search-visibility
+  -- Set specific search visibility for the team
+
+pull-down-menu "body":
+  "standard"
+  "no-name-outside-team"
+```
 
 ### Email Visibility
 
