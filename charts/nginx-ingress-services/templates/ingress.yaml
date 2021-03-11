@@ -4,10 +4,6 @@ metadata:
   name: nginx-ingress
   annotations:
     kubernetes.io/ingress.class: "nginx"
-{{- if and (not .Values.federator.ingress2) .Values.federator.enabled }}
-    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-{{- end }}
 spec:
   # This assumes you have created the given cert
   # https://github.com/kubernetes/ingress-nginx/blob/master/docs/examples/PREREQUISITES.md#tls-certificates
@@ -23,9 +19,6 @@ spec:
 {{- end }}
 {{- if .Values.accountPages.enabled }}
       - {{ .Values.config.dns.accountPages }}
-{{- end }}
-{{- if and (not .Values.federator.ingress2) .Values.federator.enabled }}
-      - {{ .Values.config.dns.federator }}
 {{- end }}
     secretName: {{ include "nginx-ingress-services.getCertificateSecretName" . | quote }}
 {{- end }}
@@ -75,14 +68,4 @@ spec:
             backend:
               serviceName: account-pages-http
               servicePort: {{ .Values.service.accountPages.externalPort }}
-{{- end }}
-{{- if and (not .Values.federator.ingress2) .Values.federator.enabled }}
-    - host: {{ .Values.config.dns.federator }}
-      http:
-        paths:
-          - path: /
-            backend:
-              serviceName: federator
-              # servicePort: {{ .Values.service.federator.externalFederatorPort }}
-              servicePort: federator-ext # name must be below 15 chars
 {{- end }}

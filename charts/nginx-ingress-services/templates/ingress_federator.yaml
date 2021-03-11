@@ -1,7 +1,7 @@
-{{- if and .Values.federator.ingress2 .Values.federator.enabled }}
-# TODO find out:
-# do we need a separate ingress for federator/grpc since we can't forward
-# both normal http1 traffic and grpc traffic in the same kubernetes ingress it appears ???
+{{- if .Values.federator.enabled }}
+# We use a separate ingress for federator/grpc since we can't forward
+# both normal http1 traffic and grpc traffic in the same kubernetes ingress it appears.
+# Setting backend-protocol annotation to "GRPC" for everything is likely incorrect.
 # see also example https://github.com/kubernetes/ingress-nginx/blob/master/docs/examples/grpc/ingress.yaml
 # and docs https://kubernetes.github.io/ingress-nginx/examples/grpc/
 apiVersion: extensions/v1beta1
@@ -9,8 +9,6 @@ kind: Ingress
 metadata:
   name: federator-ingress
   annotations:
-    # if the ingress-class is custom (not 'nginx'), see
-    # e.g. https://madeeshafernando.medium.com/deploying-multiple-ingress-controllers-in-a-kubernetes-cluster-dc6c7700a795
     kubernetes.io/ingress.class: "nginx"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
@@ -27,6 +25,5 @@ spec:
         paths:
           - backend:
               serviceName: federator
-              # servicePort: {{ .Values.service.federator.externalFederatorPort }}
               servicePort: federator-ext # name must be below 15 chars
 {{- end }}
