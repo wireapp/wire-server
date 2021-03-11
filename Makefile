@@ -8,7 +8,7 @@ DOCKER_TAG            ?= $(USER)
 # default helm chart version must be 0.0.42 for local development (because 42 is the answer to the universe and everything)
 HELM_SEMVER           ?= 0.0.42
 # The list of helm charts needed for integration tests on kubernetes
-CHARTS_INTEGRATION    := wire-server databases-ephemeral fake-aws
+CHARTS_INTEGRATION    := wire-server databases-ephemeral fake-aws nginx-ingress-controller nginx-ingress-services
 # The list of helm charts to publish on S3
 # FUTUREWORK: after we "inline local subcharts",
 # (e.g. move charts/brig to charts/wire-server/brig)
@@ -273,8 +273,8 @@ kube-restart-%:
 	kubectl delete pod -n $(NAMESPACE) -l wireService=$(*)
 	kubectl delete pod -n $(NAMESPACE)-fed2 -l wireService=$(*)
 
-.PHONY: latest-brig-tag
-latest-brig-tag:
+.PHONY: latest-tag
+latest-tag:
 	./hack/bin/find-latest-docker-tag.sh
 
 .PHONY: release-chart-%

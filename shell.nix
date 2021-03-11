@@ -63,6 +63,9 @@ in pkgs.mkShell {
     pkgs.gnumake
     pkgs.haskell-language-server
     pkgs.telepresence
+    pkgs.jq
+    pkgs.grpcurl
+    pkgs.cfssl
 
     pinned.stack
     pinned.helm
