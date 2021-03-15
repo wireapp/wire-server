@@ -31,7 +31,8 @@ where
 
 import qualified Brig.API.Client as API
 import qualified Brig.API.Connection as API
-import Brig.API.Error
+import Brig.API.Error hiding (handleNotFound)
+import qualified Brig.API.Error as LegacyError
 import Brig.API.Handler
 import Brig.API.IdMapping (resolveOpaqueUserId)
 import qualified Brig.API.Properties as API
@@ -71,20 +72,27 @@ import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
 import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
 import Data.Range
+import Data.SOP.BasicFunctors (I (I))
+import Data.SOP.NS (NS (..))
 import Data.Swagger
   ( ApiKeyLocation (..),
     ApiKeyParams (..),
     HasInfo (info),
+    HasProperties (properties),
     HasSchema (..),
     HasSecurity (security),
     HasSecurityDefinitions (securityDefinitions),
     HasTitle (title),
+    NamedSchema (..),
     SecurityRequirement (..),
     SecurityScheme (..),
     SecuritySchemeType (SecuritySchemeApiKey),
     Swagger,
+    SwaggerType (SwaggerObject),
     ToSchema (..),
+    declareSchemaRef,
     description,
+    type_, HasRequired (required)
   )
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
@@ -92,6 +100,8 @@ import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (decodeLatin1)
 import Data.Text.Lazy (pack)
 import qualified Data.ZAuth.Token as ZAuth
+import GHC.TypeLits (KnownNat, KnownSymbol, Nat, Symbol, symbolVal)
+import GHC.TypeNats (natVal)
 import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai (Response, lazyRequestBody)
@@ -186,6 +196,36 @@ instance ToSchema Empty404 where
 
 type CheckUserExistsResponse = [Empty200, Empty404]
 
+data RestError (status :: Nat) (label :: Symbol) (message :: Symbol) = RestError
+  deriving (Generic)
+  deriving (HasStatus) via (WithStatus status (RestError status "" ""))
+
+instance (KnownNat status, KnownSymbol label, KnownSymbol message) => ToJSON (RestError status label message) where
+  toJSON _ =
+    object
+      [ "code" .= natVal (Proxy @status),
+        "label" .= symbolVal (Proxy @label),
+        "message" .= symbolVal (Proxy @message)
+      ]
+
+instance ToSchema (RestError status label message) where
+  declareNamedSchema _ = do
+    natSchema <- declareSchemaRef (Proxy @Integer)
+    textSchema <- declareSchemaRef (Proxy @Text)
+    pure $
+      NamedSchema (Just "Error") $
+        mempty
+          & type_ ?~ SwaggerObject
+          & properties
+            .~ InsOrdHashMap.fromList
+              [ ("code", natSchema),
+                ("label", textSchema),
+                ("message", textSchema)
+              ]
+          & required .~ [ "code", "label", "message"]
+
+-- declareNamedSchema (Proxy @Text) <&> (schema . description ?~ "user not found")
+
 -- Note [document responses]
 --
 -- Ideally we want to document responses with UVerb and swagger, but this is
@@ -252,6 +292,11 @@ type GetSelf =
     :> "self"
     :> Get '[Servant.JSON] Public.SelfProfile
 
+type HandleNotFound = RestError 404 "not-found" "Handle not found."
+
+handleNotFound :: HandleNotFound
+handleNotFound = RestError
+
 -- See Note [document responses]
 -- The responses looked like this:
 --   Doc.returns (Doc.ref Public.modelUserHandleInfo)
@@ -263,7 +308,7 @@ type GetHandleInfoUnqualified =
     :> "users"
     :> "handles"
     :> Capture' '[Description "The user handle"] "handle" Handle
-    :> Get '[Servant.JSON] Public.UserHandleInfo
+    :> UVerb 'GET '[Servant.JSON] '[WithStatus 200 Public.UserHandleInfo, HandleNotFound]
 
 -- See Note [document responses]
 -- The responses looked like this:
@@ -277,7 +322,7 @@ type GetUserByHandleQualfied =
     :> "by-handle"
     :> Capture "domain" Domain
     :> Capture' '[Description "The user handle"] "handle" Handle
-    :> Get '[Servant.JSON] Public.UserProfile
+    :> UVerb 'GET '[Servant.JSON] '[WithStatus 200 Public.UserProfile, HandleNotFound]
 
 -- See Note [ephemeral user sideeffect]
 type ListUsersByUnqualifiedIdsOrHandles =
@@ -382,6 +427,9 @@ type SwaggerDocsAPI = "api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
 type ServantAPI = OutsideWorldAPI
 
+-- type family WithFederationErrors (xs :: [*]) :: [*] where
+--   WithFederationErrors xs = xs :++: [WithStatus 520 ()]
+
 -- FUTUREWORK: At the moment this only shows endpoints from brig, but we should
 -- combine the swagger 2.0 endpoints here as well from other services (e.g. spar)
 swaggerDoc :: Swagger
@@ -443,7 +491,7 @@ sitemap o = do
       Doc.description "Handle to check"
     Doc.response 200 "Handle is taken" Doc.end
     Doc.errorResponse invalidHandle
-    Doc.errorResponse handleNotFound
+    Doc.errorResponse LegacyError.handleNotFound
 
   -- some APIs moved to servant
   -- end User Handle API
@@ -1417,15 +1465,22 @@ checkHandlesH (_ ::: _ ::: req) = do
   free <- lift $ API.checkHandles handles (fromRange num)
   return $ json (free :: [Handle])
 
-getHandleInfoUnqualifiedH :: UserId -> Handle -> Handler Public.UserHandleInfo
+getHandleInfoUnqualifiedH :: UserId -> Handle -> Handler (Union '[WithStatus 200 Public.UserHandleInfo, HandleNotFound])
 getHandleInfoUnqualifiedH self handle = do
   domain <- viewFederationDomain
-  Public.UserHandleInfo . Public.profileQualifiedId <$> getUserByHandleH self domain handle
+  profile <- getUserByHandleH self domain handle
+  case profile of
+    Z (I (WithStatus userProfile)) ->
+      Servant.respond . WithStatus @200 . Public.UserHandleInfo . Public.profileQualifiedId $ userProfile
+    S (Z (I x)) -> Servant.respond x
+    S (S x) -> case x of
 
-getUserByHandleH :: UserId -> Domain -> Handle -> Handler Public.UserProfile
-getUserByHandleH self domain handle =
-  ifNothing (notFound "handle not found")
-    =<< getHandleInfo self (Qualified handle domain)
+getUserByHandleH :: UserId -> Domain -> Handle -> Handler (Union '[WithStatus 200 Public.UserProfile, HandleNotFound])
+getUserByHandleH self domain handle = do
+  maybeProfile <- getHandleInfo self (Qualified handle domain)
+  case maybeProfile of
+    Nothing -> Servant.respond handleNotFound
+    Just u -> Servant.respond (WithStatus @200 u)
 
 -- FUTUREWORK: use 'runMaybeT' to simplify this.
 getHandleInfo :: UserId -> Qualified Handle -> Handler (Maybe Public.UserProfile)

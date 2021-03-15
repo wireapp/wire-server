@@ -46,7 +46,7 @@ import Wire.API.Federation.GRPC.Types
 import Wire.Network.DNS.Effect (DNSLookup)
 import qualified Wire.Network.DNS.Effect as Lookup
 
-callOutward :: Members '[Remote, Polysemy.Reader RunSettings] r => FederatedRequest -> Sem r Response
+callOutward :: Members '[Remote, Polysemy.Reader RunSettings] r => FederatedRequest -> Sem r OutwardResponse
 callOutward req = do
   case validateFederatedRequest req of
     Success vReq -> do
