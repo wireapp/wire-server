@@ -6,7 +6,7 @@ Restund (TURN) servers
 Introduction
 ~~~~~~~~~~~~
 
-Restund servers allow two users on different private networks (for
+Restund servers allow two users on different networks (for
 example Alice who is in an office connected to an office router and Bob
 who is at home connected to a home router) to have a Wire audio or video
 call. More precisely:
@@ -38,6 +38,34 @@ balancer machine that may have a different IP than the server where
 restund is installed:
 
 |architecture-restund-lb|
+
+
+Network
+~~~~~~~
+
+As briefly mentioned above, a TURN server functions as a bridge between
+networks. Networks which don't have a direct route defined between them,
+usually have distinct address blocks. Depending on the address block they
+are configured with - such block is either considered to be *public* or *private*
+(aka special-purpose addresses `[RFC 6890] <https://tools.ietf.org/html/rfc6890>`__)
+
+- `IPv4 private blocks <https://www.iana.org/assignments/iana-ipv4-special-registry/iana-ipv4-special-registry.xhtml>`__
+- `IPv6 private blocks <https://www.iana.org/assignments/iana-ipv6-special-registry/iana-ipv6-special-registry.xhtml>`__
+
+In cases where a machine, that is hosting the TURN server, also connects
+to a *private* network in which other services are running, chances are
+that these services are being indirectly exposed through that TURN server.
+
+To prevent this kind of exposure, a TURN server has to be configured with an inclusive
+or exclusive list of address blocks to prevents undesired connections from being
+established [1]_. At the moment (Feb. 2021), this functionality is not yet available
+with *Restund* on the application-level. Instead, the system-level firewall capabilities
+must be utilized. The `IP ranges <https://www.rtcsec.com/post/2021/01/details-about-cve-2020-26262-bypass-of-coturns-default-access-control-protection/#further-concerns-what-else>`__
+mentioned in the article [1]_ should be blocked for egress and, depending on the scenario,
+also for ingress traffic. Tools like ``iptables`` or ``ufw`` can be used to set this up.
+
+.. [1] `Details about CVE-2020-26262, bypass of Coturn's default access control protection <https://www.rtcsec.com/post/2021/01/details-about-cve-2020-26262-bypass-of-coturns-default-access-control-protection/>`__
+
 
 Protocols and open ports
 ~~~~~~~~~~~~~~~~~~~~~~~~
