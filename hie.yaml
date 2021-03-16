@@ -1,0 +1,970 @@
+cradle:
+  cabal:
+    - path: "libs/api-bot/src"
+      component: "lib:api-bot"
+
+    - path: "libs/api-client/src"
+      component: "lib:api-client"
+
+    - path: "libs/bilge/src"
+      component: "lib:bilge"
+
+    - path: "libs/brig-types/src"
+      component: "lib:brig-types"
+
+    - path: "libs/brig-types/test/unit"
+      component: "brig-types:test:brig-types-tests"
+
+    - path: "libs/cargohold-types/src"
+      component: "lib:cargohold-types"
+
+    - path: "libs/cassandra-util/src"
+      component: "lib:cassandra-util"
+
+    - path: "libs/deriving-swagger2/src"
+      component: "lib:deriving-swagger2"
+
+    - path: "libs/dns-util/src"
+      component: "lib:dns-util"
+
+    - path: "libs/dns-util/test"
+      component: "dns-util:test:spec"
+
+    - path: "libs/extended/src"
+      component: "lib:extended"
+
+    - path: "libs/galley-types/src"
+      component: "lib:galley-types"
+
+    - path: "libs/galley-types/test/unit"
+      component: "galley-types:test:galley-types-tests"
+
+    - path: "libs/gundeck-types/src"
+      component: "lib:gundeck-types"
+
+    - path: "libs/hscim/src"
+      component: "lib:hscim"
+
+    - path: "libs/hscim/server/Main.hs"
+      component: "hscim:exe:hscim-server"
+
+    - path: "libs/hscim/server/Paths_hscim.hs"
+      component: "hscim:exe:hscim-server"
+
+    - path: "libs/hscim/test"
+      component: "hscim:test:spec"
+
+    - path: "libs/imports/src"
+      component: "lib:imports"
+
+    - path: "libs/metrics-core/src"
+      component: "lib:metrics-core"
+
+    - path: "libs/metrics-wai/src"
+      component: "lib:metrics-wai"
+
+    - path: "libs/polysemy-wire-zoo/src"
+      component: "lib:polysemy-wire-zoo"
+
+    - path: "libs/ropes/src"
+      component: "lib:ropes"
+
+    - path: "libs/sodium-crypto-sign/src"
+      component: "lib:sodium-crypto-sign"
+
+    - path: "libs/ssl-util/src"
+      component: "lib:ssl-util"
+
+    - path: "libs/tasty-cannon/src"
+      component: "lib:tasty-cannon"
+
+    - path: "libs/types-common/src"
+      component: "lib:types-common"
+
+    - path: "libs/types-common/test"
+      component: "types-common:test:tests"
+
+    - path: "libs/types-common-aws/src"
+      component: "lib:types-common-aws"
+
+    - path: "libs/types-common-journal/src"
+      component: "lib:types-common-journal"
+
+    - path: "libs/wai-utilities/src"
+      component: "lib:wai-utilities"
+
+    - path: "libs/wire-api/src"
+      component: "lib:wire-api"
+
+    - path: "libs/wire-api/test/unit"
+      component: "wire-api:test:wire-api-tests"
+
+    - path: "libs/wire-api-federation/src"
+      component: "lib:wire-api-federation"
+
+    - path: "libs/wire-api-federation/test"
+      component: "wire-api-federation:test:spec"
+
+    - path: "libs/zauth/src"
+      component: "lib:zauth"
+
+    - path: "libs/zauth/main/Main.hs"
+      component: "zauth:exe:zauth"
+
+    - path: "libs/zauth/main/Paths_zauth.hs"
+      component: "zauth:exe:zauth"
+
+    - path: "libs/zauth/test"
+      component: "zauth:test:zauth-unit"
+
+    - path: "services/brig/src"
+      component: "lib:brig"
+
+    - path: "services/brig/./src/Main.hs"
+      component: "brig:exe:brig"
+
+    - path: "services/brig/./Paths_brig.hs"
+      component: "brig:exe:brig"
+
+    - path: "services/brig/./index/src/Main.hs"
+      component: "brig:exe:brig-index"
+
+    - path: "services/brig/./Paths_brig.hs"
+      component: "brig:exe:brig-index"
+
+    - path: "services/brig/test/integration/Main.hs"
+      component: "brig:exe:brig-integration"
+
+    - path: "services/brig/test/integration/API/Calling.hs"
+      component: "brig:exe:brig-integration"
+
+    - path: "services/brig/test/integration/API/Federation.hs"
+      component: "brig:exe:brig-integration"
+
+    - path: "services/brig/test/integration/API/Metrics.hs"
+      component: "brig:exe:brig-integration"
+
+    - path: "services/brig/test/integration/API/Provider.hs"
+      component: "brig:exe:brig-integration"
+
+    - path: "services/brig/test/integration/API/RichInfo/Util.hs"
+      component: "brig:exe:brig-integration"
+
+    - path: "services/brig/test/integration/API/Search.hs"
+      component: "brig:exe:brig-integration"
+
+    - path: "services/brig/test/integration/API/Search/Util.hs"
+      component: "brig:exe:brig-integration"
+
+    - path: "services/brig/test/integration/API/Settings.hs"
+      component: "brig:exe:brig-integration"
+
+    - path: "services/brig/test/integration/API/Team.hs"
+      component: "brig:exe:brig-integration"
+
+    - path: "services/brig/test/integration/API/Team/Util.hs"
+      component: "brig:exe:brig-integration"
+
+    - path: "services/brig/test/integration/API/TeamUserSearch.hs"
+      component: "brig:exe:brig-integration"
+
+    - path: "services/brig/test/integration/API/User.hs"
+      component: "brig:exe:brig-integration"
+
+    - path: "services/brig/test/integration/API/User/Account.hs"
+      component: "brig:exe:brig-integration"
+
+    - path: "services/brig/test/integration/API/User/Auth.hs"
+      component: "brig:exe:brig-integration"
+
+    - path: "services/brig/test/integration/API/User/Client.hs"
+      component: "brig:exe:brig-integration"
+
+    - path: "services/brig/test/integration/API/User/Connection.hs"
+      component: "brig:exe:brig-integration"
+
+    - path: "services/brig/test/integration/API/User/Handles.hs"
+      component: "brig:exe:brig-integration"
+
+    - path: "services/brig/test/integration/API/User/PasswordReset.hs"
+      component: "brig:exe:brig-integration"
+
+    - path: "services/brig/test/integration/API/User/Property.hs"
+      component: "brig:exe:brig-integration"
+
+    - path: "services/brig/test/integration/API/User/RichInfo.hs"
+      component: "brig:exe:brig-integration"
+
+    - path: "services/brig/test/integration/API/User/Util.hs"
+      component: "brig:exe:brig-integration"
+
+    - path: "services/brig/test/integration/API/UserPendingActivation.hs"
+      component: "brig:exe:brig-integration"
+
+    - path: "services/brig/test/integration/Federation/User.hs"
+      component: "brig:exe:brig-integration"
+
+    - path: "services/brig/test/integration/Index/Create.hs"
+      component: "brig:exe:brig-integration"
+
+    - path: "services/brig/test/integration/Util.hs"
+      component: "brig:exe:brig-integration"
+
+    - path: "services/brig/test/integration/Util/AWS.hs"
+      component: "brig:exe:brig-integration"
+
+    - path: "services/brig/test/integration/Paths_brig.hs"
+      component: "brig:exe:brig-integration"
+
+    - path: "services/brig/schema/src/Main.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V10.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V11.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V12.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V13.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V14.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V15.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V16.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V17.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V18.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V19.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V20.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V21.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V22.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V23.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V24.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V25.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V28.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V29.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V30.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V31.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V32.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V33.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V34.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V35.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V36.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V37.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V38.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V39.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V40.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V41.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V42.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V43.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V44.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V45.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V46.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V47.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V48.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V49.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V50.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V51.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V52.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V53.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V54.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V55.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V56.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V57.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V58.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V59.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V60_AddFederationIdMapping.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V61_team_invitation_email.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V62_RemoveFederationIdMapping.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V63_AddUsersPendingActivation.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/V9.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/schema/src/Paths_brig.hs"
+      component: "brig:exe:brig-schema"
+
+    - path: "services/brig/test/unit"
+      component: "brig:test:brig-tests"
+
+    - path: "services/cannon/src"
+      component: "lib:cannon"
+
+    - path: "services/cannon/./src/Main.hs"
+      component: "cannon:exe:cannon"
+
+    - path: "services/cannon/./Paths_cannon.hs"
+      component: "cannon:exe:cannon"
+
+    - path: "services/cannon/test"
+      component: "cannon:test:cannon-tests"
+
+    - path: "services/cargohold/src"
+      component: "lib:cargohold"
+
+    - path: "services/cargohold/./src/Main.hs"
+      component: "cargohold:exe:cargohold"
+
+    - path: "services/cargohold/./Paths_cargohold.hs"
+      component: "cargohold:exe:cargohold"
+
+    - path: "services/cargohold/test/integration/Main.hs"
+      component: "cargohold:exe:cargohold-integration"
+
+    - path: "services/cargohold/test/integration/API/V3.hs"
+      component: "cargohold:exe:cargohold-integration"
+
+    - path: "services/cargohold/test/integration/Metrics.hs"
+      component: "cargohold:exe:cargohold-integration"
+
+    - path: "services/cargohold/test/integration/TestSetup.hs"
+      component: "cargohold:exe:cargohold-integration"
+
+    - path: "services/cargohold/test/integration/Paths_cargohold.hs"
+      component: "cargohold:exe:cargohold-integration"
+
+    - path: "services/federator/src"
+      component: "lib:federator"
+
+    - path: "services/federator/exec/Main.hs"
+      component: "federator:exe:federator"
+
+    - path: "services/federator/exec/Paths_federator.hs"
+      component: "federator:exe:federator"
+
+    - path: "services/federator/test/integration/Main.hs"
+      component: "federator:exe:federator-integration"
+
+    - path: "services/federator/test/integration/Test/Federator/InwardSpec.hs"
+      component: "federator:exe:federator-integration"
+
+    - path: "services/federator/test/integration/Test/Federator/JSON.hs"
+      component: "federator:exe:federator-integration"
+
+    - path: "services/federator/test/integration/Test/Federator/Util.hs"
+      component: "federator:exe:federator-integration"
+
+    - path: "services/federator/test/integration/Paths_federator.hs"
+      component: "federator:exe:federator-integration"
+
+    - path: "services/federator/test/unit"
+      component: "federator:test:federator-tests"
+
+    - path: "services/galley/src"
+      component: "lib:galley"
+
+    - path: "services/galley/./src/Main.hs"
+      component: "galley:exe:galley"
+
+    - path: "services/galley/./Paths_galley.hs"
+      component: "galley:exe:galley"
+
+    - path: "services/galley/test/integration/Main.hs"
+      component: "galley:exe:galley-integration"
+
+    - path: "services/galley/test/integration/API.hs"
+      component: "galley:exe:galley-integration"
+
+    - path: "services/galley/test/integration/API/CustomBackend.hs"
+      component: "galley:exe:galley-integration"
+
+    - path: "services/galley/test/integration/API/MessageTimer.hs"
+      component: "galley:exe:galley-integration"
+
+    - path: "services/galley/test/integration/API/Roles.hs"
+      component: "galley:exe:galley-integration"
+
+    - path: "services/galley/test/integration/API/SQS.hs"
+      component: "galley:exe:galley-integration"
+
+    - path: "services/galley/test/integration/API/Teams.hs"
+      component: "galley:exe:galley-integration"
+
+    - path: "services/galley/test/integration/API/Teams/Feature.hs"
+      component: "galley:exe:galley-integration"
+
+    - path: "services/galley/test/integration/API/Teams/LegalHold.hs"
+      component: "galley:exe:galley-integration"
+
+    - path: "services/galley/test/integration/API/Util.hs"
+      component: "galley:exe:galley-integration"
+
+    - path: "services/galley/test/integration/API/Util/TeamFeature.hs"
+      component: "galley:exe:galley-integration"
+
+    - path: "services/galley/test/integration/TestHelpers.hs"
+      component: "galley:exe:galley-integration"
+
+    - path: "services/galley/test/integration/TestSetup.hs"
+      component: "galley:exe:galley-integration"
+
+    - path: "services/galley/test/integration/Paths_galley.hs"
+      component: "galley:exe:galley-integration"
+
+    - path: "services/galley/migrate-data/src/Main.hs"
+      component: "galley:exe:galley-migrate-data"
+
+    - path: "services/galley/migrate-data/src/Galley/DataMigration.hs"
+      component: "galley:exe:galley-migrate-data"
+
+    - path: "services/galley/migrate-data/src/Galley/DataMigration/Types.hs"
+      component: "galley:exe:galley-migrate-data"
+
+    - path: "services/galley/migrate-data/src/V1_BackfillBillingTeamMembers.hs"
+      component: "galley:exe:galley-migrate-data"
+
+    - path: "services/galley/migrate-data/src/Paths_galley.hs"
+      component: "galley:exe:galley-migrate-data"
+
+    - path: "services/galley/schema/src/Main.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/V20.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/V21.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/V22.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/V23.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/V24.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/V25.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/V26.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/V27.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/V28.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/V29.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/V30.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/V31.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/V32.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/V33.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/V34.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/V35.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/V36.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/V37.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/V38_CreateTableBillingTeamMember.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/V39.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/V40_CreateTableDataMigration.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/V41_TeamNotificationQueue.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/V42_TeamFeatureValidateSamlEmails.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/V43_TeamFeatureDigitalSignatures.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/V44_AddRemoteIdentifiers.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/V45_AddFederationIdMapping.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/V46_TeamFeatureAppLock.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/V47_RemoveFederationIdMapping.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/schema/src/Paths_galley.hs"
+      component: "galley:exe:galley-schema"
+
+    - path: "services/galley/test/unit"
+      component: "galley:test:galley-types-tests"
+
+    - path: "services/gundeck/src"
+      component: "lib:gundeck"
+
+    - path: "services/gundeck/./src/Main.hs"
+      component: "gundeck:exe:gundeck"
+
+    - path: "services/gundeck/./Paths_gundeck.hs"
+      component: "gundeck:exe:gundeck"
+
+    - path: "services/gundeck/test/integration/Main.hs"
+      component: "gundeck:exe:gundeck-integration"
+
+    - path: "services/gundeck/test/integration/API.hs"
+      component: "gundeck:exe:gundeck-integration"
+
+    - path: "services/gundeck/test/integration/Metrics.hs"
+      component: "gundeck:exe:gundeck-integration"
+
+    - path: "services/gundeck/test/integration/TestSetup.hs"
+      component: "gundeck:exe:gundeck-integration"
+
+    - path: "services/gundeck/test/integration/Paths_gundeck.hs"
+      component: "gundeck:exe:gundeck-integration"
+
+    - path: "services/gundeck/schema/src/Main.hs"
+      component: "gundeck:exe:gundeck-schema"
+
+    - path: "services/gundeck/schema/src/V1.hs"
+      component: "gundeck:exe:gundeck-schema"
+
+    - path: "services/gundeck/schema/src/V2.hs"
+      component: "gundeck:exe:gundeck-schema"
+
+    - path: "services/gundeck/schema/src/V3.hs"
+      component: "gundeck:exe:gundeck-schema"
+
+    - path: "services/gundeck/schema/src/V4.hs"
+      component: "gundeck:exe:gundeck-schema"
+
+    - path: "services/gundeck/schema/src/V5.hs"
+      component: "gundeck:exe:gundeck-schema"
+
+    - path: "services/gundeck/schema/src/V6.hs"
+      component: "gundeck:exe:gundeck-schema"
+
+    - path: "services/gundeck/schema/src/V7.hs"
+      component: "gundeck:exe:gundeck-schema"
+
+    - path: "services/gundeck/schema/src/V8.hs"
+      component: "gundeck:exe:gundeck-schema"
+
+    - path: "services/gundeck/schema/src/Paths_gundeck.hs"
+      component: "gundeck:exe:gundeck-schema"
+
+    - path: "services/gundeck/test/unit"
+      component: "gundeck:test:gundeck-tests"
+
+    - path: "services/gundeck/test/bench/Main.hs"
+      component: "gundeck:bench:gundeck-bench"
+
+    - path: "services/gundeck/test/bench/Paths_gundeck.hs"
+      component: "gundeck:bench:gundeck-bench"
+
+    - path: "services/proxy/src"
+      component: "lib:proxy"
+
+    - path: "services/proxy/./src/Main.hs"
+      component: "proxy:exe:proxy"
+
+    - path: "services/proxy/./Paths_proxy.hs"
+      component: "proxy:exe:proxy"
+
+    - path: "services/spar/src"
+      component: "lib:spar"
+
+    - path: "services/spar/exec/Main.hs"
+      component: "spar:exe:spar"
+
+    - path: "services/spar/exec/Paths_spar.hs"
+      component: "spar:exe:spar"
+
+    - path: "services/spar/test-integration/Spec.hs"
+      component: "spar:exe:spar-integration"
+
+    - path: "services/spar/test-integration/Test/LoggingSpec.hs"
+      component: "spar:exe:spar-integration"
+
+    - path: "services/spar/test-integration/Test/MetricsSpec.hs"
+      component: "spar:exe:spar-integration"
+
+    - path: "services/spar/test-integration/Test/Spar/APISpec.hs"
+      component: "spar:exe:spar-integration"
+
+    - path: "services/spar/test-integration/Test/Spar/AppSpec.hs"
+      component: "spar:exe:spar-integration"
+
+    - path: "services/spar/test-integration/Test/Spar/DataSpec.hs"
+      component: "spar:exe:spar-integration"
+
+    - path: "services/spar/test-integration/Test/Spar/Intra/BrigSpec.hs"
+      component: "spar:exe:spar-integration"
+
+    - path: "services/spar/test-integration/Test/Spar/Scim/AuthSpec.hs"
+      component: "spar:exe:spar-integration"
+
+    - path: "services/spar/test-integration/Test/Spar/Scim/UserSpec.hs"
+      component: "spar:exe:spar-integration"
+
+    - path: "services/spar/test-integration/Util.hs"
+      component: "spar:exe:spar-integration"
+
+    - path: "services/spar/test-integration/Util/Core.hs"
+      component: "spar:exe:spar-integration"
+
+    - path: "services/spar/test-integration/Util/Email.hs"
+      component: "spar:exe:spar-integration"
+
+    - path: "services/spar/test-integration/Util/Invitation.hs"
+      component: "spar:exe:spar-integration"
+
+    - path: "services/spar/test-integration/Util/Scim.hs"
+      component: "spar:exe:spar-integration"
+
+    - path: "services/spar/test-integration/Util/Types.hs"
+      component: "spar:exe:spar-integration"
+
+    - path: "services/spar/test-integration/Paths_spar.hs"
+      component: "spar:exe:spar-integration"
+
+    - path: "services/spar/schema/src/Main.hs"
+      component: "spar:exe:spar-schema"
+
+    - path: "services/spar/schema/src/V0.hs"
+      component: "spar:exe:spar-schema"
+
+    - path: "services/spar/schema/src/V1.hs"
+      component: "spar:exe:spar-schema"
+
+    - path: "services/spar/schema/src/V10.hs"
+      component: "spar:exe:spar-schema"
+
+    - path: "services/spar/schema/src/V11.hs"
+      component: "spar:exe:spar-schema"
+
+    - path: "services/spar/schema/src/V12.hs"
+      component: "spar:exe:spar-schema"
+
+    - path: "services/spar/schema/src/V2.hs"
+      component: "spar:exe:spar-schema"
+
+    - path: "services/spar/schema/src/V3.hs"
+      component: "spar:exe:spar-schema"
+
+    - path: "services/spar/schema/src/V4.hs"
+      component: "spar:exe:spar-schema"
+
+    - path: "services/spar/schema/src/V5.hs"
+      component: "spar:exe:spar-schema"
+
+    - path: "services/spar/schema/src/V6.hs"
+      component: "spar:exe:spar-schema"
+
+    - path: "services/spar/schema/src/V7.hs"
+      component: "spar:exe:spar-schema"
+
+    - path: "services/spar/schema/src/V8.hs"
+      component: "spar:exe:spar-schema"
+
+    - path: "services/spar/schema/src/V9.hs"
+      component: "spar:exe:spar-schema"
+
+    - path: "services/spar/schema/src/Paths_spar.hs"
+      component: "spar:exe:spar-schema"
+
+    - path: "services/spar/test"
+      component: "spar:test:spec"
+
+    - path: "tools/api-simulations/lib/src"
+      component: "lib:api-simulations"
+
+    - path: "tools/api-simulations/loadtest/src/Main.hs"
+      component: "api-simulations:exe:api-loadtest"
+
+    - path: "tools/api-simulations/loadtest/src/Network/Wire/Simulations/LoadTest.hs"
+      component: "api-simulations:exe:api-loadtest"
+
+    - path: "tools/api-simulations/loadtest/src/Paths_api_simulations.hs"
+      component: "api-simulations:exe:api-loadtest"
+
+    - path: "tools/api-simulations/smoketest/src/Main.hs"
+      component: "api-simulations:exe:api-smoketest"
+
+    - path: "tools/api-simulations/smoketest/src/Network/Wire/Simulations/SmokeTest.hs"
+      component: "api-simulations:exe:api-smoketest"
+
+    - path: "tools/api-simulations/smoketest/src/Paths_api_simulations.hs"
+      component: "api-simulations:exe:api-smoketest"
+
+    - path: "tools/bonanza/src"
+      component: "lib:bonanza"
+
+    - path: "tools/bonanza/./main/Main.hs"
+      component: "bonanza:exe:bonanza"
+
+    - path: "tools/bonanza/./Paths_bonanza.hs"
+      component: "bonanza:exe:bonanza"
+
+    - path: "tools/bonanza/./main/KibanaRaw.hs"
+      component: "bonanza:exe:kibana-raw"
+
+    - path: "tools/bonanza/./Paths_bonanza.hs"
+      component: "bonanza:exe:kibana-raw"
+
+    - path: "tools/bonanza/./main/Kibanana.hs"
+      component: "bonanza:exe:kibanana"
+
+    - path: "tools/bonanza/./Paths_bonanza.hs"
+      component: "bonanza:exe:kibanana"
+
+    - path: "tools/bonanza/test/unit"
+      component: "bonanza:test:bonanza-tests"
+
+    - path: "tools/db/auto-whitelist/src/Main.hs"
+      component: "auto-whitelist:exe:auto-whitelist"
+
+    - path: "tools/db/auto-whitelist/src/Options.hs"
+      component: "auto-whitelist:exe:auto-whitelist"
+
+    - path: "tools/db/auto-whitelist/src/Work.hs"
+      component: "auto-whitelist:exe:auto-whitelist"
+
+    - path: "tools/db/auto-whitelist/src/Paths_auto_whitelist.hs"
+      component: "auto-whitelist:exe:auto-whitelist"
+
+    - path: "tools/db/billing-team-member-backfill/src/Main.hs"
+      component: "billing-team-member-backfill:exe:billing-team-member-backfill"
+
+    - path: "tools/db/billing-team-member-backfill/src/Options.hs"
+      component: "billing-team-member-backfill:exe:billing-team-member-backfill"
+
+    - path: "tools/db/billing-team-member-backfill/src/Work.hs"
+      component: "billing-team-member-backfill:exe:billing-team-member-backfill"
+
+    - path: "tools/db/billing-team-member-backfill/src/Paths_billing_team_member_backfill.hs"
+      component: "billing-team-member-backfill:exe:billing-team-member-backfill"
+
+    - path: "tools/db/find-undead/src/Main.hs"
+      component: "find-undead:exe:find-undead"
+
+    - path: "tools/db/find-undead/src/Options.hs"
+      component: "find-undead:exe:find-undead"
+
+    - path: "tools/db/find-undead/src/Work.hs"
+      component: "find-undead:exe:find-undead"
+
+    - path: "tools/db/find-undead/src/Paths_find_undead.hs"
+      component: "find-undead:exe:find-undead"
+
+    - path: "tools/db/migrate-external-ids/src"
+      component: "lib:migrate-external-ids"
+
+    - path: "tools/db/migrate-external-ids/src/Main.hs"
+      component: "migrate-external-ids:exe:migrate-external-ids"
+
+    - path: "tools/db/migrate-external-ids/src/Options.hs"
+      component: "migrate-external-ids:exe:migrate-external-ids"
+
+    - path: "tools/db/migrate-external-ids/src/Work.hs"
+      component: "migrate-external-ids:exe:migrate-external-ids"
+
+    - path: "tools/db/migrate-external-ids/src/Paths_migrate_external_ids.hs"
+      component: "migrate-external-ids:exe:migrate-external-ids"
+
+    - path: "tools/db/migrate-sso-feature-flag/src/Main.hs"
+      component: "migrate-sso-feature-flag:exe:migrate-sso-feature-flag"
+
+    - path: "tools/db/migrate-sso-feature-flag/src/Options.hs"
+      component: "migrate-sso-feature-flag:exe:migrate-sso-feature-flag"
+
+    - path: "tools/db/migrate-sso-feature-flag/src/Work.hs"
+      component: "migrate-sso-feature-flag:exe:migrate-sso-feature-flag"
+
+    - path: "tools/db/migrate-sso-feature-flag/src/Paths_migrate_sso_feature_flag.hs"
+      component: "migrate-sso-feature-flag:exe:migrate-sso-feature-flag"
+
+    - path: "tools/db/move-team/src"
+      component: "lib:move-team"
+
+    - path: "tools/db/move-team/move-team/Main.hs"
+      component: "move-team:exe:move-team"
+
+    - path: "tools/db/move-team/move-team/Paths_move_team.hs"
+      component: "move-team:exe:move-team"
+
+    - path: "tools/db/move-team/move-team-generate/Main.hs"
+      component: "move-team:exe:move-team-generate"
+
+    - path: "tools/db/move-team/move-team-generate/Paths_move_team.hs"
+      component: "move-team:exe:move-team-generate"
+
+    - path: "tools/db/repair-handles/repair-handles/Main.hs"
+      component: "repair-handles:exe:repair-handles"
+
+    - path: "tools/db/repair-handles/src/Main.hs"
+      component: "repair-handles:exe:repair-handles"
+
+    - path: "tools/db/repair-handles/repair-handles/Options.hs"
+      component: "repair-handles:exe:repair-handles"
+
+    - path: "tools/db/repair-handles/repair-handles/Types.hs"
+      component: "repair-handles:exe:repair-handles"
+
+    - path: "tools/db/repair-handles/repair-handles/Work.hs"
+      component: "repair-handles:exe:repair-handles"
+
+    - path: "tools/db/repair-handles/repair-handles/Paths_repair_handles.hs"
+      component: "repair-handles:exe:repair-handles"
+
+    - path: "tools/db/repair-handles/src/Options.hs"
+      component: "repair-handles:exe:repair-handles"
+
+    - path: "tools/db/repair-handles/src/Types.hs"
+      component: "repair-handles:exe:repair-handles"
+
+    - path: "tools/db/repair-handles/src/Work.hs"
+      component: "repair-handles:exe:repair-handles"
+
+    - path: "tools/db/repair-handles/src/Paths_repair_handles.hs"
+      component: "repair-handles:exe:repair-handles"
+
+    - path: "tools/db/service-backfill/src/Main.hs"
+      component: "service-backfill:exe:service-backfill"
+
+    - path: "tools/db/service-backfill/src/Options.hs"
+      component: "service-backfill:exe:service-backfill"
+
+    - path: "tools/db/service-backfill/src/Work.hs"
+      component: "service-backfill:exe:service-backfill"
+
+    - path: "tools/db/service-backfill/src/Paths_service_backfill.hs"
+      component: "service-backfill:exe:service-backfill"
+
+    - path: "tools/makedeb/src"
+      component: "lib:makedeb"
+
+    - path: "tools/makedeb/./src/Main.hs"
+      component: "makedeb:exe:makedeb"
+
+    - path: "tools/makedeb/./Paths_makedeb.hs"
+      component: "makedeb:exe:makedeb"
+
+    - path: "tools/rex/./"
+      component: "rex:exe:rex"
+
+    - path: "tools/stern/src"
+      component: "lib:stern"
+
+    - path: "tools/stern/./src/Main.hs"
+      component: "stern:exe:stern"
+
+    - path: "tools/stern/./Paths_stern.hs"
+      component: "stern:exe:stern"

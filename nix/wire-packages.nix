@@ -77,11 +77,14 @@ final: prev: {
     ];
   };
 
-  wireHaskellPkgs = final.haskell-nix.stackProject' {
+  # Let's use cabal
+  wireHaskellPkgs = final.haskell-nix.cabalProject' {
     src = final.haskell-nix.haskellLib.cleanGit {
       name = "wire-server";
       src = ../.;
     };
+
+    compiler-nix-name = "ghc884";
 
     # Lets avoid hpack as we have cabal files comitted
     ignorePackageYaml = true;
@@ -90,28 +93,57 @@ final: prev: {
     # apparently nix also needs the branch on which this commit is reachable.
     # (By default it uses HEAD; and if your commit isn't reachable from HEAD it
     # isn't fetchable!)t
-    branchMap = {
-      "https://github.com/wireapp/hspec-wai"."0a5142cd3ba48116ff059c041348b817fb7bdb25" = "body-contains";
-      "https://github.com/wireapp/bloodhound"."92de9aa632d590f288a353d03591c38ba72b3cb3" = "wire-fork-ghc-8.8";
-      "https://github.com/wireapp/servant-swagger.git"."23e9afafadaade29d21181b935286087457171e3" = "akshaymankar/fix-ghc-version-check";
-      "https://gitlab.com/twittner/wai-routing"."7e996a93fec5901767f845a50316b3c18e51a61d" = "develop";
-      "https://github.com/wireapp/amazonka"."412172d8c28906591f01576a78792de7c34cc3eb" = "develop";
-    };
+    # branchMap = {
+    #   "https://github.com/wireapp/hspec-wai"."0a5142cd3ba48116ff059c041348b817fb7bdb25" = "body-contains";
+    #   "https://github.com/wireapp/bloodhound"."92de9aa632d590f288a353d03591c38ba72b3cb3" = "wire-fork-ghc-8.8";
+    #   "https://github.com/wireapp/servant-swagger.git"."23e9afafadaade29d21181b935286087457171e3" = "akshaymankar/fix-ghc-version-check";
+    #   "https://gitlab.com/twittner/wai-routing"."7e996a93fec5901767f845a50316b3c18e51a61d" = "develop";
+    #   "https://github.com/wireapp/amazonka"."412172d8c28906591f01576a78792de7c34cc3eb" = "develop";
+    # };
 
     modules = [
       # Needed because `build-tools` in cabal can refer to either a hackage
       # package or a system package and if there is a name-clash it is
       # ambigious. haskell.nix in that case chooses the hackage package instead
       # which is exactly what we do not want. We want the protobuf c library
-      { packages.types-common-journal.components.library.build-tools = [ final.protobuf ]; }
+      { 
+        packages.types-common-journal.components.library.build-tools = [ final.protobuf ];
+        # packages.lzma.components.library.libs = [ final.lzma ];
+      }
+      # ({lib,...} : let 
+      #   fixPackageDefault = lib.mkAfter ''
+      #     if [[ -e $sourceRoot/package.yaml ]]; then
+      #       substituteInPlace $sourceRoot/package.yaml --replace '../../package-defaults.yaml' "${./package-defaults.yaml}"
+      #     fi
+      #   '';
+      #   in
+      #   {
+      #       packages.wai-utilities.postUnpack = fixPackageDefault;
+      #   }
+      # )
+      # ({ config, options, , ...}: {
+      #   options.packages = lib.mkOption {
+      #     type = lib.types.attrsOf (lib.types.submodule ({ config, ... }: {
+      #       config = lib.mkIf config.package.isLocal {
+      #         postUnpack = lib.mkAfter ''
+      #           if [[ -e $sourceRoot/package.yaml ]]; then
+      #             substituteInPlace $sourceRoot/package.yaml --replace '../../package-defaults.yaml' "${./package-defaults.yaml}"
+      #           fi
+      #         '';
+      #         dontStrip = false;
+      #       };
+      #     }));
+      #   };
+      # })
     ];
   };
 
   # Given a haskell package name; builds a container with all the executables
   # that that haskell package exposes
-  buildHaskellContainer = name: prev.dockerTools.buildLayeredImage {
-    inherit name;
-    contents = prev.lib.attrValues final.wireHaskellPkgs.${name}.components.exes;
-  };
-  wireContainers = prev.lib.genAttrs [ "brig" "galley" "cannon" "gundeck" "cargohold" ] final.buildHaskellContainer;
+
+  # buildHaskellContainer = name: prev.dockerTools.buildLayeredImage {
+  #   inherit name;
+  #   contents = prev.lib.attrValues final.wireHaskellPkgs.${name}.components.exes;
+  # };
+  # wireContainers = prev.lib.genAttrs [ "brig" "galley" "cannon" "gundeck" "cargohold" ] final.buildHaskellContainer;
 }

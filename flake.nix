@@ -5,6 +5,7 @@
   # inputs.nixpkgs.url = "github:NixOS/nixpkgs?rev=5df05c902cde398e056eb6271d5fe13e418db4c6";
   inputs.nixpkgs.follows = "haskellNix/nixpkgs-unstable";
   inputs.flake-utils.url = "github:numtide/flake-utils";
+  nixConfig.bash-prompt = "nix-develop $ ";
   outputs = { self, nixpkgs, flake-utils, haskellNix }:
     flake-utils.lib.eachSystem [ "x86_64-linux" "x86_64-darwin" ] (system:
     let
@@ -33,6 +34,13 @@
           hlint = "latest";
           haskell-language-server = "latest";
         };
+
+        nativeBuildInputs = with pkgs; (with darwin.apple_sdk.frameworks; [
+            # Cocoa
+            # CoreServices
+        ]);
+
+        # pkgs.stdenv.isDarwin 
       };
     });
 }
