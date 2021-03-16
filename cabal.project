@@ -56,22 +56,26 @@ source-repository-package
     type: git
     location: https://github.com/dpwright/HaskellNet-SSL
     tag: ca84ef29a93eaef7673fa58056cdd8dae1568d2d
+    --sha256: eTJ+ji4HdOQ2XgMFeiwyhj2lLxjci3BB6lcI3OTrQ/A=
 
 source-repository-package
     type: git
     location: https://github.com/fimad/prometheus-haskell
     tag: 2e3282e5fb27ba8d989c271a0a989823fad7ec43
     subdir: wai-middleware-prometheus
+    --sha256: DiFS0MTjEDC/kXa+ObiV7zNHzs0dqrtd9f0+naz2320=
 
 source-repository-package
     type: git
     location: https://github.com/kim/hs-collectd
     tag: 885da222be2375f78c7be36127620ed772b677c9
+    --sha256: p0d6sJIkfkFYo+0wTLCOf3E5e4VPEqX+lu9vAYHkcqg=
 
 source-repository-package
     type: git
     location: https://github.com/kim/snappy-framing
     tag: d99f702c0086729efd6848dea8a01e5266c3a61c
+    --sha256: wKDD9fuIZyaOaYoElgwvqp8L0Sw8CbcSYKhwJQvH6BM=
 
 source-repository-package
     type: git
@@ -85,31 +89,37 @@ source-repository-package
             amazonka-sns
             amazonka-sqs
             core
+    --sha256: FoJz14Gmuu8IsjYEsH67s6KDVEXGkmEZPMPP8UJ+k4E=
 
 source-repository-package
     type: git
     location: https://github.com/wireapp/bloodhound
     tag: 92de9aa632d590f288a353d03591c38ba72b3cb3
+    --sha256: bQ0eNH8hMPJfKq3p1R/+HtZWI8n8Ea7HwaedyfBcYPs=
 
--- source-repository-package
---     type: git
---     location: https://github.com/wireapp/cryptobox-haskell
---     tag: 7546a1a25635ef65183e3d44c1052285e8401608
+source-repository-package
+    type: git
+    location: https://github.com/wireapp/cryptobox-haskell
+    tag: 7546a1a25635ef65183e3d44c1052285e8401608
+    --sha256: 9mMVgmMB1NWCPm/3inLeF4Ouiju0uIb/92UENoP88TU=
 
 source-repository-package
     type: git
     location: https://github.com/wireapp/haskell-multihash.git
     tag: 300a6f46384bfca33e545c8bab52ef3717452d12
+    --sha256: qlJab430vua0/jJ+zEZlnSBJAwWFHbWJjS6R+7IylVE=
 
--- source-repository-package
---    type: git
---    location: https://github.com/wireapp/hsaml2
---    tag: b652ec6e69d1647e827cbee0fa290605ac09dc63
+source-repository-package
+    type: git
+    location: https://github.com/wireapp/hsaml2
+    tag: b652ec6e69d1647e827cbee0fa290605ac09dc63
+    --sha256: Bbc59ki0N1fwNH6UQW3mdDKSpMxZgJSvnXg1ophcsfg=
 
 source-repository-package
     type: git
     location: https://github.com/wireapp/hspec-wai
     tag: 0a5142cd3ba48116ff059c041348b817fb7bdb25
+    --sha256: ATtenBPsUuUYCm6yw2ZGw8pfAuwJGe6HWM8dQ46iE/s=
 
 source-repository-package
     type: git
@@ -119,21 +129,75 @@ source-repository-package
             http-client-openssl
             http-client-tls
             http-conduit
+    --sha256: P4UFLspk7CFQJmGssnTDno/QYRDENOOSCavt8hYgw5o=
 
 source-repository-package
     type: git
     location: https://github.com/wireapp/saml2-web-sso
     tag: ac88b934bb4a91d4d4bb90c620277188e4087043
+    --sha256: tkJu6UfRpnHoUlpgnK9w17Bst62HpoLXlubVW7Lxb/o=
 
 source-repository-package
     type: git
     location: https://github.com/wireapp/servant-swagger.git
     tag: 23e9afafadaade29d21181b935286087457171e3
+    --sha256: inbPO/gbuUNFfxiF53b4gy0PKy/3VLXksbjFuJPQTRk=
 
 source-repository-package
     type: git
     location: https://gitlab.com/twittner/wai-routing
     tag: 7e996a93fec5901767f845a50316b3c18e51a61d
+    --sha256: k0IV5jTYmoWA8TrVfbNuQIsblfZCbrYF8dowmfTkLKI=
 
 allow-older: *
 allow-newer: *
+
+-- ghc-options:
+-- - -O2
+-- - -Wall
+-- - -Wincomplete-uni-patterns
+-- - -Wincomplete-record-updates
+-- - -Wpartial-fields
+-- - -fwarn-tabs
+-- # These errors pop up from time to time but haven't caused any serious trouble yet
+-- - -optP-Wno-nonportable-include-path
+
+-- default-extensions:
+-- - AllowAmbiguousTypes
+-- - BangPatterns
+-- - ConstraintKinds
+-- - DataKinds
+-- - DefaultSignatures
+-- - DerivingStrategies
+-- - DeriveFunctor
+-- - DeriveGeneric
+-- - DeriveLift
+-- - DeriveTraversable
+-- - EmptyCase
+-- - FlexibleContexts
+-- - FlexibleInstances
+-- - FunctionalDependencies
+-- - GADTs
+-- - InstanceSigs
+-- - KindSignatures
+-- - LambdaCase
+-- - MultiParamTypeClasses
+-- - MultiWayIf
+-- - NamedFieldPuns
+-- - NoImplicitPrelude
+-- - OverloadedStrings
+-- - PackageImports
+-- - PatternSynonyms
+-- - PolyKinds
+-- - QuasiQuotes
+-- - RankNTypes
+-- - ScopedTypeVariables
+-- - StandaloneDeriving
+-- - TemplateHaskell
+-- - TupleSections
+-- - TypeApplications
+-- - TypeFamilies
+-- - TypeFamilyDependencies
+-- - TypeOperators
+-- - UndecidableInstances
+-- - ViewPatterns

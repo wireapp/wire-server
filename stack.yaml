@@ -51,7 +51,8 @@ packages:
 - tools/stern
 
 nix:
-  shell-file: stack-deps.nix
+  enable: true
+  # shell-file: shell.nix
 
 # HaskellNet, HaskellNet-SSL, bloodhound, multihash and stm-hamt have bounds
 # issues. We didn't catch those before because in snapshot files, allow-newer:

@@ -141,9 +141,9 @@ final: prev: {
   # Given a haskell package name; builds a container with all the executables
   # that that haskell package exposes
 
-  # buildHaskellContainer = name: prev.dockerTools.buildLayeredImage {
-  #   inherit name;
-  #   contents = prev.lib.attrValues final.wireHaskellPkgs.${name}.components.exes;
-  # };
-  # wireContainers = prev.lib.genAttrs [ "brig" "galley" "cannon" "gundeck" "cargohold" ] final.buildHaskellContainer;
+  buildHaskellContainer = name: prev.dockerTools.buildLayeredImage {
+    inherit name;
+    contents = prev.lib.attrValues final.wireHaskellPkgs.${name}.components.exes;
+  };
+  wireContainers = prev.lib.genAttrs [ "brig" "galley" "cannon" "gundeck" "cargohold" ] final.buildHaskellContainer;
 }
