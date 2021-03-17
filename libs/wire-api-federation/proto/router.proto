@@ -36,14 +36,16 @@ message OutwardResponse {
 
 message OutwardError {
   enum ErrorType {
-    DiscoveryFailure = 0;
-    ConnectionRefused = 1;
-    TLSFailure = 2;
-    InvalidCertificate = 3;
-    VersionMismatch = 4;
-    FederationDeniedByRemote = 5;
-    FederationDeniedLocally = 6;
-    RemoteFederatorError = 7;
+    RemoteNotFound = 0;
+    DiscoveryFailed = 1;
+    ConnectionRefused = 2;
+    TLSFailure = 3;
+    InvalidCertificate = 4;
+    VersionMismatch = 5;
+    FederationDeniedByRemote = 6;
+    FederationDeniedLocally = 7;
+    RemoteFederatorError = 8;
+    InvalidRequest = 9;
   }
 
   ErrorType type = 1;

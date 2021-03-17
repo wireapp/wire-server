@@ -97,7 +97,8 @@ expectOk = \case
   GRpcOk (Proto.OutwardResponseError err) -> do
     let errWithStatus = errWithPayloadAndStatus (Proto.outwardErrorPayload err)
     case Proto.outwardErrorType err of
-      Proto.DiscoveryFailure -> throwStd $ errWithStatus HTTP.status422
+      Proto.RemoteNotFound -> throwStd $ errWithStatus HTTP.status422
+      Proto.DiscoveryFailed -> throwStd $ errWithStatus HTTP.status500
       Proto.ConnectionRefused -> throwStd $ errWithStatus (HTTP.Status 521 "Web Server Is Down")
       Proto.TLSFailure -> throwStd $ errWithStatus (HTTP.Status 525 "SSL Handshake Failure")
       Proto.InvalidCertificate -> throwStd $ errWithStatus (HTTP.Status 526 "Invalid SSL Certificate")
@@ -105,6 +106,7 @@ expectOk = \case
       Proto.FederationDeniedByRemote -> throwStd $ errWithStatus (HTTP.Status 532 "Federation Denied")
       Proto.FederationDeniedLocally -> throwStd $ errWithStatus HTTP.status400
       Proto.RemoteFederatorError -> throwStd $ errWithStatus (HTTP.Status 533 "Unexpected Federation Response")
+      Proto.InvalidRequest -> throwStd $ errWithStatus HTTP.status500
   GRpcOk (Proto.OutwardResponseHTTPResponse res) -> pure res
 
 errWithPayloadAndStatus :: Maybe Proto.ErrorPayload -> HTTP.Status -> Wai.Error

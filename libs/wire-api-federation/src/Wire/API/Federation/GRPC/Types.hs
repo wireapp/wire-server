@@ -94,7 +94,7 @@ instance ToSchema Router "OutwardResponse" OutwardResponse where
     let protoChoice = case r of
           OutwardResponseHTTPResponse res -> Z (FSchematic (toSchema res))
           OutwardResponseError err -> S (Z (FSchematic (toSchema err)))
-    in TRecord (Field (FUnion protoChoice) :* Nil)
+     in TRecord (Field (FUnion protoChoice) :* Nil)
 
 instance FromSchema Router "OutwardResponse" OutwardResponse where
   fromSchema (TRecord (Field (FUnion protoChoice) :* Nil)) =
@@ -103,9 +103,10 @@ instance FromSchema Router "OutwardResponse" OutwardResponse where
       S (Z (FSchematic err)) -> OutwardResponseError $ fromSchema err
       S (S x) -> case x of
 
-type OutwardErrorFieldMapping = '[ "outwardErrorType" ':-> "type"
-                                 , "outwardErrorPayload" ':-> "payload"
-                                 ]
+type OutwardErrorFieldMapping =
+  '[ "outwardErrorType" ':-> "type",
+     "outwardErrorPayload" ':-> "payload"
+   ]
 
 data OutwardError = OutwardError
   { outwardErrorType :: OutwardErrorType,
@@ -113,11 +114,13 @@ data OutwardError = OutwardError
   }
   deriving (Typeable, Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform OutwardError)
-  deriving (ToSchema Router "OutwardError", FromSchema Router "OutwardError")
-  via (CustomFieldMapping "OutwardError" OutwardErrorFieldMapping OutwardError)
+  deriving
+    (ToSchema Router "OutwardError", FromSchema Router "OutwardError")
+    via (CustomFieldMapping "OutwardError" OutwardErrorFieldMapping OutwardError)
 
 data OutwardErrorType
-  = DiscoveryFailure
+  = RemoteNotFound
+  | DiscoveryFailed
   | ConnectionRefused
   | TLSFailure
   | InvalidCertificate
@@ -125,6 +128,7 @@ data OutwardErrorType
   | FederationDeniedByRemote
   | FederationDeniedLocally
   | RemoteFederatorError
+  | InvalidRequest
   deriving (Typeable, Show, Eq, Generic, ToSchema Router "OutwardError.ErrorType", FromSchema Router "OutwardError.ErrorType")
   deriving (Arbitrary) via (GenericUniform OutwardErrorType)
 

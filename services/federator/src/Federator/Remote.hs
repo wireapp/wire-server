@@ -40,7 +40,7 @@ data RemoteError
   deriving (Show, Eq)
 
 data Remote m a where
-  DiscoverAndCall :: ValidatedFederatedRequest -> Remote m (Either RemoteError (GRpcReply Response))
+  DiscoverAndCall :: ValidatedFederatedRequest -> Remote m (Either RemoteError (GRpcReply InwardResponse))
 
 makeSem ''Remote
 
@@ -62,7 +62,7 @@ interpretRemote = interpret $ \case
             Right <$> callInward client vRequest
           Left err -> pure $ Left err
 
-callInward :: MonadIO m => GrpcClient -> Request -> m (GRpcReply Response)
+callInward :: MonadIO m => GrpcClient -> Request -> m (GRpcReply InwardResponse)
 callInward client request =
   liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" client request
 
