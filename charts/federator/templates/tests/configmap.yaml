@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "federator-integration"
+data:
+  integration.yaml: |
+    federatorInternal:
+      host: federator
+      port: {{ .Values.service.internalFederatorPort }}
+    federatorExternal:
+      host: federator
+      port: {{ .Values.service.externalFederatorPort }}
