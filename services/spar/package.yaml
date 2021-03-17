@@ -30,10 +30,8 @@ dependencies:
   - bytestring-conversion
   - case-insensitive
   - cassandra-util
-  - conduit
   - containers
   - cookie
-  - cql
   - cryptonite
   - data-default
   - email-validate
@@ -133,6 +131,8 @@ executables:
     ghc-options: -threaded -rtsopts -with-rtsopts=-N
     dependencies:
       - spar
+      - conduit
+      - cql
 
   spar-integration:
     main: Spec.hs
