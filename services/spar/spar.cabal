@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5247b72b4a61b9d8a14bb057773273fd7c39b25ae75885024d9974692467fe2a
+-- hash: fbd5d150ee2941c2fd21350f666dd90c23a8caca64a688b5d5dd100f31e5ce7a
 
 name:           spar
 version:        0.1
@@ -60,10 +60,8 @@ library
     , bytestring-conversion
     , case-insensitive
     , cassandra-util
-    , conduit
     , containers
     , cookie
-    , cql
     , cryptonite
     , data-default
     , email-validate
@@ -142,10 +140,8 @@ executable spar
     , bytestring-conversion
     , case-insensitive
     , cassandra-util
-    , conduit
     , containers
     , cookie
-    , cql
     , cryptonite
     , data-default
     , email-validate
@@ -242,10 +238,8 @@ executable spar-integration
     , bytestring-conversion
     , case-insensitive
     , cassandra-util
-    , conduit
     , containers
     , cookie
-    , cql
     , cryptonite
     , data-default
     , email-validate
@@ -441,10 +435,8 @@ executable spar-schema
     , bytestring-conversion
     , case-insensitive
     , cassandra-util
-    , conduit
     , containers
     , cookie
-    , cql
     , cryptonite
     , data-default
     , email-validate
@@ -533,10 +525,8 @@ test-suite spec
     , bytestring-conversion
     , case-insensitive
     , cassandra-util
-    , conduit
     , containers
     , cookie
-    , cql
     , cryptonite
     , data-default
     , email-validate
