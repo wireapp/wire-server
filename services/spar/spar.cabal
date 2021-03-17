@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3c81df1298b4c17e7c600b0ce3b168e1ed99b271f4dee5cc565e43485d08025c
+-- hash: 5247b72b4a61b9d8a14bb057773273fd7c39b25ae75885024d9974692467fe2a
 
 name:           spar
 version:        0.1
@@ -27,11 +27,6 @@ library
       Spar.App
       Spar.Data
       Spar.Data.Instances
-      Spar.DataMigration.Options
-      Spar.DataMigration.RIO
-      Spar.DataMigration.Run
-      Spar.DataMigration.Types
-      Spar.DataMigration.V1_ExternalIds
       Spar.Error
       Spar.Intra.Brig
       Spar.Intra.Galley
@@ -324,6 +319,11 @@ executable spar-integration
 executable spar-migrate-data
   main-is: Main.hs
   other-modules:
+      Spar.DataMigration.Options
+      Spar.DataMigration.RIO
+      Spar.DataMigration.Run
+      Spar.DataMigration.Types
+      Spar.DataMigration.V1_ExternalIds
       Paths_spar
   hs-source-dirs:
       migrate-data/src
