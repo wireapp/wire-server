@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -18,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Options
+module Spar.DataMigration.Options
   ( setCasSpar,
     setCasBrig,
     setDebug,
@@ -28,8 +25,6 @@ module Options
     cPort,
     cKeyspace,
     settingsParser,
-    Debug (..),
-    DryRun (..),
   )
 where
 
@@ -38,32 +33,7 @@ import Control.Lens
 import Data.Text.Strict.Lens
 import Imports
 import Options.Applicative
-
-data MigratorSettings = MigratorSettings
-  { _setCasSpar :: !CassandraSettings,
-    _setCasBrig :: !CassandraSettings,
-    _setDebug :: Debug,
-    _setDryRun :: DryRun,
-    _setPageSize :: Int32
-  }
-  deriving (Show)
-
-data CassandraSettings = CassandraSettings
-  { _cHosts :: !String,
-    _cPort :: !Word16,
-    _cKeyspace :: !C.Keyspace
-  }
-  deriving (Show)
-
-data Debug = Debug | NoDebug
-  deriving (Show)
-
-data DryRun = DryRun | NoDryRun
-  deriving (Show)
-
-makeLenses ''MigratorSettings
-
-makeLenses ''CassandraSettings
+import Spar.DataMigration.Types
 
 settingsParser :: Parser MigratorSettings
 settingsParser =
