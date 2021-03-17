@@ -21,7 +21,7 @@
 
 module Brig.Federation.Client where
 
-import Brig.API.Error (notFound, throwStd)
+import Brig.API.Error (federationNotConfigured, notFound, throwStd)
 import Brig.API.Handler (Handler)
 import Brig.App (federator)
 import Brig.Types.User
@@ -39,6 +39,7 @@ import qualified Network.Wai.Utilities.Error as Wai
 import qualified System.Logger.Class as Log
 import Util.Options (epHost, epPort)
 import Wire.API.Federation.API.Brig
+import Wire.API.Federation.GRPC.Client
 import qualified Wire.API.Federation.GRPC.Types as Proto
 
 -- FUTUREWORK(federation): As of now, any failure in making a remote call results in 404.
@@ -68,12 +69,12 @@ mkFederatorClient :: Handler GrpcClient
 mkFederatorClient = do
   maybeFederatorEndpoint <- view federator
   federatorEndpoint <- case maybeFederatorEndpoint of
-    Nothing -> throwStd $ notFound "no federator configured"
+    Nothing -> throwStd $ federationNotConfigured
     Just ep -> pure ep
-
-  eitherClient <- setupGrpcClient' (grpcClientConfigSimple (T.unpack (federatorEndpoint ^. epHost)) (fromIntegral (federatorEndpoint ^. epPort)) False)
+  let cfg = grpcClientConfigSimple (T.unpack (federatorEndpoint ^. epHost)) (fromIntegral (federatorEndpoint ^. epPort)) False
+  eitherClient <- createGrpcClient cfg
   case eitherClient of
-    Left _ -> throwStd $ notFound "federator unreachable"
+    Left err -> grpc500 $ "Local federator unreachable: " <> LT.pack (show err)
     Right c -> pure c
 
 callRemote :: MonadIO m => GrpcClient -> Proto.ValidatedFederatedRequest -> m (GRpcReply Proto.OutwardResponse)
@@ -87,13 +88,13 @@ callRemote fedClient call = liftIO $ gRpcCall @'MsgProtoBuf @Proto.Outward @"Out
 expectOk :: GRpcReply Proto.OutwardResponse -> Handler Proto.HTTPResponse
 expectOk = \case
   GRpcTooMuchConcurrency _tmc ->
-    throw500 "too much concurrency"
+    grpc500 "too much concurrency"
   GRpcErrorCode errCode ->
-    throw500 $ "GRpcErrorCode=" <> LT.pack (show errCode)
+    grpc500 $ "GRpcErrorCode=" <> LT.pack (show errCode)
   GRpcErrorString errStr ->
-    throw500 $ "GRpcErrorString=" <> LT.pack errStr
+    grpc500 $ "GRpcErrorString=" <> LT.pack errStr
   GRpcClientError clErr ->
-    throw500 $ "GRpcClientError=" <> LT.pack (show clErr)
+    grpc500 $ "GRpcClientError=" <> LT.pack (show clErr)
   GRpcOk (Proto.OutwardResponseError err) -> do
     let errWithStatus = errWithPayloadAndStatus (Proto.outwardErrorPayload err)
     case Proto.outwardErrorType err of
@@ -115,6 +116,6 @@ errWithPayloadAndStatus maybePayload code =
     Nothing -> Wai.Error code "unknown-federation-error" "no payload present"
     Just Proto.ErrorPayload {..} -> Wai.Error code (LT.fromStrict label) (LT.fromStrict msg)
 
-throw500 :: LT.Text -> Handler a
-throw500 msg = do
+grpc500 :: LT.Text -> Handler a
+grpc500 msg = do
   throwStd $ Wai.Error HTTP.status500 "federator-grpc-failure" msg

@@ -532,3 +532,10 @@ federationNotImplemented' =
     status403
     "federation-not-implemented"
     "Federation is not yet implemented for this endpoint"
+
+federationNotConfigured :: Wai.Error
+federationNotConfigured =
+  Wai.Error
+    status400
+    "federation-not-enabled"
+    "no federator configured on brig"

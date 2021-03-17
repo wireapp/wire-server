@@ -39,6 +39,7 @@ import Test.Federator.Util
 import Test.Hspec
 import Test.Tasty.HUnit (assertFailure)
 import Util.Options (Endpoint (Endpoint))
+import Wire.API.Federation.GRPC.Client
 import Wire.API.Federation.GRPC.Types (Component (..), HTTPMethod (..), HTTPResponse (..), Inward, InwardResponse (..), QueryParam (..), Request (Request))
 import Wire.API.User
 import Wire.API.User.Auth
@@ -73,7 +74,10 @@ spec env =
         _ <- putHandle brig (userId user) hdl
 
         Endpoint fedHost fedPort <- federatorExternal . view teOpts <$> ask
-        Right c <- setupGrpcClient' (grpcClientConfigSimple (Text.unpack fedHost) (fromIntegral fedPort) False)
+        client <- createGrpcClient (grpcClientConfigSimple (Text.unpack fedHost) (fromIntegral fedPort) False)
+        c <- case client of
+          Left (err) -> liftIO $ assertFailure (show err)
+          Right cli -> pure cli
         let brigCall = Request Brig (HTTPMethod HTTP.GET) "users/by-handle" [QueryParam "handle" (Text.encodeUtf8 hdl)] mempty
         res <- liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" c brigCall
 

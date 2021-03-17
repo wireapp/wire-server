@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ded3eec9b64106982feca5f8e2647af3a3df94928506d00e80622ec7d7596c73
+-- hash: 01600efb0e0bbba28ada06a50504371edf98d6e5e21c60aaee925634534b7ca6
 
 name:           wire-api-federation
 version:        0.1.0
@@ -26,6 +26,7 @@ library
       Wire.API.Federation.API.Brig
       Wire.API.Federation.API.Conversation
       Wire.API.Federation.Event
+      Wire.API.Federation.GRPC.Client
       Wire.API.Federation.GRPC.Helper
       Wire.API.Federation.GRPC.Types
       Wire.API.Federation.Util.Aeson
@@ -47,6 +48,7 @@ library
     , exceptions >=0.6
     , http-types
     , http2-client
+    , http2-client-grpc
     , imports
     , mtl
     , mu-grpc-client
@@ -88,6 +90,7 @@ test-suite spec
     , hspec-discover
     , http-types
     , http2-client
+    , http2-client-grpc
     , imports
     , metrics-wai
     , mtl
