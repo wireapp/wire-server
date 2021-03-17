@@ -37,8 +37,7 @@ main = do
   settings <- Opts.execParser (Opts.info (Opts.helper <*> settingsParser) desc)
   migrate
     settings
-    [ V1.migration
-    ]
+    [] -- V1.migration
   where
     desc =
       Opts.header "Spar Cassandra Data Migrations" <> Opts.fullDesc
