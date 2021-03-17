@@ -58,7 +58,7 @@ mkEnv settings = do
         . Log.setFormat Nothing
         . Log.setBufSize 0
         . Log.setLogLevel
-          (if s ^. setDebug then Log.Debug else Log.Info)
+          (if s ^. setDebug == Debug then Log.Debug else Log.Info)
         $ Log.defSettings
     initCassandra cas l =
       C.init
@@ -88,7 +88,7 @@ runMigration :: Env -> Migration -> IO ()
 runMigration env@Env {..} (Migration ver txt mig) = do
   info env $ "Running: [" <> show (migrationVersion ver) <> "] " <> Text.unpack txt
   mig env
-  unless dryRun $
+  unless (dryRun == DryRun) $
     persistVersion env ver txt =<< liftIO getCurrentTime
 
 latestMigrationVersion :: Env -> IO MigrationVersion

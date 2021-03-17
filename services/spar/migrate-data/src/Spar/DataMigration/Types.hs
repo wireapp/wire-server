@@ -39,15 +39,21 @@ data Env = Env
     brigCassandra :: C.ClientState,
     logger :: Logger.Logger,
     pageSize :: Int32,
-    debug :: Bool,
-    dryRun :: Bool
+    debug :: Debug,
+    dryRun :: DryRun
   }
+
+data Debug = Debug | NoDebug
+  deriving (Show, Eq)
+
+data DryRun = DryRun | NoDryRun
+  deriving (Show, Eq)
 
 data MigratorSettings = MigratorSettings
   { _setCasSpar :: !CassandraSettings,
     _setCasBrig :: !CassandraSettings,
-    _setDebug :: Bool,
-    _setDryRun :: Bool,
+    _setDebug :: Debug,
+    _setDryRun :: DryRun,
     _setPageSize :: Int32
   }
   deriving (Show)

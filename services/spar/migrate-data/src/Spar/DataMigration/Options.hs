@@ -40,8 +40,8 @@ settingsParser =
   MigratorSettings
     <$> cassandraSettingsParser "spar"
     <*> cassandraSettingsParser "brig"
-    <*> switch (long "debug")
-    <*> switch (long "dry-run" <> short 'n')
+    <*> flag NoDebug Debug (long "debug")
+    <*> flag NoDryRun DryRun (long "dry-run" <> short 'n')
     <*> option auto (long "page-size" <> short 'p' <> value 1000)
 
 cassandraSettingsParser :: String -> Parser CassandraSettings

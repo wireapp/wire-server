@@ -181,14 +181,14 @@ sink = go
           UserHasNoTeam uid extid -> do
             lift $ do
               modifyRef failCount (+ 1)
-              isDebug <- debug <$> askMigEnv
-              when isDebug $
+              dbg <- debug <$> askMigEnv
+              when (dbg == Debug) $
                 logDebug ("No team for user " <> show uid <> " from extid " <> show extid)
           NewExternalId (tid, extid, uid) ->
             lift $
               dryRun <$> askMigEnv >>= \case
-                True -> pure ()
-                False ->
+                DryRun -> pure ()
+                NoDryRun ->
                   runSpar $
                     write insert (params Quorum (tid, extid, uid))
         go
