@@ -38,8 +38,7 @@ main = do
     settings
     []
   where
-    desc =
-      Opts.header "Spar Cassandra Data Migrations" <> Opts.fullDesc
+    desc = Opts.header "Spar Cassandra Data Migrations" <> Opts.fullDesc
 
 migrate :: MigratorSettings -> [Migration] -> IO ()
 migrate settings ms = do
