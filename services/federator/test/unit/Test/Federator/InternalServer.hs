@@ -20,7 +20,6 @@
 module Test.Federator.InternalServer (tests) where
 
 import Data.Domain (Domain (Domain))
-import Data.Either.Validation
 import Federator.Discovery (LookupError (LookupErrorDNSError, LookupErrorSrvNotAvailable))
 import Federator.InternalServer (callOutward)
 import Federator.Options (AllowedDomains (..), FederationStrategy (..), RunSettings (..))
