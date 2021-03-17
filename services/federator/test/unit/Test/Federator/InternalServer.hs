@@ -21,7 +21,7 @@ module Test.Federator.InternalServer (tests) where
 
 import Data.Domain (Domain (Domain))
 import Data.Either.Validation
-import Federator.Discovery (LookupError (LookupErrorSrvNotAvailable, LookupErrorDNSError))
+import Federator.Discovery (LookupError (LookupErrorDNSError, LookupErrorSrvNotAvailable))
 import Federator.InternalServer (callOutward)
 import Federator.Options (AllowedDomains (..), FederationStrategy (..), RunSettings (..))
 import Federator.Remote (Remote, RemoteError (RemoteErrorDiscoveryFailure))
@@ -35,7 +35,7 @@ import qualified Polysemy.Reader as Polysemy
 import Test.Polysemy.Mock (Mock (mock), evalMock)
 import Test.Polysemy.Mock.TH (genMock)
 import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (assertBool, assertEqual, testCase, assertFailure)
+import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
 import Wire.API.Federation.GRPC.Types
 
 genMock ''Remote

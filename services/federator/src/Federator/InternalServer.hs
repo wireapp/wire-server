@@ -26,10 +26,10 @@ import Data.Either.Validation (Validation (..))
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Federator.App (Federator, runAppT)
-import Federator.Discovery (DiscoverFederator, runFederatorDiscovery, LookupError (LookupErrorSrvNotAvailable, LookupErrorDNSError))
+import Federator.Discovery (DiscoverFederator, LookupError (LookupErrorDNSError, LookupErrorSrvNotAvailable), runFederatorDiscovery)
 import Federator.Env (Env, applog, dnsResolver, runSettings)
 import Federator.Options (RunSettings)
-import Federator.Remote (Remote, RemoteError (RemoteErrorDiscoveryFailure, RemoteErrorClientFailure), discoverAndCall, interpretRemote)
+import Federator.Remote (Remote, RemoteError (RemoteErrorClientFailure, RemoteErrorDiscoveryFailure), discoverAndCall, interpretRemote)
 import Federator.Util
 import Federator.Utils.PolysemyServerError (absorbServerError)
 import Imports

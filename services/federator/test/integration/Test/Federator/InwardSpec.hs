@@ -39,7 +39,7 @@ import Test.Federator.Util
 import Test.Hspec
 import Test.Tasty.HUnit (assertFailure)
 import Util.Options (Endpoint (Endpoint))
-import Wire.API.Federation.GRPC.Types (Component (..), HTTPMethod (..), HTTPResponse (..), Inward, QueryParam (..), Request (Request), InwardResponse (..))
+import Wire.API.Federation.GRPC.Types (Component (..), HTTPMethod (..), HTTPResponse (..), Inward, InwardResponse (..), QueryParam (..), Request (Request))
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Handle (UserHandleInfo (UserHandleInfo))

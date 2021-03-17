@@ -79,6 +79,7 @@ import Data.Swagger
     ApiKeyParams (..),
     HasInfo (info),
     HasProperties (properties),
+    HasRequired (required),
     HasSchema (..),
     HasSecurity (security),
     HasSecurityDefinitions (securityDefinitions),
@@ -92,7 +93,7 @@ import Data.Swagger
     ToSchema (..),
     declareSchemaRef,
     description,
-    type_, HasRequired (required)
+    type_,
   )
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
@@ -222,7 +223,7 @@ instance ToSchema (RestError status label message) where
                 ("label", textSchema),
                 ("message", textSchema)
               ]
-          & required .~ [ "code", "label", "message"]
+          & required .~ ["code", "label", "message"]
 
 -- declareNamedSchema (Proxy @Text) <&> (schema . description ?~ "user not found")
 
