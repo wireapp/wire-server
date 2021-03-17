@@ -31,6 +31,9 @@ data Migration = Migration
     action :: Env -> IO ()
   }
 
+newtype MigrationVersion = MigrationVersion {migrationVersion :: Natural}
+  deriving (Show, Eq, Ord)
+
 data Env = Env
   { sparCassandra :: C.ClientState,
     brigCassandra :: C.ClientState,
@@ -39,9 +42,6 @@ data Env = Env
     debug :: Bool,
     dryRun :: Bool
   }
-
-newtype MigrationVersion = MigrationVersion {migrationVersion :: Natural}
-  deriving (Show, Eq, Ord)
 
 data MigratorSettings = MigratorSettings
   { _setCasSpar :: !CassandraSettings,
