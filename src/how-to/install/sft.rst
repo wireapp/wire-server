@@ -57,11 +57,11 @@ In your ``secrets.yaml`` you should set the TLS keys for sftd domain:
          <TLS CRT HERE>
        key: |
          <TLS KEY HERE>
-          
+
 You should also make sure that you configure brig to know about the SFT server in your ``./values/wire-server/values.yaml``  file:
 
 .. code:: yaml
-   
+
    brig:
      optSettings:
        setSftStaticUrl: "https://sftd.example.com:443"
@@ -72,7 +72,7 @@ Now you can deploy as usual:
 
    helm upgrade wire-server wire/wire-server --values ./values/wire-server/values.yaml
 
-          
+
 Standalone
 ^^^^^^^^^^
 
@@ -90,7 +90,7 @@ It is important that you disable ``sftd`` in the ``wire-server`` umbrella chart,
 
    tags:
      sftd: false
-      
+
 
 By default ``sftd`` doesn't need to set that many options, so we define them inline. However, you could of course also set these values in a ``values.yaml`` file.
 
@@ -111,11 +111,11 @@ Now you can install the chart:
       --set allowOrigin=https://$WEBAPP_HOST \
       --set-file tls.crt=/path/to/tls.crt \
       --set-file tls.key=/path/to/tls.key
-      
+
 You should also make sure that you configure brig to know about the SFT server, in the ``./values/wire-server/values.yaml`` file:
 
 .. code:: yaml
-   
+
    brig:
      optSettings:
        setSftStaticUrl: "https://sftd.example.com:443"
@@ -127,3 +127,18 @@ And then roll-out the change to the ``wire-server`` chart
    helm upgrade wire-server wire/wire-server --values ./values/wire-server/values.yaml
 
 For more advanced setups please refer to the `technical documentation <https://github.com/wireapp/wire-server/blob/develop/charts/sftd/README.md>`__.
+
+
+Firewall rules
+^^^^^^^^^^^^^^
+
+The SFT allocates media addresses in the ``32768-61000`` UDP range. Ingress and
+egress traffic should be allowed to this range. Furthermore the SFT needs to be
+able to reach the Restund server, as it uses STUN and TURN in cases the client
+can not directly connect to the SFT.  In practise this means the SFT should
+allow ingress and egress traffic on the UDP port range ``32768-61000`` from
+both clients and the restund server.
+
+The SFT also has an HTTP interface to make allocations. This is exposed through
+the ingress controller as an HTTPS service.
+

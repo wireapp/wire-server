@@ -39,6 +39,28 @@ restund is installed:
 
 |architecture-restund-lb|
 
+What is it used for
+~~~~~~~~~~~~~~~~~~~
+
+Restund is used to assist in NAT-traversal. Its goal is to connect two clients
+who are (possibly both) behind NAT directly in a peer to peer fashion, for
+optimal call quality and lowest latency.
+
+
+client A sends a UDP packet to Restund; which will get address-translated by
+the router. Restund then sends back to the client what the source IP and the
+source port was that Restund observed. If the client then communicates this to
+Client B, Client B will be able to send data to that IP,port pair over UDP if
+it does so quickly enough.  Client A and B will then have a peer-to-peer leg.
+
+
+This is not always possible (e.g. symmetric NAT makes this technique
+impossible, as the router will NAT a different source-port for each
+connection). In that case clients fall back to TURN, which asks Restund to
+allocate a relay address which relays packets between nodes A and B.
+
+Restund servers need to have a wide range of ports open to allocate such relay
+addresses.
 
 Network
 ~~~~~~~
@@ -67,31 +89,40 @@ also for ingress traffic. Tools like ``iptables`` or ``ufw`` can be used to set 
 .. [1] `Details about CVE-2020-26262, bypass of Coturn's default access control protection <https://www.rtcsec.com/post/2021/01/details-about-cve-2020-26262-bypass-of-coturns-default-access-control-protection/>`__
 
 
+
 Protocols and open ports
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-UDP
-^^^
 
-Restund servers provide the best audio/video connections if end-user
-devices can connect to them via UDP. In this case, a firewall (if any)
-needs to allow and/or forward the complete UDP port range ``1024-65535``
-for incoming UDP traffic. Port ``3478`` is the default control port,
+Restund servers provide the best audio/video connections if end-user devices
+can connect to them via UDP. In this case, a firewall (if any) needs to allow
+and/or forward the complete UDP port range ``32768-61000`` for incoming UDP
+traffic. Ports for allocations are allocated from `ip_local_port_range
+<https://ma.ttias.be/linux-increase-ip_local_port_range-tcp-port-range/>` which
+is 32768 61000 by default.
+
+Port ``3478`` is the default control port,
 however one UDP port per active connection is required, so a whole port
 range must be available and reachable from the outside.
 
 In case e.g. office firewall rules disallow UDP traffic, there is a
-possibility to use TCP instead, at the expense of call quality.
+possibility to use TCP instead, at the expense of call quality. So in
+practise; it is recommended to allow the port range ``32768-61000`` on both
+UDP and TCP.
 
-TCP
-^^^
+Control ports
+^^^^^^^^^^^^^
 
-Two (configurable) ports are used by restund for TCP, one for plain TCP
-and one for TLS. By default restund uses ports ``3478`` for plain TCP
-and port ``5349`` for TLS. You can instead use (if that's easier with
-firewall rules) for example ports ``80`` and ``443`` (requires to run
-restund as root) or do a redirect from a load balancer (if using one) to
+Restund listens for control messages on port ``3478`` on both UDP and TCP. It
+also can listen on port ``5349`` which uses TLS. One can reconfigure both ports.
+For example, port ``5349`` can be reconfigured to be port ``443``; so that TURN
+traffic can not be distinguished from any other TLS traffic. This might help
+with overcoming certain firewall restrictions. You can instead use (if that's
+easier with firewall rules) for example ports ``80`` and ``443`` (requires to
+run restund as root) or do a redirect from a load balancer (if using one) to
 redirect ``443 -> 5349`` and ``80 -> 3478``.
+
+
 
 Amount of users and file descriptors
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
