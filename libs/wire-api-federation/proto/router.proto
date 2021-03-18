@@ -49,7 +49,7 @@ message OutwardError {
   }
 
   ErrorType type = 1;
-  ErrorPayload payload = 1;
+  ErrorPayload payload = 2;
 }
 
 message ErrorPayload {
