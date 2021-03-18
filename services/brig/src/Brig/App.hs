@@ -55,6 +55,7 @@ module Brig.App
     sftEnv,
     internalEvents,
     emailSender,
+    randomPrekeys,
 
     -- * App Monad
     AppT,
@@ -170,7 +171,8 @@ data Env = Env
     _zauthEnv :: ZAuth.Env,
     _digestSHA256 :: Digest,
     _digestMD5 :: Digest,
-    _indexEnv :: IndexEnv
+    _indexEnv :: IndexEnv,
+    _randomPrekeys :: Maybe ()
   }
 
 makeLenses ''Env
@@ -245,7 +247,8 @@ newEnv o = do
         _zauthEnv = zau,
         _digestMD5 = md5,
         _digestSHA256 = sha256,
-        _indexEnv = mkIndexEnv o lgr mgr mtr
+        _indexEnv = mkIndexEnv o lgr mgr mtr,
+        _randomPrekeys = Just ()
       }
   where
     emailConn _ (Opt.EmailAWS aws) = return (Just aws, Nothing)

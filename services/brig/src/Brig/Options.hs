@@ -353,6 +353,8 @@ data Opts = Opts
     elasticsearch :: !ElasticSearchOpts,
     -- | AWS settings
     aws :: !AWSOpts,
+    -- | Enable Random Prekey Strategy
+    randomPrekeys :: !(Maybe ()),
     -- | STOMP broker settings
     stomp :: !(Maybe StompOpts),
     -- Email & SMS

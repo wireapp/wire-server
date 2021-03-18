@@ -36,6 +36,8 @@ aws:
   sqsEndpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
   dynamoDBEndpoint: http://localhost:4567 # https://dynamodb.eu-west-1.amazonaws.com
 
+randomPrekeys: []
+
 # Uncomment this if you want STOMP.
 #
 # stomp:
