@@ -3,3 +3,6 @@ build
 
 # Vim temporary files
 *.swp
+
+# direnv - nix derivation
+result

@@ -28,7 +28,20 @@ author = 'Wire'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'rst2pdf.pdfbuilder'
 ]
+
+# Grouping the document tree into PDF files. List of tuples
+# (source start file, target name, title, author, options).
+pdf_documents = [
+    ('index', 'all-docs', 'All the Wire Docs', 'Wire Swiss GmbH'),
+    ('understand/index', 'understand', 'Understand', 'Wire Swiss GmbH')
+]
+
+# Add section number to section
+referencespdf_use_numbered_links = True
+
+# see https://rst2pdf.org/static/manual.pdf for more pdf configuration options
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']

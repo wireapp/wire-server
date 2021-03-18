@@ -6,26 +6,30 @@ MKFILE_DIR = $(abspath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 
 DOCKER_USER   ?= quay.io/wire
 DOCKER_IMAGE  = alpine-sphinx
-DOCKER_TAG    ?= latest
+DOCKER_TAG    ?= pdf
 
-# You can set these variables from the command line, and also
-# from the environment for the first two.
+# You can set these variables (with a ?=) from the command line, and also
+# from the environment.
 SPHINXOPTS    ?= -q
 SPHINXBUILD   ?= sphinx-build
 SOURCEDIR     = $(MKFILE_DIR)/src
 BUILDDIR      = $(MKFILE_DIR)/build
-
-VENV_DIR = $(MKFILE_DIR)/.venv
-VENV_BIN = $(VENV_DIR)/bin
-
+USE_POETRY    ?= 1 # note: if you're using direnv/nix, this will be set to USE_POETRY=0 automatically in .envrc
 
 .PHONY: Makefile
-
 
 .DEFAULT: docs
 .PHONY: docs
 docs:
 	docker run --rm -v $$(pwd):/mnt $(DOCKER_USER)/$(DOCKER_IMAGE):$(DOCKER_TAG) make clean html
+
+.PHONY: docs-pdf
+docs-pdf:
+	docker run --rm -v $$(pwd):/mnt $(DOCKER_USER)/$(DOCKER_IMAGE):$(DOCKER_TAG) make clean pdf
+
+.PHONY: docs-all
+docs-all:
+	docker run --rm -v $$(pwd):/mnt $(DOCKER_USER)/$(DOCKER_IMAGE):$(DOCKER_TAG) make clean html pdf
 
 # Only build part of the documentation
 # See 'exclude_patterns' in source/conf.py
@@ -41,36 +45,49 @@ exec:
 docker:
 	docker build -t $(DOCKER_USER)/$(DOCKER_IMAGE):$(DOCKER_TAG) $(MKFILE_DIR)
 
+.PHONY: docker-push
+docker-push:
+	docker push $(DOCKER_USER)/$(DOCKER_IMAGE):$(DOCKER_TAG)
+
 .PHONY: push
 push:
 	aws s3 sync $(BUILDDIR)/html s3://origin-docs.wire.com/
 
-.PHONY: dev-install
-dev-install:
-	python3 -m venv --copies --clear $(VENV_DIR)
-	$(VENV_BIN)/pip3 install sphinx sphinx-autobuild recommonmark
-
 .PHONY: dev-run
-dev-run: export PATH := $(VENV_BIN):$(PATH)
-dev-run:
+dev-run: poetry-env
 	rm -rf "$(BUILDDIR)"
+ifeq ($(USE_POETRY), 1)
+	poetry run sphinx-autobuild \
+		--port 3000 \
+		--host 127.0.0.1 \
+		-b html \
+		$(SPHINXOPTS) \
+		"$(SOURCEDIR)" "$(BUILDDIR)"
+else
 	sphinx-autobuild \
 		--port 3000 \
 		--host 127.0.0.1 \
 		-b html \
 		$(SPHINXOPTS) \
 		"$(SOURCEDIR)" "$(BUILDDIR)"
-
-.PHONY: dev-build
-dev-build: export PATH := $(VENV_BIN):$(PATH)
-dev-build:
-	make clean html
+endif
 
 .PHONY: help
 help:
 	@$(SPHINXBUILD) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS)
 
+
+.PHONY: poetry-env
+poetry-env:
+ifeq ($(USE_POETRY), 1)
+	@source $$HOME/.poetry/env
+endif
+
 # Catch-all target: route all unknown targets to Sphinx. This "converts" unknown targets into sub-commands (or more precicly
 # into `buildername`) of the $(SPHINXBUILD) CLI (see https://www.gnu.org/software/make/manual/html_node/Last-Resort.html).
-%:
-	@$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS)
+%: poetry-env
+ifeq ($(USE_POETRY), 1)
+	poetry run $(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS)
+else
+	$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS)
+endif
