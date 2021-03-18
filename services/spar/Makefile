@@ -68,7 +68,7 @@ $(DEB_SCHEMA): install
 $(DEB_MIGRATE_DATA): install
 	makedeb --name=$(NAME)-migrate-data \
 		--version=$(VERSION) \
-		--debian-dir=schema/deb \
+		--debian-dir=migrate-data/deb \
 		--build=$(BUILD) \
 		--architecture=amd64 \
 		--output-dir=dist
