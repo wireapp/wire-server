@@ -1453,11 +1453,14 @@ checkHandlesH (_ ::: _ ::: req) = do
   free <- lift $ API.checkHandles handles (fromRange num)
   return $ json (free :: [Handle])
 
+-- | This endpoint returns UserHandleInfo instead of UserProfile for backwards compatibility.
 getHandleInfoUnqualifiedH :: UserId -> Handle -> Handler Public.UserHandleInfo
 getHandleInfoUnqualifiedH self handle = do
   domain <- viewFederationDomain
   Public.UserHandleInfo . Public.profileQualifiedId <$> getUserByHandleH self domain handle
 
+-- | This endpoint returns UserProfile instead of UserHandleInfo to reduce
+-- traffic between backends in a federated scenario.
 getUserByHandleH :: UserId -> Domain -> Handle -> Handler Public.UserProfile
 getUserByHandleH self domain handle = do
   maybeProfile <- getHandleInfo self (Qualified handle domain)
