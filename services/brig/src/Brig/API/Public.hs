@@ -31,8 +31,7 @@ where
 
 import qualified Brig.API.Client as API
 import qualified Brig.API.Connection as API
-import Brig.API.Error hiding (handleNotFound)
-import qualified Brig.API.Error as LegacyError
+import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.IdMapping (resolveOpaqueUserId)
 import qualified Brig.API.Properties as API
@@ -72,8 +71,6 @@ import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
 import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
 import Data.Range
-import Data.SOP.BasicFunctors (I (I))
-import Data.SOP.NS (NS (..))
 import Data.Swagger
   ( ApiKeyLocation (..),
     ApiKeyParams (..),
@@ -291,11 +288,6 @@ type GetSelf =
     :> "self"
     :> Get '[Servant.JSON] Public.SelfProfile
 
-type HandleNotFound = RestError 404 "not-found" "Handle not found."
-
-handleNotFound :: HandleNotFound
-handleNotFound = RestError
-
 -- See Note [document responses]
 -- The responses looked like this:
 --   Doc.returns (Doc.ref Public.modelUserHandleInfo)
@@ -307,7 +299,7 @@ type GetHandleInfoUnqualified =
     :> "users"
     :> "handles"
     :> Capture' '[Description "The user handle"] "handle" Handle
-    :> UVerb 'GET '[Servant.JSON] '[WithStatus 200 Public.UserHandleInfo, HandleNotFound]
+    :> Get '[Servant.JSON] Public.UserHandleInfo
 
 -- See Note [document responses]
 -- The responses looked like this:
@@ -321,7 +313,7 @@ type GetUserByHandleQualfied =
     :> "by-handle"
     :> Capture "domain" Domain
     :> Capture' '[Description "The user handle"] "handle" Handle
-    :> UVerb 'GET '[Servant.JSON] '[WithStatus 200 Public.UserProfile, HandleNotFound]
+    :> Get '[Servant.JSON] Public.UserProfile
 
 -- See Note [ephemeral user sideeffect]
 type ListUsersByUnqualifiedIdsOrHandles =
@@ -487,7 +479,7 @@ sitemap o = do
       Doc.description "Handle to check"
     Doc.response 200 "Handle is taken" Doc.end
     Doc.errorResponse invalidHandle
-    Doc.errorResponse LegacyError.handleNotFound
+    Doc.errorResponse handleNotFound
 
   -- some APIs moved to servant
   -- end User Handle API
@@ -1461,22 +1453,17 @@ checkHandlesH (_ ::: _ ::: req) = do
   free <- lift $ API.checkHandles handles (fromRange num)
   return $ json (free :: [Handle])
 
-getHandleInfoUnqualifiedH :: UserId -> Handle -> Handler (Union '[WithStatus 200 Public.UserHandleInfo, HandleNotFound])
+getHandleInfoUnqualifiedH :: UserId -> Handle -> Handler Public.UserHandleInfo
 getHandleInfoUnqualifiedH self handle = do
   domain <- viewFederationDomain
-  profile <- getUserByHandleH self domain handle
-  case profile of
-    Z (I (WithStatus userProfile)) ->
-      Servant.respond . WithStatus @200 . Public.UserHandleInfo . Public.profileQualifiedId $ userProfile
-    S (Z (I x)) -> Servant.respond x
-    S (S x) -> case x of
+  Public.UserHandleInfo . Public.profileQualifiedId <$> getUserByHandleH self domain handle
 
-getUserByHandleH :: UserId -> Domain -> Handle -> Handler (Union '[WithStatus 200 Public.UserProfile, HandleNotFound])
+getUserByHandleH :: UserId -> Domain -> Handle -> Handler Public.UserProfile
 getUserByHandleH self domain handle = do
   maybeProfile <- getHandleInfo self (Qualified handle domain)
   case maybeProfile of
-    Nothing -> Servant.respond handleNotFound
-    Just u -> Servant.respond (WithStatus @200 u)
+    Nothing -> throwStd handleNotFound
+    Just u -> pure u
 
 -- FUTUREWORK: use 'runMaybeT' to simplify this.
 getHandleInfo :: UserId -> Qualified Handle -> Handler (Maybe Public.UserProfile)
