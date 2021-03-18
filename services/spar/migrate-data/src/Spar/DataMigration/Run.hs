@@ -29,6 +29,7 @@ import Imports
 import qualified Options.Applicative as Opts
 import Spar.DataMigration.Options (settingsParser)
 import Spar.DataMigration.Types
+import qualified Spar.DataMigration.V1_ExternalIds as V1
 import qualified System.Logger as Log
 
 main :: IO ()
@@ -36,7 +37,7 @@ main = do
   settings <- Opts.execParser (Opts.info (Opts.helper <*> settingsParser) desc)
   migrate
     settings
-    []
+    [V1.migration]
   where
     desc = Opts.header "Spar Cassandra Data Migrations" <> Opts.fullDesc
 
