@@ -225,8 +225,6 @@ instance ToSchema (RestError status label message) where
               ]
           & required .~ ["code", "label", "message"]
 
--- declareNamedSchema (Proxy @Text) <&> (schema . description ?~ "user not found")
-
 -- Note [document responses]
 --
 -- Ideally we want to document responses with UVerb and swagger, but this is
@@ -427,9 +425,6 @@ type OutsideWorldAPI =
 type SwaggerDocsAPI = "api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
 type ServantAPI = OutsideWorldAPI
-
--- type family WithFederationErrors (xs :: [*]) :: [*] where
---   WithFederationErrors xs = xs :++: [WithStatus 520 ()]
 
 -- FUTUREWORK: At the moment this only shows endpoints from brig, but we should
 -- combine the swagger 2.0 endpoints here as well from other services (e.g. spar)
