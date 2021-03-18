@@ -54,9 +54,10 @@ push:
 	aws s3 sync $(BUILDDIR)/html s3://origin-docs.wire.com/
 
 .PHONY: dev-run
-dev-run: poetry-env
+dev-run:
 	rm -rf "$(BUILDDIR)"
 ifeq ($(USE_POETRY), 1)
+	source $$HOME/.poetry/env && \
 	poetry run sphinx-autobuild \
 		--port 3000 \
 		--host 127.0.0.1 \
@@ -76,17 +77,11 @@ endif
 help:
 	@$(SPHINXBUILD) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS)
 
-
-.PHONY: poetry-env
-poetry-env:
-ifeq ($(USE_POETRY), 1)
-	@source $$HOME/.poetry/env
-endif
-
 # Catch-all target: route all unknown targets to Sphinx. This "converts" unknown targets into sub-commands (or more precicly
 # into `buildername`) of the $(SPHINXBUILD) CLI (see https://www.gnu.org/software/make/manual/html_node/Last-Resort.html).
-%: poetry-env
+%:
 ifeq ($(USE_POETRY), 1)
+	source $$HOME/.poetry/env && \
 	poetry run $(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS)
 else
 	$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS)
