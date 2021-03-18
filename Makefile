@@ -52,7 +52,12 @@ docker-push:
 
 .PHONY: push
 push:
+ifeq ($(USE_POETRY), 1)
+	source $$HOME/.poetry/env && \
+	poetry run aws s3 sync $(BUILDDIR)/html s3://origin-docs.wire.com/
+else
 	aws s3 sync $(BUILDDIR)/html s3://origin-docs.wire.com/
+endif
 
 .PHONY: dev-run
 dev-run:
