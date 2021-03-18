@@ -14,7 +14,8 @@ SPHINXOPTS    ?= -q
 SPHINXBUILD   ?= sphinx-build
 SOURCEDIR     = $(MKFILE_DIR)/src
 BUILDDIR      = $(MKFILE_DIR)/build
-USE_POETRY    ?= 1 # note: if you're using direnv/nix, this will be set to USE_POETRY=0 automatically in .envrc
+# note: if you're using direnv/nix, this will be set to USE_POETRY=0 automatically in .envrc
+USE_POETRY    ?= 1
 
 .PHONY: Makefile
 
