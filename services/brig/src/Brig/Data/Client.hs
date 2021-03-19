@@ -39,7 +39,7 @@ where
 
 import Bilge.Retry (httpHandlers)
 import Brig.AWS
-import Brig.App (randomPrekeys, AppIO, awsEnv, currentTime, metrics)
+import Brig.App (AppIO, awsEnv, currentTime, metrics, randomPrekeys, randomPrekeyLocalLock)
 import Brig.Data.Instances ()
 import Brig.Data.User (AuthError (..), ReAuthError (..))
 import qualified Brig.Data.User as User
@@ -198,9 +198,12 @@ claimPrekey u c = do
       removeAndReturnPreKey prekey
     -- Use random prekey selection strategy
     Just () -> do
-      prekeys <- retry x1 $ query userPrekeys (params Quorum (u, c))
-      prekey <- pickRandomPrekey prekeys
-      removeAndReturnPreKey prekey
+      lock <- view randomPrekeyLocalLock 
+      withLocalLock lock $ do
+        prekeys <- retry x1 $ query userPrekeys (params Quorum (u, c))
+        prekey <- pickRandomPrekey prekeys
+        removeAndReturnPreKey prekey
+
   where
     removeAndReturnPreKey :: Maybe (PrekeyId, Text) -> AppIO (Maybe ClientPrekey)
     removeAndReturnPreKey (Just (i, k)) = do
@@ -378,3 +381,9 @@ withOptLock u c ma = go (10 :: Int)
               Metrics.counterIncr (Metrics.path "client.opt_lock.provisioned_throughput_exceeded") m
               return Nothing
             handleErr _ = return Nothing
+
+withLocalLock :: MVar () -> AppIO a -> AppIO a
+withLocalLock l ma = do
+    (takeMVar l *> ma) `finally` putMVar l ()
+
+
