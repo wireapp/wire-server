@@ -199,9 +199,7 @@ claimPrekey u c = do
     -- Use random prekey selection strategy
     Just () -> do
       prekeys <- retry x1 $ query userPrekeys (params Quorum (u, c))
-      Log.warn $ field "prekeys" $ show prekeys
       prekey <- pickRandomPrekey prekeys
-      Log.warn $ field "prekey" $ show prekey
       removeAndReturnPreKey prekey
   where
     removeAndReturnPreKey :: Maybe (PrekeyId, Text) -> AppIO (Maybe ClientPrekey)
@@ -217,16 +215,14 @@ claimPrekey u c = do
     removeAndReturnPreKey Nothing = return Nothing
 
     pickRandomPrekey :: [(PrekeyId, Text)] -> AppIO (Maybe (PrekeyId, Text))
-    pickRandomPrekey pks = case length pks of
-      0 -> return Nothing 
-      -- unless we only have one key left
-      1 -> return $ Just $ head pks
-      -- pick among list of keys, except lastPrekeyId
-      _ -> do
-          let pks' = filter (\k -> fst k /= lastPrekeyId ) pks 
-          ind <- liftIO $ randomRIO (0, length pks' - 1)
-          Log.warn $ field "ind" (show ind) . field "length pks'" (length pks')
-          return $ atMay pks' ind
+    pickRandomPrekey [] = return Nothing 
+    -- unless we only have one key left
+    pickRandomPrekey [pk] = return $ Just pk
+    -- pick among list of keys, except lastPrekeyId
+    pickRandomPrekey pks = do
+      let pks' = filter (\k -> fst k /= lastPrekeyId ) pks 
+      ind <- liftIO $ randomRIO (0, length pks' - 1)
+      return $ atMay pks' ind
 
 -------------------------------------------------------------------------------
 -- Queries
