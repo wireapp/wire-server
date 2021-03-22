@@ -85,7 +85,7 @@ data AWSOpts = AWSOpts
     -- | AWS SQS endpoint
     sqsEndpoint :: !AWSEndpoint,
     -- | DynamoDB endpoint
-    dynamoDBEndpoint :: !AWSEndpoint
+    dynamoDBEndpoint :: !(Maybe AWSEndpoint)
   }
   deriving (Show, Generic)
 
