@@ -27,6 +27,7 @@ dependencies:
 - extended
 - http-client
 - http2-client
+- http2-client-grpc
 - imports
 - lens
 - metrics-core

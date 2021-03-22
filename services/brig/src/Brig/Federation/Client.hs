@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -20,7 +21,7 @@
 
 module Brig.Federation.Client where
 
-import Brig.API.Error (notFound, throwStd)
+import Brig.API.Error (federationNotConfigured, notFound, throwStd)
 import Brig.API.Handler (Handler)
 import Brig.App (federator)
 import Brig.Types.User
@@ -33,9 +34,12 @@ import qualified Data.Text as T
 import qualified Data.Text.Lazy as LT
 import Imports
 import Mu.GRpc.Client.TyApps
+import qualified Network.HTTP.Types.Status as HTTP
+import qualified Network.Wai.Utilities.Error as Wai
 import qualified System.Logger.Class as Log
 import Util.Options (epHost, epPort)
 import Wire.API.Federation.API.Brig
+import Wire.API.Federation.GRPC.Client
 import qualified Wire.API.Federation.GRPC.Types as Proto
 
 -- FUTUREWORK(federation): As of now, any failure in making a remote call results in 404.
@@ -65,15 +69,15 @@ mkFederatorClient :: Handler GrpcClient
 mkFederatorClient = do
   maybeFederatorEndpoint <- view federator
   federatorEndpoint <- case maybeFederatorEndpoint of
-    Nothing -> throwStd $ notFound "no federator configured"
+    Nothing -> throwStd $ federationNotConfigured
     Just ep -> pure ep
-
-  eitherClient <- setupGrpcClient' (grpcClientConfigSimple (T.unpack (federatorEndpoint ^. epHost)) (fromIntegral (federatorEndpoint ^. epPort)) False)
+  let cfg = grpcClientConfigSimple (T.unpack (federatorEndpoint ^. epHost)) (fromIntegral (federatorEndpoint ^. epPort)) False
+  eitherClient <- createGrpcClient cfg
   case eitherClient of
-    Left _ -> throwStd $ notFound "federator unreachable"
+    Left err -> grpc500 $ "Local federator unreachable: " <> LT.pack (show err)
     Right c -> pure c
 
-callRemote :: MonadIO m => GrpcClient -> Proto.ValidatedFederatedRequest -> m (GRpcReply Proto.Response)
+callRemote :: MonadIO m => GrpcClient -> Proto.ValidatedFederatedRequest -> m (GRpcReply Proto.OutwardResponse)
 callRemote fedClient call = liftIO $ gRpcCall @'MsgProtoBuf @Proto.Outward @"Outward" @"call" fedClient (Proto.validatedFederatedRequestToFederatedRequest call)
 
 -- FUTUREWORK(federation) All of this code is only exercised in the test which
@@ -81,11 +85,37 @@ callRemote fedClient call = liftIO $ gRpcCall @'MsgProtoBuf @Proto.Outward @"Out
 -- test client side of federated code without needing another backend. We could
 -- do this either by mocking the second backend in integration tests or making
 -- all of this independent of the Handler monad and write unit tests.
-expectOk :: GRpcReply Proto.Response -> Handler Proto.HTTPResponse
+expectOk :: GRpcReply Proto.OutwardResponse -> Handler Proto.HTTPResponse
 expectOk = \case
-  GRpcTooMuchConcurrency _tmc -> throwStd $ notFound "Too much concurrency"
-  GRpcErrorCode errCode -> throwStd $ notFound $ LT.pack $ "GRPCError: " <> show errCode
-  GRpcErrorString errStr -> throwStd $ notFound $ LT.pack $ "GRPCError: " <> show errStr
-  GRpcClientError clErr -> throwStd $ notFound $ LT.pack $ "GRPC ClietnError: " <> show clErr
-  GRpcOk (Proto.ResponseErr err) -> throwStd $ notFound $ LT.pack $ "Remote component errored: " <> show err
-  GRpcOk (Proto.ResponseHTTPResponse res) -> pure res
+  GRpcTooMuchConcurrency _tmc ->
+    grpc500 "too much concurrency"
+  GRpcErrorCode errCode ->
+    grpc500 $ "GRpcErrorCode=" <> LT.pack (show errCode)
+  GRpcErrorString errStr ->
+    grpc500 $ "GRpcErrorString=" <> LT.pack errStr
+  GRpcClientError clErr ->
+    grpc500 $ "GRpcClientError=" <> LT.pack (show clErr)
+  GRpcOk (Proto.OutwardResponseError err) -> do
+    let errWithStatus = errWithPayloadAndStatus (Proto.outwardErrorPayload err)
+    case Proto.outwardErrorType err of
+      Proto.RemoteNotFound -> throwStd $ errWithStatus HTTP.status422
+      Proto.DiscoveryFailed -> throwStd $ errWithStatus HTTP.status500
+      Proto.ConnectionRefused -> throwStd $ errWithStatus (HTTP.Status 521 "Web Server Is Down")
+      Proto.TLSFailure -> throwStd $ errWithStatus (HTTP.Status 525 "SSL Handshake Failure")
+      Proto.InvalidCertificate -> throwStd $ errWithStatus (HTTP.Status 526 "Invalid SSL Certificate")
+      Proto.VersionMismatch -> throwStd $ errWithStatus (HTTP.Status 531 "Version Mismatch")
+      Proto.FederationDeniedByRemote -> throwStd $ errWithStatus (HTTP.Status 532 "Federation Denied")
+      Proto.FederationDeniedLocally -> throwStd $ errWithStatus HTTP.status400
+      Proto.RemoteFederatorError -> throwStd $ errWithStatus (HTTP.Status 533 "Unexpected Federation Response")
+      Proto.InvalidRequest -> throwStd $ errWithStatus HTTP.status500
+  GRpcOk (Proto.OutwardResponseHTTPResponse res) -> pure res
+
+errWithPayloadAndStatus :: Maybe Proto.ErrorPayload -> HTTP.Status -> Wai.Error
+errWithPayloadAndStatus maybePayload code =
+  case maybePayload of
+    Nothing -> Wai.Error code "unknown-federation-error" "no payload present"
+    Just Proto.ErrorPayload {..} -> Wai.Error code (LT.fromStrict label) (LT.fromStrict msg)
+
+grpc500 :: LT.Text -> Handler a
+grpc500 msg = do
+  throwStd $ Wai.Error HTTP.status500 "federator-grpc-failure" msg

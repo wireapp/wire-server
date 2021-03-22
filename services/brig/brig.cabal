@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ed5a26f3be12829ad529ee559312e31bc37ccd967c6af5733efe14e4916e215c
+-- hash: a60631234fbd3fa2d41c55e85e9d8c49eeff1b92567df91633244ee09d225955
 
 name:           brig
 version:        1.35.0
@@ -209,6 +209,7 @@ library
     , singletons >=2.0
     , smtp-mail >=0.1
     , sodium-crypto-sign >=0.1
+    , sop-core
     , split >=0.2
     , ssl-util
     , statistics >=0.13

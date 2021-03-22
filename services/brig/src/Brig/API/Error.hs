@@ -504,10 +504,13 @@ customerExtensionBlockedDomain domain = Wai.Error (mkStatus 451 "Unavailable For
 --------------------------------------------------------------------------------
 -- Federation
 
+noFederationStatus :: Status
+noFederationStatus = status403
+
 federationNotEnabled :: forall a. Typeable a => NonEmpty (Qualified (Id (Remote a))) -> Wai.Error
 federationNotEnabled qualifiedIds =
   Wai.Error
-    status403
+    noFederationStatus
     "federation-not-enabled"
     ("Federation is not enabled, but remote qualified IDs (" <> idType <> ") were found: " <> rendered)
   where
@@ -517,7 +520,7 @@ federationNotEnabled qualifiedIds =
 federationNotImplemented :: forall a. Typeable a => NonEmpty (IdMapping a) -> Wai.Error
 federationNotImplemented qualified =
   Wai.Error
-    status403
+    noFederationStatus
     "federation-not-implemented"
     ("Federation is not implemented, but ID mappings (" <> idType <> ") found: " <> rendered)
   where
@@ -529,6 +532,13 @@ federationNotImplemented qualified =
 federationNotImplemented' :: Wai.Error
 federationNotImplemented' =
   Wai.Error
-    status403
+    noFederationStatus
     "federation-not-implemented"
     "Federation is not yet implemented for this endpoint"
+
+federationNotConfigured :: Wai.Error
+federationNotConfigured =
+  Wai.Error
+    noFederationStatus
+    "federation-not-enabled"
+    "no federator configured on brig"

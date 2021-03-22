@@ -20,11 +20,41 @@ message HTTPResponse {
     bytes responseBody = 2;
 }
 
-message Response {
+message InwardResponse {
   oneof response {
     HTTPResponse httpResponse = 1;
     string err = 2;
   }
+}
+
+message OutwardResponse {
+  oneof response {
+    HTTPResponse httpResponse = 1;
+    OutwardError err = 2;
+  }
+}
+
+message OutwardError {
+  enum ErrorType {
+    RemoteNotFound = 0;
+    DiscoveryFailed = 1;
+    ConnectionRefused = 2;
+    TLSFailure = 3;
+    InvalidCertificate = 4;
+    VersionMismatch = 5;
+    FederationDeniedByRemote = 6;
+    FederationDeniedLocally = 7;
+    RemoteFederatorError = 8;
+    InvalidRequest = 9;
+  }
+
+  ErrorType type = 1;
+  ErrorPayload payload = 2;
+}
+
+message ErrorPayload {
+  string label = 1;
+  string msg = 2;
 }
 
 // The envelope message which is sent from brig to the Outward service of a local federator
@@ -72,7 +102,7 @@ enum Method {
 // Example: 'brig' will use Outward.call on an internal server on
 //          127.0.0.1:8097 to (indirectly) talk to the federated world.
 service Outward {
-  rpc call (FederatedRequest) returns (Response);
+  rpc call (FederatedRequest) returns (OutwardResponse);
 }
 
 // 'Inward' is exposed to the public internet (via nginx) and serves as a
@@ -82,5 +112,5 @@ service Outward {
 //           talk to a component inside the group of servers of another-domain
 //           which is not directly accessible.
 service Inward {
-  rpc call (Request) returns (Response);
+  rpc call (Request) returns (InwardResponse);
 }

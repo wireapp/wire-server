@@ -24,23 +24,24 @@ import Data.String.Conversions (cs)
 import Federator.Discovery (DiscoverFederator, LookupError, discoverFederator)
 import Imports
 import Mu.GRpc.Client.Optics (GRpcReply)
-import Mu.GRpc.Client.Record (GRpcMessageProtocol (MsgProtoBuf), GrpcClient, grpcClientConfigSimple, setupGrpcClient')
+import Mu.GRpc.Client.Record (GRpcMessageProtocol (MsgProtoBuf))
 import Mu.GRpc.Client.TyApps (gRpcCall)
-import Network.HTTP2.Client (ClientError)
+import Network.GRPC.Client.Helpers
 import Polysemy
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as Log
 import qualified System.Logger.Message as Log
+import Wire.API.Federation.GRPC.Client
 import Wire.API.Federation.GRPC.Types
 import Wire.Network.DNS.SRV (SrvTarget (SrvTarget))
 
 data RemoteError
   = RemoteErrorDiscoveryFailure LookupError Domain
-  | RemoteErrorClientFailure ClientError SrvTarget
+  | RemoteErrorClientFailure GrpcClientErr SrvTarget
   deriving (Show, Eq)
 
 data Remote m a where
-  DiscoverAndCall :: ValidatedFederatedRequest -> Remote m (Either RemoteError (GRpcReply Response))
+  DiscoverAndCall :: ValidatedFederatedRequest -> Remote m (Either RemoteError (GRpcReply InwardResponse))
 
 makeSem ''Remote
 
@@ -62,7 +63,7 @@ interpretRemote = interpret $ \case
             Right <$> callInward client vRequest
           Left err -> pure $ Left err
 
-callInward :: MonadIO m => GrpcClient -> Request -> m (GRpcReply Response)
+callInward :: MonadIO m => GrpcClient -> Request -> m (GRpcReply InwardResponse)
 callInward client request =
   liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" client request
 
@@ -77,10 +78,7 @@ mkGrpcClient target@(SrvTarget host port) = do
   -- See https://github.com/haskell-grpc-native/http2-grpc-haskell/issues/47
   -- While early testing, this is "convenient" but needs to be fixed!
   let cfg = grpcClientConfigSimple (cs host) (fromInteger $ toInteger port) True
-  -- Note: setupGrpcClient' is unsafe and throws exceptions in IO, e.g. when it can't connect. Don't be fooled by the Either,
-  -- errors appear to never happen in the left side so this is dead code.
-  -- FUTUREWORK(federation): report setupGrpcClient' buggy behaviour to upstream.
-  eitherClient <- setupGrpcClient' cfg
+  eitherClient <- createGrpcClient cfg
   case eitherClient of
     Left err -> do
       Log.debug $
