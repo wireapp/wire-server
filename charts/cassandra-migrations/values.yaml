@@ -5,3 +5,4 @@ images:
   galley: quay.io/wire/galley-schema
   spar: quay.io/wire/spar-schema
   galleyMigrateData: quay.io/wire/galley-migrate-data
+  sparMigrateData: quay.io/wire/spar-migrate-data
