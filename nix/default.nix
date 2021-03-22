@@ -13,7 +13,7 @@ in
       pkgs.zip
       pkgs.gnumake
 
-      (pkgs.python3.withPackages (ps: with ps; [ sphinx recommonmark rst2pdf sphinx-autobuild ]))
+      (pkgs.python3.withPackages (ps: with ps; [ sphinx recommonmark rst2pdf sphinx-autobuild sphinxcontrib-fulltoc ]))
     ];
   };
 }

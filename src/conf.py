@@ -29,7 +29,8 @@ version = "0.0.1"
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'rst2pdf.pdfbuilder'
+    'rst2pdf.pdfbuilder',
+    'sphinxcontrib.fulltoc'
 ]
 
 # Grouping the document tree into PDF files. List of tuples
