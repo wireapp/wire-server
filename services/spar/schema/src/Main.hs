@@ -67,5 +67,8 @@ main = do
       -- (we don't want to risk running a migration which would
       -- effectively break the currently deployed spar service)
       -- see https://github.com/wireapp/wire-server/pull/476.
+
+      -- FUTUREWORK: Add a migration that removes the table `scim_external_ids` after
+      -- https://github.com/wireapp/wire-server/pull/1418 is released.
     ]
     `finally` Log.close l
