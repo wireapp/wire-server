@@ -354,7 +354,7 @@ data Opts = Opts
     -- | AWS settings
     aws :: !AWSOpts,
     -- | Enable Random Prekey Strategy
-    randomPrekeys :: !(Maybe ()),
+    randomPrekeys :: !(Maybe Bool),
     -- | STOMP broker settings
     stomp :: !(Maybe StompOpts),
     -- Email & SMS

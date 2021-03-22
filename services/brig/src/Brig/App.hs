@@ -173,7 +173,7 @@ data Env = Env
     _digestSHA256 :: Digest,
     _digestMD5 :: Digest,
     _indexEnv :: IndexEnv,
-    _randomPrekeys :: Maybe (),
+    _randomPrekeys :: Bool,
     _randomPrekeyLocalLock :: MVar ()
   }
 
@@ -251,7 +251,7 @@ newEnv o = do
         _digestMD5 = md5,
         _digestSHA256 = sha256,
         _indexEnv = mkIndexEnv o lgr mgr mtr,
-        _randomPrekeys = Just (),
+        _randomPrekeys = fromMaybe False $ Opt.randomPrekeys o,
         _randomPrekeyLocalLock = prekeyLocalLock
       }
   where

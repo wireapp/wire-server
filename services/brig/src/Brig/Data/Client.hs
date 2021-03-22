@@ -193,11 +193,11 @@ claimPrekey u c = do
   -- Log.warn $ field "randomStrategy" $ show randomStrategy
   case randomStrategy of
     -- Use DynamoDB based optimistic locking strategy
-    Nothing -> withOptLock u c $ do
+    False -> withOptLock u c $ do
       prekey <- retry x1 $ query1 userPrekey (params Quorum (u, c))
       removeAndReturnPreKey prekey
     -- Use random prekey selection strategy
-    Just () -> do
+    True -> do
       lock <- view randomPrekeyLocalLock 
       withLocalLock lock $ do
         prekeys <- retry x1 $ query userPrekeys (params Quorum (u, c))
