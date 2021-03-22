@@ -18,8 +18,9 @@
 # -- Project information -----------------------------------------------------
 
 project = 'Wire'
-copyright = '2020, Wire'
-author = 'Wire'
+copyright = '2021, Wire'
+author = 'Wire Swiss GmbH'
+version = "0.0.1"
 
 
 # -- General configuration ---------------------------------------------------
@@ -34,9 +35,11 @@ extensions = [
 # Grouping the document tree into PDF files. List of tuples
 # (source start file, target name, title, author, options).
 pdf_documents = [
-    ('index', 'all-docs', 'All the Wire Docs', 'Wire Swiss GmbH'),
-    ('understand/index', 'understand', 'Understand', 'Wire Swiss GmbH')
+    # ('index', 'all-docs', 'All the Wire Docs', 'Wire Swiss GmbH'),
+    # ('understand/index', 'understand', 'Understand', 'Wire Swiss GmbH')
+    ('understand/federation/index', 'wire_federation', 'Wire Federation', 'Wire Swiss GmbH')
 ]
+
 
 # Add section number to section
 referencespdf_use_numbered_links = True

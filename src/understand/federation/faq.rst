@@ -1,0 +1,4 @@
+.. federation-faq:
+
+Federation FAQ
+===============
