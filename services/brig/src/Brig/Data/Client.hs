@@ -52,6 +52,7 @@ import Control.Error
 import qualified Control.Exception.Lens as EL
 import Control.Lens
 import Control.Monad.Catch
+import Control.Monad.Extra (ifM)
 import Control.Monad.Random (Random (randomRIO))
 import Control.Retry
 import qualified Data.ByteString.Base64 as B64
@@ -188,21 +189,16 @@ updatePrekeys u c pks = do
         _ -> return False
 
 claimPrekey :: UserId -> ClientId -> AppIO (Maybe ClientPrekey)
-claimPrekey u c = do
-  randomStrategy <- view randomPrekeys 
-  -- Log.warn $ field "randomStrategy" $ show randomStrategy
-  case randomStrategy of
-    -- Use DynamoDB based optimistic locking strategy
-    False -> withOptLock u c $ do
-      prekey <- retry x1 $ query1 userPrekey (params Quorum (u, c))
-      removeAndReturnPreKey prekey
+claimPrekey u c = ifM (view randomPrekeys) 
     -- Use random prekey selection strategy
-    True -> do
-      lock <- view randomPrekeyLocalLock 
-      withLocalLock lock $ do
-        prekeys <- retry x1 $ query userPrekeys (params Quorum (u, c))
-        prekey <- pickRandomPrekey prekeys
-        removeAndReturnPreKey prekey
+    (withLocalLock (view randomPrekeyLocalLock) $ do
+      prekeys <- retry x1 $ query userPrekeys (params Quorum (u, c))
+      prekey <- pickRandomPrekey prekeys
+      removeAndReturnPreKey prekey)
+    -- Use DynamoDB based optimistic locking strategy
+    (withOptLock u c $ do
+      prekey <- retry x1 $ query1 userPrekey (params Quorum (u, c))
+      removeAndReturnPreKey prekey)
 
   where
     removeAndReturnPreKey :: Maybe (PrekeyId, Text) -> AppIO (Maybe ClientPrekey)
@@ -382,8 +378,8 @@ withOptLock u c ma = go (10 :: Int)
               return Nothing
             handleErr _ = return Nothing
 
-withLocalLock :: MVar () -> AppIO a -> AppIO a
+withLocalLock :: AppIO (MVar ()) -> AppIO a -> AppIO a
 withLocalLock l ma = do
-    (takeMVar l *> ma) `finally` putMVar l ()
-
+    lck <- l
+    (takeMVar lck *> ma) `finally` putMVar lck ()
 
