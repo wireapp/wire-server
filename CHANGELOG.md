@@ -13,6 +13,17 @@
 ## Internal changes
 
 -->
+# [2020-03-21]
+
+## Release Notes
+
+This release will automtically migrate a table after deployment.
+Note that you should never skip a release when upgrading Wire.
+
+## Internal changes
+
+* Migrate spar external id table (#1400, #1413, #1415, #1417)
+
 # [2020-03-02]
 
 ## Bug fixes and other updates

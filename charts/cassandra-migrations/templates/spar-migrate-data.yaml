@@ -1,0 +1,44 @@
+# This jobs runs data migrations for the spar DB using the spar-migrate-data tool.
+# The source for the tool can be found at services/spar/migrate-data
+#
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: spar-migrate-data
+  labels:
+    wireService: "cassandra-migrations"
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "20"
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+spec:
+  template:
+    metadata:
+      name: "{{.Release.Name}}"
+      labels:
+        wireService: spar-migrate-data
+        app: spar-migrate-data
+        heritage: {{.Release.Service | quote }}
+        release: {{.Release.Name | quote }}
+        chart: "{{.Chart.Name}}-{{.Chart.Version}}"
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: spar-migrate-data
+          image: "{{ .Values.images.sparMigrateData }}:{{ .Values.images.tag }}"
+          args:
+             - --cassandra-host-spar
+             - "{{ .Values.cassandra.host }}"
+             - --cassandra-port-spar
+             - "9042"
+             - --cassandra-keyspace-spar
+             - spar
+             - --cassandra-host-brig
+             - "{{ .Values.cassandra.host }}"
+             - --cassandra-port-brig
+             - "9042"
+             - --cassandra-keyspace-brig
+             - brig
