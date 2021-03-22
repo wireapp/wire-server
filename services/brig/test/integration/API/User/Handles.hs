@@ -48,6 +48,7 @@ import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
+import qualified Network.Wai.Utilities.Error as Wai
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at conf p b c g =
@@ -59,7 +60,8 @@ tests _cl _at conf p b c g =
       test p "handles/query - team-search-visibility SearchVisibilityStandard" $ testHandleQuerySearchVisibilityStandard conf b,
       test p "handles/query - team-search-visibility SearchVisibilityNoNameOutsideTeam" $ testHandleQuerySearchVisibilityNoNameOutsideTeam conf b g,
       test p "GET /users/handles/<handle>" $ testGetUserByUnqualifiedHandle b,
-      test p "GET /users/by-handle/<domain>/<handle>" $ testGetUserByQualifiedHandle b
+      test p "GET /users/by-handle/<domain>/<handle> : 200" $ testGetUserByQualifiedHandle b,
+      test p "GET /users/by-handle/<domain>/<handle> : no federation" $ testGetUserByQualifiedHandleNoFederation conf b
     ]
 
 testHandleUpdate :: Brig -> Cannon -> Http ()
@@ -258,6 +260,21 @@ testGetUserByQualifiedHandle brig = do
       "Email shouldn't be shown to unconnected user"
       Nothing
       (profileEmail profileForUnconnectedUser)
+
+testGetUserByQualifiedHandleNoFederation :: Opt.Opts -> Brig -> Http ()
+testGetUserByQualifiedHandleNoFederation opt brig = do
+  let newOpts = opt {Opt.federatorInternal = Nothing}
+  someUser <- randomUser brig
+  withSettingsOverrides newOpts $
+    get
+      ( brig
+          . paths ["users", "by-handle", "example.com", "oh-a-handle"]
+          . zUser (userId someUser)
+      )
+      !!! do
+        const 403 === statusCode
+        const "Forbidden" === statusMessage
+        const (Right "federation-not-enabled") === fmap Wai.label . responseJsonEither
 
 assertCanFind :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> m ()
 assertCanFind brig from target = do
