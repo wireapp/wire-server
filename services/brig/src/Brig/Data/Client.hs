@@ -166,7 +166,7 @@ rmClient :: UserId -> ClientId -> AppIO ()
 rmClient u c = do
   retry x5 $ write removeClient (params Quorum (u, c))
   retry x5 $ write removeClientKeys (params Quorum (u, c))
-  deleteOptLock u c
+  unlessM (view randomPrekeys) $ deleteOptLock u c
 
 updateClientLabel :: MonadClient m => UserId -> ClientId -> Maybe Text -> m ()
 updateClientLabel u c l = retry x5 $ write updateClientLabelQuery (params Quorum (l, u, c))
