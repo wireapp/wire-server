@@ -1,3 +1,5 @@
+.. _install-sft:
+
 Installing Conference Calling 2.0 (aka SFT)
 ===========================================
 
@@ -19,7 +21,7 @@ without compromising end-to-end security.
 Prerequisites
 -------------
 
-The SFT needs to be reachable by clients on its public IP and should be able to reach the TURN servers as well for it to function.
+The SFT needs to be reachable by clients on its public IP and should be able to reach the :ref:`TURN <understand-restund>` servers as well for it to function.
 
 The SFT needs to be able to receive and send traffic over UDP and TCP on a wide range of ports.
 Due to the fact that Kubernetes services do not support setting port ranges, and kubernetes pods not being publicly routable (at least in IPv4) we require the SFT pods to run in `hostNetwork` mode and the pod will bind directly to the default interface of the node.
@@ -129,16 +131,21 @@ And then roll-out the change to the ``wire-server`` chart
 For more advanced setups please refer to the `technical documentation <https://github.com/wireapp/wire-server/blob/develop/charts/sftd/README.md>`__.
 
 
+.. _install-sft-firewall-rules:
+
 Firewall rules
 ^^^^^^^^^^^^^^
 
 The SFT allocates media addresses in the ``32768-61000`` UDP range. Ingress and
-egress traffic should be allowed to this range. Furthermore the SFT needs to be
-able to reach the Restund server, as it uses STUN and TURN in cases the client
-can not directly connect to the SFT.  In practise this means the SFT should
-allow ingress and egress traffic on the UDP port range ``32768-61000`` from
-both clients and the restund server.
+egress traffic should be allowed for this range. Furthermore the SFT needs to be
+able to reach the :ref:`Restund server <understand-restund>`, as it uses STUN and TURN in cases the client
+can not directly connect to the SFT. In practise this means the SFT should
+allow ingress and egress traffic on the UDP port range ``32768-61000`` from and
+to both clients and the :ref:`Restund server <understand-restund>`.
 
-The SFT also has an HTTP interface to make allocations. This is exposed through
+The SFT also has an HTTP interface for initializing (allocation) or joining (signaling) a call. This is exposed through
 the ingress controller as an HTTPS service.
 
+An SFT instance does **not** communicate with other SFT instances.
+
+*For more information, please refer to the source code of the Ansible role:* `sft-server <https://github.com/wireapp/ansible-sft/blob/develop/roles/sft-server/tasks/traffic.yml>`__.
