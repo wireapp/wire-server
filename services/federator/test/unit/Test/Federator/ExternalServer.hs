@@ -34,13 +34,13 @@ genMock ''Brig
 
 tests :: TestTree
 tests =
-  testGroup "InternalServer" $
+  testGroup "ExternalServer" $
     [ requestBrigSuccess
     ]
 
 requestBrigSuccess :: TestTree
 requestBrigSuccess =
-  testCase "should translate response from brig to 'Response'" $
+  testCase "should translate response from brig to 'InwardResponse'" $
     runM . evalMock @Brig @IO $ do
       mockBrigCallReturns @IO (\_ _ _ _ -> pure (HTTP.status200, Just "response body"))
       let request = Request Brig (HTTPMethod HTTP.GET) "/users" [QueryParam "handle" "foo"] mempty
@@ -50,4 +50,4 @@ requestBrigSuccess =
       actualCalls <- mockBrigCallCalls @IO
       let expectedCall = (HTTP.GET, "/users", [QueryParam "handle" "foo"], mempty)
       embed $ assertEqual "one call to brig should be made" [expectedCall] actualCalls
-      embed $ assertEqual "response should be success with correct body" (ResponseHTTPResponse (HTTPResponse 200 "response body")) res
+      embed $ assertEqual "response should be success with correct body" (InwardResponseHTTPResponse (HTTPResponse 200 "response body")) res

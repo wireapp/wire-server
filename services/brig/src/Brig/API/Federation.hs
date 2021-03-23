@@ -19,23 +19,24 @@ module Brig.API.Federation where
 
 import Brig.API.Error (handleNotFound, throwStd)
 import Brig.API.Handler (Handler)
-import Brig.App (viewFederationDomain)
-import Brig.Types (UserHandleInfo (UserHandleInfo))
-import qualified Brig.User.Handle as API
+import qualified Brig.API.User as API
 import Data.Handle (Handle)
-import Data.Qualified (Qualified (Qualified))
 import Imports
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
 import qualified Wire.API.Federation.API.Brig as FederationAPIBrig
+import Wire.API.User (UserProfile)
 
 federationSitemap :: ServerT (ToServantApi FederationAPIBrig.Api) Handler
 federationSitemap = genericServerT (FederationAPIBrig.Api getUserByHandle)
 
-getUserByHandle :: Handle -> Handler UserHandleInfo
+getUserByHandle :: Handle -> Handler UserProfile
 getUserByHandle handle = do
   maybeOwnerId <- lift $ API.lookupHandle handle
   case maybeOwnerId of
     Nothing -> throwStd handleNotFound
-    Just ownerId -> UserHandleInfo . Qualified ownerId <$> viewFederationDomain
+    Just ownerId -> do
+      lift (API.lookupProfilesOfLocalUsers Nothing [ownerId]) >>= \case
+        [] -> throwStd handleNotFound
+        user : _ -> pure user

@@ -33,7 +33,8 @@ spec =
     describe "Protobuf Serialization" $ do
       muSchemaRoundtrip @Router @"Component" @Component
       muSchemaRoundtrip @Router @"HTTPResponse" @HTTPResponse
-      muSchemaRoundtrip @Router @"Response" @Response
+      muSchemaRoundtrip @Router @"OutwardResponse" @OutwardResponse
+      muSchemaRoundtrip @Router @"InwardResponse" @InwardResponse
       muSchemaRoundtrip @Router @"Method" @HTTPMethod
       muSchemaRoundtrip @Router @"QueryParam" @QueryParam
       muSchemaRoundtrip @Router @"Request" @Request

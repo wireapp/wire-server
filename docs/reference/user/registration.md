@@ -141,18 +141,7 @@ Set-Cookie: zuid=...
 
 ## Blocking creation of personal users, new teams {#RefRestrictRegistration}
 
-There are some unauthenticated end-points that allow arbitrary users on the open internet to do things like create a new team.  This is desired in the cloud, and not an issue on many on-prem solutions (eg. all of those that are not exposed to the global IP address space).  However, if you run an on-prem setup that is open to the world, you likely want to block this.
-
-Brig has a server option for this:
-
-```yaml
-optSettings:
-  setRestrictUserCreation: true
-```
-
-If `setRestrictUserCreation` is `true`, requests to `/register` that create a new personal account or a new team are answered with `403 forbidden`.
-
-If you operate an instance with restricted user creation, you can still create new teams (and, if you really want to, personal users): see [`/deploy/services-demo/create_test_team_admins.sh`](https://github.com/wireapp/wire-server/blob/b9a84f9b654a69c9a296761b36c042dc993236d3/deploy/services-demo/create_test_team_admins.sh) to see how.
+[moved here](https://docs.wire.com/how-to/install/configuration-options.html#blocking-creation-of-personal-users-new-teams)
 
 ### Details
 

@@ -64,7 +64,7 @@ import qualified Data.UUID.V4 as UUID
 import Imports
 import Network.URI (URI, parseURI)
 import qualified SAML2.WebSSO as SAML
-import Spar.App (Spar, getUser, sparCtxOpts, validateEmailIfExists, wrapMonadClient)
+import Spar.App (Spar, getUserByScimExternalId, getUserByUref, sparCtxOpts, validateEmailIfExists, wrapMonadClient)
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Brig
 import Spar.Scim.Auth ()
@@ -370,7 +370,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
     $ do
       -- ensure uniqueness constraints of all affected identifiers.
       -- {if we crash now, retry POST will just work}
-      assertExternalIdUnused veid
+      assertExternalIdUnused stiTeam veid
       assertHandleUnused handl
       -- {if we crash now, retry POST will just work, or user gets told the handle
       -- is already in use and stops POSTing}
@@ -444,7 +444,7 @@ updateValidScimUser ::
   UserId ->
   ST.ValidScimUser ->
   m (Scim.StoredUser ST.SparTag)
-updateValidScimUser tokinfo uid newValidScimUser =
+updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid newValidScimUser =
   logScim
     ( logFunction "Spar.Scim.User.updateValidScimUser"
         . logVSU newValidScimUser
@@ -459,7 +459,7 @@ updateValidScimUser tokinfo uid newValidScimUser =
 
       -- assertions about new valid scim user that cannot be checked in 'validateScimUser' because
       -- they differ from the ones in 'createValidScimUser'.
-      assertExternalIdNotUsedElsewhere (newValidScimUser ^. ST.vsuExternalId) uid
+      assertExternalIdNotUsedElsewhere stiTeam (newValidScimUser ^. ST.vsuExternalId) uid
       assertHandleNotUsedElsewhere uid (newValidScimUser ^. ST.vsuHandle)
 
       if oldValidScimUser == newValidScimUser
@@ -471,7 +471,7 @@ updateValidScimUser tokinfo uid newValidScimUser =
           case ( oldValidScimUser ^. ST.vsuExternalId,
                  newValidScimUser ^. ST.vsuExternalId
                ) of
-            (old, new) | old /= new -> updateVsuUref (stiTeam tokinfo) uid old new
+            (old, new) | old /= new -> updateVsuUref stiTeam uid old new
             _ -> pure ()
 
           when (newValidScimUser ^. ST.vsuName /= oldValidScimUser ^. ST.vsuName) $ do
@@ -628,9 +628,9 @@ calculateVersion uid usr = Scim.Weak (Text.pack (show h))
 --
 -- ASSUMPTION: every scim user has a 'SAML.UserRef', and the `SAML.NameID` in it corresponds
 -- to a single `externalId`.
-assertExternalIdUnused :: ST.ValidExternalId -> Scim.ScimHandler Spar ()
-assertExternalIdUnused veid = do
-  mExistingUserId <- lift $ getUser veid
+assertExternalIdUnused :: TeamId -> ST.ValidExternalId -> Scim.ScimHandler Spar ()
+assertExternalIdUnused tid veid = do
+  mExistingUserId <- lift $ ST.runValidExternalId (getUserByUref) (getUserByScimExternalId tid) veid
   unless (isNothing mExistingUserId) $
     throwError Scim.conflict {Scim.detail = Just "externalId is already taken"}
 
@@ -640,9 +640,9 @@ assertExternalIdUnused veid = do
 --
 -- ASSUMPTION: every scim user has a 'SAML.UserRef', and the `SAML.NameID` in it corresponds
 -- to a single `externalId`.
-assertExternalIdNotUsedElsewhere :: ST.ValidExternalId -> UserId -> Scim.ScimHandler Spar ()
-assertExternalIdNotUsedElsewhere veid wireUserId = do
-  mExistingUserId <- lift $ getUser veid
+assertExternalIdNotUsedElsewhere :: TeamId -> ST.ValidExternalId -> UserId -> Scim.ScimHandler Spar ()
+assertExternalIdNotUsedElsewhere tid veid wireUserId = do
+  mExistingUserId <- lift $ ST.runValidExternalId getUserByUref (getUserByScimExternalId tid) veid
   unless (mExistingUserId `elem` [Nothing, Just wireUserId]) $ do
     throwError Scim.conflict {Scim.detail = Just "externalId already in use by another Wire user"}
 
@@ -791,7 +791,7 @@ scimFindUserByEmail mIdpConfig stiTeam email = do
         -- FUTUREWORK: we could also always lookup brig, that's simpler and possibly faster,
         -- and it never should be visible in spar, but not in brig.
         inspar, inbrig :: Spar (Maybe UserId)
-        inspar = wrapMonadClient $ Data.lookupScimExternalId eml
+        inspar = wrapMonadClient $ Data.lookupScimExternalId stiTeam eml
         inbrig = userId . accountUser <$$> Brig.getBrigUserByEmail eml
 
 logFilter :: Filter -> (Msg -> Msg)

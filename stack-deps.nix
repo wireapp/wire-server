@@ -1,7 +1,6 @@
-with (import <nixpkgs> {});
 let
   pkgs = import ./nix;
-  native_libs = lib.optionals stdenv.isDarwin (with darwin.apple_sdk.frameworks; [
+  native_libs = pkgs.lib.optionals pkgs.stdenv.isDarwin (with pkgs.darwin.apple_sdk.frameworks; [
     Cocoa
     CoreServices
   ]);

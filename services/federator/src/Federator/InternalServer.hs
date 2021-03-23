@@ -24,11 +24,12 @@ import Control.Lens (view)
 import Data.Domain (domainText)
 import Data.Either.Validation (Validation (..))
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import Federator.App (Federator, runAppT)
-import Federator.Discovery (DiscoverFederator, runFederatorDiscovery)
+import Federator.Discovery (DiscoverFederator, LookupError (LookupErrorDNSError, LookupErrorSrvNotAvailable), runFederatorDiscovery)
 import Federator.Env (Env, applog, dnsResolver, runSettings)
 import Federator.Options (RunSettings)
-import Federator.Remote (Remote, RemoteError, discoverAndCall, interpretRemote)
+import Federator.Remote (Remote, RemoteError (RemoteErrorClientFailure, RemoteErrorDiscoveryFailure), discoverAndCall, interpretRemote)
 import Federator.Util
 import Federator.Utils.PolysemyServerError (absorbServerError)
 import Imports
@@ -46,26 +47,44 @@ import Wire.API.Federation.GRPC.Types
 import Wire.Network.DNS.Effect (DNSLookup)
 import qualified Wire.Network.DNS.Effect as Lookup
 
-callOutward :: Members '[Remote, Polysemy.Reader RunSettings] r => FederatedRequest -> Sem r Response
+callOutward :: Members '[Remote, Polysemy.Reader RunSettings] r => FederatedRequest -> Sem r OutwardResponse
 callOutward req = do
   case validateFederatedRequest req of
     Success vReq -> do
       allowedRemote <- federateWith (vDomain vReq)
       if allowedRemote
         then mkRemoteResponse <$> discoverAndCall vReq
-        else pure $ ResponseErr ("federating with domain [" <> domainText (vDomain vReq) <> "] is not allowed (see federator configuration)")
-    Failure errs -> pure $ ResponseErr ("component -> local federator: invalid FederatedRequest: " <> Text.pack (show errs))
+        else pure $ mkOutwardErr FederationDeniedLocally "federation-not-allowed" ("federating with domain [" <> domainText (vDomain vReq) <> "] is not allowed (see federator configuration)")
+    Failure errs ->
+      pure $ mkOutwardErr InvalidRequest "invalid-request-to-federator" ("validation failed with: " <> Text.pack (show errs))
 
 -- FUTUREWORK(federation): Make these errors less stringly typed
-mkRemoteResponse :: Either RemoteError (GRpcReply Response) -> Response
+mkRemoteResponse :: Either RemoteError (GRpcReply InwardResponse) -> OutwardResponse
 mkRemoteResponse reply =
   case reply of
-    Right (GRpcOk res) -> res
-    Right (GRpcTooMuchConcurrency _) -> ResponseErr "remote federator -> local federator: too much concurrency"
-    Right (GRpcErrorCode grpcErr) -> ResponseErr ("remote federator -> local federator: " <> Text.pack (show grpcErr))
-    Right (GRpcErrorString grpcErr) -> ResponseErr ("remote federator -> local federator: error string: " <> Text.pack grpcErr)
-    Right (GRpcClientError clientErr) -> ResponseErr ("remote federator -> local federator: client error: " <> Text.pack (show clientErr))
-    Left err -> ResponseErr ("remote federator -> local federator: " <> Text.pack (show err))
+    Right (GRpcOk (InwardResponseHTTPResponse res)) ->
+      OutwardResponseHTTPResponse res
+    Right (GRpcOk (InwardResponseErr err)) ->
+      mkOutwardErr RemoteFederatorError "remote-federator-returned-error" err
+    Right (GRpcTooMuchConcurrency _) ->
+      mkOutwardErr RemoteFederatorError "too-much-concurrency" "Too much concurrency"
+    Right (GRpcErrorCode grpcErr) ->
+      mkOutwardErr RemoteFederatorError "grpc-error-code" ("code=" <> Text.pack (show grpcErr))
+    Right (GRpcErrorString grpcErr) ->
+      mkOutwardErr RemoteFederatorError "grpc-error-string" ("error=" <> Text.pack grpcErr)
+    Right (GRpcClientError clientErr) ->
+      mkOutwardErr RemoteFederatorError "grpc-client-error" ("error=" <> Text.pack (show clientErr))
+    Left (RemoteErrorDiscoveryFailure err domain) ->
+      case err of
+        LookupErrorSrvNotAvailable _srvDomain ->
+          mkOutwardErr RemoteNotFound "srv-record-not-found" ("domain=" <> domainText domain)
+        LookupErrorDNSError dnsErr ->
+          mkOutwardErr DiscoveryFailed "srv-lookup-dns-error" ("domain=" <> domainText domain <> "error=" <> Text.decodeUtf8 dnsErr)
+    Left (RemoteErrorClientFailure cltErr srvTarget) ->
+      mkOutwardErr RemoteFederatorError "cannot-connect-to-remote-federator" ("target=" <> Text.pack (show srvTarget) <> "error=" <> Text.pack (show cltErr))
+
+mkOutwardErr :: OutwardErrorType -> Text -> Text -> OutwardResponse
+mkOutwardErr typ label msg = OutwardResponseError $ OutwardError typ (Just $ ErrorPayload label msg)
 
 outward :: (Members '[Remote, Polysemy.Error ServerError, Polysemy.Reader RunSettings] r) => SingleServerT info Outward (Sem r) _
 outward = singleService (Mu.method @"call" callOutward)

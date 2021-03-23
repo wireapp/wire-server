@@ -506,20 +506,6 @@ packages:
   original:
     hackage: splitmix-0.0.4
 - completed:
-    hackage: servant-0.18.2@sha256:f8c9f0e9891a3ada1337a3c0b369333a3b5a2d0909dd3cd09d79bc26adeaca44,5298
-    pantry-tree:
-      size: 2662
-      sha256: e930e814de1aa4d24274bdf18341a50b7ed38604ae4734f730e09238ac5bf7e2
-  original:
-    hackage: servant-0.18.2
-- completed:
-    hackage: servant-server-0.18.2@sha256:56679af62ab8820a2108da6153d9ae9dde37199e62172365bdaea1458c3f7c2d,5482
-    pantry-tree:
-      size: 2614
-      sha256: 3ac7430134439e4b67f0f5333f63b89d0cb7de5e2e07f0af7801c8e223942b9c
-  original:
-    hackage: servant-server-0.18.2
-- completed:
     hackage: servant-mock-0.8.7@sha256:64cb3e52bbd51ab6cb25e3f412a99ea712c6c26f1efd117f01a8d1664df49c67,2306
     pantry-tree:
       size: 555
@@ -544,6 +530,32 @@ packages:
   original:
     git: https://github.com/wireapp/servant-swagger.git
     commit: 23e9afafadaade29d21181b935286087457171e3
+- completed:
+    subdir: servant
+    name: servant
+    version: 0.18.2
+    git: https://github.com/haskell-servant/servant.git
+    pantry-tree:
+      size: 2809
+      sha256: 952540fb295f50de371c8a98222eaf28146ef0e4366b986dd7b601c0ea9a5d00
+    commit: 27173c922311112dd153346cf3cd72b9fb0f3551
+  original:
+    subdir: servant
+    git: https://github.com/haskell-servant/servant.git
+    commit: 27173c922311112dd153346cf3cd72b9fb0f3551
+- completed:
+    subdir: servant-server
+    name: servant-server
+    version: 0.18.2
+    git: https://github.com/haskell-servant/servant.git
+    pantry-tree:
+      size: 2727
+      sha256: bda5fc5c3e70633dec238284bc0f626bae432d39758ab0905875388d587fc3d0
+    commit: 27173c922311112dd153346cf3cd72b9fb0f3551
+  original:
+    subdir: servant-server
+    git: https://github.com/haskell-servant/servant.git
+    commit: 27173c922311112dd153346cf3cd72b9fb0f3551
 - completed:
     hackage: HsOpenSSL-x509-system-0.1.0.3@sha256:f4958ee0eec555c5c213662eff6764bddefe5665e2afcfd32733ce3801a9b687,1774
     pantry-tree:

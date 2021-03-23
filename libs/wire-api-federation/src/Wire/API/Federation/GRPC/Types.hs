@@ -59,29 +59,85 @@ data HTTPResponse = HTTPResponse
   deriving (Arbitrary) via (GenericUniform HTTPResponse)
 
 -- | FUTUREWORK(federation): Make this a better ADT for the errors
-data Response
-  = ResponseHTTPResponse HTTPResponse
-  | ResponseErr Text
+data InwardResponse
+  = InwardResponseHTTPResponse HTTPResponse
+  | InwardResponseErr Text
   deriving (Typeable, Show, Eq, Generic)
-  deriving (Arbitrary) via (GenericUniform Response)
+  deriving (Arbitrary) via (GenericUniform InwardResponse)
 
-instance ToSchema Router "Response" Response where
+instance ToSchema Router "InwardResponse" InwardResponse where
   toSchema r =
     let protoChoice = case r of
-          (ResponseHTTPResponse res) -> Z (FSchematic (toSchema res))
-          (ResponseErr e) -> S (Z (FPrimitive e))
+          (InwardResponseHTTPResponse res) -> Z (FSchematic (toSchema res))
+          (InwardResponseErr e) -> S (Z (FPrimitive e))
      in TRecord (Field (FUnion protoChoice) :* Nil)
 
-instance FromSchema Router "Response" Response where
+instance FromSchema Router "InwardResponse" InwardResponse where
   fromSchema (TRecord (Field (FUnion protoChoice) :* Nil)) =
     case protoChoice of
-      Z (FSchematic res) -> ResponseHTTPResponse $ fromSchema res
-      S (Z (FPrimitive e)) -> ResponseErr e
+      Z (FSchematic res) -> InwardResponseHTTPResponse $ fromSchema res
+      S (Z (FPrimitive e)) -> InwardResponseErr e
       S (S x) ->
         -- I don't understand why this empty case is needed, but there is some
         -- explanation here:
         -- https://github.com/well-typed/generics-sop/issues/116
         case x of
+
+data OutwardResponse
+  = OutwardResponseHTTPResponse HTTPResponse
+  | OutwardResponseError OutwardError
+  deriving (Typeable, Show, Eq, Generic)
+  deriving (Arbitrary) via (GenericUniform OutwardResponse)
+
+instance ToSchema Router "OutwardResponse" OutwardResponse where
+  toSchema r =
+    let protoChoice = case r of
+          OutwardResponseHTTPResponse res -> Z (FSchematic (toSchema res))
+          OutwardResponseError err -> S (Z (FSchematic (toSchema err)))
+     in TRecord (Field (FUnion protoChoice) :* Nil)
+
+instance FromSchema Router "OutwardResponse" OutwardResponse where
+  fromSchema (TRecord (Field (FUnion protoChoice) :* Nil)) =
+    case protoChoice of
+      Z (FSchematic res) -> OutwardResponseHTTPResponse $ fromSchema res
+      S (Z (FSchematic err)) -> OutwardResponseError $ fromSchema err
+      S (S x) -> case x of
+
+type OutwardErrorFieldMapping =
+  '[ "outwardErrorType" ':-> "type",
+     "outwardErrorPayload" ':-> "payload"
+   ]
+
+data OutwardError = OutwardError
+  { outwardErrorType :: OutwardErrorType,
+    outwardErrorPayload :: Maybe ErrorPayload
+  }
+  deriving (Typeable, Show, Eq, Generic)
+  deriving (Arbitrary) via (GenericUniform OutwardError)
+  deriving
+    (ToSchema Router "OutwardError", FromSchema Router "OutwardError")
+    via (CustomFieldMapping "OutwardError" OutwardErrorFieldMapping OutwardError)
+
+data OutwardErrorType
+  = RemoteNotFound
+  | DiscoveryFailed
+  | ConnectionRefused
+  | TLSFailure
+  | InvalidCertificate
+  | VersionMismatch
+  | FederationDeniedByRemote
+  | FederationDeniedLocally
+  | RemoteFederatorError
+  | InvalidRequest
+  deriving (Typeable, Show, Eq, Generic, ToSchema Router "OutwardError.ErrorType", FromSchema Router "OutwardError.ErrorType")
+  deriving (Arbitrary) via (GenericUniform OutwardErrorType)
+
+data ErrorPayload = ErrorPayload
+  { label :: Text,
+    msg :: Text
+  }
+  deriving (Typeable, Show, Eq, Generic, ToSchema Router "ErrorPayload", FromSchema Router "ErrorPayload")
+  deriving (Arbitrary) via (GenericUniform ErrorPayload)
 
 -- | This type exists to avoid orphan instances of ToSchema and FromSchema
 newtype HTTPMethod = HTTPMethod {unwrapMethod :: HTTP.StdMethod}

@@ -439,13 +439,13 @@ getUserInfoFromHandle ::
   Brig ->
   Domain ->
   Handle ->
-  m UserHandleInfo
+  m UserProfile
 getUserInfoFromHandle brig domain handle = do
   u <- randomId
   responseJsonError
     =<< get
       ( brig
-          . paths ["users", "handles", toByteString' (domainText domain), toByteString' handle]
+          . paths ["users", "by-handle", toByteString' (domainText domain), toByteString' handle]
           . zUser u
           . expect2xx
       )

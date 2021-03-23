@@ -321,6 +321,7 @@ data HiddenPerm
   | ChangeTeamSearchVisibility
   | ViewTeamSearchVisibility
   | ViewSameTeamEmails
+  | ReadIdp
   | CreateUpdateDeleteIdp
   | CreateReadDeleteScimToken
   | -- | this has its own permission because we're not sure how
@@ -351,6 +352,7 @@ roleHiddenPermissions role = HiddenPermissions p p
             ChangeLegalHoldUserSettings,
             ChangeTeamSearchVisibility,
             ChangeTeamFeature TeamFeatureAppLock {- the other features can only be changed in stern -},
+            ReadIdp,
             CreateUpdateDeleteIdp,
             CreateReadDeleteScimToken,
             DownloadTeamMembersCsv

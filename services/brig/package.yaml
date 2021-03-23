@@ -19,8 +19,8 @@ library:
   - amazonka-ses >=1.3.7
   - amazonka-sns >=1.3.7
   - amazonka-sqs >=1.3.7
-  - attoparsec >=0.12
   - async >=2.1
+  - attoparsec >=0.12
   - auto-update >=0.1
   - base ==4.*
   - base-prelude
@@ -32,11 +32,11 @@ library:
   - bytestring >=0.10
   - bytestring-conversion >=0.2
   - cassandra-util >=0.16.2
-  - currency-codes >=2.0
   - conduit >=1.2.8
   - containers >=0.5
   - cookie >=0.4
   - cryptobox-haskell >=0.1.1
+  - currency-codes >=2.0
   - data-default >=0.5
   - data-timeout >=0.3
   - directory >=1.2
@@ -45,38 +45,40 @@ library:
   - either >=4.3
   - enclosed-exceptions >=1.0
   - errors >=1.4
-  - extra >=1.3
   - exceptions >=0.5
   - extended
-  - geoip2 >=0.3.1.0
-  - galley-types >=0.75.3
-  - gundeck-types >=1.32.1
-  - imports
+  - extra >=1.3
   - filepath >=1.3
   - fsnotify >=0.2
-  - iso639 >=0.1
+  - galley-types >=0.75.3
+  - geoip2 >=0.3.1.0
+  - gundeck-types >=1.32.1
   - hashable >=1.2
-  - html-entities >=1.1
-  - http-client >=0.5
-  - http-types >=0.8
-  - http-client-openssl >=0.2
   - HaskellNet >=0.3
   - HaskellNet-SSL >=0.3
   - HsOpenSSL >=0.10
   - HsOpenSSL-x509-system >=0.1
+  - html-entities >=1.1
+  - http-client >=0.5
+  - http-client-openssl >=0.2
+  - http-types >=0.8
+  - imports
   - insert-ordered-containers
   - iproute >=1.5
+  - iso639 >=0.1
   - lens >=3.8
   - lens-aeson >=1.0
   - lifted-base >=0.2
-  - mime
-  - mime-mail >=0.4
   - metrics-core >=0.3
   - metrics-wai >=0.3
+  - mime
+  - mime-mail >=0.4
   - monad-control >=1.0
   - MonadRandom >=0.5
-  - multihash >=0.1.3
   - mtl >=2.1
+  - mu-grpc-client
+  - mu-rpc
+  - multihash >=0.1.3
   - mwc-random
   - network >=2.4
   - network-conduit-tls
@@ -85,32 +87,32 @@ library:
   - pem >=0.2
   - polysemy
   - polysemy-wire-zoo
-  - proto-lens >=0.1
   - prometheus-client
-  - resourcet >=1.1
+  - proto-lens >=0.1
+  - random-shuffle >=0.0.3
   - resource-pool >=0.2
+  - resourcet >=1.1
+  - retry >=0.7
   - ropes >=0.4.20
   - safe >=0.3
-  - scientific >=0.3.4
-  - scrypt >=0.5
-  - smtp-mail >=0.1
-  - mu-grpc-client
-  - mu-rpc
-  - split >=0.2
   - safe-exceptions >=0.1
   - saml2-web-sso
+  - scientific >=0.3.4
+  - scrypt >=0.5
   - semigroups >=0.15
   - servant
   - servant-server
   - servant-swagger
   - servant-swagger-ui
   - singletons >=2.0
+  - smtp-mail >=0.1
+  - sodium-crypto-sign >=0.1
+  - sop-core
+  - split >=0.2
+  - ssl-util
+  - statistics >=0.13
   - stomp-queue >=0.3
   - string-conversions
-  - ssl-util
-  - random-shuffle >=0.0.3
-  - sodium-crypto-sign >=0.1
-  - statistics >=0.13
   - swagger >=0.1
   - swagger2
   - tagged >=0.7
@@ -124,7 +126,6 @@ library:
   - transformers-base >=0.4
   - types-common >=0.16
   - types-common-journal >=0.1
-  - retry >=0.7
   - unliftio >=0.2
   - unliftio-core >=0.1
   - unordered-containers >=0.2

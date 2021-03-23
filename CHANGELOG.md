@@ -13,6 +13,38 @@
 ## Internal changes
 
 -->
+# [2020-03-23]
+
+## Release Notes
+
+Note that you should never skip a release when upgrading Wire. If you are upgrading to this release, make sure you have deployed the previous releases in order beforehand.
+
+## Features
+
+* [federation] Handle errors which could happen while talking to remote federator (#1408)
+* [federation] Forward grpc traffic to federator via ingress (or nginz for local integration tests) (#1386)
+* [federation] Return UserProfile when getting user by qualified handle (#1397)
+
+## Bug fixes and other updates
+
+* [SCIM] Fix: Invalid requests raise 5xxs (#1392)
+* [SAML] Fix: permissions for IdP CRUD operations. (#1405)
+
+## Documentation
+
+*  Tweak docs about team search visibility configuration. (#1407)
+*  Move docs around. (#1399)
+*  Describe how to look at swagger locally (#1388)
+
+## Internal changes
+
+* Optimize /users/list-clients to only fetch required things from DB (#1398)
+* [SCIM] Remove usage of spar.scim_external_ids table (#1418)
+* Add-license. (#1394)
+* Bump nixpkgs for hls-1.0 (#1412)
+* stack-deps.nix: Use nixpkgs from niv (#1406)
+
+
 # [2020-03-21]
 
 ## Release Notes

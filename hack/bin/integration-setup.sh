@@ -14,7 +14,7 @@ kubectl create namespace "${NAMESPACE}" > /dev/null 2>&1 || true
 
 ${DIR}/integration-cleanup.sh
 
-charts=( fake-aws databases-ephemeral wire-server )
+charts=( fake-aws databases-ephemeral wire-server nginx-ingress-controller nginx-ingress-services )
 
 echo "updating recursive dependencies ..."
 for chart in "${charts[@]}"; do
@@ -36,21 +36,30 @@ function printLogs() {
 
 trap printLogs ERR
 
-FEDERATION_DOMAIN="federator.$NAMESPACE.svc.cluster.local"
+FEDERATION_DOMAIN="federation-test-helper.$NAMESPACE.svc.cluster.local"
 
 for chart in "${charts[@]}"; do
     kubectl -n ${NAMESPACE} get pods
     valuesfile="${DIR}/../helm_vars/${chart}/values.yaml"
+
+    declare -a options=()
+
     if [ -f "$valuesfile" ]; then
-        option="-f $valuesfile"
-    else
-        option=""
+        options+=(-f "$valuesfile")
     fi
+
+    if [[ "$chart" == "nginx-ingress-services" ]]; then
+        # Federation domain is also the SRV record created by the
+        # federation-test-helper service. Maybe we can find a way to make these
+        # differ, so we don't make any silly assumptions in the code.
+        options+=("--set" "config.dns.federator=$FEDERATION_DOMAIN")
+    fi
+
     # default is 5m but may not be enough on a fresh install including cassandra migrations
     TIMEOUT=10m
     set -x
     helm upgrade --install --namespace "${NAMESPACE}" "${NAMESPACE}-${chart}" "${CHARTS_DIR}/${chart}" \
-        $option \
+        ${options[*]} \
         --set brig.config.optSettings.setFederationDomain="$FEDERATION_DOMAIN" \
         --set galley.config.settings.federationDomain="$FEDERATION_DOMAIN" \
         --wait \

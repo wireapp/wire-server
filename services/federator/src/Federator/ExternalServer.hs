@@ -44,14 +44,14 @@ import Wire.API.Federation.GRPC.Types
 -- reached, some discussion here:
 -- https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/224166764/Limiting+access+to+federation+endpoints
 -- Also, see comment in 'Federator.Brig.interpretBrig'
-callLocal :: (Members '[Brig, Embed IO] r) => Request -> Sem r Response
+callLocal :: (Members '[Brig, Embed IO] r) => Request -> Sem r InwardResponse
 callLocal Request {..} = do
   -- FUTUREWORK(federation): before making a request, check the sender domain and only make the call if the allowlist (use Util.federateWith) allows it.
   (resStatus, resBody) <- brigCall (unwrapMethod method) path query body
   -- FUTUREWORK(federation): Decide what to do with 5xx statuses
   let statusW32 = fromIntegral $ HTTP.statusCode resStatus
       bodyBS = maybe mempty LBS.toStrict resBody
-  pure $ ResponseHTTPResponse $ HTTPResponse statusW32 bodyBS
+  pure $ InwardResponseHTTPResponse $ HTTPResponse statusW32 bodyBS
 
 routeToInternal :: (Members '[Brig, Embed IO, Polysemy.Error ServerError] r) => SingleServerT info Inward (Sem r) _
 routeToInternal = singleService (Mu.method @"call" callLocal)

@@ -23,6 +23,7 @@ dependencies:
 - exceptions >=0.6
 - http-types
 - http2-client
+- http2-client-grpc
 - imports
 - mtl
 - mu-grpc-client

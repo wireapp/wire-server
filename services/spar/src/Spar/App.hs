@@ -26,7 +26,8 @@ module Spar.App
     wrapMonadClientWithEnv,
     wrapMonadClient,
     verdictHandler,
-    getUser,
+    getUserByUref,
+    getUserByScimExternalId,
     insertUser,
     autoprovisionSamlUser,
     autoprovisionSamlUserWithId,
@@ -84,12 +85,13 @@ import Spar.Error
 import qualified Spar.Intra.Brig as Intra
 import qualified Spar.Intra.Galley as Intra
 import Spar.Orphans ()
-import Spar.Scim.Types (ValidExternalId (..), runValidExternalId)
+import Spar.Scim.Types (ValidExternalId (..))
 import Spar.Types
 import qualified System.Logger as Log
 import System.Logger.Class (MonadLogger (log))
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
+import Wire.API.User.Identity (Email (..))
 
 newtype Spar a = Spar {fromSpar :: ReaderT Env (ExceptT SparError IO) a}
   deriving (Functor, Applicative, Monad, MonadIO, MonadReader Env, MonadError SparError)
@@ -188,11 +190,21 @@ insertUser uref uid = wrapMonadClient $ Data.insertSAMLUser uref uid
 -- password handshake have not been completed; it's still ok for the user to gain access to
 -- the team with valid SAML credentials.
 --
--- ASSUMPTIONS: User creation on brig/galley is idempotent.  Any incomplete creation (because of
--- brig or galley crashing) will cause the lookup here to yield 'Nothing'.
-getUser :: ValidExternalId -> Spar (Maybe UserId)
-getUser veid = do
-  muid <- wrapMonadClient $ runValidExternalId Data.getSAMLUser Data.lookupScimExternalId veid
+-- FUTUREWORK: Remove and reinstatate getUser, in AuthID refactoring PR.  (in https://github.com/wireapp/wire-server/pull/1410, undo https://github.com/wireapp/wire-server/pull/1418)
+getUserByUref :: SAML.UserRef -> Spar (Maybe UserId)
+getUserByUref uref = do
+  muid <- wrapMonadClient $ Data.getSAMLUser uref
+  case muid of
+    Nothing -> pure Nothing
+    Just uid -> do
+      let withpending = Intra.WithPendingInvitations -- see haddocks above
+      itis <- isJust <$> Intra.getBrigUserTeam withpending uid
+      pure $ if itis then Just uid else Nothing
+
+-- FUTUREWORK: Remove and reinstatate getUser, in AuthID refactoring PR
+getUserByScimExternalId :: TeamId -> Email -> Spar (Maybe UserId)
+getUserByScimExternalId tid email = do
+  muid <- wrapMonadClient $ (Data.lookupScimExternalId tid email)
   case muid of
     Nothing -> pure Nothing
     Just uid -> do
@@ -376,7 +388,7 @@ findUserWithOldIssuer (SAML.UserRef issuer subject) = do
   idp <- getIdPConfigByIssuer issuer
   let tryFind :: Maybe (SAML.UserRef, UserId) -> Issuer -> Spar (Maybe (SAML.UserRef, UserId))
       tryFind found@(Just _) _ = pure found
-      tryFind Nothing oldIssuer = (uref,) <$$> getUser (UrefOnly uref)
+      tryFind Nothing oldIssuer = (uref,) <$$> getUserByUref uref
         where
           uref = SAML.UserRef oldIssuer subject
   foldM tryFind Nothing (idp ^. idpExtraInfo . wiOldIssuers)
@@ -396,7 +408,7 @@ verdictHandlerResultCore bindCky = \case
   SAML.AccessGranted userref -> do
     uid :: UserId <- do
       viaBindCookie <- maybe (pure Nothing) (wrapMonadClient . Data.lookupBindCookie) bindCky
-      viaSparCassandra <- getUser (UrefOnly userref)
+      viaSparCassandra <- getUserByUref userref
       -- race conditions: if the user has been created on spar, but not on brig, 'getUser'
       -- returns 'Nothing'.  this is ok assuming 'createUser', 'bindUser' (called below) are
       -- idempotent.

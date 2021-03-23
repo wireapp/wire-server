@@ -39,7 +39,8 @@ import Test.Federator.Util
 import Test.Hspec
 import Test.Tasty.HUnit (assertFailure)
 import Util.Options (Endpoint (Endpoint))
-import Wire.API.Federation.GRPC.Types (Component (..), HTTPMethod (..), HTTPResponse (..), Inward, QueryParam (..), Request (Request), Response (..))
+import Wire.API.Federation.GRPC.Client
+import Wire.API.Federation.GRPC.Types (Component (..), HTTPMethod (..), HTTPResponse (..), Inward, InwardResponse (..), QueryParam (..), Request (Request))
 import Wire.API.User
 import Wire.API.User.Auth
 import Wire.API.User.Handle (UserHandleInfo (UserHandleInfo))
@@ -73,15 +74,18 @@ spec env =
         _ <- putHandle brig (userId user) hdl
 
         Endpoint fedHost fedPort <- federatorExternal . view teOpts <$> ask
-        Right c <- setupGrpcClient' (grpcClientConfigSimple (Text.unpack fedHost) (fromIntegral fedPort) False)
+        client <- createGrpcClient (grpcClientConfigSimple (Text.unpack fedHost) (fromIntegral fedPort) False)
+        c <- case client of
+          Left (err) -> liftIO $ assertFailure (show err)
+          Right cli -> pure cli
         let brigCall = Request Brig (HTTPMethod HTTP.GET) "users/by-handle" [QueryParam "handle" (Text.encodeUtf8 hdl)] mempty
         res <- liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" c brigCall
 
         liftIO $ case res of
-          GRpcOk (ResponseHTTPResponse (HTTPResponse sts bdy)) -> do
+          GRpcOk (InwardResponseHTTPResponse (HTTPResponse sts bdy)) -> do
             sts `shouldBe` 200
             eitherDecodeStrict bdy `shouldBe` Right (UserHandleInfo (userQualifiedId user))
-          GRpcOk (ResponseErr err) -> assertFailure $ "Unexpected error response: " <> show err
+          GRpcOk (InwardResponseErr err) -> assertFailure $ "Unexpected error response: " <> show err
           x -> assertFailure $ "GRpc call failed unexpectedly: " <> show x
 
 -- All the code below is copied from brig-integrration tests

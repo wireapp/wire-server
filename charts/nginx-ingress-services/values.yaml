@@ -6,7 +6,9 @@ teamSettings:
 # Account pages may be useful to enable password reset or email validation done after the initial registration
 accountPages:
   enabled: false
-
+federator:
+  enabled: false
+  integrationTestHelper: false
 # If you want to use TLS termination on the ingress,
 # then set this variable to true and ensure that there
 # is a valid wildcard TLS certificate
@@ -59,6 +61,8 @@ service:
 #     ssl: nginz-ssl.<domain>
 #     webapp: webapp.<domain>
 #     fakeS3: assets.<domain>
+#     federator: federator.<domain>
+#     ^ federator is ignored unless federator.enabled == true
 #     teamSettings: teams.<domain>
 #     ^ teamSettings is ignored unless teamSettings.enabled == true
 #     accountPages: account.<domain>

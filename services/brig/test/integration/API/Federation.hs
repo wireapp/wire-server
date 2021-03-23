@@ -23,6 +23,7 @@ import Brig.Types
 import Data.ByteString.Conversion (toByteString')
 import Imports
 import Test.Tasty
+import Test.Tasty.HUnit (assertEqual)
 import Util
 
 tests :: Manager -> Brig -> IO TestTree
@@ -41,9 +42,17 @@ testGetUserByHandleSuccess brig = do
   hdl <- randomHandle
   putHandle brig uid hdl
     !!! const 200 === statusCode
-  get (brig . paths ["federation", "users", "by-handle"] . queryItem "handle" (toByteString' hdl)) !!! do
-    const 200 === statusCode
-    const (Just (UserHandleInfo quid)) === (responseJsonMaybe)
+  profile <-
+    responseJsonError
+      =<< get
+        ( brig
+            . paths ["federation", "users", "by-handle"]
+            . queryItem "handle" (toByteString' hdl)
+            . expect2xx
+        )
+  liftIO $ do
+    assertEqual "should return correct user Id" quid (profileQualifiedId profile)
+    assertEqual "should not have email address" Nothing (profileEmail profile)
 
 testGetUserByHandleNotFound :: Brig -> Http ()
 testGetUserByHandleNotFound brig = do

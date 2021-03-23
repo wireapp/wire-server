@@ -71,21 +71,26 @@ import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
 import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
 import Data.Range
-import qualified Data.Set as Set
 import Data.Swagger
   ( ApiKeyLocation (..),
     ApiKeyParams (..),
     HasInfo (info),
+    HasProperties (properties),
+    HasRequired (required),
     HasSchema (..),
     HasSecurity (security),
     HasSecurityDefinitions (securityDefinitions),
     HasTitle (title),
+    NamedSchema (..),
     SecurityRequirement (..),
     SecurityScheme (..),
     SecuritySchemeType (SecuritySchemeApiKey),
     Swagger,
+    SwaggerType (SwaggerObject),
     ToSchema (..),
+    declareSchemaRef,
     description,
+    type_,
   )
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
@@ -93,6 +98,8 @@ import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (decodeLatin1)
 import Data.Text.Lazy (pack)
 import qualified Data.ZAuth.Token as ZAuth
+import GHC.TypeLits (KnownNat, KnownSymbol, Nat, Symbol, symbolVal)
+import GHC.TypeNats (natVal)
 import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai (Response, lazyRequestBody)
@@ -187,6 +194,34 @@ instance ToSchema Empty404 where
 
 type CheckUserExistsResponse = [Empty200, Empty404]
 
+data RestError (status :: Nat) (label :: Symbol) (message :: Symbol) = RestError
+  deriving (Generic)
+  deriving (HasStatus) via (WithStatus status (RestError status "" ""))
+
+instance (KnownNat status, KnownSymbol label, KnownSymbol message) => ToJSON (RestError status label message) where
+  toJSON _ =
+    object
+      [ "code" .= natVal (Proxy @status),
+        "label" .= symbolVal (Proxy @label),
+        "message" .= symbolVal (Proxy @message)
+      ]
+
+instance ToSchema (RestError status label message) where
+  declareNamedSchema _ = do
+    natSchema <- declareSchemaRef (Proxy @Integer)
+    textSchema <- declareSchemaRef (Proxy @Text)
+    pure $
+      NamedSchema (Just "Error") $
+        mempty
+          & type_ ?~ SwaggerObject
+          & properties
+            .~ InsOrdHashMap.fromList
+              [ ("code", natSchema),
+                ("label", textSchema),
+                ("message", textSchema)
+              ]
+          & required .~ ["code", "label", "message"]
+
 -- Note [document responses]
 --
 -- Ideally we want to document responses with UVerb and swagger, but this is
@@ -271,14 +306,14 @@ type GetHandleInfoUnqualified =
 --   Doc.returns (Doc.ref Public.modelUserHandleInfo)
 --   Doc.response 200 "Handle info" Doc.end
 --   Doc.errorResponse handleNotFound
-type GetHandleInfoQualified =
+type GetUserByHandleQualfied =
   Summary "Get information on a user handle"
     :> ZAuthServant
     :> "users"
-    :> "handles"
+    :> "by-handle"
     :> Capture "domain" Domain
     :> Capture' '[Description "The user handle"] "handle" Handle
-    :> Get '[Servant.JSON] Public.UserHandleInfo
+    :> Get '[Servant.JSON] Public.UserProfile
 
 -- See Note [ephemeral user sideeffect]
 type ListUsersByUnqualifiedIdsOrHandles =
@@ -368,7 +403,7 @@ type OutsideWorldAPI =
     :<|> GetUserQualified
     :<|> GetSelf
     :<|> GetHandleInfoUnqualified
-    :<|> GetHandleInfoQualified
+    :<|> GetUserByHandleQualfied
     :<|> ListUsersByUnqualifiedIdsOrHandles
     :<|> ListUsersByIdsOrHandles
     :<|> ListClientsBulk
@@ -402,7 +437,7 @@ servantSitemap =
     :<|> getUserH
     :<|> getSelf
     :<|> getHandleInfoUnqualifiedH
-    :<|> getHandleInfoH
+    :<|> getUserByHandleH
     :<|> listUsersByUnqualifiedIdsOrHandles
     :<|> listUsersByIdsOrHandles
     :<|> listClientsBulk
@@ -1151,7 +1186,7 @@ getClientH (zusr ::: clt ::: _) =
 
 listClientsBulk :: UserId -> Range 1 MaxUsersForListClientsBulk [Qualified UserId] -> Handler (Public.QualifiedUserMap (Set Public.PubClient))
 listClientsBulk _zusr limitedUids = do
-  Set.map API.pubClient <$$> API.lookupClientsBulk (fromRange limitedUids) !>> clientError
+  API.lookupPubClientsBulk (fromRange limitedUids) !>> clientError
 
 getClient :: UserId -> ClientId -> Handler (Maybe Public.Client)
 getClient zusr clientId = do
@@ -1418,18 +1453,23 @@ checkHandlesH (_ ::: _ ::: req) = do
   free <- lift $ API.checkHandles handles (fromRange num)
   return $ json (free :: [Handle])
 
+-- | This endpoint returns UserHandleInfo instead of UserProfile for backwards compatibility.
 getHandleInfoUnqualifiedH :: UserId -> Handle -> Handler Public.UserHandleInfo
 getHandleInfoUnqualifiedH self handle = do
   domain <- viewFederationDomain
-  getHandleInfoH self domain handle
+  Public.UserHandleInfo . Public.profileQualifiedId <$> getUserByHandleH self domain handle
 
-getHandleInfoH :: UserId -> Domain -> Handle -> Handler Public.UserHandleInfo
-getHandleInfoH self domain handle =
-  ifNothing (notFound "handle not found")
-    =<< getHandleInfo self (Qualified handle domain)
+-- | This endpoint returns UserProfile instead of UserHandleInfo to reduce
+-- traffic between backends in a federated scenario.
+getUserByHandleH :: UserId -> Domain -> Handle -> Handler Public.UserProfile
+getUserByHandleH self domain handle = do
+  maybeProfile <- getHandleInfo self (Qualified handle domain)
+  case maybeProfile of
+    Nothing -> throwStd handleNotFound
+    Just u -> pure u
 
 -- FUTUREWORK: use 'runMaybeT' to simplify this.
-getHandleInfo :: UserId -> Qualified Handle -> Handler (Maybe Public.UserHandleInfo)
+getHandleInfo :: UserId -> Qualified Handle -> Handler (Maybe Public.UserProfile)
 getHandleInfo self handle = do
   domain <- viewFederationDomain
   if qDomain handle == domain
@@ -1444,9 +1484,9 @@ getHandleInfo self handle = do
         Just ownerId -> do
           ownerProfile <- lift $ API.lookupProfile self (Qualified ownerId domain)
           owner <- filterHandleResults self (maybeToList ownerProfile)
-          return $ Public.UserHandleInfo . Public.profileQualifiedId <$> listToMaybe owner
+          return $ listToMaybe owner
     getRemoteHandleInfo = do
-      Log.info $ (Log.msg $ Log.val "getHandleInfo - remote lookup") Log.~~ Log.field "domain" (show (qDomain handle))
+      Log.info $ Log.msg (Log.val "getHandleInfo - remote lookup") Log.~~ Log.field "domain" (show (qDomain handle))
       Federation.getUserHandleInfo handle
 
 changeHandleH :: UserId ::: ConnId ::: JsonRequest Public.HandleUpdate -> Handler Response
