@@ -1,3 +1,5 @@
+.. _how-to-configure-federation:
+
 How to configure federation
 ===========================
 
