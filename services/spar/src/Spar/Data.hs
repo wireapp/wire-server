@@ -784,42 +784,22 @@ deleteScimUserTimes uid = retry x5 . write del $ params Quorum (Identity uid)
 -- as a 'Text'.)
 insertScimExternalId :: (HasCallStack, MonadClient m) => ExternalId -> UserId -> m ()
 insertScimExternalId (ExternalId tid extId) uid =
-  retry
-    x5
-    ( batch $ do
-        setType BatchLogged
-        setConsistency Quorum
-        addPrepQuery ins (extId, uid)
-        addPrepQuery insFuture (tid, extId, uid)
-    )
+  retry x5 . write insert $ params Quorum (tid, extId, uid)
   where
-    ins :: PrepQuery W (Text, UserId) ()
-    ins = "INSERT INTO scim_external_ids (external, user) VALUES (?, ?)"
-
-    insFuture :: PrepQuery W (TeamId, Text, UserId) ()
-    insFuture = "INSERT INTO scim_external (team, external_id, user) VALUES (?, ?, ?)"
+    insert :: PrepQuery W (TeamId, Text, UserId) ()
+    insert = "INSERT INTO scim_external (team, external_id, user) VALUES (?, ?, ?)"
 
 -- | The inverse of 'insertScimExternalId'.
 lookupScimExternalId :: (HasCallStack, MonadClient m) => ExternalId -> m (Maybe UserId)
-lookupScimExternalId (ExternalId _tid extid) = runIdentity <$$> (retry x1 . query1 sel $ params Quorum (Identity extid))
+lookupScimExternalId (ExternalId tid extid) = runIdentity <$$> (retry x1 . query1 sel $ params Quorum (tid, extid))
   where
-    sel :: PrepQuery R (Identity Text) (Identity UserId)
-    sel = "SELECT user FROM scim_external_ids WHERE external = ?"
+    sel :: PrepQuery R (TeamId, Text) (Identity UserId)
+    sel = "SELECT user FROM scim_external WHERE team = ? and external_id = ?"
 
 -- | The other inverse of 'insertScimExternalId' :).
 deleteScimExternalId :: (HasCallStack, MonadClient m) => ExternalId -> m ()
 deleteScimExternalId (ExternalId team extId) =
-  retry
-    x5
-    ( batch $ do
-        setType BatchLogged
-        setConsistency Quorum
-        addPrepQuery del (Identity extId)
-        addPrepQuery delFuture (team, extId)
-    )
+  retry x5 . write delete $ params Quorum (team, extId)
   where
-    del :: PrepQuery W (Identity Text) ()
-    del = "DELETE FROM scim_external_ids WHERE external = ?"
-
-    delFuture :: PrepQuery W (TeamId, Text) ()
-    delFuture = "DELETE FROM scim_external WHERE team = ? and external_id = ?"
+    delete :: PrepQuery W (TeamId, Text) ()
+    delete = "DELETE FROM scim_external WHERE team = ? and external_id = ?"
