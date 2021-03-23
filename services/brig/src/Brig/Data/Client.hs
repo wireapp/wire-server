@@ -187,6 +187,7 @@ updatePrekeys u c pks = do
       case i of
         Success n -> return (CryptoBox.prekeyId n == keyId (prekeyId a))
         _ -> return False
+
 claimPrekey :: UserId -> ClientId -> AppIO (Maybe ClientPrekey)
 claimPrekey u c =
   ifM
@@ -224,6 +225,7 @@ claimPrekey u c =
       let pks' = filter (\k -> fst k /= lastPrekeyId) pks
       ind <- liftIO $ randomRIO (0, length pks' - 1)
       return $ atMay pks' ind
+
 -------------------------------------------------------------------------------
 -- Queries
 
@@ -381,6 +383,5 @@ withOptLock u c ma = go (10 :: Int)
 
 withLocalLock :: AppIO (MVar ()) -> AppIO a -> AppIO a
 withLocalLock l ma = do
-    lck <- l
-    (takeMVar lck *> ma) `finally` putMVar lck ()
-
+  lck <- l
+  (takeMVar lck *> ma) `finally` putMVar lck ()
