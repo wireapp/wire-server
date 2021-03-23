@@ -39,7 +39,7 @@ where
 
 import Bilge.Retry (httpHandlers)
 import Brig.AWS
-import Brig.App (AppIO, awsEnv, currentTime, metrics, randomPrekeys, randomPrekeyLocalLock)
+import Brig.App (AppIO, awsEnv, currentTime, metrics, randomPrekeyLocalLock, randomPrekeys)
 import Brig.Data.Instances ()
 import Brig.Data.User (AuthError (..), ReAuthError (..))
 import qualified Brig.Data.User as User
@@ -187,42 +187,43 @@ updatePrekeys u c pks = do
       case i of
         Success n -> return (CryptoBox.prekeyId n == keyId (prekeyId a))
         _ -> return False
-
 claimPrekey :: UserId -> ClientId -> AppIO (Maybe ClientPrekey)
-claimPrekey u c = ifM (view randomPrekeys) 
+claimPrekey u c =
+  ifM
+    (view randomPrekeys)
     -- Use random prekey selection strategy
-    (withLocalLock (view randomPrekeyLocalLock) $ do
-      prekeys <- retry x1 $ query userPrekeys (params Quorum (u, c))
-      prekey <- pickRandomPrekey prekeys
-      removeAndReturnPreKey prekey)
+    ( withLocalLock (view randomPrekeyLocalLock) $ do
+        prekeys <- retry x1 $ query userPrekeys (params Quorum (u, c))
+        prekey <- pickRandomPrekey prekeys
+        removeAndReturnPreKey prekey
+    )
     -- Use DynamoDB based optimistic locking strategy
-    (withOptLock u c $ do
-      prekey <- retry x1 $ query1 userPrekey (params Quorum (u, c))
-      removeAndReturnPreKey prekey)
-
+    ( withOptLock u c $ do
+        prekey <- retry x1 $ query1 userPrekey (params Quorum (u, c))
+        removeAndReturnPreKey prekey
+    )
   where
     removeAndReturnPreKey :: Maybe (PrekeyId, Text) -> AppIO (Maybe ClientPrekey)
     removeAndReturnPreKey (Just (i, k)) = do
-          if i /= lastPrekeyId
-            then retry x1 $ write removePrekey (params Quorum (u, c, i))
-            else
-              Log.debug $
-                field "user" (toByteString u)
-                  . field "client" (toByteString c)
-                  . msg (val "last resort prekey used")
-          return $ Just (ClientPrekey c (Prekey i k))
+      if i /= lastPrekeyId
+        then retry x1 $ write removePrekey (params Quorum (u, c, i))
+        else
+          Log.debug $
+            field "user" (toByteString u)
+              . field "client" (toByteString c)
+              . msg (val "last resort prekey used")
+      return $ Just (ClientPrekey c (Prekey i k))
     removeAndReturnPreKey Nothing = return Nothing
 
     pickRandomPrekey :: [(PrekeyId, Text)] -> AppIO (Maybe (PrekeyId, Text))
-    pickRandomPrekey [] = return Nothing 
+    pickRandomPrekey [] = return Nothing
     -- unless we only have one key left
     pickRandomPrekey [pk] = return $ Just pk
     -- pick among list of keys, except lastPrekeyId
     pickRandomPrekey pks = do
-      let pks' = filter (\k -> fst k /= lastPrekeyId ) pks 
+      let pks' = filter (\k -> fst k /= lastPrekeyId) pks
       ind <- liftIO $ randomRIO (0, length pks' - 1)
       return $ atMay pks' ind
-
 -------------------------------------------------------------------------------
 -- Queries
 

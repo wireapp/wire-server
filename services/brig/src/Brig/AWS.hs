@@ -116,7 +116,7 @@ mkEnv lgr opts emailOpts mgr = do
   let g = Logger.clone (Just "aws.brig") lgr
   let pk = Opt.prekeyTable opts
   let sesEndpoint = mkEndpoint SES.ses . Opt.sesEndpoint <$> emailOpts
-  let dynamoEndpoint = mkEndpoint DDB.dynamoDB  <$> Opt.dynamoDBEndpoint opts
+  let dynamoEndpoint = mkEndpoint DDB.dynamoDB <$> Opt.dynamoDBEndpoint opts
   e <-
     mkAwsEnv
       g
