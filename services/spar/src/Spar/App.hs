@@ -190,7 +190,7 @@ insertUser uref uid = wrapMonadClient $ Data.insertSAMLUser uref uid
 -- password handshake have not been completed; it's still ok for the user to gain access to
 -- the team with valid SAML credentials.
 --
--- FUTUREWORK: Remove and reinstatate getUser, in AuthID refactoring PR
+-- FUTUREWORK: Remove and reinstatate getUser, in AuthID refactoring PR.  (in https://github.com/wireapp/wire-server/pull/1410, undo https://github.com/wireapp/wire-server/pull/1418)
 getUserByUref :: SAML.UserRef -> Spar (Maybe UserId)
 getUserByUref uref = do
   muid <- wrapMonadClient $ Data.getSAMLUser uref
