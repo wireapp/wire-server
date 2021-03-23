@@ -9,11 +9,4 @@ run:
   - -exc
   - |
     cd wire-docs
-    # hack: FUTUREWORK remove this section
-    rm -rf /mnt
-    ln -s $PWD /mnt
-    cd /mnt
-    source $HOME/.poetry/env
-    poetry install
-    # hack end
     make html

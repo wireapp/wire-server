@@ -1,21 +1,14 @@
-FROM alpine:3.13
+FROM nixos/nix AS builder
 
-# FUTUREWORK: make a docker image based on nix?
+RUN set -e -x ;\
+    apk add --no-cache bash git
 
-RUN echo "**** install Python, curl, make ****" && \
-    apk add --no-cache bash curl python3 make && \
-    if [ ! -e /usr/bin/python ]; then ln -sf python3 /usr/bin/python ; fi && \
-    \
-    echo "*** install poetry ***" && \
-    curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3
+COPY . /wire-docs
 
-RUN echo "*** install package dependencies for python libraries (needed for rst2pdf mostly) ***" && \
-    apk add --no-cache jpeg-dev alpine-sdk linux-headers zlib-dev python3-dev
+RUN nix-env -f /wire-docs/nix/default.nix -iA env && \
+    rm -rf /wire-docs
 
-COPY pyproject.toml /mnt/
-COPY poetry.lock /mnt/
+SHELL ["/bin/bash", "-c"]
+ENTRYPOINT "/bin/bash"
 
-RUN echo "*** poetry install python packages ***" && \
-    cd /mnt && source $HOME/.poetry/env && poetry install
-
-WORKDIR /mnt
+ENV USE_POETRY=0
