@@ -18,6 +18,12 @@ With SFT it is thus possible to have conference calls with many participants
 without compromising end-to-end security.
 
 
+Architecture
+------------
+
+.. figure:: img/architecture-sft.png
+
+
 Prerequisites
 -------------
 
