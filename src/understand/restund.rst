@@ -108,7 +108,7 @@ possibility to use TCP instead, at the expense of call quality. So in
 practise; it is recommended to allow the port range ``32768-61000`` on both
 UDP and TCP.
 
-If *Conference Calling 2.0* (:ref:`SFT <install-sft>`) is enabled, a Restund instance,
+If *Conference Calling 2.0* (:ref:`SFT <understand-sft>`) is enabled, a Restund instance,
 additionally, must be allowed to communicate with ::ref:`SFT instances <install-sft-firewall-rules>`
 on the same UDP ports mentioned above. In this scenario a Restund server becomes sort
 of a proxy for the client, if the client is not able to establish a direct connection
