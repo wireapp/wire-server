@@ -88,7 +88,9 @@ make html
 
 NOTE: support is experimental and resulting pdf may not have great formatting. See the [rst2pdf](https://rst2pdf.org/static/manual.pdf) manual to improve the configuration here so the resulting PDF becomes nicer.
 
-You need `rst2pdf`, then run `make pdf` and look at `./build/pdf/`
+Run `make pdf` and look at files in `./build/pdf/`.
+
+If you have nix & direnv, you can use the `make dev-pdf` target to get auto-refreshing PDF files as you save source files. (requires a PDF viewer installed globally)
 
 ## For maintainers (Wire employees)
 

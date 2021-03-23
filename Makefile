@@ -17,6 +17,12 @@ BUILDDIR      = $(MKFILE_DIR)/build
 # note: if you're using direnv/nix, this will be set to USE_POETRY=0 automatically in .envrc
 USE_POETRY    ?= 1
 
+ifeq ($(OS), darwin)
+OPEN := open
+else
+OPEN := xdg-open
+endif
+
 .PHONY: Makefile
 
 .DEFAULT: docs
@@ -78,6 +84,11 @@ else
 		$(SPHINXOPTS) \
 		"$(SOURCEDIR)" "$(BUILDDIR)"
 endif
+
+.PHONY: dev-pdf
+dev-pdf: pdf
+	$(OPEN) build/pdf/wire_federation.pdf 2>&1 > /dev/null &
+	find src/ | entr make pdf
 
 .PHONY: help
 help:
