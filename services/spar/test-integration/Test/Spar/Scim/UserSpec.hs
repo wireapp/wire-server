@@ -1655,7 +1655,7 @@ testDeletedUsersFreeExternalIdNoIdp = do
 
   void $
     aFewTimes
-      (runClient clientState $ lookupScimExternalId email)
+      (runClient clientState $ lookupScimExternalId tid email)
       (== Nothing)
 
 specSCIMManaged :: SpecWith TestEnv
