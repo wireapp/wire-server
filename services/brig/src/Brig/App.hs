@@ -55,7 +55,6 @@ module Brig.App
     sftEnv,
     internalEvents,
     emailSender,
-    randomPrekeys,
     randomPrekeyLocalLock,
 
     -- * App Monad
@@ -173,8 +172,7 @@ data Env = Env
     _digestSHA256 :: Digest,
     _digestMD5 :: Digest,
     _indexEnv :: IndexEnv,
-    _randomPrekeys :: Bool,
-    _randomPrekeyLocalLock :: MVar ()
+    _randomPrekeyLocalLock :: Maybe (MVar ())
   }
 
 makeLenses ''Env
@@ -216,7 +214,9 @@ newEnv o = do
     StompQueue q -> pure (StompQueue q)
     SqsQueue q -> SqsQueue <$> AWS.getQueueUrl (aws ^. AWS.amazonkaEnv) q
   mSFTEnv <- mapM Calling.mkSFTEnv $ Opt.sft o
-  prekeyLocalLock <- newMVar ()
+  prekeyLocalLock <- case Opt.randomPrekeys o of
+    Just True -> Just <$> newMVar ()
+    _ -> pure Nothing
   return
     $! Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
@@ -251,7 +251,6 @@ newEnv o = do
         _digestMD5 = md5,
         _digestSHA256 = sha256,
         _indexEnv = mkIndexEnv o lgr mgr mtr,
-        _randomPrekeys = fromMaybe False $ Opt.randomPrekeys o,
         _randomPrekeyLocalLock = prekeyLocalLock
       }
   where

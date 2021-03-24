@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -39,7 +41,7 @@ where
 
 import Bilge.Retry (httpHandlers)
 import Brig.AWS
-import Brig.App (AppIO, awsEnv, currentTime, metrics, randomPrekeyLocalLock, randomPrekeys)
+import Brig.App (AppIO, awsEnv, currentTime, metrics, randomPrekeyLocalLock)
 import Brig.Data.Instances ()
 import Brig.Data.User (AuthError (..), ReAuthError (..))
 import qualified Brig.Data.User as User
@@ -52,7 +54,6 @@ import Control.Error
 import qualified Control.Exception.Lens as EL
 import Control.Lens
 import Control.Monad.Catch
-import Control.Monad.Extra (ifM)
 import Control.Monad.Random (Random (randomRIO))
 import Control.Retry
 import qualified Data.ByteString.Base64 as B64
@@ -167,7 +168,7 @@ rmClient :: UserId -> ClientId -> AppIO ()
 rmClient u c = do
   retry x5 $ write removeClient (params Quorum (u, c))
   retry x5 $ write removeClientKeys (params Quorum (u, c))
-  unlessM (view randomPrekeys) $ deleteOptLock u c
+  unlessM (isJust <$> view randomPrekeyLocalLock) $ deleteOptLock u c
 
 updateClientLabel :: MonadClient m => UserId -> ClientId -> Maybe Text -> m ()
 updateClientLabel u c l = retry x5 $ write updateClientLabelQuery (params Quorum (l, u, c))
@@ -190,19 +191,16 @@ updatePrekeys u c pks = do
 
 claimPrekey :: UserId -> ClientId -> AppIO (Maybe ClientPrekey)
 claimPrekey u c =
-  ifM
-    (view randomPrekeys)
+  view randomPrekeyLocalLock >>= \case
     -- Use random prekey selection strategy
-    ( withLocalLock (view randomPrekeyLocalLock) $ do
-        prekeys <- retry x1 $ query userPrekeys (params Quorum (u, c))
-        prekey <- pickRandomPrekey prekeys
-        removeAndReturnPreKey prekey
-    )
+    Just localLock -> withLocalLock localLock $ do
+      prekeys <- retry x1 $ query userPrekeys (params Quorum (u, c))
+      prekey <- pickRandomPrekey prekeys
+      removeAndReturnPreKey prekey
     -- Use DynamoDB based optimistic locking strategy
-    ( withOptLock u c $ do
-        prekey <- retry x1 $ query1 userPrekey (params Quorum (u, c))
-        removeAndReturnPreKey prekey
-    )
+    Nothing -> withOptLock u c $ do
+      prekey <- retry x1 $ query1 userPrekey (params Quorum (u, c))
+      removeAndReturnPreKey prekey
   where
     removeAndReturnPreKey :: Maybe (PrekeyId, Text) -> AppIO (Maybe ClientPrekey)
     removeAndReturnPreKey (Just (i, k)) = do
@@ -381,7 +379,6 @@ withOptLock u c ma = go (10 :: Int)
               return Nothing
             handleErr _ = return Nothing
 
-withLocalLock :: AppIO (MVar ()) -> AppIO a -> AppIO a
+withLocalLock :: MVar () -> AppIO a -> AppIO a
 withLocalLock l ma = do
-  lck <- l
-  (takeMVar lck *> ma) `finally` putMVar lck ()
+  (takeMVar l *> ma) `finally` putMVar l ()
