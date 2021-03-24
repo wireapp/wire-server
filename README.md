@@ -17,6 +17,39 @@ for writing re-structured text (`*.rst`).
 [here is another one](http://docutils.sourceforge.net/docs/user/rst/cheatsheet.html).
 And [another one](https://sublime-and-sphinx-guide.readthedocs.io/en/latest/references.html).
 
+### Conventions
+
+The re-structured spec text allows for choosing any underline/overline symbol
+for any level. In this repository we have not been very consistent. For any new
+contribution let's stick to this convention:
+
+```rst
+######
+Part 1
+######
+
+*********
+Chapter 1
+*********
+
+Section 1
+=========
+
+Sub-section 1
+-------------
+
+Sub-sub-section 1
+^^^^^^^^^^^^^^^^^
+
+Paragraph 1
+~~~~~~~~~~~
+
+Sub-paragraph 1
++++++++++++++++
+```
+
+If another level is needed, please add the chosen symbol here.
+
 ## Generate output using docker
 
 You need `docker` available on your system.
