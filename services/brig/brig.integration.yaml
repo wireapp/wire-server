@@ -34,7 +34,10 @@ aws:
   # ^ Comment this out if you don't want to journal user events
   prekeyTable: integration-brig-prekeys
   sqsEndpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
-  dynamoDBEndpoint: http://localhost:4567 # https://dynamodb.eu-west-1.amazonaws.com
+  # dynamoDBEndpoint: http://localhost:4567 # https://dynamodb.eu-west-1.amazonaws.com
+
+# Uncomment to use the randomPrekey allocation strategy instead of dynamoDB
+randomPrekeys: true
 
 # Uncomment this if you want STOMP.
 #

@@ -55,6 +55,7 @@ module Brig.App
     sftEnv,
     internalEvents,
     emailSender,
+    randomPrekeyLocalLock,
 
     -- * App Monad
     AppT,
@@ -170,7 +171,8 @@ data Env = Env
     _zauthEnv :: ZAuth.Env,
     _digestSHA256 :: Digest,
     _digestMD5 :: Digest,
-    _indexEnv :: IndexEnv
+    _indexEnv :: IndexEnv,
+    _randomPrekeyLocalLock :: Maybe (MVar ())
   }
 
 makeLenses ''Env
@@ -212,6 +214,9 @@ newEnv o = do
     StompQueue q -> pure (StompQueue q)
     SqsQueue q -> SqsQueue <$> AWS.getQueueUrl (aws ^. AWS.amazonkaEnv) q
   mSFTEnv <- mapM Calling.mkSFTEnv $ Opt.sft o
+  prekeyLocalLock <- case Opt.randomPrekeys o of
+    Just True -> Just <$> newMVar ()
+    _ -> pure Nothing
   return
     $! Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
@@ -245,7 +250,8 @@ newEnv o = do
         _zauthEnv = zau,
         _digestMD5 = md5,
         _digestSHA256 = sha256,
-        _indexEnv = mkIndexEnv o lgr mgr mtr
+        _indexEnv = mkIndexEnv o lgr mgr mtr,
+        _randomPrekeyLocalLock = prekeyLocalLock
       }
   where
     emailConn _ (Opt.EmailAWS aws) = return (Just aws, Nothing)

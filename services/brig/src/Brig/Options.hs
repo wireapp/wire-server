@@ -85,7 +85,7 @@ data AWSOpts = AWSOpts
     -- | AWS SQS endpoint
     sqsEndpoint :: !AWSEndpoint,
     -- | DynamoDB endpoint
-    dynamoDBEndpoint :: !AWSEndpoint
+    dynamoDBEndpoint :: !(Maybe AWSEndpoint)
   }
   deriving (Show, Generic)
 
@@ -353,6 +353,8 @@ data Opts = Opts
     elasticsearch :: !ElasticSearchOpts,
     -- | AWS settings
     aws :: !AWSOpts,
+    -- | Enable Random Prekey Strategy
+    randomPrekeys :: !(Maybe Bool),
     -- | STOMP broker settings
     stomp :: !(Maybe StompOpts),
     -- Email & SMS

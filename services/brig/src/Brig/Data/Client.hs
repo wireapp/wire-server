@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -39,7 +41,7 @@ where
 
 import Bilge.Retry (httpHandlers)
 import Brig.AWS
-import Brig.App (AppIO, awsEnv, currentTime, metrics)
+import Brig.App (AppIO, awsEnv, currentTime, metrics, randomPrekeyLocalLock)
 import Brig.Data.Instances ()
 import Brig.Data.User (AuthError (..), ReAuthError (..))
 import qualified Brig.Data.User as User
@@ -52,6 +54,7 @@ import Control.Error
 import qualified Control.Exception.Lens as EL
 import Control.Lens
 import Control.Monad.Catch
+import Control.Monad.Random (Random (randomRIO))
 import Control.Retry
 import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Conversion (toByteString, toByteString')
@@ -165,7 +168,7 @@ rmClient :: UserId -> ClientId -> AppIO ()
 rmClient u c = do
   retry x5 $ write removeClient (params Quorum (u, c))
   retry x5 $ write removeClientKeys (params Quorum (u, c))
-  deleteOptLock u c
+  unlessM (isJust <$> view randomPrekeyLocalLock) $ deleteOptLock u c
 
 updateClientLabel :: MonadClient m => UserId -> ClientId -> Maybe Text -> m ()
 updateClientLabel u c l = retry x5 $ write updateClientLabelQuery (params Quorum (l, u, c))
@@ -187,10 +190,20 @@ updatePrekeys u c pks = do
         _ -> return False
 
 claimPrekey :: UserId -> ClientId -> AppIO (Maybe ClientPrekey)
-claimPrekey u c = withOptLock u c $ do
-  prekey <- retry x1 $ query1 userPrekeys (params Quorum (u, c))
-  case prekey of
-    Just (i, k) -> do
+claimPrekey u c =
+  view randomPrekeyLocalLock >>= \case
+    -- Use random prekey selection strategy
+    Just localLock -> withLocalLock localLock $ do
+      prekeys <- retry x1 $ query userPrekeys (params Quorum (u, c))
+      prekey <- pickRandomPrekey prekeys
+      removeAndReturnPreKey prekey
+    -- Use DynamoDB based optimistic locking strategy
+    Nothing -> withOptLock u c $ do
+      prekey <- retry x1 $ query1 userPrekey (params Quorum (u, c))
+      removeAndReturnPreKey prekey
+  where
+    removeAndReturnPreKey :: Maybe (PrekeyId, Text) -> AppIO (Maybe ClientPrekey)
+    removeAndReturnPreKey (Just (i, k)) = do
       if i /= lastPrekeyId
         then retry x1 $ write removePrekey (params Quorum (u, c, i))
         else
@@ -199,7 +212,17 @@ claimPrekey u c = withOptLock u c $ do
               . field "client" (toByteString c)
               . msg (val "last resort prekey used")
       return $ Just (ClientPrekey c (Prekey i k))
-    Nothing -> return Nothing
+    removeAndReturnPreKey Nothing = return Nothing
+
+    pickRandomPrekey :: [(PrekeyId, Text)] -> AppIO (Maybe (PrekeyId, Text))
+    pickRandomPrekey [] = return Nothing
+    -- unless we only have one key left
+    pickRandomPrekey [pk] = return $ Just pk
+    -- pick among list of keys, except lastPrekeyId
+    pickRandomPrekey pks = do
+      let pks' = filter (\k -> fst k /= lastPrekeyId) pks
+      ind <- liftIO $ randomRIO (0, length pks' - 1)
+      return $ atMay pks' ind
 
 -------------------------------------------------------------------------------
 -- Queries
@@ -231,8 +254,11 @@ removeClient = "DELETE FROM clients where user = ? and client = ?"
 removeClientKeys :: PrepQuery W (UserId, ClientId) ()
 removeClientKeys = "DELETE FROM prekeys where user = ? and client = ?"
 
+userPrekey :: PrepQuery R (UserId, ClientId) (PrekeyId, Text)
+userPrekey = "SELECT key, data FROM prekeys where user = ? and client = ? LIMIT 1"
+
 userPrekeys :: PrepQuery R (UserId, ClientId) (PrekeyId, Text)
-userPrekeys = "SELECT key, data FROM prekeys where user = ? and client = ? LIMIT 1"
+userPrekeys = "SELECT key, data FROM prekeys where user = ? and client = ?"
 
 selectPrekeyIds :: PrepQuery R (UserId, ClientId) (Identity PrekeyId)
 selectPrekeyIds = "SELECT key FROM prekeys where user = ? and client = ?"
@@ -352,3 +378,7 @@ withOptLock u c ma = go (10 :: Int)
               Metrics.counterIncr (Metrics.path "client.opt_lock.provisioned_throughput_exceeded") m
               return Nothing
             handleErr _ = return Nothing
+
+withLocalLock :: MVar () -> AppIO a -> AppIO a
+withLocalLock l ma = do
+  (takeMVar l *> ma) `finally` putMVar l ()
