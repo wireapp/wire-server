@@ -103,7 +103,6 @@ executables:
     - text
     - time
     - tinylog
-    - transformers
     - types-common
     - unordered-containers
     - uuid
@@ -139,7 +138,6 @@ executables:
     - HsOpenSSL
     - lens
     - metrics-wai
-    - transformers
     - types-common
     - uuid
     when:
@@ -157,7 +155,6 @@ tests:
     - aeson
     - aeson-pretty
     - amazonka
-    - base64-bytestring
     - bytestring
     - containers
     - exceptions
@@ -181,12 +178,10 @@ tests:
     - text
     - time
     - tinylog
-    - transformers
     - tree-diff
     - types-common
     - unordered-containers
     - uuid
-    - vector
     - wai-utilities
 benchmarks:
   gundeck-bench:

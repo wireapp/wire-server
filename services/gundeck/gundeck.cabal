@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 81658a1be8bd810887bc662a0b702b462c31720634057add21a2d6abf78bd1f1
+-- hash: adab86edd06605903f3a5e7f17ab201dc886393d658d7d8ee6fa11a15b709287
 
 name:           gundeck
 version:        1.45.0
@@ -131,7 +131,6 @@ executable gundeck
     , imports
     , lens
     , metrics-wai
-    , transformers
     , types-common
     , uuid
   if flag(static)
@@ -181,7 +180,6 @@ executable gundeck-integration
     , text
     , time
     , tinylog
-    , transformers
     , types-common
     , unordered-containers
     , uuid
@@ -244,7 +242,6 @@ test-suite gundeck-tests
     , amazonka
     , async
     , base
-    , base64-bytestring
     , bytestring
     , containers
     , exceptions
@@ -267,12 +264,10 @@ test-suite gundeck-tests
     , text
     , time
     , tinylog
-    , transformers
     , tree-diff
     , types-common
     , unordered-containers
     , uuid
-    , vector
     , wai-utilities
   default-language: Haskell2010
 
