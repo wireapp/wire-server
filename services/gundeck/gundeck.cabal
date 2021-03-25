@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: adab86edd06605903f3a5e7f17ab201dc886393d658d7d8ee6fa11a15b709287
+-- hash: 81f1c596b7deee25ae5aec333f3c5aaf8330a9fbda94e14755d8a38661d8f6d1
 
 name:           gundeck
 version:        1.45.0
@@ -183,7 +183,6 @@ executable gundeck-integration
     , types-common
     , unordered-containers
     , uuid
-    , vector
     , websockets >=0.8
     , yaml
   default-language: Haskell2010

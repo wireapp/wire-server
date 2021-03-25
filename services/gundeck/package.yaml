@@ -106,7 +106,6 @@ executables:
     - types-common
     - unordered-containers
     - uuid
-    - vector
     - websockets >=0.8
     - yaml
   gundeck-schema:
