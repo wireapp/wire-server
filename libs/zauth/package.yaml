@@ -45,7 +45,6 @@ executables:
     - lens
     - optparse-applicative >=0.11
     - sodium-crypto-sign
-    - transformers
     - uuid
     - zauth
 tests:
@@ -62,7 +61,6 @@ tests:
     - tasty >=0.9
     - tasty-hunit >=0.9
     - tasty-quickcheck >=0.8
-    - transformers
     - uuid
     - zauth
 stability: experimental
