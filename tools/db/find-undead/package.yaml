@@ -19,7 +19,6 @@ dependencies:
 - base
 - cassandra-util
 - containers
-- galley-types
 - brig-types
 - imports
 - optparse-applicative
@@ -29,10 +28,7 @@ dependencies:
 - lens
 - tinylog
 - uuid
-- types-common
-- unliftio
 - conduit
-- time
 executables:
   find-undead:
     main: Main.hs

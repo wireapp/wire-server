@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f3ea09e1b515654dee71de77dde62a14c78830b80217803ef50d0f2d89871610
+-- hash: 298973e413793586bdef3d4d6efaf9b5cbc10db1dd3ce887aa4b02ae74dbeaf7
 
 name:           find-undead
 version:        1.0.0
@@ -34,15 +34,11 @@ executable find-undead
     , cassandra-util
     , conduit
     , containers
-    , galley-types
     , http-client
     , imports
     , lens
     , optparse-applicative
     , text
-    , time
     , tinylog
-    , types-common
-    , unliftio
     , uuid
   default-language: Haskell2010
