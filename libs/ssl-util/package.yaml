@@ -14,7 +14,6 @@ dependencies:
 - bytestring >=0.10
 - HsOpenSSL >=0.11
 - imports
-- network >=2.6
 - http-client >=0.4
 - time >=1.5
 library:
