@@ -26,7 +26,6 @@ dependencies:
 - template-haskell
 - text >=0.11
 - time >=1.8
-- transformers >=0.3
 - types-common
 - wire-api
 library:
