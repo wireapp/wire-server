@@ -9,20 +9,15 @@ maintainer: Wire Swiss GmbH <backend@wire.com>
 copyright: (c) 2020 Wire Swiss GmbH
 license: AGPL-3
 dependencies:
-- QuickCheck
 - aeson
 - http-types
-- async
 - either
 - base
 - bilge
 - bytestring
-- bytestring-conversion
 - data-default
 - dns
 - dns-util
-- email-validate
-- errors
 - exceptions
 - extended
 - http-client
@@ -35,24 +30,15 @@ dependencies:
 - mtl
 - mu-grpc-client
 - mu-grpc-server
-- mu-protobuf
 - mu-rpc
-- mu-schema
-- resourcet
 - servant
-- servant-client
 - servant-mock
 - servant-server
-- servant-swagger
 - string-conversions
-- template-haskell
 - text
 - tinylog
 - types-common
 - uuid
-- wai
-- wai-utilities
-- warp
 - wire-api
 - wire-api-federation
 - polysemy
@@ -105,7 +91,6 @@ tests:
     - federator
     - tasty
     - tasty-hunit
-    - tasty-quickcheck
     - yaml
     - bytestring
     - polysemy-mocks

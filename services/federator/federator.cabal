@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 602624ecd1e3d98115bc7e42a62bd6e5751aa2ed7f79433832d8c802d45c0bac
+-- hash: ad3d2a07b922e732a06b074c595f50f7dd1503ef79478c160d4512d6c798746d
 
 name:           federator
 version:        1.0.0
@@ -38,19 +38,14 @@ library
   build-depends:
       HsOpenSSL
     , HsOpenSSL-x509-system
-    , QuickCheck
     , aeson
-    , async
     , base
     , bilge
     , bytestring
-    , bytestring-conversion
     , data-default
     , dns
     , dns-util
     , either
-    , email-validate
-    , errors
     , exceptions
     , extended
     , http-client
@@ -65,28 +60,19 @@ library
     , mtl
     , mu-grpc-client
     , mu-grpc-server
-    , mu-protobuf
     , mu-rpc
-    , mu-schema
     , polysemy
     , polysemy-wire-zoo
-    , resourcet
     , retry
     , servant
-    , servant-client
     , servant-mock
     , servant-server
-    , servant-swagger
     , string-conversions
-    , template-haskell
     , text
     , tinylog
     , types-common
     , unliftio
     , uuid
-    , wai
-    , wai-utilities
-    , warp
     , wire-api
     , wire-api-federation
   default-language: Haskell2010
@@ -102,19 +88,14 @@ executable federator
   build-depends:
       HsOpenSSL
     , HsOpenSSL-x509-system
-    , QuickCheck
     , aeson
-    , async
     , base
     , bilge
     , bytestring
-    , bytestring-conversion
     , data-default
     , dns
     , dns-util
     , either
-    , email-validate
-    , errors
     , exceptions
     , extended
     , federator
@@ -130,28 +111,19 @@ executable federator
     , mtl
     , mu-grpc-client
     , mu-grpc-server
-    , mu-protobuf
     , mu-rpc
-    , mu-schema
     , polysemy
     , polysemy-wire-zoo
-    , resourcet
     , retry
     , servant
-    , servant-client
     , servant-mock
     , servant-server
-    , servant-swagger
     , string-conversions
-    , template-haskell
     , text
     , tinylog
     , types-common
     , unliftio
     , uuid
-    , wai
-    , wai-utilities
-    , warp
     , wire-api
     , wire-api-federation
   default-language: Haskell2010
@@ -170,20 +142,15 @@ executable federator-integration
   build-depends:
       HsOpenSSL
     , HsOpenSSL-x509-system
-    , QuickCheck
     , aeson
-    , async
     , base
     , bilge
     , bytestring
-    , bytestring-conversion
     , cryptonite
     , data-default
     , dns
     , dns-util
     , either
-    , email-validate
-    , errors
     , exceptions
     , extended
     , federator
@@ -200,32 +167,23 @@ executable federator-integration
     , mtl
     , mu-grpc-client
     , mu-grpc-server
-    , mu-protobuf
     , mu-rpc
-    , mu-schema
     , optparse-applicative
     , polysemy
     , polysemy-wire-zoo
     , random
-    , resourcet
     , retry
     , servant
-    , servant-client
     , servant-mock
     , servant-server
-    , servant-swagger
     , string-conversions
     , tasty
     , tasty-hunit
-    , template-haskell
     , text
     , tinylog
     , types-common
     , unliftio
     , uuid
-    , wai
-    , wai-utilities
-    , warp
     , wire-api
     , wire-api-federation
     , yaml
@@ -246,19 +204,14 @@ test-suite federator-tests
   build-depends:
       HsOpenSSL
     , HsOpenSSL-x509-system
-    , QuickCheck
     , aeson
-    , async
     , base
     , bilge
     , bytestring
-    , bytestring-conversion
     , data-default
     , dns
     , dns-util
     , either
-    , email-validate
-    , errors
     , exceptions
     , extended
     , federator
@@ -274,32 +227,22 @@ test-suite federator-tests
     , mtl
     , mu-grpc-client
     , mu-grpc-server
-    , mu-protobuf
     , mu-rpc
-    , mu-schema
     , polysemy
     , polysemy-mocks
     , polysemy-wire-zoo
-    , resourcet
     , retry
     , servant
-    , servant-client
     , servant-mock
     , servant-server
-    , servant-swagger
     , string-conversions
     , tasty
     , tasty-hunit
-    , tasty-quickcheck
-    , template-haskell
     , text
     , tinylog
     , types-common
     , unliftio
     , uuid
-    , wai
-    , wai-utilities
-    , warp
     , wire-api
     , wire-api-federation
     , yaml
