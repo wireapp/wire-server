@@ -97,3 +97,5 @@ dist-buildah
 i.yaml
 b.yaml
 telepresence.log
+
+*.hie
