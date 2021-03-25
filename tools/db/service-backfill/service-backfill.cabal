@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 18087f601fd9a68756d98531cd5bfce79cd4f9fd2e6492393527097d1613fdb0
+-- hash: 0f3d6bf1a92884027e4cd72012ced2093c3a0cee02794b998cfcd17780e0d1cb
 
 name:           service-backfill
 version:        1.0.0
@@ -27,23 +27,14 @@ executable service-backfill
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
   build-depends:
-      attoparsec
-    , base
+      base
     , brig-types
-    , bytestring
-    , bytestring-conversion
     , cassandra-util
     , conduit
-    , extended
-    , galley-types
     , imports
     , lens
-    , mtl
     , optparse-applicative
-    , text
-    , time
     , tinylog
     , types-common
     , unliftio
-    , uuid
   default-language: Haskell2010
