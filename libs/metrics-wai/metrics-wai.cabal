@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 07d2c4f1144943967e6acfe4d6b5f0d1911443bafe33048152b872584c52db24
+-- hash: 1a7ee5db749a3d0036c292dd1b4e3f518dc51ae7c2c7c51ea8c0c387c09ecbe3
 
 name:           metrics-wai
 version:        0.5.7
@@ -35,17 +35,13 @@ library
   build-depends:
       base ==4.*
     , bytestring >=0.10
-    , clock >=0.6
     , containers
-    , exceptions >=0.6
     , http-types >=0.8
     , imports
     , metrics-core >=0.3
-    , prometheus-client
     , servant
     , string-conversions
     , text >=0.11
-    , transformers >=0.3
     , wai >=3
     , wai-middleware-prometheus
     , wai-route >=0.3
