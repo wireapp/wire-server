@@ -293,9 +293,7 @@ validateScimUser' tid midp richInfoLimit user = do
             }
       pure richInfo
 
--- | Given an 'externalId' and an 'IdP', construct a 'AuthId'.
---
--- This is needed primarily in 'validateScimUser', but also in 'updateValidScimUser' to
+-- | This is needed primarily in 'validateScimUser', but also in 'updateValidScimUser' to
 -- recover the 'SAML.UserRef' of the scim user before the update from the database.
 mkAuth ::
   forall m.
@@ -899,13 +897,11 @@ scimFindUserByExternalId mIdpConfig stiTeam extId = do
           Right mbUref' -> mbUref'
 
   uid <-
-    MaybeT $
-      lift $
-        firstSuccess
-          [ maybe (pure Nothing) lookupUref mbUref,
-            lookupExternalId stiTeam extId,
-            maybe (pure Nothing) lookupEmail (parseEmail extId)
-          ]
+    MaybeT . lift . firstSuccess $
+      [ maybe (pure Nothing) lookupUref mbUref,
+        lookupExternalId stiTeam extId,
+        maybe (pure Nothing) lookupEmail (parseEmail extId)
+      ]
 
   brigUser <- MaybeT . lift . Brig.getBrigUserAccount Brig.WithPendingInvitations $ uid
 
@@ -929,6 +925,7 @@ scimFindUserByExternalId mIdpConfig stiTeam extId = do
 
     lookupExternalId :: TeamId -> Text -> Spar (Maybe UserId)
     lookupExternalId tid extid = wrapMonadClient $ Data.lookupScimExternalId (ExternalId tid extid)
+
     lookupEmail :: Email -> Spar (Maybe UserId)
     lookupEmail eml = userId . accountUser <$$> Brig.getBrigUserByEmail eml
 
