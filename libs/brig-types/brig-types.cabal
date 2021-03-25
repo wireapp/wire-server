@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 65ddd9234ac07ef21d95060f9222ed9d71f535ea31062e281c70e81383b33c8b
+-- hash: 1060fdc26ef57534c0f61722613ae48c5ebe98d481fcc21cae9c1ebab816a8bb
 
 name:           brig-types
 version:        1.35.0
@@ -82,23 +82,13 @@ test-suite brig-types-tests
     , attoparsec
     , base
     , brig-types
-    , bytestring
     , containers
-    , currency-codes
-    , extra
     , imports
-    , iproute
-    , iso639
-    , pem
-    , quickcheck-instances
-    , random
     , tasty
     , tasty-quickcheck
     , text
     , time
     , types-common
     , unordered-containers
-    , uri-bytestring
-    , uuid
     , wire-api
   default-language: Haskell2010
