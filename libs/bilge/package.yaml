@@ -17,9 +17,7 @@ dependencies:
 - base >=4.7 && <5
 - bytestring >=0.9
 - case-insensitive >=1.1
-- containers >=0.5
 - cookie
-- data-default >=0.5
 - errors >=1.4
 - exceptions >=0.6
 - http-client >=0.5
@@ -29,9 +27,7 @@ dependencies:
 - monad-control >=1.0
 - mtl >=2.2
 - text >=0.11
-- time >=1.4
 - tinylog >=0.9
-- transformers >=0.4
 - transformers-base >=0.4
 - types-common >=0.7
 - unliftio
