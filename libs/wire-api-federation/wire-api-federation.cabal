@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 01600efb0e0bbba28ada06a50504371edf98d6e5e21c60aaee925634534b7ca6
+-- hash: e3a2a26eb5489f8ece2e63f85347d34a66a40c7d7928dcfe2611b0155897f39a
 
 name:           wire-api-federation
 version:        0.1.0
@@ -40,26 +40,17 @@ library
       QuickCheck >=2.13
     , aeson >=1.4
     , base >=4.6 && <5.0
-    , bytestring >=0.10
-    , bytestring-conversion >=0.3
-    , containers >=0.5
     , either
-    , errors >=2.0
-    , exceptions >=0.6
     , http-types
-    , http2-client
     , http2-client-grpc
     , imports
-    , mtl
     , mu-grpc-client
     , mu-protobuf
-    , mu-rpc
     , mu-schema
     , servant >=0.16
     , template-haskell
     , text >=0.11
     , time >=1.8
-    , tinylog
     , transformers >=0.3
     , types-common
     , wire-api
@@ -76,33 +67,25 @@ test-suite spec
       test
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-N
+  build-tool-depends:
+      hspec-discover:hspec-discover
   build-depends:
       QuickCheck >=2.13
     , aeson >=1.4
     , base >=4.6 && <5.0
-    , bytestring >=0.10
-    , bytestring-conversion >=0.3
-    , containers >=0.5
     , either
-    , errors >=2.0
-    , exceptions >=0.6
     , hspec
-    , hspec-discover
     , http-types
-    , http2-client
     , http2-client-grpc
     , imports
     , metrics-wai
-    , mtl
     , mu-grpc-client
     , mu-protobuf
-    , mu-rpc
     , mu-schema
     , servant >=0.16
     , template-haskell
     , text >=0.11
     , time >=1.8
-    , tinylog
     , transformers >=0.3
     , types-common
     , wire-api
