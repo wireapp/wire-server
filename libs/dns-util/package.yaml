@@ -13,7 +13,6 @@ dependencies:
 - base >=4.6 && <5.0
 - dns
 - random
-- text >=0.11
 - imports
 - polysemy
 library:
@@ -29,6 +28,4 @@ tests:
     - hspec-discover:hspec-discover
     dependencies:
       - hspec
-      - hspec-discover
-      - QuickCheck
       - dns-util

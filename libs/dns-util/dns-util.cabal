@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ecf2089f33b4ea02d7866c9d088c6c2c8524a5d35eea986973e5f99ef97d1f11
+-- hash: 99989faf4c7ecae7b095b252f4260892d544fba9a2f8bbbf37c55ef134950f5e
 
 name:           dns-util
 version:        0.1.0
@@ -35,7 +35,6 @@ library
     , imports
     , polysemy
     , random
-    , text >=0.11
   default-language: Haskell2010
 
 test-suite spec
@@ -51,14 +50,11 @@ test-suite spec
   build-tool-depends:
       hspec-discover:hspec-discover
   build-depends:
-      QuickCheck
-    , base >=4.6 && <5.0
+      base >=4.6 && <5.0
     , dns
     , dns-util
     , hspec
-    , hspec-discover
     , imports
     , polysemy
     , random
-    , text >=0.11
   default-language: Haskell2010
