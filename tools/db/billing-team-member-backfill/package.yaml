@@ -24,9 +24,7 @@ dependencies:
 - text
 - lens
 - tinylog
-- uuid
 - types-common
-- unliftio
 - conduit
 executables:
   billing-team-member-backfill:
