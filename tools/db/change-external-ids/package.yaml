@@ -1,0 +1,55 @@
+defaults:
+  local: ../../../package-defaults.yaml
+name: change-external-ids
+version: '1.0.0'
+synopsis: Update SCIM ExternalIds with a provided mapping
+category: Network
+author: Wire Swiss GmbH
+maintainer: Wire Swiss GmbH <backend@wire.com>
+copyright: (c) 2018 Wire Swiss GmbH
+license: AGPL-3
+
+ghc-options:
+- -funbox-strict-fields
+- -threaded
+- -with-rtsopts=-N
+- -with-rtsopts=-T
+- -rtsopts
+
+dependencies:
+- base
+- aeson
+- attoparsec
+- brig-types
+- bytestring
+- bytestring-conversion
+- cassandra-util
+- conduit
+- containers
+- cql
+- directory
+- extended
+- filepath
+- imports
+- iproute
+- lens
+- megaparsec
+- mtl
+- optparse-applicative
+- process
+- parser-combinators
+- raw-strings-qq
+- spar
+- brig
+- brig-types
+- text
+- time
+- tinylog
+- types-common
+- unliftio
+- uuid
+- vector
+- wire-api
+
+library:
+  source-dirs: src
