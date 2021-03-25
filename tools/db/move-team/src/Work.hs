@@ -86,6 +86,7 @@ runTeam env@Env {..} = do
   appendJsonLines (envTargetPath </> "galley.team_features") (readGalleyTeamFeatures env envTeamId)
   appendJsonLines (envTargetPath </> "galley.team_member") (readGalleyTeamMember env envTeamId)
   appendJsonLines (envTargetPath </> "galley.team_notifications") (readGalleyTeamNotifications env envTeamId)
+  appendJsonLines (envTargetPath </> "spar.scim_external") (readSparScimExternal env envTeamId)
 
 runGalleyTeamMembers :: Env -> IO ()
 runGalleyTeamMembers env@Env {..} =
@@ -159,12 +160,9 @@ runFullScans env@Env {..} users = do
   -- FUTUREWORK: no need to read this table, it can be populated from `brig.user`
   appendJsonLines (envTargetPath </> "brig.user_keys_hash") $
     readBrigUserKeysHashAll env
+  appendJsonLines (envTargetPath </> "spar.user") $
+    readSparUserAll env
       .| mapC (filter (haveId . view _3))
-
-  -- FUTUREWORK: no need to read this table, it can be populated from what we have elsewhere (i think)
-  appendJsonLines (envTargetPath </> "spar.scim_external_ids") $
-    readSparScimExternalIdsAll env
-      .| mapC (filter (haveId . view _2))
 
 appendJsonLines :: ToJSON a => FilePath -> ConduitM () [a] IO () -> IO ()
 appendJsonLines path conduit =
