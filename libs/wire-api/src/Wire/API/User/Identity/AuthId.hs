@@ -241,7 +241,7 @@ instance FromJSON LegacyAuthId where
             fail "either need tenant and subject, or scim_external_id, but not both"
 
 -- | Construct 'UserSSOId' values to support existing clients.  For 'UserScimExternalId',
--- render `"sso_id": null`, since this is expected by the clients; see
+-- render `"sso_id": null`, since this is expected by the clients; this fixes
 -- https://wearezeta.atlassian.net/browse/SQSERVICES-306.
 authIdToLegacyAuthId :: AuthId -> Maybe Aeson.Value
 authIdToLegacyAuthId = runAuthId uref email

@@ -28,6 +28,7 @@ module Brig.Types.Intra
     ConnectionStatus (..),
     UserAccount (..),
     NewUserScimInvitation (..),
+    NewUserScimInvitationLegacy (..),
     UserSet (..),
     ReAuthUser (..),
   )

@@ -4,6 +4,8 @@
 
 ## Release Notes
 
+- promote brig before spar!
+
 ## Features
 
 ## Bug fixes and other updates

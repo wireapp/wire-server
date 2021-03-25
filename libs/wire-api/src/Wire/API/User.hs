@@ -737,8 +737,7 @@ parseNewUserOrigin pass uid o = do
     (_, _, _, Nothing, Just _) -> fail "auth_id, team_id must be either both present or both absent."
     _ -> fail "team_code, team, invitation_code, auth_id, and the pair (auth_id, team_id) are mutually exclusive"
   case (result, pass, isJust mbAuthId) of
-    (_, _, True) -> pure result
-    (Just (NewUserOriginTeamUser _), Nothing, _) -> fail "all team users must set a password on creation"
+    (Just (NewUserOriginTeamUser _), Nothing, False) -> fail "all team users must set a password on creation"
     _ -> pure result
 
 -- | A random invitation code for use during registration
