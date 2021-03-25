@@ -32,7 +32,6 @@ dependencies:
 - mu-grpc-server
 - mu-rpc
 - servant
-- servant-mock
 - servant-server
 - string-conversions
 - text

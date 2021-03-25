@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ad3d2a07b922e732a06b074c595f50f7dd1503ef79478c160d4512d6c798746d
+-- hash: f25a24207c25fdeec7c300cfd5aeb3dc98e8cc26eeb6700f83174dd761b28022
 
 name:           federator
 version:        1.0.0
@@ -65,7 +65,6 @@ library
     , polysemy-wire-zoo
     , retry
     , servant
-    , servant-mock
     , servant-server
     , string-conversions
     , text
@@ -116,7 +115,6 @@ executable federator
     , polysemy-wire-zoo
     , retry
     , servant
-    , servant-mock
     , servant-server
     , string-conversions
     , text
@@ -174,7 +172,6 @@ executable federator-integration
     , random
     , retry
     , servant
-    , servant-mock
     , servant-server
     , string-conversions
     , tasty
@@ -233,7 +230,6 @@ test-suite federator-tests
     , polysemy-wire-zoo
     , retry
     , servant
-    , servant-mock
     , servant-server
     , string-conversions
     , tasty
