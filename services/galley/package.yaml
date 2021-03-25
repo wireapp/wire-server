@@ -183,7 +183,6 @@ executables:
     - time
     - tinylog
     - tls >=1.3.8
-    - transformers
     - types-common
     - types-common-journal
     - unliftio

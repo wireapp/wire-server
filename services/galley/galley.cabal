@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e6a80afd8ebc48f11fd87eddad6a65b4b6472899589c2c8bbb265d0f5a292853
+-- hash: 4050c5c7a2af585637fb5a1eec33f457b3c27e58879ebe3ac5a5f49353fd2542
 
 name:           galley
 version:        0.83.0
@@ -249,7 +249,6 @@ executable galley-integration
     , time
     , tinylog
     , tls >=1.3.8
-    , transformers
     , types-common
     , types-common-journal
     , unliftio
