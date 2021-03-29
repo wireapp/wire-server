@@ -90,7 +90,7 @@ instance ToSchema UserIdentity where
                  ("auth_id", authIdSchema)
                ]
 
--- NB: there is an extra field "sso_id" that does not add information, but is expected by old
+-- | NB: there is an extra field "sso_id" that does not add information, but is expected by old
 -- clients.  See also: https://wearezeta.atlassian.net/browse/SQSERVICES-264,
 -- https://wearezeta.atlassian.net/browse/SQSERVICES-306
 instance ToJSON UserIdentity where
