@@ -1,63 +1,90 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Work where
 
-import Brig.Data.UserKey (userEmailKey)
+import Brig.Data.Activation (mkActivationKey)
+import Brig.Data.UserKey (UserKey, keyText, userEmailKey)
+import Brig.Types.Activation (ActivationKey)
+import Cassandra
+import Data.Id
 import Imports
-import Spar.Data (lookupScimExternalId)
+import qualified Spar.Data as SparData
 import Wire.API.User
 
-foo :: Int
-foo = 3
-
 data Env = Env
+  { brigClient :: ClientState,
+    sparClient :: ClientState
+  }
 
--- changeExtId :: ExternalId -> ExternalId -> IO ()
--- changeExtId =
+changeExtId :: Env -> TeamId -> Email -> ExternalId -> IO ()
+changeExtId env@Env {..} tid email extid = do
+  mbUByExt <- lookupExternalId env tid (fromEmail email)
+  mbUByEmail <- lookupByEmail env email
+  case listToMaybe (catMaybes [mbUByExt, mbUByEmail]) of
+    Nothing -> do
+      pure ()
+    Just uid -> do
+      managedBy <- fromMaybe ManagedByWire <$> getUserManagedBy env uid
+      case managedBy of
+        ManagedByWire -> do
+          pure ()
+        ManagedByScim -> do
+          runClient sparClient $
+            SparData.insertScimExternalId extid uid
+          let authId = AuthSCIM (ScimDetails extid (EmailWithSource email EmailFromEmailField))
+          updateAuthId env uid (Just authId)
 
 lookupExternalId :: Env -> TeamId -> Text -> IO (Maybe UserId)
-lookupExternalId tid extid = wrapMonadClient $ Data.lookupScimExternalId (ExternalId tid extid)
+lookupExternalId Env {..} tid extid =
+  runClient sparClient $
+    SparData.lookupScimExternalId (ExternalId tid extid)
 
-lookupEmail :: Email -> Spar (Maybe UserId)
-lookupEmail eml = userId . accountUser <$$> Brig.getBrigUserByEmail eml
-
--- listAccountsByIdentityH
-
--- getBrigUserByEmail :: (HasCallStack, MonadSparToBrig m) => Email -> m (Maybe UserAccount)
--- getBrigUserByEmail email = do
---   resp :: ResponseLBS <-
---     call $
---       method GET
---         . path "/i/users"
---         . queryItem "email" (toByteString' email)
---         . queryItem "includePendingInvitations" "true"
---   case statusCode resp of
---     200 -> do
---       macc <- listToMaybe <$> parseResponse @[UserAccount] "brig" resp
---       case userEmail . accountUser =<< macc of
---         Just email' | email' == email -> pure macc
---         _ -> pure Nothing
---     404 -> pure Nothing
---     _ -> rethrow "brig" resp
-
--- -- Should behave similar to Brig.API.User.lookupAccountsByIdentity
--- lookupAccountsByIdentity :: Either Email Phone -> Bool -> AppIO [UserAccount]
--- lookupAccountsByIdentity emailOrPhone includePendingInvitations = do
---   let uk = either userEmailKey userPhoneKey emailOrPhone
---   activeUid <- Data.lookupKey uk
---   uidFromKey <- (>>= fst) <$> Data.lookupActivationCode uk
---   result <- Data.lookupAccounts (nub $ catMaybes [activeUid, uidFromKey])
---   if includePendingInvitations
---     then pure result
---     else pure $ filter ((/= PendingInvitation) . accountStatus) result
+-- Should behave similar to Brig.API.User.lookupAccountsByIdentity
+lookupByEmail :: Env -> Email -> IO (Maybe UserId)
+lookupByEmail env email = do
+  let uk = userEmailKey email
+  activeUid <- lookupKey env uk
+  uidFromKey <- lookupActivationCode env uk
+  pure (listToMaybe $ catMaybes [activeUid, uidFromKey])
 
 -- -- Should behave similar to Brig.Data.UserKey.lookupKey
--- lookupKey :: UserKey -> AppIO (Maybe UserId)
--- lookupKey k =
---   fmap runIdentity
---     <$> retry x1 (query1 keySelect (params Quorum (Identity $ keyText k)))
+lookupKey :: Env -> UserKey -> IO (Maybe UserId)
+lookupKey Env {..} k =
+  runClient brigClient $
+    fmap runIdentity
+      <$> retry x1 (query1 keySelect (params Quorum (Identity $ keyText k)))
+  where
+    keySelect :: PrepQuery R (Identity Text) (Identity UserId)
+    keySelect = "SELECT user FROM user_keys WHERE key = ?"
 
--- Brig.Data.User. lookupAccounts
-lookupAccounts :: [UserId] -> AppIO [UserAccount]
-lookupAccounts usrs = do
-  loc <- setDefaultLocale <$> view settings
-  domain <- viewFederationDomain
-  fmap (toUserAccount domain loc) <$> retry x1 (query accountsSelect (params Quorum (Identity usrs)))
+lookupActivationCode :: Env -> UserKey -> IO (Maybe UserId)
+lookupActivationCode Env {..} k =
+  fmap join $
+    fmap runIdentity
+      <$> runClient
+        brigClient
+        ( liftIO (mkActivationKey k)
+            >>= retry x1 . query1 codeSelect . params Quorum . Identity
+        )
+  where
+    codeSelect :: PrepQuery R (Identity ActivationKey) (Identity (Maybe UserId))
+    codeSelect = "SELECT user FROM activation_keys WHERE key = ?"
+
+updateAuthId :: Env -> UserId -> Maybe AuthId -> IO ()
+updateAuthId Env {..} u authid =
+  runClient brigClient $
+    retry x5 $ write userAuthIdUpdate (params Quorum (authid, u))
+  where
+    userAuthIdUpdate :: PrepQuery W (Maybe AuthId, UserId) ()
+    userAuthIdUpdate = "UPDATE user SET sso_id = ? WHERE id = ?"
+
+getUserManagedBy :: Env -> UserId -> IO (Maybe ManagedBy)
+getUserManagedBy Env {..} u = do
+  fmap runIdentity
+    <$> runClient
+      brigClient
+      ( retry x5 $ query1 selectManagedBy (params Quorum (Identity u))
+      )
+  where
+    selectManagedBy :: PrepQuery R (Identity UserId) (Identity ManagedBy)
+    selectManagedBy = "SELECT managed_by WHERE id = ?"
