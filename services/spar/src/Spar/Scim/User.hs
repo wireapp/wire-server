@@ -99,7 +99,7 @@ import Wire.API.User.Identity
     ScimDetails (..),
     UserIdentity (..),
     authIdEmail,
-    authIdEmailWithSource,
+    authIdScimEmailWithSource,
     fromEmailAddress,
     toEmailAddress,
   )
@@ -844,7 +844,7 @@ synthesizeScimUser info =
           Scim.active = Just . Scim.ScimBool $ info ^. ST.vsuActive,
           Scim.emails =
             maybeToList $
-              authIdEmailWithSource (info ^. ST.vsuAuthId) >>= \ews ->
+              authIdScimEmailWithSource (info ^. ST.vsuAuthId) >>= \ews ->
                 case ewsEmailSource ews of
                   EmailFromExternalIdField -> Nothing
                   EmailFromEmailField -> emailToScimEmail (ewsEmail ews)

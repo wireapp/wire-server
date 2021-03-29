@@ -33,15 +33,18 @@ module Wire.API.User.Identity.AuthId
     EmailWithSource (..),
     EmailSource (..),
     LegacyAuthId (..),
-    authIdEmail,
     runAuthId,
-    authIdToLegacyAuthId,
-    authIdEmailWithSource,
     authIdUref,
+    authIdEmail,
+    authIdScimEmail,
+    authIdScimEmailWithSource,
+    authIdToLegacyAuthId,
+    externalIdTeam,
+    externalIdName,
   )
 where
 
-import Control.Lens ((.~), (?~), (^.))
+import Control.Lens (makeLenses, (.~), (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.:?), (.=))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
@@ -84,8 +87,10 @@ instance FromJSON ScimDetails
 
 instance ToJSON ScimDetails
 
-data ExternalId
-  = ExternalId TeamId Text
+data ExternalId = ExternalId
+  { _externalIdTeam :: TeamId,
+    _externalIdName :: Text
+  }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ExternalId)
 
@@ -122,12 +127,6 @@ data EmailSource
 -- FUTUREWORK: once UserSSOId has been migrated away from all cassandra instances, remove this
 -- data type and everyhing that's using it.
 newtype LegacyAuthId = LegacyAuthId {fromLegacyAuthId :: TeamId -> AuthId}
-
-authIdEmailWithSource :: AuthId -> Maybe EmailWithSource
-authIdEmailWithSource = \case
-  AuthSAML _ -> Nothing
-  AuthSCIM (ScimDetails _ ews) -> Just ews
-  AuthBoth _ _ mbEws -> mbEws
 
 -- | Internal; only needed for aeson instances.
 data AuthIdTyp = AuthIdTypSAML | AuthIdTypSCIM | AuthIdTypBoth
@@ -240,15 +239,6 @@ instance FromJSON LegacyAuthId where
           _ -> do
             fail "either need tenant and subject, or scim_external_id, but not both"
 
--- | Construct 'UserSSOId' values to support existing clients.  For 'UserScimExternalId',
--- render `"sso_id": null`, since this is expected by the clients; this fixes
--- https://wearezeta.atlassian.net/browse/SQSERVICES-306.
-authIdToLegacyAuthId :: AuthId -> Maybe Aeson.Value
-authIdToLegacyAuthId = runAuthId uref email
-  where
-    uref (SAML.UserRef tenant subject) = Just $ object ["tenant" .= tenant, "subject" .= SAML.encodeElem subject]
-    email _ = Nothing
-
 -- | FUTUREWORK(fisx): I'm almost certain I've written this before at least once.  but where?
 enumSchema :: forall a m. (Typeable a, Bounded a, Enum a, ToJSON a, Applicative m) => m NamedSchema
 enumSchema =
@@ -289,6 +279,7 @@ runAuthId doUref doScim = \case
 authIdUref :: AuthId -> Maybe SAML.UserRef
 authIdUref = runAuthId (Just . id) (const Nothing)
 
+-- | Extract email from 'SAML.UserRef' if no SCIM data is available, and from SCIM data otherwise.
 authIdEmail :: AuthId -> Maybe Email
 authIdEmail = \case
   AuthSAML uref -> urefToEmail uref
@@ -306,8 +297,18 @@ authIdScimEmail :: AuthId -> Maybe Email
 authIdScimEmail = fmap ewsEmail . authIdScimEmailWithSource
 
 authIdScimEmailWithSource :: AuthId -> Maybe EmailWithSource
-authIdScimEmailWithSource =
-  \case
-    AuthSAML _ -> Nothing
-    AuthSCIM (ScimDetails _ ews) -> Just ews
-    AuthBoth _ _ mbEws -> mbEws
+authIdScimEmailWithSource = \case
+  AuthSAML _ -> Nothing
+  AuthSCIM (ScimDetails _ ews) -> Just ews
+  AuthBoth _ _ mbEws -> mbEws
+
+-- | Construct 'UserSSOId' values to support existing clients.  For 'UserScimExternalId',
+-- render `"sso_id": null`, since this is expected by the clients; this fixes
+-- https://wearezeta.atlassian.net/browse/SQSERVICES-306.
+authIdToLegacyAuthId :: AuthId -> Maybe Aeson.Value
+authIdToLegacyAuthId = runAuthId uref email
+  where
+    uref (SAML.UserRef tenant subject) = Just $ object ["tenant" .= tenant, "subject" .= SAML.encodeElem subject]
+    email _ = Nothing
+
+makeLenses 'ExternalId
