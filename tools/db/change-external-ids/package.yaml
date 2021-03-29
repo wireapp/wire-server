@@ -24,6 +24,7 @@ dependencies:
 - bytestring
 - bytestring-conversion
 - cassandra-util
+- cassava
 - conduit
 - containers
 - cql

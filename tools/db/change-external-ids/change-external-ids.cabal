@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 27a31c19e297097d0750fe376217953d82774fbb4a1c16bc5f5f55ef6b546de7
+-- hash: 4ca02d77af4669b44dda7fd1f3b4424f5b336ba5a0ddf95070ad3097451f804c
 
 name:           change-external-ids
 version:        1.0.0
@@ -18,6 +18,7 @@ build-type:     Simple
 
 library
   exposed-modules:
+      Options
       Work
   other-modules:
       Paths_change_external_ids
@@ -34,6 +35,7 @@ library
     , bytestring
     , bytestring-conversion
     , cassandra-util
+    , cassava
     , conduit
     , containers
     , cql
