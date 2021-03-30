@@ -206,6 +206,14 @@ db-reset:
 	make -C services/gundeck db-reset
 	make -C services/spar db-reset
 
+.PHONY: db-reset-run
+db-reset-run:
+	@echo "make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
+	make -C services/brig db-reset-run
+	make -C services/galley db-reset-run
+	make -C services/gundeck db-reset-run
+	make -C services/spar db-reset-run
+
 #################################
 ## dependencies
 

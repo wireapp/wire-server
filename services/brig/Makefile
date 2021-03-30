@@ -119,6 +119,9 @@ db: db-reset
 db-reset: fast
 	$(EXE_SCHEMA) --keyspace $(NAME)_test --replication-factor 1 --reset
 
+db-reset-run:
+	$(EXE_SCHEMA) --keyspace $(NAME)_test --replication-factor 1 --reset
+
 .PHONY: db-migrate
 db-migrate: fast
 	$(EXE_SCHEMA) --keyspace $(NAME)_test --replication-factor 1
