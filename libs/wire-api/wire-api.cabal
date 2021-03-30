@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ae3bc6605d8c9cc44467e5d9b8e6bb02e36757ae26b4f9552e9bc03cb32a86f8
+-- hash: d226cd42f64696f109ecd24028399adba016e6ef413e11fdef8a720d0f895612
 
 name:           wire-api
 version:        0.1.0
@@ -89,13 +89,11 @@ library
     , cassandra-util
     , cassava >=0.5
     , containers >=0.5
-    , cryptonite >=0.11
     , currency-codes >=2.0
     , deriving-aeson >=0.2
     , deriving-swagger2
     , email-validate >=2.0
     , errors
-    , exceptions >=0.10.0
     , extra
     , generic-random >=1.2
     , hashable
@@ -106,20 +104,15 @@ library
     , iso3166-country-codes >=0.2
     , iso639 >=0.1
     , lens >=4.12
-    , memory >=0.11
     , mime >=0.4
-    , network-uri >=2.6
     , pem >=0.2
     , protobuf >=0.2
     , quickcheck-instances >=0.3.16
-    , random
-    , safe >=0.3
     , string-conversions
     , swagger >=0.1
     , swagger2
     , text >=0.11
     , time >=1.4
-    , transformers >=0.3
     , types-common >=0.16
     , unordered-containers >=0.2
     , uri-bytestring >=0.2

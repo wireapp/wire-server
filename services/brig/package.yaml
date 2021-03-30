@@ -17,7 +17,6 @@ library:
   - amazonka >=1.3.7
   - amazonka-dynamodb >=1.3.7
   - amazonka-ses >=1.3.7
-  - amazonka-sns >=1.3.7
   - amazonka-sqs >=1.3.7
   - async >=2.1
   - attoparsec >=0.12
@@ -39,7 +38,6 @@ library:
   - currency-codes >=2.0
   - data-default >=0.5
   - data-timeout >=0.3
-  - directory >=1.2
   - dns
   - dns-util
   - either >=4.3
@@ -47,7 +45,6 @@ library:
   - errors >=1.4
   - exceptions >=0.5
   - extended
-  - extra >=1.3
   - filepath >=1.3
   - fsnotify >=0.2
   - galley-types >=0.75.3
@@ -68,26 +65,21 @@ library:
   - iso639 >=0.1
   - lens >=3.8
   - lens-aeson >=1.0
-  - lifted-base >=0.2
   - metrics-core >=0.3
   - metrics-wai >=0.3
   - mime
   - mime-mail >=0.4
-  - monad-control >=1.0
   - MonadRandom >=0.5
   - mtl >=2.1
   - mu-grpc-client
-  - mu-rpc
   - multihash >=0.1.3
   - mwc-random
   - network >=2.4
   - network-conduit-tls
-  - network-uri >=2.6
   - optparse-applicative >=0.11
   - pem >=0.2
   - polysemy
   - polysemy-wire-zoo
-  - prometheus-client
   - proto-lens >=0.1
   - random-shuffle >=0.0.3
   - resource-pool >=0.2
@@ -99,15 +91,11 @@ library:
   - saml2-web-sso
   - scientific >=0.3.4
   - scrypt >=0.5
-  - semigroups >=0.15
   - servant
   - servant-server
   - servant-swagger
   - servant-swagger-ui
-  - singletons >=2.0
-  - smtp-mail >=0.1
   - sodium-crypto-sign >=0.1
-  - sop-core
   - split >=0.2
   - ssl-util
   - statistics >=0.13
@@ -115,23 +103,18 @@ library:
   - string-conversions
   - swagger >=0.1
   - swagger2
-  - tagged >=0.7
   - template >=0.2
   - text >=0.11
   - text-icu-translit >=0.1
   - time >=1.1
   - tinylog >=0.10
-  - tls >=1.3.4
   - transformers >=0.3
-  - transformers-base >=0.4
   - types-common >=0.16
   - types-common-journal >=0.1
   - unliftio >=0.2
-  - unliftio-core >=0.1
   - unordered-containers >=0.2
   - uri-bytestring >=0.2
   - uuid >=1.3.5
-  - vault >=0.3
   - vector >=0.11
   - wai >=3.0
   - wai-extra >=3.0
@@ -164,7 +147,6 @@ tests:
     - imports
     - polysemy
     - polysemy-wire-zoo
-    - raw-strings-qq
     - retry
     - tasty
     - tasty-hunit
@@ -182,7 +164,6 @@ executables:
     dependencies:
     - base
     - cassandra-util >=0.12
-    - directory >=1.3
     - extended
     - optparse-applicative >=0.10
     - raw-strings-qq >=1.0
@@ -212,7 +193,6 @@ executables:
     - cookie
     - data-timeout
     - email-validate
-    - extra
     - exceptions
     - filepath >=1.4
     - galley-types
@@ -230,7 +210,6 @@ executables:
     - mime >=0.4
     - MonadRandom >= 0.5
     - network
-    - options >=0.1
     - optparse-applicative
     - pem
     - proto-lens
@@ -241,7 +220,6 @@ executables:
     - retry >=0.6
     - safe
     - saml2-web-sso
-    - semigroups
     - spar
     - string-conversions
     - tasty >=1.0
@@ -254,7 +232,6 @@ executables:
     - types-common >=0.3
     - types-common-aws >=0.1
     - types-common-journal
-    - unix >=2.5
     - unliftio
     - unordered-containers
     - uri-bytestring >=0.2
@@ -290,7 +267,6 @@ executables:
     dependencies:
     - base
     - brig
-    - directory >=1.3
     - HsOpenSSL
     - imports
     - optparse-applicative >=0.10

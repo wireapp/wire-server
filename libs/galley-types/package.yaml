@@ -15,30 +15,16 @@ library:
   source-dirs: src
   dependencies:
   - aeson >=0.6
-  - attoparsec >=0.10
   - base >=4 && <5
-  - base64-bytestring >=1.0
-  - bytestring >=0.9
-  - bytestring-conversion >=0.2
-  - cassandra-util
   - containers >=0.5
   - currency-codes >=2.0
-  - data-default >=0.5
-  - errors
   - exceptions >=0.10.0
-  - hashable
   - lens >=4.12
-  - protobuf >=0.2
   - QuickCheck
   - string-conversions
-  - swagger >=0.1
   - text >=0.11
   - time >=1.4
-  - transformers >=0.3
   - types-common >=0.16
-  - unordered-containers >=0.2
-  - uri-bytestring >=0.2
-  - uuid >=1.3
 tests:
   galley-types-tests:
     main: Main.hs

@@ -11,29 +11,19 @@ license: AGPL-3
 
 dependencies:
 - base
-- aeson
 - brig
-- brig-types
-- bytestring
-- bytestring-conversion
 - cassandra-util
 - conduit
 - containers
-- cql
-- extended
 - imports
 - lens
 - mtl
 - optparse-applicative
 - string-conversions
 - text
-- time
 - tinylog
 - types-common
-- unliftio
 - uuid
-- vector
-- wire-api
 
 executables:
   repair-handles:

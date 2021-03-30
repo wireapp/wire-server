@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c38a1187cbb7096dc02f7fbd4452136026c14d8b937aa8e44266ba3cb39bc0ad
+-- hash: 582c971195abf13d7b958019b67a2f1033afce909f761362776419e459b01208
 
 name:           migrate-sso-feature-flag
 version:        1.0.0
@@ -27,25 +27,16 @@ executable migrate-sso-feature-flag
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
   build-depends:
-      attoparsec
-    , base
+      base
     , brig-types
-    , bytestring
-    , bytestring-conversion
     , cassandra-util
     , conduit
-    , extended
     , galley
-    , galley-types
     , imports
     , lens
-    , mtl
     , optparse-applicative
-    , text
-    , time
     , tinylog
     , types-common
     , unliftio
-    , uuid
     , wire-api
   default-language: Haskell2010

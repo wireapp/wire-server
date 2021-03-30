@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5b23add6d90e5fa38e933ba872f9d6d79319ac2b03289e67fdc119982f5313a6
+-- hash: 409b7786db68eb2ad2df2b157037b665d21fa7868c26e95ca6d20c1e2f9d63ab
 
 name:           bonanza
 version:        3.6.0
@@ -50,18 +50,13 @@ library
       aeson >=1.0
     , attoparsec >=0.10
     , base ==4.*
-    , base16-bytestring >=0.1.1.6 && <0.2
-    , base64-bytestring ==1.0.*
-    , bifunctors
     , binary
     , bytestring
-    , bytestring-conversion
     , cereal
     , cereal-conduit
     , conduit
     , conduit-extra
     , containers
-    , ekg-core
     , exceptions
     , geoip2
     , http-client
@@ -70,19 +65,16 @@ library
     , iproute
     , lens
     , lens-aeson
-    , mtl
     , network
     , network-bsd
     , optparse-applicative >=0.11
     , protobuf >=0.2.1.1
-    , resourcet
     , safe
     , scientific
     , snappy
     , snappy-framing
     , text
     , time >=1.5
-    , types-common >=0.14.1
     , unordered-containers
     , vector
   default-language: Haskell2010

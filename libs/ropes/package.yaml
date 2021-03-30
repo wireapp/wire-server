@@ -12,21 +12,13 @@ dependencies:
 - bytestring >=0.9
 - errors >=2.0
 - imports
-- mime-mail >=0.4
-- semigroups >=0.11
 library:
   source-dirs: src
   dependencies:
   - aeson >=0.6
   - base ==4.*
-  - exceptions >=0.6
   - http-client >=0.5
   - http-types >=0.7
   - iso3166-country-codes >=0.20140203.7
-  - retry >=0.7
-  - resourcet >=1.1
   - text >=0.11
-  - transformers >=0.3
   - time >=1.1
-  - tinylog >=0.10.2
-  - yaml >=0.8.22

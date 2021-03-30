@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: de30a5da6bb71df9ddef112a1c79fb5224df174c4f23cf0654f27183abdc88ca
+-- hash: 78e9e6aeb10a6a607fef03f8f5297fa89f961b1a0090e39e056042b6f65c06d1
 
 name:           stern
 version:        1.7.2
@@ -39,34 +39,27 @@ library
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
   build-depends:
       aeson >=0.11
-    , attoparsec >=0.12
     , base >=4.5 && <5
     , bilge >=0.12
     , brig-types >=0.9.6
     , bytestring >=0.10
     , bytestring-conversion >=0.2
-    , containers >=0.5
     , data-default >=0.5
     , errors >=1.4
     , exceptions >=0.6
     , extended
     , galley-types >=0.81.0
     , gundeck-types >=0.1
-    , hashable >=1.0
     , http-client >=0.4
     , http-types >=0.8
     , imports
     , lens >=4.4
     , metrics-wai >=0.3
     , mtl >=2.1
-    , optparse-applicative >=0.8
-    , semigroups >=0.16
     , split >=0.2
     , string-conversions
     , swagger >=0.3
     , text >=1.1
-    , text-format >=0.3
-    , time >=1.4
     , tinylog >=0.10
     , transformers >=0.3
     , types-common >=0.4.13

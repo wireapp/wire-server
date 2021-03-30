@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2c4e332eb92ae29580646df9f72387c09f892ba0d72f42a89a974b1655ec5bcd
+-- hash: a891c8e6ba237de88edd747bc00b00046ba3c624de51a732987c39ff1fecfcdd
 
 name:           makedeb
 version:        0.3.0
@@ -31,14 +31,12 @@ library
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       base >=4.6 && <5.0
-    , directory >=1.2
     , filepath >=1.3
     , imports
     , optparse-applicative >=0.8
     , shelly >=1.5
     , system-filepath >=0.4
     , text >=0.11
-    , transformers >=0.3
   default-language: Haskell2010
 
 executable makedeb

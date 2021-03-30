@@ -21,21 +21,16 @@ dependencies:
 - imports
 - optparse-applicative
 - tinylog
-- unliftio
 - cql-io
 - exceptions
 
 # for servant's 'ReqBodyCustomError' type defined here.
 - errors
 - http-types
-- mtl
 - servant
-- servant-client
 - servant-server
 - servant-swagger
 - string-conversions
-- transformers
-- text
 - wai
 library:
   source-dirs: src

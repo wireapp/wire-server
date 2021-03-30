@@ -11,17 +11,13 @@ license: AGPL-3
 dependencies:
 - base ==4.*
 - bytestring >=0.10
-- clock >=0.6
-- exceptions >=0.6
 - http-types >=0.8
 - imports
 - metrics-core >=0.3
 - containers
-- prometheus-client
 - servant
 - string-conversions
 - text >=0.11
-- transformers >=0.3
 - wai >=3
 - wai-middleware-prometheus
 - wai-route >=0.3

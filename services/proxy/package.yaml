@@ -30,22 +30,15 @@ library:
   - exceptions >=0.8
   - lens >=4.11
   - metrics-wai >=0.5
-  - mtl >=2.2
-  - network >=2.6
-  - optparse-applicative >=0.12
-  - prometheus-client
   - retry >=0.7
   - text >=1.2
   - tinylog >=0.12
-  - tls >=1.3
-  - transformers >=0.4
   - types-common >=0.8
   - wai >=3.2
   - wai-predicates >=0.8
   - wai-routing >=0.12
   - wai-utilities >=0.14.3
   - warp >=3.0
-  - yaml >=0.8.22
   - unliftio-core
 executables:
   proxy:

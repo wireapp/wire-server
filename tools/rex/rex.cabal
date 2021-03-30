@@ -23,7 +23,6 @@ executable rex
       async
     , attoparsec
     , base           == 4.*
-    , bifunctors
     , bytestring
     , clock
     , dns            >= 2.0.8

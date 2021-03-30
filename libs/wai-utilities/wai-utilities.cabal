@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 03b270072cba482a38b85bce9aa85fba04e5bd4a10561c7e636d64b797c9989a
+-- hash: 47853a7ad447f36e1a2bf87ef960bafcc6dae3a4c8820c92296b237667f620b4
 
 name:           wai-utilities
 version:        0.16.1
@@ -39,7 +39,6 @@ library
     , base >=4.6 && <5.0
     , bytestring >=0.10
     , bytestring-conversion >=0.3
-    , containers >=0.5
     , errors >=2.0
     , exceptions >=0.6
     , http-types >=0.8
@@ -48,13 +47,11 @@ library
     , metrics-wai >=0.5.7
     , pipes >=4.1
     , prometheus-client
-    , stm
     , streaming-commons >=0.1
     , string-conversions
     , swagger >=0.1
     , text >=0.11
     , tinylog >=0.8
-    , transformers >=0.3
     , types-common >=0.12
     , unix >=2.7
     , wai >=3.0

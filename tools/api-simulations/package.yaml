@@ -16,14 +16,11 @@ dependencies:
 - containers >=0.5
 - exceptions >=0.8
 - imports
-- split >=0.2
 library:
   source-dirs: lib/src
   dependencies:
-  - aeson >=0.7
   - base >=4.6
   - cereal >=0.5
-  - errors >=1.4
   - lens >=4.14
   - text >=0.11
   - types-common >=0.4.7
@@ -38,19 +35,14 @@ executables:
     dependencies:
     - api-simulations
     - base
-    - data-default-class >=0.0
     - http-client >=0.4
     - http-client-tls >=0.2
     - lens >=4.1
     - mime >=0.4
     - optparse-applicative >=0.11
-    - retry >=0.7
     - text >=1.2
-    - transformers >=0.3
     - tinylog >=0.14
     - types-common >=0.11
-    - unordered-containers >=0.2
-    - uuid >=1.3
     - unliftio
   api-loadtest:
     main: Main.hs
@@ -62,18 +54,13 @@ executables:
     dependencies:
     - api-simulations
     - base
-    - data-default-class >=0.0
     - extended
     - http-client >=0.4
     - http-client-tls >=0.2
     - metrics-core >=0.1
     - mime >=0.4
-    - monad-control >=0.3
     - mwc-random >=0.13
-    - optparse-applicative >=0.11
-    - retry >=0.7
     - text >=1.2
-    - transformers >=0.3
     - tinylog >=0.14
     - types-common >=0.11
     - unliftio >=0.2.10

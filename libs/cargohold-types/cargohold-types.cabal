@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: eff079abe22cc21d655da449bb1d051e145050171695dc58b0333f9d488e3acd
+-- hash: d0f91f36f6e59a5bf727d40125316083bb549d311f8391a1ca43dfdfd09d746b
 
 name:           cargohold-types
 version:        1.5.0
@@ -29,25 +29,9 @@ library
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
-      aeson >=0.6
-    , attoparsec >=0.10
-    , base ==4.*
-    , base16-bytestring >=0.1
-    , base64-bytestring >=1.0
-    , byteable >=0.1
-    , bytestring >=0.9
+      base ==4.*
     , bytestring-conversion >=0.2
-    , containers >=0.5
-    , cryptonite >=0.11
-    , data-default >=0.5
     , imports
-    , lens >=4.13
-    , memory >=0.11
-    , mime >=0.4
-    , text >=0.11
-    , time >=1.5
     , types-common >=0.16
-    , unordered-containers >=0.2
-    , uuid >=1.2
     , wire-api
   default-language: Haskell2010

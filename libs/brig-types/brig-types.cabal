@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: fe16e52e870cb548573366fe9192319004e52c3e4d2ece172df69e408cbe391b
+-- hash: 1060fdc26ef57534c0f61722613ae48c5ebe98d481fcc21cae9c1ebab816a8bb
 
 name:           brig-types
 version:        1.35.0
@@ -51,38 +51,15 @@ library
     , aeson >=0.11
     , attoparsec >=0.10
     , base ==4.*
-    , base64-bytestring >=1.0
-    , bytestring >=0.9
     , bytestring-conversion >=0.2
-    , case-insensitive
     , cassandra-util
     , containers >=0.5
-    , currency-codes >=2.0
-    , errors >=1.4
-    , extra
-    , hashable
-    , hostname-validate
     , imports
-    , iproute >=1.5
-    , iso3166-country-codes >=0.2
-    , iso639 >=0.1
-    , lens
-    , lens-aeson
-    , network-uri >=2.6
-    , pem >=0.2
-    , quickcheck-instances >=0.3.16
-    , random
-    , safe >=0.3
-    , scientific >=0.3.4
-    , singletons >=2.0
     , string-conversions
-    , swagger >=0.1
     , text >=0.11
     , time >=1.1
     , types-common >=0.16
     , unordered-containers >=0.2
-    , uri-bytestring
-    , uuid >=1.3
     , wire-api
   default-language: Haskell2010
 
@@ -102,31 +79,16 @@ test-suite brig-types-tests
   build-depends:
       QuickCheck
     , aeson
-    , aeson-qq
     , attoparsec
     , base
     , brig-types
-    , bytestring
     , containers
-    , currency-codes
-    , extra
-    , hostname-validate
     , imports
-    , iproute
-    , iso639
-    , lens
-    , pem
-    , quickcheck-instances
-    , random
     , tasty
-    , tasty-hunit
     , tasty-quickcheck
     , text
     , time
     , types-common
     , unordered-containers
-    , uri-bytestring
-    , uuid
-    , vector
     , wire-api
   default-language: Haskell2010
