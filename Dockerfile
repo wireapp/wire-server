@@ -8,7 +8,6 @@ COPY . /wire-docs
 RUN nix-env -f /wire-docs/nix/default.nix -iA env && \
     rm -rf /wire-docs
 
-SHELL ["/bin/bash", "-c"]
-ENTRYPOINT "/bin/bash"
+WORKDIR /mnt
 
 ENV USE_POETRY=0

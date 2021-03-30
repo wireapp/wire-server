@@ -38,6 +38,10 @@ docs-pdf:
 docs-all:
 	docker run --rm -v $$(pwd):/mnt $(DOCKER_USER)/$(DOCKER_IMAGE):$(DOCKER_TAG) make clean html pdf
 
+.PHONY: clean
+clean:
+	rm -rf "$(BUILDDIR)"
+
 # Only build part of the documentation
 # See 'exclude_patterns' in source/conf.py
 docs-administrate:
@@ -66,8 +70,7 @@ else
 endif
 
 .PHONY: dev-run
-dev-run:
-	rm -rf "$(BUILDDIR)"
+dev-run: clean
 ifeq ($(USE_POETRY), 1)
 	source $$HOME/.poetry/env && \
 	poetry run sphinx-autobuild \
