@@ -27,7 +27,11 @@ spec:
     spec:
       containers:
       - name: webapp
+        {{- if .Values.image.digest }}
+        image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
+        {{- else }}
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        {{- end }}
         # Check variables here: https://github.com/wireapp/wire-webapp/wiki/Self-hosting
         env:
           # it is vital that you don't add trailing '/' in this section!
