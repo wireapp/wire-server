@@ -40,6 +40,7 @@ packages:
 - tools/bonanza
 - tools/db/auto-whitelist
 - tools/db/migrate-sso-feature-flag
+- tools/db/change-external-ids
 - tools/db/service-backfill
 - tools/db/billing-team-member-backfill
 - tools/db/find-undead
