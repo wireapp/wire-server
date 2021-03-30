@@ -150,4 +150,4 @@ getUserManagedBy Env {..} u = do
       )
   where
     selectManagedBy :: PrepQuery R (Identity UserId) (Identity ManagedBy)
-    selectManagedBy = "SELECT managed_by WHERE id = ?"
+    selectManagedBy = "SELECT managed_by FROM user WHERE id = ?"

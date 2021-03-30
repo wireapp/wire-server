@@ -54,3 +54,10 @@ dependencies:
 
 library:
   source-dirs: src
+
+executables:
+  change-external-ids:
+    main: Main.hs
+    source-dirs: exe
+    dependencies:
+      - change-external-ids
