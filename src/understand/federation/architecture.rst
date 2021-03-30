@@ -14,7 +14,8 @@ Assuming two installations hosted on subdomains of ``a.example.com`` (A) and ``b
 
 Example of the network connections made between the components of two :ref:`backends <backend>` for a user search (*'exact handle search'*):
 
-|flow-exact-handle-search|
+.. image:: img/exact-handle-search.png
+   :width: 100%
 
 * The exact message objects shown in the above diagram are simplified to ease understanding of which components send bytes over the network to which other components. For the precise definitions of those bytes take a look at the :ref:`federation API<federation-api>`.
 * Depending on the request made by user 1 registered on backend A, different :ref:`wire-server components <other-wire-server>` than 'brig' shown above will make a request over their local network to the 'federator' component.
@@ -155,5 +156,3 @@ TODO.
 
 ..
   paths to images are currently listed at the end of the file. If you prefer to specify them directly in the paragraph they are used, that is also fine.
-
-.. |flow-exact-handle-search| image:: img/exact-handle-search.png
