@@ -6,9 +6,6 @@ self: super: rec {
       python-bidi = pself.callPackage ./python/python-bidi.nix {};
       svg2rlg = pself.callPackage ./python/svg2rlg.nix {};
       svglib = pself.callPackage ./python/svglib.nix {};
-
-      # FUTUREWORK: Remove this when https://github.com/NixOS/nixpkgs/pull/116624 is merged
-      sphinx-autobuild = pself.callPackage ./python/sphinx-autobuild.nix {};
     };
   });
 
