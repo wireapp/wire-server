@@ -894,8 +894,8 @@ mkPasswordResetKey ident = case ident of
 -- User Deletion
 
 -- | Initiate validation of a user's delete request.  Called via @delete /self@.  Users with an
--- 'UserIdentity' can still do this if they also have an 'Email', 'Phone', and/or password.  Otherwise,
--- the team admin has to delete them via the team console on galley.
+-- 'AuthId' from spar can still do this if they also have an 'Email', 'Phone', and/or password.
+-- Otherwise, the team admin has to delete them via the team console on galley.
 --
 -- Owners are not allowed to delete themselves.  Instead, they must ask a fellow owner to
 -- delete them in the team settings.  This protects teams against orphanhood.
