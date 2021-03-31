@@ -492,7 +492,10 @@ updateSSOIdLegacyH (uid ::: _ ::: req) = do
   let mbTid = mbUser >>= userTeam
   case mbTid of
     Nothing -> return . setStatus status404 $ plain "User does not exist or has no team."
-    Just tid -> updateAuthId uid (fromLegacyAuthId legacyAuthId tid)
+    Just tid ->
+      updateAuthId uid (fromLegacyAuthId legacyAuthId tid) <&> \case
+        UpdateAuthIdUpdated -> empty
+        UpdateAuthIdNotFound -> setStatus status404 $ plain "User does not exist or has no team."
 
 deleteSSOIdLegacyH :: UserId ::: JSON -> Handler Response
 deleteSSOIdLegacyH (uid ::: _) = deleteAuthId uid
