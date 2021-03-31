@@ -77,6 +77,8 @@ data UserUpdatedData = UserUpdatedData
     eupManagedBy :: !(Maybe ManagedBy),
     eupAuthId :: !(Maybe AuthId),
     eupAuthIdRemoved :: Bool
+    -- FUTUREWORK: @eupAuthId :: AuthIdUpdate where data AuthIdUpdate = Empty | Just AuthId |
+    -- Removed@, then we don't need @eupAuthIdRemoved@.
   }
   deriving stock (Show)
 
