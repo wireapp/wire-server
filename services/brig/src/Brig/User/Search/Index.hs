@@ -738,6 +738,8 @@ reindexRowToIndexUser
             isNothing service
           ]
 
+      -- The 'TeamId' argument doesn't do anything here, but it's required to discharge the
+      -- function type inside the 'LegacyAuthId'.
       idpUrl :: Maybe UncheckedLegacyAuthId -> Maybe TeamId -> Maybe Text
       idpUrl (Just (UncheckedLegacyAuthId (Right legacyAuthId))) (Just tid) = do
         let authId = fromLegacyAuthId legacyAuthId tid
