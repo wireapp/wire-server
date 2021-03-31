@@ -50,7 +50,7 @@ module Brig.User.Search.Index
 where
 
 import Brig.Data.Instances ()
-import Brig.Index.Types (CreateIndexSettings (..), SafeLegacyAuthId (..))
+import Brig.Index.Types (CreateIndexSettings (..), UncheckedLegacyAuthId (..))
 import Brig.Types.Intra
 import Brig.Types.User
 import Brig.User.Search.Index.Types as Types
@@ -675,8 +675,8 @@ type ReindexRow =
     Maybe (Writetime ServiceId),
     Maybe ManagedBy,
     Maybe (Writetime ManagedBy),
-    Maybe SafeLegacyAuthId,
-    Maybe (Writetime SafeLegacyAuthId)
+    Maybe UncheckedLegacyAuthId,
+    Maybe (Writetime UncheckedLegacyAuthId)
   )
 
 reindexRowToIndexUser :: forall m. MonadThrow m => ReindexRow -> m IndexUser
@@ -699,11 +699,11 @@ reindexRowToIndexUser
     tService,
     managedBy,
     tManagedBy,
-    safeLegacyAuthId,
-    tSafeLegacyAuthId
+    uncheckedLegacyAuthId,
+    tUncheckedLegacyAuthId
     ) =
     do
-      iu <- mkIndexUser u <$> version [Just tName, tStatus, tHandle, tEmail, Just tColour, Just tActivated, tService, tManagedBy, tSafeLegacyAuthId]
+      iu <- mkIndexUser u <$> version [Just tName, tStatus, tHandle, tEmail, Just tColour, Just tActivated, tService, tManagedBy, tUncheckedLegacyAuthId]
       pure $
         if shouldIndex
           then
@@ -714,7 +714,7 @@ reindexRowToIndexUser
                 . set iuEmail email
                 . set iuColourId (Just colour)
                 . set iuAccountStatus status
-                . set iuSAMLIdP (idpUrl safeLegacyAuthId mteam)
+                . set iuSAMLIdP (idpUrl uncheckedLegacyAuthId mteam)
                 . set iuManagedBy managedBy
                 . set iuCreatedAt (Just (writeTimeToUTC tActivated))
           else
@@ -738,8 +738,8 @@ reindexRowToIndexUser
             isNothing service
           ]
 
-      idpUrl :: Maybe SafeLegacyAuthId -> Maybe TeamId -> Maybe Text
-      idpUrl (Just (SafeLegacyAuthId (Right legacyAuthId))) (Just tid) = do
+      idpUrl :: Maybe UncheckedLegacyAuthId -> Maybe TeamId -> Maybe Text
+      idpUrl (Just (UncheckedLegacyAuthId (Right legacyAuthId))) (Just tid) = do
         let authId = fromLegacyAuthId legacyAuthId tid
         uref <- authIdUref authId
         let uri = uref ^. uidTenant . SAML.fromIssuer

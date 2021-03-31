@@ -17,7 +17,7 @@
 
 module Brig.Index.Types
   ( CreateIndexSettings (..),
-    SafeLegacyAuthId (..),
+    UncheckedLegacyAuthId (..),
   )
 where
 
@@ -36,20 +36,21 @@ data CreateIndexSettings = CreateIndexSettings
   }
   deriving (Show)
 
--- | Without this type some UserSSOId value fail to be loaded from the DB
+-- | Without this type, some 'LegacyAuthId' values fail to be loaded from the DB,
 -- namely those with 'tenant', 'subject' values that are invalid XML.
--- While invalid values might be rare, bulk operations such as 'reindexAll' need to handle invalid values.
-newtype SafeLegacyAuthId = SafeLegacyAuthId {fromSafeLegacyAuthId :: Either Aeson.Value LegacyAuthId}
+-- While invalid values might be rare, bulk operations such as 'reindexAll' can reasonably
+-- handle invalid values, which is better than failure.
+newtype UncheckedLegacyAuthId = UncheckedLegacyAuthId {fromUncheckedLegacyAuthId :: Either Aeson.Value LegacyAuthId}
 
-instance Cql SafeLegacyAuthId where
+instance Cql UncheckedLegacyAuthId where
   ctype = Tagged TextColumn
 
   fromCql (CqlText t) = case Aeson.eitherDecode $ cs t of
     Right json ->
       case Aeson.parseMaybe (Aeson.parseJSON @LegacyAuthId) json of
-        Nothing -> Right $ SafeLegacyAuthId (Left json)
-        Just legacyAuthId -> Right $ SafeLegacyAuthId (Right legacyAuthId)
-    Left msg -> Left $ "fromCql: SafeLegacyAuthId: expected a JSON value" ++ msg
+        Nothing -> Right $ UncheckedLegacyAuthId (Left json)
+        Just legacyAuthId -> Right $ UncheckedLegacyAuthId (Right legacyAuthId)
+    Left msg -> Left $ "fromCql: UncheckedLegacyAuthId: expected a JSON value" ++ msg
   fromCql _ = Left "fromCql: LegacyAuthId (was UserSSOId): CqlText expected"
 
   toCql =
