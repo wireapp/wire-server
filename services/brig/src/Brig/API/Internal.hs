@@ -499,18 +499,22 @@ deleteSSOIdLegacyH (uid ::: _) = deleteAuthId uid
 
 updateAuthIdH :: UserId ::: JSON ::: JsonRequest AuthId -> Handler Response
 updateAuthIdH (uid ::: _ ::: req) = do
-  updateAuthId uid =<< parseJsonBody req
+  (updateAuthId uid =<< parseJsonBody req) <&> \case
+    UpdateAuthIdUpdated -> empty
+    UpdateAuthIdNotFound -> setStatus status404 $ plain "User does not exist or has no team."
 
-updateAuthId :: UserId -> AuthId -> Handler Response
+data UpdateAuthIdResponse = UpdateAuthIdUpdated | UpdateAuthIdNotFound
+
+updateAuthId :: UserId -> AuthId -> Handler UpdateAuthIdResponse
 updateAuthId uid authId = do
   mbUser <- lift $ Data.lookupUser WithPendingInvitations uid
   if isJust (mbUser >>= userTeam)
     then do
       lift $ Data.updateAuthId uid (Just authId)
       lift $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupAuthId = Just authId}))
-      pure empty
+      pure UpdateAuthIdUpdated
     else do
-      pure . setStatus status404 $ plain "User does not exist or has no team."
+      pure UpdateAuthIdNotFound
 
 deleteAuthIdH :: UserId ::: JSON -> Handler Response
 deleteAuthIdH (uid ::: _) = deleteAuthId uid
