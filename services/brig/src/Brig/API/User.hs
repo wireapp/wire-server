@@ -148,6 +148,7 @@ import Imports
 import Network.Wai.Utilities
 import qualified System.Logger.Class as Log
 import System.Logger.Message
+import Wire.API.User (newUserAuthId)
 import Wire.API.User.Identity (EmailWithSource (..), ScimDetails (..), authIdUref)
 
 data AllowSCIMUpdates
@@ -186,7 +187,7 @@ createUser new@NewUser {..} = do
       (throwE (InvalidPhone p))
       return
       =<< lift (validatePhone p)
-  let ident = newUserIdentity
+  let ident = newIdentity email phone (newUserAuthId new) -- reconstruct identity with *validated* fields.
   let emKey = userEmailKey <$> email
   let phKey = userPhoneKey <$> phone
   for_ (catMaybes [emKey, phKey]) $ verifyUniquenessAndCheckBlacklist
