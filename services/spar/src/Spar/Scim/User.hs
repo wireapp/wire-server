@@ -175,17 +175,21 @@ instance Scim.UserDB ST.SparTag Spar where
 -- | Return @userAuthId user@ if @Just@.  If @Nothing@, try to create a new @AuthId@ from an
 -- email identity if available.
 newUserAuthId :: User -> Maybe AuthId
-newUserAuthId user = do
-  tid <- userTeam user
-  userAuthId user <|> (convertNonSparIdentity tid =<< userIdentity user)
+newUserAuthId user = userAuthId user <|> createFresh user
   where
-    convertNonSparIdentity :: TeamId -> UserIdentity -> Maybe AuthId
-    convertNonSparIdentity tid ident = do
-      email <- getEmail ident
+    createFresh :: User -> Maybe AuthId
+    createFresh User {userIdentity, userTeam} = do
+      tid <- userTeam
+      email <- getEmail =<< userIdentity
+      convertNonSparIdentity tid email
+
+    convertNonSparIdentity :: TeamId -> Email -> Maybe AuthId
+    convertNonSparIdentity tid email = do
       let ext = ExternalId tid (fromEmail email)
       let ews = EmailWithSource email EmailFromExternalIdField
       pure $ AuthSCIM (ScimDetails ext ews)
 
+    getEmail :: UserIdentity -> Maybe Email
     getEmail (FullIdentity email _) = Just email
     getEmail (EmailIdentity email) = Just email
     getEmail (PhoneIdentity _) = Nothing
