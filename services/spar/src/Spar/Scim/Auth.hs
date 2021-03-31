@@ -55,6 +55,14 @@ import qualified Spar.Data as Data
 import qualified Spar.Error as E
 import qualified Spar.Intra.Brig as Intra.Brig
 import Spar.Scim.Types
+  ( APIScimToken,
+    CreateScimToken (CreateScimToken),
+    CreateScimTokenResponse (..),
+    ScimTokenList (..),
+    SparTag,
+    createScimTokenDescr,
+    createScimTokenPassword,
+  )
 import Spar.Types
 -- FUTUREWORK: these imports are not very handy.  split up Spar.Scim into
 -- Spar.Scim.{Core,User,Group} to avoid at least some of the hscim name clashes?
