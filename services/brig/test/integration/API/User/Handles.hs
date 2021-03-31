@@ -268,7 +268,7 @@ testGetUserByQualifiedHandleNoFederation opt brig = do
   withSettingsOverrides newOpts $
     get
       ( brig
-          . paths ["users", "by-handle", "example.com", "oh-a-handle"]
+          . paths ["users", "by-handle", "non-existant.example.com", "oh-a-handle"]
           . zUser (userId someUser)
       )
       !!! do
