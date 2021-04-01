@@ -10,3 +10,7 @@ data:
     federatorExternal:
       host: federator
       port: {{ .Values.service.externalFederatorPort }}
+    brig:
+      host: brig
+      port: 8080
+
