@@ -1,6 +1,6 @@
+{-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE StrictData #-}
-{-# LANGUAGE ApplicativeDo #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -71,7 +71,7 @@ instance Foldable SearchResult where
 instance Traversable SearchResult where
   traverse f r = do
     newResults <- traverse f (searchResults r)
-    pure $ r { searchResults = newResults }
+    pure $ r {searchResults = newResults}
 
 instance ToSchema (SearchResult Contact) where
   declareNamedSchema _ = do
@@ -122,7 +122,7 @@ instance FromJSON a => FromJSON (SearchResult a) where
 --------------------------------------------------------------------------------
 -- Contact
 
-type ContactLabelMappings = '[ "color_id" ':-> "accent_id"]
+type ContactLabelMappings = '["color_id" ':-> "accent_id"]
 
 -- | Returned by 'searchIndex' under @/contacts/search@.
 -- This is a subset of 'User' and json instances should reflect that.

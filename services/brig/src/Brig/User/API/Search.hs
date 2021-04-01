@@ -153,18 +153,21 @@ search searcherId searchTerm maybeMaxResults = do
   (toPrepend, esMaxResults) <- do
     exactHandleResult <- contactFromProfile <$$> exactHandleMatch
     pure $ case teamSearchInfo of
-      Search.TeamOnly t -> if Just t == (contactTeam =<< exactHandleResult)
-        then (maybeToList exactHandleResult, maxResults - 1)
-        else ([], maxResults)
+      Search.TeamOnly t ->
+        if Just t == (contactTeam =<< exactHandleResult)
+          then (maybeToList exactHandleResult, maxResults - 1)
+          else ([], maxResults)
       _ -> (maybeToList exactHandleResult, maxResults - length exactHandleResult)
   esResult <-
     if esMaxResults > 0
-    then Q.searchIndex searcherId teamSearchInfo searchTerm esMaxResults
-    else pure $ SearchResult 0 0 0 []
-  pure $ esResult { searchResults = toPrepend <> searchResults esResult
-                  , searchFound = length toPrepend + searchFound esResult
-                  , searchReturned = length toPrepend + searchReturned esResult
-                  }
+      then Q.searchIndex searcherId teamSearchInfo searchTerm esMaxResults
+      else pure $ SearchResult 0 0 0 []
+  pure $
+    esResult
+      { searchResults = toPrepend <> searchResults esResult,
+        searchFound = length toPrepend + searchFound esResult,
+        searchReturned = length toPrepend + searchReturned esResult
+      }
   where
     handleTeamVisibility :: TeamId -> TeamSearchVisibility -> Search.TeamSearchInfo
     handleTeamVisibility t Team.SearchVisibilityStandard = Search.TeamAndNonMembers t

@@ -27,8 +27,8 @@ import qualified Wire.API.User as User
 import qualified Wire.API.User.Client as Client
 import qualified Wire.API.User.Client.Prekey as Prekey
 import qualified Wire.API.User.Handle as Handle
-import qualified Wire.API.UserMap as UserMap
 import qualified Wire.API.User.Search as Search
+import qualified Wire.API.UserMap as UserMap
 
 tests :: T.TestTree
 tests =
