@@ -22,6 +22,8 @@ module Brig.API.Util
     logInvitationCode,
     validateHandle,
     logEmail,
+    ZAuthServant,
+    InternalAuth
   )
 where
 
@@ -43,6 +45,43 @@ import Imports
 import System.Logger (Msg)
 import qualified System.Logger as Log
 import Util.Logging (sha256String)
+import Servant.Swagger (HasSwagger(..))
+import Servant hiding (Handler)
+import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
+import Data.Swagger (SecurityScheme(..), HasSecurityDefinitions (..), HasSecurity (..), SecurityRequirement(..), SecuritySchemeType (..), ApiKeyParams(..), ApiKeyLocation (..))
+import Control.Lens ((<>~))
+
+-- | This type exists for the special 'HasSwagger' and 'HasServer' instances. It
+-- shows the "Authorization" header in the swagger docs, but expects the
+-- "Z-Auth" header in the server. This helps keep the swagger docs usable
+-- through nginz.
+data ZAuthServant
+
+type InternalAuth = Header' '[Servant.Required, Servant.Strict] "Z-User" UserId
+
+instance HasSwagger api => HasSwagger (ZAuthServant :> api) where
+  toSwagger _ =
+    toSwagger (Proxy @api)
+      & securityDefinitions <>~ InsOrdHashMap.singleton "ZAuth" secScheme
+      & security <>~ [SecurityRequirement $ InsOrdHashMap.singleton "ZAuth" []]
+    where
+      secScheme =
+        SecurityScheme
+          { _securitySchemeType = SecuritySchemeApiKey (ApiKeyParams "Authorization" ApiKeyHeader),
+            _securitySchemeDescription = Just "Must be a token retrieved by calling 'POST /login' or 'POST /access'. It must be presented in this format: 'Bearer \\<token\\>'."
+          }
+
+instance
+  ( HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
+    HasServer api ctx
+  ) =>
+  HasServer (ZAuthServant :> api) ctx
+  where
+  type ServerT (ZAuthServant :> api) m = ServerT (InternalAuth :> api) m
+
+  route _ = Servant.route (Proxy @(InternalAuth :> api))
+  hoistServerWithContext _ pc nt s =
+    Servant.hoistServerWithContext (Proxy @(InternalAuth :> api)) pc nt s
 
 lookupProfilesMaybeFilterSameTeamOnly :: UserId -> [UserProfile] -> Handler [UserProfile]
 lookupProfilesMaybeFilterSameTeamOnly self us = do

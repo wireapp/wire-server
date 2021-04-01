@@ -55,7 +55,7 @@ import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
 import Brig.User.Phone
 import Control.Error hiding (bool)
-import Control.Lens (view, (.~), (<>~), (?~), (^.))
+import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
@@ -70,19 +70,12 @@ import Data.Misc (IpAddr (..))
 import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
 import Data.Range
 import Data.Swagger
-  ( ApiKeyLocation (..),
-    ApiKeyParams (..),
-    HasInfo (info),
+  ( HasInfo (info),
     HasProperties (properties),
     HasRequired (required),
     HasSchema (..),
-    HasSecurity (security),
-    HasSecurityDefinitions (securityDefinitions),
     HasTitle (title),
     NamedSchema (..),
-    SecurityRequirement (..),
-    SecurityScheme (..),
-    SecuritySchemeType (SecuritySchemeApiKey),
     Swagger,
     SwaggerType (SwaggerObject),
     ToSchema (..),
@@ -130,38 +123,6 @@ import qualified Wire.API.UserMap as Public
 
 ---------------------------------------------------------------------------
 -- Sitemap
-
--- | This type exists for the special 'HasSwagger' and 'HasServer' instances. It
--- shows the "Authorization" header in the swagger docs, but expects the
--- "Z-Auth" header in the server. This helps keep the swagger docs usable
--- through nginz.
-data ZAuthServant
-
-type InternalAuth = Header' '[Servant.Required, Servant.Strict] "Z-User" UserId
-
-instance HasSwagger api => HasSwagger (ZAuthServant :> api) where
-  toSwagger _ =
-    toSwagger (Proxy @api)
-      & securityDefinitions <>~ InsOrdHashMap.singleton "ZAuth" secScheme
-      & security <>~ [SecurityRequirement $ InsOrdHashMap.singleton "ZAuth" []]
-    where
-      secScheme =
-        SecurityScheme
-          { _securitySchemeType = SecuritySchemeApiKey (ApiKeyParams "Authorization" ApiKeyHeader),
-            _securitySchemeDescription = Just "Must be a token retrieved by calling 'POST /login' or 'POST /access'. It must be presented in this format: 'Bearer \\<token\\>'."
-          }
-
-instance
-  ( HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
-    HasServer api ctx
-  ) =>
-  HasServer (ZAuthServant :> api) ctx
-  where
-  type ServerT (ZAuthServant :> api) m = ServerT (InternalAuth :> api) m
-
-  route _ = Servant.route (Proxy @(InternalAuth :> api))
-  hoistServerWithContext _ pc nt s =
-    Servant.hoistServerWithContext (Proxy @(InternalAuth :> api)) pc nt s
 
 type CaptureUserId name = Capture' '[Description "User Id"] name UserId
 
@@ -447,6 +408,7 @@ type OutsideWorldAPI =
     :<|> GetUsersPrekeyBundleQualified
     :<|> GetMultiUserPrekeyBundleUnqualified
     :<|> GetMultiUserPrekeyBundleQualified
+    :<|> Search.API
 
 type SwaggerDocsAPI = "api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
@@ -485,6 +447,7 @@ servantSitemap =
     :<|> getPrekeyBundleH
     :<|> getMultiUserPrekeyBundleUnqualifiedH
     :<|> getMultiUserPrekeyBundleH
+    :<|> Search.servantSitemap
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
