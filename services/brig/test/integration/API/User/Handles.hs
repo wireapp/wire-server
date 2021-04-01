@@ -66,7 +66,9 @@ tests _cl _at conf p b c g =
 
 testHandleUpdate :: Brig -> Cannon -> Http ()
 testHandleUpdate brig cannon = do
-  uid <- userId <$> randomUser brig
+  user <- randomUser brig
+  let uid = userId user
+      quid = userQualifiedId user
   -- Invalid handles are rejected
   let badHandles = ["ca$h", "w", "Capital", "wire"]
   forM_ badHandles $ \h -> do
@@ -98,7 +100,7 @@ testHandleUpdate brig cannon = do
     const (Just "handle-exists") === fmap Error.label . responseJsonMaybe
   -- The owner appears by that handle in search
   Search.refreshIndex brig
-  Search.assertCanFind brig uid2 uid hdl
+  Search.assertCanFind brig uid2 quid hdl
   -- Change the handle again, thus freeing the old handle
   hdl2 <- randomHandle
   let update2 = RequestBodyLBS . encode $ HandleUpdate hdl2
@@ -108,8 +110,8 @@ testHandleUpdate brig cannon = do
     !!! const 404 === statusCode
   -- The owner appears by the new handle in search
   Search.refreshIndex brig
-  Search.assertCan'tFind brig uid2 uid hdl
-  Search.assertCanFind brig uid2 uid hdl2
+  Search.assertCan'tFind brig uid2 quid hdl
+  Search.assertCanFind brig uid2 quid hdl2
   -- Other users can immediately claim the old handle (the claim of the old handle is
   -- removed).
   put (brig . path "/self/handle" . contentJson . zUser uid2 . zConn "c" . body update) !!! do
