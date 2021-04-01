@@ -3,104 +3,15 @@
 module Test.Spar.IdCases where
 
 import Data.Function
+import Data.Id
 import Data.Set
+import Data.UUID
 import Imports
 import qualified SAML2.WebSSO.Types as SAML
 import Test.Hspec
-import Text.Show.Pretty
-import qualified Wire.API.User.Identity.AuthId as Ident
-
--- | We support a specific set of sub-sets of these things a user can have (or do, or
--- experience).  This is a simplified model, but it should be accurate enough.
-data Marker
-  = MEmail
-  | MEmailValidated
-  | MPassword
-  | MSCIM
-  | MSAML
-  deriving (Ord, Enum, Bounded, Eq, Show)
-
-type State = Set Marker
-
-deriving instance Ord SAML.UserRef
-
-deriving instance Ord Ident.AuthId
-
-deriving instance Ord Ident.ScimDetails
-
-deriving instance Ord Ident.ExternalId
-
-deriving instance Ord Ident.EmailWithSource
-
-deriving instance Ord Ident.EmailSource
-
-allStates :: Set State
-allStates =
-  fromList $
-    [ fromList [a, b, c, d, e]
-      | a <- [minBound ..],
-        b <- [minBound ..],
-        c <- [minBound ..],
-        d <- [minBound ..],
-        e <- [minBound ..]
-    ]
-      <> [mempty]
-
--- | A logical description of which combinations of 'Marker's are allowed.
-validStates :: Set State
-validStates =
-  allStates
-    & Data.Set.filter someAuth
-    & Data.Set.filter samlOrPw
-    & Data.Set.filter (MPassword `implies` MEmailValidated)
-    & Data.Set.filter (MEmailValidated `implies` MEmail)
-
-someAuth :: State -> Bool
-someAuth s = MSAML `member` s || MPassword `member` s
-
-samlOrPw :: Set Marker -> Bool
-samlOrPw s = MSCIM `member` s || MSAML `member` s
-
-implies :: Marker -> Marker -> State -> Bool
-implies a b s = not (a `member` s) || (b `member` s)
-
--- | An enumeration of all combinations of 'Marker's that are allowed, plus examples.
-validStatesExpected :: Set (State, [Ident.AuthId])
-validStatesExpected =
-  fromList
-    [ ( fromList [MEmail, MEmailValidated, MPassword, MSCIM],
-        []
-      ),
-      ( fromList [MEmail, MEmailValidated, MPassword, MSCIM, MSAML],
-        []
-      ),
-      ( fromList [MEmail, MEmailValidated, MPassword, MSAML], -- email validation is handled brig, not in AuthId
-        []
-      ),
-      ( fromList [MEmail, MEmailValidated, MSCIM, MSAML], -- EmailSource can be any of the 2 cases
-        []
-      ),
-      ( fromList [MEmail, MEmailValidated, MSAML], -- uref contains an email and validateSAMLEmail feature is activated
-        []
-      ),
-      ( fromList [MEmail, MSCIM, MSAML],
-        []
-      ),
-      ( fromList [MEmail, MSAML],
-        []
-      ),
-      ( fromList [MSCIM, MSAML],
-        []
-      ),
-      ( fromList [MSAML],
-        []
-      )
-    ]
-
-main :: IO ()
-main = do
-  putStrLn $ ppShow validStates
-  putStrLn $ ppShow (validStates == (fst `Data.Set.map` validStatesExpected))
+import Test.Hspec.QuickCheck
+import URI.ByteString.QQ
+import Wire.API.User.Identity
 
 specs :: Spec
 specs = do
@@ -108,11 +19,27 @@ specs = do
     it "validStates, validStatesExpected are in sync" $ do
       validStates `shouldBe` (fst `Data.Set.map` validStatesExpected)
     it "all validStateExpected entries have examples" $ do
-      -- we can't really check anything more; that the examples actually represent the marker
-      -- set lies in the responsibility of the test author.  (so this is something between
-      -- compiler-validated documentation and an actual test.)
       forM_ (Data.Set.toList validStatesExpected) $ \(_, examples) -> do
         examples `shouldNotBe` mempty
+    prop "arbitrary AuthId values are not missing in validStatesExpected" $ \(authId :: AuthId) -> do
+      allSamples `shouldContain` [Equiv authId]
+
+  -- TODO: why is it hard to reason about AuthId?  what if we have more top-level constructors, and less complixity inside each one?
+
+  -- TODO: set up tmate to use C-space, not C-b.  (oh, wait, that's also used.  aaargh.  but much less so.)
+
+  describe "what's an email" $ do
+    it "1" $ parseEmail "@handle" `shouldBe` Nothing
+    it "2" $ parseEmail "onlylocal@" `shouldBe` Nothing
+    it "3" $ parseEmail "@" `shouldBe` Nothing
+    it "4" $ parseEmail "local@only-top-level" `shouldSatisfy` isJust
+
+  describe "preference of scim fields" $ do
+    it "exernalId is used as email ibkt if emails is empty" $ do
+      pending
+
+  describe "NameIDs that are not short are gracefully rejected (this is an integration test, maybe).  in other words: non-externalId NameIDs will be rejected at saml login." $ do
+    it "" pending
 
   describe "AuthId combinators" $ do
     it "runAuthId" $ do
@@ -141,3 +68,131 @@ specs = do
 
     it "externalIdName" $ do
       pending
+
+-- | We support a specific set of sub-sets of these things a user can have (or do, or
+-- experience).  This is a simplified model, but it should be accurate enough.
+data Marker
+  = MEmail
+  | MEmailValidated
+  | MPassword
+  | MSCIM
+  | MSAML
+  deriving (Ord, Enum, Bounded, Eq, Show)
+
+type State = Set Marker
+
+-- | An enumeration of all combinations of 'Marker's that are allowed, plus examples.
+validStatesExpected :: Set (State, [AuthId])
+validStatesExpected =
+  fromList
+    [ ( fromList [MEmail, MEmailValidated, MPassword, MSCIM],
+        [ AuthSCIM (ScimDetails sampleExternalId (sampleEmailWithSource EmailFromExternalIdField)),
+          AuthSCIM (ScimDetails sampleExternalId (sampleEmailWithSource EmailFromEmailField))
+        ]
+      ),
+      ( fromList [MEmail, MEmailValidated, MPassword, MSCIM, MSAML],
+        [ AuthBoth sampleTeamId sampleUserRef (Just (sampleEmailWithSource EmailFromExternalIdField)),
+          AuthBoth sampleTeamId sampleUserRef (Just (sampleEmailWithSource EmailFromEmailField))
+        ]
+      ),
+      ( fromList [MEmail, MEmailValidated, MPassword, MSAML], -- email validation is handled brig, not in AuthId
+        [AuthSAML sampleUserRef]
+      ),
+      ( fromList [MEmail, MEmailValidated, MSCIM, MSAML], -- EmailSource can be any of the 2 cases
+        [ AuthBoth sampleTeamId sampleUserRef (Just (sampleEmailWithSource EmailFromExternalIdField)),
+          AuthBoth sampleTeamId sampleUserRef (Just (sampleEmailWithSource EmailFromEmailField))
+        ]
+      ),
+      ( fromList [MEmail, MEmailValidated, MSAML], -- uref contains an email and validateSAMLEmail feature is activated
+        []
+      ),
+      ( fromList [MEmail, MSCIM, MSAML],
+        []
+      ),
+      ( fromList [MEmail, MSAML],
+        []
+      ),
+      ( fromList [MSCIM, MSAML],
+        [AuthBoth sampleTeamId sampleUserRef Nothing]
+      ),
+      ( fromList [MSAML],
+        []
+      )
+    ]
+
+allStates :: Set State
+allStates =
+  fromList $
+    [ fromList [a, b, c, d, e]
+      | a <- [minBound ..],
+        b <- [minBound ..],
+        c <- [minBound ..],
+        d <- [minBound ..],
+        e <- [minBound ..]
+    ]
+      <> [mempty]
+
+-- | A logical description of which combinations of 'Marker's are allowed.
+validStates :: Set State
+validStates =
+  allStates
+    & Data.Set.filter someAuth
+    & Data.Set.filter samlOrPw
+    & Data.Set.filter (MPassword `implies` MEmailValidated)
+    & Data.Set.filter (MEmailValidated `implies` MEmail)
+
+someAuth :: State -> Bool
+someAuth s = MSAML `member` s || MPassword `member` s
+
+samlOrPw :: Set Marker -> Bool
+samlOrPw s = MSCIM `member` s || MSAML `member` s -- TODO: MPassword?
+
+implies :: Marker -> Marker -> State -> Bool
+implies a b s = not (a `member` s) || (b `member` s)
+
+allSamples :: [Equiv AuthId]
+allSamples = _
+
+data Equiv a = Equiv a
+  deriving (Show)
+
+instance Eq (Equiv AuthId) where
+  (Equiv (AuthSAML _))
+    == (Equiv (AuthSAML _)) = True
+  (Equiv (AuthSCIM (ScimDetails _ (EmailWithSource _ source))))
+    == (Equiv (AuthSCIM (ScimDetails _ (EmailWithSource _ source')))) = source == source'
+  (Equiv (AuthBoth _ _ (Just (EmailWithSource _ source))))
+    == (Equiv (AuthBoth _ _ (Just (EmailWithSource _ source')))) = source == source'
+  (Equiv (AuthBoth _ _ Nothing))
+    == (Equiv (AuthBoth _ _ Nothing)) = True
+  (Equiv _)
+    == (Equiv _) = False
+
+sampleExternalId :: ExternalId
+sampleExternalId = ExternalId sampleTeamId "\72313xG<#<\9794\"I(hK"
+
+sampleEmailWithSource :: EmailSource -> EmailWithSource
+sampleEmailWithSource = EmailWithSource (fromJust $ parseEmail "me@you.there")
+
+sampleTeamId :: TeamId
+sampleTeamId = Id . fromJust . Data.UUID.fromString $ "00000040-0000-0052-0000-001d00000074"
+
+sampleUserRef :: SAML.UserRef
+sampleUserRef =
+  SAML.UserRef
+    (SAML.Issuer [uri|https://issuer.io|])
+    (fromRight (error "impossible") $ SAML.emailNameID "me@you.there")
+
+deriving instance Ord SAML.UserRef
+
+deriving instance Ord AuthId
+
+deriving instance Ord ScimDetails
+
+deriving instance Ord ExternalId
+
+deriving instance Ord EmailWithSource
+
+deriving instance Ord EmailSource
+
+-- TODO: write integration test for migration.

@@ -73,6 +73,7 @@ import qualified Text.Email.Parser as Email
 import Wire.API.Arbitrary (GenericUniform (GenericUniform))
 import Wire.API.User.Identity.Email
 
+-- | this is the type that spar uses to reference users in front of saml / scim peers.  what happens if we don't even expose this to brig, but send brig a bytestring containing json, merely for storage and retrieval?  could we also store scim timestamps in brig then?
 data AuthId
   = AuthSAML SAML.UserRef
   | AuthSCIM ScimDetails
@@ -112,7 +113,7 @@ instance ToJSON EmailWithSource
 
 data EmailSource
   = EmailFromExternalIdField
-  | EmailFromEmailField
+  | EmailFromEmailsField
   deriving (Eq, Show, Bounded, Enum, Generic)
   deriving (Arbitrary) via (GenericUniform EmailSource)
 
@@ -271,7 +272,7 @@ instance ToJSON AuthIdTyp where
 
 -- | Take apart a 'AuthId', using 'SAML.UserRef' if available, otherwise 'ScimDetails'.
 -- replace runAuthId in wire-api with this
-runAuthId :: (SAML.UserRef -> a) -> (ScimDetails -> a) -> AuthId -> a
+runAuthId :: (SAML.UserRef -> a) -> (ScimDetails -> a) -> AuthId -> a -- TODO: do we need the email address instead of ScimDetails in most cases?
 runAuthId doUref doScim = \case
   AuthSAML uref -> doUref uref
   AuthSCIM scimDetails -> doScim scimDetails
