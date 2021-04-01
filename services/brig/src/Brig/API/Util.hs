@@ -23,7 +23,7 @@ module Brig.API.Util
     validateHandle,
     logEmail,
     ZAuthServant,
-    InternalAuth
+    InternalAuth,
   )
 where
 
@@ -34,22 +34,22 @@ import Brig.App (AppIO)
 import qualified Brig.Data.User as Data
 import Brig.Types
 import Brig.Types.Intra (accountUser)
+import Control.Lens ((<>~))
 import Control.Monad.Catch (throwM)
 import Control.Monad.Trans.Except (throwE)
 import Data.Handle (Handle, parseHandle)
+import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id
 import Data.Maybe
 import Data.String.Conversions (cs)
+import Data.Swagger (ApiKeyLocation (..), ApiKeyParams (..), HasSecurity (..), HasSecurityDefinitions (..), SecurityRequirement (..), SecurityScheme (..), SecuritySchemeType (..))
 import Data.Text.Ascii (AsciiText (toText))
 import Imports
+import Servant hiding (Handler)
+import Servant.Swagger (HasSwagger (..))
 import System.Logger (Msg)
 import qualified System.Logger as Log
 import Util.Logging (sha256String)
-import Servant.Swagger (HasSwagger(..))
-import Servant hiding (Handler)
-import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
-import Data.Swagger (SecurityScheme(..), HasSecurityDefinitions (..), HasSecurity (..), SecurityRequirement(..), SecuritySchemeType (..), ApiKeyParams(..), ApiKeyLocation (..))
-import Control.Lens ((<>~))
 
 -- | This type exists for the special 'HasSwagger' and 'HasServer' instances. It
 -- shows the "Authorization" header in the swagger docs, but expects the

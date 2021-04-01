@@ -24,12 +24,12 @@ import Control.Monad.Catch (MonadCatch)
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Conversion.To (toByteString)
 import Data.Id
+import Data.Qualified (Qualified (..))
 import Data.String.Conversions (cs)
 import Data.Text.Encoding (encodeUtf8)
 import Imports
 import Test.Tasty.HUnit
 import Util
-import Data.Qualified (Qualified(..))
 import Wire.API.User.Search (RoleFilter (..), TeamContact (..), TeamUserSearchSortBy, TeamUserSearchSortOrder)
 
 executeSearch :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Text -> m (SearchResult Contact)
