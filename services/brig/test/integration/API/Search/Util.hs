@@ -33,13 +33,17 @@ import Data.Qualified (Qualified(..))
 import Wire.API.User.Search (RoleFilter (..), TeamContact (..), TeamUserSearchSortBy, TeamUserSearchSortOrder)
 
 executeSearch :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Text -> m (SearchResult Contact)
-executeSearch brig self q = do
+executeSearch = executeSearchWithSize Nothing
+
+executeSearchWithSize :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Maybe Int -> Brig -> UserId -> Text -> m (SearchResult Contact)
+executeSearchWithSize maybeSize brig self q = do
   r <-
     get
       ( brig
           . path "/search/contacts"
           . zUser self
           . queryItem "q" (encodeUtf8 q)
+          . maybe id (queryItem "size" . toByteString') maybeSize
       )
       <!! const 200
       === statusCode

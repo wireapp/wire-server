@@ -35,7 +35,6 @@ import Data.Domain (Domain)
 import Data.Handle (Handle (fromHandle))
 import Data.Id
 import Data.Qualified (Qualified (Qualified))
-import Data.Range
 import qualified Database.Bloodhound as ES
 import Imports hiding (log, searchable)
 import Wire.API.User (ColourId (..), Name (fromName))
@@ -48,16 +47,16 @@ searchIndex ::
   -- | The search query
   Text ->
   -- | The maximum number of results.
-  Range 1 500 Int32 ->
+  Int ->
   m (SearchResult Contact)
 searchIndex u teamSearchInfo q = queryIndex (defaultUserQuery u teamSearchInfo q)
 
 queryIndex ::
   (MonadIndexIO m, MonadReader Env m) =>
   IndexQuery r ->
-  Range 1 500 Int32 ->
+  Int ->
   m (SearchResult Contact)
-queryIndex (IndexQuery q f _) (fromRange -> s) = do
+queryIndex (IndexQuery q f _) s = do
   localDomain <- viewFederationDomain
   liftIndexIO $ do
     idx <- asks idxName
@@ -98,7 +97,6 @@ defaultUserQuery u teamSearchInfo (normalized -> term') =
           ( ES.mkMultiMatchQuery
               [ ES.FieldName "handle.prefix^2",
                 ES.FieldName "normalized.prefix",
-                ES.FieldName "handle^4",
                 ES.FieldName "normalized^3"
               ]
               (ES.QueryString term')
@@ -123,8 +121,12 @@ defaultUserQuery u teamSearchInfo (normalized -> term') =
           boolQuery
             { ES.boolQueryMustMatch =
                 [ ES.QueryBoolQuery
-                    boolQuery {ES.boolQueryShouldMatch = [matchPhraseOrPrefix, legacyPrefixMatch]}
+                    boolQuery
+                      { ES.boolQueryShouldMatch = [matchPhraseOrPrefix, legacyPrefixMatch],
+                        ES.boolQueryMustNotMatch = [termQ "handle" term']
+                      }
                 ],
+              -- This removes exact handle matches, as they are fetched from cassandra
               ES.boolQueryShouldMatch = [ES.QueryExistsQuery (ES.FieldName "handle")]
             }
       -- This reduces relevance on non-team users by 90%, there was no science
@@ -170,14 +172,15 @@ mkUserQuery (review _TextId -> self) teamSearchInfo q =
           }
     )
     []
-  where
-    termQ f v =
-      ES.TermQuery
-        ES.Term
-          { ES.termField = f,
-            ES.termValue = v
-          }
-        Nothing
+
+termQ :: Text -> Text -> ES.Query
+termQ f v =
+  ES.TermQuery
+    ES.Term
+      { ES.termField = f,
+        ES.termValue = v
+      }
+    Nothing
 
 -- | This query will make sure that: if teamId is absent, only users without a teamId are
 -- returned.  if teamId is present, only users with the *same* teamId or users without a
