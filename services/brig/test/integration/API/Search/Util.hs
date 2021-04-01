@@ -56,30 +56,27 @@ reindex brig =
 
 assertCanFindByName :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> m ()
 assertCanFindByName brig self expected =
-  assertCanFind brig (userId self) (userId expected) (fromName $ userDisplayName expected)
+  assertCanFind brig (userId self) (userQualifiedId expected) (fromName $ userDisplayName expected)
 
 assertCan'tFindByName :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> m ()
 assertCan'tFindByName brig self expected =
-  assertCan'tFind brig (userId self) (userId expected) (fromName $ userDisplayName expected)
+  assertCan'tFind brig (userId self) (userQualifiedId expected) (fromName $ userDisplayName expected)
 
-assertCanFind :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> UserId -> Text -> m ()
+assertCanFind :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Qualified UserId -> Text -> m ()
 assertCanFind brig self expected q = do
   r <- searchResults <$> executeSearch brig self q
   liftIO $ do
     assertBool ("No results for query: " <> show q) $
       not (null r)
     assertBool ("User not in results for query: " <> show q) $
-      expected `elem` (map contactUserId r)
+      expected `elem` map contactQualifiedId r
 
-assertCan'tFind :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> UserId -> Text -> m ()
+assertCan'tFind :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Qualified UserId -> Text -> m ()
 assertCan'tFind brig self expected q = do
   r <- searchResults <$> executeSearch brig self q
   liftIO $ do
     assertBool ("User shouldn't be present in results for query: " <> show q) $
-      expected `notElem` map contactUserId r
-
-contactUserId :: Contact -> UserId
-contactUserId = qUnqualified . contactQualifiedId
+      expected `notElem` map contactQualifiedId r
 
 executeTeamUserSearch ::
   (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>
