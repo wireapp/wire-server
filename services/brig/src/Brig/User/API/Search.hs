@@ -24,6 +24,7 @@ module Brig.User.API.Search
 where
 
 import Brig.API.Handler
+import qualified Brig.API.User as User
 import Brig.API.Util (ZAuthServant)
 import Brig.App
 import qualified Brig.Data.User as DB
@@ -31,13 +32,16 @@ import qualified Brig.IO.Intra as Intra
 import qualified Brig.Options as Opts
 import Brig.Team.Util (ensurePermissions)
 import Brig.Types.Search as Search
+import qualified Brig.User.Handle as Handle
 import Brig.User.Search.Index
 import qualified Brig.User.Search.SearchIndex as Q
 import Brig.User.Search.TeamUserSearch (RoleFilter (..), TeamUserSearchSortBy (..), TeamUserSearchSortOrder (..))
 import qualified Brig.User.Search.TeamUserSearch as Q
 import Control.Lens (view)
+import Data.Handle (Handle (Handle, fromHandle))
 import Data.Id
 import Data.Predicate
+import Data.Qualified (Qualified (Qualified))
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Galley.Types.Teams.SearchVisibility as Team
@@ -50,6 +54,8 @@ import Network.Wai.Utilities.Swagger (document)
 import Servant hiding (Handler, JSON)
 import qualified Servant
 import qualified Wire.API.Team.Permission as Public
+import Wire.API.Team.SearchVisibility (TeamSearchVisibility)
+import Wire.API.User (ColourId (fromColourId), Name (fromName), UserProfile (..))
 import qualified Wire.API.User.Search as Public
 
 type SearchContacts =
@@ -131,7 +137,7 @@ search searcherId searchTerm maybeMaxResults = do
   -- FUTUREWORK(federation, #1269):
   -- If the query contains a qualified handle, forward the search to the remote
   -- backend.
-  let maxResults = fromMaybe (unsafeRange 15) maybeMaxResults
+  let maxResults = maybe 15 (fromIntegral . fromRange) maybeMaxResults
   searcherTeamId <- lift $ DB.lookupUserTeam searcherId
   sameTeamSearchOnly <- fromMaybe False <$> view (settings . Opts.searchSameTeamOnly)
   teamSearchInfo <-
@@ -144,10 +150,45 @@ search searcherId searchTerm maybeMaxResults = do
           else do
             -- For team users, we need to check the visibility flag
             lift (handleTeamVisibility t <$> Intra.getTeamSearchVisibility t)
-  Q.searchIndex searcherId teamSearchInfo searchTerm maxResults
+  (toPrepend, esMaxResults) <- do
+    exactHandleResult <- contactFromProfile <$$> exactHandleMatch
+    pure $ case teamSearchInfo of
+      Search.TeamOnly t -> if Just t == (contactTeam =<< exactHandleResult)
+        then (maybeToList exactHandleResult, maxResults - 1)
+        else ([], maxResults)
+      _ -> (maybeToList exactHandleResult, maxResults - length exactHandleResult)
+  esResult <-
+    if esMaxResults > 0
+    then Q.searchIndex searcherId teamSearchInfo searchTerm esMaxResults
+    else pure $ SearchResult 0 0 0 []
+  pure $ esResult { searchResults = toPrepend <> searchResults esResult
+                  , searchFound = length toPrepend + searchFound esResult
+                  , searchReturned = length toPrepend + searchReturned esResult
+                  }
   where
+    handleTeamVisibility :: TeamId -> TeamSearchVisibility -> Search.TeamSearchInfo
     handleTeamVisibility t Team.SearchVisibilityStandard = Search.TeamAndNonMembers t
     handleTeamVisibility t Team.SearchVisibilityNoNameOutsideTeam = Search.TeamOnly t
+
+    contactFromProfile :: UserProfile -> Contact
+    contactFromProfile profile =
+      Contact
+        { contactQualifiedId = profileQualifiedId profile,
+          contactName = fromName $ profileName profile,
+          contactHandle = fromHandle <$> profileHandle profile,
+          contactColorId = Just . fromIntegral . fromColourId $ profileAccentId profile,
+          contactTeam = profileTeam profile
+        }
+
+    exactHandleMatch :: Handler (Maybe UserProfile)
+    exactHandleMatch = do
+      maybeUserId <- lift $ Handle.lookupHandle (Handle searchTerm)
+      -- TODO: Optionally read this from query params
+      searchedDomain <- viewFederationDomain
+      case maybeUserId of
+        Nothing -> pure Nothing
+        Just userId ->
+          lift $ User.lookupProfile searcherId (Qualified userId searchedDomain)
 
 teamUserSearchH ::
   ( JSON
