@@ -33,13 +33,18 @@ module Wire.API.User.Search
   )
 where
 
+import Control.Lens ((.~), (?~))
 import Data.Aeson
 import Data.Attoparsec.ByteString (sepBy)
 import Data.Attoparsec.ByteString.Char8 (char, string)
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
+import qualified Data.HashMap.Strict.InsOrd as InsOrdHasMap
 import Data.Id (TeamId, UserId)
 import Data.Json.Util (UTCTimeMillis)
+import Data.Proxy (Proxy (..))
+import Data.Swagger hiding (Contact)
 import qualified Data.Swagger.Build.Api as Doc
+import Deriving.Swagger
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Team.Role (Role)
@@ -57,6 +62,23 @@ data SearchResult a = SearchResult
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform (SearchResult a))
+
+instance ToSchema (SearchResult Contact) where
+  declareNamedSchema _ = do
+    intSchema <- declareSchema (Proxy @Int)
+    contacts <- declareSchema (Proxy @[Contact])
+    pure $
+      NamedSchema (Just "SearchResult") $
+        mempty
+          & type_ ?~ SwaggerObject
+          & properties
+            .~ InsOrdHasMap.fromList
+              [ ("found", Inline (intSchema & description ?~ "Total number of hits")),
+                ("returned", Inline (intSchema & description ?~ "Total number of hits returned")),
+                ("took", Inline (intSchema & description ?~ "Search time in ms")),
+                ("documents", Inline (contacts & description ?~ "List of contacts found"))
+              ]
+          & required .~ ["found", "returned", "took", "documents"]
 
 modelSearchResult :: Doc.Model -> Doc.Model
 modelSearchResult modelContact = Doc.defineModel "SearchResult" $ do
@@ -90,6 +112,11 @@ instance FromJSON a => FromJSON (SearchResult a) where
 --------------------------------------------------------------------------------
 -- Contact
 
+type ContactLabelMappings =
+  '[ "user_id" ':-> "id",
+     "color_id" ':-> "accent_id"
+   ]
+
 -- | Returned by 'searchIndex' under @/contacts/search@.
 -- This is a subset of 'User' and json instances should reflect that.
 data Contact = Contact
@@ -101,6 +128,7 @@ data Contact = Contact
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Contact)
+  deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "contact", CamelToSnake, LabelMappings ContactLabelMappings)] Contact)
 
 modelSearchContact :: Doc.Model
 modelSearchContact = Doc.defineModel "Contact" $ do

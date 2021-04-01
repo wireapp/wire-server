@@ -18,10 +18,13 @@
 module Brig.User.API.Search
   ( routesPublic,
     routesInternal,
+    API,
+    servantSitemap,
   )
 where
 
 import Brig.API.Handler
+import Brig.API.Util (ZAuthServant)
 import Brig.App
 import qualified Brig.Data.User as DB
 import qualified Brig.IO.Intra as Intra
@@ -44,27 +47,28 @@ import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities.Response (empty, json)
 import Network.Wai.Utilities.Swagger (document)
+import Servant hiding (Handler, JSON)
+import qualified Servant
 import qualified Wire.API.Team.Permission as Public
 import qualified Wire.API.User.Search as Public
 
+type SearchContacts =
+  Summary "Search for users"
+    :> ZAuthServant
+    :> "search"
+    :> "contacts"
+    :> QueryParam' '[Required, Strict, Description "Search query"] "q" Text
+    :> QueryParam' '[Optional, Strict, Description "Number of results to return (min: 1, max: 500, default 15)"] "size" (Range 1 500 Int32)
+    :> Get '[Servant.JSON] (Public.SearchResult Public.Contact)
+
+type API = SearchContacts
+
+servantSitemap :: ServerT API Handler
+servantSitemap =
+  search
+
 routesPublic :: Routes Doc.ApiBuilder Handler ()
 routesPublic = do
-  get "/search/contacts" (continue searchH) $
-    accept "application" "json"
-      .&. header "Z-User"
-      .&. query "q"
-      .&. def (unsafeRange 15) (query "size")
-
-  document "GET" "search" $ do
-    Doc.summary "Search for users"
-    Doc.parameter Doc.Query "q" Doc.string' $
-      Doc.description "Search query"
-    Doc.parameter Doc.Query "size" Doc.int32' $ do
-      Doc.description "Number of results to return (min: 1, max: 500, default: 15)"
-      Doc.optional
-    Doc.returns (Doc.ref $ Public.modelSearchResult Public.modelSearchContact)
-    Doc.response 200 "The search result." Doc.end
-
   get "/teams/:tid/search" (continue teamUserSearchH) $
     accept "application" "json"
       .&. header "Z-User"
@@ -122,15 +126,13 @@ routesInternal = do
 
 -- Handlers
 
-searchH :: JSON ::: UserId ::: Text ::: Range 1 500 Int32 -> Handler Response
-searchH (_ ::: u ::: q ::: s) = json <$> lift (search u q s)
-
-search :: UserId -> Text -> Range 1 500 Int32 -> AppIO (Public.SearchResult Public.Contact)
-search searcherId searchTerm maxResults = do
+search :: UserId -> Text -> Maybe (Range 1 500 Int32) -> Handler (Public.SearchResult Public.Contact)
+search searcherId searchTerm maybeMaxResults = do
   -- FUTUREWORK(federation, #1269):
   -- If the query contains a qualified handle, forward the search to the remote
   -- backend.
-  searcherTeamId <- DB.lookupUserTeam searcherId
+  let maxResults = fromMaybe (unsafeRange 15) maybeMaxResults
+  searcherTeamId <- lift $ DB.lookupUserTeam searcherId
   sameTeamSearchOnly <- fromMaybe False <$> view (settings . Opts.searchSameTeamOnly)
   teamSearchInfo <-
     case searcherTeamId of
@@ -141,7 +143,7 @@ search searcherId searchTerm maxResults = do
           then return (Search.TeamOnly t)
           else do
             -- For team users, we need to check the visibility flag
-            Intra.getTeamSearchVisibility t >>= return . handleTeamVisibility t
+            lift (handleTeamVisibility t <$> Intra.getTeamSearchVisibility t)
   Q.searchIndex searcherId teamSearchInfo searchTerm maxResults
   where
     handleTeamVisibility t Team.SearchVisibilityStandard = Search.TeamAndNonMembers t
