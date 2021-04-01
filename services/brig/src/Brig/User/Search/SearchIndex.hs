@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -23,20 +24,24 @@ module Brig.User.Search.SearchIndex
   )
 where
 
+import Brig.App (Env, viewFederationDomain)
 import Brig.Data.Instances ()
 import Brig.Types.Search
 import Brig.User.Search.Index
 import Control.Lens hiding ((#), (.=))
-import Control.Monad.Catch (throwM)
+import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.Except
-import Data.Aeson as Aeson
+import Data.Domain (Domain)
+import Data.Handle (Handle (fromHandle))
 import Data.Id
+import Data.Qualified (Qualified (Qualified))
 import Data.Range
 import qualified Database.Bloodhound as ES
 import Imports hiding (log, searchable)
+import Wire.API.User (ColourId (..), Name (fromName))
 
 searchIndex ::
-  MonadIndexIO m =>
+  (MonadIndexIO m, MonadReader Env m) =>
   -- | The user performing the search.
   UserId ->
   TeamSearchInfo ->
@@ -48,17 +53,19 @@ searchIndex ::
 searchIndex u teamSearchInfo q = queryIndex (defaultUserQuery u teamSearchInfo q)
 
 queryIndex ::
-  (MonadIndexIO m, FromJSON r) =>
+  (MonadIndexIO m, MonadReader Env m) =>
   IndexQuery r ->
   Range 1 500 Int32 ->
-  m (SearchResult r)
-queryIndex (IndexQuery q f _) (fromRange -> s) = liftIndexIO $ do
-  idx <- asks idxName
-  let search = (ES.mkSearch (Just q) (Just f)) {ES.size = ES.Size (fromIntegral s)}
-  r <-
-    ES.searchByType idx mappingName search
-      >>= ES.parseEsResponse
-  either (throwM . IndexLookupError) (pure . mkResult) r
+  m (SearchResult Contact)
+queryIndex (IndexQuery q f _) (fromRange -> s) = do
+  localDomain <- viewFederationDomain
+  liftIndexIO $ do
+    idx <- asks idxName
+    let search = (ES.mkSearch (Just q) (Just f)) {ES.size = ES.Size (fromIntegral s)}
+    r <-
+      ES.searchByType idx mappingName search
+        >>= ES.parseEsResponse @_ @(ES.SearchResult UserDoc)
+    either (throwM . IndexLookupError) (traverse (userDocToContact localDomain) . mkResult) r
   where
     mkResult es =
       let results = mapMaybe ES.hitSource . ES.hits . ES.searchHits $ es
@@ -68,6 +75,15 @@ queryIndex (IndexQuery q f _) (fromRange -> s) = liftIndexIO $ do
               searchTook = ES.took es,
               searchResults = results
             }
+
+userDocToContact :: MonadThrow m => Domain -> UserDoc -> m Contact
+userDocToContact localDomain UserDoc {..} = do
+  let contactQualifiedId = Qualified udId localDomain
+  contactName <- maybe (throwM $ IndexError "Name not found") (pure . fromName) udName
+  let contactColorId = fromIntegral . fromColourId <$> udColourId
+      contactHandle = fromHandle <$> udHandle
+      contactTeam = udTeam
+  pure $ Contact {..}
 
 -- | The default or canonical 'IndexQuery'.
 --

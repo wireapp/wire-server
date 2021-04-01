@@ -29,6 +29,7 @@ import Data.Text.Encoding (encodeUtf8)
 import Imports
 import Test.Tasty.HUnit
 import Util
+import Data.Qualified (Qualified(..))
 import Wire.API.User.Search (RoleFilter (..), TeamContact (..), TeamUserSearchSortBy, TeamUserSearchSortOrder)
 
 executeSearch :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Text -> m (SearchResult Contact)
@@ -76,6 +77,9 @@ assertCan'tFind brig self expected q = do
   liftIO $ do
     assertBool ("User shouldn't be present in results for query: " <> show q) $
       expected `notElem` map contactUserId r
+
+contactUserId :: Contact -> UserId
+contactUserId = qUnqualified . contactQualifiedId
 
 executeTeamUserSearch ::
   (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>

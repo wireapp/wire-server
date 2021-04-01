@@ -1,5 +1,6 @@
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE StrictData #-}
+{-# LANGUAGE ApplicativeDo #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -33,7 +34,7 @@ module Wire.API.User.Search
   )
 where
 
-import Control.Lens ((.~), (?~))
+import Control.Lens (over, (.~), (?~))
 import Data.Aeson
 import Data.Attoparsec.ByteString (sepBy)
 import Data.Attoparsec.ByteString.Char8 (char, string)
@@ -42,6 +43,7 @@ import qualified Data.HashMap.Strict.InsOrd as InsOrdHasMap
 import Data.Id (TeamId, UserId)
 import Data.Json.Util (UTCTimeMillis)
 import Data.Proxy (Proxy (..))
+import Data.Qualified
 import Data.Swagger hiding (Contact)
 import qualified Data.Swagger.Build.Api as Doc
 import Deriving.Swagger
@@ -60,8 +62,16 @@ data SearchResult a = SearchResult
     searchTook :: Int,
     searchResults :: [a]
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Generic, Functor)
   deriving (Arbitrary) via (GenericUniform (SearchResult a))
+
+instance Foldable SearchResult where
+  foldMap f r = foldMap f (searchResults r)
+
+instance Traversable SearchResult where
+  traverse f r = do
+    newResults <- traverse f (searchResults r)
+    pure $ r { searchResults = newResults }
 
 instance ToSchema (SearchResult Contact) where
   declareNamedSchema _ = do
@@ -112,15 +122,12 @@ instance FromJSON a => FromJSON (SearchResult a) where
 --------------------------------------------------------------------------------
 -- Contact
 
-type ContactLabelMappings =
-  '[ "user_id" ':-> "id",
-     "color_id" ':-> "accent_id"
-   ]
+type ContactLabelMappings = '[ "color_id" ':-> "accent_id"]
 
 -- | Returned by 'searchIndex' under @/contacts/search@.
 -- This is a subset of 'User' and json instances should reflect that.
 data Contact = Contact
-  { contactUserId :: UserId,
+  { contactQualifiedId :: Qualified UserId,
     contactName :: Text,
     contactColorId :: Maybe Int,
     contactHandle :: Maybe Text,
@@ -128,7 +135,21 @@ data Contact = Contact
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Contact)
-  deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "contact", CamelToSnake, LabelMappings ContactLabelMappings)] Contact)
+
+-- deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "contact", CamelToSnake, LabelMappings ContactLabelMappings)] Contact)
+
+instance ToSchema Contact where
+  declareNamedSchema _ = do
+    genericSchema <-
+      genericDeclareNamedSchema
+        ( swaggerOptions
+            @'[FieldLabelModifier (StripPrefix "contact", CamelToSnake, LabelMappings ContactLabelMappings)]
+        )
+        (Proxy @Contact)
+    idSchema <- declareSchemaRef (Proxy @UserId)
+    pure $
+      genericSchema
+        & over (schema . properties) (InsOrdHasMap.insert "id" idSchema)
 
 modelSearchContact :: Doc.Model
 modelSearchContact = Doc.defineModel "Contact" $ do
@@ -149,7 +170,8 @@ modelSearchContact = Doc.defineModel "Contact" $ do
 instance ToJSON Contact where
   toJSON c =
     object
-      [ "id" .= contactUserId c,
+      [ "id" .= qUnqualified (contactQualifiedId c), -- For backwards compatibility
+        "qualified_id" .= contactQualifiedId c,
         "name" .= contactName c,
         "accent_id" .= contactColorId c,
         "handle" .= contactHandle c,
@@ -160,7 +182,7 @@ instance FromJSON Contact where
   parseJSON =
     withObject "Contact" $ \o ->
       Contact
-        <$> o .: "id"
+        <$> o .: "qualified_id"
         <*> o .: "name"
         <*> o .:? "accent_id"
         <*> o .:? "handle"
