@@ -64,18 +64,20 @@ tests:
     - -threaded
     - -with-rtsopts=-N
     dependencies:
+    - aeson-qq
     - base
     - bytestring-conversion
     - cassava
-    - wire-api
-    - uuid
-    - aeson-qq
+    - hspec
     - lens
     - swagger2
     - tasty
     - tasty-expected-failure
+    - tasty-hspec
     - tasty-hunit
     - tasty-quickcheck
     - unordered-containers
     - uri-bytestring
+    - uuid
     - vector
+    - wire-api

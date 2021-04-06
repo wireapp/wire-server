@@ -22,6 +22,7 @@ where
 
 import Imports
 import Test.Tasty
+import Test.Tasty.Hspec
 import qualified Test.Wire.API.Call.Config as Call.Config
 import qualified Test.Wire.API.Roundtrip.Aeson as Roundtrip.Aeson
 import qualified Test.Wire.API.Roundtrip.ByteString as Roundtrip.ByteString
@@ -29,10 +30,13 @@ import qualified Test.Wire.API.Roundtrip.CSV as Roundtrip.CSV
 import qualified Test.Wire.API.Swagger as Swagger
 import qualified Test.Wire.API.Team.Member as Team.Member
 import qualified Test.Wire.API.User as User
+import qualified Test.Wire.API.User.Identity.AuthId as User.Identity.AuthId
 import qualified Test.Wire.API.User.RichInfo as User.RichInfo
 
 main :: IO ()
-main =
+main = do
+  testAuthId <- testSpec "AuthId" $ User.Identity.AuthId.specs
+
   defaultMain $
     testGroup
       "Tests"
@@ -43,5 +47,6 @@ main =
         Roundtrip.Aeson.tests,
         Roundtrip.ByteString.tests,
         Swagger.tests,
-        Roundtrip.CSV.tests
+        Roundtrip.CSV.tests,
+        testAuthId
       ]

@@ -36,6 +36,7 @@ module Wire.API.User.Identity.AuthId
     runAuthId,
     authIdUref,
     authIdEmail,
+    authIdScimDetails,
     authIdScimEmail,
     authIdScimEmailWithSource,
     authIdToLegacyAuthId,
@@ -44,7 +45,7 @@ module Wire.API.User.Identity.AuthId
   )
 where
 
-import Control.Lens (makeLenses, (.~), (?~), (^.))
+import Control.Lens (makeLenses, to, (.~), (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.:?), (.=))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
@@ -278,6 +279,16 @@ runAuthId doUref doScim = \case
 
 authIdUref :: AuthId -> Maybe SAML.UserRef
 authIdUref = runAuthId (Just . id) (const Nothing)
+
+-- | Even if we don't use this anywhere, it's useful documentation for how `AuthBoth` can be
+-- read.
+authIdScimDetails :: AuthId -> Maybe ScimDetails
+authIdScimDetails (AuthSAML _uref) = Nothing
+authIdScimDetails (AuthSCIM d) = Just d
+authIdScimDetails (AuthBoth tid uref mbEmailWSource) = ScimDetails <$> eid <*> mbEmailWSource
+  where
+    eid :: Maybe ExternalId
+    eid = ExternalId tid <$> (uref ^. SAML.uidSubject . to SAML.shortShowNameID)
 
 -- | Extract email from 'SAML.UserRef' if no SCIM data is available, and from SCIM data otherwise.
 authIdEmail :: AuthId -> Maybe Email

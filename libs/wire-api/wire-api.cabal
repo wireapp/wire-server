@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 92a202db921af249401183f9b730c7038befdd4265575e46e839ad04bff99901
+-- hash: 8677571a2a62bb4bed31a4741a717d0f6fc8f549c203266f281f39f5e9759b27
 
 name:           wire-api
 version:        0.1.0
@@ -135,6 +135,7 @@ test-suite wire-api-tests
       Test.Wire.API.Swagger
       Test.Wire.API.Team.Member
       Test.Wire.API.User
+      Test.Wire.API.User.Identity.AuthId
       Test.Wire.API.User.RichInfo
       Paths_wire_api
   hs-source-dirs:
@@ -148,6 +149,7 @@ test-suite wire-api-tests
     , bytestring-conversion
     , cassava
     , containers >=0.5
+    , hspec
     , imports
     , lens
     , saml2-web-sso >=0.18
@@ -155,6 +157,7 @@ test-suite wire-api-tests
     , swagger2
     , tasty
     , tasty-expected-failure
+    , tasty-hspec
     , tasty-hunit
     , tasty-quickcheck
     , types-common >=0.16
