@@ -1041,8 +1041,9 @@ specUpdateUser = describe "PUT /Users/:id" $ do
   it "requires a user ID" $ testUpdateRequiresUserId
   it "updates user attributes in brig" $ testScimSideIsUpdated
   it "works fine when neither name nor handle are changed" $ testUpdateSameHandle
-  it "updates the 'SAML.UserRef' index in Spar" $ testUpdateExternalId True
-  it "updates the 'Email' index in Brig" $ testUpdateExternalId False
+  describe "externalId updates are propagated to all spar indices" $ do
+    it "[externalId is no email, team has idp] updates the 'SAML.UserRef' index in Spar" $ testUpdateExternalId True
+    it "[externalId is email, team has no idp] updates the 'Email' index in Brig" $ testUpdateExternalId False
   it "updates the matching Brig user" $ testBrigSideIsUpdated
   it "cannot update user to match another user's externalId" $ testUpdateToExistingExternalIdFails
   it "cannot remove display name" $ testCannotRemoveDisplayName
