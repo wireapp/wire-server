@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 60a597a6684aa4798b13f3f4e72b929bda0fe91ddbb77a06cdf5ac7d34f01293
+-- hash: ea8a15344ea9b64dfcd0a9688dc6f9865929148d9372ded633097ad38920745d
 
 name:           brig
 version:        1.35.0
@@ -87,6 +87,7 @@ library
       Brig.Template
       Brig.Unique
       Brig.User.API.Auth
+      Brig.User.API.Handle
       Brig.User.API.Search
       Brig.User.Auth
       Brig.User.Auth.Cookie

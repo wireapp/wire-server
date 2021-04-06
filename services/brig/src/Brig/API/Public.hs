@@ -42,7 +42,6 @@ import qualified Brig.API.Util as API
 import Brig.App
 import qualified Brig.Calling.API as Calling
 import qualified Brig.Data.User as Data
-import Brig.Federation.Client as Federation
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
 import qualified Brig.Team.API as Team
@@ -51,6 +50,7 @@ import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra (AccountStatus (Ephemeral), UserAccount (UserAccount, accountUser))
 import Brig.Types.User (HavePendingInvitations (..), User (userId))
 import qualified Brig.User.API.Auth as Auth
+import qualified Brig.User.API.Handle as Handle
 import qualified Brig.User.API.Search as Search
 import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
@@ -1335,7 +1335,7 @@ listUsersByIdsOrHandles self q = do
       domain <- viewFederationDomain
       let (_remoteHandles, localHandles) = partitionRemoteOrLocalIds domain (fromRange hs)
       us <- getIds localHandles
-      filterHandleResults self =<< byIds us
+      Handle.filterHandleResults self =<< byIds us
   case foundUsers of
     [] -> throwStd $ notFound "None of the specified ids or handles match any users"
     _ -> pure foundUsers
@@ -1426,31 +1426,10 @@ getHandleInfoUnqualifiedH self handle = do
 -- traffic between backends in a federated scenario.
 getUserByHandleH :: UserId -> Domain -> Handle -> Handler Public.UserProfile
 getUserByHandleH self domain handle = do
-  maybeProfile <- getHandleInfo self (Qualified handle domain)
+  maybeProfile <- Handle.getHandleInfo self (Qualified handle domain)
   case maybeProfile of
     Nothing -> throwStd handleNotFound
     Just u -> pure u
-
--- FUTUREWORK: use 'runMaybeT' to simplify this.
-getHandleInfo :: UserId -> Qualified Handle -> Handler (Maybe Public.UserProfile)
-getHandleInfo self handle = do
-  domain <- viewFederationDomain
-  if qDomain handle == domain
-    then getLocalHandleInfo domain
-    else getRemoteHandleInfo
-  where
-    getLocalHandleInfo domain = do
-      Log.info $ Log.msg $ Log.val "getHandleInfo - local lookup"
-      maybeOwnerId <- lift $ API.lookupHandle (qUnqualified handle)
-      case maybeOwnerId of
-        Nothing -> return Nothing
-        Just ownerId -> do
-          ownerProfile <- lift $ API.lookupProfile self (Qualified ownerId domain)
-          owner <- filterHandleResults self (maybeToList ownerProfile)
-          return $ listToMaybe owner
-    getRemoteHandleInfo = do
-      Log.info $ Log.msg (Log.val "getHandleInfo - remote lookup") Log.~~ Log.field "domain" (show (qDomain handle))
-      Federation.getUserHandleInfo handle
 
 changeHandleH :: UserId ::: ConnId ::: JsonRequest Public.HandleUpdate -> Handler Response
 changeHandleH (u ::: conn ::: req) = do
@@ -1625,15 +1604,3 @@ deprecatedCompletePasswordResetH (_ ::: k ::: req) = do
 
 ifNothing :: Utilities.Error -> Maybe a -> Handler a
 ifNothing e = maybe (throwStd e) return
-
--- | Checks search permissions and filters accordingly
-filterHandleResults :: UserId -> [Public.UserProfile] -> Handler [Public.UserProfile]
-filterHandleResults searchingUser us = do
-  sameTeamSearchOnly <- fromMaybe False <$> view (settings . searchSameTeamOnly)
-  if sameTeamSearchOnly
-    then do
-      fromTeam <- lift $ Data.lookupUserTeam searchingUser
-      return $ case fromTeam of
-        Just team -> filter (\x -> Public.profileTeam x == Just team) us
-        Nothing -> us
-    else return us
