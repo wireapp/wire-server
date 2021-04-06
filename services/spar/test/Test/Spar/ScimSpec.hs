@@ -57,73 +57,78 @@ import qualified Web.Scim.Schema.User.Name as ScimN
 import Wire.API.User.RichInfo
 
 spec :: Spec
-spec = describe "toScimStoredUser'" $ do
-  it "works" $ do
-    let usr :: Scim.User SparTag
-        usr =
-          Scim.User
-            { Scim.schemas =
-                [ Scim.User20,
-                  Scim.CustomSchema "urn:wire:scim:schemas:profile:1.0",
-                  Scim.CustomSchema "urn:ietf:params:scim:schemas:extension:wire:1.0:User"
-                ],
-              Scim.userName = "02b35298-088f-11e9-b4a4-478635dd0d2b",
-              Scim.externalId = Just "c1704a48-0a1e-11e9-9186-9b185fe892e8",
-              Scim.name =
-                Just
-                  ( ScimN.Name
-                      { ScimN.formatted = Nothing,
-                        ScimN.familyName = Just "",
-                        ScimN.givenName = Just "",
-                        ScimN.middleName = Nothing,
-                        ScimN.honorificPrefix = Nothing,
-                        ScimN.honorificSuffix = Nothing
-                      }
-                  ),
-              Scim.displayName = Just "67d0268e-088e-11e9-a400-b71b4d4d2275",
-              Scim.nickName = Nothing,
-              Scim.profileUrl = Nothing,
-              Scim.title = Nothing,
-              Scim.userType = Nothing,
-              Scim.preferredLanguage = Nothing,
-              Scim.locale = Nothing,
-              Scim.active = Nothing,
-              Scim.password = Nothing,
-              Scim.emails = [],
-              Scim.phoneNumbers = [],
-              Scim.ims = [],
-              Scim.photos = [],
-              Scim.addresses = [],
-              Scim.entitlements = [],
-              Scim.roles = [],
-              Scim.x509Certificates = [],
-              Scim.extra = ScimUserExtra mempty
-            }
-        meta :: Scim.Meta
-        meta =
-          Scim.Meta
-            { Scim.resourceType = ScimR.UserResource,
-              Scim.created = fromUTCTimeMillis now,
-              Scim.lastModified = fromUTCTimeMillis now,
-              Scim.version = Scim.Weak "46246ab15ccab8a70b59f97f7182d6fb557dd454c0f06cdcb83d99d027cff08e",
-              Scim.location =
-                Scim.URI . fromJust $
-                  Network.URI.parseURI
-                    "https://127.0.0.1/scim/v2/Users/90b5ee1c-088e-11e9-9a16-73f80f483813"
-            }
-        SAML.Time (toUTCTimeMillis -> now) = SAML.unsafeReadTime "1918-04-14T09:58:58.457Z"
-        baseuri :: URI =
-          either (error . show) id $
-            URI.ByteString.parseURI laxURIParserOptions "https://127.0.0.1/scim/v2/"
-        uid = Id . fromJust . UUID.fromText $ "90b5ee1c-088e-11e9-9a16-73f80f483813"
-        result :: ScimC.StoredUser SparTag
-        result = toScimStoredUser' now now baseuri uid usr
-    Scim.meta result `shouldBe` meta
-    Scim.value (Scim.thing result) `shouldBe` usr
-  it "roundtrips" . property $ do
-    \(sue :: ScimUserExtra) ->
-      eitherDecode' (encode sue) `shouldBe` Right sue
+spec = do
+  describe "toScimStoredUser'" $ do
+    it "works" $ do
+      let usr :: Scim.User SparTag
+          usr =
+            Scim.User
+              { Scim.schemas =
+                  [ Scim.User20,
+                    Scim.CustomSchema "urn:wire:scim:schemas:profile:1.0",
+                    Scim.CustomSchema "urn:ietf:params:scim:schemas:extension:wire:1.0:User"
+                  ],
+                Scim.userName = "02b35298-088f-11e9-b4a4-478635dd0d2b",
+                Scim.externalId = Just "c1704a48-0a1e-11e9-9186-9b185fe892e8",
+                Scim.name =
+                  Just
+                    ( ScimN.Name
+                        { ScimN.formatted = Nothing,
+                          ScimN.familyName = Just "",
+                          ScimN.givenName = Just "",
+                          ScimN.middleName = Nothing,
+                          ScimN.honorificPrefix = Nothing,
+                          ScimN.honorificSuffix = Nothing
+                        }
+                    ),
+                Scim.displayName = Just "67d0268e-088e-11e9-a400-b71b4d4d2275",
+                Scim.nickName = Nothing,
+                Scim.profileUrl = Nothing,
+                Scim.title = Nothing,
+                Scim.userType = Nothing,
+                Scim.preferredLanguage = Nothing,
+                Scim.locale = Nothing,
+                Scim.active = Nothing,
+                Scim.password = Nothing,
+                Scim.emails = [],
+                Scim.phoneNumbers = [],
+                Scim.ims = [],
+                Scim.photos = [],
+                Scim.addresses = [],
+                Scim.entitlements = [],
+                Scim.roles = [],
+                Scim.x509Certificates = [],
+                Scim.extra = ScimUserExtra mempty
+              }
+          meta :: Scim.Meta
+          meta =
+            Scim.Meta
+              { Scim.resourceType = ScimR.UserResource,
+                Scim.created = fromUTCTimeMillis now,
+                Scim.lastModified = fromUTCTimeMillis now,
+                Scim.version = Scim.Weak "46246ab15ccab8a70b59f97f7182d6fb557dd454c0f06cdcb83d99d027cff08e",
+                Scim.location =
+                  Scim.URI . fromJust $
+                    Network.URI.parseURI
+                      "https://127.0.0.1/scim/v2/Users/90b5ee1c-088e-11e9-9a16-73f80f483813"
+              }
+          SAML.Time (toUTCTimeMillis -> now) = SAML.unsafeReadTime "1918-04-14T09:58:58.457Z"
+          baseuri :: URI =
+            either (error . show) id $
+              URI.ByteString.parseURI laxURIParserOptions "https://127.0.0.1/scim/v2/"
+          uid = Id . fromJust . UUID.fromText $ "90b5ee1c-088e-11e9-9a16-73f80f483813"
+
+          result :: ScimC.StoredUser SparTag
+          result = toScimStoredUser' now now baseuri uid usr
+
+      Scim.meta result `shouldBe` meta
+      Scim.value (Scim.thing result) `shouldBe` usr
+
   describe "ScimUserExtra" $ do
+    it "roundtrips" . property $ do
+      \(sue :: ScimUserExtra) ->
+        eitherDecode' (encode sue) `shouldBe` Right sue
+
     describe "Patchable" $ do
       it "can add to rich info map" $ do
         let operationJSON =
