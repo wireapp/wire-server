@@ -58,6 +58,16 @@ import Wire.API.User.RichInfo
 
 spec :: Spec
 spec = do
+  describe "mkAuth" $ do
+    describe "preference of scim fields" $ do
+      it "exernalId is used as email if emails is empty" $ do
+        -- TODO: implement this!
+        False `shouldBe` True
+
+      it "email field is used as email if externalId contains a parseable email address, but emails field is non-empty" $ do
+        -- TODO: implement this!
+        False `shouldBe` True
+
   describe "toScimStoredUser'" $ do
     it "works" $ do
       let usr :: Scim.User SparTag
