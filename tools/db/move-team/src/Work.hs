@@ -105,7 +105,6 @@ handleTeamMembers env@Env {..} (i, members) = do
 
   appendJsonLines (envTargetPath </> "brig.clients") (readBrigClients env uids)
   appendJsonLines (envTargetPath </> "brig.connection") (readBrigConnection env uids)
-  appendJsonLines (envTargetPath </> "brig.id_mapping") (readBrigIdMapping env uids)
   appendJsonLines (envTargetPath </> "brig.login_codes") (readBrigLoginCodes env uids)
   appendJsonLines (envTargetPath </> "brig.prekeys") (readBrigPrekeys env uids)
   appendJsonLines (envTargetPath </> "brig.properties") (readBrigProperties env uids)
