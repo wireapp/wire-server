@@ -203,9 +203,7 @@ createUser new@NewUser {..} = do
             { newUserManagedBy = case mbExistingAccount of
                 Nothing -> newUserManagedBy
                 Just acc -> Just . userManagedBy . accountUser $ acc,
-              newUserIdentity = case mbExistingAccount of
-                Nothing -> newUserIdentity
-                Just acc -> userIdentity . accountUser $ acc
+              newUserIdentity = ident
             }
     newAccount new' mbInv tid (userHandle . accountUser =<< mbExistingAccount)
 
