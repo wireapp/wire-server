@@ -69,7 +69,7 @@ mkFederatorClient :: Handler GrpcClient
 mkFederatorClient = do
   maybeFederatorEndpoint <- view federator
   federatorEndpoint <- case maybeFederatorEndpoint of
-    Nothing -> throwStd $ federationNotConfigured
+    Nothing -> throwStd federationNotConfigured
     Just ep -> pure ep
   let cfg = grpcClientConfigSimple (T.unpack (federatorEndpoint ^. epHost)) (fromIntegral (federatorEndpoint ^. epPort)) False
   eitherClient <- createGrpcClient cfg
