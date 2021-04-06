@@ -21,11 +21,11 @@ import Data.Domain (Domain, domainText)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.String.Conversions (cs)
 import Imports
+import qualified Network.DNS as DNS
 import Polysemy
 import Wire.Network.DNS.Effect (DNSLookup)
 import qualified Wire.Network.DNS.Effect as Lookup
 import Wire.Network.DNS.SRV (SrvEntry (srvTarget), SrvResponse (..), SrvTarget)
-import qualified Network.DNS as DNS
 
 data LookupError
   = LookupErrorSrvNotAvailable ByteString
