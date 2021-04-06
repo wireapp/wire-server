@@ -1055,20 +1055,6 @@ specUpdateUser = describe "PUT /Users/:id" $ do
   it "does not update if nothing changed - RandomExternalIdAndEmail" $ testSameUpdateNoChange RandomExternalIdAndEmail
   it "does not update if nothing changed - EmailExternalIdAndEmail" $ testSameUpdateNoChange EmailExternalIdAndEmail
 
-  context "brig user is updated" $ do
-    -- TODO(arianvp): This will be fixed by
-    -- https://github.com/zinfra/backend-issues/issues/1006 The comment
-    -- means: If we update a user on the brig side; then currently this is
-    -- not reflected on the SCIM side. We can fix this by making brig
-    -- actually the source of truth for SCIM SCIM then becomes a _view_;
-    -- not a separate database.
-    it "does NOT mirror this in the scim user" $
-      pendingWith
-        "this is arguably not great behavior, but i'm not sure \
-        \we want to implement synchronisation from brig to spar?"
-    it "updates to scim user will overwrite these updates" $
-      pendingWith "that's probably what we want?"
-
 -- | Tests that you can't unset your display name
 testCannotRemoveDisplayName :: TestSpar ()
 testCannotRemoveDisplayName = do
