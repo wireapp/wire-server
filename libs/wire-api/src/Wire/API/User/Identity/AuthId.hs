@@ -73,6 +73,10 @@ import qualified Text.Email.Parser as Email
 import Wire.API.Arbitrary (GenericUniform (GenericUniform))
 import Wire.API.User.Identity.Email
 
+-- | The data type that spar uses to reference users when talking to saml IdPs and scim peers.
+-- It could *almost* be local to the spar service, but it needs to be stored in brig (which
+-- brig could do without knowing the type), and some clients (team-settings to begin with)
+-- need it to display information and allow more filter criteria.
 data AuthId
   = AuthSAML SAML.UserRef
   | AuthSCIM ScimDetails
