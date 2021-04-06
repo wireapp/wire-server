@@ -14,5 +14,6 @@ releases=$(helm list -A -f 'test-' -o json \
 while read line; do
     name=$(awk '{print $1}' <<<"$line")
     namespace=$(awk '{print $2}' <<<"$line")
+    echo "test release '$name' older than 2 hours; deleting..."
     helm delete -n "$namespace" "$name"
 done <<<"$releases"
