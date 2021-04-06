@@ -42,7 +42,7 @@ Minio maintenance
 =================
 
 There will be times where one wants to take a minio server down for
-maintenance.  One might want to apply security patches, or want to take out a
+maintenance. One might want to apply security patches, or want to take out a
 broken disk and replace it with a fixed one.  Minio will not tell you the
 health status of disks. You should have separate alerting and monitoring in
 place to keep track of hardware health. For example, one could look at
@@ -157,3 +157,15 @@ some of the nodes to not be reachable, writes will be less durable too. It is
 thus important to have good monitoring in place and respond accordingly.  Minio
 itself will auto-heal the cluster every month if the administrator doesn't
 trigger a heal themselves.
+
+
+Rotate root credentials
+=======================
+
+In order to change the root credentials, one needs to restart minio once but
+set with the old and the new credentials at the same time.
+If you installed minio with the Ansible, the `role <https://github.com/wireapp/ansible-minio>`__
+takes care of this. Just change the inventory accordingly and re-apply the
+role.
+
+For more information, please refer to the *Credentials* section in the `official documentation <https://docs.min.io/docs/minio-server-configuration-guide.html>`__.
