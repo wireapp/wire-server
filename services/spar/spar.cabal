@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2b6698e0b290002d31c638cc18d639d15568d912baab323324c52cca4dfd8cfc
+-- hash: a9730ae2905de783a255a13007aa25f0e6b2f43ffc91a07217f9f5c6b965eff3
 
 name:           spar
 version:        0.1
@@ -454,6 +454,7 @@ test-suite spec
       Arbitrary
       Test.Spar.APISpec
       Test.Spar.DataSpec
+      Test.Spar.IdCases
       Test.Spar.Roundtrip.ByteString
       Test.Spar.ScimSpec
       Test.Spar.TypesSpec
