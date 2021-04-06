@@ -112,7 +112,7 @@ instance ToJSON EmailWithSource
 
 data EmailSource
   = EmailFromExternalIdField
-  | EmailFromEmailField
+  | EmailFromEmailsField
   deriving (Eq, Show, Bounded, Enum, Generic)
   deriving (Arbitrary) via (GenericUniform EmailSource)
 

@@ -346,7 +346,7 @@ mkAuthEmailWithSource emails extid = do
       -- I think this is fine, since the corner case is unlikely enough and the new behavior is
       -- reasonable, but we should leave some bread crumbs in the release notes about this.
       (Just emailFromFields, _) ->
-        Just $ EmailWithSource emailFromFields EmailFromEmailField
+        Just $ EmailWithSource emailFromFields EmailFromEmailsField
       (Nothing, Just emailFromExt) ->
         Just $ EmailWithSource emailFromExt EmailFromExternalIdField
       (Nothing, Nothing) ->
@@ -851,7 +851,7 @@ synthesizeScimUser info =
               authIdScimEmailWithSource (info ^. ST.vsuAuthId) >>= \ews ->
                 case ewsEmailSource ews of
                   EmailFromExternalIdField -> Nothing
-                  EmailFromEmailField -> emailToScimEmail (ewsEmail ews)
+                  EmailFromEmailsField -> emailToScimEmail (ewsEmail ews)
         }
   where
     getOrCreateExternalId :: AuthId -> Maybe Text

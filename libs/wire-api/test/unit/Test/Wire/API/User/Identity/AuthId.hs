@@ -76,12 +76,12 @@ validStatesExpected =
   fromList
     [ ( fromList [MEmail, MEmailValidated, MPassword, MSCIM],
         [ AuthSCIM (ScimDetails sampleExternalId (sampleEmailWithSource EmailFromExternalIdField)),
-          AuthSCIM (ScimDetails sampleExternalId (sampleEmailWithSource EmailFromEmailField))
+          AuthSCIM (ScimDetails sampleExternalId (sampleEmailWithSource EmailFromEmailsField))
         ]
       ),
       ( fromList [MEmail, MEmailValidated, MPassword, MSCIM, MSAML],
         [ AuthBoth sampleTeamId sampleUserRef (Just (sampleEmailWithSource EmailFromExternalIdField)),
-          AuthBoth sampleTeamId sampleUserRef (Just (sampleEmailWithSource EmailFromEmailField))
+          AuthBoth sampleTeamId sampleUserRef (Just (sampleEmailWithSource EmailFromEmailsField))
         ]
       ),
       ( fromList [MEmail, MEmailValidated, MPassword, MSAML], -- email validation is handled brig, not in AuthId
@@ -89,7 +89,7 @@ validStatesExpected =
       ),
       ( fromList [MEmail, MEmailValidated, MSCIM, MSAML], -- EmailSource can be any of the 2 cases
         [ AuthBoth sampleTeamId sampleUserRef (Just (sampleEmailWithSource EmailFromExternalIdField)),
-          AuthBoth sampleTeamId sampleUserRef (Just (sampleEmailWithSource EmailFromEmailField))
+          AuthBoth sampleTeamId sampleUserRef (Just (sampleEmailWithSource EmailFromEmailsField))
         ]
       ),
       ( fromList [MEmail, MEmailValidated, MSAML], -- uref contains an email and validateSAMLEmail feature is activated
@@ -97,7 +97,7 @@ validStatesExpected =
       ),
       ( fromList [MEmail, MSCIM, MSAML],
         [ AuthBoth sampleTeamId sampleUserRef (Just (sampleEmailWithSource EmailFromExternalIdField)),
-          AuthBoth sampleTeamId sampleUserRef (Just (sampleEmailWithSource EmailFromEmailField))
+          AuthBoth sampleTeamId sampleUserRef (Just (sampleEmailWithSource EmailFromEmailsField))
         ]
       ),
       ( fromList [MEmail, MSAML],
