@@ -38,7 +38,7 @@ import qualified Data.Aeson as Aeson
 import Data.Handle (fromHandle)
 import Data.Id
 import qualified Data.Map.Strict as Map
-import Data.Qualified (Qualified (qUnqualified))
+import Data.Qualified (Qualified (qUnqualified, qDomain))
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Database.Bloodhound as ES
@@ -52,6 +52,8 @@ import Text.RawString.QQ (r)
 import UnliftIO (Concurrently (..), runConcurrently)
 import Util
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
+import Data.Domain (Domain(Domain))
+import Bilge.Assert ((!!!), (===))
 
 tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree
 tests opts mgr galley brig = do
@@ -92,6 +94,9 @@ tests opts mgr galley brig = do
             test mgr "team A member cannot be found by team B member" $ testSearchTeamMemberAsOtherMemberOutboundOnly brig testSetupOutboundOnly,
             test mgr "team A member *can* be found by other team A member" $ testSearchTeamMemberAsSameMemberOutboundOnly brig testSetupOutboundOnly,
             test mgr "non team user cannot be found by a team member A" $ testSeachNonMemberAsTeamMemberOutboundOnly brig testSetupOutboundOnly
+          ],
+        testGroup "federated" $
+          [ test mgr "remote lookup" $ testRemoteLookup brig
           ]
       ]
   where
@@ -175,7 +180,7 @@ testSearchSize brig exactHandleInTeam = do
   refreshIndex brig
 
   self <- userId <$> randomUser brig
-  res <- searchResults <$> executeSearchWithSize (Just 5) brig self searchTerm
+  res <- searchResults <$> executeSearch' brig self searchTerm Nothing (Just 5)
 
   liftIO $ do
     assertEqual "expected exactly 10 results" 5 (length res)
@@ -399,6 +404,21 @@ testSeachNonMemberAsTeamMemberOutboundOnly brig ((_, _, teamAMember), (_, _, _),
   let teamMemberAHandle = fromMaybe (error "nonTeamMember must have a handle") (userHandle nonTeamMember)
   assertCan'tFind brig (userId teamAMember) (userQualifiedId nonTeamMember) (fromName (userDisplayName nonTeamMember))
   assertCan'tFind brig (userId teamAMember) (userQualifiedId nonTeamMember) (fromHandle teamMemberAHandle)
+
+testRemoteLookup :: TestConstraints m => Brig -> m ()
+testRemoteLookup brig = do
+  searcher <- randomUser brig
+  searchee <- randomUser brig
+  refreshIndex brig
+  let searcherId = userId searcher
+      searcheeQid = userQualifiedId searchee
+      searcheeName = fromName (userDisplayName searchee)
+      searcheeDomain = qDomain searcheeQid
+  assertCanFindWithDomain brig searcherId searcheeQid searcheeName searcheeDomain
+  -- We cannot assert on a real federated request here, so we make a request to
+  -- some server which doesn't have an SRV record and expect a 422.
+  searchRequest brig searcherId searcheeName (Just $ Domain "non-existent.example.com") Nothing !!!
+    const 422 === statusCode
 
 -- | Migration sequence:
 -- 1. A migration is planned, in this time brig writes to two indices

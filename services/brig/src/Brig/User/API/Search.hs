@@ -24,7 +24,6 @@ module Brig.User.API.Search
 where
 
 import Brig.API.Handler
-import qualified Brig.API.User as User
 import Brig.API.Util (ZAuthServant)
 import Brig.App
 import qualified Brig.Data.User as DB
@@ -32,7 +31,6 @@ import qualified Brig.IO.Intra as Intra
 import qualified Brig.Options as Opts
 import Brig.Team.Util (ensurePermissions)
 import Brig.Types.Search as Search
-import qualified Brig.User.Handle as Handle
 import Brig.User.Search.Index
 import qualified Brig.User.Search.SearchIndex as Q
 import Brig.User.Search.TeamUserSearch (RoleFilter (..), TeamUserSearchSortBy (..), TeamUserSearchSortOrder (..))
@@ -57,6 +55,8 @@ import qualified Wire.API.Team.Permission as Public
 import Wire.API.Team.SearchVisibility (TeamSearchVisibility)
 import Wire.API.User (ColourId (fromColourId), Name (fromName), UserProfile (..))
 import qualified Wire.API.User.Search as Public
+import Data.Domain (Domain)
+import qualified Brig.User.API.Handle as HandleAPI
 
 type SearchContacts =
   Summary "Search for users"
@@ -64,6 +64,7 @@ type SearchContacts =
     :> "search"
     :> "contacts"
     :> QueryParam' '[Required, Strict, Description "Search query"] "q" Text
+    :> QueryParam' '[Optional, Strict, Description "Searched domain. Note: This is optional only for backwards compatibility, future versions will mandate this."] "domain" Domain
     :> QueryParam' '[Optional, Strict, Description "Number of results to return (min: 1, max: 500, default 15)"] "size" (Range 1 500 Int32)
     :> Get '[Servant.JSON] (Public.SearchResult Public.Contact)
 
@@ -132,11 +133,8 @@ routesInternal = do
 
 -- Handlers
 
-search :: UserId -> Text -> Maybe (Range 1 500 Int32) -> Handler (Public.SearchResult Public.Contact)
-search searcherId searchTerm maybeMaxResults = do
-  -- FUTUREWORK(federation, #1269):
-  -- If the query contains a qualified handle, forward the search to the remote
-  -- backend.
+search :: UserId -> Text -> Maybe Domain -> Maybe (Range 1 500 Int32) -> Handler (Public.SearchResult Public.Contact)
+search searcherId searchTerm maybeDomain maybeMaxResults = do
   let maxResults = maybe 15 (fromIntegral . fromRange) maybeMaxResults
   searcherTeamId <- lift $ DB.lookupUserTeam searcherId
   sameTeamSearchOnly <- fromMaybe False <$> view (settings . Opts.searchSameTeamOnly)
@@ -185,13 +183,8 @@ search searcherId searchTerm maybeMaxResults = do
 
     exactHandleMatch :: Handler (Maybe UserProfile)
     exactHandleMatch = do
-      maybeUserId <- lift $ Handle.lookupHandle (Handle searchTerm)
-      -- TODO: Optionally read this from query params
-      searchedDomain <- viewFederationDomain
-      case maybeUserId of
-        Nothing -> pure Nothing
-        Just userId ->
-          lift $ User.lookupProfile searcherId (Qualified userId searchedDomain)
+      searchedDomain <- maybe viewFederationDomain pure maybeDomain
+      HandleAPI.getHandleInfo searcherId (Qualified (Handle searchTerm) searchedDomain)
 
 teamUserSearchH ::
   ( JSON
