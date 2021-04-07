@@ -21,6 +21,7 @@ import Data.Domain (Domain, domainText)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.String.Conversions (cs)
 import Imports
+import qualified Network.DNS as DNS
 import Polysemy
 import Wire.Network.DNS.Effect (DNSLookup)
 import qualified Wire.Network.DNS.Effect as Lookup
@@ -53,4 +54,6 @@ lookupDomainByDNS domainSrv = do
       -- dns-util
       pure $ Right $ srvTarget $ NonEmpty.head entries
     SrvNotAvailable -> pure $ Left $ LookupErrorSrvNotAvailable domainSrv
+    -- Name error also means that the record is not available
+    SrvResponseError DNS.NameError -> pure $ Left $ LookupErrorSrvNotAvailable domainSrv
     SrvResponseError _ -> pure $ Left $ LookupErrorDNSError domainSrv
