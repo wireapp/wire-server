@@ -1,5 +1,7 @@
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 
 -- This file is part of the Wire Server implementation.
@@ -31,8 +33,10 @@ import Bilge
 import Bilge.Assert ((!!!), (===))
 import qualified Brig.Options as Opt
 import Brig.Types
+import qualified Control.Concurrent.Async as Async
+import Control.Exception (throwIO)
 import Control.Lens ((.~), (?~), (^.))
-import Control.Monad.Catch (MonadCatch, MonadThrow)
+import Control.Monad.Catch (MonadCatch, MonadThrow, bracket, try)
 import Control.Retry
 import Data.Aeson (FromJSON, Value, decode, (.=))
 import qualified Data.Aeson as Aeson
@@ -44,15 +48,25 @@ import Data.Qualified (Qualified (qDomain, qUnqualified))
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Database.Bloodhound as ES
+import Foreign.C.Error (Errno (..), eCONNREFUSED)
+import GHC.IO.Exception (IOException (ioe_errno))
 import qualified Galley.Types.Teams.SearchVisibility as Team
 import Imports
+import Mu.GRpc.Server (msgProtoBuf, runGRpcApp)
+import Mu.Server (ServerErrorIO, SingleServerT)
+import qualified Mu.Server as Mu
 import qualified Network.HTTP.Client as HTTP
+import Network.Socket
+import Network.Wai.Handler.Warp (Port)
 import qualified Network.Wai.Test as WaiTest
+import Test.QuickCheck (Arbitrary (arbitrary), generate)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Text.RawString.QQ (r)
 import UnliftIO (Concurrently (..), runConcurrently)
 import Util
+import Util.Options (Endpoint (Endpoint))
+import Wire.API.Federation.GRPC.Types (FederatedRequest, HTTPResponse (HTTPResponse), Outward, OutwardResponse (OutwardResponseError, OutwardResponseHTTPResponse))
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 
 tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree
@@ -96,7 +110,7 @@ tests opts mgr galley brig = do
             test mgr "non team user cannot be found by a team member A" $ testSeachNonMemberAsTeamMemberOutboundOnly brig testSetupOutboundOnly
           ],
         testGroup "federated" $
-          [ test mgr "remote lookup" $ testRemoteLookup brig
+          [ test mgr "remote lookup" $ testRemoteLookup opts brig
           ]
       ]
   where
@@ -405,8 +419,8 @@ testSeachNonMemberAsTeamMemberOutboundOnly brig ((_, _, teamAMember), (_, _, _),
   assertCan'tFind brig (userId teamAMember) (userQualifiedId nonTeamMember) (fromName (userDisplayName nonTeamMember))
   assertCan'tFind brig (userId teamAMember) (userQualifiedId nonTeamMember) (fromHandle teamMemberAHandle)
 
-testRemoteLookup :: TestConstraints m => Brig -> m ()
-testRemoteLookup brig = do
+testRemoteLookup :: TestConstraints m => Opt.Opts -> Brig -> m ()
+testRemoteLookup opts brig = do
   searcher <- randomUser brig
   searchee <- randomUser brig
   refreshIndex brig
@@ -417,8 +431,44 @@ testRemoteLookup brig = do
   assertCanFindWithDomain brig searcherId searcheeQid searcheeName searcheeDomain
   -- We cannot assert on a real federated request here, so we make a request to
   -- some server which doesn't have an SRV record and expect a 422.
-  searchRequest brig searcherId searcheeName (Just $ Domain "non-existent.example.com") Nothing
-    !!! const 422 === statusCode
+  otherDomainUserProfile :: UserProfile <- liftIO $ generate arbitrary
+  let mockResponse = OutwardResponseHTTPResponse (HTTPResponse 200 (cs $ Aeson.encode otherDomainUserProfile))
+  results <- withMockFederator 9999 mockResponse $ do
+    let newOpts = opts {Opt.federatorInternal = Just (Endpoint "127.0.0.1" 9999)}
+    withSettingsOverrides newOpts $ executeSearchWithDomain brig searcherId searcheeName (Domain "non-existent.example.com")
+  liftIO $ do
+    assertEqual "there should be only one result" 1 (searchReturned results)
+    case searchResults results of
+      [foundUser] -> do
+        assertEqual "Remote user's id should match" (profileQualifiedId otherDomainUserProfile) (contactQualifiedId foundUser)
+        assertEqual "Remote user's name should match" (fromName $ profileName otherDomainUserProfile) (contactName foundUser)
+      foundUsers -> assertFailure $ "Expected only one result, got: " <> show foundUsers
+
+withMockFederator :: forall m a. MonadIO m => Port -> OutwardResponse -> m a -> m a
+withMockFederator p res action = do
+  federatorThread <- liftIO . Async.async $ runGRpcApp msgProtoBuf p (outwardService res)
+  void $ retryWhileN 5 id isPortOpen
+  actionResult <- action
+  liftIO $ Async.cancel federatorThread
+  pure actionResult
+  where
+    isPortOpen :: m Bool
+    isPortOpen = liftIO $ do
+      let sockAddr = SockAddrInet (fromIntegral p) (tupleToHostAddress (127, 0, 0, 1))
+      bracket (socket AF_INET Stream 6 {- TCP -}) close' $ \sock -> do
+        portRes <- try $ connect sock sockAddr
+        case portRes of
+          Right () -> return True
+          Left e ->
+            if (Errno <$> ioe_errno e) == Just eCONNREFUSED
+              then return False
+              else throwIO e
+
+outwardService :: OutwardResponse -> SingleServerT info Outward ServerErrorIO _
+outwardService response = Mu.singleService (Mu.method @"call" (callOutward response))
+
+callOutward :: OutwardResponse -> FederatedRequest -> ServerErrorIO OutwardResponse
+callOutward res _ = pure res
 
 -- | Migration sequence:
 -- 1. A migration is planned, in this time brig writes to two indices
