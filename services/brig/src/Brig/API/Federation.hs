@@ -27,9 +27,10 @@ import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
 import qualified Wire.API.Federation.API.Brig as FederationAPIBrig
 import Wire.API.User (UserProfile)
+import Data.Id (UserId)
 
 federationSitemap :: ServerT (ToServantApi FederationAPIBrig.Api) Handler
-federationSitemap = genericServerT (FederationAPIBrig.Api getUserByHandle)
+federationSitemap = genericServerT (FederationAPIBrig.Api getUserByHandle getUsersByIds)
 
 getUserByHandle :: Handle -> Handler UserProfile
 getUserByHandle handle = do
@@ -40,3 +41,7 @@ getUserByHandle handle = do
       lift (API.lookupProfilesOfLocalUsers Nothing [ownerId]) >>= \case
         [] -> throwStd handleNotFound
         user : _ -> pure user
+
+getUsersByIds :: [UserId] -> Handler [UserProfile]
+getUsersByIds uids =
+  lift (API.lookupProfilesOfLocalUsers Nothing uids)

@@ -17,24 +17,34 @@
 
 module Wire.API.Federation.API.Brig where
 
-import Data.Handle (Handle, fromHandle)
-import qualified Data.Text.Encoding as T
+import Data.ByteString.Conversion (toByteString')
+import Data.Handle (Handle)
+import Data.Id (UserId)
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import Servant.API
 import Servant.API.Generic
 import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.User (UserProfile)
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Lazy as LBS
 
 -- Maybe this module should be called Brig
-newtype Api routes = Api
+data Api routes = Api
   { getUserByHandle ::
       routes
         :- "federation"
         :> "users"
         :> "by-handle"
         :> QueryParam' '[Required, Strict] "handle" Handle
-        :> Get '[JSON] UserProfile
+        :> Get '[JSON] UserProfile,
+    getUsersByIds ::
+      routes
+        :- "federation"
+        :> "users"
+        :> "get-by-ids"
+        :> ReqBody '[JSON] [UserId]
+        :> Post '[JSON] [UserProfile]
   }
   deriving (Generic)
 
@@ -50,5 +60,14 @@ mkGetUserInfoByHandle handle =
     Proto.Brig
     (Proto.HTTPMethod HTTP.GET)
     "users/by-handle"
-    [Proto.QueryParam "handle" (T.encodeUtf8 (fromHandle handle))]
+    [Proto.QueryParam "handle" (toByteString' handle)]
     mempty
+
+mkGetUserInfoById :: [UserId] -> Proto.Request
+mkGetUserInfoById uids =
+  Proto.Request
+    Proto.Brig
+    (Proto.HTTPMethod HTTP.POST)
+    "users/by-id"
+    []
+    (LBS.toStrict $ Aeson.encode uids)

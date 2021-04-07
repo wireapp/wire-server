@@ -20,7 +20,11 @@ module API.Federation where
 import Bilge
 import Bilge.Assert
 import Brig.Types
+import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion (toByteString')
+import Data.Id (Id (..), UserId)
+import qualified Data.Set as Set
+import qualified Data.UUID.V4 as UUIDv4
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit (assertEqual)
@@ -31,7 +35,10 @@ tests m brig = do
   return $
     testGroup "federation" $
       [ test m "GET /federation/users/by-handle : 200" (testGetUserByHandleSuccess brig),
-        test m "GET /federation/users/by-handle : 404" (testGetUserByHandleNotFound brig)
+        test m "GET /federation/users/by-handle : 404" (testGetUserByHandleNotFound brig),
+        test m "GET /federation/users/get-by-id : 200 all found" (testGetUsersByIdsSuccess brig),
+        test m "GET /federation/users/get-by-id : 200 partially found" (testGetUsersByIdsPartial brig),
+        test m "GET /federation/users/get-by-id : 200 none found" (testGetUsersByIdsNoneFound brig)
       ]
 
 testGetUserByHandleSuccess :: Brig -> Http ()
@@ -59,3 +66,59 @@ testGetUserByHandleNotFound brig = do
   hdl <- randomHandle
   get (brig . paths ["federation", "users", "by-handle"] . queryItem "handle" (toByteString' hdl))
     !!! const 404 === statusCode
+
+testGetUsersByIdsSuccess :: Brig -> Http ()
+testGetUsersByIdsSuccess brig = do
+  user1 <- randomUser brig
+  user2 <- randomUser brig
+  let uid1 = userId user1
+      quid1 = userQualifiedId user1
+      uid2 = userId user2
+      quid2 = userQualifiedId user2
+  profiles <-
+    responseJsonError
+      =<< post
+        ( brig
+            . paths ["federation", "users", "get-by-ids"]
+            . body (RequestBodyLBS (Aeson.encode [uid1, uid2]))
+            . contentJson
+            . acceptJson
+            . expect2xx
+        )
+  liftIO $ do
+    assertEqual "should return correct user Id" (Set.fromList [quid1, quid2]) (Set.fromList $ profileQualifiedId <$> profiles)
+    assertEqual "should not have email address" [Nothing, Nothing] (map profileEmail profiles)
+
+testGetUsersByIdsPartial :: Brig -> Http ()
+testGetUsersByIdsPartial brig = do
+  presentUser <- randomUser brig
+  absentUserId :: UserId <- Id <$> lift UUIDv4.nextRandom
+  profiles <-
+    responseJsonError
+      =<< post
+        ( brig
+            . paths ["federation", "users", "get-by-ids"]
+            . body (RequestBodyLBS (Aeson.encode [userId presentUser, absentUserId]))
+            . contentJson
+            . acceptJson
+            . expect2xx
+        )
+  liftIO $
+    assertEqual "should return the present user and skip the absent ones" [userQualifiedId presentUser] (profileQualifiedId <$> profiles)
+
+testGetUsersByIdsNoneFound :: Brig -> Http ()
+testGetUsersByIdsNoneFound brig = do
+  absentUserId1 :: UserId <- Id <$> lift UUIDv4.nextRandom
+  absentUserId2 :: UserId <- Id <$> lift UUIDv4.nextRandom
+  profiles :: [UserProfile] <-
+    responseJsonError
+      =<< post
+        ( brig
+            . paths ["federation", "users", "get-by-ids"]
+            . body (RequestBodyLBS (Aeson.encode [absentUserId1, absentUserId2]))
+            . contentJson
+            . acceptJson
+            . expect2xx
+        )
+  liftIO $
+    assertEqual "should return empty list" [] profiles
