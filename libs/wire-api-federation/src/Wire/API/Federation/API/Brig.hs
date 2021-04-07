@@ -82,8 +82,8 @@ mkClaimPrekey user client =
      Proto.QueryParam "client" (toByteString' client)]
     mempty
 
-mkGetUserInfoById :: [UserId] -> Proto.Request
-mkGetUserInfoById uids =
+mkGetUsersByIds :: [UserId] -> Proto.Request
+mkGetUsersByIds uids =
   Proto.Request
     Proto.Brig
     (Proto.HTTPMethod HTTP.POST)
