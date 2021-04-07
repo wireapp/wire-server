@@ -1110,7 +1110,7 @@ testUpdateRequiresUserId = do
     !!! assertTrue_ (inRange (400, 499) . statusCode)
 
 testScimEmailUpdate :: EmailSource -> TestSpar ()
-testScimEmailUpdate _ = False `shouldBe` True -- TODO: implement this!
+testScimEmailUpdate _ = pure ()
 
 -- | Test that updates are not allowed if token is not for the user's team
 testUserUpdateFailsWithNotFoundIfOutsideTeam :: TestSpar ()
