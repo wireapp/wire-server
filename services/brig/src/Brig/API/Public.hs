@@ -253,7 +253,7 @@ type GetSelf =
 --   Doc.response 200 "Handle info" Doc.end
 --   Doc.errorResponse handleNotFound
 type GetHandleInfoUnqualified =
-  Summary "Get information on a user handle"
+  Summary "(deprecated, use search) Get information on a user handle"
     :> ZAuthServant
     :> "users"
     :> "handles"
@@ -266,7 +266,7 @@ type GetHandleInfoUnqualified =
 --   Doc.response 200 "Handle info" Doc.end
 --   Doc.errorResponse handleNotFound
 type GetUserByHandleQualfied =
-  Summary "Get information on a user handle"
+  Summary "(deprecated, use search) Get information on a user handle"
     :> ZAuthServant
     :> "users"
     :> "by-handle"
