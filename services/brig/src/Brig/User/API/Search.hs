@@ -133,6 +133,18 @@ routesInternal = do
 
 -- Handlers
 
+-- search ::
+--   if remoteDomain -> remoteSearch
+--   else localSearch
+
+-- (create /i/localSearch)
+-- localSearch::
+--   handleSearch
+--   ESSearch
+-- (create /i/remoteSearch)
+-- remoteSearch
+--
+
 search :: UserId -> Text -> Maybe Domain -> Maybe (Range 1 500 Int32) -> Handler (Public.SearchResult Public.Contact)
 search searcherId searchTerm maybeDomain maybeMaxResults = do
   let maxResults = maybe 15 (fromIntegral . fromRange) maybeMaxResults
