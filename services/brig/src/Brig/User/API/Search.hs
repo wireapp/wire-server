@@ -136,7 +136,8 @@ routesInternal = do
 search :: UserId -> Text -> Maybe Domain -> Maybe (Range 1 500 Int32) -> Handler (Public.SearchResult Public.Contact)
 search searcherId searchTerm maybeDomain maybeMaxResults = do
   let maxResults = maybe 15 (fromIntegral . fromRange) maybeMaxResults
-  searchedDomain <- maybe viewFederationDomain pure maybeDomain
+  localDomain <- viewFederationDomain
+  let searchedDomain = fromMaybe localDomain maybeDomain
   teamSearchInfo <- mkTeamSearchInfo
 
   maybeExactHandleMatch <- exactHandleSearch searchedDomain teamSearchInfo
@@ -145,7 +146,11 @@ search searcherId searchTerm maybeDomain maybeMaxResults = do
       esMaxResults = maxResults - exactHandleMatchCount
 
   esResult <-
-    if esMaxResults > 0
+    -- We don't want to do a local search if domain is not local. FUTUREWORK:
+    -- This is not tested as it is not easy to do so right now. We should either
+    -- figure out how to mock external communication in integration tests or
+    -- refactor this code to make it unit testable.
+    if esMaxResults > 0 || searchedDomain == localDomain
       then Q.searchIndex searcherId teamSearchInfo searchTerm esMaxResults
       else pure $ SearchResult 0 0 0 []
 
