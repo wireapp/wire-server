@@ -199,7 +199,7 @@ specCreateUser = describe "POST /Users" $ do
         testCreateUserNoIdP RandomExternalIdAndEmail
       it "works if externalId is an email and there is an explicit email" $
         testCreateUserNoIdP EmailExternalIdAndEmail
-    it "doesn't list users that exceed their invitation period, and allows recreating them" $ do
+    it "doesn't list users that exceed their invitation period, and allows recreating them" $
       testCreateUserTimeout
   context "team has one SAML IdP" $ do
     it "creates a user in an existing team" $ do
@@ -234,8 +234,9 @@ testCreateUserWithPass = do
 
 data IdentityTestConfig
   = EmailExternalId
-  | RandomExternalIdAndEmail  -- the `unspecified` `NameID` case.
+  | RandomExternalIdAndEmail -- the `unspecified` `NameID` case.
   | EmailExternalIdAndEmail -- (two different emails, which is a bit odd, but we want to make sure doing that is no way for a scim peer to break wire.)
+  deriving (Eq)
 
 -- | FUTUREWORK(fisx): this partially duplicates 'randomScimUser', 'randomScimUserWithSubjectAndRichInfo', consolidate that!
 createTestIdentity :: IdentityTestConfig -> TestSpar (Scim.User.User SparTag, Text, Email)
@@ -309,7 +310,8 @@ testCreateUserNoIdP identityTestConfig = do
     let usr = Scim.value . Scim.thing $ susr
     liftIO $ Scim.User.active usr `shouldBe` Just (Scim.ScimBool False)
     liftIO $ Scim.User.externalId usr `shouldBe` Just externalId
-    liftIO $ Scim.User.emails usr `shouldBe` _ -- TODO: depends on identityTestConfig
+    when (identityTestConfig == RandomExternalIdAndEmail || identityTestConfig == EmailExternalIdAndEmail) $
+      liftIO $ Scim.User.emails usr `shouldBe` [unsafeEmailToScimEmail email]
 
   -- scim search should succeed
   do

@@ -172,6 +172,13 @@ randomScimEmail = do
     pure . Email.EmailAddress2 $ Email.unsafeEmailAddress localpart domainpart
   pure Email.Email {..}
 
+unsafeEmailToScimEmail :: Email -> Email.Email
+unsafeEmailToScimEmail email =
+  let typ :: Maybe Text = Nothing
+      primary :: Maybe Scim.ScimBool = Nothing
+      value = Email.EmailAddress2 $ Email.unsafeEmailAddress (cs . emailLocal $ email) (cs . emailDomain $ email)
+   in Email.Email {..}
+
 randomScimPhone :: MonadRandom m => m Phone.Phone
 randomScimPhone = do
   let typ :: Maybe Text = Nothing
