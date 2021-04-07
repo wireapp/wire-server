@@ -41,7 +41,6 @@ import Data.Domain (Domain)
 import Data.Handle (Handle (Handle, fromHandle))
 import Data.Id
 import Data.Predicate
-import Data.Qualified (Qualified (Qualified))
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Galley.Types.Teams.SearchVisibility as Team
@@ -133,26 +132,23 @@ routesInternal = do
 
 -- Handlers
 
--- search ::
---   if remoteDomain -> remoteSearch
---   else localSearch
-
--- (create /i/localSearch)
--- localSearch::
---   handleSearch
---   ESSearch
--- (create /i/remoteSearch)
--- remoteSearch
---
-
 search :: UserId -> Text -> Maybe Domain -> Maybe (Range 1 500 Int32) -> Handler (Public.SearchResult Public.Contact)
 search searcherId searchTerm maybeDomain maybeMaxResults = do
+  federationDomain <- viewFederationDomain
+  let searchedDomain = fromMaybe federationDomain maybeDomain
+  if searchedDomain == federationDomain
+    then searchLocally searcherId federationDomain searchTerm maybeMaxResults
+    else searchRemotely searcherId searchedDomain searchTerm
+
+-- TODO
+searchRemotely = undefined
+
+searchLocally :: UserId -> Domain -> Text -> Maybe (Range 1 500 Int32) -> Handler (Public.SearchResult Public.Contact)
+searchLocally searcherId searcherDomain searchTerm maybeMaxResults = do
   let maxResults = maybe 15 (fromIntegral . fromRange) maybeMaxResults
-  localDomain <- viewFederationDomain
-  let searchedDomain = fromMaybe localDomain maybeDomain
   teamSearchInfo <- mkTeamSearchInfo
 
-  maybeExactHandleMatch <- exactHandleSearch searchedDomain teamSearchInfo
+  maybeExactHandleMatch <- exactHandleSearch searcherDomain teamSearchInfo
 
   let exactHandleMatchCount = length maybeExactHandleMatch
       esMaxResults = maxResults - exactHandleMatchCount
@@ -160,7 +156,7 @@ search searcherId searchTerm maybeDomain maybeMaxResults = do
   esResult <-
     -- We don't want to do a search in ES if domain is not same as current
     -- backend domain.
-    if esMaxResults > 0 && searchedDomain == localDomain
+    if esMaxResults > 0
       then Q.searchIndex searcherId teamSearchInfo searchTerm esMaxResults
       else pure $ SearchResult 0 0 0 []
 
@@ -201,10 +197,10 @@ search searcherId searchTerm maybeDomain maybeMaxResults = do
               handleTeamVisibility t <$> Intra.getTeamSearchVisibility t
 
     exactHandleSearch :: Domain -> TeamSearchInfo -> Handler (Maybe Contact)
-    exactHandleSearch searchedDomain teamSearchInfo = do
+    exactHandleSearch domain teamSearchInfo = do
       exactHandleResult <-
         contactFromProfile
-          <$$> HandleAPI.getHandleInfo searcherId (Qualified (Handle searchTerm) searchedDomain)
+          <$$> HandleAPI.getLocalHandleInfo searcherId domain (Handle searchTerm)
       pure $ case teamSearchInfo of
         Search.TeamOnly t ->
           if Just t == (contactTeam =<< exactHandleResult)
