@@ -34,7 +34,7 @@ import Bilge.Assert ((!!!), (===))
 import qualified Brig.Options as Opt
 import Brig.Types
 import qualified Control.Concurrent.Async as Async
-import Control.Exception (throwIO)
+import Control.Exception (finally, throwIO)
 import Control.Lens ((.~), (?~), (^.))
 import Control.Monad.Catch (MonadCatch, MonadThrow, bracket, try)
 import Control.Retry
@@ -58,6 +58,7 @@ import qualified Mu.Server as Mu
 import qualified Network.HTTP.Client as HTTP
 import Network.Socket
 import Network.Wai.Handler.Warp (Port)
+import Network.Wai.Test (Session)
 import qualified Network.Wai.Test as WaiTest
 import Test.QuickCheck (Arbitrary (arbitrary), generate)
 import Test.Tasty
@@ -430,12 +431,11 @@ testRemoteLookup opts brig = do
       searcheeDomain = qDomain searcheeQid
   assertCanFindWithDomain brig searcherId searcheeQid searcheeName searcheeDomain
   -- We cannot assert on a real federated request here, so we make a request to
-  -- some server which doesn't have an SRV record and expect a 422.
+  -- a mocked federator started and stopped during this test
   otherDomainUserProfile :: UserProfile <- liftIO $ generate arbitrary
   let mockResponse = OutwardResponseHTTPResponse (HTTPResponse 200 (cs $ Aeson.encode otherDomainUserProfile))
-  results <- withMockFederator 9999 mockResponse $ do
-    let newOpts = opts {Opt.federatorInternal = Just (Endpoint "127.0.0.1" 9999)}
-    withSettingsOverrides newOpts $ executeSearchWithDomain brig searcherId searcheeName (Domain "non-existent.example.com")
+  results <- withMockFederator opts 9999 mockResponse $ do
+    executeSearchWithDomain brig searcherId searcheeName (Domain "non-existent.example.com")
   liftIO $ do
     assertEqual "there should be only one result" 1 (searchReturned results)
     case searchResults results of
@@ -444,14 +444,20 @@ testRemoteLookup opts brig = do
         assertEqual "Remote user's name should match" (fromName $ profileName otherDomainUserProfile) (contactName foundUser)
       foundUsers -> assertFailure $ "Expected only one result, got: " <> show foundUsers
 
-withMockFederator :: forall m a. MonadIO m => Port -> OutwardResponse -> m a -> m a
-withMockFederator p res action = do
+-- | Starts a grpc server which will return the 'OutwardResponse' passed to this
+-- function, and makes the action passed to this function run in a modified brig
+-- which will contact this mocked federator instead of a real federator.
+withMockFederator :: forall (m :: * -> *) a. MonadIO m => Opt.Opts -> Port -> OutwardResponse -> Session a -> m a
+withMockFederator opts p res action = do
   federatorThread <- liftIO . Async.async $ runGRpcApp msgProtoBuf p (outwardService res)
   void $ retryWhileN 5 id isPortOpen
-  actionResult <- action
-  liftIO $ Async.cancel federatorThread
-  pure actionResult
+  liftIO $
+    (withSettingsOverrides newOpts action)
+      `finally` (Async.cancel federatorThread)
   where
+    newOpts :: Opt.Opts
+    newOpts = opts {Opt.federatorInternal = Just (Endpoint "127.0.0.1" (fromIntegral p))}
+
     isPortOpen :: m Bool
     isPortOpen = liftIO $ do
       let sockAddr = SockAddrInet (fromIntegral p) (tupleToHostAddress (127, 0, 0, 1))
