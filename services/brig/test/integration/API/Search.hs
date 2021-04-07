@@ -28,6 +28,7 @@ import API.Search.Util
 import API.Team.Util
 import API.User.Util
 import Bilge
+import Bilge.Assert ((!!!), (===))
 import qualified Brig.Options as Opt
 import Brig.Types
 import Control.Lens ((.~), (?~), (^.))
@@ -35,10 +36,11 @@ import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Retry
 import Data.Aeson (FromJSON, Value, decode, (.=))
 import qualified Data.Aeson as Aeson
+import Data.Domain (Domain (Domain))
 import Data.Handle (fromHandle)
 import Data.Id
 import qualified Data.Map.Strict as Map
-import Data.Qualified (Qualified (qUnqualified, qDomain))
+import Data.Qualified (Qualified (qDomain, qUnqualified))
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Database.Bloodhound as ES
@@ -52,8 +54,6 @@ import Text.RawString.QQ (r)
 import UnliftIO (Concurrently (..), runConcurrently)
 import Util
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
-import Data.Domain (Domain(Domain))
-import Bilge.Assert ((!!!), (===))
 
 tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree
 tests opts mgr galley brig = do
@@ -417,8 +417,8 @@ testRemoteLookup brig = do
   assertCanFindWithDomain brig searcherId searcheeQid searcheeName searcheeDomain
   -- We cannot assert on a real federated request here, so we make a request to
   -- some server which doesn't have an SRV record and expect a 422.
-  searchRequest brig searcherId searcheeName (Just $ Domain "non-existent.example.com") Nothing !!!
-    const 422 === statusCode
+  searchRequest brig searcherId searcheeName (Just $ Domain "non-existent.example.com") Nothing
+    !!! const 422 === statusCode
 
 -- | Migration sequence:
 -- 1. A migration is planned, in this time brig writes to two indices
