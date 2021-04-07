@@ -198,8 +198,8 @@ search searcherId searchTerm maybeDomain maybeMaxResults = do
       pure $ case teamSearchInfo of
         Search.TeamOnly t ->
           if Just t == (contactTeam =<< exactHandleResult)
-          then exactHandleResult
-          else Nothing
+            then exactHandleResult
+            else Nothing
         _ -> exactHandleResult
 
 teamUserSearchH ::
