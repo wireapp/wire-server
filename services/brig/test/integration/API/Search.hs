@@ -48,6 +48,7 @@ import Data.Qualified (Qualified (qDomain, qUnqualified))
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Database.Bloodhound as ES
+import Federation.Util
 import Foreign.C.Error (Errno (..), eCONNREFUSED)
 import GHC.IO.Exception (IOException (ioe_errno))
 import qualified Galley.Types.Teams.SearchVisibility as Team
@@ -443,38 +444,6 @@ testRemoteLookup opts brig = do
         assertEqual "Remote user's id should match" (profileQualifiedId otherDomainUserProfile) (contactQualifiedId foundUser)
         assertEqual "Remote user's name should match" (fromName $ profileName otherDomainUserProfile) (contactName foundUser)
       foundUsers -> assertFailure $ "Expected only one result, got: " <> show foundUsers
-
--- | Starts a grpc server which will return the 'OutwardResponse' passed to this
--- function, and makes the action passed to this function run in a modified brig
--- which will contact this mocked federator instead of a real federator.
-withMockFederator :: forall (m :: * -> *) a. MonadIO m => Opt.Opts -> Port -> OutwardResponse -> Session a -> m a
-withMockFederator opts p res action = do
-  federatorThread <- liftIO . Async.async $ runGRpcApp msgProtoBuf p (outwardService res)
-  void $ retryWhileN 5 id isPortOpen
-  liftIO $
-    (withSettingsOverrides newOpts action)
-      `finally` (Async.cancel federatorThread)
-  where
-    newOpts :: Opt.Opts
-    newOpts = opts {Opt.federatorInternal = Just (Endpoint "127.0.0.1" (fromIntegral p))}
-
-    isPortOpen :: m Bool
-    isPortOpen = liftIO $ do
-      let sockAddr = SockAddrInet (fromIntegral p) (tupleToHostAddress (127, 0, 0, 1))
-      bracket (socket AF_INET Stream 6 {- TCP -}) close' $ \sock -> do
-        portRes <- try $ connect sock sockAddr
-        case portRes of
-          Right () -> return True
-          Left e ->
-            if (Errno <$> ioe_errno e) == Just eCONNREFUSED
-              then return False
-              else throwIO e
-
-outwardService :: OutwardResponse -> SingleServerT info Outward ServerErrorIO _
-outwardService response = Mu.singleService (Mu.method @"call" (callOutward response))
-
-callOutward :: OutwardResponse -> FederatedRequest -> ServerErrorIO OutwardResponse
-callOutward res _ = pure res
 
 -- | Migration sequence:
 -- 1. A migration is planned, in this time brig writes to two indices
