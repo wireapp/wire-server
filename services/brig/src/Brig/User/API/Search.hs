@@ -31,11 +31,13 @@ import qualified Brig.IO.Intra as Intra
 import qualified Brig.Options as Opts
 import Brig.Team.Util (ensurePermissions)
 import Brig.Types.Search as Search
+import qualified Brig.User.API.Handle as HandleAPI
 import Brig.User.Search.Index
 import qualified Brig.User.Search.SearchIndex as Q
 import Brig.User.Search.TeamUserSearch (RoleFilter (..), TeamUserSearchSortBy (..), TeamUserSearchSortOrder (..))
 import qualified Brig.User.Search.TeamUserSearch as Q
 import Control.Lens (view)
+import Data.Domain (Domain)
 import Data.Handle (Handle (Handle, fromHandle))
 import Data.Id
 import Data.Predicate
@@ -55,8 +57,6 @@ import qualified Wire.API.Team.Permission as Public
 import Wire.API.Team.SearchVisibility (TeamSearchVisibility)
 import Wire.API.User (ColourId (fromColourId), Name (fromName), UserProfile (..))
 import qualified Wire.API.User.Search as Public
-import Data.Domain (Domain)
-import qualified Brig.User.API.Handle as HandleAPI
 
 type SearchContacts =
   Summary "Search for users"
@@ -136,35 +136,25 @@ routesInternal = do
 search :: UserId -> Text -> Maybe Domain -> Maybe (Range 1 500 Int32) -> Handler (Public.SearchResult Public.Contact)
 search searcherId searchTerm maybeDomain maybeMaxResults = do
   let maxResults = maybe 15 (fromIntegral . fromRange) maybeMaxResults
-  searcherTeamId <- lift $ DB.lookupUserTeam searcherId
-  sameTeamSearchOnly <- fromMaybe False <$> view (settings . Opts.searchSameTeamOnly)
-  teamSearchInfo <-
-    case searcherTeamId of
-      Nothing -> return Search.NoTeam
-      Just t ->
-        -- This flag in brig overrules any flag on galley - it is system wide
-        if sameTeamSearchOnly
-          then return (Search.TeamOnly t)
-          else do
-            -- For team users, we need to check the visibility flag
-            lift (handleTeamVisibility t <$> Intra.getTeamSearchVisibility t)
-  (toPrepend, esMaxResults) <- do
-    exactHandleResult <- contactFromProfile <$$> exactHandleMatch
-    pure $ case teamSearchInfo of
-      Search.TeamOnly t ->
-        if Just t == (contactTeam =<< exactHandleResult)
-          then (maybeToList exactHandleResult, maxResults - 1)
-          else ([], maxResults)
-      _ -> (maybeToList exactHandleResult, maxResults - length exactHandleResult)
+  searchedDomain <- maybe viewFederationDomain pure maybeDomain
+  teamSearchInfo <- mkTeamSearchInfo
+
+  maybeExactHandleMatch <- exactHandleSearch searchedDomain teamSearchInfo
+
+  let exactHandleMatchCount = length maybeExactHandleMatch
+      esMaxResults = maxResults - exactHandleMatchCount
+
   esResult <-
     if esMaxResults > 0
       then Q.searchIndex searcherId teamSearchInfo searchTerm esMaxResults
       else pure $ SearchResult 0 0 0 []
+
+  -- Prepend results matching exact handle and results from ES.
   pure $
     esResult
-      { searchResults = toPrepend <> searchResults esResult,
-        searchFound = length toPrepend + searchFound esResult,
-        searchReturned = length toPrepend + searchReturned esResult
+      { searchResults = maybeToList maybeExactHandleMatch <> searchResults esResult,
+        searchFound = exactHandleMatchCount + searchFound esResult,
+        searchReturned = exactHandleMatchCount + searchReturned esResult
       }
   where
     handleTeamVisibility :: TeamId -> TeamSearchVisibility -> Search.TeamSearchInfo
@@ -181,10 +171,31 @@ search searcherId searchTerm maybeDomain maybeMaxResults = do
           contactTeam = profileTeam profile
         }
 
-    exactHandleMatch :: Handler (Maybe UserProfile)
-    exactHandleMatch = do
-      searchedDomain <- maybe viewFederationDomain pure maybeDomain
-      HandleAPI.getHandleInfo searcherId (Qualified (Handle searchTerm) searchedDomain)
+    mkTeamSearchInfo :: Handler TeamSearchInfo
+    mkTeamSearchInfo = lift $ do
+      searcherTeamId <- DB.lookupUserTeam searcherId
+      sameTeamSearchOnly <- fromMaybe False <$> view (settings . Opts.searchSameTeamOnly)
+      case searcherTeamId of
+        Nothing -> return Search.NoTeam
+        Just t ->
+          -- This flag in brig overrules any flag on galley - it is system wide
+          if sameTeamSearchOnly
+            then return (Search.TeamOnly t)
+            else do
+              -- For team users, we need to check the visibility flag
+              handleTeamVisibility t <$> Intra.getTeamSearchVisibility t
+
+    exactHandleSearch :: Domain -> TeamSearchInfo -> Handler (Maybe Contact)
+    exactHandleSearch searchedDomain teamSearchInfo = do
+      exactHandleResult <-
+        contactFromProfile
+          <$$> HandleAPI.getHandleInfo searcherId (Qualified (Handle searchTerm) searchedDomain)
+      pure $ case teamSearchInfo of
+        Search.TeamOnly t ->
+          if Just t == (contactTeam =<< exactHandleResult)
+          then exactHandleResult
+          else Nothing
+        _ -> exactHandleResult
 
 teamUserSearchH ::
   ( JSON
