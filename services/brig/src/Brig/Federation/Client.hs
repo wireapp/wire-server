@@ -41,6 +41,9 @@ import Util.Options (epHost, epPort)
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.GRPC.Client
 import qualified Wire.API.Federation.GRPC.Types as Proto
+import Data.Id (UserId)
+import Data.Domain (Domain)
+import qualified Data.Map as Map
 
 -- FUTUREWORK(federation): As of now, any failure in making a remote call results in 404.
 -- This is not correct, we should figure out how we communicate failure
@@ -48,7 +51,7 @@ import qualified Wire.API.Federation.GRPC.Types as Proto
 -- See https://wearezeta.atlassian.net/browse/SQCORE-491 for the issue on error handling improvements.
 getUserHandleInfo :: Qualified Handle -> Handler (Maybe UserProfile)
 getUserHandleInfo (Qualified handle domain) = do
-  Log.info $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
+  Log.info $ Log.msg ("Brig-federation: handle lookup call on remote backend" :: ByteString)
   federatorClient <- mkFederatorClient
   let call = Proto.ValidatedFederatedRequest domain (mkGetUserInfoByHandle handle)
   res <- expectOk =<< callRemote federatorClient call
@@ -58,6 +61,28 @@ getUserHandleInfo (Qualified handle domain) = do
       Left err -> throwStd $ notFound $ "Failed to parse response: " <> LT.pack err
       Right x -> pure $ Just x
     code -> throwStd $ notFound $ "Invalid response from remote: " <> LT.pack (show code)
+
+-- FUTUREWORK: Test
+getUsersByIds :: [Qualified UserId] -> Handler [UserProfile]
+getUsersByIds quids = do
+  Log.info $ Log.msg ("Brig-federation: get users by ids on remote backends" :: ByteString)
+  federatorClient <- mkFederatorClient
+  let domainWiseIds = qualifiedToMap quids
+      requests = Map.foldMapWithKey (\domain uids -> [Proto.ValidatedFederatedRequest domain (mkGetUsersByIds uids)]) domainWiseIds
+  -- TODO: Make these concurrent
+  concat <$> mapM (processResponse <=< expectOk <=< callRemote federatorClient) requests
+  where
+    -- TODO: Do we want to not fail the whole request if there is one bad remote?
+    processResponse :: Proto.HTTPResponse -> Handler [UserProfile]
+    processResponse res =
+      case Proto.responseStatus res of
+        200 -> case Aeson.eitherDecodeStrict (Proto.responseBody res) of
+          Left err -> throwJsonParseFailure err
+          Right profiles -> pure profiles
+        status -> throwUnknownStatusError status
+
+qualifiedToMap :: [Qualified a] -> Map Domain [a]
+qualifiedToMap = Map.fromListWith (<>) . map (\(Qualified thing domain) -> (domain, [thing]) )
 
 -- FUTUREWORK: It would be nice to share the client across all calls to
 -- federator and not call this function on every invocation of federated
@@ -69,7 +94,7 @@ mkFederatorClient :: Handler GrpcClient
 mkFederatorClient = do
   maybeFederatorEndpoint <- view federator
   federatorEndpoint <- case maybeFederatorEndpoint of
-    Nothing -> throwStd $ federationNotConfigured
+    Nothing -> throwStd federationNotConfigured
     Just ep -> pure ep
   let cfg = grpcClientConfigSimple (T.unpack (federatorEndpoint ^. epHost)) (fromIntegral (federatorEndpoint ^. epPort)) False
   eitherClient <- createGrpcClient cfg
@@ -119,3 +144,14 @@ errWithPayloadAndStatus maybePayload code =
 grpc500 :: LT.Text -> Handler a
 grpc500 msg = do
   throwStd $ Wai.Error HTTP.status500 "federator-grpc-failure" msg
+
+throwJsonParseFailure :: String -> Handler a
+throwJsonParseFailure err =
+  throwStd $ Wai.Error statusUnexpectedFederationResponse "invalid-json-from-remote" ("Failed to parse json with error: " <> LT.pack err)
+
+throwUnknownStatusError :: Word32 -> Handler a
+throwUnknownStatusError status =
+  throwStd $ Wai.Error statusUnexpectedFederationResponse "unknown-status-from-remote" ("Unknown status from remote: " <> LT.pack (show status))
+
+statusUnexpectedFederationResponse :: HTTP.Status
+statusUnexpectedFederationResponse = HTTP.Status 533 "Unexpected Federation Response"

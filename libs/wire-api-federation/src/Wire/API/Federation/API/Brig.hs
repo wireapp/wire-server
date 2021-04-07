@@ -63,8 +63,8 @@ mkGetUserInfoByHandle handle =
     [Proto.QueryParam "handle" (toByteString' handle)]
     mempty
 
-mkGetUserInfoById :: [UserId] -> Proto.Request
-mkGetUserInfoById uids =
+mkGetUsersByIds :: [UserId] -> Proto.Request
+mkGetUsersByIds uids =
   Proto.Request
     Proto.Brig
     (Proto.HTTPMethod HTTP.POST)
