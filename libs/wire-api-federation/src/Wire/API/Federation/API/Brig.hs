@@ -17,9 +17,8 @@
 
 module Wire.API.Federation.API.Brig where
 
-import Data.Handle (Handle, fromHandle)
+import Data.Handle (Handle)
 import Data.Id (ClientId, UserId)
-import qualified Data.Text.Encoding as T
 import Data.ByteString.Conversion (toByteString')
 import Imports
 import qualified Network.HTTP.Types as HTTP
@@ -28,6 +27,8 @@ import Servant.API.Generic
 import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client.Prekey (ClientPrekey)
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Lazy as LBS
 
 -- Maybe this module should be called Brig
 data Api routes = Api
@@ -37,7 +38,14 @@ data Api routes = Api
         :> "users"
         :> "by-handle"
         :> QueryParam' '[Required, Strict] "handle" Handle
-        :> Get '[JSON] UserProfile
+        :> Get '[JSON] UserProfile,
+    getUsersByIds ::
+      routes
+        :- "federation"
+        :> "users"
+        :> "get-by-ids"
+        :> ReqBody '[JSON] [UserId]
+        :> Post '[JSON] [UserProfile]
   , claimPrekey ::
       routes
         :- "federation"
@@ -61,7 +69,7 @@ mkGetUserInfoByHandle handle =
     Proto.Brig
     (Proto.HTTPMethod HTTP.GET)
     "users/by-handle"
-    [Proto.QueryParam "handle" (T.encodeUtf8 (fromHandle handle))]
+    [Proto.QueryParam "handle" (toByteString' handle)]
     mempty
 
 mkClaimPrekey :: UserId -> ClientId -> Proto.Request
@@ -73,3 +81,12 @@ mkClaimPrekey user client =
     [Proto.QueryParam "uid" (toByteString' user),
      Proto.QueryParam "client" (toByteString' client)]
     mempty
+
+mkGetUserInfoById :: [UserId] -> Proto.Request
+mkGetUserInfoById uids =
+  Proto.Request
+    Proto.Brig
+    (Proto.HTTPMethod HTTP.POST)
+    "users/by-id"
+    []
+    (LBS.toStrict $ Aeson.encode uids)
