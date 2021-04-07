@@ -146,11 +146,9 @@ search searcherId searchTerm maybeDomain maybeMaxResults = do
       esMaxResults = maxResults - exactHandleMatchCount
 
   esResult <-
-    -- We don't want to do a local search if domain is not local. FUTUREWORK:
-    -- This is not tested as it is not easy to do so right now. We should either
-    -- figure out how to mock external communication in integration tests or
-    -- refactor this code to make it unit testable.
-    if esMaxResults > 0 || searchedDomain == localDomain
+    -- We don't want to do a search in ES if domain is not same as current
+    -- backend domain.
+    if esMaxResults > 0 && searchedDomain == localDomain
       then Q.searchIndex searcherId teamSearchInfo searchTerm esMaxResults
       else pure $ SearchResult 0 0 0 []
 
