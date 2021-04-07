@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8b1bf9b0f4a61cc416d891351b1ed1c83620d9df719acf06b0213543ee162774
+-- hash: 80c573dfafbff131b59987222d2d3a08f8181b6b1855157ac341c06fed15d722
 
 name:           brig
 version:        1.35.0
@@ -287,6 +287,7 @@ executable brig-integration
       API.User.Util
       API.UserPendingActivation
       Federation.User
+      Federation.Util
       Index.Create
       Util
       Util.AWS
