@@ -390,8 +390,8 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
     context "known IdP, running session with sso user" $ do
       checkInitiateBind True (registerTestIdPWithMeta >>= \(_, _, idp, (_, privcreds)) -> loginSsoUserFirstTime idp privcreds)
   describe "POST /sso/finalize-login" $ do
-    let checkGrantingAuthnResp :: TeamId -> HasCallStack => UserId -> SignedAuthnResponse -> ResponseLBS -> TestSpar ()
-        checkGrantingAuthnResp _tid uid sparrq sparresp = do
+    let checkGrantingAuthnResp :: HasCallStack => UserId -> SignedAuthnResponse -> ResponseLBS -> TestSpar ()
+        checkGrantingAuthnResp uid sparrq sparresp = do
           checkGrantingAuthnResp' sparresp
           authIdResponse <- getAuthIdViaAuthResp sparrq
           authIdSelf <- getAuthIdViaSelf uid
@@ -458,21 +458,21 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           pure (authnResp, sparAuthnResp)
     context "initial bind" $ do
       it "allowed" $ do
-        (uid, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
+        (uid, _tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
         (_, authnResp, sparAuthnResp) <- initialBind uid idp privcreds
-        checkGrantingAuthnResp tid uid authnResp sparAuthnResp
+        checkGrantingAuthnResp uid authnResp sparAuthnResp
     context "re-bind to same UserRef" $ do
       it "allowed" $ do
-        (uid, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
+        (uid, _tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
         (subj, _, _) <- initialBind uid idp privcreds
         (sparrq, sparresp) <- reBindSame uid idp privcreds subj
-        checkGrantingAuthnResp tid uid sparrq sparresp
+        checkGrantingAuthnResp uid sparrq sparresp
     context "re-bind to new UserRef from different IdP" $ do
       it "allowed" $ do
-        (uid, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
+        (uid, _tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
         _ <- initialBind uid idp privcreds
         (sparrq, sparresp) <- reBindDifferent uid
-        checkGrantingAuthnResp tid uid sparrq sparresp
+        checkGrantingAuthnResp uid sparrq sparresp
     context "bind to UserRef in use by other wire user" $ do
       it "forbidden" $ do
         env <- ask
@@ -496,11 +496,11 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
       let check :: HasCallStack => (Cky.Cookies -> Maybe Cky.Cookies) -> Bool -> SpecWith TestEnv
           check tweakcookies bindsucceeds = do
             it (if bindsucceeds then "binds existing user" else "creates new user") $ do
-              (uid, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
+              (uid, _tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
               (subj :: NameID, sparrq, sparresp) <- initialBind' tweakcookies uid idp privcreds
               checkGrantingAuthnResp' sparresp
               uid' <- getUserIdViaRef $ UserRef (idp ^. idpMetadata . edIssuer) subj
-              checkGrantingAuthnResp tid uid' sparrq sparresp
+              checkGrantingAuthnResp uid' sparrq sparresp
               liftIO $ (if bindsucceeds then shouldBe else shouldNotBe) uid' uid
           addAtBeginning :: Cky.SetCookie -> Cky.Cookies -> Cky.Cookies
           addAtBeginning cky = ((Cky.setCookieName cky, Cky.setCookieValue cky) :)
