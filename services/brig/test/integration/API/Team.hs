@@ -761,11 +761,6 @@ testCreateUserInternalSSO :: Brig -> Galley -> Http ()
 testCreateUserInternalSSO brig galley = do
   teamid <- snd <$> createUserWithTeam brig
   authId <- liftIO $ AuthSAML <$> generate arbitrary
-  -- creating users requires both sso_id and team_id
-  -- postUser' True False "dummy" True False (Just ssoid) Nothing brig
-  --   !!! const 400 === statusCode
-  -- postUser' True False "dummy" True False Nothing (Just teamid) brig
-  --   !!! const 400 === statusCode
   -- creating user with sso_id, team_id is ok
   resp <-
     postUser "dummy" True False (Just authId) (Just teamid) brig <!! do
