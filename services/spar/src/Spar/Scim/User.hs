@@ -312,10 +312,7 @@ mkAuthId Nothing _mbIdp _tid _emails =
 mkAuthId (Just extid) (Just idp) tid emails = do
   uref <- createUserRef idp extid
   mbEws <- mkAuthEmailWithSource emails extid
-  pure $
-    case mbEws of
-      Nothing -> AuthSAML uref
-      Just ews -> AuthBoth tid uref (Just ews)
+  pure $ AuthBoth tid uref mbEws
 mkAuthId (Just extid) Nothing tid emails = do
   let err =
         Scim.badRequest
