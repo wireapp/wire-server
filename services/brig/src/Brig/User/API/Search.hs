@@ -54,6 +54,8 @@ import Network.Wai.Utilities.Response (empty, json)
 import Network.Wai.Utilities.Swagger (document)
 import Servant hiding (Handler, JSON)
 import qualified Servant
+import System.Logger (field, msg)
+import System.Logger.Class (val, (~~))
 import qualified System.Logger.Class as Log
 import qualified Wire.API.Team.Permission as Public
 import Wire.API.Team.SearchVisibility (TeamSearchVisibility)
@@ -135,11 +137,11 @@ routesInternal = do
 -- Handlers
 
 -- TODO question: would it make sense to create a second endpoint with a mandatory domain?
--- That would make it easier to see from logs whether the old endpoint is still in use or can be removed.
+-- That would make it easier in the future to see from logs whether the old endpoint is still in use or can be removed.
 --
--- TODO question: would it make sense to augment the 'SearchResult'
--- to include a separate entry for exact handle match? This may allow clients to handle that differently.
--- Not sure if useful or not - perhaps discuss with clients?
+-- FUTUREWORK: Consider augmenting 'SearchResult' with full user profiles either
+-- for only the exact handle match or for all results or for the first X results.
+-- See also https://wearezeta.atlassian.net/browse/SQCORE-599
 search :: UserId -> Text -> Maybe Domain -> Maybe (Range 1 500 Int32) -> Handler (Public.SearchResult Public.Contact)
 search searcherId searchTerm maybeDomain maybeMaxResults = do
   federationDomain <- viewFederationDomain
@@ -150,7 +152,10 @@ search searcherId searchTerm maybeDomain maybeMaxResults = do
 
 searchRemotely :: Domain -> Text -> Handler (Public.SearchResult Public.Contact)
 searchRemotely domain searchTerm = do
-  Log.info $ Log.msg (Log.val "getHandleInfo - remote lookup") -- Log.~~ Log.field "domain" (show (qDomain handle))
+  Log.warn $
+    msg (val "searchRemotely")
+      ~~ field "domain" (show domain)
+      ~~ field "searchTerm" searchTerm
   Federation.search domain searchTerm
 
 searchLocally :: UserId -> Text -> Maybe (Range 1 500 Int32) -> Handler (Public.SearchResult Public.Contact)
