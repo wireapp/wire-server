@@ -237,6 +237,7 @@ data IdentityTestConfig
   | RandomExternalIdAndEmail  -- the `unspecified` `NameID` case.
   | EmailExternalIdAndEmail
 
+-- | FUTUREWORK(fisx): this partially duplicates 'randomScimUser', 'randomScimUserWithSubjectAndRichInfo', consolidate that!
 createTestIdentity :: IdentityTestConfig -> TestSpar (Scim.User.User SparTag, Text, Email)
 createTestIdentity = \case
   EmailExternalId -> do
