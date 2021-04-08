@@ -1052,16 +1052,6 @@ specUpdateUser = describe "PUT /Users/:id" $ do
   it "updates the matching Brig user" $ testBrigSideIsUpdated
   it "cannot update user to match another user's externalId" $ testUpdateToExistingExternalIdFails
   it "cannot remove display name" $ testCannotRemoveDisplayName
-
-  describe "email update" $ do
-    let msg =
-          "update succeeds; old, valid email address is returned via scim; \
-          \after validation, new email address is returned via scim"
-    context "email is stored in externalid field" $ do
-      it msg $ testScimEmailUpdate EmailFromExternalIdField
-    context "email is stored in emails field" $ do
-      it msg $ testScimEmailUpdate EmailFromEmailsField
-
   context "user is from different team" $ do
     it "fails to update user with 404" testUserUpdateFailsWithNotFoundIfOutsideTeam
   context "user does not exist" $ do
@@ -1113,9 +1103,6 @@ testUpdateRequiresUserId = do
   (tok, _) <- registerIdPAndScimToken
   updateUser_ (Just tok) Nothing user (env ^. teSpar)
     !!! assertTrue_ (inRange (400, 499) . statusCode)
-
-testScimEmailUpdate :: EmailSource -> TestSpar ()
-testScimEmailUpdate _ = pure ()
 
 -- | Test that updates are not allowed if token is not for the user's team
 testUserUpdateFailsWithNotFoundIfOutsideTeam :: TestSpar ()
