@@ -74,13 +74,13 @@ unsafeEmailToScimEmail email =
 
 spec :: Spec
 spec = do
-  describe "mkAuth" $ do
+  describe "mkAuthId" $ do
     describe "preference of scim fields" $ do
       it "exernalId is used as email if emails is empty" . property $
         \(email :: Email, mbIdP :: Maybe IdP, teamId' :: TeamId) ->
           let teamId = maybe teamId' (_wiTeam . _idpExtraInfo) mbIdP
               emails = []
-              authId :: Either Scim.ScimError AuthId = mkAuth (Just (fromEmail email)) mbIdP teamId emails
+              authId :: Either Scim.ScimError AuthId = mkAuthId (Just (fromEmail email)) mbIdP teamId emails
            in counterexample (show authId) $
                 (fmap ewsEmail . authIdScimEmailWithSource <$> authId) === Right (Just email)
 
@@ -88,7 +88,7 @@ spec = do
         \(emailInExtId :: Email, emailInField :: Email, mbIdP :: Maybe IdP, teamId' :: TeamId) ->
           let teamId = maybe teamId' (_wiTeam . _idpExtraInfo) mbIdP
               emails = [unsafeEmailToScimEmail emailInField]
-              authId :: Either Scim.ScimError AuthId = mkAuth (Just (fromEmail emailInExtId)) mbIdP teamId emails
+              authId :: Either Scim.ScimError AuthId = mkAuthId (Just (fromEmail emailInExtId)) mbIdP teamId emails
            in counterexample (show authId) $
                 (fmap ewsEmail . authIdScimEmailWithSource <$> authId) === Right (Just emailInField)
 

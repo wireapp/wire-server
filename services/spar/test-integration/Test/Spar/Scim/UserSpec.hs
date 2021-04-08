@@ -1224,7 +1224,7 @@ testUpdateExternalId withidp = do
         storedUser <- createUser tok user
         let userid = scimUserId storedUser
         authId :: AuthId <-
-          either (error . show) pure $ mkAuth (Scim.User.externalId user) midp tid []
+          either (error . show) pure $ mkAuthId (Scim.User.externalId user) midp tid []
         -- Overwrite the user with another randomly-generated user (only controlling externalId)
         user' <- do
           otherEmail <- randomEmail
@@ -1236,7 +1236,7 @@ testUpdateExternalId withidp = do
                         else Scim.User.externalId user
                   }
           randomScimUser <&> upd
-        let authId' = either (error . show) id $ mkAuth (Scim.User.externalId user') midp tid []
+        let authId' = either (error . show) id $ mkAuthId (Scim.User.externalId user') midp tid []
 
         _ <- updateUser tok userid user'
 
@@ -1631,7 +1631,7 @@ specEmailValidation = do
           scimStoredUser <- createUser tok user
           uref :: SAML.UserRef <-
             either (error . show) (maybe (error "no uref") pure . authIdUref) $
-              mkAuth (Scim.User.externalId . Scim.value . Scim.thing $ scimStoredUser) (Just idp) teamid []
+              mkAuthId (Scim.User.externalId . Scim.value . Scim.thing $ scimStoredUser) (Just idp) teamid []
           uid :: UserId <-
             getUserIdViaRef uref
           brig <- asks (^. teBrig)

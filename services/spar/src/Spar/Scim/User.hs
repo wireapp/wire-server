@@ -37,7 +37,7 @@ module Spar.Scim.User
   ( validateScimUser',
     synthesizeScimUser,
     toScimStoredUser',
-    mkAuth,
+    mkAuthId,
     scimFindUserByExternalId,
     firstEmailFromUser,
   )
@@ -266,7 +266,7 @@ validateScimUser' tid midp richInfoLimit user = do
       Scim.badRequest
         Scim.InvalidValue
         (Just "Setting user passwords is not supported for security reasons.")
-  authId <- mkAuth (Scim.externalId user) midp tid (Scim.emails user)
+  authId <- mkAuthId (Scim.externalId user) midp tid (Scim.emails user)
   handl <- validateHandle . Text.toLower . Scim.userName $ user
   -- FUTUREWORK: 'Scim.userName' should be case insensitive; then the toLower here would
   -- be a little less brittle.
@@ -299,7 +299,7 @@ validateScimUser' tid midp richInfoLimit user = do
 
 -- | This is needed primarily in 'validateScimUser', but also in 'updateValidScimUser' to
 -- recover the 'SAML.UserRef' of the scim user before the update from the database.
-mkAuth ::
+mkAuthId ::
   forall m.
   (MonadError Scim.ScimError m) =>
   Maybe Text ->
@@ -307,16 +307,16 @@ mkAuth ::
   TeamId ->
   [ScimEmail.Email] ->
   m AuthId
-mkAuth Nothing _mbIdp _tid _emails =
+mkAuthId Nothing _mbIdp _tid _emails =
   throwError $ Scim.badRequest Scim.InvalidValue (Just "externalId is required for SCIM users")
-mkAuth (Just extid) (Just idp) tid emails = do
+mkAuthId (Just extid) (Just idp) tid emails = do
   uref <- createUserRef idp extid
   mbEws <- mkAuthEmailWithSource emails extid
   pure $
     case mbEws of
       Nothing -> AuthSAML uref
       Just ews -> AuthBoth tid uref (Just ews)
-mkAuth (Just extid) Nothing tid emails = do
+mkAuthId (Just extid) Nothing tid emails = do
   let err =
         Scim.badRequest
           Scim.InvalidValue
@@ -889,10 +889,10 @@ scimFindUserByHandle _mIdpConfig stiTeam hndl = do
 scimFindUserByExternalId :: Maybe IdP -> TeamId -> Text -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser ST.SparTag)
 scimFindUserByExternalId mIdpConfig stiTeam extId = do
   -- Azure has been observed to search for externalIds that are not emails, even if the
-  -- mapping is set up like it should be.  This is a problem: if there is no SAML IdP, 'mkAuth'
+  -- mapping is set up like it should be.  This is a problem: if there is no SAML IdP, 'mkAuthId'
   -- only supports external IDs that are emails.  This is a missing feature / bug in spar tracked in
   -- https://wearezeta.atlassian.net/browse/SQSERVICES-157; once it is fixed, we should go back to
-  -- throwing errors returned by 'mkAuth' here, but *not* throw an error if the externalId is
+  -- throwing errors returned by 'mkAuthId' here, but *not* throw an error if the externalId is
   -- a UUID, or any other text that is valid according to SCIM.
 
   let mbUref :: Maybe SAML.UserRef =
