@@ -527,7 +527,7 @@ updateValidScimUser ::
   UserId ->
   ST.ValidScimUser ->
   m (Scim.StoredUser ST.SparTag)
-updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid newValidScimUser =
+updateValidScimUser tokinfo uid newValidScimUser =
   logScim
     ( logFunction "Spar.Scim.User.updateValidScimUser"
         . logVSU newValidScimUser
@@ -554,7 +554,7 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid newValidScimUser =
           case ( oldValidScimUser ^. ST.vsuAuthId,
                  newValidScimUser ^. ST.vsuAuthId
                ) of
-            (old, new) | old /= new -> updateVsuUref stiTeam uid old new
+            (old, new) | old /= new -> updateVsuUref uid old new
             _ -> pure ()
 
           when (newValidScimUser ^. ST.vsuName /= oldValidScimUser ^. ST.vsuName) $ do
@@ -576,12 +576,11 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid newValidScimUser =
           pure newScimStoredUser
 
 updateVsuUref ::
-  TeamId ->
   UserId ->
   AuthId ->
   AuthId ->
   Spar ()
-updateVsuUref _team uid old new = do
+updateVsuUref uid old new = do
   let geturef = runAuthId Just (const Nothing)
   case (geturef old, geturef new) of
     (mo, mn@(Just newuref)) | mo /= mn -> validateEmailIfExists uid newuref
