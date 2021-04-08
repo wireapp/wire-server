@@ -121,6 +121,7 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
   suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))
   phones <- getRandomR (1, 3) >>= \n -> replicateM n randomScimPhone
   -- Related, but non-trivial to re-use here: 'nextSubject'
+  -- FUTUREWORK: Add case where both externalId is an email AND mbEmail is Just
   (externalId, subj, mbEmail) <-
     getRandomR (0, 1 :: Int) >>= \case
       0 -> do

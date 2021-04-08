@@ -196,26 +196,32 @@ randomScimUserWithSubjectAndRichInfo ::
   m (Scim.User.User SparTag, SAML.UnqualifiedNameID)
 randomScimUserWithSubjectAndRichInfo richInfo = do
   suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))
-  emails <- getRandomR (0, 3) >>= \n -> replicateM n randomScimEmail
-  phones <- getRandomR (0, 3) >>= \n -> replicateM n randomScimPhone
+  phones <- getRandomR (1, 3) >>= \n -> replicateM n randomScimPhone
   -- Related, but non-trivial to re-use here: 'nextSubject'
-  (externalId, subj) <-
-    getRandomR (0, 1 :: Int) <&> \case
-      0 ->
-        ( "scimuser_extid_" <> suffix <> "@example.com",
-          either (error . show) id $
-            SAML.mkUNameIDEmail ("scimuser_extid_" <> suffix <> "@example.com")
-        )
-      1 ->
-        ( "scimuser_extid_" <> suffix,
-          SAML.mkUNameIDUnspecified ("scimuser_extid_" <> suffix)
-        )
+
+  -- FUTUREWORK: Add case where both externalId is an email AND mbEmail is Just
+  (externalId, subj, mbEmail) <-
+    getRandomR (0, 1 :: Int) >>= \case
+      0 -> do
+        pure
+          ( "scimuser_extid_" <> suffix <> "@example.com",
+            either (error . show) id $
+              SAML.mkUNameIDEmail ("scimuser_extid_" <> suffix <> "@example.com"),
+            Nothing
+          )
+      1 -> do
+        eml <- randomScimEmail
+        pure
+          ( "scimuser_extid_" <> suffix,
+            SAML.mkUNameIDUnspecified ("scimuser_extid_" <> suffix),
+            Just eml
+          )
       _ -> error "randomScimUserWithSubject: impossible"
   pure
     ( (Scim.User.empty userSchemas ("scimuser_" <> suffix) (ScimUserExtra richInfo))
         { Scim.User.displayName = Just ("ScimUser" <> suffix),
           Scim.User.externalId = Just externalId,
-          Scim.User.emails = emails,
+          Scim.User.emails = maybeToList mbEmail,
           Scim.User.phoneNumbers = phones
         },
       subj
