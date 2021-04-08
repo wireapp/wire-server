@@ -899,7 +899,7 @@ scimFindUserByExternalId mIdpConfig stiTeam extId = do
 
   lift $ synthesizeStoredUser stiTeam brigUser
   where
-    firstSuccess :: [Spar (Maybe UserId)] -> Spar (Maybe UserId)
+    firstSuccess :: Monad m => [m (Maybe a)] -> m (Maybe a)
     firstSuccess [] = pure Nothing
     firstSuccess (action : rest) = do
       result <- action
