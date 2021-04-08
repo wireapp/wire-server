@@ -876,21 +876,11 @@ scimFindUserByHandle stiTeam hndl = do
       synthesizeStoredUser stiTeam brigUser
     Nothing -> Applicative.empty
 
--- | Find user by externalId, which is tried as a `SAML.NameID`  of a SAML user, an externalId from spar,
--- or an email in brig.
--- Return the result as a SCIM user.
---
--- Note the user won't get an entry in `spar.user`.  That will only happen on their first
--- successful authentication with their SAML credentials.
+-- | Find user by 'externalId', which is tried as the `SAML.NameID` of a SAML user, an
+-- 'externalId' from spar, and an email address in brig.  Return the result as a SCIM user.
+-- Note the this will not write to `spar.user` or `spar.scim_external`.
 scimFindUserByExternalId :: Maybe IdP -> TeamId -> Text -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser ST.SparTag)
 scimFindUserByExternalId mIdpConfig stiTeam extId = do
-  -- Azure has been observed to search for externalIds that are not emails, even if the
-  -- mapping is set up like it should be.  This is a problem: if there is no SAML IdP, 'mkAuthId'
-  -- only supports external IDs that are emails.  This is a missing feature / bug in spar tracked in
-  -- https://wearezeta.atlassian.net/browse/SQSERVICES-157; once it is fixed, we should go back to
-  -- throwing errors returned by 'mkAuthId' here, but *not* throw an error if the externalId is
-  -- a UUID, or any other text that is valid according to SCIM.
-
   let mbUref :: Maybe SAML.UserRef =
         case sequenceA (createUserRef <$> mIdpConfig <*> pure extId) of
           Left _scimError -> Nothing
