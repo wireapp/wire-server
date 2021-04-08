@@ -24,40 +24,6 @@ specs = do
     prop "arbitrary AuthId values are not missing in validStatesExpected" $ \(authId :: AuthId) -> do
       allSamples `shouldContain` [Equiv authId]
 
-  xdescribe "what's an email" $ do
-    it "1" $ parseEmail "@handle" `shouldBe` Nothing
-    it "2" $ parseEmail "onlylocal@" `shouldBe` Nothing
-    it "3" $ parseEmail "@" `shouldBe` Nothing
-    it "4" $ parseEmail "local@only-top-level" `shouldSatisfy` isJust
-
-  describe "AuthId combinators" $ do
-    it "runAuthId" $ do
-      pending
-
-    it "authIdUref" $ do
-      pending
-
-    it "authIdEmail" $ do
-      pending
-
-    it "authIdScimDetails" $ do
-      pending
-
-    it "authIdScimEmail" $ do
-      pending
-
-    it "authIdScimEmailWithSource" $ do
-      pending
-
-    it "authIdToLegacyAuthId" $ do
-      pending
-
-    it "externalIdTeam" $ do
-      pending
-
-    it "externalIdName" $ do
-      pending
-
 -- | We support a specific set of sub-sets of these things a user can have (or do, or
 -- experience).  This is a simplified model, but it should be accurate enough.
 data Marker
