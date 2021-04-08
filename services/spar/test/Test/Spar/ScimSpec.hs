@@ -3,14 +3,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE ViewPatterns #-}
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -27,46 +19,78 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ViewPatterns #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Test.Spar.ScimSpec where
 
+import Arbitrary ()
+import Brig.Types.Common (Email (..), fromEmail)
 import Brig.Types.Test.Arbitrary
 import Data.Aeson (eitherDecode', encode, parseJSON)
 import Data.Aeson.QQ (aesonQQ)
 import qualified Data.Aeson.Types as Aeson
 import Data.Id
 import Data.Json.Util (fromUTCTimeMillis, toUTCTimeMillis)
+import Data.String.Conversions (cs)
 import qualified Data.UUID as UUID
 import Imports
 import Network.URI (parseURI)
 import qualified SAML2.WebSSO as SAML
+import SAML2.WebSSO.Types (_idpExtraInfo)
 import Spar.Scim
+import Spar.Types (IdP, _wiTeam)
 import Test.Hspec
 import Test.QuickCheck
+import qualified Text.Email.Parser as Email
 import URI.ByteString
 import qualified Web.Scim.Class.User as ScimC
 import Web.Scim.Filter (AttrPath (..))
 import qualified Web.Scim.Schema.Common as Scim
+import qualified Web.Scim.Schema.Error as Scim
 import qualified Web.Scim.Schema.Meta as Scim
 import Web.Scim.Schema.PatchOp (Op (Remove), Operation (..), PatchOp (..), Path (NormalPath), applyOperation)
 import qualified Web.Scim.Schema.ResourceType as ScimR
 import Web.Scim.Schema.Schema (Schema (CustomSchema))
 import qualified Web.Scim.Schema.Schema as Scim
 import qualified Web.Scim.Schema.User as Scim
+import qualified Web.Scim.Schema.User.Email as Email
 import qualified Web.Scim.Schema.User.Name as ScimN
+import Wire.API.User.Identity.AuthId (AuthId (..), authIdScimEmailWithSource, ewsEmail)
 import Wire.API.User.RichInfo
+
+unsafeEmailToScimEmail :: Email -> Email.Email
+unsafeEmailToScimEmail email =
+  let typ :: Maybe Text = Nothing
+      primary :: Maybe Scim.ScimBool = Nothing
+      value = Email.EmailAddress2 $ Email.unsafeEmailAddress (cs . emailLocal $ email) (cs . emailDomain $ email)
+   in Email.Email {..}
 
 spec :: Spec
 spec = do
   describe "mkAuth" $ do
     describe "preference of scim fields" $ do
-      it "exernalId is used as email if emails is empty" $ do
-        -- TODO: implement this!
-        False `shouldBe` True
+      it "exernalId is used as email if emails is empty" . property $
+        \(email :: Email, mbIdP :: Maybe IdP, teamId' :: TeamId) ->
+          let teamId = maybe teamId' (_wiTeam . _idpExtraInfo) mbIdP
+              emails = []
+              authId :: Either Scim.ScimError AuthId = mkAuth (Just (fromEmail email)) mbIdP teamId emails
+           in counterexample (show authId) $
+                (fmap ewsEmail . authIdScimEmailWithSource <$> authId) === Right (Just email)
 
-      it "email field is used as email if externalId contains a parseable email address, but emails field is non-empty" $ do
-        -- TODO: implement this!
-        False `shouldBe` True
+      it "email field is used as email if externalId contains a parseable email address, but emails field is non-empty" . property $
+        \(emailInExtId :: Email, emailInField :: Email, mbIdP :: Maybe IdP, teamId' :: TeamId) ->
+          let teamId = maybe teamId' (_wiTeam . _idpExtraInfo) mbIdP
+              emails = [unsafeEmailToScimEmail emailInField]
+              authId :: Either Scim.ScimError AuthId = mkAuth (Just (fromEmail emailInExtId)) mbIdP teamId emails
+           in counterexample (show authId) $
+                (fmap ewsEmail . authIdScimEmailWithSource <$> authId) === Right (Just emailInField)
 
   describe "toScimStoredUser'" $ do
     it "works" $ do
