@@ -52,3 +52,14 @@ mkGetUserInfoByHandle handle =
     "users/by-handle"
     [Proto.QueryParam "handle" (T.encodeUtf8 (fromHandle handle))]
     mempty
+
+-- TODO: Can we write a test which makes use of mkSearchUsers against the Api in this file?
+-- Naming bikeshedding: current /search/contacts. /search/users is a better name, no?
+mkSearchUsers :: Text -> Proto.Request
+mkSearchUsers searchTerm =
+  Proto.Request
+    Proto.Brig
+    (Proto.HTTPMethod HTTP.GET)
+    "search/users"
+    [Proto.QueryParam "q" (T.encodeUtf8 searchTerm)]
+    mempty
