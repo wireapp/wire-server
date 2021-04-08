@@ -1,6 +1,6 @@
 <!--
 
-# [2020-next]
+# [2021-xx-xx]
 
 ## Release Notes
 
@@ -13,7 +13,7 @@
 ## Internal changes
 
 -->
-# [2020-03-23]
+# [2021-03-23]
 
 ## Release Notes
 
@@ -45,7 +45,7 @@ Note that you should never skip a release when upgrading Wire. If you are upgrad
 * stack-deps.nix: Use nixpkgs from niv (#1406)
 
 
-# [2020-03-21]
+# [2021-03-21]
 
 ## Release Notes
 
@@ -56,7 +56,7 @@ Note that you should never skip a release when upgrading Wire.
 
 * Migrate spar external id table (#1400, #1413, #1415, #1417)
 
-# [2020-03-02]
+# [2021-03-02]
 
 ## Bug fixes and other updates
 
@@ -67,7 +67,7 @@ Note that you should never skip a release when upgrading Wire.
 * Federation: Add qualified endpoints for prekey management (#1372)
 
 
-# [2020-02-25]
+# [2021-02-25]
 
 ## Bug fixes and other updates
 
@@ -80,7 +80,7 @@ Note that you should never skip a release when upgrading Wire.
 * Use mu-haskell to implement one initial federation request across backends (#1319)
 * Add migrate-external-ids tool (#1384)
 
-# [2020-02-16]
+# [2021-02-16]
 
 ## Release Notes
 
@@ -121,7 +121,7 @@ This release might require manual migration steps, see [ElasticSearch migration 
 * Bump saml2-web-sso version to latest upstream (#1369)
 * Add docs for deriving-swagger2 (#1373)
 
-# [2020-01-15]
+# [2021-01-15]
 
 ## Release Notes
 
