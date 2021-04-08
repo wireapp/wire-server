@@ -300,17 +300,19 @@ testCreateUserNoIdP identityTestConfig = do
   -- Note: Cannot run this test here, because its delay would cause the invitation to
   -- time out.
 
-  -- scim-get should produce same stored user; stored user should be inactive and have an
-  -- email.
+  -- scim-get should produce same stored user; stored user should be inactive, email and
+  -- externalId should be correct.
   do
     susr <- getUser tok userid
     liftIO $ susr `shouldBe` scimStoredUser
     let usr = Scim.value . Scim.thing $ susr
     liftIO $ Scim.User.active usr `shouldBe` Just (Scim.ScimBool False)
     liftIO $ Scim.User.externalId usr `shouldBe` Just externalId
+    liftIO $ Scim.User.emails usr `shouldBe` _ -- TODO: depends on identityTestConfig
 
   -- scim search should succeed
   do
+    -- FUTUREWORK: search for email
     listUsers tok (Just (filterBy "userName" $ fromHandle handle)) >>= \users ->
       liftIO $ users `shouldBe` [scimStoredUser]
     listUsers tok (Just (filterBy "externalId" externalId)) >>= \users ->
