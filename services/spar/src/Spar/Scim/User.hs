@@ -127,7 +127,7 @@ instance Scim.UserDB ST.SparTag Spar where
           Scim.FilterAttrCompare (Scim.AttrPath schema attrName _subAttr) Scim.OpEq (Scim.ValString val)
             | Scim.isUserSchema schema -> do
               x <- runMaybeT $ case attrName of
-                "username" -> scimFindUserByHandle mIdpConfig stiTeam val
+                "username" -> scimFindUserByHandle stiTeam val
                 "externalid" -> scimFindUserByExternalId mIdpConfig stiTeam val
                 _ -> throwError (Scim.badRequest Scim.InvalidFilter (Just "Unsupported attribute"))
               pure $ Scim.fromList (toList x)
@@ -863,8 +863,8 @@ synthesizeScimUser info =
         scimEmail :: Text.Email.Validate.EmailAddress -> ScimEmail.Email
         scimEmail addr = ScimEmail.Email Nothing (ScimEmail.EmailAddress2 addr) Nothing
 
-scimFindUserByHandle :: Maybe IdP -> TeamId -> Text -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser ST.SparTag)
-scimFindUserByHandle _mIdpConfig stiTeam hndl = do
+scimFindUserByHandle :: TeamId -> Text -> MaybeT (Scim.ScimHandler Spar) (Scim.StoredUser ST.SparTag)
+scimFindUserByHandle stiTeam hndl = do
   handle <- MaybeT . pure . parseHandle . Text.toLower $ hndl
   brigUser <- MaybeT . lift . Brig.getBrigUserByHandle $ handle
 
