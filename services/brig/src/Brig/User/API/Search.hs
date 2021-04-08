@@ -152,7 +152,7 @@ search searcherId searchTerm maybeDomain maybeMaxResults = do
 
 searchRemotely :: Domain -> Text -> Handler (Public.SearchResult Public.Contact)
 searchRemotely domain searchTerm = do
-  Log.warn $
+  Log.info $
     msg (val "searchRemotely")
       ~~ field "domain" (show domain)
       ~~ field "searchTerm" searchTerm
