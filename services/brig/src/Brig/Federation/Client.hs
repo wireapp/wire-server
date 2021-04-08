@@ -24,9 +24,11 @@ module Brig.Federation.Client where
 import Brig.API.Error (federationNotConfigured, notFound, throwStd)
 import Brig.API.Handler (Handler)
 import Brig.App (federator)
+import qualified Brig.Types.Search as Public
 import Brig.Types.User
 import Control.Lens (view, (^.))
 import qualified Data.Aeson as Aeson
+import Data.Domain
 import Data.Handle
 import Data.Qualified
 import Data.String.Conversions
@@ -58,6 +60,11 @@ getUserHandleInfo (Qualified handle domain) = do
       Left err -> throwStd $ notFound $ "Failed to parse response: " <> LT.pack err
       Right x -> pure $ Just x
     code -> throwStd $ notFound $ "Invalid response from remote: " <> LT.pack (show code)
+
+search :: Domain -> Text -> Handler (Public.SearchResult Public.Contact)
+search _domain _searchTerm = do
+  Log.info $ Log.msg $ T.pack "Brig-federation: search call on remote backend"
+  throwStd $ notFound $ "TODO implement this"
 
 -- FUTUREWORK: It would be nice to share the client across all calls to
 -- federator and not call this function on every invocation of federated
