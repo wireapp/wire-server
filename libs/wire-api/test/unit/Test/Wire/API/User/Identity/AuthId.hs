@@ -24,7 +24,7 @@ specs = do
     prop "arbitrary AuthId values are not missing in validStatesExpected" $ \(authId :: AuthId) -> do
       allSamples `shouldContain` [Equiv authId]
 
-  describe "what's an email" $ do
+  xdescribe "what's an email" $ do
     it "1" $ parseEmail "@handle" `shouldBe` Nothing
     it "2" $ parseEmail "onlylocal@" `shouldBe` Nothing
     it "3" $ parseEmail "@" `shouldBe` Nothing
