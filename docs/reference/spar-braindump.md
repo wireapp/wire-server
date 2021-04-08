@@ -35,7 +35,7 @@ How does this work?
 
 When SCIM user gets are processed, in order to reconstruct the externalId from the user spar is retrieving from brig, we introduce a new json object for the `sso_id` field that looks like this: `{'scim_external_id': 'me@example.com'}`.
 
-In order to find users that have email addresses pending validation, we introduce a new table in spar's cassandra called `scim_external_ids`, in analogy to `user`.  We have tried to use brig's internal `GET /i/user&email=...`, but that also finds pending email addresses, and there are corner cases when changing email addresses and waiting for the new address to be validated and the old to be removed...  that made this approach seem infeasible.
+In order to find users that have email addresses pending validation, we introduce a new table in spar's cassandra called `scim_external`, in analogy to `user`.  We have tried to use brig's internal `GET /i/user&email=...`, but that also finds pending email addresses, and there are corner cases when changing email addresses and waiting for the new address to be validated and the old to be removed...  that made this approach seem infeasible.
 
 **password:** once the user has validated their email address, they need to trigger the "forgot password" flow -- also old code.
 
