@@ -112,7 +112,9 @@ tests opts mgr galley brig = do
             test mgr "non team user cannot be found by a team member A" $ testSeachNonMemberAsTeamMemberOutboundOnly brig testSetupOutboundOnly
           ],
         testGroup "federated" $
-          [ test mgr "remote lookup" $ testRemoteLookup opts brig
+          [ test mgr "search passing own domain" $ testSearchWithDomain brig,
+            test mgr "remote lookup should call remote code path" $ testSearchOtherDomain opts brig,
+            test mgr "remote lookup federator -> brig" $ testTheActualApi brig
           ]
       ]
   where
@@ -421,8 +423,8 @@ testSeachNonMemberAsTeamMemberOutboundOnly brig ((_, _, teamAMember), (_, _, _),
   assertCan'tFind brig (userId teamAMember) (userQualifiedId nonTeamMember) (fromName (userDisplayName nonTeamMember))
   assertCan'tFind brig (userId teamAMember) (userQualifiedId nonTeamMember) (fromHandle teamMemberAHandle)
 
-testRemoteLookup :: TestConstraints m => Opt.Opts -> Brig -> m ()
-testRemoteLookup opts brig = do
+testSearchWithDomain :: TestConstraints m => Brig -> m ()
+testSearchWithDomain brig = do
   searcher <- randomUser brig
   searchee <- randomUser brig
   refreshIndex brig
@@ -431,19 +433,22 @@ testRemoteLookup opts brig = do
       searcheeName = fromName (userDisplayName searchee)
       searcheeDomain = qDomain searcheeQid
   assertCanFindWithDomain brig searcherId searcheeQid searcheeName searcheeDomain
+
+testSearchOtherDomain :: TestConstraints m => Opt.Opts -> Brig -> m ()
+testSearchOtherDomain opts brig = do
+  user <- randomUser brig
   -- We cannot assert on a real federated request here, so we make a request to
   -- a mocked federator started and stopped during this test
-  otherDomainUserProfile :: UserProfile <- liftIO $ generate arbitrary
-  let mockResponse = OutwardResponseHTTPResponse (HTTPResponse 200 (cs $ Aeson.encode otherDomainUserProfile))
+  otherSearchResult :: SearchResult Contact <- liftIO $ generate arbitrary
+  let mockResponse = OutwardResponseHTTPResponse (HTTPResponse 200 (cs $ Aeson.encode otherSearchResult))
   results <- withMockFederator opts 9999 mockResponse $ do
-    executeSearchWithDomain brig searcherId searcheeName (Domain "non-existent.example.com")
+    executeSearchWithDomain brig (userId user) "someSearchText" (Domain "non-existent.example.com")
   liftIO $ do
-    assertEqual "there should be only one result" 1 (searchReturned results)
-    case searchResults results of
-      [foundUser] -> do
-        assertEqual "Remote user's id should match" (profileQualifiedId otherDomainUserProfile) (contactQualifiedId foundUser)
-        assertEqual "Remote user's name should match" (fromName $ profileName otherDomainUserProfile) (contactName foundUser)
-      foundUsers -> assertFailure $ "Expected only one result, got: " <> show foundUsers
+    assertEqual "The search request should get its result from federator" otherSearchResult results
+
+testTheActualApi :: TestConstraints m => Brig -> m ()
+testTheActualApi _brig = do
+  liftIO $ assertEqual "Reminder that all other tests pass but the wire-api-federation (Wire.API.Federation.API.Brig) implementation is WRONG and UNTESTED so far" True False
 
 -- | Migration sequence:
 -- 1. A migration is planned, in this time brig writes to two indices
