@@ -27,10 +27,12 @@ import Brig.API.Handler
 import Brig.API.Util (ZAuthServant)
 import Brig.App
 import qualified Brig.Data.User as DB
+import qualified Brig.Federation.Client as Federation
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.Options as Opts
 import Brig.Team.Util (ensurePermissions)
 import Brig.Types.Search as Search
+import Brig.User.API.Handle (contactFromProfile)
 import qualified Brig.User.API.Handle as HandleAPI
 import Brig.User.Search.Index
 import qualified Brig.User.Search.SearchIndex as Q
@@ -38,7 +40,7 @@ import Brig.User.Search.TeamUserSearch (RoleFilter (..), TeamUserSearchSortBy (.
 import qualified Brig.User.Search.TeamUserSearch as Q
 import Control.Lens (view)
 import Data.Domain (Domain)
-import Data.Handle (Handle (Handle, fromHandle))
+import Data.Handle (Handle (Handle))
 import Data.Id
 import Data.Predicate
 import Data.Range
@@ -52,9 +54,9 @@ import Network.Wai.Utilities.Response (empty, json)
 import Network.Wai.Utilities.Swagger (document)
 import Servant hiding (Handler, JSON)
 import qualified Servant
+import qualified System.Logger.Class as Log
 import qualified Wire.API.Team.Permission as Public
 import Wire.API.Team.SearchVisibility (TeamSearchVisibility)
-import Wire.API.User (ColourId (fromColourId), Name (fromName), UserProfile (..))
 import qualified Wire.API.User.Search as Public
 
 type SearchContacts =
@@ -132,30 +134,36 @@ routesInternal = do
 
 -- Handlers
 
+-- TODO question: would it make sense to create a second endpoint with a mandatory domain?
+-- That would make it easier to see from logs whether the old endpoint is still in use or can be removed.
+--
+-- TODO question: would it make sense to augment the 'SearchResult'
+-- to include a separate entry for exact handle match? This may allow clients to handle that differently.
+-- Not sure if useful or not - perhaps discuss with clients?
 search :: UserId -> Text -> Maybe Domain -> Maybe (Range 1 500 Int32) -> Handler (Public.SearchResult Public.Contact)
 search searcherId searchTerm maybeDomain maybeMaxResults = do
   federationDomain <- viewFederationDomain
-  let searchedDomain = fromMaybe federationDomain maybeDomain
-  if searchedDomain == federationDomain
-    then searchLocally searcherId federationDomain searchTerm maybeMaxResults
-    else searchRemotely searcherId searchedDomain searchTerm
+  let queryDomain = fromMaybe federationDomain maybeDomain
+  if queryDomain == federationDomain
+    then searchLocally searcherId searchTerm maybeMaxResults
+    else searchRemotely queryDomain searchTerm
 
--- TODO
-searchRemotely = undefined
+searchRemotely :: Domain -> Text -> Handler (Public.SearchResult Public.Contact)
+searchRemotely domain searchTerm = do
+  Log.info $ Log.msg (Log.val "getHandleInfo - remote lookup") -- Log.~~ Log.field "domain" (show (qDomain handle))
+  Federation.search domain searchTerm
 
-searchLocally :: UserId -> Domain -> Text -> Maybe (Range 1 500 Int32) -> Handler (Public.SearchResult Public.Contact)
-searchLocally searcherId searcherDomain searchTerm maybeMaxResults = do
+searchLocally :: UserId -> Text -> Maybe (Range 1 500 Int32) -> Handler (Public.SearchResult Public.Contact)
+searchLocally searcherId searchTerm maybeMaxResults = do
   let maxResults = maybe 15 (fromIntegral . fromRange) maybeMaxResults
   teamSearchInfo <- mkTeamSearchInfo
 
-  maybeExactHandleMatch <- exactHandleSearch searcherDomain teamSearchInfo
+  maybeExactHandleMatch <- exactHandleSearch teamSearchInfo
 
   let exactHandleMatchCount = length maybeExactHandleMatch
       esMaxResults = maxResults - exactHandleMatchCount
 
   esResult <-
-    -- We don't want to do a search in ES if domain is not same as current
-    -- backend domain.
     if esMaxResults > 0
       then Q.searchIndex searcherId teamSearchInfo searchTerm esMaxResults
       else pure $ SearchResult 0 0 0 []
@@ -172,16 +180,6 @@ searchLocally searcherId searcherDomain searchTerm maybeMaxResults = do
     handleTeamVisibility t Team.SearchVisibilityStandard = Search.TeamAndNonMembers t
     handleTeamVisibility t Team.SearchVisibilityNoNameOutsideTeam = Search.TeamOnly t
 
-    contactFromProfile :: UserProfile -> Contact
-    contactFromProfile profile =
-      Contact
-        { contactQualifiedId = profileQualifiedId profile,
-          contactName = fromName $ profileName profile,
-          contactHandle = fromHandle <$> profileHandle profile,
-          contactColorId = Just . fromIntegral . fromColourId $ profileAccentId profile,
-          contactTeam = profileTeam profile
-        }
-
     mkTeamSearchInfo :: Handler TeamSearchInfo
     mkTeamSearchInfo = lift $ do
       searcherTeamId <- DB.lookupUserTeam searcherId
@@ -196,11 +194,11 @@ searchLocally searcherId searcherDomain searchTerm maybeMaxResults = do
               -- For team users, we need to check the visibility flag
               handleTeamVisibility t <$> Intra.getTeamSearchVisibility t
 
-    exactHandleSearch :: Domain -> TeamSearchInfo -> Handler (Maybe Contact)
-    exactHandleSearch domain teamSearchInfo = do
+    exactHandleSearch :: TeamSearchInfo -> Handler (Maybe Contact)
+    exactHandleSearch teamSearchInfo = do
       exactHandleResult <-
         contactFromProfile
-          <$$> HandleAPI.getLocalHandleInfo searcherId domain (Handle searchTerm)
+          <$$> HandleAPI.getLocalHandleInfo searcherId (Handle searchTerm)
       pure $ case teamSearchInfo of
         Search.TeamOnly t ->
           if Just t == (contactTeam =<< exactHandleResult)
