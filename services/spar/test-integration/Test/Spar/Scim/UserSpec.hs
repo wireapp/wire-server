@@ -235,7 +235,7 @@ testCreateUserWithPass = do
 data IdentityTestConfig
   = EmailExternalId
   | RandomExternalIdAndEmail  -- the `unspecified` `NameID` case.
-  | EmailExternalIdAndEmail
+  | EmailExternalIdAndEmail -- (two different emails, which is a bit odd, but we want to make sure doing that is no way for a scim peer to break wire.)
 
 -- | FUTUREWORK(fisx): this partially duplicates 'randomScimUser', 'randomScimUserWithSubjectAndRichInfo', consolidate that!
 createTestIdentity :: IdentityTestConfig -> TestSpar (Scim.User.User SparTag, Text, Email)
