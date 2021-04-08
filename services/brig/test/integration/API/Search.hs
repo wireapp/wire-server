@@ -434,6 +434,9 @@ testSearchWithDomain brig = do
       searcheeDomain = qDomain searcheeQid
   assertCanFindWithDomain brig searcherId searcheeQid searcheeName searcheeDomain
 
+-- | WARNING: this test only tests that brig will indeed make a call to federator
+-- (i.e. does the correct if/else branching based on the domain),
+-- it does not test any of the federation API details. This needs to be tested separately.
 testSearchOtherDomain :: TestConstraints m => Opt.Opts -> Brig -> m ()
 testSearchOtherDomain opts brig = do
   user <- randomUser brig
