@@ -908,10 +908,7 @@ scimFindUserByExternalId mIdpConfig stiTeam extId = do
         Nothing -> firstSuccess rest
 
     lookupUref :: SAML.UserRef -> Spar (Maybe UserId)
-    lookupUref uref = do
-      wrapMonadClient (Data.getSAMLUser uref) >>= \case
-        Nothing -> maybe (pure Nothing) lookupEmail $ Brig.urefToEmail uref
-        Just uid -> pure (Just uid)
+    lookupUref uref = wrapMonadClient (Data.getSAMLUser uref)
 
     lookupExternalId :: TeamId -> Text -> Spar (Maybe UserId)
     lookupExternalId tid extid = wrapMonadClient $ Data.lookupScimExternalId (ExternalId tid extid)
