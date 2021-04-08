@@ -234,7 +234,7 @@ testCreateUserWithPass = do
 
 data IdentityTestConfig
   = EmailExternalId
-  | RandomExternalIdAndEmail
+  | RandomExternalIdAndEmail  -- the `unspecified` `NameID` case.
   | EmailExternalIdAndEmail
 
 createTestIdentity :: IdentityTestConfig -> TestSpar (Scim.User.User SparTag, Text, Email)
