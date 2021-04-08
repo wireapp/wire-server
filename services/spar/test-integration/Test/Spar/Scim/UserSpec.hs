@@ -1262,6 +1262,7 @@ testUpdateExternalId withidp = do
               (hasChanged, authId') `shouldBe` (hasChanged, authId)
               (hasChanged, muserid') `shouldBe` (hasChanged, Just userid)
 
+      -- FUTUREWORK: rename to lookupByAuthId
       lookupByValidExternalId :: AuthId -> TestSpar (Maybe UserId)
       lookupByValidExternalId =
         runAuthId
