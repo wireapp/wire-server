@@ -193,7 +193,7 @@ newUserAuthId user = userAuthId user <|> createFresh user
     getEmail (FullIdentity email _) = Just email
     getEmail (EmailIdentity email) = Just email
     getEmail (PhoneIdentity _) = Nothing
-    getEmail SparAuthIdentity {} = Nothing
+    getEmail (SparAuthIdentity _ email _) = email -- (this can't happen, but it would work if it could.)
 
 ----------------------------------------------------------------------------
 -- User creation and validation
