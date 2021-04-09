@@ -762,7 +762,7 @@ synthesizeStoredUser stiTeam usr =
         . maybe id logNewAuthId (newUserAuthId (accountUser usr))
     )
     $ do
-      authId <- maybe (throwError $ Scim.serverError "Server error: user doesn't haven an AuthId") pure (newUserAuthId (accountUser usr))
+      authId <- maybe (throwError $ Scim.serverError "Server error: user doesn't have an AuthId") pure (newUserAuthId (accountUser usr))
 
       unless (userTeam (accountUser usr) == Just stiTeam) $
         throwError (Scim.notFound "User" "User doesn't belong to team")
