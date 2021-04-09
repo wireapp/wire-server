@@ -71,7 +71,7 @@ import qualified Web.Scim.Schema.PatchOp as PatchOp
 import qualified Web.Scim.Schema.User as Scim.User
 import Wire.API.Team.Invitation (Invitation (..))
 import Wire.API.User (userAuthId)
-import Wire.API.User.Identity (AuthId, EmailWithSource (..), ExternalId (..), ScimDetails (..), authIdUref, runAuthId)
+import Wire.API.User.Identity (AuthId, EmailSource (..), EmailWithSource (..), ExternalId (..), ScimDetails (..), authIdUref, runAuthId)
 import Wire.API.User.RichInfo
 import Wire.API.User.Search (SearchResult (..))
 import qualified Wire.API.User.Search as Search
@@ -1052,6 +1052,16 @@ specUpdateUser = describe "PUT /Users/:id" $ do
   it "updates the matching Brig user" $ testBrigSideIsUpdated
   it "cannot update user to match another user's externalId" $ testUpdateToExistingExternalIdFails
   it "cannot remove display name" $ testCannotRemoveDisplayName
+
+  describe "email update" $ do
+    let msg =
+          "update succeeds; old, valid email address is returned via scim; \
+          \after validation, new email address is returned via scim"
+    context "email is stored in externalid field" $
+      focus $ it msg $ testScimEmailUpdate EmailFromExternalIdField
+    context "email is stored in emails field" $
+      focus $ it msg $ testScimEmailUpdate EmailFromEmailsField
+
   context "user is from different team" $ do
     it "fails to update user with 404" testUserUpdateFailsWithNotFoundIfOutsideTeam
   context "user does not exist" $ do
@@ -1103,6 +1113,60 @@ testUpdateRequiresUserId = do
   (tok, _) <- registerIdPAndScimToken
   updateUser_ (Just tok) Nothing user (env ^. teSpar)
     !!! assertTrue_ (inRange (400, 499) . statusCode)
+
+testScimEmailUpdate :: HasCallStack => EmailSource -> TestSpar ()
+testScimEmailUpdate emailSource = do
+  env <- ask
+  let brig = env ^. teBrig
+  (scimUser, _externalId, email) <- initialIdentity emailSource
+  (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  tok <- registerScimToken tid Nothing
+  scimStoredUser <- createUser tok scimUser
+  liftIO $ (fmap Scim.unScimBool . Scim.User.active . Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just False
+
+  let userid = scimUserId scimStoredUser
+      userName = Name . fromJust . Scim.User.displayName $ scimUser
+
+  do
+    inv <- call $ getInvitation brig email
+    Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
+    registerInvitation email userName inviteeCode True
+    call $ headInvitation404 brig email
+
+  do
+    brigUser <-
+      aFewTimes (runSpar $ Intra.getBrigUserAccount Intra.NoPendingInvitations userid) isJust
+        >>= maybe (error "could not find user in brig") pure
+    liftIO $ accountStatus brigUser `shouldBe` Active
+
+  (scimUser', newEmail) <- userUpdate emailSource (Scim.value . Scim.thing $ scimStoredUser)
+  _scimStoredUser' <- updateUser tok userid scimUser'
+  liftIO $ getEmail emailSource (Scim.value . Scim.thing $ scimStoredUser) `shouldBe` Just email
+
+  call $ activateEmail brig newEmail
+
+  scimStoredUser'' <- getUser tok userid
+  liftIO $ getEmail emailSource (Scim.value . Scim.thing $ scimStoredUser'') `shouldBe` Just newEmail
+  where
+    initialIdentity :: EmailSource -> TestSpar (Scim.User.User SparTag, Text, Email)
+    initialIdentity EmailFromExternalIdField = createTestIdentity EmailExternalId
+    initialIdentity EmailFromEmailsField = createTestIdentity RandomExternalIdAndEmail
+
+    userUpdate :: EmailSource -> Scim.User.User SparTag -> TestSpar (Scim.User.User SparTag, Email)
+    userUpdate EmailFromExternalIdField scimUser = do
+      (_, externalId, email) <- createTestIdentity EmailExternalId
+      pure (scimUser {Scim.User.externalId = Just externalId}, email)
+    userUpdate EmailFromEmailsField scimUser = do
+      (uNew, _, email) <- createTestIdentity RandomExternalIdAndEmail
+      pure (scimUser {Scim.User.emails = Scim.User.emails uNew}, email)
+
+    getEmail :: EmailSource -> Scim.User.User SparTag -> Maybe Email
+    getEmail EmailFromExternalIdField scimUser =
+      Scim.User.externalId scimUser >>= parseEmail
+    getEmail EmailFromEmailsField scimUser =
+      case firstEmailFromUser scimUser of
+        Right mbEmail -> mbEmail
+        Left _ -> Nothing
 
 -- | Test that updates are not allowed if token is not for the user's team
 testUserUpdateFailsWithNotFoundIfOutsideTeam :: TestSpar ()
