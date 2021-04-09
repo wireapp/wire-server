@@ -246,6 +246,11 @@ instance ToSchema UserSSOId where
                  ("subject", subjectSchema)
                ]
 
+instance ToJSON UserSSOId where
+  toJSON = \case
+    UserSSOId tenant subject -> object ["tenant" .= tenant, "subject" .= subject]
+    UserScimExternalId eid -> object ["scim_external_id" .= eid]
+
 -- | For the "inverse" see the FromJSON instance of 'LegacyAuthId'
 authIdtoDeprecatedUserSSOId :: AuthId -> UserSSOId
 authIdtoDeprecatedUserSSOId =
