@@ -31,6 +31,7 @@ module Spar.App
     insertUser,
     autoprovisionSamlUser,
     autoprovisionSamlUserWithId,
+    validateUrefEmailIfExists,
     validateEmailIfExists,
     errorPage,
   )
@@ -91,7 +92,7 @@ import System.Logger.Class (MonadLogger (log))
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
 import Wire.API.User (ScimDetails (ScimDetails))
-import Wire.API.User.Identity (AuthId (..), runAuthId)
+import Wire.API.User.Identity (AuthId (..), Email, runAuthId)
 
 newtype Spar a = Spar {fromSpar :: ReaderT Env (ExceptT SparError IO) a}
   deriving (Functor, Applicative, Monad, MonadIO, MonadReader Env, MonadError SparError)
@@ -245,7 +246,7 @@ autoprovisionSamlUserWithId buid suid managedBy = do
   if null scimtoks
     then do
       createSamlUserWithId buid suid managedBy
-      validateEmailIfExists buid suid
+      validateUrefEmailIfExists buid suid
     else
       throwError . SAML.Forbidden $
         "bad credentials (note that your team uses SCIM, "
@@ -253,18 +254,18 @@ autoprovisionSamlUserWithId buid suid managedBy = do
 
 -- | If user's 'NameID' is an email address and the team has email validation for SSO enabled,
 -- make brig initiate the email validate procedure.
-validateEmailIfExists :: UserId -> SAML.UserRef -> Spar ()
-validateEmailIfExists uid = \case
-  (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email)) -> doValidate email
+validateUrefEmailIfExists :: UserId -> SAML.UserRef -> Spar ()
+validateUrefEmailIfExists uid = \case
+  (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email)) -> validateEmailIfExists uid (Intra.emailFromSAML email)
   _ -> pure ()
-  where
-    doValidate :: SAML.Email -> Spar ()
-    doValidate email = do
-      enabled <- do
-        tid <- Intra.getBrigUserTeam Intra.NoPendingInvitations uid
-        maybe (pure False) Intra.isEmailValidationEnabledTeam tid
-      when enabled $ do
-        Intra.updateEmail uid (Intra.emailFromSAML email)
+
+validateEmailIfExists :: UserId -> Email -> Spar ()
+validateEmailIfExists uid email = do
+  enabled <- do
+    tid <- Intra.getBrigUserTeam Intra.NoPendingInvitations uid
+    maybe (pure False) Intra.isEmailValidationEnabledTeam tid
+  when enabled $ do
+    Intra.updateEmail uid email
 
 -- | Check if 'UserId' is in the team that hosts the idp that owns the 'UserRef'.  If so,
 -- register a the user under its SAML credentials and write the 'UserRef' into the

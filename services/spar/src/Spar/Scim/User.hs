@@ -65,7 +65,7 @@ import qualified Data.UUID.V4 as UUID
 import Imports
 import Network.URI (URI, parseURI)
 import qualified SAML2.WebSSO as SAML
-import Spar.App (Spar, getUser, runAuthId, sparCtxOpts, validateEmailIfExists, wrapMonadClient)
+import Spar.App (Spar, getUser, runAuthId, sparCtxOpts, validateEmailIfExists, validateUrefEmailIfExists, wrapMonadClient)
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Brig
 import Spar.Scim.Auth ()
@@ -511,7 +511,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser auth
       -- If applicable, trigger email validation procedure on brig.  (If there is no IdP, the
       -- user gets an invitation email, so we don't need explicit email address validation
       -- here.)
-      lift $ runAuthId (validateEmailIfExists buid) (\_ -> pure ()) authId
+      lift $ runAuthId (validateUrefEmailIfExists buid) (\_ -> pure ()) authId
 
       -- {suspension via scim: if we don't reach the following line, the user will be active.}
       lift $ do
@@ -553,11 +553,7 @@ updateValidScimUser tokinfo uid newValidScimUser =
           newScimStoredUser :: Scim.StoredUser ST.SparTag <-
             updScimStoredUser (synthesizeScimUser newValidScimUser) oldScimStoredUser
 
-          case ( oldValidScimUser ^. ST.vsuAuthId,
-                 newValidScimUser ^. ST.vsuAuthId
-               ) of
-            (old, new) | old /= new -> updateVsuUref uid old new
-            _ -> pure ()
+          updateAuthId uid (oldValidScimUser ^. ST.vsuAuthId) (newValidScimUser ^. ST.vsuAuthId)
 
           when (newValidScimUser ^. ST.vsuName /= oldValidScimUser ^. ST.vsuName) $ do
             Brig.setBrigUserName uid (newValidScimUser ^. ST.vsuName)
@@ -577,15 +573,16 @@ updateValidScimUser tokinfo uid newValidScimUser =
           wrapMonadClient $ Data.writeScimUserTimes newScimStoredUser
           pure newScimStoredUser
 
-updateVsuUref ::
+-- | If @old /= new@, remove old entrie(s) from `spar.user`, `spar.scim_external` and update
+-- AuthId in `brig.user`.
+updateAuthId ::
   UserId ->
   AuthId ->
   AuthId ->
   Spar ()
-updateVsuUref uid old new = do
-  let geturef = runAuthId Just (const Nothing)
-  case (geturef old, geturef new) of
-    (mo, mn@(Just newuref)) | mo /= mn -> validateEmailIfExists uid newuref
+updateAuthId uid old new = when (old == new) $ do
+  case (authIdEmail old, authIdEmail new) of
+    (mo, mn@(Just newemail)) | mo /= mn -> validateEmailIfExists uid newemail
     _ -> pure ()
 
   wrapMonadClient $ do
