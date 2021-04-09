@@ -572,7 +572,7 @@ updateAuthId ::
   AuthId ->
   AuthId ->
   Spar ()
-updateAuthId uid old new = when (old == new) $ do
+updateAuthId uid old new = unless (old == new) $ do
   case (authIdEmail old, authIdEmail new) of
     (mo, mn@(Just newemail)) | mo /= mn -> validateEmailIfExists uid newemail
     _ -> pure ()
