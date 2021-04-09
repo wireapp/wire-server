@@ -322,6 +322,8 @@ mkAuthId (Just extid) Nothing tid emails = do
   emailWithSource <- maybe (throwError err) pure mbEws
   pure $ AuthSCIM (ScimDetails (ExternalId tid extid) emailWithSource)
 
+-- | Construct an email from emails field in scim user record, or, if that fails, from
+-- externalId (if externalId is not an email address, return 'Nothing').
 mkAuthEmailWithSource ::
   forall m.
   (MonadError Scim.ScimError m) =>
@@ -332,16 +334,6 @@ mkAuthEmailWithSource emails extid = do
   mbEmailFromFields <- firstEmailFromEmailsField emails
   pure $
     case (mbEmailFromFields, parseEmail extid) of
-      -- TODO(fisx): this changes behavior wrt. the current behavior: if people sent emails with
-      -- scim users already, but there is a mismatch between the emails data and the email
-      -- encoded in the externalId, users (mostly scim admins, that is) will probably experience
-      -- broken behavior.  For instance, in the PUT handler, when a user is retrieved in order
-      -- to be modified, it will be searched under the wrong email address, and mostly likely
-      -- not be found.  This may either prompt the scim peer to create a new user, or give up
-      -- with a confusing error.
-      --
-      -- I think this is fine, since the corner case is unlikely enough and the new behavior is
-      -- reasonable, but we should leave some bread crumbs in the release notes about this.
       (Just emailFromFields, _) ->
         Just $ EmailWithSource emailFromFields EmailFromEmailsField
       (Nothing, Just emailFromExt) ->

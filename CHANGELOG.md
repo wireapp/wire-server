@@ -6,6 +6,32 @@
 
 - promote brig before spar!
 
+<snipped about scim changes>
+This release changes the interpretation of SCIM user data.
+
+Before, the `emails` field was ignored, and always returned empty.  An
+email address for a user could be provided through the `externalid`
+field.
+
+After this release, the `emails` field will be preferred as a source
+for the user's email address.  If that fails (because `emails` is `[]`
+or `null`), wire attempts to parse `externalid` as an email address.
+If that fails, too, the user is provisioned without email address
+(this works only if you have SAML single-sign-on configured for your
+team).
+
+If you are sending SCIM data with empty `emails` field, or where the
+`emails` field contains the same address as `exteranlid`, you won't
+experience any change (except that the `emails` field will now be
+returned non-empty from wire).  In the unlikely event that you have
+differences between `emails` and `externalid`, you will observe that
+the email of your users changes from what's in `externalid` to what's
+in `emails`.  (Wire will always send a validation email to a new
+address before assigning it to a wire user.)
+</snipped about scim changes>
+
+
+
 ## Features
 
 ## Bug fixes and other updates
