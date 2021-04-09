@@ -508,7 +508,9 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser auth
           (\(ScimDetails externalId _ews) -> Data.insertScimExternalId externalId buid)
           authId
 
-      -- If applicable, trigger email validation procedure on brig.
+      -- If applicable, trigger email validation procedure on brig.  (If there is no IdP, the
+      -- user gets an invitation email, so we don't need explicit email address validation
+      -- here.)
       lift $ runAuthId (validateEmailIfExists buid) (\_ -> pure ()) authId
 
       -- {suspension via scim: if we don't reach the following line, the user will be active.}
