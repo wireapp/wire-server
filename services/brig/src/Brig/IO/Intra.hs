@@ -96,6 +96,7 @@ import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
 import System.Logger.Class as Log hiding (name, (.=))
 import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatus)
+import Wire.API.User.Identity.AuthId ()
 
 -----------------------------------------------------------------------------
 -- Event Handlers
@@ -175,7 +176,7 @@ updateSearchIndex orig e = case e of
               isJust eupAccentId,
               isJust eupHandle,
               isJust eupManagedBy,
-              isJust eupAuthId || eupAuthIdRemoved
+              isJust eupSSOId || eupSSOIdRemoved
             ]
     when interesting $ Search.reindex orig
 

@@ -28,6 +28,8 @@ module Wire.API.User.Identity
     emailIdentity,
     phoneIdentity,
     sparAuthIdentity,
+    UserSSOId,
+    authIdtoDeprecatedUserSSOId,
 
     -- * Phone
     Phone (..),
@@ -51,10 +53,13 @@ import Data.Attoparsec.Text
 import Data.ByteString.Conversion
 import qualified Data.HashMap.Strict as HashMap
 import Data.Proxy (Proxy (..))
+import Data.String.Conversions (cs)
 import Data.Swagger (NamedSchema (..), SwaggerType (..), ToSchema (..), declareSchemaRef, properties, type_)
 import qualified Data.Text as Text
 import Data.Time.Clock
 import Imports
+import SAML2.WebSSO (UserRef (UserRef))
+import qualified SAML2.WebSSO.XML as SAML
 import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.User.Identity.AuthId
@@ -214,8 +219,19 @@ isValidPhone = either (const False) (const True) . parseOnly e164
 -- identities any more, so the compiler will make sure we won't miss any changes.  On the
 -- client side, this is backwards compatible, since we don't touch any of the existing json
 -- tree and only add new nodes.
-data UserSSOId
 {-# DEPRECATED UserSSOId "use AuthId instead: https://wearezeta.atlassian.net/browse/SQSERVICES-264" #-}
+
+data UserSSOId
+  = UserSSOId
+      -- An XML blob pointing to the identity provider that can confirm
+      -- user's identity.
+      Text
+      -- An XML blob specifying the user's ID on the identity provider's side.
+      Text
+  | UserScimExternalId
+      Text
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform UserSSOId)
 
 instance ToSchema UserSSOId where
   declareNamedSchema _ = do
@@ -229,6 +245,13 @@ instance ToSchema UserSSOId where
             .~ [ ("tenant", tenantSchema),
                  ("subject", subjectSchema)
                ]
+
+-- | For the "inverse" see the FromJSON instance of 'LegacyAuthId'
+authIdtoDeprecatedUserSSOId :: AuthId -> UserSSOId
+authIdtoDeprecatedUserSSOId =
+  runAuthId
+    (\(UserRef tenant subject) -> UserSSOId (cs . SAML.encodeElem $ tenant) (cs . SAML.encodeElem $ subject))
+    (\(ScimDetails extId _ews) -> UserScimExternalId (_externalIdName extId))
 
 -- | If the budget for SMS and voice calls for a phone number
 -- has been exhausted within a certain time frame, this timeout

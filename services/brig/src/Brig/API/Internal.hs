@@ -41,7 +41,7 @@ import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
-import Brig.User.Event (UserEvent (UserUpdated), UserUpdatedData (eupAuthId, eupAuthIdRemoved), emptyUserUpdatedData)
+import Brig.User.Event (UserEvent (UserUpdated), UserUpdatedData (..), emptyUserUpdatedData)
 import Control.Error hiding (bool)
 import Control.Lens (view)
 import Data.Aeson hiding (json)
@@ -61,6 +61,7 @@ import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
 import qualified System.Logger.Class as Log
 import Wire.API.User
+import qualified Wire.API.User.Identity as AuthId
 import Wire.API.User.RichInfo
 
 ---------------------------------------------------------------------------
@@ -514,7 +515,7 @@ updateAuthId uid authId = do
   if isJust (mbUser >>= userTeam)
     then do
       lift $ Data.updateAuthId uid (Just authId)
-      lift $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupAuthId = Just authId}))
+      lift $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOId = Just (AuthId.authIdtoDeprecatedUserSSOId authId)}))
       pure UpdateAuthIdUpdated
     else do
       pure UpdateAuthIdNotFound
@@ -525,7 +526,7 @@ deleteAuthIdH (uid ::: _) = deleteAuthId uid
 deleteAuthId :: UserId -> Handler Response
 deleteAuthId uid = do
   lift $ Data.updateAuthId uid Nothing
-  lift $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupAuthIdRemoved = True}))
+  lift $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOIdRemoved = True}))
   pure empty
 
 updateManagedByH :: UserId ::: JSON ::: JsonRequest ManagedByUpdate -> Handler Response

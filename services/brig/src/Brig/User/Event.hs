@@ -1,4 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
+-- intended for UserSSOId
+{-# OPTIONS_GHC -Wno-deprecations #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -23,7 +25,7 @@ import Brig.Types
 import Data.Handle (Handle)
 import Data.Id
 import Imports
-import Wire.API.User (AuthId)
+import Wire.API.User.Identity (UserSSOId)
 
 data Event
   = UserEvent !UserEvent
@@ -75,8 +77,8 @@ data UserUpdatedData = UserUpdatedData
     eupHandle :: !(Maybe Handle),
     eupLocale :: !(Maybe Locale),
     eupManagedBy :: !(Maybe ManagedBy),
-    eupAuthId :: !(Maybe AuthId),
-    eupAuthIdRemoved :: Bool
+    eupSSOId :: !(Maybe UserSSOId),
+    eupSSOIdRemoved :: Bool
     -- FUTUREWORK: @eupAuthId :: AuthIdUpdate where data AuthIdUpdate = Empty | Just AuthId |
     -- Removed@, then we don't need @eupAuthIdRemoved@.
   }
@@ -155,8 +157,8 @@ emptyUserUpdatedData u =
       eupHandle = Nothing,
       eupLocale = Nothing,
       eupManagedBy = Nothing,
-      eupAuthId = Nothing,
-      eupAuthIdRemoved = False
+      eupSSOId = Nothing,
+      eupSSOIdRemoved = False
     }
 
 connEventUserId :: ConnectionEvent -> UserId
