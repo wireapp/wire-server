@@ -33,6 +33,7 @@ module Wire.API.User.Identity.AuthId
     EmailWithSource (..),
     EmailSource (..),
     LegacyAuthId (..),
+    UserSSOId (..),
     runAuthId,
     authIdUref,
     authIdEmail,
@@ -42,6 +43,7 @@ module Wire.API.User.Identity.AuthId
     authIdToLegacyAuthId,
     externalIdTeam,
     externalIdName,
+    authIdToUserSSOId,
   )
 where
 
@@ -327,3 +329,59 @@ authIdToLegacyAuthId = runAuthId uref email
     email _ = Nothing
 
 makeLenses 'ExternalId
+
+--------------------------------------------------------------------------------
+-- UserSSOId
+
+-- | User's external identity.
+--
+-- Morally this is the same thing as 'SAML.UserRef', but we forget the
+-- structure -- i.e. we just store XML-encoded SAML blobs. If the structure
+-- of those blobs changes, Brig won't have to deal with it, only Spar will.
+--
+-- FUTUREWORK: Deprecated in https://wearezeta.atlassian.net/browse/SQSERVICES-264 and
+--             and used only for backwards compatibility. Use 'AuthId' instead.
+--
+-- how we can phase this out safely:
+--
+-- * Replace the 'UserSSOId' in 'UserIdentity' with 'AuthId'.  When reading old 'UserSSOId's
+--   from the database, parse them as 'LegacyAuthId', which can be turned into 'AuthId' during
+--   construction of the 'UserIdentity'.
+-- * Change 'UserIdentity' to contain the old `sso_id` field next to the new `auth_id` field,
+--   with the data expected by the client.  (For 'UserScimExternalId', render `"sso_id":
+--   null`, since this is expected by the clients; see
+--   https://wearezeta.atlassian.net/browse/SQSERVICES-306.)
+-- * Remove 'UserSSOId'.  Follow the type errors throughout brig, spar.
+--
+-- I think this will work, since after the first step we won't be able to consruct legacy
+-- identities any more, so the compiler will make sure we won't miss any changes.  On the
+-- client side, this is backwards compatible, since we don't touch any of the existing json
+-- tree and only add new nodes.
+--
+-- UPDATE(fisx): we can still still use this for events in which we only communicate the SAML
+-- status.  the remaining information in 'AuthId' is unlikely to be required in team-settings,
+-- so it's nice if we don't have to touch team settings for the introduction of AuthId.
+-- UserSSOId is just SAML.UserRef with a json encoding and corresp. swagger schema.
+data UserSSOId = UserSSOId SAML.UserRef
+  deriving stock (Eq, Show)
+
+instance ToSchema UserSSOId where
+  declareNamedSchema _ = do
+    tenantSchema <- declareSchemaRef (Proxy @Text)
+    subjectSchema <- declareSchemaRef (Proxy @Text)
+    return $
+      NamedSchema (Just "UserSSOId") $
+        mempty
+          & type_ ?~ SwaggerObject
+          & properties
+            .~ [ ("tenant", tenantSchema),
+                 ("subject", subjectSchema)
+               ]
+
+instance ToJSON UserSSOId where
+  toJSON = \case
+    UserSSOId (SAML.UserRef tenant subject) -> object ["tenant" .= tenant, "subject" .= subject]
+
+-- | Trivial wrapper around 'authIdUref'.
+authIdToUserSSOId :: AuthId -> Maybe UserSSOId
+authIdToUserSSOId = fmap UserSSOId . authIdUref
