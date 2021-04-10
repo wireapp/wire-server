@@ -23,13 +23,13 @@
 module Wire.API.User.Identity
   ( -- * UserIdentity
     UserIdentity (..),
+    UserSSOId (..),
     parseMaybeUserIdentity,
     newIdentity,
     emailIdentity,
     phoneIdentity,
     sparAuthIdentity,
-    UserSSOId,
-    authIdtoDeprecatedUserSSOId,
+    authIdToUserSSOId,
 
     -- * Phone
     Phone (..),
@@ -53,13 +53,11 @@ import Data.Attoparsec.Text
 import Data.ByteString.Conversion
 import qualified Data.HashMap.Strict as HashMap
 import Data.Proxy (Proxy (..))
-import Data.String.Conversions (cs)
 import Data.Swagger (NamedSchema (..), SwaggerType (..), ToSchema (..), declareSchemaRef, properties, type_)
 import qualified Data.Text as Text
 import Data.Time.Clock
 import Imports
-import SAML2.WebSSO (UserRef (UserRef))
-import qualified SAML2.WebSSO.XML as SAML
+import qualified SAML2.WebSSO.Types as SAML
 import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.User.Identity.AuthId
@@ -219,19 +217,13 @@ isValidPhone = either (const False) (const True) . parseOnly e164
 -- identities any more, so the compiler will make sure we won't miss any changes.  On the
 -- client side, this is backwards compatible, since we don't touch any of the existing json
 -- tree and only add new nodes.
-{-# DEPRECATED UserSSOId "use AuthId instead: https://wearezeta.atlassian.net/browse/SQSERVICES-264" #-}
-
-data UserSSOId
-  = UserSSOId
-      -- An XML blob pointing to the identity provider that can confirm
-      -- user's identity.
-      Text
-      -- An XML blob specifying the user's ID on the identity provider's side.
-      Text
-  | UserScimExternalId
-      Text
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform UserSSOId)
+--
+-- UPDATE(fisx): we can still still use this for events in which we only communicate the SAML
+-- status.  the remaining information in 'AuthId' is unlikely to be required in team-settings,
+-- so it's nice if we don't have to touch team settings for the introduction of AuthId.
+-- UserSSOId is just SAML.UserRef with a json encoding and corresp. swagger schema.
+data UserSSOId = UserSSOId SAML.UserRef
+  deriving stock (Eq, Show)
 
 instance ToSchema UserSSOId where
   declareNamedSchema _ = do
@@ -248,15 +240,11 @@ instance ToSchema UserSSOId where
 
 instance ToJSON UserSSOId where
   toJSON = \case
-    UserSSOId tenant subject -> object ["tenant" .= tenant, "subject" .= subject]
-    UserScimExternalId eid -> object ["scim_external_id" .= eid]
+    UserSSOId (SAML.UserRef tenant subject) -> object ["tenant" .= tenant, "subject" .= subject]
 
--- | For the "inverse" see the FromJSON instance of 'LegacyAuthId'
-authIdtoDeprecatedUserSSOId :: AuthId -> UserSSOId
-authIdtoDeprecatedUserSSOId =
-  runAuthId
-    (\(UserRef tenant subject) -> UserSSOId (cs . SAML.encodeElem $ tenant) (cs . SAML.encodeElem $ subject))
-    (\(ScimDetails extId _ews) -> UserScimExternalId (_externalIdName extId))
+-- | Trivial wrapper around 'authIdUref'.
+authIdToUserSSOId :: AuthId -> Maybe UserSSOId
+authIdToUserSSOId = fmap UserSSOId . authIdUref
 
 -- | If the budget for SMS and voice calls for a phone number
 -- has been exhausted within a certain time frame, this timeout

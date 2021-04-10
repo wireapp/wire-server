@@ -515,7 +515,7 @@ updateAuthId uid authId = do
   if isJust (mbUser >>= userTeam)
     then do
       lift $ Data.updateAuthId uid (Just authId)
-      lift $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOId = Just (AuthId.authIdtoDeprecatedUserSSOId authId)}))
+      lift $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOId = AuthId.authIdToUserSSOId authId}))
       pure UpdateAuthIdUpdated
     else do
       pure UpdateAuthIdNotFound

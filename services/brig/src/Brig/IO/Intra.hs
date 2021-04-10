@@ -96,7 +96,6 @@ import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
 import System.Logger.Class as Log hiding (name, (.=))
 import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatus)
-import Wire.API.User.Identity.AuthId ()
 
 -----------------------------------------------------------------------------
 -- Event Handlers

@@ -1,6 +1,4 @@
 {-# LANGUAGE RecordWildCards #-}
--- intended for UserSSOId
-{-# OPTIONS_GHC -Wno-deprecations #-}
 
 -- This file is part of the Wire Server implementation.
 --
