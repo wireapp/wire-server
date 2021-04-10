@@ -172,8 +172,10 @@ instance Scim.UserDB ST.SparTag Spar where
       )
       $ deleteScimUser tokeninfo uid
 
--- | Return @userAuthId user@ if @Just@.  If @Nothing@, try to create a new @AuthId@ from an
--- email identity if available.
+-- | If @userAuthId user@ is @Just@, return that.  Otherwise, the user must have been
+-- provisioned via team-settings, and spar has no prior knowledge of her.  If an email address
+-- is available, use that and 'AuthSCIM' to construct an 'AuthId' using the email address as
+-- 'ExternalId'.
 newUserAuthId :: User -> Maybe AuthId
 newUserAuthId user = userAuthId user <|> createFresh user
   where
