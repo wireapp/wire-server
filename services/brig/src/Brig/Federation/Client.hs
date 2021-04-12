@@ -64,7 +64,7 @@ getUserHandleInfo (Qualified handle domain) = do
     code -> throwE (FederationInvalidResponseCode code)
 
 -- FUTUREWORK(federation): Abstract out all the rpc boilerplate and error handling
-claimPrekey :: Qualified UserId -> ClientId -> FedAppIO (Maybe ClientPrekey)
+claimPrekey :: Qualified UserId -> ClientId -> FederationAppIO (Maybe ClientPrekey)
 claimPrekey (Qualified user domain) client = do
   Log.info $ Log.msg @Text "Brig-federation: claiming remote prekey"
   federatorClient <- mkFederatorClient
@@ -73,12 +73,12 @@ claimPrekey (Qualified user domain) client = do
   case Proto.responseStatus res of
     404 -> pure Nothing
     200 -> case Aeson.eitherDecodeStrict (Proto.responseBody res) of
-      Left err -> throwE (InvalidResponseBody (T.pack err))
+      Left err -> throwE (FederationInvalidResponseBody (T.pack err))
       Right x -> pure $ Just x
-    code -> throwE (InvalidResponseCode code)
+    code -> throwE (FederationInvalidResponseCode code)
 
 -- FUTUREWORK: Test
-getUsersByIds :: [Qualified UserId] -> FedAppIO [UserProfile]
+getUsersByIds :: [Qualified UserId] -> FederationAppIO [UserProfile]
 getUsersByIds quids = do
   Log.info $ Log.msg ("Brig-federation: get users by ids on remote backends" :: ByteString)
   federatorClient <- mkFederatorClient
@@ -88,13 +88,13 @@ getUsersByIds quids = do
   concat <$> mapM (processResponse <=< expectOk <=< callRemote federatorClient) requests
   where
     -- TODO: Do we want to not fail the whole request if there is one bad remote?
-    processResponse :: Proto.HTTPResponse -> FedAppIO [UserProfile]
+    processResponse :: Proto.HTTPResponse -> FederationAppIO [UserProfile]
     processResponse res =
       case Proto.responseStatus res of
         200 -> case Aeson.eitherDecodeStrict (Proto.responseBody res) of
-          Left err -> throwE (InvalidResponseBody (T.pack err))
+          Left err -> throwE (FederationInvalidResponseBody (T.pack err))
           Right profiles -> pure profiles
-        code -> throwE (InvalidResponseCode code)
+        code -> throwE (FederationInvalidResponseCode code)
 
 qualifiedToMap :: [Qualified a] -> Map Domain [a]
 qualifiedToMap = Map.fromListWith (<>) . map (\(Qualified thing domain) -> (domain, [thing]))

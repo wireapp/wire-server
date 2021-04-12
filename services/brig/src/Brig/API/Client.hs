@@ -162,7 +162,7 @@ claimLocalPrekey self client = do
   pure prekey
 
 claimRemotePrekey :: Qualified UserId -> ClientId -> ExceptT ClientError AppIO (Maybe ClientPrekey)
-claimRemotePrekey quser client = fmapLT ClientFedError $ Federation.claimPrekey quser client
+claimRemotePrekey quser client = fmapLT ClientFederationError $ Federation.claimPrekey quser client
 
 claimPrekeyBundle :: Domain -> UserId -> ExceptT ClientError AppIO PrekeyBundle
 claimPrekeyBundle domain uid = do
