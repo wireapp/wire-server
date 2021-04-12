@@ -61,8 +61,8 @@ getUserHandleInfo (Qualified handle domain) = do
       Right x -> pure $ Just x
     code -> throwStd $ notFound $ "Invalid response from remote: " <> LT.pack (show code)
 
--- TODO: reduce duplication between these functions
--- TODO: rework error handling and FUTUREWORK from getUserHandleInfo and search:
+-- FUTUREWORK(federation): reduce duplication between these functions
+-- FUTUREWORK(federation): rework error handling and FUTUREWORK from getUserHandleInfo and search:
 --       decoding error should not throw a 404 most likely
 --       and non-200, non-404 should also not become 404s. Looks like some tests are missing and
 --       https://wearezeta.atlassian.net/browse/SQCORE-491 is not quite done yet.

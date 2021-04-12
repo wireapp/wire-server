@@ -113,8 +113,10 @@ tests opts mgr galley brig = do
           ],
         testGroup "federated" $
           [ test mgr "search passing own domain" $ testSearchWithDomain brig,
-            test mgr "remote lookup should call remote code path" $ testSearchOtherDomain opts brig,
-            test mgr "remote lookup federator -> brig" $ testTheActualApi brig
+            test mgr "remote lookup should call remote code path" $ testSearchOtherDomain opts brig
+            -- FUTUREWORK(federation): we need tests for:
+            -- failure/error cases on search (augment the federatorMock?)
+            -- wire-api-federation Servant-Api vs protobuf-client interactions
           ]
       ]
   where
@@ -448,10 +450,6 @@ testSearchOtherDomain opts brig = do
     executeSearchWithDomain brig (userId user) "someSearchText" (Domain "non-existent.example.com")
   liftIO $ do
     assertEqual "The search request should get its result from federator" otherSearchResult results
-
-testTheActualApi :: TestConstraints m => Brig -> m ()
-testTheActualApi _brig = do
-  liftIO $ assertEqual "Reminder that all other tests pass but the wire-api-federation (Wire.API.Federation.API.Brig) implementation is WRONG and UNTESTED so far" True False
 
 -- | Migration sequence:
 -- 1. A migration is planned, in this time brig writes to two indices
