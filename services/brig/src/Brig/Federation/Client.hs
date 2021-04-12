@@ -60,9 +60,9 @@ getUserHandleInfo (Qualified handle domain) = do
   case Proto.responseStatus res of
     404 -> pure Nothing
     200 -> case Aeson.eitherDecodeStrict (Proto.responseBody res) of
-      Left err -> throwE (InvalidResponseBody (T.pack err))
+      Left err -> throwE (FederationInvalidResponseBody (T.pack err))
       Right x -> pure $ Just x
-    code -> throwE (InvalidResponseCode code)
+    code -> throwE (FederationInvalidResponseCode code)
 
 -- FUTUREWORK: It would be nice to share the client across all calls to
 -- federator and not call this function on every invocation of federated

@@ -182,8 +182,8 @@ clientError (ClientFederationError e) = fedError e
 
 fedError :: FederationError -> Error
 fedError (FederationRpcError msg) = StdError (federationRpcError msg)
-fedError (InvalidResponseCode code) = StdError (federationInvalidCode code)
-fedError (InvalidResponseBody msg) = StdError (federationInvalidBody msg)
+fedError (FederationInvalidResponseCode code) = StdError (federationInvalidCode code)
+fedError (FederationInvalidResponseBody msg) = StdError (federationInvalidBody msg)
 fedError (FederationRemoteError status label err) =
   StdError (federationRemoteError status label err)
 fedError (FederationUnavailable err) = StdError (federationUnavailable err)

@@ -187,8 +187,8 @@ data SendLoginCodeError
 
 data FederationError
   = FederationRpcError Text
-  | InvalidResponseCode Word32
-  | InvalidResponseBody Text
+  | FederationInvalidResponseCode Word32
+  | FederationInvalidResponseBody Text
   | FederationRemoteError Status Text Text
   | FederationUnavailable Text
   | FederationNotImplemented
