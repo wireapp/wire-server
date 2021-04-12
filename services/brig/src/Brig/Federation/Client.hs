@@ -21,8 +21,6 @@
 
 module Brig.Federation.Client where
 
-import Brig.API.Error (throwStd)
-import Brig.API.Handler (Handler)
 import Brig.API.Types (FederationError (..))
 import Brig.App (AppIO, federator)
 import Brig.Types.User
@@ -34,11 +32,8 @@ import Data.Handle
 import Data.Qualified
 import Data.String.Conversions
 import qualified Data.Text as T
-import qualified Data.Text.Lazy as LT
 import Imports
 import Mu.GRpc.Client.TyApps
-import qualified Network.HTTP.Types.Status as HTTP
-import qualified Network.Wai.Utilities.Error as Wai
 import qualified System.Logger.Class as Log
 import Util.Options (epHost, epPort)
 import Wire.API.Federation.API.Brig
@@ -74,7 +69,6 @@ mkFederatorClient :: FederationAppIO GrpcClient
 mkFederatorClient = do
   federatorEndpoint <- view federator !? FederationNotConfigured
   let cfg = grpcClientConfigSimple (T.unpack (federatorEndpoint ^. epHost)) (fromIntegral (federatorEndpoint ^. epPort)) False
-  -- TODO: add error message to FederationUnavailable
   createGrpcClient cfg
     >>= either (throwE . FederationUnavailable . reason) pure
 
@@ -97,13 +91,3 @@ expectOk = \case
   where
     rpcErr :: Text -> FederationAppIO a
     rpcErr msg = throwE (FederationRpcError msg)
-
-errWithPayloadAndStatus :: Maybe Proto.ErrorPayload -> HTTP.Status -> Wai.Error
-errWithPayloadAndStatus maybePayload code =
-  case maybePayload of
-    Nothing -> Wai.Error code "unknown-federation-error" "no payload present"
-    Just Proto.ErrorPayload {..} -> Wai.Error code (LT.fromStrict label) (LT.fromStrict msg)
-
-grpc500 :: LT.Text -> Handler a
-grpc500 msg = do
-  throwStd $ Wai.Error HTTP.status500 "federator-grpc-failure" msg
