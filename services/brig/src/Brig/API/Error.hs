@@ -27,10 +27,6 @@ import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import qualified Data.HashMap.Strict as HashMap
-import Data.Id (Id, Remote, idToText)
-import Data.IdMapping (IdMapping (IdMapping, _imMappedId, _imQualifiedId))
-import Data.List.NonEmpty (NonEmpty)
-import Data.Qualified (Qualified, renderQualifiedId)
 import Data.String.Conversions (cs)
 import qualified Data.Text.Lazy as LT
 import qualified Data.ZAuth.Validation as ZAuth
@@ -38,7 +34,6 @@ import Imports
 import Network.HTTP.Types.Header
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
-import Type.Reflection (typeRep)
 import qualified Wire.API.Federation.GRPC.Types as Proto
 import qualified Network.HTTP.Types.Status as HTTP
 
@@ -188,7 +183,7 @@ fedError (FederationInvalidResponseCode code) = StdError (federationInvalidCode 
 fedError (FederationInvalidResponseBody msg) = StdError (federationInvalidBody msg)
 fedError (FederationRemoteError err) = StdError (federationRemoteError err)
 fedError (FederationUnavailable err) = StdError (federationUnavailable err)
-fedError FederationNotImplemented = StdError federationNotImplemented'
+fedError FederationNotImplemented = StdError federationNotImplemented
 fedError FederationNotConfigured = StdError federationNotConfigured
 
 idtError :: RemoveIdentityError -> Error
@@ -518,30 +513,8 @@ customerExtensionBlockedDomain domain = Wai.Error (mkStatus 451 "Unavailable For
 noFederationStatus :: Status
 noFederationStatus = status403
 
-federationNotEnabled :: forall a. Typeable a => NonEmpty (Qualified (Id (Remote a))) -> Wai.Error
-federationNotEnabled qualifiedIds =
-  Wai.Error
-    noFederationStatus
-    "federation-not-enabled"
-    ("Federation is not enabled, but remote qualified IDs (" <> idType <> ") were found: " <> rendered)
-  where
-    idType = cs (show (typeRep @a))
-    rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderQualifiedId) $ qualifiedIds
-
-federationNotImplemented :: forall a. Typeable a => NonEmpty (IdMapping a) -> Wai.Error
-federationNotImplemented qualified =
-  Wai.Error
-    noFederationStatus
-    "federation-not-implemented"
-    ("Federation is not implemented, but ID mappings (" <> idType <> ") found: " <> rendered)
-  where
-    idType = cs (show (typeRep @a))
-    rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderMapping) $ qualified
-    renderMapping IdMapping {_imMappedId, _imQualifiedId} =
-      idToText _imMappedId <> " -> " <> renderQualifiedId _imQualifiedId
-
-federationNotImplemented' :: Wai.Error
-federationNotImplemented' =
+federationNotImplemented :: Wai.Error
+federationNotImplemented =
   Wai.Error
     noFederationStatus
     "federation-not-implemented"
