@@ -300,7 +300,7 @@ type ListUsersByIdsOrHandles =
 type MaxUsersForListClientsBulk = 500
 
 type GetUserClientsUnqualified =
-  Summary "Get all of a user's clients."
+  Summary "Get all of a user's clients (deprecated)."
     :> "users"
     :> CaptureUserId "uid"
     :> "clients"
@@ -486,8 +486,6 @@ sitemap o = do
 
   -- some APIs moved to servant
   -- end User Handle API
-
-  -- User Client API ----------------------------------------------------
 
   get "/users/:uid/rich-info" (continue getRichInfoH) $
     zauthUserId
