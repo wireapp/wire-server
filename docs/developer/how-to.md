@@ -109,6 +109,8 @@ export DOCKER_TAG=0.0.1-pr.3684
 
 #### (C) Use your local code
 
+This can be useful to get quicker feedback while working on multi-backend code or configuration (e.g. helm charts) than to wait an hour for CI. This allows you to test code without uploading it to github and waiting an hour for CI.
+
 FUTUREWORK: this process is in development (update this section after it's confirmed to work):
 
 1. have `buildah` available on your system
