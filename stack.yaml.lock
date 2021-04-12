@@ -557,6 +557,32 @@ packages:
     git: https://github.com/haskell-servant/servant.git
     commit: 27173c922311112dd153346cf3cd72b9fb0f3551
 - completed:
+    subdir: servant-client
+    name: servant-client
+    version: 0.18.2
+    git: https://github.com/haskell-servant/servant.git
+    pantry-tree:
+      size: 1346
+      sha256: 9d869b0c40bdd0ce19dcbcf7f5c9fedcf66f5fa1d2b404b87c57788aab69f330
+    commit: 27173c922311112dd153346cf3cd72b9fb0f3551
+  original:
+    subdir: servant-client
+    git: https://github.com/haskell-servant/servant.git
+    commit: 27173c922311112dd153346cf3cd72b9fb0f3551
+- completed:
+    subdir: servant-client-core
+    name: servant-client-core
+    version: 0.18.2
+    git: https://github.com/haskell-servant/servant.git
+    pantry-tree:
+      size: 1444
+      sha256: 1c26c72febd94ac29c006dfd50123608259f7e48844c71b4088d6608735c0949
+    commit: 27173c922311112dd153346cf3cd72b9fb0f3551
+  original:
+    subdir: servant-client-core
+    git: https://github.com/haskell-servant/servant.git
+    commit: 27173c922311112dd153346cf3cd72b9fb0f3551
+- completed:
     hackage: HsOpenSSL-x509-system-0.1.0.3@sha256:f4958ee0eec555c5c213662eff6764bddefe5665e2afcfd32733ce3801a9b687,1774
     pantry-tree:
       size: 503
