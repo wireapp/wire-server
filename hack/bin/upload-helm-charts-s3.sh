@@ -13,33 +13,85 @@
 
 set -eo pipefail
 
-USAGE="Upload helm charts to S3. Usage: $0 to upload all charts or $0 <chart-directory> to sync only a single one. --force-push can be used to override S3 artifacts. --reindex can be used to force a complete reindexing in case the index is malformed."
+USAGE="Upload helm charts to S3.
+Usage: $0 [options]
 
-branch=$(git rev-parse --abbrev-ref HEAD)
-if [ $branch == "master" ]; then
-    PUBLIC_DIR="charts"
-    REPO_NAME="wire"
-elif [ $branch == "develop" ]; then
-    PUBLIC_DIR="charts-develop"
-    REPO_NAME="wire-develop"
-else
-    echo "You are not on master or develop. Synchronizing charts on a custom branch will push them to the charts-custom helm repository in order not to interfere with versioning on master/develop."
-    read -p "Are you sure you want to push to charts-custom? [yN] " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]
-    then
-        exit 1
-    fi
-    PUBLIC_DIR="charts-custom"
-    REPO_NAME="wire-custom"
-fi
+Options:
+   -d CHART_DIR
+        to upload only a single directory
+   -r <wire|wire-develop|wire-custom> default:wire-custom
+        to which repo to publish
+   --force-push, -f
+        override S3 artifacts.
+   --reindex, -R
+        force a complete reindexing in case the index is malformed
+"
+
+exit_usage() {
+    echo "$USAGE"
+    exit 1
+}
+
+# To be somewhat backwards-compatible, transform long options to short ones
+# https://stackoverflow.com/questions/12022592/how-can-i-use-long-options-with-the-bash-getopts-builtin
+for arg in "$@"; do
+  shift
+  case "$arg" in
+    "--force-push") set -- "$@" "-f" ;;
+    "--reindex") set -- "$@" "-R" ;;
+    *)        set -- "$@" "$arg"
+  esac
+done
+
+# defaults
+chart_dir=""
+REPO_NAME="wire-develop"
+PUBLIC_DIR="charts-develop"
+force_push=""
+reindex=""
+
+
+OPTIND=1
+while getopts "d:r:fR" optchar; do
+    case "$optchar" in
+        d)
+            chart_dir="$OPTARG"
+            ;;
+        r)
+            case "$OPTARG" in
+                wire)
+                  REPO_NAME="wire"
+                  PUBLIC_DIR="charts"
+                  ;;
+                wire-develop)
+                  REPO_NAME="wire-develop"
+                  PUBLIC_DIR="charts-develop"
+                  ;;
+                wire-custom)
+                  REPO_NAME="wire-custom"
+                  PUBLIC_DIR="charts-custom"
+                  ;;
+                *)
+                  exit_usage
+                  ;;
+            esac
+            ;;
+        f)
+            force_push="1"
+            ;;
+        R)
+            reindex="1"
+            ;;
+        *)
+            exit_usage
+            ;;
+    esac
+done
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 TOP_LEVEL_DIR=$SCRIPT_DIR/../..
 CHART_DIR=$TOP_LEVEL_DIR/.local/charts
 cd "$TOP_LEVEL_DIR"
-
-chart_dir=$1
 
 # If ./upload-helm-charts-s3.sh is run with a parameter, only synchronize one chart
 if [ -n "$chart_dir" ] && [ -d "$chart_dir" ]; then
@@ -88,7 +140,7 @@ for chart in "${charts[@]}"; do
         helm s3 push --relative "$tgz" "$PUBLIC_DIR"
         printf "\n--> pushed %s to S3\n\n" "$tgz"
     else
-        if [[ $1 == *--force-push* || $2 == *--force-push* || $3 == *--force-push* ]]; then
+        if [[ "$force_push" == "1" ]]; then
             helm s3 push --relative "$tgz" "$PUBLIC_DIR" --force
             printf "\n--> (!) force pushed %s to S3\n\n" "$tgz"
         else
@@ -99,7 +151,7 @@ for chart in "${charts[@]}"; do
 
 done
 
-if [[ $1 == *--reindex* || $2 == *--reindex* || $3 == *--reindex* ]]; then
+if [[ "$reindex" == "1" ]]; then
     printf "\n--> (!) Reindexing, this can take a few minutes...\n\n"
     helm s3 reindex --relative "$PUBLIC_DIR"
     # update local cache with newly pushed charts
