@@ -15,21 +15,25 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.API.Federation where
+module Brig.API.Federation (federationSitemap) where
 
 import Brig.API.Error (handleNotFound, throwStd)
 import Brig.API.Handler (Handler)
 import qualified Brig.API.User as API
+import qualified Brig.Data.Client as Data
 import Data.Handle (Handle)
+import Data.Id (ClientId, UserId)
 import Imports
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
 import qualified Wire.API.Federation.API.Brig as FederationAPIBrig
 import Wire.API.User (UserProfile)
+import Wire.API.User.Client.Prekey (ClientPrekey)
 
 federationSitemap :: ServerT (ToServantApi FederationAPIBrig.Api) Handler
-federationSitemap = genericServerT (FederationAPIBrig.Api getUserByHandle)
+federationSitemap = genericServerT $ FederationAPIBrig.Api
+  getUserByHandle claimPrekey
 
 getUserByHandle :: Handle -> Handler UserProfile
 getUserByHandle handle = do
@@ -40,3 +44,6 @@ getUserByHandle handle = do
       lift (API.lookupProfilesOfLocalUsers Nothing [ownerId]) >>= \case
         [] -> throwStd handleNotFound
         user : _ -> pure user
+
+claimPrekey :: UserId -> ClientId -> Handler (Maybe ClientPrekey)
+claimPrekey user client = lift (Data.claimPrekey user client)

@@ -43,6 +43,7 @@ import Brig.API.Types
 import Brig.App
 import qualified Brig.Data.Client as Data
 import qualified Brig.Data.User as Data
+import qualified Brig.Federation.Client as Federation
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.Options as Opt
 import Brig.Types
@@ -147,20 +148,21 @@ rmClient u con clt pw =
         _ -> Data.reauthenticate u pw !>> ClientDataError . ClientReAuthError
       lift $ execDelete u (Just con) client
 
-claimPrekey :: UserId -> Domain -> ClientId -> AppIO (Maybe ClientPrekey)
+claimPrekey :: UserId -> Domain -> ClientId -> ExceptT ClientError AppIO (Maybe ClientPrekey)
 claimPrekey u d c = do
   isLocalDomain <- (d ==) <$> viewFederationDomain
   if isLocalDomain
-    then claimLocalPrekey u c
-    else -- FUTUREWORK(federation, #1272): claim key from other backend
-      pure Nothing
-  where
-    claimLocalPrekey :: UserId -> ClientId -> AppIO (Maybe ClientPrekey)
-    claimLocalPrekey u' c' = do
-      prekey <- Data.claimPrekey u' c'
-      case prekey of
-        Nothing -> noPrekeys u' c' >> return Nothing
-        pk@(Just _) -> return pk
+    then lift $ claimLocalPrekey u c
+    else claimRemotePrekey (Qualified u d) c
+    
+claimLocalPrekey :: UserId -> ClientId -> AppIO (Maybe ClientPrekey)
+claimLocalPrekey self client = do
+  prekey <- Data.claimPrekey self client
+  when (isNothing prekey) (noPrekeys self client)
+  pure prekey
+
+claimRemotePrekey :: Qualified UserId -> ClientId -> ExceptT ClientError AppIO (Maybe ClientPrekey)
+claimRemotePrekey quser client = fmapLT ClientFedError $ Federation.claimPrekey quser client
 
 claimPrekeyBundle :: Domain -> UserId -> ExceptT ClientError AppIO PrekeyBundle
 claimPrekeyBundle domain uid = do

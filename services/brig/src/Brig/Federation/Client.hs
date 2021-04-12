@@ -29,6 +29,7 @@ import Control.Lens (view, (^.))
 import Control.Monad.Trans.Except (ExceptT (..), throwE)
 import qualified Data.Aeson as Aeson
 import Data.Handle
+import Data.Id (ClientId, UserId)
 import Data.Qualified
 import Data.String.Conversions
 import qualified Data.Text as T
@@ -39,6 +40,7 @@ import Util.Options (epHost, epPort)
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.GRPC.Client
 import qualified Wire.API.Federation.GRPC.Types as Proto
+import Wire.API.User.Client.Prekey (ClientPrekey)
 
 type FederationAppIO = ExceptT FederationError AppIO
 
@@ -58,6 +60,20 @@ getUserHandleInfo (Qualified handle domain) = do
       Left err -> throwE (FederationInvalidResponseBody (T.pack err))
       Right x -> pure $ Just x
     code -> throwE (FederationInvalidResponseCode code)
+
+-- FUTUREWORK(federation): Abstract out all the rpc boilerplate and error handling
+claimPrekey :: Qualified UserId -> ClientId -> FedAppIO (Maybe ClientPrekey)
+claimPrekey (Qualified user domain) client = do
+  Log.info $ Log.msg @Text "Brig-federation: claiming remote prekey"
+  federatorClient <- mkFederatorClient
+  let call = Proto.ValidatedFederatedRequest domain (mkClaimPrekey user client)
+  res <- expectOk =<< callRemote federatorClient call
+  case Proto.responseStatus res of
+    404 -> pure Nothing
+    200 -> case Aeson.eitherDecodeStrict (Proto.responseBody res) of
+      Left err -> throwE (InvalidResponseBody (T.pack err))
+      Right x -> pure $ Just x
+    code -> throwE (InvalidResponseCode code)
 
 -- FUTUREWORK: It would be nice to share the client across all calls to
 -- federator and not call this function on every invocation of federated
