@@ -154,7 +154,7 @@ claimPrekey u d c = do
   if isLocalDomain
     then lift $ claimLocalPrekey u c
     else claimRemotePrekey (Qualified u d) c
-    
+
 claimLocalPrekey :: UserId -> ClientId -> AppIO (Maybe ClientPrekey)
 claimLocalPrekey self client = do
   prekey <- Data.claimPrekey self client

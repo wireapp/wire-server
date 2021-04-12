@@ -32,8 +32,12 @@ import Wire.API.User (UserProfile)
 import Wire.API.User.Client.Prekey (ClientPrekey)
 
 federationSitemap :: ServerT (ToServantApi FederationAPIBrig.Api) Handler
-federationSitemap = genericServerT $ FederationAPIBrig.Api
-  getUserByHandle getUsersByIds claimPrekey
+federationSitemap =
+  genericServerT $
+    FederationAPIBrig.Api
+      getUserByHandle
+      getUsersByIds
+      claimPrekey
 
 getUserByHandle :: Handle -> Handler UserProfile
 getUserByHandle handle = do
@@ -51,4 +55,3 @@ claimPrekey user client = lift (Data.claimPrekey user client)
 getUsersByIds :: [UserId] -> Handler [UserProfile]
 getUsersByIds uids =
   lift (API.lookupProfilesOfLocalUsers Nothing uids)
-
