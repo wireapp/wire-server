@@ -178,7 +178,17 @@ clientError (ClientDataError e) = clientDataError e
 clientError (ClientUserNotFound _) = StdError invalidUser
 clientError ClientLegalHoldCannotBeRemoved = StdError can'tDeleteLegalHoldClient
 clientError ClientLegalHoldCannotBeAdded = StdError can'tAddLegalHoldClient
-clientError ClientFederationNotImplemented = StdError federationNotImplemented'
+clientError (ClientFedError e) = fedError e
+
+fedError :: FedError -> Error
+fedError (FedRpcError msg) = StdError (federationRpcError msg)
+fedError (InvalidResponseCode code) = StdError (federationInvalidCode code)
+fedError (InvalidResponseBody msg) = StdError (federationInvalidBody msg)
+fedError (FederationRemoteError status label err) =
+  StdError (federationRemoteError status label err)
+fedError FederationUnavailable = StdError federationUnavailable
+fedError FederationNotImplemented = StdError federationNotImplemented'
+fedError FederationNotConfigured = StdError federationNotConfigured
 
 idtError :: RemoveIdentityError -> Error
 idtError LastIdentity = StdError lastIdentity
@@ -536,9 +546,44 @@ federationNotImplemented' =
     "federation-not-implemented"
     "Federation is not yet implemented for this endpoint"
 
+federationInvalidCode :: Word32 -> Wai.Error
+federationInvalidCode code =
+  Wai.Error
+    noFederationStatus
+    "federation-invalid-code"
+    ("Invalid response code from remote federator: " <> LT.pack (show code))
+
+federationInvalidBody :: Text -> Wai.Error
+federationInvalidBody msg =
+  Wai.Error
+    noFederationStatus
+    "federation-invalid-body"
+    ("Could not parse remote federator response: " <> LT.fromStrict msg)
+
 federationNotConfigured :: Wai.Error
 federationNotConfigured =
   Wai.Error
     noFederationStatus
     "federation-not-enabled"
     "no federator configured on brig"
+
+federationRpcError :: Text -> Wai.Error
+federationRpcError msg =
+  Wai.Error
+    noFederationStatus
+    "federation-rpc-error"
+    (LT.fromStrict msg)
+
+federationUnavailable :: Wai.Error
+federationUnavailable =
+  Wai.Error
+  noFederationStatus
+  "federation-not-available"
+  "Local federator not available"
+
+federationRemoteError :: Status -> Text -> Text -> Wai.Error
+federationRemoteError status label msg =
+  Wai.Error
+  status
+  (LT.fromStrict label)
+  (LT.fromStrict msg)

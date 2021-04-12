@@ -1105,11 +1105,12 @@ listPropertyKeysAndValuesH (u ::: _) = do
 getPrekeyUnqualifiedH :: UserId -> ClientId -> Handler Public.ClientPrekey
 getPrekeyUnqualifiedH user client = do
   domain <- viewFederationDomain
-  ifNothing (notFound "prekey not found") =<< lift (API.claimPrekey user domain client)
+  getPrekeyH domain user client
 
 getPrekeyH :: Domain -> UserId -> ClientId -> Handler Public.ClientPrekey
 getPrekeyH domain user client = do
-  ifNothing (notFound "prekey not found") =<< lift (API.claimPrekey user domain client)
+  mPrekey <- lift (API.claimPrekey user domain client)
+  ifNothing (notFound "prekey not found") mPrekey
 
 getPrekeyBundleUnqualifiedH :: UserId -> Handler Public.PrekeyBundle
 getPrekeyBundleUnqualifiedH uid = do
@@ -1469,6 +1470,7 @@ getUserByHandleH self domain handle = do
     Just u -> pure u
 
 -- FUTUREWORK: use 'runMaybeT' to simplify this.
+-- FUTUREWORK: move this logic to API.User?
 getHandleInfo :: UserId -> Qualified Handle -> Handler (Maybe Public.UserProfile)
 getHandleInfo self handle = do
   domain <- viewFederationDomain
@@ -1487,7 +1489,7 @@ getHandleInfo self handle = do
           return $ listToMaybe owner
     getRemoteHandleInfo = do
       Log.info $ Log.msg (Log.val "getHandleInfo - remote lookup") Log.~~ Log.field "domain" (show (qDomain handle))
-      Federation.getUserHandleInfo handle
+      Federation.getUserHandleInfo handle !>> fedError
 
 changeHandleH :: UserId ::: ConnId ::: JsonRequest Public.HandleUpdate -> Handler Response
 changeHandleH (u ::: conn ::: req) = do

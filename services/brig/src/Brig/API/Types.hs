@@ -42,6 +42,7 @@ import Brig.Types.Intra
 import Brig.User.Auth.Cookie (RetryAfter (..))
 import Data.Id
 import Imports
+import Network.HTTP.Types.Status (Status)
 import qualified Network.Wai.Utilities.Error as Wai
 
 -------------------------------------------------------------------------------
@@ -184,13 +185,23 @@ data SendLoginCodeError
   = SendLoginInvalidPhone Phone
   | SendLoginPasswordExists
 
+-- TODO: ok to use 'Fed' abbreviation?
+data FedError
+  = FedRpcError Text
+  | InvalidResponseCode Word32
+  | InvalidResponseBody Text
+  | FederationRemoteError Status Text Text
+  | FederationUnavailable
+  | FederationNotImplemented
+  | FederationNotConfigured
+
 data ClientError
   = ClientNotFound
   | ClientDataError !ClientDataError
   | ClientUserNotFound !OpaqueUserId
   | ClientLegalHoldCannotBeRemoved
   | ClientLegalHoldCannotBeAdded
-  | ClientFederationNotImplemented
+  | ClientFedError FedError
 
 data RemoveIdentityError
   = LastIdentity
