@@ -47,6 +47,8 @@ import Control.Monad.Random (Random (randomRIO))
 import Data.Default (Default (def))
 import Data.Id (RequestId (..))
 import qualified Data.Metrics.Middleware.Prometheus as Metrics
+import Data.Metrics.Servant (servantPrometheusMiddleware)
+import qualified Data.Metrics.Servant as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.String.Conversions (cs)
 import Data.Text (unpack)
@@ -54,6 +56,8 @@ import Imports hiding (head)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Middleware.Gunzip as GZip
 import qualified Network.Wai.Middleware.Gzip as GZip
+import Network.Wai.Routing (Tree)
+import Network.Wai.Routing.Route (App)
 import Network.Wai.Utilities (lookupRequestId)
 import Network.Wai.Utilities.Server
 import qualified Network.Wai.Utilities.Server as Server
@@ -100,31 +104,36 @@ mkApp o = do
   e <- newEnv o
   return (middleware e $ \reqId -> servantApp (e & requestId .~ reqId), e)
   where
+    rtree :: Tree (App Handler)
     rtree = compile (sitemap o)
+
     middleware :: Env -> (RequestId -> Wai.Application) -> Wai.Application
     middleware e =
-      Metrics.waiPrometheusMiddleware (sitemap o)
+      -- TODO use ServantCombinedAPI and add instance for RAW? In that case perhaps servantPrometheusMiddleware can be used directly.
+      Metrics.servantPlusWAIPrometheusMiddleware (sitemap o) (Proxy @ServantAPI)
         . catchErrors (e ^. applog) [Right $ e ^. metrics]
         . GZip.gunzip
         . GZip.gzip GZip.def
         . lookupRequestIdMiddleware
     app e r k = runHandler e r (Server.route rtree r k) k
+
     -- the servant API wraps the one defined using wai-routing
     servantApp :: Env -> Wai.Application
     servantApp e =
       Servant.serve
-        ( Proxy
-            @( SwaggerDocsAPI
-                 :<|> ServantAPI
-                 :<|> ToServantApi FederationBrig.Api
-                 :<|> Servant.Raw
-             )
-        )
+        (Proxy @ServantCombinedAPI)
         ( swaggerDocsAPI
             :<|> Servant.hoistServer (Proxy @ServantAPI) (toServantHandler e) servantSitemap
             :<|> Servant.hoistServer (genericApi (Proxy @FederationBrig.Api)) (toServantHandler e) federationSitemap
             :<|> Servant.Tagged (app e)
         )
+
+type ServantCombinedAPI =
+  ( SwaggerDocsAPI
+      :<|> ServantAPI
+      :<|> ToServantApi FederationBrig.Api
+      :<|> Servant.Raw
+  )
 
 lookupRequestIdMiddleware :: (RequestId -> Wai.Application) -> Wai.Application
 lookupRequestIdMiddleware mkapp req cont = do
