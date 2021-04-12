@@ -315,7 +315,7 @@ type GetUserClientsQualified =
     :> Get '[Servant.JSON] [Public.PubClient]
 
 type GetUserClientUnqualified =
-  Summary "Get a specific client of a user."
+  Summary "Get a specific client of a user (deprecated)."
     :> "users"
     :> CaptureUserId "uid"
     :> "clients"
