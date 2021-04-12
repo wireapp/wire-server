@@ -513,6 +513,12 @@ customerExtensionBlockedDomain domain = Wai.Error (mkStatus 451 "Unavailable For
 noFederationStatus :: Status
 noFederationStatus = status403
 
+unexpectedFederationResponseStatus :: Status
+unexpectedFederationResponseStatus = HTTP.Status 533 "Unexpected Federation Response"
+
+federatorConnectionRefusedStatus :: Status
+federatorConnectionRefusedStatus = HTTP.Status 521 "Remote Federator Connection Refused"
+
 federationNotImplemented :: Wai.Error
 federationNotImplemented =
   Wai.Error
@@ -523,35 +529,35 @@ federationNotImplemented =
 federationInvalidCode :: Word32 -> Wai.Error
 federationInvalidCode code =
   Wai.Error
-    noFederationStatus
+    unexpectedFederationResponseStatus
     "federation-invalid-code"
     ("Invalid response code from remote federator: " <> LT.pack (show code))
 
 federationInvalidBody :: Text -> Wai.Error
 federationInvalidBody msg =
   Wai.Error
-    noFederationStatus
+    unexpectedFederationResponseStatus
     "federation-invalid-body"
     ("Could not parse remote federator response: " <> LT.fromStrict msg)
 
 federationNotConfigured :: Wai.Error
 federationNotConfigured =
   Wai.Error
-    noFederationStatus
+    HTTP.status400
     "federation-not-enabled"
     "no federator configured on brig"
 
 federationRpcError :: Text -> Wai.Error
 federationRpcError msg =
   Wai.Error
-    noFederationStatus
+    HTTP.status500
     "federation-rpc-error"
     (LT.fromStrict msg)
 
 federationUnavailable :: Text -> Wai.Error
 federationUnavailable err =
   Wai.Error
-    noFederationStatus
+    HTTP.status500
     "federation-not-available"
     ("Local federator not available: " <> LT.fromStrict err)
 
@@ -573,5 +579,5 @@ federationRemoteError err = Wai.Error status (LT.fromStrict label) (LT.fromStric
       Proto.VersionMismatch -> HTTP.Status 531 "Version Mismatch"
       Proto.FederationDeniedByRemote -> HTTP.Status 532 "Federation Denied"
       Proto.FederationDeniedLocally -> HTTP.status400
-      Proto.RemoteFederatorError -> HTTP.Status 533 "Unexpected Federation Response"
+      Proto.RemoteFederatorError -> unexpectedFederationResponseStatus
       Proto.InvalidRequest -> HTTP.status500
