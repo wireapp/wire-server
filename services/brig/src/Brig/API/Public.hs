@@ -33,7 +33,6 @@ import qualified Brig.API.Client as API
 import qualified Brig.API.Connection as API
 import Brig.API.Error
 import Brig.API.Handler
-import Brig.API.IdMapping (resolveOpaqueUserId)
 import qualified Brig.API.Properties as API
 import Brig.API.Types
 import qualified Brig.API.User as API
@@ -66,7 +65,6 @@ import Data.Domain
 import Data.Handle (Handle, parseHandle)
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id as Id
-import Data.IdMapping (MappedOrLocalId (Local))
 import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
 import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
@@ -336,6 +334,38 @@ type ListUsersByIdsOrHandles =
 
 type MaxUsersForListClientsBulk = 500
 
+type GetUserClientsUnqualified =
+  Summary "Get all of a user's clients (deprecated)."
+    :> "users"
+    :> CaptureUserId "uid"
+    :> "clients"
+    :> Get '[Servant.JSON] [Public.PubClient]
+
+type GetUserClientsQualified =
+  Summary "Get all of a user's clients."
+    :> "users"
+    :> Capture "domain" Domain
+    :> CaptureUserId "uid"
+    :> "clients"
+    :> Get '[Servant.JSON] [Public.PubClient]
+
+type GetUserClientUnqualified =
+  Summary "Get a specific client of a user (deprecated)."
+    :> "users"
+    :> CaptureUserId "uid"
+    :> "clients"
+    :> CaptureClientId "client"
+    :> Get '[Servant.JSON] Public.PubClient
+
+type GetUserClientQualified =
+  Summary "Get a specific client of a user."
+    :> "users"
+    :> Capture "domain" Domain
+    :> CaptureUserId "uid"
+    :> "clients"
+    :> CaptureClientId "client"
+    :> Get '[Servant.JSON] Public.PubClient
+
 type ListClientsBulk =
   Summary "List all clients for a set of user ids"
     :> ZAuthServant
@@ -406,6 +436,10 @@ type OutsideWorldAPI =
     :<|> GetUserByHandleQualfied
     :<|> ListUsersByUnqualifiedIdsOrHandles
     :<|> ListUsersByIdsOrHandles
+    :<|> GetUserClientsUnqualified
+    :<|> GetUserClientsQualified
+    :<|> GetUserClientUnqualified
+    :<|> GetUserClientQualified
     :<|> ListClientsBulk
     :<|> GetUsersPrekeysClientUnqualified
     :<|> GetUsersPrekeysClientQualified
@@ -440,6 +474,10 @@ servantSitemap =
     :<|> getUserByHandleH
     :<|> listUsersByUnqualifiedIdsOrHandles
     :<|> listUsersByIdsOrHandles
+    :<|> getUserClientsUnqualified
+    :<|> getUserClientsQualified
+    :<|> getUserClientUnqualified
+    :<|> getUserClientQualified
     :<|> listClientsBulk
     :<|> getPrekeyUnqualifiedH
     :<|> getPrekeyH
@@ -483,33 +521,6 @@ sitemap o = do
 
   -- some APIs moved to servant
   -- end User Handle API
-
-  -- User Client API ----------------------------------------------------
-
-  get "/users/:uid/clients" (continue getUserClientsH) $
-    capture "uid"
-      .&. accept "application" "json"
-  document "GET" "getUserClients" $ do
-    Doc.summary "Get all of a user's clients."
-    Doc.parameter Doc.Path "uid" Doc.bytes' $
-      Doc.description "User ID"
-    Doc.returns (Doc.array (Doc.ref Public.modelPubClient))
-    Doc.response 200 "List of clients" Doc.end
-
-  get "/users/:uid/clients/:client" (continue getUserClientH) $
-    capture "uid"
-      .&. capture "client"
-      .&. accept "application" "json"
-  document "GET" "getUserClient" $ do
-    Doc.summary "Get a specific client of a user."
-    Doc.parameter Doc.Path "uid" Doc.bytes' $
-      Doc.description "User ID"
-    Doc.parameter Doc.Path "client" Doc.bytes' $
-      Doc.description "Client ID"
-    Doc.returns (Doc.ref Public.modelPubClient)
-    Doc.response 200 "Client" Doc.end
-
-  -- end User Client API
 
   get "/users/:uid/rich-info" (continue getRichInfoH) $
     zauthUserId
@@ -1177,7 +1188,8 @@ listClientsH (zusr ::: _) =
 
 listClients :: UserId -> Handler [Public.Client]
 listClients zusr = do
-  API.lookupClients (Local zusr) !>> clientError
+  localdomain <- viewFederationDomain
+  API.lookupClients (Qualified zusr localdomain) !>> clientError
 
 getClientH :: UserId ::: ClientId ::: JSON -> Handler Response
 getClientH (zusr ::: clt ::: _) =
@@ -1185,31 +1197,34 @@ getClientH (zusr ::: clt ::: _) =
     Just c -> json c
     Nothing -> setStatus status404 empty
 
+getUserClientsUnqualified :: UserId -> Handler [Public.PubClient]
+getUserClientsUnqualified uid = do
+  localdomain <- viewFederationDomain
+  API.pubClient <$$> API.lookupClients (Qualified uid localdomain) !>> clientError
+
+getUserClientsQualified :: Domain -> UserId -> Handler [Public.PubClient]
+getUserClientsQualified domain uid = do
+  API.pubClient <$$> API.lookupClients (Qualified uid domain) !>> clientError
+
+getUserClientUnqualified :: UserId -> ClientId -> Handler Public.PubClient
+getUserClientUnqualified uid cid = do
+  localdomain <- viewFederationDomain
+  x <- API.pubClient <$$> API.lookupClient (Qualified uid localdomain) cid !>> clientError
+  ifNothing (notFound "client not found") x
+
 listClientsBulk :: UserId -> Range 1 MaxUsersForListClientsBulk [Qualified UserId] -> Handler (Public.QualifiedUserMap (Set Public.PubClient))
 listClientsBulk _zusr limitedUids = do
   API.lookupPubClientsBulk (fromRange limitedUids) !>> clientError
 
+getUserClientQualified :: Domain -> UserId -> ClientId -> Handler Public.PubClient
+getUserClientQualified domain uid cid = do
+  x <- API.pubClient <$$> API.lookupClient (Qualified uid domain) cid !>> clientError
+  ifNothing (notFound "client not found") x
+
 getClient :: UserId -> ClientId -> Handler (Maybe Public.Client)
 getClient zusr clientId = do
-  API.lookupClient (Local zusr) clientId !>> clientError
-
-getUserClientsH :: OpaqueUserId ::: JSON -> Handler Response
-getUserClientsH (user ::: _) =
-  json <$> getUserClients user
-
-getUserClients :: OpaqueUserId -> Handler [Public.PubClient]
-getUserClients opaqueUserId = do
-  resolvedUserId <- lift $ resolveOpaqueUserId opaqueUserId
-  API.pubClient <$$> API.lookupClients resolvedUserId !>> clientError
-
-getUserClientH :: OpaqueUserId ::: ClientId ::: JSON -> Handler Response
-getUserClientH (user ::: cid ::: _) = do
-  maybe (setStatus status404 empty) json <$> getUserClient user cid
-
-getUserClient :: OpaqueUserId -> ClientId -> Handler (Maybe Public.PubClient)
-getUserClient opaqueUserId clientId = do
-  resolvedUserId <- lift $ resolveOpaqueUserId opaqueUserId
-  API.pubClient <$$> API.lookupClient resolvedUserId clientId !>> clientError
+  localdomain <- viewFederationDomain
+  API.lookupClient (Qualified zusr localdomain) clientId !>> clientError
 
 getRichInfoH :: UserId ::: UserId ::: JSON -> Handler Response
 getRichInfoH (self ::: user ::: _) = do

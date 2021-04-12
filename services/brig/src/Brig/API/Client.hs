@@ -56,13 +56,11 @@ import Control.Lens (view)
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.IP (IP)
-import Data.Id (ClientId, ConnId, UserId, makeIdOpaque, makeMappedIdOpaque)
-import qualified Data.Id as Id
-import Data.IdMapping
+import Data.Id (ClientId, ConnId, UserId, makeIdOpaque)
 import Data.List.Split (chunksOf)
 import qualified Data.Map.Strict as Map
 import Data.Misc (PlainTextPassword (..))
-import Data.Qualified (Qualified, partitionRemoteOrLocalIds)
+import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
 import Galley.Types (UserClientMap (..), UserClients (..))
 import Imports
 import Network.Wai.Utilities
@@ -73,25 +71,24 @@ import qualified Wire.API.Message as Message
 import Wire.API.User.Client (QualifiedUserClientMap (..), QualifiedUserClients (..))
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap))
 
-lookupClient :: MappedOrLocalId Id.U -> ClientId -> ExceptT ClientError AppIO (Maybe Client)
-lookupClient mappedOrLocalUserId clientId =
-  case mappedOrLocalUserId of
-    Local u ->
-      lift $ lookupLocalClient u clientId
-    Mapped IdMapping {_imMappedId} ->
-      -- FUTUREWORK(federation, #1271): look up remote clients
-      throwE $ ClientUserNotFound (makeMappedIdOpaque _imMappedId)
+lookupClient :: Qualified UserId -> ClientId -> ExceptT ClientError AppIO (Maybe Client)
+lookupClient (Qualified uid domain) clientId = do
+  localdomain <- viewFederationDomain
+  if domain == localdomain
+    then lift $ lookupLocalClient uid clientId
+    else -- FUTUREWORK(federation, #1271): look up remote clients
+      throwE ClientFederationNotImplemented
 
 lookupLocalClient :: UserId -> ClientId -> AppIO (Maybe Client)
 lookupLocalClient = Data.lookupClient
 
-lookupClients :: MappedOrLocalId Id.U -> ExceptT ClientError AppIO [Client]
-lookupClients = \case
-  Local u ->
-    lift $ lookupLocalClients u
-  Mapped IdMapping {_imMappedId} ->
-    -- FUTUREWORK(federation, #1271): look up remote clients
-    throwE $ ClientUserNotFound (makeMappedIdOpaque _imMappedId)
+lookupClients :: Qualified UserId -> ExceptT ClientError AppIO [Client]
+lookupClients (Qualified uid domain) = do
+  localdomain <- viewFederationDomain
+  if domain == localdomain
+    then lift $ lookupLocalClients uid
+    else -- FUTUREWORK(federation, #1271): look up remote clients
+      throwE ClientFederationNotImplemented
 
 lookupLocalClients :: UserId -> AppIO [Client]
 lookupLocalClients = Data.lookupClients
