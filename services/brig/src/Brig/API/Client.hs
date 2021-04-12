@@ -77,7 +77,7 @@ lookupClient (Qualified uid domain) clientId = do
   if domain == localdomain
     then lift $ lookupLocalClient uid clientId
     else -- FUTUREWORK(federation, #1271): look up remote clients
-      throwE ClientFederationNotImplemented
+      throwE (ClientFederationError FederationNotImplemented)
 
 lookupLocalClient :: UserId -> ClientId -> AppIO (Maybe Client)
 lookupLocalClient = Data.lookupClient
@@ -88,7 +88,7 @@ lookupClients (Qualified uid domain) = do
   if domain == localdomain
     then lift $ lookupLocalClients uid
     else -- FUTUREWORK(federation, #1271): look up remote clients
-      throwE ClientFederationNotImplemented
+      throwE (ClientFederationError FederationNotImplemented)
 
 lookupLocalClients :: UserId -> AppIO [Client]
 lookupLocalClients = Data.lookupClients
