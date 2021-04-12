@@ -33,9 +33,9 @@ import qualified Data.ZAuth.Validation as ZAuth
 import Imports
 import Network.HTTP.Types.Header
 import Network.HTTP.Types.Status
+import qualified Network.HTTP.Types.Status as HTTP
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified Wire.API.Federation.GRPC.Types as Proto
-import qualified Network.HTTP.Types.Status as HTTP
 
 data Error where
   StdError :: !Wai.Error -> Error
@@ -567,9 +567,9 @@ federationRemoteError err = Wai.Error status (LT.fromStrict label) (LT.fromStric
     decodeError :: Maybe Proto.ErrorPayload -> (Text, Text)
     decodeError Nothing = ("unknown-federation-error", "Unknown federation error")
     decodeError (Just (Proto.ErrorPayload label' msg')) = (label', msg')
-    
+
     (label, msg) = decodeError (Proto.outwardErrorPayload err)
-    
+
     status = case Proto.outwardErrorType err of
       Proto.RemoteNotFound -> HTTP.status422
       Proto.DiscoveryFailed -> HTTP.status500
