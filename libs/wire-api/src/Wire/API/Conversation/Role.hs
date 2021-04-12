@@ -54,14 +54,21 @@ where
 
 import Cassandra.CQL hiding (Set)
 import Control.Applicative (optional)
+import Control.Lens (over, (?~))
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Attoparsec.Text
 import Data.ByteString.Conversion
+import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Hashable
+import Data.Proxy (Proxy (..))
 import Data.Range (fromRange, genRangeText)
 import qualified Data.Set as Set
+import Data.Swagger (NamedSchema (..), Referenced (Inline), Schema, description)
 import qualified Data.Swagger.Build.Api as Doc
+import Data.Swagger.Lens (properties)
+import Data.Swagger.Schema hiding (constructorTagModifier)
+import Deriving.Swagger hiding (camelTo2)
 import Imports
 import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
@@ -91,6 +98,24 @@ modelConversationRole = Doc.defineModel "ConversationRole" $ do
       \custom roles can have the same prefix)"
   Doc.property "actions" (Doc.array typeConversationRoleAction) $
     Doc.description "The set of actions allowed for this role"
+
+instance ToSchema ConversationRole where
+  declareNamedSchema _ = do
+    conversationRoleSchema <-
+      declareSchema (Proxy @Text)
+        <&> description
+          ?~ "role name, between 2 and 128 chars, 'wire_' prefix \
+             \is reserved for roles designed by Wire (i.e., no \
+             \custom roles can have the same prefix)"
+    actionsSchema <-
+      declareSchema (Proxy @[Action])
+        <&> description
+          ?~ "The set of actions allowed for this role"
+    let convRoleSchema :: Schema =
+          mempty
+            & over properties (InsOrdHashMap.insert "conversation_role" (Inline conversationRoleSchema))
+            & over properties (InsOrdHashMap.insert "actions" (Inline actionsSchema))
+    pure (NamedSchema (Just "ConversationRole") convRoleSchema)
 
 instance ToJSON ConversationRole where
   toJSON cr =
@@ -140,6 +165,7 @@ data ConversationRolesList = ConversationRolesList
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationRolesList)
+  deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (LabelMappings '["convRolesList" ':-> "conversation_roles"])] ConversationRolesList)
 
 modelConversationRolesList :: Doc.Model
 modelConversationRolesList = Doc.defineModel "ConversationRolesList" $ do
@@ -237,6 +263,7 @@ data Action
   | DeleteConversation
   deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
   deriving (Arbitrary) via (GenericUniform Action)
+  deriving (ToSchema) via (CustomSwagger '[ConstructorTagModifier CamelToSnake] Action)
 
 typeConversationRoleAction :: Doc.DataType
 typeConversationRoleAction =
