@@ -58,6 +58,8 @@ tests _cl _at opts p b c g =
         testCan'tDeleteLegalHoldClient b,
       test p "post /clients 400 - can't add legalhold clients manually" $
         testCan'tAddLegalHoldClient b,
+      test p "get /users/:uid/clients - 200" $ testGetUserClientsUnqualified opts b,
+      test p "get /users/<localdomain>/:uid/clients - 200" $ testGetUserClientsQualified opts b,
       test p "get /users/:uid/prekeys - 200" $ testGetUserPrekeys b,
       test p "get /users/<localdomain>/:uid/prekeys - 200" $ testGetUserPrekeysQualified b opts,
       test p "get /users/:uid/prekeys/:client - 200" $ testGetClientPrekey b,
@@ -73,7 +75,7 @@ tests _cl _at opts p b c g =
       test p "post /clients - 400" $ testTooManyClients opts b,
       test p "delete /clients/:client - 200 (pwd)" $ testRemoveClient True b c,
       test p "delete /clients/:client - 200 (no pwd)" $ testRemoveClient False b c,
-      test p "put /clients/:client - 200" $ testUpdateClient b,
+      test p "put /clients/:client - 200" $ testUpdateClient opts b,
       test p "post /clients - 200 multiple temporary" $ testAddMultipleTemporary b g,
       test p "client/prekeys/race" $ testPreKeyRace b
     ]
@@ -101,6 +103,37 @@ testAddGetClient hasPwd brig cannon = do
   getClient brig uid (clientId c) !!! do
     const 200 === statusCode
     const (Just c) === responseJsonMaybe
+
+testGetUserClientsUnqualified :: Opt.Opts -> Brig -> Http ()
+testGetUserClientsUnqualified _opts brig = do
+  uid1 <- userId <$> randomUser brig
+  let (pk11, lk11) = (somePrekeys !! 0, (someLastPrekeys !! 0))
+  let (pk12, lk12) = (somePrekeys !! 1, (someLastPrekeys !! 1))
+  let (pk13, lk13) = (somePrekeys !! 2, (someLastPrekeys !! 2))
+  _c11 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk11] lk11)
+  _c12 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk12] lk12)
+  _c13 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient TemporaryClientType [pk13] lk13)
+  getUserClientsUnqualified brig uid1 !!! do
+    const 200 === statusCode
+    assertTrue_ $ \res -> do
+      let clients :: [PubClient] = responseJsonUnsafe res
+       in length clients == 3
+
+testGetUserClientsQualified :: Opt.Opts -> Brig -> Http ()
+testGetUserClientsQualified opts brig = do
+  uid1 <- userId <$> randomUser brig
+  let (pk11, lk11) = (somePrekeys !! 0, (someLastPrekeys !! 0))
+  let (pk12, lk12) = (somePrekeys !! 1, (someLastPrekeys !! 1))
+  let (pk13, lk13) = (somePrekeys !! 2, (someLastPrekeys !! 2))
+  _c11 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk11] lk11)
+  _c12 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient PermanentClientType [pk12] lk12)
+  _c13 :: Client <- responseJsonError =<< addClient brig uid1 (defNewClient TemporaryClientType [pk13] lk13)
+  let localdomain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+  getUserClientsQualified brig localdomain uid1 !!! do
+    const 200 === statusCode
+    assertTrue_ $ \res -> do
+      let clients :: [PubClient] = responseJsonUnsafe res
+       in length clients == 3
 
 testClientReauthentication :: Brig -> Http ()
 testClientReauthentication brig = do
@@ -374,8 +407,8 @@ testRemoveClient hasPwd brig cannon = do
           newClientCookie = Just defCookieLabel
         }
 
-testUpdateClient :: Brig -> Http ()
-testUpdateClient brig = do
+testUpdateClient :: Opt.Opts -> Brig -> Http ()
+testUpdateClient opts brig = do
   uid <- userId <$> randomUser brig
   let clt =
         (defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0))
@@ -415,6 +448,14 @@ testUpdateClient brig = do
     const (Just $ clientId c) === (fmap pubClientId . responseJsonMaybe)
     const (Just PhoneClient) === (pubClientClass <=< responseJsonMaybe)
     const Nothing === (preview (key "label") <=< responseJsonMaybe @Value)
+  -- via `/users/:domain/:uid/clients/:client`, only `id` and `class` are visible:
+  let localdomain = opts ^. Opt.optionSettings & Opt.setFederationDomain
+  get (brig . paths ["users", toByteString' localdomain, toByteString' uid, "clients", toByteString' (clientId c)]) !!! do
+    const 200 === statusCode
+    const (Just $ clientId c) === (fmap pubClientId . responseJsonMaybe)
+    const (Just PhoneClient) === (pubClientClass <=< responseJsonMaybe)
+    const Nothing === (preview (key "label") <=< responseJsonMaybe @Value)
+
   let update' = UpdateClient [] Nothing Nothing
   -- empty update should be a no-op
   put

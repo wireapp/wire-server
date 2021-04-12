@@ -36,6 +36,7 @@ import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LB
+import Data.Domain (Domain)
 import Data.Handle (Handle (Handle))
 import Data.Id hiding (client)
 import Data.Misc (PlainTextPassword (..))
@@ -187,6 +188,20 @@ getClient brig u c =
     brig
       . paths ["clients", toByteString' c]
       . zUser u
+
+getUserClientsUnqualified :: Brig -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
+getUserClientsUnqualified brig uid =
+  get $
+    brig
+      . paths ["users", toByteString' uid, "clients"]
+      . zUser uid
+
+getUserClientsQualified :: Brig -> Domain -> UserId -> (MonadIO m, MonadHttp m) => m ResponseLBS
+getUserClientsQualified brig domain uid =
+  get $
+    brig
+      . paths ["users", toByteString' domain, toByteString' uid, "clients"]
+      . zUser uid
 
 deleteClient :: Brig -> UserId -> ClientId -> Maybe PlainTextPassword -> (MonadIO m, MonadHttp m) => m ResponseLBS
 deleteClient brig u c pw =
