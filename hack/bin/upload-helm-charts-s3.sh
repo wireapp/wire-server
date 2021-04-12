@@ -45,8 +45,8 @@ done
 
 # defaults
 chart_dir=""
-REPO_NAME="wire-develop"
-PUBLIC_DIR="charts-develop"
+REPO_NAME="wire-custom"
+PUBLIC_DIR="charts-custom"
 force_push=""
 reindex=""
 
