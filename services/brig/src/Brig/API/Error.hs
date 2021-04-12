@@ -178,15 +178,15 @@ clientError (ClientDataError e) = clientDataError e
 clientError (ClientUserNotFound _) = StdError invalidUser
 clientError ClientLegalHoldCannotBeRemoved = StdError can'tDeleteLegalHoldClient
 clientError ClientLegalHoldCannotBeAdded = StdError can'tAddLegalHoldClient
-clientError (ClientFedError e) = fedError e
+clientError (ClientFederationError e) = fedError e
 
-fedError :: FedError -> Error
-fedError (FedRpcError msg) = StdError (federationRpcError msg)
+fedError :: FederationError -> Error
+fedError (FederationRpcError msg) = StdError (federationRpcError msg)
 fedError (InvalidResponseCode code) = StdError (federationInvalidCode code)
 fedError (InvalidResponseBody msg) = StdError (federationInvalidBody msg)
 fedError (FederationRemoteError status label err) =
   StdError (federationRemoteError status label err)
-fedError FederationUnavailable = StdError federationUnavailable
+fedError (FederationUnavailable err) = StdError (federationUnavailable err)
 fedError FederationNotImplemented = StdError federationNotImplemented'
 fedError FederationNotConfigured = StdError federationNotConfigured
 
@@ -574,12 +574,12 @@ federationRpcError msg =
     "federation-rpc-error"
     (LT.fromStrict msg)
 
-federationUnavailable :: Wai.Error
-federationUnavailable =
+federationUnavailable :: Text -> Wai.Error
+federationUnavailable err =
   Wai.Error
     noFederationStatus
     "federation-not-available"
-    "Local federator not available"
+    ("Local federator not available: " <> LT.fromStrict err)
 
 federationRemoteError :: Status -> Text -> Text -> Wai.Error
 federationRemoteError status label msg =

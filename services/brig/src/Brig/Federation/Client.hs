@@ -23,7 +23,7 @@ module Brig.Federation.Client where
 
 import Brig.API.Error (throwStd)
 import Brig.API.Handler (Handler)
-import Brig.API.Types (FedError (..))
+import Brig.API.Types (FederationError (..))
 import Brig.App (AppIO, federator)
 import Brig.Types.User
 import Control.Error.Util ((!?))
@@ -45,13 +45,13 @@ import Wire.API.Federation.API.Brig
 import Wire.API.Federation.GRPC.Client
 import qualified Wire.API.Federation.GRPC.Types as Proto
 
-type FedAppIO = ExceptT FedError AppIO
+type FederationAppIO = ExceptT FederationError AppIO
 
 -- FUTUREWORK(federation): As of now, any failure in making a remote call results in 404.
 -- This is not correct, we should figure out how we communicate failure
 -- scenarios to the clients.
 -- See https://wearezeta.atlassian.net/browse/SQCORE-491 for the issue on error handling improvements.
-getUserHandleInfo :: Qualified Handle -> FedAppIO (Maybe UserProfile)
+getUserHandleInfo :: Qualified Handle -> FederationAppIO (Maybe UserProfile)
 getUserHandleInfo (Qualified handle domain) = do
   Log.info $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
   federatorClient <- mkFederatorClient
@@ -70,13 +70,13 @@ getUserHandleInfo (Qualified handle domain) = do
 -- fixing first. More context here:
 -- https://github.com/lucasdicioccio/http2-client/issues/37
 -- https://github.com/lucasdicioccio/http2-client/issues/49
-mkFederatorClient :: FedAppIO GrpcClient
+mkFederatorClient :: FederationAppIO GrpcClient
 mkFederatorClient = do
   federatorEndpoint <- view federator !? FederationNotConfigured
   let cfg = grpcClientConfigSimple (T.unpack (federatorEndpoint ^. epHost)) (fromIntegral (federatorEndpoint ^. epPort)) False
   -- TODO: add error message to FederationUnavailable
   createGrpcClient cfg
-    >>= either (throwE . const FederationUnavailable) pure
+    >>= either (throwE . FederationUnavailable . reason) pure
 
 callRemote :: MonadIO m => GrpcClient -> Proto.ValidatedFederatedRequest -> m (GRpcReply Proto.OutwardResponse)
 callRemote fedClient call = liftIO $ gRpcCall @'MsgProtoBuf @Proto.Outward @"Outward" @"call" fedClient (Proto.validatedFederatedRequestToFederatedRequest call)
@@ -86,7 +86,7 @@ callRemote fedClient call = liftIO $ gRpcCall @'MsgProtoBuf @Proto.Outward @"Out
 -- test client side of federated code without needing another backend. We could
 -- do this either by mocking the second backend in integration tests or making
 -- all of this independent of the Handler monad and write unit tests.
-expectOk :: GRpcReply Proto.OutwardResponse -> FedAppIO Proto.HTTPResponse
+expectOk :: GRpcReply Proto.OutwardResponse -> FederationAppIO Proto.HTTPResponse
 expectOk = \case
   GRpcTooMuchConcurrency _tmc -> rpcErr "too much concurrency"
   GRpcErrorCode code -> rpcErr $ "grpc error code: " <> T.pack (show code)
@@ -108,8 +108,8 @@ expectOk = \case
      in throwE (FederationRemoteError status label msg)
   GRpcOk (Proto.OutwardResponseHTTPResponse res) -> pure res
   where
-    rpcErr :: Text -> FedAppIO a
-    rpcErr msg = throwE (FedRpcError msg)
+    rpcErr :: Text -> FederationAppIO a
+    rpcErr msg = throwE (FederationRpcError msg)
 
     decodeError :: Maybe Proto.ErrorPayload -> (Text, Text)
     decodeError Nothing = ("unknown-federation-error", "Unknown federation error")

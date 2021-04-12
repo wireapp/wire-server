@@ -185,13 +185,12 @@ data SendLoginCodeError
   = SendLoginInvalidPhone Phone
   | SendLoginPasswordExists
 
--- TODO: ok to use 'Fed' abbreviation?
-data FedError
-  = FedRpcError Text
+data FederationError
+  = FederationRpcError Text
   | InvalidResponseCode Word32
   | InvalidResponseBody Text
   | FederationRemoteError Status Text Text
-  | FederationUnavailable
+  | FederationUnavailable Text
   | FederationNotImplemented
   | FederationNotConfigured
 
@@ -201,7 +200,7 @@ data ClientError
   | ClientUserNotFound !OpaqueUserId
   | ClientLegalHoldCannotBeRemoved
   | ClientLegalHoldCannotBeAdded
-  | ClientFedError FedError
+  | ClientFederationError FederationError
 
 data RemoveIdentityError
   = LastIdentity
