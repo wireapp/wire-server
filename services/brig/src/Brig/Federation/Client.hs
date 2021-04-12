@@ -92,28 +92,11 @@ expectOk = \case
   GRpcErrorCode code -> rpcErr $ "grpc error code: " <> T.pack (show code)
   GRpcErrorString msg -> rpcErr $ "grpc error: " <> T.pack msg
   GRpcClientError msg -> rpcErr $ "grpc client error: " <> T.pack (show msg)
-  GRpcOk (Proto.OutwardResponseError err) ->
-    let (label, msg) = decodeError (Proto.outwardErrorPayload err)
-        status = case Proto.outwardErrorType err of
-          Proto.RemoteNotFound -> HTTP.status422
-          Proto.DiscoveryFailed -> HTTP.status500
-          Proto.ConnectionRefused -> HTTP.Status 521 "Web Server Is Down"
-          Proto.TLSFailure -> HTTP.Status 525 "SSL Handshake Failure"
-          Proto.InvalidCertificate -> HTTP.Status 526 "Invalid SSL Certificate"
-          Proto.VersionMismatch -> HTTP.Status 531 "Version Mismatch"
-          Proto.FederationDeniedByRemote -> HTTP.Status 532 "Federation Denied"
-          Proto.FederationDeniedLocally -> HTTP.status400
-          Proto.RemoteFederatorError -> HTTP.Status 533 "Unexpected Federation Response"
-          Proto.InvalidRequest -> HTTP.status500
-     in throwE (FederationRemoteError status label msg)
+  GRpcOk (Proto.OutwardResponseError err) -> throwE (FederationRemoteError err)
   GRpcOk (Proto.OutwardResponseHTTPResponse res) -> pure res
   where
     rpcErr :: Text -> FederationAppIO a
     rpcErr msg = throwE (FederationRpcError msg)
-
-    decodeError :: Maybe Proto.ErrorPayload -> (Text, Text)
-    decodeError Nothing = ("unknown-federation-error", "Unknown federation error")
-    decodeError (Just (Proto.ErrorPayload label msg)) = (label, msg)
 
 errWithPayloadAndStatus :: Maybe Proto.ErrorPayload -> HTTP.Status -> Wai.Error
 errWithPayloadAndStatus maybePayload code =

@@ -39,6 +39,8 @@ import Network.HTTP.Types.Header
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
 import Type.Reflection (typeRep)
+import qualified Wire.API.Federation.GRPC.Types as Proto
+import qualified Network.HTTP.Types.Status as HTTP
 
 data Error where
   StdError :: !Wai.Error -> Error
@@ -184,8 +186,7 @@ fedError :: FederationError -> Error
 fedError (FederationRpcError msg) = StdError (federationRpcError msg)
 fedError (FederationInvalidResponseCode code) = StdError (federationInvalidCode code)
 fedError (FederationInvalidResponseBody msg) = StdError (federationInvalidBody msg)
-fedError (FederationRemoteError status label err) =
-  StdError (federationRemoteError status label err)
+fedError (FederationRemoteError err) = StdError (federationRemoteError err)
 fedError (FederationUnavailable err) = StdError (federationUnavailable err)
 fedError FederationNotImplemented = StdError federationNotImplemented'
 fedError FederationNotConfigured = StdError federationNotConfigured
@@ -581,9 +582,23 @@ federationUnavailable err =
     "federation-not-available"
     ("Local federator not available: " <> LT.fromStrict err)
 
-federationRemoteError :: Status -> Text -> Text -> Wai.Error
-federationRemoteError status label msg =
-  Wai.Error
-    status
-    (LT.fromStrict label)
-    (LT.fromStrict msg)
+federationRemoteError :: Proto.OutwardError -> Wai.Error
+federationRemoteError err = Wai.Error status (LT.fromStrict label) (LT.fromStrict msg)
+  where
+    decodeError :: Maybe Proto.ErrorPayload -> (Text, Text)
+    decodeError Nothing = ("unknown-federation-error", "Unknown federation error")
+    decodeError (Just (Proto.ErrorPayload label' msg')) = (label', msg')
+    
+    (label, msg) = decodeError (Proto.outwardErrorPayload err)
+    
+    status = case Proto.outwardErrorType err of
+      Proto.RemoteNotFound -> HTTP.status422
+      Proto.DiscoveryFailed -> HTTP.status500
+      Proto.ConnectionRefused -> HTTP.Status 521 "Web Server Is Down"
+      Proto.TLSFailure -> HTTP.Status 525 "SSL Handshake Failure"
+      Proto.InvalidCertificate -> HTTP.Status 526 "Invalid SSL Certificate"
+      Proto.VersionMismatch -> HTTP.Status 531 "Version Mismatch"
+      Proto.FederationDeniedByRemote -> HTTP.Status 532 "Federation Denied"
+      Proto.FederationDeniedLocally -> HTTP.status400
+      Proto.RemoteFederatorError -> HTTP.Status 533 "Unexpected Federation Response"
+      Proto.InvalidRequest -> HTTP.status500

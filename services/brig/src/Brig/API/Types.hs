@@ -42,8 +42,8 @@ import Brig.Types.Intra
 import Brig.User.Auth.Cookie (RetryAfter (..))
 import Data.Id
 import Imports
-import Network.HTTP.Types.Status (Status)
 import qualified Network.Wai.Utilities.Error as Wai
+import qualified Wire.API.Federation.GRPC.Types as Proto
 
 -------------------------------------------------------------------------------
 -- Successes
@@ -189,7 +189,7 @@ data FederationError
   = FederationRpcError Text
   | FederationInvalidResponseCode Word32
   | FederationInvalidResponseBody Text
-  | FederationRemoteError Status Text Text
+  | FederationRemoteError Proto.OutwardError
   | FederationUnavailable Text
   | FederationNotImplemented
   | FederationNotConfigured
