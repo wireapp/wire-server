@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 543c75e131e7444c4c6cbb2e5b5045cd1a3a4da7e43b4bc90251bf308b224bf6
+-- hash: a6f7256982e3d8c82db3c941c5df528bbdf67ca489e9ab5b54b9e62bd6f23629
 
 name:           wire-api-federation
 version:        0.1.0
@@ -40,14 +40,18 @@ library
       QuickCheck >=2.13
     , aeson >=1.4
     , base >=4.6 && <5.0
+    , bytestring
     , either
     , http-types
     , http2-client-grpc
     , imports
+    , mtl
     , mu-grpc-client
     , mu-protobuf
     , mu-schema
     , servant >=0.16
+    , servant-client
+    , servant-client-core
     , template-haskell
     , text >=0.11
     , time >=1.8
@@ -72,16 +76,20 @@ test-suite spec
       QuickCheck >=2.13
     , aeson >=1.4
     , base >=4.6 && <5.0
+    , bytestring
     , either
     , hspec
     , http-types
     , http2-client-grpc
     , imports
     , metrics-wai
+    , mtl
     , mu-grpc-client
     , mu-protobuf
     , mu-schema
     , servant >=0.16
+    , servant-client
+    , servant-client-core
     , template-haskell
     , text >=0.11
     , time >=1.8

@@ -43,6 +43,7 @@ import Util.Options (epHost, epPort)
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.GRPC.Client
 import qualified Wire.API.Federation.GRPC.Types as Proto
+import Control.Monad.Except (runExceptT)
 
 -- FUTUREWORK(federation): As of now, any failure in making a remote call results in 404.
 -- This is not correct, we should figure out how we communicate failure
@@ -52,14 +53,10 @@ getUserHandleInfo :: Qualified Handle -> Handler (Maybe UserProfile)
 getUserHandleInfo (Qualified handle domain) = do
   Log.info $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
   federatorClient <- mkFederatorClient
-  let call = Proto.ValidatedFederatedRequest domain (mkGetUserInfoByHandle handle)
-  res <- expectOk =<< callRemote federatorClient call
-  case Proto.responseStatus res of
-    404 -> pure Nothing
-    200 -> case Aeson.eitherDecodeStrict (Proto.responseBody res) of
-      Left err -> throwStd $ notFound $ "Failed to parse response: " <> LT.pack err
-      Right x -> pure $ Just x
-    code -> throwStd $ notFound $ "Invalid response from remote: " <> LT.pack (show code)
+  x <- runExceptT . flip runReaderT (FederatorClientEnv federatorClient domain) . runFederatorClient $ getUserByHandle clientRoutes handle
+  -- TODO: Use code from https://github.com/wireapp/wire-server/pull/1438 to transform Handler to FederationAppIO
+  -- TODO: use UVerb to deal with 404, so it is not an exception
+  undefined
 
 -- TODO: reduce duplication between these functions
 -- TODO: rework error handling and FUTUREWORK from getUserHandleInfo and search:
@@ -71,7 +68,7 @@ searchUsers domain searchTerm = do
   Log.warn $ Log.msg $ T.pack "Brig-federation: search call on remote backend"
   federatorClient <- mkFederatorClient
   let call = Proto.ValidatedFederatedRequest domain (mkSearchUsers searchTerm)
-  res <- expectOk =<< callRemote federatorClient call
+  res <- expectOk =<< Brig.Federation.Client.callRemote federatorClient call
   case Proto.responseStatus res of
     200 -> case Aeson.eitherDecodeStrict (Proto.responseBody res) of
       Left err -> throwStd $ notFound $ "Failed to parse response: " <> LT.pack err
