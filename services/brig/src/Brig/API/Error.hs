@@ -577,13 +577,13 @@ federationRpcError msg =
 federationUnavailable :: Wai.Error
 federationUnavailable =
   Wai.Error
-  noFederationStatus
-  "federation-not-available"
-  "Local federator not available"
+    noFederationStatus
+    "federation-not-available"
+    "Local federator not available"
 
 federationRemoteError :: Status -> Text -> Text -> Wai.Error
 federationRemoteError status label msg =
   Wai.Error
-  status
-  (LT.fromStrict label)
-  (LT.fromStrict msg)
+    status
+    (LT.fromStrict label)
+    (LT.fromStrict msg)

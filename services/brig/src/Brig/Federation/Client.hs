@@ -23,12 +23,12 @@ module Brig.Federation.Client where
 
 import Brig.API.Error (throwStd)
 import Brig.API.Handler (Handler)
-import Brig.API.Types (FedError(..))
-import Brig.App (federator, AppIO)
+import Brig.API.Types (FedError (..))
+import Brig.App (AppIO, federator)
 import Brig.Types.User
 import Control.Error.Util ((!?))
 import Control.Lens (view, (^.))
-import Control.Monad.Trans.Except (ExceptT(..), throwE)
+import Control.Monad.Trans.Except (ExceptT (..), throwE)
 import qualified Data.Aeson as Aeson
 import Data.Handle
 import Data.Qualified
@@ -75,8 +75,8 @@ mkFederatorClient = do
   federatorEndpoint <- view federator !? FederationNotConfigured
   let cfg = grpcClientConfigSimple (T.unpack (federatorEndpoint ^. epHost)) (fromIntegral (federatorEndpoint ^. epPort)) False
   -- TODO: add error message to FederationUnavailable
-  createGrpcClient cfg >>=
-    either (throwE . const FederationUnavailable) pure
+  createGrpcClient cfg
+    >>= either (throwE . const FederationUnavailable) pure
 
 callRemote :: MonadIO m => GrpcClient -> Proto.ValidatedFederatedRequest -> m (GRpcReply Proto.OutwardResponse)
 callRemote fedClient call = liftIO $ gRpcCall @'MsgProtoBuf @Proto.Outward @"Outward" @"call" fedClient (Proto.validatedFederatedRequestToFederatedRequest call)
@@ -105,7 +105,7 @@ expectOk = \case
           Proto.FederationDeniedLocally -> HTTP.status400
           Proto.RemoteFederatorError -> HTTP.Status 533 "Unexpected Federation Response"
           Proto.InvalidRequest -> HTTP.status500
-    in throwE (FederationRemoteError status label msg)
+     in throwE (FederationRemoteError status label msg)
   GRpcOk (Proto.OutwardResponseHTTPResponse res) -> pure res
   where
     rpcErr :: Text -> FedAppIO a
