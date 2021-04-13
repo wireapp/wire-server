@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1a7ee5db749a3d0036c292dd1b4e3f518dc51ae7c2c7c51ea8c0c387c09ecbe3
+-- hash: 3d924e65711daf57942ff893071402feeeaf2993f05a2302322064960c4bbedb
 
 name:           metrics-wai
 version:        0.5.7
@@ -39,6 +39,36 @@ library
     , http-types >=0.8
     , imports
     , metrics-core >=0.3
+    , servant
+    , string-conversions
+    , text >=0.11
+    , wai >=3
+    , wai-middleware-prometheus
+    , wai-route >=0.3
+    , wai-routing
+  default-language: Haskell2010
+
+test-suite unit
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Test.Data.Metrics.TypesSpec
+      Paths_metrics_wai
+  hs-source-dirs:
+      test
+  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
+  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
+  build-tool-depends:
+      hspec-discover:hspec-discover
+  build-depends:
+      base ==4.*
+    , bytestring >=0.10
+    , containers
+    , hspec
+    , http-types >=0.8
+    , imports
+    , metrics-core >=0.3
+    , metrics-wai
     , servant
     , string-conversions
     , text >=0.11

@@ -2,7 +2,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE ViewPatterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -52,7 +51,7 @@ mkTree = fmap (Paths . meltTree) . mapM mkbranch . sortBy (flip compare) . fmap 
   where
     mkbranch :: [PathSegment] -> Either String (Tree PathSegment)
     mkbranch (seg : segs@(_ : _)) = Node seg . (: []) <$> mkbranch segs
-    mkbranch (seg : []) = Right $ Node seg []
+    mkbranch [seg] = Right $ Node seg []
     mkbranch [] = Left "internal error: path with on segments."
     mknode :: ByteString -> PathSegment
     mknode seg = if BS.head seg /= ':' then Right seg else Left seg
@@ -69,14 +68,54 @@ meltTree = go
 -- | A variant of 'Network.Wai.Route.Tree.lookup'.  The segments contain values to be captured
 -- when running the 'App', here we simply replace them with their identifier;
 -- e.g. @/user/1234@ might become @/user/userid@
+--
+-- This lookup will do its best when it sees ambiguous paths like
+-- /users/:uid/clients and /users/:domain/:uid. In this case, for input
+-- ["users", "some-uuid", "clients"] it will see that /users/:uid/clients has
+-- more verbatim matches than /users/:domain/:uid and so, it will prefer
+-- /users/:uid/clients.
+--
+-- This is not the case all the time, for instance if there are two paths like:
+-- /users/clients/:cid and /users/:uid/clients and the input is ["users",
+-- "clients", "clients"], the lookup will see exactly the same number of
+-- verbatim matches and return any one of them. This may not really be a
+-- problem, because we may not have such a request in our real paths.
+--
+-- Note [Trees for Metrics]
+--
+-- The use of trees hides information about which of the
+-- partial paths are real paths. Consider a tree like this:
+--
+-- /users
+--   /:uid
+--   /:domain
+--     /:uid
+--   /clients
+--     /:uid
+--
+-- Here, it is impossible to tell if /users or /users/:domain is a valid
+-- endpoint or not, so this function will always return these as a match, even
+-- if in reality there is no such API. This smells like we shouldn't be using
+-- trees here and instead just try to match a given path with list of routes.
 treeLookup :: Paths -> [ByteString] -> Maybe ByteString
-treeLookup (Paths forest) = go [] forest
+treeLookup (Paths forest) = mungeSegments <=< go forest
   where
-    go :: [PathSegment] -> Forest PathSegment -> [ByteString] -> Maybe ByteString
-    go path _ [] = Just . ("/" <>) . BS.intercalate "/" . fmap (either id id) . reverse $ path
-    go _ [] _ = Nothing
-    go path trees (seg : segs) =
-      find (seg `fits`) trees >>= \(Node root trees') -> go (root : path) trees' segs
+    go :: Forest PathSegment -> [ByteString] -> Maybe [PathSegment]
+    go _trees [] = Just []
+    go [] _segs = Nothing
+    go trees (seg : segs) =
+      let allMatches = mapMaybe (matchTree seg segs) trees
+          sorted = sortOn (Down . length . filter isRight) allMatches
+       in listToMaybe sorted
+
+    matchTree :: ByteString -> [ByteString] -> Tree PathSegment -> Maybe [PathSegment]
+    matchTree seg segs tree =
+      if seg `fits` tree
+        then (rootLabel tree :) <$> go (subForest tree) segs
+        else Nothing
+
     fits :: ByteString -> Tree PathSegment -> Bool
     fits _ (Node (Left _) _) = True
     fits seg (Node (Right seg') _) = seg == seg'
+
+    mungeSegments path = Just . ("/" <>) . BS.intercalate "/" . fmap (either id id) $ path
