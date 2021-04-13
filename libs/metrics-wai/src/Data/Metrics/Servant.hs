@@ -61,7 +61,7 @@ servantPlusWAIPrometheusMiddleware routes _ = do
     paths =
       let Paths servantPaths = routesToPaths @api
           Paths waiPaths = treeToPaths (prepare routes)
-      in Paths (meltTree (servantPaths <> waiPaths))
+       in Paths (meltTree (servantPaths <> waiPaths))
 
 conf :: PrometheusSettings
 conf =
