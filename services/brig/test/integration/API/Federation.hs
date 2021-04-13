@@ -21,33 +21,51 @@ import Bilge
 import Bilge.Assert
 import Brig.Types
 import Data.ByteString.Conversion (toByteString')
+import Data.Handle (Handle)
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit (assertEqual)
 import Util
 
+-- FUTUREWORK(federation): use servant-client in tests for the federation endpoints instead of the bilge requests.
 tests :: Manager -> Brig -> IO TestTree
 tests m brig = do
   return $
     testGroup "federation" $
-      [ test m "GET /federation/users/by-handle : 200" (testGetUserByHandleSuccess brig),
+      [ test m "GET /federation/search/users : 200" (testSearchSuccess brig),
+        test m "GET /federation/users/by-handle : 200" (testGetUserByHandleSuccess brig),
         test m "GET /federation/users/by-handle : 404" (testGetUserByHandleNotFound brig)
       ]
 
+testSearchSuccess :: Brig -> Http ()
+testSearchSuccess brig = do
+  (handle, user) <- createUserWithHandle brig
+  let quid = userQualifiedId user
+  searchResult <- fedSearch brig handle
+  liftIO $ do
+    let contacts = searchResults searchResult
+    assertEqual "should return user id" [quid] (contactQualifiedId <$> contacts)
+
+fedSearch :: Brig -> Handle -> Http (SearchResult Contact)
+fedSearch brig handle =
+  responseJsonError
+    =<< get
+      ( brig
+          . paths ["federation", "search", "users"]
+          . queryItem "q" (toByteString' handle)
+          . expect2xx
+      )
+
 testGetUserByHandleSuccess :: Brig -> Http ()
 testGetUserByHandleSuccess brig = do
-  user <- randomUser brig
-  let uid = userId user
-      quid = userQualifiedId user
-  hdl <- randomHandle
-  putHandle brig uid hdl
-    !!! const 200 === statusCode
+  (handle, user) <- createUserWithHandle brig
+  let quid = userQualifiedId user
   profile <-
     responseJsonError
       =<< get
         ( brig
             . paths ["federation", "users", "by-handle"]
-            . queryItem "handle" (toByteString' hdl)
+            . queryItem "handle" (toByteString' handle)
             . expect2xx
         )
   liftIO $ do

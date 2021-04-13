@@ -443,6 +443,9 @@ createUserWithHandle brig = do
   -- Verify if creating user and setting handle succeeded
   let handle = fromJust (userHandle userWithHandle)
   liftIO $ assertEqual "creating user with handle should return handle" h (fromHandle handle)
+  -- We return the handle separately in this function for convenience
+  -- of not needing to de-maybe-ify the user handle field of the user object
+  -- when using this function.
   pure (handle, userWithHandle)
 
 getUserInfoFromHandle ::
