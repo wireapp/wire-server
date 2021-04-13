@@ -27,7 +27,7 @@ import qualified Control.Concurrent.Async as Async
 import Control.Exception (finally)
 import Control.Lens (view, (^.))
 import qualified Data.Metrics.Middleware as M
-import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
+import Data.Metrics.Servant (servantPlusWAIPrometheusMiddleware)
 import Data.Misc (portNumber)
 import Data.Text (unpack)
 import qualified Galley.API as API
@@ -83,21 +83,19 @@ mkApp o = do
     -- the servant API wraps the one defined using wai-routing
     servantApp e r =
       Servant.serve
-        ( Proxy
-            @( API.ServantAPI
-                 :<|> Servant.Raw
-             )
-        )
+        (Proxy @CombinedAPI)
         ( Servant.hoistServer (Proxy @API.ServantAPI) (toServantHandler e) API.servantSitemap
             :<|> Servant.Tagged (app e)
         )
         r
 
     middlewares l m =
-      waiPrometheusMiddleware API.sitemap
+      servantPlusWAIPrometheusMiddleware API.sitemap (Proxy @CombinedAPI)
         . catchErrors l [Right m]
         . GZip.gunzip
         . GZip.gzip GZip.def
+
+type CombinedAPI = API.ServantAPI :<|> Servant.Raw
 
 refreshMetrics :: Galley ()
 refreshMetrics = do
