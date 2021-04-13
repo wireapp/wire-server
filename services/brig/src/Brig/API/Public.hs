@@ -717,6 +717,9 @@ sitemap o = do
     Doc.errorResponse invalidUser
     Doc.errorResponse (noIdentity 5)
 
+  -- This endpoint is used to test /i/metrics, when this is servantified, please
+  -- make sure some other endpoint is used to test that routes defined in this
+  -- function are recorded and reported correctly in /i/metrics.
   get "/connections" (continue listConnectionsH) $
     accept "application" "json"
       .&. zauthUserId

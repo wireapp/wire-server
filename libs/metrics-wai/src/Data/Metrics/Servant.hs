@@ -26,31 +26,50 @@
 -- | Given a servant API type, this module gives you a 'Paths' for 'withPathTemplate'.
 module Data.Metrics.Servant where
 
+import Data.Metrics.Middleware.Prometheus (normalizeWaiRequestRoute)
 import Data.Metrics.Types
 import qualified Data.Metrics.Types as Metrics
+import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Proxy
 import Data.String.Conversions
 import Data.Tree
 import GHC.TypeLits
 import Imports
 import qualified Network.Wai as Wai
+import Network.Wai.Middleware.Prometheus
 import qualified Network.Wai.Middleware.Prometheus as Promth
+import Network.Wai.Routing (Routes, prepare)
 import Servant.API
 
 -- | This does not catch errors, so it must be called outside of 'WU.catchErrors'.
 servantPrometheusMiddleware :: forall proxy api. (RoutesToPaths api) => proxy api -> Wai.Middleware
 servantPrometheusMiddleware _ = Promth.prometheus conf . Promth.instrumentHandlerValue promthNormalize
   where
-    conf =
-      Promth.def
-        { Promth.prometheusEndPoint = ["i", "metrics"],
-          Promth.prometheusInstrumentApp = False
-        }
     promthNormalize :: Wai.Request -> Text
     promthNormalize req = pathInfo
       where
         mPathInfo = Metrics.treeLookup (routesToPaths @api) $ cs <$> Wai.pathInfo req
         pathInfo = cs $ fromMaybe "N/A" mPathInfo
+
+servantPlusWAIPrometheusMiddleware :: forall proxy api a m b. (RoutesToPaths api, Monad m) => Routes a m b -> proxy api -> Wai.Middleware
+servantPlusWAIPrometheusMiddleware routes _ = do
+  Promth.prometheus conf . instrument (normalizeWaiRequestRoute paths)
+  where
+    -- See Note [Raw Response]
+    instrument = Promth.instrumentHandlerValueWithFilter Promth.ignoreRawResponses
+
+    paths =
+      let Paths servantPaths = routesToPaths @api
+          Paths waiPaths = treeToPaths (prepare routes)
+       in Paths (meltTree (servantPaths <> waiPaths))
+
+conf :: PrometheusSettings
+conf =
+  Promth.def
+    { Promth.prometheusEndPoint = ["i", "metrics"],
+      -- We provide our own instrumentation so we can normalize routes
+      Promth.prometheusInstrumentApp = False
+    }
 
 routesToPaths :: forall routes. RoutesToPaths routes => Paths
 routesToPaths = Paths (meltTree (getRoutes @routes))
@@ -68,7 +87,7 @@ instance
   where
   getRoutes = [Node (Right . cs $ symbolVal (Proxy @seg)) (getRoutes @segs)]
 
--- <capture> <:> routes
+-- <capture> :> routes
 instance
   {-# OVERLAPPING #-}
   ( KnownSymbol capture,
@@ -76,9 +95,9 @@ instance
   ) =>
   RoutesToPaths (Capture' mods capture a :> segs)
   where
-  getRoutes = [Node (Left ":_") (getRoutes @segs)]
+  getRoutes = [Node (Left (cs (":" <> symbolVal (Proxy @capture)))) (getRoutes @segs)]
 
--- route <:> routes
+-- route :> routes
 instance
   {-# OVERLAPPING #-}
   ( RoutesToPaths route,
@@ -104,10 +123,31 @@ instance {-# OVERLAPPING #-} RoutesToPaths (Verb 'PUT status ctypes content) whe
 instance {-# OVERLAPPING #-} RoutesToPaths (Verb 'DELETE status ctypes content) where
   getRoutes = []
 
+instance {-# OVERLAPPING #-} RoutesToPaths (Verb 'PATCH status ctypes content) where
+  getRoutes = []
+
 instance RoutesToPaths (NoContentVerb 'DELETE) where
   getRoutes = []
 
-instance {-# OVERLAPPING #-} RoutesToPaths (Verb 'PATCH status ctypes content) where
+instance {-# OVERLAPPING #-} RoutesToPaths (UVerb 'HEAD ctypes content) where
+  getRoutes = []
+
+instance {-# OVERLAPPING #-} RoutesToPaths (UVerb 'GET ctypes content) where
+  getRoutes = []
+
+instance {-# OVERLAPPING #-} RoutesToPaths (UVerb 'POST ctypes content) where
+  getRoutes = []
+
+instance {-# OVERLAPPING #-} RoutesToPaths (UVerb 'PUT ctypes content) where
+  getRoutes = []
+
+instance {-# OVERLAPPING #-} RoutesToPaths (UVerb 'DELETE ctypes content) where
+  getRoutes = []
+
+instance {-# OVERLAPPING #-} RoutesToPaths (UVerb 'PATCH ctypes content) where
+  getRoutes = []
+
+instance RoutesToPaths Raw where
   getRoutes = []
 
 instance

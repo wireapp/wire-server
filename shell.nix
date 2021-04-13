@@ -65,6 +65,7 @@ in pkgs.mkShell {
     pkgs.telepresence
     pkgs.jq
     pkgs.grpcurl
+    pkgs.wget
     pkgs.cfssl
 
     pinned.stack
