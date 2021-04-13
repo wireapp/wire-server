@@ -53,20 +53,15 @@ servantPrometheusMiddleware _ = Promth.prometheus conf . Promth.instrumentHandle
 
 servantPlusWAIPrometheusMiddleware :: forall proxy api a m b. (RoutesToPaths api, Monad m) => Routes a m b -> proxy api -> Wai.Middleware
 servantPlusWAIPrometheusMiddleware routes _ = do
-  -- TODO: combine the following instrumentation on WAI paths and
-  -- Promth.prometheus conf . instrument promthNormalize
   Promth.prometheus conf . instrument (normalizeWaiRequestRoute paths)
   where
     -- See Note [Raw Response]
     instrument = Promth.instrumentHandlerValueWithFilter Promth.ignoreRawResponses
 
-    paths = treeToPaths $ prepare routes
-
-    promthNormalize :: Wai.Request -> Text
-    promthNormalize req = pathInfo
-      where
-        mPathInfo = Metrics.treeLookup (routesToPaths @api) $ cs <$> Wai.pathInfo req
-        pathInfo = cs $ fromMaybe "N/A" mPathInfo
+    paths =
+      let Paths servantPaths = routesToPaths @api
+          Paths waiPaths = treeToPaths (prepare routes)
+      in Paths (meltTree (servantPaths <> waiPaths))
 
 conf :: PrometheusSettings
 conf =
