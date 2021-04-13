@@ -30,15 +30,12 @@ import API.Search.Util
 import API.Team.Util
 import API.User.Util
 import Bilge
-import Bilge.Assert ((!!!), (===))
 import qualified Brig.Options as Opt
 import Brig.Types
-import qualified Control.Concurrent.Async as Async
-import Control.Exception (finally, throwIO)
 import Control.Lens ((.~), (?~), (^.))
-import Control.Monad.Catch (MonadCatch, MonadThrow, bracket, try)
+import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Retry
-import Data.Aeson (FromJSON, Value, decode, (.=))
+import Data.Aeson (FromJSON, Value, decode)
 import qualified Data.Aeson as Aeson
 import Data.Domain (Domain (Domain))
 import Data.Handle (fromHandle)
@@ -49,17 +46,9 @@ import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Database.Bloodhound as ES
 import Federation.Util
-import Foreign.C.Error (Errno (..), eCONNREFUSED)
-import GHC.IO.Exception (IOException (ioe_errno))
 import qualified Galley.Types.Teams.SearchVisibility as Team
 import Imports
-import Mu.GRpc.Server (msgProtoBuf, runGRpcApp)
-import Mu.Server (ServerErrorIO, SingleServerT)
-import qualified Mu.Server as Mu
 import qualified Network.HTTP.Client as HTTP
-import Network.Socket
-import Network.Wai.Handler.Warp (Port)
-import Network.Wai.Test (Session)
 import qualified Network.Wai.Test as WaiTest
 import Test.QuickCheck (Arbitrary (arbitrary), generate)
 import Test.Tasty
@@ -67,8 +56,7 @@ import Test.Tasty.HUnit
 import Text.RawString.QQ (r)
 import UnliftIO (Concurrently (..), runConcurrently)
 import Util
-import Util.Options (Endpoint (Endpoint))
-import Wire.API.Federation.GRPC.Types (FederatedRequest, HTTPResponse (HTTPResponse), Outward, OutwardResponse (OutwardResponseError, OutwardResponseHTTPResponse))
+import Wire.API.Federation.GRPC.Types
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 
 tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree
