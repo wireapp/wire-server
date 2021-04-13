@@ -40,7 +40,8 @@ tests m brig =
         test m "GET /federation/users/get-by-id : 200 all found" (testGetUsersByIdsSuccess brig),
         test m "GET /federation/users/get-by-id : 200 partially found" (testGetUsersByIdsPartial brig),
         test m "GET /federation/users/get-by-id : 200 none found" (testGetUsersByIdsNoneFound brig),
-        test m "GET /federation/users/prekey : 200" (testClaimPrekeySuccess brig)
+        test m "GET /federation/users/prekey : 200" (testClaimPrekeySuccess brig),
+        test m "GET /federation/users/prekey-bundle : 200" (testClaimPrekeyBundleSuccess brig)
       ]
 
 testGetUserByHandleSuccess :: Brig -> Http ()
@@ -146,3 +147,24 @@ testClaimPrekeySuccess brig = do
       "should return prekey 1"
       (Just (PrekeyId 1))
       (fmap (prekeyId . prekeyData) mkey)
+
+testClaimPrekeyBundleSuccess :: Brig -> Http ()
+testClaimPrekeyBundleSuccess brig = do
+  user <- randomUser brig
+  let uid = userId user
+      nclients =
+        map
+          (\(pk, lpk) -> defNewClient PermanentClientType [pk] lpk)
+          (take 5 (zip somePrekeys someLastPrekeys))
+  clients <- traverse (responseJsonError <=< addClient brig uid) nclients
+  let getPrekey (client, pk) = ClientPrekey (clientId client) pk
+      expected = PrekeyBundle uid (getPrekey <$> zip clients somePrekeys)
+  get
+    ( brig
+        . paths ["federation", "users", "prekey-bundle"]
+        . queryItem "uid" (toByteString' uid)
+        . expect2xx
+    )
+    !!! do
+      const 200 === statusCode
+      const (Just expected) === responseJsonMaybe
