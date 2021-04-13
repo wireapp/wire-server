@@ -15,10 +15,6 @@
 -->
 # [2021-03-23]
 
-## Release Notes
-
-Note that you should never skip a release when upgrading Wire. If you are upgrading to this release, make sure you have deployed the previous releases in order beforehand.
-
 ## Features
 
 * [federation] Handle errors which could happen while talking to remote federator (#1408)
@@ -49,8 +45,9 @@ Note that you should never skip a release when upgrading Wire. If you are upgrad
 
 ## Release Notes
 
-This release will automtically migrate a table after deployment.
-Note that you should never skip a release when upgrading Wire.
+If you are using Wire's SCIM functionality you shouldn't skip this release. If you skip it then there's a chance of requests from SCIM clients being missed during the time window of Wire being upgraded.
+This might cause sync issues between your SCIM peer and Wire's user DB.
+This is due to an internal data migration job (`spar-migrate-data`) that needs to run once. If it hasn't run yet then any upgrade to this and any later release will automatically run it. After it has completed once it is safe again to upgrade Wire while receiving requests from SCIM clients.
 
 ## Internal changes
 
