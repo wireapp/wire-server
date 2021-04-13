@@ -17,7 +17,7 @@
 
 module API.Federation where
 
-import Bilge
+import Bilge hiding (head)
 import Bilge.Assert
 import Brig.Types
 import qualified Data.Aeson as Aeson
@@ -31,14 +31,16 @@ import Test.Tasty.HUnit (assertEqual)
 import Util
 
 tests :: Manager -> Brig -> IO TestTree
-tests m brig = do
+tests m brig =
   return $
-    testGroup "federation" $
+    testGroup
+      "federation"
       [ test m "GET /federation/users/by-handle : 200" (testGetUserByHandleSuccess brig),
         test m "GET /federation/users/by-handle : 404" (testGetUserByHandleNotFound brig),
         test m "GET /federation/users/get-by-id : 200 all found" (testGetUsersByIdsSuccess brig),
         test m "GET /federation/users/get-by-id : 200 partially found" (testGetUsersByIdsPartial brig),
-        test m "GET /federation/users/get-by-id : 200 none found" (testGetUsersByIdsNoneFound brig)
+        test m "GET /federation/users/get-by-id : 200 none found" (testGetUsersByIdsNoneFound brig),
+        test m "GET /federation/users/prekey : 200" (testClaimPrekeySuccess brig)
       ]
 
 testGetUserByHandleSuccess :: Brig -> Http ()
@@ -122,3 +124,25 @@ testGetUsersByIdsNoneFound brig = do
         )
   liftIO $
     assertEqual "should return empty list" [] profiles
+
+testClaimPrekeySuccess :: Brig -> Http ()
+testClaimPrekeySuccess brig = do
+  user <- randomUser brig
+  let uid = userId user
+  let new = defNewClient PermanentClientType [head somePrekeys] (head someLastPrekeys)
+  c <- responseJsonError =<< addClient brig uid new
+  mkey <-
+    responseJsonError
+      =<< get
+        ( brig
+            . paths ["federation", "users", "prekey"]
+            . queryItem "uid" (toByteString' uid)
+            . queryItem "client" (toByteString' (clientId c))
+            . expect2xx
+        )
+      <!! const 200 === statusCode
+  liftIO $
+    assertEqual
+      "should return prekey 1"
+      (Just (PrekeyId 1))
+      (fmap (prekeyId . prekeyData) mkey)
