@@ -107,8 +107,7 @@ mkApp o = do
 
     middleware :: Env -> (RequestId -> Wai.Application) -> Wai.Application
     middleware e =
-      -- TODO use ServantCombinedAPI and add instance for RAW? In that case perhaps servantPrometheusMiddleware can be used directly.
-      Metrics.servantPlusWAIPrometheusMiddleware (sitemap o) (Proxy @ServantAPI)
+      Metrics.servantPlusWAIPrometheusMiddleware (sitemap o) (Proxy @ServantCombinedAPI)
         . catchErrors (e ^. applog) [Right $ e ^. metrics]
         . GZip.gunzip
         . GZip.gzip GZip.def

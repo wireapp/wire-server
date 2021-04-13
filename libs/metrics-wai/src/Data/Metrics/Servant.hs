@@ -147,6 +147,9 @@ instance {-# OVERLAPPING #-} RoutesToPaths (UVerb 'DELETE ctypes content) where
 instance {-# OVERLAPPING #-} RoutesToPaths (UVerb 'PATCH ctypes content) where
   getRoutes = []
 
+instance RoutesToPaths Raw where
+  getRoutes = []
+
 instance
   {-# OVERLAPPING #-}
   ( RoutesToPaths segs
