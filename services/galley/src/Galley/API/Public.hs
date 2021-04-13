@@ -20,17 +20,27 @@ module Galley.API.Public
     apiDocs,
     apiDocsTeamsLegalhold,
     filterMissing, -- for tests
+    ServantAPI,
+    servantSitemap,
+    SwaggerDocsAPI,
+    swaggerDocsAPI,
   )
 where
 
+import Control.Lens ((.~), (<>~), (?~))
 import Data.Aeson (FromJSON, ToJSON, encode)
 import Data.ByteString.Conversion (fromByteString, fromList, toByteString')
+import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id (TeamId, UserId)
 import qualified Data.Predicate as P
 import Data.Range
 import qualified Data.Set as Set
+import Data.Swagger (ApiKeyLocation (ApiKeyHeader), ApiKeyParams (..), SecurityRequirement (..), SecurityScheme (..), SecuritySchemeType (SecuritySchemeApiKey))
 import Data.Swagger.Build.Api hiding (Response, def, min)
 import qualified Data.Swagger.Build.Api as Swagger
+import Data.Swagger.Internal (Swagger)
+import Data.Swagger.Lens (info, security, securityDefinitions, title)
+import qualified Data.Swagger.Lens as SwaggerLens
 import Data.Text.Encoding (decodeLatin1)
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
@@ -53,6 +63,11 @@ import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Utilities.ZAuth
+import Servant hiding (Handler, JSON, addHeader, contentType, respond)
+import qualified Servant
+import Servant.Swagger (HasSwagger (toSwagger))
+import Servant.Swagger.Internal.Orphans ()
+import Servant.Swagger.UI (SwaggerSchemaUI, swaggerSchemaUIServer)
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Code as Public
 import qualified Wire.API.Conversation.Role as Public
@@ -71,6 +86,65 @@ import qualified Wire.API.Team.Permission as Public
 import qualified Wire.API.Team.SearchVisibility as Public
 import qualified Wire.API.User as Public (UserIdList, modelUserIdList)
 import Wire.Swagger (int32Between)
+
+-- This type exists for the special 'HasSwagger' and 'HasServer' instances. It
+-- shows the "Authorization" header in the swagger docs, but expects the
+-- "Z-Auth" header in the server. This helps keep the swagger docs usable
+-- through nginz.
+data ZAuthServant
+
+type InternalAuth = Header' '[Servant.Required, Servant.Strict] "Z-User" UserId
+
+instance HasSwagger api => HasSwagger (ZAuthServant :> api) where
+  toSwagger _ =
+    toSwagger (Proxy @api)
+      & securityDefinitions <>~ InsOrdHashMap.singleton "ZAuth" secScheme
+      & security <>~ [SecurityRequirement $ InsOrdHashMap.singleton "ZAuth" []]
+    where
+      secScheme =
+        SecurityScheme
+          { _securitySchemeType = SecuritySchemeApiKey (ApiKeyParams "Authorization" ApiKeyHeader),
+            _securitySchemeDescription = Just "Must be a token retrieved by calling 'POST /login' or 'POST /access'. It must be presented in this format: 'Bearer \\<token\\>'."
+          }
+
+instance
+  ( HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
+    HasServer api ctx
+  ) =>
+  HasServer (ZAuthServant :> api) ctx
+  where
+  type ServerT (ZAuthServant :> api) m = ServerT (InternalAuth :> api) m
+
+  route _ = Servant.route (Proxy @(InternalAuth :> api))
+  hoistServerWithContext _ pc nt s =
+    Servant.hoistServerWithContext (Proxy @(InternalAuth :> api)) pc nt s
+
+type GetTeamConversationRoles =
+  Summary "Get existing roles available for the given team"
+    :> ZAuthServant
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "conversations"
+    :> "roles"
+    :> Get '[Servant.JSON] Public.ConversationRolesList
+
+type ServantAPI = GetTeamConversationRoles
+
+type SwaggerDocsAPI = "galley-api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
+
+-- FUTUREWORK: At the moment this only shows endpoints from galley, but we should
+-- combine the swagger 2.0 endpoints here as well from other services
+swaggerDoc :: Swagger
+swaggerDoc =
+  toSwagger (Proxy @ServantAPI)
+    & info . title .~ "Wire-Server API as Swagger 2.0 "
+    & info . SwaggerLens.description ?~ "NOTE: only a few endpoints are visible here at the moment, more will come as we migrate them to Swagger 2.0. In the meantime please also look at the old swagger docs link for the not-yet-migrated endpoints. See https://docs.wire.com/understand/api-client-perspective/swagger.html for the old endpoints."
+
+swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
+swaggerDocsAPI = swaggerSchemaUIServer swaggerDoc
+
+servantSitemap :: ServerT ServantAPI Galley
+servantSitemap = Teams.getTeamConversationRoles
 
 sitemap :: Routes ApiBuilder Galley ()
 sitemap = do
@@ -318,19 +392,6 @@ sitemap = do
     errorResponse (Error.operationDenied Public.SetMemberPermissions)
 
   -- Team Conversation API ----------------------------------------------
-
-  get "/teams/:tid/conversations/roles" (continue Teams.getTeamConversationRolesH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. accept "application" "json"
-  document "GET" "getTeamConversationsRoles" $ do
-    summary "Get existing roles available for the given team"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    returns (ref Public.modelConversationRolesList)
-    response 200 "Team conversations roles list" end
-    errorResponse Error.teamNotFound
-    errorResponse Error.notATeamMember
 
   get "/teams/:tid/conversations" (continue Teams.getTeamConversationsH) $
     zauthUserId

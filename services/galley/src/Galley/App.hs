@@ -40,6 +40,7 @@ module Galley.App
     evalGalley,
     ask,
     DeleteItem (..),
+    toServantHandler,
 
     -- * Utilities
     ifNothing,
@@ -52,7 +53,7 @@ module Galley.App
   )
 where
 
-import Bilge hiding (Request, header, options, statusCode)
+import Bilge hiding (Request, header, options, statusCode, statusMessage)
 import Bilge.RPC
 import Cassandra hiding (Set)
 import qualified Cassandra as C
@@ -61,6 +62,7 @@ import Control.Error
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch hiding (tryJust)
 import Data.Aeson (FromJSON)
+import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Default (def)
 import Data.Id (ConnId, TeamId, UserId)
@@ -71,6 +73,8 @@ import qualified Data.ProtocolBuffers as Proto
 import Data.Range
 import Data.Serialize.Get (runGetLazy)
 import Data.Text (unpack)
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import Galley.API.Error
 import qualified Galley.Aws as Aws
 import Galley.Options
@@ -79,11 +83,15 @@ import qualified Galley.Types.Teams as Teams
 import Imports
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
+import Network.HTTP.Types.Status (statusCode, statusMessage)
 import Network.Wai
 import Network.Wai.Utilities
+import qualified Network.Wai.Utilities as WaiError
+import qualified Network.Wai.Utilities.Server as Server
 import OpenSSL.EVP.Digest (getDigestByName)
 import OpenSSL.Session as Ssl
 import qualified OpenSSL.X509.SystemStore as Ssl
+import qualified Servant
 import Ssl.Util
 import System.Logger.Class hiding (Error, info)
 import qualified System.Logger.Extended as Logger
@@ -282,3 +290,20 @@ fromProtoBody r = do
 ifNothing :: Error -> Maybe a -> Galley a
 ifNothing e = maybe (throwM e) return
 {-# INLINE ifNothing #-}
+
+toServantHandler :: Env -> Galley a -> Servant.Handler a
+toServantHandler env galley = do
+  eith <- liftIO $ try (evalGalley env galley)
+  case eith of
+    Left werr ->
+      handleWaiErrors (view applog env) (unRequestId (view reqId env)) werr
+    Right result -> pure result
+  where
+    handleWaiErrors :: Logger -> ByteString -> Error -> Servant.Handler a
+    handleWaiErrors logger reqId' werr = do
+      Server.logError' logger (Just reqId') werr
+      Servant.throwError $
+        Servant.ServerError (mkCode werr) (mkPhrase werr) (Aeson.encode werr) []
+
+    mkCode = statusCode . WaiError.code
+    mkPhrase = Text.unpack . Text.decodeUtf8 . statusMessage . WaiError.code

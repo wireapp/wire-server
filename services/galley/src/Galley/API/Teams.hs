@@ -30,6 +30,7 @@ module Galley.API.Teams
     uncheckedDeleteTeam,
     addTeamMemberH,
     getTeamNotificationsH,
+    getTeamConversationRoles,
     getTeamMembersH,
     getTeamMembersCSVH,
     bulkGetTeamMembersH,
@@ -38,7 +39,6 @@ module Galley.API.Teams
     updateTeamMemberH,
     getTeamConversationsH,
     getTeamConversationH,
-    getTeamConversationRolesH,
     deleteTeamConversationH,
     getSearchVisibilityH,
     setSearchVisibilityH,
@@ -352,10 +352,6 @@ uncheckedDeleteTeam zusr zcon tid = do
       let ee' = bots `zip` repeat e
       let pp' = maybe pp (\x -> (x & pushConn .~ zcon) : pp) p
       pure (pp', ee' ++ ee)
-
-getTeamConversationRolesH :: UserId ::: TeamId ::: JSON -> Galley Response
-getTeamConversationRolesH (zusr ::: tid ::: _) = do
-  json <$> getTeamConversationRoles zusr tid
 
 getTeamConversationRoles :: UserId -> TeamId -> Galley Public.ConversationRolesList
 getTeamConversationRoles zusr tid = do
