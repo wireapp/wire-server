@@ -272,8 +272,8 @@ testGetUserByQualifiedHandleNoFederation opt brig = do
           . zUser (userId someUser)
       )
       !!! do
-        const 403 === statusCode
-        const "Forbidden" === statusMessage
+        const 400 === statusCode
+        const "Bad Request" === statusMessage
         const (Right "federation-not-enabled") === fmap Wai.label . responseJsonEither
 
 assertCanFind :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> m ()
