@@ -43,6 +43,8 @@ data Api routes = Api
         :> "users"
         -- FUTUREWORK(federation): do we want to perform some type-level validation like length checks?
         -- (handles can be up to 256 chars currently)
+        -- FUTUREWORK(federation): change this to a POST with a body,
+        -- rather than a query parameter, after deciding on a general pattern here
         :> QueryParam' '[Required, Strict] "q" Text
         :> Get '[JSON] (SearchResult Contact)
   }
@@ -64,7 +66,6 @@ mkGetUserInfoByHandle handle =
     mempty
 
 -- FUTUREWORK: Can we write a test which makes use of mkSearchUsers against the Api in this file?
--- Naming bikeshedding: current /search/contacts. /search/users is a better name, no?
 mkSearchUsers :: Text -> Proto.Request
 mkSearchUsers searchTerm =
   Proto.Request
@@ -72,5 +73,5 @@ mkSearchUsers searchTerm =
     (Proto.HTTPMethod HTTP.GET)
     "search/users"
     [Proto.QueryParam "q" (T.encodeUtf8 searchTerm)]
-    -- FUTUREWORK: do we want to pass other parameters like the number of results?
+    -- FUTUREWORK(federation): do we want to pass other parameters like the number of results?
     mempty

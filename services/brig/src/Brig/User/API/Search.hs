@@ -136,12 +136,8 @@ routesInternal = do
 
 -- Handlers
 
--- TODO question: would it make sense to create a second endpoint with a mandatory domain?
--- That would make it easier in the future to see from logs whether the old endpoint is still in use or can be removed.
---
--- FUTUREWORK: Consider augmenting 'SearchResult' with full user profiles either
--- for only the exact handle match or for all results or for the first X results.
--- See also https://wearezeta.atlassian.net/browse/SQCORE-599
+-- FUTUREWORK: Consider augmenting 'SearchResult' with full user profiles
+-- for all results. This is tracked in https://wearezeta.atlassian.net/browse/SQCORE-599
 search :: UserId -> Text -> Maybe Domain -> Maybe (Range 1 500 Int32) -> Handler (Public.SearchResult Public.Contact)
 search searcherId searchTerm maybeDomain maybeMaxResults = do
   federationDomain <- viewFederationDomain
