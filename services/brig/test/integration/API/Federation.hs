@@ -158,7 +158,8 @@ testClaimPrekeyBundleSuccess brig = do
           (take 5 (zip somePrekeys someLastPrekeys))
   clients <- traverse (responseJsonError <=< addClient brig uid) nclients
   let getPrekey (client, pk) = ClientPrekey (clientId client) pk
-      expected = PrekeyBundle uid (getPrekey <$> zip clients somePrekeys)
+      expected = getPrekey <$> zip clients somePrekeys
+      sortClients = sortBy (compare `on` prekeyClient)
   get
     ( brig
         . paths ["federation", "users", "prekey-bundle"]
@@ -167,4 +168,5 @@ testClaimPrekeyBundleSuccess brig = do
     )
     !!! do
       const 200 === statusCode
-      const (Just expected) === responseJsonMaybe
+      const (Just (sortClients expected))
+        === fmap (sortClients . prekeyClients) . responseJsonMaybe

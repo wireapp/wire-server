@@ -28,7 +28,7 @@ import Servant.API
 import Servant.API.Generic
 import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.User (UserProfile)
-import Wire.API.User.Client.Prekey (ClientPrekey)
+import Wire.API.User.Client.Prekey (ClientPrekey, PrekeyBundle)
 
 -- Maybe this module should be called Brig
 data Api routes = Api
@@ -53,7 +53,14 @@ data Api routes = Api
         :> "prekey"
         :> QueryParam' '[Required, Strict] "uid" UserId
         :> QueryParam' '[Required, Strict] "client" ClientId
-        :> Get '[JSON] (Maybe ClientPrekey)
+        :> Get '[JSON] (Maybe ClientPrekey),
+    getPrekeyBundle ::
+      routes
+        :- "federation"
+        :> "users"
+        :> "prekey-bundle"
+        :> QueryParam' '[Required, Strict] "uid" UserId
+        :> Get '[JSON] PrekeyBundle
   }
   deriving (Generic)
 

@@ -19,8 +19,10 @@ module Brig.API.Federation (federationSitemap) where
 
 import Brig.API.Error (handleNotFound, throwStd)
 import Brig.API.Handler (Handler)
+import qualified Brig.API.Client as API
 import qualified Brig.API.User as API
 import qualified Brig.Data.Client as Data
+import Brig.Types (PrekeyBundle)
 import Data.Handle (Handle)
 import Data.Id (ClientId, UserId)
 import Imports
@@ -38,6 +40,7 @@ federationSitemap =
       getUserByHandle
       getUsersByIds
       claimPrekey
+      getPrekeyBundle
 
 getUserByHandle :: Handle -> Handler UserProfile
 getUserByHandle handle = do
@@ -49,9 +52,12 @@ getUserByHandle handle = do
         [] -> throwStd handleNotFound
         user : _ -> pure user
 
-claimPrekey :: UserId -> ClientId -> Handler (Maybe ClientPrekey)
-claimPrekey user client = lift (Data.claimPrekey user client)
-
 getUsersByIds :: [UserId] -> Handler [UserProfile]
 getUsersByIds uids =
   lift (API.lookupProfilesOfLocalUsers Nothing uids)
+
+claimPrekey :: UserId -> ClientId -> Handler (Maybe ClientPrekey)
+claimPrekey user client = lift (Data.claimPrekey user client)
+
+getPrekeyBundle :: UserId -> Handler PrekeyBundle
+getPrekeyBundle user = lift (API.claimLocalPrekeyBundle user)

@@ -31,6 +31,7 @@ module Brig.API.Client
     Data.lookupUsersClientIds,
 
     -- * Prekeys
+    claimLocalPrekeyBundle,
     claimPrekey,
     claimPrekeyBundle,
     claimMultiPrekeyBundles,
@@ -171,11 +172,11 @@ claimPrekeyBundle domain uid = do
     then lift $ claimLocalPrekeyBundle uid
     else -- FUTUREWORK(federation, #1272): claim keys from other backend
       throwE (ClientFederationError FederationNotImplemented)
-  where
-    claimLocalPrekeyBundle :: UserId -> AppIO PrekeyBundle
-    claimLocalPrekeyBundle u = do
-      clients <- map clientId <$> Data.lookupClients u
-      PrekeyBundle u . catMaybes <$> mapM (Data.claimPrekey u) clients
+
+claimLocalPrekeyBundle :: UserId -> AppIO PrekeyBundle
+claimLocalPrekeyBundle u = do
+  clients <- map clientId <$> Data.lookupClients u
+  PrekeyBundle u . catMaybes <$> mapM (Data.claimPrekey u) clients
 
 claimMultiPrekeyBundles :: QualifiedUserClients -> ExceptT ClientError AppIO (QualifiedUserClientMap (Maybe Prekey))
 claimMultiPrekeyBundles quc = do
