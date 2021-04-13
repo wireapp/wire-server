@@ -46,8 +46,6 @@ import Control.Monad.Catch (MonadCatch, finally)
 import Control.Monad.Random (Random (randomRIO))
 import Data.Default (Default (def))
 import Data.Id (RequestId (..))
-import qualified Data.Metrics.Middleware.Prometheus as Metrics
-import Data.Metrics.Servant (servantPrometheusMiddleware)
 import qualified Data.Metrics.Servant as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.String.Conversions (cs)
