@@ -49,7 +49,7 @@ The process consists of:
 
 ### (1) Inspect/change the multi-backend test code
 
-Refer to `services/brig/test/integration/API/Federation.hs` for the current multi-backend tests.
+Refer to `services/brig/test/integration/API/Federation/End2End.hs` for the current multi-backend tests.
 
 *Note that they only run if `INTEGRATION_FEDERATION_TESTS` is set to `1`. This is currently configured to be OFF when running regular brig integration tests (e.g. via `make -C services/brig integration`) but is by default ON when running tests on kubernetes or on CI, or when using the `services/brig/federation-tests.sh` script.*
 

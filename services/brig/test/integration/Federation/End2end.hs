@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Federation.User where
+module Federation.End2end where
 
 import API.Search.Util
 import Bilge (Http, Manager)
@@ -45,7 +45,7 @@ spec :: BrigOpts.Opts -> Manager -> Brig -> Endpoint -> Brig -> IO TestTree
 spec _brigOpts mg brig _federator brigTwo =
   pure $
     testGroup
-      "brig-federation-user"
+      "federation-end2end-user"
       [ test mg "lookup user by qualified handle on remote backend" $ testHandleLookup brig brigTwo,
         test mg "search users on remote backend" $ testSearchUsers brig brigTwo
       ]
@@ -88,14 +88,3 @@ testSearchUsers brig brigTwo = do
   -- exercises multi-backend network traffic
   liftIO $ putStrLn "search for user on brigOne via federators to remote brig..."
   assertCanFindWithDomain brig searcher expectedUserId searchTerm domain
-
-createUserWithHandle :: Brig -> Http (Handle, User)
-createUserWithHandle brig = do
-  u <- randomUser brig
-  h <- randomHandle
-  void $ putHandle brig (userId u) h
-  userWithHandle <- selfUser <$> getSelfProfile brig (userId u)
-  -- Verify if creating user and setting handle succeeded
-  let handle = fromJust (userHandle userWithHandle)
-  liftIO $ assertEqual "creating user with handle should return handle" h (fromHandle handle)
-  pure (handle, userWithHandle)

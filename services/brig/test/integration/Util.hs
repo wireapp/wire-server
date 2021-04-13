@@ -47,7 +47,7 @@ import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
 import Data.Domain (Domain, domainText, mkDomain)
-import Data.Handle (Handle)
+import Data.Handle (Handle (..))
 import Data.Id
 import Data.List1 (List1)
 import qualified Data.List1 as List1
@@ -433,6 +433,17 @@ putHandle brig usr h =
       . zConn "conn"
   where
     payload = RequestBodyLBS . encode $ object ["handle" .= h]
+
+createUserWithHandle :: Brig -> Http (Handle, User)
+createUserWithHandle brig = do
+  u <- randomUser brig
+  h <- randomHandle
+  void $ putHandle brig (userId u) h
+  userWithHandle <- selfUser <$> getSelfProfile brig (userId u)
+  -- Verify if creating user and setting handle succeeded
+  let handle = fromJust (userHandle userWithHandle)
+  liftIO $ assertEqual "creating user with handle should return handle" h (fromHandle handle)
+  pure (handle, userWithHandle)
 
 getUserInfoFromHandle ::
   (MonadIO m, MonadCatch m, MonadFail m, MonadHttp m, HasCallStack) =>

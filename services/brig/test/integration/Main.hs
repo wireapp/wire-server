@@ -41,7 +41,7 @@ import Data.Metrics.Test (pathsConsistencyCheck)
 import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
-import qualified Federation.User
+import qualified Federation.End2end
 import Imports hiding (local)
 import qualified Index.Create
 import Network.HTTP.Client.TLS (tlsManagerSettings)
@@ -120,7 +120,7 @@ runTests iConf brigOpts otherArgs = do
   createIndex <- Index.Create.spec brigOpts
   browseTeam <- TeamUserSearch.tests brigOpts mg g b
   userPendingActivation <- UserPendingActivation.tests brigOpts mg db b g s
-  federationUser <- Federation.User.spec brigOpts mg b f brigTwo
+  federationEnd2End <- Federation.End2end.spec brigOpts mg b f brigTwo
   federationEndpoints <- API.Federation.tests mg b
   includeFederationTests <- (== Just "1") <$> Blank.getEnv "INTEGRATION_FEDERATION_TESTS"
   withArgs otherArgs . defaultMain $
@@ -143,7 +143,7 @@ runTests iConf brigOpts otherArgs = do
           browseTeam,
           federationEndpoints
         ]
-        <> [federationUser | includeFederationTests]
+        <> [federationEnd2End | includeFederationTests]
   where
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
 
