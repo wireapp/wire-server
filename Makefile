@@ -237,7 +237,7 @@ hie.yaml:
 #
 # and if you don't know what a good DOCKER_TAG might be, you can run
 #
-#   make latest-brig-tag
+#   make latest-tag
 #
 # This task requires: [FUTUREWORK: add tooling setup to wire-server]
 #   - helm (version 3.1.1)
