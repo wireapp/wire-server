@@ -84,7 +84,8 @@ mkApp o = do
     servantApp e r =
       Servant.serve
         (Proxy @CombinedAPI)
-        ( Servant.hoistServer (Proxy @API.ServantAPI) (toServantHandler e) API.servantSitemap
+        ( API.swaggerDocsAPI
+            :<|> Servant.hoistServer (Proxy @API.ServantAPI) (toServantHandler e) API.servantSitemap
             :<|> Servant.Tagged (app e)
         )
         r
@@ -95,7 +96,7 @@ mkApp o = do
         . GZip.gunzip
         . GZip.gzip GZip.def
 
-type CombinedAPI = API.ServantAPI :<|> Servant.Raw
+type CombinedAPI = API.SwaggerDocsAPI :<|> API.ServantAPI :<|> Servant.Raw
 
 refreshMetrics :: Galley ()
 refreshMetrics = do

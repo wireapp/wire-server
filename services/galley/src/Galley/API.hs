@@ -17,8 +17,10 @@
 
 module Galley.API
   ( sitemap,
-    servantSitemap,
-    ServantAPI,
+    Public.ServantAPI,
+    Public.servantSitemap,
+    Public.SwaggerDocsAPI,
+    Public.swaggerDocsAPI,
   )
 where
 
