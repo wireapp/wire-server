@@ -209,6 +209,8 @@ executables:
     - metrics-wai
     - mime >=0.4
     - MonadRandom >= 0.5
+    - mu-grpc-server
+    - mu-rpc
     - network
     - optparse-applicative
     - pem
@@ -244,6 +246,7 @@ executables:
     - warp
     - warp-tls >=3.2
     - wire-api
+    - wire-api-federation
     - yaml
     - zauth
   brig-index:
