@@ -29,7 +29,6 @@ import Control.Lens (view, (^.))
 import Control.Monad.Trans.Except (ExceptT (..), throwE)
 import Data.Handle
 import Data.Qualified
-import Data.String.Conversions
 import qualified Data.Text as T
 import Imports
 import Mu.GRpc.Client.TyApps
@@ -37,7 +36,6 @@ import qualified System.Logger.Class as Log
 import Util.Options (epHost, epPort)
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.GRPC.Client
-import qualified Wire.API.Federation.GRPC.Types as Proto
 import Control.Monad.Except (runExceptT)
 
 type FederationAppIO = ExceptT FederationError AppIO
@@ -67,23 +65,3 @@ mkFederatorClient = do
   let cfg = grpcClientConfigSimple (T.unpack (federatorEndpoint ^. epHost)) (fromIntegral (federatorEndpoint ^. epPort)) False
   createGrpcClient cfg
     >>= either (throwE . FederationUnavailable . reason) pure
-
-callRemote :: MonadIO m => GrpcClient -> Proto.ValidatedFederatedRequest -> m (GRpcReply Proto.OutwardResponse)
-callRemote fedClient call = liftIO $ gRpcCall @'MsgProtoBuf @Proto.Outward @"Outward" @"call" fedClient (Proto.validatedFederatedRequestToFederatedRequest call)
-
--- FUTUREWORK(federation) All of this code is only exercised in the test which
--- goes between two Backends. This is not ideal, we should figure out a way to
--- test client side of federated code without needing another backend. We could
--- do this either by mocking the second backend in integration tests or making
--- all of this independent of the Handler monad and write unit tests.
-expectOk :: GRpcReply Proto.OutwardResponse -> FederationAppIO Proto.HTTPResponse
-expectOk = \case
-  GRpcTooMuchConcurrency _tmc -> rpcErr "too much concurrency"
-  GRpcErrorCode code -> rpcErr $ "grpc error code: " <> T.pack (show code)
-  GRpcErrorString msg -> rpcErr $ "grpc error: " <> T.pack msg
-  GRpcClientError msg -> rpcErr $ "grpc client error: " <> T.pack (show msg)
-  GRpcOk (Proto.OutwardResponseError err) -> throwE (FederationRemoteError err)
-  GRpcOk (Proto.OutwardResponseHTTPResponse res) -> pure res
-  where
-    rpcErr :: Text -> FederationAppIO a
-    rpcErr msg = throwE (FederationRpcError msg)
