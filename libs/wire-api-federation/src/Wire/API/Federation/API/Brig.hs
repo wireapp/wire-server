@@ -24,6 +24,7 @@ import Data.ByteString.Builder (toLazyByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain (Domain)
 import Data.Handle (Handle, fromHandle)
+import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Imports
 import Mu.GRpc.Client.Record (GRpcMessageProtocol (MsgProtoBuf), GRpcReply (..), GrpcClient)
@@ -31,13 +32,13 @@ import Mu.GRpc.Client.TyApps (gRpcCall)
 import qualified Network.HTTP.Types as HTTP
 import Servant.API
 import Servant.API.Generic
+import qualified Servant.Client as Servant
 import Servant.Client.Core (RequestF (..), ResponseF (..))
 import Servant.Client.Core.Request (RequestBody (..))
 import Servant.Client.Core.RunClient (RunClient (..))
 import Servant.Client.Generic (AsClientT, genericClient)
 import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.User (UserProfile)
-import qualified Servant.Client as Servant
 
 -- Maybe this module should be called Brig
 newtype Api routes = Api
@@ -69,7 +70,7 @@ instance (Monad m, MonadError FederationClientError m) => MonadError FederationC
 data FederationClientError
   = FederationClientInvalidMethod HTTP.Method
   | FederationClientStreamingUnsupported
-  | FederationClientThrowBetterError
+  | FederationClientRPCError Text
   | FederationClientOutwardError Proto.OutwardError
   | FederationClientServantError Servant.ClientError
 
@@ -93,24 +94,23 @@ instance (Monad m, MonadError FederationClientError m, MonadIO m) => RunClient (
     grpcResponse <- callRemote (grpcClient env) call
     -- TODO: Incorporate refactoring from https://github.com/wireapp/wire-server/pull/1438
     case grpcResponse of
-      GRpcTooMuchConcurrency _tmc ->
-        throwError FederationClientThrowBetterError
-      GRpcErrorCode _errCode ->
-        throwError FederationClientThrowBetterError
-      GRpcErrorString _errStr ->
-        throwError FederationClientThrowBetterError
-      GRpcClientError _clErr ->
-        throwError FederationClientThrowBetterError
+      GRpcTooMuchConcurrency _tmc -> rpcErr "too much concurrency"
+      GRpcErrorCode code -> rpcErr $ "grpc error code: " <> T.pack (show code)
+      GRpcErrorString msg -> rpcErr $ "grpc error: " <> T.pack msg
+      GRpcClientError msg -> rpcErr $ "grpc client error: " <> T.pack (show msg)
       GRpcOk (Proto.OutwardResponseError err) -> throwError (FederationClientOutwardError err)
       GRpcOk (Proto.OutwardResponseHTTPResponse res) ->
         pure $
           Response
-            { responseStatusCode = HTTP.mkStatus (fromIntegral $ Proto.responseStatus res) ""
-            , responseHeaders = mempty
-            , responseHttpVersion = HTTP.http11
-            , responseBody = LBS.fromStrict $ Proto.responseBody res
+            { responseStatusCode = HTTP.mkStatus (fromIntegral $ Proto.responseStatus res) "",
+              responseHeaders = mempty,
+              -- Here HTTP 1.1 is hardcoded with the hope that it wouldn't
+              -- really be used anywhere.
+              responseHttpVersion = HTTP.http11,
+              responseBody = LBS.fromStrict $ Proto.responseBody res
             }
     where
+      rpcErr = throwError . FederationClientRPCError
       readBody = \case
         RequestBodyLBS lbs -> pure $ LBS.toStrict lbs
         RequestBodyBS bs -> pure bs

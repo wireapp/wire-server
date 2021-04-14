@@ -1,7 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -26,17 +22,19 @@ import Brig.App (AppIO, federator)
 import Brig.Types.User
 import Control.Error.Util ((!?))
 import Control.Lens (view, (^.))
+import Control.Monad.Except (runExceptT)
 import Control.Monad.Trans.Except (ExceptT (..), throwE)
 import Data.Handle
 import Data.Qualified
 import qualified Data.Text as T
 import Imports
 import Mu.GRpc.Client.TyApps
+import qualified Network.HTTP.Types.Status as HTTP
+import qualified Servant.Client as Servant
 import qualified System.Logger.Class as Log
 import Util.Options (epHost, epPort)
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.GRPC.Client
-import Control.Monad.Except (runExceptT)
 
 type FederationAppIO = ExceptT FederationError AppIO
 
@@ -48,10 +46,14 @@ getUserHandleInfo :: Qualified Handle -> FederationAppIO (Maybe UserProfile)
 getUserHandleInfo (Qualified handle domain) = do
   Log.info $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
   federatorClient <- mkFederatorClient
-  _x <- runExceptT . flip runReaderT (FederatorClientEnv federatorClient domain) . runFederatorClient $ getUserByHandle clientRoutes handle
-  -- TODO: Use code from https://github.com/wireapp/wire-server/pull/1438 to transform Handler to FederationAppIO
-  -- TODO: use UVerb to deal with 404, so it is not an exception
-  undefined
+  eitherResponse <- runExceptT . flip runReaderT (FederatorClientEnv federatorClient domain) . runFederatorClient $ getUserByHandle clientRoutes handle
+  case eitherResponse of
+    Right profile -> pure $ Just profile
+    Left err@(FederationClientServantError (Servant.FailureResponse _ res)) ->
+      if HTTP.statusCode (Servant.responseStatusCode res) == 404
+        then pure Nothing
+        else throwE $ FederationCallFailure err
+    Left err -> throwE $ FederationCallFailure err
 
 -- FUTUREWORK: It would be nice to share the client across all calls to
 -- federator and not call this function on every invocation of federated
