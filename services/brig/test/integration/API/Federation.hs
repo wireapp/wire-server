@@ -36,8 +36,8 @@ tests :: Manager -> Brig -> IO TestTree
 tests m brig = do
   return $
     testGroup "federation" $
-      [ test m "GET /federation/search/users : 200" (testSearchSuccess brig),
-        test m "GET /federation/search/users : 404" (testSearchNotFound brig),
+      [ test m "GET /federation/search/users : Found" (testSearchSuccess brig),
+        test m "GET /federation/search/users : NotFound" (testSearchNotFound brig),
         test m "GET /federation/users/by-handle : 200" (testGetUserByHandleSuccess brig),
         test m "GET /federation/users/by-handle : 404" (testGetUserByHandleNotFound brig)
       ]
