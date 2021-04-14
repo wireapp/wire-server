@@ -136,8 +136,6 @@ data Contact = Contact
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Contact)
 
--- deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "contact", CamelToSnake, LabelMappings ContactLabelMappings)] Contact)
-
 instance ToSchema Contact where
   declareNamedSchema _ = do
     genericSchema <-
