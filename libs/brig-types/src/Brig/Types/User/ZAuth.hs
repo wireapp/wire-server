@@ -76,9 +76,6 @@ module Brig.Types.User.ZAuth
     tokenKeyIndex,
     zauthType,
 
-    -- * Utils
-    tokenRequest,
-
     -- * Re-exports
     SecretKey,
     PublicKey,
@@ -86,30 +83,23 @@ module Brig.Types.User.ZAuth
 where
 
 import Control.Lens (Lens', makeLenses, over, (^.))
-import Control.Monad.Catch (MonadThrow, throwM)
+import Control.Monad.Catch
 import Data.Aeson
-import Data.Bits (shiftL, (.|.))
+import Data.Bits
 import qualified Data.ByteString as BS
-import Data.ByteString.Conversion (FromByteString, ToByteString, fromByteString)
-import Data.Id (BotId, ConvId, Id (Id), ProviderId, UserId, botUserId, toUUID)
+import Data.ByteString.Conversion
+import Data.Id
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
-import Data.List1 (List1)
-import qualified Data.List1 as List1
-import qualified Data.Predicate as WaiPred
-import Data.Proxy (Proxy)
-import Data.Time.Clock (UTCTime)
-import Data.Time.Clock.POSIX (POSIXTime, posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
+import Data.Proxy
+import Data.Time.Clock
+import Data.Time.Clock.POSIX
 import qualified Data.ZAuth.Creation as ZC
 import Data.ZAuth.Token
-import qualified Data.ZAuth.Token as ZAuth
 import qualified Data.ZAuth.Validation as ZV
 import Imports
-import Network.HTTP.Types.Status (status403)
-import qualified Network.Wai.Predicate as P
-import qualified Network.Wai.Predicate.Request as R
-import OpenSSL.Random (randBytes)
-import Sodium.Crypto.Sign (PublicKey, SecretKey)
+import OpenSSL.Random
+import Sodium.Crypto.Sign
 
 newtype ZAuth a = ZAuth {unZAuth :: ReaderT Env IO a}
   deriving (Functor, Applicative, Monad, MonadIO, MonadReader Env)
@@ -414,82 +404,3 @@ randomValue :: IO Word32
 randomValue = BS.foldl' f 0 <$> randBytes 4
   where
     f r w = shiftL r 8 .|. fromIntegral w
-
--- Utilities
---
-
--- | A predicate that captures user and access tokens for a request handler.
-tokenRequest ::
-  forall r.
-  (R.HasCookies r, R.HasHeaders r, R.HasQuery r) =>
-  P.Predicate
-    r
-    P.Error
-    ( Maybe (Either (List1 (ZAuth.Token ZAuth.User)) (List1 (ZAuth.Token ZAuth.LegalHoldUser)))
-        WaiPred.::: Maybe (Either (ZAuth.Token ZAuth.Access) (ZAuth.Token ZAuth.LegalHoldAccess))
-    )
-tokenRequest = P.opt (userToken P.||| legalHoldUserToken) P..&. P.opt (accessToken P.||| legalHoldAccessToken)
-  where
-    userToken = cookieErr @ZAuth.User <$> cookies "zuid"
-    legalHoldUserToken = cookieErr @ZAuth.LegalHoldUser <$> cookies "zuid"
-    accessToken = parse @ZAuth.Access <$> (tokenHeader P..|. tokenQuery)
-    legalHoldAccessToken = parse @ZAuth.LegalHoldAccess <$> (tokenHeader P..|. tokenQuery)
-    --
-    tokenHeader :: r -> P.Result P.Error ByteString
-    tokenHeader = bearer <$> P.header "authorization"
-    --
-    tokenQuery :: r -> P.Result P.Error ByteString
-    tokenQuery = P.query "access_token"
-    --
-    cookieErr :: UserTokenLike u => P.Result P.Error (List1 (ZAuth.Token u)) -> P.Result P.Error (List1 (ZAuth.Token u))
-    cookieErr x@P.Okay {} = x
-    cookieErr (P.Fail x) = P.Fail (P.setMessage "Invalid user token" (P.setStatus status403 x))
-    --
-    -- Extract the access token from the Authorization header.
-    bearer :: P.Result P.Error ByteString -> P.Result P.Error ByteString
-    bearer x@P.Fail {} = x
-    bearer (P.Okay _ b) =
-      let (prefix, suffix) = BS.splitAt 7 b
-       in if prefix == "Bearer "
-            then return suffix
-            else
-              P.Fail
-                ( P.setReason
-                    P.TypeError
-                    (P.setMessage "Invalid authorization scheme" (P.err status403))
-                )
-    --
-    -- Parse the access token
-    parse :: AccessTokenLike a => P.Result P.Error ByteString -> P.Result P.Error (ZAuth.Token a)
-    parse (P.Fail x) = P.Fail x
-    parse (P.Okay _ b) = case fromByteString b of
-      Nothing ->
-        P.Fail
-          ( P.setReason
-              P.TypeError
-              (P.setMessage "Invalid access token" (P.err status403))
-          )
-      Just t -> return t
-
--- | Internal utilities: These functions are nearly copies verbatim from the original
--- project: https://gitlab.com/twittner/wai-predicates/-/blob/develop/src/Network/Wai/Predicate.hs#L106-112
--- I will still make an upstream PR but would not like to block this PR because of
--- it. Main difference: the original stops after finding the first valid cookie which
--- is a problem if clients send more than 1 cookie and one of them happens to be invalid
--- We should also be dropping this in favor of servant which will make this redundant
-cookies :: (R.HasCookies r, FromByteString a) => ByteString -> WaiPred.Predicate r P.Error (List1 a)
-cookies k r =
-  case R.lookupCookie k r of
-    [] -> P.Fail . P.addLabel "cookie" $ notAvailable k
-    cc ->
-      case mapMaybe fromByteString cc of
-        [] -> (P.Fail . P.addLabel "cookie" . typeError k $ "Failed to get zuid cookies")
-        (x : xs) -> return $ List1.list1 x xs
-
-notAvailable :: ByteString -> P.Error
-notAvailable k = P.e400 & P.setReason P.NotAvailable . P.setSource k
-{-# INLINE notAvailable #-}
-
-typeError :: ByteString -> ByteString -> P.Error
-typeError k m = P.e400 & P.setReason P.TypeError . P.setSource k . P.setMessage m
-{-# INLINE typeError #-}

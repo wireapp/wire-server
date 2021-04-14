@@ -18,8 +18,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.Types.User.Auth
-  ( Access (..),
-    SsoLogin (..),
+  ( SsoLogin (..),
     LegalHoldLogin (..),
 
     -- * re-exports
@@ -45,14 +44,8 @@ where
 import Data.Aeson
 import Data.Id (UserId)
 import Data.Misc (PlainTextPassword (..))
-import qualified Data.ZAuth.Token as ZAuth
 import Imports
 import Wire.API.User.Auth
-
-data Access u = Access
-  { accessToken :: !AccessToken,
-    accessCookie :: !(Maybe (Cookie (ZAuth.Token u)))
-  }
 
 -- | A special kind of login that is only used for an internal endpoint.
 data SsoLogin
