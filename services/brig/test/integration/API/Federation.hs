@@ -17,28 +17,36 @@
 
 module API.Federation where
 
+import API.Search.Util (refreshIndex)
 import Bilge hiding (head)
 import Bilge.Assert
 import Brig.Types
 import Control.Arrow ((&&&))
+import Data.Aeson (encode)
 import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion (toByteString')
+import Data.Handle (Handle (..))
 import Data.Id (Id (..), UserId)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.UUID.V4 as UUIDv4
 import Imports
+import Test.QuickCheck (arbitrary)
+import Test.QuickCheck.Gen (generate)
 import Test.Tasty
 import Test.Tasty.HUnit (assertEqual)
 import Util
 import Wire.API.Message (UserClientMap (..), UserClients (..))
 
+-- FUTUREWORK(federation): use servant-client in tests for the federation endpoints instead of the bilge requests.
 tests :: Manager -> Brig -> IO TestTree
 tests m brig =
   return $
     testGroup
       "federation"
-      [ test m "GET /federation/users/by-handle : 200" (testGetUserByHandleSuccess brig),
+      [ test m "GET /federation/search/users : Found" (testSearchSuccess brig),
+        test m "GET /federation/search/users : NotFound" (testSearchNotFound brig),
+        test m "GET /federation/users/by-handle : 200" (testGetUserByHandleSuccess brig),
         test m "GET /federation/users/by-handle : 404" (testGetUserByHandleNotFound brig),
         test m "GET /federation/users/get-by-id : 200 all found" (testGetUsersByIdsSuccess brig),
         test m "GET /federation/users/get-by-id : 200 partially found" (testGetUsersByIdsPartial brig),
@@ -48,20 +56,44 @@ tests m brig =
         test m "POST /federation/users/multi-prekey-bundle : 200" (testClaimMultiPrekeyBundleSuccess brig)
       ]
 
+testSearchSuccess :: Brig -> Http ()
+testSearchSuccess brig = do
+  (handle, user) <- createUserWithHandle brig
+  let quid = userQualifiedId user
+
+  -- create another user with a similar handle and the same display name
+  -- That user should not be returned in search results.
+  -- (as federated search should only search for exact handle matches)
+  identityThief <- randomUser brig
+  void $ putHandle brig (userId identityThief) (fromHandle handle <> "a")
+  update'' :: UserUpdate <- liftIO $ generate arbitrary
+  let update' = update'' {uupName = Just (Name (fromHandle handle))}
+      update = RequestBodyLBS . encode $ update'
+  put (brig . path "/self" . contentJson . zUser (userId identityThief) . zConn "c" . body update) !!! const 200 === statusCode
+  refreshIndex brig
+
+  searchResult <- fedSearch brig handle
+  liftIO $ do
+    let contacts = contactQualifiedId <$> searchResults searchResult
+    assertEqual "should return only the first user id but not the identityThief" [quid] contacts
+
+testSearchNotFound :: Brig -> Http ()
+testSearchNotFound brig = do
+  searchResult <- fedSearch brig (Handle "this-handle-should-not-exist")
+  liftIO $ do
+    let contacts = searchResults searchResult
+    assertEqual "should return empty array of users" [] contacts
+
 testGetUserByHandleSuccess :: Brig -> Http ()
 testGetUserByHandleSuccess brig = do
-  user <- randomUser brig
-  let uid = userId user
-      quid = userQualifiedId user
-  hdl <- randomHandle
-  putHandle brig uid hdl
-    !!! const 200 === statusCode
+  (handle, user) <- createUserWithHandle brig
+  let quid = userQualifiedId user
   profile <-
     responseJsonError
       =<< get
         ( brig
             . paths ["federation", "users", "by-handle"]
-            . queryItem "handle" (toByteString' hdl)
+            . queryItem "handle" (toByteString' handle)
             . expect2xx
         )
   liftIO $ do
@@ -152,16 +184,6 @@ testClaimPrekeySuccess brig = do
       (Just (PrekeyId 1))
       (fmap (prekeyId . prekeyData) mkey)
 
-generateClientPrekeys :: Brig -> [(Prekey, LastPrekey)] -> Http (UserId, [ClientPrekey])
-generateClientPrekeys brig prekeys = do
-  user <- randomUser brig
-  let uid = userId user
-      mkClient (pk, lpk) = defNewClient PermanentClientType [pk] lpk
-      nclients = map mkClient prekeys
-      mkClientPrekey (pk, _) c = ClientPrekey (clientId c) pk
-  clients <- traverse (responseJsonError <=< addClient brig uid) nclients
-  pure (uid, zipWith mkClientPrekey prekeys clients)
-
 testClaimPrekeyBundleSuccess :: Brig -> Http ()
 testClaimPrekeyBundleSuccess brig = do
   let prekeys = take 5 (zip somePrekeys someLastPrekeys)
@@ -200,3 +222,28 @@ testClaimMultiPrekeyBundleSuccess brig = do
     !!! do
       const 200 === statusCode
       const (Just ucm) === responseJsonMaybe
+
+-------------------------------------------------
+-- helpers
+
+-- TODO replace by servant client code
+--
+fedSearch :: Brig -> Handle -> Http (SearchResult Contact)
+fedSearch brig handle =
+  responseJsonError
+    =<< get
+      ( brig
+          . paths ["federation", "search", "users"]
+          . queryItem "q" (toByteString' handle)
+          . expect2xx
+      )
+
+generateClientPrekeys :: Brig -> [(Prekey, LastPrekey)] -> Http (UserId, [ClientPrekey])
+generateClientPrekeys brig prekeys = do
+  user <- randomUser brig
+  let uid = userId user
+      mkClient (pk, lpk) = defNewClient PermanentClientType [pk] lpk
+      nclients = map mkClient prekeys
+      mkClientPrekey (pk, _) c = ClientPrekey (clientId c) pk
+  clients <- traverse (responseJsonError <=< addClient brig uid) nclients
+  pure (uid, zipWith mkClientPrekey prekeys clients)

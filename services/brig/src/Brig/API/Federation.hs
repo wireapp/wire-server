@@ -23,7 +23,8 @@ import Brig.API.Handler (Handler)
 import qualified Brig.API.User as API
 import qualified Brig.Data.Client as Data
 import Brig.Types (Prekey, PrekeyBundle)
-import Data.Handle (Handle)
+import Brig.User.API.Handle (contactFromProfile)
+import Data.Handle (Handle (..))
 import Data.Id (ClientId, UserId)
 import Imports
 import Servant (ServerT)
@@ -33,6 +34,7 @@ import qualified Wire.API.Federation.API.Brig as FederationAPIBrig
 import Wire.API.Message (UserClientMap, UserClients)
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client.Prekey (ClientPrekey)
+import Wire.API.User.Search
 
 federationSitemap :: ServerT (ToServantApi FederationAPIBrig.Api) Handler
 federationSitemap =
@@ -43,6 +45,7 @@ federationSitemap =
       claimPrekey
       getPrekeyBundle
       getMultiPrekeyBundle
+      searchUsers
 
 getUserByHandle :: Handle -> Handler UserProfile
 getUserByHandle handle = do
@@ -66,3 +69,28 @@ getPrekeyBundle user = lift (API.claimLocalPrekeyBundle user)
 
 getMultiPrekeyBundle :: UserClients -> Handler (UserClientMap (Maybe Prekey))
 getMultiPrekeyBundle uc = lift (API.claimLocalMultiPrekeyBundles uc)
+
+-- | Searching for federated users on a remote backend should
+-- only search by exact handle search, not in elasticsearch.
+-- (This decision may change in the future)
+searchUsers :: Text -> Handler (SearchResult Contact)
+searchUsers searchTerm = do
+  maybeOwnerId <- lift $ API.lookupHandle (Handle searchTerm)
+  exactLookupProfile <- case maybeOwnerId of
+    Nothing -> pure []
+    Just (foundUser) -> lift $ contactFromProfile <$$> API.lookupProfilesOfLocalUsers Nothing [foundUser]
+
+  let exactHandleMatchCount = length exactLookupProfile
+  pure $
+    SearchResult
+      { searchResults = exactLookupProfile,
+        searchFound = exactHandleMatchCount,
+        searchReturned = exactHandleMatchCount,
+        searchTook = 0
+      }
+
+-- FUTUREWORK(federation): currently these API types make use of the same types in the
+-- federation server-server API than the client-server API does. E.g.
+-- SearchResult Contact, or UserProfile.  This means changing these types in
+-- federation or in the client-server API without changing them on the other
+-- side may be tricky. Should new types be introduced for that flexibility?

@@ -1,5 +1,7 @@
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 
 -- This file is part of the Wire Server implementation.
@@ -33,23 +35,28 @@ import Brig.Types
 import Control.Lens ((.~), (?~), (^.))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Retry
-import Data.Aeson (FromJSON, Value, decode, (.=))
+import Data.Aeson (FromJSON, Value, decode)
 import qualified Data.Aeson as Aeson
+import Data.Domain (Domain (Domain))
 import Data.Handle (fromHandle)
 import Data.Id
 import qualified Data.Map.Strict as Map
+import Data.Qualified (Qualified (qDomain, qUnqualified))
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Database.Bloodhound as ES
+import Federation.Util
 import qualified Galley.Types.Teams.SearchVisibility as Team
 import Imports
 import qualified Network.HTTP.Client as HTTP
 import qualified Network.Wai.Test as WaiTest
+import Test.QuickCheck (Arbitrary (arbitrary), generate)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Text.RawString.QQ (r)
 import UnliftIO (Concurrently (..), runConcurrently)
 import Util
+import Wire.API.Federation.GRPC.Types
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 
 tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree
@@ -59,6 +66,8 @@ tests opts mgr galley brig = do
     testGroup "search" $
       [ testWithBothIndices opts mgr "by-name" $ testSearchByName brig,
         testWithBothIndices opts mgr "by-handle" $ testSearchByHandle brig,
+        testWithBothIndices opts mgr "size - when exact handle matches a team user" $ testSearchSize brig True,
+        testWithBothIndices opts mgr "size - when exact handle matches a non team user" $ testSearchSize brig False,
         test mgr "reindex" $ testReindex brig,
         testWithBothIndices opts mgr "no match" $ testSearchNoMatch brig,
         testWithBothIndices opts mgr "no extra results" $ testSearchNoExtraResults brig,
@@ -68,14 +77,17 @@ tests opts mgr galley brig = do
         testWithBothIndices opts mgr "Non ascii names" $ testSearchNonAsciiNames brig,
         test mgr "migration to new index" $ testMigrationToNewIndex opts brig,
         testGroup "team-search-visibility disabled OR SearchVisibilityStandard" $
-          [ testWithBothIndices opts mgr "team member cannot be found by non-team user" $ testSearchTeamMemberAsNonMember brig,
-            testWithBothIndices opts mgr "team A member cannot be found by team B member" $ testSearchTeamMemberAsOtherMember brig,
+          [ testWithBothIndices opts mgr "team member cannot be found by non-team user with display name" $ testSearchTeamMemberAsNonMemberDisplayName brig,
+            testWithBothIndices opts mgr "team member can be found by non-team user with exact handle" $ testSearchTeamMemeberAsNonMemberExactHandle brig,
+            testWithBothIndices opts mgr "team A member cannot be found by team B member with display name" $ testSearchTeamMemberAsOtherMemberDisplayName brig,
+            testWithBothIndices opts mgr "team A member can be found by team B member with exact handle" $ testSearchTeamMemberAsOtherMemberExactHandle brig,
             testWithBothIndices opts mgr "team A member can be found by other team A member" $ testSearchTeamMemberAsSameMember brig,
             testWithBothIndices opts mgr "non team user can be found by a team member" $ testSeachNonMemberAsTeamMember brig,
             testGroup "order" $
               [ test mgr "team-mates are listed before team-outsiders (exact match)" $ testSearchOrderingAsTeamMemberExactMatch brig,
                 test mgr "team-mates are listed before team-outsiders (prefix match)" $ testSearchOrderingAsTeamMemberPrefixMatch brig,
-                test mgr "team-mates are listed before team-outsiders (worse match)" $ testSearchOrderingAsTeamMemberWorseMatch brig
+                test mgr "team-mates are listed before team-outsiders (worse name match)" $ testSearchOrderingAsTeamMemberWorseNameMatch brig,
+                test mgr "team-mates are listed after team-outsiders (worse handle match)" $ testSearchOrderingAsTeamMemberWorseHandleMatch brig
               ]
           ],
         testGroup "searchSameTeamOnly" $
@@ -86,6 +98,13 @@ tests opts mgr galley brig = do
             test mgr "team A member cannot be found by team B member" $ testSearchTeamMemberAsOtherMemberOutboundOnly brig testSetupOutboundOnly,
             test mgr "team A member *can* be found by other team A member" $ testSearchTeamMemberAsSameMemberOutboundOnly brig testSetupOutboundOnly,
             test mgr "non team user cannot be found by a team member A" $ testSeachNonMemberAsTeamMemberOutboundOnly brig testSetupOutboundOnly
+          ],
+        testGroup "federated" $
+          [ test mgr "search passing own domain" $ testSearchWithDomain brig,
+            test mgr "remote lookup should call remote code path" $ testSearchOtherDomain opts brig
+            -- FUTUREWORK(federation): we need tests for:
+            -- failure/error cases on search (augment the federatorMock?)
+            -- wire-api-federation Servant-Api vs protobuf-client interactions
           ]
       ]
   where
@@ -109,12 +128,14 @@ testSearchByName brig = do
   u2 <- randomUser brig
   refreshIndex brig
   let uid1 = userId u1
+      quid1 = userQualifiedId u1
       uid2 = userId u2
-  assertCanFind brig uid1 uid2 (fromName (userDisplayName u2))
-  assertCanFind brig uid2 uid1 (fromName (userDisplayName u1))
+      quid2 = userQualifiedId u2
+  assertCanFind brig uid1 quid2 (fromName (userDisplayName u2))
+  assertCanFind brig uid2 quid1 (fromName (userDisplayName u1))
   -- Users cannot find themselves
-  assertCan'tFind brig uid1 uid1 (fromName (userDisplayName u1))
-  assertCan'tFind brig uid2 uid2 (fromName (userDisplayName u2))
+  assertCan'tFind brig uid1 quid1 (fromName (userDisplayName u1))
+  assertCan'tFind brig uid2 quid2 (fromName (userDisplayName u2))
 
 testSearchByLastOrMiddleName :: TestConstraints m => Brig -> m ()
 testSearchByLastOrMiddleName brig = do
@@ -122,7 +143,8 @@ testSearchByLastOrMiddleName brig = do
   firstName <- randomHandle
   middleName <- randomHandle
   lastName <- randomHandle
-  searched <- userId <$> createUser' True (firstName <> " " <> middleName <> " " <> lastName) brig
+  searchedUser <- createUser' True (firstName <> " " <> middleName <> " " <> lastName) brig
+  let searched = userQualifiedId searchedUser
   refreshIndex brig
   assertCanFind brig searcher searched firstName
   assertCanFind brig searcher searched middleName
@@ -133,7 +155,8 @@ testSearchNonAsciiNames :: TestConstraints m => Brig -> m ()
 testSearchNonAsciiNames brig = do
   searcher <- userId <$> randomUser brig
   suffix <- randomHandle
-  searched <- userId <$> createUser' True ("शक्तिमान" <> suffix) brig
+  searchedUser <- createUser' True ("शक्तिमान" <> suffix) brig
+  let searched = userQualifiedId searchedUser
   refreshIndex brig
   assertCanFind brig searcher searched ("शक्तिमान" <> suffix)
   -- This is pathetic transliteration, but it is what we have.
@@ -144,10 +167,39 @@ testSearchByHandle brig = do
   u1 <- randomUserWithHandle brig
   u2 <- randomUser brig
   refreshIndex brig
-  let uid1 = userId u1
+  let quid1 = userQualifiedId u1
       uid2 = userId u2
       Just h = fromHandle <$> userHandle u1
-  assertCanFind brig uid2 uid1 h
+  assertCanFind brig uid2 quid1 h
+
+testSearchSize :: TestConstraints m => Brig -> Bool -> m ()
+testSearchSize brig exactHandleInTeam = do
+  (handleMatch, searchTerm) <-
+    if exactHandleInTeam
+      then do
+        (_, _, teamHandleMatch : _) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+        let handle = fromHandle . fromMaybe (error "impossible") $ userHandle teamHandleMatch
+        pure (teamHandleMatch, handle)
+      else do
+        nonTeamHandleMatch <- randomUserWithHandle brig
+        let handle = fromHandle . fromMaybe (error "impossible") $ userHandle nonTeamHandleMatch
+        pure (nonTeamHandleMatch, handle)
+  replicateM_ 6 $ createUser' True searchTerm brig
+  refreshIndex brig
+
+  self <- userId <$> randomUser brig
+  res <- searchResults <$> executeSearch' brig self searchTerm Nothing (Just 5)
+
+  liftIO $ do
+    assertEqual "expected exactly 10 results" 5 (length res)
+    assertEqual
+      ("first match should be exact handle: " <> show searchTerm <> ", but got: \n" <> show res)
+      (userQualifiedId handleMatch)
+      (contactQualifiedId $ Imports.head res)
+    assertEqual
+      ("exact handle: " <> show searchTerm <> " should only be present once, but got \n" <> show res)
+      Nothing
+      (find ((userQualifiedId handleMatch ==) . contactQualifiedId) (tail res))
 
 testSearchNoMatch :: TestConstraints m => Brig -> m ()
 testSearchNoMatch brig = do
@@ -164,11 +216,11 @@ testSearchNoExtraResults brig = do
   u1 <- randomUser brig
   u2 <- randomUser brig
   let uid1 = userId u1
-      uid2 = userId u2
+      quid2 = userQualifiedId u2
   refreshIndex brig
-  resultUIds <- map contactUserId . searchResults <$> executeSearch brig uid1 (fromName $ userDisplayName u2)
+  resultUIds <- map contactQualifiedId . searchResults <$> executeSearch brig uid1 (fromName $ userDisplayName u2)
   liftIO $
-    assertEqual "Expected search returns only the searched" [uid2] resultUIds
+    assertEqual "Expected search returns only the searched" [quid2] resultUIds
 
 testReindex :: Brig -> Http ()
 testReindex brig = do
@@ -181,10 +233,10 @@ testReindex brig = do
   refreshIndex brig
   for_ regular $ \u' -> do
     let Just h = fromHandle <$> userHandle u'
-    assertCanFind brig (userId u) (userId u') h
+    assertCanFind brig (userId u) (userQualifiedId u') h
     (found : _) <- searchResults <$> executeSearch brig (userId u) h
     liftIO $ do
-      assertEqual "Unexpected UserId" (contactUserId found) (userId u')
+      assertEqual "Unexpected UserId" (contactQualifiedId found) (userQualifiedId u')
       assertEqual "Unexpected Name" (contactName found) (fromName $ userDisplayName u')
       assertEqual "Unexpected Colour" (contactColorId found) (Just . fromIntegral . fromColourId $ userAccentId u')
       assertEqual "Unexpected Handle" (contactHandle found) (fromHandle <$> userHandle u')
@@ -198,10 +250,10 @@ testOrderName :: TestConstraints m => Brig -> m ()
 testOrderName brig = do
   searcher <- userId <$> randomUser brig
   Name searchedWord <- randomNameWithMaxLen 122
-  nameMatch <- userId <$> createUser' True searchedWord brig
-  namePrefixMatch <- userId <$> createUser' True (searchedWord <> "suffix") brig
+  nameMatch <- userQualifiedId <$> createUser' True searchedWord brig
+  namePrefixMatch <- userQualifiedId <$> createUser' True (searchedWord <> "suffix") brig
   refreshIndex brig
-  resultUIds <- map contactUserId . searchResults <$> executeSearch brig searcher searchedWord
+  resultUIds <- map contactQualifiedId . searchResults <$> executeSearch brig searcher searchedWord
   let expectedOrder = [nameMatch, namePrefixMatch]
   liftIO $
     assertEqual
@@ -213,13 +265,13 @@ testOrderHandle :: TestConstraints m => Brig -> m ()
 testOrderHandle brig = do
   searcher <- userId <$> randomUser brig
   searchedWord <- randomHandle
-  handleMatch <- userId <$> createUser' True "handle match" brig
-  void $ putHandle brig handleMatch searchedWord
-  handlePrefixMatch <- userId <$> createUser' True "handle prefix match" brig
-  void $ putHandle brig handlePrefixMatch (searchedWord <> "suffix")
+  handleMatch <- userQualifiedId <$> createUser' True "handle match" brig
+  void $ putHandle brig (qUnqualified handleMatch) searchedWord
+  handlePrefixMatch <- userQualifiedId <$> createUser' True "handle prefix match" brig
+  void $ putHandle brig (qUnqualified handlePrefixMatch) (searchedWord <> "suffix")
   refreshIndex brig
   results <- searchResults <$> executeSearch brig searcher searchedWord
-  let resultUIds = map contactUserId results
+  let resultUIds = map contactQualifiedId results
   let expectedOrder = [handleMatch, handlePrefixMatch]
   let dbg = "results: " <> show results <> "\nsearchedWord: " <> cs searchedWord
   liftIO $
@@ -228,36 +280,48 @@ testOrderHandle brig = do
       expectedOrder
       resultUIds
 
-testSearchTeamMemberAsNonMember :: TestConstraints m => Brig -> m ()
-testSearchTeamMemberAsNonMember brig = do
+testSearchTeamMemberAsNonMemberDisplayName :: TestConstraints m => Brig -> m ()
+testSearchTeamMemberAsNonMemberDisplayName brig = do
+  nonTeamMember <- randomUser brig
+  (_, _, [teamMember]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+  refreshIndex brig
+  assertCan'tFind brig (userId nonTeamMember) (userQualifiedId teamMember) (fromName (userDisplayName teamMember))
+
+testSearchTeamMemeberAsNonMemberExactHandle :: TestConstraints m => Brig -> m ()
+testSearchTeamMemeberAsNonMemberExactHandle brig = do
   nonTeamMember <- randomUser brig
   (_, _, [teamMember]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
   refreshIndex brig
   let teamMemberHandle = fromMaybe (error "teamBMember must have a handle") (userHandle teamMember)
-  assertCan'tFind brig (userId nonTeamMember) (userId teamMember) (fromName (userDisplayName teamMember))
-  assertCan'tFind brig (userId nonTeamMember) (userId teamMember) (fromHandle teamMemberHandle)
+  assertCanFind brig (userId nonTeamMember) (userQualifiedId teamMember) (fromHandle teamMemberHandle)
 
-testSearchTeamMemberAsOtherMember :: TestConstraints m => Brig -> m ()
-testSearchTeamMemberAsOtherMember brig = do
+testSearchTeamMemberAsOtherMemberDisplayName :: TestConstraints m => Brig -> m ()
+testSearchTeamMemberAsOtherMemberDisplayName brig = do
   (_, _, [teamAMember]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
   (_, _, [teamBMember]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
   refreshIndex brig
-  assertCan'tFind brig (userId teamAMember) (userId teamBMember) (fromName (userDisplayName teamBMember))
+  assertCan'tFind brig (userId teamAMember) (userQualifiedId teamBMember) (fromName (userDisplayName teamBMember))
+
+testSearchTeamMemberAsOtherMemberExactHandle :: TestConstraints m => Brig -> m ()
+testSearchTeamMemberAsOtherMemberExactHandle brig = do
+  (_, _, [teamAMember]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+  (_, _, [teamBMember]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+  refreshIndex brig
   let teamBMemberHandle = fromMaybe (error "teamBMember must have a handle") (userHandle teamBMember)
-  assertCan'tFind brig (userId teamAMember) (userId teamBMember) (fromHandle teamBMemberHandle)
+  assertCanFind brig (userId teamAMember) (userQualifiedId teamBMember) (fromHandle teamBMemberHandle)
 
 testSearchTeamMemberAsSameMember :: TestConstraints m => Brig -> m ()
 testSearchTeamMemberAsSameMember brig = do
   (_, _, [teamAMember, teamAMember']) <- createPopulatedBindingTeam brig 2
   refreshIndex brig
-  assertCanFind brig (userId teamAMember) (userId teamAMember') (fromName (userDisplayName teamAMember'))
+  assertCanFind brig (userId teamAMember) (userQualifiedId teamAMember') (fromName (userDisplayName teamAMember'))
 
 testSeachNonMemberAsTeamMember :: TestConstraints m => Brig -> m ()
 testSeachNonMemberAsTeamMember brig = do
   nonTeamMember <- randomUser brig
   (_, _, [teamMember]) <- createPopulatedBindingTeam brig 1
   refreshIndex brig
-  assertCanFind brig (userId teamMember) (userId nonTeamMember) (fromName (userDisplayName nonTeamMember))
+  assertCanFind brig (userId teamMember) (userQualifiedId nonTeamMember) (fromName (userDisplayName nonTeamMember))
 
 testSearchOrderingAsTeamMemberExactMatch :: TestConstraints m => Brig -> m ()
 testSearchOrderingAsTeamMemberExactMatch brig = do
@@ -266,9 +330,9 @@ testSearchOrderingAsTeamMemberExactMatch brig = do
   (_, _, [searcher, teamSearchee]) <- createPopulatedBindingTeamWithNames brig [Name "Searcher", searchedName]
   refreshIndex brig
   result <- executeSearch brig (userId searcher) (fromName searchedName)
-  let resultUserIds = contactUserId <$> searchResults result
+  let resultUserIds = contactQualifiedId <$> searchResults result
   liftIO $
-    case elemIndex (userId teamSearchee) resultUserIds of
+    case elemIndex (userQualifiedId teamSearchee) resultUserIds of
       Nothing -> assertFailure "team mate not found in search"
       Just teamSearcheeIndex -> assertEqual "teammate is not the first result" 0 teamSearcheeIndex
 
@@ -279,25 +343,41 @@ testSearchOrderingAsTeamMemberPrefixMatch brig = do
   (_, _, [searcher, teamSearchee]) <- createPopulatedBindingTeamWithNames brig [Name "Searcher", Name $ fromName searchedName <> "suffix"]
   refreshIndex brig
   result <- executeSearch brig (userId searcher) (fromName searchedName)
-  let resultUserIds = contactUserId <$> searchResults result
+  let resultUserIds = contactQualifiedId <$> searchResults result
   liftIO $
-    case elemIndex (userId teamSearchee) resultUserIds of
+    case elemIndex (userQualifiedId teamSearchee) resultUserIds of
       Nothing -> assertFailure "team mate not found in search"
       Just teamSearcheeIndex -> assertEqual "teammate is not the first result" 0 teamSearcheeIndex
 
-testSearchOrderingAsTeamMemberWorseMatch :: TestConstraints m => Brig -> m ()
-testSearchOrderingAsTeamMemberWorseMatch brig = do
-  searchedName <- randomHandle
-  user <- createUser' True searchedName brig
-  void $ putHandle brig (userId user) searchedName
-  (_, _, [searcher, teamSearchee]) <- createPopulatedBindingTeamWithNames brig [Name "Searcher", Name (searchedName <> "Suffix")]
+testSearchOrderingAsTeamMemberWorseNameMatch :: TestConstraints m => Brig -> m ()
+testSearchOrderingAsTeamMemberWorseNameMatch brig = do
+  searchedTerm <- randomHandle
+  _ <- createUser' True searchedTerm brig
+  (_, _, [searcher, teamSearchee]) <- createPopulatedBindingTeamWithNames brig [Name "Searcher", Name (searchedTerm <> "Suffix")]
   refreshIndex brig
-  result <- executeSearch brig (userId searcher) searchedName
-  let resultUserIds = contactUserId <$> searchResults result
+  result <- executeSearch brig (userId searcher) searchedTerm
+  let resultUserIds = contactQualifiedId <$> searchResults result
   liftIO $
-    case elemIndex (userId teamSearchee) resultUserIds of
+    case elemIndex (userQualifiedId teamSearchee) resultUserIds of
       Nothing -> assertFailure "team mate not found in search"
       Just teamSearcheeIndex -> assertEqual "teammate is not the first result" 0 teamSearcheeIndex
+
+testSearchOrderingAsTeamMemberWorseHandleMatch :: TestConstraints m => Brig -> m ()
+testSearchOrderingAsTeamMemberWorseHandleMatch brig = do
+  searchedTerm <- randomHandle
+  nonTeamSearchee <- createUser' True searchedTerm brig
+  void $ putHandle brig (userId nonTeamSearchee) searchedTerm
+  (_, _, [searcher, teamSearchee]) <- createPopulatedBindingTeamWithNames brig [Name "Searcher", Name (searchedTerm <> "Suffix")]
+  refreshIndex brig
+  result <- executeSearch brig (userId searcher) searchedTerm
+  let resultUserIds = contactQualifiedId <$> searchResults result
+  liftIO $ do
+    case elemIndex (userQualifiedId nonTeamSearchee) resultUserIds of
+      Nothing -> assertFailure "non team mate user not found in search"
+      Just teamSearcheeIndex -> assertEqual "non team mate is not the first result" 0 teamSearcheeIndex
+    case elemIndex (userQualifiedId teamSearchee) resultUserIds of
+      Nothing -> assertFailure "team mate not found in search"
+      Just teamSearcheeIndex -> assertEqual "teammate is not the second result" 1 teamSearcheeIndex
 
 testSearchSameTeamOnly :: TestConstraints m => Brig -> Opt.Opts -> m ()
 testSearchSameTeamOnly brig opts = do
@@ -306,34 +386,58 @@ testSearchSameTeamOnly brig opts = do
   refreshIndex brig
   let newOpts = opts & Opt.optionSettings . Opt.searchSameTeamOnly .~ Just True
   withSettingsOverrides newOpts $
-    assertCan'tFind brig (userId teamMember) (userId nonTeamMember) (fromName (userDisplayName nonTeamMember))
+    assertCan'tFind brig (userId teamMember) (userQualifiedId nonTeamMember) (fromName (userDisplayName nonTeamMember))
 
 testSearchTeamMemberAsNonMemberOutboundOnly :: Brig -> ((TeamId, User, User), (TeamId, User, User), User) -> Http ()
 testSearchTeamMemberAsNonMemberOutboundOnly brig ((_, _, teamAMember), (_, _, _), nonTeamMember) = do
-  let teamAMemberHandle = fromMaybe (error "teamAMember must have a handle") (userHandle teamAMember)
-  assertCan'tFind brig (userId nonTeamMember) (userId teamAMember) (fromName (userDisplayName teamAMember))
-  assertCan'tFind brig (userId nonTeamMember) (userId teamAMember) (fromHandle teamAMemberHandle)
+  assertCan'tFind brig (userId nonTeamMember) (userQualifiedId teamAMember) (fromName (userDisplayName teamAMember))
 
 testSearchTeamMemberAsOtherMemberOutboundOnly :: Brig -> ((TeamId, User, User), (TeamId, User, User), User) -> Http ()
 testSearchTeamMemberAsOtherMemberOutboundOnly brig ((_, _, teamAMember), (_, _, teamBMember), _) = do
   let teamBMemberHandle = fromMaybe (error "teamBMember must have a handle") (userHandle teamBMember)
-  assertCan'tFind brig (userId teamAMember) (userId teamBMember) (fromName (userDisplayName teamBMember))
-  assertCan'tFind brig (userId teamAMember) (userId teamBMember) (fromHandle teamBMemberHandle)
+  assertCan'tFind brig (userId teamAMember) (userQualifiedId teamBMember) (fromName (userDisplayName teamBMember))
+  assertCan'tFind brig (userId teamAMember) (userQualifiedId teamBMember) (fromHandle teamBMemberHandle)
 
 testSearchTeamMemberAsSameMemberOutboundOnly :: Brig -> ((TeamId, User, User), (TeamId, User, User), User) -> Http ()
 testSearchTeamMemberAsSameMemberOutboundOnly brig ((_, teamAOwner, teamAMember), (_, _, _), _) = do
   let teamAMemberHandle = fromMaybe (error "teamAMember must have a handle") (userHandle teamAMember)
-  assertCanFind brig (userId teamAOwner) (userId teamAMember) (fromName (userDisplayName teamAMember))
-  assertCanFind brig (userId teamAOwner) (userId teamAMember) (fromHandle teamAMemberHandle)
+  assertCanFind brig (userId teamAOwner) (userQualifiedId teamAMember) (fromName (userDisplayName teamAMember))
+  assertCanFind brig (userId teamAOwner) (userQualifiedId teamAMember) (fromHandle teamAMemberHandle)
   let teamAOwnerHandle = fromMaybe (error "teamAMember must have a handle") (userHandle teamAOwner)
-  assertCanFind brig (userId teamAMember) (userId teamAOwner) (fromName (userDisplayName teamAOwner))
-  assertCanFind brig (userId teamAMember) (userId teamAOwner) (fromHandle teamAOwnerHandle)
+  assertCanFind brig (userId teamAMember) (userQualifiedId teamAOwner) (fromName (userDisplayName teamAOwner))
+  assertCanFind brig (userId teamAMember) (userQualifiedId teamAOwner) (fromHandle teamAOwnerHandle)
 
 testSeachNonMemberAsTeamMemberOutboundOnly :: Brig -> ((TeamId, User, User), (TeamId, User, User), User) -> Http ()
 testSeachNonMemberAsTeamMemberOutboundOnly brig ((_, _, teamAMember), (_, _, _), nonTeamMember) = do
   let teamMemberAHandle = fromMaybe (error "nonTeamMember must have a handle") (userHandle nonTeamMember)
-  assertCan'tFind brig (userId teamAMember) (userId nonTeamMember) (fromName (userDisplayName nonTeamMember))
-  assertCan'tFind brig (userId teamAMember) (userId nonTeamMember) (fromHandle teamMemberAHandle)
+  assertCan'tFind brig (userId teamAMember) (userQualifiedId nonTeamMember) (fromName (userDisplayName nonTeamMember))
+  assertCan'tFind brig (userId teamAMember) (userQualifiedId nonTeamMember) (fromHandle teamMemberAHandle)
+
+testSearchWithDomain :: TestConstraints m => Brig -> m ()
+testSearchWithDomain brig = do
+  searcher <- randomUser brig
+  searchee <- randomUser brig
+  refreshIndex brig
+  let searcherId = userId searcher
+      searcheeQid = userQualifiedId searchee
+      searcheeName = fromName (userDisplayName searchee)
+      searcheeDomain = qDomain searcheeQid
+  assertCanFindWithDomain brig searcherId searcheeQid searcheeName searcheeDomain
+
+-- | WARNING: this test only tests that brig will indeed make a call to federator
+-- (i.e. does the correct if/else branching based on the domain),
+-- it does not test any of the federation API details. This needs to be tested separately.
+testSearchOtherDomain :: TestConstraints m => Opt.Opts -> Brig -> m ()
+testSearchOtherDomain opts brig = do
+  user <- randomUser brig
+  -- We cannot assert on a real federated request here, so we make a request to
+  -- a mocked federator started and stopped during this test
+  otherSearchResult :: SearchResult Contact <- liftIO $ generate arbitrary
+  let mockResponse = OutwardResponseHTTPResponse (HTTPResponse 200 (cs $ Aeson.encode otherSearchResult))
+  results <- withMockFederator opts 9999 mockResponse $ do
+    executeSearchWithDomain brig (userId user) "someSearchText" (Domain "non-existent.example.com")
+  liftIO $ do
+    assertEqual "The search request should get its result from federator" otherSearchResult results
 
 -- | Migration sequence:
 -- 1. A migration is planned, in this time brig writes to two indices

@@ -30,6 +30,7 @@ import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.Message (UserClientMap, UserClients)
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client.Prekey (ClientPrekey, Prekey, PrekeyBundle)
+import Wire.API.User.Search
 
 -- Maybe this module should be called Brig
 data Api routes = Api
@@ -68,7 +69,18 @@ data Api routes = Api
         :> "users"
         :> "multi-prekey-bundle"
         :> ReqBody '[JSON] UserClients
-        :> Post '[JSON] (UserClientMap (Maybe Prekey))
+        :> Post '[JSON] (UserClientMap (Maybe Prekey)),
+    searchUsers ::
+      routes
+        :- "federation"
+        :> "search"
+        :> "users"
+        -- FUTUREWORK(federation): do we want to perform some type-level validation like length checks?
+        -- (handles can be up to 256 chars currently)
+        -- FUTUREWORK(federation): change this to a POST with a body,
+        -- rather than a query parameter, after deciding on a general pattern here
+        :> QueryParam' '[Required, Strict] "q" Text
+        :> Get '[JSON] (SearchResult Contact)
   }
   deriving (Generic)
 
@@ -124,3 +136,14 @@ mkGetUsersByIds uids =
     "users/by-id"
     []
     (LBS.toStrict $ Aeson.encode uids)
+
+-- FUTUREWORK: Can we write a test which makes use of mkSearchUsers against the Api in this file?
+mkSearchUsers :: Text -> Proto.Request
+mkSearchUsers searchTerm =
+  Proto.Request
+    Proto.Brig
+    (Proto.HTTPMethod HTTP.GET)
+    "search/users"
+    [Proto.QueryParam "q" (toByteString' searchTerm)]
+    -- FUTUREWORK(federation): do we want to pass other parameters like the number of results?
+    mempty
