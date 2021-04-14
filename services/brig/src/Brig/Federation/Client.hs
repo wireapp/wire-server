@@ -27,7 +27,6 @@ import Brig.Types.User
 import Control.Error.Util ((!?))
 import Control.Lens (view, (^.))
 import Control.Monad.Trans.Except (ExceptT (..), throwE)
-import qualified Data.Aeson as Aeson
 import Data.Handle
 import Data.Qualified
 import Data.String.Conversions
@@ -51,27 +50,10 @@ getUserHandleInfo :: Qualified Handle -> FederationAppIO (Maybe UserProfile)
 getUserHandleInfo (Qualified handle domain) = do
   Log.info $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
   federatorClient <- mkFederatorClient
-  x <- runExceptT . flip runReaderT (FederatorClientEnv federatorClient domain) . runFederatorClient $ getUserByHandle clientRoutes handle
+  _x <- runExceptT . flip runReaderT (FederatorClientEnv federatorClient domain) . runFederatorClient $ getUserByHandle clientRoutes handle
   -- TODO: Use code from https://github.com/wireapp/wire-server/pull/1438 to transform Handler to FederationAppIO
   -- TODO: use UVerb to deal with 404, so it is not an exception
   undefined
-
--- TODO: reduce duplication between these functions
--- TODO: rework error handling and FUTUREWORK from getUserHandleInfo and search:
---       decoding error should not throw a 404 most likely
---       and non-200, non-404 should also not become 404s. Looks like some tests are missing and
---       https://wearezeta.atlassian.net/browse/SQCORE-491 is not quite done yet.
-searchUsers :: Domain -> Text -> Handler (Public.SearchResult Public.Contact)
-searchUsers domain searchTerm = do
-  Log.warn $ Log.msg $ T.pack "Brig-federation: search call on remote backend"
-  federatorClient <- mkFederatorClient
-  let call = Proto.ValidatedFederatedRequest domain (mkSearchUsers searchTerm)
-  res <- expectOk =<< Brig.Federation.Client.callRemote federatorClient call
-  case Proto.responseStatus res of
-    200 -> case Aeson.eitherDecodeStrict (Proto.responseBody res) of
-      Left err -> throwStd $ notFound $ "Failed to parse response: " <> LT.pack err
-      Right x -> pure $ x
-    code -> throwStd $ notFound $ "Invalid response from remote: " <> LT.pack (show code)
 
 -- FUTUREWORK: It would be nice to share the client across all calls to
 -- federator and not call this function on every invocation of federated
