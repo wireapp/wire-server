@@ -36,8 +36,8 @@ import qualified Servant.Client as Servant
 import qualified System.Logger.Class as Log
 import Util.Options (epHost, epPort)
 import Wire.API.Federation.API.Brig as FederatedBrig
+import Wire.API.Federation.Client (FederationClientError (FederationClientServantError), FederatorClient, runFederatorClientWith)
 import Wire.API.Federation.GRPC.Client
-import Wire.API.Federation.Client (FederationClientError(FederationClientServantError), FederatorClient, runFederatorClientWith)
 
 type FederationAppIO = ExceptT FederationError AppIO
 

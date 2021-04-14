@@ -23,10 +23,10 @@ import Imports
 import Servant.API
 import Servant.API.Generic
 import Servant.Client.Generic (AsClientT, genericClient)
+import Wire.API.Federation.Client (FederationClientError, FederatorClient)
 import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.User (UserProfile)
 import Wire.API.User.Search
-import Wire.API.Federation.Client (FederationClientError, FederatorClient)
 
 -- Maybe this module should be called Brig
 data Api routes = Api
