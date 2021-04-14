@@ -30,9 +30,11 @@ library:
   - brig-types >=0.73.1
   - bytestring >=0.9
   - bytestring-conversion >=0.2
+  - case-insensitive >= 1.2.1.0
   - cassandra-util >=0.16.2
   - cassava >= 0.5.2
   - cereal >=0.4
+  - cookie
   - containers >=0.5
   - currency-codes >=2.0
   - data-default >=0.5

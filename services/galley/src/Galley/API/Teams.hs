@@ -68,7 +68,7 @@ import Data.Id
 import qualified Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local))
 import qualified Data.List.Extra as List
-import Data.List1 (List1, list1)
+import Data.List1 (List1 (toNonEmpty), list1)
 import qualified Data.Map.Strict as M
 import Data.Misc (HttpsUrl)
 import Data.Range as Range
@@ -110,6 +110,7 @@ import Network.Wai.Predicate hiding (or, result, setStatus)
 import Network.Wai.Utilities
 import qualified System.Logger.Class as Log
 import UnliftIO (mapConcurrently)
+import qualified Web.Cookie as WebCookie
 import qualified Wire.API.Conversation.Role as Public
 import qualified Wire.API.Notification as Public
 import qualified Wire.API.Team as Public
@@ -383,18 +384,15 @@ getTeamMembers zusr tid maxResults = do
       pure (mems, withPerms)
 
 getTeamMembersCSVH :: (List1 (ZAuth.Token ZAuth.User) ::: TeamId) -> Galley Response
-getTeamMembersCSVH (_ ::: tid) = do
-  zusr <- error "get that from the cookie."
-  Data.teamMember tid zusr >>= \case
-    Nothing -> throwM accessDenied
-    Just member -> unless (member `hasPermission` DownloadTeamMembersCsv) $ throwM accessDenied
-
+getTeamMembersCSVH (tokens ::: tid) = do
+  (setCookie, _zusr) <- validateAndCheckPermissions (toList . toNonEmpty $ tokens)
   env <- ask
   pure $
     responseStream
       status200
       [ (hContentType, "text/csv"),
-        ("Content-Disposition", "attachment; filename=\"wire_team_members.csv\"")
+        ("Content-Disposition", "attachment; filename=\"wire_team_members.csv\""),
+        ("Set-Cookie", toByteString' $ WebCookie.renderSetCookie setCookie)
       ]
       $ \write flush -> do
         let writeString = write . lazyByteString
@@ -413,6 +411,20 @@ getTeamMembersCSVH (_ ::: tid) = do
                 )
               flush
   where
+    validateAndCheckPermissions :: [ZAuth.Token ZAuth.User] -> Galley (WebCookie.SetCookie, UserId)
+    validateAndCheckPermissions [] = throwM accessDenied
+    validateAndCheckPermissions (token : rest) = do
+      mbValidated <- validateCookie token
+      case mbValidated of
+        Nothing -> validateAndCheckPermissions rest
+        Just (cky, uid) -> do
+          Data.teamMember tid uid >>= \case
+            Nothing -> validateAndCheckPermissions rest
+            Just member ->
+              if member `hasPermission` DownloadTeamMembersCsv
+                then pure (cky, uid)
+                else validateAndCheckPermissions rest
+
     headerLine :: LByteString
     headerLine = encodeDefaultOrderedByNameWith (defaultEncodeOptions {encIncludeHeader = True}) ([] :: [TeamExportUser])
 
@@ -433,7 +445,7 @@ getTeamMembersCSVH (_ ::: tid) = do
           tExportEmail = U.userIdentity user >>= U.emailIdentity,
           tExportRole = permissionsRole . view permissions $ member,
           tExportCreatedOn = fmap snd . view invitation $ member,
-          tExportInvitedBy = mbInviterHandle =<< (fmap fst . view invitation $ member),
+          tExportInvitedBy = mbInviterHandle . fst =<< view invitation member,
           tExportIdpIssuer = userToIdPIssuer user,
           tExportManagedBy = U.userManagedBy user
         }
@@ -448,7 +460,7 @@ getTeamMembersCSVH (_ ::: tid) = do
       let userMap :: M.Map UserId Handle.Handle
           userMap = M.fromList . catMaybes $ extract <$> userList
             where
-              extract u = (U.userId u,) <$> (U.userHandle u)
+              extract u = (U.userId u,) <$> U.userHandle u
 
       pure $ (`M.lookup` userMap)
 

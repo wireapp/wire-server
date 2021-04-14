@@ -25,19 +25,24 @@ module Galley.Intra.User
     deleteUser,
     getContactList,
     chunkify,
+    validateCookie,
   )
 where
 
-import Bilge hiding (getHeader, options, statusCode)
+import Bilge (getHeader)
+import Bilge hiding (Cookie, getHeader, options, statusCode)
 import Bilge.RPC
 import Brig.Types.Connection (ConnectionsStatusRequest (..), Relation (..), UserIds (..))
 import Brig.Types.Intra
 import Brig.Types.User (User)
+import qualified Brig.Types.User.ZAuth as ZAuth
 import Control.Monad.Catch (throwM)
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as BSC
 import Data.ByteString.Conversion
+import qualified Data.CaseInsensitive as CI
 import Data.Id
+import qualified Data.ZAuth.Token as ZAuth
 import Galley.App
 import Galley.Intra.Util
 import Imports
@@ -46,6 +51,7 @@ import qualified Network.HTTP.Client.Internal as Http
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
+import qualified Web.Cookie as WebCookie
 
 -- | Get statuses of all connections between two groups of users (the usual
 -- pattern is to check all connections from one user to several, or from
@@ -161,3 +167,21 @@ getContactList uid = do
         . paths ["/i/users", toByteString' uid, "contacts"]
         . expect2xx
   cUsers <$> parseResponse (Error status502 "server-error") r
+
+-- | Calls Brig.User.API.Auth.validateCookieH
+validateCookie :: ZAuth.Token ZAuth.User -> Galley (Maybe (WebCookie.SetCookie, UserId))
+validateCookie token = do
+  (h, p) <- brigReq
+  r <-
+    call "brig" $
+      method GET . host h . port p
+        . paths ["/i/check-cookie"]
+        . expectStatus (< 500)
+        . json (ZAuth.ValidateTokenRequest token)
+
+  case (statusCode . responseStatus) r of
+    200 -> do
+      uid <- ZAuth.fromValidateTokenResponse <$> parseResponse (Error status502 "server-error") r
+      let mbSetCookie = WebCookie.parseSetCookie <$> getHeader (CI.mk "Set-Cookie") r
+      pure $ (,uid) <$> mbSetCookie
+    _ -> pure Nothing
