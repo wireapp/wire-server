@@ -53,7 +53,7 @@ RUN apk add --no-cache --virtual .build-deps \
 
 ENV NGINX_VERSION 1.16.1
 
-RUN apk add --no-cache --virtual .build-deps \
+RUN apk update && apk add --virtual .build-deps \
         libsodium-dev \
         llvm-libunwind-dev \
         gcc \
