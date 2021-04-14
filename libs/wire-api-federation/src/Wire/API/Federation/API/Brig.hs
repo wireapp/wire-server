@@ -89,6 +89,15 @@ mkClaimPrekey user client =
       Proto.QueryParam "client" (toByteString' client)
     ]
     mempty
+  
+mkClaimPrekeyBundle :: UserId -> Proto.Request
+mkClaimPrekeyBundle user =
+  Proto.Request
+    Proto.Brig
+    (Proto.HTTPMethod HTTP.GET)
+    "users/prekey"
+    [ Proto.QueryParam "uid" (toByteString' user) ]
+    mempty
 
 mkGetUsersByIds :: [UserId] -> Proto.Request
 mkGetUsersByIds uids =

@@ -23,6 +23,7 @@ module Brig.Federation.Client where
 
 import Brig.API.Types (FederationError (..))
 import Brig.App (AppIO, federator)
+import Brig.Types (PrekeyBundle)
 import Brig.Types.User
 import Control.Error.Util ((!?))
 import Control.Lens (view, (^.))
@@ -63,20 +64,6 @@ getUserHandleInfo (Qualified handle domain) = do
       Right x -> pure $ Just x
     code -> throwE (FederationInvalidResponseCode code)
 
--- FUTUREWORK(federation): Abstract out all the rpc boilerplate and error handling
-claimPrekey :: Qualified UserId -> ClientId -> FederationAppIO (Maybe ClientPrekey)
-claimPrekey (Qualified user domain) client = do
-  Log.info $ Log.msg @Text "Brig-federation: claiming remote prekey"
-  federatorClient <- mkFederatorClient
-  let call = Proto.ValidatedFederatedRequest domain (mkClaimPrekey user client)
-  res <- expectOk =<< callRemote federatorClient call
-  case Proto.responseStatus res of
-    404 -> pure Nothing
-    200 -> case Aeson.eitherDecodeStrict (Proto.responseBody res) of
-      Left err -> throwE (FederationInvalidResponseBody (T.pack err))
-      Right x -> pure $ Just x
-    code -> throwE (FederationInvalidResponseCode code)
-
 -- FUTUREWORK: Test
 getUsersByIds :: [Qualified UserId] -> FederationAppIO [UserProfile]
 getUsersByIds quids = do
@@ -95,6 +82,32 @@ getUsersByIds quids = do
           Left err -> throwE (FederationInvalidResponseBody (T.pack err))
           Right profiles -> pure profiles
         code -> throwE (FederationInvalidResponseCode code)
+
+-- FUTUREWORK(federation): Abstract out all the rpc boilerplate and error handling
+claimPrekey :: Qualified UserId -> ClientId -> FederationAppIO (Maybe ClientPrekey)
+claimPrekey (Qualified user domain) client = do
+  Log.info $ Log.msg @Text "Brig-federation: claiming remote prekey"
+  federatorClient <- mkFederatorClient
+  let call = Proto.ValidatedFederatedRequest domain (mkClaimPrekey user client)
+  res <- expectOk =<< callRemote federatorClient call
+  case Proto.responseStatus res of
+    404 -> pure Nothing
+    200 -> case Aeson.eitherDecodeStrict (Proto.responseBody res) of
+      Left err -> throwE (FederationInvalidResponseBody (T.pack err))
+      Right x -> pure $ Just x
+    code -> throwE (FederationInvalidResponseCode code)
+
+claimPrekeyBundle :: Qualified UserId -> FederationAppIO PrekeyBundle
+claimPrekeyBundle (Qualified user domain) = do
+  Log.info $ Log.msg @Text "Brig-federation: claiming remote prekey"
+  federatorClient <- mkFederatorClient
+  let call = Proto.ValidatedFederatedRequest domain (mkClaimPrekeyBundle user)
+  res <- expectOk =<< callRemote federatorClient call
+  case Proto.responseStatus res of
+    200 -> case Aeson.eitherDecodeStrict (Proto.responseBody res) of
+      Left err -> throwE (FederationInvalidResponseBody (T.pack err))
+      Right x -> pure x
+    code -> throwE (FederationInvalidResponseCode code)
 
 qualifiedToMap :: [Qualified a] -> Map Domain [a]
 qualifiedToMap = Map.fromListWith (<>) . map (\(Qualified thing domain) -> (domain, [thing]))

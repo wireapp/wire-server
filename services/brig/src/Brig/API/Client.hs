@@ -170,13 +170,15 @@ claimPrekeyBundle domain uid = do
   isLocalDomain <- (domain ==) <$> viewFederationDomain
   if isLocalDomain
     then lift $ claimLocalPrekeyBundle uid
-    else -- FUTUREWORK(federation, #1272): claim keys from other backend
-      throwE (ClientFederationError FederationNotImplemented)
+    else claimRemotePrekeyBundle (Qualified uid domain)
 
 claimLocalPrekeyBundle :: UserId -> AppIO PrekeyBundle
 claimLocalPrekeyBundle u = do
   clients <- map clientId <$> Data.lookupClients u
   PrekeyBundle u . catMaybes <$> mapM (Data.claimPrekey u) clients
+
+claimRemotePrekeyBundle :: Qualified UserId -> ExceptT ClientError AppIO PrekeyBundle
+claimRemotePrekeyBundle quser = Federation.claimPrekeyBundle quser !>> ClientFederationError
 
 claimMultiPrekeyBundles :: QualifiedUserClients -> ExceptT ClientError AppIO (QualifiedUserClientMap (Maybe Prekey))
 claimMultiPrekeyBundles quc = do
