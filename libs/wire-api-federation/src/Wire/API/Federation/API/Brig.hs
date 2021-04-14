@@ -117,7 +117,11 @@ instance (Monad m, MonadError FederationClientError m, MonadIO m) => RunClient (
       GRpcOk (Proto.OutwardResponseHTTPResponse res) ->
         pure $
           Response
-            { responseStatusCode = HTTP.mkStatus (fromIntegral $ Proto.responseStatus res) "",
+            { -- TODO: Here only the status code is set and not the message
+              -- along with the code. Figuring out right message will be
+              -- tedious, but I guess it has to be done? Maybe we can always set
+              -- this to 200 OK and throw some other error if it is not 200.
+              responseStatusCode = HTTP.mkStatus (fromIntegral $ Proto.responseStatus res) "",
               -- This is required so servant can parse the body
               responseHeaders = [(HTTP.hContentType, "application/json")],
               -- Here HTTP 1.1 is hardcoded with the hope that it wouldn't
