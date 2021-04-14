@@ -21,7 +21,7 @@
 module Brig.Federation.Client where
 
 import Brig.API.Types (FederationError (..))
-import Brig.App (AppIO, federator)
+import Brig.App (AppIO, federator, viewFederationDomain)
 import Brig.Types (Prekey, PrekeyBundle)
 import qualified Brig.Types.Search as Public
 import Brig.Types.User
@@ -101,7 +101,8 @@ mkFederatorClient = do
     >>= either (throwE . FederationUnavailable . reason) pure
 
 executeFederated :: Domain -> FederatorClient component (ExceptT FederationClientError FederationAppIO) a -> FederationAppIO a
-executeFederated domain action = do
+executeFederated targetDomain action = do
   federatorClient <- mkFederatorClient
-  runExceptT (runFederatorClientWith federatorClient domain action)
+  originDomain <- viewFederationDomain
+  runExceptT (runFederatorClientWith federatorClient targetDomain originDomain action)
     >>= either (throwE . FederationCallFailure) pure

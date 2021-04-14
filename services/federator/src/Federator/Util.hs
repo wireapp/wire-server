@@ -17,19 +17,34 @@
 
 module Federator.Util
   ( federateWith,
+    federateWith',
   )
 where
 
 import Control.Lens (view)
-import Data.Domain (Domain)
+import Data.Domain (Domain, domainText, mkDomain)
+import Data.String.Conversions (cs)
 import Federator.Options
 import Imports
 import Polysemy (Members, Sem)
 import qualified Polysemy.Reader as Polysemy
 
+-- | Validates an already-parsed domain against the allowList using the federator
+-- startup configuration. See also federateWith' for an alternative
 federateWith :: Members '[Polysemy.Reader RunSettings] r => Domain -> Sem r Bool
 federateWith targetDomain = do
   strategy <- view federationStrategy <$> Polysemy.ask
   pure $ case strategy of
     AllowAll -> True
     AllowList (AllowedDomains domains) -> targetDomain `elem` domains
+
+-- | Validates an unknown domain string against the allowList using the federator startup configuration
+federateWith' :: Members '[Polysemy.Reader RunSettings] r => Text -> Sem r (Either Text Domain)
+federateWith' targetDomain = do
+  case mkDomain targetDomain of
+    Left err -> pure $ Left ("Domain parse failure for [" <> targetDomain <> "]: " <> cs err)
+    Right parsedDomain -> do
+      allowCheck <- federateWith parsedDomain
+      if allowCheck
+        then pure $ Right parsedDomain
+        else pure $ Left ("Origin domain [" <> domainText parsedDomain <> "] not in the federation allow list")

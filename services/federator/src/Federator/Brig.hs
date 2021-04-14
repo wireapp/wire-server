@@ -25,6 +25,8 @@ module Federator.Brig where
 import qualified Bilge as RPC
 import Bilge.RPC (rpc')
 import Control.Lens (view)
+import Data.Domain
+import Data.String.Conversions (cs)
 import Federator.App (Federator, liftAppIOToFederator)
 import Federator.Env (brig)
 import Imports
@@ -36,7 +38,7 @@ newtype BrigError = BrigErrorInvalidStatus HTTP.Status
 
 data Brig m a where
   -- | Returns status and body, 'HTTP.Response' is not nice to work with in tests
-  BrigCall :: ByteString -> ByteString -> Brig m (HTTP.Status, Maybe LByteString)
+  BrigCall :: ByteString -> ByteString -> Domain -> Brig m (HTTP.Status, Maybe LByteString)
 
 makeSem ''Brig
 
@@ -50,7 +52,7 @@ interpretBrig ::
   Sem (Brig ': r) a ->
   Sem r a
 interpretBrig = interpret $ \case
-  BrigCall path body -> embed @Federator . liftAppIOToFederator $ do
+  BrigCall path body domain -> embed @Federator . liftAppIOToFederator $ do
     brigReq <- view brig <$> ask
     res <-
       rpc' "brig" brigReq $
@@ -58,4 +60,5 @@ interpretBrig = interpret $ \case
           . RPC.path path -- FUTUREWORK(federation): Protect against arbitrary paths
           . RPC.body (RPC.RequestBodyBS body)
           . RPC.contentJson
+          . RPC.header "Wire-Origin-Domain" (cs (domainText domain))
     pure (RPC.responseStatus res, RPC.responseBody res)

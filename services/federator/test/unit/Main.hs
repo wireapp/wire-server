@@ -24,14 +24,16 @@ import Imports
 import qualified Test.Federator.ExternalServer
 import qualified Test.Federator.InternalServer
 import qualified Test.Federator.Options
+import qualified Test.Federator.Validation as Validation
 import Test.Tasty
 
 main :: IO ()
-main =
+main = do
   defaultMain $
     testGroup
       "Tests"
       [ Test.Federator.Options.tests,
+        Validation.tests,
         Test.Federator.InternalServer.tests,
         Test.Federator.ExternalServer.tests
       ]
