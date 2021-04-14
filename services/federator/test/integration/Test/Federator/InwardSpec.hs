@@ -78,7 +78,7 @@ spec env =
         c <- case client of
           Left (err) -> liftIO $ assertFailure (show err)
           Right cli -> pure cli
-        let brigCall = Request Brig (HTTPMethod HTTP.GET) "users/by-handle" [QueryParam "handle" (Text.encodeUtf8 hdl)] mempty
+        let brigCall = Request Brig (HTTPMethod HTTP.GET) "federation/users/by-handle" [QueryParam "handle" (Text.encodeUtf8 hdl)] mempty
         res <- liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" c brigCall
 
         liftIO $ case res of

@@ -51,7 +51,7 @@ interpretBrig = interpret $ \case
     let theCall =
           rpc' "brig" brigReq $
             RPC.method m
-              . RPC.path ("federation/" <> p) -- FUTUREWORK(federation): Protect against path traversal
+              . RPC.path p -- FUTUREWORK(federation): Protect against arbitrary paths
               . RPC.query (map (\(QueryParam k v) -> (k, Just v)) q)
               . RPC.body (RPC.RequestBodyBS b)
     res <-
