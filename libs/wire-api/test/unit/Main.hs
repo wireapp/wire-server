@@ -30,6 +30,7 @@ import qualified Test.Wire.API.Swagger as Swagger
 import qualified Test.Wire.API.Team.Member as Team.Member
 import qualified Test.Wire.API.User as User
 import qualified Test.Wire.API.User.RichInfo as User.RichInfo
+import qualified Test.Wire.API.User.Search as User.Search
 
 main :: IO ()
 main =
@@ -39,6 +40,7 @@ main =
       [ Call.Config.tests,
         Team.Member.tests,
         User.tests,
+        User.Search.tests,
         User.RichInfo.tests,
         Roundtrip.Aeson.tests,
         Roundtrip.ByteString.tests,

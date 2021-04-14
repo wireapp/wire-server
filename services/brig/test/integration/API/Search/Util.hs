@@ -23,7 +23,9 @@ import Brig.Types
 import Control.Monad.Catch (MonadCatch)
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Conversion.To (toByteString)
+import Data.Domain (Domain)
 import Data.Id
+import Data.Qualified (Qualified (..))
 import Data.String.Conversions (cs)
 import Data.Text.Encoding (encodeUtf8)
 import Imports
@@ -32,17 +34,28 @@ import Util
 import Wire.API.User.Search (RoleFilter (..), TeamContact (..), TeamUserSearchSortBy, TeamUserSearchSortOrder)
 
 executeSearch :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Text -> m (SearchResult Contact)
-executeSearch brig self q = do
+executeSearch brig self term = executeSearch' brig self term Nothing Nothing
+
+executeSearchWithDomain :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Text -> Domain -> m (SearchResult Contact)
+executeSearchWithDomain brig self term domain = executeSearch' brig self term (Just domain) Nothing
+
+executeSearch' :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Text -> Maybe Domain -> Maybe Int -> m (SearchResult Contact)
+executeSearch' brig self q maybeDomain maybeSize = do
   r <-
-    get
-      ( brig
-          . path "/search/contacts"
-          . zUser self
-          . queryItem "q" (encodeUtf8 q)
-      )
-      <!! const 200
-      === statusCode
+    searchRequest brig self q maybeDomain maybeSize
+      <!! const 200 === statusCode
   responseJsonError r
+
+searchRequest :: (MonadIO m, MonadHttp m) => Brig -> UserId -> Text -> Maybe Domain -> Maybe Int -> m ResponseLBS
+searchRequest brig self q maybeDomain maybeSize = do
+  get
+    ( brig
+        . path "/search/contacts"
+        . zUser self
+        . queryItem "q" (encodeUtf8 q)
+        . maybe id (queryItem "domain" . toByteString') maybeDomain
+        . maybe id (queryItem "size" . toByteString') maybeSize
+    )
 
 -- | ES is only refreshed occasionally; we don't want to wait for that in tests.
 refreshIndex :: (Monad m, MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> m ()
@@ -55,27 +68,43 @@ reindex brig =
 
 assertCanFindByName :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> m ()
 assertCanFindByName brig self expected =
-  assertCanFind brig (userId self) (userId expected) (fromName $ userDisplayName expected)
+  assertCanFind brig (userId self) (userQualifiedId expected) (fromName $ userDisplayName expected)
 
 assertCan'tFindByName :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> User -> User -> m ()
 assertCan'tFindByName brig self expected =
-  assertCan'tFind brig (userId self) (userId expected) (fromName $ userDisplayName expected)
+  assertCan'tFind brig (userId self) (userQualifiedId expected) (fromName $ userDisplayName expected)
 
-assertCanFind :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> UserId -> Text -> m ()
+assertCanFind :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Qualified UserId -> Text -> m ()
 assertCanFind brig self expected q = do
   r <- searchResults <$> executeSearch brig self q
   liftIO $ do
     assertBool ("No results for query: " <> show q) $
       not (null r)
     assertBool ("User not in results for query: " <> show q) $
-      expected `elem` (map contactUserId r)
+      expected `elem` map contactQualifiedId r
 
-assertCan'tFind :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> UserId -> Text -> m ()
+assertCanFindWithDomain :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Qualified UserId -> Text -> Domain -> m ()
+assertCanFindWithDomain brig self expected q domain = do
+  r <- searchResults <$> executeSearchWithDomain brig self q domain
+  liftIO $ do
+    assertBool ("No results for query: " <> show q) $
+      not (null r)
+    assertBool ("User not in results for query: " <> show q) $
+      expected `elem` map contactQualifiedId r
+
+assertCan'tFind :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Qualified UserId -> Text -> m ()
 assertCan'tFind brig self expected q = do
   r <- searchResults <$> executeSearch brig self q
   liftIO $ do
     assertBool ("User shouldn't be present in results for query: " <> show q) $
-      expected `notElem` map contactUserId r
+      expected `notElem` map contactQualifiedId r
+
+assertCan'tFindWithDomain :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Qualified UserId -> Text -> Domain -> m ()
+assertCan'tFindWithDomain brig self expected q domain = do
+  r <- searchResults <$> executeSearchWithDomain brig self q domain
+  liftIO $ do
+    assertBool ("User shouldn't be present in results for query: " <> show q) $
+      expected `notElem` map contactQualifiedId r
 
 executeTeamUserSearch ::
   (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) =>

@@ -19,11 +19,14 @@ module Brig.Federation.Client where
 
 import Brig.API.Types (FederationError (..))
 import Brig.App (AppIO, federator)
+import qualified Brig.Types.Search as Public
 import Brig.Types.User
 import Control.Error.Util ((!?))
 import Control.Lens (view, (^.))
 import Control.Monad.Except (runExceptT)
 import Control.Monad.Trans.Except (ExceptT (..), throwE)
+import qualified Data.Aeson as Aeson
+import Data.Domain
 import Data.Handle
 import Data.Qualified
 import qualified Data.Text as T
@@ -54,6 +57,23 @@ getUserHandleInfo (Qualified handle domain) = do
         then pure Nothing
         else throwE $ FederationCallFailure err
     Left err -> throwE $ FederationCallFailure err
+
+-- FUTUREWORK(federation): reduce duplication between these functions
+-- FUTUREWORK(federation): rework error handling and FUTUREWORK from getUserHandleInfo and search:
+--       decoding error should not throw a 404 most likely
+--       and non-200, non-404 should also not become 404s. Looks like some tests are missing and
+--       https://wearezeta.atlassian.net/browse/SQCORE-491 is not quite done yet.
+searchUsers :: Domain -> Text -> FederationAppIO (Public.SearchResult Public.Contact)
+searchUsers domain searchTerm = do
+  Log.warn $ Log.msg $ T.pack "Brig-federation: search call on remote backend"
+  federatorClient <- mkFederatorClient
+  let call = Proto.ValidatedFederatedRequest domain (mkSearchUsers searchTerm)
+  res <- expectOk =<< callRemote federatorClient call
+  case Proto.responseStatus res of
+    200 -> case Aeson.eitherDecodeStrict (Proto.responseBody res) of
+      Left err -> throwE $ (FederationInvalidResponseBody (T.pack err))
+      Right x -> pure $ x
+    code -> throwE (FederationInvalidResponseCode code)
 
 -- FUTUREWORK: It would be nice to share the client across all calls to
 -- federator and not call this function on every invocation of federated

@@ -204,6 +204,7 @@ testCreateUserAnon brig galley = do
   liftIO $ assertBool "Missing zuid cookie" (isJust zuid)
   -- Every registered user gets a self conversation.
   let Just uid = userId <$> responseJsonMaybe rs
+      Just quid = userQualifiedId <$> responseJsonMaybe rs
   get (galley . path "conversations" . zAuthAccess uid "conn") !!! do
     const 200 === statusCode
     -- check number of conversations:
@@ -218,7 +219,7 @@ testCreateUserAnon brig galley = do
   -- should not appear in search
   suid <- userId <$> randomUser brig
   Search.refreshIndex brig
-  Search.assertCan'tFind brig suid uid "Mr. Pink"
+  Search.assertCan'tFind brig suid quid "Mr. Pink"
 
 testCreateUserPending :: Opt.Opts -> Brig -> Http ()
 testCreateUserPending (Opt.setRestrictUserCreation . Opt.optSettings -> Just True) _ = pure ()
@@ -244,6 +245,7 @@ testCreateUserPending _ brig = do
     const (Just "pending-activation") === fmap Error.label . responseJsonMaybe
   -- The user has no verified / activated identity yet
   let Just uid = userId <$> responseJsonMaybe rs
+      Just quid = userQualifiedId <$> responseJsonMaybe rs
   get (brig . path "/self" . zUser uid) !!! do
     const 200 === statusCode
     const (Just True) === \rs' -> do
@@ -252,7 +254,7 @@ testCreateUserPending _ brig = do
   -- should not appear in search
   suid <- userId <$> randomUser brig
   Search.refreshIndex brig
-  Search.assertCan'tFind brig suid uid "Mr. Pink"
+  Search.assertCan'tFind brig suid quid "Mr. Pink"
 
 testCreateUserNoEmailNoPassword :: Brig -> Http ()
 testCreateUserNoEmailNoPassword brig = do
@@ -509,6 +511,7 @@ testUserUpdate brig cannon aws = do
   aliceUser <- randomUser brig
   liftIO $ Util.assertUserJournalQueue "user create alice" aws (userActivateJournaled aliceUser)
   let alice = userId aliceUser
+      aliceQ = userQualifiedId aliceUser
   bobUser <- randomUser brig
   liftIO $ Util.assertUserJournalQueue "user create bob" aws (userActivateJournaled bobUser)
   let bob = userId bobUser
@@ -548,7 +551,7 @@ testUserUpdate brig cannon aws = do
   -- should appear in search by 'newName'
   suid <- userId <$> randomUser brig
   Search.refreshIndex brig
-  Search.assertCanFind brig suid alice "dogbert"
+  Search.assertCanFind brig suid aliceQ "dogbert"
 
 testEmailUpdate :: Brig -> AWS.Env -> Http ()
 testEmailUpdate brig aws = do
@@ -649,6 +652,7 @@ testSuspendUser :: Brig -> Http ()
 testSuspendUser brig = do
   u <- randomUser brig
   let uid = userId u
+      quid = userQualifiedId u
       Just email = userEmail u
   setStatus brig uid Suspended
   -- login fails
@@ -660,13 +664,13 @@ testSuspendUser brig = do
   -- should not appear in search
   suid <- userId <$> randomUser brig
   Search.refreshIndex brig
-  Search.assertCan'tFind brig suid uid (fromName (userDisplayName u))
+  Search.assertCan'tFind brig suid quid (fromName (userDisplayName u))
   -- re-activate
   setStatus brig uid Active
   chkStatus brig uid Active
   -- should appear in search again
   Search.refreshIndex brig
-  Search.assertCanFind brig suid uid (fromName (userDisplayName u))
+  Search.assertCanFind brig suid quid (fromName (userDisplayName u))
 
 testGetByIdentity :: Brig -> Http ()
 testGetByIdentity brig = do
@@ -1154,6 +1158,7 @@ testRestrictedUserCreation opts brig = do
 setHandleAndDeleteUser :: Brig -> Cannon -> User -> [UserId] -> AWS.Env -> (UserId -> HttpT IO ()) -> Http ()
 setHandleAndDeleteUser brig cannon u others aws execDelete = do
   let uid = userId u
+      quid = userQualifiedId u
       email = fromMaybe (error "Must have an email set") (userEmail u)
   -- First set a unique handle (to verify freeing of the handle)
   hdl <- randomHandle
@@ -1187,8 +1192,8 @@ setHandleAndDeleteUser brig cannon u others aws execDelete = do
   -- Does not appear in search; public profile shows the user as deleted
   forM_ others $ \usr -> do
     get (brig . paths ["users", toByteString' uid] . zUser usr) !!! assertDeletedProfilePublic
-    Search.assertCan'tFind brig usr uid (fromName (userDisplayName u))
-    Search.assertCan'tFind brig usr uid hdl
+    Search.assertCan'tFind brig usr quid (fromName (userDisplayName u))
+    Search.assertCan'tFind brig usr quid hdl
   -- Email address is available again
   let Object o =
         object
