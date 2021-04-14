@@ -17,12 +17,12 @@
 
 module Brig.API.Federation (federationSitemap) where
 
+import qualified Brig.API.Client as API
 import Brig.API.Error (handleNotFound, throwStd)
 import Brig.API.Handler (Handler)
-import qualified Brig.API.Client as API
 import qualified Brig.API.User as API
 import qualified Brig.Data.Client as Data
-import Brig.Types (PrekeyBundle, Prekey)
+import Brig.Types (Prekey, PrekeyBundle)
 import Data.Handle (Handle)
 import Data.Id (ClientId, UserId)
 import Imports
@@ -30,9 +30,9 @@ import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
 import qualified Wire.API.Federation.API.Brig as FederationAPIBrig
+import Wire.API.Message (UserClientMap, UserClients)
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client.Prekey (ClientPrekey)
-import Wire.API.Message (UserClients, UserClientMap)
 
 federationSitemap :: ServerT (ToServantApi FederationAPIBrig.Api) Handler
 federationSitemap =

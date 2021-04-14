@@ -20,6 +20,7 @@ module API.Federation where
 import Bilge hiding (head)
 import Bilge.Assert
 import Brig.Types
+import Control.Arrow ((&&&))
 import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Id (Id (..), UserId)
@@ -30,8 +31,7 @@ import Imports
 import Test.Tasty
 import Test.Tasty.HUnit (assertEqual)
 import Util
-import Wire.API.Message (UserClients (..), UserClientMap (..))
-import Control.Arrow ((&&&))
+import Wire.API.Message (UserClientMap (..), UserClients (..))
 
 tests :: Manager -> Brig -> IO TestTree
 tests m brig =
