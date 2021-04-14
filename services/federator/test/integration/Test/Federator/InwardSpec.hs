@@ -31,7 +31,6 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
-import Federator.Options
 import Imports
 import Mu.GRpc.Client.TyApps
 import qualified Network.HTTP.Types as HTTP
@@ -75,7 +74,7 @@ spec env =
 
         let expectedProfile = (publicProfile user) {profileHandle = Just (Handle hdl)}
 
-        Endpoint fedHost fedPort <- federatorExternal . view teOpts <$> ask
+        Endpoint fedHost fedPort <- cfgFederatorExternal . view teTstOpts <$> ask
         client <- createGrpcClient (grpcClientConfigSimple (Text.unpack fedHost) (fromIntegral fedPort) False)
         c <- case client of
           Left (err) -> liftIO $ assertFailure (show err)
