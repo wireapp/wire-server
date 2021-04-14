@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedLists #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -23,9 +24,8 @@ import Control.Monad.Except (MonadError (..))
 import Data.ByteString.Builder (toLazyByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain (Domain)
-import Data.Handle (Handle, fromHandle)
+import Data.Handle (Handle)
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
 import Imports
 import Mu.GRpc.Client.Record (GRpcMessageProtocol (MsgProtoBuf), GRpcReply (..), GrpcClient)
 import Mu.GRpc.Client.TyApps (gRpcCall)
@@ -75,6 +75,9 @@ data FederatorClientEnv = FederatorClientEnv
 newtype FederatorClient m a = FederatorClient {runFederatorClient :: ReaderT FederatorClientEnv m a}
   deriving newtype (Functor, Applicative, Monad, MonadReader FederatorClientEnv, MonadIO)
 
+runFederatorClientWith :: GrpcClient -> Domain -> FederatorClient m a -> m a
+runFederatorClientWith client dmn = flip runReaderT (FederatorClientEnv client dmn) . runFederatorClient
+
 instance (Monad m, MonadError FederationClientError m) => MonadError FederationClientError (FederatorClient m) where
   throwError = FederatorClient . throwError
   catchError (FederatorClient action) f = FederatorClient $ catchError action (runFederatorClient . f)
@@ -115,7 +118,8 @@ instance (Monad m, MonadError FederationClientError m, MonadIO m) => RunClient (
         pure $
           Response
             { responseStatusCode = HTTP.mkStatus (fromIntegral $ Proto.responseStatus res) "",
-              responseHeaders = mempty,
+              -- This is required so servant can parse the body
+              responseHeaders = [(HTTP.hContentType, "application/json")],
               -- Here HTTP 1.1 is hardcoded with the hope that it wouldn't
               -- really be used anywhere.
               responseHttpVersion = HTTP.http11,
@@ -131,29 +135,3 @@ instance (Monad m, MonadError FederationClientError m, MonadIO m) => RunClient (
 
 callRemote :: MonadIO m => GrpcClient -> Proto.ValidatedFederatedRequest -> m (GRpcReply Proto.OutwardResponse)
 callRemote fedClient call = liftIO $ gRpcCall @'MsgProtoBuf @Proto.Outward @"Outward" @"call" fedClient (Proto.validatedFederatedRequestToFederatedRequest call)
-
--- FUTUREWORK(federation): Idea: by keeping the functions to construct a Request and the API definitions in the same place,
--- we can:
--- - more easily make sure their definitions match
--- - probably add their path segments to a list for validation purposes to guard against path traversals.
-
--- FUTUREWORK(federation): I think we should make the federation/ prefix explicit here and not add it in services/federator/src/Federator/Federate.hs
-mkGetUserInfoByHandle :: Handle -> Proto.Request
-mkGetUserInfoByHandle handle =
-  Proto.Request
-    Proto.Brig
-    (Proto.HTTPMethod HTTP.GET)
-    "users/by-handle"
-    [Proto.QueryParam "handle" (T.encodeUtf8 (fromHandle handle))]
-    mempty
-
--- FUTUREWORK: Can we write a test which makes use of mkSearchUsers against the Api in this file?
-mkSearchUsers :: Text -> Proto.Request
-mkSearchUsers searchTerm =
-  Proto.Request
-    Proto.Brig
-    (Proto.HTTPMethod HTTP.GET)
-    "search/users"
-    [Proto.QueryParam "q" (T.encodeUtf8 searchTerm)]
-    -- FUTUREWORK(federation): do we want to pass other parameters like the number of results?
-    mempty

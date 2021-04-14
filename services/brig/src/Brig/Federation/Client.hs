@@ -25,7 +25,6 @@ import Control.Error.Util ((!?))
 import Control.Lens (view, (^.))
 import Control.Monad.Except (runExceptT)
 import Control.Monad.Trans.Except (ExceptT (..), throwE)
-import qualified Data.Aeson as Aeson
 import Data.Domain
 import Data.Handle
 import Data.Qualified
@@ -36,7 +35,7 @@ import qualified Network.HTTP.Types.Status as HTTP
 import qualified Servant.Client as Servant
 import qualified System.Logger.Class as Log
 import Util.Options (epHost, epPort)
-import Wire.API.Federation.API.Brig
+import Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.GRPC.Client
 
 type FederationAppIO = ExceptT FederationError AppIO
@@ -49,7 +48,7 @@ getUserHandleInfo :: Qualified Handle -> FederationAppIO (Maybe UserProfile)
 getUserHandleInfo (Qualified handle domain) = do
   Log.info $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
   federatorClient <- mkFederatorClient
-  eitherResponse <- runExceptT . flip runReaderT (FederatorClientEnv federatorClient domain) . runFederatorClient $ getUserByHandle clientRoutes handle
+  eitherResponse <- runExceptT . runFederatorClientWith federatorClient domain $ getUserByHandle clientRoutes handle
   case eitherResponse of
     Right profile -> pure $ Just profile
     Left err@(FederationClientServantError (Servant.FailureResponse _ res)) ->
@@ -67,13 +66,10 @@ searchUsers :: Domain -> Text -> FederationAppIO (Public.SearchResult Public.Con
 searchUsers domain searchTerm = do
   Log.warn $ Log.msg $ T.pack "Brig-federation: search call on remote backend"
   federatorClient <- mkFederatorClient
-  let call = Proto.ValidatedFederatedRequest domain (mkSearchUsers searchTerm)
-  res <- expectOk =<< callRemote federatorClient call
-  case Proto.responseStatus res of
-    200 -> case Aeson.eitherDecodeStrict (Proto.responseBody res) of
-      Left err -> throwE $ (FederationInvalidResponseBody (T.pack err))
-      Right x -> pure $ x
-    code -> throwE (FederationInvalidResponseCode code)
+  eitherResponse <- runExceptT . runFederatorClientWith federatorClient domain $ FederatedBrig.searchUsers clientRoutes searchTerm
+  case eitherResponse of
+    Right result -> pure result
+    Left err -> throwE $ FederationCallFailure err
 
 -- FUTUREWORK: It would be nice to share the client across all calls to
 -- federator and not call this function on every invocation of federated
