@@ -23,6 +23,7 @@ module Brig.User.API.Handle
   )
 where
 
+import Brig.API.Error (fedError)
 import Brig.API.Handler (Handler)
 import qualified Brig.API.User as API
 import Brig.App (settings, viewFederationDomain)
@@ -34,6 +35,7 @@ import Data.Handle (Handle, fromHandle)
 import Data.Id (UserId)
 import Data.Qualified (Qualified (..))
 import Imports
+import Network.Wai.Utilities ((!>>))
 import qualified System.Logger.Class as Log
 import Wire.API.User
 import qualified Wire.API.User as Public
@@ -50,7 +52,7 @@ getHandleInfo self handle = do
   where
     getRemoteHandleInfo = do
       Log.info $ Log.msg (Log.val "getHandleInfo - remote lookup") Log.~~ Log.field "domain" (show (qDomain handle))
-      Federation.getUserHandleInfo handle
+      Federation.getUserHandleInfo handle !>> fedError
 
 getLocalHandleInfo :: UserId -> Handle -> Handler (Maybe Public.UserProfile)
 getLocalHandleInfo self handle = do

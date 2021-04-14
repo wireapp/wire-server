@@ -77,7 +77,7 @@ lookupClient (Qualified uid domain) clientId = do
   if domain == localdomain
     then lift $ lookupLocalClient uid clientId
     else -- FUTUREWORK(federation, #1271): look up remote clients
-      throwE ClientFederationNotImplemented
+      throwE (ClientFederationError FederationNotImplemented)
 
 lookupLocalClient :: UserId -> ClientId -> AppIO (Maybe Client)
 lookupLocalClient = Data.lookupClient
@@ -88,7 +88,7 @@ lookupClients (Qualified uid domain) = do
   if domain == localdomain
     then lift $ lookupLocalClients uid
     else -- FUTUREWORK(federation, #1271): look up remote clients
-      throwE ClientFederationNotImplemented
+      throwE (ClientFederationError FederationNotImplemented)
 
 lookupLocalClients :: UserId -> AppIO [Client]
 lookupLocalClients = Data.lookupClients
@@ -168,7 +168,7 @@ claimPrekeyBundle domain uid = do
   if isLocalDomain
     then lift $ claimLocalPrekeyBundle uid
     else -- FUTUREWORK(federation, #1272): claim keys from other backend
-      throwE ClientFederationNotImplemented
+      throwE (ClientFederationError FederationNotImplemented)
   where
     claimLocalPrekeyBundle :: UserId -> AppIO PrekeyBundle
     claimLocalPrekeyBundle u = do
@@ -181,7 +181,7 @@ claimMultiPrekeyBundles quc = do
   res <- forM (Map.toList . qualifiedUserClients $ quc) $ \(domain, userClients) -> do
     if domain == localDomain
       then (domain,) <$> lift (getLocal userClients)
-      else throwE ClientFederationNotImplemented
+      else throwE (ClientFederationError FederationNotImplemented)
   pure $ (QualifiedUserClientMap . Map.fromList) res
   where
     getLocal :: UserClients -> AppIO (UserClientMap (Maybe Prekey))

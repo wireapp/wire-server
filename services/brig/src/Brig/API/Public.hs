@@ -1082,11 +1082,12 @@ listPropertyKeysAndValuesH (u ::: _) = do
 getPrekeyUnqualifiedH :: UserId -> ClientId -> Handler Public.ClientPrekey
 getPrekeyUnqualifiedH user client = do
   domain <- viewFederationDomain
-  ifNothing (notFound "prekey not found") =<< lift (API.claimPrekey user domain client)
+  getPrekeyH domain user client
 
 getPrekeyH :: Domain -> UserId -> ClientId -> Handler Public.ClientPrekey
 getPrekeyH domain user client = do
-  ifNothing (notFound "prekey not found") =<< lift (API.claimPrekey user domain client)
+  mPrekey <- lift (API.claimPrekey user domain client)
+  ifNothing (notFound "prekey not found") mPrekey
 
 getPrekeyBundleUnqualifiedH :: UserId -> Handler Public.PrekeyBundle
 getPrekeyBundleUnqualifiedH uid = do
