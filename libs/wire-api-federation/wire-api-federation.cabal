@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 543c75e131e7444c4c6cbb2e5b5045cd1a3a4da7e43b4bc90251bf308b224bf6
+-- hash: 61d775f3324bfa1e9bcfa85ff7a8cd7ff88ca5b2572db64fa29bca6c4175911c
 
 name:           wire-api-federation
 version:        0.1.0
@@ -40,6 +40,7 @@ library
       QuickCheck >=2.13
     , aeson >=1.4
     , base >=4.6 && <5.0
+    , bytestring-conversion
     , either
     , http-types
     , http2-client-grpc
@@ -72,6 +73,7 @@ test-suite spec
       QuickCheck >=2.13
     , aeson >=1.4
     , base >=4.6 && <5.0
+    , bytestring-conversion
     , either
     , hspec
     , http-types
