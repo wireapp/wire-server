@@ -23,6 +23,7 @@ module Brig.User.API.Search
   )
 where
 
+import Brig.API.Error (fedError)
 import Brig.API.Handler
 import Brig.API.Util (ZAuthServant)
 import Brig.App
@@ -50,6 +51,7 @@ import Imports
 import Network.Wai (Response)
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Routing
+import Network.Wai.Utilities ((!>>))
 import Network.Wai.Utilities.Response (empty, json)
 import Network.Wai.Utilities.Swagger (document)
 import Servant hiding (Handler, JSON)
@@ -152,7 +154,7 @@ searchRemotely domain searchTerm = do
     msg (val "searchRemotely")
       ~~ field "domain" (show domain)
       ~~ field "searchTerm" searchTerm
-  Federation.searchUsers domain searchTerm
+  Federation.searchUsers domain searchTerm !>> fedError
 
 searchLocally :: UserId -> Text -> Maybe (Range 1 500 Int32) -> Handler (Public.SearchResult Public.Contact)
 searchLocally searcherId searchTerm maybeMaxResults = do
