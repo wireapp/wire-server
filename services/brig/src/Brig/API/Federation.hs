@@ -22,7 +22,7 @@ import Brig.API.Handler (Handler)
 import qualified Brig.API.Client as API
 import qualified Brig.API.User as API
 import qualified Brig.Data.Client as Data
-import Brig.Types (PrekeyBundle)
+import Brig.Types (PrekeyBundle, Prekey)
 import Data.Handle (Handle)
 import Data.Id (ClientId, UserId)
 import Imports
@@ -32,6 +32,7 @@ import Servant.Server.Generic (genericServerT)
 import qualified Wire.API.Federation.API.Brig as FederationAPIBrig
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client.Prekey (ClientPrekey)
+import Wire.API.Message (UserClients, UserClientMap)
 
 federationSitemap :: ServerT (ToServantApi FederationAPIBrig.Api) Handler
 federationSitemap =
@@ -41,6 +42,7 @@ federationSitemap =
       getUsersByIds
       claimPrekey
       getPrekeyBundle
+      getMultiPrekeyBundle
 
 getUserByHandle :: Handle -> Handler UserProfile
 getUserByHandle handle = do
@@ -61,3 +63,6 @@ claimPrekey user client = lift (Data.claimPrekey user client)
 
 getPrekeyBundle :: UserId -> Handler PrekeyBundle
 getPrekeyBundle user = lift (API.claimLocalPrekeyBundle user)
+
+getMultiPrekeyBundle :: UserClients -> Handler (UserClientMap (Maybe Prekey))
+getMultiPrekeyBundle uc = lift (API.claimLocalMultiPrekeyBundles uc)

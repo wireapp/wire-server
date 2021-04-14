@@ -27,8 +27,9 @@ import qualified Network.HTTP.Types as HTTP
 import Servant.API
 import Servant.API.Generic
 import qualified Wire.API.Federation.GRPC.Types as Proto
+import Wire.API.Message (UserClientMap, UserClients)
 import Wire.API.User (UserProfile)
-import Wire.API.User.Client.Prekey (ClientPrekey, PrekeyBundle)
+import Wire.API.User.Client.Prekey (ClientPrekey, Prekey, PrekeyBundle)
 
 -- Maybe this module should be called Brig
 data Api routes = Api
@@ -60,7 +61,14 @@ data Api routes = Api
         :> "users"
         :> "prekey-bundle"
         :> QueryParam' '[Required, Strict] "uid" UserId
-        :> Get '[JSON] PrekeyBundle
+        :> Get '[JSON] PrekeyBundle,
+    getMultiPrekeyBundle ::
+      routes
+        :- "federation"
+        :> "users"
+        :> "multi-prekey-bundle"
+        :> ReqBody '[JSON] UserClients
+        :> Post '[JSON] (UserClientMap (Maybe Prekey))
   }
   deriving (Generic)
 
@@ -89,14 +97,14 @@ mkClaimPrekey user client =
       Proto.QueryParam "client" (toByteString' client)
     ]
     mempty
-  
+
 mkClaimPrekeyBundle :: UserId -> Proto.Request
 mkClaimPrekeyBundle user =
   Proto.Request
     Proto.Brig
     (Proto.HTTPMethod HTTP.GET)
     "users/prekey"
-    [ Proto.QueryParam "uid" (toByteString' user) ]
+    [Proto.QueryParam "uid" (toByteString' user)]
     mempty
 
 mkGetUsersByIds :: [UserId] -> Proto.Request

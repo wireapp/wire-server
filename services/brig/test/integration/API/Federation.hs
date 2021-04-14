@@ -45,7 +45,7 @@ tests m brig =
         test m "GET /federation/users/get-by-id : 200 none found" (testGetUsersByIdsNoneFound brig),
         test m "GET /federation/users/prekey : 200" (testClaimPrekeySuccess brig),
         test m "GET /federation/users/prekey-bundle : 200" (testClaimPrekeyBundleSuccess brig),
-        test m "GET /federation/users/multi-prekey-bundle : 200" (testClaimMultiPrekeyBundleSuccess brig)
+        test m "POST /federation/users/multi-prekey-bundle : 200" (testClaimMultiPrekeyBundleSuccess brig)
       ]
 
 testGetUserByHandleSuccess :: Brig -> Http ()
@@ -193,6 +193,8 @@ testClaimMultiPrekeyBundleSuccess brig = do
     ( brig
         . paths ["federation", "users", "multi-prekey-bundle"]
         . body (RequestBodyLBS (Aeson.encode uc))
+        . contentJson
+        . acceptJson
         . expect2xx
     )
     !!! do

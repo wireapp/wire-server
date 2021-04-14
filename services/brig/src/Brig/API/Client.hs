@@ -31,6 +31,7 @@ module Brig.API.Client
     Data.lookupUsersClientIds,
 
     -- * Prekeys
+    claimLocalMultiPrekeyBundles,
     claimLocalPrekeyBundle,
     claimPrekey,
     claimPrekeyBundle,
@@ -185,13 +186,13 @@ claimMultiPrekeyBundles quc = do
   localDomain <- viewFederationDomain
   res <- forM (Map.toList . qualifiedUserClients $ quc) $ \(domain, userClients) -> do
     if domain == localDomain
-      then (domain,) <$> lift (getLocal userClients)
+      then (domain,) <$> lift (claimLocalMultiPrekeyBundles userClients)
       else throwE (ClientFederationError FederationNotImplemented)
   pure $ (QualifiedUserClientMap . Map.fromList) res
-  where
-    getLocal :: UserClients -> AppIO (UserClientMap (Maybe Prekey))
-    getLocal = fmap UserClientMap . foldMap (getChunk . Map.fromList) . chunksOf 16 . Map.toList . Message.userClients
 
+claimLocalMultiPrekeyBundles :: UserClients -> AppIO (UserClientMap (Maybe Prekey))
+claimLocalMultiPrekeyBundles = fmap UserClientMap . foldMap (getChunk . Map.fromList) . chunksOf 16 . Map.toList . Message.userClients
+  where
     getChunk :: Map UserId (Set ClientId) -> AppIO (Map UserId (Map ClientId (Maybe Prekey)))
     getChunk =
       runConcurrently . Map.traverseWithKey (\u -> Concurrently . getUserKeys u)
