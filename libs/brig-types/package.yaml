@@ -19,6 +19,7 @@ library:
   - aeson >=0.11
   - attoparsec >=0.10
   - base ==4.*
+  - bytestring
   - bytestring-conversion >=0.2
   - cassandra-util
   - containers >=0.5
@@ -31,6 +32,7 @@ library:
   - iproute >=1.5
   - iso3166-country-codes >=0.2
   - iso639 >=0.1
+  - lens
   - lens-aeson
   - network-uri >=2.6
   - pem >=0.2

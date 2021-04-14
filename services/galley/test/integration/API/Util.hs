@@ -20,7 +20,7 @@
 module API.Util where
 
 import qualified API.SQS as SQS
-import Bilge hiding (timeout)
+import Bilge hiding (getCookie, timeout)
 import Bilge.Assert
 import Brig.Types
 import Brig.Types.Intra (UserAccount (..))

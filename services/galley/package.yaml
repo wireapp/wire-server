@@ -87,6 +87,7 @@ library:
   - wai-routing >=0.12
   - wai-utilities >=0.16
   - warp >=3.0
+  - zauth >=0.10.3
 
 tests:
   galley-types-tests:

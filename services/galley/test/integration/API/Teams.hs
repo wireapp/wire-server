@@ -241,16 +241,16 @@ testListTeamMembersCsv numMembers = do
   (ownerId, tid, _mbs) <- Util.createBindingTeamWithNMembersWithHandles True numMembers
   [owner] <- getUsersByUid [ownerId]
   resp <- do
-    Util.getTeamMembersCsv CsvWithCookie owner tid
-      <!! do
-        const 200 === statusCode
-        const (Just "chunked") === lookup "Transfer-Encoding" . responseHeaders
     Util.getTeamMembersCsv CsvWithoutCookie owner tid
       !!! do
         const 401 === statusCode
     Util.getTeamMembersCsv CsvWithBadCookie owner tid
       !!! do
         const 401 === statusCode
+    Util.getTeamMembersCsv CsvWithCookie owner tid
+      <!! do
+        const 200 === statusCode
+        const (Just "chunked") === lookup "Transfer-Encoding" . responseHeaders
   let rbody = fromMaybe (error "no body") . responseBody $ resp
   usersInCsv <- either (error "could not decode csv") pure (decodeCSV @TeamExportUser rbody)
   liftIO $ do
