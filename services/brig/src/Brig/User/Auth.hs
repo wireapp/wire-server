@@ -71,11 +71,6 @@ import System.Logger (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import Wire.API.Team.Feature (TeamFeatureStatusNoConfig (..), TeamFeatureStatusValue (..))
 
-data Access u = Access
-  { accessToken :: !AccessToken,
-    accessCookie :: !(Maybe (Cookie (ZAuth.Token u)))
-  }
-
 sendLoginCode :: Phone -> Bool -> Bool -> ExceptT SendLoginCodeError AppIO PendingLoginCode
 sendLoginCode phone call force = do
   pk <-
