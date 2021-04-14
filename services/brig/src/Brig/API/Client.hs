@@ -36,7 +36,6 @@ module Brig.API.Client
     claimPrekey,
     claimPrekeyBundle,
     claimMultiPrekeyBundles,
-    claimMultiPrekeyBundlesLocal,
     Data.lookupClientIds,
   )
 where
@@ -184,11 +183,16 @@ claimRemotePrekeyBundle quser = Federation.claimPrekeyBundle quser !>> ClientFed
 claimMultiPrekeyBundles :: QualifiedUserClients -> ExceptT ClientError AppIO (QualifiedUserClientMap (Maybe Prekey))
 claimMultiPrekeyBundles quc = do
   localDomain <- viewFederationDomain
-  res <- forM (Map.toList . qualifiedUserClients $ quc) $ \(domain, userClients) -> do
-    if domain == localDomain
-      then (domain,) <$> lift (claimLocalMultiPrekeyBundles userClients)
-      else throwE (ClientFederationError FederationNotImplemented)
-  pure $ (QualifiedUserClientMap . Map.fromList) res
+  fmap (QualifiedUserClientMap . Map.fromList)
+    . traverse (\(domain, uc) -> (domain,) <$> claim localDomain domain uc)
+    . Map.assocs
+    . qualifiedUserClients
+    $ quc
+  where
+    claim :: Domain -> Domain -> UserClients -> ExceptT ClientError AppIO (UserClientMap (Maybe Prekey))
+    claim localDomain domain uc
+      | domain == localDomain = lift (claimLocalMultiPrekeyBundles uc)
+      | otherwise = Federation.claimMultiPrekeyBundle domain uc !>> ClientFederationError
 
 claimLocalMultiPrekeyBundles :: UserClients -> AppIO (UserClientMap (Maybe Prekey))
 claimLocalMultiPrekeyBundles = fmap UserClientMap . foldMap (getChunk . Map.fromList) . chunksOf 16 . Map.toList . Message.userClients
@@ -204,12 +208,6 @@ claimLocalMultiPrekeyBundles = fmap UserClientMap . foldMap (getChunk . Map.from
       key <- fmap prekeyData <$> Data.claimPrekey u c
       when (isNothing key) $ noPrekeys u c
       return key
-
-claimMultiPrekeyBundlesLocal :: UserClients -> ExceptT ClientError AppIO (UserClientMap (Maybe Prekey))
-claimMultiPrekeyBundlesLocal userClients = do
-  domain <- viewFederationDomain
-  qUserClientM <- claimMultiPrekeyBundles (QualifiedUserClients (Map.singleton domain userClients))
-  pure $ fromJust (Map.lookup domain (qualifiedUserClientMap qUserClientM))
 
 -- Utilities
 

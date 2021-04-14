@@ -1140,7 +1140,7 @@ getMultiUserPrekeyBundleUnqualifiedH userClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients userClients) > maxSize) $
     throwStd tooManyClients
-  API.claimMultiPrekeyBundlesLocal userClients !>> clientError
+  lift $ API.claimLocalMultiPrekeyBundles userClients
 
 getMultiUserPrekeyBundleH :: Public.QualifiedUserClients -> Handler (Public.QualifiedUserClientMap (Maybe Public.Prekey))
 getMultiUserPrekeyBundleH qualUserClients = do

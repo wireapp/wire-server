@@ -1,4 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -23,7 +22,7 @@ module Brig.Federation.Client where
 
 import Brig.API.Types (FederationError (..))
 import Brig.App (AppIO, federator)
-import Brig.Types (PrekeyBundle)
+import Brig.Types (Prekey, PrekeyBundle)
 import Brig.Types.User
 import Control.Error.Util ((!?))
 import Control.Lens (view, (^.))
@@ -43,6 +42,7 @@ import Util.Options (epHost, epPort)
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.GRPC.Client
 import qualified Wire.API.Federation.GRPC.Types as Proto
+import Wire.API.Message (UserClientMap, UserClients)
 import Wire.API.User.Client.Prekey (ClientPrekey)
 
 type FederationAppIO = ExceptT FederationError AppIO
@@ -99,9 +99,21 @@ claimPrekey (Qualified user domain) client = do
 
 claimPrekeyBundle :: Qualified UserId -> FederationAppIO PrekeyBundle
 claimPrekeyBundle (Qualified user domain) = do
-  Log.info $ Log.msg @Text "Brig-federation: claiming remote prekey"
+  Log.info $ Log.msg @Text "Brig-federation: claiming remote prekey bundle"
   federatorClient <- mkFederatorClient
   let call = Proto.ValidatedFederatedRequest domain (mkClaimPrekeyBundle user)
+  res <- expectOk =<< callRemote federatorClient call
+  case Proto.responseStatus res of
+    200 -> case Aeson.eitherDecodeStrict (Proto.responseBody res) of
+      Left err -> throwE (FederationInvalidResponseBody (T.pack err))
+      Right x -> pure x
+    code -> throwE (FederationInvalidResponseCode code)
+
+claimMultiPrekeyBundle :: Domain -> UserClients -> FederationAppIO (UserClientMap (Maybe Prekey))
+claimMultiPrekeyBundle domain uc = do
+  Log.info $ Log.msg @Text "Brig-federation: claiming remote multi-user prekey bundle"
+  federatorClient <- mkFederatorClient
+  let call = Proto.ValidatedFederatedRequest domain (mkClaimMultiPrekeyBundle uc)
   res <- expectOk =<< callRemote federatorClient call
   case Proto.responseStatus res of
     200 -> case Aeson.eitherDecodeStrict (Proto.responseBody res) of

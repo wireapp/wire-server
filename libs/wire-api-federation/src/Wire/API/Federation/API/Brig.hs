@@ -103,9 +103,18 @@ mkClaimPrekeyBundle user =
   Proto.Request
     Proto.Brig
     (Proto.HTTPMethod HTTP.GET)
-    "users/prekey"
+    "users/prekey-bundle"
     [Proto.QueryParam "uid" (toByteString' user)]
     mempty
+
+mkClaimMultiPrekeyBundle :: UserClients -> Proto.Request
+mkClaimMultiPrekeyBundle uc =
+  Proto.Request
+    Proto.Brig
+    (Proto.HTTPMethod HTTP.POST)
+    "users/multi-prekey-bundle"
+    []
+    (LBS.toStrict (Aeson.encode uc))
 
 mkGetUsersByIds :: [UserId] -> Proto.Request
 mkGetUsersByIds uids =
