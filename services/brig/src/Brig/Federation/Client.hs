@@ -49,6 +49,8 @@ getUserHandleInfo (Qualified handle domain) = do
   Log.info $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
   federatorClient <- mkFederatorClient
   eitherResponse <- runExceptT . runFederatorClientWith federatorClient domain $ getUserByHandle clientRoutes handle
+  -- TODO: Change this API to not rely on 404, encode not found as 200 and empty
+  -- response or whatever `Maybe UserProfile` will encode into JSON
   case eitherResponse of
     Right profile -> pure $ Just profile
     Left err@(FederationClientServantError (Servant.FailureResponse _ res)) ->
@@ -57,19 +59,10 @@ getUserHandleInfo (Qualified handle domain) = do
         else throwE $ FederationCallFailure err
     Left err -> throwE $ FederationCallFailure err
 
--- FUTUREWORK(federation): reduce duplication between these functions
--- FUTUREWORK(federation): rework error handling and FUTUREWORK from getUserHandleInfo and search:
---       decoding error should not throw a 404 most likely
---       and non-200, non-404 should also not become 404s. Looks like some tests are missing and
---       https://wearezeta.atlassian.net/browse/SQCORE-491 is not quite done yet.
 searchUsers :: Domain -> Text -> FederationAppIO (Public.SearchResult Public.Contact)
 searchUsers domain searchTerm = do
   Log.warn $ Log.msg $ T.pack "Brig-federation: search call on remote backend"
-  federatorClient <- mkFederatorClient
-  eitherResponse <- runExceptT . runFederatorClientWith federatorClient domain $ FederatedBrig.searchUsers clientRoutes searchTerm
-  case eitherResponse of
-    Right result -> pure result
-    Left err -> throwE $ FederationCallFailure err
+  executeFederated domain $ FederatedBrig.searchUsers clientRoutes searchTerm
 
 -- FUTUREWORK: It would be nice to share the client across all calls to
 -- federator and not call this function on every invocation of federated
@@ -83,3 +76,9 @@ mkFederatorClient = do
   let cfg = grpcClientConfigSimple (T.unpack (federatorEndpoint ^. epHost)) (fromIntegral (federatorEndpoint ^. epPort)) False
   createGrpcClient cfg
     >>= either (throwE . FederationUnavailable . reason) pure
+
+executeFederated :: Domain -> FederatorClient (ExceptT FederationClientError FederationAppIO) a -> FederationAppIO a
+executeFederated domain action = do
+  federatorClient <- mkFederatorClient
+  runExceptT (runFederatorClientWith federatorClient domain action)
+    >>= either (throwE . FederationCallFailure) pure
