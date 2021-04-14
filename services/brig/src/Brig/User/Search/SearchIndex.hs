@@ -123,10 +123,10 @@ defaultUserQuery u teamSearchInfo (normalized -> term') =
                 [ ES.QueryBoolQuery
                     boolQuery
                       { ES.boolQueryShouldMatch = [matchPhraseOrPrefix, legacyPrefixMatch],
+                        -- This removes exact handle matches, as they are fetched from cassandra
                         ES.boolQueryMustNotMatch = [termQ "handle" term']
                       }
                 ],
-              -- This removes exact handle matches, as they are fetched from cassandra
               ES.boolQueryShouldMatch = [ES.QueryExistsQuery (ES.FieldName "handle")]
             }
       -- This reduces relevance on non-team users by 90%, there was no science
