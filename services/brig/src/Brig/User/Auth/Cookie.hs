@@ -42,9 +42,9 @@ where
 import Brig.App
 import Brig.Options hiding (user)
 import Brig.Types.User.Auth hiding (user)
+import qualified Brig.Types.User.ZAuth as ZAuth
 import Brig.User.Auth.Cookie.Limit
 import qualified Brig.User.Auth.DB.Cookie as DB
-import qualified Brig.ZAuth as ZAuth
 import Control.Lens (to, view)
 import Data.ByteString.Conversion
 import Data.Id

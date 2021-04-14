@@ -82,10 +82,10 @@ import qualified Brig.SMTP as SMTP
 import Brig.Team.Template
 import Brig.Template (Localised, TemplateBranding, forLocale, genTemplateBranding)
 import Brig.Types (Locale (..), TurnURI)
+import Brig.Types.User.ZAuth (MonadZAuth (..), runZAuth)
+import qualified Brig.Types.User.ZAuth as ZAuth
 import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
 import Brig.User.Template
-import Brig.ZAuth (MonadZAuth (..), runZAuth)
-import qualified Brig.ZAuth as ZAuth
 import Cassandra (Keyspace (Keyspace), MonadClient, runClient)
 import qualified Cassandra as Cas
 import Cassandra.Schema (versionCheck)

@@ -33,7 +33,7 @@ import API.User.Util
 import Bilge hiding (accept, timeout)
 import qualified Brig.AWS as AWS
 import qualified Brig.Options as Opt
-import qualified Brig.ZAuth as ZAuth
+import qualified Brig.Types.User.ZAuth as ZAuth
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Imports
 import Test.Tasty hiding (Timeout)

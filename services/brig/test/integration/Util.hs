@@ -35,7 +35,7 @@ import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.Types.User
 import Brig.Types.User.Auth
-import qualified Brig.ZAuth as ZAuth (AccessTokenLike)
+import qualified Brig.Types.User.ZAuth as ZAuth (AccessTokenLike)
 import Control.Lens ((^.), (^?), (^?!))
 import Control.Monad.Catch (MonadCatch)
 import Control.Retry

@@ -50,7 +50,7 @@ import Brig.Types.Intra (AccountStatus (..), UserAccount (..))
 import Brig.Types.Provider (AddBot (..), DeleteProvider (..), DeleteService (..), NewService (..), PasswordChange (..), Provider (..), ProviderLogin (..), Service (..), ServiceProfile (..), ServiceToken (..), UpdateBotPrekeys (..), UpdateProvider (..), UpdateService (..), UpdateServiceConn (..), UpdateServiceWhitelist (..))
 import qualified Brig.Types.Provider.External as Ext
 import Brig.Types.User (HavePendingInvitations (..), ManagedBy (..), Name (..), Pict (..), User (..), defaultAccentId)
-import qualified Brig.ZAuth as ZAuth
+import qualified Brig.Types.User.ZAuth as ZAuth
 import Control.Error (throwE)
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens (view, (^.))

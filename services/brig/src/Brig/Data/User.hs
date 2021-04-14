@@ -73,7 +73,7 @@ import Brig.Options
 import Brig.Password
 import Brig.Types
 import Brig.Types.Intra
-import qualified Brig.ZAuth as ZAuth
+import qualified Brig.Types.User.ZAuth as ZAuth
 import Cassandra
 import Control.Error
 import Control.Lens hiding (from)

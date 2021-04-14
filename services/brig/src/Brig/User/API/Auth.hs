@@ -28,9 +28,9 @@ import Brig.App (AppIO)
 import Brig.Phone
 import Brig.Types.Intra (ReAuthUser, reAuthPassword)
 import Brig.Types.User.Auth
+import qualified Brig.Types.User.ZAuth as ZAuth
 import qualified Brig.User.Auth as Auth
 import qualified Brig.User.Auth.Cookie as Auth
-import qualified Brig.ZAuth as ZAuth
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import Data.Either.Combinators (leftToMaybe, rightToMaybe)

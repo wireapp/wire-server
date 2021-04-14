@@ -23,9 +23,9 @@ module Brig.Options where
 import Brig.Queue.Types (Queue (..))
 import Brig.SMTP (SMTPConnType (..))
 import Brig.Types
+import qualified Brig.Types.User.ZAuth as ZAuth
 import Brig.User.Auth.Cookie.Limit
 import Brig.Whitelist (Whitelist (..))
-import qualified Brig.ZAuth as ZAuth
 import qualified Control.Lens as Lens
 import Data.Aeson (withText)
 import qualified Data.Aeson as Aeson

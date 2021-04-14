@@ -34,8 +34,8 @@ import Brig.Types.Intra
 import Brig.Types.User
 import Brig.Types.User.Auth
 import qualified Brig.Types.User.Auth as Auth
-import Brig.ZAuth (ZAuth, runZAuth)
-import qualified Brig.ZAuth as ZAuth
+import Brig.Types.User.ZAuth (ZAuth, runZAuth)
+import qualified Brig.Types.User.ZAuth as ZAuth
 import Control.Lens (set, (^.))
 import Control.Retry
 import Data.Aeson

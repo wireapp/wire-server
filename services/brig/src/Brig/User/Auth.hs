@@ -51,10 +51,10 @@ import Brig.Types.Common
 import Brig.Types.Intra
 import Brig.Types.User
 import Brig.Types.User.Auth hiding (user)
+import qualified Brig.Types.User.ZAuth as ZAuth
 import Brig.User.Auth.Cookie
 import Brig.User.Handle
 import Brig.User.Phone
-import qualified Brig.ZAuth as ZAuth
 import Control.Error hiding (bool)
 import Control.Lens (to, view)
 import Data.ByteString.Conversion (toByteString)
