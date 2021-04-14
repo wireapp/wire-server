@@ -23,12 +23,15 @@ import Brig.Types
 import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Id (Id (..), UserId)
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.UUID.V4 as UUIDv4
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit (assertEqual)
 import Util
+import Wire.API.Message (UserClients (..), UserClientMap (..))
+import Control.Arrow ((&&&))
 
 tests :: Manager -> Brig -> IO TestTree
 tests m brig =
@@ -41,7 +44,8 @@ tests m brig =
         test m "GET /federation/users/get-by-id : 200 partially found" (testGetUsersByIdsPartial brig),
         test m "GET /federation/users/get-by-id : 200 none found" (testGetUsersByIdsNoneFound brig),
         test m "GET /federation/users/prekey : 200" (testClaimPrekeySuccess brig),
-        test m "GET /federation/users/prekey-bundle : 200" (testClaimPrekeyBundleSuccess brig)
+        test m "GET /federation/users/prekey-bundle : 200" (testClaimPrekeyBundleSuccess brig),
+        test m "GET /federation/users/multi-prekey-bundle : 200" (testClaimMultiPrekeyBundleSuccess brig)
       ]
 
 testGetUserByHandleSuccess :: Brig -> Http ()
@@ -148,18 +152,21 @@ testClaimPrekeySuccess brig = do
       (Just (PrekeyId 1))
       (fmap (prekeyId . prekeyData) mkey)
 
-testClaimPrekeyBundleSuccess :: Brig -> Http ()
-testClaimPrekeyBundleSuccess brig = do
+generateClientPrekeys :: Brig -> [(Prekey, LastPrekey)] -> Http (UserId, [ClientPrekey])
+generateClientPrekeys brig prekeys = do
   user <- randomUser brig
   let uid = userId user
-      nclients =
-        map
-          (\(pk, lpk) -> defNewClient PermanentClientType [pk] lpk)
-          (take 5 (zip somePrekeys someLastPrekeys))
+      mkClient (pk, lpk) = defNewClient PermanentClientType [pk] lpk
+      nclients = map mkClient prekeys
+      mkClientPrekey (pk, _) c = ClientPrekey (clientId c) pk
   clients <- traverse (responseJsonError <=< addClient brig uid) nclients
-  let getPrekey (client, pk) = ClientPrekey (clientId client) pk
-      expected = getPrekey <$> zip clients somePrekeys
-      sortClients = sortBy (compare `on` prekeyClient)
+  pure (uid, zipWith mkClientPrekey prekeys clients)
+
+testClaimPrekeyBundleSuccess :: Brig -> Http ()
+testClaimPrekeyBundleSuccess brig = do
+  let prekeys = take 5 (zip somePrekeys someLastPrekeys)
+  (uid, clients) <- generateClientPrekeys brig prekeys
+  let sortClients = sortBy (compare `on` prekeyClient)
   get
     ( brig
         . paths ["federation", "users", "prekey-bundle"]
@@ -168,5 +175,26 @@ testClaimPrekeyBundleSuccess brig = do
     )
     !!! do
       const 200 === statusCode
-      const (Just (sortClients expected))
+      const (Just (sortClients clients))
         === fmap (sortClients . prekeyClients) . responseJsonMaybe
+
+testClaimMultiPrekeyBundleSuccess :: Brig -> Http ()
+testClaimMultiPrekeyBundleSuccess brig = do
+  let prekeys = zip somePrekeys someLastPrekeys
+      (prekeys1, prekeys') = splitAt 5 prekeys
+      prekeys2 = take 4 prekeys'
+      mkClients = Set.fromList . map prekeyClient
+      mkClientMap = Map.fromList . map (prekeyClient &&& prekeyData)
+  c1 <- generateClientPrekeys brig prekeys1
+  c2 <- generateClientPrekeys brig prekeys2
+  let uc = UserClients (Map.fromList [mkClients <$> c1, mkClients <$> c2])
+      ucm = UserClientMap (Map.fromList [mkClientMap <$> c1, mkClientMap <$> c2])
+  post
+    ( brig
+        . paths ["federation", "users", "multi-prekey-bundle"]
+        . body (RequestBodyLBS (Aeson.encode uc))
+        . expect2xx
+    )
+    !!! do
+      const 200 === statusCode
+      const (Just ucm) === responseJsonMaybe
