@@ -228,8 +228,6 @@ stack-dev.yaml:
 	cp stack.yaml stack-dev.yaml
 	echo -e '\n\nghc-options:\n "$$locals": -O0' >> stack-dev.yaml
 
-
-
 #####################################
 # Today we pretend to be CI and run integration tests on kubernetes
 # (see also docs/developer/processes.md)
