@@ -25,6 +25,7 @@ spec:
       initContainers:
         - name: gundeck-schema
           image: "{{ .Values.images.gundeck }}:{{ .Values.images.tag }}"
+          imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
           command:
             - gundeck-schema
             - --host
@@ -38,6 +39,7 @@ spec:
 
         - name: brig-schema
           image: "{{ .Values.images.brig }}:{{ .Values.images.tag }}"
+          imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
           command:
             - brig-schema
             - --host
@@ -51,6 +53,7 @@ spec:
 
         - name: galley-schema
           image: "{{ .Values.images.galley }}:{{ .Values.images.tag }}"
+          imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
           command:
             - galley-schema
             - --host
@@ -64,6 +67,7 @@ spec:
 
         - name: spar-schema
           image: "{{ .Values.images.spar }}:{{ .Values.images.tag }}"
+          imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
           command:
             - spar-schema
             - --host

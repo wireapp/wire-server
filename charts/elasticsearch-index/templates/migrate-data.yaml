@@ -28,6 +28,7 @@ spec:
         # Does nothing if the index exists.
         - name: brig-index
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
           args:
             - migrate-data
             - --elasticsearch-server
