@@ -29,6 +29,7 @@ module Data.Qualified
     Qualified (..),
     renderQualifiedId,
     partitionRemoteOrLocalIds,
+    partitionQualified,
     deprecatedUnqualifiedSchemaRef,
   )
 where
@@ -42,6 +43,7 @@ import Data.ByteString.Conversion (FromByteString (parser))
 import Data.Domain (Domain, domainText)
 import Data.Handle (Handle (..))
 import Data.Id (Id (toUUID))
+import qualified Data.Map as Map
 import Data.Proxy (Proxy (..))
 import Data.String.Conversions (cs)
 import Data.Swagger
@@ -106,6 +108,13 @@ partitionRemoteOrLocalIds localDomain = foldMap $ \qualifiedId ->
   if qDomain qualifiedId == localDomain
     then (mempty, [qUnqualified qualifiedId])
     else ([qualifiedId], mempty)
+
+-- | Index a list of qualified values by domain
+partitionQualified :: [Qualified a] -> Map Domain [a]
+partitionQualified = foldr add mempty
+  where
+    add :: Qualified a -> Map Domain [a] -> Map Domain [a]
+    add (Qualified x domain) = Map.insertWith (<>) domain [x]
 
 ----------------------------------------------------------------------
 

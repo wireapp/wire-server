@@ -66,23 +66,17 @@ getUserHandleInfo (Qualified handle domain) = do
     code -> throwE (FederationInvalidResponseCode code)
 
 -- FUTUREWORK: Test
-getUsersByIds :: [Qualified UserId] -> FederationAppIO [UserProfile]
-getUsersByIds quids = do
+getUsersByIds :: Domain -> [UserId] -> FederationAppIO [UserProfile]
+getUsersByIds domain uids = do
   Log.info $ Log.msg ("Brig-federation: get users by ids on remote backends" :: ByteString)
   federatorClient <- mkFederatorClient
-  let domainWiseIds = qualifiedToMap quids
-      requests = Map.foldMapWithKey (\domain uids -> [Proto.ValidatedFederatedRequest domain (mkGetUsersByIds uids)]) domainWiseIds
-  -- TODO: Make these concurrent
-  concat <$> mapM (processResponse <=< expectOk <=< callRemote federatorClient) requests
-  where
-    -- TODO: Do we want to not fail the whole request if there is one bad remote?
-    processResponse :: Proto.HTTPResponse -> FederationAppIO [UserProfile]
-    processResponse res =
-      case Proto.responseStatus res of
-        200 -> case Aeson.eitherDecodeStrict (Proto.responseBody res) of
-          Left err -> throwE (FederationInvalidResponseBody (T.pack err))
-          Right profiles -> pure profiles
-        code -> throwE (FederationInvalidResponseCode code)
+  let call = Proto.ValidatedFederatedRequest domain (mkGetUsersByIds uids)
+  res <- expectOk =<< callRemote federatorClient call
+  case Proto.responseStatus res of
+    200 -> case Aeson.eitherDecodeStrict (Proto.responseBody res) of
+      Left err -> throwE (FederationInvalidResponseBody (T.pack err))
+      Right profiles -> pure profiles
+    code -> throwE (FederationInvalidResponseCode code)
 
 -- FUTUREWORK(federation): Abstract out all the rpc boilerplate and error handling
 claimPrekey :: Qualified UserId -> ClientId -> FederationAppIO (Maybe ClientPrekey)
@@ -121,9 +115,6 @@ claimMultiPrekeyBundle domain uc = do
       Left err -> throwE (FederationInvalidResponseBody (T.pack err))
       Right x -> pure x
     code -> throwE (FederationInvalidResponseCode code)
-
-qualifiedToMap :: [Qualified a] -> Map Domain [a]
-qualifiedToMap = Map.fromListWith (<>) . map (\(Qualified thing domain) -> (domain, [thing]))
 
 -- FUTUREWORK(federation): reduce duplication between these functions
 -- FUTUREWORK(federation): rework error handling and FUTUREWORK from getUserHandleInfo and search:

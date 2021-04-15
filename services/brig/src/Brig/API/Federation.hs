@@ -53,13 +53,13 @@ getUserByHandle handle = do
   case maybeOwnerId of
     Nothing -> throwStd handleNotFound
     Just ownerId -> do
-      lift (API.lookupProfilesOfLocalUsers Nothing [ownerId]) >>= \case
+      lift (API.lookupLocalProfiles Nothing [ownerId]) >>= \case
         [] -> throwStd handleNotFound
         user : _ -> pure user
 
 getUsersByIds :: [UserId] -> Handler [UserProfile]
 getUsersByIds uids =
-  lift (API.lookupProfilesOfLocalUsers Nothing uids)
+  lift (API.lookupLocalProfiles Nothing uids)
 
 claimPrekey :: UserId -> ClientId -> Handler (Maybe ClientPrekey)
 claimPrekey user client = lift (Data.claimPrekey user client)
@@ -78,7 +78,7 @@ searchUsers searchTerm = do
   maybeOwnerId <- lift $ API.lookupHandle (Handle searchTerm)
   exactLookupProfile <- case maybeOwnerId of
     Nothing -> pure []
-    Just (foundUser) -> lift $ contactFromProfile <$$> API.lookupProfilesOfLocalUsers Nothing [foundUser]
+    Just foundUser -> lift $ contactFromProfile <$$> API.lookupLocalProfiles Nothing [foundUser]
 
   let exactHandleMatchCount = length exactLookupProfile
   pure $

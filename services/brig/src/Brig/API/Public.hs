@@ -1318,8 +1318,7 @@ getUserH self domain uid =
   ifNothing userNotFound =<< getUser self (Qualified uid domain)
 
 getUser :: UserId -> Qualified UserId -> Handler (Maybe Public.UserProfile)
-getUser self qualifiedUserId = do
-  lift $ API.lookupProfile self qualifiedUserId
+getUser self qualifiedUserId = API.lookupProfile self qualifiedUserId !>> fedError
 
 getUserDisplayNameH :: JSON ::: UserId -> Handler Response
 getUserDisplayNameH (_ ::: self) = do
@@ -1366,8 +1365,7 @@ listUsersByIdsOrHandles self q = do
       domain <- viewFederationDomain
       pure $ map (`Qualified` domain) localUsers
     byIds :: [Qualified UserId] -> Handler [Public.UserProfile]
-    byIds uids =
-      lift $ API.lookupProfiles self uids
+    byIds uids = API.lookupProfiles self uids !>> fedError
 
 newtype GetActivationCodeResp
   = GetActivationCodeResp (Public.ActivationKey, Public.ActivationCode)
