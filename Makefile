@@ -362,3 +362,29 @@ buildah-docker-%:
 .PHONY: buildah-clean
 buildah-clean:
 	./hack/bin/buildah-clean.sh
+
+.PHONY: kind-cluster
+kind-cluster:
+	kind create cluster --name $(KIND_CLUSTER_NAME)
+
+.PHONY: kind-delete
+kind-delete:
+	rm -f $(CURDIR)/.local/kind-kubeconfig
+	kind delete cluster --name $(KIND_CLUSTER_NAME)
+
+.PHONY: kind-reset
+kind-reset: kind-delete kind-cluster
+
+.local/kind-kubeconfig:
+	kind get kubeconfig --name $(KIND_CLUSTER_NAME) > .local/kind-kubeconfig
+
+.PHONY: kind-integration-setup
+kind-integration-setup: .local/kind-kubeconfig
+	KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig make kube-integration-setup
+
+.PHONY: kind-integration-test
+kind-integration-test:
+	KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig make kube-integration-test
+
+kind-integration-e2e:
+	cd services/brig && KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig ./federation-tests.sh $(NAMESPACE)
