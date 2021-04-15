@@ -5,7 +5,7 @@ set -ex
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 TOP_LEVEL="$(cd "$DIR/../.." && pwd)"
 
-EXECUTABLES=${EXECUTABLES:-"cannon brig cargohold galley gundeck federator brig-index brig-schema galley-schema galley-migrate-data gundeck-schema proxy spar spar-schema"}
+EXECUTABLES=${EXECUTABLES:-"cannon brig cargohold galley gundeck federator brig-index brig-schema galley-schema galley-migrate-data gundeck-schema proxy spar spar-schema spar-migrate-data"}
 CONTAINER_NAME="output"
 DOCKER_TAG=${DOCKER_TAG:-$USER}
 
