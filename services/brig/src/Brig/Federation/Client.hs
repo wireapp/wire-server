@@ -31,12 +31,10 @@ import Data.Qualified
 import qualified Data.Text as T
 import Imports
 import Mu.GRpc.Client.TyApps
-import qualified Network.HTTP.Types.Status as HTTP
-import qualified Servant.Client as Servant
 import qualified System.Logger.Class as Log
 import Util.Options (epHost, epPort)
 import Wire.API.Federation.API.Brig as FederatedBrig
-import Wire.API.Federation.Client (FederationClientError (FederationClientServantError), FederatorClient, runFederatorClientWith)
+import Wire.API.Federation.Client (FederatorClient, runFederatorClientWith, FederationClientError)
 import Wire.API.Federation.GRPC.Client
 
 type FederationAppIO = ExceptT FederationError AppIO
@@ -48,17 +46,7 @@ type FederationAppIO = ExceptT FederationError AppIO
 getUserHandleInfo :: Qualified Handle -> FederationAppIO (Maybe UserProfile)
 getUserHandleInfo (Qualified handle domain) = do
   Log.info $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
-  federatorClient <- mkFederatorClient
-  eitherResponse <- runExceptT . runFederatorClientWith federatorClient domain $ getUserByHandle clientRoutes handle
-  -- TODO: Change this API to not rely on 404, encode not found as 200 and empty
-  -- response or whatever `Maybe UserProfile` will encode into JSON
-  case eitherResponse of
-    Right profile -> pure $ Just profile
-    Left err@(FederationClientServantError (Servant.FailureResponse _ res)) ->
-      if HTTP.statusCode (Servant.responseStatusCode res) == 404
-        then pure Nothing
-        else throwE $ FederationCallFailure err
-    Left err -> throwE $ FederationCallFailure err
+  executeFederated domain $ getUserByHandle clientRoutes handle
 
 searchUsers :: Domain -> Text -> FederationAppIO (Public.SearchResult Public.Contact)
 searchUsers domain searchTerm = do

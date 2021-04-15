@@ -17,7 +17,6 @@
 
 module Brig.API.Federation where
 
-import Brig.API.Error (handleNotFound, throwStd)
 import Brig.API.Handler (Handler)
 import qualified Brig.API.User as API
 import Brig.User.API.Handle
@@ -33,15 +32,14 @@ import Wire.API.User.Search
 federationSitemap :: ServerT (ToServantApi FederationAPIBrig.Api) Handler
 federationSitemap = genericServerT (FederationAPIBrig.Api getUserByHandle searchUsers)
 
-getUserByHandle :: Handle -> Handler UserProfile
-getUserByHandle handle = do
-  maybeOwnerId <- lift $ API.lookupHandle handle
+getUserByHandle :: Handle -> Handler (Maybe UserProfile)
+getUserByHandle handle = lift $ do
+  maybeOwnerId <- API.lookupHandle handle
   case maybeOwnerId of
-    Nothing -> throwStd handleNotFound
-    Just ownerId -> do
-      lift (API.lookupProfilesOfLocalUsers Nothing [ownerId]) >>= \case
-        [] -> throwStd handleNotFound
-        user : _ -> pure user
+    Nothing ->
+      pure Nothing
+    Just ownerId ->
+      listToMaybe <$> API.lookupProfilesOfLocalUsers Nothing [ownerId]
 
 -- | Searching for federated users on a remote backend should
 -- only search by exact handle search, not in elasticsearch.
@@ -51,7 +49,7 @@ searchUsers searchTerm = do
   maybeOwnerId <- lift $ API.lookupHandle (Handle searchTerm)
   exactLookupProfile <- case maybeOwnerId of
     Nothing -> pure []
-    Just (foundUser) -> lift $ contactFromProfile <$$> API.lookupProfilesOfLocalUsers Nothing [foundUser]
+    Just foundUser -> lift $ contactFromProfile <$$> API.lookupProfilesOfLocalUsers Nothing [foundUser]
 
   let exactHandleMatchCount = length exactLookupProfile
   pure $

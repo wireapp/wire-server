@@ -28,7 +28,7 @@ import Imports
 import Test.QuickCheck (arbitrary)
 import Test.QuickCheck.Gen (generate)
 import Test.Tasty
-import Test.Tasty.HUnit (assertEqual)
+import Test.Tasty.HUnit (assertEqual, assertFailure)
 import Util
 
 -- FUTUREWORK(federation): use servant-client in tests for the federation endpoints instead of the bilge requests.
@@ -38,8 +38,8 @@ tests m brig = do
     testGroup "federation" $
       [ test m "GET /federation/search/users : Found" (testSearchSuccess brig),
         test m "GET /federation/search/users : NotFound" (testSearchNotFound brig),
-        test m "GET /federation/users/by-handle : 200" (testGetUserByHandleSuccess brig),
-        test m "GET /federation/users/by-handle : 404" (testGetUserByHandleNotFound brig)
+        test m "GET /federation/users/by-handle : Found" (testGetUserByHandleSuccess brig),
+        test m "GET /federation/users/by-handle : NotFound" (testGetUserByHandleNotFound brig)
       ]
 
 testSearchSuccess :: Brig -> Http ()
@@ -74,7 +74,7 @@ testGetUserByHandleSuccess :: Brig -> Http ()
 testGetUserByHandleSuccess brig = do
   (handle, user) <- createUserWithHandle brig
   let quid = userQualifiedId user
-  profile <-
+  maybeProfile <-
     responseJsonError
       =<< get
         ( brig
@@ -83,14 +83,18 @@ testGetUserByHandleSuccess brig = do
             . expect2xx
         )
   liftIO $ do
-    assertEqual "should return correct user Id" quid (profileQualifiedId profile)
-    assertEqual "should not have email address" Nothing (profileEmail profile)
+    case maybeProfile of
+      Nothing -> assertFailure "Expected to find profile, found Nothing"
+      Just profile -> do
+        assertEqual "should return correct user Id" quid (profileQualifiedId profile)
+        assertEqual "should not have email address" Nothing (profileEmail profile)
 
 testGetUserByHandleNotFound :: Brig -> Http ()
 testGetUserByHandleNotFound brig = do
   hdl <- randomHandle
-  get (brig . paths ["federation", "users", "by-handle"] . queryItem "handle" (toByteString' hdl))
-    !!! const 404 === statusCode
+  get (brig . paths ["federation", "users", "by-handle"] . queryItem "handle" (toByteString' hdl)) !!! do
+    const 200 === statusCode
+    const (Nothing :: Maybe UserProfile) === responseJsonError
 
 -------------------------------------------------
 -- helpers

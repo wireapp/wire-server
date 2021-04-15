@@ -36,7 +36,7 @@ data Api routes = Api
         :> "users"
         :> "by-handle"
         :> QueryParam' '[Required, Strict] "handle" Handle
-        :> Get '[JSON] UserProfile,
+        :> Get '[JSON] (Maybe UserProfile),
     searchUsers ::
       routes
         :- "federation"
