@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ .Release.Name }}-federator-integration"
+  annotations:
+    "helm.sh/hook": test-success
+spec:
+  volumes:
+    - name: "federator-integration"
+      configMap:
+        name: "federator-integration"
+    # Used to read some values from the federator service
+    - name: "federator-config"
+      configMap:
+        name: "federator"
+  containers:
+  - name: integration
+    command: ["federator-integration"]
+    image: "{{ .Values.image.repository }}-integration:{{ .Values.image.tag }}"
+    volumeMounts:
+    - name: "federator-integration"
+      mountPath: "/etc/wire/integration"
+    - name: "federator-config"
+      mountPath: "/etc/wire/federator/conf"
+  restartPolicy: Never
