@@ -60,6 +60,7 @@ import Brig.Types.Intra (accountUser)
 import Brig.Types.Team (TeamSize (..))
 import Control.Lens
 import Control.Monad.Catch
+import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion hiding (fromList)
 import Data.ByteString.Lazy.Builder (lazyByteString)
 import Data.Csv (EncodeOptions (..), Quoting (QuoteAll), encodeDefaultOrderedByNameWith)
@@ -76,6 +77,7 @@ import Data.Set (fromList)
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import Data.Time.Clock (UTCTime (..), getCurrentTime)
+import Data.Tuple.Extra (uncurry3)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
 import Galley.API.Error as Galley
@@ -107,6 +109,7 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (or, result, setStatus)
 import Network.Wai.Utilities
+import qualified SAML2.WebSSO as SAML
 import qualified System.Logger.Class as Log
 import UnliftIO (mapConcurrently)
 import qualified Wire.API.Conversation.Role as Public
@@ -117,9 +120,11 @@ import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Member as Public
 import qualified Wire.API.Team.SearchVisibility as Public
-import Wire.API.User (User)
+import Wire.API.User (User, UserIdentity (..), UserSSOId (UserScimExternalId))
 import qualified Wire.API.User as Public (UserIdList)
 import qualified Wire.API.User as U
+import Wire.API.User.Identity (UserSSOId (UserSSOId))
+import Wire.API.User.RichInfo (RichInfo)
 
 getTeamH :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeamH (zusr ::: tid ::: _) =
@@ -400,14 +405,16 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
         flush
         evalGalley env $ do
           Data.withTeamMembersWithChunks tid $ \members -> do
-            inviters <- getInviters members
             users <- lookupActivatedUsers (fmap (view userId) members)
-            let pairs = pairMembersUsers members users
+            richInfos <- getRichInfoMultiUser (fmap (view userId) members)
+            let tuples = joinUserInfos members users richInfos
+
+            inviters <- getInviters members
             liftIO $ do
               writeString
                 ( encodeDefaultOrderedByNameWith
                     defaultEncodeOptions
-                    (fmap (uncurry (teamExportUser inviters)) pairs)
+                    (tuples <&> uncurry3 (teamExportUser inviters))
                 )
               flush
   where
@@ -423,17 +430,20 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
           encQuoting = QuoteAll
         }
 
-    teamExportUser :: (UserId -> Maybe Handle.Handle) -> TeamMember -> User -> TeamExportUser
-    teamExportUser mbInviterHandle member user =
+    teamExportUser :: (UserId -> Maybe Handle.Handle) -> TeamMember -> RichInfo -> User -> TeamExportUser
+    teamExportUser mbInviterHandle member richInfo user =
       TeamExportUser
         { tExportDisplayName = U.userDisplayName user,
           tExportHandle = U.userHandle user,
           tExportEmail = U.userIdentity user >>= U.emailIdentity,
           tExportRole = permissionsRole . view permissions $ member,
           tExportCreatedOn = fmap snd . view invitation $ member,
-          tExportInvitedBy = mbInviterHandle =<< (fmap fst . view invitation $ member),
+          tExportInvitedBy = mbInviterHandle . fst =<< view invitation member,
           tExportIdpIssuer = userToIdPIssuer user,
-          tExportManagedBy = U.userManagedBy user
+          tExportManagedBy = U.userManagedBy user,
+          tExportSAMLNamedId = samlNamedId user,
+          tExportSCIMExternalId = scimExtId user,
+          tExportSCIMRichInfo = Just . cs . Aeson.encode $ richInfo
         }
 
     getInviters :: [TeamMember] -> Galley (UserId -> Maybe Handle.Handle)
@@ -446,9 +456,9 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
       let userMap :: M.Map UserId Handle.Handle
           userMap = M.fromList . catMaybes $ extract <$> userList
             where
-              extract u = (U.userId u,) <$> (U.userHandle u)
+              extract u = (U.userId u,) <$> U.userHandle u
 
-      pure $ (`M.lookup` userMap)
+      pure (`M.lookup` userMap)
 
     userToIdPIssuer :: U.User -> Maybe HttpsUrl
     userToIdPIssuer usr = case (U.userIdentity >=> U.ssoIdentity) usr of
@@ -456,12 +466,33 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
       Just _ -> Nothing
       Nothing -> Nothing
 
-    pairMembersUsers :: [TeamMember] -> [User] -> [(TeamMember, User)]
-    pairMembersUsers members users = do
-      let usersM = M.fromList (users <&> \user -> (U.userId user, user))
+    joinUserInfos :: [TeamMember] -> [User] -> [RichInfo] -> [(TeamMember, RichInfo, User)]
+    joinUserInfos members users richInfos = do
+      let usersMap = M.fromList (users <&> \user -> (U.userId user, user))
       catMaybes $
-        members <&> \member ->
-          (member,) <$> M.lookup (view userId member) usersM
+        -- members and richInfo are in same order
+        zip members richInfos <&> \(member, richInfo) ->
+          (member,richInfo,) <$> (member ^. userId) `M.lookup` usersMap
+
+    samlNamedId :: User -> Maybe Text
+    samlNamedId = U.userIdentity >=> userSSOId >=> ssoIdNameId
+
+    userSSOId :: UserIdentity -> Maybe UserSSOId
+    userSSOId (SSOIdentity ssoId _ _) = Just ssoId
+    userSSOId (EmailIdentity _) = Nothing
+    userSSOId (PhoneIdentity _) = Nothing
+    userSSOId (FullIdentity _ _) = Nothing
+
+    ssoIdNameId :: UserSSOId -> Maybe Text
+    ssoIdNameId (UserSSOId _idp nameId) = SAML.unsafeShowNameID <$> either (const Nothing) pure (SAML.decodeElem (cs nameId))
+    ssoIdNameId (UserScimExternalId _) = Nothing
+
+    scimExtId :: User -> Maybe Text
+    scimExtId = U.userIdentity >=> userSSOId >=> ssoIdExtId
+
+    ssoIdExtId :: UserSSOId -> Maybe Text
+    ssoIdExtId (UserSSOId _ _) = Nothing
+    ssoIdExtId (UserScimExternalId extId) = pure extId
 
 bulkGetTeamMembersH :: UserId ::: TeamId ::: Range 1 Public.HardTruncationLimit Int32 ::: JsonRequest Public.UserIdList ::: JSON -> Galley Response
 bulkGetTeamMembersH (zusr ::: tid ::: maxResults ::: body ::: _) = do

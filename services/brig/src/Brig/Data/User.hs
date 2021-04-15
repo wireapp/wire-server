@@ -42,6 +42,7 @@ module Brig.Data.User
     lookupPassword,
     lookupStatus,
     lookupRichInfo,
+    lookupRichInfoMultiUsers,
     lookupUserTeam,
     lookupServiceUsers,
     lookupServiceUsersForTeam,
@@ -80,6 +81,7 @@ import Control.Lens hiding (from)
 import Data.Conduit (ConduitM)
 import Data.Domain
 import Data.Handle (Handle)
+import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Misc (PlainTextPassword (..))
@@ -380,6 +382,13 @@ lookupRichInfo u =
   fmap runIdentity
     <$> retry x1 (query1 richInfoSelect (params Quorum (Identity u)))
 
+-- | Returned rich infos are in the same order as users
+lookupRichInfoMultiUsers :: [UserId] -> AppIO [RichInfoAssocList]
+lookupRichInfoMultiUsers users = do
+  pairs <- retry x1 (query richInfoSelectMulti (params Quorum (Identity users)))
+  let riLookup = flip HashMap.lookup . HashMap.fromList $ pairs
+  pure $ fromMaybe emptyRichInfoAssocList . join . riLookup <$> users
+
 -- | Lookup user (no matter what status) and return 'TeamId'.  Safe to use for authorization:
 -- suspended / deleted / ... users can't login, so no harm done if we authorize them *after*
 -- successful login.
@@ -547,6 +556,9 @@ statusSelect = "SELECT status FROM user WHERE id = ?"
 
 richInfoSelect :: PrepQuery R (Identity UserId) (Identity RichInfoAssocList)
 richInfoSelect = "SELECT json FROM rich_info WHERE user = ?"
+
+richInfoSelectMulti :: PrepQuery R (Identity [UserId]) (UserId, Maybe RichInfoAssocList)
+richInfoSelectMulti = "SELECT id, json FROM rich_info WHERE user in ?"
 
 teamSelect :: PrepQuery R (Identity UserId) (Identity (Maybe TeamId))
 teamSelect = "SELECT team FROM user WHERE id = ?"

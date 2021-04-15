@@ -25,6 +25,7 @@ module Galley.Intra.User
     deleteUser,
     getContactList,
     chunkify,
+    getBrigUserRichInfo,
   )
 where
 
@@ -46,6 +47,7 @@ import qualified Network.HTTP.Client.Internal as Http
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
+import Wire.API.User.RichInfo (RichInfo)
 
 -- | Get statuses of all connections between two groups of users (the usual
 -- pattern is to check all connections from one user to several, or from
@@ -161,3 +163,15 @@ getContactList uid = do
         . paths ["/i/users", toByteString' uid, "contacts"]
         . expect2xx
   cUsers <$> parseResponse (Error status502 "server-error") r
+
+-- | Calls 'Brig.API.Internal.getRichInfoMultiH'
+getRichInfoMultiUser :: [UserId] -> Galley [RichInfo]
+getRichInfoMultiUser uids = do
+  (h, p) <- brigReq
+  resp <-
+    call "brig" $
+      method GET . host h . port p
+        . paths ["/i/users/rich-info"]
+        . param ""
+        . expect2xx
+  parseResponse (Error status502 "server-error") resp

@@ -42,8 +42,10 @@ data TeamExportUser = TeamExportUser
     tExportCreatedOn :: Maybe UTCTimeMillis,
     tExportInvitedBy :: Maybe Handle,
     tExportIdpIssuer :: Maybe HttpsUrl,
-    tExportManagedBy :: ManagedBy
-    -- FUTUREWORK: @tExportRichProfile :: Maybe RichInfo  -- (rendering: one key-value pair per csv column, sorted alphanumerically by key)@
+    tExportManagedBy :: ManagedBy,
+    tExportSAMLNamedId :: Maybe Text,
+    tExportSCIMExternalId :: Maybe Text,
+    tExportSCIMRichInfo :: Maybe Text
   }
   deriving (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform TeamExportUser)
@@ -51,28 +53,34 @@ data TeamExportUser = TeamExportUser
 instance ToNamedRecord TeamExportUser where
   toNamedRecord row =
     namedRecord
-      [ ("display name", toByteString' (tExportDisplayName row)),
+      [ ("display_name", toByteString' (tExportDisplayName row)),
         ("handle", maybe "" toByteString' (tExportHandle row)),
         ("email", maybe "" toByteString' (tExportEmail row)),
         ("role", maybe "" toByteString' (tExportRole row)),
-        ("created on", maybe "" toByteString' (tExportCreatedOn row)),
-        ("invited by", maybe "" toByteString' (tExportInvitedBy row)),
-        ("idp issuer", maybe "" toByteString' (tExportIdpIssuer row)),
-        ("managed by", toByteString' (tExportManagedBy row))
+        ("created_on", maybe "" toByteString' (tExportCreatedOn row)),
+        ("invited_by", maybe "" toByteString' (tExportInvitedBy row)),
+        ("idp_issuer", maybe "" toByteString' (tExportIdpIssuer row)),
+        ("managed_by", toByteString' (tExportManagedBy row)),
+        ("saml_name_id", maybe "" toByteString' (tExportSAMLNamedId row)),
+        ("scim_external_id", maybe "" toByteString' (tExportSCIMExternalId row)),
+        ("scim_rich_info", maybe "" toByteString' (tExportSCIMRichInfo row))
       ]
 
 instance DefaultOrdered TeamExportUser where
   headerOrder =
     const $
       fromList
-        [ "display name",
+        [ "display_name",
           "handle",
           "email",
           "role",
-          "created on",
-          "invited by",
-          "idp issuer",
-          "managed by"
+          "created_on",
+          "invited_by",
+          "idp_issuer",
+          "managed_by",
+          "saml_name_id",
+          "scim_external_id",
+          "scim_rich_info"
         ]
 
 allowEmpty :: (ByteString -> Parser a) -> ByteString -> Parser (Maybe a)
@@ -88,11 +96,14 @@ parseByteString bstr =
 instance FromNamedRecord TeamExportUser where
   parseNamedRecord nrec =
     TeamExportUser
-      <$> (nrec .: "display name" >>= parseByteString)
+      <$> (nrec .: "display_name" >>= parseByteString)
       <*> (nrec .: "handle" >>= allowEmpty parseByteString)
       <*> (nrec .: "email" >>= allowEmpty parseByteString)
       <*> (nrec .: "role" >>= allowEmpty parseByteString)
-      <*> (nrec .: "created on" >>= allowEmpty parseByteString)
-      <*> (nrec .: "invited by" >>= allowEmpty parseByteString)
-      <*> (nrec .: "idp issuer" >>= allowEmpty parseByteString)
-      <*> (nrec .: "managed by" >>= parseByteString)
+      <*> (nrec .: "created_on" >>= allowEmpty parseByteString)
+      <*> (nrec .: "invited_by" >>= allowEmpty parseByteString)
+      <*> (nrec .: "idp_issuer" >>= allowEmpty parseByteString)
+      <*> (nrec .: "managed_by" >>= parseByteString)
+      <*> (nrec .: "saml_name_id" >>= allowEmpty parseByteString)
+      <*> (nrec .: "scim_external_id" >>= allowEmpty parseByteString)
+      <*> (nrec .: "scim_rich_info" >>= allowEmpty parseByteString)
