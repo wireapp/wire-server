@@ -25,7 +25,7 @@ module Galley.Intra.User
     deleteUser,
     getContactList,
     chunkify,
-    getBrigUserRichInfo,
+    getRichInfoMultiUser,
   )
 where
 
@@ -172,6 +172,6 @@ getRichInfoMultiUser uids = do
     call "brig" $
       method GET . host h . port p
         . paths ["/i/users/rich-info"]
-        . param ""
+        . queryItem "ids" (toByteString' (List uids))
         . expect2xx
   parseResponse (Error status502 "server-error") resp
