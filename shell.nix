@@ -67,6 +67,7 @@ in pkgs.mkShell {
     pkgs.grpcurl
     pkgs.wget
     pkgs.cfssl
+    pkgs.yq
 
     pinned.stack
     pinned.helm
