@@ -194,10 +194,9 @@ fedError (FederationCallFailure err) =
     FederationClientStreamingUnsupported -> StdError $ federationInvalidCall "Streaming unsupported"
     FederationClientOutwardError outwardErr -> StdError $ federationRemoteError outwardErr
     FederationClientServantError (Servant.DecodeFailure msg _) -> StdError $ federationInvalidBody msg
-    FederationClientServantError (Servant.FailureResponse _ res) ->
-      if HTTP.statusCode (Servant.responseStatusCode res) /= 200
-        then StdError $ federationInvalidCode $ fromIntegral $ HTTP.statusCode (Servant.responseStatusCode res)
-        else StdError $ Wai.Error unexpectedFederationResponseStatus "unknown-federation-error" "Unknown federation error"
+    FederationClientInvalidStatus sts -> StdError $ federationInvalidCode sts
+    FederationClientServantError (Servant.FailureResponse _ _) ->
+      StdError $ Wai.Error unexpectedFederationResponseStatus "unknown-federation-error" "Unknown federation error"
     FederationClientServantError (Servant.InvalidContentTypeHeader res) ->
       StdError $
         Wai.Error
