@@ -41,20 +41,22 @@ where
 
 import Bilge.Retry (httpHandlers)
 import Brig.AWS
-import Brig.App (AppIO, awsEnv, currentTime, metrics, randomPrekeyLocalLock)
+import Brig.App (AppIO, awsEnv, currentTime, metrics, randomPrekeyLocalLock, runAppT)
 import Brig.Data.Instances ()
 import Brig.Data.User (AuthError (..), ReAuthError (..))
 import qualified Brig.Data.User as User
 import Brig.Types
 import Brig.Types.Instances ()
 import Brig.Types.User.Auth (CookieLabel)
+import Brig.Unique (TimeoutUnit (Second), withClaim)
 import Brig.User.Auth.DB.Instances ()
 import Cassandra hiding (Client)
 import Control.Error
 import qualified Control.Exception.Lens as EL
 import Control.Lens
 import Control.Monad.Catch
-import Control.Monad.Random (Random (randomRIO))
+import Control.Monad.Random (Random (randomIO, randomRIO), newStdGen, randomR)
+import Control.Monad.Random.Lazy (random)
 import Control.Retry
 import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Conversion (toByteString, toByteString')
@@ -65,8 +67,10 @@ import qualified Data.Map as Map
 import qualified Data.Metrics as Metrics
 import Data.Misc
 import qualified Data.Set as Set
+import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
+import Data.UUID.V4 (nextRandom)
 import Imports
 import qualified Network.AWS as AWS
 import qualified Network.AWS.Data as AWS
@@ -192,11 +196,37 @@ updatePrekeys u c pks = do
 claimPrekey :: UserId -> ClientId -> AppIO (Maybe ClientPrekey)
 claimPrekey u c =
   view randomPrekeyLocalLock >>= \case
-    -- Use random prekey selection strategy
-    Just localLock -> withLocalLock localLock $ do
+    -- Use random prekey selection strategy with cassandra claim "lock"
+    -- 'withClaim'  is used for ensureing uniqueness of handles. Here we abuse that...
+    Just _localLock -> do
       prekeys <- retry x1 $ query userPrekeys (params Quorum (u, c))
       prekey <- pickRandomPrekey prekeys
-      removeAndReturnPreKey prekey
+      let claim :: Text = cs $ show u <> show c <> show prekey
+      env <- ask
+      -- each claim is per requesting user (for the handle usecase that makes sense)
+      -- but here we don't have a (requesting) user or client id available, so we just generate a random id
+      -- for the purposes of 'claiming'
+      user <- Id <$> liftIO nextRandom
+
+      case prekey of
+        Nothing -> pure Nothing
+        lastP@(Just (i, _)) | i == lastPrekeyId -> removeAndReturnPreKey lastP
+        Just p -> do
+          res <-
+            withClaim user claim 2 $
+              runAppT env $ removeAndReturnPreKey' p
+          case res of
+            Just prek -> do
+              Log.warn $ msg (val "Aye")
+              pure (Just prek)
+            Nothing -> do
+              Log.warn $ msg (val "NOOOOOOOOOOOOOOOOOOOOOOOOO we failed a claim! Another try...")
+              g <- liftIO newStdGen
+              let (x, _) = randomR (500000, 2000000) g -- delay 500ms - 2 seconds
+              threadDelay x
+              -- we can actually end in an infinite loop here... until we get a timeout from the client side
+              claimPrekey u c
+
     -- Use DynamoDB based optimistic locking strategy
     Nothing -> withOptLock u c $ do
       prekey <- retry x1 $ query1 userPrekey (params Quorum (u, c))
@@ -213,6 +243,17 @@ claimPrekey u c =
               . msg (val "last resort prekey used")
       return $ Just (ClientPrekey c (Prekey i k))
     removeAndReturnPreKey Nothing = return Nothing
+
+    removeAndReturnPreKey' :: (PrekeyId, Text) -> AppIO ClientPrekey
+    removeAndReturnPreKey' (i, k) = do
+      if i /= lastPrekeyId
+        then retry x1 $ write removePrekey (params Quorum (u, c, i))
+        else
+          Log.debug $
+            field "user" (toByteString u)
+              . field "client" (toByteString c)
+              . msg (val "last resort prekey used")
+      return $ ClientPrekey c (Prekey i k)
 
     pickRandomPrekey :: [(PrekeyId, Text)] -> AppIO (Maybe (PrekeyId, Text))
     pickRandomPrekey [] = return Nothing
@@ -379,6 +420,6 @@ withOptLock u c ma = go (10 :: Int)
               return Nothing
             handleErr _ = return Nothing
 
-withLocalLock :: MVar () -> AppIO a -> AppIO a
-withLocalLock l ma = do
-  (takeMVar l *> ma) `finally` putMVar l ()
+-- withLocalLock :: MVar () -> AppIO a -> AppIO a
+-- withLocalLock l ma = do
+--   (takeMVar l *> ma) `finally` putMVar l ()

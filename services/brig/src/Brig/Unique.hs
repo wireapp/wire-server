@@ -88,7 +88,7 @@ deleteClaim ::
   m ()
 deleteClaim u v t = do
   let ttl = max minTtl (fromIntegral (t #> Second))
-  retry x5 $ write cql $ params Quorum (ttl * 2, C.Set [u], v)
+  retry x5 $ write cql $ params Quorum (ttl, C.Set [u], v)
   where
     cql :: PrepQuery W (Int32, C.Set (Id a), Text) ()
     cql = "UPDATE unique_claims USING TTL ? SET claims = claims - ? WHERE value = ?"
@@ -105,7 +105,7 @@ lookupClaims v =
     cql = "SELECT claims FROM unique_claims WHERE value = ?"
 
 minTtl :: Int32
-minTtl = 60 -- Seconds
+minTtl = 2 -- TODO: there might be a good reason this was 60 seconds - perhaps cassandra doesn't deal well with TTLs of only a few seconds? Or we can't know if computations will complete within a few seconds.
 
 -- [Note: Guarantees]
 -- ~~~~~~~~~~~~~~~~~~
