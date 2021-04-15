@@ -34,7 +34,9 @@ instance KnownComponent 'Proto.Brig where
   componentVal = Proto.Brig
 
 instance (Monad m, MonadError FederationClientError m, MonadIO m, KnownComponent component) => RunClient (FederatorClient component m) where
-  -- TODO: Figure out what needs to be done for _expectedStatuses
+  -- | expectedStatuses is ignored as we don't want to deal with statuses, only
+  -- 200 is accepted. If other status code is encountered,
+  -- 'FederationClientInvalidStatus' is thrown.
   runRequestAcceptStatus _expectedStatuses req = do
     env <- ask
     parsedMethod <- either (throwError . FederationClientInvalidMethod) pure $ HTTP.parseMethod (requestMethod req)
@@ -58,20 +60,19 @@ instance (Monad m, MonadError FederationClientError m, MonadIO m, KnownComponent
       GRpcClientError msg -> rpcErr $ "grpc client error: " <> T.pack (show msg)
       GRpcOk (Proto.OutwardResponseError err) -> throwError (FederationClientOutwardError err)
       GRpcOk (Proto.OutwardResponseHTTPResponse res) ->
-        pure $
-          Response
-            { -- TODO: Here only the status code is set and not the message
-              -- along with the code. Figuring out right message will be
-              -- tedious, but I guess it has to be done? Maybe we can always set
-              -- this to 200 OK and throw some other error if it is not 200.
-              responseStatusCode = HTTP.mkStatus (fromIntegral $ Proto.responseStatus res) "",
-              -- This is required so servant can parse the body
-              responseHeaders = [(HTTP.hContentType, "application/json")],
-              -- Here HTTP 1.1 is hardcoded with the hope that it wouldn't
-              -- really be used anywhere.
-              responseHttpVersion = HTTP.http11,
-              responseBody = LBS.fromStrict $ Proto.responseBody res
-            }
+        if Proto.responseStatus res /= 200
+          then throwError $ FederationClientInvalidStatus (Proto.responseStatus res)
+          else do
+            pure $
+              Response
+                { responseStatusCode = HTTP.ok200,
+                  -- This is required so servant can parse the body
+                  responseHeaders = [(HTTP.hContentType, "application/json")],
+                  -- Here HTTP 1.1 is hardcoded with the hope that it wouldn't
+                  -- really be used anywhere.
+                  responseHttpVersion = HTTP.http11,
+                  responseBody = LBS.fromStrict $ Proto.responseBody res
+                }
     where
       rpcErr = throwError . FederationClientRPCError
       readBody = \case
@@ -89,6 +90,7 @@ data FederationClientError
   | FederationClientStreamingUnsupported
   | FederationClientRPCError Text
   | FederationClientOutwardError Proto.OutwardError
+  | FederationClientInvalidStatus Word32
   | FederationClientServantError Servant.ClientError
 
 callRemote :: MonadIO m => GrpcClient -> Proto.ValidatedFederatedRequest -> m (GRpcReply Proto.OutwardResponse)
