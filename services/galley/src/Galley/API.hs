@@ -25,14 +25,9 @@ where
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Galley.API.Internal as Internal
 import qualified Galley.API.Public as Public
+import Galley.API.Public (ServantAPI, servantSitemap)
 import Galley.App (Galley)
 import Network.Wai.Routing (Routes)
-import Servant
-
-type ServantAPI = Public.ServantAPI
-
-servantSitemap :: ServerT Public.ServantAPI Galley
-servantSitemap = Public.servantSitemap
 
 sitemap :: Routes Doc.ApiBuilder Galley ()
 sitemap = do

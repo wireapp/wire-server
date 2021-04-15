@@ -86,6 +86,7 @@ import qualified Wire.API.Team.Permission as Public
 import qualified Wire.API.Team.SearchVisibility as Public
 import qualified Wire.API.User as Public (UserIdList, modelUserIdList)
 import Wire.Swagger (int32Between)
+import Servant.API.Generic ((:-), ToServantApi)
 
 -- This type exists for the special 'HasSwagger' and 'HasServer' instances. It
 -- shows the "Authorization" header in the swagger docs, but expects the
@@ -119,16 +120,20 @@ instance
   hoistServerWithContext _ pc nt s =
     Servant.hoistServerWithContext (Proxy @(InternalAuth :> api)) pc nt s
 
-type GetTeamConversationRoles =
-  Summary "Get existing roles available for the given team"
-    :> ZAuthServant
-    :> "teams"
-    :> Capture "tid" TeamId
-    :> "conversations"
-    :> "roles"
-    :> Get '[Servant.JSON] Public.ConversationRolesList
+newtype Api routes = Api
+  { getTeamConversationRoles ::
+      routes
+        :- Summary "Get existing roles available for the given team"
+        :> ZAuthServant
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> "conversations"
+        :> "roles"
+        :> Get '[Servant.JSON] Public.ConversationRolesList
+  }
+  deriving (Generic)
 
-type ServantAPI = GetTeamConversationRoles
+type ServantAPI = ToServantApi Api
 
 type SwaggerDocsAPI = "galley-api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
