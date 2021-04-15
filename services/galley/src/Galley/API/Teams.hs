@@ -386,6 +386,7 @@ getTeamMembers zusr tid maxResults = do
 getTeamMembersCSVH :: (List1 (ZAuth.Token ZAuth.User) ::: TeamId) -> Galley Response
 getTeamMembersCSVH (tokens ::: tid) = do
   (setCookie, _zusr) <- validateAndCheckPermissions (toList . toNonEmpty $ tokens)
+
   env <- ask
   pure $
     responseStream
@@ -413,8 +414,8 @@ getTeamMembersCSVH (tokens ::: tid) = do
   where
     validateAndCheckPermissions :: [ZAuth.Token ZAuth.User] -> Galley (WebCookie.SetCookie, UserId)
     validateAndCheckPermissions [] = throwM accessDenied
-    validateAndCheckPermissions (token : rest) = do
-      mbValidated <- validateCookie token
+    validateAndCheckPermissions (tok : rest) = do
+      mbValidated <- validateCookie tok
       case mbValidated of
         Nothing -> validateAndCheckPermissions rest
         Just (cky, uid) -> do

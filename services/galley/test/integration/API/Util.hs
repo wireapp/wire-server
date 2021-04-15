@@ -20,6 +20,7 @@
 module API.Util where
 
 import qualified API.SQS as SQS
+import Bilge (getCookie)
 import Bilge hiding (getCookie, timeout)
 import Bilge.Assert
 import Brig.Types
@@ -84,6 +85,7 @@ import Web.Cookie
 import Wire.API.Conversation.Member (Member (..))
 import qualified Wire.API.Event.Team as TE
 import qualified Wire.API.Message.Proto as Proto
+import Wire.API.User.Auth (CookieType (PersistentCookie), Login (PasswordLogin), LoginId (LoginByEmail))
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -230,38 +232,43 @@ data CsvCookieChoice = CsvWithCookie | CsvWithoutCookie | CsvWithBadCookie
 -- alternative to 'ResponseLBS': [BodyReader](https://hoogle.zinfra.io/file/root/.stack/snapshots/x86_64-linux/82492d944a85db90f4cd7cec6f4d5215ef9ac1ac8aeffeed4a805fbd6b1232c5/8.8.4/doc/http-client-0.7.0/Network-HTTP-Client.html#t:BodyReader)
 getTeamMembersCsv :: HasCallStack => CsvCookieChoice -> User -> TeamId -> TestM ResponseLBS
 getTeamMembersCsv withCookie usr tid = do
-  b <- view tsBrig
-  n <- view tsNginz
+  nginz <- view tsNginz
   let email = fromJust (Brig.Types.userEmail usr)
-      getCookie = do
+      bakeCookie =
         decodeCookie
-          <$> ( login b (emailLogin email defPassword (Just ("nexus1" :: String)) (error "PersistentCookie"))
+          <$> ( login (emailLogin email defPassword (Just "nexus1")) PersistentCookie
                   <!! const 200 === statusCode
               )
-      invalidateCookie = do
-        -- TODO: logout
-        undefined
+  let invalidateCookie = do
+        pure ()
+
   cky <- case withCookie of
-    CsvWithCookie -> Just <$> getCookie
+    CsvWithCookie -> Just <$> bakeCookie
     CsvWithoutCookie -> pure Nothing
-    CsvWithBadCookie -> Just <$> (getCookie <* invalidateCookie)
+    CsvWithBadCookie -> Just <$> (bakeCookie <* invalidateCookie)
 
   get
-    ( n . accept "text/csv"
+    ( nginz . accept "text/csv"
         . paths ["teams", toByteString' tid, "members/csv"]
         . maybe id cookie cky
     )
-  where
-    -- copy the following from /services/brig/test/integration/API/User/Auth.hs
 
-    -- login :: forall (m :: * -> *). Brig -> Login -> CookieType -> (MonadIO m, MonadHttp m) => m ResponseLBS -- Defined at Util.hs:328:1
-    login = undefined
+login :: Login -> CookieType -> TestM ResponseLBS
+login l t = do
+  brig <- view tsBrig
+  let js = RequestBodyLBS (encode l)
+   in post $
+        brig
+          . path "/login"
+          . contentJson
+          . (if t == PersistentCookie then queryItem "persist" "true" else id)
+          . body js
 
-    -- emailLogin :: Email -> PlainTextPassword -> Maybe CookieLabel -> Login -- Defined at Util.hs:622:1
-    emailLogin = undefined
+emailLogin :: Email -> PlainTextPassword -> Maybe CookieLabel -> Login
+emailLogin e = PasswordLogin (LoginByEmail e)
 
-    -- decodeCookie :: forall a. HasCallStack => Response a -> Http.Cookie -- Defined at Util.hs:358:1
-    decodeCookie = undefined
+decodeCookie :: HasCallStack => Response a -> Bilge.Cookie
+decodeCookie = fromMaybe (error "missing zuid cookie") . getCookie "zuid"
 
 getTeamMembersTruncated :: HasCallStack => UserId -> TeamId -> Int -> TestM TeamMemberList
 getTeamMembersTruncated usr tid n = do
