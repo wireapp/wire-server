@@ -31,7 +31,7 @@ import Control.Lens ((.~), (<>~), (?~))
 import Data.Aeson (FromJSON, ToJSON, encode)
 import Data.ByteString.Conversion (fromByteString, fromList, toByteString')
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
-import Data.Id (TeamId, UserId)
+import Data.Id (TeamId, UserId, ConvId)
 import qualified Data.Predicate as P
 import Data.Range
 import qualified Data.Set as Set
@@ -140,7 +140,33 @@ data Api routes = Api
         :> "teams"
         :> Capture "tid" TeamId
         :> "conversations"
-        :> Get '[Servant.JSON] Public.TeamConversationList
+        :> Get '[Servant.JSON] Public.TeamConversationList,
+    getTeamConversation ::
+      routes
+        :- Summary "Get one team conversation"
+        :> ZAuthServant
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> "conversations"
+        :> Capture "cid" ConvId
+        :> Get '[Servant.JSON] Public.TeamConversation
+  -- get "/teams/:tid/conversations/:cid" (continue Teams.getTeamConversationH) $
+  --   zauthUserId
+  --     .&. capture "tid"
+  --     .&. capture "cid"
+  --     .&. accept "application" "json"
+  -- document "GET" "getTeamConversation" $ do
+  --   summary "Get one team conversation"
+  --   parameter Path "tid" bytes' $
+  --     description "Team ID"
+  --   parameter Path "cid" bytes' $
+  --     description "Conversation ID"
+  --   returns (ref Public.modelTeamConversation)
+  --   response 200 "Team conversation" end
+  --   errorResponse Error.teamNotFound
+  --   errorResponse Error.convNotFound
+  --   errorResponse (Error.operationDenied Public.GetTeamConversations)
+
   }
   deriving (Generic)
 
@@ -163,6 +189,7 @@ servantSitemap :: ServerT ServantAPI Galley
 servantSitemap = genericServerT $ Api
   Teams.getTeamConversationRoles
   Teams.getTeamConversations
+  Teams.getTeamConversation
 
 sitemap :: Routes ApiBuilder Galley ()
 sitemap = do
@@ -410,23 +437,6 @@ sitemap = do
     errorResponse (Error.operationDenied Public.SetMemberPermissions)
 
   -- Team Conversation API ----------------------------------------------
-
-  get "/teams/:tid/conversations/:cid" (continue Teams.getTeamConversationH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. capture "cid"
-      .&. accept "application" "json"
-  document "GET" "getTeamConversation" $ do
-    summary "Get one team conversation"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    parameter Path "cid" bytes' $
-      description "Conversation ID"
-    returns (ref Public.modelTeamConversation)
-    response 200 "Team conversation" end
-    errorResponse Error.teamNotFound
-    errorResponse Error.convNotFound
-    errorResponse (Error.operationDenied Public.GetTeamConversations)
 
   delete "/teams/:tid/conversations/:cid" (continue Teams.deleteTeamConversationH) $
     zauthUserId

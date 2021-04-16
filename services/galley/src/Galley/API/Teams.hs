@@ -38,8 +38,7 @@ module Galley.API.Teams
     deleteTeamMemberH,
     updateTeamMemberH,
     getTeamConversations,
-    getTeamConversationsH,
-    getTeamConversationH,
+    getTeamConversation,
     deleteTeamConversationH,
     getSearchVisibilityH,
     setSearchVisibilityH,
@@ -712,20 +711,12 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
         push1 $ p & pushConn .~ zcon
       void . forkIO $ void $ External.deliver (bots `zip` repeat y)
 
-getTeamConversationsH :: UserId ::: TeamId ::: JSON -> Galley Response
-getTeamConversationsH (zusr ::: tid ::: _) = do
-  json <$> getTeamConversations zusr tid
-
 getTeamConversations :: UserId -> TeamId -> Galley Public.TeamConversationList
 getTeamConversations zusr tid = do
   tm <- Data.teamMember tid zusr >>= ifNothing notATeamMember
   unless (tm `hasPermission` GetTeamConversations) $
     throwM (operationDenied GetTeamConversations)
   Public.newTeamConversationList <$> Data.teamConversations tid
-
-getTeamConversationH :: UserId ::: TeamId ::: ConvId ::: JSON -> Galley Response
-getTeamConversationH (zusr ::: tid ::: cid ::: _) = do
-  json <$> getTeamConversation zusr tid cid
 
 getTeamConversation :: UserId -> TeamId -> ConvId -> Galley Public.TeamConversation
 getTeamConversation zusr tid cid = do
