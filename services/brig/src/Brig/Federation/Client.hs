@@ -32,7 +32,6 @@ import qualified Data.Aeson as Aeson
 import Data.Domain
 import Data.Handle
 import Data.Id (ClientId, UserId)
-import qualified Data.Map as Map
 import Data.Qualified
 import Data.String.Conversions
 import qualified Data.Text as T
