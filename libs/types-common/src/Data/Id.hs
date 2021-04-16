@@ -246,6 +246,9 @@ instance ToJSON ConnId where
 instance FromJSON ConnId where
   parseJSON x = ConnId . encodeUtf8 <$> withText "ConnId" pure x
 
+instance FromHttpApiData ConnId where
+  parseUrlPiece = Right . ConnId . encodeUtf8
+
 -- ClientId --------------------------------------------------------------------
 
 -- | Handle for a device.  Corresponds to the device fingerprints exposed in the UI.  It is unique

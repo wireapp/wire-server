@@ -39,7 +39,7 @@ module Galley.API.Teams
     updateTeamMemberH,
     getTeamConversations,
     getTeamConversation,
-    deleteTeamConversationH,
+    deleteTeamConversation,
     getSearchVisibilityH,
     setSearchVisibilityH,
     getSearchVisibilityInternalH,
@@ -120,6 +120,7 @@ import qualified Wire.API.Team.SearchVisibility as Public
 import Wire.API.User (User)
 import qualified Wire.API.User as Public (UserIdList)
 import qualified Wire.API.User as U
+import Servant (NoContent (..))
 
 getTeamH :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeamH (zusr ::: tid ::: _) =
@@ -725,12 +726,7 @@ getTeamConversation zusr tid cid = do
     throwM (operationDenied GetTeamConversations)
   Data.teamConversation tid cid >>= maybe (throwM convNotFound) pure
 
-deleteTeamConversationH :: UserId ::: ConnId ::: TeamId ::: ConvId ::: JSON -> Galley Response
-deleteTeamConversationH (zusr ::: zcon ::: tid ::: cid ::: _) = do
-  deleteTeamConversation zusr zcon tid cid
-  pure empty
-
-deleteTeamConversation :: UserId -> ConnId -> TeamId -> ConvId -> Galley ()
+deleteTeamConversation :: UserId -> ConnId -> TeamId -> ConvId -> Galley NoContent
 deleteTeamConversation zusr zcon tid cid = do
   (bots, cmems) <- botsAndUsers =<< Data.members cid
   ensureActionAllowed Roles.DeleteConversation =<< getSelfMember zusr cmems
@@ -744,6 +740,7 @@ deleteTeamConversation zusr zcon tid cid = do
   -- TODO: we don't delete bots here, but we should do that, since every
   -- bot user can only be in a single conversation
   Data.removeTeamConv tid cid
+  pure NoContent
 
 getSearchVisibilityH :: UserId ::: TeamId ::: JSON -> Galley Response
 getSearchVisibilityH (uid ::: tid ::: _) = do

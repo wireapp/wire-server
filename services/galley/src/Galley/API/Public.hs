@@ -31,7 +31,7 @@ import Control.Lens ((.~), (<>~), (?~))
 import Data.Aeson (FromJSON, ToJSON, encode)
 import Data.ByteString.Conversion (fromByteString, fromList, toByteString')
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
-import Data.Id (TeamId, UserId, ConvId)
+import Data.Id (TeamId, UserId, ConvId, ConnId)
 import qualified Data.Predicate as P
 import Data.Range
 import qualified Data.Set as Set
@@ -88,16 +88,31 @@ import qualified Wire.API.User as Public (UserIdList, modelUserIdList)
 import Wire.Swagger (int32Between)
 import Servant.API.Generic ((:-), ToServantApi)
 import Servant.Server.Generic (genericServerT)
+import GHC.Base (Symbol)
+import GHC.TypeLits (KnownSymbol)
 
 -- This type exists for the special 'HasSwagger' and 'HasServer' instances. It
 -- shows the "Authorization" header in the swagger docs, but expects the
 -- "Z-Auth" header in the server. This helps keep the swagger docs usable
 -- through nginz.
-data ZAuthServant
+data ZAuthServantType = ZAuthServantUser | ZAuthServantConn
 
-type InternalAuth = Header' '[Servant.Required, Servant.Strict] "Z-User" UserId
+type family ZAuthServantHeader (ztype :: ZAuthServantType) :: Symbol where
+  ZAuthServantHeader 'ZAuthServantUser = "Z-User"
+  ZAuthServantHeader 'ZAuthServantConn = "Z-Connection"
 
-instance HasSwagger api => HasSwagger (ZAuthServant :> api) where
+type family ZAuthServantParam (ztype :: ZAuthServantType) :: * where
+  ZAuthServantParam 'ZAuthServantUser = UserId
+  ZAuthServantParam 'ZAuthServantConn = ConnId
+
+data ZAuthServant' (ztype :: ZAuthServantType)
+type InternalAuth ztype =
+  Header' '[Servant.Required, Servant.Strict]
+  (ZAuthServantHeader ztype)
+  (ZAuthServantParam ztype)
+type ZAuthServant = ZAuthServant' 'ZAuthServantUser
+
+instance HasSwagger api => HasSwagger (ZAuthServant' 'ZAuthServantUser :> api) where
   toSwagger _ =
     toSwagger (Proxy @api)
       & securityDefinitions <>~ InsOrdHashMap.singleton "ZAuth" secScheme
@@ -109,17 +124,22 @@ instance HasSwagger api => HasSwagger (ZAuthServant :> api) where
             _securitySchemeDescription = Just "Must be a token retrieved by calling 'POST /login' or 'POST /access'. It must be presented in this format: 'Bearer \\<token\\>'."
           }
 
+instance HasSwagger api => HasSwagger (ZAuthServant' 'ZAuthServantConn :> api) where
+  toSwagger _ = toSwagger (Proxy @api)
+
 instance
   ( HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
-    HasServer api ctx
+    HasServer api ctx,
+    KnownSymbol (ZAuthServantHeader ztype),
+    FromHttpApiData (ZAuthServantParam ztype)
   ) =>
-  HasServer (ZAuthServant :> api) ctx
+  HasServer (ZAuthServant' ztype :> api) ctx
   where
-  type ServerT (ZAuthServant :> api) m = ServerT (InternalAuth :> api) m
+  type ServerT (ZAuthServant' ztype :> api) m = ServerT (InternalAuth ztype :> api) m
 
-  route _ = Servant.route (Proxy @(InternalAuth :> api))
+  route _ = Servant.route (Proxy @(InternalAuth ztype :> api))
   hoistServerWithContext _ pc nt s =
-    Servant.hoistServerWithContext (Proxy @(InternalAuth :> api)) pc nt s
+    Servant.hoistServerWithContext (Proxy @(InternalAuth ztype :> api)) pc nt s
 
 data Api routes = Api
   { getTeamConversationRoles ::
@@ -141,6 +161,7 @@ data Api routes = Api
         :> Capture "tid" TeamId
         :> "conversations"
         :> Get '[Servant.JSON] Public.TeamConversationList,
+    -- FUTUREWORK: errorResponse (Error.operationDenied Public.GetTeamConversations)
     getTeamConversation ::
       routes
         :- Summary "Get one team conversation"
@@ -149,24 +170,19 @@ data Api routes = Api
         :> Capture "tid" TeamId
         :> "conversations"
         :> Capture "cid" ConvId
-        :> Get '[Servant.JSON] Public.TeamConversation
-  -- get "/teams/:tid/conversations/:cid" (continue Teams.getTeamConversationH) $
-  --   zauthUserId
-  --     .&. capture "tid"
-  --     .&. capture "cid"
-  --     .&. accept "application" "json"
-  -- document "GET" "getTeamConversation" $ do
-  --   summary "Get one team conversation"
-  --   parameter Path "tid" bytes' $
-  --     description "Team ID"
-  --   parameter Path "cid" bytes' $
-  --     description "Conversation ID"
-  --   returns (ref Public.modelTeamConversation)
-  --   response 200 "Team conversation" end
-  --   errorResponse Error.teamNotFound
-  --   errorResponse Error.convNotFound
-  --   errorResponse (Error.operationDenied Public.GetTeamConversations)
-
+        :> Get '[Servant.JSON] Public.TeamConversation,
+    -- FUTUREWORK: errorResponse (Error.actionDenied Public.DeleteConversation)
+    --             errorResponse Error.notATeamMember
+    deleteTeamConversation ::
+      routes
+        :- Summary "Remove a team conversation"
+        :> ZAuthServant
+        :> ZAuthServant' 'ZAuthServantConn
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> "conversations"
+        :> Capture "cid" ConvId
+        :> DeleteNoContent
   }
   deriving (Generic)
 
@@ -190,6 +206,7 @@ servantSitemap = genericServerT $ Api
   Teams.getTeamConversationRoles
   Teams.getTeamConversations
   Teams.getTeamConversation
+  Teams.deleteTeamConversation
 
 sitemap :: Routes ApiBuilder Galley ()
 sitemap = do
@@ -436,23 +453,6 @@ sitemap = do
     errorResponse Error.teamMemberNotFound
     errorResponse (Error.operationDenied Public.SetMemberPermissions)
 
-  -- Team Conversation API ----------------------------------------------
-
-  delete "/teams/:tid/conversations/:cid" (continue Teams.deleteTeamConversationH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "tid"
-      .&. capture "cid"
-      .&. accept "application" "json"
-  document "DELETE" "deleteTeamConversation" $ do
-    summary "Remove a team conversation"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    parameter Path "cid" bytes' $
-      description "Conversation ID"
-    errorResponse Error.notATeamMember
-    errorResponse (Error.actionDenied Public.DeleteConversation)
-
   -- Team Legalhold API -------------------------------------------------
   --
   -- The Swagger docs of this part of the documentation are not generated
@@ -527,11 +527,11 @@ sitemap = do
     returns (ref Public.modelTeamSearchVisibility)
     response 200 "Search visibility" end
 
-  put "/teams/:tid/search-visibility" (continue Teams.setSearchVisibilityH) $ do
+  put "/teams/:tid/search-visibility" (continue Teams.setSearchVisibilityH) $
     zauthUserId
-      .&. capture "tid"
-      .&. jsonRequest @Public.TeamSearchVisibilityView
-      .&. accept "application" "json"
+    .&. capture "tid"
+    .&. jsonRequest @Public.TeamSearchVisibilityView
+    .&. accept "application" "json"
   document "POST" "setSearchVisibility" $ do
     summary "Sets the search visibility for the whole team"
     parameter Path "tid" bytes' $
@@ -667,7 +667,7 @@ sitemap = do
     errorResponse Error.notATeamMember
     errorResponse (Error.operationDenied Public.CreateConversation)
 
-  post "/conversations/self" (continue Create.createSelfConversationH) $
+  post "/conversations/self" (continue Create.createSelfConversationH)
     zauthUserId
   document "POST" "createSelfConversation" $ do
     summary "Create a self-conversation"
@@ -1121,10 +1121,10 @@ sitemap = do
     errorResponse Error.broadcastLimitExceeded
 
 apiDocs :: Routes ApiBuilder Galley ()
-apiDocs = do
+apiDocs =
   get "/conversations/api-docs" (continue docs) $
-    accept "application" "json"
-      .&. query "base_url"
+  accept "application" "json"
+    .&. query "base_url"
 
 type JSON = Media "application" "json"
 
@@ -1144,9 +1144,9 @@ docs (_ ::: url) = do
 -- We can discuss at the end of the sprint whether to keep it here,
 -- move it elsewhere, or abandon it entirely.
 apiDocsTeamsLegalhold :: Routes ApiBuilder Galley ()
-apiDocsTeamsLegalhold = do
+apiDocsTeamsLegalhold =
   get "/teams/api-docs" (continue . const . pure . json $ swagger) $
-    accept "application" "json"
+  accept "application" "json"
 
 -- FUTUREWORK: Maybe would be better to move it to wire-api?
 filterMissing :: HasQuery r => Predicate r P.Error Public.OtrFilterMissing
@@ -1208,7 +1208,7 @@ mkFeatureGetAndPutRoute getter setter = do
       putHandler (uid ::: tid ::: req ::: _) = do
         status <- fromJsonBody req
         res <- Features.setFeatureStatus @a setter (DoAuth uid) tid status
-        pure $ (json res) & Network.Wai.Utilities.setStatus status200
+        pure $ json res & Network.Wai.Utilities.setStatus status200
 
   let mkPutRoute makeDocumentation name = do
         put ("/teams/:tid/features/" <> name) (continue putHandler) $
