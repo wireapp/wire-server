@@ -8,6 +8,36 @@ The Federation API consists of two *layers*:
   2. Between other components
 
 
+Qualified Identifiers and Names
+-------------------------------
+
+The federated (and consequently distributed) architecture is reflected in the
+structure of the various identifiers and names used in the API. Before
+federation, identifiers were only unique in the context of a single backend; for
+federation, they are made globally unique by combining them with the federation
+domain of their backend. We call these combined identifiers *qualified*
+identifiers. While other parts of some identifiers or names may change, the
+domain name (i.e. the qualifying part) is static.
+
+In particular, we use the following identifiers throughout the API:
+
+* :ref:`Qualified User ID <qualified-user-id>` (QUID): `user_uuid@backend-domain.com`
+* :ref:`Qualified User Name <qualified-user-name>` (QUN): `user_name@backend-domain.com`
+* :ref:`Qualified Device ID <qualified-device-id>` (QDID) attached to a QUID: `device_uuid.user_uuid@backend-domain.com`
+* :ref:`Qualified Conversation <qualified-conversation-id>`/:ref:`Group ID <qualified-group-id>` (QCID/QGID): `backend-domain.com/groups/group_uuid`
+* :ref:`Qualified Team ID <qualified-team-id>` (QTID): `backend-domain.com/teams/team_uuid`
+
+While the canonical representation for purposes of visualization is as displayed
+above, the API often decomposes the qualified identifiers into an (unqualified)
+id and a domain name. In the code and API documentation, we sometimes call a
+username a "handle" and a qualified username a "qualified handle".
+
+Besides the above names and identifiers, there are also user :ref:`display names
+<display-name>` (sometimes also referred to as "profile names"), which are not
+unique on the user's backend, can be changed by the user at any time and are not
+qualified.
+
+
 API between Federators
 -----------------------
 
