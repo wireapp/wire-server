@@ -18,9 +18,12 @@
 module Federation.End2end where
 
 import API.Search.Util
-import Bilge (Http, Manager)
+import Bilge
+import Bilge.Assert ((!!!), (===))
 import qualified Brig.Options as BrigOpts
 import Brig.Types
+import qualified Data.Aeson as Aeson
+import Data.ByteString.Conversion (toByteString')
 import Data.Handle
 import Data.Qualified
 import Imports
@@ -28,6 +31,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Util
 import Util.Options (Endpoint)
+import Wire.API.User (ListUsersQuery (ListUsersByIds))
 
 -- NOTE: These federation tests require deploying two sets of (some) services
 -- This might be best left to a kubernetes setup.
@@ -47,7 +51,9 @@ spec _brigOpts mg brig _federator brigTwo =
     testGroup
       "federation-end2end-user"
       [ test mg "lookup user by qualified handle on remote backend" $ testHandleLookup brig brigTwo,
-        test mg "search users on remote backend" $ testSearchUsers brig brigTwo
+        test mg "search users on remote backend" $ testSearchUsers brig brigTwo,
+        test mg "get users by ids on multiple backends" $ testGetUsersById brig brigTwo,
+        test mg "get client prekey" $ testGetPrekey brig brigTwo
       ]
 
 -- | Path covered by this test:
@@ -88,3 +94,44 @@ testSearchUsers brig brigTwo = do
   -- exercises multi-backend network traffic
   liftIO $ putStrLn "search for user on brigOne via federators to remote brig..."
   assertCanFindWithDomain brig searcher expectedUserId searchTerm domain
+
+testGetUsersById :: Brig -> Brig -> Http ()
+testGetUsersById brig1 brig2 = do
+  users <- traverse randomUser [brig1, brig2]
+  let self = Imports.head users
+      q = ListUsersByIds (map userQualifiedId users)
+      expected = map connectedProfile users
+  post
+    ( brig1
+        . path "/list-users"
+        . zUser (userId self)
+        . body (RequestBodyLBS (Aeson.encode q))
+        . contentJson
+        . acceptJson
+        . expect2xx
+    )
+    !!! do
+      const 200 === statusCode
+      const (Just expected) === responseJsonMaybe
+
+testGetPrekey :: Brig -> Brig -> Http ()
+testGetPrekey brig1 brig2 = do
+  self <- randomUser brig1
+  user <- randomUser brig2
+  let new = defNewClient TemporaryClientType (take 1 somePrekeys) (Imports.head someLastPrekeys)
+  c <- responseJsonError =<< addClient brig2 (userId user) new
+  let cpk = ClientPrekey (clientId c) (Imports.head somePrekeys)
+  let qself = userQualifiedId self
+  get
+    ( brig1
+        . paths
+          [ "users",
+            toByteString' (qDomain qself),
+            toByteString' (qUnqualified qself),
+            "prekeys",
+            toByteString' (clientId c)
+          ]
+    )
+    !!! do
+      const 200 === statusCode
+      const (Just cpk) === responseJsonMaybe
