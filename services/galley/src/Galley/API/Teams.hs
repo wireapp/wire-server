@@ -434,7 +434,7 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
           encQuoting = QuoteAll
         }
 
-    teamExportUser :: (UserId -> Maybe Handle.Handle) -> TeamMember -> RichInfo -> User -> TeamExportUser
+    teamExportUser :: (UserId -> Maybe Handle.Handle) -> TeamMember -> Maybe RichInfo -> User -> TeamExportUser
     teamExportUser mbInviterHandle member richInfo user =
       TeamExportUser
         { tExportDisplayName = U.userDisplayName user,
@@ -447,7 +447,7 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
           tExportManagedBy = U.userManagedBy user,
           tExportSAMLNamedId = samlNamedId user,
           tExportSCIMExternalId = scimExtId user,
-          tExportSCIMRichInfo = Just . cs . Aeson.encode $ richInfo
+          tExportSCIMRichInfo = cs . Aeson.encode <$> richInfo
         }
 
     getInviters :: [TeamMember] -> Galley (UserId -> Maybe Handle.Handle)
@@ -470,7 +470,7 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
       Just _ -> Nothing
       Nothing -> Nothing
 
-    joinUserInfos :: [TeamMember] -> [User] -> [RichInfo] -> [(TeamMember, RichInfo, User)]
+    joinUserInfos :: [TeamMember] -> [User] -> [Maybe RichInfo] -> [(TeamMember, Maybe RichInfo, User)]
     joinUserInfos members users richInfos = do
       let usersMap = M.fromList (users <&> \user -> (U.userId user, user))
       catMaybes $

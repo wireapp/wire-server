@@ -383,11 +383,11 @@ lookupRichInfo u =
     <$> retry x1 (query1 richInfoSelect (params Quorum (Identity u)))
 
 -- | Returned rich infos are in the same order as users
-lookupRichInfoMultiUsers :: [UserId] -> AppIO [RichInfoAssocList]
+lookupRichInfoMultiUsers :: [UserId] -> AppIO [Maybe RichInfoAssocList]
 lookupRichInfoMultiUsers users = do
   pairs <- retry x1 (query richInfoSelectMulti (params Quorum (Identity users)))
   let riLookup = flip HashMap.lookup . HashMap.fromList $ pairs
-  pure $ fromMaybe emptyRichInfoAssocList . join . riLookup <$> users
+  pure $ join . riLookup <$> users
 
 -- | Lookup user (no matter what status) and return 'TeamId'.  Safe to use for authorization:
 -- suspended / deleted / ... users can't login, so no harm done if we authorize them *after*
