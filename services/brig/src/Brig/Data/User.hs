@@ -558,7 +558,7 @@ richInfoSelect :: PrepQuery R (Identity UserId) (Identity RichInfoAssocList)
 richInfoSelect = "SELECT json FROM rich_info WHERE user = ?"
 
 richInfoSelectMulti :: PrepQuery R (Identity [UserId]) (UserId, Maybe RichInfoAssocList)
-richInfoSelectMulti = "SELECT id, json FROM rich_info WHERE user in ?"
+richInfoSelectMulti = "SELECT user, json FROM rich_info WHERE user in ?"
 
 teamSelect :: PrepQuery R (Identity UserId) (Identity (Maybe TeamId))
 teamSelect = "SELECT team FROM user WHERE id = ?"
