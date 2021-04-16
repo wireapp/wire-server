@@ -87,6 +87,7 @@ import qualified Wire.API.Team.SearchVisibility as Public
 import qualified Wire.API.User as Public (UserIdList, modelUserIdList)
 import Wire.Swagger (int32Between)
 import Servant.API.Generic ((:-), ToServantApi)
+import Servant.Server.Generic (genericServerT)
 
 -- This type exists for the special 'HasSwagger' and 'HasServer' instances. It
 -- shows the "Authorization" header in the swagger docs, but expects the
@@ -120,8 +121,9 @@ instance
   hoistServerWithContext _ pc nt s =
     Servant.hoistServerWithContext (Proxy @(InternalAuth :> api)) pc nt s
 
-newtype Api routes = Api
+data Api routes = Api
   { getTeamConversationRoles ::
+      -- FUTUREWORK: errorResponse Error.notATeamMember
       routes
         :- Summary "Get existing roles available for the given team"
         :> ZAuthServant
@@ -129,7 +131,16 @@ newtype Api routes = Api
         :> Capture "tid" TeamId
         :> "conversations"
         :> "roles"
-        :> Get '[Servant.JSON] Public.ConversationRolesList
+        :> Get '[Servant.JSON] Public.ConversationRolesList,
+    -- FUTUREWORK: errorResponse (Error.operationDenied Public.GetTeamConversations)
+    getTeamConversations ::
+      routes
+        :- Summary "Get team conversations"
+        :> ZAuthServant
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> "conversations"
+        :> Get '[Servant.JSON] Public.TeamConversationList
   }
   deriving (Generic)
 
@@ -149,7 +160,9 @@ swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
 swaggerDocsAPI = swaggerSchemaUIServer swaggerDoc
 
 servantSitemap :: ServerT ServantAPI Galley
-servantSitemap = Teams.getTeamConversationRoles
+servantSitemap = genericServerT $ Api
+  Teams.getTeamConversationRoles
+  Teams.getTeamConversations
 
 sitemap :: Routes ApiBuilder Galley ()
 sitemap = do
@@ -397,19 +410,6 @@ sitemap = do
     errorResponse (Error.operationDenied Public.SetMemberPermissions)
 
   -- Team Conversation API ----------------------------------------------
-
-  get "/teams/:tid/conversations" (continue Teams.getTeamConversationsH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. accept "application" "json"
-  document "GET" "getTeamConversations" $ do
-    summary "Get team conversations"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    returns (ref Public.modelTeamConversationList)
-    response 200 "Team conversations" end
-    errorResponse Error.teamNotFound
-    errorResponse (Error.operationDenied Public.GetTeamConversations)
 
   get "/teams/:tid/conversations/:cid" (continue Teams.getTeamConversationH) $
     zauthUserId

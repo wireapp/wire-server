@@ -37,6 +37,7 @@ module Galley.API.Teams
     getTeamMemberH,
     deleteTeamMemberH,
     updateTeamMemberH,
+    getTeamConversations,
     getTeamConversationsH,
     getTeamConversationH,
     deleteTeamConversationH,
