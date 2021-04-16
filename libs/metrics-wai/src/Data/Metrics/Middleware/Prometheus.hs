@@ -17,6 +17,7 @@
 
 module Data.Metrics.Middleware.Prometheus
   ( waiPrometheusMiddleware,
+    normalizeWaiRequestRoute,
   )
 where
 

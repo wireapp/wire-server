@@ -237,7 +237,7 @@ hie.yaml:
 #
 # and if you don't know what a good DOCKER_TAG might be, you can run
 #
-#   make latest-brig-tag
+#   make latest-tag
 #
 # This task requires: [FUTUREWORK: add tooling setup to wire-server]
 #   - helm (version 3.1.1)
@@ -334,14 +334,14 @@ clean-charts:
 # (assummption: CI sets DOCKER_TAG and HELM_SEMVER)
 .PHONY: upload-chart-%
 upload-chart-%: release-chart-%
-	./hack/bin/upload-helm-charts-s3.sh .local/charts/$(*)
+	./hack/bin/upload-helm-charts-s3.sh -r $(HELM_REPO) -d .local/charts/$(*)
 
 # Usecases for this make target:
 # To uplaod all helm charts in the CHARTS_RELEASE list (see top of the time)
 # (assummption: CI sets DOCKER_TAG and HELM_SEMVER)
 .PHONY: upload-charts
 upload-charts: charts-release
-	./hack/bin/upload-helm-charts-s3.sh
+	./hack/bin/upload-helm-charts-s3.sh -r $(HELM_REPO)
 
 .PHONY: echo-release-charts
 echo-release-charts:

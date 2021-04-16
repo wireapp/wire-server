@@ -25,3 +25,15 @@ dependencies:
 library:
   source-dirs: src
   ghc-prof-options: -fprof-auto
+tests:
+  unit:
+    main: Spec.hs
+    source-dirs: test
+    ghc-options:
+      - -threaded
+      - -with-rtsopts=-N
+    build-tools:
+      - hspec-discover:hspec-discover
+    dependencies:
+      - hspec
+      - metrics-wai

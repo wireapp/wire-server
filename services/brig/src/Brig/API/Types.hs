@@ -43,6 +43,7 @@ import Brig.User.Auth.Cookie (RetryAfter (..))
 import Data.Id
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
+import qualified Wire.API.Federation.GRPC.Types as Proto
 
 -------------------------------------------------------------------------------
 -- Successes
@@ -184,13 +185,22 @@ data SendLoginCodeError
   = SendLoginInvalidPhone Phone
   | SendLoginPasswordExists
 
+data FederationError
+  = FederationRpcError Text
+  | FederationInvalidResponseCode Word32
+  | FederationInvalidResponseBody Text
+  | FederationRemoteError Proto.OutwardError
+  | FederationUnavailable Text
+  | FederationNotImplemented
+  | FederationNotConfigured
+
 data ClientError
   = ClientNotFound
   | ClientDataError !ClientDataError
   | ClientUserNotFound !OpaqueUserId
   | ClientLegalHoldCannotBeRemoved
   | ClientLegalHoldCannotBeAdded
-  | ClientFederationNotImplemented
+  | ClientFederationError FederationError
 
 data RemoveIdentityError
   = LastIdentity

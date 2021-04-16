@@ -23,13 +23,13 @@ import Control.Lens (view)
 import Control.Monad.Catch
 import Data.Aeson
 import qualified Data.ByteString.Char8 as C8
+import Data.Handle
 import Data.Id
 import Data.Misc
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
-import Federator.Options
 import Imports
 import Mu.GRpc.Client.TyApps
 import qualified Network.HTTP.Types as HTTP
@@ -43,7 +43,6 @@ import Wire.API.Federation.GRPC.Types (Component (..), HTTPMethod (..), HTTPResp
 import Wire.API.User
 import qualified Wire.API.User as User
 import Wire.API.User.Auth
-import Wire.API.User.Handle (UserHandleInfo (UserHandleInfo))
 
 -- FUTUREWORK(federation): move these tests to brig-integration (benefit: avoid duplicating all of the brig helper code)
 
@@ -73,7 +72,9 @@ spec env =
         hdl <- randomHandle
         _ <- putHandle brig (userId user) hdl
 
-        Endpoint fedHost fedPort <- federatorExternal . view teOpts <$> ask
+        let expectedProfile = (publicProfile user) {profileHandle = Just (Handle hdl)}
+
+        Endpoint fedHost fedPort <- cfgFederatorExternal . view teTstOpts <$> ask
         client <- createGrpcClient (grpcClientConfigSimple (Text.unpack fedHost) (fromIntegral fedPort) False)
         c <- case client of
           Left (err) -> liftIO $ assertFailure (show err)
@@ -84,7 +85,7 @@ spec env =
         liftIO $ case res of
           GRpcOk (InwardResponseHTTPResponse (HTTPResponse sts bdy)) -> do
             sts `shouldBe` 200
-            eitherDecodeStrict bdy `shouldBe` Right (UserHandleInfo (userQualifiedId user))
+            eitherDecodeStrict bdy `shouldBe` Right expectedProfile
           GRpcOk (InwardResponseErr err) -> assertFailure $ "Unexpected error response: " <> show err
           x -> assertFailure $ "GRpc call failed unexpectedly: " <> show x
 

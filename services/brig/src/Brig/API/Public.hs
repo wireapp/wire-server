@@ -33,7 +33,6 @@ import qualified Brig.API.Client as API
 import qualified Brig.API.Connection as API
 import Brig.API.Error
 import Brig.API.Handler
-import Brig.API.IdMapping (resolveOpaqueUserId)
 import qualified Brig.API.Properties as API
 import Brig.API.Types
 import qualified Brig.API.User as API
@@ -42,7 +41,6 @@ import qualified Brig.API.Util as API
 import Brig.App
 import qualified Brig.Calling.API as Calling
 import qualified Brig.Data.User as Data
-import Brig.Federation.Client as Federation
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
 import qualified Brig.Team.API as Team
@@ -51,12 +49,13 @@ import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra (AccountStatus (Ephemeral), UserAccount (UserAccount, accountUser))
 import Brig.Types.User (HavePendingInvitations (..), User (userId))
 import qualified Brig.User.API.Auth as Auth
+import qualified Brig.User.API.Handle as Handle
 import qualified Brig.User.API.Search as Search
 import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
 import Brig.User.Phone
 import Control.Error hiding (bool)
-import Control.Lens (view, (.~), (<>~), (?~), (^.))
+import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
@@ -66,25 +65,17 @@ import Data.Domain
 import Data.Handle (Handle, parseHandle)
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id as Id
-import Data.IdMapping (MappedOrLocalId (Local))
 import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
 import Data.Qualified (Qualified (..), partitionRemoteOrLocalIds)
 import Data.Range
 import Data.Swagger
-  ( ApiKeyLocation (..),
-    ApiKeyParams (..),
-    HasInfo (info),
+  ( HasInfo (info),
     HasProperties (properties),
     HasRequired (required),
     HasSchema (..),
-    HasSecurity (security),
-    HasSecurityDefinitions (securityDefinitions),
     HasTitle (title),
     NamedSchema (..),
-    SecurityRequirement (..),
-    SecurityScheme (..),
-    SecuritySchemeType (SecuritySchemeApiKey),
     Swagger,
     SwaggerType (SwaggerObject),
     ToSchema (..),
@@ -132,38 +123,6 @@ import qualified Wire.API.UserMap as Public
 
 ---------------------------------------------------------------------------
 -- Sitemap
-
--- | This type exists for the special 'HasSwagger' and 'HasServer' instances. It
--- shows the "Authorization" header in the swagger docs, but expects the
--- "Z-Auth" header in the server. This helps keep the swagger docs usable
--- through nginz.
-data ZAuthServant
-
-type InternalAuth = Header' '[Servant.Required, Servant.Strict] "Z-User" UserId
-
-instance HasSwagger api => HasSwagger (ZAuthServant :> api) where
-  toSwagger _ =
-    toSwagger (Proxy @api)
-      & securityDefinitions <>~ InsOrdHashMap.singleton "ZAuth" secScheme
-      & security <>~ [SecurityRequirement $ InsOrdHashMap.singleton "ZAuth" []]
-    where
-      secScheme =
-        SecurityScheme
-          { _securitySchemeType = SecuritySchemeApiKey (ApiKeyParams "Authorization" ApiKeyHeader),
-            _securitySchemeDescription = Just "Must be a token retrieved by calling 'POST /login' or 'POST /access'. It must be presented in this format: 'Bearer \\<token\\>'."
-          }
-
-instance
-  ( HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
-    HasServer api ctx
-  ) =>
-  HasServer (ZAuthServant :> api) ctx
-  where
-  type ServerT (ZAuthServant :> api) m = ServerT (InternalAuth :> api) m
-
-  route _ = Servant.route (Proxy @(InternalAuth :> api))
-  hoistServerWithContext _ pc nt s =
-    Servant.hoistServerWithContext (Proxy @(InternalAuth :> api)) pc nt s
 
 type CaptureUserId name = Capture' '[Description "User Id"] name UserId
 
@@ -294,7 +253,7 @@ type GetSelf =
 --   Doc.response 200 "Handle info" Doc.end
 --   Doc.errorResponse handleNotFound
 type GetHandleInfoUnqualified =
-  Summary "Get information on a user handle"
+  Summary "(deprecated, use /search/contacts) Get information on a user handle"
     :> ZAuthServant
     :> "users"
     :> "handles"
@@ -307,7 +266,7 @@ type GetHandleInfoUnqualified =
 --   Doc.response 200 "Handle info" Doc.end
 --   Doc.errorResponse handleNotFound
 type GetUserByHandleQualfied =
-  Summary "Get information on a user handle"
+  Summary "(deprecated, use /search/contacts) Get information on a user handle"
     :> ZAuthServant
     :> "users"
     :> "by-handle"
@@ -335,6 +294,38 @@ type ListUsersByIdsOrHandles =
     :> Post '[Servant.JSON] [Public.UserProfile]
 
 type MaxUsersForListClientsBulk = 500
+
+type GetUserClientsUnqualified =
+  Summary "Get all of a user's clients (deprecated)."
+    :> "users"
+    :> CaptureUserId "uid"
+    :> "clients"
+    :> Get '[Servant.JSON] [Public.PubClient]
+
+type GetUserClientsQualified =
+  Summary "Get all of a user's clients."
+    :> "users"
+    :> Capture "domain" Domain
+    :> CaptureUserId "uid"
+    :> "clients"
+    :> Get '[Servant.JSON] [Public.PubClient]
+
+type GetUserClientUnqualified =
+  Summary "Get a specific client of a user (deprecated)."
+    :> "users"
+    :> CaptureUserId "uid"
+    :> "clients"
+    :> CaptureClientId "client"
+    :> Get '[Servant.JSON] Public.PubClient
+
+type GetUserClientQualified =
+  Summary "Get a specific client of a user."
+    :> "users"
+    :> Capture "domain" Domain
+    :> CaptureUserId "uid"
+    :> "clients"
+    :> CaptureClientId "client"
+    :> Get '[Servant.JSON] Public.PubClient
 
 type ListClientsBulk =
   Summary "List all clients for a set of user ids"
@@ -406,6 +397,10 @@ type OutsideWorldAPI =
     :<|> GetUserByHandleQualfied
     :<|> ListUsersByUnqualifiedIdsOrHandles
     :<|> ListUsersByIdsOrHandles
+    :<|> GetUserClientsUnqualified
+    :<|> GetUserClientsQualified
+    :<|> GetUserClientUnqualified
+    :<|> GetUserClientQualified
     :<|> ListClientsBulk
     :<|> GetUsersPrekeysClientUnqualified
     :<|> GetUsersPrekeysClientQualified
@@ -413,6 +408,7 @@ type OutsideWorldAPI =
     :<|> GetUsersPrekeyBundleQualified
     :<|> GetMultiUserPrekeyBundleUnqualified
     :<|> GetMultiUserPrekeyBundleQualified
+    :<|> Search.API
 
 type SwaggerDocsAPI = "api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
@@ -440,6 +436,10 @@ servantSitemap =
     :<|> getUserByHandleH
     :<|> listUsersByUnqualifiedIdsOrHandles
     :<|> listUsersByIdsOrHandles
+    :<|> getUserClientsUnqualified
+    :<|> getUserClientsQualified
+    :<|> getUserClientUnqualified
+    :<|> getUserClientQualified
     :<|> listClientsBulk
     :<|> getPrekeyUnqualifiedH
     :<|> getPrekeyH
@@ -447,6 +447,7 @@ servantSitemap =
     :<|> getPrekeyBundleH
     :<|> getMultiUserPrekeyBundleUnqualifiedH
     :<|> getMultiUserPrekeyBundleH
+    :<|> Search.servantSitemap
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
@@ -483,33 +484,6 @@ sitemap o = do
 
   -- some APIs moved to servant
   -- end User Handle API
-
-  -- User Client API ----------------------------------------------------
-
-  get "/users/:uid/clients" (continue getUserClientsH) $
-    capture "uid"
-      .&. accept "application" "json"
-  document "GET" "getUserClients" $ do
-    Doc.summary "Get all of a user's clients."
-    Doc.parameter Doc.Path "uid" Doc.bytes' $
-      Doc.description "User ID"
-    Doc.returns (Doc.array (Doc.ref Public.modelPubClient))
-    Doc.response 200 "List of clients" Doc.end
-
-  get "/users/:uid/clients/:client" (continue getUserClientH) $
-    capture "uid"
-      .&. capture "client"
-      .&. accept "application" "json"
-  document "GET" "getUserClient" $ do
-    Doc.summary "Get a specific client of a user."
-    Doc.parameter Doc.Path "uid" Doc.bytes' $
-      Doc.description "User ID"
-    Doc.parameter Doc.Path "client" Doc.bytes' $
-      Doc.description "Client ID"
-    Doc.returns (Doc.ref Public.modelPubClient)
-    Doc.response 200 "Client" Doc.end
-
-  -- end User Client API
 
   get "/users/:uid/rich-info" (continue getRichInfoH) $
     zauthUserId
@@ -706,6 +680,9 @@ sitemap o = do
     Doc.errorResponse invalidUser
     Doc.errorResponse (noIdentity 5)
 
+  -- This endpoint is used to test /i/metrics, when this is servantified, please
+  -- make sure some other endpoint is used to test that routes defined in this
+  -- function are recorded and reported correctly in /i/metrics.
   get "/connections" (continue listConnectionsH) $
     accept "application" "json"
       .&. zauthUserId
@@ -1105,11 +1082,12 @@ listPropertyKeysAndValuesH (u ::: _) = do
 getPrekeyUnqualifiedH :: UserId -> ClientId -> Handler Public.ClientPrekey
 getPrekeyUnqualifiedH user client = do
   domain <- viewFederationDomain
-  ifNothing (notFound "prekey not found") =<< lift (API.claimPrekey user domain client)
+  getPrekeyH domain user client
 
 getPrekeyH :: Domain -> UserId -> ClientId -> Handler Public.ClientPrekey
 getPrekeyH domain user client = do
-  ifNothing (notFound "prekey not found") =<< lift (API.claimPrekey user domain client)
+  mPrekey <- lift (API.claimPrekey user domain client)
+  ifNothing (notFound "prekey not found") mPrekey
 
 getPrekeyBundleUnqualifiedH :: UserId -> Handler Public.PrekeyBundle
 getPrekeyBundleUnqualifiedH uid = do
@@ -1176,7 +1154,8 @@ listClientsH (zusr ::: _) =
 
 listClients :: UserId -> Handler [Public.Client]
 listClients zusr = do
-  API.lookupClients (Local zusr) !>> clientError
+  localdomain <- viewFederationDomain
+  API.lookupClients (Qualified zusr localdomain) !>> clientError
 
 getClientH :: UserId ::: ClientId ::: JSON -> Handler Response
 getClientH (zusr ::: clt ::: _) =
@@ -1184,31 +1163,34 @@ getClientH (zusr ::: clt ::: _) =
     Just c -> json c
     Nothing -> setStatus status404 empty
 
+getUserClientsUnqualified :: UserId -> Handler [Public.PubClient]
+getUserClientsUnqualified uid = do
+  localdomain <- viewFederationDomain
+  API.pubClient <$$> API.lookupClients (Qualified uid localdomain) !>> clientError
+
+getUserClientsQualified :: Domain -> UserId -> Handler [Public.PubClient]
+getUserClientsQualified domain uid = do
+  API.pubClient <$$> API.lookupClients (Qualified uid domain) !>> clientError
+
+getUserClientUnqualified :: UserId -> ClientId -> Handler Public.PubClient
+getUserClientUnqualified uid cid = do
+  localdomain <- viewFederationDomain
+  x <- API.pubClient <$$> API.lookupClient (Qualified uid localdomain) cid !>> clientError
+  ifNothing (notFound "client not found") x
+
 listClientsBulk :: UserId -> Range 1 MaxUsersForListClientsBulk [Qualified UserId] -> Handler (Public.QualifiedUserMap (Set Public.PubClient))
 listClientsBulk _zusr limitedUids = do
   API.lookupPubClientsBulk (fromRange limitedUids) !>> clientError
 
+getUserClientQualified :: Domain -> UserId -> ClientId -> Handler Public.PubClient
+getUserClientQualified domain uid cid = do
+  x <- API.pubClient <$$> API.lookupClient (Qualified uid domain) cid !>> clientError
+  ifNothing (notFound "client not found") x
+
 getClient :: UserId -> ClientId -> Handler (Maybe Public.Client)
 getClient zusr clientId = do
-  API.lookupClient (Local zusr) clientId !>> clientError
-
-getUserClientsH :: OpaqueUserId ::: JSON -> Handler Response
-getUserClientsH (user ::: _) =
-  json <$> getUserClients user
-
-getUserClients :: OpaqueUserId -> Handler [Public.PubClient]
-getUserClients opaqueUserId = do
-  resolvedUserId <- lift $ resolveOpaqueUserId opaqueUserId
-  API.pubClient <$$> API.lookupClients resolvedUserId !>> clientError
-
-getUserClientH :: OpaqueUserId ::: ClientId ::: JSON -> Handler Response
-getUserClientH (user ::: cid ::: _) = do
-  maybe (setStatus status404 empty) json <$> getUserClient user cid
-
-getUserClient :: OpaqueUserId -> ClientId -> Handler (Maybe Public.PubClient)
-getUserClient opaqueUserId clientId = do
-  resolvedUserId <- lift $ resolveOpaqueUserId opaqueUserId
-  API.pubClient <$$> API.lookupClient resolvedUserId clientId !>> clientError
+  localdomain <- viewFederationDomain
+  API.lookupClient (Qualified zusr localdomain) clientId !>> clientError
 
 getRichInfoH :: UserId ::: UserId ::: JSON -> Handler Response
 getRichInfoH (self ::: user ::: _) = do
@@ -1372,7 +1354,7 @@ listUsersByIdsOrHandles self q = do
       domain <- viewFederationDomain
       let (_remoteHandles, localHandles) = partitionRemoteOrLocalIds domain (fromRange hs)
       us <- getIds localHandles
-      filterHandleResults self =<< byIds us
+      Handle.filterHandleResults self =<< byIds us
   case foundUsers of
     [] -> throwStd $ notFound "None of the specified ids or handles match any users"
     _ -> pure foundUsers
@@ -1463,31 +1445,10 @@ getHandleInfoUnqualifiedH self handle = do
 -- traffic between backends in a federated scenario.
 getUserByHandleH :: UserId -> Domain -> Handle -> Handler Public.UserProfile
 getUserByHandleH self domain handle = do
-  maybeProfile <- getHandleInfo self (Qualified handle domain)
+  maybeProfile <- Handle.getHandleInfo self (Qualified handle domain)
   case maybeProfile of
     Nothing -> throwStd handleNotFound
     Just u -> pure u
-
--- FUTUREWORK: use 'runMaybeT' to simplify this.
-getHandleInfo :: UserId -> Qualified Handle -> Handler (Maybe Public.UserProfile)
-getHandleInfo self handle = do
-  domain <- viewFederationDomain
-  if qDomain handle == domain
-    then getLocalHandleInfo domain
-    else getRemoteHandleInfo
-  where
-    getLocalHandleInfo domain = do
-      Log.info $ Log.msg $ Log.val "getHandleInfo - local lookup"
-      maybeOwnerId <- lift $ API.lookupHandle (qUnqualified handle)
-      case maybeOwnerId of
-        Nothing -> return Nothing
-        Just ownerId -> do
-          ownerProfile <- lift $ API.lookupProfile self (Qualified ownerId domain)
-          owner <- filterHandleResults self (maybeToList ownerProfile)
-          return $ listToMaybe owner
-    getRemoteHandleInfo = do
-      Log.info $ Log.msg (Log.val "getHandleInfo - remote lookup") Log.~~ Log.field "domain" (show (qDomain handle))
-      Federation.getUserHandleInfo handle
 
 changeHandleH :: UserId ::: ConnId ::: JsonRequest Public.HandleUpdate -> Handler Response
 changeHandleH (u ::: conn ::: req) = do
@@ -1662,15 +1623,3 @@ deprecatedCompletePasswordResetH (_ ::: k ::: req) = do
 
 ifNothing :: Utilities.Error -> Maybe a -> Handler a
 ifNothing e = maybe (throwStd e) return
-
--- | Checks search permissions and filters accordingly
-filterHandleResults :: UserId -> [Public.UserProfile] -> Handler [Public.UserProfile]
-filterHandleResults searchingUser us = do
-  sameTeamSearchOnly <- fromMaybe False <$> view (settings . searchSameTeamOnly)
-  if sameTeamSearchOnly
-    then do
-      fromTeam <- lift $ Data.lookupUserTeam searchingUser
-      return $ case fromTeam of
-        Just team -> filter (\x -> Public.profileTeam x == Just team) us
-        Nothing -> us
-    else return us

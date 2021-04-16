@@ -25,16 +25,28 @@ import Servant.API
 import Servant.API.Generic
 import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.User (UserProfile)
+import Wire.API.User.Search
 
 -- Maybe this module should be called Brig
-newtype Api routes = Api
+data Api routes = Api
   { getUserByHandle ::
       routes
         :- "federation"
         :> "users"
         :> "by-handle"
         :> QueryParam' '[Required, Strict] "handle" Handle
-        :> Get '[JSON] UserProfile
+        :> Get '[JSON] UserProfile,
+    searchUsers ::
+      routes
+        :- "federation"
+        :> "search"
+        :> "users"
+        -- FUTUREWORK(federation): do we want to perform some type-level validation like length checks?
+        -- (handles can be up to 256 chars currently)
+        -- FUTUREWORK(federation): change this to a POST with a body,
+        -- rather than a query parameter, after deciding on a general pattern here
+        :> QueryParam' '[Required, Strict] "q" Text
+        :> Get '[JSON] (SearchResult Contact)
   }
   deriving (Generic)
 
@@ -51,4 +63,15 @@ mkGetUserInfoByHandle handle =
     (Proto.HTTPMethod HTTP.GET)
     "users/by-handle"
     [Proto.QueryParam "handle" (T.encodeUtf8 (fromHandle handle))]
+    mempty
+
+-- FUTUREWORK: Can we write a test which makes use of mkSearchUsers against the Api in this file?
+mkSearchUsers :: Text -> Proto.Request
+mkSearchUsers searchTerm =
+  Proto.Request
+    Proto.Brig
+    (Proto.HTTPMethod HTTP.GET)
+    "search/users"
+    [Proto.QueryParam "q" (T.encodeUtf8 searchTerm)]
+    -- FUTUREWORK(federation): do we want to pass other parameters like the number of results?
     mempty

@@ -71,6 +71,7 @@ tests:
     - hspec
     - lens
     - swagger2
+    - string-conversions
     - tasty
     - tasty-expected-failure
     - tasty-hspec
