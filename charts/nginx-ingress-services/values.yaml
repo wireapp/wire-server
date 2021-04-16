@@ -21,7 +21,6 @@ federator:
 # encrypt them with sops and use helm-wrapper, check README.md
 # for an example)
 tls:
-  enabled: true
   # NOTE:
   #  (1) enables automated certificate renewal provided by https://github.com/jetstack/cert-manager
   #  (2) supersedes wildcard certificate configuration mentioned above

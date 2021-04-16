@@ -1,7 +1,7 @@
 This helm chart is a helper to set up needed services, ingresses and (likely) secrets to access your cluster.
 It will _NOT_ deploy an ingress controller! Ensure you already have one on your cluster - or have a look at our [nginx-ingress-controller](../nginx-ingress-controller/README.md)
 
-If tls.enabled == true, then you need to supply 2 variables, `tlsWildcardCert` and `tlsWildcardKey` that could either be supplied as plain text in the form of a `-f path/to/secrets.yaml`, like this:
+You need to supply 2 variables, `tlsWildcardCert` and `tlsWildcardKey` that could either be supplied as plain text in the form of a `-f path/to/secrets.yaml`, like this:
 
 ```
 secrets:
@@ -33,7 +33,7 @@ A: Ensure that your certificate is _valid_ and has _not expired_; trying to serv
 
 ### Prerequisites
 
-* `cert-manager` and its CRDs have to be installed upfront, 
+* `cert-manager` and its CRDs have to be installed upfront,
    e.g. `helm upgrade --install -n cert-manager-ns --set 'installCRDs=true' cert-manager jetstack/cert-manager`,
    because upstream decided that this is the way (https://github.com/jetstack/cert-manager/pull/2964)
 
@@ -45,12 +45,12 @@ A: Ensure that your certificate is _valid_ and has _not expired_; trying to serv
   *cert-manager* take care of this
 * [optional] configure an *Issuer* to issue ACME HTTP01 certificates provided by Letsencrypt
 * [optional] define a *Certificate* representation that causes *cert-manager* to issue a
-  certificate that is then used by `Ingress` 
+  certificate that is then used by `Ingress`
 
 
-### Todo when introducing support for K8s >= 1.15 
+### Todo when introducing support for K8s >= 1.15
 
-* the `apiVersion` of all resources based on cert-manager's CRDs, namely `./templates/issuer.yaml` and 
+* the `apiVersion` of all resources based on cert-manager's CRDs, namely `./templates/issuer.yaml` and
   `./templates/certificate.yaml`, has to be changed to `cert-manager.io/v1alpha3`
 
 

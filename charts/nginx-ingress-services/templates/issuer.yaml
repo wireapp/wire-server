@@ -1,4 +1,4 @@
-{{- if and .Values.tls.enabled .Values.tls.useCertManager -}}
+{{- if .Values.tls.useCertManager -}}
 apiVersion: cert-manager.io/v1alpha2
 kind: Issuer
 metadata:
