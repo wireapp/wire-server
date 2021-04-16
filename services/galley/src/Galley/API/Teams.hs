@@ -60,7 +60,6 @@ import Brig.Types.Intra (accountUser)
 import Brig.Types.Team (TeamSize (..))
 import Control.Lens
 import Control.Monad.Catch
-import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion hiding (fromList)
 import Data.ByteString.Lazy.Builder (lazyByteString)
 import Data.Csv (EncodeOptions (..), Quoting (QuoteAll), encodeDefaultOrderedByNameWith)
@@ -445,9 +444,9 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
           tExportInvitedBy = mbInviterHandle . fst =<< view invitation member,
           tExportIdpIssuer = userToIdPIssuer user,
           tExportManagedBy = U.userManagedBy user,
-          tExportSAMLNamedId = samlNamedId user,
-          tExportSCIMExternalId = scimExtId user,
-          tExportSCIMRichInfo = cs . Aeson.encode <$> richInfo
+          tExportSAMLNamedId = fromMaybe "" (samlNamedId user),
+          tExportSCIMExternalId = fromMaybe "" (scimExtId user),
+          tExportSCIMRichInfo = richInfo
         }
 
     getInviters :: [TeamMember] -> Galley (UserId -> Maybe Handle.Handle)
