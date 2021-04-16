@@ -393,6 +393,10 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
     Just member -> unless (member `hasPermission` DownloadTeamMembersCsv) $ throwM accessDenied
 
   env <- ask
+  -- In case an exception is thrown inside the StreamingBody of responseStream
+  -- the response will not contain a correct error message, but rather be an
+  -- http error such as 'InvalidChunkHeaders'. The exception however still
+  -- reaches the middleware and is being tracked in logging and metrics.
   pure $
     responseStream
       status200
