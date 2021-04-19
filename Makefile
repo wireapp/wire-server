@@ -380,11 +380,11 @@ kind-reset: kind-delete kind-cluster
 
 .PHONY: kind-integration-setup
 kind-integration-setup: .local/kind-kubeconfig
-	KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig make kube-integration-setup
+	ENABLE_KIND_VALUES="1" KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig make kube-integration-setup
 
 .PHONY: kind-integration-test
 kind-integration-test:
-	KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig make kube-integration-test
+	ENABLE_KIND_VALUES="1" KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig make kube-integration-test
 
 kind-integration-e2e:
 	cd services/brig && KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig ./federation-tests.sh $(NAMESPACE)
