@@ -39,10 +39,11 @@ import Control.Arrow ((&&&))
 import Control.Lens ((^.), (^?))
 import Control.Monad.Catch
 import Data.Aeson
+import qualified Data.Aeson as Aeson
 import Data.Aeson.Lens
 import qualified Data.Aeson.Lens as AesonL
+import qualified Data.ByteString as C8
 import Data.ByteString.Char8 (pack)
-import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
 import Data.Json.Util (fromUTCTimeMillis)
@@ -71,6 +72,7 @@ import UnliftIO (mapConcurrently_)
 import Util as Util
 import Util.AWS as Util
 import Web.Cookie (parseSetCookie)
+import Wire.API.User (ListUsersQuery (..))
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> TestTree
 tests _ at opts p b c ch g aws =
@@ -91,7 +93,8 @@ tests _ at opts p b c ch g aws =
       test' aws p "post /activate - 200/204 + expiry" $ testActivateWithExpiry opts b at,
       test' aws p "get /users/:uid - 404" $ testNonExistingUser b,
       test' aws p "get /users/:uid - 200" $ testExistingUser b,
-      test' aws p "get /users?:id=.... - 200" $ testMultipleUsers b,
+      test' aws p "get /users?:id=.... - 200" $ testMultipleUsersUnqualified b,
+      test' aws p "post /list-users - 200" $ testMultipleUsers b,
       test' aws p "put /self - 200" $ testUserUpdate b c aws,
       test' aws p "put /self/email - 2xx" $ testEmailUpdate b aws,
       test' aws p "put /self/phone - 202" $ testPhoneUpdate b,
@@ -437,8 +440,8 @@ testExistingUser brig = do
               b ^? key "id" >>= maybeFromJSON
           )
 
-testMultipleUsers :: Brig -> Http ()
-testMultipleUsers brig = do
+testMultipleUsersUnqualified :: Brig -> Http ()
+testMultipleUsersUnqualified brig = do
   u1 <- randomUser brig
   u2 <- randomUser brig
   u3 <- createAnonUser "a" brig
@@ -451,9 +454,47 @@ testMultipleUsers brig = do
             (Just $ userDisplayName u2, Nothing),
             (Just $ userDisplayName u3, Nothing)
           ]
-  get (brig . zUser (userId u1) . path "users" . queryItem "ids" uids) !!! do
-    const 200 === statusCode
-    const (Just expected) === result
+  get
+    ( brig
+        . zUser (userId u1)
+        . contentJson
+        . path "users"
+        . queryItem "ids" uids
+    )
+    !!! do
+      const 200 === statusCode
+      const (Just expected) === result
+  where
+    result r =
+      Set.fromList
+        . map (field "name" &&& field "email")
+        <$> responseJsonMaybe r
+    field :: FromJSON a => Text -> Value -> Maybe a
+    field f u = u ^? key f >>= maybeFromJSON
+
+testMultipleUsers :: Brig -> Http ()
+testMultipleUsers brig = do
+  u1 <- randomUser brig
+  u2 <- randomUser brig
+  u3 <- createAnonUser "a" brig
+  let users = [u1, u2, u3]
+      q = ListUsersByIds (map userQualifiedId users)
+      expected =
+        Set.fromList
+          [ (Just $ userDisplayName u1, Nothing :: Maybe Email),
+            (Just $ userDisplayName u2, Nothing),
+            (Just $ userDisplayName u3, Nothing)
+          ]
+  post
+    ( brig
+        . zUser (userId u1)
+        . contentJson
+        . path "list-users"
+        . body (RequestBodyLBS (Aeson.encode q))
+    )
+    !!! do
+      const 200 === statusCode
+      const (Just expected) === result
   where
     result r =
       Set.fromList
