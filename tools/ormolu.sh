@@ -78,14 +78,20 @@ fi
 
 for hsfile in $(git ls-files | grep '\.hsc\?$'); do
     FAILED=0
-    ormolu --mode $ARG_ORMOLU_MODE --check-idempotence $LANGUAGE_EXTS "$hsfile" || FAILED=1
-    if [ "$FAILED" == "1" ]; then
+
+    # run in background so that we can detect Ctrl-C properly
+    ormolu --mode $ARG_ORMOLU_MODE --check-idempotence $LANGUAGE_EXTS "$hsfile" &
+    wait $! && err=0 || err=$?
+
+    if [ "$err" == "100" ]; then
         ((++FAILURES))
         echo "$hsfile...  *** FAILED"
         clear=""
-    else
+    elif [ "$err" == "0" ]; then
         echo -e "$clear$hsfile...  ok"
         [ "$ORMOLU_CONDENSE_OUTPUT" == "1" ] && clear="\033[A\r\033[K"
+    else
+        exit "$err"
     fi
 done
 
