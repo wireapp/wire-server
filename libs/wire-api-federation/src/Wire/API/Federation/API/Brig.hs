@@ -133,7 +133,7 @@ mkGetUsersByIds uids =
   Proto.Request
     Proto.Brig
     (Proto.HTTPMethod HTTP.POST)
-    "users/by-id"
+    "users/get-by-ids"
     []
     (LBS.toStrict $ Aeson.encode uids)
 
