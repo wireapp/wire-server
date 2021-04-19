@@ -5,6 +5,7 @@ command -v grpcurl >/dev/null 2>&1 || { echo >&2 "grpcurl is not installed, abor
 path=$(echo -n users/by-handle | base64)
 queryK=$(echo -n handle | base64)
 queryV=$(echo -n alice | base64)
+TOP_LEVEL="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../.." && pwd )"
 
 function getHandle() {
     echo ""
@@ -15,8 +16,8 @@ function getHandle() {
         AUTHORITY="-authority $SERVERNAME"
     fi
     set -x
-    grpcurl -d @ -format json $AUTHORITY $MODE -proto ../../libs/wire-api-federation/proto/router.proto "$HOST:$PORT" wire.federator.Inward/call <<EOM
-{"method": "GET", "component": "Brig", "path": "$path", "query": [{"key":"$queryK", "value":"$queryV"}]}
+    grpcurl -d @ -format json $AUTHORITY $MODE -import-path "${TOP_LEVEL}/libs/wire-api-federation/proto/" -proto router.proto "$HOST:$PORT" wire.federator.Inward/call <<EOM
+{"component": "Brig", "path": "$path"}
 EOM
     { set +x; } 2>/dev/null # stop outputting commands and don't print the set +x line
     echo "===|"
@@ -25,7 +26,7 @@ EOM
 
 HOST=localhost
 PORT=8443
-MODE="-cacert ../../services/nginz/integration-test/conf/nginz/integration-ca.pem"
+MODE="-cacert ${TOP_LEVEL}/services/nginz/integration-test/conf/nginz/integration-ca.pem"
 SERVERNAME="federator.integration.example.com"
 getHandle "local nginz on port 8443 using self-signed cert"
 

@@ -62,8 +62,8 @@ callOutward req = do
 mkRemoteResponse :: Either RemoteError (GRpcReply InwardResponse) -> OutwardResponse
 mkRemoteResponse reply =
   case reply of
-    Right (GRpcOk (InwardResponseHTTPResponse res)) ->
-      OutwardResponseHTTPResponse res
+    Right (GRpcOk (InwardResponseBody res)) ->
+      OutwardResponseBody res
     Right (GRpcOk (InwardResponseErr err)) ->
       mkOutwardErr RemoteFederatorError "remote-federator-returned-error" err
     Right (GRpcTooMuchConcurrency _) ->

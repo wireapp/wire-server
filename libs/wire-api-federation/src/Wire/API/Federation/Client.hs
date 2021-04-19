@@ -33,23 +33,18 @@ class KnownComponent (c :: Proto.Component) where
 instance KnownComponent 'Proto.Brig where
   componentVal = Proto.Brig
 
--- | expectedStatuses is ignored as we don't want to deal with statuses, only
--- 200 is accepted. If other status code is encountered,
--- 'FederationClientInvalidStatus' is thrown.
+-- | expectedStatuses is ignored as we don't get any status from the federator,
+-- all responses have '200 OK' as their status.
 instance (Monad m, MonadError FederationClientError m, MonadIO m, KnownComponent component) => RunClient (FederatorClient component m) where
   runRequestAcceptStatus _expectedStatuses req = do
     env <- ask
-    parsedMethod <- either (throwError . FederationClientInvalidMethod) pure $ HTTP.parseMethod (requestMethod req)
-    let query = foldMap (\(key, maybeVal) -> [Proto.QueryParam key (fromMaybe "" maybeVal)]) $ requestQueryString req
     body <- readBody . maybe (RequestBodyBS "") fst $ requestBody req
     let call =
           Proto.ValidatedFederatedRequest
             (domain env)
             ( Proto.Request
                 (componentVal @component)
-                (Proto.HTTPMethod parsedMethod)
                 (LBS.toStrict . toLazyByteString $ requestPath req)
-                query
                 body
             )
     grpcResponse <- callRemote (grpcClient env) call
@@ -59,20 +54,17 @@ instance (Monad m, MonadError FederationClientError m, MonadIO m, KnownComponent
       GRpcErrorString msg -> rpcErr $ "grpc error: " <> T.pack msg
       GRpcClientError msg -> rpcErr $ "grpc client error: " <> T.pack (show msg)
       GRpcOk (Proto.OutwardResponseError err) -> throwError (FederationClientOutwardError err)
-      GRpcOk (Proto.OutwardResponseHTTPResponse res) ->
-        if Proto.responseStatus res /= 200
-          then throwError $ FederationClientInvalidStatus (Proto.responseStatus res)
-          else do
-            pure $
-              Response
-                { responseStatusCode = HTTP.ok200,
-                  -- This is required so servant can parse the body
-                  responseHeaders = [(HTTP.hContentType, "application/json")],
-                  -- Here HTTP 1.1 is hardcoded with the hope that it wouldn't
-                  -- really be used anywhere.
-                  responseHttpVersion = HTTP.http11,
-                  responseBody = LBS.fromStrict $ Proto.responseBody res
-                }
+      GRpcOk (Proto.OutwardResponseBody res) -> do
+        pure $
+          Response
+            { responseStatusCode = HTTP.ok200,
+              -- This is required so servant can parse the body
+              responseHeaders = [(HTTP.hContentType, "application/json")],
+              -- Here HTTP 1.1 is hardcoded with the hope that it wouldn't
+              -- really be used anywhere.
+              responseHttpVersion = HTTP.http11,
+              responseBody = LBS.fromStrict res
+            }
     where
       rpcErr = throwError . FederationClientRPCError
       readBody = \case

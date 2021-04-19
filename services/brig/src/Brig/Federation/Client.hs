@@ -44,7 +44,7 @@ getUserHandleInfo (Qualified handle domain) = do
   Log.info $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
   executeFederated domain $ getUserByHandle clientRoutes handle
 
-searchUsers :: Domain -> Text -> FederationAppIO (Public.SearchResult Public.Contact)
+searchUsers :: Domain -> SearchRequest -> FederationAppIO (Public.SearchResult Public.Contact)
 searchUsers domain searchTerm = do
   Log.warn $ Log.msg $ T.pack "Brig-federation: search call on remote backend"
   executeFederated domain $ FederatedBrig.searchUsers clientRoutes searchTerm

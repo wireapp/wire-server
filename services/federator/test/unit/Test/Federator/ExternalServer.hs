@@ -22,7 +22,6 @@ module Test.Federator.ExternalServer where
 import Federator.Brig (Brig)
 import Federator.ExternalServer (callLocal)
 import Imports
-import qualified Network.HTTP.Types as HTTP
 import Polysemy (embed, runM)
 import Test.Polysemy.Mock (Mock (mock), evalMock)
 import Test.Polysemy.Mock.TH (genMock)
@@ -42,12 +41,12 @@ requestBrigSuccess :: TestTree
 requestBrigSuccess =
   testCase "should translate response from brig to 'InwardResponse'" $
     runM . evalMock @Brig @IO $ do
-      mockBrigCallReturns @IO (\_ _ _ _ -> pure (HTTP.status200, Just "response body"))
-      let request = Request Brig (HTTPMethod HTTP.GET) "/users" [QueryParam "handle" "foo"] mempty
+      mockBrigCallReturns @IO (\_ _ -> pure (Right (Just "response body")))
+      let request = Request Brig "/users" "\"foo\""
 
       res <- mock @Brig @IO $ callLocal request
 
       actualCalls <- mockBrigCallCalls @IO
-      let expectedCall = (HTTP.GET, "/users", [QueryParam "handle" "foo"], mempty)
+      let expectedCall = ("/users", "\"foo\"")
       embed $ assertEqual "one call to brig should be made" [expectedCall] actualCalls
-      embed $ assertEqual "response should be success with correct body" (InwardResponseHTTPResponse (HTTPResponse 200 "response body")) res
+      embed $ assertEqual "response should be success with correct body" (InwardResponseBody "response body") res

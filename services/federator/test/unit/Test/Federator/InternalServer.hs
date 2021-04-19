@@ -27,7 +27,6 @@ import Federator.Remote (Remote, RemoteError (RemoteErrorDiscoveryFailure))
 import Federator.Util
 import Imports
 import Mu.GRpc.Client.Record
-import qualified Network.HTTP.Types as HTTP
 import Network.HTTP2.Client (TooMuchConcurrency (TooMuchConcurrency))
 import Polysemy (embed, runM)
 import qualified Polysemy.Reader as Polysemy
@@ -64,7 +63,7 @@ federatedRequestSuccess :: TestTree
 federatedRequestSuccess =
   testCase "should successfully return success response" $
     runM . evalMock @Remote @IO $ do
-      mockDiscoverAndCallReturns @IO (const $ pure (Right (GRpcOk (InwardResponseHTTPResponse (HTTPResponse 200 "success!")))))
+      mockDiscoverAndCallReturns @IO (const $ pure (Right (GRpcOk (InwardResponseBody "success!"))))
       let federatedRequest = FederatedRequest validDomainText (Just validLocalPart)
 
       res <- mock @Remote @IO . Polysemy.runReader allowAllSettings $ callOutward federatedRequest
@@ -72,7 +71,7 @@ federatedRequestSuccess =
       actualCalls <- mockDiscoverAndCallCalls @IO
       let expectedCall = ValidatedFederatedRequest (Domain validDomainText) validLocalPart
       embed $ assertEqual "one remote call should be made" [expectedCall] actualCalls
-      embed $ assertEqual "successful response should be returned" (OutwardResponseHTTPResponse (HTTPResponse 200 "success!")) res
+      embed $ assertEqual "successful response should be returned" (OutwardResponseBody "success!") res
 
 -- FUTUREWORK(federation): This is probably not ideal, we should figure out what this error
 -- means and act accordingly.
@@ -184,13 +183,13 @@ federateWithAllowListFail =
 assertResponseErrorWithType :: HasCallStack => OutwardErrorType -> OutwardResponse -> IO ()
 assertResponseErrorWithType expectedType res =
   case res of
-    OutwardResponseHTTPResponse _ ->
+    OutwardResponseBody _ ->
       assertFailure $ "Expected response to be error, but it was not: " <> show res
     OutwardResponseError (OutwardError actualType _) ->
       assertEqual "Unexpected error type" expectedType actualType
 
 validLocalPart :: Request
-validLocalPart = Request Brig (HTTPMethod HTTP.GET) "/users" [QueryParam "handle" "foo"] mempty
+validLocalPart = Request Brig "/users" "\"foo\""
 
 validDomainText :: Text
 validDomainText = "example.com"

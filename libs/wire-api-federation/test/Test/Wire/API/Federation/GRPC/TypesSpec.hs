@@ -32,11 +32,8 @@ spec =
   describe "Wire.API.Federation.GRPC.Types" $ do
     describe "Protobuf Serialization" $ do
       muSchemaRoundtrip @Router @"Component" @Component
-      muSchemaRoundtrip @Router @"HTTPResponse" @HTTPResponse
       muSchemaRoundtrip @Router @"OutwardResponse" @OutwardResponse
       muSchemaRoundtrip @Router @"InwardResponse" @InwardResponse
-      muSchemaRoundtrip @Router @"Method" @HTTPMethod
-      muSchemaRoundtrip @Router @"QueryParam" @QueryParam
       muSchemaRoundtrip @Router @"Request" @Request
       muSchemaRoundtrip @Router @"FederatedRequest" @FederatedRequest
 

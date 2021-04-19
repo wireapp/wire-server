@@ -18,6 +18,7 @@
 module Wire.API.Federation.API.Brig where
 
 import Control.Monad.Except (MonadError (..))
+import Data.Aeson (FromJSON, ToJSON)
 import Data.Handle (Handle)
 import Imports
 import Servant.API
@@ -28,6 +29,14 @@ import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.User (UserProfile)
 import Wire.API.User.Search
 
+-- TODO: Write roundtrip tests and also golden JSON tests to ensure backwards compatibility
+newtype SearchRequest = SearchRequest {term :: Text}
+  deriving (Show, Eq, Generic)
+
+instance ToJSON SearchRequest
+
+instance FromJSON SearchRequest
+
 -- Maybe this module should be called Brig
 data Api routes = Api
   { getUserByHandle ::
@@ -35,8 +44,8 @@ data Api routes = Api
         :- "federation"
         :> "users"
         :> "by-handle"
-        :> QueryParam' '[Required, Strict] "handle" Handle
-        :> Get '[JSON] (Maybe UserProfile),
+        :> ReqBody '[JSON] Handle
+        :> Post '[JSON] (Maybe UserProfile),
     searchUsers ::
       routes
         :- "federation"
@@ -44,10 +53,8 @@ data Api routes = Api
         :> "users"
         -- FUTUREWORK(federation): do we want to perform some type-level validation like length checks?
         -- (handles can be up to 256 chars currently)
-        -- FUTUREWORK(federation): change this to a POST with a body,
-        -- rather than a query parameter, after deciding on a general pattern here
-        :> QueryParam' '[Required, Strict] "q" Text
-        :> Get '[JSON] (SearchResult Contact)
+        :> ReqBody '[JSON] SearchRequest
+        :> Post '[JSON] (SearchResult Contact)
   }
   deriving (Generic)
 

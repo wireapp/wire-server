@@ -25,6 +25,7 @@ import Imports
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
+import Wire.API.Federation.API.Brig (SearchRequest (SearchRequest))
 import qualified Wire.API.Federation.API.Brig as FederationAPIBrig
 import Wire.API.User (UserProfile)
 import Wire.API.User.Search
@@ -44,8 +45,9 @@ getUserByHandle handle = lift $ do
 -- | Searching for federated users on a remote backend should
 -- only search by exact handle search, not in elasticsearch.
 -- (This decision may change in the future)
-searchUsers :: Text -> Handler (SearchResult Contact)
-searchUsers searchTerm = do
+searchUsers :: SearchRequest -> Handler (SearchResult Contact)
+searchUsers (SearchRequest searchTerm) = do
+  -- TODO: Make sure this handle is parsed as empty handle throws error
   maybeOwnerId <- lift $ API.lookupHandle (Handle searchTerm)
   exactLookupProfile <- case maybeOwnerId of
     Nothing -> pure []

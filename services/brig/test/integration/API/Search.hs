@@ -443,7 +443,7 @@ testSearchOtherDomain opts brig = do
   -- We cannot assert on a real federated request here, so we make a request to
   -- a mocked federator started and stopped during this test
   otherSearchResult :: SearchResult Contact <- liftIO $ generate arbitrary
-  let mockResponse = OutwardResponseHTTPResponse (HTTPResponse 200 (cs $ Aeson.encode otherSearchResult))
+  let mockResponse = OutwardResponseBody (cs $ Aeson.encode otherSearchResult)
   results <- withMockFederator opts 9999 mockResponse $ do
     executeSearchWithDomain brig (userId user) "someSearchText" (Domain "non-existent.example.com")
   liftIO $ do

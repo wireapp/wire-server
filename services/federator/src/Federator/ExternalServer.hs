@@ -22,6 +22,7 @@
 module Federator.ExternalServer where
 
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Text as Text
 import Federator.App (Federator, runAppT)
 import Federator.Brig (Brig, brigCall, interpretBrig)
 import Federator.Env (Env)
@@ -30,7 +31,6 @@ import Imports
 import Mu.GRpc.Server (msgProtoBuf, runGRpcAppTrans)
 import Mu.Server (ServerError, ServerErrorIO, SingleServerT, singleService)
 import qualified Mu.Server as Mu
-import qualified Network.HTTP.Types as HTTP
 import Polysemy
 import qualified Polysemy.Error as Polysemy
 import Polysemy.IO (embedToMonadIO)
@@ -47,11 +47,12 @@ import Wire.API.Federation.GRPC.Types
 callLocal :: (Members '[Brig, Embed IO] r) => Request -> Sem r InwardResponse
 callLocal Request {..} = do
   -- FUTUREWORK(federation): before making a request, check the sender domain and only make the call if the allowlist (use Util.federateWith) allows it.
-  (resStatus, resBody) <- brigCall (unwrapMethod method) path query body
-  -- FUTUREWORK(federation): Decide what to do with 5xx statuses
-  let statusW32 = fromIntegral $ HTTP.statusCode resStatus
-      bodyBS = maybe mempty LBS.toStrict resBody
-  pure $ InwardResponseHTTPResponse $ HTTPResponse statusW32 bodyBS
+  eitherBody <- brigCall path body
+  pure $ case eitherBody of
+    Right resBody ->
+      InwardResponseBody $ maybe mempty LBS.toStrict resBody
+    Left err ->
+      InwardResponseErr $ Text.pack $ show err
 
 routeToInternal :: (Members '[Brig, Embed IO, Polysemy.Error ServerError] r) => SingleServerT info Inward (Sem r) _
 routeToInternal = singleService (Mu.method @"call" callLocal)

@@ -24,43 +24,41 @@ module Federator.Brig where
 
 import qualified Bilge as RPC
 import Bilge.RPC (rpc')
-import Bilge.Retry (rpcHandlers)
 import Control.Lens (view)
-import Control.Retry (RetryPolicy, exponentialBackoff, limitRetries, recovering)
 import Federator.App (Federator, liftAppIOToFederator)
 import Federator.Env (brig)
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import Polysemy
-import Wire.API.Federation.GRPC.Types
+
+newtype BrigError = BrigErrorInvalidStatus HTTP.Status
+  deriving (Eq, Show)
 
 data Brig m a where
   -- | Returns status and body, 'HTTP.Response' is not nice to work with in tests
-  BrigCall :: HTTP.StdMethod -> ByteString -> [QueryParam] -> ByteString -> Brig m (HTTP.Status, Maybe LByteString)
+  BrigCall :: ByteString -> ByteString -> Brig m (Either BrigError (Maybe LByteString))
 
 makeSem ''Brig
 
--- FUTUREWORK(federation): Do we want to use servant client here? May make everything typed and safe
+-- FUTUREWORK(federation): Do we want to use servant client here? May make
+-- everything typed and safe
+--
+-- FUTUREWORK: Avoid letting the IO errors escape into `Embed Federator` and
+-- return them as `Left`
 interpretBrig ::
   Member (Embed Federator) r =>
   Sem (Brig ': r) a ->
   Sem r a
 interpretBrig = interpret $ \case
-  BrigCall m p q b -> embed @Federator . liftAppIOToFederator $ do
+  BrigCall path body -> embed @Federator . liftAppIOToFederator $ do
     brigReq <- view brig <$> ask
-    let theCall =
-          rpc' "brig" brigReq $
-            RPC.method m
-              . RPC.path p -- FUTUREWORK(federation): Protect against arbitrary paths
-              . RPC.query (map (\(QueryParam k v) -> (k, Just v)) q)
-              . RPC.body (RPC.RequestBodyBS b)
     res <-
-      case m of
-        -- FUTUREWORK(federation): Maybe other HTTP methods can also be retried, this is the
-        -- only usecase as of now and seems safe.
-        HTTP.GET -> recovering x3 rpcHandlers $ const theCall
-        _ -> theCall
-    pure (RPC.responseStatus res, RPC.responseBody res)
-
-x3 :: RetryPolicy
-x3 = limitRetries 3 <> exponentialBackoff 100000
+      rpc' "brig" brigReq $
+        RPC.method HTTP.POST
+          . RPC.path path -- FUTUREWORK(federation): Protect against arbitrary paths
+          . RPC.body (RPC.RequestBodyBS body)
+    pure $
+      -- TODO: Test this.
+      if HTTP.statusCode (RPC.responseStatus res) == 200
+        then Right $ RPC.responseBody res
+        else Left $ BrigErrorInvalidStatus (RPC.responseStatus res)
