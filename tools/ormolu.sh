@@ -72,14 +72,20 @@ echo "language extensions: $LANGUAGE_EXTS"
 
 FAILURES=0
 
+if [ -t 1 ]; then
+    : ${ORMOLU_CONDENSE_OUTPUT:=1}
+fi
+
 for hsfile in $(git ls-files | grep '\.hsc\?$'); do
     FAILED=0
     ormolu --mode $ARG_ORMOLU_MODE --check-idempotence $LANGUAGE_EXTS "$hsfile" || FAILED=1
     if [ "$FAILED" == "1" ]; then
         ((++FAILURES))
         echo "$hsfile...  *** FAILED"
+        clear=""
     else
-        echo "$hsfile...  ok"
+        echo -e "$clear$hsfile...  ok"
+        [ "$ORMOLU_CONDENSE_OUTPUT" == "1" ] && clear="\033[A\r\033[K"
     fi
 done
 
