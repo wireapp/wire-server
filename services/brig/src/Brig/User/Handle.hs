@@ -72,6 +72,12 @@ glimpseHandle :: Handle -> AppIO (Maybe UserId)
 glimpseHandle = lookupHandleWithPolicy One
 
 {-# INLINE lookupHandleWithPolicy #-}
+
+-- | Sending an empty 'Handle' here causes C* to throw "Key may not be empty"
+-- error.
+--
+-- FUTUREWORK: This should ideally be tackled by hiding constructor for 'Handle'
+-- and only allowing it to be parsed.
 lookupHandleWithPolicy :: Consistency -> Handle -> AppIO (Maybe UserId)
 lookupHandleWithPolicy policy h = do
   join . fmap runIdentity
