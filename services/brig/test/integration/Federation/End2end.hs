@@ -103,7 +103,7 @@ testGetUsersById brig1 brig2 = do
       expected = map connectedProfile users
   post
     ( brig1
-        . path "/list-users"
+        . path "list-users"
         . zUser (userId self)
         . body (RequestBodyLBS (Aeson.encode q))
         . contentJson
