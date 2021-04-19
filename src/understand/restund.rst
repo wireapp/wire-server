@@ -26,7 +26,8 @@ users, they need to be reachable by both of these users, which usually
 means they need to have a **public IP address**.
 
 While one server is enough to get started, two servers provide
-high-availability in case one server gets into trouble.
+high-availability in case one server gets into trouble. A
+Restund instance may communicate with other Restund instances.
 
 You can either have restund servers directly exposed to the public
 internet:

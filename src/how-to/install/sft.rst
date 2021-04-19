@@ -114,7 +114,7 @@ egress traffic should be allowed for this range. Furthermore the SFT needs to be
 able to reach the :ref:`Restund server <understand-restund>`, as it uses STUN and TURN in cases the client
 can not directly connect to the SFT. In practise this means the SFT should
 allow ingress and egress traffic on the UDP port range ``32768-61000`` from and
-to both clients and the :ref:`Restund server <understand-restund>`.
+to both, clients and :ref:`Restund servers <understand-restund>`.
 
 The SFT also has an HTTP interface for initializing (allocation) or joining (signaling) a call. This is exposed through
 the ingress controller as an HTTPS service.

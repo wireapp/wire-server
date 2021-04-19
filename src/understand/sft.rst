@@ -21,7 +21,14 @@ without compromising end-to-end security.
 Architecture
 ------------
 
+The following diagram is centered around SFT and its role within a calling setup. Restund is seen
+as a mere client proxy and its relation to and interaction with a client is explained
+:ref:`here <understand-restund>`. The diagram shows that a call resides on a single SFT instance
+and that the instance allocates at least one port for media transport per participant in the call.
+
 .. figure:: img/architecture-sft.png
+
+    SFT signaling, and media sending from the perspective of one caller
 
 
 Prerequisites
