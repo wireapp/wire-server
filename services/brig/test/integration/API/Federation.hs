@@ -21,7 +21,7 @@ import API.Search.Util (refreshIndex)
 import Bilge hiding (head)
 import Bilge.Assert
 import Brig.Types
-import Control.Arrow ((&&&))
+import Control.Arrow ((&&&),Arrow (first))
 import Data.Aeson (encode)
 import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion (toByteString')
@@ -37,6 +37,8 @@ import Test.Tasty
 import Test.Tasty.HUnit (assertEqual)
 import Util
 import Wire.API.Message (UserClientMap (..), UserClients (..))
+import Federation.Util (generateClientPrekeys)
+import Data.Qualified (qUnqualified)
 
 -- FUTUREWORK(federation): use servant-client in tests for the federation endpoints instead of the bilge requests.
 tests :: Manager -> Brig -> IO TestTree
@@ -187,12 +189,12 @@ testClaimPrekeySuccess brig = do
 testClaimPrekeyBundleSuccess :: Brig -> Http ()
 testClaimPrekeyBundleSuccess brig = do
   let prekeys = take 5 (zip somePrekeys someLastPrekeys)
-  (uid, clients) <- generateClientPrekeys brig prekeys
+  (quid, clients) <- generateClientPrekeys brig prekeys
   let sortClients = sortBy (compare `on` prekeyClient)
   get
     ( brig
         . paths ["federation", "users", "prekey-bundle"]
-        . queryItem "uid" (toByteString' uid)
+        . queryItem "uid" (toByteString' (qUnqualified quid))
         . expect2xx
     )
     !!! do
@@ -207,8 +209,8 @@ testClaimMultiPrekeyBundleSuccess brig = do
       prekeys2 = take 4 prekeys'
       mkClients = Set.fromList . map prekeyClient
       mkClientMap = Map.fromList . map (prekeyClient &&& prekeyData)
-  c1 <- generateClientPrekeys brig prekeys1
-  c2 <- generateClientPrekeys brig prekeys2
+  c1 <- first qUnqualified <$> generateClientPrekeys brig prekeys1
+  c2 <- first qUnqualified <$> generateClientPrekeys brig prekeys2
   let uc = UserClients (Map.fromList [mkClients <$> c1, mkClients <$> c2])
       ucm = UserClientMap (Map.fromList [mkClientMap <$> c1, mkClientMap <$> c2])
   post
@@ -237,13 +239,3 @@ fedSearch brig handle =
           . queryItem "q" (toByteString' handle)
           . expect2xx
       )
-
-generateClientPrekeys :: Brig -> [(Prekey, LastPrekey)] -> Http (UserId, [ClientPrekey])
-generateClientPrekeys brig prekeys = do
-  user <- randomUser brig
-  let uid = userId user
-      mkClient (pk, lpk) = defNewClient PermanentClientType [pk] lpk
-      nclients = map mkClient prekeys
-      mkClientPrekey (pk, _) c = ClientPrekey (clientId c) pk
-  clients <- traverse (responseJsonError <=< addClient brig uid) nclients
-  pure (uid, zipWith mkClientPrekey prekeys clients)

@@ -32,6 +32,7 @@ import Test.Tasty.HUnit
 import Util
 import Util.Options (Endpoint)
 import Wire.API.User (ListUsersQuery (ListUsersByIds))
+import Federation.Util (generateClientPrekeys)
 
 -- NOTE: These federation tests require deploying two sets of (some) services
 -- This might be best left to a kubernetes setup.
@@ -136,3 +137,22 @@ testGetPrekey brig1 brig2 = do
     !!! do
       const 200 === statusCode
       const (Just cpk) === responseJsonMaybe
+
+testClaimPrekeyBundleSuccess :: Brig -> Brig -> Http ()
+testClaimPrekeyBundleSuccess brig1 brig2 = do
+  qself <- userQualifiedId <$> randomUser brig1
+  let prekeys = take 5 (zip somePrekeys someLastPrekeys)
+  (quser, clients) <- generateClientPrekeys brig2 prekeys
+  let sortClients = sortBy (compare `on` prekeyClient)
+  get
+    ( brig1
+    . zUser (qUnqualified qself)
+    . paths [ "users"
+            , toByteString' (qDomain quser)
+            , toByteString' (qUnqualified quser)
+            , "prekeys" ]
+    . expect2xx )
+    !!! do
+      const 200 === statusCode
+      const (Just (sortClients clients))
+        === fmap (sortClients . prekeyClients) . responseJsonMaybe
