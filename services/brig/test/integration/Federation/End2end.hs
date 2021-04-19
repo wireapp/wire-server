@@ -54,7 +54,8 @@ spec _brigOpts mg brig _federator brigTwo =
       [ test mg "lookup user by qualified handle on remote backend" $ testHandleLookup brig brigTwo,
         test mg "search users on remote backend" $ testSearchUsers brig brigTwo,
         test mg "get users by ids on multiple backends" $ testGetUsersById brig brigTwo,
-        test mg "get client prekey" $ testGetPrekey brig brigTwo
+        test mg "claim client prekey" $ testClaimPrekeySuccess brig brigTwo,
+        test mg "claim prekey bundle" $ testClaimPrekeyBundleSuccess brig brigTwo
       ]
 
 -- | Path covered by this test:
@@ -117,8 +118,8 @@ testGetUsersById brig1 brig2 = do
       const 200 === statusCode
       const (Just expected) === fmap sortUsers . responseJsonMaybe
 
-testGetPrekey :: Brig -> Brig -> Http ()
-testGetPrekey brig1 brig2 = do
+testClaimPrekeySuccess :: Brig -> Brig -> Http ()
+testClaimPrekeySuccess brig1 brig2 = do
   self <- randomUser brig1
   user <- randomUser brig2
   let new = defNewClient TemporaryClientType (take 1 somePrekeys) (Imports.head someLastPrekeys)
