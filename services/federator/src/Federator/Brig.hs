@@ -54,6 +54,7 @@ interpretBrig = interpret $ \case
               . RPC.path ("federation/" <> p) -- FUTUREWORK(federation): Protect against path traversal
               . RPC.query (map (\(QueryParam k v) -> (k, Just v)) q)
               . RPC.body (RPC.RequestBodyBS b)
+              . RPC.contentJson
     res <-
       case m of
         -- FUTUREWORK(federation): Maybe other HTTP methods can also be retried, this is the
