@@ -72,6 +72,7 @@ glimpseHandle :: Handle -> AppIO (Maybe UserId)
 glimpseHandle = lookupHandleWithPolicy One
 
 {-# INLINE lookupHandleWithPolicy #-}
+
 -- | Sending an empty 'Handle' here causes C* to throw "Key may not be empty"
 -- error.
 --
