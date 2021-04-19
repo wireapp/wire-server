@@ -93,6 +93,7 @@ tests _ at opts p b c ch g aws =
       test' aws p "post /activate - 200/204 + expiry" $ testActivateWithExpiry opts b at,
       test' aws p "get /users/:uid - 404" $ testNonExistingUserUnqualified b,
       test' aws p "get /users/<localdomain>/:uid - 404" $ testNonExistingUser b,
+      test' aws p "get /users/:domain/:uid - 422" $ testUserInvalidDomain b,
       test' aws p "get /users/:uid - 200" $ testExistingUserUnqualified b,
       test' aws p "get /users/<localdomain>/:uid - 200" $ testExistingUser b,
       test' aws p "get /users?:id=.... - 200" $ testMultipleUsersUnqualified b,
@@ -442,6 +443,13 @@ testNonExistingUser brig = do
     !!! const 404 === statusCode
   get (brig . paths ["users", toByteString' domain, toByteString' uid2] . zUser uid)
     !!! const 404 === statusCode
+
+testUserInvalidDomain :: Brig -> Http ()
+testUserInvalidDomain brig = do
+  qself <- userQualifiedId <$> randomUser brig
+  let uid = qUnqualified qself
+  get (brig . paths ["users", "invalid.example.com", toByteString' uid] . zUser uid)
+    !!! const 422 === statusCode
 
 testExistingUserUnqualified :: Brig -> Http ()
 testExistingUserUnqualified brig = do
