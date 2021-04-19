@@ -26,13 +26,13 @@ import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Handle
 import Data.Qualified
+import Federation.Util (generateClientPrekeys)
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
 import Util.Options (Endpoint)
 import Wire.API.User (ListUsersQuery (ListUsersByIds))
-import Federation.Util (generateClientPrekeys)
 
 -- NOTE: These federation tests require deploying two sets of (some) services
 -- This might be best left to a kubernetes setup.
@@ -146,12 +146,15 @@ testClaimPrekeyBundleSuccess brig1 brig2 = do
   let sortClients = sortBy (compare `on` prekeyClient)
   get
     ( brig1
-    . zUser (qUnqualified qself)
-    . paths [ "users"
-            , toByteString' (qDomain quser)
-            , toByteString' (qUnqualified quser)
-            , "prekeys" ]
-    . expect2xx )
+        . zUser (qUnqualified qself)
+        . paths
+          [ "users",
+            toByteString' (qDomain quser),
+            toByteString' (qUnqualified quser),
+            "prekeys"
+          ]
+        . expect2xx
+    )
     !!! do
       const 200 === statusCode
       const (Just (sortClients clients))

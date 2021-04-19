@@ -21,15 +21,17 @@ import API.Search.Util (refreshIndex)
 import Bilge hiding (head)
 import Bilge.Assert
 import Brig.Types
-import Control.Arrow ((&&&),Arrow (first))
+import Control.Arrow (Arrow (first), (&&&))
 import Data.Aeson (encode)
 import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Handle (Handle (..))
 import Data.Id (Id (..), UserId)
 import qualified Data.Map as Map
+import Data.Qualified (qUnqualified)
 import qualified Data.Set as Set
 import qualified Data.UUID.V4 as UUIDv4
+import Federation.Util (generateClientPrekeys)
 import Imports
 import Test.QuickCheck (arbitrary)
 import Test.QuickCheck.Gen (generate)
@@ -37,8 +39,6 @@ import Test.Tasty
 import Test.Tasty.HUnit (assertEqual)
 import Util
 import Wire.API.Message (UserClientMap (..), UserClients (..))
-import Federation.Util (generateClientPrekeys)
-import Data.Qualified (qUnqualified)
 
 -- FUTUREWORK(federation): use servant-client in tests for the federation endpoints instead of the bilge requests.
 tests :: Manager -> Brig -> IO TestTree

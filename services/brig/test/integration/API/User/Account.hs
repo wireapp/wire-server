@@ -467,18 +467,22 @@ testExistingUser brig = do
   quser <- userQualifiedId <$> randomUser brig
   let uid = qUnqualified quser
       domain = qDomain quser
-  get ( brig
-      . zUser uid
-      . paths [ "users"
-              , toByteString' domain
-              , toByteString' uid
-              ] ) !!! do
-    const 200 === statusCode
-    const (Just uid)
-      === ( \r -> do
-              b <- responseBody r
-              b ^? key "id" >>= maybeFromJSON
-          )
+  get
+    ( brig
+        . zUser uid
+        . paths
+          [ "users",
+            toByteString' domain,
+            toByteString' uid
+          ]
+    )
+    !!! do
+      const 200 === statusCode
+      const (Just uid)
+        === ( \r -> do
+                b <- responseBody r
+                b ^? key "id" >>= maybeFromJSON
+            )
 
 testMultipleUsersUnqualified :: Brig -> Http ()
 testMultipleUsersUnqualified brig = do
