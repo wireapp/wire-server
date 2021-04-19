@@ -68,6 +68,7 @@ tests opts mgr galley brig = do
         testWithBothIndices opts mgr "by-handle" $ testSearchByHandle brig,
         testWithBothIndices opts mgr "size - when exact handle matches a team user" $ testSearchSize brig True,
         testWithBothIndices opts mgr "size - when exact handle matches a non team user" $ testSearchSize brig False,
+        test mgr "empty query" $ testSearchEmpty brig,
         test mgr "reindex" $ testReindex brig,
         testWithBothIndices opts mgr "no match" $ testSearchNoMatch brig,
         testWithBothIndices opts mgr "no extra results" $ testSearchNoExtraResults brig,
@@ -171,6 +172,15 @@ testSearchByHandle brig = do
       uid2 = userId u2
       Just h = fromHandle <$> userHandle u1
   assertCanFind brig uid2 quid1 h
+
+testSearchEmpty :: TestConstraints m => Brig -> m ()
+testSearchEmpty brig = do
+  -- This user exists just in case empty string starts matching everything
+  _someUser <- randomUserWithHandle brig
+  searcher <- randomUser brig
+  refreshIndex brig
+  res <- searchResults <$> executeSearch brig (userId searcher) ""
+  liftIO $ assertEqual "nothing should be returned" [] res
 
 testSearchSize :: TestConstraints m => Brig -> Bool -> m ()
 testSearchSize brig exactHandleInTeam = do
