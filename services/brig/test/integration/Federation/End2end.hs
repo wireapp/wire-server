@@ -121,13 +121,14 @@ testGetPrekey brig1 brig2 = do
   let new = defNewClient TemporaryClientType (take 1 somePrekeys) (Imports.head someLastPrekeys)
   c <- responseJsonError =<< addClient brig2 (userId user) new
   let cpk = ClientPrekey (clientId c) (Imports.head somePrekeys)
-  let qself = userQualifiedId self
+  let quser = userQualifiedId user
   get
     ( brig1
+        . zUser (userId self)
         . paths
           [ "users",
-            toByteString' (qDomain qself),
-            toByteString' (qUnqualified qself),
+            toByteString' (qDomain quser),
+            toByteString' (qUnqualified quser),
             "prekeys",
             toByteString' (clientId c)
           ]
