@@ -33,10 +33,10 @@ class KnownComponent (c :: Proto.Component) where
 instance KnownComponent 'Proto.Brig where
   componentVal = Proto.Brig
 
+-- | expectedStatuses is ignored as we don't want to deal with statuses, only
+-- 200 is accepted. If other status code is encountered,
+-- 'FederationClientInvalidStatus' is thrown.
 instance (Monad m, MonadError FederationClientError m, MonadIO m, KnownComponent component) => RunClient (FederatorClient component m) where
-  -- | expectedStatuses is ignored as we don't want to deal with statuses, only
-  -- 200 is accepted. If other status code is encountered,
-  -- 'FederationClientInvalidStatus' is thrown.
   runRequestAcceptStatus _expectedStatuses req = do
     env <- ask
     parsedMethod <- either (throwError . FederationClientInvalidMethod) pure $ HTTP.parseMethod (requestMethod req)

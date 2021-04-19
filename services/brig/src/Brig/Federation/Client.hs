@@ -34,7 +34,7 @@ import Mu.GRpc.Client.TyApps
 import qualified System.Logger.Class as Log
 import Util.Options (epHost, epPort)
 import Wire.API.Federation.API.Brig as FederatedBrig
-import Wire.API.Federation.Client (FederatorClient, runFederatorClientWith, FederationClientError)
+import Wire.API.Federation.Client (FederationClientError, FederatorClient, runFederatorClientWith)
 import Wire.API.Federation.GRPC.Client
 
 type FederationAppIO = ExceptT FederationError AppIO
