@@ -54,6 +54,7 @@ import qualified Galley.API.Teams as Teams
 import Galley.API.Teams.Features (DoAuth (..))
 import qualified Galley.API.Teams.Features as Features
 import qualified Galley.API.Update as Update
+import Galley.API.Util (DeleteResult)
 import Galley.App
 import Imports hiding (head)
 import Network.HTTP.Types
@@ -69,7 +70,7 @@ import Servant hiding (Handler, JSON, addHeader, contentType, respond)
 import qualified Servant
 import Servant.API.Generic (ToServantApi, (:-))
 import Servant.Server.Generic (genericServerT)
-import Servant.Swagger (HasSwagger (toSwagger))
+import Servant.Swagger.Internal
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI (SwaggerSchemaUI, swaggerSchemaUIServer)
 import qualified Wire.API.Conversation as Public
@@ -196,7 +197,7 @@ data Api routes = Api
         :> Capture "tid" TeamId
         :> "conversations"
         :> Capture "cid" ConvId
-        :> DeleteNoContent
+        :> Delete '[] DeleteResult
   }
   deriving (Generic)
 

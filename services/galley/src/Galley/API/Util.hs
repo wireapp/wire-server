@@ -27,6 +27,7 @@ import Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local, Mapped), partitionMappedOrLocalIds)
 import Data.List.NonEmpty (nonEmpty)
 import Data.Misc (PlainTextPassword (..))
+import Data.Proxy
 import qualified Data.Set as Set
 import qualified Data.Text.Lazy as LT
 import Data.Time
@@ -46,6 +47,11 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error)
 import Network.Wai.Utilities
+import Servant (HasServer (..), ReflectMethod, Verb)
+import Servant.API (NoContent, ReflectMethod (reflectMethod))
+import Servant.Server.Internal (noContentRouter)
+import Servant.Swagger
+import Servant.Swagger.Internal
 import qualified System.Logger.Class as Log
 import UnliftIO (concurrently)
 
@@ -307,3 +313,29 @@ canDeleteMember deleter deletee
 
 viewFederationDomain :: Galley Domain
 viewFederationDomain = view (options . optSettings . setFederationDomain)
+
+--------------------------------------------------------------------------------
+
+-- | Return type of a delete endpoint with status code 200
+--
+-- In principle we could use 'WithStatus 200 NoContent' instead, and
+-- avoid having ad-hoc instances, but servant-swagger does not support
+-- 'WithStatus'.
+data DeleteResult = DeleteResult
+
+instance
+  SwaggerMethod method =>
+  HasSwagger (Verb method 200 '[] DeleteResult)
+  where
+  toSwagger _ = toSwagger (Proxy @(Verb method 200 '[] NoContent))
+
+instance
+  ReflectMethod method =>
+  HasServer (Verb method 200 '[] DeleteResult) context
+  where
+  type ServerT (Verb method 200 '[] DeleteResult) m = m DeleteResult
+  hoistServerWithContext _ _ nt s = nt s
+
+  route Proxy _ = noContentRouter method status204
+    where
+      method = reflectMethod (Proxy :: Proxy method)

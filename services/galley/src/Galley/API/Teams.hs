@@ -107,7 +107,6 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (or, result, setStatus)
 import Network.Wai.Utilities
-import Servant (NoContent (..))
 import qualified System.Logger.Class as Log
 import UnliftIO (mapConcurrently)
 import qualified Wire.API.Conversation.Role as Public
@@ -726,7 +725,7 @@ getTeamConversation zusr tid cid = do
     throwM (operationDenied GetTeamConversations)
   Data.teamConversation tid cid >>= maybe (throwM convNotFound) pure
 
-deleteTeamConversation :: UserId -> ConnId -> TeamId -> ConvId -> Galley NoContent
+deleteTeamConversation :: UserId -> ConnId -> TeamId -> ConvId -> Galley DeleteResult
 deleteTeamConversation zusr zcon tid cid = do
   (bots, cmems) <- botsAndUsers =<< Data.members cid
   ensureActionAllowed Roles.DeleteConversation =<< getSelfMember zusr cmems
@@ -740,7 +739,7 @@ deleteTeamConversation zusr zcon tid cid = do
   -- TODO: we don't delete bots here, but we should do that, since every
   -- bot user can only be in a single conversation
   Data.removeTeamConv tid cid
-  pure NoContent
+  pure DeleteResult
 
 getSearchVisibilityH :: UserId ::: TeamId ::: JSON -> Galley Response
 getSearchVisibilityH (uid ::: tid ::: _) = do
