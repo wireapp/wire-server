@@ -41,19 +41,19 @@ module Wire.API.Conversation.Member
   )
 where
 
+import Control.Lens (at, (?~))
 import Data.Aeson
 import Data.Id
 import Data.Json.Util
+import Data.Proxy (Proxy (Proxy))
+import Data.Swagger
 import qualified Data.Swagger.Build.Api as Doc
+import Deriving.Swagger
 import Imports
 import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Conversation.Role
 import Wire.API.Provider.Service (ServiceRef, modelServiceRef)
-import Data.Swagger
-import Data.Proxy (Proxy(Proxy))
-import Control.Lens (at, (?~))
-import Deriving.Swagger
 
 data ConvMembers = ConvMembers
   { cmSelf :: Member,
@@ -71,14 +71,21 @@ modelConversationMembers = Doc.defineModel "ConversationMembers" $ do
     Doc.description "All other current users of this conversation"
 
 instance ToSchema ConvMembers where
-  declareNamedSchema _ = pure $ NamedSchema (Just "ConvMembers") $ mempty
-    & description ?~ "Users of a conversation"
-    & properties . at "self" ?~ Inline
-        ( toSchema (Proxy @Member)
-        & description ?~ "The requesting user" )
-    & properties . at "others" ?~ Inline
-        ( toSchema (Proxy @[OtherMember])
-        & description ?~ "All other current users of this conversation" )
+  declareNamedSchema _ =
+    pure $
+      NamedSchema (Just "ConvMembers") $
+        mempty
+          & description ?~ "Users of a conversation"
+          & properties . at "self"
+            ?~ Inline
+              ( toSchema (Proxy @Member)
+                  & description ?~ "The requesting user"
+              )
+          & properties . at "others"
+            ?~ Inline
+              ( toSchema (Proxy @[OtherMember])
+                  & description ?~ "All other current users of this conversation"
+              )
 
 instance ToJSON ConvMembers where
   toJSON mm =
@@ -143,31 +150,47 @@ instance ToSchema Member where
     idSchema <- declareSchemaRef (Proxy @UserId)
     mutedStatusSchema <- declareSchemaRef (Proxy @MutedStatus)
     roleNameSchema <- declareSchemaRef (Proxy @RoleName)
-    pure $ NamedSchema (Just "Member") $ mempty
-      & properties . at "id" ?~ idSchema
-      & properties . at "otr_muted" ?~ Inline
-          ( toSchema (Proxy @Bool)
-          & description ?~ "Whether the conversation is muted" )
-      & properties . at "otr_muted_ref" ?~ Inline
-          ( toSchema (Proxy @(Maybe Text))
-          & description ?~ "A reference point for (un)muting" )
-      & properties . at "otr_muted_status" ?~ mutedStatusSchema
-      & properties . at "otr_archived" ?~ Inline
-          ( toSchema (Proxy @Bool)
-          & description ?~ "Whether the conversation is archived" )
-      & properties . at "otr_archived_ref" ?~ Inline
-          ( toSchema (Proxy @(Maybe Text))
-          & description ?~ "A reference point for (un)archiving" )
-      & properties . at "hidden" ?~ Inline
-          ( toSchema (Proxy @Bool)
-          & description ?~ "Whether the conversation is hidden" )
-      & properties . at "hidden_ref" ?~ Inline
-          ( toSchema (Proxy @(Maybe Text))
-          & description ?~ "A reference point for (un)hiding" )
-      & properties . at "service" ?~ Inline
-          ( toSchema (Proxy @(Maybe ServiceRef))
-          & description ?~ "The reference to the owning service, if the member is a 'bot'." )
-      & properties . at "conversation_role" ?~ roleNameSchema
+    pure $
+      NamedSchema (Just "Member") $
+        mempty
+          & properties . at "id" ?~ idSchema
+          & properties . at "otr_muted"
+            ?~ Inline
+              ( toSchema (Proxy @Bool)
+                  & description ?~ "Whether the conversation is muted"
+              )
+          & properties . at "otr_muted_ref"
+            ?~ Inline
+              ( toSchema (Proxy @(Maybe Text))
+                  & description ?~ "A reference point for (un)muting"
+              )
+          & properties . at "otr_muted_status" ?~ mutedStatusSchema
+          & properties . at "otr_archived"
+            ?~ Inline
+              ( toSchema (Proxy @Bool)
+                  & description ?~ "Whether the conversation is archived"
+              )
+          & properties . at "otr_archived_ref"
+            ?~ Inline
+              ( toSchema (Proxy @(Maybe Text))
+                  & description ?~ "A reference point for (un)archiving"
+              )
+          & properties . at "hidden"
+            ?~ Inline
+              ( toSchema (Proxy @Bool)
+                  & description ?~ "Whether the conversation is hidden"
+              )
+          & properties . at "hidden_ref"
+            ?~ Inline
+              ( toSchema (Proxy @(Maybe Text))
+                  & description ?~ "A reference point for (un)hiding"
+              )
+          & properties . at "service"
+            ?~ Inline
+              ( toSchema (Proxy @(Maybe ServiceRef))
+                  & description ?~ "The reference to the owning service, if the member is a 'bot'."
+              )
+          & properties . at "conversation_role" ?~ roleNameSchema
 
 instance ToJSON Member where
   toJSON m =
@@ -216,9 +239,12 @@ data OtherMember = OtherMember
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform OtherMember)
-  deriving (ToSchema) via (CustomSwagger
-    '[FieldLabelModifier (StripPrefix "om", CamelToSnake)]
-    ServiceRef) -- TODO: attach descriptions
+  deriving
+    (ToSchema)
+    via ( CustomSwagger
+            '[FieldLabelModifier (StripPrefix "om", CamelToSnake)]
+            ServiceRef -- TODO: attach descriptions
+        )
 
 instance Ord OtherMember where
   compare a b = compare (omId a) (omId b)

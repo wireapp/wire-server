@@ -31,7 +31,7 @@ import Control.Lens ((.~), (<>~), (?~))
 import Data.Aeson (FromJSON, ToJSON, encode)
 import Data.ByteString.Conversion (fromByteString, fromList, toByteString')
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
-import Data.Id (TeamId, UserId, ConvId, ConnId, OpaqueConvId)
+import Data.Id (ConnId, ConvId, OpaqueConvId, TeamId, UserId)
 import qualified Data.Predicate as P
 import Data.Range
 import qualified Data.Set as Set
@@ -42,6 +42,8 @@ import Data.Swagger.Internal (Swagger)
 import Data.Swagger.Lens (info, security, securityDefinitions, title)
 import qualified Data.Swagger.Lens as SwaggerLens
 import Data.Text.Encoding (decodeLatin1)
+import GHC.Base (Symbol)
+import GHC.TypeLits (KnownSymbol)
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
 import qualified Galley.API.Error as Error
@@ -65,6 +67,8 @@ import Network.Wai.Utilities.Swagger
 import Network.Wai.Utilities.ZAuth
 import Servant hiding (Handler, JSON, addHeader, contentType, respond)
 import qualified Servant
+import Servant.API.Generic (ToServantApi, (:-))
+import Servant.Server.Generic (genericServerT)
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI (SwaggerSchemaUI, swaggerSchemaUIServer)
@@ -86,10 +90,6 @@ import qualified Wire.API.Team.Permission as Public
 import qualified Wire.API.Team.SearchVisibility as Public
 import qualified Wire.API.User as Public (UserIdList, modelUserIdList)
 import Wire.Swagger (int32Between)
-import Servant.API.Generic ((:-), ToServantApi)
-import Servant.Server.Generic (genericServerT)
-import GHC.Base (Symbol)
-import GHC.TypeLits (KnownSymbol)
 
 -- This type exists for the special 'HasSwagger' and 'HasServer' instances. It
 -- shows the "Authorization" header in the swagger docs, but expects the
@@ -106,10 +106,13 @@ type family ZAuthServantParam (ztype :: ZAuthServantType) :: * where
   ZAuthServantParam 'ZAuthServantConn = ConnId
 
 data ZAuthServant' (ztype :: ZAuthServantType)
+
 type InternalAuth ztype =
-  Header' '[Servant.Required, Servant.Strict]
-  (ZAuthServantHeader ztype)
-  (ZAuthServantParam ztype)
+  Header'
+    '[Servant.Required, Servant.Strict]
+    (ZAuthServantHeader ztype)
+    (ZAuthServantParam ztype)
+
 type ZAuthServant = ZAuthServant' 'ZAuthServantUser
 
 instance HasSwagger api => HasSwagger (ZAuthServant' 'ZAuthServantUser :> api) where
@@ -142,9 +145,7 @@ instance
     Servant.hoistServerWithContext (Proxy @(InternalAuth ztype :> api)) pc nt s
 
 data Api routes = Api
-  {
-
-  -- Conversations
+  { -- Conversations
 
     getConversation ::
       routes
@@ -153,8 +154,7 @@ data Api routes = Api
         :> "conversations"
         :> Capture "cnv" OpaqueConvId
         :> Get '[Servant.JSON] Public.Conversation,
-
-  -- Team Conversations
+    -- Team Conversations
 
     getTeamConversationRoles ::
       -- FUTUREWORK: errorResponse Error.notATeamMember
@@ -216,12 +216,15 @@ swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
 swaggerDocsAPI = swaggerSchemaUIServer swaggerDoc
 
 servantSitemap :: ServerT ServantAPI Galley
-servantSitemap = genericServerT $ Api
-  { getConversation = Query.getConversation
-  , getTeamConversationRoles = Teams.getTeamConversationRoles
-  , getTeamConversations = Teams.getTeamConversations
-  , getTeamConversation = Teams.getTeamConversation
-  , deleteTeamConversation = Teams.deleteTeamConversation }
+servantSitemap =
+  genericServerT $
+    Api
+      { getConversation = Query.getConversation,
+        getTeamConversationRoles = Teams.getTeamConversationRoles,
+        getTeamConversations = Teams.getTeamConversations,
+        getTeamConversation = Teams.getTeamConversation,
+        deleteTeamConversation = Teams.deleteTeamConversation
+      }
 
 sitemap :: Routes ApiBuilder Galley ()
 sitemap = do
@@ -544,9 +547,9 @@ sitemap = do
 
   put "/teams/:tid/search-visibility" (continue Teams.setSearchVisibilityH) $
     zauthUserId
-    .&. capture "tid"
-    .&. jsonRequest @Public.TeamSearchVisibilityView
-    .&. accept "application" "json"
+      .&. capture "tid"
+      .&. jsonRequest @Public.TeamSearchVisibilityView
+      .&. accept "application" "json"
   document "POST" "setSearchVisibility" $ do
     summary "Sets the search visibility for the whole team"
     parameter Path "tid" bytes' $
@@ -670,7 +673,9 @@ sitemap = do
     errorResponse Error.notATeamMember
     errorResponse (Error.operationDenied Public.CreateConversation)
 
-  post "/conversations/self" (continue Create.createSelfConversationH)
+  post
+    "/conversations/self"
+    (continue Create.createSelfConversationH)
     zauthUserId
   document "POST" "createSelfConversation" $ do
     summary "Create a self-conversation"
@@ -1126,8 +1131,8 @@ sitemap = do
 apiDocs :: Routes ApiBuilder Galley ()
 apiDocs =
   get "/conversations/api-docs" (continue docs) $
-  accept "application" "json"
-    .&. query "base_url"
+    accept "application" "json"
+      .&. query "base_url"
 
 type JSON = Media "application" "json"
 
@@ -1149,7 +1154,7 @@ docs (_ ::: url) = do
 apiDocsTeamsLegalhold :: Routes ApiBuilder Galley ()
 apiDocsTeamsLegalhold =
   get "/teams/api-docs" (continue . const . pure . json $ swagger) $
-  accept "application" "json"
+    accept "application" "json"
 
 -- FUTUREWORK: Maybe would be better to move it to wire-api?
 filterMissing :: HasQuery r => Predicate r P.Error Public.OtrFilterMissing

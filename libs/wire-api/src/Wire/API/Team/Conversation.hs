@@ -38,14 +38,14 @@ module Wire.API.Team.Conversation
   )
 where
 
-import Control.Lens (makeLenses, (?~), At (at), over)
+import Control.Lens (At (at), makeLenses, over, (?~))
 import Data.Aeson hiding (fieldLabelModifier)
 import Data.Id (ConvId)
+import Data.Proxy
+import Data.Swagger
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
-import Data.Swagger
-import Data.Proxy
 
 --------------------------------------------------------------------------------
 -- TeamConversation
@@ -60,12 +60,18 @@ data TeamConversation = TeamConversation
 instance ToSchema TeamConversation where
   declareNamedSchema _ = do
     idSchema <- declareSchemaRef (Proxy @ConvId)
-    let managed = toSchema (Proxy @Bool)
-                & description ?~ "Indicates if this is a managed team conversation."
-    pure $ NamedSchema (Just "TeamConversation") $ mempty
-      & description ?~ "team conversation data"
-      & over properties ( (at "managed" ?~ Inline managed)
-                        . (at "conversation" ?~ idSchema) )
+    let managed =
+          toSchema (Proxy @Bool)
+            & description ?~ "Indicates if this is a managed team conversation."
+    pure $
+      NamedSchema (Just "TeamConversation") $
+        mempty
+          & description ?~ "team conversation data"
+          & over
+            properties
+            ( (at "managed" ?~ Inline managed)
+                . (at "conversation" ?~ idSchema)
+            )
 
 newTeamConversation :: ConvId -> Bool -> TeamConversation
 newTeamConversation = TeamConversation
@@ -102,9 +108,11 @@ newtype TeamConversationList = TeamConversationList
 instance ToSchema TeamConversationList where
   declareNamedSchema _ = do
     convs <- declareSchema (Proxy @[TeamConversation])
-    pure $ NamedSchema (Just "TeamConversationList") $ mempty
-      & description ?~ "team conversation list"
-      & properties . at "conversations" ?~ Inline convs
+    pure $
+      NamedSchema (Just "TeamConversationList") $
+        mempty
+          & description ?~ "team conversation list"
+          & properties . at "conversations" ?~ Inline convs
 
 newTeamConversationList :: [TeamConversation] -> TeamConversationList
 newTeamConversationList = TeamConversationList
@@ -124,4 +132,3 @@ instance FromJSON TeamConversationList where
 
 makeLenses ''TeamConversation
 makeLenses ''TeamConversationList
-  

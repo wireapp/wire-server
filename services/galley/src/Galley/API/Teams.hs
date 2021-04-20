@@ -107,6 +107,7 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (or, result, setStatus)
 import Network.Wai.Utilities
+import Servant (NoContent (..))
 import qualified System.Logger.Class as Log
 import UnliftIO (mapConcurrently)
 import qualified Wire.API.Conversation.Role as Public
@@ -120,7 +121,6 @@ import qualified Wire.API.Team.SearchVisibility as Public
 import Wire.API.User (User)
 import qualified Wire.API.User as Public (UserIdList)
 import qualified Wire.API.User as U
-import Servant (NoContent (..))
 
 getTeamH :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeamH (zusr ::: tid ::: _) =
