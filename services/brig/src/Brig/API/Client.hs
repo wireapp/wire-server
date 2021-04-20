@@ -157,9 +157,9 @@ claimPrekey u d c = do
     else claimRemotePrekey (Qualified u d) c
 
 claimLocalPrekey :: UserId -> ClientId -> AppIO (Maybe ClientPrekey)
-claimLocalPrekey self client = do
-  prekey <- Data.claimPrekey self client
-  when (isNothing prekey) (noPrekeys self client)
+claimLocalPrekey user client = do
+  prekey <- Data.claimPrekey user client
+  when (isNothing prekey) (noPrekeys user client)
   pure prekey
 
 claimRemotePrekey :: Qualified UserId -> ClientId -> ExceptT ClientError AppIO (Maybe ClientPrekey)
@@ -184,6 +184,7 @@ claimMultiPrekeyBundles :: QualifiedUserClients -> ExceptT ClientError AppIO (Qu
 claimMultiPrekeyBundles quc = do
   localDomain <- viewFederationDomain
   fmap (QualifiedUserClientMap . Map.fromList)
+    -- FUTUREWORK(federation): parallelise federator requests here
     . traverse (\(domain, uc) -> (domain,) <$> claim localDomain domain uc)
     . Map.assocs
     . qualifiedUserClients

@@ -1085,6 +1085,7 @@ lookupProfiles ::
 lookupProfiles self others = do
   localDomain <- viewFederationDomain
   let userMap = partitionQualified others
+  -- FUTUREWORK(federation): parallelise federator requests here
   fold <$> traverse (uncurry (getProfiles localDomain)) (Map.assocs userMap)
   where
     getProfiles localDomain domain uids
