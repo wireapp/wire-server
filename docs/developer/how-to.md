@@ -122,6 +122,7 @@ FUTUREWORK: this process is in development (update this section after it's confi
 
 ##### (ii) Run tests in kind
 
+0. Create a local kind cluster with `make kind-cluster`
 1. Install wire-server using `make kind-integration-setup`.
 2. Run tests using `make kind-integration-test`.
 3. Run end2end integration tests: `make kind-integration-e2e`.
