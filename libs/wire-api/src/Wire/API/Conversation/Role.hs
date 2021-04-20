@@ -54,17 +54,16 @@ where
 
 import Cassandra.CQL hiding (Set)
 import Control.Applicative (optional)
-import Control.Lens (over, (?~))
+import Control.Lens (at, (?~))
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Attoparsec.Text
 import Data.ByteString.Conversion
-import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Hashable
 import Data.Proxy (Proxy (..))
 import Data.Range (fromRange, genRangeText)
 import qualified Data.Set as Set
-import Data.Swagger (NamedSchema (..), Referenced (Inline), Schema, description)
+import Data.Swagger (NamedSchema (..), Referenced (Inline), Schema, description, schema)
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Swagger.Lens (properties)
 import Data.Swagger.Schema hiding (constructorTagModifier)
@@ -102,19 +101,15 @@ modelConversationRole = Doc.defineModel "ConversationRole" $ do
 instance ToSchema ConversationRole where
   declareNamedSchema _ = do
     conversationRoleSchema <-
-      declareSchema (Proxy @Text)
-        <&> description
-          ?~ "role name, between 2 and 128 chars, 'wire_' prefix \
-             \is reserved for roles designed by Wire (i.e., no \
-             \custom roles can have the same prefix)"
-    actionsSchema <-
-      declareSchema (Proxy @[Action])
-        <&> description
-          ?~ "The set of actions allowed for this role"
+      declareSchemaRef (Proxy @RoleName)
     let convRoleSchema :: Schema =
           mempty
-            & over properties (InsOrdHashMap.insert "conversation_role" (Inline conversationRoleSchema))
-            & over properties (InsOrdHashMap.insert "actions" (Inline actionsSchema))
+            & properties . at "conversation_role" ?~ conversationRoleSchema
+            & properties . at "actions"
+              ?~ Inline
+                ( toSchema (Proxy @[Action])
+                    & description ?~ "The set of actions allowed for this role"
+                )
     pure (NamedSchema (Just "ConversationRole") convRoleSchema)
 
 instance ToJSON ConversationRole where
@@ -195,7 +190,12 @@ newtype RoleName = RoleName {fromRoleName :: Text}
   deriving newtype (ToJSON, ToByteString, Hashable)
 
 instance ToSchema RoleName where
-  declareNamedSchema _ = declareNamedSchema (Proxy @ConversationRole)
+  declareNamedSchema _ =
+    declareNamedSchema (Proxy @Text)
+      <&> (schema . description)
+      ?~ "Role name, between 2 and 128 chars, 'wire_' prefix \
+         \is reserved for roles designed by Wire (i.e., no \
+         \custom roles can have the same prefix)"
 
 instance FromByteString RoleName where
   parser = parser >>= maybe (fail "Invalid RoleName") return . parseRoleName
