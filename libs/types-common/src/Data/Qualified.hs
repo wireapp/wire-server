@@ -95,7 +95,7 @@ data Qualified a = Qualified
   { qUnqualified :: a,
     qDomain :: Domain
   }
-  deriving stock (Eq, Ord, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic, Functor)
 
 -- | FUTUREWORK: Maybe delete this, it is only used in printing federation not
 -- implemented errors
