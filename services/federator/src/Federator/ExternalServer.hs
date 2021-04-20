@@ -32,11 +32,11 @@ import Imports
 import Mu.GRpc.Server (msgProtoBuf, runGRpcAppTrans)
 import Mu.Server (ServerError, ServerErrorIO, SingleServerT, singleService)
 import qualified Mu.Server as Mu
+import qualified Network.HTTP.Types.Status as HTTP
 import Polysemy
 import qualified Polysemy.Error as Polysemy
 import Polysemy.IO (embedToMonadIO)
 import Wire.API.Federation.GRPC.Types
-import qualified Network.HTTP.Types.Status as HTTP
 
 -- FUTUREWORK(federation): Versioning of the federation API. See
 -- https://higherkindness.io/mu-haskell/registry/ for some mu-haskell support
@@ -52,6 +52,11 @@ callLocal Request {..} = do
   (resStatus, resBody) <- brigCall path body
   pure $ case HTTP.statusCode resStatus of
     200 -> InwardResponseBody $ maybe mempty LBS.toStrict resBody
+    -- TODO: There is a unit test for this, but Akshay has seen the integration
+    -- test never sees InwardResponseErr, when the error is supposed to be
+    -- returned, the integration test just sees `InwardResponseBody` with empty
+    -- body. Maybe this is a bug in mu-haskell, maybe something is wrong with
+    -- our integration test, let's verify this.
     code -> InwardResponseErr $ "Invalid HTTP status from component: " <> Text.pack (show code) <> " " <> Text.decodeUtf8 (HTTP.statusMessage resStatus)
 
 routeToInternal :: (Members '[Brig, Embed IO, Polysemy.Error ServerError] r) => SingleServerT info Inward (Sem r) _
