@@ -23,6 +23,7 @@ module Federator.ExternalServer where
 
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import Federator.App (Federator, runAppT)
 import Federator.Brig (Brig, brigCall, interpretBrig)
 import Federator.Env (Env)
@@ -35,6 +36,7 @@ import Polysemy
 import qualified Polysemy.Error as Polysemy
 import Polysemy.IO (embedToMonadIO)
 import Wire.API.Federation.GRPC.Types
+import qualified Network.HTTP.Types.Status as HTTP
 
 -- FUTUREWORK(federation): Versioning of the federation API. See
 -- https://higherkindness.io/mu-haskell/registry/ for some mu-haskell support
@@ -47,12 +49,10 @@ import Wire.API.Federation.GRPC.Types
 callLocal :: (Members '[Brig, Embed IO] r) => Request -> Sem r InwardResponse
 callLocal Request {..} = do
   -- FUTUREWORK(federation): before making a request, check the sender domain and only make the call if the allowlist (use Util.federateWith) allows it.
-  eitherBody <- brigCall path body
-  pure $ case eitherBody of
-    Right resBody ->
-      InwardResponseBody $ maybe mempty LBS.toStrict resBody
-    Left err ->
-      InwardResponseErr $ Text.pack $ show err
+  (resStatus, resBody) <- brigCall path body
+  pure $ case HTTP.statusCode resStatus of
+    200 -> InwardResponseBody $ maybe mempty LBS.toStrict resBody
+    code -> InwardResponseErr $ "Invalid HTTP status from component: " <> Text.pack (show code) <> " " <> Text.decodeUtf8 (HTTP.statusMessage resStatus)
 
 routeToInternal :: (Members '[Brig, Embed IO, Polysemy.Error ServerError] r) => SingleServerT info Inward (Sem r) _
 routeToInternal = singleService (Mu.method @"call" callLocal)

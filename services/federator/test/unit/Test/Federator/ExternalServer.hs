@@ -28,6 +28,7 @@ import Test.Polysemy.Mock.TH (genMock)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertEqual, testCase)
 import Wire.API.Federation.GRPC.Types
+import qualified Network.HTTP.Types as HTTP
 
 genMock ''Brig
 
@@ -35,13 +36,14 @@ tests :: TestTree
 tests =
   testGroup "ExternalServer" $
     [ requestBrigSuccess
+    , requestBrigFailure
     ]
 
 requestBrigSuccess :: TestTree
 requestBrigSuccess =
-  testCase "should translate response from brig to 'InwardResponse'" $
+  testCase "should translate response from brig to 'InwardResponseBody' when response has status 200" $
     runM . evalMock @Brig @IO $ do
-      mockBrigCallReturns @IO (\_ _ -> pure (Right (Just "response body")))
+      mockBrigCallReturns @IO (\_ _ -> pure (HTTP.ok200, Just "response body"))
       let request = Request Brig "/users" "\"foo\""
 
       res <- mock @Brig @IO $ callLocal request
@@ -50,3 +52,17 @@ requestBrigSuccess =
       let expectedCall = ("/users", "\"foo\"")
       embed $ assertEqual "one call to brig should be made" [expectedCall] actualCalls
       embed $ assertEqual "response should be success with correct body" (InwardResponseBody "response body") res
+
+requestBrigFailure :: TestTree
+requestBrigFailure =
+ testCase "should translate response from brig to 'InwardResponseBody' when response has status 200" $
+    runM . evalMock @Brig @IO $ do
+      mockBrigCallReturns @IO (\_ _ -> pure (HTTP.notFound404, Just "response body"))
+      let request = Request Brig "/users" "\"foo\""
+
+      res <- mock @Brig @IO $ callLocal request
+
+      actualCalls <- mockBrigCallCalls @IO
+      let expectedCall = ("/users", "\"foo\"")
+      embed $ assertEqual "one call to brig should be made" [expectedCall] actualCalls
+      embed $ assertEqual "response should be success with correct body" (InwardResponseErr "Invalid HTTP status from component: 404 Not Found") res

@@ -36,7 +36,7 @@ newtype BrigError = BrigErrorInvalidStatus HTTP.Status
 
 data Brig m a where
   -- | Returns status and body, 'HTTP.Response' is not nice to work with in tests
-  BrigCall :: ByteString -> ByteString -> Brig m (Either BrigError (Maybe LByteString))
+  BrigCall :: ByteString -> ByteString -> Brig m (HTTP.Status, Maybe LByteString)
 
 makeSem ''Brig
 
@@ -58,8 +58,4 @@ interpretBrig = interpret $ \case
           . RPC.path path -- FUTUREWORK(federation): Protect against arbitrary paths
           . RPC.body (RPC.RequestBodyBS body)
           . RPC.contentJson
-    pure $
-      -- TODO: Test this.
-      if HTTP.statusCode (RPC.responseStatus res) == 200
-        then Right $ RPC.responseBody res
-        else Left $ BrigErrorInvalidStatus (RPC.responseStatus res)
+    pure (RPC.responseStatus res, RPC.responseBody res)
