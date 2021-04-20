@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -28,10 +29,13 @@ import Wire.API.Federation.Client (FederationClientError, FederatorClient)
 import qualified Wire.API.Federation.GRPC.Types as Proto
 import Wire.API.User (UserProfile)
 import Wire.API.User.Search
+import Test.QuickCheck (Arbitrary)
+import Wire.API.Arbitrary (GenericUniform(..))
 
 -- TODO: Write roundtrip tests and also golden JSON tests to ensure backwards compatibility
 newtype SearchRequest = SearchRequest {term :: Text}
-  deriving (Show, Eq, Generic)
+  deriving (Show, Eq, Generic, Typeable)
+  deriving (Arbitrary) via (GenericUniform SearchRequest)
 
 instance ToJSON SearchRequest
 
