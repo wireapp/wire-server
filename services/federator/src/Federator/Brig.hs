@@ -57,6 +57,7 @@ interpretBrig = interpret $ \case
         RPC.method HTTP.POST
           . RPC.path path -- FUTUREWORK(federation): Protect against arbitrary paths
           . RPC.body (RPC.RequestBodyBS body)
+          . RPC.contentJson
     pure $
       -- TODO: Test this.
       if HTTP.statusCode (RPC.responseStatus res) == 200
