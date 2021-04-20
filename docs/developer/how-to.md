@@ -107,21 +107,27 @@ Look at a successful job in the `wire-server-pr` pipeline from a job build match
 export DOCKER_TAG=0.0.1-pr.3684
 ```
 
-#### (C) Use your local code
+#### (C) Use your local code and kind
 
 This can be useful to get quicker feedback while working on multi-backend code or configuration (e.g. helm charts) than to wait an hour for CI. This allows you to test code without uploading it to github and waiting an hour for CI.
 
 FUTUREWORK: this process is in development (update this section after it's confirmed to work):
 
-1. have `buildah` available on your system
-2. compile docker images: `make buildah-docker`. This will take some time the very first time but should be quick on subsequent times.
-3. for iterations, e.g. you only work on brig, run `make buildah-docker-brig`
-4. Upload images to quay.io by being logged in to quay, setting `BUILDAH_PUSH=1`, and overriding the image tags with an otherwise-unused tag, such as your `$USER`.
-5. Run the tests as before by `export DOCKER_TAG=$USER`.
+##### (i) Build images
+
+1. Ensure `buildah` is available on your system.
+2. Compile the image using `make buildah-docker`. This will try to upload the
+   images into a `kind` cluster. If you'd prefer uploading images to quay.io,
+   you can run it with `make buildah-docker BUILDAH_PUSH=1 BUILDAH_KIND_LOAD=0`
+
+##### (ii) Run tests in kind
+
+1. Install wire-server using `make kind-integration-setup`.
+2. Run tests using `make kind-integration-test`.
+3. Run end2end integration tests: `make kind-integration-e2e`.
 
 NOTE: debug this process further as some images (e.g. nginz) are missing from the default buildah steps.
 * Implement re-tagging development tags as your user tag?
-* Force `imagePullPolicy=Always` in this mode?
 
 ### (3) Run multi-backend tests
 
