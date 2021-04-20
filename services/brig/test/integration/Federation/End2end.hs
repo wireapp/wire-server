@@ -22,17 +22,22 @@ import Bilge
 import Bilge.Assert ((!!!), (===))
 import qualified Brig.Options as BrigOpts
 import Brig.Types
+import Control.Arrow (Arrow (first), (&&&))
 import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Handle
+import qualified Data.Map as Map
 import Data.Qualified
+import qualified Data.Set as Set
 import Federation.Util (generateClientPrekeys)
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
 import Util.Options (Endpoint)
+import Wire.API.Message (UserClients (UserClients))
 import Wire.API.User (ListUsersQuery (ListUsersByIds))
+import Wire.API.User.Client (UserClientMap (UserClientMap))
 
 -- NOTE: These federation tests require deploying two sets of (some) services
 -- This might be best left to a kubernetes setup.
@@ -55,7 +60,8 @@ spec _brigOpts mg brig _federator brigTwo =
         test mg "search users on remote backend" $ testSearchUsers brig brigTwo,
         test mg "get users by ids on multiple backends" $ testGetUsersById brig brigTwo,
         test mg "claim client prekey" $ testClaimPrekeySuccess brig brigTwo,
-        test mg "claim prekey bundle" $ testClaimPrekeyBundleSuccess brig brigTwo
+        test mg "claim prekey bundle" $ testClaimPrekeyBundleSuccess brig brigTwo,
+        test mg "claim multi-prekey bundle" $ testClaimMultiPrekeyBundleSuccess brig brigTwo
       ]
 
 -- | Path covered by this test:
@@ -160,3 +166,27 @@ testClaimPrekeyBundleSuccess brig1 brig2 = do
       const 200 === statusCode
       const (Just (sortClients clients))
         === fmap (sortClients . prekeyClients) . responseJsonMaybe
+
+testClaimMultiPrekeyBundleSuccess :: Brig -> Brig -> Http ()
+testClaimMultiPrekeyBundleSuccess brig1 brig2 = do
+  let prekeys = zip somePrekeys someLastPrekeys
+      (prekeys1, prekeys') = splitAt 5 prekeys
+      prekeys2 = take 4 prekeys'
+      mkClients = Set.fromList . map prekeyClient
+      mkClientMap = Map.fromList . map (prekeyClient &&& prekeyData)
+  c1 <- first qUnqualified <$> generateClientPrekeys brig1 prekeys1
+  c2 <- first qUnqualified <$> generateClientPrekeys brig2 prekeys2
+  let uc = UserClients (Map.fromList [mkClients <$> c1, mkClients <$> c2])
+      ucm = UserClientMap (Map.fromList [mkClientMap <$> c1, mkClientMap <$> c2])
+  post
+    ( brig1
+        . zUser (fst c1)
+        . paths ["users", "prekeys"]
+        . body (RequestBodyLBS (Aeson.encode uc))
+        . contentJson
+        . acceptJson
+        . expect2xx
+    )
+    !!! do
+      const 200 === statusCode
+      const (Just ucm) === responseJsonMaybe
