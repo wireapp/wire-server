@@ -108,7 +108,7 @@ testGetUsersById brig1 brig2 = do
   users <- traverse randomUser [brig1, brig2]
   let self = Imports.head users
       q = ListUsersByIds (map userQualifiedId users)
-      expected = map userQualifiedId users
+      expected = sort (map userQualifiedId users)
   post
     ( brig1
         . path "list-users"
@@ -120,7 +120,9 @@ testGetUsersById brig1 brig2 = do
     )
     !!! do
       const 200 === statusCode
-      const (Just expected) === fmap (map profileQualifiedId) . responseJsonMaybe
+      const (Just expected)
+        === fmap (sort . map profileQualifiedId)
+          . responseJsonMaybe
 
 testClaimPrekeySuccess :: Brig -> Brig -> Http ()
 testClaimPrekeySuccess brig1 brig2 = do
