@@ -39,6 +39,9 @@ import Wire.API.Federation.GRPC.Client
 
 type FederationAppIO = ExceptT FederationError AppIO
 
+-- FUTUREWORK: Maybe find a way to tranform 'clientRoutes' into a client which
+-- only uses 'FederationAppIO' monad, then boilerplate in this module can all be
+-- deleted.
 getUserHandleInfo :: Qualified Handle -> FederationAppIO (Maybe UserProfile)
 getUserHandleInfo (Qualified handle domain) = do
   Log.info $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
@@ -62,7 +65,7 @@ mkFederatorClient = do
   createGrpcClient cfg
     >>= either (throwE . FederationUnavailable . reason) pure
 
-executeFederated :: Domain -> FederatorClient c (ExceptT FederationClientError FederationAppIO) a -> FederationAppIO a
+executeFederated :: Domain -> FederatorClient component (ExceptT FederationClientError FederationAppIO) a -> FederationAppIO a
 executeFederated domain action = do
   federatorClient <- mkFederatorClient
   runExceptT (runFederatorClientWith federatorClient domain action)
