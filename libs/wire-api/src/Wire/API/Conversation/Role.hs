@@ -194,6 +194,9 @@ newtype RoleName = RoleName {fromRoleName :: Text}
   deriving stock (Eq, Show, Generic)
   deriving newtype (ToJSON, ToByteString, Hashable)
 
+instance ToSchema RoleName where
+  declareNamedSchema _ = declareNamedSchema (Proxy @ConversationRole)
+
 instance FromByteString RoleName where
   parser = parser >>= maybe (fail "Invalid RoleName") return . parseRoleName
 

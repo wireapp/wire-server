@@ -220,7 +220,7 @@ newtype Milliseconds = Ms
   { ms :: Word64
   }
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (Num, Arbitrary)
+  deriving newtype (Num, Arbitrary, ToSchema)
 
 -- | Convert milliseconds to 'Int64', with clipping if it doesn't fit.
 msToInt64 :: Milliseconds -> Int64

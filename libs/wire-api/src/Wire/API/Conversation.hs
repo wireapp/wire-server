@@ -80,6 +80,9 @@ import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Conversation.Member
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
+import Data.Swagger
+import Control.Lens ((?~), at, _Just, (<>~))
+import Data.Proxy (Proxy(Proxy))
 
 --------------------------------------------------------------------------------
 -- Conversation
@@ -122,6 +125,34 @@ modelConversation = Doc.defineModel "Conversation" $ do
   -- Doc.property "team"
   Doc.property "message_timer" (Doc.int64 (Doc.min 0)) $ do
     Doc.description "Per-conversation message timer (can be null)"
+
+data Nullable a
+
+instance ToSchema a => ToSchema (Nullable a) where
+  declareNamedSchema _ = declareNamedSchema (Proxy @a) <&>
+    (schema . description . _Just) <>~ " (can be null)"
+
+instance ToSchema Conversation where
+  declareNamedSchema _ = do
+    idSchema <- declareSchemaRef (Proxy @ConvId)
+    typeSchema <- declareSchemaRef (Proxy @ConvType)
+    membersSchema <- declareSchemaRef (Proxy @ConvMembers)
+    receiptModeSchema <- declareSchemaRef (Proxy @ReceiptMode)
+    pure $ NamedSchema (Just "Conversation") $ mempty
+      & description ?~ "A conversation object as returned from the server"
+      & properties . at "id" ?~ idSchema
+      & properties . at "type" ?~ typeSchema
+      & properties . at "creator" ?~ Inline
+          ( toSchema (Proxy @UserId)
+          & description ?~ "The creator's user ID" )
+      & properties . at "name" ?~ Inline
+          ( toSchema (Proxy @(Nullable Text))
+          & description ?~ "The conversation name" )
+      & properties . at "members" ?~ membersSchema
+      & properties . at "message_timer" ?~ Inline
+          ( toSchema (Proxy @(Nullable Milliseconds))
+          & description ?~ "Per-conversation message timer" )
+      & properties . at "receipt_mode" ?~ receiptModeSchema
 
 instance ToJSON Conversation where
   toJSON c =
@@ -269,6 +300,13 @@ data ConvType
 typeConversationType :: Doc.DataType
 typeConversationType = Doc.int32 $ Doc.enum [0, 1, 2, 3]
 
+instance ToSchema ConvType where
+  declareNamedSchema _ = pure $ NamedSchema (Just "ConvType") $ mempty
+    & description ?~ "Conversation type (0 = regular, 1 = self, 2 = 1:1, 3 = connect)"
+    & type_ ?~ SwaggerInteger
+    & minimum_ ?~ 0
+    & maximum_ ?~ 3
+
 instance ToJSON ConvType where
   toJSON RegularConv = Number 0
   toJSON SelfConv = Number 1
@@ -293,6 +331,10 @@ instance FromJSON ConvType where
 newtype ReceiptMode = ReceiptMode {unReceiptMode :: Int32}
   deriving stock (Eq, Ord, Show)
   deriving newtype (Arbitrary)
+
+instance ToSchema ReceiptMode where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Int32) <&>
+    (schema . description) ?~ "Conversation receipt mode"
 
 instance ToJSON ReceiptMode where
   toJSON = toJSON . unReceiptMode
