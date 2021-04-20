@@ -386,5 +386,5 @@ kind-integration-setup: .local/kind-kubeconfig
 kind-integration-test: .local/kind-kubeconfig
 	ENABLE_KIND_VALUES="1" KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig make kube-integration-test
 
-kind-integration-e2e:
+kind-integration-e2e: .local/kind-kubeconfig
 	cd services/brig && KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig ./federation-tests.sh $(NAMESPACE)
