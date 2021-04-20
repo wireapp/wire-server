@@ -47,7 +47,6 @@ getUserByHandle handle = lift $ do
 -- (This decision may change in the future)
 searchUsers :: SearchRequest -> Handler (SearchResult Contact)
 searchUsers (SearchRequest searchTerm) = do
-  -- TODO: Make sure this handle is parsed as empty handle throws error
   let maybeHandle = parseHandle searchTerm
   maybeOwnerId <- maybe (pure Nothing) (lift . API.lookupHandle) maybeHandle
   exactLookupProfile <- case maybeOwnerId of
