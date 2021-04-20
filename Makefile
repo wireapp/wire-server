@@ -383,7 +383,7 @@ kind-integration-setup: .local/kind-kubeconfig
 	ENABLE_KIND_VALUES="1" KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig make kube-integration-setup
 
 .PHONY: kind-integration-test
-kind-integration-test:
+kind-integration-test: .local/kind-kubeconfig
 	ENABLE_KIND_VALUES="1" KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig make kube-integration-test
 
 kind-integration-e2e:
