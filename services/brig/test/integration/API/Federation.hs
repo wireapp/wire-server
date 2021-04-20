@@ -22,7 +22,7 @@ import Bilge
 import Bilge.Assert
 import Brig.Types
 import Data.Aeson (encode)
-import Data.ByteString.Conversion (toByteString')
+import qualified Data.Aeson as Aeson
 import Data.Handle (Handle (..))
 import Imports
 import Test.QuickCheck (arbitrary)
@@ -30,6 +30,7 @@ import Test.QuickCheck.Gen (generate)
 import Test.Tasty
 import Test.Tasty.HUnit (assertEqual, assertFailure)
 import Util
+import Wire.API.Federation.API.Brig (SearchRequest (SearchRequest))
 
 -- FUTUREWORK(federation): use servant-client in tests for the federation endpoints instead of the bilge requests.
 tests :: Manager -> Brig -> IO TestTree
@@ -38,6 +39,7 @@ tests m brig = do
     testGroup "federation" $
       [ test m "GET /federation/search/users : Found" (testSearchSuccess brig),
         test m "GET /federation/search/users : NotFound" (testSearchNotFound brig),
+        test m "GET /federation/search/users : Empty Input - NotFound" (testSearchNotFoundEmpty brig),
         test m "GET /federation/users/by-handle : Found" (testGetUserByHandleSuccess brig),
         test m "GET /federation/users/by-handle : NotFound" (testGetUserByHandleNotFound brig)
       ]
@@ -51,21 +53,28 @@ testSearchSuccess brig = do
   -- That user should not be returned in search results.
   -- (as federated search should only search for exact handle matches)
   identityThief <- randomUser brig
-  void $ putHandle brig (userId identityThief) ((fromHandle handle) <> "a")
+  void $ putHandle brig (userId identityThief) (fromHandle handle <> "a")
   update'' :: UserUpdate <- liftIO $ generate arbitrary
   let update' = update'' {uupName = Just (Name (fromHandle handle))}
       update = RequestBodyLBS . encode $ update'
   put (brig . path "/self" . contentJson . zUser (userId identityThief) . zConn "c" . body update) !!! const 200 === statusCode
   refreshIndex brig
 
-  searchResult <- fedSearch brig handle
+  searchResult <- fedSearch brig (fromHandle handle)
   liftIO $ do
     let contacts = contactQualifiedId <$> searchResults searchResult
     assertEqual "should return only the first user id but not the identityThief" [quid] contacts
 
 testSearchNotFound :: Brig -> Http ()
 testSearchNotFound brig = do
-  searchResult <- fedSearch brig (Handle "this-handle-should-not-exist")
+  searchResult <- fedSearch brig "this-handle-should-not-exist"
+  liftIO $ do
+    let contacts = searchResults searchResult
+    assertEqual "should return empty array of users" [] contacts
+
+testSearchNotFoundEmpty :: Brig -> Http ()
+testSearchNotFoundEmpty brig = do
+  searchResult <- fedSearch brig ""
   liftIO $ do
     let contacts = searchResults searchResult
     assertEqual "should return empty array of users" [] contacts
@@ -74,14 +83,7 @@ testGetUserByHandleSuccess :: Brig -> Http ()
 testGetUserByHandleSuccess brig = do
   (handle, user) <- createUserWithHandle brig
   let quid = userQualifiedId user
-  maybeProfile <-
-    responseJsonError
-      =<< get
-        ( brig
-            . paths ["federation", "users", "by-handle"]
-            . queryItem "handle" (toByteString' handle)
-            . expect2xx
-        )
+  maybeProfile <- fedGetUserByHandle brig handle
   liftIO $ do
     case maybeProfile of
       Nothing -> assertFailure "Expected to find profile, found Nothing"
@@ -92,21 +94,32 @@ testGetUserByHandleSuccess brig = do
 testGetUserByHandleNotFound :: Brig -> Http ()
 testGetUserByHandleNotFound brig = do
   hdl <- randomHandle
-  get (brig . paths ["federation", "users", "by-handle"] . queryItem "handle" (toByteString' hdl)) !!! do
-    const 200 === statusCode
-    const (Nothing :: Maybe UserProfile) === responseJsonError
+  maybeProfile <- fedGetUserByHandle brig (Handle hdl)
+  liftIO $ assertEqual "should not return any UserProfile" Nothing maybeProfile
 
 -------------------------------------------------
 -- helpers
 
 -- TODO replace by servant client code
 --
-fedSearch :: Brig -> Handle -> Http (SearchResult Contact)
-fedSearch brig handle =
+fedSearch :: Brig -> Text -> Http (SearchResult Contact)
+fedSearch brig term =
   responseJsonError
-    =<< get
+    =<< post
       ( brig
           . paths ["federation", "search", "users"]
-          . queryItem "q" (toByteString' handle)
+          . body (RequestBodyLBS (Aeson.encode $ SearchRequest term))
+          . contentJson
+          . expect2xx
+      )
+
+fedGetUserByHandle :: Brig -> Handle -> Http (Maybe UserProfile)
+fedGetUserByHandle brig handle =
+  responseJsonError
+    =<< post
+      ( brig
+          . paths ["federation", "users", "by-handle"]
+          . body (RequestBodyLBS (Aeson.encode handle))
+          . contentJson
           . expect2xx
       )

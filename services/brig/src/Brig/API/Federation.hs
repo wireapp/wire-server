@@ -20,7 +20,7 @@ module Brig.API.Federation where
 import Brig.API.Handler (Handler)
 import qualified Brig.API.User as API
 import Brig.User.API.Handle
-import Data.Handle (Handle (..))
+import Data.Handle (Handle (..), parseHandle)
 import Imports
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
@@ -48,7 +48,8 @@ getUserByHandle handle = lift $ do
 searchUsers :: SearchRequest -> Handler (SearchResult Contact)
 searchUsers (SearchRequest searchTerm) = do
   -- TODO: Make sure this handle is parsed as empty handle throws error
-  maybeOwnerId <- lift $ API.lookupHandle (Handle searchTerm)
+  let maybeHandle = parseHandle searchTerm
+  maybeOwnerId <- maybe (pure Nothing) (lift . API.lookupHandle) maybeHandle
   exactLookupProfile <- case maybeOwnerId of
     Nothing -> pure []
     Just foundUser -> lift $ contactFromProfile <$$> API.lookupProfilesOfLocalUsers Nothing [foundUser]
