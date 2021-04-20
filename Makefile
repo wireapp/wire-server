@@ -15,7 +15,9 @@ CHARTS_INTEGRATION    := wire-server databases-ephemeral fake-aws nginx-ingress-
 # this list could be generated from the folder names under ./charts/ like so:
 # CHARTS_RELEASE := $(shell find charts/ -maxdepth 1 -type d | xargs -n 1 basename | grep -v charts)
 CHARTS_RELEASE        := wire-server databases-ephemeral fake-aws aws-ingress backoffice calling-test demo-smtp elasticsearch-curator elasticsearch-external fluent-bit minio-external cassandra-external nginx-ingress-controller nginx-ingress-services reaper wire-server-metrics sftd
-BUILDAH_PUSH          ?= 1
+BUILDAH_PUSH          ?= 0
+KIND_CLUSTER_NAME     := wire-server
+BUILDAH_KIND_LOAD     ?= 1
 
 default: fast
 
@@ -350,13 +352,39 @@ echo-release-charts:
 .PHONY: buildah-docker
 buildah-docker:
 	./hack/bin/buildah-compile.sh
-	BUILDAH_PUSH=${BUILDAH_PUSH} ./hack/bin/buildah-make-images.sh
+	BUILDAH_PUSH=${BUILDAH_PUSH} KIND_CLUSTER_NAME=${KIND_CLUSTER_NAME} BUILDAH_KIND_LOAD=${BUILDAH_KIND_LOAD}  ./hack/bin/buildah-make-images.sh
 
 .PHONY: buildah-docker-%
 buildah-docker-%:
 	./hack/bin/buildah-compile.sh $(*)
-	BUILDAH_PUSH=${BUILDAH_PUSH} EXECUTABLES=$(*) ./hack/bin/buildah-make-images.sh
+	BUILDAH_PUSH=${BUILDAH_PUSH} EXECUTABLES=$(*) KIND_CLUSTER_NAME=${KIND_CLUSTER_NAME} BUILDAH_KIND_LOAD=${BUILDAH_KIND_LOAD} ./hack/bin/buildah-make-images.sh
 
 .PHONY: buildah-clean
 buildah-clean:
 	./hack/bin/buildah-clean.sh
+
+.PHONY: kind-cluster
+kind-cluster:
+	kind create cluster --name $(KIND_CLUSTER_NAME)
+
+.PHONY: kind-delete
+kind-delete:
+	rm -f $(CURDIR)/.local/kind-kubeconfig
+	kind delete cluster --name $(KIND_CLUSTER_NAME)
+
+.PHONY: kind-reset
+kind-reset: kind-delete kind-cluster
+
+.local/kind-kubeconfig:
+	kind get kubeconfig --name $(KIND_CLUSTER_NAME) > $(CURDIR)/.local/kind-kubeconfig
+
+.PHONY: kind-integration-setup
+kind-integration-setup: .local/kind-kubeconfig
+	ENABLE_KIND_VALUES="1" KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig make kube-integration-setup
+
+.PHONY: kind-integration-test
+kind-integration-test: .local/kind-kubeconfig
+	ENABLE_KIND_VALUES="1" KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig make kube-integration-test
+
+kind-integration-e2e: .local/kind-kubeconfig
+	cd services/brig && KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig ./federation-tests.sh $(NAMESPACE)

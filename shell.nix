@@ -68,6 +68,10 @@ in pkgs.mkShell {
     pkgs.wget
     pkgs.cfssl
 
+    # To actually run buildah on nixos, I had to follow this: https://gist.github.com/alexhrescale/474d55635154e6b2cd6362c3bb403faf
+    pkgs.buildah
+    pkgs.kind
+
     pinned.stack
     pinned.helm
     pinned.kubectl

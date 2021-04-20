@@ -29,6 +29,7 @@ spec:
       containers:
         - name: spar-migrate-data
           image: "{{ .Values.images.sparMigrateData }}:{{ .Values.images.tag }}"
+          imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
           args:
              - --cassandra-host-spar
              - "{{ .Values.cassandra.host }}"

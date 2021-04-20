@@ -28,6 +28,7 @@ spec:
         # Does nothing if the index exists.
         - name: brig-index-create
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
           args:
             - create
             - --elasticsearch-server
@@ -44,6 +45,7 @@ spec:
       containers:
         - name: brig-index-update-mapping
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
           args:
             - update-mapping
             - --elasticsearch-server

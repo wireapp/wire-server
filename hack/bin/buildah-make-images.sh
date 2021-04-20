@@ -5,7 +5,7 @@ set -ex
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 TOP_LEVEL="$(cd "$DIR/../.." && pwd)"
 
-EXECUTABLES=${EXECUTABLES:-"cannon brig cargohold galley gundeck federator brig-index brig-schema galley-schema galley-migrate-data gundeck-schema proxy spar spar-schema"}
+EXECUTABLES=${EXECUTABLES:-"cannon brig cargohold galley gundeck federator brig-index brig-schema galley-schema galley-migrate-data gundeck-schema proxy spar spar-schema spar-migrate-data"}
 CONTAINER_NAME="output"
 DOCKER_TAG=${DOCKER_TAG:-$USER}
 
@@ -30,10 +30,21 @@ for EX in $EXECUTABLES; do
     buildah run "$CONTAINER_NAME" -- rm "/usr/bin/$EX"
 done
 
-if [[ $BUILDAH_PUSH -eq 1 ]]; then
+if [[ "$BUILDAH_PUSH" -eq "1" ]]; then
     for EX in $EXECUTABLES; do
         buildah push "quay.io/wire/$EX:$DOCKER_TAG"
     done
+fi
+
+if [[ "$BUILDAH_KIND_LOAD" -eq "1" ]]; then
+    archiveDir=$(mktemp -d)
+    for EX in $EXECUTABLES; do
+        imgPath="$archiveDir/${EX}_${DOCKER_TAG}.tar"
+        imgName="quay.io/wire/$EX:$DOCKER_TAG"
+        buildah push "$imgName" "docker-archive:$imgPath:$imgName"
+        kind load image-archive --name "$KIND_CLUSTER_NAME" "$imgPath"
+    done
+    rm -rf "$archiveDir"
 fi
 
 "$DIR/buildah-purge-untagged.sh"
