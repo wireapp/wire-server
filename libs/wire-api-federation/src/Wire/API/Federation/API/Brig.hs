@@ -32,7 +32,6 @@ import Wire.API.User.Search
 import Test.QuickCheck (Arbitrary)
 import Wire.API.Arbitrary (GenericUniform(..))
 
--- TODO: Write roundtrip tests and also golden JSON tests to ensure backwards compatibility
 newtype SearchRequest = SearchRequest {term :: Text}
   deriving (Show, Eq, Generic, Typeable)
   deriving (Arbitrary) via (GenericUniform SearchRequest)
