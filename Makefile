@@ -376,7 +376,7 @@ kind-delete:
 kind-reset: kind-delete kind-cluster
 
 .local/kind-kubeconfig:
-	kind get kubeconfig --name $(KIND_CLUSTER_NAME) > .local/kind-kubeconfig
+	kind get kubeconfig --name $(KIND_CLUSTER_NAME) > $(CURDIR)/.local/kind-kubeconfig
 
 .PHONY: kind-integration-setup
 kind-integration-setup: .local/kind-kubeconfig
