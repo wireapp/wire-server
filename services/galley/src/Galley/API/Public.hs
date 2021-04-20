@@ -31,7 +31,7 @@ import Control.Lens ((.~), (<>~), (?~))
 import Data.Aeson (FromJSON, ToJSON, encode)
 import Data.ByteString.Conversion (fromByteString, fromList, toByteString')
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
-import Data.Id (TeamId, UserId, ConvId, ConnId)
+import Data.Id (TeamId, UserId, ConvId, ConnId, OpaqueConvId)
 import qualified Data.Predicate as P
 import Data.Range
 import qualified Data.Set as Set
@@ -142,7 +142,21 @@ instance
     Servant.hoistServerWithContext (Proxy @(InternalAuth ztype :> api)) pc nt s
 
 data Api routes = Api
-  { getTeamConversationRoles ::
+  {
+
+  -- Conversations
+
+    getConversation ::
+      routes
+        :- Summary "Get a conversation by ID"
+        :> ZAuthServant
+        :> "conversations"
+        :> Capture "cnv" OpaqueConvId
+        :> Get '[Servant.JSON] Public.Conversation,
+
+  -- Team Conversations
+
+    getTeamConversationRoles ::
       -- FUTUREWORK: errorResponse Error.notATeamMember
       routes
         :- Summary "Get existing roles available for the given team"
@@ -203,10 +217,11 @@ swaggerDocsAPI = swaggerSchemaUIServer swaggerDoc
 
 servantSitemap :: ServerT ServantAPI Galley
 servantSitemap = genericServerT $ Api
-  Teams.getTeamConversationRoles
-  Teams.getTeamConversations
-  Teams.getTeamConversation
-  Teams.deleteTeamConversation
+  { getConversation = Query.getConversation
+  , getTeamConversationRoles = Teams.getTeamConversationRoles
+  , getTeamConversations = Teams.getTeamConversations
+  , getTeamConversation = Teams.getTeamConversation
+  , deleteTeamConversation = Teams.deleteTeamConversation }
 
 sitemap :: Routes ApiBuilder Galley ()
 sitemap = do
@@ -589,18 +604,6 @@ sitemap = do
       .&. accept "application" "json"
 
   -- Conversation API ---------------------------------------------------
-
-  get "/conversations/:cnv" (continue Query.getConversationH) $
-    zauthUserId
-      .&. capture "cnv"
-      .&. accept "application" "json"
-  document "GET" "conversation" $ do
-    summary "Get a conversation by ID"
-    returns (ref Public.modelConversation)
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    errorResponse Error.convNotFound
-    errorResponse Error.convAccessDenied
 
   get "/conversations/:cnv/roles" (continue Query.getConversationRolesH) $
     zauthUserId

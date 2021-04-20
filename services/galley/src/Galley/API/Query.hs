@@ -17,7 +17,7 @@
 
 module Galley.API.Query
   ( getBotConversationH,
-    getConversationH,
+    getConversation,
     getConversationRolesH,
     getConversationIdsH,
     getConversationsH,
@@ -64,10 +64,6 @@ getBotConversation zbot zcnv = do
         Nothing -- no need to list the bot itself
       | otherwise =
         Just (OtherMember (opaqueIdFromMappedOrLocal (memId m)) (memService m) (memConvRoleName m))
-
-getConversationH :: UserId ::: OpaqueConvId ::: JSON -> Galley Response
-getConversationH (zusr ::: cnv ::: _) = do
-  json <$> getConversation zusr cnv
 
 getConversation :: UserId -> OpaqueConvId -> Galley Public.Conversation
 getConversation zusr opaqueCnv = do
