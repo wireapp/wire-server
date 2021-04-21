@@ -55,7 +55,7 @@ requestBrigSuccess =
 
 requestBrigFailure :: TestTree
 requestBrigFailure =
-  testCase "should translate response from brig to 'InwardResponseBody' when response has status 200" $
+  testCase "should translate response from brig to 'InwardResponseBody' when response has status 404" $
     runM . evalMock @Brig @IO $ do
       mockBrigCallReturns @IO (\_ _ -> pure (HTTP.notFound404, Just "response body"))
       let request = Request Brig "/users" "\"foo\""
