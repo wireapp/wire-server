@@ -19,7 +19,7 @@ module Galley.API.Query
   ( getBotConversationH,
     getConversation,
     getConversationRoles,
-    getConversationIdsH,
+    getConversationIds,
     getConversationsH,
     getSelfH,
     internalGetMemberH,
@@ -30,6 +30,7 @@ where
 import Data.ByteString.Conversion
 import Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local), opaqueIdFromMappedOrLocal, partitionMappedOrLocalIds)
+import Data.Proxy
 import Data.Range
 import Galley.API.Error
 import qualified Galley.API.IdMapping as IdMapping
@@ -79,13 +80,9 @@ getConversationRoles zusr opaqueCnv = do
   --       be merged with the team roles (if they exist)
   pure $ Public.ConversationRolesList wireConvRoles
 
-getConversationIdsH :: UserId ::: Maybe OpaqueConvId ::: Range 1 1000 Int32 ::: JSON -> Galley Response
-getConversationIdsH (zusr ::: start ::: size ::: _) = do
-  json <$> getConversationIds zusr start size
-
-getConversationIds :: UserId -> Maybe OpaqueConvId -> Range 1 1000 Int32 -> Galley (Public.ConversationList OpaqueConvId)
-getConversationIds zusr start size = do
-  ids <- Data.conversationIdRowsFrom zusr start size
+getConversationIds :: UserId -> Maybe OpaqueConvId -> Maybe (Range 1 1000 Int32) -> Galley (Public.ConversationList OpaqueConvId)
+getConversationIds zusr start msize = do
+  ids <- Data.conversationIdRowsFrom zusr start (fromMaybe (toRange (Proxy @1000)) msize)
   pure $
     Public.ConversationList
       ((\(i, _, _) -> i) <$> Data.resultSetResult ids)

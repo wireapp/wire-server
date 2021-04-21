@@ -219,6 +219,26 @@ data ConversationList a = ConversationList
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform (ConversationList a))
 
+class ConversationListItem a where
+  convListItemName :: Proxy a -> Text
+
+instance ConversationListItem OpaqueConvId where
+  convListItemName _ = "conversation IDs"
+
+instance (ConversationListItem a, ToSchema a) => ToSchema (ConversationList a) where
+  declareNamedSchema _ = do
+    listSchema <- declareSchemaRef (Proxy @[a])
+    pure $
+      NamedSchema (Just "ConversationList") $
+        mempty
+          & description ?~ "Object holding a list of " <> convListItemName (Proxy @a)
+          & properties . at "conversations" ?~ listSchema
+          & properties . at "has_more"
+            ?~ Inline
+              ( toSchema (Proxy @Bool)
+                  & description ?~ "Indicator that the server has more conversations than returned"
+              )
+
 instance ToJSON a => ToJSON (ConversationList a) where
   toJSON (ConversationList l m) =
     object

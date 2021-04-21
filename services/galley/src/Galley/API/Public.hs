@@ -155,7 +155,6 @@ data Api routes = Api
         :> "conversations"
         :> Capture "cnv" OpaqueConvId
         :> Get '[Servant.JSON] Public.Conversation,
-
     getConversationRoles ::
       routes
         :- Summary "Get existing roles available for the given conversation"
@@ -163,7 +162,28 @@ data Api routes = Api
         :> "conversations"
         :> Capture "cnv" OpaqueConvId
         :> Get '[Servant.JSON] Public.ConversationRolesList,
-
+    getConversationIds ::
+      routes
+        :- Summary "Get all conversation IDs."
+        -- TODO: add note "At most 1000 IDs are returned per request"
+        :> ZAuthServant
+        :> "conversations"
+        :> "ids"
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description "Conversation ID to start from (exclusive)"
+             ]
+             "start"
+             OpaqueConvId
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description "Max. number of IDs to return"
+             ]
+             "size"
+             (Range 1 1000 Int32)
+        :> Get '[Servant.JSON] (Public.ConversationList OpaqueConvId),
     -- Team Conversations
 
     getTeamConversationRoles ::
@@ -231,6 +251,7 @@ servantSitemap =
     Api
       { getConversation = Query.getConversation,
         getConversationRoles = Query.getConversationRoles,
+        getConversationIds = Query.getConversationIds,
         getTeamConversationRoles = Teams.getTeamConversationRoles,
         getTeamConversations = Teams.getTeamConversations,
         getTeamConversation = Teams.getTeamConversation,
@@ -618,22 +639,6 @@ sitemap = do
       .&. accept "application" "json"
 
   -- Conversation API ---------------------------------------------------
-
-  get "/conversations/ids" (continue Query.getConversationIdsH) $
-    zauthUserId
-      .&. opt (query "start")
-      .&. def (unsafeRange 1000) (query "size")
-      .&. accept "application" "json"
-  document "GET" "conversationIds" $ do
-    summary "Get all conversation IDs"
-    notes "At most 1000 IDs are returned per request"
-    parameter Query "start" string' $ do
-      optional
-      description "Conversation ID to start from (exclusive)"
-    parameter Query "size" string' $ do
-      optional
-      description "Max. number of IDs to return"
-    returns (ref Public.modelConversationIds)
 
   get "/conversations" (continue Query.getConversationsH) $
     zauthUserId
