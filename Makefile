@@ -225,7 +225,7 @@ hie.yaml: stack-dev.yaml
 .PHONY: stack-dev.yaml
 stack-dev.yaml:
 	cp stack.yaml stack-dev.yaml
-	echo -e '\n\nghc-options:\n "$$locals": -O0' >> stack-dev.yaml
+	echo -e '\n\nghc-options:\n "$$locals": -O0 -Wall -Werror' >> stack-dev.yaml
 
 #####################################
 # Today we pretend to be CI and run integration tests on kubernetes
