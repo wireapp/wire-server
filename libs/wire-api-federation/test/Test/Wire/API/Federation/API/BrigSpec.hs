@@ -1,16 +1,17 @@
 {-# OPTIONS_GHC -Wno-deferred-type-errors #-}
+
 module Test.Wire.API.Federation.API.BrigSpec where
 
-import Test.Hspec (Spec, describe, shouldBe, specify)
-import Wire.API.Federation.API.Brig (SearchRequest(..))
-import Test.QuickCheck (Arbitrary, counterexample, (===))
-import Imports
-import Data.Aeson (ToJSON (toJSON), FromJSON (parseJSON), Value)
-import Data.Typeable (typeRep)
-import Data.Proxy (Proxy (..))
-import Data.Aeson.Types (parseEither)
-import Test.Hspec.QuickCheck (prop)
+import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON), Value)
 import Data.Aeson.QQ.Simple (aesonQQ)
+import Data.Aeson.Types (parseEither)
+import Data.Proxy (Proxy (..))
+import Data.Typeable (typeRep)
+import Imports
+import Test.Hspec (Spec, describe, shouldBe, specify)
+import Test.Hspec.QuickCheck (prop)
+import Test.QuickCheck (Arbitrary, counterexample, (===))
+import Wire.API.Federation.API.Brig (SearchRequest (..))
 
 spec :: Spec
 spec = describe "Wire.API.Federation.API.Brig" $ do
@@ -28,7 +29,7 @@ jsonRoundTrip = prop msg trip
       counterexample (show $ toJSON v) $
         Right v === (parseEither parseJSON . toJSON) v
 
-jsonGoldenTest :: (Eq a, Show a, FromJSON a )=> String -> Value -> a -> Spec
+jsonGoldenTest :: (Eq a, Show a, FromJSON a) => String -> Value -> a -> Spec
 jsonGoldenTest name val expected =
   specify ("GoldenTest: " <> show name) $ do
     parseEither parseJSON val `shouldBe` Right expected

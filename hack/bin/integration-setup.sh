@@ -9,6 +9,7 @@ TOP_LEVEL="$DIR/../.."
 CHARTS_DIR="${TOP_LEVEL}/.local/charts"
 
 NAMESPACE=${NAMESPACE:-test-integration}
+ENABLE_KIND_VALUES=${ENABLE_KIND_VALUES:-0}
 
 kubectl create namespace "${NAMESPACE}" > /dev/null 2>&1 || true
 
@@ -41,6 +42,7 @@ FEDERATION_DOMAIN="federation-test-helper.$NAMESPACE.svc.cluster.local"
 for chart in "${charts[@]}"; do
     kubectl -n ${NAMESPACE} get pods
     valuesfile="${DIR}/../helm_vars/${chart}/values.yaml"
+    kindValuesfile="${DIR}/../helm_vars/${chart}/kind-values.yaml"
 
     declare -a options=()
 
@@ -53,6 +55,10 @@ for chart in "${charts[@]}"; do
         # federation-test-helper service. Maybe we can find a way to make these
         # differ, so we don't make any silly assumptions in the code.
         options+=("--set" "config.dns.federator=$FEDERATION_DOMAIN")
+    fi
+
+    if [[ "$ENABLE_KIND_VALUES" == "1" ]] && [[ -f "$kindValuesfile" ]]; then
+        options+=(-f "$kindValuesfile")
     fi
 
     # default is 5m but may not be enough on a fresh install including cassandra migrations

@@ -22,21 +22,21 @@ module Test.Federator.ExternalServer where
 import Federator.Brig (Brig)
 import Federator.ExternalServer (callLocal)
 import Imports
+import qualified Network.HTTP.Types as HTTP
 import Polysemy (embed, runM)
 import Test.Polysemy.Mock (Mock (mock), evalMock)
 import Test.Polysemy.Mock.TH (genMock)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertEqual, testCase)
 import Wire.API.Federation.GRPC.Types
-import qualified Network.HTTP.Types as HTTP
 
 genMock ''Brig
 
 tests :: TestTree
 tests =
   testGroup "ExternalServer" $
-    [ requestBrigSuccess
-    , requestBrigFailure
+    [ requestBrigSuccess,
+      requestBrigFailure
     ]
 
 requestBrigSuccess :: TestTree
@@ -55,7 +55,7 @@ requestBrigSuccess =
 
 requestBrigFailure :: TestTree
 requestBrigFailure =
- testCase "should translate response from brig to 'InwardResponseBody' when response has status 200" $
+  testCase "should translate response from brig to 'InwardResponseBody' when response has status 200" $
     runM . evalMock @Brig @IO $ do
       mockBrigCallReturns @IO (\_ _ -> pure (HTTP.notFound404, Just "response body"))
       let request = Request Brig "/users" "\"foo\""

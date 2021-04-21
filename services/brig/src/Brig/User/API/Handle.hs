@@ -62,7 +62,7 @@ getLocalHandleInfo self handle = do
     Nothing -> return Nothing
     Just ownerId -> do
       domain <- viewFederationDomain
-      ownerProfile <- lift $ API.lookupProfile self (Qualified ownerId domain)
+      ownerProfile <- API.lookupProfile self (Qualified ownerId domain) !>> fedError
       owner <- filterHandleResults self (maybeToList ownerProfile)
       return $ listToMaybe owner
 

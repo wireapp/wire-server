@@ -27,4 +27,4 @@ kubectl -n "$NAMESPACE" get configmap brig -o jsonpath='{.data.brig\.yaml}' >b.y
 sed -i "s=privateKeys: /etc/wire/brig/secrets/secretkey.txt=privateKeys: test/resources/zauth/privkeys.txt=g" b.yaml
 sed -i "s=publicKeys: /etc/wire/brig/secrets/publickey.txt=publicKeys: test/resources/zauth/pubkeys.txt=g" b.yaml
 
-telepresence --namespace "$NAMESPACE" --also-proxy cassandra-ephemeral --run bash -c "export INTEGRATION_FEDERATION_TESTS=1; ./dist/brig-integration -p brig-federation -i i.yaml -s b.yaml"
+telepresence --namespace "$NAMESPACE" --also-proxy cassandra-ephemeral --run bash -c "export INTEGRATION_FEDERATION_TESTS=1; ./dist/brig-integration -p federation-end2end-user -i i.yaml -s b.yaml"

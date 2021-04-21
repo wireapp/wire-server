@@ -1,4 +1,5 @@
 {-# LANGUAGE DerivingVia #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -21,16 +22,19 @@ module Wire.API.Federation.API.Brig where
 import Control.Monad.Except (MonadError (..))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Handle (Handle)
+import Data.Id (ClientId, UserId)
 import Imports
 import Servant.API
 import Servant.API.Generic
 import Servant.Client.Generic (AsClientT, genericClient)
+import Test.QuickCheck (Arbitrary)
+import Wire.API.Arbitrary (GenericUniform (..))
 import Wire.API.Federation.Client (FederationClientError, FederatorClient)
 import qualified Wire.API.Federation.GRPC.Types as Proto
+import Wire.API.Message (UserClientMap, UserClients)
 import Wire.API.User (UserProfile)
+import Wire.API.User.Client.Prekey (ClientPrekey, Prekey, PrekeyBundle)
 import Wire.API.User.Search
-import Test.QuickCheck (Arbitrary)
-import Wire.API.Arbitrary (GenericUniform(..))
 
 newtype SearchRequest = SearchRequest {term :: Text}
   deriving (Show, Eq, Generic, Typeable)
@@ -49,6 +53,35 @@ data Api routes = Api
         :> "by-handle"
         :> ReqBody '[JSON] Handle
         :> Post '[JSON] (Maybe UserProfile),
+    getUsersByIds ::
+      routes
+        :- "federation"
+        :> "users"
+        :> "get-by-ids"
+        :> ReqBody '[JSON] [UserId]
+        :> Post '[JSON] [UserProfile],
+    claimPrekey ::
+      routes
+        :- "federation"
+        :> "users"
+        :> "prekey"
+        :> QueryParam' '[Required, Strict] "uid" UserId
+        :> QueryParam' '[Required, Strict] "client" ClientId
+        :> Get '[JSON] (Maybe ClientPrekey),
+    getPrekeyBundle ::
+      routes
+        :- "federation"
+        :> "users"
+        :> "prekey-bundle"
+        :> QueryParam' '[Required, Strict] "uid" UserId
+        :> Get '[JSON] PrekeyBundle,
+    getMultiPrekeyBundle ::
+      routes
+        :- "federation"
+        :> "users"
+        :> "multi-prekey-bundle"
+        :> ReqBody '[JSON] UserClients
+        :> Post '[JSON] (UserClientMap (Maybe Prekey)),
     searchUsers ::
       routes
         :- "federation"
