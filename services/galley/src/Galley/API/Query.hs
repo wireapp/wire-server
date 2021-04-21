@@ -18,7 +18,7 @@
 module Galley.API.Query
   ( getBotConversationH,
     getConversation,
-    getConversationRolesH,
+    getConversationRoles,
     getConversationIdsH,
     getConversationsH,
     getSelfH,
@@ -70,10 +70,6 @@ getConversation zusr opaqueCnv = do
   cnv <- IdMapping.resolveOpaqueConvId opaqueCnv
   c <- getConversationAndCheckMembership zusr cnv
   Mapping.conversationView (Local zusr) c
-
-getConversationRolesH :: UserId ::: OpaqueConvId ::: JSON -> Galley Response
-getConversationRolesH (zusr ::: cnv ::: _) = do
-  json <$> getConversationRoles zusr cnv
 
 getConversationRoles :: UserId -> OpaqueConvId -> Galley Public.ConversationRolesList
 getConversationRoles zusr opaqueCnv = do

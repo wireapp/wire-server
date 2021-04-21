@@ -155,6 +155,15 @@ data Api routes = Api
         :> "conversations"
         :> Capture "cnv" OpaqueConvId
         :> Get '[Servant.JSON] Public.Conversation,
+
+    getConversationRoles ::
+      routes
+        :- Summary "Get existing roles available for the given conversation"
+        :> ZAuthServant
+        :> "conversations"
+        :> Capture "cnv" OpaqueConvId
+        :> Get '[Servant.JSON] Public.ConversationRolesList,
+
     -- Team Conversations
 
     getTeamConversationRoles ::
@@ -221,6 +230,7 @@ servantSitemap =
   genericServerT $
     Api
       { getConversation = Query.getConversation,
+        getConversationRoles = Query.getConversationRoles,
         getTeamConversationRoles = Teams.getTeamConversationRoles,
         getTeamConversations = Teams.getTeamConversations,
         getTeamConversation = Teams.getTeamConversation,
@@ -608,18 +618,6 @@ sitemap = do
       .&. accept "application" "json"
 
   -- Conversation API ---------------------------------------------------
-
-  get "/conversations/:cnv/roles" (continue Query.getConversationRolesH) $
-    zauthUserId
-      .&. capture "cnv"
-      .&. accept "application" "json"
-  document "GET" "getConversationsRoles" $ do
-    summary "Get existing roles available for the given conversation"
-    parameter Path "cnv" bytes' $
-      description "Conversation ID"
-    returns (ref Public.modelConversationRolesList)
-    response 200 "Conversations roles list" end
-    errorResponse Error.convNotFound
 
   get "/conversations/ids" (continue Query.getConversationIdsH) $
     zauthUserId
