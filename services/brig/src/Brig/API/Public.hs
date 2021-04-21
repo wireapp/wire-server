@@ -1086,7 +1086,7 @@ getPrekeyUnqualifiedH user client = do
 
 getPrekeyH :: Domain -> UserId -> ClientId -> Handler Public.ClientPrekey
 getPrekeyH domain user client = do
-  mPrekey <- lift (API.claimPrekey user domain client)
+  mPrekey <- API.claimPrekey user domain client !>> clientError
   ifNothing (notFound "prekey not found") mPrekey
 
 getPrekeyBundleUnqualifiedH :: UserId -> Handler Public.PrekeyBundle
@@ -1103,7 +1103,7 @@ getMultiUserPrekeyBundleUnqualifiedH userClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients userClients) > maxSize) $
     throwStd tooManyClients
-  API.claimMultiPrekeyBundlesLocal userClients !>> clientError
+  lift $ API.claimLocalMultiPrekeyBundles userClients
 
 getMultiUserPrekeyBundleH :: Public.QualifiedUserClients -> Handler (Public.QualifiedUserClientMap (Maybe Public.Prekey))
 getMultiUserPrekeyBundleH qualUserClients = do
@@ -1318,8 +1318,7 @@ getUserH self domain uid =
   ifNothing userNotFound =<< getUser self (Qualified uid domain)
 
 getUser :: UserId -> Qualified UserId -> Handler (Maybe Public.UserProfile)
-getUser self qualifiedUserId = do
-  lift $ API.lookupProfile self qualifiedUserId
+getUser self qualifiedUserId = API.lookupProfile self qualifiedUserId !>> fedError
 
 getUserDisplayNameH :: JSON ::: UserId -> Handler Response
 getUserDisplayNameH (_ ::: self) = do
@@ -1366,8 +1365,7 @@ listUsersByIdsOrHandles self q = do
       domain <- viewFederationDomain
       pure $ map (`Qualified` domain) localUsers
     byIds :: [Qualified UserId] -> Handler [Public.UserProfile]
-    byIds uids =
-      lift $ API.lookupProfiles self uids
+    byIds uids = API.lookupProfiles self uids !>> fedError
 
 newtype GetActivationCodeResp
   = GetActivationCodeResp (Public.ActivationKey, Public.ActivationCode)

@@ -15,23 +15,37 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.API.Federation where
+module Brig.API.Federation (federationSitemap) where
 
+import qualified Brig.API.Client as API
 import Brig.API.Error (handleNotFound, throwStd)
 import Brig.API.Handler (Handler)
 import qualified Brig.API.User as API
-import Brig.User.API.Handle
+import qualified Brig.Data.Client as Data
+import Brig.Types (Prekey, PrekeyBundle)
+import Brig.User.API.Handle (contactFromProfile)
 import Data.Handle (Handle (..))
+import Data.Id (ClientId, UserId)
 import Imports
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
 import qualified Wire.API.Federation.API.Brig as FederationAPIBrig
+import Wire.API.Message (UserClientMap, UserClients)
 import Wire.API.User (UserProfile)
+import Wire.API.User.Client.Prekey (ClientPrekey)
 import Wire.API.User.Search
 
 federationSitemap :: ServerT (ToServantApi FederationAPIBrig.Api) Handler
-federationSitemap = genericServerT (FederationAPIBrig.Api getUserByHandle searchUsers)
+federationSitemap =
+  genericServerT $
+    FederationAPIBrig.Api
+      getUserByHandle
+      getUsersByIds
+      claimPrekey
+      getPrekeyBundle
+      getMultiPrekeyBundle
+      searchUsers
 
 getUserByHandle :: Handle -> Handler UserProfile
 getUserByHandle handle = do
@@ -39,9 +53,22 @@ getUserByHandle handle = do
   case maybeOwnerId of
     Nothing -> throwStd handleNotFound
     Just ownerId -> do
-      lift (API.lookupProfilesOfLocalUsers Nothing [ownerId]) >>= \case
+      lift (API.lookupLocalProfiles Nothing [ownerId]) >>= \case
         [] -> throwStd handleNotFound
         user : _ -> pure user
+
+getUsersByIds :: [UserId] -> Handler [UserProfile]
+getUsersByIds uids =
+  lift (API.lookupLocalProfiles Nothing uids)
+
+claimPrekey :: UserId -> ClientId -> Handler (Maybe ClientPrekey)
+claimPrekey user client = lift (Data.claimPrekey user client)
+
+getPrekeyBundle :: UserId -> Handler PrekeyBundle
+getPrekeyBundle user = lift (API.claimLocalPrekeyBundle user)
+
+getMultiPrekeyBundle :: UserClients -> Handler (UserClientMap (Maybe Prekey))
+getMultiPrekeyBundle uc = lift (API.claimLocalMultiPrekeyBundles uc)
 
 -- | Searching for federated users on a remote backend should
 -- only search by exact handle search, not in elasticsearch.
@@ -51,7 +78,7 @@ searchUsers searchTerm = do
   maybeOwnerId <- lift $ API.lookupHandle (Handle searchTerm)
   exactLookupProfile <- case maybeOwnerId of
     Nothing -> pure []
-    Just (foundUser) -> lift $ contactFromProfile <$$> API.lookupProfilesOfLocalUsers Nothing [foundUser]
+    Just foundUser -> lift $ contactFromProfile <$$> API.lookupLocalProfiles Nothing [foundUser]
 
   let exactHandleMatchCount = length exactLookupProfile
   pure $

@@ -17,14 +17,19 @@
 
 module Wire.API.Federation.API.Brig where
 
-import Data.Handle (Handle, fromHandle)
-import qualified Data.Text.Encoding as T
+import qualified Data.Aeson as Aeson
+import Data.ByteString.Conversion (toByteString')
+import qualified Data.ByteString.Lazy as LBS
+import Data.Handle (Handle)
+import Data.Id (ClientId, UserId)
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import Servant.API
 import Servant.API.Generic
 import qualified Wire.API.Federation.GRPC.Types as Proto
+import Wire.API.Message (UserClientMap, UserClients)
 import Wire.API.User (UserProfile)
+import Wire.API.User.Client.Prekey (ClientPrekey, Prekey, PrekeyBundle)
 import Wire.API.User.Search
 
 -- Maybe this module should be called Brig
@@ -36,6 +41,35 @@ data Api routes = Api
         :> "by-handle"
         :> QueryParam' '[Required, Strict] "handle" Handle
         :> Get '[JSON] UserProfile,
+    getUsersByIds ::
+      routes
+        :- "federation"
+        :> "users"
+        :> "get-by-ids"
+        :> ReqBody '[JSON] [UserId]
+        :> Post '[JSON] [UserProfile],
+    claimPrekey ::
+      routes
+        :- "federation"
+        :> "users"
+        :> "prekey"
+        :> QueryParam' '[Required, Strict] "uid" UserId
+        :> QueryParam' '[Required, Strict] "client" ClientId
+        :> Get '[JSON] (Maybe ClientPrekey),
+    getPrekeyBundle ::
+      routes
+        :- "federation"
+        :> "users"
+        :> "prekey-bundle"
+        :> QueryParam' '[Required, Strict] "uid" UserId
+        :> Get '[JSON] PrekeyBundle,
+    getMultiPrekeyBundle ::
+      routes
+        :- "federation"
+        :> "users"
+        :> "multi-prekey-bundle"
+        :> ReqBody '[JSON] UserClients
+        :> Post '[JSON] (UserClientMap (Maybe Prekey)),
     searchUsers ::
       routes
         :- "federation"
@@ -62,8 +96,46 @@ mkGetUserInfoByHandle handle =
     Proto.Brig
     (Proto.HTTPMethod HTTP.GET)
     "users/by-handle"
-    [Proto.QueryParam "handle" (T.encodeUtf8 (fromHandle handle))]
+    [Proto.QueryParam "handle" (toByteString' handle)]
     mempty
+
+mkClaimPrekey :: UserId -> ClientId -> Proto.Request
+mkClaimPrekey user client =
+  Proto.Request
+    Proto.Brig
+    (Proto.HTTPMethod HTTP.GET)
+    "users/prekey"
+    [ Proto.QueryParam "uid" (toByteString' user),
+      Proto.QueryParam "client" (toByteString' client)
+    ]
+    mempty
+
+mkClaimPrekeyBundle :: UserId -> Proto.Request
+mkClaimPrekeyBundle user =
+  Proto.Request
+    Proto.Brig
+    (Proto.HTTPMethod HTTP.GET)
+    "users/prekey-bundle"
+    [Proto.QueryParam "uid" (toByteString' user)]
+    mempty
+
+mkClaimMultiPrekeyBundle :: UserClients -> Proto.Request
+mkClaimMultiPrekeyBundle uc =
+  Proto.Request
+    Proto.Brig
+    (Proto.HTTPMethod HTTP.POST)
+    "users/multi-prekey-bundle"
+    []
+    (LBS.toStrict (Aeson.encode uc))
+
+mkGetUsersByIds :: [UserId] -> Proto.Request
+mkGetUsersByIds uids =
+  Proto.Request
+    Proto.Brig
+    (Proto.HTTPMethod HTTP.POST)
+    "users/get-by-ids"
+    []
+    (LBS.toStrict $ Aeson.encode uids)
 
 -- FUTUREWORK: Can we write a test which makes use of mkSearchUsers against the Api in this file?
 mkSearchUsers :: Text -> Proto.Request
@@ -72,6 +144,6 @@ mkSearchUsers searchTerm =
     Proto.Brig
     (Proto.HTTPMethod HTTP.GET)
     "search/users"
-    [Proto.QueryParam "q" (T.encodeUtf8 searchTerm)]
+    [Proto.QueryParam "q" (toByteString' searchTerm)]
     -- FUTUREWORK(federation): do we want to pass other parameters like the number of results?
     mempty

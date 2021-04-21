@@ -18,16 +18,28 @@
 module Federation.End2end where
 
 import API.Search.Util
-import Bilge (Http, Manager)
+import Bilge
+import Bilge.Assert ((!!!), (===))
 import qualified Brig.Options as BrigOpts
 import Brig.Types
+import Control.Arrow ((&&&))
+import Control.Lens (sequenceAOf, _1)
+import qualified Data.Aeson as Aeson
+import Data.ByteString.Conversion (toByteString')
+import Data.Domain (Domain)
 import Data.Handle
+import qualified Data.Map as Map
 import Data.Qualified
+import qualified Data.Set as Set
+import Federation.Util (generateClientPrekeys)
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
 import Util.Options (Endpoint)
+import Wire.API.Message (UserClients (UserClients))
+import Wire.API.User (ListUsersQuery (ListUsersByIds))
+import Wire.API.User.Client (QualifiedUserClientMap (..), QualifiedUserClients (..), UserClientMap (UserClientMap))
 
 -- NOTE: These federation tests require deploying two sets of (some) services
 -- This might be best left to a kubernetes setup.
@@ -47,7 +59,11 @@ spec _brigOpts mg brig _federator brigTwo =
     testGroup
       "federation-end2end-user"
       [ test mg "lookup user by qualified handle on remote backend" $ testHandleLookup brig brigTwo,
-        test mg "search users on remote backend" $ testSearchUsers brig brigTwo
+        test mg "search users on remote backend" $ testSearchUsers brig brigTwo,
+        test mg "get users by ids on multiple backends" $ testGetUsersById brig brigTwo,
+        test mg "claim client prekey" $ testClaimPrekeySuccess brig brigTwo,
+        test mg "claim prekey bundle" $ testClaimPrekeyBundleSuccess brig brigTwo,
+        test mg "claim multi-prekey bundle" $ testClaimMultiPrekeyBundleSuccess brig brigTwo
       ]
 
 -- | Path covered by this test:
@@ -80,11 +96,107 @@ testSearchUsers brig brigTwo = do
 
   searcher <- userId <$> randomUser brig
   let expectedUserId = userQualifiedId userBrigTwo
-      searchTerm = (fromHandle handle)
-      domain = (qDomain expectedUserId)
+      searchTerm = fromHandle handle
+      domain = qDomain expectedUserId
   liftIO $ putStrLn "search for user on brigTwo (directly)..."
   assertCanFindWithDomain brigTwo searcher expectedUserId searchTerm domain
 
   -- exercises multi-backend network traffic
   liftIO $ putStrLn "search for user on brigOne via federators to remote brig..."
   assertCanFindWithDomain brig searcher expectedUserId searchTerm domain
+
+testGetUsersById :: Brig -> Brig -> Http ()
+testGetUsersById brig1 brig2 = do
+  users <- traverse randomUser [brig1, brig2]
+  let self = Imports.head users
+      q = ListUsersByIds (map userQualifiedId users)
+      expected = sort (map userQualifiedId users)
+  post
+    ( brig1
+        . path "list-users"
+        . zUser (userId self)
+        . body (RequestBodyLBS (Aeson.encode q))
+        . contentJson
+        . acceptJson
+        . expect2xx
+    )
+    !!! do
+      const 200 === statusCode
+      const (Just expected)
+        === fmap (sort . map profileQualifiedId)
+          . responseJsonMaybe
+
+testClaimPrekeySuccess :: Brig -> Brig -> Http ()
+testClaimPrekeySuccess brig1 brig2 = do
+  self <- randomUser brig1
+  user <- randomUser brig2
+  let new = defNewClient TemporaryClientType (take 1 somePrekeys) (Imports.head someLastPrekeys)
+  c <- responseJsonError =<< addClient brig2 (userId user) new
+  let cpk = ClientPrekey (clientId c) (Imports.head somePrekeys)
+  let quser = userQualifiedId user
+  get
+    ( brig1
+        . zUser (userId self)
+        . paths
+          [ "users",
+            toByteString' (qDomain quser),
+            toByteString' (qUnqualified quser),
+            "prekeys",
+            toByteString' (clientId c)
+          ]
+    )
+    !!! do
+      const 200 === statusCode
+      const (Just cpk) === responseJsonMaybe
+
+testClaimPrekeyBundleSuccess :: Brig -> Brig -> Http ()
+testClaimPrekeyBundleSuccess brig1 brig2 = do
+  qself <- userQualifiedId <$> randomUser brig1
+  let prekeys = take 5 (zip somePrekeys someLastPrekeys)
+  (quser, clients) <- generateClientPrekeys brig2 prekeys
+  let sortClients = sortBy (compare `on` prekeyClient)
+  get
+    ( brig1
+        . zUser (qUnqualified qself)
+        . paths
+          [ "users",
+            toByteString' (qDomain quser),
+            toByteString' (qUnqualified quser),
+            "prekeys"
+          ]
+        . expect2xx
+    )
+    !!! do
+      const 200 === statusCode
+      const (Just (sortClients clients))
+        === fmap (sortClients . prekeyClients) . responseJsonMaybe
+
+testClaimMultiPrekeyBundleSuccess :: Brig -> Brig -> Http ()
+testClaimMultiPrekeyBundleSuccess brig1 brig2 = do
+  let prekeys = zip somePrekeys someLastPrekeys
+      (prekeys1, prekeys') = splitAt 5 prekeys
+      prekeys2 = take 4 prekeys'
+      mkClients = Set.fromList . map prekeyClient
+      mkClientMap = Map.fromList . map (prekeyClient &&& prekeyData)
+      qmap :: Ord a => [(Qualified a, b)] -> Map Domain (Map a b)
+      qmap = fmap Map.fromList . partitionQualified . map (sequenceAOf _1)
+  c1 <- generateClientPrekeys brig1 prekeys1
+  c2 <- generateClientPrekeys brig2 prekeys2
+  let uc =
+        QualifiedUserClients . fmap UserClients . qmap $
+          [mkClients <$> c1, mkClients <$> c2]
+      ucm =
+        QualifiedUserClientMap . fmap UserClientMap . qmap $
+          [mkClientMap <$> c1, mkClientMap <$> c2]
+  post
+    ( brig1
+        . zUser (qUnqualified (fst c1))
+        . paths ["users", "list-prekeys"]
+        . body (RequestBodyLBS (Aeson.encode uc))
+        . contentJson
+        . acceptJson
+        . expect2xx
+    )
+    !!! do
+      const 200 === statusCode
+      const (Just ucm) === responseJsonMaybe

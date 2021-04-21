@@ -1,4 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -23,6 +22,7 @@ module Brig.Federation.Client where
 
 import Brig.API.Types (FederationError (..))
 import Brig.App (AppIO, federator)
+import Brig.Types (Prekey, PrekeyBundle)
 import qualified Brig.Types.Search as Public
 import Brig.Types.User
 import Control.Error.Util ((!?))
@@ -31,6 +31,7 @@ import Control.Monad.Trans.Except (ExceptT (..), throwE)
 import qualified Data.Aeson as Aeson
 import Data.Domain
 import Data.Handle
+import Data.Id (ClientId, UserId)
 import Data.Qualified
 import Data.String.Conversions
 import qualified Data.Text as T
@@ -41,6 +42,8 @@ import Util.Options (epHost, epPort)
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.GRPC.Client
 import qualified Wire.API.Federation.GRPC.Types as Proto
+import Wire.API.Message (UserClientMap, UserClients)
+import Wire.API.User.Client.Prekey (ClientPrekey)
 
 type FederationAppIO = ExceptT FederationError AppIO
 
@@ -50,7 +53,7 @@ type FederationAppIO = ExceptT FederationError AppIO
 -- See https://wearezeta.atlassian.net/browse/SQCORE-491 for the issue on error handling improvements.
 getUserHandleInfo :: Qualified Handle -> FederationAppIO (Maybe UserProfile)
 getUserHandleInfo (Qualified handle domain) = do
-  Log.info $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
+  Log.info $ Log.msg ("Brig-federation: handle lookup call on remote backend" :: ByteString)
   federatorClient <- mkFederatorClient
   let call = Proto.ValidatedFederatedRequest domain (mkGetUserInfoByHandle handle)
   res <- expectOk =<< callRemote federatorClient call
@@ -59,6 +62,57 @@ getUserHandleInfo (Qualified handle domain) = do
     200 -> case Aeson.eitherDecodeStrict (Proto.responseBody res) of
       Left err -> throwE (FederationInvalidResponseBody (T.pack err))
       Right x -> pure $ Just x
+    code -> throwE (FederationInvalidResponseCode code)
+
+-- FUTUREWORK: Test
+getUsersByIds :: Domain -> [UserId] -> FederationAppIO [UserProfile]
+getUsersByIds domain uids = do
+  Log.info $ Log.msg ("Brig-federation: get users by ids on remote backends" :: ByteString)
+  federatorClient <- mkFederatorClient
+  let call = Proto.ValidatedFederatedRequest domain (mkGetUsersByIds uids)
+  res <- expectOk =<< callRemote federatorClient call
+  case Proto.responseStatus res of
+    200 -> case Aeson.eitherDecodeStrict (Proto.responseBody res) of
+      Left err -> throwE (FederationInvalidResponseBody (T.pack err))
+      Right profiles -> pure profiles
+    code -> throwE (FederationInvalidResponseCode code)
+
+-- FUTUREWORK(federation): Abstract out all the rpc boilerplate and error handling
+claimPrekey :: Qualified UserId -> ClientId -> FederationAppIO (Maybe ClientPrekey)
+claimPrekey (Qualified user domain) client = do
+  Log.info $ Log.msg @Text "Brig-federation: claiming remote prekey"
+  federatorClient <- mkFederatorClient
+  let call = Proto.ValidatedFederatedRequest domain (mkClaimPrekey user client)
+  res <- expectOk =<< callRemote federatorClient call
+  case Proto.responseStatus res of
+    404 -> pure Nothing
+    200 -> case Aeson.eitherDecodeStrict (Proto.responseBody res) of
+      Left err -> throwE (FederationInvalidResponseBody (T.pack err))
+      Right x -> pure $ Just x
+    code -> throwE (FederationInvalidResponseCode code)
+
+claimPrekeyBundle :: Qualified UserId -> FederationAppIO PrekeyBundle
+claimPrekeyBundle (Qualified user domain) = do
+  Log.info $ Log.msg @Text "Brig-federation: claiming remote prekey bundle"
+  federatorClient <- mkFederatorClient
+  let call = Proto.ValidatedFederatedRequest domain (mkClaimPrekeyBundle user)
+  res <- expectOk =<< callRemote federatorClient call
+  case Proto.responseStatus res of
+    200 -> case Aeson.eitherDecodeStrict (Proto.responseBody res) of
+      Left err -> throwE (FederationInvalidResponseBody (T.pack err))
+      Right x -> pure x
+    code -> throwE (FederationInvalidResponseCode code)
+
+claimMultiPrekeyBundle :: Domain -> UserClients -> FederationAppIO (UserClientMap (Maybe Prekey))
+claimMultiPrekeyBundle domain uc = do
+  Log.info $ Log.msg @Text "Brig-federation: claiming remote multi-user prekey bundle"
+  federatorClient <- mkFederatorClient
+  let call = Proto.ValidatedFederatedRequest domain (mkClaimMultiPrekeyBundle uc)
+  res <- expectOk =<< callRemote federatorClient call
+  case Proto.responseStatus res of
+    200 -> case Aeson.eitherDecodeStrict (Proto.responseBody res) of
+      Left err -> throwE (FederationInvalidResponseBody (T.pack err))
+      Right x -> pure x
     code -> throwE (FederationInvalidResponseCode code)
 
 -- FUTUREWORK(federation): reduce duplication between these functions
