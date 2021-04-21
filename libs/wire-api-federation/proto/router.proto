@@ -24,8 +24,8 @@ message InwardResponse {
 
 message OutwardResponse {
   oneof response {
-    bytes body = 1;
-    OutwardError err = 2;
+    OutwardError err = 1;
+    bytes body = 2;
   }
 }
 

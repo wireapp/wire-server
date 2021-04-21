@@ -84,15 +84,15 @@ data OutwardResponse
 instance ToSchema Router "OutwardResponse" OutwardResponse where
   toSchema r =
     let protoChoice = case r of
-          OutwardResponseBody res -> Z (FPrimitive res)
-          OutwardResponseError err -> S (Z (FSchematic (toSchema err)))
+          OutwardResponseError err -> Z (FSchematic (toSchema err))
+          OutwardResponseBody res -> S (Z (FPrimitive res))
      in TRecord (Field (FUnion protoChoice) :* Nil)
 
 instance FromSchema Router "OutwardResponse" OutwardResponse where
   fromSchema (TRecord (Field (FUnion protoChoice) :* Nil)) =
     case protoChoice of
-      Z (FPrimitive res) -> OutwardResponseBody res
-      S (Z (FSchematic err)) -> OutwardResponseError $ fromSchema err
+      Z (FSchematic err) -> OutwardResponseError $ fromSchema err
+      S (Z (FPrimitive res)) -> OutwardResponseBody res
       S (S x) -> case x of
 
 type OutwardErrorFieldMapping =
