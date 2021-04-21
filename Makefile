@@ -220,9 +220,14 @@ libzauth:
 #
 # Run this again after changes to libraries or dependencies.
 .PHONY: hie.yaml
-hie.yaml:
+hie.yaml: stack-dev.yaml
 	stack build implicit-hie
-	stack exec gen-hie > hie.yaml
+	stack exec gen-hie | nix-shell --command 'yq "{cradle: {stack: {stackYaml: \"./stack-dev.yaml\", components: .cradle.stack}}}" > hie.yaml'
+
+.PHONY: stack-dev.yaml
+stack-dev.yaml:
+	cp stack.yaml stack-dev.yaml
+	echo -e '\n\nghc-options:\n "$$locals": -O0 -Wall -Werror' >> stack-dev.yaml
 
 #####################################
 # Today we pretend to be CI and run integration tests on kubernetes
