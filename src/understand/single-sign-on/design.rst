@@ -15,3 +15,5 @@ See also
 --------
 
 :ref:`Trouble shooting & FAQ <trouble-shooting-faq>`
+
+A critique of XML security, and why you should use oauth instead: https://www.cs.auckland.ac.nz/~pgut001/pubs/xmlsec.txt
