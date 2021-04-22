@@ -62,6 +62,7 @@ tests _cl _at opts p b c g =
       test p "get /users/<localdomain>/:uid/clients - 200" $ testGetUserClientsQualified opts b,
       test p "get /users/:uid/prekeys - 200" $ testGetUserPrekeys b,
       test p "get /users/<localdomain>/:uid/prekeys - 200" $ testGetUserPrekeysQualified b opts,
+      test p "get /users/:domain/:uid/prekeys - 422" $ testGetUserPrekeysInvalidDomain b,
       test p "get /users/:uid/prekeys/:client - 200" $ testGetClientPrekey b,
       test p "get /users/<localdomain>/:uid/prekeys/:client - 200" $ testGetClientPrekeyQualified b opts,
       test p "post /users/prekeys" $ testMultiUserGetPrekeys b,
@@ -277,6 +278,12 @@ testGetUserPrekeysQualified brig opts = do
   get (brig . paths ["users", toByteString' domain, toByteString' uid, "prekeys"]) !!! do
     const 200 === statusCode
     const (Just $ PrekeyBundle uid [cpk]) === responseJsonMaybe
+
+testGetUserPrekeysInvalidDomain :: Brig -> Http ()
+testGetUserPrekeysInvalidDomain brig = do
+  [(uid, _c, _lpk, _)] <- generateClients 1 brig
+  get (brig . paths ["users", "invalid.example.com", toByteString' uid, "prekeys"]) !!! do
+    const 422 === statusCode
 
 testGetClientPrekey :: Brig -> Http ()
 testGetClientPrekey brig = do

@@ -1016,8 +1016,8 @@ data ListUsersQuery
 instance FromJSON ListUsersQuery where
   parseJSON =
     withObject "ListUsersQuery" $ \o -> do
-      mUids <- ListUsersByIds <$$> o .: "qualified_ids"
-      mHandles <- ListUsersByHandles <$$> o .: "qualified_handles"
+      mUids <- ListUsersByIds <$$> o .:? "qualified_ids"
+      mHandles <- ListUsersByHandles <$$> o .:? "qualified_handles"
       case (mUids, mHandles) of
         (Just uids, Nothing) -> pure uids
         (Nothing, Just handles) -> pure handles

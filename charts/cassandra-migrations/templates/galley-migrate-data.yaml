@@ -29,6 +29,7 @@ spec:
       containers:
         - name: galley-migrate-data
           image: "{{ .Values.images.galleyMigrateData }}:{{ .Values.images.tag }}"
+          imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
           args:
            - --cassandra-host
            - "{{ .Values.cassandra.host }}"

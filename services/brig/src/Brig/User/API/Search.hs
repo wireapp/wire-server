@@ -41,7 +41,7 @@ import Brig.User.Search.TeamUserSearch (RoleFilter (..), TeamUserSearchSortBy (.
 import qualified Brig.User.Search.TeamUserSearch as Q
 import Control.Lens (view)
 import Data.Domain (Domain)
-import Data.Handle (Handle (Handle))
+import Data.Handle (parseHandle)
 import Data.Id
 import Data.Predicate
 import Data.Range
@@ -199,9 +199,13 @@ searchLocally searcherId searchTerm maybeMaxResults = do
 
     exactHandleSearch :: TeamSearchInfo -> Handler (Maybe Contact)
     exactHandleSearch teamSearchInfo = do
+      let searchedHandleMaybe = parseHandle searchTerm
       exactHandleResult <-
-        contactFromProfile
-          <$$> HandleAPI.getLocalHandleInfo searcherId (Handle searchTerm)
+        case searchedHandleMaybe of
+          Nothing -> pure Nothing
+          Just searchedHandle ->
+            contactFromProfile
+              <$$> HandleAPI.getLocalHandleInfo searcherId searchedHandle
       pure $ case teamSearchInfo of
         Search.TeamOnly t ->
           if Just t == (contactTeam =<< exactHandleResult)

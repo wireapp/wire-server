@@ -94,3 +94,12 @@ outwardService response = Mu.singleService (Mu.method @"call" (callOutward respo
 
 callOutward :: OutwardResponse -> FederatedRequest -> ServerErrorIO OutwardResponse
 callOutward res _ = pure res
+
+generateClientPrekeys :: Brig -> [(Prekey, LastPrekey)] -> Http (Qualified UserId, [ClientPrekey])
+generateClientPrekeys brig prekeys = do
+  quser <- userQualifiedId <$> randomUser brig
+  let mkClient (pk, lpk) = defNewClient PermanentClientType [pk] lpk
+      nclients = map mkClient prekeys
+      mkClientPrekey (pk, _) c = ClientPrekey (clientId c) pk
+  clients <- traverse (responseJsonError <=< addClient brig (qUnqualified quser)) nclients
+  pure (quser, zipWith mkClientPrekey prekeys clients)

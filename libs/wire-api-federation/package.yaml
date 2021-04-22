@@ -15,6 +15,7 @@ dependencies:
 - QuickCheck >=2.13
 - aeson >=1.4
 - base >=4.6 && <5.0
+- bytestring
 - bytestring-conversion
 - either
 - http-types
