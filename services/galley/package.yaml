@@ -64,6 +64,7 @@ library:
   - servant-server
   - servant-swagger
   - servant-swagger-ui
+  - sop-core
   - split >=0.2
   - ssl-util >=0.1
   - stm >=2.4

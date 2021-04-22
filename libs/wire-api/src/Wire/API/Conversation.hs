@@ -271,6 +271,15 @@ data Access
   deriving stock (Eq, Ord, Bounded, Enum, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Access)
 
+instance ToSchema Access where
+  declareNamedSchema _ =
+    pure $
+      NamedSchema (Just "Access") $
+        mempty
+          & description ?~ "How users can join conversations "
+          & type_ ?~ SwaggerString
+          & enum_ ?~ ["private", "invite", "link", "code"]
+
 typeAccess :: Doc.DataType
 typeAccess = Doc.string . Doc.enum $ cs . encode <$> [(minBound :: Access) ..]
 
@@ -305,6 +314,15 @@ data AccessRole
     NonActivatedAccessRole
   deriving stock (Eq, Ord, Show, Generic)
   deriving (Arbitrary) via (GenericUniform AccessRole)
+
+instance ToSchema AccessRole where
+  declareNamedSchema _ =
+    pure $
+      NamedSchema (Just "AccessRole") $
+        mempty
+          & description ?~ "Which users can join conversations"
+          & type_ ?~ SwaggerString
+          & enum_ ?~ ["private", "team", "activated", "non_activated"]
 
 instance ToJSON AccessRole where
   toJSON PrivateAccessRole = String "private"
@@ -433,6 +451,7 @@ instance Arbitrary NewConvManaged where
 
 newtype NewConvUnmanaged = NewConvUnmanaged NewConv
   deriving stock (Eq, Show)
+  deriving newtype (ToSchema)
 
 -- | Used to describe a 'NewConvUnmanaged'.
 modelNewConversation :: Doc.Model
@@ -454,6 +473,46 @@ modelNewConversation = Doc.defineModel "NewConversation" $ do
   Doc.property "receipt_mode" (Doc.int32 (Doc.min 0)) $ do
     Doc.description "Conversation receipt mode"
     Doc.optional
+
+instance ToSchema NewConv where
+  declareNamedSchema _ =
+    pure $
+      NamedSchema (Just "NewConversation") $
+        mempty
+          & description ?~ "JSON object to create a new conversation"
+          & properties . at "users"
+            ?~ Inline
+              ( toSchema (Proxy @[UserId])
+                  & description ?~ "List of user IDs (excluding the requestor) to be part of this conversation"
+              )
+          & properties . at "name"
+            ?~ Inline
+              ( toSchema (Proxy @(Maybe Text))
+                  & description ?~ "The conversation name"
+              )
+          & properties . at "team"
+            ?~ Inline
+              ( toSchema (Proxy @(Maybe ConvTeamInfo))
+                  & description ?~ "Team information of this conversation"
+              )
+          & properties . at "access"
+            ?~ Inline
+              (toSchema (Proxy @(Set Access)))
+          & properties . at "access_role"
+            ?~ Inline
+              (toSchema (Proxy @(Maybe AccessRole)))
+          & properties . at "message_timer"
+            ?~ Inline
+              ( toSchema (Proxy @(Maybe Milliseconds))
+                  & minimum_ ?~ 0
+                  & description ?~ "Per-conversation message timer"
+              )
+          & properties . at "receipt_mode"
+            ?~ Inline
+              (toSchema (Proxy @(Maybe ReceiptMode)))
+          & properties . at "conversation_role"
+            ?~ Inline
+              (toSchema (Proxy @RoleName))
 
 instance ToJSON NewConvUnmanaged where
   toJSON (NewConvUnmanaged nc) = newConvToJSON nc
@@ -517,6 +576,23 @@ data ConvTeamInfo = ConvTeamInfo
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConvTeamInfo)
+
+instance ToSchema ConvTeamInfo where
+  declareNamedSchema _ =
+    pure $
+      NamedSchema (Just "TeamInfo") $
+        mempty
+          & description ?~ "Team information"
+          & properties . at "teamid"
+            ?~ Inline
+              ( toSchema (Proxy @TeamId)
+                  & description ?~ "Team ID"
+              )
+          & properties . at "managed"
+            ?~ Inline
+              ( toSchema (Proxy @Bool)
+                  & description ?~ "Whether this is a managed team conversation"
+              )
 
 modelTeamInfo :: Doc.Model
 modelTeamInfo = Doc.defineModel "TeamInfo" $ do

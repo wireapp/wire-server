@@ -27,6 +27,7 @@ module Galley.API.Query
   )
 where
 
+import Data.CommaSeparatedList
 import Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local), opaqueIdFromMappedOrLocal, partitionMappedOrLocalIds)
 import Data.Proxy
@@ -48,7 +49,6 @@ import Network.Wai.Utilities
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
 import qualified Wire.API.Provider.Bot as Public
-import Data.CommaSeparatedList
 
 getBotConversationH :: BotId ::: ConvId ::: JSON -> Galley Response
 getBotConversationH (zbot ::: zcnv ::: _) = do
@@ -102,8 +102,11 @@ getConversations user mids mstart msize = do
     size = fromMaybe (toRange (Proxy @32)) msize
 
     -- get ids and has_more flag
-    getIds (Just ids) = (False,) <$> Data.conversationIdsOf user
-      (fromCommaSeparatedList (fromRange ids))
+    getIds (Just ids) =
+      (False,)
+        <$> Data.conversationIdsOf
+          user
+          (fromCommaSeparatedList (fromRange ids))
     getIds Nothing = do
       r <- Data.conversationIdsFrom user mstart (rcast size)
       let hasMore = Data.resultSetType r == Data.ResultSetTruncated

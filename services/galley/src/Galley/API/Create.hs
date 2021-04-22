@@ -16,11 +16,12 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.Create
-  ( createGroupConversationH,
+  ( createGroupConversation,
     internalCreateManagedConversationH,
     createSelfConversationH,
     createOne2OneConversationH,
     createConnectConversationH,
+    ConversationResponses,
   )
 where
 
@@ -31,6 +32,7 @@ import Data.IdMapping (MappedOrLocalId (Local, Mapped), partitionMappedOrLocalId
 import Data.List.NonEmpty (nonEmpty)
 import Data.List1 (list1)
 import Data.Range
+import Data.SOP (I (..), NS (..))
 import qualified Data.Set as Set
 import Data.Time
 import qualified Data.UUID.Tagged as U
@@ -49,7 +51,22 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Utilities
+import Servant (WithStatus (..))
+import Servant.API (Union)
 import qualified Wire.API.Conversation as Public
+
+-- Servant helpers ------------------------------------------------------
+
+type ConversationResponses =
+  '[ WithStatus 200 Public.Conversation,
+     WithStatus 201 Public.Conversation
+   ]
+
+conversationResponse :: ConversationResponse -> Union ConversationResponses
+conversationResponse (ConversationCreated c) = Z (I (WithStatus c))
+conversationResponse (ConversationExisted c) = S (Z (I (WithStatus c)))
+
+-------------------------------------------------------------------------
 
 ----------------------------------------------------------------------------
 -- Group conversations
@@ -57,16 +74,16 @@ import qualified Wire.API.Conversation as Public
 -- | The public-facing endpoint for creating group conversations.
 --
 -- See Note [managed conversations].
-createGroupConversationH :: UserId ::: ConnId ::: JsonRequest Public.NewConvUnmanaged -> Galley Response
-createGroupConversationH (zusr ::: zcon ::: req) = do
-  newConv <- fromJsonBody req
-  handleConversationResponse <$> createGroupConversation zusr zcon newConv
-
-createGroupConversation :: UserId -> ConnId -> Public.NewConvUnmanaged -> Galley ConversationResponse
-createGroupConversation zusr zcon wrapped@(Public.NewConvUnmanaged body) = do
-  case newConvTeam body of
-    Nothing -> createRegularGroupConv zusr zcon wrapped
-    Just tinfo -> createTeamGroupConv zusr zcon tinfo body
+createGroupConversation ::
+  UserId ->
+  ConnId ->
+  Public.NewConvUnmanaged ->
+  Galley (Union ConversationResponses)
+createGroupConversation user conn wrapped@(Public.NewConvUnmanaged body) =
+  conversationResponse
+    <$> case newConvTeam body of
+      Nothing -> createRegularGroupConv user conn wrapped
+      Just tinfo -> createTeamGroupConv user conn tinfo body
 
 -- | An internal endpoint for creating managed group conversations. Will
 -- throw an error for everything else.

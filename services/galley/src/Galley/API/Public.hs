@@ -30,6 +30,7 @@ where
 import Control.Lens ((.~), (<>~), (?~))
 import Data.Aeson (FromJSON, ToJSON, encode)
 import Data.ByteString.Conversion (fromByteString, fromList, toByteString')
+import Data.CommaSeparatedList
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Id (ConnId, ConvId, OpaqueConvId, TeamId, UserId)
 import qualified Data.Predicate as P
@@ -91,7 +92,6 @@ import qualified Wire.API.Team.Permission as Public
 import qualified Wire.API.Team.SearchVisibility as Public
 import qualified Wire.API.User as Public (UserIdList, modelUserIdList)
 import Wire.Swagger (int32Between)
-import Data.CommaSeparatedList
 
 -- This type exists for the special 'HasSwagger' and 'HasServer' instances. It
 -- shows the "Authorization" header in the swagger docs, but expects the
@@ -212,7 +212,19 @@ data Api routes = Api
              "size"
              (Range 1 500 Int32)
         :> Get '[Servant.JSON] (Public.ConversationList Public.Conversation),
-
+    -- This endpoint can lead to the following events being sent:
+    -- - ConvCreate event to members
+    -- FUTUREWORK: errorResponse Error.notConnected
+    --             errorResponse Error.notATeamMember
+    --             errorResponse (Error.operationDenied Public.CreateConversation)
+    createGroupConversation ::
+      routes
+        :- Summary "Create a new conversation"
+        :> ZAuthServant
+        :> ZAuthServant' 'ZAuthServantConn
+        :> "conversations"
+        :> ReqBody '[Servant.JSON] Public.NewConvUnmanaged
+        :> UVerb 'POST '[Servant.JSON] Create.ConversationResponses,
     -- Team Conversations
 
     getTeamConversationRoles ::
@@ -282,6 +294,7 @@ servantSitemap =
         getConversationRoles = Query.getConversationRoles,
         getConversationIds = Query.getConversationIds,
         getConversations = Query.getConversations,
+        createGroupConversation = Create.createGroupConversation,
         getTeamConversationRoles = Teams.getTeamConversationRoles,
         getTeamConversations = Teams.getTeamConversations,
         getTeamConversation = Teams.getTeamConversation,
@@ -669,22 +682,6 @@ sitemap = do
       .&. accept "application" "json"
 
   -- Conversation API ---------------------------------------------------
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ConvCreate event to members
-  post "/conversations" (continue Create.createGroupConversationH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.NewConvUnmanaged
-  document "POST" "createGroupConversation" $ do
-    summary "Create a new conversation"
-    notes "On 201, the conversation ID is the `Location` header"
-    body (ref Public.modelNewConversation) $
-      description "JSON body"
-    response 201 "Conversation created" end
-    errorResponse Error.notConnected
-    errorResponse Error.notATeamMember
-    errorResponse (Error.operationDenied Public.CreateConversation)
 
   post
     "/conversations/self"
