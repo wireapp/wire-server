@@ -60,8 +60,8 @@ getUsersByIds :: [UserId] -> Handler [UserProfile]
 getUsersByIds uids =
   lift (API.lookupLocalProfiles Nothing uids)
 
-claimPrekey :: UserId -> ClientId -> Handler (Maybe ClientPrekey)
-claimPrekey user client = lift (Data.claimPrekey user client)
+claimPrekey :: (UserId, ClientId) -> Handler (Maybe ClientPrekey)
+claimPrekey (user, client) = lift (Data.claimPrekey user client)
 
 getPrekeyBundle :: UserId -> Handler PrekeyBundle
 getPrekeyBundle user = lift (API.claimLocalPrekeyBundle user)

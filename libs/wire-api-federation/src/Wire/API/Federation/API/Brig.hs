@@ -65,16 +65,15 @@ data Api routes = Api
         :- "federation"
         :> "users"
         :> "prekey"
-        :> QueryParam' '[Required, Strict] "uid" UserId
-        :> QueryParam' '[Required, Strict] "client" ClientId
-        :> Get '[JSON] (Maybe ClientPrekey),
+        :> ReqBody '[JSON] (UserId, ClientId)
+        :> Post '[JSON] (Maybe ClientPrekey),
     getPrekeyBundle ::
       routes
         :- "federation"
         :> "users"
         :> "prekey-bundle"
-        :> QueryParam' '[Required, Strict] "uid" UserId
-        :> Get '[JSON] PrekeyBundle,
+        :> ReqBody '[JSON] UserId
+        :> Post '[JSON] PrekeyBundle,
     getMultiPrekeyBundle ::
       routes
         :- "federation"
