@@ -30,7 +30,6 @@ module Spar.App
     getUser,
     insertUser,
     autoprovisionSamlUser,
-    autoprovisionSamlUserWithId,
     validateUrefEmailIfExists,
     validateEmailIfExists,
     errorPage,
@@ -42,7 +41,6 @@ import Brig.Types (ManagedBy (..), userTeam)
 import Brig.Types.Intra (AccountStatus (..), accountStatus, accountUser)
 import Cassandra
 import qualified Cassandra as Cas
-import Control.Exception (assert)
 import Control.Lens hiding ((.=))
 import qualified Control.Monad.Catch as Catch
 import Control.Monad.Except
@@ -53,7 +51,6 @@ import Data.Id
 import Data.String.Conversions
 import Data.Text.Ascii (encodeBase64, toText)
 import qualified Data.Text.Lazy as LT
-import qualified Data.UUID.V4 as UUID
 import Imports hiding (log)
 import qualified Network.HTTP.Types.Status as Http
 import qualified Network.Wai.Utilities.Error as Wai
@@ -219,25 +216,18 @@ getUser authId = do
 -- FUTUREWORK: once we support <https://github.com/wireapp/hscim scim>, brig will refuse to delete
 -- users that have an sso id, unless the request comes from spar.  then we can make users
 -- undeletable in the team admin page, and ask admins to go talk to their IdP system.
-createSamlUserWithId :: UserId -> SAML.UserRef -> ManagedBy -> Spar ()
-createSamlUserWithId buid suid managedBy = do
-  teamid <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (suid ^. uidTenant)
-  uname <- either (throwSpar . SparBadUserName . cs) pure $ Intra.mkUserName Nothing (AuthSAML suid)
-  buid' <- Intra.createBrigUserSAML (AuthSAML suid) buid teamid uname managedBy
-  assert (buid == buid') $ pure ()
-  insertUser suid buid
+createSamlUserWithId :: SAML.UserRef -> ManagedBy -> Spar UserId
+createSamlUserWithId uref managedBy = do
+  teamid <- (^. idpExtraInfo . wiTeam) <$> getIdPConfigByIssuer (uref ^. uidTenant)
+  uname <- either (throwSpar . SparBadUserName . cs) pure $ Intra.mkUserName Nothing (AuthSAML uref)
+  buid <- Intra.createBrigUserSAML uref teamid uname managedBy
+  insertUser uref buid
+  pure buid
 
 -- | If the team has no scim token, call 'createSamlUser'.  Otherwise, raise "invalid
 -- credentials".
 autoprovisionSamlUser :: SAML.UserRef -> ManagedBy -> Spar UserId
 autoprovisionSamlUser suid managedBy = do
-  buid <- Id <$> liftIO UUID.nextRandom
-  autoprovisionSamlUserWithId buid suid managedBy
-  pure buid
-
--- | Like 'autoprovisionSamlUser', but for an already existing 'UserId'.
-autoprovisionSamlUserWithId :: UserId -> SAML.UserRef -> ManagedBy -> Spar ()
-autoprovisionSamlUserWithId buid suid managedBy = do
   idp <- getIdPConfigByIssuer (suid ^. uidTenant)
   unless (isNothing $ idp ^. idpExtraInfo . wiReplacedBy) $ do
     throwSpar $ SparCannotCreateUsersOnReplacedIdP (cs . SAML.idPIdToST $ idp ^. idpId)
@@ -245,8 +235,9 @@ autoprovisionSamlUserWithId buid suid managedBy = do
   scimtoks <- wrapMonadClient $ Data.getScimTokens teamid
   if null scimtoks
     then do
-      createSamlUserWithId buid suid managedBy
+      buid <- createSamlUserWithId suid managedBy
       validateUrefEmailIfExists buid suid
+      pure buid
     else
       throwError . SAML.Forbidden $
         "bad credentials (note that your team uses SCIM, "

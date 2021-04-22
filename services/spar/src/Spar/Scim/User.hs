@@ -56,12 +56,11 @@ import Crypto.Hash (Digest, SHA256, hashlazy)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Text as Aeson
 import Data.Handle (Handle (Handle), parseHandle)
-import Data.Id (Id (..), TeamId, UserId, idToText)
+import Data.Id (TeamId, UserId, idToText)
 import Data.Json.Util (UTCTimeMillis, fromUTCTimeMillis, toUTCTimeMillis)
 import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
-import qualified Data.UUID.V4 as UUID
 import Imports
 import Network.URI (URI, parseURI)
 import qualified SAML2.WebSSO as SAML
@@ -454,18 +453,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser auth
       -- Generate a UserId will be used both for scim user in spar and for brig.
       buid <-
         lift $ do
-          buid <-
-            runAuthId
-              ( \_uref ->
-                  do
-                    uid <- liftIO $ Id <$> UUID.nextRandom
-                    Brig.createBrigUserSAML authId uid stiTeam name ManagedByScim
-              )
-              ( \scimDetails -> do
-                  Brig.createBrigUserNoSAML scimDetails name
-              )
-              authId
-
+          buid <- Brig.createBrigUserSCIM stiTeam authId name
           Log.debug (Log.msg $ "createValidScimUser: brig says " <> show buid)
 
           -- {If we crash now, we have an active user that cannot login. And can not

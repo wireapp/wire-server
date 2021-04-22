@@ -40,7 +40,7 @@ module Spar.Intra.Brig
     checkHandleAvailable,
     deleteBrigUser,
     createBrigUserSAML,
-    createBrigUserNoSAML,
+    createBrigUserSCIM,
     updateEmail,
     getZUsrCheckPerm,
     authorizeScimTokenManagement,
@@ -66,6 +66,7 @@ import Data.Handle (Handle (Handle, fromHandle))
 import Data.Id (Id (Id), TeamId, UserId)
 import Data.Misc (PlainTextPassword)
 import Data.String.Conversions
+import qualified Data.UUID.V4 as UUID
 import Galley.Types.Teams (HiddenPerm (CreateReadDeleteScimToken), IsPerm)
 import Imports
 import Network.HTTP.Types.Method
@@ -134,19 +135,59 @@ class (Log.MonadLogger m, MonadError SparError m) => MonadSparToBrig m where
   call :: (Request -> Request) -> m ResponseLBS
 
 createBrigUserSAML ::
-  (HasCallStack, MonadSparToBrig m) =>
-  AuthId ->
-  UserId ->
+  (HasCallStack, MonadSparToBrig m, MonadIO m) =>
+  SAML.UserRef ->
   TeamId ->
   -- | User name
   Name ->
   -- | Who should have control over the user
   ManagedBy ->
   m UserId
-createBrigUserSAML authId (Id buid) teamid uname managedBy = do
+createBrigUserSAML uref = createBrigUserSAMLInternal (AuthSAML uref)
+
+createBrigUserSCIM ::
+  (HasCallStack, MonadSparToBrig m, MonadIO m) =>
+  TeamId ->
+  AuthId ->
+  -- | Dislay name
+  Name ->
+  m UserId
+createBrigUserSCIM tid authId displayName =
+  case authId of
+    AuthSCIM scimDetails -> createBrigUserNoSAMLInternal scimDetails displayName
+    AuthSAML _ -> createBrigUserSAMLInternal authId tid displayName ManagedByScim
+    AuthBoth {} -> createBrigUserSAMLInternal authId tid displayName ManagedByScim
+  where
+    createBrigUserNoSAMLInternal ::
+      (HasCallStack, MonadSparToBrig m) =>
+      ScimDetails ->
+      Name ->
+      m UserId
+    createBrigUserNoSAMLInternal scimDetails@(ScimDetails (ExternalId _ _) (EmailWithSource _ _)) uname = do
+      let newUser = NewUserScimInvitation scimDetails uname Nothing
+      resp :: ResponseLBS <-
+        call $
+          method POST
+            . paths ["/i/teams", toByteString' tid, "invitations"]
+            . json newUser
+
+      if statusCode resp `elem` [200, 201]
+        then userId . accountUser <$> parseResponse @UserAccount "brig" resp
+        else rethrow "brig" resp
+
+createBrigUserSAMLInternal ::
+  (HasCallStack, MonadSparToBrig m, MonadIO m) =>
+  -- | This argument should either be AuthSAML or AuthBoth
+  AuthId ->
+  TeamId ->
+  Name ->
+  ManagedBy ->
+  m UserId
+createBrigUserSAMLInternal authId teamid displayName managedBy = do
+  Id buid <- liftIO $ Id <$> UUID.nextRandom
   let newUser :: NewUser
       newUser =
-        (emptyNewUser uname)
+        (emptyNewUser displayName)
           { newUserUUID = Just buid,
             newUserIdentity = Just (SparAuthIdentity authId Nothing Nothing),
             newUserOrigin = Just (NewUserOriginTeamUser . NewTeamMemberSSO $ teamid),
@@ -159,23 +200,6 @@ createBrigUserSAML authId (Id buid) teamid uname managedBy = do
         . json newUser
   if statusCode resp `elem` [200, 201]
     then userId . selfUser <$> parseResponse @SelfProfile "brig" resp
-    else rethrow "brig" resp
-
-createBrigUserNoSAML ::
-  (HasCallStack, MonadSparToBrig m) =>
-  ScimDetails ->
-  Name ->
-  m UserId
-createBrigUserNoSAML scimDetails@(ScimDetails (ExternalId tid _) (EmailWithSource _ _)) uname = do
-  let newUser = NewUserScimInvitation scimDetails uname Nothing
-  resp :: ResponseLBS <-
-    call $
-      method POST
-        . paths ["/i/teams", toByteString' tid, "invitations"]
-        . json newUser
-
-  if statusCode resp `elem` [200, 201]
-    then userId . accountUser <$> parseResponse @UserAccount "brig" resp
     else rethrow "brig" resp
 
 updateEmail :: (HasCallStack, MonadSparToBrig m) => UserId -> Email -> m ()
