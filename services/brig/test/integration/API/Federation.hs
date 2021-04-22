@@ -24,7 +24,6 @@ import Brig.Types
 import Control.Arrow (Arrow (first), (&&&))
 import Data.Aeson (encode)
 import qualified Data.Aeson as Aeson
-import Data.ByteString.Conversion (toByteString')
 import Data.Handle (Handle (..))
 import Data.Id (Id (..), UserId)
 import qualified Data.Map as Map
@@ -177,12 +176,11 @@ testClaimPrekeySuccess brig = do
   c <- responseJsonError =<< addClient brig uid new
   mkey <-
     responseJsonError
-      =<< get
+      =<< post
         ( brig
             . paths ["federation", "users", "prekey"]
-            . queryItem "uid" (toByteString' uid)
-            . queryItem "client" (toByteString' (clientId c))
-            . expect2xx
+            . body (RequestBodyLBS (Aeson.encode (uid, clientId c)))
+            . contentJson
         )
       <!! const 200 === statusCode
   liftIO $
@@ -196,11 +194,11 @@ testClaimPrekeyBundleSuccess brig = do
   let prekeys = take 5 (zip somePrekeys someLastPrekeys)
   (quid, clients) <- generateClientPrekeys brig prekeys
   let sortClients = sortBy (compare `on` prekeyClient)
-  get
+  post
     ( brig
         . paths ["federation", "users", "prekey-bundle"]
-        . queryItem "uid" (toByteString' (qUnqualified quid))
-        . expect2xx
+        . body (RequestBodyLBS (Aeson.encode (qUnqualified quid)))
+        . contentJson
     )
     !!! do
       const 200 === statusCode
