@@ -68,6 +68,10 @@ sitemap = do
     Doc.response 201 "Asset posted" Doc.end
 
   --- Resumable (multi-step) Upload
+  --
+  -- See also https://github.com/zinfra/cargohold/pull/24
+  -- and https://github.com/wearezeta/backend-api-docs/wiki/API-Assets#resumable-upload
+  -- for context and documentation.
 
   -- TODO: swagger doc
   options "/assets/v3/resumable" (continue resumableOptionsV3) $
