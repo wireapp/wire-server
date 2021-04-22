@@ -20,14 +20,13 @@ module Galley.API.Query
     getConversation,
     getConversationRoles,
     getConversationIds,
-    getConversationsH,
+    getConversations,
     getSelfH,
     internalGetMemberH,
     getConversationMetaH,
   )
 where
 
-import Data.ByteString.Conversion
 import Data.Id as Id
 import Data.IdMapping (MappedOrLocalId (Local), opaqueIdFromMappedOrLocal, partitionMappedOrLocalIds)
 import Data.Proxy
@@ -49,6 +48,7 @@ import Network.Wai.Utilities
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
 import qualified Wire.API.Provider.Bot as Public
+import Data.CommaSeparatedList
 
 getBotConversationH :: BotId ::: ConvId ::: JSON -> Galley Response
 getBotConversationH (zbot ::: zcnv ::: _) = do
@@ -88,21 +88,27 @@ getConversationIds zusr start msize = do
       ((\(i, _, _) -> i) <$> Data.resultSetResult ids)
       (Data.resultSetType ids == Data.ResultSetTruncated)
 
-getConversationsH :: UserId ::: Maybe (Either (Range 1 32 (List OpaqueConvId)) OpaqueConvId) ::: Range 1 500 Int32 ::: JSON -> Galley Response
-getConversationsH (zusr ::: range ::: size ::: _) =
-  json <$> getConversations zusr range size
-
-getConversations :: UserId -> Maybe (Either (Range 1 32 (List OpaqueConvId)) OpaqueConvId) -> Range 1 500 Int32 -> Galley (Public.ConversationList Public.Conversation)
-getConversations zusr range size =
-  withConvIds zusr range size $ \more ids -> do
-    let (localConvIds, _qualifiedConvIds) = partitionMappedOrLocalIds ids
-    -- FUTUREWORK(federation, #1273): fetch remote conversations from other backend
-    cs <-
-      Data.conversations localConvIds
-        >>= filterM removeDeleted
-        >>= filterM (pure . isMember (Local zusr) . Data.convMembers)
-    flip Public.ConversationList more <$> mapM (Mapping.conversationView (Local zusr)) cs
+getConversations :: UserId -> Maybe (Range 1 32 (CommaSeparatedList OpaqueConvId)) -> Maybe OpaqueConvId -> Maybe (Range 1 500 Int32) -> Galley (Public.ConversationList Public.Conversation)
+getConversations user mids mstart msize = do
+  (more, ids) <- getIds mids
+  let (localConvIds, _qualifiedConvIds) = partitionMappedOrLocalIds ids
+  -- FUTUREWORK(federation, #1273): fetch remote conversations from other backend
+  cs <-
+    Data.conversations localConvIds
+      >>= filterM removeDeleted
+      >>= filterM (pure . isMember (Local user) . Data.convMembers)
+  flip Public.ConversationList more <$> mapM (Mapping.conversationView (Local user)) cs
   where
+    size = fromMaybe (toRange (Proxy @32)) msize
+
+    -- get ids and has_more flag
+    getIds (Just ids) = (False,) <$> Data.conversationIdsOf user
+      (fromCommaSeparatedList (fromRange ids))
+    getIds Nothing = do
+      r <- Data.conversationIdsFrom user mstart (rcast size)
+      let hasMore = Data.resultSetType r == Data.ResultSetTruncated
+      pure (hasMore, Data.resultSetResult r)
+
     removeDeleted c
       | Data.isConvDeleted c = Data.deleteConversation (Data.convId c) >> pure False
       | otherwise = pure True
@@ -143,34 +149,3 @@ getConversationMeta cnv = do
     else do
       Data.deleteConversation cnv
       pure Nothing
-
------------------------------------------------------------------------------
--- Internal
-
--- | Invoke the given continuation 'k' with a list of conversation IDs
--- which are looked up based on:
---
--- * just limited by size
--- * an (exclusive) starting point (conversation ID) and size
--- * a list of conversation IDs
---
--- The last case returns those conversation IDs which have an associated
--- user. Additionally 'k' is passed in a 'hasMore' indication (which is
--- always false if the third lookup-case is used).
-withConvIds ::
-  UserId ->
-  Maybe (Either (Range 1 32 (List OpaqueConvId)) OpaqueConvId) ->
-  Range 1 500 Int32 ->
-  (Bool -> [MappedOrLocalId Id.C] -> Galley a) ->
-  Galley a
-withConvIds usr range size k = case range of
-  Nothing -> do
-    r <- Data.conversationIdsFrom usr Nothing (rcast size)
-    k (Data.resultSetType r == Data.ResultSetTruncated) (Data.resultSetResult r)
-  Just (Right c) -> do
-    r <- Data.conversationIdsFrom usr (Just c) (rcast size)
-    k (Data.resultSetType r == Data.ResultSetTruncated) (Data.resultSetResult r)
-  Just (Left cc) -> do
-    ids <- Data.conversationIdsOf usr cc
-    k False ids
-{-# INLINE withConvIds #-}

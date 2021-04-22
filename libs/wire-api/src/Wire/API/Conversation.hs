@@ -225,6 +225,9 @@ class ConversationListItem a where
 instance ConversationListItem OpaqueConvId where
   convListItemName _ = "conversation IDs"
 
+instance ConversationListItem Conversation where
+  convListItemName _ = "conversations"
+
 instance (ConversationListItem a, ToSchema a) => ToSchema (ConversationList a) where
   declareNamedSchema _ = do
     listSchema <- declareSchemaRef (Proxy @[a])

@@ -91,6 +91,7 @@ import qualified Wire.API.Team.Permission as Public
 import qualified Wire.API.Team.SearchVisibility as Public
 import qualified Wire.API.User as Public (UserIdList, modelUserIdList)
 import Wire.Swagger (int32Between)
+import Data.CommaSeparatedList
 
 -- This type exists for the special 'HasSwagger' and 'HasServer' instances. It
 -- shows the "Authorization" header in the swagger docs, but expects the
@@ -179,11 +180,39 @@ data Api routes = Api
         :> QueryParam'
              [ Optional,
                Strict,
-               Description "Max. number of IDs to return"
+               Description "Maximum number of IDs to return"
              ]
              "size"
              (Range 1 1000 Int32)
         :> Get '[Servant.JSON] (Public.ConversationList OpaqueConvId),
+    getConversations ::
+      routes
+        :- Summary "Get all conversations"
+        :> ZAuthServant
+        :> "conversations"
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description "Mutually exclusive with 'start' (at most 32 IDs per request)"
+             ]
+             "ids"
+             (Range 1 32 (CommaSeparatedList OpaqueConvId))
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description "Conversation ID to start from (exclusive)"
+             ]
+             "start"
+             OpaqueConvId
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description "Maximum number of conversations to return"
+             ]
+             "size"
+             (Range 1 500 Int32)
+        :> Get '[Servant.JSON] (Public.ConversationList Public.Conversation),
+
     -- Team Conversations
 
     getTeamConversationRoles ::
@@ -252,6 +281,7 @@ servantSitemap =
       { getConversation = Query.getConversation,
         getConversationRoles = Query.getConversationRoles,
         getConversationIds = Query.getConversationIds,
+        getConversations = Query.getConversations,
         getTeamConversationRoles = Teams.getTeamConversationRoles,
         getTeamConversations = Teams.getTeamConversations,
         getTeamConversation = Teams.getTeamConversation,
@@ -639,27 +669,6 @@ sitemap = do
       .&. accept "application" "json"
 
   -- Conversation API ---------------------------------------------------
-
-  get "/conversations" (continue Query.getConversationsH) $
-    zauthUserId
-      .&. opt (query "ids" ||| query "start")
-      .&. def (unsafeRange 100) (query "size")
-      .&. accept "application" "json"
-  document "GET" "conversations" $ do
-    summary "Get all conversations"
-    notes "At most 500 conversations are returned per request"
-    returns (ref Public.modelConversations)
-    parameter Query "ids" (array string') $ do
-      optional
-      description "Mutually exclusive with 'start'. At most 32 IDs per request."
-    parameter Query "start" string' $ do
-      optional
-      description
-        "Conversation ID to start from (exclusive). \
-        \Mutually exclusive with 'ids'."
-    parameter Query "size" int32' $ do
-      optional
-      description "Max. number of conversations to return"
 
   -- This endpoint can lead to the following events being sent:
   -- - ConvCreate event to members

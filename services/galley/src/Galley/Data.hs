@@ -547,9 +547,9 @@ conversationIdRowsForPagination usr start (fromRange -> max) =
 conversationIdsOf ::
   (MonadClient m, Log.MonadLogger m, MonadThrow m) =>
   UserId ->
-  Range 1 32 (List OpaqueConvId) ->
+  [OpaqueConvId] ->
   m [MappedOrLocalId Id.C]
-conversationIdsOf usr (fromList . fromRange -> cids) =
+conversationIdsOf usr cids =
   traverse toMappedOrLocalId
     =<< retry x1 (query Cql.selectUserConvsIn (params Quorum (usr, cids)))
 
