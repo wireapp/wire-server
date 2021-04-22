@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8aa3470f92c5ea954371a93f42b7564fcf446e389fed9bcc5907348de6aa133d
+-- hash: 6154e89ccbf579a18fe7219b7ab72d3773cecf7c85af47e17d070fe17198f761
 
 name:           brig
 version:        1.35.0
@@ -195,6 +195,7 @@ library
     , scientific >=0.3.4
     , scrypt >=0.5
     , servant
+    , servant-client
     , servant-server
     , servant-swagger
     , servant-swagger-ui

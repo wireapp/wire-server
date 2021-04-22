@@ -1,5 +1,5 @@
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures -Wno-unused-imports #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -62,8 +62,8 @@ callOutward req = do
 mkRemoteResponse :: Either RemoteError (GRpcReply InwardResponse) -> OutwardResponse
 mkRemoteResponse reply =
   case reply of
-    Right (GRpcOk (InwardResponseHTTPResponse res)) ->
-      OutwardResponseHTTPResponse res
+    Right (GRpcOk (InwardResponseBody res)) ->
+      OutwardResponseBody res
     Right (GRpcOk (InwardResponseErr err)) ->
       mkOutwardErr RemoteFederatorError "remote-federator-returned-error" err
     Right (GRpcTooMuchConcurrency _) ->

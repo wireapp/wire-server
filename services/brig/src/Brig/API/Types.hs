@@ -43,7 +43,7 @@ import Brig.User.Auth.Cookie (RetryAfter (..))
 import Data.Id
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
-import qualified Wire.API.Federation.GRPC.Types as Proto
+import Wire.API.Federation.Client (FederationClientError)
 
 -------------------------------------------------------------------------------
 -- Successes
@@ -186,13 +186,10 @@ data SendLoginCodeError
   | SendLoginPasswordExists
 
 data FederationError
-  = FederationRpcError Text
-  | FederationInvalidResponseCode Word32
-  | FederationInvalidResponseBody Text
-  | FederationRemoteError Proto.OutwardError
-  | FederationUnavailable Text
+  = FederationUnavailable Text
   | FederationNotImplemented
   | FederationNotConfigured
+  | FederationCallFailure FederationClientError
 
 data ClientError
   = ClientNotFound

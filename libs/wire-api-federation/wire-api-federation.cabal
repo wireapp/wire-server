@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 610ea7948aea14c7704758e7367424055bb20429fa669a775c2a38693c4972b6
+-- hash: d46afde4e3a98dd57f7e30f974dfcc9037f1c4f5ed087f29b3f69cd4dcf732bc
 
 name:           wire-api-federation
 version:        0.1.0
@@ -25,6 +25,7 @@ library
       Wire.API.Federation.API
       Wire.API.Federation.API.Brig
       Wire.API.Federation.API.Conversation
+      Wire.API.Federation.Client
       Wire.API.Federation.Event
       Wire.API.Federation.GRPC.Client
       Wire.API.Federation.GRPC.Helper
@@ -46,10 +47,13 @@ library
     , http-types
     , http2-client-grpc
     , imports
+    , mtl
     , mu-grpc-client
     , mu-protobuf
     , mu-schema
     , servant >=0.16
+    , servant-client
+    , servant-client-core
     , template-haskell
     , text >=0.11
     , time >=1.8
@@ -61,6 +65,7 @@ test-suite spec
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Test.Wire.API.Federation.API.BrigSpec
       Test.Wire.API.Federation.APISpec
       Test.Wire.API.Federation.GRPC.TypesSpec
       Paths_wire_api_federation
@@ -82,10 +87,13 @@ test-suite spec
     , http2-client-grpc
     , imports
     , metrics-wai
+    , mtl
     , mu-grpc-client
     , mu-protobuf
     , mu-schema
     , servant >=0.16
+    , servant-client
+    , servant-client-core
     , template-haskell
     , text >=0.11
     , time >=1.8

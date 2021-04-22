@@ -60,7 +60,7 @@ import Text.RawString.QQ (r)
 import UnliftIO (Concurrently (..), runConcurrently)
 import Util
 import Util.Options (Endpoint (Endpoint))
-import Wire.API.Federation.GRPC.Types (FederatedRequest, HTTPResponse (HTTPResponse), Outward, OutwardResponse (OutwardResponseError, OutwardResponseHTTPResponse))
+import Wire.API.Federation.GRPC.Types (FederatedRequest, Outward, OutwardResponse (..))
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 
 -- | Starts a grpc server which will return the 'OutwardResponse' passed to this

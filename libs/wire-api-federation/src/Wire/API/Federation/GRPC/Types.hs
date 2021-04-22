@@ -30,8 +30,7 @@ import Data.List.NonEmpty (NonEmpty ((:|)))
 import Imports
 import Mu.Quasi.GRpc (grpc)
 import Mu.Schema
-import qualified Network.HTTP.Types as HTTP
-import Test.QuickCheck (Arbitrary (..), elements)
+import Test.QuickCheck (Arbitrary (..))
 import Wire.API.Arbitrary (GenericUniform (..))
 import Wire.API.Federation.GRPC.Helper
 
@@ -51,16 +50,9 @@ data Component
   deriving (Typeable, Show, Eq, Generic, ToSchema Router "Component", FromSchema Router "Component")
   deriving (Arbitrary) via (GenericUniform Component)
 
-data HTTPResponse = HTTPResponse
-  { responseStatus :: Word32,
-    responseBody :: ByteString
-  }
-  deriving (Typeable, Show, Eq, Generic, ToSchema Router "HTTPResponse", FromSchema Router "HTTPResponse")
-  deriving (Arbitrary) via (GenericUniform HTTPResponse)
-
 -- | FUTUREWORK(federation): Make this a better ADT for the errors
 data InwardResponse
-  = InwardResponseHTTPResponse HTTPResponse
+  = InwardResponseBody ByteString
   | InwardResponseErr Text
   deriving (Typeable, Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform InwardResponse)
@@ -68,14 +60,14 @@ data InwardResponse
 instance ToSchema Router "InwardResponse" InwardResponse where
   toSchema r =
     let protoChoice = case r of
-          (InwardResponseHTTPResponse res) -> Z (FSchematic (toSchema res))
+          (InwardResponseBody res) -> Z (FPrimitive res)
           (InwardResponseErr e) -> S (Z (FPrimitive e))
      in TRecord (Field (FUnion protoChoice) :* Nil)
 
 instance FromSchema Router "InwardResponse" InwardResponse where
   fromSchema (TRecord (Field (FUnion protoChoice) :* Nil)) =
     case protoChoice of
-      Z (FSchematic res) -> InwardResponseHTTPResponse $ fromSchema res
+      Z (FPrimitive res) -> InwardResponseBody res
       S (Z (FPrimitive e)) -> InwardResponseErr e
       S (S x) ->
         -- I don't understand why this empty case is needed, but there is some
@@ -84,7 +76,7 @@ instance FromSchema Router "InwardResponse" InwardResponse where
         case x of
 
 data OutwardResponse
-  = OutwardResponseHTTPResponse HTTPResponse
+  = OutwardResponseBody ByteString
   | OutwardResponseError OutwardError
   deriving (Typeable, Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform OutwardResponse)
@@ -92,15 +84,15 @@ data OutwardResponse
 instance ToSchema Router "OutwardResponse" OutwardResponse where
   toSchema r =
     let protoChoice = case r of
-          OutwardResponseHTTPResponse res -> Z (FSchematic (toSchema res))
-          OutwardResponseError err -> S (Z (FSchematic (toSchema err)))
+          OutwardResponseError err -> Z (FSchematic (toSchema err))
+          OutwardResponseBody res -> S (Z (FPrimitive res))
      in TRecord (Field (FUnion protoChoice) :* Nil)
 
 instance FromSchema Router "OutwardResponse" OutwardResponse where
   fromSchema (TRecord (Field (FUnion protoChoice) :* Nil)) =
     case protoChoice of
-      Z (FSchematic res) -> OutwardResponseHTTPResponse $ fromSchema res
-      S (Z (FSchematic err)) -> OutwardResponseError $ fromSchema err
+      Z (FSchematic err) -> OutwardResponseError $ fromSchema err
+      S (Z (FPrimitive res)) -> OutwardResponseBody res
       S (S x) -> case x of
 
 type OutwardErrorFieldMapping =
@@ -139,76 +131,14 @@ data ErrorPayload = ErrorPayload
   deriving (Typeable, Show, Eq, Generic, ToSchema Router "ErrorPayload", FromSchema Router "ErrorPayload")
   deriving (Arbitrary) via (GenericUniform ErrorPayload)
 
--- | This type exists to avoid orphan instances of ToSchema and FromSchema
-newtype HTTPMethod = HTTPMethod {unwrapMethod :: HTTP.StdMethod}
-  deriving (Typeable, Eq, Show, Generic)
-
-instance Arbitrary HTTPMethod where
-  arbitrary =
-    HTTPMethod
-      <$> elements
-        [ HTTP.GET,
-          HTTP.POST,
-          HTTP.HEAD,
-          HTTP.PUT,
-          HTTP.DELETE,
-          HTTP.TRACE,
-          HTTP.CONNECT,
-          HTTP.OPTIONS,
-          HTTP.PATCH
-        ]
-
-instance ToSchema Router "Method" HTTPMethod where
-  toSchema (HTTPMethod m) =
-    let enumChoice = case m of
-          HTTP.GET -> Z Proxy
-          HTTP.POST -> S (Z Proxy)
-          HTTP.HEAD -> S (S (Z Proxy))
-          HTTP.PUT -> S (S (S (Z Proxy)))
-          HTTP.DELETE -> S (S (S (S (Z Proxy))))
-          HTTP.TRACE -> S (S (S (S (S (Z Proxy)))))
-          HTTP.CONNECT -> S (S (S (S (S (S (Z Proxy))))))
-          HTTP.OPTIONS -> S (S (S (S (S (S (S (Z Proxy)))))))
-          HTTP.PATCH -> S (S (S (S (S (S (S (S (Z Proxy))))))))
-     in TEnum enumChoice
-
-instance FromSchema Router "Method" HTTPMethod where
-  fromSchema (TEnum enumChoice) =
-    let m = case enumChoice of
-          Z _ -> HTTP.GET
-          S (Z _) -> HTTP.POST
-          S (S (Z _)) -> HTTP.HEAD
-          S (S (S (Z _))) -> HTTP.PUT
-          S (S (S (S (Z _)))) -> HTTP.DELETE
-          S (S (S (S (S (Z _))))) -> HTTP.TRACE
-          S (S (S (S (S (S (Z _)))))) -> HTTP.CONNECT
-          S (S (S (S (S (S (S (Z _))))))) -> HTTP.OPTIONS
-          S (S (S (S (S (S (S (S (Z _)))))))) -> HTTP.PATCH
-          S (S (S (S (S (S (S (S (S x)))))))) -> case x of
-     in HTTPMethod m
-
-data QueryParam = QueryParam
-  { key :: ByteString,
-    value :: ByteString
-  }
-  deriving (Typeable, Eq, Show, Generic, ToSchema Router "QueryParam", FromSchema Router "QueryParam")
-  deriving (Arbitrary) via (GenericUniform QueryParam)
-
 -- Does this make it hard to use in a type checked way?
 data Request = Request
   { component :: Component,
-    method :: HTTPMethod,
     path :: ByteString,
-    query :: [QueryParam],
     body :: ByteString
   }
   deriving (Typeable, Eq, Show, Generic, ToSchema Router "Request", FromSchema Router "Request")
   deriving (Arbitrary) via (GenericUniform Request)
-
-data RequestValidationError
-  = ComponentMissing
-  | MethodMissing
-  deriving (Typeable, Show, Eq)
 
 data FederatedRequest = FederatedRequest
   { domain :: Text,

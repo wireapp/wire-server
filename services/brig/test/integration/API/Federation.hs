@@ -24,7 +24,6 @@ import Brig.Types
 import Control.Arrow (Arrow (first), (&&&))
 import Data.Aeson (encode)
 import qualified Data.Aeson as Aeson
-import Data.ByteString.Conversion (toByteString')
 import Data.Handle (Handle (..))
 import Data.Id (Id (..), UserId)
 import qualified Data.Map as Map
@@ -36,8 +35,9 @@ import Imports
 import Test.QuickCheck (arbitrary)
 import Test.QuickCheck.Gen (generate)
 import Test.Tasty
-import Test.Tasty.HUnit (assertEqual)
+import Test.Tasty.HUnit (assertEqual, assertFailure)
 import Util
+import Wire.API.Federation.API.Brig (SearchRequest (SearchRequest))
 import Wire.API.Message (UserClientMap (..), UserClients (..))
 
 -- FUTUREWORK(federation): use servant-client in tests for the federation endpoints instead of the bilge requests.
@@ -48,8 +48,9 @@ tests m brig =
       "federation"
       [ test m "GET /federation/search/users : Found" (testSearchSuccess brig),
         test m "GET /federation/search/users : NotFound" (testSearchNotFound brig),
-        test m "GET /federation/users/by-handle : 200" (testGetUserByHandleSuccess brig),
-        test m "GET /federation/users/by-handle : 404" (testGetUserByHandleNotFound brig),
+        test m "GET /federation/search/users : Empty Input - NotFound" (testSearchNotFoundEmpty brig),
+        test m "GET /federation/users/by-handle : Found" (testGetUserByHandleSuccess brig),
+        test m "GET /federation/users/by-handle : NotFound" (testGetUserByHandleNotFound brig),
         test m "GET /federation/users/get-by-id : 200 all found" (testGetUsersByIdsSuccess brig),
         test m "GET /federation/users/get-by-id : 200 partially found" (testGetUsersByIdsPartial brig),
         test m "GET /federation/users/get-by-id : 200 none found" (testGetUsersByIdsNoneFound brig),
@@ -74,14 +75,21 @@ testSearchSuccess brig = do
   put (brig . path "/self" . contentJson . zUser (userId identityThief) . zConn "c" . body update) !!! const 200 === statusCode
   refreshIndex brig
 
-  searchResult <- fedSearch brig handle
+  searchResult <- fedSearch brig (fromHandle handle)
   liftIO $ do
     let contacts = contactQualifiedId <$> searchResults searchResult
     assertEqual "should return only the first user id but not the identityThief" [quid] contacts
 
 testSearchNotFound :: Brig -> Http ()
 testSearchNotFound brig = do
-  searchResult <- fedSearch brig (Handle "this-handle-should-not-exist")
+  searchResult <- fedSearch brig "this-handle-should-not-exist"
+  liftIO $ do
+    let contacts = searchResults searchResult
+    assertEqual "should return empty array of users" [] contacts
+
+testSearchNotFoundEmpty :: Brig -> Http ()
+testSearchNotFoundEmpty brig = do
+  searchResult <- fedSearch brig ""
   liftIO $ do
     let contacts = searchResults searchResult
     assertEqual "should return empty array of users" [] contacts
@@ -90,23 +98,19 @@ testGetUserByHandleSuccess :: Brig -> Http ()
 testGetUserByHandleSuccess brig = do
   (handle, user) <- createUserWithHandle brig
   let quid = userQualifiedId user
-  profile <-
-    responseJsonError
-      =<< get
-        ( brig
-            . paths ["federation", "users", "by-handle"]
-            . queryItem "handle" (toByteString' handle)
-            . expect2xx
-        )
+  maybeProfile <- fedGetUserByHandle brig handle
   liftIO $ do
-    assertEqual "should return correct user Id" quid (profileQualifiedId profile)
-    assertEqual "should not have email address" Nothing (profileEmail profile)
+    case maybeProfile of
+      Nothing -> assertFailure "Expected to find profile, found Nothing"
+      Just profile -> do
+        assertEqual "should return correct user Id" quid (profileQualifiedId profile)
+        assertEqual "should not have email address" Nothing (profileEmail profile)
 
 testGetUserByHandleNotFound :: Brig -> Http ()
 testGetUserByHandleNotFound brig = do
   hdl <- randomHandle
-  get (brig . paths ["federation", "users", "by-handle"] . queryItem "handle" (toByteString' hdl))
-    !!! const 404 === statusCode
+  maybeProfile <- fedGetUserByHandle brig (Handle hdl)
+  liftIO $ assertEqual "should not return any UserProfile" Nothing maybeProfile
 
 testGetUsersByIdsSuccess :: Brig -> Http ()
 testGetUsersByIdsSuccess brig = do
@@ -172,12 +176,11 @@ testClaimPrekeySuccess brig = do
   c <- responseJsonError =<< addClient brig uid new
   mkey <-
     responseJsonError
-      =<< get
+      =<< post
         ( brig
             . paths ["federation", "users", "prekey"]
-            . queryItem "uid" (toByteString' uid)
-            . queryItem "client" (toByteString' (clientId c))
-            . expect2xx
+            . body (RequestBodyLBS (Aeson.encode (uid, clientId c)))
+            . contentJson
         )
       <!! const 200 === statusCode
   liftIO $
@@ -191,11 +194,11 @@ testClaimPrekeyBundleSuccess brig = do
   let prekeys = take 5 (zip somePrekeys someLastPrekeys)
   (quid, clients) <- generateClientPrekeys brig prekeys
   let sortClients = sortBy (compare `on` prekeyClient)
-  get
+  post
     ( brig
         . paths ["federation", "users", "prekey-bundle"]
-        . queryItem "uid" (toByteString' (qUnqualified quid))
-        . expect2xx
+        . body (RequestBodyLBS (Aeson.encode (qUnqualified quid)))
+        . contentJson
     )
     !!! do
       const 200 === statusCode
@@ -230,12 +233,24 @@ testClaimMultiPrekeyBundleSuccess brig = do
 
 -- TODO replace by servant client code
 --
-fedSearch :: Brig -> Handle -> Http (SearchResult Contact)
-fedSearch brig handle =
+fedSearch :: Brig -> Text -> Http (SearchResult Contact)
+fedSearch brig term =
   responseJsonError
-    =<< get
+    =<< post
       ( brig
           . paths ["federation", "search", "users"]
-          . queryItem "q" (toByteString' handle)
+          . body (RequestBodyLBS (Aeson.encode $ SearchRequest term))
+          . contentJson
+          . expect2xx
+      )
+
+fedGetUserByHandle :: Brig -> Handle -> Http (Maybe UserProfile)
+fedGetUserByHandle brig handle =
+  responseJsonError
+    =<< post
+      ( brig
+          . paths ["federation", "users", "by-handle"]
+          . body (RequestBodyLBS (Aeson.encode handle))
+          . contentJson
           . expect2xx
       )

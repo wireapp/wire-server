@@ -35,19 +35,34 @@ genMock ''Brig
 tests :: TestTree
 tests =
   testGroup "ExternalServer" $
-    [ requestBrigSuccess
+    [ requestBrigSuccess,
+      requestBrigFailure
     ]
 
 requestBrigSuccess :: TestTree
 requestBrigSuccess =
-  testCase "should translate response from brig to 'InwardResponse'" $
+  testCase "should translate response from brig to 'InwardResponseBody' when response has status 200" $
     runM . evalMock @Brig @IO $ do
-      mockBrigCallReturns @IO (\_ _ _ _ -> pure (HTTP.status200, Just "response body"))
-      let request = Request Brig (HTTPMethod HTTP.GET) "/users" [QueryParam "handle" "foo"] mempty
+      mockBrigCallReturns @IO (\_ _ -> pure (HTTP.ok200, Just "response body"))
+      let request = Request Brig "/users" "\"foo\""
 
       res <- mock @Brig @IO $ callLocal request
 
       actualCalls <- mockBrigCallCalls @IO
-      let expectedCall = (HTTP.GET, "/users", [QueryParam "handle" "foo"], mempty)
+      let expectedCall = ("/users", "\"foo\"")
       embed $ assertEqual "one call to brig should be made" [expectedCall] actualCalls
-      embed $ assertEqual "response should be success with correct body" (InwardResponseHTTPResponse (HTTPResponse 200 "response body")) res
+      embed $ assertEqual "response should be success with correct body" (InwardResponseBody "response body") res
+
+requestBrigFailure :: TestTree
+requestBrigFailure =
+  testCase "should translate response from brig to 'InwardResponseBody' when response has status 404" $
+    runM . evalMock @Brig @IO $ do
+      mockBrigCallReturns @IO (\_ _ -> pure (HTTP.notFound404, Just "response body"))
+      let request = Request Brig "/users" "\"foo\""
+
+      res <- mock @Brig @IO $ callLocal request
+
+      actualCalls <- mockBrigCallCalls @IO
+      let expectedCall = ("/users", "\"foo\"")
+      embed $ assertEqual "one call to brig should be made" [expectedCall] actualCalls
+      embed $ assertEqual "response should be success with correct body" (InwardResponseErr "Invalid HTTP status from component: 404 Not Found") res

@@ -92,6 +92,7 @@ library:
   - scientific >=0.3.4
   - scrypt >=0.5
   - servant
+  - servant-client
   - servant-server
   - servant-swagger
   - servant-swagger-ui
