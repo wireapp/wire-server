@@ -233,14 +233,49 @@ testCreateUserWithPass = do
     const (Just "Setting user passwords is not supported for security reasons.") =~= responseBody
 
 data IdentityTestConfig
-  = EmailExternalId
+  = RandomExternalId
+  | EmailExternalId
   | RandomExternalIdAndEmail -- the `unspecified` `NameID` case.
   | EmailExternalIdAndEmail -- (two different emails, which is a bit odd, but we want to make sure doing that is no way for a scim peer to break wire.)
   deriving (Eq)
 
+data WithIdp
+  = WithIdp
+  | WithoutIdp
+
+-- in case of PUT/PATCH without updates (idempotency)
+-- then check if validation is pending and send another one
+--
+-- [1] externalId updates immediately. check spar.user, spar.scim_external, brig.user.sso_id
+-- [2] send validation email, returns unvalidated email via scim, returns no email after validation expired
+testUpdatedTODO :: WithIdp -> IdentityTestConfig -> IdentityTestConfig -> TestSpar ()
+-- created with RandomExternalId
+testUpdatedTODO WithoutIdp RandomExternalId _ = error "TODO: 400"
+testUpdatedTODO WithIdp RandomExternalId RandomExternalId = error "TODO: [1]"
+testUpdatedTODO WithIdp RandomExternalId EmailExternalId = error "TODO: 400 with: please provide email via emails attribute"
+testUpdatedTODO WithIdp RandomExternalId RandomExternalIdAndEmail = error "TODO: [1][2]"
+testUpdatedTODO WithIdp RandomExternalId EmailExternalIdAndEmail = error "TODO: [1][2]"
+-- created with EmailExternalId
+testUpdatedTODO WithIdp EmailExternalId RandomExternalId = error "TODO: [1]"
+testUpdatedTODO WithoutIdp EmailExternalId RandomExternalId = error "TODO: 400 with: please provide email via emails attribute"
+testUpdatedTODO withIpd EmailExternalId EmailExternalId = error "TODO: 400 with: please provide email via emails attribute"
+testUpdatedTODO withIpd EmailExternalId RandomExternalIdAndEmail = error "TODO: [1][2]"
+testUpdatedTODO withIpd EmailExternalId EmailExternalIdAndEmail = error "TODO: "
+-- created with RandomExternalIdAndEmail
+testUpdatedTODO withIpd RandomExternalIdAndEmail RandomExternalId = undefined
+testUpdatedTODO withIpd RandomExternalIdAndEmail EmailExternalId = error "TODO: 400 with: please provide email via emails attribute"
+testUpdatedTODO withIpd RandomExternalIdAndEmail RandomExternalIdAndEmail = undefined
+testUpdatedTODO withIpd RandomExternalIdAndEmail EmailExternalIdAndEmail = undefined
+-- created with EmailExternalIdAndEmail
+testUpdatedTODO withIpd EmailExternalIdAndEmail RandomExternalId = undefined
+testUpdatedTODO withIpd EmailExternalIdAndEmail EmailExternalId = error "TODO: 400 with: please provide email via emails attribute"
+testUpdatedTODO withIpd EmailExternalIdAndEmail RandomExternalIdAndEmail = undefined
+testUpdatedTODO withIpd EmailExternalIdAndEmail EmailExternalIdAndEmail = undefined
+
 -- | FUTUREWORK(fisx): this partially duplicates 'randomScimUser', 'randomScimUserWithSubjectAndRichInfo', consolidate that!
 createTestIdentity :: IdentityTestConfig -> TestSpar (Scim.User.User SparTag, Text, Email)
 createTestIdentity = \case
+  RandomExternalId -> error "TODO"
   EmailExternalId -> do
     email <- randomEmail
     let externalId = fromEmail email
