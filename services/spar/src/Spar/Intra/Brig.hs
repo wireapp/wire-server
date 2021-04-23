@@ -156,7 +156,7 @@ createBrigUserSCIM tid authId displayName =
   case authId of
     AuthSCIM scimDetails -> createBrigUserNoSAMLInternal scimDetails displayName
     AuthSAML _ -> createBrigUserSAMLInternal authId tid displayName ManagedByScim
-    AuthBoth {} -> createBrigUserSAMLInternal authId tid displayName ManagedByScim
+    AuthBoth _ _ _ -> createBrigUserSAMLInternal authId tid displayName ManagedByScim
   where
     createBrigUserNoSAMLInternal ::
       (HasCallStack, MonadSparToBrig m) =>
