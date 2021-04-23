@@ -166,7 +166,7 @@ getContactList uid = do
 
 -- | Calls 'Brig.API.Internal.getRichInfoMultiH'
 getRichInfoMultiUser :: [UserId] -> Galley [Maybe RichInfo]
-getRichInfoMultiUser uids = do
+getRichInfoMultiUser = chunkify $ \uids -> do
   (h, p) <- brigReq
   resp <-
     call "brig" $
