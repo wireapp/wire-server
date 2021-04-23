@@ -232,7 +232,18 @@ data Api routes = Api
         :> "conversations"
         :> "self"
         :> UVerb 'POST '[Servant.JSON] Create.ConversationResponses,
-
+    -- This endpoint can lead to the following events being sent:
+    -- - ConvCreate event to members
+    -- TODO: add note: "On 201, the conversation ID is the `Location` header"
+    createOne2OneConversation ::
+      routes
+        :- Summary "Create a 1:1 conversation"
+        :> ZAuthServant
+        :> ZAuthServant' 'ZAuthServantConn
+        :> "conversations"
+        :> "one2one"
+        :> ReqBody '[Servant.JSON] Public.NewConvUnmanaged
+        :> UVerb 'POST '[Servant.JSON] Create.ConversationResponses,
     -- Team Conversations
 
     getTeamConversationRoles ::
@@ -304,6 +315,7 @@ servantSitemap =
         getConversations = Query.getConversations,
         createGroupConversation = Create.createGroupConversation,
         createSelfConversation = Create.createSelfConversation,
+        createOne2OneConversation = Create.createOne2OneConversation,
         getTeamConversationRoles = Teams.getTeamConversationRoles,
         getTeamConversations = Teams.getTeamConversations,
         getTeamConversation = Teams.getTeamConversation,
@@ -691,20 +703,6 @@ sitemap = do
       .&. accept "application" "json"
 
   -- Conversation API ---------------------------------------------------
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ConvCreate event to members
-  post "/conversations/one2one" (continue Create.createOne2OneConversationH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. jsonRequest @Public.NewConvUnmanaged
-  document "POST" "createOne2OneConversation" $ do
-    summary "Create a 1:1-conversation"
-    notes "On 201, the conversation ID is the `Location` header"
-    body (ref Public.modelNewConversation) $
-      description "JSON body"
-    response 201 "Conversation created" end
-    errorResponse Error.noManagedTeamConv
 
   -- This endpoint can lead to the following events being sent:
   -- - ConvRename event to members

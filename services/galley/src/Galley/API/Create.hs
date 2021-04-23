@@ -19,7 +19,7 @@ module Galley.API.Create
   ( createGroupConversation,
     internalCreateManagedConversationH,
     createSelfConversation,
-    createOne2OneConversationH,
+    createOne2OneConversation,
     createConnectConversationH,
     ConversationResponses,
   )
@@ -177,20 +177,16 @@ createTeamGroupConv zusr zcon tinfo body = do
 -- Other kinds of conversations
 
 createSelfConversation :: UserId -> Galley (Union ConversationResponses)
-createSelfConversation zusr = conversationResponse <$> do
-  c <- Data.conversation (Id . toUUID $ zusr)
-  maybe create (conversationExisted zusr) c
+createSelfConversation zusr =
+  conversationResponse <$> do
+    c <- Data.conversation (Id . toUUID $ zusr)
+    maybe create (conversationExisted zusr) c
   where
     create = do
       c <- Data.createSelfConversation zusr Nothing
       conversationCreated zusr c
 
-createOne2OneConversationH :: UserId ::: ConnId ::: JsonRequest Public.NewConvUnmanaged -> Galley Response
-createOne2OneConversationH (zusr ::: zcon ::: req) = do
-  newConv <- fromJsonBody req
-  handleConversationResponse <$> createOne2OneConversation zusr zcon newConv
-
-createOne2OneConversation :: UserId -> ConnId -> NewConvUnmanaged -> Galley ConversationResponse
+createOne2OneConversation :: UserId -> ConnId -> NewConvUnmanaged -> Galley (Union ConversationResponses)
 createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
   other <- head . fromRange <$> (rangeChecked (newConvUsers j) :: Galley (Range 1 1 [OpaqueUserId]))
   (x, y) <- toUUIDs (makeIdOpaque zusr) other
@@ -208,7 +204,8 @@ createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
       ensureConnected zusr [otherUserId]
   n <- rangeCheckedMaybe (newConvName j)
   c <- Data.conversation (Data.one2OneConvId x y)
-  maybe (create x y n $ newConvTeam j) (conversationExisted zusr) c
+  resp <- maybe (create x y n $ newConvTeam j) (conversationExisted zusr) c
+  pure (conversationResponse resp)
   where
     verifyMembership tid u = do
       membership <- Data.teamMember tid u
