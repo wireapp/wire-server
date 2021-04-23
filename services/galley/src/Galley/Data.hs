@@ -985,6 +985,6 @@ withTeamMembersWithChunks tid action = do
     handleMembers mems = do
       tMembers <- mapM newTeamMember' (result mems)
       action tMembers
-      unless (null $ result mems) $
+      when (hasMore mems) $
         handleMembers =<< liftClient (nextPage mems)
 {-# INLINE withTeamMembersWithChunks #-}
