@@ -79,10 +79,13 @@ import Wire.API.User.Identity.Email
 -- It could *almost* be local to the spar service, but it needs to be stored in brig (which
 -- brig could do without knowing the type), and some clients (team-settings to begin with)
 -- need it to display information and allow more filter criteria.
+
+-- | FUTUREWORK: Merge with ManagedBy
 data AuthId
   = AuthSAML SAML.UserRef
   | AuthSCIM ScimDetails
-  | AuthBoth TeamId SAML.UserRef (Maybe EmailWithSource)
+  | -- | If ValidateSAMLEmails is disabled the Maybe EmailWithSource field is Nothing
+    AuthBoth TeamId SAML.UserRef (Maybe EmailWithSource)
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform AuthId)
 
@@ -106,7 +109,10 @@ instance FromJSON ExternalId
 instance ToJSON ExternalId
 
 data EmailWithSource = EmailWithSource
-  { ewsEmail :: Email,
+  { -- | If the user has pending email validation this is the unvalidated email.
+    -- Otherwise this is the validated email of the user.
+    -- The email in this field doesn't need to match the email encoded in ExternalId or UserRef
+    ewsEmail :: Email,
     ewsEmailSource :: EmailSource
   }
   deriving (Eq, Show, Generic)
