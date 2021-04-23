@@ -225,6 +225,14 @@ data Api routes = Api
         :> "conversations"
         :> ReqBody '[Servant.JSON] Public.NewConvUnmanaged
         :> UVerb 'POST '[Servant.JSON] Create.ConversationResponses,
+    createSelfConversation ::
+      routes
+        :- Summary "Create a self-conversation"
+        :> ZAuthServant
+        :> "conversations"
+        :> "self"
+        :> UVerb 'POST '[Servant.JSON] Create.ConversationResponses,
+
     -- Team Conversations
 
     getTeamConversationRoles ::
@@ -295,6 +303,7 @@ servantSitemap =
         getConversationIds = Query.getConversationIds,
         getConversations = Query.getConversations,
         createGroupConversation = Create.createGroupConversation,
+        createSelfConversation = Create.createSelfConversation,
         getTeamConversationRoles = Teams.getTeamConversationRoles,
         getTeamConversations = Teams.getTeamConversations,
         getTeamConversation = Teams.getTeamConversation,
@@ -682,15 +691,6 @@ sitemap = do
       .&. accept "application" "json"
 
   -- Conversation API ---------------------------------------------------
-
-  post
-    "/conversations/self"
-    (continue Create.createSelfConversationH)
-    zauthUserId
-  document "POST" "createSelfConversation" $ do
-    summary "Create a self-conversation"
-    notes "On 201, the conversation ID is the `Location` header"
-    response 201 "Conversation created" end
 
   -- This endpoint can lead to the following events being sent:
   -- - ConvCreate event to members

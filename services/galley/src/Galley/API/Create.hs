@@ -18,7 +18,7 @@
 module Galley.API.Create
   ( createGroupConversation,
     internalCreateManagedConversationH,
-    createSelfConversationH,
+    createSelfConversation,
     createOne2OneConversationH,
     createConnectConversationH,
     ConversationResponses,
@@ -176,12 +176,8 @@ createTeamGroupConv zusr zcon tinfo body = do
 ----------------------------------------------------------------------------
 -- Other kinds of conversations
 
-createSelfConversationH :: UserId -> Galley Response
-createSelfConversationH zusr = do
-  handleConversationResponse <$> createSelfConversation zusr
-
-createSelfConversation :: UserId -> Galley ConversationResponse
-createSelfConversation zusr = do
+createSelfConversation :: UserId -> Galley (Union ConversationResponses)
+createSelfConversation zusr = conversationResponse <$> do
   c <- Data.conversation (Id . toUUID $ zusr)
   maybe create (conversationExisted zusr) c
   where
