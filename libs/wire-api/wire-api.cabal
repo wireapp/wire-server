@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b0062afade680bb271c22de71f4e64c9e2fba01a00b1319536910a5fc866e8d6
+-- hash: e9b2e2a54661df850103ddb5576f601d2ea6676c1a178a1bfa239ee937f60bdf
 
 name:           wire-api
 version:        0.1.0
@@ -19,6 +19,7 @@ build-type:     Simple
 
 library
   exposed-modules:
+      Data.Swagger.Typed
       Wire.API.Arbitrary
       Wire.API.Asset
       Wire.API.Asset.V3

@@ -67,6 +67,7 @@ module Wire.API.Conversation
   )
 where
 
+import Control.Lens ((?~))
 import Data.Aeson
 import Data.Aeson.Types (Parser)
 import Data.Id
@@ -74,7 +75,9 @@ import Data.Json.Util
 import Data.List1
 import Data.Misc
 import Data.String.Conversions (cs)
+import Data.Swagger
 import qualified Data.Swagger.Build.Api as Doc
+import qualified Data.Swagger.Typed as TS
 import Imports
 import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
@@ -498,6 +501,13 @@ newtype ConversationRename = ConversationRename
   }
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
+  deriving (ToSchema) via TS.TypedSchema ConversationRename
+
+instance TS.ToTypedSchema ConversationRename where
+  toTypedSchema _ =
+    TS.named "ConversationUpdateName" $
+      ConversationRename
+        <$> TS.field "name" (description ?~ "The new conversation name") TS.untypedSchema
 
 modelConversationUpdateName :: Doc.Model
 modelConversationUpdateName = Doc.defineModel "ConversationUpdateName" $ do
