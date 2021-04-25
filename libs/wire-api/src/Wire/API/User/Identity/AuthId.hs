@@ -79,8 +79,11 @@ import Wire.API.User.Identity.Email
 -- It could *almost* be local to the spar service, but it needs to be stored in brig (which
 -- brig could do without knowing the type), and some clients (team-settings to begin with)
 -- need it to display information and allow more filter criteria.
-
--- | FUTUREWORK: Merge with ManagedBy
+--
+-- FUTUREWORK: Merge with ManagedBy
+--
+-- FUTUREWORK: think about in which cases email can be different in uref and emailwithsource.
+-- (do we allow it for other cases than expired email validation?  should we?)
 data AuthId
   = AuthSAML SAML.UserRef
   | AuthSCIM ScimDetails
