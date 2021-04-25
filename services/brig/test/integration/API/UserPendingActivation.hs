@@ -84,7 +84,7 @@ testCleanExpiredPendingInvitations opts db brig galley spar = do
   tok <- createScimToken spar owner
   uid <- do
     email <- randomEmail
-    scimUser <- lift (randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email})
+    scimUser <- lift (randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email, Scim.User.emails = []})
     (scimStoredUser, _inv, _inviteeCode) <- createUserStep spar brig tok tid scimUser email
     pure $ (Scim.id . Scim.thing) scimStoredUser
   assertUserExist "user should exist" db uid True
@@ -96,7 +96,7 @@ testRegisteredUsersNotCleaned opts db brig galley spar = do
   (owner, tid) <- createUserWithTeamDisableSSO brig galley
   tok <- createScimToken spar owner
   email <- randomEmail
-  scimUser <- lift (randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email})
+  scimUser <- lift (randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email, Scim.User.emails = []})
   (scimStoredUser, _inv, inviteeCode) <- createUserStep spar brig tok tid scimUser email
   let uid = (Scim.id . Scim.thing) scimStoredUser
   assertUserExist "user should exist" db uid True
@@ -196,26 +196,32 @@ randomScimUserWithSubjectAndRichInfo ::
   m (Scim.User.User SparTag, SAML.UnqualifiedNameID)
 randomScimUserWithSubjectAndRichInfo richInfo = do
   suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))
-  emails <- getRandomR (0, 3) >>= \n -> replicateM n randomScimEmail
-  phones <- getRandomR (0, 3) >>= \n -> replicateM n randomScimPhone
+  phones <- getRandomR (1, 3) >>= \n -> replicateM n randomScimPhone
   -- Related, but non-trivial to re-use here: 'nextSubject'
-  (externalId, subj) <-
-    getRandomR (0, 1 :: Int) <&> \case
-      0 ->
-        ( "scimuser_extid_" <> suffix <> "@example.com",
-          either (error . show) id $
-            SAML.mkUNameIDEmail ("scimuser_extid_" <> suffix <> "@example.com")
-        )
-      1 ->
-        ( "scimuser_extid_" <> suffix,
-          SAML.mkUNameIDUnspecified ("scimuser_extid_" <> suffix)
-        )
+
+  -- FUTUREWORK: Add case where both externalId is an email AND mbEmail is Just
+  (externalId, subj, mbEmail) <-
+    getRandomR (0, 1 :: Int) >>= \case
+      0 -> do
+        pure
+          ( "scimuser_extid_" <> suffix <> "@example.com",
+            either (error . show) id $
+              SAML.mkUNameIDEmail ("scimuser_extid_" <> suffix <> "@example.com"),
+            Nothing
+          )
+      1 -> do
+        eml <- randomScimEmail
+        pure
+          ( "scimuser_extid_" <> suffix,
+            SAML.mkUNameIDUnspecified ("scimuser_extid_" <> suffix),
+            Just eml
+          )
       _ -> error "randomScimUserWithSubject: impossible"
   pure
     ( (Scim.User.empty userSchemas ("scimuser_" <> suffix) (ScimUserExtra richInfo))
         { Scim.User.displayName = Just ("ScimUser" <> suffix),
           Scim.User.externalId = Just externalId,
-          Scim.User.emails = emails,
+          Scim.User.emails = maybeToList mbEmail,
           Scim.User.phoneNumbers = phones
         },
       subj

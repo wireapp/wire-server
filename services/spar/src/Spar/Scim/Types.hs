@@ -39,12 +39,34 @@
 -- * Our wrappers over @hscim@ types (like 'ValidScimUser').
 -- * Servant-based API types.
 -- * Request and response types for SCIM-related endpoints.
-module Spar.Scim.Types where
+module Spar.Scim.Types
+  ( SparTag,
+    APIScim,
+    APIScimToken,
+    CreateScimToken (..),
+    CreateScimTokenResponse (..),
+    ScimTokenList (..),
+    ValidScimUser (..),
+    WrappedScimUser (..),
+    WrappedScimStoredUser (..),
+    ScimSiteAPI,
+    ScimSite (..),
+    scimActiveFlagFromAccountStatus,
+    scimActiveFlagToAccountStatus,
+    ScimUserExtra (..),
+    sueRichInfo,
+    vsuAuthId,
+    vsuHandle,
+    vsuName,
+    vsuRichInfo,
+    vsuActive,
+    userSchemas,
+  )
+where
 
-import Brig.Types.Common (Email)
 import Brig.Types.Intra (AccountStatus (..))
 import qualified Brig.Types.User as BT
-import Control.Lens (Prism', makeLenses, prism')
+import Control.Lens (makeLenses)
 import Control.Monad.Except (throwError)
 import qualified Data.Aeson as Aeson
 import qualified Data.CaseInsensitive as CI
@@ -53,7 +75,6 @@ import Data.Id (ScimTokenId, UserId)
 import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword)
 import Imports
-import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.Arbitrary ()
 import Servant (DeleteNoContent, Get, Header, JSON, Post, QueryParam', ReqBody, Required, Strict, (:<|>), (:>))
 import Servant.API.Generic (ToServantApi, (:-))
@@ -71,6 +92,7 @@ import qualified Web.Scim.Schema.PatchOp as Scim
 import Web.Scim.Schema.Schema (Schema (CustomSchema))
 import qualified Web.Scim.Schema.Schema as Scim
 import qualified Web.Scim.Schema.User as Scim.User
+import Wire.API.User.Identity (AuthId (..))
 import qualified Wire.API.User.RichInfo as RI
 
 ----------------------------------------------------------------------------
@@ -200,7 +222,7 @@ instance Scim.Patchable ScimUserExtra where
 -- and/or ignore POSTed content, returning the full representation can be useful to the
 -- client, enabling it to correlate the client's and server's views of the new resource."
 data ValidScimUser = ValidScimUser
-  { _vsuExternalId :: ValidExternalId,
+  { _vsuAuthId :: AuthId,
     _vsuHandle :: Handle,
     _vsuName :: BT.Name,
     _vsuRichInfo :: RI.RichInfo,
@@ -208,35 +230,7 @@ data ValidScimUser = ValidScimUser
   }
   deriving (Eq, Show)
 
-data ValidExternalId
-  = EmailAndUref Email SAML.UserRef
-  | UrefOnly SAML.UserRef
-  | EmailOnly Email
-  deriving (Eq, Show, Generic)
-
--- | Take apart a 'ValidExternalId', using 'SAML.UserRef' if available, otehrwise 'Email'.
-runValidExternalId :: (SAML.UserRef -> a) -> (Email -> a) -> ValidExternalId -> a
-runValidExternalId doUref doEmail = \case
-  EmailAndUref _ uref -> doUref uref
-  UrefOnly uref -> doUref uref
-  EmailOnly email -> doEmail email
-
-veidUref :: Prism' ValidExternalId SAML.UserRef
-veidUref = prism' UrefOnly $
-  \case
-    EmailAndUref _ uref -> Just uref
-    UrefOnly uref -> Just uref
-    EmailOnly _ -> Nothing
-
-veidEmail :: Prism' ValidExternalId Email
-veidEmail = prism' EmailOnly $
-  \case
-    EmailAndUref email _ -> Just email
-    UrefOnly _ -> Nothing
-    EmailOnly email -> Just email
-
 makeLenses ''ValidScimUser
-makeLenses ''ValidExternalId
 
 scimActiveFlagFromAccountStatus :: AccountStatus -> Bool
 scimActiveFlagFromAccountStatus = \case

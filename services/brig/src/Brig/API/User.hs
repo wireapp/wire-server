@@ -150,6 +150,8 @@ import Imports
 import Network.Wai.Utilities
 import qualified System.Logger.Class as Log
 import System.Logger.Message
+import Wire.API.User (newUserAuthId)
+import Wire.API.User.Identity (EmailWithSource (..), ScimDetails (..), authIdUref)
 
 data AllowSCIMUpdates
   = AllowSCIMUpdates
@@ -187,7 +189,7 @@ createUser new@NewUser {..} = do
       (throwE (InvalidPhone p))
       return
       =<< lift (validatePhone p)
-  let ident = newIdentity email phone (newUserSSOId new)
+  let ident = newIdentity email phone (newUserAuthId new) -- reconstruct identity with *validated* fields.
   let emKey = userEmailKey <$> email
   let phKey = userPhoneKey <$> phone
   for_ (catMaybes [emKey, phKey]) $ verifyUniquenessAndCheckBlacklist
@@ -226,7 +228,7 @@ createUser new@NewUser {..} = do
       return (True, Just $ CreateUserTeam (Team.inTeam inv) nm)
     Nothing -> return (False, Nothing)
   joinedTeamSSO <- case (ident, tid) of
-    (Just ident'@SSOIdentity {}, Just tid') -> Just <$> addUserToTeamSSO account tid' ident'
+    (Just (ident'@(sparAuthIdentity >=> authIdUref -> Just _uref)), Just tid') -> Just <$> addUserToTeamSSO account tid' ident'
     _ -> pure Nothing
   let joinedTeam :: Maybe CreateUserTeam
       joinedTeam = joinedTeamInvite <|> joinedTeamSSO
@@ -364,11 +366,11 @@ createUser new@NewUser {..} = do
 -- all over the place there, we add a new function that handles just the one new flow where
 -- users are invited to the team via scim.
 createUserInviteViaScim :: UserId -> NewUserScimInvitation -> ExceptT Error.Error AppIO UserAccount
-createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = (`catchE` (throwE . Error.newUserError)) $ do
-  email <- either (throwE . InvalidEmail rawEmail) pure (validateEmail rawEmail)
+createUserInviteViaScim uid newUser@(NewUserScimInvitation (ScimDetails _ (EmailWithSource email _)) _ _) = (`catchE` (throwE . Error.newUserError)) $ do
+  _ <- either (throwE . InvalidEmail email) pure (validateEmail email)
   let emKey = userEmailKey email
   verifyUniquenessAndCheckBlacklist emKey
-  account <- lift $ newAccountInviteViaScim uid tid loc name email
+  account <- lift $ newAccountInviteViaScim uid newUser
   Log.debug $ field "user" (toByteString . userId . accountUser $ account) . field "action" (Log.val "User.createUserInviteViaScim")
 
   -- add the expiry table entry first!  (if brig creates an account, and then crashes before
@@ -892,8 +894,8 @@ mkPasswordResetKey ident = case ident of
 -- User Deletion
 
 -- | Initiate validation of a user's delete request.  Called via @delete /self@.  Users with an
--- 'UserSSOId' can still do this if they also have an 'Email', 'Phone', and/or password.  Otherwise,
--- the team admin has to delete them via the team console on galley.
+-- 'AuthId' from spar can still do this if they also have an 'Email', 'Phone', and/or password.
+-- Otherwise, the team admin has to delete them via the team console on galley.
 --
 -- Owners are not allowed to delete themselves.  Instead, they must ask a fellow owner to
 -- delete them in the team settings.  This protects teams against orphanhood.
@@ -919,13 +921,10 @@ deleteUser uid pwd = do
           isOwner <- lift $ Intra.memberIsTeamOwner tid uid
           when isOwner $ throwE DeleteUserOwnerDeletingSelf
     go a = maybe (byIdentity a) (byPassword a) pwd
+
     getEmailOrPhone :: UserIdentity -> Maybe (Either Email Phone)
-    getEmailOrPhone (FullIdentity e _) = Just $ Left e
-    getEmailOrPhone (EmailIdentity e) = Just $ Left e
-    getEmailOrPhone (SSOIdentity _ (Just e) _) = Just $ Left e
-    getEmailOrPhone (PhoneIdentity p) = Just $ Right p
-    getEmailOrPhone (SSOIdentity _ _ (Just p)) = Just $ Right p
-    getEmailOrPhone (SSOIdentity _ Nothing Nothing) = Nothing
+    getEmailOrPhone ui = (Left <$> emailIdentity ui) <|> (Right <$> phoneIdentity ui)
+
     byIdentity a = case getEmailOrPhone =<< userIdentity (accountUser a) of
       Just emailOrPhone -> sendCode a emailOrPhone
       Nothing -> case pwd of

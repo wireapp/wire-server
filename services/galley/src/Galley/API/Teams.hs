@@ -74,7 +74,6 @@ import Data.Misc (HttpsUrl)
 import Data.Range as Range
 import Data.Set (fromList)
 import qualified Data.Set as Set
-import Data.String.Conversions (cs)
 import Data.Time.Clock (UTCTime (..), getCurrentTime)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
@@ -107,7 +106,9 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (or, result, setStatus)
 import Network.Wai.Utilities
+import SAML2.WebSSO.Types (fromIssuer, uidTenant)
 import qualified System.Logger.Class as Log
+import URI.ByteString (URI, serializeURIRef')
 import UnliftIO (mapConcurrently)
 import qualified Wire.API.Conversation.Role as Public
 import qualified Wire.API.Notification as Public
@@ -120,6 +121,7 @@ import qualified Wire.API.Team.SearchVisibility as Public
 import Wire.API.User (User)
 import qualified Wire.API.User as Public (UserIdList)
 import qualified Wire.API.User as U
+import Wire.API.User.Identity (authIdUref)
 
 getTeamH :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeamH (zusr ::: tid ::: _) =
@@ -451,10 +453,12 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
       pure $ (`M.lookup` userMap)
 
     userToIdPIssuer :: U.User -> Maybe HttpsUrl
-    userToIdPIssuer usr = case (U.userIdentity >=> U.ssoIdentity) usr of
-      Just (U.UserSSOId issuer _) -> fromByteString' $ cs issuer
-      Just _ -> Nothing
+    userToIdPIssuer usr = case (U.userIdentity >=> U.sparAuthIdentity >=> authIdUref) usr of
+      Just uref -> convertURI (uref ^. uidTenant . fromIssuer)
       Nothing -> Nothing
+
+    convertURI :: URI -> Maybe HttpsUrl
+    convertURI = fromByteString . serializeURIRef'
 
     pairMembersUsers :: [TeamMember] -> [User] -> [(TeamMember, User)]
     pairMembersUsers members users = do

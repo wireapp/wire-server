@@ -1,5 +1,6 @@
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -168,15 +169,11 @@ modelActivationResponse = Doc.defineModel "ActivationResponse" $ do
   Doc.property "first" Doc.bool' $
     Doc.description "Whether this is the first successful activation (i.e. account activation)."
 
--- FUTUREWORK: de-deduplicate work with JSON instance for 'UserIdentity'?
 instance ToJSON ActivationResponse where
   toJSON (ActivationResponse ident first) =
-    object $
-      "email" .= emailIdentity ident
-        # "phone" .= phoneIdentity ident
-        # "sso_id" .= ssoIdentity ident
-        # "first" .= first
-        # []
+    case toJSON ident of
+      Object obj -> Object $ obj <> ["first" .= first]
+      _ -> error "impossible" -- we have qc unit tests for this.
 
 instance FromJSON ActivationResponse where
   parseJSON = withObject "ActivationResponse" $ \o ->

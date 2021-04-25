@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b0062afade680bb271c22de71f4e64c9e2fba01a00b1319536910a5fc866e8d6
+-- hash: ff6d642f027127289dd76b69dbecfbe276cc28b50a1b2654e02f274252b9ce2a
 
 name:           wire-api
 version:        0.1.0
@@ -65,6 +65,8 @@ library
       Wire.API.User.Client.Prekey
       Wire.API.User.Handle
       Wire.API.User.Identity
+      Wire.API.User.Identity.AuthId
+      Wire.API.User.Identity.Email
       Wire.API.User.Orphans
       Wire.API.User.Password
       Wire.API.User.Profile
@@ -105,9 +107,11 @@ library
     , iso639 >=0.1
     , lens >=4.12
     , mime >=0.4
+    , parser-combinators >=1.2
     , pem >=0.2
     , protobuf >=0.2
     , quickcheck-instances >=0.3.16
+    , saml2-web-sso >=0.18
     , string-conversions
     , swagger >=0.1
     , swagger2
@@ -131,6 +135,7 @@ test-suite wire-api-tests
       Test.Wire.API.Swagger
       Test.Wire.API.Team.Member
       Test.Wire.API.User
+      Test.Wire.API.User.Identity.AuthId
       Test.Wire.API.User.RichInfo
       Test.Wire.API.User.Search
       Paths_wire_api
@@ -145,16 +150,20 @@ test-suite wire-api-tests
     , bytestring-conversion
     , cassava
     , containers >=0.5
+    , hspec
     , imports
     , lens
+    , saml2-web-sso >=0.18
     , string-conversions
     , swagger2
     , tasty
     , tasty-expected-failure
+    , tasty-hspec
     , tasty-hunit
     , tasty-quickcheck
     , types-common >=0.16
     , unordered-containers
+    , uri-bytestring
     , uuid
     , vector
     , wire-api

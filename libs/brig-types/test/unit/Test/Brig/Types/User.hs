@@ -27,7 +27,7 @@
 
 module Test.Brig.Types.User where
 
-import Brig.Types.Intra (NewUserScimInvitation (..), ReAuthUser (..))
+import Brig.Types.Intra (NewUserScimInvitation (..), NewUserScimInvitationLegacy (..), ReAuthUser (..))
 import Brig.Types.User (ManagedByUpdate (..), RichInfoUpdate (..))
 import Imports
 import Test.Brig.Roundtrip (testRoundTrip)
@@ -42,7 +42,8 @@ roundtripTests =
   [ testRoundTrip @ManagedByUpdate,
     testRoundTrip @ReAuthUser,
     testRoundTrip @RichInfoUpdate,
-    testRoundTrip @NewUserScimInvitation
+    testRoundTrip @NewUserScimInvitation,
+    testRoundTrip @NewUserScimInvitationLegacy
   ]
 
 instance Arbitrary ManagedByUpdate where
@@ -54,5 +55,5 @@ instance Arbitrary RichInfoUpdate where
 instance Arbitrary ReAuthUser where
   arbitrary = ReAuthUser <$> arbitrary
 
-instance Arbitrary NewUserScimInvitation where
-  arbitrary = NewUserScimInvitation <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+instance Arbitrary NewUserScimInvitationLegacy where
+  arbitrary = NewUserScimInvitationLegacy <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary

@@ -36,9 +36,8 @@ import Imports
 import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types (IdPId, idpId)
 import Spar.Data as Data
-import qualified Spar.Intra.Brig as Intra
 import Spar.Scim.Types
-import Spar.Scim.User (synthesizeScimUser, validateScimUser')
+import Spar.Scim.User (firstEmailFromUser, synthesizeScimUser, validateScimUser')
 import Spar.Types (IdP, IdPMetadataInfo (..), ScimToken (..), ScimTokenInfo (..))
 import Test.QuickCheck (arbitrary, generate)
 import qualified Text.Email.Parser as Email
@@ -53,9 +52,12 @@ import qualified Web.Scim.Schema.Common as Scim
 import qualified Web.Scim.Schema.ListResponse as Scim
 import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.PatchOp as Scim.PatchOp
+import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Web.Scim.Schema.User.Email as Email
 import qualified Web.Scim.Schema.User.Phone as Phone
+import Wire.API.User (AuthId (..), userAuthId)
+import Wire.API.User.Identity (ExternalId (..), ScimDetails (..), authIdUref)
 import Wire.API.User.RichInfo
 
 -- | Call 'registerTestIdP', then 'registerScimToken'.  The user returned is the owner of the team;
@@ -117,26 +119,31 @@ randomScimUserWithSubjectAndRichInfo ::
   m (Scim.User.User SparTag, SAML.UnqualifiedNameID)
 randomScimUserWithSubjectAndRichInfo richInfo = do
   suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))
-  emails <- getRandomR (0, 3) >>= \n -> replicateM n randomScimEmail
-  phones <- getRandomR (0, 3) >>= \n -> replicateM n randomScimPhone
+  phones <- getRandomR (1, 3) >>= \n -> replicateM n randomScimPhone
   -- Related, but non-trivial to re-use here: 'nextSubject'
-  (externalId, subj) <-
-    getRandomR (0, 1 :: Int) <&> \case
-      0 ->
-        ( "scimuser_extid_" <> suffix <> "@example.com",
-          either (error . show) id $
-            SAML.mkUNameIDEmail ("scimuser_extid_" <> suffix <> "@example.com")
-        )
-      1 ->
-        ( "scimuser_extid_" <> suffix,
-          SAML.mkUNameIDUnspecified ("scimuser_extid_" <> suffix)
-        )
+  -- FUTUREWORK: Add case where both externalId is an email AND mbEmail is Just
+  (externalId, subj, mbEmail) <-
+    getRandomR (0, 1 :: Int) >>= \case
+      0 -> do
+        pure
+          ( "scimuser_extid_" <> suffix <> "@example.com",
+            either (error . show) id $
+              SAML.mkUNameIDEmail ("scimuser_extid_" <> suffix <> "@example.com"),
+            Nothing
+          )
+      1 -> do
+        eml <- randomScimEmail
+        pure
+          ( "scimuser_extid_" <> suffix,
+            SAML.mkUNameIDUnspecified ("scimuser_extid_" <> suffix),
+            Just eml
+          )
       _ -> error "randomScimUserWithSubject: impossible"
   pure
     ( (Scim.User.empty userSchemas ("scimuser_" <> suffix) (ScimUserExtra richInfo))
         { Scim.User.displayName = Just ("ScimUser" <> suffix),
           Scim.User.externalId = Just externalId,
-          Scim.User.emails = emails,
+          Scim.User.emails = maybeToList mbEmail,
           Scim.User.phoneNumbers = phones
         },
       subj
@@ -165,6 +172,13 @@ randomScimEmail = do
     domainpart <- (<> ".com") . cs <$> replicateM 15 (getRandomR ('a', 'z'))
     pure . Email.EmailAddress2 $ Email.unsafeEmailAddress localpart domainpart
   pure Email.Email {..}
+
+unsafeEmailToScimEmail :: Email -> Email.Email
+unsafeEmailToScimEmail email =
+  let typ :: Maybe Text = Nothing
+      primary :: Maybe Scim.ScimBool = Nothing
+      value = Email.EmailAddress2 $ Email.unsafeEmailAddress (cs . emailLocal $ email) (cs . emailDomain $ email)
+   in Email.Email {..}
 
 randomScimPhone :: MonadRandom m => m Phone.Phone
 randomScimPhone = do
@@ -546,9 +560,9 @@ instance IsUser ValidScimUser where
   maybeUserId = Nothing
   maybeHandle = Just (Just . view vsuHandle)
   maybeName = Just (Just . view vsuName)
-  maybeTenant = Just (^? (vsuExternalId . veidUref . SAML.uidTenant))
-  maybeSubject = Just (^? (vsuExternalId . veidUref . SAML.uidSubject))
-  maybeScimExternalId = Just (runValidExternalId Intra.urefToExternalId (Just . fromEmail) . view vsuExternalId)
+  maybeTenant = Just (fmap (^. SAML.uidTenant) . (authIdUref . (^. vsuAuthId)))
+  maybeSubject = Just (fmap (^. SAML.uidSubject) . (authIdUref . (^. vsuAuthId)))
+  maybeScimExternalId = Just (renderAuthIdAsExternalId . view vsuAuthId)
 
 instance IsUser (WrappedScimStoredUser SparTag) where
   maybeUserId = Just $ scimUserId . fromWrappedScimStoredUser
@@ -574,20 +588,11 @@ instance IsUser User where
   maybeHandle = Just userHandle
   maybeName = Just (Just . userDisplayName)
   maybeTenant = Just $ \usr ->
-    Intra.veidFromBrigUser usr Nothing
-      & either
-        (const Nothing)
-        (preview (veidUref . SAML.uidTenant))
+    fmap (^. SAML.uidTenant) . authIdUref =<< userAuthId usr
   maybeSubject = Just $ \usr ->
-    Intra.veidFromBrigUser usr Nothing
-      & either
-        (const Nothing)
-        (preview (veidUref . SAML.uidSubject))
+    fmap (^. SAML.uidSubject) . authIdUref =<< userAuthId usr
   maybeScimExternalId = Just $ \usr ->
-    Intra.veidFromBrigUser usr Nothing
-      & either
-        (const Nothing)
-        (runValidExternalId Intra.urefToExternalId (Just . fromEmail))
+    renderAuthIdAsExternalId =<< userAuthId usr
 
 -- | For all properties that are present in both @u1@ and @u2@, check that they match.
 --
@@ -623,5 +628,21 @@ userShouldMatch u1 u2 = liftIO $ do
 -- floor.  This function calls the spar functions that do that.  This allows us to express
 -- what we expect a user that comes back from spar to look like in terms of what it looked
 -- like when we sent it there.
-whatSparReturnsFor :: HasCallStack => IdP -> Int -> Scim.User.User SparTag -> Either String (Scim.User.User SparTag)
-whatSparReturnsFor idp richInfoSizeLimit = either (Left . show) (Right . synthesizeScimUser) . validateScimUser' (Just idp) richInfoSizeLimit
+whatSparReturnsFor :: HasCallStack => TeamId -> IdP -> Int -> Scim.User.User SparTag -> Either String (Scim.User.User SparTag)
+whatSparReturnsFor tid idp richInfoSizeLimit =
+  either (Left . show) (Right . synthesizeScimUser)
+    . validateScimUser' tid (Just idp) richInfoSizeLimit
+
+renderAuthIdAsExternalId :: AuthId -> Maybe Text
+renderAuthIdAsExternalId = \case
+  AuthSAML uref -> urefNameId uref
+  AuthSCIM (ScimDetails (ExternalId _ t) _) -> Just t
+  AuthBoth _ uref _ -> urefNameId uref
+  where
+    urefNameId uref = SAML.shortShowNameID (uref ^. SAML.uidSubject)
+
+scimUserFirstEmail :: forall tag. Scim.User tag -> Maybe Email
+scimUserFirstEmail u =
+  case firstEmailFromUser u of
+    Left _err -> Nothing
+    Right email -> email

@@ -68,6 +68,7 @@ import qualified Wire.API.Team.Invitation as Public
 import qualified Wire.API.Team.Role as Public
 import qualified Wire.API.Team.Size as Public
 import qualified Wire.API.User as Public
+import Wire.API.User.Identity (EmailWithSource (..), ExternalId (..), ScimDetails (..))
 
 routesPublic :: Routes Doc.ApiBuilder Handler ()
 routesPublic = do
@@ -277,7 +278,7 @@ createInvitationViaScimH (_ ::: req) = do
   setStatus status201 . json <$> createInvitationViaScim body
 
 createInvitationViaScim :: NewUserScimInvitation -> Handler UserAccount
-createInvitationViaScim newUser@(NewUserScimInvitation tid loc name email) = do
+createInvitationViaScim newUser@(NewUserScimInvitation (ScimDetails (ExternalId tid _) (EmailWithSource email _)) name loc) = do
   env <- ask
   let inviteeRole = Team.defaultRole
       fromEmail = env ^. emailSender

@@ -73,17 +73,21 @@ import Gundeck.Types.Notification
   )
 import Imports
 import qualified Network.Wai.Test as WaiTest
+import SAML2.WebSSO.Types (Issuer (..), UserRef (..), unspecifiedNameID)
 import System.Random
 import qualified Test.QuickCheck as Q
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestSetup
+import URI.ByteString (parseURI, strictURIParserOptions)
 import UnliftIO.Timeout
 import Web.Cookie
 import Wire.API.Conversation.Member (Member (..))
 import qualified Wire.API.Event.Team as TE
 import qualified Wire.API.Message.Proto as Proto
+import qualified Wire.API.User as User
+import Wire.API.User.Identity (AuthId (..))
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -338,10 +342,15 @@ addUserToTeamWithRole' role inviter tid = do
       )
   return (inv, r)
 
+exampleUserRef :: Int -> Text -> UserRef
+exampleUserRef domainSuffix name =
+  let uri = either (error "exampleUserRef") id $ parseURI strictURIParserOptions (cs ("https://www.example" <> show domainSuffix <> ".com"))
+   in UserRef (Issuer uri) (unspecifiedNameID name)
+
 addUserToTeamWithSSO :: HasCallStack => Bool -> TeamId -> TestM TeamMember
 addUserToTeamWithSSO hasEmail tid = do
-  let ssoid = UserSSOId "nil" "nil"
-  user <- responseJsonError =<< postSSOUser "SSO User" hasEmail ssoid tid
+  let authId = AuthSAML $ exampleUserRef 1 "nil"
+  user <- responseJsonError =<< postSSOUser "SSO User" hasEmail authId tid
   let uid = Brig.Types.userId user
   getTeamMember uid tid uid
 
@@ -1416,19 +1425,19 @@ refreshIndex = do
   brig <- view tsBrig
   post (brig . path "/i/index/refresh") !!! const 200 === statusCode
 
-postSSOUser :: Text -> Bool -> UserSSOId -> TeamId -> TestM ResponseLBS
-postSSOUser name hasEmail ssoid teamid = do
+postSSOUser :: Text -> Bool -> AuthId -> TeamId -> TestM ResponseLBS
+postSSOUser name hasEmail authId teamid = do
   brig <- view tsBrig
   email <- randomEmail
-  let o =
-        object $
-          [ "name" .= name,
-            "cookie" .= defCookieLabel,
-            "sso_id" .= ssoid,
-            "team_id" .= teamid
-          ]
-            <> ["email" .= fromEmail email | hasEmail]
-      bdy = Bilge.json o
+  let ident = newIdentity (if hasEmail then (Just email) else Nothing) Nothing (Just authId)
+  let origin = User.NewUserOriginTeamUser . User.NewTeamMemberSSO $ teamid
+  let newUser =
+        (User.emptyNewUser (User.Name name))
+          { User.newUserIdentity = ident,
+            User.newUserLabel = Just defCookieLabel,
+            User.newUserOrigin = Just origin
+          }
+  let bdy = Bilge.json newUser
   post (brig . path "/i/users" . bdy)
 
 defCookieLabel :: CookieLabel

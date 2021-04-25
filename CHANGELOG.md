@@ -4,6 +4,20 @@
 
 ## Release Notes
 
+- promote brig before spar!
+
+<snippet about scim changes>
+This release changes the interpretation of SCIM user data.
+
+In previous releases the `emails` field was ignored in requests, and always returned empty in responses.
+An email address for a user could only be provided through the `externalId` field.
+
+After this release, the `emails` field will be the preferred  source for the user's email address.
+You are also able to choose a user identifier for the `externalId` field that is independent from the user's email address now.
+
+The `externalId` is still supported as a source for the user's email address, however the `emails` field takes precedence if both fields contain email addresses. If you haven't been using the `emails` field you won't experience any change in this release.
+</snippet about scim changes>
+
 ## Features
 
 ## Bug fixes and other updates

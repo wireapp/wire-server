@@ -50,7 +50,7 @@ module Brig.Data.User
     updateUser,
     updateEmail,
     updatePhone,
-    updateSSOId,
+    updateAuthId,
     updateManagedBy,
     activateUser,
     deactivateUser,
@@ -89,6 +89,9 @@ import Data.Time (addUTCTime)
 import Data.UUID.V4
 import Galley.Types.Bot
 import Imports
+import Wire.API.User (LegacyAuthId (fromLegacyAuthId), userAuthId)
+import Wire.API.User.Identity (AuthId, EmailWithSource (..), ExternalId (ExternalId), ScimDetails (..))
+import qualified Wire.API.User.Identity as UserId
 import Wire.API.User.RichInfo
 
 -- | Authentication errors.
@@ -148,17 +151,22 @@ newAccount u inv tid mbHandle = do
     managedBy = fromMaybe defaultManagedBy (newUserManagedBy u)
     user uid domain l e = User uid (Qualified uid domain) ident name pict assets colour False l Nothing mbHandle e tid managedBy
 
-newAccountInviteViaScim :: UserId -> TeamId -> Maybe Locale -> Name -> Email -> AppIO UserAccount
-newAccountInviteViaScim uid tid locale name email = do
+newAccountInviteViaScim :: UserId -> NewUserScimInvitation -> AppIO UserAccount
+newAccountInviteViaScim uid (NewUserScimInvitation scimDetails@(ScimDetails (ExternalId tid _) (EmailWithSource email _)) name mbLocale) = do
   defLoc <- setDefaultLocale <$> view settings
   domain <- viewFederationDomain
-  return (UserAccount (user domain (fromMaybe defLoc locale)) PendingInvitation)
+  return (UserAccount (user domain (fromMaybe defLoc mbLocale)) PendingInvitation)
   where
     user domain loc =
       User
         uid
         (Qualified uid domain)
-        (Just $ EmailIdentity email)
+        ( Just $
+            SparAuthIdentity
+              (UserId.AuthSCIM scimDetails)
+              (Just email)
+              Nothing
+        )
         name
         (Pict [])
         []
@@ -226,7 +234,7 @@ insertAccount (UserAccount u status) mbConv password activated = retry x5 . batc
       userAssets u,
       userEmail u,
       userPhone u,
-      userSSOId u,
+      userAuthId u,
       userAccentId u,
       password,
       activated,
@@ -274,14 +282,9 @@ updateEmail u e = retry x5 $ write userEmailUpdate (params Quorum (e, u))
 updatePhone :: UserId -> Phone -> AppIO ()
 updatePhone u p = retry x5 $ write userPhoneUpdate (params Quorum (p, u))
 
-updateSSOId :: UserId -> Maybe UserSSOId -> AppIO Bool
-updateSSOId u ssoid = do
-  mteamid <- lookupUserTeam u
-  case mteamid of
-    Just _ -> do
-      retry x5 $ write userSSOIdUpdate (params Quorum (ssoid, u))
-      pure True
-    Nothing -> pure False
+updateAuthId :: UserId -> Maybe AuthId -> AppIO ()
+updateAuthId u authid =
+  retry x5 $ write userAuthIdUpdate (params Quorum (authid, u))
 
 updateManagedBy :: UserId -> ManagedBy -> AppIO ()
 updateManagedBy u h = retry x5 $ write userManagedByUpdate (params Quorum (h, u))
@@ -456,7 +459,7 @@ type UserRow =
     Maybe Pict,
     Maybe Email,
     Maybe Phone,
-    Maybe UserSSOId,
+    Maybe LegacyAuthId,
     ColourId,
     Maybe [Asset],
     Activated,
@@ -478,7 +481,7 @@ type UserRowInsert =
     [Asset],
     Maybe Email,
     Maybe Phone,
-    Maybe UserSSOId,
+    Maybe AuthId,
     ColourId,
     Maybe Password,
     Activated,
@@ -502,7 +505,7 @@ type AccountRow =
     Maybe Pict,
     Maybe Email,
     Maybe Phone,
-    Maybe UserSSOId,
+    Maybe LegacyAuthId,
     ColourId,
     Maybe [Asset],
     Activated,
@@ -583,8 +586,8 @@ userEmailUpdate = "UPDATE user SET email = ? WHERE id = ?"
 userPhoneUpdate :: PrepQuery W (Phone, UserId) ()
 userPhoneUpdate = "UPDATE user SET phone = ? WHERE id = ?"
 
-userSSOIdUpdate :: PrepQuery W (Maybe UserSSOId, UserId) ()
-userSSOIdUpdate = "UPDATE user SET sso_id = ? WHERE id = ?"
+userAuthIdUpdate :: PrepQuery W (Maybe AuthId, UserId) ()
+userAuthIdUpdate = "UPDATE user SET sso_id = ? WHERE id = ?"
 
 userManagedByUpdate :: PrepQuery W (ManagedBy, UserId) ()
 userManagedByUpdate = "UPDATE user SET managed_by = ? WHERE id = ?"
@@ -643,7 +646,7 @@ toUserAccount
     tid,
     managed_by
     ) =
-    let ident = toIdentity activated email phone ssoid
+    let ident = toIdentity activated email phone ssoid tid
         deleted = maybe False (== Deleted) status
         expiration = if status == Just Ephemeral then expires else Nothing
         loc = toLocale defaultLocale (lan, con)
@@ -717,7 +720,7 @@ toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
         tid,
         managed_by
         ) =
-        let ident = toIdentity activated email phone ssoid
+        let ident = toIdentity activated email phone ssoid tid
             deleted = maybe False (== Deleted) status
             expiration = if status == Just Ephemeral then expires else Nothing
             loc = toLocale defaultLocale (lan, con)
@@ -755,11 +758,10 @@ toIdentity ::
   Bool ->
   Maybe Email ->
   Maybe Phone ->
-  Maybe UserSSOId ->
+  Maybe LegacyAuthId ->
+  Maybe TeamId ->
   Maybe UserIdentity
-toIdentity True (Just e) (Just p) Nothing = Just $! FullIdentity e p
-toIdentity True (Just e) Nothing Nothing = Just $! EmailIdentity e
-toIdentity True Nothing (Just p) Nothing = Just $! PhoneIdentity p
-toIdentity True email phone (Just ssoid) = Just $! SSOIdentity ssoid email phone
-toIdentity True Nothing Nothing Nothing = Nothing
-toIdentity False _ _ _ = Nothing
+toIdentity False _ _ _ _ = Nothing
+toIdentity True mbEmail mbPhone mbLegacyAuthId mbTid =
+  let mbAuthId = fromLegacyAuthId <$> mbLegacyAuthId <*> mbTid
+   in newIdentity mbEmail mbPhone mbAuthId

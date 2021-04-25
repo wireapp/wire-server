@@ -32,8 +32,6 @@ import Data.UUID.V4 as UUID
 import Imports
 import SAML2.WebSSO as SAML
 import Spar.Data as Data
-import Spar.Intra.Brig (veidFromUserSSOId)
-import Spar.Scim.Types
 import Spar.Types
 import Type.Reflection (typeRep)
 import URI.ByteString.QQ (uri)
@@ -42,6 +40,7 @@ import Util.Scim
 import Util.Types
 import Web.Scim.Schema.Common as Scim.Common
 import Web.Scim.Schema.Meta as Scim.Meta
+import Wire.API.User.Identity (runAuthId)
 
 spec :: SpecWith TestEnv
 spec = do
@@ -258,8 +257,8 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
   storedUser2 <- createUser tok user2
   -- Resolve the users' SSO ids
   let getUid = Scim.Common.id . Scim.Meta.thing
-  ssoid1 <- getSsoidViaSelf (getUid storedUser1)
-  ssoid2 <- getSsoidViaSelf (getUid storedUser2)
+  authId1 <- getAuthIdViaSelf (getUid storedUser1)
+  authId2 <- getAuthIdViaSelf (getUid storedUser2)
   -- Delete the team
   runSparCass $ Data.deleteTeam tid
   -- See that everything got cleaned up.
@@ -274,24 +273,20 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
     liftIO $ tokens `shouldBe` []
   -- The users from 'user':
   do
-    mbUser1 <- case veidFromUserSSOId ssoid1 of
-      Right veid ->
-        runSparCass $
-          runValidExternalId
-            Data.getSAMLUser
-            undefined -- could be @Data.lookupScimExternalId@, but we don't hit that path.
-            veid
-      Left _email -> undefined -- runSparCass . Data.lookupScimExternalId . fromEmail $ _email
+    mbUser1 <-
+      runSparCass $
+        runAuthId
+          Data.getSAMLUser
+          undefined -- could be @Data.lookupScimExternalId@, but we don't hit that path.
+          authId1
     liftIO $ mbUser1 `shouldBe` Nothing
   do
-    mbUser2 <- case veidFromUserSSOId ssoid2 of
-      Right veid ->
-        runSparCass $
-          runValidExternalId
-            Data.getSAMLUser
-            undefined
-            veid
-      Left _email -> undefined
+    mbUser2 <-
+      runSparCass $
+        runAuthId
+          Data.getSAMLUser
+          undefined
+          authId2
     liftIO $ mbUser2 `shouldBe` Nothing
   -- The config from 'idp':
   do

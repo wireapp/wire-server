@@ -31,6 +31,13 @@
 -- header, check that it's valid, and resolve the team that this operation should apply to.
 module Spar.Scim.Auth
   ( apiScimToken,
+    APIScimToken,
+    CreateScimToken (CreateScimToken),
+    CreateScimTokenResponse (..),
+    ScimTokenList (..),
+    SparTag,
+    createScimTokenDescr,
+    createScimTokenPassword,
   )
 where
 

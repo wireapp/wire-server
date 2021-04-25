@@ -41,7 +41,7 @@ import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
-import Brig.User.Event (UserEvent (UserUpdated), UserUpdatedData (eupSSOId, eupSSOIdRemoved), emptyUserUpdatedData)
+import Brig.User.Event (UserEvent (UserUpdated), UserUpdatedData (..), emptyUserUpdatedData)
 import Control.Error hiding (bool)
 import Control.Lens (view)
 import Data.Aeson hiding (json)
@@ -61,6 +61,7 @@ import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
 import qualified System.Logger.Class as Log
 import Wire.API.User
+import qualified Wire.API.User.Identity as AuthId
 import Wire.API.User.RichInfo
 
 ---------------------------------------------------------------------------
@@ -173,12 +174,23 @@ sitemap = do
     accept "application" "json"
       .&. jsonRequest @ExcludedPrefix
 
-  put "/i/users/:uid/sso-id" (continue updateSSOIdH) $
+  -- FUTUREWORK: Remove this end-point when SQSERVICES-264 has been released
+  put "/i/users/:uid/sso-id" (continue updateSSOIdLegacyH) $
     capture "uid"
       .&. accept "application" "json"
-      .&. jsonRequest @UserSSOId
+      .&. jsonRequest @LegacyAuthId
 
-  delete "/i/users/:uid/sso-id" (continue deleteSSOIdH) $
+  -- FUTUREWORK: Remove this end-point when SQSERVICES-264 has been released
+  delete "/i/users/:uid/sso-id" (continue deleteSSOIdLegacyH) $
+    capture "uid"
+      .&. accept "application" "json"
+
+  put "/i/users/:uid/auth-id" (continue updateAuthIdH) $
+    capture "uid"
+      .&. accept "application" "json"
+      .&. jsonRequest @AuthId
+
+  delete "/i/users/:uid/auth-id" (continue deleteAuthIdH) $
     capture "uid"
       .&. accept "application" "json"
 
@@ -474,24 +486,48 @@ addPhonePrefixH (_ ::: req) = do
   void . lift $ API.phonePrefixInsert prefix
   return empty
 
-updateSSOIdH :: UserId ::: JSON ::: JsonRequest UserSSOId -> Handler Response
-updateSSOIdH (uid ::: _ ::: req) = do
-  ssoid :: UserSSOId <- parseJsonBody req
-  success <- lift $ Data.updateSSOId uid (Just ssoid)
-  if success
-    then do
-      lift $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOId = Just ssoid}))
-      return empty
-    else return . setStatus status404 $ plain "User does not exist or has no team."
+updateSSOIdLegacyH :: UserId ::: JSON ::: JsonRequest LegacyAuthId -> Handler Response
+updateSSOIdLegacyH (uid ::: _ ::: req) = do
+  legacyAuthId :: LegacyAuthId <- parseJsonBody req
+  mbUser <- lift $ Data.lookupUser WithPendingInvitations uid
+  let mbTid = mbUser >>= userTeam
+  case mbTid of
+    Nothing -> return . setStatus status404 $ plain "User does not exist or has no team."
+    Just tid ->
+      updateAuthId uid (fromLegacyAuthId legacyAuthId tid) <&> \case
+        UpdateAuthIdUpdated -> empty
+        UpdateAuthIdNotFound -> setStatus status404 $ plain "User does not exist or has no team."
 
-deleteSSOIdH :: UserId ::: JSON -> Handler Response
-deleteSSOIdH (uid ::: _) = do
-  success <- lift $ Data.updateSSOId uid Nothing
-  if success
+deleteSSOIdLegacyH :: UserId ::: JSON -> Handler Response
+deleteSSOIdLegacyH (uid ::: _) = deleteAuthId uid
+
+updateAuthIdH :: UserId ::: JSON ::: JsonRequest AuthId -> Handler Response
+updateAuthIdH (uid ::: _ ::: req) = do
+  (updateAuthId uid =<< parseJsonBody req) <&> \case
+    UpdateAuthIdUpdated -> empty
+    UpdateAuthIdNotFound -> setStatus status404 $ plain "User does not exist or has no team."
+
+data UpdateAuthIdResponse = UpdateAuthIdUpdated | UpdateAuthIdNotFound
+
+updateAuthId :: UserId -> AuthId -> Handler UpdateAuthIdResponse
+updateAuthId uid authId = do
+  mbUser <- lift $ Data.lookupUser WithPendingInvitations uid
+  if isJust (mbUser >>= userTeam)
     then do
-      lift $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOIdRemoved = True}))
-      return empty
-    else return . setStatus status404 $ plain "User does not exist or has no team."
+      lift $ Data.updateAuthId uid (Just authId)
+      lift $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOId = AuthId.authIdToUserSSOId authId}))
+      pure UpdateAuthIdUpdated
+    else do
+      pure UpdateAuthIdNotFound
+
+deleteAuthIdH :: UserId ::: JSON -> Handler Response
+deleteAuthIdH (uid ::: _) = deleteAuthId uid
+
+deleteAuthId :: UserId -> Handler Response
+deleteAuthId uid = do
+  lift $ Data.updateAuthId uid Nothing
+  lift $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOIdRemoved = True}))
+  pure empty
 
 updateManagedByH :: UserId ::: JSON ::: JsonRequest ManagedByUpdate -> Handler Response
 updateManagedByH (uid ::: _ ::: req) = do

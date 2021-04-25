@@ -67,7 +67,6 @@ import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util
 import Spar.API.Types
 import qualified Spar.Intra.Brig as Intra
-import Spar.Scim.Types
 import Spar.Types
 import Text.XML.DSig (SignPrivCreds, mkSignCredsWithCert)
 import URI.ByteString.QQ (uri)
@@ -75,6 +74,7 @@ import Util.Core
 import qualified Util.Scim as ScimT
 import Util.Types
 import qualified Web.Cookie as Cky
+import Wire.API.User.Identity (AuthId (..), authIdUref)
 
 spec :: SpecWith TestEnv
 spec = do
@@ -390,13 +390,13 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
     context "known IdP, running session with sso user" $ do
       checkInitiateBind True (registerTestIdPWithMeta >>= \(_, _, idp, (_, privcreds)) -> loginSsoUserFirstTime idp privcreds)
   describe "POST /sso/finalize-login" $ do
-    let checkGrantingAuthnResp :: HasCallStack => TeamId -> UserId -> SignedAuthnResponse -> ResponseLBS -> TestSpar ()
-        checkGrantingAuthnResp tid uid sparrq sparresp = do
+    let checkGrantingAuthnResp :: HasCallStack => UserId -> SignedAuthnResponse -> ResponseLBS -> TestSpar ()
+        checkGrantingAuthnResp uid sparrq sparresp = do
           checkGrantingAuthnResp' sparresp
-          ssoidViaAuthResp <- getSsoidViaAuthResp sparrq
-          ssoidViaSelf <- getSsoidViaSelf uid
-          liftIO $ ('s', ssoidViaSelf) `shouldBe` ('s', ssoidViaAuthResp)
-          Just uidViaSpar <- ssoToUidSpar tid ssoidViaAuthResp
+          authIdResponse <- getAuthIdViaAuthResp sparrq
+          authIdSelf <- getAuthIdViaSelf uid
+          liftIO $ ('s', authIdSelf) `shouldBe` ('s', authIdResponse)
+          Just uidViaSpar <- authIdToUidSpar authIdResponse
           liftIO $ ('u', uidViaSpar) `shouldBe` ('u', uid)
         checkGrantingAuthnResp' :: HasCallStack => ResponseLBS -> TestSpar ()
         checkGrantingAuthnResp' sparresp = do
@@ -410,11 +410,11 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
             (cs @_ @String . fromJust . responseBody $ sparresp)
               `shouldContain` ("<title>wire:sso:error:" <> cs errorlabel <> "</title>")
             hasPersistentCookieHeader sparresp `shouldBe` Left "no set-cookie header"
-        getSsoidViaAuthResp :: HasCallStack => SignedAuthnResponse -> TestSpar UserSSOId
-        getSsoidViaAuthResp aresp = do
+        getAuthIdViaAuthResp :: HasCallStack => SignedAuthnResponse -> TestSpar AuthId
+        getAuthIdViaAuthResp aresp = do
           parsed :: AuthnResponse <-
             either error pure . parseFromDocument $ fromSignedAuthnResponse aresp
-          either error (pure . Intra.veidToUserSSOId . UrefOnly) $ getUserRef parsed
+          either error (pure . AuthSAML) $ getUserRef parsed
         initialBind :: HasCallStack => UserId -> IdP -> SignPrivCreds -> TestSpar (NameID, SignedAuthnResponse, ResponseLBS)
         initialBind = initialBind' Just
         initialBind' ::
@@ -458,21 +458,21 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           pure (authnResp, sparAuthnResp)
     context "initial bind" $ do
       it "allowed" $ do
-        (uid, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
+        (uid, _tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
         (_, authnResp, sparAuthnResp) <- initialBind uid idp privcreds
-        checkGrantingAuthnResp tid uid authnResp sparAuthnResp
+        checkGrantingAuthnResp uid authnResp sparAuthnResp
     context "re-bind to same UserRef" $ do
       it "allowed" $ do
-        (uid, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
+        (uid, _tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
         (subj, _, _) <- initialBind uid idp privcreds
         (sparrq, sparresp) <- reBindSame uid idp privcreds subj
-        checkGrantingAuthnResp tid uid sparrq sparresp
+        checkGrantingAuthnResp uid sparrq sparresp
     context "re-bind to new UserRef from different IdP" $ do
       it "allowed" $ do
-        (uid, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
+        (uid, _tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
         _ <- initialBind uid idp privcreds
         (sparrq, sparresp) <- reBindDifferent uid
-        checkGrantingAuthnResp tid uid sparrq sparresp
+        checkGrantingAuthnResp uid sparrq sparresp
     context "bind to UserRef in use by other wire user" $ do
       it "forbidden" $ do
         env <- ask
@@ -496,11 +496,11 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
       let check :: HasCallStack => (Cky.Cookies -> Maybe Cky.Cookies) -> Bool -> SpecWith TestEnv
           check tweakcookies bindsucceeds = do
             it (if bindsucceeds then "binds existing user" else "creates new user") $ do
-              (uid, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
+              (uid, _tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
               (subj :: NameID, sparrq, sparresp) <- initialBind' tweakcookies uid idp privcreds
               checkGrantingAuthnResp' sparresp
               uid' <- getUserIdViaRef $ UserRef (idp ^. idpMetadata . edIssuer) subj
-              checkGrantingAuthnResp tid uid' sparrq sparresp
+              checkGrantingAuthnResp uid' sparrq sparresp
               liftIO $ (if bindsucceeds then shouldBe else shouldNotBe) uid' uid
           addAtBeginning :: Cky.SetCookie -> Cky.Cookies -> Cky.Cookies
           addAtBeginning cky = ((Cky.setCookieName cky, Cky.setCookieValue cky) :)
@@ -1096,8 +1096,8 @@ specScimAndSAML = do
     -- UserRef maps onto correct UserId in spar (and back).
     userid' <- getUserIdViaRef' userref
     liftIO $ ('i', userid') `shouldBe` ('i', Just userid)
-    userssoid <- getSsoidViaSelf' userid
-    liftIO $ ('r', preview veidUref <$$> (Intra.veidFromUserSSOId <$> userssoid)) `shouldBe` ('r', Just (Right (Just userref)))
+    authId :: Maybe AuthId <- getAuthIdViaSelf' userid
+    liftIO $ ('r', authId >>= authIdUref) `shouldBe` ('r', Just userref)
     -- login a user for the first time with the scim-supplied credentials
     authnreq <- negotiateAuthnRequest idp
     spmeta <- getTestSPMetadata
@@ -1122,7 +1122,7 @@ specScimAndSAML = do
         maybe (error "bad access token") pure . fromByteString . cs $ token
       pure $ Id (parsed ^. ZAuth.body . ZAuth.userId)
     liftIO $ userid'' `shouldBe` userid
-    -- /self should contain the expected UserSSOId
+    -- /self should contain the expected AuthId
     self :: ResponseLBS <-
       call . get $
         (env ^. teBrig)

@@ -35,7 +35,6 @@ import Brig.Types.User as Brig
 import Cassandra
 import qualified Control.Exception
 import Control.Lens
-import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.Random (Random (randomRIO))
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
@@ -49,6 +48,7 @@ import Data.Id (UserId, randomId)
 import Data.Ix (inRange)
 import Data.String.Conversions (cs)
 import Data.Text.Encoding (encodeUtf8)
+import qualified Data.UUID.V4 as UUID
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
@@ -70,6 +70,8 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.PatchOp as PatchOp
 import qualified Web.Scim.Schema.User as Scim.User
 import Wire.API.Team.Invitation (Invitation (..))
+import Wire.API.User (userAuthId)
+import Wire.API.User.Identity (AuthId, EmailWithSource (..), ExternalId (..), ScimDetails (..), authIdUref, runAuthId)
 import Wire.API.User.RichInfo
 import Wire.API.User.Search (SearchResult (..))
 import qualified Wire.API.User.Search as Search
@@ -190,11 +192,14 @@ specCreateUser = describe "POST /Users" $ do
   it "rejects attempts at setting a password" $ do
     testCreateUserWithPass
   context "team has no SAML IdP" $ do
-    it "creates a user with PendingInvitation, and user can follow usual invitation process" $ do
-      testCreateUserNoIdP
-    it "fails if no email can be extraced from externalId" $ do
-      testCreateUserNoIdPNoEmail
-    it "doesn't list users that exceed their invitation period, and allows recreating them" $ do
+    context "user is created with PendingInvitation, and user follows the usual invitation process" $ do
+      it "works if externalId is email" $
+        testCreateUserNoIdP EmailExternalId
+      it "works if externalId is not an email and there is an explicit email" $
+        testCreateUserNoIdP RandomExternalIdAndEmail
+      it "works if externalId is an email and there is an explicit email" $
+        testCreateUserNoIdP EmailExternalIdAndEmail
+    it "doesn't list users that exceed their invitation period, and allows recreating them" $
       testCreateUserTimeout
   context "team has one SAML IdP" $ do
     it "creates a user in an existing team" $ do
@@ -227,12 +232,85 @@ testCreateUserWithPass = do
     -- TODO: yes, we should just test for error labels consistently, i know...
     const (Just "Setting user passwords is not supported for security reasons.") =~= responseBody
 
-testCreateUserNoIdP :: TestSpar ()
-testCreateUserNoIdP = do
+data IdentityTestConfig
+  = RandomExternalId
+  | EmailExternalId
+  | RandomExternalIdAndEmail -- the `unspecified` `NameID` case.
+  | EmailExternalIdAndEmail -- (two different emails, which is a bit odd, but we want to make sure doing that is no way for a scim peer to break wire.)
+  deriving (Eq)
+
+data WithIdp
+  = WithIdp
+  | WithoutIdp
+
+-- in case of PUT/PATCH without updates (idempotency)
+-- then check if validation is pending and send another one
+--
+-- [1] externalId updates immediately. check spar.user, spar.scim_external, brig.user.sso_id
+-- [2] send validation email, returns unvalidated email via scim, returns no email after validation expired
+testUpdatedTODO :: WithIdp -> IdentityTestConfig -> IdentityTestConfig -> TestSpar ()
+-- created with RandomExternalId
+testUpdatedTODO WithoutIdp RandomExternalId _ = error "TODO: 400"
+testUpdatedTODO WithIdp RandomExternalId RandomExternalId = error "TODO: [1]"
+testUpdatedTODO WithIdp RandomExternalId EmailExternalId = error "TODO: 400 with: please provide email via emails attribute"
+testUpdatedTODO WithIdp RandomExternalId RandomExternalIdAndEmail = error "TODO: [1][2]"
+testUpdatedTODO WithIdp RandomExternalId EmailExternalIdAndEmail = error "TODO: [1][2]"
+-- created with EmailExternalId
+testUpdatedTODO WithIdp EmailExternalId RandomExternalId = error "TODO: [1]"
+testUpdatedTODO WithoutIdp EmailExternalId RandomExternalId = error "TODO: 400 with: please provide email via emails attribute"
+testUpdatedTODO withIpd EmailExternalId EmailExternalId = error "TODO: 400 with: please provide email via emails attribute"
+testUpdatedTODO withIpd EmailExternalId RandomExternalIdAndEmail = error "TODO: [1][2]"
+testUpdatedTODO withIpd EmailExternalId EmailExternalIdAndEmail = error "TODO: "
+-- created with RandomExternalIdAndEmail
+testUpdatedTODO withIpd RandomExternalIdAndEmail RandomExternalId = undefined
+testUpdatedTODO withIpd RandomExternalIdAndEmail EmailExternalId = error "TODO: 400 with: please provide email via emails attribute"
+testUpdatedTODO withIpd RandomExternalIdAndEmail RandomExternalIdAndEmail = undefined
+testUpdatedTODO withIpd RandomExternalIdAndEmail EmailExternalIdAndEmail = undefined
+-- created with EmailExternalIdAndEmail
+testUpdatedTODO withIpd EmailExternalIdAndEmail RandomExternalId = undefined
+testUpdatedTODO withIpd EmailExternalIdAndEmail EmailExternalId = error "TODO: 400 with: please provide email via emails attribute"
+testUpdatedTODO withIpd EmailExternalIdAndEmail RandomExternalIdAndEmail = undefined
+testUpdatedTODO withIpd EmailExternalIdAndEmail EmailExternalIdAndEmail = undefined
+
+-- | FUTUREWORK(fisx): this partially duplicates 'randomScimUser', 'randomScimUserWithSubjectAndRichInfo', consolidate that!
+createTestIdentity :: IdentityTestConfig -> TestSpar (Scim.User.User SparTag, Text, Email)
+createTestIdentity = \case
+  RandomExternalId -> error "TODO"
+  EmailExternalId -> do
+    email <- randomEmail
+    let externalId = fromEmail email
+    scimUser <-
+      randomScimUser <&> \u ->
+        u
+          { Scim.User.externalId = Just externalId,
+            Scim.User.emails = []
+          }
+    pure (scimUser, externalId, email)
+  RandomExternalIdAndEmail -> do
+    externalId <- cs . show <$> liftIO UUID.nextRandom
+    scimUser <- do
+      u <- randomScimUser
+      scimEmail <- randomScimEmail
+      pure (u {Scim.User.externalId = Just externalId, Scim.User.emails = [scimEmail]})
+    let Just email = scimUserFirstEmail scimUser
+    pure (scimUser, externalId, email)
+  EmailExternalIdAndEmail -> do
+    externalId <- fromEmail <$> randomEmail
+    scimEmail <- randomScimEmail
+    scimUser <-
+      randomScimUser <&> \u ->
+        u
+          { Scim.User.externalId = Just externalId,
+            Scim.User.emails = [scimEmail]
+          }
+    let Just email = scimUserFirstEmail scimUser
+    pure (scimUser, externalId, email)
+
+testCreateUserNoIdP :: IdentityTestConfig -> TestSpar ()
+testCreateUserNoIdP identityTestConfig = do
   env <- ask
   let brig = env ^. teBrig
-  email <- randomEmail
-  scimUser <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
+  (scimUser, externalId, email) <- createTestIdentity identityTestConfig
   (owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
   tok <- registerScimToken tid Nothing
   scimStoredUser <- createUser tok scimUser
@@ -259,20 +337,23 @@ testCreateUserNoIdP = do
   -- Note: Cannot run this test here, because its delay would cause the invitation to
   -- time out.
 
-  -- scim-get should produce same stored user; stored user should be inactive and have an
-  -- email.
+  -- scim-get should produce same stored user; stored user should be inactive, email and
+  -- externalId should be correct.
   do
     susr <- getUser tok userid
     liftIO $ susr `shouldBe` scimStoredUser
     let usr = Scim.value . Scim.thing $ susr
     liftIO $ Scim.User.active usr `shouldBe` Just (Scim.ScimBool False)
-    liftIO $ Scim.User.externalId usr `shouldBe` Just (fromEmail email)
+    liftIO $ Scim.User.externalId usr `shouldBe` Just externalId
+    when (identityTestConfig == RandomExternalIdAndEmail || identityTestConfig == EmailExternalIdAndEmail) $
+      liftIO $ Scim.User.emails usr `shouldBe` [unsafeEmailToScimEmail email]
 
   -- scim search should succeed
   do
+    -- FUTUREWORK: search for email
     listUsers tok (Just (filterBy "userName" $ fromHandle handle)) >>= \users ->
       liftIO $ users `shouldBe` [scimStoredUser]
-    listUsers tok (Just (filterBy "externalId" $ fromEmail email)) >>= \users ->
+    listUsers tok (Just (filterBy "externalId" externalId)) >>= \users ->
       liftIO $ users `shouldBe` [scimStoredUser]
 
   -- user should be able to follow old team invitation flow
@@ -327,18 +408,6 @@ testCreateUserNoIdP = do
               . expect2xx
           )
       responseJsonError r
-
-testCreateUserNoIdPNoEmail :: TestSpar ()
-testCreateUserNoIdPNoEmail = do
-  env <- ask
-  tok <- do
-    (_, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-    registerScimToken tid Nothing
-  user <- randomScimUser <&> \u -> u {Scim.User.externalId = Just "notanemail"}
-  createUser_ (Just tok) user (env ^. teSpar) !!! do
-    const 400 === statusCode
-    -- TODO(fisx): test for error labels consistently...
-    const (Just "externalId must be a valid email address or (if there is a SAML IdP) a valid SAML NameID") =~= responseBody
 
 testCreateUserWithSamlIdP :: TestSpar ()
 testCreateUserWithSamlIdP = do
@@ -628,7 +697,7 @@ testScimCreateVsUserRef = do
       (call . delete $ brig . paths ["i", "users", toByteString' uid])
         !!! const 202 === statusCode
 
-testCreateUserTimeout :: TestSpar ()
+testCreateUserTimeout :: HasCallStack => TestSpar ()
 testCreateUserTimeout = do
   env <- ask
 
@@ -636,7 +705,12 @@ testCreateUserTimeout = do
   tok <- registerScimToken tid Nothing
 
   email <- randomEmail
-  scimUser <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
+  scimUser <-
+    randomScimUser <&> \u ->
+      u
+        { Scim.User.externalId = Just $ fromEmail email,
+          Scim.User.emails = []
+        }
   let userName = Name . fromJust . Scim.User.displayName $ scimUser
 
   (scimStoredUser1, _inv, inviteeCode) <- createUser'step tok tid scimUser email
@@ -738,7 +812,7 @@ testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO = do
     runSpar $ Intra.setBrigUserHandle uid handle
     pure usr
   let memberIdWithSSO = userId memberWithSSO
-      externalId = either error id $ veidToText =<< Intra.veidFromBrigUser memberWithSSO Nothing
+      externalId = maybe (error $ "bad: " <> show memberWithSSO) id $ renderAuthIdAsExternalId =<< userAuthId memberWithSSO
 
   -- NOTE: once SCIM is enabled, SSO auto-provisioning is disabled
   tok <- registerScimToken teamid (Just (idp ^. SAML.idpId))
@@ -748,13 +822,6 @@ testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO = do
   liftIO $ (scimUserId <$> users) `shouldContain` [memberIdWithSSO]
   Just brigUser' <- runSpar $ Intra.getBrigUser Intra.NoPendingInvitations memberIdWithSSO
   liftIO $ userManagedBy brigUser' `shouldBe` ManagedByScim
-  where
-    veidToText :: MonadError String m => ValidExternalId -> m Text
-    veidToText veid =
-      runValidExternalId
-        (\(SAML.UserRef _ subj) -> maybe (throwError "bad uref from brig") pure $ SAML.shortShowNameID subj)
-        (pure . fromEmail)
-        veid
 
 testFindTeamSettingsInvitedUserMigratedWithEmailInTeamWithSSO :: TestSpar ()
 testFindTeamSettingsInvitedUserMigratedWithEmailInTeamWithSSO = do
@@ -1014,8 +1081,9 @@ specUpdateUser = describe "PUT /Users/:id" $ do
   it "requires a user ID" $ testUpdateRequiresUserId
   it "updates user attributes in brig" $ testScimSideIsUpdated
   it "works fine when neither name nor handle are changed" $ testUpdateSameHandle
-  it "updates the 'SAML.UserRef' index in Spar" $ testUpdateExternalId True
-  it "updates the 'Email' index in Brig" $ testUpdateExternalId False
+  describe "externalId updates are propagated to all spar indices" $ do
+    it "[externalId is no email, team has idp] updates the 'SAML.UserRef' index in Spar" $ testUpdateExternalId True
+    it "[externalId is email, team has no idp] updates the 'Email' index in Brig" $ testUpdateExternalId False
   it "updates the matching Brig user" $ testBrigSideIsUpdated
   it "cannot update user to match another user's externalId" $ testUpdateToExistingExternalIdFails
   it "cannot remove display name" $ testCannotRemoveDisplayName
@@ -1023,20 +1091,10 @@ specUpdateUser = describe "PUT /Users/:id" $ do
     it "fails to update user with 404" testUserUpdateFailsWithNotFoundIfOutsideTeam
   context "user does not exist" $ do
     it "fails" $ pending
-  it "does not update if nothing changed" $ testSameUpdateNoChange
-  context "brig user is updated" $ do
-    -- TODO(arianvp): This will be fixed by
-    -- https://github.com/zinfra/backend-issues/issues/1006 The comment
-    -- means: If we update a user on the brig side; then currently this is
-    -- not reflected on the SCIM side. We can fix this by making brig
-    -- actually the source of truth for SCIM SCIM then becomes a _view_;
-    -- not a separate database.
-    it "does NOT mirror this in the scim user" $
-      pendingWith
-        "this is arguably not great behavior, but i'm not sure \
-        \we want to implement synchronisation from brig to spar?"
-    it "updates to scim user will overwrite these updates" $
-      pendingWith "that's probably what we want?"
+
+  it "does not update if nothing changed - EmailExternalId" $ testSameUpdateNoChange EmailExternalId
+  it "does not update if nothing changed - RandomExternalIdAndEmail" $ testSameUpdateNoChange RandomExternalIdAndEmail
+  it "does not update if nothing changed - EmailExternalIdAndEmail" $ testSameUpdateNoChange EmailExternalIdAndEmail
 
 -- | Tests that you can't unset your display name
 testCannotRemoveDisplayName :: TestSpar ()
@@ -1063,14 +1121,14 @@ testCannotRemoveDisplayName = do
 
 -- | Test that when you're not changing any fields, then that update should not
 -- change anything (Including version field)
-testSameUpdateNoChange :: TestSpar ()
-testSameUpdateNoChange = do
-  user <- randomScimUser
+testSameUpdateNoChange :: IdentityTestConfig -> TestSpar ()
+testSameUpdateNoChange identityTestConfig = do
+  (user, _externalId, _email) <- createTestIdentity identityTestConfig
   (tok, _) <- registerIdPAndScimToken
   storedUser <- createUser tok user
   let userid = scimUserId storedUser
   storedUser' <- updateUser tok userid user
-  liftIO $ storedUser `shouldBe` storedUser'
+  liftIO $ storedUser' `shouldBe` storedUser
 
 -- | Test that @PUT /Users@ returns 4xx when called without the @:id@ part.
 testUpdateRequiresUserId :: TestSpar ()
@@ -1101,7 +1159,7 @@ testScimSideIsUpdated :: TestSpar ()
 testScimSideIsUpdated = do
   -- Create a user via SCIM
   user <- randomScimUser
-  (tok, (_, _, idp)) <- registerIdPAndScimToken
+  (tok, (_, tid, idp)) <- registerIdPAndScimToken
   storedUser <- createUser tok user
   let userid = scimUserId storedUser
   -- Overwrite the user with another randomly-generated user
@@ -1115,7 +1173,7 @@ testScimSideIsUpdated = do
   -- 'updateUser'
   richInfoLimit <- asks (Spar.Types.richInfoLimit . view teOpts)
   liftIO $ do
-    Right (Scim.value (Scim.thing storedUser')) `shouldBe` whatSparReturnsFor idp richInfoLimit user'
+    Right (Scim.value (Scim.thing storedUser')) `shouldBe` whatSparReturnsFor tid idp richInfoLimit user'
     Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)
     let meta = Scim.meta storedUser
         meta' = Scim.meta storedUser'
@@ -1152,7 +1210,7 @@ testUpdateSameHandle :: TestSpar ()
 testUpdateSameHandle = do
   -- Create a user via SCIM
   user <- randomScimUser
-  (tok, (_, _, idp)) <- registerIdPAndScimToken
+  (tok, (_, tid, idp)) <- registerIdPAndScimToken
   storedUser <- createUser tok user
   let userid = scimUserId storedUser
   -- Overwrite the user with another randomly-generated user who has the same name and
@@ -1170,7 +1228,7 @@ testUpdateSameHandle = do
   -- Check that the updated user also matches the data that we sent with 'updateUser'
   richInfoLimit <- asks (Spar.Types.richInfoLimit . view teOpts)
   liftIO $ do
-    Right (Scim.value (Scim.thing storedUser')) `shouldBe` whatSparReturnsFor idp richInfoLimit user'
+    Right (Scim.value (Scim.thing storedUser')) `shouldBe` whatSparReturnsFor tid idp richInfoLimit user'
     Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)
     let meta = Scim.meta storedUser
         meta' = Scim.meta storedUser'
@@ -1200,8 +1258,8 @@ testUpdateExternalId withidp = do
         user <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
         storedUser <- createUser tok user
         let userid = scimUserId storedUser
-        veid :: ValidExternalId <-
-          either (error . show) pure $ mkValidExternalId midp (Scim.User.externalId user)
+        authId :: AuthId <-
+          either (error . show) pure $ mkAuthId (Scim.User.externalId user) midp tid []
         -- Overwrite the user with another randomly-generated user (only controlling externalId)
         user' <- do
           otherEmail <- randomEmail
@@ -1213,27 +1271,28 @@ testUpdateExternalId withidp = do
                         else Scim.User.externalId user
                   }
           randomScimUser <&> upd
-        let veid' = either (error . show) id $ mkValidExternalId midp (Scim.User.externalId user')
+        let authId' = either (error . show) id $ mkAuthId (Scim.User.externalId user') midp tid []
 
         _ <- updateUser tok userid user'
 
-        muserid <- lookupByValidExternalId veid
-        muserid' <- lookupByValidExternalId veid'
+        muserid <- lookupByValidExternalId authId
+        muserid' <- lookupByValidExternalId authId'
         liftIO $ do
           if hasChanged
             then do
               (hasChanged, muserid) `shouldBe` (hasChanged, Nothing)
               (hasChanged, muserid') `shouldBe` (hasChanged, Just userid)
             else do
-              (hasChanged, veid') `shouldBe` (hasChanged, veid)
+              (hasChanged, authId') `shouldBe` (hasChanged, authId)
               (hasChanged, muserid') `shouldBe` (hasChanged, Just userid)
 
-      lookupByValidExternalId :: ValidExternalId -> TestSpar (Maybe UserId)
+      -- FUTUREWORK: rename to lookupByAuthId
+      lookupByValidExternalId :: AuthId -> TestSpar (Maybe UserId)
       lookupByValidExternalId =
-        runValidExternalId
+        runAuthId
           (runSparCass . Data.getSAMLUser)
-          ( \email -> do
-              let action = SU.scimFindUserByEmail midp tid $ fromEmail email
+          ( \(ScimDetails _ (EmailWithSource email _)) -> do
+              let action = SU.scimFindUserByExternalId midp tid $ fromEmail email
               result <- runSpar . runExceptT . runMaybeT $ action
               case result of
                 Right muser -> pure $ Scim.id . Scim.thing <$> muser
@@ -1247,14 +1306,14 @@ testUpdateExternalId withidp = do
 testBrigSideIsUpdated :: TestSpar ()
 testBrigSideIsUpdated = do
   user <- randomScimUser
-  (tok, (_, _, idp)) <- registerIdPAndScimToken
+  (tok, (_, tid, idp)) <- registerIdPAndScimToken
   storedUser <- createUser tok user
   user' <- randomScimUser
   let userid = scimUserId storedUser
   _ <- updateUser tok userid user'
   validScimUser <-
     either (error . show) pure $
-      validateScimUser' (Just idp) 999999 user'
+      validateScimUser' tid (Just idp) 999999 user'
   brigUser <- maybe (error "no brig user") pure =<< runSpar (Intra.getBrigUser Intra.WithPendingInvitations userid)
   brigUser `userShouldMatch` validScimUser
 
@@ -1439,8 +1498,8 @@ specDeleteUser = do
       uref :: SAML.UserRef <- do
         usr <- runSpar $ Intra.getBrigUser Intra.WithPendingInvitations uid
         let err = error . ("brig user without UserRef: " <>) . show
-        case (`Intra.veidFromBrigUser` Nothing) <$> usr of
-          bad@(Just (Right veid)) -> runValidExternalId pure (const $ err bad) veid
+        case userAuthId =<< usr of
+          bad@(Just authId) -> runAuthId pure (const $ err bad) authId
           bad -> err bad
       spar <- view teSpar
       deleteUser_ (Just tok) (Just uid) spar
@@ -1525,7 +1584,7 @@ specDeleteUser = do
         tok <- registerScimToken tid Nothing
 
         email <- randomEmail
-        scimUser <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
+        scimUser <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email, Scim.User.emails = []}
         scimStoredUser <- createUser tok scimUser
         let uid = scimUserId scimStoredUser
 
@@ -1606,8 +1665,8 @@ specEmailValidation = do
           (user, email) <- randomScimUserWithEmail
           scimStoredUser <- createUser tok user
           uref :: SAML.UserRef <-
-            either (error . show) (pure . (^?! veidUref)) $
-              mkValidExternalId (Just idp) (Scim.User.externalId . Scim.value . Scim.thing $ scimStoredUser)
+            either (error . show) (maybe (error "no uref") pure . authIdUref) $
+              mkAuthId (Scim.User.externalId . Scim.value . Scim.thing $ scimStoredUser) (Just idp) teamid []
           uid :: UserId <-
             getUserIdViaRef uref
           brig <- asks (^. teBrig)
@@ -1637,7 +1696,7 @@ testDeletedUsersFreeExternalIdNoIdp = do
   tok <- registerScimToken tid Nothing
 
   email <- randomEmail
-  scimUser <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
+  scimUser <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email, Scim.User.emails = []}
   scimStoredUser <- createUser tok scimUser
   let uid = scimUserId scimStoredUser
       userName = Name . fromJust . Scim.User.displayName $ scimUser
@@ -1655,7 +1714,7 @@ testDeletedUsersFreeExternalIdNoIdp = do
 
   void $
     aFewTimes
-      (runClient clientState $ lookupScimExternalId tid email)
+      (runClient clientState $ lookupScimExternalId (ExternalId tid (fromEmail email)))
       (== Nothing)
 
 specSCIMManaged :: SpecWith TestEnv

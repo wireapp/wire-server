@@ -23,6 +23,7 @@ import Brig.Types
 import Data.Handle (Handle)
 import Data.Id
 import Imports
+import Wire.API.User.Identity (UserSSOId)
 
 data Event
   = UserEvent !UserEvent
@@ -76,6 +77,8 @@ data UserUpdatedData = UserUpdatedData
     eupManagedBy :: !(Maybe ManagedBy),
     eupSSOId :: !(Maybe UserSSOId),
     eupSSOIdRemoved :: Bool
+    -- FUTUREWORK: @eupAuthId :: AuthIdUpdate where data AuthIdUpdate = Empty | Just AuthId |
+    -- Removed@, then we don't need @eupAuthIdRemoved@.
   }
   deriving stock (Show)
 
