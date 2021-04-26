@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4050c5c7a2af585637fb5a1eec33f457b3c27e58879ebe3ac5a5f49353fd2542
+-- hash: 6bb415b7b5e64d365bd4326ded2dbd3545ea8b44bda9c1b90a7009b63535e1f1
 
 name:           galley
 version:        0.83.0
@@ -357,6 +357,7 @@ test-suite galley-types-tests
   main-is: Main.hs
   other-modules:
       Test.Galley.API
+      Test.Galley.Intra.User
       Paths_galley
   hs-source-dirs:
       test/unit
@@ -376,6 +377,7 @@ test-suite galley-types-tests
     , ssl-util
     , tasty
     , tasty-hunit
+    , tasty-quickcheck
     , types-common
     , wai
     , wai-predicates
