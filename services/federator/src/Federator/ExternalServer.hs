@@ -21,13 +21,16 @@
 
 module Federator.ExternalServer where
 
+import Control.Lens (view)
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Federator.App (Federator, runAppT)
 import Federator.Brig (Brig, brigCall, interpretBrig)
-import Federator.Env (Env)
+import Federator.Env (Env, applog, runSettings)
+import Federator.Options (RunSettings)
 import Federator.Utils.PolysemyServerError (absorbServerError)
+import Federator.Validation
 import Imports
 import Mu.GRpc.Server (msgProtoBuf, runGRpcAppTrans)
 import Mu.Server (ServerError, ServerErrorIO, SingleServerT, singleService)
@@ -36,6 +39,10 @@ import qualified Network.HTTP.Types.Status as HTTP
 import Polysemy
 import qualified Polysemy.Error as Polysemy
 import Polysemy.IO (embedToMonadIO)
+import qualified Polysemy.Reader as Polysemy
+import Polysemy.TinyLog (TinyLog)
+import qualified Polysemy.TinyLog as Log
+import qualified System.Logger.Message as Log
 import Wire.API.Federation.GRPC.Types
 
 -- FUTUREWORK(federation): Versioning of the federation API. See
@@ -46,31 +53,45 @@ import Wire.API.Federation.GRPC.Types
 -- reached, some discussion here:
 -- https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/224166764/Limiting+access+to+federation+endpoints
 -- Also, see comment in 'Federator.Brig.interpretBrig'
-callLocal :: (Members '[Brig, Embed IO] r) => Request -> Sem r InwardResponse
-callLocal Request {..} = do
-  -- FUTUREWORK(federation): before making a request, check the sender domain and only make the call if the allowlist (use Util.federateWith) allows it.
-  (resStatus, resBody) <- brigCall path body
-  pure $ case HTTP.statusCode resStatus of
-    200 -> InwardResponseBody $ maybe mempty LBS.toStrict resBody
-    -- TODO: There is a unit test for this, but Akshay has seen the integration
-    -- test never sees InwardResponseErr, when the error is supposed to be
-    -- returned, the integration test just sees `InwardResponseBody` with empty
-    -- body. Maybe this is a bug in mu-haskell, maybe something is wrong with
-    -- our integration test, let's verify this.
-    code -> InwardResponseErr $ "Invalid HTTP status from component: " <> Text.pack (show code) <> " " <> Text.decodeUtf8 (HTTP.statusMessage resStatus)
+--
+-- FUTUREWORK(federation): implement server2server authentication!
+-- (current validation only checks parsing and compares to allowList)
+--
+-- FUTUREWORK: consider using Polysemy.Error also in callLocal to reduce nesting and improve readability.
+callLocal :: (Members '[Brig, Embed IO, TinyLog, Polysemy.Reader RunSettings] r) => Request -> Sem r InwardResponse
+callLocal req@Request {..} = do
+  Log.debug $
+    Log.msg ("Inward Request" :: ByteString)
+      . Log.field "request" (show req)
 
-routeToInternal :: (Members '[Brig, Embed IO, Polysemy.Error ServerError] r) => SingleServerT info Inward (Sem r) _
+  validation <- federateWith' originDomain
+  case validation of
+    Left err -> pure $ InwardResponseErr err
+    Right domain -> do
+      (resStatus, resBody) <- brigCall path body domain
+      pure $ case HTTP.statusCode resStatus of
+        200 -> InwardResponseBody $ maybe mempty LBS.toStrict resBody
+        -- TODO: There is a unit test for this, but Akshay has seen the integration
+        -- test never sees InwardResponseErr, when the error is supposed to be
+        -- returned, the integration test just sees `InwardResponseBody` with empty
+        -- body. Maybe this is a bug in mu-haskell, maybe something is wrong with
+        -- our integration test, let's verify this.
+        code -> InwardResponseErr $ "Invalid HTTP status from component: " <> Text.pack (show code) <> " " <> Text.decodeUtf8 (HTTP.statusMessage resStatus)
+
+routeToInternal :: (Members '[Brig, Embed IO, Polysemy.Error ServerError, TinyLog, Polysemy.Reader RunSettings] r) => SingleServerT info Inward (Sem r) _
 routeToInternal = singleService (Mu.method @"call" callLocal)
 
 serveInward :: Env -> Int -> IO ()
 serveInward env port = do
   runGRpcAppTrans msgProtoBuf port transformer routeToInternal
   where
-    transformer :: Sem '[Embed IO, Polysemy.Error ServerError, Brig, Embed Federator] a -> ServerErrorIO a
+    transformer :: Sem '[TinyLog, Embed IO, Polysemy.Error ServerError, Brig, Polysemy.Reader RunSettings, Embed Federator] a -> ServerErrorIO a
     transformer action =
       runAppT env
         . runM @Federator
+        . Polysemy.runReader (view runSettings env)
         . interpretBrig
         . absorbServerError
         . embedToMonadIO @Federator
+        . Log.runTinyLog (view applog env)
         $ action

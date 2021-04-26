@@ -30,8 +30,8 @@ import Federator.Discovery (DiscoverFederator, LookupError (LookupErrorDNSError,
 import Federator.Env (Env, applog, dnsResolver, runSettings)
 import Federator.Options (RunSettings)
 import Federator.Remote (Remote, RemoteError (RemoteErrorClientFailure, RemoteErrorDiscoveryFailure), discoverAndCall, interpretRemote)
-import Federator.Util
 import Federator.Utils.PolysemyServerError (absorbServerError)
+import Federator.Validation
 import Imports
 import Mu.GRpc.Client.Record (GRpcReply (..))
 import Mu.GRpc.Server (msgProtoBuf, runGRpcAppTrans)

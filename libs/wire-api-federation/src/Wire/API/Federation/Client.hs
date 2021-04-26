@@ -6,7 +6,7 @@ module Wire.API.Federation.Client where
 import Control.Monad.Except (MonadError (..))
 import Data.ByteString.Builder (toLazyByteString)
 import qualified Data.ByteString.Lazy as LBS
-import Data.Domain (Domain)
+import Data.Domain (Domain, domainText)
 import qualified Data.Text as T
 import Imports
 import Mu.GRpc.Client.TyApps (GRpcMessageProtocol (MsgProtoBuf), GRpcReply (..), GrpcClient, gRpcCall)
@@ -18,14 +18,15 @@ import qualified Wire.API.Federation.GRPC.Types as Proto
 
 data FederatorClientEnv = FederatorClientEnv
   { grpcClient :: GrpcClient,
-    domain :: Domain
+    targetDomain :: Domain,
+    originDomain :: Domain
   }
 
 newtype FederatorClient (component :: Proto.Component) m a = FederatorClient {runFederatorClient :: ReaderT FederatorClientEnv m a}
   deriving newtype (Functor, Applicative, Monad, MonadReader FederatorClientEnv, MonadIO)
 
-runFederatorClientWith :: GrpcClient -> Domain -> FederatorClient component m a -> m a
-runFederatorClientWith client dmn = flip runReaderT (FederatorClientEnv client dmn) . runFederatorClient
+runFederatorClientWith :: GrpcClient -> Domain -> Domain -> FederatorClient component m a -> m a
+runFederatorClientWith client targetDomain originDomain = flip runReaderT (FederatorClientEnv client targetDomain originDomain) . runFederatorClient
 
 class KnownComponent (c :: Proto.Component) where
   componentVal :: Proto.Component
@@ -41,11 +42,12 @@ instance (Monad m, MonadError FederationClientError m, MonadIO m, KnownComponent
     body <- readBody . maybe (RequestBodyBS "") fst $ requestBody req
     let call =
           Proto.ValidatedFederatedRequest
-            (domain env)
+            (targetDomain env)
             ( Proto.Request
                 (componentVal @component)
                 (LBS.toStrict . toLazyByteString $ requestPath req)
                 body
+                (domainText (originDomain env))
             )
     grpcResponse <- callRemote (grpcClient env) call
     case grpcResponse of

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f25a24207c25fdeec7c300cfd5aeb3dc98e8cc26eeb6700f83174dd761b28022
+-- hash: 9a9d5df94719b8f46988169a22d8e7625aa61a6b91d79f5f9af0c4aa35fb1dcf
 
 name:           federator
 version:        1.0.0
@@ -27,8 +27,8 @@ library
       Federator.Options
       Federator.Remote
       Federator.Run
-      Federator.Util
       Federator.Utils.PolysemyServerError
+      Federator.Validation
   other-modules:
       Paths_federator
   hs-source-dirs:
@@ -193,6 +193,7 @@ test-suite federator-tests
       Test.Federator.ExternalServer
       Test.Federator.InternalServer
       Test.Federator.Options
+      Test.Federator.Validation
       Paths_federator
   hs-source-dirs:
       test/unit

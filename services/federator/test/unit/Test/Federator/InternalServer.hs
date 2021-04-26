@@ -24,7 +24,6 @@ import Federator.Discovery (LookupError (LookupErrorDNSError, LookupErrorSrvNotA
 import Federator.InternalServer (callOutward)
 import Federator.Options (AllowedDomains (..), FederationStrategy (..), RunSettings (..))
 import Federator.Remote (Remote, RemoteError (RemoteErrorDiscoveryFailure))
-import Federator.Util
 import Imports
 import Mu.GRpc.Client.Record
 import Network.HTTP2.Client (TooMuchConcurrency (TooMuchConcurrency))
@@ -33,19 +32,15 @@ import qualified Polysemy.Reader as Polysemy
 import Test.Polysemy.Mock (Mock (mock), evalMock)
 import Test.Polysemy.Mock.TH (genMock)
 import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, testCase)
+import Test.Tasty.HUnit (assertEqual, assertFailure, testCase)
 import Wire.API.Federation.GRPC.Types
 
 genMock ''Remote
 
 tests :: TestTree
 tests =
-  testGroup "Fedderate" $
-    [ testGroup "Util.federateWith" $
-        [ federateWithAllowListSuccess,
-          federateWithAllowListFail
-        ],
-      testGroup "with remote" $
+  testGroup "Federate" $
+    [ testGroup "with remote" $
         [ federatedRequestSuccess,
           federatedRequestFailureTMC,
           federatedRequestFailureErrCode,
@@ -164,22 +159,6 @@ federatedRequestFailureAllowList =
         assertEqual "no remote calls should be made" [] actualCalls
         assertResponseErrorWithType FederationDeniedLocally res
 
-federateWithAllowListSuccess :: TestTree
-federateWithAllowListSuccess =
-  testCase "should give True when target domain is in the list" $
-    runM . evalMock @Remote @IO $ do
-      let allowList = RunSettings (AllowList (AllowedDomains [Domain "hello.world"]))
-      res <- Polysemy.runReader allowList $ federateWith (Domain "hello.world")
-      embed $ assertBool "federating should be allowed" res
-
-federateWithAllowListFail :: TestTree
-federateWithAllowListFail =
-  testCase "should give False when target domain is not in the list" $
-    runM . evalMock @Remote @IO $ do
-      let allowList = RunSettings (AllowList (AllowedDomains [Domain "only.other.domain"]))
-      res <- Polysemy.runReader allowList $ federateWith (Domain "hello.world")
-      embed $ assertBool "federating should not be allowed" (not res)
-
 assertResponseErrorWithType :: HasCallStack => OutwardErrorType -> OutwardResponse -> IO ()
 assertResponseErrorWithType expectedType res =
   case res of
@@ -189,7 +168,7 @@ assertResponseErrorWithType expectedType res =
       assertEqual "Unexpected error type" expectedType actualType
 
 validLocalPart :: Request
-validLocalPart = Request Brig "/users" "\"foo\""
+validLocalPart = Request Brig "/users" "\"foo\"" "foo.domain"
 
 validDomainText :: Text
 validDomainText = "example.com"
