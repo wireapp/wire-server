@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Federator.Util
+module Federator.Util -- TODO Validation
   ( federateWith,
     federateWith',
   )
@@ -23,10 +23,12 @@ where
 
 import Control.Lens (view)
 import Data.Domain (Domain, domainText, mkDomain)
+import Data.Either.Combinators (mapLeft)
 import Data.String.Conversions (cs)
 import Federator.Options
 import Imports
 import Polysemy (Members, Sem)
+import qualified Polysemy.Error as Polysemy
 import qualified Polysemy.Reader as Polysemy
 
 -- | Validates an already-parsed domain against the allowList using the federator
@@ -40,11 +42,15 @@ federateWith targetDomain = do
 
 -- | Validates an unknown domain string against the allowList using the federator startup configuration
 federateWith' :: Members '[Polysemy.Reader RunSettings] r => Text -> Sem r (Either Text Domain)
-federateWith' targetDomain = do
-  case mkDomain targetDomain of
-    Left err -> pure $ Left ("Domain parse failure for [" <> targetDomain <> "]: " <> cs err)
-    Right parsedDomain -> do
-      allowCheck <- federateWith parsedDomain
-      if allowCheck
-        then pure $ Right parsedDomain
-        else pure $ Left ("Origin domain [" <> domainText parsedDomain <> "] not in the federation allow list")
+federateWith' targetDomain = Polysemy.runError $ do
+  parsedDomain <- Polysemy.fromEither $ mapLeft (errDomainParsing targetDomain) $ mkDomain targetDomain
+  allowCheck <- federateWith parsedDomain
+  unless allowCheck $
+    Polysemy.throw (errAllowList parsedDomain)
+  pure parsedDomain
+
+errDomainParsing :: Text -> String -> Text
+errDomainParsing domain err = "Domain parse failure for [" <> domain <> "]: " <> cs err
+
+errAllowList :: Domain -> Text
+errAllowList domain = "Origin domain [" <> domainText domain <> "] not in the federation allow list"

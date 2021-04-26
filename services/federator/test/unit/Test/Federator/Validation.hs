@@ -20,6 +20,8 @@
 module Test.Federator.Validation where
 
 import Data.Domain (Domain (..))
+import Data.Either.Combinators (mapLeft)
+import qualified Data.Text as Text
 import Federator.Options
 import Federator.Remote (Remote)
 import Federator.Util
@@ -70,6 +72,7 @@ federateWith'AllowListFailSemantic =
       let allowList = RunSettings (AllowList (AllowedDomains [Domain "only.other.domain"]))
       res <- Polysemy.runReader allowList $ federateWith' ("invalid//.><-semantic-&@-domain" :: Text)
       embed $ assertBool "invalid semantic domains should produce errors" (isLeft res)
+      embed $ assertEqual "semantic:" (Left ("Domain parse failure" :: Text)) (mapLeft (Text.take 20) res)
 
 federateWith'AllowListFail :: TestTree
 federateWith'AllowListFail =
@@ -78,6 +81,7 @@ federateWith'AllowListFail =
       let allowList = RunSettings (AllowList (AllowedDomains [Domain "only.other.domain"]))
       res <- Polysemy.runReader allowList $ federateWith' ("hello.world" :: Text)
       embed $ assertBool "federating should not be allowed" (isLeft res)
+      embed $ assertEqual "allow list:" (Left ("not in the federation allow list" :: Text)) (mapLeft (Text.takeEnd 32) res)
 
 federateWith'AllowListSuccess :: TestTree
 federateWith'AllowListSuccess =
