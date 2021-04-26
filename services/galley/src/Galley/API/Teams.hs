@@ -457,7 +457,7 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
     lookupInviterHandle :: [TeamMember] -> Galley (UserId -> Maybe Handle.Handle)
     lookupInviterHandle members = do
       let inviterIds :: [UserId]
-          inviterIds = catMaybes $ fmap fst . view invitation <$> members
+          inviterIds = nub $ catMaybes $ fmap fst . view invitation <$> members
 
       userList :: [User] <- accountUser <$$> getUsers inviterIds
 
