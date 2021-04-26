@@ -15,16 +15,7 @@ SPHINXBUILD   ?= sphinx-build
 SOURCEDIR     = $(MKFILE_DIR)/src
 BUILDDIR      = $(MKFILE_DIR)/build
 # note: if you're using direnv/nix, this will be set to USE_POETRY=0 automatically in .envrc
-USE_POETRY    ?= 0
-
-LOCAL_DIR            = $(MKFILE_DIR)/.local
-BIN_DIR              = $(LOCAL_DIR)/bin
-TEMP_DIR             = $(LOCAL_DIR)/tmp
-PYTHON_INTERPRETER	?= python3
-VENV_DIR             = $(LOCAL_DIR)/venv
-VENV_BIN             = $(LOCAL_DIR)/venv/bin
-POETRY_LOCK          = $(MKFILE_DIR)/poetry.lock
-export PATH := $(VENV_BIN):$(BIN_DIR):$(PATH)
+USE_POETRY    ?= 1
 
 ifeq ($(OS), darwin)
 OPEN := open
@@ -77,20 +68,6 @@ ifeq ($(USE_POETRY), 1)
 else
 	aws s3 sync $(BUILDDIR)/html s3://origin-docs.wire.com/
 endif
-
-
-.PHONY: dev-install
-dev-install: $(VENV_BIN)/sphinx-autobuil
-$(VENV_BIN)/sphinx-autobuil: export POETRY_CACHE_DIR = $(LOCAL_DIR)/poetry/cache
-$(VENV_BIN)/sphinx-autobuil: export POETRY_VIRTUALENVS_CREATE = false
-$(VENV_BIN)/sphinx-autobuil: $(POETRY_LOCK)
-	rm -rf $(LOCAL_DIR)
-	$(PYTHON_INTERPRETER) -m venv $(VENV_DIR)
-	$(VENV_BIN)/pip install poetry
-	# Ubuntu bug, see https://stackoverflow.com/questions/7446187/no-module-named-pkg-resources
-	$(VENV_BIN)/pip install setuptools
-	poetry install
-
 
 .PHONY: dev-run
 dev-run: clean
