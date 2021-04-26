@@ -84,6 +84,7 @@ import Data.Swagger
     type_,
   )
 import qualified Data.Swagger.Build.Api as Doc
+import qualified Data.Text as T
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (decodeLatin1)
@@ -328,12 +329,42 @@ type GetUserClientQualified =
     :> Get '[Servant.JSON] Public.PubClient
 
 type ListClientsBulk =
-  Summary "List all clients for a set of user ids"
+  Summary "List all clients for a set of user ids (deprecated, use /user/list-clients/v2)"
     :> ZAuthServant
     :> "users"
     :> "list-clients"
     :> Servant.ReqBody '[Servant.JSON] (Range 1 MaxUsersForListClientsBulk [Qualified UserId])
     :> Post '[Servant.JSON] (Public.QualifiedUserMap (Set Public.PubClient))
+
+type ListClientsBulkV2 =
+  Summary "List all clients for a set of user ids"
+    :> ZAuthServant
+    :> "users"
+    :> "list-clients"
+    :> "v2"
+    :> Servant.ReqBody '[Servant.JSON] (Named "qualified_users" (Range 1 MaxUsersForListClientsBulk [Qualified UserId]))
+    :> Post '[Servant.JSON] (Public.QualifiedUserMap (Set Public.PubClient))
+
+newtype Named (name :: Symbol) a = Named {unwrapNamed :: a}
+  deriving (Eq, Show, Generic)
+
+instance (ToJSON a, KnownSymbol name) => ToJSON (Named name a) where
+  toJSON (Named thing) = object [T.pack (symbolVal (Proxy @name)) .= thing]
+
+instance (FromJSON a, KnownSymbol name) => FromJSON (Named name a) where
+  parseJSON = withObject ("Named" <> symbolVal (Proxy @name)) $ \o ->
+    Named <$> o .: T.pack (symbolVal (Proxy @name))
+
+instance (ToSchema a, KnownSymbol name) => ToSchema (Named name a) where
+  declareNamedSchema _ = do
+    thingSchema <- declareSchemaRef (Proxy @a)
+    pure $
+      NamedSchema Nothing $
+        mempty
+          & type_ ?~ SwaggerObject
+          & properties .~ InsOrdHashMap.singleton (T.pack (symbolVal (Proxy @name))) thingSchema
+
+-- toJSON (Named thing) = object [ T.pack (symbolVal (Proxy @name)) .=  thing ]
 
 type GetUsersPrekeysClientUnqualified =
   Summary "(deprecated) Get a prekey for a specific client of a user."
@@ -402,6 +433,7 @@ type OutsideWorldAPI =
     :<|> GetUserClientUnqualified
     :<|> GetUserClientQualified
     :<|> ListClientsBulk
+    :<|> ListClientsBulkV2
     :<|> GetUsersPrekeysClientUnqualified
     :<|> GetUsersPrekeysClientQualified
     :<|> GetUsersPrekeyBundleUnqualified
@@ -441,6 +473,7 @@ servantSitemap =
     :<|> getUserClientUnqualified
     :<|> getUserClientQualified
     :<|> listClientsBulk
+    :<|> listClientsBulkV2
     :<|> getPrekeyUnqualifiedH
     :<|> getPrekeyH
     :<|> getPrekeyBundleUnqualifiedH
@@ -1181,6 +1214,9 @@ getUserClientUnqualified uid cid = do
 listClientsBulk :: UserId -> Range 1 MaxUsersForListClientsBulk [Qualified UserId] -> Handler (Public.QualifiedUserMap (Set Public.PubClient))
 listClientsBulk _zusr limitedUids = do
   API.lookupPubClientsBulk (fromRange limitedUids) !>> clientError
+
+listClientsBulkV2 :: UserId -> Named "qualified_users" (Range 1 MaxUsersForListClientsBulk [Qualified UserId]) -> Handler (Public.QualifiedUserMap (Set Public.PubClient))
+listClientsBulkV2 zusr (unwrapNamed -> limitedUids) = listClientsBulk zusr limitedUids
 
 getUserClientQualified :: Domain -> UserId -> ClientId -> Handler Public.PubClient
 getUserClientQualified domain uid cid = do
