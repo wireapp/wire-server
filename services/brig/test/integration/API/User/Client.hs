@@ -36,6 +36,7 @@ import Data.Id hiding (client)
 import qualified Data.List1 as List1
 import qualified Data.Map as Map
 import Data.Qualified (Qualified (..))
+import Data.Range (unsafeRange)
 import qualified Data.Set as Set
 import qualified Data.Vector as Vec
 import Gundeck.Types.Notification
@@ -47,10 +48,9 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
+import Wire.API.User (LimitedQualifiedUserIdList (LimitedQualifiedUserIdList))
 import Wire.API.User.Client (QualifiedUserClientMap (..), QualifiedUserClients (..), UserClientMap (..), UserClients (..))
 import Wire.API.UserMap (QualifiedUserMap (..), UserMap (..))
-import Wire.API.User (LimitedQualifiedUserIdList(LimitedQualifiedUserIdList))
-import Data.Range (unsafeRange)
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at opts p b c g =
