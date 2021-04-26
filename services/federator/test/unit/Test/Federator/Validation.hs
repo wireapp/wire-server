@@ -24,7 +24,7 @@ import Data.Either.Combinators (mapLeft)
 import qualified Data.Text as Text
 import Federator.Options
 import Federator.Remote (Remote)
-import Federator.Util
+import Federator.Validation
 import Imports
 import Polysemy (runM)
 import Polysemy.Embed
