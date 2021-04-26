@@ -279,14 +279,23 @@ instance ToTypedSchema EventData where
      $  EdMembersJoin . SimpleMembers <$> asum
           [ field' "users" (array (SimpleMember
               <$> field' "id" untypedSchema
-              <*> field' "conversation_role" untypedSchema))
+              <*> field' "conversation_role" schema))
           , field' "user_ids" (array
                 (SimpleMember <$> untypedSchema <*> empty))
           ]
-     <|> EdMembersLeave
-          <$> unnamed schema
-    -- <|> EdConnect <$> (Connect <$>
-    --                    untypedSchema <*> untypedSchema <*> untypedSchema <*> untypedSchema)
+     <|> EdMembersLeave <$> unnamed schema
+     <|> EdConnect <$> unnamed schema
+     <|> EdConvReceiptModeUpdate <$> unnamed schema
+     <|> EdConvRename <$> unnamed schema
+     <|> EdConvAccessUpdate <$> unnamed schema
+     <|> EdConvMessageTimerUpdate <$> unnamed schema
+     <|> EdConvCodeUpdate <$> unnamed schema
+     -- FUTUREWORK: add the remaining cases
+
+     -- <|> EdMemberUpdate <$> unnamed schema
+     -- <|> EdConversation <$> unnamed schema
+     -- <|> EdTyping <$> unnamed schema
+     -- <|> EdOtrMessage <$> unnamed schema
 
 modelMemberEvent :: Doc.Model
 modelMemberEvent = Doc.defineModel "MemberEvent" $ do
@@ -455,6 +464,15 @@ data Connect = Connect
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Connect)
+
+instance ToTypedSchema Connect where
+  toTypedSchema _ =
+    (description ?~ "User-to-user connection request") . named "Connect" $
+      Connect
+        <$> field' "recipient" untypedSchema
+        <*> field' "message" untypedSchema
+        <*> field' "name" untypedSchema
+        <*> field' "email" untypedSchema
 
 modelConnect :: Doc.Model
 modelConnect = Doc.defineModel "Connect" $ do

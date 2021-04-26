@@ -33,7 +33,7 @@ module Wire.API.Conversation.Code
   )
 where
 
-import Control.Lens ((.~))
+import Control.Lens ((.~), (?~))
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON), (.:), (.:?), (.=))
 import qualified Data.Aeson as JSON
 import Data.ByteString.Conversion (toByteString')
@@ -45,6 +45,9 @@ import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import qualified URI.ByteString as URI
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import Data.Swagger.Typed (ToTypedSchema (..), named, unnamed, field, untypedSchema, coerce)
+import Data.Swagger (description)
+import Control.Applicative
 
 data ConversationCode = ConversationCode
   { conversationKey :: Code.Key,
@@ -53,6 +56,21 @@ data ConversationCode = ConversationCode
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationCode)
+
+instance ToTypedSchema ConversationCode where
+  toTypedSchema _ =
+    (description ?~ "Contains conversation properties to update") .
+    named "ConversationCode" $ ConversationCode
+      <$> field "key" (description ?~ "Stable conversation identifier")
+            -- FUTUREWORK: avoid coerce
+            (coerce (unnamed (untypedSchema @Text)))
+      <*> field "code" (description ?~ "Conversation code (random)")
+            -- FUTUREWORK: avoid coerce
+            (coerce (unnamed (untypedSchema @Text)))
+      <*> field
+            "uri"
+            (description ?~ "Full URI (containing key/code) to join a conversation")
+            (optional (coerce (unnamed (untypedSchema @Text))))
 
 modelConversationCode :: Doc.Model
 modelConversationCode = Doc.defineModel "ConversationCode" $ do

@@ -65,6 +65,9 @@ import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Data.Swagger.Typed (ToTypedSchema (..), named, untypedSchema, unnamed)
+import Data.Swagger (description)
+import Control.Lens ((?~))
 
 --------------------------------------------------------------------------------
 -- Role
@@ -167,6 +170,15 @@ instance FromJSON ConversationRolesList where
 newtype RoleName = RoleName {fromRoleName :: Text}
   deriving stock (Eq, Show, Generic)
   deriving newtype (ToJSON, ToByteString, Hashable)
+
+instance ToTypedSchema RoleName where
+  toTypedSchema _ = (description ?~ desc)
+    . named "RoleName"
+    $ RoleName <$> unnamed untypedSchema
+    where
+      desc = "Role name, between 2 and 128 chars, 'wire_' prefix \
+             \is reserved for roles designed by Wire (i.e., no \
+             \custom roles can have the same prefix)"
 
 instance FromByteString RoleName where
   parser = parser >>= maybe (fail "Invalid RoleName") return . parseRoleName
