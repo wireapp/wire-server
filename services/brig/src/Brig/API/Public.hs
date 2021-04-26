@@ -328,7 +328,7 @@ type GetUserClientQualified =
     :> Get '[Servant.JSON] Public.PubClient
 
 type ListClientsBulk =
-  Summary "List all clients for a set of user ids (deprecated, use /user/list-clients/v2)"
+  Summary "List all clients for a set of user ids (deprecated, use /users/list-clients/v2)"
     :> ZAuthServant
     :> "users"
     :> "list-clients"
