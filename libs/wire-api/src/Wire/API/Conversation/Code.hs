@@ -33,21 +33,22 @@ module Wire.API.Conversation.Code
   )
 where
 
+-- FUTUREWORK: move content of Data.Code here?
+
+import Control.Applicative
 import Control.Lens ((.~), (?~))
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toJSON), (.:), (.:?), (.=))
 import qualified Data.Aeson as JSON
 import Data.ByteString.Conversion (toByteString')
--- FUTUREWORK: move content of Data.Code here?
 import Data.Code as Code
 import Data.Json.Util ((#))
 import Data.Misc (HttpsUrl (HttpsUrl))
+import Data.Swagger (description)
 import qualified Data.Swagger.Build.Api as Doc
+import Data.Swagger.Typed (ToTypedSchema (..), coerce, field, named, unnamed, untypedSchema)
 import Imports
 import qualified URI.ByteString as URI
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
-import Data.Swagger.Typed (ToTypedSchema (..), named, unnamed, field, untypedSchema, coerce)
-import Data.Swagger (description)
-import Control.Applicative
 
 data ConversationCode = ConversationCode
   { conversationKey :: Code.Key,
@@ -59,18 +60,23 @@ data ConversationCode = ConversationCode
 
 instance ToTypedSchema ConversationCode where
   toTypedSchema _ =
-    (description ?~ "Contains conversation properties to update") .
-    named "ConversationCode" $ ConversationCode
-      <$> field "key" (description ?~ "Stable conversation identifier")
-            -- FUTUREWORK: avoid coerce
-            (coerce (unnamed (untypedSchema @Text)))
-      <*> field "code" (description ?~ "Conversation code (random)")
-            -- FUTUREWORK: avoid coerce
-            (coerce (unnamed (untypedSchema @Text)))
-      <*> field
-            "uri"
-            (description ?~ "Full URI (containing key/code) to join a conversation")
-            (optional (coerce (unnamed (untypedSchema @Text))))
+    (description ?~ "Contains conversation properties to update")
+      . named "ConversationCode"
+      $ ConversationCode
+        <$> field
+          "key"
+          (description ?~ "Stable conversation identifier")
+          -- FUTUREWORK: avoid coerce
+          (coerce (unnamed (untypedSchema @Text)))
+        <*> field
+          "code"
+          (description ?~ "Conversation code (random)")
+          -- FUTUREWORK: avoid coerce
+          (coerce (unnamed (untypedSchema @Text)))
+        <*> field
+          "uri"
+          (description ?~ "Full URI (containing key/code) to join a conversation")
+          (optional (coerce (unnamed (untypedSchema @Text))))
 
 modelConversationCode :: Doc.Model
 modelConversationCode = Doc.defineModel "ConversationCode" $ do

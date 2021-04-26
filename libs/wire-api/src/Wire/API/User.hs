@@ -123,8 +123,8 @@ import Data.Proxy (Proxy (..))
 import Data.Qualified
 import Data.Range
 import Data.Swagger (HasExample (example), NamedSchema (..), SwaggerType (..), ToSchema (..), declareSchemaRef, description, genericDeclareNamedSchema, properties, required, schema, type_)
-import qualified Data.Swagger.Typed as TS
 import qualified Data.Swagger.Build.Api as Doc
+import qualified Data.Swagger.Typed as TS
 import Data.Text.Ascii
 import Data.UUID (UUID, nil)
 import qualified Data.UUID as UUID
@@ -167,11 +167,13 @@ instance ToJSON UserIdList where
 
 instance TS.ToTypedSchema UserIdList where
   toTypedSchema _ =
-    (description ?~ "list of user IDs") .
-    TS.named "UserIdList" $ UserIdList <$>
-      TS.field "user_ids"
-        (description ?~ "the array of user IDs")
-        (TS.array TS.untypedSchema)
+    (description ?~ "list of user IDs")
+      . TS.named "UserIdList"
+      $ UserIdList
+        <$> TS.field
+          "user_ids"
+          (description ?~ "the array of user IDs")
+          (TS.array TS.untypedSchema)
 
 --------------------------------------------------------------------------------
 -- UserProfile

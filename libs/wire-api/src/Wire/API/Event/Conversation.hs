@@ -64,12 +64,15 @@ module Wire.API.Event.Conversation
 where
 
 import Control.Applicative
+import Control.Lens ((?~))
 import Data.Aeson
 import Data.Aeson.Types (Parser)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Json.Util (ToJSONObject (toJSONObject), toUTCTimeMillis, (#))
+import Data.Swagger hiding (Schema, schema)
 import qualified Data.Swagger.Build.Api as Doc
+import Data.Swagger.Typed
 import Data.Time
 import Imports
 import qualified Test.QuickCheck as QC
@@ -80,9 +83,6 @@ import Wire.API.Conversation.Code (ConversationCode (..), modelConversationCode)
 import Wire.API.Conversation.Role
 import Wire.API.Conversation.Typing (TypingData (..), modelTyping)
 import Wire.API.User (UserIdList (..))
-import Data.Swagger hiding (Schema, schema)
-import Data.Swagger.Typed
-import Control.Lens ((?~))
 
 --------------------------------------------------------------------------------
 -- Event
@@ -95,19 +95,20 @@ data Event = Event
     evtData :: Maybe EventData
   }
   deriving stock (Eq, Show, Generic)
-  deriving ToSchema via TypedSchema Event
+  deriving (ToSchema) via TypedSchema Event
 
 instance ToTypedSchema Event where
-  toTypedSchema _ = named "Event" $
-    Event
-      <$> field "type" (description ?~ "Event type") (unnamed schema)
-      <*> field "conversation" (description ?~ "Conversation ID") (unnamed untypedSchema)
-      <*> field "from" (description ?~ "User ID") (unnamed untypedSchema)
-      <*> field
-            "time"
-            (description ?~ "Date and time this event occurred")
-            (unnamed untypedSchema)
-      <*> field' "data" (Just <$> schema)
+  toTypedSchema _ =
+    named "Event" $
+      Event
+        <$> field "type" (description ?~ "Event type") (unnamed schema)
+        <*> field "conversation" (description ?~ "Conversation ID") (unnamed untypedSchema)
+        <*> field "from" (description ?~ "User ID") (unnamed untypedSchema)
+        <*> field
+          "time"
+          (description ?~ "Date and time this event occurred")
+          (unnamed untypedSchema)
+        <*> field' "data" (Just <$> schema)
 
 modelEvent :: Doc.Model
 modelEvent = Doc.defineModel "Event" $ do
@@ -186,24 +187,27 @@ data EventType
   | Typing
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform EventType)
-  deriving ToSchema via TypedSchema EventType
+  deriving (ToSchema) via TypedSchema EventType
 
 instance ToTypedSchema EventType where
-  toTypedSchema _ = named "EventType" $ enum
-    [ ("conversation.member-join", pure MemberJoin),
-      ("conversation.member-leave", pure MemberLeave),
-      ("conversation.member-update", pure MemberStateUpdate),
-      ("conversation.rename", pure ConvRename),
-      ("conversation.access-update", pure ConvAccessUpdate),
-      ("conversation.receipt-mode-update", pure ConvReceiptModeUpdate),
-      ("conversation.message-timer-update", pure ConvMessageTimerUpdate),
-      ("conversation.code-update", pure ConvCodeUpdate),
-      ("conversation.code-delete", pure ConvCodeDelete),
-      ("conversation.create", pure ConvCreate),
-      ("conversation.delete", pure ConvDelete),
-      ("conversation.connect-request", pure ConvConnect),
-      ("conversation.typing", pure Typing),
-      ("conversation.otr-message-add", pure OtrMessageAdd) ]
+  toTypedSchema _ =
+    named "EventType" $
+      enum
+        [ ("conversation.member-join", pure MemberJoin),
+          ("conversation.member-leave", pure MemberLeave),
+          ("conversation.member-update", pure MemberStateUpdate),
+          ("conversation.rename", pure ConvRename),
+          ("conversation.access-update", pure ConvAccessUpdate),
+          ("conversation.receipt-mode-update", pure ConvReceiptModeUpdate),
+          ("conversation.message-timer-update", pure ConvMessageTimerUpdate),
+          ("conversation.code-update", pure ConvCodeUpdate),
+          ("conversation.code-delete", pure ConvCodeDelete),
+          ("conversation.create", pure ConvCreate),
+          ("conversation.delete", pure ConvDelete),
+          ("conversation.connect-request", pure ConvConnect),
+          ("conversation.typing", pure Typing),
+          ("conversation.otr-message-add", pure OtrMessageAdd)
+        ]
 
 typeEventType :: Doc.DataType
 typeEventType =
@@ -272,30 +276,41 @@ data EventData
   | EdTyping TypingData
   | EdOtrMessage OtrMessage
   deriving stock (Eq, Show, Generic)
-  deriving ToSchema via TypedSchema EventData
+  deriving (ToSchema) via TypedSchema EventData
 
 instance ToTypedSchema EventData where
-  toTypedSchema _ = named "EventData"
-     $  EdMembersJoin . SimpleMembers <$> asum
-          [ field' "users" (array (SimpleMember
-              <$> field' "id" untypedSchema
-              <*> field' "conversation_role" schema))
-          , field' "user_ids" (array
-                (SimpleMember <$> untypedSchema <*> empty))
+  toTypedSchema _ =
+    named "EventData" $
+      EdMembersJoin . SimpleMembers
+        <$> asum
+          [ field'
+              "users"
+              ( array
+                  ( SimpleMember
+                      <$> field' "id" untypedSchema
+                      <*> field' "conversation_role" schema
+                  )
+              ),
+            field'
+              "user_ids"
+              ( array
+                  (SimpleMember <$> untypedSchema <*> empty)
+              )
           ]
-     <|> EdMembersLeave <$> unnamed schema
-     <|> EdConnect <$> unnamed schema
-     <|> EdConvReceiptModeUpdate <$> unnamed schema
-     <|> EdConvRename <$> unnamed schema
-     <|> EdConvAccessUpdate <$> unnamed schema
-     <|> EdConvMessageTimerUpdate <$> unnamed schema
-     <|> EdConvCodeUpdate <$> unnamed schema
-     -- FUTUREWORK: add the remaining cases
+        <|> (EdMembersLeave <$> unnamed schema)
+        <|> (EdConnect <$> unnamed schema)
+        <|> (EdConvReceiptModeUpdate <$> unnamed schema)
+        <|> (EdConvRename <$> unnamed schema)
+        <|> (EdConvAccessUpdate <$> unnamed schema)
+        <|> (EdConvMessageTimerUpdate <$> unnamed schema)
+        <|> (EdConvCodeUpdate <$> unnamed schema)
 
-     -- <|> EdMemberUpdate <$> unnamed schema
-     -- <|> EdConversation <$> unnamed schema
-     -- <|> EdTyping <$> unnamed schema
-     -- <|> EdOtrMessage <$> unnamed schema
+-- FUTUREWORK: add the remaining cases
+
+-- <|> EdMemberUpdate <$> unnamed schema
+-- <|> EdConversation <$> unnamed schema
+-- <|> EdTyping <$> unnamed schema
+-- <|> EdOtrMessage <$> unnamed schema
 
 modelMemberEvent :: Doc.Model
 modelMemberEvent = Doc.defineModel "MemberEvent" $ do
