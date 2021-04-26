@@ -46,7 +46,7 @@ data TeamExportUser = TeamExportUser
     tExportInvitedBy :: Maybe Handle,
     tExportIdpIssuer :: Maybe HttpsUrl,
     tExportManagedBy :: ManagedBy,
-    tExportSAMLNamedId :: Text,
+    tExportSAMLNamedId :: Text,  -- If SAML IdP and SCIM peer are set up correctly, 'tExportSAMLNamedId' and 'tExportSCIMExternalId' always align.
     tExportSCIMExternalId :: Text,
     tExportSCIMRichInfo :: Maybe RichInfo
   }
