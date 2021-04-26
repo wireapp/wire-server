@@ -68,6 +68,7 @@ message Request {
   Component component = 1;
   bytes path = 2; //Maybe this can be made into a 'function name'
   bytes body = 3;
+  string originDomain = 4;
 }
 
 // The federator actually listens on two ports and exposes two services:
