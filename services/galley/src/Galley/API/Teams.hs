@@ -478,7 +478,7 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
     lookupUser users = (`M.lookup` M.fromList (users <&> \user -> (U.userId user, user)))
 
     lookupRichInfo :: [(UserId, RichInfo)] -> (UserId -> Maybe RichInfo)
-    lookupRichInfo = error "TODO"
+    lookupRichInfo pairs = (`M.lookup` M.fromList pairs)
 
     samlNamedId :: User -> Maybe Text
     samlNamedId = U.userIdentity >=> userSSOId >=> ssoIdNameId
