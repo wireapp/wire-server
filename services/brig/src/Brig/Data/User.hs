@@ -81,7 +81,6 @@ import Control.Lens hiding (from)
 import Data.Conduit (ConduitM)
 import Data.Domain
 import Data.Handle (Handle)
-import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Misc (PlainTextPassword (..))
@@ -383,11 +382,10 @@ lookupRichInfo u =
     <$> retry x1 (query1 richInfoSelect (params Quorum (Identity u)))
 
 -- | Returned rich infos are in the same order as users
-lookupRichInfoMultiUsers :: [UserId] -> AppIO [Maybe RichInfoAssocList]
+lookupRichInfoMultiUsers :: [UserId] -> AppIO [(UserId, RichInfo)]
 lookupRichInfoMultiUsers users = do
   pairs <- retry x1 (query richInfoSelectMulti (params Quorum (Identity users)))
-  let riLookup = flip HashMap.lookup . HashMap.fromList $ pairs
-  pure $ join . riLookup <$> users
+  pure $ flip mapMaybe pairs $ \(uid, mbRi) -> (uid,) . RichInfo <$> mbRi
 
 -- | Lookup user (no matter what status) and return 'TeamId'.  Safe to use for authorization:
 -- suspended / deleted / ... users can't login, so no harm done if we authorize them *after*

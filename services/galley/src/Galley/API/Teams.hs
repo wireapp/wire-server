@@ -76,7 +76,6 @@ import Data.Set (fromList)
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import Data.Time.Clock (UTCTime (..), getCurrentTime)
-import Data.Tuple.Extra (uncurry3)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
 import Galley.API.Error as Galley
@@ -408,16 +407,14 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
         flush
         evalGalley env $ do
           Data.withTeamMembersWithChunks tid $ \members -> do
-            users <- lookupActivatedUsers (fmap (view userId) members)
-            richInfos <- getRichInfoMultiUser (fmap (view userId) members)
-            let tuples = joinUserInfos members users richInfos
-
-            inviters <- getInviters members
+            inviters <- lookupInviterHandle members
+            users <- lookupUser <$> lookupActivatedUsers (fmap (view userId) members)
+            richInfos <- lookupRichInfo <$> getRichInfoMultiUser (fmap (view userId) members)
             liftIO $ do
               writeString
                 ( encodeDefaultOrderedByNameWith
                     defaultEncodeOptions
-                    (tuples <&> uncurry3 (teamExportUser inviters))
+                    (mapMaybe (teamExportUser users inviters richInfos) members)
                 )
               flush
   where
@@ -433,24 +430,32 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
           encQuoting = QuoteAll
         }
 
-    teamExportUser :: (UserId -> Maybe Handle.Handle) -> TeamMember -> Maybe RichInfo -> User -> TeamExportUser
-    teamExportUser mbInviterHandle member richInfo user =
-      TeamExportUser
-        { tExportDisplayName = U.userDisplayName user,
-          tExportHandle = U.userHandle user,
-          tExportEmail = U.userIdentity user >>= U.emailIdentity,
-          tExportRole = permissionsRole . view permissions $ member,
-          tExportCreatedOn = fmap snd . view invitation $ member,
-          tExportInvitedBy = mbInviterHandle . fst =<< view invitation member,
-          tExportIdpIssuer = userToIdPIssuer user,
-          tExportManagedBy = U.userManagedBy user,
-          tExportSAMLNamedId = fromMaybe "" (samlNamedId user),
-          tExportSCIMExternalId = fromMaybe "" (scimExtId user),
-          tExportSCIMRichInfo = richInfo
-        }
+    teamExportUser ::
+      (UserId -> Maybe User) ->
+      (UserId -> Maybe Handle.Handle) ->
+      (UserId -> Maybe RichInfo) ->
+      TeamMember ->
+      Maybe TeamExportUser
+    teamExportUser users inviters richInfos member = do
+      let uid = member ^. userId
+      user <- users uid
+      pure $
+        TeamExportUser
+          { tExportDisplayName = U.userDisplayName user,
+            tExportHandle = U.userHandle user,
+            tExportEmail = U.userIdentity user >>= U.emailIdentity,
+            tExportRole = permissionsRole . view permissions $ member,
+            tExportCreatedOn = fmap snd . view invitation $ member,
+            tExportInvitedBy = inviters . fst =<< member ^. invitation,
+            tExportIdpIssuer = userToIdPIssuer user,
+            tExportManagedBy = U.userManagedBy user,
+            tExportSAMLNamedId = fromMaybe "" (samlNamedId user),
+            tExportSCIMExternalId = fromMaybe "" (scimExtId user),
+            tExportSCIMRichInfo = richInfos uid
+          }
 
-    getInviters :: [TeamMember] -> Galley (UserId -> Maybe Handle.Handle)
-    getInviters members = do
+    lookupInviterHandle :: [TeamMember] -> Galley (UserId -> Maybe Handle.Handle)
+    lookupInviterHandle members = do
       let inviterIds :: [UserId]
           inviterIds = catMaybes $ fmap fst . view invitation <$> members
 
@@ -469,13 +474,11 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
       Just _ -> Nothing
       Nothing -> Nothing
 
-    joinUserInfos :: [TeamMember] -> [User] -> [Maybe RichInfo] -> [(TeamMember, Maybe RichInfo, User)]
-    joinUserInfos members users richInfos = do
-      let usersMap = M.fromList (users <&> \user -> (U.userId user, user))
-      catMaybes $
-        -- members and richInfo are in same order
-        zip members richInfos <&> \(member, richInfo) ->
-          (member,richInfo,) <$> (member ^. userId) `M.lookup` usersMap
+    lookupUser :: [U.User] -> (UserId -> Maybe U.User)
+    lookupUser users = (`M.lookup` M.fromList (users <&> \user -> (U.userId user, user)))
+
+    lookupRichInfo :: [(UserId, RichInfo)] -> (UserId -> Maybe RichInfo)
+    lookupRichInfo = error "TODO"
 
     samlNamedId :: User -> Maybe Text
     samlNamedId = U.userIdentity >=> userSSOId >=> ssoIdNameId

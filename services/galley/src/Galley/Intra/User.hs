@@ -165,7 +165,7 @@ getContactList uid = do
   cUsers <$> parseResponse (Error status502 "server-error") r
 
 -- | Calls 'Brig.API.Internal.getRichInfoMultiH'
-getRichInfoMultiUser :: [UserId] -> Galley [Maybe RichInfo]
+getRichInfoMultiUser :: [UserId] -> Galley [(UserId, RichInfo)]
 getRichInfoMultiUser = chunkify $ \uids -> do
   (h, p) <- brigReq
   resp <-

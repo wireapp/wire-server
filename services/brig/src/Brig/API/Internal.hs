@@ -525,9 +525,9 @@ getRichInfo uid = RichInfo . fromMaybe emptyRichInfoAssocList <$> lift (API.look
 getRichInfoMultiH :: List UserId -> Handler Response
 getRichInfoMultiH uids = json <$> getRichInfoMulti (List.fromList uids)
 
-getRichInfoMulti :: [UserId] -> Handler [Maybe RichInfo]
+getRichInfoMulti :: [UserId] -> Handler [(UserId, RichInfo)]
 getRichInfoMulti uids =
-  fmap (fmap RichInfo) <$> lift (API.lookupRichInfoMultiUsers uids)
+  lift (API.lookupRichInfoMultiUsers uids)
 
 updateHandleH :: UserId ::: JSON ::: JsonRequest HandleUpdate -> Handler Response
 updateHandleH (uid ::: _ ::: body) = empty <$ (updateHandle uid =<< parseJsonBody body)
