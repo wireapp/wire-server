@@ -36,6 +36,7 @@ tests =
     [ testToJSON @User.UserProfile,
       testToJSON @User.User,
       testToJSON @User.SelfProfile,
+      testToJSON @(User.LimitedQualifiedUserIdList 20),
       testToJSON @Handle.UserHandleInfo,
       testToJSON @Client.Client,
       testToJSON @Client.PubClient,

@@ -229,6 +229,7 @@ tests =
       testRoundTrip @User.NewUser,
       testRoundTrip @User.NewUserPublic,
       testRoundTrip @User.UserIdList,
+      testRoundTrip @(User.LimitedQualifiedUserIdList 20),
       testRoundTrip @User.UserProfile,
       testRoundTrip @User.User,
       testRoundTrip @User.SelfProfile,
