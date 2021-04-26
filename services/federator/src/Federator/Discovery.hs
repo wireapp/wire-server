@@ -23,12 +23,12 @@ import Data.String.Conversions (cs)
 import Imports
 import qualified Network.DNS as DNS
 import Polysemy
-import Wire.Network.DNS.Effect (DNSLookup)
-import qualified Wire.Network.DNS.Effect as Lookup
-import Wire.Network.DNS.SRV (SrvEntry (srvTarget), SrvResponse (..), SrvTarget)
 import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as TinyLog
 import qualified System.Logger.Class as Log
+import Wire.Network.DNS.Effect (DNSLookup)
+import qualified Wire.Network.DNS.Effect as Lookup
+import Wire.Network.DNS.SRV (SrvEntry (srvTarget), SrvResponse (..), SrvTarget)
 
 data LookupError
   = LookupErrorSrvNotAvailable ByteString
