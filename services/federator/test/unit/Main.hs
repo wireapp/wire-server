@@ -28,7 +28,7 @@ import qualified Test.Federator.Validation as Validation
 import Test.Tasty
 
 main :: IO ()
-main = do
+main =
   defaultMain $
     testGroup
       "Tests"

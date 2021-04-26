@@ -53,17 +53,18 @@ import Wire.API.Federation.GRPC.Types
 -- reached, some discussion here:
 -- https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/224166764/Limiting+access+to+federation+endpoints
 -- Also, see comment in 'Federator.Brig.interpretBrig'
+--
+-- FUTUREWORK(federation): implement server2server authentication!
+-- (current validation only checks parsing and compares to allowList)
+--
+-- FUTUREWORK: consider using Polysemy.Error also in callLocal to reduce nesting and improve readability.
 callLocal :: (Members '[Brig, Embed IO, TinyLog, Polysemy.Reader RunSettings] r) => Request -> Sem r InwardResponse
 callLocal req@Request {..} = do
   Log.debug $
     Log.msg ("Inward Request" :: ByteString)
       . Log.field "request" (show req)
 
-  -- FUTUREWORK: implement server2server authentication!
-  -- (current validation only checks parsing and compares to allowList)
-  -- FUTUREWORK: would it make sense to have validations throw errors to reduce nesting and improve readability?
   validation <- federateWith' originDomain
-
   case validation of
     Left err -> pure $ InwardResponseErr err
     Right domain -> do

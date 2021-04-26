@@ -49,6 +49,7 @@ federateWith' targetDomain = Polysemy.runError $ do
     Polysemy.throw (errAllowList parsedDomain)
   pure parsedDomain
 
+-- FUTUREWORK: create error data types and adjust InwardResponseErr and OutwardResponseError
 errDomainParsing :: Text -> String -> Text
 errDomainParsing domain err = "Domain parse failure for [" <> domain <> "]: " <> cs err
 

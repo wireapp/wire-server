@@ -26,9 +26,10 @@ import Federator.Options (FederationStrategy (AllowAll), RunSettings (..))
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import Polysemy (embed, runM)
+import Polysemy.Internal (Sem)
+import Polysemy.Internal.Combinators (interpret)
 import qualified Polysemy.Reader as Polysemy
 import qualified Polysemy.TinyLog as Log
-import qualified System.Logger as Logger
 import Test.Polysemy.Mock (Mock (mock), evalMock)
 import Test.Polysemy.Mock.TH (genMock)
 import Test.Tasty (TestTree, testGroup)
@@ -36,10 +37,6 @@ import Test.Tasty.HUnit (assertEqual, testCase)
 import Wire.API.Federation.GRPC.Types
 
 genMock ''Brig
-
-genMock ''Log.TinyLog
-
--- TODO: replace (runTinyLog l) with this mock... somehow?
 
 tests :: TestTree
 tests =
@@ -55,9 +52,7 @@ requestBrigSuccess =
       mockBrigCallReturns @IO (\_ _ _ -> pure (HTTP.ok200, Just "response body"))
       let request = Request Brig "/users" "\"foo\"" exampleDomain
 
-      l <- Logger.create Logger.StdErr
-
-      res :: InwardResponse <- mock @Brig @IO . Log.runTinyLog l . Polysemy.runReader allowAllSettings $ callLocal request
+      res :: InwardResponse <- mock @Brig @IO . noLogs . Polysemy.runReader allowAllSettings $ callLocal request
       actualCalls <- mockBrigCallCalls @IO
       let expectedCall = ("/users", "\"foo\"", aValidDomain)
       embed $ assertEqual "one call to brig should be made" [expectedCall] actualCalls
@@ -70,8 +65,7 @@ requestBrigFailure =
       mockBrigCallReturns @IO (\_ _ _ -> pure (HTTP.notFound404, Just "response body"))
       let request = Request Brig "/users" "\"foo\"" exampleDomain
 
-      l <- Logger.create Logger.StdErr
-      res <- mock @Brig @IO . Log.runTinyLog l . Polysemy.runReader allowAllSettings $ callLocal request
+      res <- mock @Brig @IO . noLogs . Polysemy.runReader allowAllSettings $ callLocal request
 
       actualCalls <- mockBrigCallCalls @IO
       let expectedCall = ("/users", "\"foo\"", aValidDomain)
@@ -86,3 +80,9 @@ exampleDomain = "some.example.com"
 
 aValidDomain :: Domain
 aValidDomain = Domain exampleDomain
+
+noLogs :: Sem (Log.TinyLog ': r) a -> Sem r a
+noLogs = interpret f
+  where
+    f :: Applicative n => Log.TinyLog m x -> n x
+    f (Log.Polylog _ _) = pure ()
