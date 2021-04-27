@@ -393,3 +393,14 @@ kind-integration-test: .local/kind-kubeconfig
 
 kind-integration-e2e: .local/kind-kubeconfig
 	cd services/brig && KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig ./federation-tests.sh $(NAMESPACE)
+
+kind-restart-all: .local/kind-kubeconfig
+	export KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig && \
+	kubectl delete pod -n $(NAMESPACE) -l release=$(NAMESPACE)-wire-server && \
+	kubectl delete pod -n $(NAMESPACE)-fed2 -l release=$(NAMESPACE)-fed2-wire-server
+
+kind-restart-%: .local/kind-kubeconfig
+	export KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig && \
+	kubectl delete pod -n $(NAMESPACE) -l wireService=$(*) && \
+	kubectl delete pod -n $(NAMESPACE)-fed2 -l wireService=$(*)
+
