@@ -180,6 +180,9 @@ sitemap = do
       .&. accept "text" "csv"
   document "GET" "getTeamMembersCSV" $ do
     summary "Get all members of the team as a CSV file"
+    notes
+      "The endpoint returns data in chunked transfer encoding.\
+      \ Internal server errors might result in a failed transfer instead of a 500 response."
     parameter Path "tid" bytes' $
       description "Team ID"
     response 200 "Team members CSV file" end

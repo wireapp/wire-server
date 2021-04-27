@@ -46,6 +46,7 @@ module Brig.API.User
     Data.lookupLocale,
     Data.lookupUser,
     Data.lookupRichInfo,
+    Data.lookupRichInfoMultiUsers,
     removeEmail,
     removePhone,
     revokeIdentity,
