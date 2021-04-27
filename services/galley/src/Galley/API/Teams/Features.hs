@@ -187,17 +187,25 @@ setDigitalSignaturesInternal = setFeatureStatusNoConfig @'Public.TeamFeatureDigi
 
 getLegalholdStatusInternal :: TeamId -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold)
 getLegalholdStatusInternal tid = do
-  featureLegalHold <- view (options . optSettings . setFeatureFlags . flagLegalHold)
-  case featureLegalHold of
-    FeatureLegalHoldDisabledByDefault -> do
+  featureLegalHold <-
+    view (options . optSettings . setFeatureFlags . flagLegalHold) <&> \case
+      FeatureLegalHoldDisabledByDefault -> True
+      FeatureLegalHoldDisabledPermanently -> False
+  sneakPreview <- view (options . optSettings . to (`legalHoldEnabledForTeamInServerConfig` tid))
+  if featureLegalHold || sneakPreview
+    then do
       let defaultStatus = Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
       status <- TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureLegalHold tid
       pure (fromMaybe defaultStatus status)
-    FeatureLegalHoldDisabledPermanently -> do
+    else do
       pure (Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled)
 
 setLegalholdStatusInternal :: TeamId -> (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold) -> Galley (Public.TeamFeatureStatus 'Public.TeamFeatureLegalHold)
 setLegalholdStatusInternal tid status@(Public.tfwoStatus -> statusValue) = do
+  do
+    sneakPreview <- view (options . optSettings . to (`legalHoldEnabledForTeamInServerConfig` tid))
+    when sneakPreview $ do
+      throwM legalHoldEnabledViaServerConfig
   do
     featureLegalHold <- view (options . optSettings . setFeatureFlags . flagLegalHold)
     case featureLegalHold of

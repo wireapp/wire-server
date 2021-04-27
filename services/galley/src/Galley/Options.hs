@@ -17,13 +17,16 @@
 
 module Galley.Options where
 
+import Control.Exception (ErrorCall (ErrorCall), throwIO)
 import Control.Lens hiding (Level, (.=))
 import Data.Aeson.TH (deriveFromJSON)
 import Data.Domain (Domain)
+import Data.Id (TeamId)
 import Data.Misc
 import Data.Range
-import Galley.Types.Teams (FeatureFlags (..), HardTruncationLimit, hardTruncationLimit)
+import Galley.Types.Teams (FeatureFlags (..), FeatureLegalHold (..), HardTruncationLimit, flagLegalHold, hardTruncationLimit)
 import Imports
+import qualified System.Logger as Log
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 import Util.Options.Common
@@ -67,7 +70,11 @@ data Settings = Settings
     -- the owners.
     -- Defaults to false.
     _setEnableIndexedBillingTeamMembers :: !(Maybe Bool),
-    _setFeatureFlags :: !FeatureFlags
+    _setFeatureFlags :: !FeatureFlags,
+    -- | LegalHold-on-cloud sneak preview.  This feature will only affect users in teams
+    -- listed here.  (More specifically, it will set "implicit consent" for all members of
+    -- those teams.)
+    _setLegalholdEnabledTeams :: !(Maybe [TeamId])
   }
   deriving (Show, Generic)
 
@@ -129,3 +136,55 @@ data Opts = Opts
 deriveFromJSON toOptionFieldName ''Opts
 
 makeLenses ''Opts
+
+----------------------------------------------------------------------
+
+-- | If '_setFeatureFlags' is enabled, '_setLegalholdEnabledTeams' must be 'Nothing' (`null`).
+-- (Rationale: '_setLegalholdEnabledTeams' is a way to make LH available to selected teams
+-- only; it is not required if `_setFeatureFlags` enables it for all.  To avoid
+-- misconfiguration due to a wrong understanding of the settings, doing this produces an
+-- error.)
+--
+-- (Future constraints that cannot easily be expressed in the type can also go here.)
+validateOpts :: Log.Logger -> Opts -> IO ()
+validateOpts logger opts = do
+  let lhOnForSome = opts ^. optSettings . setLegalholdEnabledTeams
+      lhOnForAll = opts ^. optSettings . setFeatureFlags . flagLegalHold
+
+      err :: String -> IO ()
+      err message = do
+        Log.err logger (Log.msg message)
+        throwIO $ ErrorCall message
+
+  unless (maybe True (not . null) lhOnForSome) $
+    err "settings.legalholdEnabledTeams must not contain an empty list."
+
+  unless (isNothing lhOnForSome || lhOnForAll == FeatureLegalHoldDisabledPermanently) $
+    err "settings.legalholdEnabledTeams and settings.featureFlags.flagLegalHold are mutually exclusive."
+
+data ImplicitConsent
+  = -- | '_setLegalholdEnabledTeams == Nothing'
+    ImplicitConsentNotAThing
+  | -- | @_setLegalholdEnabledTeams == Just ...@, and user's team id is listed.
+    ImplicitConsentGranted
+  | -- | @_setLegalholdEnabledTeams == Just ...@, but user's team id is NOT listed.
+    ImplicitConsentDenied
+
+-- | Note that implicit consent can only ever be "given" by team members, not personal users.
+implicitConsent :: Settings -> TeamId -> ImplicitConsent
+implicitConsent settings tid = case settings ^. setLegalholdEnabledTeams of
+  Nothing -> ImplicitConsentNotAThing
+  Just tids ->
+    if tid `elem` tids
+      then ImplicitConsentGranted
+      else ImplicitConsentDenied
+
+-- | Check if LH is enabled for instance.
+legalHoldEnabledForInstance :: Settings -> Bool
+legalHoldEnabledForInstance settings = case settings ^. setFeatureFlags . flagLegalHold of
+  FeatureLegalHoldDisabledPermanently -> False
+  FeatureLegalHoldDisabledByDefault -> True
+
+-- | Check if LH sneak-preview via setLegalholdEnabledTeams is enabled for team.
+legalHoldEnabledForTeamInServerConfig :: Settings -> TeamId -> Bool
+legalHoldEnabledForTeamInServerConfig settings tid = maybe False (tid `elem`) $ settings ^. setLegalholdEnabledTeams

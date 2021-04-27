@@ -194,6 +194,9 @@ legalHoldServiceNotRegistered = Error status400 "legalhold-not-registered" "lega
 legalHoldServiceBadResponse :: Error
 legalHoldServiceBadResponse = Error status400 "legalhold-status-bad" "legal hold service: invalid response"
 
+legalHoldEnabledViaServerConfig :: Error
+legalHoldEnabledViaServerConfig = Error status403 "cannot-change-legalhold-settings" "legal hold is enabled via server config and cannot be changed"
+
 legalHoldFeatureFlagNotEnabled :: Error
 legalHoldFeatureFlagNotEnabled = Error status403 "legalhold-not-enabled" "legal hold is not enabled for this wire instance"
 
