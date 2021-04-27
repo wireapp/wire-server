@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6154e89ccbf579a18fe7219b7ab72d3773cecf7c85af47e17d070fe17198f761
+-- hash: 918f6e1228c6e8fd349315c27d0359c284786dfc26ece0571ad4bb1fadd4f19d
 
 name:           brig
 version:        1.35.0
@@ -344,6 +344,9 @@ executable brig-integration
     , retry >=0.6
     , safe
     , saml2-web-sso
+    , servant
+    , servant-client
+    , servant-client-core
     , spar
     , string-conversions
     , tasty >=1.0

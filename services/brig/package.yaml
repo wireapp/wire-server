@@ -225,6 +225,9 @@ executables:
     - saml2-web-sso
     - spar
     - string-conversions
+    - servant
+    - servant-client
+    - servant-client-core
     - tasty >=1.0
     - tasty-cannon >=0.3.4
     - tasty-hunit >=0.2

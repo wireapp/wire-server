@@ -61,6 +61,7 @@ import qualified Galley.Types.Teams as Team
 import Gundeck.Types.Notification
 import Imports
 import qualified Network.Wai.Test as WaiTest
+import Servant.Client.Generic (AsClientT)
 import System.Random (randomIO, randomRIO)
 import Test.Tasty (TestName, TestTree)
 import Test.Tasty.Cannon
@@ -69,6 +70,7 @@ import Test.Tasty.HUnit
 import qualified UnliftIO.Async as Async
 import Util.AWS
 import Wire.API.Conversation.Member (Member (..))
+import qualified Wire.API.Federation.API.Brig as FedBrig
 
 type Brig = Request -> Request
 
@@ -81,6 +83,8 @@ type Galley = Request -> Request
 type Nginz = Request -> Request
 
 type Spar = Request -> Request
+
+type FedBrigClient = FedBrig.Api (AsClientT (HttpT IO))
 
 instance ToJSON SESBounceType where
   toJSON BounceUndetermined = String "Undetermined"

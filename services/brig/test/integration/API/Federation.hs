@@ -38,17 +38,18 @@ import Test.Tasty
 import Test.Tasty.HUnit (assertEqual, assertFailure)
 import Util
 import Wire.API.Federation.API.Brig (SearchRequest (SearchRequest))
+import qualified Wire.API.Federation.API.Brig as FedBrig
 import Wire.API.Message (UserClientMap (..), UserClients (..))
 
 -- FUTUREWORK(federation): use servant-client in tests for the federation endpoints instead of the bilge requests.
-tests :: Manager -> Brig -> IO TestTree
-tests m brig =
+tests :: Manager -> Brig -> FedBrigClient -> IO TestTree
+tests m brig fedBrigClient =
   return $
     testGroup
       "federation"
-      [ test m "GET /federation/search/users : Found" (testSearchSuccess brig),
-        test m "GET /federation/search/users : NotFound" (testSearchNotFound brig),
-        test m "GET /federation/search/users : Empty Input - NotFound" (testSearchNotFoundEmpty brig),
+      [ test m "GET /federation/search/users : Found" (testSearchSuccess brig fedBrigClient),
+        test m "GET /federation/search/users : NotFound" (testSearchNotFound fedBrigClient),
+        test m "GET /federation/search/users : Empty Input - NotFound" (testSearchNotFoundEmpty fedBrigClient),
         test m "GET /federation/users/by-handle : Found" (testGetUserByHandleSuccess brig),
         test m "GET /federation/users/by-handle : NotFound" (testGetUserByHandleNotFound brig),
         test m "GET /federation/users/get-by-id : 200 all found" (testGetUsersByIdsSuccess brig),
@@ -59,8 +60,8 @@ tests m brig =
         test m "POST /federation/users/multi-prekey-bundle : 200" (testClaimMultiPrekeyBundleSuccess brig)
       ]
 
-testSearchSuccess :: Brig -> Http ()
-testSearchSuccess brig = do
+testSearchSuccess :: Brig -> FedBrigClient -> Http ()
+testSearchSuccess brig fedBrigClient = do
   (handle, user) <- createUserWithHandle brig
   let quid = userQualifiedId user
 
@@ -75,21 +76,21 @@ testSearchSuccess brig = do
   put (brig . path "/self" . contentJson . zUser (userId identityThief) . zConn "c" . body update) !!! const 200 === statusCode
   refreshIndex brig
 
-  searchResult <- fedSearch brig (fromHandle handle)
+  searchResult <- FedBrig.searchUsers fedBrigClient (SearchRequest (fromHandle handle))
   liftIO $ do
     let contacts = contactQualifiedId <$> searchResults searchResult
     assertEqual "should return only the first user id but not the identityThief" [quid] contacts
 
-testSearchNotFound :: Brig -> Http ()
-testSearchNotFound brig = do
-  searchResult <- fedSearch brig "this-handle-should-not-exist"
+testSearchNotFound :: FedBrigClient -> Http ()
+testSearchNotFound fedBrigClient = do
+  searchResult <- FedBrig.searchUsers fedBrigClient $ SearchRequest "this-handle-should-not-exist"
   liftIO $ do
     let contacts = searchResults searchResult
     assertEqual "should return empty array of users" [] contacts
 
-testSearchNotFoundEmpty :: Brig -> Http ()
-testSearchNotFoundEmpty brig = do
-  searchResult <- fedSearch brig ""
+testSearchNotFoundEmpty :: FedBrigClient -> Http ()
+testSearchNotFoundEmpty fedBrigClient = do
+  searchResult <- FedBrig.searchUsers fedBrigClient $ SearchRequest ""
   liftIO $ do
     let contacts = searchResults searchResult
     assertEqual "should return empty array of users" [] contacts
@@ -233,16 +234,6 @@ testClaimMultiPrekeyBundleSuccess brig = do
 
 -- TODO replace by servant client code
 --
-fedSearch :: Brig -> Text -> Http (SearchResult Contact)
-fedSearch brig term =
-  responseJsonError
-    =<< post
-      ( brig
-          . paths ["federation", "search", "users"]
-          . body (RequestBodyLBS (Aeson.encode $ SearchRequest term))
-          . contentJson
-          . expect2xx
-      )
 
 fedGetUserByHandle :: Brig -> Handle -> Http (Maybe UserProfile)
 fedGetUserByHandle brig handle =
