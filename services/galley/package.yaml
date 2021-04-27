@@ -106,6 +106,7 @@ tests:
     - tasty-hunit
     - tasty-quickcheck
     - types-common
+    - QuickCheck
     - wai
     - wai-predicates
 
