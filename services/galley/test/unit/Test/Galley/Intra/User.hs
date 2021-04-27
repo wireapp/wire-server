@@ -1,3 +1,7 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -15,21 +19,26 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main
-  ( main,
-  )
-where
+module Test.Galley.Intra.User where
 
+-- import Debug.Trace (traceShow)
+import Galley.Intra.User (chunkify)
 import Imports
-import qualified Test.Galley.API
-import qualified Test.Galley.Intra.User
+import Test.QuickCheck
 import Test.Tasty
+import Test.Tasty.QuickCheck
 
-main :: IO ()
-main =
-  defaultMain $
-    testGroup
-      "Tests"
-      [ Test.Galley.API.tests,
-        Test.Galley.Intra.User.tests
-      ]
+tests :: TestTree
+tests =
+  testGroup
+    "Tests"
+    [ testChunkify
+    ]
+
+testChunkify :: HasCallStack => TestTree
+testChunkify =
+  testGroup
+    "chunkify"
+    [ testProperty "is inverse of chunk concatenation" . mapSize (* 314) $ \(xs :: [Int]) ->
+        chunkify pure xs === Just xs
+    ]

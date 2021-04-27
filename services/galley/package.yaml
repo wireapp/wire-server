@@ -105,7 +105,9 @@ tests:
     - lens
     - tasty
     - tasty-hunit
+    - tasty-quickcheck
     - types-common
+    - QuickCheck
     - wai
     - wai-predicates
 

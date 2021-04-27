@@ -81,6 +81,7 @@ tests =
 runFilterMissing :: HasCallStack => H.Query -> Either Int OtrFilterMissing -> TestTree
 runFilterMissing given want = testCase ("filterMissing: " <> show want) $ run given @=? want
   where
+    run :: H.Query -> Either Int OtrFilterMissing
     run queryString =
       exec
         filterMissing
