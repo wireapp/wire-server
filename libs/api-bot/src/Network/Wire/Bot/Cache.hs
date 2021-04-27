@@ -99,7 +99,8 @@ toUser _ domain acc [i, e, p] = do
           userHandle = Nothing,
           userExpire = Nothing,
           userTeam = Nothing,
-          userManagedBy = ManagedByWire
+          userManagedBy = ManagedByWire,
+          userLegalHold = defaultUserLegalHoldStatus -- (api-bot does not support `legalholdEnabledTeams` as introduced in https://github.com/wireapp/wire-server/pull/1467)
         }
 toUser g _ acc entry = do
   warn g $ msg (val "invalid entry: " +++ show entry)

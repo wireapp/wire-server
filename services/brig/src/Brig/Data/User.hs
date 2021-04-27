@@ -133,7 +133,8 @@ newAccount u inv tid mbHandle = do
       now <- liftIO =<< view currentTime
       return . Just . toUTCTimeMillis $ addUTCTime (fromIntegral ttl) now
     _ -> return Nothing
-  return (UserAccount (user uid domain (locale defLoc) expiry) status, passwd)
+  lhstatus <- error "TODO: get this from galley (needs new internal end-point)"
+  return (UserAccount (user uid domain (locale defLoc) expiry lhstatus) status, passwd)
   where
     ident = newUserIdentity u
     pass = newUserPassword u
@@ -153,7 +154,8 @@ newAccountInviteViaScim :: UserId -> TeamId -> Maybe Locale -> Name -> Email -> 
 newAccountInviteViaScim uid tid locale name email = do
   defLoc <- setDefaultLocale <$> view settings
   domain <- viewFederationDomain
-  return (UserAccount (user domain (fromMaybe defLoc locale)) PendingInvitation)
+  lhstatus <- error "TODO: get this from galley (needs new internal end-point)"
+  return (UserAccount (user domain (fromMaybe defLoc locale) lhstatus) PendingInvitation)
   where
     user domain loc =
       User
@@ -674,6 +676,7 @@ toUserAccount
               expiration
               tid
               (fromMaybe ManagedByWire managed_by)
+              (error "TODO: get this from 'AccountRow' (ultimately from brig-cassandra)")
           )
           (fromMaybe Active status)
 
@@ -747,6 +750,7 @@ toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
               expiration
               tid
               (fromMaybe ManagedByWire managed_by)
+              (error "TODO: get this from 'UserRow' (ultimately from brig-cassandra)")
 
 toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale
 toLocale _ (Just l, c) = Locale l c

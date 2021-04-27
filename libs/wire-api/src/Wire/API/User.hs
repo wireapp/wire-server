@@ -33,6 +33,7 @@ module Wire.API.User
     userSSOId,
     connectedProfile,
     publicProfile,
+    defaultUserLegalHoldStatus,
 
     -- * NewUser
     NewUserPublic (..),
@@ -123,6 +124,7 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Proxy (Proxy (..))
 import Data.Qualified
 import Data.Range
+import Data.String.Conversions (cs)
 import Data.Swagger (HasExample (example), NamedSchema (..), SwaggerType (..), ToSchema (..), declareSchemaRef, description, genericDeclareNamedSchema, properties, required, schema, type_)
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
@@ -348,10 +350,23 @@ data User = User
     userTeam :: Maybe TeamId,
     -- | How is the user profile managed (e.g. if it's via SCIM then the user profile
     -- can't be edited via normal means)
-    userManagedBy :: ManagedBy
+    userManagedBy :: ManagedBy,
+    userLegalHold :: UserLegalHoldStatus
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform User)
+
+-- | See also: "Wire.API.Team.LegalHold"
+data UserLegalHoldStatus
+  = UserLegalHoldNoConsent
+  | UserLegalHoldConsentButNoDevice
+  | UserLegalHoldDeviceActive
+  deriving stock (Eq, Show, Enum, Bounded, Generic)
+  deriving (Arbitrary) via (GenericUniform UserLegalHoldStatus)
+  deriving (ToSchema) via (CustomSwagger '[ConstructorTagModifier (StripPrefix "UserLegalHold", CamelToSnake)] UserLegalHoldStatus)
+
+defaultUserLegalHoldStatus :: UserLegalHoldStatus
+defaultUserLegalHoldStatus = UserLegalHoldNoConsent
 
 -- Cannot use deriving (ToSchema) via (CustomSwagger ...) because we need to
 -- mark 'deleted' as optional, but it is not a 'Maybe'
@@ -403,6 +418,7 @@ instance ToJSON User where
         # "team" .= userTeam u
         # "sso_id" .= userSSOId u
         # "managed_by" .= userManagedBy u
+        # "legalhold" .= userLegalHold u
         # []
 
 instance FromJSON User where
@@ -423,6 +439,20 @@ instance FromJSON User where
       <*> o .:? "expires_at"
       <*> o .:? "team"
       <*> o .:? "managed_by" .!= ManagedByWire
+      <*> o .:? "legalhold" .!= defaultUserLegalHoldStatus
+
+instance ToJSON UserLegalHoldStatus where
+  toJSON = \case
+    UserLegalHoldNoConsent -> "no_consent"
+    UserLegalHoldConsentButNoDevice -> "consent_but_no_device"
+    UserLegalHoldDeviceActive -> "device_active"
+
+instance FromJSON UserLegalHoldStatus where
+  parseJSON = Aeson.withText "UserLegalHoldStatus" $ \case
+    "no_consent" -> pure UserLegalHoldNoConsent
+    "consent_but_no_device" -> pure UserLegalHoldConsentButNoDevice
+    "device_active" -> pure UserLegalHoldDeviceActive
+    bad -> fail ("UserLegalHoldStatus: " <> cs bad)
 
 userEmail :: User -> Maybe Email
 userEmail = emailIdentity <=< userIdentity
