@@ -34,12 +34,22 @@ data Api routes = Api
   { conversationMemberChange ::
       routes
         :- "federation"
-        :> "notify-a-conversation-update"
+        -- for the usecase:
+        -- given alice,alice2 @A and bob @B:
+        -- alice adds Bob: /add-to-conversation(bob)@A
+        --   A -> B: check bob exists on B
+        --   A: add B to conversation database entry
+        --   A -> B: by the way, B is now in one of my conversations.
+        --   (B writes this in its DB: "Bob exists in a conversation with ID 1 in A)
+        :> "conversation-member-change"
         :> ReqBody '[JSON] ConversationMemberChange
         :> Post '[JSON] ConversationMemberChangeResponse,
     addToConversation ::
       routes
         :- "federation"
+        -- can we merge the "add member to conversation" (claiming to be a user already in that conv)
+        -- with "join conversation by id" (where we only look at the conv id, not at a user id.
+        -- ?
         :> "join-conversation"
         :> ReqBody '[JSON] JoinConversation
         :> Post '[JSON] JoinConversationResponse
@@ -64,3 +74,35 @@ data Api routes = Api
 --   B -> C check Charlie exists?
 --   B -> A: Add Charlie@C to your conversation 1.
 --
+--
+-- Galley conversation client-server API:
+--
+-- yes - get conversation (self, cnvId)
+-- yes - get conversation roles (self, cnvId)
+-- yes - join conversation by id
+-- yes - add users to existing conv
+-- yes - rename conversation
+-- [yes] delete member of a conversation
+-- [yes] send a message! (cnvId/otr/messages)
+--
+-- [yes] other member update (e.g. make someone conv admin)
+-- [yes? low prio] - join conversation by reusable code
+-- [yes? low prio] code check, get conversation code
+-- [yes? low prio] update conversation access mode (e.g. allow guests into a conv)
+-- [yes? low prio] - change read receipts mode on a conv
+-- [yes? low prio] - change timer settings on a conv
+--
+-- [no] get a user's conversation IDs (self)
+-- [no] get a user's conversation by ID/start (self)
+-- [no] create group conversation (self, newConvData)
+-- [no] create self conversation (self)
+-- [?] create one2one conversation (self, newConvData)
+-- [no] update/delete conversation code
+-- [no] get/put self conv
+-- [skip it not useful?] typing notifications
+-- [maybe?] otr/broadcast (i.e. account status updates)
+--
+-- [?] teams/:tid/conversations/ endpoints:
+--  - get (by id, all)
+--  - get roles
+--  - delete
