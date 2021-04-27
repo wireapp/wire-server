@@ -20,7 +20,6 @@
 
 module Brig.Federation.Client where
 
-import Brig.API.Types (FederationError (..))
 import Brig.App (AppIO, federator, viewFederationDomain)
 import Brig.Types (Prekey, PrekeyBundle)
 import qualified Brig.Types.Search as Public
@@ -39,7 +38,7 @@ import Mu.GRpc.Client.TyApps
 import qualified System.Logger.Class as Log
 import Util.Options (epHost, epPort)
 import Wire.API.Federation.API.Brig as FederatedBrig
-import Wire.API.Federation.Client (FederationClientError, FederatorClient, runFederatorClientWith)
+import Wire.API.Federation.Client (FederationClientError, FederationError (..), FederatorClient, runFederatorClientWith)
 import Wire.API.Federation.GRPC.Client
 import Wire.API.Message (UserClientMap, UserClients)
 import Wire.API.User.Client.Prekey (ClientPrekey)

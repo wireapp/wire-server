@@ -79,6 +79,12 @@ instance (Monad m, MonadError FederationClientError m) => MonadError FederationC
   throwError = FederatorClient . throwError
   catchError (FederatorClient action) f = FederatorClient $ catchError action (runFederatorClient . f)
 
+data FederationError
+  = FederationUnavailable Text
+  | FederationNotImplemented
+  | FederationNotConfigured
+  | FederationCallFailure FederationClientError
+
 data FederationClientError
   = FederationClientInvalidMethod HTTP.Method
   | FederationClientStreamingUnsupported

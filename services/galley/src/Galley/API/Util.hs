@@ -305,5 +305,5 @@ canDeleteMember deleter deletee
 --------------------------------------------------------------------------------
 -- Federation
 
-viewFederationDomain :: Galley Domain
+viewFederationDomain :: MonadReader Env m => m Domain
 viewFederationDomain = view (options . optSettings . setFederationDomain)

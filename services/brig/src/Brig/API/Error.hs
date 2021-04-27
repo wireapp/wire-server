@@ -37,7 +37,7 @@ import Network.HTTP.Types.Status
 import qualified Network.HTTP.Types.Status as HTTP
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified Servant.Client as Servant
-import Wire.API.Federation.Client (FederationClientError (..))
+import Wire.API.Federation.Client (FederationClientError (..), FederationError (..))
 import qualified Wire.API.Federation.GRPC.Types as Proto
 
 data Error where
