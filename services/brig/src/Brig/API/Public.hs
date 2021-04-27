@@ -120,6 +120,7 @@ import qualified Wire.API.User.Handle as Public
 import qualified Wire.API.User.Password as Public
 import qualified Wire.API.User.RichInfo as Public
 import qualified Wire.API.UserMap as Public
+import qualified Wire.API.Wrapped as Public
 
 ---------------------------------------------------------------------------
 -- Sitemap
@@ -328,12 +329,21 @@ type GetUserClientQualified =
     :> Get '[Servant.JSON] Public.PubClient
 
 type ListClientsBulk =
-  Summary "List all clients for a set of user ids"
+  Summary "List all clients for a set of user ids (deprecated, use /users/list-clients/v2)"
     :> ZAuthServant
     :> "users"
     :> "list-clients"
     :> Servant.ReqBody '[Servant.JSON] (Range 1 MaxUsersForListClientsBulk [Qualified UserId])
     :> Post '[Servant.JSON] (Public.QualifiedUserMap (Set Public.PubClient))
+
+type ListClientsBulkV2 =
+  Summary "List all clients for a set of user ids"
+    :> ZAuthServant
+    :> "users"
+    :> "list-clients"
+    :> "v2"
+    :> Servant.ReqBody '[Servant.JSON] (Public.LimitedQualifiedUserIdList MaxUsersForListClientsBulk)
+    :> Post '[Servant.JSON] (Public.WrappedQualifiedUserMap (Set Public.PubClient))
 
 type GetUsersPrekeysClientUnqualified =
   Summary "(deprecated) Get a prekey for a specific client of a user."
@@ -402,6 +412,7 @@ type OutsideWorldAPI =
     :<|> GetUserClientUnqualified
     :<|> GetUserClientQualified
     :<|> ListClientsBulk
+    :<|> ListClientsBulkV2
     :<|> GetUsersPrekeysClientUnqualified
     :<|> GetUsersPrekeysClientQualified
     :<|> GetUsersPrekeyBundleUnqualified
@@ -441,6 +452,7 @@ servantSitemap =
     :<|> getUserClientUnqualified
     :<|> getUserClientQualified
     :<|> listClientsBulk
+    :<|> listClientsBulkV2
     :<|> getPrekeyUnqualifiedH
     :<|> getPrekeyH
     :<|> getPrekeyBundleUnqualifiedH
@@ -1181,6 +1193,9 @@ getUserClientUnqualified uid cid = do
 listClientsBulk :: UserId -> Range 1 MaxUsersForListClientsBulk [Qualified UserId] -> Handler (Public.QualifiedUserMap (Set Public.PubClient))
 listClientsBulk _zusr limitedUids = do
   API.lookupPubClientsBulk (fromRange limitedUids) !>> clientError
+
+listClientsBulkV2 :: UserId -> Public.LimitedQualifiedUserIdList MaxUsersForListClientsBulk -> Handler (Public.WrappedQualifiedUserMap (Set Public.PubClient))
+listClientsBulkV2 zusr userIds = Public.Wrapped <$> listClientsBulk zusr (Public.qualifiedUsers userIds)
 
 getUserClientQualified :: Domain -> UserId -> ClientId -> Handler Public.PubClient
 getUserClientQualified domain uid cid = do

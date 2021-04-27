@@ -22,6 +22,7 @@
 
 module Wire.API.User
   ( UserIdList (..),
+    LimitedQualifiedUserIdList (..),
     -- Profiles
     UserProfile (..),
     SelfProfile (..),
@@ -128,6 +129,7 @@ import Data.Text.Ascii
 import Data.UUID (UUID, nil)
 import qualified Data.UUID as UUID
 import Deriving.Swagger
+import GHC.TypeLits (KnownNat, Nat)
 import Imports
 import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
@@ -163,6 +165,26 @@ instance FromJSON UserIdList where
 
 instance ToJSON UserIdList where
   toJSON e = object ["user_ids" .= mUsers e]
+
+--------------------------------------------------------------------------------
+-- LimitedQualifiedUserIdList
+
+-- | We cannot use 'Wrapped' here because all the instances require proof that 1
+-- is less than or equal to 'max'.
+newtype LimitedQualifiedUserIdList (max :: Nat) = LimitedQualifiedUserIdList
+  {qualifiedUsers :: Range 1 max [Qualified UserId]}
+  deriving stock (Eq, Show, Generic)
+  deriving (ToSchema) via CustomSwagger '[FieldLabelModifier CamelToSnake] (LimitedQualifiedUserIdList max)
+
+instance (KnownNat max, LTE 1 max) => Arbitrary (LimitedQualifiedUserIdList max) where
+  arbitrary = LimitedQualifiedUserIdList <$> arbitrary
+
+instance LTE 1 max => FromJSON (LimitedQualifiedUserIdList max) where
+  parseJSON = withObject "LimitedQualifiedUserIdList" $ \o ->
+    LimitedQualifiedUserIdList <$> o .: "qualified_users"
+
+instance LTE 1 max => ToJSON (LimitedQualifiedUserIdList max) where
+  toJSON e = object ["qualified_users" .= qualifiedUsers e]
 
 --------------------------------------------------------------------------------
 -- UserProfile

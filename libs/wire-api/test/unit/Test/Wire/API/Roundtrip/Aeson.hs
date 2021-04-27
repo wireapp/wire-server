@@ -68,6 +68,7 @@ import qualified Wire.API.User.Password as User.Password
 import qualified Wire.API.User.Profile as User.Profile
 import qualified Wire.API.User.RichInfo as User.RichInfo
 import qualified Wire.API.User.Search as User.Search
+import qualified Wire.API.Wrapped as Wrapped
 
 -- FUTUREWORK(#1446): fix tests marked as failing
 -- (either fixing Arbitrary or serialization instance)
@@ -229,6 +230,7 @@ tests =
       testRoundTrip @User.NewUser,
       testRoundTrip @User.NewUserPublic,
       testRoundTrip @User.UserIdList,
+      testRoundTrip @(User.LimitedQualifiedUserIdList 20),
       testRoundTrip @User.UserProfile,
       testRoundTrip @User.User,
       testRoundTrip @User.SelfProfile,
@@ -309,7 +311,8 @@ tests =
       testRoundTrip @(User.Search.SearchResult User.Search.Contact),
       testRoundTrip @User.Search.Contact,
       testRoundTrip @(User.Search.SearchResult User.Search.TeamContact),
-      testRoundTrip @User.Search.TeamContact
+      testRoundTrip @User.Search.TeamContact,
+      testRoundTrip @(Wrapped.Wrapped "some_int" Int)
     ]
   where
     currentlyFailing = ignoreTest
