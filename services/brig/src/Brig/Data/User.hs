@@ -42,6 +42,7 @@ module Brig.Data.User
     lookupPassword,
     lookupStatus,
     lookupRichInfo,
+    lookupRichInfoMultiUsers,
     lookupUserTeam,
     lookupServiceUsers,
     lookupServiceUsersForTeam,
@@ -380,6 +381,12 @@ lookupRichInfo u =
   fmap runIdentity
     <$> retry x1 (query1 richInfoSelect (params Quorum (Identity u)))
 
+-- | Returned rich infos are in the same order as users
+lookupRichInfoMultiUsers :: [UserId] -> AppIO [(UserId, RichInfo)]
+lookupRichInfoMultiUsers users = do
+  mapMaybe (\(uid, mbRi) -> (uid,) . RichInfo <$> mbRi)
+    <$> retry x1 (query richInfoSelectMulti (params Quorum (Identity users)))
+
 -- | Lookup user (no matter what status) and return 'TeamId'.  Safe to use for authorization:
 -- suspended / deleted / ... users can't login, so no harm done if we authorize them *after*
 -- successful login.
@@ -547,6 +554,9 @@ statusSelect = "SELECT status FROM user WHERE id = ?"
 
 richInfoSelect :: PrepQuery R (Identity UserId) (Identity RichInfoAssocList)
 richInfoSelect = "SELECT json FROM rich_info WHERE user = ?"
+
+richInfoSelectMulti :: PrepQuery R (Identity [UserId]) (UserId, Maybe RichInfoAssocList)
+richInfoSelectMulti = "SELECT user, json FROM rich_info WHERE user in ?"
 
 teamSelect :: PrepQuery R (Identity UserId) (Identity (Maybe TeamId))
 teamSelect = "SELECT team FROM user WHERE id = ?"

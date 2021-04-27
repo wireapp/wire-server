@@ -135,7 +135,8 @@ data ErrorPayload = ErrorPayload
 data Request = Request
   { component :: Component,
     path :: ByteString,
-    body :: ByteString
+    body :: ByteString,
+    originDomain :: Text
   }
   deriving (Typeable, Eq, Show, Generic, ToSchema Router "Request", FromSchema Router "Request")
   deriving (Arbitrary) via (GenericUniform Request)
