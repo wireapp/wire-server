@@ -22,6 +22,7 @@ module Wire.API.Federation.API.Galley where
 import Servant.API (JSON, Post, ReqBody, (:>))
 import Servant.API.Generic ((:-))
 
+-- TODO types
 type ConversationMemberChange = ()
 
 type ConversationMemberChangeResponse = ()
@@ -41,7 +42,8 @@ data Api routes = Api
         --   A: add B to conversation database entry
         --   A -> B: by the way, B is now in one of my conversations.
         --   (B writes this in its DB: "Bob exists in a conversation with ID 1 in A)
-        :> "conversation-member-change"
+        :> "conversations"
+        :> "member-change"
         :> ReqBody '[JSON] ConversationMemberChange
         :> Post '[JSON] ConversationMemberChangeResponse,
     addToConversation ::
@@ -50,7 +52,8 @@ data Api routes = Api
         -- can we merge the "add member to conversation" (claiming to be a user already in that conv)
         -- with "join conversation by id" (where we only look at the conv id, not at a user id.
         -- ?
-        :> "join-conversation"
+        :> "conversations"
+        :> "join"
         :> ReqBody '[JSON] JoinConversation
         :> Post '[JSON] JoinConversationResponse
   }
