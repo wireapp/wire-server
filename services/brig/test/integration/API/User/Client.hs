@@ -28,7 +28,7 @@ import Bilge.Assert
 import qualified Brig.Options as Opt
 import Brig.Types
 import Brig.Types.User.Auth hiding (user)
-import Control.Lens hiding ((#))
+import Control.Lens (preview, (.~), (^.), (^?))
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
@@ -50,7 +50,8 @@ import UnliftIO (mapConcurrently)
 import Util
 import Wire.API.User (LimitedQualifiedUserIdList (LimitedQualifiedUserIdList))
 import Wire.API.User.Client (QualifiedUserClientMap (..), QualifiedUserClients (..), UserClientMap (..), UserClients (..))
-import Wire.API.UserMap (QualifiedUserMap (..), UserMap (..))
+import Wire.API.UserMap (QualifiedUserMap (..), UserMap (..), WrappedQualifiedUserMap)
+import Wire.API.Wrapped (Wrapped (..))
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at opts p b c g =
@@ -256,8 +257,8 @@ testListClientsBulkV2 opts brig = do
   let domain = Opt.setFederationDomain $ Opt.optSettings opts
   uid3 <- userId <$> randomUser brig
   let mkPubClient cl = PubClient (clientId cl) (clientClass cl)
-  let expectedResponse :: QualifiedUserMap (Set PubClient) =
-        QualifiedUserMap $
+  let expectedResponse :: WrappedQualifiedUserMap (Set PubClient) =
+        Wrapped . QualifiedUserMap $
           Map.singleton
             domain
             ( UserMap $

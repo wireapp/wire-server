@@ -120,6 +120,7 @@ import qualified Wire.API.User.Handle as Public
 import qualified Wire.API.User.Password as Public
 import qualified Wire.API.User.RichInfo as Public
 import qualified Wire.API.UserMap as Public
+import qualified Wire.API.Wrapped as Public
 
 ---------------------------------------------------------------------------
 -- Sitemap
@@ -342,7 +343,7 @@ type ListClientsBulkV2 =
     :> "list-clients"
     :> "v2"
     :> Servant.ReqBody '[Servant.JSON] (Public.LimitedQualifiedUserIdList MaxUsersForListClientsBulk)
-    :> Post '[Servant.JSON] (Public.QualifiedUserMap (Set Public.PubClient))
+    :> Post '[Servant.JSON] (Public.WrappedQualifiedUserMap (Set Public.PubClient))
 
 type GetUsersPrekeysClientUnqualified =
   Summary "(deprecated) Get a prekey for a specific client of a user."
@@ -1193,8 +1194,8 @@ listClientsBulk :: UserId -> Range 1 MaxUsersForListClientsBulk [Qualified UserI
 listClientsBulk _zusr limitedUids = do
   API.lookupPubClientsBulk (fromRange limitedUids) !>> clientError
 
-listClientsBulkV2 :: UserId -> Public.LimitedQualifiedUserIdList MaxUsersForListClientsBulk -> Handler (Public.QualifiedUserMap (Set Public.PubClient))
-listClientsBulkV2 zusr userIds = listClientsBulk zusr (Public.qualifiedUsers userIds)
+listClientsBulkV2 :: UserId -> Public.LimitedQualifiedUserIdList MaxUsersForListClientsBulk -> Handler (Public.WrappedQualifiedUserMap (Set Public.PubClient))
+listClientsBulkV2 zusr userIds = Public.Wrapped <$> listClientsBulk zusr (Public.qualifiedUsers userIds)
 
 getUserClientQualified :: Domain -> UserId -> ClientId -> Handler Public.PubClient
 getUserClientQualified domain uid cid = do
