@@ -51,6 +51,13 @@ referencespdf_use_numbered_links = True
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 
+html_sidebars = {
+    # instead of a wildcard **, a regex could optionally 
+    # show the version sidebar only on some pages but not all of them.
+    '**': ['versioning.html', 'globaltoc.html', 'sourcelink.html', 'searchbox.html'],
+}
+
+
 # The master toctree document.
 master_doc = 'index'
 
