@@ -77,6 +77,7 @@ import SAML2.WebSSO
     uidTenant,
   )
 import qualified SAML2.WebSSO as SAML
+import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import Servant
 import qualified Servant.Multipart as Multipart
 import Spar.API.Swagger ()
@@ -265,10 +266,10 @@ autoprovisionSamlUserWithId buid suid managedBy = do
 -- make brig initiate the email validate procedure.
 validateEmailIfExists :: UserId -> SAML.UserRef -> Spar ()
 validateEmailIfExists uid = \case
-  (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email)) -> doValidate email
+  (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email)) -> doValidate (undefined email)
   _ -> pure ()
   where
-    doValidate :: SAML.Email -> Spar ()
+    doValidate :: SAMLEmail.Email -> Spar ()
     doValidate email = do
       enabled <- do
         tid <- Intra.getBrigUserTeam Intra.NoPendingInvitations uid

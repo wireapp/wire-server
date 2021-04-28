@@ -67,6 +67,7 @@ import Brig.Types.User.Auth (SsoLogin (..))
 import Control.Lens
 import Control.Monad.Except
 import Data.ByteString.Conversion
+-- import qualified Data.CaseInsensitive as CI
 import Data.Handle (Handle (Handle, fromHandle))
 import Data.Id (Id (Id), TeamId, UserId)
 import Data.Misc (PlainTextPassword)
@@ -76,6 +77,7 @@ import Imports
 import Network.HTTP.Types.Method
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified SAML2.WebSSO as SAML
+import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import Spar.Error
 import Spar.Intra.Galley as Galley (MonadSparToGalley, assertHasPermission)
 import Spar.Scim.Types (ValidExternalId (..), runValidExternalId)
@@ -111,11 +113,11 @@ veidFromUserSSOId = \case
       (parseEmail email)
 
 urefToExternalId :: SAML.UserRef -> Maybe Text
-urefToExternalId = SAML.shortShowNameID . view SAML.uidSubject
+urefToExternalId = undefined . SAML.shortShowNameID . view SAML.uidSubject
 
 urefToEmail :: SAML.UserRef -> Maybe Email
 urefToEmail uref = case uref ^. SAML.uidSubject . SAML.nameID of
-  SAML.UNameIDEmail email -> Just $ emailFromSAML email
+  SAML.UNameIDEmail email -> Just $ emailFromSAML (undefined email)
   _ -> Nothing
 
 -- | If the brig user has a 'UserSSOId', transform that into a 'ValidExternalId' (this is a
@@ -140,7 +142,7 @@ mkUserName :: Maybe Text -> ValidExternalId -> Either String Name
 mkUserName (Just n) = const $ mkName n
 mkUserName Nothing =
   runValidExternalId
-    (\uref -> mkName (SAML.unsafeShowNameID $ uref ^. SAML.uidSubject))
+    (\uref -> mkName (undefined . SAML.unsafeShowNameID $ uref ^. SAML.uidSubject))
     (\email -> mkName (fromEmail email))
 
 renderValidExternalId :: ValidExternalId -> Maybe Text
@@ -157,15 +159,12 @@ respToCookie resp = do
   unless (statusCode resp == 200) crash
   maybe crash (pure . parseSetCookie) $ getHeader "Set-Cookie" resp
 
-emailFromSAML :: HasCallStack => SAML.Email -> Email
-emailFromSAML =
-  fromJust . parseEmail . cs
-    . Text.Email.Parser.toByteString
-    . SAML.fromEmail
+emailFromSAML :: HasCallStack => SAMLEmail.Email -> Email
+emailFromSAML = fromJust . parseEmail . SAMLEmail.render
 
-emailToSAML :: HasCallStack => Email -> SAML.Email
+emailToSAML :: HasCallStack => Email -> SAMLEmail.Email
 emailToSAML brigEmail =
-  SAML.Email $
+  undefined . SAMLEmail.validate . Text.Email.Parser.toByteString $
     Text.Email.Parser.unsafeEmailAddress
       (cs $ emailLocal brigEmail)
       (cs $ emailDomain brigEmail)
@@ -177,7 +176,7 @@ emailToSAMLNameID = fromRight (error "impossible") . SAML.emailNameID . fromEmai
 
 emailFromSAMLNameID :: HasCallStack => SAML.NameID -> Maybe Email
 emailFromSAMLNameID nid = case nid ^. SAML.nameID of
-  SAML.UNameIDEmail email -> Just $ emailFromSAML email
+  SAML.UNameIDEmail email -> Just $ emailFromSAML (undefined email)
   _ -> Nothing
 
 ----------------------------------------------------------------------
