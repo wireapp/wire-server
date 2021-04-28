@@ -8,8 +8,8 @@ To set up the connection of your SCIM client (e.g. Azure Active Directory) you n
 1. The URL under which Wire's SCIM API is hosted: ``https://prod-nginz-https.wire.com/scim/v2``.
    If you are hosting your own instance of Wire then the URL is ``https://<hostname>/scim/v2``, where ``<hostname>`` is where you are serving Wire's public endpoints. Some SCIM clients append ``/v2`` to the URL your provide. If this happens (check the URL mentioned in error messages of your SCIM client) then please provide the URL without the ``/v2`` suffix, i.e. ``https://prod-nginz-https.wire.com/scim`` or ``https://<hostname>/scim``.
 
-2. A OAuth 2.0 Bearer Token which authorizes the use of the SCIM API. Use the  `wire_scim_token.py <https://raw.githubusercontent.com/wireapp/wire-server/654b62e3be74d9dddae479178990ebbd4bc77b1e/docs/reference/provisioning/wire_scim_token.py>`__
-   script to generate a token. To run the script you need access to an user account with "admin" privileges that can login via email and password.
+2. A secret token which authorizes the use of the SCIM API. Use the  `wire_scim_token.py <https://raw.githubusercontent.com/wireapp/wire-server/654b62e3be74d9dddae479178990ebbd4bc77b1e/docs/reference/provisioning/wire_scim_token.py>`__
+   script to generate a token. To run the script you need access to an user account with "admin" privileges that can login via email and password. Note that the token is independent from  the admin account that created it, i.e. the token remains valid if the admin account gets deleted or changed.
 
 You need to configure your SCIM client to use the following mandatory SCIM attributes:
 
