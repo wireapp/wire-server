@@ -117,9 +117,8 @@ lookupActivatedUsers = chunkify $ \uids -> do
 
 -- | URLs with more than ~160 uids produce 400 responses, because HAProxy has a
 --   URL length limit of ~6500 (determined experimentally). 100 is a
---   conservative setting to account for length of the base url and additional
---   query params. A uid contributes about 36+3 characters (+3 for the comma
---   separator) to the overall URL length.
+--   conservative setting. A uid contributes about 36+3 characters (+3 for the
+--   comma separator) to the overall URL length.
 chunkify :: forall m key a. (Monad m, ToByteString key, Monoid a) => ([key] -> m a) -> [key] -> m a
 chunkify doChunk keys = mconcat <$> (doChunk `mapM` chunks keys)
   where
