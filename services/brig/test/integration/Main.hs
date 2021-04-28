@@ -48,7 +48,7 @@ import qualified Index.Create
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.Wai.Utilities.Server (compile)
 import OpenSSL (withOpenSSL)
-import Options.Applicative
+import Options.Applicative hiding (action)
 import qualified Servant.Client as Servant
 import qualified Servant.Client.Generic as Servant
 import System.Environment (withArgs)
