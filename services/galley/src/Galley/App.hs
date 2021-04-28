@@ -89,6 +89,7 @@ import Ssl.Util
 import System.Logger.Class hiding (Error, info)
 import qualified System.Logger.Extended as Logger
 import Util.Options
+import Wire.API.Federation.Client (MonadFederation (..))
 
 data DeleteItem = TeamItem TeamId UserId (Maybe ConnId)
   deriving (Eq, Ord, Show)
@@ -131,6 +132,10 @@ newtype Galley a = Galley
       MonadReader Env,
       MonadClient
     )
+
+instance MonadFederation Galley where
+  federatorEndpoint = view federator
+  federationDomain = view (options . optSettings . setFederationDomain)
 
 fanoutLimit :: Galley (Range 1 Teams.HardTruncationLimit Int32)
 fanoutLimit = view options >>= return . currentFanoutLimit

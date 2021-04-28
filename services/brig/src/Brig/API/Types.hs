@@ -43,7 +43,7 @@ import Brig.User.Auth.Cookie (RetryAfter (..))
 import Data.Id
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
-import Wire.API.Federation.Client (FederationClientError, FederationError)
+import Wire.API.Federation.Client (FederationError)
 
 -------------------------------------------------------------------------------
 -- Successes
