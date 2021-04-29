@@ -1,0 +1,30 @@
+name: Update dependencies
+on:
+  schedule:
+    - cron: '0 8 * * *'
+  # To manually trigger
+  workflow_dispatch:
+jobs:
+  update-webapp:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        path: wire-server
+    - uses: actions/checkout@v2
+      with:
+        repository: wireapp/wire-webapp
+        fetch-depth: 0
+        path: webapp
+
+    - name: Set latest webapp version
+      run: |
+        ./wire-server/hack/bin/set-webapp-version.sh ./webapp
+
+    - name: Create pull request if there are changes
+      uses: peter-evans/create-pull-request@v3.8.2
+      with:
+        title: "chore: update webapp image"
+        commit-message: "chore: update webapp image"
+        branch: "chore/update-webapp-image"
+        path: wire-server
