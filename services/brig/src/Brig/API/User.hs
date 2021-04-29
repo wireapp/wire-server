@@ -151,6 +151,7 @@ import Imports
 import Network.Wai.Utilities
 import qualified System.Logger.Class as Log
 import System.Logger.Message
+import Wire.API.Federation.Client (FederationError (..))
 
 data AllowSCIMUpdates
   = AllowSCIMUpdates

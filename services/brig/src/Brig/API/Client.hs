@@ -69,6 +69,7 @@ import Network.Wai.Utilities
 import System.Logger.Class (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import UnliftIO.Async (Concurrently (Concurrently, runConcurrently))
+import Wire.API.Federation.Client (FederationError (..))
 import qualified Wire.API.Message as Message
 import Wire.API.User.Client (QualifiedUserClientMap (..), QualifiedUserClients (..))
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap))

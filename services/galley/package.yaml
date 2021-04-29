@@ -16,6 +16,7 @@ dependencies:
 - ssl-util
 - raw-strings-qq >=1.0
 - wire-api
+- wire-api-federation
 
 library:
   source-dirs: src
@@ -48,6 +49,7 @@ library:
   - http-client-openssl >=0.2
   - http-client-tls >=0.2.2
   - http-types >=0.8
+  - http2-client-grpc
   - insert-ordered-containers
   - lens >=4.4
   - metrics-wai >=0.4

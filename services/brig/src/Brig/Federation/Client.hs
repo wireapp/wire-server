@@ -20,27 +20,20 @@
 
 module Brig.Federation.Client where
 
-import Brig.API.Types (FederationError (..))
-import Brig.App (AppIO, federator, viewFederationDomain)
+import Brig.App (AppIO)
 import Brig.Types (Prekey, PrekeyBundle)
 import qualified Brig.Types.Search as Public
 import Brig.Types.User
-import Control.Error.Util ((!?))
-import Control.Lens (view, (^.))
-import Control.Monad.Except (runExceptT)
-import Control.Monad.Trans.Except (ExceptT (..), throwE)
+import Control.Monad.Trans.Except (ExceptT (..))
 import Data.Domain
 import Data.Handle
 import Data.Id (ClientId, UserId)
 import Data.Qualified
 import qualified Data.Text as T
 import Imports
-import Mu.GRpc.Client.TyApps
 import qualified System.Logger.Class as Log
-import Util.Options (epHost, epPort)
 import Wire.API.Federation.API.Brig as FederatedBrig
-import Wire.API.Federation.Client (FederationClientError, FederatorClient, runFederatorClientWith)
-import Wire.API.Federation.GRPC.Client
+import Wire.API.Federation.Client (FederationError (..), executeFederated)
 import Wire.API.Message (UserClientMap, UserClients)
 import Wire.API.User.Client.Prekey (ClientPrekey)
 
@@ -86,23 +79,3 @@ searchUsers :: Domain -> SearchRequest -> FederationAppIO (Public.SearchResult P
 searchUsers domain searchTerm = do
   Log.warn $ Log.msg $ T.pack "Brig-federation: search call on remote backend"
   executeFederated domain $ FederatedBrig.searchUsers clientRoutes searchTerm
-
--- FUTUREWORK: It would be nice to share the client across all calls to
--- federator and not call this function on every invocation of federated
--- requests, but there are some issues in http2-client which might need some
--- fixing first. More context here:
--- https://github.com/lucasdicioccio/http2-client/issues/37
--- https://github.com/lucasdicioccio/http2-client/issues/49
-mkFederatorClient :: FederationAppIO GrpcClient
-mkFederatorClient = do
-  federatorEndpoint <- view federator !? FederationNotConfigured
-  let cfg = grpcClientConfigSimple (T.unpack (federatorEndpoint ^. epHost)) (fromIntegral (federatorEndpoint ^. epPort)) False
-  createGrpcClient cfg
-    >>= either (throwE . FederationUnavailable . reason) pure
-
-executeFederated :: Domain -> FederatorClient component (ExceptT FederationClientError FederationAppIO) a -> FederationAppIO a
-executeFederated targetDomain action = do
-  federatorClient <- mkFederatorClient
-  originDomain <- viewFederationDomain
-  runExceptT (runFederatorClientWith federatorClient targetDomain originDomain action)
-    >>= either (throwE . FederationCallFailure) pure
