@@ -103,6 +103,8 @@ help:
 ifeq ($(USE_POETRY), 1)
 	source $$HOME/.poetry/env && \
 	poetry run $(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS)
+	$(if $(and $(@),html), poetry run sphinx-multiversion "$(SOURCEDIR)" "$(BUILDDIR)/$(@)" $(SPHINXOPTS))
 else
 	$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS)
+	$(if $(and $(@),html), sphinx-multiversion "$(SOURCEDIR)" "$(BUILDDIR)/$(@)" $(SPHINXOPTS))
 endif

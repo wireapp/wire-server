@@ -51,7 +51,8 @@ You need to have docker on the machine you are using to perform this installatio
   * You can get access to a managed Kubernetes cluster with the cloud provider of your choice.
   * You can install one if you have ssh access to a set of sufficiently large virtual machines, see :ref:`ansible-kubernetes`
 
-* If you don't have ``helm`` yet, see `Installing helm <https://helm.sh/docs/using_helm/#installing-helm>`__.
+* If you don't have ``helm`` yet, see `Installing helm <https://helm.sh/docs/using_helm/#installing-helm>`__. If you followed the instructions in :ref:`dependencies`  should have helm installed already.
+
 
 Type ``helm version``, you should, if everything is configured correctly, see a result similar this:
 
@@ -61,30 +62,6 @@ Type ``helm version``, you should, if everything is configured correctly, see a 
 
 In case ``kubectl version`` shows both Client and Server versions, but ``helm version`` does not show a Server version, you may need to run ``helm init``. The exact version matters less as long as both Client and Server versions match (or are very close).
 
-Upgrading from Helm2 to Helm3
------------------------------
-Because of it's better support of offline environments, we prefer to use Helm3. This step is optional, but recommended for offline deployments.
-
-Download and install the newest version of Helm 3 from get.helm.sh.
-
-.. code:: shell
-
-   curl https://get.helm.sh/helm-v3.1.0-linux-amd64.tar.gz -o helm-v3.1.0-linux-amd64.tar.gz
-   tar -xzf helm-v3.1.0-linux-amd64.tar.gz --strip=1 --wildcards */helm
-   sudo cp helm /usr/local/bin/
-
-How to download charts for Helm 3 in an offline environment
------------------------------------------------------------
-If you are using the approach of the offline environment described in wire-server-deploy-networkless/vpc/README.md, with an 'assethost', that assethost will have a copy of the charts available from Helm.<domainname>. to download them on the admin host, and prepare them for installation:
-
-.. code:: shell
-
-   cd wire-server-deploy/
-   wget -r -l 10 https://helm.internal.vpc/charts/
-   mv helm.internal.vpc/charts/ ./wire
-   rm $(find wire/ -name index*)
-
-where 'internal.vpc' needs to be replaced with the domain you're using in your offline environment.
 
 Preparing to install charts from the internet with Helm
 -------------------------------------------------------
@@ -156,11 +133,11 @@ If you are using minio instead of AWS S3, you should also run:
 .. code:: shell
 
    helm upgrade --install minio-external wire/minio-external -f values/minio-external/values.yaml --wait
-   
+
 How to install fake AWS services for SNS / SQS / DynamoDB
 ---------------------------------------------------------
 AWS SNS is required to send notifications to clients. If you use the fake-aws version, clients will use the websocket method to receive notifications, which keeps connections to the servers open, draining battery.
-AWS SES and SQS are used for mail delivery, and reception, respectively. 
+AWS SES and SQS are used for mail delivery, and reception, respectively.
 
 
 Open a terminal and run:

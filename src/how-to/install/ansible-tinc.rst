@@ -51,4 +51,4 @@ Configure the physical network interface inside tinc.yml if it is not
 
 ::
 
-   poetry run ansible-playbook -i hosts.ini tinc.yml -vv
+   ansible-playbook -i hosts.ini tinc.yml -vv

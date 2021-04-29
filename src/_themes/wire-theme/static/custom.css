@@ -9,17 +9,11 @@ body {
 
 
 div.body h1, div.body h2, div.body h3, div.body h4, div.body h5, div.body h6 {
-  font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif;
-  font-size: 24px;
-  line-height: 1.5;
-  font-weight: 600;
+  font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif
 }
 
 div.sphinxsidebar h3, div.sphinxsidebar h4 {
   font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 1.5;
-  font-weight: 600;
 }
 
 .nav-wrapper {
@@ -63,8 +57,7 @@ div.sphinxsidebar li a {
 
 div.sphinxsidebar input {
   font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 1.5;
+  font-size: 16px; line-height: 1.5;
   font-weight: 300;
   color: gray;
 }

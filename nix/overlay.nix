@@ -6,6 +6,7 @@ self: super: rec {
       python-bidi = pself.callPackage ./python/python-bidi.nix {};
       svg2rlg = pself.callPackage ./python/svg2rlg.nix {};
       svglib = pself.callPackage ./python/svglib.nix {};
+      sphinx-multiversion = pself.callPackage ./python/sphinx-multiversion.nix {};
     };
   });
 

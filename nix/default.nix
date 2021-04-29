@@ -14,7 +14,7 @@ in
       pkgs.gnumake
       pkgs.entr
 
-      (pkgs.python3.withPackages (ps: with ps; [ sphinx recommonmark rst2pdf sphinx-autobuild sphinxcontrib-fulltoc ]))
+      (pkgs.python3.withPackages (ps: with ps; [ sphinx recommonmark rst2pdf sphinx-autobuild sphinxcontrib-fulltoc sphinx-multiversion ]))
     ];
   };
 }

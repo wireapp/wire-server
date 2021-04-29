@@ -5,6 +5,9 @@ Introduction
 
     It is *strongly recommended* to have followed and completed the demo installation :ref:`helm` before continuing with this page. The demo installation is simpler, and already makes you aware of a few things you need (TLS certs, DNS, a VM, ...).
 
+.. note::
+    All required dependencies for doing an installation can be found here :ref:`dependencies`.
+
 A production installation consists of several parts:
 
 Part 1 - you're on your own here, and need to create a set of VMs as detailed in :ref:`planning_prod`

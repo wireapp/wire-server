@@ -30,7 +30,8 @@ version = "0.0.1"
 # ones.
 extensions = [
     'rst2pdf.pdfbuilder',
-    'sphinxcontrib.fulltoc'
+    'sphinxcontrib.fulltoc',
+    'sphinx_multiversion'
 ]
 
 # Grouping the document tree into PDF files. List of tuples
@@ -57,7 +58,7 @@ master_doc = 'index'
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = [ '**.inc.rst' ]
-if tags.has('administrate'):
+if tags and tags.has('administrate'):
     exclude_patterns = ['**/*single*/**', '**/*install*/**', 'understand/**']
 
 # -- Options for HTML output -------------------------------------------------
@@ -72,3 +73,12 @@ html_theme = 'wire-theme'
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
+
+
+smv_tag_whitelist = ''
+smv_branch_whitelist = r'^(install-with-poetry)$'
+smv_remote_whitelist = r'^(origin)$'
+smv_released_pattern = r'^remotes/.+$'
+
+smv_outputdir_format = 'versions/{ref.name}'
+smv_prefer_remote_refs = True

@@ -28,8 +28,6 @@ machine, VM on a cloud provider, real physical machines, etc.)
 Preparing to run ansible
 ------------------------
 
-.. include:: ansible-dependencies.rst
-
 .. _adding-ips-to-hostsini:
 
 .. TODO: section header unifications/change
@@ -106,7 +104,7 @@ To install kubernetes:
 
 From ``wire-server-deploy/ansible``::
 
-   poetry run ansible-playbook -i hosts.ini kubernetes.yml -vv
+   ansible-playbook -i hosts.ini kubernetes.yml -vv
 
 When the playbook finishes correctly (which can take up to 20 minutes), you should have a folder ``artifacts`` containing a file ``admin.conf``. Copy this file::
 
@@ -151,11 +149,11 @@ Cassandra
 `defaults/main.yml <https://github.com/wireapp/ansible-cassandra/blob/master/defaults/main.yml>`__
 for a full list of variables to change if necessary)
 
-- Use poetry to run ansible, and deploy Cassandra:
+- Use ansible to deploy Cassandra:
 
 ::
 
-   poetry run ansible-playbook -i hosts.ini cassandra.yml -vv
+   ansible-playbook -i hosts.ini cassandra.yml -vv
 
 ElasticSearch
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -179,11 +177,11 @@ ElasticSearch
    # es_apt_key = "https://<mymirror>/linux/ubuntu/gpg"
    # es_apt_url = "deb [trusted=yes] https://<mymirror>/apt bionic stable"
 
--  Use poetry to run ansible, and deploy ElasticSearch:
+-  Use ansible and deploy ElasticSearch:
 
 ::
 
-   poetry run ansible-playbook -i hosts.ini elasticsearch.yml -vv
+   ansible-playbook -i hosts.ini elasticsearch.yml -vv
 
 Minio
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -219,11 +217,11 @@ this step.
    # Default first interface on ubuntu on kvm:
    minio_network_interface=ens3
 
--  Use poetry to run ansible, and deploy Minio:
+-  Use ansible, and deploy Minio:
 
 ::
 
-   poetry run ansible-playbook -i hosts.ini minio.yml -vv
+   ansible-playbook -i hosts.ini minio.yml -vv
 
 Restund
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -269,7 +267,7 @@ Install restund:
 
 ::
 
-   poetry run ansible-playbook -i hosts.ini restund.yml -vv
+   ansible-playbook -i hosts.ini restund.yml -vv
 
 IMPORTANT checks
 ^^^^^^^^^^^^^^^^
@@ -278,7 +276,7 @@ IMPORTANT checks
 
 ::
 
-   poetry run ansible-playbook -i hosts.ini cassandra-verify-ntp.yml -vv
+   ansible-playbook -i hosts.ini cassandra-verify-ntp.yml -vv
 
 Installing helm charts - prerequisites
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -302,11 +300,12 @@ In your hosts.ini under ``[all:vars]``:
    # if you're using redis external...
    redis_network_interface = ...
 
+
+Now run the helm_external.yml playbook, to populate network values for helm:
+
 ::
 
-- Now run the helm_external.yml playbook, to populate network values for helm:
-
-   poetry run ansible-playbook -i hosts.ini -vv --diff helm_external.yml
+   ansible-playbook -i hosts.ini -vv --diff helm_external.yml
 
 You can now can install the helm charts.
 
