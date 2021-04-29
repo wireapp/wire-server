@@ -19,23 +19,19 @@
 
 module Wire.API.Federation.API.Galley where
 
-import Data.Id (ConvId)
-import Data.Text
-import Imports
 import Servant.API (JSON, Post, ReqBody, (:>))
 import Servant.API.Generic ((:-))
-import Wire.API.Arbitrary
-import qualified Wire.API.Event.Conversation as Public
 
 data Api routes = Api
-  { conversationRename ::
+  { getConversation ::
       routes
         :- "federation"
         :> "conversations"
-        -- usecase: Alice@A wants to change the title of a conversation containing her but hosted in B.
-        :> "rename"
-        :> ReqBody '[JSON] RenameConversation
-        :> Post '[JSON] RenameConversationResponse,
+        -- usecases:
+        -- - e.g. upon registering a new client to your account, get the list of your conversations
+        :> "list-conversations"
+        :> ReqBody '[JSON] ListConversations
+        :> Post '[JSON] ListConversationsResponse,
     conversationMemberChange ::
       routes
         :- "federation"
@@ -49,42 +45,14 @@ data Api routes = Api
         --   (B writes this in its DB: "Bob exists in a conversation with ID 1 in A)
         :> "member-change"
         :> ReqBody '[JSON] ConversationMemberChange
-        :> Post '[JSON] ConversationMemberChangeResponse,
-    addToConversation ::
-      routes
-        :- "federation"
-        :> "conversations"
-        -- can we merge the "add member to conversation" (claiming to be a user already in that conv)
-        -- with "join conversation by id" (where we only look at the conv id, not at a user id.
-        -- ? Question of trust and/or possibility for bugs?
-        --
-        -- Usecase: given conversation-1@A with members Alice@A, Bob@B
-        --
-        -- Bob@B adds BobTwo@B: /add-to-conversation(bob2)@B
-        --   B -> A: add Bob2 to your conversation, please
-        :> "join"
-        :> ReqBody '[JSON] JoinConversation
-        :> Post '[JSON] JoinConversationResponse
+        :> Post '[JSON] ConversationMemberChangeResponse
   }
-
-data RenameConversation = RenameConversation
-  { renameConv :: ConvId,
-    renameNewName :: Text
-  }
-  deriving (Show, Eq, Generic, Typeable)
-  deriving (Arbitrary) via (GenericUniform RenameConversation)
-
-newtype RenameConversationResponse = RenameConversationResponse
-  { renameEvent :: Public.Event
-  }
-  deriving (Show, Eq, Generic, Typeable)
-  deriving (Arbitrary) via (GenericUniform RenameConversationResponse)
 
 -- FUTUREWORK: data types, json instances, more endpoints. See https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/356090113/Federation+Galley+Conversation+API for the current list we need.
 type ConversationMemberChange = ()
 
 type ConversationMemberChangeResponse = ()
 
-type JoinConversation = ()
+type ListConversations = ()
 
-type JoinConversationResponse = ()
+type ListConversationsResponse = ()
