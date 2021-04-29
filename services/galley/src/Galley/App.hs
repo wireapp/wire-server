@@ -89,7 +89,7 @@ import Ssl.Util
 import System.Logger.Class hiding (Error, info)
 import qualified System.Logger.Extended as Logger
 import Util.Options
-import Wire.API.Federation.Client (MonadFederation (..))
+import Wire.API.Federation.Client (HasFederatorConfig (..))
 
 data DeleteItem = TeamItem TeamId UserId (Maybe ConnId)
   deriving (Eq, Ord, Show)
@@ -133,7 +133,7 @@ newtype Galley a = Galley
       MonadClient
     )
 
-instance MonadFederation Galley where
+instance HasFederatorConfig Galley where
   federatorEndpoint = view federator
   federationDomain = view (options . optSettings . setFederationDomain)
 

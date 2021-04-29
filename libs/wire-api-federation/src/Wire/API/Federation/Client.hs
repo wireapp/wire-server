@@ -98,7 +98,7 @@ data FederationClientError
 callRemote :: MonadIO m => GrpcClient -> Proto.ValidatedFederatedRequest -> m (GRpcReply Proto.OutwardResponse)
 callRemote fedClient call = liftIO $ gRpcCall @'MsgProtoBuf @Proto.Outward @"Outward" @"call" fedClient (Proto.validatedFederatedRequestToFederatedRequest call)
 
-class MonadFederation m where
+class HasFederatorConfig m where
   federatorEndpoint :: m (Maybe Endpoint)
   federationDomain :: m Domain
 
@@ -109,7 +109,7 @@ class MonadFederation m where
 -- https://github.com/lucasdicioccio/http2-client/issues/37
 -- https://github.com/lucasdicioccio/http2-client/issues/49
 mkFederatorClient ::
-  (MonadIO m, MonadFederation m) =>
+  (MonadIO m, HasFederatorConfig m) =>
   ExceptT FederationError m GrpcClient
 mkFederatorClient = do
   mbFedEndpoint <- lift federatorEndpoint
@@ -119,7 +119,7 @@ mkFederatorClient = do
     >>= either (throwError . FederationUnavailable . reason) pure
 
 executeFederated ::
-  (MonadIO m, MonadFederation m) =>
+  (MonadIO m, HasFederatorConfig m) =>
   Domain ->
   FederatorClient component (ExceptT FederationClientError m) a ->
   ExceptT FederationError m a
