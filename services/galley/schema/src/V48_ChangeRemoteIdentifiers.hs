@@ -24,12 +24,19 @@ import Cassandra.Schema
 import Imports
 import Text.RawString.QQ
 
--- This migration deletes the (so far unused) entries introduced in migration 44 and replaces
--- them with a separate table.
+-- This migration deletes the (so far unused) entries introduced in migration 44
+-- and replaces them with separate tables. This change occurs because we
+-- decided to stop using opaque Ids and to be explict with remote identifiers.
+-- However, due to the way the current user and member table primary key setup,
+-- we cannot keep using those tables without specifying a local user or
+-- conversation id.
+-- Since two backends may have a conversation or user with the same UUID
+-- (whether by chance or maliciously so), this change guarantees we don't
+-- accidentally override information about a conversation on one backend by
+-- information about a conversation on another backend.
 migration :: Migration
 migration = Migration 48 "Change schema for remote identifiers to conversation related tables" $ do
-  -- The user table answers the question: Which conversations am I a member of?
-  -- With federation one now also needs to know: Where are these conversations located?
+  -- Remove unused columns introduced in migration 44
   schema'
     [r|
       ALTER TABLE user DROP (
@@ -37,8 +44,6 @@ migration = Migration 48 "Change schema for remote identifiers to conversation r
         conv_remote_domain
       );
     |]
-  -- The member table is used to answer the question: Which users are part of a conversation?
-  -- With federation one now also needs to know: Where are these users located?
   schema'
     [r|
       ALTER TABLE member DROP (
@@ -46,3 +51,22 @@ migration = Migration 48 "Change schema for remote identifiers to conversation r
         user_remote_domain
       );
     |]
+
+  -- create new tables:
+  -- The user_remote table (similar to the user table) answers the question:
+  -- Which conversations am I a member of?
+  -- With federation one now also needs to know: Where are these conversations located?
+  schema'
+    [r|
+      CREATE TABLE user_remote (
+        user uuid,
+        conv_remote_domain text,
+        conv_remote_id uuid,
+        PRIMARY KEY (user, conv_remote_domain, conv_remote_id)
+      ) WITH CLUSTERING ORDER BY (conv_remote_domain ASC)
+    |]
+
+-- TODO: domain+id as clustering key together? domain-based usecase?
+
+-- The member table is used to answer the question: Which users are part of a conversation?
+-- With federation one now also needs to know: Where are these users located?
