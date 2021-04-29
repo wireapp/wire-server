@@ -9,7 +9,7 @@ resources:
     cpu: "1"
 image:
   repository: quay.io/wire/team-settings
-  tag: 3.1.0-131bc5-v0.26.5-production
+  tag: 3.4.0-03c7a9-v0.28.2-production
 service:
   https:
     externalPort: 443
@@ -27,11 +27,11 @@ service:
 
 #secrets:
 #   configJson: <secret-to-be-asked-from-wire>
-#
 
-# Some relevant environment options, have a look at
-# https://github.com/wireapp/wire-team-settings/wiki/Self-hosting
-# Note that it is a private repo, check README for more info
+# Some relevant environment options. For a comprehensive
+# list of available variables, please refer to:
+# https://github.com/wireapp/wire-web-config-wire/blob/master/wire-team-settings/.env.defaults
+#
 # NOTE: Without an empty dictionary, you will see warnings
 #       when overriding envVars
 envVars: {}
