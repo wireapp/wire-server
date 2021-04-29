@@ -108,12 +108,13 @@ import Brig.Types.Code
 import Cassandra
 import Cassandra.Util
 import Control.Arrow (second)
+import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens hiding ((<|))
-import Control.Monad.Catch (MonadThrow)
+import Control.Monad.Catch (MonadThrow, throwM)
 import Data.ByteString.Conversion hiding (parser)
 import Data.Id as Id
 import Data.Json.Util (UTCTimeMillis (..))
-import Data.LegalHold (UserLegalHoldStatus (..))
+import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import qualified Data.List.Extra as List
 import Data.List.Split (chunksOf)
 import Data.List1 (List1, list1, singleton)
@@ -140,6 +141,7 @@ import Imports hiding (Set, max)
 import System.Logger.Class (MonadLogger)
 import qualified System.Logger.Class as Log
 import UnliftIO (async, mapConcurrently, wait)
+import Wire.API.Team.Member
 
 -- We use this newtype to highlight the fact that the 'Page' wrapped in here
 -- can not reliably used for paging.
@@ -926,8 +928,25 @@ eraseClients :: MonadClient m => UserId -> m ()
 eraseClients user = retry x5 (write Cql.rmClients (params Quorum (Identity user)))
 
 -- Internal utilities
-newTeamMember' :: (MonadThrow m, MonadClient m) => (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) -> m TeamMember
-newTeamMember' (uid, perms, minvu, minvt, mlhStatus) = newTeamMemberRaw uid perms minvu minvt (fromMaybe UserLegalHoldDisabled mlhStatus)
+
+-- | Throw an exception if one of invitation timestamp and inviter is 'Nothing' and the
+-- other is 'Just', which can only be caused by inconsistent database content.
+--
+-- TODO: newTeamMember' needs to take LH feature flag and legalholdEnabledTeams as
+-- argument(s), and fill in userlegalholdnoconsent / disabled based on that.  if feature
+-- enabled: disabled; if enabledforteams: ...
+--
+-- FUTUREWORK: if we implement full, explicit consent, we will remove legalholdEnabledTeams,
+-- and ghc will point us to this function during refactoring.  (i think.)
+newTeamMember' ::
+  (MonadThrow m, MonadClient m) =>
+  (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis, Maybe UserLegalHoldStatus) ->
+  m TeamMember
+newTeamMember' (uid, perms, minvu, minvt, fromMaybe defUserLegalHoldStatus -> lhStatus) = mk minvu minvt
+  where
+    mk (Just invu) (Just invt) = pure $ TeamMember uid perms (Just (invu, invt)) lhStatus
+    mk Nothing Nothing = pure $ TeamMember uid perms Nothing lhStatus
+    mk _ _ = throwM $ ErrorCall "TeamMember with incomplete metadata."
 
 -- | Invoke the given action with a list of TeamMemberRows IDs
 -- which are looked up based on:

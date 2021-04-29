@@ -86,6 +86,7 @@ import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import qualified Wire.API.Team.Feature as Public
+import qualified Wire.API.Team.Member as Member
 
 onlyIfLhEnabled :: TestM () -> TestM ()
 onlyIfLhEnabled action = do
@@ -98,6 +99,7 @@ onlyIfLhEnabled action = do
 
 tests :: IO TestSetup -> TestTree
 tests s =
+  -- See also Client Tests in Brig; where behaviour around deleting/adding LH clients is tested
   testGroup
     "Teams LegalHold API"
     [ test s "swagger / json consistency" (onlyIfLhEnabled testSwaggerJsonConsistency),
@@ -116,15 +118,20 @@ tests s =
       -- behavior of existing end-points
       test s "POST /clients" (onlyIfLhEnabled testCannotCreateLegalHoldDeviceOldAPI),
       test s "GET /teams/{tid}/members" (onlyIfLhEnabled testGetTeamMembersIncludesLHStatus),
-      test s "POST /register - cannot add team members with LH - too large" (onlyIfLhEnabled testAddTeamUserTooLargeWithLegalhold)
-      -- See also Client Tests in Brig; where behaviour around deleting/adding LH clients is
-      -- tested
-
+      test s "POST /register - cannot add team members with LH - too large" (onlyIfLhEnabled testAddTeamUserTooLargeWithLegalhold),
       {- TODO:
           conversations/{cnv}/otr/messages - possibly show the legal hold device (if missing) as a different device type (or show that on device level, depending on how client teams prefer)
           GET /team/{tid}/members - show legal hold status of all members
 
       -}
+      testGroup -- TODO: move this to Client Tests in brig as well?
+        "If user is not in a team listed in legalholdEnabledTeams in galley.conf..."
+        [ test s "legalhold_status in TeamMember is `no_consent` (no matter what's in cassandra)" (error "TODO: this PR"),
+          test s "[lower level] device handshake between device of user without consent and LH device is blocked" (error "TODO: other PR"),
+          test s "LH device cannot be added" (error "TODO: other PR"),
+          test s "If LH is activated for other user in 1:1 conv, 1:1 conv is blocked" (error "TODO: other PR"),
+          test s "If LH is activated for other user in group conv, this user gets removed with helpful message" (error "TODO: other PR")
+        ]
     ]
 
 -- | Make sure the ToSchema and ToJSON instances are in sync for all of the swagger docs.
@@ -155,7 +162,7 @@ testRequestLegalHoldDevice = do
       liftIO $
         assertEqual
           "User with insufficient permissions should be unable to start flow"
-          UserLegalHoldDisabled
+          UserLegalHoldDisabled_
           userStatus
     do
       requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
@@ -263,13 +270,13 @@ testGetLegalHoldDeviceStatus = do
       assertEqual
         "unexpected status"
         status
-        (UserLegalHoldStatusResponse UserLegalHoldDisabled Nothing Nothing)
+        (UserLegalHoldStatusResponse UserLegalHoldDisabled_ Nothing Nothing)
   withDummyTestServiceForTeam owner tid $ \_chan -> do
     do
       UserLegalHoldStatusResponse userStatus lastPrekey' clientId' <- getUserStatusTyped member tid
       liftIO $
         do
-          assertEqual "User legal hold status should start as disabled" UserLegalHoldDisabled userStatus
+          assertEqual "User legal hold status should start as disabled" UserLegalHoldDisabled_ userStatus
           assertEqual "last_prekey should be Nothing when LH is disabled" Nothing lastPrekey'
           assertEqual "client.id should be Nothing when LH is disabled" Nothing clientId'
     do
@@ -330,11 +337,11 @@ testDisableLegalHoldForUser = do
       ClientRemoved clientId' -> clientId' @?= someClientId
       _ -> assertBool "Unexpected event" False
     assertNotification mws $ \case
-      UserLegalHoldDisabled' uid -> uid @?= member
+      UserLegalHoldDisabled_' uid -> uid @?= member
       _ -> assertBool "Unexpected event" False
     -- Other users should also get the event
     assertNotification ows $ \case
-      UserLegalHoldDisabled' uid -> uid @?= member
+      UserLegalHoldDisabled_' uid -> uid @?= member
       _ -> assertBool "Unexpected event" False
     assertZeroLegalHoldDevices member
 
@@ -489,7 +496,7 @@ testRemoveLegalHoldFromTeam = do
       liftIO $
         assertEqual
           "After approval user legalhold status should be Disabled"
-          UserLegalHoldDisabled
+          UserLegalHoldDisabled_
           userStatus
       assertZeroLegalHoldDevices member
 
@@ -521,7 +528,7 @@ testEnablePerTeam = do
       liftIO $ assertEqual "Calling 'putEnabled False' should disable LegalHold" statusValue Public.TeamFeatureDisabled
     do
       UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
-      liftIO $ assertEqual "User legal hold status should be disabled after disabling for team" UserLegalHoldDisabled status
+      liftIO $ assertEqual "User legal hold status should be disabled after disabling for team" UserLegalHoldDisabled_ status
     viewLHS <- getSettingsTyped owner tid
     liftIO $
       assertEqual
@@ -604,9 +611,9 @@ testGetTeamMembersIncludesLHStatus = do
             ("legal hold status should be " <> msg)
             (Just status)
             (findMemberStatus members')
-  check UserLegalHoldDisabled "disabled when it is disabled for the team"
+  check UserLegalHoldDisabled_ "disabled when it is disabled for the team"
   withDummyTestServiceForTeam owner tid $ \_chan -> do
-    check UserLegalHoldDisabled "disabled on new team members"
+    check UserLegalHoldDisabled_ "disabled on new team members"
     requestLegalHoldDevice owner member tid !!! testResponse 201 Nothing
     check UserLegalHoldPending "pending after requesting device"
     approveLegalHoldDevice (Just defPassword) member member tid !!! testResponse 200 Nothing
@@ -879,7 +886,7 @@ publicKeyNotMatchingService =
 -- brig-types. (Look for toPushFormat in the code) We should refactor. To make
 -- our lives a bit easier we are going to  copy these datatypes from brig verbatim
 data UserEvent
-  = UserLegalHoldDisabled' !UserId
+  = UserLegalHoldDisabled_' !UserId
   | UserLegalHoldEnabled' !UserId
   | LegalHoldClientRequested LegalHoldClientRequestedData
   deriving (Generic)
@@ -909,7 +916,7 @@ instance FromJSON UserEvent where
     tag :: Text <- o .: "type"
     case tag of
       "user.legalhold-enable" -> UserLegalHoldEnabled' <$> o .: "id"
-      "user.legalhold-disable" -> UserLegalHoldDisabled' <$> o .: "id"
+      "user.legalhold-disable" -> UserLegalHoldDisabled_' <$> o .: "id"
       "user.legalhold-request" ->
         LegalHoldClientRequested
           <$> ( LegalHoldClientRequestedData

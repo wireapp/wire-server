@@ -149,6 +149,7 @@ import qualified Data.ByteString.Base64.Lazy as EL
 import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle))
 import Data.Id
+import qualified Data.LegalHold as LH
 import Data.Misc (PlainTextPassword (..))
 import Data.Proxy
 import Data.Range
@@ -195,6 +196,7 @@ import qualified Web.Cookie as Web
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Invitation as TeamInvitation
+import qualified Wire.API.Team.Member as Member
 import Wire.API.User (HandleUpdate (HandleUpdate), UserUpdate)
 import qualified Wire.API.User as User
 

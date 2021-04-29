@@ -25,10 +25,14 @@ import Imports
 import Test.QuickCheck
 
 data UserLegalHoldStatus
-  = UserLegalHoldDisabled
+  = UserLegalHoldDisabled_
   | UserLegalHoldPending
   | UserLegalHoldEnabled
+  | UserLegalHoldNoConsent
   deriving stock (Show, Eq, Ord, Bounded, Enum, Generic)
+
+defUserLegalHoldStatus :: UserLegalHoldStatus
+defUserLegalHoldStatus = UserLegalHoldNoConsent
 
 typeUserLegalHoldStatus :: Doc.DataType
 typeUserLegalHoldStatus =
@@ -36,34 +40,39 @@ typeUserLegalHoldStatus =
     Doc.enum
       [ "enabled",
         "pending",
-        "disabled"
+        "disabled",
+        "no_consent"
       ]
 
 instance ToJSON UserLegalHoldStatus where
-  toJSON UserLegalHoldDisabled = "disabled"
+  toJSON UserLegalHoldDisabled_ = "disabled"
   toJSON UserLegalHoldPending = "pending"
   toJSON UserLegalHoldEnabled = "enabled"
+  toJSON UserLegalHoldNoConsent = "no_consent"
 
 instance FromJSON UserLegalHoldStatus where
   parseJSON = withText "UserLegalHoldStatus" $ \case
-    "disabled" -> pure UserLegalHoldDisabled
+    "disabled" -> pure UserLegalHoldDisabled_
     "pending" -> pure UserLegalHoldPending
     "enabled" -> pure UserLegalHoldEnabled
+    "no_consent" -> pure UserLegalHoldNoConsent
     x -> fail $ "unexpected status type: " <> T.unpack x
 
 instance Cql UserLegalHoldStatus where
   ctype = Tagged IntColumn
 
   fromCql (CqlInt n) = case n of
-    0 -> pure $ UserLegalHoldDisabled
+    0 -> pure $ UserLegalHoldDisabled_
     1 -> pure $ UserLegalHoldPending
     2 -> pure $ UserLegalHoldEnabled
+    3 -> pure $ UserLegalHoldNoConsent
     _ -> Left "fromCql: Invalid UserLegalHoldStatus"
   fromCql _ = Left "fromCql: UserLegalHoldStatus: CqlInt expected"
 
-  toCql UserLegalHoldDisabled = CqlInt 0
+  toCql UserLegalHoldDisabled_ = CqlInt 0
   toCql UserLegalHoldPending = CqlInt 1
   toCql UserLegalHoldEnabled = CqlInt 2
+  toCql UserLegalHoldNoConsent = CqlInt 3
 
 instance Arbitrary UserLegalHoldStatus where
   arbitrary = elements [minBound ..]

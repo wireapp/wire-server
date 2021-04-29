@@ -81,6 +81,7 @@ import qualified Data.Currency as Currency
 import qualified Data.HashMap.Strict as M
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, (#))
+import qualified Data.LegalHold as LH
 import Data.List.Split (chunksOf)
 import Data.List1 (List1, list1, singleton)
 import Data.Range
@@ -97,6 +98,7 @@ import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
 import System.Logger.Class as Log hiding (name, (.=))
 import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatus)
+import qualified Wire.API.Team.Member as Member
 
 -----------------------------------------------------------------------------
 -- Event Handlers

@@ -25,6 +25,7 @@ import Control.Lens (view)
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Id
+import qualified Data.LegalHold as LH
 import Data.List1 (list1)
 import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types.Teams

@@ -145,7 +145,7 @@ removeSettings' tid = do
       let uid = member ^. Team.userId
       Client.removeLegalHoldClientFromUser uid
       LHService.removeLegalHold tid uid
-      LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldDisabled
+      LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldDisabled_ -- (support for withdrawing consent is not planned yet.)
 
 -- | Learn whether a user has LH enabled and fetch pre-keys.
 -- Note that this is accessible to ANY authenticated user, even ones outside the team
@@ -159,7 +159,8 @@ getUserStatus tid uid = do
   teamMember <- maybe (throwM teamMemberNotFound) pure mTeamMember
   let status = view legalHoldStatus teamMember
   (mlk, lcid) <- case status of
-    UserLegalHoldDisabled -> pure (Nothing, Nothing)
+    UserLegalHoldNoConsent -> pure (Nothing, Nothing)
+    UserLegalHoldDisabled_ -> pure (Nothing, Nothing)
     UserLegalHoldPending -> makeResponseDetails
     UserLegalHoldEnabled -> makeResponseDetails
   pure $ UserLegalHoldStatusResponse status mlk lcid
@@ -202,6 +203,7 @@ requestDevice zusr tid uid = do
     Just UserLegalHoldEnabled -> throwM userLegalHoldAlreadyEnabled
     Just UserLegalHoldPending -> RequestDeviceAlreadyPending <$ provisionLHDevice
     Just UserLegalHoldDisabled -> RequestDeviceSuccess <$ provisionLHDevice
+    Just UserLegalHoldNoConsent -> throwM userLegalHoldNoConsent
     Nothing -> throwM teamMemberNotFound
   where
     -- LH service should be idempotent in device creation, ie. return the existing device on
@@ -306,9 +308,9 @@ disableForUser zusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) = 
       case fmap (view legalHoldStatus) target of
         Just UserLegalHoldEnabled -> True
         Just UserLegalHoldPending -> True
-        Just UserLegalHoldDisabled -> False
-        Nothing -> {- Never been set -} False
-
+        Just UserLegalHoldDisabled_ -> False
+        Just UserLegalHoldNoConsent -> False
+        Nothing -> False -- Never been set
     disableLH :: Galley ()
     disableLH = do
       ensureReAuthorised zusr mPassword
@@ -317,4 +319,4 @@ disableForUser zusr tid uid (Public.DisableLegalHoldForUserRequest mPassword) = 
       -- TODO: send event at this point (see also: related TODO in this module in
       -- 'approveDevice' and
       -- https://github.com/wireapp/wire-server/pull/802#pullrequestreview-262280386)
-      LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldDisabled
+      LegalHoldData.setUserLegalHoldStatus tid uid UserLegalHoldDisabled_

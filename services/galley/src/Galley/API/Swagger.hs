@@ -318,6 +318,7 @@ instance ToSchema UserLegalHoldStatus where
               "UserLegalHoldEnabled" -> "enabled"
               "UserLegalHoldPending" -> "pending"
               "UserLegalHoldDisabled" -> "disabled"
+              "UserLegalHoldNoConsent" -> "no_consent"
           }
       tweak = fmap $ schema . description ?~ descr
         where

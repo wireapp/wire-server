@@ -41,6 +41,7 @@ import qualified Data.Handle as Handle
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
+import qualified Data.LegalHold as LH
 import Data.List1 as List1
 import qualified Data.Map.Strict as Map
 import Data.Misc
@@ -85,7 +86,7 @@ import Web.Cookie
 import Wire.API.Conversation.Member (Member (..))
 import qualified Wire.API.Event.Team as TE
 import qualified Wire.API.Message.Proto as Proto
-import qualified Wire.API.Team.Member as Member
+import qualified Wire.API.Team.Member as Team
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -350,7 +351,7 @@ addUserToTeamWithSSO hasEmail tid = do
 makeOwner :: HasCallStack => UserId -> TeamMember -> TeamId -> TestM ()
 makeOwner owner mem tid = do
   galley <- view tsGalley
-  let changeMember = newNewTeamMember (mem ^. Member.userId) fullPermissions (mem ^. Member.invitation)
+  let changeMember = newNewTeamMember (mem ^. Team.userId) fullPermissions (mem ^. Team.invitation)
   put
     ( galley
         . paths ["teams", toByteString' tid, "members"]

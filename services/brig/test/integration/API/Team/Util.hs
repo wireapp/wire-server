@@ -32,6 +32,7 @@ import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
+import qualified Data.LegalHold as LH
 import Data.Misc (Milliseconds)
 import Data.Range
 import qualified Data.Set as Set
@@ -48,6 +49,7 @@ import Util
 import Web.Cookie (parseSetCookie, setCookieName)
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 import qualified Wire.API.Team.Feature as Public
+import qualified Wire.API.Team.Member as Team
 
 -- | FUTUREWORK: Remove 'createPopulatedBindingTeam', 'createPopulatedBindingTeamWithNames',
 -- and rename 'createPopulatedBindingTeamWithNamesAndHandles' to 'createPopulatedBindingTeam'.
