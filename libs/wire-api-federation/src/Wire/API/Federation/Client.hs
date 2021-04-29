@@ -86,6 +86,7 @@ data FederationClientError
   | FederationClientOutwardError Proto.OutwardError
   | FederationClientInvalidStatus Word32
   | FederationClientServantError Servant.ClientError
+  deriving (Show, Eq)
 
 callRemote :: MonadIO m => GrpcClient -> Proto.ValidatedFederatedRequest -> m (GRpcReply Proto.OutwardResponse)
 callRemote fedClient call = liftIO $ gRpcCall @'MsgProtoBuf @Proto.Outward @"Outward" @"call" fedClient (Proto.validatedFederatedRequestToFederatedRequest call)

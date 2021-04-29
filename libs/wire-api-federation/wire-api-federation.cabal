@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d46afde4e3a98dd57f7e30f974dfcc9037f1c4f5ed087f29b3f69cd4dcf732bc
+-- hash: 4ec92172df50408b71990fbf38bc6326db7f4db58d274785cbe23012948c6043
 
 name:           wire-api-federation
 version:        0.1.0
@@ -67,6 +67,7 @@ test-suite spec
   other-modules:
       Test.Wire.API.Federation.API.BrigSpec
       Test.Wire.API.Federation.APISpec
+      Test.Wire.API.Federation.ClientSpec
       Test.Wire.API.Federation.GRPC.TypesSpec
       Paths_wire_api_federation
   hs-source-dirs:
@@ -78,6 +79,7 @@ test-suite spec
   build-depends:
       QuickCheck >=2.13
     , aeson >=1.4
+    , async
     , base >=4.6 && <5.0
     , bytestring
     , bytestring-conversion
@@ -89,8 +91,12 @@ test-suite spec
     , metrics-wai
     , mtl
     , mu-grpc-client
+    , mu-grpc-server
     , mu-protobuf
+    , mu-rpc
     , mu-schema
+    , network
+    , retry
     , servant >=0.16
     , servant-client
     , servant-client-core
