@@ -16,15 +16,14 @@ jobs:
         repository: wireapp/wire-webapp
         fetch-depth: 0
         path: webapp
-
-    - name: Set latest webapp version
+    - name: Set latest webapp versions
       run: |
-        ./wire-server/hack/bin/set-webapp-version.sh ./webapp
+        ./wire-server/hack/bin/set-webapp-version.sh ./webapp master webapp
 
     - name: Create pull request if there are changes
       uses: peter-evans/create-pull-request@v3.8.2
       with:
-        title: "chore: update webapp image"
-        commit-message: "chore: update webapp image"
+        title: "chore: update webapp images"
+        commit-message: "chore: update webapp images"
         branch: "chore/update-webapp-image"
         path: wire-server
