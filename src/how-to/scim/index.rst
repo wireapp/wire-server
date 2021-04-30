@@ -3,7 +3,7 @@ How to set up user provisioning with SCIM
 
 Wire supports the `SCIM <http://www.simplecloud.info/>`__ (`RFC 7643 <https://tools.ietf.org/html/rfc7643>`__) protocol to create, update and delete users.
 
-Note that connecting a SCIM client to Wire also disables the functionality to create new users in the SSO login process. This functionality is when a token is created (see below).
+Note that connecting a SCIM client to Wire also disables the functionality to create new users in the SSO login process. This functionality is disabled when a token is created (see below) and re-enabled when all tokens have been deleted.
 
 To set up the connection of your SCIM client (e.g. Azure Active Directory) you need to provide
 
