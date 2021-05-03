@@ -1,6 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# OPTIONS_GHC -Wno-deferred-type-errors #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 
 -- This file is part of the Wire Server implementation.
