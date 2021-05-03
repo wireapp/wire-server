@@ -53,20 +53,33 @@ migration = Migration 48 "Change schema for remote identifiers to conversation r
     |]
 
   -- create new tables:
-  -- The user_remote table (similar to the user table) answers the question:
+  -- The user_remote (similar to the user) table answers the question:
   -- Which conversations am I a member of?
   -- With federation one now also needs to know: Where are these conversations located?
+  -- This table stores *local* users who are part of *remote* conversations
   schema'
     [r|
-      CREATE TABLE user_remote (
+      CREATE TABLE user_remote_conv (
         user uuid,
         conv_remote_domain text,
         conv_remote_id uuid,
         PRIMARY KEY (user, conv_remote_domain, conv_remote_id)
-      ) WITH CLUSTERING ORDER BY (conv_remote_domain ASC)
+      ) WITH compaction = {'class': 'LeveledCompactionStrategy'};
     |]
 
--- TODO: domain+id as clustering key together? domain-based usecase?
+  -- The member_remote (similar to the member) table answers the question:
+  -- Which users are part of a conversation?
+  -- With federation one now also needs to know: Where are these users located?
+  -- This table stores *remote* users who are part of *local* conversations
+  schema'
+    [r|
+      CREATE TABLE member_remote_user (
+        conv uuid,
+        user_remote_domain text,
+        user_remote_id uuid,
+        PRIMARY KEY (conv, user_remote_domain, user_remote_id)
+      ) WITH compaction = {'class': 'LeveledCompactionStrategy'};
+    |]
 
 -- The member table is used to answer the question: Which users are part of a conversation?
 -- With federation one now also needs to know: Where are these users located?
