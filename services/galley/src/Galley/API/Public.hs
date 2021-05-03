@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -14,7 +16,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 module Galley.API.Public
   ( sitemap,
     apiDocs,
@@ -42,6 +43,7 @@ import qualified Data.Swagger.Build.Api as Swagger
 import Data.Swagger.Internal (Swagger)
 import Data.Swagger.Lens (info, security, securityDefinitions, title)
 import qualified Data.Swagger.Lens as SwaggerLens
+import Data.Swagger.Schema (ToSchema (..))
 import Data.Text.Encoding (decodeLatin1)
 import GHC.Base (Symbol)
 import GHC.TypeLits (KnownSymbol)
@@ -66,7 +68,7 @@ import Network.Wai.Predicate.Request (HasQuery)
 import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities
 import Network.Wai.Utilities.Swagger
-import Network.Wai.Utilities.ZAuth
+import Network.Wai.Utilities.ZAuth hiding (ZAuthUser)
 import Servant hiding (Handler, JSON, addHeader, contentType, respond)
 import qualified Servant
 import Servant.API.Generic (ToServantApi, (:-))
@@ -97,27 +99,27 @@ import Wire.Swagger (int32Between)
 -- shows the "Authorization" header in the swagger docs, but expects the
 -- "Z-Auth" header in the server. This helps keep the swagger docs usable
 -- through nginz.
-data ZAuthServantType = ZAuthServantUser | ZAuthServantConn
+data ZUserType = ZAuthUser | ZAuthConn
 
-type family ZAuthServantHeader (ztype :: ZAuthServantType) :: Symbol where
-  ZAuthServantHeader 'ZAuthServantUser = "Z-User"
-  ZAuthServantHeader 'ZAuthServantConn = "Z-Connection"
+type family ZUserHeader (ztype :: ZUserType) :: Symbol where
+  ZUserHeader 'ZAuthUser = "Z-User"
+  ZUserHeader 'ZAuthConn = "Z-Connection"
 
-type family ZAuthServantParam (ztype :: ZAuthServantType) :: * where
-  ZAuthServantParam 'ZAuthServantUser = UserId
-  ZAuthServantParam 'ZAuthServantConn = ConnId
+type family ZUserParam (ztype :: ZUserType) :: * where
+  ZUserParam 'ZAuthUser = UserId
+  ZUserParam 'ZAuthConn = ConnId
 
-data ZAuthServant' (ztype :: ZAuthServantType)
+data ZAuthServant (ztype :: ZUserType)
 
 type InternalAuth ztype =
   Header'
     '[Servant.Required, Servant.Strict]
-    (ZAuthServantHeader ztype)
-    (ZAuthServantParam ztype)
+    (ZUserHeader ztype)
+    (ZUserParam ztype)
 
-type ZAuthServant = ZAuthServant' 'ZAuthServantUser
+type ZUser = ZAuthServant 'ZAuthUser
 
-instance HasSwagger api => HasSwagger (ZAuthServant' 'ZAuthServantUser :> api) where
+instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthUser :> api) where
   toSwagger _ =
     toSwagger (Proxy @api)
       & securityDefinitions <>~ InsOrdHashMap.singleton "ZAuth" secScheme
@@ -129,22 +131,25 @@ instance HasSwagger api => HasSwagger (ZAuthServant' 'ZAuthServantUser :> api) w
             _securitySchemeDescription = Just "Must be a token retrieved by calling 'POST /login' or 'POST /access'. It must be presented in this format: 'Bearer \\<token\\>'."
           }
 
-instance HasSwagger api => HasSwagger (ZAuthServant' 'ZAuthServantConn :> api) where
+instance HasSwagger api => HasSwagger (ZAuthServant 'ZAuthConn :> api) where
   toSwagger _ = toSwagger (Proxy @api)
 
 instance
   ( HasContextEntry (ctx .++ DefaultErrorFormatters) ErrorFormatters,
     HasServer api ctx,
-    KnownSymbol (ZAuthServantHeader ztype),
-    FromHttpApiData (ZAuthServantParam ztype)
+    KnownSymbol (ZUserHeader ztype),
+    FromHttpApiData (ZUserParam ztype)
   ) =>
-  HasServer (ZAuthServant' ztype :> api) ctx
+  HasServer (ZAuthServant ztype :> api) ctx
   where
-  type ServerT (ZAuthServant' ztype :> api) m = ServerT (InternalAuth ztype :> api) m
+  type ServerT (ZAuthServant ztype :> api) m = ServerT (InternalAuth ztype :> api) m
 
   route _ = Servant.route (Proxy @(InternalAuth ztype :> api))
   hoistServerWithContext _ pc nt s =
     Servant.hoistServerWithContext (Proxy @(InternalAuth ztype :> api)) pc nt s
+
+instance ToSchema a => ToSchema (Headers ls a) where
+  declareNamedSchema _ = declareNamedSchema (Proxy @a)
 
 data Api routes = Api
   { -- Conversations
@@ -152,14 +157,14 @@ data Api routes = Api
     getConversation ::
       routes
         :- Summary "Get a conversation by ID"
-        :> ZAuthServant
+        :> ZUser
         :> "conversations"
         :> Capture "cnv" OpaqueConvId
         :> Get '[Servant.JSON] Public.Conversation,
     getConversationRoles ::
       routes
         :- Summary "Get existing roles available for the given conversation"
-        :> ZAuthServant
+        :> ZUser
         :> "conversations"
         :> Capture "cnv" OpaqueConvId
         :> Get '[Servant.JSON] Public.ConversationRolesList,
@@ -167,7 +172,7 @@ data Api routes = Api
       routes
         :- Summary "Get all conversation IDs."
         -- TODO: add note "At most 1000 IDs are returned per request"
-        :> ZAuthServant
+        :> ZUser
         :> "conversations"
         :> "ids"
         :> QueryParam'
@@ -188,7 +193,7 @@ data Api routes = Api
     getConversations ::
       routes
         :- Summary "Get all conversations"
-        :> ZAuthServant
+        :> ZUser
         :> "conversations"
         :> QueryParam'
              [ Optional,
@@ -220,15 +225,25 @@ data Api routes = Api
     createGroupConversation ::
       routes
         :- Summary "Create a new conversation"
-        :> ZAuthServant
-        :> ZAuthServant' 'ZAuthServantConn
+        :> Description "This returns 200 when a new conversation is created, and 201 when the conversation already existed"
+        :> ZUser
+        :> ZAuthServant 'ZAuthConn
         :> "conversations"
         :> ReqBody '[Servant.JSON] Public.NewConvUnmanaged
-        :> UVerb 'POST '[Servant.JSON] Create.ConversationResponses,
+        :> Post '[Servant.JSON] (Headers '[Servant.Header "Location" ConvId] Public.Conversation),
+    -- createGroupConversation2 ::
+    --   routes
+    --     :- Summary "Create a new conversation"
+    --     :> Description "This returns 200 when a new conversation is created, and 201 when the conversation already existed"
+    --     :> ZUser
+    --     :> ZAuthServant 'ZAuthConn
+    --     :> "conversations"
+    --     :> ReqBody '[Servant.JSON] Public.NewConvUnmanaged
+    --     :> UVerb 'POST '[Servant.JSON] Create.ConversationResponses,
     createSelfConversation ::
       routes
         :- Summary "Create a self-conversation"
-        :> ZAuthServant
+        :> ZUser
         :> "conversations"
         :> "self"
         :> UVerb 'POST '[Servant.JSON] Create.ConversationResponses,
@@ -238,8 +253,8 @@ data Api routes = Api
     createOne2OneConversation ::
       routes
         :- Summary "Create a 1:1 conversation"
-        :> ZAuthServant
-        :> ZAuthServant' 'ZAuthServantConn
+        :> ZUser
+        :> ZAuthServant 'ZAuthConn
         :> "conversations"
         :> "one2one"
         :> ReqBody '[Servant.JSON] Public.NewConvUnmanaged
@@ -250,7 +265,7 @@ data Api routes = Api
       -- FUTUREWORK: errorResponse Error.notATeamMember
       routes
         :- Summary "Get existing roles available for the given team"
-        :> ZAuthServant
+        :> ZUser
         :> "teams"
         :> Capture "tid" TeamId
         :> "conversations"
@@ -260,7 +275,7 @@ data Api routes = Api
     getTeamConversations ::
       routes
         :- Summary "Get team conversations"
-        :> ZAuthServant
+        :> ZUser
         :> "teams"
         :> Capture "tid" TeamId
         :> "conversations"
@@ -269,7 +284,7 @@ data Api routes = Api
     getTeamConversation ::
       routes
         :- Summary "Get one team conversation"
-        :> ZAuthServant
+        :> ZUser
         :> "teams"
         :> Capture "tid" TeamId
         :> "conversations"
@@ -280,8 +295,8 @@ data Api routes = Api
     deleteTeamConversation ::
       routes
         :- Summary "Remove a team conversation"
-        :> ZAuthServant
-        :> ZAuthServant' 'ZAuthServantConn
+        :> ZUser
+        :> ZAuthServant 'ZAuthConn
         :> "teams"
         :> Capture "tid" TeamId
         :> "conversations"

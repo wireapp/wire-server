@@ -51,20 +51,27 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Utilities
-import Servant (WithStatus (..))
+import Servant (Headers, WithStatus (..))
+import qualified Servant
 import Servant.API (Union)
 import qualified Wire.API.Conversation as Public
 
 -- Servant helpers ------------------------------------------------------
 
 type ConversationResponses =
-  '[ WithStatus 200 Public.Conversation,
-     WithStatus 201 Public.Conversation
+  '[ WithStatus 200 (Headers '[Servant.Header "Location" ConvId] Public.Conversation),
+     WithStatus 201 (Headers '[Servant.Header "Location" ConvId] Public.Conversation)
    ]
 
 conversationResponse :: ConversationResponse -> Union ConversationResponses
-conversationResponse (ConversationCreated c) = Z (I (WithStatus c))
-conversationResponse (ConversationExisted c) = S (Z (I (WithStatus c)))
+conversationResponse (ConversationExisted c) =
+  Z . I . WithStatus . Servant.addHeader (cnvId c) $ c
+conversationResponse (ConversationCreated c) =
+  S . Z . I . WithStatus . Servant.addHeader (cnvId c) $ c
+
+conversationExtract :: ConversationResponse -> Headers '[Servant.Header "Location" ConvId] Public.Conversation
+conversationExtract (ConversationExisted c) = Servant.addHeader (cnvId c) c
+conversationExtract (ConversationCreated c) = Servant.addHeader (cnvId c) c
 
 -------------------------------------------------------------------------
 
@@ -78,9 +85,9 @@ createGroupConversation ::
   UserId ->
   ConnId ->
   Public.NewConvUnmanaged ->
-  Galley (Union ConversationResponses)
+  Galley (Headers '[Servant.Header "Location" ConvId] Public.Conversation)
 createGroupConversation user conn wrapped@(Public.NewConvUnmanaged body) =
-  conversationResponse
+  conversationExtract
     <$> case newConvTeam body of
       Nothing -> createRegularGroupConv user conn wrapped
       Just tinfo -> createTeamGroupConv user conn tinfo body
