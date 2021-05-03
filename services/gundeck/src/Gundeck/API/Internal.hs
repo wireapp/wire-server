@@ -20,16 +20,21 @@ module Gundeck.API.Internal
   )
 where
 
+import qualified Cassandra as Cassandra
+import Control.Lens (view)
 import Data.Id
 import qualified Gundeck.Client as Client
 import Gundeck.Monad
 import qualified Gundeck.Presence as Presence
 import qualified Gundeck.Push as Push
+import qualified Gundeck.Push.Data as PushTok
+import qualified Gundeck.Push.Native.Types as PushTok
 import Imports hiding (head)
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities
+import qualified Wire.API.Push.Token as PushTok
 
 sitemap :: Routes a Gundeck ()
 sitemap = do
@@ -63,6 +68,9 @@ sitemap = do
   delete "/i/user" (continue removeUserH) $
     header "Z-User"
 
+  get "/i/push-tokens/:uid" (continue getPushTokensH) $
+    param "uid"
+
 type JSON = Media "application" "json"
 
 pushH :: Request ::: JSON -> Gundeck Response
@@ -75,3 +83,9 @@ unregisterClientH (uid ::: cid) = empty <$ Client.unregister uid cid
 
 removeUserH :: UserId -> Gundeck Response
 removeUserH uid = empty <$ Client.removeUser uid
+
+getPushTokensH :: UserId -> Gundeck Response
+getPushTokensH = fmap json . getPushTokens
+
+getPushTokens :: UserId -> Gundeck PushTok.PushTokenList
+getPushTokens uid = PushTok.PushTokenList <$> (view PushTok.addrPushToken <$$> PushTok.lookup uid Cassandra.All)

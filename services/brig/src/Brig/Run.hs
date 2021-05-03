@@ -26,6 +26,7 @@ where
 import Brig.API (sitemap)
 import Brig.API.Federation (federationSitemap)
 import Brig.API.Handler
+import qualified Brig.API.Internal as IAPI
 import Brig.API.Public (ServantAPI, SwaggerDocsAPI, servantSitemap, swaggerDocsAPI)
 import qualified Brig.API.User as API
 import Brig.AWS (sesQueue)
@@ -121,6 +122,7 @@ mkApp o = do
         (Proxy @ServantCombinedAPI)
         ( swaggerDocsAPI
             :<|> Servant.hoistServer (Proxy @ServantAPI) (toServantHandler e) servantSitemap
+            :<|> Servant.hoistServer (Proxy @IAPI.ServantAPI) (toServantHandler e) IAPI.servantSitemap
             :<|> Servant.hoistServer (genericApi (Proxy @FederationBrig.Api)) (toServantHandler e) federationSitemap
             :<|> Servant.Tagged (app e)
         )
@@ -128,6 +130,7 @@ mkApp o = do
 type ServantCombinedAPI =
   ( SwaggerDocsAPI
       :<|> ServantAPI
+      :<|> IAPI.ServantAPI
       :<|> ToServantApi FederationBrig.Api
       :<|> Servant.Raw
   )

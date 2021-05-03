@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1060fdc26ef57534c0f61722613ae48c5ebe98d481fcc21cae9c1ebab816a8bb
+-- hash: cdc8e9db5e496dfa5804937858da4ac01666e1c604c54b9c0ea9318d521aded2
 
 name:           brig-types
 version:        1.35.0
@@ -40,6 +40,7 @@ library
       Brig.Types.Test.Arbitrary
       Brig.Types.User
       Brig.Types.User.Auth
+      Brig.Types.User.EJPD
   other-modules:
       Paths_brig_types
   hs-source-dirs:
@@ -54,8 +55,12 @@ library
     , bytestring-conversion >=0.2
     , cassandra-util
     , containers >=0.5
+    , deriving-swagger2 >=0.1.0
     , imports
+    , servant-server >=0.18.2
+    , servant-swagger >=1.1.11
     , string-conversions
+    , swagger2 >=2.5
     , text >=0.11
     , time >=1.1
     , types-common >=0.16
@@ -77,18 +82,19 @@ test-suite brig-types-tests
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
   build-depends:
-      QuickCheck
-    , aeson
-    , attoparsec
-    , base
+      QuickCheck >=2.9
+    , aeson >=0.11
+    , attoparsec >=0.10
+    , base ==4.*
     , brig-types
-    , containers
+    , containers >=0.5
     , imports
+    , swagger2 >=2.5
     , tasty
     , tasty-quickcheck
-    , text
-    , time
-    , types-common
-    , unordered-containers
+    , text >=0.11
+    , time >=1.1
+    , types-common >=0.16
+    , unordered-containers >=0.2
     , wire-api
   default-language: Haskell2010

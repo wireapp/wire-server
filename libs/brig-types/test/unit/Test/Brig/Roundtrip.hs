@@ -19,11 +19,13 @@ module Test.Brig.Roundtrip where
 
 import Data.Aeson (FromJSON, ToJSON, parseJSON, toJSON)
 import Data.Aeson.Types (parseEither)
+import Data.Swagger (ToSchema, validatePrettyToJSON)
 import Imports
 import Test.Tasty (TestTree)
-import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (===))
+import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (.&&.), (===))
 import Type.Reflection (typeRep)
 
+-- FUTUREWORK: make this an alias for 'testRoundTripWithSwagger' (or just remove the latter).
 testRoundTrip ::
   forall a.
   (Arbitrary a, Typeable a, ToJSON a, FromJSON a, Eq a, Show a) =>
@@ -34,3 +36,22 @@ testRoundTrip = testProperty msg trip
     trip (v :: a) =
       counterexample (show $ toJSON v) $
         Right v === (parseEither parseJSON . toJSON) v
+
+testRoundTripWithSwagger ::
+  forall a.
+  (Arbitrary a, Typeable a, ToJSON a, FromJSON a, ToSchema a, Eq a, Show a) =>
+  TestTree
+testRoundTripWithSwagger = testProperty msg (trip .&&. scm)
+  where
+    msg = show (typeRep @a)
+
+    trip (v :: a) =
+      counterexample (show $ toJSON v) $
+        Right v === (parseEither parseJSON . toJSON) v
+
+    scm (v :: a) =
+      counterexample
+        ( fromMaybe "Schema validation failed, but there were no errors. This looks like a bug in swagger2!" $
+            validatePrettyToJSON v
+        )
+        $ isNothing (validatePrettyToJSON v)

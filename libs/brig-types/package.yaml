@@ -9,25 +9,29 @@ maintainer: Wire Swiss GmbH <backend@wire.com>
 copyright: (c) 2017 Wire Swiss GmbH
 license: AGPL-3
 dependencies:
+- aeson >=0.11
+- attoparsec >=0.10
+- base ==4.*
+- containers >=0.5
 - imports
+- QuickCheck >=2.9
+- swagger2 >=2.5
+- text >=0.11
+- time >=1.1
+- types-common >=0.16
+- unordered-containers >=0.2
 - wire-api
 library:
   source-dirs: src
   ghc-options:
   - -funbox-strict-fields
   dependencies:
-  - aeson >=0.11
-  - attoparsec >=0.10
-  - base ==4.*
   - bytestring-conversion >=0.2
   - cassandra-util
-  - containers >=0.5
-  - QuickCheck >=2.9
+  - deriving-swagger2 >=0.1.0
+  - servant-server >=0.18.2
+  - servant-swagger >=1.1.11
   - string-conversions
-  - text >=0.11
-  - time >=1.1
-  - types-common >=0.16
-  - unordered-containers >=0.2
 tests:
   brig-types-tests:
     main: Main.hs
@@ -36,15 +40,6 @@ tests:
     - -threaded
     - -with-rtsopts=-N
     dependencies:
-    - aeson
-    - attoparsec
-    - base
     - brig-types
-    - containers
-    - QuickCheck
     - tasty
     - tasty-quickcheck
-    - text
-    - time
-    - types-common
-    - unordered-containers
