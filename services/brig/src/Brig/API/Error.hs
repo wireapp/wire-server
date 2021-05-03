@@ -193,8 +193,8 @@ fedError (FederationCallFailure err) =
           ("Unexpected method: " <> LT.fromStrict (T.decodeUtf8 mth))
     FederationClientStreamingUnsupported -> StdError $ federationInvalidCall "Streaming unsupported"
     FederationClientOutwardError outwardErr -> StdError $ federationRemoteError outwardErr
-    FederationClientServantError (Servant.DecodeFailure msg _) -> StdError $ federationInvalidBody msg
     FederationClientInvalidStatus sts -> StdError $ federationInvalidCode sts
+    FederationClientServantError (Servant.DecodeFailure msg _) -> StdError $ federationInvalidBody msg
     FederationClientServantError (Servant.FailureResponse _ _) ->
       StdError $ Wai.Error unexpectedFederationResponseStatus "unknown-federation-error" "Unknown federation error"
     FederationClientServantError (Servant.InvalidContentTypeHeader res) ->

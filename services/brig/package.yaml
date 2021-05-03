@@ -145,10 +145,12 @@ tests:
     - containers
     - dns
     - dns-util
+    - http-types
     - imports
     - polysemy
     - polysemy-wire-zoo
     - retry
+    - servant-client-core
     - tasty
     - tasty-hunit
     - time
@@ -157,7 +159,9 @@ tests:
     - unliftio
     - uri-bytestring
     - uuid
+    - wai-utilities
     - wire-api
+    - wire-api-federation
 executables:
   brig-schema:
     main: Main.hs
