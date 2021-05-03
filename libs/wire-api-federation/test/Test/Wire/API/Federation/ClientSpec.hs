@@ -92,7 +92,7 @@ spec = fdescribe "Federator.Client" $ do
       withMockFederator (throwError $ Mu.ServerError Mu.NotFound "Just testing") $
         Brig.getUserByHandle Brig.clientRoutes handle
 
-    actualResponse `shouldBe` FederationClientRPCError "grpc error: GRPC status indicates failure: status-code=NOT_FOUND, status-message=\"Just testing\""
+    actualResponse `shouldBe` Left (FederationClientRPCError "grpc error: GRPC status indicates failure: status-code=NOT_FOUND, status-message=\"Just testing\"")
 
 -- * GRPC Server Mocking Machinery
 
