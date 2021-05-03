@@ -13,6 +13,7 @@ import Control.Retry (constantDelay, limitRetries, retrying)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain (Domain (Domain))
+import qualified Data.Text as Text
 import Foreign.C (Errno (Errno), eCONNREFUSED)
 import GHC.IO.Exception (ioe_errno)
 import Imports
@@ -28,7 +29,6 @@ import Wire.API.Federation.Client (FederationClientError (FederationClientOutwar
 import Wire.API.Federation.GRPC.Client (createGrpcClient)
 import Wire.API.Federation.GRPC.Types (Component (Brig), FederatedRequest (FederatedRequest), Outward, OutwardError, OutwardResponse (OutwardResponseBody, OutwardResponseError), Request (..))
 import Wire.API.User (UserProfile)
-import qualified Data.Text as Text
 
 spec :: Spec
 spec = fdescribe "Federator.Client" $ do
