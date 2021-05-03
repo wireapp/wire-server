@@ -65,8 +65,6 @@ import Data.ByteString.Lazy.Builder (lazyByteString)
 import Data.Csv (EncodeOptions (..), Quoting (QuoteAll), encodeDefaultOrderedByNameWith)
 import qualified Data.Handle as Handle
 import Data.Id
-import qualified Data.Id as Id
-import Data.IdMapping (MappedOrLocalId (Local))
 import qualified Data.List.Extra as List
 import Data.List1 (list1)
 import qualified Data.Map.Strict as M
@@ -254,7 +252,7 @@ updateTeam zusr zcon tid updateData = do
   now <- liftIO getCurrentTime
   memList <- Data.teamMembersForFanout tid
   let e = newEvent TeamUpdate tid now & eventData .~ Just (EdTeamUpdate updateData)
-  let r = list1 (userRecipient (Local zusr)) (membersToRecipients (Just zusr) (memList ^. teamMembers))
+  let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) (memList ^. teamMembers))
   push1 $ newPush1 (memList ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ Just zcon
 
 deleteTeamH :: UserId ::: ConnId ::: TeamId ::: OptionalJsonRequest Public.TeamDeleteData ::: JSON -> Galley Response
@@ -322,7 +320,7 @@ uncheckedDeleteTeam zusr zcon tid = do
     pushDeleteEvents :: [TeamMember] -> Event -> [Push] -> Galley ()
     pushDeleteEvents membs e ue = do
       o <- view $ options . optSettings
-      let r = list1 (userRecipient (Local zusr)) (membersToRecipients (Just zusr) membs)
+      let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
       -- To avoid DoS on gundeck, send team deletion events in chunks
       let chunkSize = fromMaybe defConcurrentDeletionEvents (o ^. setConcurrentDeletionEvents)
       let chunks = List.chunksOf chunkSize (toList r)
@@ -725,7 +723,7 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
     pushMemberLeaveEvent :: UTCTime -> Galley ()
     pushMemberLeaveEvent now = do
       let e = newEvent MemberLeave tid now & eventData .~ Just (EdMemberLeave remove)
-      let r = list1 (userRecipient (Local zusr)) (membersToRecipients (Just zusr) (mems ^. teamMembers))
+      let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) (mems ^. teamMembers))
       push1 $ newPush1 (mems ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ zcon
     -- notify all conversation members not in this team.
     removeFromConvsAndPushConvLeaveEvent :: UTCTime -> Galley ()
@@ -733,17 +731,17 @@ uncheckedDeleteTeamMember zusr zcon tid remove mems = do
       -- This may not make sense if that list has been truncated. In such cases, we still want to
       -- remove the user from conversations but never send out any events. We assume that clients
       -- handle nicely these missing events, regardless of whether they are in the same team or not
-      let tmids = Set.fromList $ map (Local . view userId) (mems ^. teamMembers)
+      let tmids = Set.fromList $ map (view userId) (mems ^. teamMembers)
       let edata = Conv.EdMembersLeave (Conv.UserIdList [remove])
       cc <- Data.teamConversations tid
       for_ cc $ \c ->
         Data.conversation (c ^. conversationId) >>= \conv ->
-          for_ conv $ \dc -> when (Local remove `isMember` Data.convMembers dc) $ do
-            Data.removeMember (Local remove) (c ^. conversationId)
+          for_ conv $ \dc -> when (remove `isMember` Data.convMembers dc) $ do
+            Data.removeMember remove (c ^. conversationId)
             -- If the list was truncated, then the tmids list is incomplete so we simply drop these events
             unless (c ^. managedConversation || mems ^. teamMemberListType == ListTruncated) $
               pushEvent tmids edata now dc
-    pushEvent :: Set (MappedOrLocalId Id.U) -> Conv.EventData -> UTCTime -> Data.Conversation -> Galley ()
+    pushEvent :: Set UserId -> Conv.EventData -> UTCTime -> Data.Conversation -> Galley ()
     pushEvent exceptTo edata now dc = do
       (bots, users) <- botsAndUsers (Data.convMembers dc)
       let x = filter (\m -> not (Conv.memId m `Set.member` exceptTo)) users
@@ -901,11 +899,11 @@ addTeamMemberInternal tid origin originConn newMem memList = do
   where
     recipients (Just o) n =
       list1
-        (userRecipient (Local o))
+        (userRecipient o)
         (membersToRecipients (Just o) (n : memList ^. teamMembers))
     recipients Nothing n =
       list1
-        (userRecipient (Local (n ^. userId)))
+        (userRecipient (n ^. userId))
         (membersToRecipients Nothing (memList ^. teamMembers))
 
 -- | See also: 'Gundeck.API.Public.paginateH', but the semantics of this end-point is slightly
@@ -943,7 +941,7 @@ finishCreateTeam team owner others zcon = do
   now <- liftIO getCurrentTime
   let e = newEvent TeamCreate (team ^. teamId) now & eventData ?~ EdTeamCreate team
   let r = membersToRecipients Nothing others
-  push1 $ newPush1 ListComplete zusr (TeamEvent e) (list1 (userRecipient (Local zusr)) r) & pushConn .~ zcon
+  push1 $ newPush1 ListComplete zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
 
 withBindingTeam :: UserId -> (TeamId -> Galley b) -> Galley b
 withBindingTeam zusr callback = do

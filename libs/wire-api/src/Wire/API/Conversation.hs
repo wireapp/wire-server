@@ -463,14 +463,14 @@ instance FromJSON ConvTeamInfo where
 -- invite
 
 data Invite = Invite
-  { invUsers :: List1 OpaqueUserId,
+  { invUsers :: List1 UserId,
     -- | This role name is to be applied to all users
     invRoleName :: RoleName
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Invite)
 
-newInvite :: List1 OpaqueUserId -> Invite
+newInvite :: List1 UserId -> Invite
 newInvite us = Invite us roleNameWireAdmin
 
 modelInvite :: Doc.Model

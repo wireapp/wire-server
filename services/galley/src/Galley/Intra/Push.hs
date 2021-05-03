@@ -56,7 +56,7 @@ import Control.Retry
 import Data.Aeson (Object)
 import Data.Id (ConnId, UserId)
 import qualified Data.Id as Id
-import Data.IdMapping (IdMapping, MappedOrLocalId (Local, Mapped))
+import Data.IdMapping (IdMapping)
 import Data.Json.Util
 import Data.List.Extra (chunksOf)
 import Data.List.NonEmpty (nonEmpty)
