@@ -21,5 +21,5 @@ If code is refactored, all the effects should be mocked with polysemy or mtl, th
 ### Integration tests
 
 - All new rest API end-points need to be called a few times to cover as much of the corner cases as feasible.
-- We have machinery to set up schaffolding teams and modify context such as server configuration files where needed.  Look through the existing code for inspiration.
+- We have machinery to set up scaffolding teams and modify context such as server configuration files where needed.  Look through the existing code for inspiration.
 - Test only semantics, not syntax: do not post verbatim json to an end-point, but use the Haskell data types to render the json that you post.
