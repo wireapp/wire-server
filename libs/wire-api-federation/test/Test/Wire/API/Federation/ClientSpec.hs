@@ -18,7 +18,7 @@ import GHC.IO.Exception (ioe_errno)
 import Imports
 import Mu.GRpc.Client.Record (grpcClientConfigSimple)
 import Mu.GRpc.Server (msgProtoBuf, runGRpcAppTrans)
-import Mu.Server (MonadServer, ServerError, ServerErrorIO, SingleServerT)
+import Mu.Server (ServerError, ServerErrorIO, SingleServerT)
 import qualified Mu.Server as Mu
 import Network.Socket (Family (AF_INET), SockAddr (SockAddrInet), SocketType (Stream), close', connect, socket, tupleToHostAddress)
 import Test.Hspec
@@ -28,6 +28,7 @@ import Wire.API.Federation.Client (FederationClientError (FederationClientOutwar
 import Wire.API.Federation.GRPC.Client (createGrpcClient)
 import Wire.API.Federation.GRPC.Types (Component (Brig), FederatedRequest (FederatedRequest), Outward, OutwardError, OutwardResponse (OutwardResponseBody, OutwardResponseError), Request (..))
 import Wire.API.User (UserProfile)
+import qualified Data.Text as Text
 
 spec :: Spec
 spec = fdescribe "Federator.Client" $ do
@@ -59,31 +60,44 @@ spec = fdescribe "Federator.Client" $ do
       withMockFederator (error "some IO error!") $
         Brig.getUserByHandle Brig.clientRoutes handle
 
-    -- This behaviour is actually incorrect, the fix in upstream is not merged
-    -- yet: https://github.com/haskell-grpc-native/http2-grpc-haskell/pull/48
-    actualResponse `shouldBe` Left (FederationClientRPCError "grpc error: not enough bytes")
+    case actualResponse of
+      Right res ->
+        expectationFailure $ "Expected response to be failure, got: \n" <> show res
+      Left (FederationClientRPCError errText) ->
+        Text.unpack errText `shouldStartWith` "grpc error: GRPC status indicates failure: status-code=INTERNAL, status-message=\"some IO error!"
+      Left err ->
+        expectationFailure $ "Expected FedeartionClientRPCError, got different error: \n" <> show err
+
+  it "should report GRPC errors correctly" $ do
+    handle <- generate arbitrary
+
+    (actualResponse, _) <-
+      withMockFederator (throwError $ Mu.ServerError Mu.NotFound "Just testing") $
+        Brig.getUserByHandle Brig.clientRoutes handle
+
+    actualResponse `shouldBe` FederationClientRPCError "grpc error: GRPC status indicates failure: status-code=NOT_FOUND, status-message=\"Just testing\""
 
 -- * GRPC Server Mocking Machinery
 
 type RecievedRequests = [FederatedRequest]
 
-outwardService :: IO OutwardResponse -> SingleServerT info Outward (MockT ServerErrorIO) _
+outwardService :: ServerErrorIO OutwardResponse -> SingleServerT info Outward (MockT ServerErrorIO) _
 outwardService res = Mu.singleService (Mu.method @"call" (callOutward res))
 
-callOutward :: (MonadServer m, MonadState RecievedRequests m) => IO OutwardResponse -> FederatedRequest -> m OutwardResponse
+callOutward :: ServerErrorIO OutwardResponse -> FederatedRequest -> MockT ServerErrorIO OutwardResponse
 callOutward res req = do
   modify (<> [req])
-  liftIO res
+  MockT . lift $ res
 
-mkSuccessResponse :: Aeson.ToJSON a => a -> IO OutwardResponse
+mkSuccessResponse :: Aeson.ToJSON a => a -> ServerErrorIO OutwardResponse
 mkSuccessResponse = pure . OutwardResponseBody . LBS.toStrict . Aeson.encode
 
-mkErrorResponse :: OutwardError -> IO OutwardResponse
+mkErrorResponse :: OutwardError -> ServerErrorIO OutwardResponse
 mkErrorResponse = pure . OutwardResponseError
 
 -- This is mostly copy-pasta from brig-integration. Perhaps this should be part
 -- of the wire-api-federation libarary?
-withMockFederator :: IO OutwardResponse -> FederatorClient 'Brig (ExceptT FederationClientError IO) a -> IO (Either FederationClientError a, RecievedRequests)
+withMockFederator :: ServerErrorIO OutwardResponse -> FederatorClient 'Brig (ExceptT FederationClientError IO) a -> IO (Either FederationClientError a, RecievedRequests)
 withMockFederator res action = do
   let port = 47282 -- TODO: Make this actually arbitrary?
   requestsRef <- newIORef []

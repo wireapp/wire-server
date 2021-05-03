@@ -36,6 +36,10 @@ createGrpcClient cfg = do
     Right (Left err) -> Left (GrpcClientErr (T.pack (show err <> errorInfo)))
     Right (Right client) -> Right client
   where
-    errorInfo =
-      "Host: " <> show (_grpcClientConfigHost cfg)
-        <> (" Port: " <> show (_grpcClientConfigPort cfg))
+    errorInfo = addressToErrInfo $ _grpcClientConfigAddress cfg
+
+addressToErrInfo :: Address -> String
+addressToErrInfo = \case
+  AddressTCP host port -> "Host: " <> show host <> " Port: " <> show port
+  AddressUnix file -> "Unix Domain Socket: " <> show file
+  AddressSocket _sock auth -> "Socket, Authority: " <> show auth
