@@ -20,11 +20,8 @@
 module Galley.API.Mapping where
 
 import Control.Monad.Catch
-import Data.Id (idToText)
-import qualified Data.Id as Id
-import Data.IdMapping (IdMapping (IdMapping, _imMappedId, _imQualifiedId), MappedOrLocalId (Local, Mapped), opaqueIdFromMappedOrLocal)
+import Data.Id (UserId, idToText)
 import qualified Data.List as List
-import Data.Qualified (renderQualifiedId)
 import Galley.App
 import qualified Galley.Data as Data
 import qualified Galley.Types.Conversations.Members as Internal
@@ -35,7 +32,7 @@ import qualified System.Logger.Class as Log
 import System.Logger.Message (msg, val, (+++))
 import qualified Wire.API.Conversation as Public
 
-conversationView :: MappedOrLocalId Id.U -> Data.Conversation -> Galley Public.Conversation
+conversationView :: UserId -> Data.Conversation -> Galley Public.Conversation
 conversationView u Data.Conversation {..} = do
   let mm = toList convMembers
   let (me, them) = List.partition ((u ==) . Internal.memId) mm
@@ -43,27 +40,22 @@ conversationView u Data.Conversation {..} = do
   let mems = Public.ConvMembers (toMember m) (toOther <$> them)
   return $! Public.Conversation convId convType convCreator convAccess convAccessRole convName mems convTeam convMessageTimer convReceiptMode
   where
-    toOther :: Internal.Member -> Public.OtherMember
+    toOther :: Internal.LocalMember -> Public.OtherMember
     toOther x =
       Public.OtherMember
-        { Public.omId = opaqueIdFromMappedOrLocal (Internal.memId x),
+        { Public.omId = Internal.memId x,
           Public.omService = Internal.memService x,
           Public.omConvRoleName = Internal.memConvRoleName x
         }
     memberNotFound = do
       Log.err . msg $
         val "User "
-          +++ showUserId u
+          +++ idToText u
           +++ val " is not a member of conv "
           +++ idToText convId
       throwM badState
-    showUserId = \case
-      Local localId ->
-        idToText localId <> " (local)"
-      Mapped IdMapping {_imMappedId, _imQualifiedId} ->
-        idToText _imMappedId <> " (" <> renderQualifiedId _imQualifiedId <> ")"
     badState = Error status500 "bad-state" "Bad internal member state."
 
-toMember :: Internal.Member -> Public.Member
-toMember x@(Internal.Member {..}) =
-  Public.Member {memId = opaqueIdFromMappedOrLocal (Internal.memId x), ..}
+toMember :: Internal.LocalMember -> Public.Member
+toMember x@Internal.Member {..} =
+  Public.Member {memId = Internal.memId x, ..}

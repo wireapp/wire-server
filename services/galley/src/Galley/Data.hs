@@ -460,7 +460,7 @@ conversation conv = do
    marked as deleted, in which case we delete it and return Nothing -}
 conversationGC ::
   (MonadClient m, Log.MonadLogger m, MonadThrow m) =>
-  (Maybe Conversation) ->
+  Maybe Conversation ->
   m (Maybe Conversation)
 conversationGC conv = case join (convDeleted <$> conv) of
   (Just True) -> do

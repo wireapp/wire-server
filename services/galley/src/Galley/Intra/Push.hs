@@ -87,7 +87,7 @@ pushEventJson :: PushEvent -> Object
 pushEventJson (ConvEvent e) = toJSONObject e
 pushEventJson (TeamEvent e) = toJSONObject e
 
-type Recipient = RecipientBy (MappedOrLocalId Id.U)
+type Recipient = RecipientBy UserId
 
 data RecipientBy user = Recipient
   { _recipientUserId :: user,
@@ -97,13 +97,13 @@ data RecipientBy user = Recipient
 
 makeLenses ''RecipientBy
 
-recipient :: Member -> Recipient
+recipient :: LocalMember -> Recipient
 recipient = userRecipient . memId
 
 userRecipient :: user -> RecipientBy user
 userRecipient u = Recipient u RecipientClientsAll
 
-type Push = PushTo (MappedOrLocalId Id.U)
+type Push = PushTo UserId
 
 data PushTo user = Push
   { _pushConn :: Maybe ConnId,
@@ -157,14 +157,12 @@ push ps = do
     splitPush p =
       (mkPushTo localRecipients p, mkPushTo remoteRecipients p)
       where
-        (localRecipients, remoteRecipients) =
-          partitionEithers . fmap localOrRemoteRecipient . toList $ pushRecipients p
-
-    localOrRemoteRecipient :: RecipientBy (MappedOrLocalId Id.U) -> Either (RecipientBy UserId) (RecipientBy (IdMapping Id.U))
-    localOrRemoteRecipient rcp = case _recipientUserId rcp of
-      Local localId -> Left $ rcp {_recipientUserId = localId}
-      Mapped idMapping -> Right $ rcp {_recipientUserId = idMapping}
-
+        localRecipients = toList $ pushRecipients p
+        remoteRecipients = [] -- FUTUREWORK: deal with remote sending
+        -- localOrRemoteRecipient :: RecipientBy (MappedOrLocalId Id.U) -> Either (RecipientBy UserId) (RecipientBy (IdMapping Id.U))
+        -- localOrRemoteRecipient rcp = case _recipientUserId rcp of
+        --   Local localId -> Left $ rcp {_recipientUserId = localId}
+        --   Mapped idMapping -> Right $ rcp {_recipientUserId = idMapping}
     mkPushTo :: [RecipientBy a] -> PushTo b -> Maybe (PushTo a)
     mkPushTo recipients p =
       nonEmpty recipients <&> \nonEmptyRecipients ->

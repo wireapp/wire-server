@@ -172,21 +172,21 @@ permissionCheckTeamConv zusr cnv perm =
 acceptOne2One :: UserId -> Data.Conversation -> Maybe ConnId -> Galley Data.Conversation
 acceptOne2One usr conv conn = case Data.convType conv of
   One2OneConv ->
-    if Local usr `isMember` mems
+    if usr `isMember` mems
       then return conv
       else do
         now <- liftIO getCurrentTime
         mm <- snd <$> Data.addMember now cid usr
         return $ conv {Data.convMembers = mems <> toList mm}
   ConnectConv -> case mems of
-    [_, _] | Local usr `isMember` mems -> promote
+    [_, _] | usr `isMember` mems -> promote
     [_, _] -> throwM convNotFound
     _ -> do
       when (length mems > 2) $
         throwM badConvState
       now <- liftIO getCurrentTime
       (e, mm) <- Data.addMember now cid usr
-      conv' <- if isJust (find ((Local usr /=) . memId) mems) then promote else pure conv
+      conv' <- if isJust (find ((usr /=) . memId) mems) then promote else pure conv
       let mems' = mems <> toList mm
       for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> mems')) $ \p ->
         push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
@@ -209,7 +209,7 @@ isBot = isJust . memService
 isMember :: (Eq a, Foldable m) => a -> m (InternalMember a) -> Bool
 isMember u = isJust . find ((u ==) . memId)
 
-findMember :: Data.Conversation -> MappedOrLocalId Id.U -> Maybe Member
+findMember :: Data.Conversation -> UserId -> Maybe LocalMember
 findMember c u = find ((u ==) . memId) (Data.convMembers c)
 
 botsAndUsers :: (Log.MonadLogger m, Traversable t) => t Member -> m ([BotMember], [Member])
@@ -240,15 +240,15 @@ nonTeamMembers cm tm = filter (not . isMemberOfTeam . memId) cm
       Local uid -> isTeamMember uid tm
       Mapped _ -> False -- teams and their members are always on the same backend
 
-convMembsAndTeamMembs :: [Member] -> [TeamMember] -> [Recipient]
+convMembsAndTeamMembs :: [LocalMember] -> [TeamMember] -> [Recipient]
 convMembsAndTeamMembs convMembs teamMembs =
-  fmap userRecipient . setnub $ map memId convMembs <> map (Local . view userId) teamMembs
+  fmap userRecipient . setnub $ map memId convMembs <> map (view userId) teamMembs
   where
     setnub = Set.toList . Set.fromList
 
 membersToRecipients :: Maybe UserId -> [TeamMember] -> [Recipient]
-membersToRecipients Nothing = map (userRecipient . Local . view userId)
-membersToRecipients (Just u) = map (userRecipient . Local) . filter (/= u) . map (view userId)
+membersToRecipients Nothing = map (userRecipient . view userId)
+membersToRecipients (Just u) = map userRecipient . filter (/= u) . map (view userId)
 
 -- | Note that we use 2 nearly identical functions but slightly different
 -- semantics; when using `getSelfMember`, if that user is _not_ part of
@@ -268,22 +268,19 @@ getMember ex u ms = do
     Just m -> return (m {memId = u})
     Nothing -> throwM ex
 
-getConversationAndCheckMembership :: UserId -> MappedOrLocalId Id.C -> Galley Data.Conversation
+getConversationAndCheckMembership :: UserId -> ConvId -> Galley Data.Conversation
 getConversationAndCheckMembership = getConversationAndCheckMembershipWithError convAccessDenied
 
-getConversationAndCheckMembershipWithError :: Error -> UserId -> MappedOrLocalId Id.C -> Galley Data.Conversation
-getConversationAndCheckMembershipWithError ex zusr = \case
-  Mapped idMapping ->
-    throwM . federationNotImplemented $ pure idMapping
-  Local convId -> do
-    -- should we merge resolving to qualified ID and looking up the conversation?
-    c <- Data.conversation convId >>= ifNothing convNotFound
-    when (DataTypes.isConvDeleted c) $ do
-      Data.deleteConversation convId
-      throwM convNotFound
-    unless (Local zusr `isMember` Data.convMembers c) $
-      throwM ex
-    return c
+getConversationAndCheckMembershipWithError :: Error -> UserId -> ConvId -> Galley Data.Conversation
+getConversationAndCheckMembershipWithError ex zusr convId = do
+  -- should we merge resolving to qualified ID and looking up the conversation?
+  c <- Data.conversation convId >>= ifNothing convNotFound
+  when (DataTypes.isConvDeleted c) $ do
+    Data.deleteConversation convId
+    throwM convNotFound
+  unless (zusr `isMember` Data.convMembers c) $
+    throwM ex
+  return c
 
 -- | Deletion requires a permission check, but also a 'Role' comparison:
 -- Owners can only be deleted by another owner (and not themselves).
