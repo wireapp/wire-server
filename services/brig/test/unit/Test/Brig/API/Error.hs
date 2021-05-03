@@ -32,9 +32,6 @@ testFedError =
       testCase "when federation call fails due to discovery failure" $ do
         let outwardErr = FederationClientOutwardError (Proto.OutwardError Proto.DiscoveryFailed Nothing)
         assertFedErrorStatus (FederationCallFailure outwardErr) 500,
-      testCase "when federation call fails due to invalid status" $ do
-        -- TODO: Delete this?
-        assertFedErrorStatus (FederationCallFailure (FederationClientInvalidStatus 209)) 533,
       testCase "when federation call fails due to decode failure" $
         assertFedErrorStatus (FederationCallFailure (FederationClientServantError (Servant.DecodeFailure "some failure" emptyRes))) 533,
       testCase "when federation call fails due to Servant.FailureResponse" $

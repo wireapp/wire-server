@@ -109,7 +109,6 @@ data FederationClientError
   | FederationClientStreamingUnsupported
   | FederationClientRPCError Text
   | FederationClientOutwardError Proto.OutwardError
-  | FederationClientInvalidStatus Word32
   | FederationClientServantError Servant.ClientError
   deriving (Show, Eq)
 
