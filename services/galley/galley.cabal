@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8c007b9ab879e8b7a10f8066385a1dd36f86037c33233a58a441c680ac3831e7
+-- hash: 6b8bbc40705147b2cb4025609e4b8efbd3c91a97f426f13cc34530d11041a393
 
 name:           galley
 version:        0.83.0
@@ -105,6 +105,7 @@ library
     , http-client-openssl >=0.2
     , http-client-tls >=0.2.2
     , http-types >=0.8
+    , http2-client-grpc
     , imports
     , insert-ordered-containers
     , lens >=4.4
@@ -148,6 +149,7 @@ library
     , wai-utilities >=0.16
     , warp >=3.0
     , wire-api
+    , wire-api-federation
   default-language: Haskell2010
 
 executable galley
@@ -168,6 +170,7 @@ executable galley
     , ssl-util
     , types-common
     , wire-api
+    , wire-api-federation
   if flag(static)
     ld-options: -static
   default-language: Haskell2010
@@ -263,6 +266,7 @@ executable galley-integration
     , warp
     , warp-tls >=3.2
     , wire-api
+    , wire-api-federation
     , yaml
   default-language: Haskell2010
 
@@ -297,6 +301,7 @@ executable galley-migrate-data
     , types-common
     , unliftio
     , wire-api
+    , wire-api-federation
   if flag(static)
     ld-options: -static
   default-language: Haskell2010
@@ -349,6 +354,7 @@ executable galley-schema
     , text
     , tinylog
     , wire-api
+    , wire-api-federation
   if flag(static)
     ld-options: -static
   default-language: Haskell2010
@@ -384,4 +390,5 @@ test-suite galley-types-tests
     , wai
     , wai-predicates
     , wire-api
+    , wire-api-federation
   default-language: Haskell2010

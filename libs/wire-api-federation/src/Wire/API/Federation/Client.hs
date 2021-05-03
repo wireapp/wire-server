@@ -3,17 +3,19 @@
 
 module Wire.API.Federation.Client where
 
-import Control.Monad.Except (MonadError (..))
+import Control.Monad.Except (ExceptT, MonadError (..), withExceptT)
 import Data.ByteString.Builder (toLazyByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain (Domain, domainText)
 import qualified Data.Text as T
 import Imports
-import Mu.GRpc.Client.TyApps (GRpcMessageProtocol (MsgProtoBuf), GRpcReply (..), GrpcClient, gRpcCall)
+import Mu.GRpc.Client.TyApps (GRpcMessageProtocol (MsgProtoBuf), GRpcReply (..), GrpcClient, gRpcCall, grpcClientConfigSimple)
 import qualified Network.HTTP.Types as HTTP
 import Servant.Client (ResponseF (..))
 import qualified Servant.Client as Servant
 import Servant.Client.Core (RequestBody (..), RequestF (..), RunClient (..))
+import Util.Options (Endpoint (..))
+import Wire.API.Federation.GRPC.Client (createGrpcClient, reason)
 import qualified Wire.API.Federation.GRPC.Types as Proto
 
 data FederatorClientEnv = FederatorClientEnv
@@ -79,6 +81,12 @@ instance (Monad m, MonadError FederationClientError m) => MonadError FederationC
   throwError = FederatorClient . throwError
   catchError (FederatorClient action) f = FederatorClient $ catchError action (runFederatorClient . f)
 
+data FederationError
+  = FederationUnavailable Text
+  | FederationNotImplemented
+  | FederationNotConfigured
+  | FederationCallFailure FederationClientError
+
 data FederationClientError
   = FederationClientInvalidMethod HTTP.Method
   | FederationClientStreamingUnsupported
@@ -90,3 +98,33 @@ data FederationClientError
 
 callRemote :: MonadIO m => GrpcClient -> Proto.ValidatedFederatedRequest -> m (GRpcReply Proto.OutwardResponse)
 callRemote fedClient call = liftIO $ gRpcCall @'MsgProtoBuf @Proto.Outward @"Outward" @"call" fedClient (Proto.validatedFederatedRequestToFederatedRequest call)
+
+class HasFederatorConfig m where
+  federatorEndpoint :: m (Maybe Endpoint)
+  federationDomain :: m Domain
+
+-- FUTUREWORK: It would be nice to share the client across all calls to
+-- federator and not call this function on every invocation of federated
+-- requests, but there are some issues in http2-client which might need some
+-- fixing first. More context here:
+-- https://github.com/lucasdicioccio/http2-client/issues/37
+-- https://github.com/lucasdicioccio/http2-client/issues/49
+mkFederatorClient ::
+  (MonadIO m, HasFederatorConfig m) =>
+  ExceptT FederationError m GrpcClient
+mkFederatorClient = do
+  mbFedEndpoint <- lift federatorEndpoint
+  Endpoint host port <- maybe (throwError FederationNotConfigured) pure mbFedEndpoint
+  let cfg = grpcClientConfigSimple (T.unpack host) (fromIntegral port) False
+  createGrpcClient cfg
+    >>= either (throwError . FederationUnavailable . reason) pure
+
+executeFederated ::
+  (MonadIO m, HasFederatorConfig m) =>
+  Domain ->
+  FederatorClient component (ExceptT FederationClientError m) a ->
+  ExceptT FederationError m a
+executeFederated targetDomain action = do
+  federatorClient <- mkFederatorClient
+  originDomain <- lift federationDomain
+  withExceptT FederationCallFailure (runFederatorClientWith federatorClient targetDomain originDomain action)
