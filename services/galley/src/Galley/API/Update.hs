@@ -572,7 +572,11 @@ removeMember zusr zcon cid opaqueVictim = do
 
 data OtrResult
   = OtrSent !Public.ClientMismatch
-  | OtrMissingRecipients !Public.ClientMismatch
+  | OtrMissingRecipients !Public.ClientMismatch !LegalHoldDevicesPresent
+
+data LegalHoldDevicesPresent
+  = LegalHoldDevicesPresent
+  | NoLegalHoldDevicesPresent
 
 handleOtrResult :: OtrResult -> Response
 handleOtrResult = \case
