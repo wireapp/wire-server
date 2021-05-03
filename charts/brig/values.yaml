@@ -25,7 +25,7 @@ config:
     region: "eu-west-1"
     sesEndpoint: https://email.eu-west-1.amazonaws.com
     sqsEndpoint: https://sqs.eu-west-1.amazonaws.com
-    dynamoDBEndpoint: # https://dynamodb.eu-west-1.amazonaws.com
+    # dynamoDBEndpoint: https://dynamodb.eu-west-1.amazonaws.com
   # -- If set to false,  'dynamoDBEndpoint' _must_ be set.
   randomPrekeys: true
   useSES: true
