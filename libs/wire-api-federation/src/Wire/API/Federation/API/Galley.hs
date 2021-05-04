@@ -19,8 +19,16 @@
 
 module Wire.API.Federation.API.Galley where
 
+import Data.Id (UserId)
+import Imports
 import Servant.API (JSON, Post, ReqBody, (:>))
 import Servant.API.Generic ((:-))
+import Wire.API.Conversation (Conversation)
+import Wire.API.Federation.Event (ConversationEvent, MembersJoin)
+
+-- FUTUREWORK: data types, json instances, more endpoints. See
+-- https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/356090113/Federation+Galley+Conversation+API
+-- for the current list we need.
 
 data Api routes = Api
   { getConversation ::
@@ -30,29 +38,15 @@ data Api routes = Api
         -- usecases:
         -- - e.g. upon registering a new client to your account, get the list of your conversations
         :> "list-conversations"
-        :> ReqBody '[JSON] ListConversations
-        :> Post '[JSON] ListConversationsResponse,
-    conversationMemberChange ::
+        :> ReqBody '[JSON] UserId
+        :> Post '[JSON] [Conversation],
+    -- Notify callee that [uid1@callee, ..] were added convid@caller
+    conversationMembersJoin ::
       routes
         :- "federation"
         :> "conversations"
-        -- for the usecase:
-        -- given alice,alice2 @A and bob @B:
-        -- alice adds Bob: /add-to-conversation(bob)@A
-        --   A -> B: check bob exists on B
-        --   A: add B to conversation database entry
-        --   A -> B: by the way, B is now in one of my conversations.
-        --   (B writes this in its DB: "Bob exists in a conversation with ID 1 in A)
-        :> "member-change"
-        :> ReqBody '[JSON] ConversationMemberChange
-        :> Post '[JSON] ConversationMemberChangeResponse
+        :> "members-join"
+        :> ReqBody '[JSON] (ConversationEvent MembersJoin)
+        :> Post '[JSON] ()
   }
-
--- FUTUREWORK: data types, json instances, more endpoints. See https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/356090113/Federation+Galley+Conversation+API for the current list we need.
-type ConversationMemberChange = ()
-
-type ConversationMemberChangeResponse = ()
-
-type ListConversations = ()
-
-type ListConversationsResponse = ()
+  deriving (Generic)
