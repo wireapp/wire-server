@@ -440,43 +440,33 @@ addMembersH (zusr ::: zcon ::: cid ::: req) = do
   handleUpdateResult <$> addMembers zusr zcon cid invite
 
 addMembers :: UserId -> ConnId -> ConvId -> Public.Invite -> Galley UpdateResult
-addMembers zusr zcon cid invite = do
-  -- FUTUREWORK(federation): if the conversation is on another backend, send request there.
-  -- in the case of a non-team conversation, we need to think about `ensureConnectedOrSameTeam`,
-  -- specifically whether teams from another backend than the conversation should have any
-  -- relevance here.
-  addMembersToLocalConv cid
+addMembers zusr zcon convId invite = do
+  conv <- Data.conversation convId >>= ifNothing convNotFound
+  mems <- botsAndUsers (Data.convMembers conv)
+  self <- getSelfMember zusr (snd mems)
+  ensureActionAllowed AddConversationMember self
+  let invitedUsers = toList $ invUsers invite
+  toAdd <- fromMemberSize <$> checkedMemberAddSize invitedUsers
+  let newUsers = filter (notIsMember conv) (toList toAdd)
+  ensureMemberLimit (toList $ Data.convMembers conv) newUsers
+  ensureAccess conv InviteAccess
+  ensureConvRoleNotElevated self (invRoleName invite)
+  case Data.convTeam conv of
+    Nothing -> do
+      ensureAccessRole (Data.convAccessRole conv) (zip newUsers $ repeat Nothing)
+      ensureConnectedOrSameTeam zusr newUsers
+    Just ti -> teamConvChecks ti newUsers conv
+  addToConversation mems (zusr, memConvRoleName self) zcon ((,invRoleName invite) <$> newUsers) conv
   where
-    addMembersToLocalConv convId = do
-      conv <- Data.conversation convId >>= ifNothing convNotFound
-      mems <- botsAndUsers (Data.convMembers conv)
-      self <- getSelfMember zusr (snd mems)
-      ensureActionAllowed AddConversationMember self
-      let invitedUsers = toList $ invUsers invite
-      toAdd <- fromMemberSize <$> checkedMemberAddSize invitedUsers
-      let newUsers = filter (notIsMember conv) (toList toAdd)
-      ensureMemberLimit (toList $ Data.convMembers conv) newUsers
-      ensureAccess conv InviteAccess
-      ensureConvRoleNotElevated self (invRoleName invite)
-      let newLocalUsers = newUsers
-      -- FUTUREWORK(federation): allow adding remote members
-      -- this one is a bit tricky because all of the checks that need to be done,
-      -- some of them on remote backends.
-      case Data.convTeam conv of
-        Nothing -> do
-          ensureAccessRole (Data.convAccessRole conv) (zip newLocalUsers $ repeat Nothing)
-          ensureConnectedOrSameTeam zusr newLocalUsers
-        Just ti -> teamConvChecks ti newLocalUsers convId conv
-      addToConversation mems (zusr, memConvRoleName self) zcon ((,invRoleName invite) <$> newLocalUsers) conv
     userIsMember u = (^. userId . to (== u))
-    teamConvChecks tid newLocalUsers convId conv = do
-      tms <- Data.teamMembersLimited tid newLocalUsers
-      let userMembershipMap = map (\u -> (u, find (userIsMember u) tms)) newLocalUsers
+    teamConvChecks tid newUsers conv = do
+      tms <- Data.teamMembersLimited tid newUsers
+      let userMembershipMap = map (\u -> (u, find (userIsMember u) tms)) newUsers
       ensureAccessRole (Data.convAccessRole conv) userMembershipMap
       tcv <- Data.teamConversation tid convId
       when (maybe True (view managedConversation) tcv) $
         throwM noAddToManaged
-      ensureConnectedOrSameTeam zusr newLocalUsers
+      ensureConnectedOrSameTeam zusr newUsers
 
 updateSelfMemberH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.MemberUpdate -> Galley Response
 updateSelfMemberH (zusr ::: zcon ::: cid ::: req) = do
