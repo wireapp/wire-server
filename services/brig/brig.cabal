@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 918f6e1228c6e8fd349315c27d0359c284786dfc26ece0571ad4bb1fadd4f19d
+-- hash: f6c56d46d8635fd63b31ef800efe51f045df1c8bd73bbe35d1066c8eb00c0c2d
 
 name:           brig
 version:        1.35.0
@@ -453,6 +453,7 @@ test-suite brig-tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
+      Test.Brig.API.Error
       Test.Brig.Calling
       Test.Brig.Calling.Internal
       Test.Brig.User.Search.Index.Types
@@ -470,10 +471,12 @@ test-suite brig-tests
     , containers
     , dns
     , dns-util
+    , http-types
     , imports
     , polysemy
     , polysemy-wire-zoo
     , retry
+    , servant-client-core
     , tasty
     , tasty-hunit
     , time
@@ -482,5 +485,7 @@ test-suite brig-tests
     , unliftio
     , uri-bytestring
     , uuid
+    , wai-utilities
     , wire-api
+    , wire-api-federation
   default-language: Haskell2010
