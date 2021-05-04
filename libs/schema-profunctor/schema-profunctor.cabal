@@ -4,9 +4,9 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5908d78d4da98d1d238a59527e5f92a0ea5f6a7aa75a62da1dd92193903d57fa
+-- hash: 7b92e2c70fd68f7cce33fa4220b2043db55f50573a8367aa15003721e0e80e07
 
-name:           schemas
+name:           schema-profunctor
 version:        0.1.0
 description:    Schemas for documented bidirectional JSON encoding
 category:       Text, Web, JSON
@@ -21,7 +21,7 @@ library
   exposed-modules:
       Data.Schema
   other-modules:
-      Paths_schemas
+      Paths_schema_profunctor
   hs-source-dirs:
       src
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
@@ -44,7 +44,7 @@ test-suite schemas-tests
   main-is: Main.hs
   other-modules:
       Test.Data.Schema
-      Paths_schemas
+      Paths_schema_profunctor
   hs-source-dirs:
       test/unit
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
@@ -55,7 +55,7 @@ test-suite schemas-tests
     , base >=4 && <5
     , imports
     , lens
-    , schemas
+    , schema-profunctor
     , swagger2
     , tasty
     , tasty-hunit

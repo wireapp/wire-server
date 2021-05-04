@@ -1,6 +1,6 @@
 defaults:
   local: ../../package-defaults.yaml
-name: schemas
+name: schema-profunctor
 version: '0.1.0'
 description: Schemas for documented bidirectional JSON encoding
 category: Text, Web, JSON
@@ -32,7 +32,7 @@ tests:
       - aeson-qq
       - imports
       - lens
-      - schemas
+      - schema-profunctor
       - swagger2
       - tasty
       - tasty-hunit
