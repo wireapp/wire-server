@@ -236,7 +236,7 @@ teamConversations t =
   map (uncurry newTeamConversation)
     <$> retry x1 (query Cql.selectTeamConvs (params Quorum (Identity t)))
 
-teamConversationsForPagination :: MonadClient m => TeamId -> Maybe OpaqueConvId -> Range 1 HardTruncationLimit Int32 -> m (Page TeamConversation)
+teamConversationsForPagination :: MonadClient m => TeamId -> Maybe ConvId -> Range 1 HardTruncationLimit Int32 -> m (Page TeamConversation)
 teamConversationsForPagination tid start (fromRange -> max) =
   fmap (uncurry newTeamConversation) <$> case start of
     Just c -> paginate Cql.selectTeamConvsFrom (paramsP Quorum (tid, c) max)

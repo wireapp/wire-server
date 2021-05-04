@@ -60,7 +60,6 @@ import Control.Monad.Catch
 import Control.Monad.State
 import Data.Code
 import Data.Id
-import Data.IdMapping
 import Data.List.Extra (nubOrdOn)
 import Data.List1
 import qualified Data.Map.Strict as Map
@@ -68,7 +67,6 @@ import Data.Range
 import qualified Data.Set as Set
 import Data.Time
 import Galley.API.Error
-import qualified Galley.API.IdMapping as IdMapping
 import Galley.API.Mapping
 import qualified Galley.API.Teams as Teams
 import Galley.API.Util
@@ -564,21 +562,21 @@ postBotMessageH (zbot ::: zcnv ::: val ::: req ::: _) = do
 
 postBotMessage :: BotId -> ConvId -> Public.OtrFilterMissing -> Public.NewOtrMessage -> Galley OtrResult
 postBotMessage zbot zcnv val message = do
-  postNewOtrMessage (botUserId zbot) Nothing (makeIdOpaque zcnv) val message
+  postNewOtrMessage (botUserId zbot) Nothing zcnv val message
 
-postProtoOtrMessageH :: UserId ::: ConnId ::: OpaqueConvId ::: Public.OtrFilterMissing ::: Request ::: Media "application" "x-protobuf" -> Galley Response
+postProtoOtrMessageH :: UserId ::: ConnId ::: ConvId ::: Public.OtrFilterMissing ::: Request ::: Media "application" "x-protobuf" -> Galley Response
 postProtoOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req ::: _) = do
   message <- Proto.toNewOtrMessage <$> fromProtoBody req
   let val' = allowOtrFilterMissingInBody val message
   handleOtrResult <$> postOtrMessage zusr zcon cnv val' message
 
-postOtrMessageH :: UserId ::: ConnId ::: OpaqueConvId ::: Public.OtrFilterMissing ::: JsonRequest Public.NewOtrMessage -> Galley Response
+postOtrMessageH :: UserId ::: ConnId ::: ConvId ::: Public.OtrFilterMissing ::: JsonRequest Public.NewOtrMessage -> Galley Response
 postOtrMessageH (zusr ::: zcon ::: cnv ::: val ::: req) = do
   message <- fromJsonBody req
   let val' = allowOtrFilterMissingInBody val message
   handleOtrResult <$> postOtrMessage zusr zcon cnv val' message
 
-postOtrMessage :: UserId -> ConnId -> OpaqueConvId -> Public.OtrFilterMissing -> Public.NewOtrMessage -> Galley OtrResult
+postOtrMessage :: UserId -> ConnId -> ConvId -> Public.OtrFilterMissing -> Public.NewOtrMessage -> Galley OtrResult
 postOtrMessage zusr zcon cnv val message =
   postNewOtrMessage zusr (Just zcon) cnv val message
 
@@ -618,25 +616,17 @@ postNewOtrBroadcast usr con val msg = do
     let (_, toUsers) = foldr (newMessage usr con Nothing msg now) ([], []) rs
     pushSome (catMaybes toUsers)
 
-postNewOtrMessage :: UserId -> Maybe ConnId -> OpaqueConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
+postNewOtrMessage :: UserId -> Maybe ConnId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley OtrResult
 postNewOtrMessage usr con cnv val msg = do
-  IdMapping.resolveOpaqueConvId cnv >>= \case
-    Mapped idMapping ->
-      -- FUTUREWORK(federation, #1261): forward message to backend owning the conversation
-      throwM . federationNotImplemented $ pure idMapping
-    Local localConvId ->
-      postToLocalConv localConvId
-  where
-    postToLocalConv localConvId = do
-      let sender = newOtrSender msg
-      let recvrs = newOtrRecipients msg
-      now <- liftIO getCurrentTime
-      withValidOtrRecipients usr sender localConvId recvrs val now $ \rs -> do
-        let (toBots, toUsers) = foldr (newMessage usr con (Just localConvId) msg now) ([], []) rs
-        pushSome (catMaybes toUsers)
-        void . forkIO $ do
-          gone <- External.deliver toBots
-          mapM_ (deleteBot localConvId . botMemId) gone
+  let sender = newOtrSender msg
+  let recvrs = newOtrRecipients msg
+  now <- liftIO getCurrentTime
+  withValidOtrRecipients usr sender cnv recvrs val now $ \rs -> do
+    let (toBots, toUsers) = foldr (newMessage usr con (Just cnv) msg now) ([], []) rs
+    pushSome (catMaybes toUsers)
+    void . forkIO $ do
+      gone <- External.deliver toBots
+      mapM_ (deleteBot cnv . botMemId) gone
 
 newMessage ::
   UserId ->

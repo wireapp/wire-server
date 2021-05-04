@@ -55,8 +55,6 @@ import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson (Object)
 import Data.Id (ConnId, UserId)
-import qualified Data.Id as Id
-import Data.IdMapping (IdMapping)
 import Data.Json.Util
 import Data.List.Extra (chunksOf)
 import Data.List.NonEmpty (nonEmpty)
@@ -153,7 +151,7 @@ push ps = do
   traverse_ (pushLocal . List1) (nonEmpty localPushes)
   traverse_ (pushRemote . List1) (nonEmpty remotePushes)
   where
-    splitPush :: Push -> (Maybe (PushTo UserId), Maybe (PushTo (IdMapping Id.U)))
+    splitPush :: Push -> (Maybe (PushTo UserId), Maybe (PushTo UserId))
     splitPush p =
       (mkPushTo localRecipients p, mkPushTo remoteRecipients p)
       where
@@ -212,7 +210,7 @@ pushLocal ps = do
         )
 
 -- instead of IdMapping, we could also just take qualified IDs
-pushRemote :: List1 (PushTo (IdMapping Id.U)) -> Galley ()
+pushRemote :: List1 (PushTo UserId) -> Galley ()
 pushRemote _ps = do
   -- FUTUREWORK(federation, #1261): send these to the other backends
   pure ()
