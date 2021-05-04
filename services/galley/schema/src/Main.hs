@@ -50,7 +50,7 @@ import qualified V44_AddRemoteIdentifiers
 import qualified V45_AddFederationIdMapping
 import qualified V46_TeamFeatureAppLock
 import qualified V47_RemoveFederationIdMapping
-import qualified V48_ChangeRemoteIdentifiers
+import qualified V48_DeleteRemoteIdentifiers
 
 main :: IO ()
 main = do
@@ -87,7 +87,7 @@ main = do
       V45_AddFederationIdMapping.migration,
       V46_TeamFeatureAppLock.migration,
       V47_RemoveFederationIdMapping.migration,
-      V48_ChangeRemoteIdentifiers.migration
+      V48_DeleteRemoteIdentifiers.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Galley.Data
     ]

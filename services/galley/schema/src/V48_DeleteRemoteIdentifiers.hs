@@ -25,18 +25,9 @@ import Imports
 import Text.RawString.QQ
 
 -- This migration deletes the (so far unused) entries introduced in migration 44
--- and replaces them with separate tables. This change occurs because we
--- decided to stop using opaque Ids and to be explict with remote identifiers.
--- However, due to the way the current user and member table primary key setup,
--- we cannot keep using those tables without specifying a local user or
--- conversation id.
--- Since two backends may have a conversation or user with the same UUID
--- (whether by chance or maliciously so), this change guarantees we don't
--- accidentally override information about a conversation on one backend by
--- information about a conversation on another backend.
+-- as we decided to stop using opaque Ids and to be explict with remote identifiers.
 migration :: Migration
-migration = Migration 48 "Change schema for remote identifiers to conversation related tables" $ do
-  -- Remove unused columns introduced in migration 44
+migration = Migration 48 "Delete remote identifiers introduced in migration 44" $ do
   schema'
     [r|
       ALTER TABLE user DROP (
