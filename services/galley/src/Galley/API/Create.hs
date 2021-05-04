@@ -104,11 +104,9 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
 -- handlers above. Allows both unmanaged and managed conversations.
 createTeamGroupConv :: UserId -> ConnId -> Public.ConvTeamInfo -> Public.NewConv -> Galley ConversationResponse
 createTeamGroupConv zusr zcon tinfo body = do
-  -- (localUserIds, remoteUserIds) <-
-  --   partitionMappedOrLocalIds <$> traverse IdMapping.resolveOpaqueUserId (newConvUsers body)
-  let localUserIds = (newConvUsers body)
+  let localUserIds = newConvUsers body
   name <- rangeCheckedMaybe (newConvName body)
-  let convTeam = (cnvTeamId tinfo)
+  let convTeam = cnvTeamId tinfo
   zusrMembership <- Data.teamMember convTeam zusr
   convMemberships <- mapM (Data.teamMember convTeam) localUserIds
   ensureAccessRole (accessRole body) (zip localUserIds convMemberships)
