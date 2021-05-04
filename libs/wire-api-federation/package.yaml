@@ -48,4 +48,9 @@ tests:
     dependencies:
       - wire-api-federation
       - hspec
+      - async
       - metrics-wai
+      - mu-grpc-server
+      - mu-rpc
+      - network
+      - retry

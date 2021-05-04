@@ -22,9 +22,6 @@ SQS      : http://fake-aws-sqs:{{ index .Values "fake-aws-sqs" "service" "httpPo
 S3       : http://fake-aws-s3:9000
   bucket: {{ index .Values "fake-aws-s3" "minio" "defaultBucket" "name" }}
 {{- end }}
-{{- if index .Values "fake-aws-dynamodb" "enabled" }}
-DYNAMODB : http://fake-aws-dynamodb:{{ index .Values "fake-aws-dynamodb" "service" "externalPort" }}
-{{- end }}
 {{- if index .Values "fake-aws-ses" "enabled" }}
 SES      : http://fake-aws-ses:{{ index .Values "fake-aws-ses" "service" "externalPort" }}
 {{- end }}
