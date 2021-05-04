@@ -26,6 +26,10 @@ import Language.Haskell.TH.Syntax (Dec, Q, addDependentFile)
 routerProtoFile :: FilePath
 #if __GHCIDE__
 routerProtoFile = "libs/wire-api-federation/proto/router.proto"
+#elif WIRE_GHCI
+-- Similar to __GHCIDE__ this fixes compilation issue with ghci and ghcid.
+-- There doesn't seem to be cpp variable to signify GHCI, so use -DWIRE_GHCI
+routerProtoFile = "libs/wire-api-federation/proto/router.proto"
 #else
 routerProtoFile = "proto/router.proto"
 #endif
