@@ -224,8 +224,7 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
     -- based on those assumptions.
     when (currentRole > ActivatedAccessRole && targetRole <= ActivatedAccessRole) $ do
       mIds <- map memId <$> use usersL
-      let localMemberIds = mIds
-      activated <- fmap User.userId <$> lift (lookupActivatedUsers localMemberIds)
+      activated <- fmap User.userId <$> lift (lookupActivatedUsers mIds)
       let isActivated user = memId user `elem` activated
       usersL %= filter isActivated
     -- In a team-only conversation we also want to remove bots and guests

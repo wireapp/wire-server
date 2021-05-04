@@ -165,12 +165,11 @@ createOne2OneConversationH (zusr ::: zcon ::: req) = do
 
 createOne2OneConversation :: UserId -> ConnId -> NewConvUnmanaged -> Galley ConversationResponse
 createOne2OneConversation zusr zcon (NewConvUnmanaged j) = do
-  other <- head . fromRange <$> (rangeChecked (newConvUsers j) :: Galley (Range 1 1 [UserId]))
-  (x, y) <- toUUIDs zusr other
+  otherUserId <- head . fromRange <$> (rangeChecked (newConvUsers j) :: Galley (Range 1 1 [UserId]))
+  (x, y) <- toUUIDs zusr otherUserId
   when (x == y) $
     throwM $
       invalidOp "Cannot create a 1-1 with yourself"
-  let otherUserId = other
   case newConvTeam j of
     Just ti
       | cnvManaged ti -> throwM noManagedTeamConv
