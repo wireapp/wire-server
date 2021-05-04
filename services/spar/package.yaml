@@ -18,7 +18,6 @@ ghc-options:
 
 dependencies:
   - aeson
-  - aeson-pretty
   - aeson-qq
   - attoparsec
   - base
@@ -35,17 +34,14 @@ dependencies:
   - cryptonite
   - data-default
   - email-validate
-  - errors
   - exceptions  # (for MonadClient, which in turn needs MonadCatch)
   - extended
-  - extra
   - galley-types
   - ghc-prim
   - hscim
   - HsOpenSSL
   - http-api-data
   - http-client
-  - http-client-tls
   - http-media
   - http-types
   - imports
@@ -53,16 +49,13 @@ dependencies:
   - interpolate
   - lens
   - memory
-  - metrics-core
   - metrics-wai
   - mtl
   - network-uri
   - optparse-applicative
-  - prometheus-client
   - raw-strings-qq
   - retry
   - saml2-web-sso >= 0.18
-  - scientific
   - servant
   - servant-multipart
   - servant-server
@@ -79,7 +72,6 @@ dependencies:
   - uri-bytestring
   - uuid
   - wai
-  - wai-middleware-prometheus
   - wai-utilities
   - warp
   - wire-api
@@ -97,10 +89,11 @@ tests:
     source-dirs:
       - test
     ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    build-tools:
+      - hspec-discover:hspec-discover
     dependencies:
       - lens-aeson
       - hspec
-      - hspec-discover
       - metrics-wai
       - QuickCheck
       - spar
@@ -132,35 +125,29 @@ executables:
     dependencies:
       - spar
       - conduit
-      - cql
 
   spar-integration:
     main: Spec.hs
     source-dirs:
       - test-integration
     ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    build-tools:
+      - hspec-discover:hspec-discover
     dependencies:
       - aeson-qq
-      - async
       - galley-types
       - hspec
-      - hspec-discover
       - hspec-wai
       - lens-aeson
       - MonadRandom
       - QuickCheck
       - random
-      - servant-client
       - silently
       - spar
-      - stm
       - tasty-hunit
       - tinylog
       - wai
       - wai-extra
-      - warp-tls
       - wire-api
       - xml-conduit
-      - xml-hamlet
-      - xml-lens
       - zauth

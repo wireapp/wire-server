@@ -24,26 +24,24 @@ import Control.Monad.Catch
 import Data.Aeson
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Char8 as C8
+import qualified Data.ByteString.Lazy as LBS
+import Data.Handle
 import Data.Id
 import Data.Misc
 import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
-import Federator.Options
 import Imports
 import Mu.GRpc.Client.TyApps
-import qualified Network.HTTP.Types as HTTP
 import System.Random
 import Test.Federator.Util
 import Test.Hspec
 import Test.Tasty.HUnit (assertFailure)
 import Util.Options (Endpoint (Endpoint))
 import Wire.API.Federation.GRPC.Client
-import Wire.API.Federation.GRPC.Types (Component (..), HTTPMethod (..), HTTPResponse (..), Inward, InwardResponse (..), QueryParam (..), Request (Request))
+import Wire.API.Federation.GRPC.Types (Component (..), Inward, InwardResponse (..), Request (Request))
 import Wire.API.User
 import Wire.API.User.Auth
-import Wire.API.User.Handle (UserHandleInfo (UserHandleInfo))
 
 -- FUTUREWORK(federation): move these tests to brig-integration (benefit: avoid duplicating all of the brig helper code)
 
@@ -73,18 +71,21 @@ spec env =
         hdl <- randomHandle
         _ <- putHandle brig (userId user) hdl
 
-        Endpoint fedHost fedPort <- federatorExternal . view teOpts <$> ask
+        let expectedProfile = (publicProfile user) {profileHandle = Just (Handle hdl)}
+
+        Endpoint fedHost fedPort <- cfgFederatorExternal . view teTstOpts <$> ask
         client <- createGrpcClient (grpcClientConfigSimple (Text.unpack fedHost) (fromIntegral fedPort) False)
         c <- case client of
-          Left (err) -> liftIO $ assertFailure (show err)
+          Left err -> liftIO $ assertFailure (show err)
           Right cli -> pure cli
-        let brigCall = Request Brig (HTTPMethod HTTP.GET) "users/by-handle" [QueryParam "handle" (Text.encodeUtf8 hdl)] mempty
+        let brigCall = Request Brig "federation/users/by-handle" (LBS.toStrict (encode hdl)) "foo.example.com"
         res <- liftIO $ gRpcCall @'MsgProtoBuf @Inward @"Inward" @"call" c brigCall
 
         liftIO $ case res of
-          GRpcOk (InwardResponseHTTPResponse (HTTPResponse sts bdy)) -> do
-            sts `shouldBe` 200
-            eitherDecodeStrict bdy `shouldBe` Right (UserHandleInfo (userQualifiedId user))
+          -- TODO: When brig returns 404, this does not correctly parse as
+          -- InwardResponseErr, this needs to be looked into.
+          GRpcOk (InwardResponseBody bdy) ->
+            eitherDecodeStrict bdy `shouldBe` Right expectedProfile
           GRpcOk (InwardResponseErr err) -> assertFailure $ "Unexpected error response: " <> show err
           x -> assertFailure $ "GRpc call failed unexpectedly: " <> show x
 

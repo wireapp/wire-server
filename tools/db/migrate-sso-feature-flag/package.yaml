@@ -16,26 +16,16 @@ ghc-options:
 - -rtsopts
 dependencies:
 - base
-- attoparsec
 - brig-types
-- bytestring
-- bytestring
-- bytestring-conversion
 - cassandra-util
 - conduit
-- extended
 - galley
-- galley-types
 - imports
 - lens
-- mtl
 - optparse-applicative
-- text
-- time
 - tinylog
 - types-common
 - unliftio
-- uuid
 - wire-api
 executables:
   migrate-sso-feature-flag:

@@ -11,28 +11,18 @@ copyright: (c) 2017 Wire Swiss GmbH
 license: AGPL-3
 dependencies:
 - amazonka
-- amazonka-core
 - amazonka-sqs
 - base ==4.*
 - base64-bytestring >=1.0
-- errors >=2.0
 - exceptions
 - imports
 - proto-lens
 - lens >=4.10
 - monad-control
-- mtl
-- resourcet
 - safe >=0.3
 - tasty
 - tasty-hunit
 - text >=0.11
-- transformers-base
-- types-common
-- transformers >=0.3
-- unordered-containers >=0.2
-- uri-bytestring >=0.2
-- uuid >=1.3.11
 library:
   source-dirs: src
   ghc-prof-options: -fprof-auto-exported

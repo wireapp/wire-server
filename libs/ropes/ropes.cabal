@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d24f5fff02a52bee31f4c44250bf1b220b95113bb66026289808204f560ad4bd
+-- hash: 708efaafcda819df168d382d9d287170878cd6716935d2eeef4c1fa5bc60cd1f
 
 name:           ropes
 version:        0.4.20
@@ -32,18 +32,10 @@ library
     , base ==4.*
     , bytestring >=0.9
     , errors >=2.0
-    , exceptions >=0.6
     , http-client >=0.5
     , http-types >=0.7
     , imports
     , iso3166-country-codes >=0.20140203.7
-    , mime-mail >=0.4
-    , resourcet >=1.1
-    , retry >=0.7
-    , semigroups >=0.11
     , text >=0.11
     , time >=1.1
-    , tinylog >=0.10.2
-    , transformers >=0.3
-    , yaml >=0.8.22
   default-language: Haskell2010

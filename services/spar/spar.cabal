@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: fbd5d150ee2941c2fd21350f666dd90c23a8caca64a688b5d5dd100f31e5ce7a
+-- hash: 2b6698e0b290002d31c638cc18d639d15568d912baab323324c52cca4dfd8cfc
 
 name:           spar
 version:        0.1
@@ -48,7 +48,6 @@ library
   build-depends:
       HsOpenSSL
     , aeson
-    , aeson-pretty
     , aeson-qq
     , attoparsec
     , base
@@ -65,16 +64,13 @@ library
     , cryptonite
     , data-default
     , email-validate
-    , errors
     , exceptions
     , extended
-    , extra
     , galley-types
     , ghc-prim
     , hscim
     , http-api-data
     , http-client
-    , http-client-tls
     , http-media
     , http-types
     , imports
@@ -82,16 +78,13 @@ library
     , interpolate
     , lens
     , memory
-    , metrics-core
     , metrics-wai
     , mtl
     , network-uri
     , optparse-applicative
-    , prometheus-client
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18
-    , scientific
     , servant
     , servant-multipart
     , servant-server
@@ -108,7 +101,6 @@ library
     , uri-bytestring
     , uuid
     , wai
-    , wai-middleware-prometheus
     , wai-utilities
     , warp
     , wire-api
@@ -128,7 +120,6 @@ executable spar
   build-depends:
       HsOpenSSL
     , aeson
-    , aeson-pretty
     , aeson-qq
     , attoparsec
     , base
@@ -145,16 +136,13 @@ executable spar
     , cryptonite
     , data-default
     , email-validate
-    , errors
     , exceptions
     , extended
-    , extra
     , galley-types
     , ghc-prim
     , hscim
     , http-api-data
     , http-client
-    , http-client-tls
     , http-media
     , http-types
     , imports
@@ -162,16 +150,13 @@ executable spar
     , interpolate
     , lens
     , memory
-    , metrics-core
     , metrics-wai
     , mtl
     , network-uri
     , optparse-applicative
-    , prometheus-client
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18
-    , scientific
     , servant
     , servant-multipart
     , servant-server
@@ -189,7 +174,6 @@ executable spar
     , uri-bytestring
     , uuid
     , wai
-    , wai-middleware-prometheus
     , wai-utilities
     , warp
     , wire-api
@@ -220,14 +204,14 @@ executable spar-integration
       test-integration
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -j -Wno-redundant-constraints -Werror -threaded -rtsopts -with-rtsopts=-N
+  build-tool-depends:
+      hspec-discover:hspec-discover
   build-depends:
       HsOpenSSL
     , MonadRandom
     , QuickCheck
     , aeson
-    , aeson-pretty
     , aeson-qq
-    , async
     , attoparsec
     , base
     , base64-bytestring
@@ -243,19 +227,15 @@ executable spar-integration
     , cryptonite
     , data-default
     , email-validate
-    , errors
     , exceptions
     , extended
-    , extra
     , galley-types
     , ghc-prim
     , hscim
     , hspec
-    , hspec-discover
     , hspec-wai
     , http-api-data
     , http-client
-    , http-client-tls
     , http-media
     , http-types
     , imports
@@ -264,25 +244,20 @@ executable spar-integration
     , lens
     , lens-aeson
     , memory
-    , metrics-core
     , metrics-wai
     , mtl
     , network-uri
     , optparse-applicative
-    , prometheus-client
     , random
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18
-    , scientific
     , servant
-    , servant-client
     , servant-multipart
     , servant-server
     , servant-swagger
     , silently
     , spar
-    , stm
     , string-conversions
     , swagger2
     , tasty-hunit
@@ -297,15 +272,11 @@ executable spar-integration
     , uuid
     , wai
     , wai-extra
-    , wai-middleware-prometheus
     , wai-utilities
     , warp
-    , warp-tls
     , wire-api
     , x509
     , xml-conduit
-    , xml-hamlet
-    , xml-lens
     , yaml
     , zauth
   default-language: Haskell2010
@@ -326,7 +297,6 @@ executable spar-migrate-data
   build-depends:
       HsOpenSSL
     , aeson
-    , aeson-pretty
     , aeson-qq
     , attoparsec
     , base
@@ -341,20 +311,16 @@ executable spar-migrate-data
     , conduit
     , containers
     , cookie
-    , cql
     , cryptonite
     , data-default
     , email-validate
-    , errors
     , exceptions
     , extended
-    , extra
     , galley-types
     , ghc-prim
     , hscim
     , http-api-data
     , http-client
-    , http-client-tls
     , http-media
     , http-types
     , imports
@@ -362,16 +328,13 @@ executable spar-migrate-data
     , interpolate
     , lens
     , memory
-    , metrics-core
     , metrics-wai
     , mtl
     , network-uri
     , optparse-applicative
-    , prometheus-client
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18
-    , scientific
     , servant
     , servant-multipart
     , servant-server
@@ -389,7 +352,6 @@ executable spar-migrate-data
     , uri-bytestring
     , uuid
     , wai
-    , wai-middleware-prometheus
     , wai-utilities
     , warp
     , wire-api
@@ -423,7 +385,6 @@ executable spar-schema
   build-depends:
       HsOpenSSL
     , aeson
-    , aeson-pretty
     , aeson-qq
     , attoparsec
     , base
@@ -440,16 +401,13 @@ executable spar-schema
     , cryptonite
     , data-default
     , email-validate
-    , errors
     , exceptions
     , extended
-    , extra
     , galley-types
     , ghc-prim
     , hscim
     , http-api-data
     , http-client
-    , http-client-tls
     , http-media
     , http-types
     , imports
@@ -457,16 +415,13 @@ executable spar-schema
     , interpolate
     , lens
     , memory
-    , metrics-core
     , metrics-wai
     , mtl
     , network-uri
     , optparse-applicative
-    , prometheus-client
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18
-    , scientific
     , servant
     , servant-multipart
     , servant-server
@@ -484,7 +439,6 @@ executable spar-schema
     , uri-bytestring
     , uuid
     , wai
-    , wai-middleware-prometheus
     , wai-utilities
     , warp
     , wire-api
@@ -509,11 +463,12 @@ test-suite spec
       test
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -j -Wno-redundant-constraints -Werror -threaded -rtsopts -with-rtsopts=-N
+  build-tool-depends:
+      hspec-discover:hspec-discover
   build-depends:
       HsOpenSSL
     , QuickCheck
     , aeson
-    , aeson-pretty
     , aeson-qq
     , attoparsec
     , base
@@ -530,18 +485,14 @@ test-suite spec
     , cryptonite
     , data-default
     , email-validate
-    , errors
     , exceptions
     , extended
-    , extra
     , galley-types
     , ghc-prim
     , hscim
     , hspec
-    , hspec-discover
     , http-api-data
     , http-client
-    , http-client-tls
     , http-media
     , http-types
     , imports
@@ -550,16 +501,13 @@ test-suite spec
     , lens
     , lens-aeson
     , memory
-    , metrics-core
     , metrics-wai
     , mtl
     , network-uri
     , optparse-applicative
-    , prometheus-client
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18
-    , scientific
     , servant
     , servant-multipart
     , servant-server
@@ -577,7 +525,6 @@ test-suite spec
     , uri-bytestring
     , uuid
     , wai
-    , wai-middleware-prometheus
     , wai-utilities
     , warp
     , wire-api

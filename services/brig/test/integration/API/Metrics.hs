@@ -57,17 +57,23 @@ testMetricsEndpoint :: Brig -> Http ()
 testMetricsEndpoint brig = do
   let p1 = "/self"
       p2 uid = "/users/" <> uid <> "/clients"
+      p3 = "/connections"
   beforeSelf <- getCount "/self"
   beforeClients <- getCount "/users/:uid/clients"
+  beforeConnections <- getCount "/connections"
   uid <- userId <$> randomUser brig
   uid' <- userId <$> randomUser brig
   _ <- get (brig . path p1 . zAuthAccess uid "conn" . expect2xx)
   _ <- get (brig . path (p2 $ toByteString' uid) . zAuthAccess uid "conn" . expect2xx)
   _ <- get (brig . path (p2 $ toByteString' uid') . zAuthAccess uid "conn" . expect2xx)
+  _ <- get (brig . path p3 . zAuthAccess uid "conn" . queryItem "size" "10" . expect2xx)
+  _ <- get (brig . path p3 . zAuthAccess uid "conn" . queryItem "extra-undefined" "42" . expect2xx)
   countSelf <- getCount "/self"
   liftIO $ assertEqual "/self was called once" (beforeSelf + 1) countSelf
   countClients <- getCount "/users/:uid/clients"
   liftIO $ assertEqual "/users/:uid/clients was called twice" (beforeClients + 2) countClients
+  countConnections <- getCount "/connections"
+  liftIO $ assertEqual "/connections was called twice" (beforeConnections + 2) countConnections
   where
     getCount endpoint = do
       rsp <- responseBody <$> get (brig . path "i/metrics")

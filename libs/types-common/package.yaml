@@ -28,10 +28,6 @@ library:
   - cryptohash-sha1 >=0.11.7.2
   - cryptonite >=0.26
   - data-default >=0.5
-  - deepseq >=1.4
-  - directory >=1.2
-  - errors >=2.0
-  - ghc-prim
   - hashable >=1.2
   - iproute >=1.5
   - lens >=4.10
@@ -41,10 +37,7 @@ library:
   - QuickCheck >=2.9
   - quickcheck-instances >=0.3.16
   - random >=1.1
-  - safe >=0.3
   - scientific >=0.3.4
-  - semigroups >=0.12
-  - servant >=0.16
   - servant-server
   - singletons >=2.0
   - string-conversions
@@ -56,7 +49,6 @@ library:
   - time >=1.6
   - time-locale-compat >=0.1
   - tinylog >=0.14
-  - transformers >=0.3
   - unix
   - unordered-containers >=0.2
   - uri-bytestring >=0.2
@@ -86,7 +78,6 @@ tests:
     - tasty-hunit
     - tasty-quickcheck
     - text
-    - text-format
     - time
     - types-common
     - unordered-containers

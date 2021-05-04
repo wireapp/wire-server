@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 82c6a6e2694906c186292fa5b4981303dc94603cc3c023eb9390623c073dc062
+-- hash: 33dbe7f92da448bbed6d379161584d4909b3622bd04aeb22f14e86edc300ca0a
 
 name:           move-team
 version:        1.0.0
@@ -32,27 +32,20 @@ library
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
   build-depends:
       aeson
-    , attoparsec
     , base
     , brig-types
     , bytestring
-    , bytestring-conversion
     , cassandra-util
     , conduit
     , containers
     , cql
-    , directory
-    , extended
     , filepath
     , galley
-    , galley-types
     , imports
     , iproute
     , lens
     , megaparsec
-    , mtl
     , optparse-applicative
-    , parser-combinators
     , process
     , raw-strings-qq
     , stache
@@ -60,7 +53,6 @@ library
     , time
     , tinylog
     , types-common
-    , unliftio
     , uuid
     , vector
     , wire-api
@@ -76,28 +68,21 @@ executable move-team
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
   build-depends:
       aeson
-    , attoparsec
     , base
     , brig-types
     , bytestring
-    , bytestring-conversion
     , cassandra-util
     , conduit
     , containers
     , cql
-    , directory
-    , extended
     , filepath
     , galley
-    , galley-types
     , imports
     , iproute
     , lens
     , megaparsec
     , move-team
-    , mtl
     , optparse-applicative
-    , parser-combinators
     , process
     , raw-strings-qq
     , stache
@@ -105,7 +90,6 @@ executable move-team
     , time
     , tinylog
     , types-common
-    , unliftio
     , uuid
     , vector
     , wire-api
@@ -121,28 +105,21 @@ executable move-team-generate
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N -with-rtsopts=-T -rtsopts
   build-depends:
       aeson
-    , attoparsec
     , base
     , brig-types
     , bytestring
-    , bytestring-conversion
     , cassandra-util
     , conduit
     , containers
     , cql
-    , directory
-    , extended
     , filepath
     , galley
-    , galley-types
     , imports
     , iproute
     , lens
     , megaparsec
     , move-team
-    , mtl
     , optparse-applicative
-    , parser-combinators
     , process
     , raw-strings-qq
     , stache
@@ -150,7 +127,6 @@ executable move-team-generate
     , time
     , tinylog
     , types-common
-    , unliftio
     , uuid
     , vector
     , wire-api

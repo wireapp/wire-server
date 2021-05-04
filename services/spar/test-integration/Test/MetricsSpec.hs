@@ -43,7 +43,7 @@ spec = describe "metrics" . it "works" $ do
   liftIO $ do
     (resp `shouldContain`)
       `mapM_` [ p1,
-                p2 ":_",
+                p2 ":idp",
                 "http_request_duration_seconds_bucket",
                 "handler=",
                 "method=",

@@ -13,13 +13,10 @@ dependencies:
 library:
   source-dirs: src
   dependencies:
-  - atomic-primops >=0.8
   - base >=4.9
   - containers
   - hashable >=1.2
   - prometheus-client
   - unordered-containers >=0.2
   - text >=0.11
-  - transformers >=0.3
-  - vector >=0.10
   - immortal

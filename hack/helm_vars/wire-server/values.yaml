@@ -15,10 +15,12 @@ tags:
   sftd: false
 
 cassandra-migrations:
+  imagePullPolicy: Always
   cassandra:
     host: cassandra-ephemeral
     replicaCount: 1
 elasticsearch-index:
+  imagePullPolicy: Always
   elasticsearch:
     host: elasticsearch-ephemeral
     index: directory_test
@@ -199,6 +201,7 @@ nginz:
       publicKeys: 0UW38se1yeoc5bVNEvf5LyrHWGZkyvcGTVilK2geGdU=
 proxy:
   replicaCount: 1
+  imagePullPolicy: Always
   secrets:
     proxy_config: |-
       secrets {

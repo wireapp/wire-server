@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 48cc1af1cc65ab98646e6a73ea655f21c8e66a15a31fd4a612c0c82173805f62
+-- hash: 7c8237299a09bfd1cc86dcfd529e447300a6fb59fc3aace9e106719c2131f3cd
 
 name:           imports
 version:        0.1.0
@@ -39,7 +39,6 @@ library
     , extra
     , mtl
     , text
-    , tinylog
     , transformers
     , unliftio
     , unliftio-core

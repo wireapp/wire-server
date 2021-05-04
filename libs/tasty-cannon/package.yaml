@@ -14,7 +14,6 @@ dependencies:
 - base >=4.6 && <5
 - bytestring
 - bytestring-conversion
-- data-default-class
 - data-timeout
 - gundeck-types
 - exceptions
@@ -22,8 +21,6 @@ dependencies:
 - http-types
 - imports
 - random
-- stm
-- transformers
 - tasty-hunit >=0.9
 - types-common >=0.16
 - websockets >=0.8

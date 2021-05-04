@@ -56,7 +56,6 @@ module Wire.API.User.Client
     modelClient,
     modelSigkeys,
     modelLocation, -- re-export from types-common
-    modelPubClient,
   )
 where
 
@@ -316,14 +315,6 @@ data PubClient = PubClient
   deriving (Arbitrary) via (GenericUniform PubClient)
   deriving (ToSchema) via (CustomSwagger '[FieldLabelModifier (StripPrefix "pubClient", LowerCase)] PubClient)
 
-modelPubClient :: Doc.Model
-modelPubClient = Doc.defineModel "PubClient" $ do
-  Doc.description "A client as seen by other users."
-  Doc.property "id" Doc.string' $
-    Doc.description "The client ID."
-  Doc.property "class" typeClientClass $
-    Doc.description "The device class this client belongs to. Either 'phone', 'tablet', or 'desktop'."
-
 instance ToJSON PubClient where
   toJSON c =
     object $
@@ -345,20 +336,17 @@ instance FromJSON PubClient where
 -- Short feature description:
 -- LegalHold is an enterprise feature, enabled on a per-team basis, and within a
 -- team on a per-user basis
-
--- * A LegalHoldClient is a client outside that user's control (but under the
-
---   control of that team's business)
-
--- * Users need to click "accept" before a LegalHoldClient is added to their
-
---   account.
-
--- * Any user interacting with a user which has a LegalHoldClient will upon
-
---   first interaction receive a warning, have the option of cancelling the
---   interaction, and on an ongoing basis see a visual indication in all
---   conversations where such a device is active.
+--
+-- A LegalHoldClient is a client outside that user's control (but under the
+-- control of that team's business)
+--
+-- Users need to click "accept" before a LegalHoldClient is added to their
+-- account.
+--
+-- Any user interacting with a user which has a LegalHoldClient will upon
+-- first interaction receive a warning, have the option of cancelling the
+-- interaction, and on an ongoing basis see a visual indication in all
+-- conversations where such a device is active.
 
 -- | Strategy to translate enums in this module to schema.
 type EnumToSchemaStrategy suffix ty =

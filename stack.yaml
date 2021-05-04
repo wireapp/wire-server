@@ -182,6 +182,8 @@ extra-deps:
   subdirs:
   - servant
   - servant-server
+  - servant-client
+  - servant-client-core
 
 - HsOpenSSL-x509-system-0.1.0.3@sha256:f4958ee0eec555c5c213662eff6764bddefe5665e2afcfd32733ce3801a9b687,1774 # Latest: lts-14.27
 - cql-4.0.2@sha256:a0006a5ac13d6f86d5eff28c11be80928246309f217ea6d5f5c8a76a5d16b48b,3157 # Latest: lts-14.27
@@ -216,10 +218,15 @@ extra-deps:
 - http2-client-0.10.0.0
 - http2-grpc-types-0.5.0.0
 - http2-grpc-proto3-wire-0.1.0.0
-- http2-client-grpc-0.8.0.0
 - warp-grpc-0.4.0.1
 - proto3-wire-1.2.0
 - parameterized-0.5.0.0
+
+# Fix in PR: https://github.com/haskell-grpc-native/http2-grpc-haskell/pull/48
+- git: https://github.com/akshaymankar/http2-grpc-haskell
+  commit: 43507d54515cd5870e8f6d1f03b4d23e6cd460e2
+  subdirs:
+    - http2-client-grpc
 
 ############################################################
 # Development tools

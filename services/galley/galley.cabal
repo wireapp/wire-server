@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: de4aa0b8e28014de5878b77c3c11538cf9bcce27c362a900ec11ad6372600c55
+-- hash: 6b8bbc40705147b2cb4025609e4b8efbd3c91a97f426f13cc34530d11041a393
 
 name:           galley
 version:        0.83.0
@@ -82,14 +82,12 @@ library
     , amazonka >=1.4.5
     , amazonka-sqs >=1.4.5
     , async >=2.0
-    , attoparsec >=0.10
     , base >=4.6 && <5
     , base64-bytestring >=1.0
     , bilge >=0.21.1
     , brig-types >=0.73.1
     , bytestring >=0.9
     , bytestring-conversion >=0.2
-    , case-insensitive >=1.0
     , cassandra-util >=0.16.2
     , cassava >=0.5.2
     , cereal >=0.4
@@ -107,16 +105,14 @@ library
     , http-client-openssl >=0.2
     , http-client-tls >=0.2.2
     , http-types >=0.8
+    , http2-client-grpc
     , imports
     , insert-ordered-containers
     , lens >=4.4
-    , lifted-base >=0.2
     , metrics-wai >=0.4
-    , monad-control >=1.0
     , mtl >=2.2
     , optparse-applicative >=0.10
     , pem
-    , prometheus-client
     , proto-lens >=0.2
     , protobuf >=0.2
     , raw-strings-qq >=1.0
@@ -124,11 +120,10 @@ library
     , retry >=0.5
     , safe >=0.3
     , safe-exceptions >=0.1
-    , semigroups >=0.12
+    , saml2-web-sso >=0.18
     , servant
     , servant-server
     , servant-swagger
-    , singletons >=1.0
     , split >=0.2
     , ssl-util >=0.1
     , stm >=2.4
@@ -136,16 +131,12 @@ library
     , swagger >=0.1
     , swagger2
     , text >=0.11
-    , text-format >=0.3
     , time >=1.4
     , tinylog >=0.10
     , tls >=1.3.10
-    , transformers >=0.3
-    , transformers-base >=0.4
     , types-common >=0.16
     , types-common-journal >=0.1
     , unliftio >=0.2
-    , unliftio-core >=0.1
     , unordered-containers >=0.2
     , uri-bytestring >=0.2
     , uuid >=1.3
@@ -158,7 +149,7 @@ library
     , wai-utilities >=0.16
     , warp >=3.0
     , wire-api
-    , zauth
+    , wire-api-federation
   default-language: Haskell2010
 
 executable galley
@@ -179,6 +170,7 @@ executable galley
     , ssl-util
     , types-common
     , wire-api
+    , wire-api-federation
   if flag(static)
     ld-options: -static
   default-language: Haskell2010
@@ -224,7 +216,6 @@ executable galley-integration
     , containers
     , cookie
     , currency-codes
-    , data-default-class
     , data-timeout
     , errors
     , exceptions
@@ -242,7 +233,6 @@ executable galley-integration
     , lens-aeson
     , metrics-wai
     , mtl
-    , network
     , optparse-applicative
     , pem
     , proto-lens
@@ -263,10 +253,8 @@ executable galley-integration
     , time
     , tinylog
     , tls >=1.3.8
-    , transformers
     , types-common
     , types-common-journal
-    , unix
     , unliftio
     , unordered-containers
     , uri-bytestring
@@ -274,11 +262,11 @@ executable galley-integration
     , vector
     , wai
     , wai-extra
-    , wai-route
     , wai-utilities
     , warp
     , warp-tls >=3.2
     , wire-api
+    , wire-api-federation
     , yaml
   default-language: Haskell2010
 
@@ -313,6 +301,7 @@ executable galley-migrate-data
     , types-common
     , unliftio
     , wire-api
+    , wire-api-federation
   if flag(static)
     ld-options: -static
   default-language: Haskell2010
@@ -365,6 +354,7 @@ executable galley-schema
     , text
     , tinylog
     , wire-api
+    , wire-api-federation
   if flag(static)
     ld-options: -static
   default-language: Haskell2010
@@ -374,13 +364,15 @@ test-suite galley-types-tests
   main-is: Main.hs
   other-modules:
       Test.Galley.API
+      Test.Galley.Intra.User
       Paths_galley
   hs-source-dirs:
       test/unit
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
   build-depends:
-      base
+      QuickCheck
+    , base
     , containers
     , extended
     , galley
@@ -393,8 +385,10 @@ test-suite galley-types-tests
     , ssl-util
     , tasty
     , tasty-hunit
+    , tasty-quickcheck
     , types-common
     , wai
     , wai-predicates
     , wire-api
+    , wire-api-federation
   default-language: Haskell2010

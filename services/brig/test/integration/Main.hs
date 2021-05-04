@@ -39,20 +39,24 @@ import Control.Lens
 import Data.Aeson
 import Data.Metrics.Test (pathsConsistencyCheck)
 import Data.Metrics.WaiRoute (treeToPaths)
+import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
-import qualified Federation.User
+import qualified Federation.End2end
 import Imports hiding (local)
 import qualified Index.Create
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.Wai.Utilities.Server (compile)
 import OpenSSL (withOpenSSL)
-import Options.Applicative
+import Options.Applicative hiding (action)
+import qualified Servant.Client as Servant
+import qualified Servant.Client.Generic as Servant
 import System.Environment (withArgs)
 import qualified System.Environment.Blank as Blank
 import qualified System.Logger as Logger
 import Test.Tasty
 import Test.Tasty.HUnit
+import Util (FedBrigClient)
 import Util.Options
 import Util.Test
 
@@ -108,6 +112,7 @@ runTests iConf brigOpts otherArgs = do
   lg <- Logger.new Logger.defSettings -- TODO: use mkLogger'?
   db <- defInitCassandra casKey casHost casPort lg
   mg <- newManager tlsManagerSettings
+  let fedBrigClient = mkFedBrigClient mg (brig iConf)
   emailAWSOpts <- parseEmailAWSOpts
   awsEnv <- AWS.mkEnv lg awsOpts emailAWSOpts mg
   userApi <- User.tests brigOpts mg b c ch g n awsEnv
@@ -120,8 +125,8 @@ runTests iConf brigOpts otherArgs = do
   createIndex <- Index.Create.spec brigOpts
   browseTeam <- TeamUserSearch.tests brigOpts mg g b
   userPendingActivation <- UserPendingActivation.tests brigOpts mg db b g s
-  federationUser <- Federation.User.spec brigOpts mg b f brigTwo
-  federationEndpoints <- API.Federation.tests mg b
+  federationEnd2End <- Federation.End2end.spec brigOpts mg b f brigTwo
+  federationEndpoints <- API.Federation.tests mg b fedBrigClient
   includeFederationTests <- (== Just "1") <$> Blank.getEnv "INTEGRATION_FEDERATION_TESTS"
   withArgs otherArgs . defaultMain $
     testGroup
@@ -143,7 +148,7 @@ runTests iConf brigOpts otherArgs = do
           browseTeam,
           federationEndpoints
         ]
-        <> [federationUser | includeFederationTests]
+        <> [federationEnd2End | includeFederationTests]
   where
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
 
@@ -198,3 +203,17 @@ parseConfigPaths = do
                   <> showDefault
                   <> value defaultBrigPath
             )
+
+mkFedBrigClient :: Manager -> Endpoint -> FedBrigClient
+mkFedBrigClient mgr brigEndpoint = Servant.genericClientHoist servantClienMToHttp
+  where
+    servantClienMToHttp :: Servant.ClientM a -> Http a
+    servantClienMToHttp action = liftIO $ do
+      let brigHost = Text.unpack $ brigEndpoint ^. epHost
+          brigPort = fromInteger . toInteger $ brigEndpoint ^. epPort
+          baseUrl = Servant.BaseUrl Servant.Http brigHost brigPort ""
+          clientEnv = Servant.ClientEnv mgr baseUrl Nothing Servant.defaultMakeClientRequest
+      eitherRes <- Servant.runClientM action clientEnv
+      case eitherRes of
+        Right res -> pure res
+        Left err -> assertFailure $ "Servant client failed with: " <> show err

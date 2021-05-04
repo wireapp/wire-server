@@ -21,7 +21,11 @@ import Data.Domain (Domain, domainText)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.String.Conversions (cs)
 import Imports
+import qualified Network.DNS as DNS
 import Polysemy
+import Polysemy.TinyLog (TinyLog)
+import qualified Polysemy.TinyLog as TinyLog
+import qualified System.Logger.Class as Log
 import Wire.Network.DNS.Effect (DNSLookup)
 import qualified Wire.Network.DNS.Effect as Lookup
 import Wire.Network.DNS.SRV (SrvEntry (srvTarget), SrvResponse (..), SrvTarget)
@@ -36,14 +40,14 @@ data DiscoverFederator m a where
 
 makeSem ''DiscoverFederator
 
-runFederatorDiscovery :: Members '[DNSLookup] r => Sem (DiscoverFederator ': r) a -> Sem r a
+runFederatorDiscovery :: Members '[DNSLookup, TinyLog] r => Sem (DiscoverFederator ': r) a -> Sem r a
 runFederatorDiscovery = interpret $ \(DiscoverFederator d) ->
   -- FUTUREWORK(federation): This string conversation is probably wrong, we should encode this
   -- using IDNA encoding or expect domain to be bytestring everywhere
   let domainSrv = cs $ "_wire-server-federator._tcp." <> domainText d
    in lookupDomainByDNS domainSrv
 
-lookupDomainByDNS :: Member DNSLookup r => ByteString -> Sem r (Either LookupError SrvTarget)
+lookupDomainByDNS :: Members '[DNSLookup, TinyLog] r => ByteString -> Sem r (Either LookupError SrvTarget)
 lookupDomainByDNS domainSrv = do
   res <- Lookup.lookupSRV domainSrv
   case res of
@@ -53,4 +57,8 @@ lookupDomainByDNS domainSrv = do
       -- dns-util
       pure $ Right $ srvTarget $ NonEmpty.head entries
     SrvNotAvailable -> pure $ Left $ LookupErrorSrvNotAvailable domainSrv
-    SrvResponseError _ -> pure $ Left $ LookupErrorDNSError domainSrv
+    -- Name error also means that the record is not available
+    SrvResponseError DNS.NameError -> pure $ Left $ LookupErrorSrvNotAvailable domainSrv
+    SrvResponseError err -> do
+      TinyLog.err $ Log.msg ("DNS Lookup failed" :: ByteString) . Log.field "error" (show err)
+      pure $ Left $ LookupErrorDNSError domainSrv

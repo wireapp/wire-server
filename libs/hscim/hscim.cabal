@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d17d3caef4224aad5ab9fe3165e19bb8a4efb7a37fb70f0d1019ecbedd77f29b
+-- hash: 427354dd7819ba82a24149dd338a58c577aa8b4ba3a1682d80de4c8f3c459049
 
 name:           hscim
 version:        0.3.4
@@ -76,7 +76,6 @@ library
     , bytestring >=0.10.8 && <0.11
     , case-insensitive >=1.2.1.0 && <1.3
     , email-validate >=2.3.2 && <2.4
-    , errors >=2.3.0 && <2.4
     , hashable >=1.2.7 && <1.4
     , hedgehog >=1.0.1 && <1.1
     , hspec >=2.7.1 && <2.8
@@ -103,10 +102,8 @@ library
     , time >=1.8.0 && <1.10
     , unordered-containers >=0.2.10 && <0.3
     , uuid >=1.3.13 && <1.4
-    , vector >=0.12.0 && <0.13
     , wai >=3.2.2 && <3.3
     , wai-extra >=3.0.28 && <3.1
-    , wai-logger >=2.3.5 && <2.4
     , warp >=3.2.28 && <3.4
   default-language: Haskell2010
 
@@ -126,7 +123,6 @@ executable hscim-server
     , bytestring >=0.10.8 && <0.11
     , case-insensitive >=1.2.1.0 && <1.3
     , email-validate >=2.3.2 && <2.4
-    , errors >=2.3.0 && <2.4
     , hashable >=1.2.7 && <1.4
     , hedgehog >=1.0.1 && <1.1
     , hscim
@@ -154,10 +150,8 @@ executable hscim-server
     , time >=1.8.0 && <1.10
     , unordered-containers >=0.2.10 && <0.3
     , uuid >=1.3.13 && <1.4
-    , vector >=0.12.0 && <0.13
     , wai >=3.2.2 && <3.3
     , wai-extra >=3.0.28 && <3.1
-    , wai-logger >=2.3.5 && <2.4
     , warp >=3.2.28 && <3.4
   default-language: Haskell2010
 
@@ -189,7 +183,6 @@ test-suite spec
     , bytestring >=0.10.8 && <0.11
     , case-insensitive >=1.2.1.0 && <1.3
     , email-validate >=2.3.2 && <2.4
-    , errors >=2.3.0 && <2.4
     , hashable >=1.2.7 && <1.4
     , hedgehog >=1.0.1 && <1.1
     , hscim
@@ -217,9 +210,7 @@ test-suite spec
     , time >=1.8.0 && <1.10
     , unordered-containers >=0.2.10 && <0.3
     , uuid >=1.3.13 && <1.4
-    , vector >=0.12.0 && <0.13
     , wai >=3.2.2 && <3.3
     , wai-extra >=3.0.28 && <3.1
-    , wai-logger >=2.3.5 && <2.4
     , warp >=3.2.28 && <3.4
   default-language: Haskell2010

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2f6095f5830d420a83db86b6daf3980643bccce908e1ae0439209c41b23708f9
+-- hash: ce5c895f689f96313d2c00a032ddda7adeaec3ae2c6ce62bdd16f026041e03d9
 
 name:           bilge
 version:        0.22.0
@@ -42,9 +42,7 @@ library
     , base >=4.7 && <5
     , bytestring >=0.9
     , case-insensitive >=1.1
-    , containers >=0.5
     , cookie
-    , data-default >=0.5
     , errors >=1.4
     , exceptions >=0.6
     , http-client >=0.5
@@ -54,9 +52,7 @@ library
     , monad-control >=1.0
     , mtl >=2.2
     , text >=0.11
-    , time >=1.4
     , tinylog >=0.9
-    , transformers >=0.4
     , transformers-base >=0.4
     , types-common >=0.7
     , unliftio

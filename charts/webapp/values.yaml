@@ -9,7 +9,7 @@ resources:
     cpu: "1"
 image:
   repository: quay.io/wire/webapp
-  tag: "2020-11-30-production.0-72d2f1-v0.27.5-production"
+  tag: 2021-04-01-production.0-254d51-v0.28.3-production
 service:
   https:
     externalPort: 443
@@ -25,8 +25,10 @@ service:
 #   backendDomain: example.com
 #   appHost: webapp.example.com
 
-# Some relevant environment options, have a look at
-# https://github.com/wireapp/wire-webapp/wiki/Self-hosting
+# Some relevant environment options. For a comprehensive
+# list of available variables, please refer to:
+# https://github.com/wireapp/wire-web-config-wire/blob/master/wire-webapp/.env.defaults
+#
 # NOTE: Without an empty dictionary, you will see warnings
 #       when overriding envVars
 envVars: {}

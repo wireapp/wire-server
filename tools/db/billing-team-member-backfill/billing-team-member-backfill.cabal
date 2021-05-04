@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0f2b80d40183f6878dcd22bd199c9be915e6b3f7b5f99c609634185e33b2dde9
+-- hash: 530113d86e9f78b626847ff35c1b5f01d594a89ff40955ee8a327fd7d825d218
 
 name:           billing-team-member-backfill
 version:        1.0.0
@@ -38,6 +38,4 @@ executable billing-team-member-backfill
     , text
     , tinylog
     , types-common
-    , unliftio
-    , uuid
   default-language: Haskell2010

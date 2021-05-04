@@ -32,6 +32,7 @@ import Data.Typeable (typeRep)
 import Imports
 import Test.QuickCheck (Arbitrary (..))
 import Wire.API.Arbitrary (generateExample, mapOf')
+import Wire.API.Wrapped (Wrapped)
 
 newtype UserMap a = UserMap {userMap :: Map UserId a}
   deriving stock (Eq, Show)
@@ -39,6 +40,8 @@ newtype UserMap a = UserMap {userMap :: Map UserId a}
 
 instance Arbitrary a => Arbitrary (UserMap a) where
   arbitrary = UserMap <$> mapOf' arbitrary arbitrary
+
+type WrappedQualifiedUserMap a = Wrapped "qualified_user_map" (QualifiedUserMap a)
 
 newtype QualifiedUserMap a = QualifiedUserMap
   { qualifiedUserMap :: Map Domain (UserMap a)

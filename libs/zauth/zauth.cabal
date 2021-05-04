@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 951765034b4ec8f2fde4635ce261a77b085fef580d65226414206f053c86bec4
+-- hash: cb7126f5d4fd03d609015e0f9fbaf1c9e9283a47f1bd40e549fc8a8841e85b10
 
 name:           zauth
 version:        0.10.3
@@ -46,7 +46,6 @@ library
     , mwc-random >=0.12
     , sodium-crypto-sign >=0.1
     , time >=1.4
-    , transformers >=0.4
     , uuid >=1.3
     , vector >=0.10
   default-language: Haskell2010
@@ -69,7 +68,6 @@ executable zauth
     , lens
     , optparse-applicative >=0.11
     , sodium-crypto-sign
-    , transformers
     , uuid
     , zauth
   default-language: Haskell2010
@@ -96,8 +94,6 @@ test-suite zauth-unit
     , tasty >=0.9
     , tasty-hunit >=0.9
     , tasty-quickcheck >=0.8
-    , transformers
-    , types-common
     , uuid
     , zauth
   default-language: Haskell2010

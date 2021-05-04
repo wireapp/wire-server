@@ -16,25 +16,15 @@ ghc-options:
 - -rtsopts
 dependencies:
 - base
-- attoparsec
 - brig-types
-- bytestring
-- bytestring
-- bytestring-conversion
 - cassandra-util
 - conduit
-- extended
-- galley-types
 - imports
 - lens
-- mtl
 - optparse-applicative
-- text
-- time
 - tinylog
 - types-common
 - unliftio
-- uuid
 executables:
   service-backfill:
     main: Main.hs

@@ -9,26 +9,10 @@ maintainer: Wire Swiss GmbH <backend@wire.com>
 copyright: (c) 2017 Wire Swiss GmbH
 license: AGPL-3
 dependencies:
-- aeson >=0.6
-- attoparsec >=0.10
 - base ==4.*
-- byteable >=0.1
-- bytestring >=0.9
 - bytestring-conversion >=0.2
-- base16-bytestring >=0.1
-- base64-bytestring >=1.0
-- cryptonite >=0.11
-- containers >=0.5
-- data-default >=0.5
 - imports
-- lens >=4.13
-- memory >=0.11
-- mime >=0.4
-- text >=0.11
-- time >=1.5
 - types-common >=0.16
-- unordered-containers >=0.2
-- uuid >=1.2
 - wire-api
 library:
   source-dirs: src

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e55322d0117b6bdd9e66d2fb1768e8c42514125904626540a436a728563609f1
+-- hash: b1095c6a1d43c977434f01b3a3a6172f3f12b4cbeb29490cb63ea61cc0154f0e
 
 name:           extended
 version:        0.1.0
@@ -42,16 +42,11 @@ library
     , extra
     , http-types
     , imports
-    , mtl
     , optparse-applicative
     , servant
-    , servant-client
     , servant-server
     , servant-swagger
     , string-conversions
-    , text
     , tinylog
-    , transformers
-    , unliftio
     , wai
   default-language: Haskell2010

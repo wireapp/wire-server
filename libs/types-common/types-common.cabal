@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 74a96e1b02e343b15dc21c298af9a133f9e26b7e36335a91473acc75f4dff648
+-- hash: f52252ebc5b48d39588545aae9c9b971316985bdd0c4ceaec225ec561dadf524
 
 name:           types-common
 version:        0.16.0
@@ -64,10 +64,6 @@ library
     , cryptohash-sha1 >=0.11.7.2
     , cryptonite >=0.26
     , data-default >=0.5
-    , deepseq >=1.4
-    , directory >=1.2
-    , errors >=2.0
-    , ghc-prim
     , hashable >=1.2
     , imports
     , iproute >=1.5
@@ -77,10 +73,7 @@ library
     , protobuf >=0.2
     , quickcheck-instances >=0.3.16
     , random >=1.1
-    , safe >=0.3
     , scientific >=0.3.4
-    , semigroups >=0.12
-    , servant >=0.16
     , servant-server
     , singletons >=2.0
     , string-conversions
@@ -92,7 +85,6 @@ library
     , time >=1.6
     , time-locale-compat >=0.1
     , tinylog >=0.14
-    , transformers >=0.3
     , unix
     , unordered-containers >=0.2
     , uri-bytestring >=0.2
@@ -133,7 +125,6 @@ test-suite tests
     , tasty-hunit
     , tasty-quickcheck
     , text
-    , text-format
     , time
     , types-common
     , unordered-containers

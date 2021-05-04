@@ -23,15 +23,10 @@ library:
   - base ==4.*
   - aeson >=1.0
   - attoparsec >=0.10
-  - base16-bytestring >=0.1.1.6 && <0.2
-  - base64-bytestring ==1.0.*
-  - bifunctors
   - binary
-  - bytestring-conversion
   - cereal
   - cereal-conduit
   - containers
-  - ekg-core
   - exceptions
   - geoip2
   - http-client
@@ -39,7 +34,6 @@ library:
   - iproute
   - lens
   - lens-aeson
-  - mtl
   - network
   - network-bsd
   - optparse-applicative >=0.11
@@ -49,10 +43,8 @@ library:
   - snappy
   - snappy-framing
   - time >=1.5
-  - types-common >=0.14.1
   - unordered-containers
   - vector
-  - resourcet
 executables:
   bonanza:
     main: main/Main.hs

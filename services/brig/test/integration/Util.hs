@@ -47,7 +47,7 @@ import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
 import Data.Domain (Domain, domainText, mkDomain)
-import Data.Handle (Handle)
+import Data.Handle (Handle (..))
 import Data.Id
 import Data.List1 (List1)
 import qualified Data.List1 as List1
@@ -61,6 +61,7 @@ import qualified Galley.Types.Teams as Team
 import Gundeck.Types.Notification
 import Imports
 import qualified Network.Wai.Test as WaiTest
+import Servant.Client.Generic (AsClientT)
 import System.Random (randomIO, randomRIO)
 import Test.Tasty (TestName, TestTree)
 import Test.Tasty.Cannon
@@ -69,6 +70,7 @@ import Test.Tasty.HUnit
 import qualified UnliftIO.Async as Async
 import Util.AWS
 import Wire.API.Conversation.Member (Member (..))
+import qualified Wire.API.Federation.API.Brig as FedBrig
 
 type Brig = Request -> Request
 
@@ -81,6 +83,8 @@ type Galley = Request -> Request
 type Nginz = Request -> Request
 
 type Spar = Request -> Request
+
+type FedBrigClient = FedBrig.Api (AsClientT (HttpT IO))
 
 instance ToJSON SESBounceType where
   toJSON BounceUndetermined = String "Undetermined"
@@ -433,6 +437,20 @@ putHandle brig usr h =
       . zConn "conn"
   where
     payload = RequestBodyLBS . encode $ object ["handle" .= h]
+
+createUserWithHandle :: Brig -> Http (Handle, User)
+createUserWithHandle brig = do
+  u <- randomUser brig
+  h <- randomHandle
+  void $ putHandle brig (userId u) h
+  userWithHandle <- selfUser <$> getSelfProfile brig (userId u)
+  -- Verify if creating user and setting handle succeeded
+  let handle = fromJust (userHandle userWithHandle)
+  liftIO $ assertEqual "creating user with handle should return handle" h (fromHandle handle)
+  -- We return the handle separately in this function for convenience
+  -- of not needing to de-maybe-ify the user handle field of the user object
+  -- when using this function.
+  pure (handle, userWithHandle)
 
 getUserInfoFromHandle ::
   (MonadIO m, MonadCatch m, MonadFail m, MonadHttp m, HasCallStack) =>

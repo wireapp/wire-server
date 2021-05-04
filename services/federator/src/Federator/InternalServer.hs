@@ -1,5 +1,5 @@
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures -Wno-unused-imports #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -30,8 +30,8 @@ import Federator.Discovery (DiscoverFederator, LookupError (LookupErrorDNSError,
 import Federator.Env (Env, applog, dnsResolver, runSettings)
 import Federator.Options (RunSettings)
 import Federator.Remote (Remote, RemoteError (RemoteErrorClientFailure, RemoteErrorDiscoveryFailure), discoverAndCall, interpretRemote)
-import Federator.Util
 import Federator.Utils.PolysemyServerError (absorbServerError)
+import Federator.Validation
 import Imports
 import Mu.GRpc.Client.Record (GRpcReply (..))
 import Mu.GRpc.Server (msgProtoBuf, runGRpcAppTrans)
@@ -62,8 +62,8 @@ callOutward req = do
 mkRemoteResponse :: Either RemoteError (GRpcReply InwardResponse) -> OutwardResponse
 mkRemoteResponse reply =
   case reply of
-    Right (GRpcOk (InwardResponseHTTPResponse res)) ->
-      OutwardResponseHTTPResponse res
+    Right (GRpcOk (InwardResponseBody res)) ->
+      OutwardResponseBody res
     Right (GRpcOk (InwardResponseErr err)) ->
       mkOutwardErr RemoteFederatorError "remote-federator-returned-error" err
     Right (GRpcTooMuchConcurrency _) ->

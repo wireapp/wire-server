@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a53a7554117a25d8613c61055b2201940de2cf03500632351755e19434bde9b5
+-- hash: 8de63614deeee3c3718c1199c82a810b1dd4c65fccfb6084ddbfac13c6029865
 
 name:           ssl-util
 version:        0.1.0
@@ -34,6 +34,5 @@ library
     , bytestring >=0.10
     , http-client >=0.4
     , imports
-    , network >=2.6
     , time >=1.5
   default-language: Haskell2010

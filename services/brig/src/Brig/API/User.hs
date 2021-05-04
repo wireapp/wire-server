@@ -41,11 +41,12 @@ module Brig.API.User
     lookupAccountsByIdentity,
     lookupProfile,
     lookupProfiles,
-    lookupProfilesOfLocalUsers,
+    lookupLocalProfiles,
     Data.lookupName,
     Data.lookupLocale,
     Data.lookupUser,
     Data.lookupRichInfo,
+    Data.lookupRichInfoMultiUsers,
     removeEmail,
     removePhone,
     revokeIdentity,
@@ -107,6 +108,7 @@ import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
 import Brig.Data.UserPendingActivation
 import qualified Brig.Data.UserPendingActivation as Data
+import qualified Brig.Federation.Client as Federation
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.InternalEvent.Types as Internal
 import Brig.Options hiding (Timeout, internalEvents)
@@ -132,6 +134,7 @@ import Control.Lens (view, (^.))
 import Control.Monad.Catch
 import Data.ByteString.Conversion
 import qualified Data.Currency as Currency
+import Data.Domain (Domain)
 import Data.Handle (Handle)
 import Data.Id as Id
 import Data.Json.Util
@@ -139,7 +142,7 @@ import Data.List1 (List1)
 import qualified Data.Map.Strict as Map
 import qualified Data.Metrics as Metrics
 import Data.Misc (PlainTextPassword (..))
-import Data.Qualified
+import Data.Qualified (Qualified, partitionQualified)
 import Data.Time.Clock (addUTCTime, diffUTCTime)
 import Data.UUID.V4 (nextRandom)
 import qualified Galley.Types.Teams as Team
@@ -148,6 +151,7 @@ import Imports
 import Network.Wai.Utilities
 import qualified System.Logger.Class as Log
 import System.Logger.Message
+import Wire.API.Federation.Client (FederationError (..))
 
 data AllowSCIMUpdates
   = AllowSCIMUpdates
@@ -1066,7 +1070,7 @@ userGC u = case (userExpire u) of
       deleteUserNoVerify (userId u)
     return u
 
-lookupProfile :: UserId -> Qualified UserId -> AppIO (Maybe UserProfile)
+lookupProfile :: UserId -> Qualified UserId -> ExceptT FederationError AppIO (Maybe UserProfile)
 lookupProfile self other = listToMaybe <$> lookupProfiles self [other]
 
 -- | Obtain user profiles for a list of users as they can be seen by
@@ -1079,25 +1083,30 @@ lookupProfiles ::
   UserId ->
   -- | The users ('others') for which to obtain the profiles.
   [Qualified UserId] ->
-  AppIO [UserProfile]
+  ExceptT FederationError AppIO [UserProfile]
 lookupProfiles self others = do
-  domain <- viewFederationDomain
-  let (_remoteUsers, localUsers) = partitionRemoteOrLocalIds domain others
-  localProfiles <- lookupProfilesOfLocalUsers (Just self) localUsers
-  -- FUTUREWORK(federation, #1267): fetch remote profiles
-  remoteProfiles <- pure []
-  pure (localProfiles <> remoteProfiles)
+  localDomain <- viewFederationDomain
+  let userMap = partitionQualified others
+  -- FUTUREWORK(federation): parallelise federator requests here
+  fold <$> traverse (uncurry (getProfiles localDomain)) (Map.assocs userMap)
+  where
+    getProfiles localDomain domain uids
+      | localDomain == domain = lift (lookupLocalProfiles (Just self) uids)
+      | otherwise = lookupRemoteProfiles domain uids
+
+lookupRemoteProfiles :: Domain -> [UserId] -> ExceptT FederationError AppIO [UserProfile]
+lookupRemoteProfiles = Federation.getUsersByIds
 
 -- FUTUREWORK: This function encodes a few business rules about exposing email
 -- ids, but it is also very complex. Maybe this can be made easy by extracting a
 -- pure function and writing tests for that.
-lookupProfilesOfLocalUsers ::
+lookupLocalProfiles ::
   -- | This is present only when an authenticated user is requesting access.
   Maybe UserId ->
   -- | The users ('others') for which to obtain the profiles.
   [UserId] ->
   AppIO [UserProfile]
-lookupProfilesOfLocalUsers requestingUser others = do
+lookupLocalProfiles requestingUser others = do
   users <- Data.lookupUsers NoPendingInvitations others >>= mapM userGC
   css <- case requestingUser of
     Just localReqUser -> toMap <$> Data.lookupConnectionStatus (map userId users) [localReqUser]

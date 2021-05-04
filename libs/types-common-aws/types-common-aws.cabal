@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ae1a97df05fea5d88fcc77729a353096632bef917cdf9d363c7d79ee1bb663de
+-- hash: bbfa34fc03a67ddacfd72d91cb1159a739c32fb6f3e236fd9c5e3c2ebd78056d
 
 name:           types-common-aws
 version:        0.16.0
@@ -40,28 +40,18 @@ library
   ghc-prof-options: -fprof-auto-exported
   build-depends:
       amazonka
-    , amazonka-core
     , amazonka-sqs
     , base ==4.*
     , base64-bytestring >=1.0
-    , errors >=2.0
     , exceptions
     , imports
     , lens >=4.10
     , monad-control
-    , mtl
     , proto-lens
-    , resourcet
     , safe >=0.3
     , tasty
     , tasty-hunit
     , text >=0.11
-    , transformers >=0.3
-    , transformers-base
-    , types-common
-    , unordered-containers >=0.2
-    , uri-bytestring >=0.2
-    , uuid >=1.3.11
   if impl(ghc >=8)
     ghc-options: -fno-warn-redundant-constraints
   if flag(protobuf)

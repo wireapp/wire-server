@@ -55,6 +55,7 @@ module Brig.App
     sftEnv,
     internalEvents,
     emailSender,
+    randomPrekeyLocalLock,
 
     -- * App Monad
     AppT,
@@ -130,6 +131,7 @@ import System.Logger.Class hiding (Settings, settings)
 import qualified System.Logger.Class as LC
 import qualified System.Logger.Extended as Log
 import Util.Options
+import Wire.API.Federation.Client (HasFederatorConfig (..))
 import Wire.API.User.Identity (Email)
 
 schemaVersion :: Int32
@@ -170,7 +172,8 @@ data Env = Env
     _zauthEnv :: ZAuth.Env,
     _digestSHA256 :: Digest,
     _digestMD5 :: Digest,
-    _indexEnv :: IndexEnv
+    _indexEnv :: IndexEnv,
+    _randomPrekeyLocalLock :: Maybe (MVar ())
   }
 
 makeLenses ''Env
@@ -212,6 +215,9 @@ newEnv o = do
     StompQueue q -> pure (StompQueue q)
     SqsQueue q -> SqsQueue <$> AWS.getQueueUrl (aws ^. AWS.amazonkaEnv) q
   mSFTEnv <- mapM Calling.mkSFTEnv $ Opt.sft o
+  prekeyLocalLock <- case Opt.randomPrekeys o of
+    Just True -> Just <$> newMVar ()
+    _ -> pure Nothing
   return
     $! Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
@@ -245,7 +251,8 @@ newEnv o = do
         _zauthEnv = zau,
         _digestMD5 = md5,
         _digestSHA256 = sha256,
-        _indexEnv = mkIndexEnv o lgr mgr mtr
+        _indexEnv = mkIndexEnv o lgr mgr mtr,
+        _randomPrekeyLocalLock = prekeyLocalLock
       }
   where
     emailConn _ (Opt.EmailAWS aws) = return (Just aws, Nothing)
@@ -487,6 +494,10 @@ instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
     AppT . ReaderT $ \r ->
       withRunInIO $ \run ->
         inner (run . flip runReaderT r . unAppT)
+
+instance HasFederatorConfig AppIO where
+  federatorEndpoint = view federator
+  federationDomain = viewFederationDomain
 
 runAppT :: Env -> AppT m a -> m a
 runAppT e (AppT ma) = runReaderT ma e

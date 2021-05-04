@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8d783eed9262ccdd5d845888d2283d21217d99e85c7d1d32262a9022ab9fa1b0
+-- hash: a442d19d38104e229b8823526c06bd20ba41f3ef708f375c2a24a5db01d0466b
 
 name:           cargohold
 version:        1.5.0
@@ -52,59 +52,41 @@ library
     , HsOpenSSL-x509-system >=0.1
     , aeson >=0.11
     , amazonka >=1.3.7
-    , amazonka-cloudfront >=1.3.7
     , amazonka-core >=1.3.7
     , amazonka-s3 >=1.3.7
     , attoparsec >=0.12
     , auto-update >=0.1.4
     , base >=4 && <5
-    , base16-bytestring >=0.1
     , base64-bytestring >=1.0
     , bilge >=0.21
-    , byteable >=0.1
     , bytestring >=0.10
     , bytestring-conversion >=0.2
     , cargohold-types >=0.5
     , case-insensitive >=1.0
-    , cereal >=0.4
     , conduit >=1.2
     , conduit-extra >=1.1.5
     , containers >=0.5
     , cryptonite >=0.20
     , data-default >=0.5
-    , either >=4.3
     , errors >=1.4
     , exceptions >=0.6
     , extended
     , http-client >=0.4
     , http-client-openssl >=0.2
-    , http-conduit >=2.1
     , http-types >=0.8
     , imports
     , lens >=4.1
-    , lifted-async >=0.9.3
-    , lifted-base >=0.2
     , metrics-wai >=0.4
     , mime >=0.4
-    , monad-control >=1.0
-    , mtl >=2.1
-    , network >=2.4
     , optparse-applicative >=0.10
-    , prometheus-client
-    , random >=1.1
     , resourcet >=1.1
     , retry >=0.5
-    , ropes >=0.3
     , safe >=0.3
-    , split >=0.2
     , swagger >=0.2
     , text >=1.1
     , time >=1.4
     , tinylog >=0.10
-    , transformers >=0.3
-    , transformers-base >=0.3
     , types-common >=0.16
-    , unliftio-core >=0.1
     , unordered-containers >=0.2
     , uri-bytestring >=0.2
     , uuid >=1.3.5
@@ -114,9 +96,7 @@ library
     , wai-predicates >=0.8
     , wai-routing >=0.12
     , wai-utilities >=0.16.1
-    , warp >=3.0
     , wire-api
-    , xml-conduit >=1.3
     , yaml >=0.8
   default-language: Haskell2010
 
@@ -135,7 +115,6 @@ executable cargohold
     , bytestring >=0.10
     , bytestring-conversion >=0.2
     , cargohold
-    , cereal >=0.4
     , containers >=0.5
     , data-default >=0.5
     , errors >=1.4
@@ -145,12 +124,8 @@ executable cargohold
     , http-types >=0.8
     , imports
     , mime >=0.4
-    , mtl >=2.1
-    , prometheus-client
     , safe >=0.3
     , text >=1.1
-    , transformers >=0.3
-    , transformers-base >=0.3
     , types-common
     , yaml >=0.8
   if flag(static)
@@ -178,9 +153,7 @@ executable cargohold-integration
     , bytestring-conversion >=0.2
     , cargohold
     , cargohold-types
-    , cereal >=0.4
     , containers >=0.5
-    , cryptohash-md5 >=0.11.7.2
     , data-default >=0.5
     , errors >=1.4
     , exceptions >=0.6
@@ -192,17 +165,13 @@ executable cargohold-integration
     , lens >=3.8
     , metrics-wai
     , mime >=0.4
-    , mtl >=2.1
     , optparse-applicative
-    , prometheus-client
     , safe >=0.3
     , tagged >=0.8
     , tasty >=1.0
     , tasty-hunit >=0.9
     , text >=1.1
     , time >=1.5
-    , transformers >=0.3
-    , transformers-base >=0.3
     , types-common >=0.7
     , uuid >=1.3
     , wai-utilities >=0.12
