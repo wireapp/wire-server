@@ -179,7 +179,7 @@ combinator. This does nothing to the JSON encoding-deconding part of
 the schema, and only affects the documentation.
 
 It is important to note how this sum type example is realised as a
-"tagged" union on the haskell side, but un "untagged" one on the JSON
+"tagged" union on the haskell side, but an "untagged" one on the JSON
 side. That means that the JSON values that this schema parses and
 produces distinguish the two cases simply using the type of the
 underlying value. In particular, this approach would not work for sums
