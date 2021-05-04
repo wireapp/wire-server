@@ -392,7 +392,7 @@ instance Arbitrary NewConvUnmanaged where
     NewConvUnmanaged <$> (arbitrary `QC.suchThat` (not . newConvIsManaged))
 
 data NewConv = NewConv
-  { newConvUsers :: [OpaqueUserId],
+  { newConvUsers :: [UserId],
     newConvName :: Maybe Text,
     newConvAccess :: Set Access,
     newConvAccessRole :: Maybe AccessRole,
