@@ -263,7 +263,6 @@ getConversationAndCheckMembership = getConversationAndCheckMembershipWithError c
 
 getConversationAndCheckMembershipWithError :: Error -> UserId -> ConvId -> Galley Data.Conversation
 getConversationAndCheckMembershipWithError ex zusr convId = do
-  -- should we merge resolving to qualified ID and looking up the conversation?
   c <- Data.conversation convId >>= ifNothing convNotFound
   when (DataTypes.isConvDeleted c) $ do
     Data.deleteConversation convId
