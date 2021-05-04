@@ -34,7 +34,6 @@ module Brig.API.Connection
   )
 where
 
-import Brig.API.IdMapping (resolveOpaqueUserId)
 import Brig.API.Types
 import Brig.App
 import qualified Brig.Data.Connection as Data
@@ -48,7 +47,6 @@ import qualified Brig.User.Event.Log as Log
 import Control.Error
 import Control.Lens (view)
 import Data.Id as Id
-import Data.IdMapping (IdMapping (IdMapping, _imMappedId), MappedOrLocalId (Local, Mapped))
 import Data.Range
 import qualified Data.Set as Set
 import Galley.Types (ConvType (..), cnvType)
@@ -63,12 +61,7 @@ createConnection ::
   ConnId ->
   ExceptT ConnectionError AppIO ConnectionResult
 createConnection self req conn = do
-  lift (resolveOpaqueUserId (crUser req)) >>= \case
-    Local u ->
-      createConnectionToLocalUser self u req conn
-    Mapped IdMapping {_imMappedId} ->
-      -- FUTUREWORK(federation, #1262): allow creating connections to remote users
-      throwE $ InvalidUser (makeMappedIdOpaque _imMappedId)
+  createConnectionToLocalUser self (crUser req) req conn
 
 createConnectionToLocalUser ::
   UserId ->
@@ -79,14 +72,14 @@ createConnectionToLocalUser ::
 createConnectionToLocalUser self crUser ConnectionRequest {crName, crMessage} conn = do
   when (self == crUser) $
     throwE $
-      InvalidUser (makeIdOpaque crUser)
+      InvalidUser crUser
   selfActive <- lift $ Data.isActivated self
   unless selfActive $
     throwE ConnectNoIdentity
   otherActive <- lift $ Data.isActivated crUser
   unless otherActive $
     throwE $
-      InvalidUser (makeIdOpaque crUser)
+      InvalidUser crUser
   -- Users belonging to the same team are always treated as connected, so creating a
   -- connection between them is useless. {#RefConnectionTeam}
   sameTeam <- lift $ belongSameTeam

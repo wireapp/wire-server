@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6b8bbc40705147b2cb4025609e4b8efbd3c91a97f426f13cc34530d11041a393
+-- hash: b9a395dcbc7c81c21b343dffe01cc8fc8599bc1a48aec240fac095e1601dfade
 
 name:           galley
 version:        0.83.0
@@ -29,7 +29,6 @@ library
       Galley.API.Create
       Galley.API.CustomBackend
       Galley.API.Error
-      Galley.API.IdMapping
       Galley.API.Internal
       Galley.API.LegalHold
       Galley.API.Mapping
@@ -337,6 +336,7 @@ executable galley-schema
       V45_AddFederationIdMapping
       V46_TeamFeatureAppLock
       V47_RemoveFederationIdMapping
+      V48_DeleteRemoteIdentifiers
       Paths_galley
   hs-source-dirs:
       schema/src

@@ -18,8 +18,7 @@
 module Galley.API.Error where
 
 import Data.Domain (Domain, domainText)
-import Data.Id (Id, Remote, idToText)
-import Data.IdMapping (IdMapping (IdMapping, _imMappedId, _imQualifiedId))
+import Data.Id (Id, Remote)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Qualified (Qualified, renderQualifiedId)
 import Data.String.Conversions (cs)
@@ -254,15 +253,3 @@ federationNotEnabled qualifiedIds =
   where
     idType = cs (show (typeRep @a))
     rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderQualifiedId) $ qualifiedIds
-
-federationNotImplemented :: forall a. Typeable a => NonEmpty (IdMapping a) -> Error
-federationNotImplemented qualifiedIds =
-  Error
-    status403
-    "federation-not-implemented"
-    ("Federation is not implemented, but ID mappings (" <> idType <> ") were found: " <> rendered)
-  where
-    idType = cs (show (typeRep @a))
-    rendered = LT.intercalate ", " . toList . fmap (LT.fromStrict . renderMapping) $ qualifiedIds
-    renderMapping IdMapping {_imMappedId, _imQualifiedId} =
-      idToText _imMappedId <> " -> " <> renderQualifiedId _imQualifiedId

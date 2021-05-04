@@ -15,29 +15,30 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.IdMapping
-  ( -- * other functions
-    resolveOpaqueUserId,
-    resolveOpaqueConvId,
+module V48_DeleteRemoteIdentifiers
+  ( migration,
   )
 where
 
-import Data.Id (Id (Id, toUUID), OpaqueConvId, OpaqueUserId)
-import qualified Data.Id as Id
-import Data.IdMapping (MappedOrLocalId (Local))
-import Galley.App (Galley)
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
--- DEPRECATED, REMOVE
-resolveOpaqueUserId :: OpaqueUserId -> Galley (MappedOrLocalId Id.U)
-resolveOpaqueUserId = resolveOpaqueId
-
--- DEPRECATED, REMOVE
-resolveOpaqueConvId :: OpaqueConvId -> Galley (MappedOrLocalId Id.C)
-resolveOpaqueConvId = resolveOpaqueId
-
--- DEPRECATED, REMOVE
-resolveOpaqueId :: forall a. Id (Id.Opaque a) -> Galley (MappedOrLocalId a)
-resolveOpaqueId opaqueId = pure $ Local assumedLocalId
-  where
-    assumedLocalId = Id (toUUID opaqueId) :: Id a
+-- This migration deletes the (so far unused) entries introduced in migration 44
+-- as we decided to stop using opaque Ids and to be explict with remote identifiers.
+migration :: Migration
+migration = Migration 48 "Delete remote identifiers introduced in migration 44" $ do
+  schema'
+    [r|
+      ALTER TABLE user DROP (
+        conv_remote_id,
+        conv_remote_domain
+      );
+    |]
+  schema'
+    [r|
+      ALTER TABLE member DROP (
+        user_remote_id,
+        user_remote_domain
+      );
+    |]

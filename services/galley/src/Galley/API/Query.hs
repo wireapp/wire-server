@@ -29,10 +29,8 @@ where
 
 import Data.ByteString.Conversion
 import Data.Id as Id
-import Data.IdMapping (MappedOrLocalId (Local), opaqueIdFromMappedOrLocal, partitionMappedOrLocalIds)
 import Data.Range
 import Galley.API.Error
-import qualified Galley.API.IdMapping as IdMapping
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Util
 import Galley.App
@@ -55,64 +53,62 @@ getBotConversationH (zbot ::: zcnv ::: _) = do
 
 getBotConversation :: BotId -> ConvId -> Galley Public.BotConvView
 getBotConversation zbot zcnv = do
-  c <- getConversationAndCheckMembershipWithError convNotFound (botUserId zbot) (Local zcnv)
+  c <- getConversationAndCheckMembershipWithError convNotFound (botUserId zbot) zcnv
   let cmems = mapMaybe mkMember (toList (Data.convMembers c))
   pure $ Public.botConvView zcnv (Data.convName c) cmems
   where
     mkMember m
-      | memId m == Local (botUserId zbot) =
+      | memId m == botUserId zbot =
         Nothing -- no need to list the bot itself
       | otherwise =
-        Just (OtherMember (opaqueIdFromMappedOrLocal (memId m)) (memService m) (memConvRoleName m))
+        Just (OtherMember (memId m) (memService m) (memConvRoleName m))
 
-getConversationH :: UserId ::: OpaqueConvId ::: JSON -> Galley Response
+getConversationH :: UserId ::: ConvId ::: JSON -> Galley Response
 getConversationH (zusr ::: cnv ::: _) = do
   json <$> getConversation zusr cnv
 
-getConversation :: UserId -> OpaqueConvId -> Galley Public.Conversation
-getConversation zusr opaqueCnv = do
-  cnv <- IdMapping.resolveOpaqueConvId opaqueCnv
+getConversation :: UserId -> ConvId -> Galley Public.Conversation
+getConversation zusr cnv = do
   c <- getConversationAndCheckMembership zusr cnv
-  Mapping.conversationView (Local zusr) c
+  Mapping.conversationView zusr c
 
-getConversationRolesH :: UserId ::: OpaqueConvId ::: JSON -> Galley Response
+getConversationRolesH :: UserId ::: ConvId ::: JSON -> Galley Response
 getConversationRolesH (zusr ::: cnv ::: _) = do
   json <$> getConversationRoles zusr cnv
 
-getConversationRoles :: UserId -> OpaqueConvId -> Galley Public.ConversationRolesList
-getConversationRoles zusr opaqueCnv = do
-  cnv <- IdMapping.resolveOpaqueConvId opaqueCnv
+getConversationRoles :: UserId -> ConvId -> Galley Public.ConversationRolesList
+getConversationRoles zusr cnv = do
   void $ getConversationAndCheckMembership zusr cnv
   -- NOTE: If/when custom roles are added, these roles should
   --       be merged with the team roles (if they exist)
   pure $ Public.ConversationRolesList wireConvRoles
 
-getConversationIdsH :: UserId ::: Maybe OpaqueConvId ::: Range 1 1000 Int32 ::: JSON -> Galley Response
+getConversationIdsH :: UserId ::: Maybe ConvId ::: Range 1 1000 Int32 ::: JSON -> Galley Response
 getConversationIdsH (zusr ::: start ::: size ::: _) = do
   json <$> getConversationIds zusr start size
 
-getConversationIds :: UserId -> Maybe OpaqueConvId -> Range 1 1000 Int32 -> Galley (Public.ConversationList OpaqueConvId)
+getConversationIds :: UserId -> Maybe ConvId -> Range 1 1000 Int32 -> Galley (Public.ConversationList ConvId)
 getConversationIds zusr start size = do
   ids <- Data.conversationIdRowsFrom zusr start size
   pure $
     Public.ConversationList
-      ((\(i, _, _) -> i) <$> Data.resultSetResult ids)
+      (Data.resultSetResult ids)
       (Data.resultSetType ids == Data.ResultSetTruncated)
 
-getConversationsH :: UserId ::: Maybe (Either (Range 1 32 (List OpaqueConvId)) OpaqueConvId) ::: Range 1 500 Int32 ::: JSON -> Galley Response
+getConversationsH :: UserId ::: Maybe (Either (Range 1 32 (List ConvId)) ConvId) ::: Range 1 500 Int32 ::: JSON -> Galley Response
 getConversationsH (zusr ::: range ::: size ::: _) =
   json <$> getConversations zusr range size
 
-getConversations :: UserId -> Maybe (Either (Range 1 32 (List OpaqueConvId)) OpaqueConvId) -> Range 1 500 Int32 -> Galley (Public.ConversationList Public.Conversation)
+getConversations :: UserId -> Maybe (Either (Range 1 32 (List ConvId)) ConvId) -> Range 1 500 Int32 -> Galley (Public.ConversationList Public.Conversation)
 getConversations zusr range size =
   withConvIds zusr range size $ \more ids -> do
-    let (localConvIds, _qualifiedConvIds) = partitionMappedOrLocalIds ids
+    let localConvIds = ids
     -- FUTUREWORK(federation, #1273): fetch remote conversations from other backend
     cs <-
       Data.conversations localConvIds
         >>= filterM removeDeleted
-        >>= filterM (pure . isMember (Local zusr) . Data.convMembers)
-    flip Public.ConversationList more <$> mapM (Mapping.conversationView (Local zusr)) cs
+        >>= filterM (pure . isMember zusr . Data.convMembers)
+    flip Public.ConversationList more <$> mapM (Mapping.conversationView zusr) cs
   where
     removeDeleted c
       | Data.isConvDeleted c = Data.deleteConversation (Data.convId c) >> pure False
@@ -170,9 +166,9 @@ getConversationMeta cnv = do
 -- always false if the third lookup-case is used).
 withConvIds ::
   UserId ->
-  Maybe (Either (Range 1 32 (List OpaqueConvId)) OpaqueConvId) ->
+  Maybe (Either (Range 1 32 (List ConvId)) ConvId) ->
   Range 1 500 Int32 ->
-  (Bool -> [MappedOrLocalId Id.C] -> Galley a) ->
+  (Bool -> [ConvId] -> Galley a) ->
   Galley a
 withConvIds usr range size k = case range of
   Nothing -> do

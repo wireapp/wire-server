@@ -400,7 +400,7 @@ postConnection brig from to =
   where
     payload =
       RequestBodyLBS . encode $
-        ConnectionRequest (makeIdOpaque to) "some conv name" (Message "some message")
+        ConnectionRequest to "some conv name" (Message "some message")
 
 putConnection :: Brig -> UserId -> UserId -> Relation -> Http ResponseLBS
 putConnection brig from to r =
@@ -539,7 +539,7 @@ isMember g usr cnv = do
         . expect2xx
   case responseJsonMaybe res of
     Nothing -> return False
-    Just m -> return (makeIdOpaque usr == memId m)
+    Just m -> return (usr == memId m)
 
 getStatus :: HasCallStack => Brig -> UserId -> (MonadIO m, MonadHttp m) => m AccountStatus
 getStatus brig u =

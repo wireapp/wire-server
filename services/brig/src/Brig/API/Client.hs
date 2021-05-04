@@ -58,7 +58,7 @@ import Control.Lens (view)
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.IP (IP)
-import Data.Id (ClientId, ConnId, UserId, makeIdOpaque)
+import Data.Id (ClientId, ConnId, UserId)
 import Data.List.Split (chunksOf)
 import qualified Data.Map.Strict as Map
 import Data.Misc (PlainTextPassword (..))
@@ -107,7 +107,7 @@ lookupPubClientsBulk qualifiedUids = do
 -- a superset of the clients known to galley.
 addClient :: UserId -> Maybe ConnId -> Maybe IP -> NewClient -> ExceptT ClientError AppIO Client
 addClient u con ip new = do
-  acc <- lift (Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound (makeIdOpaque u))) return
+  acc <- lift (Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) return
   loc <- maybe (return Nothing) locationOf ip
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> Opt.setUserMaxPermClients <$> view settings
   (clt, old, count) <- Data.addClient u clientId' new maxPermClients loc !>> ClientDataError
