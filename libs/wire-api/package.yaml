@@ -61,9 +61,13 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - base
+    - bytestring
     - bytestring-conversion
     - cassava
+    - directory
     - wire-api
+    - iso639
+    - iso3166-country-codes
     - uuid
     - aeson-qq
     - lens

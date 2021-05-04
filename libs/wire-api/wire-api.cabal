@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f916d8c16937ff52a5fc56653f79d0444071736b0f0a275944eb24b7d1eb2952
+-- hash: 078433135d843ce0a70e1f81fbd230d984322b9fab07572458ebdea67f09e1b9
 
 name:           wire-api
 version:        0.1.0
@@ -126,6 +126,9 @@ test-suite wire-api-tests
   main-is: Main.hs
   other-modules:
       Test.Wire.API.Call.Config
+      Test.Wire.API.Golden.Generated
+      Test.Wire.API.Golden.Generator
+      Test.Wire.API.Golden.Runner
       Test.Wire.API.Roundtrip.Aeson
       Test.Wire.API.Roundtrip.ByteString
       Test.Wire.API.Roundtrip.CSV
@@ -143,10 +146,14 @@ test-suite wire-api-tests
       aeson >=0.6
     , aeson-qq
     , base
+    , bytestring
     , bytestring-conversion
     , cassava
     , containers >=0.5
+    , directory
     , imports
+    , iso3166-country-codes
+    , iso639
     , lens
     , string-conversions
     , swagger2

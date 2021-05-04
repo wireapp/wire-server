@@ -31,6 +31,7 @@ import qualified Test.Wire.API.Team.Member as Team.Member
 import qualified Test.Wire.API.User as User
 import qualified Test.Wire.API.User.RichInfo as User.RichInfo
 import qualified Test.Wire.API.User.Search as User.Search
+import qualified Test.Wire.API.Golden.Generated as Golden.Generated
 
 main :: IO ()
 main =
@@ -45,5 +46,6 @@ main =
         Roundtrip.Aeson.tests,
         Roundtrip.ByteString.tests,
         Swagger.tests,
-        Roundtrip.CSV.tests
+        Roundtrip.CSV.tests,
+        Golden.Generated.tests
       ]
