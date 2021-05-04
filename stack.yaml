@@ -18,6 +18,7 @@ packages:
 - libs/metrics-wai
 - libs/polysemy-wire-zoo
 - libs/ropes
+- libs/schemas
 - libs/sodium-crypto-sign
 - libs/ssl-util
 - libs/tasty-cannon
