@@ -31,6 +31,7 @@ import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
 import Data.Misc (portNumber)
 import Data.Text (unpack)
 import Galley.API (sitemap)
+import Galley.API.Federation (federationSitemap)
 import qualified Galley.API.Internal as Internal
 import Galley.App
 import qualified Galley.App as App
@@ -45,9 +46,11 @@ import Network.Wai.Utilities.Server
 import Servant (Proxy (Proxy))
 import Servant.API ((:<|>) ((:<|>)))
 import qualified Servant.API as Servant
+import Servant.API.Generic (ToServantApi, genericApi)
 import qualified Servant.Server as Servant
 import qualified System.Logger.Class as Log
 import Util.Options
+import qualified Wire.API.Federation.API.Galley as FederationGalley
 
 run :: Opts -> IO ()
 run o = do
@@ -85,14 +88,23 @@ mkApp o = do
       Servant.serve
         -- we don't host any Servant endpoints yet, but will add some for the
         -- federation API, replacing the empty API.
-        (Proxy @(Servant.EmptyAPI :<|> Servant.Raw))
-        (Servant.emptyServer :<|> Servant.Tagged (app e))
+        (Proxy @ServantCombinedAPI)
+        ( Servant.emptyServer
+            :<|> Servant.Tagged (app e)
+            :<|> Servant.hoistServer (genericApi (Proxy @FederationGalley.Api)) (toServantHandler e) federationSitemap
+        )
         r
     middlewares l m =
       waiPrometheusMiddleware sitemap
         . catchErrors l [Right m]
         . GZip.gunzip
         . GZip.gzip GZip.def
+
+type ServantCombinedAPI =
+  ( Servant.EmptyAPI
+      :<|> Servant.Raw
+      :<|> ToServantApi FederationGalley.Api
+  )
 
 refreshMetrics :: Galley ()
 refreshMetrics = do
