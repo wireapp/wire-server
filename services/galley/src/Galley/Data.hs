@@ -110,7 +110,9 @@ import Cassandra.Util
 import Control.Arrow (second)
 import Control.Lens hiding ((<|))
 import Control.Monad.Catch (MonadThrow)
+import Data.Bifunctor (first)
 import Data.ByteString.Conversion hiding (parser)
+import Data.Domain
 import Data.Id as Id
 import Data.Json.Util (UTCTimeMillis (..))
 import Data.LegalHold (UserLegalHoldStatus (..))
@@ -750,11 +752,19 @@ addMembersWithRole t c orig mems = addMembersUncheckedWithRole t c orig (fromMem
 addMembersUnchecked :: MonadClient m => UTCTime -> ConvId -> UserId -> List1 UserId -> m (Event, List1 LocalMember)
 addMembersUnchecked t conv orig usrs = addMembersUncheckedWithRole t conv (orig, roleNameWireAdmin) ((,roleNameWireAdmin) <$> usrs)
 
+-- TODO move this to types-common Data.Qualified
+data BackendOrigin = Local | Remote deriving stock (Eq, Ord, Show, Generic)
+
+data KnownOrigin a = KnownOrigin
+  { kUnqualified :: a,
+    kDomain :: Domain,
+    kOrigin :: BackendOrigin
+  }
+  deriving stock (Eq, Ord, Show, Generic, Functor)
+
 -- | Add members to a local conversation.
 -- Please make sure the conversation doesn't exceed the maximum size!
---
--- For now, we only accept local 'UserId's, but that will change with federation.
-addMembersUncheckedWithRole :: MonadClient m => UTCTime -> ConvId -> (UserId, RoleName) -> List1 (UserId, RoleName) -> m (Event, List1 LocalMember)
+addMembersUncheckedWithRole :: MonadClient m => UTCTime -> ConvId -> (UserId, RoleName) -> List1 (KnownOrigin UserId, RoleName) -> m (Event, [LocalMember])
 addMembersUncheckedWithRole t conv (orig, _origRole) usrs = do
   -- batch statement with 500 users are known to be above the batch size limit
   -- and throw "Batch too large" errors. Therefor we chunk requests and insert
@@ -770,15 +780,25 @@ addMembersUncheckedWithRole t conv (orig, _origRole) usrs = do
       setConsistency Quorum
       for_ chunk $ \(u, r) -> do
         -- Conversation is local, so we can add any member to it (including remote ones).
-        addPrepQuery Cql.insertMember (conv, u, Nothing, Nothing, r)
-        -- Once we accept remote users in this function, we need to distinguish here between
-        -- local and remote ones.
-        -- - For local members, we add the conversation to the table as it's done already.
-        -- - For remote members, we don't do anything here and assume an additional call to
-        --   their backend has been (or will be) made separately.
-        addPrepQuery Cql.insertUserConv (u, conv)
-  let e = Event MemberJoin conv orig t (Just . EdMembersJoin . SimpleMembers . toSimpleMembers $ toList usrs)
-  return (e, fmap (uncurry newMemberWithRole) usrs)
+        case kOrigin u of
+          Local -> do
+            -- User is local, too, so we add it to both the member and the user table
+            let localUser = kUnqualified u
+            addPrepQuery Cql.insertMember (conv, localUser, Nothing, Nothing, r)
+            addPrepQuery Cql.insertUserConv (localUser, conv)
+          Remote -> do
+            -- User is remote, so we only add it to the member_remote_user
+            -- table, but the reverse mapping has to be done on the remote
+            -- backend; so we assume an additional call to their backend has
+            -- been (or will be) made separately.
+            let remoteUser = kUnqualified u
+            let remoteDomain = kDomain u
+            addPrepQuery Cql.insertRemoteMember (conv, remoteDomain, remoteUser)
+  let localUsers = first kUnqualified <$> filter (\x -> kOrigin (fst x) == Local) (toList usrs)
+  -- FUTUREWORK: also include remote users in the event!
+  let e = Event MemberJoin conv orig t (Just . EdMembersJoin . SimpleMembers . toSimpleMembers $ localUsers)
+  -- FUTUREWORK: also include the remote users here!
+  return (e, fmap (uncurry newMemberWithRole) localUsers)
   where
     toSimpleMembers :: [(UserId, RoleName)] -> [SimpleMember]
     toSimpleMembers = fmap (uncurry SimpleMember)
