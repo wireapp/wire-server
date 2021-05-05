@@ -16,14 +16,15 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Galley.API.Federation where
 
-import Data.Id (UserId)
-import Data.Qualified (Qualified)
+import qualified Galley.API.Mapping as Mapping
 import Galley.App (Galley)
+import qualified Galley.Data as Data
 import Imports
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
 import Wire.API.Conversation (Conversation)
+import Wire.API.Federation.API.Galley (GetConversationsRequest (..))
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
 import Wire.API.Federation.Event (ConversationEvent (..), MembersJoin (..))
 
@@ -34,8 +35,10 @@ federationSitemap =
       getConversations
       conversationMemberChange
 
-getConversations :: Qualified UserId -> Galley [Conversation]
-getConversations = undefined
+getConversations :: GetConversationsRequest -> Galley [Conversation]
+getConversations GetConversationsRequest {gcrUserId, gcrConvIds} = do
+  convs <- Data.conversations gcrConvIds
+  for convs (Mapping.conversationView gcrUserId)
 
 conversationMemberChange :: ConversationEvent MembersJoin -> Galley ()
 conversationMemberChange = undefined
