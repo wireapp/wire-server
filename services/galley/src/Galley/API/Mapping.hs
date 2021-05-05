@@ -57,5 +57,5 @@ conversationView u Data.Conversation {..} = do
     badState = Error status500 "bad-state" "Bad internal member state."
 
 toMember :: Internal.LocalMember -> Public.Member
-toMember x@Internal.Member {..} =
+toMember x@Internal.InternalMember {..} =
   Public.Member {memId = Internal.memId x, ..}

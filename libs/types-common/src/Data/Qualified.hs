@@ -27,6 +27,7 @@ module Data.Qualified
 
     -- * Qualified
     Qualified (..),
+    RemoteUserId,
     renderQualifiedId,
     partitionRemoteOrLocalIds,
     partitionQualified,
@@ -42,18 +43,19 @@ import qualified Data.Attoparsec.ByteString.Char8 as Atto
 import Data.ByteString.Conversion (FromByteString (parser))
 import Data.Domain (Domain, domainText)
 import Data.Handle (Handle (..))
-import Data.Id (Id (toUUID))
+import Data.Id (Id (toUUID), UserId)
 import qualified Data.Map as Map
 import Data.Proxy (Proxy (..))
 import Data.String.Conversions (cs)
 import Data.Swagger
 import Data.Swagger.Declare (Declare, DeclareT)
+import Data.Tagged
 import qualified Data.UUID as UUID
 import Imports hiding (local)
 import Test.QuickCheck (Arbitrary (arbitrary))
 
 ----------------------------------------------------------------------
--- OPTIONALLY QUALIFIED
+-- OPTIONALLY QUALIFIED -- FUTUREWORK: remove optionally qualified, not used
 
 data OptionallyQualified a = OptionallyQualified
   { oqUnqualified :: a,
@@ -96,6 +98,8 @@ data Qualified a = Qualified
     qDomain :: Domain
   }
   deriving stock (Eq, Ord, Show, Generic, Functor)
+
+type RemoteUserId = Tagged "remote" (Qualified UserId)
 
 -- | FUTUREWORK: Maybe delete this, it is only used in printing federation not
 -- implemented errors

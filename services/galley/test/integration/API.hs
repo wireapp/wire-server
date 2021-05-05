@@ -46,7 +46,7 @@ import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text as T
 import qualified Data.Text.Ascii as Ascii
-import Galley.Types hiding (InternalMember (..), Member)
+import Galley.Types hiding (InternalMember (..))
 import Galley.Types.Conversations.Roles
 import qualified Galley.Types.Teams as Teams
 import Gundeck.Types.Notification

@@ -131,7 +131,6 @@ import Galley.App
 import Galley.Data.Instances ()
 import qualified Galley.Data.Queries as Cql
 import Galley.Data.Types as Data
-import Galley.Types (LocalMember (..))
 import Galley.Types hiding (Conversation)
 import Galley.Types.Bot (newServiceRef)
 import Galley.Types.Clients (Clients)
@@ -757,9 +756,6 @@ addMembersWithRole t c orig mems = addLocalMembersUncheckedWithRole t c orig (fr
 addMembersUnchecked :: MonadClient m => UTCTime -> ConvId -> UserId -> List1 UserId -> m (Event, [LocalMember])
 addMembersUnchecked t conv orig usrs = addLocalMembersUncheckedWithRole t conv (orig, roleNameWireAdmin) ((,roleNameWireAdmin) <$> usrs)
 
--- TODO move this to types-common Data.Qualified
-type RemoteUserId = Tagged (Remote UserId) (Qualified UserId)
-
 -- | Add only local members to a local conversation.
 -- Please make sure the conversation doesn't exceed the maximum size!
 addLocalMembersUncheckedWithRole :: MonadClient m => UTCTime -> ConvId -> (UserId, RoleName) -> List1 (UserId, RoleName) -> m (Event, [LocalMember])
@@ -867,12 +863,12 @@ removeMember usr cnv = retry x5 . batch $ do
 
 -- FUTUREWORK: the user's conversation has to be deleted on their own backend
 
-newMember :: UserId -> LocalMember
+newMember :: a -> InternalMember a
 newMember = flip newMemberWithRole roleNameWireAdmin
 
-newMemberWithRole :: UserId -> RoleName -> LocalMember
+newMemberWithRole :: a -> RoleName -> InternalMember a
 newMemberWithRole u r =
-  LocalMember
+  InternalMember
     { memId = u,
       memService = Nothing,
       memOtrMuted = False,
@@ -911,7 +907,7 @@ toMember (usr, srv, prv, sta, omu, omus, omur, oar, oarr, hid, hidr, crn) =
       then Nothing
       else
         Just $
-          LocalMember
+          InternalMember
             { memId = usr,
               memService = newServiceRef <$> srv <*> prv,
               memOtrMuted = fromMaybe False omu,
