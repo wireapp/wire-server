@@ -51,7 +51,6 @@ spec = do
     afterAll_ (stopMockFederator stateRef) $
       before_ (flushState stateRef) $
         describe "Federator.Client" $ do
-          -- startMockFederator
           it "should make correct calls to the federator and parse success response correctly" $ do
             handle <- generate arbitrary
             expectedResponse :: Maybe UserProfile <- generate arbitrary
