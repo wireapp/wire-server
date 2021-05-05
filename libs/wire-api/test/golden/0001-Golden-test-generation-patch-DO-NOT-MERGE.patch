@@ -1,0 +1,765 @@
+From 7c77f98453e91d17b7a78ba13a6bbb9437e3790a Mon Sep 17 00:00:00 2001
+From: Paolo Capriotti <paolo@capriotti.io>
+Date: Wed, 5 May 2021 16:43:06 +0200
+Subject: [PATCH] Golden test generation patch (DO NOT MERGE)
+
+---
+ libs/types-common/src/Data/Code.hs            |  5 +++-
+ libs/types-common/src/Data/Json/Util.hs       |  6 ++---
+ libs/types-common/src/Data/List1.hs           |  5 +++-
+ libs/types-common/src/Data/Misc.hs            | 14 +++++-----
+ libs/types-common/src/Data/Range.hs           |  5 +++-
+ libs/types-common/src/Data/Text/Ascii.hs      |  5 +++-
+ libs/wire-api/src/Wire/API/Asset/V3.hs        | 10 +++++--
+ .../src/Wire/API/Asset/V3/Resumable.hs        | 10 +++++--
+ libs/wire-api/src/Wire/API/Call/Config.hs     | 26 +++++++++++++++----
+ .../src/Wire/API/Conversation/Role.hs         | 17 +++++++++---
+ .../src/Wire/API/Event/Conversation.hs        |  5 +++-
+ libs/wire-api/src/Wire/API/Event/Team.hs      |  5 +++-
+ libs/wire-api/src/Wire/API/Message.hs         |  5 +++-
+ libs/wire-api/src/Wire/API/Notification.hs    | 10 +++++--
+ libs/wire-api/src/Wire/API/Provider/Bot.hs    |  5 +++-
+ libs/wire-api/src/Wire/API/Push/V2/Token.hs   |  5 +++-
+ libs/wire-api/src/Wire/API/Team.hs            |  5 +++-
+ .../src/Wire/API/Team/Conversation.hs         | 10 +++++--
+ libs/wire-api/src/Wire/API/Team/Feature.hs    |  3 ++-
+ .../src/Wire/API/Team/LegalHold/External.hs   |  5 +++-
+ libs/wire-api/src/Wire/API/Team/Member.hs     | 15 ++++++++---
+ libs/wire-api/src/Wire/API/User/Auth.hs       |  5 +++-
+ .../src/Wire/API/User/Client/Prekey.hs        |  5 +++-
+ libs/wire-api/src/Wire/API/User/Identity.hs   |  6 ++---
+ libs/wire-api/src/Wire/API/User/Profile.hs    | 14 ++++++----
+ libs/wire-api/test/unit/Main.hs               | 20 +++-----------
+ 26 files changed, 158 insertions(+), 68 deletions(-)
+
+diff --git a/libs/types-common/src/Data/Code.hs b/libs/types-common/src/Data/Code.hs
+index 34c206657..80aec8751 100644
+--- a/libs/types-common/src/Data/Code.hs
++++ b/libs/types-common/src/Data/Code.hs
+@@ -49,7 +49,10 @@ newtype Value = Value {asciiValue :: Range 6 20 AsciiBase64Url}
+ 
+ newtype Timeout = Timeout
+   {timeoutDiffTime :: NominalDiffTime}
+-  deriving (Eq, Show, Ord, Enum, Num, Fractional, Real, RealFrac)
++  deriving (Eq, Ord, Enum, Num, Fractional, Real, RealFrac)
++
++instance Show Timeout where
++  show (Timeout t) = "(Timeout (secondsToNominalDiffTime (" <> show (nominalDiffTimeToSeconds t) <> ")))"
+ 
+ -- | A 'Timeout' is rendered as an integer representing the number of seconds remaining.
+ instance ToByteString Timeout where
+diff --git a/libs/types-common/src/Data/Json/Util.hs b/libs/types-common/src/Data/Json/Util.hs
+index b4a570018..6082910b5 100644
+--- a/libs/types-common/src/Data/Json/Util.hs
++++ b/libs/types-common/src/Data/Json/Util.hs
+@@ -84,6 +84,9 @@ newtype UTCTimeMillis = UTCTimeMillis {fromUTCTimeMillis :: UTCTime}
+   deriving (Eq, Ord, Generic)
+   deriving newtype (ToSchema)
+ 
++instance Show UTCTimeMillis where
++  show t = "(fromJust (readUTCTimeMillis " <> show (showUTCTimeMillis t) <> "))"
++
+ {-# INLINE toUTCTimeMillis #-}
+ toUTCTimeMillis :: HasCallStack => UTCTime -> UTCTimeMillis
+ toUTCTimeMillis = UTCTimeMillis . (TL.seconds . coerced @Pico @_ @Integer %~ (* 1e9) . (`div` 1e9))
+@@ -98,9 +101,6 @@ readUTCTimeMillis = fmap toUTCTimeMillis . parseTimeM True defaultTimeLocale for
+ formatUTCTimeMillis :: String
+ formatUTCTimeMillis = "%FT%T%QZ"
+ 
+-instance Show UTCTimeMillis where
+-  showsPrec d = showParen (d > 10) . showString . showUTCTimeMillis
+-
+ instance ToJSON UTCTimeMillis where
+   toJSON = String . pack . showUTCTimeMillis
+ 
+diff --git a/libs/types-common/src/Data/List1.hs b/libs/types-common/src/Data/List1.hs
+index 3cefeaa6a..7ffc902aa 100644
+--- a/libs/types-common/src/Data/List1.hs
++++ b/libs/types-common/src/Data/List1.hs
+@@ -33,9 +33,12 @@ import Test.QuickCheck.Instances ()
+ newtype List1 a = List1
+   { toNonEmpty :: NonEmpty a
+   }
+-  deriving stock (Eq, Ord, Read, Show, Functor, Foldable, Traversable)
++  deriving stock (Eq, Ord, Read, Functor, Foldable, Traversable)
+   deriving newtype (Applicative, Monad, Semigroup, Arbitrary)
+ 
++instance Show a => Show (List1 a) where
++  show (List1 ls) = "(List1 (NonEmpty.fromList " <> show (N.toList ls) <> "))"
++
+ infixr 5 <|
+ 
+ singleton :: a -> List1 a
+diff --git a/libs/types-common/src/Data/Misc.hs b/libs/types-common/src/Data/Misc.hs
+index 4d5cd5173..8b4cbb29a 100644
+--- a/libs/types-common/src/Data/Misc.hs
++++ b/libs/types-common/src/Data/Misc.hs
+@@ -86,7 +86,10 @@ import qualified URI.ByteString.QQ as URI.QQ
+ -- IpAddr / Port
+ 
+ newtype IpAddr = IpAddr {ipAddr :: IP}
+-  deriving stock (Eq, Ord, Show, Generic)
++  deriving stock (Eq, Ord, Generic)
++
++instance Show IpAddr where
++  show (IpAddr ip) = "(IpAddr (read " <> show (show ip) <> "))"
+ 
+ instance FromByteString IpAddr where
+   parser = do
+@@ -144,12 +147,7 @@ data Location = Location
+   deriving stock (Eq, Ord, Generic)
+ 
+ instance Show Location where
+-  show p =
+-    showString "{latitude="
+-      . shows (_latitude p)
+-      . showString ", longitude="
+-      . shows (_longitude p)
+-      $ "}"
++  show (Location a b) = "(location (Latitude (" <> show a <> ")) (Longitude (" <> show b <> ")))"
+ 
+ instance NFData Location
+ 
+@@ -329,7 +327,7 @@ newtype PlainTextPassword = PlainTextPassword
+   deriving newtype (ToJSON)
+ 
+ instance Show PlainTextPassword where
+-  show _ = "PlainTextPassword <hidden>"
++  show (PlainTextPassword pass) = "(PlainTextPassword " <> show pass <> ")"
+ 
+ instance FromJSON PlainTextPassword where
+   parseJSON x =
+diff --git a/libs/types-common/src/Data/Range.hs b/libs/types-common/src/Data/Range.hs
+index 47b91acd9..e6d68ece9 100644
+--- a/libs/types-common/src/Data/Range.hs
++++ b/libs/types-common/src/Data/Range.hs
+@@ -95,7 +95,10 @@ import qualified Test.QuickCheck as QC
+ newtype Range (n :: Nat) (m :: Nat) a = Range
+   { fromRange :: a
+   }
+-  deriving (Eq, Ord, Show)
++  deriving (Eq, Ord)
++
++instance Show a => Show (Range n m a) where
++  show (Range x) = "(unsafeRange (" <> show x <> "))"
+ 
+ instance (Show a, Num a, Within a n m, KnownNat n, KnownNat m) => Bounded (Range n m a) where
+   minBound = unsafeRange (fromKnownNat (Proxy @n) :: a)
+diff --git a/libs/types-common/src/Data/Text/Ascii.hs b/libs/types-common/src/Data/Text/Ascii.hs
+index f759d9d4b..82785f579 100644
+--- a/libs/types-common/src/Data/Text/Ascii.hs
++++ b/libs/types-common/src/Data/Text/Ascii.hs
+@@ -92,9 +92,12 @@ import Test.QuickCheck.Instances ()
+ -- | 'AsciiText' is text that is known to contain only the subset
+ -- of ASCII characters indicated by its character set @c@.
+ newtype AsciiText c = AsciiText {toText :: Text}
+-  deriving stock (Eq, Ord, Show, Generic)
++  deriving stock (Eq, Ord, Generic)
+   deriving newtype (Semigroup, Monoid, NFData, ToByteString, FromJSONKey, ToJSONKey, Hashable)
+ 
++instance Show (AsciiText c) where
++  show t = "(fromRight undefined (validate (" <> show (toText t) <> ")))"
++
+ newtype AsciiChar c = AsciiChar {toChar :: Char}
+   deriving stock (Eq, Ord, Show)
+ 
+diff --git a/libs/wire-api/src/Wire/API/Asset/V3.hs b/libs/wire-api/src/Wire/API/Asset/V3.hs
+index 7f05d4cb8..80503e739 100644
+--- a/libs/wire-api/src/Wire/API/Asset/V3.hs
++++ b/libs/wire-api/src/Wire/API/Asset/V3.hs
+@@ -82,12 +82,15 @@ data Asset = Asset
+     _assetExpires :: Maybe UTCTime,
+     _assetToken :: Maybe AssetToken
+   }
+-  deriving stock (Eq, Show, Generic)
++  deriving stock (Eq, Generic)
+   deriving (Arbitrary) via (GenericUniform Asset)
+ 
+ mkAsset :: AssetKey -> Asset
+ mkAsset k = Asset k Nothing Nothing
+ 
++instance Show Asset where
++  show (Asset key expires token) = "(mkAsset (" <> show key <> ") & assetExpires .~ (fmap read (" <> show (fmap show expires) <> ")) & assetToken .~ " <> show token <> ")"
++
+ instance ToJSON Asset where
+   toJSON a =
+     object $
+@@ -231,12 +234,15 @@ data AssetSettings = AssetSettings
+   { _setAssetPublic :: Bool,
+     _setAssetRetention :: Maybe AssetRetention
+   }
+-  deriving stock (Eq, Show, Generic)
++  deriving stock (Eq, Generic)
+   deriving (Arbitrary) via (GenericUniform AssetSettings)
+ 
+ defAssetSettings :: AssetSettings
+ defAssetSettings = AssetSettings False Nothing
+ 
++instance Show AssetSettings where
++  show (AssetSettings pub ret) = "(defAssetSettings & setAssetPublic .~ (" <> show pub <> ") & setAssetRetention .~ (" <> show ret <> "))"
++
+ instance ToJSON AssetSettings where
+   toJSON s =
+     object $
+diff --git a/libs/wire-api/src/Wire/API/Asset/V3/Resumable.hs b/libs/wire-api/src/Wire/API/Asset/V3/Resumable.hs
+index 15778704c..b3b8e65a9 100644
+--- a/libs/wire-api/src/Wire/API/Asset/V3/Resumable.hs
++++ b/libs/wire-api/src/Wire/API/Asset/V3/Resumable.hs
+@@ -61,7 +61,7 @@ data ResumableSettings = ResumableSettings
+     _setResumablePublic :: Bool,
+     _setResumableType :: MIME.Type
+   }
+-  deriving stock (Eq, Show, Generic)
++  deriving stock (Eq, Generic)
+   deriving (Arbitrary) via (GenericUniform ResumableSettings)
+ 
+ makeLenses ''ResumableSettings
+@@ -69,6 +69,9 @@ makeLenses ''ResumableSettings
+ mkResumableSettings :: AssetRetention -> Bool -> MIME.Type -> ResumableSettings
+ mkResumableSettings = ResumableSettings
+ 
++instance Show ResumableSettings where
++  show (ResumableSettings ret pub typ) = "(mkResumableSettings (" <> show ret <> ") (" <> show pub <> ") (" <> show typ <> "))"
++
+ instance ToJSON ResumableSettings where
+   toJSON (ResumableSettings ret pub typ) =
+     object $
+@@ -114,7 +117,7 @@ data ResumableAsset = ResumableAsset
+     _resumableExpires :: UTCTime,
+     _resumableChunkSize :: ChunkSize
+   }
+-  deriving stock (Eq, Show, Generic)
++  deriving stock (Eq, Generic)
+   deriving (Arbitrary) via (GenericUniform ResumableAsset)
+ 
+ makeLenses ''ResumableAsset
+@@ -122,6 +125,9 @@ makeLenses ''ResumableAsset
+ mkResumableAsset :: Asset -> UTCTime -> ChunkSize -> ResumableAsset
+ mkResumableAsset = ResumableAsset
+ 
++instance Show ResumableAsset where
++  show (ResumableAsset asset expires cs) = "(mkResumableAsset (" <> show asset <> ") (read " <> show (show expires) <> ") (" <> show cs <> "))"
++
+ instance ToJSON ResumableAsset where
+   toJSON r =
+     object $
+diff --git a/libs/wire-api/src/Wire/API/Call/Config.hs b/libs/wire-api/src/Wire/API/Call/Config.hs
+index 9fca13243..348f2f945 100644
+--- a/libs/wire-api/src/Wire/API/Call/Config.hs
++++ b/libs/wire-api/src/Wire/API/Call/Config.hs
+@@ -92,6 +92,7 @@ import Imports
+ import qualified Test.QuickCheck as QC
+ import Text.Hostname (validHostname)
+ import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
++import Data.Time (nominalDiffTimeToSeconds)
+ 
+ --------------------------------------------------------------------------------
+ -- RTCConfiguration
+@@ -107,9 +108,12 @@ data RTCConfiguration = RTCConfiguration
+     _rtcConfSftServers :: Maybe (NonEmpty SFTServer),
+     _rtcConfTTL :: Word32
+   }
+-  deriving stock (Eq, Show, Generic)
++  deriving stock (Eq, Generic)
+   deriving (Arbitrary) via (GenericUniform RTCConfiguration)
+ 
++instance Show RTCConfiguration where
++  show (RTCConfiguration ice sft ttl) = "(rtcConfiguration (" <> show ice <> ") (" <> show sft <> ") (" <> show ttl <> "))"
++
+ rtcConfiguration :: NonEmpty RTCIceServer -> Maybe (NonEmpty SFTServer) -> Word32 -> RTCConfiguration
+ rtcConfiguration = RTCConfiguration
+ 
+@@ -142,9 +146,12 @@ instance FromJSON RTCConfiguration where
+ newtype SFTServer = SFTServer
+   { _sftURL :: HttpsUrl
+   }
+-  deriving stock (Eq, Show, Ord, Generic)
++  deriving stock (Eq, Ord, Generic)
+   deriving (Arbitrary) via (GenericUniform SFTServer)
+ 
++instance Show SFTServer where
++  show (SFTServer url) = "(sftServer (" <> show url <> "))"
++
+ instance ToJSON SFTServer where
+   toJSON (SFTServer url) =
+     object
+@@ -177,9 +184,12 @@ data RTCIceServer = RTCIceServer
+     _iceUsername :: TurnUsername,
+     _iceCredential :: AsciiBase64
+   }
+-  deriving stock (Eq, Show, Generic)
++  deriving stock (Eq, Generic)
+   deriving (Arbitrary) via (GenericUniform RTCIceServer)
+ 
++instance Show RTCIceServer where
++  show (RTCIceServer urls user cred) = "(rtcIceServer (" <> show urls <> ") (" <> show user <> ") (" <> show cred <> "))"
++
+ rtcIceServer :: NonEmpty TurnURI -> TurnUsername -> AsciiBase64 -> RTCIceServer
+ rtcIceServer = RTCIceServer
+ 
+@@ -224,7 +234,10 @@ data TurnURI = TurnURI
+     _turiPort :: Port,
+     _turiTransport :: Maybe Transport
+   }
+-  deriving stock (Eq, Show, Generic)
++  deriving stock (Eq, Generic)
++
++instance Show TurnURI where
++  show (TurnURI sch h p tr) = "(turnURI (" <> show sch <> ") (" <> show h <> ") (read " <> show (show (portNumber p)) <> ") (" <> show tr <> "))"
+ 
+ turnURI :: Scheme -> TurnHost -> Port -> Maybe Transport -> TurnURI
+ turnURI = TurnURI
+@@ -377,7 +390,10 @@ data TurnUsername = TurnUsername
+     -- | [a-z0-9]+
+     _tuRandom :: Text
+   }
+-  deriving stock (Eq, Show, Generic)
++  deriving stock (Eq, Generic)
++
++instance Show TurnUsername where
++  show (TurnUsername expires v idx t rnd) = "(turnUsername (secondsToNominalDiffTime (" <> show (nominalDiffTimeToSeconds expires) <> ")) (" <> show rnd <> ") & tuVersion .~ (" <> show v <> ") & tuKeyindex .~ (" <> show idx <> ") & tuT .~ (" <> show t <>"))"
+ 
+ -- note that the random value is not checked for well-formedness
+ turnUsername :: POSIXTime -> Text -> TurnUsername
+diff --git a/libs/wire-api/src/Wire/API/Conversation/Role.hs b/libs/wire-api/src/Wire/API/Conversation/Role.hs
+index 68597c928..89ef384b0 100644
+--- a/libs/wire-api/src/Wire/API/Conversation/Role.hs
++++ b/libs/wire-api/src/Wire/API/Conversation/Role.hs
+@@ -79,9 +79,13 @@ data ConversationRole
+   = ConvRoleWireAdmin
+   | ConvRoleWireMember
+   | ConvRoleCustom RoleName Actions
+-  deriving stock (Eq, Show, Generic)
++  deriving stock (Eq, Generic)
+   deriving (Arbitrary) via (GenericUniform ConversationRole)
+ 
++instance Show ConversationRole where
++  show (ConvRoleCustom name actions) = "(fromJust (toConvRole " <> show name <> " (Just ("<> show actions <>"))))"
++  show r = "(fromJust (toConvRole " <> show (roleToRoleName r) <> " Nothing))"
++
+ modelConversationRole :: Doc.Model
+ modelConversationRole = Doc.defineModel "ConversationRole" $ do
+   Doc.description "Conversation role"
+@@ -166,9 +170,12 @@ instance FromJSON ConversationRolesList where
+ -- and cannot be created by externals. Therefore, never
+ -- expose this constructor outside of this module.
+ newtype RoleName = RoleName {fromRoleName :: Text}
+-  deriving stock (Eq, Show, Generic)
++  deriving stock (Eq, Generic)
+   deriving newtype (ToJSON, ToByteString, Hashable)
+ 
++instance Show RoleName where
++  show (RoleName name) = "(fromJust (parseRoleName " <> show name <> "))"
++
+ instance FromByteString RoleName where
+   parser = parser >>= maybe (fail "Invalid RoleName") return . parseRoleName
+ 
+@@ -218,9 +225,13 @@ isValidRoleName =
+ newtype Actions = Actions
+   { allowedActions :: Set Action
+   }
+-  deriving stock (Eq, Show, Generic)
++  deriving stock (Eq, Generic)
+   deriving newtype (Arbitrary)
+ 
++instance Show Actions where
++  show (Actions acts) = "(Actions (Set.fromList " <> show (Set.toList acts) <> "))"
++
++
+ allActions :: Actions
+ allActions = Actions $ Set.fromList [minBound .. maxBound]
+ 
+diff --git a/libs/wire-api/src/Wire/API/Event/Conversation.hs b/libs/wire-api/src/Wire/API/Event/Conversation.hs
+index e3c7086bb..19674af7c 100644
+--- a/libs/wire-api/src/Wire/API/Event/Conversation.hs
++++ b/libs/wire-api/src/Wire/API/Event/Conversation.hs
+@@ -90,7 +90,10 @@ data Event = Event
+     evtTime :: UTCTime,
+     evtData :: Maybe EventData
+   }
+-  deriving stock (Eq, Show, Generic)
++  deriving stock (Eq, Generic)
++
++instance Show Event where
++  show (Event ty c u tm d) = "(Event (" <> show ty <> ") (" <> show c <> ") (" <> show u <> ") (read " <> show (show tm) <> ") (" <> show d <> "))"
+ 
+ modelEvent :: Doc.Model
+ modelEvent = Doc.defineModel "Event" $ do
+diff --git a/libs/wire-api/src/Wire/API/Event/Team.hs b/libs/wire-api/src/Wire/API/Event/Team.hs
+index a51b1fd2c..a3b96c406 100644
+--- a/libs/wire-api/src/Wire/API/Event/Team.hs
++++ b/libs/wire-api/src/Wire/API/Event/Team.hs
+@@ -68,7 +68,10 @@ data Event = Event
+     _eventTime :: UTCTime,
+     _eventData :: Maybe EventData
+   }
+-  deriving stock (Eq, Show, Generic)
++  deriving stock (Eq, Generic)
++
++instance Show Event where
++  show (Event ty team tm d) = "(newEvent (" <> show ty <> ") (" <> show team <> ") (read (" <> show (show tm) <> ")) & eventData .~ (" <> show d <> "))"
+ 
+ newEvent :: EventType -> TeamId -> UTCTime -> Event
+ newEvent typ tid tme = Event typ tid tme Nothing
+diff --git a/libs/wire-api/src/Wire/API/Message.hs b/libs/wire-api/src/Wire/API/Message.hs
+index 1e7cdd9b8..873ae8299 100644
+--- a/libs/wire-api/src/Wire/API/Message.hs
++++ b/libs/wire-api/src/Wire/API/Message.hs
+@@ -198,9 +198,12 @@ data ClientMismatch = ClientMismatch
+     redundantClients :: UserClients,
+     deletedClients :: UserClients
+   }
+-  deriving stock (Eq, Show, Generic)
++  deriving stock (Eq, Generic)
+   deriving (Arbitrary) via (GenericUniform ClientMismatch)
+ 
++instance Show ClientMismatch where
++  show (ClientMismatch tm mis red del) = "(ClientMismatch (read " <> show (show tm) <> ") (" <> show mis <> ") (" <> show red <> ") (" <> show del <> "))"
++
+ modelClientMismatch :: Doc.Model
+ modelClientMismatch = Doc.defineModel "ClientMismatch" $ do
+   Doc.description "Map of missing, redundant or deleted clients."
+diff --git a/libs/wire-api/src/Wire/API/Notification.hs b/libs/wire-api/src/Wire/API/Notification.hs
+index fc2a343b9..2902c8562 100644
+--- a/libs/wire-api/src/Wire/API/Notification.hs
++++ b/libs/wire-api/src/Wire/API/Notification.hs
+@@ -72,12 +72,15 @@ data QueuedNotification = QueuedNotification
+   { _queuedNotificationId :: NotificationId,
+     _queuedNotificationPayload :: List1 Event
+   }
+-  deriving stock (Eq, Show, Generic)
++  deriving stock (Eq, Generic)
+   deriving (Arbitrary) via (GenericUniform QueuedNotification)
+ 
+ queuedNotification :: NotificationId -> List1 Event -> QueuedNotification
+ queuedNotification = QueuedNotification
+ 
++instance Show QueuedNotification where
++  show (QueuedNotification i pl) = "(queuedNotification (" <> show i <> ") (" <> show pl <> "))"
++
+ makeLenses ''QueuedNotification
+ 
+ modelNotification :: Doc.Model
+@@ -106,9 +109,12 @@ data QueuedNotificationList = QueuedNotificationList
+     _queuedHasMore :: Bool,
+     _queuedTime :: Maybe UTCTime
+   }
+-  deriving stock (Eq, Show, Generic)
++  deriving stock (Eq, Generic)
+   deriving (Arbitrary) via (GenericUniform QueuedNotificationList)
+ 
++instance Show QueuedNotificationList where
++  show (QueuedNotificationList ns mo t) = "(queuedNotificationList (" <> show ns <> ") (" <> show mo <> ") (fmap read (" <> show (fmap show t) <> ")))"
++
+ queuedNotificationList :: [QueuedNotification] -> Bool -> Maybe UTCTime -> QueuedNotificationList
+ queuedNotificationList = QueuedNotificationList
+ 
+diff --git a/libs/wire-api/src/Wire/API/Provider/Bot.hs b/libs/wire-api/src/Wire/API/Provider/Bot.hs
+index 496db23a6..6cb182b0a 100644
+--- a/libs/wire-api/src/Wire/API/Provider/Bot.hs
++++ b/libs/wire-api/src/Wire/API/Provider/Bot.hs
+@@ -50,9 +50,12 @@ data BotConvView = BotConvView
+     _botConvName :: Maybe Text,
+     _botConvMembers :: [OtherMember]
+   }
+-  deriving stock (Eq, Show, Generic)
++  deriving stock (Eq, Generic)
+   deriving (Arbitrary) via (GenericUniform BotConvView)
+ 
++instance Show BotConvView where
++  show (BotConvView i n m) = "(botConvView (" <> show i <> ") (" <> show n <> ") (" <> show m <> "))"
++
+ botConvView :: ConvId -> Maybe Text -> [OtherMember] -> BotConvView
+ botConvView = BotConvView
+ 
+diff --git a/libs/wire-api/src/Wire/API/Push/V2/Token.hs b/libs/wire-api/src/Wire/API/Push/V2/Token.hs
+index ad2a8d9de..8c96fecb6 100644
+--- a/libs/wire-api/src/Wire/API/Push/V2/Token.hs
++++ b/libs/wire-api/src/Wire/API/Push/V2/Token.hs
+@@ -80,9 +80,12 @@ data PushToken = PushToken
+     _token :: Token,
+     _tokenClient :: ClientId
+   }
+-  deriving stock (Eq, Ord, Show, Generic)
++  deriving stock (Eq, Ord, Generic)
+   deriving (Arbitrary) via (GenericUniform PushToken)
+ 
++instance Show PushToken where
++  show (PushToken tp an tk cl) = "(pushToken (" <> show tp <> ") (" <> show an <> ") (" <> show tk <> ") (" <> show cl <> "))"
++
+ pushToken :: Transport -> AppName -> Token -> ClientId -> PushToken
+ pushToken tp an tk cl = PushToken tp an tk cl
+ 
+diff --git a/libs/wire-api/src/Wire/API/Team.hs b/libs/wire-api/src/Wire/API/Team.hs
+index 0e8aa37e3..92edd6af0 100644
+--- a/libs/wire-api/src/Wire/API/Team.hs
++++ b/libs/wire-api/src/Wire/API/Team.hs
+@@ -94,9 +94,12 @@ data Team = Team
+     _teamIconKey :: Maybe Text,
+     _teamBinding :: TeamBinding
+   }
+-  deriving stock (Eq, Show, Generic)
++  deriving stock (Eq, Generic)
+   deriving (Arbitrary) via (GenericUniform Team)
+ 
++instance Show Team where
++  show (Team tid uid nme ico key bnd) = "(newTeam (" <> show tid <> ") (" <> show uid <> ") (" <> show nme <> ") (" <> show ico <> ") (" <> show bnd <> ") & teamIconKey .~ (" <> show key <> "))"
++
+ newTeam :: TeamId -> UserId -> Text -> Text -> TeamBinding -> Team
+ newTeam tid uid nme ico bnd = Team tid uid nme ico Nothing bnd
+ 
+diff --git a/libs/wire-api/src/Wire/API/Team/Conversation.hs b/libs/wire-api/src/Wire/API/Team/Conversation.hs
+index 8cce5edec..c3d2d64b5 100644
+--- a/libs/wire-api/src/Wire/API/Team/Conversation.hs
++++ b/libs/wire-api/src/Wire/API/Team/Conversation.hs
+@@ -52,9 +52,12 @@ data TeamConversation = TeamConversation
+   { _conversationId :: ConvId,
+     _managedConversation :: Bool
+   }
+-  deriving stock (Eq, Show, Generic)
++  deriving stock (Eq, Generic)
+   deriving (Arbitrary) via (GenericUniform TeamConversation)
+ 
++instance Show TeamConversation where
++  show (TeamConversation cid man) = "(newTeamConversation (" <> show cid <> ") (" <> show man <> "))"
++
+ newTeamConversation :: ConvId -> Bool -> TeamConversation
+ newTeamConversation = TeamConversation
+ 
+@@ -83,9 +86,12 @@ instance FromJSON TeamConversation where
+ newtype TeamConversationList = TeamConversationList
+   { _teamConversations :: [TeamConversation]
+   }
+-  deriving stock (Eq, Show)
++  deriving stock (Eq)
+   deriving newtype (Arbitrary)
+ 
++instance Show TeamConversationList where
++  show (TeamConversationList ls) = "(newTeamConversationList " <> show ls <> ")"
++
+ newTeamConversationList :: [TeamConversation] -> TeamConversationList
+ newTeamConversationList = TeamConversationList
+ 
+diff --git a/libs/wire-api/src/Wire/API/Team/Feature.hs b/libs/wire-api/src/Wire/API/Team/Feature.hs
+index 1cac1cb07..d200dd2f1 100644
+--- a/libs/wire-api/src/Wire/API/Team/Feature.hs
++++ b/libs/wire-api/src/Wire/API/Team/Feature.hs
+@@ -208,7 +208,8 @@ modelForTeamFeature name@TeamFeatureAppLock = modelTeamFeatureStatusWithConfig n
+ newtype TeamFeatureStatusNoConfig = TeamFeatureStatusNoConfig
+   { tfwoStatus :: TeamFeatureStatusValue
+   }
+-  deriving newtype (Eq, Show, Generic, Typeable, Arbitrary)
++  deriving newtype (Eq, Generic, Typeable, Arbitrary)
++  deriving stock (Show)
+ 
+ modelTeamFeatureStatusNoConfig :: Doc.Model
+ modelTeamFeatureStatusNoConfig = Doc.defineModel "TeamFeatureStatusNoConfig" $ do
+diff --git a/libs/wire-api/src/Wire/API/Team/LegalHold/External.hs b/libs/wire-api/src/Wire/API/Team/LegalHold/External.hs
+index feb034ada..4305a35d5 100644
+--- a/libs/wire-api/src/Wire/API/Team/LegalHold/External.hs
++++ b/libs/wire-api/src/Wire/API/Team/LegalHold/External.hs
+@@ -48,9 +48,12 @@ data RequestNewLegalHoldClient = RequestNewLegalHoldClient
+   { userId :: UserId,
+     teamId :: TeamId
+   }
+-  deriving stock (Show, Eq, Generic)
++  deriving stock (Eq, Generic)
+   deriving (Arbitrary) via (GenericUniform RequestNewLegalHoldClient)
+ 
++instance Show RequestNewLegalHoldClient where
++  show (RequestNewLegalHoldClient uid tid) = "(RequestNewLegalHoldClient (" <> show uid <> ") (" <> show tid <> "))"
++
+ instance ToJSON RequestNewLegalHoldClient where
+   toJSON (RequestNewLegalHoldClient userId teamId) =
+     object $
+diff --git a/libs/wire-api/src/Wire/API/Team/Member.hs b/libs/wire-api/src/Wire/API/Team/Member.hs
+index a106c02cc..9503860ac 100644
+--- a/libs/wire-api/src/Wire/API/Team/Member.hs
++++ b/libs/wire-api/src/Wire/API/Team/Member.hs
+@@ -161,9 +161,12 @@ data TeamMemberList = TeamMemberList
+   { _teamMembers :: [TeamMember],
+     _teamMemberListType :: ListType
+   }
+-  deriving stock (Eq, Show, Generic)
++  deriving stock (Eq, Generic)
+   deriving (Arbitrary) via (GenericUniform TeamMemberList)
+ 
++instance Show TeamMemberList where
++  show (TeamMemberList ls ty) = "(newTeamMemberList (" <> show ls <> ") (" <> show ty <> "))"
++
+ newTeamMemberList :: [TeamMember] -> ListType -> TeamMemberList
+ newTeamMemberList = TeamMemberList
+ 
+@@ -218,9 +221,12 @@ instance FromJSON ListType where
+ newtype NewTeamMember = NewTeamMember
+   { _ntmNewTeamMember :: TeamMember
+   }
+-  deriving stock (Eq, Show)
++  deriving stock (Eq)
+   deriving newtype (Arbitrary)
+ 
++instance Show NewTeamMember where
++  show (NewTeamMember tm) = "(newNewTeamMember (" <> show tm <> "))"
++
+ newNewTeamMember :: TeamMember -> NewTeamMember
+ newNewTeamMember = NewTeamMember
+ 
+@@ -243,9 +249,12 @@ instance FromJSON NewTeamMember where
+ newtype TeamMemberDeleteData = TeamMemberDeleteData
+   { _tmdAuthPassword :: Maybe PlainTextPassword
+   }
+-  deriving stock (Eq, Show)
++  deriving stock (Eq)
+   deriving newtype (Arbitrary)
+ 
++instance Show TeamMemberDeleteData where
++  show (TeamMemberDeleteData pass) = "(newTeamMemberDeleteData (" <> show pass <> "))"
++
+ newTeamMemberDeleteData :: Maybe PlainTextPassword -> TeamMemberDeleteData
+ newTeamMemberDeleteData = TeamMemberDeleteData
+ 
+diff --git a/libs/wire-api/src/Wire/API/User/Auth.hs b/libs/wire-api/src/Wire/API/User/Auth.hs
+index 87309ff46..d65585390 100644
+--- a/libs/wire-api/src/Wire/API/User/Auth.hs
++++ b/libs/wire-api/src/Wire/API/User/Auth.hs
+@@ -277,9 +277,12 @@ data Cookie a = Cookie
+     cookieSucc :: Maybe CookieId,
+     cookieValue :: a
+   }
+-  deriving stock (Eq, Show, Generic)
++  deriving stock (Eq, Generic)
+   deriving (Arbitrary) via (GenericUniform (Cookie a))
+ 
++instance Show a => Show (Cookie a) where
++  show (Cookie i ty cr ex lb suc val) = "(Cookie (" <> show i <> ") (" <> show ty <> ") (read (" <> show (show cr) <> ")) (read (" <> show (show ex) <> ")) (" <> show lb <> ") (" <> show suc <> ") (" <> show val <> "))"
++
+ modelCookie :: Doc.Model
+ modelCookie = Doc.defineModel "Cookie" $ do
+   Doc.description "Cookie information"
+diff --git a/libs/wire-api/src/Wire/API/User/Client/Prekey.hs b/libs/wire-api/src/Wire/API/User/Client/Prekey.hs
+index 1488a5a12..0371ad36c 100644
+--- a/libs/wire-api/src/Wire/API/User/Client/Prekey.hs
++++ b/libs/wire-api/src/Wire/API/User/Client/Prekey.hs
+@@ -89,7 +89,10 @@ clientIdFromPrekey prekey =
+ 
+ newtype LastPrekey = LastPrekey
+   {unpackLastPrekey :: Prekey}
+-  deriving stock (Eq, Show, Generic)
++  deriving stock (Eq, Generic)
++
++instance Show LastPrekey where
++  show (LastPrekey pk) = "(lastPrekey (" <> show (prekeyKey pk) <> "))"
+ 
+ instance ToSchema LastPrekey where
+   declareNamedSchema _ = declareNamedSchema (Proxy @Prekey)
+diff --git a/libs/wire-api/src/Wire/API/User/Identity.hs b/libs/wire-api/src/Wire/API/User/Identity.hs
+index 7967fa9e4..504d292a2 100644
+--- a/libs/wire-api/src/Wire/API/User/Identity.hs
++++ b/libs/wire-api/src/Wire/API/User/Identity.hs
+@@ -143,13 +143,13 @@ data Email = Email
+   { emailLocal :: Text,
+     emailDomain :: Text
+   }
+-  deriving stock (Eq, Ord, Generic)
++  deriving stock (Eq, Ord, Generic, Show)
+ 
+ instance ToSchema Email where
+   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+ 
+-instance Show Email where
+-  show = Text.unpack . fromEmail
++-- instance Show Email where
++--   show = show . Text.unpack . fromEmail
+ 
+ instance ToByteString Email where
+   builder = builder . fromEmail
+diff --git a/libs/wire-api/src/Wire/API/User/Profile.hs b/libs/wire-api/src/Wire/API/User/Profile.hs
+index 9fc77aab5..a47768ca3 100644
+--- a/libs/wire-api/src/Wire/API/User/Profile.hs
++++ b/libs/wire-api/src/Wire/API/User/Profile.hs
+@@ -122,9 +122,12 @@ data Asset = ImageAsset
+   { assetKey :: Text,
+     assetSize :: Maybe AssetSize
+   }
+-  deriving stock (Eq, Show, Generic)
++  deriving stock (Eq, Generic)
+   deriving (Arbitrary) via (GenericUniform Asset)
+ 
++instance Show Asset where
++  show (ImageAsset key sz) = "(ImageAsset " <> show key <> " (" <> show sz <> "))"
++
+ -- Cannot use deriving (ToSchema) via (CustomSwagger ...) because we need to add
+ -- 'type'
+ instance ToSchema Asset where
+@@ -203,7 +206,7 @@ data Locale = Locale
+   { lLanguage :: Language,
+     lCountry :: Maybe Country
+   }
+-  deriving stock (Eq, Ord, Generic)
++  deriving stock (Eq, Ord, Generic, Show)
+   deriving (Arbitrary) via (GenericUniform Locale)
+ 
+ instance ToSchema Locale where
+@@ -218,8 +221,6 @@ instance FromJSON Locale where
+ instance ToJSON Locale where
+   toJSON = String . locToText
+ 
+-instance Show Locale where
+-  show = Text.unpack . locToText
+ 
+ locToText :: Locale -> Text
+ locToText (Locale l c) = lan2Text l <> maybe mempty (("-" <>) . con2Text) c
+@@ -236,9 +237,12 @@ parseLocale = hush . parseOnly localeParser
+ -- Language
+ 
+ newtype Language = Language {fromLanguage :: ISO639_1}
+-  deriving stock (Eq, Ord, Show, Generic)
++  deriving stock (Eq, Ord, Generic)
+   deriving newtype (Arbitrary, ToSchema)
+ 
++instance Show Language where
++  show (Language l) = "Language Data.LanguageCodes." <> show l
++
+ languageParser :: Parser Language
+ languageParser = codeParser "language" $ fmap Language . checkAndConvert isLower
+ 
+diff --git a/libs/wire-api/test/unit/Main.hs b/libs/wire-api/test/unit/Main.hs
+index a3f583d5f..1deac023c 100644
+--- a/libs/wire-api/test/unit/Main.hs
++++ b/libs/wire-api/test/unit/Main.hs
+@@ -15,6 +15,8 @@
+ -- You should have received a copy of the GNU Affero General Public License along
+ -- with this program. If not, see <https://www.gnu.org/licenses/>.
+ 
++{-# OPTIONS_GHC -Wwarn #-}
++
+ module Main
+   ( main,
+   )
+@@ -31,21 +33,7 @@ import qualified Test.Wire.API.Team.Member as Team.Member
+ import qualified Test.Wire.API.User as User
+ import qualified Test.Wire.API.User.RichInfo as User.RichInfo
+ import qualified Test.Wire.API.User.Search as User.Search
+-import qualified Test.Wire.API.Golden.Generated as Golden.Generated
++import qualified Test.Wire.API.Golden.Generator as Golden.Generator
+ 
+ main :: IO ()
+-main =
+-  defaultMain $
+-    testGroup
+-      "Tests"
+-      [ Call.Config.tests,
+-        Team.Member.tests,
+-        User.tests,
+-        User.Search.tests,
+-        User.RichInfo.tests,
+-        Roundtrip.Aeson.tests,
+-        Roundtrip.ByteString.tests,
+-        Swagger.tests,
+-        Roundtrip.CSV.tests,
+-        Golden.Generated.tests
+-      ]
++main = Golden.Generator.generateTestModule
+-- 
+2.31.1
+
