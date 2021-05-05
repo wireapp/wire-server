@@ -567,7 +567,10 @@ createConversation usr name acc role others tinfo mtimer recpt othersConversatio
       setConsistency Quorum
       addPrepQuery Cql.insertConv (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Just (cnvTeamId ti), mtimer, recpt)
       addPrepQuery Cql.insertTeamConv (cnvTeamId ti, conv, cnvManaged ti)
-  mems <- snd <$> addMembersUncheckedWithRole now conv (usr, roleNameWireAdmin) (toList $ list1 (usr, roleNameWireAdmin) ((,othersConversationRole) <$> fromConvSize others)) futureWorkRemoteUsers
+  -- FUTUREWORK: split users into list of remote and local users
+  let remoteUsers :: [(RemoteUserId, RoleName)]
+      remoteUsers = []
+  mems <- snd <$> addMembersUncheckedWithRole now conv (usr, roleNameWireAdmin) (toList $ list1 (usr, roleNameWireAdmin) ((,othersConversationRole) <$> fromConvSize others)) remoteUsers
   return $ newConv conv RegularConv usr (toList mems) acc role name (cnvTeamId <$> tinfo) mtimer recpt
 
 createSelfConversation :: MonadClient m => UserId -> Maybe (Range 1 256 Text) -> m Conversation
@@ -743,23 +746,25 @@ members conv = join <$> memberLists [conv]
 addMember :: MonadClient m => UTCTime -> ConvId -> UserId -> m (Event, [LocalMember])
 addMember t c u = addMembersUnchecked t c u (singleton u)
 
--- FUTUREWORK(federation) pass actual remote users here when implementing qualified conversation endpoints
-futureWorkRemoteUsers :: [(RemoteUserId, RoleName)]
-futureWorkRemoteUsers = []
-
--- | Add members to a local conversation.
+-- | Add local members to a local conversation.
 addMembersWithRole :: MonadClient m => UTCTime -> ConvId -> (UserId, RoleName) -> ConvMemberAddSizeChecked (List1 (UserId, RoleName)) -> m (Event, [LocalMember])
-addMembersWithRole t c orig mems = addMembersUncheckedWithRole t c orig (toList $ fromMemberSize mems) futureWorkRemoteUsers
+addMembersWithRole t c orig mems = addLocalMembersUncheckedWithRole t c orig (fromMemberSize mems)
 
 -- | Add members to a local conversation, all as admins.
 -- Please make sure the conversation doesn't exceed the maximum size!
 addMembersUnchecked :: MonadClient m => UTCTime -> ConvId -> UserId -> List1 UserId -> m (Event, [LocalMember])
-addMembersUnchecked t conv orig usrs = addMembersUncheckedWithRole t conv (orig, roleNameWireAdmin) ((,roleNameWireAdmin) <$> toList usrs) futureWorkRemoteUsers
+addMembersUnchecked t conv orig usrs = addLocalMembersUncheckedWithRole t conv (orig, roleNameWireAdmin) ((,roleNameWireAdmin) <$> usrs)
 
 -- TODO move this to types-common Data.Qualified
 type RemoteUserId = Tagged (Remote UserId) (Qualified UserId)
 
+-- | Add only local members to a local conversation.
+-- Please make sure the conversation doesn't exceed the maximum size!
+addLocalMembersUncheckedWithRole :: MonadClient m => UTCTime -> ConvId -> (UserId, RoleName) -> List1 (UserId, RoleName) -> m (Event, [LocalMember])
+addLocalMembersUncheckedWithRole t conv orig lusers = addMembersUncheckedWithRole t conv orig (toList lusers) []
+
 -- | Add members to a local conversation.
+-- Conversation is local, so we can add any member to it (including remote ones).
 -- Please make sure the conversation doesn't exceed the maximum size!
 addMembersUncheckedWithRole :: MonadClient m => UTCTime -> ConvId -> (UserId, RoleName) -> [(UserId, RoleName)] -> [(RemoteUserId, RoleName)] -> m (Event, [LocalMember])
 addMembersUncheckedWithRole t conv (orig, _origRole) lusrs rusrs = do
@@ -772,7 +777,6 @@ addMembersUncheckedWithRole t conv (orig, _origRole) lusrs rusrs = do
   -- With chunk size of 64:
   -- [galley] Server warning: Batch for [galley_test.member, galley_test.user] is of size 7040, exceeding specified threshold of 5120 by 1920.
   --
-  -- Conversation is local, so we can add any member to it (including remote ones).
   for_ (List.chunksOf 32 lusrs) $ \chunk -> do
     retry x5 . batch $ do
       setType BatchLogged

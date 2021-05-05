@@ -774,6 +774,7 @@ addToConversation (bots, others) (usr, usrRole) conn xs c = do
   ensureGroupConv c
   mems <- checkedMemberAddSize xs
   now <- liftIO getCurrentTime
+  -- FUTUREWORK: do we need to handle remote users here, too?
   (e, mm) <- Data.addMembersWithRole now (Data.convId c) (usr, usrRole) mems
   let allMembers = nubOrdOn memId (toList mm <> others)
   for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> allMembers)) $ \p ->
