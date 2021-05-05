@@ -114,14 +114,14 @@ lookupConnectionStatus from to =
 
 -- | See 'lookupContactListWithRelation'.
 lookupContactList :: UserId -> AppIO [UserId]
-lookupContactList u = fst <$$> lookupContactListWithRelation u
+lookupContactList u =
+  fst <$$> (filter ((== Accepted) . snd) <$> lookupContactListWithRelation u)
 
 -- | For a given user 'A', lookup the list of users that form his contact list,
 -- i.e. the users to whom 'A' has an outgoing 'Accepted' relation (A -> B).
 lookupContactListWithRelation :: UserId -> AppIO [(UserId, Relation)]
 lookupContactListWithRelation u =
-  filter ((== Accepted) . snd)
-    <$> retry x1 (query contactsSelect (params Quorum (Identity u)))
+  retry x1 (query contactsSelect (params Quorum (Identity u)))
 
 -- | Count the number of connections a user has in a specific relation status.
 -- Note: The count is eventually consistent.
