@@ -283,6 +283,32 @@ updateMemberHidden = "update member set hidden = ?, hidden_ref = ? where conv = 
 updateMemberConvRoleName :: PrepQuery W (RoleName, ConvId, UserId) ()
 updateMemberConvRoleName = "update member set conversation_role = ? where conv = ? and user = ?"
 
+-- Federated conversations -----------------------------------------------------
+-- FUTUREWORK(federation): allow queries for pagination to support more than 500 (?) conversations
+-- TODO: support other conversation attributes such as conv_role, etc
+
+-- local conversation with remote members
+
+insertRemoteMember :: PrepQuery W (ConvId, Domain, UserId) ()
+insertRemoteMember = "insert into member_remote_user (conv, user_remote_domain, user_remote_id) values (?, ?, ?)"
+
+removeRemoteMember :: PrepQuery W (ConvId, Domain, UserId) ()
+removeRemoteMember = "delete from member_remote_user where conv = ? and user_remote_domain = ? and user_remote_id = ?"
+
+selectRemoteMembers :: PrepQuery R (Identity [ConvId]) (ConvId, Domain, UserId)
+selectRemoteMembers = "select conv, user_remote_domain, user_remote_id from member_remote_user where conv in ?"
+
+-- local user with remote conversations
+
+insertRemoteUserConv :: PrepQuery W (UserId, Domain, ConvId) ()
+insertRemoteUserConv = "insert into user_remote_conv (user, conv_remote_domain, conv_remote_id) values (?, ?, ?)"
+
+deleteRemoteUserConv :: PrepQuery W (UserId, Domain, ConvId) ()
+deleteRemoteUserConv = "delete from user_remote_conv where user = ? and conv_remote_domain = ? and conv_remote_id = ?"
+
+selectRemoteUserConvs :: PrepQuery R (Identity UserId) (Domain, ConvId)
+selectRemoteUserConvs = "select conv_remote_domain, conv_remote_id from user_remote_conv where user = ? order by conv_remote_domain"
+
 -- Clients ------------------------------------------------------------------
 
 selectClients :: PrepQuery R (Identity [UserId]) (UserId, C.Set ClientId)

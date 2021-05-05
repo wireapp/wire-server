@@ -527,7 +527,6 @@ conversationIdRowsFrom usr start (fromRange -> max) =
   where
     strip p = p {result = take (fromIntegral max) (result p)}
 
--- | We can't easily apply toMappedOrLocalId here, so we leave it to the consumers of this function.
 conversationIdRowsForPagination :: MonadClient m => UserId -> Maybe ConvId -> Range 1 1000 Int32 -> m (Page ConvId)
 conversationIdRowsForPagination usr start (fromRange -> max) =
   runIdentity
