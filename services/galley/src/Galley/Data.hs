@@ -82,6 +82,7 @@ module Galley.Data
     members,
     removeMember,
     removeMembers,
+    removeLocalMembers,
     updateMember,
 
     -- * Conversation Codes
@@ -834,20 +835,27 @@ updateMember cid uid mup = do
         misConvRoleName = mupConvRoleName mup
       }
 
-removeMembers :: MonadClient m => Conversation -> UserId -> List1 UserId -> m Event
-removeMembers conv orig victims = do
+removeLocalMembers :: MonadClient m => Conversation -> UserId -> List1 UserId -> m Event
+removeLocalMembers conv orig localVictims = removeMembers conv orig localVictims []
+
+removeMembers :: MonadClient m => Conversation -> UserId -> List1 UserId -> [RemoteUserId] -> m Event
+removeMembers conv orig localVictims remoteVictims = do
   t <- liftIO getCurrentTime
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency Quorum
-    for_ (toList victims) $ \u -> do
+    for_ remoteVictims $ \u -> do
+      let rUser = unTagged u
+      addPrepQuery Cql.removeRemoteMember (convId conv, qDomain rUser, qUnqualified rUser)
+    for_ (toList localVictims) $ \u -> do
       addPrepQuery Cql.removeMember (convId conv, u)
       addPrepQuery Cql.deleteUserConv (u, convId conv)
+
   -- FUTUREWORK: the user's conversation has to be deleted on their own backend for federation
   return $ Event MemberLeave (convId conv) orig t (Just (EdMembersLeave leavingMembers))
   where
     -- FUTUREWORK(federation, #1274): We need to tell clients about remote members leaving, too.
-    leavingMembers = UserIdList . toList $ victims
+    leavingMembers = UserIdList . toList $ localVictims
 
 removeMember :: MonadClient m => UserId -> ConvId -> m ()
 removeMember usr cnv = retry x5 . batch $ do

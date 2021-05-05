@@ -248,7 +248,8 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
   case removedUsers of
     [] -> return ()
     x : xs -> do
-      e <- Data.removeMembers conv usr (list1 x xs)
+      -- FUTUREWORK: deal with remote members, too, see removeMembers
+      e <- Data.removeLocalMembers conv usr (list1 x xs)
       -- push event to all clients, including zconn
       -- since updateConversationAccess generates a second (member removal) event here
       for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p -> push1 p
@@ -514,7 +515,8 @@ removeMember zusr zcon convId victim = do
     Just ti -> teamConvChecks ti
   if victim `isMember` users
     then do
-      event <- Data.removeMembers conv zusr (singleton victim)
+      -- FUTUREWORK: deal with remote members, too, see removeMembers
+      event <- Data.removeLocalMembers conv zusr (singleton victim)
       -- FUTUREWORK(federation, #1274): users can be on other backend, how to notify it?
       for_ (newPush ListComplete (evtFrom event) (ConvEvent event) (recipient <$> users)) $ \p ->
         push1 $ p & pushConn ?~ zcon

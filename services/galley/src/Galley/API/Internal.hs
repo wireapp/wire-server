@@ -267,7 +267,8 @@ rmUser user conn = do
         ConnectConv -> Data.removeMember user (Data.convId c) >> return Nothing
         RegularConv
           | user `isMember` Data.convMembers c -> do
-            e <- Data.removeMembers c user u
+            -- FUTUREWORK: deal with remote members, too, see removeMembers
+            e <- Data.removeLocalMembers c user u
             return $
               (Intra.newPush ListComplete (evtFrom e) (Intra.ConvEvent e) (Intra.recipient <$> Data.convMembers c))
                 <&> set Intra.pushConn conn
