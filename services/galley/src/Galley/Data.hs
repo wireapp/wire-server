@@ -131,6 +131,7 @@ import Galley.App
 import Galley.Data.Instances ()
 import qualified Galley.Data.Queries as Cql
 import Galley.Data.Types as Data
+import Galley.Types (LocalMember (..))
 import Galley.Types hiding (Conversation)
 import Galley.Types.Bot (newServiceRef)
 import Galley.Types.Clients (Clients)
@@ -866,12 +867,12 @@ removeMember usr cnv = retry x5 . batch $ do
 
 -- FUTUREWORK: the user's conversation has to be deleted on their own backend
 
-newMember :: a -> InternalMember a
+newMember :: UserId -> LocalMember
 newMember = flip newMemberWithRole roleNameWireAdmin
 
-newMemberWithRole :: a -> RoleName -> InternalMember a
+newMemberWithRole :: UserId -> RoleName -> LocalMember
 newMemberWithRole u r =
-  Member
+  LocalMember
     { memId = u,
       memService = Nothing,
       memOtrMuted = False,
@@ -910,7 +911,7 @@ toMember (usr, srv, prv, sta, omu, omus, omur, oar, oarr, hid, hidr, crn) =
       then Nothing
       else
         Just $
-          Member
+          LocalMember
             { memId = usr,
               memService = newServiceRef <$> srv <*> prv,
               memOtrMuted = fromMaybe False omu,

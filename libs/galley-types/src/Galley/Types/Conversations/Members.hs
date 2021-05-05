@@ -18,8 +18,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.Types.Conversations.Members
-  ( LocalMember,
-    InternalMember (..),
+  ( LocalMember (..),
   )
 where
 
@@ -29,11 +28,11 @@ import Wire.API.Conversation.Member (MutedStatus)
 import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Provider.Service (ServiceRef)
 
-type LocalMember = InternalMember Id.UserId
+-- type LocalMember = InternalMember Id.UserId
 
--- | Internal representation of a conversation member.
-data InternalMember id = Member
-  { memId :: id,
+-- | Internal (cassandra) representation of a local conversation member.
+data LocalMember = LocalMember
+  { memId :: UserId,
     memService :: Maybe ServiceRef,
     -- | DEPRECATED, remove it once enough clients use `memOtrMutedStatus`
     memOtrMuted :: Bool,
@@ -45,4 +44,4 @@ data InternalMember id = Member
     memHiddenRef :: Maybe Text,
     memConvRoleName :: RoleName
   }
-  deriving stock (Functor, Show)
+  deriving stock (Show)
