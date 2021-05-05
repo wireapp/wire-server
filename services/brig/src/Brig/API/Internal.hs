@@ -83,7 +83,9 @@ type EJPDRequest =
   Summary
     "Identify users for law enforcement.  (Wire has legal requirements to cooperate \
     \with the authorities.  The wire backend operations team uses this to answer \
-    \identification requests manually.)"
+    \identification requests manually.  It is our best-effort representation of the \
+    \minimum required information we need to hand over about targets and (in some \
+    \cases) their communication peers.)"
     :> "ejpd-request"
     :> QueryParam'
          [ Optional,
