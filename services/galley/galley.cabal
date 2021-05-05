@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 475eff5eb24a9d8082df9d706c85aebb8244e59f9b8c2528af721cb3a2bf9638
+-- hash: 47f4bdef15a45b67448dd1b17e442dbffb2d519c4f5ad69b79aa2e7f2de7cd49
 
 name:           galley
 version:        0.83.0
@@ -129,6 +129,7 @@ library
     , string-conversions
     , swagger >=0.1
     , swagger2
+    , tagged
     , text >=0.11
     , time >=1.4
     , tinylog >=0.10
