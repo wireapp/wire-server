@@ -47,7 +47,7 @@ import Wire.API.Federation.GRPC.Types (Component (Brig), FederatedRequest (Feder
 import Wire.API.User (UserProfile)
 
 spec :: Spec
-spec = fdescribe "Federator.Client" $ do
+spec = xdescribe "Federator.Client" $ do
   it "should make correct calls to the federator and parse success response correctly" $ do
     handle <- generate arbitrary
     expectedResponse :: Maybe UserProfile <- generate arbitrary
