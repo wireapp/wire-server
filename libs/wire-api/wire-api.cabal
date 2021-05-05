@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 078433135d843ce0a70e1f81fbd230d984322b9fab07572458ebdea67f09e1b9
+-- hash: d6f6ef9c2a42ab597987e31acd47e299ce5033df5422c312d0db88434b4de1f9
 
 name:           wire-api
 version:        0.1.0
@@ -150,19 +150,23 @@ test-suite wire-api-tests
     , bytestring-conversion
     , cassava
     , containers >=0.5
+    , currency-codes
     , directory
     , imports
     , iso3166-country-codes
     , iso639
     , lens
+    , mime
     , string-conversions
     , swagger2
     , tasty
     , tasty-expected-failure
     , tasty-hunit
     , tasty-quickcheck
+    , time
     , types-common >=0.16
     , unordered-containers
+    , uri-bytestring
     , uuid
     , vector
     , wire-api

@@ -60,22 +60,27 @@ tests:
     - -threaded
     - -with-rtsopts=-N
     dependencies:
+    - aeson-qq
     - base
     - bytestring
     - bytestring-conversion
     - cassava
+    - currency-codes
     - directory
-    - wire-api
-    - iso639
     - iso3166-country-codes
-    - uuid
-    - aeson-qq
+    - iso639
     - lens
-    - swagger2
+    - mime
+    - pem
     - string-conversions
+    - swagger2
     - tasty
     - tasty-expected-failure
     - tasty-hunit
     - tasty-quickcheck
+    - time
     - unordered-containers
+    - uri-bytestring
+    - uuid
     - vector
+    - wire-api
