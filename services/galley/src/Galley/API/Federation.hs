@@ -17,6 +17,7 @@
 module Galley.API.Federation where
 
 import Data.Id (UserId)
+import Data.Qualified (Qualified)
 import Galley.App (Galley)
 import Imports
 import Servant (ServerT)
@@ -30,11 +31,11 @@ federationSitemap :: ServerT (ToServantApi FederationAPIGalley.Api) Galley
 federationSitemap =
   genericServerT $
     FederationAPIGalley.Api
-      getConversation
+      getConversations
       conversationMemberChange
 
-getConversation :: UserId -> Galley [Conversation]
-getConversation = undefined
+getConversations :: Qualified UserId -> Galley [Conversation]
+getConversations = undefined
 
 conversationMemberChange :: ConversationEvent MembersJoin -> Galley ()
 conversationMemberChange = undefined

@@ -19,28 +19,28 @@
 
 module Wire.API.Federation.API.Galley where
 
-import Data.Id (UserId)
+import Data.Aeson (FromJSON, ToJSON)
+import Data.Id (ConvId, UserId)
 import Imports
 import Servant.API (JSON, Post, ReqBody, (:>))
 import Servant.API.Generic ((:-))
+import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Conversation (Conversation)
 import Wire.API.Federation.Event (ConversationEvent, MembersJoin)
+import Wire.API.Federation.Util.Aeson (CustomEncoded (CustomEncoded))
 
 -- FUTUREWORK: data types, json instances, more endpoints. See
 -- https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/356090113/Federation+Galley+Conversation+API
 -- for the current list we need.
 
 data Api routes = Api
-  { getConversation ::
+  { getConversations ::
       routes
         :- "federation"
         :> "conversations"
-        -- usecases:
-        -- - e.g. upon registering a new client to your account, get the list of your conversations
-        :> "list-conversations"
-        :> ReqBody '[JSON] UserId
+        :> "get-by-ids"
+        :> ReqBody '[JSON] GetConversationsRequest
         :> Post '[JSON] [Conversation],
-    -- Notify callee that [uid1@callee, ..] were added convid@caller
     conversationMembersJoin ::
       routes
         :- "federation"
@@ -50,3 +50,11 @@ data Api routes = Api
         :> Post '[JSON] ()
   }
   deriving (Generic)
+
+data GetConversationsRequest = GetConversationsRequest
+  { gcrUserId :: UserId,
+    gcrConvIds :: [ConvId]
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform GetConversationsRequest)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetConversationsRequest)
