@@ -513,12 +513,19 @@ packages:
   original:
     hackage: servant-mock-0.8.7
 - completed:
-    hackage: servant-swagger-ui-0.3.4.3.36.1@sha256:b696e28ed2c9090ae3306535a80f4a54a876def2d33db0c795c911826c107cda,1746
+    hackage: servant-swagger-ui-0.3.5.3.47.1@sha256:92ac36da73a9e97b45d6283bbcae20971f5a921b6680217dec93164d766c03c9,1732
     pantry-tree:
       size: 878
-      sha256: 137680a15ee0147cd19634d8296d90c2150ca4fd62ed3d56f7e07ccd8823810c
+      sha256: f761fdaa19a309611b1c8607c4795152cea4fe0abd632a4a058a9c249e8a0c5a
   original:
-    hackage: servant-swagger-ui-0.3.4.3.36.1
+    hackage: servant-swagger-ui-0.3.5.3.47.1
+- completed:
+    hackage: servant-swagger-ui-core-0.3.5@sha256:005c1083d580e9e73668e8184e3bbe02aac0b67d5a8500b147dfa3bd237d66a5,1688
+    pantry-tree:
+      size: 244
+      sha256: 110440f40f768a8a07665f01a9dad5a91ff1c0d4dc727f53244fb228580ec25d
+  original:
+    hackage: servant-swagger-ui-core-0.3.5
 - completed:
     name: servant-swagger
     version: 1.1.11

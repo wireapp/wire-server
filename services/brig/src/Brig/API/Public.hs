@@ -41,6 +41,7 @@ import qualified Brig.API.Util as API
 import Brig.App
 import qualified Brig.Calling.API as Calling
 import qualified Brig.Data.User as Data
+import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
 import qualified Brig.Team.API as Team
@@ -423,22 +424,29 @@ type OutsideWorldAPI =
 
 type SwaggerDocsAPI = "api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
-type ServantAPI = OutsideWorldAPI
+type ServantAPI = SwaggerDocsAPI :<|> OutsideWorldAPI
 
 -- FUTUREWORK: At the moment this only shows endpoints from brig, but we should
 -- combine the swagger 2.0 endpoints here as well from other services (e.g. spar)
-swaggerDoc :: Swagger
-swaggerDoc =
+brigSwaggerDoc :: Swagger
+brigSwaggerDoc =
   toSwagger (Proxy @OutsideWorldAPI)
     & info . title .~ "Wire-Server API as Swagger 2.0 "
     & info . description ?~ "NOTE: only a few endpoints are visible here at the moment, more will come as we migrate them to Swagger 2.0. In the meantime please also look at the old swagger docs link for the not-yet-migrated endpoints. See https://docs.wire.com/understand/api-client-perspective/swagger.html for the old endpoints."
 
-swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
-swaggerDocsAPI = swaggerSchemaUIServer swaggerDoc
+swaggerDocsAPI :: ServerT SwaggerDocsAPI Handler
+swaggerDocsAPI = swaggerSchemaUIServerT' swaggerDoc
+
+-- | Merges values from galley
+swaggerDoc :: Handler Value
+swaggerDoc = do
+  galleySwaggerDoc <- lift Intra.getGalleySwagger
+  pure . toJSON $ brigSwaggerDoc <> galleySwaggerDoc
 
 servantSitemap :: ServerT ServantAPI Handler
 servantSitemap =
-  checkUserExistsUnqualifiedH
+  swaggerDocsAPI
+    :<|> checkUserExistsUnqualifiedH
     :<|> checkUserExistsH
     :<|> getUserUnqualifiedH
     :<|> getUserH

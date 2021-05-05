@@ -55,6 +55,9 @@ module Brig.IO.Intra
     getTeamLegalHoldStatus,
     changeTeamStatus,
     getTeamSearchVisibility,
+
+    -- * Meta
+    getGalleySwagger,
   )
 where
 
@@ -84,6 +87,7 @@ import Data.List.Split (chunksOf)
 import Data.List1 (List1, list1, singleton)
 import Data.Range
 import qualified Data.Set as Set
+import Data.Swagger (Swagger)
 import Galley.Types (Connect (..), Conversation)
 import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
@@ -864,3 +868,9 @@ changeTeamStatus tid s cur = do
         . header "Content-Type" "application/json"
         . expect2xx
         . lbytes (encode $ Team.TeamStatusUpdate s cur)
+
+getGalleySwagger :: AppIO Swagger
+getGalleySwagger =
+  galleyRequest GET req >>= decodeBody "galley"
+  where
+    req = paths ["galley-swagger.json"] . expect2xx
