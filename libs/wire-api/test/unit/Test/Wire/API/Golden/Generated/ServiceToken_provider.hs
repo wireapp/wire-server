@@ -49,42 +49,42 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 testObject_ServiceToken_provider_1 :: ServiceToken
-testObject_ServiceToken_provider_1 = ServiceToken (fromRight undefined (validate ("jFs=")))
+testObject_ServiceToken_provider_1 = ServiceToken (fromRight undefined (validate ("ltfhVuVhZuM=")))
 testObject_ServiceToken_provider_2 :: ServiceToken
-testObject_ServiceToken_provider_2 = ServiceToken (fromRight undefined (validate ("mn3prFiZaUsi2bqUKSpvj9wGzA==")))
+testObject_ServiceToken_provider_2 = ServiceToken (fromRight undefined (validate ("OmRaCgAP7nFc")))
 testObject_ServiceToken_provider_3 :: ServiceToken
-testObject_ServiceToken_provider_3 = ServiceToken (fromRight undefined (validate ("7WauGVijHECshw_BO6TalCTZN9YD")))
+testObject_ServiceToken_provider_3 = ServiceToken (fromRight undefined (validate ("v9OqV6vfx2R8XH9nNeUewBcQzEAxu_Y=")))
 testObject_ServiceToken_provider_4 :: ServiceToken
-testObject_ServiceToken_provider_4 = ServiceToken (fromRight undefined (validate ("PIKRnK-UICGP7z-bJJ6NlcRHXCVbjgVh5yQ=")))
+testObject_ServiceToken_provider_4 = ServiceToken (fromRight undefined (validate ("zXNTlTHCwnwkXeiOgGYOaukRIezpSk6IMpVE")))
 testObject_ServiceToken_provider_5 :: ServiceToken
-testObject_ServiceToken_provider_5 = ServiceToken (fromRight undefined (validate ("4A57v2DpxjP5dzLb1r0ULFf6gQ==")))
+testObject_ServiceToken_provider_5 = ServiceToken (fromRight undefined (validate ("MnSsYeXKkrutMTx8kzEbBV5PqI1Edw==")))
 testObject_ServiceToken_provider_6 :: ServiceToken
-testObject_ServiceToken_provider_6 = ServiceToken (fromRight undefined (validate ("z9WjzGJKDPg=")))
+testObject_ServiceToken_provider_6 = ServiceToken (fromRight undefined (validate ("dp_yjbptDqDsBmVZ0gTcm7gNpjVj9twiD3w=")))
 testObject_ServiceToken_provider_7 :: ServiceToken
-testObject_ServiceToken_provider_7 = ServiceToken (fromRight undefined (validate ("")))
+testObject_ServiceToken_provider_7 = ServiceToken (fromRight undefined (validate ("bum1wagTjtMjjGBKMCJ9biI=")))
 testObject_ServiceToken_provider_8 :: ServiceToken
-testObject_ServiceToken_provider_8 = ServiceToken (fromRight undefined (validate ("abUFc9c=")))
+testObject_ServiceToken_provider_8 = ServiceToken (fromRight undefined (validate ("pCQw94hJ9fO-TCgdLm6s4nXy13Cs3TjgCA==")))
 testObject_ServiceToken_provider_9 :: ServiceToken
-testObject_ServiceToken_provider_9 = ServiceToken (fromRight undefined (validate ("VjMSzW8pTQz6QVp-L7aBMA==")))
+testObject_ServiceToken_provider_9 = ServiceToken (fromRight undefined (validate ("wWreXrP6VoLEDjuMKZVEPfjg198d5xYxyaGm")))
 testObject_ServiceToken_provider_10 :: ServiceToken
-testObject_ServiceToken_provider_10 = ServiceToken (fromRight undefined (validate ("Ax9kwUfzdbyNRdLNvwWGuypcWcjqGafs")))
+testObject_ServiceToken_provider_10 = ServiceToken (fromRight undefined (validate ("Je_eNPpgaRjv7rbKeMphN2g=")))
 testObject_ServiceToken_provider_11 :: ServiceToken
-testObject_ServiceToken_provider_11 = ServiceToken (fromRight undefined (validate ("ZL9WCn7TzsVIsCcQhqYPW-AuJw==")))
+testObject_ServiceToken_provider_11 = ServiceToken (fromRight undefined (validate ("n89qRDZDcJ870QdhYDu0kOJJ4w_t9jk=")))
 testObject_ServiceToken_provider_12 :: ServiceToken
-testObject_ServiceToken_provider_12 = ServiceToken (fromRight undefined (validate ("zaa2QGhncA==")))
+testObject_ServiceToken_provider_12 = ServiceToken (fromRight undefined (validate ("oEDi3Qrv2OyVXrGCjGJFfSLYdHozqfPl")))
 testObject_ServiceToken_provider_13 :: ServiceToken
-testObject_ServiceToken_provider_13 = ServiceToken (fromRight undefined (validate ("ZZo=")))
+testObject_ServiceToken_provider_13 = ServiceToken (fromRight undefined (validate ("iswNT752PuavKJL_U15Vog==")))
 testObject_ServiceToken_provider_14 :: ServiceToken
-testObject_ServiceToken_provider_14 = ServiceToken (fromRight undefined (validate ("rWIS1f8omHf0G3MrOyltajYQUpU=")))
+testObject_ServiceToken_provider_14 = ServiceToken (fromRight undefined (validate ("7Cvev4I7_IRY0xJs4Oh83HI3jn1bEYoz2ldr")))
 testObject_ServiceToken_provider_15 :: ServiceToken
-testObject_ServiceToken_provider_15 = ServiceToken (fromRight undefined (validate ("WcXx")))
+testObject_ServiceToken_provider_15 = ServiceToken (fromRight undefined (validate ("jvh9yg==")))
 testObject_ServiceToken_provider_16 :: ServiceToken
-testObject_ServiceToken_provider_16 = ServiceToken (fromRight undefined (validate ("9A==")))
+testObject_ServiceToken_provider_16 = ServiceToken (fromRight undefined (validate ("DtJseZCVhNhK1ZGaCq8y2fdES2pWv89ss1E=")))
 testObject_ServiceToken_provider_17 :: ServiceToken
-testObject_ServiceToken_provider_17 = ServiceToken (fromRight undefined (validate ("3lQY9Bhed_7hz9K0dSiZaPzzFQjpgH94JBk=")))
+testObject_ServiceToken_provider_17 = ServiceToken (fromRight undefined (validate ("ug==")))
 testObject_ServiceToken_provider_18 :: ServiceToken
 testObject_ServiceToken_provider_18 = ServiceToken (fromRight undefined (validate ("")))
 testObject_ServiceToken_provider_19 :: ServiceToken
-testObject_ServiceToken_provider_19 = ServiceToken (fromRight undefined (validate ("epvuDymolvnglmBBmMk_SKM=")))
+testObject_ServiceToken_provider_19 = ServiceToken (fromRight undefined (validate ("bxqWyd5AIx1RyafYtuYwNMh3cj3Qjw==")))
 testObject_ServiceToken_provider_20 :: ServiceToken
-testObject_ServiceToken_provider_20 = ServiceToken (fromRight undefined (validate ("h0essQ==")))
+testObject_ServiceToken_provider_20 = ServiceToken (fromRight undefined (validate ("73aTgZQt0g==")))

@@ -1,1 +1,1 @@
-{"actions":["add_conversation_member","modify_conversation_name","modify_conversation_message_timer","modify_conversation_receipt_mode","leave_conversation","delete_conversation"],"conversation_role":"5pgkos7w65e15qg2xjjcs8rwuiqzu0zrsv_sk7rfcsuohqhb52p93hwlpztg7alvtjltnsmhca7_eoaj6a596p8rqi62zqbaihm7h00_e32po7ez0lqqj2i2"}
+{"actions":["leave_conversation"],"conversation_role":"wire_member"}

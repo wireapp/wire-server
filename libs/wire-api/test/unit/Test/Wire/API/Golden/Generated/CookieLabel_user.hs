@@ -76,42 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_CookieLabel_user_1 :: CookieLabel
-testObject_CookieLabel_user_1 = CookieLabel {cookieLabelText = " d$\1022896mVJT9\SOh\RSHs\999002\&3JO|kt\158307=\13305y\\"}
+testObject_CookieLabel_user_1 = CookieLabel {cookieLabelText = ">\EOT\RS\1028791Z\SYN\151970\&7"}
 testObject_CookieLabel_user_2 :: CookieLabel
-testObject_CookieLabel_user_2 = CookieLabel {cookieLabelText = "O|E>\176\STXE\152719\1112977\1059558vI\185126"}
+testObject_CookieLabel_user_2 = CookieLabel {cookieLabelText = "\161496\142982&Z\DC1)*\DLE%\1007457n\ESC\"\ESC9M\ENQ\1061197a* 2\r5"}
 testObject_CookieLabel_user_3 :: CookieLabel
-testObject_CookieLabel_user_3 = CookieLabel {cookieLabelText = "m>M\NAKT\RS(v/,\61970$PA\129330H\SI\1107118E[\139147a3"}
+testObject_CookieLabel_user_3 = CookieLabel {cookieLabelText = " Mo_\1091159:1\n\1056110*tx\144331\73026\DLE\ETB\1008068\SI\984367"}
 testObject_CookieLabel_user_4 :: CookieLabel
-testObject_CookieLabel_user_4 = CookieLabel {cookieLabelText = "\"&C0\94957!\SYNo#L\SOHT&U\999359%`E\1038542\1098132:f>b\DEL{[\121286"}
+testObject_CookieLabel_user_4 = CookieLabel {cookieLabelText = "ssi\94437\45204\bp$\FSeO<8"}
 testObject_CookieLabel_user_5 :: CookieLabel
-testObject_CookieLabel_user_5 = CookieLabel {cookieLabelText = "\1088911"}
+testObject_CookieLabel_user_5 = CookieLabel {cookieLabelText = "\1060629 \DC3\ENQ\6091"}
 testObject_CookieLabel_user_6 :: CookieLabel
-testObject_CookieLabel_user_6 = CookieLabel {cookieLabelText = "in\"4\aiQ"}
+testObject_CookieLabel_user_6 = CookieLabel {cookieLabelText = "\1053931#40\a\NUL\1088538\153300\1023345\SOH"}
 testObject_CookieLabel_user_7 :: CookieLabel
-testObject_CookieLabel_user_7 = CookieLabel {cookieLabelText = "^K\SUB\STX\1107284\&9T_[\161614\65197m\1026718="}
+testObject_CookieLabel_user_7 = CookieLabel {cookieLabelText = "a0E\1033899\ESC\ETBBCPk/m\73856\1047461\27929O\1047268\SUBM\1089638\1093748@!,\57824\ETBgq\30486"}
 testObject_CookieLabel_user_8 :: CookieLabel
-testObject_CookieLabel_user_8 = CookieLabel {cookieLabelText = "^M\DC2n"}
+testObject_CookieLabel_user_8 = CookieLabel {cookieLabelText = "e\1085231Xb_\164762\EOT\US\25334,\CAN\SUB\GS>SF\127804"}
 testObject_CookieLabel_user_9 :: CookieLabel
-testObject_CookieLabel_user_9 = CookieLabel {cookieLabelText = "\vCxee8}\\mg\985831O\78021^!$"}
+testObject_CookieLabel_user_9 = CookieLabel {cookieLabelText = "U\54922A\6280u-3[q0\CAN\SOH\1016297^\190526#\16696\147990\1077642J-\14591\USJ\t|Q\DEL"}
 testObject_CookieLabel_user_10 :: CookieLabel
-testObject_CookieLabel_user_10 = CookieLabel {cookieLabelText = "V"}
+testObject_CookieLabel_user_10 = CookieLabel {cookieLabelText = "6\35987\1092876-5x\13283\50972=.N1Z\133760\&1P\97167\1108005\990613C\\\51642\NUL\1005042J\48088#"}
 testObject_CookieLabel_user_11 :: CookieLabel
-testObject_CookieLabel_user_11 = CookieLabel {cookieLabelText = "\36237F\fx>\1081284\94494\184874$\\Q\49181KLQ\4934OhY?"}
+testObject_CookieLabel_user_11 = CookieLabel {cookieLabelText = "\EOT\1067315\&15E\72338\184968\RSWG\USE"}
 testObject_CookieLabel_user_12 :: CookieLabel
-testObject_CookieLabel_user_12 = CookieLabel {cookieLabelText = "\r\1062705d\1067572\&9\1065928KS'#"}
+testObject_CookieLabel_user_12 = CookieLabel {cookieLabelText = "+\40096w3$t:]\STXq\1112283\&9\NUL%\SYN"}
 testObject_CookieLabel_user_13 :: CookieLabel
-testObject_CookieLabel_user_13 = CookieLabel {cookieLabelText = "\144914Km\1040067\ETB\ACK\25511\GS\50134:|\DEL\14333\NUL.G\184623A.\t\NAKh<Sx\988259SE&9"}
+testObject_CookieLabel_user_13 = CookieLabel {cookieLabelText = "\SOHeN={\2214I\45610V"}
 testObject_CookieLabel_user_14 :: CookieLabel
-testObject_CookieLabel_user_14 = CookieLabel {cookieLabelText = "h9\DC1\f\16524u\FS\NAKl\24819G\DC2"}
+testObject_CookieLabel_user_14 = CookieLabel {cookieLabelText = "GB%P\1054796\1111354\&7"}
 testObject_CookieLabel_user_15 :: CookieLabel
-testObject_CookieLabel_user_15 = CookieLabel {cookieLabelText = ""}
+testObject_CookieLabel_user_15 = CookieLabel {cookieLabelText = "+)\STXd<I[\1036610\166420/{"}
 testObject_CookieLabel_user_16 :: CookieLabel
-testObject_CookieLabel_user_16 = CookieLabel {cookieLabelText = "MD\1030806\16392\&4\60804\GS\147913LcA)X?\SOH\ESC@5F'\498\95040\NUL\1106437\a4"}
+testObject_CookieLabel_user_16 = CookieLabel {cookieLabelText = "\1018459k\52133\DC2\\\149901\t7\ESC7Z\EMSc%\14206\1000936|e\1070471\984119\SO\63203"}
 testObject_CookieLabel_user_17 :: CookieLabel
-testObject_CookieLabel_user_17 = CookieLabel {cookieLabelText = "$'\DC3;x\USJ1a\1109627]#l\ETX4SkQf%Mhdq\188129Q,AR?"}
+testObject_CookieLabel_user_17 = CookieLabel {cookieLabelText = "\15816\154945x!\SYNi\a\133647\48473\SYN`\29510\48004\12349pg*l[\1017807\186664\SYN\ESCO"}
 testObject_CookieLabel_user_18 :: CookieLabel
-testObject_CookieLabel_user_18 = CookieLabel {cookieLabelText = "_:\49210t\181065I6Eds\1112012\\=O\1034084l\a"}
+testObject_CookieLabel_user_18 = CookieLabel {cookieLabelText = "Xu\3226z<u\USwC\1037138nn\vf\DC4"}
 testObject_CookieLabel_user_19 :: CookieLabel
-testObject_CookieLabel_user_19 = CookieLabel {cookieLabelText = "P\DLE\170188@\aoJ]h\1101439\&2rS$\vQ\1015262\ETB\n\142093\EM(rpP@\1099027"}
+testObject_CookieLabel_user_19 = CookieLabel {cookieLabelText = "Og\rg\DC3L\995837\1035137kRn(\121377\1004656\1051422\&3\CAN+S\GS\186604\49160?$\t1"}
 testObject_CookieLabel_user_20 :: CookieLabel
-testObject_CookieLabel_user_20 = CookieLabel {cookieLabelText = "\158477\11462\RSuij\11994\NAK\DC4\1055964\1113751_5t>jY\42024p\45281\1001457\GShz"}
+testObject_CookieLabel_user_20 = CookieLabel {cookieLabelText = "HI\1064246x\t H+\DC4\991362O\GS\t\vg"}

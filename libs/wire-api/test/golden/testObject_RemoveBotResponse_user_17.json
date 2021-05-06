@@ -1,1 +1,1 @@
-{"event":{"conversation":"00003fec-0000-12fe-0000-55fd000036e1","time":"1864-06-05T03:38:28.041Z","data":null,"from":"0000456b-0000-0361-0000-0c0000000a55","type":"conversation.code-delete"}}
+{"event":{"conversation":"00006c1c-0000-6a32-0000-263d000028b6","time":"1864-05-19T06:51:06.978Z","data":{"access":["link","private","invite","code","link","code","link","code"],"access_role":"team"},"from":"00001390-0000-1e26-0000-5cd40000568a","type":"conversation.access-update"}}

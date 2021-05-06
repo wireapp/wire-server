@@ -1,1 +1,1 @@
-{"status":"enabled","config":{"enforceAppLock":false,"inactivityTimeoutSecs":103}}
+{"status":"disabled","config":{"enforceAppLock":true,"inactivityTimeoutSecs":10}}

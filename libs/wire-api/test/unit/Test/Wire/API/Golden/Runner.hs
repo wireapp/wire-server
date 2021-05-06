@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Wire.API.Golden.Runner (testObject) where
+module Test.Wire.API.Golden.Runner (testObjects) where
 
 import Data.Aeson
 import qualified Data.ByteString as ByteString
@@ -24,7 +24,12 @@ import Imports
 import Test.Tasty.HUnit
 import Type.Reflection (typeRep)
 
-testObject :: forall a . (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => a -> FilePath -> IO ()
+testObjects :: forall a . (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => [(a, FilePath)] -> IO ()
+testObjects objs = do
+  allFilesExist <- and <$> traverse (uncurry testObject) objs
+  assertBool "Some golden JSON files do not exist" allFilesExist
+
+testObject :: forall a . (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => a -> FilePath -> IO Bool
 testObject obj path = do
   let actualValue = toJSON obj :: Value
       actualJson = encode actualValue
@@ -33,7 +38,6 @@ testObject obj path = do
   createDirectoryIfMissing True dir
   exists <- doesFileExist fullPath
   unless exists $ ByteString.writeFile fullPath (LBS.toStrict actualJson)
-  assertBool ("Golden JSON file " <> path <> "does not exist") exists
 
   expectedValue <- assertRight =<< eitherDecodeFileStrict fullPath
   assertEqual
@@ -44,6 +48,8 @@ testObject obj path = do
     (show (typeRep @a) <> ": FromJSON should match object")
     (Success obj)
     (fromJSON actualValue)
+
+  pure exists
 
 assertRight :: Show a => Either a b -> IO b
 assertRight =

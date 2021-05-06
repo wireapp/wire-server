@@ -76,42 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_ActivationResponse_user_1 :: ActivationResponse
-testObject_ActivationResponse_user_1 = ActivationResponse {activatedIdentity = PhoneIdentity (Phone {fromPhone = "+5181792146"}), activatedFirst = False}
+testObject_ActivationResponse_user_1 = ActivationResponse {activatedIdentity = FullIdentity (Email {emailLocal = "\1026781&", emailDomain = " \ENQ"}) (Phone {fromPhone = "+33815166190694"}), activatedFirst = False}
 testObject_ActivationResponse_user_2 :: ActivationResponse
-testObject_ActivationResponse_user_2 = ActivationResponse {activatedIdentity = SSOIdentity (UserScimExternalId "s") (Just (Email {emailLocal = "\1079235", emailDomain = "\DC1"})) (Just (Phone {fromPhone = "+8722508725776"})), activatedFirst = True}
+testObject_ActivationResponse_user_2 = ActivationResponse {activatedIdentity = SSOIdentity (UserSSOId "\SOH" "\150931\r") (Just (Email {emailLocal = "", emailDomain = ""})) (Just (Phone {fromPhone = "+023554027"})), activatedFirst = False}
 testObject_ActivationResponse_user_3 :: ActivationResponse
-testObject_ActivationResponse_user_3 = ActivationResponse {activatedIdentity = PhoneIdentity (Phone {fromPhone = "+3181926327217"}), activatedFirst = True}
+testObject_ActivationResponse_user_3 = ActivationResponse {activatedIdentity = FullIdentity (Email {emailLocal = "\SOH*rXI\SOHd", emailDomain = "^B\a\127797O\\"}) (Phone {fromPhone = "+697018921"}), activatedFirst = True}
 testObject_ActivationResponse_user_4 :: ActivationResponse
-testObject_ActivationResponse_user_4 = ActivationResponse {activatedIdentity = EmailIdentity (Email {emailLocal = "C'\ESCZyxN", emailDomain = "\1015123\&4\SOH\EMK\28839}\1066243.Cp#z"}), activatedFirst = False}
+testObject_ActivationResponse_user_4 = ActivationResponse {activatedIdentity = FullIdentity (Email {emailLocal = "\1055684\ETX", emailDomain = "\38030j"}) (Phone {fromPhone = "+2711629155"}), activatedFirst = True}
 testObject_ActivationResponse_user_5 :: ActivationResponse
-testObject_ActivationResponse_user_5 = ActivationResponse {activatedIdentity = PhoneIdentity (Phone {fromPhone = "+1053189758"}), activatedFirst = True}
+testObject_ActivationResponse_user_5 = ActivationResponse {activatedIdentity = SSOIdentity (UserSSOId "\ETX" "\ACK\161204") (Just (Email {emailLocal = "#", emailDomain = "-m"})) Nothing, activatedFirst = True}
 testObject_ActivationResponse_user_6 :: ActivationResponse
-testObject_ActivationResponse_user_6 = ActivationResponse {activatedIdentity = EmailIdentity (Email {emailLocal = "\984828~nk\r#\20356\101064\1027929pz", emailDomain = ""}), activatedFirst = False}
+testObject_ActivationResponse_user_6 = ActivationResponse {activatedIdentity = FullIdentity (Email {emailLocal = "\DEL", emailDomain = "\NAK\65165\26240"}) (Phone {fromPhone = "+2602519139"}), activatedFirst = True}
 testObject_ActivationResponse_user_7 :: ActivationResponse
-testObject_ActivationResponse_user_7 = ActivationResponse {activatedIdentity = FullIdentity (Email {emailLocal = "", emailDomain = "ee"}) (Phone {fromPhone = "+56507391"}), activatedFirst = False}
+testObject_ActivationResponse_user_7 = ActivationResponse {activatedIdentity = FullIdentity (Email {emailLocal = ";\186735", emailDomain = "u\1076589<"}) (Phone {fromPhone = "+4852599358783"}), activatedFirst = False}
 testObject_ActivationResponse_user_8 :: ActivationResponse
-testObject_ActivationResponse_user_8 = ActivationResponse {activatedIdentity = FullIdentity (Email {emailLocal = ":)\6772", emailDomain = "\\\1075676\71738}\\"}) (Phone {fromPhone = "+09778095991625"}), activatedFirst = True}
+testObject_ActivationResponse_user_8 = ActivationResponse {activatedIdentity = PhoneIdentity (Phone {fromPhone = "+137251036"}), activatedFirst = False}
 testObject_ActivationResponse_user_9 :: ActivationResponse
-testObject_ActivationResponse_user_9 = ActivationResponse {activatedIdentity = SSOIdentity (UserScimExternalId "") Nothing Nothing, activatedFirst = True}
+testObject_ActivationResponse_user_9 = ActivationResponse {activatedIdentity = FullIdentity (Email {emailLocal = "\rM\1076459", emailDomain = "\101038\ENQgN9_"}) (Phone {fromPhone = "+814046154"}), activatedFirst = True}
 testObject_ActivationResponse_user_10 :: ActivationResponse
-testObject_ActivationResponse_user_10 = ActivationResponse {activatedIdentity = PhoneIdentity (Phone {fromPhone = "+7813975372298"}), activatedFirst = True}
+testObject_ActivationResponse_user_10 = ActivationResponse {activatedIdentity = PhoneIdentity (Phone {fromPhone = "+733851704160"}), activatedFirst = False}
 testObject_ActivationResponse_user_11 :: ActivationResponse
-testObject_ActivationResponse_user_11 = ActivationResponse {activatedIdentity = PhoneIdentity (Phone {fromPhone = "+74854763153859"}), activatedFirst = True}
+testObject_ActivationResponse_user_11 = ActivationResponse {activatedIdentity = PhoneIdentity (Phone {fromPhone = "+4148615693"}), activatedFirst = True}
 testObject_ActivationResponse_user_12 :: ActivationResponse
-testObject_ActivationResponse_user_12 = ActivationResponse {activatedIdentity = EmailIdentity (Email {emailLocal = "/fN\ENQR!\1106348Dz\\6", emailDomain = "\DC3\b\155385\135533S)\a\USB\178491%Y"}), activatedFirst = True}
+testObject_ActivationResponse_user_12 = ActivationResponse {activatedIdentity = EmailIdentity (Email {emailLocal = "3", emailDomain = "\US\DC1"}), activatedFirst = True}
 testObject_ActivationResponse_user_13 :: ActivationResponse
-testObject_ActivationResponse_user_13 = ActivationResponse {activatedIdentity = SSOIdentity (UserSSOId "\28630\1028966" "m\DC1") Nothing (Just (Phone {fromPhone = "+35419592308"})), activatedFirst = False}
+testObject_ActivationResponse_user_13 = ActivationResponse {activatedIdentity = FullIdentity (Email {emailLocal = "\1096756", emailDomain = "pu\1113267"}) (Phone {fromPhone = "+962884566876"}), activatedFirst = True}
 testObject_ActivationResponse_user_14 :: ActivationResponse
-testObject_ActivationResponse_user_14 = ActivationResponse {activatedIdentity = EmailIdentity (Email {emailLocal = "4F\1037863'?", emailDomain = "\SYN\1047433\NAK\1077563\1111339"}), activatedFirst = True}
+testObject_ActivationResponse_user_14 = ActivationResponse {activatedIdentity = SSOIdentity (UserSSOId "K" "") (Just (Email {emailLocal = "6\DC2 \83146", emailDomain = ""})) (Just (Phone {fromPhone = "+352048980282"})), activatedFirst = False}
 testObject_ActivationResponse_user_15 :: ActivationResponse
-testObject_ActivationResponse_user_15 = ActivationResponse {activatedIdentity = SSOIdentity (UserSSOId "" "\151051") (Just (Email {emailLocal = "R", emailDomain = "h\DC3"})) (Just (Phone {fromPhone = "+200065412236863"})), activatedFirst = True}
+testObject_ActivationResponse_user_15 = ActivationResponse {activatedIdentity = EmailIdentity (Email {emailLocal = "\1001293]\70022\4362\45298XZk\n<,", emailDomain = "\148871"}), activatedFirst = False}
 testObject_ActivationResponse_user_16 :: ActivationResponse
-testObject_ActivationResponse_user_16 = ActivationResponse {activatedIdentity = EmailIdentity (Email {emailLocal = "", emailDomain = "\1043019\EOT"}), activatedFirst = True}
+testObject_ActivationResponse_user_16 = ActivationResponse {activatedIdentity = SSOIdentity (UserSSOId "" "") (Just (Email {emailLocal = "\ETB%", emailDomain = "3CCj"})) (Just (Phone {fromPhone = "+8782117529"})), activatedFirst = True}
 testObject_ActivationResponse_user_17 :: ActivationResponse
-testObject_ActivationResponse_user_17 = ActivationResponse {activatedIdentity = PhoneIdentity (Phone {fromPhone = "+70901011"}), activatedFirst = True}
+testObject_ActivationResponse_user_17 = ActivationResponse {activatedIdentity = EmailIdentity (Email {emailLocal = "\997623\EOTI)\EM\avT1\EOT", emailDomain = "\131483\145664_B"}), activatedFirst = True}
 testObject_ActivationResponse_user_18 :: ActivationResponse
-testObject_ActivationResponse_user_18 = ActivationResponse {activatedIdentity = FullIdentity (Email {emailLocal = "8", emailDomain = "\97239\49914R\3296Lo"}) (Phone {fromPhone = "+785512330"}), activatedFirst = True}
+testObject_ActivationResponse_user_18 = ActivationResponse {activatedIdentity = EmailIdentity (Email {emailLocal = "\61753=s\f#<\DC3bI", emailDomain = "\DEL31x\EMIa\ETB\t^\RS2\f"}), activatedFirst = False}
 testObject_ActivationResponse_user_19 :: ActivationResponse
-testObject_ActivationResponse_user_19 = ActivationResponse {activatedIdentity = FullIdentity (Email {emailLocal = "\166945o\CANHt\DC4C", emailDomain = "%,\DC1JNM"}) (Phone {fromPhone = "+354167698579"}), activatedFirst = False}
+testObject_ActivationResponse_user_19 = ActivationResponse {activatedIdentity = FullIdentity (Email {emailLocal = "t", emailDomain = ""}) (Phone {fromPhone = "+32855168457591"}), activatedFirst = True}
 testObject_ActivationResponse_user_20 :: ActivationResponse
-testObject_ActivationResponse_user_20 = ActivationResponse {activatedIdentity = EmailIdentity (Email {emailLocal = "L\58926p\EM\STX\1047357\190544C", emailDomain = ""}), activatedFirst = True}
+testObject_ActivationResponse_user_20 = ActivationResponse {activatedIdentity = SSOIdentity (UserSSOId "" "S") Nothing Nothing, activatedFirst = False}

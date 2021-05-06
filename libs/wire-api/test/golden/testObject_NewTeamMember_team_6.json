@@ -1,1 +1,1 @@
-{"member":{"user":"00000000-0000-0004-0000-000100000006","created_by":"00000001-0000-0004-0000-000500000007","legalhold_status":"pending","created_at":"1864-05-14T05:06:35.005Z","permissions":{"copy":2,"self":2}}}
+{"member":{"user":"00000004-0000-0000-0000-000500000007","created_by":"00000005-0000-0008-0000-000700000002","legalhold_status":"enabled","created_at":"1864-05-10T06:30:01.034Z","permissions":{"copy":2048,"self":2048}}}

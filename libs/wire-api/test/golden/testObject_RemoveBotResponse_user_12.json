@@ -1,1 +1,1 @@
-{"event":{"conversation":"00003655-0000-03e2-0000-114d00003935","time":"1864-05-16T07:46:20.254Z","data":null,"from":"000040d4-0000-43ad-0000-0feb0000267e","type":"conversation.delete"}}
+{"event":{"conversation":"000031c1-0000-49ab-0000-5a420000199f","time":"1864-05-22T07:06:28.383Z","data":{"key":"k5BFlGlD_DauCrC0UbF1","code":"PY7khtoS31nc"},"from":"00004916-0000-35fa-0000-69ee0000252a","type":"conversation.code-update"}}

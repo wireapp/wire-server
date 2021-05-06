@@ -76,42 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_ReceiptMode_user_1 :: ReceiptMode
-testObject_ReceiptMode_user_1 = ReceiptMode {unReceiptMode = 29047}
+testObject_ReceiptMode_user_1 = ReceiptMode {unReceiptMode = 27454}
 testObject_ReceiptMode_user_2 :: ReceiptMode
-testObject_ReceiptMode_user_2 = ReceiptMode {unReceiptMode = 16425}
+testObject_ReceiptMode_user_2 = ReceiptMode {unReceiptMode = 31593}
 testObject_ReceiptMode_user_3 :: ReceiptMode
-testObject_ReceiptMode_user_3 = ReceiptMode {unReceiptMode = 25711}
+testObject_ReceiptMode_user_3 = ReceiptMode {unReceiptMode = 30757}
 testObject_ReceiptMode_user_4 :: ReceiptMode
-testObject_ReceiptMode_user_4 = ReceiptMode {unReceiptMode = 804}
+testObject_ReceiptMode_user_4 = ReceiptMode {unReceiptMode = -26916}
 testObject_ReceiptMode_user_5 :: ReceiptMode
-testObject_ReceiptMode_user_5 = ReceiptMode {unReceiptMode = 8295}
+testObject_ReceiptMode_user_5 = ReceiptMode {unReceiptMode = -14747}
 testObject_ReceiptMode_user_6 :: ReceiptMode
-testObject_ReceiptMode_user_6 = ReceiptMode {unReceiptMode = 5454}
+testObject_ReceiptMode_user_6 = ReceiptMode {unReceiptMode = 26205}
 testObject_ReceiptMode_user_7 :: ReceiptMode
-testObject_ReceiptMode_user_7 = ReceiptMode {unReceiptMode = 19549}
+testObject_ReceiptMode_user_7 = ReceiptMode {unReceiptMode = 6772}
 testObject_ReceiptMode_user_8 :: ReceiptMode
-testObject_ReceiptMode_user_8 = ReceiptMode {unReceiptMode = 7715}
+testObject_ReceiptMode_user_8 = ReceiptMode {unReceiptMode = 1190}
 testObject_ReceiptMode_user_9 :: ReceiptMode
-testObject_ReceiptMode_user_9 = ReceiptMode {unReceiptMode = 5086}
+testObject_ReceiptMode_user_9 = ReceiptMode {unReceiptMode = 17461}
 testObject_ReceiptMode_user_10 :: ReceiptMode
-testObject_ReceiptMode_user_10 = ReceiptMode {unReceiptMode = 12808}
+testObject_ReceiptMode_user_10 = ReceiptMode {unReceiptMode = 30727}
 testObject_ReceiptMode_user_11 :: ReceiptMode
-testObject_ReceiptMode_user_11 = ReceiptMode {unReceiptMode = -22089}
+testObject_ReceiptMode_user_11 = ReceiptMode {unReceiptMode = 15489}
 testObject_ReceiptMode_user_12 :: ReceiptMode
-testObject_ReceiptMode_user_12 = ReceiptMode {unReceiptMode = 29916}
+testObject_ReceiptMode_user_12 = ReceiptMode {unReceiptMode = -540}
 testObject_ReceiptMode_user_13 :: ReceiptMode
-testObject_ReceiptMode_user_13 = ReceiptMode {unReceiptMode = 26454}
+testObject_ReceiptMode_user_13 = ReceiptMode {unReceiptMode = 24165}
 testObject_ReceiptMode_user_14 :: ReceiptMode
-testObject_ReceiptMode_user_14 = ReceiptMode {unReceiptMode = -24278}
+testObject_ReceiptMode_user_14 = ReceiptMode {unReceiptMode = -22517}
 testObject_ReceiptMode_user_15 :: ReceiptMode
-testObject_ReceiptMode_user_15 = ReceiptMode {unReceiptMode = -27273}
+testObject_ReceiptMode_user_15 = ReceiptMode {unReceiptMode = -19708}
 testObject_ReceiptMode_user_16 :: ReceiptMode
-testObject_ReceiptMode_user_16 = ReceiptMode {unReceiptMode = 30907}
+testObject_ReceiptMode_user_16 = ReceiptMode {unReceiptMode = 262}
 testObject_ReceiptMode_user_17 :: ReceiptMode
-testObject_ReceiptMode_user_17 = ReceiptMode {unReceiptMode = -13675}
+testObject_ReceiptMode_user_17 = ReceiptMode {unReceiptMode = 2341}
 testObject_ReceiptMode_user_18 :: ReceiptMode
-testObject_ReceiptMode_user_18 = ReceiptMode {unReceiptMode = 21080}
+testObject_ReceiptMode_user_18 = ReceiptMode {unReceiptMode = 1138}
 testObject_ReceiptMode_user_19 :: ReceiptMode
-testObject_ReceiptMode_user_19 = ReceiptMode {unReceiptMode = 909}
+testObject_ReceiptMode_user_19 = ReceiptMode {unReceiptMode = 16685}
 testObject_ReceiptMode_user_20 :: ReceiptMode
-testObject_ReceiptMode_user_20 = ReceiptMode {unReceiptMode = 28518}
+testObject_ReceiptMode_user_20 = ReceiptMode {unReceiptMode = 826}

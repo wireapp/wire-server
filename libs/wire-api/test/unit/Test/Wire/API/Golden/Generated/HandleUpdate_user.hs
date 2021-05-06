@@ -76,42 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_HandleUpdate_user_1 :: HandleUpdate
-testObject_HandleUpdate_user_1 = HandleUpdate {huHandle = "U`M\b\993075\n\ENQ\1070055D&-\18285c\1010536$ONBS\DC416MH&M5\159020\1005547"}
+testObject_HandleUpdate_user_1 = HandleUpdate {huHandle = "J\152366/\n:j_y\EOT^mC\FSw\b\t"}
 testObject_HandleUpdate_user_2 :: HandleUpdate
-testObject_HandleUpdate_user_2 = HandleUpdate {huHandle = "\110825\n?Iv\DC2\ENQ\NAK3;\a"}
+testObject_HandleUpdate_user_2 = HandleUpdate {huHandle = "H~-\SUB>.\EOT\t\23153\994753=\DEL7~\23724>$LjS#k \RSgo\DC4;z"}
 testObject_HandleUpdate_user_3 :: HandleUpdate
-testObject_HandleUpdate_user_3 = HandleUpdate {huHandle = "\DC4\63393]\FSd]}|\1042772\&4~\29616zXujye\RSir\1029112"}
+testObject_HandleUpdate_user_3 = HandleUpdate {huHandle = "uU[`"}
 testObject_HandleUpdate_user_4 :: HandleUpdate
-testObject_HandleUpdate_user_4 = HandleUpdate {huHandle = "\EMk3\GS\161879!\SI\f"}
+testObject_HandleUpdate_user_4 = HandleUpdate {huHandle = "\19272\NAKH\44803\&0_{\133417\1036293\74299c\CANl\GS*\DC3\158337!ox\SUB\DEL\EM2,\1026283\GSg "}
 testObject_HandleUpdate_user_5 :: HandleUpdate
-testObject_HandleUpdate_user_5 = HandleUpdate {huHandle = "\r0AA"}
+testObject_HandleUpdate_user_5 = HandleUpdate {huHandle = "\SUBCsO|\27229\NAK\2921\37802&\"TW\ESC"}
 testObject_HandleUpdate_user_6 :: HandleUpdate
-testObject_HandleUpdate_user_6 = HandleUpdate {huHandle = "\6509^w\US\158055IT\158600\121255\129083-\1071581c|"}
+testObject_HandleUpdate_user_6 = HandleUpdate {huHandle = "\16442tU\1030688\1038779\FS\133677\SI\1040868n\SYN"}
 testObject_HandleUpdate_user_7 :: HandleUpdate
-testObject_HandleUpdate_user_7 = HandleUpdate {huHandle = "\f\1012934\&6\SYN=eh@\1087517V\139656\\\39851\1021347*\tN"}
+testObject_HandleUpdate_user_7 = HandleUpdate {huHandle = "6bx!\NAK\181046,\DEL:\4342,\162505W\27525\39307\32064\1106573 \133489[?2!\CAN+&X=\ACKs"}
 testObject_HandleUpdate_user_8 :: HandleUpdate
-testObject_HandleUpdate_user_8 = HandleUpdate {huHandle = "\1098518#\40889\27379$\DC3+ePxhW]'&"}
+testObject_HandleUpdate_user_8 = HandleUpdate {huHandle = "E$\"h\1024538HU)v%\DC4]x\132657"}
 testObject_HandleUpdate_user_9 :: HandleUpdate
-testObject_HandleUpdate_user_9 = HandleUpdate {huHandle = "\FSq\1015433/\ACKm\DEL\1081613D\ETB\GSR\1085758iuty["}
+testObject_HandleUpdate_user_9 = HandleUpdate {huHandle = "\EOT\985876\175083M}Z?m\1020097\15632\\\1090897)\144512'(z2&[\100585\996459N\by\STX\FS\78374"}
 testObject_HandleUpdate_user_10 :: HandleUpdate
-testObject_HandleUpdate_user_10 = HandleUpdate {huHandle = ""}
+testObject_HandleUpdate_user_10 = HandleUpdate {huHandle = " \a"}
 testObject_HandleUpdate_user_11 :: HandleUpdate
-testObject_HandleUpdate_user_11 = HandleUpdate {huHandle = "\STXR\987513$"}
+testObject_HandleUpdate_user_11 = HandleUpdate {huHandle = "\DC2\EOTN\SYN\DC1E"}
 testObject_HandleUpdate_user_12 :: HandleUpdate
-testObject_HandleUpdate_user_12 = HandleUpdate {huHandle = "a?\12641Pc\vt\SYN\1061095\186986g,>\tt0[K\142020\DC2\134865\150538x\1112580\128431"}
+testObject_HandleUpdate_user_12 = HandleUpdate {huHandle = "\ETB\186909\95211+\bd\EOT\EOT\1089702\73111/=[<6\v\1052675k?o"}
 testObject_HandleUpdate_user_13 :: HandleUpdate
-testObject_HandleUpdate_user_13 = HandleUpdate {huHandle = "\1093936UA5G\vB\64811\672\120615^"}
+testObject_HandleUpdate_user_13 = HandleUpdate {huHandle = "+)B\1028947\&3;\n}\1005225\997630\&4\ESC8X\1031050\1087799U`}\DLEYP\174936"}
 testObject_HandleUpdate_user_14 :: HandleUpdate
-testObject_HandleUpdate_user_14 = HandleUpdate {huHandle = "K\n,\nYB"}
+testObject_HandleUpdate_user_14 = HandleUpdate {huHandle = "\r\994919\v\ENQ;+z\1034846F<^\1046673\181784\1055502(N[\170407?h\ENQ`"}
 testObject_HandleUpdate_user_15 :: HandleUpdate
-testObject_HandleUpdate_user_15 = HandleUpdate {huHandle = "\98937\SYN*\186533\161714\1107499Kl\GS\1036204+\SUB\13496K,\ACK\1098395$o"}
+testObject_HandleUpdate_user_15 = HandleUpdate {huHandle = "S\NAKyp\ETBg"}
 testObject_HandleUpdate_user_16 :: HandleUpdate
-testObject_HandleUpdate_user_16 = HandleUpdate {huHandle = "\SOHV^p\SUB}\132989MF\1064161\STX"}
+testObject_HandleUpdate_user_16 = HandleUpdate {huHandle = "wo\1052270\NAK$w\RS\163496\171068\SYNBp\EOT\GS\58210\US\1024925\1070026N\984533\1075964"}
 testObject_HandleUpdate_user_17 :: HandleUpdate
-testObject_HandleUpdate_user_17 = HandleUpdate {huHandle = "G\"q\EMB-\1014891an\1086305k\SYN\1046991_\DC3G\SIb\"*[\1098558@nS"}
+testObject_HandleUpdate_user_17 = HandleUpdate {huHandle = "8"}
 testObject_HandleUpdate_user_18 :: HandleUpdate
-testObject_HandleUpdate_user_18 = HandleUpdate {huHandle = ">\163552dY1Ko\1090328o\r\EOT"}
+testObject_HandleUpdate_user_18 = HandleUpdate {huHandle = "A\DC3\SUB;\r\1105188\1013232v\US\136891`[\DC1VbWyt\n\96528\132200L$\SYN\13690\1011208hH%i"}
 testObject_HandleUpdate_user_19 :: HandleUpdate
-testObject_HandleUpdate_user_19 = HandleUpdate {huHandle = "x:\GS"}
+testObject_HandleUpdate_user_19 = HandleUpdate {huHandle = "\SUB_\aT"}
 testObject_HandleUpdate_user_20 :: HandleUpdate
-testObject_HandleUpdate_user_20 = HandleUpdate {huHandle = "bTte\ETB.u:Z\1057086W~\39878b\1063124\DC3`\1063874\SYNXE\ETB"}
+testObject_HandleUpdate_user_20 = HandleUpdate {huHandle = "\27209sA\1091970_\96680_\ACK\1017726p\DEL\1916\1112239\92566\36901\NAKo\1066917\194829\EOTu\170084\155493\&8b\1010293[\1022920"}

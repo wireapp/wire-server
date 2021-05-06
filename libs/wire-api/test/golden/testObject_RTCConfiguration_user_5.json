@@ -1,1 +1,1 @@
-{"ttl":28,"ice_servers":[{"urls":["turn:159.241.150.151:1?transport=udp"],"credential":"","username":"d=1.v=1.k=1.t=[.r=f"}],"sft_servers":[{"urls":["https://example.com"]},{"urls":["https://example.com"]}]}
+{"ttl":15,"ice_servers":[{"urls":["turns:host.name:0","turns:xn--mgbh0fb.xn--kgbechtv:1?transport=tcp","turn:123:0?transport=tcp"],"credential":"Uuc=","username":"d=3.v=3.k=0.t=􏛱.r=5t5"},{"urls":["turns:host.name:0?transport=udp","turns:xn--mgbh0fb.xn--kgbechtv:0"],"credential":"","username":"d=2.v=2.k=1.t=\u001f.r=1f"}]}

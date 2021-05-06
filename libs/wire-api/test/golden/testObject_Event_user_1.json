@@ -1,1 +1,1 @@
-{"conversation":"00001e06-0000-0327-0000-52bc00007740","time":"1864-05-04T15:05:18.650Z","data":null,"from":"00004a32-0000-46c7-0000-640000000aea","type":"conversation.delete"}
+{"conversation":"000070df-0000-374e-0000-35fd0000408f","time":"1864-05-04T11:37:17.544Z","data":{"receipt_mode":-433},"from":"0000716d-0000-3c2a-0000-312700004b5a","type":"conversation.receipt-mode-update"}

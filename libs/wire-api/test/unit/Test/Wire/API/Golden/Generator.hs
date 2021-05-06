@@ -111,12 +111,10 @@ generateTestCase :: Handle -> Int -> (FilePath, [(String, FilePath)]) -> IO ()
 generateTestCase h index (module_, objs) = do
   hPutStr h "  "
   when (index > 0) $ hPutStr h ","
-  hPutStrLn h $ " testCase (\"Golden: " <> module_ <> "\") $ do"
-  traverse_ (generateTestCall h module_) objs
-
-generateTestCall :: Handle -> FilePath -> (String, FilePath) -> IO ()
-generateTestCall h module_ (var, path) = hPutStrLn h $
-  "      testObject Test.Wire.API.Golden.Generated." <> module_ <> "." <> var <> " " <> show path
+  hPutStrLn h $ " testCase (\"Golden: " <> module_ <> "\") $ "
+  hPutStrLn h $ "   testObjects [" <> intercalate ", " (map objTuple objs) <> "]"
+  where
+    objTuple (var, path) = "(" <> "Test.Wire.API.Golden.Generated." <> module_ <> "." <> var <> ", " <> show path <> ")"
 
 generateTestModule :: IO ()
 generateTestModule = do

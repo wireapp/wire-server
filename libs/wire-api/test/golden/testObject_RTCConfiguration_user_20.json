@@ -1,1 +1,1 @@
-{"ttl":32,"ice_servers":[{"urls":["turn:109.35.110.79:0?transport=tcp","turns:a-c:0?transport=tcp"],"credential":"","username":"d=2.v=1.k=0.t=+.r=lu"}]}
+{"ttl":5,"ice_servers":[{"urls":["turn:123:1?transport=udp","turns:a-c:1?transport=udp","turns:158.208.56.106:1?transport=udp"],"credential":"","username":"d=1.v=1.k=1.t=-.r=r1"}],"sft_servers":[{"urls":["https://example.com"]},{"urls":["https://example.com"]},{"urls":["https://example.com"]},{"urls":["https://example.com"]}]}

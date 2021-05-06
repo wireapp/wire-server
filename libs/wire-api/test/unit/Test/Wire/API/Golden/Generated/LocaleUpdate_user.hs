@@ -76,42 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_LocaleUpdate_user_1 :: LocaleUpdate
-testObject_LocaleUpdate_user_1 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.MY, lCountry = Just (Country {fromCountry = KE})}}
+testObject_LocaleUpdate_user_1 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.FF, lCountry = Nothing}}
 testObject_LocaleUpdate_user_2 :: LocaleUpdate
-testObject_LocaleUpdate_user_2 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.EN, lCountry = Just (Country {fromCountry = WS})}}
+testObject_LocaleUpdate_user_2 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.HA, lCountry = Just (Country {fromCountry = YT})}}
 testObject_LocaleUpdate_user_3 :: LocaleUpdate
-testObject_LocaleUpdate_user_3 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.FA, lCountry = Nothing}}
+testObject_LocaleUpdate_user_3 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.SL, lCountry = Nothing}}
 testObject_LocaleUpdate_user_4 :: LocaleUpdate
-testObject_LocaleUpdate_user_4 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.OC, lCountry = Just (Country {fromCountry = GA})}}
+testObject_LocaleUpdate_user_4 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.RN, lCountry = Nothing}}
 testObject_LocaleUpdate_user_5 :: LocaleUpdate
-testObject_LocaleUpdate_user_5 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.GN, lCountry = Nothing}}
+testObject_LocaleUpdate_user_5 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.ST, lCountry = Just (Country {fromCountry = HN})}}
 testObject_LocaleUpdate_user_6 :: LocaleUpdate
-testObject_LocaleUpdate_user_6 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.SC, lCountry = Just (Country {fromCountry = MU})}}
+testObject_LocaleUpdate_user_6 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.KG, lCountry = Nothing}}
 testObject_LocaleUpdate_user_7 :: LocaleUpdate
-testObject_LocaleUpdate_user_7 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.AB, lCountry = Just (Country {fromCountry = GW})}}
+testObject_LocaleUpdate_user_7 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.II, lCountry = Nothing}}
 testObject_LocaleUpdate_user_8 :: LocaleUpdate
-testObject_LocaleUpdate_user_8 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.YI, lCountry = Nothing}}
+testObject_LocaleUpdate_user_8 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.BE, lCountry = Just (Country {fromCountry = PW})}}
 testObject_LocaleUpdate_user_9 :: LocaleUpdate
-testObject_LocaleUpdate_user_9 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.MG, lCountry = Just (Country {fromCountry = NZ})}}
+testObject_LocaleUpdate_user_9 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.TT, lCountry = Just (Country {fromCountry = MU})}}
 testObject_LocaleUpdate_user_10 :: LocaleUpdate
-testObject_LocaleUpdate_user_10 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.LI, lCountry = Nothing}}
+testObject_LocaleUpdate_user_10 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.BH, lCountry = Nothing}}
 testObject_LocaleUpdate_user_11 :: LocaleUpdate
-testObject_LocaleUpdate_user_11 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.IO, lCountry = Just (Country {fromCountry = SY})}}
+testObject_LocaleUpdate_user_11 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.KK, lCountry = Just (Country {fromCountry = SC})}}
 testObject_LocaleUpdate_user_12 :: LocaleUpdate
-testObject_LocaleUpdate_user_12 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.TL, lCountry = Just (Country {fromCountry = MR})}}
+testObject_LocaleUpdate_user_12 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.KJ, lCountry = Nothing}}
 testObject_LocaleUpdate_user_13 :: LocaleUpdate
-testObject_LocaleUpdate_user_13 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.ZA, lCountry = Just (Country {fromCountry = CD})}}
+testObject_LocaleUpdate_user_13 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.HI, lCountry = Nothing}}
 testObject_LocaleUpdate_user_14 :: LocaleUpdate
-testObject_LocaleUpdate_user_14 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.IT, lCountry = Just (Country {fromCountry = SK})}}
+testObject_LocaleUpdate_user_14 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.MG, lCountry = Just (Country {fromCountry = LC})}}
 testObject_LocaleUpdate_user_15 :: LocaleUpdate
-testObject_LocaleUpdate_user_15 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.DA, lCountry = Just (Country {fromCountry = SN})}}
+testObject_LocaleUpdate_user_15 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.LO, lCountry = Nothing}}
 testObject_LocaleUpdate_user_16 :: LocaleUpdate
-testObject_LocaleUpdate_user_16 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.IS, lCountry = Just (Country {fromCountry = MK})}}
+testObject_LocaleUpdate_user_16 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.YI, lCountry = Nothing}}
 testObject_LocaleUpdate_user_17 :: LocaleUpdate
-testObject_LocaleUpdate_user_17 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.BN, lCountry = Just (Country {fromCountry = MD})}}
+testObject_LocaleUpdate_user_17 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.MS, lCountry = Just (Country {fromCountry = MS})}}
 testObject_LocaleUpdate_user_18 :: LocaleUpdate
-testObject_LocaleUpdate_user_18 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.VE, lCountry = Just (Country {fromCountry = VU})}}
+testObject_LocaleUpdate_user_18 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.SW, lCountry = Just (Country {fromCountry = FJ})}}
 testObject_LocaleUpdate_user_19 :: LocaleUpdate
-testObject_LocaleUpdate_user_19 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.LG, lCountry = Just (Country {fromCountry = LS})}}
+testObject_LocaleUpdate_user_19 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.EL, lCountry = Just (Country {fromCountry = GA})}}
 testObject_LocaleUpdate_user_20 :: LocaleUpdate
-testObject_LocaleUpdate_user_20 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.QU, lCountry = Just (Country {fromCountry = SM})}}
+testObject_LocaleUpdate_user_20 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.FY, lCountry = Just (Country {fromCountry = MQ})}}

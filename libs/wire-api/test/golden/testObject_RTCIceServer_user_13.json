@@ -1,1 +1,1 @@
-{"urls":["turn:007.com:1?transport=udp"],"credential":"CmzV5ZjBMJ4f","username":"d=85.v=1.k=22.t=\u0010.r=zqh"}
+{"urls":["turn:007.com:0?transport=tcp","turn:153.179.137.7:0?transport=udp","turns:007.com:0?transport=tcp","turns:host.name:0?transport=udp","turns:232.12.104.208:2?transport=udp","turns:host.name:1","turns:46.36.64.190:0","turns:123:1?transport=udp","turn:a-c:0?transport=tcp"],"credential":"piyLzoWH","username":"d=7.v=10.k=12.t=).r=32a"}

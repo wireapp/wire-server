@@ -76,42 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_ActivationKey_user_1 :: ActivationKey
-testObject_ActivationKey_user_1 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("bqVvlBL2kEVo8poRUSp0IyhBkmffeCj-uiOvY1c=")))}
+testObject_ActivationKey_user_1 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("oaASdtBp2W_YzxsZYK-MkErELE-FTQ==")))}
 testObject_ActivationKey_user_2 :: ActivationKey
-testObject_ActivationKey_user_2 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("yBz29A==")))}
+testObject_ActivationKey_user_2 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("SVJ3Ygg5J1YTV1XPuhE=")))}
 testObject_ActivationKey_user_3 :: ActivationKey
-testObject_ActivationKey_user_3 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("SPl8FDUo6MQq")))}
+testObject_ActivationKey_user_3 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("0D2IGw==")))}
 testObject_ActivationKey_user_4 :: ActivationKey
-testObject_ActivationKey_user_4 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("Y48-5RzUZAvM-pnfGlraSHvTMk0=")))}
+testObject_ActivationKey_user_4 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("gQ47lH3cmSlcy6OYNVfW")))}
 testObject_ActivationKey_user_5 :: ActivationKey
-testObject_ActivationKey_user_5 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("mUOhFU7zedPPy10n3hJAMttuFlhCxg==")))}
+testObject_ActivationKey_user_5 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("")))}
 testObject_ActivationKey_user_6 :: ActivationKey
-testObject_ActivationKey_user_6 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("ZSYZ8_jYuU0ZDrcWzs45kPnGCvs=")))}
+testObject_ActivationKey_user_6 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("yREAh4b4mpGUmuuAzg==")))}
 testObject_ActivationKey_user_7 :: ActivationKey
-testObject_ActivationKey_user_7 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("aHlDalDrJs12FzGHpjEvgtkEigbwwUb9symw8w==")))}
+testObject_ActivationKey_user_7 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("NLVkUI6cft8Fidm__Q==")))}
 testObject_ActivationKey_user_8 :: ActivationKey
-testObject_ActivationKey_user_8 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("DujRl3M4earqET5SfA0ICQ==")))}
+testObject_ActivationKey_user_8 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("RvkH4vgATtHwQaCcIjCuW2UQT6xzWeIK")))}
 testObject_ActivationKey_user_9 :: ActivationKey
-testObject_ActivationKey_user_9 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("UyTr5_Io7FhfUELUnpCUxS7iDTUDnioJ2yt2ew==")))}
+testObject_ActivationKey_user_9 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("G9GKBE3kBYY91EaO0HRv0w==")))}
 testObject_ActivationKey_user_10 :: ActivationKey
-testObject_ActivationKey_user_10 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("x1_EgyY445w89NOr5H2tB2sEghEubw==")))}
+testObject_ActivationKey_user_10 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("84UEJxVT57xPbOVDwb-kfA==")))}
 testObject_ActivationKey_user_11 :: ActivationKey
-testObject_ActivationKey_user_11 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("sHocxBmruIcz5MoiqEb22CMi9Rr8w44n")))}
+testObject_ActivationKey_user_11 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("P1gT8LUxFGwKXX5oqt3wnTo=")))}
 testObject_ActivationKey_user_12 :: ActivationKey
-testObject_ActivationKey_user_12 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("4TZwyXjF_pucRJ6XBXw=")))}
+testObject_ActivationKey_user_12 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("t2h8R49d")))}
 testObject_ActivationKey_user_13 :: ActivationKey
-testObject_ActivationKey_user_13 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("Jdwpa-bDknXope6m")))}
+testObject_ActivationKey_user_13 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("kJSr2js4_4T-51dvffO6HNbf")))}
 testObject_ActivationKey_user_14 :: ActivationKey
-testObject_ActivationKey_user_14 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("M99MOMDQRTS662OnKVRj")))}
+testObject_ActivationKey_user_14 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("Xx5VFvIuxsigGMsGa6EhZoKUO5Q1WCM=")))}
 testObject_ActivationKey_user_15 :: ActivationKey
-testObject_ActivationKey_user_15 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("WNf8gUhGZhI=")))}
+testObject_ActivationKey_user_15 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("XgbbBPdq7C-EAQ==")))}
 testObject_ActivationKey_user_16 :: ActivationKey
-testObject_ActivationKey_user_16 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("ncQEPIaevWL8avBnzV7XXw52RPpb-q-yx9WuMA==")))}
+testObject_ActivationKey_user_16 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("AQ==")))}
 testObject_ActivationKey_user_17 :: ActivationKey
-testObject_ActivationKey_user_17 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("1Hg=")))}
+testObject_ActivationKey_user_17 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("fJ-Qcy1bPt8e24gQuT4YNK8=")))}
 testObject_ActivationKey_user_18 :: ActivationKey
-testObject_ActivationKey_user_18 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("aYOB")))}
+testObject_ActivationKey_user_18 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("_7FvbSshcjVQmxo9E5UrE2VMVfufaX_TSg==")))}
 testObject_ActivationKey_user_19 :: ActivationKey
-testObject_ActivationKey_user_19 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("3i3FvEE4TI1qU_VL65jxDigk3OXfofFkrmE3")))}
+testObject_ActivationKey_user_19 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("neRlNb1GJfbgKcPRCtdcNyNWYDjIp0BUBr6o0Q==")))}
 testObject_ActivationKey_user_20 :: ActivationKey
-testObject_ActivationKey_user_20 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("YFp03CqJp-pNRz-twMjv8oB9UfXwGjwqr2y-Lw==")))}
+testObject_ActivationKey_user_20 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("x4OX")))}

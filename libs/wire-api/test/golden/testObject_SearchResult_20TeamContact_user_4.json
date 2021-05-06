@@ -1,1 +1,1 @@
-{"took":-6,"found":1,"documents":[{"email":"@","handle":"","managed_by":null,"role":"owner","accent_id":null,"name":"","created_at":null,"team":null,"id":"00000000-0000-0001-0000-000100000001","saml_idp":""}],"returned":-3}
+{"took":-7,"found":6,"documents":[],"returned":6}

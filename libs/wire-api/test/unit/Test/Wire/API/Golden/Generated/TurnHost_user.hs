@@ -76,42 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_TurnHost_user_1 :: TurnHost
-testObject_TurnHost_user_1 = TurnHostIp (IpAddr (read "8475:175b:994a:694b:cdae:2904:942a:129f"))
+testObject_TurnHost_user_1 = TurnHostName "007.com"
 testObject_TurnHost_user_2 :: TurnHost
-testObject_TurnHost_user_2 = TurnHostIp (IpAddr (read "116.175.252.201"))
+testObject_TurnHost_user_2 = TurnHostIp (IpAddr (read "44:dbae:813:b53a:8a5f:c290:31ac:cdf8"))
 testObject_TurnHost_user_3 :: TurnHost
-testObject_TurnHost_user_3 = TurnHostName "007.com"
+testObject_TurnHost_user_3 = TurnHostIp (IpAddr (read "160.252.104.21"))
 testObject_TurnHost_user_4 :: TurnHost
-testObject_TurnHost_user_4 = TurnHostName "xn--mgbh0fb.xn--kgbechtv"
+testObject_TurnHost_user_4 = TurnHostIp (IpAddr (read "73.205.40.128"))
 testObject_TurnHost_user_5 :: TurnHost
-testObject_TurnHost_user_5 = TurnHostName "123"
+testObject_TurnHost_user_5 = TurnHostName "xn--mgbh0fb.xn--kgbechtv"
 testObject_TurnHost_user_6 :: TurnHost
-testObject_TurnHost_user_6 = TurnHostName "a-c"
+testObject_TurnHost_user_6 = TurnHostIp (IpAddr (read "ff8d:6e73:393e:3034:63a0:ee31:11a9:920f"))
 testObject_TurnHost_user_7 :: TurnHost
-testObject_TurnHost_user_7 = TurnHostName "007.com"
+testObject_TurnHost_user_7 = TurnHostIp (IpAddr (read "151.85.197.118"))
 testObject_TurnHost_user_8 :: TurnHost
-testObject_TurnHost_user_8 = TurnHostName "host.name"
+testObject_TurnHost_user_8 = TurnHostIp (IpAddr (read "224.69.92.182"))
 testObject_TurnHost_user_9 :: TurnHost
-testObject_TurnHost_user_9 = TurnHostIp (IpAddr (read "7120:ce25:5493:e3ef:76fa:d8d2:b539:94d4"))
+testObject_TurnHost_user_9 = TurnHostIp (IpAddr (read "229.64.202.76"))
 testObject_TurnHost_user_10 :: TurnHost
-testObject_TurnHost_user_10 = TurnHostIp (IpAddr (read "ba9:2b30:a43b:fa37:bbb:970c:5412:7164"))
+testObject_TurnHost_user_10 = TurnHostIp (IpAddr (read "4c5a:79e6:6090:b64d:f883:d732:f066:98d"))
 testObject_TurnHost_user_11 :: TurnHost
-testObject_TurnHost_user_11 = TurnHostIp (IpAddr (read "f97:5da9:6011:11e8:c82c:d54c:1439:188f"))
+testObject_TurnHost_user_11 = TurnHostName "123"
 testObject_TurnHost_user_12 :: TurnHost
-testObject_TurnHost_user_12 = TurnHostIp (IpAddr (read "4667:7e78:e711:47e8:b194:ff74:fc0c:51d2"))
+testObject_TurnHost_user_12 = TurnHostName "a-c"
 testObject_TurnHost_user_13 :: TurnHost
-testObject_TurnHost_user_13 = TurnHostIp (IpAddr (read "d8e5:36cb:90ae:2d72:ffa2:98d9:3435:34db"))
+testObject_TurnHost_user_13 = TurnHostName "007.com"
 testObject_TurnHost_user_14 :: TurnHost
-testObject_TurnHost_user_14 = TurnHostName "123"
+testObject_TurnHost_user_14 = TurnHostIp (IpAddr (read "194.80.240.196"))
 testObject_TurnHost_user_15 :: TurnHost
-testObject_TurnHost_user_15 = TurnHostIp (IpAddr (read "3662:81b4:9ddb:182f:9928:dbfd:6dcc:e41a"))
+testObject_TurnHost_user_15 = TurnHostIp (IpAddr (read "210.14.40.15"))
 testObject_TurnHost_user_16 :: TurnHost
-testObject_TurnHost_user_16 = TurnHostName "xn--mgbh0fb.xn--kgbechtv"
+testObject_TurnHost_user_16 = TurnHostIp (IpAddr (read "6bc:7e8:9b49:ebe:2aa9:5f66:48e2:1819"))
 testObject_TurnHost_user_17 :: TurnHost
-testObject_TurnHost_user_17 = TurnHostIp (IpAddr (read "178.121.140.242"))
+testObject_TurnHost_user_17 = TurnHostIp (IpAddr (read "126.26.68.22"))
 testObject_TurnHost_user_18 :: TurnHost
-testObject_TurnHost_user_18 = TurnHostIp (IpAddr (read "3.79.113.110"))
+testObject_TurnHost_user_18 = TurnHostIp (IpAddr (read "8c8e:9be7:d534:d16c:42a6:534d:50e6:794e"))
 testObject_TurnHost_user_19 :: TurnHost
-testObject_TurnHost_user_19 = TurnHostIp (IpAddr (read "44ce:6c77:9e7f:c9fa:4282:72ef:804e:b0a3"))
+testObject_TurnHost_user_19 = TurnHostName "007.com"
 testObject_TurnHost_user_20 :: TurnHost
-testObject_TurnHost_user_20 = TurnHostName "a-c"
+testObject_TurnHost_user_20 = TurnHostName "host.name"

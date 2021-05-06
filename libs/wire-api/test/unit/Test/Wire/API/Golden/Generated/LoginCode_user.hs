@@ -76,42 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_LoginCode_user_1 :: LoginCode
-testObject_LoginCode_user_1 = LoginCode {fromLoginCode = "\DLE-tA%\987403\nlr%\ETXZx@\1013860\tC\1098908\ETBM|z\1098552B"}
+testObject_LoginCode_user_1 = LoginCode {fromLoginCode = "I~W\DC14t\CAN\EMDQ+\993717\ETX\SUB\CAN\1028352>"}
 testObject_LoginCode_user_2 :: LoginCode
-testObject_LoginCode_user_2 = LoginCode {fromLoginCode = "\1019478\FSu\1105017Y\1080099&4W\SO\\+\v\83189q\1051064"}
+testObject_LoginCode_user_2 = LoginCode {fromLoginCode = ".a5\180728})o%&\21007}\65396}^\DC4g\GS}>S\998074\1109058'\DLER\13527$\97107b\4838"}
 testObject_LoginCode_user_3 :: LoginCode
-testObject_LoginCode_user_3 = LoginCode {fromLoginCode = ")b\DC2 \101086S\94408\&7(MH\NUL\t,j\1074917C"}
+testObject_LoginCode_user_3 = LoginCode {fromLoginCode = ",\SOH!\189793j\1028948\42036\ETBKPn\50539"}
 testObject_LoginCode_user_4 :: LoginCode
-testObject_LoginCode_user_4 = LoginCode {fromLoginCode = "\1029863m{\nh}\ENQ\\A\fc2"}
+testObject_LoginCode_user_4 = LoginCode {fromLoginCode = "Ho\t\n/aZ\vu\ETB:\1105245\47503=^T=\ESC\t\n\1111128\t0$"}
 testObject_LoginCode_user_5 :: LoginCode
-testObject_LoginCode_user_5 = LoginCode {fromLoginCode = "\NUL2 "}
+testObject_LoginCode_user_5 = LoginCode {fromLoginCode = ""}
 testObject_LoginCode_user_6 :: LoginCode
-testObject_LoginCode_user_6 = LoginCode {fromLoginCode = "|}"}
+testObject_LoginCode_user_6 = LoginCode {fromLoginCode = "$\137143\SO\189810(\1020957GeH\24281\vI\162444\f\1062135\US|\SUB"}
 testObject_LoginCode_user_7 :: LoginCode
-testObject_LoginCode_user_7 = LoginCode {fromLoginCode = "\RS/\1111140\157596"}
+testObject_LoginCode_user_7 = LoginCode {fromLoginCode = "\1064152B\50940\r%\170439V"}
 testObject_LoginCode_user_8 :: LoginCode
-testObject_LoginCode_user_8 = LoginCode {fromLoginCode = "\DC1\v\54473sQUPI\1109717{V\151340\101048\ENQ(\1097070{\1070624l\41730\998631~\167760"}
+testObject_LoginCode_user_8 = LoginCode {fromLoginCode = "UL\27102`%Tf_\US2\187249"}
 testObject_LoginCode_user_9 :: LoginCode
-testObject_LoginCode_user_9 = LoginCode {fromLoginCode = ""}
+testObject_LoginCode_user_9 = LoginCode {fromLoginCode = "I#\1104346F3UJX\SOH\11454\1060841\1073886e\993450\ETB|\1058034\GSfZe9\1096825/\DC1IOwO"}
 testObject_LoginCode_user_10 :: LoginCode
-testObject_LoginCode_user_10 = LoginCode {fromLoginCode = "$\DC4>pC\1085512\70183wb\188966\ENQ\1047366Z"}
+testObject_LoginCode_user_10 = LoginCode {fromLoginCode = "\ft\STX\NAK\DC3a/\1015669v.\a(s\EMX/|\1007193\143975n\NULD\1087874K^\1011599v\1006688\ESC\989245"}
 testObject_LoginCode_user_11 :: LoginCode
-testObject_LoginCode_user_11 = LoginCode {fromLoginCode = "\t\162503/C|\1045044\989835\33981G\1073305L]|<R`"}
+testObject_LoginCode_user_11 = LoginCode {fromLoginCode = "8\ETX9}\1106191\RS\1083513K\r\1075759\NULm\DC1oU7L"}
 testObject_LoginCode_user_12 :: LoginCode
-testObject_LoginCode_user_12 = LoginCode {fromLoginCode = "r\GSu\ESCr"}
+testObject_LoginCode_user_12 = LoginCode {fromLoginCode = "y\1081737\94851J\27278\DLE\1094720\1074126\ACK\144350\45734e 0"}
 testObject_LoginCode_user_13 :: LoginCode
-testObject_LoginCode_user_13 = LoginCode {fromLoginCode = "R5%3\DLE@h\SYN\1022613\57773\EOT\\\1016949\RS"}
+testObject_LoginCode_user_13 = LoginCode {fromLoginCode = "rCTA3q:\US\DC4#T\99484BB`\RS\59873*u\12670F6X"}
 testObject_LoginCode_user_14 :: LoginCode
-testObject_LoginCode_user_14 = LoginCode {fromLoginCode = "\NAK\58859\159933\DLE\CANiX$\US#\36312C8J\GS([\ENQ\v"}
+testObject_LoginCode_user_14 = LoginCode {fromLoginCode = "pjGR\DLE\EOT\144029 a\CAN%7\1021034q\DC1\NAK\111048"}
 testObject_LoginCode_user_15 :: LoginCode
-testObject_LoginCode_user_15 = LoginCode {fromLoginCode = "\41162qFIh<\1018373\1064702q\SO\166601p<M;,"}
+testObject_LoginCode_user_15 = LoginCode {fromLoginCode = "\1096754\NAK-\r\998411\EMR\DLE\US#\"$\1027544\70466r&\EOT\1022522[\DLE\1099622i[v^p?"}
 testObject_LoginCode_user_16 :: LoginCode
-testObject_LoginCode_user_16 = LoginCode {fromLoginCode = "1b*\\\NUL1#\20252qB$\1071880F\18698\167847{^\ETBh\17511\990059uZk\997258g\r\1064194\1016283"}
+testObject_LoginCode_user_16 = LoginCode {fromLoginCode = "B\1075339 \1101825HL"}
 testObject_LoginCode_user_17 :: LoginCode
-testObject_LoginCode_user_17 = LoginCode {fromLoginCode = "\19655K\1012985\164444\\\189801Bt\USd<\145628"}
+testObject_LoginCode_user_17 = LoginCode {fromLoginCode = "H3-mq\97753|Z\1048539 \DC2"}
 testObject_LoginCode_user_18 :: LoginCode
-testObject_LoginCode_user_18 = LoginCode {fromLoginCode = "cX\DC2\SOD\139794a}2*\1040898"}
+testObject_LoginCode_user_18 = LoginCode {fromLoginCode = "\n\ESCs\nf<\162625F\SOHh\190383\1105729\ENQ\1047932-;{\n"}
 testObject_LoginCode_user_19 :: LoginCode
-testObject_LoginCode_user_19 = LoginCode {fromLoginCode = "\DC3\1063173"}
+testObject_LoginCode_user_19 = LoginCode {fromLoginCode = "\48419\ACKMPyVv\NAK3t\21013@s\65579qI!6X\ETX"}
 testObject_LoginCode_user_20 :: LoginCode
-testObject_LoginCode_user_20 = LoginCode {fromLoginCode = "\39666\986327\1015962@@K6\DC3f\126228h\ESCE\14559hs\ESC@\55063+\NAK\DC3\984867$9qB4%"}
+testObject_LoginCode_user_20 = LoginCode {fromLoginCode = "\DC1\1105836qBG\1002596\1085304p\184163p~HA\RS\140159\DELUGiZ-\a\ACK"}

@@ -76,42 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_Locale_user_1 :: Locale
-testObject_Locale_user_1 = Locale {lLanguage = Language Data.LanguageCodes.ZU, lCountry = Nothing}
+testObject_Locale_user_1 = Locale {lLanguage = Language Data.LanguageCodes.GU, lCountry = Just (Country {fromCountry = OM})}
 testObject_Locale_user_2 :: Locale
-testObject_Locale_user_2 = Locale {lLanguage = Language Data.LanguageCodes.LB, lCountry = Nothing}
+testObject_Locale_user_2 = Locale {lLanguage = Language Data.LanguageCodes.KM, lCountry = Just (Country {fromCountry = BM})}
 testObject_Locale_user_3 :: Locale
-testObject_Locale_user_3 = Locale {lLanguage = Language Data.LanguageCodes.PT, lCountry = Just (Country {fromCountry = LT})}
+testObject_Locale_user_3 = Locale {lLanguage = Language Data.LanguageCodes.DA, lCountry = Just (Country {fromCountry = SG})}
 testObject_Locale_user_4 :: Locale
-testObject_Locale_user_4 = Locale {lLanguage = Language Data.LanguageCodes.ND, lCountry = Just (Country {fromCountry = TV})}
+testObject_Locale_user_4 = Locale {lLanguage = Language Data.LanguageCodes.KG, lCountry = Just (Country {fromCountry = NI})}
 testObject_Locale_user_5 :: Locale
-testObject_Locale_user_5 = Locale {lLanguage = Language Data.LanguageCodes.IU, lCountry = Just (Country {fromCountry = SL})}
+testObject_Locale_user_5 = Locale {lLanguage = Language Data.LanguageCodes.FO, lCountry = Just (Country {fromCountry = VI})}
 testObject_Locale_user_6 :: Locale
-testObject_Locale_user_6 = Locale {lLanguage = Language Data.LanguageCodes.AN, lCountry = Just (Country {fromCountry = CW})}
+testObject_Locale_user_6 = Locale {lLanguage = Language Data.LanguageCodes.EU, lCountry = Nothing}
 testObject_Locale_user_7 :: Locale
-testObject_Locale_user_7 = Locale {lLanguage = Language Data.LanguageCodes.ST, lCountry = Nothing}
+testObject_Locale_user_7 = Locale {lLanguage = Language Data.LanguageCodes.LB, lCountry = Just (Country {fromCountry = GI})}
 testObject_Locale_user_8 :: Locale
-testObject_Locale_user_8 = Locale {lLanguage = Language Data.LanguageCodes.NV, lCountry = Just (Country {fromCountry = KM})}
+testObject_Locale_user_8 = Locale {lLanguage = Language Data.LanguageCodes.TN, lCountry = Just (Country {fromCountry = SY})}
 testObject_Locale_user_9 :: Locale
-testObject_Locale_user_9 = Locale {lLanguage = Language Data.LanguageCodes.AV, lCountry = Nothing}
+testObject_Locale_user_9 = Locale {lLanguage = Language Data.LanguageCodes.KS, lCountry = Nothing}
 testObject_Locale_user_10 :: Locale
-testObject_Locale_user_10 = Locale {lLanguage = Language Data.LanguageCodes.VE, lCountry = Just (Country {fromCountry = JP})}
+testObject_Locale_user_10 = Locale {lLanguage = Language Data.LanguageCodes.ND, lCountry = Just (Country {fromCountry = US})}
 testObject_Locale_user_11 :: Locale
-testObject_Locale_user_11 = Locale {lLanguage = Language Data.LanguageCodes.ZH, lCountry = Just (Country {fromCountry = PL})}
+testObject_Locale_user_11 = Locale {lLanguage = Language Data.LanguageCodes.FO, lCountry = Just (Country {fromCountry = SC})}
 testObject_Locale_user_12 :: Locale
-testObject_Locale_user_12 = Locale {lLanguage = Language Data.LanguageCodes.TE, lCountry = Just (Country {fromCountry = EG})}
+testObject_Locale_user_12 = Locale {lLanguage = Language Data.LanguageCodes.RO, lCountry = Just (Country {fromCountry = OM})}
 testObject_Locale_user_13 :: Locale
-testObject_Locale_user_13 = Locale {lLanguage = Language Data.LanguageCodes.BH, lCountry = Just (Country {fromCountry = TK})}
+testObject_Locale_user_13 = Locale {lLanguage = Language Data.LanguageCodes.KL, lCountry = Nothing}
 testObject_Locale_user_14 :: Locale
-testObject_Locale_user_14 = Locale {lLanguage = Language Data.LanguageCodes.IU, lCountry = Just (Country {fromCountry = PA})}
+testObject_Locale_user_14 = Locale {lLanguage = Language Data.LanguageCodes.SM, lCountry = Just (Country {fromCountry = DE})}
 testObject_Locale_user_15 :: Locale
-testObject_Locale_user_15 = Locale {lLanguage = Language Data.LanguageCodes.QU, lCountry = Nothing}
+testObject_Locale_user_15 = Locale {lLanguage = Language Data.LanguageCodes.GD, lCountry = Nothing}
 testObject_Locale_user_16 :: Locale
-testObject_Locale_user_16 = Locale {lLanguage = Language Data.LanguageCodes.NL, lCountry = Just (Country {fromCountry = BJ})}
+testObject_Locale_user_16 = Locale {lLanguage = Language Data.LanguageCodes.KS, lCountry = Just (Country {fromCountry = KN})}
 testObject_Locale_user_17 :: Locale
-testObject_Locale_user_17 = Locale {lLanguage = Language Data.LanguageCodes.MK, lCountry = Just (Country {fromCountry = SE})}
+testObject_Locale_user_17 = Locale {lLanguage = Language Data.LanguageCodes.GD, lCountry = Just (Country {fromCountry = VA})}
 testObject_Locale_user_18 :: Locale
-testObject_Locale_user_18 = Locale {lLanguage = Language Data.LanguageCodes.ID, lCountry = Nothing}
+testObject_Locale_user_18 = Locale {lLanguage = Language Data.LanguageCodes.AY, lCountry = Just (Country {fromCountry = ML})}
 testObject_Locale_user_19 :: Locale
-testObject_Locale_user_19 = Locale {lLanguage = Language Data.LanguageCodes.OC, lCountry = Just (Country {fromCountry = GQ})}
+testObject_Locale_user_19 = Locale {lLanguage = Language Data.LanguageCodes.TY, lCountry = Just (Country {fromCountry = NU})}
 testObject_Locale_user_20 :: Locale
-testObject_Locale_user_20 = Locale {lLanguage = Language Data.LanguageCodes.KI, lCountry = Nothing}
+testObject_Locale_user_20 = Locale {lLanguage = Language Data.LanguageCodes.SW, lCountry = Just (Country {fromCountry = RS})}

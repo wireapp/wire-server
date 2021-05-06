@@ -1,1 +1,1 @@
-{"event":{"conversation":"00005fe4-0000-0b75-0000-298e000021d4","time":"1864-05-13T07:51:15.546Z","data":{"text":"","sender":"1d","recipient":"5"},"from":"000032e5-0000-43e7-0000-796200005d44","type":"conversation.otr-message-add"}}
+{"event":{"conversation":"000024aa-0000-3a4d-0000-4eb600000397","time":"1864-06-08T15:07:06.833Z","data":{"email":null,"name":"aDt𣘶","message":"n","recipient":"00000003-0000-0004-0000-000400000005"},"from":"00007190-0000-6825-0000-625b0000053a","type":"conversation.connect-request"}}

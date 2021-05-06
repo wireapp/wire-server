@@ -1,1 +1,1 @@
-{"event":{"conversation":"00003b0d-0000-1bc1-0000-3cd000001063","time":"1864-06-08T09:43:41.243Z","data":null,"from":"0000154f-0000-2fb2-0000-579b00006750","type":"conversation.code-delete"}}
+{"event":{"conversation":"000006c1-0000-6eec-0000-5bee000050f5","time":"1864-04-21T14:06:18.285Z","data":{"email":"7C","name":":","message":null,"recipient":"00000005-0000-0005-0000-000000000003"},"from":"00004cdc-0000-030a-0000-0b4a000034a6","type":"conversation.connect-request"}}

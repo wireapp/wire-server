@@ -76,42 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_ColourId_user_1 :: ColourId
-testObject_ColourId_user_1 = ColourId {fromColourId = 1471}
+testObject_ColourId_user_1 = ColourId {fromColourId = 7317}
 testObject_ColourId_user_2 :: ColourId
-testObject_ColourId_user_2 = ColourId {fromColourId = 1161}
+testObject_ColourId_user_2 = ColourId {fromColourId = 13200}
 testObject_ColourId_user_3 :: ColourId
-testObject_ColourId_user_3 = ColourId {fromColourId = 22312}
+testObject_ColourId_user_3 = ColourId {fromColourId = 29286}
 testObject_ColourId_user_4 :: ColourId
-testObject_ColourId_user_4 = ColourId {fromColourId = -6275}
+testObject_ColourId_user_4 = ColourId {fromColourId = -31470}
 testObject_ColourId_user_5 :: ColourId
-testObject_ColourId_user_5 = ColourId {fromColourId = 7089}
+testObject_ColourId_user_5 = ColourId {fromColourId = -5841}
 testObject_ColourId_user_6 :: ColourId
-testObject_ColourId_user_6 = ColourId {fromColourId = 22412}
+testObject_ColourId_user_6 = ColourId {fromColourId = 25375}
 testObject_ColourId_user_7 :: ColourId
-testObject_ColourId_user_7 = ColourId {fromColourId = 28090}
+testObject_ColourId_user_7 = ColourId {fromColourId = -237}
 testObject_ColourId_user_8 :: ColourId
-testObject_ColourId_user_8 = ColourId {fromColourId = 27510}
+testObject_ColourId_user_8 = ColourId {fromColourId = 6722}
 testObject_ColourId_user_9 :: ColourId
-testObject_ColourId_user_9 = ColourId {fromColourId = 13869}
+testObject_ColourId_user_9 = ColourId {fromColourId = 17807}
 testObject_ColourId_user_10 :: ColourId
-testObject_ColourId_user_10 = ColourId {fromColourId = 18187}
+testObject_ColourId_user_10 = ColourId {fromColourId = -16620}
 testObject_ColourId_user_11 :: ColourId
-testObject_ColourId_user_11 = ColourId {fromColourId = -10419}
+testObject_ColourId_user_11 = ColourId {fromColourId = 16697}
 testObject_ColourId_user_12 :: ColourId
-testObject_ColourId_user_12 = ColourId {fromColourId = -14519}
+testObject_ColourId_user_12 = ColourId {fromColourId = 19909}
 testObject_ColourId_user_13 :: ColourId
-testObject_ColourId_user_13 = ColourId {fromColourId = -20145}
+testObject_ColourId_user_13 = ColourId {fromColourId = 26339}
 testObject_ColourId_user_14 :: ColourId
-testObject_ColourId_user_14 = ColourId {fromColourId = 14507}
+testObject_ColourId_user_14 = ColourId {fromColourId = -2897}
 testObject_ColourId_user_15 :: ColourId
-testObject_ColourId_user_15 = ColourId {fromColourId = 19129}
+testObject_ColourId_user_15 = ColourId {fromColourId = 10680}
 testObject_ColourId_user_16 :: ColourId
-testObject_ColourId_user_16 = ColourId {fromColourId = 865}
+testObject_ColourId_user_16 = ColourId {fromColourId = 15027}
 testObject_ColourId_user_17 :: ColourId
-testObject_ColourId_user_17 = ColourId {fromColourId = -21372}
+testObject_ColourId_user_17 = ColourId {fromColourId = 3610}
 testObject_ColourId_user_18 :: ColourId
-testObject_ColourId_user_18 = ColourId {fromColourId = -7118}
+testObject_ColourId_user_18 = ColourId {fromColourId = -23760}
 testObject_ColourId_user_19 :: ColourId
-testObject_ColourId_user_19 = ColourId {fromColourId = -32527}
+testObject_ColourId_user_19 = ColourId {fromColourId = 6181}
 testObject_ColourId_user_20 :: ColourId
-testObject_ColourId_user_20 = ColourId {fromColourId = -15801}
+testObject_ColourId_user_20 = ColourId {fromColourId = 7656}
