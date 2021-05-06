@@ -25,16 +25,16 @@ import System.Random (randomIO)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
-import Util.Options (epHost, epPort)
+import Util.Options (Endpoint, epHost, epPort)
 import qualified Wire.API.Connection as Conn
 import qualified Wire.API.Push.V2.Token as PushToken
 import qualified Wire.API.Team.Member as Team
 
-tests :: Opt.Opts -> Manager -> Brig -> Gundeck -> IO TestTree
-tests opts mgr brig gundeck = do
+tests :: Opt.Opts -> Manager -> Brig -> Endpoint -> Gundeck -> IO TestTree
+tests _opts mgr brig brigep gundeck = do
   return $
     testGroup "api/internal" $
-      [ test mgr "ejpd requests" $ testEJPDRequest opts mgr brig gundeck
+      [ test mgr "ejpd requests" $ testEJPDRequest mgr brig brigep gundeck
       ]
 
 type TestConstraints m = (MonadFail m, MonadCatch m, MonadIO m, MonadHttp m)
@@ -105,18 +105,17 @@ scaffolding brig gundeck = do
 ejpdRequestClientM :: Maybe Bool -> EJPDRequestBody -> Client.ClientM EJPDResponseBody
 ejpdRequestClientM = Client.client (Proxy @IAPI.ServantAPI)
 
-ejpdRequestClient :: TestConstraints m => Opt.Opts -> Manager -> Maybe Bool -> EJPDRequestBody -> m EJPDResponseBody
-ejpdRequestClient opts mgr includeContacts ejpdReqBody = do
+ejpdRequestClient :: TestConstraints m => Endpoint -> Manager -> Maybe Bool -> EJPDRequestBody -> m EJPDResponseBody
+ejpdRequestClient brigep mgr includeContacts ejpdReqBody = do
   let env = Client.mkClientEnv mgr baseurl
       baseurl = Client.BaseUrl Client.Http (cs $ brigep ^. epHost) (fromIntegral $ brigep ^. epPort) ""
-      brigep = Opt.brig opts
   liftIO $
     Client.runClientM (ejpdRequestClientM includeContacts ejpdReqBody) env >>= \case
       Left err -> throwM err
       Right val -> pure val
 
-testEJPDRequest :: TestConstraints m => Opt.Opts -> Manager -> Brig -> Gundeck -> m ()
-testEJPDRequest opts mgr brig gundeck = do
+testEJPDRequest :: TestConstraints m => Manager -> Brig -> Endpoint -> Gundeck -> m ()
+testEJPDRequest mgr brig brigep gundeck = do
   (handle1, mkUsr1, handle2, mkUsr2, mkUsr3) <- scaffolding brig gundeck
 
   do
@@ -125,7 +124,7 @@ testEJPDRequest opts mgr brig gundeck = do
           EJPDResponseBody
             [ mkUsr1 Nothing Nothing
             ]
-    have <- ejpdRequestClient opts mgr Nothing req
+    have <- ejpdRequestClient brigep mgr Nothing req
     liftIO $ assertEqual "" want have
 
   do
@@ -135,7 +134,7 @@ testEJPDRequest opts mgr brig gundeck = do
             [ mkUsr1 Nothing Nothing,
               mkUsr2 Nothing Nothing
             ]
-    have <- ejpdRequestClient opts mgr Nothing req
+    have <- ejpdRequestClient brigep mgr Nothing req
     liftIO $ assertEqual "" want have
 
   do
@@ -146,7 +145,7 @@ testEJPDRequest opts mgr brig gundeck = do
                 (Just (Set.fromList [(Conn.Accepted, mkUsr1 Nothing Nothing)]))
                 Nothing
             ]
-    have <- ejpdRequestClient opts mgr (Just True) req
+    have <- ejpdRequestClient brigep mgr (Just True) req
     liftIO $ assertEqual "" want have
 
   do
@@ -160,5 +159,5 @@ testEJPDRequest opts mgr brig gundeck = do
                 (Just (Set.fromList [(Conn.Accepted, mkUsr1 Nothing Nothing)]))
                 Nothing
             ]
-    have <- ejpdRequestClient opts mgr (Just True) req
+    have <- ejpdRequestClient brigep mgr (Just True) req
     liftIO $ assertEqual "" want have
