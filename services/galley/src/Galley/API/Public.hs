@@ -818,6 +818,13 @@ sitemap = do
     errorResponse Error.notConnected
     errorResponse Error.convAccessDenied
 
+  -- TODO: discuss naming for this endpoint. Or should we augment 'Invite' with qualified members and keep this endpoint?
+  post "/conversations/:cnv/qualified-members" (continue Update.addMembersQH) $
+    zauthUserId
+      .&. zauthConnId
+      .&. capture "cnv"
+      .&. jsonRequest @Public.InviteQualified
+
   get "/conversations/:cnv/self" (continue Query.getSelfH) $
     zauthUserId
       .&. capture "cnv"

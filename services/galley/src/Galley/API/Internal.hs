@@ -119,6 +119,14 @@ sitemap = do
   get "/i/conversations/:cnv/meta" (continue Query.getConversationMetaH) $
     capture "cnv"
 
+  -- For testing only
+  post "/i/conversations/qualified-create" (continue undefined) $
+    zauthUserId
+  post "/i/conversations/qualified-get" (continue undefined) $
+    zauthUserId
+  post "/i/conversations/qualified-remove-member" (continue undefined) $
+    zauthUserId
+
   -- Team API (internal) ------------------------------------------------
 
   get "/i/teams/:tid" (continue Teams.getTeamInternalH) $

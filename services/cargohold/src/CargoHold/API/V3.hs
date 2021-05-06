@@ -56,12 +56,15 @@ import Data.UUID.V4
 import Imports hiding (take)
 import Network.HTTP.Types.Header
 import Network.Wai.Utilities (Error (..))
+import qualified System.Logger.Class as Log
+import System.Logger.Message (field, msg, val, (.=), (~~))
 import URI.ByteString
 
 upload :: V3.Principal -> ConduitM () ByteString (ResourceT IO) () -> Handler V3.Asset
 upload own bdy = do
   (rsrc, sets) <- parseMetadata bdy assetSettings
   (src, hdrs) <- parseHeaders rsrc assetHeaders
+  Log.warn msg "headers: " -- <> show hdrs
   let cl = fromIntegral $ hdrLength hdrs
   when (cl <= 0) $
     throwE invalidLength

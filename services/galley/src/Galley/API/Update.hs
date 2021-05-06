@@ -34,6 +34,7 @@ module Galley.API.Update
 
     -- * Managing Members
     Galley.API.Update.addMembersH,
+    Galley.API.Update.addMembersQH,
     updateSelfMemberH,
     updateOtherMemberH,
     removeMemberH,
@@ -437,6 +438,11 @@ joinConversation zusr zcon cnv access = do
 
 addMembersH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.Invite -> Galley Response
 addMembersH (zusr ::: zcon ::: cid ::: req) = do
+  invite <- fromJsonBody req
+  handleUpdateResult <$> addMembers zusr zcon cid invite
+
+addMembersQH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.InviteQualified -> Galley Response
+addMembersQH (zusr ::: zcon ::: cid ::: req) = do
   invite <- fromJsonBody req
   handleUpdateResult <$> addMembers zusr zcon cid invite
 

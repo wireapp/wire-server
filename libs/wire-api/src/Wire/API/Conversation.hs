@@ -73,6 +73,7 @@ import Data.Id
 import Data.Json.Util
 import Data.List1
 import Data.Misc
+import Data.Qualified (Qualified)
 import Data.String.Conversions (cs)
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
@@ -462,13 +463,21 @@ instance FromJSON ConvTeamInfo where
 --------------------------------------------------------------------------------
 -- invite
 
-data Invite = Invite
+data Invite = Invite -- Deprecated, use InviteQualified (and maybe rename?)
   { invUsers :: List1 UserId,
     -- | This role name is to be applied to all users
     invRoleName :: RoleName
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Invite)
+
+data InviteQualified = InviteQualified
+  { invQUsers :: List1 (Qualified UserId),
+    -- | This role name is to be applied to all users
+    invQRoleName :: RoleName
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform InviteQualified)
 
 newInvite :: List1 UserId -> Invite
 newInvite us = Invite us roleNameWireAdmin
@@ -489,6 +498,17 @@ instance ToJSON Invite where
 instance FromJSON Invite where
   parseJSON = withObject "invite object" $ \o ->
     Invite <$> o .: "users" <*> o .:? "conversation_role" .!= roleNameWireAdmin
+
+instance ToJSON InviteQualified where
+  toJSON i =
+    object
+      [ "qualified_users" .= invQUsers i,
+        "conversation_role" .= invQRoleName i
+      ]
+
+instance FromJSON InviteQualified where
+  parseJSON = withObject "invite object" $ \o ->
+    InviteQualified <$> o .: "qualified_users" <*> o .:? "conversation_role" .!= roleNameWireAdmin
 
 --------------------------------------------------------------------------------
 -- update
