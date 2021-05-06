@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e434da78c7b7f98b028bdcd4badd0403971552342a96c6dfa8f4c54e01729f8d
+-- hash: f5a02c8e0d84aa917019163aa93d946580d81a040505c093f72f345bddf36287
 
 name:           brig
 version:        1.35.0
@@ -93,6 +93,7 @@ library
       Brig.User.Auth.Cookie.Limit
       Brig.User.Auth.DB.Cookie
       Brig.User.Auth.DB.Instances
+      Brig.User.EJPD
       Brig.User.Email
       Brig.User.Event
       Brig.User.Event.Log
@@ -266,6 +267,7 @@ executable brig-integration
   other-modules:
       API.Calling
       API.Federation
+      API.Internal
       API.Metrics
       API.Provider
       API.RichInfo.Util
@@ -304,6 +306,7 @@ executable brig-integration
     , async
     , attoparsec
     , base
+    , base16-bytestring
     , bilge
     , bloodhound
     , brig

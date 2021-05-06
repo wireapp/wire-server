@@ -22,6 +22,10 @@ data:
       host: cargohold
       port: 8080
 
+    gundeck:
+      host: gundeck
+      port: 8080
+
     spar:
       host: spar
       port: 8080

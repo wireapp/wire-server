@@ -137,7 +137,6 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - aeson
-    - brig
     - base
     - bloodhound
     - brig
@@ -181,12 +180,12 @@ executables:
     source-dirs: test/integration
     dependencies:
     - aeson
-    - lens-aeson
     - async
     - attoparsec
+    - base
+    - base16-bytestring
     - bilge
     - bloodhound
-    - base
     - brig
     - brig-types
     - bytestring >=0.9
@@ -202,14 +201,15 @@ executables:
     - filepath >=1.4
     - galley-types
     - gundeck-types
-    - HsOpenSSL
     - hscim
+    - HsOpenSSL
     - http-api-data
     - http-client
     - http-client-tls >=0.2
     - http-types
     - imports
     - lens >=3.9
+    - lens-aeson
     - lens-aeson
     - metrics-wai
     - mime >=0.4
@@ -221,17 +221,17 @@ executables:
     - pem
     - proto-lens
     - QuickCheck
-    - raw-strings-qq
     - random >=1.0
     - random-shuffle
+    - raw-strings-qq
     - retry >=0.6
     - safe
     - saml2-web-sso
-    - spar
-    - string-conversions
     - servant
     - servant-client
     - servant-client-core
+    - spar
+    - string-conversions
     - tasty >=1.0
     - tasty-cannon >=0.3.4
     - tasty-hunit >=0.2

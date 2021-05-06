@@ -36,6 +36,7 @@ module Brig.IO.Intra
     -- * Clients
     Brig.IO.Intra.newClient,
     rmClient,
+    lookupPushToken,
 
     -- * Account Deletion
     rmUser,
@@ -686,6 +687,20 @@ rmClient u c = do
         )
   where
     expected = [status200, status204, status404]
+
+lookupPushToken :: UserId -> AppIO [Push.PushToken]
+lookupPushToken uid = do
+  g <- view gundeck
+  rsp <-
+    rpc'
+      "gundeck"
+      (g :: Request)
+      ( method GET
+          . paths ["i", "push-tokens", toByteString' uid]
+          . zUser uid
+          . expect2xx
+      )
+  responseJsonMaybe rsp & maybe (pure []) (pure . pushTokens)
 
 -------------------------------------------------------------------------------
 -- Team Management

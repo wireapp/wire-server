@@ -225,7 +225,7 @@ validateEmail =
 -- Phone
 
 newtype Phone = Phone {fromPhone :: Text}
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving newtype (ToJSON, ToSchema)
 
 instance FromJSON Phone where

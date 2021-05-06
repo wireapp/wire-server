@@ -218,6 +218,7 @@ tests =
       testRoundTrip @Team.LegalHold.External.LegalHoldServiceRemove,
       testRoundTrip @Team.Member.TeamMember,
       testRoundTrip @Team.Member.ListType,
+      testRoundTrip @Team.Member.NewListType,
       testRoundTrip @Team.Member.TeamMemberList,
       testRoundTrip @Team.Member.NewTeamMember,
       testRoundTrip @Team.Member.TeamMemberDeleteData,

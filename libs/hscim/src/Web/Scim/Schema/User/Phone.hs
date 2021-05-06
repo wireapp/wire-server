@@ -26,7 +26,7 @@ data Phone = Phone
   { typ :: Maybe Text,
     value :: Maybe Text
   }
-  deriving (Show, Eq, Generic)
+  deriving (Show, Eq, Ord, Generic)
 
 instance FromJSON Phone where
   parseJSON = genericParseJSON parseOptions . jsonLower
