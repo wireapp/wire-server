@@ -272,8 +272,10 @@ instance FromJSON MemberUpdate where
 
 instance Arbitrary MemberUpdate where
   arbitrary =
-    (getGenericUniform <$> arbitrary)
+    (removeMuteStatus . getGenericUniform <$> arbitrary)
       `QC.suchThat` (isRight . validateMemberUpdate)
+    where
+      removeMuteStatus mup = mup {mupOtrMuteStatus = Nothing}
 
 validateMemberUpdate :: MemberUpdate -> Either String MemberUpdate
 validateMemberUpdate u =
@@ -298,7 +300,9 @@ data OtherMemberUpdate = OtherMemberUpdate
   { omuConvRoleName :: Maybe RoleName
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform OtherMemberUpdate)
+
+instance Arbitrary OtherMemberUpdate where
+  arbitrary = OtherMemberUpdate . Just <$> arbitrary
 
 modelOtherMemberUpdate :: Doc.Model
 modelOtherMemberUpdate = Doc.defineModel "otherMemberUpdate" $ do

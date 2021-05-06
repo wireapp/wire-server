@@ -65,13 +65,13 @@ import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LBS
 import Data.Id
-import Data.Json.Util (toUTCTimeMillis, (#))
+import Data.Json.Util (UTCTimeMillis (fromUTCTimeMillis), toUTCTimeMillis, (#))
 import Data.Text.Ascii (AsciiBase64Url)
 import qualified Data.Text.Encoding as T
 import Data.Time.Clock
 import qualified Data.UUID as UUID
 import Imports
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.API.Arbitrary (Arbitrary (..), GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- Asset
@@ -83,7 +83,12 @@ data Asset = Asset
     _assetToken :: Maybe AssetToken
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform Asset)
+
+-- Generate expiry time with millisecond precision
+instance Arbitrary Asset where
+  arbitrary = Asset <$> arbitrary <*> (fmap milli <$> arbitrary) <*> arbitrary
+    where
+      milli = fromUTCTimeMillis . toUTCTimeMillis
 
 mkAsset :: AssetKey -> Asset
 mkAsset k = Asset k Nothing Nothing

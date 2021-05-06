@@ -46,10 +46,10 @@ import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.Aeson.Types
 import Data.ByteString.Conversion
-import Data.Json.Util (toUTCTimeMillis, (#))
+import Data.Json.Util (UTCTimeMillis (fromUTCTimeMillis), toUTCTimeMillis, (#))
 import Data.Time.Clock
 import Imports
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.API.Arbitrary (Arbitrary (..), GenericUniform (..))
 import Wire.API.Asset.V3
 
 --------------------------------------------------------------------------------
@@ -115,7 +115,11 @@ data ResumableAsset = ResumableAsset
     _resumableChunkSize :: ChunkSize
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ResumableAsset)
+
+instance Arbitrary ResumableAsset where
+  arbitrary = ResumableAsset <$> arbitrary <*> (milli <$> arbitrary) <*> arbitrary
+    where
+      milli = fromUTCTimeMillis . toUTCTimeMillis
 
 makeLenses ''ResumableAsset
 
