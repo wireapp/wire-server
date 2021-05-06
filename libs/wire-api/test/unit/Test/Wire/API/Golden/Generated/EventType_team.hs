@@ -55,13 +55,13 @@ import Wire.API.Team.SearchVisibility
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
-testObject_EventType_1 :: EventType
-testObject_EventType_1 = ConvDelete
-testObject_EventType_2 :: EventType
-testObject_EventType_2 = TeamDelete
-testObject_EventType_3 :: EventType
-testObject_EventType_3 = MemberUpdate
-testObject_EventType_4 :: EventType
-testObject_EventType_4 = ConvDelete
-testObject_EventType_5 :: EventType
-testObject_EventType_5 = TeamCreate
+testObject_EventType_team_1 :: EventType
+testObject_EventType_team_1 = MemberUpdate
+testObject_EventType_team_2 :: EventType
+testObject_EventType_team_2 = ConvCreate
+testObject_EventType_team_3 :: EventType
+testObject_EventType_team_3 = ConvDelete
+testObject_EventType_team_4 :: EventType
+testObject_EventType_team_4 = ConvDelete
+testObject_EventType_team_5 :: EventType
+testObject_EventType_team_5 = MemberUpdate

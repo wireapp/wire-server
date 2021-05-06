@@ -48,13 +48,13 @@ import Wire.API.Provider.Service.Tag
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
-testObject_ServiceTag_1 :: ServiceTag
-testObject_ServiceTag_1 = MusicTag
-testObject_ServiceTag_2 :: ServiceTag
-testObject_ServiceTag_2 = MediaTag
-testObject_ServiceTag_3 :: ServiceTag
-testObject_ServiceTag_3 = GraphicsTag
-testObject_ServiceTag_4 :: ServiceTag
-testObject_ServiceTag_4 = ProductivityTag
-testObject_ServiceTag_5 :: ServiceTag
-testObject_ServiceTag_5 = GraphicsTag
+testObject_ServiceTag_provider_1 :: ServiceTag
+testObject_ServiceTag_provider_1 = ShoppingTag
+testObject_ServiceTag_provider_2 :: ServiceTag
+testObject_ServiceTag_provider_2 = MediaTag
+testObject_ServiceTag_provider_3 :: ServiceTag
+testObject_ServiceTag_provider_3 = VideoTag
+testObject_ServiceTag_provider_4 :: ServiceTag
+testObject_ServiceTag_provider_4 = TravelTag
+testObject_ServiceTag_provider_5 :: ServiceTag
+testObject_ServiceTag_provider_5 = MedicalTag

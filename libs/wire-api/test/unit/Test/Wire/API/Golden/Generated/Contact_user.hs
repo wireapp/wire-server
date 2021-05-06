@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_Contact_1 :: Contact
-testObject_Contact_1 = Contact {contactQualifiedId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "00000003-0000-0008-0000-000400000002"))), qDomain = Domain {_domainText = "8.o-9"}}, contactName = "h\1038227u\DELp", contactColorId = Just 1, contactHandle = Just "l\US_A", contactTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0008-0000-000800000006")))}
-testObject_Contact_2 :: Contact
-testObject_Contact_2 = Contact {contactQualifiedId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "00000003-0000-0002-0000-000200000006"))), qDomain = Domain {_domainText = "y8nd.sd-nf-5a4lkt7"}}, contactName = "\SI", contactColorId = Just (-3), contactHandle = Just "\99986\179267i", contactTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0004-0000-000600000007")))}
-testObject_Contact_3 :: Contact
-testObject_Contact_3 = Contact {contactQualifiedId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "00000008-0000-0006-0000-000500000000"))), qDomain = Domain {_domainText = "6-59.oo.k"}}, contactName = "", contactColorId = Nothing, contactHandle = Just "\b\DC4", contactTeam = Just (Id (fromJust (UUID.fromString "00000005-0000-0008-0000-000600000002")))}
-testObject_Contact_4 :: Contact
-testObject_Contact_4 = Contact {contactQualifiedId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "00000007-0000-0007-0000-000700000006"))), qDomain = Domain {_domainText = "6-83.9-j.sc1j1"}}, contactName = "\169848\1058698", contactColorId = Just (-1), contactHandle = Just "iW\1009308\SIO", contactTeam = Just (Id (fromJust (UUID.fromString "00000007-0000-0004-0000-000300000003")))}
-testObject_Contact_5 :: Contact
-testObject_Contact_5 = Contact {contactQualifiedId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "00000006-0000-0006-0000-000100000001"))), qDomain = Domain {_domainText = "gf6.i70"}}, contactName = "", contactColorId = Just 1, contactHandle = Just "", contactTeam = Just (Id (fromJust (UUID.fromString "00000005-0000-0008-0000-000000000002")))}
+testObject_Contact_user_1 :: Contact
+testObject_Contact_user_1 = Contact {contactQualifiedId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "00000007-0000-0005-0000-000400000001"))), qDomain = Domain {_domainText = "g7.fc2617vp"}}, contactName = "\33934:\1104540sm+", contactColorId = Nothing, contactHandle = Just "\1066340\ETX(", contactTeam = Just (Id (fromJust (UUID.fromString "00000004-0000-0008-0000-000300000004")))}
+testObject_Contact_user_2 :: Contact
+testObject_Contact_user_2 = Contact {contactQualifiedId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "00000002-0000-0004-0000-000100000008"))), qDomain = Domain {_domainText = "94d.l-75.8rg.b-27"}}, contactName = " \t\42467&\1062959", contactColorId = Nothing, contactHandle = Nothing, contactTeam = Just (Id (fromJust (UUID.fromString "00000003-0000-0004-0000-000700000004")))}
+testObject_Contact_user_3 :: Contact
+testObject_Contact_user_3 = Contact {contactQualifiedId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "00000008-0000-0005-0000-000500000005"))), qDomain = Domain {_domainText = "b4.fst-9mw2ep"}}, contactName = "\1007942.RFkR", contactColorId = Nothing, contactHandle = Just "\57686", contactTeam = Nothing}
+testObject_Contact_user_4 :: Contact
+testObject_Contact_user_4 = Contact {contactQualifiedId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "00000003-0000-0008-0000-000400000004"))), qDomain = Domain {_domainText = "0b4uz.v"}}, contactName = "Q>\182235", contactColorId = Nothing, contactHandle = Just "p\SOH", contactTeam = Just (Id (fromJust (UUID.fromString "00000006-0000-0007-0000-000700000003")))}
+testObject_Contact_user_5 :: Contact
+testObject_Contact_user_5 = Contact {contactQualifiedId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "00000002-0000-0004-0000-000600000008"))), qDomain = Domain {_domainText = "3.j7--l2q72.j-347t14i1-4"}}, contactName = "\t\984457v", contactColorId = Just 5, contactHandle = Just "\RS\39465o\154669f", contactTeam = Just (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000005")))}

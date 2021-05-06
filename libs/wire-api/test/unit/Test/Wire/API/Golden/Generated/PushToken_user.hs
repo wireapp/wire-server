@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_PushToken_1 :: PushToken
-testObject_PushToken_1 = (pushToken (GCM) (AppName {appNameText = "L"}) (Token {tokenText = "\183476SM"}) (ClientId {client = "16"}))
-testObject_PushToken_2 :: PushToken
-testObject_PushToken_2 = (pushToken (APNSSandbox) (AppName {appNameText = "\131609-3rG"}) (Token {tokenText = ""}) (ClientId {client = "9"}))
-testObject_PushToken_3 :: PushToken
-testObject_PushToken_3 = (pushToken (APNSVoIP) (AppName {appNameText = "\999244\&7"}) (Token {tokenText = ""}) (ClientId {client = "17"}))
-testObject_PushToken_4 :: PushToken
-testObject_PushToken_4 = (pushToken (APNSVoIPSandbox) (AppName {appNameText = "zI\30119B\NUL\ENQ"}) (Token {tokenText = "\\\1003001"}) (ClientId {client = "1d"}))
-testObject_PushToken_5 :: PushToken
-testObject_PushToken_5 = (pushToken (APNS) (AppName {appNameText = "6,\164258He/"}) (Token {tokenText = "Dw1ao\168009"}) (ClientId {client = "1b"}))
+testObject_PushToken_user_1 :: PushToken
+testObject_PushToken_user_1 = (pushToken (GCM) (AppName {appNameText = "\48117y\78416e\26034o"}) (Token {tokenText = "\CAN\ETB\EOTwpb"}) (ClientId {client = "3"}))
+testObject_PushToken_user_2 :: PushToken
+testObject_PushToken_user_2 = (pushToken (APNSVoIP) (AppName {appNameText = ""}) (Token {tokenText = "\1034984\1064200\NUL"}) (ClientId {client = "4"}))
+testObject_PushToken_user_3 :: PushToken
+testObject_PushToken_user_3 = (pushToken (APNSVoIP) (AppName {appNameText = "q.\DC3$!"}) (Token {tokenText = ",\"2\1085045\1009508"}) (ClientId {client = "5"}))
+testObject_PushToken_user_4 :: PushToken
+testObject_PushToken_user_4 = (pushToken (GCM) (AppName {appNameText = "\CAN^"}) (Token {tokenText = "\5155H\1065213_\NAK+"}) (ClientId {client = "15"}))
+testObject_PushToken_user_5 :: PushToken
+testObject_PushToken_user_5 = (pushToken (APNSVoIP) (AppName {appNameText = "\ETB\1050060{"}) (Token {tokenText = "\12231c\GSj;^"}) (ClientId {client = "10"}))

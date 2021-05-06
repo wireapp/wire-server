@@ -48,13 +48,13 @@ import Wire.API.Provider.Service.Tag
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
-testObject_ServiceTagList_1 :: ServiceTagList
-testObject_ServiceTagList_1 = ServiceTagList [GraphicsTag,GraphicsTag,ShoppingTag,IntegrationTag]
-testObject_ServiceTagList_2 :: ServiceTagList
-testObject_ServiceTagList_2 = ServiceTagList [AudioTag,PollTag,AudioTag,EntertainmentTag]
-testObject_ServiceTagList_3 :: ServiceTagList
-testObject_ServiceTagList_3 = ServiceTagList [IntegrationTag,MoviesTag,BusinessTag,PhotographyTag,HealthTag,LifestyleTag,BooksTag,ShoppingTag,DesignTag]
-testObject_ServiceTagList_4 :: ServiceTagList
-testObject_ServiceTagList_4 = ServiceTagList [BusinessTag,ProductivityTag,GraphicsTag,FinanceTag,AudioTag,PhotographyTag,MediaTag]
-testObject_ServiceTagList_5 :: ServiceTagList
-testObject_ServiceTagList_5 = ServiceTagList [QuizTag,ShoppingTag,MoviesTag,QuizTag,ShoppingTag,RatingTag,TutorialTag,AudioTag,HealthTag,EntertainmentTag,MediaTag,SportsTag,MediaTag,FoodDrinkTag,NewsTag,PhotographyTag,EducationTag,MediaTag,SportsTag]
+testObject_ServiceTagList_provider_1 :: ServiceTagList
+testObject_ServiceTagList_provider_1 = ServiceTagList [BusinessTag]
+testObject_ServiceTagList_provider_2 :: ServiceTagList
+testObject_ServiceTagList_provider_2 = ServiceTagList [GraphicsTag,BooksTag,EducationTag,BooksTag,RatingTag,MedicalTag,PhotographyTag,IntegrationTag,FitnessTag,TravelTag,FitnessTag,GraphicsTag,TravelTag,RatingTag,QuizTag,EntertainmentTag,PhotographyTag,PhotographyTag,HealthTag,MusicTag]
+testObject_ServiceTagList_provider_3 :: ServiceTagList
+testObject_ServiceTagList_provider_3 = ServiceTagList [BusinessTag,FinanceTag,ProductivityTag,GraphicsTag,SportsTag,DesignTag,PollTag,ProductivityTag,RatingTag,ProductivityTag,MedicalTag,GraphicsTag,IntegrationTag,FinanceTag,GraphicsTag,MediaTag,IntegrationTag,EducationTag,WeatherTag,LifestyleTag,EducationTag,BusinessTag,RatingTag]
+testObject_ServiceTagList_provider_4 :: ServiceTagList
+testObject_ServiceTagList_provider_4 = ServiceTagList [ShoppingTag,LifestyleTag,MedicalTag,BusinessTag,EducationTag,FitnessTag,AudioTag,IntegrationTag,TutorialTag,RatingTag,NewsTag,PhotographyTag,SportsTag,PollTag,BooksTag,MedicalTag,AudioTag,AudioTag,AudioTag,NewsTag,FinanceTag,NewsTag,GraphicsTag,LifestyleTag,QuizTag,GamesTag,SportsTag,BusinessTag,MoviesTag,MedicalTag]
+testObject_ServiceTagList_provider_5 :: ServiceTagList
+testObject_ServiceTagList_provider_5 = ServiceTagList [RatingTag,TravelTag,PollTag,MusicTag,WeatherTag,RatingTag,IntegrationTag,AudioTag,FinanceTag,HealthTag,SportsTag,GraphicsTag,BooksTag,MedicalTag,AudioTag,ProductivityTag,HealthTag,IntegrationTag]

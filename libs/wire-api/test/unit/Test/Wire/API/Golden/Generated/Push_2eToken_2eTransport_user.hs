@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_Push_2eToken_2eTransport_1 :: Push.Token.Transport
-testObject_Push_2eToken_2eTransport_1 = GCM
-testObject_Push_2eToken_2eTransport_2 :: Push.Token.Transport
-testObject_Push_2eToken_2eTransport_2 = APNS
-testObject_Push_2eToken_2eTransport_3 :: Push.Token.Transport
-testObject_Push_2eToken_2eTransport_3 = APNS
-testObject_Push_2eToken_2eTransport_4 :: Push.Token.Transport
-testObject_Push_2eToken_2eTransport_4 = APNSVoIP
-testObject_Push_2eToken_2eTransport_5 :: Push.Token.Transport
-testObject_Push_2eToken_2eTransport_5 = APNSVoIP
+testObject_Push_2eToken_2eTransport_user_1 :: Push.Token.Transport
+testObject_Push_2eToken_2eTransport_user_1 = APNS
+testObject_Push_2eToken_2eTransport_user_2 :: Push.Token.Transport
+testObject_Push_2eToken_2eTransport_user_2 = GCM
+testObject_Push_2eToken_2eTransport_user_3 :: Push.Token.Transport
+testObject_Push_2eToken_2eTransport_user_3 = APNS
+testObject_Push_2eToken_2eTransport_user_4 :: Push.Token.Transport
+testObject_Push_2eToken_2eTransport_user_4 = APNS
+testObject_Push_2eToken_2eTransport_user_5 :: Push.Token.Transport
+testObject_Push_2eToken_2eTransport_user_5 = APNSSandbox

@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_Client_1 :: Client
-testObject_Client_1 = Client {clientId = ClientId {client = "4"}, clientType = PermanentClientType, clientTime = (fromJust (readUTCTimeMillis "1864-05-06T11:53:06.606Z")), clientClass = Just PhoneClient, clientLabel = Just "", clientCookie = Just (CookieLabel {cookieLabelText = "\1002711Mh"}), clientLocation = Just (location (Latitude (-2.846461124559934)) (Longitude (1.3486532540294984))), clientModel = Just ""}
-testObject_Client_2 :: Client
-testObject_Client_2 = Client {clientId = ClientId {client = "1"}, clientType = TemporaryClientType, clientTime = (fromJust (readUTCTimeMillis "1864-05-07T06:39:30.331Z")), clientClass = Just LegalHoldClient, clientLabel = Just "+", clientCookie = Nothing, clientLocation = Just (location (Latitude (-2.889593632797622)) (Longitude (0.9803841423546777))), clientModel = Just "\1051503kY"}
-testObject_Client_3 :: Client
-testObject_Client_3 = Client {clientId = ClientId {client = "2"}, clientType = PermanentClientType, clientTime = (fromJust (readUTCTimeMillis "1864-05-07T14:49:24.157Z")), clientClass = Just DesktopClient, clientLabel = Nothing, clientCookie = Just (CookieLabel {cookieLabelText = "{"}), clientLocation = Just (location (Latitude (-2.4716759799667343)) (Longitude (-2.058506902282196))), clientModel = Just "\SOH\EOT"}
-testObject_Client_4 :: Client
-testObject_Client_4 = Client {clientId = ClientId {client = "3"}, clientType = TemporaryClientType, clientTime = (fromJust (readUTCTimeMillis "1864-05-07T15:10:12.048Z")), clientClass = Just LegalHoldClient, clientLabel = Just "", clientCookie = Nothing, clientLocation = Just (location (Latitude (2.071964947216057)) (Longitude (-0.15435597262133263))), clientModel = Just "v\b"}
-testObject_Client_5 :: Client
-testObject_Client_5 = Client {clientId = ClientId {client = "3"}, clientType = LegalHoldClientType, clientTime = (fromJust (readUTCTimeMillis "1864-05-12T16:26:21.247Z")), clientClass = Just LegalHoldClient, clientLabel = Just "\1112758", clientCookie = Nothing, clientLocation = Just (location (Latitude (-2.0537496203636847)) (Longitude (0.8821740532291071))), clientModel = Just "^jS"}
+testObject_Client_user_1 :: Client
+testObject_Client_user_1 = Client {clientId = ClientId {client = "0"}, clientType = PermanentClientType, clientTime = (fromJust (readUTCTimeMillis "1864-05-08T05:58:23.539Z")), clientClass = Just TabletClient, clientLabel = Just "\al/", clientCookie = Just (CookieLabel {cookieLabelText = "'w"}), clientLocation = Just (location (Latitude (-1.9678979743339196)) (Longitude (-2.1323262524203708))), clientModel = Nothing}
+testObject_Client_user_2 :: Client
+testObject_Client_user_2 = Client {clientId = ClientId {client = "0"}, clientType = PermanentClientType, clientTime = (fromJust (readUTCTimeMillis "1864-05-12T10:11:58.368Z")), clientClass = Just DesktopClient, clientLabel = Just "", clientCookie = Just (CookieLabel {cookieLabelText = "G"}), clientLocation = Nothing, clientModel = Just "\US|"}
+testObject_Client_user_3 :: Client
+testObject_Client_user_3 = Client {clientId = ClientId {client = "2"}, clientType = TemporaryClientType, clientTime = (fromJust (readUTCTimeMillis "1864-05-07T16:17:36.884Z")), clientClass = Nothing, clientLabel = Just "", clientCookie = Just (CookieLabel {cookieLabelText = "\83254"}), clientLocation = Just (location (Latitude (2.151383693732235)) (Longitude (2.656661904755113))), clientModel = Just "\t"}
+testObject_Client_user_4 :: Client
+testObject_Client_user_4 = Client {clientId = ClientId {client = "1"}, clientType = PermanentClientType, clientTime = (fromJust (readUTCTimeMillis "1864-05-07T09:23:07.800Z")), clientClass = Just LegalHoldClient, clientLabel = Just "$", clientCookie = Nothing, clientLocation = Just (location (Latitude (-2.3850368843285517)) (Longitude (2.277346237565699))), clientModel = Just "ed"}
+testObject_Client_user_5 :: Client
+testObject_Client_user_5 = Client {clientId = ClientId {client = "2"}, clientType = LegalHoldClientType, clientTime = (fromJust (readUTCTimeMillis "1864-05-12T00:27:26.202Z")), clientClass = Just DesktopClient, clientLabel = Just "\SOH\US\1058353", clientCookie = Just (CookieLabel {cookieLabelText = "=\DC2\5835"}), clientLocation = Just (location (Latitude (-0.5441115166658337)) (Longitude (1.8836907432513528))), clientModel = Nothing}

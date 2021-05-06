@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_AssetRetention_1 :: AssetRetention
-testObject_AssetRetention_1 = AssetEternal
-testObject_AssetRetention_2 :: AssetRetention
-testObject_AssetRetention_2 = AssetVolatile
-testObject_AssetRetention_3 :: AssetRetention
-testObject_AssetRetention_3 = AssetEternalInfrequentAccess
-testObject_AssetRetention_4 :: AssetRetention
-testObject_AssetRetention_4 = AssetVolatile
-testObject_AssetRetention_5 :: AssetRetention
-testObject_AssetRetention_5 = AssetExpiring
+testObject_AssetRetention_user_1 :: AssetRetention
+testObject_AssetRetention_user_1 = AssetEternal
+testObject_AssetRetention_user_2 :: AssetRetention
+testObject_AssetRetention_user_2 = AssetExpiring
+testObject_AssetRetention_user_3 :: AssetRetention
+testObject_AssetRetention_user_3 = AssetPersistent
+testObject_AssetRetention_user_4 :: AssetRetention
+testObject_AssetRetention_user_4 = AssetEternal
+testObject_AssetRetention_user_5 :: AssetRetention
+testObject_AssetRetention_user_5 = AssetEternalInfrequentAccess

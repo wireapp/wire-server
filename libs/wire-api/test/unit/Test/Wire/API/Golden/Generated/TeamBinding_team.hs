@@ -55,13 +55,13 @@ import Wire.API.Team.SearchVisibility
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
-testObject_TeamBinding_1 :: TeamBinding
-testObject_TeamBinding_1 = NonBinding
-testObject_TeamBinding_2 :: TeamBinding
-testObject_TeamBinding_2 = NonBinding
-testObject_TeamBinding_3 :: TeamBinding
-testObject_TeamBinding_3 = Binding
-testObject_TeamBinding_4 :: TeamBinding
-testObject_TeamBinding_4 = NonBinding
-testObject_TeamBinding_5 :: TeamBinding
-testObject_TeamBinding_5 = Binding
+testObject_TeamBinding_team_1 :: TeamBinding
+testObject_TeamBinding_team_1 = NonBinding
+testObject_TeamBinding_team_2 :: TeamBinding
+testObject_TeamBinding_team_2 = NonBinding
+testObject_TeamBinding_team_3 :: TeamBinding
+testObject_TeamBinding_team_3 = NonBinding
+testObject_TeamBinding_team_4 :: TeamBinding
+testObject_TeamBinding_team_4 = NonBinding
+testObject_TeamBinding_team_5 :: TeamBinding
+testObject_TeamBinding_team_5 = NonBinding

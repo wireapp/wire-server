@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_Locale_1 :: Locale
-testObject_Locale_1 = Locale {lLanguage = Language Data.LanguageCodes.GL, lCountry = Nothing}
-testObject_Locale_2 :: Locale
-testObject_Locale_2 = Locale {lLanguage = Language Data.LanguageCodes.NO, lCountry = Just (Country {fromCountry = ML})}
-testObject_Locale_3 :: Locale
-testObject_Locale_3 = Locale {lLanguage = Language Data.LanguageCodes.CR, lCountry = Just (Country {fromCountry = MR})}
-testObject_Locale_4 :: Locale
-testObject_Locale_4 = Locale {lLanguage = Language Data.LanguageCodes.TS, lCountry = Nothing}
-testObject_Locale_5 :: Locale
-testObject_Locale_5 = Locale {lLanguage = Language Data.LanguageCodes.SV, lCountry = Just (Country {fromCountry = OM})}
+testObject_Locale_user_1 :: Locale
+testObject_Locale_user_1 = Locale {lLanguage = Language Data.LanguageCodes.RO, lCountry = Just (Country {fromCountry = GT})}
+testObject_Locale_user_2 :: Locale
+testObject_Locale_user_2 = Locale {lLanguage = Language Data.LanguageCodes.VE, lCountry = Just (Country {fromCountry = NP})}
+testObject_Locale_user_3 :: Locale
+testObject_Locale_user_3 = Locale {lLanguage = Language Data.LanguageCodes.NV, lCountry = Just (Country {fromCountry = SV})}
+testObject_Locale_user_4 :: Locale
+testObject_Locale_user_4 = Locale {lLanguage = Language Data.LanguageCodes.BN, lCountry = Just (Country {fromCountry = TK})}
+testObject_Locale_user_5 :: Locale
+testObject_Locale_user_5 = Locale {lLanguage = Language Data.LanguageCodes.PA, lCountry = Just (Country {fromCountry = CW})}

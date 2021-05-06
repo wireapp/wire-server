@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_OtherMemberUpdate_1 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_1 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "1o_ct14jmd9205k4i3ia1nc9pl17j4nj"))}
-testObject_OtherMemberUpdate_2 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_2 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "epau53u84z_gii87caa2kk9xx44bc68k_6xjxttixdc9zba32zmw_1jkt"))}
-testObject_OtherMemberUpdate_3 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_3 = OtherMemberUpdate {omuConvRoleName = Nothing}
-testObject_OtherMemberUpdate_4 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_4 = OtherMemberUpdate {omuConvRoleName = Nothing}
-testObject_OtherMemberUpdate_5 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_5 = OtherMemberUpdate {omuConvRoleName = Nothing}
+testObject_OtherMemberUpdate_user_1 :: OtherMemberUpdate
+testObject_OtherMemberUpdate_user_1 = OtherMemberUpdate {omuConvRoleName = Nothing}
+testObject_OtherMemberUpdate_user_2 :: OtherMemberUpdate
+testObject_OtherMemberUpdate_user_2 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "djm9wthc7gkrdocllx1lopvbtxp8t_2_ffwhm_gsp65l_v1jrn_f7yn7xfddy8pywl_rubze0sn6mtvbnbgdzhoflwlkq_xt4"))}
+testObject_OtherMemberUpdate_user_3 :: OtherMemberUpdate
+testObject_OtherMemberUpdate_user_3 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "b5gz3wlxinw93u07frd2aja4okhsphesm6goaza"))}
+testObject_OtherMemberUpdate_user_4 :: OtherMemberUpdate
+testObject_OtherMemberUpdate_user_4 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "wlyxesdsydgxwabwksudh2694qhwbj_cusu7sjtk9eu87tckvlggdob1o0k2t58bfqvtq09_a15t4chhqb6i9go6mg67w5dec"))}
+testObject_OtherMemberUpdate_user_5 :: OtherMemberUpdate
+testObject_OtherMemberUpdate_user_5 = OtherMemberUpdate {omuConvRoleName = Nothing}

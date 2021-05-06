@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_TurnUsername_1 :: TurnUsername
-testObject_TurnUsername_1 = (turnUsername (secondsToNominalDiffTime (6004221.000000000000)) ("tn3uj583") & tuVersion .~ (18) & tuKeyindex .~ (27969) & tuT .~ ('\RS'))
-testObject_TurnUsername_2 :: TurnUsername
-testObject_TurnUsername_2 = (turnUsername (secondsToNominalDiffTime (4804019.000000000000)) ("nxhltq9u7eten2") & tuVersion .~ (5) & tuKeyindex .~ (2975) & tuT .~ ('\v'))
-testObject_TurnUsername_3 :: TurnUsername
-testObject_TurnUsername_3 = (turnUsername (secondsToNominalDiffTime (5255696.000000000000)) ("ef9a1eqxmg1mzcb2tqia") & tuVersion .~ (1) & tuKeyindex .~ (5398) & tuT .~ ('b'))
-testObject_TurnUsername_4 :: TurnUsername
-testObject_TurnUsername_4 = (turnUsername (secondsToNominalDiffTime (1579089.000000000000)) ("5xa") & tuVersion .~ (9) & tuKeyindex .~ (1738) & tuT .~ ('\DLE'))
-testObject_TurnUsername_5 :: TurnUsername
-testObject_TurnUsername_5 = (turnUsername (secondsToNominalDiffTime (2360328.000000000000)) ("l8c27kjfiu") & tuVersion .~ (26) & tuKeyindex .~ (29842) & tuT .~ ('b'))
+testObject_TurnUsername_user_1 :: TurnUsername
+testObject_TurnUsername_user_1 = (turnUsername (secondsToNominalDiffTime (5197419.000000000000)) ("5z7pp01oldgtjek6r84x780") & tuVersion .~ (29) & tuKeyindex .~ (14320) & tuT .~ ('\1014738'))
+testObject_TurnUsername_user_2 :: TurnUsername
+testObject_TurnUsername_user_2 = (turnUsername (secondsToNominalDiffTime (9156985.000000000000)) ("walwh9hbh4hnwiu") & tuVersion .~ (21) & tuKeyindex .~ (23195) & tuT .~ ('('))
+testObject_TurnUsername_user_3 :: TurnUsername
+testObject_TurnUsername_user_3 = (turnUsername (secondsToNominalDiffTime (3270150.000000000000)) ("2t67afi3nrsroo2v24db7dw") & tuVersion .~ (14) & tuKeyindex .~ (31035) & tuT .~ ('u'))
+testObject_TurnUsername_user_4 :: TurnUsername
+testObject_TurnUsername_user_4 = (turnUsername (secondsToNominalDiffTime (14806618.000000000000)) ("ry92ukk9zqdkkcqayt") & tuVersion .~ (28) & tuKeyindex .~ (4100) & tuT .~ ('\f'))
+testObject_TurnUsername_user_5 :: TurnUsername
+testObject_TurnUsername_user_5 = (turnUsername (secondsToNominalDiffTime (13419934.000000000000)) ("e44s") & tuVersion .~ (24) & tuKeyindex .~ (24856) & tuT .~ ('\NUL'))

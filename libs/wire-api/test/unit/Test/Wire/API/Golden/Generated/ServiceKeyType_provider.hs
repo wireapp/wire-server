@@ -48,13 +48,13 @@ import Wire.API.Provider.Service.Tag
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
-testObject_ServiceKeyType_1 :: ServiceKeyType
-testObject_ServiceKeyType_1 = RsaServiceKey
-testObject_ServiceKeyType_2 :: ServiceKeyType
-testObject_ServiceKeyType_2 = RsaServiceKey
-testObject_ServiceKeyType_3 :: ServiceKeyType
-testObject_ServiceKeyType_3 = RsaServiceKey
-testObject_ServiceKeyType_4 :: ServiceKeyType
-testObject_ServiceKeyType_4 = RsaServiceKey
-testObject_ServiceKeyType_5 :: ServiceKeyType
-testObject_ServiceKeyType_5 = RsaServiceKey
+testObject_ServiceKeyType_provider_1 :: ServiceKeyType
+testObject_ServiceKeyType_provider_1 = RsaServiceKey
+testObject_ServiceKeyType_provider_2 :: ServiceKeyType
+testObject_ServiceKeyType_provider_2 = RsaServiceKey
+testObject_ServiceKeyType_provider_3 :: ServiceKeyType
+testObject_ServiceKeyType_provider_3 = RsaServiceKey
+testObject_ServiceKeyType_provider_4 :: ServiceKeyType
+testObject_ServiceKeyType_provider_4 = RsaServiceKey
+testObject_ServiceKeyType_provider_5 :: ServiceKeyType
+testObject_ServiceKeyType_provider_5 = RsaServiceKey

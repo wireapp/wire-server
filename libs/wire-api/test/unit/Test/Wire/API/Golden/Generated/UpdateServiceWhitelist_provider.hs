@@ -48,13 +48,13 @@ import Wire.API.Provider.Service.Tag
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
-testObject_UpdateServiceWhitelist_1 :: UpdateServiceWhitelist
-testObject_UpdateServiceWhitelist_1 = UpdateServiceWhitelist {updateServiceWhitelistProvider = (Id (fromJust (UUID.fromString "00000006-0000-001a-0000-000000000002"))), updateServiceWhitelistService = (Id (fromJust (UUID.fromString "00000009-0000-001c-0000-00080000000e"))), updateServiceWhitelistStatus = True}
-testObject_UpdateServiceWhitelist_2 :: UpdateServiceWhitelist
-testObject_UpdateServiceWhitelist_2 = UpdateServiceWhitelist {updateServiceWhitelistProvider = (Id (fromJust (UUID.fromString "00000008-0000-0002-0000-000300000001"))), updateServiceWhitelistService = (Id (fromJust (UUID.fromString "00000003-0000-001c-0000-001b00000015"))), updateServiceWhitelistStatus = True}
-testObject_UpdateServiceWhitelist_3 :: UpdateServiceWhitelist
-testObject_UpdateServiceWhitelist_3 = UpdateServiceWhitelist {updateServiceWhitelistProvider = (Id (fromJust (UUID.fromString "00000011-0000-0018-0000-00160000001e"))), updateServiceWhitelistService = (Id (fromJust (UUID.fromString "0000000d-0000-000a-0000-00090000000a"))), updateServiceWhitelistStatus = True}
-testObject_UpdateServiceWhitelist_4 :: UpdateServiceWhitelist
-testObject_UpdateServiceWhitelist_4 = UpdateServiceWhitelist {updateServiceWhitelistProvider = (Id (fromJust (UUID.fromString "00000003-0000-0001-0000-00140000001c"))), updateServiceWhitelistService = (Id (fromJust (UUID.fromString "00000017-0000-001c-0000-00130000000d"))), updateServiceWhitelistStatus = True}
-testObject_UpdateServiceWhitelist_5 :: UpdateServiceWhitelist
-testObject_UpdateServiceWhitelist_5 = UpdateServiceWhitelist {updateServiceWhitelistProvider = (Id (fromJust (UUID.fromString "00000016-0000-0008-0000-001900000020"))), updateServiceWhitelistService = (Id (fromJust (UUID.fromString "00000009-0000-000f-0000-001e0000001d"))), updateServiceWhitelistStatus = False}
+testObject_UpdateServiceWhitelist_provider_1 :: UpdateServiceWhitelist
+testObject_UpdateServiceWhitelist_provider_1 = UpdateServiceWhitelist {updateServiceWhitelistProvider = (Id (fromJust (UUID.fromString "00000008-0000-0005-0000-00150000000f"))), updateServiceWhitelistService = (Id (fromJust (UUID.fromString "0000001a-0000-0004-0000-000500000007"))), updateServiceWhitelistStatus = True}
+testObject_UpdateServiceWhitelist_provider_2 :: UpdateServiceWhitelist
+testObject_UpdateServiceWhitelist_provider_2 = UpdateServiceWhitelist {updateServiceWhitelistProvider = (Id (fromJust (UUID.fromString "00000011-0000-0008-0000-00040000001b"))), updateServiceWhitelistService = (Id (fromJust (UUID.fromString "00000000-0000-0009-0000-001d00000018"))), updateServiceWhitelistStatus = False}
+testObject_UpdateServiceWhitelist_provider_3 :: UpdateServiceWhitelist
+testObject_UpdateServiceWhitelist_provider_3 = UpdateServiceWhitelist {updateServiceWhitelistProvider = (Id (fromJust (UUID.fromString "00000015-0000-000e-0000-000900000020"))), updateServiceWhitelistService = (Id (fromJust (UUID.fromString "00000011-0000-001e-0000-001f00000003"))), updateServiceWhitelistStatus = True}
+testObject_UpdateServiceWhitelist_provider_4 :: UpdateServiceWhitelist
+testObject_UpdateServiceWhitelist_provider_4 = UpdateServiceWhitelist {updateServiceWhitelistProvider = (Id (fromJust (UUID.fromString "00000006-0000-001e-0000-000a00000013"))), updateServiceWhitelistService = (Id (fromJust (UUID.fromString "00000007-0000-0006-0000-00010000000b"))), updateServiceWhitelistStatus = True}
+testObject_UpdateServiceWhitelist_provider_5 :: UpdateServiceWhitelist
+testObject_UpdateServiceWhitelist_provider_5 = UpdateServiceWhitelist {updateServiceWhitelistProvider = (Id (fromJust (UUID.fromString "0000000f-0000-0008-0000-001600000007"))), updateServiceWhitelistService = (Id (fromJust (UUID.fromString "00000016-0000-001a-0000-001000000012"))), updateServiceWhitelistStatus = False}

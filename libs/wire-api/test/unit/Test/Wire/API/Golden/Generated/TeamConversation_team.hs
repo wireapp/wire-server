@@ -55,13 +55,13 @@ import Wire.API.Team.SearchVisibility
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
-testObject_TeamConversation_1 :: TeamConversation
-testObject_TeamConversation_1 = (newTeamConversation ((Id (fromJust (UUID.fromString "00000042-0000-0076-0000-006a00000045")))) (True))
-testObject_TeamConversation_2 :: TeamConversation
-testObject_TeamConversation_2 = (newTeamConversation ((Id (fromJust (UUID.fromString "00000065-0000-001e-0000-007500000021")))) (True))
-testObject_TeamConversation_3 :: TeamConversation
-testObject_TeamConversation_3 = (newTeamConversation ((Id (fromJust (UUID.fromString "00000055-0000-0073-0000-00030000006c")))) (True))
-testObject_TeamConversation_4 :: TeamConversation
-testObject_TeamConversation_4 = (newTeamConversation ((Id (fromJust (UUID.fromString "0000001e-0000-0012-0000-00080000005e")))) (False))
-testObject_TeamConversation_5 :: TeamConversation
-testObject_TeamConversation_5 = (newTeamConversation ((Id (fromJust (UUID.fromString "00000044-0000-0044-0000-003d0000003b")))) (False))
+testObject_TeamConversation_team_1 :: TeamConversation
+testObject_TeamConversation_team_1 = (newTeamConversation ((Id (fromJust (UUID.fromString "0000002b-0000-003f-0000-00150000004e")))) (False))
+testObject_TeamConversation_team_2 :: TeamConversation
+testObject_TeamConversation_team_2 = (newTeamConversation ((Id (fromJust (UUID.fromString "0000003e-0000-0011-0000-001400000004")))) (True))
+testObject_TeamConversation_team_3 :: TeamConversation
+testObject_TeamConversation_team_3 = (newTeamConversation ((Id (fromJust (UUID.fromString "00000043-0000-0042-0000-00620000007e")))) (False))
+testObject_TeamConversation_team_4 :: TeamConversation
+testObject_TeamConversation_team_4 = (newTeamConversation ((Id (fromJust (UUID.fromString "0000001e-0000-0039-0000-003e0000000e")))) (False))
+testObject_TeamConversation_team_5 :: TeamConversation
+testObject_TeamConversation_team_5 = (newTeamConversation ((Id (fromJust (UUID.fromString "00000024-0000-0068-0000-005900000043")))) (False))

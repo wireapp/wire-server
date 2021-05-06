@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_OtherMember_1 :: OtherMember
-testObject_OtherMember_1 = OtherMember {omId = (Id (fromJust (UUID.fromString "00000019-0000-001a-0000-00070000000e"))), omService = Just (ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000000-0000-0004-0000-000300000003"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000002")))}), omConvRoleName = (fromJust (parseRoleName "6p95e04_iyvx8puu8k_m2cjv05220agruvq0ufvm6ni9mhz7y8l8hv_zbbciambf9x7kugxd5hwd7lhmkm2"))}
-testObject_OtherMember_2 :: OtherMember
-testObject_OtherMember_2 = OtherMember {omId = (Id (fromJust (UUID.fromString "00000017-0000-001f-0000-000d00000005"))), omService = Just (ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000004-0000-0003-0000-000100000003"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "00000000-0000-0003-0000-000400000003")))}), omConvRoleName = (fromJust (parseRoleName "k6lbz9aa64gxlw945be4cqic4f"))}
-testObject_OtherMember_3 :: OtherMember
-testObject_OtherMember_3 = OtherMember {omId = (Id (fromJust (UUID.fromString "0000001b-0000-0012-0000-001b00000005"))), omService = Just (ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000004-0000-0002-0000-000300000001"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "00000003-0000-0002-0000-000000000000")))}), omConvRoleName = (fromJust (parseRoleName "mq8otytxda7kt6xt5o8sqyatudw8ugqfny7y1xqzv6jeo9zv3yuhmd7xz9as9wwhuw6jxzvg0n5gpc5fnb11gcecu_f4tq199qvpql0j"))}
-testObject_OtherMember_4 :: OtherMember
-testObject_OtherMember_4 = OtherMember {omId = (Id (fromJust (UUID.fromString "00000006-0000-001b-0000-000600000019"))), omService = Just (ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000004-0000-0000-0000-000200000004"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000200000004")))}), omConvRoleName = (fromJust (parseRoleName "gcla1s0savak_8p46mv0cu2si51hcbm2o4e9bhddwqw91u6112ipttnag0ycjbzc"))}
-testObject_OtherMember_5 :: OtherMember
-testObject_OtherMember_5 = OtherMember {omId = (Id (fromJust (UUID.fromString "00000008-0000-000b-0000-000400000015"))), omService = Nothing, omConvRoleName = (fromJust (parseRoleName "tnn0uwcrdmlqc8_yyy4ovwxjbl_afn0"))}
+testObject_OtherMember_user_1 :: OtherMember
+testObject_OtherMember_user_1 = OtherMember {omId = (Id (fromJust (UUID.fromString "00000007-0000-001d-0000-00130000001b"))), omService = Just (ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000400000003"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000300000004")))}), omConvRoleName = (fromJust (parseRoleName "c6uzgl65a2rf0nl75nxau0a5pgla4n0dze56zh8vrgudkn8crb7imo_3y_otrtc2csl_6xlrb8byxd5xj80qf09syrew"))}
+testObject_OtherMember_user_2 :: OtherMember
+testObject_OtherMember_user_2 = OtherMember {omId = (Id (fromJust (UUID.fromString "0000001a-0000-0011-0000-00120000000e"))), omService = Just (ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000200000002"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000000000002")))}), omConvRoleName = (fromJust (parseRoleName "7g2l5fb7uhbzvcglb3qhpx5w58qw1i1vz2p42wcw810rmwt8mc5o0e9s2h614k_bixrsxsjjb9fnem5cbpz8ow_d3g3x"))}
+testObject_OtherMember_user_3 :: OtherMember
+testObject_OtherMember_user_3 = OtherMember {omId = (Id (fromJust (UUID.fromString "00000001-0000-0003-0000-000000000019"))), omService = Nothing, omConvRoleName = (fromJust (parseRoleName "pgtvlmu09eri"))}
+testObject_OtherMember_user_4 :: OtherMember
+testObject_OtherMember_user_4 = OtherMember {omId = (Id (fromJust (UUID.fromString "00000016-0000-0012-0000-001c00000009"))), omService = Just (ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000003-0000-0003-0000-000100000000"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "00000004-0000-0003-0000-000300000001")))}), omConvRoleName = (fromJust (parseRoleName "43t3tg6b_u0bhfxah_pr_muzwg2n_zssych1biss_fb_8q1exjobnkq_8ijap9fymrwr_hbvrnqu_w_4hwc0owfkkl2024fq66k7"))}
+testObject_OtherMember_user_5 :: OtherMember
+testObject_OtherMember_user_5 = OtherMember {omId = (Id (fromJust (UUID.fromString "00000017-0000-000b-0000-00190000001d"))), omService = Just (ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000000"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000300000000")))}), omConvRoleName = (fromJust (parseRoleName "vg6vkbw6tx58fhxqee6ryg1awdkmovycy93be_d6vbsu_4gpdccajtzls4ikttcb3c4jm87rcqa"))}

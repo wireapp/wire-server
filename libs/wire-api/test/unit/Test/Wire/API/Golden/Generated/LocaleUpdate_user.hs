@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_LocaleUpdate_1 :: LocaleUpdate
-testObject_LocaleUpdate_1 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.OM, lCountry = Nothing}}
-testObject_LocaleUpdate_2 :: LocaleUpdate
-testObject_LocaleUpdate_2 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.CH, lCountry = Just (Country {fromCountry = BS})}}
-testObject_LocaleUpdate_3 :: LocaleUpdate
-testObject_LocaleUpdate_3 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.BE, lCountry = Just (Country {fromCountry = PH})}}
-testObject_LocaleUpdate_4 :: LocaleUpdate
-testObject_LocaleUpdate_4 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.CO, lCountry = Nothing}}
-testObject_LocaleUpdate_5 :: LocaleUpdate
-testObject_LocaleUpdate_5 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.DZ, lCountry = Just (Country {fromCountry = SG})}}
+testObject_LocaleUpdate_user_1 :: LocaleUpdate
+testObject_LocaleUpdate_user_1 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.EU, lCountry = Just (Country {fromCountry = VG})}}
+testObject_LocaleUpdate_user_2 :: LocaleUpdate
+testObject_LocaleUpdate_user_2 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.FF, lCountry = Just (Country {fromCountry = NF})}}
+testObject_LocaleUpdate_user_3 :: LocaleUpdate
+testObject_LocaleUpdate_user_3 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.TW, lCountry = Nothing}}
+testObject_LocaleUpdate_user_4 :: LocaleUpdate
+testObject_LocaleUpdate_user_4 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.MT, lCountry = Just (Country {fromCountry = VN})}}
+testObject_LocaleUpdate_user_5 :: LocaleUpdate
+testObject_LocaleUpdate_user_5 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.NO, lCountry = Just (Country {fromCountry = IL})}}

@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_Email_1 :: Email
-testObject_Email_1 = Email {emailLocal = "\US\1013181]\1101057=\"P8\1054488\&9\SYN\ETB{\991604\\$EGA\1005926'v\DC1-", emailDomain = "%"}
-testObject_Email_2 :: Email
-testObject_Email_2 = Email {emailLocal = "LN", emailDomain = "N\1066271A\DLE;\CAN\DC2e\NUL[a/\f?#9J\DC1\22985I\bSm']^[3\133860"}
-testObject_Email_3 :: Email
-testObject_Email_3 = Email {emailLocal = "\1101165\128447,\\r\a\1078894\1065984", emailDomain = "\SYN\SYN\ESC7\1034747l\97389l\SO\ENQ\60024*\SUB\DC3^r%78"}
-testObject_Email_4 :: Email
-testObject_Email_4 = Email {emailLocal = "Y\10382f\1016083\&0\42031\132785%\b\97904\DEL\f\170922e;-\1063833\a\1094546\136306", emailDomain = "vI\1027172t\SUB\DC4\SO.AvPHU,Bx[\SO0"}
-testObject_Email_5 :: Email
-testObject_Email_5 = Email {emailLocal = "\989161\ETX\FS^\aCS\1046892J\131202\987775]\STX-(\DC4\1094576\ACK%G\\", emailDomain = "7`\23289\1055082\n9\fD\ETB#\1016886.\1009064\n\1056155\DC4\1061000C5L\1055228\DC4k\b?L>"}
+testObject_Email_user_1 :: Email
+testObject_Email_user_1 = Email {emailLocal = ".\a\1051265\14145\SI", emailDomain = "f\DC1\SI\59558\184627\SOJ\1019940\1042056\DEL\165573a\31273\167617{"}
+testObject_Email_user_2 :: Email
+testObject_Email_user_2 = Email {emailLocal = "\EM\175217E\ENQ\53837R\194752XKy\DC4B}\SYN.\DC1d6e\US\71108`r-\1101203`\1046634", emailDomain = "&+b|\SYNF\1103752]\ESCe\137641P\EOT\\\ETXe\1001719<*\ETX"}
+testObject_Email_user_3 :: Email
+testObject_Email_user_3 = Email {emailLocal = "\r\RS\DC3\ETBg3\175987\SUB\96657\\\US\\P\39161\ETBca*Y\ESC\US;\b\54794[O\FSm", emailDomain = "\a\DC2#!\1036258D\GS\ETB"}
+testObject_Email_user_4 :: Email
+testObject_Email_user_4 = Email {emailLocal = "H\SI1,c!\n\1096117\1073209\NUL\1038364E)\1072952[", emailDomain = "G\988254uV&u=\1083476:n\39144\1030440\ETB\SI\CAN\162024[\STX\fV6"}
+testObject_Email_user_5 :: Email
+testObject_Email_user_5 = Email {emailLocal = "\5450N\1034758q#\180143z", emailDomain = "\54137O\143798\1015185P\194561\NUL%\8611\1031626YkQ(\NAK"}

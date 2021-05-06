@@ -86,14 +86,13 @@ generateBindingModule' typeName section ref = do
                                 intToDigit (ord c `div` 16),
                                 intToDigit (ord c `mod` 16)]
                | otherwise = ""
-      escapedTypeName = typeName >>= escape
-      varName n = "testObject_" <> escapedTypeName <> "_" <> show n
+      moduleName = (typeName >>= escape) <> "_" <> section
+      varName n = "testObject_" <> moduleName <> "_" <> show n
       fileName n =  varName n <> ".json"
       numberedObjs = zip [1 :: Int ..] objects
       generateBinding h n o = do
         hPutStrLn h $ varName n <> " :: " <> typeName
         hPutStrLn h $ varName n <> " = " <> show o
-      moduleName = escapedTypeName <> "_" <> section
       varNames = map (\(n, _) -> (varName n, fileName n)) numberedObjs
   h <- openFile (tmpdir <> "/" <> moduleName <> ".hs") WriteMode
   traverse_ (uncurry (generateBinding h)) numberedObjs

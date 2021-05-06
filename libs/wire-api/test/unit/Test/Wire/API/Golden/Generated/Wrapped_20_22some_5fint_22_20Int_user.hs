@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_Wrapped_20_22some_5fint_22_20Int_1 :: Wrapped "some_int" Int
-testObject_Wrapped_20_22some_5fint_22_20Int_1 = Wrapped {unwrap = -5}
-testObject_Wrapped_20_22some_5fint_22_20Int_2 :: Wrapped "some_int" Int
-testObject_Wrapped_20_22some_5fint_22_20Int_2 = Wrapped {unwrap = 6}
-testObject_Wrapped_20_22some_5fint_22_20Int_3 :: Wrapped "some_int" Int
-testObject_Wrapped_20_22some_5fint_22_20Int_3 = Wrapped {unwrap = 23}
-testObject_Wrapped_20_22some_5fint_22_20Int_4 :: Wrapped "some_int" Int
-testObject_Wrapped_20_22some_5fint_22_20Int_4 = Wrapped {unwrap = -20}
-testObject_Wrapped_20_22some_5fint_22_20Int_5 :: Wrapped "some_int" Int
-testObject_Wrapped_20_22some_5fint_22_20Int_5 = Wrapped {unwrap = -22}
+testObject_Wrapped_20_22some_5fint_22_20Int_user_1 :: Wrapped "some_int" Int
+testObject_Wrapped_20_22some_5fint_22_20Int_user_1 = Wrapped {unwrap = -11}
+testObject_Wrapped_20_22some_5fint_22_20Int_user_2 :: Wrapped "some_int" Int
+testObject_Wrapped_20_22some_5fint_22_20Int_user_2 = Wrapped {unwrap = -12}
+testObject_Wrapped_20_22some_5fint_22_20Int_user_3 :: Wrapped "some_int" Int
+testObject_Wrapped_20_22some_5fint_22_20Int_user_3 = Wrapped {unwrap = 9}
+testObject_Wrapped_20_22some_5fint_22_20Int_user_4 :: Wrapped "some_int" Int
+testObject_Wrapped_20_22some_5fint_22_20Int_user_4 = Wrapped {unwrap = 4}
+testObject_Wrapped_20_22some_5fint_22_20Int_user_5 :: Wrapped "some_int" Int
+testObject_Wrapped_20_22some_5fint_22_20Int_user_5 = Wrapped {unwrap = -1}

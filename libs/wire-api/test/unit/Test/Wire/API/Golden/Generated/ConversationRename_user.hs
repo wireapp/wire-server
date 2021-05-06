@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_ConversationRename_1 :: ConversationRename
-testObject_ConversationRename_1 = ConversationRename {cupName = "\SUB/^$\a\ESC+\1090138o=\1016831c\1057186?Q~m!;\SYN\nJ\45503\&7KHZ"}
-testObject_ConversationRename_2 :: ConversationRename
-testObject_ConversationRename_2 = ConversationRename {cupName = "`"}
-testObject_ConversationRename_3 :: ConversationRename
-testObject_ConversationRename_3 = ConversationRename {cupName = "p\917602\1017860\1055858\CAN.DZr\DEL\ETXJ"}
-testObject_ConversationRename_4 :: ConversationRename
-testObject_ConversationRename_4 = ConversationRename {cupName = "f\16344\GS$Z[\bH\EOT9\SOH;!\27330i\16735\1025601\1106090\ETB.\SIj\DC3;"}
-testObject_ConversationRename_5 :: ConversationRename
-testObject_ConversationRename_5 = ConversationRename {cupName = "\1055344\&3!k\1094690p\DC4\SUBu}"}
+testObject_ConversationRename_user_1 :: ConversationRename
+testObject_ConversationRename_user_1 = ConversationRename {cupName = "\GS"}
+testObject_ConversationRename_user_2 :: ConversationRename
+testObject_ConversationRename_user_2 = ConversationRename {cupName = "\vU\NUL\1105100`\1103887br\ESC\FS\FS\r\SI\141578hUQq\DC4@\40410a\fj@"}
+testObject_ConversationRename_user_3 :: ConversationRename
+testObject_ConversationRename_user_3 = ConversationRename {cupName = "U`\DLE\1037767\1003567]q0\189841\f\99526G\992114\DLE(\RS?\170204\&8"}
+testObject_ConversationRename_user_4 :: ConversationRename
+testObject_ConversationRename_user_4 = ConversationRename {cupName = "S\159555\\f\USb\157932\DC4FEZfH\CAN"}
+testObject_ConversationRename_user_5 :: ConversationRename
+testObject_ConversationRename_user_5 = ConversationRename {cupName = "\1076081:\1045700Nz\4942$c\62712$Ef+6b\ETB`"}

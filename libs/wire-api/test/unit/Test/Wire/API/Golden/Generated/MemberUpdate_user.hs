@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_MemberUpdate_1 :: MemberUpdate
-testObject_MemberUpdate_1 = MemberUpdate {mupOtrMute = Nothing, mupOtrMuteStatus = Just (MutedStatus {fromMutedStatus = 0}), mupOtrMuteRef = Just "\FSn", mupOtrArchive = Just False, mupOtrArchiveRef = Just "", mupHidden = Nothing, mupHiddenRef = Just "`x-", mupConvRoleName = Nothing}
-testObject_MemberUpdate_2 :: MemberUpdate
-testObject_MemberUpdate_2 = MemberUpdate {mupOtrMute = Just True, mupOtrMuteStatus = Nothing, mupOtrMuteRef = Just "", mupOtrArchive = Nothing, mupOtrArchiveRef = Nothing, mupHidden = Just True, mupHiddenRef = Just "", mupConvRoleName = Just (fromJust (parseRoleName "ujd29a5q80egzmxud_umnu"))}
-testObject_MemberUpdate_3 :: MemberUpdate
-testObject_MemberUpdate_3 = MemberUpdate {mupOtrMute = Nothing, mupOtrMuteStatus = Just (MutedStatus {fromMutedStatus = -1}), mupOtrMuteRef = Nothing, mupOtrArchive = Nothing, mupOtrArchiveRef = Nothing, mupHidden = Just True, mupHiddenRef = Just "\1091119]", mupConvRoleName = Just (fromJust (parseRoleName "5lpj2b1t3b6unrdi3glfbimyb8fofnb8e"))}
-testObject_MemberUpdate_4 :: MemberUpdate
-testObject_MemberUpdate_4 = MemberUpdate {mupOtrMute = Just True, mupOtrMuteStatus = Nothing, mupOtrMuteRef = Just "I", mupOtrArchive = Just False, mupOtrArchiveRef = Just "", mupHidden = Just True, mupHiddenRef = Just "\DC2I\f", mupConvRoleName = Just (fromJust (parseRoleName "702mo0qcm0mgbl06v2rpro3slxfozaq5ivzijekv_mtbifvfkuvcrsd45riy7jvhp0n"))}
-testObject_MemberUpdate_5 :: MemberUpdate
-testObject_MemberUpdate_5 = MemberUpdate {mupOtrMute = Just False, mupOtrMuteStatus = Just (MutedStatus {fromMutedStatus = 2}), mupOtrMuteRef = Nothing, mupOtrArchive = Just True, mupOtrArchiveRef = Just "`", mupHidden = Just False, mupHiddenRef = Just "18\ESC", mupConvRoleName = Nothing}
+testObject_MemberUpdate_user_1 :: MemberUpdate
+testObject_MemberUpdate_user_1 = MemberUpdate {mupOtrMute = Just False, mupOtrMuteStatus = Just (MutedStatus {fromMutedStatus = 0}), mupOtrMuteRef = Nothing, mupOtrArchive = Just False, mupOtrArchiveRef = Nothing, mupHidden = Just False, mupHiddenRef = Nothing, mupConvRoleName = Just (fromJust (parseRoleName "cn0umd1jl9uf41b04nzm_jnhy6nmphlax7dk6j3ndzxhzl3x84q372ww973h8_32zoriqv8voe"))}
+testObject_MemberUpdate_user_2 :: MemberUpdate
+testObject_MemberUpdate_user_2 = MemberUpdate {mupOtrMute = Just True, mupOtrMuteStatus = Just (MutedStatus {fromMutedStatus = 1}), mupOtrMuteRef = Just "'", mupOtrArchive = Just True, mupOtrArchiveRef = Just "&\\\160503", mupHidden = Just False, mupHiddenRef = Just "J\US\167155", mupConvRoleName = Just (fromJust (parseRoleName "4qjkvrohwnjnoiwcdeytszg51fnss5wkq7l7e9s798xh_q40g1aziz6vwemk5zaxc_uxhy56nqptycrkdatcq36q453xfduj5zi7dmwwh9fsah5e6u873m60on2w"))}
+testObject_MemberUpdate_user_3 :: MemberUpdate
+testObject_MemberUpdate_user_3 = MemberUpdate {mupOtrMute = Just True, mupOtrMuteStatus = Just (MutedStatus {fromMutedStatus = -2}), mupOtrMuteRef = Just "\US", mupOtrArchive = Just True, mupOtrArchiveRef = Just "q", mupHidden = Just True, mupHiddenRef = Nothing, mupConvRoleName = Nothing}
+testObject_MemberUpdate_user_4 :: MemberUpdate
+testObject_MemberUpdate_user_4 = MemberUpdate {mupOtrMute = Just False, mupOtrMuteStatus = Just (MutedStatus {fromMutedStatus = -1}), mupOtrMuteRef = Nothing, mupOtrArchive = Nothing, mupOtrArchiveRef = Just "", mupHidden = Just False, mupHiddenRef = Just "*\133079M", mupConvRoleName = Just (fromJust (parseRoleName "o3kde9cwrkztkikd0j_2eu7fx184ssv_1lr_x0kfs0a2gpv96e_p9k9g2y"))}
+testObject_MemberUpdate_user_5 :: MemberUpdate
+testObject_MemberUpdate_user_5 = MemberUpdate {mupOtrMute = Just False, mupOtrMuteStatus = Just (MutedStatus {fromMutedStatus = 0}), mupOtrMuteRef = Just "", mupOtrArchive = Just False, mupOtrArchiveRef = Just "", mupHidden = Just False, mupHiddenRef = Just "", mupConvRoleName = Just (fromJust (parseRoleName "lnnqtixwpboizqvavxza9b84sv7k0vqk4zm0xynex4qhacur32eroh8ukvucjnpudqb3rnq0_3ez8e7xpsqb0bae8aohpyifim6hlsjrf2w8xuhrsp_oaxilelcs"))}

@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_SendActivationCode_1 :: SendActivationCode
-testObject_SendActivationCode_1 = SendActivationCode {saUserKey = Right (Phone {fromPhone = "+5638769376629"}), saLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.TS, lCountry = Just (Country {fromCountry = TJ})}), saCall = False}
-testObject_SendActivationCode_2 :: SendActivationCode
-testObject_SendActivationCode_2 = SendActivationCode {saUserKey = Right (Phone {fromPhone = "+490239632"}), saLocale = Nothing, saCall = False}
-testObject_SendActivationCode_3 :: SendActivationCode
-testObject_SendActivationCode_3 = SendActivationCode {saUserKey = Left (Email {emailLocal = "'\1097939$\a", emailDomain = "\1063503)\DLE\1050010\1073571\1052062\NAK,"}), saLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.TR, lCountry = Just (Country {fromCountry = VA})}), saCall = False}
-testObject_SendActivationCode_4 :: SendActivationCode
-testObject_SendActivationCode_4 = SendActivationCode {saUserKey = Right (Phone {fromPhone = "+50642259593"}), saLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.KV, lCountry = Just (Country {fromCountry = MN})}), saCall = False}
-testObject_SendActivationCode_5 :: SendActivationCode
-testObject_SendActivationCode_5 = SendActivationCode {saUserKey = Right (Phone {fromPhone = "+2118505704445"}), saLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.MG, lCountry = Nothing}), saCall = True}
+testObject_SendActivationCode_user_1 :: SendActivationCode
+testObject_SendActivationCode_user_1 = SendActivationCode {saUserKey = Right (Phone {fromPhone = "+9121298105938"}), saLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.IK, lCountry = Just (Country {fromCountry = TJ})}), saCall = False}
+testObject_SendActivationCode_user_2 :: SendActivationCode
+testObject_SendActivationCode_user_2 = SendActivationCode {saUserKey = Right (Phone {fromPhone = "+47815880888545"}), saLocale = Nothing, saCall = True}
+testObject_SendActivationCode_user_3 :: SendActivationCode
+testObject_SendActivationCode_user_3 = SendActivationCode {saUserKey = Right (Phone {fromPhone = "+65679615978993"}), saLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.CU, lCountry = Just (Country {fromCountry = GE})}), saCall = False}
+testObject_SendActivationCode_user_4 :: SendActivationCode
+testObject_SendActivationCode_user_4 = SendActivationCode {saUserKey = Right (Phone {fromPhone = "+099858900714612"}), saLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.KO, lCountry = Just (Country {fromCountry = IE})}), saCall = True}
+testObject_SendActivationCode_user_5 :: SendActivationCode
+testObject_SendActivationCode_user_5 = SendActivationCode {saUserKey = Left (Email {emailLocal = "Yddtq3", emailDomain = "\"w\771a\ESCl\DLE?\US"}), saLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.LU, lCountry = Just (Country {fromCountry = IQ})}), saCall = True}

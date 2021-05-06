@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_UserIdentity_1 :: UserIdentity
-testObject_UserIdentity_1 = EmailIdentity (Email {emailLocal = "\147568qX<", emailDomain = "\SUBibW\1025158z[\31973\"(\SUB\NAKp\FS\155500\1046807!\1074476D\147863\1081794*Z+"})
-testObject_UserIdentity_2 :: UserIdentity
-testObject_UserIdentity_2 = EmailIdentity (Email {emailLocal = "t\1055294^!/\1083797\1048219\1043167\&80\1070083\168407xQ", emailDomain = "\128282\SI\1076635"})
-testObject_UserIdentity_3 :: UserIdentity
-testObject_UserIdentity_3 = PhoneIdentity (Phone {fromPhone = "+54420964279"})
-testObject_UserIdentity_4 :: UserIdentity
-testObject_UserIdentity_4 = EmailIdentity (Email {emailLocal = "z\US\26774\1034320\&1\1078181\SUB\ENQY\29383mwIqu\1103403;\1034920GB\ENQ5w+#", emailDomain = "\"2\EM/;j\1103483\96414l\1099964\63252(%^*\144869\NAK8\1032466"})
-testObject_UserIdentity_5 :: UserIdentity
-testObject_UserIdentity_5 = SSOIdentity (UserScimExternalId "]g&") (Just (Email {emailLocal = "&,x\987449\&0\SO", emailDomain = "~"})) (Just (Phone {fromPhone = "+30429628305"}))
+testObject_UserIdentity_user_1 :: UserIdentity
+testObject_UserIdentity_user_1 = SSOIdentity (UserSSOId "}" "") (Just (Email {emailLocal = "6\171702c\DC1", emailDomain = "U"})) (Just (Phone {fromPhone = "+996814029441285"}))
+testObject_UserIdentity_user_2 :: UserIdentity
+testObject_UserIdentity_user_2 = FullIdentity (Email {emailLocal = "\ENQz[", emailDomain = "\46653\63824"}) (Phone {fromPhone = "+199296310229"})
+testObject_UserIdentity_user_3 :: UserIdentity
+testObject_UserIdentity_user_3 = SSOIdentity (UserScimExternalId "\178574.O<J") (Just (Email {emailLocal = ".n)Z", emailDomain = "Uv>\67288\1043072\"g\r\DC1"})) (Just (Phone {fromPhone = "+5745357926"}))
+testObject_UserIdentity_user_4 :: UserIdentity
+testObject_UserIdentity_user_4 = FullIdentity (Email {emailLocal = "?(\7284\992072\177256\166385\&0\SI\ENQR\CAN\1100986g", emailDomain = "c\DC42\1060489\&11\1028409NR"}) (Phone {fromPhone = "+124557652"})
+testObject_UserIdentity_user_5 :: UserIdentity
+testObject_UserIdentity_user_5 = EmailIdentity (Email {emailLocal = "T\RS=)\155553c\EM\133056_-m&", emailDomain = "g\142446I\191301\SOH\DC13\1067448o\38792b\1062241\&7"})

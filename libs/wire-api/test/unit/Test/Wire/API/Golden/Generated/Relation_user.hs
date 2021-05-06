@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_Relation_1 :: Relation
-testObject_Relation_1 = Pending
-testObject_Relation_2 :: Relation
-testObject_Relation_2 = Sent
-testObject_Relation_3 :: Relation
-testObject_Relation_3 = Pending
-testObject_Relation_4 :: Relation
-testObject_Relation_4 = Sent
-testObject_Relation_5 :: Relation
-testObject_Relation_5 = Blocked
+testObject_Relation_user_1 :: Relation
+testObject_Relation_user_1 = Ignored
+testObject_Relation_user_2 :: Relation
+testObject_Relation_user_2 = Cancelled
+testObject_Relation_user_3 :: Relation
+testObject_Relation_user_3 = Accepted
+testObject_Relation_user_4 :: Relation
+testObject_Relation_user_4 = Blocked
+testObject_Relation_user_5 :: Relation
+testObject_Relation_user_5 = Accepted

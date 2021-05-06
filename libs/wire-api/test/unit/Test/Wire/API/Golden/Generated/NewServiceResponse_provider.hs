@@ -48,13 +48,13 @@ import Wire.API.Provider.Service.Tag
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
-testObject_NewServiceResponse_1 :: NewServiceResponse
-testObject_NewServiceResponse_1 = NewServiceResponse {rsNewServiceId = (Id (fromJust (UUID.fromString "0000007b-0000-0023-0000-00730000000b"))), rsNewServiceToken = Nothing}
-testObject_NewServiceResponse_2 :: NewServiceResponse
-testObject_NewServiceResponse_2 = NewServiceResponse {rsNewServiceId = (Id (fromJust (UUID.fromString "00000033-0000-0027-0000-006400000070"))), rsNewServiceToken = Nothing}
-testObject_NewServiceResponse_3 :: NewServiceResponse
-testObject_NewServiceResponse_3 = NewServiceResponse {rsNewServiceId = (Id (fromJust (UUID.fromString "00000062-0000-0075-0000-000100000047"))), rsNewServiceToken = Nothing}
-testObject_NewServiceResponse_4 :: NewServiceResponse
-testObject_NewServiceResponse_4 = NewServiceResponse {rsNewServiceId = (Id (fromJust (UUID.fromString "0000001a-0000-0043-0000-000500000055"))), rsNewServiceToken = Just (ServiceToken (fromRight undefined (validate ("L8C3YUlEzPNcQ4m3eQ=="))))}
-testObject_NewServiceResponse_5 :: NewServiceResponse
-testObject_NewServiceResponse_5 = NewServiceResponse {rsNewServiceId = (Id (fromJust (UUID.fromString "00000048-0000-0022-0000-000e00000032"))), rsNewServiceToken = Just (ServiceToken (fromRight undefined (validate ("jd64BdE="))))}
+testObject_NewServiceResponse_provider_1 :: NewServiceResponse
+testObject_NewServiceResponse_provider_1 = NewServiceResponse {rsNewServiceId = (Id (fromJust (UUID.fromString "0000000e-0000-003f-0000-00090000003e"))), rsNewServiceToken = Nothing}
+testObject_NewServiceResponse_provider_2 :: NewServiceResponse
+testObject_NewServiceResponse_provider_2 = NewServiceResponse {rsNewServiceId = (Id (fromJust (UUID.fromString "0000006e-0000-0056-0000-003200000064"))), rsNewServiceToken = Just (ServiceToken (fromRight undefined (validate ("deyDKw=="))))}
+testObject_NewServiceResponse_provider_3 :: NewServiceResponse
+testObject_NewServiceResponse_provider_3 = NewServiceResponse {rsNewServiceId = (Id (fromJust (UUID.fromString "0000004d-0000-0033-0000-007a00000061"))), rsNewServiceToken = Just (ServiceToken (fromRight undefined (validate ("blA6sXMxBgrFMVXsTEw="))))}
+testObject_NewServiceResponse_provider_4 :: NewServiceResponse
+testObject_NewServiceResponse_provider_4 = NewServiceResponse {rsNewServiceId = (Id (fromJust (UUID.fromString "00000044-0000-004d-0000-003400000044"))), rsNewServiceToken = Just (ServiceToken (fromRight undefined (validate ("y50I"))))}
+testObject_NewServiceResponse_provider_5 :: NewServiceResponse
+testObject_NewServiceResponse_provider_5 = NewServiceResponse {rsNewServiceId = (Id (fromJust (UUID.fromString "0000001f-0000-0004-0000-004600000026"))), rsNewServiceToken = Just (ServiceToken (fromRight undefined (validate ("w1_n"))))}

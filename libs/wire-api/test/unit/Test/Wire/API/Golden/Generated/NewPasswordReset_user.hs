@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_NewPasswordReset_1 :: NewPasswordReset
-testObject_NewPasswordReset_1 = NewPasswordReset (Right (Phone {fromPhone = "+294875268920"}))
-testObject_NewPasswordReset_2 :: NewPasswordReset
-testObject_NewPasswordReset_2 = NewPasswordReset (Left (Email {emailLocal = "=e\1031482\nt\985035l$\r|h(\150333V\1070113gO\EM\158713Ya\165457|\1091154Y", emailDomain = "\1070949h\DC2qw\1007612\DC3\27200q\189771s<\1046148\STX-&\1013441&"}))
-testObject_NewPasswordReset_3 :: NewPasswordReset
-testObject_NewPasswordReset_3 = NewPasswordReset (Left (Email {emailLocal = "h\1004168\39841\DC3Y)\1065191+\145417C\35715jb", emailDomain = "bAM\SYN*Lf4\94277=\59095`"}))
-testObject_NewPasswordReset_4 :: NewPasswordReset
-testObject_NewPasswordReset_4 = NewPasswordReset (Right (Phone {fromPhone = "+824477476383062"}))
-testObject_NewPasswordReset_5 :: NewPasswordReset
-testObject_NewPasswordReset_5 = NewPasswordReset (Right (Phone {fromPhone = "+347507569452939"}))
+testObject_NewPasswordReset_user_1 :: NewPasswordReset
+testObject_NewPasswordReset_user_1 = NewPasswordReset (Right (Phone {fromPhone = "+4182811702"}))
+testObject_NewPasswordReset_user_2 :: NewPasswordReset
+testObject_NewPasswordReset_user_2 = NewPasswordReset (Left (Email {emailLocal = "G,&\r1>d\US~Dr\18792QQ}\DLEn", emailDomain = "\1113339[HuO\EOT\CAN\GS4LJ"}))
+testObject_NewPasswordReset_user_3 :: NewPasswordReset
+testObject_NewPasswordReset_user_3 = NewPasswordReset (Left (Email {emailLocal = "T!8\v}\DC3Ue\165694k\65467", emailDomain = ""}))
+testObject_NewPasswordReset_user_4 :: NewPasswordReset
+testObject_NewPasswordReset_user_4 = NewPasswordReset (Right (Phone {fromPhone = "+75281072492"}))
+testObject_NewPasswordReset_user_5 :: NewPasswordReset
+testObject_NewPasswordReset_user_5 = NewPasswordReset (Right (Phone {fromPhone = "+49273371424"}))

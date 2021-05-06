@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_Activate_1 :: Activate
-testObject_Activate_1 = Activate {activateTarget = ActivateEmail (Email {emailLocal = "", emailDomain = "=\EMwZ\159223\1082329c"}), activateCode = ActivationCode {fromActivationCode = (fromRight undefined (validate ("hPhJ-rM=")))}, activateDryrun = False}
-testObject_Activate_2 :: Activate
-testObject_Activate_2 = Activate {activateTarget = ActivateKey (ActivationKey {fromActivationKey = (fromRight undefined (validate ("YqY=")))}), activateCode = ActivationCode {fromActivationCode = (fromRight undefined (validate ("d7mOzu1E")))}, activateDryrun = True}
-testObject_Activate_3 :: Activate
-testObject_Activate_3 = Activate {activateTarget = ActivatePhone (Phone {fromPhone = "+674122553971"}), activateCode = ActivationCode {fromActivationCode = (fromRight undefined (validate ("YbBmQPo=")))}, activateDryrun = True}
-testObject_Activate_4 :: Activate
-testObject_Activate_4 = Activate {activateTarget = ActivateKey (ActivationKey {fromActivationKey = (fromRight undefined (validate ("BasWxG8=")))}), activateCode = ActivationCode {fromActivationCode = (fromRight undefined (validate ("Ww==")))}, activateDryrun = False}
-testObject_Activate_5 :: Activate
-testObject_Activate_5 = Activate {activateTarget = ActivateKey (ActivationKey {fromActivationKey = (fromRight undefined (validate ("p52L")))}), activateCode = ActivationCode {fromActivationCode = (fromRight undefined (validate ("3ZD37gPUow==")))}, activateDryrun = True}
+testObject_Activate_user_1 :: Activate
+testObject_Activate_user_1 = Activate {activateTarget = ActivatePhone (Phone {fromPhone = "+2716553785016"}), activateCode = ActivationCode {fromActivationCode = (fromRight undefined (validate ("S9eWoA==")))}, activateDryrun = False}
+testObject_Activate_user_2 :: Activate
+testObject_Activate_user_2 = Activate {activateTarget = ActivateEmail (Email {emailLocal = "e\1065289b\t\ETB5q\aa", emailDomain = "~"}), activateCode = ActivationCode {fromActivationCode = (fromRight undefined (validate ("NuU=")))}, activateDryrun = False}
+testObject_Activate_user_3 :: Activate
+testObject_Activate_user_3 = Activate {activateTarget = ActivateEmail (Email {emailLocal = "\1011975'\1082241n", emailDomain = "!"}), activateCode = ActivationCode {fromActivationCode = (fromRight undefined (validate ("WQ==")))}, activateDryrun = False}
+testObject_Activate_user_4 :: Activate
+testObject_Activate_user_4 = Activate {activateTarget = ActivateKey (ActivationKey {fromActivationKey = (fromRight undefined (validate ("lU4YcPe1DGg=")))}), activateCode = ActivationCode {fromActivationCode = (fromRight undefined (validate ("SZr2k0AC")))}, activateDryrun = True}
+testObject_Activate_user_5 :: Activate
+testObject_Activate_user_5 = Activate {activateTarget = ActivateEmail (Email {emailLocal = "(\1062657&\naY", emailDomain = "\1090601\&4\DC2*\1100846"}), activateCode = ActivationCode {fromActivationCode = (fromRight undefined (validate ("c3G-MW4uwrKE")))}, activateDryrun = False}

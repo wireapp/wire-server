@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_ReceiptMode_1 :: ReceiptMode
-testObject_ReceiptMode_1 = ReceiptMode {unReceiptMode = -29531}
-testObject_ReceiptMode_2 :: ReceiptMode
-testObject_ReceiptMode_2 = ReceiptMode {unReceiptMode = -13838}
-testObject_ReceiptMode_3 :: ReceiptMode
-testObject_ReceiptMode_3 = ReceiptMode {unReceiptMode = 21745}
-testObject_ReceiptMode_4 :: ReceiptMode
-testObject_ReceiptMode_4 = ReceiptMode {unReceiptMode = 22448}
-testObject_ReceiptMode_5 :: ReceiptMode
-testObject_ReceiptMode_5 = ReceiptMode {unReceiptMode = -22604}
+testObject_ReceiptMode_user_1 :: ReceiptMode
+testObject_ReceiptMode_user_1 = ReceiptMode {unReceiptMode = -10799}
+testObject_ReceiptMode_user_2 :: ReceiptMode
+testObject_ReceiptMode_user_2 = ReceiptMode {unReceiptMode = 12195}
+testObject_ReceiptMode_user_3 :: ReceiptMode
+testObject_ReceiptMode_user_3 = ReceiptMode {unReceiptMode = -27284}
+testObject_ReceiptMode_user_4 :: ReceiptMode
+testObject_ReceiptMode_user_4 = ReceiptMode {unReceiptMode = 11639}
+testObject_ReceiptMode_user_5 :: ReceiptMode
+testObject_ReceiptMode_user_5 = ReceiptMode {unReceiptMode = 19803}

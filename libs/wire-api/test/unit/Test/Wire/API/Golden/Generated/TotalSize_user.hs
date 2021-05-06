@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_TotalSize_1 :: TotalSize
-testObject_TotalSize_1 = TotalSize {totalSizeBytes = 18}
-testObject_TotalSize_2 :: TotalSize
-testObject_TotalSize_2 = TotalSize {totalSizeBytes = 26}
-testObject_TotalSize_3 :: TotalSize
-testObject_TotalSize_3 = TotalSize {totalSizeBytes = 2}
-testObject_TotalSize_4 :: TotalSize
-testObject_TotalSize_4 = TotalSize {totalSizeBytes = 0}
-testObject_TotalSize_5 :: TotalSize
-testObject_TotalSize_5 = TotalSize {totalSizeBytes = 7}
+testObject_TotalSize_user_1 :: TotalSize
+testObject_TotalSize_user_1 = TotalSize {totalSizeBytes = 15}
+testObject_TotalSize_user_2 :: TotalSize
+testObject_TotalSize_user_2 = TotalSize {totalSizeBytes = 10}
+testObject_TotalSize_user_3 :: TotalSize
+testObject_TotalSize_user_3 = TotalSize {totalSizeBytes = 24}
+testObject_TotalSize_user_4 :: TotalSize
+testObject_TotalSize_user_4 = TotalSize {totalSizeBytes = 3}
+testObject_TotalSize_user_5 :: TotalSize
+testObject_TotalSize_user_5 = TotalSize {totalSizeBytes = 11}

@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_TypingStatus_1 :: TypingStatus
-testObject_TypingStatus_1 = StartedTyping
-testObject_TypingStatus_2 :: TypingStatus
-testObject_TypingStatus_2 = StartedTyping
-testObject_TypingStatus_3 :: TypingStatus
-testObject_TypingStatus_3 = StoppedTyping
-testObject_TypingStatus_4 :: TypingStatus
-testObject_TypingStatus_4 = StoppedTyping
-testObject_TypingStatus_5 :: TypingStatus
-testObject_TypingStatus_5 = StoppedTyping
+testObject_TypingStatus_user_1 :: TypingStatus
+testObject_TypingStatus_user_1 = StartedTyping
+testObject_TypingStatus_user_2 :: TypingStatus
+testObject_TypingStatus_user_2 = StoppedTyping
+testObject_TypingStatus_user_3 :: TypingStatus
+testObject_TypingStatus_user_3 = StoppedTyping
+testObject_TypingStatus_user_4 :: TypingStatus
+testObject_TypingStatus_user_4 = StoppedTyping
+testObject_TypingStatus_user_5 :: TypingStatus
+testObject_TypingStatus_user_5 = StartedTyping

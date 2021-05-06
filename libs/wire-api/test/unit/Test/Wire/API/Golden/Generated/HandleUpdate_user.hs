@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_HandleUpdate_1 :: HandleUpdate
-testObject_HandleUpdate_1 = HandleUpdate {huHandle = "Xx\5987>\1059429\995579\1074933\1024201k\1073331\ETB#L\DEL\DC4\ncQI\1096236\1043200H\ETX\GS?"}
-testObject_HandleUpdate_2 :: HandleUpdate
-testObject_HandleUpdate_2 = HandleUpdate {huHandle = "\DLE=2z6\1069499\ACKG\36118\1033424\1052789q'\r\1067327"}
-testObject_HandleUpdate_3 :: HandleUpdate
-testObject_HandleUpdate_3 = HandleUpdate {huHandle = "\DC2W\23376\SO\SUB\EOT\49378~\"\152827R\SI\\\a\1099147Lp\19360\136433\&0"}
-testObject_HandleUpdate_4 :: HandleUpdate
-testObject_HandleUpdate_4 = HandleUpdate {huHandle = "\1014996\NAKjG-1\CANTV;\1100291\178486)mv"}
-testObject_HandleUpdate_5 :: HandleUpdate
-testObject_HandleUpdate_5 = HandleUpdate {huHandle = "X\EOT\RS0\v=w\1871;\t#\17478\180455K\1097306\NAKR\62715\169367"}
+testObject_HandleUpdate_user_1 :: HandleUpdate
+testObject_HandleUpdate_user_1 = HandleUpdate {huHandle = "NM"}
+testObject_HandleUpdate_user_2 :: HandleUpdate
+testObject_HandleUpdate_user_2 = HandleUpdate {huHandle = "t\DC3gc]\a-Mg}z\1113551\189987\ESCH\1051171V\1055970B\RS"}
+testObject_HandleUpdate_user_3 :: HandleUpdate
+testObject_HandleUpdate_user_3 = HandleUpdate {huHandle = "\1007371=\7915E\147791\169239\NAK=\992340\v"}
+testObject_HandleUpdate_user_4 :: HandleUpdate
+testObject_HandleUpdate_user_4 = HandleUpdate {huHandle = "soDZ\94502$\1033298^(\1017144\&2\1031465\1076908\DC1"}
+testObject_HandleUpdate_user_5 :: HandleUpdate
+testObject_HandleUpdate_user_5 = HandleUpdate {huHandle = "&"}

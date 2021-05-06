@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_InvitationCode_1 :: InvitationCode
-testObject_InvitationCode_1 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("FT0pH4_hUNz_YTDUZasMVg==")))}
-testObject_InvitationCode_2 :: InvitationCode
-testObject_InvitationCode_2 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("vTwEz-ZWSr0qnLG6Zz51eQ==")))}
-testObject_InvitationCode_3 :: InvitationCode
-testObject_InvitationCode_3 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("OmtmGcQLu54=")))}
-testObject_InvitationCode_4 :: InvitationCode
-testObject_InvitationCode_4 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("6Em523FQYtltU-oxRepPNyQiCWfLAyM7TZc=")))}
-testObject_InvitationCode_5 :: InvitationCode
-testObject_InvitationCode_5 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("y3iTOjs=")))}
+testObject_InvitationCode_user_1 :: InvitationCode
+testObject_InvitationCode_user_1 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("l2dsBWkED2a9hL0=")))}
+testObject_InvitationCode_user_2 :: InvitationCode
+testObject_InvitationCode_user_2 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("JcZZoomqQ5xepW1ByOR9")))}
+testObject_InvitationCode_user_3 :: InvitationCode
+testObject_InvitationCode_user_3 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("6Zgn73qDp64xdj6r")))}
+testObject_InvitationCode_user_4 :: InvitationCode
+testObject_InvitationCode_user_4 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("-Eo=")))}
+testObject_InvitationCode_user_5 :: InvitationCode
+testObject_InvitationCode_user_5 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("CQ==")))}

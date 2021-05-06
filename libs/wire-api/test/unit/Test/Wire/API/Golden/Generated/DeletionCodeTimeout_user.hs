@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_DeletionCodeTimeout_1 :: DeletionCodeTimeout
-testObject_DeletionCodeTimeout_1 = DeletionCodeTimeout {fromDeletionCodeTimeout = (Timeout (secondsToNominalDiffTime (-11.000000000000)))}
-testObject_DeletionCodeTimeout_2 :: DeletionCodeTimeout
-testObject_DeletionCodeTimeout_2 = DeletionCodeTimeout {fromDeletionCodeTimeout = (Timeout (secondsToNominalDiffTime (28.000000000000)))}
-testObject_DeletionCodeTimeout_3 :: DeletionCodeTimeout
-testObject_DeletionCodeTimeout_3 = DeletionCodeTimeout {fromDeletionCodeTimeout = (Timeout (secondsToNominalDiffTime (-21.000000000000)))}
-testObject_DeletionCodeTimeout_4 :: DeletionCodeTimeout
-testObject_DeletionCodeTimeout_4 = DeletionCodeTimeout {fromDeletionCodeTimeout = (Timeout (secondsToNominalDiffTime (-6.000000000000)))}
-testObject_DeletionCodeTimeout_5 :: DeletionCodeTimeout
-testObject_DeletionCodeTimeout_5 = DeletionCodeTimeout {fromDeletionCodeTimeout = (Timeout (secondsToNominalDiffTime (4.000000000000)))}
+testObject_DeletionCodeTimeout_user_1 :: DeletionCodeTimeout
+testObject_DeletionCodeTimeout_user_1 = DeletionCodeTimeout {fromDeletionCodeTimeout = (Timeout (secondsToNominalDiffTime (16.000000000000)))}
+testObject_DeletionCodeTimeout_user_2 :: DeletionCodeTimeout
+testObject_DeletionCodeTimeout_user_2 = DeletionCodeTimeout {fromDeletionCodeTimeout = (Timeout (secondsToNominalDiffTime (-12.000000000000)))}
+testObject_DeletionCodeTimeout_user_3 :: DeletionCodeTimeout
+testObject_DeletionCodeTimeout_user_3 = DeletionCodeTimeout {fromDeletionCodeTimeout = (Timeout (secondsToNominalDiffTime (28.000000000000)))}
+testObject_DeletionCodeTimeout_user_4 :: DeletionCodeTimeout
+testObject_DeletionCodeTimeout_user_4 = DeletionCodeTimeout {fromDeletionCodeTimeout = (Timeout (secondsToNominalDiffTime (29.000000000000)))}
+testObject_DeletionCodeTimeout_user_5 :: DeletionCodeTimeout
+testObject_DeletionCodeTimeout_user_5 = DeletionCodeTimeout {fromDeletionCodeTimeout = (Timeout (secondsToNominalDiffTime (1.000000000000)))}

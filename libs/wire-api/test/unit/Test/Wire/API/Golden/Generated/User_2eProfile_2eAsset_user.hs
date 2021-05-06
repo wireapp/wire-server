@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_User_2eProfile_2eAsset_1 :: User.Profile.Asset
-testObject_User_2eProfile_2eAsset_1 = (ImageAsset "-\171880\20228\1070211yG" (Just AssetComplete))
-testObject_User_2eProfile_2eAsset_2 :: User.Profile.Asset
-testObject_User_2eProfile_2eAsset_2 = (ImageAsset "\63689Y`]Q\1031531bwN\ETB" (Just AssetComplete))
-testObject_User_2eProfile_2eAsset_3 :: User.Profile.Asset
-testObject_User_2eProfile_2eAsset_3 = (ImageAsset "K0.1d4" (Just AssetComplete))
-testObject_User_2eProfile_2eAsset_4 :: User.Profile.Asset
-testObject_User_2eProfile_2eAsset_4 = (ImageAsset "#\73859*\19597m\ETBW\NUL|&" (Just AssetComplete))
-testObject_User_2eProfile_2eAsset_5 :: User.Profile.Asset
-testObject_User_2eProfile_2eAsset_5 = (ImageAsset "\DC2\ETX\53709Sn|\1049953\v\128160k\FS\ESCU" (Just AssetPreview))
+testObject_User_2eProfile_2eAsset_user_1 :: User.Profile.Asset
+testObject_User_2eProfile_2eAsset_user_1 = (ImageAsset "\173459\SIAX\1012927\28654\146832\tL*\61841d\SUB" (Just AssetPreview))
+testObject_User_2eProfile_2eAsset_user_2 :: User.Profile.Asset
+testObject_User_2eProfile_2eAsset_user_2 = (ImageAsset "\1078747\996919t&\6029u^ i\"'/" (Just AssetComplete))
+testObject_User_2eProfile_2eAsset_user_3 :: User.Profile.Asset
+testObject_User_2eProfile_2eAsset_user_3 = (ImageAsset "cR\1037613\STX" (Just AssetPreview))
+testObject_User_2eProfile_2eAsset_user_4 :: User.Profile.Asset
+testObject_User_2eProfile_2eAsset_user_4 = (ImageAsset "iU\NAK1\1065792V" (Just AssetComplete))
+testObject_User_2eProfile_2eAsset_user_5 :: User.Profile.Asset
+testObject_User_2eProfile_2eAsset_user_5 = (ImageAsset "]d\RS\DELP\143676\DC4\992328x\1043134Z\EMQ:\t" (Just AssetComplete))

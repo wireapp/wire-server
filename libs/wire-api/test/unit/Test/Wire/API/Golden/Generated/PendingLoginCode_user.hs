@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_PendingLoginCode_1 :: PendingLoginCode
-testObject_PendingLoginCode_1 = PendingLoginCode {pendingLoginCode = LoginCode {fromLoginCode = "\ETXB"}, pendingLoginTimeout = (Timeout (secondsToNominalDiffTime (0.000000000000)))}
-testObject_PendingLoginCode_2 :: PendingLoginCode
-testObject_PendingLoginCode_2 = PendingLoginCode {pendingLoginCode = LoginCode {fromLoginCode = "(2\167597"}, pendingLoginTimeout = (Timeout (secondsToNominalDiffTime (-5.000000000000)))}
-testObject_PendingLoginCode_3 :: PendingLoginCode
-testObject_PendingLoginCode_3 = PendingLoginCode {pendingLoginCode = LoginCode {fromLoginCode = "\131410\1028910Q\ETB\NAK\DEL.\""}, pendingLoginTimeout = (Timeout (secondsToNominalDiffTime (-7.000000000000)))}
-testObject_PendingLoginCode_4 :: PendingLoginCode
-testObject_PendingLoginCode_4 = PendingLoginCode {pendingLoginCode = LoginCode {fromLoginCode = "'n5"}, pendingLoginTimeout = (Timeout (secondsToNominalDiffTime (-2.000000000000)))}
-testObject_PendingLoginCode_5 :: PendingLoginCode
-testObject_PendingLoginCode_5 = PendingLoginCode {pendingLoginCode = LoginCode {fromLoginCode = "\1038677\EM\DC3CH"}, pendingLoginTimeout = (Timeout (secondsToNominalDiffTime (8.000000000000)))}
+testObject_PendingLoginCode_user_1 :: PendingLoginCode
+testObject_PendingLoginCode_user_1 = PendingLoginCode {pendingLoginCode = LoginCode {fromLoginCode = "H\1026554wH,\SI,e)\160860\994984"}, pendingLoginTimeout = (Timeout (secondsToNominalDiffTime (-3.000000000000)))}
+testObject_PendingLoginCode_user_2 :: PendingLoginCode
+testObject_PendingLoginCode_user_2 = PendingLoginCode {pendingLoginCode = LoginCode {fromLoginCode = "\28419c\EOTm\ENQs6j\GSV_5"}, pendingLoginTimeout = (Timeout (secondsToNominalDiffTime (12.000000000000)))}
+testObject_PendingLoginCode_user_3 :: PendingLoginCode
+testObject_PendingLoginCode_user_3 = PendingLoginCode {pendingLoginCode = LoginCode {fromLoginCode = "\EM"}, pendingLoginTimeout = (Timeout (secondsToNominalDiffTime (7.000000000000)))}
+testObject_PendingLoginCode_user_4 :: PendingLoginCode
+testObject_PendingLoginCode_user_4 = PendingLoginCode {pendingLoginCode = LoginCode {fromLoginCode = "cbS*\74771\47247=#nb\1080264\NAK:o\1019509"}, pendingLoginTimeout = (Timeout (secondsToNominalDiffTime (3.000000000000)))}
+testObject_PendingLoginCode_user_5 :: PendingLoginCode
+testObject_PendingLoginCode_user_5 = PendingLoginCode {pendingLoginCode = LoginCode {fromLoginCode = "z\1035M\NUL0\SYN\1008822\\\DLEg"}, pendingLoginTimeout = (Timeout (secondsToNominalDiffTime (1.000000000000)))}

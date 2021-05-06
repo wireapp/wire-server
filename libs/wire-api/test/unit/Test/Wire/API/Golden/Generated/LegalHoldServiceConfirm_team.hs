@@ -55,13 +55,13 @@ import Wire.API.Team.SearchVisibility
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
-testObject_LegalHoldServiceConfirm_1 :: LegalHoldServiceConfirm
-testObject_LegalHoldServiceConfirm_1 = LegalHoldServiceConfirm {lhcClientId = ClientId {client = "15"}, lhcUserId = (Id (fromJust (UUID.fromString "00000002-0000-0003-0000-000600000003"))), lhcTeamId = (Id (fromJust (UUID.fromString "00000001-0000-0005-0000-000300000003"))), lhcRefreshToken = "bg\SOH"}
-testObject_LegalHoldServiceConfirm_2 :: LegalHoldServiceConfirm
-testObject_LegalHoldServiceConfirm_2 = LegalHoldServiceConfirm {lhcClientId = ClientId {client = "9"}, lhcUserId = (Id (fromJust (UUID.fromString "00000008-0000-0003-0000-000100000006"))), lhcTeamId = (Id (fromJust (UUID.fromString "00000001-0000-0005-0000-000400000004"))), lhcRefreshToken = "C"}
-testObject_LegalHoldServiceConfirm_3 :: LegalHoldServiceConfirm
-testObject_LegalHoldServiceConfirm_3 = LegalHoldServiceConfirm {lhcClientId = ClientId {client = "9"}, lhcUserId = (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000000000008"))), lhcTeamId = (Id (fromJust (UUID.fromString "00000002-0000-0008-0000-000800000001"))), lhcRefreshToken = "5to\145490\ETBOY"}
-testObject_LegalHoldServiceConfirm_4 :: LegalHoldServiceConfirm
-testObject_LegalHoldServiceConfirm_4 = LegalHoldServiceConfirm {lhcClientId = ClientId {client = "20"}, lhcUserId = (Id (fromJust (UUID.fromString "00000002-0000-0008-0000-000100000000"))), lhcTeamId = (Id (fromJust (UUID.fromString "00000000-0000-0005-0000-000200000008"))), lhcRefreshToken = "\64143b"}
-testObject_LegalHoldServiceConfirm_5 :: LegalHoldServiceConfirm
-testObject_LegalHoldServiceConfirm_5 = LegalHoldServiceConfirm {lhcClientId = ClientId {client = "a"}, lhcUserId = (Id (fromJust (UUID.fromString "00000006-0000-0006-0000-000700000007"))), lhcTeamId = (Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000300000006"))), lhcRefreshToken = "dh\DC3g)3\143038"}
+testObject_LegalHoldServiceConfirm_team_1 :: LegalHoldServiceConfirm
+testObject_LegalHoldServiceConfirm_team_1 = LegalHoldServiceConfirm {lhcClientId = ClientId {client = "2"}, lhcUserId = (Id (fromJust (UUID.fromString "00000006-0000-0000-0000-000000000003"))), lhcTeamId = (Id (fromJust (UUID.fromString "00000003-0000-0006-0000-000200000000"))), lhcRefreshToken = "\ETX*l\SUBI\ETX"}
+testObject_LegalHoldServiceConfirm_team_2 :: LegalHoldServiceConfirm
+testObject_LegalHoldServiceConfirm_team_2 = LegalHoldServiceConfirm {lhcClientId = ClientId {client = "e"}, lhcUserId = (Id (fromJust (UUID.fromString "00000004-0000-0006-0000-000200000002"))), lhcTeamId = (Id (fromJust (UUID.fromString "00000000-0000-0007-0000-000200000002"))), lhcRefreshToken = "F\1048956\SOH\1112625\148419\50739"}
+testObject_LegalHoldServiceConfirm_team_3 :: LegalHoldServiceConfirm
+testObject_LegalHoldServiceConfirm_team_3 = LegalHoldServiceConfirm {lhcClientId = ClientId {client = "a"}, lhcUserId = (Id (fromJust (UUID.fromString "00000004-0000-0000-0000-000200000001"))), lhcTeamId = (Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000500000000"))), lhcRefreshToken = "\GS_VCe"}
+testObject_LegalHoldServiceConfirm_team_4 :: LegalHoldServiceConfirm
+testObject_LegalHoldServiceConfirm_team_4 = LegalHoldServiceConfirm {lhcClientId = ClientId {client = "2"}, lhcUserId = (Id (fromJust (UUID.fromString "00000007-0000-0001-0000-000400000004"))), lhcTeamId = (Id (fromJust (UUID.fromString "00000007-0000-0001-0000-000800000000"))), lhcRefreshToken = "s\ACK\170273\US\NUL L"}
+testObject_LegalHoldServiceConfirm_team_5 :: LegalHoldServiceConfirm
+testObject_LegalHoldServiceConfirm_team_5 = LegalHoldServiceConfirm {lhcClientId = ClientId {client = "1a"}, lhcUserId = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000000000007"))), lhcTeamId = (Id (fromJust (UUID.fromString "00000003-0000-0001-0000-000600000002"))), lhcRefreshToken = "i\1021051"}

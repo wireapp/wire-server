@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_Transport_1 :: Transport
-testObject_Transport_1 = TransportUDP
-testObject_Transport_2 :: Transport
-testObject_Transport_2 = TransportTCP
-testObject_Transport_3 :: Transport
-testObject_Transport_3 = TransportUDP
-testObject_Transport_4 :: Transport
-testObject_Transport_4 = TransportTCP
-testObject_Transport_5 :: Transport
-testObject_Transport_5 = TransportTCP
+testObject_Transport_user_1 :: Transport
+testObject_Transport_user_1 = TransportTCP
+testObject_Transport_user_2 :: Transport
+testObject_Transport_user_2 = TransportTCP
+testObject_Transport_user_3 :: Transport
+testObject_Transport_user_3 = TransportUDP
+testObject_Transport_user_4 :: Transport
+testObject_Transport_user_4 = TransportUDP
+testObject_Transport_user_5 :: Transport
+testObject_Transport_user_5 = TransportTCP

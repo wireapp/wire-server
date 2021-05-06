@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_ResumableAsset_1 :: ResumableAsset
-testObject_ResumableAsset_1 = (mkResumableAsset ((mkAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000000"))) AssetEternal) & assetExpires .~ (fmap read (Just "1864-05-06 19:30:10.650310787415 UTC")) & assetToken .~ Just (AssetToken {assetTokenAscii = (fromRight undefined (validate ("")))}))) (read "1864-05-12 11:42:40.539154278048 UTC") (ChunkSize {chunkSizeBytes = 5}))
-testObject_ResumableAsset_2 :: ResumableAsset
-testObject_ResumableAsset_2 = (mkResumableAsset ((mkAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000000000000"))) AssetEternal) & assetExpires .~ (fmap read (Nothing)) & assetToken .~ Just (AssetToken {assetTokenAscii = (fromRight undefined (validate ("HQ==")))}))) (read "1864-05-03 01:39:26.037210991295 UTC") (ChunkSize {chunkSizeBytes = 6}))
-testObject_ResumableAsset_3 :: ResumableAsset
-testObject_ResumableAsset_3 = (mkResumableAsset ((mkAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000001"))) AssetVolatile) & assetExpires .~ (fmap read (Just "1864-05-09 15:55:12.972890358279 UTC")) & assetToken .~ Just (AssetToken {assetTokenAscii = (fromRight undefined (validate ("")))}))) (read "1864-05-13 01:41:08.489830171159 UTC") (ChunkSize {chunkSizeBytes = 10}))
-testObject_ResumableAsset_4 :: ResumableAsset
-testObject_ResumableAsset_4 = (mkResumableAsset ((mkAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) AssetEternalInfrequentAccess) & assetExpires .~ (fmap read (Just "1864-05-07 12:55:26.058456587452 UTC")) & assetToken .~ Nothing)) (read "1864-05-15 19:36:19.424049524459 UTC") (ChunkSize {chunkSizeBytes = 4}))
-testObject_ResumableAsset_5 :: ResumableAsset
-testObject_ResumableAsset_5 = (mkResumableAsset ((mkAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000000"))) AssetPersistent) & assetExpires .~ (fmap read (Just "1864-05-11 08:25:06.124057116288 UTC")) & assetToken .~ Nothing)) (read "1864-05-11 20:39:52.223802674663 UTC") (ChunkSize {chunkSizeBytes = 8}))
+testObject_ResumableAsset_user_1 :: ResumableAsset
+testObject_ResumableAsset_user_1 = (mkResumableAsset ((mkAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000000000001"))) AssetEternalInfrequentAccess) & assetExpires .~ (fmap read (Just "1864-05-11 13:12:20.267034498181 UTC")) & assetToken .~ Nothing)) (read "1864-04-29 18:19:53.565309024954 UTC") (ChunkSize {chunkSizeBytes = 3}))
+testObject_ResumableAsset_user_2 :: ResumableAsset
+testObject_ResumableAsset_user_2 = (mkResumableAsset ((mkAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))) AssetEternalInfrequentAccess) & assetExpires .~ (fmap read (Just "1864-05-08 06:55:05.322980453085 UTC")) & assetToken .~ Just (AssetToken {assetTokenAscii = (fromRight undefined (validate ("fGM=")))}))) (read "1864-05-17 19:02:53.428954556293 UTC") (ChunkSize {chunkSizeBytes = 10}))
+testObject_ResumableAsset_user_3 :: ResumableAsset
+testObject_ResumableAsset_user_3 = (mkResumableAsset ((mkAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000100000000"))) AssetEternal) & assetExpires .~ (fmap read (Just "1864-05-08 05:18:42.598550550672 UTC")) & assetToken .~ Just (AssetToken {assetTokenAscii = (fromRight undefined (validate ("Dw==")))}))) (read "1864-05-04 10:50:59.591889487965 UTC") (ChunkSize {chunkSizeBytes = 0}))
+testObject_ResumableAsset_user_4 :: ResumableAsset
+testObject_ResumableAsset_user_4 = (mkResumableAsset ((mkAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000000000000"))) AssetEternalInfrequentAccess) & assetExpires .~ (fmap read (Nothing)) & assetToken .~ Nothing)) (read "1864-05-17 16:52:38.110671457528 UTC") (ChunkSize {chunkSizeBytes = 10}))
+testObject_ResumableAsset_user_5 :: ResumableAsset
+testObject_ResumableAsset_user_5 = (mkResumableAsset ((mkAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000000"))) AssetEternalInfrequentAccess) & assetExpires .~ (fmap read (Just "1864-05-06 00:12:35.853496120639 UTC")) & assetToken .~ Nothing)) (read "1864-04-30 15:31:23.939869916452 UTC") (ChunkSize {chunkSizeBytes = 0}))

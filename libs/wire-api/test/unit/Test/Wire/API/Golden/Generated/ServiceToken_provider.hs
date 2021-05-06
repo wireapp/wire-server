@@ -48,13 +48,13 @@ import Wire.API.Provider.Service.Tag
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
-testObject_ServiceToken_1 :: ServiceToken
-testObject_ServiceToken_1 = ServiceToken (fromRight undefined (validate ("q68IqFbanr3NDQ==")))
-testObject_ServiceToken_2 :: ServiceToken
-testObject_ServiceToken_2 = ServiceToken (fromRight undefined (validate ("xYtKmXJ4DrXQJ-wVLoWfIAG5lQY=")))
-testObject_ServiceToken_3 :: ServiceToken
-testObject_ServiceToken_3 = ServiceToken (fromRight undefined (validate ("")))
-testObject_ServiceToken_4 :: ServiceToken
-testObject_ServiceToken_4 = ServiceToken (fromRight undefined (validate ("rNusEd1fXh6ItQFf6DdNALmpNtydaUM=")))
-testObject_ServiceToken_5 :: ServiceToken
-testObject_ServiceToken_5 = ServiceToken (fromRight undefined (validate ("qRgZhZdOMDI=")))
+testObject_ServiceToken_provider_1 :: ServiceToken
+testObject_ServiceToken_provider_1 = ServiceToken (fromRight undefined (validate ("mWM=")))
+testObject_ServiceToken_provider_2 :: ServiceToken
+testObject_ServiceToken_provider_2 = ServiceToken (fromRight undefined (validate ("dic=")))
+testObject_ServiceToken_provider_3 :: ServiceToken
+testObject_ServiceToken_provider_3 = ServiceToken (fromRight undefined (validate ("QA==")))
+testObject_ServiceToken_provider_4 :: ServiceToken
+testObject_ServiceToken_provider_4 = ServiceToken (fromRight undefined (validate ("EggXa30=")))
+testObject_ServiceToken_provider_5 :: ServiceToken
+testObject_ServiceToken_provider_5 = ServiceToken (fromRight undefined (validate ("GHZD365CW8HgJLnxFfyopcxb")))

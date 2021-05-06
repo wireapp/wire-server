@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_EmailUpdate_1 :: EmailUpdate
-testObject_EmailUpdate_1 = EmailUpdate {euEmail = Email {emailLocal = "EOvB\SOU\53185(mdQ\92409\GS'D m\47472 ", emailDomain = "\NUL\1073647d\997085\SYN\SUB\71680\NAK\994059\1040857\SUB\137155Q\1001578\ENQ"}}
-testObject_EmailUpdate_2 :: EmailUpdate
-testObject_EmailUpdate_2 = EmailUpdate {euEmail = Email {emailLocal = "6)\143636\&7\21016\16301N,1\172323\1094861\33295Q0", emailDomain = "\983645\DC2\"n,6"}}
-testObject_EmailUpdate_3 :: EmailUpdate
-testObject_EmailUpdate_3 = EmailUpdate {euEmail = Email {emailLocal = "", emailDomain = "\1111076\1056806B\1035408:^\SUB\1009346\1011531C\1048646Q\DC21A\15159({"}}
-testObject_EmailUpdate_4 :: EmailUpdate
-testObject_EmailUpdate_4 = EmailUpdate {euEmail = Email {emailLocal = "K(\39334\5855+\US\ENQV\19005r8\78163\EOT", emailDomain = "\ENQ!"}}
-testObject_EmailUpdate_5 :: EmailUpdate
-testObject_EmailUpdate_5 = EmailUpdate {euEmail = Email {emailLocal = "\ENQH}\1025465\&1\CAN/\SIFj\152592\1108550\1005338\\\f", emailDomain = ",\DLE\83149\&0\SUB\b\178571\1004645[\26282\SUBPIxd\1037763,:\NAK\388\168194P\164060\v\"UWoE|"}}
+testObject_EmailUpdate_user_1 :: EmailUpdate
+testObject_EmailUpdate_user_1 = EmailUpdate {euEmail = Email {emailLocal = "", emailDomain = "vA\FSC\1035499o\n\52529\DC3)"}}
+testObject_EmailUpdate_user_2 :: EmailUpdate
+testObject_EmailUpdate_user_2 = EmailUpdate {euEmail = Email {emailLocal = "p", emailDomain = "\24899Y,N.\1715\1078088\1069013*\1057712&"}}
+testObject_EmailUpdate_user_3 :: EmailUpdate
+testObject_EmailUpdate_user_3 = EmailUpdate {euEmail = Email {emailLocal = "X\STX\989955\1111005l:Fx-\1035374\DLE\984008\992111d\ETB0", emailDomain = "\158402\172983Vp\SUBC"}}
+testObject_EmailUpdate_user_4 :: EmailUpdate
+testObject_EmailUpdate_user_4 = EmailUpdate {euEmail = Email {emailLocal = "\STX>qT\DC1\EOTN\ENQ\46873\1022930\1059033\138449ee\f4U\1068161\26883\1078891h\149877\EM-\1027894", emailDomain = "*\1011888k}z4\175260\\\FS,\ACKr"}}
+testObject_EmailUpdate_user_5 :: EmailUpdate
+testObject_EmailUpdate_user_5 = EmailUpdate {euEmail = Email {emailLocal = "\f\992664ui\1014233=\STX\DC3H\168982D", emailDomain = "\3209X=\987584yBL*c\148630-D\v\399\r\SI\rw\1084063)\1047182Q\135035=/"}}

@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_SendLoginCode_1 :: SendLoginCode
-testObject_SendLoginCode_1 = SendLoginCode {lcPhone = Phone {fromPhone = "+7919168175"}, lcCall = False, lcForce = True}
-testObject_SendLoginCode_2 :: SendLoginCode
-testObject_SendLoginCode_2 = SendLoginCode {lcPhone = Phone {fromPhone = "+51391192656"}, lcCall = False, lcForce = False}
-testObject_SendLoginCode_3 :: SendLoginCode
-testObject_SendLoginCode_3 = SendLoginCode {lcPhone = Phone {fromPhone = "+498314008407"}, lcCall = True, lcForce = True}
-testObject_SendLoginCode_4 :: SendLoginCode
-testObject_SendLoginCode_4 = SendLoginCode {lcPhone = Phone {fromPhone = "+345660010"}, lcCall = False, lcForce = True}
-testObject_SendLoginCode_5 :: SendLoginCode
-testObject_SendLoginCode_5 = SendLoginCode {lcPhone = Phone {fromPhone = "+589071349038"}, lcCall = False, lcForce = True}
+testObject_SendLoginCode_user_1 :: SendLoginCode
+testObject_SendLoginCode_user_1 = SendLoginCode {lcPhone = Phone {fromPhone = "+25759205"}, lcCall = False, lcForce = False}
+testObject_SendLoginCode_user_2 :: SendLoginCode
+testObject_SendLoginCode_user_2 = SendLoginCode {lcPhone = Phone {fromPhone = "+46041520487146"}, lcCall = False, lcForce = True}
+testObject_SendLoginCode_user_3 :: SendLoginCode
+testObject_SendLoginCode_user_3 = SendLoginCode {lcPhone = Phone {fromPhone = "+1051937737"}, lcCall = False, lcForce = False}
+testObject_SendLoginCode_user_4 :: SendLoginCode
+testObject_SendLoginCode_user_4 = SendLoginCode {lcPhone = Phone {fromPhone = "+2420191267"}, lcCall = True, lcForce = True}
+testObject_SendLoginCode_user_5 :: SendLoginCode
+testObject_SendLoginCode_user_5 = SendLoginCode {lcPhone = Phone {fromPhone = "+484920175900"}, lcCall = False, lcForce = False}

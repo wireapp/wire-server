@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_ConversationAccessUpdate_1 :: ConversationAccessUpdate
-testObject_ConversationAccessUpdate_1 = ConversationAccessUpdate {cupAccess = [InviteAccess,PrivateAccess], cupAccessRole = ActivatedAccessRole}
-testObject_ConversationAccessUpdate_2 :: ConversationAccessUpdate
-testObject_ConversationAccessUpdate_2 = ConversationAccessUpdate {cupAccess = [LinkAccess,CodeAccess,PrivateAccess], cupAccessRole = ActivatedAccessRole}
-testObject_ConversationAccessUpdate_3 :: ConversationAccessUpdate
-testObject_ConversationAccessUpdate_3 = ConversationAccessUpdate {cupAccess = [PrivateAccess,InviteAccess], cupAccessRole = NonActivatedAccessRole}
-testObject_ConversationAccessUpdate_4 :: ConversationAccessUpdate
-testObject_ConversationAccessUpdate_4 = ConversationAccessUpdate {cupAccess = [LinkAccess], cupAccessRole = NonActivatedAccessRole}
-testObject_ConversationAccessUpdate_5 :: ConversationAccessUpdate
-testObject_ConversationAccessUpdate_5 = ConversationAccessUpdate {cupAccess = [PrivateAccess,PrivateAccess,CodeAccess,CodeAccess], cupAccessRole = PrivateAccessRole}
+testObject_ConversationAccessUpdate_user_1 :: ConversationAccessUpdate
+testObject_ConversationAccessUpdate_user_1 = ConversationAccessUpdate {cupAccess = [InviteAccess], cupAccessRole = TeamAccessRole}
+testObject_ConversationAccessUpdate_user_2 :: ConversationAccessUpdate
+testObject_ConversationAccessUpdate_user_2 = ConversationAccessUpdate {cupAccess = [PrivateAccess,InviteAccess,LinkAccess,CodeAccess,LinkAccess,LinkAccess,PrivateAccess,InviteAccess], cupAccessRole = NonActivatedAccessRole}
+testObject_ConversationAccessUpdate_user_3 :: ConversationAccessUpdate
+testObject_ConversationAccessUpdate_user_3 = ConversationAccessUpdate {cupAccess = [CodeAccess,InviteAccess], cupAccessRole = TeamAccessRole}
+testObject_ConversationAccessUpdate_user_4 :: ConversationAccessUpdate
+testObject_ConversationAccessUpdate_user_4 = ConversationAccessUpdate {cupAccess = [], cupAccessRole = NonActivatedAccessRole}
+testObject_ConversationAccessUpdate_user_5 :: ConversationAccessUpdate
+testObject_ConversationAccessUpdate_user_5 = ConversationAccessUpdate {cupAccess = [], cupAccessRole = ActivatedAccessRole}

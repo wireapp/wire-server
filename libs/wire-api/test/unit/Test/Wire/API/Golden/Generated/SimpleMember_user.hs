@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_SimpleMember_1 :: SimpleMember
-testObject_SimpleMember_1 = SimpleMember {smId = (Id (fromJust (UUID.fromString "0000002b-0000-0013-0000-000e00000028"))), smConvRoleName = (fromJust (parseRoleName "24ii5rxetk5ckgjwgmqsj81vyer6ecdpw9ln59gz05rdml9bthq2zynllc"))}
-testObject_SimpleMember_2 :: SimpleMember
-testObject_SimpleMember_2 = SimpleMember {smId = (Id (fromJust (UUID.fromString "00000032-0000-0002-0000-00030000005b"))), smConvRoleName = (fromJust (parseRoleName "i27apvv48c6s"))}
-testObject_SimpleMember_3 :: SimpleMember
-testObject_SimpleMember_3 = SimpleMember {smId = (Id (fromJust (UUID.fromString "0000001c-0000-0056-0000-004a0000004d"))), smConvRoleName = (fromJust (parseRoleName "u63t8si_dq0n6_jpoz262q6u2oiesa2y0_z5zmi9mt2fd22e3vgbma1eb47acy_699d7j9qpnsdpz425l01gsu6g2bajy3ajlpkg"))}
-testObject_SimpleMember_4 :: SimpleMember
-testObject_SimpleMember_4 = SimpleMember {smId = (Id (fromJust (UUID.fromString "00000007-0000-0016-0000-00130000000e"))), smConvRoleName = (fromJust (parseRoleName "0m2y5vfocr4npvxhdcqs2gohn1fis5_n4kpp8yjzpci62w9i6tye9jrbsl_y0e5z751coiwbjmjc8igjsqy"))}
-testObject_SimpleMember_5 :: SimpleMember
-testObject_SimpleMember_5 = SimpleMember {smId = (Id (fromJust (UUID.fromString "0000005e-0000-005e-0000-007e00000037"))), smConvRoleName = (fromJust (parseRoleName "4kvzuhy7i0sis7q1jdzow_aj7u29n3iplgtx15qwtlphcu"))}
+testObject_SimpleMember_user_1 :: SimpleMember
+testObject_SimpleMember_user_1 = SimpleMember {smId = (Id (fromJust (UUID.fromString "00000059-0000-006b-0000-00480000006c"))), smConvRoleName = (fromJust (parseRoleName "wqva74jpdq3udait2es8bt_mq9hyg3thezqorzvgy4wzimlzdxqtyp2plr0n7lpwtp4e0krplvn4py5c5hkrzq2am14"))}
+testObject_SimpleMember_user_2 :: SimpleMember
+testObject_SimpleMember_user_2 = SimpleMember {smId = (Id (fromJust (UUID.fromString "00000012-0000-0076-0000-002f00000019"))), smConvRoleName = (fromJust (parseRoleName "q7zpln2hs5ctzd8"))}
+testObject_SimpleMember_user_3 :: SimpleMember
+testObject_SimpleMember_user_3 = SimpleMember {smId = (Id (fromJust (UUID.fromString "0000004c-0000-007b-0000-00650000001f"))), smConvRoleName = (fromJust (parseRoleName "xvokrb2tndh649ecjodpgamksifwmuk5stjjghfeu70vk_yxrc7q01zat383helhhi5asloj0udejk1zgpdh43oavvrxpylcoiaanpb812a0ef6g9aobx"))}
+testObject_SimpleMember_user_4 :: SimpleMember
+testObject_SimpleMember_user_4 = SimpleMember {smId = (Id (fromJust (UUID.fromString "00000046-0000-0019-0000-003800000013"))), smConvRoleName = (fromJust (parseRoleName "gxrmjjmr46ezvgehze2fcgox7q4_qcdz6gf53iv68p7wa1411h2oubjfphqg_fn5hv8_sb4jmqd9bltiptps5t97"))}
+testObject_SimpleMember_user_5 :: SimpleMember
+testObject_SimpleMember_user_5 = SimpleMember {smId = (Id (fromJust (UUID.fromString "0000006f-0000-0062-0000-007200000010"))), smConvRoleName = (fromJust (parseRoleName "r1gp"))}

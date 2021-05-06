@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_AssetSettings_1 :: AssetSettings
-testObject_AssetSettings_1 = (defAssetSettings & setAssetPublic .~ (True) & setAssetRetention .~ (Just AssetExpiring))
-testObject_AssetSettings_2 :: AssetSettings
-testObject_AssetSettings_2 = (defAssetSettings & setAssetPublic .~ (False) & setAssetRetention .~ (Just AssetExpiring))
-testObject_AssetSettings_3 :: AssetSettings
-testObject_AssetSettings_3 = (defAssetSettings & setAssetPublic .~ (False) & setAssetRetention .~ (Just AssetEternalInfrequentAccess))
-testObject_AssetSettings_4 :: AssetSettings
-testObject_AssetSettings_4 = (defAssetSettings & setAssetPublic .~ (True) & setAssetRetention .~ (Just AssetEternal))
-testObject_AssetSettings_5 :: AssetSettings
-testObject_AssetSettings_5 = (defAssetSettings & setAssetPublic .~ (True) & setAssetRetention .~ (Just AssetPersistent))
+testObject_AssetSettings_user_1 :: AssetSettings
+testObject_AssetSettings_user_1 = (defAssetSettings & setAssetPublic .~ (False) & setAssetRetention .~ (Just AssetVolatile))
+testObject_AssetSettings_user_2 :: AssetSettings
+testObject_AssetSettings_user_2 = (defAssetSettings & setAssetPublic .~ (False) & setAssetRetention .~ (Just AssetExpiring))
+testObject_AssetSettings_user_3 :: AssetSettings
+testObject_AssetSettings_user_3 = (defAssetSettings & setAssetPublic .~ (True) & setAssetRetention .~ (Just AssetEternalInfrequentAccess))
+testObject_AssetSettings_user_4 :: AssetSettings
+testObject_AssetSettings_user_4 = (defAssetSettings & setAssetPublic .~ (False) & setAssetRetention .~ (Just AssetEternal))
+testObject_AssetSettings_user_5 :: AssetSettings
+testObject_AssetSettings_user_5 = (defAssetSettings & setAssetPublic .~ (False) & setAssetRetention .~ (Just AssetPersistent))

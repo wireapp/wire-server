@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_PropertyValue_1 :: PropertyValue
-testObject_PropertyValue_1 = PropertyValue {propertyValueJson = Array []}
-testObject_PropertyValue_2 :: PropertyValue
-testObject_PropertyValue_2 = PropertyValue {propertyValueJson = Object (fromList [("<",Bool True),("z",Bool True),("\DLE",Bool False),("",Bool False),("\165306",Null),("\41599",String ""),("x",String ""),("(",Null),("X",String ""),("\ETX",Null),("Y",Null)])}
-testObject_PropertyValue_3 :: PropertyValue
-testObject_PropertyValue_3 = PropertyValue {propertyValueJson = String "\1089415W\180792\1102861rP\1004832d;"}
-testObject_PropertyValue_4 :: PropertyValue
-testObject_PropertyValue_4 = PropertyValue {propertyValueJson = String "\SOa\153286\USAT\b\1003838\STXx)\1051809\1020116\158929C\f\DELh\DC4"}
-testObject_PropertyValue_5 :: PropertyValue
-testObject_PropertyValue_5 = PropertyValue {propertyValueJson = Object (fromList [("\1083102\NUL",String ""),("l\1021734",Bool True),("F\\",Number (-200.0)),("",Null),(".",Number (-10.0)),("^",String "Pt"),("B}",Number (1.0)),("\1026691\FS",Bool False),("\ACK",Number (-1.0)),("I",Null)])}
+testObject_PropertyValue_user_1 :: PropertyValue
+testObject_PropertyValue_user_1 = PropertyValue {propertyValueJson = Number (2000.0)}
+testObject_PropertyValue_user_2 :: PropertyValue
+testObject_PropertyValue_user_2 = PropertyValue {propertyValueJson = Array [Null,String "N",Number (2.0e-3),Number (1.0e-3),Bool True,String "",Number (-300.0),String "4\986331\16330",Number (1000.0),Bool True]}
+testObject_PropertyValue_user_3 :: PropertyValue
+testObject_PropertyValue_user_3 = PropertyValue {propertyValueJson = Array [String "",Null,Number (2.0),Null,Number (0.0),Number (-1.0e-4),Bool True]}
+testObject_PropertyValue_user_4 :: PropertyValue
+testObject_PropertyValue_user_4 = PropertyValue {propertyValueJson = Object (fromList [("Q\1093861",Null),("e^ou",Bool True),("\STXr0ah",String ""),("g@",String "\SO\b\1000734"),("\135388\ve",Bool True),("\149403Of",Bool True)])}
+testObject_PropertyValue_user_5 :: PropertyValue
+testObject_PropertyValue_user_5 = PropertyValue {propertyValueJson = Array [Number (-9.0e13),Number (-3.0e-11)]}

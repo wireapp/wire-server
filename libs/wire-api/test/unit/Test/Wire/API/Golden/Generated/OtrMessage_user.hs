@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_OtrMessage_1 :: OtrMessage
-testObject_OtrMessage_1 = OtrMessage {otrSender = ClientId {client = "15"}, otrRecipient = ClientId {client = "4"}, otrCiphertext = "T", otrData = Just "XE"}
-testObject_OtrMessage_2 :: OtrMessage
-testObject_OtrMessage_2 = OtrMessage {otrSender = ClientId {client = "c"}, otrRecipient = ClientId {client = "1b"}, otrCiphertext = "\n:9\9830\ACK(", otrData = Just "\20765\&2\1080883"}
-testObject_OtrMessage_3 :: OtrMessage
-testObject_OtrMessage_3 = OtrMessage {otrSender = ClientId {client = "11"}, otrRecipient = ClientId {client = "1f"}, otrCiphertext = "-\185578o^", otrData = Just "\12759\\\SO%\ESC\n"}
-testObject_OtrMessage_4 :: OtrMessage
-testObject_OtrMessage_4 = OtrMessage {otrSender = ClientId {client = "4"}, otrRecipient = ClientId {client = "1c"}, otrCiphertext = "/\1015594\DC3k", otrData = Just "\34786"}
-testObject_OtrMessage_5 :: OtrMessage
-testObject_OtrMessage_5 = OtrMessage {otrSender = ClientId {client = "b"}, otrRecipient = ClientId {client = "1f"}, otrCiphertext = "\DC3", otrData = Just "}\STX\1076491\983849L\n"}
+testObject_OtrMessage_user_1 :: OtrMessage
+testObject_OtrMessage_user_1 = OtrMessage {otrSender = ClientId {client = "d"}, otrRecipient = ClientId {client = "1b"}, otrCiphertext = "\NAK", otrData = Just "\ETBf\49659\nOI"}
+testObject_OtrMessage_user_2 :: OtrMessage
+testObject_OtrMessage_user_2 = OtrMessage {otrSender = ClientId {client = "20"}, otrRecipient = ClientId {client = "1d"}, otrCiphertext = "}\DC2v9", otrData = Just ""}
+testObject_OtrMessage_user_3 :: OtrMessage
+testObject_OtrMessage_user_3 = OtrMessage {otrSender = ClientId {client = "10"}, otrRecipient = ClientId {client = "f"}, otrCiphertext = "X\171767o\DC3", otrData = Nothing}
+testObject_OtrMessage_user_4 :: OtrMessage
+testObject_OtrMessage_user_4 = OtrMessage {otrSender = ClientId {client = "7"}, otrRecipient = ClientId {client = "18"}, otrCiphertext = "\STX\rr\1094295\FS", otrData = Just "\1103148\&7\tc\1016836E\148570"}
+testObject_OtrMessage_user_5 :: OtrMessage
+testObject_OtrMessage_user_5 = OtrMessage {otrSender = ClientId {client = "1c"}, otrRecipient = ClientId {client = "b"}, otrCiphertext = "", otrData = Nothing}

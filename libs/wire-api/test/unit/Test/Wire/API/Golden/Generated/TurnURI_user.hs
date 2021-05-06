@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_TurnURI_1 :: TurnURI
-testObject_TurnURI_1 = (turnURI (SchemeTurns) (TurnHostName "007.com") (read "4") (Just TransportTCP))
-testObject_TurnURI_2 :: TurnURI
-testObject_TurnURI_2 = (turnURI (SchemeTurn) (TurnHostName "a-c") (read "4") (Just TransportTCP))
-testObject_TurnURI_3 :: TurnURI
-testObject_TurnURI_3 = (turnURI (SchemeTurns) (TurnHostName "host.name") (read "5") (Nothing))
-testObject_TurnURI_4 :: TurnURI
-testObject_TurnURI_4 = (turnURI (SchemeTurns) (TurnHostName "a-c") (read "2") (Just TransportUDP))
-testObject_TurnURI_5 :: TurnURI
-testObject_TurnURI_5 = (turnURI (SchemeTurns) (TurnHostName "123") (read "8") (Just TransportTCP))
+testObject_TurnURI_user_1 :: TurnURI
+testObject_TurnURI_user_1 = (turnURI (SchemeTurn) (TurnHostName "xn--mgbh0fb.xn--kgbechtv") (read "8") (Just TransportUDP))
+testObject_TurnURI_user_2 :: TurnURI
+testObject_TurnURI_user_2 = (turnURI (SchemeTurns) (TurnHostName "a-c") (read "1") (Just TransportTCP))
+testObject_TurnURI_user_3 :: TurnURI
+testObject_TurnURI_user_3 = (turnURI (SchemeTurn) (TurnHostIp (IpAddr (read "68.105.106.0"))) (read "5") (Nothing))
+testObject_TurnURI_user_4 :: TurnURI
+testObject_TurnURI_user_4 = (turnURI (SchemeTurns) (TurnHostName "xn--mgbh0fb.xn--kgbechtv") (read "5") (Just TransportTCP))
+testObject_TurnURI_user_5 :: TurnURI
+testObject_TurnURI_user_5 = (turnURI (SchemeTurn) (TurnHostIp (IpAddr (read "53.155.1.80"))) (read "4") (Just TransportTCP))

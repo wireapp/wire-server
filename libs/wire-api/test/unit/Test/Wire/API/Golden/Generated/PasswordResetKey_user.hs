@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_PasswordResetKey_1 :: PasswordResetKey
-testObject_PasswordResetKey_1 = PasswordResetKey {fromPasswordResetKey = (fromRight undefined (validate ("_lg3wzkZzzdSjn28jaqY_-M6cJdliHA-Z6c=")))}
-testObject_PasswordResetKey_2 :: PasswordResetKey
-testObject_PasswordResetKey_2 = PasswordResetKey {fromPasswordResetKey = (fromRight undefined (validate ("jyDxWYm8R3oy9UuHoh0E4OQKkpkTan3OpQ==")))}
-testObject_PasswordResetKey_3 :: PasswordResetKey
-testObject_PasswordResetKey_3 = PasswordResetKey {fromPasswordResetKey = (fromRight undefined (validate ("ixM=")))}
-testObject_PasswordResetKey_4 :: PasswordResetKey
-testObject_PasswordResetKey_4 = PasswordResetKey {fromPasswordResetKey = (fromRight undefined (validate ("akPmJKbevM0=")))}
-testObject_PasswordResetKey_5 :: PasswordResetKey
-testObject_PasswordResetKey_5 = PasswordResetKey {fromPasswordResetKey = (fromRight undefined (validate ("gYf2J8HkzIA-Ow==")))}
+testObject_PasswordResetKey_user_1 :: PasswordResetKey
+testObject_PasswordResetKey_user_1 = PasswordResetKey {fromPasswordResetKey = (fromRight undefined (validate ("")))}
+testObject_PasswordResetKey_user_2 :: PasswordResetKey
+testObject_PasswordResetKey_user_2 = PasswordResetKey {fromPasswordResetKey = (fromRight undefined (validate ("BCJBHldKUvQ=")))}
+testObject_PasswordResetKey_user_3 :: PasswordResetKey
+testObject_PasswordResetKey_user_3 = PasswordResetKey {fromPasswordResetKey = (fromRight undefined (validate ("Xs-MGdyCEbizSw==")))}
+testObject_PasswordResetKey_user_4 :: PasswordResetKey
+testObject_PasswordResetKey_user_4 = PasswordResetKey {fromPasswordResetKey = (fromRight undefined (validate ("vJ07eeG_F6p6p0Obz_EsmYTERQ==")))}
+testObject_PasswordResetKey_user_5 :: PasswordResetKey
+testObject_PasswordResetKey_user_5 = PasswordResetKey {fromPasswordResetKey = (fromRight undefined (validate ("iJZ0mPqdjoTGzqCFHQ==")))}

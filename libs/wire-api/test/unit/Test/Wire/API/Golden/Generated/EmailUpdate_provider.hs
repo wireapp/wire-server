@@ -48,13 +48,13 @@ import Wire.API.Provider.Service.Tag
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
-testObject_EmailUpdate_1 :: EmailUpdate
-testObject_EmailUpdate_1 = EmailUpdate {euEmail = Email {emailLocal = "$g\16212\ACKM6\USA", emailDomain = "\1086187+\136305\NULh\3666\54447\&0d4\44839wE\44459\SOH\\\149877s[k\DEL"}}
-testObject_EmailUpdate_2 :: EmailUpdate
-testObject_EmailUpdate_2 = EmailUpdate {euEmail = Email {emailLocal = "d\1024437,R\"\1027966H\DC1zCQ\1006753\ENQh\60963mvY\29848\1071002", emailDomain = "46\1020463\4455\"Bwg<\119664J\28059\EOT\52625W\998468PccA\v|4"}}
-testObject_EmailUpdate_3 :: EmailUpdate
-testObject_EmailUpdate_3 = EmailUpdate {euEmail = Email {emailLocal = ")&Z)", emailDomain = "\11111~0Sb\162357\SUB\58110\n\EOTBPY\1000231+"}}
-testObject_EmailUpdate_4 :: EmailUpdate
-testObject_EmailUpdate_4 = EmailUpdate {euEmail = Email {emailLocal = "C\158693\66460\11688v\1006323L\38735a\GS|W\35706\NUL", emailDomain = "q\1078454mYG\v\1076830\ETB"}}
-testObject_EmailUpdate_5 :: EmailUpdate
-testObject_EmailUpdate_5 = EmailUpdate {euEmail = Email {emailLocal = "\NAK\1066596\1048628)\983403Gk", emailDomain = "k4U\NAKNV/\1878M"}}
+testObject_EmailUpdate_provider_1 :: EmailUpdate
+testObject_EmailUpdate_provider_1 = EmailUpdate {euEmail = Email {emailLocal = "K\1073448\1041903\1040711(\164962Q\171416[\SO<\DC1\RS~g\1096773U\1072019sX\64900", emailDomain = "_\69438(\GS\EMO\1105619\1055477\3255y3\13524M_|\1100486R^d\1047593EG6\DC2"}}
+testObject_EmailUpdate_provider_2 :: EmailUpdate
+testObject_EmailUpdate_provider_2 = EmailUpdate {euEmail = Email {emailLocal = "Cde\34468\50990\163501\f!L]Bq\ESC1\DC3\1027169D\1015710B\bn\v34n", emailDomain = "}\1077893^"}}
+testObject_EmailUpdate_provider_3 :: EmailUpdate
+testObject_EmailUpdate_provider_3 = EmailUpdate {euEmail = Email {emailLocal = "k\46983t\DC2%I\1108473\186465O\179973\985929:!\DLEN\DC3k\134147Pb~", emailDomain = "r"}}
+testObject_EmailUpdate_provider_4 :: EmailUpdate
+testObject_EmailUpdate_provider_4 = EmailUpdate {euEmail = Email {emailLocal = "O'\47822\SUB\tN\1055908V\94574R\DC4\998503\ETB^Hl3", emailDomain = "u\US4\txe\DC2\RS*H\74321\DC2&N\179568\f\DLEV\42031\1109234O#\29117s|\ETB0y?"}}
+testObject_EmailUpdate_provider_5 :: EmailUpdate
+testObject_EmailUpdate_provider_5 = EmailUpdate {euEmail = Email {emailLocal = "4U\f\ACKU!4\990331S\64935r\1073949", emailDomain = "8=\1011316\DC3_b\1050314\aQ\1088066r\155163/*\f&:\1006232*\RSZJ"}}

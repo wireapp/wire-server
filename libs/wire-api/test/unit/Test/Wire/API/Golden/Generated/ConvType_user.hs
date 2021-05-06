@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_ConvType_1 :: ConvType
-testObject_ConvType_1 = SelfConv
-testObject_ConvType_2 :: ConvType
-testObject_ConvType_2 = ConnectConv
-testObject_ConvType_3 :: ConvType
-testObject_ConvType_3 = RegularConv
-testObject_ConvType_4 :: ConvType
-testObject_ConvType_4 = RegularConv
-testObject_ConvType_5 :: ConvType
-testObject_ConvType_5 = SelfConv
+testObject_ConvType_user_1 :: ConvType
+testObject_ConvType_user_1 = SelfConv
+testObject_ConvType_user_2 :: ConvType
+testObject_ConvType_user_2 = One2OneConv
+testObject_ConvType_user_3 :: ConvType
+testObject_ConvType_user_3 = SelfConv
+testObject_ConvType_user_4 :: ConvType
+testObject_ConvType_user_4 = One2OneConv
+testObject_ConvType_user_5 :: ConvType
+testObject_ConvType_user_5 = RegularConv

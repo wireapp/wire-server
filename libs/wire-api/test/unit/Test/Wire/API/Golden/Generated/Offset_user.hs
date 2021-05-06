@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_Offset_1 :: Offset
-testObject_Offset_1 = Offset {offsetBytes = 9}
-testObject_Offset_2 :: Offset
-testObject_Offset_2 = Offset {offsetBytes = 11}
-testObject_Offset_3 :: Offset
-testObject_Offset_3 = Offset {offsetBytes = 17}
-testObject_Offset_4 :: Offset
-testObject_Offset_4 = Offset {offsetBytes = 1}
-testObject_Offset_5 :: Offset
-testObject_Offset_5 = Offset {offsetBytes = 20}
+testObject_Offset_user_1 :: Offset
+testObject_Offset_user_1 = Offset {offsetBytes = 25}
+testObject_Offset_user_2 :: Offset
+testObject_Offset_user_2 = Offset {offsetBytes = 5}
+testObject_Offset_user_3 :: Offset
+testObject_Offset_user_3 = Offset {offsetBytes = 22}
+testObject_Offset_user_4 :: Offset
+testObject_Offset_user_4 = Offset {offsetBytes = 14}
+testObject_Offset_user_5 :: Offset
+testObject_Offset_user_5 = Offset {offsetBytes = 8}

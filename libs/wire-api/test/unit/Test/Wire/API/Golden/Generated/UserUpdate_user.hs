@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_UserUpdate_1 :: UserUpdate
-testObject_UserUpdate_1 = UserUpdate {uupName = Just (Name {fromName = "\SYN\20079C)\t\1069936=\1112177!\1103967b\SO1\1007205Q \1009582\FS=\34931\14009b/F\\8<\1022702\SUB\ESC=TU>\CAN\1080686\SUB\SI\149401\NUL\170920@6\995085Fe\162413*@wp,)\149001S40k\136655B\27292\&2o\1039979JD"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Just [], uupAccentId = Just (ColourId {fromColourId = -3})}
-testObject_UserUpdate_2 :: UserUpdate
-testObject_UserUpdate_2 = UserUpdate {uupName = Just (Name {fromName = "-\1032608#{\44085\DC2\b\1092904v4/\ENQ9-\DC2OFw5\\^v\"G]\167479\128065\38705\&9K#s\133134\ACKV\1033487s\175308\64659?\1066238\ESC\62090efF|~\990539G8\ahOz\STX\DELx\1059800+\f.\132843\44915;Qx7\f(^]V\12195\1102653y\1088028\131656\1094454lW`;M"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Nothing, uupAccentId = Just (ColourId {fromColourId = 2})}
-testObject_UserUpdate_3 :: UserUpdate
-testObject_UserUpdate_3 = UserUpdate {uupName = Just (Name {fromName = "\RSc\1004361]a\SYNf\FS\74236!i\DC2\DLE:\GS7\1029797\161143\&9]\DC4\SYNVMD\EM\1076910\1112836p\155535\156543k}\DLEi\164340p\33933\vBfw,\rrp5\1102086\&7i7i\n*\1083257~Id"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Just [(ImageAsset "U" (Just AssetComplete)),(ImageAsset "!" (Nothing))], uupAccentId = Nothing}
-testObject_UserUpdate_4 :: UserUpdate
-testObject_UserUpdate_4 = UserUpdate {uupName = Just (Name {fromName = "^\18081\ENQ4\2542C;\1047073O`b_ !\151162\59257M{\995545T\ETXf\1067671N#\NAK\1055914 <\133910$\EM\1059913X;\12472Qo \1044223\&3\DEL\1032079%N@R\26353\1090511Bs6V|\1070480z?<\186541\1097112p\1071095\1109098\vwza\188355\&0\136436\4735\ETB\1105455[Pw\1034521^@P\ESC?4\63262\30721M"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Just [(ImageAsset "" (Just AssetPreview))], uupAccentId = Just (ColourId {fromColourId = 8})}
-testObject_UserUpdate_5 :: UserUpdate
-testObject_UserUpdate_5 = UserUpdate {uupName = Just (Name {fromName = "Q\1004125\151313x\1011182Xj8R6\991492>Z\DLE\1085858\SOHWrfH\1041269#f\71427\ETX@)\1017971\SYN\DC2\78772[=\7624\1019417_x>A\RS.Ai^"}), uupPict = Nothing, uupAssets = Just [(ImageAsset "" (Nothing))], uupAccentId = Just (ColourId {fromColourId = 7})}
+testObject_UserUpdate_user_1 :: UserUpdate
+testObject_UserUpdate_user_1 = UserUpdate {uupName = Just (Name {fromName = "\\6 U>`\DC3\DEL(\DC1\65848Y\5816EX&[\127930yl\ENQT\EOT\NUL\ETBn\1113454K\986054\1056039 \GSQ\EOT2v>K\1053657\"\STXa\ak9\57516\1009548\&2\133759"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Nothing, uupAccentId = Just (ColourId {fromColourId = 3})}
+testObject_UserUpdate_user_2 :: UserUpdate
+testObject_UserUpdate_user_2 = UserUpdate {uupName = Just (Name {fromName = "\1004278 I4br\46119!\CAN~\9566_w\SId;\985123^l\8260r\1069078zm\167041\NUL:F\140496\&02\EM\63290b\47188[I\1056950\180732\1016166(h(`\57880z{ZM499\175214jJuRhw\NAK9>\SO\1022586\1071602=\NAK\ACKEP9kj\ESC;#-\129062\SUBg6E\1001557r\1089330`\ETX\SUB--@\128676\DC4yCO\157257\1029907p\11018l"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Nothing, uupAccentId = Nothing}
+testObject_UserUpdate_user_3 :: UserUpdate
+testObject_UserUpdate_user_3 = UserUpdate {uupName = Nothing, uupPict = Just (Pict {fromPict = []}), uupAssets = Just [(ImageAsset "\1069695" (Just AssetComplete)),(ImageAsset "," (Nothing)),(ImageAsset "" (Just AssetComplete)),(ImageAsset "\n" (Nothing)),(ImageAsset "PMx" (Just AssetPreview)),(ImageAsset "\1065917" (Nothing))], uupAccentId = Just (ColourId {fromColourId = -1})}
+testObject_UserUpdate_user_4 :: UserUpdate
+testObject_UserUpdate_user_4 = UserUpdate {uupName = Nothing, uupPict = Just (Pict {fromPict = []}), uupAssets = Nothing, uupAccentId = Nothing}
+testObject_UserUpdate_user_5 :: UserUpdate
+testObject_UserUpdate_user_5 = UserUpdate {uupName = Just (Name {fromName = "\f\SYNl"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Just [], uupAccentId = Just (ColourId {fromColourId = 5})}

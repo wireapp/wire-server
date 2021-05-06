@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_CookieId_1 :: CookieId
-testObject_CookieId_1 = CookieId {cookieIdNum = 21046}
-testObject_CookieId_2 :: CookieId
-testObject_CookieId_2 = CookieId {cookieIdNum = 3700}
-testObject_CookieId_3 :: CookieId
-testObject_CookieId_3 = CookieId {cookieIdNum = 16757}
-testObject_CookieId_4 :: CookieId
-testObject_CookieId_4 = CookieId {cookieIdNum = 13962}
-testObject_CookieId_5 :: CookieId
-testObject_CookieId_5 = CookieId {cookieIdNum = 7343}
+testObject_CookieId_user_1 :: CookieId
+testObject_CookieId_user_1 = CookieId {cookieIdNum = 187}
+testObject_CookieId_user_2 :: CookieId
+testObject_CookieId_user_2 = CookieId {cookieIdNum = 27881}
+testObject_CookieId_user_3 :: CookieId
+testObject_CookieId_user_3 = CookieId {cookieIdNum = 26928}
+testObject_CookieId_user_4 :: CookieId
+testObject_CookieId_user_4 = CookieId {cookieIdNum = 25344}
+testObject_CookieId_user_5 :: CookieId
+testObject_CookieId_user_5 = CookieId {cookieIdNum = 24593}

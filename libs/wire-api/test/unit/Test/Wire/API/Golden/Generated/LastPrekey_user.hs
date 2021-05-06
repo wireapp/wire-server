@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_LastPrekey_1 :: LastPrekey
-testObject_LastPrekey_1 = (lastPrekey ("*r"))
-testObject_LastPrekey_2 :: LastPrekey
-testObject_LastPrekey_2 = (lastPrekey ("\157188"))
-testObject_LastPrekey_3 :: LastPrekey
-testObject_LastPrekey_3 = (lastPrekey (""))
-testObject_LastPrekey_4 :: LastPrekey
-testObject_LastPrekey_4 = (lastPrekey ("\NAK\b\SO\STXYe"))
-testObject_LastPrekey_5 :: LastPrekey
-testObject_LastPrekey_5 = (lastPrekey ("\EM'\SYNxf\1087050;\DC2\1038553\DC4A\4518\1000209\NUL`"))
+testObject_LastPrekey_user_1 :: LastPrekey
+testObject_LastPrekey_user_1 = (lastPrekey ("4^@_"))
+testObject_LastPrekey_user_2 :: LastPrekey
+testObject_LastPrekey_user_2 = (lastPrekey ("\157013\191418;\992841\SO\&Hg:\984761\rF\99459>\1021081!YI@<g."))
+testObject_LastPrekey_user_3 :: LastPrekey
+testObject_LastPrekey_user_3 = (lastPrekey ("\"\SUB=+\DEL}\1026704\DC3v\DC4\33331"))
+testObject_LastPrekey_user_4 :: LastPrekey
+testObject_LastPrekey_user_4 = (lastPrekey ("\1112520V\1067011\1050049SmzmM\DLEN,t=\171933R8I="))
+testObject_LastPrekey_user_5 :: LastPrekey
+testObject_LastPrekey_user_5 = (lastPrekey ("\1105736\t\DC3\83166;H\1065587IeO01wE\SYN\DELd}"))

@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_ColourId_1 :: ColourId
-testObject_ColourId_1 = ColourId {fromColourId = -26013}
-testObject_ColourId_2 :: ColourId
-testObject_ColourId_2 = ColourId {fromColourId = -18675}
-testObject_ColourId_3 :: ColourId
-testObject_ColourId_3 = ColourId {fromColourId = 1984}
-testObject_ColourId_4 :: ColourId
-testObject_ColourId_4 = ColourId {fromColourId = -19688}
-testObject_ColourId_5 :: ColourId
-testObject_ColourId_5 = ColourId {fromColourId = 26730}
+testObject_ColourId_user_1 :: ColourId
+testObject_ColourId_user_1 = ColourId {fromColourId = -17103}
+testObject_ColourId_user_2 :: ColourId
+testObject_ColourId_user_2 = ColourId {fromColourId = -3414}
+testObject_ColourId_user_3 :: ColourId
+testObject_ColourId_user_3 = ColourId {fromColourId = -2658}
+testObject_ColourId_user_4 :: ColourId
+testObject_ColourId_user_4 = ColourId {fromColourId = -2581}
+testObject_ColourId_user_5 :: ColourId
+testObject_ColourId_user_5 = ColourId {fromColourId = -3637}

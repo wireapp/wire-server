@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_CookieLabel_1 :: CookieLabel
-testObject_CookieLabel_1 = CookieLabel {cookieLabelText = "\1016285o\ESCt\168251g!\FSiV\1051820\49334f6\SYN\NUL\1034974\&1^: <"}
-testObject_CookieLabel_2 :: CookieLabel
-testObject_CookieLabel_2 = CookieLabel {cookieLabelText = "[\14137V\1111242\137130vG$\153269\1058045P\GSm\r8u6Q"}
-testObject_CookieLabel_3 :: CookieLabel
-testObject_CookieLabel_3 = CookieLabel {cookieLabelText = "W*G \1101452\139207\NUL\STX\DC2\1075370\&2\131907\1105068"}
-testObject_CookieLabel_4 :: CookieLabel
-testObject_CookieLabel_4 = CookieLabel {cookieLabelText = "zg\\&"}
-testObject_CookieLabel_5 :: CookieLabel
-testObject_CookieLabel_5 = CookieLabel {cookieLabelText = "\33052\ETX\32342\ETX\1008301E\83156\DC4Nbo_\16445\&3\140223SD_wb\162947m"}
+testObject_CookieLabel_user_1 :: CookieLabel
+testObject_CookieLabel_user_1 = CookieLabel {cookieLabelText = "\a\EOT\1063475W\RS8\1059132y.:5\STXOOD)h\95125MR\GS\18534|w\t:V\1018692"}
+testObject_CookieLabel_user_2 :: CookieLabel
+testObject_CookieLabel_user_2 = CookieLabel {cookieLabelText = ""}
+testObject_CookieLabel_user_3 :: CookieLabel
+testObject_CookieLabel_user_3 = CookieLabel {cookieLabelText = "\1036031\1086095\9518\nmi\GS|dO\1079789\ENQ\1061682\&7^l\EM\EOT"}
+testObject_CookieLabel_user_4 :: CookieLabel
+testObject_CookieLabel_user_4 = CookieLabel {cookieLabelText = "I\1085205+a#"}
+testObject_CookieLabel_user_5 :: CookieLabel
+testObject_CookieLabel_user_5 = CookieLabel {cookieLabelText = "\fEE\1000473V"}

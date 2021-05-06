@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_AssetSize_1 :: AssetSize
-testObject_AssetSize_1 = AssetComplete
-testObject_AssetSize_2 :: AssetSize
-testObject_AssetSize_2 = AssetComplete
-testObject_AssetSize_3 :: AssetSize
-testObject_AssetSize_3 = AssetPreview
-testObject_AssetSize_4 :: AssetSize
-testObject_AssetSize_4 = AssetComplete
-testObject_AssetSize_5 :: AssetSize
-testObject_AssetSize_5 = AssetComplete
+testObject_AssetSize_user_1 :: AssetSize
+testObject_AssetSize_user_1 = AssetComplete
+testObject_AssetSize_user_2 :: AssetSize
+testObject_AssetSize_user_2 = AssetComplete
+testObject_AssetSize_user_3 :: AssetSize
+testObject_AssetSize_user_3 = AssetComplete
+testObject_AssetSize_user_4 :: AssetSize
+testObject_AssetSize_user_4 = AssetComplete
+testObject_AssetSize_user_5 :: AssetSize
+testObject_AssetSize_user_5 = AssetComplete

@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_RichField_1 :: RichField
-testObject_RichField_1 = RichField {richFieldType = ",(\1044462z\vv\184526\SUB\1055250\1067489\&6`\120694\1094518a8\DC2w8\25046r\DC2P\1019228Z\13504\EML6", richFieldValue = "\a\DC2Y\EOTGl W\\\SO\1036717\1015313U`0_\GSBf\1014689\SUBd"}
-testObject_RichField_2 :: RichField
-testObject_RichField_2 = RichField {richFieldType = "\154792o.IlpR\DC4\CAN\n\136719\66840^", richFieldValue = "\183039\179373\75029\100467lbz7l\1033334\ETX6\185285\&7Ch\1036237\1013227*2"}
-testObject_RichField_3 :: RichField
-testObject_RichField_3 = RichField {richFieldType = "8D\DLE$\43892o\995\"9o~\1053835t", richFieldValue = "\ESC<\vU\1089795"}
-testObject_RichField_4 :: RichField
-testObject_RichField_4 = RichField {richFieldType = "r\tp\1032875l\176346d^\988654Q", richFieldValue = "/\t9Jw?@y\986015\&4&N\t)\987650\ETX\1052356s\EOT\2667\1107399\n9\97988~\1083460:mwh"}
-testObject_RichField_5 :: RichField
-testObject_RichField_5 = RichField {richFieldType = "rz\1110209\1054921\64771\&6\NULc\128597\1035187MF*fr", richFieldValue = "?3\b\n\1092417r\16874\vW\CAN\SYN`\26546\30391K|?\DC3\1059523\78117\tVYd&\"\991127gZ\CAN"}
+testObject_RichField_user_1 :: RichField
+testObject_RichField_user_1 = RichField {richFieldType = "^*E\f\RS\1049010P\SOH\1044879\&8\127114\178864e\DLE\24200rR", richFieldValue = "\1051334\ETBR\DC3#Z\1021434PT\1100838Oy\a,S\996436\26462[\EOTY\ENQ^}"}
+testObject_RichField_user_2 :: RichField
+testObject_RichField_user_2 = RichField {richFieldType = "", richFieldValue = "\167810H8PW+&WV\EMkM\v\1090531X;"}
+testObject_RichField_user_3 :: RichField
+testObject_RichField_user_3 = RichField {richFieldType = "\1050051\FS\53800H\136156\DLE\DEL\b3\1032032*\ACK\ESC\983296Yo\145529wt\1110443\1049172", richFieldValue = "\SOHf\15074\DC1xQ\DC2\\hG"}
+testObject_RichField_user_4 :: RichField
+testObject_RichField_user_4 = RichField {richFieldType = "[OZ=\a\148290<*~\ENQv\23596?\n\NAK\190826!\991514\174086\1077087\1050680", richFieldValue = "q3\FS\999197\GS\GS\1070037*\50034/"}
+testObject_RichField_user_5 :: RichField
+testObject_RichField_user_5 = RichField {richFieldType = "FUeM\ESC\SIT \STXd\17669\EOTNb}TB\DC3a\SI\1059339$#Q\66712\SOHd\147909", richFieldValue = "\"\160301AK\r\1029533\SO[\USm\SO4\1046313\n\DC1cc~\a\SO\SUB)\FS\1030114"}

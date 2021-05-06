@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_Pict_1 :: Pict
-testObject_Pict_1 = Pict {fromPict = []}
-testObject_Pict_2 :: Pict
-testObject_Pict_2 = Pict {fromPict = []}
-testObject_Pict_3 :: Pict
-testObject_Pict_3 = Pict {fromPict = []}
-testObject_Pict_4 :: Pict
-testObject_Pict_4 = Pict {fromPict = []}
-testObject_Pict_5 :: Pict
-testObject_Pict_5 = Pict {fromPict = []}
+testObject_Pict_user_1 :: Pict
+testObject_Pict_user_1 = Pict {fromPict = []}
+testObject_Pict_user_2 :: Pict
+testObject_Pict_user_2 = Pict {fromPict = []}
+testObject_Pict_user_3 :: Pict
+testObject_Pict_user_3 = Pict {fromPict = []}
+testObject_Pict_user_4 :: Pict
+testObject_Pict_user_4 = Pict {fromPict = []}
+testObject_Pict_user_5 :: Pict
+testObject_Pict_user_5 = Pict {fromPict = []}

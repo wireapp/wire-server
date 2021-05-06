@@ -55,13 +55,13 @@ import Wire.API.Team.SearchVisibility
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
-testObject_LegalHoldServiceRemove_1 :: LegalHoldServiceRemove
-testObject_LegalHoldServiceRemove_1 = LegalHoldServiceRemove {lhrUserId = (Id (fromJust (UUID.fromString "00000053-0000-0001-0000-001600000067"))), lhrTeamId = (Id (fromJust (UUID.fromString "0000003b-0000-0057-0000-007300000042")))}
-testObject_LegalHoldServiceRemove_2 :: LegalHoldServiceRemove
-testObject_LegalHoldServiceRemove_2 = LegalHoldServiceRemove {lhrUserId = (Id (fromJust (UUID.fromString "00000005-0000-0006-0000-003700000001"))), lhrTeamId = (Id (fromJust (UUID.fromString "00000077-0000-0034-0000-003b0000002e")))}
-testObject_LegalHoldServiceRemove_3 :: LegalHoldServiceRemove
-testObject_LegalHoldServiceRemove_3 = LegalHoldServiceRemove {lhrUserId = (Id (fromJust (UUID.fromString "00000012-0000-0053-0000-005e0000006c"))), lhrTeamId = (Id (fromJust (UUID.fromString "00000056-0000-0056-0000-003000000000")))}
-testObject_LegalHoldServiceRemove_4 :: LegalHoldServiceRemove
-testObject_LegalHoldServiceRemove_4 = LegalHoldServiceRemove {lhrUserId = (Id (fromJust (UUID.fromString "00000028-0000-001e-0000-004b00000006"))), lhrTeamId = (Id (fromJust (UUID.fromString "0000006f-0000-0007-0000-006600000032")))}
-testObject_LegalHoldServiceRemove_5 :: LegalHoldServiceRemove
-testObject_LegalHoldServiceRemove_5 = LegalHoldServiceRemove {lhrUserId = (Id (fromJust (UUID.fromString "0000003c-0000-0047-0000-000700000017"))), lhrTeamId = (Id (fromJust (UUID.fromString "0000007a-0000-004b-0000-003d0000005f")))}
+testObject_LegalHoldServiceRemove_team_1 :: LegalHoldServiceRemove
+testObject_LegalHoldServiceRemove_team_1 = LegalHoldServiceRemove {lhrUserId = (Id (fromJust (UUID.fromString "00000057-0000-0008-0000-00490000003b"))), lhrTeamId = (Id (fromJust (UUID.fromString "00000061-0000-003c-0000-00270000000e")))}
+testObject_LegalHoldServiceRemove_team_2 :: LegalHoldServiceRemove
+testObject_LegalHoldServiceRemove_team_2 = LegalHoldServiceRemove {lhrUserId = (Id (fromJust (UUID.fromString "0000000d-0000-0051-0000-000400000071"))), lhrTeamId = (Id (fromJust (UUID.fromString "0000006f-0000-0049-0000-000300000035")))}
+testObject_LegalHoldServiceRemove_team_3 :: LegalHoldServiceRemove
+testObject_LegalHoldServiceRemove_team_3 = LegalHoldServiceRemove {lhrUserId = (Id (fromJust (UUID.fromString "0000005e-0000-003a-0000-003400000037"))), lhrTeamId = (Id (fromJust (UUID.fromString "00000064-0000-0038-0000-001300000078")))}
+testObject_LegalHoldServiceRemove_team_4 :: LegalHoldServiceRemove
+testObject_LegalHoldServiceRemove_team_4 = LegalHoldServiceRemove {lhrUserId = (Id (fromJust (UUID.fromString "00000049-0000-000f-0000-00060000004d"))), lhrTeamId = (Id (fromJust (UUID.fromString "00000029-0000-0001-0000-001d0000001b")))}
+testObject_LegalHoldServiceRemove_team_5 :: LegalHoldServiceRemove
+testObject_LegalHoldServiceRemove_team_5 = LegalHoldServiceRemove {lhrUserId = (Id (fromJust (UUID.fromString "00000073-0000-004b-0000-006000000021"))), lhrTeamId = (Id (fromJust (UUID.fromString "0000003d-0000-006c-0000-007e0000003c")))}

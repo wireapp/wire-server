@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_AccessRole_1 :: AccessRole
-testObject_AccessRole_1 = PrivateAccessRole
-testObject_AccessRole_2 :: AccessRole
-testObject_AccessRole_2 = TeamAccessRole
-testObject_AccessRole_3 :: AccessRole
-testObject_AccessRole_3 = PrivateAccessRole
-testObject_AccessRole_4 :: AccessRole
-testObject_AccessRole_4 = PrivateAccessRole
-testObject_AccessRole_5 :: AccessRole
-testObject_AccessRole_5 = ActivatedAccessRole
+testObject_AccessRole_user_1 :: AccessRole
+testObject_AccessRole_user_1 = ActivatedAccessRole
+testObject_AccessRole_user_2 :: AccessRole
+testObject_AccessRole_user_2 = PrivateAccessRole
+testObject_AccessRole_user_3 :: AccessRole
+testObject_AccessRole_user_3 = PrivateAccessRole
+testObject_AccessRole_user_4 :: AccessRole
+testObject_AccessRole_user_4 = PrivateAccessRole
+testObject_AccessRole_user_5 :: AccessRole
+testObject_AccessRole_user_5 = TeamAccessRole

@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_LoginCode_1 :: LoginCode
-testObject_LoginCode_1 = LoginCode {fromLoginCode = "N\ESC\15114\991002Ka\SIn\1050573\CAN\1005864+\RS-9\1019867\60887D\151708\96717\156895\182813\SYN\52237j\22606"}
-testObject_LoginCode_2 :: LoginCode
-testObject_LoginCode_2 = LoginCode {fromLoginCode = "A\ESC\3602\179172F\f\DC1\1059938u=?\rqo\986979P&\1050182\988423#\DLE"}
-testObject_LoginCode_3 :: LoginCode
-testObject_LoginCode_3 = LoginCode {fromLoginCode = "\1015936\1030355\995783"}
-testObject_LoginCode_4 :: LoginCode
-testObject_LoginCode_4 = LoginCode {fromLoginCode = "\126066\83509q\1069695\187811`\DC1nys\1030929Z}m fz+}4\4720"}
-testObject_LoginCode_5 :: LoginCode
-testObject_LoginCode_5 = LoginCode {fromLoginCode = "\EM}`{^\CAN\132229\&9h\t#\SUBAC"}
+testObject_LoginCode_user_1 :: LoginCode
+testObject_LoginCode_user_1 = LoginCode {fromLoginCode = "\GS\992415\NAKzyY\ETX`%\190514:5\vH0\990275,\DLE#\DEL\SYN"}
+testObject_LoginCode_user_2 :: LoginCode
+testObject_LoginCode_user_2 = LoginCode {fromLoginCode = "[Qt\132563N\"\t\CAN\t\1104096z\EOTe_\158826i:\n\1107877\1015394W\a\13317\FS+\46920\94413\SOHh\STX"}
+testObject_LoginCode_user_3 :: LoginCode
+testObject_LoginCode_user_3 = LoginCode {fromLoginCode = "Y\ESC\tM;nj\24157YQ\136711x"}
+testObject_LoginCode_user_4 :: LoginCode
+testObject_LoginCode_user_4 = LoginCode {fromLoginCode = "\STX\ETBI\STX\b!->=\68862\DC3*\991251&S\USb"}
+testObject_LoginCode_user_5 :: LoginCode
+testObject_LoginCode_user_5 = LoginCode {fromLoginCode = "!c\147697\SYNx\ETB\1066812z{\158593\&3\67103Ch"}

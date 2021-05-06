@@ -55,13 +55,13 @@ import Wire.API.Team.SearchVisibility
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
-testObject_RequestNewLegalHoldClient_1 :: RequestNewLegalHoldClient
-testObject_RequestNewLegalHoldClient_1 = (RequestNewLegalHoldClient ((Id (fromJust (UUID.fromString "00000023-0000-000d-0000-005600000079")))) ((Id (fromJust (UUID.fromString "00000002-0000-0010-0000-00140000004c")))))
-testObject_RequestNewLegalHoldClient_2 :: RequestNewLegalHoldClient
-testObject_RequestNewLegalHoldClient_2 = (RequestNewLegalHoldClient ((Id (fromJust (UUID.fromString "00000063-0000-0028-0000-007e0000000c")))) ((Id (fromJust (UUID.fromString "00000055-0000-001f-0000-006900000080")))))
-testObject_RequestNewLegalHoldClient_3 :: RequestNewLegalHoldClient
-testObject_RequestNewLegalHoldClient_3 = (RequestNewLegalHoldClient ((Id (fromJust (UUID.fromString "0000004d-0000-0032-0000-005d00000006")))) ((Id (fromJust (UUID.fromString "00000038-0000-0079-0000-001600000048")))))
-testObject_RequestNewLegalHoldClient_4 :: RequestNewLegalHoldClient
-testObject_RequestNewLegalHoldClient_4 = (RequestNewLegalHoldClient ((Id (fromJust (UUID.fromString "0000004f-0000-002a-0000-003a00000034")))) ((Id (fromJust (UUID.fromString "0000005a-0000-002c-0000-002a00000000")))))
-testObject_RequestNewLegalHoldClient_5 :: RequestNewLegalHoldClient
-testObject_RequestNewLegalHoldClient_5 = (RequestNewLegalHoldClient ((Id (fromJust (UUID.fromString "0000007f-0000-004d-0000-005e00000023")))) ((Id (fromJust (UUID.fromString "00000048-0000-0058-0000-005800000080")))))
+testObject_RequestNewLegalHoldClient_team_1 :: RequestNewLegalHoldClient
+testObject_RequestNewLegalHoldClient_team_1 = (RequestNewLegalHoldClient ((Id (fromJust (UUID.fromString "00000021-0000-0010-0000-002d0000001d")))) ((Id (fromJust (UUID.fromString "0000005f-0000-007b-0000-007100000036")))))
+testObject_RequestNewLegalHoldClient_team_2 :: RequestNewLegalHoldClient
+testObject_RequestNewLegalHoldClient_team_2 = (RequestNewLegalHoldClient ((Id (fromJust (UUID.fromString "00000014-0000-002a-0000-005f0000000e")))) ((Id (fromJust (UUID.fromString "0000000b-0000-006a-0000-006000000016")))))
+testObject_RequestNewLegalHoldClient_team_3 :: RequestNewLegalHoldClient
+testObject_RequestNewLegalHoldClient_team_3 = (RequestNewLegalHoldClient ((Id (fromJust (UUID.fromString "00000001-0000-0030-0000-003e00000048")))) ((Id (fromJust (UUID.fromString "00000035-0000-0002-0000-00290000001e")))))
+testObject_RequestNewLegalHoldClient_team_4 :: RequestNewLegalHoldClient
+testObject_RequestNewLegalHoldClient_team_4 = (RequestNewLegalHoldClient ((Id (fromJust (UUID.fromString "0000007e-0000-0019-0000-00440000000c")))) ((Id (fromJust (UUID.fromString "00000052-0000-002d-0000-001f00000056")))))
+testObject_RequestNewLegalHoldClient_team_5 :: RequestNewLegalHoldClient
+testObject_RequestNewLegalHoldClient_team_5 = (RequestNewLegalHoldClient ((Id (fromJust (UUID.fromString "00000059-0000-0011-0000-000500000078")))) ((Id (fromJust (UUID.fromString "0000007b-0000-0014-0000-00400000002b")))))

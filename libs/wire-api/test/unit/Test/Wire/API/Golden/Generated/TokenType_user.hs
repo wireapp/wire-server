@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_TokenType_1 :: TokenType
-testObject_TokenType_1 = Bearer
-testObject_TokenType_2 :: TokenType
-testObject_TokenType_2 = Bearer
-testObject_TokenType_3 :: TokenType
-testObject_TokenType_3 = Bearer
-testObject_TokenType_4 :: TokenType
-testObject_TokenType_4 = Bearer
-testObject_TokenType_5 :: TokenType
-testObject_TokenType_5 = Bearer
+testObject_TokenType_user_1 :: TokenType
+testObject_TokenType_user_1 = Bearer
+testObject_TokenType_user_2 :: TokenType
+testObject_TokenType_user_2 = Bearer
+testObject_TokenType_user_3 :: TokenType
+testObject_TokenType_user_3 = Bearer
+testObject_TokenType_user_4 :: TokenType
+testObject_TokenType_user_4 = Bearer
+testObject_TokenType_user_5 :: TokenType
+testObject_TokenType_user_5 = Bearer

@@ -55,13 +55,13 @@ import Wire.API.Team.SearchVisibility
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
-testObject_Permissions_1 :: Permissions
-testObject_Permissions_1 = Permissions {_self = fromList [DoNotUseDeprecatedAddRemoveConvMember,DoNotUseDeprecatedModifyConvName,GetBilling,SetBilling,SetTeamData,GetMemberPermissions,GetTeamConversations,DeleteTeam], _copy = fromList [DoNotUseDeprecatedAddRemoveConvMember,DoNotUseDeprecatedModifyConvName,GetBilling,SetTeamData,GetMemberPermissions,DeleteTeam]}
-testObject_Permissions_2 :: Permissions
-testObject_Permissions_2 = Permissions {_self = fromList [GetMemberPermissions], _copy = fromList [GetMemberPermissions]}
-testObject_Permissions_3 :: Permissions
-testObject_Permissions_3 = Permissions {_self = fromList [SetTeamData], _copy = fromList [SetTeamData]}
-testObject_Permissions_4 :: Permissions
-testObject_Permissions_4 = Permissions {_self = fromList [CreateConversation,DoNotUseDeprecatedDeleteConversation,AddTeamMember,RemoveTeamMember,DoNotUseDeprecatedAddRemoveConvMember,DoNotUseDeprecatedModifyConvName,SetBilling,GetMemberPermissions,GetTeamConversations,DeleteTeam], _copy = fromList [CreateConversation,DoNotUseDeprecatedDeleteConversation,RemoveTeamMember,DoNotUseDeprecatedAddRemoveConvMember,SetBilling,GetMemberPermissions,GetTeamConversations,DeleteTeam]}
-testObject_Permissions_5 :: Permissions
-testObject_Permissions_5 = Permissions {_self = fromList [CreateConversation,DoNotUseDeprecatedDeleteConversation,AddTeamMember,DoNotUseDeprecatedAddRemoveConvMember,DoNotUseDeprecatedModifyConvName,GetBilling,SetBilling,SetTeamData,GetMemberPermissions,GetTeamConversations,DeleteTeam], _copy = fromList [DoNotUseDeprecatedDeleteConversation,AddTeamMember,DoNotUseDeprecatedAddRemoveConvMember,GetBilling,SetBilling,SetTeamData,GetMemberPermissions,GetTeamConversations,DeleteTeam]}
+testObject_Permissions_team_1 :: Permissions
+testObject_Permissions_team_1 = Permissions {_self = fromList [CreateConversation,DoNotUseDeprecatedDeleteConversation,AddTeamMember,RemoveTeamMember,DoNotUseDeprecatedAddRemoveConvMember,DoNotUseDeprecatedModifyConvName,SetBilling,SetTeamData,GetMemberPermissions,SetMemberPermissions,GetTeamConversations,DeleteTeam], _copy = fromList [CreateConversation,DoNotUseDeprecatedDeleteConversation,AddTeamMember,RemoveTeamMember,DoNotUseDeprecatedAddRemoveConvMember,DoNotUseDeprecatedModifyConvName,SetBilling,GetMemberPermissions,GetTeamConversations,DeleteTeam]}
+testObject_Permissions_team_2 :: Permissions
+testObject_Permissions_team_2 = Permissions {_self = fromList [AddTeamMember,RemoveTeamMember,DoNotUseDeprecatedAddRemoveConvMember,DoNotUseDeprecatedModifyConvName,SetBilling,SetTeamData,GetMemberPermissions,SetMemberPermissions,DeleteTeam], _copy = fromList [AddTeamMember,DoNotUseDeprecatedModifyConvName,SetBilling,SetTeamData,GetMemberPermissions,SetMemberPermissions]}
+testObject_Permissions_team_3 :: Permissions
+testObject_Permissions_team_3 = Permissions {_self = fromList [CreateConversation,DoNotUseDeprecatedDeleteConversation,AddTeamMember,RemoveTeamMember,DoNotUseDeprecatedAddRemoveConvMember,DoNotUseDeprecatedModifyConvName,SetTeamData,GetMemberPermissions,SetMemberPermissions,GetTeamConversations], _copy = fromList [CreateConversation,DoNotUseDeprecatedDeleteConversation,AddTeamMember,RemoveTeamMember,DoNotUseDeprecatedAddRemoveConvMember,DoNotUseDeprecatedModifyConvName,SetTeamData,GetMemberPermissions,SetMemberPermissions,GetTeamConversations]}
+testObject_Permissions_team_4 :: Permissions
+testObject_Permissions_team_4 = Permissions {_self = fromList [CreateConversation,DoNotUseDeprecatedDeleteConversation,AddTeamMember,DoNotUseDeprecatedAddRemoveConvMember,GetMemberPermissions], _copy = fromList []}
+testObject_Permissions_team_5 :: Permissions
+testObject_Permissions_team_5 = Permissions {_self = fromList [CreateConversation,DoNotUseDeprecatedDeleteConversation,AddTeamMember,RemoveTeamMember,DoNotUseDeprecatedModifyConvName,SetBilling,GetMemberPermissions,SetMemberPermissions,GetTeamConversations,DeleteTeam], _copy = fromList [CreateConversation,DoNotUseDeprecatedDeleteConversation,AddTeamMember,RemoveTeamMember,SetBilling,GetMemberPermissions,SetMemberPermissions,DeleteTeam]}

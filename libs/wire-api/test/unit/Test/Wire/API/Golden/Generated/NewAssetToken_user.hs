@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_NewAssetToken_1 :: NewAssetToken
-testObject_NewAssetToken_1 = NewAssetToken {newAssetToken = AssetToken {assetTokenAscii = (fromRight undefined (validate ("wNg87Ha10VyIe8P9TT3PHsk=")))}}
-testObject_NewAssetToken_2 :: NewAssetToken
-testObject_NewAssetToken_2 = NewAssetToken {newAssetToken = AssetToken {assetTokenAscii = (fromRight undefined (validate ("3I527opX")))}}
-testObject_NewAssetToken_3 :: NewAssetToken
-testObject_NewAssetToken_3 = NewAssetToken {newAssetToken = AssetToken {assetTokenAscii = (fromRight undefined (validate ("pEjVOpuy5x78Wph7LGPaKjokgAwgCKYiN56Qvxw=")))}}
-testObject_NewAssetToken_4 :: NewAssetToken
-testObject_NewAssetToken_4 = NewAssetToken {newAssetToken = AssetToken {assetTokenAscii = (fromRight undefined (validate ("utf2bNYSmg_QbpoklZs=")))}}
-testObject_NewAssetToken_5 :: NewAssetToken
-testObject_NewAssetToken_5 = NewAssetToken {newAssetToken = AssetToken {assetTokenAscii = (fromRight undefined (validate ("fpFtTzMN0Gdk")))}}
+testObject_NewAssetToken_user_1 :: NewAssetToken
+testObject_NewAssetToken_user_1 = NewAssetToken {newAssetToken = AssetToken {assetTokenAscii = (fromRight undefined (validate ("qxya7hErgQA=")))}}
+testObject_NewAssetToken_user_2 :: NewAssetToken
+testObject_NewAssetToken_user_2 = NewAssetToken {newAssetToken = AssetToken {assetTokenAscii = (fromRight undefined (validate ("cLSb7sIt-ljoiEyUdCDmhD43Hd2IPH7krCdv")))}}
+testObject_NewAssetToken_user_3 :: NewAssetToken
+testObject_NewAssetToken_user_3 = NewAssetToken {newAssetToken = AssetToken {assetTokenAscii = (fromRight undefined (validate ("nrvPNLbQW8fNDol8U2sFAK1zrgM0Vs78jGxyaKQ=")))}}
+testObject_NewAssetToken_user_4 :: NewAssetToken
+testObject_NewAssetToken_user_4 = NewAssetToken {newAssetToken = AssetToken {assetTokenAscii = (fromRight undefined (validate ("dnejHiM10nizAQNSR7HO")))}}
+testObject_NewAssetToken_user_5 :: NewAssetToken
+testObject_NewAssetToken_user_5 = NewAssetToken {newAssetToken = AssetToken {assetTokenAscii = (fromRight undefined (validate ("OiddPEULLpPHMd6Jc5LJAFfpug==")))}}

@@ -55,13 +55,13 @@ import Wire.API.Team.SearchVisibility
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
-testObject_Event_1 :: Event
-testObject_Event_1 = (newEvent (TeamCreate) ((Id (fromJust (UUID.fromString "00006690-0000-7538-0000-1191000022dd")))) (read ("1864-05-01 07:15:32.391560213494 UTC")) & eventData .~ (Just (EdTeamCreate (newTeam ((Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000400000002")))) ((Id (fromJust (UUID.fromString "00000001-0000-0002-0000-000400000000")))) ("") ("\a") (Binding) & teamIconKey .~ (Just "J\1001920")))))
-testObject_Event_2 :: Event
-testObject_Event_2 = (newEvent (TeamDelete) ((Id (fromJust (UUID.fromString "000052b1-0000-53ef-0000-736f00007260")))) (read ("1864-05-23 05:11:26.695869554801 UTC")) & eventData .~ (Nothing))
-testObject_Event_3 :: Event
-testObject_Event_3 = (newEvent (ConvDelete) ((Id (fromJust (UUID.fromString "0000116f-0000-68fd-0000-1c1500004a73")))) (read ("1864-05-14 05:14:41.067947983243 UTC")) & eventData .~ (Just (EdConvDelete (Id (fromJust (UUID.fromString "00003b32-0000-2b6c-0000-2e1a000005a0"))))))
-testObject_Event_4 :: Event
-testObject_Event_4 = (newEvent (MemberUpdate) ((Id (fromJust (UUID.fromString "00003c89-0000-5277-0000-60d400003666")))) (read ("1864-04-17 16:11:18.251532774535 UTC")) & eventData .~ (Just (EdMemberUpdate (Id (fromJust (UUID.fromString "0000193f-0000-6993-0000-683e000001af"))) (Just (Permissions {_self = fromList [CreateConversation,RemoveTeamMember,DoNotUseDeprecatedModifyConvName,GetBilling,SetBilling,GetMemberPermissions,DeleteTeam], _copy = fromList [CreateConversation,DoNotUseDeprecatedModifyConvName,GetBilling,SetBilling,GetMemberPermissions,DeleteTeam]})))))
-testObject_Event_5 :: Event
-testObject_Event_5 = (newEvent (ConvCreate) ((Id (fromJust (UUID.fromString "0000390f-0000-4ab1-0000-3dc40000317d")))) (read ("1864-06-01 21:32:53.152920463166 UTC")) & eventData .~ (Just (EdConvCreate (Id (fromJust (UUID.fromString "00005ced-0000-4298-0000-27e30000714c"))))))
+testObject_Event_team_1 :: Event
+testObject_Event_team_1 = (newEvent (MemberUpdate) ((Id (fromJust (UUID.fromString "00001ebb-0000-771e-0000-31b4000057b6")))) (read ("1864-04-23 05:54:30.861908017181 UTC")) & eventData .~ (Just (EdMemberUpdate (Id (fromJust (UUID.fromString "00005888-0000-3df6-0000-4a36000052a6"))) Nothing)))
+testObject_Event_team_2 :: Event
+testObject_Event_team_2 = (newEvent (ConvCreate) ((Id (fromJust (UUID.fromString "00006660-0000-291d-0000-48e100004307")))) (read ("1864-05-28 04:43:32.681524394236 UTC")) & eventData .~ (Just (EdConvCreate (Id (fromJust (UUID.fromString "00007909-0000-6a2b-0000-6bec00000238"))))))
+testObject_Event_team_3 :: Event
+testObject_Event_team_3 = (newEvent (ConvCreate) ((Id (fromJust (UUID.fromString "00003f52-0000-45be-0000-505f000016ca")))) (read ("1864-05-22 04:29:56.17837254606 UTC")) & eventData .~ (Just (EdConvCreate (Id (fromJust (UUID.fromString "000068da-0000-3fc5-0000-028900004b5a"))))))
+testObject_Event_team_4 :: Event
+testObject_Event_team_4 = (newEvent (MemberUpdate) ((Id (fromJust (UUID.fromString "0000435d-0000-2131-0000-1b1900000655")))) (read ("1864-05-29 02:20:54.849854114909 UTC")) & eventData .~ (Just (EdMemberUpdate (Id (fromJust (UUID.fromString "0000122d-0000-1a9a-0000-68ba00001bb1"))) Nothing)))
+testObject_Event_team_5 :: Event
+testObject_Event_team_5 = (newEvent (TeamCreate) ((Id (fromJust (UUID.fromString "00002b9c-0000-6799-0000-39b90000441d")))) (read ("1864-05-31 21:39:45.634928131839 UTC")) & eventData .~ (Just (EdTeamCreate (newTeam ((Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000400000004")))) ((Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000000000002")))) ("]M\1081950") ("n") (NonBinding) & teamIconKey .~ (Nothing)))))

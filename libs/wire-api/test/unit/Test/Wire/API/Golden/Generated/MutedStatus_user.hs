@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_MutedStatus_1 :: MutedStatus
-testObject_MutedStatus_1 = MutedStatus {fromMutedStatus = -22578}
-testObject_MutedStatus_2 :: MutedStatus
-testObject_MutedStatus_2 = MutedStatus {fromMutedStatus = 8631}
-testObject_MutedStatus_3 :: MutedStatus
-testObject_MutedStatus_3 = MutedStatus {fromMutedStatus = 18307}
-testObject_MutedStatus_4 :: MutedStatus
-testObject_MutedStatus_4 = MutedStatus {fromMutedStatus = -4869}
-testObject_MutedStatus_5 :: MutedStatus
-testObject_MutedStatus_5 = MutedStatus {fromMutedStatus = 23724}
+testObject_MutedStatus_user_1 :: MutedStatus
+testObject_MutedStatus_user_1 = MutedStatus {fromMutedStatus = 18972}
+testObject_MutedStatus_user_2 :: MutedStatus
+testObject_MutedStatus_user_2 = MutedStatus {fromMutedStatus = -26742}
+testObject_MutedStatus_user_3 :: MutedStatus
+testObject_MutedStatus_user_3 = MutedStatus {fromMutedStatus = 25769}
+testObject_MutedStatus_user_4 :: MutedStatus
+testObject_MutedStatus_user_4 = MutedStatus {fromMutedStatus = 5980}
+testObject_MutedStatus_user_5 :: MutedStatus
+testObject_MutedStatus_user_5 = MutedStatus {fromMutedStatus = 4361}

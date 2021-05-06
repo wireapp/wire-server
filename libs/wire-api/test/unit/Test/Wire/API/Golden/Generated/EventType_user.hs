@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_EventType_1 :: EventType
-testObject_EventType_1 = ConvCodeDelete
-testObject_EventType_2 :: EventType
-testObject_EventType_2 = OtrMessageAdd
-testObject_EventType_3 :: EventType
-testObject_EventType_3 = Typing
-testObject_EventType_4 :: EventType
-testObject_EventType_4 = MemberLeave
-testObject_EventType_5 :: EventType
-testObject_EventType_5 = MemberJoin
+testObject_EventType_user_1 :: EventType
+testObject_EventType_user_1 = ConvReceiptModeUpdate
+testObject_EventType_user_2 :: EventType
+testObject_EventType_user_2 = ConvAccessUpdate
+testObject_EventType_user_3 :: EventType
+testObject_EventType_user_3 = ConvMessageTimerUpdate
+testObject_EventType_user_4 :: EventType
+testObject_EventType_user_4 = OtrMessageAdd
+testObject_EventType_user_5 :: EventType
+testObject_EventType_user_5 = ConvRename

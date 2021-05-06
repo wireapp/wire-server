@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_LoginId_1 :: LoginId
-testObject_LoginId_1 = LoginByHandle (Handle {fromHandle = "uqh2iebz"})
-testObject_LoginId_2 :: LoginId
-testObject_LoginId_2 = LoginByHandle (Handle {fromHandle = "7rtof_ueaymo.u5h2da1e4uld-g76qgcuqxx_vrfw_8e5hbxiqj2h-zr64pwx28db9kk0zrzmzvxmw3bkwpv_wv05c1kjsi_2i"})
-testObject_LoginId_3 :: LoginId
-testObject_LoginId_3 = LoginByHandle (Handle {fromHandle = "uitc7rgm"})
-testObject_LoginId_4 :: LoginId
-testObject_LoginId_4 = LoginByHandle (Handle {fromHandle = "rz._diq"})
-testObject_LoginId_5 :: LoginId
-testObject_LoginId_5 = LoginByPhone (Phone {fromPhone = "+011425018017"})
+testObject_LoginId_user_1 :: LoginId
+testObject_LoginId_user_1 = LoginByPhone (Phone {fromPhone = "+2927860431994"})
+testObject_LoginId_user_2 :: LoginId
+testObject_LoginId_user_2 = LoginByEmail (Email {emailLocal = "?7\35807L2\1078776r\40526J(1H\161068\1086268Eo\1049131#3\DELr\1018936", emailDomain = "\190041\&2\182254\b\1041750q\1098235\25404)"})
+testObject_LoginId_user_3 :: LoginId
+testObject_LoginId_user_3 = LoginByHandle (Handle {fromHandle = "9u"})
+testObject_LoginId_user_4 :: LoginId
+testObject_LoginId_user_4 = LoginByEmail (Email {emailLocal = "Dp-\DEL`#\145050\41578#\DLEW\f \1112382Y9\173057\v{\SYN\EOT(", emailDomain = "\1024287\&3\US:F\RS#\CANkw\FS/a\149472\nn5J\171711\1074021Sk!\1085456\&8H2P"})
+testObject_LoginId_user_5 :: LoginId
+testObject_LoginId_user_5 = LoginByEmail (Email {emailLocal = "mnfk?h\63307#\\n\FS,\1048851'scr#\v\ACK\36852\1007294BE\1050929\1073640V3", emailDomain = "\990941\&0\1017585\141400"})

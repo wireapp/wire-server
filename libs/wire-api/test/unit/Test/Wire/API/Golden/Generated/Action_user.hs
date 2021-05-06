@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_Action_1 :: Action
-testObject_Action_1 = ModifyConversationName
-testObject_Action_2 :: Action
-testObject_Action_2 = ModifyOtherConversationMember
-testObject_Action_3 :: Action
-testObject_Action_3 = RemoveConversationMember
-testObject_Action_4 :: Action
-testObject_Action_4 = RemoveConversationMember
-testObject_Action_5 :: Action
-testObject_Action_5 = ModifyConversationName
+testObject_Action_user_1 :: Action
+testObject_Action_user_1 = RemoveConversationMember
+testObject_Action_user_2 :: Action
+testObject_Action_user_2 = ModifyConversationAccess
+testObject_Action_user_3 :: Action
+testObject_Action_user_3 = ModifyConversationName
+testObject_Action_user_4 :: Action
+testObject_Action_user_4 = RemoveConversationMember
+testObject_Action_user_5 :: Action
+testObject_Action_user_5 = ModifyConversationMessageTimer

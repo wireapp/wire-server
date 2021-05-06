@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_ConversationRole_1 :: ConversationRole
-testObject_ConversationRole_1 = (fromJust (toConvRole (fromJust (parseRoleName "wire_member")) Nothing))
-testObject_ConversationRole_2 :: ConversationRole
-testObject_ConversationRole_2 = (fromJust (toConvRole (fromJust (parseRoleName "6xwo6cftwho5gmhs")) (Just ((Actions (Set.fromList [RemoveConversationMember,ModifyConversationMessageTimer,ModifyConversationReceiptMode,LeaveConversation]))))))
-testObject_ConversationRole_3 :: ConversationRole
-testObject_ConversationRole_3 = (fromJust (toConvRole (fromJust (parseRoleName "wire_member")) Nothing))
-testObject_ConversationRole_4 :: ConversationRole
-testObject_ConversationRole_4 = (fromJust (toConvRole (fromJust (parseRoleName "wurwso1c2m9jz24qggwxo6immhm8xeci86ybjwdwduv2l961rpd21uxmwak35vdtnlx9czdbnx8om5e")) (Just ((Actions (Set.fromList [RemoveConversationMember,ModifyConversationMessageTimer,ModifyConversationAccess,LeaveConversation,DeleteConversation]))))))
-testObject_ConversationRole_5 :: ConversationRole
-testObject_ConversationRole_5 = (fromJust (toConvRole (fromJust (parseRoleName "wire_member")) Nothing))
+testObject_ConversationRole_user_1 :: ConversationRole
+testObject_ConversationRole_user_1 = (fromJust (toConvRole (fromJust (parseRoleName "wire_member")) Nothing))
+testObject_ConversationRole_user_2 :: ConversationRole
+testObject_ConversationRole_user_2 = (fromJust (toConvRole (fromJust (parseRoleName "wire_admin")) Nothing))
+testObject_ConversationRole_user_3 :: ConversationRole
+testObject_ConversationRole_user_3 = (fromJust (toConvRole (fromJust (parseRoleName "2g82sz_qxez6n8b8e795u_6cmriq0mgn")) (Just ((Actions (Set.fromList [ModifyConversationMessageTimer,ModifyConversationReceiptMode,ModifyConversationAccess,DeleteConversation]))))))
+testObject_ConversationRole_user_4 :: ConversationRole
+testObject_ConversationRole_user_4 = (fromJust (toConvRole (fromJust (parseRoleName "wire_admin")) Nothing))
+testObject_ConversationRole_user_5 :: ConversationRole
+testObject_ConversationRole_user_5 = (fromJust (toConvRole (fromJust (parseRoleName "wire_member")) Nothing))

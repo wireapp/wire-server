@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_ConversationMessageTimerUpdate_1 :: ConversationMessageTimerUpdate
-testObject_ConversationMessageTimerUpdate_1 = ConversationMessageTimerUpdate {cupMessageTimer = Just (Ms {ms = 7317677})}
-testObject_ConversationMessageTimerUpdate_2 :: ConversationMessageTimerUpdate
-testObject_ConversationMessageTimerUpdate_2 = ConversationMessageTimerUpdate {cupMessageTimer = Just (Ms {ms = 1072433})}
-testObject_ConversationMessageTimerUpdate_3 :: ConversationMessageTimerUpdate
-testObject_ConversationMessageTimerUpdate_3 = ConversationMessageTimerUpdate {cupMessageTimer = Just (Ms {ms = 2343296})}
-testObject_ConversationMessageTimerUpdate_4 :: ConversationMessageTimerUpdate
-testObject_ConversationMessageTimerUpdate_4 = ConversationMessageTimerUpdate {cupMessageTimer = Just (Ms {ms = 4019141})}
-testObject_ConversationMessageTimerUpdate_5 :: ConversationMessageTimerUpdate
-testObject_ConversationMessageTimerUpdate_5 = ConversationMessageTimerUpdate {cupMessageTimer = Just (Ms {ms = 802609})}
+testObject_ConversationMessageTimerUpdate_user_1 :: ConversationMessageTimerUpdate
+testObject_ConversationMessageTimerUpdate_user_1 = ConversationMessageTimerUpdate {cupMessageTimer = Just (Ms {ms = 4846053})}
+testObject_ConversationMessageTimerUpdate_user_2 :: ConversationMessageTimerUpdate
+testObject_ConversationMessageTimerUpdate_user_2 = ConversationMessageTimerUpdate {cupMessageTimer = Nothing}
+testObject_ConversationMessageTimerUpdate_user_3 :: ConversationMessageTimerUpdate
+testObject_ConversationMessageTimerUpdate_user_3 = ConversationMessageTimerUpdate {cupMessageTimer = Just (Ms {ms = 842485})}
+testObject_ConversationMessageTimerUpdate_user_4 :: ConversationMessageTimerUpdate
+testObject_ConversationMessageTimerUpdate_user_4 = ConversationMessageTimerUpdate {cupMessageTimer = Just (Ms {ms = 4875258})}
+testObject_ConversationMessageTimerUpdate_user_5 :: ConversationMessageTimerUpdate
+testObject_ConversationMessageTimerUpdate_user_5 = ConversationMessageTimerUpdate {cupMessageTimer = Just (Ms {ms = 5522365})}

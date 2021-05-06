@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_UpdateClient_1 :: UpdateClient
-testObject_UpdateClient_1 = UpdateClient {updateClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "l"},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "Z"}], updateClientLastKey = Just (lastPrekey ("-Eq\1072951 fxa")), updateClientLabel = Nothing}
-testObject_UpdateClient_2 :: UpdateClient
-testObject_UpdateClient_2 = UpdateClient {updateClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}], updateClientLastKey = Just (lastPrekey ("\1011114oT")), updateClientLabel = Just ""}
-testObject_UpdateClient_3 :: UpdateClient
-testObject_UpdateClient_3 = UpdateClient {updateClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "c#'&\62393"}], updateClientLastKey = Nothing, updateClientLabel = Just "\STX\1057982v\SYNvn\98222\1097429E"}
-testObject_UpdateClient_4 :: UpdateClient
-testObject_UpdateClient_4 = UpdateClient {updateClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\a"},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\156181"},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "g"},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}], updateClientLastKey = Just (lastPrekey ("\985446Z8(.u\1048808Z\NAK")), updateClientLabel = Just "\1051991Vi h\45419z\SYN"}
-testObject_UpdateClient_5 :: UpdateClient
-testObject_UpdateClient_5 = UpdateClient {updateClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "g"},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\DLE"},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}], updateClientLastKey = Just (lastPrekey ("\75037Lx\985424\SUB\52255uV")), updateClientLabel = Nothing}
+testObject_UpdateClient_user_1 :: UpdateClient
+testObject_UpdateClient_user_1 = UpdateClient {updateClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\SI"},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}], updateClientLastKey = Just (lastPrekey ("f\EMa")), updateClientLabel = Nothing}
+testObject_UpdateClient_user_2 :: UpdateClient
+testObject_UpdateClient_user_2 = UpdateClient {updateClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}], updateClientLastKey = Just (lastPrekey ("Im\ACK\146470*)")), updateClientLabel = Just "U\DC2\1076095\CAN5d|\1079982/4"}
+testObject_UpdateClient_user_3 :: UpdateClient
+testObject_UpdateClient_user_3 = UpdateClient {updateClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "9"},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "~"},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}], updateClientLastKey = Nothing, updateClientLabel = Just "\66738\165955j"}
+testObject_UpdateClient_user_4 :: UpdateClient
+testObject_UpdateClient_user_4 = UpdateClient {updateClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 2}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 2}, prekeyKey = "y\121098"}], updateClientLastKey = Just (lastPrekey ("\153449FY!\1052959")), updateClientLabel = Just "JW_F\1007175\52178\t?\DC2"}
+testObject_UpdateClient_user_5 :: UpdateClient
+testObject_UpdateClient_user_5 = UpdateClient {updateClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\180300"},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\GS"},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\28484"}], updateClientLastKey = Nothing, updateClientLabel = Just "\v/E"}

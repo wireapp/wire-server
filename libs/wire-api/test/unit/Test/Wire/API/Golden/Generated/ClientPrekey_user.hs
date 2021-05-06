@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_ClientPrekey_1 :: ClientPrekey
-testObject_ClientPrekey_1 = ClientPrekey {prekeyClient = ClientId {client = "648"}, prekeyData = Prekey {prekeyId = PrekeyId {keyId = 8}, prekeyKey = "o\NAK\ETX\DLE"}}
-testObject_ClientPrekey_2 :: ClientPrekey
-testObject_ClientPrekey_2 = ClientPrekey {prekeyClient = ClientId {client = "926"}, prekeyData = Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "1\GS\t:}"}}
-testObject_ClientPrekey_3 :: ClientPrekey
-testObject_ClientPrekey_3 = ClientPrekey {prekeyClient = ClientId {client = "59d"}, prekeyData = Prekey {prekeyId = PrekeyId {keyId = 5}, prekeyKey = "\DC3c\SO\1065648"}}
-testObject_ClientPrekey_4 :: ClientPrekey
-testObject_ClientPrekey_4 = ClientPrekey {prekeyClient = ClientId {client = "b11"}, prekeyData = Prekey {prekeyId = PrekeyId {keyId = 7}, prekeyKey = "\187572\SUB\US"}}
-testObject_ClientPrekey_5 :: ClientPrekey
-testObject_ClientPrekey_5 = ClientPrekey {prekeyClient = ClientId {client = "22"}, prekeyData = Prekey {prekeyId = PrekeyId {keyId = 4}, prekeyKey = "\99021P\ENQ >X\US"}}
+testObject_ClientPrekey_user_1 :: ClientPrekey
+testObject_ClientPrekey_user_1 = ClientPrekey {prekeyClient = ClientId {client = "722"}, prekeyData = Prekey {prekeyId = PrekeyId {keyId = 4}, prekeyKey = "z\aD\DEL\\"}}
+testObject_ClientPrekey_user_2 :: ClientPrekey
+testObject_ClientPrekey_user_2 = ClientPrekey {prekeyClient = ClientId {client = "876"}, prekeyData = Prekey {prekeyId = PrekeyId {keyId = 7}, prekeyKey = "#\50607sa\14536"}}
+testObject_ClientPrekey_user_3 :: ClientPrekey
+testObject_ClientPrekey_user_3 = ClientPrekey {prekeyClient = ClientId {client = "5fe"}, prekeyData = Prekey {prekeyId = PrekeyId {keyId = 2}, prekeyKey = "\ESC"}}
+testObject_ClientPrekey_user_4 :: ClientPrekey
+testObject_ClientPrekey_user_4 = ClientPrekey {prekeyClient = ClientId {client = "88a"}, prekeyData = Prekey {prekeyId = PrekeyId {keyId = 2}, prekeyKey = "n\GSH\EOTv"}}
+testObject_ClientPrekey_user_5 :: ClientPrekey
+testObject_ClientPrekey_user_5 = ClientPrekey {prekeyClient = ClientId {client = "210"}, prekeyData = Prekey {prekeyId = PrekeyId {keyId = 5}, prekeyKey = "5"}}

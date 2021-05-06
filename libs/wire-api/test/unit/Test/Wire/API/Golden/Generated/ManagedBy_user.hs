@@ -75,13 +75,13 @@ import Wire.API.User.Profile
 import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
-testObject_ManagedBy_1 :: ManagedBy
-testObject_ManagedBy_1 = ManagedByScim
-testObject_ManagedBy_2 :: ManagedBy
-testObject_ManagedBy_2 = ManagedByWire
-testObject_ManagedBy_3 :: ManagedBy
-testObject_ManagedBy_3 = ManagedByScim
-testObject_ManagedBy_4 :: ManagedBy
-testObject_ManagedBy_4 = ManagedByScim
-testObject_ManagedBy_5 :: ManagedBy
-testObject_ManagedBy_5 = ManagedByScim
+testObject_ManagedBy_user_1 :: ManagedBy
+testObject_ManagedBy_user_1 = ManagedByScim
+testObject_ManagedBy_user_2 :: ManagedBy
+testObject_ManagedBy_user_2 = ManagedByWire
+testObject_ManagedBy_user_3 :: ManagedBy
+testObject_ManagedBy_user_3 = ManagedByWire
+testObject_ManagedBy_user_4 :: ManagedBy
+testObject_ManagedBy_user_4 = ManagedByScim
+testObject_ManagedBy_user_5 :: ManagedBy
+testObject_ManagedBy_user_5 = ManagedByScim
