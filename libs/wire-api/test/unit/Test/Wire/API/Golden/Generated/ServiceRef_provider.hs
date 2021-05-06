@@ -49,12 +49,12 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 testObject_ServiceRef_provider_1 :: ServiceRef
-testObject_ServiceRef_provider_1 = ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "0000006c-0000-0054-0000-004500000021"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "0000004a-0000-000a-0000-006c00000024")))}
+testObject_ServiceRef_provider_1 = ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000059-0000-005e-0000-000700000028"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "0000003f-0000-004a-0000-003b0000005a")))}
 testObject_ServiceRef_provider_2 :: ServiceRef
-testObject_ServiceRef_provider_2 = ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000065-0000-0004-0000-002b00000005"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "00000012-0000-004e-0000-004400000024")))}
+testObject_ServiceRef_provider_2 = ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000003-0000-001d-0000-00610000000b"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "00000013-0000-0019-0000-004600000033")))}
 testObject_ServiceRef_provider_3 :: ServiceRef
-testObject_ServiceRef_provider_3 = ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000023-0000-007d-0000-00350000005e"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "0000001d-0000-007f-0000-005000000074")))}
+testObject_ServiceRef_provider_3 = ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000080-0000-0040-0000-003b00000005"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "00000050-0000-0019-0000-003600000005")))}
 testObject_ServiceRef_provider_4 :: ServiceRef
-testObject_ServiceRef_provider_4 = ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000023-0000-0050-0000-003000000044"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "00000057-0000-004c-0000-004b00000068")))}
+testObject_ServiceRef_provider_4 = ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "0000002b-0000-007f-0000-006d0000004c"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "00000028-0000-007e-0000-005800000065")))}
 testObject_ServiceRef_provider_5 :: ServiceRef
-testObject_ServiceRef_provider_5 = ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000032-0000-0013-0000-001600000030"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "0000002d-0000-002b-0000-004400000018")))}
+testObject_ServiceRef_provider_5 = ServiceRef {_serviceRefId = (Id (fromJust (UUID.fromString "00000045-0000-0020-0000-00270000002d"))), _serviceRefProvider = (Id (fromJust (UUID.fromString "00000010-0000-0070-0000-00040000000d")))}

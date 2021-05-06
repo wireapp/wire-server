@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_LoginCode_user_1 :: LoginCode
-testObject_LoginCode_user_1 = LoginCode {fromLoginCode = "\GS\992415\NAKzyY\ETX`%\190514:5\vH0\990275,\DLE#\DEL\SYN"}
+testObject_LoginCode_user_1 = LoginCode {fromLoginCode = "Y\SYN\SYN;\1034064C1C\ESC\1060115$\9978}\DC4\SOH\1003302u\r"}
 testObject_LoginCode_user_2 :: LoginCode
-testObject_LoginCode_user_2 = LoginCode {fromLoginCode = "[Qt\132563N\"\t\CAN\t\1104096z\EOTe_\158826i:\n\1107877\1015394W\a\13317\FS+\46920\94413\SOHh\STX"}
+testObject_LoginCode_user_2 = LoginCode {fromLoginCode = "\bu\SUB0@\ETXF@\14126XHto\123588YF\vF\1094304\128672\ACK'.ZS\EMW\GS"}
 testObject_LoginCode_user_3 :: LoginCode
-testObject_LoginCode_user_3 = LoginCode {fromLoginCode = "Y\ESC\tM;nj\24157YQ\136711x"}
+testObject_LoginCode_user_3 = LoginCode {fromLoginCode = "\SIE\DEL\988097P\SOH6j\154681>\171019z\v\36518y"}
 testObject_LoginCode_user_4 :: LoginCode
-testObject_LoginCode_user_4 = LoginCode {fromLoginCode = "\STX\ETBI\STX\b!->=\68862\DC3*\991251&S\USb"}
+testObject_LoginCode_user_4 = LoginCode {fromLoginCode = "[d^<5\185881B\SUBk\1036868\US\61686\"L\RSa\v"}
 testObject_LoginCode_user_5 :: LoginCode
-testObject_LoginCode_user_5 = LoginCode {fromLoginCode = "!c\147697\SYNx\ETB\1066812z{\158593\&3\67103Ch"}
+testObject_LoginCode_user_5 = LoginCode {fromLoginCode = "7hj\US\SO?b\1058734a*Vf\EOTj\988105\&6\1058207\ACK(\1074042\ENQGSi\94807:\1077970ob"}

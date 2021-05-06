@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_ActivationCode_user_1 :: ActivationCode
-testObject_ActivationCode_user_1 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("tQRUB5ms-V3qAVP5bSQ=")))}
+testObject_ActivationCode_user_1 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("UJcGopE=")))}
 testObject_ActivationCode_user_2 :: ActivationCode
-testObject_ActivationCode_user_2 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("qj00qxtU")))}
+testObject_ActivationCode_user_2 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("kBj3PQ==")))}
 testObject_ActivationCode_user_3 :: ActivationCode
-testObject_ActivationCode_user_3 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("0AhBfveAr0XEJL-h0Pr9WlXYaLvarrX-UZ87")))}
+testObject_ActivationCode_user_3 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("W1tx4V3AcdWV4ah2VSDisA==")))}
 testObject_ActivationCode_user_4 :: ActivationCode
-testObject_ActivationCode_user_4 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("ozNsZvgKdY-R")))}
+testObject_ActivationCode_user_4 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("C4zZEzeVG9HmP7or7mq8dIe0XgGTtw==")))}
 testObject_ActivationCode_user_5 :: ActivationCode
-testObject_ActivationCode_user_5 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("JVDioA==")))}
+testObject_ActivationCode_user_5 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("UZcM6zbdm15dzkLmM1IUb71w8LVt_iowuw==")))}

@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_RoleName_user_1 :: RoleName
-testObject_RoleName_user_1 = (fromJust (parseRoleName "wtuuhicyjyj6kzx3gwr3voua25imu6tsi4omh_gmtxwa2f2iwo7fmutzqv0m0hctb3j8x3s661oj7ooizfz5drl_zb2910vfzfn0_qrbp7mr9kh1drbmvhpwf1k"))
+testObject_RoleName_user_1 = (fromJust (parseRoleName "ckzatc54p5hgi9s6ikw4jqtcqsvfitvxz1xzgjhsu0c5_tdi4w0f7hj_nn1f"))
 testObject_RoleName_user_2 :: RoleName
-testObject_RoleName_user_2 = (fromJust (parseRoleName "8vgc7rhs8e47r2z_3p9mvye2golx_usi4_uru77rhcqx"))
+testObject_RoleName_user_2 = (fromJust (parseRoleName "qa105lqnnvuxo3ktlv2fhyxn6fqneqx40die3pt1c"))
 testObject_RoleName_user_3 :: RoleName
-testObject_RoleName_user_3 = (fromJust (parseRoleName "p1b1htybb0qlovjscxo1cp6f25xm_bwzoesdxluzgneu2a5of6kp5gkxw7x5lwkqy4isvrckj4vul4dtic4y2_z2z6az"))
+testObject_RoleName_user_3 = (fromJust (parseRoleName "2aueu3hvs0em0n_9sm7eit4y"))
 testObject_RoleName_user_4 :: RoleName
-testObject_RoleName_user_4 = (fromJust (parseRoleName "__bhoom1bvtu4od7n6z"))
+testObject_RoleName_user_4 = (fromJust (parseRoleName "cmo85k8gz9j9lnf4n9xq3mrbz__21z2u9s8fwg11b93zfejuco8vbckaqe_d5diuc0ew6gxnv2_x2"))
 testObject_RoleName_user_5 :: RoleName
-testObject_RoleName_user_5 = (fromJust (parseRoleName "kj2st0"))
+testObject_RoleName_user_5 = (fromJust (parseRoleName "fo0vkks_ro4ypad212vb4vlku97delphp"))

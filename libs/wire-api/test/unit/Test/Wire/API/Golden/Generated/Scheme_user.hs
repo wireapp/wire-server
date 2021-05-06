@@ -76,9 +76,9 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_Scheme_user_1 :: CallConfig.Scheme
-testObject_Scheme_user_1 = SchemeTurns
+testObject_Scheme_user_1 = SchemeTurn
 testObject_Scheme_user_2 :: CallConfig.Scheme
-testObject_Scheme_user_2 = SchemeTurn
+testObject_Scheme_user_2 = SchemeTurns
 testObject_Scheme_user_3 :: CallConfig.Scheme
 testObject_Scheme_user_3 = SchemeTurn
 testObject_Scheme_user_4 :: CallConfig.Scheme

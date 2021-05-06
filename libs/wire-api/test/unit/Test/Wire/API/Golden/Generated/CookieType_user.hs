@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_CookieType_user_1 :: CookieType
-testObject_CookieType_user_1 = SessionCookie
+testObject_CookieType_user_1 = PersistentCookie
 testObject_CookieType_user_2 :: CookieType
 testObject_CookieType_user_2 = PersistentCookie
 testObject_CookieType_user_3 :: CookieType
-testObject_CookieType_user_3 = SessionCookie
+testObject_CookieType_user_3 = PersistentCookie
 testObject_CookieType_user_4 :: CookieType
-testObject_CookieType_user_4 = PersistentCookie
+testObject_CookieType_user_4 = SessionCookie
 testObject_CookieType_user_5 :: CookieType
-testObject_CookieType_user_5 = PersistentCookie
+testObject_CookieType_user_5 = SessionCookie

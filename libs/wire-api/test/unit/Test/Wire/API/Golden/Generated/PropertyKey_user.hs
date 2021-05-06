@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_PropertyKey_user_1 :: PropertyKey
-testObject_PropertyKey_user_1 = PropertyKey {propertyKeyName = (fromRight undefined (validate ("fMz9{y)Z$a&6Nt-aa?")))}
+testObject_PropertyKey_user_1 = PropertyKey {propertyKeyName = (fromRight undefined (validate ("gimElD$61yJ1,")))}
 testObject_PropertyKey_user_2 :: PropertyKey
-testObject_PropertyKey_user_2 = PropertyKey {propertyKeyName = (fromRight undefined (validate ("fD")))}
+testObject_PropertyKey_user_2 = PropertyKey {propertyKeyName = (fromRight undefined (validate ("q\\r&St%d63 B1.-")))}
 testObject_PropertyKey_user_3 :: PropertyKey
-testObject_PropertyKey_user_3 = PropertyKey {propertyKeyName = (fromRight undefined (validate ("E|3: wS\\td!:#l\\@l9Q,")))}
+testObject_PropertyKey_user_3 = PropertyKey {propertyKeyName = (fromRight undefined (validate ("wM!p=Qbf.#Iacsm.PO")))}
 testObject_PropertyKey_user_4 :: PropertyKey
-testObject_PropertyKey_user_4 = PropertyKey {propertyKeyName = (fromRight undefined (validate ("_'dU8k+yGVA*#?8/\\fvi`_q^<")))}
+testObject_PropertyKey_user_4 = PropertyKey {propertyKeyName = (fromRight undefined (validate ("7~,*H4.6\"6iej&l0(|F*vn5^U(Fx1w")))}
 testObject_PropertyKey_user_5 :: PropertyKey
-testObject_PropertyKey_user_5 = PropertyKey {propertyKeyName = (fromRight undefined (validate ("w")))}
+testObject_PropertyKey_user_5 = PropertyKey {propertyKeyName = (fromRight undefined (validate (" it[")))}

@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_LoginCodeTimeout_user_1 :: LoginCodeTimeout
-testObject_LoginCodeTimeout_user_1 = LoginCodeTimeout {fromLoginCodeTimeout = (Timeout (secondsToNominalDiffTime (-30.000000000000)))}
+testObject_LoginCodeTimeout_user_1 = LoginCodeTimeout {fromLoginCodeTimeout = (Timeout (secondsToNominalDiffTime (0.000000000000)))}
 testObject_LoginCodeTimeout_user_2 :: LoginCodeTimeout
-testObject_LoginCodeTimeout_user_2 = LoginCodeTimeout {fromLoginCodeTimeout = (Timeout (secondsToNominalDiffTime (20.000000000000)))}
+testObject_LoginCodeTimeout_user_2 = LoginCodeTimeout {fromLoginCodeTimeout = (Timeout (secondsToNominalDiffTime (5.000000000000)))}
 testObject_LoginCodeTimeout_user_3 :: LoginCodeTimeout
-testObject_LoginCodeTimeout_user_3 = LoginCodeTimeout {fromLoginCodeTimeout = (Timeout (secondsToNominalDiffTime (12.000000000000)))}
+testObject_LoginCodeTimeout_user_3 = LoginCodeTimeout {fromLoginCodeTimeout = (Timeout (secondsToNominalDiffTime (13.000000000000)))}
 testObject_LoginCodeTimeout_user_4 :: LoginCodeTimeout
-testObject_LoginCodeTimeout_user_4 = LoginCodeTimeout {fromLoginCodeTimeout = (Timeout (secondsToNominalDiffTime (12.000000000000)))}
+testObject_LoginCodeTimeout_user_4 = LoginCodeTimeout {fromLoginCodeTimeout = (Timeout (secondsToNominalDiffTime (7.000000000000)))}
 testObject_LoginCodeTimeout_user_5 :: LoginCodeTimeout
-testObject_LoginCodeTimeout_user_5 = LoginCodeTimeout {fromLoginCodeTimeout = (Timeout (secondsToNominalDiffTime (19.000000000000)))}
+testObject_LoginCodeTimeout_user_5 = LoginCodeTimeout {fromLoginCodeTimeout = (Timeout (secondsToNominalDiffTime (1.000000000000)))}

@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_PhoneUpdate_user_1 :: PhoneUpdate
-testObject_PhoneUpdate_user_1 = PhoneUpdate {puPhone = Phone {fromPhone = "+948361204"}}
+testObject_PhoneUpdate_user_1 = PhoneUpdate {puPhone = Phone {fromPhone = "+1700945632512"}}
 testObject_PhoneUpdate_user_2 :: PhoneUpdate
-testObject_PhoneUpdate_user_2 = PhoneUpdate {puPhone = Phone {fromPhone = "+9041395566291"}}
+testObject_PhoneUpdate_user_2 = PhoneUpdate {puPhone = Phone {fromPhone = "+646048163"}}
 testObject_PhoneUpdate_user_3 :: PhoneUpdate
-testObject_PhoneUpdate_user_3 = PhoneUpdate {puPhone = Phone {fromPhone = "+280368546891"}}
+testObject_PhoneUpdate_user_3 = PhoneUpdate {puPhone = Phone {fromPhone = "+2398752177776"}}
 testObject_PhoneUpdate_user_4 :: PhoneUpdate
-testObject_PhoneUpdate_user_4 = PhoneUpdate {puPhone = Phone {fromPhone = "+235046808"}}
+testObject_PhoneUpdate_user_4 = PhoneUpdate {puPhone = Phone {fromPhone = "+144435849"}}
 testObject_PhoneUpdate_user_5 :: PhoneUpdate
-testObject_PhoneUpdate_user_5 = PhoneUpdate {puPhone = Phone {fromPhone = "+4090349470"}}
+testObject_PhoneUpdate_user_5 = PhoneUpdate {puPhone = Phone {fromPhone = "+84081103001450"}}

@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_PushToken_user_1 :: PushToken
-testObject_PushToken_user_1 = (pushToken (GCM) (AppName {appNameText = "\48117y\78416e\26034o"}) (Token {tokenText = "\CAN\ETB\EOTwpb"}) (ClientId {client = "3"}))
+testObject_PushToken_user_1 = (pushToken (APNSSandbox) (AppName {appNameText = "\4379O4Eu"}) (Token {tokenText = "K\ESC\2118&\42091d"}) (ClientId {client = "19"}))
 testObject_PushToken_user_2 :: PushToken
-testObject_PushToken_user_2 = (pushToken (APNSVoIP) (AppName {appNameText = ""}) (Token {tokenText = "\1034984\1064200\NUL"}) (ClientId {client = "4"}))
+testObject_PushToken_user_2 = (pushToken (APNS) (AppName {appNameText = ""}) (Token {tokenText = "\987172"}) (ClientId {client = "1d"}))
 testObject_PushToken_user_3 :: PushToken
-testObject_PushToken_user_3 = (pushToken (APNSVoIP) (AppName {appNameText = "q.\DC3$!"}) (Token {tokenText = ",\"2\1085045\1009508"}) (ClientId {client = "5"}))
+testObject_PushToken_user_3 = (pushToken (GCM) (AppName {appNameText = ""}) (Token {tokenText = ""}) (ClientId {client = "20"}))
 testObject_PushToken_user_4 :: PushToken
-testObject_PushToken_user_4 = (pushToken (GCM) (AppName {appNameText = "\CAN^"}) (Token {tokenText = "\5155H\1065213_\NAK+"}) (ClientId {client = "15"}))
+testObject_PushToken_user_4 = (pushToken (APNSVoIPSandbox) (AppName {appNameText = "\NUL"}) (Token {tokenText = "_i"}) (ClientId {client = "12"}))
 testObject_PushToken_user_5 :: PushToken
-testObject_PushToken_user_5 = (pushToken (APNSVoIP) (AppName {appNameText = "\ETB\1050060{"}) (Token {tokenText = "\12231c\GSj;^"}) (ClientId {client = "10"}))
+testObject_PushToken_user_5 = (pushToken (APNS) (AppName {appNameText = "Uu"}) (Token {tokenText = "GQ\USEA"}) (ClientId {client = "5"}))

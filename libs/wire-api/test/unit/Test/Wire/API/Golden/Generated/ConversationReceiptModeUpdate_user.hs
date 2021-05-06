@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_ConversationReceiptModeUpdate_user_1 :: ConversationReceiptModeUpdate
-testObject_ConversationReceiptModeUpdate_user_1 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 10219}}
+testObject_ConversationReceiptModeUpdate_user_1 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 2917}}
 testObject_ConversationReceiptModeUpdate_user_2 :: ConversationReceiptModeUpdate
-testObject_ConversationReceiptModeUpdate_user_2 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 3374}}
+testObject_ConversationReceiptModeUpdate_user_2 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = -8187}}
 testObject_ConversationReceiptModeUpdate_user_3 :: ConversationReceiptModeUpdate
-testObject_ConversationReceiptModeUpdate_user_3 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = -13614}}
+testObject_ConversationReceiptModeUpdate_user_3 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = -9423}}
 testObject_ConversationReceiptModeUpdate_user_4 :: ConversationReceiptModeUpdate
-testObject_ConversationReceiptModeUpdate_user_4 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 7222}}
+testObject_ConversationReceiptModeUpdate_user_4 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 16167}}
 testObject_ConversationReceiptModeUpdate_user_5 :: ConversationReceiptModeUpdate
-testObject_ConversationReceiptModeUpdate_user_5 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = -10694}}
+testObject_ConversationReceiptModeUpdate_user_5 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = -11279}}

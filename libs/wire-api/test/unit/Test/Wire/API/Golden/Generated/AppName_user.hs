@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_AppName_user_1 :: AppName
-testObject_AppName_user_1 = AppName {appNameText = "vQ\173351\71712^2\1965\EOT.F\132412Z'/\r}*\165286\128210i\DC1?\996103\47779;"}
+testObject_AppName_user_1 = AppName {appNameText = ";i\26743Y\NUL\40771b\FS\1000892h\1062864)\EOT\1007578"}
 testObject_AppName_user_2 :: AppName
-testObject_AppName_user_2 = AppName {appNameText = "a\f\998653#\38995W\13218\77857Kid\156492p\1031011H\138806\EMFZ"}
+testObject_AppName_user_2 = AppName {appNameText = "\53472(V\NUL\f\GS\1069773\SYN\EM\1092697\120995/\FS8q\990864o\SO;\SOHB\"q,"}
 testObject_AppName_user_3 :: AppName
-testObject_AppName_user_3 = AppName {appNameText = "Al\1062107\NUL*|\n\70146\\\59639V+_{R\1004750\NUL^\1083982\23716I\128700\1004946Tmk\1076873x\998205"}
+testObject_AppName_user_3 = AppName {appNameText = "\FS\1089919&,r\166979\&6Y@"}
 testObject_AppName_user_4 :: AppName
-testObject_AppName_user_4 = AppName {appNameText = "\n\SIy\\\163400\GS\139121\189484$\177301\46804\168541{b\1018023\1051091"}
+testObject_AppName_user_4 = AppName {appNameText = "\STX\DC4i!\b\SOH{\144139\34987*\78698-]"}
 testObject_AppName_user_5 :: AppName
-testObject_AppName_user_5 = AppName {appNameText = "\b#+\1089383]\171432"}
+testObject_AppName_user_5 = AppName {appNameText = "(\\\18763\NAKg"}

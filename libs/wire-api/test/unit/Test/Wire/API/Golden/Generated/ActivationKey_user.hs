@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_ActivationKey_user_1 :: ActivationKey
-testObject_ActivationKey_user_1 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("Rp3yRbjYdrBvdf0yBNgF")))}
+testObject_ActivationKey_user_1 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("RD6PiOhD6QAciWfuBmLlCJTwO8SGs4ZEbks3Kfk=")))}
 testObject_ActivationKey_user_2 :: ActivationKey
-testObject_ActivationKey_user_2 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("mPTMr7kyHX2luqs6")))}
+testObject_ActivationKey_user_2 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("boKH-w==")))}
 testObject_ActivationKey_user_3 :: ActivationKey
-testObject_ActivationKey_user_3 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("v0vD")))}
+testObject_ActivationKey_user_3 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("JB4Kg7Q2kAQZOmlfbWE=")))}
 testObject_ActivationKey_user_4 :: ActivationKey
-testObject_ActivationKey_user_4 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("yBs_ILAMCYPwfP40Gtkn")))}
+testObject_ActivationKey_user_4 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("v2p4BV4RvWd_-7UfspOiSVYQIuyU")))}
 testObject_ActivationKey_user_5 :: ActivationKey
-testObject_ActivationKey_user_5 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("DTTM58GNwoI=")))}
+testObject_ActivationKey_user_5 = ActivationKey {fromActivationKey = (fromRight undefined (validate ("X838fP6IkIBpT9Q=")))}

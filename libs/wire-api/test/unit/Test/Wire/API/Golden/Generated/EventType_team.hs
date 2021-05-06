@@ -56,12 +56,12 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 testObject_EventType_team_1 :: EventType
-testObject_EventType_team_1 = MemberUpdate
+testObject_EventType_team_1 = TeamCreate
 testObject_EventType_team_2 :: EventType
-testObject_EventType_team_2 = ConvCreate
+testObject_EventType_team_2 = TeamDelete
 testObject_EventType_team_3 :: EventType
-testObject_EventType_team_3 = ConvDelete
+testObject_EventType_team_3 = TeamUpdate
 testObject_EventType_team_4 :: EventType
-testObject_EventType_team_4 = ConvDelete
+testObject_EventType_team_4 = MemberLeave
 testObject_EventType_team_5 :: EventType
-testObject_EventType_team_5 = MemberUpdate
+testObject_EventType_team_5 = MemberLeave

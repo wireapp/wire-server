@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_ConvTeamInfo_user_1 :: ConvTeamInfo
-testObject_ConvTeamInfo_user_1 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "00000033-0000-0020-0000-007400000056"))), cnvManaged = False}
+testObject_ConvTeamInfo_user_1 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "00000000-0000-0076-0000-006100000062"))), cnvManaged = True}
 testObject_ConvTeamInfo_user_2 :: ConvTeamInfo
-testObject_ConvTeamInfo_user_2 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "0000003a-0000-0058-0000-001f00000058"))), cnvManaged = True}
+testObject_ConvTeamInfo_user_2 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "00000060-0000-003d-0000-004500000000"))), cnvManaged = True}
 testObject_ConvTeamInfo_user_3 :: ConvTeamInfo
-testObject_ConvTeamInfo_user_3 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "00000065-0000-0058-0000-000600000075"))), cnvManaged = False}
+testObject_ConvTeamInfo_user_3 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "0000000d-0000-006c-0000-005e00000000"))), cnvManaged = False}
 testObject_ConvTeamInfo_user_4 :: ConvTeamInfo
-testObject_ConvTeamInfo_user_4 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "0000002d-0000-0027-0000-000f0000007e"))), cnvManaged = True}
+testObject_ConvTeamInfo_user_4 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "00000011-0000-0027-0000-002700000042"))), cnvManaged = False}
 testObject_ConvTeamInfo_user_5 :: ConvTeamInfo
-testObject_ConvTeamInfo_user_5 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "00000054-0000-000d-0000-004e00000020"))), cnvManaged = True}
+testObject_ConvTeamInfo_user_5 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "0000001a-0000-0030-0000-001700000036"))), cnvManaged = True}

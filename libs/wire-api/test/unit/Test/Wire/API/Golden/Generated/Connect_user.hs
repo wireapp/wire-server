@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_Connect_user_1 :: Connect
-testObject_Connect_user_1 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000006-0000-0008-0000-000500000002"))), cMessage = Nothing, cName = Just "\989324", cEmail = Just "Z\1096232\NUL%"}
+testObject_Connect_user_1 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000005-0000-0001-0000-000100000006"))), cMessage = Just "", cName = Just "*", cEmail = Nothing}
 testObject_Connect_user_2 :: Connect
-testObject_Connect_user_2 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000006-0000-0004-0000-000100000004"))), cMessage = Just "Qv\\\993567\ACK", cName = Nothing, cEmail = Nothing}
+testObject_Connect_user_2 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000008-0000-0007-0000-000500000003"))), cMessage = Just "D\SYNw", cName = Just "\185413%\1030422\US", cEmail = Nothing}
 testObject_Connect_user_3 :: Connect
-testObject_Connect_user_3 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000100000002"))), cMessage = Nothing, cName = Nothing, cEmail = Nothing}
+testObject_Connect_user_3 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000008-0000-0004-0000-000000000000"))), cMessage = Nothing, cName = Nothing, cEmail = Just ""}
 testObject_Connect_user_4 :: Connect
-testObject_Connect_user_4 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000007-0000-0006-0000-000800000000"))), cMessage = Just "1\DC2", cName = Just "4OL\1017699azv", cEmail = Just "))T"}
+testObject_Connect_user_4 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000000-0000-0003-0000-000300000007"))), cMessage = Just "\1033461\1079262RMe", cName = Just "3W0A\tf\997897", cEmail = Just "mQ"}
 testObject_Connect_user_5 :: Connect
-testObject_Connect_user_5 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000005-0000-0008-0000-000400000005"))), cMessage = Just "^", cName = Just "\1076260\1088734\1041872", cEmail = Just "!"}
+testObject_Connect_user_5 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000003-0000-0003-0000-000400000003"))), cMessage = Just "\1084335=\988053", cName = Nothing, cEmail = Just "A\1097534"}

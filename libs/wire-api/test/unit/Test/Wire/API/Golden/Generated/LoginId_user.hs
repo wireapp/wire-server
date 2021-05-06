@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_LoginId_user_1 :: LoginId
-testObject_LoginId_user_1 = LoginByPhone (Phone {fromPhone = "+2927860431994"})
+testObject_LoginId_user_1 = LoginByEmail (Email {emailLocal = "7\GSz\"IQ\989961\996189\DC2\1080499\r\rT\DC3\EOT\1044669\NAK\SOHgRTL", emailDomain = "o?fx\ESC!\186466\&1r\997835\&7,\5001,"})
 testObject_LoginId_user_2 :: LoginId
-testObject_LoginId_user_2 = LoginByEmail (Email {emailLocal = "?7\35807L2\1078776r\40526J(1H\161068\1086268Eo\1049131#3\DELr\1018936", emailDomain = "\190041\&2\182254\b\1041750q\1098235\25404)"})
+testObject_LoginId_user_2 = LoginByHandle (Handle {fromHandle = "jku"})
 testObject_LoginId_user_3 :: LoginId
-testObject_LoginId_user_3 = LoginByHandle (Handle {fromHandle = "9u"})
+testObject_LoginId_user_3 = LoginByEmail (Email {emailLocal = "l", emailDomain = "]\8004\19583\173165.`\1113939\DLE\1101424\GSF'0sP\1106477"})
 testObject_LoginId_user_4 :: LoginId
-testObject_LoginId_user_4 = LoginByEmail (Email {emailLocal = "Dp-\DEL`#\145050\41578#\DLEW\f \1112382Y9\173057\v{\SYN\EOT(", emailDomain = "\1024287\&3\US:F\RS#\CANkw\FS/a\149472\nn5J\171711\1074021Sk!\1085456\&8H2P"})
+testObject_LoginId_user_4 = LoginByHandle (Handle {fromHandle = "t2"})
 testObject_LoginId_user_5 :: LoginId
-testObject_LoginId_user_5 = LoginByEmail (Email {emailLocal = "mnfk?h\63307#\\n\FS,\1048851'scr#\v\ACK\36852\1007294BE\1050929\1073640V3", emailDomain = "\990941\&0\1017585\141400"})
+testObject_LoginId_user_5 = LoginByHandle (Handle {fromHandle = "428bl27p2kxi2a5k-u6i8mhxthh48lny87cblmzq3bk-wnaa0re6xbjx4fpzhpv_gt9mp7y5mczik8g-8f9dpl49m.6_-rviy679y8-1dm2cr7w_jm1za-edtzt0l0ll0_vmwue4u0mgem1qplng3tgc_nutd0w-bw72lvz4ip_4ge_u91of5n_or4izh0md"})

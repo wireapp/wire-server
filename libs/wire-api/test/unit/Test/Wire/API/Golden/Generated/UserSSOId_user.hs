@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_UserSSOId_user_1 :: UserSSOId
-testObject_UserSSOId_user_1 = UserScimExternalId "=\ETX\a\SI%\62888j\aa"
+testObject_UserSSOId_user_1 = UserScimExternalId "(\23862\SUB\129345l7[\DC2z\1018494e"
 testObject_UserSSOId_user_2 :: UserSSOId
-testObject_UserSSOId_user_2 = UserScimExternalId "\43955"
+testObject_UserSSOId_user_2 = UserSSOId "\EM\NUL\EMRaJ\66811\NUL\"\EOTl\63084" "7c\"\144253\1032280\26159\&6=wu\1091412\CAN"
 testObject_UserSSOId_user_3 :: UserSSOId
-testObject_UserSSOId_user_3 = UserScimExternalId ">\ETB*\182081,[ \ACK\47660g\ETBU\nm\STX\RS>\EOT\SO.uf\154122*!Y\98094x"
+testObject_UserSSOId_user_3 = UserScimExternalId "}\1067690/1f*\1066592\b#H5\173624\1058161\46157\NAK\39782z\SI"
 testObject_UserSSOId_user_4 :: UserSSOId
-testObject_UserSSOId_user_4 = UserScimExternalId "v\1028158ES\RSPr\FS\182553\&9F\RS\ACK"
+testObject_UserSSOId_user_4 = UserSSOId "+7&\34976%\1039547\1076591>n{5}\EOTvO" "/h\ESCVSFE@fL3\SOmb\1089590"
 testObject_UserSSOId_user_5 :: UserSSOId
-testObject_UserSSOId_user_5 = UserScimExternalId "\1081803\1092471\&0{\ENQK<\1038740\1062654O\48295\r\USm\SUB?9\DC4\r\25484\n\SYN\rz\US\n\989620X"
+testObject_UserSSOId_user_5 = UserSSOId "\ETBt{vp\RS;Vy" "j!?S\EMr.\FS\\t/"

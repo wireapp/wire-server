@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_Email_user_1 :: Email
-testObject_Email_user_1 = Email {emailLocal = ".\a\1051265\14145\SI", emailDomain = "f\DC1\SI\59558\184627\SOJ\1019940\1042056\DEL\165573a\31273\167617{"}
+testObject_Email_user_1 = Email {emailLocal = "\SOHOZWiq\SOH3\SYN\1050573eR7", emailDomain = "\150363b\DLE\1027590\28275\&0ek8\EOT\EOT\145662\1074478\46521\1031047):N9\1007884S\11720S\119051o3K\RSE"}
 testObject_Email_user_2 :: Email
-testObject_Email_user_2 = Email {emailLocal = "\EM\175217E\ENQ\53837R\194752XKy\DC4B}\SYN.\DC1d6e\US\71108`r-\1101203`\1046634", emailDomain = "&+b|\SYNF\1103752]\ESCe\137641P\EOT\\\ETXe\1001719<*\ETX"}
+testObject_Email_user_2 = Email {emailLocal = "\ACKKi\1054091\DELp\60832#20)j", emailDomain = "\SYN\GS\189628\1081120Q5!\6686\ESCzA"}
 testObject_Email_user_3 :: Email
-testObject_Email_user_3 = Email {emailLocal = "\r\RS\DC3\ETBg3\175987\SUB\96657\\\US\\P\39161\ETBca*Y\ESC\US;\b\54794[O\FSm", emailDomain = "\a\DC2#!\1036258D\GS\ETB"}
+testObject_Email_user_3 = Email {emailLocal = "'\1038943U\1023112f1\SUB2\179812_\25572\SO\996603O\1095128r\NULG\989922p\168456\ETB", emailDomain = "=K',{M\1101328\71310\1076422\61886by\SO6\1113062\1042345\DC1\DC4kp%"}
 testObject_Email_user_4 :: Email
-testObject_Email_user_4 = Email {emailLocal = "H\SI1,c!\n\1096117\1073209\NUL\1038364E)\1072952[", emailDomain = "G\988254uV&u=\1083476:n\39144\1030440\ETB\SI\CAN\162024[\STX\fV6"}
+testObject_Email_user_4 = Email {emailLocal = "\ENQ", emailDomain = "~QV\1068264%"}
 testObject_Email_user_5 :: Email
-testObject_Email_user_5 = Email {emailLocal = "\5450N\1034758q#\180143z", emailDomain = "\54137O\143798\1015185P\194561\NUL%\8611\1031626YkQ(\NAK"}
+testObject_Email_user_5 = Email {emailLocal = "\999636%q\1082066\FS2N\SYN\1066083g\rc{\1003212\ap", emailDomain = "\28355))\1058430\98850F"}

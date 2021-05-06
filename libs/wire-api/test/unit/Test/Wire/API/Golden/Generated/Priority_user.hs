@@ -76,7 +76,7 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_Priority_user_1 :: Priority
-testObject_Priority_user_1 = LowPriority
+testObject_Priority_user_1 = HighPriority
 testObject_Priority_user_2 :: Priority
 testObject_Priority_user_2 = HighPriority
 testObject_Priority_user_3 :: Priority

@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_ConversationMessageTimerUpdate_user_1 :: ConversationMessageTimerUpdate
-testObject_ConversationMessageTimerUpdate_user_1 = ConversationMessageTimerUpdate {cupMessageTimer = Just (Ms {ms = 4846053})}
+testObject_ConversationMessageTimerUpdate_user_1 = ConversationMessageTimerUpdate {cupMessageTimer = Nothing}
 testObject_ConversationMessageTimerUpdate_user_2 :: ConversationMessageTimerUpdate
-testObject_ConversationMessageTimerUpdate_user_2 = ConversationMessageTimerUpdate {cupMessageTimer = Nothing}
+testObject_ConversationMessageTimerUpdate_user_2 = ConversationMessageTimerUpdate {cupMessageTimer = Just (Ms {ms = 2218124227785763})}
 testObject_ConversationMessageTimerUpdate_user_3 :: ConversationMessageTimerUpdate
-testObject_ConversationMessageTimerUpdate_user_3 = ConversationMessageTimerUpdate {cupMessageTimer = Just (Ms {ms = 842485})}
+testObject_ConversationMessageTimerUpdate_user_3 = ConversationMessageTimerUpdate {cupMessageTimer = Just (Ms {ms = 1076386946603751})}
 testObject_ConversationMessageTimerUpdate_user_4 :: ConversationMessageTimerUpdate
-testObject_ConversationMessageTimerUpdate_user_4 = ConversationMessageTimerUpdate {cupMessageTimer = Just (Ms {ms = 4875258})}
+testObject_ConversationMessageTimerUpdate_user_4 = ConversationMessageTimerUpdate {cupMessageTimer = Nothing}
 testObject_ConversationMessageTimerUpdate_user_5 :: ConversationMessageTimerUpdate
-testObject_ConversationMessageTimerUpdate_user_5 = ConversationMessageTimerUpdate {cupMessageTimer = Just (Ms {ms = 5522365})}
+testObject_ConversationMessageTimerUpdate_user_5 = ConversationMessageTimerUpdate {cupMessageTimer = Just (Ms {ms = 2381420754612519})}

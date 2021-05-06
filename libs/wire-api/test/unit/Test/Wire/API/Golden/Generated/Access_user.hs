@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_Access_user_1 :: Access
-testObject_Access_user_1 = LinkAccess
+testObject_Access_user_1 = PrivateAccess
 testObject_Access_user_2 :: Access
-testObject_Access_user_2 = InviteAccess
+testObject_Access_user_2 = LinkAccess
 testObject_Access_user_3 :: Access
-testObject_Access_user_3 = InviteAccess
+testObject_Access_user_3 = LinkAccess
 testObject_Access_user_4 :: Access
-testObject_Access_user_4 = InviteAccess
+testObject_Access_user_4 = CodeAccess
 testObject_Access_user_5 :: Access
 testObject_Access_user_5 = CodeAccess

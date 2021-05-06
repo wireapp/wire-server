@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_AssetToken_user_1 :: AssetToken
-testObject_AssetToken_user_1 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("iQ9JwBAjWYTxuvObfhlyVp-itUNpwlNP")))}
+testObject_AssetToken_user_1 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("Yo7oX9vDp_GhAne6iTiY")))}
 testObject_AssetToken_user_2 :: AssetToken
-testObject_AssetToken_user_2 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("G7m3eCBpXLbt8A==")))}
+testObject_AssetToken_user_2 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("9GP3")))}
 testObject_AssetToken_user_3 :: AssetToken
-testObject_AssetToken_user_3 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("")))}
+testObject_AssetToken_user_3 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("1xqEORv_rHlm8PNVX8yHZ92VjjMiuC22GKfWzA==")))}
 testObject_AssetToken_user_4 :: AssetToken
-testObject_AssetToken_user_4 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("qWAps6hq3XQjOrRvK04_sZizFXSl")))}
+testObject_AssetToken_user_4 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("5oOxIcCm6isfngV1")))}
 testObject_AssetToken_user_5 :: AssetToken
-testObject_AssetToken_user_5 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("_QMQHw_XkQQB9fWURP0UW7MnMgsOQPZ_XQ==")))}
+testObject_AssetToken_user_5 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("XRj2qHmj")))}

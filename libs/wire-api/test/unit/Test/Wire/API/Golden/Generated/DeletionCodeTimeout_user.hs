@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_DeletionCodeTimeout_user_1 :: DeletionCodeTimeout
-testObject_DeletionCodeTimeout_user_1 = DeletionCodeTimeout {fromDeletionCodeTimeout = (Timeout (secondsToNominalDiffTime (16.000000000000)))}
+testObject_DeletionCodeTimeout_user_1 = DeletionCodeTimeout {fromDeletionCodeTimeout = (Timeout (secondsToNominalDiffTime (5.000000000000)))}
 testObject_DeletionCodeTimeout_user_2 :: DeletionCodeTimeout
-testObject_DeletionCodeTimeout_user_2 = DeletionCodeTimeout {fromDeletionCodeTimeout = (Timeout (secondsToNominalDiffTime (-12.000000000000)))}
+testObject_DeletionCodeTimeout_user_2 = DeletionCodeTimeout {fromDeletionCodeTimeout = (Timeout (secondsToNominalDiffTime (6.000000000000)))}
 testObject_DeletionCodeTimeout_user_3 :: DeletionCodeTimeout
-testObject_DeletionCodeTimeout_user_3 = DeletionCodeTimeout {fromDeletionCodeTimeout = (Timeout (secondsToNominalDiffTime (28.000000000000)))}
+testObject_DeletionCodeTimeout_user_3 = DeletionCodeTimeout {fromDeletionCodeTimeout = (Timeout (secondsToNominalDiffTime (3.000000000000)))}
 testObject_DeletionCodeTimeout_user_4 :: DeletionCodeTimeout
-testObject_DeletionCodeTimeout_user_4 = DeletionCodeTimeout {fromDeletionCodeTimeout = (Timeout (secondsToNominalDiffTime (29.000000000000)))}
+testObject_DeletionCodeTimeout_user_4 = DeletionCodeTimeout {fromDeletionCodeTimeout = (Timeout (secondsToNominalDiffTime (-4.000000000000)))}
 testObject_DeletionCodeTimeout_user_5 :: DeletionCodeTimeout
-testObject_DeletionCodeTimeout_user_5 = DeletionCodeTimeout {fromDeletionCodeTimeout = (Timeout (secondsToNominalDiffTime (1.000000000000)))}
+testObject_DeletionCodeTimeout_user_5 = DeletionCodeTimeout {fromDeletionCodeTimeout = (Timeout (secondsToNominalDiffTime (24.000000000000)))}

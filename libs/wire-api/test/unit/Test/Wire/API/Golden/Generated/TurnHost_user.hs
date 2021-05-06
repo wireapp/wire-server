@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_TurnHost_user_1 :: TurnHost
-testObject_TurnHost_user_1 = TurnHostIp (IpAddr (read "7401:6b61:36a9:6f7a:fdd:5573:7dc3:565b"))
+testObject_TurnHost_user_1 = TurnHostName "host.name"
 testObject_TurnHost_user_2 :: TurnHost
-testObject_TurnHost_user_2 = TurnHostName "123"
+testObject_TurnHost_user_2 = TurnHostIp (IpAddr (read "188.98.151.28"))
 testObject_TurnHost_user_3 :: TurnHost
-testObject_TurnHost_user_3 = TurnHostName "a-c"
+testObject_TurnHost_user_3 = TurnHostIp (IpAddr (read "38.228.92.133"))
 testObject_TurnHost_user_4 :: TurnHost
-testObject_TurnHost_user_4 = TurnHostIp (IpAddr (read "41.102.69.249"))
+testObject_TurnHost_user_4 = TurnHostName "a-c"
 testObject_TurnHost_user_5 :: TurnHost
-testObject_TurnHost_user_5 = TurnHostName "007.com"
+testObject_TurnHost_user_5 = TurnHostIp (IpAddr (read "179.12.148.43"))

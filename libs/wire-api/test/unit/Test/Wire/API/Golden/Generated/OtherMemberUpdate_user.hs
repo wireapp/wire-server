@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_OtherMemberUpdate_user_1 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_user_1 = OtherMemberUpdate {omuConvRoleName = Nothing}
+testObject_OtherMemberUpdate_user_1 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "t7z_z68n7b7thiayxbmw523xb_2wbni32utng_985b9225cqjqy_a5k7sqbfbveh3b348ucyha0u6w259igcalpeh04b"))}
 testObject_OtherMemberUpdate_user_2 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_user_2 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "djm9wthc7gkrdocllx1lopvbtxp8t_2_ffwhm_gsp65l_v1jrn_f7yn7xfddy8pywl_rubze0sn6mtvbnbgdzhoflwlkq_xt4"))}
+testObject_OtherMemberUpdate_user_2 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "rp63f6xbvh21f0grnc2f7m7bnx_vd4y4e2y7v5w5kvp4x5h2m0mgz0bfc97dnmgtggf_tbfykos27d81hdadkfspm1g27glto8hfrna3_at1bgic3fkkozh63w3"))}
 testObject_OtherMemberUpdate_user_3 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_user_3 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "b5gz3wlxinw93u07frd2aja4okhsphesm6goaza"))}
+testObject_OtherMemberUpdate_user_3 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "u22yardsm9y97mw37fby4l59izazdis8ycksz9k53vadzodk"))}
 testObject_OtherMemberUpdate_user_4 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_user_4 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "wlyxesdsydgxwabwksudh2694qhwbj_cusu7sjtk9eu87tckvlggdob1o0k2t58bfqvtq09_a15t4chhqb6i9go6mg67w5dec"))}
+testObject_OtherMemberUpdate_user_4 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "sk331kneewl_det_kry35czdqzue42_hvp"))}
 testObject_OtherMemberUpdate_user_5 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_user_5 = OtherMemberUpdate {omuConvRoleName = Nothing}
+testObject_OtherMemberUpdate_user_5 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "8ndq8ii18ve9xeodnwe52ftxgo2j6crtzsq8ypwfk5ujhasosnc3vejwze0ez1kjje1r7lmy81hnx9z"))}

@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_CookieId_user_1 :: CookieId
-testObject_CookieId_user_1 = CookieId {cookieIdNum = 187}
+testObject_CookieId_user_1 = CookieId {cookieIdNum = 26554}
 testObject_CookieId_user_2 :: CookieId
-testObject_CookieId_user_2 = CookieId {cookieIdNum = 27881}
+testObject_CookieId_user_2 = CookieId {cookieIdNum = 30044}
 testObject_CookieId_user_3 :: CookieId
-testObject_CookieId_user_3 = CookieId {cookieIdNum = 26928}
+testObject_CookieId_user_3 = CookieId {cookieIdNum = 29583}
 testObject_CookieId_user_4 :: CookieId
-testObject_CookieId_user_4 = CookieId {cookieIdNum = 25344}
+testObject_CookieId_user_4 = CookieId {cookieIdNum = 16672}
 testObject_CookieId_user_5 :: CookieId
-testObject_CookieId_user_5 = CookieId {cookieIdNum = 24593}
+testObject_CookieId_user_5 = CookieId {cookieIdNum = 8499}

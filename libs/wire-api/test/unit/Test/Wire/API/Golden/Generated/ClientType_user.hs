@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_ClientType_user_1 :: ClientType
-testObject_ClientType_user_1 = PermanentClientType
+testObject_ClientType_user_1 = TemporaryClientType
 testObject_ClientType_user_2 :: ClientType
 testObject_ClientType_user_2 = TemporaryClientType
 testObject_ClientType_user_3 :: ClientType
-testObject_ClientType_user_3 = TemporaryClientType
+testObject_ClientType_user_3 = PermanentClientType
 testObject_ClientType_user_4 :: ClientType
-testObject_ClientType_user_4 = LegalHoldClientType
+testObject_ClientType_user_4 = TemporaryClientType
 testObject_ClientType_user_5 :: ClientType
-testObject_ClientType_user_5 = LegalHoldClientType
+testObject_ClientType_user_5 = PermanentClientType

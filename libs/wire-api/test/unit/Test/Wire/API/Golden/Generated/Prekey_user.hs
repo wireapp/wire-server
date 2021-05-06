@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_Prekey_user_1 :: Prekey
-testObject_Prekey_user_1 = Prekey {prekeyId = PrekeyId {keyId = 55}, prekeyKey = "t G\FS"}
+testObject_Prekey_user_1 = Prekey {prekeyId = PrekeyId {keyId = 40}, prekeyKey = "\1029273\156652\1017866\&3\nzU"}
 testObject_Prekey_user_2 :: Prekey
-testObject_Prekey_user_2 = Prekey {prekeyId = PrekeyId {keyId = 10}, prekeyKey = "D\DEL\a|uEb\CAN#W\1106005"}
+testObject_Prekey_user_2 = Prekey {prekeyId = PrekeyId {keyId = 40}, prekeyKey = "\1009685\ta"}
 testObject_Prekey_user_3 :: Prekey
-testObject_Prekey_user_3 = Prekey {prekeyId = PrekeyId {keyId = 118}, prekeyKey = "q\64593IIt\99583Gq"}
+testObject_Prekey_user_3 = Prekey {prekeyId = PrekeyId {keyId = 13}, prekeyKey = "L"}
 testObject_Prekey_user_4 :: Prekey
-testObject_Prekey_user_4 = Prekey {prekeyId = PrekeyId {keyId = 71}, prekeyKey = "w\STX\68458Hi\68251"}
+testObject_Prekey_user_4 = Prekey {prekeyId = PrekeyId {keyId = 14}, prekeyKey = "\146367\\e\147844o\74560\16920aVO3`F~6"}
 testObject_Prekey_user_5 :: Prekey
-testObject_Prekey_user_5 = Prekey {prekeyId = PrekeyId {keyId = 75}, prekeyKey = "]"}
+testObject_Prekey_user_5 = Prekey {prekeyId = PrekeyId {keyId = 89}, prekeyKey = "Iq"}

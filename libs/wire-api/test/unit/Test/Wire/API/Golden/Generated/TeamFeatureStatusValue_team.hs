@@ -56,12 +56,12 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 testObject_TeamFeatureStatusValue_team_1 :: TeamFeatureStatusValue
-testObject_TeamFeatureStatusValue_team_1 = TeamFeatureEnabled
+testObject_TeamFeatureStatusValue_team_1 = TeamFeatureDisabled
 testObject_TeamFeatureStatusValue_team_2 :: TeamFeatureStatusValue
 testObject_TeamFeatureStatusValue_team_2 = TeamFeatureEnabled
 testObject_TeamFeatureStatusValue_team_3 :: TeamFeatureStatusValue
 testObject_TeamFeatureStatusValue_team_3 = TeamFeatureDisabled
 testObject_TeamFeatureStatusValue_team_4 :: TeamFeatureStatusValue
-testObject_TeamFeatureStatusValue_team_4 = TeamFeatureDisabled
+testObject_TeamFeatureStatusValue_team_4 = TeamFeatureEnabled
 testObject_TeamFeatureStatusValue_team_5 :: TeamFeatureStatusValue
-testObject_TeamFeatureStatusValue_team_5 = TeamFeatureDisabled
+testObject_TeamFeatureStatusValue_team_5 = TeamFeatureEnabled

@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_Offset_user_1 :: Offset
-testObject_Offset_user_1 = Offset {offsetBytes = 25}
+testObject_Offset_user_1 = Offset {offsetBytes = 23}
 testObject_Offset_user_2 :: Offset
-testObject_Offset_user_2 = Offset {offsetBytes = 5}
+testObject_Offset_user_2 = Offset {offsetBytes = 24}
 testObject_Offset_user_3 :: Offset
-testObject_Offset_user_3 = Offset {offsetBytes = 22}
+testObject_Offset_user_3 = Offset {offsetBytes = 6}
 testObject_Offset_user_4 :: Offset
-testObject_Offset_user_4 = Offset {offsetBytes = 14}
+testObject_Offset_user_4 = Offset {offsetBytes = 7}
 testObject_Offset_user_5 :: Offset
-testObject_Offset_user_5 = Offset {offsetBytes = 8}
+testObject_Offset_user_5 = Offset {offsetBytes = 29}

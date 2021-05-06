@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_NameUpdate_user_1 :: NameUpdate
-testObject_NameUpdate_user_1 = NameUpdate {nuHandle = "\83308\SUB\SO\ETBk*\SOH\1086322\t;\ACK\100400"}
+testObject_NameUpdate_user_1 = NameUpdate {nuHandle = "4)w\1073896\RS\SIJ?"}
 testObject_NameUpdate_user_2 :: NameUpdate
-testObject_NameUpdate_user_2 = NameUpdate {nuHandle = "\1098405\1062224^\1057216\1096833k. \DELX\111052\140525N\1053255\1059616\1031881\EM\NAK\tZl^q\67585$\ETB"}
+testObject_NameUpdate_user_2 = NameUpdate {nuHandle = "1\1013464\1085437a.&\ETX\188023KSOl\1010223q\5157h\NUL\USu>"}
 testObject_NameUpdate_user_3 :: NameUpdate
-testObject_NameUpdate_user_3 = NameUpdate {nuHandle = "}0"}
+testObject_NameUpdate_user_3 = NameUpdate {nuHandle = "\175177D&neK*"}
 testObject_NameUpdate_user_4 :: NameUpdate
-testObject_NameUpdate_user_4 = NameUpdate {nuHandle = "p\150130`\a\42531\ACK\40676p0V-E\54966\1099608\996682F,u\DLE|\28355\DC4"}
+testObject_NameUpdate_user_4 = NameUpdate {nuHandle = "{mT\75027YScs\46969\t_W\50391mP\128205K\DC1;r\164600j/`,4\ESC\1037163\39876X"}
 testObject_NameUpdate_user_5 :: NameUpdate
-testObject_NameUpdate_user_5 = NameUpdate {nuHandle = "U\US)hM\FS$p!\143786\1010493\170840<\SYN\34899\24720\34142k]t8\47354\ENQ6\177703S8\GSL\b"}
+testObject_NameUpdate_user_5 = NameUpdate {nuHandle = "Q$\1055432e\DC2\41149@"}

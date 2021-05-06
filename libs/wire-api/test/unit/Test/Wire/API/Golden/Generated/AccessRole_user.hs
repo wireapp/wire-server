@@ -80,8 +80,8 @@ testObject_AccessRole_user_1 = ActivatedAccessRole
 testObject_AccessRole_user_2 :: AccessRole
 testObject_AccessRole_user_2 = PrivateAccessRole
 testObject_AccessRole_user_3 :: AccessRole
-testObject_AccessRole_user_3 = PrivateAccessRole
+testObject_AccessRole_user_3 = ActivatedAccessRole
 testObject_AccessRole_user_4 :: AccessRole
 testObject_AccessRole_user_4 = PrivateAccessRole
 testObject_AccessRole_user_5 :: AccessRole
-testObject_AccessRole_user_5 = TeamAccessRole
+testObject_AccessRole_user_5 = ActivatedAccessRole

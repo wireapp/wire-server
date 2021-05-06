@@ -56,12 +56,12 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 testObject_TeamConversation_team_1 :: TeamConversation
-testObject_TeamConversation_team_1 = (newTeamConversation ((Id (fromJust (UUID.fromString "0000002b-0000-003f-0000-00150000004e")))) (False))
+testObject_TeamConversation_team_1 = (newTeamConversation ((Id (fromJust (UUID.fromString "0000003c-0000-0006-0000-006c0000004f")))) (False))
 testObject_TeamConversation_team_2 :: TeamConversation
-testObject_TeamConversation_team_2 = (newTeamConversation ((Id (fromJust (UUID.fromString "0000003e-0000-0011-0000-001400000004")))) (True))
+testObject_TeamConversation_team_2 = (newTeamConversation ((Id (fromJust (UUID.fromString "0000004d-0000-0032-0000-002400000024")))) (True))
 testObject_TeamConversation_team_3 :: TeamConversation
-testObject_TeamConversation_team_3 = (newTeamConversation ((Id (fromJust (UUID.fromString "00000043-0000-0042-0000-00620000007e")))) (False))
+testObject_TeamConversation_team_3 = (newTeamConversation ((Id (fromJust (UUID.fromString "0000006b-0000-0019-0000-005700000020")))) (True))
 testObject_TeamConversation_team_4 :: TeamConversation
-testObject_TeamConversation_team_4 = (newTeamConversation ((Id (fromJust (UUID.fromString "0000001e-0000-0039-0000-003e0000000e")))) (False))
+testObject_TeamConversation_team_4 = (newTeamConversation ((Id (fromJust (UUID.fromString "00000015-0000-0022-0000-002b0000006c")))) (False))
 testObject_TeamConversation_team_5 :: TeamConversation
-testObject_TeamConversation_team_5 = (newTeamConversation ((Id (fromJust (UUID.fromString "00000024-0000-0068-0000-005900000043")))) (False))
+testObject_TeamConversation_team_5 = (newTeamConversation ((Id (fromJust (UUID.fromString "0000006c-0000-001b-0000-001400000006")))) (True))

@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_PubClient_user_1 :: PubClient
-testObject_PubClient_user_1 = PubClient {pubClientId = ClientId {client = "cf9"}, pubClientClass = Just LegalHoldClient}
+testObject_PubClient_user_1 = PubClient {pubClientId = ClientId {client = "418"}, pubClientClass = Just LegalHoldClient}
 testObject_PubClient_user_2 :: PubClient
-testObject_PubClient_user_2 = PubClient {pubClientId = ClientId {client = "bce"}, pubClientClass = Just DesktopClient}
+testObject_PubClient_user_2 = PubClient {pubClientId = ClientId {client = "17"}, pubClientClass = Nothing}
 testObject_PubClient_user_3 :: PubClient
-testObject_PubClient_user_3 = PubClient {pubClientId = ClientId {client = "9f5"}, pubClientClass = Just DesktopClient}
+testObject_PubClient_user_3 = PubClient {pubClientId = ClientId {client = "f94"}, pubClientClass = Just PhoneClient}
 testObject_PubClient_user_4 :: PubClient
-testObject_PubClient_user_4 = PubClient {pubClientId = ClientId {client = "79f"}, pubClientClass = Nothing}
+testObject_PubClient_user_4 = PubClient {pubClientId = ClientId {client = "f8a"}, pubClientClass = Just DesktopClient}
 testObject_PubClient_user_5 :: PubClient
-testObject_PubClient_user_5 = PubClient {pubClientId = ClientId {client = "cc6"}, pubClientClass = Just LegalHoldClient}
+testObject_PubClient_user_5 = PubClient {pubClientId = ClientId {client = "c4d"}, pubClientClass = Just TabletClient}

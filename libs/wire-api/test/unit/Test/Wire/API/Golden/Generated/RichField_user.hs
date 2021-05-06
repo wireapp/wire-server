@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_RichField_user_1 :: RichField
-testObject_RichField_user_1 = RichField {richFieldType = "^*E\f\RS\1049010P\SOH\1044879\&8\127114\178864e\DLE\24200rR", richFieldValue = "\1051334\ETBR\DC3#Z\1021434PT\1100838Oy\a,S\996436\26462[\EOTY\ENQ^}"}
+testObject_RichField_user_1 = RichField {richFieldType = "'\1013338", richFieldValue = "#n\DC1qFn7-9+"}
 testObject_RichField_user_2 :: RichField
-testObject_RichField_user_2 = RichField {richFieldType = "", richFieldValue = "\167810H8PW+&WV\EMkM\v\1090531X;"}
+testObject_RichField_user_2 = RichField {richFieldType = "\1086190`9yAp8\149927", richFieldValue = "\184582\68398[xu[4}\NAKNoS^a#\aS"}
 testObject_RichField_user_3 :: RichField
-testObject_RichField_user_3 = RichField {richFieldType = "\1050051\FS\53800H\136156\DLE\DEL\b3\1032032*\ACK\ESC\983296Yo\145529wt\1110443\1049172", richFieldValue = "\SOHf\15074\DC1xQ\DC2\\hG"}
+testObject_RichField_user_3 = RichField {richFieldType = "e@\1020863\STX\26822\&1\DC3}C", richFieldValue = "\"b$-=v6\1025171\&7\1106371\SOH\146665\DELB\GS!!cm\US\DC2V"}
 testObject_RichField_user_4 :: RichField
-testObject_RichField_user_4 = RichField {richFieldType = "[OZ=\a\148290<*~\ENQv\23596?\n\NAK\190826!\991514\174086\1077087\1050680", richFieldValue = "q3\FS\999197\GS\GS\1070037*\50034/"}
+testObject_RichField_user_4 = RichField {richFieldType = "zD", richFieldValue = "-\143914>0\v[\165064\GS\STX\DC2\1044102i(Y5"}
 testObject_RichField_user_5 :: RichField
-testObject_RichField_user_5 = RichField {richFieldType = "FUeM\ESC\SIT \STXd\17669\EOTNb}TB\DC3a\SI\1059339$#Q\66712\SOHd\147909", richFieldValue = "\"\160301AK\r\1029533\SO[\USm\SO4\1046313\n\DC1cc~\a\SO\SUB)\FS\1030114"}
+testObject_RichField_user_5 = RichField {richFieldType = "q9u\DEL\179759\t\\KxW\27916\139651rNW\66326UW\ETB", richFieldValue = "!3\f\b\78770s\987919\ESC\"F8Z"}

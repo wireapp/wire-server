@@ -58,10 +58,10 @@ import Wire.API.User.Profile
 testObject_TeamBinding_team_1 :: TeamBinding
 testObject_TeamBinding_team_1 = NonBinding
 testObject_TeamBinding_team_2 :: TeamBinding
-testObject_TeamBinding_team_2 = NonBinding
+testObject_TeamBinding_team_2 = Binding
 testObject_TeamBinding_team_3 :: TeamBinding
 testObject_TeamBinding_team_3 = NonBinding
 testObject_TeamBinding_team_4 :: TeamBinding
 testObject_TeamBinding_team_4 = NonBinding
 testObject_TeamBinding_team_5 :: TeamBinding
-testObject_TeamBinding_team_5 = NonBinding
+testObject_TeamBinding_team_5 = Binding

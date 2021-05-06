@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_TurnUsername_user_1 :: TurnUsername
-testObject_TurnUsername_user_1 = (turnUsername (secondsToNominalDiffTime (5197419.000000000000)) ("5z7pp01oldgtjek6r84x780") & tuVersion .~ (29) & tuKeyindex .~ (14320) & tuT .~ ('\1014738'))
+testObject_TurnUsername_user_1 = (turnUsername (secondsToNominalDiffTime (4758014.000000000000)) ("n61ysadt5d0o") & tuVersion .~ (12) & tuKeyindex .~ (20171) & tuT .~ ('%'))
 testObject_TurnUsername_user_2 :: TurnUsername
-testObject_TurnUsername_user_2 = (turnUsername (secondsToNominalDiffTime (9156985.000000000000)) ("walwh9hbh4hnwiu") & tuVersion .~ (21) & tuKeyindex .~ (23195) & tuT .~ ('('))
+testObject_TurnUsername_user_2 = (turnUsername (secondsToNominalDiffTime (1672329.000000000000)) ("c3kfhtml1gdbwieespky0jr1e1") & tuVersion .~ (28) & tuKeyindex .~ (23634) & tuT .~ ('\186486'))
 testObject_TurnUsername_user_3 :: TurnUsername
-testObject_TurnUsername_user_3 = (turnUsername (secondsToNominalDiffTime (3270150.000000000000)) ("2t67afi3nrsroo2v24db7dw") & tuVersion .~ (14) & tuKeyindex .~ (31035) & tuT .~ ('u'))
+testObject_TurnUsername_user_3 = (turnUsername (secondsToNominalDiffTime (7234157.000000000000)) ("09og5khk68c1jlg1fp9") & tuVersion .~ (6) & tuKeyindex .~ (13466) & tuT .~ ('6'))
 testObject_TurnUsername_user_4 :: TurnUsername
-testObject_TurnUsername_user_4 = (turnUsername (secondsToNominalDiffTime (14806618.000000000000)) ("ry92ukk9zqdkkcqayt") & tuVersion .~ (28) & tuKeyindex .~ (4100) & tuT .~ ('\f'))
+testObject_TurnUsername_user_4 = (turnUsername (secondsToNominalDiffTime (5471484.000000000000)) ("22bbtmc784n1v8157jrkkw7f") & tuVersion .~ (9) & tuKeyindex .~ (7430) & tuT .~ ('\184488'))
 testObject_TurnUsername_user_5 :: TurnUsername
-testObject_TurnUsername_user_5 = (turnUsername (secondsToNominalDiffTime (13419934.000000000000)) ("e44s") & tuVersion .~ (24) & tuKeyindex .~ (24856) & tuT .~ ('\NUL'))
+testObject_TurnUsername_user_5 = (turnUsername (secondsToNominalDiffTime (5251177.000000000000)) ("8puq3xwkuos2qyp53owoc9") & tuVersion .~ (0) & tuKeyindex .~ (356) & tuT .~ ('\SI'))

@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_UserIdentity_user_1 :: UserIdentity
-testObject_UserIdentity_user_1 = SSOIdentity (UserSSOId "}" "") (Just (Email {emailLocal = "6\171702c\DC1", emailDomain = "U"})) (Just (Phone {fromPhone = "+996814029441285"}))
+testObject_UserIdentity_user_1 = EmailIdentity (Email {emailLocal = "I>\183814\184442\&6I\40366hW", emailDomain = "O\GS\58618T\ETBRq>\128595\169886g\DC3\STX\SUB\ESC\67273\51965\1097437{\1030386"})
 testObject_UserIdentity_user_2 :: UserIdentity
-testObject_UserIdentity_user_2 = FullIdentity (Email {emailLocal = "\ENQz[", emailDomain = "\46653\63824"}) (Phone {fromPhone = "+199296310229"})
+testObject_UserIdentity_user_2 = PhoneIdentity (Phone {fromPhone = "+601504270"})
 testObject_UserIdentity_user_3 :: UserIdentity
-testObject_UserIdentity_user_3 = SSOIdentity (UserScimExternalId "\178574.O<J") (Just (Email {emailLocal = ".n)Z", emailDomain = "Uv>\67288\1043072\"g\r\DC1"})) (Just (Phone {fromPhone = "+5745357926"}))
+testObject_UserIdentity_user_3 = EmailIdentity (Email {emailLocal = "}|\STX", emailDomain = "\147876sq\FS\SI\SYNDP\FShl\SI\173403\1011424\&6~\118911"})
 testObject_UserIdentity_user_4 :: UserIdentity
-testObject_UserIdentity_user_4 = FullIdentity (Email {emailLocal = "?(\7284\992072\177256\166385\&0\SI\ENQR\CAN\1100986g", emailDomain = "c\DC42\1060489\&11\1028409NR"}) (Phone {fromPhone = "+124557652"})
+testObject_UserIdentity_user_4 = EmailIdentity (Email {emailLocal = "#\ESC\146859\t(\154780BB}i/\SUB[-Y-]n\12938\988296[[\STX/\t\bh\25328\23343", emailDomain = "\SUBST\ETB\1059689LV\a0<\1030097"})
 testObject_UserIdentity_user_5 :: UserIdentity
-testObject_UserIdentity_user_5 = EmailIdentity (Email {emailLocal = "T\RS=)\155553c\EM\133056_-m&", emailDomain = "g\142446I\191301\SOH\DC13\1067448o\38792b\1062241\&7"})
+testObject_UserIdentity_user_5 = PhoneIdentity (Phone {fromPhone = "+4228130242"})

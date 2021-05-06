@@ -56,12 +56,12 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 testObject_UserLegalHoldStatusResponse_team_1 :: UserLegalHoldStatusResponse
-testObject_UserLegalHoldStatusResponse_team_1 = UserLegalHoldStatusResponse {ulhsrStatus = UserLegalHoldDisabled, ulhsrLastPrekey = Just (lastPrekey ("Y")), ulhsrClientId = Just (ClientId {client = "d4"})}
+testObject_UserLegalHoldStatusResponse_team_1 = UserLegalHoldStatusResponse {ulhsrStatus = UserLegalHoldDisabled, ulhsrLastPrekey = Just (lastPrekey ("\a;\EM{")), ulhsrClientId = Nothing}
 testObject_UserLegalHoldStatusResponse_team_2 :: UserLegalHoldStatusResponse
-testObject_UserLegalHoldStatusResponse_team_2 = UserLegalHoldStatusResponse {ulhsrStatus = UserLegalHoldDisabled, ulhsrLastPrekey = Just (lastPrekey ("Zz\f\aSN\"[(")), ulhsrClientId = Just (ClientId {client = "80"})}
+testObject_UserLegalHoldStatusResponse_team_2 = UserLegalHoldStatusResponse {ulhsrStatus = UserLegalHoldDisabled, ulhsrLastPrekey = Just (lastPrekey ("`\bu\1013995P$\DC20")), ulhsrClientId = Just (ClientId {client = "f"})}
 testObject_UserLegalHoldStatusResponse_team_3 :: UserLegalHoldStatusResponse
-testObject_UserLegalHoldStatusResponse_team_3 = UserLegalHoldStatusResponse {ulhsrStatus = UserLegalHoldDisabled, ulhsrLastPrekey = Just (lastPrekey ("\45563\r\35472\NULLo")), ulhsrClientId = Just (ClientId {client = "6b"})}
+testObject_UserLegalHoldStatusResponse_team_3 = UserLegalHoldStatusResponse {ulhsrStatus = UserLegalHoldPending, ulhsrLastPrekey = Just (lastPrekey ("j}d\DC3")), ulhsrClientId = Just (ClientId {client = "91"})}
 testObject_UserLegalHoldStatusResponse_team_4 :: UserLegalHoldStatusResponse
-testObject_UserLegalHoldStatusResponse_team_4 = UserLegalHoldStatusResponse {ulhsrStatus = UserLegalHoldEnabled, ulhsrLastPrekey = Just (lastPrekey ("\151991H\18440")), ulhsrClientId = Just (ClientId {client = "ff"})}
+testObject_UserLegalHoldStatusResponse_team_4 = UserLegalHoldStatusResponse {ulhsrStatus = UserLegalHoldPending, ulhsrLastPrekey = Nothing, ulhsrClientId = Nothing}
 testObject_UserLegalHoldStatusResponse_team_5 :: UserLegalHoldStatusResponse
-testObject_UserLegalHoldStatusResponse_team_5 = UserLegalHoldStatusResponse {ulhsrStatus = UserLegalHoldPending, ulhsrLastPrekey = Nothing, ulhsrClientId = Nothing}
+testObject_UserLegalHoldStatusResponse_team_5 = UserLegalHoldStatusResponse {ulhsrStatus = UserLegalHoldPending, ulhsrLastPrekey = Just (lastPrekey ("}),Tb`")), ulhsrClientId = Nothing}

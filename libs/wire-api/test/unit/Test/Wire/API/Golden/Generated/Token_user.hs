@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_Token_user_1 :: Token
-testObject_Token_user_1 = Token {tokenText = "\17891\ENQa\1021297( \FS\SOH\1089430C+\DEL\99149\1019578K'{:\1026169\"\SUB\143125TA4"}
+testObject_Token_user_1 = Token {tokenText = "+4\ENQb=.)$}X\SOHB."}
 testObject_Token_user_2 :: Token
-testObject_Token_user_2 = Token {tokenText = ":\1025530.En\SI\CAN\1068084s\SOH\ETXz\SO\DC3o\ENQ%"}
+testObject_Token_user_2 = Token {tokenText = "<hTl$a\1091970\133894"}
 testObject_Token_user_3 :: Token
-testObject_Token_user_3 = Token {tokenText = "\96960\5617@0\SIY\an.\1055934\&9\66725z\ETX\989930n\SOHU\n\ETBM\1001473NQP\4236\994298\1057555"}
+testObject_Token_user_3 = Token {tokenText = "Z0"}
 testObject_Token_user_4 :: Token
-testObject_Token_user_4 = Token {tokenText = "\EOTS-\1010575o\DC4T\ESCz\SOHc^\\gZg\1002714\1061167&LNX\GSe\ETB:\ENQ9"}
+testObject_Token_user_4 = Token {tokenText = "r\38209m"}
 testObject_Token_user_5 :: Token
-testObject_Token_user_5 = Token {tokenText = "o\1068368B4']"}
+testObject_Token_user_5 = Token {tokenText = "\1105261\&0g\ETX\139108zD\45590\DC3\\\SI\158662g0\1062411\98942\&0r@\f3QXtA"}

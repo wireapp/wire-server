@@ -1,6 +1,6 @@
-From 7c77f98453e91d17b7a78ba13a6bbb9437e3790a Mon Sep 17 00:00:00 2001
+From 5384be525e79b5714d52d9fc5bb81676db73beba Mon Sep 17 00:00:00 2001
 From: Paolo Capriotti <paolo@capriotti.io>
-Date: Wed, 5 May 2021 16:43:06 +0200
+Date: Thu, 6 May 2021 09:35:09 +0200
 Subject: [PATCH] Golden test generation patch (DO NOT MERGE)
 
 ---
@@ -10,7 +10,7 @@ Subject: [PATCH] Golden test generation patch (DO NOT MERGE)
  libs/types-common/src/Data/Misc.hs            | 14 +++++-----
  libs/types-common/src/Data/Range.hs           |  5 +++-
  libs/types-common/src/Data/Text/Ascii.hs      |  5 +++-
- libs/wire-api/src/Wire/API/Asset/V3.hs        | 10 +++++--
+ libs/wire-api/src/Wire/API/Asset/V3.hs        | 11 ++++++--
  .../src/Wire/API/Asset/V3/Resumable.hs        | 10 +++++--
  libs/wire-api/src/Wire/API/Call/Config.hs     | 26 +++++++++++++++----
  .../src/Wire/API/Conversation/Role.hs         | 17 +++++++++---
@@ -30,7 +30,7 @@ Subject: [PATCH] Golden test generation patch (DO NOT MERGE)
  libs/wire-api/src/Wire/API/User/Identity.hs   |  6 ++---
  libs/wire-api/src/Wire/API/User/Profile.hs    | 14 ++++++----
  libs/wire-api/test/unit/Main.hs               | 20 +++-----------
- 26 files changed, 158 insertions(+), 68 deletions(-)
+ 26 files changed, 159 insertions(+), 68 deletions(-)
 
 diff --git a/libs/types-common/src/Data/Code.hs b/libs/types-common/src/Data/Code.hs
 index 34c206657..80aec8751 100644
@@ -91,7 +91,7 @@ index 3cefeaa6a..7ffc902aa 100644
  
  singleton :: a -> List1 a
 diff --git a/libs/types-common/src/Data/Misc.hs b/libs/types-common/src/Data/Misc.hs
-index 4d5cd5173..8b4cbb29a 100644
+index 86ad254bc..c57fe7b8f 100644
 --- a/libs/types-common/src/Data/Misc.hs
 +++ b/libs/types-common/src/Data/Misc.hs
 @@ -86,7 +86,10 @@ import qualified URI.ByteString.QQ as URI.QQ
@@ -120,7 +120,7 @@ index 4d5cd5173..8b4cbb29a 100644
  
  instance NFData Location
  
-@@ -329,7 +327,7 @@ newtype PlainTextPassword = PlainTextPassword
+@@ -334,7 +332,7 @@ newtype PlainTextPassword = PlainTextPassword
    deriving newtype (ToJSON)
  
  instance Show PlainTextPassword where
@@ -164,17 +164,23 @@ index f759d9d4b..82785f579 100644
    deriving stock (Eq, Ord, Show)
  
 diff --git a/libs/wire-api/src/Wire/API/Asset/V3.hs b/libs/wire-api/src/Wire/API/Asset/V3.hs
-index 7f05d4cb8..80503e739 100644
+index 0bf46cd45..09f1c7180 100644
 --- a/libs/wire-api/src/Wire/API/Asset/V3.hs
 +++ b/libs/wire-api/src/Wire/API/Asset/V3.hs
-@@ -82,12 +82,15 @@ data Asset = Asset
+@@ -82,7 +82,7 @@ data Asset = Asset
      _assetExpires :: Maybe UTCTime,
      _assetToken :: Maybe AssetToken
    }
 -  deriving stock (Eq, Show, Generic)
 +  deriving stock (Eq, Generic)
-   deriving (Arbitrary) via (GenericUniform Asset)
  
+ -- Generate expiry time with millisecond precision
+ instance Arbitrary Asset where
+@@ -90,9 +90,13 @@ instance Arbitrary Asset where
+     where
+       milli = fromUTCTimeMillis . toUTCTimeMillis
+ 
++
  mkAsset :: AssetKey -> Asset
  mkAsset k = Asset k Nothing Nothing
  
@@ -184,7 +190,7 @@ index 7f05d4cb8..80503e739 100644
  instance ToJSON Asset where
    toJSON a =
      object $
-@@ -231,12 +234,15 @@ data AssetSettings = AssetSettings
+@@ -236,12 +240,15 @@ data AssetSettings = AssetSettings
    { _setAssetPublic :: Bool,
      _setAssetRetention :: Maybe AssetRetention
    }
@@ -202,7 +208,7 @@ index 7f05d4cb8..80503e739 100644
    toJSON s =
      object $
 diff --git a/libs/wire-api/src/Wire/API/Asset/V3/Resumable.hs b/libs/wire-api/src/Wire/API/Asset/V3/Resumable.hs
-index 15778704c..b3b8e65a9 100644
+index 62decead9..e0219a2cb 100644
 --- a/libs/wire-api/src/Wire/API/Asset/V3/Resumable.hs
 +++ b/libs/wire-api/src/Wire/API/Asset/V3/Resumable.hs
 @@ -61,7 +61,7 @@ data ResumableSettings = ResumableSettings
@@ -230,10 +236,10 @@ index 15778704c..b3b8e65a9 100644
    }
 -  deriving stock (Eq, Show, Generic)
 +  deriving stock (Eq, Generic)
-   deriving (Arbitrary) via (GenericUniform ResumableAsset)
  
- makeLenses ''ResumableAsset
-@@ -122,6 +125,9 @@ makeLenses ''ResumableAsset
+ instance Arbitrary ResumableAsset where
+   arbitrary = ResumableAsset <$> arbitrary <*> (milli <$> arbitrary) <*> arbitrary
+@@ -126,6 +129,9 @@ makeLenses ''ResumableAsset
  mkResumableAsset :: Asset -> UTCTime -> ChunkSize -> ResumableAsset
  mkResumableAsset = ResumableAsset
  
@@ -370,7 +376,7 @@ index 68597c928..89ef384b0 100644
  allActions = Actions $ Set.fromList [minBound .. maxBound]
  
 diff --git a/libs/wire-api/src/Wire/API/Event/Conversation.hs b/libs/wire-api/src/Wire/API/Event/Conversation.hs
-index e3c7086bb..19674af7c 100644
+index c611330fd..d13eda2b1 100644
 --- a/libs/wire-api/src/Wire/API/Event/Conversation.hs
 +++ b/libs/wire-api/src/Wire/API/Event/Conversation.hs
 @@ -90,7 +90,10 @@ data Event = Event
@@ -402,16 +408,21 @@ index a51b1fd2c..a3b96c406 100644
  newEvent :: EventType -> TeamId -> UTCTime -> Event
  newEvent typ tid tme = Event typ tid tme Nothing
 diff --git a/libs/wire-api/src/Wire/API/Message.hs b/libs/wire-api/src/Wire/API/Message.hs
-index 1e7cdd9b8..873ae8299 100644
+index 37ddc06f6..76a439f5f 100644
 --- a/libs/wire-api/src/Wire/API/Message.hs
 +++ b/libs/wire-api/src/Wire/API/Message.hs
-@@ -198,9 +198,12 @@ data ClientMismatch = ClientMismatch
+@@ -198,7 +198,7 @@ data ClientMismatch = ClientMismatch
      redundantClients :: UserClients,
      deletedClients :: UserClients
    }
 -  deriving stock (Eq, Show, Generic)
 +  deriving stock (Eq, Generic)
-   deriving (Arbitrary) via (GenericUniform ClientMismatch)
+ 
+ instance Arbitrary ClientMismatch where
+   arbitrary =
+@@ -207,6 +207,9 @@ instance Arbitrary ClientMismatch where
+     where
+       milli = fromUTCTimeMillis . toUTCTimeMillis
  
 +instance Show ClientMismatch where
 +  show (ClientMismatch tm mis red del) = "(ClientMismatch (read " <> show (show tm) <> ") (" <> show mis <> ") (" <> show red <> ") (" <> show del <> "))"
@@ -491,10 +502,10 @@ index ad2a8d9de..8c96fecb6 100644
  pushToken tp an tk cl = PushToken tp an tk cl
  
 diff --git a/libs/wire-api/src/Wire/API/Team.hs b/libs/wire-api/src/Wire/API/Team.hs
-index 0e8aa37e3..92edd6af0 100644
+index daa33b474..f8f0654c2 100644
 --- a/libs/wire-api/src/Wire/API/Team.hs
 +++ b/libs/wire-api/src/Wire/API/Team.hs
-@@ -94,9 +94,12 @@ data Team = Team
+@@ -95,9 +95,12 @@ data Team = Team
      _teamIconKey :: Maybe Text,
      _teamBinding :: TeamBinding
    }

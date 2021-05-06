@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_ChunkSize_user_1 :: ChunkSize
-testObject_ChunkSize_user_1 = ChunkSize {chunkSizeBytes = 25}
+testObject_ChunkSize_user_1 = ChunkSize {chunkSizeBytes = 18}
 testObject_ChunkSize_user_2 :: ChunkSize
-testObject_ChunkSize_user_2 = ChunkSize {chunkSizeBytes = 26}
+testObject_ChunkSize_user_2 = ChunkSize {chunkSizeBytes = 20}
 testObject_ChunkSize_user_3 :: ChunkSize
-testObject_ChunkSize_user_3 = ChunkSize {chunkSizeBytes = 29}
+testObject_ChunkSize_user_3 = ChunkSize {chunkSizeBytes = 6}
 testObject_ChunkSize_user_4 :: ChunkSize
-testObject_ChunkSize_user_4 = ChunkSize {chunkSizeBytes = 7}
+testObject_ChunkSize_user_4 = ChunkSize {chunkSizeBytes = 28}
 testObject_ChunkSize_user_5 :: ChunkSize
 testObject_ChunkSize_user_5 = ChunkSize {chunkSizeBytes = 2}

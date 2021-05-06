@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_ResumableSettings_user_1 :: ResumableSettings
-testObject_ResumableSettings_user_1 = (mkResumableSettings (AssetEternal) (True) (Type {mimeType = MIME.Image "png", mimeParams = []}))
+testObject_ResumableSettings_user_1 = (mkResumableSettings (AssetEternalInfrequentAccess) (True) (Type {mimeType = MIME.Image "png", mimeParams = []}))
 testObject_ResumableSettings_user_2 :: ResumableSettings
-testObject_ResumableSettings_user_2 = (mkResumableSettings (AssetEternal) (True) (Type {mimeType = MIME.Image "png", mimeParams = []}))
+testObject_ResumableSettings_user_2 = (mkResumableSettings (AssetEternalInfrequentAccess) (True) (Type {mimeType = MIME.Image "png", mimeParams = []}))
 testObject_ResumableSettings_user_3 :: ResumableSettings
-testObject_ResumableSettings_user_3 = (mkResumableSettings (AssetEternal) (False) (Type {mimeType = MIME.Image "png", mimeParams = []}))
+testObject_ResumableSettings_user_3 = (mkResumableSettings (AssetEternalInfrequentAccess) (False) (Type {mimeType = MIME.Image "png", mimeParams = []}))
 testObject_ResumableSettings_user_4 :: ResumableSettings
 testObject_ResumableSettings_user_4 = (mkResumableSettings (AssetVolatile) (False) (Type {mimeType = MIME.Image "png", mimeParams = []}))
 testObject_ResumableSettings_user_5 :: ResumableSettings
-testObject_ResumableSettings_user_5 = (mkResumableSettings (AssetPersistent) (False) (Type {mimeType = MIME.Image "png", mimeParams = []}))
+testObject_ResumableSettings_user_5 = (mkResumableSettings (AssetPersistent) (True) (Type {mimeType = MIME.Image "png", mimeParams = []}))

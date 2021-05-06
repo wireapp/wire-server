@@ -56,12 +56,12 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 testObject_Role_team_1 :: Role
-testObject_Role_team_1 = RoleOwner
+testObject_Role_team_1 = RoleMember
 testObject_Role_team_2 :: Role
 testObject_Role_team_2 = RoleMember
 testObject_Role_team_3 :: Role
-testObject_Role_team_3 = RoleOwner
+testObject_Role_team_3 = RoleAdmin
 testObject_Role_team_4 :: Role
-testObject_Role_team_4 = RoleOwner
+testObject_Role_team_4 = RoleExternalPartner
 testObject_Role_team_5 :: Role
 testObject_Role_team_5 = RoleExternalPartner

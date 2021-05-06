@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_LocaleUpdate_user_1 :: LocaleUpdate
-testObject_LocaleUpdate_user_1 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.EU, lCountry = Just (Country {fromCountry = VG})}}
+testObject_LocaleUpdate_user_1 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.JV, lCountry = Just (Country {fromCountry = LV})}}
 testObject_LocaleUpdate_user_2 :: LocaleUpdate
-testObject_LocaleUpdate_user_2 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.FF, lCountry = Just (Country {fromCountry = NF})}}
+testObject_LocaleUpdate_user_2 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.IE, lCountry = Nothing}}
 testObject_LocaleUpdate_user_3 :: LocaleUpdate
-testObject_LocaleUpdate_user_3 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.TW, lCountry = Nothing}}
+testObject_LocaleUpdate_user_3 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.CU, lCountry = Nothing}}
 testObject_LocaleUpdate_user_4 :: LocaleUpdate
-testObject_LocaleUpdate_user_4 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.MT, lCountry = Just (Country {fromCountry = VN})}}
+testObject_LocaleUpdate_user_4 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.KV, lCountry = Just (Country {fromCountry = CL})}}
 testObject_LocaleUpdate_user_5 :: LocaleUpdate
-testObject_LocaleUpdate_user_5 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.NO, lCountry = Just (Country {fromCountry = IL})}}
+testObject_LocaleUpdate_user_5 = LocaleUpdate {luLocale = Locale {lLanguage = Language Data.LanguageCodes.TI, lCountry = Nothing}}

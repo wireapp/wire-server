@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_ConnectionUpdate_user_1 :: ConnectionUpdate
-testObject_ConnectionUpdate_user_1 = ConnectionUpdate {cuStatus = Sent}
+testObject_ConnectionUpdate_user_1 = ConnectionUpdate {cuStatus = Blocked}
 testObject_ConnectionUpdate_user_2 :: ConnectionUpdate
-testObject_ConnectionUpdate_user_2 = ConnectionUpdate {cuStatus = Blocked}
+testObject_ConnectionUpdate_user_2 = ConnectionUpdate {cuStatus = Ignored}
 testObject_ConnectionUpdate_user_3 :: ConnectionUpdate
-testObject_ConnectionUpdate_user_3 = ConnectionUpdate {cuStatus = Accepted}
+testObject_ConnectionUpdate_user_3 = ConnectionUpdate {cuStatus = Cancelled}
 testObject_ConnectionUpdate_user_4 :: ConnectionUpdate
-testObject_ConnectionUpdate_user_4 = ConnectionUpdate {cuStatus = Blocked}
+testObject_ConnectionUpdate_user_4 = ConnectionUpdate {cuStatus = Cancelled}
 testObject_ConnectionUpdate_user_5 :: ConnectionUpdate
-testObject_ConnectionUpdate_user_5 = ConnectionUpdate {cuStatus = Blocked}
+testObject_ConnectionUpdate_user_5 = ConnectionUpdate {cuStatus = Sent}

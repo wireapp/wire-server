@@ -49,12 +49,12 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 testObject_PasswordReset_provider_1 :: PasswordReset
-testObject_PasswordReset_provider_1 = PasswordReset {nprEmail = Email {emailLocal = "#", emailDomain = "z<s{\14474\183044h(\SI\NAK)\189025p5\v\r\168158\28489\35468\&0K$N\"\SUB"}}
+testObject_PasswordReset_provider_1 = PasswordReset {nprEmail = Email {emailLocal = ",\26218\DC2q\am\993028\1112056o\49322\25253'\1005607=A\992863rq(\STXJ|Z\5620\ENQy\1090347y", emailDomain = ""}}
 testObject_PasswordReset_provider_2 :: PasswordReset
-testObject_PasswordReset_provider_2 = PasswordReset {nprEmail = Email {emailLocal = "1s\SOH{=\aI\SYN.3\1074050z\n\1010432\1084181\US\15384t\135516", emailDomain = "\28454\92968\68428\ACK\993404\ESC\166907yV\19230\&8(-\158212\46234&+)k"}}
+testObject_PasswordReset_provider_2 = PasswordReset {nprEmail = Email {emailLocal = "\CAN\\>r\USP\SUB\ESC\156751\1089884)\1081856\3981", emailDomain = "|L\163126\15555\DC1[bR%\1055599\DC1\17421q"}}
 testObject_PasswordReset_provider_3 :: PasswordReset
-testObject_PasswordReset_provider_3 = PasswordReset {nprEmail = Email {emailLocal = "UI\1053283\1007493|\991281\157076\59944\SYNMN=\1005132Vk\t\SIf\1047612E\DC1\1063063MN#7,S", emailDomain = "Up9G\1076064\1100523RlovB\1068307\n\1055637\11667\FS\78187\\8"}}
+testObject_PasswordReset_provider_3 = PasswordReset {nprEmail = Email {emailLocal = "\1070854\&4\\\v.\1059269!%17`mZ\CAN_A\25513\128308E\179292{\1030918\a$3w\DC4", emailDomain = "^"}}
 testObject_PasswordReset_provider_4 :: PasswordReset
-testObject_PasswordReset_provider_4 = PasswordReset {nprEmail = Email {emailLocal = "AEZA|\EOT", emailDomain = "\1057893\66899r\RSB\ETB\986471Nf`\NAKE\164984GVH~\1056801S4"}}
+testObject_PasswordReset_provider_4 = PasswordReset {nprEmail = Email {emailLocal = "+\SOFchuD\140524\&4[", emailDomain = "\992214_\SI+\1061277W^\DC4\1053609g`z6P\1088973TsBn1\993151\34409\ACK"}}
 testObject_PasswordReset_provider_5 :: PasswordReset
-testObject_PasswordReset_provider_5 = PasswordReset {nprEmail = Email {emailLocal = "\2386[j^\1077179\b\98237e<Y\nXk", emailDomain = "\"0\1047618br}\38108\n"}}
+testObject_PasswordReset_provider_5 = PasswordReset {nprEmail = Email {emailLocal = "\990001\&8xs?\178039\US\GSP\USf\96551\DC4[\DC1", emailDomain = "e9/\DC2Uj\EOTw\45496u"}}

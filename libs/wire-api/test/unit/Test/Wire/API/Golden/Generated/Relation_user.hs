@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_Relation_user_1 :: Relation
-testObject_Relation_user_1 = Ignored
+testObject_Relation_user_1 = Accepted
 testObject_Relation_user_2 :: Relation
-testObject_Relation_user_2 = Cancelled
+testObject_Relation_user_2 = Ignored
 testObject_Relation_user_3 :: Relation
-testObject_Relation_user_3 = Accepted
+testObject_Relation_user_3 = Cancelled
 testObject_Relation_user_4 :: Relation
-testObject_Relation_user_4 = Blocked
+testObject_Relation_user_4 = Ignored
 testObject_Relation_user_5 :: Relation
-testObject_Relation_user_5 = Accepted
+testObject_Relation_user_5 = Sent

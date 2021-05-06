@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_HandleUpdate_user_1 :: HandleUpdate
-testObject_HandleUpdate_user_1 = HandleUpdate {huHandle = "NM"}
+testObject_HandleUpdate_user_1 = HandleUpdate {huHandle = "\n{\DC4Jj\1063067\165142\151148\t!\100111Y\1050907j^\ETXYB"}
 testObject_HandleUpdate_user_2 :: HandleUpdate
-testObject_HandleUpdate_user_2 = HandleUpdate {huHandle = "t\DC3gc]\a-Mg}z\1113551\189987\ESCH\1051171V\1055970B\RS"}
+testObject_HandleUpdate_user_2 = HandleUpdate {huHandle = "B\ACK\1108249\"\33937"}
 testObject_HandleUpdate_user_3 :: HandleUpdate
-testObject_HandleUpdate_user_3 = HandleUpdate {huHandle = "\1007371=\7915E\147791\169239\NAK=\992340\v"}
+testObject_HandleUpdate_user_3 = HandleUpdate {huHandle = "\EOT\94464&S%.\15766z\RS!\1007052(fq\n}\33395gk\US\RSq:"}
 testObject_HandleUpdate_user_4 :: HandleUpdate
-testObject_HandleUpdate_user_4 = HandleUpdate {huHandle = "soDZ\94502$\1033298^(\1017144\&2\1031465\1076908\DC1"}
+testObject_HandleUpdate_user_4 = HandleUpdate {huHandle = "\152676w@\DLE!5yc\30191\&6GK"}
 testObject_HandleUpdate_user_5 :: HandleUpdate
-testObject_HandleUpdate_user_5 = HandleUpdate {huHandle = "&"}
+testObject_HandleUpdate_user_5 = HandleUpdate {huHandle = "e]1\1104975:7\1087988\b~\SYN\1052791\1070239<\984964\DC1\rZ]\6314\1029414^A"}

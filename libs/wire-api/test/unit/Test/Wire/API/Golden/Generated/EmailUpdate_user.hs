@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_EmailUpdate_user_1 :: EmailUpdate
-testObject_EmailUpdate_user_1 = EmailUpdate {euEmail = Email {emailLocal = "", emailDomain = "vA\FSC\1035499o\n\52529\DC3)"}}
+testObject_EmailUpdate_user_1 = EmailUpdate {euEmail = Email {emailLocal = "0\988778;\60786mM\148788\1002063\&0+\SUB", emailDomain = "VR^J*\SOH\EOT\SUBwb;-=\1022111\EM"}}
 testObject_EmailUpdate_user_2 :: EmailUpdate
-testObject_EmailUpdate_user_2 = EmailUpdate {euEmail = Email {emailLocal = "p", emailDomain = "\24899Y,N.\1715\1078088\1069013*\1057712&"}}
+testObject_EmailUpdate_user_2 = EmailUpdate {euEmail = Email {emailLocal = "Xw\n!n\1083497\757\40103\&9\n\137960?S\131129\1105258", emailDomain = "+P_\SOHaik\51355\SOQ\1034293"}}
 testObject_EmailUpdate_user_3 :: EmailUpdate
-testObject_EmailUpdate_user_3 = EmailUpdate {euEmail = Email {emailLocal = "X\STX\989955\1111005l:Fx-\1035374\DLE\984008\992111d\ETB0", emailDomain = "\158402\172983Vp\SUBC"}}
+testObject_EmailUpdate_user_3 = EmailUpdate {euEmail = Email {emailLocal = "$\4486\66648<p<O\187751i\1099417\FSy\DC4\150961>\1000050y\987916&\ACKd\1088507\&8ZbD", emailDomain = "\1103057f\96288\1015533\1072972V\1031620\&6|\DC4>"}}
 testObject_EmailUpdate_user_4 :: EmailUpdate
-testObject_EmailUpdate_user_4 = EmailUpdate {euEmail = Email {emailLocal = "\STX>qT\DC1\EOTN\ENQ\46873\1022930\1059033\138449ee\f4U\1068161\26883\1078891h\149877\EM-\1027894", emailDomain = "*\1011888k}z4\175260\\\FS,\ACKr"}}
+testObject_EmailUpdate_user_4 = EmailUpdate {euEmail = Email {emailLocal = "{D\153875Ik\999870\1090475\DC2", emailDomain = "\SO"}}
 testObject_EmailUpdate_user_5 :: EmailUpdate
-testObject_EmailUpdate_user_5 = EmailUpdate {euEmail = Email {emailLocal = "\f\992664ui\1014233=\STX\DC3H\168982D", emailDomain = "\3209X=\987584yBL*c\148630-D\v\399\r\SI\rw\1084063)\1047182Q\135035=/"}}
+testObject_EmailUpdate_user_5 = EmailUpdate {euEmail = Email {emailLocal = "h=\152118\29935\993874\DC4\SOHr\78018T\f\FS^\41326-W\r8\ETB", emailDomain = "\147756<\SYN\168845\SOH0$4q\111047E',\ETXb=5\1061721\DLE\4007yH\997741\58083\1062531>"}}

@@ -1,1 +1,1 @@
-{"access":["private","invite","link"],"access_role":"non_activated","users":["00000003-0000-0004-0000-000300000001"],"conversation_role":"ujs67psi7lnylfkgdzci3h4uz6sad674w602xxlbqj1v59d97u4l3zaagg7o5uc24thz1t51xnq23tft8jqxt1","team":{"managed":true,"teamid":"00000002-0000-0001-0000-000000000000"},"receipt_mode":2}
+{"access":["invite","link","code"],"access_role":"team","users":[],"conversation_role":"36kzj5th4fh","team":{"managed":true,"teamid":"00000002-0000-0000-0000-000100000002"},"message_timer":685549364195491}

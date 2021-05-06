@@ -49,12 +49,12 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 testObject_ServiceTagList_provider_1 :: ServiceTagList
-testObject_ServiceTagList_provider_1 = ServiceTagList [BusinessTag]
+testObject_ServiceTagList_provider_1 = ServiceTagList [MusicTag,PollTag]
 testObject_ServiceTagList_provider_2 :: ServiceTagList
-testObject_ServiceTagList_provider_2 = ServiceTagList [GraphicsTag,BooksTag,EducationTag,BooksTag,RatingTag,MedicalTag,PhotographyTag,IntegrationTag,FitnessTag,TravelTag,FitnessTag,GraphicsTag,TravelTag,RatingTag,QuizTag,EntertainmentTag,PhotographyTag,PhotographyTag,HealthTag,MusicTag]
+testObject_ServiceTagList_provider_2 = ServiceTagList [VideoTag,GamesTag,NewsTag,HealthTag,EducationTag,MedicalTag,WeatherTag,LifestyleTag]
 testObject_ServiceTagList_provider_3 :: ServiceTagList
-testObject_ServiceTagList_provider_3 = ServiceTagList [BusinessTag,FinanceTag,ProductivityTag,GraphicsTag,SportsTag,DesignTag,PollTag,ProductivityTag,RatingTag,ProductivityTag,MedicalTag,GraphicsTag,IntegrationTag,FinanceTag,GraphicsTag,MediaTag,IntegrationTag,EducationTag,WeatherTag,LifestyleTag,EducationTag,BusinessTag,RatingTag]
+testObject_ServiceTagList_provider_3 = ServiceTagList [DesignTag,TutorialTag,MedicalTag,RatingTag,SportsTag,IntegrationTag,PollTag,RatingTag,QuizTag,DesignTag,DesignTag,EducationTag,EducationTag,QuizTag,AudioTag,BusinessTag,NewsTag,NewsTag,RatingTag,HealthTag,MediaTag,MoviesTag,SportsTag,EntertainmentTag,RatingTag]
 testObject_ServiceTagList_provider_4 :: ServiceTagList
-testObject_ServiceTagList_provider_4 = ServiceTagList [ShoppingTag,LifestyleTag,MedicalTag,BusinessTag,EducationTag,FitnessTag,AudioTag,IntegrationTag,TutorialTag,RatingTag,NewsTag,PhotographyTag,SportsTag,PollTag,BooksTag,MedicalTag,AudioTag,AudioTag,AudioTag,NewsTag,FinanceTag,NewsTag,GraphicsTag,LifestyleTag,QuizTag,GamesTag,SportsTag,BusinessTag,MoviesTag,MedicalTag]
+testObject_ServiceTagList_provider_4 = ServiceTagList [TutorialTag,MedicalTag,ShoppingTag,GraphicsTag]
 testObject_ServiceTagList_provider_5 :: ServiceTagList
-testObject_ServiceTagList_provider_5 = ServiceTagList [RatingTag,TravelTag,PollTag,MusicTag,WeatherTag,RatingTag,IntegrationTag,AudioTag,FinanceTag,HealthTag,SportsTag,GraphicsTag,BooksTag,MedicalTag,AudioTag,ProductivityTag,HealthTag,IntegrationTag]
+testObject_ServiceTagList_provider_5 = ServiceTagList [MediaTag,QuizTag,TravelTag,PollTag,QuizTag,EntertainmentTag,ShoppingTag,HealthTag,TutorialTag,RatingTag,QuizTag,GamesTag,SocialTag,VideoTag,RatingTag,MoviesTag]

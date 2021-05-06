@@ -56,12 +56,12 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 testObject_TeamFeatureStatusNoConfig_team_1 :: TeamFeatureStatusNoConfig
-testObject_TeamFeatureStatusNoConfig_team_1 = TeamFeatureStatusNoConfig {tfwoStatus = TeamFeatureDisabled}
+testObject_TeamFeatureStatusNoConfig_team_1 = TeamFeatureStatusNoConfig {tfwoStatus = TeamFeatureEnabled}
 testObject_TeamFeatureStatusNoConfig_team_2 :: TeamFeatureStatusNoConfig
 testObject_TeamFeatureStatusNoConfig_team_2 = TeamFeatureStatusNoConfig {tfwoStatus = TeamFeatureEnabled}
 testObject_TeamFeatureStatusNoConfig_team_3 :: TeamFeatureStatusNoConfig
-testObject_TeamFeatureStatusNoConfig_team_3 = TeamFeatureStatusNoConfig {tfwoStatus = TeamFeatureDisabled}
+testObject_TeamFeatureStatusNoConfig_team_3 = TeamFeatureStatusNoConfig {tfwoStatus = TeamFeatureEnabled}
 testObject_TeamFeatureStatusNoConfig_team_4 :: TeamFeatureStatusNoConfig
-testObject_TeamFeatureStatusNoConfig_team_4 = TeamFeatureStatusNoConfig {tfwoStatus = TeamFeatureDisabled}
+testObject_TeamFeatureStatusNoConfig_team_4 = TeamFeatureStatusNoConfig {tfwoStatus = TeamFeatureEnabled}
 testObject_TeamFeatureStatusNoConfig_team_5 :: TeamFeatureStatusNoConfig
-testObject_TeamFeatureStatusNoConfig_team_5 = TeamFeatureStatusNoConfig {tfwoStatus = TeamFeatureDisabled}
+testObject_TeamFeatureStatusNoConfig_team_5 = TeamFeatureStatusNoConfig {tfwoStatus = TeamFeatureEnabled}

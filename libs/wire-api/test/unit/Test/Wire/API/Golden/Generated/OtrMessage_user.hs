@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_OtrMessage_user_1 :: OtrMessage
-testObject_OtrMessage_user_1 = OtrMessage {otrSender = ClientId {client = "d"}, otrRecipient = ClientId {client = "1b"}, otrCiphertext = "\NAK", otrData = Just "\ETBf\49659\nOI"}
+testObject_OtrMessage_user_1 = OtrMessage {otrSender = ClientId {client = "7"}, otrRecipient = ClientId {client = "e"}, otrCiphertext = "", otrData = Just "m\"_rV\1077694"}
 testObject_OtrMessage_user_2 :: OtrMessage
-testObject_OtrMessage_user_2 = OtrMessage {otrSender = ClientId {client = "20"}, otrRecipient = ClientId {client = "1d"}, otrCiphertext = "}\DC2v9", otrData = Just ""}
+testObject_OtrMessage_user_2 = OtrMessage {otrSender = ClientId {client = "19"}, otrRecipient = ClientId {client = "c"}, otrCiphertext = "\SO~", otrData = Just "]}\b"}
 testObject_OtrMessage_user_3 :: OtrMessage
-testObject_OtrMessage_user_3 = OtrMessage {otrSender = ClientId {client = "10"}, otrRecipient = ClientId {client = "f"}, otrCiphertext = "X\171767o\DC3", otrData = Nothing}
+testObject_OtrMessage_user_3 = OtrMessage {otrSender = ClientId {client = "1c"}, otrRecipient = ClientId {client = "6"}, otrCiphertext = "\a", otrData = Just "\27452\146583T*2\FSq"}
 testObject_OtrMessage_user_4 :: OtrMessage
-testObject_OtrMessage_user_4 = OtrMessage {otrSender = ClientId {client = "7"}, otrRecipient = ClientId {client = "18"}, otrCiphertext = "\STX\rr\1094295\FS", otrData = Just "\1103148\&7\tc\1016836E\148570"}
+testObject_OtrMessage_user_4 = OtrMessage {otrSender = ClientId {client = "16"}, otrRecipient = ClientId {client = "10"}, otrCiphertext = "#\vb\1084965s2y", otrData = Just "0El1\1081974"}
 testObject_OtrMessage_user_5 :: OtrMessage
-testObject_OtrMessage_user_5 = OtrMessage {otrSender = ClientId {client = "1c"}, otrRecipient = ClientId {client = "b"}, otrCiphertext = "", otrData = Nothing}
+testObject_OtrMessage_user_5 = OtrMessage {otrSender = ClientId {client = "f"}, otrRecipient = ClientId {client = "10"}, otrCiphertext = "/\172731", otrData = Just "\ENQu"}

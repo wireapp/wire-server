@@ -78,10 +78,10 @@ import Wire.API.Wrapped
 testObject_ConversationRole_user_1 :: ConversationRole
 testObject_ConversationRole_user_1 = (fromJust (toConvRole (fromJust (parseRoleName "wire_member")) Nothing))
 testObject_ConversationRole_user_2 :: ConversationRole
-testObject_ConversationRole_user_2 = (fromJust (toConvRole (fromJust (parseRoleName "wire_admin")) Nothing))
+testObject_ConversationRole_user_2 = (fromJust (toConvRole (fromJust (parseRoleName "vw6ntvl001huymrh7sedj747xd14ocj4_bq0m_utqlriz2cp9zazas631p0_wvn747laj9guarov4x5f37os3cum")) (Just ((Actions (Set.fromList []))))))
 testObject_ConversationRole_user_3 :: ConversationRole
-testObject_ConversationRole_user_3 = (fromJust (toConvRole (fromJust (parseRoleName "2g82sz_qxez6n8b8e795u_6cmriq0mgn")) (Just ((Actions (Set.fromList [ModifyConversationMessageTimer,ModifyConversationReceiptMode,ModifyConversationAccess,DeleteConversation]))))))
+testObject_ConversationRole_user_3 = (fromJust (toConvRole (fromJust (parseRoleName "oix_1apb5lrxbe6i2qcc2qjh")) (Just ((Actions (Set.fromList [AddConversationMember,RemoveConversationMember,ModifyConversationName,ModifyConversationAccess,ModifyOtherConversationMember]))))))
 testObject_ConversationRole_user_4 :: ConversationRole
-testObject_ConversationRole_user_4 = (fromJust (toConvRole (fromJust (parseRoleName "wire_admin")) Nothing))
+testObject_ConversationRole_user_4 = (fromJust (toConvRole (fromJust (parseRoleName "oz0zgg7")) (Just ((Actions (Set.fromList [AddConversationMember,ModifyConversationReceiptMode,LeaveConversation]))))))
 testObject_ConversationRole_user_5 :: ConversationRole
-testObject_ConversationRole_user_5 = (fromJust (toConvRole (fromJust (parseRoleName "wire_member")) Nothing))
+testObject_ConversationRole_user_5 = (fromJust (toConvRole (fromJust (parseRoleName "wire_admin")) Nothing))

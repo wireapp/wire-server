@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_AssetKey_user_1 :: AssetKey
-testObject_AssetKey_user_1 = AssetKeyV3 (Id (fromJust (UUID.fromString "0000005b-0000-004c-0000-000700000005"))) AssetEternalInfrequentAccess
+testObject_AssetKey_user_1 = AssetKeyV3 (Id (fromJust (UUID.fromString "0000001b-0000-0040-0000-001300000040"))) AssetPersistent
 testObject_AssetKey_user_2 :: AssetKey
-testObject_AssetKey_user_2 = AssetKeyV3 (Id (fromJust (UUID.fromString "00000070-0000-0037-0000-000700000055"))) AssetExpiring
+testObject_AssetKey_user_2 = AssetKeyV3 (Id (fromJust (UUID.fromString "00000051-0000-005c-0000-00670000006e"))) AssetPersistent
 testObject_AssetKey_user_3 :: AssetKey
-testObject_AssetKey_user_3 = AssetKeyV3 (Id (fromJust (UUID.fromString "00000025-0000-0026-0000-00010000002f"))) AssetEternal
+testObject_AssetKey_user_3 = AssetKeyV3 (Id (fromJust (UUID.fromString "00000005-0000-003b-0000-005000000057"))) AssetEternalInfrequentAccess
 testObject_AssetKey_user_4 :: AssetKey
-testObject_AssetKey_user_4 = AssetKeyV3 (Id (fromJust (UUID.fromString "00000015-0000-0043-0000-004e00000004"))) AssetPersistent
+testObject_AssetKey_user_4 = AssetKeyV3 (Id (fromJust (UUID.fromString "0000004d-0000-004a-0000-002100000021"))) AssetExpiring
 testObject_AssetKey_user_5 :: AssetKey
-testObject_AssetKey_user_5 = AssetKeyV3 (Id (fromJust (UUID.fromString "00000037-0000-001e-0000-005e00000010"))) AssetExpiring
+testObject_AssetKey_user_5 = AssetKeyV3 (Id (fromJust (UUID.fromString "00000002-0000-002e-0000-003800000012"))) AssetVolatile

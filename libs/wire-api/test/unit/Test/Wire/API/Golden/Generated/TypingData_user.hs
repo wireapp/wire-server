@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_TypingData_user_1 :: TypingData
-testObject_TypingData_user_1 = TypingData {tdStatus = StoppedTyping}
+testObject_TypingData_user_1 = TypingData {tdStatus = StartedTyping}
 testObject_TypingData_user_2 :: TypingData
-testObject_TypingData_user_2 = TypingData {tdStatus = StartedTyping}
+testObject_TypingData_user_2 = TypingData {tdStatus = StoppedTyping}
 testObject_TypingData_user_3 :: TypingData
 testObject_TypingData_user_3 = TypingData {tdStatus = StoppedTyping}
 testObject_TypingData_user_4 :: TypingData
-testObject_TypingData_user_4 = TypingData {tdStatus = StoppedTyping}
+testObject_TypingData_user_4 = TypingData {tdStatus = StartedTyping}
 testObject_TypingData_user_5 :: TypingData
-testObject_TypingData_user_5 = TypingData {tdStatus = StoppedTyping}
+testObject_TypingData_user_5 = TypingData {tdStatus = StartedTyping}

@@ -1,1 +1,1 @@
-{"retention":"volatile","public":false}
+{"retention":"eternal-infrequent_access","public":true}

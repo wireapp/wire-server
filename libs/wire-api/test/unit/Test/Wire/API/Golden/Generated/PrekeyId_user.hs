@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_PrekeyId_user_1 :: PrekeyId
-testObject_PrekeyId_user_1 = PrekeyId {keyId = 20534}
+testObject_PrekeyId_user_1 = PrekeyId {keyId = 15559}
 testObject_PrekeyId_user_2 :: PrekeyId
-testObject_PrekeyId_user_2 = PrekeyId {keyId = 2084}
+testObject_PrekeyId_user_2 = PrekeyId {keyId = 1181}
 testObject_PrekeyId_user_3 :: PrekeyId
-testObject_PrekeyId_user_3 = PrekeyId {keyId = 30453}
+testObject_PrekeyId_user_3 = PrekeyId {keyId = 30870}
 testObject_PrekeyId_user_4 :: PrekeyId
-testObject_PrekeyId_user_4 = PrekeyId {keyId = 17484}
+testObject_PrekeyId_user_4 = PrekeyId {keyId = 32092}
 testObject_PrekeyId_user_5 :: PrekeyId
-testObject_PrekeyId_user_5 = PrekeyId {keyId = 9654}
+testObject_PrekeyId_user_5 = PrekeyId {keyId = 19046}

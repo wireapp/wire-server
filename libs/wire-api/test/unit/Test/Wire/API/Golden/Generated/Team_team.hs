@@ -56,12 +56,12 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 testObject_Team_team_1 :: Team
-testObject_Team_team_1 = (newTeam ((Id (fromJust (UUID.fromString "00000002-0000-0003-0000-000100000002")))) ((Id (fromJust (UUID.fromString "00000004-0000-0001-0000-000400000004")))) ("") ("mx") (Binding) & teamIconKey .~ (Nothing))
+testObject_Team_team_1 = (newTeam ((Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000300000001")))) ((Id (fromJust (UUID.fromString "00000002-0000-0002-0000-000000000000")))) ("\r") ("\156335") (Binding) & teamIconKey .~ (Just "d"))
 testObject_Team_team_2 :: Team
-testObject_Team_team_2 = (newTeam ((Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000400000000")))) ((Id (fromJust (UUID.fromString "00000000-0000-0003-0000-000300000004")))) ("J-q") (",L\1068211") (NonBinding) & teamIconKey .~ (Just "\121041"))
+testObject_Team_team_2 = (newTeam ((Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000004")))) ((Id (fromJust (UUID.fromString "00000004-0000-0002-0000-000100000004")))) ("Q") ("~\1020551\NULy") (NonBinding) & teamIconKey .~ (Just "Z\62328\&1"))
 testObject_Team_team_3 :: Team
-testObject_Team_team_3 = (newTeam ((Id (fromJust (UUID.fromString "00000004-0000-0004-0000-000300000002")))) ((Id (fromJust (UUID.fromString "00000002-0000-0003-0000-000200000004")))) ("") ("mL\1091134\DC4\STX") (Binding) & teamIconKey .~ (Nothing))
+testObject_Team_team_3 = (newTeam ((Id (fromJust (UUID.fromString "00000004-0000-0002-0000-000100000004")))) ((Id (fromJust (UUID.fromString "00000004-0000-0000-0000-000200000000")))) ("H\1111658;*") ("") (Binding) & teamIconKey .~ (Just "#"))
 testObject_Team_team_4 :: Team
-testObject_Team_team_4 = (newTeam ((Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000300000002")))) ((Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000200000001")))) ("\NUL") (")\EOT") (Binding) & teamIconKey .~ (Just "M\1073817"))
+testObject_Team_team_4 = (newTeam ((Id (fromJust (UUID.fromString "00000004-0000-0000-0000-000400000004")))) ((Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000000000003")))) (".Q*") ("") (Binding) & teamIconKey .~ (Just "}"))
 testObject_Team_team_5 :: Team
-testObject_Team_team_5 = (newTeam ((Id (fromJust (UUID.fromString "00000002-0000-0004-0000-000100000004")))) ((Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000002")))) ("") ("~\US.") (NonBinding) & teamIconKey .~ (Just "\DC1q\42828."))
+testObject_Team_team_5 = (newTeam ((Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000100000000")))) ((Id (fromJust (UUID.fromString "00000002-0000-0001-0000-000300000001")))) ("S\US") ("5\aS") (Binding) & teamIconKey .~ (Just ""))

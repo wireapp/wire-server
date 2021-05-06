@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_ClientClass_user_1 :: ClientClass
-testObject_ClientClass_user_1 = PhoneClient
+testObject_ClientClass_user_1 = DesktopClient
 testObject_ClientClass_user_2 :: ClientClass
 testObject_ClientClass_user_2 = DesktopClient
 testObject_ClientClass_user_3 :: ClientClass
-testObject_ClientClass_user_3 = LegalHoldClient
+testObject_ClientClass_user_3 = DesktopClient
 testObject_ClientClass_user_4 :: ClientClass
 testObject_ClientClass_user_4 = LegalHoldClient
 testObject_ClientClass_user_5 :: ClientClass
-testObject_ClientClass_user_5 = DesktopClient
+testObject_ClientClass_user_5 = TabletClient

@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_PropertyValue_user_1 :: PropertyValue
-testObject_PropertyValue_user_1 = PropertyValue {propertyValueJson = Number (2000.0)}
+testObject_PropertyValue_user_1 = PropertyValue {propertyValueJson = Object (fromList [("\ETB",Number (-100.0)),("#A",Null),("\DLEC\131800",String ",6"),("8\CAN",Bool True),("",String "\989188\"\t"),("\132478",Null),("\\W",Bool True),("\SO",String ""),("\DC2'",Bool True),("\1002008",String "@\1080168q")])}
 testObject_PropertyValue_user_2 :: PropertyValue
-testObject_PropertyValue_user_2 = PropertyValue {propertyValueJson = Array [Null,String "N",Number (2.0e-3),Number (1.0e-3),Bool True,String "",Number (-300.0),String "4\986331\16330",Number (1000.0),Bool True]}
+testObject_PropertyValue_user_2 = PropertyValue {propertyValueJson = String ""}
 testObject_PropertyValue_user_3 :: PropertyValue
-testObject_PropertyValue_user_3 = PropertyValue {propertyValueJson = Array [String "",Null,Number (2.0),Null,Number (0.0),Number (-1.0e-4),Bool True]}
+testObject_PropertyValue_user_3 = PropertyValue {propertyValueJson = Object (fromList [("\ACKxK\ETX%9o!\1010899tDb\138640dJ\NULr&\\*n\1069908&\996701\tKkC\ACK",Bool False)])}
 testObject_PropertyValue_user_4 :: PropertyValue
-testObject_PropertyValue_user_4 = PropertyValue {propertyValueJson = Object (fromList [("Q\1093861",Null),("e^ou",Bool True),("\STXr0ah",String ""),("g@",String "\SO\b\1000734"),("\135388\ve",Bool True),("\149403Of",Bool True)])}
+testObject_PropertyValue_user_4 = PropertyValue {propertyValueJson = Null}
 testObject_PropertyValue_user_5 :: PropertyValue
-testObject_PropertyValue_user_5 = PropertyValue {propertyValueJson = Array [Number (-9.0e13),Number (-3.0e-11)]}
+testObject_PropertyValue_user_5 = PropertyValue {propertyValueJson = Number (-1.0e28)}

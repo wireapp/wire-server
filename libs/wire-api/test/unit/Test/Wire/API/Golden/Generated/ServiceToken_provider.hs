@@ -49,12 +49,12 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 testObject_ServiceToken_provider_1 :: ServiceToken
-testObject_ServiceToken_provider_1 = ServiceToken (fromRight undefined (validate ("mWM=")))
+testObject_ServiceToken_provider_1 = ServiceToken (fromRight undefined (validate ("t9AMA8P0fSVVcABqhOJjzi09NnSCLA==")))
 testObject_ServiceToken_provider_2 :: ServiceToken
-testObject_ServiceToken_provider_2 = ServiceToken (fromRight undefined (validate ("dic=")))
+testObject_ServiceToken_provider_2 = ServiceToken (fromRight undefined (validate ("ZuPDpg==")))
 testObject_ServiceToken_provider_3 :: ServiceToken
-testObject_ServiceToken_provider_3 = ServiceToken (fromRight undefined (validate ("QA==")))
+testObject_ServiceToken_provider_3 = ServiceToken (fromRight undefined (validate ("Ax9aAykm5QDAJd8KRotKaDEGxYbr")))
 testObject_ServiceToken_provider_4 :: ServiceToken
-testObject_ServiceToken_provider_4 = ServiceToken (fromRight undefined (validate ("EggXa30=")))
+testObject_ServiceToken_provider_4 = ServiceToken (fromRight undefined (validate ("FulrQ0vAgF2TZrCL")))
 testObject_ServiceToken_provider_5 :: ServiceToken
-testObject_ServiceToken_provider_5 = ServiceToken (fromRight undefined (validate ("GHZD365CW8HgJLnxFfyopcxb")))
+testObject_ServiceToken_provider_5 = ServiceToken (fromRight undefined (validate ("FYwvfajxGmHDCHGM")))

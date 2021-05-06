@@ -56,12 +56,12 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 testObject_ListType_team_1 :: ListType
-testObject_ListType_team_1 = ListComplete
+testObject_ListType_team_1 = ListTruncated
 testObject_ListType_team_2 :: ListType
-testObject_ListType_team_2 = ListComplete
+testObject_ListType_team_2 = ListTruncated
 testObject_ListType_team_3 :: ListType
-testObject_ListType_team_3 = ListTruncated
+testObject_ListType_team_3 = ListComplete
 testObject_ListType_team_4 :: ListType
 testObject_ListType_team_4 = ListComplete
 testObject_ListType_team_5 :: ListType
-testObject_ListType_team_5 = ListTruncated
+testObject_ListType_team_5 = ListComplete

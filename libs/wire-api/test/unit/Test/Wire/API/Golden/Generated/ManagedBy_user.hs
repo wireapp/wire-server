@@ -78,10 +78,10 @@ import Wire.API.Wrapped
 testObject_ManagedBy_user_1 :: ManagedBy
 testObject_ManagedBy_user_1 = ManagedByScim
 testObject_ManagedBy_user_2 :: ManagedBy
-testObject_ManagedBy_user_2 = ManagedByWire
+testObject_ManagedBy_user_2 = ManagedByScim
 testObject_ManagedBy_user_3 :: ManagedBy
-testObject_ManagedBy_user_3 = ManagedByWire
+testObject_ManagedBy_user_3 = ManagedByScim
 testObject_ManagedBy_user_4 :: ManagedBy
-testObject_ManagedBy_user_4 = ManagedByScim
+testObject_ManagedBy_user_4 = ManagedByWire
 testObject_ManagedBy_user_5 :: ManagedBy
-testObject_ManagedBy_user_5 = ManagedByScim
+testObject_ManagedBy_user_5 = ManagedByWire

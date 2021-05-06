@@ -40,12 +40,12 @@ import Data.Aeson
 import GHC.Exts
 import Wire.API.Asset
 testObject_Asset_asset_1 :: Asset
-testObject_Asset_asset_1 = (mkAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "00000004-0000-0004-0000-000200000003"))) AssetEternal) & assetExpires .~ (fmap read (Just "1864-05-17 10:17:39.487551152524 UTC")) & assetToken .~ Just (AssetToken {assetTokenAscii = (fromRight undefined (validate ("")))}))
+testObject_Asset_asset_1 = (mkAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "00000016-0000-007b-0000-00600000000c"))) AssetEternal) & assetExpires .~ (fmap read (Just "1864-05-11 07:04:49.646 UTC")) & assetToken .~ Just (AssetToken {assetTokenAscii = (fromRight undefined (validate ("vYJYIGksNw==")))}))
 testObject_Asset_asset_2 :: Asset
-testObject_Asset_asset_2 = (mkAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "00000004-0000-0004-0000-000200000004"))) AssetPersistent) & assetExpires .~ (fmap read (Just "1864-05-05 15:22:12.114964834916 UTC")) & assetToken .~ Just (AssetToken {assetTokenAscii = (fromRight undefined (validate ("yQ==")))}))
+testObject_Asset_asset_2 = (mkAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "00000043-0000-0013-0000-004700000057"))) AssetEternalInfrequentAccess) & assetExpires .~ (fmap read (Just "1864-06-03 09:39:16.659 UTC")) & assetToken .~ Just (AssetToken {assetTokenAscii = (fromRight undefined (validate ("huk7ApZvilrs")))}))
 testObject_Asset_asset_3 :: Asset
-testObject_Asset_asset_3 = (mkAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "00000004-0000-0004-0000-000000000004"))) AssetEternalInfrequentAccess) & assetExpires .~ (fmap read (Just "1864-05-09 02:46:19.208218528732 UTC")) & assetToken .~ Just (AssetToken {assetTokenAscii = (fromRight undefined (validate ("KQ==")))}))
+testObject_Asset_asset_3 = (mkAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "00000036-0000-001e-0000-003b00000034"))) AssetVolatile) & assetExpires .~ (fmap read (Just "1864-05-13 06:04:27.567 UTC")) & assetToken .~ Nothing)
 testObject_Asset_asset_4 :: Asset
-testObject_Asset_asset_4 = (mkAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "00000002-0000-0004-0000-000000000003"))) AssetPersistent) & assetExpires .~ (fmap read (Just "1864-05-15 09:06:55.687378720213 UTC")) & assetToken .~ Just (AssetToken {assetTokenAscii = (fromRight undefined (validate ("yVZvCw==")))}))
+testObject_Asset_asset_4 = (mkAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "00000014-0000-0003-0000-00160000006f"))) AssetExpiring) & assetExpires .~ (fmap read (Nothing)) & assetToken .~ Just (AssetToken {assetTokenAscii = (fromRight undefined (validate ("FwVm7L0aBop-vtkpZjbgHPLV51kREQ==")))}))
 testObject_Asset_asset_5 :: Asset
-testObject_Asset_asset_5 = (mkAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "00000001-0000-0004-0000-000200000001"))) AssetVolatile) & assetExpires .~ (fmap read (Just "1864-05-18 06:22:40.173777191739 UTC")) & assetToken .~ Nothing)
+testObject_Asset_asset_5 = (mkAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "00000067-0000-0048-0000-007b0000003d"))) AssetPersistent) & assetExpires .~ (fmap read (Nothing)) & assetToken .~ Just (AssetToken {assetTokenAscii = (fromRight undefined (validate ("1U4gfDpJfGoU8xgWUvzaoxy2Ry5GXYa83aKt")))}))

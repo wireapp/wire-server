@@ -76,12 +76,12 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_ConversationAccessUpdate_user_1 :: ConversationAccessUpdate
-testObject_ConversationAccessUpdate_user_1 = ConversationAccessUpdate {cupAccess = [InviteAccess], cupAccessRole = TeamAccessRole}
+testObject_ConversationAccessUpdate_user_1 = ConversationAccessUpdate {cupAccess = [PrivateAccess], cupAccessRole = TeamAccessRole}
 testObject_ConversationAccessUpdate_user_2 :: ConversationAccessUpdate
-testObject_ConversationAccessUpdate_user_2 = ConversationAccessUpdate {cupAccess = [PrivateAccess,InviteAccess,LinkAccess,CodeAccess,LinkAccess,LinkAccess,PrivateAccess,InviteAccess], cupAccessRole = NonActivatedAccessRole}
+testObject_ConversationAccessUpdate_user_2 = ConversationAccessUpdate {cupAccess = [InviteAccess,InviteAccess,CodeAccess,LinkAccess,PrivateAccess], cupAccessRole = TeamAccessRole}
 testObject_ConversationAccessUpdate_user_3 :: ConversationAccessUpdate
-testObject_ConversationAccessUpdate_user_3 = ConversationAccessUpdate {cupAccess = [CodeAccess,InviteAccess], cupAccessRole = TeamAccessRole}
+testObject_ConversationAccessUpdate_user_3 = ConversationAccessUpdate {cupAccess = [InviteAccess,InviteAccess,LinkAccess,LinkAccess,InviteAccess,PrivateAccess,InviteAccess], cupAccessRole = ActivatedAccessRole}
 testObject_ConversationAccessUpdate_user_4 :: ConversationAccessUpdate
-testObject_ConversationAccessUpdate_user_4 = ConversationAccessUpdate {cupAccess = [], cupAccessRole = NonActivatedAccessRole}
+testObject_ConversationAccessUpdate_user_4 = ConversationAccessUpdate {cupAccess = [CodeAccess], cupAccessRole = TeamAccessRole}
 testObject_ConversationAccessUpdate_user_5 :: ConversationAccessUpdate
-testObject_ConversationAccessUpdate_user_5 = ConversationAccessUpdate {cupAccess = [], cupAccessRole = ActivatedAccessRole}
+testObject_ConversationAccessUpdate_user_5 = ConversationAccessUpdate {cupAccess = [], cupAccessRole = NonActivatedAccessRole}

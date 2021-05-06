@@ -56,12 +56,12 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_1 :: TeamFeatureStatusWithConfig TeamFeatureAppLockConfig
-testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_1 = TeamFeatureStatusWithConfig {tfwcStatus = TeamFeatureEnabled, tfwcConfig = TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock True, applockInactivityTimeoutSecs = 104}}
+testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_1 = TeamFeatureStatusWithConfig {tfwcStatus = TeamFeatureDisabled, tfwcConfig = TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock False, applockInactivityTimeoutSecs = 66}}
 testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_2 :: TeamFeatureStatusWithConfig TeamFeatureAppLockConfig
-testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_2 = TeamFeatureStatusWithConfig {tfwcStatus = TeamFeatureDisabled, tfwcConfig = TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock False, applockInactivityTimeoutSecs = 23}}
+testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_2 = TeamFeatureStatusWithConfig {tfwcStatus = TeamFeatureEnabled, tfwcConfig = TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock False, applockInactivityTimeoutSecs = -94}}
 testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_3 :: TeamFeatureStatusWithConfig TeamFeatureAppLockConfig
-testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_3 = TeamFeatureStatusWithConfig {tfwcStatus = TeamFeatureEnabled, tfwcConfig = TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock True, applockInactivityTimeoutSecs = -62}}
+testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_3 = TeamFeatureStatusWithConfig {tfwcStatus = TeamFeatureDisabled, tfwcConfig = TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock False, applockInactivityTimeoutSecs = 109}}
 testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_4 :: TeamFeatureStatusWithConfig TeamFeatureAppLockConfig
-testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_4 = TeamFeatureStatusWithConfig {tfwcStatus = TeamFeatureDisabled, tfwcConfig = TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock True, applockInactivityTimeoutSecs = 14}}
+testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_4 = TeamFeatureStatusWithConfig {tfwcStatus = TeamFeatureDisabled, tfwcConfig = TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock True, applockInactivityTimeoutSecs = -52}}
 testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_5 :: TeamFeatureStatusWithConfig TeamFeatureAppLockConfig
-testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_5 = TeamFeatureStatusWithConfig {tfwcStatus = TeamFeatureDisabled, tfwcConfig = TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock False, applockInactivityTimeoutSecs = -27}}
+testObject_TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team_5 = TeamFeatureStatusWithConfig {tfwcStatus = TeamFeatureEnabled, tfwcConfig = TeamFeatureAppLockConfig {applockEnforceAppLock = EnforceAppLock True, applockInactivityTimeoutSecs = 63}}

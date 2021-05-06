@@ -1,1 +1,1 @@
-{"took":-1,"found":-7,"documents":[],"returned":-1}
+{"took":2,"found":2,"documents":[{"email":"@","handle":"","managed_by":"wire","role":"admin","accent_id":0,"name":"","created_at":null,"team":null,"id":"00000001-0000-0001-0000-000100000000","saml_idp":""},{"email":null,"handle":"","managed_by":"scim","role":"partner","accent_id":0,"name":"","created_at":null,"team":null,"id":"00000001-0000-0001-0000-000000000001","saml_idp":""}],"returned":1}
