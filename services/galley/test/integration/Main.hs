@@ -38,7 +38,7 @@ import Galley.API (sitemap)
 import Galley.Options
 import Imports hiding (local)
 import Network.HTTP.Client (responseTimeoutMicro)
-import Network.HTTP.Client.TLS
+import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.Wai.Utilities.Server (compile)
 import OpenSSL (withOpenSSL)
 import Options.Applicative
@@ -102,7 +102,8 @@ main = withOpenSSL $ runTests go
       -- must be 'Just'.  the following code could be simplified a lot, but this should
       -- probably happen after (or at least while) unifying the integration test suites into
       -- a single library.
-      g <- mkRequest <$> optOrEnv galley iConf (local . read) "GALLEY_WEB_PORT"
+      galleyEndpoint <- optOrEnv galley iConf (local . read) "GALLEY_WEB_PORT"
+      let g = mkRequest galleyEndpoint
       b <- mkRequest <$> optOrEnv brig iConf (local . read) "BRIG_WEB_PORT"
       c <- mkRequest <$> optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
       -- unset this env variable in galley's config to disable testing SQS team events
@@ -117,7 +118,7 @@ main = withOpenSSL $ runTests go
       let ck = fromJust gConf ^. optCassandra . casKeyspace
       lg <- Logger.new Logger.defSettings
       db <- defInitCassandra ck ch cp lg
-      return $ TestSetup (fromJust gConf) (fromJust iConf) m g b c awsEnv convMaxSize db
+      return $ TestSetup (fromJust gConf) (fromJust iConf) m g b c awsEnv convMaxSize db (mkFedGalleyClient galleyEndpoint)
     queueName = fmap (view awsQueueName) . view optJournal
     endpoint = fmap (view awsEndpoint) . view optJournal
     maxSize = view (optSettings . setMaxConvSize)
