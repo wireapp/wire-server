@@ -24,8 +24,6 @@ import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
 import Data.Id as Id
-import Data.IdMapping (MappedOrLocalId (Local, Mapped), partitionMappedOrLocalIds)
-import Data.List.NonEmpty (nonEmpty)
 import Data.Misc (PlainTextPassword (..))
 import Data.Proxy
 import qualified Data.Set as Set
@@ -83,20 +81,17 @@ ensureConnectedOrSameTeam u uids = do
     fmap (view userId) <$> Data.teamMembersLimited team uids
   -- Do not check connections for users that are on the same team
   -- FUTUREWORK(federation, #1262): handle remote users (can't be part of the same team, just check connections)
-  ensureConnected u (Local <$> uids \\ join sameTeamUids)
+  ensureConnected u (uids \\ join sameTeamUids)
 
 -- | Check that the user is connected to everybody else.
 --
 -- The connection has to be bidirectional (e.g. if A connects to B and later
 -- B blocks A, the status of A-to-B is still 'Accepted' but it doesn't mean
 -- that they are connected).
-ensureConnected :: UserId -> [MappedOrLocalId Id.U] -> Galley ()
+ensureConnected :: UserId -> [UserId] -> Galley ()
 ensureConnected _ [] = pure ()
-ensureConnected u mappedOrLocalUserIds = do
-  let (localUserIds, remoteUserIds) = partitionMappedOrLocalIds mappedOrLocalUserIds
+ensureConnected u localUserIds = do
   -- FUTUREWORK(federation, #1262): check remote connections
-  for_ (nonEmpty remoteUserIds) $
-    throwM . federationNotImplemented
   ensureConnectedToLocals u localUserIds
 
 ensureConnectedToLocals :: UserId -> [UserId] -> Galley ()
@@ -178,21 +173,21 @@ permissionCheckTeamConv zusr cnv perm =
 acceptOne2One :: UserId -> Data.Conversation -> Maybe ConnId -> Galley Data.Conversation
 acceptOne2One usr conv conn = case Data.convType conv of
   One2OneConv ->
-    if Local usr `isMember` mems
+    if usr `isMember` mems
       then return conv
       else do
         now <- liftIO getCurrentTime
         mm <- snd <$> Data.addMember now cid usr
         return $ conv {Data.convMembers = mems <> toList mm}
   ConnectConv -> case mems of
-    [_, _] | Local usr `isMember` mems -> promote
+    [_, _] | usr `isMember` mems -> promote
     [_, _] -> throwM convNotFound
     _ -> do
       when (length mems > 2) $
         throwM badConvState
       now <- liftIO getCurrentTime
       (e, mm) <- Data.addMember now cid usr
-      conv' <- if isJust (find ((Local usr /=) . memId) mems) then promote else pure conv
+      conv' <- if isJust (find ((usr /=) . memId) mems) then promote else pure conv
       let mems' = mems <> toList mm
       for_ (newPush ListComplete (evtFrom e) (ConvEvent e) (recipient <$> mems')) $ \p ->
         push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
@@ -215,10 +210,10 @@ isBot = isJust . memService
 isMember :: (Eq a, Foldable m) => a -> m (InternalMember a) -> Bool
 isMember u = isJust . find ((u ==) . memId)
 
-findMember :: Data.Conversation -> MappedOrLocalId Id.U -> Maybe Member
+findMember :: Data.Conversation -> UserId -> Maybe LocalMember
 findMember c u = find ((u ==) . memId) (Data.convMembers c)
 
-botsAndUsers :: (Log.MonadLogger m, Traversable t) => t Member -> m ([BotMember], [Member])
+botsAndUsers :: (Log.MonadLogger m, Traversable t) => t LocalMember -> m ([BotMember], [LocalMember])
 botsAndUsers = fmap fold . traverse botOrUser
   where
     botOrUser m = case memService m of
@@ -228,68 +223,59 @@ botsAndUsers = fmap fold . traverse botOrUser
         pure (toList bot, [])
       Nothing ->
         pure ([], [m])
-    mkBotMember :: Log.MonadLogger m => Member -> m (Maybe BotMember)
-    mkBotMember m = case memId m of
-      Mapped _ -> do
-        Log.warn $ Log.msg @Text "Bot member with qualified user ID found, ignoring it."
-        pure Nothing -- remote members can't be bots for now
-      Local localMemId ->
-        pure $ newBotMember (m {memId = localMemId} :: LocalMember)
+    mkBotMember :: Log.MonadLogger m => LocalMember -> m (Maybe BotMember)
+    mkBotMember m = pure $ newBotMember m
 
 location :: ToByteString a => a -> Response -> Response
 location = addHeader hLocation . toByteString'
 
-nonTeamMembers :: [Member] -> [TeamMember] -> [Member]
+nonTeamMembers :: [LocalMember] -> [TeamMember] -> [LocalMember]
 nonTeamMembers cm tm = filter (not . isMemberOfTeam . memId) cm
   where
+    -- FUTUREWORK: remote members: teams and their members are always on the same backend
     isMemberOfTeam = \case
-      Local uid -> isTeamMember uid tm
-      Mapped _ -> False -- teams and their members are always on the same backend
+      uid -> isTeamMember uid tm
 
-convMembsAndTeamMembs :: [Member] -> [TeamMember] -> [Recipient]
+convMembsAndTeamMembs :: [LocalMember] -> [TeamMember] -> [Recipient]
 convMembsAndTeamMembs convMembs teamMembs =
-  fmap userRecipient . setnub $ map memId convMembs <> map (Local . view userId) teamMembs
+  fmap userRecipient . setnub $ map memId convMembs <> map (view userId) teamMembs
   where
     setnub = Set.toList . Set.fromList
 
 membersToRecipients :: Maybe UserId -> [TeamMember] -> [Recipient]
-membersToRecipients Nothing = map (userRecipient . Local . view userId)
-membersToRecipients (Just u) = map (userRecipient . Local) . filter (/= u) . map (view userId)
+membersToRecipients Nothing = map (userRecipient . view userId)
+membersToRecipients (Just u) = map userRecipient . filter (/= u) . map (view userId)
 
 -- | Note that we use 2 nearly identical functions but slightly different
 -- semantics; when using `getSelfMember`, if that user is _not_ part of
 -- the conversation, we don't want to disclose that such a conversation
 -- with that id exists.
-getSelfMember :: Foldable t => UserId -> t Member -> Galley LocalMember
+getSelfMember :: Foldable t => UserId -> t LocalMember -> Galley LocalMember
 getSelfMember = getMember convNotFound
 
-getOtherMember :: Foldable t => UserId -> t Member -> Galley LocalMember
+getOtherMember :: Foldable t => UserId -> t LocalMember -> Galley LocalMember
 getOtherMember = getMember convMemberNotFound
 
 -- | Since we search by local user ID, we know that the member must be local.
-getMember :: Foldable t => Error -> UserId -> t Member -> Galley LocalMember
+getMember :: Foldable t => Error -> UserId -> t LocalMember -> Galley LocalMember
 getMember ex u ms = do
-  let member = find ((Local u ==) . memId) ms
+  let member = find ((u ==) . memId) ms
   case member of
     Just m -> return (m {memId = u})
     Nothing -> throwM ex
 
-getConversationAndCheckMembership :: UserId -> MappedOrLocalId Id.C -> Galley Data.Conversation
+getConversationAndCheckMembership :: UserId -> ConvId -> Galley Data.Conversation
 getConversationAndCheckMembership = getConversationAndCheckMembershipWithError convAccessDenied
 
-getConversationAndCheckMembershipWithError :: Error -> UserId -> MappedOrLocalId Id.C -> Galley Data.Conversation
-getConversationAndCheckMembershipWithError ex zusr = \case
-  Mapped idMapping ->
-    throwM . federationNotImplemented $ pure idMapping
-  Local convId -> do
-    -- should we merge resolving to qualified ID and looking up the conversation?
-    c <- Data.conversation convId >>= ifNothing convNotFound
-    when (DataTypes.isConvDeleted c) $ do
-      Data.deleteConversation convId
-      throwM convNotFound
-    unless (Local zusr `isMember` Data.convMembers c) $
-      throwM ex
-    return c
+getConversationAndCheckMembershipWithError :: Error -> UserId -> ConvId -> Galley Data.Conversation
+getConversationAndCheckMembershipWithError ex zusr convId = do
+  c <- Data.conversation convId >>= ifNothing convNotFound
+  when (DataTypes.isConvDeleted c) $ do
+    Data.deleteConversation convId
+    throwM convNotFound
+  unless (zusr `isMember` Data.convMembers c) $
+    throwM ex
+  return c
 
 -- | Deletion requires a permission check, but also a 'Role' comparison:
 -- Owners can only be deleted by another owner (and not themselves).
@@ -311,7 +297,7 @@ canDeleteMember deleter deletee
 --------------------------------------------------------------------------------
 -- Federation
 
-viewFederationDomain :: Galley Domain
+viewFederationDomain :: MonadReader Env m => m Domain
 viewFederationDomain = view (options . optSettings . setFederationDomain)
 
 --------------------------------------------------------------------------------

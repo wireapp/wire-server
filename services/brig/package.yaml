@@ -92,6 +92,7 @@ library:
   - scientific >=0.3.4
   - scrypt >=0.5
   - servant
+  - servant-client
   - servant-server
   - servant-swagger
   - servant-swagger-ui
@@ -144,10 +145,12 @@ tests:
     - containers
     - dns
     - dns-util
+    - http-types
     - imports
     - polysemy
     - polysemy-wire-zoo
     - retry
+    - servant-client-core
     - tasty
     - tasty-hunit
     - time
@@ -156,7 +159,9 @@ tests:
     - unliftio
     - uri-bytestring
     - uuid
+    - wai-utilities
     - wire-api
+    - wire-api-federation
 executables:
   brig-schema:
     main: Main.hs
@@ -209,6 +214,8 @@ executables:
     - metrics-wai
     - mime >=0.4
     - MonadRandom >= 0.5
+    - mu-grpc-server
+    - mu-rpc
     - network
     - optparse-applicative
     - pem
@@ -222,6 +229,9 @@ executables:
     - saml2-web-sso
     - spar
     - string-conversions
+    - servant
+    - servant-client
+    - servant-client-core
     - tasty >=1.0
     - tasty-cannon >=0.3.4
     - tasty-hunit >=0.2
@@ -244,6 +254,7 @@ executables:
     - warp
     - warp-tls >=3.2
     - wire-api
+    - wire-api-federation
     - yaml
     - zauth
   brig-index:

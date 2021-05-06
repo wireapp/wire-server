@@ -1,6 +1,6 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
+-- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
 -- the terms of the GNU Affero General Public License as published by the Free
@@ -15,23 +15,11 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.API.IdMapping
-  ( resolveOpaqueUserId,
-  )
-where
+module Main where
 
-import Brig.App (AppIO)
-import Data.Id (Id (Id, toUUID), OpaqueUserId)
-import qualified Data.Id as Id
-import Data.IdMapping (MappedOrLocalId (Local))
 import Imports
+import Test.Data.Schema
+import Test.Tasty (defaultMain, testGroup)
 
--- DEPRECATED, REMOVE
-resolveOpaqueUserId :: OpaqueUserId -> AppIO (MappedOrLocalId Id.U)
-resolveOpaqueUserId = resolveOpaqueId
-
--- DEPRECATED, REMOVE
-resolveOpaqueId :: forall a. Id (Id.Opaque a) -> AppIO (MappedOrLocalId a)
-resolveOpaqueId opaqueId = pure $ Local assumedLocalId
-  where
-    assumedLocalId = Id (toUUID opaqueId) :: Id a
+main :: IO ()
+main = defaultMain $ testGroup "Tests" [tests]

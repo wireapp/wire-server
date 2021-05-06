@@ -834,7 +834,7 @@ addBot zuid zcon cid add = do
   btk <- Text.decodeLatin1 . toByteString' <$> ZAuth.newBotToken pid bid cid
   let bcl = newClientId (fromIntegral (hash bid))
   -- Ask the external service to create a bot
-  let origmem = OtherMember (makeIdOpaque zuid) Nothing roleNameWireAdmin
+  let origmem = OtherMember zuid Nothing roleNameWireAdmin
   let members = origmem : (cmOthers mems)
   let bcnv = Ext.botConvView (cnvId cnv) (cnvName cnv) members
   let busr = mkBotUserView zusr
@@ -884,7 +884,7 @@ removeBot zusr zcon cid bid = do
     throwStd invalidConv
   -- Find the bot in the member list and delete it
   let busr = botUserId bid
-  let bot = List.find ((== makeIdOpaque busr) . omId) (cmOthers mems)
+  let bot = List.find ((== busr) . omId) (cmOthers mems)
   case bot >>= omService of
     Nothing -> return Nothing
     Just _ -> do
@@ -942,7 +942,7 @@ botClaimUsersPrekeys body = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients body) > maxSize) $
     throwStd tooManyClients
-  Client.claimMultiPrekeyBundlesLocal body !>> clientError
+  lift (Client.claimLocalMultiPrekeyBundles body)
 
 botListUserProfilesH :: List UserId -> Handler Response
 botListUserProfilesH uids = do

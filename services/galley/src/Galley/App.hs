@@ -26,6 +26,7 @@ module Galley.App
     options,
     applog,
     manager,
+    federator,
     cstate,
     deleteQueue,
     createEnv,
@@ -96,6 +97,7 @@ import Ssl.Util
 import System.Logger.Class hiding (Error, info)
 import qualified System.Logger.Extended as Logger
 import Util.Options
+import Wire.API.Federation.Client (HasFederatorConfig (..))
 
 data DeleteItem = TeamItem TeamId UserId (Maybe ConnId)
   deriving (Eq, Ord, Show)
@@ -107,6 +109,7 @@ data Env = Env
     _options :: Opts,
     _applog :: Logger,
     _manager :: Manager,
+    _federator :: Maybe Endpoint, -- FUTUREWORK: should we use a better type here? E.g. to avoid fresh connections all the time?
     _cstate :: ClientState,
     _deleteQueue :: Q.Queue DeleteItem,
     _extEnv :: ExtEnv,
@@ -137,6 +140,10 @@ newtype Galley a = Galley
       MonadReader Env,
       MonadClient
     )
+
+instance HasFederatorConfig Galley where
+  federatorEndpoint = view federator
+  federationDomain = view (options . optSettings . setFederationDomain)
 
 fanoutLimit :: Galley (Range 1 Teams.HardTruncationLimit Int32)
 fanoutLimit = view options >>= return . currentFanoutLimit
@@ -194,7 +201,7 @@ createEnv m o = do
   l <- Logger.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings) (o ^. optLogFormat)
   mgr <- initHttpManager o
   validateOptions l o
-  Env def m o l mgr <$> initCassandra o l
+  Env def m o l mgr (o ^. optFederator) <$> initCassandra o l
     <*> Q.new 16000
     <*> initExtEnv
     <*> maybe (return Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. optJournal)

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f52252ebc5b48d39588545aae9c9b971316985bdd0c4ceaec225ec561dadf524
+-- hash: af16957df3fcbe13deec3be23b019cd694877002f6e6cb44fc28285fb090b621
 
 name:           types-common
 version:        0.16.0
@@ -26,7 +26,6 @@ library
       Data.ETag
       Data.Handle
       Data.Id
-      Data.IdMapping
       Data.Json.Util
       Data.LegalHold
       Data.List1

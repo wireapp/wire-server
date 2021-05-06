@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 543c75e131e7444c4c6cbb2e5b5045cd1a3a4da7e43b4bc90251bf308b224bf6
+-- hash: 24145e8c64d47fd7426cae616b7b0e7b34bcab72d15cc5578712aab31517c219
 
 name:           wire-api-federation
 version:        0.1.0
@@ -25,6 +25,8 @@ library
       Wire.API.Federation.API
       Wire.API.Federation.API.Brig
       Wire.API.Federation.API.Conversation
+      Wire.API.Federation.API.Galley
+      Wire.API.Federation.Client
       Wire.API.Federation.Event
       Wire.API.Federation.GRPC.Client
       Wire.API.Federation.GRPC.Helper
@@ -40,14 +42,19 @@ library
       QuickCheck >=2.13
     , aeson >=1.4
     , base >=4.6 && <5.0
+    , bytestring
+    , bytestring-conversion
     , either
     , http-types
     , http2-client-grpc
     , imports
+    , mtl
     , mu-grpc-client
     , mu-protobuf
     , mu-schema
     , servant >=0.16
+    , servant-client
+    , servant-client-core
     , template-haskell
     , text >=0.11
     , time >=1.8
@@ -59,7 +66,9 @@ test-suite spec
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Test.Wire.API.Federation.API.BrigSpec
       Test.Wire.API.Federation.APISpec
+      Test.Wire.API.Federation.ClientSpec
       Test.Wire.API.Federation.GRPC.TypesSpec
       Paths_wire_api_federation
   hs-source-dirs:
@@ -71,17 +80,27 @@ test-suite spec
   build-depends:
       QuickCheck >=2.13
     , aeson >=1.4
+    , async
     , base >=4.6 && <5.0
+    , bytestring
+    , bytestring-conversion
     , either
     , hspec
     , http-types
     , http2-client-grpc
     , imports
     , metrics-wai
+    , mtl
     , mu-grpc-client
+    , mu-grpc-server
     , mu-protobuf
+    , mu-rpc
     , mu-schema
+    , network
+    , retry
     , servant >=0.16
+    , servant-client
+    , servant-client-core
     , template-haskell
     , text >=0.11
     , time >=1.8

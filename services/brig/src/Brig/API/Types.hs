@@ -43,6 +43,7 @@ import Brig.User.Auth.Cookie (RetryAfter (..))
 import Data.Id
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
+import Wire.API.Federation.Client (FederationError)
 
 -------------------------------------------------------------------------------
 -- Successes
@@ -119,7 +120,7 @@ data ConnectionError
   | -- | An invalid connection status change.
     InvalidTransition UserId Relation
   | -- | The target user in an connection attempt is invalid, e.g. not activated.
-    InvalidUser OpaqueUserId
+    InvalidUser UserId
   | -- | An attempt at updating a non-existent connection.
     NotConnected UserId UserId
   | -- | An attempt at creating a connection from an account with
@@ -187,10 +188,10 @@ data SendLoginCodeError
 data ClientError
   = ClientNotFound
   | ClientDataError !ClientDataError
-  | ClientUserNotFound !OpaqueUserId
+  | ClientUserNotFound !UserId
   | ClientLegalHoldCannotBeRemoved
   | ClientLegalHoldCannotBeAdded
-  | ClientFederationNotImplemented
+  | ClientFederationError FederationError
 
 data RemoveIdentityError
   = LastIdentity

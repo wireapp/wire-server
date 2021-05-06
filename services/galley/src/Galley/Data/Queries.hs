@@ -57,7 +57,7 @@ selectTeamConv = "select managed from team_conv where team = ? and conv = ?"
 selectTeamConvs :: PrepQuery R (Identity TeamId) (ConvId, Bool)
 selectTeamConvs = "select conv, managed from team_conv where team = ? order by conv"
 
-selectTeamConvsFrom :: PrepQuery R (TeamId, OpaqueConvId) (ConvId, Bool)
+selectTeamConvsFrom :: PrepQuery R (TeamId, ConvId) (ConvId, Bool)
 selectTeamConvsFrom = "select conv, managed from team_conv where team = ? and conv > ? order by conv"
 
 selectTeamMember ::
@@ -237,50 +237,50 @@ deleteCode = "DELETE FROM conversation_codes WHERE key = ? AND scope = ?"
 
 -- User Conversations -------------------------------------------------------
 
-selectUserConvs :: PrepQuery R (Identity UserId) (OpaqueConvId, Maybe RemoteConvId, Maybe Domain)
-selectUserConvs = "select conv, conv_remote_id, conv_remote_domain from user where user = ? order by conv"
+selectUserConvs :: PrepQuery R (Identity UserId) (Identity ConvId)
+selectUserConvs = "select conv from user where user = ? order by conv"
 
-selectUserConvsIn :: PrepQuery R (UserId, [OpaqueConvId]) (OpaqueConvId, Maybe RemoteConvId, Maybe Domain)
-selectUserConvsIn = "select conv, conv_remote_id, conv_remote_domain from user where user = ? and conv in ? order by conv"
+selectUserConvsIn :: PrepQuery R (UserId, [ConvId]) (Identity ConvId)
+selectUserConvsIn = "select conv from user where user = ? and conv in ? order by conv"
 
-selectUserConvsFrom :: PrepQuery R (UserId, OpaqueConvId) (OpaqueConvId, Maybe RemoteConvId, Maybe Domain)
-selectUserConvsFrom = "select conv, conv_remote_id, conv_remote_domain from user where user = ? and conv > ? order by conv"
+selectUserConvsFrom :: PrepQuery R (UserId, ConvId) (Identity ConvId)
+selectUserConvsFrom = "select conv from user where user = ? and conv > ? order by conv"
 
-insertUserConv :: PrepQuery W (UserId, OpaqueConvId, Maybe RemoteConvId, Maybe Domain) ()
-insertUserConv = "insert into user (user, conv, conv_remote_id, conv_remote_domain) values (?, ?, ?, ?)"
+insertUserConv :: PrepQuery W (UserId, ConvId) ()
+insertUserConv = "insert into user (user, conv) values (?, ?)"
 
-deleteUserConv :: PrepQuery W (UserId, OpaqueConvId) ()
+deleteUserConv :: PrepQuery W (UserId, ConvId) ()
 deleteUserConv = "delete from user where user = ? and conv = ?"
 
 -- Members ------------------------------------------------------------------
 
 type MemberStatus = Int32
 
-selectMember :: PrepQuery R (ConvId, OpaqueUserId) (OpaqueUserId, Maybe RemoteUserId, Maybe Domain, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe Bool, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
-selectMember = "select user, user_remote_id, user_remote_domain, service, provider, status, otr_muted, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from member where conv = ? and user = ?"
+selectMember :: PrepQuery R (ConvId, UserId) (UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe Bool, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
+selectMember = "select user, service, provider, status, otr_muted, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from member where conv = ? and user = ?"
 
-selectMembers :: PrepQuery R (Identity [ConvId]) (ConvId, OpaqueUserId, Maybe RemoteUserId, Maybe Domain, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe Bool, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
-selectMembers = "select conv, user, user_remote_id, user_remote_domain, service, provider, status, otr_muted, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from member where conv in ?"
+selectMembers :: PrepQuery R (Identity [ConvId]) (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe Bool, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
+selectMembers = "select conv, user, service, provider, status, otr_muted, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from member where conv in ?"
 
-insertMember :: PrepQuery W (ConvId, OpaqueUserId, Maybe RemoteUserId, Maybe Domain, Maybe ServiceId, Maybe ProviderId, RoleName) ()
-insertMember = "insert into member (conv, user, user_remote_id, user_remote_domain, service, provider, status, conversation_role) values (?, ?, ?, ?, ?, ?, 0, ?)"
+insertMember :: PrepQuery W (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, RoleName) ()
+insertMember = "insert into member (conv, user, service, provider, status, conversation_role) values (?, ?, ?, ?, 0, ?)"
 
-removeMember :: PrepQuery W (ConvId, OpaqueUserId) ()
+removeMember :: PrepQuery W (ConvId, UserId) ()
 removeMember = "delete from member where conv = ? and user = ?"
 
-updateOtrMemberMuted :: PrepQuery W (Bool, Maybe Text, ConvId, OpaqueUserId) ()
+updateOtrMemberMuted :: PrepQuery W (Bool, Maybe Text, ConvId, UserId) ()
 updateOtrMemberMuted = "update member set otr_muted = ?, otr_muted_ref = ? where conv = ? and user = ?"
 
-updateOtrMemberMutedStatus :: PrepQuery W (MutedStatus, Maybe Text, ConvId, OpaqueUserId) ()
+updateOtrMemberMutedStatus :: PrepQuery W (MutedStatus, Maybe Text, ConvId, UserId) ()
 updateOtrMemberMutedStatus = "update member set otr_muted_status = ?, otr_muted_ref = ? where conv = ? and user = ?"
 
-updateOtrMemberArchived :: PrepQuery W (Bool, Maybe Text, ConvId, OpaqueUserId) ()
+updateOtrMemberArchived :: PrepQuery W (Bool, Maybe Text, ConvId, UserId) ()
 updateOtrMemberArchived = "update member set otr_archived = ?, otr_archived_ref = ? where conv = ? and user = ?"
 
-updateMemberHidden :: PrepQuery W (Bool, Maybe Text, ConvId, OpaqueUserId) ()
+updateMemberHidden :: PrepQuery W (Bool, Maybe Text, ConvId, UserId) ()
 updateMemberHidden = "update member set hidden = ?, hidden_ref = ? where conv = ? and user = ?"
 
-updateMemberConvRoleName :: PrepQuery W (RoleName, ConvId, OpaqueUserId) ()
+updateMemberConvRoleName :: PrepQuery W (RoleName, ConvId, UserId) ()
 updateMemberConvRoleName = "update member set conversation_role = ? where conv = ? and user = ?"
 
 -- Clients ------------------------------------------------------------------

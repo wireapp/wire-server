@@ -46,6 +46,7 @@ import Control.Error hiding (bool)
 import Control.Lens (view)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
+import qualified Data.ByteString.Conversion as List
 import Data.Handle (Handle)
 import Data.Id as Id
 import qualified Data.List1 as List1
@@ -204,6 +205,9 @@ sitemap = do
 
   get "/i/users/:uid/rich-info" (continue getRichInfoH) $
     capture "uid"
+
+  get "/i/users/rich-info" (continue getRichInfoMultiH) $
+    param "ids"
 
   head "/i/users/handles/:handle" (continue checkHandleInternalH) $
     capture "handle"
@@ -517,6 +521,13 @@ getRichInfoH uid = json <$> getRichInfo uid
 
 getRichInfo :: UserId -> Handler RichInfo
 getRichInfo uid = RichInfo . fromMaybe emptyRichInfoAssocList <$> lift (API.lookupRichInfo uid)
+
+getRichInfoMultiH :: List UserId -> Handler Response
+getRichInfoMultiH uids = json <$> getRichInfoMulti (List.fromList uids)
+
+getRichInfoMulti :: [UserId] -> Handler [(UserId, RichInfo)]
+getRichInfoMulti uids =
+  lift (API.lookupRichInfoMultiUsers uids)
 
 updateHandleH :: UserId ::: JSON ::: JsonRequest HandleUpdate -> Handler Response
 updateHandleH (uid ::: _ ::: body) = empty <$ (updateHandle uid =<< parseJsonBody body)

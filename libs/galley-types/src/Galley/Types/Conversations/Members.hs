@@ -19,21 +19,17 @@
 
 module Galley.Types.Conversations.Members
   ( LocalMember,
-    Member,
     InternalMember (..),
   )
 where
 
 import Data.Id as Id
-import Data.IdMapping (MappedOrLocalId)
 import Imports
 import Wire.API.Conversation.Member (MutedStatus)
 import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Provider.Service (ServiceRef)
 
 type LocalMember = InternalMember Id.UserId
-
-type Member = InternalMember (MappedOrLocalId Id.U)
 
 -- | Internal representation of a conversation member.
 data InternalMember id = Member

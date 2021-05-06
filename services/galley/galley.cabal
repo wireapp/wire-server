@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9276446f7d784ccb16e01ca7252adbfd74260825a294fc74765d045cca2b74ce
+-- hash: 485607f591d947d95beb33d8cff7fa36bd3e91f63a2d3e4dd4991deec18f145c
 
 name:           galley
 version:        0.83.0
@@ -29,7 +29,6 @@ library
       Galley.API.Create
       Galley.API.CustomBackend
       Galley.API.Error
-      Galley.API.IdMapping
       Galley.API.Internal
       Galley.API.LegalHold
       Galley.API.Mapping
@@ -105,6 +104,7 @@ library
     , http-client-openssl >=0.2
     , http-client-tls >=0.2.2
     , http-types >=0.8
+    , http2-client-grpc
     , imports
     , insert-ordered-containers
     , lens >=4.4
@@ -119,6 +119,7 @@ library
     , retry >=0.5
     , safe >=0.3
     , safe-exceptions >=0.1
+    , saml2-web-sso >=0.18
     , servant
     , servant-server
     , servant-swagger
@@ -149,6 +150,7 @@ library
     , wai-utilities >=0.16
     , warp >=3.0
     , wire-api
+    , wire-api-federation
   default-language: Haskell2010
 
 executable galley
@@ -169,6 +171,7 @@ executable galley
     , ssl-util
     , types-common
     , wire-api
+    , wire-api-federation
   if flag(static)
     ld-options: -static
   default-language: Haskell2010
@@ -264,6 +267,7 @@ executable galley-integration
     , warp
     , warp-tls >=3.2
     , wire-api
+    , wire-api-federation
     , yaml
   default-language: Haskell2010
 
@@ -298,6 +302,7 @@ executable galley-migrate-data
     , types-common
     , unliftio
     , wire-api
+    , wire-api-federation
   if flag(static)
     ld-options: -static
   default-language: Haskell2010
@@ -333,6 +338,7 @@ executable galley-schema
       V45_AddFederationIdMapping
       V46_TeamFeatureAppLock
       V47_RemoveFederationIdMapping
+      V48_DeleteRemoteIdentifiers
       Paths_galley
   hs-source-dirs:
       schema/src
@@ -350,6 +356,7 @@ executable galley-schema
     , text
     , tinylog
     , wire-api
+    , wire-api-federation
   if flag(static)
     ld-options: -static
   default-language: Haskell2010
@@ -359,13 +366,15 @@ test-suite galley-types-tests
   main-is: Main.hs
   other-modules:
       Test.Galley.API
+      Test.Galley.Intra.User
       Paths_galley
   hs-source-dirs:
       test/unit
   default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
   build-depends:
-      base
+      QuickCheck
+    , base
     , containers
     , extended
     , galley
@@ -378,8 +387,10 @@ test-suite galley-types-tests
     , ssl-util
     , tasty
     , tasty-hunit
+    , tasty-quickcheck
     , types-common
     , wai
     , wai-predicates
     , wire-api
+    , wire-api-federation
   default-language: Haskell2010

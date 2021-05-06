@@ -557,6 +557,32 @@ packages:
     git: https://github.com/wireapp/servant.git
     commit: 94a41ece619e06b8f57cd7974dd9c1ec425fefb5
 - completed:
+    subdir: servant-client
+    name: servant-client
+    version: 0.18.2
+    git: https://github.com/wireapp/servant.git
+    pantry-tree:
+      size: 1346
+      sha256: 9d869b0c40bdd0ce19dcbcf7f5c9fedcf66f5fa1d2b404b87c57788aab69f330
+    commit: 94a41ece619e06b8f57cd7974dd9c1ec425fefb5
+  original:
+    subdir: servant-client
+    git: https://github.com/wireapp/servant.git
+    commit: 94a41ece619e06b8f57cd7974dd9c1ec425fefb5
+- completed:
+    subdir: servant-client-core
+    name: servant-client-core
+    version: 0.18.2
+    git: https://github.com/wireapp/servant.git
+    pantry-tree:
+      size: 1444
+      sha256: 1c26c72febd94ac29c006dfd50123608259f7e48844c71b4088d6608735c0949
+    commit: 94a41ece619e06b8f57cd7974dd9c1ec425fefb5
+  original:
+    subdir: servant-client-core
+    git: https://github.com/wireapp/servant.git
+    commit: 94a41ece619e06b8f57cd7974dd9c1ec425fefb5
+- completed:
     hackage: HsOpenSSL-x509-system-0.1.0.3@sha256:f4958ee0eec555c5c213662eff6764bddefe5665e2afcfd32733ce3801a9b687,1774
     pantry-tree:
       size: 503
@@ -708,13 +734,6 @@ packages:
   original:
     hackage: http2-grpc-proto3-wire-0.1.0.0
 - completed:
-    hackage: http2-client-grpc-0.8.0.0@sha256:5bea1edf5fa3572155f55c5b38cfab7063cbde613702898986c26d70bc9f3f9e,1861
-    pantry-tree:
-      size: 454
-      sha256: 234f9a5e2c117c615b63b657af6b331df0533e173d09f0c91b279ac90c54d4de
-  original:
-    hackage: http2-client-grpc-0.8.0.0
-- completed:
     hackage: warp-grpc-0.4.0.1@sha256:3859190e4fa23b944cf93ac691b3cec78c2adf4eaff6a4e8070c89fd17915add,1759
     pantry-tree:
       size: 709
@@ -735,6 +754,19 @@ packages:
       sha256: 843aed822e03279edf00a2595dfb22038b306f4f0acd6984bd108024c5102f90
   original:
     hackage: parameterized-0.5.0.0
+- completed:
+    subdir: http2-client-grpc
+    name: http2-client-grpc
+    version: 0.8.0.0
+    git: https://github.com/akshaymankar/http2-grpc-haskell
+    pantry-tree:
+      size: 455
+      sha256: b5ab96f6ef5bbe3dfef31e08316d54c4793cad71dbd02d5439fddaeea170e103
+    commit: 43507d54515cd5870e8f6d1f03b4d23e6cd460e2
+  original:
+    subdir: http2-client-grpc
+    git: https://github.com/akshaymankar/http2-grpc-haskell
+    commit: 43507d54515cd5870e8f6d1f03b4d23e6cd460e2
 - completed:
     hackage: ormolu-0.1.4.1@sha256:ed404eac6e4eb64da1ca5fb749e0f99907431a9633e6ba34e44d260e7d7728ba,6499
     pantry-tree:

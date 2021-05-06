@@ -53,11 +53,7 @@ RUN apk add --no-cache --virtual .build-deps \
 
 ENV NGINX_VERSION 1.16.1
 
-RUN set -x \
-    && addgroup -g 101 -S nginx \
-    && adduser -S -D -H -u 101 -h /var/cache/nginx -s /sbin/nologin -G nginx -g nginx nginx \
-    && export GPG_KEYS=B0F4253373F8F6F510D42178520A9993A1C052F8 \
-    && apk add --no-cache --virtual .build-deps \
+RUN apk update && apk add --virtual .build-deps \
         libsodium-dev \
         llvm-libunwind-dev \
         gcc \
@@ -71,7 +67,14 @@ RUN set -x \
         gnupg1 \
         libxslt-dev \
         gd-dev \
-        geoip-dev \
+        geoip-dev
+
+RUN curl -h
+
+RUN set -x \
+    && addgroup -g 101 -S nginx \
+    && adduser -S -D -H -u 101 -h /var/cache/nginx -s /sbin/nologin -G nginx -g nginx nginx \
+    && export GPG_KEYS=B0F4253373F8F6F510D42178520A9993A1C052F8 \
     && curl -fSL https://nginx.org/download/nginx-$NGINX_VERSION.tar.gz -o nginx.tar.gz \
     && curl -fSL https://nginx.org/download/nginx-$NGINX_VERSION.tar.gz.asc  -o nginx.tar.gz.asc \
     && found=''; \

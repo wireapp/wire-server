@@ -217,7 +217,7 @@ instance FromJSON Message where
 -- | Payload type for a connection request from one user to another.
 data ConnectionRequest = ConnectionRequest
   { -- | Connection recipient
-    crUser :: OpaqueUserId,
+    crUser :: UserId,
     -- | Name of the conversation to be created
     crName :: Text,
     -- | Initial message

@@ -673,7 +673,7 @@ postConvO2OFailWithSelf :: TestM ()
 postConvO2OFailWithSelf = do
   g <- view tsGalley
   alice <- randomUser
-  let inv = NewConvUnmanaged (NewConv [makeIdOpaque alice] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin)
+  let inv = NewConvUnmanaged (NewConv [alice] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin)
   post (g . path "/conversations/one2one" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
     const 403 === statusCode
     const (Just "invalid-op") === fmap label . responseJsonUnsafe
@@ -881,7 +881,7 @@ postMembersOk2 = do
   postMembers bob (singleton chuck) conv !!! const 204 === statusCode
   chuck' <- responseJsonUnsafe <$> (getSelfMember chuck conv <!! const 200 === statusCode)
   liftIO $
-    assertEqual "wrong self member" (Just (makeIdOpaque chuck)) (memId <$> chuck')
+    assertEqual "wrong self member" (Just chuck) (memId <$> chuck')
 
 postMembersOk3 :: TestM ()
 postMembersOk3 = do
@@ -1021,7 +1021,7 @@ putMemberOk update = do
   -- Expected member state
   let memberBob =
         Member
-          { memId = makeIdOpaque bob,
+          { memId = bob,
             memService = Nothing,
             memOtrMuted = fromMaybe False (mupOtrMute update),
             memOtrMutedStatus = mupOtrMuteStatus update,
@@ -1156,13 +1156,13 @@ removeUser = do
   mems1 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv1
   mems2 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv2
   mems3 <- fmap cnvMembers . responseJsonUnsafe <$> getConv alice conv3
-  let other u = find ((== makeIdOpaque u) . omId) . cmOthers
+  let other u = find ((== u) . omId) . cmOthers
   liftIO $ do
     (mems1 >>= other bob) @?= Nothing
     (mems2 >>= other bob) @?= Nothing
-    (mems2 >>= other carl) @?= Just (OtherMember (makeIdOpaque carl) Nothing roleNameWireAdmin)
+    (mems2 >>= other carl) @?= Just (OtherMember carl Nothing roleNameWireAdmin)
     (mems3 >>= other bob) @?= Nothing
-    (mems3 >>= other carl) @?= Just (OtherMember (makeIdOpaque carl) Nothing roleNameWireAdmin)
+    (mems3 >>= other carl) @?= Just (OtherMember carl Nothing roleNameWireAdmin)
   where
     matchMemberLeave conv u n = do
       let e = List1.head (WS.unpackPayload n)

@@ -27,7 +27,9 @@ import qualified Wire.API.User as User
 import qualified Wire.API.User.Client as Client
 import qualified Wire.API.User.Client.Prekey as Prekey
 import qualified Wire.API.User.Handle as Handle
+import qualified Wire.API.User.Search as Search
 import qualified Wire.API.UserMap as UserMap
+import qualified Wire.API.Wrapped as Wrapped
 
 tests :: T.TestTree
 tests =
@@ -35,6 +37,7 @@ tests =
     [ testToJSON @User.UserProfile,
       testToJSON @User.User,
       testToJSON @User.SelfProfile,
+      testToJSON @(User.LimitedQualifiedUserIdList 20),
       testToJSON @Handle.UserHandleInfo,
       testToJSON @Client.Client,
       testToJSON @Client.PubClient,
@@ -47,7 +50,10 @@ tests =
       testToJSON @Prekey.PrekeyBundle,
       testToJSON @Prekey.ClientPrekey,
       testToJSON @(Client.QualifiedUserClientMap (Maybe Prekey.Prekey)),
-      testToJSON @Client.QualifiedUserClients
+      testToJSON @Client.QualifiedUserClients,
+      testToJSON @Search.Contact,
+      testToJSON @(Search.SearchResult Search.Contact),
+      testToJSON @(Wrapped.Wrapped "some_user" User.User)
     ]
 
 testToJSON :: forall a. (Arbitrary a, Typeable a, ToJSON a, ToSchema a, Show a) => T.TestTree

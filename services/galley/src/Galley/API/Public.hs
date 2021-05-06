@@ -33,7 +33,7 @@ import Data.Aeson (FromJSON, ToJSON, encode)
 import Data.ByteString.Conversion (fromByteString, fromList, toByteString')
 import Data.CommaSeparatedList
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
-import Data.Id (ConnId, ConvId, OpaqueConvId, TeamId, UserId)
+import Data.Id (ConnId, ConvId, TeamId, UserId)
 import qualified Data.Predicate as P
 import Data.Range
 import qualified Data.Set as Set
@@ -159,14 +159,14 @@ data Api routes = Api
         :- Summary "Get a conversation by ID"
         :> ZUser
         :> "conversations"
-        :> Capture "cnv" OpaqueConvId
+        :> Capture "cnv" ConvId
         :> Get '[Servant.JSON] Public.Conversation,
     getConversationRoles ::
       routes
         :- Summary "Get existing roles available for the given conversation"
         :> ZUser
         :> "conversations"
-        :> Capture "cnv" OpaqueConvId
+        :> Capture "cnv" ConvId
         :> Get '[Servant.JSON] Public.ConversationRolesList,
     getConversationIds ::
       routes
@@ -181,7 +181,7 @@ data Api routes = Api
                Description "Conversation ID to start from (exclusive)"
              ]
              "start"
-             OpaqueConvId
+             ConvId
         :> QueryParam'
              [ Optional,
                Strict,
@@ -189,7 +189,7 @@ data Api routes = Api
              ]
              "size"
              (Range 1 1000 Int32)
-        :> Get '[Servant.JSON] (Public.ConversationList OpaqueConvId),
+        :> Get '[Servant.JSON] (Public.ConversationList ConvId),
     getConversations ::
       routes
         :- Summary "Get all conversations"
@@ -201,14 +201,14 @@ data Api routes = Api
                Description "Mutually exclusive with 'start' (at most 32 IDs per request)"
              ]
              "ids"
-             (Range 1 32 (CommaSeparatedList OpaqueConvId))
+             (Range 1 32 (CommaSeparatedList ConvId))
         :> QueryParam'
              [ Optional,
                Strict,
                Description "Conversation ID to start from (exclusive)"
              ]
              "start"
-             OpaqueConvId
+             ConvId
         :> QueryParam'
              [ Optional,
                Strict,
@@ -445,6 +445,9 @@ sitemap = do
       .&. accept "text" "csv"
   document "GET" "getTeamMembersCSV" $ do
     summary "Get all members of the team as a CSV file"
+    notes
+      "The endpoint returns data in chunked transfer encoding.\
+      \ Internal server errors might result in a failed transfer instead of a 500 response."
     parameter Path "tid" bytes' $
       description "Team ID"
     response 200 "Team members CSV file" end

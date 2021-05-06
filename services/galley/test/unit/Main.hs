@@ -22,6 +22,7 @@ where
 
 import Imports
 import qualified Test.Galley.API
+import qualified Test.Galley.Intra.User
 import Test.Tasty
 
 main :: IO ()
@@ -29,5 +30,6 @@ main =
   defaultMain $
     testGroup
       "Tests"
-      [ Test.Galley.API.tests
+      [ Test.Galley.API.tests,
+        Test.Galley.Intra.User.tests
       ]

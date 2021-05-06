@@ -165,7 +165,7 @@ After installing docker-io, add your user to the docker group, and restart your 
 once you've logged in again, if you would like to upload any docker images (optional):
 ```bash
 docker login --username=<MY_DOCKER_USERNAME>
-````
+```
 
 ### Generic:
 

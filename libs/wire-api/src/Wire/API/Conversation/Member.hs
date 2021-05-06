@@ -104,7 +104,7 @@ instance FromJSON ConvMembers where
 -- Members
 
 data Member = Member
-  { memId :: OpaqueUserId,
+  { memId :: UserId,
     memService :: Maybe ServiceRef,
     -- | DEPRECATED, remove it once enough clients use `memOtrMutedStatus`
     memOtrMuted :: Bool,
@@ -233,7 +233,7 @@ newtype MutedStatus = MutedStatus {fromMutedStatus :: Int32}
   deriving newtype (Num, FromJSON, ToJSON, Arbitrary, ToSchema)
 
 data OtherMember = OtherMember
-  { omId :: OpaqueUserId,
+  { omId :: UserId,
     omService :: Maybe ServiceRef,
     omConvRoleName :: RoleName
   }
@@ -346,8 +346,10 @@ instance FromJSON MemberUpdate where
 
 instance Arbitrary MemberUpdate where
   arbitrary =
-    (getGenericUniform <$> arbitrary)
+    (removeMuteStatus . getGenericUniform <$> arbitrary)
       `QC.suchThat` (isRight . validateMemberUpdate)
+    where
+      removeMuteStatus mup = mup {mupOtrMuteStatus = Nothing}
 
 validateMemberUpdate :: MemberUpdate -> Either String MemberUpdate
 validateMemberUpdate u =
@@ -372,7 +374,9 @@ data OtherMemberUpdate = OtherMemberUpdate
   { omuConvRoleName :: Maybe RoleName
   }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform OtherMemberUpdate)
+
+instance Arbitrary OtherMemberUpdate where
+  arbitrary = OtherMemberUpdate . Just <$> arbitrary
 
 modelOtherMemberUpdate :: Doc.Model
 modelOtherMemberUpdate = Doc.defineModel "otherMemberUpdate" $ do

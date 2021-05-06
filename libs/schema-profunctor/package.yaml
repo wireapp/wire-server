@@ -1,0 +1,38 @@
+defaults:
+  local: ../../package-defaults.yaml
+name: schema-profunctor
+version: '0.1.0'
+description: Schemas for documented bidirectional JSON encoding
+category: Text, Web, JSON
+author: Wire Swiss GmbH
+maintainer: Wire Swiss GmbH <backend@wire.com>
+copyright: (c) 2021 Wire Swiss GmbH
+license: AGPL-3
+
+library:
+  source-dirs: src
+  dependencies:
+    - base >=4 && < 5
+    - aeson >= 1.0 && < 1.6
+    - bifunctors
+    - comonad
+    - imports
+    - lens
+    - profunctors
+    - swagger2 >=2 && < 2.7
+    - text
+    - vector
+tests:
+  schemas-tests:
+    main: Main.hs
+    source-dirs: test/unit
+    dependencies:
+      - base >= 4 && < 5
+      - aeson
+      - aeson-qq
+      - imports
+      - lens
+      - schema-profunctor
+      - swagger2
+      - tasty
+      - tasty-hunit

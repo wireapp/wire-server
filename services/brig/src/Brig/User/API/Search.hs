@@ -18,21 +18,30 @@
 module Brig.User.API.Search
   ( routesPublic,
     routesInternal,
+    API,
+    servantSitemap,
   )
 where
 
+import Brig.API.Error (fedError)
 import Brig.API.Handler
+import Brig.API.Util (ZAuthServant)
 import Brig.App
 import qualified Brig.Data.User as DB
+import qualified Brig.Federation.Client as Federation
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.Options as Opts
 import Brig.Team.Util (ensurePermissions)
 import Brig.Types.Search as Search
+import Brig.User.API.Handle (contactFromProfile)
+import qualified Brig.User.API.Handle as HandleAPI
 import Brig.User.Search.Index
 import qualified Brig.User.Search.SearchIndex as Q
 import Brig.User.Search.TeamUserSearch (RoleFilter (..), TeamUserSearchSortBy (..), TeamUserSearchSortOrder (..))
 import qualified Brig.User.Search.TeamUserSearch as Q
 import Control.Lens (view)
+import Data.Domain (Domain)
+import Data.Handle (parseHandle)
 import Data.Id
 import Data.Predicate
 import Data.Range
@@ -42,29 +51,37 @@ import Imports
 import Network.Wai (Response)
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Routing
+import Network.Wai.Utilities ((!>>))
 import Network.Wai.Utilities.Response (empty, json)
 import Network.Wai.Utilities.Swagger (document)
+import Servant hiding (Handler, JSON)
+import qualified Servant
+import System.Logger (field, msg)
+import System.Logger.Class (val, (~~))
+import qualified System.Logger.Class as Log
+import qualified Wire.API.Federation.API.Brig as FedBrig
 import qualified Wire.API.Team.Permission as Public
+import Wire.API.Team.SearchVisibility (TeamSearchVisibility)
 import qualified Wire.API.User.Search as Public
+
+type SearchContacts =
+  Summary "Search for users"
+    :> ZAuthServant
+    :> "search"
+    :> "contacts"
+    :> QueryParam' '[Required, Strict, Description "Search query"] "q" Text
+    :> QueryParam' '[Optional, Strict, Description "Searched domain. Note: This is optional only for backwards compatibility, future versions will mandate this."] "domain" Domain
+    :> QueryParam' '[Optional, Strict, Description "Number of results to return (min: 1, max: 500, default 15)"] "size" (Range 1 500 Int32)
+    :> Get '[Servant.JSON] (Public.SearchResult Public.Contact)
+
+type API = SearchContacts
+
+servantSitemap :: ServerT API Handler
+servantSitemap =
+  search
 
 routesPublic :: Routes Doc.ApiBuilder Handler ()
 routesPublic = do
-  get "/search/contacts" (continue searchH) $
-    accept "application" "json"
-      .&. header "Z-User"
-      .&. query "q"
-      .&. def (unsafeRange 15) (query "size")
-
-  document "GET" "search" $ do
-    Doc.summary "Search for users"
-    Doc.parameter Doc.Query "q" Doc.string' $
-      Doc.description "Search query"
-    Doc.parameter Doc.Query "size" Doc.int32' $ do
-      Doc.description "Number of results to return (min: 1, max: 500, default: 15)"
-      Doc.optional
-    Doc.returns (Doc.ref $ Public.modelSearchResult Public.modelSearchContact)
-    Doc.response 200 "The search result." Doc.end
-
   get "/teams/:tid/search" (continue teamUserSearchH) $
     accept "application" "json"
       .&. header "Z-User"
@@ -122,30 +139,80 @@ routesInternal = do
 
 -- Handlers
 
-searchH :: JSON ::: UserId ::: Text ::: Range 1 500 Int32 -> Handler Response
-searchH (_ ::: u ::: q ::: s) = json <$> lift (search u q s)
+-- FUTUREWORK: Consider augmenting 'SearchResult' with full user profiles
+-- for all results. This is tracked in https://wearezeta.atlassian.net/browse/SQCORE-599
+search :: UserId -> Text -> Maybe Domain -> Maybe (Range 1 500 Int32) -> Handler (Public.SearchResult Public.Contact)
+search searcherId searchTerm maybeDomain maybeMaxResults = do
+  federationDomain <- viewFederationDomain
+  let queryDomain = fromMaybe federationDomain maybeDomain
+  if queryDomain == federationDomain
+    then searchLocally searcherId searchTerm maybeMaxResults
+    else searchRemotely queryDomain searchTerm
 
-search :: UserId -> Text -> Range 1 500 Int32 -> AppIO (Public.SearchResult Public.Contact)
-search searcherId searchTerm maxResults = do
-  -- FUTUREWORK(federation, #1269):
-  -- If the query contains a qualified handle, forward the search to the remote
-  -- backend.
-  searcherTeamId <- DB.lookupUserTeam searcherId
-  sameTeamSearchOnly <- fromMaybe False <$> view (settings . Opts.searchSameTeamOnly)
-  teamSearchInfo <-
-    case searcherTeamId of
-      Nothing -> return Search.NoTeam
-      Just t ->
-        -- This flag in brig overrules any flag on galley - it is system wide
-        if sameTeamSearchOnly
-          then return (Search.TeamOnly t)
-          else do
-            -- For team users, we need to check the visibility flag
-            Intra.getTeamSearchVisibility t >>= return . handleTeamVisibility t
-  Q.searchIndex searcherId teamSearchInfo searchTerm maxResults
+searchRemotely :: Domain -> Text -> Handler (Public.SearchResult Public.Contact)
+searchRemotely domain searchTerm = do
+  Log.info $
+    msg (val "searchRemotely")
+      ~~ field "domain" (show domain)
+      ~~ field "searchTerm" searchTerm
+  Federation.searchUsers domain (FedBrig.SearchRequest searchTerm) !>> fedError
+
+searchLocally :: UserId -> Text -> Maybe (Range 1 500 Int32) -> Handler (Public.SearchResult Public.Contact)
+searchLocally searcherId searchTerm maybeMaxResults = do
+  let maxResults = maybe 15 (fromIntegral . fromRange) maybeMaxResults
+  teamSearchInfo <- mkTeamSearchInfo
+
+  maybeExactHandleMatch <- exactHandleSearch teamSearchInfo
+
+  let exactHandleMatchCount = length maybeExactHandleMatch
+      esMaxResults = maxResults - exactHandleMatchCount
+
+  esResult <-
+    if esMaxResults > 0
+      then Q.searchIndex searcherId teamSearchInfo searchTerm esMaxResults
+      else pure $ SearchResult 0 0 0 []
+
+  -- Prepend results matching exact handle and results from ES.
+  pure $
+    esResult
+      { searchResults = maybeToList maybeExactHandleMatch <> searchResults esResult,
+        searchFound = exactHandleMatchCount + searchFound esResult,
+        searchReturned = exactHandleMatchCount + searchReturned esResult
+      }
   where
+    handleTeamVisibility :: TeamId -> TeamSearchVisibility -> Search.TeamSearchInfo
     handleTeamVisibility t Team.SearchVisibilityStandard = Search.TeamAndNonMembers t
     handleTeamVisibility t Team.SearchVisibilityNoNameOutsideTeam = Search.TeamOnly t
+
+    mkTeamSearchInfo :: Handler TeamSearchInfo
+    mkTeamSearchInfo = lift $ do
+      searcherTeamId <- DB.lookupUserTeam searcherId
+      sameTeamSearchOnly <- fromMaybe False <$> view (settings . Opts.searchSameTeamOnly)
+      case searcherTeamId of
+        Nothing -> return Search.NoTeam
+        Just t ->
+          -- This flag in brig overrules any flag on galley - it is system wide
+          if sameTeamSearchOnly
+            then return (Search.TeamOnly t)
+            else do
+              -- For team users, we need to check the visibility flag
+              handleTeamVisibility t <$> Intra.getTeamSearchVisibility t
+
+    exactHandleSearch :: TeamSearchInfo -> Handler (Maybe Contact)
+    exactHandleSearch teamSearchInfo = do
+      let searchedHandleMaybe = parseHandle searchTerm
+      exactHandleResult <-
+        case searchedHandleMaybe of
+          Nothing -> pure Nothing
+          Just searchedHandle ->
+            contactFromProfile
+              <$$> HandleAPI.getLocalHandleInfo searcherId searchedHandle
+      pure $ case teamSearchInfo of
+        Search.TeamOnly t ->
+          if Just t == (contactTeam =<< exactHandleResult)
+            then exactHandleResult
+            else Nothing
+        _ -> exactHandleResult
 
 teamUserSearchH ::
   ( JSON
