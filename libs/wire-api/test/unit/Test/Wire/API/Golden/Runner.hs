@@ -41,11 +41,11 @@ testObject obj path = do
 
   expectedValue <- assertRight =<< eitherDecodeFileStrict fullPath
   assertEqual
-    (show (typeRep @a) <> ": ToJSON should match golden file")
+    (show (typeRep @a) <> ": ToJSON should match golden file: " <> path)
     expectedValue
     actualValue
   assertEqual
-    (show (typeRep @a) <> ": FromJSON should match object")
+    (show (typeRep @a) <> ": FromJSON of " <> path <> " should match object")
     (Success obj)
     (fromJSON actualValue)
 
