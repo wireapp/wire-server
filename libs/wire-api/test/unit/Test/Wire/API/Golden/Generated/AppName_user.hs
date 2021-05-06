@@ -76,12 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_AppName_user_1 :: AppName
-testObject_AppName_user_1 = AppName {appNameText = ";i\26743Y\NUL\40771b\FS\1000892h\1062864)\EOT\1007578"}
+testObject_AppName_user_1 = AppName {appNameText = "\NUL\1059477\1078035_m\\\1011118(\ETBxv\24851Q\DELD,W\ACK\97531q8>[n\63755\47573nB="}
 testObject_AppName_user_2 :: AppName
-testObject_AppName_user_2 = AppName {appNameText = "\53472(V\NUL\f\GS\1069773\SYN\EM\1092697\120995/\FS8q\990864o\SO;\SOHB\"q,"}
+testObject_AppName_user_2 = AppName {appNameText = "\188426-\RS4y2^"}
 testObject_AppName_user_3 :: AppName
-testObject_AppName_user_3 = AppName {appNameText = "\FS\1089919&,r\166979\&6Y@"}
+testObject_AppName_user_3 = AppName {appNameText = "\1026299KI;\100440s\EM5)q4&w?e\178026Y\97713p\US\STX\2529\1097082\191344\57913)`"}
 testObject_AppName_user_4 :: AppName
-testObject_AppName_user_4 = AppName {appNameText = "\STX\DC4i!\b\SOH{\144139\34987*\78698-]"}
+testObject_AppName_user_4 = AppName {appNameText = "p\ETX\1109067zOB\SUBH\6448;\DC1\38164l\ETXRL wL\1078980\DLE6,?2*\989073\SO\32891)"}
 testObject_AppName_user_5 :: AppName
-testObject_AppName_user_5 = AppName {appNameText = "(\\\18763\NAKg"}
+testObject_AppName_user_5 = AppName {appNameText = "V\36130K\RS\b]\b\GS\1093610\USjC\EMP\1008215\ENQ5C\1035983\12475\1016424\EOT"}
+testObject_AppName_user_6 :: AppName
+testObject_AppName_user_6 = AppName {appNameText = "\RS3*i\1065154\1074918s\EM'j/?\RS\DC4*!\SOH\1052389\n^\137943D"}
+testObject_AppName_user_7 :: AppName
+testObject_AppName_user_7 = AppName {appNameText = "wK\"\1051964\"["}
+testObject_AppName_user_8 :: AppName
+testObject_AppName_user_8 = AppName {appNameText = "\1070367G\99396\163590\bv\163597f\10801z0&\17445"}
+testObject_AppName_user_9 :: AppName
+testObject_AppName_user_9 = AppName {appNameText = "8\EMy\1004373\134646B\1013409@&6\"\ENQNtf\r\1074562'\ETX\ETB"}
+testObject_AppName_user_10 :: AppName
+testObject_AppName_user_10 = AppName {appNameText = "\NAK\1013022z\163708c"}
+testObject_AppName_user_11 :: AppName
+testObject_AppName_user_11 = AppName {appNameText = "\DC1\70718:wQ\35995[j*\\?c\37487`K"}
+testObject_AppName_user_12 :: AppName
+testObject_AppName_user_12 = AppName {appNameText = ""}
+testObject_AppName_user_13 :: AppName
+testObject_AppName_user_13 = AppName {appNameText = "\\\186848\EM\1085381aU#"}
+testObject_AppName_user_14 :: AppName
+testObject_AppName_user_14 = AppName {appNameText = " "}
+testObject_AppName_user_15 :: AppName
+testObject_AppName_user_15 = AppName {appNameText = "\STX/\986575\44086\SI\1007113\ETBPq\33410iH\51358\SOH\13025\156925-Z}Z\21309"}
+testObject_AppName_user_16 :: AppName
+testObject_AppName_user_16 = AppName {appNameText = ""}
+testObject_AppName_user_17 :: AppName
+testObject_AppName_user_17 = AppName {appNameText = ";\SOH\ETX;(S\1082022[T6B4"}
+testObject_AppName_user_18 :: AppName
+testObject_AppName_user_18 = AppName {appNameText = "\1077549t\1073997\STX\18028\1019297#fa\1053713$v\1045032\1099861\DC4i\FS\DC3\STXqtFr\59674\1076275"}
+testObject_AppName_user_19 :: AppName
+testObject_AppName_user_19 = AppName {appNameText = "\ESC\f H\188233\168176G\v\50547ei^"}
+testObject_AppName_user_20 :: AppName
+testObject_AppName_user_20 = AppName {appNameText = "\\m\b"}

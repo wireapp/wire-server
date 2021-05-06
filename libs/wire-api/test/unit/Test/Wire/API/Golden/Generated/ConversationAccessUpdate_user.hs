@@ -76,12 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_ConversationAccessUpdate_user_1 :: ConversationAccessUpdate
-testObject_ConversationAccessUpdate_user_1 = ConversationAccessUpdate {cupAccess = [PrivateAccess], cupAccessRole = TeamAccessRole}
+testObject_ConversationAccessUpdate_user_1 = ConversationAccessUpdate {cupAccess = [LinkAccess,PrivateAccess,LinkAccess,PrivateAccess,CodeAccess,CodeAccess,CodeAccess,InviteAccess,LinkAccess,InviteAccess,CodeAccess], cupAccessRole = NonActivatedAccessRole}
 testObject_ConversationAccessUpdate_user_2 :: ConversationAccessUpdate
-testObject_ConversationAccessUpdate_user_2 = ConversationAccessUpdate {cupAccess = [InviteAccess,InviteAccess,CodeAccess,LinkAccess,PrivateAccess], cupAccessRole = TeamAccessRole}
+testObject_ConversationAccessUpdate_user_2 = ConversationAccessUpdate {cupAccess = [LinkAccess], cupAccessRole = ActivatedAccessRole}
 testObject_ConversationAccessUpdate_user_3 :: ConversationAccessUpdate
-testObject_ConversationAccessUpdate_user_3 = ConversationAccessUpdate {cupAccess = [InviteAccess,InviteAccess,LinkAccess,LinkAccess,InviteAccess,PrivateAccess,InviteAccess], cupAccessRole = ActivatedAccessRole}
+testObject_ConversationAccessUpdate_user_3 = ConversationAccessUpdate {cupAccess = [], cupAccessRole = ActivatedAccessRole}
 testObject_ConversationAccessUpdate_user_4 :: ConversationAccessUpdate
-testObject_ConversationAccessUpdate_user_4 = ConversationAccessUpdate {cupAccess = [CodeAccess], cupAccessRole = TeamAccessRole}
+testObject_ConversationAccessUpdate_user_4 = ConversationAccessUpdate {cupAccess = [InviteAccess,CodeAccess], cupAccessRole = NonActivatedAccessRole}
 testObject_ConversationAccessUpdate_user_5 :: ConversationAccessUpdate
-testObject_ConversationAccessUpdate_user_5 = ConversationAccessUpdate {cupAccess = [], cupAccessRole = NonActivatedAccessRole}
+testObject_ConversationAccessUpdate_user_5 = ConversationAccessUpdate {cupAccess = [CodeAccess,InviteAccess], cupAccessRole = PrivateAccessRole}
+testObject_ConversationAccessUpdate_user_6 :: ConversationAccessUpdate
+testObject_ConversationAccessUpdate_user_6 = ConversationAccessUpdate {cupAccess = [], cupAccessRole = ActivatedAccessRole}
+testObject_ConversationAccessUpdate_user_7 :: ConversationAccessUpdate
+testObject_ConversationAccessUpdate_user_7 = ConversationAccessUpdate {cupAccess = [], cupAccessRole = PrivateAccessRole}
+testObject_ConversationAccessUpdate_user_8 :: ConversationAccessUpdate
+testObject_ConversationAccessUpdate_user_8 = ConversationAccessUpdate {cupAccess = [InviteAccess,InviteAccess,InviteAccess], cupAccessRole = PrivateAccessRole}
+testObject_ConversationAccessUpdate_user_9 :: ConversationAccessUpdate
+testObject_ConversationAccessUpdate_user_9 = ConversationAccessUpdate {cupAccess = [], cupAccessRole = NonActivatedAccessRole}
+testObject_ConversationAccessUpdate_user_10 :: ConversationAccessUpdate
+testObject_ConversationAccessUpdate_user_10 = ConversationAccessUpdate {cupAccess = [LinkAccess,CodeAccess,LinkAccess,InviteAccess,InviteAccess,LinkAccess], cupAccessRole = ActivatedAccessRole}
+testObject_ConversationAccessUpdate_user_11 :: ConversationAccessUpdate
+testObject_ConversationAccessUpdate_user_11 = ConversationAccessUpdate {cupAccess = [PrivateAccess], cupAccessRole = PrivateAccessRole}
+testObject_ConversationAccessUpdate_user_12 :: ConversationAccessUpdate
+testObject_ConversationAccessUpdate_user_12 = ConversationAccessUpdate {cupAccess = [], cupAccessRole = ActivatedAccessRole}
+testObject_ConversationAccessUpdate_user_13 :: ConversationAccessUpdate
+testObject_ConversationAccessUpdate_user_13 = ConversationAccessUpdate {cupAccess = [], cupAccessRole = TeamAccessRole}
+testObject_ConversationAccessUpdate_user_14 :: ConversationAccessUpdate
+testObject_ConversationAccessUpdate_user_14 = ConversationAccessUpdate {cupAccess = [InviteAccess,InviteAccess], cupAccessRole = ActivatedAccessRole}
+testObject_ConversationAccessUpdate_user_15 :: ConversationAccessUpdate
+testObject_ConversationAccessUpdate_user_15 = ConversationAccessUpdate {cupAccess = [PrivateAccess,LinkAccess,CodeAccess,LinkAccess,CodeAccess,LinkAccess,PrivateAccess,PrivateAccess,LinkAccess,LinkAccess,InviteAccess,CodeAccess,LinkAccess,LinkAccess,CodeAccess], cupAccessRole = TeamAccessRole}
+testObject_ConversationAccessUpdate_user_16 :: ConversationAccessUpdate
+testObject_ConversationAccessUpdate_user_16 = ConversationAccessUpdate {cupAccess = [LinkAccess,PrivateAccess,CodeAccess,InviteAccess,LinkAccess], cupAccessRole = PrivateAccessRole}
+testObject_ConversationAccessUpdate_user_17 :: ConversationAccessUpdate
+testObject_ConversationAccessUpdate_user_17 = ConversationAccessUpdate {cupAccess = [], cupAccessRole = TeamAccessRole}
+testObject_ConversationAccessUpdate_user_18 :: ConversationAccessUpdate
+testObject_ConversationAccessUpdate_user_18 = ConversationAccessUpdate {cupAccess = [], cupAccessRole = TeamAccessRole}
+testObject_ConversationAccessUpdate_user_19 :: ConversationAccessUpdate
+testObject_ConversationAccessUpdate_user_19 = ConversationAccessUpdate {cupAccess = [InviteAccess], cupAccessRole = PrivateAccessRole}
+testObject_ConversationAccessUpdate_user_20 :: ConversationAccessUpdate
+testObject_ConversationAccessUpdate_user_20 = ConversationAccessUpdate {cupAccess = [PrivateAccess,CodeAccess,CodeAccess], cupAccessRole = PrivateAccessRole}

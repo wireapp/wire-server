@@ -80,7 +80,7 @@ generateBindingModule' :: forall a . (Arbitrary a, Show a)
                        => String -> String -> Ref -> IO ()
 generateBindingModule' typeName section ref = do
   tmpdir <- getEnv "GOLDEN_TMPDIR"
-  objects <- replicateM 5 (generate (arbitrary @a))
+  objects <- replicateM 20 (generate (arbitrary @a))
   let escape c | isAlphaNum c = [c]
                | ord c < 256 = ['_',
                                 intToDigit (ord c `div` 16),

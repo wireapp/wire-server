@@ -76,12 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_Email_user_1 :: Email
-testObject_Email_user_1 = Email {emailLocal = "\SOHOZWiq\SOH3\SYN\1050573eR7", emailDomain = "\150363b\DLE\1027590\28275\&0ek8\EOT\EOT\145662\1074478\46521\1031047):N9\1007884S\11720S\119051o3K\RSE"}
+testObject_Email_user_1 = Email {emailLocal = "${\34284\SI\ENQ\1097126G\SOHLR\1113095'\b\1006769L\f,\135815\STXF\74111\997628", emailDomain = ":X5\9187U\1047708\DC1\1083827szI-\US"}
 testObject_Email_user_2 :: Email
-testObject_Email_user_2 = Email {emailLocal = "\ACKKi\1054091\DELp\60832#20)j", emailDomain = "\SYN\GS\189628\1081120Q5!\6686\ESCzA"}
+testObject_Email_user_2 = Email {emailLocal = "\v\a>\NUL8\1050106", emailDomain = "?\FS~:ji\8211\ENQ\45619\1112351\&8XY\ENQhu\167893E"}
 testObject_Email_user_3 :: Email
-testObject_Email_user_3 = Email {emailLocal = "'\1038943U\1023112f1\SUB2\179812_\25572\SO\996603O\1095128r\NULG\989922p\168456\ETB", emailDomain = "=K',{M\1101328\71310\1076422\61886by\SO6\1113062\1042345\DC1\DC4kp%"}
+testObject_Email_user_3 = Email {emailLocal = "\24340|\983633\ETBy\ENQr\FS\118830/\r", emailDomain = "p\1113290g7\179265$5}\54574QM\175857\&2Z?\16907"}
 testObject_Email_user_4 :: Email
-testObject_Email_user_4 = Email {emailLocal = "\ENQ", emailDomain = "~QV\1068264%"}
+testObject_Email_user_4 = Email {emailLocal = "\138242_\71055\1039637=\DELV<6\SOHcS|Dr\1062787`~\1090470gGvv?\20532r", emailDomain = "={/g\135923SS\1035845h]\1030004\SOH"}
 testObject_Email_user_5 :: Email
-testObject_Email_user_5 = Email {emailLocal = "\999636%q\1082066\FS2N\SYN\1066083g\rc{\1003212\ap", emailDomain = "\28355))\1058430\98850F"}
+testObject_Email_user_5 = Email {emailLocal = "p,\DELi>$\NAK\1060320\NUL\ENQD\DLE\b\1085547\&5", emailDomain = "\1112539C\34982p\1046495y\\\1098102\ETB-;\\\ETBX\DC1rCMp\78091\ETX\66588"}
+testObject_Email_user_6 :: Email
+testObject_Email_user_6 = Email {emailLocal = "E\45571L^3:)H\SYN\FS8}\EM|\bpo\f8\\#\1085849<s\134493g-\3976", emailDomain = "m\1412\161192j\53340X\DLEu\SUB"}
+testObject_Email_user_7 :: Email
+testObject_Email_user_7 = Email {emailLocal = "\STX\DC1'e_\1027787t\1068380\DC2IN+\SYN&~(\1045672\a\ETX\1012095t\"W#\GSsO_6\SYN", emailDomain = "\158452"}
+testObject_Email_user_8 :: Email
+testObject_Email_user_8 = Email {emailLocal = "\1026782\US\62131\1003376", emailDomain = "a\131648\194907;\DC1vZKV{R\120473#\990659"}
+testObject_Email_user_9 :: Email
+testObject_Email_user_9 = Email {emailLocal = "\1009037\11539C\SI3x\42568P", emailDomain = "O\1061641NT|\1053778$S1\993323Y\DC40/m\19752"}
+testObject_Email_user_10 :: Email
+testObject_Email_user_10 = Email {emailLocal = "\1003764\al~C", emailDomain = "9d"}
+testObject_Email_user_11 :: Email
+testObject_Email_user_11 = Email {emailLocal = ";CA\GS;o'\NAKIQ\ENQ", emailDomain = "\1112417\1002932yu\1084272\ESC\tJ\1076496\190451\DC4\GSc-X\v\30372\&8a#\153276w\STX\EM\DC4?\ENQ\181295"}
+testObject_Email_user_12 :: Email
+testObject_Email_user_12 = Email {emailLocal = "\SOH\SOJ\142697>\14605u^\ACK\1027768VYo\ESCc\ACK\34689\41279\1042280\59060QI\DEL\18737'\55150\n;\19887", emailDomain = "\147302"}
+testObject_Email_user_13 :: Email
+testObject_Email_user_13 = Email {emailLocal = "", emailDomain = "D>\CAN\ESCrGuZWc\DC3M\CANl\43411&KO\SOH\1056185mbTJ\GS\1039940(\136708\1056803\97470"}
+testObject_Email_user_14 :: Email
+testObject_Email_user_14 = Email {emailLocal = "\36213\SO\1010181#\1098606q\NAK", emailDomain = ""}
+testObject_Email_user_15 :: Email
+testObject_Email_user_15 = Email {emailLocal = "eP/", emailDomain = "\ETX\27826Rj\GS!e"}
+testObject_Email_user_16 :: Email
+testObject_Email_user_16 = Email {emailLocal = "\1099897\1042401~\1090663\1044505\24806Hs\157578o1", emailDomain = "\CAN\STX\1088710&(\36548v/jM\1001026\&7;\182563:"}
+testObject_Email_user_17 :: Email
+testObject_Email_user_17 = Email {emailLocal = "\57458\&5", emailDomain = "&\1086130\ESCos\184654S7G^"}
+testObject_Email_user_18 :: Email
+testObject_Email_user_18 = Email {emailLocal = "\DC3\1056999\30818u,U3R\36187#2", emailDomain = ""}
+testObject_Email_user_19 :: Email
+testObject_Email_user_19 = Email {emailLocal = "\156158A\r\158942%\RS6\STXK:\70062l\163454\NAK\14540\&2i'Benb\1091579", emailDomain = "3 "}
+testObject_Email_user_20 :: Email
+testObject_Email_user_20 = Email {emailLocal = "5\1038908\1090563\1089482\131170O\64129\GSQ/", emailDomain = "\ESCZ\CAN\20317\151090\EOT\DC1\172429=|\1101898\185968\a"}

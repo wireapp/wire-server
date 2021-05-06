@@ -1,0 +1,1 @@
+{"ttl":9,"ice_servers":[{"urls":["turn:a-c:1?transport=udp","turns:host.name:0?transport=udp","turn:a-c:0?transport=udp"],"credential":"fGU=","username":"d=0.v=2.k=2.t=s.r=utw"},{"urls":["turns:host.name:0?transport=tcp","turns:4.14.101.169:0?transport=udp","turns:123:0"],"credential":"6lk=","username":"d=1.v=0.k=1.t=E.r=c"}]}

@@ -76,12 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_TurnUsername_user_1 :: TurnUsername
-testObject_TurnUsername_user_1 = (turnUsername (secondsToNominalDiffTime (4758014.000000000000)) ("n61ysadt5d0o") & tuVersion .~ (12) & tuKeyindex .~ (20171) & tuT .~ ('%'))
+testObject_TurnUsername_user_1 = (turnUsername (secondsToNominalDiffTime (13726182.000000000000)) ("natklrzjkfdj5iw") & tuVersion .~ (28) & tuKeyindex .~ (12666) & tuT .~ ('K'))
 testObject_TurnUsername_user_2 :: TurnUsername
-testObject_TurnUsername_user_2 = (turnUsername (secondsToNominalDiffTime (1672329.000000000000)) ("c3kfhtml1gdbwieespky0jr1e1") & tuVersion .~ (28) & tuKeyindex .~ (23634) & tuT .~ ('\186486'))
+testObject_TurnUsername_user_2 = (turnUsername (secondsToNominalDiffTime (14758759.000000000000)) ("t3ubqtj") & tuVersion .~ (16) & tuKeyindex .~ (24248) & tuT .~ ('\1107698'))
 testObject_TurnUsername_user_3 :: TurnUsername
-testObject_TurnUsername_user_3 = (turnUsername (secondsToNominalDiffTime (7234157.000000000000)) ("09og5khk68c1jlg1fp9") & tuVersion .~ (6) & tuKeyindex .~ (13466) & tuT .~ ('6'))
+testObject_TurnUsername_user_3 = (turnUsername (secondsToNominalDiffTime (7063470.000000000000)) ("73x5y2ygy4o7qaamtxd65") & tuVersion .~ (24) & tuKeyindex .~ (26949) & tuT .~ ('\1018234'))
 testObject_TurnUsername_user_4 :: TurnUsername
-testObject_TurnUsername_user_4 = (turnUsername (secondsToNominalDiffTime (5471484.000000000000)) ("22bbtmc784n1v8157jrkkw7f") & tuVersion .~ (9) & tuKeyindex .~ (7430) & tuT .~ ('\184488'))
+testObject_TurnUsername_user_4 = (turnUsername (secondsToNominalDiffTime (11730111.000000000000)) ("d4fknghdf6ie6dp9") & tuVersion .~ (25) & tuKeyindex .~ (20076) & tuT .~ ('/'))
 testObject_TurnUsername_user_5 :: TurnUsername
-testObject_TurnUsername_user_5 = (turnUsername (secondsToNominalDiffTime (5251177.000000000000)) ("8puq3xwkuos2qyp53owoc9") & tuVersion .~ (0) & tuKeyindex .~ (356) & tuT .~ ('\SI'))
+testObject_TurnUsername_user_5 = (turnUsername (secondsToNominalDiffTime (1043226.000000000000)) ("kijjeot3340vzhu6oqxobfpu5xu382") & tuVersion .~ (26) & tuKeyindex .~ (3568) & tuT .~ ('\1101505'))
+testObject_TurnUsername_user_6 :: TurnUsername
+testObject_TurnUsername_user_6 = (turnUsername (secondsToNominalDiffTime (4951484.000000000000)) ("rrwfr44jc327u49hfux85") & tuVersion .~ (21) & tuKeyindex .~ (30322) & tuT .~ ('8'))
+testObject_TurnUsername_user_7 :: TurnUsername
+testObject_TurnUsername_user_7 = (turnUsername (secondsToNominalDiffTime (12267345.000000000000)) ("0oadau1d2byvdj") & tuVersion .~ (8) & tuKeyindex .~ (8986) & tuT .~ ('"'))
+testObject_TurnUsername_user_8 :: TurnUsername
+testObject_TurnUsername_user_8 = (turnUsername (secondsToNominalDiffTime (15269085.000000000000)) ("mtzquu34") & tuVersion .~ (11) & tuKeyindex .~ (1729) & tuT .~ ('\48709'))
+testObject_TurnUsername_user_9 :: TurnUsername
+testObject_TurnUsername_user_9 = (turnUsername (secondsToNominalDiffTime (3829249.000000000000)) ("9y1lhb3y40e4lc3von8izwg") & tuVersion .~ (1) & tuKeyindex .~ (14431) & tuT .~ ('-'))
+testObject_TurnUsername_user_10 :: TurnUsername
+testObject_TurnUsername_user_10 = (turnUsername (secondsToNominalDiffTime (12668204.000000000000)) ("v9rl8m2slwzknm") & tuVersion .~ (24) & tuKeyindex .~ (28457) & tuT .~ ('N'))
+testObject_TurnUsername_user_11 :: TurnUsername
+testObject_TurnUsername_user_11 = (turnUsername (secondsToNominalDiffTime (7357509.000000000000)) ("2h") & tuVersion .~ (28) & tuKeyindex .~ (40) & tuT .~ ('\1086656'))
+testObject_TurnUsername_user_12 :: TurnUsername
+testObject_TurnUsername_user_12 = (turnUsername (secondsToNominalDiffTime (5507212.000000000000)) ("6ivkkyxdev") & tuVersion .~ (18) & tuKeyindex .~ (2016) & tuT .~ ('c'))
+testObject_TurnUsername_user_13 :: TurnUsername
+testObject_TurnUsername_user_13 = (turnUsername (secondsToNominalDiffTime (6376037.000000000000)) ("izsgbxi87sk2enrdsfq6o") & tuVersion .~ (23) & tuKeyindex .~ (30736) & tuT .~ ('\1071729'))
+testObject_TurnUsername_user_14 :: TurnUsername
+testObject_TurnUsername_user_14 = (turnUsername (secondsToNominalDiffTime (14800174.000000000000)) ("xi4kiqsp8enw") & tuVersion .~ (19) & tuKeyindex .~ (15085) & tuT .~ ('a'))
+testObject_TurnUsername_user_15 :: TurnUsername
+testObject_TurnUsername_user_15 = (turnUsername (secondsToNominalDiffTime (6158194.000000000000)) ("qpu85lt9w2se8fgq3ci") & tuVersion .~ (11) & tuKeyindex .~ (2697) & tuT .~ ('\183774'))
+testObject_TurnUsername_user_16 :: TurnUsername
+testObject_TurnUsername_user_16 = (turnUsername (secondsToNominalDiffTime (6956274.000000000000)) ("x9blkk8c7nv7a5pogaiv") & tuVersion .~ (9) & tuKeyindex .~ (32488) & tuT .~ ('6'))
+testObject_TurnUsername_user_17 :: TurnUsername
+testObject_TurnUsername_user_17 = (turnUsername (secondsToNominalDiffTime (1786985.000000000000)) ("06b5") & tuVersion .~ (0) & tuKeyindex .~ (4092) & tuT .~ ('='))
+testObject_TurnUsername_user_18 :: TurnUsername
+testObject_TurnUsername_user_18 = (turnUsername (secondsToNominalDiffTime (5444472.000000000000)) ("gzay90qebb7mz36pxt3dxzv4x") & tuVersion .~ (8) & tuKeyindex .~ (14980) & tuT .~ ('C'))
+testObject_TurnUsername_user_19 :: TurnUsername
+testObject_TurnUsername_user_19 = (turnUsername (secondsToNominalDiffTime (12571319.000000000000)) ("s7tm007piq5jnx") & tuVersion .~ (3) & tuKeyindex .~ (14747) & tuT .~ ('c'))
+testObject_TurnUsername_user_20 :: TurnUsername
+testObject_TurnUsername_user_20 = (turnUsername (secondsToNominalDiffTime (16007796.000000000000)) ("015ihx2m") & tuVersion .~ (30) & tuKeyindex .~ (18256) & tuT .~ ('9'))

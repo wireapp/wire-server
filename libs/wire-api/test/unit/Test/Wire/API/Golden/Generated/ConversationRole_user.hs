@@ -76,12 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_ConversationRole_user_1 :: ConversationRole
-testObject_ConversationRole_user_1 = (fromJust (toConvRole (fromJust (parseRoleName "wire_member")) Nothing))
+testObject_ConversationRole_user_1 = (fromJust (toConvRole (fromJust (parseRoleName "wire_admin")) Nothing))
 testObject_ConversationRole_user_2 :: ConversationRole
-testObject_ConversationRole_user_2 = (fromJust (toConvRole (fromJust (parseRoleName "vw6ntvl001huymrh7sedj747xd14ocj4_bq0m_utqlriz2cp9zazas631p0_wvn747laj9guarov4x5f37os3cum")) (Just ((Actions (Set.fromList []))))))
+testObject_ConversationRole_user_2 = (fromJust (toConvRole (fromJust (parseRoleName "wire_admin")) Nothing))
 testObject_ConversationRole_user_3 :: ConversationRole
-testObject_ConversationRole_user_3 = (fromJust (toConvRole (fromJust (parseRoleName "oix_1apb5lrxbe6i2qcc2qjh")) (Just ((Actions (Set.fromList [AddConversationMember,RemoveConversationMember,ModifyConversationName,ModifyConversationAccess,ModifyOtherConversationMember]))))))
+testObject_ConversationRole_user_3 = (fromJust (toConvRole (fromJust (parseRoleName "5pgkos7w65e15qg2xjjcs8rwuiqzu0zrsv_sk7rfcsuohqhb52p93hwlpztg7alvtjltnsmhca7_eoaj6a596p8rqi62zqbaihm7h00_e32po7ez0lqqj2i2")) (Just ((Actions (Set.fromList [AddConversationMember,ModifyConversationName,ModifyConversationMessageTimer,ModifyConversationReceiptMode,LeaveConversation,DeleteConversation]))))))
 testObject_ConversationRole_user_4 :: ConversationRole
-testObject_ConversationRole_user_4 = (fromJust (toConvRole (fromJust (parseRoleName "oz0zgg7")) (Just ((Actions (Set.fromList [AddConversationMember,ModifyConversationReceiptMode,LeaveConversation]))))))
+testObject_ConversationRole_user_4 = (fromJust (toConvRole (fromJust (parseRoleName "wire_admin")) Nothing))
 testObject_ConversationRole_user_5 :: ConversationRole
-testObject_ConversationRole_user_5 = (fromJust (toConvRole (fromJust (parseRoleName "wire_admin")) Nothing))
+testObject_ConversationRole_user_5 = (fromJust (toConvRole (fromJust (parseRoleName "v204frzw8mc1uoczxaclgbwwk8vz34slfkrjvqyuutath4lwz_3ucmrxt5mz0q48w")) (Just ((Actions (Set.fromList [RemoveConversationMember]))))))
+testObject_ConversationRole_user_6 :: ConversationRole
+testObject_ConversationRole_user_6 = (fromJust (toConvRole (fromJust (parseRoleName "wire_member")) Nothing))
+testObject_ConversationRole_user_7 :: ConversationRole
+testObject_ConversationRole_user_7 = (fromJust (toConvRole (fromJust (parseRoleName "9whm34xkv0kz5pep6k3gm_kdacn_8pv45c9v3ctu96_lzhlnv7_vbrel1hpaqubqy_91r3mi")) (Just ((Actions (Set.fromList [AddConversationMember,ModifyConversationName,ModifyConversationMessageTimer,ModifyConversationAccess,ModifyOtherConversationMember,LeaveConversation]))))))
+testObject_ConversationRole_user_8 :: ConversationRole
+testObject_ConversationRole_user_8 = (fromJust (toConvRole (fromJust (parseRoleName "wire_member")) Nothing))
+testObject_ConversationRole_user_9 :: ConversationRole
+testObject_ConversationRole_user_9 = (fromJust (toConvRole (fromJust (parseRoleName "1mj5li37802a94183b_9ie_5z7oww1bweryt5ob7g0bj7tomb4rsw84h3017k813getn6_pb1jrswy91z6l7x63wa0cf3huv0g5")) (Just ((Actions (Set.fromList [RemoveConversationMember,ModifyConversationName,ModifyConversationMessageTimer,ModifyConversationReceiptMode,ModifyConversationAccess,ModifyOtherConversationMember,LeaveConversation,DeleteConversation]))))))
+testObject_ConversationRole_user_10 :: ConversationRole
+testObject_ConversationRole_user_10 = (fromJust (toConvRole (fromJust (parseRoleName "wire_member")) Nothing))
+testObject_ConversationRole_user_11 :: ConversationRole
+testObject_ConversationRole_user_11 = (fromJust (toConvRole (fromJust (parseRoleName "wire_admin")) Nothing))
+testObject_ConversationRole_user_12 :: ConversationRole
+testObject_ConversationRole_user_12 = (fromJust (toConvRole (fromJust (parseRoleName "9tnq6215l")) (Just ((Actions (Set.fromList [ModifyConversationName,ModifyConversationReceiptMode]))))))
+testObject_ConversationRole_user_13 :: ConversationRole
+testObject_ConversationRole_user_13 = (fromJust (toConvRole (fromJust (parseRoleName "313y9fglav7fug3kycv3xswxg_mqkpeqwz3u6hnhs_j3beakk4_fro67653lis7tu43glc")) (Just ((Actions (Set.fromList [RemoveConversationMember,ModifyConversationName,ModifyConversationAccess,ModifyOtherConversationMember,LeaveConversation,DeleteConversation]))))))
+testObject_ConversationRole_user_14 :: ConversationRole
+testObject_ConversationRole_user_14 = (fromJust (toConvRole (fromJust (parseRoleName "wire_member")) Nothing))
+testObject_ConversationRole_user_15 :: ConversationRole
+testObject_ConversationRole_user_15 = (fromJust (toConvRole (fromJust (parseRoleName "wire_member")) Nothing))
+testObject_ConversationRole_user_16 :: ConversationRole
+testObject_ConversationRole_user_16 = (fromJust (toConvRole (fromJust (parseRoleName "pqp41knfqumxin")) (Just ((Actions (Set.fromList [AddConversationMember,ModifyConversationMessageTimer,ModifyConversationAccess,ModifyOtherConversationMember]))))))
+testObject_ConversationRole_user_17 :: ConversationRole
+testObject_ConversationRole_user_17 = (fromJust (toConvRole (fromJust (parseRoleName "wire_member")) Nothing))
+testObject_ConversationRole_user_18 :: ConversationRole
+testObject_ConversationRole_user_18 = (fromJust (toConvRole (fromJust (parseRoleName "wire_member")) Nothing))
+testObject_ConversationRole_user_19 :: ConversationRole
+testObject_ConversationRole_user_19 = (fromJust (toConvRole (fromJust (parseRoleName "wire_member")) Nothing))
+testObject_ConversationRole_user_20 :: ConversationRole
+testObject_ConversationRole_user_20 = (fromJust (toConvRole (fromJust (parseRoleName "wire_member")) Nothing))

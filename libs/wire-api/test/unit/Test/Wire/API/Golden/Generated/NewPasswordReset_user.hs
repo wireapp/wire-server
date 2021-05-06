@@ -76,12 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_NewPasswordReset_user_1 :: NewPasswordReset
-testObject_NewPasswordReset_user_1 = NewPasswordReset (Right (Phone {fromPhone = "+184700453191848"}))
+testObject_NewPasswordReset_user_1 = NewPasswordReset (Left (Email {emailLocal = "~A\ENQ\26847HR\DC4\1005964\EOT\138202\&2`\aM`\US4", emailDomain = "\1083809JV*M1\997514\DC3M\DC2\190173\NULhnw\57476\NUL\ETX\ETX\EOT\2596\&7\188649"}))
 testObject_NewPasswordReset_user_2 :: NewPasswordReset
-testObject_NewPasswordReset_user_2 = NewPasswordReset (Right (Phone {fromPhone = "+12824246516"}))
+testObject_NewPasswordReset_user_2 = NewPasswordReset (Left (Email {emailLocal = "t\1009213\191289o2sIA\1105418>\194965U\65721", emailDomain = "\53856!'\19672,+"}))
 testObject_NewPasswordReset_user_3 :: NewPasswordReset
-testObject_NewPasswordReset_user_3 = NewPasswordReset (Right (Phone {fromPhone = "+35872708079702"}))
+testObject_NewPasswordReset_user_3 = NewPasswordReset (Right (Phone {fromPhone = "+7223234305152"}))
 testObject_NewPasswordReset_user_4 :: NewPasswordReset
-testObject_NewPasswordReset_user_4 = NewPasswordReset (Left (Email {emailLocal = "]\1084127k(\r?\26808=\SOH._4B\SI\1108397\1036726.l\ACKk^\1036921\131540%n", emailDomain = "\ETX\1076210\1077419.;U\1072441m"}))
+testObject_NewPasswordReset_user_4 = NewPasswordReset (Right (Phone {fromPhone = "+623057707042512"}))
 testObject_NewPasswordReset_user_5 :: NewPasswordReset
-testObject_NewPasswordReset_user_5 = NewPasswordReset (Right (Phone {fromPhone = "+67346565212572"}))
+testObject_NewPasswordReset_user_5 = NewPasswordReset (Left (Email {emailLocal = "\77856\ffTV`cwJ.[n_L3\1045079\SO\31957\1068861|\1081451\STX", emailDomain = "\tY\rI\1036875i\EOT>e\ACK\1025259W\t\nU\1040351\ENQ\151930\CAN\EM"}))
+testObject_NewPasswordReset_user_6 :: NewPasswordReset
+testObject_NewPasswordReset_user_6 = NewPasswordReset (Right (Phone {fromPhone = "+429560623600"}))
+testObject_NewPasswordReset_user_7 :: NewPasswordReset
+testObject_NewPasswordReset_user_7 = NewPasswordReset (Right (Phone {fromPhone = "+79352417451"}))
+testObject_NewPasswordReset_user_8 :: NewPasswordReset
+testObject_NewPasswordReset_user_8 = NewPasswordReset (Right (Phone {fromPhone = "+084132509550680"}))
+testObject_NewPasswordReset_user_9 :: NewPasswordReset
+testObject_NewPasswordReset_user_9 = NewPasswordReset (Right (Phone {fromPhone = "+278236507027799"}))
+testObject_NewPasswordReset_user_10 :: NewPasswordReset
+testObject_NewPasswordReset_user_10 = NewPasswordReset (Right (Phone {fromPhone = "+41000616"}))
+testObject_NewPasswordReset_user_11 :: NewPasswordReset
+testObject_NewPasswordReset_user_11 = NewPasswordReset (Left (Email {emailLocal = "T[\CAN\1086972.n\DEL(~\136529\1027605\1076918\n+76", emailDomain = "<\CAN\EOT\DLEr\b1-&6D\STX\f\CANd_59"}))
+testObject_NewPasswordReset_user_12 :: NewPasswordReset
+testObject_NewPasswordReset_user_12 = NewPasswordReset (Right (Phone {fromPhone = "+04092488796984"}))
+testObject_NewPasswordReset_user_13 :: NewPasswordReset
+testObject_NewPasswordReset_user_13 = NewPasswordReset (Right (Phone {fromPhone = "+48530559853006"}))
+testObject_NewPasswordReset_user_14 :: NewPasswordReset
+testObject_NewPasswordReset_user_14 = NewPasswordReset (Left (Email {emailLocal = "dz\DC4NRb'\1041436`\22764\SI\133650s`\14591K\DC1w\SUB\156757m\194725_\NULS\NAK\":", emailDomain = "\156642E;f\148743\59296%\159635{75\1011252\170703\147132\NUL\DLE\ENQa\ENQ05"}))
+testObject_NewPasswordReset_user_15 :: NewPasswordReset
+testObject_NewPasswordReset_user_15 = NewPasswordReset (Right (Phone {fromPhone = "+3108298837512"}))
+testObject_NewPasswordReset_user_16 :: NewPasswordReset
+testObject_NewPasswordReset_user_16 = NewPasswordReset (Right (Phone {fromPhone = "+5162511449"}))
+testObject_NewPasswordReset_user_17 :: NewPasswordReset
+testObject_NewPasswordReset_user_17 = NewPasswordReset (Right (Phone {fromPhone = "+46453010268957"}))
+testObject_NewPasswordReset_user_18 :: NewPasswordReset
+testObject_NewPasswordReset_user_18 = NewPasswordReset (Left (Email {emailLocal = "U\nq\77898\STX\n$\ETB0X%", emailDomain = "\182530z\DC1\DLEa)\RS\b\n"}))
+testObject_NewPasswordReset_user_19 :: NewPasswordReset
+testObject_NewPasswordReset_user_19 = NewPasswordReset (Left (Email {emailLocal = "\1001875?(xg\ACK\128012'\136337\1001274\&7\DC2\EMe;", emailDomain = ",E\995602Hm\29888x\1105330g\23436\30113"}))
+testObject_NewPasswordReset_user_20 :: NewPasswordReset
+testObject_NewPasswordReset_user_20 = NewPasswordReset (Right (Phone {fromPhone = "+656606977153"}))

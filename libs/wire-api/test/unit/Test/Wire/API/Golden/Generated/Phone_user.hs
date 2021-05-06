@@ -76,12 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_Phone_user_1 :: Phone
-testObject_Phone_user_1 = Phone {fromPhone = "+80945866669"}
+testObject_Phone_user_1 = Phone {fromPhone = "+693505404"}
 testObject_Phone_user_2 :: Phone
-testObject_Phone_user_2 = Phone {fromPhone = "+47209712"}
+testObject_Phone_user_2 = Phone {fromPhone = "+6728831495"}
 testObject_Phone_user_3 :: Phone
-testObject_Phone_user_3 = Phone {fromPhone = "+62210060064065"}
+testObject_Phone_user_3 = Phone {fromPhone = "+24994398"}
 testObject_Phone_user_4 :: Phone
-testObject_Phone_user_4 = Phone {fromPhone = "+424765062"}
+testObject_Phone_user_4 = Phone {fromPhone = "+69248612921414"}
 testObject_Phone_user_5 :: Phone
-testObject_Phone_user_5 = Phone {fromPhone = "+98271471207"}
+testObject_Phone_user_5 = Phone {fromPhone = "+77990010029"}
+testObject_Phone_user_6 :: Phone
+testObject_Phone_user_6 = Phone {fromPhone = "+941649838183"}
+testObject_Phone_user_7 :: Phone
+testObject_Phone_user_7 = Phone {fromPhone = "+26887959705114"}
+testObject_Phone_user_8 :: Phone
+testObject_Phone_user_8 = Phone {fromPhone = "+95719049585"}
+testObject_Phone_user_9 :: Phone
+testObject_Phone_user_9 = Phone {fromPhone = "+47102443311"}
+testObject_Phone_user_10 :: Phone
+testObject_Phone_user_10 = Phone {fromPhone = "+686977157662"}
+testObject_Phone_user_11 :: Phone
+testObject_Phone_user_11 = Phone {fromPhone = "+64841711838886"}
+testObject_Phone_user_12 :: Phone
+testObject_Phone_user_12 = Phone {fromPhone = "+3136560850603"}
+testObject_Phone_user_13 :: Phone
+testObject_Phone_user_13 = Phone {fromPhone = "+1025572905"}
+testObject_Phone_user_14 :: Phone
+testObject_Phone_user_14 = Phone {fromPhone = "+891953728"}
+testObject_Phone_user_15 :: Phone
+testObject_Phone_user_15 = Phone {fromPhone = "+206627685483"}
+testObject_Phone_user_16 :: Phone
+testObject_Phone_user_16 = Phone {fromPhone = "+072112068"}
+testObject_Phone_user_17 :: Phone
+testObject_Phone_user_17 = Phone {fromPhone = "+211531400245563"}
+testObject_Phone_user_18 :: Phone
+testObject_Phone_user_18 = Phone {fromPhone = "+95989792471"}
+testObject_Phone_user_19 :: Phone
+testObject_Phone_user_19 = Phone {fromPhone = "+54953312427"}
+testObject_Phone_user_20 :: Phone
+testObject_Phone_user_20 = Phone {fromPhone = "+29257902758392"}

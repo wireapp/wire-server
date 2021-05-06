@@ -76,12 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_PubClient_user_1 :: PubClient
-testObject_PubClient_user_1 = PubClient {pubClientId = ClientId {client = "418"}, pubClientClass = Just LegalHoldClient}
+testObject_PubClient_user_1 = PubClient {pubClientId = ClientId {client = "479"}, pubClientClass = Just LegalHoldClient}
 testObject_PubClient_user_2 :: PubClient
-testObject_PubClient_user_2 = PubClient {pubClientId = ClientId {client = "17"}, pubClientClass = Nothing}
+testObject_PubClient_user_2 = PubClient {pubClientId = ClientId {client = "4c1"}, pubClientClass = Just LegalHoldClient}
 testObject_PubClient_user_3 :: PubClient
-testObject_PubClient_user_3 = PubClient {pubClientId = ClientId {client = "f94"}, pubClientClass = Just PhoneClient}
+testObject_PubClient_user_3 = PubClient {pubClientId = ClientId {client = "992"}, pubClientClass = Just TabletClient}
 testObject_PubClient_user_4 :: PubClient
-testObject_PubClient_user_4 = PubClient {pubClientId = ClientId {client = "f8a"}, pubClientClass = Just DesktopClient}
+testObject_PubClient_user_4 = PubClient {pubClientId = ClientId {client = "fa6"}, pubClientClass = Just DesktopClient}
 testObject_PubClient_user_5 :: PubClient
-testObject_PubClient_user_5 = PubClient {pubClientId = ClientId {client = "c4d"}, pubClientClass = Just TabletClient}
+testObject_PubClient_user_5 = PubClient {pubClientId = ClientId {client = "f08"}, pubClientClass = Nothing}
+testObject_PubClient_user_6 :: PubClient
+testObject_PubClient_user_6 = PubClient {pubClientId = ClientId {client = "b6"}, pubClientClass = Just DesktopClient}
+testObject_PubClient_user_7 :: PubClient
+testObject_PubClient_user_7 = PubClient {pubClientId = ClientId {client = "17f"}, pubClientClass = Just LegalHoldClient}
+testObject_PubClient_user_8 :: PubClient
+testObject_PubClient_user_8 = PubClient {pubClientId = ClientId {client = "3e3"}, pubClientClass = Just PhoneClient}
+testObject_PubClient_user_9 :: PubClient
+testObject_PubClient_user_9 = PubClient {pubClientId = ClientId {client = "5da"}, pubClientClass = Just PhoneClient}
+testObject_PubClient_user_10 :: PubClient
+testObject_PubClient_user_10 = PubClient {pubClientId = ClientId {client = "f04"}, pubClientClass = Just LegalHoldClient}
+testObject_PubClient_user_11 :: PubClient
+testObject_PubClient_user_11 = PubClient {pubClientId = ClientId {client = "d4b"}, pubClientClass = Just LegalHoldClient}
+testObject_PubClient_user_12 :: PubClient
+testObject_PubClient_user_12 = PubClient {pubClientId = ClientId {client = "520"}, pubClientClass = Nothing}
+testObject_PubClient_user_13 :: PubClient
+testObject_PubClient_user_13 = PubClient {pubClientId = ClientId {client = "6a3"}, pubClientClass = Just LegalHoldClient}
+testObject_PubClient_user_14 :: PubClient
+testObject_PubClient_user_14 = PubClient {pubClientId = ClientId {client = "41b"}, pubClientClass = Just DesktopClient}
+testObject_PubClient_user_15 :: PubClient
+testObject_PubClient_user_15 = PubClient {pubClientId = ClientId {client = "197"}, pubClientClass = Nothing}
+testObject_PubClient_user_16 :: PubClient
+testObject_PubClient_user_16 = PubClient {pubClientId = ClientId {client = "a6d"}, pubClientClass = Just LegalHoldClient}
+testObject_PubClient_user_17 :: PubClient
+testObject_PubClient_user_17 = PubClient {pubClientId = ClientId {client = "c90"}, pubClientClass = Just TabletClient}
+testObject_PubClient_user_18 :: PubClient
+testObject_PubClient_user_18 = PubClient {pubClientId = ClientId {client = "c72"}, pubClientClass = Just DesktopClient}
+testObject_PubClient_user_19 :: PubClient
+testObject_PubClient_user_19 = PubClient {pubClientId = ClientId {client = "a59"}, pubClientClass = Nothing}
+testObject_PubClient_user_20 :: PubClient
+testObject_PubClient_user_20 = PubClient {pubClientId = ClientId {client = "41f"}, pubClientClass = Just PhoneClient}

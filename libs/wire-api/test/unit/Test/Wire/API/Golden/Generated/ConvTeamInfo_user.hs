@@ -76,12 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_ConvTeamInfo_user_1 :: ConvTeamInfo
-testObject_ConvTeamInfo_user_1 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "00000000-0000-0076-0000-006100000062"))), cnvManaged = True}
+testObject_ConvTeamInfo_user_1 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "00000035-0000-0010-0000-003000000022"))), cnvManaged = False}
 testObject_ConvTeamInfo_user_2 :: ConvTeamInfo
-testObject_ConvTeamInfo_user_2 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "00000060-0000-003d-0000-004500000000"))), cnvManaged = True}
+testObject_ConvTeamInfo_user_2 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "0000006c-0000-003d-0000-006b0000000d"))), cnvManaged = True}
 testObject_ConvTeamInfo_user_3 :: ConvTeamInfo
-testObject_ConvTeamInfo_user_3 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "0000000d-0000-006c-0000-005e00000000"))), cnvManaged = False}
+testObject_ConvTeamInfo_user_3 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "0000000a-0000-0041-0000-004400000067"))), cnvManaged = False}
 testObject_ConvTeamInfo_user_4 :: ConvTeamInfo
-testObject_ConvTeamInfo_user_4 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "00000011-0000-0027-0000-002700000042"))), cnvManaged = False}
+testObject_ConvTeamInfo_user_4 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "0000001c-0000-0012-0000-00100000002f"))), cnvManaged = True}
 testObject_ConvTeamInfo_user_5 :: ConvTeamInfo
-testObject_ConvTeamInfo_user_5 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "0000001a-0000-0030-0000-001700000036"))), cnvManaged = True}
+testObject_ConvTeamInfo_user_5 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "00000004-0000-000d-0000-004200000049"))), cnvManaged = True}
+testObject_ConvTeamInfo_user_6 :: ConvTeamInfo
+testObject_ConvTeamInfo_user_6 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "00000044-0000-003f-0000-00740000000d"))), cnvManaged = False}
+testObject_ConvTeamInfo_user_7 :: ConvTeamInfo
+testObject_ConvTeamInfo_user_7 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "00000038-0000-000f-0000-000b00000010"))), cnvManaged = True}
+testObject_ConvTeamInfo_user_8 :: ConvTeamInfo
+testObject_ConvTeamInfo_user_8 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "0000002e-0000-0065-0000-004b00000005"))), cnvManaged = False}
+testObject_ConvTeamInfo_user_9 :: ConvTeamInfo
+testObject_ConvTeamInfo_user_9 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "00000017-0000-0047-0000-003800000069"))), cnvManaged = False}
+testObject_ConvTeamInfo_user_10 :: ConvTeamInfo
+testObject_ConvTeamInfo_user_10 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "00000008-0000-0080-0000-004700000029"))), cnvManaged = False}
+testObject_ConvTeamInfo_user_11 :: ConvTeamInfo
+testObject_ConvTeamInfo_user_11 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "0000000e-0000-0028-0000-005a00000008"))), cnvManaged = True}
+testObject_ConvTeamInfo_user_12 :: ConvTeamInfo
+testObject_ConvTeamInfo_user_12 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "0000006c-0000-002f-0000-007f00000059"))), cnvManaged = True}
+testObject_ConvTeamInfo_user_13 :: ConvTeamInfo
+testObject_ConvTeamInfo_user_13 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "00000030-0000-0080-0000-001b00000080"))), cnvManaged = True}
+testObject_ConvTeamInfo_user_14 :: ConvTeamInfo
+testObject_ConvTeamInfo_user_14 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "00000049-0000-007b-0000-001000000008"))), cnvManaged = False}
+testObject_ConvTeamInfo_user_15 :: ConvTeamInfo
+testObject_ConvTeamInfo_user_15 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "00000044-0000-0023-0000-00690000000b"))), cnvManaged = False}
+testObject_ConvTeamInfo_user_16 :: ConvTeamInfo
+testObject_ConvTeamInfo_user_16 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "00000009-0000-0004-0000-006a00000078"))), cnvManaged = True}
+testObject_ConvTeamInfo_user_17 :: ConvTeamInfo
+testObject_ConvTeamInfo_user_17 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "00000033-0000-0060-0000-001100000011"))), cnvManaged = True}
+testObject_ConvTeamInfo_user_18 :: ConvTeamInfo
+testObject_ConvTeamInfo_user_18 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "0000003c-0000-0018-0000-00580000001a"))), cnvManaged = True}
+testObject_ConvTeamInfo_user_19 :: ConvTeamInfo
+testObject_ConvTeamInfo_user_19 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "00000065-0000-0019-0000-005a00000065"))), cnvManaged = True}
+testObject_ConvTeamInfo_user_20 :: ConvTeamInfo
+testObject_ConvTeamInfo_user_20 = ConvTeamInfo {cnvTeamId = (Id (fromJust (UUID.fromString "0000003f-0000-0024-0000-000d00000047"))), cnvManaged = False}

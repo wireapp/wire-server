@@ -1,1 +1,1 @@
-{"event":{"conversation":"000074e8-0000-7211-0000-411c00003a89","time":"1864-04-11T18:38:02.212Z","data":{"uri":"https://example.com","key":"su3RFJTcN56a9c4H9lg7","code":"MXntZrRYJ9nAVa3qPSz5"},"from":"00007a12-0000-1e3d-0000-55c80000555a","type":"conversation.code-update"}}
+{"event":{"conversation":"00005c96-0000-291a-0000-2a95000064c8","time":"1864-06-02T01:57:53.609Z","data":{"receipt_mode":-10409},"from":"0000447b-0000-4769-0000-581a00007857","type":"conversation.receipt-mode-update"}}

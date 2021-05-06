@@ -1,1 +1,1 @@
-{"took":7,"found":7,"documents":[],"returned":2}
+{"took":5,"found":7,"documents":[{"handle":"","qualified_id":{"domain":"4qa-8.l-b4xt--4","id":"00000001-0000-0001-0000-000000000001"},"accent_id":-1,"name":"","team":"00000000-0000-0000-0000-000000000001","id":"00000001-0000-0001-0000-000000000001"}],"returned":6}

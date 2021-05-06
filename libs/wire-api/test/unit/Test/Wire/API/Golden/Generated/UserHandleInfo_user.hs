@@ -76,12 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_UserHandleInfo_user_1 :: UserHandleInfo
-testObject_UserHandleInfo_user_1 = UserHandleInfo {userHandleId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "00007ae2-0000-4901-0000-22b8000033a1"))), qDomain = Domain {_domainText = "3c0-j8.xw3"}}}
+testObject_UserHandleInfo_user_1 = UserHandleInfo {userHandleId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "00005099-0000-41e9-0000-76b200001cac"))), qDomain = Domain {_domainText = "d-s0.om0"}}}
 testObject_UserHandleInfo_user_2 :: UserHandleInfo
-testObject_UserHandleInfo_user_2 = UserHandleInfo {userHandleId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "00001f24-0000-6581-0000-4f6200004b81"))), qDomain = Domain {_domainText = "6132.b298bx"}}}
+testObject_UserHandleInfo_user_2 = UserHandleInfo {userHandleId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "000065bf-0000-112f-0000-544500000db5"))), qDomain = Domain {_domainText = "tz.6-a.x83441-7.vh1.v-3j4.q6-rp68k5-9"}}}
 testObject_UserHandleInfo_user_3 :: UserHandleInfo
-testObject_UserHandleInfo_user_3 = UserHandleInfo {userHandleId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "00007f74-0000-0233-0000-277d00005ab8"))), qDomain = Domain {_domainText = "42u49-76xt91.22f4.bll9c8y274r7t3q"}}}
+testObject_UserHandleInfo_user_3 = UserHandleInfo {userHandleId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "00003ab7-0000-42df-0000-63bc00001623"))), qDomain = Domain {_domainText = "rt--y.nt1j"}}}
 testObject_UserHandleInfo_user_4 :: UserHandleInfo
-testObject_UserHandleInfo_user_4 = UserHandleInfo {userHandleId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "0000376d-0000-10a9-0000-3c370000762e"))), qDomain = Domain {_domainText = "7.pc6f73"}}}
+testObject_UserHandleInfo_user_4 = UserHandleInfo {userHandleId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "00006e1b-0000-3425-0000-30980000788e"))), qDomain = Domain {_domainText = "19lfuyh2.9c-qoa5y78.v5"}}}
 testObject_UserHandleInfo_user_5 :: UserHandleInfo
-testObject_UserHandleInfo_user_5 = UserHandleInfo {userHandleId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "000004fe-0000-7071-0000-178700001f69"))), qDomain = Domain {_domainText = "h4-1va-6.38.w.e"}}}
+testObject_UserHandleInfo_user_5 = UserHandleInfo {userHandleId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "00002161-0000-1cf3-0000-176100000695"))), qDomain = Domain {_domainText = "45j.i"}}}
+testObject_UserHandleInfo_user_6 :: UserHandleInfo
+testObject_UserHandleInfo_user_6 = UserHandleInfo {userHandleId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "00005b1e-0000-7ae9-0000-033d0000330c"))), qDomain = Domain {_domainText = "l-z5l9ju00.l1.ei3"}}}
+testObject_UserHandleInfo_user_7 :: UserHandleInfo
+testObject_UserHandleInfo_user_7 = UserHandleInfo {userHandleId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "000069d3-0000-2813-0000-42be0000113e"))), qDomain = Domain {_domainText = "p04.9.3ud6-v-6.dudq96"}}}
+testObject_UserHandleInfo_user_8 :: UserHandleInfo
+testObject_UserHandleInfo_user_8 = UserHandleInfo {userHandleId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "0000650d-0000-2b98-0000-537100000809"))), qDomain = Domain {_domainText = "8n1--5.rm"}}}
+testObject_UserHandleInfo_user_9 :: UserHandleInfo
+testObject_UserHandleInfo_user_9 = UserHandleInfo {userHandleId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "00004584-0000-742a-0000-535500007ce6"))), qDomain = Domain {_domainText = "08.i1.n0oh.da9iiu6df292647a7"}}}
+testObject_UserHandleInfo_user_10 :: UserHandleInfo
+testObject_UserHandleInfo_user_10 = UserHandleInfo {userHandleId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "00006c8a-0000-739a-0000-048600006abe"))), qDomain = Domain {_domainText = "v.c9"}}}
+testObject_UserHandleInfo_user_11 :: UserHandleInfo
+testObject_UserHandleInfo_user_11 = UserHandleInfo {userHandleId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "000002ee-0000-763e-0000-57f800002d7c"))), qDomain = Domain {_domainText = "7.j807.q.mkk"}}}
+testObject_UserHandleInfo_user_12 :: UserHandleInfo
+testObject_UserHandleInfo_user_12 = UserHandleInfo {userHandleId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "0000191c-0000-3616-0000-244400003dd8"))), qDomain = Domain {_domainText = "0h0ee72.lyj.xyd-d4.n3wiii-7w3-jh-b5.v970"}}}
+testObject_UserHandleInfo_user_13 :: UserHandleInfo
+testObject_UserHandleInfo_user_13 = UserHandleInfo {userHandleId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "000067dd-0000-2256-0000-6b0800001179"))), qDomain = Domain {_domainText = "37uc.d-vv0f.56271-q.s5xl6nj1a1"}}}
+testObject_UserHandleInfo_user_14 :: UserHandleInfo
+testObject_UserHandleInfo_user_14 = UserHandleInfo {userHandleId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "000017bb-0000-23e2-0000-061300000650"))), qDomain = Domain {_domainText = "5809453cpd-3-px6.b522qk3x-ot"}}}
+testObject_UserHandleInfo_user_15 :: UserHandleInfo
+testObject_UserHandleInfo_user_15 = UserHandleInfo {userHandleId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "0000058f-0000-0ed0-0000-308e0000642f"))), qDomain = Domain {_domainText = "t0.g.m5799x4t0"}}}
+testObject_UserHandleInfo_user_16 :: UserHandleInfo
+testObject_UserHandleInfo_user_16 = UserHandleInfo {userHandleId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "00000a81-0000-303a-0000-4f6f00003176"))), qDomain = Domain {_domainText = "6.xe.sb--6"}}}
+testObject_UserHandleInfo_user_17 :: UserHandleInfo
+testObject_UserHandleInfo_user_17 = UserHandleInfo {userHandleId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "00001a45-0000-435f-0000-4fbf00006449"))), qDomain = Domain {_domainText = "3-760.vm8"}}}
+testObject_UserHandleInfo_user_18 :: UserHandleInfo
+testObject_UserHandleInfo_user_18 = UserHandleInfo {userHandleId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "00003b68-0000-195c-0000-356000006296"))), qDomain = Domain {_domainText = "ql4ba.y5uonw11pz"}}}
+testObject_UserHandleInfo_user_19 :: UserHandleInfo
+testObject_UserHandleInfo_user_19 = UserHandleInfo {userHandleId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "0000545a-0000-7cfb-0000-311900001738"))), qDomain = Domain {_domainText = "55fca.f085--j"}}}
+testObject_UserHandleInfo_user_20 :: UserHandleInfo
+testObject_UserHandleInfo_user_20 = UserHandleInfo {userHandleId = Qualified {qUnqualified = (Id (fromJust (UUID.fromString "000018cd-0000-2d19-0000-53070000345f"))), qDomain = Domain {_domainText = "4-am.65.h25k"}}}

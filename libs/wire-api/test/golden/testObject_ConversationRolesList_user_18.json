@@ -1,0 +1,1 @@
+{"conversation_roles":[{"actions":["add_conversation_member","modify_conversation_receipt_mode","delete_conversation"],"conversation_role":"aric"},{"actions":["leave_conversation"],"conversation_role":"wire_member"}]}

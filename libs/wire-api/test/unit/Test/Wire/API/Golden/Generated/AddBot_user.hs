@@ -76,12 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_AddBot_user_1 :: AddBot
-testObject_AddBot_user_1 = AddBot {addBotProvider = (Id (fromJust (UUID.fromString "0000000d-0000-0013-0000-000b00000009"))), addBotService = (Id (fromJust (UUID.fromString "00000019-0000-0017-0000-001700000009"))), addBotLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.XH, lCountry = Just (Country {fromCountry = RS})})}
+testObject_AddBot_user_1 = AddBot {addBotProvider = (Id (fromJust (UUID.fromString "00000001-0000-0011-0000-00030000001c"))), addBotService = (Id (fromJust (UUID.fromString "0000001a-0000-001f-0000-000c00000009"))), addBotLocale = Nothing}
 testObject_AddBot_user_2 :: AddBot
-testObject_AddBot_user_2 = AddBot {addBotProvider = (Id (fromJust (UUID.fromString "00000013-0000-0012-0000-00140000000c"))), addBotService = (Id (fromJust (UUID.fromString "00000001-0000-0017-0000-000d00000000"))), addBotLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.SU, lCountry = Just (Country {fromCountry = PY})})}
+testObject_AddBot_user_2 = AddBot {addBotProvider = (Id (fromJust (UUID.fromString "0000000e-0000-001a-0000-00030000001a"))), addBotService = (Id (fromJust (UUID.fromString "0000001d-0000-000d-0000-000c00000002"))), addBotLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.KN, lCountry = Just (Country {fromCountry = CX})})}
 testObject_AddBot_user_3 :: AddBot
-testObject_AddBot_user_3 = AddBot {addBotProvider = (Id (fromJust (UUID.fromString "0000001c-0000-0004-0000-000500000006"))), addBotService = (Id (fromJust (UUID.fromString "00000015-0000-001a-0000-00150000000f"))), addBotLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.TL, lCountry = Just (Country {fromCountry = UY})})}
+testObject_AddBot_user_3 = AddBot {addBotProvider = (Id (fromJust (UUID.fromString "00000016-0000-000e-0000-00130000001e"))), addBotService = (Id (fromJust (UUID.fromString "0000000c-0000-0001-0000-001a00000005"))), addBotLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.LG, lCountry = Just (Country {fromCountry = GD})})}
 testObject_AddBot_user_4 :: AddBot
-testObject_AddBot_user_4 = AddBot {addBotProvider = (Id (fromJust (UUID.fromString "0000000f-0000-0007-0000-000000000003"))), addBotService = (Id (fromJust (UUID.fromString "00000002-0000-0001-0000-002000000015"))), addBotLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.YI, lCountry = Nothing})}
+testObject_AddBot_user_4 = AddBot {addBotProvider = (Id (fromJust (UUID.fromString "00000015-0000-0018-0000-00090000001d"))), addBotService = (Id (fromJust (UUID.fromString "00000008-0000-000c-0000-00180000001b"))), addBotLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.SR, lCountry = Just (Country {fromCountry = PW})})}
 testObject_AddBot_user_5 :: AddBot
-testObject_AddBot_user_5 = AddBot {addBotProvider = (Id (fromJust (UUID.fromString "00000002-0000-0018-0000-000000000002"))), addBotService = (Id (fromJust (UUID.fromString "00000001-0000-000f-0000-001300000004"))), addBotLocale = Nothing}
+testObject_AddBot_user_5 = AddBot {addBotProvider = (Id (fromJust (UUID.fromString "0000000d-0000-000c-0000-00030000001f"))), addBotService = (Id (fromJust (UUID.fromString "0000000e-0000-001e-0000-001900000019"))), addBotLocale = Nothing}
+testObject_AddBot_user_6 :: AddBot
+testObject_AddBot_user_6 = AddBot {addBotProvider = (Id (fromJust (UUID.fromString "00000015-0000-0016-0000-000c0000000a"))), addBotService = (Id (fromJust (UUID.fromString "00000016-0000-0003-0000-000f00000015"))), addBotLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.NO, lCountry = Just (Country {fromCountry = KZ})})}
+testObject_AddBot_user_7 :: AddBot
+testObject_AddBot_user_7 = AddBot {addBotProvider = (Id (fromJust (UUID.fromString "0000001e-0000-0004-0000-000800000008"))), addBotService = (Id (fromJust (UUID.fromString "00000018-0000-0002-0000-000b00000006"))), addBotLocale = Nothing}
+testObject_AddBot_user_8 :: AddBot
+testObject_AddBot_user_8 = AddBot {addBotProvider = (Id (fromJust (UUID.fromString "0000001e-0000-001f-0000-001f0000001a"))), addBotService = (Id (fromJust (UUID.fromString "0000001a-0000-0018-0000-001600000001"))), addBotLocale = Nothing}
+testObject_AddBot_user_9 :: AddBot
+testObject_AddBot_user_9 = AddBot {addBotProvider = (Id (fromJust (UUID.fromString "00000019-0000-001c-0000-000000000016"))), addBotService = (Id (fromJust (UUID.fromString "00000003-0000-001e-0000-00050000001f"))), addBotLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.EU, lCountry = Just (Country {fromCountry = HU})})}
+testObject_AddBot_user_10 :: AddBot
+testObject_AddBot_user_10 = AddBot {addBotProvider = (Id (fromJust (UUID.fromString "00000013-0000-0006-0000-001300000014"))), addBotService = (Id (fromJust (UUID.fromString "00000019-0000-0010-0000-000600000004"))), addBotLocale = Nothing}
+testObject_AddBot_user_11 :: AddBot
+testObject_AddBot_user_11 = AddBot {addBotProvider = (Id (fromJust (UUID.fromString "0000001f-0000-0010-0000-001200000010"))), addBotService = (Id (fromJust (UUID.fromString "00000016-0000-001e-0000-000d0000001d"))), addBotLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.MY, lCountry = Just (Country {fromCountry = YT})})}
+testObject_AddBot_user_12 :: AddBot
+testObject_AddBot_user_12 = AddBot {addBotProvider = (Id (fromJust (UUID.fromString "0000001d-0000-001b-0000-001d0000001b"))), addBotService = (Id (fromJust (UUID.fromString "0000001a-0000-0020-0000-001c00000011"))), addBotLocale = Nothing}
+testObject_AddBot_user_13 :: AddBot
+testObject_AddBot_user_13 = AddBot {addBotProvider = (Id (fromJust (UUID.fromString "0000001c-0000-000b-0000-001a00000001"))), addBotService = (Id (fromJust (UUID.fromString "0000000a-0000-001e-0000-001f00000002"))), addBotLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.BN, lCountry = Just (Country {fromCountry = BG})})}
+testObject_AddBot_user_14 :: AddBot
+testObject_AddBot_user_14 = AddBot {addBotProvider = (Id (fromJust (UUID.fromString "00000016-0000-001c-0000-001a00000000"))), addBotService = (Id (fromJust (UUID.fromString "00000000-0000-0014-0000-000b00000008"))), addBotLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.CY, lCountry = Just (Country {fromCountry = TV})})}
+testObject_AddBot_user_15 :: AddBot
+testObject_AddBot_user_15 = AddBot {addBotProvider = (Id (fromJust (UUID.fromString "00000015-0000-0007-0000-001b00000014"))), addBotService = (Id (fromJust (UUID.fromString "0000001f-0000-0012-0000-001d00000009"))), addBotLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.MR, lCountry = Just (Country {fromCountry = NL})})}
+testObject_AddBot_user_16 :: AddBot
+testObject_AddBot_user_16 = AddBot {addBotProvider = (Id (fromJust (UUID.fromString "00000017-0000-0018-0000-000100000010"))), addBotService = (Id (fromJust (UUID.fromString "0000001e-0000-0003-0000-000600000019"))), addBotLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.SL, lCountry = Just (Country {fromCountry = NI})})}
+testObject_AddBot_user_17 :: AddBot
+testObject_AddBot_user_17 = AddBot {addBotProvider = (Id (fromJust (UUID.fromString "0000000e-0000-0009-0000-001900000018"))), addBotService = (Id (fromJust (UUID.fromString "00000006-0000-0020-0000-00070000001a"))), addBotLocale = Nothing}
+testObject_AddBot_user_18 :: AddBot
+testObject_AddBot_user_18 = AddBot {addBotProvider = (Id (fromJust (UUID.fromString "00000008-0000-000b-0000-00140000001b"))), addBotService = (Id (fromJust (UUID.fromString "00000017-0000-0016-0000-001b00000005"))), addBotLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.KU, lCountry = Just (Country {fromCountry = PW})})}
+testObject_AddBot_user_19 :: AddBot
+testObject_AddBot_user_19 = AddBot {addBotProvider = (Id (fromJust (UUID.fromString "00000003-0000-0009-0000-00080000001c"))), addBotService = (Id (fromJust (UUID.fromString "0000001c-0000-0005-0000-000f00000012"))), addBotLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.EO, lCountry = Just (Country {fromCountry = DJ})})}
+testObject_AddBot_user_20 :: AddBot
+testObject_AddBot_user_20 = AddBot {addBotProvider = (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-001500000013"))), addBotService = (Id (fromJust (UUID.fromString "00000010-0000-001d-0000-001e0000001f"))), addBotLocale = Just (Locale {lLanguage = Language Data.LanguageCodes.KM, lCountry = Just (Country {fromCountry = BR})})}

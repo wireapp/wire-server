@@ -76,12 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_UserSSOId_user_1 :: UserSSOId
-testObject_UserSSOId_user_1 = UserScimExternalId "(\23862\SUB\129345l7[\DC2z\1018494e"
+testObject_UserSSOId_user_1 = UserScimExternalId "ad\SOH}oV\EM\62053\182998\1054345[B%~b\DELvY?\SO\USm8"
 testObject_UserSSOId_user_2 :: UserSSOId
-testObject_UserSSOId_user_2 = UserSSOId "\EM\NUL\EMRaJ\66811\NUL\"\EOTl\63084" "7c\"\144253\1032280\26159\&6=wu\1091412\CAN"
+testObject_UserSSOId_user_2 = UserSSOId "\"\1028863\v;\1014819}\1080717`e,+9\SIS" "\USy|"
 testObject_UserSSOId_user_3 :: UserSSOId
-testObject_UserSSOId_user_3 = UserScimExternalId "}\1067690/1f*\1066592\b#H5\173624\1058161\46157\NAK\39782z\SI"
+testObject_UserSSOId_user_3 = UserSSOId "?ca}(\1026533\159968\&6\1001893\993707'*" "\45863p,\164171vH \991030\1106137R"
 testObject_UserSSOId_user_4 :: UserSSOId
-testObject_UserSSOId_user_4 = UserSSOId "+7&\34976%\1039547\1076591>n{5}\EOTvO" "/h\ESCVSFE@fL3\SOmb\1089590"
+testObject_UserSSOId_user_4 = UserScimExternalId "D\145325Gy\a\19381\29490n7\1104314\&0\1005159+\DLE\n^!"
 testObject_UserSSOId_user_5 :: UserSSOId
-testObject_UserSSOId_user_5 = UserSSOId "\ETBt{vp\RS;Vy" "j!?S\EMr.\FS\\t/"
+testObject_UserSSOId_user_5 = UserSSOId "7b\\" "\STX\1047251"
+testObject_UserSSOId_user_6 :: UserSSOId
+testObject_UserSSOId_user_6 = UserScimExternalId "\20676g?8\bV\DEL\1060642\139882g\1037321yd)]\161768\183679O\1016086Ma\NAK\1074082,\DLEc\37492\ACK\134229"
+testObject_UserSSOId_user_7 :: UserSSOId
+testObject_UserSSOId_user_7 = UserSSOId "\SYN\1102313" "W\US\SOH\SYN0\DC2\142434^\\W\99308"
+testObject_UserSSOId_user_8 :: UserSSOId
+testObject_UserSSOId_user_8 = UserScimExternalId "\1005968\65242\SYNu(8m-"
+testObject_UserSSOId_user_9 :: UserSSOId
+testObject_UserSSOId_user_9 = UserScimExternalId "\35352\1092635+\DC2t\11070bw$OVF"
+testObject_UserSSOId_user_10 :: UserSSOId
+testObject_UserSSOId_user_10 = UserScimExternalId "\182108\FS\DLEgvB\STX\1105866u\DELX\14699V"
+testObject_UserSSOId_user_11 :: UserSSOId
+testObject_UserSSOId_user_11 = UserSSOId "\1103366c\176835" "\47983|"
+testObject_UserSSOId_user_12 :: UserSSOId
+testObject_UserSSOId_user_12 = UserScimExternalId "H\ENQu\t\64448\RSln\1052034p-I7(\135134d\GS\t;"
+testObject_UserSSOId_user_13 :: UserSSOId
+testObject_UserSSOId_user_13 = UserSSOId "a;\140087N\a" " "
+testObject_UserSSOId_user_14 :: UserSSOId
+testObject_UserSSOId_user_14 = UserSSOId "G" "\1029579\147560\&7Pc\163331\nyP\174648\16255\190692%\133947#"
+testObject_UserSSOId_user_15 :: UserSSOId
+testObject_UserSSOId_user_15 = UserScimExternalId "\60171W\1002278!\1035942W\1032754I\SUBn:UG"
+testObject_UserSSOId_user_16 :: UserSSOId
+testObject_UserSSOId_user_16 = UserScimExternalId "\1102587%\STX$\CAN\142403\1037601V\DC2h\"\1061597$\46660?\1012386\1050993J\1083900@J\169783\&2\ACK6"
+testObject_UserSSOId_user_17 :: UserSSOId
+testObject_UserSSOId_user_17 = UserScimExternalId "\f$p4\FS:\180007Hur?\1074571e\SOHv<\118936L\20039s\190922"
+testObject_UserSSOId_user_18 :: UserSSOId
+testObject_UserSSOId_user_18 = UserSSOId ".p-\37933\1003151\NAK,\984115\t" "\b\r5\8949"
+testObject_UserSSOId_user_19 :: UserSSOId
+testObject_UserSSOId_user_19 = UserScimExternalId "R\SI"
+testObject_UserSSOId_user_20 :: UserSSOId
+testObject_UserSSOId_user_20 = UserScimExternalId "yK(ZFY\n\DC4>\DC1\3431rX\15830Y\147914\987534\FS\33073"

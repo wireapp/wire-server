@@ -76,12 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_ColourId_user_1 :: ColourId
-testObject_ColourId_user_1 = ColourId {fromColourId = 16877}
+testObject_ColourId_user_1 = ColourId {fromColourId = 19413}
 testObject_ColourId_user_2 :: ColourId
-testObject_ColourId_user_2 = ColourId {fromColourId = 22518}
+testObject_ColourId_user_2 = ColourId {fromColourId = 9155}
 testObject_ColourId_user_3 :: ColourId
-testObject_ColourId_user_3 = ColourId {fromColourId = -11671}
+testObject_ColourId_user_3 = ColourId {fromColourId = 9326}
 testObject_ColourId_user_4 :: ColourId
-testObject_ColourId_user_4 = ColourId {fromColourId = 28717}
+testObject_ColourId_user_4 = ColourId {fromColourId = 24449}
 testObject_ColourId_user_5 :: ColourId
-testObject_ColourId_user_5 = ColourId {fromColourId = -5828}
+testObject_ColourId_user_5 = ColourId {fromColourId = 17942}
+testObject_ColourId_user_6 :: ColourId
+testObject_ColourId_user_6 = ColourId {fromColourId = -30777}
+testObject_ColourId_user_7 :: ColourId
+testObject_ColourId_user_7 = ColourId {fromColourId = -21305}
+testObject_ColourId_user_8 :: ColourId
+testObject_ColourId_user_8 = ColourId {fromColourId = -16328}
+testObject_ColourId_user_9 :: ColourId
+testObject_ColourId_user_9 = ColourId {fromColourId = -1428}
+testObject_ColourId_user_10 :: ColourId
+testObject_ColourId_user_10 = ColourId {fromColourId = 25109}
+testObject_ColourId_user_11 :: ColourId
+testObject_ColourId_user_11 = ColourId {fromColourId = -16095}
+testObject_ColourId_user_12 :: ColourId
+testObject_ColourId_user_12 = ColourId {fromColourId = 28833}
+testObject_ColourId_user_13 :: ColourId
+testObject_ColourId_user_13 = ColourId {fromColourId = -27804}
+testObject_ColourId_user_14 :: ColourId
+testObject_ColourId_user_14 = ColourId {fromColourId = -3830}
+testObject_ColourId_user_15 :: ColourId
+testObject_ColourId_user_15 = ColourId {fromColourId = 19572}
+testObject_ColourId_user_16 :: ColourId
+testObject_ColourId_user_16 = ColourId {fromColourId = 14479}
+testObject_ColourId_user_17 :: ColourId
+testObject_ColourId_user_17 = ColourId {fromColourId = -9621}
+testObject_ColourId_user_18 :: ColourId
+testObject_ColourId_user_18 = ColourId {fromColourId = 27936}
+testObject_ColourId_user_19 :: ColourId
+testObject_ColourId_user_19 = ColourId {fromColourId = -25563}
+testObject_ColourId_user_20 :: ColourId
+testObject_ColourId_user_20 = ColourId {fromColourId = -24426}

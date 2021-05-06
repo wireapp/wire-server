@@ -76,12 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_UserIdentity_user_1 :: UserIdentity
-testObject_UserIdentity_user_1 = EmailIdentity (Email {emailLocal = "I>\183814\184442\&6I\40366hW", emailDomain = "O\GS\58618T\ETBRq>\128595\169886g\DC3\STX\SUB\ESC\67273\51965\1097437{\1030386"})
+testObject_UserIdentity_user_1 = SSOIdentity (UserSSOId "" "") (Just (Email {emailLocal = "^\37587\ETX_6", emailDomain = "\1100684|\DC45\DC2M\FS\DEL"})) (Just (Phone {fromPhone = "+7142406883992"}))
 testObject_UserIdentity_user_2 :: UserIdentity
-testObject_UserIdentity_user_2 = PhoneIdentity (Phone {fromPhone = "+601504270"})
+testObject_UserIdentity_user_2 = FullIdentity (Email {emailLocal = "", emailDomain = "\136758"}) (Phone {fromPhone = "+1095233678"})
 testObject_UserIdentity_user_3 :: UserIdentity
-testObject_UserIdentity_user_3 = EmailIdentity (Email {emailLocal = "}|\STX", emailDomain = "\147876sq\FS\SI\SYNDP\FShl\SI\173403\1011424\&6~\118911"})
+testObject_UserIdentity_user_3 = SSOIdentity (UserSSOId "i\\y\1073978_" "") (Just (Email {emailLocal = "\RS\187083;\133355N", emailDomain = "S\1048806\GS\DEL\GSG\26117S"})) Nothing
 testObject_UserIdentity_user_4 :: UserIdentity
-testObject_UserIdentity_user_4 = EmailIdentity (Email {emailLocal = "#\ESC\146859\t(\154780BB}i/\SUB[-Y-]n\12938\988296[[\STX/\t\bh\25328\23343", emailDomain = "\SUBST\ETB\1059689LV\a0<\1030097"})
+testObject_UserIdentity_user_4 = FullIdentity (Email {emailLocal = "\DC2\FS", emailDomain = " C}?R\136349"}) (Phone {fromPhone = "+235393066643"})
 testObject_UserIdentity_user_5 :: UserIdentity
-testObject_UserIdentity_user_5 = PhoneIdentity (Phone {fromPhone = "+4228130242"})
+testObject_UserIdentity_user_5 = PhoneIdentity (Phone {fromPhone = "+9016614922854"})
+testObject_UserIdentity_user_6 :: UserIdentity
+testObject_UserIdentity_user_6 = SSOIdentity (UserSSOId "" ".j?") (Just (Email {emailLocal = ".\SYN/\1041492\178935s", emailDomain = "\FS\1010300!m\25569KW`M"})) (Just (Phone {fromPhone = "+3393892222"}))
+testObject_UserIdentity_user_7 :: UserIdentity
+testObject_UserIdentity_user_7 = FullIdentity (Email {emailLocal = "\1098948\DELHJFY\21631VT%KM\NULk", emailDomain = "\ETB\1013464f-\186120\1089184\&9\169212Q\1052339\23684Z!L?"}) (Phone {fromPhone = "+8091836348994"})
+testObject_UserIdentity_user_8 :: UserIdentity
+testObject_UserIdentity_user_8 = EmailIdentity (Email {emailLocal = "\FSHL^\992253n%\EMV\1026226j\66407\EOT", emailDomain = "\32323\NAK-b\1012348qVr\12967n ,\SYNf\46479n\178366ui]\ETXL\995880-G8h"})
+testObject_UserIdentity_user_9 :: UserIdentity
+testObject_UserIdentity_user_9 = SSOIdentity (UserSSOId "#\120231@S" "$GF") (Just (Email {emailLocal = "ORk\ETBL", emailDomain = "\EM]s\985989sm\NUL p"})) (Just (Phone {fromPhone = "+36150969646785"}))
+testObject_UserIdentity_user_10 :: UserIdentity
+testObject_UserIdentity_user_10 = SSOIdentity (UserSSOId "\158219\1109023%\1106712" "2") (Just (Email {emailLocal = "3\77928\nm\1036526W\993167", emailDomain = " P\1017240U\30688\DLEZ79"})) (Just (Phone {fromPhone = "+44807442967571"}))
+testObject_UserIdentity_user_11 :: UserIdentity
+testObject_UserIdentity_user_11 = SSOIdentity (UserScimExternalId " +\r\"%") Nothing (Just (Phone {fromPhone = "+8951646295"}))
+testObject_UserIdentity_user_12 :: UserIdentity
+testObject_UserIdentity_user_12 = PhoneIdentity (Phone {fromPhone = "+580505444024612"})
+testObject_UserIdentity_user_13 :: UserIdentity
+testObject_UserIdentity_user_13 = EmailIdentity (Email {emailLocal = "\v\1051127 _7}C:\39185gNW`8V\1046915\1013608m", emailDomain = "`,\156535o\ENQb\DC4W\r\ACKL\166688"})
+testObject_UserIdentity_user_14 :: UserIdentity
+testObject_UserIdentity_user_14 = SSOIdentity (UserSSOId "2t\60482" "\"fa\1028469") (Just (Email {emailLocal = "", emailDomain = ""})) (Just (Phone {fromPhone = "+737238101203"}))
+testObject_UserIdentity_user_15 :: UserIdentity
+testObject_UserIdentity_user_15 = PhoneIdentity (Phone {fromPhone = "+069964339"})
+testObject_UserIdentity_user_16 :: UserIdentity
+testObject_UserIdentity_user_16 = SSOIdentity (UserScimExternalId "\1012576u") (Just (Email {emailLocal = "l\16997\1055874", emailDomain = "\ACK\70301^4`ij~"})) (Just (Phone {fromPhone = "+165458270159"}))
+testObject_UserIdentity_user_17 :: UserIdentity
+testObject_UserIdentity_user_17 = PhoneIdentity (Phone {fromPhone = "+2991135046808"})
+testObject_UserIdentity_user_18 :: UserIdentity
+testObject_UserIdentity_user_18 = EmailIdentity (Email {emailLocal = " \135383\1035238\r\30093?\v\t\1076757\65877~r?Ta\US\1038144d\DC2Zw\988209\17536\&9*\GS", emailDomain = "\47041;\1054009\1038481\1083622\1039949\&2T\SOH\GSWN\n\"\b\68478\\\STX\CAN`:Xg"})
+testObject_UserIdentity_user_19 :: UserIdentity
+testObject_UserIdentity_user_19 = FullIdentity (Email {emailLocal = "\ENQ10`Xo7\169637", emailDomain = "T\DC4Y\63231\DC4o>tdaZ\SI\SUB\SI"}) (Phone {fromPhone = "+76662569"})
+testObject_UserIdentity_user_20 :: UserIdentity
+testObject_UserIdentity_user_20 = PhoneIdentity (Phone {fromPhone = "+77155871011"})

@@ -49,12 +49,42 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 testObject_ServiceTagList_provider_1 :: ServiceTagList
-testObject_ServiceTagList_provider_1 = ServiceTagList [MusicTag,PollTag]
+testObject_ServiceTagList_provider_1 = ServiceTagList [ShoppingTag,ProductivityTag,FinanceTag,AudioTag,BooksTag,RatingTag,WeatherTag,FinanceTag,TutorialTag,SportsTag,NewsTag,GamesTag,RatingTag,NewsTag,FoodDrinkTag,GraphicsTag,SportsTag,AudioTag,BusinessTag,TutorialTag,BooksTag,TutorialTag]
 testObject_ServiceTagList_provider_2 :: ServiceTagList
-testObject_ServiceTagList_provider_2 = ServiceTagList [VideoTag,GamesTag,NewsTag,HealthTag,EducationTag,MedicalTag,WeatherTag,LifestyleTag]
+testObject_ServiceTagList_provider_2 = ServiceTagList [FinanceTag,NewsTag,MusicTag,ShoppingTag,BooksTag,SportsTag,MedicalTag,ShoppingTag,HealthTag,FitnessTag,PollTag,LifestyleTag,MediaTag,HealthTag,AudioTag,GraphicsTag,SocialTag,AudioTag,SocialTag,MoviesTag,TutorialTag,QuizTag,WeatherTag,LifestyleTag,RatingTag,QuizTag,MedicalTag,VideoTag,ProductivityTag,NewsTag]
 testObject_ServiceTagList_provider_3 :: ServiceTagList
-testObject_ServiceTagList_provider_3 = ServiceTagList [DesignTag,TutorialTag,MedicalTag,RatingTag,SportsTag,IntegrationTag,PollTag,RatingTag,QuizTag,DesignTag,DesignTag,EducationTag,EducationTag,QuizTag,AudioTag,BusinessTag,NewsTag,NewsTag,RatingTag,HealthTag,MediaTag,MoviesTag,SportsTag,EntertainmentTag,RatingTag]
+testObject_ServiceTagList_provider_3 = ServiceTagList [ProductivityTag,AudioTag,DesignTag,TravelTag,FoodDrinkTag,SocialTag,VideoTag,WeatherTag,SocialTag,FinanceTag,WeatherTag,GraphicsTag,BooksTag,LifestyleTag,ProductivityTag,MedicalTag,RatingTag,DesignTag,NewsTag,GamesTag,DesignTag,MoviesTag,PhotographyTag,WeatherTag,ShoppingTag,MediaTag]
 testObject_ServiceTagList_provider_4 :: ServiceTagList
-testObject_ServiceTagList_provider_4 = ServiceTagList [TutorialTag,MedicalTag,ShoppingTag,GraphicsTag]
+testObject_ServiceTagList_provider_4 = ServiceTagList [VideoTag,ShoppingTag,FitnessTag,MediaTag,EducationTag,BusinessTag,QuizTag,ProductivityTag,SocialTag,QuizTag,QuizTag,MediaTag,PollTag,BooksTag,MoviesTag,FoodDrinkTag,EducationTag,SportsTag,MoviesTag,TravelTag,RatingTag,IntegrationTag]
 testObject_ServiceTagList_provider_5 :: ServiceTagList
-testObject_ServiceTagList_provider_5 = ServiceTagList [MediaTag,QuizTag,TravelTag,PollTag,QuizTag,EntertainmentTag,ShoppingTag,HealthTag,TutorialTag,RatingTag,QuizTag,GamesTag,SocialTag,VideoTag,RatingTag,MoviesTag]
+testObject_ServiceTagList_provider_5 = ServiceTagList [TutorialTag,MusicTag]
+testObject_ServiceTagList_provider_6 :: ServiceTagList
+testObject_ServiceTagList_provider_6 = ServiceTagList [NewsTag,FoodDrinkTag,LifestyleTag,BusinessTag]
+testObject_ServiceTagList_provider_7 :: ServiceTagList
+testObject_ServiceTagList_provider_7 = ServiceTagList [ProductivityTag,MusicTag,EducationTag,MediaTag,LifestyleTag,IntegrationTag,VideoTag,ProductivityTag,PollTag,ShoppingTag,MoviesTag,TravelTag]
+testObject_ServiceTagList_provider_8 :: ServiceTagList
+testObject_ServiceTagList_provider_8 = ServiceTagList [MusicTag,DesignTag,RatingTag,LifestyleTag,MoviesTag,GamesTag,NewsTag,PhotographyTag,WeatherTag]
+testObject_ServiceTagList_provider_9 :: ServiceTagList
+testObject_ServiceTagList_provider_9 = ServiceTagList [PollTag,MoviesTag,FitnessTag,MoviesTag,GamesTag,PollTag,FitnessTag,HealthTag,EntertainmentTag,SocialTag,SportsTag]
+testObject_ServiceTagList_provider_10 :: ServiceTagList
+testObject_ServiceTagList_provider_10 = ServiceTagList [PhotographyTag,SocialTag,SportsTag,TutorialTag,EntertainmentTag,GamesTag,IntegrationTag]
+testObject_ServiceTagList_provider_11 :: ServiceTagList
+testObject_ServiceTagList_provider_11 = ServiceTagList [EntertainmentTag,VideoTag,PollTag,VideoTag,SocialTag,GamesTag,AudioTag,HealthTag,AudioTag,BooksTag,FoodDrinkTag,GraphicsTag,RatingTag,MediaTag,SocialTag,FoodDrinkTag,PollTag,TutorialTag,FoodDrinkTag,TutorialTag,SocialTag,GamesTag,VideoTag,GamesTag,FitnessTag,RatingTag,WeatherTag]
+testObject_ServiceTagList_provider_12 :: ServiceTagList
+testObject_ServiceTagList_provider_12 = ServiceTagList [NewsTag,SportsTag,ProductivityTag,FinanceTag,MoviesTag,DesignTag,DesignTag,NewsTag,EducationTag,AudioTag,FinanceTag,GraphicsTag,QuizTag,BooksTag,ProductivityTag,BusinessTag,RatingTag,AudioTag,AudioTag,TutorialTag,MediaTag,FinanceTag,FinanceTag,GamesTag,TutorialTag,TutorialTag]
+testObject_ServiceTagList_provider_13 :: ServiceTagList
+testObject_ServiceTagList_provider_13 = ServiceTagList [EducationTag,GraphicsTag,MedicalTag,IntegrationTag,BusinessTag,AudioTag,EducationTag,PhotographyTag,ProductivityTag,GraphicsTag,MediaTag,HealthTag,MedicalTag,FinanceTag,QuizTag,TutorialTag,MedicalTag,WeatherTag,TravelTag,FitnessTag]
+testObject_ServiceTagList_provider_14 :: ServiceTagList
+testObject_ServiceTagList_provider_14 = ServiceTagList [TravelTag,WeatherTag]
+testObject_ServiceTagList_provider_15 :: ServiceTagList
+testObject_ServiceTagList_provider_15 = ServiceTagList [GraphicsTag,MedicalTag,EntertainmentTag,TutorialTag,ProductivityTag,MoviesTag,ProductivityTag,MusicTag,MedicalTag,PhotographyTag,AudioTag,PollTag,PollTag,SportsTag,AudioTag,MediaTag,FitnessTag,TravelTag,MediaTag,MoviesTag,EntertainmentTag,MedicalTag,ShoppingTag,MediaTag,ProductivityTag,FitnessTag,QuizTag,FoodDrinkTag]
+testObject_ServiceTagList_provider_16 :: ServiceTagList
+testObject_ServiceTagList_provider_16 = ServiceTagList [GraphicsTag,PollTag,RatingTag,AudioTag,DesignTag,TravelTag,IntegrationTag,ProductivityTag,WeatherTag,GraphicsTag,MoviesTag,MedicalTag,FinanceTag,MusicTag,GamesTag,IntegrationTag,LifestyleTag,DesignTag,MediaTag,QuizTag,ShoppingTag,PhotographyTag]
+testObject_ServiceTagList_provider_17 :: ServiceTagList
+testObject_ServiceTagList_provider_17 = ServiceTagList [DesignTag,MusicTag,TutorialTag]
+testObject_ServiceTagList_provider_18 :: ServiceTagList
+testObject_ServiceTagList_provider_18 = ServiceTagList [VideoTag,IntegrationTag,SocialTag,MediaTag,ProductivityTag,LifestyleTag,ProductivityTag]
+testObject_ServiceTagList_provider_19 :: ServiceTagList
+testObject_ServiceTagList_provider_19 = ServiceTagList [RatingTag,BusinessTag,MedicalTag,GraphicsTag,PollTag,FitnessTag]
+testObject_ServiceTagList_provider_20 :: ServiceTagList
+testObject_ServiceTagList_provider_20 = ServiceTagList [MoviesTag,NewsTag,SocialTag,EntertainmentTag,RatingTag,GamesTag,BusinessTag,PhotographyTag,MusicTag,BooksTag,RatingTag,TravelTag,PhotographyTag,HealthTag,LifestyleTag,VideoTag,FoodDrinkTag,PollTag,EducationTag,ShoppingTag,FinanceTag,DesignTag,TutorialTag,GamesTag,EntertainmentTag,TravelTag,TutorialTag,EducationTag,LifestyleTag]

@@ -76,7 +76,7 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_Scheme_user_1 :: CallConfig.Scheme
-testObject_Scheme_user_1 = SchemeTurn
+testObject_Scheme_user_1 = SchemeTurns
 testObject_Scheme_user_2 :: CallConfig.Scheme
 testObject_Scheme_user_2 = SchemeTurns
 testObject_Scheme_user_3 :: CallConfig.Scheme
@@ -85,3 +85,33 @@ testObject_Scheme_user_4 :: CallConfig.Scheme
 testObject_Scheme_user_4 = SchemeTurn
 testObject_Scheme_user_5 :: CallConfig.Scheme
 testObject_Scheme_user_5 = SchemeTurns
+testObject_Scheme_user_6 :: CallConfig.Scheme
+testObject_Scheme_user_6 = SchemeTurns
+testObject_Scheme_user_7 :: CallConfig.Scheme
+testObject_Scheme_user_7 = SchemeTurn
+testObject_Scheme_user_8 :: CallConfig.Scheme
+testObject_Scheme_user_8 = SchemeTurns
+testObject_Scheme_user_9 :: CallConfig.Scheme
+testObject_Scheme_user_9 = SchemeTurns
+testObject_Scheme_user_10 :: CallConfig.Scheme
+testObject_Scheme_user_10 = SchemeTurns
+testObject_Scheme_user_11 :: CallConfig.Scheme
+testObject_Scheme_user_11 = SchemeTurn
+testObject_Scheme_user_12 :: CallConfig.Scheme
+testObject_Scheme_user_12 = SchemeTurns
+testObject_Scheme_user_13 :: CallConfig.Scheme
+testObject_Scheme_user_13 = SchemeTurn
+testObject_Scheme_user_14 :: CallConfig.Scheme
+testObject_Scheme_user_14 = SchemeTurns
+testObject_Scheme_user_15 :: CallConfig.Scheme
+testObject_Scheme_user_15 = SchemeTurns
+testObject_Scheme_user_16 :: CallConfig.Scheme
+testObject_Scheme_user_16 = SchemeTurns
+testObject_Scheme_user_17 :: CallConfig.Scheme
+testObject_Scheme_user_17 = SchemeTurn
+testObject_Scheme_user_18 :: CallConfig.Scheme
+testObject_Scheme_user_18 = SchemeTurns
+testObject_Scheme_user_19 :: CallConfig.Scheme
+testObject_Scheme_user_19 = SchemeTurns
+testObject_Scheme_user_20 :: CallConfig.Scheme
+testObject_Scheme_user_20 = SchemeTurn

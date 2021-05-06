@@ -76,12 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_AssetToken_user_1 :: AssetToken
-testObject_AssetToken_user_1 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("Yo7oX9vDp_GhAne6iTiY")))}
+testObject_AssetToken_user_1 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("USg=")))}
 testObject_AssetToken_user_2 :: AssetToken
-testObject_AssetToken_user_2 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("9GP3")))}
+testObject_AssetToken_user_2 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("7cpp")))}
 testObject_AssetToken_user_3 :: AssetToken
-testObject_AssetToken_user_3 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("1xqEORv_rHlm8PNVX8yHZ92VjjMiuC22GKfWzA==")))}
+testObject_AssetToken_user_3 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("4M_cjQVkqvuT2wCK-J7DN282gOBfeV4I")))}
 testObject_AssetToken_user_4 :: AssetToken
-testObject_AssetToken_user_4 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("5oOxIcCm6isfngV1")))}
+testObject_AssetToken_user_4 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("BbSK41t23IXBO7tFVgu0")))}
 testObject_AssetToken_user_5 :: AssetToken
-testObject_AssetToken_user_5 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("XRj2qHmj")))}
+testObject_AssetToken_user_5 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("hiFfAyFecw_Su5Iz0A==")))}
+testObject_AssetToken_user_6 :: AssetToken
+testObject_AssetToken_user_6 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("qDGCqZivnLu-BMkO5xBBXH5NaNR5wQs=")))}
+testObject_AssetToken_user_7 :: AssetToken
+testObject_AssetToken_user_7 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("IGakKa0=")))}
+testObject_AssetToken_user_8 :: AssetToken
+testObject_AssetToken_user_8 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("Cv67dySQDQaV2x0fgKg3_qw=")))}
+testObject_AssetToken_user_9 :: AssetToken
+testObject_AssetToken_user_9 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("Hex6")))}
+testObject_AssetToken_user_10 :: AssetToken
+testObject_AssetToken_user_10 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("hIybozYKrrp5A7uyhb1F0_A02O4=")))}
+testObject_AssetToken_user_11 :: AssetToken
+testObject_AssetToken_user_11 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("EjQYBITeSweOsT9CI9Iw-QAGwC9YFjS6sEIyBwI=")))}
+testObject_AssetToken_user_12 :: AssetToken
+testObject_AssetToken_user_12 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("")))}
+testObject_AssetToken_user_13 :: AssetToken
+testObject_AssetToken_user_13 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("194swuI7lSPKGesLxUanGD_pr2wyH7rawCfTpu8=")))}
+testObject_AssetToken_user_14 :: AssetToken
+testObject_AssetToken_user_14 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("ueW2pQb_lwQ6w5cNPo8UToOR81_q")))}
+testObject_AssetToken_user_15 :: AssetToken
+testObject_AssetToken_user_15 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("xO_IgcEaU4kc7rbMLNQ=")))}
+testObject_AssetToken_user_16 :: AssetToken
+testObject_AssetToken_user_16 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("P841vg4E7aqqeg==")))}
+testObject_AssetToken_user_17 :: AssetToken
+testObject_AssetToken_user_17 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("9ZLM5pQWeGpVLu9N6uNtOYK6fhWj3d1u")))}
+testObject_AssetToken_user_18 :: AssetToken
+testObject_AssetToken_user_18 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("Pa_0eMVDqH5j_bR6b_M=")))}
+testObject_AssetToken_user_19 :: AssetToken
+testObject_AssetToken_user_19 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("ufqLW2pJ4XvPBcrMZw==")))}
+testObject_AssetToken_user_20 :: AssetToken
+testObject_AssetToken_user_20 = AssetToken {assetTokenAscii = (fromRight undefined (validate ("M7CKWQ==")))}

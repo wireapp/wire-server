@@ -76,12 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_Connect_user_1 :: Connect
-testObject_Connect_user_1 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000005-0000-0001-0000-000100000006"))), cMessage = Just "", cName = Just "*", cEmail = Nothing}
+testObject_Connect_user_1 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000005-0000-0001-0000-000400000007"))), cMessage = Nothing, cName = Just "`M\174664", cEmail = Just "Dl\993640\DC3\59668>\1044006"}
 testObject_Connect_user_2 :: Connect
-testObject_Connect_user_2 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000008-0000-0007-0000-000500000003"))), cMessage = Just "D\SYNw", cName = Just "\185413%\1030422\US", cEmail = Nothing}
+testObject_Connect_user_2 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000000-0000-0003-0000-000200000002"))), cMessage = Just "\r\v'8Jf", cName = Just "\13591\SUB\ryD\120159\&4", cEmail = Just "0"}
 testObject_Connect_user_3 :: Connect
-testObject_Connect_user_3 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000008-0000-0004-0000-000000000000"))), cMessage = Nothing, cName = Nothing, cEmail = Just ""}
+testObject_Connect_user_3 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000004-0000-0001-0000-000600000005"))), cMessage = Just "\1072520*5\142203", cName = Just "\1021293R\4172.", cEmail = Just "\EMCXp\FSy"}
 testObject_Connect_user_4 :: Connect
-testObject_Connect_user_4 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000000-0000-0003-0000-000300000007"))), cMessage = Just "\1033461\1079262RMe", cName = Just "3W0A\tf\997897", cEmail = Just "mQ"}
+testObject_Connect_user_4 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000002-0000-0008-0000-000500000001"))), cMessage = Nothing, cName = Just "\1109909\r", cEmail = Just "i\110806\52435\1089789"}
 testObject_Connect_user_5 :: Connect
-testObject_Connect_user_5 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000003-0000-0003-0000-000400000003"))), cMessage = Just "\1084335=\988053", cName = Nothing, cEmail = Just "A\1097534"}
+testObject_Connect_user_5 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000007-0000-0002-0000-000500000003"))), cMessage = Just "8}P", cName = Just "*T\1084470", cEmail = Just "gv"}
+testObject_Connect_user_6 :: Connect
+testObject_Connect_user_6 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000005-0000-0004-0000-000600000002"))), cMessage = Just "\917780O(\EOTk\1067626", cName = Just "N\RS`", cEmail = Just "'\989484f\1075329\25274"}
+testObject_Connect_user_7 :: Connect
+testObject_Connect_user_7 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000004-0000-0001-0000-000500000001"))), cMessage = Just "Q\DC3f\\{", cName = Just "nRCe(\\", cEmail = Just "P8\CANEq"}
+testObject_Connect_user_8 :: Connect
+testObject_Connect_user_8 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000000-0000-0008-0000-000200000005"))), cMessage = Just "", cName = Nothing, cEmail = Nothing}
+testObject_Connect_user_9 :: Connect
+testObject_Connect_user_9 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000007-0000-0008-0000-000100000006"))), cMessage = Just "\69922K\170944K\DC2", cName = Just "\SOH\158114[s\10766", cEmail = Just "\1070098\1047413KA"}
+testObject_Connect_user_10 :: Connect
+testObject_Connect_user_10 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000008-0000-0006-0000-000300000006"))), cMessage = Nothing, cName = Nothing, cEmail = Just ""}
+testObject_Connect_user_11 :: Connect
+testObject_Connect_user_11 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000006-0000-0005-0000-000400000005"))), cMessage = Just "\1037918\1112090\\", cName = Just "\161921s&\1073787\FS[", cEmail = Just "\ESC"}
+testObject_Connect_user_12 :: Connect
+testObject_Connect_user_12 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000004-0000-0003-0000-000200000002"))), cMessage = Just "\SI1\13650\24089\f\DEL\1017353", cName = Just "$X\11161\22183OA", cEmail = Just "^YM\ACKY\SUB\1016511"}
+testObject_Connect_user_13 :: Connect
+testObject_Connect_user_13 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000002-0000-0000-0000-000300000004"))), cMessage = Just "\ESCQ4\\\98593", cName = Just "\1021019|;j2t\1006228", cEmail = Just "b&\EM"}
+testObject_Connect_user_14 :: Connect
+testObject_Connect_user_14 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000007-0000-0005-0000-000700000006"))), cMessage = Just "\SUB\STX|\nF=\1020950", cName = Nothing, cEmail = Nothing}
+testObject_Connect_user_15 :: Connect
+testObject_Connect_user_15 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000004-0000-0004-0000-000800000005"))), cMessage = Just "6m", cName = Nothing, cEmail = Just ""}
+testObject_Connect_user_16 :: Connect
+testObject_Connect_user_16 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000001-0000-0007-0000-000800000008"))), cMessage = Nothing, cName = Just ",h\v\1036044", cEmail = Nothing}
+testObject_Connect_user_17 :: Connect
+testObject_Connect_user_17 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000004-0000-0007-0000-000400000001"))), cMessage = Just "@\176655\SYN]a", cName = Just "", cEmail = Just "c\1015405Z"}
+testObject_Connect_user_18 :: Connect
+testObject_Connect_user_18 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000007-0000-0005-0000-000000000000"))), cMessage = Nothing, cName = Just "O*", cEmail = Just "/"}
+testObject_Connect_user_19 :: Connect
+testObject_Connect_user_19 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000008-0000-0005-0000-000100000006"))), cMessage = Nothing, cName = Nothing, cEmail = Nothing}
+testObject_Connect_user_20 :: Connect
+testObject_Connect_user_20 = Connect {cRecipient = (Id (fromJust (UUID.fromString "00000003-0000-0000-0000-000300000003"))), cMessage = Just "\65063", cName = Just ":\1088738\1022096\&7", cEmail = Just "_e%\1040215\1033519\1086833"}

@@ -76,12 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_SendLoginCode_user_1 :: SendLoginCode
-testObject_SendLoginCode_user_1 = SendLoginCode {lcPhone = Phone {fromPhone = "+27104017"}, lcCall = True, lcForce = True}
+testObject_SendLoginCode_user_1 = SendLoginCode {lcPhone = Phone {fromPhone = "+948589913076"}, lcCall = False, lcForce = False}
 testObject_SendLoginCode_user_2 :: SendLoginCode
-testObject_SendLoginCode_user_2 = SendLoginCode {lcPhone = Phone {fromPhone = "+818878074"}, lcCall = True, lcForce = False}
+testObject_SendLoginCode_user_2 = SendLoginCode {lcPhone = Phone {fromPhone = "+03321825654"}, lcCall = False, lcForce = False}
 testObject_SendLoginCode_user_3 :: SendLoginCode
-testObject_SendLoginCode_user_3 = SendLoginCode {lcPhone = Phone {fromPhone = "+281113090468154"}, lcCall = True, lcForce = False}
+testObject_SendLoginCode_user_3 = SendLoginCode {lcPhone = Phone {fromPhone = "+382689569353434"}, lcCall = False, lcForce = False}
 testObject_SendLoginCode_user_4 :: SendLoginCode
-testObject_SendLoginCode_user_4 = SendLoginCode {lcPhone = Phone {fromPhone = "+37338658712"}, lcCall = False, lcForce = False}
+testObject_SendLoginCode_user_4 = SendLoginCode {lcPhone = Phone {fromPhone = "+642788161589"}, lcCall = True, lcForce = True}
 testObject_SendLoginCode_user_5 :: SendLoginCode
-testObject_SendLoginCode_user_5 = SendLoginCode {lcPhone = Phone {fromPhone = "+127114753148362"}, lcCall = True, lcForce = False}
+testObject_SendLoginCode_user_5 = SendLoginCode {lcPhone = Phone {fromPhone = "+39921582"}, lcCall = False, lcForce = False}
+testObject_SendLoginCode_user_6 :: SendLoginCode
+testObject_SendLoginCode_user_6 = SendLoginCode {lcPhone = Phone {fromPhone = "+34520439170316"}, lcCall = True, lcForce = False}
+testObject_SendLoginCode_user_7 :: SendLoginCode
+testObject_SendLoginCode_user_7 = SendLoginCode {lcPhone = Phone {fromPhone = "+49609857620830"}, lcCall = False, lcForce = False}
+testObject_SendLoginCode_user_8 :: SendLoginCode
+testObject_SendLoginCode_user_8 = SendLoginCode {lcPhone = Phone {fromPhone = "+7578227534737"}, lcCall = False, lcForce = False}
+testObject_SendLoginCode_user_9 :: SendLoginCode
+testObject_SendLoginCode_user_9 = SendLoginCode {lcPhone = Phone {fromPhone = "+45866459847146"}, lcCall = True, lcForce = True}
+testObject_SendLoginCode_user_10 :: SendLoginCode
+testObject_SendLoginCode_user_10 = SendLoginCode {lcPhone = Phone {fromPhone = "+81558820822"}, lcCall = False, lcForce = False}
+testObject_SendLoginCode_user_11 :: SendLoginCode
+testObject_SendLoginCode_user_11 = SendLoginCode {lcPhone = Phone {fromPhone = "+39799434602303"}, lcCall = False, lcForce = False}
+testObject_SendLoginCode_user_12 :: SendLoginCode
+testObject_SendLoginCode_user_12 = SendLoginCode {lcPhone = Phone {fromPhone = "+076875665529"}, lcCall = False, lcForce = True}
+testObject_SendLoginCode_user_13 :: SendLoginCode
+testObject_SendLoginCode_user_13 = SendLoginCode {lcPhone = Phone {fromPhone = "+553524310655"}, lcCall = True, lcForce = True}
+testObject_SendLoginCode_user_14 :: SendLoginCode
+testObject_SendLoginCode_user_14 = SendLoginCode {lcPhone = Phone {fromPhone = "+2970690699"}, lcCall = True, lcForce = False}
+testObject_SendLoginCode_user_15 :: SendLoginCode
+testObject_SendLoginCode_user_15 = SendLoginCode {lcPhone = Phone {fromPhone = "+673861428777"}, lcCall = False, lcForce = True}
+testObject_SendLoginCode_user_16 :: SendLoginCode
+testObject_SendLoginCode_user_16 = SendLoginCode {lcPhone = Phone {fromPhone = "+02943144"}, lcCall = True, lcForce = True}
+testObject_SendLoginCode_user_17 :: SendLoginCode
+testObject_SendLoginCode_user_17 = SendLoginCode {lcPhone = Phone {fromPhone = "+37358374239963"}, lcCall = True, lcForce = False}
+testObject_SendLoginCode_user_18 :: SendLoginCode
+testObject_SendLoginCode_user_18 = SendLoginCode {lcPhone = Phone {fromPhone = "+7770371040"}, lcCall = False, lcForce = True}
+testObject_SendLoginCode_user_19 :: SendLoginCode
+testObject_SendLoginCode_user_19 = SendLoginCode {lcPhone = Phone {fromPhone = "+663025070"}, lcCall = False, lcForce = False}
+testObject_SendLoginCode_user_20 :: SendLoginCode
+testObject_SendLoginCode_user_20 = SendLoginCode {lcPhone = Phone {fromPhone = "+916619907490501"}, lcCall = True, lcForce = False}

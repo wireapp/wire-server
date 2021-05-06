@@ -56,7 +56,7 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 testObject_TeamBinding_team_1 :: TeamBinding
-testObject_TeamBinding_team_1 = NonBinding
+testObject_TeamBinding_team_1 = Binding
 testObject_TeamBinding_team_2 :: TeamBinding
 testObject_TeamBinding_team_2 = Binding
 testObject_TeamBinding_team_3 :: TeamBinding
@@ -64,4 +64,34 @@ testObject_TeamBinding_team_3 = NonBinding
 testObject_TeamBinding_team_4 :: TeamBinding
 testObject_TeamBinding_team_4 = NonBinding
 testObject_TeamBinding_team_5 :: TeamBinding
-testObject_TeamBinding_team_5 = Binding
+testObject_TeamBinding_team_5 = NonBinding
+testObject_TeamBinding_team_6 :: TeamBinding
+testObject_TeamBinding_team_6 = NonBinding
+testObject_TeamBinding_team_7 :: TeamBinding
+testObject_TeamBinding_team_7 = Binding
+testObject_TeamBinding_team_8 :: TeamBinding
+testObject_TeamBinding_team_8 = NonBinding
+testObject_TeamBinding_team_9 :: TeamBinding
+testObject_TeamBinding_team_9 = NonBinding
+testObject_TeamBinding_team_10 :: TeamBinding
+testObject_TeamBinding_team_10 = NonBinding
+testObject_TeamBinding_team_11 :: TeamBinding
+testObject_TeamBinding_team_11 = NonBinding
+testObject_TeamBinding_team_12 :: TeamBinding
+testObject_TeamBinding_team_12 = NonBinding
+testObject_TeamBinding_team_13 :: TeamBinding
+testObject_TeamBinding_team_13 = Binding
+testObject_TeamBinding_team_14 :: TeamBinding
+testObject_TeamBinding_team_14 = NonBinding
+testObject_TeamBinding_team_15 :: TeamBinding
+testObject_TeamBinding_team_15 = Binding
+testObject_TeamBinding_team_16 :: TeamBinding
+testObject_TeamBinding_team_16 = NonBinding
+testObject_TeamBinding_team_17 :: TeamBinding
+testObject_TeamBinding_team_17 = Binding
+testObject_TeamBinding_team_18 :: TeamBinding
+testObject_TeamBinding_team_18 = Binding
+testObject_TeamBinding_team_19 :: TeamBinding
+testObject_TeamBinding_team_19 = Binding
+testObject_TeamBinding_team_20 :: TeamBinding
+testObject_TeamBinding_team_20 = NonBinding

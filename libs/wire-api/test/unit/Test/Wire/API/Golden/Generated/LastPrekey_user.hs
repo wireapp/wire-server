@@ -76,12 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_LastPrekey_user_1 :: LastPrekey
-testObject_LastPrekey_user_1 = (lastPrekey ("Q\169574"))
+testObject_LastPrekey_user_1 = (lastPrekey ("\1097499H\ACK&%\ENQjm\1056636\164762Cwnp-N\168029 '\159789"))
 testObject_LastPrekey_user_2 :: LastPrekey
-testObject_LastPrekey_user_2 = (lastPrekey ("\1013699"))
+testObject_LastPrekey_user_2 = (lastPrekey ("\ENQ\SO\48173o\CANF`\187437\NAK\1048287\&0"))
 testObject_LastPrekey_user_3 :: LastPrekey
-testObject_LastPrekey_user_3 = (lastPrekey (">\DC3Y\NAKJ\1025585\1014856\r-e"))
+testObject_LastPrekey_user_3 = (lastPrekey ("\SUB\USA\1032703qsAKZ\1038435Sy"))
 testObject_LastPrekey_user_4 :: LastPrekey
-testObject_LastPrekey_user_4 = (lastPrekey ("b\SYNZ*\990245\166132\DC3o`\1029906\1085832}d\10016\1030894\rs\1049904"))
+testObject_LastPrekey_user_4 = (lastPrekey ("o2"))
 testObject_LastPrekey_user_5 :: LastPrekey
-testObject_LastPrekey_user_5 = (lastPrekey ("\128651h\12839\&8\1071066.h\1037137A\DEL\1091151\&8\ACK\DLE2?z6"))
+testObject_LastPrekey_user_5 = (lastPrekey ("\NULYv\ap@ESq\54262x}"))
+testObject_LastPrekey_user_6 :: LastPrekey
+testObject_LastPrekey_user_6 = (lastPrekey ("<\186723G!\99831"))
+testObject_LastPrekey_user_7 :: LastPrekey
+testObject_LastPrekey_user_7 = (lastPrekey ("Q\ETX\ETX\rFH#2A\fwcA\18301A\993385\1023183\r\41668MG?Sl "))
+testObject_LastPrekey_user_8 :: LastPrekey
+testObject_LastPrekey_user_8 = (lastPrekey ("\SUB"))
+testObject_LastPrekey_user_9 :: LastPrekey
+testObject_LastPrekey_user_9 = (lastPrekey ("\1028981!\1012443\49202_sQ\92678\14631Q\53991R~\EMt\985758\GSPaD \1039027$#\EOT\27656"))
+testObject_LastPrekey_user_10 :: LastPrekey
+testObject_LastPrekey_user_10 = (lastPrekey ("{YOu%\DEL>_\1052506*\DC1E,\RS\1039281L\32467g\1103175\1111324DD\1063368\STX("))
+testObject_LastPrekey_user_11 :: LastPrekey
+testObject_LastPrekey_user_11 = (lastPrekey ("\"$S\DLE\96438S\ACK(\141517\&8\v\USw\th\60895\&5%u\ENQ\1067563\&2\SOUV\EOT"))
+testObject_LastPrekey_user_12 :: LastPrekey
+testObject_LastPrekey_user_12 = (lastPrekey ("\NULG@\DC3Wx\SYN\1032613s\FS\47242\STX\GS4}A\1072590$`B\1066283\GS?\1094886\&2\146676"))
+testObject_LastPrekey_user_13 :: LastPrekey
+testObject_LastPrekey_user_13 = (lastPrekey (""))
+testObject_LastPrekey_user_14 :: LastPrekey
+testObject_LastPrekey_user_14 = (lastPrekey ("mS><\990422\n\1063785t"))
+testObject_LastPrekey_user_15 :: LastPrekey
+testObject_LastPrekey_user_15 = (lastPrekey ("\b\1074290\127401\b\DC2\41891_"))
+testObject_LastPrekey_user_16 :: LastPrekey
+testObject_LastPrekey_user_16 = (lastPrekey ("\1088916%\RS\ETB\DLE/;\NAK\1005119OY"))
+testObject_LastPrekey_user_17 :: LastPrekey
+testObject_LastPrekey_user_17 = (lastPrekey ("I\35315(0\1090218&\1102658\22762\990090\1095159>\1051251\30251\STXz\51117_Rf\96210"))
+testObject_LastPrekey_user_18 :: LastPrekey
+testObject_LastPrekey_user_18 = (lastPrekey (",\48106\EOT\59943\DC3\DEL.\1103153\&5n\US$\1060921\146440\&101\118926\41665:"))
+testObject_LastPrekey_user_19 :: LastPrekey
+testObject_LastPrekey_user_19 = (lastPrekey ("pCJf"))
+testObject_LastPrekey_user_20 :: LastPrekey
+testObject_LastPrekey_user_20 = (lastPrekey ("\985396\&8W\154968%\NAKjzY\147520M2'(\1018818"))
