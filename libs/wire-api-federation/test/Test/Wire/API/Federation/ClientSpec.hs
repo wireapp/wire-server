@@ -46,55 +46,55 @@ import Wire.API.User (UserProfile)
 
 spec :: Spec
 spec = do
-  stateRef <- runIO . newIORef $ MockState [] (error "No mock response provided") (error "server not started") (error "No port selected yet")
-  beforeAll (startMockFederator stateRef) $
-    afterAll_ (stopMockFederator stateRef) $
-      before_ (flushState stateRef) $
-        describe "Federator.Client" $ do
-          it "should make correct calls to the federator and parse success response correctly" $ do
-            handle <- generate arbitrary
-            expectedResponse :: Maybe UserProfile <- generate arbitrary
+  stateRef <- runIO initState
+  beforeAll (startMockFederator stateRef)
+    . afterAll_ (stopMockFederator stateRef)
+    . before_ (flushState stateRef)
+    $ describe "Federator.Client" $ do
+      it "should make correct calls to the federator and parse success response correctly" $ do
+        handle <- generate arbitrary
+        expectedResponse :: Maybe UserProfile <- generate arbitrary
 
-            (actualResponse, sentRequests) <-
-              withMockFederator stateRef (mkSuccessResponse expectedResponse) $
-                Brig.getUserByHandle Brig.clientRoutes handle
+        (actualResponse, sentRequests) <-
+          withMockFederator stateRef (mkSuccessResponse expectedResponse) $
+            Brig.getUserByHandle Brig.clientRoutes handle
 
-            sentRequests `shouldBe` [FederatedRequest "target.example.com" (Just $ Request Brig "/federation/users/by-handle" (LBS.toStrict (Aeson.encode handle)) "origin.example.com")]
-            actualResponse `shouldBe` Right expectedResponse
+        sentRequests `shouldBe` [FederatedRequest "target.example.com" (Just $ Request Brig "/federation/users/by-handle" (LBS.toStrict (Aeson.encode handle)) "origin.example.com")]
+        actualResponse `shouldBe` Right expectedResponse
 
-          it "should parse failure response correctly" $ do
-            handle <- generate arbitrary
-            someErr <- generate arbitrary
+      it "should parse failure response correctly" $ do
+        handle <- generate arbitrary
+        someErr <- generate arbitrary
 
-            (actualResponse, _) <-
-              withMockFederator stateRef (mkErrorResponse someErr) $
-                Brig.getUserByHandle Brig.clientRoutes handle
+        (actualResponse, _) <-
+          withMockFederator stateRef (mkErrorResponse someErr) $
+            Brig.getUserByHandle Brig.clientRoutes handle
 
-            actualResponse `shouldBe` Left (FederationClientOutwardError someErr)
+        actualResponse `shouldBe` Left (FederationClientOutwardError someErr)
 
-          it "should report federator failures correctly" $ do
-            handle <- generate arbitrary
+      it "should report federator failures correctly" $ do
+        handle <- generate arbitrary
 
-            (actualResponse, _) <-
-              withMockFederator stateRef (error "some IO error!") $
-                Brig.getUserByHandle Brig.clientRoutes handle
+        (actualResponse, _) <-
+          withMockFederator stateRef (error "some IO error!") $
+            Brig.getUserByHandle Brig.clientRoutes handle
 
-            case actualResponse of
-              Right res ->
-                expectationFailure $ "Expected response to be failure, got: \n" <> show res
-              Left (FederationClientRPCError errText) ->
-                Text.unpack errText `shouldStartWith` "grpc error: GRPC status indicates failure: status-code=INTERNAL, status-message=\"some IO error!"
-              Left err ->
-                expectationFailure $ "Expected FedeartionClientRPCError, got different error: \n" <> show err
+        case actualResponse of
+          Right res ->
+            expectationFailure $ "Expected response to be failure, got: \n" <> show res
+          Left (FederationClientRPCError errText) ->
+            Text.unpack errText `shouldStartWith` "grpc error: GRPC status indicates failure: status-code=INTERNAL, status-message=\"some IO error!"
+          Left err ->
+            expectationFailure $ "Expected FedeartionClientRPCError, got different error: \n" <> show err
 
-          it "should report GRPC errors correctly" $ do
-            handle <- generate arbitrary
+      it "should report GRPC errors correctly" $ do
+        handle <- generate arbitrary
 
-            (actualResponse, _) <-
-              withMockFederator stateRef (throwError $ Mu.ServerError Mu.NotFound "Just testing") $
-                Brig.getUserByHandle Brig.clientRoutes handle
+        (actualResponse, _) <-
+          withMockFederator stateRef (throwError $ Mu.ServerError Mu.NotFound "Just testing") $
+            Brig.getUserByHandle Brig.clientRoutes handle
 
-            actualResponse `shouldBe` Left (FederationClientRPCError "grpc error: GRPC status indicates failure: status-code=NOT_FOUND, status-message=\"Just testing\"")
+        actualResponse `shouldBe` Left (FederationClientRPCError "grpc error: GRPC status indicates failure: status-code=NOT_FOUND, status-message=\"Just testing\"")
 
 -- * GRPC Server Mocking Machinery
 
@@ -139,6 +139,9 @@ stopMockFederator ref = do
 
 flushState :: IORef MockState -> IO ()
 flushState = flip modifyIORef $ \s -> s {recievedRequests = [], effectfulResponse = error "No mock response provided"}
+
+initState :: IO (IORef MockState)
+initState = newIORef $ MockState [] (error "No mock response provided") (error "server not started") (error "No port selected yet")
 
 -- This is mostly copy-pasta from brig-integration. Perhaps this should be part
 -- of the wire-api-federation libarary?
