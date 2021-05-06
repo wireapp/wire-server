@@ -76,42 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_RoleName_user_1 :: RoleName
-testObject_RoleName_user_1 = (fromJust (parseRoleName "679rh0ewjjyz6jagj_"))
+testObject_RoleName_user_1 = (fromJust (parseRoleName "luscb4f5tth_kihngyr1k_"))
 testObject_RoleName_user_2 :: RoleName
-testObject_RoleName_user_2 = (fromJust (parseRoleName "bf1rdtutdumo16gbkadf_3dylyvgq2cz0pa5ni"))
+testObject_RoleName_user_2 = (fromJust (parseRoleName "50w60t3uxjr3thwtls9j_29hcp"))
 testObject_RoleName_user_3 :: RoleName
-testObject_RoleName_user_3 = (fromJust (parseRoleName "xyurjb47mnf9en_es9bl94v6v9vcx5oxp4ns39nl0fuswr"))
+testObject_RoleName_user_3 = (fromJust (parseRoleName "1crkdcd2vg6m8hagfqu4ldjhie8_s68cqak3u5xllhn02egi2ata4y4f7bfop"))
 testObject_RoleName_user_4 :: RoleName
-testObject_RoleName_user_4 = (fromJust (parseRoleName "1r_vie5b_a164wy41joq1lekyjybo4muu50orj_z8vs40avzav8ioeoud0qg2ep"))
+testObject_RoleName_user_4 = (fromJust (parseRoleName "vficihdjux6drguu62kd3h40cua6z66gxn7zy3w"))
 testObject_RoleName_user_5 :: RoleName
-testObject_RoleName_user_5 = (fromJust (parseRoleName "bs4kc0_h5xxhwa"))
+testObject_RoleName_user_5 = (fromJust (parseRoleName "_9r74t5teocm0uy6b2sgbwba4jjya44rg44rnewinmy7t8hf"))
 testObject_RoleName_user_6 :: RoleName
-testObject_RoleName_user_6 = (fromJust (parseRoleName "p2ugu4yxvrvx84sc230yenhiecybl86x06uus4f_rq49svar34q5873h8q2xyb1ub48jee3cd2vybn6bktn"))
+testObject_RoleName_user_6 = (fromJust (parseRoleName "pw6bue0g2uug3ngha1iaiv0jo0c1x7ok09it0y3r4yyassn19o3il0g9bw_mbtg3usg27z2btmq9x9_kg20u50ggmv"))
 testObject_RoleName_user_7 :: RoleName
-testObject_RoleName_user_7 = (fromJust (parseRoleName "dm3u8cysh9mcwu"))
+testObject_RoleName_user_7 = (fromJust (parseRoleName "wbd_3_bdghcibdc4g2yoj7grykiausu9iba9p7n8lfq520o0lc77iphmi2x5c81_6g11yq_8lmtazoyfuhj"))
 testObject_RoleName_user_8 :: RoleName
-testObject_RoleName_user_8 = (fromJust (parseRoleName "gyn2o2f4uivaqyf0npm1lj13dytflnbyi_yu8l0du9_i2eh5k1xf8uc3of9h8ve8n7x80epslgp6j"))
+testObject_RoleName_user_8 = (fromJust (parseRoleName "yc85uar0ol7yqh2c2yjncs0py4mv2a9h06dxkqhjt0ukx0x5ojxyifzjqi42p9yx_5ca3dfv68y4"))
 testObject_RoleName_user_9 :: RoleName
-testObject_RoleName_user_9 = (fromJust (parseRoleName "yxrhyllge9z71yer09a5lkr7j0rnvnpsty0pwgj5k7foxtetu8hp_j0ygfzgq4z2krg1gc0n4qk5sygs0sjzztbbwawoh736pd__ljesswnea"))
+testObject_RoleName_user_9 = (fromJust (parseRoleName "odzf4zvbulpy1y0h8bn3rqolaxnssev1b0x16fjhisutbun4ugfv1m7uft"))
 testObject_RoleName_user_10 :: RoleName
-testObject_RoleName_user_10 = (fromJust (parseRoleName "pax3kx7ylt14uvzzgckpoklshw90q7ju2wciwcfdnlhiurin2f1lde_h9oy8ry2lrramwxj2g"))
+testObject_RoleName_user_10 = (fromJust (parseRoleName "88_sr7qv91v5l3kqipc304eb1go588l3r1uzybwaxkezt762tud1sgqkzvl"))
 testObject_RoleName_user_11 :: RoleName
-testObject_RoleName_user_11 = (fromJust (parseRoleName "zo484lugnrjp7gvt3owr7risssp"))
+testObject_RoleName_user_11 = (fromJust (parseRoleName "ux6cgcgtt986rkqqy76ajtaem0572viu3vyzc81dm_z01midmor3jy0ectqlq9nj2k_7fge8gbfs7uba43jb6yf7242ew7a8u7i8lyfkaht78exjz_53hluc12f83dmy"))
 testObject_RoleName_user_12 :: RoleName
-testObject_RoleName_user_12 = (fromJust (parseRoleName "1wvgt82hzqynnr6oog0trzpbdz_28__who93_8q6y55lfnh18o9csxziuh1d8b1tox531mus"))
+testObject_RoleName_user_12 = (fromJust (parseRoleName "tfjqqy1gl71g"))
 testObject_RoleName_user_13 :: RoleName
-testObject_RoleName_user_13 = (fromJust (parseRoleName "1qiboyzdtx6itab1q3l53pu0mbu34zsg0x1b13ew151dbqu0_xh8kbaolv75oikzgq760ojvljlatjg8mvgzpeoneka7ct7r684kdc"))
+testObject_RoleName_user_13 = (fromJust (parseRoleName "7xsdwa4owcr"))
 testObject_RoleName_user_14 :: RoleName
-testObject_RoleName_user_14 = (fromJust (parseRoleName "azz__frlyhp0scgox2p3ti38n6ng1i5wcw_vnakqu_ia2urrx1wjn8pwcf07rm_7hls43o6v3u725bm2ueqeooy1q"))
+testObject_RoleName_user_14 = (fromJust (parseRoleName "zha40awx"))
 testObject_RoleName_user_15 :: RoleName
-testObject_RoleName_user_15 = (fromJust (parseRoleName "1e1ebpl1ggmcp_59lep8gh6l6omndb75fesbyugtsd1mh3k_rqozb1i85c2e2xf3ew9sdalstkzjeuli4yi1"))
+testObject_RoleName_user_15 = (fromJust (parseRoleName "i9qu34mfsy5kpx13v8l5y_7y6ft0h_7yklwxnxrwa1tgpbwqpxauyg3o2_ma0y1acnyohqvjg__86ve1ijccqe8tfn3redo8b0dt8sape__9dgd2biiq"))
 testObject_RoleName_user_16 :: RoleName
-testObject_RoleName_user_16 = (fromJust (parseRoleName "zqq4r6799u_1cy54xe8dprgeqn2ko8pfo96j8as_ut"))
+testObject_RoleName_user_16 = (fromJust (parseRoleName "hxi409px9hkufdq_5_2wqkrvmu0vx7hz680xnekvl3oc60ifz5cokx"))
 testObject_RoleName_user_17 :: RoleName
-testObject_RoleName_user_17 = (fromJust (parseRoleName "ff2m31q7_qda64g7dib30nyn5a2wmpg12zk1vtbrcrp7c13a0lj787j"))
+testObject_RoleName_user_17 = (fromJust (parseRoleName "141dorloz3_6asfqs9n2_muckmaxtlmou_prv5bc1wjg7dk9ei3mukoy_gfdz7cgs6m1ga779agmaz5nxvyfrdp0uv"))
 testObject_RoleName_user_18 :: RoleName
-testObject_RoleName_user_18 = (fromJust (parseRoleName "ewrgm_awgp7qfd31mkbjzssam9uu2q9f84gqanumfne9ktj12xacv6gbs0gfu5"))
+testObject_RoleName_user_18 = (fromJust (parseRoleName "k970onx3a_lhuxyoin5bpdsndzjwzwdl2t3je0bx41frcq9jnv3be0s0u0_6jrkldzzpcbmupr_z0k15mlzujwkzf06e3sewe"))
 testObject_RoleName_user_19 :: RoleName
-testObject_RoleName_user_19 = (fromJust (parseRoleName "mpe95bgb8zsgkje2plrma6v9l2zddgncbz3hpyrvuvgqhstls5g7ytvq11akah73dd57sxywiqrxvjevku34atecrym1b6nr2mn3cj17b"))
+testObject_RoleName_user_19 = (fromJust (parseRoleName "y547qvwsj8cgu9faq5ctr86w04ls4w3rhn2ht7a3gi2al7du7j22y29pljoocga2mv4bpt"))
 testObject_RoleName_user_20 :: RoleName
-testObject_RoleName_user_20 = (fromJust (parseRoleName "ql37hxiik0r1naq97421crek29ty03qllajlh3co6xm25szjd6phcxag6w5z5miy37"))
+testObject_RoleName_user_20 = (fromJust (parseRoleName "xk41w2czw_w_rwasp33mfpctqjp7r_7xnjovt9nkb01lmc8e4z6axt_nyzo"))

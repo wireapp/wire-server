@@ -76,42 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_PropertyValue_user_1 :: PropertyValue
-testObject_PropertyValue_user_1 = PropertyValue {propertyValueJson = Object (fromList [("",String "Y\53360\1068633\14821w#\RSF_N\\"),("\n\59195fB\1054152\&2W",Bool False)])}
+testObject_PropertyValue_user_1 = PropertyValue {propertyValueJson = Array [String "\171004\SUB\132005v\34072S",Number (-3.0e-10),String "%L5\174338\25983\tDA\987088"]}
 testObject_PropertyValue_user_2 :: PropertyValue
-testObject_PropertyValue_user_2 = PropertyValue {propertyValueJson = Object (fromList [("\NUL",Number (0.2)),("",String "M\DEL"),("\1047731J",Bool False),("\\\EOT",Null),("\1037144",Number (10.0)),("F",Bool False),("}\48152",Null)])}
+testObject_PropertyValue_user_2 = PropertyValue {propertyValueJson = Array []}
 testObject_PropertyValue_user_3 :: PropertyValue
-testObject_PropertyValue_user_3 = PropertyValue {propertyValueJson = Array [Number (-200.0),Bool True,Null,String "",String "w\72394",Null,Null,Number (0.0),Bool True,Number (0.0),Number (200.0)]}
+testObject_PropertyValue_user_3 = PropertyValue {propertyValueJson = Object (fromList [("",Number (-100000.0)),("zm\\#",Number (0.0)),("\a\1092963=\1110910K",Null)])}
 testObject_PropertyValue_user_4 :: PropertyValue
-testObject_PropertyValue_user_4 = PropertyValue {propertyValueJson = Array [Bool False,Bool True,String "\NAK\1083707\125250\1084990\134492"]}
+testObject_PropertyValue_user_4 = PropertyValue {propertyValueJson = Object (fromList [("\STXN",Number (0.0)),("\DLE\1034950",Bool True),("\a",Number (-20.0)),("",String "\40032."),("k",Bool True),("T\183116",Null),("!",String "\186094\1102453"),("\986815F",Bool False)])}
 testObject_PropertyValue_user_5 :: PropertyValue
-testObject_PropertyValue_user_5 = PropertyValue {propertyValueJson = Object (fromList [("~\1033699 ",Null),("U\NUL",Null),("",String "#\ETB\989818a"),("\74000\1043775Pj",String ""),("jx",Null),("\DLE9X",Null)])}
+testObject_PropertyValue_user_5 = PropertyValue {propertyValueJson = Bool True}
 testObject_PropertyValue_user_6 :: PropertyValue
-testObject_PropertyValue_user_6 = PropertyValue {propertyValueJson = Object (fromList [("\\",Number (0.0)),("\169389",String ""),("",Number (-1.0)),("\1112351",Bool False),("\131978",Number (0.1)),(">",Null),("_",Number (1.0))])}
+testObject_PropertyValue_user_6 = PropertyValue {propertyValueJson = Null}
 testObject_PropertyValue_user_7 :: PropertyValue
-testObject_PropertyValue_user_7 = PropertyValue {propertyValueJson = Object (fromList [("",Number (1.0e-8)),(" ]`\17963Lz\1082117\1103233O",Number (9.0e-7)),("#5<\19547\GS",String "\141078\1082166\1093281\ra\1007349\DC2?")])}
+testObject_PropertyValue_user_7 = PropertyValue {propertyValueJson = Array [Number (-4.0e15)]}
 testObject_PropertyValue_user_8 :: PropertyValue
-testObject_PropertyValue_user_8 = PropertyValue {propertyValueJson = Object (fromList [])}
+testObject_PropertyValue_user_8 = PropertyValue {propertyValueJson = Null}
 testObject_PropertyValue_user_9 :: PropertyValue
-testObject_PropertyValue_user_9 = PropertyValue {propertyValueJson = Array [Null,Bool False,Number (-100000.0)]}
+testObject_PropertyValue_user_9 = PropertyValue {propertyValueJson = Object (fromList [("Whp\ESC",String "\DELv\51493\138609"),("\ESC9m",String "\1023851^E\DLE<\182596"),("\1035820X\1005463\f\rX\v\73905",String "\1000247\NAK}\54532m\1001709")])}
 testObject_PropertyValue_user_10 :: PropertyValue
-testObject_PropertyValue_user_10 = PropertyValue {propertyValueJson = Array [String "X\1008775_\119908\\\CAN\ETXN8\1012448\SO\FSE"]}
+testObject_PropertyValue_user_10 = PropertyValue {propertyValueJson = Number (-3.0e24)}
 testObject_PropertyValue_user_11 :: PropertyValue
-testObject_PropertyValue_user_11 = PropertyValue {propertyValueJson = Array [Number (6.0e8),Null]}
+testObject_PropertyValue_user_11 = PropertyValue {propertyValueJson = Bool True}
 testObject_PropertyValue_user_12 :: PropertyValue
-testObject_PropertyValue_user_12 = PropertyValue {propertyValueJson = String "f\r.{^\EOTE0Q\r%\\/*\6953D\993868\1109220\NAK\r\1003817\&8~U\49508R*\SI"}
+testObject_PropertyValue_user_12 = PropertyValue {propertyValueJson = Object (fromList [("}Y3e\vS,\NAK._\"me\aY\SOH%\1009283\46931\1105926",Number (9.0e7))])}
 testObject_PropertyValue_user_13 :: PropertyValue
-testObject_PropertyValue_user_13 = PropertyValue {propertyValueJson = Bool True}
+testObject_PropertyValue_user_13 = PropertyValue {propertyValueJson = Array [String "",Null,Null,String "\1035114\1003243",Bool False,Number (-40000.0),Number (4.0e-3)]}
 testObject_PropertyValue_user_14 :: PropertyValue
-testObject_PropertyValue_user_14 = PropertyValue {propertyValueJson = Object (fromList [])}
+testObject_PropertyValue_user_14 = PropertyValue {propertyValueJson = Bool True}
 testObject_PropertyValue_user_15 :: PropertyValue
-testObject_PropertyValue_user_15 = PropertyValue {propertyValueJson = Object (fromList [("(e\"\178857%H_U\120069\DC3l\t\1077537\59725+",Bool False)])}
+testObject_PropertyValue_user_15 = PropertyValue {propertyValueJson = Object (fromList [("\1052895vI_g\US\51974\&8\1083686#\f_",Null),("\66678\&1",Bool True)])}
 testObject_PropertyValue_user_16 :: PropertyValue
-testObject_PropertyValue_user_16 = PropertyValue {propertyValueJson = Array []}
+testObject_PropertyValue_user_16 = PropertyValue {propertyValueJson = Object (fromList [])}
 testObject_PropertyValue_user_17 :: PropertyValue
-testObject_PropertyValue_user_17 = PropertyValue {propertyValueJson = Array [String "o",String "",String "\n",Null,String "\26498",String "",Null,Number (0.1),Number (-0.1),String "h",Bool False,String "",String "",Number (1.0),Number (0.0),Bool True,Number (0.0),Null,Null,Bool False,Bool True,Bool False,Number (10.0)]}
+testObject_PropertyValue_user_17 = PropertyValue {propertyValueJson = Null}
 testObject_PropertyValue_user_18 :: PropertyValue
-testObject_PropertyValue_user_18 = PropertyValue {propertyValueJson = String "H\ETXL\adK"}
+testObject_PropertyValue_user_18 = PropertyValue {propertyValueJson = Number (-1.2e-19)}
 testObject_PropertyValue_user_19 :: PropertyValue
-testObject_PropertyValue_user_19 = PropertyValue {propertyValueJson = String "\SOH\EOT`A9\1004139_\78013G\STX}\174640o%T"}
+testObject_PropertyValue_user_19 = PropertyValue {propertyValueJson = Array [String "?N\1100029\SOH@"]}
 testObject_PropertyValue_user_20 :: PropertyValue
-testObject_PropertyValue_user_20 = PropertyValue {propertyValueJson = Bool True}
+testObject_PropertyValue_user_20 = PropertyValue {propertyValueJson = Bool False}

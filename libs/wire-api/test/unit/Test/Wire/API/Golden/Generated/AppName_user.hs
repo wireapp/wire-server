@@ -76,42 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_AppName_user_1 :: AppName
-testObject_AppName_user_1 = AppName {appNameText = "\NUL\1059477\1078035_m\\\1011118(\ETBxv\24851Q\DELD,W\ACK\97531q8>[n\63755\47573nB="}
+testObject_AppName_user_1 = AppName {appNameText = "\126118K\b"}
 testObject_AppName_user_2 :: AppName
-testObject_AppName_user_2 = AppName {appNameText = "\188426-\RS4y2^"}
+testObject_AppName_user_2 = AppName {appNameText = "\b\GS\5304\a\120560"}
 testObject_AppName_user_3 :: AppName
-testObject_AppName_user_3 = AppName {appNameText = "\1026299KI;\100440s\EM5)q4&w?e\178026Y\97713p\US\STX\2529\1097082\191344\57913)`"}
+testObject_AppName_user_3 = AppName {appNameText = "C\96949]\10247n\1050446"}
 testObject_AppName_user_4 :: AppName
-testObject_AppName_user_4 = AppName {appNameText = "p\ETX\1109067zOB\SUBH\6448;\DC1\38164l\ETXRL wL\1078980\DLE6,?2*\989073\SO\32891)"}
+testObject_AppName_user_4 = AppName {appNameText = "\t\99256\n"}
 testObject_AppName_user_5 :: AppName
-testObject_AppName_user_5 = AppName {appNameText = "V\36130K\RS\b]\b\GS\1093610\USjC\EMP\1008215\ENQ5C\1035983\12475\1016424\EOT"}
+testObject_AppName_user_5 = AppName {appNameText = "+\1112361j\1007660\1024639\EOT!\137216@\NUL"}
 testObject_AppName_user_6 :: AppName
-testObject_AppName_user_6 = AppName {appNameText = "\RS3*i\1065154\1074918s\EM'j/?\RS\DC4*!\SOH\1052389\n^\137943D"}
+testObject_AppName_user_6 = AppName {appNameText = "\120037\ETX|xg\f\DEL\f\57871"}
 testObject_AppName_user_7 :: AppName
-testObject_AppName_user_7 = AppName {appNameText = "wK\"\1051964\"["}
+testObject_AppName_user_7 = AppName {appNameText = "'X#\14663\1000208E\1027868\SOHt\40886\1058613-D\986466\DC3\121152\ESC3-B"}
 testObject_AppName_user_8 :: AppName
-testObject_AppName_user_8 = AppName {appNameText = "\1070367G\99396\163590\bv\163597f\10801z0&\17445"}
+testObject_AppName_user_8 = AppName {appNameText = "U\95262wJ\ESChTjWO\1106742RJ^X\1078235\ENQ\18046"}
 testObject_AppName_user_9 :: AppName
-testObject_AppName_user_9 = AppName {appNameText = "8\EMy\1004373\134646B\1013409@&6\"\ENQNtf\r\1074562'\ETX\ETB"}
+testObject_AppName_user_9 = AppName {appNameText = "\v\vd,B\FS72@U!\25119l\150375"}
 testObject_AppName_user_10 :: AppName
-testObject_AppName_user_10 = AppName {appNameText = "\NAK\1013022z\163708c"}
+testObject_AppName_user_10 = AppName {appNameText = "'\132023\1064173\SYN\154700s\1016421@PT\SO0\\m\FS`*\1017898\EM\SIk\1028502Q\FS\r\EOT\1082459@:"}
 testObject_AppName_user_11 :: AppName
-testObject_AppName_user_11 = AppName {appNameText = "\DC1\70718:wQ\35995[j*\\?c\37487`K"}
+testObject_AppName_user_11 = AppName {appNameText = "A9|\FS\145478&\SI\vVy\74066\1113896\4097\30631\175591\USQ\1012195%*\95792\RS\"\48263zv\STX69"}
 testObject_AppName_user_12 :: AppName
-testObject_AppName_user_12 = AppName {appNameText = ""}
+testObject_AppName_user_12 = AppName {appNameText = "\95719X\137353O\1047725?&\30422,\1022905,U\CAN[\120618vkXP72"}
 testObject_AppName_user_13 :: AppName
-testObject_AppName_user_13 = AppName {appNameText = "\\\186848\EM\1085381aU#"}
+testObject_AppName_user_13 = AppName {appNameText = "\1099321\FSeW\1067373y"}
 testObject_AppName_user_14 :: AppName
-testObject_AppName_user_14 = AppName {appNameText = " "}
+testObject_AppName_user_14 = AppName {appNameText = "+\135378\t\1098139=\990453)\1098557,\1020590I\189054\177600E\STX0\GSb\SIE\1052793}\24397:\ENQ\EOT"}
 testObject_AppName_user_15 :: AppName
-testObject_AppName_user_15 = AppName {appNameText = "\STX/\986575\44086\SI\1007113\ETBPq\33410iH\51358\SOH\13025\156925-Z}Z\21309"}
+testObject_AppName_user_15 = AppName {appNameText = "\1005834\&57/\SOH\58753`\3940l"}
 testObject_AppName_user_16 :: AppName
-testObject_AppName_user_16 = AppName {appNameText = ""}
+testObject_AppName_user_16 = AppName {appNameText = "\1008416\22766M\49196\FSg%\71425h\151165%\DC36?N\"\1066733\ETB\\\EM|Ud"}
 testObject_AppName_user_17 :: AppName
-testObject_AppName_user_17 = AppName {appNameText = ";\SOH\ETX;(S\1082022[T6B4"}
+testObject_AppName_user_17 = AppName {appNameText = "2\1087553{__\174599\NAK \50441\183412N\1083143\153057c\ESC\1058631<\168841\992583^\US\1071359\SIfC\168723\1790"}
 testObject_AppName_user_18 :: AppName
-testObject_AppName_user_18 = AppName {appNameText = "\1077549t\1073997\STX\18028\1019297#fa\1053713$v\1045032\1099861\DC4i\FS\DC3\STXqtFr\59674\1076275"}
+testObject_AppName_user_18 = AppName {appNameText = "\EOT\39385\1073415m?"}
 testObject_AppName_user_19 :: AppName
-testObject_AppName_user_19 = AppName {appNameText = "\ESC\f H\188233\168176G\v\50547ei^"}
+testObject_AppName_user_19 = AppName {appNameText = "1\146986h)\7975\1057591u\1077943\DC2<\1044282\993299\155433\147301x"}
 testObject_AppName_user_20 :: AppName
-testObject_AppName_user_20 = AppName {appNameText = "\\m\b"}
+testObject_AppName_user_20 = AppName {appNameText = "\SUB\SOH\1109373a\CAN"}

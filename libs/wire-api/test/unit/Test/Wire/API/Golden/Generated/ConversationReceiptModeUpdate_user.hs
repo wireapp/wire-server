@@ -76,42 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_ConversationReceiptModeUpdate_user_1 :: ConversationReceiptModeUpdate
-testObject_ConversationReceiptModeUpdate_user_1 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 11651}}
+testObject_ConversationReceiptModeUpdate_user_1 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 7982}}
 testObject_ConversationReceiptModeUpdate_user_2 :: ConversationReceiptModeUpdate
-testObject_ConversationReceiptModeUpdate_user_2 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = -15381}}
+testObject_ConversationReceiptModeUpdate_user_2 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 11168}}
 testObject_ConversationReceiptModeUpdate_user_3 :: ConversationReceiptModeUpdate
-testObject_ConversationReceiptModeUpdate_user_3 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = -11950}}
+testObject_ConversationReceiptModeUpdate_user_3 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 12784}}
 testObject_ConversationReceiptModeUpdate_user_4 :: ConversationReceiptModeUpdate
-testObject_ConversationReceiptModeUpdate_user_4 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = -6103}}
+testObject_ConversationReceiptModeUpdate_user_4 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 1092}}
 testObject_ConversationReceiptModeUpdate_user_5 :: ConversationReceiptModeUpdate
-testObject_ConversationReceiptModeUpdate_user_5 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 14426}}
+testObject_ConversationReceiptModeUpdate_user_5 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = -1215}}
 testObject_ConversationReceiptModeUpdate_user_6 :: ConversationReceiptModeUpdate
-testObject_ConversationReceiptModeUpdate_user_6 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 10047}}
+testObject_ConversationReceiptModeUpdate_user_6 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = -6802}}
 testObject_ConversationReceiptModeUpdate_user_7 :: ConversationReceiptModeUpdate
-testObject_ConversationReceiptModeUpdate_user_7 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = -7827}}
+testObject_ConversationReceiptModeUpdate_user_7 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = -11415}}
 testObject_ConversationReceiptModeUpdate_user_8 :: ConversationReceiptModeUpdate
-testObject_ConversationReceiptModeUpdate_user_8 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 9666}}
+testObject_ConversationReceiptModeUpdate_user_8 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 825}}
 testObject_ConversationReceiptModeUpdate_user_9 :: ConversationReceiptModeUpdate
-testObject_ConversationReceiptModeUpdate_user_9 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 14097}}
+testObject_ConversationReceiptModeUpdate_user_9 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 14024}}
 testObject_ConversationReceiptModeUpdate_user_10 :: ConversationReceiptModeUpdate
-testObject_ConversationReceiptModeUpdate_user_10 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 5891}}
+testObject_ConversationReceiptModeUpdate_user_10 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 13992}}
 testObject_ConversationReceiptModeUpdate_user_11 :: ConversationReceiptModeUpdate
-testObject_ConversationReceiptModeUpdate_user_11 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = -482}}
+testObject_ConversationReceiptModeUpdate_user_11 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 12389}}
 testObject_ConversationReceiptModeUpdate_user_12 :: ConversationReceiptModeUpdate
-testObject_ConversationReceiptModeUpdate_user_12 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 1313}}
+testObject_ConversationReceiptModeUpdate_user_12 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 5517}}
 testObject_ConversationReceiptModeUpdate_user_13 :: ConversationReceiptModeUpdate
-testObject_ConversationReceiptModeUpdate_user_13 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 1287}}
+testObject_ConversationReceiptModeUpdate_user_13 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 16251}}
 testObject_ConversationReceiptModeUpdate_user_14 :: ConversationReceiptModeUpdate
-testObject_ConversationReceiptModeUpdate_user_14 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 13217}}
+testObject_ConversationReceiptModeUpdate_user_14 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 5031}}
 testObject_ConversationReceiptModeUpdate_user_15 :: ConversationReceiptModeUpdate
-testObject_ConversationReceiptModeUpdate_user_15 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 13534}}
+testObject_ConversationReceiptModeUpdate_user_15 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 12368}}
 testObject_ConversationReceiptModeUpdate_user_16 :: ConversationReceiptModeUpdate
-testObject_ConversationReceiptModeUpdate_user_16 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = -9214}}
+testObject_ConversationReceiptModeUpdate_user_16 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 11864}}
 testObject_ConversationReceiptModeUpdate_user_17 :: ConversationReceiptModeUpdate
-testObject_ConversationReceiptModeUpdate_user_17 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 7765}}
+testObject_ConversationReceiptModeUpdate_user_17 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 16087}}
 testObject_ConversationReceiptModeUpdate_user_18 :: ConversationReceiptModeUpdate
-testObject_ConversationReceiptModeUpdate_user_18 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = -7505}}
+testObject_ConversationReceiptModeUpdate_user_18 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 3927}}
 testObject_ConversationReceiptModeUpdate_user_19 :: ConversationReceiptModeUpdate
-testObject_ConversationReceiptModeUpdate_user_19 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = -1292}}
+testObject_ConversationReceiptModeUpdate_user_19 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = -8479}}
 testObject_ConversationReceiptModeUpdate_user_20 :: ConversationReceiptModeUpdate
-testObject_ConversationReceiptModeUpdate_user_20 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = 6779}}
+testObject_ConversationReceiptModeUpdate_user_20 = ConversationReceiptModeUpdate {cruReceiptMode = ReceiptMode {unReceiptMode = -7891}}

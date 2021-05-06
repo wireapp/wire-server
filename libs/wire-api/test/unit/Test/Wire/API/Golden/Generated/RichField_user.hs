@@ -76,42 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_RichField_user_1 :: RichField
-testObject_RichField_user_1 = RichField {richFieldType = "8\CAN42B]\DLE\DLEV\f:Hbla\26615\\\ACK", richFieldValue = "\152908eTCk\141807\DC3Hz\1004202C5J=\NUL\174056=(\SO\DLE\28425y[\DC3:"}
+testObject_RichField_user_1 = RichField {richFieldType = "\1001192\98795\1087489S\GSf\20342%\FS\1082068-\vUS-\ENQ^_u;R>#\39397\DC1v", richFieldValue = "\1111118,hE\DC1\990968<Zc\RSDx\STXS"}
 testObject_RichField_user_2 :: RichField
-testObject_RichField_user_2 = RichField {richFieldType = "\60993", richFieldValue = "X\1084308\SUBV\ETBl\DC2\10046"}
+testObject_RichField_user_2 = RichField {richFieldType = "\DC4Wz<\ACKK\133546\1084896i%\DC2\1006442", richFieldValue = "S"}
 testObject_RichField_user_3 :: RichField
-testObject_RichField_user_3 = RichField {richFieldType = "\1021585az:\1031401DqxsRtQ\b/2b", richFieldValue = "Q\1096946\157598\FS\44650\53120D\ETX>Y\1042559U"}
+testObject_RichField_user_3 = RichField {richFieldType = "\FS1\b4f)\ENQ\ENQ", richFieldValue = "B\1080598 jn4\NUL\SI\RSsDH\1033500"}
 testObject_RichField_user_4 :: RichField
-testObject_RichField_user_4 = RichField {richFieldType = "<\r\DC29-\997405r,A&@>\1072327\1032600B\1083043\1014715\&7U\1066439\r%f\48666\20958#\36766", richFieldValue = "Ov\1035870Kb\RS&\153816\1034568'\RS!`\1096226\1057442\61718w2g|\DC4p1<1\65318"}
+testObject_RichField_user_4 = RichField {richFieldType = "oSA\47921=\97670EpS\1024205\EOTF\FS\tX\1106293\SYN\ETXW\58546mzG\1020270&\1048573\SOH\11915", richFieldValue = "<TL4U-\991390D\39549Q\t\984080\1015629\1099917!\985873\STX\r1J"}
 testObject_RichField_user_5 :: RichField
-testObject_RichField_user_5 = RichField {richFieldType = "\40900", richFieldValue = "2!Q\172647;Ng\151748'\1030537\ACK\156991,v\ETB/\EMT\131798ti)K\61055"}
+testObject_RichField_user_5 = RichField {richFieldType = "", richFieldValue = "\1002708g"}
 testObject_RichField_user_6 :: RichField
-testObject_RichField_user_6 = RichField {richFieldType = "\bl", richFieldValue = "HT\41460\1084919t\DC3!\1058929\STXi\SI%\170728\\"}
+testObject_RichField_user_6 = RichField {richFieldType = "\"./\"E\SI\92274,\39007\995276\59109!0y\58994\&8l", richFieldValue = "\173844\ENQ\10802q#PRAQ\ESC?\1054878\61152C\31992\DEL\146277\&5D\NULM\1059439vl\1034863Y\RS=C\SUB"}
 testObject_RichField_user_7 :: RichField
-testObject_RichField_user_7 = RichField {richFieldType = "4\156000\SOH\1017711>E\"\95927&\138862\4554w\ACK3P%\6512\124999\ACK\988880\DC32`\t", richFieldValue = "=jW"}
+testObject_RichField_user_7 = RichField {richFieldType = "\DC1\42269N\SOH\126587O^dkh- i\FSe\138824\145141j\FSN\72384X", richFieldValue = "9G+\1061153D\DLEr"}
 testObject_RichField_user_8 :: RichField
-testObject_RichField_user_8 = RichField {richFieldType = "4[/\SUB_KR7\DLE!iPc\46070\1003325\DC1\1034725\133396\f\1033031A(\STXG\70507\a\SOH", richFieldValue = "\178675^&\165745\1080293"}
+testObject_RichField_user_8 = RichField {richFieldType = "\DC4", richFieldValue = "'[\1016268\23937\SIl\ar1h\52770G\RS\15120\994492"}
 testObject_RichField_user_9 :: RichField
-testObject_RichField_user_9 = RichField {richFieldType = ".\157477aia\DC1<\64294=gP\150358'\1044918\EM$.Xl@QkX`\1053565\136719[", richFieldValue = "*\SUBX\1098859@\152866+&\1094653/"}
+testObject_RichField_user_9 = RichField {richFieldType = "\ACK4\70165\78784\b[\180087%D", richFieldValue = "c\985701\51636z\140144\1063318"}
 testObject_RichField_user_10 :: RichField
-testObject_RichField_user_10 = RichField {richFieldType = "rG\185029\b\131074\1083687\1019378;$\n@E\1015154\157680y\STXJ\1045649\ENQ", richFieldValue = "\21980p\EM\ETB"}
+testObject_RichField_user_10 = RichField {richFieldType = "D\rk\10855\&6Jg9\985703DH\60354\a_\ETBt@Pk\1091148", richFieldValue = "j\63746\1060588\&8\1050671%\DC3 \31669\1077279\7336KY\50167\1090374\74986Oe\120087R\SOk"}
 testObject_RichField_user_11 :: RichField
-testObject_RichField_user_11 = RichField {richFieldType = "n\30001F#\174395\176168\94426W\1055140\128506", richFieldValue = "Ve\1010819"}
+testObject_RichField_user_11 = RichField {richFieldType = ".\1093050A\NULH\22963)[\b", richFieldValue = "fPt\USTRbU?Zz.@l\DC3\19094\CAN\NAK\190979\f"}
 testObject_RichField_user_12 :: RichField
-testObject_RichField_user_12 = RichField {richFieldType = "\994125d", richFieldValue = "b\CANR\147084,<\SI\EOT8\1065220\1030537G$\"V("}
+testObject_RichField_user_12 = RichField {richFieldType = "\ENQTY\176446E\992038\&4\1035226`\1019049H", richFieldValue = "$\1070247\SI\149800R1"}
 testObject_RichField_user_13 :: RichField
-testObject_RichField_user_13 = RichField {richFieldType = "\NUL\1079051\1003932\&6!`i\STX\1957\STXCJ)\STX\24143\1031063g\142949\133197\&6\1047862\EMZN\DC1\28422\\G@", richFieldValue = "\185790\138381\986972s%\38263\31734\1088207\1009521\37714\DC3\1072789r<\1055932\34263"}
+testObject_RichField_user_13 = RichField {richFieldType = "G~\n59\DC3m\22566\&7.I\1112467\r\RS\142312HlJYA\53468\27395/\SYNk\1021783$", richFieldValue = "\1103643\RS\ETX\22375\136175QK\1057465l\1037134f[`\ENQ\RSd"}
 testObject_RichField_user_14 :: RichField
-testObject_RichField_user_14 = RichField {richFieldType = "R]W*\1039816(r\DC3aNy{@`+", richFieldValue = "\1035142.\f]E\n\179134]n?"}
+testObject_RichField_user_14 = RichField {richFieldType = "[7\NAK\142490HcQ\51270\&7SA)\"A", richFieldValue = "\1005543\ETB\DEL\1086629\EM\190837\ACKF6J\ETB"}
 testObject_RichField_user_15 :: RichField
-testObject_RichField_user_15 = RichField {richFieldType = "\1094607\37665U]\167198}\182437= l\FSD+~\SYNO\1063390l", richFieldValue = "\20710&8\178542\16878]z\143310\&4\143879\136809\SYN\1092509\164939\vP\99034B \186983\DLE\12363ad\156487$\ACK{up"}
+testObject_RichField_user_15 = RichField {richFieldType = "o\136606\NUL\67314c5\39918DUL\n\1108441\998049\140757\128794<\NUL?\1018002n4\EMq`", richFieldValue = "1_&\1067469v\EM/\5461h\988170=~\142197Q"}
 testObject_RichField_user_16 :: RichField
-testObject_RichField_user_16 = RichField {richFieldType = "Q\EOTL^_/8xv\SUB\nqS\US", richFieldValue = "\EOT<qHuIekY"}
+testObject_RichField_user_16 = RichField {richFieldType = "\1064108Q\99619HV\120237ToYY\r\ETX\182686DK\vz_\EOTf\1008931(k\EOTI", richFieldValue = "=o\SYN&$\1064952K\f\1008220\&9\1094201T\ETX\1021986?p\170561f,\a\121311rZ\1017117\EOT\NUL&Z\1060166"}
 testObject_RichField_user_17 :: RichField
-testObject_RichField_user_17 = RichField {richFieldType = "~\164874j&\STX=\DC4AO\136415\77996\1091407\NAK{\vow\SO", richFieldValue = "E8\140586\SUB\95556\1099693Y\ETB\1020323\129028"}
+testObject_RichField_user_17 = RichField {richFieldType = "\DEL\29579*L", richFieldValue = "\b\ETX\995553"}
 testObject_RichField_user_18 :: RichField
-testObject_RichField_user_18 = RichField {richFieldType = ")}Bgm>\")us\1067744", richFieldValue = "\172942%it\tv\SO\37687s}K/&"}
+testObject_RichField_user_18 = RichField {richFieldType = "\GSeG\SOHlfD\67156\154969ske\DC1_8\"", richFieldValue = "B'@x\EOT\SI\28429m\33833u=j\US&"}
 testObject_RichField_user_19 :: RichField
-testObject_RichField_user_19 = RichField {richFieldType = "\US\t\29014?~(;\RS>\DC4!\SO}\EOTZ\DC2\EOT\1020399\DELw8\t\183850\151443", richFieldValue = "\144770\1052859\173292\NAK~]cX9"}
+testObject_RichField_user_19 = RichField {richFieldType = "", richFieldValue = "\100376A\1100024\USm"}
 testObject_RichField_user_20 :: RichField
-testObject_RichField_user_20 = RichField {richFieldType = "O(\156660\&0\187004*hl+\44273\165875q,\b", richFieldValue = "\147072?RA\NUL"}
+testObject_RichField_user_20 = RichField {richFieldType = "R\NUL\1093236\1025602\DLE\20229w\ESC\175880F\1066880N(\141712\36926\38264\161195@\DC2.J\"\171504\1090880~3q", richFieldValue = "J\rv\128045\984190\1111792\1113465"}

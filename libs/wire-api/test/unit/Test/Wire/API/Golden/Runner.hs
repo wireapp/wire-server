@@ -23,10 +23,9 @@ import qualified Data.ByteString.Lazy as LBS
 import Imports
 import Test.Tasty.HUnit
 import Type.Reflection (typeRep)
-import Test.Tasty
 
-testObject :: forall a . (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => a -> FilePath -> TestTree
-testObject obj path = testCase ("Golden : " <> show (typeRep @a)) $ do
+testObject :: forall a . (Typeable a, ToJSON a, FromJSON a, Eq a, Show a) => a -> FilePath -> IO ()
+testObject obj path = do
   let actualValue = toJSON obj :: Value
       actualJson = encode actualValue
       dir = "test/golden"

@@ -76,42 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_Wrapped_20_22some_5fint_22_20Int_user_1 :: Wrapped "some_int" Int
-testObject_Wrapped_20_22some_5fint_22_20Int_user_1 = Wrapped {unwrap = -2}
+testObject_Wrapped_20_22some_5fint_22_20Int_user_1 = Wrapped {unwrap = -11}
 testObject_Wrapped_20_22some_5fint_22_20Int_user_2 :: Wrapped "some_int" Int
-testObject_Wrapped_20_22some_5fint_22_20Int_user_2 = Wrapped {unwrap = 8}
+testObject_Wrapped_20_22some_5fint_22_20Int_user_2 = Wrapped {unwrap = 30}
 testObject_Wrapped_20_22some_5fint_22_20Int_user_3 :: Wrapped "some_int" Int
-testObject_Wrapped_20_22some_5fint_22_20Int_user_3 = Wrapped {unwrap = 12}
+testObject_Wrapped_20_22some_5fint_22_20Int_user_3 = Wrapped {unwrap = -25}
 testObject_Wrapped_20_22some_5fint_22_20Int_user_4 :: Wrapped "some_int" Int
-testObject_Wrapped_20_22some_5fint_22_20Int_user_4 = Wrapped {unwrap = 12}
+testObject_Wrapped_20_22some_5fint_22_20Int_user_4 = Wrapped {unwrap = -9}
 testObject_Wrapped_20_22some_5fint_22_20Int_user_5 :: Wrapped "some_int" Int
-testObject_Wrapped_20_22some_5fint_22_20Int_user_5 = Wrapped {unwrap = -27}
+testObject_Wrapped_20_22some_5fint_22_20Int_user_5 = Wrapped {unwrap = 0}
 testObject_Wrapped_20_22some_5fint_22_20Int_user_6 :: Wrapped "some_int" Int
-testObject_Wrapped_20_22some_5fint_22_20Int_user_6 = Wrapped {unwrap = 25}
+testObject_Wrapped_20_22some_5fint_22_20Int_user_6 = Wrapped {unwrap = 13}
 testObject_Wrapped_20_22some_5fint_22_20Int_user_7 :: Wrapped "some_int" Int
-testObject_Wrapped_20_22some_5fint_22_20Int_user_7 = Wrapped {unwrap = 6}
+testObject_Wrapped_20_22some_5fint_22_20Int_user_7 = Wrapped {unwrap = -7}
 testObject_Wrapped_20_22some_5fint_22_20Int_user_8 :: Wrapped "some_int" Int
-testObject_Wrapped_20_22some_5fint_22_20Int_user_8 = Wrapped {unwrap = 26}
+testObject_Wrapped_20_22some_5fint_22_20Int_user_8 = Wrapped {unwrap = -5}
 testObject_Wrapped_20_22some_5fint_22_20Int_user_9 :: Wrapped "some_int" Int
-testObject_Wrapped_20_22some_5fint_22_20Int_user_9 = Wrapped {unwrap = -2}
+testObject_Wrapped_20_22some_5fint_22_20Int_user_9 = Wrapped {unwrap = -13}
 testObject_Wrapped_20_22some_5fint_22_20Int_user_10 :: Wrapped "some_int" Int
-testObject_Wrapped_20_22some_5fint_22_20Int_user_10 = Wrapped {unwrap = 30}
+testObject_Wrapped_20_22some_5fint_22_20Int_user_10 = Wrapped {unwrap = 26}
 testObject_Wrapped_20_22some_5fint_22_20Int_user_11 :: Wrapped "some_int" Int
-testObject_Wrapped_20_22some_5fint_22_20Int_user_11 = Wrapped {unwrap = 19}
+testObject_Wrapped_20_22some_5fint_22_20Int_user_11 = Wrapped {unwrap = 17}
 testObject_Wrapped_20_22some_5fint_22_20Int_user_12 :: Wrapped "some_int" Int
-testObject_Wrapped_20_22some_5fint_22_20Int_user_12 = Wrapped {unwrap = -9}
+testObject_Wrapped_20_22some_5fint_22_20Int_user_12 = Wrapped {unwrap = -21}
 testObject_Wrapped_20_22some_5fint_22_20Int_user_13 :: Wrapped "some_int" Int
-testObject_Wrapped_20_22some_5fint_22_20Int_user_13 = Wrapped {unwrap = -15}
+testObject_Wrapped_20_22some_5fint_22_20Int_user_13 = Wrapped {unwrap = -9}
 testObject_Wrapped_20_22some_5fint_22_20Int_user_14 :: Wrapped "some_int" Int
-testObject_Wrapped_20_22some_5fint_22_20Int_user_14 = Wrapped {unwrap = 4}
+testObject_Wrapped_20_22some_5fint_22_20Int_user_14 = Wrapped {unwrap = -6}
 testObject_Wrapped_20_22some_5fint_22_20Int_user_15 :: Wrapped "some_int" Int
-testObject_Wrapped_20_22some_5fint_22_20Int_user_15 = Wrapped {unwrap = -29}
+testObject_Wrapped_20_22some_5fint_22_20Int_user_15 = Wrapped {unwrap = -16}
 testObject_Wrapped_20_22some_5fint_22_20Int_user_16 :: Wrapped "some_int" Int
-testObject_Wrapped_20_22some_5fint_22_20Int_user_16 = Wrapped {unwrap = 30}
+testObject_Wrapped_20_22some_5fint_22_20Int_user_16 = Wrapped {unwrap = -13}
 testObject_Wrapped_20_22some_5fint_22_20Int_user_17 :: Wrapped "some_int" Int
-testObject_Wrapped_20_22some_5fint_22_20Int_user_17 = Wrapped {unwrap = 10}
+testObject_Wrapped_20_22some_5fint_22_20Int_user_17 = Wrapped {unwrap = -25}
 testObject_Wrapped_20_22some_5fint_22_20Int_user_18 :: Wrapped "some_int" Int
-testObject_Wrapped_20_22some_5fint_22_20Int_user_18 = Wrapped {unwrap = 24}
+testObject_Wrapped_20_22some_5fint_22_20Int_user_18 = Wrapped {unwrap = -23}
 testObject_Wrapped_20_22some_5fint_22_20Int_user_19 :: Wrapped "some_int" Int
-testObject_Wrapped_20_22some_5fint_22_20Int_user_19 = Wrapped {unwrap = -26}
+testObject_Wrapped_20_22some_5fint_22_20Int_user_19 = Wrapped {unwrap = -15}
 testObject_Wrapped_20_22some_5fint_22_20Int_user_20 :: Wrapped "some_int" Int
-testObject_Wrapped_20_22some_5fint_22_20Int_user_20 = Wrapped {unwrap = 13}
+testObject_Wrapped_20_22some_5fint_22_20Int_user_20 = Wrapped {unwrap = -20}

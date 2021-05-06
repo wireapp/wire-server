@@ -76,42 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_OtherMemberUpdate_user_1 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_user_1 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "jkasd_0p2bceonhulpujg7cl160bovtrhn5a7r_lyzob7qzz_c42imf57spf5t0lq9dhv17dzwx722l"))}
+testObject_OtherMemberUpdate_user_1 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "y8tzn85usw3"))}
 testObject_OtherMemberUpdate_user_2 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_user_2 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "pkrak8z16p5yfu4yvbto1e5s80tzse9nj5pwzbfp95jnch2ie5icdwopw2h3a120r2h27jdl5yo8xrj19lu59v02dn3f5lko_5zv43_0bk0zl"))}
+testObject_OtherMemberUpdate_user_2 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "763hcoq51p10dktweej9mh_8kr02rg250xyvgds3eg_26ny4ayrunpjgbbz3xy7yvsy7t6pv24rl1qposbikjus2xnb3om3c3utom52icds0n9t"))}
 testObject_OtherMemberUpdate_user_3 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_user_3 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "a4isnmmvwiqz0z43753jryac_69wikztqpduzmxzkjyx39elo8msw_w7k0sxcde68rojxjlgxqx988118vb3cuqtekhi"))}
+testObject_OtherMemberUpdate_user_3 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "5v_te_lggjgj80ag54fs"))}
 testObject_OtherMemberUpdate_user_4 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_user_4 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "efoodlbhjbg1wsh1g4g79zmali8hwl_y4a60dkxpnlv8nceejako8ueebr92c523esviu341rvzy_cump3z41lzsfz"))}
+testObject_OtherMemberUpdate_user_4 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "_kpa94j_3kiysjs1rr1hk2kpqvue8mkjmnevqexrgiugcpgbs5lap4xabddx5dv5wcpeavnz3bbykaon9y8q02q3vwrdcquuk"))}
 testObject_OtherMemberUpdate_user_5 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_user_5 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "7e4295v6kr51nc4mjo85jckoqj1x0m0quw1njk1hba5usak_vrcu92k3hn_ekjij_vn8_q6gysplvvg23y_h65p5"))}
+testObject_OtherMemberUpdate_user_5 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "8usjj"))}
 testObject_OtherMemberUpdate_user_6 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_user_6 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "ab3haoinb6anvv5__p1ka8vbcoxxr4ivh5u56kktc3noii5e4vdzcjqj4n6agkg_o74oe1v0lbm3iby4d9w6dd5v7jpu4ttzv86"))}
+testObject_OtherMemberUpdate_user_6 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "bocqr0asovgs_jwr3y2tua1evyokbat83y7m"))}
 testObject_OtherMemberUpdate_user_7 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_user_7 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "4q_ii2nrg4hurzbpr25gik245_hdebddz7nmnkoed4ige383pe4_xiooi9ptxj5_nnt0e7kllbrrn7kezidjhgxetixrnzh93hofkkpu7b9xmavlkc3hda9nppu67yx"))}
+testObject_OtherMemberUpdate_user_7 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "mxwm70gn9ns9tdbirri8skatt6yqfz5h224gxzpole2b4to3hg0truq21mks7s5oeq6s_8d3yezjnavqvkjo0i37ta5oqkkiamv"))}
 testObject_OtherMemberUpdate_user_8 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_user_8 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "lr2yc8aqus657q8wus3bq1tcjr2wbujoy8derdf8zgsle364fehkvtmcxryhouvikq1ttqo1281_c_lfos28sq5zci7my6ff0tkocxd6iphl39su3b8vr40cy9a"))}
+testObject_OtherMemberUpdate_user_8 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "owkcr_m_ip4dzvpzs0b4jinjwb8278pbf1tm"))}
 testObject_OtherMemberUpdate_user_9 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_user_9 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "s_8avhr9nc5pud2dra6o2z5lbvs68"))}
+testObject_OtherMemberUpdate_user_9 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "tyo4k4yrdgezlg32d5e9anijfa3v2qd07zueja75uq7k6oqlla980y5umzab4ohcvvfigbok1bgo6"))}
 testObject_OtherMemberUpdate_user_10 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_user_10 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "mxatencn3a0b6g35llbn74_zedl4y_e071egzcfp67mh4ldwum28valjh6yh_mglj"))}
+testObject_OtherMemberUpdate_user_10 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "slvet8itu_cw_on56tl7ljhuengb4kqa1313_s4mxni4k8znhw3dvp2b7aobcbnq7mic9488vb4vgjzn0d5d5mlypbqvlv3gani7joxcryb2cy32"))}
 testObject_OtherMemberUpdate_user_11 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_user_11 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "81lwodm4xlozxhxe72tlz739_08x9k3rv"))}
+testObject_OtherMemberUpdate_user_11 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "99q4hbiy6h8b3xvmpueom1py6euh1punsy4bd2tmr7ier0cpbusj3fialbtujuy5kv8xwoabpihltydymcbs_6y94e3vcp425qgpk0_m9nh502_7x025i1puj5e197p"))}
 testObject_OtherMemberUpdate_user_12 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_user_12 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "8nmmqx87pi1ocp1nmbr9mv2c9upsg04dcto9q4j_whi1aoo6eb0mtjzq3oo07z"))}
+testObject_OtherMemberUpdate_user_12 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "uxgwjvj0cblzhwcrlqf0xohs1dyj58bq6do55qbic3t9k4gw239x6xvsv5ilvy78q9tikp5k74g0g7s7k8qkd75"))}
 testObject_OtherMemberUpdate_user_13 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_user_13 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "vus3v_jpl0a_mduz6o6dprnmjfaifzootn5q9kf5nyf93a64be8tc7xo3ij_3jpkk1d5xcwqt5hgobeh3w2__qre7vc_mbr"))}
+testObject_OtherMemberUpdate_user_13 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "wcapfttkg6lt5wlemr0"))}
 testObject_OtherMemberUpdate_user_14 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_user_14 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "r5aauwrt372t5ksb5ich_on2z52t29d5y4v2czy0ltlc6m03rttmmkcwvg_chqiv4m8d27jc52rp20y1acczhlzn"))}
+testObject_OtherMemberUpdate_user_14 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "tedghef5tw5ajfqyykw_c1u33l_ipnsxv_f44c39h13zyre9i57r7261acsgart82m_i1b2ktgzsk8moc3t8f77gjdvqihnrmrz0zzu07ulzcm0pxrt8fys9_1d"))}
 testObject_OtherMemberUpdate_user_15 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_user_15 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "l1_vxlkure3m6u06ydz6gfbz6cx8dk4du9in45c6u9p_yph2j5aews5id_yagwy5vgo94i0lboifdqdk6w5"))}
+testObject_OtherMemberUpdate_user_15 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "9_369pwvs3xx7peko0cdnn634gnregyutc"))}
 testObject_OtherMemberUpdate_user_16 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_user_16 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "0rnlbea812i9aounbq5uzjdpukm3u51l6t_589dlx_m7hjhiwtryjnpuonijfb_18sv6nqc"))}
+testObject_OtherMemberUpdate_user_16 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "mvn5wx4pr_knv144p255ila46nn01mcsws7hmqhnf5g33zbqjsr6k3zpk7_nw542cgsx0dnja4zyjzrh9sbuyas9x02_4hpzcpr_oj7ny4s7po0lu_k"))}
 testObject_OtherMemberUpdate_user_17 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_user_17 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "c1p1ctbm5b3aqiknqgccubkicla6mw_28p8nr4xu6ujahnwwcuf19s4f6gx1mkt3ehpgeov5b7rpdhz3jgdty13fhf4"))}
+testObject_OtherMemberUpdate_user_17 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "33h1pv2qzgrh8ndflst71i612ph_eu36x4a1hjkjrxosds3ba0av8lhp4pe6b5"))}
 testObject_OtherMemberUpdate_user_18 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_user_18 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "p0mzrv_1f4lu8w7thgqp7pm1fcyowjd68wk0os29rj5xdva84yztt3e9fy74c8lnwguf4sbtqk305v7z4maad4wbc7oqz71d2yf6d8chme55zfd51_scbhhny"))}
+testObject_OtherMemberUpdate_user_18 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "ed19tetewl_qpfu5ty4c0c6eppgj0gcx1kk699gba5j_vn272"))}
 testObject_OtherMemberUpdate_user_19 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_user_19 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "lc4aujgtcjlkscsl2ku3k22c_c68d7cqo092l72_ia7rgaen870p3scm3uzn2v5jol7y026o0we2mvyoc5vm4m8248n4rv40upvd05mq87tts7ffxi3em"))}
+testObject_OtherMemberUpdate_user_19 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "uu5e9uwow5ho_zkiphgp5jrqfpaiqdv1pjoj813lpbr32tuh9owq0d0tls6nmmyzx40rkgo7u_mrm"))}
 testObject_OtherMemberUpdate_user_20 :: OtherMemberUpdate
-testObject_OtherMemberUpdate_user_20 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "h9_65ijdv0x03vvkrq3e_shbg75ag4tbgr"))}
+testObject_OtherMemberUpdate_user_20 = OtherMemberUpdate {omuConvRoleName = Just (fromJust (parseRoleName "qhtg_71php7sysr0imkke98furdd90_b0dk4ytkbqy0mbwqakq6hzskwtc9a5y3q34tv4h1o8nkyfb42s3gtfpikyqaytawvm5_e_puxe"))}

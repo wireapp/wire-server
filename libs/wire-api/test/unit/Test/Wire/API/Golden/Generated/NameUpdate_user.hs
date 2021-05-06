@@ -76,42 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_NameUpdate_user_1 :: NameUpdate
-testObject_NameUpdate_user_1 = NameUpdate {nuHandle = "\DEL\1088950\&6N\171437<c\181070PE\999291\155111\159548p6\165834A\1020420\SYN"}
+testObject_NameUpdate_user_1 = NameUpdate {nuHandle = "1\DC2\v=\NULg6\EM\1030733#\1067524\&8)H7\31858\74775._w\1090508t"}
 testObject_NameUpdate_user_2 :: NameUpdate
-testObject_NameUpdate_user_2 = NameUpdate {nuHandle = ".\1102232\60861\153625\ETXb<4\SO\1086978P\149425_"}
+testObject_NameUpdate_user_2 = NameUpdate {nuHandle = "\ESC"}
 testObject_NameUpdate_user_3 :: NameUpdate
-testObject_NameUpdate_user_3 = NameUpdate {nuHandle = "\1101580Px\1108144\NAK#\ACK\SOH"}
+testObject_NameUpdate_user_3 = NameUpdate {nuHandle = "\40674r'\f\DC1ZZ\NULz0F\62989\SI\153458\SOHf8\ETB\RS%\10602\SOdn\STX\SI"}
 testObject_NameUpdate_user_4 :: NameUpdate
-testObject_NameUpdate_user_4 = NameUpdate {nuHandle = "\1094583\1003485\&8 |\147126g\1014192&\a\1092562~"}
+testObject_NameUpdate_user_4 = NameUpdate {nuHandle = ""}
 testObject_NameUpdate_user_5 :: NameUpdate
-testObject_NameUpdate_user_5 = NameUpdate {nuHandle = "@2j\r}\v\1061913\139041@\DC1\39900\DC4\25287\EM\raA"}
+testObject_NameUpdate_user_5 = NameUpdate {nuHandle = "a\1074819x\21258\ETX\SUB\EM\152009\\e\141867\&8ii'5\1007180\11924"}
 testObject_NameUpdate_user_6 :: NameUpdate
-testObject_NameUpdate_user_6 = NameUpdate {nuHandle = "f\140885Fm}TEc\1686\168490\1045934Zo\CANl\163770\1028449\US"}
+testObject_NameUpdate_user_6 = NameUpdate {nuHandle = "\5921\ETX?q*\1062599\v~bPk\1074418^A\EM\ACK\1061152"}
 testObject_NameUpdate_user_7 :: NameUpdate
-testObject_NameUpdate_user_7 = NameUpdate {nuHandle = "r`\SYN\41715A\1077991\&5\1029807v$U#\SYN\65465\1085140Y\SO'\ETB-"}
+testObject_NameUpdate_user_7 = NameUpdate {nuHandle = "\NAK\987107"}
 testObject_NameUpdate_user_8 :: NameUpdate
-testObject_NameUpdate_user_8 = NameUpdate {nuHandle = "0=l6\7241a\DC1qVD\SYN\GS-%\18945'G\ACK"}
+testObject_NameUpdate_user_8 = NameUpdate {nuHandle = "\158967I-\1112149B\f\194976!Mj"}
 testObject_NameUpdate_user_9 :: NameUpdate
-testObject_NameUpdate_user_9 = NameUpdate {nuHandle = "\4876d3MHA\137111\CAN\1051814\1078637k\DELN\144009w\ESC1M\1113309\176750"}
+testObject_NameUpdate_user_9 = NameUpdate {nuHandle = "\STX?k \98678\CANO!\1078181Me\SYN-\190846!xrn~"}
 testObject_NameUpdate_user_10 :: NameUpdate
-testObject_NameUpdate_user_10 = NameUpdate {nuHandle = "\1057111U\63386\158557ei\ETX\EOTl\1092485\20726"}
+testObject_NameUpdate_user_10 = NameUpdate {nuHandle = "5\52082Go]|1\984929\1113375/\SO@/tC\SUB\162713\&8\\Azo\ETX>"}
 testObject_NameUpdate_user_11 :: NameUpdate
-testObject_NameUpdate_user_11 = NameUpdate {nuHandle = "7\ACKk\27522\n\FS\v\96565\128040#\SYN\136849\1086133\1023124\&2*zz2\a?&\1105833"}
+testObject_NameUpdate_user_11 = NameUpdate {nuHandle = "y}\1065765\1082187\NULiH"}
 testObject_NameUpdate_user_12 :: NameUpdate
-testObject_NameUpdate_user_12 = NameUpdate {nuHandle = "\1014329"}
+testObject_NameUpdate_user_12 = NameUpdate {nuHandle = "\12927mY\1018099$\178752v^z\1019976\STX\ETB{\GSS\SOHW\DC2bU]\1015758\1068348\997534\988259\US\ETB\179153"}
 testObject_NameUpdate_user_13 :: NameUpdate
-testObject_NameUpdate_user_13 = NameUpdate {nuHandle = "]\36516\&2z+\127065YX)yK\SYN]\1103467\1001445\1045826n"}
+testObject_NameUpdate_user_13 = NameUpdate {nuHandle = ""}
 testObject_NameUpdate_user_14 :: NameUpdate
-testObject_NameUpdate_user_14 = NameUpdate {nuHandle = "\\\23301~F\DC3\1082133,u-GfR%"}
+testObject_NameUpdate_user_14 = NameUpdate {nuHandle = "j5\EOT\v\174832>x\n\SOH\135655\51385\146457="}
 testObject_NameUpdate_user_15 :: NameUpdate
-testObject_NameUpdate_user_15 = NameUpdate {nuHandle = "\1069454-\NAK\1023766\DLEL"}
+testObject_NameUpdate_user_15 = NameUpdate {nuHandle = "\1114034:=xT\140399\1017455\"\28241\5669tI^@+\181242\a\tf#\986458hG\1071470"}
 testObject_NameUpdate_user_16 :: NameUpdate
-testObject_NameUpdate_user_16 = NameUpdate {nuHandle = "\26196\&6tYR\NUL\30714\CANf\1053301\ENQ$CFX"}
+testObject_NameUpdate_user_16 = NameUpdate {nuHandle = "y$w'\EM\14951\53287\&9\EM{\FS(#)N!\1024334>:U>rd"}
 testObject_NameUpdate_user_17 :: NameUpdate
-testObject_NameUpdate_user_17 = NameUpdate {nuHandle = "\EM\DEL1Q\EM\1096302QeQ\aDdZUgDO1\r\27404\EOTH\994220\182612\DC14\v!\ETXJ"}
+testObject_NameUpdate_user_17 = NameUpdate {nuHandle = "\vOrJ\160836+\ETB\SYN\177910\1073757M+\FS%e/5)\SYN>\ETX\DC3\SI,i\1031987o\99766\23169"}
 testObject_NameUpdate_user_18 :: NameUpdate
-testObject_NameUpdate_user_18 = NameUpdate {nuHandle = ""}
+testObject_NameUpdate_user_18 = NameUpdate {nuHandle = "c\US\9069\95572\1033246\SI\26501y"}
 testObject_NameUpdate_user_19 :: NameUpdate
-testObject_NameUpdate_user_19 = NameUpdate {nuHandle = "\DC20\DC1|TZ.6,\1058094|\1110548%\NAK\GSZ*s3\1050970*j\1086472\31632\NAK\nW'|"}
+testObject_NameUpdate_user_19 = NameUpdate {nuHandle = "94r\SOHH\EOT\140292\1005140}P/i\163099\SOH\FS"}
 testObject_NameUpdate_user_20 :: NameUpdate
-testObject_NameUpdate_user_20 = NameUpdate {nuHandle = "P\134199?\137560\127789\987308>vr\1073377\SO\EMz\1051670"}
+testObject_NameUpdate_user_20 = NameUpdate {nuHandle = "\1083469\175528tn1\1074828\1027063\ESC[Vl"}

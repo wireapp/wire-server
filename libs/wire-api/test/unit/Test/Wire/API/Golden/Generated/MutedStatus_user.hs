@@ -76,42 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_MutedStatus_user_1 :: MutedStatus
-testObject_MutedStatus_user_1 = MutedStatus {fromMutedStatus = -12267}
+testObject_MutedStatus_user_1 = MutedStatus {fromMutedStatus = -12718}
 testObject_MutedStatus_user_2 :: MutedStatus
-testObject_MutedStatus_user_2 = MutedStatus {fromMutedStatus = 10503}
+testObject_MutedStatus_user_2 = MutedStatus {fromMutedStatus = 9551}
 testObject_MutedStatus_user_3 :: MutedStatus
-testObject_MutedStatus_user_3 = MutedStatus {fromMutedStatus = -3835}
+testObject_MutedStatus_user_3 = MutedStatus {fromMutedStatus = -30336}
 testObject_MutedStatus_user_4 :: MutedStatus
-testObject_MutedStatus_user_4 = MutedStatus {fromMutedStatus = -31276}
+testObject_MutedStatus_user_4 = MutedStatus {fromMutedStatus = -6419}
 testObject_MutedStatus_user_5 :: MutedStatus
-testObject_MutedStatus_user_5 = MutedStatus {fromMutedStatus = 15882}
+testObject_MutedStatus_user_5 = MutedStatus {fromMutedStatus = -24472}
 testObject_MutedStatus_user_6 :: MutedStatus
-testObject_MutedStatus_user_6 = MutedStatus {fromMutedStatus = -14705}
+testObject_MutedStatus_user_6 = MutedStatus {fromMutedStatus = -28195}
 testObject_MutedStatus_user_7 :: MutedStatus
-testObject_MutedStatus_user_7 = MutedStatus {fromMutedStatus = 8992}
+testObject_MutedStatus_user_7 = MutedStatus {fromMutedStatus = -2169}
 testObject_MutedStatus_user_8 :: MutedStatus
-testObject_MutedStatus_user_8 = MutedStatus {fromMutedStatus = -29030}
+testObject_MutedStatus_user_8 = MutedStatus {fromMutedStatus = -2361}
 testObject_MutedStatus_user_9 :: MutedStatus
-testObject_MutedStatus_user_9 = MutedStatus {fromMutedStatus = -8968}
+testObject_MutedStatus_user_9 = MutedStatus {fromMutedStatus = 7018}
 testObject_MutedStatus_user_10 :: MutedStatus
-testObject_MutedStatus_user_10 = MutedStatus {fromMutedStatus = 26308}
+testObject_MutedStatus_user_10 = MutedStatus {fromMutedStatus = 19797}
 testObject_MutedStatus_user_11 :: MutedStatus
-testObject_MutedStatus_user_11 = MutedStatus {fromMutedStatus = -17473}
+testObject_MutedStatus_user_11 = MutedStatus {fromMutedStatus = -2603}
 testObject_MutedStatus_user_12 :: MutedStatus
-testObject_MutedStatus_user_12 = MutedStatus {fromMutedStatus = 97}
+testObject_MutedStatus_user_12 = MutedStatus {fromMutedStatus = 21738}
 testObject_MutedStatus_user_13 :: MutedStatus
-testObject_MutedStatus_user_13 = MutedStatus {fromMutedStatus = -18800}
+testObject_MutedStatus_user_13 = MutedStatus {fromMutedStatus = -28917}
 testObject_MutedStatus_user_14 :: MutedStatus
-testObject_MutedStatus_user_14 = MutedStatus {fromMutedStatus = -10575}
+testObject_MutedStatus_user_14 = MutedStatus {fromMutedStatus = -152}
 testObject_MutedStatus_user_15 :: MutedStatus
-testObject_MutedStatus_user_15 = MutedStatus {fromMutedStatus = -32279}
+testObject_MutedStatus_user_15 = MutedStatus {fromMutedStatus = 6773}
 testObject_MutedStatus_user_16 :: MutedStatus
-testObject_MutedStatus_user_16 = MutedStatus {fromMutedStatus = 16825}
+testObject_MutedStatus_user_16 = MutedStatus {fromMutedStatus = 5713}
 testObject_MutedStatus_user_17 :: MutedStatus
-testObject_MutedStatus_user_17 = MutedStatus {fromMutedStatus = -27317}
+testObject_MutedStatus_user_17 = MutedStatus {fromMutedStatus = 4657}
 testObject_MutedStatus_user_18 :: MutedStatus
-testObject_MutedStatus_user_18 = MutedStatus {fromMutedStatus = 24329}
+testObject_MutedStatus_user_18 = MutedStatus {fromMutedStatus = 4629}
 testObject_MutedStatus_user_19 :: MutedStatus
-testObject_MutedStatus_user_19 = MutedStatus {fromMutedStatus = 6943}
+testObject_MutedStatus_user_19 = MutedStatus {fromMutedStatus = 5404}
 testObject_MutedStatus_user_20 :: MutedStatus
-testObject_MutedStatus_user_20 = MutedStatus {fromMutedStatus = 16165}
+testObject_MutedStatus_user_20 = MutedStatus {fromMutedStatus = 2561}

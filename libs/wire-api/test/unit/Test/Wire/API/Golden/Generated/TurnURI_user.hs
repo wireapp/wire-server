@@ -76,42 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_TurnURI_user_1 :: TurnURI
-testObject_TurnURI_user_1 = (turnURI (SchemeTurn) (TurnHostName "123") (read "4") (Just TransportUDP))
+testObject_TurnURI_user_1 = (turnURI (SchemeTurn) (TurnHostName "xn--mgbh0fb.xn--kgbechtv") (read "6") (Just TransportTCP))
 testObject_TurnURI_user_2 :: TurnURI
-testObject_TurnURI_user_2 = (turnURI (SchemeTurn) (TurnHostIp (IpAddr (read "167.63.49.224"))) (read "6") (Just TransportTCP))
+testObject_TurnURI_user_2 = (turnURI (SchemeTurns) (TurnHostName "007.com") (read "8") (Just TransportTCP))
 testObject_TurnURI_user_3 :: TurnURI
-testObject_TurnURI_user_3 = (turnURI (SchemeTurns) (TurnHostIp (IpAddr (read "183.253.217.105"))) (read "2") (Just TransportUDP))
+testObject_TurnURI_user_3 = (turnURI (SchemeTurn) (TurnHostName "xn--mgbh0fb.xn--kgbechtv") (read "0") (Nothing))
 testObject_TurnURI_user_4 :: TurnURI
-testObject_TurnURI_user_4 = (turnURI (SchemeTurn) (TurnHostName "a-c") (read "5") (Just TransportUDP))
+testObject_TurnURI_user_4 = (turnURI (SchemeTurn) (TurnHostIp (IpAddr (read "119.60.78.65"))) (read "2") (Nothing))
 testObject_TurnURI_user_5 :: TurnURI
-testObject_TurnURI_user_5 = (turnURI (SchemeTurns) (TurnHostName "007.com") (read "0") (Just TransportTCP))
+testObject_TurnURI_user_5 = (turnURI (SchemeTurn) (TurnHostName "xn--mgbh0fb.xn--kgbechtv") (read "7") (Just TransportTCP))
 testObject_TurnURI_user_6 :: TurnURI
-testObject_TurnURI_user_6 = (turnURI (SchemeTurn) (TurnHostName "host.name") (read "6") (Just TransportUDP))
+testObject_TurnURI_user_6 = (turnURI (SchemeTurns) (TurnHostIp (IpAddr (read "34.51.173.116"))) (read "8") (Just TransportUDP))
 testObject_TurnURI_user_7 :: TurnURI
-testObject_TurnURI_user_7 = (turnURI (SchemeTurn) (TurnHostName "123") (read "7") (Just TransportTCP))
+testObject_TurnURI_user_7 = (turnURI (SchemeTurns) (TurnHostIp (IpAddr (read "40.2.91.92"))) (read "5") (Nothing))
 testObject_TurnURI_user_8 :: TurnURI
-testObject_TurnURI_user_8 = (turnURI (SchemeTurns) (TurnHostIp (IpAddr (read "103.208.240.88"))) (read "4") (Nothing))
+testObject_TurnURI_user_8 = (turnURI (SchemeTurns) (TurnHostName "007.com") (read "3") (Just TransportUDP))
 testObject_TurnURI_user_9 :: TurnURI
-testObject_TurnURI_user_9 = (turnURI (SchemeTurn) (TurnHostName "123") (read "8") (Just TransportTCP))
+testObject_TurnURI_user_9 = (turnURI (SchemeTurn) (TurnHostIp (IpAddr (read "167.114.219.170"))) (read "9") (Just TransportUDP))
 testObject_TurnURI_user_10 :: TurnURI
-testObject_TurnURI_user_10 = (turnURI (SchemeTurn) (TurnHostName "host.name") (read "6") (Just TransportUDP))
+testObject_TurnURI_user_10 = (turnURI (SchemeTurns) (TurnHostName "host.name") (read "1") (Just TransportTCP))
 testObject_TurnURI_user_11 :: TurnURI
-testObject_TurnURI_user_11 = (turnURI (SchemeTurns) (TurnHostName "xn--mgbh0fb.xn--kgbechtv") (read "3") (Just TransportUDP))
+testObject_TurnURI_user_11 = (turnURI (SchemeTurn) (TurnHostName "007.com") (read "5") (Nothing))
 testObject_TurnURI_user_12 :: TurnURI
-testObject_TurnURI_user_12 = (turnURI (SchemeTurns) (TurnHostName "a-c") (read "8") (Just TransportUDP))
+testObject_TurnURI_user_12 = (turnURI (SchemeTurn) (TurnHostIp (IpAddr (read "250.102.177.220"))) (read "2") (Nothing))
 testObject_TurnURI_user_13 :: TurnURI
-testObject_TurnURI_user_13 = (turnURI (SchemeTurn) (TurnHostName "host.name") (read "8") (Nothing))
+testObject_TurnURI_user_13 = (turnURI (SchemeTurn) (TurnHostIp (IpAddr (read "138.30.103.64"))) (read "8") (Just TransportTCP))
 testObject_TurnURI_user_14 :: TurnURI
-testObject_TurnURI_user_14 = (turnURI (SchemeTurn) (TurnHostIp (IpAddr (read "18.244.63.185"))) (read "5") (Nothing))
+testObject_TurnURI_user_14 = (turnURI (SchemeTurn) (TurnHostName "host.name") (read "0") (Just TransportTCP))
 testObject_TurnURI_user_15 :: TurnURI
-testObject_TurnURI_user_15 = (turnURI (SchemeTurns) (TurnHostName "123") (read "8") (Just TransportUDP))
+testObject_TurnURI_user_15 = (turnURI (SchemeTurns) (TurnHostName "host.name") (read "2") (Just TransportTCP))
 testObject_TurnURI_user_16 :: TurnURI
-testObject_TurnURI_user_16 = (turnURI (SchemeTurn) (TurnHostName "xn--mgbh0fb.xn--kgbechtv") (read "8") (Just TransportUDP))
+testObject_TurnURI_user_16 = (turnURI (SchemeTurn) (TurnHostIp (IpAddr (read "83.60.6.222"))) (read "8") (Nothing))
 testObject_TurnURI_user_17 :: TurnURI
-testObject_TurnURI_user_17 = (turnURI (SchemeTurn) (TurnHostName "123") (read "8") (Just TransportTCP))
+testObject_TurnURI_user_17 = (turnURI (SchemeTurn) (TurnHostName "123") (read "7") (Just TransportUDP))
 testObject_TurnURI_user_18 :: TurnURI
-testObject_TurnURI_user_18 = (turnURI (SchemeTurn) (TurnHostIp (IpAddr (read "216.87.186.237"))) (read "5") (Nothing))
+testObject_TurnURI_user_18 = (turnURI (SchemeTurns) (TurnHostIp (IpAddr (read "38.49.43.110"))) (read "1") (Just TransportUDP))
 testObject_TurnURI_user_19 :: TurnURI
-testObject_TurnURI_user_19 = (turnURI (SchemeTurns) (TurnHostName "007.com") (read "3") (Nothing))
+testObject_TurnURI_user_19 = (turnURI (SchemeTurns) (TurnHostIp (IpAddr (read "64.81.18.159"))) (read "3") (Just TransportUDP))
 testObject_TurnURI_user_20 :: TurnURI
-testObject_TurnURI_user_20 = (turnURI (SchemeTurn) (TurnHostIp (IpAddr (read "15.233.38.162"))) (read "1") (Just TransportTCP))
+testObject_TurnURI_user_20 = (turnURI (SchemeTurns) (TurnHostName "a-c") (read "4") (Nothing))

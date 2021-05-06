@@ -76,42 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_PushToken_user_1 :: PushToken
-testObject_PushToken_user_1 = (pushToken (APNSVoIPSandbox) (AppName {appNameText = "\SYN\DC1t\DEL"}) (Token {tokenText = "6o\ENQ%\69972g("}) (ClientId {client = "b"}))
+testObject_PushToken_user_1 = (pushToken (GCM) (AppName {appNameText = "b\DELk"}) (Token {tokenText = "M1\170241\989337}B\SOH"}) (ClientId {client = "1d"}))
 testObject_PushToken_user_2 :: PushToken
-testObject_PushToken_user_2 = (pushToken (APNSVoIP) (AppName {appNameText = ""}) (Token {tokenText = "u\STX9\989339\188554?"}) (ClientId {client = "4"}))
+testObject_PushToken_user_2 = (pushToken (APNSVoIP) (AppName {appNameText = "?^\128598Su\1091027"}) (Token {tokenText = "\EOTO\t\72346I\SUB\74267"}) (ClientId {client = "9"}))
 testObject_PushToken_user_3 :: PushToken
-testObject_PushToken_user_3 = (pushToken (GCM) (AppName {appNameText = "\aw\1052308\SUB"}) (Token {tokenText = "\1097863f\1065539\US"}) (ClientId {client = "1e"}))
+testObject_PushToken_user_3 = (pushToken (APNS) (AppName {appNameText = "\vK9|!\ENQP"}) (Token {tokenText = "+\1061016BKou"}) (ClientId {client = "14"}))
 testObject_PushToken_user_4 :: PushToken
-testObject_PushToken_user_4 = (pushToken (APNSVoIPSandbox) (AppName {appNameText = "p\1041424\1038399RO\ETX"}) (Token {tokenText = "\EM\8889`.\ENQ4"}) (ClientId {client = "16"}))
+testObject_PushToken_user_4 = (pushToken (APNS) (AppName {appNameText = "\SUBr?"}) (Token {tokenText = "k\1077309\CAN\GS\ACK\1003860"}) (ClientId {client = "6"}))
 testObject_PushToken_user_5 :: PushToken
-testObject_PushToken_user_5 = (pushToken (APNSVoIPSandbox) (AppName {appNameText = "\ENQ)\FS["}) (Token {tokenText = "'\1002243\172219"}) (ClientId {client = "e"}))
+testObject_PushToken_user_5 = (pushToken (GCM) (AppName {appNameText = "\CANi{a"}) (Token {tokenText = ""}) (ClientId {client = "1c"}))
 testObject_PushToken_user_6 :: PushToken
-testObject_PushToken_user_6 = (pushToken (APNSVoIP) (AppName {appNameText = "\182953\SYN$t\43144\RS"}) (Token {tokenText = "\1020642\1033731"}) (ClientId {client = "0"}))
+testObject_PushToken_user_6 = (pushToken (GCM) (AppName {appNameText = "Z\SUBxmH0"}) (Token {tokenText = "\GSr\SOm"}) (ClientId {client = "a"}))
 testObject_PushToken_user_7 :: PushToken
-testObject_PushToken_user_7 = (pushToken (APNSSandbox) (AppName {appNameText = "mT|/n"}) (Token {tokenText = "eA"}) (ClientId {client = "18"}))
+testObject_PushToken_user_7 = (pushToken (APNS) (AppName {appNameText = "U\1086088!,!9\161330"}) (Token {tokenText = "t'"}) (ClientId {client = "7"}))
 testObject_PushToken_user_8 :: PushToken
-testObject_PushToken_user_8 = (pushToken (GCM) (AppName {appNameText = "\92423M\1009981\1099589\149917\63126c"}) (Token {tokenText = "`Y\v"}) (ClientId {client = "e"}))
+testObject_PushToken_user_8 = (pushToken (GCM) (AppName {appNameText = "B"}) (Token {tokenText = "\DC22"}) (ClientId {client = "4"}))
 testObject_PushToken_user_9 :: PushToken
-testObject_PushToken_user_9 = (pushToken (APNSSandbox) (AppName {appNameText = "\59849\10837n\984133_W"}) (Token {tokenText = "bh,\b"}) (ClientId {client = "1f"}))
+testObject_PushToken_user_9 = (pushToken (APNSSandbox) (AppName {appNameText = "\15748"}) (Token {tokenText = "\ACK(\998874\SUB5<"}) (ClientId {client = "19"}))
 testObject_PushToken_user_10 :: PushToken
-testObject_PushToken_user_10 = (pushToken (APNSVoIP) (AppName {appNameText = "W\\T\1073746\1031889#"}) (Token {tokenText = "\ETX\167811"}) (ClientId {client = "c"}))
+testObject_PushToken_user_10 = (pushToken (APNSVoIP) (AppName {appNameText = "+\DC4\187401D"}) (Token {tokenText = "5"}) (ClientId {client = "6"}))
 testObject_PushToken_user_11 :: PushToken
-testObject_PushToken_user_11 = (pushToken (APNSVoIPSandbox) (AppName {appNameText = "\RS20\GS"}) (Token {tokenText = "5\SYNGv\1052281\1009675\1028309"}) (ClientId {client = "13"}))
+testObject_PushToken_user_11 = (pushToken (APNSVoIPSandbox) (AppName {appNameText = "\ENQj\NUL\99087uk\1086999"}) (Token {tokenText = "<\43682"}) (ClientId {client = "4"}))
 testObject_PushToken_user_12 :: PushToken
-testObject_PushToken_user_12 = (pushToken (APNSSandbox) (AppName {appNameText = "\163279\180808\fJ"}) (Token {tokenText = "\b\ETX"}) (ClientId {client = "1d"}))
+testObject_PushToken_user_12 = (pushToken (APNSVoIP) (AppName {appNameText = "\ACK\RS]\159393R\DLE"}) (Token {tokenText = "\SOHl"}) (ClientId {client = "1b"}))
 testObject_PushToken_user_13 :: PushToken
-testObject_PushToken_user_13 = (pushToken (APNSVoIP) (AppName {appNameText = "1\SYN~>"}) (Token {tokenText = ""}) (ClientId {client = "9"}))
+testObject_PushToken_user_13 = (pushToken (APNSSandbox) (AppName {appNameText = "Np\188351r"}) (Token {tokenText = "\26140\n7\1046142>"}) (ClientId {client = "c"}))
 testObject_PushToken_user_14 :: PushToken
-testObject_PushToken_user_14 = (pushToken (APNSSandbox) (AppName {appNameText = ""}) (Token {tokenText = "\1055005`\RS\150952\1079269\39141"}) (ClientId {client = "e"}))
+testObject_PushToken_user_14 = (pushToken (APNSVoIP) (AppName {appNameText = "DVK\SOHD\1000362T"}) (Token {tokenText = "M8-q\f\31046"}) (ClientId {client = "4"}))
 testObject_PushToken_user_15 :: PushToken
-testObject_PushToken_user_15 = (pushToken (GCM) (AppName {appNameText = "\r"}) (Token {tokenText = "g0&u"}) (ClientId {client = "2"}))
+testObject_PushToken_user_15 = (pushToken (APNS) (AppName {appNameText = "\DLE\SI\DC23"}) (Token {tokenText = "i\1092860\&8t\141207\DLE"}) (ClientId {client = "1c"}))
 testObject_PushToken_user_16 :: PushToken
-testObject_PushToken_user_16 = (pushToken (APNSVoIP) (AppName {appNameText = "\74471z"}) (Token {tokenText = "X"}) (ClientId {client = "9"}))
+testObject_PushToken_user_16 = (pushToken (APNSVoIP) (AppName {appNameText = "\1741\DLE-*\41290\SYN"}) (Token {tokenText = ""}) (ClientId {client = "12"}))
 testObject_PushToken_user_17 :: PushToken
-testObject_PushToken_user_17 = (pushToken (GCM) (AppName {appNameText = ""}) (Token {tokenText = "l=.\1061017\GSW"}) (ClientId {client = "1c"}))
+testObject_PushToken_user_17 = (pushToken (APNSVoIPSandbox) (AppName {appNameText = "8"}) (Token {tokenText = "\1044734U\160141\1072565\ENQ"}) (ClientId {client = "1c"}))
 testObject_PushToken_user_18 :: PushToken
-testObject_PushToken_user_18 = (pushToken (APNSSandbox) (AppName {appNameText = "\SUB,'"}) (Token {tokenText = "\1090194\a7\39408"}) (ClientId {client = "1f"}))
+testObject_PushToken_user_18 = (pushToken (APNSVoIP) (AppName {appNameText = "\989849\14598\29240"}) (Token {tokenText = "\1038003\1104944\142763D\989747\&7C"}) (ClientId {client = "a"}))
 testObject_PushToken_user_19 :: PushToken
-testObject_PushToken_user_19 = (pushToken (GCM) (AppName {appNameText = "\EM"}) (Token {tokenText = "!w*\SOHuGe"}) (ClientId {client = "9"}))
+testObject_PushToken_user_19 = (pushToken (APNSSandbox) (AppName {appNameText = "_"}) (Token {tokenText = "Rr"}) (ClientId {client = "7"}))
 testObject_PushToken_user_20 :: PushToken
-testObject_PushToken_user_20 = (pushToken (GCM) (AppName {appNameText = "2\US\49531"}) (Token {tokenText = "\SI\1088775\n"}) (ClientId {client = "2"}))
+testObject_PushToken_user_20 = (pushToken (APNSVoIP) (AppName {appNameText = "\\l"}) (Token {tokenText = ";q\1058779\1083490\&0"}) (ClientId {client = "1"}))

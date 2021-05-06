@@ -76,11 +76,11 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_CookieType_user_1 :: CookieType
-testObject_CookieType_user_1 = PersistentCookie
+testObject_CookieType_user_1 = SessionCookie
 testObject_CookieType_user_2 :: CookieType
-testObject_CookieType_user_2 = PersistentCookie
+testObject_CookieType_user_2 = SessionCookie
 testObject_CookieType_user_3 :: CookieType
-testObject_CookieType_user_3 = PersistentCookie
+testObject_CookieType_user_3 = SessionCookie
 testObject_CookieType_user_4 :: CookieType
 testObject_CookieType_user_4 = SessionCookie
 testObject_CookieType_user_5 :: CookieType
@@ -96,22 +96,22 @@ testObject_CookieType_user_9 = SessionCookie
 testObject_CookieType_user_10 :: CookieType
 testObject_CookieType_user_10 = SessionCookie
 testObject_CookieType_user_11 :: CookieType
-testObject_CookieType_user_11 = PersistentCookie
+testObject_CookieType_user_11 = SessionCookie
 testObject_CookieType_user_12 :: CookieType
-testObject_CookieType_user_12 = SessionCookie
+testObject_CookieType_user_12 = PersistentCookie
 testObject_CookieType_user_13 :: CookieType
-testObject_CookieType_user_13 = SessionCookie
+testObject_CookieType_user_13 = PersistentCookie
 testObject_CookieType_user_14 :: CookieType
-testObject_CookieType_user_14 = SessionCookie
+testObject_CookieType_user_14 = PersistentCookie
 testObject_CookieType_user_15 :: CookieType
 testObject_CookieType_user_15 = SessionCookie
 testObject_CookieType_user_16 :: CookieType
-testObject_CookieType_user_16 = SessionCookie
+testObject_CookieType_user_16 = PersistentCookie
 testObject_CookieType_user_17 :: CookieType
-testObject_CookieType_user_17 = SessionCookie
+testObject_CookieType_user_17 = PersistentCookie
 testObject_CookieType_user_18 :: CookieType
-testObject_CookieType_user_18 = SessionCookie
+testObject_CookieType_user_18 = PersistentCookie
 testObject_CookieType_user_19 :: CookieType
 testObject_CookieType_user_19 = PersistentCookie
 testObject_CookieType_user_20 :: CookieType
-testObject_CookieType_user_20 = PersistentCookie
+testObject_CookieType_user_20 = SessionCookie

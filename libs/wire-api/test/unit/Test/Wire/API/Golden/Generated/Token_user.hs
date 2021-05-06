@@ -76,42 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_Token_user_1 :: Token
-testObject_Token_user_1 = Token {tokenText = "\35990\1040177-\1092475]uO"}
+testObject_Token_user_1 = Token {tokenText = "$+\DC2c=Y?,vy\19272U\164317\1107782\NAK&\145778b"}
 testObject_Token_user_2 :: Token
-testObject_Token_user_2 = Token {tokenText = "F\1072723\STX\DEL\RSI\NAK\ACK\1090818\&6l\b&h\999858\1105167:\ETB"}
+testObject_Token_user_2 = Token {tokenText = "%\151298\35045\&7"}
 testObject_Token_user_3 :: Token
-testObject_Token_user_3 = Token {tokenText = "\EM\1075744UjzHfUF\t5F\1090116\1086968\&2\182255\NAK*|"}
+testObject_Token_user_3 = Token {tokenText = "\25167\&4qI\1103378"}
 testObject_Token_user_4 :: Token
-testObject_Token_user_4 = Token {tokenText = ""}
+testObject_Token_user_4 = Token {tokenText = "$]\998625"}
 testObject_Token_user_5 :: Token
-testObject_Token_user_5 = Token {tokenText = "ukF(\EM\129499{d6\179769\ETB\74393\153432"}
+testObject_Token_user_5 = Token {tokenText = "H\1012386\&1\984626i\98548"}
 testObject_Token_user_6 :: Token
-testObject_Token_user_6 = Token {tokenText = "\SI\32951D"}
+testObject_Token_user_6 = Token {tokenText = "K0"}
 testObject_Token_user_7 :: Token
-testObject_Token_user_7 = Token {tokenText = "\1011389\SUB\ACK"}
+testObject_Token_user_7 = Token {tokenText = "\RS1\30745d\165909\176691\&1\1058450\&4F\CAN\148707\&36UZ#\EOT\r\1099656\1013689+\181477(+\25556\ACK\127556\1042982t"}
 testObject_Token_user_8 :: Token
-testObject_Token_user_8 = Token {tokenText = "$?`|l17\59178"}
+testObject_Token_user_8 = Token {tokenText = "gH$\1020452\SOHQ{c"}
 testObject_Token_user_9 :: Token
-testObject_Token_user_9 = Token {tokenText = "4\ACK=u_Q"}
+testObject_Token_user_9 = Token {tokenText = "l\ESC!j\DC3\35329\f\72974\DC2\171361}\EOT=po7]o\1039612\SO\174174\&6\RS2\\\175341\ENQ\v"}
 testObject_Token_user_10 :: Token
-testObject_Token_user_10 = Token {tokenText = "\1095029+:m@\175408\ACK\EOTqY\f"}
+testObject_Token_user_10 = Token {tokenText = "\1058842,|\thn\f\SOH}\1001908\aA"}
 testObject_Token_user_11 :: Token
-testObject_Token_user_11 = Token {tokenText = "4eoO>\39902m(4j(pC\78265F\1112720\&7\r-\52752X9\a\ESC9\DC4M\139409d"}
+testObject_Token_user_11 = Token {tokenText = "\1090102"}
 testObject_Token_user_12 :: Token
-testObject_Token_user_12 = Token {tokenText = "kx\DC2\DC4\1052080\DC4\991486\1006749\v\135811\GS\SOH\1072463'%=\1006337Q\99261BN\SO\1051063"}
+testObject_Token_user_12 = Token {tokenText = "\GSK\ESC\64738\1036769\27620\987881AAI\ETB%4\NUL"}
 testObject_Token_user_13 :: Token
-testObject_Token_user_13 = Token {tokenText = "\v\38900,\DC1\135021\SO&\65915uA7SGc\3343\ETXZ#"}
+testObject_Token_user_13 = Token {tokenText = "\ETXk\SI\181275=n\1110889ll\1012219xY\1068486Z>\1063939"}
 testObject_Token_user_14 :: Token
-testObject_Token_user_14 = Token {tokenText = "\1107781+D\1075456\94667,r\1102346En\159810e\1056695x\ESC"}
+testObject_Token_user_14 = Token {tokenText = "0\DLE\33256o]\DC4\174362\a\1022373A9"}
 testObject_Token_user_15 :: Token
-testObject_Token_user_15 = Token {tokenText = "\1032639\\\GSatX\1019753vD)uMo7?\1087674\140408\DEL\12317"}
+testObject_Token_user_15 = Token {tokenText = "Tj\DC3\989973VX\8530 \1038822I\1046896\17569\92283\"f\DLE\1033815\1108486^\1112394]4\SIp\139167"}
 testObject_Token_user_16 :: Token
-testObject_Token_user_16 = Token {tokenText = "\ETX\144815\1094636;?\SUB\1017024q\b\1044600sO5Et0h+\28026qF$\35759\44627\148265"}
+testObject_Token_user_16 = Token {tokenText = "\NUL\174709jg\FS\1080907uS\DC3\DC3Y\tU\137631p/^\990286\995612g\1080163@\1041740UP\185344zHI\ETX"}
 testObject_Token_user_17 :: Token
-testObject_Token_user_17 = Token {tokenText = "\990664d{pl\99986\&8\1086152\&3"}
+testObject_Token_user_17 = Token {tokenText = "X\170393z\34623\STX[\1036494\\\1103413@\1010739\60990\1108137/\ACK\52316i\EM\131659 \984497U\993259"}
 testObject_Token_user_18 :: Token
-testObject_Token_user_18 = Token {tokenText = "\128509\aaMl\8371+\1096613i\DC3\v+\995639\23359ND1\1101410A 3\bcH\5811\1042842\EOT\985365\DC1Q"}
+testObject_Token_user_18 = Token {tokenText = "\SO\176500c&\178615\USf\170242\1050367"}
 testObject_Token_user_19 :: Token
-testObject_Token_user_19 = Token {tokenText = "\1104395\150065\176802C\ENQv\1107925\1078038F\NUL%y\ETX^\1085709\78616\NUL@\143707\SI\186288\1087514\CAN\40629\ACK(\1024873"}
+testObject_Token_user_19 = Token {tokenText = "\DEL\1096473"}
 testObject_Token_user_20 :: Token
-testObject_Token_user_20 = Token {tokenText = "J<\STXL\1043056\179513\SIe"}
+testObject_Token_user_20 = Token {tokenText = "fRx \1087559\63893\5627}N\94612Eb"}

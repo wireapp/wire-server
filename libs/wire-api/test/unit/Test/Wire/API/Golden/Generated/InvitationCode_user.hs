@@ -76,42 +76,42 @@ import Wire.API.User.RichInfo
 import Wire.API.User.Search
 import Wire.API.Wrapped
 testObject_InvitationCode_user_1 :: InvitationCode
-testObject_InvitationCode_user_1 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("oCyG4KY=")))}
+testObject_InvitationCode_user_1 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("I9M7_O3SRWb5MQ==")))}
 testObject_InvitationCode_user_2 :: InvitationCode
-testObject_InvitationCode_user_2 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("nIboSlov4A==")))}
+testObject_InvitationCode_user_2 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("EHShHVOd9edJtxPViNOshCw=")))}
 testObject_InvitationCode_user_3 :: InvitationCode
-testObject_InvitationCode_user_3 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("RxpVGRkm8OPZMsL6gdNBkZE8gzm1QLKnupPa_tY=")))}
+testObject_InvitationCode_user_3 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("xfNK")))}
 testObject_InvitationCode_user_4 :: InvitationCode
-testObject_InvitationCode_user_4 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("xUuCuQ==")))}
+testObject_InvitationCode_user_4 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("j5reUpBdT3nzmsqwRAQ=")))}
 testObject_InvitationCode_user_5 :: InvitationCode
-testObject_InvitationCode_user_5 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("HZbrSY-a1wCbX1GctPINrg==")))}
+testObject_InvitationCode_user_5 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("hA==")))}
 testObject_InvitationCode_user_6 :: InvitationCode
-testObject_InvitationCode_user_6 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("f3njNQzB5SyFfKTy")))}
+testObject_InvitationCode_user_6 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("KHdGoEmLX-mKfRIoagGIAAG9y_6rLMe2klA=")))}
 testObject_InvitationCode_user_7 :: InvitationCode
-testObject_InvitationCode_user_7 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("hn_zIRr1235PsivnP7KjvVfHxN9ncSJ__W4=")))}
+testObject_InvitationCode_user_7 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("oPhl8HvEcvo=")))}
 testObject_InvitationCode_user_8 :: InvitationCode
-testObject_InvitationCode_user_8 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("LbnugxJ2")))}
+testObject_InvitationCode_user_8 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("Y_Eg5Q2me0dFwzQGpdg=")))}
 testObject_InvitationCode_user_9 :: InvitationCode
-testObject_InvitationCode_user_9 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("lLt4XMY=")))}
+testObject_InvitationCode_user_9 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("GIvT9JrfvrCgS1EF3E4=")))}
 testObject_InvitationCode_user_10 :: InvitationCode
-testObject_InvitationCode_user_10 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("q9E7fw==")))}
+testObject_InvitationCode_user_10 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("IyOOGwJajORjhr722DJYaR3RJg==")))}
 testObject_InvitationCode_user_11 :: InvitationCode
-testObject_InvitationCode_user_11 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("Jul0yRNiGyywOmmOeSU7pBU00Q==")))}
+testObject_InvitationCode_user_11 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("VeXk3U0ueg==")))}
 testObject_InvitationCode_user_12 :: InvitationCode
-testObject_InvitationCode_user_12 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("UdUSZ-0uuTJdjDvu0phGnI_jk5o1L2v_")))}
+testObject_InvitationCode_user_12 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("6uBGNw==")))}
 testObject_InvitationCode_user_13 :: InvitationCode
-testObject_InvitationCode_user_13 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("SKIRd37k")))}
+testObject_InvitationCode_user_13 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("ZsCZQsM=")))}
 testObject_InvitationCode_user_14 :: InvitationCode
-testObject_InvitationCode_user_14 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("fIVqz0rqyQ==")))}
+testObject_InvitationCode_user_14 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("")))}
 testObject_InvitationCode_user_15 :: InvitationCode
-testObject_InvitationCode_user_15 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("Mqlde2M=")))}
+testObject_InvitationCode_user_15 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("PZ7pdU2ObFfqd3s=")))}
 testObject_InvitationCode_user_16 :: InvitationCode
-testObject_InvitationCode_user_16 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("ml8kD2bVr-SEFudhqLB_YspPSKWQ6jCAwA==")))}
+testObject_InvitationCode_user_16 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("ScrfW-1J7g==")))}
 testObject_InvitationCode_user_17 :: InvitationCode
-testObject_InvitationCode_user_17 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("z8btdy-GrY-KftR70kmMijFKNmODPQ==")))}
+testObject_InvitationCode_user_17 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("KadQz5K9EfNGySGHQgdB6BXRSLlrhhh8-xrUhro=")))}
 testObject_InvitationCode_user_18 :: InvitationCode
-testObject_InvitationCode_user_18 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("n3qy4FZX0cIKjQeHkmmxy3s=")))}
+testObject_InvitationCode_user_18 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("KDZoAxaiDPgLQAcpGcg=")))}
 testObject_InvitationCode_user_19 :: InvitationCode
-testObject_InvitationCode_user_19 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("uC17QkL4ZKqRvsycqFOXqQ==")))}
+testObject_InvitationCode_user_19 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("4mueokAXkp1_bZFtAlaHTfRUp_HlOA==")))}
 testObject_InvitationCode_user_20 :: InvitationCode
-testObject_InvitationCode_user_20 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("gIsZ")))}
+testObject_InvitationCode_user_20 = InvitationCode {fromInvitationCode = (fromRight undefined (validate ("1hRti-jkAyTc2ybP")))}

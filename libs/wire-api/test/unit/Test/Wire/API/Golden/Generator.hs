@@ -66,7 +66,7 @@ import qualified Wire.API.User.Profile as User.Profile
 import qualified Wire.API.User.RichInfo as User.RichInfo
 import qualified Wire.API.User.Search as User.Search
 import qualified Wire.API.Wrapped as Wrapped
-import System.IO (openFile, hPutStrLn, Handle)
+import System.IO (openFile, hPutStr, hPutStrLn, Handle)
 
 type Ref = IORef [(FilePath, [(String, FilePath)])]
 
@@ -107,9 +107,16 @@ generateBindingModule = generateBindingModule' @a (show (typeRep @a))
 generateImports :: Handle -> (FilePath, [(String, FilePath)]) -> IO ()
 generateImports h (module_, _) = hPutStrLn h $ "import qualified Test.Wire.API.Golden.Generated." <> module_
 
-generateTestCall :: Handle -> Int -> (String, FilePath, FilePath) -> IO ()
-generateTestCall h index (var, path, module_) = hPutStrLn h $
-  "  " <> (if index == 0 then " " else ",") <> " testObject Test.Wire.API.Golden.Generated." <> module_ <> "." <> var <> " " <> show path
+generateTestCase :: Handle -> Int -> (FilePath, [(String, FilePath)]) -> IO ()
+generateTestCase h index (module_, objs) = do
+  hPutStr h "  "
+  when (index > 0) $ hPutStr h ","
+  hPutStrLn h $ " testCase (\"Golden: " <> module_ <> "\") $ do"
+  traverse_ (generateTestCall h module_) objs
+
+generateTestCall :: Handle -> FilePath -> (String, FilePath) -> IO ()
+generateTestCall h module_ (var, path) = hPutStrLn h $
+  "      testObject Test.Wire.API.Golden.Generated." <> module_ <> "." <> var <> " " <> show path
 
 generateTestModule :: IO ()
 generateTestModule = do
@@ -345,15 +352,13 @@ generateTestModule = do
   testmain <- getEnv "GOLDEN_TESTDIR"
   h <- openFile (testmain <> ".hs") WriteMode
   hPutStrLn h "module Test.Wire.API.Golden.Generated where\n"
+  hPutStrLn h "import Imports"
   hPutStrLn h "import Test.Wire.API.Golden.Runner"
   hPutStrLn h "import Test.Tasty"
+  hPutStrLn h "import Test.Tasty.HUnit"
   traverse_ (generateImports h) bindings
   hPutStrLn h "tests :: TestTree"
   hPutStrLn h "tests = testGroup \"Golden tests\" ["
-  let allBindings = do
-        (m, vs) <- bindings
-        (v, p) <- vs
-        pure (v, p, m)
-  traverse_ (uncurry (generateTestCall h)) (zip [0 :: Int ..] allBindings)
+  traverse_ (uncurry (generateTestCase h)) (zip [0 :: Int ..] bindings)
   hPutStrLn h "  ]"
   hClose h
