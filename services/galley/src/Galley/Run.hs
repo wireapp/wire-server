@@ -89,9 +89,8 @@ mkApp o = do
         -- we don't host any Servant endpoints yet, but will add some for the
         -- federation API, replacing the empty API.
         (Proxy @ServantCombinedAPI)
-        ( Servant.emptyServer
+        ( Servant.hoistServer (genericApi (Proxy @FederationGalley.Api)) (toServantHandler e) federationSitemap
             :<|> Servant.Tagged (app e)
-            :<|> Servant.hoistServer (genericApi (Proxy @FederationGalley.Api)) (toServantHandler e) federationSitemap
         )
         r
     middlewares l m =
@@ -101,9 +100,8 @@ mkApp o = do
         . GZip.gzip GZip.def
 
 type ServantCombinedAPI =
-  ( Servant.EmptyAPI
+  ( ToServantApi FederationGalley.Api
       :<|> Servant.Raw
-      :<|> ToServantApi FederationGalley.Api
   )
 
 refreshMetrics :: Galley ()
