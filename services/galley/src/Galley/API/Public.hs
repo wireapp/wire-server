@@ -222,24 +222,26 @@ data Api routes = Api
     -- FUTUREWORK: errorResponse Error.notConnected
     --             errorResponse Error.notATeamMember
     --             errorResponse (Error.operationDenied Public.CreateConversation)
-    createGroupConversation ::
-      routes
-        :- Summary "Create a new conversation"
-        :> Description "This returns 200 when a new conversation is created, and 201 when the conversation already existed"
-        :> ZUser
-        :> ZAuthServant 'ZAuthConn
-        :> "conversations"
-        :> ReqBody '[Servant.JSON] Public.NewConvUnmanaged
-        :> Post '[Servant.JSON] (Headers '[Servant.Header "Location" ConvId] Public.Conversation),
-    -- createGroupConversation2 ::
+
+    -- createGroupConversation ::
     --   routes
     --     :- Summary "Create a new conversation"
-    --     :> Description "This returns 200 when a new conversation is created, and 201 when the conversation already existed"
+    --     :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
     --     :> ZUser
     --     :> ZAuthServant 'ZAuthConn
     --     :> "conversations"
     --     :> ReqBody '[Servant.JSON] Public.NewConvUnmanaged
-    --     :> UVerb 'POST '[Servant.JSON] Create.ConversationResponses,
+    --     :> Post '[Servant.JSON] (Headers '[Servant.Header "Location" ConvId] Public.Conversation),
+
+    createGroupConversation ::
+      routes
+        :- Summary "Create a new conversation"
+        :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
+        :> ZUser
+        :> ZAuthServant 'ZAuthConn
+        :> "conversations"
+        :> ReqBody '[Servant.JSON] Public.NewConvUnmanaged
+        :> UVerb 'POST '[Servant.JSON] Create.ConversationResponses,
     createSelfConversation ::
       routes
         :- Summary "Create a self-conversation"

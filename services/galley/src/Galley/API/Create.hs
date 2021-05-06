@@ -66,9 +66,9 @@ conversationResponse (ConversationExisted c) =
 conversationResponse (ConversationCreated c) =
   S . Z . I . WithStatus . Servant.addHeader (cnvId c) $ c
 
-conversationExtract :: ConversationResponse -> Headers '[Servant.Header "Location" ConvId] Public.Conversation
-conversationExtract (ConversationExisted c) = Servant.addHeader (cnvId c) c
-conversationExtract (ConversationCreated c) = Servant.addHeader (cnvId c) c
+-- conversationExtract :: ConversationResponse -> Headers '[Servant.Header "Location" ConvId] Public.Conversation
+-- conversationExtract (ConversationExisted c) = Servant.addHeader (cnvId c) c
+-- conversationExtract (ConversationCreated c) = Servant.addHeader (cnvId c) c
 
 -------------------------------------------------------------------------
 
@@ -82,9 +82,9 @@ createGroupConversation ::
   UserId ->
   ConnId ->
   Public.NewConvUnmanaged ->
-  Galley (Headers '[Servant.Header "Location" ConvId] Public.Conversation)
+  Galley (Union ConversationResponses)
 createGroupConversation user conn wrapped@(Public.NewConvUnmanaged body) =
-  conversationExtract
+  conversationResponse
     <$> case newConvTeam body of
       Nothing -> createRegularGroupConv user conn wrapped
       Just tinfo -> createTeamGroupConv user conn tinfo body

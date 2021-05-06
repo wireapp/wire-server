@@ -538,11 +538,11 @@ packages:
     pantry-tree:
       size: 2810
       sha256: e03a032acce955d713de18535450f09d32bb436831d484c4a5d310336b0dc790
-    commit: 94a41ece619e06b8f57cd7974dd9c1ec425fefb5
+    commit: bcf0a2ecd15e90782fa1c900c885c689dd1d08f7
   original:
     subdir: servant
     git: https://github.com/wireapp/servant.git
-    commit: 94a41ece619e06b8f57cd7974dd9c1ec425fefb5
+    commit: bcf0a2ecd15e90782fa1c900c885c689dd1d08f7
 - completed:
     subdir: servant-server
     name: servant-server
@@ -550,12 +550,12 @@ packages:
     git: https://github.com/wireapp/servant.git
     pantry-tree:
       size: 2727
-      sha256: bda5fc5c3e70633dec238284bc0f626bae432d39758ab0905875388d587fc3d0
-    commit: 94a41ece619e06b8f57cd7974dd9c1ec425fefb5
+      sha256: 4cc3e7ef2bda1f8f2ca88df1fbc13f920eeaac9307df0f9779876429af36cbb6
+    commit: bcf0a2ecd15e90782fa1c900c885c689dd1d08f7
   original:
     subdir: servant-server
     git: https://github.com/wireapp/servant.git
-    commit: 94a41ece619e06b8f57cd7974dd9c1ec425fefb5
+    commit: bcf0a2ecd15e90782fa1c900c885c689dd1d08f7
 - completed:
     subdir: servant-client
     name: servant-client
@@ -564,11 +564,11 @@ packages:
     pantry-tree:
       size: 1346
       sha256: 9d869b0c40bdd0ce19dcbcf7f5c9fedcf66f5fa1d2b404b87c57788aab69f330
-    commit: 94a41ece619e06b8f57cd7974dd9c1ec425fefb5
+    commit: bcf0a2ecd15e90782fa1c900c885c689dd1d08f7
   original:
     subdir: servant-client
     git: https://github.com/wireapp/servant.git
-    commit: 94a41ece619e06b8f57cd7974dd9c1ec425fefb5
+    commit: bcf0a2ecd15e90782fa1c900c885c689dd1d08f7
 - completed:
     subdir: servant-client-core
     name: servant-client-core
@@ -577,11 +577,11 @@ packages:
     pantry-tree:
       size: 1444
       sha256: 1c26c72febd94ac29c006dfd50123608259f7e48844c71b4088d6608735c0949
-    commit: 94a41ece619e06b8f57cd7974dd9c1ec425fefb5
+    commit: bcf0a2ecd15e90782fa1c900c885c689dd1d08f7
   original:
     subdir: servant-client-core
     git: https://github.com/wireapp/servant.git
-    commit: 94a41ece619e06b8f57cd7974dd9c1ec425fefb5
+    commit: bcf0a2ecd15e90782fa1c900c885c689dd1d08f7
 - completed:
     hackage: HsOpenSSL-x509-system-0.1.0.3@sha256:f4958ee0eec555c5c213662eff6764bddefe5665e2afcfd32733ce3801a9b687,1774
     pantry-tree:
