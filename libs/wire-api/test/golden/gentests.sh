@@ -4,7 +4,7 @@
 
 # Note: for this to work, it has to run on a patched checkout of
 # wire-server. The patch is contained in `libs/wire-api/test/golden/`
-# and can be applied it with `git am`.
+# and can be applied with `git am`.
 #
 # Remember to undo the patch commit afterwards!
 
