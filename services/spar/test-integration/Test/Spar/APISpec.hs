@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -69,6 +70,7 @@ import Spar.API.Types
 import qualified Spar.Intra.Brig as Intra
 import Spar.Scim.Types
 import Spar.Types
+import Test.Hspec (focus)
 import Text.XML.DSig (SignPrivCreds, mkSignCredsWithCert)
 import URI.ByteString.QQ (uri)
 import Util.Core
@@ -119,7 +121,7 @@ specMisc = do
           resp <- call $ callIdpCreate' (env ^. teSpar) (Just uid) somemeta
           liftIO $ statusCode resp `shouldBe` if isHttps then 201 else 400
     it "does not trigger on https urls" $ check True
-    it "does trigger on http urls" $ check False
+    focus $ it "does trigger on http urls" $ check False
 
 specMetadata :: SpecWith TestEnv
 specMetadata = do
