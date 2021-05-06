@@ -81,11 +81,11 @@ import Wire.API.User.RichInfo
 
 type EJPDRequest =
   Summary
-    "Identify users for law enforcement.  (Wire has legal requirements to cooperate \
+    "Identify users for law enforcement.  Wire has legal requirements to cooperate \
     \with the authorities.  The wire backend operations team uses this to answer \
     \identification requests manually.  It is our best-effort representation of the \
     \minimum required information we need to hand over about targets and (in some \
-    \cases) their communication peers.)"
+    \cases) their communication peers.  For more information, consult ejpd.admin.ch."
     :> "ejpd-request"
     :> QueryParam'
          [ Optional,
