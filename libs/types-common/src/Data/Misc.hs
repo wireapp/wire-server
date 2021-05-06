@@ -76,7 +76,7 @@ import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Imports
-import Test.QuickCheck (Arbitrary (arbitrary))
+import Test.QuickCheck (Arbitrary (arbitrary), chooseInteger)
 import qualified Test.QuickCheck as QC
 import Text.Read (Read (..))
 import URI.ByteString hiding (Port)
@@ -220,7 +220,12 @@ newtype Milliseconds = Ms
   { ms :: Word64
   }
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (Num, Arbitrary)
+  deriving newtype (Num)
+
+-- only generate values which can be represented exactly by double
+-- precision floating points
+instance Arbitrary Milliseconds where
+  arbitrary = Ms . fromIntegral <$> chooseInteger (0 :: Integer, 2 ^ (53 :: Int))
 
 -- | Convert milliseconds to 'Int64', with clipping if it doesn't fit.
 msToInt64 :: Milliseconds -> Int64
