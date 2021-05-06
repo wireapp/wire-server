@@ -18,6 +18,7 @@ CHARTS_RELEASE        := wire-server databases-ephemeral fake-aws aws-ingress ba
 BUILDAH_PUSH          ?= 0
 KIND_CLUSTER_NAME     := wire-server
 BUILDAH_KIND_LOAD     ?= 1
+export HSPEC_OPTIONS = "--fail-on-focused"
 
 default: fast
 

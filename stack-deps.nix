@@ -26,4 +26,5 @@ pkgs.haskell.lib.buildStackProject {
     lzma
   ];
   ghc = pkgs.haskell.compiler.ghc884;
+  HSPEC_OPTIONS = "--fail-on-focused";
 }
