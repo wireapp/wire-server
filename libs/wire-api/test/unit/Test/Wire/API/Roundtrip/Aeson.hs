@@ -140,7 +140,7 @@ tests =
       testRoundTrip @Event.Conversation.Connect,
       testRoundTrip @Event.Conversation.MemberUpdateData,
       testRoundTrip @Event.Conversation.OtrMessage,
-      currentlyFailing (testRoundTrip @Event.Team.Event), -- flaky, fails because of TeamUpdateData
+      testRoundTrip @Event.Team.Event,
       testRoundTrip @Event.Team.EventType,
       testRoundTrip @Message.Priority,
       testRoundTrip @Message.OtrRecipients,
@@ -191,7 +191,7 @@ tests =
       testRoundTrip @Team.TeamBinding,
       testRoundTrip @Team.Team,
       testRoundTrip @Team.TeamList,
-      currentlyFailing (testRoundTrip @Team.TeamUpdateData), -- "no update data specified" if all fields are 'Nothing'
+      testRoundTrip @Team.TeamUpdateData,
       testRoundTrip @Team.TeamDeleteData,
       testRoundTrip @Team.Conversation.TeamConversation,
       testRoundTrip @Team.Conversation.TeamConversationList,
