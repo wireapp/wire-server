@@ -1,1 +1,1 @@
-{"took":-1,"found":1,"documents":[],"returned":-6}
+{"took":1,"found":6,"documents":[{"email":"@","handle":null,"managed_by":"scim","role":"member","accent_id":null,"name":"","created_at":null,"team":null,"id":"00000001-0000-0001-0000-000100000001","saml_idp":""}],"returned":5}

@@ -1,1 +1,1 @@
-{"event":{"conversation":"000031c1-0000-49ab-0000-5a420000199f","time":"1864-05-22T07:06:28.383Z","data":{"key":"k5BFlGlD_DauCrC0UbF1","code":"PY7khtoS31nc"},"from":"00004916-0000-35fa-0000-69ee0000252a","type":"conversation.code-update"}}
+{"event":{"conversation":"000040b1-0000-6f23-0000-40fe00001642","time":"1864-06-01T08:55:31.352Z","data":{"access":["private"],"access_role":"non_activated"},"from":"00002d0b-0000-3559-0000-34cd000079b5","type":"conversation.access-update"}}

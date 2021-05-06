@@ -1,1 +1,1 @@
-{"event":{"conversation":"00005c05-0000-03b5-0000-4b1b00002b95","time":"1864-05-07T14:03:49.845Z","data":null,"from":"0000596b-0000-0202-0000-2fe900000c3c","type":"conversation.code-delete"}}
+{"event":{"conversation":"000077a8-0000-5f6b-0000-368c00005aae","time":"1864-04-26T09:37:33.785Z","data":{"receipt_mode":-4305},"from":"00000ac8-0000-65f4-0000-446800006259","type":"conversation.receipt-mode-update"}}

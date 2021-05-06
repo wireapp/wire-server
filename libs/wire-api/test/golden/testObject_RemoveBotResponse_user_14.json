@@ -1,1 +1,1 @@
-{"event":{"conversation":"000006c1-0000-6eec-0000-5bee000050f5","time":"1864-04-21T14:06:18.285Z","data":{"email":"7C","name":":","message":null,"recipient":"00000005-0000-0005-0000-000000000003"},"from":"00004cdc-0000-030a-0000-0b4a000034a6","type":"conversation.connect-request"}}
+{"event":{"conversation":"00005ac7-0000-3003-0000-0a2800000a41","time":"1864-05-11T23:24:53.366Z","data":{"access":["code","invite","link","invite","code","invite","code","code"],"access_role":"non_activated"},"from":"00001c2e-0000-4925-0000-141d00004276","type":"conversation.access-update"}}

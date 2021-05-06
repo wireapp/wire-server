@@ -1,97 +1,48 @@
-{-# OPTIONS_GHC -Wno-unused-imports #-}
 {-# LANGUAGE OverloadedLists #-}
 module Test.Wire.API.Golden.Generated.NewLegalHoldClient_team where
-
-import Codec.MIME.Type (Type(..))
-import qualified Codec.MIME.Type as MIME
-import Control.Lens ((.~))
-import Data.Code
-import Data.Coerce
-import Data.Currency
-import Data.Domain
-import Data.Handle
-import Data.Id
-import Data.ISO3166_CountryCodes
-import Data.Json.Util
-import Data.List1
-import qualified Data.List.NonEmpty as NonEmpty
-import Data.List.NonEmpty (NonEmpty (..))
-import Data.Misc
-import Data.PEM
-import Data.Qualified
-import Data.Range (unsafeRange)
-import qualified Data.Set as Set
-import Data.Text.Ascii
-import Data.Time (secondsToNominalDiffTime)
-import Imports hiding (LT, GT)
-import qualified Data.LanguageCodes
-import qualified Data.UUID as UUID
-import Test.Tasty (testGroup, TestTree)
-import URI.ByteString
-import qualified Wire.API.Call.Config as CallConfig
-import qualified Wire.API.User.Profile as User.Profile
-import qualified Wire.API.Team.Conversation as Team.Conversation
-import qualified Wire.API.Provider as Provider
-import qualified Wire.API.Provider.Bot as Provider
-import qualified Wire.API.Provider.External as Provider
-import qualified Wire.API.Provider.Service as Provider
-import qualified Wire.API.Provider.Service.Tag as Provider
-import Data.Aeson
-import GHC.Exts
-import Data.LegalHold
-import Wire.API.Conversation.Role
-import Wire.API.Event.Team
-import Wire.API.Provider.Service
-import Wire.API.Team
-import Wire.API.Team.Conversation
-import Wire.API.Team.Feature
-import Wire.API.Team.Invitation
-import Wire.API.Team.LegalHold
-import Wire.API.Team.LegalHold.External
-import Wire.API.Team.Member
-import Wire.API.Team.Permission
-import Wire.API.Team.Role
-import Wire.API.Team.SearchVisibility
+import Wire.API.Team.LegalHold.External ( NewLegalHoldClient(..) )
 import Wire.API.User.Client.Prekey
-import Wire.API.User.Identity
-import Wire.API.User.Profile
+    ( Prekey(Prekey, prekeyId, prekeyKey),
+      lastPrekey,
+      PrekeyId(PrekeyId, keyId) )
+
 testObject_NewLegalHoldClient_team_1 :: NewLegalHoldClient
-testObject_NewLegalHoldClient_team_1 = NewLegalHoldClient {newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\DC4"},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "#"}], newLegalHoldClientLastKey = (lastPrekey ("d\SOw%B`X"))}
+testObject_NewLegalHoldClient_team_1 = NewLegalHoldClient {newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\58493\&0"},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "V\18564"},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}], newLegalHoldClientLastKey = (lastPrekey ("{i\1026119\STXat%\1019155dY\EOTl7Rv"))}
 testObject_NewLegalHoldClient_team_2 :: NewLegalHoldClient
-testObject_NewLegalHoldClient_team_2 = NewLegalHoldClient {newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\1066585"},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "h3"}], newLegalHoldClientLastKey = (lastPrekey ("\1079012 \152767'HAw\DC2zn\61421\60461jAQ"))}
+testObject_NewLegalHoldClient_team_2 = NewLegalHoldClient {newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 2}, prekeyKey = "\35714"}], newLegalHoldClientLastKey = (lastPrekey ("\182309\&2\146978J\1037624Q\"+k\US\153967\STX"))}
 testObject_NewLegalHoldClient_team_3 :: NewLegalHoldClient
-testObject_NewLegalHoldClient_team_3 = NewLegalHoldClient {newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\1073149"},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\1103861"},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}], newLegalHoldClientLastKey = (lastPrekey ("W"))}
+testObject_NewLegalHoldClient_team_3 = NewLegalHoldClient {newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "#S"},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\v"}], newLegalHoldClientLastKey = (lastPrekey ("\DC47\29118\996101Z"))}
 testObject_NewLegalHoldClient_team_4 :: NewLegalHoldClient
-testObject_NewLegalHoldClient_team_4 = NewLegalHoldClient {newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "B"},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\GS"},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "M"},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\1023136"}], newLegalHoldClientLastKey = (lastPrekey ("\NUL\DLE"))}
+testObject_NewLegalHoldClient_team_4 = NewLegalHoldClient {newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "l"},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\179529"}], newLegalHoldClientLastKey = (lastPrekey ("x@\STX\GS\160205\1050929@\59876\&9uyaW\DC1"))}
 testObject_NewLegalHoldClient_team_5 :: NewLegalHoldClient
-testObject_NewLegalHoldClient_team_5 = NewLegalHoldClient {newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\t"},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\35064"},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "!"},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "*"}], newLegalHoldClientLastKey = (lastPrekey ("\ETX0ed MZ"))}
+testObject_NewLegalHoldClient_team_5 = NewLegalHoldClient {newLegalHoldClientPrekeys = [], newLegalHoldClientLastKey = (lastPrekey ("p&Z\DC2:"))}
 testObject_NewLegalHoldClient_team_6 :: NewLegalHoldClient
-testObject_NewLegalHoldClient_team_6 = NewLegalHoldClient {newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}], newLegalHoldClientLastKey = (lastPrekey ("3\1093765\GS\v}u\EOT\NAK'\SUB'\1096463"))}
+testObject_NewLegalHoldClient_team_6 = NewLegalHoldClient {newLegalHoldClientPrekeys = [], newLegalHoldClientLastKey = (lastPrekey ("\\c\"\1029650\DC1\EM;P\n\t\vzs%"))}
 testObject_NewLegalHoldClient_team_7 :: NewLegalHoldClient
-testObject_NewLegalHoldClient_team_7 = NewLegalHoldClient {newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "Q"},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "O"},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\SUB"},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}], newLegalHoldClientLastKey = (lastPrekey (":6"))}
+testObject_NewLegalHoldClient_team_7 = NewLegalHoldClient {newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "f"},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "1"},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}], newLegalHoldClientLastKey = (lastPrekey ("t\f\1043533\a%\DEL"))}
 testObject_NewLegalHoldClient_team_8 :: NewLegalHoldClient
-testObject_NewLegalHoldClient_team_8 = NewLegalHoldClient {newLegalHoldClientPrekeys = [], newLegalHoldClientLastKey = (lastPrekey ("PJ\EOTEqR7m"))}
+testObject_NewLegalHoldClient_team_8 = NewLegalHoldClient {newLegalHoldClientPrekeys = [], newLegalHoldClientLastKey = (lastPrekey ("|>u9\ENQ^j\SOH\1079581\185402\78359\1023241"))}
 testObject_NewLegalHoldClient_team_9 :: NewLegalHoldClient
-testObject_NewLegalHoldClient_team_9 = NewLegalHoldClient {newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}], newLegalHoldClientLastKey = (lastPrekey ("56\vS"))}
+testObject_NewLegalHoldClient_team_9 = NewLegalHoldClient {newLegalHoldClientPrekeys = [], newLegalHoldClientLastKey = (lastPrekey ("T:0l^P\3437\1064776w"))}
 testObject_NewLegalHoldClient_team_10 :: NewLegalHoldClient
-testObject_NewLegalHoldClient_team_10 = NewLegalHoldClient {newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\1059055\DC10\b6\SYN>"}], newLegalHoldClientLastKey = (lastPrekey (""))}
+testObject_NewLegalHoldClient_team_10 = NewLegalHoldClient {newLegalHoldClientPrekeys = [], newLegalHoldClientLastKey = (lastPrekey ("\1066570<C\nJ\STX*z~\1102174_\1012675"))}
 testObject_NewLegalHoldClient_team_11 :: NewLegalHoldClient
-testObject_NewLegalHoldClient_team_11 = NewLegalHoldClient {newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "G"},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\ETB"},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "I"},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "$"},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}], newLegalHoldClientLastKey = (lastPrekey ("W\aCi&m"))}
+testObject_NewLegalHoldClient_team_11 = NewLegalHoldClient {newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 6}, prekeyKey = "2"}], newLegalHoldClientLastKey = (lastPrekey ("m\151853\47158\EOT\5161@zYC~\DEL"))}
 testObject_NewLegalHoldClient_team_12 :: NewLegalHoldClient
-testObject_NewLegalHoldClient_team_12 = NewLegalHoldClient {newLegalHoldClientPrekeys = [], newLegalHoldClientLastKey = (lastPrekey ("ykkk$Z"))}
+testObject_NewLegalHoldClient_team_12 = NewLegalHoldClient {newLegalHoldClientPrekeys = [], newLegalHoldClientLastKey = (lastPrekey ("\98450xj*D$"))}
 testObject_NewLegalHoldClient_team_13 :: NewLegalHoldClient
-testObject_NewLegalHoldClient_team_13 = NewLegalHoldClient {newLegalHoldClientPrekeys = [], newLegalHoldClientLastKey = (lastPrekey ("\a?\1075431\\>\a\177444\63147B"))}
+testObject_NewLegalHoldClient_team_13 = NewLegalHoldClient {newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}], newLegalHoldClientLastKey = (lastPrekey ("{\1092927%]\DEL\SO"))}
 testObject_NewLegalHoldClient_team_14 :: NewLegalHoldClient
-testObject_NewLegalHoldClient_team_14 = NewLegalHoldClient {newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}], newLegalHoldClientLastKey = (lastPrekey ("V#ye\988092\NAK\1000461,.\DC3(N=oU"))}
+testObject_NewLegalHoldClient_team_14 = NewLegalHoldClient {newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 2}, prekeyKey = "\DC4%H"},Prekey {prekeyId = PrekeyId {keyId = 2}, prekeyKey = "$\997875"}], newLegalHoldClientLastKey = (lastPrekey ("U\SUB\35333\SOH8\40782"))}
 testObject_NewLegalHoldClient_team_15 :: NewLegalHoldClient
-testObject_NewLegalHoldClient_team_15 = NewLegalHoldClient {newLegalHoldClientPrekeys = [], newLegalHoldClientLastKey = (lastPrekey ("\20916T"))}
+testObject_NewLegalHoldClient_team_15 = NewLegalHoldClient {newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 2}, prekeyKey = "y"},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\SI\36499"}], newLegalHoldClientLastKey = (lastPrekey ("\1042250\FS!\\gJ\STX"))}
 testObject_NewLegalHoldClient_team_16 :: NewLegalHoldClient
-testObject_NewLegalHoldClient_team_16 = NewLegalHoldClient {newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\68358"},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "]"},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\STX"},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}], newLegalHoldClientLastKey = (lastPrekey ("X\1055166\140314~\RS\156079\1098764\b|\149264D"))}
+testObject_NewLegalHoldClient_team_16 = NewLegalHoldClient {newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}], newLegalHoldClientLastKey = (lastPrekey ("[%\1034314"))}
 testObject_NewLegalHoldClient_team_17 :: NewLegalHoldClient
-testObject_NewLegalHoldClient_team_17 = NewLegalHoldClient {newLegalHoldClientPrekeys = [], newLegalHoldClientLastKey = (lastPrekey (".\1016966a"))}
+testObject_NewLegalHoldClient_team_17 = NewLegalHoldClient {newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""}], newLegalHoldClientLastKey = (lastPrekey ("8I\1100948"))}
 testObject_NewLegalHoldClient_team_18 :: NewLegalHoldClient
-testObject_NewLegalHoldClient_team_18 = NewLegalHoldClient {newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}], newLegalHoldClientLastKey = (lastPrekey ("uw\1050723\&1\52165\27311\992676'#"))}
+testObject_NewLegalHoldClient_team_18 = NewLegalHoldClient {newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 6}, prekeyKey = "\190809\\D\SIa#"}], newLegalHoldClientLastKey = (lastPrekey ("\1074200"))}
 testObject_NewLegalHoldClient_team_19 :: NewLegalHoldClient
-testObject_NewLegalHoldClient_team_19 = NewLegalHoldClient {newLegalHoldClientPrekeys = [], newLegalHoldClientLastKey = (lastPrekey ("\a-"))}
+testObject_NewLegalHoldClient_team_19 = NewLegalHoldClient {newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""}], newLegalHoldClientLastKey = (lastPrekey ("h\995308\996189"))}
 testObject_NewLegalHoldClient_team_20 :: NewLegalHoldClient
-testObject_NewLegalHoldClient_team_20 = NewLegalHoldClient {newLegalHoldClientPrekeys = [Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "q"},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = "\1079137"},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 0}, prekeyKey = ""},Prekey {prekeyId = PrekeyId {keyId = 1}, prekeyKey = "\DLE"}], newLegalHoldClientLastKey = (lastPrekey ("LS"))}
+testObject_NewLegalHoldClient_team_20 = NewLegalHoldClient {newLegalHoldClientPrekeys = [], newLegalHoldClientLastKey = (lastPrekey ("u\1015820\141121\&7\DC3D"))}

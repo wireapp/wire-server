@@ -1,1 +1,1 @@
-{"conversation":"00002990-0000-7789-0000-0a3800005dfe","time":"1864-05-11T06:22:29.520Z","data":{"message_timer":807928949418820},"from":"00004cff-0000-75b3-0000-4c2f000077de","type":"conversation.message-timer-update"}
+{"conversation":"00002733-0000-72dd-0000-72440000665e","time":"1864-05-26T14:33:20.518Z","data":{"text":"k5","sender":"9","recipient":"9"},"from":"0000035c-0000-23e2-0000-5c77000026cd","type":"conversation.otr-message-add"}

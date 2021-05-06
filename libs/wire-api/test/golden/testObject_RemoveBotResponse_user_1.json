@@ -1,1 +1,1 @@
-{"event":{"conversation":"0000441a-0000-122e-0000-43780000773c","time":"1864-05-27T07:30:39.141Z","data":{"otr_muted_ref":"%􄋣","hidden":false,"otr_archived":false,"otr_muted":true,"otr_archived_ref":"h?c","target":"00000001-0000-0002-0000-000000000001"},"from":"000018aa-0000-7b77-0000-59aa00005ca5","type":"conversation.member-update"}}
+{"event":{"conversation":"00005cc5-0000-50d8-0000-632400002684","time":"1864-06-01T21:53:14.551Z","data":{"name":"\u001d􈳥*8E裴ﺁ@J"},"from":"000036b3-0000-4693-0000-0cb4000043ef","type":"conversation.rename"}}

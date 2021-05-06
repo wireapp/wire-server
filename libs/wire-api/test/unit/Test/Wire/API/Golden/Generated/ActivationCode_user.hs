@@ -1,117 +1,46 @@
-{-# OPTIONS_GHC -Wno-unused-imports #-}
 {-# LANGUAGE OverloadedLists #-}
 module Test.Wire.API.Golden.Generated.ActivationCode_user where
+import Data.Text.Ascii ( AsciiChars(validate) )
+import Imports ( undefined, fromRight )
+import Wire.API.User.Activation ( ActivationCode(..) )
 
-import Codec.MIME.Type (Type(..))
-import qualified Codec.MIME.Type as MIME
-import Control.Lens ((.~))
-import Data.Code
-import Data.Coerce
-import Data.Currency
-import Data.Domain
-import Data.Handle
-import Data.Id
-import Data.ISO3166_CountryCodes
-import Data.Json.Util
-import Data.List1
-import qualified Data.List.NonEmpty as NonEmpty
-import Data.List.NonEmpty (NonEmpty (..))
-import Data.Misc
-import Data.PEM
-import Data.Qualified
-import Data.Range (unsafeRange)
-import qualified Data.Set as Set
-import Data.Text.Ascii
-import Data.Time (secondsToNominalDiffTime)
-import Imports hiding (LT, GT)
-import qualified Data.LanguageCodes
-import qualified Data.UUID as UUID
-import Test.Tasty (testGroup, TestTree)
-import URI.ByteString
-import qualified Wire.API.Call.Config as CallConfig
-import qualified Wire.API.User.Profile as User.Profile
-import qualified Wire.API.Team.Conversation as Team.Conversation
-import qualified Wire.API.Provider as Provider
-import qualified Wire.API.Provider.Bot as Provider
-import qualified Wire.API.Provider.External as Provider
-import qualified Wire.API.Provider.Service as Provider
-import qualified Wire.API.Provider.Service.Tag as Provider
-import Data.Aeson
-import GHC.Exts
-import Wire.API.Asset
-import Wire.API.Asset.V3.Resumable
-import Wire.API.Call.Config
-import Wire.API.Connection
-import Wire.API.Conversation
-import Wire.API.Conversation.Bot
-import Wire.API.Conversation.Code
-import Wire.API.Conversation.Member
-import Wire.API.Conversation.Role
-import Wire.API.Conversation.Typing
-import Wire.API.CustomBackend
-import Wire.API.Event.Conversation
-import Wire.API.Message
-import Wire.API.Notification (QueuedNotification, queuedNotification, QueuedNotificationList, queuedNotificationList)
-import Wire.API.Properties
--- import Wire.API.Provider
-import Wire.API.Provider.Bot
-import Wire.API.Provider.External
-import Wire.API.Provider.Service
--- import Wire.API.Provider.Service.Tag
-import Wire.API.Push.Token hiding (Transport)
-import qualified Wire.API.Push.Token as Push.Token
-import Wire.API.Team
-import Wire.API.Team.Role
--- import Wire.API.Team.SearchVisibility
-import Wire.API.User
-import Wire.API.User.Activation
-import Wire.API.User.Auth
-import Wire.API.User.Client
-import Wire.API.User.Client.Prekey
-import Wire.API.User.Handle
-import Wire.API.User.Identity
-import Wire.API.User.Password
-import Wire.API.User.Profile
-import Wire.API.User.RichInfo
-import Wire.API.User.Search
-import Wire.API.Wrapped
 testObject_ActivationCode_user_1 :: ActivationCode
-testObject_ActivationCode_user_1 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("sgEHhp6HOEDIT0c=")))}
+testObject_ActivationCode_user_1 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("Cx-JuownJ1mu9g==")))}
 testObject_ActivationCode_user_2 :: ActivationCode
-testObject_ActivationCode_user_2 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("odpULlFERWiwFNdztI6vRKn2isNFmBHK")))}
+testObject_ActivationCode_user_2 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("1wYw4e8=")))}
 testObject_ActivationCode_user_3 :: ActivationCode
-testObject_ActivationCode_user_3 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("")))}
+testObject_ActivationCode_user_3 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("OQzjMVZq0jeLqDComK7Nkj3Htik=")))}
 testObject_ActivationCode_user_4 :: ActivationCode
-testObject_ActivationCode_user_4 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("U68hHGkXvKhdLKwpp-lFizMwoSHWoho=")))}
+testObject_ActivationCode_user_4 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("DWXud2QM-QgyDXv6q3s194mEpL6cvg==")))}
 testObject_ActivationCode_user_5 :: ActivationCode
-testObject_ActivationCode_user_5 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("b-PI")))}
+testObject_ActivationCode_user_5 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("R-omL4fqIw==")))}
 testObject_ActivationCode_user_6 :: ActivationCode
-testObject_ActivationCode_user_6 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("bo1Vhcs0UtFpDn9QrNTvByeAObBasfhxo7QQvQ==")))}
+testObject_ActivationCode_user_6 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("KqCggQ094EzD6tv6l7EmrA==")))}
 testObject_ActivationCode_user_7 :: ActivationCode
-testObject_ActivationCode_user_7 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("cx0nMU4DvwYxrsM=")))}
+testObject_ActivationCode_user_7 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("uJ2njgn5Petsrhg=")))}
 testObject_ActivationCode_user_8 :: ActivationCode
-testObject_ActivationCode_user_8 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("QCGJLsBuvZVTZp9YJg==")))}
+testObject_ActivationCode_user_8 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("1HbXVDzTkYSS29taxRdhh_REtg==")))}
 testObject_ActivationCode_user_9 :: ActivationCode
-testObject_ActivationCode_user_9 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("W1NmfOqn9BZfXtFI66eGLemUcHKeCQ==")))}
+testObject_ActivationCode_user_9 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("4yCQ_68=")))}
 testObject_ActivationCode_user_10 :: ActivationCode
-testObject_ActivationCode_user_10 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("wYIRWtucGqS3FEmF")))}
+testObject_ActivationCode_user_10 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("Yb0=")))}
 testObject_ActivationCode_user_11 :: ActivationCode
-testObject_ActivationCode_user_11 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("Z5rKfY8cdNTiH8dVRt1B_DjDFp4JY3ms6g==")))}
+testObject_ActivationCode_user_11 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("3Rv3tp9JNjg=")))}
 testObject_ActivationCode_user_12 :: ActivationCode
-testObject_ActivationCode_user_12 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("GM8xxZfG")))}
+testObject_ActivationCode_user_12 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("NTTKUgcxGGGbWpGpRQ==")))}
 testObject_ActivationCode_user_13 :: ActivationCode
-testObject_ActivationCode_user_13 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("KjqZzNzvJHXH3rIW12QQvP0jLl8Jne4=")))}
+testObject_ActivationCode_user_13 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("283n2xF8KDXZ4PwNQWo5CK5WTMaoiSFHL87NvwQ=")))}
 testObject_ActivationCode_user_14 :: ActivationCode
-testObject_ActivationCode_user_14 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("hzfjPlLN2Vmzolu-BcUgSDXUDzOQqF_WrVc=")))}
+testObject_ActivationCode_user_14 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("uwQuabPa3nVRkW_pVEe69IFqhCjM")))}
 testObject_ActivationCode_user_15 :: ActivationCode
-testObject_ActivationCode_user_15 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("qK684t49U0_-")))}
+testObject_ActivationCode_user_15 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("nlgTlC0JMM3XcCyxQ745TuVn0Pk=")))}
 testObject_ActivationCode_user_16 :: ActivationCode
-testObject_ActivationCode_user_16 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("THRK7F35k49kYQKH")))}
+testObject_ActivationCode_user_16 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("bmJiDjHKCB978epzlIbx9CZdS3Rh")))}
 testObject_ActivationCode_user_17 :: ActivationCode
-testObject_ActivationCode_user_17 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("kjjCG8vVSodf0DLc4PTSLvvVDcLihurKqOIfhKk=")))}
+testObject_ActivationCode_user_17 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("Xb-GVw==")))}
 testObject_ActivationCode_user_18 :: ActivationCode
-testObject_ActivationCode_user_18 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("wLlI58l3YYmeRy5lVAUjG6bKA812p8oT")))}
+testObject_ActivationCode_user_18 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("VfFXFMVAIf74hpqsQYff2ovUwsh77bgTeZ1NEnI=")))}
 testObject_ActivationCode_user_19 :: ActivationCode
-testObject_ActivationCode_user_19 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("AVxgedEd3D-k2C1rBgSNKw==")))}
+testObject_ActivationCode_user_19 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("zg==")))}
 testObject_ActivationCode_user_20 :: ActivationCode
-testObject_ActivationCode_user_20 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("pMfmvaqZ0fCZOHu3q6c2xsSqXOYlJWkTev1BGzs=")))}
+testObject_ActivationCode_user_20 = ActivationCode {fromActivationCode = (fromRight undefined (validate ("V04=")))}

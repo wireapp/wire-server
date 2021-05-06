@@ -1,1 +1,1 @@
-{"took":-3,"found":-4,"documents":[{"email":"@","handle":"","managed_by":null,"role":"admin","accent_id":0,"name":"","created_at":"1864-05-09T03:53:14.483Z","team":"00000000-0000-0001-0000-000100000001","id":"00000001-0000-0001-0000-000000000001","saml_idp":null},{"email":"@","handle":"","managed_by":"scim","role":"partner","accent_id":0,"name":"","created_at":"1864-05-09T15:32:47.781Z","team":"00000001-0000-0000-0000-000100000000","id":"00000000-0000-0001-0000-000000000000","saml_idp":null}],"returned":7}
+{"took":-6,"found":-5,"documents":[],"returned":7}

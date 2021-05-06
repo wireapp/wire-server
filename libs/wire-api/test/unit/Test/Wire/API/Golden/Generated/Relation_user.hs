@@ -1,117 +1,44 @@
-{-# OPTIONS_GHC -Wno-unused-imports #-}
 {-# LANGUAGE OverloadedLists #-}
 module Test.Wire.API.Golden.Generated.Relation_user where
+import Wire.API.Connection ( Relation(..) )
 
-import Codec.MIME.Type (Type(..))
-import qualified Codec.MIME.Type as MIME
-import Control.Lens ((.~))
-import Data.Code
-import Data.Coerce
-import Data.Currency
-import Data.Domain
-import Data.Handle
-import Data.Id
-import Data.ISO3166_CountryCodes
-import Data.Json.Util
-import Data.List1
-import qualified Data.List.NonEmpty as NonEmpty
-import Data.List.NonEmpty (NonEmpty (..))
-import Data.Misc
-import Data.PEM
-import Data.Qualified
-import Data.Range (unsafeRange)
-import qualified Data.Set as Set
-import Data.Text.Ascii
-import Data.Time (secondsToNominalDiffTime)
-import Imports hiding (LT, GT)
-import qualified Data.LanguageCodes
-import qualified Data.UUID as UUID
-import Test.Tasty (testGroup, TestTree)
-import URI.ByteString
-import qualified Wire.API.Call.Config as CallConfig
-import qualified Wire.API.User.Profile as User.Profile
-import qualified Wire.API.Team.Conversation as Team.Conversation
-import qualified Wire.API.Provider as Provider
-import qualified Wire.API.Provider.Bot as Provider
-import qualified Wire.API.Provider.External as Provider
-import qualified Wire.API.Provider.Service as Provider
-import qualified Wire.API.Provider.Service.Tag as Provider
-import Data.Aeson
-import GHC.Exts
-import Wire.API.Asset
-import Wire.API.Asset.V3.Resumable
-import Wire.API.Call.Config
-import Wire.API.Connection
-import Wire.API.Conversation
-import Wire.API.Conversation.Bot
-import Wire.API.Conversation.Code
-import Wire.API.Conversation.Member
-import Wire.API.Conversation.Role
-import Wire.API.Conversation.Typing
-import Wire.API.CustomBackend
-import Wire.API.Event.Conversation
-import Wire.API.Message
-import Wire.API.Notification (QueuedNotification, queuedNotification, QueuedNotificationList, queuedNotificationList)
-import Wire.API.Properties
--- import Wire.API.Provider
-import Wire.API.Provider.Bot
-import Wire.API.Provider.External
-import Wire.API.Provider.Service
--- import Wire.API.Provider.Service.Tag
-import Wire.API.Push.Token hiding (Transport)
-import qualified Wire.API.Push.Token as Push.Token
-import Wire.API.Team
-import Wire.API.Team.Role
--- import Wire.API.Team.SearchVisibility
-import Wire.API.User
-import Wire.API.User.Activation
-import Wire.API.User.Auth
-import Wire.API.User.Client
-import Wire.API.User.Client.Prekey
-import Wire.API.User.Handle
-import Wire.API.User.Identity
-import Wire.API.User.Password
-import Wire.API.User.Profile
-import Wire.API.User.RichInfo
-import Wire.API.User.Search
-import Wire.API.Wrapped
 testObject_Relation_user_1 :: Relation
 testObject_Relation_user_1 = Pending
 testObject_Relation_user_2 :: Relation
-testObject_Relation_user_2 = Blocked
+testObject_Relation_user_2 = Ignored
 testObject_Relation_user_3 :: Relation
-testObject_Relation_user_3 = Blocked
+testObject_Relation_user_3 = Ignored
 testObject_Relation_user_4 :: Relation
-testObject_Relation_user_4 = Sent
+testObject_Relation_user_4 = Cancelled
 testObject_Relation_user_5 :: Relation
-testObject_Relation_user_5 = Blocked
+testObject_Relation_user_5 = Accepted
 testObject_Relation_user_6 :: Relation
-testObject_Relation_user_6 = Ignored
+testObject_Relation_user_6 = Sent
 testObject_Relation_user_7 :: Relation
-testObject_Relation_user_7 = Sent
+testObject_Relation_user_7 = Cancelled
 testObject_Relation_user_8 :: Relation
-testObject_Relation_user_8 = Blocked
+testObject_Relation_user_8 = Pending
 testObject_Relation_user_9 :: Relation
-testObject_Relation_user_9 = Cancelled
+testObject_Relation_user_9 = Ignored
 testObject_Relation_user_10 :: Relation
 testObject_Relation_user_10 = Pending
 testObject_Relation_user_11 :: Relation
-testObject_Relation_user_11 = Cancelled
+testObject_Relation_user_11 = Ignored
 testObject_Relation_user_12 :: Relation
-testObject_Relation_user_12 = Ignored
+testObject_Relation_user_12 = Sent
 testObject_Relation_user_13 :: Relation
 testObject_Relation_user_13 = Blocked
 testObject_Relation_user_14 :: Relation
-testObject_Relation_user_14 = Pending
+testObject_Relation_user_14 = Ignored
 testObject_Relation_user_15 :: Relation
 testObject_Relation_user_15 = Ignored
 testObject_Relation_user_16 :: Relation
-testObject_Relation_user_16 = Blocked
+testObject_Relation_user_16 = Pending
 testObject_Relation_user_17 :: Relation
-testObject_Relation_user_17 = Sent
+testObject_Relation_user_17 = Accepted
 testObject_Relation_user_18 :: Relation
-testObject_Relation_user_18 = Sent
+testObject_Relation_user_18 = Ignored
 testObject_Relation_user_19 :: Relation
-testObject_Relation_user_19 = Accepted
+testObject_Relation_user_19 = Ignored
 testObject_Relation_user_20 :: Relation
-testObject_Relation_user_20 = Sent
+testObject_Relation_user_20 = Cancelled

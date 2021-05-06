@@ -1,1 +1,1 @@
-{"conversation":"00005225-0000-7495-0000-2fbc00003359","time":"1864-04-20T15:54:44.881Z","data":{"message_timer":6483917419649568},"from":"000051b0-0000-6a68-0000-203a0000091f","type":"conversation.message-timer-update"}
+{"conversation":"00003290-0000-7ff3-0000-030900005d29","time":"1864-05-27T03:32:16.083Z","data":{"hidden":true,"otr_archived":false,"otr_muted_status":0,"otr_muted":false,"otr_archived_ref":"|\u001e\u0010","target":"00000000-0000-0002-0000-000100000000"},"from":"00004e6c-0000-0b1d-0000-6dfe00005516","type":"conversation.member-update"}

@@ -1,1 +1,1 @@
-{"urls":["turn:123:2?transport=tcp","turn:212.178.102.100:0?transport=udp","turns:123:1?transport=udp","turns:xn--mgbh0fb.xn--kgbechtv:2?transport=udp","turn:29.154.232.140:1?transport=udp","turn:179.223.166.221:1?transport=tcp","turns:252.230.183.95:0?transport=tcp","turn:host.name:1?transport=tcp"],"credential":"aBLEGt6R/A==","username":"d=193.v=0.k=22.t=;.r=l"}
+{"urls":["turns:host.name:0","turn:host.name:2?transport=tcp","turns:251.169.91.174:0?transport=tcp","turns:97.183.128.35:2"],"credential":"ncr4hYvu4nc=","username":"d=37.v=9.k=26.t=e.r=hh"}

@@ -1,117 +1,47 @@
-{-# OPTIONS_GHC -Wno-unused-imports #-}
 {-# LANGUAGE OverloadedLists #-}
 module Test.Wire.API.Golden.Generated.AccessToken_user where
+import Data.Id ( Id(Id) )
+import Imports ( fromJust )
+import qualified Data.UUID as UUID ( fromString )
+import Wire.API.User.Auth ( AccessToken(..), TokenType(Bearer) )
 
-import Codec.MIME.Type (Type(..))
-import qualified Codec.MIME.Type as MIME
-import Control.Lens ((.~))
-import Data.Code
-import Data.Coerce
-import Data.Currency
-import Data.Domain
-import Data.Handle
-import Data.Id
-import Data.ISO3166_CountryCodes
-import Data.Json.Util
-import Data.List1
-import qualified Data.List.NonEmpty as NonEmpty
-import Data.List.NonEmpty (NonEmpty (..))
-import Data.Misc
-import Data.PEM
-import Data.Qualified
-import Data.Range (unsafeRange)
-import qualified Data.Set as Set
-import Data.Text.Ascii
-import Data.Time (secondsToNominalDiffTime)
-import Imports hiding (LT, GT)
-import qualified Data.LanguageCodes
-import qualified Data.UUID as UUID
-import Test.Tasty (testGroup, TestTree)
-import URI.ByteString
-import qualified Wire.API.Call.Config as CallConfig
-import qualified Wire.API.User.Profile as User.Profile
-import qualified Wire.API.Team.Conversation as Team.Conversation
-import qualified Wire.API.Provider as Provider
-import qualified Wire.API.Provider.Bot as Provider
-import qualified Wire.API.Provider.External as Provider
-import qualified Wire.API.Provider.Service as Provider
-import qualified Wire.API.Provider.Service.Tag as Provider
-import Data.Aeson
-import GHC.Exts
-import Wire.API.Asset
-import Wire.API.Asset.V3.Resumable
-import Wire.API.Call.Config
-import Wire.API.Connection
-import Wire.API.Conversation
-import Wire.API.Conversation.Bot
-import Wire.API.Conversation.Code
-import Wire.API.Conversation.Member
-import Wire.API.Conversation.Role
-import Wire.API.Conversation.Typing
-import Wire.API.CustomBackend
-import Wire.API.Event.Conversation
-import Wire.API.Message
-import Wire.API.Notification (QueuedNotification, queuedNotification, QueuedNotificationList, queuedNotificationList)
-import Wire.API.Properties
--- import Wire.API.Provider
-import Wire.API.Provider.Bot
-import Wire.API.Provider.External
-import Wire.API.Provider.Service
--- import Wire.API.Provider.Service.Tag
-import Wire.API.Push.Token hiding (Transport)
-import qualified Wire.API.Push.Token as Push.Token
-import Wire.API.Team
-import Wire.API.Team.Role
--- import Wire.API.Team.SearchVisibility
-import Wire.API.User
-import Wire.API.User.Activation
-import Wire.API.User.Auth
-import Wire.API.User.Client
-import Wire.API.User.Client.Prekey
-import Wire.API.User.Handle
-import Wire.API.User.Identity
-import Wire.API.User.Password
-import Wire.API.User.Profile
-import Wire.API.User.RichInfo
-import Wire.API.User.Search
-import Wire.API.Wrapped
 testObject_AccessToken_user_1 :: AccessToken
-testObject_AccessToken_user_1 = AccessToken {user = (Id (fromJust (UUID.fromString "00006ab2-0000-63f2-0000-5bfb00001683"))), access = "\rK\ETBa\243\176\179\172\225\142\175M\244\135\183\163\&4\NAK`\n;\244\134\188\180\ETX9\DC31e\240\158\178\150G\240\169\160\137\239\144\178@\ENQ7", tokenType = Bearer, expiresIn = -20}
+testObject_AccessToken_user_1 = AccessToken {user = (Id (fromJust (UUID.fromString "00004a97-0000-1de3-0000-438200005037"))), access = "Jf~`L^X\240\163\152\185\GS2V\DLE\SOH=C\ENQ\233\181\173&\230\131\148\&4", tokenType = Bearer, expiresIn = 27}
 testObject_AccessToken_user_2 :: AccessToken
-testObject_AccessToken_user_2 = AccessToken {user = (Id (fromJust (UUID.fromString "00004a70-0000-77ba-0000-2d2200001c46"))), access = "\GS*PKr\SUBh~?\244\140\133\144#7\\L\226\171\149A&~\244\129\168\159", tokenType = Bearer, expiresIn = 10}
+testObject_AccessToken_user_2 = AccessToken {user = (Id (fromJust (UUID.fromString "0000599d-0000-3360-0000-2c7c0000554c"))), access = ")\243\181\144\151Um\243\191\157\177\ETX]\226\152\132v\237\155\168\243\187\185\168\240\167\190\145!\243\188\155\153;?", tokenType = Bearer, expiresIn = -27}
 testObject_AccessToken_user_3 :: AccessToken
-testObject_AccessToken_user_3 = AccessToken {user = (Id (fromJust (UUID.fromString "00000005-0000-1f41-0000-01e700004a84"))), access = "\228\148\166\243\176\137\173.\STX\DC34-e2\240\160\182\168N\v\232\137\146\243\160\132\176\DC3\243\186\129\142>.", tokenType = Bearer, expiresIn = 2}
+testObject_AccessToken_user_3 = AccessToken {user = (Id (fromJust (UUID.fromString "00003e5d-0000-23be-0000-6d120000657a"))), access = "\vs\r\244\143\139\164\244\141\154\187\240\158\178\128l", tokenType = Bearer, expiresIn = -28}
 testObject_AccessToken_user_4 :: AccessToken
-testObject_AccessToken_user_4 = AccessToken {user = (Id (fromJust (UUID.fromString "00006dce-0000-08f7-0000-0c9d00000cd6"))), access = "QQ\240\151\149\187\244\130\167\190\232\147\188K\EOT", tokenType = Bearer, expiresIn = 29}
+testObject_AccessToken_user_4 = AccessToken {user = (Id (fromJust (UUID.fromString "00004828-0000-735d-0000-7e7a00005b08"))), access = "QkS=", tokenType = Bearer, expiresIn = -20}
 testObject_AccessToken_user_5 :: AccessToken
-testObject_AccessToken_user_5 = AccessToken {user = (Id (fromJust (UUID.fromString "00002192-0000-691d-0000-5cf8000004ed"))), access = "SW\DELX/N\t]I\GS\243\187\177\148l\235\181\183Y\244\132\191\176\244\140\184\152\225\155\166|''r\240\159\145\132+D", tokenType = Bearer, expiresIn = 11}
+testObject_AccessToken_user_5 = AccessToken {user = (Id (fromJust (UUID.fromString "000021a5-0000-5202-0000-28f70000664a"))), access = "", tokenType = Bearer, expiresIn = -7}
 testObject_AccessToken_user_6 :: AccessToken
-testObject_AccessToken_user_6 = AccessToken {user = (Id (fromJust (UUID.fromString "0000253a-0000-5747-0000-5f0d00005e4e"))), access = "h", tokenType = Bearer, expiresIn = 25}
+testObject_AccessToken_user_6 = AccessToken {user = (Id (fromJust (UUID.fromString "00005ef8-0000-7fd3-0000-10c100005efa"))), access = "Wo\240\165\187\140\243\189\153\152\ETX\ACK", tokenType = Bearer, expiresIn = 5}
 testObject_AccessToken_user_7 :: AccessToken
-testObject_AccessToken_user_7 = AccessToken {user = (Id (fromJust (UUID.fromString "00000f11-0000-54fc-0000-69b100004433"))), access = "\\y)j\NUL,\ETB\240\145\133\158\240\172\140\135\244\135\169\162\228\130\131E~\233\184\163\&3(\240\173\161\172", tokenType = Bearer, expiresIn = -24}
+testObject_AccessToken_user_7 = AccessToken {user = (Id (fromJust (UUID.fromString "000037a3-0000-6b12-0000-1303000048f6"))), access = "\tEO1W a\n\244\132\151\167\DC2Ib`\SO\240\157\160\173H", tokenType = Bearer, expiresIn = 0}
 testObject_AccessToken_user_8 :: AccessToken
-testObject_AccessToken_user_8 = AccessToken {user = (Id (fromJust (UUID.fromString "00003790-0000-73ce-0000-3c8300000592"))), access = "<Z8\236\150\128\DC1\NAK*%\SII7R\ESC\233\163\154UJ~t(", tokenType = Bearer, expiresIn = -15}
+testObject_AccessToken_user_8 = AccessToken {user = (Id (fromJust (UUID.fromString "00006eec-0000-405c-0000-186300007571"))), access = "Q#~&\SOH\244\136\137\151", tokenType = Bearer, expiresIn = -7}
 testObject_AccessToken_user_9 :: AccessToken
-testObject_AccessToken_user_9 = AccessToken {user = (Id (fromJust (UUID.fromString "00006020-0000-1bca-0000-1555000034e0"))), access = "B4", tokenType = Bearer, expiresIn = -30}
+testObject_AccessToken_user_9 = AccessToken {user = (Id (fromJust (UUID.fromString "00003c87-0000-11f1-0000-0293000018dd"))), access = "\243\181\147\188Q\240\170\169\133 \rB\DEL\ESC\243\178\187\177P#\244\137\159\174Sdq\244\133\187\186\&4;[lB\243\181\175\171\EOTY\236\186\147\244\143\143\178", tokenType = Bearer, expiresIn = 10}
 testObject_AccessToken_user_10 :: AccessToken
-testObject_AccessToken_user_10 = AccessToken {user = (Id (fromJust (UUID.fromString "000073a1-0000-0008-0000-6cd6000000ea"))), access = "v\SO\vxw\EME", tokenType = Bearer, expiresIn = -17}
+testObject_AccessToken_user_10 = AccessToken {user = (Id (fromJust (UUID.fromString "00007a9d-0000-56ca-0000-7e2e00000762"))), access = "\SUBU\244\141\174\150\243\191\160\142\&2\243\183\148\159\240\168\186\151\228\168\140\243\180\157\147\243\191\143\135\240\172\149\155\244\139\169\146\DC3lE3\v\SOH\STX@m\240\144\152\168&jw\EOTl\227\187\147`u", tokenType = Bearer, expiresIn = -17}
 testObject_AccessToken_user_11 :: AccessToken
-testObject_AccessToken_user_11 = AccessToken {user = (Id (fromJust (UUID.fromString "000027f2-0000-19b5-0000-6fa20000651e"))), access = ",c\234\189\166r`H5\ESCT\243\185\148\145\240\173\187\139\243\190\165\153\229\166\128v\224\166\131\CAN(*6O", tokenType = Bearer, expiresIn = -15}
+testObject_AccessToken_user_11 = AccessToken {user = (Id (fromJust (UUID.fromString "000045fb-0000-26a7-0000-662300007f87"))), access = "\244\134\177\180\238\141\175\EOT\240\151\155\174!@/Y9*", tokenType = Bearer, expiresIn = -20}
 testObject_AccessToken_user_12 :: AccessToken
-testObject_AccessToken_user_12 = AccessToken {user = (Id (fromJust (UUID.fromString "00004ee5-0000-331d-0000-55a200001d08"))), access = "*\243\178\158\160).\226\158\148\244\128\142\179=r", tokenType = Bearer, expiresIn = 29}
+testObject_AccessToken_user_12 = AccessToken {user = (Id (fromJust (UUID.fromString "0000072f-0000-2a8f-0000-0fc300000340"))), access = "7Po]\243\181\145\188\240\172\163\156P\235\151\176I", tokenType = Bearer, expiresIn = -7}
 testObject_AccessToken_user_13 :: AccessToken
-testObject_AccessToken_user_13 = AccessToken {user = (Id (fromJust (UUID.fromString "00006853-0000-2aae-0000-0126000035ff"))), access = "uSf\240\159\167\162\DC3:4\240\152\139\183O3'\DC4!\240\169\182\131F/\v\240\158\161\133\ETX~\SIk\234\177\167", tokenType = Bearer, expiresIn = -28}
+testObject_AccessToken_user_13 = AccessToken {user = (Id (fromJust (UUID.fromString "000078f2-0000-01cc-0000-54a80000674a"))), access = "", tokenType = Bearer, expiresIn = -29}
 testObject_AccessToken_user_14 :: AccessToken
-testObject_AccessToken_user_14 = AccessToken {user = (Id (fromJust (UUID.fromString "000021c3-0000-4cea-0000-2f850000599c"))), access = "\DC3\DLEkj\SYN@&\244\129\140\146\243\187\159\132\243\180\163\148|R-", tokenType = Bearer, expiresIn = 12}
+testObject_AccessToken_user_14 = AccessToken {user = (Id (fromJust (UUID.fromString "00006947-0000-263c-0000-57cd00005de0"))), access = "kU4mp\244\133\157\150_\244\139\179\157F\244\129\163\183\EOT\240\161\141\175\244\143\136\169s\t?\EMG\243\187\140\184*e>", tokenType = Bearer, expiresIn = 10}
 testObject_AccessToken_user_15 :: AccessToken
-testObject_AccessToken_user_15 = AccessToken {user = (Id (fromJust (UUID.fromString "00003469-0000-1303-0000-4b3d00005cb9"))), access = "", tokenType = Bearer, expiresIn = -19}
+testObject_AccessToken_user_15 = AccessToken {user = (Id (fromJust (UUID.fromString "00007a6a-0000-58f5-0000-4fd200005e38"))), access = "\DLE", tokenType = Bearer, expiresIn = 23}
 testObject_AccessToken_user_16 :: AccessToken
-testObject_AccessToken_user_16 = AccessToken {user = (Id (fromJust (UUID.fromString "000017a8-0000-7f68-0000-114a00003538"))), access = "\f\ACKi\DLE", tokenType = Bearer, expiresIn = 15}
+testObject_AccessToken_user_16 = AccessToken {user = (Id (fromJust (UUID.fromString "00005f83-0000-502e-0000-13fb000044c6"))), access = "\244\128\169\134\CAN\233\166\154\ESC]\SUB*a\244\136\141\173\&9\240\164\139\141!/'Am\ETB'\SUB*\244\137\160\176vS2\NAK\ETX", tokenType = Bearer, expiresIn = 24}
 testObject_AccessToken_user_17 :: AccessToken
-testObject_AccessToken_user_17 = AccessToken {user = (Id (fromJust (UUID.fromString "00003627-0000-7179-0000-08d100006484"))), access = "\EM\DC1gs(G\tM\243\191\138\177\243\160\135\142\244\141\154\175\ACKO b", tokenType = Bearer, expiresIn = 30}
+testObject_AccessToken_user_17 = AccessToken {user = (Id (fromJust (UUID.fromString "00006481-0000-151b-0000-01f300003908"))), access = "\v-YZv\244\138\140\141\228\190\191\244\143\186\162'zB\240\164\166\139\DC3", tokenType = Bearer, expiresIn = -10}
 testObject_AccessToken_user_18 :: AccessToken
-testObject_AccessToken_user_18 = AccessToken {user = (Id (fromJust (UUID.fromString "00003875-0000-2049-0000-61ff0000778d"))), access = "\240\163\132\133]\240\160\182\146]\SYN\243\184\142\144J6AP\t\243\176\151\154y\244\142\165\137u.\232\180\175(\DC3;d\ACK2\244\132\130\153", tokenType = Bearer, expiresIn = -18}
+testObject_AccessToken_user_18 = AccessToken {user = (Id (fromJust (UUID.fromString "00005936-0000-7ba9-0000-1f8b00006f21"))), access = "1\243\178\169\160q\244\129\191\175;\n\244\129\134\136uM0$\"\ETXDA\n\EM\fly\240\170\185\182\DLE<\b\DC3\SO\nq", tokenType = Bearer, expiresIn = 23}
 testObject_AccessToken_user_19 :: AccessToken
-testObject_AccessToken_user_19 = AccessToken {user = (Id (fromJust (UUID.fromString "00005acf-0000-6596-0000-1e8900005b93"))), access = "\224\184\176 0", tokenType = Bearer, expiresIn = -13}
+testObject_AccessToken_user_19 = AccessToken {user = (Id (fromJust (UUID.fromString "000032f7-0000-5240-0000-6ef7000069be"))), access = "\SYNM\DC3[\240\162\182\145c\244\134\166\129]ri", tokenType = Bearer, expiresIn = 12}
 testObject_AccessToken_user_20 :: AccessToken
-testObject_AccessToken_user_20 = AccessToken {user = (Id (fromJust (UUID.fromString "0000445f-0000-643c-0000-384400001603"))), access = "\NAK\CAN3_Y*\239\135\181", tokenType = Bearer, expiresIn = 30}
+testObject_AccessToken_user_20 = AccessToken {user = (Id (fromJust (UUID.fromString "00001c92-0000-07c4-0000-6b95000071db"))), access = "uP:F|\244\129\154\134Y\240\171\132\182", tokenType = Bearer, expiresIn = 22}

@@ -1,90 +1,46 @@
-{-# OPTIONS_GHC -Wno-unused-imports #-}
 {-# LANGUAGE OverloadedLists #-}
 module Test.Wire.API.Golden.Generated.ProviderActivationResponse_provider where
-
-import Codec.MIME.Type (Type(..))
-import qualified Codec.MIME.Type as MIME
-import Control.Lens ((.~))
-import Data.Code
-import Data.Coerce
-import Data.Currency
-import Data.Domain
-import Data.Handle
-import Data.Id
-import Data.ISO3166_CountryCodes
-import Data.Json.Util
-import Data.List1
-import qualified Data.List.NonEmpty as NonEmpty
-import Data.List.NonEmpty (NonEmpty (..))
-import Data.Misc
-import Data.PEM
-import Data.Qualified
-import Data.Range (unsafeRange)
-import qualified Data.Set as Set
-import Data.Text.Ascii
-import Data.Time (secondsToNominalDiffTime)
-import Imports hiding (LT, GT)
-import qualified Data.LanguageCodes
-import qualified Data.UUID as UUID
-import Test.Tasty (testGroup, TestTree)
-import URI.ByteString
-import qualified Wire.API.Call.Config as CallConfig
-import qualified Wire.API.User.Profile as User.Profile
-import qualified Wire.API.Team.Conversation as Team.Conversation
-import qualified Wire.API.Provider as Provider
-import qualified Wire.API.Provider.Bot as Provider
-import qualified Wire.API.Provider.External as Provider
-import qualified Wire.API.Provider.Service as Provider
-import qualified Wire.API.Provider.Service.Tag as Provider
-import Data.Aeson
-import GHC.Exts
-import Wire.API.Conversation.Member
-import Wire.API.Conversation.Role
-import Wire.API.Provider
-import Wire.API.Provider.Bot
-import Wire.API.Provider.External
-import Wire.API.Provider.Service
-import Wire.API.Provider.Service.Tag
-import Wire.API.User.Client.Prekey
+import Wire.API.Provider ( ProviderActivationResponse(..) )
 import Wire.API.User.Identity
-import Wire.API.User.Profile
+    ( Email(Email, emailLocal, emailDomain) )
+
 testObject_ProviderActivationResponse_provider_1 :: ProviderActivationResponse
-testObject_ProviderActivationResponse_provider_1 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "\1028212W(pR\156714\135505G+\CAN\128391\1085437\&3\1012064T\97042[*\CAN\ACK-a>R\t`d\DC2", emailDomain = "A\174406X\1099840O0&\16660\EOTb\1106563\993773\1064056OV\5876*:"}}
+testObject_ProviderActivationResponse_provider_1 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "\SUBf\1075327\FS\1044267P\172303\ESC\EOT(\1032568T\1026453V2\1072846\rb\1038863\1055566", emailDomain = "C3.\4589\21518,f\132488\&4\USB\1072656p\ACK6 \ACKPk\FS\EOT\1018151Js'D\v"}}
 testObject_ProviderActivationResponse_provider_2 :: ProviderActivationResponse
-testObject_ProviderActivationResponse_provider_2 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "g\21227\nbM5,\989315", emailDomain = "v\ETBP\134605Z\149136Sh\RS\NAK\989861j7&u\\\a4|\a\vIw]?"}}
+testObject_ProviderActivationResponse_provider_2 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "\1022916:vw", emailDomain = "\1076773I5*Z&\1058722\DC2\ETBe&\184461\152240\n\1086949%\157412\DLEA/,\1076340o\15487-\EOT<aW\SI"}}
 testObject_ProviderActivationResponse_provider_3 :: ProviderActivationResponse
-testObject_ProviderActivationResponse_provider_3 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "+c\175855\ACKy\NAK\1069870\990743p", emailDomain = "7^^G\tW\SUBI\SI\DC1\984659d\nr"}}
+testObject_ProviderActivationResponse_provider_3 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "\DC3\145211r9\1084383\&6J\SUB\EMy2m\23354\171975\14494:\1083020\NAK`\NAK\t\ETX]\DC4\27061\GS", emailDomain = ""}}
 testObject_ProviderActivationResponse_provider_4 :: ProviderActivationResponse
-testObject_ProviderActivationResponse_provider_4 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = ">\NAK\DC1r[,M\1074185*h\37637c~\DC1\138416", emailDomain = "\r\16551\129426\992549DR+\n\1014542\tQk\RS"}}
+testObject_ProviderActivationResponse_provider_4 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "\SYNo^\SO^:", emailDomain = "Z\180961P\1007646&\1026695\177553Y\1108329Ud&U\b\158064\97633=\1075375u("}}
 testObject_ProviderActivationResponse_provider_5 :: ProviderActivationResponse
-testObject_ProviderActivationResponse_provider_5 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "\ACK\49970OdQ", emailDomain = "9d\1041587^\ESC>\35024\v\1102205vf\fW\a<wK#\58742\1084172\DC4_"}}
+testObject_ProviderActivationResponse_provider_5 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "p1\GSJ\1027375uN\28852:`2l\992248\&9\DEL3g\1004919\1002326\1028940,", emailDomain = "-Z\993222\DLE1r=\STX\1053273TQ\DC1](\25418\STXE\\F\1105220\a \SOH"}}
 testObject_ProviderActivationResponse_provider_6 :: ProviderActivationResponse
-testObject_ProviderActivationResponse_provider_6 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "*\CAN)\96628\CAND\ENQMoM'", emailDomain = "\FS\1062545\a"}}
+testObject_ProviderActivationResponse_provider_6 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "n", emailDomain = "\ESCKA?Y\1035969%zN\SUB{S%O\CANg\DC1\164716b\5764-B\1111515\2422"}}
 testObject_ProviderActivationResponse_provider_7 :: ProviderActivationResponse
-testObject_ProviderActivationResponse_provider_7 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "\39680\1026963\67843E\62221\98509\27431\189871\1035835\83226\1028970]\DELZ.\2085{xc\23255p\1026764\39229\n\1018293:\SIgu>", emailDomain = "s\36155g\EM\1095312\"\DC3\133514\169099O"}}
+testObject_ProviderActivationResponse_provider_7 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "hf|m\DLEu\1018010\160696%)\ETX\9401r\1063941*cOc", emailDomain = "\142828&oT\\\NAK\176651=f\FS=P\18886\EMh\78014"}}
 testObject_ProviderActivationResponse_provider_8 :: ProviderActivationResponse
-testObject_ProviderActivationResponse_provider_8 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "Wo>\177253,V\"\SUB", emailDomain = "h&f\FS6hny4\1104289G4\987885\t\176851\149323\RSN>\SI9Yfrb\163862"}}
+testObject_ProviderActivationResponse_provider_8 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "G\1082889\\A", emailDomain = "9J"}}
 testObject_ProviderActivationResponse_provider_9 :: ProviderActivationResponse
-testObject_ProviderActivationResponse_provider_9 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "F6\1098744\SOH\995187q\1002290ls\157633Nyp!\993673O\DC2u=J%P\FS?\1084963", emailDomain = "/l2W!\SIVL%x"}}
+testObject_ProviderActivationResponse_provider_9 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "e)a\avL\"g\EOTg'i~\"\DC1su;", emailDomain = "\986689\FS\1051577\1064914t\1084256\ETB\"\188284\162565qOM^2\1068687\DC1\1006837\DC3,\1066254\1018669\r4]\ESC6{\2130"}}
 testObject_ProviderActivationResponse_provider_10 :: ProviderActivationResponse
-testObject_ProviderActivationResponse_provider_10 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "{L\158586w\NUL\1003253", emailDomain = "6)\9727M%C\163353Y\RS\DC21,2[K\141235\SI\\\\fUr\49046\1102738\&0\141548s]\1101966\169947"}}
+testObject_ProviderActivationResponse_provider_10 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "Y\SIps#\1042860V4^\b\1028195rPmg\1091699\3142\1065135K\177625\ETXXU", emailDomain = "\DC4{ \27530\fI{\1001777r\149591\&0b"}}
 testObject_ProviderActivationResponse_provider_11 :: ProviderActivationResponse
-testObject_ProviderActivationResponse_provider_11 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "__3Kk\158751e\100651\&9\127758", emailDomain = "hH\EM6q"}}
+testObject_ProviderActivationResponse_provider_11 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "1.\NAKQg$\1042979lx\152258v[d\7561i5", emailDomain = "\SUB^\1095116A\61768|\988393\7831\1047391`}\157916\ENQ\167689aJK*G\14974\&4b/\1019124i"}}
 testObject_ProviderActivationResponse_provider_12 :: ProviderActivationResponse
-testObject_ProviderActivationResponse_provider_12 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "w", emailDomain = "\FS\ETBA|\NAKX2%\190261\44594W\b\6837"}}
+testObject_ProviderActivationResponse_provider_12 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "/\15035X\ETX%\SOHU\1056288e\SOHr\98066\&36[!)^\29109", emailDomain = "\1004969\149836\EOT`TCC\SUB\US>\1040159GtR\1019881\DLE\133718\&5\1078407' C\120475TrG\USh"}}
 testObject_ProviderActivationResponse_provider_13 :: ProviderActivationResponse
-testObject_ProviderActivationResponse_provider_13 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "i\159476l4\1008277\SYN\998600\46723P\51801;2T", emailDomain = "*\1082949m\DLEDH\NULN2"}}
+testObject_ProviderActivationResponse_provider_13 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "r\t", emailDomain = "`\vR$\42135$U\1083111"}}
 testObject_ProviderActivationResponse_provider_14 :: ProviderActivationResponse
-testObject_ProviderActivationResponse_provider_14 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "G\1021212", emailDomain = "\1096857\1087656H>B\"\US\153\73943\RSoU\189795\68360\151258n"}}
+testObject_ProviderActivationResponse_provider_14 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "\985169}\r!\DLE\1013478\984953(I5a'Y\987212\DEL\1008666\1041180A\195074\&6", emailDomain = "*\128922P\3237C\176893}QO\1065634\1081392\1075386"}}
 testObject_ProviderActivationResponse_provider_15 :: ProviderActivationResponse
-testObject_ProviderActivationResponse_provider_15 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "\SUB${\185520\&8y\1037030d\167123\991011\NUL\r*\145909S\1086716\1048857zsxf\1073748jw\23377\SOH\180720d", emailDomain = "\EMZ\1015125\186668Kj8k]A\USt\ETB"}}
+testObject_ProviderActivationResponse_provider_15 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "{[\\\1009947=\SOv\179540Q6\RS.\a=\27736\51616\ETBf\16626t\1026319\r\ESC\SUB", emailDomain = "Gz]\28016\DC3\v\DC1\990045\1088735)#\ry\1071579\1015724"}}
 testObject_ProviderActivationResponse_provider_16 :: ProviderActivationResponse
-testObject_ProviderActivationResponse_provider_16 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "", emailDomain = ""}}
+testObject_ProviderActivationResponse_provider_16 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "n/e\t\DC4u\990048$:`\SYNz\22769\EOT\63173\78261t\1026370\DC31C{", emailDomain = "\"\36790U\1038722\1068530i\SUB&%\tM"}}
 testObject_ProviderActivationResponse_provider_17 :: ProviderActivationResponse
-testObject_ProviderActivationResponse_provider_17 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "\ETB\1019233.\SOH_WD9[\"\FS\"j\SO\127256\1079423", emailDomain = "\997267\ESC\1037366|7\989466\rn5#Wb`79Y\1003690\ESC\tF\182611\138820\SOH^\NAK)"}}
+testObject_ProviderActivationResponse_provider_17 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "\ESCSc\"\ACKf\ETX\141341\&2x\165395\SOHzl\SOHs>(K-]", emailDomain = "\151114DYM\"o}\1005654\SIQ\DLE\4553\DC2Gu\ETX"}}
 testObject_ProviderActivationResponse_provider_18 :: ProviderActivationResponse
-testObject_ProviderActivationResponse_provider_18 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "x$\154765:\1046354\83289\1046031.%\1015635l\190480C\DC2u\SI", emailDomain = "\ESCan\69398a\1059060"}}
+testObject_ProviderActivationResponse_provider_18 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "X\988496\DEL\15433\DC4h(x\1005044*\1073641ig\FS\ETXf\92722'\a!\DC1Q", emailDomain = "xo\DC4\1013090\153899\SI>rj\1051104\1042716A"}}
 testObject_ProviderActivationResponse_provider_19 :: ProviderActivationResponse
-testObject_ProviderActivationResponse_provider_19 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "L!\NULA\1039900\1016846qw\97035\1078553\1045949\rewH\f", emailDomain = "lg\1037379\1104212\&59\NAKF#\189956\STX\t\1100359["}}
+testObject_ProviderActivationResponse_provider_19 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "\145057\187959e\98939IT\ETX\t\SI\SI\SUBc", emailDomain = "kHS\r\ETB\fNHl<3\ETB\ACKl\ESC3\"\DLE*"}}
 testObject_ProviderActivationResponse_provider_20 :: ProviderActivationResponse
-testObject_ProviderActivationResponse_provider_20 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "\DC4_]%", emailDomain = "\1028245:\10627\RS\994618X\1082266n\ETB\EM\51524zC\16395G\993834;gX"}}
+testObject_ProviderActivationResponse_provider_20 = ProviderActivationResponse {activatedProviderIdentity = Email {emailLocal = "\1096131B\1008556Y\EMe?\n", emailDomain = "t2\94502\153484Gl\SYN|)"}}

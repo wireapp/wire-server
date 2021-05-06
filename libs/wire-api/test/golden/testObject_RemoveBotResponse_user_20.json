@@ -1,1 +1,1 @@
-{"event":{"conversation":"00001fdf-0000-35fe-0000-68bb00006ced","time":"1864-05-04T22:52:18.034Z","data":{"status":"stopped"},"from":"00007ccf-0000-06a5-0000-0008000036f9","type":"conversation.typing"}}
+{"event":{"conversation":"000068e0-0000-2494-0000-4a9300000505","time":"1864-04-13T02:10:26.238Z","data":{"status":"started"},"from":"00000c31-0000-1c1a-0000-23b60000561b","type":"conversation.typing"}}

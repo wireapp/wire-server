@@ -14,7 +14,7 @@ set -o pipefail
 export GOLDEN_TMPDIR=$(mktemp -d)
 export GOLDEN_TESTDIR="test/unit/Test/Wire/API/Golden/Generated"
 
-trap cleanup EXIT
+# trap cleanup EXIT
 function cleanup() {
     [ -z "$GOLDEN_TMPDIR" ] || rm -rf "$GOLDEN_TMPDIR"
 }
@@ -120,16 +120,13 @@ import Wire.API.Event.Conversation
 import Wire.API.Message
 import Wire.API.Notification (QueuedNotification, queuedNotification, QueuedNotificationList, queuedNotificationList)
 import Wire.API.Properties
--- import Wire.API.Provider
 import Wire.API.Provider.Bot
 import Wire.API.Provider.External
 import Wire.API.Provider.Service
--- import Wire.API.Provider.Service.Tag
 import Wire.API.Push.Token hiding (Transport)
 import qualified Wire.API.Push.Token as Push.Token
 import Wire.API.Team
 import Wire.API.Team.Role
--- import Wire.API.Team.SearchVisibility
 import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Auth
@@ -145,19 +142,19 @@ import Wire.API.Wrapped
 EOF
 }
 
-# ( set -e
-
-# import Test.Wire.API.Golden.Runner
-
 rm -fr "$GOLDEN_TESTDIR"
 rm -fr "$GOLDEN_TESTDIR.hs"
+
 mkdir -p "$GOLDEN_TESTDIR"
+mkdir -p "$GOLDEN_TMPDIR/dump"
 
 stack build --fast --test --bench --no-run-benchmarks wire-api |
     while read module section; do
-        echo "Processing module $module..."
+        echo -ne "\033[KProcessing module $module...\r"
         {
             echo "{-# OPTIONS_GHC -Wno-unused-imports #-}"
+            echo "{-# OPTIONS_GHC -ddump-minimal-imports #-}"
+            echo "{-# OPTIONS_GHC -dumpdir $GOLDEN_TMPDIR/dump #-}"
             echo "{-# LANGUAGE OverloadedLists #-}"
             echo "module Test.Wire.API.Golden.Generated.$module where"
             echo ""
@@ -177,4 +174,24 @@ stack build --fast --test --bench --no-run-benchmarks wire-api |
                     } > "$GOLDEN_TESTDIR/$module.hs"
     done
 
-# # replace UUID with correct haskell code
+echo
+
+# build again
+stack build --fast --test --bench --no-run-benchmarks --no-run-tests wire-api
+
+# fix imports
+for module in "$GOLDEN_TESTDIR"/*; do
+    name="Test.Wire.API.Golden.Generated.$(basename "$module")"
+    dump="$GOLDEN_TMPDIR/dump/${name%.hs}.imports"
+    sed -r -i '/\(\)$/d' "$dump" # remove empty imports
+    sed -r -i \
+      -e '/dump-minimal-imports/d' \
+      -e '/dumpdir/d' \
+      -e '/no-unused-imports/d' \
+      -e '/^import/d' \
+      -e "/^module/ r $dump" \
+      "$module"
+done
+
+# build one final time
+stack build --fast --test --bench --no-run-benchmarks --no-run-tests wire-api

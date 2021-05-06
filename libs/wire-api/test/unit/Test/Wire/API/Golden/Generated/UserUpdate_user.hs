@@ -1,117 +1,51 @@
-{-# OPTIONS_GHC -Wno-unused-imports #-}
 {-# LANGUAGE OverloadedLists #-}
 module Test.Wire.API.Golden.Generated.UserUpdate_user where
-
-import Codec.MIME.Type (Type(..))
-import qualified Codec.MIME.Type as MIME
-import Control.Lens ((.~))
-import Data.Code
-import Data.Coerce
-import Data.Currency
-import Data.Domain
-import Data.Handle
-import Data.Id
-import Data.ISO3166_CountryCodes
-import Data.Json.Util
-import Data.List1
-import qualified Data.List.NonEmpty as NonEmpty
-import Data.List.NonEmpty (NonEmpty (..))
-import Data.Misc
-import Data.PEM
-import Data.Qualified
-import Data.Range (unsafeRange)
-import qualified Data.Set as Set
-import Data.Text.Ascii
-import Data.Time (secondsToNominalDiffTime)
-import Imports hiding (LT, GT)
-import qualified Data.LanguageCodes
-import qualified Data.UUID as UUID
-import Test.Tasty (testGroup, TestTree)
-import URI.ByteString
-import qualified Wire.API.Call.Config as CallConfig
-import qualified Wire.API.User.Profile as User.Profile
-import qualified Wire.API.Team.Conversation as Team.Conversation
-import qualified Wire.API.Provider as Provider
-import qualified Wire.API.Provider.Bot as Provider
-import qualified Wire.API.Provider.External as Provider
-import qualified Wire.API.Provider.Service as Provider
-import qualified Wire.API.Provider.Service.Tag as Provider
-import Data.Aeson
-import GHC.Exts
-import Wire.API.Asset
-import Wire.API.Asset.V3.Resumable
-import Wire.API.Call.Config
-import Wire.API.Connection
-import Wire.API.Conversation
-import Wire.API.Conversation.Bot
-import Wire.API.Conversation.Code
-import Wire.API.Conversation.Member
-import Wire.API.Conversation.Role
-import Wire.API.Conversation.Typing
-import Wire.API.CustomBackend
-import Wire.API.Event.Conversation
-import Wire.API.Message
-import Wire.API.Notification (QueuedNotification, queuedNotification, QueuedNotificationList, queuedNotificationList)
-import Wire.API.Properties
--- import Wire.API.Provider
-import Wire.API.Provider.Bot
-import Wire.API.Provider.External
-import Wire.API.Provider.Service
--- import Wire.API.Provider.Service.Tag
-import Wire.API.Push.Token hiding (Transport)
-import qualified Wire.API.Push.Token as Push.Token
-import Wire.API.Team
-import Wire.API.Team.Role
--- import Wire.API.Team.SearchVisibility
+import Imports ( Maybe(Just, Nothing) )
 import Wire.API.User
-import Wire.API.User.Activation
-import Wire.API.User.Auth
-import Wire.API.User.Client
-import Wire.API.User.Client.Prekey
-import Wire.API.User.Handle
-import Wire.API.User.Identity
-import Wire.API.User.Password
-import Wire.API.User.Profile
-import Wire.API.User.RichInfo
-import Wire.API.User.Search
-import Wire.API.Wrapped
+    ( Name(Name, fromName),
+      ColourId(ColourId, fromColourId),
+      Asset(ImageAsset),
+      UserUpdate(..),
+      AssetSize(AssetComplete, AssetPreview),
+      Pict(Pict, fromPict) )
+
 testObject_UserUpdate_user_1 :: UserUpdate
-testObject_UserUpdate_user_1 = UserUpdate {uupName = Nothing, uupPict = Just (Pict {fromPict = []}), uupAssets = Nothing, uupAccentId = Just (ColourId {fromColourId = -3})}
+testObject_UserUpdate_user_1 = UserUpdate {uupName = Just (Name {fromName = "m\GS>\b\ENQ\1081014\RS<5M\121097ka\159142}\DLEv\ENQ\GSS\n\136669iTyi \47417O\163920\988057\EMIl*G@(\SYNXN\1033367o9:\17145\ESC\ETB\rY\173206\1071480z\119308\DC3"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Just [], uupAccentId = Just (ColourId {fromColourId = -2})}
 testObject_UserUpdate_user_2 :: UserUpdate
-testObject_UserUpdate_user_2 = UserUpdate {uupName = Just (Name {fromName = "vf\v\\\999648l\73001\992762Q\USm\FS\DC2\STX\GS0\1055632g~!^QU0q\22057\EMW\25371\1042181)\SYN\ETX1\SYNE[JtgD\NUL\DC1c\173289BhT\158007_bSY\1034579xwMY\1061903\DLE/\74203f0`W\\]\1024300:*\180439R\USaV\\DQ1M\FS\157294\&8V:+\94370\ENQ\1072304o\"\139983S\DC3c\ETB\1017827\ao\FS\NULa\r\nbCd\RSk\34915\"Y\SOHN\SYNOn\147610Q\1003284\v1\1006153\100584."}), uupPict = Just (Pict {fromPict = []}), uupAssets = Just [(ImageAsset "~M" (Just AssetComplete)),(ImageAsset "\\\35317\r" (Just AssetPreview))], uupAccentId = Just (ColourId {fromColourId = -5})}
+testObject_UserUpdate_user_2 = UserUpdate {uupName = Just (Name {fromName = "|\20788\ETBjGs>\EMW\v\"~M\32744,10\181601\DC4GA+=\v#\tF\DC3/\100369\DC11\31383B)^\1032579\1067386\1055256{mR"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Just [], uupAccentId = Just (ColourId {fromColourId = -1})}
 testObject_UserUpdate_user_3 :: UserUpdate
-testObject_UserUpdate_user_3 = UserUpdate {uupName = Nothing, uupPict = Nothing, uupAssets = Nothing, uupAccentId = Just (ColourId {fromColourId = 0})}
+testObject_UserUpdate_user_3 = UserUpdate {uupName = Just (Name {fromName = "c=Mc+8\142746\&5u\153057\US|\1000409<2\SYN\SYNO\95157\1069028\156926\1066738HS\DC3zm\bJ\r\b\USNE/[\b\SOH\GSS\143983:>xDN\DC2'FF\SOH6\CAN\DC4\1050647"}), uupPict = Nothing, uupAssets = Just [(ImageAsset "\984376" (Just AssetPreview)),(ImageAsset "\STX|" (Just AssetComplete)),(ImageAsset "\1011191" (Nothing)),(ImageAsset "" (Just AssetPreview)),(ImageAsset "\142868:$" (Just AssetComplete))], uupAccentId = Nothing}
 testObject_UserUpdate_user_4 :: UserUpdate
-testObject_UserUpdate_user_4 = UserUpdate {uupName = Just (Name {fromName = "\SOX\GSo_\78010T\SUB`OR1\1040567#\1061241vv~\SOH\ETX\29903\ESC\SOH\162630|\1016704\NUL\41695bl"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Just [(ImageAsset "\71233vF" (Just AssetComplete)),(ImageAsset "\ACKB\ETX" (Just AssetPreview))], uupAccentId = Just (ColourId {fromColourId = -6})}
+testObject_UserUpdate_user_4 = UserUpdate {uupName = Just (Name {fromName = "\1064947\15283\1071613v5%=^dTV}\187086A\24480u\1075964\21731x\189135f\1071440\1012382\DC2\1075542V\73977\178811EkS#\ETB\RS#q-d\99437!&\SO\1063753\b./\1042736\176218+]\rQd#\151009CUENAN\NAK\1101008\1021715M\1083557\35871D9i\aC]:\182598\1112337\DC2g\12726\36145\143634?tz.F\149235\142249\ACKE\SYN5J\99178\155397G\STXxYpQ)\EM\a\f}\STXu\SI\DEL]\166899^w\ETXe"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Just [(ImageAsset "b\EM" (Just AssetComplete))], uupAccentId = Just (ColourId {fromColourId = -1})}
 testObject_UserUpdate_user_5 :: UserUpdate
-testObject_UserUpdate_user_5 = UserUpdate {uupName = Just (Name {fromName = "\1002751da3\171148\7317"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Just [], uupAccentId = Just (ColourId {fromColourId = 6})}
+testObject_UserUpdate_user_5 = UserUpdate {uupName = Just (Name {fromName = "\1026141N&\13165\&0a/xQPW\DC2\145694\48695\140036\DLE\US\STX?/\"~\EM9i\\.\SOH)\1081160\60646\EOT\148613\1008347 Q\CAN\"\SOH(\DC3\CAN\190722!\DLEZ\37819\179936D<|+\137583nkB\CAN\n}=wdq[_\1076959\SUB1\SOH\142923\SYN\1002748NyR\97597|\1024706{9\EMl\SIV\r\"\SUB1*h\FSh\SYN\1090103p\ENQ\1026078\52666!|\1110835Bv;\1008751*\1096465H"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Just [(ImageAsset "" (Just AssetComplete)),(ImageAsset "N" (Just AssetComplete)),(ImageAsset "\ESC" (Just AssetComplete)),(ImageAsset "1oT" (Just AssetPreview)),(ImageAsset "\a)I" (Just AssetComplete)),(ImageAsset "\b" (Just AssetComplete))], uupAccentId = Nothing}
 testObject_UserUpdate_user_6 :: UserUpdate
-testObject_UserUpdate_user_6 = UserUpdate {uupName = Just (Name {fromName = "'>+[\20322\r\63797\b\1075404$\175645R\DC4>h"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Nothing, uupAccentId = Just (ColourId {fromColourId = 5})}
+testObject_UserUpdate_user_6 = UserUpdate {uupName = Just (Name {fromName = "\SUBT/"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Just [(ImageAsset "" (Just AssetComplete)),(ImageAsset "\31112\EOT" (Just AssetPreview)),(ImageAsset "8\24093\&8" (Nothing)),(ImageAsset "\t" (Nothing))], uupAccentId = Just (ColourId {fromColourId = -4})}
 testObject_UserUpdate_user_7 :: UserUpdate
-testObject_UserUpdate_user_7 = UserUpdate {uupName = Just (Name {fromName = "J\1087776\1101728%$o)1\145803R\GS\\\13532\DC1E!\GSE\1039986e\DC2`\1049584R\DC3\98974XK/\ESCk\1103746\DLE\b\1032764\1101091C\1074580jx(\\~\STX\ENQ<\SIV\t"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Just [(ImageAsset "Q\SUB" (Just AssetPreview)),(ImageAsset "g" (Just AssetComplete)),(ImageAsset "" (Nothing))], uupAccentId = Just (ColourId {fromColourId = 6})}
+testObject_UserUpdate_user_7 = UserUpdate {uupName = Just (Name {fromName = "#\1080480\ETX\999304v\1029773;x\145200$\186423MZP/]\GS\1026638G/Yxf\"Rxm3\DC2Aq*\163133\fB\CANr\GS\SYNB5\183685$3\50091\a\GS\26725d|\EMXX9h\DC3$\RS\50410\EMM\ACK\1091770\SOH(M\ACKZECN#\984632k\FSQGVz\190653\1049593\&3\RS\1110104'S\60575\&8\DC3\53985\1080665\1010285*~\SUBu\133270y\127025\987435(y\126222\ESC|r!\FS\1000113:5_\15843\EM5k~\1082138"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Just [(ImageAsset "Q:\1112868" (Just AssetPreview)),(ImageAsset "\21592\NAK" (Just AssetPreview)),(ImageAsset "\GS\ENQ" (Just AssetComplete)),(ImageAsset "%" (Nothing)),(ImageAsset "$" (Just AssetPreview))], uupAccentId = Just (ColourId {fromColourId = -4})}
 testObject_UserUpdate_user_8 :: UserUpdate
-testObject_UserUpdate_user_8 = UserUpdate {uupName = Just (Name {fromName = "\EM\147704i\r/!\STXO\SYN\1091776\176804\1050130v\1062987\FS5cB\136945i\EM\STX\DC2"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Nothing, uupAccentId = Just (ColourId {fromColourId = 7})}
+testObject_UserUpdate_user_8 = UserUpdate {uupName = Nothing, uupPict = Nothing, uupAssets = Nothing, uupAccentId = Nothing}
 testObject_UserUpdate_user_9 :: UserUpdate
-testObject_UserUpdate_user_9 = UserUpdate {uupName = Just (Name {fromName = "\1025789Ddb\1017365\78762\95561\DC32t!s\44659\1091437g*Jbop*m=\DC3\1079817j\NULgR\SYNj\EM\1007599\35332\131787>\1076730pKJY\"XyG\44365"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Nothing, uupAccentId = Just (ColourId {fromColourId = -6})}
+testObject_UserUpdate_user_9 = UserUpdate {uupName = Nothing, uupPict = Just (Pict {fromPict = []}), uupAssets = Just [(ImageAsset "" (Just AssetPreview)),(ImageAsset "\DELW\v" (Nothing)),(ImageAsset "" (Nothing)),(ImageAsset "" (Just AssetPreview)),(ImageAsset "" (Just AssetComplete))], uupAccentId = Just (ColourId {fromColourId = 5})}
 testObject_UserUpdate_user_10 :: UserUpdate
-testObject_UserUpdate_user_10 = UserUpdate {uupName = Just (Name {fromName = "\EM\15633h\RSH\DC39J\136451D<\66776d7#\32868bv=3o\DEL\b\127850<{9&\f;w`"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Just [], uupAccentId = Nothing}
+testObject_UserUpdate_user_10 = UserUpdate {uupName = Just (Name {fromName = "\39525\DC1aI"}), uupPict = Nothing, uupAssets = Just [(ImageAsset "w" (Nothing)),(ImageAsset "\62065\&3#" (Just AssetComplete)),(ImageAsset "Q" (Just AssetPreview)),(ImageAsset "\v\b\990686" (Just AssetComplete)),(ImageAsset "/" (Nothing)),(ImageAsset "\vo" (Just AssetComplete))], uupAccentId = Nothing}
 testObject_UserUpdate_user_11 :: UserUpdate
-testObject_UserUpdate_user_11 = UserUpdate {uupName = Just (Name {fromName = "\EOTU'\1026290\1033562:9\RS\1045882R \28154\CAN\CAN\168574\120723\&3\1060055\987613 |\DC3-AU\RS\1112793ew\39898\CANxs\STX\f\SO*_\1070781$w\DC1\181912\1039418F\DLE\140756\73464\167468zGifyU\SO\42252|>\140144\139875,\46777t\1109164#\1011222dj\989519-\SUB\991148\EOT:"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Just [(ImageAsset "=[\\" (Just AssetComplete)),(ImageAsset "\35100\187476H" (Just AssetComplete)),(ImageAsset "" (Just AssetPreview)),(ImageAsset "" (Nothing))], uupAccentId = Nothing}
+testObject_UserUpdate_user_11 = UserUpdate {uupName = Just (Name {fromName = "\ESCSl\1104879\&1p!\GS\1111743\SO\28588\SOHJ\1113376?\992367[e\ESCr\110679\184179\1015513\987300P\73683\1079005\72391^\65869c\1095984;\b?\1027448#]\1056\5955\ETB\139205sg\1035000F|H}\EM\GSRB%ZW\1109947{b\DELR\1092836%\DC2H=aX\1097941 s\RSyI\EM_ \161376\FSY,\1069589(\EM\163116\f<vSq&\1096652\DC2=1\f\f[x\"\DC4)\72305\996358\22629?x#\1732K\97888ZW"}), uupPict = Nothing, uupAssets = Nothing, uupAccentId = Just (ColourId {fromColourId = 3})}
 testObject_UserUpdate_user_12 :: UserUpdate
-testObject_UserUpdate_user_12 = UserUpdate {uupName = Nothing, uupPict = Just (Pict {fromPict = []}), uupAssets = Just [(ImageAsset "9" (Nothing)),(ImageAsset "" (Just AssetPreview)),(ImageAsset "" (Nothing))], uupAccentId = Just (ColourId {fromColourId = 6})}
+testObject_UserUpdate_user_12 = UserUpdate {uupName = Just (Name {fromName = "\1044740c)\ETXm}\SOH\143397Ibs\SOH\1056046\&4-_F\GS\993879s{j\988910{E\ETX\1104441W\ETXc\GS\tlL\SYN\140158\38984\STXN\DC3\163305PSX\1101679C\NUL\129657\DEL\rb|X\FStQ\1002819~\DC4fb\v\143061\121157\25307\55014Z\GS\1021001f1l5Z\173468W\DC3\n\62694{\153670>\158079"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Just [(ImageAsset "z" (Just AssetPreview)),(ImageAsset "\1000045" (Just AssetComplete))], uupAccentId = Nothing}
 testObject_UserUpdate_user_13 :: UserUpdate
-testObject_UserUpdate_user_13 = UserUpdate {uupName = Just (Name {fromName = "Vz\SOH\1061891\5168\991320[\ESCH\GS\17097H \US+6g\SI\GSH)\US\152985\EMN\999219\62108C\RS\1068914'x\1030443&vq-tKo\vCr\NAK\SO\r\DLEN\1083729\1019036r\DC3g~/\983633?\38629\DC1D*\8145\RSw\b#F]p\99467f1\39336\\dB\US\EM\27071|\22266)\185273\1103393;&~\RSe\NUL)[n]\RS\1010998yj\53147\1090237H\133280qtp\15744\GS\1078558"}), uupPict = Nothing, uupAssets = Just [], uupAccentId = Nothing}
+testObject_UserUpdate_user_13 = UserUpdate {uupName = Just (Name {fromName = "pyGU\49546\fQy\NAK\DC3I\1030669\DEL\SYN\ACKG+\160861#e\1034075`\1102911X=\1025309/\64746\&9\141332?o\19521l<1<\STX\SYN\ETB\1110852\&3?=A"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Nothing, uupAccentId = Just (ColourId {fromColourId = 4})}
 testObject_UserUpdate_user_14 :: UserUpdate
-testObject_UserUpdate_user_14 = UserUpdate {uupName = Just (Name {fromName = "Z\995617j\SOH\NAK61\ESCSN\EM\EOT\US\DC1Z\GS"}), uupPict = Nothing, uupAssets = Just [(ImageAsset "|\1052077" (Nothing)),(ImageAsset "\tY" (Just AssetComplete)),(ImageAsset "o\n\"" (Just AssetPreview)),(ImageAsset "JD" (Just AssetPreview)),(ImageAsset "\DLE" (Just AssetComplete))], uupAccentId = Just (ColourId {fromColourId = 3})}
+testObject_UserUpdate_user_14 = UserUpdate {uupName = Just (Name {fromName = "\RS\142617\1762s\1060169}]09\9449]AC&4Z9\ENQ4\36317\28295\138215<\96323Q\ACK'U\38813j$>\179943n{C\ETBn N\t\168213\ESC;\52961\DC2UN,!W\USy\vx(X\57964\SOHV \171616<:\rd\1025812V\ab\147501\178817\1091545\EOT\SIQ\1044401D\138931\EM\EOT\1035555\1059182\DC2\1022570\73873\GS\\z\DC1x\182618*2:(NB\SO\52864>,~]pwl\f"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Nothing, uupAccentId = Just (ColourId {fromColourId = 8})}
 testObject_UserUpdate_user_15 :: UserUpdate
-testObject_UserUpdate_user_15 = UserUpdate {uupName = Just (Name {fromName = "y\178320\1092553\992319\SOH){\1051043\165811\ETB\149861\&14\CAN:t\GS\\7\1069976\SI1\186034!D\1063361B\157479-WbO!\1084039\f(\174855\&1\98592]gq\54781U\42396J*I\ESCf\119314\170071\1070960yD\185509\NUL\ESC\1025264+t\1070783\SO\123190\1047246\140531\132959>ky\DC2O\SI\168322kM\1072115n\1018933>\986767t\987135"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Just [(ImageAsset "Kz" (Just AssetComplete)),(ImageAsset "~" (Nothing)),(ImageAsset "\78667'\1002993" (Just AssetComplete)),(ImageAsset "\142305" (Just AssetComplete)),(ImageAsset "\988227^%" (Just AssetPreview)),(ImageAsset "\DC1\CANy" (Nothing)),(ImageAsset "" (Just AssetPreview))], uupAccentId = Nothing}
+testObject_UserUpdate_user_15 = UserUpdate {uupName = Just (Name {fromName = "R\177951r|\74995v\CANQ\STX\1027781\33625\ETB?r\169839\DLE\1036946\180625D\DC49i\17967\1041165\b\RSI\SYN\1020029Y3\33802;e\1083684D8\DC1\r\DC3l!%,\4796\FSf{\DLE"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Nothing, uupAccentId = Just (ColourId {fromColourId = 4})}
 testObject_UserUpdate_user_16 :: UserUpdate
-testObject_UserUpdate_user_16 = UserUpdate {uupName = Just (Name {fromName = "K;c3\1103279>6L\USN8]\164760\bgkPl\"{\DC4\1080975\ETX?\40278u\989623`\1017359\1046605\1010493\1084238DNn\1021075\tXc\984080K\1054153\127948>g"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Just [(ImageAsset "WA" (Nothing))], uupAccentId = Nothing}
+testObject_UserUpdate_user_16 = UserUpdate {uupName = Just (Name {fromName = "\5574C\176668\986495\53780\n\DC3\ENQ1\1040917\171774NRdG\19931\SOH\b\SYNU\100546\DEL\995973"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Just [(ImageAsset "[\STX" (Just AssetPreview)),(ImageAsset "OA" (Nothing))], uupAccentId = Just (ColourId {fromColourId = -3})}
 testObject_UserUpdate_user_17 :: UserUpdate
-testObject_UserUpdate_user_17 = UserUpdate {uupName = Just (Name {fromName = "\a\EM\177892ol4a\1045339\1056014V\1073622\&4V\917621/L--a^\36538r_g S.\SO=\STX\1081060l\13321\NAKJb$@KKDj\181362\&7\DC4H\1043527\ETB^&R{\STX|\\U\NAK\149862\1092592\ESC)W8\ACK(^u\ESC\DC1x~\DC4o{V"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Just [(ImageAsset "" (Just AssetPreview)),(ImageAsset "" (Just AssetPreview))], uupAccentId = Just (ColourId {fromColourId = -1})}
+testObject_UserUpdate_user_17 = UserUpdate {uupName = Nothing, uupPict = Just (Pict {fromPict = []}), uupAssets = Just [(ImageAsset "\n" (Just AssetPreview))], uupAccentId = Just (ColourId {fromColourId = -3})}
 testObject_UserUpdate_user_18 :: UserUpdate
-testObject_UserUpdate_user_18 = UserUpdate {uupName = Just (Name {fromName = "D0;\43142\t\1027330\179746ds;'\66691|t\128454\1073070(\41203B\DC4w_\NAK\72100\&7:bsT<\DC2*\EME\NUL\r\CANB\997744\1007800e-/{5\SUBn\58053-\5382\988209\137756g)\SYN\EMq%!V\EM\f\162822\vZj-KA\49364Xgh<\166253h\1057461\SUB\SO\38649'\138580\54094\54848hb\DC1rx\tfe\EOTU\1067086\SYNl\173947\189879o\21703U\31017\34575)-[\ENQ\ESC\f{2\98013\NUL^"}), uupPict = Nothing, uupAssets = Just [(ImageAsset "\1067989\FS" (Just AssetComplete)),(ImageAsset "_\149859%" (Nothing))], uupAccentId = Just (ColourId {fromColourId = -1})}
+testObject_UserUpdate_user_18 = UserUpdate {uupName = Just (Name {fromName = "\\\37358m&Qo\ENQ\SIj1e\EM@[\r&\1052251SNJ\EM39\ETB\1032148\1086620\153899\134766\ETB\ETBU\DC3!6\EOTC\DLE\CAN\118803J\1095411p\53136\NUL(M0\US\RSnH}\1063651Nz.|kG4xjcZ\1043797W\1104825w00*\NUL\te>\1112026e\35814m\t\99504p4d\7333m'>\FS\DC2[1\EOTFi\164971ZR\ENQN"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Just [(ImageAsset "~" (Just AssetPreview)),(ImageAsset "" (Nothing))], uupAccentId = Just (ColourId {fromColourId = 0})}
 testObject_UserUpdate_user_19 :: UserUpdate
-testObject_UserUpdate_user_19 = UserUpdate {uupName = Just (Name {fromName = "%\148333\28541[\DLEG\1021998\63321F{\"\EOTV]\ETX$\30614D2]\ETXUn6x\EOT_\113669B\1108372\a\29197\162604\&7\1054541sZ^;-P\v\1072390\53202\1056858\1076512\v2>jP\US\54753\STX\30279O4V\171387\189185/\1076003\EMl\\\ESC>/g\174968ao\1077962^#\DC1+\41990W:\1019731\NAK\DEL\127118"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Just [(ImageAsset "\NAK" (Just AssetComplete)),(ImageAsset "#" (Just AssetPreview)),(ImageAsset "\SOHi" (Just AssetPreview))], uupAccentId = Just (ColourId {fromColourId = -6})}
+testObject_UserUpdate_user_19 = UserUpdate {uupName = Just (Name {fromName = "\ENQt\161977b\34379U\1106677R.\184097\DC3C\SYNzZ\58910OD\153937\b?\STX\1016936\2088\ETBR9\1003054a\NAKy\1074050\170368\SI\1079036P\GSC\SI\1041541\&6\SIA\RS\ETX\1024701m\67395mEZ\188845\STX\ESC\111053PN\134442\SUB-\n[\985694]#\185739M[H608m\990537\SI\1106889(#.Vnb'\ESCNWX_T\23606\NUL1\14906\172247g`\SUB"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Just [(ImageAsset "" (Just AssetComplete)),(ImageAsset "" (Just AssetPreview)),(ImageAsset "G~" (Just AssetComplete)),(ImageAsset "8`" (Just AssetComplete))], uupAccentId = Just (ColourId {fromColourId = 5})}
 testObject_UserUpdate_user_20 :: UserUpdate
-testObject_UserUpdate_user_20 = UserUpdate {uupName = Just (Name {fromName = "2\178485\rQl\EOT(\151472\&1\DC2\a\1017216\1027171\FS/\1042645c'N\1096523\&9APT$0+\55032\DLE\53764\DLE"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Just [(ImageAsset "h9" (Just AssetComplete)),(ImageAsset "" (Nothing)),(ImageAsset "\SOHq" (Nothing)),(ImageAsset "J}\145824" (Nothing)),(ImageAsset "\DEL\163534" (Just AssetPreview)),(ImageAsset "%\GS" (Nothing)),(ImageAsset "\SYN\19112" (Nothing))], uupAccentId = Just (ColourId {fromColourId = 3})}
+testObject_UserUpdate_user_20 = UserUpdate {uupName = Just (Name {fromName = "d\172385\1009156!\ACK\"\12353d0pqv\996058<fI\150460"}), uupPict = Just (Pict {fromPict = []}), uupAssets = Just [(ImageAsset "G\DELn" (Nothing))], uupAccentId = Just (ColourId {fromColourId = -2})}

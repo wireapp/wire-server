@@ -1,1 +1,1 @@
-{"conversation":"000035bb-0000-7544-0000-422300002615","time":"1864-04-15T13:03:37.354Z","data":{"uri":"https://example.com","key":"04j3Ji80UTv_Xh76vNI9","code":"agVVWHbYIW_k"},"from":"00003229-0000-27c0-0000-0189000033e9","type":"conversation.code-update"}
+{"conversation":"000059e1-0000-54dd-0000-23430000284c","time":"1864-04-14T13:15:52.658Z","data":{"access":["link","private","private","link","invite","private"],"access_role":"non_activated"},"from":"00006180-0000-679e-0000-679a00004af2","type":"conversation.access-update"}

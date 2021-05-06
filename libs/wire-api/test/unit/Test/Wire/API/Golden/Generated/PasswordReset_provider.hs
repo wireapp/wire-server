@@ -1,90 +1,46 @@
-{-# OPTIONS_GHC -Wno-unused-imports #-}
 {-# LANGUAGE OverloadedLists #-}
 module Test.Wire.API.Golden.Generated.PasswordReset_provider where
-
-import Codec.MIME.Type (Type(..))
-import qualified Codec.MIME.Type as MIME
-import Control.Lens ((.~))
-import Data.Code
-import Data.Coerce
-import Data.Currency
-import Data.Domain
-import Data.Handle
-import Data.Id
-import Data.ISO3166_CountryCodes
-import Data.Json.Util
-import Data.List1
-import qualified Data.List.NonEmpty as NonEmpty
-import Data.List.NonEmpty (NonEmpty (..))
-import Data.Misc
-import Data.PEM
-import Data.Qualified
-import Data.Range (unsafeRange)
-import qualified Data.Set as Set
-import Data.Text.Ascii
-import Data.Time (secondsToNominalDiffTime)
-import Imports hiding (LT, GT)
-import qualified Data.LanguageCodes
-import qualified Data.UUID as UUID
-import Test.Tasty (testGroup, TestTree)
-import URI.ByteString
-import qualified Wire.API.Call.Config as CallConfig
-import qualified Wire.API.User.Profile as User.Profile
-import qualified Wire.API.Team.Conversation as Team.Conversation
-import qualified Wire.API.Provider as Provider
-import qualified Wire.API.Provider.Bot as Provider
-import qualified Wire.API.Provider.External as Provider
-import qualified Wire.API.Provider.Service as Provider
-import qualified Wire.API.Provider.Service.Tag as Provider
-import Data.Aeson
-import GHC.Exts
-import Wire.API.Conversation.Member
-import Wire.API.Conversation.Role
-import Wire.API.Provider
-import Wire.API.Provider.Bot
-import Wire.API.Provider.External
-import Wire.API.Provider.Service
-import Wire.API.Provider.Service.Tag
-import Wire.API.User.Client.Prekey
+import Wire.API.Provider ( PasswordReset(..) )
 import Wire.API.User.Identity
-import Wire.API.User.Profile
+    ( Email(Email, emailLocal, emailDomain) )
+
 testObject_PasswordReset_provider_1 :: PasswordReset
-testObject_PasswordReset_provider_1 = PasswordReset {nprEmail = Email {emailLocal = "sk\1042062=\46159\21199\24081", emailDomain = "\DC3\194644\ENQ\1047874\184976\9519\DC1jG<Kp\1066607jP\119570N\"J.\"*\44579\&1R]"}}
+testObject_PasswordReset_provider_1 = PasswordReset {nprEmail = Email {emailLocal = "\992571cN\ESC(", emailDomain = "\DELx.G\49277\USp3~\DC4+\1094994*\DLE}\US/"}}
 testObject_PasswordReset_provider_2 :: PasswordReset
-testObject_PasswordReset_provider_2 = PasswordReset {nprEmail = Email {emailLocal = "Qq][\1062755L4tgR\STX\NUL\f\98506\18491\ESC|\994515&\1094328d\STX\SO", emailDomain = "A\EOT|\144053?AVX\171687CG\1091363=2B\DEL\27600\1003283M\f4]\\\984457\1014386XI\\\148846"}}
+testObject_PasswordReset_provider_2 = PasswordReset {nprEmail = Email {emailLocal = "\20168\a\NUL\DC2\1044877\165980r)#N2\ETX[D\t;\49814\rk[\CANxfU%\162825R", emailDomain = "Ch=Y\63521\ETXG/\NAK\137799*<\160631'\180698aMOFM`\RS\36848\DC2\DC4\37920"}}
 testObject_PasswordReset_provider_3 :: PasswordReset
-testObject_PasswordReset_provider_3 = PasswordReset {nprEmail = Email {emailLocal = "-ZN\989419\171636\3672v\DC3\145418$WrWy\1029435\&1\SYN", emailDomain = "m\ETX%"}}
+testObject_PasswordReset_provider_3 = PasswordReset {nprEmail = Email {emailLocal = "", emailDomain = "\SI\128008\170297V\1054304:4\EM-\1008529[7\64604\1058032i\153772\188434z\DC1<E8/pS5\30786A\1077349e"}}
 testObject_PasswordReset_provider_4 :: PasswordReset
-testObject_PasswordReset_provider_4 = PasswordReset {nprEmail = Email {emailLocal = "\ENQ\997022\997374\FS\t\43829O\163038\RS\33588s!U\CAN\FS\1029763\3611$", emailDomain = "\f\1060087L\1022171\USH?]%\65837*di\1019281\31989}c><\186418\US\48599v\ENQ"}}
+testObject_PasswordReset_provider_4 = PasswordReset {nprEmail = Email {emailLocal = "GQCI\1060074\995461\159308L1\1078516lgJ}N\8197", emailDomain = "7\153033\1086224\140820\SOH\1085503:f^\ETB5yJp\1034613.'"}}
 testObject_PasswordReset_provider_5 :: PasswordReset
-testObject_PasswordReset_provider_5 = PasswordReset {nprEmail = Email {emailLocal = "\a", emailDomain = "\ETX\DC1\\(P\"I<>\55166\DC1\SO\"\DC2\1102806\b\96709t\DC1?\v\GS"}}
+testObject_PasswordReset_provider_5 = PasswordReset {nprEmail = Email {emailLocal = "\6969pl\166855\64305-4\NAK\41993\ETB", emailDomain = "S\ACK&\178068\171850bE\1088122"}}
 testObject_PasswordReset_provider_6 :: PasswordReset
-testObject_PasswordReset_provider_6 = PasswordReset {nprEmail = Email {emailLocal = "\4146v!q\57729\STX6", emailDomain = "\STXW\EOTs>n\STX\DC1\150256qod\r&\FS\\\FSJ\179457\&8\1057360\"i\1079344\1055995k"}}
+testObject_PasswordReset_provider_6 = PasswordReset {nprEmail = Email {emailLocal = "\DLE\\", emailDomain = "\SUB1\1108572\68612\1091701\&2\184233r\1004415KO"}}
 testObject_PasswordReset_provider_7 :: PasswordReset
-testObject_PasswordReset_provider_7 = PasswordReset {nprEmail = Email {emailLocal = "<\154336\avWW\ACK9\29247&", emailDomain = "(\vt\162798\984657}\1063514QB\1080697TW\1056254\"\44478&\1013410\1047860\ESCD"}}
+testObject_PasswordReset_provider_7 = PasswordReset {nprEmail = Email {emailLocal = "w5'\t\144899O_\1082752fV{B{kdR_w+\ACK:\1109845\1076130f\DC2\31787", emailDomain = "^/\12372A\1066648\&87!\986369'\NAK=7\DC4\1020022\4897qK\63931i"}}
 testObject_PasswordReset_provider_8 :: PasswordReset
-testObject_PasswordReset_provider_8 = PasswordReset {nprEmail = Email {emailLocal = "\1061897PFft\1028970\ESC", emailDomain = "M._\17230RDd4\ETB\fn\ETB^J$s+\25677J\SOHU\72883\1105015\EOT\1036600\156343z"}}
+testObject_PasswordReset_provider_8 = PasswordReset {nprEmail = Email {emailLocal = "\NAKG\18760\8823\1034432/\1091257gy\NULK\DC1x\134488\NUL/\SUB_", emailDomain = "\1102529\EM\RSgC\19683'f?~S\157158\SYN\SUBE`O"}}
 testObject_PasswordReset_provider_9 :: PasswordReset
-testObject_PasswordReset_provider_9 = PasswordReset {nprEmail = Email {emailLocal = "q`", emailDomain = "5>nCZ\SYN\EOT}\38065\ENQ\129065\53722-?(\1109103\EM"}}
+testObject_PasswordReset_provider_9 = PasswordReset {nprEmail = Email {emailLocal = "nc\STX\STXD\vs\148744\136002\30760yRFYSZ\170256E$5>\150386", emailDomain = "\DC3R\1078791Iz\SO\155872"}}
 testObject_PasswordReset_provider_10 :: PasswordReset
-testObject_PasswordReset_provider_10 = PasswordReset {nprEmail = Email {emailLocal = "{l\DC1:", emailDomain = "[!%\838\1096095\a\ENQL;\1048030\SO\SUB\n\RS\38006\b\47101\USu\183396^\SUB"}}
+testObject_PasswordReset_provider_10 = PasswordReset {nprEmail = Email {emailLocal = "b\1046238\&5aK\f\1005050r\r\1039123M\\n\SUB", emailDomain = "\5641o\1093742|\147445Ss\SI\1064292a\120904)8"}}
 testObject_PasswordReset_provider_11 :: PasswordReset
-testObject_PasswordReset_provider_11 = PasswordReset {nprEmail = Email {emailLocal = "}\n\1095644~BIw\1002905.\59881\&7D\a,\DC1{\1001669\&1", emailDomain = "\ad4\1068566oU6I\54413\SYNLg\1057792Cn\173864\1077709\ACK\1056682t\137109"}}
+testObject_PasswordReset_provider_11 = PasswordReset {nprEmail = Email {emailLocal = "|s#\\+\150456eNfS3\97521VZ\1114079", emailDomain = "t\10795\DLEnpu\GSc\1103639oYo\1096810"}}
 testObject_PasswordReset_provider_12 :: PasswordReset
-testObject_PasswordReset_provider_12 = PasswordReset {nprEmail = Email {emailLocal = "\153887)r\n\DLEv?\SUBTK\1037956", emailDomain = "}<(\95549L\1000144\179527~\1015224\f\1090303hr"}}
+testObject_PasswordReset_provider_12 = PasswordReset {nprEmail = Email {emailLocal = "\57529?\ESCg\74570\127380", emailDomain = "\1043063k\FS\EM\DLE\998161m\CAN0\1057734\FS`\185506\FSB%\NAK\r\1099708\DLE\138771\DC3\1065937l"}}
 testObject_PasswordReset_provider_13 :: PasswordReset
-testObject_PasswordReset_provider_13 = PasswordReset {nprEmail = Email {emailLocal = "CA\DC3\DC4\1087806M:y\15223V\13027", emailDomain = "\ENQ\74137\37344u\5970\&3\EOTi3i\148649c=G "}}
+testObject_PasswordReset_provider_13 = PasswordReset {nprEmail = Email {emailLocal = "NA\ENQVJ_\1029877\\K\1042758\1081842\1037060q\SOHZ\59802\137050\tU)F\SUB", emailDomain = "\1014657"}}
 testObject_PasswordReset_provider_14 :: PasswordReset
-testObject_PasswordReset_provider_14 = PasswordReset {nprEmail = Email {emailLocal = "\EOT\1008102\1072882\194730y)w2\SO\999750`\1011985C\NAK\ENQ", emailDomain = "\"\"\1045467\181595cL1A7\33813lK!\DC1\ETB#E"}}
+testObject_PasswordReset_provider_14 = PasswordReset {nprEmail = Email {emailLocal = "\SUBk:\SO\DC1\SYN6\FS\FS{Jh60AA", emailDomain = "\DC4Uz$\31167p\b\120652\12311d\FSb\1038361\&7\STX.\186595\DELi*\DLE"}}
 testObject_PasswordReset_provider_15 :: PasswordReset
-testObject_PasswordReset_provider_15 = PasswordReset {nprEmail = Email {emailLocal = "\1096943/4\1044018\172231\DC2\164027\167464\NAKa#o$HO\ETB", emailDomain = "m\1111588\v\137137\139220"}}
+testObject_PasswordReset_provider_15 = PasswordReset {nprEmail = Email {emailLocal = "\171762\r\rQ\ACK\ESC", emailDomain = "\"\GS<pj\1061931;4%*\FS\48240\&5 #0h\RS\FSk\1026272\1052009\1056070-$"}}
 testObject_PasswordReset_provider_16 :: PasswordReset
-testObject_PasswordReset_provider_16 = PasswordReset {nprEmail = Email {emailLocal = "", emailDomain = "\59602\STX\RS\SUB\GS\SI\1003475\&7\1106075|!6d\167815N\NAK"}}
+testObject_PasswordReset_provider_16 = PasswordReset {nprEmail = Email {emailLocal = "d;%\98955<t", emailDomain = "?}&\US\1076412|:\1023689?\1000596X\63520k\1110210tY?>\140752-\1081906R\t\10606\61020\41084\SO^P"}}
 testObject_PasswordReset_provider_17 :: PasswordReset
-testObject_PasswordReset_provider_17 = PasswordReset {nprEmail = Email {emailLocal = "A\55152L7\58257\SO\ESCk\1095597\1039094]q\1041010srA\\CY", emailDomain = "\DC1D\186141\11037\US\NAKV\DLE\1001692X Y"}}
+testObject_PasswordReset_provider_17 = PasswordReset {nprEmail = Email {emailLocal = "\1014799\SO\rb\DC3\11425F \1064426\r\1049082I5\ACKf!\60190(0\1101842\ETXD8", emailDomain = ",)~{:[(G:C\1075409`V\27542F\143675\996797Tua"}}
 testObject_PasswordReset_provider_18 :: PasswordReset
-testObject_PasswordReset_provider_18 = PasswordReset {nprEmail = Email {emailLocal = "\SUBA\ETX\v\92201.WX\1082060{\ETBY\SO\1045254", emailDomain = "Jt!o\57505\1092621\165902NA"}}
+testObject_PasswordReset_provider_18 = PasswordReset {nprEmail = Email {emailLocal = "\170500G", emailDomain = "\DLEY\SOH<z\n!/~\ENQ\DEL`\997119\145636/\ETXS3PNo6g\a\17763#Ll"}}
 testObject_PasswordReset_provider_19 :: PasswordReset
-testObject_PasswordReset_provider_19 = PasswordReset {nprEmail = Email {emailLocal = "9s\985258\143263", emailDomain = "\1055612\a\tB\NAK2:\STXv \1108654\SYN4\ETB%w"}}
+testObject_PasswordReset_provider_19 = PasswordReset {nprEmail = Email {emailLocal = "\1023696Sv\1085413\1017278", emailDomain = "\1050831m\ETX\r\61315\&6Sw\1016047\1079333l"}}
 testObject_PasswordReset_provider_20 :: PasswordReset
-testObject_PasswordReset_provider_20 = PasswordReset {nprEmail = Email {emailLocal = "\20413", emailDomain = "Ex<U~\DC3\SUB\4934\b\r\19499v9K\aIY\FSR"}}
+testObject_PasswordReset_provider_20 = PasswordReset {nprEmail = Email {emailLocal = "\136447\1017187\t\ETB\8611'1\1002672\SUB\ETXu\71090\1092419\1096529\48496\37574\ETX\170765\DC3\46764-", emailDomain = "\DC3v\n\SOH\161453\176567:\35292x?o\1010999\CAN)L^\\k\USa\ACKI"}}
