@@ -21,12 +21,12 @@ module Wire.API.Federation.API.Galley where
 
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Id (ConvId, UserId)
+import Data.Qualified (Qualified)
 import Imports
 import Servant.API (JSON, Post, ReqBody, (:>))
 import Servant.API.Generic ((:-))
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Conversation (Conversation)
-import Wire.API.Federation.Event (ConversationEvent, MembersJoin)
 import Wire.API.Federation.Util.Aeson (CustomEncoded (CustomEncoded))
 
 -- FUTUREWORK: data types, json instances, more endpoints. See
@@ -41,12 +41,14 @@ data Api routes = Api
         :> "get-by-ids"
         :> ReqBody '[JSON] GetConversationsRequest
         :> Post '[JSON] [Conversation],
-    conversationMembersJoin ::
+    -- used by backend that owns the conversation
+    -- to inform federating backends about changes
+    updateConversationMembership ::
       routes
         :- "federation"
         :> "conversations"
-        :> "members-join"
-        :> ReqBody '[JSON] (ConversationEvent MembersJoin)
+        :> "update-membership"
+        :> ReqBody '[JSON] ConversationMemberUpdate
         :> Post '[JSON] ()
   }
   deriving (Generic)
@@ -58,3 +60,22 @@ data GetConversationsRequest = GetConversationsRequest
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform GetConversationsRequest)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetConversationsRequest)
+
+data MembershipUpdateOp
+  = RemoveMember
+  | AddMember
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform MembershipUpdateOp)
+
+instance ToJSON MembershipUpdateOp
+
+instance FromJSON MembershipUpdateOp
+
+data ConversationMemberUpdate = ConversationMemberUpdate
+  { cmuConvId :: Qualified ConvId,
+    cmuUserId :: UserId,
+    cmuOperation :: MembershipUpdateOp
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationMemberUpdate)
+  deriving (ToJSON, FromJSON) via (CustomEncoded ConversationMemberUpdate)

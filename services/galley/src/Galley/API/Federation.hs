@@ -24,21 +24,20 @@ import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
 import Wire.API.Conversation (Conversation)
-import Wire.API.Federation.API.Galley (GetConversationsRequest (..))
+import Wire.API.Federation.API.Galley (ConversationMemberUpdate (..), GetConversationsRequest (..))
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
-import Wire.API.Federation.Event (ConversationEvent (..), MembersJoin (..))
 
 federationSitemap :: ServerT (ToServantApi FederationAPIGalley.Api) Galley
 federationSitemap =
   genericServerT $
     FederationAPIGalley.Api
       getConversations
-      conversationMemberChange
+      updateConversationMembership
 
 getConversations :: GetConversationsRequest -> Galley [Conversation]
 getConversations GetConversationsRequest {gcrUserId, gcrConvIds} = do
   convs <- Data.conversations gcrConvIds
   for convs (Mapping.conversationView gcrUserId)
 
-conversationMemberChange :: ConversationEvent MembersJoin -> Galley ()
-conversationMemberChange = undefined
+updateConversationMembership :: ConversationMemberUpdate -> Galley ()
+updateConversationMembership = error "FUTUREWORK: implement after schema change"
