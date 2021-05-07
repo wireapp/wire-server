@@ -22,13 +22,14 @@ import Bilge
 import Bilge.Assert
 import Control.Lens
 import Data.List1
+import Data.Qualified (Qualified (..))
 import Galley.Types
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
-import Wire.API.Federation.API.Galley (GetConversationsRequest (..))
+import Wire.API.Federation.API.Galley (GetConversationsRequest (..), GetConversationsResponse (..))
 import qualified Wire.API.Federation.API.Galley as FedGalley
 
 tests :: IO TestSetup -> TestTree
@@ -40,6 +41,7 @@ tests s =
 
 getConversationsAllFound :: TestM ()
 getConversationsAllFound = do
+  -- FUTUREWORK: make alice / bob remote users
   [alice, bob] <- randomUsers 2
   connectUsers alice (singleton bob)
   -- create & get one2one conv
@@ -57,9 +59,11 @@ getConversationsAllFound = do
   -- get both
 
   fedGalleyClient <- view tsFedGalleyClient
-  cs <- Just <$> FedGalley.getConversations fedGalleyClient (GetConversationsRequest alice [cnvId cnv1, cnvId cnv2])
-  let c1 = cs >>= find ((== cnvId cnv1) . cnvId)
-  let c2 = cs >>= find ((== cnvId cnv2) . cnvId)
+  localDomain <- viewFederationDomain
+  let aliceQualified = Qualified alice localDomain
+  GetConversationsResponse cs <- FedGalley.getConversations fedGalleyClient (GetConversationsRequest aliceQualified [cnvId cnv1, cnvId cnv2])
+  let c1 = find ((== cnvId cnv1) . cnvId) cs
+  let c2 = find ((== cnvId cnv2) . cnvId) cs
   liftIO . forM_ [(cnv1, c1), (cnv2, c2)] $ \(expected, actual) -> do
     assertEqual
       "name mismatch"

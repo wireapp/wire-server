@@ -16,15 +16,16 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 module Galley.API.Federation where
 
+import Data.Qualified (Qualified (Qualified))
 import qualified Galley.API.Mapping as Mapping
+import Galley.API.Util (viewFederationDomain)
 import Galley.App (Galley)
 import qualified Galley.Data as Data
 import Imports
 import Servant (ServerT)
 import Servant.API.Generic (ToServantApi)
 import Servant.Server.Generic (genericServerT)
-import Wire.API.Conversation (Conversation)
-import Wire.API.Federation.API.Galley (ConversationMemberUpdate (..), GetConversationsRequest (..))
+import Wire.API.Federation.API.Galley (ConversationMemberUpdate (..), GetConversationsRequest (..), GetConversationsResponse (..))
 import qualified Wire.API.Federation.API.Galley as FederationAPIGalley
 
 federationSitemap :: ServerT (ToServantApi FederationAPIGalley.Api) Galley
@@ -34,10 +35,13 @@ federationSitemap =
       getConversations
       updateConversationMembership
 
-getConversations :: GetConversationsRequest -> Galley [Conversation]
-getConversations GetConversationsRequest {gcrUserId, gcrConvIds} = do
+getConversations :: GetConversationsRequest -> Galley GetConversationsResponse
+getConversations (GetConversationsRequest (Qualified uid domain) gcrConvIds) = do
+  localDomain <- viewFederationDomain
   convs <- Data.conversations gcrConvIds
-  for convs (Mapping.conversationView gcrUserId)
+  if domain == localDomain
+    then GetConversationsResponse <$> for convs (Mapping.conversationView uid)
+    else error "FUTUREWORK: implement & exstend integration test when schema ready"
 
 updateConversationMembership :: ConversationMemberUpdate -> Galley ()
 updateConversationMembership = error "FUTUREWORK: implement after schema change"

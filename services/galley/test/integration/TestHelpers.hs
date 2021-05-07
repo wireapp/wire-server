@@ -22,7 +22,9 @@ module TestHelpers where
 
 import API.SQS
 import Control.Lens (view)
+import Data.Domain (Domain)
 import qualified Galley.Aws as Aws
+import Galley.Options (optSettings, setFederationDomain)
 import Imports
 import Test.Tasty (TestName, TestTree)
 import Test.Tasty.HUnit (Assertion, assertBool, testCase)
@@ -47,3 +49,6 @@ test s n h = testCase n runTest
     runTest = do
       setup <- s
       void . flip runReaderT setup . runTestM $ h >> assertClean
+
+viewFederationDomain :: TestM Domain
+viewFederationDomain = view (tsGConf . optSettings . setFederationDomain)

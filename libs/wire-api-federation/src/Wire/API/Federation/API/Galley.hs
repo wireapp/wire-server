@@ -40,10 +40,10 @@ data Api routes = Api
         :> "conversations"
         :> "get-by-ids"
         :> ReqBody '[JSON] GetConversationsRequest
-        :> Post '[JSON] [Conversation],
-    -- used by backend that owns the conversation
-    -- to inform federating backends about changes
-    updateConversationMembership ::
+        :> Post '[JSON] GetConversationsResponse,
+    -- used by backend that owns the conversation to inform the backend about
+    -- add/removal of its users to the conversation
+    updateConversationMemberships ::
       routes
         :- "federation"
         :> "conversations"
@@ -54,27 +54,24 @@ data Api routes = Api
   deriving (Generic)
 
 data GetConversationsRequest = GetConversationsRequest
-  { gcrUserId :: UserId,
+  { gcrUserId :: Qualified UserId,
     gcrConvIds :: [ConvId]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform GetConversationsRequest)
   deriving (ToJSON, FromJSON) via (CustomEncoded GetConversationsRequest)
 
-data MembershipUpdateOp
-  = RemoveMember
-  | AddMember
+newtype GetConversationsResponse = GetConversationsResponse
+  { gcresConvs :: [Conversation]
+  }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform MembershipUpdateOp)
-
-instance ToJSON MembershipUpdateOp
-
-instance FromJSON MembershipUpdateOp
+  deriving (Arbitrary) via (GenericUniform GetConversationsResponse)
+  deriving (ToJSON, FromJSON) via (CustomEncoded GetConversationsResponse)
 
 data ConversationMemberUpdate = ConversationMemberUpdate
   { cmuConvId :: Qualified ConvId,
-    cmuUserId :: UserId,
-    cmuOperation :: MembershipUpdateOp
+    cmuUsersAdd :: [UserId],
+    cmuUsersRemove :: [UserId]
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMemberUpdate)
