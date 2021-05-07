@@ -1,1 +1,1 @@
-{"event":{"conversation":"00001509-0000-2d53-0000-1d430000694f","time":"1864-04-17T04:49:29.662Z","data":{"status":"started"},"from":"0000582d-0000-2130-0000-1e91000076b2","type":"conversation.typing"}}
+{"event":{"conversation":"00004615-0000-2e80-0000-552b0000353c","time":"1864-04-14T01:56:55.057Z","data":{"access":["invite","private","private"],"access_role":"activated"},"from":"0000134e-0000-6a75-0000-470a00006537","type":"conversation.access-update"}}

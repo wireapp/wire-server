@@ -1,1 +1,1 @@
-{"conversation":"00002a16-0000-4e17-0000-100800002881","time":"1864-05-27T00:28:35.482Z","data":{"message_timer":6934023827000979},"from":"0000338a-0000-4483-0000-46b000003228","type":"conversation.message-timer-update"}
+{"conversation":"00004847-0000-1eb9-0000-2973000039ca","time":"1864-05-21T16:22:14.886Z","data":{"access":["private","private","private","link","invite","link","code"],"access_role":"non_activated"},"from":"000044e3-0000-1c36-0000-42fd00006e01","type":"conversation.access-update"}

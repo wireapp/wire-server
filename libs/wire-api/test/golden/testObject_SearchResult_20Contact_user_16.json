@@ -1,1 +1,1 @@
-{"took":0,"found":-6,"documents":[{"handle":"","qualified_id":{"domain":"7-08x1.n-0md541y1-3l","id":"00000000-0000-0001-0000-000000000000"},"accent_id":0,"name":"","team":null,"id":"00000000-0000-0001-0000-000000000000"},{"handle":null,"qualified_id":{"domain":"6f.e0p","id":"00000001-0000-0000-0000-000100000001"},"accent_id":null,"name":"","team":null,"id":"00000001-0000-0000-0000-000100000001"}],"returned":-5}
+{"took":-7,"found":-4,"documents":[],"returned":4}

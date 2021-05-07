@@ -1,1 +1,1 @@
-{"event":{"conversation":"00002104-0000-4cae-0000-622f00007791","time":"1864-05-11T10:05:46.470Z","data":{"text":"\u001e\u0017\u000e㿳Y","data":"𔔒\u0018\u001fEE","sender":"4","recipient":"5"},"from":"00005d30-0000-344d-0000-1f42000004c0","type":"conversation.otr-message-add"}}
+{"event":{"conversation":"00006a93-0000-005c-0000-361e00000180","time":"1864-04-25T18:08:10.735Z","data":{"text":"","sender":"b","recipient":"1c"},"from":"00007bb6-0000-07cc-0000-687c00002703","type":"conversation.otr-message-add"}}
