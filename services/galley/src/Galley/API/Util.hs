@@ -322,6 +322,6 @@ instance
   type ServerT (Verb method 200 '[] DeleteResult) m = m DeleteResult
   hoistServerWithContext _ _ nt s = nt s
 
-  route Proxy _ = noContentRouter method status204
+  route Proxy _ = noContentRouter method status200
     where
       method = reflectMethod (Proxy :: Proxy method)
